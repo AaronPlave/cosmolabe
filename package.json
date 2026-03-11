@@ -1,0 +1,23 @@
+{
+  "name": "spicecraft",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Web SPICE geometry and 3D mission visualization",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint packages/ apps/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

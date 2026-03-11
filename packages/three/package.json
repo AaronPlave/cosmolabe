@@ -1,0 +1,19 @@
+{
+  "name": "@spicecraft/three",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Three.js rendering layer — syncs Universe to 3D scene graph",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@spicecraft/core": "*",
+    "@types/three": "^0.183.1"
+  },
+  "peerDependencies": {
+    "three": "^0.183.2"
+  }
+}

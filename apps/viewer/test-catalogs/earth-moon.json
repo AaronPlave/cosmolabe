@@ -1,0 +1,48 @@
+{
+  "name": "Earth + Moon",
+  "items": [
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "1.0au",
+        "eccentricity": 0.0167,
+        "inclination": 0.0,
+        "ascendingNode": 0.0,
+        "argumentOfPeriapsis": 102.937,
+        "meanAnomaly": 357.529,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radius": 6378 },
+      "label": { "color": [0.4, 0.6, 1.0] },
+      "items": [
+        {
+          "name": "Moon",
+          "class": "moon",
+          "center": "Earth",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 384400,
+            "eccentricity": 0.0549,
+            "inclination": 5.145,
+            "ascendingNode": 125.08,
+            "argumentOfPeriapsis": 318.15,
+            "meanAnomaly": 135.27,
+            "epoch": "2000-01-01T12:00:00Z"
+          },
+          "geometry": { "type": "Globe", "radius": 1737 },
+          "label": { "color": [0.7, 0.7, 0.7] }
+        }
+      ]
+    }
+  ]
+}

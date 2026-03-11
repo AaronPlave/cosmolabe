@@ -1,0 +1,223 @@
+{
+  "version": "1.0",
+  "name": "Inner Solar System (No SPICE Required)",
+  "items": [
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [0, 0, 0]
+      },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Mercury",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "0.387au",
+        "eccentricity": 0.2056,
+        "inclination": 7.005,
+        "ascendingNode": 48.331,
+        "argumentOfPeriapsis": 29.124,
+        "meanAnomaly": 174.796,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radius": 2439.7 },
+      "label": { "color": [0.7, 0.7, 0.7] }
+    },
+    {
+      "name": "Venus",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "0.723au",
+        "eccentricity": 0.0068,
+        "inclination": 3.3946,
+        "ascendingNode": 76.680,
+        "argumentOfPeriapsis": 54.884,
+        "meanAnomaly": 50.115,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radius": 6051.8 },
+      "label": { "color": [1.0, 0.85, 0.5] }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "1.0au",
+        "eccentricity": 0.0167,
+        "inclination": 0.0,
+        "ascendingNode": 0.0,
+        "argumentOfPeriapsis": 102.937,
+        "meanAnomaly": 100.464,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "rotationModel": {
+        "type": "Uniform",
+        "period": 0.99727,
+        "meridianAngle": 280.147
+      },
+      "geometry": { "type": "Globe", "radius": 6378.1 },
+      "label": { "color": [0.4, 0.6, 1.0] },
+      "items": [
+        {
+          "name": "Moon",
+          "class": "moon",
+          "center": "Earth",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 384400,
+            "eccentricity": 0.0549,
+            "inclination": 5.145,
+            "ascendingNode": 125.08,
+            "argumentOfPeriapsis": 318.15,
+            "meanAnomaly": 135.27,
+            "epoch": "2000-01-01T12:00:00Z"
+          },
+          "geometry": { "type": "Globe", "radius": 1737.4 },
+          "label": { "color": [0.7, 0.7, 0.7] }
+        }
+      ]
+    },
+    {
+      "name": "Mars",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "1.524au",
+        "eccentricity": 0.0934,
+        "inclination": 1.850,
+        "ascendingNode": 49.558,
+        "argumentOfPeriapsis": 286.502,
+        "meanAnomaly": 19.412,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radius": 3389.5 },
+      "label": { "color": [1.0, 0.5, 0.3] },
+      "items": [
+        {
+          "name": "Phobos",
+          "class": "moon",
+          "center": "Mars",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 9376,
+            "eccentricity": 0.0151,
+            "inclination": 1.093,
+            "ascendingNode": 0,
+            "argumentOfPeriapsis": 0,
+            "meanAnomaly": 0,
+            "epoch": "2000-01-01T12:00:00Z"
+          },
+          "geometry": { "type": "Globe", "radius": 11.267 },
+          "label": { "color": [0.6, 0.5, 0.4] }
+        },
+        {
+          "name": "Deimos",
+          "class": "moon",
+          "center": "Mars",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 23463,
+            "eccentricity": 0.0002,
+            "inclination": 0.93,
+            "ascendingNode": 0,
+            "argumentOfPeriapsis": 0,
+            "meanAnomaly": 180,
+            "epoch": "2000-01-01T12:00:00Z"
+          },
+          "geometry": { "type": "Globe", "radius": 6.2 },
+          "label": { "color": [0.6, 0.5, 0.4] }
+        }
+      ]
+    },
+    {
+      "name": "Explorer",
+      "class": "spacecraft",
+      "center": "Sun",
+      "arcs": [
+        {
+          "startTime": "2000-01-01T12:00:00Z",
+          "endTime": "2001-01-01T12:00:00Z",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": "1.00au",
+            "eccentricity": 0.02,
+            "inclination": 2.0,
+            "ascendingNode": 45.0,
+            "argumentOfPeriapsis": 90.0,
+            "meanAnomaly": 0.0,
+            "epoch": "2000-01-01T12:00:00Z"
+          }
+        },
+        {
+          "startTime": "2001-01-01T12:00:00Z",
+          "endTime": "2002-01-01T12:00:00Z",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": "1.04au",
+            "eccentricity": 0.058,
+            "inclination": 2.0,
+            "ascendingNode": 45.0,
+            "argumentOfPeriapsis": 93.0,
+            "meanAnomaly": 0.0,
+            "epoch": "2001-01-01T12:00:00Z"
+          }
+        },
+        {
+          "startTime": "2002-01-01T12:00:00Z",
+          "endTime": "2003-01-01T12:00:00Z",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": "1.10au",
+            "eccentricity": 0.109,
+            "inclination": 2.0,
+            "ascendingNode": 45.0,
+            "argumentOfPeriapsis": 96.0,
+            "meanAnomaly": 0.0,
+            "epoch": "2002-01-01T12:00:00Z"
+          }
+        },
+        {
+          "startTime": "2003-01-01T12:00:00Z",
+          "endTime": "2004-01-01T12:00:00Z",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": "1.20au",
+            "eccentricity": 0.183,
+            "inclination": 2.0,
+            "ascendingNode": 45.0,
+            "argumentOfPeriapsis": 99.0,
+            "meanAnomaly": 0.0,
+            "epoch": "2003-01-01T12:00:00Z"
+          }
+        },
+        {
+          "startTime": "2004-01-01T12:00:00Z",
+          "endTime": "2005-01-01T12:00:00Z",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": "1.35au",
+            "eccentricity": 0.274,
+            "inclination": 2.0,
+            "ascendingNode": 45.0,
+            "argumentOfPeriapsis": 102.0,
+            "meanAnomaly": 0.0,
+            "epoch": "2004-01-01T12:00:00Z"
+          }
+        }
+      ],
+      "geometry": { "type": "Globe", "radius": 5 },
+      "label": { "color": [0.2, 1.0, 0.4] }
+    }
+  ]
+}

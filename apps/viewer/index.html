@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpiceCraft Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; color: #ccc; font-family: monospace; }
+
+    #app { width: 100%; height: 100%; position: relative; }
+    #canvas { width: 100%; height: 100%; display: block; }
+
+    #drop-overlay {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85); z-index: 100;
+    }
+    #drop-overlay.hidden { display: none; }
+    #drop-overlay .inner {
+      text-align: center; padding: 60px; border: 2px dashed #4488ff; border-radius: 16px;
+    }
+    #drop-overlay h2 { font-size: 24px; color: #4488ff; margin-bottom: 12px; }
+    #drop-overlay p { font-size: 14px; color: #888; }
+
+    #controls {
+      position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 12px; align-items: center; background: rgba(0,0,0,0.7);
+      padding: 8px 16px; border-radius: 8px; z-index: 10;
+    }
+    #controls button {
+      background: #333; color: #ccc; border: 1px solid #555; border-radius: 4px;
+      padding: 4px 12px; cursor: pointer; font-family: monospace; font-size: 13px;
+    }
+    #controls button:hover { background: #444; }
+    #controls select, #controls input {
+      background: #222; color: #ccc; border: 1px solid #555; border-radius: 4px;
+      padding: 4px 8px; font-family: monospace; font-size: 12px;
+    }
+    #time-display {
+      font-size: 13px; color: #4488ff; min-width: 200px; text-align: center;
+    }
+    #info-panel {
+      position: absolute; top: 12px; left: 12px; font-size: 12px; color: #888;
+      z-index: 10; background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 6px;
+    }
+    #body-list {
+      position: absolute; top: 12px; right: 12px; font-size: 12px;
+      z-index: 10; background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 6px;
+      max-height: 50vh; overflow-y: auto;
+    }
+    #body-list .body-list-controls {
+      display: flex; gap: 4px; margin-bottom: 6px; border-bottom: 1px solid #333; padding-bottom: 6px;
+    }
+    #body-list .body-list-controls button {
+      background: #222; color: #888; border: 1px solid #444; border-radius: 3px;
+      padding: 2px 8px; cursor: pointer; font-family: monospace; font-size: 11px;
+    }
+    #body-list .body-list-controls button:hover { background: #333; color: #ccc; }
+    #body-list .body-item {
+      cursor: pointer; padding: 2px 4px; border-radius: 3px; display: flex; align-items: center; gap: 6px;
+    }
+    #body-list .body-item:hover { background: rgba(68,136,255,0.2); }
+    #body-list .body-item input[type="checkbox"] { accent-color: #4488ff; cursor: pointer; }
+    #body-list .body-item.hidden-body span { opacity: 0.35; }
+    .demo-btn {
+      background: #333; color: #4488ff; border: 1px solid #4488ff; border-radius: 4px;
+      padding: 6px 14px; cursor: pointer; font-family: monospace; font-size: 13px;
+    }
+    .demo-btn:hover { background: #224; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="canvas"></canvas>
+
+    <div id="drop-overlay">
+      <div class="inner">
+        <h2>SpiceCraft Viewer</h2>
+        <p>Drop Cosmographia catalog folder or files here<br>
+           (JSON catalogs + .bsp/.tls/.tpc kernel files + .xyzv data files)</p>
+        <p style="margin-top:16px; color:#666">Or click to browse files</p>
+        <input type="file" id="file-input" multiple accept=".json,.bsp,.tls,.tpc,.xyzv" style="display:none">
+        <div style="margin-top:24px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap">
+          <button class="demo-btn" data-catalog="minimal-earth">Sun + Earth</button>
+          <button class="demo-btn" data-catalog="earth-moon">Earth + Moon</button>
+          <button class="demo-btn" data-catalog="inner-solar-system">Inner Solar System</button>
+          <button class="demo-btn" data-catalog="builtin-planets">Builtin Planets</button>
+          <button class="demo-btn" data-catalog="asteroids">Asteroids</button>
+          <button class="demo-btn" data-catalog="saturn-system">Saturn System</button>
+        </div>
+        <div style="margin-top:20px; border-top:1px solid #333; padding-top:16px">
+          <button id="btn-load-naif" class="demo-btn" style="color:#6c6; border-color:#6c6">
+            Load NAIF Generic Kernels
+          </button>
+          <p id="naif-status" style="margin-top:8px; font-size:11px; color:#555">
+            Loads planets + Moon (~32 MB, run <code>scripts/fetch-kernels.sh</code> first)
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div id="info-panel"></div>
+    <div id="body-list"></div>
+
+    <div id="controls" class="hidden">
+      <button id="btn-play">Play</button>
+      <select id="rate-select">
+        <option value="1">1x</option>
+        <option value="60">1 min/s</option>
+        <option value="3600" selected>1 hr/s</option>
+        <option value="86400">1 day/s</option>
+        <option value="604800">1 wk/s</option>
+        <option value="2592000">1 mo/s</option>
+        <option value="31556952">1 yr/s</option>
+      </select>
+      <span id="time-display">--</span>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

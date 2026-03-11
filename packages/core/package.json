@@ -1,0 +1,16 @@
+{
+  "name": "@spicecraft/core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Universe model — zero rendering dependencies. Catalog loader, trajectories, geometry.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@spicecraft/spice": "*",
+    "satellite.js": "^6.0.2"
+  }
+}

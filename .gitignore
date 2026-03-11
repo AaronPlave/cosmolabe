@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.wasm
+*.data
+.DS_Store
+.env
+
+# NAIF SPICE kernels (large binaries, fetched by scripts/fetch-kernels.sh)
+apps/viewer/test-catalogs/kernels/*.bsp
+apps/viewer/test-catalogs/kernels/*.tls
+apps/viewer/test-catalogs/kernels/*.tpc
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Vite cache
+.vite/

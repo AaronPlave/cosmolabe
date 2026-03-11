@@ -1,0 +1,28 @@
+import type { SpiceCraftPlugin } from '@spicecraft/core';
+import type { Body, Universe } from '@spicecraft/core';
+
+/**
+ * Three.js renderer plugin. Extends the core plugin with 3D lifecycle hooks.
+ *
+ * Tier 2: Configurable built-in plugins (TrajectoryColor, LinkLine, ActivityMarker)
+ * Tier 3: Custom mission plugins (radar swath, instrument FOV, etc.)
+ *
+ * All scene/camera/renderer types are typed as `unknown` to avoid requiring
+ * three.js as a dependency of this interface file. Implementations cast as needed.
+ */
+export interface RendererPlugin extends SpiceCraftPlugin {
+  /** Called once when the renderer scene is initialized. */
+  onSceneSetup?(scene: unknown, camera: unknown, universe: Universe): void;
+
+  /** Called each frame before render. Update meshes, materials, etc. */
+  onRender?(et: number, scene: unknown, camera: unknown, universe: Universe): void;
+
+  /** Called each frame to update HTML overlay elements (labels, readouts). */
+  onOverlayUpdate?(et: number, container: HTMLElement, universe: Universe): void;
+
+  /** Called when a body is picked/clicked in the 3D view. */
+  onPick?(body: Body, et: number, universe: Universe): void;
+
+  /** Called when the renderer is resized. */
+  onResize?(width: number, height: number): void;
+}
