@@ -38,7 +38,8 @@ export class LabelManager {
     const material = new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      depthTest: false,
+      depthTest: true,
+      depthWrite: false,
       sizeAttenuation: false,
     });
     const sprite = new THREE.Sprite(material);
@@ -77,13 +78,16 @@ export class LabelManager {
       const bm = entry.bodyMesh;
       const sprite = entry.sprite;
 
-      // Offset label to the right of the body in screen space
+      // Offset label to start at the body's silhouette edge.
+      // Use the larger of: body's world-space radius, or a small fraction of camera distance
+      // (so labels are readable even when the body is a tiny dot).
       const dist = bm.position.distanceTo(camera.position);
-      const offsetScale = dist * 0.015;
+      const worldRadius = bm.displayRadius * bm.scaleFactor;
+      const offsetScale = Math.max(worldRadius * 1.3, dist * 0.015);
 
       sprite.position.copy(bm.position);
       sprite.position.addScaledVector(this.right, offsetScale);
-      sprite.position.addScaledVector(this.up, -offsetScale * 0.2);
+      sprite.position.addScaledVector(this.up, -offsetScale * 0.15);
 
       // Add to scene if not already
       if (!sprite.parent) {

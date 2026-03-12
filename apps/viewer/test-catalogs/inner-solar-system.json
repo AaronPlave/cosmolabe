@@ -54,7 +54,7 @@
         "type": "Keplerian",
         "semiMajorAxis": "1.0au",
         "eccentricity": 0.0167,
-        "inclination": 0.0,
+        "inclination": 23.44,
         "ascendingNode": 0.0,
         "argumentOfPeriapsis": 102.937,
         "meanAnomaly": 100.464,

@@ -1,7 +1,7 @@
 import { Universe } from "@spicecraft/core";
 import { Spice, type SpiceInstance } from "@spicecraft/spice";
 import { UniverseRenderer } from "@spicecraft/three";
-import { Box3, Vector3 } from "three";
+
 
 let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
@@ -156,11 +156,15 @@ async function collectDroppedFiles(
   return Array.from(dataTransfer.files);
 }
 
+const MODEL_EXTENSIONS = new Set([".gltf", ".glb", ".obj", ".cmod"]);
+const TEXTURE_EXTENSIONS = new Set([".dds", ".jpg", ".jpeg", ".png", ".bmp", ".tga"]);
+
 interface LoadedFiles {
   jsonFiles: Map<string, { json: Record<string, unknown>; text: string }>;
   kernelFiles: File[];
   dataFiles: Map<string, string>; // .xyzv and other data files by relative name
   binaryFiles: Map<string, ArrayBuffer>; // .cheb and other binary data files
+  modelFiles: Map<string, string>; // model files by name → blob URL
 }
 
 async function categorizeFiles(files: File[]): Promise<LoadedFiles> {
@@ -171,9 +175,11 @@ async function categorizeFiles(files: File[]): Promise<LoadedFiles> {
   const kernelFiles: File[] = [];
   const dataFiles = new Map<string, string>();
   const binaryFiles = new Map<string, ArrayBuffer>();
+  const modelFiles = new Map<string, string>();
 
   for (const file of files) {
     const name = file.name.toLowerCase();
+    const ext = name.slice(name.lastIndexOf("."));
     if (name.endsWith(".json")) {
       try {
         const text = await file.text();
@@ -199,9 +205,14 @@ async function categorizeFiles(files: File[]): Promise<LoadedFiles> {
       const webkitPath = (file as any).webkitRelativePath;
       binaryFiles.set(file.name, buf);
       if (webkitPath) binaryFiles.set(webkitPath, buf);
+    } else if (MODEL_EXTENSIONS.has(ext) || TEXTURE_EXTENSIONS.has(ext)) {
+      const blobUrl = URL.createObjectURL(file);
+      modelFiles.set(file.name, blobUrl);
+      const webkitPath = (file as any).webkitRelativePath;
+      if (webkitPath) modelFiles.set(webkitPath, blobUrl);
     }
   }
-  return { jsonFiles, kernelFiles, dataFiles, binaryFiles };
+  return { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles };
 }
 
 /**
@@ -268,7 +279,7 @@ async function handleDrop(dataTransfer: DataTransfer) {
 
 async function handleFileList(files: File[]) {
   infoPanel.textContent = `Processing ${files.length} file(s)...`;
-  const { jsonFiles, kernelFiles, dataFiles, binaryFiles } = await categorizeFiles(files);
+  const { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles } = await categorizeFiles(files);
 
   if (jsonFiles.size === 0 && kernelFiles.length === 0) return;
 
@@ -312,7 +323,7 @@ async function handleFileList(files: File[]) {
     );
     infoPanel.textContent = `Loading ${catalogs.length} catalog(s)...`;
     if (catalogs.length > 0) {
-      initScene(catalogs, dataFiles, binaryFiles);
+      initScene(catalogs, dataFiles, binaryFiles, modelFiles);
     }
   }
 }
@@ -357,6 +368,7 @@ function initScene(
   catalogs: Record<string, unknown>[],
   dataFiles?: Map<string, string>,
   binaryFiles?: Map<string, ArrayBuffer>,
+  modelFiles?: Map<string, string>,
 ) {
   // Clean up previous
   renderer?.dispose();
@@ -399,6 +411,9 @@ function initScene(
     showStars: true,
     trajectoryOptions: { trailDuration: 86400 * 30, numPoints: 300 },
     minBodyPixels: 4,
+    modelResolver: modelFiles && modelFiles.size > 0
+      ? (source: string) => findInMap(modelFiles, source)
+      : undefined,
   });
 
   // Position camera to see the solar system
@@ -505,36 +520,8 @@ function buildBodyList(bodies: { name: string; classification?: string }[]) {
       } else {
         const bm = renderer.getBodyMesh(body.name);
         if (bm) {
+          renderer.cameraController.zoomTo(bm, 1e-6);
           renderer.cameraController.track(bm);
-          // TODO zoom to fit the body mesh
-          const boundingBox = new Box3().setFromObject(bm);
-          const size = new Vector3();
-          boundingBox.getSize(size);
-          const center = new Vector3();
-          boundingBox.getCenter(center);
-          const fov = renderer.camera.fov * (Math.PI / 180); // Convert vertical FOV to radians
-          const fovh =
-            2 * Math.atan(Math.tan(fov / 2) * renderer.camera.aspect); // Calculate horizontal FOV
-
-          const dx = size.z / 2 + Math.abs(size.x / 2 / Math.tan(fovh / 2));
-          const dy = size.z / 2 + Math.abs(size.y / 2 / Math.tan(fov / 2));
-          let cameraZ = Math.max(dx, dy); // Select the max distance to fit both dimensions
-
-          // Optional: Add an offset to prevent the object from filling the screen exactly
-          const offset = 1.2;
-          cameraZ *= offset;
-          renderer.camera.position.set(center.x, center.y, center.z + cameraZ);
-          // if (renderer.cameraController) {
-          //   renderer.cameraController.controls.target.set(center.x, center.y, center.z);
-          //   renderer.cameraController.update(); // Apply the changes
-          //   // Adjust camera far plane if necessary
-          //   renderer.camera.far = cameraZ * 3;
-          //   renderer.camera.updateProjectionMatrix();
-          //   // Optional: limit how far the camera can zoom out
-          //   renderer.cameraController.controls.maxDistance = cameraZ * 2;
-          // } else {
-          //   renderer.camera.lookAt(center);
-          // }
         }
       }
     });
@@ -577,3 +564,13 @@ function onResize() {
 
 window.addEventListener("resize", onResize);
 onResize();
+
+// Keyboard shortcuts
+let axesShown = false;
+document.addEventListener("keydown", (e) => {
+  if (e.target !== document.body) return; // ignore when typing in inputs
+  if (e.key === "x" && !e.ctrlKey && !e.metaKey) {
+    axesShown = !axesShown;
+    renderer?.showBodyAxes(axesShown);
+  }
+});

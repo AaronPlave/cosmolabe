@@ -585,12 +585,28 @@ export class CatalogLoader {
         const periodSec = typeof periodRaw === 'string'
           ? parseValueWithUnit(periodRaw, 86400)
           : periodRaw * 86400;
+
+        // Pole direction: ascension/declination are direct pole coords;
+        // inclination/ascendingNode use orbital element convention and need conversion.
+        // Cosmographia's inclination = tilt of equator from reference plane (0° = pole at ref north).
+        let poleRaDeg: number;
+        let poleDecDeg: number;
+        if (spec.ascension != null || spec.declination != null) {
+          poleRaDeg = spec.ascension ?? 0;
+          poleDecDeg = spec.declination ?? 90;
+        } else {
+          const incDeg = spec.inclination ?? 0;
+          const nodeDeg = spec.ascendingNode ?? 0;
+          poleDecDeg = 90 - incDeg;
+          poleRaDeg = nodeDeg - 90;
+        }
+
         return new UniformRotation(
           periodSec,
           spec.epoch ? this.parseEpochValue(spec.epoch) : 0,
           (spec.meridianAngle ?? 0) * Math.PI / 180,
-          (spec.ascension ?? (spec.ascendingNode ?? 0)) * Math.PI / 180,
-          (spec.declination ?? (spec.inclination ?? 0)) * Math.PI / 180,
+          poleRaDeg * Math.PI / 180,
+          poleDecDeg * Math.PI / 180,
         );
       }
 

@@ -60,6 +60,12 @@ export class TrajectoryLine extends THREE.Object3D {
   private readonly orbitPeriod: number;
   private readonly orbitNumPoints: number;
 
+  // Cache: separate expensive sample computation from cheap offset application
+  private lastComputedEt = -Infinity;
+  private cachedSamples: Sample[] = [];
+  private cachedStartEt = 0;
+  private cachedTotalDuration = 0;
+
   // Time bounds
   private readonly minTime?: number;
   private readonly maxTime?: number;
@@ -99,6 +105,7 @@ export class TrajectoryLine extends THREE.Object3D {
       vertexColors: true,
       transparent: true,
       opacity: options.opacity ?? 0.8,
+      depthWrite: false,
     });
     this.trailLine = new THREE.Line(trailGeometry, trailMaterial);
     this.add(this.trailLine);
@@ -113,6 +120,7 @@ export class TrajectoryLine extends THREE.Object3D {
         color: colorHex,
         transparent: true,
         opacity: options.orbitOpacity ?? 0.35,
+        depthWrite: false,
       });
       this.orbitLine = new THREE.LineLoop(orbitGeometry, orbitMaterial);
       this.add(this.orbitLine);
@@ -124,7 +132,11 @@ export class TrajectoryLine extends THREE.Object3D {
     this.visible = visible;
   }
 
-  update(et: number, scaleFactor: number, resolvePos?: PositionResolver, camera?: THREE.Camera, canvasHeight?: number): void {
+  /**
+   * @param vertexOffset - km offset added to all vertex positions (in Float64) before Float32 conversion.
+   *   Keeps vertices near origin for GPU precision. Typically (arcCenter - sceneOrigin) in km.
+   */
+  update(et: number, scaleFactor: number, resolvePos?: PositionResolver, _camera?: THREE.Camera, _canvasHeight?: number, vertexOffset?: [number, number, number]): void {
     if (!this.userVisible) return;
 
     const resolver = this.fixedResolver ?? resolvePos;
@@ -135,7 +147,18 @@ export class TrajectoryLine extends THREE.Object3D {
     }
     this.visible = true;
 
-    // Compute time window
+    // Phase 1: Recompute trajectory samples only when time changes (expensive)
+    if (et !== this.lastComputedEt) {
+      this.lastComputedEt = et;
+      this.recomputeSamples(et, resolver);
+    }
+
+    // Phase 2: Apply offset and write to Float32 buffers (cheap, every frame)
+    this.applyOffset(scaleFactor, vertexOffset);
+  }
+
+  /** Recompute trajectory samples — only called when et changes */
+  private recomputeSamples(et: number, resolver?: PositionResolver): void {
     let endEt = et + this.leadDuration;
     if (this.maxTime != null && endEt > this.maxTime) endEt = this.maxTime;
 
@@ -145,71 +168,53 @@ export class TrajectoryLine extends THREE.Object3D {
     if (trajStart != null && startEt < trajStart) startEt = trajStart;
 
     const totalDuration = endEt - startEt;
+    this.cachedStartEt = startEt;
+    this.cachedTotalDuration = totalDuration;
+
     if (totalDuration <= 0) {
-      this.trailLine.geometry.setDrawRange(0, 0);
+      this.cachedSamples = [];
       return;
     }
 
-    // Screen-space threshold for subdivision (radians per pixel × pixels)
-    let threshold = 0; // 0 = no adaptive
-    let camLocalX = 0, camLocalY = 0, camLocalZ = 0;
-    if (camera && canvasHeight && canvasHeight > 0 && camera instanceof THREE.PerspectiveCamera) {
-      const pixelScale = 2 * Math.tan(camera.fov * Math.PI / 360) / canvasHeight;
-      threshold = this.subdivisionPixels * pixelScale;
-      camLocalX = camera.position.x - this.position.x;
-      camLocalY = camera.position.y - this.position.y;
-      camLocalZ = camera.position.z - this.position.z;
-    }
+    // Curvature threshold: 0.5% deviation ratio for smooth curves
+    const curvatureThreshold = this.subdivisionPixels > 0 ? 0.005 / this.subdivisionPixels : 0;
 
-    // Phase 1: Coarse uniform samples
-    const coarseCount = Math.min(this.numCoarse, this.maxPoints);
-    const coarseSamples: Sample[] = new Array(coarseCount);
-    const dt = totalDuration / (coarseCount - 1);
-    for (let i = 0; i < coarseCount; i++) {
-      const t = startEt + i * dt;
+    // Coarse samples anchored to fixed time grid
+    const dt = totalDuration / (Math.min(this.numCoarse, this.maxPoints) - 1);
+    const gridStart = Math.ceil(startEt / dt) * dt;
+    const coarseSamples: Sample[] = [];
+    {
+      const pos = this.resolveAt(startEt, resolver);
+      coarseSamples.push({ t: startEt, x: pos[0], y: pos[1], z: pos[2] });
+    }
+    for (let t = gridStart; t < endEt; t += dt) {
+      if (t <= startEt) continue;
       const pos = this.resolveAt(t, resolver);
-      coarseSamples[i] = { t, x: pos[0], y: pos[1], z: pos[2] };
+      coarseSamples.push({ t, x: pos[0], y: pos[1], z: pos[2] });
+    }
+    {
+      const pos = this.resolveAt(endEt, resolver);
+      coarseSamples.push({ t: endEt, x: pos[0], y: pos[1], z: pos[2] });
     }
 
-    // Phase 2: Pure recursive subdivision like Cosmographia's curveplot.cpp.
-    // Each coarse segment recurses to whatever depth it needs.
-    // Segments near the camera get deeply subdivided; distant segments stay coarse.
+    // Recursive subdivision
+    const maxDepth = 12;
+    const finalSamples: Sample[] = [];
 
-    const maxDepth = 14;
-    let vertIdx = 0;
-
-    const emitVertex = (s: Sample): void => {
-      if (vertIdx >= this.maxPoints) return;
-      this.trailPositions[vertIdx * 3] = s.x * scaleFactor;
-      this.trailPositions[vertIdx * 3 + 1] = s.y * scaleFactor;
-      this.trailPositions[vertIdx * 3 + 2] = s.z * scaleFactor;
-
-      const fadeT = (s.t - startEt) / totalDuration;
-      const fade = this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
-      this.trailColors[vertIdx * 3] = this.baseColor.r * fade;
-      this.trailColors[vertIdx * 3 + 1] = this.baseColor.g * fade;
-      this.trailColors[vertIdx * 3 + 2] = this.baseColor.b * fade;
-      vertIdx++;
-    };
-
-    // Recursively subdivide segment [s0, s1). Emits s0, subdivides interior, but NOT s1.
     const subdivide = (s0: Sample, s1: Sample, depth: number): void => {
-      if (vertIdx >= this.maxPoints) return;
+      if (finalSamples.length >= this.maxPoints) return;
 
-      if (threshold > 0 && depth < maxDepth) {
+      if (curvatureThreshold > 0 && depth < maxDepth) {
         const midT = (s0.t + s1.t) * 0.5;
         const midPos = this.resolveAt(midT, resolver);
         const linMx = (s0.x + s1.x) * 0.5, linMy = (s0.y + s1.y) * 0.5, linMz = (s0.z + s1.z) * 0.5;
         const devX = midPos[0] - linMx, devY = midPos[1] - linMy, devZ = midPos[2] - linMz;
-        const deviationScene = Math.sqrt(devX * devX + devY * devY + devZ * devZ) * scaleFactor;
+        const deviation = Math.sqrt(devX * devX + devY * devY + devZ * devZ);
 
-        const mx = linMx * scaleFactor, my = linMy * scaleFactor, mz = linMz * scaleFactor;
-        const dx = mx - camLocalX, dy = my - camLocalY, dz = mz - camLocalZ;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const chordX = s1.x - s0.x, chordY = s1.y - s0.y, chordZ = s1.z - s0.z;
+        const chordLen = Math.sqrt(chordX * chordX + chordY * chordY + chordZ * chordZ);
 
-        // Only subdivide based on curvature (midpoint deviation from chord),
-        // not chord length. Long straight segments don't need splitting.
-        if (dist > 0 && deviationScene / dist >= threshold) {
+        if (chordLen > 0 && deviation / chordLen > curvatureThreshold) {
           const mid: Sample = { t: midT, x: midPos[0], y: midPos[1], z: midPos[2] };
           subdivide(s0, mid, depth + 1);
           subdivide(mid, s1, depth + 1);
@@ -217,34 +222,72 @@ export class TrajectoryLine extends THREE.Object3D {
         }
       }
 
-      emitVertex(s0);
+      finalSamples.push(s0);
     };
 
-    for (let i = 0; i < coarseCount - 1 && vertIdx < this.maxPoints; i++) {
+    for (let i = 0; i < coarseSamples.length - 1 && finalSamples.length < this.maxPoints; i++) {
       subdivide(coarseSamples[i], coarseSamples[i + 1], 0);
     }
-    if (vertIdx < this.maxPoints) {
-      emitVertex(coarseSamples[coarseCount - 1]);
+    if (finalSamples.length < this.maxPoints) {
+      finalSamples.push(coarseSamples[coarseSamples.length - 1]);
     }
 
-    const count = vertIdx;
+    this.cachedSamples = finalSamples;
 
-    this.trailLine.geometry.setDrawRange(0, count);
+    // Orbit ring samples (stored separately as they use different time range)
+    if (this.orbitLine && this.orbitPositions && this.orbitPeriod > 0) {
+      const orbitDt = this.orbitPeriod / this.orbitNumPoints;
+      // Store orbit samples in _orbitSamples for offset application
+      if (!this._orbitSamples) this._orbitSamples = [];
+      this._orbitSamples.length = this.orbitNumPoints;
+      for (let i = 0; i < this.orbitNumPoints; i++) {
+        const t = this.lastComputedEt + i * orbitDt;
+        const pos = this.resolveAt(t);
+        this._orbitSamples[i] = { t, x: pos[0], y: pos[1], z: pos[2] };
+      }
+    }
+  }
+
+  private _orbitSamples?: Sample[];
+
+  /** Apply vertex offset and write to Float32 buffers — called every frame */
+  private applyOffset(scaleFactor: number, vertexOffset?: [number, number, number]): void {
+    const samples = this.cachedSamples;
+    if (samples.length === 0) {
+      this.trailLine.geometry.setDrawRange(0, 0);
+      return;
+    }
+
+    const offX = vertexOffset?.[0] ?? 0, offY = vertexOffset?.[1] ?? 0, offZ = vertexOffset?.[2] ?? 0;
+    const startEt = this.cachedStartEt;
+    const totalDuration = this.cachedTotalDuration;
+
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
+      this.trailPositions[i * 3] = (s.x + offX) * scaleFactor;
+      this.trailPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
+      this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
+
+      const fadeT = (s.t - startEt) / totalDuration;
+      const fade = this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
+      this.trailColors[i * 3] = this.baseColor.r * fade;
+      this.trailColors[i * 3 + 1] = this.baseColor.g * fade;
+      this.trailColors[i * 3 + 2] = this.baseColor.b * fade;
+    }
+
+    this.trailLine.geometry.setDrawRange(0, samples.length);
     this.trailLine.geometry.attributes.position.needsUpdate = true;
     this.trailLine.geometry.attributes.color.needsUpdate = true;
     this.trailLine.geometry.computeBoundingSphere();
 
-    // Full orbit ring
-    if (this.orbitLine && this.orbitPositions && this.orbitPeriod > 0) {
-      const orbitDt = this.orbitPeriod / this.orbitNumPoints;
-      for (let i = 0; i < this.orbitNumPoints; i++) {
-        const t = et + i * orbitDt;
-        const pos = this.resolveAt(t, resolver);
-        this.orbitPositions[i * 3] = pos[0] * scaleFactor;
-        this.orbitPositions[i * 3 + 1] = pos[1] * scaleFactor;
-        this.orbitPositions[i * 3 + 2] = pos[2] * scaleFactor;
+    // Orbit ring
+    if (this.orbitLine && this.orbitPositions && this._orbitSamples) {
+      for (let i = 0; i < this._orbitSamples.length; i++) {
+        const s = this._orbitSamples[i];
+        this.orbitPositions[i * 3] = (s.x + offX) * scaleFactor;
+        this.orbitPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
+        this.orbitPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
       }
-
       this.orbitLine.geometry.attributes.position.needsUpdate = true;
       this.orbitLine.geometry.computeBoundingSphere();
     }

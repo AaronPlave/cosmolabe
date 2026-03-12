@@ -32,6 +32,8 @@ export interface UniverseRendererOptions {
   trajectoryFilter?: (body: Body) => boolean;
   /** Minimum screen pixels for any body (ensures visibility). Default 4. Set 0 for real scale. */
   minBodyPixels?: number;
+  /** Resolve a model source path (from catalog geometry.source) to a loadable URL */
+  modelResolver?: (source: string) => string | undefined;
 }
 
 // Classes that should NOT show trajectories by default
@@ -82,7 +84,9 @@ export class UniverseRenderer {
 
     // Scene
     this.scene = new THREE.Scene();
-    this.scene.add(new THREE.AmbientLight(0x333333));
+    const ambient = new THREE.AmbientLight(0x333333);
+    ambient.layers.enableAll();
+    this.scene.add(ambient);
 
     // Camera
     this.camera = new THREE.PerspectiveCamera(
@@ -186,61 +190,94 @@ export class UniverseRenderer {
     const canvasHeight = this.renderer.domElement.clientHeight;
     const halfFovTan = Math.tan((this.camera.fov * Math.PI / 180) / 2);
 
-    // Update body positions with absolute coordinates + dynamic sizing
+    // Origin body: the tracked body's absolute position becomes scene origin (0,0,0).
+    // This keeps the camera near the origin, avoiding Float32 precision loss in the GPU.
+    const originBody = this.cameraController.trackedBody?.body.name;
+    const originAbsPos: [number, number, number] = originBody
+      ? this.absolutePositionOf(originBody, et)
+      : [0, 0, 0];
+
+    // Update body positions relative to origin body
     for (const bm of this.bodyMeshes.values()) {
       const absPos = this.absolutePositionOf(bm.body.name, et);
-      bm.updatePosition(absPos, et, this.scaleFactor);
+      const relPos: [number, number, number] = [
+        absPos[0] - originAbsPos[0],
+        absPos[1] - originAbsPos[1],
+        absPos[2] - originAbsPos[2],
+      ];
+      bm.updatePosition(relPos, et, this.scaleFactor);
 
-      // Dynamic body sizing: ensure bodies are at least minBodyPixels on screen
-      if (this.minBodyPixels > 0) {
-        const dist = bm.position.distanceTo(this.camera.position);
-        const realSceneRadius = bm.displayRadius * this.scaleFactor;
-        const screenPixels = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
+      // Cosmographia-style visibility: real scale always, fade/hide when too small.
+      // Show placeholder marker when model is below threshold, show model when large enough.
+      const dist = bm.position.distanceTo(this.camera.position);
+      const realSceneRadius = bm.displayRadius * this.scaleFactor;
+      const screenPixels = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
 
-        if (screenPixels < this.minBodyPixels) {
-          // Scale up so body appears as minBodyPixels on screen
-          const minSceneRadius = this.minBodyPixels * dist * 2 * halfFovTan / canvasHeight;
-          bm.mesh.scale.setScalar(minSceneRadius / bm.displayRadius);
+      bm.scale.setScalar(1); // Always real scale
+
+      if (bm.hasModel) {
+        const MODEL_SHOW_PX = 2;   // Show model when > 2px
+        const MODEL_FADE_PX = 5;   // Fully opaque at 5px
+        if (screenPixels >= MODEL_SHOW_PX) {
+          // Show model, hide placeholder
+          bm.setModelVisible(true);
+          bm.mesh.visible = false;
+          // Fade in model between 2-5px
+          const opacity = Math.min(1, (screenPixels - MODEL_SHOW_PX) / (MODEL_FADE_PX - MODEL_SHOW_PX));
+          bm.setModelOpacity(opacity);
         } else {
-          bm.mesh.scale.setScalar(this.scaleFactor);
+          // Too small: hide model, show placeholder marker
+          bm.setModelVisible(false);
+          bm.mesh.visible = true;
         }
-      } else {
+      }
+
+      // Placeholder sphere: clamp to minBodyPixels so it's always a visible dot
+      if (bm.mesh.visible && this.minBodyPixels > 0 && screenPixels < this.minBodyPixels) {
+        const minSceneRadius = this.minBodyPixels * dist * 2 * halfFovTan / canvasHeight;
+        bm.mesh.scale.setScalar(minSceneRadius / realSceneRadius);
+      } else if (bm.mesh.visible) {
         bm.mesh.scale.setScalar(this.scaleFactor);
       }
     }
 
-    // Update trajectory lines
+    // Update trajectory lines.
+    // Vertices are offset in Float64 (km) so they're near origin in scene space,
+    // eliminating Float32 precision jitter on the GPU.
     for (const tl of this.trajectoryLines.values()) {
-      // Determine the center body for this trajectory line.
-      // For composite arc lines, _arcCenterName is set during construction.
-      // For regular child bodies, use parentName.
       const arcCenter = (tl as any)._arcCenterName as string | undefined;
       const parentName = tl.body.parentName;
       const centerName = arcCenter ?? parentName;
 
-      if (centerName) {
-        // Render in center-body-relative coordinates and offset the Object3D.
-        // This avoids Float32 precision loss when small orbits are offset by huge distances.
-        const centerAbsNow = this.absolutePositionOf(centerName, et);
-        tl.position.set(
-          centerAbsNow[0] * this.scaleFactor,
-          centerAbsNow[1] * this.scaleFactor,
-          centerAbsNow[2] * this.scaleFactor,
-        );
+      // Object3D at origin — all offset is baked into vertices via vertexOffset
+      tl.position.set(0, 0, 0);
 
-        // For non-arc child bodies, build a relative resolver (arc lines already have fixedResolver)
+      if (centerName) {
+        // vertexOffset = (centerAbs - originAbs) in km, so vertices become origin-relative
+        const centerAbsNow = this.absolutePositionOf(centerName, et);
+        const vertOff: [number, number, number] = [
+          centerAbsNow[0] - originAbsPos[0],
+          centerAbsNow[1] - originAbsPos[1],
+          centerAbsNow[2] - originAbsPos[2],
+        ];
+
         if (!arcCenter && parentName) {
           const relativeResolver: typeof this.absolutePositionOf = (name, t) => {
             const state = this.universe.getBody(name)!.stateAt(t);
             return state.position as [number, number, number];
           };
-          tl.update(et, this.scaleFactor, relativeResolver, this.camera, canvasHeight);
+          tl.update(et, this.scaleFactor, relativeResolver, undefined, undefined, vertOff);
         } else {
-          tl.update(et, this.scaleFactor, undefined, this.camera, canvasHeight);
+          tl.update(et, this.scaleFactor, undefined, undefined, undefined, vertOff);
         }
       } else {
-        tl.position.set(0, 0, 0);
-        tl.update(et, this.scaleFactor, this.absolutePositionOf, this.camera, canvasHeight);
+        // Absolute positions — offset by origin
+        const vertOff: [number, number, number] = [
+          -originAbsPos[0],
+          -originAbsPos[1],
+          -originAbsPos[2],
+        ];
+        tl.update(et, this.scaleFactor, this.absolutePositionOf, undefined, undefined, vertOff);
       }
     }
 
@@ -279,7 +316,57 @@ export class UniverseRenderer {
       plugin.onRender?.(et, this.scene, this.camera, this.universe);
     }
 
+    // Dynamic near/far: adjust based on distance to orbit target
+    const camDist = this.camera.position.distanceTo(this.cameraController.controls.target);
+    this.camera.near = Math.max(1e-12, camDist * 1e-5);
+    this.camera.far = Math.max(1e6, camDist * 1e6);
+    this.camera.updateProjectionMatrix();
+
+    // --- Multi-pass rendering ---
+    this.renderer.autoClear = false;
+
+    // Pass 1: Scene without models (layer 0) — log depth for cosmic scale
+    this.camera.layers.set(0);
+    this.renderer.clear(true, true, true);
     this.renderer.render(this.scene, this.camera);
+
+    // Pass 2: Models only (layer 1) — standard depth with tight near/far
+    // Models strip the logdepthbuf shader chunks so hardware depth interpolation
+    // handles intra-model face sorting with full float32 precision.
+    let hasVisibleModels = false;
+    let minModelDist = Infinity;
+    let maxModelDist = 0;
+    for (const bm of this.bodyMeshes.values()) {
+      if (bm.isModelVisible) {
+        const d = bm.position.distanceTo(this.camera.position);
+        if (d > 0) {
+          hasVisibleModels = true;
+          if (d < minModelDist) minModelDist = d;
+          if (d > maxModelDist) maxModelDist = d;
+        }
+      }
+    }
+
+    if (hasVisibleModels) {
+      const savedNear = this.camera.near;
+      const savedFar = this.camera.far;
+
+      // Tight near/far: ratio ~100× gives standard depth enough precision
+      this.camera.near = Math.max(1e-15, minModelDist * 0.1);
+      this.camera.far = Math.max(maxModelDist * 10, minModelDist * 100);
+      this.camera.updateProjectionMatrix();
+
+      this.camera.layers.set(1);
+      this.renderer.clearDepth();
+      this.renderer.render(this.scene, this.camera);
+
+      // Restore camera
+      this.camera.near = savedNear;
+      this.camera.far = savedFar;
+      this.camera.updateProjectionMatrix();
+    }
+
+    this.camera.layers.enableAll();
   }
 
   resize(width: number, height: number): void {
@@ -293,6 +380,18 @@ export class UniverseRenderer {
 
   getBodyMesh(name: string): BodyMesh | undefined {
     return this.bodyMeshes.get(name);
+  }
+
+  /** Toggle body-fixed orientation axes for a body (or all bodies if no name given).
+   *  Red=X (prime meridian), Green=Y, Blue=Z (pole). */
+  showBodyAxes(show: boolean, bodyName?: string): void {
+    if (bodyName) {
+      this.bodyMeshes.get(bodyName)?.showAxes(show);
+    } else {
+      for (const bm of this.bodyMeshes.values()) {
+        bm.showAxes(show);
+      }
+    }
   }
 
   /** Toggle visibility of a body's mesh, trajectory line(s), and label */
@@ -354,6 +453,16 @@ export class UniverseRenderer {
       bm.mesh.scale.setScalar(this.scaleFactor);
       this.bodyMeshes.set(body.name, bm);
       this.scene.add(bm);
+
+      // Load 3D model if geometry type is Mesh
+      if (body.geometryType === 'Mesh' && body.geometryData?.source) {
+        const source = body.geometryData.source as string;
+        const resolver = this.options.modelResolver;
+        const url = resolver?.(source);
+        if (url) {
+          bm.loadModel(url, this.scaleFactor, source, resolver);
+        }
+      }
 
       // Create trajectory line if applicable
       if (this.shouldShowTrajectory(body)) {
@@ -429,6 +538,7 @@ export class UniverseRenderer {
     const sun = this.bodyMeshes.get('Sun');
     if (sun) {
       this.sunLight = new THREE.PointLight(0xffffff, 2, 0, 0);
+      this.sunLight.layers.enableAll();
       this.sunLight.position.copy(sun.position);
       this.scene.add(this.sunLight);
     }

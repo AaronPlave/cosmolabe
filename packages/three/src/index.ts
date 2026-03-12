@@ -4,6 +4,7 @@ export type { UniverseRendererOptions } from './UniverseRenderer.js';
 
 // Scene components
 export { BodyMesh } from './BodyMesh.js';
+export type { ModelResolver } from './BodyMesh.js';
 export { TrajectoryLine } from './TrajectoryLine.js';
 export type { TrajectoryLineOptions, PositionResolver } from './TrajectoryLine.js';
 export { SensorFrustum } from './SensorFrustum.js';
