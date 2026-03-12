@@ -1,0 +1,109 @@
+{
+  "name": "Sensor Frustum Demo",
+  "items": [
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Earth" },
+      "geometry": { "type": "Globe", "radius": 6371 },
+      "label": { "color": [0.4, 0.6, 1.0] },
+      "items": [
+        {
+          "name": "Moon",
+          "class": "moon",
+          "center": "Earth",
+          "trajectory": { "type": "Builtin", "name": "Moon" },
+          "geometry": { "type": "Globe", "radius": 1737 },
+          "label": { "color": [0.7, 0.7, 0.7] }
+        },
+        {
+          "name": "WeatherSat",
+          "class": "spacecraft",
+          "center": "Earth",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 42164,
+            "eccentricity": 0.0001,
+            "inclination": 0.1,
+            "ascendingNode": 75.0,
+            "argOfPeriapsis": 0.0,
+            "meanAnomaly": 0.0,
+            "epoch": "2000-01-01T12:00:00Z"
+          },
+          "geometry": {
+            "type": "Sensor",
+            "target": "Earth",
+            "shape": "rectangular",
+            "horizontalFov": 18,
+            "verticalFov": 12,
+            "frustumColor": [0.2, 0.8, 1.0],
+            "frustumOpacity": 0.2
+          },
+          "label": { "color": [0.2, 0.8, 1.0] },
+          "trajectoryPlot": { "color": [0.2, 0.8, 1.0], "fade": 0.5 }
+        },
+        {
+          "name": "ReconSat",
+          "class": "spacecraft",
+          "center": "Earth",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 7000,
+            "eccentricity": 0.001,
+            "inclination": 97.4,
+            "ascendingNode": 120.0,
+            "argOfPeriapsis": 0.0,
+            "meanAnomaly": 45.0,
+            "epoch": "2000-01-01T12:00:00Z"
+          },
+          "geometry": {
+            "type": "Sensor",
+            "target": "Earth",
+            "shape": "elliptical",
+            "horizontalFov": 2.5,
+            "verticalFov": 1.8,
+            "frustumColor": [1.0, 0.3, 0.3],
+            "frustumOpacity": 0.25
+          },
+          "label": { "color": [1.0, 0.3, 0.3] },
+          "trajectoryPlot": { "color": [1.0, 0.3, 0.3], "fade": 0.5 }
+        },
+        {
+          "name": "DeepSpaceProbe",
+          "class": "spacecraft",
+          "center": "Earth",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 50000,
+            "eccentricity": 0.5,
+            "inclination": 28.5,
+            "ascendingNode": 200.0,
+            "argOfPeriapsis": 45.0,
+            "meanAnomaly": 90.0,
+            "epoch": "2000-01-01T12:00:00Z"
+          },
+          "geometry": {
+            "type": "Sensor",
+            "target": "Moon",
+            "shape": "elliptical",
+            "horizontalFov": 8,
+            "verticalFov": 8,
+            "range": 100000,
+            "frustumColor": [0.3, 1.0, 0.3],
+            "frustumOpacity": 0.15
+          },
+          "label": { "color": [0.3, 1.0, 0.3] },
+          "trajectoryPlot": { "color": [0.3, 1.0, 0.3], "fade": 0.5 }
+        }
+      ]
+    }
+  ]
+}

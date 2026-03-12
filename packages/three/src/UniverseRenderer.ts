@@ -281,10 +281,14 @@ export class UniverseRenderer {
       }
     }
 
-    // Update sensor frustums
+    // Update sensor frustums (origin-relative, same as body meshes)
+    const originRelResolver = (name: string, t: number): [number, number, number] => {
+      const abs = this.absolutePositionOf(name, t);
+      return [abs[0] - originAbsPos[0], abs[1] - originAbsPos[1], abs[2] - originAbsPos[2]];
+    };
     for (const sf of this.sensorFrustums.values()) {
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
-      sf.update(et, this.scaleFactor, targetBody, this.absolutePositionOf);
+      sf.update(et, this.scaleFactor, targetBody, originRelResolver);
     }
 
     // Update event markers
