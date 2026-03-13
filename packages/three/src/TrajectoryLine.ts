@@ -145,6 +145,11 @@ export class TrajectoryLine extends THREE.Object3D {
       this.visible = false;
       return;
     }
+    // Hide past arcs once the trail window has moved entirely past their end
+    if (this.maxTime != null && et - this.trailDuration > this.maxTime) {
+      this.visible = false;
+      return;
+    }
     this.visible = true;
 
     // Phase 1: Recompute trajectory samples only when time changes (expensive)

@@ -41,6 +41,12 @@ export class EventMarkers extends THREE.Object3D {
   private readonly options: EventMarkersOptions;
   private readonly parentBody: Body | undefined;
   private readonly textures = new Map<EventMarkerType, THREE.Texture>();
+  /** Last window used for auto-detection, so we know when to re-detect */
+  private detectionStart = 0;
+  private detectionEnd = 0;
+  /** Per-body trail/lead durations so markers align with the trajectory line */
+  trailDuration = 86400;
+  leadDuration = 0;
 
   constructor(body: Body, parentBody: Body | undefined, options: EventMarkersOptions = {}) {
     super();
@@ -63,25 +69,33 @@ export class EventMarkers extends THREE.Object3D {
   detectExtrema(startEt: number, endEt: number, numSamples = 500): void {
     if (!this.parentBody) return;
 
+    this.detectionStart = startEt;
+    this.detectionEnd = endEt;
+
     const dt = (endEt - startEt) / (numSamples - 1);
     const distances: number[] = [];
     const times: number[] = [];
 
     for (let i = 0; i < numSamples; i++) {
       const t = startEt + i * dt;
-      const s = this.body.stateAt(t);
-      const p = this.parentBody.stateAt(t);
-      const dx = s.position[0] - p.position[0];
-      const dy = s.position[1] - p.position[1];
-      const dz = s.position[2] - p.position[2];
-      distances.push(Math.sqrt(dx * dx + dy * dy + dz * dz));
-      times.push(t);
+      try {
+        // body.stateAt(t) gives position relative to its center (parent) body,
+        // so the distance to the parent is simply the magnitude of that vector.
+        const s = this.body.stateAt(t);
+        const dx = s.position[0];
+        const dy = s.position[1];
+        const dz = s.position[2];
+        distances.push(Math.sqrt(dx * dx + dy * dy + dz * dz));
+        times.push(t);
+      } catch {
+        // Trajectory data may not cover this time — skip sample
+      }
     }
 
     const detected: EventMarker[] = [];
-    const maxMarkers = this.options.maxMarkers ?? 50;
+    const maxMarkers = this.options.maxMarkers ?? 10;
 
-    for (let i = 1; i < numSamples - 1 && detected.length < maxMarkers; i++) {
+    for (let i = 1; i < times.length - 1 && detected.length < maxMarkers; i++) {
       if (distances[i] < distances[i - 1] && distances[i] < distances[i + 1]) {
         detected.push({ et: times[i], type: 'periapsis', label: 'Pe' });
       } else if (distances[i] > distances[i - 1] && distances[i] > distances[i + 1]) {
@@ -94,26 +108,40 @@ export class EventMarkers extends THREE.Object3D {
   }
 
   /** Update marker positions for current time and scale */
-  update(et: number, scaleFactor: number, visibleWindow?: { start: number; end: number }, resolvePos?: PositionResolver): void {
+  update(et: number, scaleFactor: number, resolvePos?: PositionResolver): void {
+    // Visible window derived from per-body trail/lead durations
+    const winStart = et - this.trailDuration;
+    const winEnd = et + this.leadDuration;
+
+    // Re-detect when the visible window has drifted past 25% of the detection range
+    if (this.parentBody && this.detectionEnd > this.detectionStart) {
+      const detectionSpan = this.detectionEnd - this.detectionStart;
+      const windowCenter = (winStart + winEnd) / 2;
+      const detectionCenter = (this.detectionStart + this.detectionEnd) / 2;
+      if (Math.abs(windowCenter - detectionCenter) > detectionSpan * 0.25) {
+        this.detectExtrema(winStart, winEnd);
+      }
+    }
+
     for (let i = 0; i < this.sprites.length; i++) {
       const marker = this.markers[i];
       const sprite = this.sprites[i];
 
-      // Hide markers outside visible window
-      if (visibleWindow) {
-        sprite.visible = marker.et >= visibleWindow.start && marker.et <= visibleWindow.end;
-      }
-
+      sprite.visible = marker.et >= winStart && marker.et <= winEnd;
       if (!sprite.visible) continue;
 
-      const pos = resolvePos
-        ? resolvePos(this.body.name, marker.et)
-        : this.body.stateAt(marker.et).position as [number, number, number];
-      sprite.position.set(
-        pos[0] * scaleFactor,
-        pos[1] * scaleFactor,
-        pos[2] * scaleFactor,
-      );
+      try {
+        const pos = resolvePos
+          ? resolvePos(this.body.name, marker.et)
+          : this.body.stateAt(marker.et).position as [number, number, number];
+        sprite.position.set(
+          pos[0] * scaleFactor,
+          pos[1] * scaleFactor,
+          pos[2] * scaleFactor,
+        );
+      } catch {
+        sprite.visible = false;
+      }
     }
   }
 

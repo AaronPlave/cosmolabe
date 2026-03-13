@@ -322,10 +322,9 @@ export class UniverseRenderer {
       sf.update(et, this.scaleFactor, targetBody, originRelResolver, spiceRot);
     }
 
-    // Update event markers
-    const trailDuration = this.options.trajectoryOptions?.trailDuration ?? 86400;
+    // Update event markers (each knows its own trail/lead duration)
     for (const em of this.eventMarkerGroups.values()) {
-      em.update(et, this.scaleFactor, { start: et - trailDuration, end: et + (this.options.trajectoryOptions?.leadDuration ?? 0) }, this.absolutePositionOf);
+      em.update(et, this.scaleFactor, originRelResolver);
     }
 
     // Update labels
@@ -616,17 +615,8 @@ export class UniverseRenderer {
           this.trajectoryLines.set(body.name, tl);
           this.scene.add(tl);
 
-          // Auto-detect periapsis/apoapsis markers for bodies with trajectories
-          if (body.parentName) {
-            const parentBody = this.universe.getBody(body.parentName);
-            if (parentBody) {
-              const em = new EventMarkers(body, parentBody);
-              const trailDuration = this.options.trajectoryOptions?.trailDuration ?? 86400;
-              em.detectExtrema(this.timeController.et - trailDuration, this.timeController.et + trailDuration);
-              this.eventMarkerGroups.set(body.name, em);
-              this.scene.add(em);
-            }
-          }
+          // Event markers (periapsis/apoapsis) disabled for now — revisit when
+          // we have subsystem zoom and per-body marker configuration.
         }
       }
 
@@ -773,13 +763,15 @@ export class UniverseRenderer {
           : Math.min(arcDuration, 365.25 * 86400);
       }
 
+      // Last arc can extrapolate freely (body position does too);
+      // intermediate arcs cap at endTime to avoid overlap with the next arc.
+      const isLastArc = i === composite.arcs.length - 1;
+
       const tl = new TrajectoryLine(body, {
         trailDuration: trailDur,
         leadDuration: 0,
-        orbitPeriod: arcPeriod,
-        orbitOpacity: 0.25,
         minTime: arc.startTime,
-        maxTime: arc.endTime,
+        maxTime: isLastArc ? undefined : arc.endTime,
         fixedResolver: arcResolver,
         fadeFraction: plotCfg?.fade ?? 1.0,
       });
