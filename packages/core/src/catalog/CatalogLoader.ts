@@ -597,8 +597,10 @@ export class CatalogLoader {
       case 'Uniform': {
         // Period in Cosmographia catalogs is in days by default, but may have unit suffix (e.g. "24.6h")
         const periodRaw = spec.period ?? 1;
+        // Bare number = days. String with unit suffix (e.g. "10.656h") = parsed.
+        // String without unit (e.g. "25.38") = days (Cosmographia convention).
         const periodSec = typeof periodRaw === 'string'
-          ? parseValueWithUnit(periodRaw, 86400)
+          ? (/[a-zA-Z]/.test(periodRaw) ? parseValueWithUnit(periodRaw, 86400) : parseFloat(periodRaw) * 86400)
           : periodRaw * 86400;
 
         // Pole direction: ascension/declination are direct pole coords;

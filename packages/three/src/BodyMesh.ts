@@ -96,8 +96,8 @@ export class BodyMesh extends THREE.Object3D {
     const color = DEFAULT_BODY_COLORS[body.classification ?? ''] ?? 0xcccccc;
     const material = new THREE.MeshPhongMaterial({ color });
 
-    // Stars emit light
-    if (body.classification === 'star') {
+    // Stars and emissive bodies (e.g. Sun with "emissive": true in Cosmographia geometry) emit light
+    if (body.classification === 'star' || body.geometryData?.emissive === true) {
       material.emissive = new THREE.Color(0xffdd44);
       material.emissiveIntensity = 0.8;
     }
@@ -302,6 +302,7 @@ export class BodyMesh extends THREE.Object3D {
       case 'planet': return 6371;    // Earth-like default
       case 'moon': return 1737;
       case 'spacecraft': return 10;
+      case 'instrument': return 1;   // Instrument on a spacecraft
       default: return 100;
     }
   }
@@ -579,7 +580,7 @@ export class BodyMesh extends THREE.Object3D {
     texture.colorSpace = THREE.SRGBColorSpace;
     material.map = texture;
     material.color.setHex(0xffffff);
-    if (this.body.classification === 'star') {
+    if (this.body.classification === 'star' || this.body.geometryData?.emissive === true) {
       material.emissiveMap = texture;
       material.emissive.setHex(0xffffff);
     }

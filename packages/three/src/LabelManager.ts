@@ -78,6 +78,12 @@ export class LabelManager {
       const bm = entry.bodyMesh;
       const sprite = entry.sprite;
 
+      // Hide instrument labels (e.g. ISS NAC on Cassini) — they clutter at planet scale
+      if (bm.body.classification === 'instrument') {
+        sprite.visible = false;
+        continue;
+      }
+
       // Offset label to start at the body's silhouette edge.
       // Use the larger of: body's world-space radius, or a small fraction of camera distance
       // (so labels are readable even when the body is a tiny dot).

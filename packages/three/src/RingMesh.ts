@@ -27,15 +27,15 @@ export class RingMesh extends THREE.Object3D {
     this.frustumCulled = false;
 
     const geometry = this.createRingGeometry(innerRadius, outerRadius);
-    // Self-lit + additive blending: ring color is added to whatever is behind it.
-    // This ensures even faint ring textures (like Uranus's low-alpha rings) are
-    // clearly visible against dark space, matching Cosmographia's ring rendering.
+    // Normal blending with alpha: ring texture alpha controls transparency
+    // (gaps between ring divisions). Without a texture, a subtle flat color
+    // is shown as a placeholder.
     const material = new THREE.MeshBasicMaterial({
       color: 0xccbb99,
       side: THREE.DoubleSide,
       transparent: true,
+      opacity: 0.6,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
     });
 
     this.ringMesh = new THREE.Mesh(geometry, material);
@@ -86,6 +86,8 @@ export class RingMesh extends THREE.Object3D {
       const material = this.ringMesh.material as THREE.MeshBasicMaterial;
       material.map = texture;
       material.color.setHex(0xffffff);
+      material.opacity = 1.0;  // Texture alpha handles gap transparency
+      material.alphaTest = 0.01; // Discard fully transparent pixels
       material.needsUpdate = true;
       console.log(`[SpiceCraft] Loaded ring texture: ${url}`);
     } catch (e) {

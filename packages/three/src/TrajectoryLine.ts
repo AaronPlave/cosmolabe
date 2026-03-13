@@ -237,11 +237,15 @@ export class TrajectoryLine extends THREE.Object3D {
       finalSamples.push(s0);
     };
 
-    for (let i = 0; i < coarseSamples.length - 1 && finalSamples.length < this.maxPoints; i++) {
-      subdivide(coarseSamples[i], coarseSamples[i + 1], 0);
-    }
-    if (finalSamples.length < this.maxPoints) {
-      finalSamples.push(coarseSamples[coarseSamples.length - 1]);
+    if (coarseSamples.length >= 2) {
+      for (let i = 0; i < coarseSamples.length - 1 && finalSamples.length < this.maxPoints; i++) {
+        subdivide(coarseSamples[i], coarseSamples[i + 1], 0);
+      }
+      if (finalSamples.length < this.maxPoints) {
+        finalSamples.push(coarseSamples[coarseSamples.length - 1]);
+      }
+    } else if (coarseSamples.length === 1) {
+      finalSamples.push(coarseSamples[0]);
     }
 
     this.cachedSamples = finalSamples;
@@ -275,6 +279,11 @@ export class TrajectoryLine extends THREE.Object3D {
     }
 
     const offX = vertexOffset?.[0] ?? 0, offY = vertexOffset?.[1] ?? 0, offZ = vertexOffset?.[2] ?? 0;
+    // Guard: if offset is NaN (e.g. SPICE kernel out of coverage), hide the line
+    if (isNaN(offX) || isNaN(offY) || isNaN(offZ)) {
+      this.trailLine.geometry.setDrawRange(0, 0);
+      return;
+    }
     const startEt = this.cachedStartEt;
     const totalDuration = this.cachedTotalDuration;
 

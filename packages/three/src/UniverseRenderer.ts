@@ -58,6 +58,7 @@ export class UniverseRenderer {
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
   private readonly ringMeshes = new Map<string, { ring: RingMesh; parentName: string }>();
   private readonly eventMarkerGroups = new Map<string, EventMarkers>();
+  private _coverageWarned = false;
   private readonly plugins: RendererPlugin[] = [];
   private readonly options: UniverseRendererOptions;
 
@@ -164,6 +165,7 @@ export class UniverseRenderer {
       let x = state.position[0];
       let y = state.position[1];
       let z = state.position[2];
+      if (isNaN(x)) return [NaN, NaN, NaN];
 
       // Walk up the parent chain, resolving composite trajectory centers at each step
       let currentParent = body.parentName;
@@ -175,6 +177,7 @@ export class UniverseRenderer {
         const parent = this.universe.getBody(currentParent);
         if (!parent) break;
         const ps = parent.stateAt(et);
+        if (isNaN(ps.position[0])) return [NaN, NaN, NaN];
         x += ps.position[0];
         y += ps.position[1];
         z += ps.position[2];
@@ -203,10 +206,21 @@ export class UniverseRenderer {
     const originAbsPos: [number, number, number] = originBody
       ? this.absolutePositionOf(originBody, et)
       : [0, 0, 0];
+    // If origin body has no coverage at this time, skip the entire frame update.
+    // Everything stays at its last known position rather than jumping to the Sun.
+    if (isNaN(originAbsPos[0])) {
+      if (!this._coverageWarned) {
+        console.warn(`[SpiceCraft] No ephemeris coverage at ET=${et.toFixed(0)} — scene frozen. Loaded kernels may not cover this time range.`);
+        this._coverageWarned = true;
+      }
+      return;
+    }
+    this._coverageWarned = false;
 
     // Update body positions relative to origin body
     for (const bm of this.bodyMeshes.values()) {
       const absPos = this.absolutePositionOf(bm.body.name, et);
+      if (isNaN(absPos[0])) continue; // Skip bodies with no coverage at this time
       const relPos: [number, number, number] = [
         absPos[0] - originAbsPos[0],
         absPos[1] - originAbsPos[1],
@@ -233,16 +247,19 @@ export class UniverseRenderer {
           const opacity = Math.min(1, (screenPixels - MODEL_SHOW_PX) / (MODEL_FADE_PX - MODEL_SHOW_PX));
           bm.setModelOpacity(opacity);
         } else {
-          // Too small: hide model, show placeholder marker
+          // Too small: hide model and placeholder (placeholder displayRadius
+          // doesn't match model size, e.g. 10km sphere for a 6m spacecraft)
           bm.setModelVisible(false);
-          bm.mesh.visible = true;
+          bm.mesh.visible = false;
         }
       }
 
-      // Placeholder sphere: clamp to minBodyPixels so it's always a visible dot
+      // Placeholder sphere: clamp to minBodyPixels so it's always a visible dot.
+      // applyMeshScale(factor) sets rendered radius = displayRadius * factor,
+      // so we need factor = minSceneRadius / displayRadius (not / realSceneRadius).
       if (bm.mesh.visible && this.minBodyPixels > 0 && screenPixels < this.minBodyPixels) {
         const minSceneRadius = this.minBodyPixels * dist * 2 * halfFovTan / canvasHeight;
-        bm.applyMeshScale(minSceneRadius / realSceneRadius);
+        bm.applyMeshScale(minSceneRadius / bm.displayRadius);
       } else if (bm.mesh.visible) {
         bm.applyMeshScale(this.scaleFactor);
       }
@@ -275,6 +292,8 @@ export class UniverseRenderer {
       if (centerName) {
         // vertexOffset = (centerAbs - originAbs) in km, so vertices become origin-relative
         const centerAbsNow = this.absolutePositionOf(centerName, et);
+        // Skip if center position is NaN (SPICE kernel out of coverage)
+        if (isNaN(centerAbsNow[0])) continue;
         const vertOff: [number, number, number] = [
           centerAbsNow[0] - originAbsPos[0],
           centerAbsNow[1] - originAbsPos[1],
@@ -491,14 +510,13 @@ export class UniverseRenderer {
     }
 
     for (const body of bodies) {
-      // Sensor bodies get a frustum, not a sphere
+      // Sensor bodies get a frustum in addition to a body mesh + trajectory
       if (body.geometryType === 'Sensor') {
         // If spiceId is present and SPICE is available, derive FOV params from the IK kernel
         this.enrichSensorFromSpice(body);
         const sf = new SensorFrustum(body);
         this.sensorFrustums.set(body.name, sf);
         this.scene.add(sf);
-        continue;
       }
 
       // Rings get an annulus mesh attached to the parent body
@@ -522,9 +540,12 @@ export class UniverseRenderer {
         continue;
       }
 
-      // Create body mesh
+      // Create body mesh (needed for click/track even for sensor bodies)
       const bm = new BodyMesh(body);
       bm.mesh.scale.setScalar(this.scaleFactor);
+      // Hide placeholder sphere for instrument-class sensors (e.g. ISS NAC on Cassini)
+      // but keep it for spacecraft-class sensors (e.g. WeatherSat in sensor demo)
+      if (body.geometryType === 'Sensor' && body.classification === 'instrument') bm.mesh.visible = false;
       this.bodyMeshes.set(body.name, bm);
       this.scene.add(bm);
 

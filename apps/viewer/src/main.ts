@@ -457,7 +457,7 @@ function initScene(
     showStars: true,
     starFieldOptions: { catalogUrl: '/stars.bin' },
     trajectoryOptions: { trailDuration: 86400 * 30, numPoints: 300 },
-    minBodyPixels: 4,
+    minBodyPixels: 0,
     modelResolver: modelFiles && modelFiles.size > 0
       ? (source: string) => findInMap(modelFiles, source)
       : (source: string) => `./${source}`,
