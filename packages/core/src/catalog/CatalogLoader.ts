@@ -363,10 +363,11 @@ export class CatalogLoader {
       return;
     }
 
-    // Skip purely decorative items with no trajectory (Saturn Rings, comet tails, etc.)
+    // Skip purely decorative items with no trajectory (comet tails, etc.)
+    // Rings are kept — the renderer creates visual geometry for them.
     if (!item.trajectory && !item.arcs) {
       const geoType = item.geometry?.type;
-      if (geoType === 'Rings' || geoType === 'ParticleSystem') {
+      if (geoType === 'ParticleSystem') {
         return;
       }
     }

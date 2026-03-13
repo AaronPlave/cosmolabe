@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { Body } from '@spicecraft/core';
 
@@ -16,6 +17,13 @@ const DEFAULT_BODY_COLORS: Record<string, number> = {
 
 /** Resolve a model source path to a URL or blob URL for loading */
 export type ModelResolver = (source: string) => string | undefined;
+
+/** Check if an ArrayBuffer starts with the DDS magic bytes "DDS " (0x44445320) */
+function isDDSMagic(buffer: ArrayBuffer): boolean {
+  if (buffer.byteLength < 4) return false;
+  const h = new Uint8Array(buffer, 0, 4);
+  return h[0] === 0x44 && h[1] === 0x44 && h[2] === 0x53 && h[3] === 0x20;
+}
 
 const _tmpQ = new THREE.Quaternion();
 
@@ -36,6 +44,12 @@ export class BodyMesh extends THREE.Object3D {
   private axesVisible = false;
   /** Scene scale factor (km → scene units). Set each frame by updatePosition. */
   scaleFactor = 1;
+  /**
+   * Axis ratios for triaxial ellipsoid in geometry space [geoX, geoY, geoZ].
+   * Maps body-fixed [rx, ry, rz] → geometry axes accounting for the Globe pre-rotation
+   * (geometry Y = body-fixed Z pole). Default [1,1,1] for spherical bodies.
+   */
+  private ellipsoidRatios: [number, number, number] = [1, 1, 1];
 
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
@@ -74,18 +88,39 @@ export class BodyMesh extends THREE.Object3D {
     this.name = body.name;
 
     this.displayRadius = this.getDisplayRadius();
-    const geometry = new THREE.SphereGeometry(this.displayRadius, 32, 24);
+    // Globe bodies get higher segment count for texture quality
+    const isGlobe = body.geometryType === 'Globe';
+    const wSegs = isGlobe ? 64 : 32;
+    const hSegs = isGlobe ? 48 : 24;
+    const geometry = new THREE.SphereGeometry(this.displayRadius, wSegs, hSegs);
     const color = DEFAULT_BODY_COLORS[body.classification ?? ''] ?? 0xcccccc;
     const material = new THREE.MeshPhongMaterial({ color });
 
     // Stars emit light
     if (body.classification === 'star') {
-      (material as THREE.MeshPhongMaterial).emissive = new THREE.Color(0xffdd44);
-      (material as THREE.MeshPhongMaterial).emissiveIntensity = 0.8;
+      material.emissive = new THREE.Color(0xffdd44);
+      material.emissiveIntensity = 0.8;
     }
 
     this.mesh = new THREE.Mesh(geometry, material);
     this.add(this.mesh);
+
+    // Globe bodies: pre-rotate geometry so Three.js Y-pole aligns with body-fixed Z-pole.
+    // SphereGeometry has Y=pole; SPICE body-fixed frame has Z=pole.
+    // rotateX(π/2) maps: geoY→bodyZ (pole), geoZ→body-Y, geoX→bodyX (prime meridian).
+    // UV mapping stays correct: texture center (U=0.5) → body +X (prime meridian).
+    if (isGlobe) {
+      this.meshRotationQ.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+
+      // Triaxial ellipsoid: scale axes non-uniformly.
+      // Body-fixed radii [rx, ry, rz] map to geometry axes [geoX, geoY, geoZ] as:
+      //   geoX = bodyX (rx), geoY = bodyZ (rz), geoZ = bodyY (ry)
+      if (body.radii) {
+        const maxR = this.displayRadius;
+        const [rx, ry, rz] = body.radii;
+        this.ellipsoidRatios = [rx / maxR, rz / maxR, ry / maxR];
+      }
+    }
   }
 
   /**
@@ -282,7 +317,7 @@ export class BodyMesh extends THREE.Object3D {
     const bboxCenter = new THREE.Vector3();
     bbox.getSize(bboxSize);
     bbox.getCenter(bboxCenter);
-    console.log(`[SpiceCraft] Model ${this.body.name}: bbox size (${bboxSize.x.toFixed(2)}, ${bboxSize.y.toFixed(2)}, ${bboxSize.z.toFixed(2)}), center (${bboxCenter.x.toFixed(2)}, ${bboxCenter.y.toFixed(2)}, ${bboxCenter.z.toFixed(2)})`);
+    // console.log(`[SpiceCraft] Model ${this.body.name}: bbox size (${bboxSize.x.toFixed(2)}, ${bboxSize.y.toFixed(2)}, ${bboxSize.z.toFixed(2)}), center (${bboxCenter.x.toFixed(2)}, ${bboxCenter.y.toFixed(2)}, ${bboxCenter.z.toFixed(2)})`);
 
     // 1. Collect per-mesh data: name, vertex count, center, average normal, coherence
     object.updateMatrixWorld(true);
@@ -328,18 +363,18 @@ export class BodyMesh extends THREE.Object3D {
     });
 
     // Log meshes sorted by vertex count
-    console.log(`[SpiceCraft] Model meshes (${meshInfos.length} total, ${allVertices.length} verts):`);
+    // console.log(`[SpiceCraft] Model meshes (${meshInfos.length} total, ${allVertices.length} verts):`);
     for (const m of meshInfos.sort((a, b) => b.vertexCount - a.vertexCount).slice(0, 15)) {
       const c = m.center;
       const n = m.avgNormal;
-      console.log(`  "${m.name}": ${m.vertexCount} verts, center=(${c.x.toFixed(2)},${c.y.toFixed(2)},${c.z.toFixed(2)}), normal=(${n.x.toFixed(3)},${n.y.toFixed(3)},${n.z.toFixed(3)}), coherence=${m.coherence.toFixed(3)}`);
+      // console.log(`  "${m.name}": ${m.vertexCount} verts, center=(${c.x.toFixed(2)},${c.y.toFixed(2)},${c.z.toFixed(2)}), normal=(${n.x.toFixed(3)},${n.y.toFixed(3)},${n.z.toFixed(3)}), coherence=${m.coherence.toFixed(3)}`);
     }
 
     // 2. Compute centroid
     const centroid = new THREE.Vector3();
     for (const v of allVertices) centroid.add(v);
     centroid.divideScalar(allVertices.length);
-    console.log(`[SpiceCraft] Centroid: (${centroid.x.toFixed(2)},${centroid.y.toFixed(2)},${centroid.z.toFixed(2)})`);
+    // console.log(`[SpiceCraft] Centroid: (${centroid.x.toFixed(2)},${centroid.y.toFixed(2)},${centroid.z.toFixed(2)})`);
 
     // 3. Identify features by mesh name (case-insensitive substring match)
     const findMesh = (keywords: string[]) =>
@@ -351,7 +386,7 @@ export class BodyMesh extends THREE.Object3D {
     if (dishMesh) {
       // HGA boresight: direction from centroid toward the dish center (outward from spacecraft)
       const hgaDir = dishMesh.center.clone().sub(centroid).normalize();
-      console.log(`[SpiceCraft] HGA dish: "${dishMesh.name}" at (${dishMesh.center.x.toFixed(2)},${dishMesh.center.y.toFixed(2)},${dishMesh.center.z.toFixed(2)}), boresight dir=(${hgaDir.x.toFixed(3)},${hgaDir.y.toFixed(3)},${hgaDir.z.toFixed(3)})`);
+      // console.log(`[SpiceCraft] HGA dish: "${dishMesh.name}" at (${dishMesh.center.x.toFixed(2)},${dishMesh.center.y.toFixed(2)},${dishMesh.center.z.toFixed(2)}), boresight dir=(${hgaDir.x.toFixed(3)},${hgaDir.y.toFixed(3)},${hgaDir.z.toFixed(3)})`);
 
       // Second constraint: Huygens probe position → body +X, or fallback to geometric analysis
       let secondDir: THREE.Vector3;
@@ -359,7 +394,7 @@ export class BodyMesh extends THREE.Object3D {
       if (huygensMesh) {
         secondDir = huygensMesh.center.clone().sub(centroid).normalize();
         secondBodyDir = new THREE.Vector3(1, 0, 0); // Huygens = body +X
-        console.log(`[SpiceCraft] Huygens: "${huygensMesh.name}" at (${huygensMesh.center.x.toFixed(2)},${huygensMesh.center.y.toFixed(2)},${huygensMesh.center.z.toFixed(2)}), dir=(${secondDir.x.toFixed(3)},${secondDir.y.toFixed(3)},${secondDir.z.toFixed(3)})`);
+        // console.log(`[SpiceCraft] Huygens: "${huygensMesh.name}" at (${huygensMesh.center.x.toFixed(2)},${huygensMesh.center.y.toFixed(2)},${huygensMesh.center.z.toFixed(2)}), dir=(${secondDir.x.toFixed(3)},${secondDir.y.toFixed(3)},${secondDir.z.toFixed(3)})`);
       } else {
         // Fallback: farthest vertex from centroid (likely boom tip) → body +Y
         let maxDist = 0;
@@ -370,7 +405,7 @@ export class BodyMesh extends THREE.Object3D {
         }
         secondDir = tip.clone().sub(centroid).normalize();
         secondBodyDir = new THREE.Vector3(0, 1, 0); // boom = body +Y
-        console.log(`[SpiceCraft] Boom tip: (${tip.x.toFixed(2)},${tip.y.toFixed(2)},${tip.z.toFixed(2)}), dir=(${secondDir.x.toFixed(3)},${secondDir.y.toFixed(3)},${secondDir.z.toFixed(3)})`);
+        // console.log(`[SpiceCraft] Boom tip: (${tip.x.toFixed(2)},${tip.y.toFixed(2)},${tip.z.toFixed(2)}), dir=(${secondDir.x.toFixed(3)},${secondDir.y.toFixed(3)},${secondDir.z.toFixed(3)})`);
       }
 
       // 4. Compute rotation from two direction pairs:
@@ -394,10 +429,210 @@ export class BodyMesh extends THREE.Object3D {
       const rotation = bodyFrame.clone().multiply(modelFrame.clone().invert());
 
       const q = new THREE.Quaternion().setFromRotationMatrix(rotation);
-      console.log(`[SpiceCraft] Computed meshRotation [w,x,y,z]: [${q.w.toFixed(4)}, ${q.x.toFixed(4)}, ${q.y.toFixed(4)}, ${q.z.toFixed(4)}]`);
+      // console.log(`[SpiceCraft] Computed meshRotation [w,x,y,z]: [${q.w.toFixed(4)}, ${q.x.toFixed(4)}, ${q.y.toFixed(4)}, ${q.z.toFixed(4)}]`);
     } else {
-      console.log(`[SpiceCraft] No dish mesh found — cannot compute meshRotation analytically`);
+      // console.log(`[SpiceCraft] No dish mesh found — cannot compute meshRotation analytically`);
     }
+  }
+
+  /**
+   * Apply scale factor to the placeholder mesh, accounting for triaxial ellipsoid ratios.
+   * Use this instead of `mesh.scale.setScalar()` to preserve oblateness.
+   */
+  applyMeshScale(factor: number): void {
+    this.mesh.scale.set(
+      factor * this.ellipsoidRatios[0],
+      factor * this.ellipsoidRatios[1],
+      factor * this.ellipsoidRatios[2],
+    );
+  }
+
+  /**
+   * Load textures for Globe geometry (baseMap and/or normalMap).
+   * Supports DDS (S3TC compressed) and standard image formats (PNG, JPG).
+   */
+  async loadGlobeTextures(baseMapUrl?: string, normalMapUrl?: string): Promise<void> {
+    const material = this.mesh.material as THREE.MeshPhongMaterial;
+
+    if (baseMapUrl) {
+      try {
+        const texture = await this.loadTexture(baseMapUrl);
+        this.applyBaseMap(material, texture, baseMapUrl);
+      } catch (e) {
+        console.warn(`[SpiceCraft] Failed to load baseMap for ${this.body.name}:`, e);
+      }
+    }
+
+    if (normalMapUrl) {
+      try {
+        const texture = await this.loadTexture(normalMapUrl);
+        material.normalMap = texture;
+        material.needsUpdate = true;
+        console.log(`[SpiceCraft] Loaded normalMap for ${this.body.name}: ${normalMapUrl}`);
+      } catch (e) {
+        console.warn(`[SpiceCraft] Failed to load normalMap for ${this.body.name}:`, e);
+      }
+    }
+  }
+
+  /**
+   * Load a tiled texture (NameTemplate or MultiWMS level-0 tiles) and apply as baseMap.
+   * Level 0 has 2 columns × 1 row; the two tiles are stitched into a single equirectangular map.
+   * For image tiles (JPG/PNG): stitched on a 2D canvas.
+   * For DDS tiles: rendered via Three.js to a RenderTarget.
+   */
+  async loadTiledBaseMap(tileUrls: [string, string], renderer: THREE.WebGLRenderer): Promise<void> {
+    const material = this.mesh.material as THREE.MeshPhongMaterial;
+
+    // Detect format: extension for regular URLs, magic bytes for blob URLs
+    let isDDS: boolean;
+    if (!tileUrls[0].startsWith('blob:')) {
+      isDDS = tileUrls[0].split('.').pop()?.toLowerCase() === 'dds';
+    } else {
+      const probe = await fetch(tileUrls[0]);
+      const probeBuf = await probe.arrayBuffer();
+      isDDS = isDDSMagic(probeBuf);
+    }
+
+    try {
+      if (isDDS) {
+        // DDS tiles: manual fetch + parse (DDSLoader.loadAsync can silently hang)
+        const loadDDS = async (url: string) => {
+          const resp = await fetch(url);
+          const buf = await resp.arrayBuffer();
+          const loader = new DDSLoader();
+          const texData = loader.parse(buf, false);
+          const tex = new THREE.CompressedTexture(
+            texData.mipmaps, texData.width, texData.height,
+            texData.format as THREE.CompressedPixelFormat,
+          );
+          tex.minFilter = texData.mipmaps.length === 1 ? THREE.LinearFilter : THREE.LinearMipmapLinearFilter;
+          tex.magFilter = THREE.LinearFilter;
+          tex.needsUpdate = true;
+          return tex;
+        };
+        const [tex0, tex1] = await Promise.all([
+          loadDDS(tileUrls[0]),
+          loadDDS(tileUrls[1]),
+        ]);
+
+        // Determine tile dimensions from the compressed texture
+        const w = tex0.image.width;
+        const h = tex0.image.height;
+        const rt = new THREE.WebGLRenderTarget(w * 2, h);
+        const cam = new THREE.OrthographicCamera(0, 2, 1, 0, -1, 1);
+        const scene = new THREE.Scene();
+
+        // Two quads: left tile [0,1] and right tile [1,2]
+        for (let i = 0; i < 2; i++) {
+          const mat = new THREE.MeshBasicMaterial({ map: i === 0 ? tex0 : tex1 });
+          const plane = new THREE.PlaneGeometry(1, 1);
+          const mesh = new THREE.Mesh(plane, mat);
+          mesh.position.set(i + 0.5, 0.5, 0);
+          scene.add(mesh);
+        }
+
+        const savedRT = renderer.getRenderTarget();
+        renderer.setRenderTarget(rt);
+        renderer.clear();
+        renderer.render(scene, cam);
+        renderer.setRenderTarget(savedRT);
+
+        // Clean up temp scene
+        scene.traverse(c => {
+          if (c instanceof THREE.Mesh) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
+        });
+        tex0.dispose();
+        tex1.dispose();
+
+        rt.texture.colorSpace = THREE.SRGBColorSpace;
+        this.applyBaseMap(material, rt.texture, `tiled[${tileUrls[0]},${tileUrls[1]}]`);
+      } else {
+        // Image tiles (JPG/PNG): stitch on a canvas
+        const [img0, img1] = await Promise.all(tileUrls.map(url =>
+          new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = url;
+          })
+        ));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img0.width + img1.width;
+        canvas.height = Math.max(img0.height, img1.height);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img0, 0, 0);
+        ctx.drawImage(img1, img0.width, 0);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        this.applyBaseMap(material, texture, `tiled[${tileUrls[0]},${tileUrls[1]}]`);
+      }
+    } catch (e) {
+      console.warn(`[SpiceCraft] Failed to load tiled baseMap for ${this.body.name}:`, e);
+    }
+  }
+
+  private applyBaseMap(material: THREE.MeshPhongMaterial, texture: THREE.Texture, label: string): void {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    material.map = texture;
+    material.color.setHex(0xffffff);
+    if (this.body.classification === 'star') {
+      material.emissiveMap = texture;
+      material.emissive.setHex(0xffffff);
+    }
+    material.needsUpdate = true;
+    console.log(`[SpiceCraft] Loaded baseMap for ${this.body.name}: ${label}`);
+  }
+
+  private async loadTexture(url: string): Promise<THREE.Texture> {
+    // Non-blob URLs: detect format from file extension
+    if (!url.startsWith('blob:')) {
+      const ext = url.split('.').pop()?.toLowerCase();
+      if (ext === 'dds') return this.loadDDSTexture(url);
+      return new THREE.TextureLoader().loadAsync(url);
+    }
+    // Blob URLs have no extension — fetch and detect DDS from magic bytes
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+    const buffer = await response.arrayBuffer();
+    if (isDDSMagic(buffer)) {
+      return this.parseDDSBuffer(buffer);
+    }
+    // Non-DDS (JPG/PNG): TextureLoader handles blob URLs natively
+    return new THREE.TextureLoader().loadAsync(url);
+  }
+
+  /**
+   * Load a DDS texture with manual fetch + parse.
+   * DDSLoader.loadAsync can silently hang (Promise never resolves/rejects) when
+   * the DDS parser throws inside FileLoader's callback. Manual fetch gives us
+   * proper error handling.
+   */
+  private async loadDDSTexture(url: string): Promise<THREE.CompressedTexture> {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+    const buffer = await response.arrayBuffer();
+    return this.parseDDSBuffer(buffer);
+  }
+
+  private parseDDSBuffer(buffer: ArrayBuffer): THREE.CompressedTexture {
+    const loader = new DDSLoader();
+    const texData = loader.parse(buffer, false);
+    const texture = new THREE.CompressedTexture(
+      texData.mipmaps,
+      texData.width,
+      texData.height,
+      texData.format as THREE.CompressedPixelFormat,
+    );
+    texture.minFilter = texData.mipmaps.length === 1
+      ? THREE.LinearFilter
+      : THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.needsUpdate = true;
+    return texture;
   }
 
   dispose(): void {

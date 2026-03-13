@@ -9,6 +9,7 @@ export { TrajectoryLine } from './TrajectoryLine.js';
 export type { TrajectoryLineOptions, PositionResolver } from './TrajectoryLine.js';
 export { SensorFrustum } from './SensorFrustum.js';
 export type { SensorFrustumOptions } from './SensorFrustum.js';
+export { RingMesh } from './RingMesh.js';
 export { StarField } from './StarField.js';
 export type { StarFieldOptions } from './StarField.js';
 export { LabelManager } from './LabelManager.js';

@@ -70,7 +70,7 @@
           "name": "Saturn Rings",
           "class": "other",
           "center": "Saturn",
-          "geometry": { "type": "Rings" }
+          "geometry": { "type": "Rings", "innerRadius": 74660, "outerRadius": 140220 }
         }
       ]
     }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CompositeTrajectory, SpiceTrajectory, type Universe, type Body } from '@spicecraft/core';
 import { BodyMesh } from './BodyMesh.js';
+import { RingMesh } from './RingMesh.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
 import { SensorFrustum } from './SensorFrustum.js';
 import { EventMarkers } from './EventMarkers.js';
@@ -34,6 +35,9 @@ export interface UniverseRendererOptions {
   minBodyPixels?: number;
   /** Resolve a model source path (from catalog geometry.source) to a loadable URL */
   modelResolver?: (source: string) => string | undefined;
+  /** Resolve a texture path (from catalog geometry.baseMap/normalMap) to a loadable URL.
+   *  Falls back to modelResolver if not provided. */
+  textureResolver?: (source: string) => string | undefined;
 }
 
 // Classes that should NOT show trajectories by default
@@ -52,6 +56,7 @@ export class UniverseRenderer {
   private readonly bodyMeshes = new Map<string, BodyMesh>();
   private readonly trajectoryLines = new Map<string, TrajectoryLine>();
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
+  private readonly ringMeshes = new Map<string, { ring: RingMesh; parentName: string }>();
   private readonly eventMarkerGroups = new Map<string, EventMarkers>();
   private readonly plugins: RendererPlugin[] = [];
   private readonly options: UniverseRendererOptions;
@@ -84,7 +89,9 @@ export class UniverseRenderer {
 
     // Scene
     this.scene = new THREE.Scene();
-    const ambient = new THREE.AmbientLight(0x333333);
+    // Very dim ambient — just enough to see body silhouettes on the dark side.
+    // In space the unlit hemisphere is essentially black; 0x080808 ≈ 3%.
+    const ambient = new THREE.AmbientLight(0x080808);
     ambient.layers.enableAll();
     this.scene.add(ambient);
 
@@ -235,9 +242,22 @@ export class UniverseRenderer {
       // Placeholder sphere: clamp to minBodyPixels so it's always a visible dot
       if (bm.mesh.visible && this.minBodyPixels > 0 && screenPixels < this.minBodyPixels) {
         const minSceneRadius = this.minBodyPixels * dist * 2 * halfFovTan / canvasHeight;
-        bm.mesh.scale.setScalar(minSceneRadius / realSceneRadius);
+        bm.applyMeshScale(minSceneRadius / realSceneRadius);
       } else if (bm.mesh.visible) {
-        bm.mesh.scale.setScalar(this.scaleFactor);
+        bm.applyMeshScale(this.scaleFactor);
+      }
+    }
+
+    // Update ring positions (follow parent body position and rotation)
+    for (const [, { ring, parentName }] of this.ringMeshes) {
+      const parentBm = this.bodyMeshes.get(parentName);
+      if (parentBm) {
+        ring.position.copy(parentBm.position);
+        // Ring rotation = parent body's SPICE rotation (the ring mesh is in the
+        // XZ plane; the Globe pre-rotation in meshRotationQ maps it to the
+        // body-fixed equatorial plane)
+        ring.quaternion.copy(parentBm.mesh.quaternion);
+        ring.applyScale(this.scaleFactor);
       }
     }
 
@@ -427,6 +447,14 @@ export class UniverseRenderer {
     const sf = this.sensorFrustums.get(name);
     if (sf) sf.visible = visible;
 
+    // Ring mesh (direct match or parent body match)
+    const rm = this.ringMeshes.get(name);
+    if (rm) rm.ring.visible = visible;
+    // Also hide rings when parent body is hidden
+    for (const [, { ring, parentName }] of this.ringMeshes) {
+      if (parentName === name) ring.visible = visible;
+    }
+
     // Event markers
     const em = this.eventMarkerGroups.get(name);
     if (em) em.visible = visible;
@@ -440,6 +468,7 @@ export class UniverseRenderer {
     this.timeController.dispose();
     this.cameraController.dispose();
     for (const bm of this.bodyMeshes.values()) bm.dispose();
+    for (const [, { ring }] of this.ringMeshes) ring.dispose();
     for (const tl of this.trajectoryLines.values()) tl.dispose();
     for (const sf of this.sensorFrustums.values()) sf.dispose();
     for (const em of this.eventMarkerGroups.values()) em.dispose();
@@ -473,6 +502,27 @@ export class UniverseRenderer {
         continue;
       }
 
+      // Rings get an annulus mesh attached to the parent body
+      if (body.geometryType === 'Rings' && body.geometryData && body.parentName) {
+        const inner = body.geometryData.innerRadius as number;
+        const outer = body.geometryData.outerRadius as number;
+        if (inner > 0 && outer > inner) {
+          const ring = new RingMesh(inner, outer);
+          ring.applyScale(this.scaleFactor);
+          this.ringMeshes.set(body.name, { ring, parentName: body.parentName });
+          this.scene.add(ring);
+
+          // Load ring texture
+          const texPath = body.geometryData.texture as string | undefined;
+          if (texPath) {
+            const resolver = this.options.textureResolver ?? this.options.modelResolver;
+            const url = resolver?.(texPath);
+            if (url) ring.loadTexture(url);
+          }
+        }
+        continue;
+      }
+
       // Create body mesh
       const bm = new BodyMesh(body);
       bm.mesh.scale.setScalar(this.scaleFactor);
@@ -486,6 +536,35 @@ export class UniverseRenderer {
         const url = resolver?.(source);
         if (url) {
           bm.loadModel(url, this.scaleFactor, source, resolver);
+        }
+      }
+
+      // Load textures for Globe geometry (baseMap, normalMap)
+      if (body.geometryType === 'Globe' && body.geometryData) {
+        const resolver = this.options.textureResolver ?? this.options.modelResolver;
+        const geo = body.geometryData;
+        if (resolver) {
+          const normalMapUrl = typeof geo.normalMap === 'string' ? resolver(geo.normalMap as string) : undefined;
+
+          if (typeof geo.baseMap === 'string') {
+            // Simple string path
+            const baseMapUrl = resolver(geo.baseMap as string);
+            if (baseMapUrl || normalMapUrl) {
+              bm.loadGlobeTextures(baseMapUrl, normalMapUrl);
+            }
+          } else if (geo.baseMap && typeof geo.baseMap === 'object') {
+            // Tiled texture (NameTemplate or MultiWMS) — load level-0 tiles
+            const tileUrls = this.resolveTileUrls(geo.baseMap as Record<string, unknown>, resolver);
+            if (tileUrls) {
+              bm.loadTiledBaseMap(tileUrls, this.renderer);
+            }
+            // Also load simple normalMap if present
+            if (normalMapUrl) {
+              bm.loadGlobeTextures(undefined, normalMapUrl);
+            }
+          } else if (normalMapUrl) {
+            bm.loadGlobeTextures(undefined, normalMapUrl);
+          }
         }
       }
 
@@ -734,6 +813,40 @@ export class UniverseRenderer {
     if (this.options.trajectoryFilter) return this.options.trajectoryFilter(body);
     // Default: show trajectories for all bodies except stars and barycenters
     return !EXCLUDED_TRAJECTORY_CLASSES.has(body.classification ?? '');
+  }
+
+  /**
+   * Resolve level-0 tile URLs from a NameTemplate or MultiWMS baseMap spec.
+   * Level 0 = 2 columns × 1 row (two equirectangular half-globe tiles).
+   */
+  private resolveTileUrls(
+    spec: Record<string, unknown>,
+    resolver: (source: string) => string | undefined,
+  ): [string, string] | undefined {
+    let template: string | undefined;
+
+    if (spec.type === 'NameTemplate' && typeof spec.template === 'string') {
+      // Pattern: "textures/mars/mars_%level_%column_%row.dds"
+      template = spec.template as string;
+      // Generate level-0 tile paths (2 columns, 1 row)
+      const tile0 = template.replace('%level', '0').replace('%column', '0').replace('%row', '0');
+      const tile1 = template.replace('%level', '0').replace('%column', '1').replace('%row', '0');
+      const url0 = resolver(tile0);
+      const url1 = resolver(tile1);
+      if (url0 && url1) return [url0, url1];
+    }
+
+    if (spec.type === 'MultiWMS' && typeof spec.topLayer === 'string') {
+      // Pattern: "textures/earth/bmng-feb-nb_%1_%2_%3.jpg" (%1=level, %2=column, %3=row)
+      template = spec.topLayer as string;
+      const tile0 = template.replace('%1', '0').replace('%2', '0').replace('%3', '0');
+      const tile1 = template.replace('%1', '0').replace('%2', '1').replace('%3', '0');
+      const url0 = resolver(tile0);
+      const url1 = resolver(tile1);
+      if (url0 && url1) return [url0, url1];
+    }
+
+    return undefined;
   }
 
   private renderLoop = (): void => {
