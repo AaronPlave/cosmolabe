@@ -3,72 +3,44 @@ import * as THREE from 'three';
 export interface StarFieldOptions {
   /** URL to the binary star catalog (stars.bin). If not provided, uses a random fallback. */
   catalogUrl?: string;
-  /** Radius of the star sphere in scene units. Default 1e8. */
-  radius?: number;
-  /** Minimum point size in pixels (faintest stars). Default 0.5. */
-  minSize?: number;
-  /** Maximum point size in pixels (brightest stars). Default 4.0. */
+  /** Maximum point size in pixels (brightest stars). Default 3.5. */
   maxSize?: number;
   /** Faintest magnitude to display. Default 6.5. */
   magLimit?: number;
 }
 
 /**
- * B-V color index to RGB color.
- * Attempt to reproduce the spectral colors:
- *   B-V < 0    → blue-white  (hot O/B stars)
- *   B-V ~ 0.6  → white-yellow (G stars like the Sun)
- *   B-V > 1.4  → orange-red  (K/M stars)
+ * B-V color index to RGB tint.
+ * Near-white with subtle spectral tinting — most stars appear white.
  */
-function bvToColor(bv: number): [number, number, number] {
-  // Clamp to valid range
+function bvToRGB(bv: number): [number, number, number] {
   const t = Math.max(-0.4, Math.min(2.0, bv));
-
-  let r: number, g: number, b: number;
-
-  if (t < 0) {
-    // Blue-white (O/B stars)
-    r = 0.7 + 0.3 * (t + 0.4) / 0.4;
-    g = 0.8 + 0.2 * (t + 0.4) / 0.4;
-    b = 1.0;
-  } else if (t < 0.4) {
-    // White to yellow-white (A/F stars)
-    r = 1.0;
-    g = 1.0 - 0.15 * (t / 0.4);
-    b = 1.0 - 0.4 * (t / 0.4);
-  } else if (t < 0.8) {
-    // Yellow-white to yellow (F/G stars)
-    const u = (t - 0.4) / 0.4;
-    r = 1.0;
-    g = 0.85 - 0.15 * u;
-    b = 0.6 - 0.25 * u;
-  } else if (t < 1.4) {
-    // Yellow to orange (G/K stars)
-    const u = (t - 0.8) / 0.6;
-    r = 1.0;
-    g = 0.7 - 0.25 * u;
-    b = 0.35 - 0.2 * u;
-  } else {
-    // Orange to red (M stars)
-    const u = (t - 1.4) / 0.6;
-    r = 1.0 - 0.2 * u;
-    g = 0.45 - 0.2 * u;
-    b = 0.15 - 0.1 * u;
-  }
-
-  return [Math.max(0, Math.min(1, r)), Math.max(0, Math.min(1, g)), Math.max(0, Math.min(1, b))];
+  if (t < -0.1) return [0.85, 0.9, 1.0];     // Blue-white (O/B)
+  if (t < 0.3)  return [0.97, 0.97, 1.0];     // White (A)
+  if (t < 0.6)  return [1.0, 0.97, 0.92];     // Yellow-white (F/G)
+  if (t < 1.0)  return [1.0, 0.9, 0.75];      // Yellow-orange (G/K)
+  if (t < 1.5)  return [1.0, 0.82, 0.6];      // Orange (K)
+  return [1.0, 0.7, 0.5];                      // Red-orange (M)
 }
 
+/**
+ * Real star field using HYG catalog data.
+ *
+ * Renders stars as a skybox: the vertex shader strips camera translation so
+ * stars appear at infinity regardless of camera position. No followCamera()
+ * call needed, no far-plane clipping, no precision issues.
+ */
 export class StarField extends THREE.Object3D {
   private points: THREE.Points | null = null;
 
   constructor(options: StarFieldOptions = {}) {
     super();
-    const catalogUrl = options.catalogUrl;
-    if (catalogUrl) {
-      this.loadCatalog(catalogUrl, options);
+    this.renderOrder = -1000;
+    this.frustumCulled = false;
+
+    if (options.catalogUrl) {
+      this.loadCatalog(options.catalogUrl, options);
     } else {
-      // Fallback: random stars (no catalog provided)
       this.buildRandom(options);
     }
   }
@@ -77,8 +49,7 @@ export class StarField extends THREE.Object3D {
     try {
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const arrayBuf = await resp.arrayBuffer();
-      this.buildFromBinary(arrayBuf, options);
+      this.buildFromBinary(await resp.arrayBuffer(), options);
     } catch (err) {
       console.warn('[SpiceCraft] Failed to load star catalog, using random stars:', err);
       this.buildRandom(options);
@@ -86,35 +57,29 @@ export class StarField extends THREE.Object3D {
   }
 
   /**
-   * Parse the binary star catalog and build the point cloud.
-   * Format: 4-byte magic "STAR", 4-byte uint32 count, then count × 5 Float32 (x, y, z, mag, bv)
+   * Parse binary star catalog.
+   * Format: "STAR" magic (4b) + uint32 count (4b) + count × [x,y,z,mag,bv] Float32 (20b each)
    */
   private buildFromBinary(buffer: ArrayBuffer, options: StarFieldOptions): void {
     const view = new DataView(buffer);
     const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
     if (magic !== 'STAR') {
-      console.warn('[SpiceCraft] Invalid star catalog magic:', magic);
       this.buildRandom(options);
       return;
     }
 
     const count = view.getUint32(4, true);
-    const radius = options.radius ?? 1e8;
-    const minSize = options.minSize ?? 0.5;
-    const maxSize = options.maxSize ?? 4.0;
+    const maxSize = options.maxSize ?? 3.5;
     const magLimit = options.magLimit ?? 6.5;
+    const HEADER = 8;
+    const STRIDE = 20;
 
-    // Find magnitude range for normalization (skip Sun if present)
+    // Find magnitude range (skip Sun)
     let magBright = 10;
     let starCount = 0;
-    const HEADER = 8;
-    const STRIDE = 20; // 5 Float32s
-
     for (let i = 0; i < count; i++) {
-      const off = HEADER + i * STRIDE;
-      const mag = view.getFloat32(off + 12, true);
-      if (mag < -10) continue; // Skip Sun
-      if (mag > magLimit) continue;
+      const mag = view.getFloat32(HEADER + i * STRIDE + 12, true);
+      if (mag < -10 || mag > magLimit) continue;
       if (mag < magBright) magBright = mag;
       starCount++;
     }
@@ -122,7 +87,6 @@ export class StarField extends THREE.Object3D {
     const positions = new Float32Array(starCount * 3);
     const colors = new Float32Array(starCount * 3);
     const sizes = new Float32Array(starCount);
-
     const magRange = magLimit - magBright;
     let idx = 0;
 
@@ -136,36 +100,36 @@ export class StarField extends THREE.Object3D {
 
       if (mag < -10 || mag > magLimit) continue;
 
-      // Unit vector × radius
-      positions[idx * 3] = x * radius;
-      positions[idx * 3 + 1] = y * radius;
-      positions[idx * 3 + 2] = z * radius;
+      // Unit vector — direction only (shader handles the rest)
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = z;
 
-      // Size: logarithmic brightness scaling
-      // Brighter stars (lower mag) → larger points
-      const t = 1 - (mag - magBright) / magRange; // 1 = brightest, 0 = faintest
-      sizes[idx] = minSize + (maxSize - minSize) * (t * t); // quadratic for more contrast
+      // Brightness: 1=brightest, 0=faintest
+      const t = 1 - (mag - magBright) / magRange;
 
-      // Color from B-V index
-      const [r, g, b] = bvToColor(bv);
-      colors[idx * 3] = r;
-      colors[idx * 3 + 1] = g;
-      colors[idx * 3 + 2] = b;
+      // Size: minimum 2px to avoid sub-pixel aliasing flicker.
+      // Bright stars get larger (up to maxSize).
+      sizes[idx] = 2.0 + (maxSize - 2.0) * (t * t * t);
+
+      // Color: spectral tint × brightness.
+      // Linear with high floor: faintest=0.15 (visible on any monitor), brightest=1.0
+      const brightness = 0.15 + 0.85 * t;
+      const [r, g, b] = bvToRGB(bv);
+      colors[idx * 3] = r * brightness;
+      colors[idx * 3 + 1] = g * brightness;
+      colors[idx * 3 + 2] = b * brightness;
 
       idx++;
     }
 
     this.buildPoints(positions, colors, sizes, idx);
-    console.log(`[SpiceCraft] StarField: ${idx} real stars loaded (mag ${magBright.toFixed(1)} to ${magLimit})`);
+    console.log(`[SpiceCraft] StarField: ${idx} real stars (mag ${magBright.toFixed(1)} to ${magLimit})`);
   }
 
-  /** Fallback: random uniformly distributed white stars */
   private buildRandom(options: StarFieldOptions): void {
     const count = 5000;
-    const radius = options.radius ?? 1e8;
-    const minSize = options.minSize ?? 0.5;
     const maxSize = options.maxSize ?? 2.0;
-
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
     const sizes = new Float32Array(count);
@@ -173,20 +137,20 @@ export class StarField extends THREE.Object3D {
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * 2 * Math.PI;
       const phi = Math.acos(2 * Math.random() - 1);
-      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
-      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-      positions[i * 3 + 2] = radius * Math.cos(phi);
-      sizes[i] = minSize + Math.random() * (maxSize - minSize);
-      colors[i * 3] = 1;
-      colors[i * 3 + 1] = 1;
-      colors[i * 3 + 2] = 1;
+      positions[i * 3] = Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = Math.cos(phi);
+      const b = 0.5 + Math.random() * 0.5;
+      sizes[i] = 2.0 + Math.random() * (maxSize - 2.0);
+      colors[i * 3] = b;
+      colors[i * 3 + 1] = b;
+      colors[i * 3 + 2] = b;
     }
 
     this.buildPoints(positions, colors, sizes, count);
   }
 
   private buildPoints(positions: Float32Array, colors: Float32Array, sizes: Float32Array, count: number): void {
-    // Clean up previous
     if (this.points) {
       this.points.geometry.dispose();
       (this.points.material as THREE.Material).dispose();
@@ -199,34 +163,40 @@ export class StarField extends THREE.Object3D {
     geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes.slice(0, count), 1));
 
     const material = new THREE.ShaderMaterial({
-      uniforms: {},
-      vertexShader: `
+      vertexShader: /* glsl */ `
         attribute float aSize;
         varying vec3 vColor;
         void main() {
           vColor = color;
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          // Skybox: strip translation from modelView, keep only rotation.
+          // Stars are at infinity — camera movement doesn't affect them.
+          vec3 viewDir = mat3(modelViewMatrix) * position;
+          vec4 clipPos = projectionMatrix * vec4(viewDir, 1.0);
+          // Push to far plane so stars are always behind everything
+          clipPos.z = clipPos.w;
+          gl_Position = clipPos;
           gl_PointSize = aSize;
-          gl_Position = projectionMatrix * mvPosition;
         }
       `,
-      fragmentShader: `
+      fragmentShader: /* glsl */ `
         varying vec3 vColor;
         void main() {
-          // Soft circular point with glow falloff
+          // Soft circle via alpha — no discard, so no pixel-boundary flicker.
+          // Additive blending means black/transparent edges add nothing.
           float d = length(gl_PointCoord - vec2(0.5));
-          if (d > 0.5) discard;
-          float alpha = 1.0 - smoothstep(0.0, 0.5, d);
-          gl_FragColor = vec4(vColor, alpha);
+          float alpha = 1.0 - smoothstep(0.45, 0.5, d);
+          gl_FragColor = vec4(vColor * alpha, 1.0);
         }
       `,
       transparent: true,
       depthWrite: false,
       depthTest: true,
       vertexColors: true,
+      blending: THREE.AdditiveBlending,
     });
 
     this.points = new THREE.Points(geometry, material);
+    this.points.frustumCulled = false;
     this.add(this.points);
   }
 
