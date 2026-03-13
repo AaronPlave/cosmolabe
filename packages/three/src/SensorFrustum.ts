@@ -16,6 +16,8 @@ export interface SensorFrustumOptions {
 export class SensorFrustum extends THREE.Object3D {
   readonly body: Body;
   readonly targetName: string | undefined;
+  /** NAIF instrument ID for SPICE-based orientation (e.g. -82360 for Cassini ISS NAC) */
+  readonly spiceId: number | undefined;
   private readonly frustumMesh: THREE.Mesh;
   private readonly wireframe: THREE.LineSegments;
   private readonly hFov: number; // radians (half-angle)
@@ -37,6 +39,7 @@ export class SensorFrustum extends THREE.Object3D {
     this.hFov = (hFovDeg * Math.PI) / 180;
     this.vFov = (vFovDeg * Math.PI) / 180;
     this.targetName = geo?.target as string | undefined;
+    this.spiceId = geo?.spiceId as number | undefined;
     this.shape = (geo?.shape as string) === 'rectangular' ? 'rectangular' : 'elliptical';
 
     // Range from catalog (in km) or from options
@@ -89,7 +92,12 @@ export class SensorFrustum extends THREE.Object3D {
     this.add(this.wireframe);
   }
 
-  update(et: number, scaleFactor: number, targetBody?: Body, resolvePos?: PositionResolver): void {
+  /**
+   * @param spiceRotation Optional 3x3 rotation matrix (row-major, 9 elements) from
+   *   instrument frame → J2000, obtained via pxform(instrumentFrame, 'J2000', et).
+   *   When provided, the frustum is oriented using real SPICE pointing data.
+   */
+  update(et: number, scaleFactor: number, targetBody?: Body, resolvePos?: PositionResolver, spiceRotation?: number[]): void {
     const pos = resolvePos
       ? resolvePos(this.body.name, et)
       : this.body.stateAt(et).position as [number, number, number];
@@ -121,17 +129,33 @@ export class SensorFrustum extends THREE.Object3D {
     this.frustumMesh.scale.set(radiusH, length, radiusV);
     this.wireframe.scale.copy(this.frustumMesh.scale);
 
-    // Orient toward target
-    if (targetBody) {
+    // Orient frustum
+    if (spiceRotation && spiceRotation.length === 9) {
+      // SPICE pxform returns instrument→J2000 rotation (row-major).
+      // Boresight is +Z in instrument frame. Frustum mesh extends along -Y.
+      // We need: align -Y with boresight direction in J2000.
+      //
+      // The rotation matrix R transforms instrument-frame vectors to J2000.
+      // Boresight in J2000 = R * [0,0,1].
+      // We also need the "up" direction: R * [1,0,0] (ref vector) for roll.
+      const r = spiceRotation;
+      // Boresight direction in J2000: 3rd column of R = R * [0,0,1]
+      const boresight = new THREE.Vector3(r[2], r[5], r[8]);
+      boresight.normalize();
+      // Align frustum -Y with boresight
+      const negY = new THREE.Vector3(0, -1, 0);
+      const quat = new THREE.Quaternion().setFromUnitVectors(negY, boresight);
+      this.frustumMesh.quaternion.copy(quat);
+      this.wireframe.quaternion.copy(quat);
+    } else if (targetBody) {
+      // Fallback: point toward target
       const tPos = resolvePos
         ? resolvePos(targetBody.name, et)
         : targetBody.stateAt(et).position as [number, number, number];
       const targetPos = new THREE.Vector3(tPos[0] * scaleFactor, tPos[1] * scaleFactor, tPos[2] * scaleFactor);
       const dir = targetPos.clone().sub(bodyPos).normalize();
-      // Cone apex at origin, extends along -Y → align -Y with direction
       const negY = new THREE.Vector3(0, -1, 0);
       const quat = new THREE.Quaternion().setFromUnitVectors(negY, dir);
-      // Apply sensor orientation offset (body-frame relative)
       quat.multiply(this.sensorOrientation);
       this.frustumMesh.quaternion.copy(quat);
       this.wireframe.quaternion.copy(quat);

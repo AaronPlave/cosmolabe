@@ -53,3 +53,14 @@ export type TimeWindow = {
 
 // Aberration correction
 export type AberrationCorrection = 'NONE' | 'LT' | 'LT+S' | 'CN' | 'CN+S' | 'XLT' | 'XLT+S' | 'XCN' | 'XCN+S';
+
+// FOV shape types returned by getfov_c
+export type FovShape = 'POLYGON' | 'RECTANGLE' | 'CIRCLE' | 'ELLIPSE';
+
+// Instrument field of view definition
+export interface InstrumentFov {
+  shape: FovShape;
+  frame: string;
+  boresight: Vec3;
+  bounds: Vec3[];
+}

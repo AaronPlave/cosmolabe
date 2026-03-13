@@ -179,22 +179,24 @@ export class TrajectoryLine extends THREE.Object3D {
     // Curvature threshold: 0.5% deviation ratio for smooth curves
     const curvatureThreshold = this.subdivisionPixels > 0 ? 0.005 / this.subdivisionPixels : 0;
 
-    // Coarse samples anchored to fixed time grid
+    // Coarse samples anchored to fixed time grid.
+    // NaN positions (from out-of-coverage SPICE queries) are skipped — the trail
+    // automatically clips to the time range with valid kernel data.
     const dt = totalDuration / (Math.min(this.numCoarse, this.maxPoints) - 1);
     const gridStart = Math.ceil(startEt / dt) * dt;
     const coarseSamples: Sample[] = [];
     {
       const pos = this.resolveAt(startEt, resolver);
-      coarseSamples.push({ t: startEt, x: pos[0], y: pos[1], z: pos[2] });
+      if (!isNaN(pos[0])) coarseSamples.push({ t: startEt, x: pos[0], y: pos[1], z: pos[2] });
     }
     for (let t = gridStart; t < endEt; t += dt) {
       if (t <= startEt) continue;
       const pos = this.resolveAt(t, resolver);
-      coarseSamples.push({ t, x: pos[0], y: pos[1], z: pos[2] });
+      if (!isNaN(pos[0])) coarseSamples.push({ t, x: pos[0], y: pos[1], z: pos[2] });
     }
     {
       const pos = this.resolveAt(endEt, resolver);
-      coarseSamples.push({ t: endEt, x: pos[0], y: pos[1], z: pos[2] });
+      if (!isNaN(pos[0])) coarseSamples.push({ t: endEt, x: pos[0], y: pos[1], z: pos[2] });
     }
 
     // Recursive subdivision
@@ -207,6 +209,11 @@ export class TrajectoryLine extends THREE.Object3D {
       if (curvatureThreshold > 0 && depth < maxDepth) {
         const midT = (s0.t + s1.t) * 0.5;
         const midPos = this.resolveAt(midT, resolver);
+        if (isNaN(midPos[0])) {
+          // No data at midpoint — don't subdivide, just emit the segment
+          finalSamples.push(s0);
+          return;
+        }
         const linMx = (s0.x + s1.x) * 0.5, linMy = (s0.y + s1.y) * 0.5, linMz = (s0.z + s1.z) * 0.5;
         const devX = midPos[0] - linMx, devY = midPos[1] - linMy, devZ = midPos[2] - linMz;
         const deviation = Math.sqrt(devX * devX + devY * devY + devZ * devZ);
@@ -240,11 +247,15 @@ export class TrajectoryLine extends THREE.Object3D {
       // Store orbit samples in _orbitSamples for offset application
       if (!this._orbitSamples) this._orbitSamples = [];
       this._orbitSamples.length = this.orbitNumPoints;
+      let orbitCount = 0;
       for (let i = 0; i < this.orbitNumPoints; i++) {
         const t = this.lastComputedEt + i * orbitDt;
         const pos = this.resolveAt(t);
-        this._orbitSamples[i] = { t, x: pos[0], y: pos[1], z: pos[2] };
+        if (!isNaN(pos[0])) {
+          this._orbitSamples[orbitCount++] = { t, x: pos[0], y: pos[1], z: pos[2] };
+        }
       }
+      this._orbitSamples.length = orbitCount;
     }
   }
 

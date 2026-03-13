@@ -2,7 +2,7 @@ import type { KernelSource } from './SpiceKernel.js';
 import type {
   Vec3, StateVector, RotationMatrix, StateTransformMatrix,
   OrbitalElements, IlluminationAngles, SubPoint, SurfaceIntercept,
-  TimeWindow, AberrationCorrection,
+  TimeWindow, AberrationCorrection, FovShape, InstrumentFov,
 } from './types.js';
 
 import { Spice as TCSpice, ASM_SPICE_FULL } from 'timecraftjs';
@@ -47,6 +47,10 @@ export interface SpiceInstance {
   gfsep(target1: string, shape1: string, frame1: string, target2: string, shape2: string, frame2: string, abcorr: string, observer: string, relate: string, refval: number, adjust: number, step: number, cnfine: TimeWindow[]): TimeWindow[];
   gfoclt(occtyp: string, front: string, fshape: string, fframe: string, back: string, bshape: string, bframe: string, abcorr: string, observer: string, step: number, cnfine: TimeWindow[]): TimeWindow[];
   gfdist(target: string, abcorr: string, observer: string, relate: string, refval: number, adjust: number, step: number, cnfine: TimeWindow[]): TimeWindow[];
+  // FOV
+  getfov(instId: number, maxBounds?: number): InstrumentFov;
+  fovray(inst: string, raydir: Vec3, rframe: string, abcorr: AberrationCorrection, observer: string, et: number): boolean;
+  fovtrg(inst: string, target: string, tshape: string, tframe: string, abcorr: AberrationCorrection, observer: string, et: number): boolean;
   // Math
   mxv(matrix: RotationMatrix, vin: Vec3): Vec3;
   mtxv(matrix: RotationMatrix, vin: Vec3): Vec3;
@@ -620,6 +624,69 @@ export class Spice implements SpiceInstance {
   private freeSpiceCell(cell: { cellPtr: number; dataPtr: number }): void {
     this.module._free(cell.cellPtr);
     this.module._free(cell.dataPtr);
+  }
+
+  // --- FOV ---
+
+  getfov(instId: number, maxBounds: number = 20): InstrumentFov {
+    const SHAPELEN = 64;
+    const FRAMELEN = 64;
+    const shapePtr = this.module._malloc(SHAPELEN);
+    const framePtr = this.module._malloc(FRAMELEN);
+    const bsightPtr = this.module._malloc(DOUBLE_SIZE * 3);
+    const nPtr = this.module._malloc(INT_SIZE);
+    const boundsPtr = this.module._malloc(DOUBLE_SIZE * 3 * maxBounds);
+
+    this.module.ccall('getfov_c', null,
+      ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'],
+      [instId, maxBounds, SHAPELEN, FRAMELEN, shapePtr, framePtr, bsightPtr, nPtr, boundsPtr]);
+
+    const shape = this.module.UTF8ToString(shapePtr) as FovShape;
+    const frame = this.module.UTF8ToString(framePtr);
+    const boresight = this.readDoubleArray(bsightPtr, 3) as unknown as Vec3;
+    const n = this.module.getValue(nPtr, 'i32');
+    const boundsFlat = this.readDoubleArray(boundsPtr, n * 3);
+    const bounds: Vec3[] = [];
+    for (let i = 0; i < n; i++) {
+      bounds.push([boundsFlat[i * 3], boundsFlat[i * 3 + 1], boundsFlat[i * 3 + 2]]);
+    }
+
+    this.module._free(shapePtr); this.module._free(framePtr);
+    this.module._free(bsightPtr); this.module._free(nPtr);
+    this.module._free(boundsPtr);
+    this.checkError();
+    return { shape, frame, boresight, bounds };
+  }
+
+  fovray(inst: string, raydir: Vec3, rframe: string, abcorr: AberrationCorrection, observer: string, et: number): boolean {
+    const raydirPtr = this.writeDoubleArray(raydir);
+    const etPtr = this.module._malloc(DOUBLE_SIZE);
+    this.module.setValue(etPtr, et, 'double');
+    const visiblePtr = this.module._malloc(INT_SIZE);
+
+    this.module.ccall('fovray_c', null,
+      ['string', 'number', 'string', 'string', 'string', 'number', 'number'],
+      [inst, raydirPtr, rframe, abcorr, observer, etPtr, visiblePtr]);
+
+    const visible = this.module.getValue(visiblePtr, 'i32') !== 0;
+    this.module._free(raydirPtr); this.module._free(etPtr); this.module._free(visiblePtr);
+    this.checkError();
+    return visible;
+  }
+
+  fovtrg(inst: string, target: string, tshape: string, tframe: string, abcorr: AberrationCorrection, observer: string, et: number): boolean {
+    const etPtr = this.module._malloc(DOUBLE_SIZE);
+    this.module.setValue(etPtr, et, 'double');
+    const visiblePtr = this.module._malloc(INT_SIZE);
+
+    this.module.ccall('fovtrg_c', null,
+      ['string', 'string', 'string', 'string', 'string', 'string', 'number', 'number'],
+      [inst, target, tshape, tframe, abcorr, observer, etPtr, visiblePtr]);
+
+    const visible = this.module.getValue(visiblePtr, 'i32') !== 0;
+    this.module._free(etPtr); this.module._free(visiblePtr);
+    this.checkError();
+    return visible;
   }
 
   // --- Math ---

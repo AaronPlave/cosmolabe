@@ -286,9 +286,20 @@ export class UniverseRenderer {
       const abs = this.absolutePositionOf(name, t);
       return [abs[0] - originAbsPos[0], abs[1] - originAbsPos[1], abs[2] - originAbsPos[2]];
     };
+    const spiceInst = this.universe.spiceInstance;
     for (const sf of this.sensorFrustums.values()) {
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
-      sf.update(et, this.scaleFactor, targetBody, originRelResolver);
+      // Try SPICE-based orientation if instrument ID is known
+      let spiceRot: number[] | undefined;
+      if (sf.spiceId != null && spiceInst) {
+        try {
+          const fov = spiceInst.getfov(sf.spiceId);
+          spiceRot = spiceInst.pxform(fov.frame, 'J2000', et) as unknown as number[];
+        } catch {
+          // CK data may not cover this time — fall back to target-pointing
+        }
+      }
+      sf.update(et, this.scaleFactor, targetBody, originRelResolver, spiceRot);
     }
 
     // Update event markers
@@ -452,6 +463,16 @@ export class UniverseRenderer {
     }
 
     for (const body of bodies) {
+      // Sensor bodies get a frustum, not a sphere
+      if (body.geometryType === 'Sensor') {
+        // If spiceId is present and SPICE is available, derive FOV params from the IK kernel
+        this.enrichSensorFromSpice(body);
+        const sf = new SensorFrustum(body);
+        this.sensorFrustums.set(body.name, sf);
+        this.scene.add(sf);
+        continue;
+      }
+
       // Create body mesh
       const bm = new BodyMesh(body);
       bm.mesh.scale.setScalar(this.scaleFactor);
@@ -530,12 +551,6 @@ export class UniverseRenderer {
         }
       }
 
-      // Create sensor frustum for Sensor geometry type
-      if (body.geometryType === 'Sensor') {
-        const sf = new SensorFrustum(body);
-        this.sensorFrustums.set(body.name, sf);
-        this.scene.add(sf);
-      }
     }
 
     // Sun light
@@ -559,6 +574,76 @@ export class UniverseRenderer {
       for (const bm of this.bodyMeshes.values()) {
         this.labelManager.addLabel(bm);
       }
+    }
+  }
+
+  /**
+   * If a Sensor body has a spiceId and SPICE is available, enrich its geometryData
+   * with FOV parameters (shape, horizontalFov, verticalFov) derived from the IK kernel.
+   * Catalog-specified values take precedence — SPICE only fills in what's missing.
+   */
+  private enrichSensorFromSpice(body: Body): void {
+    const geo = body.geometryData as Record<string, unknown> | undefined;
+    if (!geo) return;
+    const spiceId = geo.spiceId as number | undefined;
+    if (spiceId == null) return;
+    const spice = this.universe.spiceInstance;
+    if (!spice) return;
+
+    try {
+      const fov = spice.getfov(spiceId);
+
+      // Derive shape if not specified in catalog
+      if (!geo.shape) {
+        geo.shape = fov.shape === 'RECTANGLE' ? 'rectangular' : 'elliptical';
+      }
+
+      // Derive FOV angles from boundary vectors if not specified in catalog
+      if (geo.horizontalFov == null || geo.verticalFov == null) {
+        const bs = fov.boresight;
+        if (fov.shape === 'RECTANGLE' && fov.bounds.length >= 1) {
+          // Decompose first corner boundary vector relative to boresight
+          // Bounds are in the instrument frame; boresight is typically +Z
+          const b = fov.bounds[0];
+          const along = b[0] * bs[0] + b[1] * bs[1] + b[2] * bs[2];
+          // Build perpendicular axes: use the cross product to find "right" and "up"
+          // For boresight near +Z, right ≈ X, up ≈ Y
+          const bsLen = Math.sqrt(bs[0] ** 2 + bs[1] ** 2 + bs[2] ** 2);
+          const refUp = Math.abs(bs[1] / bsLen) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+          const right = [
+            bs[1] * refUp[2] - bs[2] * refUp[1],
+            bs[2] * refUp[0] - bs[0] * refUp[2],
+            bs[0] * refUp[1] - bs[1] * refUp[0],
+          ];
+          const rLen = Math.sqrt(right[0] ** 2 + right[1] ** 2 + right[2] ** 2);
+          right[0] /= rLen; right[1] /= rLen; right[2] /= rLen;
+          const up = [
+            bs[1] * right[2] - bs[2] * right[1],
+            bs[2] * right[0] - bs[0] * right[2],
+            bs[0] * right[1] - bs[1] * right[0],
+          ];
+          const hComp = Math.abs(b[0] * right[0] + b[1] * right[1] + b[2] * right[2]);
+          const vComp = Math.abs(b[0] * up[0] + b[1] * up[1] + b[2] * up[2]);
+          if (geo.horizontalFov == null) geo.horizontalFov = Math.atan2(hComp, along) * 2 * 180 / Math.PI;
+          if (geo.verticalFov == null) geo.verticalFov = Math.atan2(vComp, along) * 2 * 180 / Math.PI;
+        } else if (fov.bounds.length >= 1) {
+          // CIRCLE, ELLIPSE, POLYGON: use angular separation from boresight
+          const dot = bs[0] * fov.bounds[0][0] + bs[1] * fov.bounds[0][1] + bs[2] * fov.bounds[0][2];
+          const halfAngle = Math.acos(Math.min(1, Math.abs(dot)));
+          const fovDeg = halfAngle * 2 * 180 / Math.PI;
+          if (geo.horizontalFov == null) geo.horizontalFov = fovDeg;
+          if (geo.verticalFov == null) {
+            if (fov.shape === 'ELLIPSE' && fov.bounds.length >= 2) {
+              const dot2 = bs[0] * fov.bounds[1][0] + bs[1] * fov.bounds[1][1] + bs[2] * fov.bounds[1][2];
+              geo.verticalFov = Math.acos(Math.min(1, Math.abs(dot2))) * 2 * 180 / Math.PI;
+            } else {
+              geo.verticalFov = fovDeg;
+            }
+          }
+        }
+      }
+    } catch {
+      // IK kernel not loaded or instrument ID not found — use catalog values
     }
   }
 

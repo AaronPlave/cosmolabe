@@ -65,6 +65,7 @@ export class Universe {
   }
 
   get time(): number { return this.currentEt; }
+  get spiceInstance(): SpiceInstance | undefined { return this.spice; }
 
   setTime(et: number): void {
     this.currentEt = et;

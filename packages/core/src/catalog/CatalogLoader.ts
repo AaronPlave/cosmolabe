@@ -21,6 +21,8 @@ export interface CatalogJson {
   version?: string;
   require?: string[];
   items?: CatalogItem[];
+  /** Default time to set when loading this catalog (UTC string, e.g. "2004-07-01T02:48:00Z") */
+  defaultTime?: string;
 }
 
 export interface TrajectoryPlotSpec {
@@ -122,6 +124,7 @@ export interface RotationModelSpec {
   ascension?: number;
   declination?: number;
   bodyFrame?: string;
+  inertialFrame?: string;
 }
 
 export interface GeometrySpec {
@@ -318,6 +321,8 @@ export class CatalogLoader {
   private readonly spice?: SpiceInstance;
   private readonly resolveFile?: (source: string) => string | undefined;
   private readonly resolveFileBinary?: (source: string) => ArrayBuffer | undefined;
+  /** Epoch (ET) used to probe whether SPICE kernels have coverage. Set from catalog's defaultTime. */
+  private probeEpoch = 0;
 
   constructor(spiceOrOptions?: SpiceInstance | CatalogLoaderOptions) {
     if (!spiceOrOptions) return;
@@ -333,6 +338,15 @@ export class CatalogLoader {
   }
 
   load(json: CatalogJson): LoadedCatalog {
+    // If catalog specifies a defaultTime, use it as the probe epoch for SPICE coverage checks.
+    // This ensures Builtin bodies use SPICE data when the loaded kernels cover the mission epoch
+    // (e.g. a Cassini SCPSE kernel covering 2004 would fail the default J2000 probe at ET=0).
+    if (json.defaultTime && this.spice) {
+      try {
+        this.probeEpoch = this.spice.str2et(json.defaultTime);
+      } catch { /* keep default 0 */ }
+    }
+
     const bodies: Body[] = [];
 
     if (json.items) {
@@ -463,9 +477,9 @@ export class CatalogLoader {
           const center = item.center ?? info?.center ?? 'SUN';
           const frame = item.trajectoryFrame ?? 'ECLIPJ2000';
           const spiceTraj = new SpiceTrajectory(this.spice, target, center, frame);
-          // Probe: check if SPICE actually has data for this body
+          // Probe: check if SPICE actually has data for this body at the catalog's epoch
           try {
-            spiceTraj.stateAt(0);
+            spiceTraj.stateAt(this.probeEpoch);
             if (!spiceTraj.failed) return spiceTraj;
           } catch { /* fall through to analytical/Keplerian */ }
         }
@@ -623,6 +637,7 @@ export class CatalogLoader {
         return new SpiceRotation(
           this.spice,
           spec.bodyFrame ?? `IAU_${item.name.toUpperCase()}`,
+          spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000',
         );
 
       case 'Fixed':

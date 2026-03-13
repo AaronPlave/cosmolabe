@@ -1,0 +1,170 @@
+{
+  "name": "Cassini Saturn Orbit Insertion",
+  "defaultTime": "2004-07-01T02:48:00Z",
+  "items": [
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Saturn",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Saturn" },
+      "geometry": { "type": "Globe", "radii": [60268, 60268, 54364] },
+      "label": { "color": [0.9, 0.8, 0.5] },
+      "items": [
+        {
+          "name": "Saturn Rings",
+          "class": "other",
+          "center": "Saturn",
+          "geometry": {
+            "type": "Rings",
+            "innerRadius": 74660,
+            "outerRadius": 140220
+          }
+        },
+        {
+          "name": "Mimas",
+          "class": "moon",
+          "center": "Saturn",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Mimas" },
+          "geometry": { "type": "Globe", "radius": 198 },
+          "label": { "color": [0.7, 0.7, 0.7] }
+        },
+        {
+          "name": "Enceladus",
+          "class": "moon",
+          "center": "Saturn",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Enceladus" },
+          "geometry": { "type": "Globe", "radius": 252 },
+          "label": { "color": [0.9, 0.9, 1.0] }
+        },
+        {
+          "name": "Tethys",
+          "class": "moon",
+          "center": "Saturn",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Tethys" },
+          "geometry": { "type": "Globe", "radius": 531 },
+          "label": { "color": [0.8, 0.8, 0.8] }
+        },
+        {
+          "name": "Dione",
+          "class": "moon",
+          "center": "Saturn",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Dione" },
+          "geometry": { "type": "Globe", "radius": 561 },
+          "label": { "color": [0.8, 0.8, 0.8] }
+        },
+        {
+          "name": "Rhea",
+          "class": "moon",
+          "center": "Saturn",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Rhea" },
+          "geometry": { "type": "Globe", "radius": 764 },
+          "label": { "color": [0.7, 0.7, 0.7] }
+        },
+        {
+          "name": "Titan",
+          "class": "moon",
+          "center": "Saturn",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Titan" },
+          "geometry": { "type": "Globe", "radius": 2575 },
+          "label": { "color": [0.8, 0.7, 0.3] }
+        },
+        {
+          "name": "Hyperion",
+          "class": "moon",
+          "center": "Saturn",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Hyperion" },
+          "geometry": { "type": "Globe", "radius": 135 },
+          "label": { "color": [0.6, 0.6, 0.5] }
+        },
+        {
+          "name": "Iapetus",
+          "class": "moon",
+          "center": "Saturn",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Iapetus" },
+          "geometry": { "type": "Globe", "radius": 736 },
+          "label": { "color": [0.5, 0.4, 0.3] }
+        },
+        {
+          "name": "Phoebe",
+          "class": "moon",
+          "center": "Saturn",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Phoebe" },
+          "geometry": { "type": "Globe", "radius": 107 },
+          "label": { "color": [0.4, 0.4, 0.4] }
+        },
+        {
+          "name": "Cassini",
+          "class": "spacecraft",
+          "center": "Saturn",
+          "startTime": "2004-06-27T00:00:00Z",
+          "trajectoryFrame": "J2000",
+          "trajectory": {
+            "type": "Spice",
+            "target": "CASSINI",
+            "center": "SATURN"
+          },
+          "rotationModel": {
+            "type": "Spice",
+            "bodyFrame": "CASSINI_SC_COORD"
+          },
+          "geometry": {
+            "type": "Mesh",
+            "size": 0.005,
+            "source": "models/Cassini.glb",
+            "meshRotation": [-0.0478, 0.0868, 0.7215, -0.6853]
+          },
+          "label": { "color": [0.9, 0.9, 0.9] },
+          "trajectoryPlot": { "color": [0.9, 0.9, 0.9], "fade": 0.5 },
+          "items": [
+            {
+              "name": "ISS NAC",
+              "class": "instrument",
+              "center": "Cassini",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -82360,
+                "target": "Saturn",
+                "range": 2000000,
+                "frustumColor": [0.2, 0.6, 1.0],
+                "frustumOpacity": 0.3
+              },
+              "label": { "color": [0.2, 0.6, 1.0] }
+            },
+            {
+              "name": "ISS WAC",
+              "class": "instrument",
+              "center": "Cassini",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -82361,
+                "target": "Saturn",
+                "range": 2000000,
+                "frustumColor": [1.0, 0.6, 0.2],
+                "frustumOpacity": 0.15
+              },
+              "label": { "color": [1.0, 0.6, 0.2] }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

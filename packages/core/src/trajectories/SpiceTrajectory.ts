@@ -26,7 +26,7 @@ export class SpiceTrajectory implements Trajectory {
         console.warn(`SPICE trajectory failed for ${this.target}: ${e instanceof Error ? e.message : e}`);
         this.errorLogged = true;
       }
-      return { position: [0, 0, 0], velocity: [0, 0, 0] };
+      return { position: [NaN, NaN, NaN], velocity: [NaN, NaN, NaN] };
     }
   }
 }

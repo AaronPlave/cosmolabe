@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { Universe } from "@spicecraft/core";
 import { Spice, type SpiceInstance } from "@spicecraft/spice";
 import { UniverseRenderer } from "@spicecraft/three";
@@ -45,7 +46,17 @@ const NAIF_KERNELS = [
   { file: "de440s.bsp", label: "Planets + Moon" },
 ];
 
+/** Cassini-specific kernels (SOI period: Jun 27 – Jul 3, 2004) */
+const CASSINI_KERNELS = [
+  { file: "cassini/cas_v43.tf", label: "Cassini frames" },
+  { file: "cassini/cas00172.tsc", label: "Cassini clock" },
+  { file: "cassini/cas_iss_v10.ti", label: "ISS instruments" },
+  { file: "cassini/040629AP_SCPSE_04179_04185.bsp", label: "Cassini SOI trajectory" },
+  { file: "cassini/04183_04185ra.bc", label: "Cassini attitude (SOI)" },
+];
+
 let naifLoaded = false;
+let cassiniLoaded = false;
 
 async function loadNaifKernels(): Promise<void> {
   if (naifLoaded) return;
@@ -82,6 +93,22 @@ async function loadNaifKernels(): Promise<void> {
   console.log(
     `[SpiceCraft] All NAIF generic kernels loaded (${spice.totalLoaded()} total)`,
   );
+}
+
+async function loadCassiniKernels(): Promise<void> {
+  if (cassiniLoaded) return;
+  await loadNaifKernels(); // Need generic kernels first
+  for (const kernel of CASSINI_KERNELS) {
+    infoPanel.textContent = `Loading ${kernel.label}...`;
+    console.log(`[SpiceCraft] Fetching Cassini kernel: ${kernel.file}`);
+    try {
+      await spice!.furnish({ type: "url", url: `${NAIF_BASE}/${kernel.file}` });
+    } catch (err) {
+      console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+    }
+  }
+  cassiniLoaded = true;
+  console.log(`[SpiceCraft] Cassini kernels loaded (${spice!.totalLoaded()} total)`);
 }
 
 btnLoadNaif.addEventListener("click", (e) => {
@@ -342,8 +369,12 @@ for (const btn of document.querySelectorAll(".demo-btn")) {
     e.stopPropagation();
     const name = (btn as HTMLElement).dataset.catalog;
     if (!name) return;
-    // Load NAIF kernels first so SPICE trajectories work
-    await loadNaifKernels();
+    // Load mission-specific kernels if needed, otherwise just generic NAIF
+    if (name === "cassini-soi") {
+      await loadCassiniKernels();
+    } else {
+      await loadNaifKernels();
+    }
     const resp = await fetch(`./${name}.json`);
     const json = await resp.json();
     console.log(`[SpiceCraft] Loading demo catalog: ${name}`);
@@ -401,6 +432,21 @@ function initScene(
     universe.loadCatalog(json as any);
   }
 
+  // Set initial time from catalog defaultTime (if present and SPICE is available)
+  for (const json of catalogs) {
+    const dt = (json as Record<string, unknown>).defaultTime;
+    if (typeof dt === "string" && spice) {
+      try {
+        const et = spice.str2et(dt);
+        universe.setTime(et);
+        console.log(`[SpiceCraft] Set default time: ${dt} (ET=${et.toFixed(1)})`);
+      } catch (e) {
+        console.warn(`[SpiceCraft] Failed to parse defaultTime "${dt}":`, e);
+      }
+      break;
+    }
+  }
+
   overlay.classList.add("hidden");
   controls.classList.remove("hidden");
 
@@ -413,7 +459,7 @@ function initScene(
     minBodyPixels: 4,
     modelResolver: modelFiles && modelFiles.size > 0
       ? (source: string) => findInMap(modelFiles, source)
-      : undefined,
+      : (source: string) => `./${source}`,
   });
 
   // Position camera to see the solar system
@@ -572,5 +618,36 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "x" && !e.ctrlKey && !e.metaKey) {
     axesShown = !axesShown;
     renderer?.showBodyAxes(axesShown);
+  }
+
+  // Debug: rotate tracked body's meshRotation
+  // 1/2 = ±X, 3/4 = ±Y, 5/6 = ±Z, q = log quaternion
+  // No modifier = 90° steps, Shift = 15° fine steps
+  const tracked = renderer?.cameraController.trackedBody;
+  if (!tracked) return;
+  const angle = e.shiftKey ? Math.PI / 12 : Math.PI / 2; // 15° or 90°
+  const s = Math.sin(angle / 2);
+  const c = Math.cos(angle / 2);
+  const step = new THREE.Quaternion();
+  let rotated = false;
+  switch (e.key) {
+    case "1": case "!": step.set(s, 0, 0, c); rotated = true; break;  // +X
+    case "2": case "@": step.set(-s, 0, 0, c); rotated = true; break; // -X
+    case "3": case "#": step.set(0, s, 0, c); rotated = true; break;  // +Y
+    case "4": case "$": step.set(0, -s, 0, c); rotated = true; break; // -Y
+    case "5": case "%": step.set(0, 0, s, c); rotated = true; break;  // +Z
+    case "6": case "^": step.set(0, 0, -s, c); rotated = true; break; // -Z
+    case "q":
+      if (!e.ctrlKey && !e.metaKey) {
+        const mq = tracked.meshRotationQ;
+        console.log(`[meshRotation] ${tracked.body.name}: [${mq.w.toFixed(4)}, ${mq.x.toFixed(4)}, ${mq.y.toFixed(4)}, ${mq.z.toFixed(4)}]`);
+      }
+      return;
+  }
+  if (rotated) {
+    tracked.meshRotationQ.premultiply(step);
+    tracked.meshRotationQ.normalize();
+    const mq = tracked.meshRotationQ;
+    console.log(`[meshRotation] ${tracked.body.name}: [${mq.w.toFixed(4)}, ${mq.x.toFixed(4)}, ${mq.y.toFixed(4)}, ${mq.z.toFixed(4)}]`);
   }
 });

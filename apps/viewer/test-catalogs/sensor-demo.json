@@ -96,7 +96,7 @@
             "shape": "elliptical",
             "horizontalFov": 8,
             "verticalFov": 8,
-            "range": 100000,
+            "range": "100000",
             "frustumColor": [0.3, 1.0, 0.3],
             "frustumOpacity": 0.15
           },
