@@ -455,6 +455,7 @@ function initScene(
     showTrajectories: true,
     showLabels: true,
     showStars: true,
+    starFieldOptions: { catalogUrl: '/stars.bin' },
     trajectoryOptions: { trailDuration: 86400 * 30, numPoints: 300 },
     minBodyPixels: 4,
     modelResolver: modelFiles && modelFiles.size > 0
