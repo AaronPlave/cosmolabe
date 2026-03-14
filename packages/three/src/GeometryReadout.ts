@@ -77,8 +77,8 @@ export class GeometryReadout implements RendererPlugin {
     this.panel = document.createElement('div');
     Object.assign(this.panel.style, {
       position: 'absolute',
-      top: '60px',
-      right: '10px',
+      top: '70px',
+      left: '12px',
       width: '280px',
       background: 'rgba(0, 0, 0, 0.85)',
       color: '#eee',

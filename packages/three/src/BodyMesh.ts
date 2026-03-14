@@ -94,8 +94,8 @@ export class BodyMesh extends THREE.Object3D {
     // Bump up further when displacement map is present for vertex-level detail.
     const isGlobe = body.geometryType === 'Globe';
     const hasDisplacement = !!(body.geometryData?.displacementMap);
-    const wSegs = isGlobe ? (hasDisplacement ? 256 : 128) : 32;
-    const hSegs = isGlobe ? (hasDisplacement ? 192 : 96) : 24;
+    const wSegs = isGlobe ? (hasDisplacement ? 512 : 128) : 32;
+    const hSegs = isGlobe ? (hasDisplacement ? 384 : 96) : 24;
     const geometry = new THREE.SphereGeometry(this.displayRadius, wSegs, hSegs);
     const color = DEFAULT_BODY_COLORS[body.classification ?? ''] ?? 0xcccccc;
     // Globe uses StandardMaterial (PBR) for displacement map + better lighting;
@@ -509,7 +509,7 @@ export class BodyMesh extends THREE.Object3D {
         // dependent — craters lose shadow detail when you zoom in. Normal maps store the
         // actual surface normal per texel, so shading is consistent at every zoom level.
         if (!bumpMapUrl && !normalMapUrl && 'normalMap' in material) {
-          const normalTex = this.generateNormalMapFromHeight(texture, bumpScale ?? 8);
+          const normalTex = this.generateNormalMapFromHeight(texture, bumpScale ?? 3);
           if (normalTex) {
             material.normalMap = normalTex;
             material.normalScale = new THREE.Vector2(1, 1);

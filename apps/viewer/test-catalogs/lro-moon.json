@@ -59,8 +59,8 @@
       "geometry": {
           "type": "Globe",
           "radius": 1737.4,
-          "baseMap": "textures/moon-8k.jpg",
-          "displacementMap": "textures/moon-displacement-6k.jpg",
+          "baseMap": "textures/moon-16k.jpg",
+          "displacementMap": "textures/moon-displacement-16k.jpg",
           "displacementScale": 20,
           "displacementBias": -9
         },
