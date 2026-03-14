@@ -108,6 +108,7 @@ export class TrajectoryLine extends THREE.Object3D {
       depthWrite: false,
     });
     this.trailLine = new THREE.Line(trailGeometry, trailMaterial);
+    this.trailLine.renderOrder = -1;
     this.add(this.trailLine);
 
     // Full orbit ring (faint)
@@ -123,6 +124,7 @@ export class TrajectoryLine extends THREE.Object3D {
         depthWrite: false,
       });
       this.orbitLine = new THREE.LineLoop(orbitGeometry, orbitMaterial);
+      this.orbitLine.renderOrder = -1;
       this.add(this.orbitLine);
     }
   }

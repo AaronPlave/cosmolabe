@@ -14,6 +14,7 @@ import { createAnalyticalTrajectory, createAnalyticalTrajectoryByName } from '..
 import type { RotationModel } from '../rotations/RotationModel.js';
 import { UniformRotation } from '../rotations/UniformRotation.js';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
+import { NadirRotation } from '../rotations/NadirRotation.js';
 
 // Cosmographia catalog JSON schema types
 export interface CatalogJson {
@@ -125,6 +126,10 @@ export interface RotationModelSpec {
   declination?: number;
   bodyFrame?: string;
   inertialFrame?: string;
+  /** For Nadir type: SPICE target name (e.g. "LRO", "-85") */
+  target?: string;
+  /** For Nadir type: SPICE center body name (e.g. "MOON") */
+  center?: string;
 }
 
 export interface GeometrySpec {
@@ -149,8 +154,32 @@ export interface LabelSpec {
   fadeSize?: number;
 }
 
+/** A viewpoint definition parsed from a Cosmographia catalog Viewpoint item */
+export interface ViewpointDefinition {
+  name: string;
+  /** Body to center the view on */
+  center?: string;
+  /** Reference frame (default: EclipticJ2000) */
+  frame?: string;
+  /** Distance from center body in km */
+  distance?: number;
+  /** Longitude offset in degrees (azimuth around center) */
+  longitude?: number;
+  /** Latitude offset in degrees (elevation from equatorial plane) */
+  latitude?: number;
+  /** Explicit eye position [x, y, z] in km (overrides spherical coords) */
+  eye?: [number, number, number];
+  /** Explicit target position [x, y, z] in km */
+  target?: [number, number, number];
+  /** Up direction */
+  up?: [number, number, number];
+  /** Field of view in degrees */
+  fov?: number;
+}
+
 export interface LoadedCatalog {
   bodies: Body[];
+  viewpoints: ViewpointDefinition[];
   name?: string;
   version?: string;
   require?: string[];
@@ -348,18 +377,39 @@ export class CatalogLoader {
     }
 
     const bodies: Body[] = [];
+    const viewpoints: ViewpointDefinition[] = [];
 
     if (json.items) {
       for (const item of json.items) {
-        this.loadItem(item, bodies, undefined);
+        if (item.type === 'Viewpoint') {
+          viewpoints.push(this.parseViewpoint(item));
+        } else {
+          this.loadItem(item, bodies, undefined);
+        }
       }
     }
 
-    return { bodies, name: json.name, version: json.version, require: json.require };
+    return { bodies, viewpoints, name: json.name, version: json.version, require: json.require };
+  }
+
+  private parseViewpoint(item: CatalogItem): ViewpointDefinition {
+    const vp: ViewpointDefinition = { name: item.name };
+    vp.center = item.center;
+    // Parse viewpoint-specific fields from the generic CatalogItem
+    const raw = item as unknown as Record<string, unknown>;
+    if (raw.frame) vp.frame = String(raw.frame);
+    if (raw.distance != null) vp.distance = parseFloat(String(raw.distance));
+    if (raw.longitude != null) vp.longitude = parseFloat(String(raw.longitude));
+    if (raw.latitude != null) vp.latitude = parseFloat(String(raw.latitude));
+    if (Array.isArray(raw.eye)) vp.eye = raw.eye.map(Number) as [number, number, number];
+    if (Array.isArray(raw.target)) vp.target = raw.target.map(Number) as [number, number, number];
+    if (Array.isArray(raw.up)) vp.up = raw.up.map(Number) as [number, number, number];
+    if (raw.fov != null) vp.fov = parseFloat(String(raw.fov));
+    return vp;
   }
 
   private loadItem(item: CatalogItem, bodies: Body[], parentName: string | undefined): void {
-    if (item.type === 'Viewpoint' || item.type === 'Visualizer' || item.type === 'FeatureLabels') {
+    if (item.type === 'Visualizer' || item.type === 'FeatureLabels') {
       return;
     }
 
@@ -640,6 +690,15 @@ export class CatalogLoader {
         return new SpiceRotation(
           this.spice,
           spec.bodyFrame ?? `IAU_${item.name.toUpperCase()}`,
+          spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000',
+        );
+
+      case 'Nadir':
+        if (!this.spice) return undefined;
+        return new NadirRotation(
+          this.spice,
+          spec.target ?? item.name,
+          spec.center ?? item.center ?? 'EARTH',
           spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000',
         );
 

@@ -3,11 +3,59 @@
   "defaultTime": "2004-07-01T02:48:00Z",
   "items": [
     {
+      "name": "Saturn System Wide",
+      "type": "Viewpoint",
+      "center": "Saturn",
+      "distance": 2000000,
+      "latitude": 30,
+      "longitude": -45
+    },
+    {
+      "name": "Ring Plane View",
+      "type": "Viewpoint",
+      "center": "Saturn",
+      "distance": 500000,
+      "latitude": 3,
+      "longitude": 90
+    },
+    {
+      "name": "Track Cassini",
+      "type": "Viewpoint",
+      "center": "Cassini",
+      "distance": 5000,
+      "latitude": 20,
+      "longitude": 0
+    },
+    {
+      "name": "Cassini Approach",
+      "type": "Viewpoint",
+      "center": "Saturn",
+      "distance": 300000,
+      "latitude": 10,
+      "longitude": -10
+    },
+    {
+      "name": "North Pole",
+      "type": "Viewpoint",
+      "center": "Saturn",
+      "distance": 400000,
+      "latitude": 85,
+      "longitude": 0
+    },
+    {
       "name": "Sun",
       "class": "star",
       "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
       "geometry": { "type": "Globe", "radius": 695000 },
       "label": { "color": [1.0, 0.9, 0.3] }
+    },
+     {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "EMB" },
+      "geometry": { "type": "Globe", "radius": 6378, "atmosphere": "Earth" },
+      "label": { "color": [0.4, 0.6, 1.0] }
     },
     {
       "name": "Saturn",

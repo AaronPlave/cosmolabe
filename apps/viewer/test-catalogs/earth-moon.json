@@ -22,7 +22,7 @@
         "meanAnomaly": 357.529,
         "epoch": "2000-01-01T12:00:00Z"
       },
-      "geometry": { "type": "Globe", "radius": 6378 },
+      "geometry": { "type": "Globe", "radius": 6378, "atmosphere": "Earth" },
       "label": { "color": [0.4, 0.6, 1.0] },
       "items": [
         {

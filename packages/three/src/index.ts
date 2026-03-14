@@ -10,6 +10,8 @@ export type { TrajectoryLineOptions, PositionResolver } from './TrajectoryLine.j
 export { SensorFrustum } from './SensorFrustum.js';
 export type { SensorFrustumOptions } from './SensorFrustum.js';
 export { RingMesh } from './RingMesh.js';
+export { AtmosphereMesh, resolveAtmosphereParams, getAtmospherePreset } from './AtmosphereMesh.js';
+export type { AtmosphereParams } from './AtmosphereMesh.js';
 export { StarField } from './StarField.js';
 export type { StarFieldOptions } from './StarField.js';
 export { LabelManager } from './LabelManager.js';
@@ -20,9 +22,12 @@ export { GeometryReadout } from './GeometryReadout.js';
 export type { GeometryReadoutOptions } from './GeometryReadout.js';
 
 // Controls
-export { TimeController } from './controls/TimeController.js';
+export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
 export { CameraController } from './controls/CameraController.js';
+export type { CameraViewpoint, FlyToOptions } from './controls/CameraController.js';
+export { KeyboardControls } from './controls/KeyboardControls.js';
+export type { KeyboardControlsConfig } from './controls/KeyboardControls.js';
 
 // Plugin interface
 export type { RendererPlugin } from './plugins/RendererPlugin.js';

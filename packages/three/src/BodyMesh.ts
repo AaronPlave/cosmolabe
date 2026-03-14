@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
@@ -88,13 +89,20 @@ export class BodyMesh extends THREE.Object3D {
     this.name = body.name;
 
     this.displayRadius = this.getDisplayRadius();
-    // Globe bodies get higher segment count for texture quality
+    // Globe bodies get higher segment count for texture quality and smooth silhouettes
+    // (faceted polygon edges visible through thick atmospheres like Titan's).
+    // Bump up further when displacement map is present for vertex-level detail.
     const isGlobe = body.geometryType === 'Globe';
-    const wSegs = isGlobe ? 64 : 32;
-    const hSegs = isGlobe ? 48 : 24;
+    const hasDisplacement = !!(body.geometryData?.displacementMap);
+    const wSegs = isGlobe ? (hasDisplacement ? 256 : 128) : 32;
+    const hSegs = isGlobe ? (hasDisplacement ? 192 : 96) : 24;
     const geometry = new THREE.SphereGeometry(this.displayRadius, wSegs, hSegs);
     const color = DEFAULT_BODY_COLORS[body.classification ?? ''] ?? 0xcccccc;
-    const material = new THREE.MeshPhongMaterial({ color });
+    // Globe uses StandardMaterial (PBR) for displacement map + better lighting;
+    // non-Globe uses Phong (lighter weight).
+    const material = isGlobe
+      ? new THREE.MeshStandardMaterial({ color, metalness: 0, roughness: 0.85 })
+      : new THREE.MeshPhongMaterial({ color });
 
     // Stars and emissive bodies (e.g. Sun with "emissive": true in Cosmographia geometry) emit light
     if (body.classification === 'star' || body.geometryData?.emissive === true) {
@@ -140,6 +148,9 @@ export class BodyMesh extends THREE.Object3D {
     try {
       if (ext === 'glb' || ext === 'gltf') {
         const loader = new GLTFLoader();
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('./draco/');
+        loader.setDRACOLoader(dracoLoader);
         const gltf = await loader.loadAsync(url);
         object = gltf.scene;
       } else if (ext === 'obj') {
@@ -449,11 +460,19 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   /**
-   * Load textures for Globe geometry (baseMap and/or normalMap).
+   * Load textures for Globe geometry (baseMap, normalMap, displacementMap).
    * Supports DDS (S3TC compressed) and standard image formats (PNG, JPG).
    */
-  async loadGlobeTextures(baseMapUrl?: string, normalMapUrl?: string): Promise<void> {
-    const material = this.mesh.material as THREE.MeshPhongMaterial;
+  async loadGlobeTextures(
+    baseMapUrl?: string,
+    normalMapUrl?: string,
+    displacementMapUrl?: string,
+    displacementScale?: number,
+    displacementBias?: number,
+    bumpMapUrl?: string,
+    bumpScale?: number,
+  ): Promise<void> {
+    const material = this.mesh.material as THREE.MeshPhongMaterial | THREE.MeshStandardMaterial;
 
     if (baseMapUrl) {
       try {
@@ -474,6 +493,56 @@ export class BodyMesh extends THREE.Object3D {
         console.warn(`[SpiceCraft] Failed to load normalMap for ${this.body.name}:`, e);
       }
     }
+
+    if (displacementMapUrl) {
+      try {
+        const texture = await this.loadTexture(displacementMapUrl);
+        texture.colorSpace = THREE.LinearSRGBColorSpace;
+        material.displacementMap = texture;
+        material.displacementScale = displacementScale ?? 10;
+        material.displacementBias = displacementBias ?? 0;
+        material.needsUpdate = true;
+        console.log(`[SpiceCraft] Loaded displacementMap for ${this.body.name}: ${displacementMapUrl} (scale=${material.displacementScale}, bias=${material.displacementBias})`);
+
+        // Auto-generate a normal map from displacement when no explicit normal or bump map
+        // is provided. Bump maps use screen-space derivatives (dFdx/dFdy) which are zoom-
+        // dependent — craters lose shadow detail when you zoom in. Normal maps store the
+        // actual surface normal per texel, so shading is consistent at every zoom level.
+        if (!bumpMapUrl && !normalMapUrl && 'normalMap' in material) {
+          const normalTex = this.generateNormalMapFromHeight(texture, bumpScale ?? 8);
+          if (normalTex) {
+            material.normalMap = normalTex;
+            material.normalScale = new THREE.Vector2(1, 1);
+            material.needsUpdate = true;
+            console.log(`[SpiceCraft] Auto-generated normalMap from displacementMap for ${this.body.name}`);
+          }
+        }
+      } catch (e) {
+        console.warn(`[SpiceCraft] Failed to load displacementMap for ${this.body.name}:`, e);
+      }
+    }
+
+    if (bumpMapUrl) {
+      try {
+        const texture = await this.loadTexture(bumpMapUrl);
+        texture.colorSpace = THREE.LinearSRGBColorSpace;
+        // Generate a normal map from bump texture for zoom-independent shading
+        const normalTex = this.generateNormalMapFromHeight(texture, bumpScale ?? 5);
+        if (normalTex && 'normalMap' in material) {
+          material.normalMap = normalTex;
+          material.normalScale = new THREE.Vector2(1, 1);
+          material.needsUpdate = true;
+          console.log(`[SpiceCraft] Generated normalMap from bumpMap for ${this.body.name}`);
+        } else {
+          // Fallback to bump map if normal generation fails
+          material.bumpMap = texture;
+          material.bumpScale = bumpScale ?? 1;
+          material.needsUpdate = true;
+        }
+      } catch (e) {
+        console.warn(`[SpiceCraft] Failed to load bumpMap for ${this.body.name}:`, e);
+      }
+    }
   }
 
   /**
@@ -483,7 +552,7 @@ export class BodyMesh extends THREE.Object3D {
    * For DDS tiles: rendered via Three.js to a RenderTarget.
    */
   async loadTiledBaseMap(tileUrls: [string, string], renderer: THREE.WebGLRenderer): Promise<void> {
-    const material = this.mesh.material as THREE.MeshPhongMaterial;
+    const material = this.mesh.material as THREE.MeshPhongMaterial | THREE.MeshStandardMaterial;
 
     // Detect format: extension for regular URLs, magic bytes for blob URLs
     let isDDS: boolean;
@@ -576,7 +645,7 @@ export class BodyMesh extends THREE.Object3D {
     }
   }
 
-  private applyBaseMap(material: THREE.MeshPhongMaterial, texture: THREE.Texture, label: string): void {
+  private applyBaseMap(material: THREE.MeshPhongMaterial | THREE.MeshStandardMaterial, texture: THREE.Texture, label: string): void {
     texture.colorSpace = THREE.SRGBColorSpace;
     material.map = texture;
     material.color.setHex(0xffffff);
@@ -634,6 +703,79 @@ export class BodyMesh extends THREE.Object3D {
     texture.magFilter = THREE.LinearFilter;
     texture.needsUpdate = true;
     return texture;
+  }
+
+  /**
+   * Generate a tangent-space normal map from a height/displacement texture on a 2D canvas.
+   * Unlike bump maps (which use screen-space derivatives and are zoom-dependent), normal maps
+   * store the actual surface normal per texel — shading is consistent at every zoom level.
+   *
+   * @param heightTexture The grayscale height texture to derive normals from
+   * @param strength Controls the steepness of normals (higher = more dramatic shadows)
+   */
+  private generateNormalMapFromHeight(heightTexture: THREE.Texture, strength: number): THREE.CanvasTexture | null {
+    const img = heightTexture.image as HTMLImageElement | undefined;
+    if (!img) return null;
+
+    // Get image dimensions (works for HTMLImageElement and ImageBitmap)
+    const w = img.naturalWidth ?? img.width;
+    const h = img.naturalHeight ?? img.height;
+    if (!w || !h) return null;
+
+    // Read height data from source image
+    const srcCanvas = document.createElement('canvas');
+    srcCanvas.width = w;
+    srcCanvas.height = h;
+    const srcCtx = srcCanvas.getContext('2d')!;
+    srcCtx.drawImage(img as CanvasImageSource, 0, 0);
+    const srcData = srcCtx.getImageData(0, 0, w, h).data;
+
+    // Output normal map
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = w;
+    outCanvas.height = h;
+    const outCtx = outCanvas.getContext('2d')!;
+    const outImg = outCtx.createImageData(w, h);
+    const out = outImg.data;
+
+    // Sample height at (x, y) — wraps horizontally (equirectangular), clamps vertically
+    const getH = (x: number, y: number) => {
+      x = ((x % w) + w) % w;
+      y = Math.max(0, Math.min(h - 1, y));
+      return srcData[(y * w + x) * 4] / 255;
+    };
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        // Sobel-like gradient from neighboring texels
+        const hL = getH(x - 1, y);
+        const hR = getH(x + 1, y);
+        const hU = getH(x, y - 1);
+        const hD = getH(x, y + 1);
+
+        const dx = (hR - hL) * strength;
+        const dy = (hD - hU) * strength;
+
+        // Tangent-space normal
+        const len = Math.sqrt(dx * dx + dy * dy + 1);
+        const nx = -dx / len;
+        const ny = -dy / len;
+        const nz = 1 / len;
+
+        // Encode [-1,1] → [0,255]
+        const idx = (y * w + x) * 4;
+        out[idx]     = (nx * 0.5 + 0.5) * 255;
+        out[idx + 1] = (ny * 0.5 + 0.5) * 255;
+        out[idx + 2] = (nz * 0.5 + 0.5) * 255;
+        out[idx + 3] = 255;
+      }
+    }
+
+    outCtx.putImageData(outImg, 0, 0);
+    const normalTexture = new THREE.CanvasTexture(outCanvas);
+    normalTexture.colorSpace = THREE.LinearSRGBColorSpace;
+    console.log(`[SpiceCraft] Generated ${w}x${h} normal map for ${this.body.name} (strength=${strength})`);
+    return normalTexture;
   }
 
   dispose(): void {

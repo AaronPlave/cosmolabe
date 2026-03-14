@@ -1,7 +1,7 @@
 import type { SpiceInstance } from '@spicecraft/spice';
 import { Body } from './Body.js';
 import { CatalogLoader } from './catalog/CatalogLoader.js';
-import type { CatalogJson, CatalogLoaderOptions } from './catalog/CatalogLoader.js';
+import type { CatalogJson, CatalogLoaderOptions, ViewpointDefinition } from './catalog/CatalogLoader.js';
 import type { SpiceCraftPlugin } from './plugins/Plugin.js';
 
 export interface UniverseOptions {
@@ -13,6 +13,7 @@ export interface UniverseOptions {
 
 export class Universe {
   private bodies = new Map<string, Body>();
+  private _viewpoints: ViewpointDefinition[] = [];
   private currentEt = 0;
   private plugins: SpiceCraftPlugin[] = [];
   private readonly spice?: SpiceInstance;
@@ -37,6 +38,10 @@ export class Universe {
         const parent = this.bodies.get(body.parentName);
         if (parent) parent.children.push(body);
       }
+    }
+
+    for (const vp of result.viewpoints) {
+      this._viewpoints.push(vp);
     }
 
     for (const plugin of this.plugins) {
@@ -64,6 +69,8 @@ export class Universe {
     return this.getAllBodies().filter(b => !b.parentName || !this.bodies.has(b.parentName));
   }
 
+  get viewpoints(): readonly ViewpointDefinition[] { return this._viewpoints; }
+
   get time(): number { return this.currentEt; }
   get spiceInstance(): SpiceInstance | undefined { return this.spice; }
 
@@ -81,11 +88,27 @@ export class Universe {
     }
   }
 
+  /** Compute the time range covered by all loaded body trajectories.
+   *  Returns [minEt, maxEt] or undefined if no bodies have finite time bounds. */
+  getTimeRange(): [number, number] | undefined {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const body of this.bodies.values()) {
+      const s = body.trajectory.startTime;
+      const e = body.trajectory.endTime;
+      if (s !== undefined && s < min) min = s;
+      if (e !== undefined && e > max) max = e;
+    }
+    if (min === Infinity || max === -Infinity) return undefined;
+    return [min, max];
+  }
+
   dispose(): void {
     for (const plugin of this.plugins) {
       plugin.dispose?.();
     }
     this.plugins = [];
     this.bodies.clear();
+    this._viewpoints = [];
   }
 }

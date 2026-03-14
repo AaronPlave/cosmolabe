@@ -2,6 +2,30 @@
   "name": "Saturn System (tests unsupported trajectory fallbacks)",
   "items": [
     {
+      "name": "Saturn Overview",
+      "type": "Viewpoint",
+      "center": "Saturn",
+      "distance": 1500000,
+      "latitude": 25,
+      "longitude": -30
+    },
+    {
+      "name": "Ring Plane",
+      "type": "Viewpoint",
+      "center": "Saturn",
+      "distance": 500000,
+      "latitude": 2,
+      "longitude": 60
+    },
+    {
+      "name": "Titan Close-up",
+      "type": "Viewpoint",
+      "center": "Titan",
+      "distance": 15000,
+      "latitude": 15,
+      "longitude": 0
+    },
+    {
       "name": "Sun",
       "class": "star",
       "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
@@ -20,7 +44,7 @@
         "ascendingNode": 130.589,
         "meridianAngle": 38.0
       },
-      "geometry": { "type": "Globe", "radius": 58232 },
+      "geometry": { "type": "Globe", "radius": 58232, "atmosphere": true },
       "label": { "color": [0.9, 0.8, 0.5] },
       "items": [
         {
@@ -28,7 +52,7 @@
           "class": "moon",
           "center": "Saturn",
           "trajectory": { "type": "Builtin", "name": "Titan" },
-          "geometry": { "type": "Globe", "radius": 2575 },
+          "geometry": { "type": "Globe", "radius": 2575, "atmosphere": "Titan" },
           "label": { "color": [0.8, 0.7, 0.3] }
         },
         {

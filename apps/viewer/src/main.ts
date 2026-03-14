@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { Universe } from "@spicecraft/core";
 import { Spice, type SpiceInstance } from "@spicecraft/spice";
-import { UniverseRenderer } from "@spicecraft/three";
+import { UniverseRenderer, rateLabel } from "@spicecraft/three";
 
 
 let universe: Universe | null = null;
@@ -26,9 +26,26 @@ const overlay = document.getElementById("drop-overlay")!;
 const fileInput = document.getElementById("file-input") as HTMLInputElement;
 const controls = document.getElementById("controls")!;
 const btnPlay = document.getElementById("btn-play")!;
-const rateSelect = document.getElementById("rate-select") as HTMLSelectElement;
+const btnReverse = document.getElementById("btn-reverse")!;
+const btnStepBack = document.getElementById("btn-step-back")!;
+const btnStepFwd = document.getElementById("btn-step-fwd")!;
+const btnSlower = document.getElementById("btn-slower")!;
+const btnFaster = document.getElementById("btn-faster")!;
+const rateDisplay = document.getElementById("rate-display")!;
 const timeDisplay = document.getElementById("time-display")!;
+const timeScrubber = document.getElementById("time-scrubber") as HTMLInputElement;
+const gotoTimePanel = document.getElementById("goto-time")!;
+const gotoTimeInput = document.getElementById("goto-time-input") as HTMLInputElement;
+const gotoTimeGo = document.getElementById("goto-time-go")!;
+const gotoTimeClose = document.getElementById("goto-time-close")!;
+const viewpointBar = document.getElementById("viewpoint-bar")!;
+const viewpointSelect = document.getElementById("viewpoint-select") as HTMLSelectElement;
+const btnSaveVp = document.getElementById("btn-save-vp")!;
+const btnFlyTracked = document.getElementById("btn-fly-tracked")!;
 const infoPanel = document.getElementById("info-panel")!;
+const cameraStatus = document.getElementById("camera-status")!;
+const fovSlider = document.getElementById("fov-slider") as HTMLInputElement;
+const fovDisplay = document.getElementById("fov-display")!;
 const bodyList = document.getElementById("body-list")!;
 const btnLoadNaif = document.getElementById("btn-load-naif")!;
 
@@ -55,8 +72,16 @@ const CASSINI_KERNELS = [
   { file: "cassini/04183_04185ra.bc", label: "Cassini attitude (SOI)" },
 ];
 
+/** LRO-specific kernels (orbit around Moon, Dec 2024 – Mar 2025) */
+const LRO_KERNELS = [
+  { file: "lro/lro_frames_2014049_v01.tf", label: "LRO frames" },
+  { file: "lro/lro_lroc_v20.ti", label: "LROC instruments" },
+  { file: "lro/lrorg_2024350_2025074_v01.bsp", label: "LRO trajectory" },
+];
+
 let naifLoaded = false;
 let cassiniLoaded = false;
+let lroLoaded = false;
 
 async function loadNaifKernels(): Promise<void> {
   if (naifLoaded) return;
@@ -109,6 +134,22 @@ async function loadCassiniKernels(): Promise<void> {
   }
   cassiniLoaded = true;
   console.log(`[SpiceCraft] Cassini kernels loaded (${spice!.totalLoaded()} total)`);
+}
+
+async function loadLroKernels(): Promise<void> {
+  if (lroLoaded) return;
+  await loadNaifKernels(); // Need generic kernels first
+  for (const kernel of LRO_KERNELS) {
+    infoPanel.textContent = `Loading ${kernel.label}...`;
+    console.log(`[SpiceCraft] Fetching LRO kernel: ${kernel.file}`);
+    try {
+      await spice!.furnish({ type: "url", url: `${NAIF_BASE}/${kernel.file}` });
+    } catch (err) {
+      console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+    }
+  }
+  lroLoaded = true;
+  console.log(`[SpiceCraft] LRO kernels loaded (${spice!.totalLoaded()} total)`);
 }
 
 btnLoadNaif.addEventListener("click", (e) => {
@@ -372,6 +413,8 @@ for (const btn of document.querySelectorAll(".demo-btn")) {
     // Load mission-specific kernels if needed, otherwise just generic NAIF
     if (name === "cassini-soi") {
       await loadCassiniKernels();
+    } else if (name === "lro-moon") {
+      await loadLroKernels();
     } else {
       await loadNaifKernels();
     }
@@ -471,7 +514,7 @@ function initScene(
   }
 
   // Set initial time rate
-  renderer.timeController.setRate(Number(rateSelect.value));
+  renderer.timeController.setRate(60); // 1 min/s default
 
   // Build body list
   buildBodyList(allBodies);
@@ -480,30 +523,282 @@ function initScene(
   const kernelInfo = spice ? ` | ${spice.totalLoaded()} kernels` : "";
   infoPanel.textContent = `${allBodies.length} bodies loaded${kernelInfo}`;
 
-  // Start time display updates
+  // Initialize scrubber range and start time display updates
+  initScrubberRange();
   renderer.timeController.onTimeChange(updateTimeDisplay);
+  renderer.timeController.onTimeChange(() => updateRateDisplay());
+  renderer.timeController.onTimeChange(() => updateCameraStatus());
+  updateRateDisplay();
+  updateCameraStatus();
+
+  // Load catalog viewpoints into the camera controller
+  initViewpoints();
 
   renderer.start();
 }
 
-// --- UI ---
+// --- UI: Time Controls ---
 
+/** Track scrubber bounds (set when scene initializes or time range is known) */
+let scrubMinEt = 0;
+let scrubMaxEt = 0;
+let scrubberDragging = false;
+
+// JS Date can handle ±8.64e15 ms from epoch, which is ~±100M days.
+// J2000 epoch is 2000-01-01T12:00:00 = 946728000000 ms from Unix epoch.
+// Max safe ET ≈ (8.64e15 - 946728000000) / 1000 ≈ ±7.69e9 seconds (~244 years from J2000).
+const MAX_SAFE_ET = 7.5e9; // ~2237 AD / ~1762 AD
+
+function etToUtcString(et: number): string {
+  if (!isFinite(et) || Math.abs(et) > MAX_SAFE_ET) {
+    const years = et / 31556952;
+    return `J2000 ${years >= 0 ? '+' : ''}${years.toFixed(1)} yr`;
+  }
+  const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
+  const date = new Date(j2000Ms + et * 1000);
+  return date.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+}
+
+function updateTimeDisplay(et: number) {
+  timeDisplay.textContent = etToUtcString(et);
+  // Update scrubber position (unless user is dragging it)
+  if (!scrubberDragging && scrubMaxEt > scrubMinEt) {
+    const frac = (et - scrubMinEt) / (scrubMaxEt - scrubMinEt);
+    timeScrubber.value = String(Math.max(0, Math.min(1000, Math.round(frac * 1000))));
+  }
+}
+
+function updateRateDisplay() {
+  if (!renderer) return;
+  const tc = renderer.timeController;
+  rateDisplay.textContent = rateLabel(tc.rate);
+  btnPlay.textContent = tc.playing ? "Pause" : "Play";
+  // Highlight reverse button when rate is negative
+  btnReverse.classList.toggle("active", tc.rate < 0);
+}
+
+function updateCameraStatus() {
+  if (!renderer) { cameraStatus.innerHTML = ""; return; }
+  const cc = renderer.cameraController;
+  const parts: string[] = [];
+  const tracked = cc.trackedBody;
+  if (tracked) parts.push(`Tracking: <span>${tracked.body.name}</span>`);
+  const lookAt = cc.lookAtBody;
+  if (lookAt) parts.push(`Looking at: <span>${lookAt.body.name}</span>`);
+  cameraStatus.innerHTML = parts.join(" &middot; ");
+}
+
+/** Set scrubber range from universe body trajectories, or a default window around current time */
+function initScrubberRange() {
+  if (!renderer || !universe) return;
+  const range = universe.getTimeRange();
+  if (range) {
+    // Pad by 10% on each side for comfort
+    const span = range[1] - range[0];
+    const pad = Math.max(span * 0.1, 86400); // at least 1 day padding
+    scrubMinEt = range[0] - pad;
+    scrubMaxEt = range[1] + pad;
+  } else {
+    // No trajectory bounds — default to ±1 year from current time
+    const et = renderer.timeController.et;
+    const oneYear = 31556952;
+    scrubMinEt = et - oneYear;
+    scrubMaxEt = et + oneYear;
+  }
+}
+
+// Play/Pause
 btnPlay.addEventListener("click", () => {
   if (!renderer) return;
   renderer.timeController.toggle();
-  btnPlay.textContent = renderer.timeController.playing ? "Pause" : "Play";
+  updateRateDisplay();
 });
 
-rateSelect.addEventListener("change", () => {
-  renderer?.timeController.setRate(Number(rateSelect.value));
+// Reverse
+btnReverse.addEventListener("click", () => {
+  if (!renderer) return;
+  renderer.timeController.reverse();
+  if (!renderer.timeController.playing) renderer.timeController.play();
+  updateRateDisplay();
 });
 
-function updateTimeDisplay(et: number) {
-  const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
-  const date = new Date(j2000Ms + et * 1000);
-  timeDisplay.textContent =
-    date.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+// Step backward/forward
+btnStepBack.addEventListener("click", () => {
+  if (!renderer) return;
+  renderer.timeController.stepBackward();
+});
+btnStepFwd.addEventListener("click", () => {
+  if (!renderer) return;
+  renderer.timeController.stepForward();
+});
+
+// Slower/Faster
+btnSlower.addEventListener("click", () => {
+  if (!renderer) return;
+  renderer.timeController.slower();
+  updateRateDisplay();
+});
+btnFaster.addEventListener("click", () => {
+  if (!renderer) return;
+  renderer.timeController.faster();
+  updateRateDisplay();
+});
+
+// FOV slider
+fovSlider.addEventListener("input", () => {
+  if (!renderer) return;
+  const fov = Number(fovSlider.value);
+  renderer.camera.fov = fov;
+  renderer.camera.updateProjectionMatrix();
+  fovDisplay.textContent = `${fov}°`;
+});
+
+// Time scrubber
+timeScrubber.addEventListener("input", () => {
+  if (!renderer) return;
+  scrubberDragging = true;
+  const frac = Number(timeScrubber.value) / 1000;
+  const et = scrubMinEt + frac * (scrubMaxEt - scrubMinEt);
+  renderer.timeController.setTime(et);
+});
+timeScrubber.addEventListener("change", () => {
+  scrubberDragging = false;
+});
+timeScrubber.addEventListener("mousedown", () => { scrubberDragging = true; });
+timeScrubber.addEventListener("mouseup", () => { scrubberDragging = false; });
+
+// Go-to-time panel
+timeDisplay.addEventListener("click", () => {
+  gotoTimePanel.classList.toggle("visible");
+  if (gotoTimePanel.classList.contains("visible")) {
+    gotoTimeInput.value = etToUtcString(renderer?.timeController.et ?? 0).replace(" UTC", "");
+    gotoTimeInput.focus();
+    gotoTimeInput.select();
+  }
+});
+gotoTimeClose.addEventListener("click", () => {
+  gotoTimePanel.classList.remove("visible");
+});
+function goToTime() {
+  if (!renderer || !spice) return;
+  const input = gotoTimeInput.value.trim();
+  if (!input) return;
+  try {
+    const et = spice.str2et(input);
+    renderer.timeController.setTime(et);
+    initScrubberRange();
+    gotoTimePanel.classList.remove("visible");
+  } catch (e) {
+    gotoTimeInput.style.borderColor = "#f44";
+    setTimeout(() => { gotoTimeInput.style.borderColor = ""; }, 1500);
+  }
 }
+gotoTimeGo.addEventListener("click", goToTime);
+gotoTimeInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") goToTime();
+  if (e.key === "Escape") gotoTimePanel.classList.remove("visible");
+});
+
+// --- UI: Viewpoints ---
+
+let savedViewpointCounter = 0;
+
+function initViewpoints() {
+  if (!renderer || !universe) return;
+
+  // Reset dropdown
+  viewpointSelect.innerHTML = '<option value="">— select —</option>';
+
+  // Convert catalog ViewpointDefinitions to CameraViewpoints
+  const scaleFactor = 1e-6;
+  for (const vpDef of universe.viewpoints) {
+    // Convert spherical (distance/longitude/latitude) or explicit eye/target to scene coords
+    let pos: { x: number; y: number; z: number };
+    if (vpDef.eye) {
+      pos = {
+        x: vpDef.eye[0] * scaleFactor,
+        y: vpDef.eye[1] * scaleFactor,
+        z: vpDef.eye[2] * scaleFactor,
+      };
+    } else if (vpDef.distance != null) {
+      const dist = vpDef.distance * scaleFactor;
+      const lon = ((vpDef.longitude ?? 0) * Math.PI) / 180;
+      const lat = ((vpDef.latitude ?? 0) * Math.PI) / 180;
+      pos = {
+        x: dist * Math.cos(lat) * Math.cos(lon),
+        y: dist * Math.sin(lat),
+        z: dist * Math.cos(lat) * Math.sin(lon),
+      };
+    } else {
+      pos = { x: 0, y: 300, z: 500 };
+    }
+
+    const tgt = vpDef.target
+      ? { x: vpDef.target[0] * scaleFactor, y: vpDef.target[1] * scaleFactor, z: vpDef.target[2] * scaleFactor }
+      : { x: 0, y: 0, z: 0 };
+    const up = vpDef.up
+      ? new THREE.Vector3(vpDef.up[0], vpDef.up[1], vpDef.up[2]).normalize()
+      : new THREE.Vector3(0, 1, 0);
+
+    renderer.cameraController.addViewpoint({
+      name: vpDef.name,
+      position: new THREE.Vector3(pos.x, pos.y, pos.z),
+      target: new THREE.Vector3(tgt.x, tgt.y, tgt.z),
+      up,
+      trackBody: vpDef.center,
+    });
+  }
+
+  // Always add a "Default" viewpoint from initial camera state
+  renderer.cameraController.saveViewpoint("Default");
+
+  // Populate dropdown
+  rebuildViewpointDropdown();
+}
+
+function rebuildViewpointDropdown() {
+  if (!renderer) return;
+  const vps = renderer.cameraController.getViewpoints();
+  viewpointSelect.innerHTML = '<option value="">— select —</option>';
+  for (const vp of vps) {
+    const opt = document.createElement("option");
+    opt.value = vp.name;
+    opt.textContent = vp.name;
+    viewpointSelect.appendChild(opt);
+  }
+  // Show viewpoint bar if there are viewpoints
+  viewpointBar.style.display = vps.length > 0 ? "flex" : "none";
+}
+
+viewpointSelect.addEventListener("change", () => {
+  if (!renderer) return;
+  const name = viewpointSelect.value;
+  if (!name) return;
+  renderer.cameraController.goToViewpoint(name, 1.0);
+  // If viewpoint tracks a body, also track it
+  const vp = renderer.cameraController.getViewpoint(name);
+  if (vp?.trackBody) {
+    const bm = renderer.getBodyMesh(vp.trackBody);
+    if (bm) renderer.cameraController.track(bm);
+  }
+});
+
+btnSaveVp.addEventListener("click", () => {
+  if (!renderer) return;
+  savedViewpointCounter++;
+  const name = `Saved ${savedViewpointCounter}`;
+  renderer.cameraController.saveViewpoint(name);
+  rebuildViewpointDropdown();
+  viewpointSelect.value = name;
+});
+
+btnFlyTracked.addEventListener("click", () => {
+  if (!renderer) return;
+  const tracked = renderer.cameraController.trackedBody;
+  if (tracked) {
+    renderer.cameraController.flyTo(tracked, { scaleFactor: 1e-6 });
+  }
+});
 
 function buildBodyList(bodies: { name: string; classification?: string }[]) {
   bodyList.innerHTML = "";
@@ -528,6 +823,18 @@ function buildBodyList(bodies: { name: string; classification?: string }[]) {
     checkbox: HTMLInputElement;
     name: string;
   }[] = [];
+
+  /** Highlight the current look-at target in the body list */
+  function updateLookAtIndicator(itemList: typeof items) {
+    const lookAtName = renderer?.cameraController.lookAtBody?.body.name;
+    for (const item of itemList) {
+      const span = item.div.querySelector("span");
+      if (span) {
+        span.style.color = item.name === lookAtName ? "#4488ff" : "";
+        span.style.fontStyle = item.name === lookAtName ? "italic" : "";
+      }
+    }
+  }
 
   for (const body of bodies) {
     const div = document.createElement("div");
@@ -567,10 +874,29 @@ function buildBodyList(bodies: { name: string; classification?: string }[]) {
       } else {
         const bm = renderer.getBodyMesh(body.name);
         if (bm) {
+          renderer.cameraController.clearLookAt();
           renderer.cameraController.zoomTo(bm, 1e-6);
           renderer.cameraController.track(bm);
+          updateLookAtIndicator(items);
+          updateCameraStatus();
         }
       }
+    });
+
+    // Right-click: set as "look at" target (orbit center moves to this body)
+    div.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      if (!renderer) return;
+      const bm = renderer.getBodyMesh(body.name);
+      if (!bm) return;
+      // Toggle: if already looking at this body, clear it
+      if (renderer.cameraController.lookAtBody === bm) {
+        renderer.cameraController.clearLookAt();
+      } else {
+        renderer.cameraController.lookAt(bm);
+      }
+      updateLookAtIndicator(items);
+      updateCameraStatus();
     });
 
     items.push({ div, checkbox, name: body.name });
@@ -614,8 +940,88 @@ onResize();
 
 // Keyboard shortcuts
 let axesShown = false;
+let uiHidden = false;
 document.addEventListener("keydown", (e) => {
   if (e.target !== document.body) return; // ignore when typing in inputs
+
+  // Time control shortcuts
+  if (!e.ctrlKey && !e.metaKey && !e.altKey && renderer) {
+    const tc = renderer.timeController;
+    switch (e.key) {
+      case " ":
+        e.preventDefault();
+        tc.toggle();
+        updateRateDisplay();
+        return;
+      case "ArrowLeft":
+        e.preventDefault();
+        tc.stepBackward();
+        return;
+      case "ArrowRight":
+        e.preventDefault();
+        tc.stepForward();
+        return;
+      case "[":
+        tc.slower();
+        updateRateDisplay();
+        return;
+      case "]":
+        tc.faster();
+        updateRateDisplay();
+        return;
+      case "r":
+        tc.reverse();
+        if (!tc.playing) tc.play();
+        updateRateDisplay();
+        return;
+      case "Home":
+        e.preventDefault();
+        if (scrubMinEt > -Infinity) tc.setTime(scrubMinEt);
+        return;
+      case "End":
+        e.preventDefault();
+        if (scrubMaxEt < Infinity) tc.setTime(scrubMaxEt);
+        return;
+      case "f": {
+        // Fly to tracked body
+        const tracked = renderer.cameraController.trackedBody;
+        if (tracked) renderer.cameraController.flyTo(tracked, { scaleFactor: 1e-6 });
+        return;
+      }
+      case "v":
+        // Save current viewpoint
+        savedViewpointCounter++;
+        renderer.cameraController.saveViewpoint(`Saved ${savedViewpointCounter}`);
+        rebuildViewpointDropdown();
+        return;
+      case "l":
+        // Clear look-at target
+        renderer.cameraController.clearLookAt();
+        updateCameraStatus();
+        return;
+      case "Escape":
+        // Cancel camera animation
+        renderer.cameraController.cancelAnimation();
+        renderer.cameraController.clearLookAt();
+        updateCameraStatus();
+        return;
+      case "/":
+        e.preventDefault();
+        uiHidden = !uiHidden;
+        controls.style.display = uiHidden ? "none" : "";
+        infoPanel.style.display = uiHidden ? "none" : "";
+        cameraStatus.style.display = uiHidden ? "none" : "";
+        bodyList.style.display = uiHidden ? "none" : "";
+        // Toggle label overlay (the pointer-events:none div added by LabelManager)
+        for (const child of canvas.parentElement!.children) {
+          if (child instanceof HTMLDivElement && child.style.pointerEvents === "none") {
+            child.style.display = uiHidden ? "none" : "";
+          }
+        }
+        return;
+    }
+  }
+
   if (e.key === "x" && !e.ctrlKey && !e.metaKey) {
     axesShown = !axesShown;
     renderer?.showBodyAxes(axesShown);

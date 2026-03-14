@@ -5,6 +5,7 @@ import { RingMesh } from './RingMesh.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
 import { SensorFrustum } from './SensorFrustum.js';
 import { EventMarkers } from './EventMarkers.js';
+import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { GeometryReadout } from './GeometryReadout.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
@@ -58,6 +59,7 @@ export class UniverseRenderer {
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
   private readonly ringMeshes = new Map<string, { ring: RingMesh; parentName: string }>();
   private readonly eventMarkerGroups = new Map<string, EventMarkers>();
+  private readonly atmosphereMeshes = new Map<string, { atm: AtmosphereMesh; parentName: string }>();
   private _coverageWarned = false;
   private readonly plugins: RendererPlugin[] = [];
   private readonly options: UniverseRendererOptions;
@@ -68,6 +70,7 @@ export class UniverseRenderer {
   private sunLight: THREE.PointLight | null = null;
   private animFrameId = 0;
   private readonly labelContainer: HTMLDivElement;
+  private _dblClickRaycaster: THREE.Raycaster | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -127,6 +130,10 @@ export class UniverseRenderer {
     this.geometryReadout = new GeometryReadout();
     this.geometryReadout.attachTo(canvas, this.bodyMeshes);
     this.use(this.geometryReadout);
+
+    // Double-click fly-to: raycast against body meshes and label sprites
+    this._dblClickRaycaster = new THREE.Raycaster();
+    canvas.addEventListener('dblclick', this._onDblClick);
   }
 
   use(plugin: RendererPlugin): void {
@@ -200,9 +207,15 @@ export class UniverseRenderer {
     const canvasHeight = this.renderer.domElement.clientHeight;
     const halfFovTan = Math.tan((this.camera.fov * Math.PI / 180) / 2);
 
-    // Origin body: the tracked body's absolute position becomes scene origin (0,0,0).
+    // Apply deferred origin switch from fly-to completion BEFORE computing
+    // body positions, so camera and body coordinates use the same origin.
+    this.cameraController.applyPendingOriginSwitch();
+
+    // Origin body: its absolute position becomes scene origin (0,0,0).
     // This keeps the camera near the origin, avoiding Float32 precision loss in the GPU.
-    const originBody = this.cameraController.trackedBody?.body.name;
+    // Uses originBody (persists after un-tracking) rather than trackedBody to prevent
+    // the scene from jumping when the user pans or translates away from a tracked body.
+    const originBody = this.cameraController.originBody?.body.name;
     const originAbsPos: [number, number, number] = originBody
       ? this.absolutePositionOf(originBody, et)
       : [0, 0, 0];
@@ -275,6 +288,22 @@ export class UniverseRenderer {
         // body-fixed equatorial plane)
         ring.quaternion.copy(parentBm.mesh.quaternion);
         ring.applyScale(this.scaleFactor);
+      }
+    }
+
+    // Update atmosphere shells (follow parent body position, pass camera + sun)
+    if (this.atmosphereMeshes.size > 0) {
+      const sunBm = this.bodyMeshes.get('Sun');
+      const sunPos = sunBm ? sunBm.position : new THREE.Vector3(0, 0, 0);
+      for (const [, { atm, parentName }] of this.atmosphereMeshes) {
+        const parentBm = this.bodyMeshes.get(parentName);
+        if (parentBm) {
+          atm.position.copy(parentBm.position);
+          // Unit sphere * shellRadius * scaleFactor = scene-space shell
+          atm.scale.setScalar(atm.shellRadius * this.scaleFactor);
+          atm.updateMatrixWorld(true);
+          atm.update(this.camera.position, sunPos);
+        }
       }
     }
 
@@ -473,6 +502,10 @@ export class UniverseRenderer {
       if (parentName === name) ring.visible = visible;
     }
 
+    // Atmosphere shell
+    const atm = this.atmosphereMeshes.get(name);
+    if (atm) atm.atm.visible = visible;
+
     // Event markers
     const em = this.eventMarkerGroups.get(name);
     if (em) em.visible = visible;
@@ -483,10 +516,12 @@ export class UniverseRenderer {
 
   dispose(): void {
     this.stop();
+    this.renderer.domElement.removeEventListener('dblclick', this._onDblClick);
     this.timeController.dispose();
     this.cameraController.dispose();
     for (const bm of this.bodyMeshes.values()) bm.dispose();
     for (const [, { ring }] of this.ringMeshes) ring.dispose();
+    for (const [, { atm }] of this.atmosphereMeshes) atm.dispose();
     for (const tl of this.trajectoryLines.values()) tl.dispose();
     for (const sf of this.sensorFrustums.values()) sf.dispose();
     for (const em of this.eventMarkerGroups.values()) em.dispose();
@@ -559,18 +594,23 @@ export class UniverseRenderer {
         }
       }
 
-      // Load textures for Globe geometry (baseMap, normalMap)
+      // Load textures for Globe geometry (baseMap, normalMap, displacementMap)
       if (body.geometryType === 'Globe' && body.geometryData) {
         const resolver = this.options.textureResolver ?? this.options.modelResolver;
         const geo = body.geometryData;
         if (resolver) {
           const normalMapUrl = typeof geo.normalMap === 'string' ? resolver(geo.normalMap as string) : undefined;
+          const dispMapUrl = typeof geo.displacementMap === 'string' ? resolver(geo.displacementMap as string) : undefined;
+          const dispScale = typeof geo.displacementScale === 'number' ? geo.displacementScale as number : undefined;
+          const dispBias = typeof geo.displacementBias === 'number' ? geo.displacementBias as number : undefined;
+          const bumpMapUrl = typeof geo.bumpMap === 'string' ? resolver(geo.bumpMap as string) : undefined;
+          const bumpScaleVal = typeof geo.bumpScale === 'number' ? geo.bumpScale as number : undefined;
 
           if (typeof geo.baseMap === 'string') {
             // Simple string path
             const baseMapUrl = resolver(geo.baseMap as string);
-            if (baseMapUrl || normalMapUrl) {
-              bm.loadGlobeTextures(baseMapUrl, normalMapUrl);
+            if (baseMapUrl || normalMapUrl || dispMapUrl || bumpMapUrl) {
+              bm.loadGlobeTextures(baseMapUrl, normalMapUrl, dispMapUrl, dispScale, dispBias, bumpMapUrl, bumpScaleVal);
             }
           } else if (geo.baseMap && typeof geo.baseMap === 'object') {
             // Tiled texture (NameTemplate or MultiWMS) — load level-0 tiles
@@ -578,13 +618,25 @@ export class UniverseRenderer {
             if (tileUrls) {
               bm.loadTiledBaseMap(tileUrls, this.renderer);
             }
-            // Also load simple normalMap if present
-            if (normalMapUrl) {
-              bm.loadGlobeTextures(undefined, normalMapUrl);
+            // Also load normalMap / displacementMap / bumpMap if present
+            if (normalMapUrl || dispMapUrl || bumpMapUrl) {
+              bm.loadGlobeTextures(undefined, normalMapUrl, dispMapUrl, dispScale, dispBias, bumpMapUrl, bumpScaleVal);
             }
-          } else if (normalMapUrl) {
-            bm.loadGlobeTextures(undefined, normalMapUrl);
+          } else if (normalMapUrl || dispMapUrl || bumpMapUrl) {
+            bm.loadGlobeTextures(undefined, normalMapUrl, dispMapUrl, dispScale, dispBias, bumpMapUrl, bumpScaleVal);
           }
+        }
+      }
+
+      // Create atmosphere shell for Globe bodies with atmosphere data
+      if (body.geometryType === 'Globe' && body.geometryData) {
+        const atmValue = body.geometryData.atmosphere;
+        const atmParams = resolveAtmosphereParams(atmValue, body.name);
+        if (atmParams) {
+          const radius = bm.displayRadius;
+          const atm = new AtmosphereMesh(radius, atmParams);
+          this.atmosphereMeshes.set(body.name, { atm, parentName: body.name });
+          this.scene.add(atm);
         }
       }
 
@@ -861,6 +913,53 @@ export class UniverseRenderer {
 
     return undefined;
   }
+
+  /** Double-click handler: fly to the clicked body or label */
+  private _onDblClick = (event: MouseEvent): void => {
+    if (!this._dblClickRaycaster) return;
+
+    const canvas = this.renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+
+    this._dblClickRaycaster.setFromCamera(mouse, this.camera);
+
+    // Collect raycast targets: body meshes + label sprites
+    const targets: THREE.Object3D[] = [...this.bodyMeshes.values()];
+    if (this.labelManager) {
+      targets.push(...this.labelManager.getSprites());
+    }
+
+    const hits = this._dblClickRaycaster.intersectObjects(targets, true);
+    if (hits.length === 0) return;
+
+    // Resolve hit to a body name
+    let bodyName: string | undefined;
+
+    // Check if it's a label sprite
+    if (this.labelManager) {
+      bodyName = this.labelManager.resolveSprite(hits[0].object);
+    }
+
+    // If not a label, walk up the parent chain to find the BodyMesh
+    if (!bodyName) {
+      let obj = hits[0].object;
+      while (obj.parent && !this.bodyMeshes.has(obj.name)) {
+        obj = obj.parent;
+      }
+      if (this.bodyMeshes.has(obj.name)) bodyName = obj.name;
+    }
+
+    if (bodyName) {
+      const bm = this.bodyMeshes.get(bodyName);
+      if (bm) {
+        this.cameraController.flyTo(bm, { scaleFactor: this.scaleFactor });
+      }
+    }
+  };
 
   private renderLoop = (): void => {
     this.animFrameId = requestAnimationFrame(this.renderLoop);

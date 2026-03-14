@@ -74,6 +74,11 @@ export class LabelManager {
     this.right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
     this.up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
 
+    // Scale labels with FOV so they shrink when zoomed in (narrow FOV).
+    // At the default 60° FOV, fovScale = 1. At 5° FOV, fovScale ≈ 0.08.
+    const fov = (camera as THREE.PerspectiveCamera).fov ?? 60;
+    const fovScale = fov / 60;
+
     for (const entry of this.labels.values()) {
       const bm = entry.bodyMesh;
       const sprite = entry.sprite;
@@ -84,12 +89,19 @@ export class LabelManager {
         continue;
       }
 
+      // Rescale sprite for current FOV
+      const texture = (sprite.material as THREE.SpriteMaterial).map!;
+      const img = texture.image as { width: number; height: number };
+      const aspect = img.width / img.height;
+      const height = (this.fontSize / 600) * this.labelScale * fovScale;
+      sprite.scale.set(height * aspect, height, 1);
+
       // Offset label to start at the body's silhouette edge.
       // Use the larger of: body's world-space radius, or a small fraction of camera distance
       // (so labels are readable even when the body is a tiny dot).
       const dist = bm.position.distanceTo(camera.position);
       const worldRadius = bm.displayRadius * bm.scaleFactor;
-      const offsetScale = Math.max(worldRadius * 1.3, dist * 0.015);
+      const offsetScale = Math.max(worldRadius * 1.3, dist * 0.015 * fovScale);
 
       sprite.position.copy(bm.position);
       sprite.position.addScaledVector(this.right, offsetScale);
@@ -100,6 +112,19 @@ export class LabelManager {
         bm.parent?.add(sprite);
       }
     }
+  }
+
+  /** Get all label sprites (for raycasting / picking) */
+  getSprites(): THREE.Sprite[] {
+    return Array.from(this.labels.values()).map(e => e.sprite);
+  }
+
+  /** Resolve a hit object to a body name, or undefined if not a label sprite */
+  resolveSprite(object: THREE.Object3D): string | undefined {
+    for (const [name, entry] of this.labels) {
+      if (entry.sprite === object) return name;
+    }
+    return undefined;
   }
 
   dispose(): void {

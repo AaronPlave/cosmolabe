@@ -1,0 +1,128 @@
+{
+  "name": "LRO at the Moon",
+  "defaultTime": "2025-01-15T00:00:00Z",
+  "items": [
+    {
+      "name": "Moon Overview",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 10000,
+      "latitude": 30,
+      "longitude": -45
+    },
+    {
+      "name": "Track LRO",
+      "type": "Viewpoint",
+      "center": "LRO",
+      "distance": 500,
+      "latitude": 20,
+      "longitude": 0
+    },
+    {
+      "name": "LRO Close-up",
+      "type": "Viewpoint",
+      "center": "LRO",
+      "distance": 100,
+      "latitude": 10,
+      "longitude": 30
+    },
+    {
+      "name": "Lunar North Pole",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 5000,
+      "latitude": 85,
+      "longitude": 0
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "EMB" },
+      "geometry": { "type": "Globe", "radius": 6378, "atmosphere": "Earth" },
+      "label": { "color": [0.4, 0.6, 1.0] }
+    },
+    {
+      "name": "Moon",
+      "class": "moon",
+      "center": "Earth",
+      "trajectoryFrame": "J2000",
+      "trajectory": { "type": "Builtin", "name": "Moon" },
+      "rotationModel": { "type": "Builtin", "name": "IAU_MOON" },
+      "geometry": {
+          "type": "Globe",
+          "radius": 1737.4,
+          "baseMap": "textures/moon-8k.jpg",
+          "displacementMap": "textures/moon-displacement-6k.jpg",
+          "displacementScale": 20,
+          "displacementBias": -9
+        },
+      "label": { "color": [0.7, 0.7, 0.7] },
+      "items": [
+        {
+          "name": "LRO",
+          "class": "spacecraft",
+          "naifId": -85,
+          "center": "Moon",
+          "trajectoryFrame": "J2000",
+          "trajectory": {
+            "type": "Spice",
+            "target": "LRO",
+            "center": "MOON"
+          },
+          "rotationModel": {
+            "type": "Nadir",
+            "target": "LRO",
+            "center": "MOON"
+          },
+          "geometry": { "type": "Mesh", "size": 0.003, "source": "models/LRO.glb" },
+          "label": { "color": [0.9, 0.9, 0.9] },
+          "trajectoryPlot": { "color": [0.2, 0.8, 1.0], "fade": 0.5 },
+          "items": [
+            {
+              "name": "LROC NAC Left",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "shape": "rectangular",
+                "horizontalFov": 2.86,
+                "verticalFov": 0.4,
+                "target": "Moon",
+                "range": 60,
+                "frustumColor": [0.2, 0.6, 1.0],
+                "frustumOpacity": 0.4
+              },
+              "label": { "color": [0.2, 0.6, 1.0] }
+            },
+            {
+              "name": "LROC WAC",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "shape": "rectangular",
+                "horizontalFov": 60,
+                "verticalFov": 1,
+                "target": "Moon",
+                "range": 60,
+                "frustumColor": [1.0, 0.8, 0.2],
+                "frustumOpacity": 0.15
+              },
+              "label": { "color": [1.0, 0.8, 0.2] }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

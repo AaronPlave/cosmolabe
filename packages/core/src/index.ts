@@ -3,7 +3,7 @@ export type { BodyProperties, TrajectoryPlotConfig } from './Body.js';
 export { Universe } from './Universe.js';
 export type { UniverseOptions } from './Universe.js';
 export { CatalogLoader } from './catalog/CatalogLoader.js';
-export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions } from './catalog/CatalogLoader.js';
+export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, ViewpointDefinition } from './catalog/CatalogLoader.js';
 
 // Trajectories
 export type { CartesianState, Trajectory } from './trajectories/Trajectory.js';
