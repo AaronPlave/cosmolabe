@@ -1,0 +1,255 @@
+{
+  "name": "Europa Clipper — Jupiter Science Phase",
+  "version": "1.0",
+  "defaultTime": "2031-03-06T12:00:00Z",
+  "items": [
+    {
+      "name": "Jupiter System Overview",
+      "type": "Viewpoint",
+      "center": "Jupiter",
+      "distance": 2000000,
+      "latitude": 25,
+      "longitude": -30
+    },
+    {
+      "name": "Europa Close-up",
+      "type": "Viewpoint",
+      "center": "Europa",
+      "distance": 20000,
+      "latitude": 15,
+      "longitude": 0
+    },
+    {
+      "name": "Track Clipper",
+      "type": "Viewpoint",
+      "center": "Europa Clipper",
+      "distance": 200,
+      "latitude": 20,
+      "longitude": 0
+    },
+    {
+      "name": "Flyby Approach",
+      "type": "Viewpoint",
+      "center": "Europa",
+      "distance": 5000,
+      "latitude": 5,
+      "longitude": 90
+    },
+    {
+      "name": "Orbit Plane",
+      "type": "Viewpoint",
+      "center": "Jupiter",
+      "distance": 1500000,
+      "latitude": 2,
+      "longitude": 0
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectoryFrame": "J2000",
+      "trajectory": { "type": "Builtin", "name": "Earth" },
+      "geometry": { "type": "Globe", "radius": 6378, "atmosphere": "Earth" },
+      "label": { "color": [0.4, 0.6, 1.0] }
+    },
+    {
+      "name": "Jupiter",
+      "class": "planet",
+      "center": "Sun",
+      "trajectoryFrame": "J2000",
+      "trajectory": { "type": "Builtin", "name": "Jupiter" },
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "9.925h",
+        "inclination": 3.13,
+        "ascendingNode": 99.36,
+        "meridianAngle": 284.95
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [71492, 71492, 66854],
+        "baseMap": "textures/jupiter.dds",
+        "atmosphere": true
+      },
+      "label": { "color": [0.9, 0.7, 0.4] },
+      "items": [
+        {
+          "name": "Io",
+          "class": "moon",
+          "center": "Jupiter",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Io" },
+          "rotationModel": {
+            "type": "Uniform",
+            "period": "1.769d",
+            "inclination": 0.04,
+            "ascendingNode": 0.0,
+            "meridianAngle": 200.39
+          },
+          "geometry": { "type": "Globe", "radius": 1821.6, "baseMap": "textures/io.dds" },
+          "label": { "color": [0.95, 0.85, 0.4] }
+        },
+        {
+          "name": "Europa",
+          "class": "moon",
+          "center": "Jupiter",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Europa" },
+          "rotationModel": {
+            "type": "Uniform",
+            "period": "3.551d",
+            "inclination": 0.47,
+            "ascendingNode": 0.0,
+            "meridianAngle": 36.022
+          },
+          "geometry": { "type": "Globe", "radius": 1560.8, "baseMap": "textures/europa.dds" },
+          "label": { "color": [0.85, 0.88, 1.0] }
+        },
+        {
+          "name": "Ganymede",
+          "class": "moon",
+          "center": "Jupiter",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Ganymede" },
+          "rotationModel": {
+            "type": "Uniform",
+            "period": "7.155d",
+            "inclination": 0.20,
+            "ascendingNode": 0.0,
+            "meridianAngle": 44.064
+          },
+          "geometry": { "type": "Globe", "radius": 2631.2, "baseMap": "textures/ganymede.dds" },
+          "label": { "color": [0.75, 0.72, 0.65] }
+        },
+        {
+          "name": "Callisto",
+          "class": "moon",
+          "center": "Jupiter",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Builtin", "name": "Callisto" },
+          "rotationModel": {
+            "type": "Uniform",
+            "period": "16.689d",
+            "inclination": 0.19,
+            "ascendingNode": 0.0,
+            "meridianAngle": 259.51
+          },
+          "geometry": { "type": "Globe", "radius": 2410.3, "baseMap": "textures/callisto.dds" },
+          "label": { "color": [0.55, 0.50, 0.45] }
+        },
+        {
+          "name": "Europa Clipper",
+          "class": "spacecraft",
+          "naifId": -159,
+          "center": "Jupiter",
+          "startTime": "2030-04-10T00:00:00Z",
+          "endTime": "2034-09-03T00:00:00Z",
+          "trajectoryFrame": "J2000",
+          "trajectory": {
+            "type": "Spice",
+            "target": "-159",
+            "center": "JUPITER"
+          },
+          "rotationModel": {
+            "type": "Nadir",
+            "target": "-159",
+            "center": "502"
+          },
+          "geometry": {
+            "type": "Mesh",
+            "source": "models/clipper_spacecraft.glb",
+            "size": 0.01
+          },
+          "label": { "color": [1.0, 1.0, 1.0] },
+          "trajectoryPlot": {
+            "color": "#66ccff",
+            "fade": 0.5,
+            "duration": "14d",
+            "visible": true
+          },
+          "items": [
+            {
+              "name": "EIS NAC",
+              "class": "instrument",
+              "center": "Europa Clipper",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -159103,
+                "target": "Europa",
+                "shape": "rectangular",
+                "horizontalFov": 2.3,
+                "verticalFov": 1.2,
+                "range": 50000,
+                "frustumColor": [0.2, 0.6, 1.0],
+                "frustumOpacity": 0.3
+              },
+              "label": { "color": [0.2, 0.6, 1.0] }
+            },
+            {
+              "name": "EIS WAC",
+              "class": "instrument",
+              "center": "Europa Clipper",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -159104,
+                "target": "Europa",
+                "shape": "rectangular",
+                "horizontalFov": 48.0,
+                "verticalFov": 24.0,
+                "range": 50000000,
+                "frustumColor": [1.0, 0.6, 0.2],
+                "frustumOpacity": 0.15
+              },
+              "label": { "color": [1.0, 0.6, 0.2] }
+            },
+            {
+              "name": "MISE",
+              "class": "instrument",
+              "center": "Europa Clipper",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -159601,
+                "target": "Europa",
+                "shape": "rectangular",
+                "horizontalFov": 4.5,
+                "verticalFov": 0.036,
+                "range": 50000,
+                "frustumColor": [0.2, 0.9, 0.3],
+                "frustumOpacity": 0.25
+              },
+              "label": { "color": [0.2, 0.9, 0.3] }
+            },
+            {
+              "name": "E-THEMIS",
+              "class": "instrument",
+              "center": "Europa Clipper",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -159200,
+                "target": "Europa",
+                "shape": "rectangular",
+                "horizontalFov": 7.5,
+                "verticalFov": 1.9,
+                "range": 50000,
+                "frustumColor": [1.0, 0.3, 0.2],
+                "frustumOpacity": 0.2
+              },
+              "label": { "color": [1.0, 0.3, 0.2] }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

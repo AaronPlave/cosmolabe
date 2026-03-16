@@ -153,6 +153,7 @@
           <button class="demo-btn" data-catalog="sensor-demo">Sensor Frustums</button>
           <button class="demo-btn" data-catalog="cassini-soi">Cassini SOI</button>
           <button class="demo-btn" data-catalog="lro-moon">LRO at Moon</button>
+          <button class="demo-btn" data-catalog="europa-clipper" style="color:#f90; border-color:#f90">Europa Clipper</button>
         </div>
         <div style="margin-top:20px; border-top:1px solid #333; padding-top:16px">
           <button id="btn-load-naif" class="demo-btn" style="color:#6c6; border-color:#6c6">
@@ -197,8 +198,46 @@
         <input type="range" id="fov-slider" min="1" max="120" value="60" style="flex:1; height:4px;">
         <span id="fov-display" style="font-size:11px; color:#8ab4f8; min-width:36px; text-align:center;">60°</span>
       </div>
+      <div id="display-opts" style="display:flex; gap:12px; align-items:center; width:100%; font-size:11px; color:#888;">
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="chk-grid" style="accent-color:#4488ff; cursor:pointer;">
+          Grid (G)
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="chk-axes" style="accent-color:#4488ff; cursor:pointer;">
+          Axes (X)
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="chk-stats" style="accent-color:#4488ff; cursor:pointer;">
+          FPS (P)
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="chk-traj" checked style="accent-color:#4488ff; cursor:pointer;">
+          Orbits (T)
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="chk-labels" checked style="accent-color:#4488ff; cursor:pointer;">
+          Labels (L)
+        </label>
+        <span style="color:#555;">|</span>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          Light:
+          <select id="sel-lighting" style="background:#222; color:#ccc; border:1px solid #555; border-radius:3px; padding:1px 4px; font-family:monospace; font-size:11px; cursor:pointer;">
+            <option value="natural">Natural</option>
+            <option value="shadow">Shadow</option>
+            <option value="flood">Flood</option>
+          </select>
+        </label>
+        <label id="instrument-view-label" style="display:none; align-items:center; gap:4px; cursor:pointer;">
+          <span style="color:#555;">|</span>
+          Instr:
+          <select id="sel-instrument" style="background:#222; color:#ccc; border:1px solid #555; border-radius:3px; padding:1px 4px; font-family:monospace; font-size:11px; cursor:pointer;">
+            <option value="">Off</option>
+          </select>
+        </label>
+      </div>
       <div class="time-shortcut-hint">
-        Space: play/pause &middot; &larr;/&rarr;: step &middot; [/]: speed &middot; R: reverse &middot; F: fly to &middot; L: clear look-at &middot; /: hide UI
+        Space: play/pause &middot; &larr;/&rarr;: step &middot; [/]: speed &middot; R: reverse &middot; F: fly to &middot; T: orbits &middot; L: labels &middot; I: instrument PiP &middot; /: hide UI
       </div>
     </div>
   </div>

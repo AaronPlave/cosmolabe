@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@spicecraft/core": "*",
-    "@types/three": "^0.183.1"
+    "@types/three": "^0.183.1",
+    "3d-tiles-renderer": "^0.4.22"
   },
   "peerDependencies": {
     "three": "^0.183.2"

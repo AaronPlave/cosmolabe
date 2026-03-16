@@ -175,9 +175,9 @@ export class TimeController {
     return Math.max(this._minEt, Math.min(this._maxEt, et));
   }
 
-  /** Default step size: one "screen second" worth of ET, minimum 60s */
+  /** Default step size: one "screen second" worth of ET, minimum 1s */
   private defaultStepSize(): number {
-    return Math.max(60, Math.abs(this._rate));
+    return Math.max(1, Math.abs(this._rate));
   }
 
   private closestTierIndex(rate: number): number {

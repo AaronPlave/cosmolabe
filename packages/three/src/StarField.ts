@@ -10,25 +10,14 @@ export interface StarFieldOptions {
 }
 
 /**
- * B-V color index to RGB tint.
- * Near-white with subtle spectral tinting — most stars appear white.
- */
-function bvToRGB(bv: number): [number, number, number] {
-  const t = Math.max(-0.4, Math.min(2.0, bv));
-  if (t < -0.1) return [0.85, 0.9, 1.0];     // Blue-white (O/B)
-  if (t < 0.3)  return [0.97, 0.97, 1.0];     // White (A)
-  if (t < 0.6)  return [1.0, 0.97, 0.92];     // Yellow-white (F/G)
-  if (t < 1.0)  return [1.0, 0.9, 0.75];      // Yellow-orange (G/K)
-  if (t < 1.5)  return [1.0, 0.82, 0.6];      // Orange (K)
-  return [1.0, 0.7, 0.5];                      // Red-orange (M)
-}
-
-/**
- * Real star field using HYG catalog data.
+ * Real star field using HYG catalog data with physically-based colors and brightness.
+ *
+ * Star colors use black body chromaticity (pre-baked at build time from B-V index).
+ * Brightness follows Pogson's law: flux = 10^(-m/2.5), giving correct logarithmic
+ * dynamic range between bright and faint stars.
  *
  * Renders stars as a skybox: the vertex shader strips camera translation so
- * stars appear at infinity regardless of camera position. No followCamera()
- * call needed, no far-plane clipping, no precision issues.
+ * stars appear at infinity regardless of camera position.
  */
 export class StarField extends THREE.Object3D {
   private points: THREE.Points | null = null;
@@ -58,23 +47,81 @@ export class StarField extends THREE.Object3D {
 
   /**
    * Parse binary star catalog.
-   * Format: "STAR" magic (4b) + uint32 count (4b) + count × [x,y,z,mag,bv] Float32 (20b each)
+   * Supports v2 compact format (STR2 magic) and v1 legacy format (STAR magic).
    */
   private buildFromBinary(buffer: ArrayBuffer, options: StarFieldOptions): void {
     const view = new DataView(buffer);
-    const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
-    if (magic !== 'STAR') {
+    const magic = String.fromCharCode(
+      view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3)
+    );
+
+    if (magic === 'STR2') {
+      this.parseCompactFormat(view, options);
+    } else if (magic === 'STAR') {
+      this.parseLegacyFormat(view, options);
+    } else {
+      console.warn('[SpiceCraft] Unknown star catalog format, using random stars');
       this.buildRandom(options);
-      return;
+    }
+  }
+
+  /**
+   * Parse v2 compact format (10 bytes/star, pre-baked black body colors).
+   * Header (16b): "STR2" + uint32 count + float32 magBright + float32 magFaint
+   * Per star (10b): 3×Int16 position + Uint8 magnitude + 3×Uint8 RGB
+   */
+  private parseCompactFormat(view: DataView, options: StarFieldOptions): void {
+    const count = view.getUint32(4, true);
+    const magBright = view.getFloat32(8, true);
+    const magFaint = view.getFloat32(12, true);
+    const maxSize = options.maxSize ?? 3.5;
+    const magLimit = options.magLimit ?? magFaint;
+    const HEADER = 16;
+    const STRIDE = 10;
+
+    // Filter stars within magnitude limit
+    const magRange = magFaint - magBright;
+    const magLimitNorm = magRange > 0 ? (magLimit - magBright) / magRange : 1;
+    let starCount = 0;
+    for (let i = 0; i < count; i++) {
+      if (view.getUint8(HEADER + i * STRIDE + 6) / 255 <= magLimitNorm) starCount++;
     }
 
+    const positions = new Float32Array(starCount * 3);
+    const colors = new Float32Array(starCount * 3);
+    const mags = new Float32Array(starCount);
+    let idx = 0;
+
+    for (let i = 0; i < count; i++) {
+      const off = HEADER + i * STRIDE;
+      const magNorm = view.getUint8(off + 6) / 255;
+      if (magNorm > magLimitNorm) continue;
+
+      positions[idx * 3]     = view.getInt16(off, true) / 0x7FFF;
+      positions[idx * 3 + 1] = view.getInt16(off + 2, true) / 0x7FFF;
+      positions[idx * 3 + 2] = view.getInt16(off + 4, true) / 0x7FFF;
+      mags[idx] = magNorm;
+      colors[idx * 3]     = view.getUint8(off + 7) / 255;
+      colors[idx * 3 + 1] = view.getUint8(off + 8) / 255;
+      colors[idx * 3 + 2] = view.getUint8(off + 9) / 255;
+      idx++;
+    }
+
+    this.buildPoints(positions, colors, mags, idx, maxSize);
+    console.log(`[SpiceCraft] StarField: ${idx} stars (mag ${magBright.toFixed(1)} to ${magLimit.toFixed(1)})`);
+  }
+
+  /**
+   * Parse v1 legacy format (20 bytes/star: 5×Float32 x,y,z,mag,bv).
+   * Converts B-V to black body colors at load time.
+   */
+  private parseLegacyFormat(view: DataView, options: StarFieldOptions): void {
     const count = view.getUint32(4, true);
     const maxSize = options.maxSize ?? 3.5;
     const magLimit = options.magLimit ?? 6.5;
     const HEADER = 8;
     const STRIDE = 20;
 
-    // Find magnitude range (skip Sun)
     let magBright = 10;
     let starCount = 0;
     for (let i = 0; i < count; i++) {
@@ -84,47 +131,33 @@ export class StarField extends THREE.Object3D {
       starCount++;
     }
 
+    const magFaint = magLimit;
+    const magRange = magFaint - magBright;
     const positions = new Float32Array(starCount * 3);
     const colors = new Float32Array(starCount * 3);
-    const sizes = new Float32Array(starCount);
-    const magRange = magLimit - magBright;
+    const mags = new Float32Array(starCount);
     let idx = 0;
 
     for (let i = 0; i < count; i++) {
       const off = HEADER + i * STRIDE;
-      const x = view.getFloat32(off, true);
-      const y = view.getFloat32(off + 4, true);
-      const z = view.getFloat32(off + 8, true);
       const mag = view.getFloat32(off + 12, true);
-      const bv = view.getFloat32(off + 16, true);
-
       if (mag < -10 || mag > magLimit) continue;
 
-      // Unit vector — direction only (shader handles the rest)
-      positions[idx * 3] = x;
-      positions[idx * 3 + 1] = y;
-      positions[idx * 3 + 2] = z;
+      positions[idx * 3]     = view.getFloat32(off, true);
+      positions[idx * 3 + 1] = view.getFloat32(off + 4, true);
+      positions[idx * 3 + 2] = view.getFloat32(off + 8, true);
+      mags[idx] = magRange > 0 ? (mag - magBright) / magRange : 0;
 
-      // Brightness: 1=brightest, 0=faintest
-      const t = 1 - (mag - magBright) / magRange;
-
-      // Size: minimum 2px to avoid sub-pixel aliasing flicker.
-      // Bright stars get larger (up to maxSize).
-      sizes[idx] = 2.0 + (maxSize - 2.0) * (t * t * t);
-
-      // Color: spectral tint × brightness.
-      // Linear with high floor: faintest=0.15 (visible on any monitor), brightest=1.0
-      const brightness = 0.15 + 0.85 * t;
-      const [r, g, b] = bvToRGB(bv);
-      colors[idx * 3] = r * brightness;
-      colors[idx * 3 + 1] = g * brightness;
-      colors[idx * 3 + 2] = b * brightness;
-
+      const bv = view.getFloat32(off + 16, true);
+      const [r, g, b] = bvToBlackBodyRGB(isNaN(bv) ? 0.65 : bv);
+      colors[idx * 3] = r;
+      colors[idx * 3 + 1] = g;
+      colors[idx * 3 + 2] = b;
       idx++;
     }
 
-    this.buildPoints(positions, colors, sizes, idx);
-    console.log(`[SpiceCraft] StarField: ${idx} real stars (mag ${magBright.toFixed(1)} to ${magLimit})`);
+    this.buildPoints(positions, colors, mags, idx, maxSize);
+    console.log(`[SpiceCraft] StarField: ${idx} stars (mag ${magBright.toFixed(1)} to ${magFaint.toFixed(1)}), legacy format`);
   }
 
   private buildRandom(options: StarFieldOptions): void {
@@ -132,7 +165,7 @@ export class StarField extends THREE.Object3D {
     const maxSize = options.maxSize ?? 2.0;
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
-    const sizes = new Float32Array(count);
+    const mags = new Float32Array(count);
 
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * 2 * Math.PI;
@@ -140,17 +173,22 @@ export class StarField extends THREE.Object3D {
       positions[i * 3] = Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = Math.cos(phi);
-      const b = 0.5 + Math.random() * 0.5;
-      sizes[i] = 2.0 + Math.random() * (maxSize - 2.0);
-      colors[i * 3] = b;
-      colors[i * 3 + 1] = b;
-      colors[i * 3 + 2] = b;
+      colors[i * 3] = 1;
+      colors[i * 3 + 1] = 1;
+      colors[i * 3 + 2] = 1;
+      mags[i] = Math.random();
     }
 
-    this.buildPoints(positions, colors, sizes, count);
+    this.buildPoints(positions, colors, mags, count, maxSize);
   }
 
-  private buildPoints(positions: Float32Array, colors: Float32Array, sizes: Float32Array, count: number): void {
+  private buildPoints(
+    positions: Float32Array,
+    colors: Float32Array,
+    mags: Float32Array,
+    count: number,
+    maxSize: number,
+  ): void {
     if (this.points) {
       this.points.geometry.dispose();
       (this.points.material as THREE.Material).dispose();
@@ -160,14 +198,32 @@ export class StarField extends THREE.Object3D {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions.slice(0, count * 3), 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors.slice(0, count * 3), 3));
-    geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes.slice(0, count), 1));
+    geometry.setAttribute('aMag', new THREE.BufferAttribute(mags.slice(0, count), 1));
 
     const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uMaxSize: { value: maxSize },
+      },
       vertexShader: /* glsl */ `
-        attribute float aSize;
+        attribute float aMag;
+        uniform float uMaxSize;
         varying vec3 vColor;
         void main() {
-          vColor = color;
+          // aMag: 0 = brightest, 1 = faintest (normalized magnitude).
+          // Magnitude is already a log scale (each step = 2.512× flux),
+          // so linear-in-magnitude gives correct perceptual brightness on screen.
+          float t = 1.0 - aMag;
+
+          // Brightness: linear ramp with floor so faintest stars remain visible
+          float brightness = 0.15 + 0.85 * t;
+
+          // Color: pre-baked spectral chromaticity × brightness
+          vColor = color * brightness;
+
+          // Variable point size: cubic curve — only the brightest stars
+          // get noticeably larger, dim stars stay at minimum 2px.
+          gl_PointSize = 2.0 + (uMaxSize - 2.0) * t * t * t;
+
           // Skybox: strip translation from modelView, keep only rotation.
           // Stars are at infinity — camera movement doesn't affect them.
           vec3 viewDir = mat3(modelViewMatrix) * position;
@@ -175,7 +231,6 @@ export class StarField extends THREE.Object3D {
           // Push to far plane so stars are always behind everything
           clipPos.z = clipPos.w;
           gl_Position = clipPos;
-          gl_PointSize = aSize;
         }
       `,
       fragmentShader: /* glsl */ `
@@ -206,4 +261,39 @@ export class StarField extends THREE.Object3D {
       (this.points.material as THREE.Material).dispose();
     }
   }
+}
+
+/**
+ * B-V color index → linear sRGB unit chromaticity via black body radiation.
+ * Used for legacy v1 format conversion at load time.
+ */
+function bvToBlackBodyRGB(bv: number): [number, number, number] {
+  const bvClamped = Math.max(-0.4, Math.min(2.0, bv));
+  const T = 4600 * (1 / (0.92 * bvClamped + 1.7) + 1 / (0.92 * bvClamped + 0.62));
+
+  const T2 = T * T;
+  const u = (0.860117757 + 1.54118254e-4 * T + 1.28641212e-7 * T2) /
+            (1 + 8.42420235e-4 * T + 7.08145163e-7 * T2);
+  const v = (0.317398726 + 4.22806245e-5 * T + 4.20481691e-8 * T2) /
+            (1 - 2.89741816e-5 * T + 1.61456053e-7 * T2);
+
+  const denom = 2 * u - 8 * v + 4;
+  const x = (3 * u) / denom;
+  const y = (2 * v) / denom;
+
+  const Y = 1;
+  const X = y > 0 ? (x * Y) / y : 0;
+  const Z = y > 0 ? ((1 - x - y) * Y) / y : 0;
+
+  let r =  3.2406255 * X - 1.5372080 * Y - 0.4986286 * Z;
+  let g = -0.9689307 * X + 1.8757561 * Y + 0.0415175 * Z;
+  let b =  0.0557101 * X - 0.2040211 * Y + 1.0569959 * Z;
+
+  r = Math.max(0, r);
+  g = Math.max(0, g);
+  b = Math.max(0, b);
+
+  const maxC = Math.max(r, g, b);
+  if (maxC > 0) return [r / maxC, g / maxC, b / maxC];
+  return [1, 1, 1];
 }

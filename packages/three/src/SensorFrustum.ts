@@ -13,15 +13,28 @@ export interface SensorFrustumOptions {
   segments?: number;
 }
 
+// Reusable temp objects for per-frame orientation (avoids GC pressure)
+const _dir = new THREE.Vector3();
+const _targetPos = new THREE.Vector3();
+const _camZ = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _up = new THREE.Vector3();
+const _m4 = new THREE.Matrix4();
+const _quat = new THREE.Quaternion();
+const _corner = new THREE.Vector3();
+
 export class SensorFrustum extends THREE.Object3D {
   readonly body: Body;
   readonly targetName: string | undefined;
   /** NAIF instrument ID for SPICE-based orientation (e.g. -82360 for Cassini ISS NAC) */
   readonly spiceId: number | undefined;
+  /** Cached SPICE instrument frame name (from getfov during construction). Avoids per-frame getfov calls. */
+  spiceFovFrame: string | undefined;
   private readonly frustumMesh: THREE.Mesh;
   private readonly wireframe: THREE.LineSegments;
-  private readonly hFov: number; // radians (half-angle)
-  private readonly vFov: number; // radians (half-angle)
+  private readonly labelSprite: THREE.Sprite;
+  private readonly hFov: number; // full angle in radians
+  private readonly vFov: number; // full angle in radians
   private readonly fixedLength: number | undefined;
   private readonly shape: 'elliptical' | 'rectangular';
   private readonly sensorOrientation: THREE.Quaternion;
@@ -90,6 +103,23 @@ export class SensorFrustum extends THREE.Object3D {
     });
     this.wireframe = new THREE.LineSegments(edgesGeo, wireMat);
     this.add(this.wireframe);
+
+    // Label sprite at the far end of the frustum
+    const labelTexture = createTextTexture(body.name, color);
+    const labelMat = new THREE.SpriteMaterial({
+      map: labelTexture,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      sizeAttenuation: false,
+    });
+    this.labelSprite = new THREE.Sprite(labelMat);
+    const labelAspect = labelTexture.image.width / labelTexture.image.height;
+    const labelH = 11 / 600; // ~11px at 600px viewport height
+    this.labelSprite.scale.set(labelH * labelAspect, labelH, 1);
+    this.labelSprite.center.set(0, 0); // anchor at bottom-left
+    this.labelSprite.renderOrder = 999;
+    this.add(this.labelSprite);
   }
 
   /**
@@ -131,35 +161,60 @@ export class SensorFrustum extends THREE.Object3D {
 
     // Orient frustum
     if (spiceRotation && spiceRotation.length === 9) {
-      // SPICE pxform returns instrument→J2000 rotation (row-major).
-      // Boresight is +Z in instrument frame. Frustum mesh extends along -Y.
-      // We need: align -Y with boresight direction in J2000.
+      // SPICE pxform returns instrument→J2000 rotation R (row-major).
+      // Instrument frame: +X = horizontal, +Y = vertical, +Z = boresight.
+      // Frustum mesh:     X = horizontal,  -Y = boresight, Z = vertical.
       //
-      // The rotation matrix R transforms instrument-frame vectors to J2000.
-      // Boresight in J2000 = R * [0,0,1].
-      // We also need the "up" direction: R * [1,0,0] (ref vector) for roll.
+      // Build mesh→J2000 matrix from R columns:
+      //   mesh X  → instr X in J2000: col0 = (r[0], r[3], r[6])
+      //   mesh Y  → -instr Z in J2000: (-r[2], -r[5], -r[8])
+      //   mesh Z  → instr Y in J2000: col1 = (r[1], r[4], r[7])
       const r = spiceRotation;
-      // Boresight direction in J2000: 3rd column of R = R * [0,0,1]
-      const boresight = new THREE.Vector3(r[2], r[5], r[8]);
-      boresight.normalize();
-      // Align frustum -Y with boresight
-      const negY = new THREE.Vector3(0, -1, 0);
-      const quat = new THREE.Quaternion().setFromUnitVectors(negY, boresight);
-      this.frustumMesh.quaternion.copy(quat);
-      this.wireframe.quaternion.copy(quat);
+      _m4.set(
+        r[0], -r[2], r[1], 0,
+        r[3], -r[5], r[4], 0,
+        r[6], -r[8], r[7], 0,
+        0,     0,    0,    1,
+      );
+      _quat.setFromRotationMatrix(_m4);
+      this.frustumMesh.quaternion.copy(_quat);
+      this.wireframe.quaternion.copy(_quat);
     } else if (targetBody) {
-      // Fallback: point toward target
+      // Fallback: point toward target, using same up convention as the PiP
+      // camera (lookAt with worldUp = +Y) so the cone and PiP agree on
+      // which direction is "up" in the instrument view.
+      //
+      // Cone mesh axes: X = horizontal, -Y = boresight, Z = vertical.
+      // Camera axes:    X = right,      -Z = forward,   Y = up.
+      // Mapping cone→camera: coneX→camX, cone(-Y)→cam(-Z), coneZ→camY.
+      // But (camX, -dir, camY) has det=-1 (improper). Negating the right
+      // vector gives det=+1 — a valid quaternion rotation. This mirrors the
+      // cone's horizontal axis, which is invisible for symmetric FOVs.
       const tPos = resolvePos
         ? resolvePos(targetBody.name, et)
         : targetBody.stateAt(et).position as [number, number, number];
-      const targetPos = new THREE.Vector3(tPos[0] * scaleFactor, tPos[1] * scaleFactor, tPos[2] * scaleFactor);
-      const dir = targetPos.clone().sub(bodyPos).normalize();
-      const negY = new THREE.Vector3(0, -1, 0);
-      const quat = new THREE.Quaternion().setFromUnitVectors(negY, dir);
-      quat.multiply(this.sensorOrientation);
-      this.frustumMesh.quaternion.copy(quat);
-      this.wireframe.quaternion.copy(quat);
+      _targetPos.set(tPos[0] * scaleFactor, tPos[1] * scaleFactor, tPos[2] * scaleFactor);
+      _dir.subVectors(_targetPos, bodyPos).normalize();
+
+      _camZ.copy(_dir).negate();
+      _right.crossVectors(_up.set(0, 1, 0), _camZ);
+      if (_right.lengthSq() < 1e-10) _right.set(1, 0, 0);
+      _right.normalize();
+      _up.crossVectors(_camZ, _right);
+
+      _m4.makeBasis(_right.negate(), _camZ, _up);
+      _quat.setFromRotationMatrix(_m4);
+      _quat.multiply(this.sensorOrientation);
+      this.frustumMesh.quaternion.copy(_quat);
+      this.wireframe.quaternion.copy(_quat);
     }
+
+    // Position label at top-left corner of the frustum base.
+    // In mesh local space: (-1, -1, +1) = (left, far end, top).
+    // After scale: (-radiusH, -length, +radiusV). Then rotate by mesh quaternion.
+    _corner.set(-radiusH, -length, radiusV);
+    _corner.applyQuaternion(this.frustumMesh.quaternion);
+    this.labelSprite.position.copy(_corner);
   }
 
   dispose(): void {
@@ -167,6 +222,8 @@ export class SensorFrustum extends THREE.Object3D {
     (this.frustumMesh.material as THREE.Material).dispose();
     this.wireframe.geometry.dispose();
     (this.wireframe.material as THREE.Material).dispose();
+    (this.labelSprite.material as THREE.SpriteMaterial).map?.dispose();
+    (this.labelSprite.material as THREE.Material).dispose();
   }
 }
 
@@ -195,6 +252,33 @@ function createPyramidGeometry(): THREE.BufferGeometry {
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.computeVertexNormals();
   return geometry;
+}
+
+/** Create a small text texture for a sensor label. */
+function createTextTexture(text: string, color: number): THREE.CanvasTexture {
+  const fontSize = 48; // render large, display small via sprite scale
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d')!;
+  const font = `${fontSize}px monospace`;
+  ctx.font = font;
+  const metrics = ctx.measureText(text);
+  const pad = Math.ceil(fontSize * 0.3);
+  canvas.width = Math.ceil(metrics.width) + pad * 2;
+  canvas.height = fontSize + pad * 2;
+  ctx.font = font;
+  ctx.textBaseline = 'top';
+  const cssColor = '#' + new THREE.Color(color).getHexString();
+  ctx.shadowColor = 'black';
+  ctx.shadowBlur = fontSize * 0.15;
+  ctx.fillStyle = cssColor;
+  ctx.fillText(text, pad, pad);
+  ctx.fillText(text, pad, pad);
+  ctx.shadowBlur = 0;
+  ctx.fillText(text, pad, pad);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
 }
 
 /** Parse a range value that may be a number or string like "1000 km" or "1 au". */

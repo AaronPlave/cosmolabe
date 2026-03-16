@@ -4,6 +4,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
+import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
 import type { Body } from '@spicecraft/core';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
@@ -43,14 +44,21 @@ export class BodyMesh extends THREE.Object3D {
   /** Orientation axes helper (red=X/prime meridian, green=Y, blue=Z/pole) */
   private axesHelper: THREE.AxesHelper | null = null;
   private axesVisible = false;
+  /** Lat/lon grid overlay */
+  private gridLines: THREE.Group | null = null;
+  private gridVisible = false;
   /** Scene scale factor (km → scene units). Set each frame by updatePosition. */
   scaleFactor = 1;
+  /** Streaming terrain manager (3D Tiles). Null if no terrain configured. */
+  private terrainManager: TerrainManager | null = null;
+  /** Whether terrain tiles are currently visible (vs static sphere fallback) */
+  private terrainVisible = false;
   /**
    * Axis ratios for triaxial ellipsoid in geometry space [geoX, geoY, geoZ].
    * Maps body-fixed [rx, ry, rz] → geometry axes accounting for the Globe pre-rotation
    * (geometry Y = body-fixed Z pole). Default [1,1,1] for spherical bodies.
    */
-  private ellipsoidRatios: [number, number, number] = [1, 1, 1];
+  readonly ellipsoidRatios: [number, number, number] = [1, 1, 1];
 
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
@@ -275,6 +283,145 @@ export class BodyMesh extends THREE.Object3D {
     }
   }
 
+  /** Show or hide lat/lon grid lines on the body surface.
+   *  Grid spacing is 30° with equator (yellow) and prime meridian (red) highlighted.
+   *  Works with triaxial ellipsoids via the same scale as the placeholder mesh. */
+  showGrid(show: boolean): void {
+    this.gridVisible = show;
+    if (show && !this.gridLines) {
+      this.gridLines = this.createGridLines();
+      this.gridLines.renderOrder = 1;
+      this.add(this.gridLines);
+    }
+    if (this.gridLines) {
+      this.gridLines.visible = show;
+    }
+  }
+
+  private createGridLines(): THREE.Group {
+    const group = new THREE.Group();
+    // Slight offset above surface to prevent z-fighting
+    const radius = this.displayRadius * 1.002;
+    const segs = 72; // points per line (5° per segment)
+
+    const gridMat = new THREE.LineBasicMaterial({
+      color: 0x88aaff, transparent: true, opacity: 0.3, depthTest: true,
+    });
+    const equatorMat = new THREE.LineBasicMaterial({
+      color: 0xffaa44, transparent: true, opacity: 0.5, depthTest: true,
+    });
+    const primeMeridianMat = new THREE.LineBasicMaterial({
+      color: 0xff4444, transparent: true, opacity: 0.5, depthTest: true,
+    });
+
+    // Helper: generate a latitude ring at the given angle (degrees)
+    const makeLatLine = (latDeg: number, mat: THREE.LineBasicMaterial) => {
+      const latRad = latDeg * Math.PI / 180;
+      const cosLat = Math.cos(latRad);
+      const sinLat = Math.sin(latRad);
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i <= segs; i++) {
+        const lon = (i / segs) * 2 * Math.PI;
+        // Geometry space: Y = pole (matches SphereGeometry)
+        pts.push(new THREE.Vector3(
+          radius * cosLat * Math.cos(lon),
+          radius * sinLat,
+          radius * cosLat * Math.sin(lon),
+        ));
+      }
+      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+    };
+
+    // Helper: generate a longitude meridian at the given angle (degrees)
+    const makeLonLine = (lonDeg: number, mat: THREE.LineBasicMaterial) => {
+      const lonRad = lonDeg * Math.PI / 180;
+      const cosLon = Math.cos(lonRad);
+      const sinLon = Math.sin(lonRad);
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i <= segs; i++) {
+        const lat = (i / segs) * Math.PI - Math.PI / 2;
+        pts.push(new THREE.Vector3(
+          radius * Math.cos(lat) * cosLon,
+          radius * Math.sin(lat),
+          radius * Math.cos(lat) * sinLon,
+        ));
+      }
+      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+    };
+
+    // Latitude lines every 30° (excluding poles)
+    for (let lat = -60; lat <= 60; lat += 30) {
+      makeLatLine(lat, lat === 0 ? equatorMat : gridMat);
+    }
+
+    // Longitude lines every 30°
+    for (let lon = 0; lon < 360; lon += 30) {
+      makeLonLine(lon, lon === 0 ? primeMeridianMat : gridMat);
+    }
+
+    // --- Labels ---
+    const labelR = this.displayRadius * 1.015;
+    const labelSize = this.displayRadius * 0.06;
+    const latLabelLon = 5 * Math.PI / 180; // offset from PM so labels don't overlap the line
+    const lonLabelLat = 3 * Math.PI / 180; // offset above equator
+
+    // Latitude labels (placed near prime meridian)
+    const latLabels: [number, string, string][] = [
+      [60, '60°N', '#88aaff'], [30, '30°N', '#88aaff'],
+      [0, 'Eq', '#ffaa44'],
+      [-30, '30°S', '#88aaff'], [-60, '60°S', '#88aaff'],
+    ];
+    for (const [latDeg, text, color] of latLabels) {
+      const latRad = latDeg * Math.PI / 180;
+      const sprite = this.makeTextSprite(text, color);
+      sprite.position.set(
+        labelR * Math.cos(latRad) * Math.cos(latLabelLon),
+        labelR * Math.sin(latRad),
+        labelR * Math.cos(latRad) * Math.sin(latLabelLon),
+      );
+      sprite.scale.set(labelSize, labelSize * 0.5, 1);
+      group.add(sprite);
+    }
+
+    // Longitude labels (placed just above equator)
+    for (let lon = 0; lon < 360; lon += 30) {
+      const lonRad = lon * Math.PI / 180;
+      const text = lon === 0 ? '0°' : `${lon}°`;
+      const color = lon === 0 ? '#ff4444' : '#88aaff';
+      const sprite = this.makeTextSprite(text, color);
+      sprite.position.set(
+        labelR * Math.cos(lonLabelLat) * Math.cos(lonRad),
+        labelR * Math.sin(lonLabelLat),
+        labelR * Math.cos(lonLabelLat) * Math.sin(lonRad),
+      );
+      sprite.scale.set(labelSize, labelSize * 0.5, 1);
+      group.add(sprite);
+    }
+
+    return group;
+  }
+
+  /** Create a camera-facing text sprite for grid labels */
+  private makeTextSprite(text: string, color: string): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    ctx.font = 'bold 28px monospace';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 64, 32);
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: true,
+      sizeAttenuation: true,
+    });
+    return new THREE.Sprite(material);
+  }
+
   /** Update position from absolute coordinates (km) and apply rotation. */
   updatePosition(absolutePos: [number, number, number], et: number, scaleFactor: number): void {
     this.scaleFactor = scaleFactor;
@@ -296,6 +443,9 @@ export class BodyMesh extends THREE.Object3D {
         target.quaternion.multiplyQuaternions(spiceQ, this.meshRotationQ);
         if (this.axesHelper) {
           this.axesHelper.quaternion.copy(spiceQ); // Axes show body frame in inertial space
+        }
+        if (this.gridLines && this.gridVisible) {
+          this.gridLines.quaternion.copy(target.quaternion);
         }
       }
     } catch {
@@ -457,6 +607,109 @@ export class BodyMesh extends THREE.Object3D {
       factor * this.ellipsoidRatios[1],
       factor * this.ellipsoidRatios[2],
     );
+    if (this.gridLines && this.gridVisible) {
+      this.gridLines.scale.set(
+        factor * this.ellipsoidRatios[0],
+        factor * this.ellipsoidRatios[1],
+        factor * this.ellipsoidRatios[2],
+      );
+    }
+  }
+
+  /** Whether this body has streaming terrain active */
+  get hasTerrain(): boolean { return this.terrainManager !== null; }
+
+  /** Toggle debug tile bounds on terrain */
+  setTerrainDebug(show: boolean): void {
+    this.terrainManager?.setDebug(show);
+  }
+
+  /** Log terrain tile stats to console */
+  logTerrainStats(): void {
+    this.terrainManager?.logStats();
+  }
+
+  /**
+   * Initialize streaming terrain tiles for this globe body.
+   * Creates a TerrainManager and adds its group as a child of this BodyMesh.
+   */
+  initTerrain(config: TerrainConfig, renderer: THREE.WebGLRenderer): void {
+    if (this.terrainManager) return; // Already initialized
+    this.terrainManager = new TerrainManager(config, this.displayRadius, renderer);
+    this.add(this.terrainManager.group);
+    // Terrain starts hidden; updateTerrain will show it based on camera distance
+    this.terrainManager.group.visible = false;
+
+    // Downgrade the static sphere — it's now just a distant fallback.
+    // Remove displacement map (invisible at distance, causes z-fighting with terrain).
+    const mat = this.mesh.material as THREE.MeshStandardMaterial;
+    if (mat.displacementMap) {
+      mat.displacementMap.dispose();
+      mat.displacementMap = null;
+      mat.displacementScale = 0;
+      mat.displacementBias = 0;
+      mat.needsUpdate = true;
+    }
+    // Swap to a lower-segment sphere (32x24 is plenty for distant views)
+    const oldGeo = this.mesh.geometry;
+    this.mesh.geometry = new THREE.SphereGeometry(this.displayRadius, 64, 48);
+    oldGeo.dispose();
+  }
+
+  /**
+   * Per-frame terrain update. Handles tile LOD streaming and sphere↔tiles transition.
+   * @param camera Scene camera
+   * @param renderer WebGL renderer
+   * @param screenPixels How many pixels the body subtends on screen
+   */
+  updateTerrain(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number): void {
+    if (!this.terrainManager) return;
+
+    // Two thresholds: pre-load starts fetching tiles while sphere is still showing,
+    // so by the time we swap, higher-LOD tiles are already cached → less pop-in.
+    const TERRAIN_PRELOAD_PX = 40;
+    const TERRAIN_SHOW_PX = 80;
+
+    if (screenPixels >= TERRAIN_SHOW_PX) {
+      // Show terrain, hide sphere to avoid bleed-through artifacts in tile gaps.
+      if (!this.terrainVisible) {
+        this.terrainManager.group.visible = true;
+        this.terrainVisible = true;
+      }
+      this.mesh.visible = false;
+
+      // Apply the same rotation as the static mesh so terrain aligns with body orientation
+      this.terrainManager.group.quaternion.copy(this.mesh.quaternion);
+      // Apply scene scale factor to the terrain group
+      this.terrainManager.group.scale.setScalar(this.scaleFactor);
+
+      // Force world matrix update before tile LOD computation.
+      // setCamera() uses the group's world matrix to transform the camera into tile space.
+      // Without this, it uses stale matrices from the previous frame's render pass,
+      // causing incorrect LOD selection after panning/zooming.
+      this.terrainManager.group.updateMatrixWorld(true);
+
+      // Update tile LOD — pass body center position so the coverage camera
+      // can ensure tiles load even when the main camera faces away.
+      this.terrainManager.update(camera, renderer, this.position);
+    } else if (screenPixels >= TERRAIN_PRELOAD_PX) {
+      // Pre-load zone: update tile LOD (fetches tiles) but keep sphere visible.
+      // Terrain group stays hidden — we're just warming the cache.
+      if (this.terrainVisible) {
+        this.terrainManager.group.visible = false;
+        this.terrainVisible = false;
+        this.mesh.visible = true;
+      }
+      this.terrainManager.group.quaternion.copy(this.mesh.quaternion);
+      this.terrainManager.group.scale.setScalar(this.scaleFactor);
+      this.terrainManager.group.updateMatrixWorld(true);
+      this.terrainManager.update(camera, renderer, this.position);
+    } else if (this.terrainVisible) {
+      // Camera is far — hide terrain, show static sphere
+      this.terrainManager.group.visible = false;
+      this.terrainVisible = false;
+      this.mesh.visible = true;
+    }
   }
 
   /**
@@ -779,11 +1032,24 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   dispose(): void {
+    this.terrainManager?.dispose();
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();
     if (this.axesHelper) {
       this.axesHelper.geometry.dispose();
       (this.axesHelper.material as THREE.Material).dispose();
+    }
+    if (this.gridLines) {
+      this.gridLines.traverse((child) => {
+        if (child instanceof THREE.Line) {
+          child.geometry.dispose();
+          (child.material as THREE.Material).dispose();
+        }
+        if (child instanceof THREE.Sprite) {
+          child.material.map?.dispose();
+          child.material.dispose();
+        }
+      });
     }
     if (this.modelContainer) {
       this.modelContainer.traverse((child) => {

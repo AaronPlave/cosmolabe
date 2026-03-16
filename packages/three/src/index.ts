@@ -9,6 +9,8 @@ export { TrajectoryLine } from './TrajectoryLine.js';
 export type { TrajectoryLineOptions, PositionResolver } from './TrajectoryLine.js';
 export { SensorFrustum } from './SensorFrustum.js';
 export type { SensorFrustumOptions } from './SensorFrustum.js';
+export { InstrumentView } from './InstrumentView.js';
+export type { InstrumentViewOptions } from './InstrumentView.js';
 export { RingMesh } from './RingMesh.js';
 export { AtmosphereMesh, resolveAtmosphereParams, getAtmospherePreset } from './AtmosphereMesh.js';
 export type { AtmosphereParams } from './AtmosphereMesh.js';
@@ -28,6 +30,10 @@ export { CameraController } from './controls/CameraController.js';
 export type { CameraViewpoint, FlyToOptions } from './controls/CameraController.js';
 export { KeyboardControls } from './controls/KeyboardControls.js';
 export type { KeyboardControlsConfig } from './controls/KeyboardControls.js';
+
+// Terrain
+export { TerrainManager } from './TerrainManager.js';
+export type { TerrainConfig, TerrainImageryConfig } from './TerrainManager.js';
 
 // Plugin interface
 export type { RendererPlugin } from './plugins/RendererPlugin.js';

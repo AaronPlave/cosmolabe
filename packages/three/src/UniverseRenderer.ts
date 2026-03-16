@@ -4,6 +4,7 @@ import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
 import { SensorFrustum } from './SensorFrustum.js';
+import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { EventMarkers } from './EventMarkers.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { GeometryReadout } from './GeometryReadout.js';
@@ -11,6 +12,7 @@ import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
 import { CameraController } from './controls/CameraController.js';
 import { TimeController } from './controls/TimeController.js';
+import type { TerrainConfig } from './TerrainManager.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
 
 export interface UniverseRendererOptions {
@@ -44,6 +46,9 @@ export interface UniverseRendererOptions {
 // Classes that should NOT show trajectories by default
 const EXCLUDED_TRAJECTORY_CLASSES = new Set(['star', 'barycenter']);
 
+/** Layer 2: overlay objects excluded from instrument PiP (trajectories, frustums, markers) */
+const OVERLAY_LAYER = 2;
+
 export class UniverseRenderer {
   readonly scene: THREE.Scene;
   readonly renderer: THREE.WebGLRenderer;
@@ -67,10 +72,12 @@ export class UniverseRenderer {
   private labelManager: LabelManager | null = null;
   private geometryReadout: GeometryReadout | null = null;
   private starField: StarField | null = null;
+  private ambientLight: THREE.AmbientLight | null = null;
   private sunLight: THREE.PointLight | null = null;
   private animFrameId = 0;
   private readonly labelContainer: HTMLDivElement;
   private _dblClickRaycaster: THREE.Raycaster | null = null;
+  private instrumentView: InstrumentView | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -95,9 +102,9 @@ export class UniverseRenderer {
     this.scene = new THREE.Scene();
     // Very dim ambient — just enough to see body silhouettes on the dark side.
     // In space the unlit hemisphere is essentially black; 0x080808 ≈ 3%.
-    const ambient = new THREE.AmbientLight(0x080808);
-    ambient.layers.enableAll();
-    this.scene.add(ambient);
+    this.ambientLight = new THREE.AmbientLight(0x080808);
+    this.ambientLight.layers.enableAll();
+    this.scene.add(this.ambientLight);
 
     // Camera
     this.camera = new THREE.PerspectiveCamera(
@@ -299,8 +306,15 @@ export class UniverseRenderer {
         const parentBm = this.bodyMeshes.get(parentName);
         if (parentBm) {
           atm.position.copy(parentBm.position);
-          // Unit sphere * shellRadius * scaleFactor = scene-space shell
-          atm.scale.setScalar(atm.shellRadius * this.scaleFactor);
+          // Match body rotation so the oblateness axis aligns with the actual pole.
+          // ellipsoidRatios are in geometry space (geoY = body-fixed Z/pole) which
+          // requires the same Globe pre-rotation + SPICE attitude as the body mesh.
+          atm.quaternion.copy(parentBm.mesh.quaternion);
+          // Unit sphere * shellRadius * scaleFactor = scene-space shell.
+          // Match the body's ellipsoid ratios so the atmosphere follows oblateness.
+          const s = atm.shellRadius * this.scaleFactor;
+          const er = parentBm.ellipsoidRatios;
+          atm.scale.set(s * er[0], s * er[1], s * er[2]);
           atm.updateMatrixWorld(true);
           atm.update(this.camera.position, sunPos);
         }
@@ -357,12 +371,11 @@ export class UniverseRenderer {
     const spiceInst = this.universe.spiceInstance;
     for (const sf of this.sensorFrustums.values()) {
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
-      // Try SPICE-based orientation if instrument ID is known
+      // Try SPICE-based orientation using cached FOV frame (from enrichSensorFromSpice)
       let spiceRot: number[] | undefined;
-      if (sf.spiceId != null && spiceInst) {
+      if (sf.spiceFovFrame && spiceInst) {
         try {
-          const fov = spiceInst.getfov(sf.spiceId);
-          spiceRot = spiceInst.pxform(fov.frame, 'J2000', et) as unknown as number[];
+          spiceRot = spiceInst.pxform(sf.spiceFovFrame, 'J2000', et) as unknown as number[];
         } catch {
           // CK data may not cover this time — fall back to target-pointing
         }
@@ -390,8 +403,14 @@ export class UniverseRenderer {
       if (sun) this.sunLight.position.copy(sun.position);
     }
 
+    // Adapt camera speeds to altitude above nearest body (before controls process input)
+    this.cameraController.adaptSpeeds(this.bodyMeshes.values(), this.scaleFactor);
+
     // Camera
     this.cameraController.update();
+
+    // Prevent camera from going inside any body's surface
+    this.clampCameraAboveSurfaces();
 
     // Plugins
     for (const plugin of this.plugins) {
@@ -404,11 +423,29 @@ export class UniverseRenderer {
     this.camera.far = Math.max(1e6, camDist * 1e6);
     this.camera.updateProjectionMatrix();
 
+    // Update streaming terrain tiles AFTER camera controller + clamp + near/far.
+    // The tiles renderer's prepareForTraversal() reads camera.matrixWorldInverse,
+    // camera.projectionMatrix, and group.matrixWorld. By updating here we ensure
+    // all three are current-frame values (camera is not in the scene graph, so
+    // we must explicitly update its world matrix).
+    this.camera.updateMatrixWorld();
+    for (const bm of this.bodyMeshes.values()) {
+      if (bm.hasTerrain) {
+        bm.updateMatrixWorld(true);
+        const dist = bm.position.distanceTo(this.camera.position);
+        const realSceneRadius = bm.displayRadius * this.scaleFactor;
+        const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
+        bm.updateTerrain(this.camera, this.renderer, screenPx);
+      }
+    }
+
     // --- Multi-pass rendering ---
     this.renderer.autoClear = false;
 
-    // Pass 1: Scene without models (layer 0) — log depth for cosmic scale
+    // Pass 1: Scene without models (layers 0 + 2) — log depth for cosmic scale
+    // Layer 0 = bodies/globes/stars/atmosphere, Layer 2 = overlays (trajectories, frustums)
     this.camera.layers.set(0);
+    this.camera.layers.enable(OVERLAY_LAYER);
     this.renderer.clear(true, true, true);
     this.renderer.render(this.scene, this.camera);
 
@@ -449,12 +486,33 @@ export class UniverseRenderer {
     }
 
     this.camera.layers.enableAll();
+
+    // Instrument PiP view — wrapped in try/catch to never break the main render
+    if (this.instrumentView?.active) {
+      try {
+        const sf = this.sensorFrustums.get(this.instrumentView.sensorName!);
+        if (sf) {
+          const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
+          let spiceRot: number[] | undefined;
+          if (sf.spiceFovFrame && spiceInst) {
+            try {
+              spiceRot = spiceInst.pxform(sf.spiceFovFrame, 'J2000', et) as unknown as number[];
+            } catch { /* no CK coverage */ }
+          }
+          this.instrumentView.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);
+          this.instrumentView.render(this.renderer, this.scene);
+        }
+      } catch (err) {
+        console.warn('[SpiceCraft] Instrument PiP render error:', err);
+      }
+    }
   }
 
   resize(width: number, height: number): void {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
+    this.instrumentView?.onResize();
     for (const plugin of this.plugins) {
       plugin.onResize?.(width, height);
     }
@@ -462,6 +520,70 @@ export class UniverseRenderer {
 
   getBodyMesh(name: string): BodyMesh | undefined {
     return this.bodyMeshes.get(name);
+  }
+
+  /** Get all sensor frustum names (for UI instrument selection). */
+  getSensorNames(): string[] {
+    return [...this.sensorFrustums.keys()];
+  }
+
+  /**
+   * Show/hide the instrument picture-in-picture view.
+   * Pass a sensor name to activate, or null to deactivate.
+   */
+  setInstrumentView(sensorName: string | null, options?: InstrumentViewOptions): void {
+    if (sensorName == null) {
+      if (this.instrumentView) {
+        this.instrumentView.setSensor(null);
+      }
+      return;
+    }
+
+    const sf = this.sensorFrustums.get(sensorName);
+    if (!sf) {
+      console.warn(`[SpiceCraft] No sensor frustum found for "${sensorName}"`);
+      return;
+    }
+
+    // Create InstrumentView on first use
+    if (!this.instrumentView) {
+      this.instrumentView = new InstrumentView(
+        this.renderer.domElement.parentElement!,
+        options,
+      );
+    }
+
+    this.instrumentView.setSensor(sf);
+  }
+
+  /** Get the currently active instrument view sensor name, if any. */
+  get activeInstrumentView(): string | undefined {
+    return this.instrumentView?.active ? this.instrumentView.sensorName : undefined;
+  }
+
+  /** Toggle terrain debug tile bounds for a body (or all terrain bodies) */
+  showTerrainDebug(show: boolean, bodyName?: string): void {
+    if (bodyName) {
+      this.bodyMeshes.get(bodyName)?.setTerrainDebug(show);
+    } else {
+      for (const bm of this.bodyMeshes.values()) {
+        if (bm.hasTerrain) bm.setTerrainDebug(show);
+      }
+    }
+  }
+
+  /** Log terrain tile stats (call from console: renderer.logTerrainStats()) */
+  logTerrainStats(bodyName?: string): void {
+    if (bodyName) {
+      this.bodyMeshes.get(bodyName)?.logTerrainStats();
+    } else {
+      for (const bm of this.bodyMeshes.values()) {
+        if (bm.hasTerrain) {
+          console.log(`--- ${bm.body.name} ---`);
+          bm.logTerrainStats();
+        }
+      }
+    }
   }
 
   /** Toggle body-fixed orientation axes for a body (or all bodies if no name given).
@@ -473,6 +595,48 @@ export class UniverseRenderer {
       for (const bm of this.bodyMeshes.values()) {
         bm.showAxes(show);
       }
+    }
+  }
+
+  /** Toggle lat/lon grid lines on bodies (excludes spacecraft, instruments, barycenters).
+   *  Equator is highlighted in yellow, prime meridian in red.
+   *  Works with triaxial ellipsoids. */
+  showBodyGrid(show: boolean, bodyName?: string): void {
+    const excluded = new Set(['spacecraft', 'instrument', 'barycenter']);
+    if (bodyName) {
+      const bm = this.bodyMeshes.get(bodyName);
+      if (bm && !excluded.has(bm.body.classification ?? '')) bm.showGrid(show);
+    } else {
+      for (const bm of this.bodyMeshes.values()) {
+        if (!excluded.has(bm.body.classification ?? '')) bm.showGrid(show);
+      }
+    }
+  }
+
+  /**
+   * Set the scene lighting mode.
+   * - `'natural'`: Realistic — very dim ambient, strong sun (default)
+   * - `'shadow'`: Enhanced — brighter ambient so dark-side detail is visible, softer sun
+   * - `'flood'`: Uniform — full ambient, no directional shadows
+   */
+  setLightingMode(mode: 'natural' | 'shadow' | 'flood'): void {
+    if (!this.ambientLight) return;
+    switch (mode) {
+      case 'natural':
+        this.ambientLight.color.setHex(0x080808);
+        this.ambientLight.intensity = 1;
+        if (this.sunLight) this.sunLight.intensity = 2;
+        break;
+      case 'shadow':
+        this.ambientLight.color.setHex(0x555555);
+        this.ambientLight.intensity = 1;
+        if (this.sunLight) this.sunLight.intensity = 1.5;
+        break;
+      case 'flood':
+        this.ambientLight.color.setHex(0xffffff);
+        this.ambientLight.intensity = 1;
+        if (this.sunLight) this.sunLight.intensity = 0;
+        break;
     }
   }
 
@@ -514,6 +678,35 @@ export class UniverseRenderer {
     this.labelManager?.setLabelVisible(name, visible);
   }
 
+  /** Show or hide all trajectory lines. */
+  setTrajectoriesVisible(visible: boolean): void {
+    for (const tl of this.trajectoryLines.values()) {
+      tl.setUserVisible(visible);
+    }
+  }
+
+  /** Show or hide all body labels. */
+  setLabelsVisible(visible: boolean): void {
+    this.labelManager?.setAllVisible(visible);
+  }
+
+  /** Push camera out if it's inside any body's surface sphere. */
+  private clampCameraAboveSurfaces(): void {
+    const cam = this.camera.position;
+    const margin = 1.002; // 0.2% above surface
+    for (const bm of this.bodyMeshes.values()) {
+      if (bm.body.geometryType !== 'Globe' && bm.body.geometryType !== 'Ellipsoid') continue;
+      const surfaceR = bm.displayRadius * this.scaleFactor * margin;
+      const toBody = cam.clone().sub(bm.position);
+      const dist = toBody.length();
+      if (dist < surfaceR && dist > 1e-20) {
+        // Push camera out to just above surface along the same direction
+        toBody.normalize().multiplyScalar(surfaceR);
+        cam.copy(bm.position).add(toBody);
+      }
+    }
+  }
+
   dispose(): void {
     this.stop();
     this.renderer.domElement.removeEventListener('dblclick', this._onDblClick);
@@ -527,6 +720,7 @@ export class UniverseRenderer {
     for (const em of this.eventMarkerGroups.values()) em.dispose();
     this.starField?.dispose();
     this.labelManager?.dispose();
+    this.instrumentView?.dispose();
     this.labelContainer.remove();
     this.renderer.dispose();
     for (const plugin of this.plugins) plugin.dispose?.();
@@ -548,8 +742,11 @@ export class UniverseRenderer {
       // Sensor bodies get a frustum in addition to a body mesh + trajectory
       if (body.geometryType === 'Sensor') {
         // If spiceId is present and SPICE is available, derive FOV params from the IK kernel
-        this.enrichSensorFromSpice(body);
+        const fovFrame = this.enrichSensorFromSpice(body);
         const sf = new SensorFrustum(body);
+        if (fovFrame) sf.spiceFovFrame = fovFrame;
+        sf.layers.set(OVERLAY_LAYER);
+        sf.traverse(c => c.layers.set(OVERLAY_LAYER));
         this.sensorFrustums.set(body.name, sf);
         this.scene.add(sf);
       }
@@ -628,6 +825,23 @@ export class UniverseRenderer {
         }
       }
 
+      // Initialize streaming terrain for Globe bodies with terrain config
+      if (body.geometryType === 'Globe' && body.geometryData?.terrain) {
+        const terrainCfg = body.geometryData.terrain as TerrainConfig;
+        if (terrainCfg.type && (terrainCfg.url || terrainCfg.cesiumIonAssetId)) {
+          // Use the displacement map as a normal map source for terrain tiles.
+          // Terrain tiles only have vertex normals from the mesh geometry — per-pixel
+          // normals from the heightmap smooth shadow boundaries at the terminator.
+          if (!terrainCfg.normalMapUrl && body.geometryData.displacementMap) {
+            const resolver = this.options.textureResolver ?? this.options.modelResolver;
+            const resolved = resolver?.(body.geometryData.displacementMap as string);
+            if (resolved) terrainCfg.normalMapUrl = resolved;
+          }
+          bm.initTerrain(terrainCfg, this.renderer);
+          console.log(`[SpiceCraft] Initialized terrain for ${body.name}: ${terrainCfg.type} ${terrainCfg.url ?? `ion:${terrainCfg.cesiumIonAssetId}`}`);
+        }
+      }
+
       // Create atmosphere shell for Globe bodies with atmosphere data
       if (body.geometryType === 'Globe' && body.geometryData) {
         const atmValue = body.geometryData.atmosphere;
@@ -685,6 +899,8 @@ export class UniverseRenderer {
           if (plotCfg?.fade != null) trajOpts.fadeFraction = plotCfg.fade;
 
           const tl = new TrajectoryLine(body, trajOpts);
+          tl.layers.set(OVERLAY_LAYER);
+          tl.traverse(c => c.layers.set(OVERLAY_LAYER));
           this.trajectoryLines.set(body.name, tl);
           this.scene.add(tl);
 
@@ -723,8 +939,9 @@ export class UniverseRenderer {
    * If a Sensor body has a spiceId and SPICE is available, enrich its geometryData
    * with FOV parameters (shape, horizontalFov, verticalFov) derived from the IK kernel.
    * Catalog-specified values take precedence — SPICE only fills in what's missing.
+   * Returns the SPICE instrument frame name if available (for caching on SensorFrustum).
    */
-  private enrichSensorFromSpice(body: Body): void {
+  private enrichSensorFromSpice(body: Body): string | undefined {
     const geo = body.geometryData as Record<string, unknown> | undefined;
     if (!geo) return;
     const spiceId = geo.spiceId as number | undefined;
@@ -734,6 +951,9 @@ export class UniverseRenderer {
 
     try {
       const fov = spice.getfov(spiceId);
+
+      // Cache the frame name for per-frame pxform calls (avoids calling getfov every frame)
+      const fovFrame = fov.frame;
 
       // Derive shape if not specified in catalog
       if (!geo.shape) {
@@ -784,8 +1004,10 @@ export class UniverseRenderer {
           }
         }
       }
+      return fovFrame;
     } catch {
       // IK kernel not loaded or instrument ID not found — use catalog values
+      return undefined;
     }
   }
 
@@ -850,6 +1072,8 @@ export class UniverseRenderer {
       });
       // Tag with arc center name so the update loop can position it correctly
       (tl as any)._arcCenterName = arcCenterName;
+      tl.layers.set(OVERLAY_LAYER);
+      tl.traverse(c => c.layers.set(OVERLAY_LAYER));
       this.trajectoryLines.set(`${body.name}__arc${i}`, tl);
       this.scene.add(tl);
     }

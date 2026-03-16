@@ -637,9 +637,23 @@ export class Spice implements SpiceInstance {
     const nPtr = this.module._malloc(INT_SIZE);
     const boundsPtr = this.module._malloc(DOUBLE_SIZE * 3 * maxBounds);
 
+    // Initialize nPtr to 0 — if getfov_c fails, nPtr is left uninitialized
+    // and reading a garbage count from it can cause massive memory reads.
+    this.module.setValue(nPtr, 0, 'i32');
+
     this.module.ccall('getfov_c', null,
       ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'],
       [instId, maxBounds, SHAPELEN, FRAMELEN, shapePtr, framePtr, bsightPtr, nPtr, boundsPtr]);
+
+    // Check for error BEFORE reading output — on failure, output buffers contain garbage.
+    // Free memory first to avoid leaks regardless of error.
+    const failed = this.module.ccall('failed_c', 'number', [], []) as number;
+    if (failed) {
+      this.module._free(shapePtr); this.module._free(framePtr);
+      this.module._free(bsightPtr); this.module._free(nPtr);
+      this.module._free(boundsPtr);
+      this.checkError(); // reads message, resets, throws
+    }
 
     const shape = this.module.UTF8ToString(shapePtr) as FovShape;
     const frame = this.module.UTF8ToString(framePtr);
@@ -654,7 +668,6 @@ export class Spice implements SpiceInstance {
     this.module._free(shapePtr); this.module._free(framePtr);
     this.module._free(bsightPtr); this.module._free(nPtr);
     this.module._free(boundsPtr);
-    this.checkError();
     return { shape, frame, boresight, bounds };
   }
 

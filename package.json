@@ -11,12 +11,14 @@
     "build": "npm run build --workspaces",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint packages/ apps/"
+    "lint": "eslint packages/ apps/",
+    "preprocess:displacement": "node scripts/preprocess-displacement.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
+    "sharp": "^0.34.5",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }

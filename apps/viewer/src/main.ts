@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import Stats from "three/examples/jsm/libs/stats.module.js";
 import { Universe } from "@spicecraft/core";
 import { Spice, type SpiceInstance } from "@spicecraft/spice";
 import { UniverseRenderer, rateLabel } from "@spicecraft/three";
@@ -7,6 +8,7 @@ import { UniverseRenderer, rateLabel } from "@spicecraft/three";
 let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let spice: SpiceInstance | null = null;
+let stats: Stats | null = null;
 
 const KERNEL_EXTENSIONS = new Set([
   ".bsp",
@@ -48,6 +50,14 @@ const fovSlider = document.getElementById("fov-slider") as HTMLInputElement;
 const fovDisplay = document.getElementById("fov-display")!;
 const bodyList = document.getElementById("body-list")!;
 const btnLoadNaif = document.getElementById("btn-load-naif")!;
+const chkGrid = document.getElementById("chk-grid") as HTMLInputElement;
+const chkAxes = document.getElementById("chk-axes") as HTMLInputElement;
+const chkStats = document.getElementById("chk-stats") as HTMLInputElement;
+const chkTraj = document.getElementById("chk-traj") as HTMLInputElement;
+const chkLabels = document.getElementById("chk-labels") as HTMLInputElement;
+const selLighting = document.getElementById("sel-lighting") as HTMLSelectElement;
+const selInstrument = document.getElementById("sel-instrument") as HTMLSelectElement;
+const instrumentViewLabel = document.getElementById("instrument-view-label")!;
 
 // --- NAIF Generic Kernels ---
 
@@ -79,9 +89,23 @@ const LRO_KERNELS = [
   { file: "lro/lrorg_2024350_2025074_v01.bsp", label: "LRO trajectory" },
 ];
 
+/** Europa Clipper kernels (Jupiter science phase, 2030–2034) */
+const EUROPA_CLIPPER_KERNELS = [
+  { file: "europa-clipper/clipper_v16.tf", label: "Clipper frames" },
+  { file: "europa-clipper/clipper_dyn_v06.tf", label: "Clipper dynamic frames" },
+  { file: "europa-clipper/europaclipper_00227.tsc", label: "Clipper clock" },
+  { file: "europa-clipper/gm_de440.tpc", label: "GM values" },
+  { file: "europa-clipper/clipper_eis_v06.ti", label: "EIS instruments" },
+  { file: "europa-clipper/clipper_ethemis_v06.ti", label: "E-THEMIS instrument" },
+  { file: "europa-clipper/clipper_mise_v05.ti", label: "MISE instrument" },
+  { file: "europa-clipper/clipper_uvs_v07.ti", label: "UVS instrument" },
+  { file: "europa-clipper/ref_trj_scpse.bsp", label: "Clipper trajectory (44 MB)" },
+];
+
 let naifLoaded = false;
 let cassiniLoaded = false;
 let lroLoaded = false;
+let europaClipperLoaded = false;
 
 async function loadNaifKernels(): Promise<void> {
   if (naifLoaded) return;
@@ -150,6 +174,24 @@ async function loadLroKernels(): Promise<void> {
   }
   lroLoaded = true;
   console.log(`[SpiceCraft] LRO kernels loaded (${spice!.totalLoaded()} total)`);
+}
+
+async function loadEuropaClipperKernels(): Promise<void> {
+  if (europaClipperLoaded) return;
+  await loadNaifKernels(); // Need generic kernels first
+  for (let i = 0; i < EUROPA_CLIPPER_KERNELS.length; i++) {
+    const kernel = EUROPA_CLIPPER_KERNELS[i];
+    const progress = `(${i + 1}/${EUROPA_CLIPPER_KERNELS.length})`;
+    infoPanel.textContent = `${progress} Loading ${kernel.label}...`;
+    console.log(`[SpiceCraft] Fetching Europa Clipper kernel: ${kernel.file}`);
+    try {
+      await spice!.furnish({ type: "url", url: `${NAIF_BASE}/${kernel.file}` });
+    } catch (err) {
+      console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+    }
+  }
+  europaClipperLoaded = true;
+  console.log(`[SpiceCraft] Europa Clipper kernels loaded (${spice!.totalLoaded()} total)`);
 }
 
 btnLoadNaif.addEventListener("click", (e) => {
@@ -415,6 +457,8 @@ for (const btn of document.querySelectorAll(".demo-btn")) {
       await loadCassiniKernels();
     } else if (name === "lro-moon") {
       await loadLroKernels();
+    } else if (name === "europa-clipper") {
+      await loadEuropaClipperKernels();
     } else {
       await loadNaifKernels();
     }
@@ -492,7 +536,7 @@ function initScene(
 
   overlay.classList.add("hidden");
   controls.classList.remove("hidden");
-
+  
   renderer = new UniverseRenderer(canvas, universe, {
     scaleFactor: 1e-6,
     showTrajectories: true,
@@ -534,7 +578,31 @@ function initScene(
   // Load catalog viewpoints into the camera controller
   initViewpoints();
 
+  // Populate instrument view dropdown
+  initInstrumentSelect();
+
+  // Stats panel (hidden by default, toggled via checkbox/P key)
+  if (stats) {
+    stats.dom.remove();
+  }
+  stats = new Stats();
+  stats.dom.style.position = 'absolute';
+  stats.dom.style.top = '';
+  stats.dom.style.left = '';
+  stats.dom.style.bottom = '120px';
+  stats.dom.style.right = '12px';
+  stats.dom.style.display = chkStats.checked ? 'block' : 'none';
+  canvas.parentElement!.appendChild(stats.dom);
+
   renderer.start();
+
+  // Drive stats.update() from our own rAF loop
+  const statsLoop = () => {
+    if (!renderer) return;
+    stats?.update();
+    requestAnimationFrame(statsLoop);
+  };
+  requestAnimationFrame(statsLoop);
 }
 
 // --- UI: Time Controls ---
@@ -584,8 +652,15 @@ function updateCameraStatus() {
   const tracked = cc.trackedBody;
   if (tracked) parts.push(`Tracking: <span>${tracked.body.name}</span>`);
   const lookAt = cc.lookAtBody;
-  if (lookAt) parts.push(`Looking at: <span>${lookAt.body.name}</span>`);
+  if (lookAt) parts.push(`Looking at: <span>${lookAt.body.name}</span> <button id="btn-clear-lookat" style="background:#333;color:#888;border:1px solid #555;border-radius:3px;padding:0 5px;cursor:pointer;font-family:monospace;font-size:10px;margin-left:4px;">✕</button>`);
   cameraStatus.innerHTML = parts.join(" &middot; ");
+  const btnClear = document.getElementById("btn-clear-lookat");
+  if (btnClear) {
+    btnClear.addEventListener("click", () => {
+      renderer!.cameraController.clearLookAt();
+      updateCameraStatus();
+    });
+  }
 }
 
 /** Set scrubber range from universe body trajectories, or a default window around current time */
@@ -651,6 +726,35 @@ fovSlider.addEventListener("input", () => {
   renderer.camera.fov = fov;
   renderer.camera.updateProjectionMatrix();
   fovDisplay.textContent = `${fov}°`;
+});
+
+// Grid overlay toggle
+chkGrid.addEventListener("change", () => {
+  renderer?.showBodyGrid(chkGrid.checked);
+});
+
+// Axes overlay toggle
+chkAxes.addEventListener("change", () => {
+  axesShown = chkAxes.checked;
+  renderer?.showBodyAxes(axesShown);
+});
+
+// Stats panel toggle
+chkStats.addEventListener("change", () => {
+  if (stats) stats.dom.style.display = chkStats.checked ? 'block' : 'none';
+});
+
+// Trajectory and label toggles
+chkTraj.addEventListener("change", () => {
+  renderer?.setTrajectoriesVisible(chkTraj.checked);
+});
+chkLabels.addEventListener("change", () => {
+  renderer?.setLabelsVisible(chkLabels.checked);
+});
+
+// Lighting mode selector
+selLighting.addEventListener("change", () => {
+  renderer?.setLightingMode(selLighting.value as 'natural' | 'shadow' | 'flood');
 });
 
 // Time scrubber
@@ -798,6 +902,27 @@ btnFlyTracked.addEventListener("click", () => {
   if (tracked) {
     renderer.cameraController.flyTo(tracked, { scaleFactor: 1e-6 });
   }
+});
+
+// --- UI: Instrument PiP View ---
+
+function initInstrumentSelect() {
+  if (!renderer) return;
+  const sensors = renderer.getSensorNames();
+  selInstrument.innerHTML = '<option value="">Off</option>';
+  for (const name of sensors) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    selInstrument.appendChild(opt);
+  }
+  instrumentViewLabel.style.display = sensors.length > 0 ? "flex" : "none";
+}
+
+selInstrument.addEventListener("change", () => {
+  if (!renderer) return;
+  const name = selInstrument.value || null;
+  renderer.setInstrumentView(name);
 });
 
 function buildBodyList(bodies: { name: string; classification?: string }[]) {
@@ -995,9 +1120,8 @@ document.addEventListener("keydown", (e) => {
         rebuildViewpointDropdown();
         return;
       case "l":
-        // Clear look-at target
-        renderer.cameraController.clearLookAt();
-        updateCameraStatus();
+        chkLabels.checked = !chkLabels.checked;
+        renderer.setLabelsVisible(chkLabels.checked);
         return;
       case "Escape":
         // Cancel camera animation
@@ -1005,6 +1129,21 @@ document.addEventListener("keydown", (e) => {
         renderer.cameraController.clearLookAt();
         updateCameraStatus();
         return;
+      case "t":
+        chkTraj.checked = !chkTraj.checked;
+        renderer.setTrajectoriesVisible(chkTraj.checked);
+        return;
+      case "i": {
+        // Cycle instrument PiP: Off → sensor1 → sensor2 → ... → Off
+        const sensors = renderer.getSensorNames();
+        if (sensors.length === 0) return;
+        const current = renderer.activeInstrumentView;
+        const idx = current ? sensors.indexOf(current) : -1;
+        const next = idx + 1 < sensors.length ? sensors[idx + 1] : null;
+        renderer.setInstrumentView(next);
+        selInstrument.value = next ?? "";
+        return;
+      }
       case "/":
         e.preventDefault();
         uiHidden = !uiHidden;
@@ -1018,12 +1157,24 @@ document.addEventListener("keydown", (e) => {
             child.style.display = uiHidden ? "none" : "";
           }
         }
+        if (stats) stats.dom.style.display = uiHidden ? "none" : (chkStats.checked ? "block" : "none");
         return;
     }
   }
 
+  if (e.key === "p" && !e.ctrlKey && !e.metaKey) {
+    chkStats.checked = !chkStats.checked;
+    if (stats) stats.dom.style.display = chkStats.checked ? 'block' : 'none';
+  }
+
+  if (e.key === "g" && !e.ctrlKey && !e.metaKey) {
+    chkGrid.checked = !chkGrid.checked;
+    renderer?.showBodyGrid(chkGrid.checked);
+  }
+
   if (e.key === "x" && !e.ctrlKey && !e.metaKey) {
     axesShown = !axesShown;
+    chkAxes.checked = axesShown;
     renderer?.showBodyAxes(axesShown);
   }
 

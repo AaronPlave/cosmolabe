@@ -19,6 +19,7 @@ export class LabelManager {
   private readonly labelScale: number;
   private readonly right = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
+  private _globalVisible = true;
 
   constructor(_container: HTMLElement, options: LabelManagerOptions = {}) {
     this.fontSize = options.fontSize ?? 14;
@@ -51,13 +52,21 @@ export class LabelManager {
     sprite.center.set(0, 0.5); // anchor at left-center
 
     sprite.renderOrder = 999;
+    sprite.layers.set(2); // OVERLAY_LAYER — excluded from instrument PiP
 
     this.labels.set(name, { sprite, bodyMesh });
   }
 
   setLabelVisible(name: string, visible: boolean): void {
     const entry = this.labels.get(name);
-    if (entry) entry.sprite.visible = visible;
+    if (entry) entry.sprite.visible = visible && this._globalVisible;
+  }
+
+  setAllVisible(visible: boolean): void {
+    this._globalVisible = visible;
+    for (const entry of this.labels.values()) {
+      entry.sprite.visible = visible;
+    }
   }
 
   removeLabel(name: string): void {
@@ -71,6 +80,8 @@ export class LabelManager {
   }
 
   update(_bodyMeshes: BodyMesh[], camera: THREE.Camera, _rendererSize: { width: number; height: number }): void {
+    if (!this._globalVisible) return;
+
     this.right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
     this.up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
 

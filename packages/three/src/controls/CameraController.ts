@@ -32,6 +32,10 @@ export class CameraController {
   /** Right-click drag sensitivity in radians per pixel (default: 0.003) */
   freeLookSensitivity = 0.003;
 
+  /** Base speeds (adapted per-frame by distance to nearest body surface) */
+  private readonly _baseRotateSpeed = 2.0;
+  private readonly _baseZoomSpeed = 1.2;
+
   private _trackTarget: BodyMesh | null = null;
   /** The body the camera is orbiting (orbit target locked to origin) */
   get trackedBody(): BodyMesh | null { return this._trackTarget; }
@@ -305,6 +309,54 @@ export class CameraController {
   /** Cancel any in-progress camera animation */
   cancelAnimation(): void {
     this._anim = null;
+  }
+
+  /**
+   * Adapt orbit/zoom speeds based on altitude above the nearest body surface.
+   * Only Globe/Ellipsoid bodies participate — spacecraft and tiny bodies are
+   * ignored. When far from all bodies, speeds stay at their base values.
+   *
+   * sqrt(altitude / (10 × bodyRadius)): speeds reach base level at 10× the
+   * body's radius above the surface, and decrease smoothly as you zoom in:
+   *   ratio=10    → factor=1.0   (10× radius above surface — base speeds)
+   *   ratio=2     → factor=0.45  (default flyTo distance)
+   *   ratio=0.5   → factor=0.22  (zoomed in closer)
+   *   ratio=0.1   → factor=0.1   (low orbit)
+   *   ratio=0.01  → factor=0.03  (near surface)
+   *
+   * Call once per frame before update().
+   */
+  adaptSpeeds(bodyMeshes: Iterable<BodyMesh>, scaleFactor: number): void {
+    // When focused on a spacecraft or other non-Globe body, keep base speeds —
+    // nearby planet proximity shouldn't slow down inspection of that object.
+    // Uses originBody (persists after un-tracking via WASD/free-look).
+    if (this._originBody) {
+      const gt = this._originBody.body.geometryType;
+      if (gt !== 'Globe' && gt !== 'Ellipsoid') {
+        this.controls.rotateSpeed = this._baseRotateSpeed;
+        this.controls.zoomSpeed = this._baseZoomSpeed;
+        return;
+      }
+    }
+
+    let minAltRatio = Infinity;
+
+    for (const bm of bodyMeshes) {
+      const gt = bm.body.geometryType;
+      if (gt !== 'Globe' && gt !== 'Ellipsoid') continue;
+      const surfaceR = bm.displayRadius * scaleFactor;
+      if (surfaceR < 1e-20) continue;
+      const dist = this.camera.position.distanceTo(bm.position);
+      const altitude = Math.max(dist - surfaceR, 0);
+      const ratio = altitude / surfaceR;
+      if (ratio < minAltRatio) minAltRatio = ratio;
+    }
+
+    if (!isFinite(minAltRatio)) return; // no nearby Globe — keep base speeds
+
+    const factor = Math.max(Math.min(Math.sqrt(minAltRatio / 10), 1), 0.01);
+    this.controls.rotateSpeed = this._baseRotateSpeed * factor;
+    this.controls.zoomSpeed = this._baseZoomSpeed * factor;
   }
 
   update(): void {

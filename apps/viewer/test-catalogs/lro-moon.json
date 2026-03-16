@@ -60,9 +60,18 @@
           "type": "Globe",
           "radius": 1737.4,
           "baseMap": "textures/moon-16k.jpg",
-          "displacementMap": "textures/moon-displacement-16k.jpg",
+          "normalMap": "textures/moon-normal-16k.jpg",
+          "displacementMap": "textures/moon-displacement-2k.jpg",
           "displacementScale": 20,
-          "displacementBias": -9
+          "displacementBias": -9,
+          "terrain": {
+            "type": "quantized-mesh",
+            "url": "https://marshub.s3.amazonaws.com/moon_v14/",
+            "imagery": {
+              "url": "https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
+              "levels": 8
+            }
+          }
         },
       "label": { "color": [0.7, 0.7, 0.7] },
       "items": [
