@@ -1,0 +1,709 @@
+KPL/IK
+
+
+Europa Clipper EIS Instrument Kernel
+==============================================================================
+
+   This instrument kernel (I-kernel) contains Field-Of-View (FOV) and
+   other geometric parameter definitions for the EIS instrument.
+
+
+Version and Date
+----------------------------------------------------------
+
+   Version 0.6 -- January 22, 2021 -- Eric Ferguson, JPL
+
+      Modified NAC KOZ based on latest MICD [5]
+
+   Version 0.5 -- August 6, 2018 -- Boris Semenov, NAIF
+
+      Added FOVs for NAC and WAC KOZs.
+
+   Version 0.4 -- May 23, 2018 -- Boris Semenov, NAIF
+
+      Added FOVs for various filters and modes.
+
+   Version 0.3 -- February 26, 2018 -- Boris Semenov, NAIF
+
+      Added placeholder sections for various non-FOV parameters. 
+
+      Made a few minor updates to the comments.
+
+   Version 0.2 -- June 8, 2017 -- Boris Semenov, NAIF
+
+      Redefined EUROPAM_EIS_WAC_RAD/-159111 FOV as a polygon to work
+      around a limitation in GFTFOV.
+
+      Reformatted comments.
+
+   Version 0.1 -- October 8, 2015 -- Eric W. Ferguson, JPL
+
+      Initial version.
+
+
+References
+----------------------------------------------------------
+
+   1. ``Kernel Pool Required Reading''
+
+   2. ``C-kernel Required Reading''
+
+   3. Europa Instrument Fact Sheets:
+      https://europaems.jpl.nasa.gov/alfresco/mmsapp/mms.html#/workspaces/master/sites/europa/documents/_17_0_5_1_8af0285_1415240264808_136692_232061/views/MMS_1441753698362_0ceb59af-b3e0-42c0-b5f0-a2e120f07865
+
+   4. E-mail from Ben Bradley from 09/06/18 with NAC and WAC KOZ sizes
+
+   5. MICD Drawing 10414233 (Narrow Angled Camera) Rev-C, which can be found here:
+      https://ehm.jpl.nasa.gov/jira/browse/AP-1072
+
+
+Contact Information
+----------------------------------------------------------
+
+   Eric W. Ferguson, JPL, (818)-634-1928, eric.w.ferguson@jpl.nasa.gov
+   Boris V. Semenov, JPL, (818)-354-8136, boris.semenov@jpl.nasa.gov
+
+
+Implementation Notes
+----------------------------------------------------------
+
+   This file is used by the SPICE system as follows: programs that make
+   use of this kernel must ``load'' the kernel, normally during
+   program initialization. The SPICE routine FURNSH loads a kernel file
+   into the pool as shown below.
+
+      CALL FURNSH ( 'frame_kernel_name; )    -- FORTRAN
+      furnsh_c ( "frame_kernel_name" );      -- C
+      cspice_furnsh, frame_kernel_name       -- IDL
+      cspice_furnsh( 'frame_kernel_name' )   -- MATLAB
+
+   Once the file has been loaded, the SPICE routine GETFOV (getfov_c in
+   C, cspice_getfov in IDL and MATLAB) can be used to retrieve FOV
+   parameters for a given instrument or structure.
+
+   This file was created and may be updated with a text editor or word
+   processor.
+
+
+Conventions for Specifying Data
+----------------------------------------------------------
+
+   All names referencing values in this I-kernel start with the
+   characters `INS' followed by the NAIF ID code for the particular
+   instrument detector or keep out zone:
+
+      EUROPAM_EIS_NAC            -159101
+
+      EUROPAM_EIS_NAC_CLEAR      -159121
+      EUROPAM_EIS_NAC_S_AFT      -159122
+      EUROPAM_EIS_NAC_S_NADIR    -159123
+      EUROPAM_EIS_NAC_S_FORE     -159124
+      EUROPAM_EIS_NAC_NUV        -159125
+      EUROPAM_EIS_NAC_BLU        -159126
+      EUROPAM_EIS_NAC_GRN        -159127
+      EUROPAM_EIS_NAC_RED        -159128
+      EUROPAM_EIS_NAC_IR1        -159129
+      EUROPAM_EIS_NAC_1MU        -159130
+      EUROPAM_EIS_NAC_COLOR      -159131
+
+      EUROPAM_EIS_WAC            -159102
+
+      EUROPAM_EIS_WAC_CLEAR      -159141
+      EUROPAM_EIS_WAC_S_AFT      -159142
+      EUROPAM_EIS_WAC_S_NADIR    -159143
+      EUROPAM_EIS_WAC_S_FORE     -159144
+      EUROPAM_EIS_WAC_NUV        -159145
+      EUROPAM_EIS_WAC_BLU        -159146
+      EUROPAM_EIS_WAC_GRN        -159147
+      EUROPAM_EIS_WAC_RED        -159148
+      EUROPAM_EIS_WAC_IR1        -159149
+      EUROPAM_EIS_WAC_1MU        -159150
+      EUROPAM_EIS_WAC_COLOR      -159151
+
+      EUROPAM_EIS_NAC_RAD        -159110
+      EUROPAM_EIS_WAC_RAD        -159111
+
+      EUROPAM_EIS_NAC_KOZ        -159112
+      EUROPAM_EIS_WAC_KOZ        -159113
+
+   The remainder of the name is an underscore character followed by the
+   unique name of the data item. For example, the EIS NAC boresight
+   direction is specified by:
+
+      INS-159101_BORESIGHT
+
+   The upper bound on the length of the name of any data item is 32
+   characters.
+
+   If the same item is included in more than one file, or if the same
+   item appears more than once within a single file, the latest value
+   supersedes any earlier values.
+
+
+Instrument Description
+----------------------------------------------------------
+
+   <TBD>
+
+
+Mounting Alignment
+----------------------------------------------------------
+
+   Refer to the latest version of the Europa Mission Frames Definition
+   Kernel (FK) for reference frame definitions and mounting alignment
+   information.
+
+
+Instrument Detector/Sensor Layout (if applicable)
+----------------------------------------------------------
+
+   <TBD>
+
+
+Instrument Pixel-to-3D Coordinate Mapping (if applicable)
+----------------------------------------------------------
+
+   <TBD>
+
+
+Instrument Detector/Sensor Parameters (if applicable)
+----------------------------------------------------------
+
+   <TBD>
+
+
+Instrument Optical Parameters (if applicable)
+----------------------------------------------------------
+
+   <TBD>
+
+
+Instrument Optical Distortion (if applicable)
+----------------------------------------------------------
+
+   <TBD>
+
+
+Instrument Filter Parameters (if applicable)
+----------------------------------------------------------
+
+   <TBD>
+
+
+EIS FOV Definitions
+----------------------------------------------------------
+
+   Description <TBD>.
+
+   \begindata
+
+      INS-159100_FOV_FRAME                 = 'EUROPAM_EIS_NAC_BASE'
+      INS-159100_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159100_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159100_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159100_FOV_REF_VECTOR            = ( 0.0, 1.0, 0.0 )
+      INS-159100_FOV_REF_ANGLE             = ( 0.5865 )
+      INS-159100_FOV_CROSS_ANGLE           = ( 1.1735 )
+      INS-159100_FOV_ANGLE_UNITS           = 'DEGREES'
+
+      INS-159101_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159101_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159101_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159101_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159101_FOV_REF_VECTOR            = ( 0.0, 1.0, 0.0 )
+      INS-159101_FOV_REF_ANGLE             = ( 0.5865 )
+      INS-159101_FOV_CROSS_ANGLE           = ( 1.1735 )
+      INS-159101_FOV_ANGLE_UNITS           = 'DEGREES'
+
+      INS-159102_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159102_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159102_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159102_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159102_FOV_REF_VECTOR            = ( 0.0, 1.0, 0.0 )
+      INS-159102_FOV_REF_ANGLE             = ( 12.0 )
+      INS-159102_FOV_CROSS_ANGLE           = ( 24.0 )
+      INS-159102_FOV_ANGLE_UNITS           = 'DEGREES'
+
+   \begintext
+
+
+EIS NAC Filter/Mode FOVs
+
+   FOV of EUROPAM_EIS_NAC_CLEAR/-159121 (top pixel 1567, bottom pixel 32)
+
+   \begindata
+
+      INS-159121_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159121_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159121_BORESIGHT                 = ( 
+               0.000000000000      0.002287007299      0.999997384795
+                                             ) 
+      INS-159121_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020479384459     -0.005509603061      0.999775094252
+               0.020479384459     -0.005509603061      0.999775094252
+               0.020479384459      0.010082519342      0.999739434861
+              -0.020479384459      0.010082519342      0.999739434861
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_NAC_S_AFT/-159122 (top pixel 2015, bottom pixel 1983)
+
+   \begindata
+
+      INS-159122_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159122_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159122_BORESIGHT                 = ( 
+               0.000000000000     -0.009910211375      0.999950892649
+                                             ) 
+      INS-159122_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020480006574     -0.010070756487      0.999739540678
+               0.020480006574     -0.010070756487      0.999739540678
+               0.020480006574     -0.009745508918      0.999742764108
+              -0.020480006574     -0.009745508918      0.999742764108
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_NAC_S_NADIR/-159123 (top pixel 1040, bottom pixel 1008)
+
+   \begindata
+
+      INS-159123_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159123_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159123_BORESIGHT                 = ( 
+               0.000000000000     -0.000000000000      1.000000000000
+                                             ) 
+      INS-159123_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020480006574     -0.000162631771      0.999790249443
+               0.020480006574     -0.000162631771      0.999790249443
+               0.020480006574      0.000162631771      0.999790249443
+              -0.020480006574      0.000162631771      0.999790249443
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_NAC_S_FORE/-159124 (top pixel 64, bottom pixel 32)
+
+   \begindata
+
+      INS-159124_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159124_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159124_BORESIGHT                 = ( 
+               0.000000000000      0.009920375361      0.999950791866
+                                             ) 
+      INS-159124_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020480006574      0.009755670788      0.999742664998
+               0.020480006574      0.009755670788      0.999742664998
+               0.020480006574      0.010080918325      0.999739438262
+              -0.020480006574      0.010080918325      0.999739438262
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_NAC_NUV/-159125 (top pixel 1631, bottom pixel 1599)
+
+   \begindata
+
+      INS-159125_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159125_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159125_BORESIGHT                 = ( 
+               0.000000000000     -0.006007174944      0.999981956762
+                                             ) 
+      INS-159125_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020480006574     -0.006168543773      0.999771233032
+               0.020480006574     -0.006168543773      0.999771233032
+               0.020480006574     -0.005843286099      0.999773186947
+              -0.020480006574     -0.005843286099      0.999773186947
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_NAC_BLU/-159126 (top pixel 1695, bottom pixel 1663)
+
+   \begindata
+
+      INS-159126_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159126_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159126_BORESIGHT                 = ( 
+               0.000000000000     -0.006657688977      0.999977837343
+                                             ) 
+      INS-159126_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020480006574     -0.006818920690      0.999767008683
+               0.020480006574     -0.006818920690      0.999767008683
+               0.020480006574     -0.006493664356      0.999769174187
+              -0.020480006574     -0.006493664356      0.999769174187
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_NAC_GRN/-159127 (top pixel 1759, bottom pixel 1727)
+
+   \begindata
+
+      INS-159127_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159127_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159127_BORESIGHT                 = ( 
+               0.000000000000     -0.007308200193      0.999973294748
+                                             ) 
+      INS-159127_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020480006574     -0.007469294722      0.999762361247
+               0.020480006574     -0.007469294722      0.999762361247
+               0.020480006574     -0.007144039866      0.999764738339
+              -0.020480006574     -0.007144039866      0.999764738339
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_NAC_RED/-159128 (top pixel 1823, bottom pixel 1791)
+
+   \begindata
+
+      INS-159128_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159128_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159128_BORESIGHT                 = ( 
+               0.000000000000     -0.007958708316      0.999968328979
+                                             ) 
+      INS-159128_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020480006574     -0.008119665593      0.999757290727
+               0.020480006574     -0.008119665593      0.999757290727
+               0.020480006574     -0.007794412352      0.999759879404
+              -0.020480006574     -0.007794412352      0.999759879404
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_NAC_IR1/-159129 (top pixel 1887, bottom pixel 1855)
+
+   \begindata
+
+      INS-159129_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159129_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159129_BORESIGHT                 = ( 
+               0.000000000000     -0.008609213070      0.999962940038
+                                             ) 
+      INS-159129_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020480006574     -0.008770033027      0.999751797123
+               0.020480006574     -0.008770033027      0.999751797123
+               0.020480006574     -0.008444781539      0.999754597387
+              -0.020480006574     -0.008444781539      0.999754597387
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_NAC_1MU/-159130 (top pixel 1951, bottom pixel 1919)
+
+   \begindata
+
+      INS-159130_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159130_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159130_BORESIGHT                 = ( 
+               0.000000000000     -0.009259714182      0.999957127928
+                                             ) 
+      INS-159130_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020480006574     -0.009420396750      0.999745880440
+               0.020480006574     -0.009420396750      0.999745880440
+               0.020480006574     -0.009095147153      0.999748892287
+              -0.020480006574     -0.009095147153      0.999748892287
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_NAC_COLOR/-159131 (top pixel 1951, bottom pixel 1599)
+
+   \begindata
+
+      INS-159131_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159131_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159131_BORESIGHT                 = ( 
+               0.000000000000     -0.007633454658      0.999970864761
+                                             ) 
+      INS-159131_FOV_BOUNDARY_CORNERS      = ( 
+              -0.020479974073     -0.009420737840      0.999745877891
+               0.020479974073     -0.009420737840      0.999745877891
+               0.020479974073     -0.005842945010      0.999773189606
+              -0.020479974073     -0.005842945010      0.999773189606
+                                             ) 
+
+   \begintext
+
+
+EIS WAC Filter/Mode FOVs
+
+
+   FOV of EUROPAM_EIS_WAC_CLEAR/-159141 (top pixel 1567, bottom pixel 32)
+
+   \begindata
+
+      INS-159141_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159141_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159141_BORESIGHT                 = ( 
+               0.000000000000      0.046756039061      0.998906338358
+                                             ) 
+      INS-159141_FOV_BOUNDARY_CORNERS      = ( 
+              -0.401577460648     -0.116423940816      0.908394742997
+               0.401577460648     -0.116423940816      0.908394742997
+               0.401577460648      0.200767883854      0.893547872200
+              -0.401577460648      0.200767883854      0.893547872200
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_WAC_S_AFT/-159142 (top pixel 2015, bottom pixel 1983)
+
+   \begindata
+
+      INS-159142_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159142_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159142_BORESIGHT                 = ( 
+               0.000000000000     -0.201298520089      0.979529941252
+                                             ) 
+      INS-159142_FOV_BOUNDARY_CORNERS      = ( 
+              -0.406734393244     -0.187152326776      0.894170643633
+               0.406734393244     -0.187152326776      0.894170643633
+               0.406734393244     -0.180636336133      0.895509713750
+              -0.406734393244     -0.180636336133      0.895509713750
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_WAC_S_NADIR/-159143 (top pixel 1040, bottom pixel 1008)
+
+   \begindata
+
+      INS-159143_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159143_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159143_BORESIGHT                 = ( 
+               0.000000000000     -0.000000000000      1.000000000000
+                                             ) 
+      INS-159143_FOV_BOUNDARY_CORNERS      = ( 
+              -0.406734393244     -0.003326080382      0.913540404438
+               0.406734393244     -0.003326080382      0.913540404438
+               0.406734393244      0.003326080382      0.913540404438
+              -0.406734393244      0.003326080382      0.913540404438
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_WAC_S_FORE/-159144 (top pixel 64, bottom pixel 32)
+
+   \begindata
+
+      INS-159144_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159144_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159144_BORESIGHT                 = ( 
+               0.000000000000      0.201502140821      0.979488074070
+                                             ) 
+      INS-159144_FOV_BOUNDARY_CORNERS      = ( 
+              -0.406734393244      0.180822491153      0.895472143646
+               0.406734393244      0.180822491153      0.895472143646
+               0.406734393244      0.187338203288      0.894131719011
+              -0.406734393244      0.187338203288      0.894131719011
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_WAC_NUV/-159145 (top pixel 1631, bottom pixel 1599)
+
+   \begindata
+
+      INS-159145_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159145_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159145_BORESIGHT                 = ( 
+               0.000000000000     -0.122548487360      0.992462527376
+                                             ) 
+      INS-159145_FOV_BOUNDARY_CORNERS      = ( 
+              -0.406734393244     -0.115254004849      0.906247012529
+               0.406734393244     -0.115254004849      0.906247012529
+               0.406734393244     -0.108651984564      0.907062224769
+              -0.406734393244     -0.108651984564      0.907062224769
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_WAC_BLU/-159146 (top pixel 1695, bottom pixel 1663)
+
+   \begindata
+
+      INS-159146_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159146_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159146_BORESIGHT                 = ( 
+               0.000000000000     -0.135741317022      0.990744313561
+                                             ) 
+      INS-159146_FOV_BOUNDARY_CORNERS      = ( 
+              -0.406734393244     -0.127300472876      0.904633474374
+               0.406734393244     -0.127300472876      0.904633474374
+               0.406734393244     -0.120709882426      0.905536447437
+              -0.406734393244     -0.120709882426      0.905536447437
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_WAC_GRN/-159147 (top pixel 1759, bottom pixel 1727)
+
+   \begindata
+
+      INS-159147_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159147_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159147_BORESIGHT                 = ( 
+               0.000000000000     -0.148910120060      0.988850735017
+                                             ) 
+      INS-159147_FOV_BOUNDARY_CORNERS      = ( 
+              -0.406734393244     -0.139324408336      0.902859813368
+               0.406734393244     -0.139324408336      0.902859813368
+               0.406734393244     -0.132746414274      0.903850387426
+              -0.406734393244     -0.132746414274      0.903850387426
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_WAC_RED/-159148 (top pixel 1823, bottom pixel 1791)
+
+   \begindata
+
+      INS-159148_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159148_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159148_BORESIGHT                 = ( 
+               0.000000000000     -0.162052565559      0.986782126913
+                                             ) 
+      INS-159148_FOV_BOUNDARY_CORNERS      = ( 
+              -0.406734393244     -0.151323682955      0.900926343454
+               0.406734393244     -0.151323682955      0.900926343454
+               0.406734393244     -0.144759449608      0.902004343172
+              -0.406734393244     -0.144759449608      0.902004343172
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_WAC_IR1/-159149 (top pixel 1887, bottom pixel 1855)
+
+   \begindata
+
+      INS-159149_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159149_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159149_BORESIGHT                 = ( 
+               0.000000000000     -0.175166327266      0.984538855400
+                                             ) 
+      INS-159149_FOV_BOUNDARY_CORNERS      = ( 
+              -0.406734393244     -0.163296172827      0.898833406863
+               0.406734393244     -0.163296172827      0.898833406863
+               0.406734393244     -0.156746862082      0.899998641432
+              -0.406734393244     -0.156746862082      0.899998641432
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_WAC_1MU/-159150 (top pixel 1951, bottom pixel 1919)
+
+   \begindata
+
+      INS-159150_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159150_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159150_BORESIGHT                 = ( 
+               0.000000000000     -0.188249084005      0.982121317542
+                                             ) 
+      INS-159150_FOV_BOUNDARY_CORNERS      = ( 
+              -0.406734393244     -0.175239758784      0.896581374050
+               0.406734393244     -0.175239758784      0.896581374050
+               0.406734393244     -0.168706529890      0.897833637221
+              -0.406734393244     -0.168706529890      0.897833637221
+                                             ) 
+
+   \begintext
+
+
+   FOV of EUROPAM_EIS_WAC_COLOR/-159151 (top pixel 1951, bottom pixel 1599)
+
+   \begindata
+
+      INS-159151_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159151_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159151_BORESIGHT                 = ( 
+               0.000000000000     -0.155484783007      0.987838287501
+                                             ) 
+      INS-159151_FOV_BOUNDARY_CORNERS      = ( 
+              -0.406464443583     -0.178081287415      0.896143800500
+               0.406464443583     -0.178081287415      0.896143800500
+               0.406464443583     -0.105813429598      0.907518690837
+              -0.406464443583     -0.105813429598      0.907518690837
+                                             ) 
+
+   \begintext
+
+
+
+EIS WAC Radiator
+
+   The FOV values for the WAC radiator are place holders until a time
+   when the real values are provided.
+
+   \begindata
+
+      INS-159111_FOV_FRAME                 = 'EUROPAM_EIS_WAC_RAD'
+      INS-159111_FOV_SHAPE                 = 'POLYGON'
+      INS-159111_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159111_FOV_BOUNDARY_CORNERS      = (
+
+                     0.999998476913  0.000000000000  0.001745328366
+                     0.707105704202  0.707105704202  0.001745328366
+                     0.000000000000  0.999998476913  0.001745328366
+                    -0.707105704202  0.707105704202  0.001745328366
+                    -0.999998476913  0.000000000000  0.001745328366
+                    -0.707105704202 -0.707105704202  0.001745328366
+                    -0.000000000000 -0.999998476913  0.001745328366
+                     0.707105704202 -0.707105704202  0.001745328366
+
+                                             )
+
+   \begintext
+
+
+EIS NAC and WAC Keep Out Zone (KOZ) FOVs
+
+   The following NAC and WAC KOZ FOV half-sizes were provided in [4]:
+
+      NAC KOZ:  18.8 deg half-angle cone
+
+      WAC KOZ:  31.23 x 50.6 deg (AT x CT)
+
+   \begindata
+
+      INS-159112_FOV_FRAME                 = 'EUROPAM_EIS_NAC'
+      INS-159112_FOV_SHAPE                 = 'CIRCLE'
+      INS-159112_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159112_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159112_FOV_REF_VECTOR            = ( 0.0, 1.0, 0.0 )
+      INS-159112_FOV_REF_ANGLE             = ( 18.8 )
+      INS-159112_FOV_ANGLE_UNITS           = 'DEGREES'
+
+      INS-159113_FOV_FRAME                 = 'EUROPAM_EIS_WAC'
+      INS-159113_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159113_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159113_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159113_FOV_REF_VECTOR            = ( 0.0, 1.0, 0.0 )
+      INS-159113_FOV_REF_ANGLE             = ( 31.23 )
+      INS-159113_FOV_CROSS_ANGLE           = ( 50.6  )
+      INS-159113_FOV_ANGLE_UNITS           = 'DEGREES'
+
+   \begintext
+
+End of IK.

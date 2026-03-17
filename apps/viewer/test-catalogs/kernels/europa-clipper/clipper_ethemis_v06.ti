@@ -1,0 +1,519 @@
+KPL/IK
+
+
+Europa Clipper E-THEMIS Instrument Kernel
+==============================================================================
+
+   This instrument kernel (I-kernel) contains Field-Of-View (FOV) and
+   other geometric parameter definitions for the E-THEMIS instrument.
+
+
+Version and Date
+----------------------------------------------------------
+
+   Version 0.6 -- December 16, 2019 -- Boris Semenov, NAIF
+
+      Updated total FOV size based on [8]. 
+
+      Updated KOZ FOV size based on [9].
+
+      Added FOVs for individual bands based on [8].
+
+      Added nominal detector and optical parameters based on [8].
+
+      Filled in instrument description from [11].
+
+   Version 0.5 -- June 3, 2019 -- Boris Semenov, NAIF
+
+      Added RAD1 and RAD2 FOVs based on [7].
+
+   Version 0.4 -- March 21, 2019 -- Boris Semenov, NAIF
+
+      Updated FOV size and KOZ FOV size based on [6].
+
+   Version 0.3 -- February 4, 2019 -- Boris Semenov, NAIF
+
+      Updated FOV size based on [4]. Corrected KOZ FOV size based on
+      [5].
+
+   Version 0.2 -- February 26, 2018 -- Boris Semenov, NAIF
+
+      Added placeholder sections for various non-FOV parameters. 
+
+      Reformatted and updated comments.
+
+   Version 0.1 -- October 8, 2015 -- Eric W. Ferguson, JPL
+
+      Initial version.
+
+
+References
+----------------------------------------------------------
+
+   1. ``Kernel Pool Required Reading''
+
+   2. ``C-kernel Required Reading''
+
+   3. Europa Instrument Fact Sheets:
+      https://europaems.jpl.nasa.gov/alfresco/mmsapp/mms.html#/workspaces/master/sites/europa/documents/_17_0_5_1_8af0285_1415240264808_136692_232061/views/MMS_1441753698362_0ceb59af-b3e0-42c0-b5f0-a2e120f07865
+
+   4. E-THEMIS ICD, Europa_D-56747_Initial-Release_2018-04-23-Signed.pdf
+
+   5. E-THEMIS MICD, 10414235_A4.pdf
+
+   6. ``Europa - Kernel Updates'', e-mail from Ben Bradley, 03/11/19;
+
+   7. ECR-7560/APGEN Jira AP-395 (Add Radiator to +Y side of E_THEMIS)
+
+   8. E-THEMIS iCDR package, ETHEMIS_iCDR_Presentation_08122019.pdf,
+      August 7-9, 2019
+
+   9. APGEN Jira AP-395, E-THEMIS KoZ, 12/13/19
+
+   10. http://christensen.asu.edu/instrument/e-themis/
+
+
+Contact Information
+----------------------------------------------------------
+
+   Eric W. Ferguson, JPL, (818)-634-1928, eric.w.ferguson@jpl.nasa.gov
+   Boris V. Semenov, JPL, (818)-354-8136, boris.semenov@jpl.nasa.gov
+
+
+Implementation Notes
+----------------------------------------------------------
+
+   This file is used by the SPICE system as follows: programs that make
+   use of this kernel must ``load'' the kernel, normally during
+   program initialization. The SPICE routine FURNSH loads a kernel file
+   into the pool as shown below.
+
+      CALL FURNSH ( 'frame_kernel_name; )    -- FORTRAN
+      furnsh_c ( "frame_kernel_name" );      -- C
+      cspice_furnsh, frame_kernel_name       -- IDL
+      cspice_furnsh( 'frame_kernel_name' )   -- MATLAB
+
+   Once the file has been loaded, the SPICE routine GETFOV (getfov_c in
+   C, cspice_getfov in IDL and MATLAB) can be used to retrieve FOV
+   parameters for a given instrument or structure.
+
+   This file was created and may be updated with a text editor or word
+   processor.
+
+
+Conventions for Specifying Data
+----------------------------------------------------------
+
+   All names referencing values in this I-kernel start with the
+   characters `INS' followed by the NAIF ID code for the particular
+   instrument detector or keep out zone:
+
+      EUROPAM_ETHEMIS            -159200
+      EUROPAM_ETHEMIS_KOZ        -159201
+      EUROPAM_ETHEMIS_RAD1       -159202
+      EUROPAM_ETHEMIS_RAD2       -159203
+      EUROPAM_ETHEMIS_BAND1      -159210
+      EUROPAM_ETHEMIS_BAND2      -159220
+      EUROPAM_ETHEMIS_BAND3      -159230
+
+   The remainder of the name is an underscore character followed by the
+   unique name of the data item. For example, the E-THEMIS boresight
+   direction is specified by:
+
+      INS-159200_BORESIGHT
+
+   The upper bound on the length of the name of any data item is 32
+   characters.
+
+   If the same item is included in more than one file, or if the same
+   item appears more than once within a single file, the latest value
+   supersedes any earlier values.
+
+
+Instrument Description
+----------------------------------------------------------
+
+   From [10]:
+
+      The Europa Thermal Emission Imaging System (E-THEMIS) is an
+      instrument on board NASA’s Europa Clipper spacecraft. With a
+      design heritage from a highly successful Mars imaging system,
+      E-THEMIS is a robust and proven instrument for operations at
+      Jupiter’s moon Europa.
+ 
+      The Europa Thermal Emission Imaging System will provide high
+      spatial resolution, multi-spectral imaging of Europa in the mid
+      infrared and far infrared bands to help detect active sites, such
+      as potential vents erupting plumes of water into space.
+
+
+Mounting Alignment
+----------------------------------------------------------
+
+   Refer to the latest version of the Europa Mission Frames Definition
+   Kernel (FK) for reference frame definitions and mounting alignment
+   information.
+
+
+Instrument Detector/Sensor Layout
+----------------------------------------------------------
+
+   Per [8], the nominal E-THEMIS detector layout is:
+
+            |<---------------- 1280 pix ----------------->|
+
+                 |<------------ 900 pix ------------>| 
+
+       Pixel (0,0)
+   ---      *---------------------------------------------.
+    ^       |                                             |
+    |       |                                             |
+    |       |                                             |
+    |       |                                             |
+    |       |                  (896 pix)                  |
+    |   --- |    .-----------------------------------.    |
+    |    ^  |    |                                   |(141|
+    |    |  |    |         Band 1  x                 |pix)|   --- 
+    |    |  |    |                                   |    |    ^
+    |    |  |    `-----------------------------------'    |    |
+         |  |    |             (903 pix)             |    |    | 229 pix
+   1200  |  |    .-----------------------------------.    |    |
+   pix      |    |                                   |(140|    v 
+        660 |    |         Band 2  x                 |pix)|   ----------->
+    |   pix |    |                                   |    |    ^  +Xe-themis
+    |       |    `-----------------------------------'    |    |
+    |    |  |    |             (902 pix)             |    |    | 229 pix
+    |    |  |    .-----------------------------------.    |    | 
+    |    |  |    |                                   |(135|    v
+    |    |  |    |         Band 3  x                 |pix)|   ---
+    |    v  |    |                                   |    |
+    |   --- |    `-----------------------------------'    |
+    |       |                                             |
+    |       |                                             |
+    |       |                                             |
+    |       |                                             |
+    v       |                                             |
+   ---      `---------------------------------------------*
+                                                Pixel (1279,1199)
+                                  |
+                                  |
+                                  |
+                                  v +Ye-themis
+                                                   +Ze-themis and the
+                                                   instrument and band
+                                                   boresights shown as
+                                                 "x"s are into the page.
+
+   Note 1: individual band sizes shown in () are for the normalized
+   irradiance of 0.90. The full nominal physical height of individual
+   bands in ~202 raw pixels.
+
+   Note 2: pixel (0,0) and (1279,1199) locations were chosen
+   arbitrarily and are <TBC> by the instrument team.
+
+
+   The nominal E-THEMIS FOV layout based on the detector layout shown
+   above is:
+
+                 |<------------ 5.7 deg ------------>| 
+
+            .---------------------------------------------.
+            |                                             |
+            |                                             |
+            |                                             |
+            |                                             |
+            |                  (5.70 deg)                 |
+        --- |    .-----------------------------------.    |
+         ^  |    |                                   |(0.90
+         |  |    |         Band 1  x                 |deg)|   --- 
+         |  |    |                                   |    |    ^
+         |  |    `-----------------------------------'    |    |
+         |  |    |             (5.74 deg)            |    |    | 1.4437 deg
+         |  |    .-----------------------------------.    |    |
+            |    |                                   |(0.89    v 
+        4.2 |    |         Band 2  x                 |deg)|   ----------->
+        deg |    |                                   |    |    ^  +Xe-themis
+            |    `-----------------------------------'    |    |
+         |  |    |             (5.74 deg)            |    |    | 1.44371 deg
+         |  |    .-----------------------------------.    |    | 
+         |  |    |                                   |(0.86    v
+         |  |    |         Band 3  x                 |deg)|   ---
+         v  |    |                                   |    |
+        --- |    `-----------------------------------'    |
+            |                                             |
+            |                                             |
+            |                                             |
+            |                                             |
+            |                                             |
+            `---------------------------------------------'
+
+                                  |
+                                  |
+                                  |
+                                  v +Ye-themis
+                                                   +Ze-themis and the
+                                                   instrument and band
+                                                  boresights are into the
+                                                           page.
+
+   Note: individual band sizes shown in () are for the normalized
+   irradiance of 0.90.
+
+
+Instrument Pixel-to-3D Coordinate Mapping (if applicable)
+----------------------------------------------------------
+
+   <TBD>
+
+
+Instrument Detector Parameters
+----------------------------------------------------------
+
+   Per [8], the E-THEMIS total usable and individual band areas of the
+   detector have the following parameters:
+
+      ---------- ------------- ------------- ------------
+                  Size(XTxAT;  Center(XT,AT;  Pixel Size
+                 samplesxlines  sample,line   (microns)
+      ---------- ------------- ------------- ------------
+      Total        900 x 660    639.5,599.5     12
+      Band 1       896 x 141    639.5,370.5     12
+      Band 2       903 x 140    639.5,599.5     12
+      Band 3       902 x 135    639.5,828.5     12
+      ---------- ------------ -------------- ------------
+
+   Note 1: center locations were chosen arbitrarily. They are given
+   relative to the total detector pixel (0,0) and are <TBC> by the
+   instrument team.
+
+   \begindata
+
+      INS-159200_PIXEL_SAMPLES             = ( 900 )
+      INS-159200_PIXEL_LINES               = ( 660 )
+      INS-159200_PIXEL_SIZE                = ( 0.012 )
+      INS-159200_PIXEL_SIZE_UNITS          = ( 'mm' )
+      INS-159200_CCD_CENTER                = ( 639.5, 599.5 )
+
+      INS-159210_PIXEL_SAMPLES             = ( 896 )
+      INS-159210_PIXEL_LINES               = ( 141 )
+      INS-159210_PIXEL_SIZE                = ( 0.012 )
+      INS-159210_PIXEL_SIZE_UNITS          = ( 'mm' )
+      INS-159210_CCD_CENTER                = ( 639.5, 370.5 )
+
+      INS-159220_PIXEL_SAMPLES             = ( 903 )
+      INS-159220_PIXEL_LINES               = ( 140 )
+      INS-159220_PIXEL_SIZE                = ( 0.012 )
+      INS-159220_PIXEL_SIZE_UNITS          = ( 'mm' )
+      INS-159220_CCD_CENTER                = ( 639.5, 599.5 )
+
+      INS-159230_PIXEL_SAMPLES             = ( 902 )
+      INS-159230_PIXEL_LINES               = ( 135 )
+      INS-159230_PIXEL_SIZE                = ( 0.012 )
+      INS-159230_PIXEL_SIZE_UNITS          = ( 'mm' )
+      INS-159230_CCD_CENTER                = ( 639.5, 828.5 )
+
+   \begintext
+
+
+Instrument Optical Parameters (if applicable)
+----------------------------------------------------------
+
+   Per [8], the E-THEMIS first order optical parameters are:
+
+      ---------- ------------- -------------
+                  Focal length     IFOV     
+                      (mm)       (radians)  
+      ---------- ------------- -------------
+      Total           108         0.000111  
+      Band 1          108         0.000111  
+      Band 2          108         0.000111  
+      Band 3          108         0.000111  
+      ---------- ------------ --------------
+
+   \begindata
+
+      INS-159200_FOCAL_LENGTH              = ( 108 )
+      INS-159200_FOCAL_LENGTH_UNITS        = ( 'mm' )
+      INS-159200_IFOV                      = ( 0.000111 )
+      INS-159200_IFOV_UNITS                = ( 'radians' )
+
+      INS-159210_FOCAL_LENGTH              = ( 108 )
+      INS-159210_FOCAL_LENGTH_UNITS        = ( 'mm' )
+      INS-159210_IFOV                      = ( 0.000111 )
+      INS-159210_IFOV_UNITS                = ( 'radians' )
+
+      INS-159220_FOCAL_LENGTH              = ( 108 )
+      INS-159220_FOCAL_LENGTH_UNITS        = ( 'mm' )
+      INS-159220_IFOV                      = ( 0.000111 )
+      INS-159220_IFOV_UNITS                = ( 'radians' )
+
+      INS-159230_FOCAL_LENGTH              = ( 108 )
+      INS-159230_FOCAL_LENGTH_UNITS        = ( 'mm' )
+      INS-159230_IFOV                      = ( 0.000111 )
+      INS-159230_IFOV_UNITS                = ( 'radians' )
+
+   \begintext
+
+
+Instrument Optical Distortion (if applicable)
+----------------------------------------------------------
+
+   <TBD>
+
+
+Instrument Filter Parameters (if applicable)
+----------------------------------------------------------
+
+   <TBD>
+
+
+E-THEMIS FOV Definitions
+----------------------------------------------------------
+
+   Per [8], the nominal total E-THEMIS FOV and individual band FOVs are
+   rectangular pyramids centered on the following boresight vectors
+   expressed in the EUROPAM_ETHEMIS frame, with the following sizes in
+   cross-track (XT, in XZ plane of the EUROPAM_ETHEMIS frame) and
+   along-track (AT, in YZ plane of the EUROPAM_ETHEMIS frame)
+   directions:
+
+      ------- ------------ ------------ -------------------------------
+              XT size, deg AT size, deg           Boresight 
+      ------- ------------ ------------ -------------------------------
+      Total     5.7          4.2        [ 0,  0,           1          ]
+      Band 1    5.698409     0.896736   [ 0, -0.02541626,  0.99967695 ]
+      Band 2    5.742928     0.890376   [ 0,  0,           1          ]
+      Band 3    5.736568     0.858577   [ 0,  0.02541626,  0.99967695 ]
+      ------- ------------ ------------ -------------------------------
+
+   Notes: 
+
+      -  the individual band angular sizes above correspond to the XT
+         and AT numbers of pixels for the normalized irradiance of 0.90,
+         provided on pages 366 and 367 of [8], multipled by the raw
+         pixel IFOV of 0.111 milliradian.
+
+      -  the total and band 2 FOV boresight are assumed to be aligned 
+         with the EUROPAM_ETHEMIS +Z axis -- the nominal instrument
+         boresight
+
+      -  the band 1 and band 3 boresights are assumed to be offset from
+         the EUROPAM_ETHEMIS +Z axis in the EUROPAM_ETHEMIS YZ plane by
+         the angle equivalent to the 229 raw pixels (200 for the
+         nominal full band width + 27 for the nominal space between
+         bands) with IFOV of 0.111 milliradian, towards -Y for band 1
+         and toward +Y for band 3.
+
+   The keywords below define FOVs with these attributes.
+
+   \begindata
+
+      INS-159200_FOV_FRAME                 = 'EUROPAM_ETHEMIS'
+      INS-159200_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159200_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159200_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159200_FOV_REF_VECTOR            = ( 1.0, 0.0, 0.0 )
+      INS-159200_FOV_REF_ANGLE             = ( 2.85 )
+      INS-159200_FOV_CROSS_ANGLE           = ( 2.10 )
+      INS-159200_FOV_ANGLE_UNITS           = 'DEGREES'
+ 
+      INS-159210_FOV_FRAME                 = 'EUROPAM_ETHEMIS'
+      INS-159210_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159210_BORESIGHT                 = ( 0, -0.02541626,  0.99967695 )
+      INS-159210_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159210_FOV_REF_VECTOR            = ( 1.0, 0.0, 0.0 )
+      INS-159210_FOV_REF_ANGLE             = ( 2.849205 )
+      INS-159210_FOV_CROSS_ANGLE           = ( 0.448368 )
+      INS-159210_FOV_ANGLE_UNITS           = 'DEGREES'
+ 
+      INS-159220_FOV_FRAME                 = 'EUROPAM_ETHEMIS'
+      INS-159220_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159220_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159220_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159220_FOV_REF_VECTOR            = ( 1.0, 0.0, 0.0 )
+      INS-159220_FOV_REF_ANGLE             = ( 2.871464 )
+      INS-159220_FOV_CROSS_ANGLE           = ( 0.445188 )
+      INS-159220_FOV_ANGLE_UNITS           = 'DEGREES'
+ 
+      INS-159230_FOV_FRAME                 = 'EUROPAM_ETHEMIS'
+      INS-159230_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159230_BORESIGHT                 = ( 0,  0.02541626,  0.99967695 )
+      INS-159230_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159230_FOV_REF_VECTOR            = ( 1.0, 0.0, 0.0 )
+      INS-159230_FOV_REF_ANGLE             = ( 2.868284 )
+      INS-159230_FOV_CROSS_ANGLE           = ( 0.429289 )
+      INS-159230_FOV_ANGLE_UNITS           = 'DEGREES'
+ 
+   \begintext
+
+
+E-THEMIS Keep-Out-Zone (KOZ) FOV Definitions
+----------------------------------------------------------
+
+   Per [9], the nominal E-THEMIS KOZ FOV is a rectangular pyramid
+   centered on the +Z axis of the EUROPAM_ETHEMIS frame, with the
+   angular extent of 53.976 degrees in the cross-track direction (XT,
+   in XZ plane of the EUROPAM_ETHEMIS frame) and the angular extent of
+   41.005 degrees in the along-track (AT, in YZ plane of the
+   EUROPAM_ETHEMIS frame).
+
+   The keywords below define the KOZ FOV with these attributes.
+           
+   \begindata
+ 
+      INS-159201_FOV_FRAME                 = 'EUROPAM_ETHEMIS'
+      INS-159201_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159201_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159201_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159201_FOV_REF_VECTOR            = ( 1.0, 0.0, 0.0 )
+      INS-159201_FOV_REF_ANGLE             = ( 26.9880 )
+      INS-159201_FOV_CROSS_ANGLE           = ( 20.5025 )
+      INS-159201_FOV_ANGLE_UNITS           = 'DEGREES'
+ 
+   \begintext           
+
+
+E-THEMIS Radiator FOV Definitions
+----------------------------------------------------------
+
+   The FOV values for the E-THEMIS radiators are place holders until a
+   time when the real values are provided. FOV = 2 Pi SR (obstructions
+   to be negotiated).
+           
+   \begindata
+ 
+      INS-159202_FOV_FRAME                 = 'EUROPAM_ETHEMIS_RAD1'
+      INS-159202_FOV_SHAPE                 = 'POLYGON'
+      INS-159202_BORESIGHT                 = ( 0.0 0.0 1.0 )
+      INS-159202_FOV_BOUNDARY_CORNERS      = (
+
+                      0.999998476913  0.000000000000  0.001745328366
+                      0.707105704202  0.707105704202  0.001745328366
+                      0.000000000000  0.999998476913  0.001745328366
+                     -0.707105704202  0.707105704202  0.001745328366
+                     -0.999998476913  0.000000000000  0.001745328366
+                     -0.707105704202 -0.707105704202  0.001745328366
+                     -0.000000000000 -0.999998476913  0.001745328366
+                      0.707105704202 -0.707105704202  0.001745328366
+
+                                             )
+ 
+      INS-159203_FOV_FRAME                 = 'EUROPAM_ETHEMIS_RAD2'
+      INS-159203_FOV_SHAPE                 = 'POLYGON'
+      INS-159203_BORESIGHT                 = ( 0.0 0.0 1.0 )
+      INS-159203_FOV_BOUNDARY_CORNERS      = (
+
+                      0.999998476913  0.000000000000  0.001745328366
+                      0.707105704202  0.707105704202  0.001745328366
+                      0.000000000000  0.999998476913  0.001745328366
+                     -0.707105704202  0.707105704202  0.001745328366
+                     -0.999998476913  0.000000000000  0.001745328366
+                     -0.707105704202 -0.707105704202  0.001745328366
+                     -0.000000000000 -0.999998476913  0.001745328366
+                      0.707105704202 -0.707105704202  0.001745328366
+
+                                             )
+ 
+   \begintext           
+
+End of IK.

@@ -1,0 +1,443 @@
+KPL/IK
+
+Europa Clipper/MISE Instrument Kernel
+==============================================================================
+
+   This instrument kernel (I-kernel; IK) contains references to
+   the alignment and field of view parameters for the Mapping
+   Imaging Spectrometer for Europa (MISE) instrument on the
+   Europa Clipper spacecraft.
+
+
+Version and Date
+------------------------------------------------------------------------
+
+   Version 0.5 -- June 4, 2024 -- Hari Nair, JHU/APL
+
+      Numerous comment updates and ASCII art.
+
+      Update instrument FOV definitions using rectangular pixels.
+      Dimensions are 331 microradians along-track and 251
+      microradians cross-track.
+
+   Version 0.4 -- February 4, 2019 -- Boris Semenov, NAIF
+
+      Updated cross track KOZ size based on [4] (27.15 -> 27.5).
+
+   Version 0.3 -- February 26, 2018 -- Boris Semenov, NAIF
+
+      Added placeholder sections for various non-FOV parameters.
+
+      Made a few minor updates to the comments.
+
+   Version 0.2 -- June 8, 2017 -- Boris Semenov, NAIF
+
+      Redefined EUROPAM_MISE_RAD1+Y/-159610, EUROPAM_MISE_RAD1+X/-159611,
+      EUROPAM_MISE_RAD2+Y/-159612, and EUROPAM_MISE_RAD2+X/-159613 FOVs
+      as a polygons to work around a limitation in GFTFOV.
+
+      Reformatted comments.
+
+   Version 0.1 -- October 8, 2015 -- Eric W. Ferguson, JPL
+
+      Initial version.
+
+
+References
+------------------------------------------------------------------------
+
+   1. "Kernel Pool Required Reading"
+
+   2. Europa Clipper Frame Kernel
+
+   3. Blaney et al. (2019),
+      https://www.hou.usra.edu/meetings/lpsc2019/pdf/2218.pdf
+
+   4. MISE MICD, 10414240_A_watermarked.pdf
+
+
+Contact Information
+------------------------------------------------------------------------
+
+   Hari Nair, JHU/APL, Hari.Nair@jhuapl.edu
+   Frank Seelos, JHU/APL, Frank.Seelos@jhuapl.edu
+   Sarah Lundeen, JPL, Sarah.Lundeen@jpl.nasa.gov
+   Matthew Barnes, JPL, Matthew.J.Barnes@jpl.nasa.gov
+   Boris V. Semenov, JPL, boris.semenov@jpl.nasa.gov
+
+
+Implementation Notes
+------------------------------------------------------------------------
+
+   This file is used by the SPICE system as follows: programs
+   that make use of this kernel must ``load'' the kernel,
+   normally during program initialization. The SPICE routine
+   FURNSH loads a kernel file into the pool as shown below.
+
+      CALL FURNSH ( 'kernel_name; )    -- FORTRAN
+      furnsh_c ( "kernel_name" );      -- C
+      cspice_furnsh, kernel_name       -- IDL
+      cspice_furnsh( 'kernel_name' )   -- MATLAB
+
+   Once the file has been loaded, the SPICE routine GETFOV (getfov_c in
+   C, cspice_getfov in IDL and MATLAB) can be used to retrieve FOV
+   parameters for a given instrument or structure.
+
+   This file was created and may be updated with a text editor or word
+   processor.
+
+
+Naming Conventions
+------------------------------------------------------------------------
+
+   All names referencing values in this I-kernel start with the characters
+   'INS' followed by the NAIF Clipper spacecraft ID number (-159) and then
+   followed by the NAIF three digit code for the instrument (MISE = 601).
+
+           EUROPAM_MISE_BASE          -159600
+           EUROPAM_MISE               -159601
+           EUROPAM_MISE_FOR           -159602
+           EUROPAM_MISE_GLOBAL        -159603
+           EUROPAM_MISE_KOZ           -159604
+           EUROPAM_MISE_RAD1+Y        -159610
+           EUROPAM_MISE_RAD1+X        -159611
+           EUROPAM_MISE_RAD2+Y        -159612
+           EUROPAM_MISE_RAD2+X        -159613
+
+   The remainder of the name is an underscore character followed by the
+   unique name of the data item.  For example, the MISE boresight direction
+   in the EUROPAM_MISE frame (see [2]) is specified by:
+
+           INS-159601_BORESIGHT
+
+   The upper bound on the length of the name of any data item identifier
+   is 32 characters.
+
+   If the same item is included in more than one file, or if the same item
+   appears more than once within a single file, the latest value supersedes
+   any earlier values.
+
+
+Instrument Description
+------------------------------------------------------------------------
+
+   MISE covers a spectral range 0.8-5 microns with 10-nm
+   spectral sampling, enabling the identification of organics,
+   salts, acid hydrates, water ice phases, altered silicates,
+   radiolytic compounds and warm thermal anomalies. MISE will map
+   the distributions of these materials across the surface of
+   Europa.
+
+   MISE consists of three assemblies:
+
+      - The external vault assembly consists of the optical
+        elements, thermal control system, scanner, focal plane,
+        focal plane electronics, radiation shielding, and mechanical
+        structures.
+
+      - The Data Processing Unit controls the instrument.  It is
+        inside the electronics vault and includes the spacecraft
+        communication interface, power supply, scanner electronics,
+        on-board memory, and instrument processing.
+
+      - The cryocooler electronics, also inside the electronics
+        vault, controls the cryocooler.
+
+   The scan mirror reflects light into the MISE detector.  A
+   baffle restricts light more than 30 degrees off the nadir
+   direction from entering the optical system.
+
+   A MISE "cube" (two spatial and one spectral dimension) is
+   built up from a single line spatial image as the mirror scans.
+   At far distances, the mirror scans over the surface.  Near
+   closest approach, the mirror is used for motion compensation.
+   The f/1.4 Dyson spectrometer separates the incoming light into
+   480 spectral channels.
+
+
+Mounting Alignment
+------------------------------------------------------------------------
+
+   The EUROPAM_MISE_BASE frame is defined in the Europa Clipper
+   Frame kernel.  The nominal rotation matrix from
+   EUROPAM_SPACECRAFT to EUROPAM_MISE_BASE is
+
+        [ 1.0000000       0.0000000       0.0000000 ]
+        [ 0.0000000       0.0000000      -1.0000000 ]
+        [ 0.0000000       1.0000000       0.0000000 ]
+
+   The EUROPAM_MISE frame is a CK based frame which defines the
+   orientation of the MISE instrument's viewing geometry relative
+   to the EUROPAM_MISE_BASE frame.  The EUROPAM_MISE and
+   EUROPAM_MISE_BASE frames coincide when the MISE mirror is at
+   zero.
+
+   When the mirror is positioned at zero, the Clipper +Y (nadir
+   direction) axis maps to the MISE +Z (boresight) axis.  The
+   Clipper +Z (velocity direction) maps to the MISE -Y axis.  The
+   MISE mirror rotates about its +X axis, which is the same as
+   the Clipper +X axis.  A positive mirror angle points the MISE
+   boresight towards the spacecraft velocity direction.
+
+
+             ^ +Z                            +Z
+             |                               (into page)
+             |                               x----> +X
+             |                               |
+             x----> +X                       |
+             +Y                              V
+             (into page)                     +Y
+
+             EUROPAM_SPACECRAFT frame        EUROPAM_MISE_BASE frame
+
+   With the mirror positioned at a positive angle, the
+   EUROPAM_MISE boresight looks along the ground track.
+
+      EUROPAM_SPACECRAFT frame   EUROPAM_MISE_BASE frame    EUROPAM_MISE frame
+
+                                                           -Y
+                                                              \
+                                                                \
+     +Z                           -Y                              \
+      <------x +X (into page)      <----x +X (into page)            x  +X
+             |                          |                         /   (into
+             |                          |                       /      page)
+             |                          |                     /
+             V +Y                       V +Z               +Z
+     -------------------------------------------------------------------------
+     /////////////////////////////////////////////////////////////////////////
+                                    surface
+
+
+Field of View
+------------------------------------------------------------------------
+
+   The MISE detector is a HgCdTe array with 320 pixels in the
+   spatial (across track) direction and 480 pixels in the
+   spectral (along track) direction.  The along-track IFOV is
+   331 microradians.  The cross-track IFOV is 251 microradians.
+   The effective spatial width is 300 pixels as ten pixels on
+   either side are masked.  Row 1 is the longest wavelength after
+   dispersion.  Row 480 is the shortest wavelength.
+
+                          Boresight (+Z axis)
+                          is into the page
+
+                         +---------------(320, 480) Pixel
+           ^             |               |
+           |             |               |
+           |             |               |
+           |             |     +Zmise    |
+           |             |       x-------------> +Xmise
+           |             |       |       |
+           |             |       |       |
+           |             |       |       |
+                         |       |       |
+      Clipper +Z       (1,1)-----|-------+
+      (velocity)       Pixel     |
+                                 |
+                                 v +Ymise
+
+
+Detector Parameters
+------------------------------------------------------------------------
+
+   The detector is a 320 (spatial) by 480 (spectral) HgCdTe
+   array.  The along-track IFOV is 331 microradians.  The
+   cross-track IFOV is 251 microradians.  The fields below are
+   for a 300 pixel line array to describe each acquired spatial
+   frame.  The number of samples includes the masked columns, but
+   the FOV_CROSS_ANGLE does not.
+
+   \begindata
+
+      INS-159601_PIXEL_SAMPLES     =  (  320          )
+      INS-159601_PIXEL_LINES       =  (    1          )
+      INS-159601_ALONG_TRACK_IFOV  =  (  331E-6       )
+      INS-159601_CROSS_TRACK_IFOV  =  (  251E-6       )
+
+   \begintext
+
+
+MISE FOV Definitions
+------------------------------------------------------------------------
+
+    This section contains MISE FOV definitions.
+
+
+MISE "Nadir Observation" FOV Definition
+
+    EUROPAM_MISE_BASE/-159600 is the FOV of the central row in the nadir
+    scan mirror position, 4.314 degrees cross track by 0.01896 degrees
+    along track.
+
+   \begindata
+
+      INS-159600_FOV_FRAME                 = 'EUROPAM_MISE_BASE'
+      INS-159600_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159600_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159600_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159600_FOV_REF_VECTOR            = ( 0.0, 1.0, 0.0 )
+      INS-159600_FOV_REF_ANGLE             = ( 0.00948 )
+      INS-159600_FOV_CROSS_ANGLE           = ( 2.157 )
+      INS-159600_FOV_ANGLE_UNITS           = 'DEGREES'
+
+    \begintext
+
+
+MISE "Observation" FOV Definition
+
+    EUROPAM_MISE/-159601 is the FOV of the central row in a particular
+    scan mirror position, 4.314 degrees cross track by 0.01896 degrees
+    along track.
+
+    \begindata
+
+      INS-159601_FOV_FRAME                 = 'EUROPAM_MISE'
+      INS-159601_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159601_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159601_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159601_FOV_REF_VECTOR            = ( 0.0, 1.0, 0.0 )
+      INS-159601_FOV_REF_ANGLE             = ( 0.00948 )
+      INS-159601_FOV_CROSS_ANGLE           = ( 2.157 )
+      INS-159601_FOV_ANGLE_UNITS           = 'DEGREES'
+
+    \begintext
+
+
+MISE "Field of Regard" FOV Definition
+
+    EUROPAM_MISE_FOR/-159602 is the FOV of the full scan range, 4.314 degrees
+    cross track by 60.0 degrees along track.
+
+    \begindata
+
+      INS-159602_FOV_FRAME                 = 'EUROPAM_MISE_BASE'
+      INS-159602_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159602_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159602_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159602_FOV_REF_VECTOR            = ( 0.0, 1.0, 0.0 )
+      INS-159602_FOV_REF_ANGLE             = ( 30.0 )
+      INS-159602_FOV_CROSS_ANGLE           = ( 2.157 )
+      INS-159602_FOV_ANGLE_UNITS           = 'DEGREES'
+
+    \begintext
+
+
+MISE "Global" FOV Definition
+
+    EUROPAM_MISE_GLOBAL/-159603 is the FOV of the 300x300 pixel spatial
+    array. It is defined for convenience. The actual coverage of a global
+    observation depends on the commanded mirror profile and is acquired
+    over several minutes, not instantaneously.
+
+    \begindata
+
+      INS-159603_FOV_FRAME                 = 'EUROPAM_MISE_BASE'
+      INS-159603_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159603_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159603_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159603_FOV_REF_VECTOR            = ( 0.0, 1.0, 0.0 )
+      INS-159603_FOV_REF_ANGLE             = ( 2.845 )
+      INS-159603_FOV_CROSS_ANGLE           = ( 2.157 )
+      INS-159603_FOV_ANGLE_UNITS           = 'DEGREES'
+
+   \begintext
+
+
+MISE Radiators FOV Definitions
+
+   The FOV values for the MISE radiators -- EUROPAM_MISE_RAD1+Y/-159610,
+   EUROPAM_MISE_RAD1+X/-159611, EUROPAM_MISE_RAD2+Y/-159612, and
+   EUROPAM_MISE_RAD2+X/-159613 -- are place holders until a time when
+   the real values are provided. FOV = 2 Pi SR (obstructions to be
+   negotiated)
+
+   \begindata
+
+      INS-159610_FOV_FRAME                 = 'EUROPAM_MISE_RAD1'
+      INS-159610_FOV_SHAPE                 = 'POLYGON'
+      INS-159610_BORESIGHT                 = ( 0.0 0.0 1.0 )
+      INS-159610_FOV_BOUNDARY_CORNERS      = (
+
+                      0.999998476913  0.000000000000  0.001745328366
+                      0.707105704202  0.707105704202  0.001745328366
+                      0.000000000000  0.999998476913  0.001745328366
+                     -0.707105704202  0.707105704202  0.001745328366
+                     -0.999998476913  0.000000000000  0.001745328366
+                     -0.707105704202 -0.707105704202  0.001745328366
+                     -0.000000000000 -0.999998476913  0.001745328366
+                      0.707105704202 -0.707105704202  0.001745328366
+
+                                             )
+
+      INS-159611_FOV_FRAME                 = 'EUROPAM_MISE_RAD1'
+      INS-159611_FOV_SHAPE                 = 'POLYGON'
+      INS-159611_BORESIGHT                 = ( 1.0 0.0 0.0 )
+      INS-159611_FOV_BOUNDARY_CORNERS      = (
+
+                      0.001745328366  0.999998476913  0.000000000000
+                      0.001745328366  0.707105704202  0.707105704202
+                      0.001745328366  0.000000000000  0.999998476913
+                      0.001745328366 -0.707105704202  0.707105704202
+                      0.001745328366 -0.999998476913  0.000000000000
+                      0.001745328366 -0.707105704202 -0.707105704202
+                      0.001745328366 -0.000000000000 -0.999998476913
+                      0.001745328366  0.707105704202 -0.707105704202
+
+                                             )
+
+      INS-159612_FOV_FRAME                 = 'EUROPAM_MISE_RAD2'
+      INS-159612_FOV_SHAPE                 = 'POLYGON'
+      INS-159612_BORESIGHT                 = ( 0.0 0.0 1.0 )
+      INS-159612_FOV_BOUNDARY_CORNERS      = (
+
+                      0.999998476913  0.000000000000  0.001745328366
+                      0.707105704202  0.707105704202  0.001745328366
+                      0.000000000000  0.999998476913  0.001745328366
+                     -0.707105704202  0.707105704202  0.001745328366
+                     -0.999998476913  0.000000000000  0.001745328366
+                     -0.707105704202 -0.707105704202  0.001745328366
+                     -0.000000000000 -0.999998476913  0.001745328366
+                      0.707105704202 -0.707105704202  0.001745328366
+
+                                             )
+
+      INS-159613_FOV_FRAME                 = 'EUROPAM_MISE_RAD2'
+      INS-159613_FOV_SHAPE                 = 'POLYGON'
+      INS-159613_BORESIGHT                 = ( 1.0 0.0 0.0 )
+      INS-159613_FOV_BOUNDARY_CORNERS      = (
+
+                      0.001745328366  0.999998476913  0.000000000000
+                      0.001745328366  0.707105704202  0.707105704202
+                      0.001745328366  0.000000000000  0.999998476913
+                      0.001745328366 -0.707105704202  0.707105704202
+                      0.001745328366 -0.999998476913  0.000000000000
+                      0.001745328366 -0.707105704202 -0.707105704202
+                      0.001745328366 -0.000000000000 -0.999998476913
+                      0.001745328366  0.707105704202 -0.707105704202
+
+                                             )
+
+   \begintext
+
+
+MISE Keep-Out-Zone (KOZ) FOV Definitions
+
+   Based on [4], the keep out zone EUROPAM_MISE_KOZ/-159604 FOV is
+   110 degrees along track by 55 degrees cross track.
+
+   \begindata
+
+      INS-159604_FOV_FRAME                 = 'EUROPAM_MISE_BASE'
+      INS-159604_FOV_SHAPE                 = 'RECTANGLE'
+      INS-159604_BORESIGHT                 = ( 0.0, 0.0, 1.0 )
+      INS-159604_FOV_CLASS_SPEC            = 'ANGLES'
+      INS-159604_FOV_REF_VECTOR            = ( 0.0, 1.0, 0.0 )
+      INS-159604_FOV_REF_ANGLE             = ( 55.0 )
+      INS-159604_FOV_CROSS_ANGLE           = ( 27.5 )
+      INS-159604_FOV_ANGLE_UNITS           = 'DEGREES'
+
+   \begintext
+
+End of IK.

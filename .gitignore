@@ -5,13 +5,6 @@ dist/
 .DS_Store
 .env
 
-# NAIF SPICE kernels (large binaries, fetched at runtime)
-apps/viewer/test-catalogs/kernels/
-apps/viewer/test-catalogs/models/*.glb
-
-# Test kernels (large binaries)
-packages/spice/test-kernels/cassini/
-
 # TypeScript build info
 *.tsbuildinfo
 
