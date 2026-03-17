@@ -85,6 +85,38 @@ describe('CatalogLoader TLE integration', () => {
     expect(dist).toBeLessThan(7200);
   });
 
+  it('loads TLE with Nadir rotation (no SPICE)', () => {
+    const loader = new CatalogLoader();
+    const result = loader.load({
+      items: [{
+        name: 'ISS',
+        class: 'spacecraft',
+        center: 'Earth',
+        trajectory: {
+          type: 'TLE',
+          line1: ISS_LINE1,
+          line2: ISS_LINE2,
+        },
+        rotationModel: {
+          type: 'Nadir',
+          target: 'ISS',
+          center: 'Earth',
+        },
+      }],
+    });
+
+    expect(result.bodies).toHaveLength(1);
+    const iss = result.bodies[0];
+
+    // TrajectoryNadirRotation should be assigned (not undefined)
+    const et = (2460410.0 - 2451545.0) * 86400;
+    const q = iss.rotationAt(et);
+    expect(q).toBeDefined();
+    // Quaternion should be unit length
+    const len = Math.sqrt(q![0] ** 2 + q![1] ** 2 + q![2] ** 2 + q![3] ** 2);
+    expect(len).toBeCloseTo(1.0, 5);
+  });
+
   it('falls back to FixedPoint when TLE lines missing', () => {
     const loader = new CatalogLoader();
     const result = loader.load({

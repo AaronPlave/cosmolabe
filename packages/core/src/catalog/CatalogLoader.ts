@@ -15,6 +15,7 @@ import type { RotationModel } from '../rotations/RotationModel.js';
 import { UniformRotation } from '../rotations/UniformRotation.js';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 import { NadirRotation } from '../rotations/NadirRotation.js';
+import { TrajectoryNadirRotation } from '../rotations/TrajectoryNadirRotation.js';
 
 // Cosmographia catalog JSON schema types
 export interface CatalogJson {
@@ -423,7 +424,7 @@ export class CatalogLoader {
     }
 
     const trajectory = this.buildItemTrajectory(item);
-    const rotation = this.buildRotationModel(item);
+    const rotation = this.buildRotationModel(item, trajectory);
     const radii = this.extractRadii(item);
 
     const trajectoryPlot = this.parseTrajectoryPlot(item.trajectoryPlot);
@@ -639,7 +640,7 @@ export class CatalogLoader {
     }
   }
 
-  private buildRotationModel(item: CatalogItem): RotationModel | undefined {
+  private buildRotationModel(item: CatalogItem, trajectory?: Trajectory): RotationModel | undefined {
     const spec = item.rotationModel;
     if (!spec) return undefined;
 
@@ -694,13 +695,19 @@ export class CatalogLoader {
         );
 
       case 'Nadir':
-        if (!this.spice) return undefined;
-        return new NadirRotation(
-          this.spice,
-          spec.target ?? item.name,
-          spec.center ?? item.center ?? 'EARTH',
-          spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000',
-        );
+        if (this.spice) {
+          return new NadirRotation(
+            this.spice,
+            spec.target ?? item.name,
+            spec.center ?? item.center ?? 'EARTH',
+            spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000',
+          );
+        }
+        // Fall back to trajectory-based nadir when SPICE isn't available (e.g. TLE bodies)
+        if (trajectory) {
+          return new TrajectoryNadirRotation(trajectory);
+        }
+        return undefined;
 
       case 'Fixed':
       case 'FixedEuler':

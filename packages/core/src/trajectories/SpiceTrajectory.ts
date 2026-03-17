@@ -16,7 +16,7 @@ export class SpiceTrajectory implements Trajectory {
 
   stateAt(et: number): CartesianState {
     try {
-      const result = this.spice.spkezr(this.target, et, this.frame, 'LT+S', this.center);
+      const result = this.spice.spkezr(this.target, et, this.frame, 'NONE', this.center);
       return {
         position: [result.state[0], result.state[1], result.state[2]] as Vec3,
         velocity: [result.state[3], result.state[4], result.state[5]] as Vec3,

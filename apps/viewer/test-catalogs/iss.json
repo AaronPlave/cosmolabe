@@ -1,0 +1,103 @@
+{
+  "name": "ISS — TLE Orbit Demo",
+  "version": "1.0",
+  "defaultTime": "2011-02-11T09:45:00Z",
+  "items": [
+    {
+      "name": "ISS Overview",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 30000,
+      "latitude": 30,
+      "longitude": -30
+    },
+    {
+      "name": "Track ISS",
+      "type": "Viewpoint",
+      "center": "ISS",
+      "distance": 10,
+      "latitude": 15,
+      "longitude": 0
+    },
+    {
+      "name": "ISS Close-up",
+      "type": "Viewpoint",
+      "center": "ISS",
+      "distance": 0.5,
+      "latitude": 20,
+      "longitude": -45
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Earth" },
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "23.9345h",
+        "inclination": 23.44,
+        "ascendingNode": 0.0,
+        "meridianAngle": 280.147
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378,
+        "baseMap": "textures/earth-5k.jpg",
+        "atmosphere": "Earth",
+        "terrain": {
+          "type": "imagery",
+          "imagery": {
+            "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg",
+            "levels": 8
+          }
+        }
+      },
+      "label": { "color": [0.4, 0.6, 1.0] },
+      "items": [
+        {
+          "name": "Moon",
+          "class": "moon",
+          "center": "Earth",
+          "trajectory": { "type": "Builtin", "name": "Moon" },
+          "geometry": { "type": "Globe", "radius": 1737 },
+          "label": { "color": [0.7, 0.7, 0.7] }
+        },
+        {
+          "name": "ISS",
+          "class": "spacecraft",
+          "center": "Earth",
+          "trajectoryFrame": "J2000",
+          "trajectory": {
+            "type": "TLE",
+            "line1": "1 25544U 98067A   11042.40620627  .00065760  00000-0  48638-3 0  8024",
+            "line2": "2 25544  51.6440  85.8998 0004217 288.1282 194.3117 15.72311137701100"
+          },
+          "rotationModel": {
+            "type": "Nadir",
+            "target": "ISS",
+            "center": "Earth"
+          },
+          "geometry": {
+            "type": "Mesh",
+            "size": 0.1,
+            "source": "models/iss/iss.cmod"
+          },
+          "label": { "color": [1.0, 1.0, 1.0] },
+          "trajectoryPlot": {
+            "color": "#ffcc00",
+            "fade": 0.5,
+            "duration": "1.5h",
+            "visible": true
+          }
+        }
+      ]
+    }
+  ]
+}

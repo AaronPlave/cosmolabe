@@ -306,7 +306,7 @@ export class AtmosphereMesh extends THREE.Mesh {
       blendSrc: THREE.OneFactor,
       blendDst: THREE.SrcAlphaFactor,
       blendEquation: THREE.AddEquation,
-      side: THREE.FrontSide,
+      side: THREE.BackSide,
     });
 
     super(geometry, material);

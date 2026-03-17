@@ -671,12 +671,16 @@ export class BodyMesh extends THREE.Object3D {
     const TERRAIN_SHOW_PX = 80;
 
     if (screenPixels >= TERRAIN_SHOW_PX) {
-      // Show terrain, hide sphere to avoid bleed-through artifacts in tile gaps.
+      // Show terrain. Keep the static sphere visible but slightly shrunk so it
+      // sits behind tiles as a fallback during tile loading transitions.
+      // 0.5% inward (~9 km on Moon, ~32 km on Earth) clears any real topography.
+      // polygonOffset can't be used here — the log depth buffer overrides
+      // gl_FragDepth in the fragment shader, bypassing hardware polygon offset.
       if (!this.terrainVisible) {
         this.terrainManager.group.visible = true;
         this.terrainVisible = true;
       }
-      this.mesh.visible = false;
+      this.applyMeshScale(this.scaleFactor * 0.995);
 
       // Apply the same rotation as the static mesh so terrain aligns with body orientation
       this.terrainManager.group.quaternion.copy(this.mesh.quaternion);

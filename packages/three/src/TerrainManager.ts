@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { TilesRenderer } from '3d-tiles-renderer/three';
-import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, TilesFadePlugin, DebugTilesPlugin } from '3d-tiles-renderer/three/plugins';
+import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin } from '3d-tiles-renderer/three/plugins';
 
 export interface TerrainImageryConfig {
   /** XYZ tile URL template with {x}, {y}, {z} placeholders */
@@ -14,8 +14,8 @@ export interface TerrainImageryConfig {
 }
 
 export interface TerrainConfig {
-  /** Terrain source type */
-  type: 'quantized-mesh' | 'cesium-ion' | '3dtiles';
+  /** Terrain source type. 'imagery' uses XYZ image tiles projected onto an ellipsoid (no terrain mesh needed). */
+  type: 'quantized-mesh' | 'cesium-ion' | '3dtiles' | 'imagery';
   /** Base URL for quantized-mesh or 3dtiles tileset.json */
   url?: string;
   /** Cesium Ion asset ID (for type: 'cesium-ion') */
@@ -46,6 +46,7 @@ export class TerrainManager {
   readonly tiles: TilesRenderer;
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
+  private readonly isImageryOnly: boolean;
   private disposed = false;
   /** Global equirectangular normal map derived from heightmap. Applied per-tile with UV transforms. */
   private normalMap: THREE.CanvasTexture | null = null;
@@ -64,8 +65,11 @@ export class TerrainManager {
    * @param renderer WebGL renderer (needed for ImageOverlayPlugin texture rendering)
    */
   constructor(config: TerrainConfig, bodyRadiusKm: number, renderer: THREE.WebGLRenderer) {
-    // QuantizedMeshPlugin needs the base URL; it fetches layer.json itself
-    this.tiles = new TilesRenderer(config.url);
+    this.isImageryOnly = config.type === 'imagery';
+
+    // For imagery-only mode, no tileset URL needed — XYZTilesPlugin generates geometry.
+    // For terrain modes, QuantizedMeshPlugin needs the base URL (it fetches layer.json).
+    this.tiles = new TilesRenderer(this.isImageryOnly ? undefined : config.url);
 
     // Upstream bug guard: multiple plugins (QuantizedMeshPlugin, ImageOverlayPlugin)
     // access tile.children.length in disposeTile without null checks. During LRU cache
@@ -77,35 +81,44 @@ export class TerrainManager {
       },
     } as any);
 
-    if (config.type === 'quantized-mesh') {
-      this.tiles.registerPlugin(new QuantizedMeshPlugin({
-        useRecommendedSettings: true,
-      }));
-    }
-
-    // Imagery overlay: drape XYZ image tiles onto terrain geometry
-    if (config.imagery) {
-      const img = config.imagery;
-      const overlay = new XYZTilesOverlay({
+    if (this.isImageryOnly) {
+      // Imagery-only mode: XYZTilesPlugin generates ellipsoid geometry with draped image tiles.
+      // No terrain mesh needed — imagery is projected directly onto the ellipsoid surface.
+      const img = config.imagery!;
+      this.tiles.registerPlugin(new XYZTilesPlugin({
         url: img.url,
         levels: img.levels ?? 8,
-        dimension: img.dimension ?? 256,
-        projection: img.projection ?? 'EPSG:4326',
-        color: 0xffffff,
-        opacity: 1,
-      });
-      this.tiles.registerPlugin(new ImageOverlayPlugin({
-        overlays: [overlay],
-        renderer,
-        enableTileSplitting: false,
+        shape: 'ellipsoid',
+        useRecommendedSettings: true,
       }));
+    } else {
+      if (config.type === 'quantized-mesh') {
+        this.tiles.registerPlugin(new QuantizedMeshPlugin({
+          useRecommendedSettings: true,
+        }));
+      }
+
+      // Imagery overlay: drape XYZ image tiles onto terrain geometry
+      if (config.imagery) {
+        const img = config.imagery;
+        const overlay = new XYZTilesOverlay({
+          url: img.url,
+          levels: img.levels ?? 8,
+          dimension: img.dimension ?? 256,
+          projection: img.projection ?? 'EPSG:4326',
+          color: 0xffffff,
+          opacity: 1,
+        });
+        this.tiles.registerPlugin(new ImageOverlayPlugin({
+          overlays: [overlay],
+          renderer,
+          enableTileSplitting: false,
+        }));
+      }
     }
 
+    // Fade between LOD transitions to smooth color differences between zoom levels.
     this.tiles.registerPlugin(new TilesFadePlugin({ fadeDuration: 300 }));
-
-    // Debug visualization (off by default, toggle with setDebug)
-    this.debugPlugin = new DebugTilesPlugin({ displayBoxBounds: false, displayRegionBounds: false });
-    this.tiles.registerPlugin(this.debugPlugin);
 
     // Upstream bug: QuantizedMeshPlugin.expandChildren always pushes new children
     // without checking if children already exist. When a tile is evicted from the LRU
@@ -143,9 +156,15 @@ export class TerrainManager {
     // QuantizedMeshPlugin's useRecommendedSettings already sets errorTarget=2.
     if (config.errorTarget != null) {
       this.tiles.errorTarget = config.errorTarget;
+    } else if (this.isImageryOnly) {
+      // Imagery-only: match the quantized-mesh default. Going lower (e.g. 1)
+      // causes more zoom-level mixing, which shows as color seams in composite
+      // imagery sources where adjacent zoom levels have different color grading.
+      this.tiles.errorTarget = 2;
     }
     this.tiles.lruCache.maxBytesSize = config.maxCacheBytes ?? 512 * 1024 * 1024;
     this.tiles.downloadQueue.maxJobs = 12;
+    this.tiles.parseQueue.maxJobs = 6;
 
     // Upstream bug: ThreeJS TilesRenderer.disposeTile crashes when
     // engineData.geometry/materials/textures are null (tile was partially loaded
@@ -298,9 +317,12 @@ export class TerrainManager {
       '| error range:', minErr.toFixed(2), '-', maxErr.toFixed(2));
   }
 
-  /** Toggle debug tile bounds visualization */
+  /** Toggle debug tile bounds visualization. Lazily registers the plugin on first enable. */
   setDebug(show: boolean): void {
-    if (this.debugPlugin) {
+    if (show && !this.debugPlugin) {
+      this.debugPlugin = new DebugTilesPlugin({ displayBoxBounds: true, displayRegionBounds: true });
+      this.tiles.registerPlugin(this.debugPlugin);
+    } else if (this.debugPlugin) {
       this.debugPlugin.displayBoxBounds = show;
       this.debugPlugin.displayRegionBounds = show;
     }
@@ -415,7 +437,24 @@ export class TerrainManager {
     scene.traverse((child) => {
       if (!(child instanceof THREE.Mesh) || !child.material) return;
 
+      // Imagery-only tiles use MeshBasicMaterial (unlit). Swap to MeshStandardMaterial
+      // to match the placeholder sphere's lighting response.
+      if (this.isImageryOnly && child.material instanceof THREE.MeshBasicMaterial && child.material.map) {
+        const basic = child.material;
+        child.material = new THREE.MeshStandardMaterial({
+          map: basic.map,
+          transparent: false,
+          metalness: 0,
+          roughness: 0.85,
+        });
+        basic.dispose();
+        // Imagery-only tiles from XYZTilesPlugin already have correct sphere normals
+        // on their generated ellipsoid geometry — skip the expensive per-vertex blend.
+        return;
+      }
+
       // Blend vertex normals toward sphere normals for surface vertices only.
+      // (terrain tiles only — imagery-only tiles skip this via early return above)
       this.blendSphereNormals(child, 0.6);
 
       const mats = Array.isArray(child.material) ? child.material : [child.material];

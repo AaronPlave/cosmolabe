@@ -24,6 +24,7 @@ export { parseXyzv } from './trajectories/XyzvParser.js';
 export type { Quaternion, RotationModel } from './rotations/RotationModel.js';
 export { UniformRotation } from './rotations/UniformRotation.js';
 export { SpiceRotation } from './rotations/SpiceRotation.js';
+export { TrajectoryNadirRotation } from './rotations/TrajectoryNadirRotation.js';
 
 // Frames
 export type { Frame } from './frames/Frame.js';

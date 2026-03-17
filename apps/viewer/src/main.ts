@@ -453,7 +453,10 @@ for (const btn of document.querySelectorAll(".demo-btn")) {
     const name = (btn as HTMLElement).dataset.catalog;
     if (!name) return;
     // Load mission-specific kernels if needed, otherwise just generic NAIF
-    if (name === "cassini-soi") {
+    // ISS demo uses TLE (satellite.js) — no SPICE kernels needed
+    if (name === "iss") {
+      // No kernels needed — TLE propagation via satellite.js
+    } else if (name === "cassini-soi") {
       await loadCassiniKernels();
     } else if (name === "lro-moon") {
       await loadLroKernels();
@@ -519,12 +522,20 @@ function initScene(
     universe.loadCatalog(json as any);
   }
 
-  // Set initial time from catalog defaultTime (if present and SPICE is available)
+  // Set initial time from catalog defaultTime
   for (const json of catalogs) {
     const dt = (json as Record<string, unknown>).defaultTime;
-    if (typeof dt === "string" && spice) {
+    if (typeof dt === "string") {
       try {
-        const et = spice.str2et(dt);
+        let et: number;
+        if (spice) {
+          et = spice.str2et(dt);
+        } else {
+          // Fallback: parse ISO UTC string to ET without SPICE
+          // ET = seconds past J2000 (2000-01-01T12:00:00 UTC)
+          const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
+          et = (new Date(dt).getTime() - j2000Ms) / 1000;
+        }
         universe.setTime(et);
         console.log(`[SpiceCraft] Set default time: ${dt} (ET=${et.toFixed(1)})`);
       } catch (e) {
@@ -1144,7 +1155,7 @@ document.addEventListener("keydown", (e) => {
         selInstrument.value = next ?? "";
         return;
       }
-      case "/":
+      case "\\":
         e.preventDefault();
         uiHidden = !uiHidden;
         controls.style.display = uiHidden ? "none" : "";

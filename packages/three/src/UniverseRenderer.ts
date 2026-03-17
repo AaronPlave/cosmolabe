@@ -828,7 +828,7 @@ export class UniverseRenderer {
       // Initialize streaming terrain for Globe bodies with terrain config
       if (body.geometryType === 'Globe' && body.geometryData?.terrain) {
         const terrainCfg = body.geometryData.terrain as TerrainConfig;
-        if (terrainCfg.type && (terrainCfg.url || terrainCfg.cesiumIonAssetId)) {
+        if (terrainCfg.type && (terrainCfg.url || terrainCfg.cesiumIonAssetId || (terrainCfg.type === 'imagery' && terrainCfg.imagery))) {
           // Use the displacement map as a normal map source for terrain tiles.
           // Terrain tiles only have vertex normals from the mesh geometry — per-pixel
           // normals from the heightmap smooth shadow boundaries at the terminator.
