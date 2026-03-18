@@ -4,6 +4,7 @@ dist/
 *.data
 .DS_Store
 .env
+CLAUDE.md
 
 # TypeScript build info
 *.tsbuildinfo
