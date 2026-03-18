@@ -4,7 +4,7 @@ import type { StateRecord } from './InterpolatedStates.js';
 const JD_J2000 = 2451545.0;
 
 /**
- * Parses Cosmographia/Celestia .xyzv trajectory files.
+ * Parses Cosmographia .xyzv trajectory files.
  *
  * Format: one record per line (comments starting with # are skipped):
  *   JD x y z vx vy vz

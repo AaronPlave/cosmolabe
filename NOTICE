@@ -1,0 +1,92 @@
+spicecraft
+Copyright 2025
+
+This product includes software developed at or derived from the following
+projects. Their original licenses and copyrights are retained per their
+respective terms.
+
+================================================================================
+
+Cosmographia — Analytical Trajectory Theories (Apache-2.0)
+https://naif.jpl.nasa.gov/naif/cosmographia.html
+
+  Copyright (C) 2010-2011 Chris Laurel <claurel@gmail.com>
+
+  Licensed under the Apache License, Version 2.0.
+
+  The following files are ported from Cosmographia's C++ source:
+    - packages/core/src/trajectories/analytical/L1.ts
+    - packages/core/src/trajectories/analytical/Gust86.ts
+
+================================================================================
+
+Satellite Ephemeris Theories by Johannes Gajdosik (MIT)
+
+  Copyright (c) 2005-2006 Johannes Gajdosik
+
+  Permission is hereby granted, free of charge, to any person obtaining a
+  copy of this software and associated documentation files (the "Software"),
+  to deal in the Software without restriction, including without limitation
+  the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  and/or sell copies of the Software, and to permit persons to whom the
+  Software is furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included
+  in all copies or substantial portions of the Software.
+
+  The following files are ported from Johannes Gajdosik's C implementations
+  (via Chris Laurel's Cosmographia adaptations):
+    - packages/core/src/trajectories/analytical/Gust86.ts
+    - packages/core/src/trajectories/analytical/MarsSat.ts
+    - packages/core/src/trajectories/analytical/TASS17.ts
+
+================================================================================
+
+3D Tiles Renderer JS (Apache-2.0)
+https://github.com/NASA-AMMOS/3DTilesRendererJS
+
+  Copyright 2020, California Institute of Technology.
+  Licensed under the Apache License, Version 2.0.
+
+================================================================================
+
+Three.js (MIT)
+https://github.com/mrdoob/three.js
+
+  Copyright 2010-2025 three.js authors
+  Licensed under the MIT License.
+
+================================================================================
+
+satellite.js (MIT)
+https://github.com/shashwatak/satellite-js
+
+  Copyright (C) 2013 Shashwat Kandadai, UCSC Jack Baskin School of Engineering
+  Licensed under the MIT License.
+
+================================================================================
+
+TimeCraftJS (Apache-2.0)
+https://github.com/NASA-AMMOS/timecraftjs
+
+  Copyright 2020, California Institute of Technology.
+  Licensed under the Apache License, Version 2.0.
+  United States Government Sponsorship acknowledged.
+
+================================================================================
+
+NAIF SPICE Toolkit
+https://naif.jpl.nasa.gov/naif/toolkit.html
+
+  SPICE kernels and documentation are produced by the Navigation and
+  Ancillary Information Facility (NAIF) at NASA's Jet Propulsion Laboratory.
+  CSPICE is used via TimeCraftJS's WebAssembly compilation.
+
+================================================================================
+
+Draco 3D Data Compression (Apache-2.0)
+https://github.com/google/draco
+
+  Copyright 2016 The Draco Authors
+  Licensed under the Apache License, Version 2.0.
+  Used via Three.js for 3D model decompression.

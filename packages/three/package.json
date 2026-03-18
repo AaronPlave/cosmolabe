@@ -2,6 +2,7 @@
   "name": "@spicecraft/three",
   "version": "0.0.1",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Three.js rendering layer — syncs Universe to 3D scene graph",
   "type": "module",
   "main": "src/index.ts",

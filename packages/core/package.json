@@ -2,6 +2,7 @@
   "name": "@spicecraft/core",
   "version": "0.0.1",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Universe model — zero rendering dependencies. Catalog loader, trajectories, geometry.",
   "type": "module",
   "main": "src/index.ts",

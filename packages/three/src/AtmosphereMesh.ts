@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 /**
  * Atmosphere scattering parameters for a body.
- * Based on Celestia's Atmosphere struct — all scattering coefficients in 1/km.
+ * Rayleigh + Mie atmospheric scattering parameters — all coefficients in 1/km.
  */
 export interface AtmosphereParams {
   /** Mie scattering coefficient (1/km). Controls haze/dust density. */
@@ -17,7 +17,7 @@ export interface AtmosphereParams {
   absorptionCoeff: [number, number, number];
 }
 
-/** Built-in atmosphere presets from Celestia's solarsys.ssc */
+/** Built-in atmosphere presets for solar system bodies */
 const ATMOSPHERE_PRESETS: Record<string, AtmosphereParams> = {
   Earth: {
     mieCoeff: 0.0002,
@@ -96,7 +96,7 @@ const ATMOSPHERE_PRESETS: Record<string, AtmosphereParams> = {
 };
 
 // ln(0.0005) ≈ -7.60 — atmosphere extends to where density = 0.05% of surface.
-// Wider than Celestia's default (5%) for a more visible limb glow from orbital distance.
+// Wider than the typical 5% threshold for a more visible limb glow from orbital distance.
 const LOG_EXTINCTION_THRESHOLD = Math.log(0.0005);
 
 // ---- GLSL Shaders ----
@@ -300,7 +300,7 @@ export class AtmosphereMesh extends THREE.Mesh {
       transparent: true,
       depthWrite: false,
       depthTest: true,
-      // Celestia blend: finalColor = src * 1 + dst * srcAlpha
+      // Custom blend: finalColor = src * 1 + dst * srcAlpha
       // Inscattered light additive, background dimmed by transmittance
       blending: THREE.CustomBlending,
       blendSrc: THREE.OneFactor,

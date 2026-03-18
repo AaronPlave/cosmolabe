@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /**
- * Loader for Celestia/Cosmographia .cmod binary mesh files.
+ * Loader for Cosmographia .cmod binary mesh files.
  * Parses the binary format and produces Three.js BufferGeometry + MeshPhongMaterial.
  */
 
@@ -181,7 +181,7 @@ export async function parseCmod(buffer: ArrayBuffer, textureResolver?: CmodTextu
   const group = new THREE.Group();
 
   // Create Three.js materials. For metallic materials (saturated specular color in
-  // Celestia/Cosmographia format), use the specular color as diffuse so the metal
+  // Cosmographia .cmod format), use the specular color as diffuse so the metal
   // tint is visible under normal Phong lighting (consistent with other model parts).
   const threeMaterials: THREE.Material[] = materials.map(mat => {
     const [sr, sg, sb] = mat.specular;
