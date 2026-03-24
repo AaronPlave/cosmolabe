@@ -130,6 +130,27 @@
       padding: 6px 14px; cursor: pointer; font-family: monospace; font-size: 13px;
     }
     .demo-btn:hover { background: #224; }
+    #pick-btn {
+      background: #333; color: #888; border: 1px solid #555; border-radius: 4px;
+      padding: 3px 8px; cursor: pointer; font-family: monospace; font-size: 11px;
+      flex-shrink: 0;
+    }
+    #pick-btn:hover { background: #444; }
+    #pick-btn.active { background: #246; border-color: #4488ff; color: #4488ff; }
+    #pick-result {
+      position: absolute; top: 12px; right: 12px; font-size: 12px; color: #ccc;
+      z-index: 20; background: rgba(0,0,0,0.8); padding: 10px 14px; border-radius: 6px;
+      border: 1px solid #4488ff; display: none; min-width: 220px;
+    }
+    #pick-result .pick-title { color: #4488ff; font-weight: bold; margin-bottom: 6px; }
+    #pick-result .pick-row { display: flex; justify-content: space-between; gap: 16px; }
+    #pick-result .pick-label { color: #888; }
+    #pick-result .pick-val { color: #fff; text-align: right; }
+    #pick-result .pick-close {
+      position: absolute; top: 6px; right: 8px; cursor: pointer; color: #555; font-size: 14px;
+    }
+    #pick-result .pick-close:hover { color: #ccc; }
+    body.pick-mode #canvas { cursor: crosshair; }
   </style>
 </head>
 <body>
@@ -155,6 +176,7 @@
           <button class="demo-btn" data-catalog="lro-moon">LRO at Moon</button>
           <button class="demo-btn" data-catalog="europa-clipper" style="color:#f90; border-color:#f90">Europa Clipper</button>
           <button class="demo-btn" data-catalog="iss" style="color:#0f0; border-color:#0f0">ISS (TLE)</button>
+          <button class="demo-btn" data-catalog="msl-dingo-gap" style="color:#3f3; border-color:#3f3">MSL Dingo Gap</button>
         </div>
         <div style="margin-top:20px; border-top:1px solid #333; padding-top:16px">
           <button id="btn-load-naif" class="demo-btn" style="color:#6c6; border-color:#6c6">
@@ -170,6 +192,13 @@
     <div id="info-panel"></div>
     <div id="camera-status"></div>
     <div id="body-list"></div>
+    <div id="pick-result">
+      <span class="pick-close" id="pick-result-close">&times;</span>
+      <div class="pick-title" id="pick-result-body">Surface Pick</div>
+      <div class="pick-row"><span class="pick-label">Lat</span><span class="pick-val" id="pick-lat">—</span></div>
+      <div class="pick-row"><span class="pick-label">Lon</span><span class="pick-val" id="pick-lon">—</span></div>
+      <div class="pick-row"><span class="pick-label">Alt</span><span class="pick-val" id="pick-alt">—</span></div>
+    </div>
 
     <div id="controls" class="hidden">
       <div id="time-bar">
@@ -236,6 +265,8 @@
             <option value="">Off</option>
           </select>
         </label>
+        <span style="color:#555;">|</span>
+        <button id="pick-btn" title="Pick surface point (click to toggle)">&#x271A; Pick</button>
       </div>
       <div class="time-shortcut-hint">
         Space: play/pause &middot; &larr;/&rarr;: step &middot; [/]: speed &middot; R: reverse &middot; F: fly to &middot; T: orbits &middot; L: labels &middot; I: instrument PiP &middot; /: hide UI

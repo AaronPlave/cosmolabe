@@ -126,13 +126,17 @@ export class TerrainManager {
     // is re-loaded, expandChildren creates duplicates. The old children have .traversal
     // (from preprocessing) but the new ones don't, causing TypeError crashes in the
     // traversal that silently abort the entire update cycle — no tiles get queued.
+    //
+    // Fix: skip only if all 4 quadtree children are present. If < 4, some virtual
+    // children were removed during eviction — clear and re-expand to fill the gaps.
+    // The cleared children get re-preprocessed on the next traversal cycle.
     const qmPlugin = (this.tiles as any).getPluginByName('QUANTIZED_MESH_PLUGIN');
     if (qmPlugin && qmPlugin.expandChildren) {
       const origExpand = qmPlugin.expandChildren.bind(qmPlugin);
       qmPlugin.expandChildren = (tile: any) => {
-        // Children from the first load are still valid after eviction/re-load.
-        // The quadtree structure (x/y/z) doesn't change, so skip re-expansion.
-        if (tile.children && tile.children.length > 0) return;
+        if (tile.children && tile.children.length >= 4) return;
+        // Clear partial children to prevent duplicates, then re-expand.
+        tile.children = [];
         origExpand(tile);
       };
     }
@@ -140,6 +144,11 @@ export class TerrainManager {
     // Customize tile materials as they load
     this.tiles.addEventListener('load-model', (event: { scene: THREE.Object3D; tile: any }) => {
       this.customizeTileMaterial(event.scene, event.tile);
+    });
+
+    // Log tile load errors — helps diagnose terrain culling at deep zoom levels
+    this.tiles.addEventListener('load-error', (event: any) => {
+      console.warn('[SpiceCraft:Terrain] Tile load error:', event.url, event.error?.message);
     });
 
     // Load heightmap and generate per-pixel normal map for terrain tiles.
@@ -250,7 +259,10 @@ export class TerrainManager {
       this.terrainCam = new THREE.PerspectiveCamera(mainCam.fov, mainCam.aspect, terrainNear, terrainFar);
     }
     const tc = this.terrainCam;
-    tc.fov = mainCam.fov;
+    // Use a wider FOV than the main camera so terrain tiles load beyond the
+    // view edges. At close range (near surface), camera rotation can quickly
+    // expose new terrain; pre-loading with a wider frustum prevents gaps.
+    tc.fov = Math.min(mainCam.fov * 1.5, 120);
     tc.aspect = mainCam.aspect;
     tc.near = terrainNear;
     tc.far = terrainFar;
@@ -262,16 +274,24 @@ export class TerrainManager {
     this.tiles.setCamera(tc);
     this.tiles.setResolutionFromRenderer(tc, renderer);
 
-    // Coverage camera: looks from main camera toward the body center.
-    // Ensures tiles load for the body's visible hemisphere even when the main
-    // camera is tracking a different body and isn't facing this one directly.
+    // Coverage cameras: ensure tiles load for the full visible hemisphere.
+    // At close range (near surface), the terrain camera only sees ±45° from
+    // the view direction, missing terrain at the sides and horizon. Two wide
+    // coverage cameras cover the full sphere:
+    //   1. Nadir camera: 178° FOV looking at body center → covers 0°-89° from nadir
+    //   2. Zenith camera: 178° FOV looking away from body center → covers horizon+
+    // Together they ensure no terrain gap at the horizon (90° from nadir).
     if (bodyWorldPos) {
       if (!this.coverageCam) {
-        this.coverageCam = new THREE.PerspectiveCamera(90, 1, terrainNear, terrainFar);
+        this.coverageCam = new THREE.PerspectiveCamera(178, 1, terrainNear, terrainFar);
       }
       const cc = this.coverageCam;
-      cc.near = terrainNear;
-      cc.far = terrainFar;
+      // Coverage camera looks toward body center. When near the surface, tiles
+      // directly below are at ~0 distance — terrainNear (computed for the
+      // horizontal terrain camera) would clip them. Use a much smaller near
+      // so all surface tiles pass the frustum test.
+      cc.near = Math.max(1e-10, terrainNear * 0.001);
+      cc.far = Math.max(distToBody * 2, terrainFar);
       cc.updateProjectionMatrix();
       cc.position.copy(_camPos);
       cc.up.copy(camera.up);
@@ -286,6 +306,70 @@ export class TerrainManager {
     } catch (e) {
       console.error('[SpiceCraft] tiles.update() crashed:', e);
     }
+  }
+
+  /**
+   * Sample terrain elevation at a given geodetic position by finding the closest
+   * loaded terrain vertex. Returns height in km above the reference sphere, or null
+   * if no terrain is loaded near that position.
+   *
+   * Also returns the angular distance (degrees) of the closest vertex for diagnostics.
+   */
+  sampleElevationKm(latDeg: number, lonDeg: number, bodyRadiusKm: number): { elevationKm: number; angularDistDeg: number } | null {
+    const lat = latDeg * Math.PI / 180;
+    const lon = lonDeg * Math.PI / 180;
+    const cosLat = Math.cos(lat);
+    const sinLat = Math.sin(lat);
+    const cosLon = Math.cos(lon);
+    const sinLon = Math.sin(lon);
+
+    // Target direction in ECEF Z-up (unit vector)
+    const targetX = cosLat * cosLon;
+    const targetY = cosLat * sinLon;
+    const targetZ = sinLat;
+
+    let closestDist = Infinity;
+    let closestRadiusKm = 0;
+
+    // tiles.group.matrixWorld⁻¹ × child.matrixWorld gives us the child's
+    // transform in tiles.group's child space, which is ECEF meters Z-up
+    // (that's what the QuantizedMeshLoader outputs).
+    const groupInv = new THREE.Matrix4().copy(this.tiles.group.matrixWorld).invert();
+    const localMat = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+
+    this.tiles.group.traverse((child: any) => {
+      if (!child.isMesh || !child.geometry) return;
+      const pos = child.geometry.getAttribute('position');
+      if (!pos) return;
+
+      localMat.multiplyMatrices(groupInv, child.matrixWorld);
+
+      // Sample every 4th vertex to keep per-frame cost reasonable.
+      // At step=4, each 65×65 tile contributes ~1056 samples — still dense
+      // enough to find a vertex within ~0.01° of any target lat/lon.
+      for (let i = 0; i < pos.count; i += 4) {
+        v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+        v.applyMatrix4(localMat);
+        // v is now in ECEF meters, Z-up
+        const r = v.length();
+        if (r < 1) continue;
+        // Direction in ECEF Z-up
+        const dx = v.x / r - targetX;
+        const dy = v.y / r - targetY;
+        const dz = v.z / r - targetZ;
+        const angDist = dx * dx + dy * dy + dz * dz;
+        if (angDist < closestDist) {
+          closestDist = angDist;
+          closestRadiusKm = r / 1000;
+        }
+      }
+    });
+
+    if (closestDist === Infinity) return null;
+    // angDist² ≈ 2(1 - cos θ) ≈ θ² for small θ; convert to degrees
+    const angularDistDeg = Math.sqrt(closestDist) * (180 / Math.PI);
+    return { elevationKm: closestRadiusKm - bodyRadiusKm, angularDistDeg };
   }
 
   /** Log tile renderer stats to console for debugging */
@@ -434,6 +518,11 @@ export class TerrainManager {
    * Set material properties on a loaded tile, blend normals toward sphere, and apply normal map.
    */
   private customizeTileMaterial(scene: THREE.Object3D, tile: any): void {
+    // Disable Three.js frustum culling — TilesRenderer handles visibility.
+    // The main camera's extreme near/far ratio (up to 10^14 with log depth)
+    // can produce degenerate frustum planes that incorrectly cull tiles.
+    scene.traverse((child) => { child.frustumCulled = false; });
+
     scene.traverse((child) => {
       if (!(child instanceof THREE.Mesh) || !child.material) return;
 

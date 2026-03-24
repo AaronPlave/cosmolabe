@@ -5,6 +5,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
+import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import type { Body } from '@spicecraft/core';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
@@ -28,6 +29,60 @@ function isDDSMagic(buffer: ArrayBuffer): boolean {
 }
 
 const _tmpQ = new THREE.Quaternion();
+
+// ---- Eclipse shadow GLSL injection ----
+// Injected into body material shaders via onBeforeCompile.
+// Ray-sphere approach: cast a ray from each fragment toward the sun and test
+// intersection against each occluder sphere. Computes smooth umbra/penumbra
+// using the sun's angular radius at the occluder distance.
+
+const SHADOW_FRAG_PARS = /* glsl */`
+varying vec3 vShadowWorldPos;
+uniform vec3  uSunWorldPos;
+uniform float uSunRadius;
+uniform vec3  uShadowOccluderPos[4];
+uniform float uShadowOccluderRadius[4];
+uniform float uShadowOccluderCount;
+
+float computeEclipseShadow() {
+  vec3 toSun = uSunWorldPos - vShadowWorldPos;
+  float distToSun = length(toSun);
+  if (distToSun < 1e-20) return 1.0;
+  vec3 rayDir = toSun / distToSun;
+  float shadowFactor = 1.0;
+  for (int i = 0; i < 4; i++) {
+    if (float(i) >= uShadowOccluderCount) break;
+    vec3 toOcc = uShadowOccluderPos[i] - vShadowWorldPos;
+    float t = dot(toOcc, rayDir);
+    if (t < 1e-10 || t > distToSun) continue;
+    float closestDist = length(toOcc - rayDir * t);
+    float innerR = max(0.0, uShadowOccluderRadius[i] - uSunRadius * (t / distToSun));
+    float outerR = uShadowOccluderRadius[i] + uSunRadius * (t / distToSun);
+    if (closestDist > outerR) continue;
+    shadowFactor *= (1.0 - smoothstep(innerR, outerR, closestDist));
+  }
+  return shadowFactor;
+}
+`;
+
+function injectShadowIntoShader(
+  shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> },
+  shadowUniforms: Record<string, { value: unknown }>,
+): void {
+  Object.assign(shader.uniforms, shadowUniforms);
+  // Vertex: declare varying + set world position after project_vertex (always present)
+  shader.vertexShader = 'varying vec3 vShadowWorldPos;\n' +
+    shader.vertexShader.replace(
+      '#include <project_vertex>',
+      '#include <project_vertex>\nvShadowWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+    );
+  // Fragment: prepend shadow function, attenuate outgoingLight before opaque output
+  shader.fragmentShader = SHADOW_FRAG_PARS +
+    shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      'outgoingLight *= computeEclipseShadow();\n#include <opaque_fragment>',
+    );
+}
 
 export class BodyMesh extends THREE.Object3D {
   readonly body: Body;
@@ -53,6 +108,20 @@ export class BodyMesh extends THREE.Object3D {
   private terrainManager: TerrainManager | null = null;
   /** Whether terrain tiles are currently visible (vs static sphere fallback) */
   private terrainVisible = false;
+  /** Surface tile overlays (local-frame tilesets positioned on the globe) */
+  private surfaceOverlays: SurfaceTileOverlay[] = [];
+  /** Frame counter for throttling terrain elevation sampling */
+  private terrainSampleFrame = 0;
+  /** Whether eclipse shadow receiving is enabled on this body's materials */
+  private shadowEnabled = false;
+  /** Shared uniform values — patched into every compiled shader by reference */
+  private readonly shadowUniforms = {
+    uSunWorldPos:          { value: new THREE.Vector3() },
+    uSunRadius:            { value: 0 },
+    uShadowOccluderPos:    { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] },
+    uShadowOccluderRadius: { value: new Float32Array(4) },
+    uShadowOccluderCount:  { value: 0.0 },
+  };
   /**
    * Axis ratios for triaxial ellipsoid in geometry space [geoX, geoY, geoZ].
    * Maps body-fixed [rx, ry, rz] → geometry axes accounting for the Globe pre-rotation
@@ -62,6 +131,7 @@ export class BodyMesh extends THREE.Object3D {
 
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
+  get hasShadowReceiving(): boolean { return this.shadowEnabled; }
 
   /** Apply a multiplier on top of the model's base scale (for minBodyPixels) */
   setModelScale(multiplier: number): void {
@@ -245,17 +315,21 @@ export class BodyMesh extends THREE.Object3D {
           });
         }
         const mats = Array.isArray(child.material) ? child.material : [child.material];
+        const receiveShadow = this.shadowEnabled;
+        const su = this.shadowUniforms;
         for (const mat of mats) {
-          // Strip log depth chunks — model uses standard hardware depth
-          mat.onBeforeCompile = (shader: { vertexShader: string; fragmentShader: string }) => {
+          // Strip log depth chunks — model uses standard hardware depth.
+          // Also inject eclipse shadow uniforms when shadow receiving is enabled.
+          mat.onBeforeCompile = (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }) => {
             shader.vertexShader = shader.vertexShader
               .replace('#include <logdepthbuf_pars_vertex>', '')
               .replace('#include <logdepthbuf_vertex>', '');
             shader.fragmentShader = shader.fragmentShader
               .replace('#include <logdepthbuf_pars_fragment>', '')
               .replace('#include <logdepthbuf_fragment>', '');
+            if (receiveShadow) injectShadowIntoShader(shader, su);
           };
-          mat.customProgramCacheKey = () => 'model_nologdepth';
+          mat.customProgramCacheKey = () => receiveShadow ? 'model_nologdepth_shadow_v1' : 'model_nologdepth';
         }
       }
     });
@@ -265,6 +339,51 @@ export class BodyMesh extends THREE.Object3D {
     this.modelContainer = object;
     this.add(object);
 
+  }
+
+  /**
+   * Enable eclipse shadow receiving on this body's placeholder sphere material.
+   * No-op for stars and emissive bodies. Safe to call multiple times.
+   * Must be called before loadModel() for the shadow to apply to loaded models.
+   */
+  enableShadowReceiving(): void {
+    if (this.shadowEnabled) return;
+    if (this.body.classification === 'star' || this.body.geometryData?.emissive === true) return;
+    this.shadowEnabled = true;
+
+    const su = this.shadowUniforms;
+    const mat = this.mesh.material as THREE.Material & {
+      onBeforeCompile?: (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }, renderer: unknown) => void;
+      customProgramCacheKey?: () => string;
+      needsUpdate: boolean;
+    };
+
+    // Bind to mat so prototype methods (e.g. default customProgramCacheKey which reads
+    // this.onBeforeCompile) don't fail when called without a receiver.
+    const prevOBC = mat.onBeforeCompile?.bind(mat);
+    mat.onBeforeCompile = (shader, renderer) => {
+      prevOBC?.(shader, renderer);
+      injectShadowIntoShader(shader, su);
+    };
+    mat.customProgramCacheKey = () => '_shadow_v1';
+    mat.needsUpdate = true;
+  }
+
+  /** Update eclipse shadow occluder uniforms for this frame. Call after body positions are updated. */
+  setShadowOccluders(
+    occluders: { pos: THREE.Vector3; radius: number }[],
+    sunPos: THREE.Vector3,
+    sunRadius: number,
+  ): void {
+    const u = this.shadowUniforms;
+    const count = Math.min(occluders.length, 4);
+    u.uShadowOccluderCount.value = count;
+    u.uSunWorldPos.value.copy(sunPos);
+    u.uSunRadius.value = sunRadius;
+    for (let i = 0; i < count; i++) {
+      u.uShadowOccluderPos.value[i].copy(occluders[i].pos);
+      u.uShadowOccluderRadius.value[i] = occluders[i].radius;
+    }
   }
 
   /** Show or hide body-fixed orientation axes (red=X/prime meridian, green=Y, blue=Z/pole). */
@@ -305,13 +424,13 @@ export class BodyMesh extends THREE.Object3D {
     const segs = 72; // points per line (5° per segment)
 
     const gridMat = new THREE.LineBasicMaterial({
-      color: 0x88aaff, transparent: true, opacity: 0.3, depthTest: true,
+      color: 0x88aaff, transparent: true, opacity: 0.3, depthTest: true, depthWrite: false,
     });
     const equatorMat = new THREE.LineBasicMaterial({
-      color: 0xffaa44, transparent: true, opacity: 0.5, depthTest: true,
+      color: 0xffaa44, transparent: true, opacity: 0.5, depthTest: true, depthWrite: false,
     });
     const primeMeridianMat = new THREE.LineBasicMaterial({
-      color: 0xff4444, transparent: true, opacity: 0.5, depthTest: true,
+      color: 0xff4444, transparent: true, opacity: 0.5, depthTest: true, depthWrite: false,
     });
 
     // Helper: generate a latitude ring at the given angle (degrees)
@@ -607,7 +726,9 @@ export class BodyMesh extends THREE.Object3D {
       factor * this.ellipsoidRatios[1],
       factor * this.ellipsoidRatios[2],
     );
-    if (this.gridLines && this.gridVisible) {
+    // When terrain is active, grid lines are scaled separately in updateTerrain()
+    // to stay above the terrain surface (the mesh is shrunk 0.5% below terrain).
+    if (this.gridLines && this.gridVisible && !this.terrainVisible) {
       this.gridLines.scale.set(
         factor * this.ellipsoidRatios[0],
         factor * this.ellipsoidRatios[1],
@@ -619,9 +740,19 @@ export class BodyMesh extends THREE.Object3D {
   /** Whether this body has streaming terrain active */
   get hasTerrain(): boolean { return this.terrainManager !== null; }
 
+  /** Get the terrain tile group for raycasting (null if no terrain or not visible) */
+  get terrainTileGroup(): THREE.Object3D | null {
+    return this.terrainManager?.group ?? null;
+  }
+
   /** Toggle debug tile bounds on terrain */
   setTerrainDebug(show: boolean): void {
     this.terrainManager?.setDebug(show);
+  }
+
+  /** Sample terrain elevation at a given lat/lon. Returns elevation (km above reference) and angular distance, or null. */
+  sampleTerrainElevation(latDeg: number, lonDeg: number): { elevationKm: number; angularDistDeg: number } | null {
+    return this.terrainManager?.sampleElevationKm(latDeg, lonDeg, this.displayRadius) ?? null;
   }
 
   /** Log terrain tile stats to console */
@@ -682,6 +813,17 @@ export class BodyMesh extends THREE.Object3D {
       }
       this.applyMeshScale(this.scaleFactor * 0.995);
 
+      // Scale grid lines above terrain surface (not shrunk with the mesh).
+      // 0.5% above terrain clears typical topography while staying close to surface.
+      if (this.gridLines && this.gridVisible) {
+        const gridScale = this.scaleFactor * 1.005;
+        this.gridLines.scale.set(
+          gridScale * this.ellipsoidRatios[0],
+          gridScale * this.ellipsoidRatios[1],
+          gridScale * this.ellipsoidRatios[2],
+        );
+      }
+
       // Apply the same rotation as the static mesh so terrain aligns with body orientation
       this.terrainManager.group.quaternion.copy(this.mesh.quaternion);
       // Apply scene scale factor to the terrain group
@@ -713,6 +855,109 @@ export class BodyMesh extends THREE.Object3D {
       this.terrainManager.group.visible = false;
       this.terrainVisible = false;
       this.mesh.visible = true;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Surface tile overlays (local-frame tilesets positioned on the globe)
+  // ---------------------------------------------------------------------------
+
+  get hasSurfaceTiles(): boolean { return this.surfaceOverlays.length > 0; }
+
+  /** Get all surface tile overlays (for CRR render pass). */
+  getSurfaceOverlays(): SurfaceTileOverlay[] {
+    return this.surfaceOverlays;
+  }
+
+  /**
+   * Create a surface tile overlay for this body (e.g. Dingo Gap high-res terrain).
+   * The overlay group is NOT added to this BodyMesh — the caller (UniverseRenderer)
+   * adds it to a separate scene for camera-relative rendering.
+   */
+  addSurfaceTiles(config: SurfaceTileConfig, renderer: THREE.WebGLRenderer): SurfaceTileOverlay {
+    const overlay = new SurfaceTileOverlay(config, this.displayRadius, renderer);
+    this.surfaceOverlays.push(overlay);
+    overlay.group.visible = false;
+    return overlay;
+  }
+
+  /**
+   * Per-frame update for surface tile overlays. Sets the correct world-space
+   * transform (body position + rotation + scale) for TilesRenderer LOD/frustum
+   * computation, then streams tiles. The CRR render pass in UniverseRenderer
+   * later overrides the position for camera-relative rendering.
+   *
+   * Note: overlay groups live in a separate tileScene (not parented to this
+   * BodyMesh), so we must set position explicitly.
+   */
+  updateSurfaceTiles(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number): void {
+    if (this.surfaceOverlays.length === 0) return;
+    this.terrainSampleFrame++;
+
+    // Show surface tiles earlier than terrain — start loading tiles when the body
+    // is at least 20 px on screen so they're ready by the time the user zooms in.
+    const visible = screenPixels >= 20;
+    for (const overlay of this.surfaceOverlays) {
+      overlay.group.visible = visible;
+      if (!visible) continue;
+
+      // Terrain-following: adjust tile altitude to match visible terrain surface.
+      // At coarse LOD the terrain may not resolve deep features (e.g. Gale Crater),
+      // so the tile's configured altitude can be far below the visible terrain.
+      // Query terrain elevation and shift the tile radially during CRR to match.
+      // Throttled to every 10 frames — sampleElevationKm traverses all terrain
+      // vertices, which is expensive. Smoothing handles gradual changes fine.
+      if (this.terrainSampleFrame % 10 === 0) {
+        const terrainSample = this.sampleTerrainElevation(overlay.lat, overlay.lon);
+        if (terrainSample != null && terrainSample.angularDistDeg < 0.5) {
+          // Good terrain sample — smoothly approach the target altitude
+          const target = terrainSample.elevationKm - overlay.altitudeOffset + 0.01;
+          overlay.terrainAdjustKm += (target - overlay.terrainAdjustKm) * 0.1;
+        }
+        // else: keep previous adjustment — don't jump based on far-away samples
+      }
+
+      // Set full world transform for LOD computation (no parent provides position).
+      // Apply the terrain radial adjustment here too, so TilesRenderer's frustum
+      // culling and SSE computation use the adjusted position — not the configured
+      // altitude which may be km below the visible terrain at coarse LOD.
+      overlay.group.position.copy(this.position);
+      if (overlay.terrainAdjustKm !== 0) {
+        const ecefLen = overlay.ecefPositionKm.length();
+        if (ecefLen > 0) {
+          const adjustScene = overlay.terrainAdjustKm * this.scaleFactor;
+          // Radial direction: ECEF position normalized, rotated to world frame
+          const rx = overlay.ecefPositionKm.x / ecefLen;
+          const ry = overlay.ecefPositionKm.y / ecefLen;
+          const rz = overlay.ecefPositionKm.z / ecefLen;
+          // Apply body quaternion to get world-frame direction (inline to avoid allocation)
+          const q = this.mesh.quaternion;
+          const ix = q.w * rx + q.y * rz - q.z * ry;
+          const iy = q.w * ry + q.z * rx - q.x * rz;
+          const iz = q.w * rz + q.x * ry - q.y * rx;
+          const iw = -q.x * rx - q.y * ry - q.z * rz;
+          const wx = ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y;
+          const wy = iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z;
+          const wz = iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x;
+          overlay.group.position.x += wx * adjustScene;
+          overlay.group.position.y += wy * adjustScene;
+          overlay.group.position.z += wz * adjustScene;
+        }
+      }
+      overlay.group.quaternion.copy(this.mesh.quaternion);
+      overlay.group.scale.setScalar(this.scaleFactor);
+      overlay.group.updateMatrixWorld(true);
+
+      overlay.update(camera, renderer);
+    }
+  }
+
+  /** Restore overlay group transforms to parented mode after CRR render pass. */
+  updateSurfaceTileTransforms(): void {
+    for (const overlay of this.surfaceOverlays) {
+      overlay.group.quaternion.copy(this.mesh.quaternion);
+      overlay.group.scale.setScalar(this.scaleFactor);
+      overlay.group.updateMatrixWorld(true);
     }
   }
 
@@ -1036,6 +1281,8 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   dispose(): void {
+    for (const overlay of this.surfaceOverlays) overlay.dispose();
+    this.surfaceOverlays.length = 0;
     this.terrainManager?.dispose();
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();

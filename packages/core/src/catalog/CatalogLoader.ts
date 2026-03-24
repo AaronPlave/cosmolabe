@@ -683,7 +683,11 @@ export class CatalogLoader {
         const frameName = spec.name ?? `IAU_${item.name.toUpperCase()}`;
         // "IAU Moon" → "IAU_MOON"
         const normalized = frameName.replace(/\s+/g, '_').toUpperCase();
-        return new SpiceRotation(this.spice, normalized);
+        // Use the trajectory's inertial frame so the rotation matches body positions.
+        // Without this, a body with trajectoryFrame=J2000 but rotation in ECLIPJ2000
+        // creates a ~23.4° offset (ecliptic obliquity).
+        const inertialFrame = item.trajectoryFrame ?? 'ECLIPJ2000';
+        return new SpiceRotation(this.spice, normalized, inertialFrame);
       }
 
       case 'Spice':

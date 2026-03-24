@@ -1,6 +1,6 @@
 // Main renderer
 export { UniverseRenderer } from './UniverseRenderer.js';
-export type { UniverseRendererOptions } from './UniverseRenderer.js';
+export type { UniverseRendererOptions, SurfacePickResult } from './UniverseRenderer.js';
 
 // Scene components
 export { BodyMesh } from './BodyMesh.js';
@@ -34,6 +34,8 @@ export type { KeyboardControlsConfig } from './controls/KeyboardControls.js';
 // Terrain
 export { TerrainManager } from './TerrainManager.js';
 export type { TerrainConfig, TerrainImageryConfig } from './TerrainManager.js';
+export { SurfaceTileOverlay, SURFACE_TILE_LAYER } from './SurfaceTileOverlay.js';
+export type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 
 // Plugin interface
 export type { RendererPlugin } from './plugins/RendererPlugin.js';

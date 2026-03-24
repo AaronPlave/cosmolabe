@@ -13,7 +13,24 @@ import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
 import { CameraController } from './controls/CameraController.js';
 import { TimeController } from './controls/TimeController.js';
 import type { TerrainConfig } from './TerrainManager.js';
+import type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
+
+// Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
+const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
+const _clampTmpVec2 = /* @__PURE__ */ new THREE.Vector3();
+const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
+
+export interface SurfacePickResult {
+  /** Name of the body that was clicked */
+  bodyName: string;
+  /** Geodetic latitude in degrees (positive north) */
+  latDeg: number;
+  /** Geodetic longitude in degrees (positive east) */
+  lonDeg: number;
+  /** Altitude above the reference sphere in km */
+  altKm: number;
+}
 
 export interface UniverseRendererOptions {
   /** km → scene units. Default 1e-6 (1 km = 0.000001 scene units) for solar system scale */
@@ -57,7 +74,7 @@ export class UniverseRenderer {
   readonly timeController: TimeController;
 
   private readonly universe: Universe;
-  private readonly scaleFactor: number;
+  readonly scaleFactor: number;
   private readonly minBodyPixels: number;
   private readonly bodyMeshes = new Map<string, BodyMesh>();
   private readonly trajectoryLines = new Map<string, TrajectoryLine>();
@@ -78,6 +95,20 @@ export class UniverseRenderer {
   private readonly labelContainer: HTMLDivElement;
   private _dblClickRaycaster: THREE.Raycaster | null = null;
   private instrumentView: InstrumentView | null = null;
+  /** Separate scene for camera-relative rendering of surface tile overlays. */
+  private readonly tileScene: THREE.Scene;
+  /** Separate scene rendered last so the pick marker is never overdrawn by tileScene/models. */
+  private readonly _markerScene: THREE.Scene;
+  /** Pick marker: a constant-screen-space dot at the last picked surface point. */
+  private _pickMarker: THREE.Points | null = null;
+  private _pickMarkerInfo: SurfacePickResult | null = null;
+  private _renderDebugFrame = 0;
+  /** Sun radius in km — used for eclipse penumbra computation */
+  private readonly _sunRadiusKm = 695700;
+  /** Bodies smaller than this (km) are never eclipse occluders */
+  private readonly _shadowMinOccluderKm = 100;
+  /** Per-body occluder list, rebuilt each frame by updateShadowOccluders() */
+  private readonly _shadowOccluderCache = new Map<string, { pos: THREE.Vector3; radius: number }[]>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -105,6 +136,14 @@ export class UniverseRenderer {
     this.ambientLight = new THREE.AmbientLight(0x080808);
     this.ambientLight.layers.enableAll();
     this.scene.add(this.ambientLight);
+
+    // Separate scene for surface tile CRR rendering.
+    // Full ambient light: surface tiles are photogrammetric with baked lighting.
+    this.tileScene = new THREE.Scene();
+    this.tileScene.add(new THREE.AmbientLight(0xffffff, 1));
+
+    // Marker scene renders last so it's never overdrawn by tileScene/model passes.
+    this._markerScene = new THREE.Scene();
 
     // Camera
     this.camera = new THREE.PerspectiveCamera(
@@ -266,9 +305,12 @@ export class UniverseRenderer {
           // Fade in model between 2-5px
           const opacity = Math.min(1, (screenPixels - MODEL_SHOW_PX) / (MODEL_FADE_PX - MODEL_SHOW_PX));
           bm.setModelOpacity(opacity);
+        } else if (this.minBodyPixels > 0) {
+          // Too small for model: show placeholder as a dot (respects minBodyPixels)
+          bm.setModelVisible(false);
+          bm.mesh.visible = true;
         } else {
-          // Too small: hide model and placeholder (placeholder displayRadius
-          // doesn't match model size, e.g. 10km sphere for a 6m spacecraft)
+          // No minBodyPixels: hide everything when too small
           bm.setModelVisible(false);
           bm.mesh.visible = false;
         }
@@ -284,6 +326,9 @@ export class UniverseRenderer {
         bm.applyMeshScale(this.scaleFactor);
       }
     }
+
+    // Update pick marker world position (tracks body rotation/position each frame)
+    this._updatePickMarkerPosition();
 
     // Update ring positions (follow parent body position and rotation)
     for (const [, { ring, parentName }] of this.ringMeshes) {
@@ -403,6 +448,15 @@ export class UniverseRenderer {
       if (sun) this.sunLight.position.copy(sun.position);
     }
 
+    this.updateShadowOccluders();
+
+    // Pass terrain elevation to camera controller for terrain-aware zoom targeting
+    {
+      const originName = this.cameraController.originBody?.body.name;
+      const cached = originName ? this._terrainClampCache.get(originName) : undefined;
+      this.cameraController.terrainElevationKm = cached?.elevationKm ?? 0;
+    }
+
     // Adapt camera speeds to altitude above nearest body (before controls process input)
     this.cameraController.adaptSpeeds(this.bodyMeshes.values(), this.scaleFactor);
 
@@ -417,8 +471,12 @@ export class UniverseRenderer {
       plugin.onRender?.(et, this.scene, this.camera, this.universe);
     }
 
-    // Dynamic near/far: adjust based on distance to orbit target
-    const camDist = this.camera.position.distanceTo(this.cameraController.controls.target);
+    // Dynamic near/far: adjust based on distance to orbit target.
+    // When using surface-target zoom, camDist can be very small (altitude above terrain).
+    // Use distance to origin body center as a floor to keep near/far sane for rendering.
+    const camDistTarget = this.camera.position.distanceTo(this.cameraController.controls.target);
+    const camDistOrigin = this.camera.position.length(); // distance to origin (tracked body)
+    const camDist = Math.max(camDistTarget, camDistOrigin * 0.001);
     this.camera.near = Math.max(1e-12, camDist * 1e-5);
     this.camera.far = Math.max(1e6, camDist * 1e6);
     this.camera.updateProjectionMatrix();
@@ -430,17 +488,19 @@ export class UniverseRenderer {
     // we must explicitly update its world matrix).
     this.camera.updateMatrixWorld();
     for (const bm of this.bodyMeshes.values()) {
-      if (bm.hasTerrain) {
+      if (bm.hasTerrain || bm.hasSurfaceTiles) {
         bm.updateMatrixWorld(true);
         const dist = bm.position.distanceTo(this.camera.position);
         const realSceneRadius = bm.displayRadius * this.scaleFactor;
         const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
-        bm.updateTerrain(this.camera, this.renderer, screenPx);
+        if (bm.hasTerrain) bm.updateTerrain(this.camera, this.renderer, screenPx);
+        if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
       }
     }
 
     // --- Multi-pass rendering ---
     this.renderer.autoClear = false;
+    this._renderDebugFrame++;
 
     // Pass 1: Scene without models (layers 0 + 2) — log depth for cosmic scale
     // Layer 0 = bodies/globes/stars/atmosphere, Layer 2 = overlays (trajectories, frustums)
@@ -449,9 +509,72 @@ export class UniverseRenderer {
     this.renderer.clear(true, true, true);
     this.renderer.render(this.scene, this.camera);
 
-    // Pass 2: Models only (layer 1) — standard depth with tight near/far
-    // Models strip the logdepthbuf shader chunks so hardware depth interpolation
-    // handles intra-model face sorting with full float32 precision.
+    // Pass 1.5: Surface tiles — camera-relative rendering in separate scene.
+    // Surface tiles live in tileScene (not the main scene) to avoid layer/z-fighting
+    // issues with terrain. Positions are computed in float64, camera is moved to
+    // origin, and the small delta is cast to float32 for the GPU. Depth is cleared
+    // so tiles composite on top of Pass 1's terrain.
+    {
+      let hasVisibleTiles = false;
+      let minTileDist = Infinity;
+      let maxTileDist = 0;
+
+      for (const bm of this.bodyMeshes.values()) {
+        if (!bm.hasSurfaceTiles) continue;
+        for (const overlay of bm.getSurfaceOverlays()) {
+          if (!overlay.group.visible) continue;
+          const d = overlay.distanceTo(
+            this.camera.position, bm.position,
+            bm.mesh.quaternion, this.scaleFactor,
+          );
+          if (d > 0) {
+            hasVisibleTiles = true;
+            if (d < minTileDist) minTileDist = d;
+            if (d > maxTileDist) maxTileDist = d;
+          }
+        }
+      }
+
+      if (hasVisibleTiles) {
+        const savedPos = this.camera.position.clone();
+        const savedNear = this.camera.near;
+        const savedFar = this.camera.far;
+
+        // Tight near/far for full depth precision on small surface geometry
+        this.camera.near = Math.max(1e-10, minTileDist * 0.01);
+        this.camera.far = Math.max(maxTileDist * 10, minTileDist * 1000);
+        this.camera.position.set(0, 0, 0);
+        this.camera.updateMatrixWorld(true);
+        this.camera.updateProjectionMatrix();
+
+        // Apply camera-relative transforms: body center offset from saved camera pos
+        for (const bm of this.bodyMeshes.values()) {
+          if (!bm.hasSurfaceTiles) continue;
+          for (const overlay of bm.getSurfaceOverlays()) {
+            if (!overlay.group.visible) continue;
+            overlay.setCameraRelativeTransform(
+              bm.position, bm.mesh.quaternion,
+              this.scaleFactor, savedPos,
+            );
+          }
+        }
+
+        // Render only the tile scene (separate from main scene) with cleared depth
+        this.renderer.clearDepth();
+        this.renderer.render(this.tileScene, this.camera);
+
+        // Restore camera
+        this.camera.position.copy(savedPos);
+        this.camera.near = savedNear;
+        this.camera.far = savedFar;
+        this.camera.updateMatrixWorld(true);
+        this.camera.updateProjectionMatrix();
+      }
+    }
+
+    // Pass 2: Models (layer 1) — standard depth with tight near/far
+    // Models strip logdepthbuf shader chunks so hardware depth interpolation
+    // handles face sorting with full float32 precision.
     let hasVisibleModels = false;
     let minModelDist = Infinity;
     let maxModelDist = 0;
@@ -505,6 +628,11 @@ export class UniverseRenderer {
       } catch (err) {
         console.warn('[SpiceCraft] Instrument PiP render error:', err);
       }
+    }
+
+    // Final pass: pick marker — always on top of every other pass.
+    if (this._pickMarker) {
+      this.renderer.render(this._markerScene, this.camera);
     }
   }
 
@@ -690,16 +818,279 @@ export class UniverseRenderer {
     this.labelManager?.setAllVisible(visible);
   }
 
-  /** Push camera out if it's inside any body's surface sphere. */
+  /** Place (or clear) a constant screen-space dot at a picked surface point. */
+  setPickMarker(result: SurfacePickResult | null): void {
+    // Remove old marker
+    if (this._pickMarker) {
+      this._markerScene.remove(this._pickMarker);
+      (this._pickMarker.material as THREE.Material).dispose();
+      this._pickMarker.geometry.dispose();
+      this._pickMarker = null;
+    }
+    this._pickMarkerInfo = result;
+    if (!result) return;
+
+    // Build a circular dot texture on a small canvas
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const r = size / 2;
+    ctx.beginPath();
+    ctx.arc(r, r, r - 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#ff3333';
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    const tex = new THREE.CanvasTexture(canvas);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+    const mat = new THREE.PointsMaterial({
+      size: 14,
+      sizeAttenuation: false,
+      map: tex,
+      alphaTest: 0.1,
+      transparent: true,
+      depthTest: false,       // always render on top
+    });
+    this._pickMarker = new THREE.Points(geo, mat);
+    this._markerScene.add(this._pickMarker);
+    // Position immediately so it doesn't flash at origin
+    this._updatePickMarkerPosition();
+  }
+
+  private _updatePickMarkerPosition(): void {
+    if (!this._pickMarker || !this._pickMarkerInfo) return;
+    const { bodyName, latDeg, lonDeg, altKm } = this._pickMarkerInfo;
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm) return;
+
+    const latRad = latDeg * (Math.PI / 180);
+    const lonRad = lonDeg * (Math.PI / 180);
+    const r = bm.displayRadius + altKm;
+
+    // lat/lon/alt → ECEF Z-up km
+    const ecefX = r * Math.cos(latRad) * Math.cos(lonRad);
+    const ecefY = r * Math.cos(latRad) * Math.sin(lonRad);
+    const ecefZ = r * Math.sin(latRad);
+
+    // ECEF Z-up → body-fixed geometry Y-up (inverse of pickSurface conversion)
+    // geoX=ecefX, geoY=ecefZ(pole), geoZ=-ecefY
+    const geom = new THREE.Vector3(ecefX, ecefZ, -ecefY);
+
+    // Rotate body-fixed → inertial, scale to scene units, translate to world pos
+    geom.applyQuaternion(bm.mesh.quaternion)
+        .multiplyScalar(this.scaleFactor)
+        .add(bm.position);
+
+    this._pickMarker.position.copy(geom);
+  }
+
+  /**
+   * Raycast from an NDC coordinate against all body surfaces, terrain tiles, and surface tile
+   * overlays. Returns geodetic lat/lon/altitude on the closest hit, or null if nothing is hit.
+   * @param ndcX - Normalized device X (-1 = left, +1 = right)
+   * @param ndcY - Normalized device Y (-1 = bottom, +1 = top)
+   */
+  pickSurface(ndcX: number, ndcY: number): SurfacePickResult | null {
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2(ndcX, ndcY);
+    raycaster.setFromCamera(ndc, this.camera);
+
+    // Main scene: globe sphere meshes + terrain tile groups
+    const mainTargets: THREE.Object3D[] = [];
+    for (const bm of this.bodyMeshes.values()) {
+      if (bm.mesh.visible) mainTargets.push(bm.mesh);
+      const tg = bm.terrainTileGroup;
+      if (tg && tg.visible) mainTargets.push(tg);
+    }
+    const mainHits = raycaster.intersectObjects(mainTargets, true);
+
+    // tileScene: surface tile overlays use camera-relative rendering (CRR).
+    // In tileScene space the camera is at origin, so shift ray origin to (0,0,0).
+    const tileRaycaster = new THREE.Raycaster();
+    tileRaycaster.setFromCamera(ndc, this.camera);
+    tileRaycaster.ray.origin.set(0, 0, 0);
+    const tileTargets: THREE.Object3D[] = [];
+    const overlayBodyMap = new Map<THREE.Object3D, BodyMesh>();
+    for (const bm of this.bodyMeshes.values()) {
+      for (const overlay of bm.getSurfaceOverlays()) {
+        if (overlay.group.visible) {
+          tileTargets.push(overlay.group);
+          overlayBodyMap.set(overlay.group, bm);
+        }
+      }
+    }
+    const tileHits = tileRaycaster.intersectObjects(tileTargets, true);
+
+    // Pick the closest hit
+    let bestWorldPoint: THREE.Vector3 | null = null;
+    let bestBm: BodyMesh | null = null;
+    let bestDist = Infinity;
+
+    if (mainHits.length > 0) {
+      const hit = mainHits[0];
+      if (hit.distance < bestDist) {
+        bestDist = hit.distance;
+        bestWorldPoint = hit.point.clone();
+        for (const bm of this.bodyMeshes.values()) {
+          let obj: THREE.Object3D | null = hit.object;
+          while (obj) {
+            if (obj === bm) { bestBm = bm; break; }
+            obj = obj.parent;
+          }
+          if (bestBm) break;
+        }
+      }
+    }
+
+    if (tileHits.length > 0) {
+      const hit = tileHits[0];
+      if (hit.distance < bestDist) {
+        // CRR hit point is relative to camera; add camera position to get world space
+        bestWorldPoint = hit.point.clone().add(this.camera.position);
+        bestBm = null;
+        let obj: THREE.Object3D | null = hit.object;
+        while (obj) {
+          const bm = overlayBodyMap.get(obj);
+          if (bm) { bestBm = bm; break; }
+          obj = obj.parent;
+        }
+      }
+    }
+
+    if (!bestWorldPoint || !bestBm) return null;
+
+    const bm = bestBm;
+    const bodyCenter = new THREE.Vector3();
+    bm.getWorldPosition(bodyCenter);
+
+    // Vector from body center to hit, converted to km in the inertial Y-up frame
+    const km = bestWorldPoint.clone().sub(bodyCenter).divideScalar(this.scaleFactor);
+
+    // Rotate inertial → body-fixed geometry space (Y-up).
+    // bm.mesh.quaternion = spiceQ * meshRotationQ (globe pre-rotation).
+    km.applyQuaternion(bm.mesh.quaternion.clone().invert());
+
+    // Body-fixed geometry Y-up → body-fixed ECEF Z-up:
+    //   geoX = bodyX, geoY = bodyZ (pole), geoZ = -bodyY
+    const ecefX = km.x;
+    const ecefY = -km.z;
+    const ecefZ = km.y;
+
+    const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
+    if (r < 1e-10) return null;
+
+    const latDeg = Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI);
+    const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
+    const altKm = r - bm.displayRadius;
+
+    return { bodyName: bm.body.name, latDeg, lonDeg, altKm };
+  }
+
+  /** Cached terrain elevation per body for clamp (avoids sampling every frame). */
+  private _terrainClampCache = new Map<string, { elevationKm: number; frame: number }>();
+
+  /** Recompute eclipse shadow occluder lists for all bodies and push to shader uniforms. */
+  private updateShadowOccluders(): void {
+    const sunBm = this.bodyMeshes.get('Sun');
+    if (!sunBm) return;
+    const sunPos = sunBm.position;
+    const sunRadius = this._sunRadiusKm * this.scaleFactor;
+
+    // Candidate occluders: non-star, non-emissive, large enough to cast a meaningful shadow
+    const candidates = [...this.bodyMeshes.values()].filter(bm =>
+      bm.body.classification !== 'star' &&
+      bm.body.geometryData?.emissive !== true &&
+      bm.displayRadius >= this._shadowMinOccluderKm,
+    );
+
+    this._shadowOccluderCache.clear();
+    for (const receiver of this.bodyMeshes.values()) {
+      if (receiver.body.classification === 'star') continue;
+      if (receiver.body.geometryData?.emissive === true) continue;
+
+      // Pick up to 4 occluders with the largest angular size as seen from this receiver.
+      // Largest angular size = most likely to cast a visible shadow.
+      const occluders = candidates
+        .filter(c => c !== receiver)
+        .map(c => {
+          const dist = Math.max(c.position.distanceTo(receiver.position), 1e-20);
+          return { pos: c.position, radius: c.displayRadius * this.scaleFactor, angularSize: (c.displayRadius * this.scaleFactor) / dist };
+        })
+        .sort((a, b) => b.angularSize - a.angularSize)
+        .slice(0, 4)
+        .map(({ pos, radius }) => ({ pos, radius }));
+
+      this._shadowOccluderCache.set(receiver.body.name, occluders);
+      if (receiver.hasShadowReceiving) {
+        receiver.setShadowOccluders(occluders, sunPos, sunRadius);
+      }
+    }
+  }
+
+  /**
+   * Push camera out if it's inside any body's surface.
+   * For bodies with terrain, queries actual terrain elevation at the camera's
+   * lat/lon so the camera can descend into craters but never go below the
+   * visible terrain surface.
+   */
   private clampCameraAboveSurfaces(): void {
     const cam = this.camera.position;
-    const margin = 1.002; // 0.2% above surface
+    const MARGIN_KM = 0.005; // 5m above terrain surface
+
     for (const bm of this.bodyMeshes.values()) {
       if (bm.body.geometryType !== 'Globe' && bm.body.geometryType !== 'Ellipsoid') continue;
-      const surfaceR = bm.displayRadius * this.scaleFactor * margin;
-      const toBody = cam.clone().sub(bm.position);
+
+      const toBody = _clampTmpVec.copy(cam).sub(bm.position);
       const dist = toBody.length();
-      if (dist < surfaceR && dist > 1e-20) {
+      if (dist < 1e-20) continue;
+
+      // Base clamp: reference sphere
+      let clampRadiusKm = bm.displayRadius;
+
+      // Terrain-aware clamp: query actual elevation at camera position
+      if (bm.hasTerrain) {
+        // Convert camera direction to body-fixed coordinates for lat/lon
+        const sf = this.scaleFactor;
+        const invQ = _clampTmpQuat.copy(bm.mesh.quaternion).invert();
+        const kmVec = _clampTmpVec2.copy(toBody).divideScalar(sf).applyQuaternion(invQ);
+
+        // Y-up geometry → ECEF Z-up
+        const ecefX = kmVec.x;
+        const ecefY = -kmVec.z;
+        const ecefZ = kmVec.y;
+        const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
+
+        if (r > 1e-10) {
+          const latDeg = Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI);
+          const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
+
+          // Sample terrain every 5 frames, use cached value between samples.
+          // Only raise the clamp for POSITIVE elevation (mountains/ridges) where
+          // terrain extends above the reference sphere. For negative elevation
+          // (craters/basins), coarse terrain data can't resolve deep features and
+          // would block descent — fall back to reference sphere clamp instead.
+          const bodyName = bm.body.name;
+          const cached = this._terrainClampCache.get(bodyName);
+          const frame = this._renderDebugFrame;
+          if (!cached || frame - cached.frame >= 5) {
+            const sample = bm.sampleTerrainElevation(latDeg, lonDeg);
+            if (sample && sample.angularDistDeg < 1.0) {
+              const elev = sample.elevationKm;
+              this._terrainClampCache.set(bodyName, { elevationKm: elev, frame });
+              if (elev > 0) clampRadiusKm = bm.displayRadius + elev;
+            }
+          } else if (cached.elevationKm > 0) {
+            clampRadiusKm = bm.displayRadius + cached.elevationKm;
+          }
+        }
+      }
+
+      const surfaceR = (clampRadiusKm + MARGIN_KM) * this.scaleFactor;
+      if (dist < surfaceR) {
         // Push camera out to just above surface along the same direction
         toBody.normalize().multiplyScalar(surfaceR);
         cam.copy(bm.position).add(toBody);
@@ -780,6 +1171,7 @@ export class UniverseRenderer {
       if (body.geometryType === 'Sensor' && body.classification === 'instrument') bm.mesh.visible = false;
       this.bodyMeshes.set(body.name, bm);
       this.scene.add(bm);
+      bm.enableShadowReceiving();
 
       // Load 3D model if geometry type is Mesh
       if (body.geometryType === 'Mesh' && body.geometryData?.source) {
@@ -839,6 +1231,18 @@ export class UniverseRenderer {
           }
           bm.initTerrain(terrainCfg, this.renderer);
           console.log(`[SpiceCraft] Initialized terrain for ${body.name}: ${terrainCfg.type} ${terrainCfg.url ?? `ion:${terrainCfg.cesiumIonAssetId}`}`);
+        }
+      }
+
+      // Initialize surface tile overlays for Globe bodies (e.g. Dingo Gap local-frame tiles).
+      // Overlay groups are added to a separate tileScene for camera-relative rendering.
+      if (body.geometryType === 'Globe' && body.geometryData?.surfaceTiles) {
+        const tiles = body.geometryData.surfaceTiles as SurfaceTileConfig[];
+        for (const tileCfg of tiles) {
+          const overlay = bm.addSurfaceTiles(tileCfg, this.renderer);
+          this.tileScene.add(overlay.group);
+
+          console.log(`[SpiceCraft] Initialized surface tiles "${tileCfg.name}" on ${body.name}`);
         }
       }
 

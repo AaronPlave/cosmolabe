@@ -58,6 +58,13 @@ const chkLabels = document.getElementById("chk-labels") as HTMLInputElement;
 const selLighting = document.getElementById("sel-lighting") as HTMLSelectElement;
 const selInstrument = document.getElementById("sel-instrument") as HTMLSelectElement;
 const instrumentViewLabel = document.getElementById("instrument-view-label")!;
+const pickBtn = document.getElementById("pick-btn")!;
+const pickResult = document.getElementById("pick-result")!;
+const pickResultBody = document.getElementById("pick-result-body")!;
+const pickResultClose = document.getElementById("pick-result-close")!;
+const pickLat = document.getElementById("pick-lat")!;
+const pickLon = document.getElementById("pick-lon")!;
+const pickAlt = document.getElementById("pick-alt")!;
 
 // --- NAIF Generic Kernels ---
 
@@ -102,10 +109,23 @@ const EUROPA_CLIPPER_KERNELS = [
   { file: "europa-clipper/ref_trj_scpse.bsp", label: "Clipper trajectory (44 MB)" },
 ];
 
+/** MSL (Curiosity) kernels — Dingo Gap timeframe (sols 449–583, Nov 2013 – Mar 2014) */
+const MSL_KERNELS = [
+  { file: "msl/msl.tf", label: "MSL frames" },
+  { file: "msl/msl_tp_ops120808_iau2000_v1.tf", label: "MSL topocentric frame" },
+  { file: "msl/MSL_76_SCLKSCET.00012.tsc", label: "MSL clock" },
+  { file: "msl/msl_ls_ops120808_iau2000_v1.bsp", label: "MSL landing site" },
+  { file: "msl/msl_surf_rover_loc_0000_2003_v1.bsp", label: "MSL site locations" },
+  { file: "msl/msl_surf_rover_tlm_0449_0583_v1.bsp", label: "MSL rover position" },
+  { file: "msl/msl_surf_rover_tlm_0449_0583_v1.bc", label: "MSL rover attitude" },
+  { file: "msl/mar099s.bsp", label: "Mars satellite ephemeris (64 MB)" },
+];
+
 let naifLoaded = false;
 let cassiniLoaded = false;
 let lroLoaded = false;
 let europaClipperLoaded = false;
+let mslLoaded = false;
 
 async function loadNaifKernels(): Promise<void> {
   if (naifLoaded) return;
@@ -192,6 +212,22 @@ async function loadEuropaClipperKernels(): Promise<void> {
   }
   europaClipperLoaded = true;
   console.log(`[SpiceCraft] Europa Clipper kernels loaded (${spice!.totalLoaded()} total)`);
+}
+
+async function loadMslKernels(): Promise<void> {
+  if (mslLoaded) return;
+  await loadNaifKernels();
+  for (const kernel of MSL_KERNELS) {
+    infoPanel.textContent = `Loading ${kernel.label}...`;
+    console.log(`[SpiceCraft] Fetching MSL kernel: ${kernel.file}`);
+    try {
+      await spice!.furnish({ type: "url", url: `${NAIF_BASE}/${kernel.file}` });
+    } catch (err) {
+      console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+    }
+  }
+  mslLoaded = true;
+  console.log(`[SpiceCraft] MSL kernels loaded (${spice!.totalLoaded()} total)`);
 }
 
 btnLoadNaif.addEventListener("click", (e) => {
@@ -462,6 +498,8 @@ for (const btn of document.querySelectorAll(".demo-btn")) {
       await loadLroKernels();
     } else if (name === "europa-clipper") {
       await loadEuropaClipperKernels();
+    } else if (name === "msl-dingo-gap") {
+      await loadMslKernels();
     } else {
       await loadNaifKernels();
     }
@@ -889,12 +927,26 @@ viewpointSelect.addEventListener("change", () => {
   if (!renderer) return;
   const name = viewpointSelect.value;
   if (!name) return;
-  renderer.cameraController.goToViewpoint(name, 1.0);
-  // If viewpoint tracks a body, also track it
   const vp = renderer.cameraController.getViewpoint(name);
   if (vp?.trackBody) {
+    // Body-centered viewpoints: switch origin first, then apply.
+    // The viewpoint position is a spherical offset from origin (0,0,0).
+    // After track(), the body becomes the origin, so these coordinates are correct.
+    // Animating from the old frame would interpolate through wrong positions,
+    // so we teleport instantly instead.
     const bm = renderer.getBodyMesh(vp.trackBody);
-    if (bm) renderer.cameraController.track(bm);
+    if (bm) {
+      renderer.cameraController.track(bm);
+      renderer.cameraController.applyViewpoint(vp);
+      // If viewpoint has a custom target (not body center), un-track so camera
+      // orbits around the target instead of being forced to look at origin.
+      // Origin body persists for coordinate precision.
+      if (vp.target.lengthSq() > 1e-30) {
+        renderer.cameraController.track(null);
+      }
+    }
+  } else {
+    renderer.cameraController.goToViewpoint(name, 1.0);
   }
 });
 
@@ -1061,6 +1113,56 @@ function buildBodyList(bodies: { name: string; classification?: string }[]) {
   });
 }
 
+// --- Surface Pick Tool ---
+
+let pickModeActive = false;
+
+function setPickMode(active: boolean) {
+  pickModeActive = active;
+  pickBtn.classList.toggle("active", active);
+  document.body.classList.toggle("pick-mode", active);
+  if (!active) renderer?.setPickMarker(null);
+}
+
+function showPickResult(bodyName: string, latDeg: number, lonDeg: number, altKm: number) {
+  const fmt = (n: number, dec: number) => n.toFixed(dec);
+  const latStr = `${fmt(Math.abs(latDeg), 5)}° ${latDeg >= 0 ? "N" : "S"}`;
+  const lonStr = `${fmt(Math.abs(lonDeg), 5)}° ${lonDeg >= 0 ? "E" : "W"}`;
+  const altStr = altKm >= 0
+    ? `+${fmt(altKm * 1000, 1)} m`
+    : `${fmt(altKm * 1000, 1)} m`;
+  pickResultBody.textContent = bodyName;
+  pickLat.textContent = latStr;
+  pickLon.textContent = lonStr;
+  pickAlt.textContent = altStr;
+  pickResult.style.display = "block";
+}
+
+pickBtn.addEventListener("click", () => {
+  setPickMode(!pickModeActive);
+  if (!pickModeActive) pickResult.style.display = "none";
+});
+
+pickResultClose.addEventListener("click", () => {
+  pickResult.style.display = "none";
+  renderer?.setPickMarker(null);
+  setPickMode(false);
+});
+
+canvas.addEventListener("click", (e) => {
+  if (!pickModeActive || !renderer) return;
+  e.stopPropagation();
+  // Convert mouse pixel coords to NDC (-1..+1)
+  const rect = canvas.getBoundingClientRect();
+  const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  const result = renderer.pickSurface(ndcX, ndcY);
+  if (result) {
+    showPickResult(result.bodyName, result.latDeg, result.lonDeg, result.altKm);
+    renderer.setPickMarker(result);
+  }
+});
+
 // --- Resize ---
 
 function onResize() {
@@ -1135,10 +1237,11 @@ document.addEventListener("keydown", (e) => {
         renderer.setLabelsVisible(chkLabels.checked);
         return;
       case "Escape":
-        // Cancel camera animation
+        // Cancel camera animation and pick mode
         renderer.cameraController.cancelAnimation();
         renderer.cameraController.clearLookAt();
         updateCameraStatus();
+        if (pickModeActive) { setPickMode(false); pickResult.style.display = "none"; }
         return;
       case "t":
         chkTraj.checked = !chkTraj.checked;

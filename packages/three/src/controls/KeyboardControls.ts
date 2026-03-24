@@ -33,8 +33,8 @@ const ACTIONS = {
   up:        ['KeyZ'],
   down:      ['KeyC'],
   // Roll
-  rollLeft:  ['KeyQ'],
-  rollRight: ['KeyE'],
+  rollLeft:  ['KeyE'],
+  rollRight: ['KeyQ'],
 } as const;
 
 /** All key codes we handle — used for preventDefault */
