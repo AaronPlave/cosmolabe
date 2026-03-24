@@ -134,6 +134,39 @@ uniform mat4 invModelMat;         // inverse model matrix (set per-frame)
 uniform vec3 lightDir;            // toward sun in object space (normalized)
 uniform vec3 lightColor;
 
+// Eclipse shadow uniforms (world space)
+uniform vec3  uSunWorldPos;
+uniform float uSunRadius;
+uniform vec3  uShadowOccluderPos[4];
+uniform float uShadowOccluderRadius[4];
+uniform float uShadowOccluderCount;
+uniform vec3  uPlanetWorldPos;    // planet center in scene world space
+uniform float uShellSceneScale;   // shellRadius * scaleFactor (object unit → world unit)
+
+float computeAtmEclipseShadow(vec3 samplePos) {
+  // samplePos is in normalized object space (shell radius = 1.0).
+  // Reconstruct approximate world position (spherical, ignores body rotation/oblateness,
+  // which is negligible at eclipse shadow scale).
+  vec3 worldPos = uPlanetWorldPos + samplePos * uShellSceneScale;
+  vec3 toSun = uSunWorldPos - worldPos;
+  float distToSun = length(toSun);
+  if (distToSun < 1e-20) return 1.0;
+  vec3 rayDir = toSun / distToSun;
+  float shadowFactor = 1.0;
+  for (int i = 0; i < 4; i++) {
+    if (float(i) >= uShadowOccluderCount) break;
+    vec3 toOcc = uShadowOccluderPos[i] - worldPos;
+    float t = dot(toOcc, rayDir);
+    if (t < 1e-10 || t > distToSun) continue;
+    float closestDist = length(toOcc - rayDir * t);
+    float innerR = max(0.0, uShadowOccluderRadius[i] - uSunRadius * (t / distToSun));
+    float outerR = uShadowOccluderRadius[i] + uSunRadius * (t / distToSun);
+    if (closestDist > outerR) continue;
+    shadowFactor *= smoothstep(innerR, outerR, closestDist);
+  }
+  return shadowFactor;
+}
+
 varying vec3 vObjPos;
 
 #define NUM_SAMPLES 32
@@ -209,12 +242,11 @@ void main() {
     float segOD = localDensity * stepLen;
     totalOptDepth += segOD;
 
-    // Hemispheric shadow — smooth cosine fade, no geometric intersection.
-    // Any per-sample geometric test (shadow cone, discriminant) creates visible
-    // boundary artifacts at polygon edges. Instead, use the angle between the
-    // sample direction and the sun: perfectly smooth everywhere, no edges.
+    // Hemispheric shadow — smooth cosine fade for the night side terminator.
     float cosLit = dot(normalize(samplePos), lightDir);
-    float shadow = smoothstep(-0.2, 0.2, cosLit);
+    float hemiFade = smoothstep(-0.2, 0.2, cosLit);
+    // Eclipse shadow — dims the atmosphere when an occluder blocks the sun.
+    float shadow = min(hemiFade, computeAtmEclipseShadow(samplePos));
 
     // Sun-path optical depth from this sample to atmosphere exit
     float sRq = dot(samplePos, lightDir);
@@ -294,6 +326,13 @@ export class AtmosphereMesh extends THREE.Mesh {
         invModelMat: { value: new THREE.Matrix4() },
         lightDir: { value: new THREE.Vector3(1, 0, 0) },
         lightColor: { value: new THREE.Vector3(1, 1, 1) },
+        uSunWorldPos:          { value: new THREE.Vector3() },
+        uSunRadius:            { value: 0 },
+        uShadowOccluderPos:    { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] },
+        uShadowOccluderRadius: { value: new Float32Array(4) },
+        uShadowOccluderCount:  { value: 0.0 },
+        uPlanetWorldPos:       { value: new THREE.Vector3() },
+        uShellSceneScale:      { value: 1.0 },
       },
       vertexShader: atmosphereVertexShader,
       fragmentShader: atmosphereFragmentShader,
@@ -321,10 +360,17 @@ export class AtmosphereMesh extends THREE.Mesh {
   }
 
   /**
-   * Update per-frame uniforms: camera position and light direction.
-   * Both in world space — transformed to object space internally.
+   * Update per-frame uniforms: camera position, light direction, and optional eclipse shadow.
+   * Positions in scene world space.
    */
-  update(_cameraWorldPos: THREE.Vector3, sunWorldPos: THREE.Vector3): void {
+  update(
+    _cameraWorldPos: THREE.Vector3,
+    sunWorldPos: THREE.Vector3,
+    occluders?: { pos: THREE.Vector3; radius: number }[],
+    planetWorldPos?: THREE.Vector3,
+    sunRadius?: number,
+    shellSceneScale?: number,
+  ): void {
     const u = (this.material as THREE.ShaderMaterial).uniforms;
 
     this._invModelMatrix.copy(this.matrixWorld).invert();
@@ -332,6 +378,21 @@ export class AtmosphereMesh extends THREE.Mesh {
 
     this._lightLocal.copy(sunWorldPos).applyMatrix4(this._invModelMatrix).normalize();
     u.lightDir.value.copy(this._lightLocal);
+
+    if (occluders && planetWorldPos != null && shellSceneScale != null) {
+      u.uSunWorldPos.value.copy(sunWorldPos);
+      u.uSunRadius.value = sunRadius ?? 0;
+      u.uPlanetWorldPos.value.copy(planetWorldPos);
+      u.uShellSceneScale.value = shellSceneScale;
+      const count = Math.min(occluders.length, 4);
+      u.uShadowOccluderCount.value = count;
+      for (let i = 0; i < count; i++) {
+        u.uShadowOccluderPos.value[i].copy(occluders[i].pos);
+        u.uShadowOccluderRadius.value[i] = occluders[i].radius;
+      }
+    } else {
+      u.uShadowOccluderCount.value = 0;
+    }
   }
 
   dispose(): void {

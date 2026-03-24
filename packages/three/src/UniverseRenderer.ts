@@ -328,7 +328,13 @@ export class UniverseRenderer {
           const er = parentBm.ellipsoidRatios;
           atm.scale.set(s * er[0], s * er[1], s * er[2]);
           atm.updateMatrixWorld(true);
-          atm.update(this.camera.position, sunPos);
+          const atmOccluders = this._shadowOccluderCache.get(parentName);
+          atm.update(
+            this.camera.position, sunPos,
+            atmOccluders, parentBm.position,
+            this._sunRadiusKm * this.scaleFactor,
+            atm.shellRadius * this.scaleFactor,
+          );
         }
       }
     }

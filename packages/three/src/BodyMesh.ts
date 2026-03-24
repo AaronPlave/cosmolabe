@@ -5,6 +5,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
+import { injectShadowIntoShader, makeShadowUniforms, type ShadowUniforms } from './EclipseShadow.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import type { Body } from '@spicecraft/core';
 
@@ -30,59 +31,6 @@ function isDDSMagic(buffer: ArrayBuffer): boolean {
 
 const _tmpQ = new THREE.Quaternion();
 
-// ---- Eclipse shadow GLSL injection ----
-// Injected into body material shaders via onBeforeCompile.
-// Ray-sphere approach: cast a ray from each fragment toward the sun and test
-// intersection against each occluder sphere. Computes smooth umbra/penumbra
-// using the sun's angular radius at the occluder distance.
-
-const SHADOW_FRAG_PARS = /* glsl */`
-varying vec3 vShadowWorldPos;
-uniform vec3  uSunWorldPos;
-uniform float uSunRadius;
-uniform vec3  uShadowOccluderPos[4];
-uniform float uShadowOccluderRadius[4];
-uniform float uShadowOccluderCount;
-
-float computeEclipseShadow() {
-  vec3 toSun = uSunWorldPos - vShadowWorldPos;
-  float distToSun = length(toSun);
-  if (distToSun < 1e-20) return 1.0;
-  vec3 rayDir = toSun / distToSun;
-  float shadowFactor = 1.0;
-  for (int i = 0; i < 4; i++) {
-    if (float(i) >= uShadowOccluderCount) break;
-    vec3 toOcc = uShadowOccluderPos[i] - vShadowWorldPos;
-    float t = dot(toOcc, rayDir);
-    if (t < 1e-10 || t > distToSun) continue;
-    float closestDist = length(toOcc - rayDir * t);
-    float innerR = max(0.0, uShadowOccluderRadius[i] - uSunRadius * (t / distToSun));
-    float outerR = uShadowOccluderRadius[i] + uSunRadius * (t / distToSun);
-    if (closestDist > outerR) continue;
-    shadowFactor *= (1.0 - smoothstep(innerR, outerR, closestDist));
-  }
-  return shadowFactor;
-}
-`;
-
-function injectShadowIntoShader(
-  shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> },
-  shadowUniforms: Record<string, { value: unknown }>,
-): void {
-  Object.assign(shader.uniforms, shadowUniforms);
-  // Vertex: declare varying + set world position after project_vertex (always present)
-  shader.vertexShader = 'varying vec3 vShadowWorldPos;\n' +
-    shader.vertexShader.replace(
-      '#include <project_vertex>',
-      '#include <project_vertex>\nvShadowWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
-    );
-  // Fragment: prepend shadow function, attenuate outgoingLight before opaque output
-  shader.fragmentShader = SHADOW_FRAG_PARS +
-    shader.fragmentShader.replace(
-      '#include <opaque_fragment>',
-      'outgoingLight *= computeEclipseShadow();\n#include <opaque_fragment>',
-    );
-}
 
 export class BodyMesh extends THREE.Object3D {
   readonly body: Body;
@@ -115,13 +63,7 @@ export class BodyMesh extends THREE.Object3D {
   /** Whether eclipse shadow receiving is enabled on this body's materials */
   private shadowEnabled = false;
   /** Shared uniform values — patched into every compiled shader by reference */
-  private readonly shadowUniforms = {
-    uSunWorldPos:          { value: new THREE.Vector3() },
-    uSunRadius:            { value: 0 },
-    uShadowOccluderPos:    { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] },
-    uShadowOccluderRadius: { value: new Float32Array(4) },
-    uShadowOccluderCount:  { value: 0.0 },
-  };
+  private readonly shadowUniforms: ShadowUniforms = makeShadowUniforms();
   /**
    * Axis ratios for triaxial ellipsoid in geometry space [geoX, geoY, geoZ].
    * Maps body-fixed [rx, ry, rz] → geometry axes accounting for the Globe pre-rotation
@@ -367,6 +309,9 @@ export class BodyMesh extends THREE.Object3D {
     };
     mat.customProgramCacheKey = () => '_shadow_v1';
     mat.needsUpdate = true;
+
+    // Also enable on terrain tiles if already initialized
+    this.terrainManager?.enableShadowReceiving(this.shadowUniforms);
   }
 
   /** Update eclipse shadow occluder uniforms for this frame. Call after body positions are updated. */
@@ -767,6 +712,7 @@ export class BodyMesh extends THREE.Object3D {
   initTerrain(config: TerrainConfig, renderer: THREE.WebGLRenderer): void {
     if (this.terrainManager) return; // Already initialized
     this.terrainManager = new TerrainManager(config, this.displayRadius, renderer);
+    if (this.shadowEnabled) this.terrainManager.enableShadowReceiving(this.shadowUniforms);
     this.add(this.terrainManager.group);
     // Terrain starts hidden; updateTerrain will show it based on camera distance
     this.terrainManager.group.visible = false;

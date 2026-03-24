@@ -82,7 +82,10 @@ export interface TrajectorySpec {
   type: string;
   // FixedPoint
   position?: number[];
-  // Keplerian (values may be numbers or strings with unit suffixes like "42.99au", "281.9y")
+  // Keplerian — elements MUST be referenced to the ecliptic J2000 plane (the scene coordinate system).
+  // Satellite elements from databases are typically in the central body's equatorial plane, NOT ecliptic J2000.
+  // For planetary moons use Builtin (analytical theory) or Spice instead.
+  // Values may be numbers or strings with unit suffixes like "42.99au", "281.9y".
   semiMajorAxis?: number | string;
   eccentricity?: number;
   inclination?: number;
