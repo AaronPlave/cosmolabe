@@ -45,7 +45,7 @@
       "name": "Earth",
       "class": "planet",
       "center": "Sun",
-      "trajectory": { "type": "Builtin", "name": "EMB" },
+      "trajectory": { "type": "Builtin", "name": "Earth" },
       "geometry": { "type": "Globe", "radius": 6378, "atmosphere": "Earth" },
       "label": { "color": [0.4, 0.6, 1.0] }
     },
@@ -53,7 +53,6 @@
       "name": "Moon",
       "class": "moon",
       "center": "Earth",
-      "trajectoryFrame": "J2000",
       "trajectory": { "type": "Builtin", "name": "Moon" },
       "rotationModel": { "type": "Builtin", "name": "IAU_MOON" },
       "geometry": {
@@ -80,7 +79,6 @@
           "class": "spacecraft",
           "naifId": -85,
           "center": "Moon",
-          "trajectoryFrame": "J2000",
           "trajectory": {
             "type": "Spice",
             "target": "LRO",
