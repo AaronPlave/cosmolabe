@@ -1,0 +1,121 @@
+{
+  "name": "Rotation Models Demo",
+  "version": "1.0",
+
+  "items": [
+    {
+      "name": "Earth Overview",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 40000,
+      "latitude": 30,
+      "longitude": -60
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Earth" },
+      "rotationModel": {
+        "type": "Uniform",
+        "period": 0.997269632262793,
+        "inclination": 0.0,
+        "ascendingNode": 0.0,
+        "meridianAngle": 280.147
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378.1,
+        "atmosphere": true
+      },
+      "label": { "color": [0.5, 0.7, 1.0] },
+      "items": [
+        {
+          "name": "Fixed-Orientation Satellite",
+          "class": "spacecraft",
+          "center": "Earth",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 26560,
+            "eccentricity": 0.01,
+            "inclination": 55,
+            "ascendingNode": 0,
+            "argOfPeriapsis": 0,
+            "meanAnomaly": 0,
+            "period": "11.9666h"
+          },
+          "rotationModel": {
+            "type": "Fixed",
+            "quaternion": [0.91355, -0.40674, 0.0, 0.0]
+          },
+          "geometry": { "type": "Globe", "radius": 20 },
+          "label": { "color": [1.0, 0.5, 0.5] },
+          "trajectoryPlot": {
+            "color": "#ff6666",
+            "duration": "12h"
+          }
+        },
+        {
+          "name": "Euler-Oriented Probe",
+          "class": "spacecraft",
+          "center": "Earth",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 26560,
+            "eccentricity": 0.01,
+            "inclination": 55,
+            "ascendingNode": 120,
+            "argOfPeriapsis": 0,
+            "meanAnomaly": 120,
+            "period": "11.9666h"
+          },
+          "rotationModel": {
+            "type": "FixedEuler",
+            "sequence": "ZXZ",
+            "angles": [45, 30, 60]
+          },
+          "geometry": { "type": "Globe", "radius": 20 },
+          "label": { "color": [0.5, 1.0, 0.5] },
+          "trajectoryPlot": {
+            "color": "#66ff66",
+            "duration": "12h"
+          }
+        },
+        {
+          "name": "Pole-Angle Fixed Sat",
+          "class": "spacecraft",
+          "center": "Earth",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 26560,
+            "eccentricity": 0.01,
+            "inclination": 55,
+            "ascendingNode": 240,
+            "argOfPeriapsis": 0,
+            "meanAnomaly": 240,
+            "period": "11.9666h"
+          },
+          "rotationModel": {
+            "type": "Fixed",
+            "inclination": 23.44,
+            "ascendingNode": 0,
+            "meridianAngle": 45
+          },
+          "geometry": { "type": "Globe", "radius": 20 },
+          "label": { "color": [0.5, 0.5, 1.0] },
+          "trajectoryPlot": {
+            "color": "#6666ff",
+            "duration": "12h"
+          }
+        }
+      ]
+    }
+  ]
+}

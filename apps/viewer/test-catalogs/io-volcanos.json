@@ -1,0 +1,162 @@
+{
+  "name": "Io Volcanic Features (FixedSpherical + ParticleSystem Demo)",
+  "version": "1.0",
+
+  "items": [
+    {
+      "name": "Tvashtar View",
+      "type": "Viewpoint",
+      "center": "Io",
+      "distance": 6000,
+      "latitude": 50,
+      "longitude": -120
+    },
+    {
+      "name": "Io Full View",
+      "type": "Viewpoint",
+      "center": "Io",
+      "distance": 10000,
+      "latitude": 20,
+      "longitude": -90
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Jupiter",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Jupiter" },
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "9.925h",
+        "inclination": 3.13,
+        "ascendingNode": 268.057,
+        "meridianAngle": 284.95
+      },
+      "geometry": { "type": "Globe", "radius": 71492, "atmosphere": "Jupiter" },
+      "label": { "color": [0.9, 0.8, 0.6] },
+      "items": [
+        {
+          "name": "Io",
+          "class": "moon",
+          "center": "Jupiter",
+          "trajectory": { "type": "Builtin", "name": "Io" },
+          "rotationModel": {
+            "type": "Uniform",
+            "period": "1.769138d",
+            "inclination": 0.04,
+            "ascendingNode": 312.981,
+            "meridianAngle": 200.39
+          },
+          "geometry": { "type": "Globe", "radius": 1821.6 },
+          "label": { "color": [1.0, 0.9, 0.4] },
+          "items": [
+            {
+              "name": "Tvashtar Catena",
+              "class": "other",
+              "center": "Io",
+              "trajectory": {
+                "type": "FixedSpherical",
+                "latitude": 62.76,
+                "longitude": -123.53,
+                "radius": 1821.6
+              },
+              "geometry": { "type": "Globe", "radius": 20 },
+              "label": { "color": [1.0, 0.3, 0.1] }
+            },
+            {
+              "name": "Tvashtar Plume",
+              "center": "Tvashtar Catena",
+              "geometry": {
+                "type": "ParticleSystem",
+                "emitters": [{
+                  "generator": {
+                    "type": "Box",
+                    "center": [0, 0, 0],
+                    "sides": [3, 3, 3],
+                    "velocity": [0, 0, 0.5]
+                  },
+                  "force": [0, 0, -0.005],
+                  "velocityVariation": 1,
+                  "spawnRate": 5,
+                  "lifetime": 400,
+                  "startSize": 1,
+                  "endSize": 7,
+                  "colors": ["#ff4400", 0.3, "#ff8800", 0.5, "#ffcc00", 0.0]
+                }]
+              }
+            },
+            {
+              "name": "Loki Patera",
+              "class": "other",
+              "center": "Io",
+              "trajectory": {
+                "type": "FixedSpherical",
+                "latitude": 12.63,
+                "longitude": -309.83,
+                "radius": 1821.6
+              },
+              "geometry": { "type": "Globe", "radius": 30 },
+              "label": { "color": [1.0, 0.5, 0.1] }
+            },
+            {
+              "name": "Pele",
+              "class": "other",
+              "center": "Io",
+              "trajectory": {
+                "type": "FixedSpherical",
+                "latitude": -18.27,
+                "longitude": -255.39,
+                "radius": 1821.6
+              },
+              "geometry": { "type": "Globe", "radius": 15 },
+              "label": { "color": [1.0, 0.4, 0.0] }
+            },
+            {
+              "name": "Prometheus",
+              "class": "other",
+              "center": "Io",
+              "trajectory": {
+                "type": "FixedSpherical",
+                "latitude": -1.52,
+                "longitude": -153.94,
+                "radius": 1821.6
+              },
+              "geometry": { "type": "Globe", "radius": 10 },
+              "label": { "color": [0.9, 0.5, 0.2] }
+            }
+          ]
+        },
+        {
+          "name": "Europa",
+          "class": "moon",
+          "center": "Jupiter",
+          "trajectory": { "type": "Builtin", "name": "Europa" },
+          "geometry": { "type": "Globe", "radius": 1560.8 },
+          "label": { "color": [0.8, 0.7, 0.6] }
+        },
+        {
+          "name": "Ganymede",
+          "class": "moon",
+          "center": "Jupiter",
+          "trajectory": { "type": "Builtin", "name": "Ganymede" },
+          "geometry": { "type": "Globe", "radius": 2634.1 },
+          "label": { "color": [0.7, 0.6, 0.5] }
+        },
+        {
+          "name": "Callisto",
+          "class": "moon",
+          "center": "Jupiter",
+          "trajectory": { "type": "Builtin", "name": "Callisto" },
+          "geometry": { "type": "Globe", "radius": 2410.3 },
+          "label": { "color": [0.5, 0.4, 0.3] }
+        }
+      ]
+    }
+  ]
+}

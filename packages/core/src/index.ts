@@ -25,6 +25,10 @@ export type { Quaternion, RotationModel } from './rotations/RotationModel.js';
 export { UniformRotation } from './rotations/UniformRotation.js';
 export { SpiceRotation } from './rotations/SpiceRotation.js';
 export { TrajectoryNadirRotation } from './rotations/TrajectoryNadirRotation.js';
+export { FixedRotation } from './rotations/FixedRotation.js';
+export { FixedEulerRotation } from './rotations/FixedEulerRotation.js';
+export { InterpolatedRotation, parseQFile } from './rotations/InterpolatedRotation.js';
+export type { OrientationRecord } from './rotations/InterpolatedRotation.js';
 
 // Frames
 export type { Frame } from './frames/Frame.js';

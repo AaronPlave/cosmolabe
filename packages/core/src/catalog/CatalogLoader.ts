@@ -16,6 +16,9 @@ import { UniformRotation } from '../rotations/UniformRotation.js';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 import { NadirRotation } from '../rotations/NadirRotation.js';
 import { TrajectoryNadirRotation } from '../rotations/TrajectoryNadirRotation.js';
+import { FixedRotation } from '../rotations/FixedRotation.js';
+import { FixedEulerRotation } from '../rotations/FixedEulerRotation.js';
+import { InterpolatedRotation, parseQFile } from '../rotations/InterpolatedRotation.js';
 
 // Cosmographia catalog JSON schema types
 export interface CatalogJson {
@@ -114,6 +117,10 @@ export interface TrajectorySpec {
   trajectories?: TrajectorySpec[];
   // Analytical theory (TASS17, L1, Gust86, MarsSat)
   satellite?: string;
+  // FixedSpherical
+  latitude?: number;
+  longitude?: number;
+  radius?: number;
   // Units
   distanceUnits?: string;
 }
@@ -134,6 +141,14 @@ export interface RotationModelSpec {
   target?: string;
   /** For Nadir type: SPICE center body name (e.g. "MOON") */
   center?: string;
+  /** For Fixed type: explicit quaternion [w, x, y, z] */
+  quaternion?: number[];
+  /** For FixedEuler type: axis sequence string (e.g. "XYZ", "ZXZ") */
+  sequence?: string;
+  /** For FixedEuler type: angles in degrees (one per axis in sequence) */
+  angles?: number[];
+  /** For Interpolated type: source data file (e.g. "attitude.q") */
+  source?: string;
 }
 
 export interface GeometrySpec {
@@ -417,14 +432,9 @@ export class CatalogLoader {
       return;
     }
 
-    // Skip purely decorative items with no trajectory (comet tails, etc.)
-    // Rings are kept — the renderer creates visual geometry for them.
-    if (!item.trajectory && !item.arcs) {
-      const geoType = item.geometry?.type;
-      if (geoType === 'ParticleSystem') {
-        return;
-      }
-    }
+    // ParticleSystem items without a trajectory get a FixedPoint at origin
+    // (they're decorative — comet tails, volcanic plumes — positioned relative to their parent).
+    // Other items without trajectory/arcs are kept (e.g. Rings).
 
     const trajectory = this.buildItemTrajectory(item);
     const rotation = this.buildRotationModel(item, trajectory);
@@ -642,8 +652,16 @@ export class CatalogLoader {
         return new FixedPointTrajectory([0, 0, 0]);
       }
 
-      case 'FixedSpherical':
-        return new FixedPointTrajectory([0, 0, 0]);
+      case 'FixedSpherical': {
+        const latRad = (spec.latitude ?? 0) * Math.PI / 180;
+        const lonRad = (spec.longitude ?? 0) * Math.PI / 180;
+        const r = (spec.radius ?? 0) * distScale;
+        return new FixedPointTrajectory([
+          r * Math.cos(latRad) * Math.cos(lonRad),
+          r * Math.cos(latRad) * Math.sin(lonRad),
+          r * Math.sin(latRad),
+        ]);
+      }
 
       default:
         return new FixedPointTrajectory([0, 0, 0]);
@@ -723,10 +741,37 @@ export class CatalogLoader {
         }
         return undefined;
 
-      case 'Fixed':
-      case 'FixedEuler':
-      case 'Interpolated':
+      case 'Fixed': {
+        if (spec.quaternion && spec.quaternion.length >= 4) {
+          return new FixedRotation([spec.quaternion[0], spec.quaternion[1], spec.quaternion[2], spec.quaternion[3]]);
+        }
+        // Pole angles form: inclination/ascendingNode/meridianAngle (degrees)
+        return FixedRotation.fromPoleAngles(
+          (spec.inclination ?? 0) * Math.PI / 180,
+          (spec.ascendingNode ?? 0) * Math.PI / 180,
+          (spec.meridianAngle ?? 0) * Math.PI / 180,
+        );
+      }
+
+      case 'FixedEuler': {
+        if (spec.sequence && spec.angles) {
+          return new FixedEulerRotation(spec.sequence, spec.angles);
+        }
         return undefined;
+      }
+
+      case 'Interpolated': {
+        if (spec.source && this.resolveFile) {
+          const text = this.resolveFile(spec.source);
+          if (text) {
+            const records = parseQFile(text);
+            if (records.length >= 2) {
+              return new InterpolatedRotation(records);
+            }
+          }
+        }
+        return undefined;
+      }
 
       default:
         return undefined;

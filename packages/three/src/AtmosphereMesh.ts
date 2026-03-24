@@ -449,8 +449,15 @@ export class AtmosphereMesh extends THREE.Mesh {
  * Resolve atmosphere parameters from a catalog field value.
  * Supports:
  *   - Preset name string: "Earth", "Mars", "Titan", "Venus"
- *   - Cosmographia .atmscat file reference (maps to preset by body name)
+ *   - Cosmographia .atmscat file reference (maps to preset by body name,
+ *     or parsed from binary if atmscatResolver is provided)
  *   - Inline object with AtmosphereParams fields
+ *   - Boolean true: use preset for the body name
+ *
+ * Cosmographia .atmscat binary files are NOT directly compatible with our ray-march
+ * shader — they contain coefficients scaled for precomputed lookup tables. Instead,
+ * .atmscat references are resolved to built-in presets by body name. For custom
+ * atmospheres, use inline parameters in the catalog.
  */
 export function resolveAtmosphereParams(
   value: unknown,
@@ -477,6 +484,7 @@ export function resolveAtmosphereParams(
     // Try body name
     if (bodyName && ATMOSPHERE_PRESETS[bodyName]) return ATMOSPHERE_PRESETS[bodyName];
 
+    console.warn(`[SpiceCraft] No atmosphere preset for "${value}" (body: ${bodyName ?? 'unknown'}). Use inline params: { mieCoeff, mieScaleHeight, rayleighCoeff, ... }`);
     return null;
   }
 
@@ -500,6 +508,7 @@ export function resolveAtmosphereParams(
 
   return null;
 }
+
 
 /** Get a built-in atmosphere preset by body name. */
 export function getAtmospherePreset(name: string): AtmosphereParams | null {
