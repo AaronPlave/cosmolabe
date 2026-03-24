@@ -19,9 +19,25 @@ const J2000_MS = Date.UTC(2000, 0, 1, 12, 0, 0);
  */
 export class TLETrajectory implements Trajectory {
   private readonly satrec: SatRec;
+  /** ET of the TLE epoch */
+  readonly epochEt: number;
+  /** SGP4 is typically valid ±7 days from epoch; we expose ±30 days for visualization */
+  readonly startTime: number;
+  readonly endTime: number;
+  /** Orbital period in seconds, derived from TLE mean motion */
+  readonly period: number;
 
   constructor(tle: TLEData) {
     this.satrec = twoline2satrec(tle.line1, tle.line2);
+    // Extract epoch from satrec: jdsatepoch + jdsatepochF give the Julian Date
+    const epochJd = (this.satrec as any).jdsatepoch + ((this.satrec as any).jdsatepochF ?? 0);
+    // Convert Julian Date to ET: JD 2451545.0 = J2000 epoch (ET=0)
+    this.epochEt = (epochJd - 2451545.0) * 86400;
+    this.startTime = this.epochEt - 30 * 86400;
+    this.endTime = this.epochEt + 30 * 86400;
+    // Mean motion (rad/min) → period (seconds)
+    const meanMotionRadMin = (this.satrec as any).no; // radians per minute
+    this.period = meanMotionRadMin > 0 ? (2 * Math.PI / meanMotionRadMin) * 60 : 86400;
   }
 
   stateAt(et: number): CartesianState {

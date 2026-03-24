@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { TilesRenderer } from '3d-tiles-renderer/three';
-import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin } from '3d-tiles-renderer/three/plugins';
+import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
+import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin } from '3d-tiles-renderer/three/plugins';
 
 export interface TerrainImageryConfig {
-  /** XYZ tile URL template with {x}, {y}, {z} placeholders */
+  /** Imagery source type. Default 'xyz'. */
+  type?: 'xyz' | 'wms' | 'wmts' | 'tms';
+  /** Tile URL template (XYZ: {x},{y},{z} placeholders; WMS/TMS: base URL) */
   url: string;
   /** Max zoom level available. Default 8. */
   levels?: number;
@@ -11,6 +14,18 @@ export interface TerrainImageryConfig {
   dimension?: number;
   /** Projection identifier. Default 'EPSG:4326'. */
   projection?: string;
+  /** WMS layer name (required for type: 'wms') */
+  layer?: string;
+  /** WMS coordinate reference system. Default 'EPSG:4326'. */
+  crs?: string;
+  /** WMS image format. Default 'image/png'. */
+  format?: string;
+  /** WMS styles parameter */
+  styles?: string;
+  /** WMS version. Default '1.1.1'. */
+  version?: string;
+  /** WMS: request transparent tiles. Default true. */
+  transparent?: boolean;
 }
 
 export interface TerrainConfig {
@@ -35,6 +50,49 @@ export interface TerrainConfig {
   normalMapStrength?: number;
 }
 
+/** Create the appropriate imagery overlay based on config type. */
+function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMSTilesOverlay | WMTSTilesOverlay | TMSTilesOverlay {
+  const type = img.type ?? 'xyz';
+  switch (type) {
+    case 'wms':
+      return new WMSTilesOverlay({
+        url: img.url,
+        layer: img.layer!,
+        crs: img.crs ?? 'EPSG:4326',
+        format: img.format ?? 'image/png',
+        styles: img.styles,
+        version: img.version ?? '1.1.1',
+        levels: img.levels ?? 8,
+        tileDimension: img.dimension ?? 256,
+        transparent: img.transparent ?? true,
+        color: 0xffffff,
+        opacity: 1,
+      });
+    case 'wmts':
+      return new WMTSTilesOverlay({
+        url: img.url,
+        color: 0xffffff,
+        opacity: 1,
+      });
+    case 'tms':
+      return new TMSTilesOverlay({
+        url: img.url,
+        color: 0xffffff,
+        opacity: 1,
+      });
+    case 'xyz':
+    default:
+      return new XYZTilesOverlay({
+        url: img.url,
+        levels: img.levels ?? 8,
+        dimension: img.dimension ?? 256,
+        projection: img.projection ?? 'EPSG:4326',
+        color: 0xffffff,
+        opacity: 1,
+      });
+  }
+}
+
 /**
  * Manages streaming terrain tiles for a planetary body.
  * Wraps 3DTilesRendererJS's TilesRenderer with appropriate plugins
@@ -48,6 +106,7 @@ export class TerrainManager {
   readonly group: THREE.Group;
   private readonly isImageryOnly: boolean;
   private disposed = false;
+  private shadowUniforms: ShadowUniforms | null = null;
   /** Global equirectangular normal map derived from heightmap. Applied per-tile with UV transforms. */
   private normalMap: THREE.CanvasTexture | null = null;
   private debugPlugin: DebugTilesPlugin | null = null;
@@ -98,17 +157,9 @@ export class TerrainManager {
         }));
       }
 
-      // Imagery overlay: drape XYZ image tiles onto terrain geometry
+      // Imagery overlay: drape image tiles onto terrain geometry
       if (config.imagery) {
-        const img = config.imagery;
-        const overlay = new XYZTilesOverlay({
-          url: img.url,
-          levels: img.levels ?? 8,
-          dimension: img.dimension ?? 256,
-          projection: img.projection ?? 'EPSG:4326',
-          color: 0xffffff,
-          opacity: 1,
-        });
+        const overlay = createImageryOverlay(config.imagery);
         this.tiles.registerPlugin(new ImageOverlayPlugin({
           overlays: [overlay],
           renderer,
@@ -517,11 +568,18 @@ export class TerrainManager {
   /**
    * Set material properties on a loaded tile, blend normals toward sphere, and apply normal map.
    */
+  /** Enable eclipse shadow receiving on all current and future terrain tiles. */
+  enableShadowReceiving(uniforms: ShadowUniforms): void {
+    this.shadowUniforms = uniforms;
+  }
+
   private customizeTileMaterial(scene: THREE.Object3D, tile: any): void {
     // Disable Three.js frustum culling — TilesRenderer handles visibility.
     // The main camera's extreme near/far ratio (up to 10^14 with log depth)
     // can produce degenerate frustum planes that incorrectly cull tiles.
     scene.traverse((child) => { child.frustumCulled = false; });
+
+    const su = this.shadowUniforms;
 
     scene.traverse((child) => {
       if (!(child instanceof THREE.Mesh) || !child.material) return;
@@ -530,12 +588,17 @@ export class TerrainManager {
       // to match the placeholder sphere's lighting response.
       if (this.isImageryOnly && child.material instanceof THREE.MeshBasicMaterial && child.material.map) {
         const basic = child.material;
-        child.material = new THREE.MeshStandardMaterial({
+        const mat = new THREE.MeshStandardMaterial({
           map: basic.map,
           transparent: false,
           metalness: 0,
           roughness: 0.85,
         });
+        if (su) {
+          mat.onBeforeCompile = (shader) => injectShadowIntoShader(shader, su);
+          mat.customProgramCacheKey = () => '_shadow_v1';
+        }
+        child.material = mat;
         basic.dispose();
         // Imagery-only tiles from XYZTilesPlugin already have correct sphere normals
         // on their generated ellipsoid geometry — skip the expensive per-vertex blend.
@@ -550,6 +613,15 @@ export class TerrainManager {
       for (const mat of mats) {
         if ('roughness' in mat) (mat as THREE.MeshStandardMaterial).roughness = 0.85;
         if ('metalness' in mat) (mat as THREE.MeshStandardMaterial).metalness = 0;
+        if (su) {
+          const prevOBC = (mat as any).onBeforeCompile;
+          (mat as any).onBeforeCompile = (shader: any) => {
+            prevOBC?.(shader);
+            injectShadowIntoShader(shader, su);
+          };
+          (mat as any).customProgramCacheKey = () => '_shadow_v1';
+          (mat as any).needsUpdate = true;
+        }
       }
     });
 

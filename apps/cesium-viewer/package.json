@@ -1,0 +1,19 @@
+{
+  "name": "@spicecraft/cesium-viewer",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Example Cesium viewer — demonstrates @spicecraft/cesium-adapter with CesiumJS",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@spicecraft/core": "*",
+    "@spicecraft/spice": "*",
+    "@spicecraft/cesium-adapter": "*",
+    "cesium": "^1.130.0",
+    "vite": "^7.3.1"
+  }
+}

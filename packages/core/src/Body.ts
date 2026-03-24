@@ -34,6 +34,8 @@ export interface BodyProperties {
   geometryType?: string;   // 'Globe' | 'Mesh' | 'Axes' | 'Sensor' | etc.
   geometryData?: Record<string, unknown>;
   trajectoryPlot?: TrajectoryPlotConfig;
+  /** Reference frame of the trajectory output. 'ecliptic' (default) or 'equatorial' (TEME/J2000 equatorial). */
+  trajectoryFrame?: 'ecliptic' | 'equatorial';
 }
 
 export class Body {
@@ -50,6 +52,7 @@ export class Body {
   readonly geometryType?: string;
   readonly geometryData?: Record<string, unknown>;
   readonly trajectoryPlot?: TrajectoryPlotConfig;
+  readonly trajectoryFrame?: 'ecliptic' | 'equatorial';
   readonly children: Body[] = [];
 
   constructor(props: BodyProperties) {
@@ -66,6 +69,7 @@ export class Body {
     this.geometryType = props.geometryType;
     this.geometryData = props.geometryData;
     this.trajectoryPlot = props.trajectoryPlot;
+    this.trajectoryFrame = props.trajectoryFrame;
   }
 
   stateAt(et: number): CartesianState {

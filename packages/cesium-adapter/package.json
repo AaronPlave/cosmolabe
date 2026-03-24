@@ -1,0 +1,24 @@
+{
+  "name": "@spicecraft/cesium-adapter",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Bridge SpiceCraft data into CesiumJS — CZML export, coordinate transforms, time conversions.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@spicecraft/core": "*"
+  },
+  "peerDependencies": {
+    "cesium": ">=1.100.0"
+  },
+  "peerDependenciesMeta": {
+    "cesium": {
+      "optional": true
+    }
+  }
+}

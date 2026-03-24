@@ -206,45 +206,10 @@ export class UniverseRenderer {
 
   /**
    * Compute a body's absolute position in km by walking up the parent chain.
-   * Trajectories give positions relative to their center body, so Moon's position
-   * is relative to Earth, Earth's is relative to Sun, etc.
+   * Delegates to Universe.absolutePositionOf().
    */
   absolutePositionOf = (bodyName: string, et: number): [number, number, number] => {
-    try {
-      const body = this.universe.getBody(bodyName);
-      if (!body) return [0, 0, 0];
-
-      const state = body.stateAt(et);
-      let x = state.position[0];
-      let y = state.position[1];
-      let z = state.position[2];
-      if (isNaN(x)) return [NaN, NaN, NaN];
-
-      // Walk up the parent chain, resolving composite trajectory centers at each step
-      let currentParent = body.parentName;
-      if (!currentParent && body.trajectory instanceof CompositeTrajectory) {
-        currentParent = body.trajectory.arcAt(et).centerName;
-      }
-
-      while (currentParent) {
-        const parent = this.universe.getBody(currentParent);
-        if (!parent) break;
-        const ps = parent.stateAt(et);
-        if (isNaN(ps.position[0])) return [NaN, NaN, NaN];
-        x += ps.position[0];
-        y += ps.position[1];
-        z += ps.position[2];
-        // Next parent: check for composite trajectory center if no static parentName
-        currentParent = parent.parentName;
-        if (!currentParent && parent.trajectory instanceof CompositeTrajectory) {
-          currentParent = parent.trajectory.arcAt(et).centerName;
-        }
-      }
-
-      return [x, y, z];
-    } catch {
-      return [0, 0, 0];
-    }
+    return this.universe.absolutePositionOf(bodyName, et);
   };
 
   /** Render a single frame at current time */

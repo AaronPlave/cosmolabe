@@ -429,6 +429,12 @@ export class CatalogLoader {
 
     const trajectoryPlot = this.parseTrajectoryPlot(item.trajectoryPlot);
 
+    // TLE trajectories output in TEME (≈equatorial), not ecliptic.
+    // Catalog may also specify trajectoryFrame explicitly.
+    const trajectoryFrame = item.trajectoryFrame === 'J2000' || item.trajectory?.type === 'TLE'
+      ? 'equatorial' as const
+      : undefined;
+
     const body = new Body({
       name: item.name,
       naifId: item.naifId,
@@ -442,6 +448,7 @@ export class CatalogLoader {
       geometryType: item.geometry?.type,
       geometryData: item.geometry ? { ...item.geometry } : undefined,
       trajectoryPlot,
+      trajectoryFrame,
     });
 
     bodies.push(body);

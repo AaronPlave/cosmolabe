@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpiceCraft Cesium Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: monospace; }
+    #cesiumContainer { width: 100%; height: 100%; }
+
+    #info {
+      position: absolute; top: 12px; left: 12px; z-index: 10;
+      background: rgba(0,0,0,0.7); padding: 8px 12px; border-radius: 6px;
+      color: #888; font-size: 11px;
+    }
+    #info h3 { color: #4488ff; margin-bottom: 4px; font-size: 13px; }
+    #status { color: #666; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div id="cesiumContainer"></div>
+
+  <div id="info">
+    <h3>SpiceCraft Cesium Demo</h3>
+    <div>ISS orbit via TLE — positions computed by SpiceCraft, rendered in CesiumJS</div>
+    <div id="status">Loading...</div>
+  </div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
