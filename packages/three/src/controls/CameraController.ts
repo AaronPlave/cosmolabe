@@ -79,21 +79,6 @@ export class CameraController {
   /** Frame timing for keyboard dt */
   private _lastFrameMs: number;
 
-  /**
-   * When camera is near a Globe/Ellipsoid surface while tracking, the orbit
-   * target is moved from body center to the surface point below the camera.
-   * This makes zoom proportional to altitude instead of body radius.
-   */
-  private _surfaceTarget: THREE.Vector3 | null = null;
-
-  /**
-   * Terrain elevation above reference sphere (in km) at camera lat/lon.
-   * Set by UniverseRenderer from its terrain clamp cache. Used to place
-   * the surface target at the actual terrain surface instead of the
-   * reference sphere — critical for high-relief areas like Dingo Gap.
-   */
-  terrainElevationKm = 0;
-
   /** Right-click free-look state */
   private _rightDragging = false;
   private _rightDragDx = 0;   // accumulated pixel delta since last update()
@@ -342,8 +327,6 @@ export class CameraController {
    * Call once per frame before update().
    */
   adaptSpeeds(bodyMeshes: Iterable<BodyMesh>, scaleFactor: number): void {
-    this._surfaceTarget = null; // Clear each frame (may be set below if near surface)
-
     // When focused on a spacecraft or other non-Globe body, keep base speeds —
     // nearby planet proximity shouldn't slow down inspection of that object.
     // Uses originBody (persists after un-tracking via WASD/free-look).
@@ -357,8 +340,6 @@ export class CameraController {
     }
 
     let minAltRatio = Infinity;
-    let nearestGlobeBody: BodyMesh | null = null;
-    let nearestSurfaceR = 0;
 
     for (const bm of bodyMeshes) {
       const gt = bm.body.geometryType;
@@ -368,57 +349,14 @@ export class CameraController {
       const dist = this.camera.position.distanceTo(bm.position);
       const altitude = Math.max(dist - surfaceR, 0);
       const ratio = altitude / surfaceR;
-      if (ratio < minAltRatio) {
-        minAltRatio = ratio;
-        nearestGlobeBody = bm;
-        nearestSurfaceR = surfaceR;
-      }
+      if (ratio < minAltRatio) minAltRatio = ratio;
     }
 
     if (!isFinite(minAltRatio)) return; // no nearby Globe — keep base speeds
 
-    // Near-surface zoom target: smoothly move orbit target from body center
-    // to the terrain surface below the camera as altitude decreases.
-    // This makes zoom proportional to altitude above terrain, not body radius.
-    // Without this, zoom steps are 8% of ~3400 km (= 272 km!) which overshoot
-    // into terrain and the camera gets clamped back, making zero progress.
-    if (this._trackTarget && nearestGlobeBody && minAltRatio < 1.0) {
-      const camToBody = new THREE.Vector3().subVectors(
-        nearestGlobeBody.position, this.camera.position,
-      );
-      const dist = camToBody.length();
-      if (dist > 1e-20) {
-        // Blend: 0 at altitudeRatio>=1.0 (body center), 1 at altitudeRatio~0 (surface)
-        // Smoothstep for gradual transition
-        const t = Math.max(0, Math.min(1, 1 - minAltRatio));
-        const blend = t * t * (3 - 2 * t);
-        if (blend > 0.001) {
-          // Use terrain-aware surface radius: reference sphere + terrain elevation.
-          // terrainElevationKm is set by UniverseRenderer from its terrain cache.
-          const terrainR = nearestSurfaceR + Math.max(0, this.terrainElevationKm) * scaleFactor;
-          // Surface point: on terrain surface directly below camera
-          camToBody.multiplyScalar(1 / dist); // normalize toward body center
-          const surfacePt = new THREE.Vector3().copy(this.camera.position)
-            .addScaledVector(camToBody, dist - terrainR);
-          // Blend from body center to surface point
-          this._surfaceTarget = new THREE.Vector3()
-            .copy(nearestGlobeBody.position)
-            .lerp(surfacePt, blend);
-        }
-      }
-    }
-
-    const rawFactor = Math.min(Math.sqrt(minAltRatio / 10), 1);
-    // Zoom: 8% floor so surface approach (last ~30 km) takes ~50 scrolls not 200+
-    const zoomFactor = Math.max(rawFactor, 0.08);
-    // Rotation: near the surface, use linear altitude scaling instead of sqrt.
-    // Trackball rotates around body center, so at 5 km altitude over a 3400 km
-    // body, even a tiny angle = km of surface movement. Linear with altitude
-    // gives much finer control. Transition: matches sqrt at ~0.1 body radii.
-    const linearFactor = minAltRatio * 2;
-    const rotateFactor = Math.max(Math.min(linearFactor, rawFactor), 0.003);
-    this.controls.rotateSpeed = this._baseRotateSpeed * rotateFactor;
-    this.controls.zoomSpeed = this._baseZoomSpeed * zoomFactor;
+    const factor = Math.max(Math.min(Math.sqrt(minAltRatio / 10), 1), 0.01);
+    this.controls.rotateSpeed = this._baseRotateSpeed * factor;
+    this.controls.zoomSpeed = this._baseZoomSpeed * factor;
   }
 
   update(): void {
@@ -487,14 +425,9 @@ export class CameraController {
       this._rightDragDy = 0;
     }
 
-    // Tracking: lock orbit target to the tracked body at origin,
-    // or to the surface point below the camera when near a Globe surface.
+    // Tracking: lock orbit target to the tracked body at origin
     if (this._trackTarget) {
-      if (this._surfaceTarget) {
-        this.controls.target.copy(this._surfaceTarget);
-      } else {
-        this.controls.target.set(0, 0, 0);
-      }
+      this.controls.target.set(0, 0, 0);
     }
 
     // Mouse left-drag orbit + scroll zoom (always active)

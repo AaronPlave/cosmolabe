@@ -109,6 +109,8 @@ export class UniverseRenderer {
   private readonly _shadowMinOccluderKm = 100;
   /** Per-body occluder list, rebuilt each frame by updateShadowOccluders() */
   private readonly _shadowOccluderCache = new Map<string, { pos: THREE.Vector3; radius: number }[]>();
+  /** Current lighting mode — eclipse shadows only apply in 'natural' mode */
+  private _lightingMode: 'natural' | 'shadow' | 'flood' = 'natural';
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -415,13 +417,6 @@ export class UniverseRenderer {
 
     this.updateShadowOccluders();
 
-    // Pass terrain elevation to camera controller for terrain-aware zoom targeting
-    {
-      const originName = this.cameraController.originBody?.body.name;
-      const cached = originName ? this._terrainClampCache.get(originName) : undefined;
-      this.cameraController.terrainElevationKm = cached?.elevationKm ?? 0;
-    }
-
     // Adapt camera speeds to altitude above nearest body (before controls process input)
     this.cameraController.adaptSpeeds(this.bodyMeshes.values(), this.scaleFactor);
 
@@ -436,12 +431,8 @@ export class UniverseRenderer {
       plugin.onRender?.(et, this.scene, this.camera, this.universe);
     }
 
-    // Dynamic near/far: adjust based on distance to orbit target.
-    // When using surface-target zoom, camDist can be very small (altitude above terrain).
-    // Use distance to origin body center as a floor to keep near/far sane for rendering.
-    const camDistTarget = this.camera.position.distanceTo(this.cameraController.controls.target);
-    const camDistOrigin = this.camera.position.length(); // distance to origin (tracked body)
-    const camDist = Math.max(camDistTarget, camDistOrigin * 0.001);
+    // Dynamic near/far: adjust based on distance to orbit target
+    const camDist = this.camera.position.distanceTo(this.cameraController.controls.target);
     this.camera.near = Math.max(1e-12, camDist * 1e-5);
     this.camera.far = Math.max(1e6, camDist * 1e6);
     this.camera.updateProjectionMatrix();
@@ -713,6 +704,7 @@ export class UniverseRenderer {
    * - `'flood'`: Uniform — full ambient, no directional shadows
    */
   setLightingMode(mode: 'natural' | 'shadow' | 'flood'): void {
+    this._lightingMode = mode;
     if (!this.ambientLight) return;
     switch (mode) {
       case 'natural':
@@ -960,6 +952,13 @@ export class UniverseRenderer {
 
   /** Recompute eclipse shadow occluder lists for all bodies and push to shader uniforms. */
   private updateShadowOccluders(): void {
+    // Eclipse shadows only apply in natural lighting; flood/shadow modes illuminate uniformly.
+    if (this._lightingMode !== 'natural') {
+      for (const bm of this.bodyMeshes.values()) {
+        if (bm.hasShadowReceiving) bm.setShadowOccluders([], new THREE.Vector3(), 0);
+      }
+      return;
+    }
     const sunBm = this.bodyMeshes.get('Sun');
     if (!sunBm) return;
     const sunPos = sunBm.position;
