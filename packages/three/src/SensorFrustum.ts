@@ -109,7 +109,7 @@ export class SensorFrustum extends THREE.Object3D {
     const labelMat = new THREE.SpriteMaterial({
       map: labelTexture,
       transparent: true,
-      depthTest: true,
+      depthTest: false,
       depthWrite: false,
       sizeAttenuation: false,
     });

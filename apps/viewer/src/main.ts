@@ -18,6 +18,8 @@ const KERNEL_EXTENSIONS = new Set([
   ".tsc",
   ".ti",
   ".ck",
+  ".bc",
+  ".bpc",
   ".spk",
   ".pck",
   ".fk",
@@ -65,6 +67,90 @@ const pickResultClose = document.getElementById("pick-result-close")!;
 const pickLat = document.getElementById("pick-lat")!;
 const pickLon = document.getElementById("pick-lon")!;
 const pickAlt = document.getElementById("pick-alt")!;
+const loadingBar = document.getElementById("loading-bar")!;
+const loadingFill = document.getElementById("loading-fill")!;
+const loadingLabel = document.getElementById("loading-label")!;
+const loadingDetail = document.getElementById("loading-detail")!;
+
+// --- Loading bar helpers ---
+
+function showLoadingBar() {
+  loadingBar.classList.add("visible");
+}
+
+function hideLoadingBar() {
+  loadingBar.classList.remove("visible");
+}
+
+function updateLoadingBar(pct: number, label: string, detail?: string) {
+  loadingFill.style.width = `${Math.min(100, pct)}%`;
+  loadingLabel.textContent = label;
+  loadingDetail.textContent = detail ?? "";
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Fetch a URL with download progress tracking, auto-decompress .gz files */
+async function fetchWithProgress(
+  url: string,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<ArrayBuffer> {
+  const isGz = url.endsWith(".gz");
+
+  const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.responseType = "arraybuffer";
+    xhr.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(e.loaded, e.total);
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr.response as ArrayBuffer);
+      } else {
+        reject(new Error(`Fetch failed: ${url} (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error(`Network error: ${url}`));
+    xhr.send();
+  });
+
+  if (!isGz) return buffer;
+
+  // Check gzip magic bytes — if the server already decompressed transparently, skip
+  const header = new Uint8Array(buffer, 0, 2);
+  if (header[0] !== 0x1f || header[1] !== 0x8b) {
+    console.log(`[SpiceCraft] ${url} already decompressed by server`);
+    return buffer;
+  }
+
+  // Decompress gzipped kernel
+  const ds = new DecompressionStream("gzip");
+  const writer = ds.writable.getWriter();
+  writer.write(new Uint8Array(buffer));
+  writer.close();
+  const reader = ds.readable.getReader();
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+  const result = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result.buffer;
+}
 
 // --- NAIF Generic Kernels ---
 
@@ -89,11 +175,29 @@ const CASSINI_KERNELS = [
   { file: "cassini/04183_04185ra.bc", label: "Cassini attitude (SOI)" },
 ];
 
-/** LRO-specific kernels (orbit around Moon, Dec 2024 – Mar 2025) */
+/** LRO-specific kernels (orbit around Moon, Jan 1 – Feb 1 2025)
+ *  Files are gzipped — fetched with progress and decompressed client-side.
+ *  Small kernels first (frames, instruments), then large ones (SPK, CK, PCK). */
 const LRO_KERNELS = [
-  { file: "lro/lro_frames_2014049_v01.tf", label: "LRO frames" },
-  { file: "lro/lro_lroc_v20.ti", label: "LROC instruments" },
-  { file: "lro/lrorg_2024350_2025074_v01.bsp", label: "LRO trajectory" },
+  // Frame definitions
+  { file: "lro/lro_frames_2014049_v01.tf.gz", label: "LRO frames", size: 45_000 },
+  { file: "lro/moon_080317.tf.gz", label: "Lunar frames", size: 22_000 },
+  { file: "lro/moon_assoc_me.tf.gz", label: "Lunar ME frame", size: 10_000 },
+  // Instrument FOVs
+  { file: "lro/lro_lroc_v20.ti.gz", label: "LROC instruments", size: 74_000 },
+  { file: "lro/lro_lola_v00.ti.gz", label: "LOLA instrument", size: 12_000 },
+  { file: "lro/lro_dlre_v05.ti.gz", label: "Diviner instrument", size: 47_000 },
+  { file: "lro/lro_lamp_v03.ti.gz", label: "LAMP instrument", size: 26_000 },
+  { file: "lro/lro_crater_v03.ti.gz", label: "CRaTER instrument", size: 7_000 },
+  { file: "lro/lro_lend_v00.ti.gz", label: "LEND instrument", size: 10_000 },
+  // Spacecraft clock (required for CK attitude)
+  { file: "lro/lro_clkcor_2025351_v00.tsc.gz", label: "LRO clock", size: 2_200_000 },
+  // Trajectory
+  { file: "lro/lrorg_2024350_2025074_v01.bsp.gz", label: "LRO trajectory", size: 7_200_000 },
+  // High-accuracy lunar orientation
+  { file: "lro/moon_pa_de421_1900_2050.bpc.gz", label: "Lunar orientation", size: 1_700_000 },
+  // Reconstructed attitude (largest — ~199 MB uncompressed)
+  { file: "lro/lrodv_2024366_2025032_v01.bc.gz", label: "LRO attitude (CK)", size: 199_000_000 },
 ];
 
 /** Europa Clipper kernels (Jupiter science phase, 2030–2034) */
@@ -183,15 +287,40 @@ async function loadCassiniKernels(): Promise<void> {
 async function loadLroKernels(): Promise<void> {
   if (lroLoaded) return;
   await loadNaifKernels(); // Need generic kernels first
-  for (const kernel of LRO_KERNELS) {
-    infoPanel.textContent = `Loading ${kernel.label}...`;
+
+  const totalSize = LRO_KERNELS.reduce((s, k) => s + k.size, 0);
+  let loadedSize = 0;
+  showLoadingBar();
+
+  for (let i = 0; i < LRO_KERNELS.length; i++) {
+    const kernel = LRO_KERNELS[i];
+    const progress = `(${i + 1}/${LRO_KERNELS.length})`;
+    infoPanel.textContent = `${progress} Loading ${kernel.label}...`;
     console.log(`[SpiceCraft] Fetching LRO kernel: ${kernel.file}`);
+
     try {
-      await spice!.furnish({ type: "url", url: `${NAIF_BASE}/${kernel.file}` });
+      const buffer = await fetchWithProgress(
+        `${NAIF_BASE}/${kernel.file}`,
+        (loaded, _total) => {
+          const currentPct = ((loadedSize + loaded) / totalSize) * 100;
+          updateLoadingBar(
+            currentPct,
+            `${progress} ${kernel.label}`,
+            `${formatBytes(loadedSize + loaded)} / ${formatBytes(totalSize)}`,
+          );
+        },
+      );
+      // Strip .gz from filename for SPICE kernel type detection
+      const filename = kernel.file.replace(/\.gz$/, "");
+      await spice!.furnish({ type: "buffer", data: buffer, filename });
     } catch (err) {
       console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
     }
+    loadedSize += kernel.size;
+    updateLoadingBar((loadedSize / totalSize) * 100, `${progress} ${kernel.label} loaded`, `${formatBytes(loadedSize)} / ${formatBytes(totalSize)}`);
   }
+
+  hideLoadingBar();
   lroLoaded = true;
   console.log(`[SpiceCraft] LRO kernels loaded (${spice!.totalLoaded()} total)`);
 }
@@ -1199,11 +1328,11 @@ document.addEventListener("keydown", (e) => {
         e.preventDefault();
         tc.stepForward();
         return;
-      case "[":
+      case "ArrowDown":
         tc.slower();
         updateRateDisplay();
         return;
-      case "]":
+      case "ArrowUp":
         tc.faster();
         updateRateDisplay();
         return;

@@ -19,6 +19,8 @@ export class LabelManager {
   private readonly labelScale: number;
   private readonly right = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
+  private readonly _ray = new THREE.Vector3();
+  private readonly _toOccluder = new THREE.Vector3();
   private _globalVisible = true;
 
   constructor(_container: HTMLElement, options: LabelManagerOptions = {}) {
@@ -39,7 +41,7 @@ export class LabelManager {
     const material = new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      depthTest: true,
+      depthTest: false,
       depthWrite: false,
       sizeAttenuation: false,
     });
@@ -79,7 +81,7 @@ export class LabelManager {
     }
   }
 
-  update(_bodyMeshes: BodyMesh[], camera: THREE.Camera, _rendererSize: { width: number; height: number }): void {
+  update(bodyMeshes: BodyMesh[], camera: THREE.Camera, _rendererSize: { width: number; height: number }): void {
     if (!this._globalVisible) return;
 
     this.right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
@@ -90,9 +92,12 @@ export class LabelManager {
     const fov = (camera as THREE.PerspectiveCamera).fov ?? 60;
     const fovScale = fov / 60;
 
+    const camPos = camera.position;
+
     for (const entry of this.labels.values()) {
       const bm = entry.bodyMesh;
       const sprite = entry.sprite;
+      const mat = sprite.material as THREE.SpriteMaterial;
 
       // Hide instrument labels (e.g. ISS NAC on Cassini) — they clutter at planet scale
       if (bm.body.classification === 'instrument') {
@@ -101,7 +106,7 @@ export class LabelManager {
       }
 
       // Rescale sprite for current FOV
-      const texture = (sprite.material as THREE.SpriteMaterial).map!;
+      const texture = mat.map!;
       const img = texture.image as { width: number; height: number };
       const aspect = img.width / img.height;
       const height = (this.fontSize / 600) * this.labelScale * fovScale;
@@ -110,13 +115,57 @@ export class LabelManager {
       // Offset label to start at the body's silhouette edge.
       // Use the larger of: body's world-space radius, or a small fraction of camera distance
       // (so labels are readable even when the body is a tiny dot).
-      const dist = bm.position.distanceTo(camera.position);
+      const distToBody = bm.position.distanceTo(camPos);
       const worldRadius = bm.displayRadius * bm.scaleFactor;
-      const offsetScale = Math.max(worldRadius * 1.3, dist * 0.015 * fovScale);
+      const offsetScale = Math.max(worldRadius * 1.3, distToBody * 0.015 * fovScale);
 
       sprite.position.copy(bm.position);
       sprite.position.addScaledVector(this.right, offsetScale);
       sprite.position.addScaledVector(this.up, -offsetScale * 0.15);
+
+      // Occlusion fade: check if the labeled body is behind another body.
+      // Ray from camera toward the labeled body; test against all other bodies.
+      // Only fade when the ray actually penetrates the occluder sphere — objects
+      // at the limb are NOT occluded and should stay at full opacity.
+      const ray = this._ray;
+      const toOcc = this._toOccluder;
+      ray.subVectors(bm.position, camPos).normalize();
+
+      let fade = 1.0;
+      for (const other of bodyMeshes) {
+        if (other === bm) continue;
+        const occR = other.displayRadius * other.scaleFactor;
+        if (occR < 1e-6) continue;
+
+        toOcc.subVectors(other.position, camPos);
+        const tProj = toOcc.dot(ray);
+        // Occluder must be between camera and labeled body
+        if (tProj <= 0 || tProj >= distToBody) continue;
+
+        // Closest approach of the ray to the occluder center
+        const closestSq = toOcc.lengthSq() - tProj * tProj;
+        const closest = Math.sqrt(Math.max(0, closestSq));
+
+        // Only fade when the ray penetrates the sphere (closest < radius).
+        // Objects at or outside the limb are visible — no fade.
+        if (closest >= occR) continue;
+
+        // Fade from full opacity at the limb to minimum deep behind.
+        // fadeDepth controls how quickly opacity drops once behind the body.
+        const fadeDepth = occR * 0.15;
+        const penetration = occR - closest; // 0 at limb, up to occR at center
+        const t = Math.max(0, 1 - penetration / fadeDepth);
+        const smooth = t * t * (3 - 2 * t);
+        fade = Math.min(fade, smooth);
+      }
+
+      // Temporal smoothing: lerp toward target opacity to avoid pop/flicker
+      // at the occlusion boundary (e.g. low-orbit spacecraft near a limb).
+      const targetOpacity = 0.08 + 0.92 * fade;
+      const prev = sprite.userData._labelOpacity as number | undefined;
+      const smoothed = prev != null ? prev + (targetOpacity - prev) * 0.15 : targetOpacity;
+      mat.opacity = smoothed;
+      sprite.userData._labelOpacity = smoothed;
 
       // Add to scene if not already
       if (!sprite.parent) {
@@ -136,6 +185,67 @@ export class LabelManager {
       if (entry.sprite === object) return name;
     }
     return undefined;
+  }
+
+  /**
+   * Screen-space label picking: project each label to screen coordinates and
+   * return the closest label within `maxPixelDist` of the given screen position.
+   * This is far more reliable than 3D raycasting for sizeAttenuation:false sprites.
+   */
+  pickNearest(
+    screenX: number,
+    screenY: number,
+    camera: THREE.Camera,
+    canvasWidth: number,
+    canvasHeight: number,
+    maxPixelDist = 20,
+  ): string | undefined {
+    const projected = new THREE.Vector3();
+    let bestName: string | undefined;
+    let bestDist = maxPixelDist;
+
+    for (const [name, entry] of this.labels) {
+      const sprite = entry.sprite;
+      if (!sprite.visible || !sprite.parent) continue;
+
+      // Project label world position to screen pixels
+      projected.copy(sprite.position);
+      sprite.parent.localToWorld(projected);
+      projected.project(camera);
+
+      // Skip labels behind camera
+      if (projected.z > 1) continue;
+
+      const sx = (projected.x * 0.5 + 0.5) * canvasWidth;
+      const sy = (-projected.y * 0.5 + 0.5) * canvasHeight;
+
+      // Compute approximate label width in pixels from sprite scale.
+      // Sprite scale is normalized to ~600px viewport; reverse that to get screen pixels.
+      const aspect = sprite.scale.x / sprite.scale.y;
+      const labelHeightPx = sprite.scale.y * 600 / this.labelScale;
+      const labelWidthPx = labelHeightPx * aspect;
+
+      // Label is anchored at left-center (center = 0, 0.5), so the clickable
+      // region extends from (sx, sy) rightward by labelWidthPx, and ±halfHeight.
+      const halfH = labelHeightPx * 0.5;
+      // Expand the hitbox slightly for easier clicking
+      const padX = 6;
+      const padY = 4;
+      const dx = screenX < sx - padX ? sx - padX - screenX
+        : screenX > sx + labelWidthPx + padX ? screenX - sx - labelWidthPx - padX
+        : 0;
+      const dy = screenY < sy - halfH - padY ? sy - halfH - padY - screenY
+        : screenY > sy + halfH + padY ? screenY - sy - halfH - padY
+        : 0;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestName = name;
+      }
+    }
+
+    return bestName;
   }
 
   dispose(): void {

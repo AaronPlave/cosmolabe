@@ -2,13 +2,15 @@
 # Downloads LRO SPICE kernels for visual validation in the SpiceCraft viewer.
 #
 # Kernels:
-#   FK  — LRO frame definitions (~45 KB)
-#   IK  — LROC instrument FOVs (~72 KB)
-#   SPK — LRO trajectory, ~90 days (~7.2 MB)
+#   FK   — LRO frame definitions + lunar reference frames
+#   IK   — All LRO instrument FOVs (LROC, LOLA, Diviner, LAMP, CRaTER, LEND)
+#   SCLK — Spacecraft clock (required for CK attitude)
+#   SPK  — LRO trajectory, ~90 days (~7.2 MB)
+#   CK   — Reconstructed spacecraft attitude, Jan 1–Feb 1 2025 (~199 MB)
+#   PCK  — High-accuracy lunar orientation (binary, 1.7 MB)
 #
-# CK (attitude) files are 140-200 MB each and impractical for web use.
-# The viewer uses a computed nadir-pointing model instead, which is accurate
-# for LRO's primary nadir-mapping orientation.
+# All kernels are gzipped after download for faster web delivery.
+# The viewer decompresses them client-side via DecompressionStream.
 #
 # Usage: ./scripts/fetch-lro-kernels.sh
 # Output: apps/viewer/test-catalogs/kernels/lro/
@@ -25,26 +27,59 @@ KERNELS=(
   # Frame definitions (LRO_SC_BUS, LROC instrument frames, etc.)
   "$NAIF_LRO/fk/lro_frames_2014049_v01.tf"
 
-  # LROC instrument FOVs (NAC Left -85600, NAC Right -85610, WAC -85620)
+  # Lunar reference frames (needed for binary PCK)
+  "$NAIF_PDS/fk/moon_080317.tf"
+  "$NAIF_PDS/fk/moon_assoc_me.tf"
+
+  # All LRO instrument FOVs
   "$NAIF_LRO/ik/lro_lroc_v20.ti"
+  "$NAIF_PDS/ik/lro_lola_v00.ti"
+  "$NAIF_PDS/ik/lro_dlre_v05.ti"
+  "$NAIF_PDS/ik/lro_lamp_v03.ti"
+  "$NAIF_PDS/ik/lro_crater_v03.ti"
+  "$NAIF_PDS/ik/lro_lend_v00.ti"
+
+  # Spacecraft clock (required for CK attitude data)
+  "$NAIF_PDS/sclk/lro_clkcor_2025351_v00.tsc"
 
   # LRO trajectory around Moon (Dec 16 2024 – Mar 15 2025, ~7.2 MB)
   "$NAIF_PDS/spk/lrorg_2024350_2025074_v01.bsp"
+
+  # Reconstructed spacecraft attitude (Jan 1 – Feb 1 2025, ~199 MB)
+  # Contains real pointing data: slews, off-nadir maneuvers, momentum dumps
+  "$NAIF_PDS/ck/lrodv_2024366_2025032_v01.bc"
+
+  # High-accuracy lunar orientation (binary PCK, 1900–2050, 1.7 MB)
+  "$NAIF_PDS/pck/moon_pa_de421_1900_2050.bpc"
 )
 
 for url in "${KERNELS[@]}"; do
   filename=$(basename "$url")
-  dest_file="$DEST/$filename"
+  gz_file="$DEST/${filename}.gz"
+  raw_file="$DEST/$filename"
 
-  if [ -f "$dest_file" ]; then
-    echo "  [skip] $filename (already exists)"
+  # Skip if gzipped version already exists
+  if [ -f "$gz_file" ]; then
+    echo "  [skip] ${filename}.gz (already exists)"
+    continue
+  fi
+
+  # Also skip if uncompressed version exists (from previous script version)
+  if [ -f "$raw_file" ]; then
+    echo "  [gzip] $filename (compressing existing file)"
+    gzip -9 "$raw_file"
     continue
   fi
 
   echo "  [fetch] $filename ..."
-  curl -fSL --progress-bar "$url" -o "$dest_file"
+  curl -fSL --progress-bar "$url" -o "$raw_file"
+  echo "  [gzip] $filename ..."
+  gzip -9 "$raw_file"
 done
 
 echo ""
 echo "Done! LRO kernels saved to $DEST"
 du -sh "$DEST"
+echo ""
+echo "Files:"
+ls -lh "$DEST"

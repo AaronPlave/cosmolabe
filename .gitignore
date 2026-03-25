@@ -11,3 +11,6 @@ CLAUDE.md
 
 # Vite cache
 .vite/
+
+# SPICE kernels (downloaded and decompressed by fetch scripts)
+*.gz

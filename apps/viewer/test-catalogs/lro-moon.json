@@ -46,7 +46,12 @@
       "class": "planet",
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Earth" },
-      "geometry": { "type": "Globe", "radius": 6378, "atmosphere": "Earth" },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378,
+        "baseMap": "textures/earth-5k.jpg",
+        "atmosphere": "Earth"
+      },
       "label": { "color": [0.4, 0.6, 1.0] }
     },
     {
@@ -56,22 +61,22 @@
       "trajectory": { "type": "Builtin", "name": "Moon" },
       "rotationModel": { "type": "Builtin", "name": "IAU_MOON" },
       "geometry": {
-          "type": "Globe",
-          "radius": 1737.4,
-          "baseMap": "textures/moon-16k.jpg",
-          "normalMap": "textures/moon-normal-16k.jpg",
-          "displacementMap": "textures/moon-displacement-2k.jpg",
-          "displacementScale": 20,
-          "displacementBias": -9,
-          "terrain": {
-            "type": "quantized-mesh",
-            "url": "https://marshub.s3.amazonaws.com/moon_v14/",
-            "imagery": {
-              "url": "https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
-              "levels": 8
-            }
+        "type": "Globe",
+        "radius": 1737.4,
+        "baseMap": "textures/moon-16k.jpg",
+        "normalMap": "textures/moon-normal-16k.jpg",
+        "displacementMap": "textures/moon-displacement-2k.jpg",
+        "displacementScale": 20,
+        "displacementBias": -9,
+        "terrain": {
+          "type": "quantized-mesh",
+          "url": "https://marshub.s3.amazonaws.com/moon_v14/",
+          "imagery": {
+            "url": "https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
+            "levels": 8
           }
-        },
+        }
+      },
       "label": { "color": [0.7, 0.7, 0.7] },
       "items": [
         {
@@ -85,11 +90,14 @@
             "center": "MOON"
           },
           "rotationModel": {
-            "type": "Nadir",
-            "target": "LRO",
-            "center": "MOON"
+            "type": "Spice",
+            "bodyFrame": "LRO_SC_BUS"
           },
-          "geometry": { "type": "Mesh", "size": 0.003, "source": "models/LRO.glb" },
+          "geometry": {
+            "type": "Mesh",
+            "size": 0.003,
+            "source": "models/LRO.glb"
+          },
           "label": { "color": [0.9, 0.9, 0.9] },
           "trajectoryPlot": { "color": [0.2, 0.8, 1.0], "fade": 0.5 },
           "items": [
@@ -100,9 +108,7 @@
               "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
               "geometry": {
                 "type": "Sensor",
-                "shape": "rectangular",
-                "horizontalFov": 2.86,
-                "verticalFov": 0.4,
+                "spiceId": -85600,
                 "target": "Moon",
                 "range": 60,
                 "frustumColor": [0.2, 0.6, 1.0],
@@ -126,6 +132,82 @@
                 "frustumOpacity": 0.15
               },
               "label": { "color": [1.0, 0.8, 0.2] }
+            },
+            {
+              "name": "LOLA",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85511,
+                "target": "Moon",
+                "range": 60,
+                "horizontalFov": 0.4,
+                "frustumColor": [0.2, 1.0, 0.4],
+                "frustumOpacity": 0.6
+              },
+              "label": { "color": [0.2, 1.0, 0.4] }
+            },
+            {
+              "name": "LAMP",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85300,
+                "target": "Moon",
+                "range": 60,
+                "frustumColor": [0.6, 0.3, 1.0],
+                "frustumOpacity": 0.3
+              },
+              "label": { "color": [0.6, 0.3, 1.0] }
+            },
+            {
+              "name": "Diviner",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85211,
+                "target": "Moon",
+                "range": 60,
+                "frustumColor": [1.0, 0.4, 0.2],
+                "frustumOpacity": 0.3
+              },
+              "label": { "color": [1.0, 0.4, 0.2] }
+            },
+            {
+              "name": "LEND",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85410,
+                "target": "Moon",
+                "range": 60,
+                "frustumColor": [0.4, 0.8, 0.8],
+                "frustumOpacity": 0.15
+              },
+              "label": { "color": [0.4, 0.8, 0.8] }
+            },
+            {
+              "name": "CRaTER",
+              "class": "instrument",
+              "center": "LRO",
+              "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+              "geometry": {
+                "type": "Sensor",
+                "spiceId": -85110,
+                "target": "Moon",
+                "range": 60,
+                "frustumColor": [0.8, 0.8, 0.2],
+                "frustumOpacity": 0.08
+              },
+              "label": { "color": [0.8, 0.8, 0.2] }
             }
           ]
         }
