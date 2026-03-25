@@ -66,7 +66,7 @@
           },
           "geometry": {
             "type": "Sensor",
-            "target": "Earth",
+            "target": "DeepSpaceProbe",
             "shape": "elliptical",
             "horizontalFov": 2.5,
             "verticalFov": 1.8,
@@ -96,7 +96,7 @@
             "shape": "elliptical",
             "horizontalFov": 8,
             "verticalFov": 8,
-            "range": "100000",
+            "range": "500000",
             "frustumColor": [0.3, 1.0, 0.3],
             "frustumOpacity": 0.15
           },
