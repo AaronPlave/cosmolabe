@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Body, Universe } from '@spicecraft/core';
 import type { BodyMesh } from './BodyMesh.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
+import type { RendererContext } from './plugins/RendererContext.js';
 
 export interface GeometryReadoutOptions {
   /** Container element for the readout panel */
@@ -34,13 +35,9 @@ export class GeometryReadout implements RendererPlugin {
     this.fields = options.fields;
   }
 
-  onSceneSetup(scene: unknown, camera: unknown, universe: Universe): void {
-    this.camera = camera as THREE.PerspectiveCamera;
-    this.universe = universe;
-
-    const renderer = (camera as THREE.PerspectiveCamera).parent;
-    // Find the canvas from the camera's DOM element
-    // We'll attach the click handler later when we have access to the canvas
+  onSceneSetup(ctx: RendererContext): void {
+    this.camera = ctx.camera;
+    this.universe = ctx.universe;
   }
 
   /** Must be called after construction to enable picking */
@@ -51,12 +48,12 @@ export class GeometryReadout implements RendererPlugin {
     this.createPanel();
   }
 
-  onRender?(et: number, _scene: unknown, _camera: unknown, universe: Universe): void {
+  onBeforeRender(et: number, ctx: RendererContext): void {
     if (!this.selectedBody || !this.panel) return;
-    this.updateReadout(et, universe);
+    this.updateReadout(et, ctx.universe);
   }
 
-  onPick(body: Body, _et: number, _universe: Universe): void {
+  onPick(body: Body, _et: number, _ctx: RendererContext): void {
     this.selectedBody = body;
     if (this.panel) {
       this.panel.style.display = 'block';
@@ -127,10 +124,10 @@ export class GeometryReadout implements RendererPlugin {
 
     const meshes: THREE.Object3D[] = [];
     for (const bm of this.bodyMeshes.values()) {
-      meshes.push(bm);
+      if (bm.mesh.visible) meshes.push(bm.mesh);
     }
 
-    const intersects = this.raycaster.intersectObjects(meshes, true);
+    const intersects = this.raycaster.intersectObjects(meshes, false);
     if (intersects.length > 0) {
       // Walk up to find the BodyMesh
       let obj = intersects[0].object;
@@ -147,7 +144,7 @@ export class GeometryReadout implements RendererPlugin {
 
   private updateReadout(et: number, universe: Universe): void {
     if (!this.panel || !this.selectedBody) return;
-    
+
     const body = this.selectedBody;
     const state = body.stateAt(et);
     const [x, y, z] = state.position;

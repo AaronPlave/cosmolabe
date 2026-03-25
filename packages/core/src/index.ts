@@ -1,9 +1,9 @@
 export { Body } from './Body.js';
-export type { BodyProperties, TrajectoryPlotConfig } from './Body.js';
+export type { BodyProperties, TrajectoryPlotConfig, BodyChangeField, BodyChangeCallback } from './Body.js';
 export { Universe } from './Universe.js';
 export type { UniverseOptions } from './Universe.js';
 export { CatalogLoader } from './catalog/CatalogLoader.js';
-export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, ViewpointDefinition } from './catalog/CatalogLoader.js';
+export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory, TrajectoryFactoryContext, RotationFactoryContext } from './catalog/CatalogLoader.js';
 
 // Trajectories
 export type { CartesianState, Trajectory } from './trajectories/Trajectory.js';
@@ -46,3 +46,14 @@ export type { EventType, EventFinderConfig } from './geometry/EventFinder.js';
 // Plugins
 export type { SpiceCraftPlugin } from './plugins/Plugin.js';
 export type { ResourceLayer } from './plugins/ResourceLayer.js';
+
+// Events
+export { EventBus } from './events/EventBus.js';
+export type { EventHandler } from './events/EventBus.js';
+export type { UniverseEventMap } from './events/EventTypes.js';
+
+// State
+export { StateStore } from './state/StateStore.js';
+export type { StateListener } from './state/StateStore.js';
+export type { UniverseState } from './state/StateTypes.js';
+export { DEFAULT_UNIVERSE_STATE } from './state/StateTypes.js';

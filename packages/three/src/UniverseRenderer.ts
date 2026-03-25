@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CompositeTrajectory, SpiceTrajectory, type Universe, type Body } from '@spicecraft/core';
+import { CompositeTrajectory, SpiceTrajectory, EventBus, type Universe, type Body } from '@spicecraft/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
@@ -15,6 +15,10 @@ import { TimeController } from './controls/TimeController.js';
 import type { TerrainConfig } from './TerrainManager.js';
 import type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
+import type { RendererContext } from './plugins/RendererContext.js';
+import type { BodyVisualizer } from './plugins/BodyVisualizer.js';
+import type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
+import type { RendererEventMap } from './events/RendererEventMap.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -85,6 +89,7 @@ export class UniverseRenderer {
   private _coverageWarned = false;
   private readonly plugins: RendererPlugin[] = [];
   private readonly options: UniverseRendererOptions;
+  private _ctx!: RendererContext;
 
   private labelManager: LabelManager | null = null;
   private geometryReadout: GeometryReadout | null = null;
@@ -111,6 +116,21 @@ export class UniverseRenderer {
   private readonly _shadowOccluderCache = new Map<string, { pos: THREE.Vector3; radius: number }[]>();
   /** Current lighting mode — eclipse shadows only apply in 'natural' mode */
   private _lightingMode: 'natural' | 'shadow' | 'flood' = 'natural';
+
+  /** Renderer-level event bus. Forwards universe events and adds renderer-specific events. */
+  readonly events = new EventBus<RendererEventMap>();
+
+  // Body visualizer registry (Pattern D)
+  private readonly _visualizers = new Map<string, BodyVisualizer>();
+  private readonly _customVisuals = new Map<string, THREE.Object3D>();
+
+  // Attached visuals (Pattern F)
+  private readonly _attachedVisuals: Array<{
+    bodyName: string;
+    object: THREE.Object3D;
+    followRotation: boolean;
+    autoHide: boolean;
+  }> = [];
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -171,6 +191,52 @@ export class UniverseRenderer {
     this.labelContainer.style.overflow = 'hidden';
     canvas.parentElement?.appendChild(this.labelContainer);
 
+    // Forward universe events on the renderer event bus
+    for (const event of ['time:change', 'body:added', 'body:removed', 'body:trajectoryChanged', 'body:rotationChanged', 'catalog:loaded'] as const) {
+      universe.events.on(event, (data: any) => this.events.emit(event, data));
+    }
+
+    // Create renderer context for plugins
+    this._ctx = {
+      scene: this.scene,
+      camera: this.camera,
+      webglRenderer: this.renderer,
+      canvas,
+      universe: this.universe,
+      scaleFactor: this.scaleFactor,
+      events: this.events,
+      state: this.universe.state,
+      getBodyMesh: (name: string) => this.bodyMeshes.get(name),
+      getTrajectoryLine: (name: string) => this.trajectoryLines.get(name),
+      attachToBody: (bodyName: string, object: THREE.Object3D, options?: AttachOptions): AttachedVisual => {
+        this.scene.add(object);
+        const entry = {
+          bodyName,
+          object,
+          followRotation: options?.followRotation ?? false,
+          autoHide: options?.autoHide ?? true,
+        };
+        this._attachedVisuals.push(entry);
+        return {
+          object,
+          bodyName,
+          detach: () => {
+            this.scene.remove(object);
+            const idx = this._attachedVisuals.indexOf(entry);
+            if (idx >= 0) this._attachedVisuals.splice(idx, 1);
+          },
+        };
+      },
+    };
+
+    // Listen for trajectory changes to invalidate cached trail samples
+    universe.events.on('body:trajectoryChanged', ({ body }) => {
+      // Invalidate all trajectory lines for this body (including composite arc lines)
+      for (const tl of this.trajectoryLines.values()) {
+        if (tl.body === body) tl.invalidate();
+      }
+    });
+
     // Build scene from universe
     this.buildScene();
 
@@ -187,7 +253,12 @@ export class UniverseRenderer {
   use(plugin: RendererPlugin): void {
     this.plugins.push(plugin);
     this.universe.use(plugin);
-    plugin.onSceneSetup?.(this.scene, this.camera, this.universe);
+    plugin.onSceneSetup?.(this._ctx);
+  }
+
+  /** Register a custom geometry type visualizer. */
+  useVisualizer(vis: BodyVisualizer): void {
+    this._visualizers.set(vis.geometryType, vis);
   }
 
   /** Start the render loop */
@@ -432,10 +503,16 @@ export class UniverseRenderer {
     // Prevent camera from going inside any body's surface
     this.clampCameraAboveSurfaces();
 
-    // Plugins
+    // Plugins — before render
     for (const plugin of this.plugins) {
-      plugin.onRender?.(et, this.scene, this.camera, this.universe);
+      plugin.onBeforeRender?.(et, this._ctx);
     }
+
+    // Update attached visuals — position them relative to their parent body
+    this.updateAttachedVisuals(et);
+
+    // Update custom body visuals (from BodyVisualizer registry)
+    this.updateCustomVisuals(et);
 
     // Dynamic near/far: adjust based on distance to orbit target
     const camDist = this.camera.position.distanceTo(this.cameraController.controls.target);
@@ -596,6 +673,16 @@ export class UniverseRenderer {
     if (this._pickMarker) {
       this.renderer.render(this._markerScene, this.camera);
     }
+
+    // Plugins — after render
+    for (const plugin of this.plugins) {
+      plugin.onAfterRender?.(et, this._ctx);
+    }
+
+    // Plugins — overlay update
+    for (const plugin of this.plugins) {
+      plugin.onOverlayUpdate?.(et, this.labelContainer, this._ctx);
+    }
   }
 
   resize(width: number, height: number): void {
@@ -603,6 +690,7 @@ export class UniverseRenderer {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
     this.instrumentView?.onResize();
+    this.events.emit('renderer:resize', { width, height });
     for (const plugin of this.plugins) {
       plugin.onResize?.(width, height);
     }
@@ -610,6 +698,10 @@ export class UniverseRenderer {
 
   getBodyMesh(name: string): BodyMesh | undefined {
     return this.bodyMeshes.get(name);
+  }
+
+  getTrajectoryLine(name: string): TrajectoryLine | undefined {
+    return this.trajectoryLines.get(name);
   }
 
   /** Get all sensor frustum names (for UI instrument selection). */
@@ -643,7 +735,23 @@ export class UniverseRenderer {
       );
     }
 
-    this.instrumentView.setSensor(sf);
+    // Try to get FOV boundary from SPICE for drawing the actual sensor footprint
+    let fovBoundary: import('./InstrumentView.js').FovBoundary | undefined;
+    const geo = sf.body.geometryData as Record<string, unknown> | undefined;
+    const spiceId = geo?.spiceId as number | undefined;
+    const spice = this.universe.spiceInstance;
+    if (spiceId != null && spice) {
+      try {
+        const fov = spice.getfov(spiceId);
+        fovBoundary = {
+          shape: fov.shape,
+          boresight: fov.boresight,
+          bounds: fov.bounds,
+        };
+      } catch { /* IK not loaded */ }
+    }
+
+    this.instrumentView.setSensor(sf, fovBoundary);
   }
 
   /** Get the currently active instrument view sensor name, if any. */
@@ -1068,6 +1176,52 @@ export class UniverseRenderer {
     }
   }
 
+  /** Position attached visuals relative to their parent body each frame. */
+  private updateAttachedVisuals(et: number): void {
+    for (const av of this._attachedVisuals) {
+      const body = this.universe.getBody(av.bodyName);
+      if (!body) continue;
+      const bm = this.bodyMeshes.get(av.bodyName);
+      if (av.autoHide && bm) {
+        av.object.visible = bm.visible;
+      }
+      if (!av.object.visible) continue;
+      // Position at the body's scene-space location
+      if (bm) {
+        av.object.position.copy(bm.position);
+      } else {
+        const state = body.stateAt(et);
+        av.object.position.set(
+          state.position[0] * this.scaleFactor,
+          state.position[1] * this.scaleFactor,
+          state.position[2] * this.scaleFactor,
+        );
+      }
+      if (av.followRotation && bm) {
+        av.object.quaternion.copy(bm.quaternion);
+      }
+    }
+  }
+
+  /** Update custom body visuals from the BodyVisualizer registry. */
+  private updateCustomVisuals(et: number): void {
+    for (const [bodyName, obj] of this._customVisuals) {
+      const body = this.universe.getBody(bodyName);
+      if (!body) continue;
+      const vis = this._visualizers.get(body.geometryType ?? '');
+      if (!vis) continue;
+      const bm = this.bodyMeshes.get(bodyName);
+      const pos: [number, number, number] = bm
+        ? [bm.position.x, bm.position.y, bm.position.z]
+        : [
+            body.stateAt(et).position[0] * this.scaleFactor,
+            body.stateAt(et).position[1] * this.scaleFactor,
+            body.stateAt(et).position[2] * this.scaleFactor,
+          ];
+      vis.updateVisual(obj, body, et, pos, this._ctx);
+    }
+  }
+
   dispose(): void {
     this.stop();
     this.renderer.domElement.removeEventListener('dblclick', this._onDblClick);
@@ -1083,7 +1237,20 @@ export class UniverseRenderer {
     this.labelManager?.dispose();
     this.instrumentView?.dispose();
     this.labelContainer.remove();
+    // Clean up custom visuals
+    for (const [bodyName, obj] of this._customVisuals) {
+      const body = this.universe.getBody(bodyName);
+      const vis = body ? this._visualizers.get(body.geometryType ?? '') : undefined;
+      vis?.dispose?.(obj);
+    }
+    this._customVisuals.clear();
+    // Clean up attached visuals
+    for (const av of this._attachedVisuals) {
+      this.scene.remove(av.object);
+    }
+    this._attachedVisuals.length = 0;
     this.renderer.dispose();
+    this.events.dispose();
     for (const plugin of this.plugins) plugin.dispose?.();
   }
 
@@ -1131,6 +1298,15 @@ export class UniverseRenderer {
           }
         }
         continue;
+      }
+
+      // Check BodyVisualizer registry for custom geometry types
+      const customVis = this._visualizers.get(body.geometryType ?? '');
+      if (customVis) {
+        const obj = customVis.createVisual(body, this._ctx);
+        this._customVisuals.set(body.name, obj);
+        this.scene.add(obj);
+        // Still create a BodyMesh for picking/tracking but hide the sphere
       }
 
       // Create body mesh (needed for click/track even for sensor bodies)
@@ -1272,6 +1448,14 @@ export class UniverseRenderer {
           // Apply catalog fade fraction
           if (plotCfg?.fade != null) trajOpts.fadeFraction = plotCfg.fade;
 
+          // Clamp trail to trajectory time bounds (prevents extrapolation artifacts)
+          if (body.trajectory.startTime != null && trajOpts.minTime == null) {
+            trajOpts.minTime = body.trajectory.startTime;
+          }
+          if (body.trajectory.endTime != null && trajOpts.maxTime == null) {
+            trajOpts.maxTime = body.trajectory.endTime;
+          }
+
           const tl = new TrajectoryLine(body, trajOpts);
           tl.layers.set(OVERLAY_LAYER);
           tl.traverse(c => c.layers.set(OVERLAY_LAYER));
@@ -1334,47 +1518,60 @@ export class UniverseRenderer {
         geo.shape = fov.shape === 'RECTANGLE' ? 'rectangular' : 'elliptical';
       }
 
-      // Derive FOV angles from boundary vectors if not specified in catalog
+      // Derive FOV angles from boundary vectors if not specified in catalog.
+      // SPICE boundary vectors are NOT necessarily unit vectors — they're direction
+      // vectors like (5e-6, -0.025, 1.0). We must normalize before computing angles.
       if (geo.horizontalFov == null || geo.verticalFov == null) {
         const bs = fov.boresight;
-        if (fov.shape === 'RECTANGLE' && fov.bounds.length >= 1) {
-          // Decompose first corner boundary vector relative to boresight
-          // Bounds are in the instrument frame; boresight is typically +Z
+        const bsLen = Math.sqrt(bs[0] ** 2 + bs[1] ** 2 + bs[2] ** 2);
+        const bsN = [bs[0] / bsLen, bs[1] / bsLen, bs[2] / bsLen];
+
+        if (fov.shape === 'CIRCLE' && fov.bounds.length >= 1) {
+          // Single half-angle from boresight to (normalized) boundary vector
           const b = fov.bounds[0];
-          const along = b[0] * bs[0] + b[1] * bs[1] + b[2] * bs[2];
-          // Build perpendicular axes: use the cross product to find "right" and "up"
-          // For boresight near +Z, right ≈ X, up ≈ Y
-          const bsLen = Math.sqrt(bs[0] ** 2 + bs[1] ** 2 + bs[2] ** 2);
-          const refUp = Math.abs(bs[1] / bsLen) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+          const bLen = Math.sqrt(b[0] ** 2 + b[1] ** 2 + b[2] ** 2);
+          const dot = (bsN[0] * b[0] + bsN[1] * b[1] + bsN[2] * b[2]) / bLen;
+          const fovDeg = Math.acos(Math.min(1, Math.abs(dot))) * 2 * 180 / Math.PI;
+          if (geo.horizontalFov == null) geo.horizontalFov = fovDeg;
+          if (geo.verticalFov == null) geo.verticalFov = fovDeg;
+        } else if (fov.shape === 'ELLIPSE' && fov.bounds.length >= 2) {
+          for (let bi = 0; bi < 2; bi++) {
+            const b = fov.bounds[bi];
+            const bLen = Math.sqrt(b[0] ** 2 + b[1] ** 2 + b[2] ** 2);
+            const dot = (bsN[0] * b[0] + bsN[1] * b[1] + bsN[2] * b[2]) / bLen;
+            const fovDeg = Math.acos(Math.min(1, Math.abs(dot))) * 2 * 180 / Math.PI;
+            if (bi === 0 && geo.horizontalFov == null) geo.horizontalFov = fovDeg;
+            if (bi === 1 && geo.verticalFov == null) geo.verticalFov = fovDeg;
+          }
+        } else if (fov.bounds.length >= 1) {
+          // RECTANGLE or POLYGON: build orthonormal frame around boresight,
+          // project all boundary corners to find max H and V half-angles.
+          const refUp = Math.abs(bsN[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
           const right = [
-            bs[1] * refUp[2] - bs[2] * refUp[1],
-            bs[2] * refUp[0] - bs[0] * refUp[2],
-            bs[0] * refUp[1] - bs[1] * refUp[0],
+            bsN[1] * refUp[2] - bsN[2] * refUp[1],
+            bsN[2] * refUp[0] - bsN[0] * refUp[2],
+            bsN[0] * refUp[1] - bsN[1] * refUp[0],
           ];
           const rLen = Math.sqrt(right[0] ** 2 + right[1] ** 2 + right[2] ** 2);
           right[0] /= rLen; right[1] /= rLen; right[2] /= rLen;
           const up = [
-            bs[1] * right[2] - bs[2] * right[1],
-            bs[2] * right[0] - bs[0] * right[2],
-            bs[0] * right[1] - bs[1] * right[0],
+            bsN[1] * right[2] - bsN[2] * right[1],
+            bsN[2] * right[0] - bsN[0] * right[2],
+            bsN[0] * right[1] - bsN[1] * right[0],
           ];
-          const hComp = Math.abs(b[0] * right[0] + b[1] * right[1] + b[2] * right[2]);
-          const vComp = Math.abs(b[0] * up[0] + b[1] * up[1] + b[2] * up[2]);
-          if (geo.horizontalFov == null) geo.horizontalFov = Math.atan2(hComp, along) * 2 * 180 / Math.PI;
-          if (geo.verticalFov == null) geo.verticalFov = Math.atan2(vComp, along) * 2 * 180 / Math.PI;
-        } else if (fov.bounds.length >= 1) {
-          // CIRCLE, ELLIPSE, POLYGON: use angular separation from boresight
-          const dot = bs[0] * fov.bounds[0][0] + bs[1] * fov.bounds[0][1] + bs[2] * fov.bounds[0][2];
-          const halfAngle = Math.acos(Math.min(1, Math.abs(dot)));
-          const fovDeg = halfAngle * 2 * 180 / Math.PI;
-          if (geo.horizontalFov == null) geo.horizontalFov = fovDeg;
-          if (geo.verticalFov == null) {
-            if (fov.shape === 'ELLIPSE' && fov.bounds.length >= 2) {
-              const dot2 = bs[0] * fov.bounds[1][0] + bs[1] * fov.bounds[1][1] + bs[2] * fov.bounds[1][2];
-              geo.verticalFov = Math.acos(Math.min(1, Math.abs(dot2))) * 2 * 180 / Math.PI;
-            } else {
-              geo.verticalFov = fovDeg;
-            }
+          let maxH = 0, maxV = 0;
+          for (const b of fov.bounds) {
+            const along = b[0] * bsN[0] + b[1] * bsN[1] + b[2] * bsN[2];
+            const hComp = Math.abs(b[0] * right[0] + b[1] * right[1] + b[2] * right[2]);
+            const vComp = Math.abs(b[0] * up[0] + b[1] * up[1] + b[2] * up[2]);
+            maxH = Math.max(maxH, Math.atan2(hComp, along));
+            maxV = Math.max(maxV, Math.atan2(vComp, along));
+          }
+          if (geo.horizontalFov == null) geo.horizontalFov = maxH * 2 * 180 / Math.PI;
+          if (geo.verticalFov == null) geo.verticalFov = maxV * 2 * 180 / Math.PI;
+          // Use rectangular shape for FOVs with distinct H/V extents
+          if (!geo.shape && maxH > 0 && maxV > 0 && Math.abs(maxH - maxV) / Math.max(maxH, maxV) > 0.1) {
+            geo.shape = 'rectangular';
           }
         }
       }
@@ -1518,43 +1715,53 @@ export class UniverseRenderer {
 
     const canvas = this.renderer.domElement;
     const rect = canvas.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
     const mouse = new THREE.Vector2(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+      (screenX / rect.width) * 2 - 1,
+      -(screenY / rect.height) * 2 + 1,
     );
 
-    this._dblClickRaycaster.setFromCamera(mouse, this.camera);
-
-    // Collect raycast targets: body meshes + label sprites
-    const targets: THREE.Object3D[] = [...this.bodyMeshes.values()];
-    if (this.labelManager) {
-      targets.push(...this.labelManager.getSprites());
-    }
-
-    const hits = this._dblClickRaycaster.intersectObjects(targets, true);
-    if (hits.length === 0) return;
-
-    // Resolve hit to a body name
     let bodyName: string | undefined;
 
-    // Check if it's a label sprite
+    // 1. Screen-space label picking (priority — labels are always in front)
     if (this.labelManager) {
-      bodyName = this.labelManager.resolveSprite(hits[0].object);
+      bodyName = this.labelManager.pickNearest(
+        screenX, screenY, this.camera, rect.width, rect.height,
+      );
     }
 
-    // If not a label, walk up the parent chain to find the BodyMesh
+    // 2. Raycast against body meshes only (not recursive — avoids axes/grid/debug children)
     if (!bodyName) {
-      let obj = hits[0].object;
-      while (obj.parent && !this.bodyMeshes.has(obj.name)) {
-        obj = obj.parent;
+      this._dblClickRaycaster.setFromCamera(mouse, this.camera);
+
+      // Collect only the actual body mesh surfaces (placeholder spheres + terrain)
+      const meshTargets: THREE.Object3D[] = [];
+      for (const bm of this.bodyMeshes.values()) {
+        if (bm.mesh.visible) meshTargets.push(bm.mesh);
       }
-      if (this.bodyMeshes.has(obj.name)) bodyName = obj.name;
+      const hits = this._dblClickRaycaster.intersectObjects(meshTargets, false);
+      if (hits.length > 0) {
+        // Walk up to find the BodyMesh parent
+        let obj = hits[0].object;
+        while (obj.parent && !this.bodyMeshes.has(obj.name)) {
+          obj = obj.parent;
+        }
+        if (this.bodyMeshes.has(obj.name)) bodyName = obj.name;
+      }
     }
 
     if (bodyName) {
       const bm = this.bodyMeshes.get(bodyName);
       if (bm) {
         this.cameraController.flyTo(bm, { scaleFactor: this.scaleFactor });
+        // Notify plugins and emit events
+        const et = this.universe.time;
+        this.universe.state.set('selectedBody', bodyName!);
+        this.events.emit('body:picked', { bodyName: bodyName!, et });
+        for (const plugin of this.plugins) {
+          plugin.onPick?.(bm.body, et, this._ctx);
+        }
       }
     }
   };

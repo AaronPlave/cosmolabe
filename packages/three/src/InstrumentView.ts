@@ -25,6 +25,13 @@ const _lookTarget = new THREE.Vector3();
  * Places a camera at the instrument position, oriented along its boresight,
  * and renders into a viewport corner of the main canvas.
  */
+/** FOV boundary data for drawing the actual sensor footprint outline. */
+export interface FovBoundary {
+  shape: string;               // 'POLYGON' | 'RECTANGLE' | 'CIRCLE' | 'ELLIPSE'
+  boresight: [number, number, number];
+  bounds: [number, number, number][];
+}
+
 export class InstrumentView {
   readonly camera: THREE.PerspectiveCamera;
   private sensor: SensorFrustum | null = null;
@@ -32,9 +39,12 @@ export class InstrumentView {
   private readonly overlayDiv: HTMLDivElement;
   private readonly labelDiv: HTMLDivElement;
   private readonly fovDiv: HTMLDivElement;
+  private readonly fovSvg: SVGSVGElement;
   private _active = false;
   /** Instrument native aspect ratio (hFov / vFov). Used for letterboxing. */
   private instrAspect = 1;
+  /** Angular offset (in radians) of the FOV centroid from the boresight [h, v]. */
+  private fovCenterOffset: [number, number] = [0, 0];
 
   constructor(
     private readonly canvasParent: HTMLElement,
@@ -93,6 +103,14 @@ export class InstrumentView {
     `;
     this.overlayDiv.appendChild(this.fovDiv);
 
+    // SVG overlay for drawing the actual FOV boundary shape
+    this.fovSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    this.fovSvg.style.cssText = `
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      pointer-events: none; overflow: visible;
+    `;
+    this.overlayDiv.appendChild(this.fovSvg);
+
     canvasParent.appendChild(this.overlayDiv);
   }
 
@@ -100,15 +118,27 @@ export class InstrumentView {
   get sensorName(): string | undefined { return this.sensor?.body.name; }
 
   /** Set the active instrument sensor (or null to deactivate). */
-  setSensor(sensor: SensorFrustum | null): void {
+  setSensor(sensor: SensorFrustum | null, fovBoundary?: FovBoundary): void {
     this.sensor = sensor;
     this._active = sensor != null;
     this.overlayDiv.style.display = this._active ? 'block' : 'none';
+    this.fovSvg.innerHTML = '';
+    this.fovCenterOffset = [0, 0];
 
     if (sensor) {
       const geo = sensor.body.geometryData as Record<string, unknown> | undefined;
-      const hFov = (geo?.horizontalFov as number) ?? 10;
-      const vFov = (geo?.verticalFov as number) ?? hFov;
+      let hFov = (geo?.horizontalFov as number) ?? 10;
+      let vFov = (geo?.verticalFov as number) ?? hFov;
+
+      // When SPICE boundary is available, compute tight-fitting FOV from the
+      // actual boundary bounding box instead of the enriched symmetric version.
+      // This ensures the polygon fills the PiP viewport.
+      if (fovBoundary && fovBoundary.bounds.length >= 1) {
+        const tight = this.computeTightFov(fovBoundary);
+        hFov = tight.hFov;
+        vFov = tight.vFov;
+        this.fovCenterOffset = tight.centerOffset;
+      }
 
       // Use the instrument's actual FOV and aspect ratio
       this.instrAspect = hFov / vFov;
@@ -116,17 +146,172 @@ export class InstrumentView {
       this.camera.aspect = this.instrAspect;
       this.camera.updateProjectionMatrix();
 
-      this.fovDiv.textContent = `${hFov}°×${vFov}°`;
+      this.fovDiv.textContent = `${hFov.toPrecision(4)}°×${vFov.toPrecision(4)}°`;
 
       // Update border color from sensor frustum color
       const fc = geo?.frustumColor as number[] | undefined;
+      let sensorHex = this.options.borderColor;
       if (fc) {
-        const hex = '#' + new THREE.Color(fc[0], fc[1], fc[2]).getHexString();
-        this.overlayDiv.style.borderColor = hex;
-        this.labelDiv.style.color = hex;
+        sensorHex = '#' + new THREE.Color(fc[0], fc[1], fc[2]).getHexString();
+        this.overlayDiv.style.borderColor = sensorHex;
+        this.labelDiv.style.color = sensorHex;
       }
 
       this.labelDiv.textContent = sensor.body.name;
+
+      // Draw actual FOV boundary shape on the PiP overlay
+      if (fovBoundary) {
+        this.drawFovBoundary(fovBoundary, hFov, vFov, sensorHex);
+      }
+    }
+  }
+
+  /**
+   * Compute a tight-fitting FOV from SPICE boundary vectors.
+   * Returns the angular bounding box extent and the centroid offset from boresight.
+   */
+  private computeTightFov(fov: FovBoundary): {
+    hFov: number; vFov: number;
+    centerOffset: [number, number];
+  } {
+    const bs = fov.boresight;
+    const bsLen = Math.sqrt(bs[0] ** 2 + bs[1] ** 2 + bs[2] ** 2);
+    const bsN = [bs[0] / bsLen, bs[1] / bsLen, bs[2] / bsLen];
+    const refUp = Math.abs(bsN[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    const right = [
+      refUp[1] * bsN[2] - refUp[2] * bsN[1],
+      refUp[2] * bsN[0] - refUp[0] * bsN[2],
+      refUp[0] * bsN[1] - refUp[1] * bsN[0],
+    ];
+    const rLen = Math.sqrt(right[0] ** 2 + right[1] ** 2 + right[2] ** 2);
+    right[0] /= rLen; right[1] /= rLen; right[2] /= rLen;
+    const up = [
+      bsN[1] * right[2] - bsN[2] * right[1],
+      bsN[2] * right[0] - bsN[0] * right[2],
+      bsN[0] * right[1] - bsN[1] * right[0],
+    ];
+
+    let minH = Infinity, maxH = -Infinity, minV = Infinity, maxV = -Infinity;
+    for (const b of fov.bounds) {
+      const along = b[0] * bsN[0] + b[1] * bsN[1] + b[2] * bsN[2];
+      const hAngle = Math.atan2(b[0] * right[0] + b[1] * right[1] + b[2] * right[2], along);
+      const vAngle = Math.atan2(b[0] * up[0] + b[1] * up[1] + b[2] * up[2], along);
+      minH = Math.min(minH, hAngle); maxH = Math.max(maxH, hAngle);
+      minV = Math.min(minV, vAngle); maxV = Math.max(maxV, vAngle);
+    }
+
+    const centerH = (minH + maxH) / 2;
+    const centerV = (minV + maxV) / 2;
+    const extentH = (maxH - minH) * 180 / Math.PI;
+    const extentV = (maxV - minV) * 180 / Math.PI;
+    // Add 5% padding
+    return {
+      hFov: extentH * 1.05,
+      vFov: extentV * 1.05,
+      centerOffset: [centerH, centerV],
+    };
+  }
+
+  /**
+   * Project FOV boundary vectors onto the PiP viewport and draw as SVG.
+   * Boundary vectors are in the instrument frame where boresight ≈ +Z.
+   * We project each vector to 2D using the tangent-plane projection
+   * relative to the camera's FOV extent, accounting for letterbox/pillarbox.
+   */
+  private drawFovBoundary(
+    fov: FovBoundary,
+    hFovDeg: number,
+    vFovDeg: number,
+    color: string,
+  ): void {
+    const pipW = this.options.width;
+    const pipH = this.options.height;
+    const pipAspect = pipW / pipH;
+    const tanH = Math.tan((hFovDeg / 2) * Math.PI / 180);
+    const tanV = Math.tan((vFovDeg / 2) * Math.PI / 180);
+
+    // Compute the letterboxed viewport sub-region (mirrors render() logic)
+    let vw: number, vh: number, ox: number, oy: number;
+    if (this.instrAspect > pipAspect) {
+      // Wider than PiP → fit width, bars top/bottom
+      vw = pipW; vh = pipW / this.instrAspect;
+      ox = 0; oy = (pipH - vh) / 2;
+    } else {
+      // Taller than PiP → fit height, bars left/right
+      vh = pipH; vw = pipH * this.instrAspect;
+      ox = (pipW - vw) / 2; oy = 0;
+    }
+
+    // Build camera-convention orthonormal frame around boresight.
+    // Must match THREE.js camera axes: right=+X, up=+Y when looking along boresight.
+    // right = worldUp × boresight (not boresight × worldUp, which gives the opposite sign)
+    const bs = fov.boresight;
+    const bsLen = Math.sqrt(bs[0] ** 2 + bs[1] ** 2 + bs[2] ** 2);
+    const bsN = [bs[0] / bsLen, bs[1] / bsLen, bs[2] / bsLen];
+    const refUp = Math.abs(bsN[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    // right = refUp × bsN
+    const right = [
+      refUp[1] * bsN[2] - refUp[2] * bsN[1],
+      refUp[2] * bsN[0] - refUp[0] * bsN[2],
+      refUp[0] * bsN[1] - refUp[1] * bsN[0],
+    ];
+    const rLen = Math.sqrt(right[0] ** 2 + right[1] ** 2 + right[2] ** 2);
+    right[0] /= rLen; right[1] /= rLen; right[2] /= rLen;
+    // up = bsN × right
+    const up = [
+      bsN[1] * right[2] - bsN[2] * right[1],
+      bsN[2] * right[0] - bsN[0] * right[2],
+      bsN[0] * right[1] - bsN[1] * right[0],
+    ];
+
+    // Project boundary vector to pixel coordinates within the letterboxed sub-region.
+    // Offset by fovCenterOffset so the polygon centroid maps to viewport center.
+    const [cH, cV] = this.fovCenterOffset;
+    const tanCH = Math.tan(cH); // horizontal center offset in tangent space
+    const tanCV = Math.tan(cV); // vertical center offset in tangent space
+    const projectToPixel = (v: [number, number, number]): [number, number] => {
+      const along = v[0] * bsN[0] + v[1] * bsN[1] + v[2] * bsN[2];
+      const hComp = v[0] * right[0] + v[1] * right[1] + v[2] * right[2];
+      const vComp = v[0] * up[0] + v[1] * up[1] + v[2] * up[2];
+      // Tangent-space position relative to FOV center (not boresight)
+      const ndcX = (hComp / along - tanCH) / tanH;
+      const ndcY = (vComp / along - tanCV) / tanV;
+      // Map to pixels within the letterboxed viewport, then offset to full PiP coords
+      return [ox + (ndcX + 1) / 2 * vw, oy + (1 - ndcY) / 2 * vh];
+    };
+
+    this.fovSvg.setAttribute('viewBox', `0 0 ${pipW} ${pipH}`);
+
+    if (fov.shape === 'CIRCLE' && fov.bounds.length >= 1) {
+      const b = fov.bounds[0];
+      const bLen = Math.sqrt(b[0] ** 2 + b[1] ** 2 + b[2] ** 2);
+      const dot = (bsN[0] * b[0] + bsN[1] * b[1] + bsN[2] * b[2]) / bLen;
+      const halfAngleRad = Math.acos(Math.min(1, Math.abs(dot)));
+      // Radius in pixels within the letterboxed viewport
+      const radiusPxH = (Math.tan(halfAngleRad) / tanH) * (vw / 2);
+      const radiusPxV = (Math.tan(halfAngleRad) / tanV) * (vh / 2);
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+      circle.setAttribute('cx', `${ox + vw / 2}`);
+      circle.setAttribute('cy', `${oy + vh / 2}`);
+      circle.setAttribute('rx', `${radiusPxH}`);
+      circle.setAttribute('ry', `${radiusPxV}`);
+      circle.setAttribute('fill', 'none');
+      circle.setAttribute('stroke', color);
+      circle.setAttribute('stroke-width', '1.5');
+      circle.setAttribute('stroke-opacity', '0.7');
+      this.fovSvg.appendChild(circle);
+    } else {
+      // POLYGON, RECTANGLE, ELLIPSE: project actual SPICE boundary corners.
+      // For asymmetric FOVs (e.g. WAC single filter band), the polygon may not
+      // fill the full viewport — that's correct, it shows the real sensor footprint.
+      const points = fov.bounds.map(b => projectToPixel(b as [number, number, number]));
+      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      polygon.setAttribute('points', points.map(([x, y]) => `${x},${y}`).join(' '));
+      polygon.setAttribute('fill', 'none');
+      polygon.setAttribute('stroke', color);
+      polygon.setAttribute('stroke-width', '1.5');
+      polygon.setAttribute('stroke-opacity', '0.7');
+      this.fovSvg.appendChild(polygon);
     }
   }
 
@@ -148,9 +333,22 @@ export class InstrumentView {
 
     if (spiceRotation && spiceRotation.length === 9) {
       // SPICE pxform returns instrument→J2000 rotation matrix (row-major).
-      // Boresight is instrument +Z → 3rd column of R in J2000.
+      // Columns of R give instrument axes in J2000:
+      //   col0 = inst +X (right), col1 = inst +Y (up), col2 = inst +Z (boresight)
       const r = spiceRotation;
       const boresight = new THREE.Vector3(r[2], r[5], r[8]).normalize();
+
+      // Offset the look direction to the FOV centroid for asymmetric boundaries.
+      // fovCenterOffset is [hAngle, vAngle] in radians relative to boresight.
+      const [cH, cV] = this.fovCenterOffset;
+      if (cH !== 0 || cV !== 0) {
+        const instRight = new THREE.Vector3(r[0], r[3], r[6]);
+        const instUp = new THREE.Vector3(r[1], r[4], r[7]);
+        boresight.addScaledVector(instRight, Math.tan(cH));
+        boresight.addScaledVector(instUp, Math.tan(cV));
+        boresight.normalize();
+      }
+
       _lookTarget.copy(this.camera.position).addScaledVector(boresight, 0.001);
       // Up = instrument +Y in J2000 = 2nd column of R
       this.camera.up.set(r[1], r[4], r[7]).normalize();

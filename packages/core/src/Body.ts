@@ -38,11 +38,14 @@ export interface BodyProperties {
   trajectoryFrame?: 'ecliptic' | 'equatorial';
 }
 
+export type BodyChangeField = 'trajectory' | 'rotation';
+export type BodyChangeCallback = (body: Body, field: BodyChangeField) => void;
+
 export class Body {
   readonly name: string;
   readonly naifId?: number;
-  readonly trajectory: Trajectory;
-  readonly rotation?: RotationModel;
+  private _trajectory: Trajectory;
+  private _rotation?: RotationModel;
   readonly parentName?: string;
   readonly radii?: Vec3;
   readonly mass?: number;
@@ -55,11 +58,14 @@ export class Body {
   readonly trajectoryFrame?: 'ecliptic' | 'equatorial';
   readonly children: Body[] = [];
 
+  /** Called when trajectory or rotation is changed at runtime. Set by Universe. */
+  onChange?: BodyChangeCallback;
+
   constructor(props: BodyProperties) {
     this.name = props.name;
     this.naifId = props.naifId;
-    this.trajectory = props.trajectory;
-    this.rotation = props.rotation;
+    this._trajectory = props.trajectory;
+    this._rotation = props.rotation;
     this.parentName = props.parentName;
     this.radii = props.radii;
     this.mass = props.mass;
@@ -72,11 +78,26 @@ export class Body {
     this.trajectoryFrame = props.trajectoryFrame;
   }
 
+  get trajectory(): Trajectory { return this._trajectory; }
+  get rotation(): RotationModel | undefined { return this._rotation; }
+
+  /** Replace the trajectory at runtime. Takes effect on the next frame. */
+  setTrajectory(t: Trajectory): void {
+    this._trajectory = t;
+    this.onChange?.(this, 'trajectory');
+  }
+
+  /** Replace the rotation model at runtime. Takes effect on the next frame. */
+  setRotation(r: RotationModel): void {
+    this._rotation = r;
+    this.onChange?.(this, 'rotation');
+  }
+
   stateAt(et: number): CartesianState {
-    return this.trajectory.stateAt(et);
+    return this._trajectory.stateAt(et);
   }
 
   rotationAt(et: number): Quaternion | undefined {
-    return this.rotation?.rotationAt(et);
+    return this._rotation?.rotationAt(et);
   }
 }

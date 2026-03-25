@@ -357,18 +357,44 @@ const BUILTIN_KEPLERIAN: Record<string, FallbackOrbit> = {
   },
 };
 
+/** Context passed to custom trajectory factories. */
+export interface TrajectoryFactoryContext {
+  readonly spice?: SpiceInstance;
+  readonly item: CatalogItem;
+  readonly spec: TrajectorySpec;
+  resolveFile?(source: string): string | undefined;
+  resolveFileBinary?(source: string): ArrayBuffer | undefined;
+}
+
+/** Context passed to custom rotation factories. */
+export interface RotationFactoryContext {
+  readonly spice?: SpiceInstance;
+  readonly item: CatalogItem;
+  readonly spec: RotationModelSpec;
+  readonly trajectory?: Trajectory;
+}
+
+export type TrajectoryFactory = (ctx: TrajectoryFactoryContext) => Trajectory | undefined;
+export type RotationFactory = (ctx: RotationFactoryContext) => RotationModel | undefined;
+
 export interface CatalogLoaderOptions {
   spice?: SpiceInstance;
   /** Resolve trajectory data files (e.g. .xyzv). Return file text content or undefined if unavailable. */
   resolveFile?: (source: string) => string | undefined;
   /** Resolve binary data files (e.g. .cheb). Return raw bytes or undefined if unavailable. */
   resolveFileBinary?: (source: string) => ArrayBuffer | undefined;
+  /** Custom trajectory factories keyed by type string. Checked before built-in types. */
+  trajectoryFactories?: Record<string, TrajectoryFactory>;
+  /** Custom rotation factories keyed by type string. Checked before built-in types. */
+  rotationFactories?: Record<string, RotationFactory>;
 }
 
 export class CatalogLoader {
   private readonly spice?: SpiceInstance;
   private readonly resolveFile?: (source: string) => string | undefined;
   private readonly resolveFileBinary?: (source: string) => ArrayBuffer | undefined;
+  private readonly trajectoryFactories?: Record<string, TrajectoryFactory>;
+  private readonly rotationFactories?: Record<string, RotationFactory>;
   /** Epoch (ET) used to probe whether SPICE kernels have coverage. Set from catalog's defaultTime. */
   private probeEpoch = 0;
 
@@ -382,6 +408,8 @@ export class CatalogLoader {
       this.spice = opts.spice;
       this.resolveFile = opts.resolveFile;
       this.resolveFileBinary = opts.resolveFileBinary;
+      this.trajectoryFactories = opts.trajectoryFactories;
+      this.rotationFactories = opts.rotationFactories;
     }
   }
 
@@ -516,6 +544,19 @@ export class CatalogLoader {
         return new SpiceTrajectory(this.spice, item.name, item.center ?? 'SUN', item.trajectoryFrame ?? 'ECLIPJ2000');
       }
       return new FixedPointTrajectory([0, 0, 0]);
+    }
+
+    // Check custom factories before built-in types (allows overriding built-ins)
+    const customFactory = this.trajectoryFactories?.[spec.type];
+    if (customFactory) {
+      const result = customFactory({
+        spice: this.spice,
+        item,
+        spec,
+        resolveFile: this.resolveFile,
+        resolveFileBinary: this.resolveFileBinary,
+      });
+      if (result) return result;
     }
 
     const distScale = DISTANCE_SCALE[spec.distanceUnits ?? 'km'] ?? 1;
@@ -671,6 +712,13 @@ export class CatalogLoader {
   private buildRotationModel(item: CatalogItem, trajectory?: Trajectory): RotationModel | undefined {
     const spec = item.rotationModel;
     if (!spec) return undefined;
+
+    // Check custom factories before built-in types
+    const customFactory = this.rotationFactories?.[spec.type];
+    if (customFactory) {
+      const result = customFactory({ spice: this.spice, item, spec, trajectory });
+      if (result) return result;
+    }
 
     switch (spec.type) {
       case 'Uniform': {

@@ -6,11 +6,11 @@ export type { UniverseRendererOptions, SurfacePickResult } from './UniverseRende
 export { BodyMesh } from './BodyMesh.js';
 export type { ModelResolver } from './BodyMesh.js';
 export { TrajectoryLine } from './TrajectoryLine.js';
-export type { TrajectoryLineOptions, PositionResolver } from './TrajectoryLine.js';
+export type { TrajectoryLineOptions, PositionResolver, ColorSegment } from './TrajectoryLine.js';
 export { SensorFrustum } from './SensorFrustum.js';
 export type { SensorFrustumOptions } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';
-export type { InstrumentViewOptions } from './InstrumentView.js';
+export type { InstrumentViewOptions, FovBoundary } from './InstrumentView.js';
 export { RingMesh } from './RingMesh.js';
 export { AtmosphereMesh, resolveAtmosphereParams, getAtmospherePreset } from './AtmosphereMesh.js';
 export type { AtmosphereParams } from './AtmosphereMesh.js';
@@ -39,3 +39,17 @@ export type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 
 // Plugin interface
 export type { RendererPlugin } from './plugins/RendererPlugin.js';
+export type { RendererContext } from './plugins/RendererContext.js';
+export type { BodyVisualizer } from './plugins/BodyVisualizer.js';
+export type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
+export type { RendererEventMap } from './events/RendererEventMap.js';
+
+// Stock plugins
+export { TrajectoryColorPlugin } from './plugins/stock/TrajectoryColorPlugin.js';
+export type { TrajectoryColorSegment } from './plugins/stock/TrajectoryColorPlugin.js';
+export { ManeuverVectorPlugin } from './plugins/stock/ManeuverVectorPlugin.js';
+export type { ManeuverEvent } from './plugins/stock/ManeuverVectorPlugin.js';
+export { CommLinkPlugin } from './plugins/stock/CommLinkPlugin.js';
+export type { CommLink } from './plugins/stock/CommLinkPlugin.js';
+export { GroundTrackPlugin } from './plugins/stock/GroundTrackPlugin.js';
+export type { GroundTrackConfig } from './plugins/stock/GroundTrackPlugin.js';

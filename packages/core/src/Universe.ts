@@ -1,15 +1,24 @@
 import type { SpiceInstance } from '@spicecraft/spice';
 import { Body } from './Body.js';
 import { CatalogLoader } from './catalog/CatalogLoader.js';
-import type { CatalogJson, CatalogLoaderOptions, ViewpointDefinition } from './catalog/CatalogLoader.js';
+import type { CatalogJson, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory } from './catalog/CatalogLoader.js';
 import type { SpiceCraftPlugin } from './plugins/Plugin.js';
 import { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
+import { EventBus } from './events/EventBus.js';
+import type { UniverseEventMap } from './events/EventTypes.js';
+import { StateStore } from './state/StateStore.js';
+import type { UniverseState } from './state/StateTypes.js';
+import { DEFAULT_UNIVERSE_STATE } from './state/StateTypes.js';
 
 export interface UniverseOptions {
   /** Resolve trajectory data files (e.g. .xyzv). Return file text content or undefined. */
   resolveFile?: (source: string) => string | undefined;
   /** Resolve binary data files (e.g. .cheb). Return raw bytes or undefined. */
   resolveFileBinary?: (source: string) => ArrayBuffer | undefined;
+  /** Custom trajectory factories keyed by type string. */
+  trajectoryFactories?: Record<string, TrajectoryFactory>;
+  /** Custom rotation factories keyed by type string. */
+  rotationFactories?: Record<string, RotationFactory>;
 }
 
 export class Universe {
@@ -20,20 +29,35 @@ export class Universe {
   private readonly spice?: SpiceInstance;
   private readonly resolveFile?: (source: string) => string | undefined;
   private readonly resolveFileBinary?: (source: string) => ArrayBuffer | undefined;
+  private readonly trajectoryFactories?: Record<string, TrajectoryFactory>;
+  private readonly rotationFactories?: Record<string, RotationFactory>;
+
+  readonly events = new EventBus<UniverseEventMap>();
+  readonly state: StateStore<UniverseState>;
 
   constructor(spice?: SpiceInstance, options?: UniverseOptions) {
     this.spice = spice;
     this.resolveFile = options?.resolveFile;
     this.resolveFileBinary = options?.resolveFileBinary;
+    this.trajectoryFactories = options?.trajectoryFactories;
+    this.rotationFactories = options?.rotationFactories;
+    this.state = new StateStore<UniverseState>({ ...DEFAULT_UNIVERSE_STATE });
   }
 
   loadCatalog(json: CatalogJson): void {
-    const loaderOpts: CatalogLoaderOptions = { spice: this.spice, resolveFile: this.resolveFile, resolveFileBinary: this.resolveFileBinary };
+    const loaderOpts: CatalogLoaderOptions = {
+      spice: this.spice,
+      resolveFile: this.resolveFile,
+      resolveFileBinary: this.resolveFileBinary,
+      trajectoryFactories: this.trajectoryFactories,
+      rotationFactories: this.rotationFactories,
+    };
     const loader = new CatalogLoader(loaderOpts);
     const result = loader.load(json);
 
     for (const body of result.bodies) {
       this.bodies.set(body.name, body);
+      this.wireBodyChangeCallback(body);
       // Set up parent-child relationships
       if (body.parentName) {
         const parent = this.bodies.get(body.parentName);
@@ -45,6 +69,8 @@ export class Universe {
       this._viewpoints.push(vp);
     }
 
+    this.events.emit('catalog:loaded', { name: json.name });
+
     for (const plugin of this.plugins) {
       plugin.onUniverseLoaded?.(this);
     }
@@ -52,10 +78,30 @@ export class Universe {
 
   addBody(body: Body): void {
     this.bodies.set(body.name, body);
+    this.wireBodyChangeCallback(body);
     if (body.parentName) {
       const parent = this.bodies.get(body.parentName);
       if (parent) parent.children.push(body);
     }
+    this.events.emit('body:added', { body });
+  }
+
+  private wireBodyChangeCallback(body: Body): void {
+    body.onChange = (b, field) => {
+      if (field === 'trajectory') {
+        this.events.emit('body:trajectoryChanged', { body: b });
+      } else if (field === 'rotation') {
+        this.events.emit('body:rotationChanged', { body: b });
+      }
+    };
+  }
+
+  removeBody(name: string): boolean {
+    const body = this.bodies.get(name);
+    if (!body) return false;
+    this.bodies.delete(name);
+    this.events.emit('body:removed', { bodyName: name });
+    return true;
   }
 
   getBody(name: string): Body | undefined {
@@ -77,6 +123,7 @@ export class Universe {
 
   setTime(et: number): void {
     this.currentEt = et;
+    this.events.emit('time:change', { et });
     for (const plugin of this.plugins) {
       plugin.onTimeChange?.(et, this);
     }
@@ -153,5 +200,7 @@ export class Universe {
     this.plugins = [];
     this.bodies.clear();
     this._viewpoints = [];
+    this.events.dispose();
+    this.state.dispose();
   }
 }

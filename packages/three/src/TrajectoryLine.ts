@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import type { Body } from '@spicecraft/core';
 
+/** A color segment overrides the trail color for a time range. */
+export interface ColorSegment {
+  startEt: number;
+  endEt: number;
+  color: THREE.ColorRepresentation;
+}
+
 export interface TrajectoryLineOptions {
   /** Max number of rendered vertices. Default 32000. */
   maxPoints?: number;
@@ -65,6 +72,11 @@ export class TrajectoryLine extends THREE.Object3D {
   private cachedSamples: Sample[] = [];
   private cachedStartEt = 0;
   private cachedTotalDuration = 0;
+
+  // Set to true when the body's trajectory changes, forcing a full resample
+  private _needsResample = false;
+  // Color segments: override base color for time ranges
+  private _colorSegments: Array<{ startEt: number; endEt: number; color: THREE.Color }> = [];
 
   // Time bounds
   private readonly minTime?: number;
@@ -155,11 +167,11 @@ export class TrajectoryLine extends THREE.Object3D {
     this.visible = true;
 
     // Phase 1: Recompute trajectory samples only when time changes (expensive)
-    if (et !== this.lastComputedEt) {
+    if (et !== this.lastComputedEt || this._needsResample) {
+      this._needsResample = false;
       this.lastComputedEt = et;
       this.recomputeSamples(et, resolver);
     }
-
     // Phase 2: Apply offset and write to Float32 buffers (cheap, every frame)
     this.applyOffset(scaleFactor, vertexOffset);
   }
@@ -297,9 +309,17 @@ export class TrajectoryLine extends THREE.Object3D {
 
       const fadeT = (s.t - startEt) / totalDuration;
       const fade = this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
-      this.trailColors[i * 3] = this.baseColor.r * fade;
-      this.trailColors[i * 3 + 1] = this.baseColor.g * fade;
-      this.trailColors[i * 3 + 2] = this.baseColor.b * fade;
+      // Use segment color if this sample falls within a color segment, else base color
+      let cr = this.baseColor.r, cg = this.baseColor.g, cb = this.baseColor.b;
+      for (const seg of this._colorSegments) {
+        if (s.t >= seg.startEt && s.t <= seg.endEt) {
+          cr = seg.color.r; cg = seg.color.g; cb = seg.color.b;
+          break;
+        }
+      }
+      this.trailColors[i * 3] = cr * fade;
+      this.trailColors[i * 3 + 1] = cg * fade;
+      this.trailColors[i * 3 + 2] = cb * fade;
     }
 
     this.trailLine.geometry.setDrawRange(0, samples.length);
@@ -326,6 +346,27 @@ export class TrajectoryLine extends THREE.Object3D {
     }
     const state = this.body.stateAt(t);
     return state.position as [number, number, number];
+  }
+
+  /** Set color segments that override the base trail color for specific time ranges. */
+  setColorSegments(segments: ColorSegment[]): void {
+    this._colorSegments = segments.map(s => ({
+      startEt: s.startEt,
+      endEt: s.endEt,
+      color: new THREE.Color(s.color),
+    }));
+  }
+
+  /** Clear all color segments, reverting to the base color. */
+  clearColorSegments(): void {
+    this._colorSegments = [];
+  }
+
+  /** Force a full resample on the next update (e.g. when the body's trajectory changes). */
+  invalidate(): void {
+    this._needsResample = true;
+    this.cachedSamples = [];
+    this._orbitSamples = undefined;
   }
 
   dispose(): void {
