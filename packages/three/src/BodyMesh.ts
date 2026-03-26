@@ -38,7 +38,7 @@ export class BodyMesh extends THREE.Object3D {
   /** Display radius in km (before scale factor). Updated when a model with known size loads. */
   displayRadius: number;
   /** Container for loaded 3D model (replaces placeholder sphere) */
-  private modelContainer: THREE.Object3D | null = null;
+  modelContainer: THREE.Object3D | null = null;
   private loadedModel = false;
   /** Base scale applied to the model container (before dynamic sizing) */
   private modelBaseScale = 1;
@@ -62,6 +62,8 @@ export class BodyMesh extends THREE.Object3D {
   private terrainSampleFrame = 0;
   /** Whether eclipse shadow receiving is enabled on this body's materials */
   private shadowEnabled = false;
+  /** Suppress repeated rotation-failure warnings after first occurrence */
+  private _rotationFailed = false;
   /** Shared uniform values — patched into every compiled shader by reference */
   private readonly shadowUniforms: ShadowUniforms = makeShadowUniforms();
   /**
@@ -512,8 +514,11 @@ export class BodyMesh extends THREE.Object3D {
           this.gridLines.quaternion.copy(target.quaternion);
         }
       }
-    } catch {
-      // Rotation data not available at this time (e.g. CK gap) — keep last orientation
+    } catch (err) {
+      if (!this._rotationFailed) {
+        console.warn(`[SpiceCraft] Rotation failed for "${this.body.name}":`, (err as Error)?.message ?? err);
+        this._rotationFailed = true;
+      }
     }
   }
 

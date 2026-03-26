@@ -96,7 +96,8 @@
           "geometry": {
             "type": "Mesh",
             "size": 0.003,
-            "source": "models/LRO.glb"
+            "source": "models/LRO.glb",
+            "meshRotation": [0.7071, 0, 0, 0.7071]
           },
           "label": { "color": [0.9, 0.9, 0.9] },
           "trajectoryPlot": { "color": [0.2, 0.8, 1.0], "fade": 0.5 },

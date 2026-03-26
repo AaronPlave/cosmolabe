@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import Stats from "three/examples/jsm/libs/stats.module.js";
+import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { Universe } from "@spicecraft/core";
 import { Spice, type SpiceInstance } from "@spicecraft/spice";
 import { UniverseRenderer, rateLabel } from "@spicecraft/three";
@@ -9,6 +10,10 @@ let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let spice: SpiceInstance | null = null;
 let stats: Stats | null = null;
+let transformGizmo: TransformControls | null = null;
+let gizmoTarget: THREE.Object3D | null = null;
+let gizmoWasPlaying = false;
+const _gizmoSpiceQ = new THREE.Quaternion();
 
 const KERNEL_EXTENSIONS = new Set([
   ".bsp",
@@ -106,8 +111,8 @@ async function fetchWithProgress(
     xhr.open("GET", url, true);
     xhr.responseType = "arraybuffer";
     xhr.onprogress = (e) => {
-      if (e.lengthComputable && onProgress) {
-        onProgress(e.loaded, e.total);
+      if (onProgress) {
+        onProgress(e.loaded, e.lengthComputable ? e.total : 0);
       }
     };
     xhr.onload = () => {
@@ -196,8 +201,8 @@ const LRO_KERNELS = [
   { file: "lro/lrorg_2024350_2025074_v01.bsp.gz", label: "LRO trajectory", size: 7_200_000 },
   // High-accuracy lunar orientation
   { file: "lro/moon_pa_de421_1900_2050.bpc.gz", label: "Lunar orientation", size: 1_700_000 },
-  // Reconstructed attitude (largest — ~199 MB uncompressed)
-  { file: "lro/lrodv_2024366_2025032_v01.bc.gz", label: "LRO attitude (CK)", size: 199_000_000 },
+  // Reconstructed spacecraft bus attitude (CK ID -85000, covers Jan 11–21 2025)
+  { file: "lro/lrosc_2025011_2025021_v01.bc.gz", label: "LRO bus attitude (CK)", size: 554_000_000 },
 ];
 
 /** Europa Clipper kernels (Jupiter science phase, 2030–2034) */
@@ -1421,34 +1426,79 @@ document.addEventListener("keydown", (e) => {
     renderer?.showBodyAxes(axesShown);
   }
 
-  // Debug: rotate tracked body's meshRotation
-  // 1/2 = ±X, 3/4 = ±Y, 5/6 = ±Z, q = log quaternion
-  // No modifier = 90° steps, Shift = 15° fine steps
-  const tracked = renderer?.cameraController.trackedBody;
-  if (!tracked) return;
-  const angle = e.shiftKey ? Math.PI / 12 : Math.PI / 2; // 15° or 90°
-  const s = Math.sin(angle / 2);
-  const c = Math.cos(angle / 2);
-  const step = new THREE.Quaternion();
-  let rotated = false;
-  switch (e.key) {
-    case "1": case "!": step.set(s, 0, 0, c); rotated = true; break;  // +X
-    case "2": case "@": step.set(-s, 0, 0, c); rotated = true; break; // -X
-    case "3": case "#": step.set(0, s, 0, c); rotated = true; break;  // +Y
-    case "4": case "$": step.set(0, -s, 0, c); rotated = true; break; // -Y
-    case "5": case "%": step.set(0, 0, s, c); rotated = true; break;  // +Z
-    case "6": case "^": step.set(0, 0, -s, c); rotated = true; break; // -Z
-    case "q":
-      if (!e.ctrlKey && !e.metaKey) {
-        const mq = tracked.meshRotationQ;
-        console.log(`[meshRotation] ${tracked.body.name}: [${mq.w.toFixed(4)}, ${mq.x.toFixed(4)}, ${mq.y.toFixed(4)}, ${mq.z.toFixed(4)}]`);
-      }
+  // M key: toggle TransformControls gizmo on tracked body's model for meshRotation calibration
+  if (e.key === "m" && !e.ctrlKey && !e.metaKey && renderer) {
+    const tracked = renderer.cameraController.trackedBody;
+    const tc = renderer.timeController;
+    if (transformGizmo) {
+      // Detach and remove
+      const mq = tracked?.meshRotationQ ?? gizmoTarget!.quaternion;
+      console.log(`[meshRotation] Final for catalog JSON: [${mq.w.toFixed(4)}, ${mq.x.toFixed(4)}, ${mq.y.toFixed(4)}, ${mq.z.toFixed(4)}]`);
+      transformGizmo.detach();
+      renderer.scene.remove(transformGizmo.getHelper());
+      if (gizmoTarget) renderer.scene.remove(gizmoTarget);
+      transformGizmo.dispose();
+      transformGizmo = null;
+      gizmoTarget = null;
+      // Resume time if it was playing before
+      if (gizmoWasPlaying) { tc.play(); updateRateDisplay(); }
       return;
+    }
+    if (!tracked?.hasModel) return;
+    const container = tracked.modelContainer;
+    if (!container) return;
+
+    // Pause time so spiceQ stays constant while calibrating
+    gizmoWasPlaying = tc.playing;
+    tc.pause();
+    updateRateDisplay();
+
+    // Snapshot spiceQ: container.quaternion = spiceQ * meshRotationQ
+    // → spiceQ = container.quaternion * meshRotationQ^-1
+    const meshRotInv = tracked.meshRotationQ.clone().invert();
+    _gizmoSpiceQ.multiplyQuaternions(container.quaternion, meshRotInv);
+
+    // Create proxy at the model's full visual orientation.
+    // Gizmo rings will align with the model so dragging matches what you see.
+    const proxy = new THREE.Object3D();
+    proxy.position.copy(tracked.position);
+    proxy.quaternion.copy(container.quaternion);
+    renderer.scene.add(proxy);
+
+    transformGizmo = new TransformControls(renderer.camera, renderer.renderer.domElement);
+    transformGizmo.setMode('rotate');
+    transformGizmo.setSpace('local');
+    transformGizmo.setSize(1.5);
+    transformGizmo.setRotationSnap(Math.PI / 2); // 90° snap
+    transformGizmo.attach(proxy);
+    renderer.scene.add(transformGizmo.getHelper());
+    gizmoTarget = proxy;
+
+    // Disable orbit controls while dragging
+    transformGizmo.addEventListener('dragging-changed', (event: any) => {
+      renderer!.cameraController.controls.enabled = !event.value;
+    });
+
+    // On change: extract meshRotationQ = spiceQ^-1 * proxy.quaternion
+    transformGizmo.addEventListener('objectChange', () => {
+      const spiceInv = _gizmoSpiceQ.clone().invert();
+      tracked.meshRotationQ.multiplyQuaternions(spiceInv, proxy.quaternion);
+      tracked.meshRotationQ.normalize();
+      const mq = tracked.meshRotationQ;
+      console.log(`[meshRotation] ${tracked.body.name}: [${mq.w.toFixed(4)}, ${mq.x.toFixed(4)}, ${mq.y.toFixed(4)}, ${mq.z.toFixed(4)}]`);
+    });
+
+    console.log(`[meshRotation] Gizmo attached to ${tracked.body.name} (time paused) — drag rings to rotate (90° snap), press M to detach.`);
+    return;
   }
-  if (rotated) {
-    tracked.meshRotationQ.premultiply(step);
-    tracked.meshRotationQ.normalize();
-    const mq = tracked.meshRotationQ;
-    console.log(`[meshRotation] ${tracked.body.name}: [${mq.w.toFixed(4)}, ${mq.x.toFixed(4)}, ${mq.y.toFixed(4)}, ${mq.z.toFixed(4)}]`);
+
+  // Q key: log current meshRotation quaternion
+  if (e.key === "q" && !e.ctrlKey && !e.metaKey) {
+    const tracked = renderer?.cameraController.trackedBody;
+    if (tracked) {
+      const mq = tracked.meshRotationQ;
+      console.log(`[meshRotation] ${tracked.body.name}: [${mq.w.toFixed(4)}, ${mq.x.toFixed(4)}, ${mq.y.toFixed(4)}, ${mq.z.toFixed(4)}]`);
+    }
+    return;
   }
 });

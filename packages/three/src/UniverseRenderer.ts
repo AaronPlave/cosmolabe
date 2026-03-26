@@ -464,7 +464,7 @@ export class UniverseRenderer {
       let spiceRot: number[] | undefined;
       if (sf.spiceFovFrame && spiceInst) {
         try {
-          spiceRot = spiceInst.pxform(sf.spiceFovFrame, 'J2000', et) as unknown as number[];
+          spiceRot = spiceInst.pxform(sf.spiceFovFrame, 'ECLIPJ2000', et) as unknown as number[];
         } catch {
           // CK data may not cover this time — fall back to target-pointing
         }
@@ -478,12 +478,22 @@ export class UniverseRenderer {
     }
 
     // Update labels
+    const bodyMeshArr = Array.from(this.bodyMeshes.values());
     if (this.labelManager) {
       this.labelManager.update(
-        Array.from(this.bodyMeshes.values()),
+        bodyMeshArr,
         this.camera,
         { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
       );
+
+      // Apply occlusion fade to sensor frustum labels
+      const camPos = this.camera.position;
+      for (const sf of this.sensorFrustums.values()) {
+        const dist = sf.position.distanceTo(camPos);
+        this.labelManager.applyOcclusionFade(
+          sf.labelSprite, sf.position, dist, bodyMeshArr, camPos,
+        );
+      }
     }
 
     // Update sun light position
@@ -658,7 +668,7 @@ export class UniverseRenderer {
           let spiceRot: number[] | undefined;
           if (sf.spiceFovFrame && spiceInst) {
             try {
-              spiceRot = spiceInst.pxform(sf.spiceFovFrame, 'J2000', et) as unknown as number[];
+              spiceRot = spiceInst.pxform(sf.spiceFovFrame, 'ECLIPJ2000', et) as unknown as number[];
             } catch { /* no CK coverage */ }
           }
           this.instrumentView.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);

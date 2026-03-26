@@ -32,7 +32,7 @@ export class SensorFrustum extends THREE.Object3D {
   spiceFovFrame: string | undefined;
   private readonly frustumMesh: THREE.Mesh;
   private readonly wireframe: THREE.LineSegments;
-  private readonly labelSprite: THREE.Sprite;
+  readonly labelSprite: THREE.Sprite;
   private readonly hFov: number; // full angle in radians
   private readonly vFov: number; // full angle in radians
   private readonly fixedLength: number | undefined;
@@ -161,14 +161,14 @@ export class SensorFrustum extends THREE.Object3D {
 
     // Orient frustum
     if (spiceRotation && spiceRotation.length === 9) {
-      // SPICE pxform returns instrument→J2000 rotation R (row-major).
+      // SPICE pxform returns instrument→ECLIPJ2000 rotation R (row-major).
       // Instrument frame: +X = horizontal, +Y = vertical, +Z = boresight.
       // Frustum mesh:     X = horizontal,  -Y = boresight, Z = vertical.
       //
-      // Build mesh→J2000 matrix from R columns:
-      //   mesh X  → instr X in J2000: col0 = (r[0], r[3], r[6])
-      //   mesh Y  → -instr Z in J2000: (-r[2], -r[5], -r[8])
-      //   mesh Z  → instr Y in J2000: col1 = (r[1], r[4], r[7])
+      // Build mesh→ECLIPJ2000 matrix from R columns:
+      //   mesh X  → instr X in ECLIPJ2000: col0 = (r[0], r[3], r[6])
+      //   mesh Y  → -instr Z in ECLIPJ2000: (-r[2], -r[5], -r[8])
+      //   mesh Z  → instr Y in ECLIPJ2000: col1 = (r[1], r[4], r[7])
       const r = spiceRotation;
       _m4.set(
         r[0], -r[2], r[1], 0,

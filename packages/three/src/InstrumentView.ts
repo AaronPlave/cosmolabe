@@ -177,6 +177,17 @@ export class InstrumentView {
     const bs = fov.boresight;
     const bsLen = Math.sqrt(bs[0] ** 2 + bs[1] ** 2 + bs[2] ** 2);
     const bsN = [bs[0] / bsLen, bs[1] / bsLen, bs[2] / bsLen];
+
+    // CIRCLE FOVs have a single boundary vector — compute half-angle directly
+    if (fov.shape === 'CIRCLE' && fov.bounds.length === 1) {
+      const b = fov.bounds[0];
+      const bLen = Math.sqrt(b[0] ** 2 + b[1] ** 2 + b[2] ** 2);
+      const dot = (bsN[0] * b[0] + bsN[1] * b[1] + bsN[2] * b[2]) / bLen;
+      const fullAngleDeg = 2 * Math.acos(Math.min(1, Math.abs(dot))) * 180 / Math.PI;
+      const padded = fullAngleDeg * 1.05;
+      return { hFov: padded, vFov: padded, centerOffset: [0, 0] };
+    }
+
     const refUp = Math.abs(bsN[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
     const right = [
       refUp[1] * bsN[2] - refUp[2] * bsN[1],
@@ -332,8 +343,8 @@ export class InstrumentView {
     this.camera.position.copy(this.sensor.position);
 
     if (spiceRotation && spiceRotation.length === 9) {
-      // SPICE pxform returns instrument→J2000 rotation matrix (row-major).
-      // Columns of R give instrument axes in J2000:
+      // SPICE pxform returns instrument→ECLIPJ2000 rotation matrix (row-major).
+      // Columns of R give instrument axes in ECLIPJ2000:
       //   col0 = inst +X (right), col1 = inst +Y (up), col2 = inst +Z (boresight)
       const r = spiceRotation;
       const boresight = new THREE.Vector3(r[2], r[5], r[8]).normalize();
