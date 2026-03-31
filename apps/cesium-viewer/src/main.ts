@@ -10,6 +10,8 @@ import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { Universe, CatalogLoader, Body, FixedPointTrajectory } from '@spicecraft/core';
 import { dateToEt } from '@spicecraft/cesium-adapter';
 import { CesiumRenderer } from '@spicecraft/cesium';
+import { ISSLiveClient } from './iss-live.js';
+import { computeLvlhQuaternion, composeAttitude } from './lvlh.js';
 
 // ── Demo catalog ──────────────────────────────────────────────────────
 
@@ -94,7 +96,15 @@ async function start(): Promise<void> {
         pulseOnEvent: true,
       },
       bodyStyles: {
-        ISS: { color: '#00ff88', pointSize: 14 },
+        ISS: {
+          color: '#00ff88',
+          pointSize: 14,
+          modelUri: '/models/ISS_stationary.glb',
+          modelScale: 1,
+          modelMinimumPixelSize: 32,
+          modelSwitchDistance: 1_000_000,
+          modelHpr: [180, 0, -90],  // Align: roll -90° for panel plane, heading 180° for belly-nadir
+        },
       },
       trailDefaults: {
         trailDuration: 2700,
@@ -118,15 +128,101 @@ async function start(): Promise<void> {
   buildBodyList(renderer, universe);
 
   // ── Animation — driven by Cesium's clock.onTick ─────────────────
-  // Using onTick instead of requestAnimationFrame so position updates
-  // are in sync with Cesium's render loop (avoids trackedEntity oscillation).
   renderer.viewer.clock.onTick.addEventListener((clock: any) => {
     const jsDate = Cesium.JulianDate.toDate(clock.currentTime);
     const et = dateToEt(jsDate);
     renderer.setTime(et);
   });
 
-  statusEl.textContent = `ISS + ${GROUND_STATIONS.length} ground stations — live orbit`;
+  // ── ISS Live Attitude ─────────────────────────────────────────────
+  // Connect to NASA's Lightstreamer feed for real-time ISS attitude
+  const issBody = universe.getBody('ISS');
+  const issEntity = renderer.getBodyEntity('ISS');
+
+  if (issBody && issEntity) {
+    const KM_TO_M = 1000;
+    let lastLiveAttitude: [number, number, number, number] | null = null;
+
+    // Helper: compute LVLH orientation from position/velocity at given ET
+    function computeOrientationAtEt(et: number): Cesium.Quaternion | null {
+      try {
+        const state = issBody!.trajectory.stateAt(et);
+        const posEci = new Cesium.Cartesian3(
+          state.position[0] * KM_TO_M,
+          state.position[1] * KM_TO_M,
+          state.position[2] * KM_TO_M,
+        );
+        const velEci = new Cesium.Cartesian3(
+          state.velocity[0] * KM_TO_M,
+          state.velocity[1] * KM_TO_M,
+          state.velocity[2] * KM_TO_M,
+        );
+        const lvlhQuat = computeLvlhQuaternion(posEci, velEci);
+
+        if (lastLiveAttitude) {
+          // Compose LVLH frame with live body attitude
+          return composeAttitude(lvlhQuat, lastLiveAttitude);
+        }
+        // No live data yet — use pure LVLH (nadir-pointing, velocity-forward)
+        return lvlhQuat;
+      } catch {
+        return null;
+      }
+    }
+
+    const liveEl = document.getElementById('live-indicator')!;
+
+    // Store live attitude from Lightstreamer (but don't apply directly)
+    const issLive = new ISSLiveClient((attitude) => {
+      lastLiveAttitude = attitude.quaternion;
+    });
+    issLive.connect();
+
+    // Apply orientation on each clock tick — uses live attitude only when near real-time
+    renderer.viewer.clock.onTick.addEventListener((clock: any) => {
+      const jsDate = Cesium.JulianDate.toDate(clock.currentTime);
+      const et = dateToEt(jsDate);
+      const nowEt = dateToEt(new Date());
+
+      // Only use live attitude if clock is within 60 seconds of real-time
+      const isRealTime = Math.abs(et - nowEt) < 60;
+      const isLive = isRealTime && lastLiveAttitude !== null && issLive.connected;
+      const savedAttitude = lastLiveAttitude;
+
+      if (!isRealTime) {
+        lastLiveAttitude = null;
+      }
+
+      const orientation = computeOrientationAtEt(et);
+      if (orientation) {
+        // Compose with mesh rotation offset to align model axes
+        const meshQ = issEntity!.meshRotation;
+        const finalQ = Cesium.Quaternion.multiply(orientation, meshQ, new Cesium.Quaternion());
+        issEntity!.entity.orientation = finalQ;
+      }
+
+      if (!isRealTime) {
+        lastLiveAttitude = savedAttitude;
+      }
+
+      // Update LIVE indicator
+      liveEl.style.display = 'flex';
+      if (isLive) {
+        liveEl.className = 'connected';
+        liveEl.innerHTML = '<span class="dot"></span><span class="text">LIVE ATTITUDE</span>';
+      } else if (issLive.connected) {
+        liveEl.className = '';
+        liveEl.innerHTML = '<span class="dot" style="background:#666;animation:none"></span><span class="text" style="color:#666">LVLH (scrubbing)</span>';
+      } else {
+        liveEl.className = '';
+        liveEl.innerHTML = '<span class="dot"></span><span class="text">CONNECTING...</span>';
+      }
+    });
+
+    statusEl.textContent = `ISS + ${GROUND_STATIONS.length} ground stations — live orbit + attitude`;
+  } else {
+    statusEl.textContent = `ISS + ${GROUND_STATIONS.length} ground stations — live orbit`;
+  }
 
   window.addEventListener('beforeunload', () => {
     renderer.dispose();

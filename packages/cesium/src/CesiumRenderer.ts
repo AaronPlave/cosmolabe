@@ -34,6 +34,8 @@ export interface CesiumRendererOptions extends GlobeSetupOptions {
   trailFilter?: (body: Body) => boolean;
   /** Filter which bodies are rendered as surface points. Default: bodies with lat/lon in geometryData. */
   surfacePointFilter?: (body: Body) => boolean;
+  /** Resolve a model source path (from Body geometryData.source) to a loadable URL. */
+  modelResolver?: (source: string) => string | undefined;
 }
 
 /**
@@ -186,14 +188,28 @@ export class CesiumRenderer {
     // Skip planets/stars — they are the globe itself, not entities on it
     if (body.classification === 'planet' || body.classification === 'star' || body.classification === 'barycenter') return;
 
-    // Create body entity
-    const style = {
+    // Create body entity — auto-resolve model from geometryData if available
+    const style: BodyEntityOptions = {
       ...this._options.entityDefaults,
       ...this._options.bodyStyles?.[body.name],
       positionResolver: (b: Body, et: number) => {
         return this.universe.absolutePositionOf(b.name, et);
       },
     };
+
+    // Auto-detect model from Body's geometry data
+    if (!style.modelUri && body.geometryType === 'Mesh' && this._options.modelResolver) {
+      const geo = body.geometryData as Record<string, unknown> | undefined;
+      const source = geo?.source as string | undefined;
+      if (source) {
+        const uri = this._options.modelResolver(source);
+        if (uri) {
+          style.modelUri = uri;
+          const sizeKm = (geo?.size as number) ?? 1;
+          style.modelScale = style.modelScale ?? sizeKm * 1000; // km to meters
+        }
+      }
+    }
 
     const bodyEntity = new BodyEntity(this.viewer, body, this._Cesium, style);
     this._bodyEntities.set(body.name, bodyEntity);

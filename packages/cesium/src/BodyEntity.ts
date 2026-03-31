@@ -18,6 +18,16 @@ export interface BodyEntityOptions extends EntityStyleOptions {
   sampleWindow?: number;
   /** Seconds between samples. Default: 10. */
   sampleStep?: number;
+  /** URI to a glTF/GLB model. If set, shows model when close, point when far. */
+  modelUri?: string;
+  /** Scale factor for the model. Default: 1. */
+  modelScale?: number;
+  /** Distance in meters at which to switch from model to point. Default: 500_000 (500km). */
+  modelSwitchDistance?: number;
+  /** Minimum pixel size for the model (keeps it visible when zoomed out). Default: 0. */
+  modelMinimumPixelSize?: number;
+  /** Model mesh rotation offset as [heading, pitch, roll] in degrees. Adjusts model alignment. */
+  modelHpr?: [number, number, number];
 }
 
 /** Convert ET (seconds past J2000 TDB) to JS Date. */
@@ -41,6 +51,9 @@ export class BodyEntity {
   private _positionProperty: any; // Cesium.SampledPositionProperty
   private _sampledRangeStart = 0;
   private _sampledRangeEnd = 0;
+
+  /** Mesh rotation offset quaternion (model body frame correction). */
+  readonly meshRotation: any; // Cesium.Quaternion
 
   private _pulseStart = 0;
   private _isPulsing = false;
@@ -67,9 +80,25 @@ export class BodyEntity {
       interpolationAlgorithm: Cesium.LagrangePolynomialApproximation,
     });
 
-    const color = Cesium.Color.fromCssColorString(this._style.color);
+    // Compute mesh rotation quaternion from HPR (degrees)
+    const hpr = options?.modelHpr;
+    if (hpr) {
+      const hprRad = Cesium.HeadingPitchRoll.fromDegrees(hpr[0], hpr[1], hpr[2]);
+      this.meshRotation = Cesium.Quaternion.fromHeadingPitchRoll(hprRad);
+    } else {
+      this.meshRotation = Cesium.Quaternion.IDENTITY.clone();
+    }
 
-    this.entity = viewer.entities.add({
+    const color = Cesium.Color.fromCssColorString(this._style.color);
+    const modelUri = options?.modelUri;
+    const modelSwitchDist = options?.modelSwitchDistance ?? 500_000;
+
+    // If model is provided, point only shows when far; model shows when close
+    const pointDistanceCondition = modelUri
+      ? new Cesium.DistanceDisplayCondition(modelSwitchDist, Number.MAX_VALUE)
+      : undefined;
+
+    const entityOpts: any = {
       id: `spicecraft-body-${body.name}`,
       name: body.name,
       position: this._positionProperty,
@@ -78,6 +107,7 @@ export class BodyEntity {
         color,
         outlineColor: color.withAlpha(0.4),
         outlineWidth: 2,
+        distanceDisplayCondition: pointDistanceCondition,
       }),
       label: this._style.showLabel
         ? new Cesium.LabelGraphics({
@@ -92,7 +122,19 @@ export class BodyEntity {
             pixelOffset: new Cesium.Cartesian2(0, this._style.labelOffset),
           })
         : undefined,
-    });
+    };
+
+    // Add 3D model if URI provided — shown only when close
+    if (modelUri) {
+      entityOpts.model = new Cesium.ModelGraphics({
+        uri: modelUri,
+        scale: options?.modelScale ?? 1,
+        minimumPixelSize: options?.modelMinimumPixelSize ?? 0,
+        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, modelSwitchDist),
+      });
+    }
+
+    this.entity = viewer.entities.add(entityOpts);
   }
 
   update(et: number): void {
