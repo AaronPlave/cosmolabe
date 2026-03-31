@@ -6,8 +6,7 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../../packages/core" },
-    { "path": "../../packages/cesium-adapter" },
-    { "path": "../../packages/cesium" }
+    { "path": "../core" },
+    { "path": "../cesium-adapter" }
   ]
 }

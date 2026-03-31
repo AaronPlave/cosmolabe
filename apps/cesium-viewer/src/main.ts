@@ -1,120 +1,183 @@
 /**
- * SpiceCraft Cesium Viewer — Example app demonstrating @spicecraft/cesium-adapter.
+ * SpiceCraft Cesium Viewer — Demo app for @spicecraft/cesium.
  *
- * Shows how to:
- * 1. Load a SpiceCraft catalog (same JSON format as the Three.js viewer)
- * 2. Export it to CZML via the cesium-adapter
- * 3. Load the CZML into a CesiumJS Viewer
- *
- * This is a reference implementation — users integrate the adapter into
- * whatever Cesium setup they already have.
+ * Shows ISS orbit rendered live on a CesiumJS globe using SpiceCraft's
+ * CesiumRenderer, TrajectoryTrail, and CameraManager.
  */
 
-import {
-  Viewer,
-  CzmlDataSource,
-  OpenStreetMapImageryProvider,
-  Cartesian3,
-} from 'cesium';
+import * as Cesium from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
-import { Universe, CatalogLoader } from '@spicecraft/core';
-import { exportToCzml } from '@spicecraft/cesium-adapter';
+import { Universe, CatalogLoader, Body, FixedPointTrajectory } from '@spicecraft/core';
+import { dateToEt } from '@spicecraft/cesium-adapter';
+import { CesiumRenderer } from '@spicecraft/cesium';
 
-// Inline demo catalogs (no SPICE kernels needed — uses Keplerian/TLE trajectories)
-const DEMO_CATALOGS: Record<string, object> = {
-  iss: {
-    name: 'ISS',
-    items: [
-      {
-        name: 'Earth',
-        class: 'planet',
-        trajectory: { type: 'FixedPoint', position: [0, 0, 0] },
+// ── Demo catalog ──────────────────────────────────────────────────────
+
+const ISS_CATALOG = {
+  name: 'ISS Demo',
+  items: [
+    {
+      name: 'Earth',
+      class: 'planet',
+      trajectory: { type: 'FixedPoint', position: [0, 0, 0] },
+    },
+    {
+      name: 'ISS',
+      center: 'Earth',
+      class: 'spacecraft',
+      trajectory: {
+        type: 'TLE',
+        line1: '1 25544U 98067A   26090.13309952  .00011434  00000+0  21777-3 0  9998',
+        line2: '2 25544  51.6341 326.3497 0006202 253.7499 106.2807 15.48671303559657',
       },
-      {
-        name: 'ISS',
-        center: 'Earth',
-        class: 'spacecraft',
-        trajectory: {
-          type: 'TLE',
-          line1: '1 25544U 98067A   24001.50000000  .00016717  00000-0  10270-3 0  9005',
-          line2: '2 25544  51.6400 200.0000 0001234  90.0000 270.0000 15.49560000400000',
-        },
-        geometry: {
-          type: 'Mesh',
-          source: 'ISS_stationary.glb',
-          size: 0.1, // ~100 meters
-        },
-        trajectoryPlot: { color: '#ff0000' },
-      },
-    ],
-  },
+      trajectoryPlot: { color: '#00ff88', trailDuration: 2700, leadDuration: 2700 },
+    },
+  ],
 };
+
+// ── Ground stations ───────────────────────────────────────────────────
+
+const GROUND_STATIONS = [
+  { name: 'Goldstone',   lat: 35.4267, lon: -116.8900, group: 'DSN' },
+  { name: 'Madrid',      lat: 40.4314, lon: -4.2481,   group: 'DSN' },
+  { name: 'Canberra',    lat: -35.4014, lon: 148.9817, group: 'DSN' },
+  { name: 'Kourou',      lat: 5.2361,  lon: -52.7686,  group: 'ESTRACK' },
+  { name: 'Svalbard',    lat: 78.2306, lon: 15.3900,   group: 'KSAT' },
+  { name: 'Wallops',     lat: 37.9402, lon: -75.4664,  group: 'NEN' },
+];
+
+const NETWORK_COLORS: Record<string, string> = {
+  DSN: '#00ffff',
+  ESTRACK: '#ffbf00',
+  KSAT: '#bb66ff',
+  NEN: '#66ccff',
+};
+
+// ── Main ──────────────────────────────────────────────────────────────
 
 const statusEl = document.getElementById('status')!;
 
 async function start(): Promise<void> {
-  // No Cesium Ion token required. Uses OpenStreetMap imagery (free, no account needed).
-  const viewer = new Viewer('cesiumContainer', {
-    animation: true,
-    timeline: true,
-    fullscreenButton: false,
-    baseLayerPicker: false,
-    geocoder: false,
-    homeButton: false,
-    sceneModePicker: true,
-    navigationHelpButton: false,
-    infoBox: false,
-    imageryProvider: false as any,
-  });
-
-
-  viewer.imageryLayers.addImageryProvider(
-    new OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' }),
-  );
-
-  // Load ISS catalog
+  // Load catalog
   const universe = new Universe();
   const loader = new CatalogLoader();
-  const result = loader.load(DEMO_CATALOGS.iss as any);
+  const result = loader.load(ISS_CATALOG as any);
   for (const body of result.bodies) {
     universe.addBody(body);
   }
 
-  // Export to CZML centered on Earth
-  const timeRange = universe.getTimeRange();
-  let startEt = timeRange?.[0] ?? 0;
-  let endEt = timeRange?.[1] ?? startEt + 86400 * 7;
-  const maxDuration = 86400 * 7;
-  if (endEt - startEt > maxDuration) {
-    const mid = (startEt + endEt) / 2;
-    startEt = mid - maxDuration / 2;
-    endEt = mid + maxDuration / 2;
+  // Add ground stations as bodies
+  for (const gs of GROUND_STATIONS) {
+    const body = new Body({
+      name: gs.name,
+      parentName: 'Earth',
+      classification: 'other',
+      trajectory: new FixedPointTrajectory([0, 0, 0]),
+      geometryData: { lat: gs.lat, lon: gs.lon, alt: 0, group: gs.group },
+    });
+    universe.addBody(body);
   }
 
-  const NASA_MODELS: Record<string, string> = {
-    'ISS_stationary.glb': 'https://assets.science.nasa.gov/content/dam/science/psd/solar/2023/09/i/ISS_stationary.glb',
-  };
+  // Create the renderer
+  const renderer = new CesiumRenderer(
+    'cesiumContainer',
+    universe,
+    Cesium,
+    {
+      lighting: true,
+      atmosphere: true,
+      animation: true,
+      timeline: true,
+      entityDefaults: {
+        color: '#00ff88',
+        pointSize: 12,
+        pulseOnEvent: true,
+      },
+      bodyStyles: {
+        ISS: { color: '#00ff88', pointSize: 14 },
+      },
+      trailDefaults: {
+        trailDuration: 2700,
+        leadDuration: 2700,
+        color: '#00ff88',
+      },
+      surfacePointDefaults: {
+        groupColors: NETWORK_COLORS,
+        pointSize: 8,
+      },
+    },
+  );
 
-  const czml = exportToCzml(universe, {
-    startEt,
-    endEt,
-    sampleInterval: 60,
-    centerBody: 'Earth',
-    showPaths: true,
-    showLabels: true,
-    modelResolver: (source) => NASA_MODELS[source] ?? source,
+  // View Earth from space
+  renderer.viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(0, 20, 20_000_000),
+    duration: 0,
   });
 
-  const dataSource = await CzmlDataSource.load(czml);
-  viewer.dataSources.add(dataSource);
+  // ── Body list UI ──────────────────────────────────────────────────
+  buildBodyList(renderer, universe);
 
-  // View Earth from 30,000 km
-  viewer.camera.flyTo({
-    destination: Cartesian3.fromDegrees(0, 0, 30_000_000),
+  // ── Animation — driven by Cesium's clock.onTick ─────────────────
+  // Using onTick instead of requestAnimationFrame so position updates
+  // are in sync with Cesium's render loop (avoids trackedEntity oscillation).
+  renderer.viewer.clock.onTick.addEventListener((clock: any) => {
+    const jsDate = Cesium.JulianDate.toDate(clock.currentTime);
+    const et = dateToEt(jsDate);
+    renderer.setTime(et);
   });
 
-  statusEl.textContent = `ISS: ${Math.round((endEt - startEt) / 86400)} days of orbit data`;
-  universe.dispose();
+  statusEl.textContent = `ISS + ${GROUND_STATIONS.length} ground stations — live orbit`;
+
+  window.addEventListener('beforeunload', () => {
+    renderer.dispose();
+    universe.dispose();
+  });
+}
+
+// ── Body list panel ─────────────────────────────────────────────────
+
+function buildBodyList(renderer: CesiumRenderer, universe: Universe): void {
+  const panel = document.getElementById('body-list')!;
+  if (!panel) return;
+
+  const bodies = universe.getAllBodies();
+
+  // Group: spacecraft first, then ground stations
+  const spacecraft = bodies.filter(b => b.classification === 'spacecraft');
+  const stations = bodies.filter(b => {
+    const geo = b.geometryData as Record<string, unknown> | undefined;
+    return geo?.lat != null;
+  });
+
+  function addSection(title: string, items: Body[]): void {
+    if (items.length === 0) return;
+    const header = document.createElement('div');
+    header.textContent = title;
+    header.style.cssText = 'color: #888; font-size: 10px; margin-top: 6px; text-transform: uppercase; letter-spacing: 1px;';
+    panel.appendChild(header);
+
+    for (const body of items) {
+      const btn = document.createElement('button');
+      btn.textContent = body.name;
+      const geo = body.geometryData as Record<string, unknown> | undefined;
+      const group = geo?.group as string | undefined;
+      const color = group ? (NETWORK_COLORS[group] ?? '#aaa') : '#00ff88';
+      btn.style.cssText = `
+        display: block; width: 100%; text-align: left;
+        background: none; border: none; color: ${color};
+        padding: 3px 0; cursor: pointer; font: 12px monospace;
+      `;
+      btn.addEventListener('click', () => {
+        renderer.focusBody(body.name);
+      });
+      btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(255,255,255,0.1)'; });
+      btn.addEventListener('mouseleave', () => { btn.style.background = 'none'; });
+      panel.appendChild(btn);
+    }
+  }
+
+  addSection('Spacecraft', spacecraft);
+  addSection('Ground Stations', stations);
 }
 
 start().catch((err) => {

@@ -13,6 +13,7 @@
     "@spicecraft/core": "*",
     "@spicecraft/spice": "*",
     "@spicecraft/cesium-adapter": "*",
+    "@spicecraft/cesium": "*",
     "cesium": "^1.130.0",
     "vite": "^7.3.1"
   }

@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@spicecraft/core', '@spicecraft/cesium-adapter', '@spicecraft/spice'],
+    exclude: ['@spicecraft/core', '@spicecraft/cesium-adapter', '@spicecraft/cesium', '@spicecraft/spice'],
   },
   define: {
     // Cesium looks for this global to find its static assets (Workers, Assets, etc.)
