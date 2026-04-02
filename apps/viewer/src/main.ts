@@ -171,13 +171,36 @@ const NAIF_KERNELS = [
   { file: "de440s.bsp", label: "Planets + Moon" },
 ];
 
-/** Cassini-specific kernels (SOI period: Jun 27 – Jul 3, 2004) */
-const CASSINI_KERNELS = [
+/** Cassini-specific kernels — covers SOI, Titan T-A, Huygens, and Enceladus E-2.
+ *  Small text kernels (FK, SCLK, IK) are fetched directly.
+ *  Large binary kernels (SPK, CK) are gzipped and fetched with progress bar.
+ *  Run scripts/fetch-cassini-kernels.sh to download the gzipped files. */
+const CASSINI_KERNELS_SMALL = [
   { file: "cassini/cas_v43.tf", label: "Cassini frames" },
   { file: "cassini/cas00172.tsc", label: "Cassini clock" },
-  { file: "cassini/cas_iss_v10.ti", label: "ISS instruments" },
-  { file: "cassini/040629AP_SCPSE_04179_04185.bsp", label: "Cassini SOI trajectory" },
-  { file: "cassini/04183_04185ra.bc", label: "Cassini attitude (SOI)" },
+  // Instrument kernels — FOV definitions for sensor visualization
+  { file: "cassini/cas_iss_v10.ti", label: "ISS NAC/WAC" },
+  { file: "cassini/cas_vims_v06.ti", label: "VIMS" },
+  { file: "cassini/cas_uvis_v07.ti", label: "UVIS" },
+  { file: "cassini/cas_radar_v11.ti", label: "RADAR" },
+  { file: "cassini/cas_cirs_v10.ti", label: "CIRS" },
+  { file: "cassini/cas_caps_v03.ti", label: "CAPS" },
+  // Existing small SPK + CK (SOI)
+  { file: "cassini/040629AP_SCPSE_04179_04185.bsp", label: "SOI trajectory" },
+  { file: "cassini/04183_04185ra.bc", label: "SOI attitude" },
+];
+
+const CASSINI_KERNELS_LARGE = [
+  // SPK — Reconstructed trajectory segments
+  { file: "cassini/041219R_SCPSE_04199_04247.bsp.gz", label: "Post-SOI trajectory", size: 4_500_000 },
+  { file: "cassini/050105RB_SCPSE_04247_04336.bsp.gz", label: "Titan T-A trajectory", size: 7_800_000 },
+  { file: "cassini/050214R_SCPSE_04336_05015.bsp.gz", label: "Huygens trajectory", size: 16_000_000 },
+  { file: "cassini/050825R_SCPSE_05186_05205.bsp.gz", label: "Enceladus E-2 trajectory", size: 2_500_000 },
+  // CK — Reconstructed attitude for each event window
+  { file: "cassini/04296_04301ra.bc.gz", label: "Titan T-A attitude", size: 6_400_000 },
+  { file: "cassini/04356_04361ra.bc.gz", label: "Huygens release attitude", size: 7_000_000 },
+  { file: "cassini/05012_05017ra.bc.gz", label: "Huygens landing attitude", size: 6_400_000 },
+  { file: "cassini/05192_05197ra.bc.gz", label: "Enceladus E-2 attitude", size: 6_600_000 },
 ];
 
 /** LRO-specific kernels (orbit around Moon, Jan 1 – Feb 1 2025)
@@ -276,7 +299,9 @@ async function loadNaifKernels(): Promise<void> {
 async function loadCassiniKernels(): Promise<void> {
   if (cassiniLoaded) return;
   await loadNaifKernels(); // Need generic kernels first
-  for (const kernel of CASSINI_KERNELS) {
+
+  // Phase 1: small text kernels (FK, SCLK, IK, existing SOI SPK+CK) — direct fetch
+  for (const kernel of CASSINI_KERNELS_SMALL) {
     infoPanel.textContent = `Loading ${kernel.label}...`;
     console.log(`[SpiceCraft] Fetching Cassini kernel: ${kernel.file}`);
     try {
@@ -285,6 +310,47 @@ async function loadCassiniKernels(): Promise<void> {
       console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
     }
   }
+
+  // Phase 2: large gzipped kernels (extended SPK+CK) — with progress bar
+  if (CASSINI_KERNELS_LARGE.length > 0) {
+    const totalSize = CASSINI_KERNELS_LARGE.reduce((s, k) => s + k.size, 0);
+    let loadedSize = 0;
+    showLoadingBar();
+
+    for (let i = 0; i < CASSINI_KERNELS_LARGE.length; i++) {
+      const kernel = CASSINI_KERNELS_LARGE[i];
+      const progress = `(${i + 1}/${CASSINI_KERNELS_LARGE.length})`;
+      infoPanel.textContent = `${progress} Loading ${kernel.label}...`;
+      console.log(`[SpiceCraft] Fetching Cassini kernel: ${kernel.file}`);
+
+      try {
+        const buffer = await fetchWithProgress(
+          `${NAIF_BASE}/${kernel.file}`,
+          (loaded, _total) => {
+            const currentPct = ((loadedSize + loaded) / totalSize) * 100;
+            updateLoadingBar(
+              currentPct,
+              `${progress} ${kernel.label}`,
+              `${formatBytes(loadedSize + loaded)} / ${formatBytes(totalSize)}`,
+            );
+          },
+        );
+        const filename = kernel.file.replace(/\.gz$/, "");
+        await spice!.furnish({ type: "buffer", data: buffer, filename });
+      } catch (err) {
+        console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+      }
+      loadedSize += kernel.size;
+      updateLoadingBar(
+        (loadedSize / totalSize) * 100,
+        `${progress} ${kernel.label} loaded`,
+        `${formatBytes(loadedSize)} / ${formatBytes(totalSize)}`,
+      );
+    }
+
+    hideLoadingBar();
+  }
+
   cassiniLoaded = true;
   console.log(`[SpiceCraft] Cassini kernels loaded (${spice!.totalLoaded()} total)`);
 }

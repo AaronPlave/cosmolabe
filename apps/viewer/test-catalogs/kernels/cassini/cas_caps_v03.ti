@@ -1,0 +1,1005 @@
+KPL/IK
+ 
+ 
+CAPS Instrument Kernel
+==============================================================================
+ 
+   This instrument kernel (I-kernel) contains references to the mounting
+   alignment, internal and FOV geometry for the Cassini Plasma Spectrometer
+   (CAPS) instruments.
+ 
+ 
+Version and Date
+----------------------------------------------------------
+ 
+   The TEXT_KERNEL_ID stores version information of loaded project text
+   kernels. Each entry associated with the keyword is a string that consists
+   of four parts: the kernel name, version, entry date, and type. For example,
+   the ISS I-kernel might have an entry as follows:
+ 
+           TEXT_KERNEL_ID += 'CASSINI_ISS V0.0.0 29-SEPTEMBER-1999 IK'
+                                  |          |         |            |
+                                  |          |         |            |
+              KERNEL NAME <-------+          |         |            |
+                                             |         |            V
+                             VERSION <-------+         |       KERNEL TYPE
+                                                       |
+                                                       V
+                                                  ENTRY DATE
+ 
+   CAPS I-Kernel Version:
+ 
+           \begindata
+ 
+           TEXT_KERNEL_ID += 'CASSINI_CAPS V0.3.0 23-APRIL-2001 IK'
+ 
+           \begintext
+ 
+   Version 0.3 -- April 23, 2001 -- Scott Turner
+ 
+            --   Updated kernel to utilize new FOV ANGLES specification.
+ 
+   Version 0.2 -- August 28, 2000 -- Scott Turner
+ 
+            --   Corrected the FOV_CENTER_PIXEL keyword.
+ 
+            --   Added pixel sample markings to the ELS and IMS FOV diagrams.
+ 
+   Version 0.1 -- August 15, 2000 -- Scott Turner
+ 
+            --   Recalculated FOV definitions to improve precision.
+ 
+            --   Added some comments describing the FOV geometry.
+ 
+            --   Changed 'CASSINI_CAPS_IBS_DET1', 'CASSINI_CAPS_IBS_DET2', and
+                 'CASSINI_CAPS_IBS_DET3' to 'CASSINI_CAPS_IBS_DT1',
+                 'CASSINI_CAPS_IBS_DT2', and 'CASSINI_CAPS_IBS_DT3'
+                 respectively.
+ 
+   Version 0.0 -- June 29, 2000 -- Frank Crary
+ 
+            --   DRAFT VERSION: NOT YET APPROVED BY CAPS INSTRUMENT TEAM/PI.
+                 Contains fields of view, energy ranges, resolutions, and
+                 nominal A cycle durations. Numbers are based on the
+                 instrument paper submitted to SSR. Generic IK documentation
+                 was cut and pasted from CIRS and ISS IKs, with appropriate
+                 modifications.
+ 
+ 
+References
+----------------------------------------------------------
+ 
+            1.   ``Cassini Science Instruments and Investigations'', Revised
+                 Second Printing. Stephen J. Edberg.
+ 
+            2.   ``Kernel Pool Required Reading''
+ 
+            3.   JPL Cassini Project Web Page describing the instruments.
+ 
+            4.   Cassini/NAIF SPICE Workship, November 8-9, 1999.
+ 
+            5.   Email from Jeff Boyer regarding necessary data for footprint
+                 calculations.
+ 
+            6.   Cassini Spacecraft Frames Definition Kernel
+ 
+            7.   Cassini Plasma Spectrometer Investigation, D.T. Young et al.,
+                 submitted to Space Science Reviews.
+ 
+            8.   Email from Frank Crary regarding CAPS pixel parameters.
+ 
+ 
+Contact Information
+----------------------------------------------------------
+ 
+   Direct questions, comments or concerns about the contents of this kernel
+   to:
+ 
+           Frank Crary, Univ. of Michigan, (734)-615-5362, fcrary@umich.edu
+           Scott Turner, NAIF/JPL, (818)-345-3157, sturner@spice.jpl.nasa.gov
+ 
+ 
+Implementation Notes
+----------------------------------------------------------
+ 
+   This file is used by the SPICE system as follows: programs that make use of
+   this instrument kernel must ``load'' the kernel, normally during program
+   initialization. Loading the kernel associates data items with their names
+   in a data structure called the ``kernel pool''. The SPICELIB routine FURNSH
+   and CSPICE routine furnsh_c load SPICE kernels as shown below:
+ 
+   FORTRAN (SPICELIB)
+ 
+           CALL FURNSH ( 'kernel_name' )
+ 
+   C (CSPICE)
+ 
+           furnsh_c ( "kernel_name" )
+ 
+   In order for a program or subroutine to extract data from the pool, the
+   SPICELIB routines GDPOOL and GIPOOL are used. See [2] for details.
+ 
+   This file was created and may be updated with a text editor or word
+   processor.
+ 
+ 
+Naming Conventions
+----------------------------------------------------------
+ 
+   All names referencing values in this I-kernel start with the characters
+   `INS' followed by the NAIF Cassini spacecraft ID number (-82) followed by a
+   NAIF three digit code for the CAPS instruments. (IMS = 820, ELS = 821, IBS1
+   = 822, IBS2 = 823, IBS3 = 824).
+ 
+   The remainder of the name is an underscore character followed by the unique
+   name of the data item. For example, the CAPS IMS boresight direction in the
+   CAPS/ACTS frame (``CASSINI_CAPS'' -- see [6] ) is specified by:
+ 
+           INS-82820_BORESIGHT
+ 
+   The upper bound on the length of the name of any data item is 32
+   characters.
+ 
+   If the same item is included in more than one file, or if the same item
+   appears more than once within a single file, the latest value supersedes
+   any earlier values.
+ 
+ 
+CAPS Description
+----------------------------------------------------------
+ 
+   From [3]:
+ 
+   The Cassini Plasma Spectrometer Subsystem (CAPS) will measure the flux
+   (i.e., the flow rate or density) of ions as a function of mass per charge
+   and the flux of ions and electrons as a function of energy per charge and
+   angle of arrival relative to the CAPS instrument. The CAPS Subsystem
+   consists of six major subassemblies: the ion mass spectrometer, the ion
+   beam spectrometer, the electron spectrometer, a data processing unit, a
+   high-voltage power supply, and an actuator. For information about these
+   components, see below.
+ 
+   (CAPS)
+ 
+   The ion mass spectrometer (IMS) provides species-resolved measurements of
+   the flux of positively charged atomic and molecular ions as a function of
+   energy/charge vs aperture entry direction. The IMS uses a toroidal top-hat
+   electrostatic analyzer (for energy/charge data and to create a narrow field
+   of view) combined with a linear electric field time-of-flight mass
+   spectrometer (for mass/charge and other species-resolving data). The IMS
+   consists of an aperture cover/actuator, a toroidal analyzer, carbon foils,
+   a time-of-flight spectrometer, microchannel plates,
+   amplifier/discriminators, a time-to-digital converter, a spectrum analyzer
+   module, and high-voltage power converters contained in high-voltage units 1
+   and 2. For information on these components, see below.
+ 
+   (IMS)
+ 
+   The IMS aperture cover protects the IMS during ground handling and during
+   launch and early flight. The cover is a strip of flexible material that
+   fits over the IMS annular aperture without creating a hermetic seal. To
+   open the cover the strip is reeled into a container by a spring after the
+   strip is released by a wax thermal actuator (WTA). Closing the cover
+   requires ground handling to unreel the cover and re-attach its end to the
+   cover-release mechanism. Thus, in flight, the aperture cover is a one-time
+   use device.
+ 
+   The toroidal analyzer (toroidal refers to the configuration of the target
+   reflector) consists of a baffled collimator (a device used to create a
+   parallel beam of particles) mounted on a toroidal ``top hat'' electrostatic
+   analyzer. The geometry of the collimator determines the narrow, annular
+   (i.e., ring-shaped) IMS field of view of 12 degrees by 160 degrees, which
+   is divided into eight angular ``pixels'' of 12 degrees by 20 degrees each.
+   An electric potential between the inner and outer conductors of the
+   electrostatic analyzer allows through this device only ions having energies
+   within a range selected by the analyzer potential (i.e., only ions with
+   certain energies will have trajectories, at a given analyzer potential,
+   that navigate through the analyzer without being stopped by hitting a
+   wall). Energy spectra are taken by stepping the analyzer potential through
+   a set of 64 spaced values.
+ 
+   Eight thin carbon foils are arranged in an arc along the exit of the
+   toroidal analyzer. The foils are the entrance to the time-of-flight
+   spectrometer chamber formed by the linear electric field (LEF) rings. A -15
+   kV potential accelerates the positive ions exiting the toroidal analyzer
+   into the foils, and this permits ions entering the IMS with as little as 1
+   eV of energy to pass through the foils. Molecular ions traveling through
+   the foils are usually broken into their constituent atoms and/or molecular
+   fragments. Molecular and atomic ions and molecular fragments exit the foils
+   as neutrals or ions, and upon exiting the neutrals and ions eject secondary
+   electrons into the time-of-flight chamber.
+ 
+   The time-of-flight spectrometer is a cylindrical chamber in the IMS,
+   bounded by linear electric field (LEF) rings, where particles exiting the
+   carbon foils encounter an electric field with a strength that increases
+   linearly with distance parallel to the LEF axis of symmetry. The linear
+   electric field is generated by a stack of thirty equally spaced aluminum
+   rings along which a network of gigaohmn resistors establishes a quadratic
+   electric potential with a total potential drop across the stack of rings of
+   30 kV.
+ 
+   The LEF focuses positively charged particles with energies up to
+   approximately 15 KeV, independently of the energy and angle with which they
+   exit the carbon foils. Microchannel plate (MCP) multipliers are located at
+   the ends of the stack of LEF rings. Detection by the ``start'' (ST) MCP of
+   rapidly travelling secondary electrons from the carbon foils is used as a
+   time-of-flight ``start'' signal and for determining an ion's elevation
+   angle with respect to the IMS aperture. Simple harmonic motion of ions in
+   the LEF, together with knowledge of their energy gained from the toroidal
+   analyzer setting, relates their time-of-flight, from carbon foils to the
+   LEF MCP (at the other end of the chamber from the ST MCP), to mass per
+   charge.
+ 
+   The two microchannel plates (MCPs) each consist of three circular plates of
+   lead oxide glass with a multitude of microscopic channels running at an
+   incline through the thickness of each plate. Electrons, ions, and neutrals
+   striking the outer plate cause secondary electrons to cascade down the
+   semiconductive walls of the channels. With a potential drop of about 1 kV
+   across the thickness of a plate, there is a yield of about 300 electrons
+   per incident particle, or a total gain of 106 electrons across the
+   three-plate stack.
+ 
+   Nine anodes under the ST MCP and one anode under the LEF MCP collect the
+   electrons emitted from the MCPs and pass the signals to two high-speed
+   current amplifiers (one ``start'' amplifier for the eight 20-degree-wide
+   anodes, and one ``stop'' amplifier for the LEF anode and the center ST
+   anode). Two constant fraction discriminators accept the amplifiers' signals
+   and send digital timing pulses (independent of the amplifiers' signal
+   amplitude) to the time-to-digital converter (TDC). Also sent to the TDC is
+   the identification of which of the eight annular anodes was the source of
+   the ``start'' pulse and whether a ``stop'' pulse came from the LEF anode or
+   the center ST anode.
+ 
+   The time-to-digital converter (TDC) measures the time interval between the
+   start and stop pulses from the amplifier/discriminators. The TDC outputs an
+   interval length to the spectrum analyzer module, along with information
+   identifying the ``start'' anode and the ``stop'' anode. The ``start'' anode
+   identity determines which of the eight 20-degree-wide IMS elevation
+   resolution elements an ion entered through. A device in the TDC (a pulser)
+   can inject simulated MCP signals just downstream of the MCP anodes, via
+   high-voltage isolating capacitors, in order to test the signal handling
+   functions of the IMS and related hardware and software in the CAPS data
+   processing unit.
+ 
+   The spectrum analyzer module (SAM) provides the data gathering, sorting,
+   and transfer functions between the TDC and the data processing unit (DPU).
+   Time interval data from the TDC are ``binned'' or grouped into a
+   pre-selected (by the DPU) set of time channels associated with certain
+   selected ion species, whether atomic or molecular. The SAM processor
+   performs a deconvolution of the time-of-flight spectra to obtain ion
+   identifications, which it passes on to the DPU.
+ 
+   The IMS has four programmable pulse width-modulated high-voltage power
+   converters . These converters supply high voltage to the toroidal analyzer,
+   the LEF rings, and the LEF MCP.
+ 
+   The second major CAPS subassembly is the ion beam spectrometer (IBS). The
+   IBS measures the flux of positively charged ions of all species as a
+   function of energy/charge and aperture entry direction. The IBS consists of
+   a hemispherical electrostatic analyzer, channel electron multipliers,
+   amplifiers/discriminators, and high-voltage power converters. For
+   information on these components, see below.
+ 
+   (IBS)
+ 
+   The hemispherical electrostatic analyzer consists of two conductive
+   hemispheres of slightly different radius, mounted concentrically one within
+   the other in such a way that there is a small gap between the two
+   conductors. The electric field in the gap selects the range of energy per
+   charge and angular direction that ions are allowed to have in order to pass
+   through the analyzer. Energy spectra are taken by stepping the analyzer
+   potential through a set of spaced values. Three apertures, each defining a
+   field of view of 1.5 degrees by 150 degrees, spaced 30 degrees apart, allow
+   particles to enter the analyzer. Particles are ``focused'' into three
+   channel electron multipliers 180 degrees from each of the entrance
+   apertures.
+ 
+   Ions entering the channel electron multipliers (CEMs) strike the inner
+   semiconducting surfaces of the devices and spawn secondary electrons, which
+   bounce down the curved channel in the CEMs, spawning more electrons with
+   each bounce. In this way, the entry of an ion into a CEM results in a pulse
+   of approximately 108 electrons being collected by an anode at the exit of
+   the CEM.
+ 
+   The amplifiers/discriminators amplify the electron pulses collected by the
+   CEM anodes and send the signals to the DPU's IBS interface. A device in the
+   IBS (a pulser) can inject simulated CEM signals just downstream of the CEM
+   anodes in order to test the signal handling functions of the IBS and
+   related hardware and software in the DPU.
+ 
+   The IBS has two programmable pulse width-modulated high-voltage power
+   converters, which supply high voltage to the hemispherical analyzer and the
+   CEMs.
+ 
+   The third major CAPS subassembly is the electron spectrometer (ELS), which
+   measures the flux of electrons as a function of energy/charge and aperture
+   entry direction. The ELS consists of a spherical analyzer, microchannel
+   plates, amplifiers/discriminators, a sensor management unit, and
+   high-voltage power converters. For information on these components, see
+   below.
+ 
+   (ELS)
+ 
+   The spherical analyzer consists of a baffled collimator mounted on a
+   spherical ``top hat'' electrostatic analyzer. Collimator geometry
+   determines the narrow, annular ELS field of view of 5 degrees by 160
+   degrees, which is divided into eight 20-degree ``pixels.'' An electric
+   potential between the inner and outer conductors of the electrostatic
+   analyzer allows through this device only electrons having energies and
+   angles within a range selected by the analyzer potential and top-hat
+   collimation. Energy spectra are taken by stepping the analyzer potential
+   through a set of 96 spaced values.
+ 
+   Two 90-degree ``long'' annular (i.e., curved) microchannel plates (MCPs)
+   are arranged in a 180-degree arc along the exit of the spherical analyzer.
+   electrons striking the surface of the MCPs are multiplied into signals
+   collected by an arc of eight 20-degree anodes.
+ 
+   The anode signals are passed into eight amplifiers/discriminators via
+   high-voltage isolating capacitors and are then accumulated by the sensor
+   management unit. The anode identity determines which of the eight
+   20-degree-wide ELS elevation resolution elements an electron entered
+   through.
+ 
+   The sensor management unit (SMU) controls the voltage level of the ELS
+   high-voltage power converters in accordance with requests from the CAPS
+   data processing unit (DPU) and passes counts of electrons (from each of the
+   eight angular resolution elements) detected by the ELS to the DPU. A device
+   in the SMU (a pulser) can inject simulated MCP signals just downstream of
+   the isolating capacitors in order to test the signal handling functions of
+   the ELS and related hardware and software in the DPU.
+ 
+   The ELS has two programmable pulse width-modulated high-voltage power
+   converters that supply high voltage to the spherical analyzer and the MCPs.
+ 
+   The fourth major CAPS subassembly is the data processing unit (DPU). The
+   DPU manages the acquisition and onboard data processing of all CAPS data
+   and controls sensor and actuator motor functions. The DPU is designed to
+   use two CPUs, in addition to the processor in the spectrum analyzer module.
+   The first CPU accumulates IMS time-of-flight spectra and compresses all IMS
+   data. The other CPU controls the IMS, ELS, IBS, and the actuator and
+   performs onboard data analysis to determine what measurements will be taken
+   and what data will be placed into housekeeping and science packets.
+ 
+   The DPU consists of the sensor and actuator data control interfaces, a
+   housekeeping analog-to-digital converter, a safe/arm control, a wax thermal
+   actuator (WTA) driver, CPUs with memory, a bus interface unit, low-voltage
+   power converters, supplemental and replacement heaters, a radiator, and the
+   principal structure of CAPS. For information on these components, see
+   below.
+ 
+   (DPU)
+ 
+   Through its sensor and actuator data control interfaces, the DPU performs
+   several functions. It accumulates IBS ion flux counts; it collects ELS and
+   IMS data products from the SMU, the TDC, and the SAM; and it directly
+   controls the IMS and IBS pulsers and high-voltage converters. The DPU feeds
+   ion energy/charge data to, and controls, the SAM. In addition, the DPU
+   controls the CAPS actuator (ACT) motor stepping and accepts position and
+   status data from the ACT.
+ 
+   The output voltage of all nine CAPS high-voltage converters, CAPS low
+   voltages, the actuator position encoder, and the temperature at six
+   different locations in CAPS are monitored by a housekeeping
+   analog-to-digital converter. In addition, two temperature sensors (one in
+   the DPU, the other in the IMS cover release mechanism) are monitored
+   directly by the spacecraft. These two sensors do not require that CAPS be
+   powered.
+ 
+   When not enabled by the DPU (via CAPS software), all high-voltage power
+   converters have zero potential. When high-voltage converters are enabled, a
+   safe/arm connector on the DPU can be used during ground handling to limit
+   high voltages to approximately 3 percent of what the DPU has commanded them
+   to be.
+ 
+   The wax thermal actuators (WTAs) in the IMS cover release mechanism and the
+   scan motor launch latch are driven and switched by a WTA driver in the DPU.
+ 
+   The DPU uses two nearly identical CPU boards, each containing its own RAM,
+   ROM, and PACE 1750a microprocessor.
+ 
+   CAPS communicates with the Command and Data Subsystem (CDS) via a bus
+   interface unit (BIU) that is electrically, mechanically, and thermally
+   accommodated within the DPU.
+ 
+   All CAPS low-voltage power converters are housed in the DPU. Power at
+   various voltages is supplied for use by the electronics boards in the DPU,
+   including the BIU, and by the amplifiers, D/A converters, and other
+   circuitry housed in the IMS, ELS, IBS, and ACT.
+ 
+   The CAPS supplemental heater (controlled by CAPS) and replacement heater
+   (controlled by the spacecraft) are mounted to the inside of the DPU's top
+   plate.
+ 
+   The CAPS radiator mounts to the back plate of the DPU.
+ 
+   Along with the actuator, the DPU box forms the principal structure of CAPS.
+   The IMS, ELS, IBS, and the high-voltage power supplies mount to the top
+   plate of the DPU. CAPS mounts to the spacecraft via the actuator, which is
+   mounted to the bottom plate of the DPU.
+ 
+   The fifth major subassembly of the CAPS instrument is the high-voltage
+   power supply. Two redundant power supplies, HVU1 and HVU2, mount to the top
+   plate of the DPU.
+ 
+   The last subassembly of CAPS is the actuator (ACT). The ACT will rotate the
+   CAPS instrument at a steady rate over a maximum range of 184 degrees with
+   the acceleration/deceleration over a further 12 degrees (minimum) at either
+   end of this range. The steady rate and acceleration/deceleration range can
+   be adjusted in-flight, and the 216-degree total range of movement will be
+   limited by hard stops to prevent any ``wraparound'' effects on the CAPS
+   interface cables.
+ 
+ 
+CAPS Detector Parameters
+----------------------------------------------------------
+ 
+   Documentation describing the following set of keywords is still to be
+   included.
+ 
+           \begindata
+ 
+           INS-82820_ENERGY_RES     = ( 0.17 )
+           INS-82820_ENERGY_RANGE   = ( 0.9 , 50283.0 )
+           INS-82820_ENERGY_STEPS   = ( 64 )
+           INS-82820_TIME_PER_STEP  = ( 0.0625 )
+           INS-82820_MASS_RES_ST    = ( 9.5 )
+           INS-82820_MASS_RANGE_ST  = ( 0.3 , 237.0 )
+           INS-82820_GEO_FACTOR_ST  = ( 0.005 )
+           INS-82820_MASS_RES_LEF   = ( 67.6 )
+           INS-82820_MASS_RANGE_LEF = ( 0.1 , 54.1 )
+           INS-82820_GEO_FACTOR_LEF = ( 0.0005 )
+ 
+           INS-82821_ENERGY_RES     = ( 0.1702 )
+           INS-82821_ENERGY_RANGE   = ( 0.6 , 28750.0 )
+           INS-82821_ENERGY_STEPS   = ( 64 )
+           INS-82821_TIME_PER_STEP  = ( 0.03125 )
+           INS-82821_GEO_FACTOR     = ( 0.014 )
+ 
+           INS-82822_ENERGY_RES     = ( 0.014 )
+           INS-82822_ENERGY_RANGE   = ( 0.95 , 49798.0 )
+           INS-82822_ENERGY_STEPS   = ( 256 )
+           INS-82822_TIME_PER_STEP  = ( 0.0078125 )
+           INS-82822_GEO_FACTOR     = ( 0.000047 )
+ 
+           INS-82823_ENERGY_RES     = ( 0.014 )
+           INS-82823_ENERGY_RANGE   = ( 0.95 , 49798.0 )
+           INS-82823_ENERGY_STEPS   = ( 256 )
+           INS-82823_TIME_PER_STEP  = ( 0.0078125 )
+           INS-82823_GEO_FACTOR     = ( 0.000047 )
+ 
+           INS-82824_ENERGY_RES     = ( 0.014 )
+           INS-82824_ENERGY_RANGE   = ( 0.95 , 49798.0 )
+           INS-82824_ENERGY_STEPS   = ( 256 )
+           INS-82824_TIME_PER_STEP  = ( 0.0078125 )
+           INS-82824_GEO_FACTOR     = ( 0.000047 )
+ 
+           \begintext
+ 
+ 
+CAPS Field of View Parameters
+----------------------------------------------------------
+ 
+   FOV Sizes (in degrees):
+ 
+ 
+                         Instrument Frame:
+ 
+                                            Z_CAPS
+                                             ^
+                                             |
+                                             |
+                                       <-----o
+                                     X_CAPS  Y_CAPS
+ 
+                            ELS      IMS                IBS
+           ___              ___
+            |   ___        |   | 0   ___               Det 2
+            |    |   ___   |   |    |   | 0             ___
+            |    |    |    |   | .  |   |    Det 1     |   |      Det 3
+            |    |    |    |   |    |   | .   ___      |   |      ___
+            |    |    |    |   | .  |   |     \  \     |   |     /  /
+            |    |    |    |   |    |   | .    \  \    |   |    /  /
+            |    |    |    |   | .  |   |       \  \   |   |   /  /
+            |    |    |    |   |    |   |        \  \  |   |  /  /
+            |    |    |    |   | S  |   | S       \  \ |   | /  /
+            |    |    |    |   | A  |   | A        \  \|   |/  /
+           160 154.5 150   |   | M  |   | M         \  \   |  /
+            |    |    |    |   | P  |   | P          \ |\ /| /
+            |    |    |    |   | L  |   | L           \| X |/
+            |    |    |    |   | E  |   | E            |/ \|
+            |    |    |    |   | S  |   | S            |\ /\
+            |    |    |    |   |    |   |             /| X |\
+            |    |    |    |   |    |   |            / |/ \| \
+            |    |    |    |   | .  |   | .         /  /   |  \
+            |    |    |    |   |    |   |          /  /|   |\  \
+            |    |    |    |   | .  |   | .       /  / |   | \  \
+            |    |    |    |   |    |   |        /  /  |   |  \  \
+            |    |    |    |   | .  |   | .     /  /   |   |   \  \
+            |    |    |    |   |    |   |      /  /    |   |    \  \
+            |    |    |    |   | .  |   | .   /__/     |   |     \__\
+            |    |    |    |   |    |   |              |   |
+           _|_  _|_  _|_   |___| 7  |___| 7     /|     |___|     |\
+                                               / |               | \
+                           |---|    |---|              |---|
+                            6.45     8.3       30       1.4       30
+ 
+ 
+   The CAPS instruments are mounted on an actuator which allows the fields of
+   view to be rotated through +- 104 deg. The rotation is about the Z axis of
+   the Cassini spacecraft. The CAPS frame is defined to be identical to the
+   Cassini spacecraft frame, when the actuator angle is zero.
+ 
+   The FOVs of the CAPS detectors have the following angular sizes:
+ 
+           -----------------  --------------------  --------------------
+               Detector            Horizontal             Vertical
+           -----------------  --------------------  --------------------
+               CAPS_IMS            8.3 degrees          154.5 degrees
+ 
+               CAPS_ELS            6,45 degrees         160 degrees
+ 
+             CAPS_IBS_DT1          1.4 degrees          150 degrees
+ 
+             CAPS_IBS_DT2          1.4 degrees          150 degrees
+ 
+             CAPS_IBS_DT3          1.4 degrees          150 degrees
+           -----------------  --------------------  --------------------
+ 
+ 
+Ion Mass Spectrometer (IMS) FOV Definition
+ 
+   The Ion Mass Spectrometer has a 154.5 deg by 8.3 deg field of view (full
+   width at half maximum), with a boresight along the -Y axis of the
+   CASSINI_CAPS frame. It has eight pixels, 14.5 by 8.3 deg (FWHM), spaced
+   evenly in along the length of the field of view.
+ 
+   Since the IMS FOV is rectangular, GETFOV will return four boundary corner
+   vectors. To visualize these vectors requires two separate views. First
+   consider looking up the X-axis at the X=0 plane, which permits the
+   computation of the the Z components of the boundary corner vectors. In this
+   plane, the half angle of note is 77.25 degrees.
+ 
+ 
+                                  ^ Z
+                                  |  ins
+                                  |
+                                  |        /|
+                                  |      /  |
+                                  |    /    |
+                                  |  /    o |
+                                  |/ 77.25  |
+                    <-------------x- - - - -|- - -
+                     Y          X  \        |
+                      ins        ins \      |
+                                       \    |
+                                         \  |
+                                           \|
+ 
+                                  |-- 1.0 --|
+                                                Plane X = 0
+ 
+ 
+           Z Component = +/- 1.0 * tan ( 77.25 degrees )
+                       = +/- 4.419364096
+ 
+   Since the field of view is rectangular a similar computation yields the X
+   components. This time, look down the Z axis at the Z=0 plane. The half
+   angle of interest is 4.5 degrees.
+ 
+ 
+                                  ^ X
+                                  |  ins
+                                  |
+                                  |        /|
+                                  |      /  |
+                                  |    /    |
+                                  |  /    o |
+                                  |/  4.15  |
+                    <-------------o- - - - -|- - -
+                     Y          Z  \        |
+                      ins        ins \      |
+                                       \    |
+                                         \  |
+                                           \|
+ 
+                                  |-- 1.0 --|
+                                                Plane Z = 0
+ 
+ 
+           X Component = +/- 1.0 * tan ( 4.15 degrees )
+                       = +/- 0.072558095
+ 
+   Utilizing the ANGLES FOV specification, we have:
+ 
+           \begindata
+ 
+           INS-82820_FOV_FRAME                 = 'CASSINI_CAPS'
+           INS-82820_FOV_SHAPE                 = 'RECTANGLE'
+           INS-82820_BORESIGHT                 = (
+ 
+                  0.0000000000000000  -1.0000000000000000   0.0000000000000000
+ 
+                                                 )
+           INS-82820_FOV_CLASS_SPEC            = 'ANGLES'
+           INS-82820_FOV_REF_VECTOR            = (
+ 
+                  0.0000000000000000   0.0000000000000000   1.0000000000000000
+ 
+                                                 )
+           INS-82820_FOV_REF_ANGLE             = ( 77.25 )
+           INS-82820_FOV_CROSS_ANGLE           = (  4.15 )
+           INS-82820_FOV_ANGLE_UNITS           = 'DEGREES'
+ 
+           INS-82820_FOV_CENTER_PIXEL          = ( 0.0, 3.5 )
+           INS-82820_PIXEL_SAMPLES             = ( 8 )
+           INS-82820_PIXEL_LINES               = ( 1 )
+ 
+           \begintext
+ 
+ 
+Electron Spectrometer (ELS) FOV Definition
+ 
+   The Electron Spectrometer has a 160 deg by 5.24-6.5 deg field of view (full
+   width at half maximum), with a boresight along the -Y axis of the
+   CASSINI_CAPS frame. It has eight pixels, 20 by 5.24-6.5 deg (FWHM), spaced
+   evenly in along the length of the field of view. Laboratory calibration
+   data shows that the width of the ELS field of view depends on the energy of
+   the electrons being observed. Simulations give a width of 5.24 deg;
+   measurements of 125 eV electrons, 6.45 deg; 960 eV electrons, 5.68 deg. In
+   this IK, a value of 6.45 is used.
+ 
+   Since the ELS FOV is rectangular, GETFOV returns four boundary corner
+   vectors. To visualize these vectors requires two separate views. First
+   consider looking up the X-axis at the X=0 plane, which permits the
+   computation of the Z components of the boundary corner vectors. In this
+   plane, the half angle of note is 80 degrees.
+ 
+ 
+                                  ^ Z
+                                  |  ins
+                                  |
+                                  |        /|
+                                  |      /  |
+                                  |    /    |
+                                  |  /    o |
+                                  |/ 80.00  |
+                    <-------------x- - - - -|- - -
+                     Y          X  \        |
+                      ins        ins \      |
+                                       \    |
+                                         \  |
+                                           \|
+ 
+                                  |-- 1.0 --|
+                                                Plane X = 0
+ 
+ 
+           Z Component = +/- 1.0 * tan ( 80.00 degrees )
+                       = +/- 5.67128182
+ 
+   Since the field of view is rectangular a similar calculation yields the X
+   components. This time, look down the Z-xis at the Z=0 plane. Th half angle
+   of interest is 3.225 degrees.
+ 
+ 
+                                  ^ X
+                                  |  ins
+                                  |
+                                  |        /|
+                                  |      /  |
+                                  |    /    |
+                                  |  /    o |
+                                  |/ 3.225  |
+                    <-------------o- - - - -|- - -
+                     Y          Z  \        |
+                      ins        ins \      |
+                                       \    |
+                                         \  |
+                                           \|
+ 
+                                  |-- 1.0 --|
+                                                Plane Z = 0
+ 
+ 
+           X Component = +/- 1.0 * tan ( 3.225 degrees )
+                       = +/- 0.056346387
+ 
+   Utilizing the FOV ANGLES specification:
+ 
+           \begindata
+ 
+           INS-82821_FOV_FRAME                 = 'CASSINI_CAPS'
+           INS-82821_FOV_SHAPE                 = 'RECTANGLE'
+           INS-82821_BORESIGHT                 = (
+ 
+                  0.0000000000000000  -1.0000000000000000   0.0000000000000000
+ 
+                                                 )
+           INS-82821_FOV_CLASS_SPEC            = 'ANGLES'
+           INS-82821_FOV_REF_VECTOR            = (
+ 
+                  0.0000000000000000   0.0000000000000000   1.0000000000000000
+ 
+                                                 )
+           INS-82821_FOV_REF_ANGLE             = ( 80.000 )
+           INS-82821_FOV_CROSS_ANGLE           = (  3.225 )
+           INS-82821_FOV_ANGLE_UNITS           = 'DEGREES'
+ 
+           INS-82821_FOV_CENTER_PIXEL          = ( 0.0, 3.5 )
+           INS-82821_PIXEL_SAMPLES             = ( 8 )
+           INS-82821_PIXEL_LINES               = ( 1 )
+ 
+           \begintext
+ 
+ 
+Ion Beam Spectrometer (IBS) FOV Definition
+ 
+   The Ion Beam Spectrometer has three detectors, each with a 150 deg by 1.4
+   deg field of view (full width at half maximum) and boresighted along the -Y
+   axis of the CASSINI_CAPS frame. Detector 2's field of view is aligned with
+   the Y-Z plane, while Detectors 1 and 3 are rotated 30 degrees clockwise and
+   counter-clockwise about the boresight axis respectively.
+ 
+   Since all of the IBS detectors are rectangular, GETFOV returns four
+   boundary corner vectors for each detector. Since the IBS_DT2 FOV is aligned
+   with the CASSINI_CAPS frame axis, one can easily visualize the boundary
+   corner vectors associated with it.
+ 
+   Begin by looking up the X-axis at the X=0 plane, which permits the
+   computation of the Z components of the boundary corner vectors. In this
+   plane, the half angle of note is 75 degrees.
+ 
+ 
+                                  ^ Z
+                                  |  ins
+                                  |
+                                  |        /|
+                                  |      /  |
+                                  |    /    |
+                                  |  /    o |
+                                  |/ 75.00  |
+                    <-------------x- - - - -|- - -
+                     Y          X  \        |
+                      ins        ins \      |
+                                       \    |
+                                         \  |
+                                           \|
+ 
+                                  |-- 1.0 --|
+                                                Plane X = 0
+ 
+ 
+           Z Component = +/- 1.0 * tan ( 75.00 degrees )
+                       = +/- 3.732050808
+ 
+   Since the field of view is rectangular a similar calculation yields the X
+   components. This time, look down the Z-axis at the Z=0 plane. The half
+   angle of interest is 0.7 degrees.
+ 
+ 
+                                  ^ X
+                                  |  ins
+                                  |
+                                  |        /|
+                                  |      /  |
+                                  |    /    |
+                                  |  /    o |
+                                  |/  0.70  |
+                    <-------------o- - - - -|- - -
+                     Y          Z  \        |
+                      ins        ins \      |
+                                       \    |
+                                         \  |
+                                           \|
+ 
+                                  |-- 1.0 --|
+                                                Plane Z = 0
+ 
+ 
+           X Component = +/- 1.0 * tan ( 0.70 degrees )
+                       = +/- 0.012217913
+ 
+   Utilizing the ANGLES FOV specification:
+ 
+           \begindata
+ 
+           INS-82823_FOV_FRAME                 = 'CASSINI_CAPS'
+           INS-82823_FOV_SHAPE                 = 'RECTANGLE'
+           INS-82823_BORESIGHT                 = (
+ 
+                  0.0000000000000000  -1.0000000000000000   0.0000000000000000
+ 
+                                                 )
+           INS-82823_FOV_CLASS_SPEC            = 'ANGLES'
+           INS-82823_FOV_REF_VECTOR            = (
+ 
+                  0.0000000000000000   0.0000000000000000   1.0000000000000000
+ 
+                                                 )
+           INS-82823_FOV_REF_ANGLE             = ( 75.00 )
+           INS-82823_FOV_CROSS_ANGLE           = (  0.70 )
+           INS-82823_FOV_ANGLE_UNITS           = 'DEGREES'
+ 
+           INS-82823_FOV_CENTER_PIXEL          = ( 0, 0 )
+           INS-82823_PIXEL_SAMPLES             = ( 1 )
+           INS-82823_PIXEL_LINES               = ( 1 )
+ 
+           \begintext
+ 
+   For the remaining two detectors, IBS_DT1 and IBS_DT2, we simply rotate the
+   4 boundary corner vectors about the boresight vector by -30 degrees and 30
+   degrees respectively. This produces the following two FOV definitions:
+ 
+           \begindata
+ 
+           INS-82822_FOV_FRAME                 = 'CASSINI_CAPS'
+           INS-82822_FOV_SHAPE                 = 'RECTANGLE'
+           INS-82822_BORESIGHT                 = (
+ 
+                  0.0000000000000000  -1.0000000000000000   0.0000000000000000
+ 
+                                                 )
+           INS-82822_FOV_CLASS_SPEC            = 'ANGLES'
+           INS-82822_FOV_REF_VECTOR            = (
+ 
+                  0.5000000000000000   0.0000000000000000   0.8660254037844400
+ 
+                                                 )
+           INS-82822_FOV_REF_ANGLE             = ( 75.00 )
+           INS-82822_FOV_CROSS_ANGLE           = (  0.70 )
+           INS-82822_FOV_ANGLE_UNITS           = 'DEGREES'
+ 
+           INS-82822_FOV_CENTER_PIXEL          = ( 0, 0 )
+           INS-82822_PIXEL_SAMPLES             = ( 1 )
+           INS-82822_PIXEL_LINES               = ( 1 )
+ 
+           INS-82824_FOV_FRAME                 = 'CASSINI_CAPS'
+           INS-82824_FOV_SHAPE                 = 'RECTANGLE'
+           INS-82824_BORESIGHT                 = (
+ 
+                  0.0000000000000000  -1.0000000000000000   0.0000000000000000
+ 
+                                                 )
+           INS-82824_FOV_CLASS_SPEC            = 'ANGLES'
+           INS-82824_FOV_REF_VECTOR            = (
+ 
+                 -0.5000000000000000   0.0000000000000000   0.8660254037844400
+ 
+                                                 )
+           INS-82824_FOV_REF_ANGLE             = ( 75.00 )
+           INS-82824_FOV_CROSS_ANGLE           = (  0.70 )
+           INS-82824_FOV_ANGLE_UNITS           = 'DEGREES'
+ 
+           INS-82824_FOV_CENTER_PIXEL          = ( 0, 0 )
+           INS-82824_PIXEL_SAMPLES             = ( 1 )
+           INS-82824_PIXEL_LINES               = ( 1 )
+ 
+           \begintext
+ 
+ 
+Instrument Mode Timing
+----------------------------------------------------------
+ 
+   The following values were provided as samples in [5]. The values are
+   defined in [5] as follows:
+ 
+ 
+           ``The initial values for the following keywords are given
+           per instrument number:
+ 
+           INS[instrument number]_[instrument acronym]_MODE_NAME
+           INS[instrument number]_[instrument acronym]_TRIGGER_OFFSET
+           INS[instrument number]_[instrument acronym]_CYCLE_DURATION
+ 
+           INS..._MODE_NAME contains the name of the instrument mode for
+           the INS..._TRIGGER_OFFSET and INS..._CYCLE_DURATION
+           keywords.
+ 
+           INS..._TRIGGER_OFFSET specifies the reference time of the
+           first instrument frame (to be calculated for a footprint)
+           relative to the time of transacting the corresponding TRIGGER
+           command. The units are SFOC duration.
+ 
+           INS..._CYCLE_DURATION specifies the duration between successive
+           instrument frames (from the first one) for the INS..._MODE_NAME.''
+ 
+ 
+   The CAPS sensors operate on a 32 second ``A cycle'', and time of flight
+   mass spectra are produced every ``B cycle''. The number of A cycles per B
+   cycle is mode dependent.
+ 
+ 
+Ion Mass Spectrometer Mode Timing
+ 
+   The following values define the instrument modes and timing for the CAPS
+   IMS.
+ 
+           \begindata
+ 
+           INS-82820_MODE_NAME             = 'A CYCLE'
+           INS-82820_TRIGGER_OFFSET        = '0:00:00.0'
+           INS-82820_CYCLE_DURATION        = '0:00:32.0'
+ 
+           \begintext
+ 
+ 
+Electron Spectrometer Mode Timing
+ 
+   The following values define the instrument modes and timing for the CAPS
+   ELS.
+ 
+           \begindata
+ 
+           INS-82821_MODE_NAME             = 'A CYCLE'
+           INS-82821_TRIGGER_OFFSET        = '0:00:00.0'
+           INS-82821_CYCLE_DURATION        = '0:00:32.0'
+ 
+           \begintext
+ 
+ 
+Ion Beam Spectrometer Mode Timing
+ 
+   The following values define the instrument modes and timing for the CAPS
+   IBS detectors.
+ 
+           \begindata
+ 
+           INS-82822_MODE_NAME             = 'A CYCLE'
+           INS-82822_TRIGGER_OFFSET        = '0:00:00.0'
+           INS-82822_CYCLE_DURATION        = '0:00:32.0'
+ 
+           INS-82823_MODE_NAME             = 'A CYCLE'
+           INS-82823_TRIGGER_OFFSET        = '0:00:00.0'
+           INS-82823_CYCLE_DURATION        = '0:00:32.0'
+ 
+           INS-82824_MODE_NAME             = 'A CYCLE'
+           INS-82824_TRIGGER_OFFSET        = '0:00:00.0'
+           INS-82824_CYCLE_DURATION        = '0:00:32.0'
+ 
+           \begintext
+ 
+ 
+NAIF ID Code to Name Mapping
+----------------------------------------------------------
+ 
+   The following keywords define names for the corresponding ID Codes. See [4]
+   for details.
+ 
+           \begindata
+ 
+           NAIF_BODY_NAME                 += ( 'CASSINI_CAPS_IMS' )
+           NAIF_BODY_CODE                 += ( -82820 )
+ 
+           NAIF_BODY_NAME                 += ( 'CASSINI_CAPS_ELS' )
+           NAIF_BODY_CODE                 += ( -82821 )
+ 
+           NAIF_BODY_NAME                 += ( 'CASSINI_CAPS_IBS_DT1' )
+           NAIF_BODY_CODE                 += ( -82822 )
+ 
+           NAIF_BODY_NAME                 += ( 'CASSINI_CAPS_IBS_DT2' )
+           NAIF_BODY_CODE                 += ( -82823 )
+ 
+           NAIF_BODY_NAME                 += ( 'CASSINI_CAPS_IBS_DT3' )
+           NAIF_BODY_CODE                 += ( -82824 )
+ 
+           \begintext
+ 
+ 
+Platform ID
+----------------------------------------------------------
+ 
+   The CAPS instrument is mounted on the Fields and Particles Palette, which
+   is connected to the Cassini Spacecraft body. Therefore the value in the
+   keywords below are -82000.
+ 
+           \begindata
+ 
+           INS-82820_PLATFORM_ID           = ( -82000 )
+           INS-82821_PLATFORM_ID           = ( -82000 )
+           INS-82822_PLATFORM_ID           = ( -82000 )
+           INS-82823_PLATFORM_ID           = ( -82000 )
+           INS-82824_PLATFORM_ID           = ( -82000 )
+ 
+           \begintext
+ 

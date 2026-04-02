@@ -343,8 +343,8 @@ export class InstrumentView {
     this.camera.position.copy(this.sensor.position);
 
     if (spiceRotation && spiceRotation.length === 9) {
-      // SPICE pxform returns instrument→ECLIPJ2000 rotation matrix (row-major).
-      // Columns of R give instrument axes in ECLIPJ2000:
+      // SPICE pxform returns instrument→inertial rotation matrix (row-major).
+      // Columns of R give instrument axes in the inertial frame:
       //   col0 = inst +X (right), col1 = inst +Y (up), col2 = inst +Z (boresight)
       const r = spiceRotation;
       const boresight = new THREE.Vector3(r[2], r[5], r[8]).normalize();

@@ -30,6 +30,8 @@ export class SensorFrustum extends THREE.Object3D {
   readonly spiceId: number | undefined;
   /** Cached SPICE instrument frame name (from getfov during construction). Avoids per-frame getfov calls. */
   spiceFovFrame: string | undefined;
+  /** Inertial frame matching the scene positions for this sensor's parent body ('J2000' or 'ECLIPJ2000'). */
+  spiceInertialFrame: string = 'ECLIPJ2000';
   private readonly frustumMesh: THREE.Mesh;
   private readonly wireframe: THREE.LineSegments;
   readonly labelSprite: THREE.Sprite;
@@ -124,7 +126,8 @@ export class SensorFrustum extends THREE.Object3D {
 
   /**
    * @param spiceRotation Optional 3x3 rotation matrix (row-major, 9 elements) from
-   *   instrument frame → J2000, obtained via pxform(instrumentFrame, 'J2000', et).
+   *   instrument frame → inertial frame (J2000 or ECLIPJ2000, matching scene positions),
+   *   obtained via pxform(instrumentFrame, inertialFrame, et).
    *   When provided, the frustum is oriented using real SPICE pointing data.
    */
   update(et: number, scaleFactor: number, targetBody?: Body, resolvePos?: PositionResolver, spiceRotation?: number[]): void {
@@ -161,14 +164,14 @@ export class SensorFrustum extends THREE.Object3D {
 
     // Orient frustum
     if (spiceRotation && spiceRotation.length === 9) {
-      // SPICE pxform returns instrument→ECLIPJ2000 rotation R (row-major).
+      // SPICE pxform returns instrument→inertial rotation R (row-major).
       // Instrument frame: +X = horizontal, +Y = vertical, +Z = boresight.
       // Frustum mesh:     X = horizontal,  -Y = boresight, Z = vertical.
       //
-      // Build mesh→ECLIPJ2000 matrix from R columns:
-      //   mesh X  → instr X in ECLIPJ2000: col0 = (r[0], r[3], r[6])
-      //   mesh Y  → -instr Z in ECLIPJ2000: (-r[2], -r[5], -r[8])
-      //   mesh Z  → instr Y in ECLIPJ2000: col1 = (r[1], r[4], r[7])
+      // Build mesh→inertial matrix from R columns:
+      //   mesh X  → instr X in inertial: col0 = (r[0], r[3], r[6])
+      //   mesh Y  → -instr Z in inertial: (-r[2], -r[5], -r[8])
+      //   mesh Z  → instr Y in inertial: col1 = (r[1], r[4], r[7])
       const r = spiceRotation;
       _m4.set(
         r[0], -r[2], r[1], 0,

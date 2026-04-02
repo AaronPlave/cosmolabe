@@ -87,6 +87,7 @@ export class UniverseRenderer {
   private readonly eventMarkerGroups = new Map<string, EventMarkers>();
   private readonly atmosphereMeshes = new Map<string, { atm: AtmosphereMesh; parentName: string }>();
   private _coverageWarned = false;
+  private _lastOriginAbsPos: [number, number, number] = [0, 0, 0];
   private readonly plugins: RendererPlugin[] = [];
   private readonly options: UniverseRendererOptions;
   private _ctx!: RendererContext;
@@ -299,20 +300,26 @@ export class UniverseRenderer {
     // This keeps the camera near the origin, avoiding Float32 precision loss in the GPU.
     // Uses originBody (persists after un-tracking) rather than trackedBody to prevent
     // the scene from jumping when the user pans or translates away from a tracked body.
-    const originBody = this.cameraController.originBody?.body.name;
-    const originAbsPos: [number, number, number] = originBody
-      ? this.absolutePositionOf(originBody, et)
+    //
+    // If the origin body has no coverage at this time (e.g. SPK gap), use the last
+    // valid origin position. This keeps the camera stable — no jump — and lets other
+    // bodies (moons, planets) continue rendering. The origin body simply disappears
+    // during the gap and reappears when coverage resumes.
+    const originBodyName = this.cameraController.originBody?.body.name;
+    let originAbsPos: [number, number, number] = originBodyName
+      ? this.absolutePositionOf(originBodyName, et)
       : [0, 0, 0];
-    // If origin body has no coverage at this time, skip the entire frame update.
-    // Everything stays at its last known position rather than jumping to the Sun.
     if (isNaN(originAbsPos[0])) {
+      // Reuse last valid origin position — avoids camera jump on coverage gaps
+      originAbsPos = this._lastOriginAbsPos;
       if (!this._coverageWarned) {
-        console.warn(`[SpiceCraft] No ephemeris coverage at ET=${et.toFixed(0)} — scene frozen. Loaded kernels may not cover this time range.`);
+        console.warn(`[SpiceCraft] No coverage for ${originBodyName} at ET=${et.toFixed(0)} — holding last origin position`);
         this._coverageWarned = true;
       }
-      return;
+    } else {
+      this._lastOriginAbsPos = originAbsPos;
+      this._coverageWarned = false;
     }
-    this._coverageWarned = false;
 
     // Update body positions relative to origin body
     for (const bm of this.bodyMeshes.values()) {
@@ -460,11 +467,12 @@ export class UniverseRenderer {
     const spiceInst = this.universe.spiceInstance;
     for (const sf of this.sensorFrustums.values()) {
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
-      // Try SPICE-based orientation using cached FOV frame (from enrichSensorFromSpice)
+      // Try SPICE-based orientation using cached FOV frame (from enrichSensorFromSpice).
+      // Use the sensor's inertial frame (J2000 or ECLIPJ2000) to match scene positions.
       let spiceRot: number[] | undefined;
       if (sf.spiceFovFrame && spiceInst) {
         try {
-          spiceRot = spiceInst.pxform(sf.spiceFovFrame, 'ECLIPJ2000', et) as unknown as number[];
+          spiceRot = spiceInst.pxform(sf.spiceFovFrame, sf.spiceInertialFrame, et) as unknown as number[];
         } catch {
           // CK data may not cover this time — fall back to target-pointing
         }
@@ -668,7 +676,7 @@ export class UniverseRenderer {
           let spiceRot: number[] | undefined;
           if (sf.spiceFovFrame && spiceInst) {
             try {
-              spiceRot = spiceInst.pxform(sf.spiceFovFrame, 'ECLIPJ2000', et) as unknown as number[];
+              spiceRot = spiceInst.pxform(sf.spiceFovFrame, sf.spiceInertialFrame, et) as unknown as number[];
             } catch { /* no CK coverage */ }
           }
           this.instrumentView.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);
@@ -1283,6 +1291,12 @@ export class UniverseRenderer {
         const fovFrame = this.enrichSensorFromSpice(body);
         const sf = new SensorFrustum(body);
         if (fovFrame) sf.spiceFovFrame = fovFrame;
+        // Match the inertial frame to the parent body's trajectory frame so sensor
+        // orientation aligns with scene positions (J2000 for Cassini, ECLIPJ2000 for LRO, etc.)
+        const parentBody = body.parentName ? this.universe.getBody(body.parentName) : undefined;
+        if (parentBody?.trajectoryFrame === 'equatorial') {
+          sf.spiceInertialFrame = 'J2000';
+        }
         sf.layers.set(OVERLAY_LAYER);
         sf.traverse(c => c.layers.set(OVERLAY_LAYER));
         this.sensorFrustums.set(body.name, sf);
