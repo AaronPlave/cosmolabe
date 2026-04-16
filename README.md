@@ -132,7 +132,7 @@ Key constraints:
 
 **Plugin system:**
 - `renderer.use(plugin)` lifecycle with resource declaration
-- Built-in configurable plugins (TrajectoryColor, LinkLine, ActivityMarker, GroundTrack, SurfaceRegion)
+- Built-in configurable plugins (TrajectoryColor, LinkLine, ActivityMarker, SurfaceRegion)
 
 **Future:**
 - React Three Fiber components
