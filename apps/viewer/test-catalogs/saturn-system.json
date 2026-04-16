@@ -1,5 +1,6 @@
 {
   "name": "Saturn System (tests unsupported trajectory fallbacks)",
+  "defaultViewpoint": "Saturn Overview",
   "items": [
     {
       "name": "Saturn Overview",

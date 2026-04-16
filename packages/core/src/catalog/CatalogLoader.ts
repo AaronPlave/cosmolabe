@@ -28,6 +28,8 @@ export interface CatalogJson {
   items?: CatalogItem[];
   /** Default time to set when loading this catalog (UTC string, e.g. "2004-07-01T02:48:00Z") */
   defaultTime?: string;
+  /** Name of a Viewpoint item to apply as the initial camera view when this catalog loads */
+  defaultViewpoint?: string;
 }
 
 export interface TrajectoryPlotSpec {
@@ -202,6 +204,8 @@ export interface LoadedCatalog {
   name?: string;
   version?: string;
   require?: string[];
+  /** Name of the viewpoint to apply as the initial camera view */
+  defaultViewpoint?: string;
 }
 
 const DISTANCE_SCALE: Record<string, number> = {
@@ -443,7 +447,7 @@ export class CatalogLoader {
       }
     }
 
-    return { bodies, viewpoints, name: json.name, version: json.version, require: json.require };
+    return { bodies, viewpoints, name: json.name, version: json.version, require: json.require, defaultViewpoint: json.defaultViewpoint };
   }
 
   private parseViewpoint(item: CatalogItem): ViewpointDefinition {

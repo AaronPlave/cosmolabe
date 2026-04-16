@@ -886,6 +886,12 @@ function initScene(
   // Load catalog viewpoints into the camera controller
   initViewpoints();
 
+  // Apply default viewpoint from catalog if specified
+  if (universe.defaultViewpoint) {
+    applyViewpoint(universe.defaultViewpoint);
+    viewpointSelect.value = universe.defaultViewpoint;
+  }
+
   // Populate instrument view dropdown
   initInstrumentSelect();
 
@@ -1182,17 +1188,12 @@ function rebuildViewpointDropdown() {
   viewpointBar.style.display = vps.length > 0 ? "flex" : "none";
 }
 
-viewpointSelect.addEventListener("change", () => {
+/** Apply a named viewpoint — handles body-centered tracking and custom targets */
+function applyViewpoint(name: string) {
   if (!renderer) return;
-  const name = viewpointSelect.value;
-  if (!name) return;
   const vp = renderer.cameraController.getViewpoint(name);
-  if (vp?.trackBody) {
-    // Body-centered viewpoints: switch origin first, then apply.
-    // The viewpoint position is a spherical offset from origin (0,0,0).
-    // After track(), the body becomes the origin, so these coordinates are correct.
-    // Animating from the old frame would interpolate through wrong positions,
-    // so we teleport instantly instead.
+  if (!vp) return;
+  if (vp.trackBody) {
     const bm = renderer.getBodyMesh(vp.trackBody);
     if (bm) {
       renderer.cameraController.track(bm);
@@ -1207,6 +1208,11 @@ viewpointSelect.addEventListener("change", () => {
   } else {
     renderer.cameraController.goToViewpoint(name, 1.0);
   }
+}
+
+viewpointSelect.addEventListener("change", () => {
+  const name = viewpointSelect.value;
+  if (name) applyViewpoint(name);
 });
 
 btnSaveVp.addEventListener("click", () => {

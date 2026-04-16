@@ -1,6 +1,7 @@
 {
   "name": "Cassini Saturn Tour",
   "defaultTime": "2004-07-01T02:48:00Z",
+  "defaultViewpoint": "SOI (2004-07-01)",
   "items": [
     {
       "name": "Saturn System Wide",

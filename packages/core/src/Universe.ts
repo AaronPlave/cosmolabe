@@ -24,6 +24,7 @@ export interface UniverseOptions {
 export class Universe {
   private bodies = new Map<string, Body>();
   private _viewpoints: ViewpointDefinition[] = [];
+  private _defaultViewpoint?: string;
   private currentEt = 0;
   private plugins: SpiceCraftPlugin[] = [];
   private readonly spice?: SpiceInstance;
@@ -67,6 +68,10 @@ export class Universe {
 
     for (const vp of result.viewpoints) {
       this._viewpoints.push(vp);
+    }
+
+    if (result.defaultViewpoint) {
+      this._defaultViewpoint = result.defaultViewpoint;
     }
 
     this.events.emit('catalog:loaded', { name: json.name });
@@ -117,6 +122,8 @@ export class Universe {
   }
 
   get viewpoints(): readonly ViewpointDefinition[] { return this._viewpoints; }
+  /** Name of the viewpoint to apply as the initial camera view (from catalog `defaultViewpoint`) */
+  get defaultViewpoint(): string | undefined { return this._defaultViewpoint; }
 
   get time(): number { return this.currentEt; }
   get spiceInstance(): SpiceInstance | undefined { return this.spice; }
@@ -216,6 +223,7 @@ export class Universe {
     this.plugins = [];
     this.bodies.clear();
     this._viewpoints = [];
+    this._defaultViewpoint = undefined;
     this.events.dispose();
     this.state.dispose();
   }
