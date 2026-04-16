@@ -8,7 +8,7 @@
 import { patchCesiumWorkers } from './util/workerPatch.js';
 
 /** Named imagery presets. */
-export type ImageryPreset = 'natural-earth' | 'blue-marble';
+export type ImageryPreset = 'natural-earth' | 'blue-marble' | 'esri-world-imagery';
 
 /** Options for globe setup. */
 export interface GlobeSetupOptions {
@@ -117,7 +117,17 @@ function addImageryLayer(
 ): void {
   let provider: any;
 
-  if (imagerySource === 'natural-earth') {
+  if (imagerySource === 'esri-world-imagery') {
+    // ESRI World Imagery — high-res satellite tiles, free without API key
+    // Attribution required: displayed via Cesium Credit
+    provider = new Cesium.UrlTemplateImageryProvider({
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      maximumLevel: 19,
+      credit: new Cesium.Credit(
+        'Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+      ),
+    });
+  } else if (imagerySource === 'natural-earth') {
     // Cesium's bundled NaturalEarthII: TMS geodetic, levels 0-2, JPEG
     // The tiles are at Assets/Textures/NaturalEarthII/{z}/{x}/{y}.jpg
     // TMS uses reverseY (y=0 at bottom), so we use {reverseY}

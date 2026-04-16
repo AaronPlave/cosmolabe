@@ -1,8 +1,8 @@
 /**
  * Camera management for Cesium: focus, track, flyTo.
  *
- * Uses Cesium's native trackedEntity for spacecraft (SampledPositionProperty).
- * For static entities (ground stations), just flies to them without tracking.
+ * Uses Cesium's native `viewer.trackedEntity` for tracking, which handles
+ * both the fly animation and continuous tracking in one step with consistent zoom.
  */
 
 /** Options for camera flyTo animation. */
@@ -35,7 +35,6 @@ export class CameraManager {
         this._viewer.trackedEntity = picked.id;
         this._onFocusChange?.(picked.id.id ?? picked.id.name ?? null);
       } else {
-        // Double-click empty space or globe → unfocus and center on Earth
         this.unfocus();
         this._viewer.camera.flyTo({
           destination: Cesium.Cartesian3.fromDegrees(0, 20, 20_000_000),
@@ -53,17 +52,23 @@ export class CameraManager {
     const Cesium = this._Cesium;
     const duration = options?.duration ?? 2.5;
     const shouldTrack = options?.track ?? true;
-    // Default offset: 2,000 km for spacecraft, 500 km for ground stations
-    const offset = options?.offset ?? (shouldTrack ? 2_000_000 : 500_000);
 
     this._flyingTo = true;
     this._viewer.trackedEntity = undefined;
 
-    this._viewer.flyTo(entity, {
-      duration,
-      offset: new Cesium.HeadingPitchRange(0, -0.4, offset),
-    }).then(() => {
+    // For tracked entities, let Cesium compute the default offset from the
+    // entity's bounding sphere — this is the same offset trackedEntity will
+    // use, so there's no zoom jump when tracking takes over.
+    const flyOpts: any = { duration };
+    if (!shouldTrack && options?.offset != null) {
+      flyOpts.offset = new Cesium.HeadingPitchRange(0, -0.4, options.offset);
+    }
+
+    this._viewer.flyTo(entity, flyOpts).then(() => {
       this._flyingTo = false;
+      if (shouldTrack) {
+        this._viewer.trackedEntity = entity;
+      }
       this._onFocusChange?.(entity.id ?? entity.name ?? null);
     }).catch(() => {
       this._flyingTo = false;

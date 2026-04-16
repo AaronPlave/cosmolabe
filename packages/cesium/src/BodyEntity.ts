@@ -131,6 +131,9 @@ export class BodyEntity {
         scale: options?.modelScale ?? 1,
         minimumPixelSize: options?.modelMinimumPixelSize ?? 0,
         distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, modelSwitchDist),
+        colorBlendMode: Cesium.ColorBlendMode.HIGHLIGHT,
+        color: Cesium.Color.WHITE,
+        shadows: Cesium.ShadowMode.ENABLED,
       });
     }
 
