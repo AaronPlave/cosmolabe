@@ -234,16 +234,26 @@ export class TrajectoryLine extends THREE.Object3D {
       const pos = this.resolveAt(tailEt, resolver);
       this._tailSample = !isNaN(pos[0]) ? { t: tailEt, x: pos[0], y: pos[1], z: pos[2] } : null;
     } else {
-      // ── Legacy path: resample every frame (matches original main branch behavior) ──
-      // Simple and correct: always produces points right up to current time.
-      // No tail/bridge needed — the resample itself reaches `et`.
-      if (et !== this.lastComputedEt || this._needsResample) {
+      // ── Legacy path: throttled resample + tail ──
+      // Resample when enough ET has elapsed (~1% of trail duration), not every frame.
+      // A per-frame tail sample (1 SPICE call) keeps the head position exact.
+      // Cap at 3600s so long-period orbits (Jupiter, Saturn) don't accumulate
+      // visible straight-line chords between the last sample and the tail.
+      const LEGACY_RESAMPLE = Math.min(Math.max(this.trailDuration * 0.01, 60), 3600);
+      const needsResample = this._needsResample
+        || this.lastComputedEt === -Infinity
+        || Math.abs(et - this.lastComputedEt) >= LEGACY_RESAMPLE;
+      if (needsResample) {
         this._needsResample = false;
         this.lastComputedEt = et;
         this.recomputeSamples(et, resolver);
         this._bufferDirty = true;
       }
-      this._tailSample = null;
+      // Tail sample: 1 SPICE call per frame to reach exact current position
+      let tailEt = et + this.leadDuration;
+      if (this.maxTime != null && tailEt > this.maxTime) tailEt = this.maxTime;
+      const pos = this.resolveAt(tailEt, resolver);
+      this._tailSample = !isNaN(pos[0]) ? { t: tailEt, x: pos[0], y: pos[1], z: pos[2] } : null;
       this._bridgeSamples = [];
     }
 
