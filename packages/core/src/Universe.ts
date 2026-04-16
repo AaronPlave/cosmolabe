@@ -137,17 +137,33 @@ export class Universe {
   }
 
   /** Compute the time range covered by all loaded body trajectories.
-   *  Returns [minEt, maxEt] or undefined if no bodies have finite time bounds. */
+   *  Returns [minEt, maxEt] or undefined if no bodies have finite time bounds.
+   *  Prefers narrow mission-specific ranges over broad planetary ephemeris coverage. */
   getTimeRange(): [number, number] | undefined {
-    let min = Infinity;
-    let max = -Infinity;
+    // Collect per-body time spans
+    const spans: [number, number][] = [];
     for (const body of this.bodies.values()) {
       const s = body.trajectory.startTime;
       const e = body.trajectory.endTime;
-      if (s !== undefined && s < min) min = s;
-      if (e !== undefined && e > max) max = e;
+      if (s !== undefined && e !== undefined) {
+        spans.push([s, e]);
+      }
     }
-    if (min === Infinity || max === -Infinity) return undefined;
+    if (spans.length === 0) return undefined;
+
+    // Separate narrow (mission-specific) from wide (planetary ephemeris) spans.
+    // Planetary kernels like de440s.bsp cover centuries via spkcov; mission SPKs
+    // and catalog-declared time bounds cover the actual window of interest.
+    const WIDE_THRESHOLD = 100 * 365.25 * 86400; // 100 years in seconds
+    const narrow = spans.filter(([s, e]) => (e - s) < WIDE_THRESHOLD);
+    const active = narrow.length > 0 ? narrow : spans;
+
+    let min = Infinity;
+    let max = -Infinity;
+    for (const [s, e] of active) {
+      if (s < min) min = s;
+      if (e > max) max = e;
+    }
     return [min, max];
   }
 

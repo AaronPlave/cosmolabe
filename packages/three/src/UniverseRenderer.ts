@@ -4,6 +4,7 @@ import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
 import { TrajectoryCache } from './TrajectoryCache.js';
+import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
 import { SensorFrustum } from './SensorFrustum.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { EventMarkers } from './EventMarkers.js';
@@ -63,6 +64,10 @@ export interface UniverseRendererOptions {
   /** Resolve a texture path (from catalog geometry.baseMap/normalMap) to a loadable URL.
    *  Falls back to modelResolver if not provided. */
   textureResolver?: (source: string) => string | undefined;
+  /** Optional Web Worker for async trajectory cache builds.
+   *  When provided, spacecraft caches are built off the main thread and
+   *  hot-swapped onto trajectory lines when ready. */
+  cacheWorker?: SpiceCacheWorker;
 }
 
 // Classes that should NOT show trajectories by default
@@ -91,6 +96,7 @@ export class UniverseRenderer {
   private _lastOriginAbsPos: [number, number, number] = [0, 0, 0];
   private readonly plugins: RendererPlugin[] = [];
   private readonly options: UniverseRendererOptions;
+  private readonly cacheWorker?: SpiceCacheWorker;
   private _ctx!: RendererContext;
 
   private labelManager: LabelManager | null = null;
@@ -143,6 +149,7 @@ export class UniverseRenderer {
     this.options = options;
     this.scaleFactor = options.scaleFactor ?? 1e-6;
     this.minBodyPixels = options.minBodyPixels ?? 4;
+    this.cacheWorker = options.cacheWorker;
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({
@@ -706,6 +713,7 @@ export class UniverseRenderer {
     for (const plugin of this.plugins) {
       plugin.onOverlayUpdate?.(et, this.labelContainer, this._ctx);
     }
+
   }
 
   resize(width: number, height: number): void {
@@ -1485,62 +1493,24 @@ export class UniverseRenderer {
             trajOpts.maxTime = body.trajectory.endTime;
           }
 
-          // Pre-compute trajectory cache for long-duration spacecraft trails.
-          // Concentrates point density at flybys/encounters and thins cruise phases.
-          // Skip for natural bodies (planets, moons, stars) — their orbits are smooth
-          // enough for the legacy sampler and DE ephemerides have unlimited coverage.
-          const CACHE_EXCLUDED = new Set(['planet', 'moon', 'star', 'barycenter']);
-          const trailDur = trajOpts.trailDuration ?? 86400;
-          if (trailDur > 86400 * 7 && !CACHE_EXCLUDED.has(body.classification ?? '')) {
-            const currentEt = this.timeController.et;
-            let searchStart = currentEt - trailDur * 4;
-            let searchEnd = currentEt + trailDur * 4;
-            const resolver = (t: number): [number, number, number] => {
-              try {
-                const state = body.trajectory.stateAt(t);
-                return [state.position[0], state.position[1], state.position[2]];
-              } catch {
-                return [NaN, NaN, NaN];
-              }
-            };
-
-            // Use spkcov for exact coverage when NAIF ID and SPICE are available.
-            // When coverage is known, expand the search range to the full SPK range
-            // so the cache covers the entire mission (not just a window around defaultTime).
-            const spice = this.universe.spiceInstance;
-            let coverageWindows: Array<{ start: number; end: number }> | undefined;
-            if (spice && body.naifId != null) {
-              try {
-                coverageWindows = spice.spkcov(body.naifId);
-                if (coverageWindows && coverageWindows.length > 0) {
-                  const MAX_CACHE_RANGE = 86400 * 365.25 * 30; // Cap at 30 years
-                  const covStart = coverageWindows[0].start;
-                  const covEnd = coverageWindows[coverageWindows.length - 1].end;
-                  if (covEnd - covStart <= MAX_CACHE_RANGE) {
-                    searchStart = covStart;
-                    searchEnd = covEnd;
-                  }
-                }
-              } catch { /* spkcov not available — fall back to probing */ }
-            }
-
-            const t0 = performance.now();
-            const cache = TrajectoryCache.build(resolver, searchStart, searchEnd, {
-              maxPoints: 100_000,
-              coverageWindows,
-            });
-            if (cache.count > 0) {
-              trajOpts.cache = cache;
-              const method = coverageWindows ? 'spkcov' : 'probe';
-              console.log(`[SpiceCraft] Built trajectory cache for ${body.name} (${method}): ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
-            }
-          }
-
           const tl = new TrajectoryLine(body, trajOpts);
           tl.layers.set(OVERLAY_LAYER);
           tl.traverse(c => c.layers.set(OVERLAY_LAYER));
           this.trajectoryLines.set(body.name, tl);
           this.scene.add(tl);
+
+          // Build trajectory cache for long-duration spacecraft trails.
+          // Skip for natural bodies — their smooth orbits work fine with legacy sampling.
+          if (this.shouldBuildCache(body, trajOpts)) {
+            if (this.cacheWorker && body.trajectory instanceof SpiceTrajectory) {
+              // Async: hide trail until cache is ready, build in worker
+              tl.setUserVisible(false);
+              this.dispatchAsyncCacheBuild(body, tl, trajOpts);
+            } else {
+              // Sync fallback: build on main thread (blocks but still works)
+              this.buildCacheSync(body, tl, trajOpts);
+            }
+          }
 
           // Event markers (periapsis/apoapsis) disabled for now — revisit when
           // we have subsystem zoom and per-body marker configuration.
@@ -1753,6 +1723,100 @@ export class UniverseRenderer {
     if (this.options.trajectoryFilter) return this.options.trajectoryFilter(body);
     // Default: show trajectories for all bodies except stars and barycenters
     return !EXCLUDED_TRAJECTORY_CLASSES.has(body.classification ?? '');
+  }
+
+  // ─── Trajectory cache helpers ────────────────────────────────────────
+
+  private static readonly CACHE_EXCLUDED = new Set(['planet', 'moon', 'star', 'barycenter']);
+
+  private shouldBuildCache(body: Body, trajOpts: TrajectoryLineOptions): boolean {
+    const trailDur = trajOpts.trailDuration ?? 86400;
+    return trailDur > 86400 * 7
+      && !UniverseRenderer.CACHE_EXCLUDED.has(body.classification ?? '');
+  }
+
+  /** Dispatch an async cache build to the Web Worker. Trail stays hidden until ready. */
+  private dispatchAsyncCacheBuild(body: Body, tl: TrajectoryLine, trajOpts: TrajectoryLineOptions): void {
+    const spiceTraj = body.trajectory as SpiceTrajectory;
+    const trailDur = trajOpts.trailDuration ?? 86400;
+    const currentEt = this.timeController.et;
+
+    const request: CacheBuildRequest = {
+      bodyName: body.name,
+      target: spiceTraj.spiceTarget,
+      center: spiceTraj.spiceCenter,
+      frame: spiceTraj.spiceFrame,
+      naifId: body.naifId,
+      searchStart: currentEt - trailDur * 4,
+      searchEnd: currentEt + trailDur * 4,
+      config: { maxPoints: 100_000 },
+    };
+
+    const t0 = performance.now();
+    this.cacheWorker!.buildCache(request).then((cache) => {
+      // Guard: scene may have been disposed while we waited
+      if (!this.trajectoryLines.has(body.name)) return;
+      if (cache.count > 0) {
+        tl.setCache(cache);
+        tl.setUserVisible(true);
+        console.log(`[SpiceCraft] Async cache ready for ${body.name}: ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
+        this.events.emit('trajectory:cacheReady' as any, { bodyName: body.name });
+      } else {
+        // Empty cache — worker's SPICE may lack kernels. Fall back to sync.
+        console.warn(`[SpiceCraft] Worker returned empty cache for ${body.name}, falling back to sync`);
+        this.buildCacheSync(body, tl, trajOpts);
+        tl.setUserVisible(true);
+      }
+    }).catch((err) => {
+      console.warn(`[SpiceCraft] Worker cache failed for ${body.name}, falling back to sync:`, err);
+      this.buildCacheSync(body, tl, trajOpts);
+      tl.setUserVisible(true);
+    });
+  }
+
+  /** Synchronous cache build on the main thread (fallback when no worker). */
+  private buildCacheSync(body: Body, tl: TrajectoryLine, trajOpts: TrajectoryLineOptions): void {
+    const trailDur = trajOpts.trailDuration ?? 86400;
+    const currentEt = this.timeController.et;
+    let searchStart = currentEt - trailDur * 4;
+    let searchEnd = currentEt + trailDur * 4;
+
+    const resolver = (t: number): [number, number, number] => {
+      try {
+        const state = body.trajectory.stateAt(t);
+        return [state.position[0], state.position[1], state.position[2]];
+      } catch {
+        return [NaN, NaN, NaN];
+      }
+    };
+
+    const spice = this.universe.spiceInstance;
+    let coverageWindows: Array<{ start: number; end: number }> | undefined;
+    if (spice && body.naifId != null) {
+      try {
+        coverageWindows = spice.spkcov(body.naifId);
+        if (coverageWindows && coverageWindows.length > 0) {
+          const MAX_CACHE_RANGE = 86400 * 365.25 * 30;
+          const covStart = coverageWindows[0].start;
+          const covEnd = coverageWindows[coverageWindows.length - 1].end;
+          if (covEnd - covStart <= MAX_CACHE_RANGE) {
+            searchStart = covStart;
+            searchEnd = covEnd;
+          }
+        }
+      } catch { /* spkcov not available */ }
+    }
+
+    const t0 = performance.now();
+    const cache = TrajectoryCache.build(resolver, searchStart, searchEnd, {
+      maxPoints: 100_000,
+      coverageWindows,
+    });
+    if (cache.count > 0) {
+      tl.setCache(cache);
+      const method = coverageWindows ? 'spkcov' : 'probe';
+      console.log(`[SpiceCraft] Built sync cache for ${body.name} (${method}): ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
+    }
   }
 
   /**

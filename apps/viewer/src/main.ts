@@ -3,12 +3,15 @@ import Stats from "three/examples/jsm/libs/stats.module.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { Universe } from "@spicecraft/core";
 import { Spice, type SpiceInstance } from "@spicecraft/spice";
-import { UniverseRenderer, rateLabel } from "@spicecraft/three";
+import { UniverseRenderer, SpiceCacheWorker, rateLabel } from "@spicecraft/three";
 
 
 let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let spice: SpiceInstance | null = null;
+let cacheWorker: SpiceCacheWorker | null = null;
+/** Kernel URLs loaded into the main SPICE instance (SPK/LSK/PCK only, for worker). */
+const workerKernelUrls: string[] = [];
 let stats: Stats | null = null;
 let transformGizmo: TransformControls | null = null;
 let gizmoTarget: THREE.Object3D | null = null;
@@ -162,6 +165,21 @@ async function fetchWithProgress(
 // Serve from local public/kernels/ directory (fetched by scripts/fetch-kernels.sh)
 const NAIF_BASE = "./kernels";
 
+/** Extensions of kernel types needed by the trajectory cache worker (SPK, LSK, PCK). */
+const WORKER_KERNEL_EXTS = new Set(['.bsp', '.tls', '.tpc']);
+
+/** Track a kernel URL for the cache worker if it's SPK/LSK/PCK.
+ *  Converts to absolute URL so the worker (whose base URL differs) can fetch it. */
+function trackKernelForWorker(url: string): void {
+  const lower = url.toLowerCase().replace(/\.gz$/, '');
+  for (const ext of WORKER_KERNEL_EXTS) {
+    if (lower.endsWith(ext)) {
+      workerKernelUrls.push(new URL(url, location.href).href);
+      return;
+    }
+  }
+}
+
 /** Standard NAIF generic kernel set for solar system visualization (1950-2050) */
 // Only reasonably-sized kernels — satellite kernels are 100MB-1GB each,
 // so moon positions use analytical theories (TASS17, L1, Gust86, MarsSat) instead.
@@ -288,7 +306,9 @@ async function loadNaifKernels(): Promise<void> {
     console.log(`[SpiceCraft] Fetching NAIF kernel: ${kernel.file}`);
 
     try {
-      await spice.furnish({ type: "url", url: `${NAIF_BASE}/${kernel.file}` });
+      const url = `${NAIF_BASE}/${kernel.file}`;
+      await spice.furnish({ type: "url", url });
+      trackKernelForWorker(url);
     } catch (err) {
       console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
       infoPanel.textContent = `Failed to load ${kernel.label} — CORS or network error`;
@@ -315,7 +335,9 @@ async function loadCassiniKernels(): Promise<void> {
     infoPanel.textContent = `Loading ${kernel.label}...`;
     console.log(`[SpiceCraft] Fetching Cassini kernel: ${kernel.file}`);
     try {
-      await spice!.furnish({ type: "url", url: `${NAIF_BASE}/${kernel.file}` });
+      const url = `${NAIF_BASE}/${kernel.file}`;
+      await spice!.furnish({ type: "url", url });
+      trackKernelForWorker(url);
     } catch (err) {
       console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
     }
@@ -334,8 +356,9 @@ async function loadCassiniKernels(): Promise<void> {
       console.log(`[SpiceCraft] Fetching Cassini kernel: ${kernel.file}`);
 
       try {
+        const url = `${NAIF_BASE}/${kernel.file}`;
         const buffer = await fetchWithProgress(
-          `${NAIF_BASE}/${kernel.file}`,
+          url,
           (loaded, _total) => {
             const currentPct = ((loadedSize + loaded) / totalSize) * 100;
             updateLoadingBar(
@@ -347,6 +370,7 @@ async function loadCassiniKernels(): Promise<void> {
         );
         const filename = kernel.file.replace(/\.gz$/, "");
         await spice!.furnish({ type: "buffer", data: buffer, filename });
+        trackKernelForWorker(url);
       } catch (err) {
         console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
       }
@@ -380,8 +404,9 @@ async function loadLroKernels(): Promise<void> {
     console.log(`[SpiceCraft] Fetching LRO kernel: ${kernel.file}`);
 
     try {
+      const url = `${NAIF_BASE}/${kernel.file}`;
       const buffer = await fetchWithProgress(
-        `${NAIF_BASE}/${kernel.file}`,
+        url,
         (loaded, _total) => {
           const currentPct = ((loadedSize + loaded) / totalSize) * 100;
           updateLoadingBar(
@@ -394,6 +419,7 @@ async function loadLroKernels(): Promise<void> {
       // Strip .gz from filename for SPICE kernel type detection
       const filename = kernel.file.replace(/\.gz$/, "");
       await spice!.furnish({ type: "buffer", data: buffer, filename });
+      trackKernelForWorker(url);
     } catch (err) {
       console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
     }
@@ -415,7 +441,9 @@ async function loadEuropaClipperKernels(): Promise<void> {
     infoPanel.textContent = `${progress} Loading ${kernel.label}...`;
     console.log(`[SpiceCraft] Fetching Europa Clipper kernel: ${kernel.file}`);
     try {
-      await spice!.furnish({ type: "url", url: `${NAIF_BASE}/${kernel.file}` });
+      const url = `${NAIF_BASE}/${kernel.file}`;
+      await spice!.furnish({ type: "url", url });
+      trackKernelForWorker(url);
     } catch (err) {
       console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
     }
@@ -795,7 +823,27 @@ function initScene(
 
   overlay.classList.add("hidden");
   controls.classList.remove("hidden");
-  
+
+  // Create cache worker for off-main-thread trajectory cache builds.
+  // Worker initializes SPICE and loads kernels in background — non-blocking.
+  cacheWorker?.dispose();
+  cacheWorker = null;
+  if (workerKernelUrls.length > 0) {
+    try {
+      cacheWorker = new SpiceCacheWorker(
+        new URL('./workers/spice-cache-relay.ts', import.meta.url),
+      );
+      cacheWorker.loadKernels([...workerKernelUrls]).then(() => {
+        console.log(`[SpiceCraft] Cache worker ready (${workerKernelUrls.length} kernels loaded)`);
+      }).catch((err) => {
+        console.warn('[SpiceCraft] Cache worker kernel loading failed:', err);
+      });
+    } catch (err) {
+      console.warn('[SpiceCraft] Failed to create cache worker:', err);
+      cacheWorker = null;
+    }
+  }
+
   renderer = new UniverseRenderer(canvas, universe, {
     scaleFactor: 1e-6,
     showTrajectories: true,
@@ -804,6 +852,7 @@ function initScene(
     starFieldOptions: { catalogUrl: '/stars.bin' },
     trajectoryOptions: { trailDuration: 86400 * 30 },
     minBodyPixels: 0,
+    cacheWorker: cacheWorker ?? undefined,
     modelResolver: modelFiles && modelFiles.size > 0
       ? (source: string) => findInMap(modelFiles, source)
       : (source: string) => `./${source}`,

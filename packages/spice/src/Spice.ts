@@ -133,8 +133,11 @@ export class Spice implements SpiceInstance {
 
   async furnish(source: KernelSource): Promise<void> {
     if (source.type === 'buffer') {
+      // Use the kernel's original extension so CSPICE can identify the file type.
+      // Fall back to .bin if no extension is present in the filename.
+      const ext = source.filename.includes('.') ? source.filename.slice(source.filename.lastIndexOf('.')) : '.bin';
       const data = new Uint8Array(source.data);
-      const path = `_buffer_${bufferFileCount++}.bin`;
+      const path = `_buffer_${bufferFileCount++}${ext}`;
       this.module.FS.writeFile(path, data, { encoding: 'binary' });
       this.module.ccall('furnsh_c', null, ['string'], [path]);
       this.checkError();
@@ -553,7 +556,11 @@ export class Spice implements SpiceInstance {
     const coverCell = this.createEmptySpiceWindow(MAXWIN);
 
     // Enumerate all loaded SPK files via ktotal_c / kdata_c
-    const numSpk = this.module.ccall('ktotal_c', 'number', ['string'], ['SPK']) as number;
+    // ktotal_c is void — writes count to an output pointer
+    const countPtr = this.module._malloc(INT_SIZE);
+    this.module.ccall('ktotal_c', null, ['string', 'number'], ['SPK', countPtr]);
+    const numSpk = this.module.getValue(countPtr, 'i32');
+    this.module._free(countPtr);
     const FILELEN = 512;
     const TYPLEN = 64;
     const SRCLEN = 512;

@@ -44,6 +44,14 @@ export class TrajectoryCache {
   }
 
   /**
+   * Reconstitute a TrajectoryCache from raw typed arrays.
+   * Used to receive cache data transferred from a Web Worker.
+   */
+  static fromArrays(times: Float64Array, positions: Float64Array, count: number): TrajectoryCache {
+    return new TrajectoryCache(times, positions, count);
+  }
+
+  /**
    * Build a trajectory cache by adaptively sampling and simplifying.
    *
    * 1. Probes the search range at 1-day intervals to find actual kernel coverage.
