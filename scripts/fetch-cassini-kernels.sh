@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 # Downloads Cassini SPICE kernels for the SpiceCraft viewer demo.
 #
-# Coverage:
-#   SOI              2004-07-01  (already had predicted SPK + CK)
-#   Titan T-A        2004-10-26  (first Titan flyby)
-#   Huygens release  2004-12-25  (probe separation)
-#   Huygens landing  2005-01-14  (Titan descent)
-#   Enceladus E-2    2005-07-14  (plume discovery flyby)
+# SPK coverage: continuous reconstructed chain from Mar 2001 through Jul 24, 2005.
+#   Covers SOI, Titan T-A, Huygens, Enceladus E-2, and everything in between.
+#   14 SPK files, ~106 MB total (before gzip).
+#
+# CK coverage: reconstructed attitude for key event windows (5-day spans).
 #
 # Kernels downloaded:
 #   FK   — Cassini frame definitions (already have cas_v43.tf)
 #   SCLK — Spacecraft clock (already have cas00172.tsc)
 #   IK   — ISS NAC/WAC (already have), VIMS, UVIS, RADAR, CIRS, CAPS
-#   SPK  — Reconstructed trajectory segments covering each event
-#   CK   — Reconstructed attitude for each event's flyby window
+#   SPK  — Continuous reconstructed trajectory chain (14 files)
+#   CK   — Reconstructed attitude for flyby windows
 #
 # Large files (SPK, CK) are gzipped for efficient web delivery.
 # The viewer decompresses them client-side via DecompressionStream.
@@ -56,23 +55,56 @@ done
 # ── Large binary kernels (SPK, CK) — gzipped for web delivery ───────
 
 LARGE_KERNELS=(
-  # SPK — Reconstructed Cassini + Saturn system trajectories
-  #   Each file covers spacecraft, Saturn, and major satellite ephemerides.
-  #   Chain: SOI(existing) → post-SOI → Titan T-A → Huygens → [gap] → Enceladus E-2
+  # SPK — Continuous reconstructed chain: Mar 2001 through Jul 24, 2005
+  #   Each file covers Cassini + Saturn + major satellite ephemerides.
+  #   Files chain end-to-end with no gaps.
 
-  # Post-SOI to Sep 3, 2004 (fills gap between SOI and Titan T-A)
-  "$NAIF/spk/041219R_SCPSE_04199_04247.bsp"
+  # Cruise + approach + Phoebe flyby + SOI (through Jul 17, 2004)
+  "$NAIF/spk/040909R_SCPSE_01066_04199.bsp"        # 36 MB
 
-  # Sep 3 – Dec 1, 2004 (covers Titan T-A flyby, Oct 26)
-  "$NAIF/spk/050105RB_SCPSE_04247_04336.bsp"
+  # Post-SOI → Sep 3, 2004
+  "$NAIF/spk/041219R_SCPSE_04199_04247.bsp"         # 4.5 MB
 
-  # Dec 1, 2004 – Jan 15, 2005 (covers Huygens release Dec 25 + landing Jan 14)
-  "$NAIF/spk/050214R_SCPSE_04336_05015.bsp"
+  # Sep 3 → Dec 1, 2004 (Titan T-A flyby Oct 26)
+  "$NAIF/spk/050105RB_SCPSE_04247_04336.bsp"        # 7.8 MB
 
-  # Jul 5–24, 2005 (covers Enceladus E-2 plume discovery flyby, Jul 14)
-  "$NAIF/spk/050825R_SCPSE_05186_05205.bsp"
+  # Dec 1, 2004 → Jan 15, 2005 (Huygens release + landing)
+  "$NAIF/spk/050214R_SCPSE_04336_05015.bsp"         # 16 MB
 
-  # CK — Reconstructed spacecraft attitude (5-day windows around each event)
+  # Jan 15 → Feb 3, 2005
+  "$NAIF/spk/050411R_SCPSE_05015_05034.bsp"         # 7.3 MB
+
+  # Feb 3 → Mar 1, 2005
+  "$NAIF/spk/050414R_SCPSE_05034_05060.bsp"         # 7.9 MB
+
+  # Mar 1 → Mar 22, 2005
+  "$NAIF/spk/050504R_SCPSE_05060_05081.bsp"         # 4.5 MB
+
+  # Mar 22 → Apr 7, 2005
+  "$NAIF/spk/050506R_SCPSE_05081_05097.bsp"         # 4.4 MB
+
+  # Apr 7 → Apr 24, 2005
+  "$NAIF/spk/050513R_SCPSE_05097_05114.bsp"         # 4.2 MB
+
+  # Apr 24 → May 12, 2005
+  "$NAIF/spk/050606R_SCPSE_05114_05132.bsp"         # 3.1 MB
+
+  # May 12 → May 30, 2005
+  "$NAIF/spk/050623R_SCPSE_05132_05150.bsp"         # 2.5 MB
+
+  # May 30 → Jun 18, 2005
+  "$NAIF/spk/050708R_SCPSE_05150_05169.bsp"         # 2.9 MB
+
+  # Jun 18 → Jul 5, 2005
+  "$NAIF/spk/050802R_SCPSE_05169_05186.bsp"         # 2.7 MB
+
+  # Jul 5 → Jul 24, 2005 (Enceladus E-2 plume discovery Jul 14)
+  "$NAIF/spk/050825R_SCPSE_05186_05205.bsp"         # 2.5 MB
+
+  # CK — Reconstructed spacecraft attitude (5-day windows around key events)
+
+  # SOI approach (Jun 27 – Jul 1, 2004)
+  "$NAIF/ck/04179_04183ra.bc"
 
   # Titan T-A flyby (Oct 22–27, 2004)
   "$NAIF/ck/04296_04301ra.bc"
