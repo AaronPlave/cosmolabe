@@ -221,9 +221,16 @@ function parseValueWithUnit(val: number | string | undefined, defaultVal: number
     case 'au': return num * 149597870.7;
     case 'km': return num;
     case 'm': return num * 0.001;
-    case 'y': return num * 365.25 * 86400; // years → seconds
-    case 'd': return num * 86400;           // days → seconds
-    case 'h': return num * 3600;            // hours → seconds
+    case 'y': case 'yr': case 'yrs': case 'year': case 'years':
+      return num * 365.25 * 86400; // years → seconds
+    case 'd': case 'day': case 'days':
+      return num * 86400;           // days → seconds
+    case 'h': case 'hr': case 'hrs': case 'hour': case 'hours':
+      return num * 3600;            // hours → seconds
+    case 'min': case 'mins': case 'minute': case 'minutes':
+      return num * 60;              // minutes → seconds
+    case 's': case 'sec': case 'secs': case 'second': case 'seconds':
+      return num;                   // seconds
     case '': return num;
     default: return num;
   }

@@ -3,6 +3,7 @@ import { CompositeTrajectory, SpiceTrajectory, EventBus, type Universe, type Bod
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
+import { TrajectoryCache } from './TrajectoryCache.js';
 import { SensorFrustum } from './SensorFrustum.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { EventMarkers } from './EventMarkers.js';
@@ -421,6 +422,7 @@ export class UniverseRenderer {
     // Vertices are offset in Float64 (km) so they're near origin in scene space,
     // eliminating Float32 precision jitter on the GPU.
     for (const tl of this.trajectoryLines.values()) {
+      try {
       const arcCenter = (tl as any)._arcCenterName as string | undefined;
       const parentName = tl.body.parentName;
       const centerName = arcCenter ?? parentName;
@@ -456,6 +458,9 @@ export class UniverseRenderer {
           -originAbsPos[2],
         ];
         tl.update(et, this.scaleFactor, this.absolutePositionOf, undefined, undefined, vertOff);
+      }
+      } catch (err) {
+        console.error(`[SpiceCraft] Trail update error for ${tl.body.name}:`, err);
       }
     }
 
@@ -1478,6 +1483,57 @@ export class UniverseRenderer {
           }
           if (body.trajectory.endTime != null && trajOpts.maxTime == null) {
             trajOpts.maxTime = body.trajectory.endTime;
+          }
+
+          // Pre-compute trajectory cache for long-duration spacecraft trails.
+          // Concentrates point density at flybys/encounters and thins cruise phases.
+          // Skip for natural bodies (planets, moons, stars) — their orbits are smooth
+          // enough for the legacy sampler and DE ephemerides have unlimited coverage.
+          const CACHE_EXCLUDED = new Set(['planet', 'moon', 'star', 'barycenter']);
+          const trailDur = trajOpts.trailDuration ?? 86400;
+          if (trailDur > 86400 * 7 && !CACHE_EXCLUDED.has(body.classification ?? '')) {
+            const currentEt = this.timeController.et;
+            let searchStart = currentEt - trailDur * 4;
+            let searchEnd = currentEt + trailDur * 4;
+            const resolver = (t: number): [number, number, number] => {
+              try {
+                const state = body.trajectory.stateAt(t);
+                return [state.position[0], state.position[1], state.position[2]];
+              } catch {
+                return [NaN, NaN, NaN];
+              }
+            };
+
+            // Use spkcov for exact coverage when NAIF ID and SPICE are available.
+            // When coverage is known, expand the search range to the full SPK range
+            // so the cache covers the entire mission (not just a window around defaultTime).
+            const spice = this.universe.spiceInstance;
+            let coverageWindows: Array<{ start: number; end: number }> | undefined;
+            if (spice && body.naifId != null) {
+              try {
+                coverageWindows = spice.spkcov(body.naifId);
+                if (coverageWindows && coverageWindows.length > 0) {
+                  const MAX_CACHE_RANGE = 86400 * 365.25 * 30; // Cap at 30 years
+                  const covStart = coverageWindows[0].start;
+                  const covEnd = coverageWindows[coverageWindows.length - 1].end;
+                  if (covEnd - covStart <= MAX_CACHE_RANGE) {
+                    searchStart = covStart;
+                    searchEnd = covEnd;
+                  }
+                }
+              } catch { /* spkcov not available — fall back to probing */ }
+            }
+
+            const t0 = performance.now();
+            const cache = TrajectoryCache.build(resolver, searchStart, searchEnd, {
+              maxPoints: 100_000,
+              coverageWindows,
+            });
+            if (cache.count > 0) {
+              trajOpts.cache = cache;
+              const method = coverageWindows ? 'spkcov' : 'probe';
+              console.log(`[SpiceCraft] Built trajectory cache for ${body.name} (${method}): ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
+            }
           }
 
           const tl = new TrajectoryLine(body, trajOpts);

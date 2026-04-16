@@ -7,6 +7,8 @@ export { BodyMesh } from './BodyMesh.js';
 export type { ModelResolver } from './BodyMesh.js';
 export { TrajectoryLine } from './TrajectoryLine.js';
 export type { TrajectoryLineOptions, PositionResolver, ColorSegment } from './TrajectoryLine.js';
+export { TrajectoryCache } from './TrajectoryCache.js';
+export type { TrajectoryCacheConfig } from './TrajectoryCache.js';
 export { SensorFrustum } from './SensorFrustum.js';
 export type { SensorFrustumOptions } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';

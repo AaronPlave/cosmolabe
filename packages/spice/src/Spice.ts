@@ -47,6 +47,8 @@ export interface SpiceInstance {
   gfsep(target1: string, shape1: string, frame1: string, target2: string, shape2: string, frame2: string, abcorr: string, observer: string, relate: string, refval: number, adjust: number, step: number, cnfine: TimeWindow[]): TimeWindow[];
   gfoclt(occtyp: string, front: string, fshape: string, fframe: string, back: string, bshape: string, bframe: string, abcorr: string, observer: string, step: number, cnfine: TimeWindow[]): TimeWindow[];
   gfdist(target: string, abcorr: string, observer: string, relate: string, refval: number, adjust: number, step: number, cnfine: TimeWindow[]): TimeWindow[];
+  // Coverage
+  spkcov(idcode: number): TimeWindow[];
   // FOV
   getfov(instId: number, maxBounds?: number): InstrumentFov;
   fovray(inst: string, raydir: Vec3, rframe: string, abcorr: AberrationCorrection, observer: string, et: number): boolean;
@@ -537,6 +539,59 @@ export class Spice implements SpiceInstance {
     this.freeSpiceCell(cnfineCell);
     this.freeSpiceCell(resultCell);
     this.checkError();
+    return windows;
+  }
+
+  // --- SPK coverage ---
+
+  /**
+   * Return the coverage windows for a given NAIF ID across all loaded SPK kernels.
+   * Uses CSPICE's kdata_c to enumerate loaded SPK files, then spkcov_c on each.
+   */
+  spkcov(idcode: number): TimeWindow[] {
+    const MAXWIN = 10000;
+    const coverCell = this.createEmptySpiceWindow(MAXWIN);
+
+    // Enumerate all loaded SPK files via ktotal_c / kdata_c
+    const numSpk = this.module.ccall('ktotal_c', 'number', ['string'], ['SPK']) as number;
+    const FILELEN = 512;
+    const TYPLEN = 64;
+    const SRCLEN = 512;
+    const filePtr = this.module._malloc(FILELEN);
+    const typPtr = this.module._malloc(TYPLEN);
+    const srcPtr = this.module._malloc(SRCLEN);
+    const handlePtr = this.module._malloc(INT_SIZE);
+    const foundPtr = this.module._malloc(INT_SIZE);
+
+    for (let i = 0; i < numSpk; i++) {
+      this.module.ccall('kdata_c', null,
+        ['number', 'string', 'number', 'number', 'number', 'number', 'number', 'number'],
+        [i, 'SPK', FILELEN, TYPLEN, SRCLEN, filePtr, typPtr, srcPtr, handlePtr, foundPtr]);
+
+      const found = this.module.getValue(foundPtr, 'i32');
+      if (!found) continue;
+
+      const spkFile = this.module.UTF8ToString(filePtr);
+      // spkcov_c unions coverage from this file into coverCell
+      this.module.ccall('spkcov_c', null,
+        ['string', 'number', 'number'],
+        [spkFile, idcode, coverCell.cellPtr]);
+      // spkcov_c may signal "not found" — not an error, just no coverage for this ID in this file
+      // Clear any non-fatal error so we can continue to the next file
+      const failed = this.module.ccall('failed_c', 'number', [], []);
+      if (failed) {
+        this.module.ccall('reset_c', null, [], []);
+      }
+    }
+
+    this.module._free(filePtr);
+    this.module._free(typPtr);
+    this.module._free(srcPtr);
+    this.module._free(handlePtr);
+    this.module._free(foundPtr);
+
+    const windows = this.readSpiceWindow(coverCell.cellPtr);
+    this.freeSpiceCell(coverCell);
     return windows;
   }
 

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Body } from '@spicecraft/core';
+import type { TrajectoryCache } from './TrajectoryCache.js';
 
 /** A color segment overrides the trail color for a time range. */
 export interface ColorSegment {
@@ -37,6 +38,9 @@ export interface TrajectoryLineOptions {
   numKeySamples?: number;
   /** @deprecated Use maxPoints instead */
   numPoints?: number;
+  /** Pre-computed trajectory cache. When provided, samples are extracted from cache
+   *  via binary search instead of live SPICE calls. */
+  cache?: TrajectoryCache;
 }
 
 /** Resolves a body's absolute position (km) at a given time */
@@ -78,6 +82,16 @@ export class TrajectoryLine extends THREE.Object3D {
   // Color segments: override base color for time ranges
   private _colorSegments: Array<{ startEt: number; endEt: number; color: THREE.Color }> = [];
 
+  // Pre-computed trajectory cache (null = live sampling)
+  private readonly cache: TrajectoryCache | null = null;
+  // Window indices into cache (set by recomputeSamples when cache is used)
+  private cacheWindowLo = 0;
+  private cacheWindowHi = 0;
+  // Live "tail" sample at current time — closes the gap between the last
+  // sampled point (cache or legacy) and the actual current position.
+  // Updated every frame, costs 1 SPICE call (~5µs).
+  private _tailSample: Sample | null = null;
+
   // Time bounds
   private readonly minTime?: number;
   private readonly maxTime?: number;
@@ -88,9 +102,14 @@ export class TrajectoryLine extends THREE.Object3D {
     super();
     this.body = body;
     this.name = `${body.name}_trajectory`;
-    this.maxPoints = options.maxPoints ?? options.numPoints ?? 32000;
-    this.numCoarse = options.numKeySamples ?? 100;
+    this.cache = options.cache ?? null;
+    // When a cache is provided, default buffer size to cache count (ensures the
+    // full pre-computed dataset can be displayed). Explicit maxPoints still overrides.
+    this.maxPoints = options.maxPoints ?? (this.cache ? this.cache.count : (options.numPoints ?? 32000));
     this.trailDuration = options.trailDuration ?? 86400;
+    // Scale coarse count with duration: ~2/day, min 100, max 500
+    const defaultCoarse = Math.max(100, Math.min(500, Math.round(this.trailDuration / 43200)));
+    this.numCoarse = options.numKeySamples ?? defaultCoarse;
     this.leadDuration = options.leadDuration ?? 0;
     this.orbitPeriod = options.orbitPeriod ?? 0;
     this.orbitNumPoints = 300;
@@ -120,6 +139,7 @@ export class TrajectoryLine extends THREE.Object3D {
       depthWrite: false,
     });
     this.trailLine = new THREE.Line(trailGeometry, trailMaterial);
+    this.trailLine.frustumCulled = false;
     this.trailLine.renderOrder = -1;
     this.add(this.trailLine);
 
@@ -136,6 +156,7 @@ export class TrajectoryLine extends THREE.Object3D {
         depthWrite: false,
       });
       this.orbitLine = new THREE.LineLoop(orbitGeometry, orbitMaterial);
+      this.orbitLine.frustumCulled = false;
       this.orbitLine.renderOrder = -1;
       this.add(this.orbitLine);
     }
@@ -166,12 +187,32 @@ export class TrajectoryLine extends THREE.Object3D {
     }
     this.visible = true;
 
-    // Phase 1: Recompute trajectory samples only when time changes (expensive)
-    if (et !== this.lastComputedEt || this._needsResample) {
+    // Phase 1: Recompute trajectory samples when time changes enough to matter.
+    // Cache path is cheap (binary search, no SPICE calls) so throttle less aggressively.
+    const RESAMPLE_THRESHOLD = this.cache ? 300 : 3600; // 5 min cached, 1 hour live
+    const needsResample = this._needsResample
+      || this.lastComputedEt === -Infinity
+      || Math.abs(et - this.lastComputedEt) >= RESAMPLE_THRESHOLD;
+    if (needsResample) {
       this._needsResample = false;
       this.lastComputedEt = et;
       this.recomputeSamples(et, resolver);
     }
+
+    // Resolve a live "tail" sample at the current time every frame.
+    // Closes the gap between the last sampled point (cache or legacy) and the
+    // actual current position. Costs 1 SPICE call per frame (~5µs).
+    {
+      let tailEt = et + this.leadDuration;
+      if (this.maxTime != null && tailEt > this.maxTime) tailEt = this.maxTime;
+      const pos = this.resolveAt(tailEt, resolver);
+      if (!isNaN(pos[0])) {
+        this._tailSample = { t: tailEt, x: pos[0], y: pos[1], z: pos[2] };
+      } else {
+        this._tailSample = null;
+      }
+    }
+
     // Phase 2: Apply offset and write to Float32 buffers (cheap, every frame)
     this.applyOffset(scaleFactor, vertexOffset);
   }
@@ -192,9 +233,29 @@ export class TrajectoryLine extends THREE.Object3D {
 
     if (totalDuration <= 0) {
       this.cachedSamples = [];
+      this.cacheWindowLo = 0;
+      this.cacheWindowHi = 0;
       return;
     }
 
+    // ── Fast path: extract from pre-computed cache ──
+    if (this.cache && this.cache.count > 0) {
+      const [lo, hi] = this.cache.getWindowIndices(startEt, endEt);
+      const windowCount = Math.min(hi, lo + this.maxPoints) - lo;
+      if (windowCount > 0) {
+        this.cacheWindowLo = lo;
+        this.cacheWindowHi = lo + windowCount;
+        this.cachedSamples = []; // Not used in cache path
+        return;
+      }
+      // Cache has no points in this window — fall through to legacy live sampling.
+      // This handles Builtin/analytical trajectories whose cache was built for a
+      // limited time range, or SPICE trajectories when the user scrubs past coverage.
+      this.cacheWindowLo = 0;
+      this.cacheWindowHi = 0;
+    }
+
+    // ── Legacy path: live sampling with adaptive subdivision ──
     // Curvature threshold: 0.5% deviation ratio for smooth curves
     const curvatureThreshold = this.subdivisionPixels > 0 ? 0.005 / this.subdivisionPixels : 0;
 
@@ -218,12 +279,19 @@ export class TrajectoryLine extends THREE.Object3D {
       if (!isNaN(pos[0])) coarseSamples.push({ t: endEt, x: pos[0], y: pos[1], z: pos[2] });
     }
 
-    // Recursive subdivision
+    // Recursive subdivision with per-pair budget cap.
+    // Prevents SPK file boundary discontinuities from consuming the entire budget.
     const maxDepth = 12;
+    const numPairs = Math.max(coarseSamples.length - 1, 1);
+    const maxPerPair = Math.max(Math.floor(this.maxPoints / numPairs), 16);
     const finalSamples: Sample[] = [];
+    let pairBudget = 0;
 
     const subdivide = (s0: Sample, s1: Sample, depth: number): void => {
-      if (finalSamples.length >= this.maxPoints) return;
+      if (pairBudget >= maxPerPair || finalSamples.length >= this.maxPoints) {
+        finalSamples.push(s0);
+        return;
+      }
 
       if (curvatureThreshold > 0 && depth < maxDepth) {
         const midT = (s0.t + s1.t) * 0.5;
@@ -249,10 +317,12 @@ export class TrajectoryLine extends THREE.Object3D {
       }
 
       finalSamples.push(s0);
+      pairBudget++;
     };
 
     if (coarseSamples.length >= 2) {
       for (let i = 0; i < coarseSamples.length - 1 && finalSamples.length < this.maxPoints; i++) {
+        pairBudget = 0;
         subdivide(coarseSamples[i], coarseSamples[i + 1], 0);
       }
       if (finalSamples.length < this.maxPoints) {
@@ -286,12 +356,6 @@ export class TrajectoryLine extends THREE.Object3D {
 
   /** Apply vertex offset and write to Float32 buffers — called every frame */
   private applyOffset(scaleFactor: number, vertexOffset?: [number, number, number]): void {
-    const samples = this.cachedSamples;
-    if (samples.length === 0) {
-      this.trailLine.geometry.setDrawRange(0, 0);
-      return;
-    }
-
     const offX = vertexOffset?.[0] ?? 0, offY = vertexOffset?.[1] ?? 0, offZ = vertexOffset?.[2] ?? 0;
     // Guard: if offset is NaN (e.g. SPICE kernel out of coverage), hide the line
     if (isNaN(offX) || isNaN(offY) || isNaN(offZ)) {
@@ -300,6 +364,78 @@ export class TrajectoryLine extends THREE.Object3D {
     }
     const startEt = this.cachedStartEt;
     const totalDuration = this.cachedTotalDuration;
+
+    // ── Fast path: read directly from pre-computed cache arrays ──
+    // Only use cache path when the window actually has points; otherwise fall
+    // through to legacy path (handles cache-miss for Builtin trajectories, etc.)
+    if (this.cache && this.cacheWindowHi > this.cacheWindowLo) {
+      const lo = this.cacheWindowLo;
+      const hi = this.cacheWindowHi;
+      const count = hi - lo;
+      if (count <= 0) {
+        this.trailLine.geometry.setDrawRange(0, 0);
+        return;
+      }
+
+      const cTimes = this.cache.times;
+      const cPositions = this.cache.positions;
+      for (let i = 0; i < count; i++) {
+        const ci = (lo + i) * 3;
+        this.trailPositions[i * 3] = (cPositions[ci] + offX) * scaleFactor;
+        this.trailPositions[i * 3 + 1] = (cPositions[ci + 1] + offY) * scaleFactor;
+        this.trailPositions[i * 3 + 2] = (cPositions[ci + 2] + offZ) * scaleFactor;
+
+        const t = cTimes[lo + i];
+        const fadeT = (t - startEt) / totalDuration;
+        const fade = this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
+        let cr = this.baseColor.r, cg = this.baseColor.g, cb = this.baseColor.b;
+        for (const seg of this._colorSegments) {
+          if (t >= seg.startEt && t <= seg.endEt) {
+            cr = seg.color.r; cg = seg.color.g; cb = seg.color.b;
+            break;
+          }
+        }
+        this.trailColors[i * 3] = cr * fade;
+        this.trailColors[i * 3 + 1] = cg * fade;
+        this.trailColors[i * 3 + 2] = cb * fade;
+      }
+
+      // Append live tail sample to close the gap to current time
+      let drawCount = count;
+      if (this._tailSample && drawCount < this.maxPoints) {
+        const s = this._tailSample;
+        const i = drawCount;
+        this.trailPositions[i * 3] = (s.x + offX) * scaleFactor;
+        this.trailPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
+        this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
+        const fadeT = (s.t - startEt) / totalDuration;
+        const fade = this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
+        let cr = this.baseColor.r, cg = this.baseColor.g, cb = this.baseColor.b;
+        for (const seg of this._colorSegments) {
+          if (s.t >= seg.startEt && s.t <= seg.endEt) {
+            cr = seg.color.r; cg = seg.color.g; cb = seg.color.b;
+            break;
+          }
+        }
+        this.trailColors[i * 3] = cr * fade;
+        this.trailColors[i * 3 + 1] = cg * fade;
+        this.trailColors[i * 3 + 2] = cb * fade;
+        drawCount++;
+      }
+
+      this.trailLine.geometry.setDrawRange(0, drawCount);
+      this.trailLine.geometry.attributes.position.needsUpdate = true;
+      this.trailLine.geometry.attributes.color.needsUpdate = true;
+      this.trailLine.geometry.computeBoundingSphere();
+      return;
+    }
+
+    // ── Legacy path: read from cachedSamples array ──
+    const samples = this.cachedSamples;
+    if (samples.length === 0) {
+      this.trailLine.geometry.setDrawRange(0, 0);
+      return;
+    }
 
     for (let i = 0; i < samples.length; i++) {
       const s = samples[i];
@@ -322,7 +458,30 @@ export class TrajectoryLine extends THREE.Object3D {
       this.trailColors[i * 3 + 2] = cb * fade;
     }
 
-    this.trailLine.geometry.setDrawRange(0, samples.length);
+    // Append live tail sample to close the gap to current time
+    let legacyDrawCount = samples.length;
+    if (this._tailSample && legacyDrawCount < this.maxPoints) {
+      const s = this._tailSample;
+      const i = legacyDrawCount;
+      this.trailPositions[i * 3] = (s.x + offX) * scaleFactor;
+      this.trailPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
+      this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
+      const fadeT = (s.t - startEt) / totalDuration;
+      const fade = this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
+      let cr = this.baseColor.r, cg = this.baseColor.g, cb = this.baseColor.b;
+      for (const seg of this._colorSegments) {
+        if (s.t >= seg.startEt && s.t <= seg.endEt) {
+          cr = seg.color.r; cg = seg.color.g; cb = seg.color.b;
+          break;
+        }
+      }
+      this.trailColors[i * 3] = cr * fade;
+      this.trailColors[i * 3 + 1] = cg * fade;
+      this.trailColors[i * 3 + 2] = cb * fade;
+      legacyDrawCount++;
+    }
+
+    this.trailLine.geometry.setDrawRange(0, legacyDrawCount);
     this.trailLine.geometry.attributes.position.needsUpdate = true;
     this.trailLine.geometry.attributes.color.needsUpdate = true;
     this.trailLine.geometry.computeBoundingSphere();
@@ -366,6 +525,9 @@ export class TrajectoryLine extends THREE.Object3D {
   invalidate(): void {
     this._needsResample = true;
     this.cachedSamples = [];
+    this.cacheWindowLo = 0;
+    this.cacheWindowHi = 0;
+    this._tailSample = null;
     this._orbitSamples = undefined;
   }
 

@@ -171,7 +171,7 @@ const NAIF_KERNELS = [
   { file: "de440s.bsp", label: "Planets + Moon" },
 ];
 
-/** Cassini-specific kernels — covers SOI, Titan T-A, Huygens, and Enceladus E-2.
+/** Cassini-specific kernels — continuous reconstructed coverage Jun 2004 – Jul 2005.
  *  Small text kernels (FK, SCLK, IK) are fetched directly.
  *  Large binary kernels (SPK, CK) are gzipped and fetched with progress bar.
  *  Run scripts/fetch-cassini-kernels.sh to download the gzipped files. */
@@ -185,18 +185,28 @@ const CASSINI_KERNELS_SMALL = [
   { file: "cassini/cas_radar_v11.ti", label: "RADAR" },
   { file: "cassini/cas_cirs_v10.ti", label: "CIRS" },
   { file: "cassini/cas_caps_v03.ti", label: "CAPS" },
-  // Existing small SPK + CK (SOI)
-  { file: "cassini/040629AP_SCPSE_04179_04185.bsp", label: "SOI trajectory" },
+  // SOI attitude (existing, small enough for direct fetch)
   { file: "cassini/04183_04185ra.bc", label: "SOI attitude" },
 ];
 
 const CASSINI_KERNELS_LARGE = [
-  // SPK — Reconstructed trajectory segments
-  { file: "cassini/041219R_SCPSE_04199_04247.bsp.gz", label: "Post-SOI trajectory", size: 4_500_000 },
-  { file: "cassini/050105RB_SCPSE_04247_04336.bsp.gz", label: "Titan T-A trajectory", size: 7_800_000 },
-  { file: "cassini/050214R_SCPSE_04336_05015.bsp.gz", label: "Huygens trajectory", size: 16_000_000 },
-  { file: "cassini/050825R_SCPSE_05186_05205.bsp.gz", label: "Enceladus E-2 trajectory", size: 2_500_000 },
-  // CK — Reconstructed attitude for each event window
+  // SPK — Continuous reconstructed chain: through Jul 24, 2005
+  { file: "cassini/040909R_SCPSE_01066_04199.bsp.gz", label: "Trajectory (cruise–SOI)", size: 36_000_000 },
+  { file: "cassini/041219R_SCPSE_04199_04247.bsp.gz", label: "Trajectory (post-SOI)", size: 4_500_000 },
+  { file: "cassini/050105RB_SCPSE_04247_04336.bsp.gz", label: "Trajectory (Titan T-A)", size: 7_800_000 },
+  { file: "cassini/050214R_SCPSE_04336_05015.bsp.gz", label: "Trajectory (Huygens)", size: 16_000_000 },
+  { file: "cassini/050411R_SCPSE_05015_05034.bsp.gz", label: "Trajectory (Jan–Feb 05)", size: 7_300_000 },
+  { file: "cassini/050414R_SCPSE_05034_05060.bsp.gz", label: "Trajectory (Feb–Mar 05)", size: 7_900_000 },
+  { file: "cassini/050504R_SCPSE_05060_05081.bsp.gz", label: "Trajectory (Mar 05)", size: 4_500_000 },
+  { file: "cassini/050506R_SCPSE_05081_05097.bsp.gz", label: "Trajectory (Mar–Apr 05)", size: 4_400_000 },
+  { file: "cassini/050513R_SCPSE_05097_05114.bsp.gz", label: "Trajectory (Apr 05)", size: 4_200_000 },
+  { file: "cassini/050606R_SCPSE_05114_05132.bsp.gz", label: "Trajectory (Apr–May 05)", size: 3_100_000 },
+  { file: "cassini/050623R_SCPSE_05132_05150.bsp.gz", label: "Trajectory (May 05)", size: 2_500_000 },
+  { file: "cassini/050708R_SCPSE_05150_05169.bsp.gz", label: "Trajectory (May–Jun 05)", size: 2_900_000 },
+  { file: "cassini/050802R_SCPSE_05169_05186.bsp.gz", label: "Trajectory (Jun–Jul 05)", size: 2_700_000 },
+  { file: "cassini/050825R_SCPSE_05186_05205.bsp.gz", label: "Trajectory (Enceladus E-2)", size: 2_500_000 },
+  // CK — Reconstructed attitude for key event windows
+  { file: "cassini/04179_04183ra.bc.gz", label: "SOI approach attitude", size: 10_000_000 },
   { file: "cassini/04296_04301ra.bc.gz", label: "Titan T-A attitude", size: 6_400_000 },
   { file: "cassini/04356_04361ra.bc.gz", label: "Huygens release attitude", size: 7_000_000 },
   { file: "cassini/05012_05017ra.bc.gz", label: "Huygens landing attitude", size: 6_400_000 },
@@ -792,7 +802,7 @@ function initScene(
     showLabels: true,
     showStars: true,
     starFieldOptions: { catalogUrl: '/stars.bin' },
-    trajectoryOptions: { trailDuration: 86400 * 30, numPoints: 300 },
+    trajectoryOptions: { trailDuration: 86400 * 30 },
     minBodyPixels: 0,
     modelResolver: modelFiles && modelFiles.size > 0
       ? (source: string) => findInMap(modelFiles, source)
