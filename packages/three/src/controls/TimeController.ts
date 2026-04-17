@@ -8,9 +8,13 @@ const RATE_TIERS = [
   -86400,     // -1 day/s
   -3600,      // -1 hr/s
   -60,        // -1 min/s
+  -30,        // -0.5 min/s
+  -2,         // -2x
   -1,         // -1x (real-time reverse)
   0,          // paused (special: not selectable via faster/slower, only via pause)
   1,          // 1x (real-time)
+  2,          // 2x (real-time)
+  30,         // 0.5 min/s
   60,         // 1 min/s
   3600,       // 1 hr/s
   86400,      // 1 day/s
