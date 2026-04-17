@@ -275,10 +275,23 @@
           </select>
         </label>
         <span style="color:#555;">|</span>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          Cam:
+          <select id="sel-cam-mode" style="background:#222; color:#ccc; border:1px solid #555; border-radius:3px; padding:1px 4px; font-family:monospace; font-size:11px; cursor:pointer;">
+            <option value="free-orbit">Free Orbit</option>
+            <option value="sc-fixed">Locked</option>
+            <option value="body-fixed">Body Fixed</option>
+            <option value="lvlh">LVLH</option>
+            <option value="chase">Chase</option>
+            <option value="surface">Surface</option>
+            <option value="instrument">Instrument</option>
+          </select>
+        </label>
+        <span style="color:#555;">|</span>
         <button id="pick-btn" title="Pick surface point (click to toggle)">&#x271A; Pick</button>
       </div>
       <div class="time-shortcut-hint">
-        Space: play/pause &middot; &larr;/&rarr;: step &middot; [/]: speed &middot; R: reverse &middot; F: fly to &middot; T: orbits &middot; L: labels &middot; I: instrument PiP &middot; /: hide UI
+        Space: play/pause &middot; &larr;/&rarr;: step &middot; [/]: speed &middot; R: reverse &middot; F: fly to &middot; T: orbits &middot; L: labels &middot; I: instrument PiP &middot; M: cycle cam mode &middot; /: hide UI
       </div>
     </div>
   </div>

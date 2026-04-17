@@ -3,6 +3,14 @@ import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls
 import { KeyboardControls } from './KeyboardControls.js';
 import type { KeyboardControlsConfig } from './KeyboardControls.js';
 import type { BodyMesh } from '../BodyMesh.js';
+import { CameraModeName, type ICameraMode, type CameraModeContext, type CameraModeParams, type CameraModeSpice } from './CameraModes.js';
+import { FreeOrbitMode } from './modes/FreeOrbitMode.js';
+import { ScFixedMode } from './modes/ScFixedMode.js';
+import { BodyFixedMode } from './modes/BodyFixedMode.js';
+import { LvlhMode } from './modes/LvlhMode.js';
+import { ChaseMode } from './modes/ChaseMode.js';
+import { SurfaceMode } from './modes/SurfaceMode.js';
+import { InstrumentMode } from './modes/InstrumentMode.js';
 
 /** A saved camera viewpoint (position + target in scene coordinates) */
 export interface CameraViewpoint {
@@ -86,6 +94,14 @@ export class CameraController {
   private _prevMouseX = 0;
   private _prevMouseY = 0;
 
+  /** Camera mode system */
+  private readonly _modes: Map<CameraModeName, ICameraMode>;
+  private _activeMode: ICameraMode;
+  private _modeCtx: CameraModeContext | null = null;
+
+  /** Current camera mode name */
+  get mode(): CameraModeName { return this._activeMode.name; }
+
   /** Bound event handlers (for cleanup) */
   private readonly _onRightDown: (e: MouseEvent) => void;
   private readonly _onMouseMove: (e: MouseEvent) => void;
@@ -114,6 +130,19 @@ export class CameraController {
 
     this.keyboard = new KeyboardControls(keyboardConfig);
     this._lastFrameMs = performance.now();
+
+    // Initialize camera modes
+    const freeOrbit = new FreeOrbitMode();
+    this._modes = new Map<CameraModeName, ICameraMode>([
+      [CameraModeName.FREE_ORBIT, freeOrbit],
+      [CameraModeName.SC_FIXED, new ScFixedMode()],
+      [CameraModeName.BODY_FIXED, new BodyFixedMode()],
+      [CameraModeName.LVLH, new LvlhMode()],
+      [CameraModeName.CHASE, new ChaseMode()],
+      [CameraModeName.SURFACE, new SurfaceMode()],
+      [CameraModeName.INSTRUMENT, new InstrumentMode()],
+    ]);
+    this._activeMode = freeOrbit;
 
     // --- Right-click free look ---
     // Capture phase so we intercept before TrackballControls
@@ -267,6 +296,204 @@ export class CameraController {
   }
 
   /**
+   * Switch camera mode. Returns false if the mode name is unknown.
+   * Switching to FREE_ORBIT re-enables orbit controls and keyboard.
+   */
+  setMode(modeName: CameraModeName, params: CameraModeParams = {}): boolean {
+    const newMode = this._modes.get(modeName);
+    if (!newMode) return false;
+
+    // Deactivate current mode
+    if (this._modeCtx) {
+      this._activeMode.deactivate(this._modeCtx);
+    }
+
+    // Restore TrackballControls damping and camera up when leaving a non-FreeOrbit mode
+    if (this._activeMode.name !== CameraModeName.FREE_ORBIT) {
+      this.controls.staticMoving = false;
+      this.controls.dynamicDampingFactor = 0.15;
+      // Modes may set camera.up to unusual directions (e.g. surface normal).
+      // Reset to prevent TrackballControls gimbal instability.
+      if (modeName === CameraModeName.FREE_ORBIT) {
+        this.camera.up.set(0, 1, 0);
+      }
+    }
+
+    this._activeMode = newMode;
+
+    // Enable/disable TrackballControls based on mode
+    this.controls.enabled = newMode.allowsOrbitControls;
+
+    // For orbit-allowing modes (SC_FIXED, BODY_FIXED) that use delta rotation,
+    // disable TrackballControls damping to prevent fighting — damping nudges the
+    // camera each frame, which the delta rotation then re-rotates, causing jitter.
+    if (modeName !== CameraModeName.FREE_ORBIT && newMode.allowsOrbitControls) {
+      this.controls.staticMoving = true;
+    }
+
+    // Set origin body to the mode's target for floating-point precision.
+    // Without this, camera.position = largeBodyOffset + smallCameraOffset loses precision.
+    if (params.bodyName && this._modeCtx) {
+      const targetBm = this._modeCtx.bodyMeshes.get(params.bodyName);
+      if (targetBm) {
+        this._originBody = targetBm;
+      }
+    }
+
+    // Activate new mode with context
+    if (this._modeCtx) {
+      newMode.activate(this._modeCtx, params);
+    }
+
+    return true;
+  }
+
+  /**
+   * Set camera mode with automatic body-name resolution.
+   * For spacecraft targets, resolves the appropriate body for each mode:
+   * - SC_FIXED/LVLH/CHASE: uses the spacecraft itself
+   * - BODY_FIXED/SURFACE: uses the parent celestial body (planet/moon)
+   * - INSTRUMENT: activates the specified sensor
+   *
+   * @param modeName The camera mode to switch to
+   * @param bodyMesh The body to target (usually the tracked body)
+   * @param opts Extra options (sensorName for instrument mode)
+   */
+  setModeForBody(
+    modeName: CameraModeName,
+    bodyMesh: BodyMesh | null,
+    opts?: { sensorName?: string },
+  ): boolean {
+    if (!bodyMesh) return this.setMode(modeName);
+
+    const body = bodyMesh.body;
+    const isSC = body.classification === 'spacecraft';
+    const parentName = body.parentName ?? '';
+    const celestialBody = isSC ? parentName : body.name;
+
+    switch (modeName) {
+      case CameraModeName.FREE_ORBIT:
+        return this.setMode(CameraModeName.FREE_ORBIT);
+      case CameraModeName.SC_FIXED:
+        return this.setMode(CameraModeName.SC_FIXED, { bodyName: body.name });
+      case CameraModeName.BODY_FIXED:
+        return this.setMode(CameraModeName.BODY_FIXED, { bodyName: celestialBody });
+      case CameraModeName.LVLH:
+        return this.setMode(CameraModeName.LVLH, {
+          bodyName: body.name, centerBodyName: parentName, axis: '-Z',
+        });
+      case CameraModeName.CHASE:
+        return this.setMode(CameraModeName.CHASE, {
+          bodyName: body.name, centerBodyName: parentName, offset: 100,
+        });
+      case CameraModeName.SURFACE:
+        return this.setMode(CameraModeName.SURFACE, {
+          bodyName: celestialBody, latDeg: 0, lonDeg: 0, altKm: 10,
+          lookTarget: isSC ? body.name : undefined,
+        });
+      case CameraModeName.INSTRUMENT:
+        return this.setMode(CameraModeName.INSTRUMENT, {
+          sensorName: opts?.sensorName ?? '',
+        });
+      default:
+        return this.setMode(modeName);
+    }
+  }
+
+  /**
+   * Track a body and restore the current camera mode.
+   * Handles the zoom → track → mode-reactivation sequence.
+   *
+   * @param bodyMesh The body to track
+   * @param scaleFactor Scale factor for zoom distance
+   */
+  trackBody(bodyMesh: BodyMesh, scaleFactor: number): void {
+    const prevMode = this._activeMode.name;
+
+    this.clearLookAt();
+    this.zoomTo(bodyMesh, scaleFactor);
+    this.track(bodyMesh);
+
+    // track() calls focusOn() which sets controls.target to the body's current
+    // scene position — but that's in the OLD origin's coordinates. After the origin
+    // switch (next renderFrame), the body will be at (0,0,0). Set target there now
+    // so the mode doesn't start with a stale target vector.
+    this.controls.target.set(0, 0, 0);
+
+    // Re-activate the mode with the new body. Mode.activate() only reads body
+    // rotation (not position), so it's safe to call before the origin switch
+    // settles — the first update() will use the correct positions from renderFrame.
+    if (prevMode !== CameraModeName.FREE_ORBIT) {
+      this.setModeForBody(prevMode, bodyMesh);
+    }
+  }
+
+  /** Reset to Free Orbit mode, cancelling any animation and clearing look-at. */
+  resetToFreeOrbit(): void {
+    this.cancelAnimation();
+    this.clearLookAt();
+    if (this._activeMode.name !== CameraModeName.FREE_ORBIT) {
+      this.setMode(CameraModeName.FREE_ORBIT);
+      // Reset camera up to a sensible default — modes like Surface set it to the
+      // local surface normal which can cause gimbal instability in TrackballControls.
+      this.camera.up.set(0, 1, 0);
+    }
+  }
+
+  /**
+   * Cycle to the next camera mode. Excludes INSTRUMENT by default.
+   * @param exclude Mode names to skip when cycling
+   * @returns The new mode name
+   */
+  cycleMode(exclude: CameraModeName[] = [CameraModeName.INSTRUMENT]): CameraModeName {
+    const allModes = [
+      CameraModeName.FREE_ORBIT, CameraModeName.SC_FIXED, CameraModeName.BODY_FIXED,
+      CameraModeName.LVLH, CameraModeName.CHASE, CameraModeName.SURFACE,
+      CameraModeName.INSTRUMENT,
+    ];
+    const available = allModes.filter(m => !exclude.includes(m));
+    const curIdx = available.indexOf(this._activeMode.name);
+    const nextMode = available[(curIdx + 1) % available.length];
+    this.setModeForBody(nextMode, this._trackTarget ?? this._originBody);
+    return nextMode;
+  }
+
+  /** Get the mode instance (for mode-specific properties like InstrumentMode.sensorName) */
+  getModeInstance<T extends ICameraMode>(modeName: CameraModeName): T | undefined {
+    return this._modes.get(modeName) as T | undefined;
+  }
+
+  /**
+   * Set the per-frame context for camera modes.
+   * Must be called by the renderer each frame before update().
+   */
+  setModeContext(
+    spice: CameraModeSpice | null,
+    et: number,
+    scaleFactor: number,
+    bodyMeshes: Map<string, BodyMesh>,
+  ): void {
+    if (!this._modeCtx) {
+      this._modeCtx = {
+        camera: this.camera,
+        controls: this.controls,
+        bodyMeshes,
+        spice,
+        et,
+        dt: 0,
+        scaleFactor,
+        originBody: this._originBody,
+      };
+    } else {
+      this._modeCtx.spice = spice;
+      this._modeCtx.et = et;
+      this._modeCtx.scaleFactor = scaleFactor;
+      this._modeCtx.bodyMeshes = bodyMeshes;
+      this._modeCtx.originBody = this._originBody;
+    }
+  }
+
+  /**
    * Smoothly slew (rotate) the camera to face a world-space position.
    * @param target World position to rotate toward
    * @param rate Angular rate in radians/second (default: 0.5)
@@ -365,7 +592,13 @@ export class CameraController {
     const dt = Math.min((now - this._lastFrameMs) / 1000, 0.1); // cap at 100ms
     this._lastFrameMs = now;
 
-    // Advance fly-to animation if active
+    // Update mode context dt
+    if (this._modeCtx) {
+      this._modeCtx.dt = dt;
+      this._modeCtx.originBody = this._originBody;
+    }
+
+    // Advance fly-to animation if active (works in all modes)
     if (this._anim) {
       const animDt = (now - this._lastAnimMs) / 1000;
       this._lastAnimMs = now;
@@ -390,21 +623,46 @@ export class CameraController {
         this._anim = null;
         onComplete?.();
       }
+      return; // Animation takes priority over mode updates
     }
 
-    // --- Right-click free look ---
-    // Applied BEFORE controls.update() so TrackballControls orients the camera
-    // to the new target this frame (no one-frame lag).
+    // --- Non-FreeOrbit modes: delegate to active mode ---
+    if (this._activeMode.name !== CameraModeName.FREE_ORBIT) {
+      // Discard right-click drag — modes handle their own orientation via delta rotation.
+      // Right-click in these modes would fight with the mode's target/quaternion control.
+      this._rightDragDx = 0;
+      this._rightDragDy = 0;
+
+      // Orbit controls (before mode update so mode sees user-adjusted position)
+      if (this._activeMode.allowsOrbitControls) {
+        this.controls.update();
+      }
+
+      // Mode update: applies delta rotation to position, target, quaternion, and up.
+      // The mode rotates ALL of these consistently so the camera-to-target direction
+      // and screen-space axes stay correct. No lookAt needed.
+      if (this._modeCtx) {
+        this._activeMode.update(this._modeCtx);
+      }
+
+      // Keyboard (WASD/roll) — camera quaternion is already correct from mode update,
+      // so getWorldDirection() returns proper screen-space directions.
+      if (this._activeMode.allowsKeyboard) {
+        this.keyboard.update(this.camera, this.controls.target, dt);
+      }
+      return;
+    }
+
+    // --- FreeOrbit mode: existing behavior ---
+
+    // Right-click free look
     if (this._rightDragDx !== 0 || this._rightDragDy !== 0) {
-      // Un-track: free look means you're no longer orbiting the body.
-      // Origin body persists so the scene doesn't jump.
       this._trackTarget = null;
 
       const forward = new THREE.Vector3();
       this.camera.getWorldDirection(forward);
       const right = new THREE.Vector3().crossVectors(forward, this.camera.up).normalize();
 
-      // Yaw around camera's up, pitch around camera's right
       const q = new THREE.Quaternion();
       q.premultiply(
         new THREE.Quaternion().setFromAxisAngle(this.camera.up, -this._rightDragDx * this.freeLookSensitivity),
@@ -413,12 +671,9 @@ export class CameraController {
         new THREE.Quaternion().setFromAxisAngle(right, -this._rightDragDy * this.freeLookSensitivity),
       );
 
-      // Rotate view direction — move orbit target to match
       const dist = this.camera.position.distanceTo(this.controls.target);
       const newDir = forward.applyQuaternion(q).normalize();
       this.controls.target.copy(this.camera.position).addScaledVector(newDir, dist);
-
-      // Rotate up vector to keep pitch consistent
       this.camera.up.applyQuaternion(q).normalize();
 
       this._rightDragDx = 0;
@@ -430,7 +685,7 @@ export class CameraController {
       this.controls.target.set(0, 0, 0);
     }
 
-    // Mouse left-drag orbit + scroll zoom (always active)
+    // Mouse left-drag orbit + scroll zoom
     this.controls.update();
 
     // Keyboard: roll (Q/E), translation (WASD/ZC), slew

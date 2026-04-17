@@ -117,6 +117,9 @@ export class InstrumentView {
   get active(): boolean { return this._active; }
   get sensorName(): string | undefined { return this.sensor?.body.name; }
 
+  /** When true, render() fills the main viewport instead of the PiP corner. */
+  fullScreen = false;
+
   /** Set the active instrument sensor (or null to deactivate). */
   setSensor(sensor: SensorFrustum | null, fovBoundary?: FovBoundary): void {
     this.sensor = sensor;
@@ -385,25 +388,37 @@ export class InstrumentView {
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene): void {
     if (!this._active) return;
 
-    // Three.js setViewport/setScissor expect CSS logical pixels (NOT device pixels).
-    // They multiply by pixelRatio internally.
     const canvas = renderer.domElement;
-    const pipW = this.options.width;
-    const pipH = this.options.height;
-    const m = this.options.margin;
-    const [pipX, pipY] = this.viewportXY(canvas.clientWidth, canvas.clientHeight, pipW, pipH, m);
+    let pipW: number, pipH: number, pipX: number, pipY: number;
 
-    // Fit the instrument's native aspect ratio inside the PiP rectangle (letterbox/pillarbox)
+    if (this.fullScreen) {
+      // Full-screen mode: use entire canvas
+      pipW = canvas.clientWidth;
+      pipH = canvas.clientHeight;
+      pipX = 0;
+      pipY = 0;
+      // Hide PiP overlay in full-screen
+      this.overlayDiv.style.display = 'none';
+    } else {
+      // Three.js setViewport/setScissor expect CSS logical pixels (NOT device pixels).
+      // They multiply by pixelRatio internally.
+      pipW = this.options.width;
+      pipH = this.options.height;
+      const m = this.options.margin;
+      [pipX, pipY] = this.viewportXY(canvas.clientWidth, canvas.clientHeight, pipW, pipH, m);
+    }
+
+    // Fit the instrument's native aspect ratio inside the rectangle (letterbox/pillarbox)
     const pipAspect = pipW / pipH;
     let vw: number, vh: number, vx: number, vy: number;
     if (this.instrAspect > pipAspect) {
-      // Instrument is wider than PiP → fit width, pillarbox (bars top/bottom)
+      // Instrument is wider → fit width, bars top/bottom
       vw = pipW;
       vh = pipW / this.instrAspect;
       vx = pipX;
       vy = pipY + (pipH - vh) / 2;
     } else {
-      // Instrument is taller than PiP → fit height, letterbox (bars left/right)
+      // Instrument is taller → fit height, bars left/right
       vh = pipH;
       vw = pipH * this.instrAspect;
       vx = pipX + (pipW - vw) / 2;
@@ -423,7 +438,7 @@ export class InstrumentView {
       renderer.setViewport(pipX, pipY, pipW, pipH);
       renderer.setScissorTest(true);
       renderer.setScissor(pipX, pipY, pipW, pipH);
-      renderer.setClearColor(0x060612, 1);
+      renderer.setClearColor(0x000000, 1);
       renderer.autoClear = false;
       renderer.clear(true, true, true);
 

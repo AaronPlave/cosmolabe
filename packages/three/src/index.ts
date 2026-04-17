@@ -34,6 +34,8 @@ export { CameraController } from './controls/CameraController.js';
 export type { CameraViewpoint, FlyToOptions } from './controls/CameraController.js';
 export { KeyboardControls } from './controls/KeyboardControls.js';
 export type { KeyboardControlsConfig } from './controls/KeyboardControls.js';
+export { CameraModeName } from './controls/CameraModes.js';
+export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice } from './controls/CameraModes.js';
 
 // Terrain
 export { TerrainManager } from './TerrainManager.js';

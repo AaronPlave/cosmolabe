@@ -3,7 +3,7 @@ import Stats from "three/examples/jsm/libs/stats.module.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { Universe } from "@spicecraft/core";
 import { Spice, type SpiceInstance } from "@spicecraft/spice";
-import { UniverseRenderer, SpiceCacheWorker, rateLabel } from "@spicecraft/three";
+import { UniverseRenderer, rateLabel, CameraModeName, SpiceCacheWorker } from "@spicecraft/three";
 
 
 let universe: Universe | null = null;
@@ -68,6 +68,7 @@ const chkLabels = document.getElementById("chk-labels") as HTMLInputElement;
 const selLighting = document.getElementById("sel-lighting") as HTMLSelectElement;
 const selInstrument = document.getElementById("sel-instrument") as HTMLSelectElement;
 const instrumentViewLabel = document.getElementById("instrument-view-label")!;
+const selCamMode = document.getElementById("sel-cam-mode") as HTMLSelectElement;
 const pickBtn = document.getElementById("pick-btn")!;
 const pickResult = document.getElementById("pick-result")!;
 const pickResultBody = document.getElementById("pick-result-body")!;
@@ -865,8 +866,6 @@ function initScene(
     renderer.camera.lookAt(0, 0, 0);
   }
 
-  // Set initial time rate
-  renderer.timeController.setRate(60); // 1 min/s default
 
   // Build body list
   buildBodyList(allBodies);
@@ -963,6 +962,10 @@ function updateCameraStatus() {
   if (!renderer) { cameraStatus.innerHTML = ""; return; }
   const cc = renderer.cameraController;
   const parts: string[] = [];
+  // Show mode if not free-orbit
+  if (cc.mode !== CameraModeName.FREE_ORBIT) {
+    parts.push(`Mode: <span>${cc.mode}</span>`);
+  }
   const tracked = cc.trackedBody;
   if (tracked) parts.push(`Tracking: <span>${tracked.body.name}</span>`);
   const lookAt = cc.lookAtBody;
@@ -1251,6 +1254,34 @@ selInstrument.addEventListener("change", () => {
   if (!renderer) return;
   const name = selInstrument.value || null;
   renderer.setInstrumentView(name);
+  // If in instrument camera mode, update the mode's sensor to match
+  if (name && renderer.cameraController.mode === CameraModeName.INSTRUMENT) {
+    renderer.cameraController.setMode(CameraModeName.INSTRUMENT, { sensorName: name });
+  }
+});
+
+// --- Camera mode selector ---
+selCamMode.addEventListener("change", () => {
+  if (!renderer) return;
+  const cc = renderer.cameraController;
+  const modeName = selCamMode.value as CameraModeName;
+
+  // For instrument mode, ensure a sensor is active
+  if (modeName === CameraModeName.INSTRUMENT) {
+    let instrName = selInstrument.value || '';
+    if (!instrName) {
+      const sensors = renderer.getSensorNames();
+      if (sensors.length > 0) {
+        instrName = sensors[0];
+        renderer.setInstrumentView(instrName);
+        selInstrument.value = instrName;
+      }
+    }
+    cc.setModeForBody(modeName, cc.trackedBody, { sensorName: instrName });
+  } else {
+    cc.setModeForBody(modeName, cc.trackedBody);
+  }
+  updateCameraStatus();
 });
 
 function buildBodyList(bodies: { name: string; classification?: string }[]) {
@@ -1327,9 +1358,7 @@ function buildBodyList(bodies: { name: string; classification?: string }[]) {
       } else {
         const bm = renderer.getBodyMesh(body.name);
         if (bm) {
-          renderer.cameraController.clearLookAt();
-          renderer.cameraController.zoomTo(bm, 1e-6);
-          renderer.cameraController.track(bm);
+          renderer.cameraController.trackBody(bm, 1e-6);
           updateLookAtIndicator(items);
           updateCameraStatus();
         }
@@ -1502,9 +1531,8 @@ document.addEventListener("keydown", (e) => {
         renderer.setLabelsVisible(chkLabels.checked);
         return;
       case "Escape":
-        // Cancel camera animation and pick mode
-        renderer.cameraController.cancelAnimation();
-        renderer.cameraController.clearLookAt();
+        renderer.cameraController.resetToFreeOrbit();
+        selCamMode.value = CameraModeName.FREE_ORBIT;
         updateCameraStatus();
         if (pickModeActive) { setPickMode(false); pickResult.style.display = "none"; }
         return;
@@ -1521,6 +1549,12 @@ document.addEventListener("keydown", (e) => {
         const next = idx + 1 < sensors.length ? sensors[idx + 1] : null;
         renderer.setInstrumentView(next);
         selInstrument.value = next ?? "";
+        return;
+      }
+      case "m": {
+        const nextMode = renderer.cameraController.cycleMode();
+        selCamMode.value = nextMode;
+        updateCameraStatus();
         return;
       }
       case "\\":

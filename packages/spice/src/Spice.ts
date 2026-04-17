@@ -31,6 +31,10 @@ export interface SpiceInstance {
   // Frames
   pxform(from: string, to: string, et: number): RotationMatrix;
   sxform(from: string, to: string, et: number): StateTransformMatrix;
+  /** Get the frame name associated with a frame ID code. Returns null if not found. */
+  frmnam(frcode: number): string | null;
+  /** Get the frame ID and name associated with a body ID. Returns null if not found. */
+  cidfrm(cent: number): { frcode: number; frname: string } | null;
   // Geometry
   sincpt(method: string, target: string, et: number, fixref: string, abcorr: AberrationCorrection, observer: string, dref: string, dvec: Vec3): SurfaceIntercept;
   subpnt(method: string, target: string, et: number, fixref: string, abcorr: AberrationCorrection, observer: string): SubPoint;
@@ -300,6 +304,32 @@ export class Spice implements SpiceInstance {
     this.module._free(matPtr);
     this.checkError();
     return mat;
+  }
+
+  frmnam(frcode: number): string | null {
+    const namePtr = this.module._malloc(100);
+    this.module.ccall('frmnam_c', null,
+      ['number', 'number', 'number'],
+      [frcode, 100, namePtr]);
+    const name = this.module.UTF8ToString(namePtr, 100);
+    this.module._free(namePtr);
+    this.checkError();
+    return name.length > 0 ? name : null;
+  }
+
+  cidfrm(cent: number): { frcode: number; frname: string } | null {
+    const frcodePtr = this.module._malloc(INT_SIZE);
+    const namePtr = this.module._malloc(100);
+    const foundPtr = this.module._malloc(INT_SIZE);
+    this.module.ccall('cidfrm_c', null,
+      ['number', 'number', 'number', 'number', 'number'],
+      [cent, 100, frcodePtr, namePtr, foundPtr]);
+    const found = this.module.getValue(foundPtr, 'i32');
+    const frcode = this.module.getValue(frcodePtr, 'i32');
+    const frname = this.module.UTF8ToString(namePtr, 100);
+    this.module._free(frcodePtr); this.module._free(namePtr); this.module._free(foundPtr);
+    this.checkError();
+    return found ? { frcode, frname } : null;
   }
 
   // --- Surface geometry ---

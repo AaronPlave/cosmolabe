@@ -13,6 +13,8 @@ import { GeometryReadout } from './GeometryReadout.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
 import { CameraController } from './controls/CameraController.js';
+import { CameraModeName } from './controls/CameraModes.js';
+import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
 import { TimeController } from './controls/TimeController.js';
 import type { TerrainConfig } from './TerrainManager.js';
 import type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
@@ -527,6 +529,11 @@ export class UniverseRenderer {
     // Adapt camera speeds to altitude above nearest body (before controls process input)
     this.cameraController.adaptSpeeds(this.bodyMeshes.values(), this.scaleFactor);
 
+    // Provide SPICE + universe context for camera modes
+    this.cameraController.setModeContext(
+      spiceInst ?? null, et, this.scaleFactor, this.bodyMeshes,
+    );
+
     // Camera
     this.cameraController.update();
 
@@ -679,7 +686,21 @@ export class UniverseRenderer {
 
     this.camera.layers.enableAll();
 
-    // Instrument PiP view — wrapped in try/catch to never break the main render
+    // Instrument view — PiP or full-screen depending on camera mode
+    const isInstrumentMode = this.cameraController.mode === CameraModeName.INSTRUMENT;
+    if (isInstrumentMode && this.instrumentView) {
+      // In instrument camera mode: if no sensor is active yet, try to activate from the mode params
+      if (!this.instrumentView.active) {
+        const instrMode = this.cameraController.getModeInstance<InstrumentMode>(CameraModeName.INSTRUMENT);
+        if (instrMode?.sensorName) {
+          this.setInstrumentView(instrMode.sensorName);
+        }
+      }
+      this.instrumentView.fullScreen = true;
+    } else if (this.instrumentView) {
+      this.instrumentView.fullScreen = false;
+    }
+
     if (this.instrumentView?.active) {
       try {
         const sf = this.sensorFrustums.get(this.instrumentView.sensorName!);
