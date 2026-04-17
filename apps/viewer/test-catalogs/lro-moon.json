@@ -1,6 +1,7 @@
 {
   "name": "LRO at the Moon",
   "defaultTime": "2025-01-15T00:00:00Z",
+  "defaultViewpoint": "Track LRO",
   "items": [
     {
       "name": "Moon Overview",

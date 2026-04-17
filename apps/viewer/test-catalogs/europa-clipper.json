@@ -2,6 +2,7 @@
   "name": "Europa Clipper — Jupiter Science Phase",
   "version": "1.0",
   "defaultTime": "2031-03-06T12:00:00Z",
+  "defaultViewpoint": "Track Clipper",
   "items": [
     {
       "name": "Jupiter System Overview",
@@ -23,7 +24,7 @@
       "name": "Track Clipper",
       "type": "Viewpoint",
       "center": "Europa Clipper",
-      "distance": 200,
+      "distance": 0.01,
       "latitude": 20,
       "longitude": 0
     },
