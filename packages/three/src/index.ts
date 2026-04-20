@@ -50,6 +50,17 @@ export type { BodyVisualizer } from './plugins/BodyVisualizer.js';
 export type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
 export type { RendererEventMap } from './events/RendererEventMap.js';
 
+// Plugin UI slots
+export type {
+  PluginUISlots,
+  PluginOverlay,
+  PluginInfoSection,
+  PluginTimelineTrack,
+  TimeInterval,
+  PluginCommand,
+  PluginToolbarItem,
+} from './plugins/PluginUI.js';
+
 // Stock plugins
 export { TrajectoryColorPlugin } from './plugins/stock/TrajectoryColorPlugin.js';
 export type { TrajectoryColorSegment } from './plugins/stock/TrajectoryColorPlugin.js';
@@ -57,3 +68,4 @@ export { ManeuverVectorPlugin } from './plugins/stock/ManeuverVectorPlugin.js';
 export type { ManeuverEvent } from './plugins/stock/ManeuverVectorPlugin.js';
 export { CommLinkPlugin } from './plugins/stock/CommLinkPlugin.js';
 export type { CommLink } from './plugins/stock/CommLinkPlugin.js';
+export { ScreenshotPlugin } from './plugins/stock/ScreenshotPlugin.js';

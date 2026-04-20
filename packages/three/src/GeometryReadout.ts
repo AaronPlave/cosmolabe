@@ -1,6 +1,4 @@
-import * as THREE from 'three';
 import type { Body, Universe } from '@spicecraft/core';
-import type { BodyMesh } from './BodyMesh.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
 import type { RendererContext } from './plugins/RendererContext.js';
 
@@ -21,14 +19,8 @@ export class GeometryReadout implements RendererPlugin {
 
   private panel: HTMLDivElement | null = null;
   private container: HTMLElement | null = null;
-  private camera: THREE.PerspectiveCamera | null = null;
-  private universe: Universe | null = null;
-  private bodyMeshes: Map<string, BodyMesh> = new Map();
-  private raycaster = new THREE.Raycaster();
   private selectedBody: Body | null = null;
-  private canvas: HTMLElement | null = null;
   private readonly fields: string[] | undefined;
-  private readonly onClickBound = this.onClick.bind(this);
 
   constructor(options: GeometryReadoutOptions = {}) {
     this.container = options.container ?? null;
@@ -36,15 +28,7 @@ export class GeometryReadout implements RendererPlugin {
   }
 
   onSceneSetup(ctx: RendererContext): void {
-    this.camera = ctx.camera;
-    this.universe = ctx.universe;
-  }
-
-  /** Must be called after construction to enable picking */
-  attachTo(canvas: HTMLCanvasElement, bodyMeshes: Map<string, BodyMesh>): void {
-    this.canvas = canvas;
-    this.bodyMeshes = bodyMeshes;
-    canvas.addEventListener('dblclick', this.onClickBound);
+    this.container = this.container ?? ctx.canvas.parentElement;
     this.createPanel();
   }
 
@@ -53,6 +37,7 @@ export class GeometryReadout implements RendererPlugin {
     this.updateReadout(et, ctx.universe);
   }
 
+  /** Called by the renderer when a body is picked (dblclick, etc.) */
   onPick(body: Body, _et: number, _ctx: RendererContext): void {
     this.selectedBody = body;
     if (this.panel) {
@@ -61,14 +46,11 @@ export class GeometryReadout implements RendererPlugin {
   }
 
   dispose(): void {
-    if (this.canvas) {
-      this.canvas.removeEventListener('dblclick', this.onClickBound);
-    }
     this.panel?.remove();
   }
 
   private createPanel(): void {
-    const parent = this.container ?? this.canvas?.parentElement;
+    const parent = this.container;
     if (!parent) return;
 
     this.panel = document.createElement('div');
@@ -109,37 +91,6 @@ export class GeometryReadout implements RendererPlugin {
     this.panel.appendChild(close);
 
     parent.appendChild(this.panel);
-  }
-
-  private onClick(event: MouseEvent): void {
-    if (!this.camera || !this.bodyMeshes.size) return;
-
-    const rect = (event.target as HTMLElement).getBoundingClientRect();
-    const mouse = new THREE.Vector2(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1,
-    );
-
-    this.raycaster.setFromCamera(mouse, this.camera);
-
-    const meshes: THREE.Object3D[] = [];
-    for (const bm of this.bodyMeshes.values()) {
-      if (bm.mesh.visible) meshes.push(bm.mesh);
-    }
-
-    const intersects = this.raycaster.intersectObjects(meshes, false);
-    if (intersects.length > 0) {
-      // Walk up to find the BodyMesh
-      let obj = intersects[0].object;
-      while (obj.parent && !this.bodyMeshes.has(obj.name)) {
-        obj = obj.parent;
-      }
-      const bm = this.bodyMeshes.get(obj.name);
-      if (bm) {
-        this.selectedBody = bm.body;
-        if (this.panel) this.panel.style.display = 'block';
-      }
-    }
   }
 
   private updateReadout(et: number, universe: Universe): void {

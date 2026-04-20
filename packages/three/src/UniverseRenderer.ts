@@ -9,7 +9,6 @@ import { SensorFrustum } from './SensorFrustum.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { EventMarkers } from './EventMarkers.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
-import { GeometryReadout } from './GeometryReadout.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
 import { CameraController } from './controls/CameraController.js';
@@ -102,7 +101,6 @@ export class UniverseRenderer {
   private _ctx!: RendererContext;
 
   private labelManager: LabelManager | null = null;
-  private geometryReadout: GeometryReadout | null = null;
   private starField: StarField | null = null;
   private ambientLight: THREE.AmbientLight | null = null;
   private sunLight: THREE.PointLight | null = null;
@@ -251,12 +249,7 @@ export class UniverseRenderer {
     // Build scene from universe
     this.buildScene();
 
-    // Geometry readout (click-to-inspect)
-    this.geometryReadout = new GeometryReadout();
-    this.geometryReadout.attachTo(canvas, this.bodyMeshes);
-    this.use(this.geometryReadout);
-
-    // Double-click fly-to: raycast against body meshes and label sprites
+    // Double-click: pick body and emit event (consumer handles flyTo, info, etc.)
     this._dblClickRaycaster = new THREE.Raycaster();
     canvas.addEventListener('dblclick', this._onDblClick);
   }
@@ -265,6 +258,16 @@ export class UniverseRenderer {
     this.plugins.push(plugin);
     this.universe.use(plugin);
     plugin.onSceneSetup?.(this._ctx);
+  }
+
+  /** Get all registered plugins (read-only). */
+  getPlugins(): readonly RendererPlugin[] {
+    return this.plugins;
+  }
+
+  /** Get the renderer context (for plugin UI slot execution). */
+  getContext(): RendererContext {
+    return this._ctx;
   }
 
   /** Register a custom geometry type visualizer. */
@@ -576,6 +579,8 @@ export class UniverseRenderer {
 
     // --- Multi-pass rendering ---
     this.renderer.autoClear = false;
+    this.renderer.info.autoReset = false;
+    this.renderer.info.reset();
     this._renderDebugFrame++;
 
     // Pass 1: Scene without models (layers 0 + 2) — log depth for cosmic scale
@@ -1874,19 +1879,13 @@ export class UniverseRenderer {
     return undefined;
   }
 
-  /** Double-click handler: fly to the clicked body or label */
-  private _onDblClick = (event: MouseEvent): void => {
-    if (!this._dblClickRaycaster) return;
-
-    const canvas = this.renderer.domElement;
-    const rect = canvas.getBoundingClientRect();
-    const screenX = event.clientX - rect.left;
-    const screenY = event.clientY - rect.top;
-    const mouse = new THREE.Vector2(
-      (screenX / rect.width) * 2 - 1,
-      -(screenY / rect.height) * 2 + 1,
-    );
-
+  /**
+   * Pick the nearest body at a screen position — checks labels first (screen-space),
+   * then raycasts against body meshes. Returns the body name or null.
+   */
+  pickBody(screenX: number, screenY: number): string | null {
+    if (!this._dblClickRaycaster) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
     let bodyName: string | undefined;
 
     // 1. Screen-space label picking (priority — labels are always in front)
@@ -1896,18 +1895,19 @@ export class UniverseRenderer {
       );
     }
 
-    // 2. Raycast against body meshes only (not recursive — avoids axes/grid/debug children)
+    // 2. Raycast against body meshes
     if (!bodyName) {
-      this._dblClickRaycaster.setFromCamera(mouse, this.camera);
-
-      // Collect only the actual body mesh surfaces (placeholder spheres + terrain)
+      const mouse = new THREE.Vector2(
+        (screenX / rect.width) * 2 - 1,
+        -(screenY / rect.height) * 2 + 1,
+      );
+      this._dblClickRaycaster!.setFromCamera(mouse, this.camera);
       const meshTargets: THREE.Object3D[] = [];
       for (const bm of this.bodyMeshes.values()) {
         if (bm.mesh.visible) meshTargets.push(bm.mesh);
       }
-      const hits = this._dblClickRaycaster.intersectObjects(meshTargets, false);
+      const hits = this._dblClickRaycaster!.intersectObjects(meshTargets, false);
       if (hits.length > 0) {
-        // Walk up to find the BodyMesh parent
         let obj = hits[0].object;
         while (obj.parent && !this.bodyMeshes.has(obj.name)) {
           obj = obj.parent;
@@ -1916,18 +1916,34 @@ export class UniverseRenderer {
       }
     }
 
-    if (bodyName) {
-      const bm = this.bodyMeshes.get(bodyName);
-      if (bm) {
-        this.cameraController.flyTo(bm, { scaleFactor: this.scaleFactor });
-        // Notify plugins and emit events
-        const et = this.universe.time;
-        this.universe.state.set('selectedBody', bodyName!);
-        this.events.emit('body:picked', { bodyName: bodyName!, et });
-        for (const plugin of this.plugins) {
-          plugin.onPick?.(bm.body, et, this._ctx);
-        }
-      }
+    return bodyName ?? null;
+  }
+
+  /**
+   * Double-click handler: picks the body and emits 'body:dblclick'.
+   * The consumer (viewer app) decides what to do — flyTo, show info, etc.
+   */
+  private _onDblClick = (event: MouseEvent): void => {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+
+    const bodyName = this.pickBody(screenX, screenY);
+    if (!bodyName) return;
+
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm) return;
+
+    const et = this.universe.time;
+    this.universe.state.set('selectedBody', bodyName);
+
+    // Emit the new event — consumer handles flyTo, info panels, etc.
+    this.events.emit('body:dblclick', { bodyName, et, screenX, screenY });
+
+    // Backward compat: still emit body:picked and call plugin onPick hooks
+    this.events.emit('body:picked', { bodyName, et });
+    for (const plugin of this.plugins) {
+      plugin.onPick?.(bm.body, et, this._ctx);
     }
   };
 

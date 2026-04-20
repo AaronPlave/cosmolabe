@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/* ── Design tokens ── */
+@theme {
+  /* Our custom surface scale */
+  --color-surface-0: #000000;
+  --color-surface-1: #111114;
+  --color-surface-2: #1a1a1e;
+  --color-surface-3: #222228;
+
+  /* Our custom text scale */
+  --color-text-primary: #ebebef;
+  --color-text-secondary: #9898a8;
+  --color-text-muted: #5a5a6a;
+
+  /* Our custom semantic colors */
+  --color-accent: #6eaaff;
+  --color-accent-hover: #88bbff;
+  --color-accent-muted: rgba(110, 170, 255, 0.12);
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+
+  /*
+   * shadcn semantic tokens — these are what shadcn-svelte components reference.
+   * Mapped to our dark theme values.
+   */
+  --color-background: #000000;
+  --color-foreground: #ebebef;
+
+  --color-card: #111114;
+  --color-card-foreground: #ebebef;
+
+  --color-popover: #111114;
+  --color-popover-foreground: #ebebef;
+
+  /* Primary = light-on-dark (white bg, dark text) for prominent actions */
+  --color-primary: #e0e0e4;
+  --color-primary-foreground: #111114;
+
+  /* Secondary = subtle bg */
+  --color-secondary: #222228;
+  --color-secondary-foreground: #ebebef;
+
+  /* Muted = subdued surfaces */
+  --color-muted: #1a1a1e;
+  --color-muted-foreground: #9898a8;
+
+  /* Accent (shadcn sense) = hover/active highlight */
+  --color-accent-foreground: #ebebef;
+
+  --color-destructive: #f87171;
+
+  /* Borders & inputs */
+  --color-border: #2a2a30;
+  --color-border-active: #3a3a42;
+  --color-input: #2a2a30;
+  --color-ring: #6eaaff;
+
+  /* Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Menlo', 'Consolas', monospace;
+}
+
+/* ── Base overrides (in @layer so utilities win) ── */
+@layer base {
+  html, body, #app {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--color-border-active); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+  /* Range input (scrubber) */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+    height: 20px;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 3px;
+    background: var(--color-surface-3);
+    border-radius: 2px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-text-secondary);
+    margin-top: -3.5px;
+    transition: background 0.1s, transform 0.1s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover {
+    background: var(--color-text-primary);
+    transform: scale(1.2);
+  }
+  input[type="range"]::-moz-range-track {
+    height: 3px;
+    background: var(--color-surface-3);
+    border-radius: 2px;
+    border: none;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-text-secondary);
+    border: none;
+  }
+}

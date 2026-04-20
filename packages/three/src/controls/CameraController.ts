@@ -617,10 +617,15 @@ export class CameraController {
       this.camera.position.lerpVectors(this._anim.startPos, this._anim.endPos, s);
       this.controls.target.lerpVectors(this._anim.startTarget, this._anim.endTarget, s);
       this.camera.up.lerpVectors(this._anim.startUp, this._anim.endUp, s).normalize();
+      this.camera.lookAt(this.controls.target);
 
       if (t >= 1) {
         const onComplete = this._anim.onComplete;
         this._anim = null;
+        // Clear stale TrackballControls damping that accumulated while
+        // controls.update() was skipped during the animation.
+        (this.controls as any)._lastAngle = 0;
+        (this.controls as any)._zoomStart?.copy((this.controls as any)._zoomEnd);
         onComplete?.();
       }
       return; // Animation takes priority over mode updates

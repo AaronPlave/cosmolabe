@@ -2,9 +2,14 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": ".",
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "$lib": ["./src/lib"],
+      "$lib/*": ["./src/lib/*"]
+    }
   },
-  "include": ["src"],
+  "include": ["src", "*.ts"],
   "references": [
     { "path": "../../packages/spice" },
     { "path": "../../packages/core" },

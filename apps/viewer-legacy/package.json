@@ -1,0 +1,19 @@
+{
+  "name": "@spicecraft/viewer-legacy",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Standalone demo app — drag-drop catalogs + kernel files",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@spicecraft/core": "*",
+    "@spicecraft/spice": "*",
+    "@spicecraft/three": "*",
+    "three": "^0.183.2",
+    "vite": "^7.3.1"
+  }
+}

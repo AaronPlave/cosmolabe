@@ -1,6 +1,7 @@
 import type { SpiceCraftPlugin } from '@spicecraft/core';
 import type { Body } from '@spicecraft/core';
 import type { RendererContext } from './RendererContext.js';
+import type { PluginUISlots } from './PluginUI.js';
 
 /**
  * Three.js renderer plugin. Extends the core plugin with 3D lifecycle hooks.
@@ -26,4 +27,11 @@ export interface RendererPlugin extends SpiceCraftPlugin {
 
   /** Called when the renderer is resized. */
   onResize?(width: number, height: number): void;
+
+  /**
+   * Declarative UI contributions. The host UI renders these in the appropriate
+   * locations (overlays, info cards, timeline, command palette, toolbar).
+   * Same plugin works in standalone viewer, Aerie panel, or any other host.
+   */
+  ui?: PluginUISlots;
 }

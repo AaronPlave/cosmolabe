@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpiceCraft Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; color: #ccc; font-family: monospace; }
+
+    #app { width: 100%; height: 100%; position: relative; }
+    #canvas { width: 100%; height: 100%; display: block; }
+
+    #drop-overlay {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85); z-index: 100;
+    }
+    #drop-overlay.hidden { display: none; }
+    #drop-overlay .inner {
+      text-align: center; padding: 60px; border: 2px dashed #4488ff; border-radius: 16px;
+    }
+    #drop-overlay h2 { font-size: 24px; color: #4488ff; margin-bottom: 12px; }
+    #drop-overlay p { font-size: 14px; color: #888; }
+
+    #loading-bar { display: none; margin-top: 20px; width: 100%; max-width: 400px; margin-left: auto; margin-right: auto; }
+    #loading-bar.visible { display: block; }
+    #loading-bar .track { width: 100%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+    #loading-bar .fill { width: 0%; height: 100%; background: #4488ff; border-radius: 3px; transition: width 0.15s ease; }
+    #loading-bar .label { font-size: 11px; color: #888; margin-top: 6px; }
+    #loading-bar .detail { font-size: 11px; color: #555; margin-top: 2px; }
+
+    #controls {
+      position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      background: rgba(0,0,0,0.7); padding: 10px 16px; border-radius: 8px; z-index: 10;
+      max-width: 90vw;
+    }
+    #time-bar {
+      display: flex; gap: 8px; align-items: center; width: 100%;
+    }
+    #time-bar button {
+      background: #333; color: #ccc; border: 1px solid #555; border-radius: 4px;
+      padding: 4px 8px; cursor: pointer; font-family: monospace; font-size: 13px;
+      min-width: 28px; text-align: center; flex-shrink: 0;
+    }
+    #time-bar button:hover { background: #444; }
+    #time-bar button.active { background: #246; border-color: #4488ff; color: #4488ff; }
+    #controls select, #controls input[type="text"] {
+      background: #222; color: #ccc; border: 1px solid #555; border-radius: 4px;
+      padding: 4px 8px; font-family: monospace; font-size: 12px;
+    }
+    #time-display {
+      font-size: 13px; color: #4488ff; min-width: 180px; text-align: center; cursor: pointer;
+    }
+    #time-display:hover { text-decoration: underline; }
+    #rate-display {
+      font-size: 12px; color: #8ab4f8; min-width: 70px; text-align: center;
+    }
+    #time-scrubber {
+      width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+      background: #333; border-radius: 2px; outline: none; cursor: pointer;
+    }
+    #time-scrubber::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+      background: #4488ff; cursor: pointer;
+    }
+    #time-scrubber::-moz-range-thumb {
+      width: 12px; height: 12px; border-radius: 50%; border: none;
+      background: #4488ff; cursor: pointer;
+    }
+    #goto-time {
+      display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+      margin-bottom: 8px; background: rgba(0,0,0,0.9); border: 1px solid #555;
+      border-radius: 6px; padding: 8px 12px; z-index: 20;
+    }
+    #goto-time.visible { display: flex; gap: 6px; align-items: center; }
+    #goto-time input {
+      background: #222; color: #ccc; border: 1px solid #555; border-radius: 4px;
+      padding: 4px 8px; font-family: monospace; font-size: 12px; width: 220px;
+    }
+    #goto-time button {
+      background: #333; color: #ccc; border: 1px solid #555; border-radius: 4px;
+      padding: 4px 10px; cursor: pointer; font-family: monospace; font-size: 12px;
+    }
+    #goto-time button:hover { background: #444; }
+    .time-shortcut-hint {
+      font-size: 10px; color: #555; text-align: center;
+    }
+    #viewpoint-bar {
+      display: flex; gap: 6px; align-items: center; width: 100%;
+    }
+    #fov-bar {
+      display: flex; gap: 6px; align-items: center; width: 100%;
+    }
+    #viewpoint-bar select {
+      background: #222; color: #ccc; border: 1px solid #555; border-radius: 4px;
+      padding: 3px 6px; font-family: monospace; font-size: 11px; flex: 1; min-width: 0;
+    }
+    #viewpoint-bar button {
+      background: #333; color: #ccc; border: 1px solid #555; border-radius: 4px;
+      padding: 3px 8px; cursor: pointer; font-family: monospace; font-size: 11px;
+      flex-shrink: 0;
+    }
+    #viewpoint-bar button:hover { background: #444; }
+    #viewpoint-bar .vp-label { font-size: 11px; color: #666; flex-shrink: 0; }
+    #info-panel {
+      position: absolute; top: 12px; left: 12px; font-size: 12px; color: #888;
+      z-index: 10; background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 6px;
+    }
+    #camera-status {
+      position: absolute; top: 42px; left: 12px; font-size: 11px; color: #666;
+      z-index: 10; background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 4px;
+    }
+    #camera-status:empty { display: none; }
+    #camera-status span { color: #8ab4f8; }
+    #body-list {
+      position: absolute; top: 12px; right: 12px; font-size: 12px;
+      z-index: 10; background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 6px;
+      max-height: 50vh; overflow-y: auto;
+    }
+    #body-list .body-list-controls {
+      display: flex; gap: 4px; margin-bottom: 6px; border-bottom: 1px solid #333; padding-bottom: 6px;
+    }
+    #body-list .body-list-controls button {
+      background: #222; color: #888; border: 1px solid #444; border-radius: 3px;
+      padding: 2px 8px; cursor: pointer; font-family: monospace; font-size: 11px;
+    }
+    #body-list .body-list-controls button:hover { background: #333; color: #ccc; }
+    #body-list .body-item {
+      cursor: pointer; padding: 2px 4px; border-radius: 3px; display: flex; align-items: center; gap: 6px;
+    }
+    #body-list .body-item:hover { background: rgba(68,136,255,0.2); }
+    #body-list .body-item input[type="checkbox"] { accent-color: #4488ff; cursor: pointer; }
+    #body-list .body-item.hidden-body span { opacity: 0.35; }
+    .demo-btn {
+      background: #333; color: #4488ff; border: 1px solid #4488ff; border-radius: 4px;
+      padding: 6px 14px; cursor: pointer; font-family: monospace; font-size: 13px;
+    }
+    .demo-btn:hover { background: #224; }
+    #pick-btn {
+      background: #333; color: #888; border: 1px solid #555; border-radius: 4px;
+      padding: 3px 8px; cursor: pointer; font-family: monospace; font-size: 11px;
+      flex-shrink: 0;
+    }
+    #pick-btn:hover { background: #444; }
+    #pick-btn.active { background: #246; border-color: #4488ff; color: #4488ff; }
+    #pick-result {
+      position: absolute; top: 12px; right: 12px; font-size: 12px; color: #ccc;
+      z-index: 20; background: rgba(0,0,0,0.8); padding: 10px 14px; border-radius: 6px;
+      border: 1px solid #4488ff; display: none; min-width: 220px;
+    }
+    #pick-result .pick-title { color: #4488ff; font-weight: bold; margin-bottom: 6px; }
+    #pick-result .pick-row { display: flex; justify-content: space-between; gap: 16px; }
+    #pick-result .pick-label { color: #888; }
+    #pick-result .pick-val { color: #fff; text-align: right; }
+    #pick-result .pick-close {
+      position: absolute; top: 6px; right: 8px; cursor: pointer; color: #555; font-size: 14px;
+    }
+    #pick-result .pick-close:hover { color: #ccc; }
+    body.pick-mode #canvas { cursor: crosshair; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="canvas"></canvas>
+
+    <div id="drop-overlay">
+      <div class="inner">
+        <h2>SpiceCraft Viewer</h2>
+        <p>Drop Cosmographia catalog folder or files here<br>
+           (JSON catalogs + .bsp/.tls/.tpc kernel files + .xyzv data files)</p>
+        <p style="margin-top:16px; color:#666">Or click to browse files</p>
+        <input type="file" id="file-input" multiple accept=".json,.bsp,.tls,.tpc,.xyzv" style="display:none">
+        <div style="margin-top:24px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap">
+          <button class="demo-btn" data-catalog="earth-moon">Earth + Moon</button>
+          <button class="demo-btn" data-catalog="solar-system">Solar System</button>
+          <button class="demo-btn" data-catalog="saturn-system">Saturn System</button>
+          <button class="demo-btn" data-catalog="sensor-demo">Sensor Frustums</button>
+          <button class="demo-btn" data-catalog="cassini-soi">Cassini Saturn Tour</button>
+          <button class="demo-btn" data-catalog="lro-moon">LRO at Moon</button>
+          <button class="demo-btn" data-catalog="europa-clipper" style="color:#f90; border-color:#f90">Europa Clipper</button>
+          <button class="demo-btn" data-catalog="iss" style="color:#0f0; border-color:#0f0">ISS (TLE)</button>
+          <button class="demo-btn" data-catalog="msl-dingo-gap" style="color:#3f3; border-color:#3f3">MSL Dingo Gap</button>
+        </div>
+        <div style="margin-top:20px; border-top:1px solid #333; padding-top:16px">
+          <button id="btn-load-naif" class="demo-btn" style="color:#6c6; border-color:#6c6">
+            Load NAIF Generic Kernels
+          </button>
+          <p id="naif-status" style="margin-top:8px; font-size:11px; color:#555">
+            Loads planets + Moon (~32 MB, run <code>scripts/fetch-kernels.sh</code> first)
+          </p>
+        </div>
+        <div id="loading-bar">
+          <div class="track"><div class="fill" id="loading-fill"></div></div>
+          <div class="label" id="loading-label"></div>
+          <div class="detail" id="loading-detail"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="info-panel"></div>
+    <div id="camera-status"></div>
+    <div id="body-list"></div>
+    <div id="pick-result">
+      <span class="pick-close" id="pick-result-close">&times;</span>
+      <div class="pick-title" id="pick-result-body">Surface Pick</div>
+      <div class="pick-row"><span class="pick-label">Lat</span><span class="pick-val" id="pick-lat">—</span></div>
+      <div class="pick-row"><span class="pick-label">Lon</span><span class="pick-val" id="pick-lon">—</span></div>
+      <div class="pick-row"><span class="pick-label">Alt</span><span class="pick-val" id="pick-alt">—</span></div>
+    </div>
+
+    <div id="controls" class="hidden">
+      <div id="time-bar">
+        <button id="btn-slower" title="Slower [">&#x226A;</button>
+        <button id="btn-step-back" title="Step backward (Left arrow)">&larr;</button>
+        <button id="btn-reverse" title="Reverse (R)">&#x23EA;</button>
+        <button id="btn-play" title="Play/Pause (Space)">Play</button>
+        <button id="btn-step-fwd" title="Step forward (Right arrow)">&rarr;</button>
+        <button id="btn-faster" title="Faster ]">&#x226B;</button>
+        <span id="rate-display">1 min/s</span>
+        <span id="time-display">--</span>
+      </div>
+      <input type="range" id="time-scrubber" min="0" max="1000" value="500">
+      <div id="goto-time">
+        <input type="text" id="goto-time-input" placeholder="e.g. 2004-06-30 or 2024-01-01T00:00:00">
+        <button id="goto-time-go">Go</button>
+        <button id="goto-time-close">&times;</button>
+      </div>
+      <div id="viewpoint-bar" style="display:none">
+        <span class="vp-label">View:</span>
+        <select id="viewpoint-select"><option value="">— select —</option></select>
+        <button id="btn-save-vp" title="Save current view (V)">Save</button>
+        <button id="btn-fly-tracked" title="Fly to tracked body (F)">Fly to</button>
+      </div>
+      <div id="fov-bar">
+        <span class="vp-label">FOV:</span>
+        <input type="range" id="fov-slider" min="1" max="120" value="60" style="flex:1; height:4px;">
+        <span id="fov-display" style="font-size:11px; color:#8ab4f8; min-width:36px; text-align:center;">60°</span>
+      </div>
+      <div id="display-opts" style="display:flex; gap:12px; align-items:center; width:100%; font-size:11px; color:#888;">
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="chk-grid" style="accent-color:#4488ff; cursor:pointer;">
+          Grid (G)
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="chk-axes" style="accent-color:#4488ff; cursor:pointer;">
+          Axes (X)
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="chk-stats" style="accent-color:#4488ff; cursor:pointer;">
+          FPS (P)
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="chk-traj" checked style="accent-color:#4488ff; cursor:pointer;">
+          Orbits (T)
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="checkbox" id="chk-labels" checked style="accent-color:#4488ff; cursor:pointer;">
+          Labels (L)
+        </label>
+        <span style="color:#555;">|</span>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          Light:
+          <select id="sel-lighting" style="background:#222; color:#ccc; border:1px solid #555; border-radius:3px; padding:1px 4px; font-family:monospace; font-size:11px; cursor:pointer;">
+            <option value="natural">Natural</option>
+            <option value="shadow">Shadow</option>
+            <option value="flood">Flood</option>
+          </select>
+        </label>
+        <label id="instrument-view-label" style="display:none; align-items:center; gap:4px; cursor:pointer;">
+          <span style="color:#555;">|</span>
+          Instr:
+          <select id="sel-instrument" style="background:#222; color:#ccc; border:1px solid #555; border-radius:3px; padding:1px 4px; font-family:monospace; font-size:11px; cursor:pointer;">
+            <option value="">Off</option>
+          </select>
+        </label>
+        <span style="color:#555;">|</span>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+          Cam:
+          <select id="sel-cam-mode" style="background:#222; color:#ccc; border:1px solid #555; border-radius:3px; padding:1px 4px; font-family:monospace; font-size:11px; cursor:pointer;">
+            <option value="free-orbit">Free Orbit</option>
+            <option value="sc-fixed">Locked</option>
+            <option value="body-fixed">Body Fixed</option>
+            <option value="lvlh">LVLH</option>
+            <option value="chase">Chase</option>
+            <option value="surface">Surface</option>
+            <option value="instrument">Instrument</option>
+          </select>
+        </label>
+        <span style="color:#555;">|</span>
+        <button id="pick-btn" title="Pick surface point (click to toggle)">&#x271A; Pick</button>
+      </div>
+      <div class="time-shortcut-hint">
+        Space: play/pause &middot; &larr;/&rarr;: step &middot; [/]: speed &middot; R: reverse &middot; F: fly to &middot; T: orbits &middot; L: labels &middot; I: instrument PiP &middot; M: cycle cam mode &middot; /: hide UI
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

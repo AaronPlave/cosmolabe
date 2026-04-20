@@ -1,9 +1,16 @@
 import { defineConfig } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 export default defineConfig({
-  root: __dirname,
+  plugins: [svelte(), tailwindcss()],
   publicDir: 'test-catalogs',
+  resolve: {
+    alias: {
+      $lib: path.resolve(__dirname, './src/lib'),
+    },
+  },
   server: {
     fs: {
       // Allow serving files from the monorepo root (needed for workspace packages)
