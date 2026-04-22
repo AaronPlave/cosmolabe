@@ -86,7 +86,9 @@ export function etToUtcString(etValue: number): string {
 export function etToShortDate(etValue: number): string {
   if (!isFinite(etValue) || Math.abs(etValue) > MAX_SAFE_ET) {
     const years = etValue / 31556952;
-    return `J2000 ${years >= 0 ? '+' : ''}${years.toFixed(0)}yr`;
+    const abs = Math.abs(years);
+    if (abs >= 1e6) return years >= 0 ? '+\u221E' : '-\u221E';
+    return `${years >= 0 ? '+' : ''}${years.toFixed(0)}yr`;
   }
   const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
   const date = new Date(j2000Ms + etValue * 1000);
@@ -252,17 +254,16 @@ export function zoomScrubber(zoomIn: boolean) {
   const MIN_RANGE = 10; // seconds
   const factor = zoomIn ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
 
-  // Always zoom centered on current time
-  const anchor = vs.et;
+  // Clamp anchor to the current view so playback drift doesn't blow up the range
+  const anchor = Math.max(vs.scrubMin, Math.min(vs.scrubMax, vs.et));
   let newMin = anchor - (anchor - vs.scrubMin) * factor;
   let newMax = anchor + (vs.scrubMax - anchor) * factor;
 
   if (zoomIn && newMax - newMin < MIN_RANGE) return;
 
-  if (!zoomIn) {
-    newMin = Math.max(newMin, vs.scrubBaseMin);
-    newMax = Math.min(newMax, vs.scrubBaseMax);
-  }
+  // Always clamp to base range
+  newMin = Math.max(newMin, vs.scrubBaseMin);
+  newMax = Math.min(newMax, vs.scrubBaseMax);
 
   vs.scrubMin = newMin;
   vs.scrubMax = newMax;
@@ -282,6 +283,26 @@ export function panScrubber(centerFraction: number) {
   if (newMax > vs.scrubBaseMax) {
     newMax = vs.scrubBaseMax;
     newMin = newMax - span;
+  }
+
+  vs.scrubMin = newMin;
+  vs.scrubMax = newMax;
+}
+
+/** Set the scrubber to a specific duration (in seconds) centered on current time */
+export function setZoomDuration(seconds: number) {
+  const half = seconds / 2;
+  let newMin = vs.et - half;
+  let newMax = vs.et + half;
+
+  // Clamp to base range
+  if (newMin < vs.scrubBaseMin) {
+    newMin = vs.scrubBaseMin;
+    newMax = newMin + seconds;
+  }
+  if (newMax > vs.scrubBaseMax) {
+    newMax = vs.scrubBaseMax;
+    newMin = newMax - seconds;
   }
 
   vs.scrubMin = newMin;
