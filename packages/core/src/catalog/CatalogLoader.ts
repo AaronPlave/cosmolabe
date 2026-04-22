@@ -838,18 +838,39 @@ export class CatalogLoader {
   }
 
   private extractRadii(item: CatalogItem): Vec3 | undefined {
-    // From explicit radii array
+    // From explicit triaxial radii array in the catalog (highest priority)
+    if (item.radii && item.radii.length >= 3) {
+      return [item.radii[0], item.radii[1], item.radii[2]];
+    }
+    if (item.geometry?.radii && item.geometry.radii.length >= 3) {
+      return [item.geometry.radii[0], item.geometry.radii[1], item.geometry.radii[2]];
+    }
+
+    // From SPICE PCK kernel — try to get triaxial radii.
+    // Use bodn2c first (fast name→ID lookup) to avoid expensive bodvrd failures.
+    if (this.spice) {
+      let naifId = item.naifId ?? null;
+      if (naifId == null && item.name) {
+        naifId = this.spice.bodn2c(item.name.toUpperCase());
+      }
+      if (naifId != null && naifId > 0 && naifId < 1000000) {
+        try {
+          const r = this.spice.bodvcd(naifId, 'RADII');
+          if (r && r.length >= 3 && r[0] > 0) return [r[0], r[1], r[2]];
+        } catch { /* not in PCK */ }
+      }
+    }
+
+    // Fallback: scalar radius from catalog → sphere
     if (item.radii) {
       if (item.radii.length === 1) return [item.radii[0], item.radii[0], item.radii[0]];
       if (item.radii.length >= 3) return [item.radii[0], item.radii[1], item.radii[2]];
     }
-    // From geometry.radii
     if (item.geometry?.radii) {
       const r = item.geometry.radii;
       if (r.length === 1) return [r[0], r[0], r[0]];
       if (r.length >= 3) return [r[0], r[1], r[2]];
     }
-    // From geometry.radius (scalar → sphere)
     if (item.geometry?.radius != null) {
       const r = item.geometry.radius;
       return [r, r, r];

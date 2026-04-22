@@ -49,6 +49,8 @@ export const vs = $state({
   // Scrubber
   scrubMin: 0,
   scrubMax: 0,
+  scrubBaseMin: 0,
+  scrubBaseMax: 0,
 
   // UI
   sceneLoaded: false,
@@ -81,6 +83,16 @@ export function etToUtcString(etValue: number): string {
   return date.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
 }
 
+export function etToShortDate(etValue: number): string {
+  if (!isFinite(etValue) || Math.abs(etValue) > MAX_SAFE_ET) {
+    const years = etValue / 31556952;
+    return `J2000 ${years >= 0 ? '+' : ''}${years.toFixed(0)}yr`;
+  }
+  const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
+  const date = new Date(j2000Ms + etValue * 1000);
+  return date.toISOString().slice(0, 10);
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -104,16 +116,21 @@ export function setLoadingState(opts: { label?: string; detail?: string; progres
 function initScrubberRange() {
   if (!_universe) return;
   const range = _universe.getTimeRange();
+  let min: number, max: number;
   if (range) {
     const span = range[1] - range[0];
     const pad = Math.max(span * 0.1, 86400);
-    vs.scrubMin = range[0] - pad;
-    vs.scrubMax = range[1] + pad;
+    min = range[0] - pad;
+    max = range[1] + pad;
   } else {
     const oneYear = 31556952;
-    vs.scrubMin = vs.et - oneYear;
-    vs.scrubMax = vs.et + oneYear;
+    min = vs.et - oneYear;
+    max = vs.et + oneYear;
   }
+  vs.scrubMin = min;
+  vs.scrubMax = max;
+  vs.scrubBaseMin = min;
+  vs.scrubBaseMax = max;
 }
 
 function syncTimeState() {
@@ -230,6 +247,52 @@ export function scrubTo(fraction: number) {
   _renderer.timeController.setTime(newEt);
 }
 
+export function zoomScrubber(zoomIn: boolean) {
+  const ZOOM_FACTOR = 0.8;
+  const MIN_RANGE = 10; // seconds
+  const factor = zoomIn ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+
+  // Always zoom centered on current time
+  const anchor = vs.et;
+  let newMin = anchor - (anchor - vs.scrubMin) * factor;
+  let newMax = anchor + (vs.scrubMax - anchor) * factor;
+
+  if (zoomIn && newMax - newMin < MIN_RANGE) return;
+
+  if (!zoomIn) {
+    newMin = Math.max(newMin, vs.scrubBaseMin);
+    newMax = Math.min(newMax, vs.scrubBaseMax);
+  }
+
+  vs.scrubMin = newMin;
+  vs.scrubMax = newMax;
+}
+
+export function panScrubber(centerFraction: number) {
+  const span = vs.scrubMax - vs.scrubMin;
+  const baseRange = vs.scrubBaseMax - vs.scrubBaseMin;
+  const center = vs.scrubBaseMin + centerFraction * baseRange;
+  let newMin = center - span / 2;
+  let newMax = center + span / 2;
+
+  if (newMin < vs.scrubBaseMin) {
+    newMin = vs.scrubBaseMin;
+    newMax = newMin + span;
+  }
+  if (newMax > vs.scrubBaseMax) {
+    newMax = vs.scrubBaseMax;
+    newMin = newMax - span;
+  }
+
+  vs.scrubMin = newMin;
+  vs.scrubMax = newMax;
+}
+
+export function resetScrubberZoom() {
+  vs.scrubMin = vs.scrubBaseMin;
+  vs.scrubMax = vs.scrubBaseMax;
+}
+
 export function setBodyVisible(name: string, visible: boolean) {
   if (!_renderer) return;
   _renderer.setBodyVisible(name, visible);
@@ -259,6 +322,8 @@ export function trackBody(name: string) {
   if (bm) {
     _renderer.cameraController.trackBody(bm, 1e-6);
     syncCameraState();
+    // Update selected body so info panel follows tracking
+    if (vs.selectedBodyName) vs.selectedBodyName = name;
   }
 }
 

@@ -9,6 +9,10 @@ export interface InstrumentViewOptions {
   height?: number;
   /** Margin from edges in pixels. Default 16. */
   margin?: number;
+  /** Horizontal margin override (from left/right edge). Uses margin if not set. */
+  marginX?: number;
+  /** Vertical margin override (from top/bottom edge). Uses margin if not set. */
+  marginY?: number;
   /** Corner position. Default 'bottom-right'. */
   corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   /** Border color (CSS). Default '#66ccff'. */
@@ -50,10 +54,13 @@ export class InstrumentView {
     private readonly canvasParent: HTMLElement,
     options: InstrumentViewOptions = {},
   ) {
+    const margin = options.margin ?? 16;
     this.options = {
       width: options.width ?? 320,
       height: options.height ?? 240,
-      margin: options.margin ?? 16,
+      margin,
+      marginX: options.marginX ?? margin,
+      marginY: options.marginY ?? margin,
       corner: options.corner ?? 'bottom-right',
       borderColor: options.borderColor ?? '#66ccff',
     };
@@ -480,7 +487,7 @@ export class InstrumentView {
   }
 
   private positionOverlay(): void {
-    const { width, height, margin, corner } = this.options;
+    const { width, height, marginX, marginY, corner } = this.options as Required<InstrumentViewOptions>;
     this.overlayDiv.style.width = `${width}px`;
     this.overlayDiv.style.height = `${height}px`;
 
@@ -492,20 +499,20 @@ export class InstrumentView {
 
     switch (corner) {
       case 'top-left':
-        this.overlayDiv.style.top = `${margin}px`;
-        this.overlayDiv.style.left = `${margin}px`;
+        this.overlayDiv.style.top = `${marginY}px`;
+        this.overlayDiv.style.left = `${marginX}px`;
         break;
       case 'top-right':
-        this.overlayDiv.style.top = `${margin}px`;
-        this.overlayDiv.style.right = `${margin}px`;
+        this.overlayDiv.style.top = `${marginY}px`;
+        this.overlayDiv.style.right = `${marginX}px`;
         break;
       case 'bottom-left':
-        this.overlayDiv.style.bottom = `${margin}px`;
-        this.overlayDiv.style.left = `${margin}px`;
+        this.overlayDiv.style.bottom = `${marginY}px`;
+        this.overlayDiv.style.left = `${marginX}px`;
         break;
       case 'bottom-right':
-        this.overlayDiv.style.bottom = `${margin}px`;
-        this.overlayDiv.style.right = `${margin}px`;
+        this.overlayDiv.style.bottom = `${marginY}px`;
+        this.overlayDiv.style.right = `${marginX}px`;
         break;
     }
   }
@@ -513,17 +520,19 @@ export class InstrumentView {
   /** Compute the GL viewport origin (bottom-left) from the corner setting. */
   private viewportXY(
     canvasW: number, canvasH: number,
-    w: number, h: number, m: number,
+    w: number, h: number, _m: number,
   ): [number, number] {
+    const mx = (this.options as Required<InstrumentViewOptions>).marginX;
+    const my = (this.options as Required<InstrumentViewOptions>).marginY;
     switch (this.options.corner) {
       case 'top-left':
-        return [m, canvasH - m - h];
+        return [mx, canvasH - my - h];
       case 'top-right':
-        return [canvasW - m - w, canvasH - m - h];
+        return [canvasW - mx - w, canvasH - my - h];
       case 'bottom-left':
-        return [m, m];
+        return [mx, my];
       case 'bottom-right':
-        return [canvasW - m - w, m];
+        return [canvasW - mx - w, my];
     }
   }
 }

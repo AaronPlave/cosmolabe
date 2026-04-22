@@ -1,6 +1,6 @@
 <script lang="ts">
   import { vs, selectBody, getRenderer } from '../lib/viewer-state.svelte';
-  import type { PluginInfoSection } from '@spicecraft/three';
+  import type { InfoRow, InfoSectionResult } from '@spicecraft/three';
   import { X, Navigation } from 'lucide-svelte';
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
@@ -31,25 +31,57 @@
     return { range, speed };
   });
 
+  // SPE angle (Sun-Probe-Earth) — comm geometry, independent of target body
+  let speAngle = $derived.by(() => {
+    void vs.et;
+    const r = getRenderer();
+    if (!r || !vs.selectedBodyName) return null;
+    try {
+      const universe = r.getContext().universe;
+      const probePos = universe.absolutePositionOf(vs.selectedBodyName, vs.et);
+      const sunPos = universe.absolutePositionOf('Sun', vs.et);
+      const earthPos = universe.absolutePositionOf('Earth', vs.et);
+      if (isNaN(probePos[0]) || isNaN(sunPos[0]) || isNaN(earthPos[0])) return null;
+      // Don't show SPE if the selected body IS Earth or Sun
+      if (vs.selectedBodyName === 'Earth' || vs.selectedBodyName === 'Sun') return null;
+      const psX = sunPos[0] - probePos[0], psY = sunPos[1] - probePos[1], psZ = sunPos[2] - probePos[2];
+      const peX = earthPos[0] - probePos[0], peY = earthPos[1] - probePos[1], peZ = earthPos[2] - probePos[2];
+      const dot = psX * peX + psY * peY + psZ * peZ;
+      const magPS = Math.sqrt(psX * psX + psY * psY + psZ * psZ);
+      const magPE = Math.sqrt(peX * peX + peY * peY + peZ * peZ);
+      if (magPS <= 0 || magPE <= 0) return null;
+      return Math.acos(Math.max(-1, Math.min(1, dot / (magPS * magPE)))) * (180 / Math.PI);
+    } catch { return null; }
+  });
+
+  interface ResolvedSection {
+    id: string;
+    label: string;
+    rows?: InfoRow[];
+    html?: string;
+  }
+
   // Collect plugin info sections for the selected body
-  let pluginSections = $derived.by(() => {
+  let pluginSections = $derived.by((): ResolvedSection[] => {
     void vs.et;
     const r = getRenderer();
     if (!r || !vs.selectedBodyName) return [];
     const bm = r.getBodyMesh(vs.selectedBodyName);
     if (!bm) return [];
     const ctx = r.getContext();
-    const sections: { id: string; label: string; html: string }[] = [];
+    const sections: ResolvedSection[] = [];
     for (const plugin of r.getPlugins()) {
       if (!plugin.ui?.infoSections) continue;
       for (const sec of plugin.ui.infoSections) {
         const result = sec.render(bm.body, vs.et, ctx);
         if (result == null) continue;
-        sections.push({
-          id: sec.id,
-          label: sec.label,
-          html: typeof result === 'string' ? result : result.outerHTML,
-        });
+        if (typeof result === 'object' && 'rows' in result) {
+          sections.push({ id: sec.id, label: sec.label, rows: result.rows });
+        } else if (typeof result === 'string') {
+          sections.push({ id: sec.id, label: sec.label, html: result });
+        } else {
+          sections.push({ id: sec.id, label: sec.label, html: result.outerHTML });
+        }
       }
     }
     return sections;
@@ -110,13 +142,30 @@
           <span class="font-mono text-text-primary">{formatDist(stateInfo.range)}</span>
         </div>
       {/if}
+      {#if speAngle != null}
+        <div class="flex justify-between gap-3">
+          <span class="text-text-muted">SPE angle</span>
+          <span class="font-mono {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>
+        </div>
+      {/if}
     </div>
 
     <!-- Plugin-contributed info sections -->
     {#each pluginSections as section (section.id)}
       <div class="mt-2 pt-2 border-t border-border">
         <div class="text-[10px] text-text-muted uppercase tracking-wider mb-1">{section.label}</div>
-        <div class="text-text-primary">{@html section.html}</div>
+        {#if section.rows}
+          <div class="flex flex-col gap-0.5">
+            {#each section.rows as row}
+              <div class="flex justify-between gap-3">
+                <span class="text-text-muted">{row.label}</span>
+                <span class="font-mono text-text-primary">{row.value}{#if row.unit}<span class="text-text-muted">{row.unit}</span>{/if}</span>
+              </div>
+            {/each}
+          </div>
+        {:else if section.html}
+          <div class="text-text-primary">{@html section.html}</div>
+        {/if}
       </div>
     {/each}
   </div>

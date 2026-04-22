@@ -22,14 +22,27 @@ export interface PluginOverlay {
   render(et: number, ctx: RendererContext): string | HTMLElement | null;
 }
 
+/** A key-value row in a structured info section */
+export interface InfoRow {
+  label: string;
+  value: string;
+  unit?: string;
+}
+
+/** Structured result (preferred) or raw HTML fallback */
+export type InfoSectionResult =
+  | string                    // raw HTML (escape hatch)
+  | HTMLElement               // DOM element (escape hatch)
+  | { rows: InfoRow[] }       // structured key-value pairs (preferred — viewer renders natively)
+
 /** An info card section — shown when a body is selected */
 export interface PluginInfoSection {
   id: string;
   label: string;
   /** Ordering priority within the info card */
   order?: number;
-  /** Return content for this body, or null to skip for this body type. */
-  render(body: Body, et: number, ctx: RendererContext): string | HTMLElement | null;
+  /** Return structured data, HTML string, DOM element, or null to skip for this body. */
+  render(body: Body, et: number, ctx: RendererContext): InfoSectionResult | null;
 }
 
 /** A timeline track — colored interval bars in the timeline */

@@ -166,7 +166,7 @@
         <select
           class="bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 text-[11px] cursor-pointer outline-none max-w-28"
           bind:value={activeInstrument}
-          onchange={() => { getRenderer()?.setInstrumentView(activeInstrument || null, { margin: 52 }); }}
+          onchange={() => { getRenderer()?.setInstrumentView(activeInstrument || null, { marginX: 16, marginY: 60 }); }}
         >
           <option value="">Off</option>
           {#each sensors as name}<option value={name}>{name}</option>{/each}

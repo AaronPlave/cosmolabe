@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { Universe } from '@spicecraft/core';
 import { Spice, type SpiceInstance } from '@spicecraft/spice';
-import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin } from '@spicecraft/three';
+import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, OrbitalInfoPlugin } from '@spicecraft/three';
 import {
   vs,
   bindRenderer,
@@ -487,6 +487,7 @@ function initScene(
 
   // Register stock plugins
   renderer.use(new ScreenshotPlugin());
+  renderer.use(new OrbitalInfoPlugin());
 
   // Double-click a body → fly to it + select it for the info panel
   const r = renderer;

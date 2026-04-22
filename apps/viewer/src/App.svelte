@@ -9,6 +9,7 @@
   import ContextMenu from './components/ContextMenu.svelte';
   import BodyInfoPanel from './components/BodyInfoPanel.svelte';
   import DebugPanel from './components/DebugPanel.svelte';
+  import MeasureTool from './components/MeasureTool.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
   import { loadDemo, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import { X } from 'lucide-svelte';
@@ -22,6 +23,7 @@
   let uiHidden = $state(false);
   let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
   let debugPanelOpen = $state(false);
+  let measureToolOpen = $state(false);
 
   // Right-click: track mousedown + pointerup for drag detection.
   // macOS fires contextmenu synchronously with mousedown, so we can't use it
@@ -137,7 +139,7 @@
           const current = renderer.activeInstrumentView;
           const idx = current ? sensors.indexOf(current) : -1;
           const next = idx + 1 < sensors.length ? sensors[idx + 1] : null;
-          renderer.setInstrumentView(next, { margin: 52 });
+          renderer.setInstrumentView(next, { marginX: 16, marginY: 60 });
           return;
         }
         case 'p': togglePickMode(); return;
@@ -191,6 +193,10 @@
       <DebugPanel onClose={() => debugPanelOpen = false} />
     {/if}
 
+    {#if measureToolOpen}
+      <MeasureTool onClose={() => measureToolOpen = false} />
+    {/if}
+
     <BodyDrawer open={bodyDrawerOpen} onClose={() => bodyDrawerOpen = false} />
 
     {#if displaySettingsOpen}
@@ -219,8 +225,10 @@
         if (vs.selectedBodyName) selectBody(null);
         else if (vs.trackedBodyName) selectBody(vs.trackedBodyName);
       }}
+      onToggleMeasure={() => measureToolOpen = !measureToolOpen}
       {pickModeActive}
       infoPanelActive={!!vs.selectedBodyName}
+      measureActive={measureToolOpen}
     />
 
     <CommandPalette open={commandPaletteOpen} onClose={() => commandPaletteOpen = false} />

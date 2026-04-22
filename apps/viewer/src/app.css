@@ -86,44 +86,4 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--color-border-active); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
-
-  /* Range input (scrubber) */
-  input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    background: transparent;
-    cursor: pointer;
-    height: 20px;
-  }
-  input[type="range"]::-webkit-slider-runnable-track {
-    height: 3px;
-    background: var(--color-surface-3);
-    border-radius: 2px;
-  }
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--color-text-secondary);
-    margin-top: -3.5px;
-    transition: background 0.1s, transform 0.1s;
-  }
-  input[type="range"]::-webkit-slider-thumb:hover {
-    background: var(--color-text-primary);
-    transform: scale(1.2);
-  }
-  input[type="range"]::-moz-range-track {
-    height: 3px;
-    background: var(--color-surface-3);
-    border-radius: 2px;
-    border: none;
-  }
-  input[type="range"]::-moz-range-thumb {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--color-text-secondary);
-    border: none;
-  }
 }

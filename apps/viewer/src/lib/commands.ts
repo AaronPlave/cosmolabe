@@ -45,7 +45,7 @@ function getBuiltinCommands(): Command[] {
       if (sensors.length === 0) return;
       const current = r.activeInstrumentView;
       const idx = current ? sensors.indexOf(current) : -1;
-      r.setInstrumentView(idx + 1 < sensors.length ? sensors[idx + 1] : null, { margin: 52 });
+      r.setInstrumentView(idx + 1 < sensors.length ? sensors[idx + 1] : null, { marginX: 16, marginY: 60 });
     }},
   ];
 }
