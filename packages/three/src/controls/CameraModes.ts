@@ -38,6 +38,8 @@ export interface CameraModeContext {
   originBody: BodyMesh | null;
   /** Raycast from screen coordinates to body surface. Uses the renderer's proven pickSurface. */
   pickSurface?: (ndcX: number, ndcY: number) => { bodyName: string; latDeg: number; lonDeg: number; altKm: number } | null;
+  /** Scene rendered last (after CRR passes) — markers placed here are always visible. */
+  markerScene?: import('three').Scene;
 }
 
 /** Parameters for activating a camera mode */

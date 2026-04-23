@@ -59,6 +59,7 @@
       "geometry": {
         "type": "Globe",
         "radii": [3396.19, 3396.19, 3376.2],
+        "baseMap": "textures/mars.dds",
         "terrain": {
           "type": "quantized-mesh",
           "url": "https://marshub.s3.amazonaws.com/mars_v14/",

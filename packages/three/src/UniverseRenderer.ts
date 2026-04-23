@@ -536,6 +536,7 @@ export class UniverseRenderer {
     this.cameraController.setModeContext(
       spiceInst ?? null, et, this.scaleFactor, this.bodyMeshes,
       (ndcX: number, ndcY: number) => this.pickSurface(ndcX, ndcY),
+      this._markerScene,
     );
 
     // Camera
@@ -726,8 +727,8 @@ export class UniverseRenderer {
       }
     }
 
-    // Final pass: pick marker — always on top of every other pass.
-    if (this._pickMarker) {
+    // Final pass: markers (pick marker, orbit pivot dot, etc.) — always on top.
+    if (this._markerScene.children.length > 0) {
       this.renderer.render(this._markerScene, this.camera);
     }
 
@@ -1038,21 +1039,40 @@ export class UniverseRenderer {
     const mainHits = raycaster.intersectObjects(mainTargets, true);
 
     // tileScene: surface tile overlays use camera-relative rendering (CRR).
-    // In tileScene space the camera is at origin, so shift ray origin to (0,0,0).
+    // Apply CRR transforms (camera at origin) before raycasting, then restore.
     const tileRaycaster = new THREE.Raycaster();
     tileRaycaster.setFromCamera(ndc, this.camera);
     tileRaycaster.ray.origin.set(0, 0, 0);
     const tileTargets: THREE.Object3D[] = [];
     const overlayBodyMap = new Map<THREE.Object3D, BodyMesh>();
+    const savedGroupState: { overlay: any; pos: THREE.Vector3; quat: THREE.Quaternion; scale: THREE.Vector3 }[] = [];
     for (const bm of this.bodyMeshes.values()) {
       for (const overlay of bm.getSurfaceOverlays()) {
         if (overlay.group.visible) {
+          // Save current LOD transform
+          savedGroupState.push({
+            overlay,
+            pos: overlay.group.position.clone(),
+            quat: overlay.group.quaternion.clone(),
+            scale: overlay.group.scale.clone(),
+          });
+          // Apply CRR transform for raycasting
+          overlay.setCameraRelativeTransform(
+            bm.position, bm.mesh.quaternion, this.scaleFactor, this.camera.position,
+          );
           tileTargets.push(overlay.group);
           overlayBodyMap.set(overlay.group, bm);
         }
       }
     }
     const tileHits = tileRaycaster.intersectObjects(tileTargets, true);
+    // Restore LOD transforms
+    for (const { overlay, pos, quat, scale } of savedGroupState) {
+      overlay.group.position.copy(pos);
+      overlay.group.quaternion.copy(quat);
+      overlay.group.scale.copy(scale);
+      overlay.group.updateMatrixWorld(true);
+    }
 
     // Pick the closest hit
     let bestWorldPoint: THREE.Vector3 | null = null;
@@ -1076,17 +1096,17 @@ export class UniverseRenderer {
     }
 
     if (tileHits.length > 0) {
+      // CRR tile hits ALWAYS take priority over globe/terrain hits.
+      // Surface tiles render on top (depth cleared), so they're what the user sees.
       const hit = tileHits[0];
-      if (hit.distance < bestDist) {
-        // CRR hit point is relative to camera; add camera position to get world space
-        bestWorldPoint = hit.point.clone().add(this.camera.position);
-        bestBm = null;
-        let obj: THREE.Object3D | null = hit.object;
-        while (obj) {
-          const bm = overlayBodyMap.get(obj);
-          if (bm) { bestBm = bm; break; }
-          obj = obj.parent;
-        }
+      bestWorldPoint = hit.point.clone().add(this.camera.position);
+      bestBm = null;
+      bestDist = hit.distance;
+      let obj: THREE.Object3D | null = hit.object;
+      while (obj) {
+        const bm = overlayBodyMap.get(obj);
+        if (bm) { bestBm = bm; break; }
+        obj = obj.parent;
       }
     }
 

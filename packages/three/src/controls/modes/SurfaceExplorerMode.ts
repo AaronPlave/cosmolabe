@@ -48,6 +48,8 @@ export class SurfaceExplorerMode implements ICameraMode {
   private pitch = -0.3;
   /** Altitude above reference ellipsoid in km */
   private altKm = 0.05;
+  /** Visual altitude above terrain in km (for speed scaling only, not positioning) */
+  private altAboveTerrainKm = 0.01;
 
   // --- Body geometry cache ---
   private re = 1;
@@ -59,6 +61,10 @@ export class SurfaceExplorerMode implements ICameraMode {
   private static readonly IDLE_UPDATE_INTERVAL = 30;
   private dirty = true;
   private prevEt = 0;
+  /** Suppresses geodetic reposition after orbit until user does another input */
+  private suppressGeodetic = false;
+  /** Previous body quaternion for co-rotation during orbit */
+  private readonly prevBodyQuat = new THREE.Quaternion();
 
   // --- Input ---
   private readonly keys = new Set<string>();
@@ -71,9 +77,8 @@ export class SurfaceExplorerMode implements ICameraMode {
 
   // --- Right-click orbit pivot ---
   private hasPivot = false;
-  private pivotLatRad = 0;
-  private pivotLonRad = 0;
-  private pivotAltKm = 0;
+  /** Pivot in body-fixed geometry Y-up coordinates (km). No geodetic conversion needed. */
+  private readonly pivotBodyFixed = new THREE.Vector3();
 
   // --- Pivot dot visual ---
   private pivotDot: THREE.Mesh | null = null;
@@ -183,14 +188,14 @@ export class SurfaceExplorerMode implements ICameraMode {
         },
         wheel: (e: WheelEvent) => {
           e.preventDefault();
+          this.suppressGeodetic = false;
           // Dolly zoom along the camera's look direction (heading + pitch).
           // Log-normalize deltaY for consistent feel across platforms/trackpads.
           // deltaY > 0 = scroll down on Mac natural scroll = zoom OUT.
           const normalizedDelta = Math.log2(Math.abs(e.deltaY) + 1);
-          // sqrt scaling for consistent feel from sub-meter to km altitudes
-          const a = Math.max(Math.abs(this.altKm), 0.0001);
-          const effectiveAlt = a < 10 ? a * a / 10 : a;
-          const speed = effectiveAlt * 0.15 * normalizedDelta;
+          // Gentle zoom that gets even gentler below 0.1 km (100m) above terrain
+          const alt = this.altAboveTerrainKm;
+          const speed = (alt < 0.1 ? alt * alt / 0.1 : alt) * 0.03 * normalizedDelta;
           const sign = e.deltaY > 0 ? -1 : 1;
           const cosPitch = Math.cos(this.pitch);
           const sinPitch = Math.sin(this.pitch);
@@ -240,12 +245,26 @@ export class SurfaceExplorerMode implements ICameraMode {
       this.prevEt = ctx.et;
     }
 
-    // --- Left-drag: pan ---
+    // --- Sample terrain for speed scaling (every 10 frames, doesn't affect positioning) ---
+    if (this.frameCount % 10 === 0) {
+      const latDeg = this.latRad * 180 / Math.PI;
+      const lonDeg = this.lonRad * 180 / Math.PI;
+      const sample = bm.sampleTerrainElevation(latDeg, lonDeg);
+      // Use actual camera distance to body center (avoids ellipsoid-vs-sphere mismatch)
+      const distToCenter = ctx.camera.position.distanceTo(bm.position) / ctx.scaleFactor;
+      const altAboveSphere = distToCenter - this.re;
+      if (sample && sample.angularDistDeg < 1.0) {
+        this.altAboveTerrainKm = Math.max(0.0001, altAboveSphere - sample.elevationKm);
+      } else {
+        this.altAboveTerrainKm = Math.max(0.0001, altAboveSphere);
+      }
+    }
+
+    // --- Left-drag: pan (clears orbit suppression so geodetic takes over again) ---
     if (this.leftDragging && (this.dragDx !== 0 || this.dragDy !== 0)) {
-      // Quadratic below 10km (gentle at surface), linear above (responsive at altitude)
-      const a = Math.max(Math.abs(this.altKm), 0.0001);
-      const effectiveAlt = a < 10 ? a * a / 10 : a;
-      const angPerPx = (effectiveAlt / this.re) * 0.003;
+      this.suppressGeodetic = false;
+      // Speed based on distance to terrain. Min floor ensures movement even on the ground.
+      const angPerPx = (Math.max(this.altAboveTerrainKm, 0.005) / this.re) * 0.003;
       const cosLat = Math.cos(this.latRad);
       const safeCos = cosLat > 0.01 ? 1 / cosLat : 100;
       const cosH = Math.cos(this.heading);
@@ -261,11 +280,29 @@ export class SurfaceExplorerMode implements ICameraMode {
     }
 
     // --- Right-drag: orbit around pivot ---
-    let orbitApplied = false;
+    const isOrbiting = this.rightDragging && this.hasPivot;
+    if (isOrbiting) this.suppressGeodetic = true;
+    // Suppress geodetic reposition during orbit AND after release until user does other input
+    const orbitApplied = this.suppressGeodetic;
+
+    // Co-rotate camera with body during orbit (so we don't zoom around when time plays)
+    if (isOrbiting || this.suppressGeodetic) {
+      const bodyQ = this.getBodyQuat(ctx, bm);
+      if (bodyQ) {
+        const dq = this.prevBodyQuat.clone().invert().premultiply(bodyQ);
+        // Rotate camera position around body center
+        const offset = ctx.camera.position.clone().sub(bm.position);
+        offset.applyQuaternion(dq);
+        ctx.camera.position.copy(bm.position).add(offset);
+        // Rotate camera orientation too
+        ctx.camera.quaternion.premultiply(dq);
+        ctx.camera.up.applyQuaternion(dq).normalize();
+        this.prevBodyQuat.copy(bodyQ);
+      }
+    }
     if (this.rightDragging && (this.dragDx !== 0 || this.dragDy !== 0)) {
       if (this.hasPivot) {
         this.applyWorldSpaceOrbit(this.dragDx, this.dragDy, ctx, bm);
-        orbitApplied = true;
       } else {
         // No pivot (clicked sky) → free look
         this.heading += this.dragDx * 0.003;
@@ -280,9 +317,7 @@ export class SurfaceExplorerMode implements ICameraMode {
     // --- WASD ---
     if (this.keys.size > 0) {
       const speedMod = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')) ? 5 : 1;
-      const a2 = Math.max(Math.abs(this.altKm), 0.0001);
-      const effectiveAlt2 = a2 < 10 ? a2 * a2 / 10 : a2;
-      const angSpeed = (effectiveAlt2 / this.re) * 3.0 * speedMod;
+      const angSpeed = (Math.max(this.altAboveTerrainKm, 0.005) / this.re) * 3.0 * speedMod;
       const cosLat = Math.cos(this.latRad);
       const safeCos = cosLat > 0.01 ? 1 / cosLat : 100;
       const cosH = Math.cos(this.heading);
@@ -295,6 +330,7 @@ export class SurfaceExplorerMode implements ICameraMode {
       if (this.keys.has('KeyA')) rgt -= 1;
 
       if (fwd !== 0 || rgt !== 0) {
+        this.suppressGeodetic = false;
         this.latRad += (fwd * cosH - rgt * sinH) * angSpeed * ctx.dt;
         this.lonRad += (fwd * sinH + rgt * cosH) * angSpeed * ctx.dt * safeCos;
         this.latRad = Math.max(-Math.PI / 2 + 0.001, Math.min(Math.PI / 2 - 0.001, this.latRad));
@@ -394,16 +430,33 @@ export class SurfaceExplorerMode implements ICameraMode {
     const ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
 
     const hit = ctx.pickSurface(ndcX, ndcY);
+
+    // Debug: enable with window.__surfExDebug = true
+    if (typeof window !== 'undefined' && (window as any).__surfExDebug) {
+      const sf = ctx.scaleFactor;
+      const camDist = ctx.camera.position.distanceTo(bm.position) / sf;
+      console.log(`[SurfEx] pick ndc=(${ndcX.toFixed(3)},${ndcY.toFixed(3)}) hit=${hit ? `body=${hit.bodyName} lat=${hit.latDeg.toFixed(4)} lon=${hit.lonDeg.toFixed(4)} alt=${hit.altKm.toFixed(4)}` : 'null'} camAlt=${this.altKm.toFixed(4)} camDistBody=${camDist.toFixed(2)} altAboveTerrain=${this.altAboveTerrainKm.toFixed(4)}`);
+    }
+
     if (!hit) { this.hasPivot = false; return; }
 
-    // pickSurface returns geocentric latitude (asin(z/r)). Convert to geodetic
-    // for consistency with geodeticToWorld's ellipsoidal formula.
-    // On the Moon (e2≈0.001) this is negligible; on Mars (e2≈0.006) it matters.
-    const geocentricLatRad = hit.latDeg * Math.PI / 180;
-    this.pivotLatRad = Math.atan(Math.tan(geocentricLatRad) / (1 - this.e2));
-    this.pivotLonRad = hit.lonDeg * Math.PI / 180;
-    this.pivotAltKm = hit.altKm;
+    // Store pivot as body-fixed ECEF (geometry Y-up) in km.
+    // pickSurface returns geocentric lat/lon/alt (spherical). Convert directly
+    // to Cartesian — no geodetic formulas, no ellipsoid-vs-sphere mismatch.
+    const latRad = hit.latDeg * Math.PI / 180;
+    const lonRad = hit.lonDeg * Math.PI / 180;
+    const r = this.re + hit.altKm; // spherical radius at hit point
+    const cosLat = Math.cos(latRad);
+    const ecefX = r * cosLat * Math.cos(lonRad);
+    const ecefY = r * cosLat * Math.sin(lonRad);
+    const ecefZ = r * Math.sin(latRad);
+    // ECEF Z-up → geometry Y-up
+    this.pivotBodyFixed.set(ecefX, ecefZ, -ecefY);
     this.hasPivot = true;
+
+    // Initialize body quaternion tracking for co-rotation during orbit
+    const bodyQ = this.getBodyQuat(ctx, bm);
+    if (bodyQ) this.prevBodyQuat.copy(bodyQ);
 
     this.showPivotDot(ctx, bm);
   }
@@ -416,10 +469,7 @@ export class SurfaceExplorerMode implements ICameraMode {
     const sf = ctx.scaleFactor;
     const bodyQ = this.getBodyQuat(ctx, bm);
 
-    const pivotWorld = this.geodeticToWorld(
-      this.pivotLatRad, this.pivotLonRad, this.pivotAltKm,
-      sf, bm.position, bodyQ,
-    );
+    const pivotWorld = this.pivotToWorld(sf, bm.position, bodyQ);
 
     ctx.camera.updateMatrixWorld(true);
 
@@ -508,6 +558,13 @@ export class SurfaceExplorerMode implements ICameraMode {
 
   // ─── Coordinate conversions ──────────────────────────────────────────
 
+  /** Convert body-fixed pivot position to world space. No geodetic conversion = no mismatch. */
+  private pivotToWorld(sf: number, bodyPos: THREE.Vector3, bodyQ: THREE.Quaternion | null): THREE.Vector3 {
+    const v = this.pivotBodyFixed.clone();
+    if (bodyQ) v.applyQuaternion(bodyQ);
+    return v.multiplyScalar(sf).add(bodyPos);
+  }
+
   private geodeticToWorld(
     latRad: number, lonRad: number, altKm: number,
     sf: number, bodyPos: THREE.Vector3, bodyQ: THREE.Quaternion | null,
@@ -539,10 +596,13 @@ export class SurfaceExplorerMode implements ICameraMode {
       this.pivotDot = new THREE.Mesh(geo, mat);
       this.pivotDot.renderOrder = 999;
     }
-    if (this.pivotDotParent !== bm) {
+    // Add to marker scene (renders last, after CRR depth clear) so dot is
+    // always visible on top of both global terrain and surface tile overlays.
+    const targetParent = ctx.markerScene ?? bm;
+    if (this.pivotDotParent !== targetParent) {
       if (this.pivotDotParent) this.pivotDotParent.remove(this.pivotDot);
-      bm.add(this.pivotDot);
-      this.pivotDotParent = bm;
+      targetParent.add(this.pivotDot);
+      this.pivotDotParent = targetParent;
     }
     this.pivotDot.visible = true;
     this.updatePivotDotPosition(ctx, bm);
@@ -552,12 +612,13 @@ export class SurfaceExplorerMode implements ICameraMode {
     if (!this.pivotDot || !this.hasPivot) return;
     const sf = ctx.scaleFactor;
     const bodyQ = this.getBodyQuat(ctx, bm);
-    const pivotWorld = this.geodeticToWorld(
-      this.pivotLatRad, this.pivotLonRad, this.pivotAltKm + 0.001,
-      sf, bm.position, bodyQ,
-    );
-    this.pivotDot.position.copy(pivotWorld).sub(bm.position);
-    // Billboard: always face the camera
+    const pivotWorld = this.pivotToWorld(sf, bm.position, bodyQ);
+    // In marker scene: position is in world space (not body-local)
+    if (ctx.markerScene && this.pivotDotParent === ctx.markerScene) {
+      this.pivotDot.position.copy(pivotWorld);
+    } else {
+      this.pivotDot.position.copy(pivotWorld).sub(bm.position);
+    }
     this.pivotDot.quaternion.copy(ctx.camera.quaternion);
     const camDist = ctx.camera.position.distanceTo(pivotWorld);
     this.pivotDot.scale.setScalar(Math.max(camDist * 0.005, sf * 0.0001));

@@ -479,6 +479,7 @@ export class CameraController {
     scaleFactor: number,
     bodyMeshes: Map<string, BodyMesh>,
     pickSurface?: (ndcX: number, ndcY: number) => { bodyName: string; latDeg: number; lonDeg: number; altKm: number } | null,
+    markerScene?: THREE.Scene,
   ): void {
     if (!this._modeCtx) {
       this._modeCtx = {
@@ -491,11 +492,13 @@ export class CameraController {
         scaleFactor,
         originBody: this._originBody,
         pickSurface: pickSurface ?? undefined,
+        markerScene,
       };
     } else {
       this._modeCtx.spice = spice;
       this._modeCtx.et = et;
       if (pickSurface !== undefined) this._modeCtx.pickSurface = pickSurface ?? undefined;
+      if (markerScene !== undefined) this._modeCtx.markerScene = markerScene;
       this._modeCtx.scaleFactor = scaleFactor;
       this._modeCtx.bodyMeshes = bodyMeshes;
       this._modeCtx.originBody = this._originBody;
