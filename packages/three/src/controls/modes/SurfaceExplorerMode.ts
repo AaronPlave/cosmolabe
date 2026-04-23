@@ -109,15 +109,38 @@ export class SurfaceExplorerMode implements ICameraMode {
     const rp = bm.body.radii[2];
     this.e2 = 1 - (rp * rp) / (this.re * this.re);
 
-    this.latRad = (params.latDeg ?? 0) * Math.PI / 180;
-    this.lonRad = (params.lonDeg ?? 0) * Math.PI / 180;
+    // Derive initial lat/lon from current camera position instead of defaulting to (0,0).
+    // This way switching to Surface Explorer keeps you where you were.
+    if (params.latDeg === 0 && params.lonDeg === 0) {
+      const bodyQ = this.getBodyQuat(ctx, bm);
+      const km = ctx.camera.position.clone().sub(bm.position).divideScalar(ctx.scaleFactor);
+      if (bodyQ) km.applyQuaternion(bodyQ.clone().invert());
+      const ecefX = km.x, ecefY = -km.z, ecefZ = km.y;
+      const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
+      if (r > 1e-10) {
+        const geocLat = Math.asin(Math.max(-1, Math.min(1, ecefZ / r)));
+        this.latRad = Math.atan(Math.tan(geocLat) / (1 - this.e2));
+        this.lonRad = Math.atan2(ecefY, ecefX);
+        // Derive altitude from camera distance
+        const sinLat = Math.sin(this.latRad);
+        const cosLat = Math.cos(this.latRad);
+        const N = this.re / Math.sqrt(1 - this.e2 * sinLat * sinLat);
+        this.altKm = Math.max(0.05, (cosLat > 0.01)
+          ? Math.sqrt(ecefX * ecefX + ecefY * ecefY) / cosLat - N
+          : Math.abs(ecefZ) / Math.abs(sinLat) - N * (1 - this.e2));
+      }
+    } else {
+      this.latRad = (params.latDeg ?? 0) * Math.PI / 180;
+      this.lonRad = (params.lonDeg ?? 0) * Math.PI / 180;
 
-    // Place initial altitude above actual terrain so we don't start underground
-    const sample = bm.sampleTerrainElevation(
-      this.latRad * 180 / Math.PI, this.lonRad * 180 / Math.PI,
-    );
-    if (sample && sample.angularDistDeg < 1.0 && sample.elevationKm > 0) {
-      this.altKm += sample.elevationKm;
+      // Adjust altitude for terrain elevation at this position
+      const sample = bm.sampleTerrainElevation(
+        this.latRad * 180 / Math.PI, this.lonRad * 180 / Math.PI,
+      );
+      if (sample && sample.angularDistDeg < 1.0) {
+        const clearance = this.altKm;
+        this.altKm = Math.max(clearance, sample.elevationKm + clearance);
+      }
     }
 
     this.applyCameraFromGeodetic(ctx, bm);
@@ -161,9 +184,14 @@ export class SurfaceExplorerMode implements ICameraMode {
         wheel: (e: WheelEvent) => {
           e.preventDefault();
           // Dolly zoom along the camera's look direction (heading + pitch).
+          // Log-normalize deltaY for consistent feel across platforms/trackpads.
           // deltaY > 0 = scroll down on Mac natural scroll = zoom OUT.
-          const speed = Math.max(this.altKm, 0.005) * 0.15;
-          const sign = e.deltaY > 0 ? -1 : 1; // positive = forward (zoom in)
+          const normalizedDelta = Math.log2(Math.abs(e.deltaY) + 1);
+          // sqrt scaling for consistent feel from sub-meter to km altitudes
+          const a = Math.max(Math.abs(this.altKm), 0.0001);
+          const effectiveAlt = a < 10 ? a * a / 10 : a;
+          const speed = effectiveAlt * 0.15 * normalizedDelta;
+          const sign = e.deltaY > 0 ? -1 : 1;
           const cosPitch = Math.cos(this.pitch);
           const sinPitch = Math.sin(this.pitch);
 
@@ -214,7 +242,10 @@ export class SurfaceExplorerMode implements ICameraMode {
 
     // --- Left-drag: pan ---
     if (this.leftDragging && (this.dragDx !== 0 || this.dragDy !== 0)) {
-      const angPerPx = (this.altKm / this.re) * 0.003;
+      // Quadratic below 10km (gentle at surface), linear above (responsive at altitude)
+      const a = Math.max(Math.abs(this.altKm), 0.0001);
+      const effectiveAlt = a < 10 ? a * a / 10 : a;
+      const angPerPx = (effectiveAlt / this.re) * 0.003;
       const cosLat = Math.cos(this.latRad);
       const safeCos = cosLat > 0.01 ? 1 / cosLat : 100;
       const cosH = Math.cos(this.heading);
@@ -249,7 +280,9 @@ export class SurfaceExplorerMode implements ICameraMode {
     // --- WASD ---
     if (this.keys.size > 0) {
       const speedMod = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')) ? 5 : 1;
-      const angSpeed = (Math.max(this.altKm, 0.005) / this.re) * 3.0 * speedMod;
+      const a2 = Math.max(Math.abs(this.altKm), 0.0001);
+      const effectiveAlt2 = a2 < 10 ? a2 * a2 / 10 : a2;
+      const angSpeed = (effectiveAlt2 / this.re) * 3.0 * speedMod;
       const cosLat = Math.cos(this.latRad);
       const safeCos = cosLat > 0.01 ? 1 / cosLat : 100;
       const cosH = Math.cos(this.heading);

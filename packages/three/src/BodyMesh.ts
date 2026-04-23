@@ -852,20 +852,16 @@ export class BodyMesh extends THREE.Object3D {
       overlay.group.visible = visible;
       if (!visible) continue;
 
-      // Terrain-following: adjust tile altitude to match visible terrain surface.
-      // At coarse LOD the terrain may not resolve deep features (e.g. Gale Crater),
-      // so the tile's configured altitude can be far below the visible terrain.
-      // Query terrain elevation and shift the tile radially during CRR to match.
-      // Throttled to every 10 frames — sampleElevationKm traverses all terrain
-      // vertices, which is expensive. Smoothing handles gradual changes fine.
-      if (this.terrainSampleFrame % 10 === 0) {
+      // Terrain-following: snap tile altitude to sit slightly INSIDE the global terrain.
+      // Since the CRR render pass clears depth first (tileScene renders on top of
+      // main scene), being slightly inside eliminates the visible floating gap.
+      // The -0.005 km (-5m) inset ensures overlap even when the global terrain
+      // is at a slightly different height than the sampled elevation.
+      if (this.terrainSampleFrame % 5 === 0) {
         const terrainSample = this.sampleTerrainElevation(overlay.lat, overlay.lon);
         if (terrainSample != null && terrainSample.angularDistDeg < 0.5) {
-          // Good terrain sample — smoothly approach the target altitude
-          const target = terrainSample.elevationKm - overlay.altitudeOffset + 0.01;
-          overlay.terrainAdjustKm += (target - overlay.terrainAdjustKm) * 0.1;
+          overlay.terrainAdjustKm = terrainSample.elevationKm - overlay.altitudeOffset - 0.005;
         }
-        // else: keep previous adjustment — don't jump based on far-away samples
       }
 
       // Set full world transform for LOD computation (no parent provides position).
