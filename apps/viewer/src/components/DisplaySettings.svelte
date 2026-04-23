@@ -104,7 +104,8 @@
         <option value="body-fixed">Body Fixed</option>
         <option value="lvlh">LVLH</option>
         <option value="chase">Chase</option>
-        <option value="surface">Surface</option>
+        <option value="surface">Surface Flight</option>
+        <option value="surface-explorer">Surface Explorer</option>
         <option value="instrument">Instrument</option>
       </select>
     </div>

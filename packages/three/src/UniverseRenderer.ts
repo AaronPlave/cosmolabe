@@ -535,6 +535,7 @@ export class UniverseRenderer {
     // Provide SPICE + universe context for camera modes
     this.cameraController.setModeContext(
       spiceInst ?? null, et, this.scaleFactor, this.bodyMeshes,
+      (ndcX: number, ndcY: number) => this.pickSurface(ndcX, ndcY),
     );
 
     // Camera

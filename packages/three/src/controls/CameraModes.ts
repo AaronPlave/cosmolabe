@@ -22,6 +22,7 @@ export enum CameraModeName {
   LVLH = 'lvlh',
   CHASE = 'chase',
   SURFACE = 'surface',
+  SURFACE_EXPLORER = 'surface-explorer',
   INSTRUMENT = 'instrument',
 }
 
@@ -35,6 +36,8 @@ export interface CameraModeContext {
   dt: number;
   scaleFactor: number;
   originBody: BodyMesh | null;
+  /** Raycast from screen coordinates to body surface. Uses the renderer's proven pickSurface. */
+  pickSurface?: (ndcX: number, ndcY: number) => { bodyName: string; latDeg: number; lonDeg: number; altKm: number } | null;
 }
 
 /** Parameters for activating a camera mode */

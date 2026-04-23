@@ -11,6 +11,7 @@ import { LvlhMode } from './modes/LvlhMode.js';
 import { ChaseMode } from './modes/ChaseMode.js';
 import { SurfaceMode } from './modes/SurfaceMode.js';
 import { InstrumentMode } from './modes/InstrumentMode.js';
+import { SurfaceExplorerMode } from './modes/SurfaceExplorerMode.js';
 
 /** A saved camera viewpoint (position + target in scene coordinates) */
 export interface CameraViewpoint {
@@ -140,6 +141,7 @@ export class CameraController {
       [CameraModeName.LVLH, new LvlhMode()],
       [CameraModeName.CHASE, new ChaseMode()],
       [CameraModeName.SURFACE, new SurfaceMode()],
+      [CameraModeName.SURFACE_EXPLORER, new SurfaceExplorerMode()],
       [CameraModeName.INSTRUMENT, new InstrumentMode()],
     ]);
     this._activeMode = freeOrbit;
@@ -391,6 +393,10 @@ export class CameraController {
           bodyName: celestialBody, latDeg: 0, lonDeg: 0, altKm: 10,
           lookTarget: isSC ? body.name : undefined,
         });
+      case CameraModeName.SURFACE_EXPLORER:
+        return this.setMode(CameraModeName.SURFACE_EXPLORER, {
+          bodyName: celestialBody, latDeg: 0, lonDeg: 0, altKm: 0.05,
+        });
       case CameraModeName.INSTRUMENT:
         return this.setMode(CameraModeName.INSTRUMENT, {
           sensorName: opts?.sensorName ?? '',
@@ -449,7 +455,7 @@ export class CameraController {
     const allModes = [
       CameraModeName.FREE_ORBIT, CameraModeName.SC_FIXED, CameraModeName.BODY_FIXED,
       CameraModeName.LVLH, CameraModeName.CHASE, CameraModeName.SURFACE,
-      CameraModeName.INSTRUMENT,
+      CameraModeName.SURFACE_EXPLORER, CameraModeName.INSTRUMENT,
     ];
     const available = allModes.filter(m => !exclude.includes(m));
     const curIdx = available.indexOf(this._activeMode.name);
@@ -472,6 +478,7 @@ export class CameraController {
     et: number,
     scaleFactor: number,
     bodyMeshes: Map<string, BodyMesh>,
+    pickSurface?: (ndcX: number, ndcY: number) => { bodyName: string; latDeg: number; lonDeg: number; altKm: number } | null,
   ): void {
     if (!this._modeCtx) {
       this._modeCtx = {
@@ -483,10 +490,12 @@ export class CameraController {
         dt: 0,
         scaleFactor,
         originBody: this._originBody,
+        pickSurface: pickSurface ?? undefined,
       };
     } else {
       this._modeCtx.spice = spice;
       this._modeCtx.et = et;
+      if (pickSurface !== undefined) this._modeCtx.pickSurface = pickSurface ?? undefined;
       this._modeCtx.scaleFactor = scaleFactor;
       this._modeCtx.bodyMeshes = bodyMeshes;
       this._modeCtx.originBody = this._originBody;
