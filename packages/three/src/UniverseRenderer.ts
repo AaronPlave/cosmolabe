@@ -385,6 +385,12 @@ export class UniverseRenderer {
       }
     }
 
+    // Clamp surface-locked bodies (rovers, landers) to the parent's terrain surface.
+    // The body's SPICE trajectory gives the surface position, but ellipsoid-vs-sphere
+    // and terrain LOD mismatches can make it float or clip. This adjusts the radial
+    // distance to match the rendered terrain.
+    this.clampSurfaceLockedBodies();
+
     // Update pick marker world position (tracks body rotation/position each frame)
     this._updatePickMarkerPosition();
 
@@ -1183,6 +1189,48 @@ export class UniverseRenderer {
       this._shadowOccluderCache.set(receiver.body.name, occluders);
       if (receiver.hasShadowReceiving) {
         receiver.setShadowOccluders(occluders, sunPos, sunRadius);
+      }
+    }
+  }
+
+  /**
+   * Clamp surface-locked bodies (rovers, landers) to the parent's terrain surface.
+   * Adjusts the body's radial distance from its parent so it sits on the rendered terrain.
+   */
+  private clampSurfaceLockedBodies(): void {
+    for (const bm of this.bodyMeshes.values()) {
+      if (!bm.body.geometryData?.surfaceLock) continue;
+      const parentName = bm.body.parentName;
+      if (!parentName) continue;
+      const parentBm = this.bodyMeshes.get(parentName);
+      if (!parentBm || !parentBm.hasTerrain) continue;
+
+      // Get body direction from parent center
+      const toBody = _clampTmpVec.copy(bm.position).sub(parentBm.position);
+      const dist = toBody.length();
+      if (dist < 1e-20) continue;
+
+      // Convert to body-fixed lat/lon for terrain sampling
+      const sf = this.scaleFactor;
+      const invQ = _clampTmpQuat.copy(parentBm.mesh.quaternion).invert();
+      const kmVec = _clampTmpVec2.copy(toBody).divideScalar(sf).applyQuaternion(invQ);
+      const ecefX = kmVec.x;
+      const ecefY = -kmVec.z;
+      const ecefZ = kmVec.y;
+      const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
+      if (r < 1e-10) continue;
+
+      const latDeg = Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI);
+      const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
+
+      const sample = parentBm.sampleTerrainElevation(latDeg, lonDeg);
+      if (sample && sample.angularDistDeg < 1.0) {
+        // Target radial distance = displayRadius + terrain elevation + small offset
+        const targetR = (parentBm.displayRadius + sample.elevationKm + 0.001) * sf;
+        if (Math.abs(dist - targetR) > 1e-15) {
+          toBody.normalize().multiplyScalar(targetR);
+          bm.position.copy(parentBm.position).add(toBody);
+        }
       }
     }
   }

@@ -26,6 +26,10 @@ export interface TerrainImageryConfig {
   version?: string;
   /** WMS: request transparent tiles. Default true. */
   transparent?: boolean;
+  /** Bounding box [west, south, east, north] in degrees. Tiles outside are skipped. */
+  bounds?: [number, number, number, number];
+  /** Minimum zoom level. Tiles below this are skipped (regional data doesn't exist at low zoom). */
+  minZoom?: number;
 }
 
 export interface TerrainConfig {
@@ -37,8 +41,8 @@ export interface TerrainConfig {
   cesiumIonAssetId?: number;
   /** Cesium Ion API token (for type: 'cesium-ion') */
   cesiumIonToken?: string;
-  /** Imagery overlay to drape on terrain */
-  imagery?: TerrainImageryConfig;
+  /** Imagery overlay to drape on terrain (single layer or array of layers, bottom to top) */
+  imagery?: TerrainImageryConfig | TerrainImageryConfig[];
   /** Screen-space error threshold — higher = coarser tiles. Default 6. */
   errorTarget?: number;
   /** LRU cache max bytes. Default 256MB. */
@@ -49,6 +53,16 @@ export interface TerrainConfig {
   /** Normal map strength (higher = more dramatic shadows). Default 3. */
   normalMapStrength?: number;
 }
+
+/**
+ * 1×1 transparent PNG returned by preprocessURL when a tile should be skipped.
+ *
+ * Returning `null` from preprocessURL causes the overlay to call `fetch(null)` → fetch("null")
+ * which fetches an HTML page. The browser then fails to decode HTML as an image →
+ * InvalidStateError. This cascades and breaks the entire ImageOverlayPlugin.
+ * Instead, return a transparent PNG that decodes successfully and contributes nothing visually.
+ */
+const SKIP_TILE_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 /** Create the appropriate imagery overlay based on config type. */
 function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMSTilesOverlay | WMTSTilesOverlay | TMSTilesOverlay {
@@ -81,7 +95,46 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
         opacity: 1,
       });
     case 'xyz':
-    default:
+    default: {
+      // bounds + minZoom filter: skip tiles outside the coverage rectangle or below minimum zoom.
+      // Returns a transparent 1×1 PNG instead of null — fetch(null) would call fetch("null")
+      // which returns HTML, and createImageBitmap(htmlBlob) throws InvalidStateError that
+      // cascades and breaks the entire ImageOverlayPlugin (including the global Viking layer).
+      let preprocessURL: ((url: string) => string) | undefined;
+      if (img.bounds || img.minZoom) {
+        const bounds = img.bounds;
+        const minZ = img.minZoom ?? 0;
+        preprocessURL = (url: string) => {
+          // Extract z/y/x from URL pattern like .../default028mm/{z}/{y}/{x}.png
+          const parts = url.split('/');
+          const z = parseInt(parts[parts.length - 3], 10);
+          if (isNaN(z)) return url;
+
+          // Skip tiles below minimum zoom — regional datasets don't have data at low levels.
+          if (z < minZ) return SKIP_TILE_DATA_URL;
+
+          if (bounds) {
+            const y = parseInt(parts[parts.length - 2], 10);
+            const x = parseInt(parts[parts.length - 1], 10);
+            if (isNaN(y) || isNaN(x)) return url;
+
+            const [west, south, east, north] = bounds;
+            const numTilesX = 2 * (1 << z);
+            const numTilesY = 1 << z;
+            const tileLonSize = 360 / numTilesX;
+            const tileLatSize = 180 / numTilesY;
+            const tileWest = -180 + x * tileLonSize;
+            const tileNorth = 90 - y * tileLatSize;
+            const tileEast = tileWest + tileLonSize;
+            const tileSouth = tileNorth - tileLatSize;
+
+            if (tileEast < west || tileWest > east || tileNorth < south || tileSouth > north) {
+              return SKIP_TILE_DATA_URL;
+            }
+          }
+          return url;
+        };
+      }
       return new XYZTilesOverlay({
         url: img.url,
         levels: img.levels ?? 8,
@@ -89,7 +142,9 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
         projection: img.projection ?? 'EPSG:4326',
         color: 0xffffff,
         opacity: 1,
+        preprocessURL,
       });
+    }
   }
 }
 
@@ -113,6 +168,12 @@ export class TerrainManager {
   /** Coverage camera: ensures tiles load for the body's visible hemisphere
    *  even when the main camera's frustum doesn't include the body. */
   private coverageCam: THREE.PerspectiveCamera | null = null;
+  /** Nadir camera: 90° FOV pointing straight down to drive high-LOD tiles directly
+   *  under the camera. The 178° coverage camera uses such an extreme FOV that its
+   *  screen-space error calculation requests only coarse tiles (tiles appear tiny in
+   *  the fisheye projection). This camera fills that gap with a normal-FOV view of
+   *  the nadir region so the closest tiles always load at the correct detail level. */
+  private nadirCam: THREE.PerspectiveCamera | null = null;
   /** Terrain camera: mirrors main camera with terrain-appropriate near/far.
    *  The scene camera's near/far can have extreme ratios (1e-12/1e6) that
    *  produce degenerate frustum planes in the tiles renderer's SAT test. */
@@ -143,7 +204,8 @@ export class TerrainManager {
     if (this.isImageryOnly) {
       // Imagery-only mode: XYZTilesPlugin generates ellipsoid geometry with draped image tiles.
       // No terrain mesh needed — imagery is projected directly onto the ellipsoid surface.
-      const img = config.imagery!;
+      const imgArr = Array.isArray(config.imagery) ? config.imagery : [config.imagery!];
+      const img = imgArr[0];
       this.tiles.registerPlugin(new XYZTilesPlugin({
         url: img.url,
         levels: img.levels ?? 8,
@@ -157,11 +219,12 @@ export class TerrainManager {
         }));
       }
 
-      // Imagery overlay: drape image tiles onto terrain geometry
+      // Imagery overlays: drape image tiles onto terrain geometry
       if (config.imagery) {
-        const overlay = createImageryOverlay(config.imagery);
+        const imgConfigs = Array.isArray(config.imagery) ? config.imagery : [config.imagery];
+        const overlays = imgConfigs.map(img => createImageryOverlay(img));
         this.tiles.registerPlugin(new ImageOverlayPlugin({
-          overlays: [overlay],
+          overlays,
           renderer,
           enableTileSplitting: false,
         }));
@@ -197,9 +260,19 @@ export class TerrainManager {
       this.customizeTileMaterial(event.scene, event.tile);
     });
 
-    // Log tile load errors — helps diagnose terrain culling at deep zoom levels
+    // Log tile load errors — rate-limited to avoid flooding the console.
+    // Sparse terrain datasets (e.g. Mars Hub at level 12+) may return 404 for valid-looking
+    // tile coordinates that simply aren't in the dataset. These are non-blocking but noisy.
+    let errCount = 0, errLoggedAt = 0;
     this.tiles.addEventListener('load-error', (event: any) => {
-      console.warn('[SpiceCraft:Terrain] Tile load error:', event.url, event.error?.message);
+      errCount++;
+      const now = Date.now();
+      if (now - errLoggedAt > 5000) {
+        const suffix = errCount > 1 ? ` (+${errCount - 1} suppressed since last log)` : '';
+        console.warn('[SpiceCraft:Terrain] Tile load error:', event.url, event.error?.message, suffix);
+        errCount = 0;
+        errLoggedAt = now;
+      }
     });
 
     // Load heightmap and generate per-pixel normal map for terrain tiles.
@@ -327,22 +400,25 @@ export class TerrainManager {
 
     // Coverage cameras: ensure tiles load for the full visible hemisphere.
     // At close range (near surface), the terrain camera only sees ±45° from
-    // the view direction, missing terrain at the sides and horizon. Two wide
-    // coverage cameras cover the full sphere:
-    //   1. Nadir camera: 178° FOV looking at body center → covers 0°-89° from nadir
-    //   2. Zenith camera: 178° FOV looking away from body center → covers horizon+
-    // Together they ensure no terrain gap at the horizon (90° from nadir).
+    // the view direction, missing terrain at the sides and horizon. Two cameras
+    // looking toward body center fill this gap:
+    //   1. Coverage camera: 178° FOV → hemisphere-wide tile loading (coarse LOD)
+    //   2. Nadir camera: 90° FOV → high-LOD tiles directly under the camera
+    //
+    // The 178° coverage camera uses tan(89°)≈57 in its screen-space error formula,
+    // making every tile appear 57× smaller than it really is — only coarse tiles
+    // get loaded. A separate 90° nadir camera (tan(45°)=1) correctly drives
+    // high-resolution loading for terrain immediately underfoot.
     if (bodyWorldPos) {
+      const camNear = Math.max(1e-10, terrainNear * 0.001);
+      const camFar = Math.max(distToBody * 2, terrainFar);
+
       if (!this.coverageCam) {
-        this.coverageCam = new THREE.PerspectiveCamera(178, 1, terrainNear, terrainFar);
+        this.coverageCam = new THREE.PerspectiveCamera(178, 1, camNear, camFar);
       }
       const cc = this.coverageCam;
-      // Coverage camera looks toward body center. When near the surface, tiles
-      // directly below are at ~0 distance — terrainNear (computed for the
-      // horizontal terrain camera) would clip them. Use a much smaller near
-      // so all surface tiles pass the frustum test.
-      cc.near = Math.max(1e-10, terrainNear * 0.001);
-      cc.far = Math.max(distToBody * 2, terrainFar);
+      cc.near = camNear;
+      cc.far = camFar;
       cc.updateProjectionMatrix();
       cc.position.copy(_camPos);
       cc.up.copy(camera.up);
@@ -350,6 +426,22 @@ export class TerrainManager {
       cc.updateMatrixWorld();
       this.tiles.setCamera(cc);
       this.tiles.setResolutionFromRenderer(cc, renderer);
+
+      // Nadir camera: 90° FOV pointing at body center drives high-LOD loading
+      // for tiles directly under the camera. Footprint radius ≈ camera altitude.
+      if (!this.nadirCam) {
+        this.nadirCam = new THREE.PerspectiveCamera(90, 1, camNear, camFar);
+      }
+      const nc = this.nadirCam;
+      nc.near = camNear;
+      nc.far = camFar;
+      nc.updateProjectionMatrix();
+      nc.position.copy(_camPos);
+      nc.up.copy(camera.up);
+      nc.lookAt(bodyWorldPos);
+      nc.updateMatrixWorld();
+      this.tiles.setCamera(nc);
+      this.tiles.setResolutionFromRenderer(nc, renderer);
     }
 
     try {
@@ -473,6 +565,10 @@ export class TerrainManager {
     if (this.coverageCam) {
       this.tiles.deleteCamera(this.coverageCam);
       this.coverageCam = null;
+    }
+    if (this.nadirCam) {
+      this.tiles.deleteCamera(this.nadirCam);
+      this.nadirCam = null;
     }
     this.normalMap?.dispose();
     this.tiles.dispose();

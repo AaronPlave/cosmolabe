@@ -63,10 +63,24 @@
         "terrain": {
           "type": "quantized-mesh",
           "url": "https://marshub.s3.amazonaws.com/mars_v14/",
-          "imagery": {
-            "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
-            "levels": 7
-          }
+          "imagery": [
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
+              "levels": 7
+            },
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+              "levels": 12,
+              "bounds": [135.18, -6.57, 139.24, -2.81],
+              "minZoom": 4
+            },
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+              "levels": 16,
+              "bounds": [137.12, -4.95, 137.73, -4.25],
+              "minZoom": 8
+            }
+          ]
         },
         "surfaceTiles": [
           {
@@ -95,7 +109,8 @@
           "geometry": {
             "type": "Mesh",
             "source": "models/Curiosity_static.glb",
-            "size": 0.003
+            "size": 0.003,
+            "surfaceLock": true
           },
           "label": { "color": [0.3, 0.9, 0.3] },
           "trajectoryPlot": {
