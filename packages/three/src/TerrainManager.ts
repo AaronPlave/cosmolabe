@@ -52,6 +52,15 @@ export interface TerrainConfig {
   normalMapUrl?: string;
   /** Normal map strength (higher = more dramatic shadows). Default 3. */
   normalMapStrength?: number;
+  /** Offset (km) between this tileset's reference surface and the body's IAU sphere.
+   *  Some Mars QuantizedMesh datasets (e.g., marshub Mars_v14) encode heights against
+   *  a non-standard reference, putting decoded ECEF positions ~8 km above where SPICE
+   *  expects them. Setting this to a positive value subtracts it from the ellipsoid
+   *  radius the QuantizedMesh decoder uses, pulling decoded vertices radially inward
+   *  by that amount so they align with SPICE positions. Calibrate by sampling terrain
+   *  at a body with a known SPICE position (e.g., a rover) and computing
+   *  `terrain_sample_elev - spice_elev`. */
+  referenceRadiusOffsetKm?: number;
 }
 
 /**
@@ -160,6 +169,7 @@ export class TerrainManager {
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
   private readonly isImageryOnly: boolean;
+  private readonly bodyRadiusKm: number;
   private disposed = false;
   private shadowUniforms: ShadowUniforms | null = null;
   /** Global equirectangular normal map derived from heightmap. Applied per-tile with UV transforms. */
@@ -179,12 +189,18 @@ export class TerrainManager {
    *  produce degenerate frustum planes in the tiles renderer's SAT test. */
   private terrainCam: THREE.PerspectiveCamera | null = null;
 
+  // Reusable temporaries for sampleElevationKm — avoids per-call Matrix4/Vector3 allocation.
+  private readonly _sampleGroupInv = new THREE.Matrix4();
+  private readonly _sampleLocalMat = new THREE.Matrix4();
+  private readonly _sampleV = new THREE.Vector3();
+
   /**
    * @param config Terrain source configuration
    * @param bodyRadiusKm Mean body radius in km (used to set ellipsoid)
    * @param renderer WebGL renderer (needed for ImageOverlayPlugin texture rendering)
    */
   constructor(config: TerrainConfig, bodyRadiusKm: number, renderer: THREE.WebGLRenderer) {
+    this.bodyRadiusKm = bodyRadiusKm;
     this.isImageryOnly = config.type === 'imagery';
 
     // For imagery-only mode, no tileset URL needed — XYZTilesPlugin generates geometry.
@@ -281,8 +297,11 @@ export class TerrainManager {
       this.loadNormalMap(config.normalMapUrl, config.normalMapStrength ?? 1.5);
     }
 
-    // Set ellipsoid to the body's radius (in meters, which is what 3D Tiles uses)
-    const radiusM = bodyRadiusKm * 1000;
+    // Set ellipsoid to the body's radius (in meters, which is what 3D Tiles uses).
+    // referenceRadiusOffsetKm compensates for tilesets that encode heights against
+    // a non-standard reference (see TerrainConfig.referenceRadiusOffsetKm doc).
+    const offsetKm = config.referenceRadiusOffsetKm ?? 0;
+    const radiusM = (bodyRadiusKm - offsetKm) * 1000;
     this.tiles.ellipsoid.radius.set(radiusM, radiusM, radiusM);
 
     // Only override errorTarget if explicitly set in config.
@@ -364,7 +383,7 @@ export class TerrainManager {
   update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3): void {
     if (this.disposed) return;
 
-    // Compute terrain-appropriate near/far from camera-to-body distance.
+    // Compute terrain-appropriate near/far from camera position.
     // The scene camera can have extreme near/far ratios (e.g. 1e-12 / 1e6)
     // which make projection matrix rows 3 and 4 nearly identical. When
     // 3d-tiles-renderer extracts frustum planes via SAT, the far plane
@@ -372,10 +391,25 @@ export class TerrainManager {
     // tile's bounding volume fails the frustum test → 0 tiles rendered.
     _camPos.setFromMatrixPosition(camera.matrixWorld);
     const distToBody = bodyWorldPos ? _camPos.distanceTo(bodyWorldPos) : 0;
-    // near/far in scene space: near = 0.1% of body distance, far = 100× body distance.
-    // This keeps the ratio ≤ 1e5, well within Float64 precision for frustum extraction.
-    const terrainNear = Math.max(1e-8, distToBody * 0.001);
-    const terrainFar = Math.max(distToBody * 100, 1e-2);
+
+    // Near the surface, distToBody ≈ bodyRadius so distToBody*0.001 clips terrain
+    // for km around the camera (e.g., 3.4 km near clip at Mars surface).
+    // Switch to altitude-based near/far when close to the surface.
+    const sf = this.group.scale.x || 1e-6;
+    const bodyRadiusSU = this.bodyRadiusKm * sf;
+    const altAboveRefSphere = distToBody - bodyRadiusSU;
+    let terrainNear: number;
+    let terrainFar: number;
+    if (Math.abs(altAboveRefSphere) < bodyRadiusSU * 0.01) {
+      // Near surface: tight near/far for ground-level viewing.
+      // 1m near, 50km far → ratio 5e4, within Float64 precision for SAT.
+      terrainNear = Math.max(1e-10, 0.001 * sf);
+      terrainFar = Math.max(50 * sf, 1e-4);
+    } else {
+      // Orbital: near = 0.1% of body distance, far = 100×. Ratio ≤ 1e5.
+      terrainNear = Math.max(1e-8, distToBody * 0.001);
+      terrainFar = Math.max(distToBody * 100, 1e-2);
+    }
 
     // Terrain camera: mirrors main camera but with terrain-appropriate near/far.
     const mainCam = camera as THREE.PerspectiveCamera;
@@ -410,8 +444,14 @@ export class TerrainManager {
     // get loaded. A separate 90° nadir camera (tan(45°)=1) correctly drives
     // high-resolution loading for terrain immediately underfoot.
     if (bodyWorldPos) {
-      const camNear = Math.max(1e-10, terrainNear * 0.001);
-      const camFar = Math.max(distToBody * 2, terrainFar);
+      // Coverage/nadir cameras: at the surface, use the same near/far as the terrain
+      // camera so the ratio stays within SAT precision limits (~1e5). The standard
+      // formula (near=terrainNear*0.001, far=distToBody*2) produces ratios of ~7e7
+      // at ground level (distToBody ≈ bodyRadius), causing NaN in frustum plane
+      // extraction and zero tiles loaded → visible gaps in terrain.
+      const isSurface = Math.abs(altAboveRefSphere) < bodyRadiusSU * 0.01;
+      const camNear = isSurface ? terrainNear : Math.max(1e-10, terrainNear * 0.001);
+      const camFar = isSurface ? terrainFar : Math.max(distToBody * 2, terrainFar);
 
       if (!this.coverageCam) {
         this.coverageCam = new THREE.PerspectiveCamera(178, 1, camNear, camFar);
@@ -428,20 +468,30 @@ export class TerrainManager {
       this.tiles.setResolutionFromRenderer(cc, renderer);
 
       // Nadir camera: 90° FOV pointing at body center drives high-LOD loading
-      // for tiles directly under the camera. Footprint radius ≈ camera altitude.
-      if (!this.nadirCam) {
-        this.nadirCam = new THREE.PerspectiveCamera(90, 1, camNear, camFar);
+      // for tiles directly under the camera. Only activate when the camera is
+      // close to the surface (altitude < 2× body radius in scene units) to avoid
+      // the extra tiles.update() traversal pass at orbital distances where the
+      // terrain camera already provides sufficient LOD.
+      const bodyRadiusSceneUnits = this.tiles.ellipsoid.radius.x * 0.001; // m→km, matches scene scale
+      const altitudeSceneUnits = distToBody - bodyRadiusSceneUnits;
+      if (altitudeSceneUnits < bodyRadiusSceneUnits * 2) {
+        if (!this.nadirCam) {
+          this.nadirCam = new THREE.PerspectiveCamera(90, 1, camNear, camFar);
+        }
+        const nc = this.nadirCam;
+        nc.near = camNear;
+        nc.far = camFar;
+        nc.updateProjectionMatrix();
+        nc.position.copy(_camPos);
+        nc.up.copy(camera.up);
+        nc.lookAt(bodyWorldPos);
+        nc.updateMatrixWorld();
+        this.tiles.setCamera(nc);
+        this.tiles.setResolutionFromRenderer(nc, renderer);
+      } else if (this.nadirCam) {
+        this.tiles.deleteCamera(this.nadirCam);
+        this.nadirCam = null;
       }
-      const nc = this.nadirCam;
-      nc.near = camNear;
-      nc.far = camFar;
-      nc.updateProjectionMatrix();
-      nc.position.copy(_camPos);
-      nc.up.copy(camera.up);
-      nc.lookAt(bodyWorldPos);
-      nc.updateMatrixWorld();
-      this.tiles.setCamera(nc);
-      this.tiles.setResolutionFromRenderer(nc, renderer);
     }
 
     try {
@@ -477,9 +527,10 @@ export class TerrainManager {
     // tiles.group.matrixWorld⁻¹ × child.matrixWorld gives us the child's
     // transform in tiles.group's child space, which is ECEF meters Z-up
     // (that's what the QuantizedMeshLoader outputs).
-    const groupInv = new THREE.Matrix4().copy(this.tiles.group.matrixWorld).invert();
-    const localMat = new THREE.Matrix4();
-    const v = new THREE.Vector3();
+    this._sampleGroupInv.copy(this.tiles.group.matrixWorld).invert();
+    const groupInv = this._sampleGroupInv;
+    const localMat = this._sampleLocalMat;
+    const v = this._sampleV;
 
     this.tiles.group.traverse((child: any) => {
       if (!child.isMesh || !child.geometry) return;
@@ -512,6 +563,7 @@ export class TerrainManager {
     if (closestDist === Infinity) return null;
     // angDist² ≈ 2(1 - cos θ) ≈ θ² for small θ; convert to degrees
     const angularDistDeg = Math.sqrt(closestDist) * (180 / Math.PI);
+
     return { elevationKm: closestRadiusKm - bodyRadiusKm, angularDistDeg };
   }
 

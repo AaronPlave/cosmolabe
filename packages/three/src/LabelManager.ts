@@ -150,9 +150,20 @@ export class LabelManager {
     const toOcc = this._toOccluder;
     ray.subVectors(worldPos, camPos).normalize();
 
+    // For surface-locked bodies (rovers, landers), don't check the parent as occluder.
+    // Surface-locked bodies sit on or slightly below the parent's reference sphere
+    // (e.g., Curiosity is ~5 km inside the Mars 3396.19 km sphere because Gale Crater
+    // is below the IAU datum). Any ray from camera to such a body passes through the
+    // parent's sphere, which would otherwise fade the label even when it's clearly
+    // visible on the front-facing surface.
+    const excludeParentName = excludeBody?.body.geometryData?.surfaceLock
+      ? excludeBody.body.parentName
+      : undefined;
+
     let fade = 1.0;
     for (const other of bodyMeshes) {
       if (other === excludeBody) continue;
+      if (excludeParentName && other.body.name === excludeParentName) continue;
       // Only large bodies (planets, moons, large asteroids) can meaningfully occlude.
       // Skip spacecraft/instrument body meshes — they are colocated with their parent
       // and would false-positive via ray-through-center at zero closest approach.

@@ -91,4 +91,8 @@ export interface ICameraMode {
   update(ctx: CameraModeContext): void;
   /** Called when leaving this mode */
   deactivate(ctx: CameraModeContext): void;
+  /** Optional: re-derive internal state from the current camera position/orientation.
+   *  Called after external camera mutations (flyTo, viewpoint apply) so the mode's
+   *  next update() doesn't snap the camera back to stale stored state. */
+  syncFromCamera?(ctx: CameraModeContext): void;
 }

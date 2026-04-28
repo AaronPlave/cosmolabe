@@ -37,6 +37,8 @@ export interface SurfacePickResult {
   lonDeg: number;
   /** Altitude above the reference sphere in km */
   altKm: number;
+  /** Distance from camera to pick point in km */
+  cameraDistanceKm: number;
 }
 
 export interface UniverseRendererOptions {
@@ -356,12 +358,17 @@ export class UniverseRenderer {
       if (bm.hasModel) {
         const MODEL_SHOW_PX = 2;   // Show model when > 2px
         const MODEL_FADE_PX = 5;   // Fully opaque at 5px
-        if (screenPixels >= MODEL_SHOW_PX) {
-          // Show model, hide placeholder
+        // Surface-locked bodies (rovers, landers): always show the model at full
+        // opacity. They're tiny at planetary scale but there's no reason to hide
+        // real geometry behind a placeholder dot — the model renders as a speck
+        // until you're close enough to resolve it, same as in reality.
+        const isSurfaceLocked = !!bm.body.geometryData?.surfaceLock;
+        if (isSurfaceLocked || screenPixels >= MODEL_SHOW_PX) {
           bm.setModelVisible(true);
           bm.mesh.visible = false;
-          // Fade in model between 2-5px
-          const opacity = Math.min(1, (screenPixels - MODEL_SHOW_PX) / (MODEL_FADE_PX - MODEL_SHOW_PX));
+          const opacity = isSurfaceLocked
+            ? 1
+            : Math.min(1, (screenPixels - MODEL_SHOW_PX) / (MODEL_FADE_PX - MODEL_SHOW_PX));
           bm.setModelOpacity(opacity);
         } else if (this.minBodyPixels > 0) {
           // Too small for model: show placeholder as a dot (respects minBodyPixels)
@@ -390,6 +397,12 @@ export class UniverseRenderer {
     // and terrain LOD mismatches can make it float or clip. This adjusts the radial
     // distance to match the rendered terrain.
     this.clampSurfaceLockedBodies();
+
+    // Now that body positions are fresh under the new origin, re-derive any
+    // stateful camera mode (Surface Explorer) from the current camera position.
+    // Pairs with applyPendingOriginSwitch above; if we synced there, body
+    // positions were still stale and the mode would compute wrong lat/lon.
+    this.cameraController.syncPendingModeFromCamera();
 
     // Update pick marker world position (tracks body rotation/position each frame)
     this._updatePickMarkerPosition();
@@ -562,9 +575,12 @@ export class UniverseRenderer {
     // Update custom body visuals (from BodyVisualizer registry)
     this.updateCustomVisuals(et);
 
-    // Dynamic near/far: adjust based on distance to orbit target
+    // Dynamic near/far. The log depth buffer handles depth precision across cosmic
+    // scales, so the near plane only affects geometry clipping. Use a small multiplier
+    // (1e-8) so terrain within meters of the camera isn't clipped at ground level
+    // (the old 1e-5 multiplier produced a 34m near plane at Mars surface).
     const camDist = this.camera.position.distanceTo(this.cameraController.controls.target);
-    this.camera.near = Math.max(1e-12, camDist * 1e-5);
+    this.camera.near = Math.max(1e-12, camDist * 1e-8);
     this.camera.far = Math.max(1e6, camDist * 1e6);
     this.camera.updateProjectionMatrix();
 
@@ -1141,12 +1157,15 @@ export class UniverseRenderer {
     const latDeg = Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI);
     const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
     const altKm = r - bm.displayRadius;
+    const cameraDistanceKm = bestWorldPoint.distanceTo(this.camera.position) / this.scaleFactor;
 
-    return { bodyName: bm.body.name, latDeg, lonDeg, altKm };
+    return { bodyName: bm.body.name, latDeg, lonDeg, altKm, cameraDistanceKm };
   }
 
-  /** Cached terrain elevation per body for clamp (avoids sampling every frame). */
+  /** Cached terrain elevation per body for camera clamp (samples every 5 frames). */
   private _terrainClampCache = new Map<string, { elevationKm: number; frame: number }>();
+  /** Cached terrain elevation per surface-locked body (samples every 10 frames). */
+  private _surfaceLockElevCache = new Map<string, { elevationKm: number; angularDistDeg: number; frame: number }>();
 
   /** Recompute eclipse shadow occluder lists for all bodies and push to shader uniforms. */
   private updateShadowOccluders(): void {
@@ -1223,10 +1242,36 @@ export class UniverseRenderer {
       const latDeg = Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI);
       const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
 
-      const sample = parentBm.sampleTerrainElevation(latDeg, lonDeg);
-      if (sample && sample.angularDistDeg < 1.0) {
-        // Target radial distance = displayRadius + terrain elevation + small offset
-        const targetR = (parentBm.displayRadius + sample.elevationKm + 0.001) * sf;
+      // Sample terrain elevation at most every 10 frames — surface-locked bodies move slowly
+      // and sampleElevationKm traverses all loaded tile vertices, so calling it every frame
+      // is expensive at high tile counts. Use the cached elevation on intermediate frames.
+      const bodyKey = bm.body.name;
+      const frame = this._renderDebugFrame;
+      const cached = this._surfaceLockElevCache.get(bodyKey);
+      let sample: { elevationKm: number; angularDistDeg: number } | null = null;
+      if (!cached || frame - cached.frame >= 10) {
+        sample = parentBm.sampleTerrainElevation(latDeg, lonDeg);
+        if (sample) this._surfaceLockElevCache.set(bodyKey, { ...sample, frame });
+      } else {
+        sample = cached;
+      }
+
+      // Snap to terrain only when a tile vertex is within 0.5° (≈30 km on Mars) AND
+      // the terrain elevation closely agrees with the SPICE-derived radius. The agreement
+      // check prevents a distant tile at a very different elevation from displacing the
+      // rover by kilometres; SPICE is authoritative for the rover's actual ground truth.
+      const spiceElevKm = dist / sf - parentBm.displayRadius;
+      // Snap when a tile vertex is within 0.5° (≈30 km on Mars) AND the terrain
+      // elevation agrees with SPICE within 1 km. With referenceRadiusOffsetKm
+      // calibrated correctly, terrain and SPICE should agree to meters; a >1 km
+      // disagreement means either the offset is wrong, the wrong tile is loaded,
+      // or this isn't a real surface lock candidate.
+      if (sample && sample.angularDistDeg < 0.5 && Math.abs(sample.elevationKm - spiceElevKm) < 1.0) {
+        // 1 cm clearance — just enough to prevent z-fighting with the terrain mesh.
+        // Larger values produce visible float for ground vehicles whose model origin
+        // is at wheel level. Models centred at chassis height should compensate inside
+        // their meshRotation/meshOffset, not here.
+        const targetR = (parentBm.displayRadius + sample.elevationKm + 0.00001) * sf;
         if (Math.abs(dist - targetR) > 1e-15) {
           toBody.normalize().multiplyScalar(targetR);
           bm.position.copy(parentBm.position).add(toBody);
@@ -1243,10 +1288,29 @@ export class UniverseRenderer {
    */
   private clampCameraAboveSurfaces(): void {
     const cam = this.camera.position;
-    const MARGIN_KM = 0.005; // 5m above terrain surface
+    const MARGIN_KM = 0.002; // 2m above terrain surface (eye-height for ground-level viewing)
+
+    // When the camera is tracking OR flying to a surface-locked body
+    // (rover/lander), skip the clamp on its parent body. The clamp prevents
+    // going through terrain, but inspecting a surface-locked body requires the
+    // camera to share the body's altitude — at the rover's location, the
+    // terrain IS the rover's altitude, so the clamp would push the camera away
+    // at exactly the distance that's "max zoom in" to the rover. Using
+    // focusBody (vs trackedBody) makes the skip engage during the flyTo
+    // animation too, so the zoom doesn't visibly bounce off the clamp surface.
+    const focus = this.cameraController.focusBody;
+    const skipParentName = focus?.body.geometryData?.surfaceLock
+      ? focus.body.parentName
+      : null;
+
+    // DEBUG: enable with window.__clampDebug = true
+    if (typeof window !== 'undefined' && (window as any).__clampDebug) {
+      console.log(`[clamp] focus=${focus?.body.name ?? 'null'} surfaceLock=${focus?.body.geometryData?.surfaceLock ?? false} skip=${skipParentName ?? 'none'}`);
+    }
 
     for (const bm of this.bodyMeshes.values()) {
       if (bm.body.geometryType !== 'Globe' && bm.body.geometryType !== 'Ellipsoid') continue;
+      if (skipParentName && bm.body.name === skipParentName) continue;
 
       const toBody = _clampTmpVec.copy(cam).sub(bm.position);
       const dist = toBody.length();
@@ -1254,6 +1318,7 @@ export class UniverseRenderer {
 
       // Base clamp: reference sphere
       let clampRadiusKm = bm.displayRadius;
+      let hasTerrainSample = false;
 
       // Terrain-aware clamp: query actual elevation at camera position
       if (bm.hasTerrain) {
@@ -1273,10 +1338,9 @@ export class UniverseRenderer {
           const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
 
           // Sample terrain every 5 frames, use cached value between samples.
-          // Only raise the clamp for POSITIVE elevation (mountains/ridges) where
-          // terrain extends above the reference sphere. For negative elevation
-          // (craters/basins), coarse terrain data can't resolve deep features and
-          // would block descent — fall back to reference sphere clamp instead.
+          // Use terrain elevation for both positive (mountains) and negative (basins/craters)
+          // elevations so the camera can descend into regions below the reference sphere
+          // (e.g., Dingo Gap on Mars at ~-4.5 km below the reference sphere).
           const bodyName = bm.body.name;
           const cached = this._terrainClampCache.get(bodyName);
           const frame = this._renderDebugFrame;
@@ -1285,16 +1349,26 @@ export class UniverseRenderer {
             if (sample && sample.angularDistDeg < 1.0) {
               const elev = sample.elevationKm;
               this._terrainClampCache.set(bodyName, { elevationKm: elev, frame });
-              if (elev > 0) clampRadiusKm = bm.displayRadius + elev;
+              clampRadiusKm = bm.displayRadius + elev;
+              hasTerrainSample = true;
             }
-          } else if (cached.elevationKm > 0) {
+          } else {
             clampRadiusKm = bm.displayRadius + cached.elevationKm;
+            hasTerrainSample = true;
           }
         }
       }
 
       const surfaceR = (clampRadiusKm + MARGIN_KM) * this.scaleFactor;
-      if (dist < surfaceR) {
+      // When no terrain data is available, only clamp if the camera is above (or at) the
+      // reference sphere. If it's already below the sphere (as at Dingo Gap where terrain
+      // is ~4.5 km below the Mars reference sphere), don't push it back up — the surface
+      // explorer's altKm controls have already positioned it correctly.
+      const sphereR = bm.displayRadius * this.scaleFactor;
+      if (dist < surfaceR && (hasTerrainSample || dist >= sphereR)) {
+        if (typeof window !== 'undefined' && (window as any).__clampDebug) {
+          console.log(`[clamp] PUSH on ${bm.body.name}: dist=${dist.toExponential(3)} surfaceR=${surfaceR.toExponential(3)} hasTerrain=${hasTerrainSample}`);
+        }
         // Push camera out to just above surface along the same direction
         toBody.normalize().multiplyScalar(surfaceR);
         cam.copy(bm.position).add(toBody);
@@ -1964,7 +2038,10 @@ export class UniverseRenderer {
       );
     }
 
-    // 2. Raycast against body meshes
+    // 2. Raycast against body meshes (placeholder sphere) AND terrain meshes.
+    // When the camera is near a planet's surface the placeholder sphere is hidden
+    // (see BodyMesh frame logic) and only the terrain mesh is visible — so we
+    // must raycast the terrain group too, otherwise the planet becomes unpickable.
     if (!bodyName) {
       const mouse = new THREE.Vector2(
         (screenX / rect.width) * 2 - 1,
@@ -1972,16 +2049,32 @@ export class UniverseRenderer {
       );
       this._dblClickRaycaster!.setFromCamera(mouse, this.camera);
       const meshTargets: THREE.Object3D[] = [];
+      const terrainOwner = new Map<THREE.Object3D, BodyMesh>();
       for (const bm of this.bodyMeshes.values()) {
-        if (bm.mesh.visible) meshTargets.push(bm.mesh);
+        if (bm.mesh.visible) {
+          meshTargets.push(bm.mesh);
+        } else {
+          // Sphere hidden (camera near surface) — fall back to terrain mesh so the
+          // body remains pickable. Skipped when sphere is visible to avoid
+          // raycasting hundreds of tile meshes the sphere already covers.
+          const terrain = bm.terrainTileGroup;
+          if (terrain && terrain.visible) {
+            meshTargets.push(terrain);
+            terrainOwner.set(terrain, bm);
+          }
+        }
       }
-      const hits = this._dblClickRaycaster!.intersectObjects(meshTargets, false);
+      const hits = this._dblClickRaycaster!.intersectObjects(meshTargets, true);
       if (hits.length > 0) {
-        let obj = hits[0].object;
-        while (obj.parent && !this.bodyMeshes.has(obj.name)) {
+        // Walk up from hit to find owning BodyMesh: either via terrainOwner map
+        // (terrain hits) or via the placeholder sphere ancestry chain.
+        let obj: THREE.Object3D | null = hits[0].object;
+        while (obj) {
+          if (this.bodyMeshes.has(obj.name)) { bodyName = obj.name; break; }
+          const owner = terrainOwner.get(obj);
+          if (owner) { bodyName = owner.body.name; break; }
           obj = obj.parent;
         }
-        if (this.bodyMeshes.has(obj.name)) bodyName = obj.name;
       }
     }
 

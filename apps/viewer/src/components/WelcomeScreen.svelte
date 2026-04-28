@@ -22,7 +22,7 @@
     { id: "lro-moon", label: "LRO at Moon" },
     { id: "europa-clipper", label: "Europa Clipper" },
     { id: "iss", label: "ISS (TLE)" },
-    { id: "msl-dingo-gap", label: "MSL Dingo Gap" },
+    { id: "msl-dingo-gap", label: "MSL Dingo Gap (Experimental)" },
   ];
 
   function handleDragOver(e: DragEvent) {

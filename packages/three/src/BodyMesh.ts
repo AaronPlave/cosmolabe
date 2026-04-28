@@ -753,16 +753,24 @@ export class BodyMesh extends THREE.Object3D {
     const TERRAIN_SHOW_PX = 80;
 
     if (screenPixels >= TERRAIN_SHOW_PX) {
-      // Show terrain. Keep the static sphere visible but slightly shrunk so it
-      // sits behind tiles as a fallback during tile loading transitions.
-      // 0.5% inward (~9 km on Moon, ~32 km on Earth) clears any real topography.
-      // polygonOffset can't be used here — the log depth buffer overrides
-      // gl_FragDepth in the fragment shader, bypassing hardware polygon offset.
+      // Show terrain tiles. At orbital distances, keep the static sphere slightly
+      // shrunk (0.5%) behind tiles as a fallback during tile loading transitions.
+      // At ground level (screenPixels > 2000), hide the sphere entirely — it sits
+      // km below the actual terrain surface (e.g., 12+ km at Dingo Gap) and would
+      // be visible through tile gaps at oblique viewing angles.
       if (!this.terrainVisible) {
         this.terrainManager.group.visible = true;
         this.terrainVisible = true;
       }
-      this.applyMeshScale(this.scaleFactor * 0.995);
+      // At ground level the shrunk sphere sits km below terrain and is visible
+      // through tile gaps at oblique angles. Hide it when within 1% of body radius.
+      const camDistKm = camera.position.distanceTo(this.position) / this.scaleFactor;
+      const altAboveSphere = camDistKm - this.displayRadius;
+      if (Math.abs(altAboveSphere) < this.displayRadius * 0.01) {
+        this.mesh.visible = false;
+      } else {
+        this.applyMeshScale(this.scaleFactor * 0.995);
+      }
 
       // Scale grid lines above terrain surface (not shrunk with the mesh).
       // 0.5% above terrain clears typical topography while staying close to surface.

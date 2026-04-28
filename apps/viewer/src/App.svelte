@@ -19,7 +19,7 @@
   let displaySettingsOpen = $state(false);
   let commandPaletteOpen = $state(false);
   let pickModeActive = $state(false);
-  let pickResult = $state<{ bodyName: string; latDeg: number; lonDeg: number; altKm: number } | null>(null);
+  let pickResult = $state<{ bodyName: string; latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number } | null>(null);
   let uiHidden = $state(false);
   let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
   let debugPanelOpen = $state(false);
@@ -214,6 +214,7 @@
         <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lat</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pickResult.latDeg), 5)}&deg; {pickResult.latDeg >= 0 ? 'N' : 'S'}</span></div>
         <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lon</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pickResult.lonDeg), 5)}&deg; {pickResult.lonDeg >= 0 ? 'E' : 'W'}</span></div>
         <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Alt</span><span class="font-mono text-text-primary">{pickResult.altKm >= 0 ? '+' : ''}{fmtCoord(pickResult.altKm * 1000, 1)} m</span></div>
+        <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Dist</span><span class="font-mono text-text-primary">{pickResult.cameraDistanceKm < 1 ? `${fmtCoord(pickResult.cameraDistanceKm * 1000, 1)} m` : `${fmtCoord(pickResult.cameraDistanceKm, 3)} km`}</span></div>
       </div>
     {/if}
 

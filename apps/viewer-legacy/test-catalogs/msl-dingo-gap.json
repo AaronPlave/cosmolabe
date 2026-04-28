@@ -63,6 +63,8 @@
         "terrain": {
           "type": "quantized-mesh",
           "url": "https://marshub.s3.amazonaws.com/mars_v14/",
+          "referenceRadiusOffsetKm": 8.765,
+          "errorTarget": 1,
           "imagery": [
             {
               "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
@@ -106,11 +108,16 @@
             "target": "-76",
             "center": "MARS"
           },
+          "rotationModel": {
+            "type": "Spice",
+            "bodyFrame": "MSL_ROVER"
+          },
           "geometry": {
             "type": "Mesh",
             "source": "models/Curiosity_static.glb",
             "size": 0.003,
-            "surfaceLock": true
+            "surfaceLock": true,
+            "meshRotation": [0.7071, -0.7071, 0, 0]
           },
           "label": { "color": [0.3, 0.9, 0.3] },
           "trajectoryPlot": {

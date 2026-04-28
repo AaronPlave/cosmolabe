@@ -49,6 +49,16 @@ export class CameraController {
   /** The body the camera is orbiting (orbit target locked to origin) */
   get trackedBody(): BodyMesh | null { return this._trackTarget; }
 
+  /** The body the camera is currently tracking OR animating toward.
+   *  Use this when behavior should engage as soon as a flyTo starts (e.g., the
+   *  surface clamp skip), not wait until the animation completes and tracking
+   *  is officially set. Also covers the gap between animation completion and
+   *  the next frame's applyPendingOriginSwitch — without _pendingOriginSwitch
+   *  here, the clamp would briefly engage and snap the camera out. */
+  get focusBody(): BodyMesh | null {
+    return this._anim?.followBody ?? this._pendingOriginSwitch ?? this._trackTarget;
+  }
+
   /**
    * The body used as the coordinate-system origin for rendering.
    * Set when tracking starts. Persists after un-tracking so the scene
@@ -540,6 +550,25 @@ export class CameraController {
     this._prevTargetPos.copy(bodyPos);
     this.camera.position.sub(bodyPos);
     this.controls.target.set(0, 0, 0);
+
+    // Defer mode-state resync to after body positions are recomputed under
+    // the new origin — syncing now would use stale body positions and produce
+    // wrong lat/lon (e.g., snapping Surface Explorer to the wrong pole).
+    this._pendingModeSync = true;
+  }
+
+  private _pendingModeSync = false;
+
+  /** Re-derive any active stateful mode's internal state from the current
+   *  camera position. Must be called by the renderer AFTER body positions
+   *  have been updated for the current frame, so the mode sees consistent
+   *  body coordinates. Pairs with applyPendingOriginSwitch. */
+  syncPendingModeFromCamera(): void {
+    if (!this._pendingModeSync) return;
+    this._pendingModeSync = false;
+    if (this._modeCtx) {
+      this._activeMode.syncFromCamera?.(this._modeCtx);
+    }
   }
 
   /** Whether a fly-to/viewpoint animation is currently playing */

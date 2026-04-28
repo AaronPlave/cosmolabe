@@ -50,6 +50,9 @@ export class SurfaceExplorerMode implements ICameraMode {
   private altKm = 0.05;
   /** Visual altitude above terrain in km (for speed scaling only, not positioning) */
   private altAboveTerrainKm = 0.01;
+  /** Last sampled terrain elevation in km (relative to reference sphere). Used by scroll
+   *  handler for a fresh altitude estimate so speed tracks altKm changes each scroll. */
+  private lastTerrainElev = 0;
 
   // --- Body geometry cache ---
   private re = 1;
@@ -130,7 +133,9 @@ export class SurfaceExplorerMode implements ICameraMode {
         const sinLat = Math.sin(this.latRad);
         const cosLat = Math.cos(this.latRad);
         const N = this.re / Math.sqrt(1 - this.e2 * sinLat * sinLat);
-        this.altKm = Math.max(0.05, (cosLat > 0.01)
+        // Allow negative altKm for below-ellipsoid terrain (e.g., Gale Crater).
+        // Floor at -20 km matches the wheel scroll handler's clamp.
+        this.altKm = Math.max(-20, (cosLat > 0.01)
           ? Math.sqrt(ecefX * ecefX + ecefY * ecefY) / cosLat - N
           : Math.abs(ecefZ) / Math.abs(sinLat) - N * (1 - this.e2));
       }
@@ -138,13 +143,15 @@ export class SurfaceExplorerMode implements ICameraMode {
       this.latRad = (params.latDeg ?? 0) * Math.PI / 180;
       this.lonRad = (params.lonDeg ?? 0) * Math.PI / 180;
 
-      // Adjust altitude for terrain elevation at this position
+      // Adjust altitude for terrain elevation at this position.
+      // altKm is relative to the reference sphere, so terrain below the sphere
+      // (e.g., Dingo Gap on Mars ~-4.5 km) requires a negative altKm to sit near the surface.
       const sample = bm.sampleTerrainElevation(
         this.latRad * 180 / Math.PI, this.lonRad * 180 / Math.PI,
       );
       if (sample && sample.angularDistDeg < 1.0) {
         const clearance = this.altKm;
-        this.altKm = Math.max(clearance, sample.elevationKm + clearance);
+        this.altKm = sample.elevationKm + clearance;
       }
     }
 
@@ -193,9 +200,16 @@ export class SurfaceExplorerMode implements ICameraMode {
           // Log-normalize deltaY for consistent feel across platforms/trackpads.
           // deltaY > 0 = scroll down on Mac natural scroll = zoom OUT.
           const normalizedDelta = Math.log2(Math.abs(e.deltaY) + 1);
-          // Gentle zoom that gets even gentler below 0.1 km (100m) above terrain
-          const alt = this.altAboveTerrainKm;
-          const speed = (alt < 0.1 ? alt * alt / 0.1 : alt) * 0.03 * normalizedDelta;
+          // Fresh altitude estimate from altKm (updated every scroll) and the last
+          // terrain sample, instead of the 10-frame-stale altAboveTerrainKm.
+          const alt = Math.max(0.001, this.altKm - this.lastTerrainElev);
+          const scrollCoeff = alt > 1.0 ? 0.06 : 0.03;
+          // Linear speed — no quadratic brake. The renderer's surface clamp prevents
+          // going through terrain, so the brake is unnecessary and makes the last
+          // 100m approach to surface painfully slow.
+          const rawSpeed = alt * scrollCoeff * normalizedDelta;
+          // Floor ensures camera can always scroll out even if trapped below terrain
+          const speed = Math.max(0.003 * normalizedDelta, rawSpeed);
           const sign = e.deltaY > 0 ? -1 : 1;
           const cosPitch = Math.cos(this.pitch);
           const sinPitch = Math.sin(this.pitch);
@@ -210,7 +224,7 @@ export class SurfaceExplorerMode implements ICameraMode {
           this.lonRad += sinH * angStep * safeCos;
 
           // Vertical: along pitch direction
-          this.altKm = Math.max(0.002, Math.min(10000, this.altKm + sign * speed * sinPitch));
+          this.altKm = Math.max(-20, Math.min(10000, this.altKm + sign * speed * sinPitch));
           this.dirty = true;
         },
         blur: () => {
@@ -255,8 +269,14 @@ export class SurfaceExplorerMode implements ICameraMode {
       const altAboveSphere = distToCenter - this.re;
       if (sample && sample.angularDistDeg < 1.0) {
         this.altAboveTerrainKm = Math.max(0.0001, altAboveSphere - sample.elevationKm);
+        this.lastTerrainElev = sample.elevationKm;
       } else {
-        this.altAboveTerrainKm = Math.max(0.0001, altAboveSphere);
+        // No terrain sample. When altAboveSphere is zero or negative (camera is at or below
+        // the reference sphere, as at Dingo Gap), clamp to a moderate fallback so scroll speed
+        // stays usable. Without this, speed → 0 at the sphere surface and the camera locks.
+        this.altAboveTerrainKm = altAboveSphere > 0
+          ? Math.max(0.0001, altAboveSphere)
+          : 0.1;
       }
     }
 
@@ -299,6 +319,11 @@ export class SurfaceExplorerMode implements ICameraMode {
         ctx.camera.up.applyQuaternion(dq).normalize();
         this.prevBodyQuat.copy(bodyQ);
       }
+      // Keep latRad/lonRad/altKm/heading/pitch in sync with where the orbit-driven
+      // camera actually is. Without this, when a subsequent WASD/wheel/translate
+      // clears suppressGeodetic, applyCameraFromGeodetic uses pre-orbit state and
+      // snaps the camera back to the wrong altitude/look angle.
+      this.updateGeodeticFromCamera(ctx, bm);
     }
     if (this.rightDragging && (this.dragDx !== 0 || this.dragDy !== 0)) {
       if (this.hasPivot) {
@@ -503,6 +528,18 @@ export class SurfaceExplorerMode implements ICameraMode {
     this.updateGeodeticFromCamera(ctx, bm);
   }
 
+  /** Public entry: re-derive internal state from current camera. Called by
+   *  CameraController after flyTo/viewpoint apply so the next update() doesn't
+   *  snap the camera back to stale stored geodetic state. */
+  syncFromCamera(ctx: CameraModeContext): void {
+    if (!this.bodyName) return;
+    const bm = ctx.bodyMeshes.get(this.bodyName);
+    if (!bm || !bm.body.radii) return;
+    this.updateGeodeticFromCamera(ctx, bm);
+    this.suppressGeodetic = false;
+    this.dirty = false;
+  }
+
   /** Derive geodetic state from current camera world position + orientation. */
   private updateGeodeticFromCamera(ctx: CameraModeContext, bm: BodyMesh): void {
     const sf = ctx.scaleFactor;
@@ -517,18 +554,32 @@ export class SurfaceExplorerMode implements ICameraMode {
     const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
     if (r < 1e-10) return;
 
-    // Convert geocentric (asin(z/r)) → geodetic latitude for ellipsoidal consistency
-    const geocLatRad = Math.asin(Math.max(-1, Math.min(1, ecefZ / r)));
-    this.latRad = Math.atan(Math.tan(geocLatRad) / (1 - this.e2));
+    // Bowring's closed-form geocentric→geodetic conversion: exact at any altitude.
+    // The naïve formula `atan(tan(geocLat) / (1 - e²))` is only valid on the ellipsoid
+    // surface; off-surface it produces small lateral position drift on round-trip.
+    const a = this.re;
+    const b = a * Math.sqrt(1 - this.e2);
+    const ePrime2 = this.e2 / (1 - this.e2);
+    const p = Math.sqrt(ecefX * ecefX + ecefY * ecefY);
+    const u = Math.atan2(ecefZ * a, p * b);
+    const sinU = Math.sin(u);
+    const cosU = Math.cos(u);
+    this.latRad = Math.atan2(
+      ecefZ + ePrime2 * b * sinU * sinU * sinU,
+      p - this.e2 * a * cosU * cosU * cosU,
+    );
     this.lonRad = Math.atan2(ecefY, ecefX);
     this.latRad = Math.max(-Math.PI / 2 + 0.001, Math.min(Math.PI / 2 - 0.001, this.latRad));
 
-    // Ellipsoidal altitude (consistent with applyCameraFromGeodetic)
+    // Ellipsoidal altitude (consistent with applyCameraFromGeodetic).
+    // Allow negative altKm: surface terrain on Mars (e.g., Gale Crater at ~-5 km)
+    // sits below the IAU reference ellipsoid. Floor at -20 km to bracket the deepest
+    // Mars basins (Hellas ~-8 km) with margin; matches wheel scroll handler's clamp.
     const sinLat = Math.sin(this.latRad);
     const cosLat = Math.cos(this.latRad);
-    const N = this.re / Math.sqrt(1 - this.e2 * sinLat * sinLat);
-    this.altKm = Math.max(0.002, (cosLat > 0.01)
-      ? Math.sqrt(ecefX * ecefX + ecefY * ecefY) / cosLat - N
+    const N = a / Math.sqrt(1 - this.e2 * sinLat * sinLat);
+    this.altKm = Math.max(-20, (cosLat > 0.01)
+      ? p / cosLat - N
       : Math.abs(ecefZ) / Math.abs(sinLat) - N * (1 - this.e2));
 
     // Derive heading/pitch from look direction
