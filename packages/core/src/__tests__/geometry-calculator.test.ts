@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@spicecraft/spice';
+import { Spice } from '@cosmolabe/spice';
 import { GeometryCalculator } from '../geometry/GeometryCalculator.js';
 import type { GeometryConfig } from '../geometry/GeometryCalculator.js';
 

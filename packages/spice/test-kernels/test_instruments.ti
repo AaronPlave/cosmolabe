@@ -21,7 +21,7 @@ INS-999002_FOV_ANGLE_UNITS   = 'DEGREES'
 
 \begintext
 
-Test instrument kernels for spicecraft FOV tests.
+Test instrument kernels for Cosmolabe FOV tests.
 
 NAIF ID -999001: Circular FOV, 5 deg half-angle, boresight +Z, frame J2000
 NAIF ID -999002: Rectangular FOV, 10x5 deg half-angles, boresight +Z, frame J2000

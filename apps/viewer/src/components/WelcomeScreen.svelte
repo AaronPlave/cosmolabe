@@ -58,7 +58,7 @@
       <h1
         class="text-6xl font-bold tracking-tight text-text-primary leading-none"
       >
-        SpiceCraft
+        Cosmolabe
       </h1>
       <p class="text-text-secondary mt-3 text-[14px] leading-relaxed max-w-prose">
         3D space mission visualization in the browser. Render trajectories, planetary systems, sensor frustums, and mission events from SPICE kernels, TLE data, or Cosmographia catalogs.

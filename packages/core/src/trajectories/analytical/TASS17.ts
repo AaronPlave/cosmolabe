@@ -8,7 +8,7 @@
  * - Removed orbital element interpolation code
  * - Compute the velocity as well as the position
  *
- * Ported to TypeScript for spicecraft by Claude.
+ * Ported to TypeScript for cosmolabe by Claude.
  */
 
 /************************************************************************

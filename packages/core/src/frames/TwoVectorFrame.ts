@@ -1,4 +1,4 @@
-import type { Vec3, RotationMatrix, SpiceInstance, AberrationCorrection } from '@spicecraft/spice';
+import type { Vec3, RotationMatrix, SpiceInstance, AberrationCorrection } from '@cosmolabe/spice';
 import type { Frame } from './Frame.js';
 
 export type VectorDefinition = {

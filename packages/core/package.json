@@ -1,5 +1,5 @@
 {
-  "name": "@spicecraft/core",
+  "name": "@cosmolabe/core",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@spicecraft/spice": "*",
+    "@cosmolabe/spice": "*",
     "satellite.js": "^6.0.2"
   }
 }

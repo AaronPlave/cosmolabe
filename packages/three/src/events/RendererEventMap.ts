@@ -1,4 +1,4 @@
-import type { UniverseEventMap } from '@spicecraft/core';
+import type { UniverseEventMap } from '@cosmolabe/core';
 
 /** Renderer events extend core Universe events with 3D-specific events. */
 export interface RendererEventMap extends UniverseEventMap {

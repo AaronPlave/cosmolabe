@@ -1,4 +1,4 @@
-import type { Universe, Body } from '@spicecraft/core';
+import type { Universe, Body } from '@cosmolabe/core';
 import { etToIso, etIntervalToIso } from './TimeConversions.js';
 import { positionForCesium, quaternionEclipticToEquatorial } from './CoordinateTransforms.js';
 import { getModelInfo, type CesiumModelInfo } from './ModelAdapter.js';
@@ -26,7 +26,7 @@ export interface CzmlExportOptions {
 export type CzmlPacket = Record<string, unknown>;
 
 /**
- * Export a SpiceCraft Universe to CZML format.
+ * Export a Cosmolabe Universe to CZML format.
  *
  * CZML is Cesium's native time-dynamic JSON format. Loading the output
  * into a Cesium Viewer via `Cesium.CzmlDataSource.load(czml)` gives you
@@ -53,7 +53,7 @@ export function exportToCzml(
   // Document packet (required first element in CZML)
   packets.push({
     id: 'document',
-    name: 'SpiceCraft Export',
+    name: 'Cosmolabe Export',
     version: '1.0',
     clock: {
       interval: etIntervalToIso(startEt, endEt),
@@ -213,7 +213,7 @@ function samplePositions(
 /**
  * Sample a body's orientation at regular intervals, returning a flat array
  * for CZML's unitQuaternion format: [t0, x0, y0, z0, w0, ...]
- * Note: CZML quaternion order is (x, y, z, w), not SpiceCraft's (w, x, y, z).
+ * Note: CZML quaternion order is (x, y, z, w), not Cosmolabe's (w, x, y, z).
  */
 function sampleOrientations(
   body: Body,

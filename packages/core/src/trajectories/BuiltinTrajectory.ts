@@ -1,4 +1,4 @@
-import type { SpiceInstance } from '@spicecraft/spice';
+import type { SpiceInstance } from '@cosmolabe/spice';
 import type { Trajectory } from './Trajectory.js';
 import { SpiceTrajectory } from './SpiceTrajectory.js';
 

@@ -2,8 +2,8 @@
  * Command registry — all actions accessible via the command palette.
  * Combines built-in commands with plugin-contributed commands.
  */
-import type { UniverseRenderer } from '@spicecraft/three';
-import type { PluginCommand } from '@spicecraft/three';
+import type { UniverseRenderer } from '@cosmolabe/three';
+import type { PluginCommand } from '@cosmolabe/three';
 import {
   vs, togglePlay, reverse, faster, slower, stepForward, stepBackward,
   setDisplayOption, cycleCamera, flyToTracked, resetCamera, getRenderer,

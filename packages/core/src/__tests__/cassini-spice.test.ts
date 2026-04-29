@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@spicecraft/spice';
+import { Spice } from '@cosmolabe/spice';
 import { Universe } from '../Universe.js';
 import type { CatalogJson } from '../catalog/CatalogLoader.js';
 

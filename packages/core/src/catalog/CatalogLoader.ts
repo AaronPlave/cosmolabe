@@ -1,4 +1,4 @@
-import type { SpiceInstance, Vec3 } from '@spicecraft/spice';
+import type { SpiceInstance, Vec3 } from '@cosmolabe/spice';
 import { Body, type TrajectoryPlotConfig } from '../Body.js';
 import type { Trajectory } from '../trajectories/Trajectory.js';
 import { FixedPointTrajectory } from '../trajectories/FixedPoint.js';
@@ -611,12 +611,12 @@ export class CatalogLoader {
         const fallbackReason = this.spice ? 'no SPICE coverage' : 'no SPICE instance';
         const analytical = createAnalyticalTrajectoryByName(bodyName);
         if (analytical) {
-          console.log(`[SpiceCraft] ${bodyName}: using analytical theory (${fallbackReason})`);
+          console.log(`[Cosmolabe] ${bodyName}: using analytical theory (${fallbackReason})`);
           return analytical;
         }
         const kep = BUILTIN_KEPLERIAN[bodyName];
         if (kep) {
-          console.log(`[SpiceCraft] ${bodyName}: using Keplerian fallback (${fallbackReason})`);
+          console.log(`[Cosmolabe] ${bodyName}: using Keplerian fallback (${fallbackReason})`);
           return new KeplerianTrajectory({
             semiMajorAxis: kep.semiMajorAxis,
             eccentricity: kep.eccentricity,

@@ -1,4 +1,4 @@
-import type { Vec3 } from '@spicecraft/spice';
+import type { Vec3 } from '@cosmolabe/spice';
 
 export interface CartesianState {
   position: Vec3;

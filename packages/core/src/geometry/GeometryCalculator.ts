@@ -1,4 +1,4 @@
-import type { SpiceInstance, Vec3, OrbitalElements, IlluminationAngles } from '@spicecraft/spice';
+import type { SpiceInstance, Vec3, OrbitalElements, IlluminationAngles } from '@cosmolabe/spice';
 
 export interface BodyGeometry {
   // Position & velocity

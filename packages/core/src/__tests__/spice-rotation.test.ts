@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice, type SpiceInstance } from '@spicecraft/spice';
+import { Spice, type SpiceInstance } from '@cosmolabe/spice';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 
 const KERNEL_DIR = join(__dirname, '../../../spice/test-kernels');

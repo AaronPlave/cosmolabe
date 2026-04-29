@@ -2,7 +2,7 @@
  * Layout & display settings persistence via localStorage.
  */
 
-const STORAGE_KEY = 'spicecraft-viewer-prefs';
+const STORAGE_KEY = 'cosmolabe-viewer-prefs';
 
 export interface ViewerPrefs {
   showTrajectories: boolean;

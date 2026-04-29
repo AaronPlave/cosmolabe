@@ -1,5 +1,5 @@
 /**
- * CesiumRenderer — orchestrates SpiceCraft Body visualization on a CesiumJS globe.
+ * CesiumRenderer — orchestrates Cosmolabe Body visualization on a CesiumJS globe.
  *
  * Two modes:
  * 1. Create a new Viewer: `new CesiumRenderer(container, universe, Cesium, options)`
@@ -9,7 +9,7 @@
  * TrajectoryTrail, SurfacePoints, CameraManager) are usable standalone.
  */
 
-import type { Body, Universe } from '@spicecraft/core';
+import type { Body, Universe } from '@cosmolabe/core';
 import { BodyEntity } from './BodyEntity.js';
 import type { BodyEntityOptions } from './BodyEntity.js';
 import { TrajectoryTrail } from './TrajectoryTrail.js';
@@ -39,7 +39,7 @@ export interface CesiumRendererOptions extends GlobeSetupOptions {
 }
 
 /**
- * Orchestrates SpiceCraft visualization on a CesiumJS globe.
+ * Orchestrates Cosmolabe visualization on a CesiumJS globe.
  */
 export class CesiumRenderer {
   readonly viewer: any; // Cesium.Viewer
@@ -57,7 +57,7 @@ export class CesiumRenderer {
    * Create a CesiumRenderer.
    *
    * @param viewerOrContainer Existing Cesium.Viewer, or HTML element / element ID to create one
-   * @param universe SpiceCraft Universe instance
+   * @param universe Cosmolabe Universe instance
    * @param Cesium The CesiumJS namespace
    * @param options Renderer options (only used when creating a new Viewer)
    */

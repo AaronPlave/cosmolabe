@@ -40,7 +40,7 @@ export class StarField extends THREE.Object3D {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       this.buildFromBinary(await resp.arrayBuffer(), options);
     } catch (err) {
-      console.warn('[SpiceCraft] Failed to load star catalog, using random stars:', err);
+      console.warn('[Cosmolabe] Failed to load star catalog, using random stars:', err);
       this.buildRandom(options);
     }
   }
@@ -60,7 +60,7 @@ export class StarField extends THREE.Object3D {
     } else if (magic === 'STAR') {
       this.parseLegacyFormat(view, options);
     } else {
-      console.warn('[SpiceCraft] Unknown star catalog format, using random stars');
+      console.warn('[Cosmolabe] Unknown star catalog format, using random stars');
       this.buildRandom(options);
     }
   }
@@ -108,7 +108,7 @@ export class StarField extends THREE.Object3D {
     }
 
     this.buildPoints(positions, colors, mags, idx, maxSize);
-    console.log(`[SpiceCraft] StarField: ${idx} stars (mag ${magBright.toFixed(1)} to ${magLimit.toFixed(1)})`);
+    console.log(`[Cosmolabe] StarField: ${idx} stars (mag ${magBright.toFixed(1)} to ${magLimit.toFixed(1)})`);
   }
 
   /**
@@ -157,7 +157,7 @@ export class StarField extends THREE.Object3D {
     }
 
     this.buildPoints(positions, colors, mags, idx, maxSize);
-    console.log(`[SpiceCraft] StarField: ${idx} stars (mag ${magBright.toFixed(1)} to ${magFaint.toFixed(1)}), legacy format`);
+    console.log(`[Cosmolabe] StarField: ${idx} stars (mag ${magBright.toFixed(1)} to ${magFaint.toFixed(1)}), legacy format`);
   }
 
   private buildRandom(options: StarFieldOptions): void {

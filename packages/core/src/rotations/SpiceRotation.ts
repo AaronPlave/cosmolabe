@@ -1,4 +1,4 @@
-import type { SpiceInstance } from '@spicecraft/spice';
+import type { SpiceInstance } from '@cosmolabe/spice';
 import type { Quaternion, RotationModel } from './RotationModel.js';
 
 export class SpiceRotation implements RotationModel {

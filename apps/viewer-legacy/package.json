@@ -1,5 +1,5 @@
 {
-  "name": "@spicecraft/viewer-legacy",
+  "name": "@cosmolabe/viewer-legacy",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
@@ -10,9 +10,9 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@spicecraft/core": "*",
-    "@spicecraft/spice": "*",
-    "@spicecraft/three": "*",
+    "@cosmolabe/core": "*",
+    "@cosmolabe/spice": "*",
+    "@cosmolabe/three": "*",
     "three": "^0.183.2",
     "vite": "^7.3.1"
   }

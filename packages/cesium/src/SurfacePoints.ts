@@ -2,13 +2,13 @@
  * Renders a set of surface-fixed points (ground stations, landing sites, POIs)
  * on a Cesium globe.
  *
- * Each point is defined by a SpiceCraft Body with lat/lon/alt in its geometryData.
+ * Each point is defined by a Cosmolabe Body with lat/lon/alt in its geometryData.
  * Points can be grouped (e.g., by network) and colored by group.
  *
  * Usable standalone with any Cesium Viewer.
  */
 
-import type { Body } from '@spicecraft/core';
+import type { Body } from '@cosmolabe/core';
 
 /** Options for surface point rendering. */
 export interface SurfacePointsOptions {
@@ -72,7 +72,7 @@ export class SurfacePoints {
       const color = Cesium.Color.fromCssColorString(colorStr);
 
       const entity = viewer.entities.add({
-        id: `spicecraft-surface-${body.name}`,
+        id: `cosmolabe-surface-${body.name}`,
         name: body.name,
         position: Cesium.Cartesian3.fromDegrees(data.lon, data.lat, (data.alt ?? 0) * 1000),
         point: new Cesium.PointGraphics({

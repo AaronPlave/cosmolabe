@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Body } from '@spicecraft/core';
+import type { Body } from '@cosmolabe/core';
 import type { TrajectoryCache } from './TrajectoryCache.js';
 
 /** A color segment overrides the trail color for a time range. */

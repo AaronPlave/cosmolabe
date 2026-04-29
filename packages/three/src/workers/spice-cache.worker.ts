@@ -8,7 +8,7 @@
  * Results are transferred back via Transferable Float64Arrays (zero-copy).
  */
 
-import { Spice, type SpiceInstance } from '@spicecraft/spice';
+import { Spice, type SpiceInstance } from '@cosmolabe/spice';
 import { TrajectoryCache, type TrajectoryCacheConfig, type CoverageWindow } from '../TrajectoryCache.js';
 
 let spice: SpiceInstance | null = null;

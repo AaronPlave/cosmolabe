@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Downloads LRO SPICE kernels for visual validation in the SpiceCraft viewer.
+# Downloads LRO SPICE kernels for visual validation in the Cosmolabe viewer.
 #
 # Kernels:
 #   FK   — LRO frame definitions + lunar reference frames

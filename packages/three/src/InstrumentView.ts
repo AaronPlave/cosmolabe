@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { SensorFrustum } from './SensorFrustum.js';
-import type { Body } from '@spicecraft/core';
+import type { Body } from '@cosmolabe/core';
 
 export interface InstrumentViewOptions {
   /** Width of the PiP viewport in pixels. Default 320. */

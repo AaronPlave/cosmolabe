@@ -5,9 +5,9 @@
  * that exported $state is either never reassigned, or wrapped in an object
  * whose properties are mutated. We use the latter.
  */
-import type { Universe } from '@spicecraft/core';
-import type { UniverseRenderer } from '@spicecraft/three';
-import { CameraModeName, rateLabel } from '@spicecraft/three';
+import type { Universe } from '@cosmolabe/core';
+import type { UniverseRenderer } from '@cosmolabe/three';
+import { CameraModeName, rateLabel } from '@cosmolabe/three';
 import { loadPrefs, savePrefs } from './persistence';
 
 // ── Exported types ──

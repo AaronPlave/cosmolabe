@@ -1,7 +1,7 @@
 <script lang="ts">
   import { vs, setDisplayOption, setLighting, setCameraMode } from '../lib/viewer-state.svelte';
   import { getRenderer } from '../lib/viewer-state.svelte';
-  import { CameraModeName } from '@spicecraft/three';
+  import { CameraModeName } from '@cosmolabe/three';
   import { X, Save, Navigation } from 'lucide-svelte';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';

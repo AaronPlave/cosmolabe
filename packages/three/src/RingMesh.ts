@@ -89,9 +89,9 @@ export class RingMesh extends THREE.Object3D {
       material.opacity = 1.0;  // Texture alpha handles gap transparency
       material.alphaTest = 0.01; // Discard fully transparent pixels
       material.needsUpdate = true;
-      console.log(`[SpiceCraft] Loaded ring texture: ${url}`);
+      console.log(`[Cosmolabe] Loaded ring texture: ${url}`);
     } catch (e) {
-      console.warn(`[SpiceCraft] Failed to load ring texture:`, e);
+      console.warn(`[Cosmolabe] Failed to load ring texture:`, e);
     }
   }
 

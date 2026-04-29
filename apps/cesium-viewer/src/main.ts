@@ -1,7 +1,7 @@
 /**
- * SpiceCraft Cesium Viewer — Demo app for @spicecraft/cesium.
+ * Cosmolabe Cesium Viewer — Demo app for @cosmolabe/cesium.
  *
- * Shows ISS orbit rendered live on a CesiumJS globe using SpiceCraft's
+ * Shows ISS orbit rendered live on a CesiumJS globe using Cosmolabe's
  * CesiumRenderer, TrajectoryTrail, and CameraManager.
  */
 
@@ -13,9 +13,9 @@ import {
   Body,
   FixedPointTrajectory,
   TLETrajectory,
-} from "@spicecraft/core";
-import { dateToEt } from "@spicecraft/cesium-adapter";
-import { CesiumRenderer } from "@spicecraft/cesium";
+} from "@cosmolabe/core";
+import { dateToEt } from "@cosmolabe/cesium-adapter";
+import { CesiumRenderer } from "@cosmolabe/cesium";
 import { ISSLiveClient } from "./iss-live.js";
 import { ISSCommClient } from "./iss-comm.js";
 import { computeLvlhQuaternion, composeAttitude } from "./lvlh.js";

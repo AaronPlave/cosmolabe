@@ -1,5 +1,5 @@
 import type { Trajectory, CartesianState } from './Trajectory.js';
-import type { Vec3 } from '@spicecraft/spice';
+import type { Vec3 } from '@cosmolabe/spice';
 
 const HEADER_MAGIC = 'CHEBPOLY';
 const MAX_DEGREE = 32;

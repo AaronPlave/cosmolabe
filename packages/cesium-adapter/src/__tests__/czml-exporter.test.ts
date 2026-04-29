@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Universe, Body, CatalogLoader } from '@spicecraft/core';
+import { Universe, Body, CatalogLoader } from '@cosmolabe/core';
 import { exportToCzml } from '../CzmlExporter.js';
 
 describe('CzmlExporter', () => {

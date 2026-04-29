@@ -6,7 +6,7 @@
   } from '../lib/viewer-state.svelte';
   import { formatDuration } from '../lib/scrubber-math';
   import { getSpice } from '../lib/loader';
-  import { CameraModeName } from '@spicecraft/three';
+  import { CameraModeName } from '@cosmolabe/three';
   import {
     Globe, ChevronsLeft, ChevronLeft, Rewind, Play, Pause,
     ChevronRight, ChevronsRight, Crosshair, Camera, Settings,

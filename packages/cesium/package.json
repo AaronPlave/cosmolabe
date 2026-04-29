@@ -1,5 +1,5 @@
 {
-  "name": "@spicecraft/cesium",
+  "name": "@cosmolabe/cesium",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
@@ -11,8 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@spicecraft/core": "*",
-    "@spicecraft/cesium-adapter": "*"
+    "@cosmolabe/core": "*",
+    "@cosmolabe/cesium-adapter": "*"
   },
   "peerDependencies": {
     "cesium": ">=1.100.0"

@@ -1,4 +1,4 @@
-import type { Vec3 } from '@spicecraft/spice';
+import type { Vec3 } from '@cosmolabe/spice';
 import type { CartesianState, Trajectory } from './Trajectory.js';
 
 export class FixedPointTrajectory implements Trajectory {

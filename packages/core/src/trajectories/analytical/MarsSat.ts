@@ -43,7 +43,7 @@
  *
  * -----------------------------------------------------------------------
  *
- * Ported to TypeScript for spicecraft. Position-only interface; velocity
+ * Ported to TypeScript for cosmolabe. Position-only interface; velocity
  * computation preserved in internal helpers but not exposed.
  *
  * Output frame: J2000 Earth mean equator and equinox (EMEJ2000), relative

@@ -1,4 +1,4 @@
-import type { Vec3 } from '@spicecraft/spice';
+import type { Vec3 } from '@cosmolabe/spice';
 import type { StateRecord } from './InterpolatedStates.js';
 
 const JD_J2000 = 2451545.0;

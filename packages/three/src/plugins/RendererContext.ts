@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { Universe, EventBus, StateStore, UniverseState } from '@spicecraft/core';
+import type { Universe, EventBus, StateStore, UniverseState } from '@cosmolabe/core';
 import type { BodyMesh } from '../BodyMesh.js';
 import type { TrajectoryLine } from '../TrajectoryLine.js';
 import type { AttachedVisual, AttachOptions } from './AttachedVisual.js';

@@ -13,7 +13,6 @@
  *
  * Call this once before creating a Cesium Viewer.
  *
- * Discovered during is-timeline development (RA-231/Intelligent-Space#351).
  */
 export function patchCesiumWorkers(): void {
   if (typeof window === 'undefined') return;

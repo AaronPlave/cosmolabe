@@ -7,7 +7,7 @@ import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
 import { injectShadowIntoShader, makeShadowUniforms, type ShadowUniforms } from './EclipseShadow.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
-import type { Body } from '@spicecraft/core';
+import type { Body } from '@cosmolabe/core';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
   star: 0xffdd44,
@@ -189,16 +189,16 @@ export class BodyMesh extends THREE.Object3D {
         }
         const parsed = await parseCmod(buf, textureResolver);
         if (!parsed) {
-          console.warn(`[SpiceCraft] Failed to parse .cmod for ${this.body.name}`);
+          console.warn(`[Cosmolabe] Failed to parse .cmod for ${this.body.name}`);
           return;
         }
         object = parsed;
       } else {
-        console.warn(`[SpiceCraft] Unsupported model format: .${ext} for ${this.body.name}`);
+        console.warn(`[Cosmolabe] Unsupported model format: .${ext} for ${this.body.name}`);
         return;
       }
     } catch (e) {
-      console.warn(`[SpiceCraft] Failed to load model for ${this.body.name}: ${e instanceof Error ? e.message : e}`);
+      console.warn(`[Cosmolabe] Failed to load model for ${this.body.name}: ${e instanceof Error ? e.message : e}`);
       return;
     }
 
@@ -516,7 +516,7 @@ export class BodyMesh extends THREE.Object3D {
       }
     } catch (err) {
       if (!this._rotationFailed) {
-        console.warn(`[SpiceCraft] Rotation failed for "${this.body.name}":`, (err as Error)?.message ?? err);
+        console.warn(`[Cosmolabe] Rotation failed for "${this.body.name}":`, (err as Error)?.message ?? err);
         this._rotationFailed = true;
       }
     }
@@ -548,7 +548,7 @@ export class BodyMesh extends THREE.Object3D {
     const bboxCenter = new THREE.Vector3();
     bbox.getSize(bboxSize);
     bbox.getCenter(bboxCenter);
-    // console.log(`[SpiceCraft] Model ${this.body.name}: bbox size (${bboxSize.x.toFixed(2)}, ${bboxSize.y.toFixed(2)}, ${bboxSize.z.toFixed(2)}), center (${bboxCenter.x.toFixed(2)}, ${bboxCenter.y.toFixed(2)}, ${bboxCenter.z.toFixed(2)})`);
+    // console.log(`[Cosmolabe] Model ${this.body.name}: bbox size (${bboxSize.x.toFixed(2)}, ${bboxSize.y.toFixed(2)}, ${bboxSize.z.toFixed(2)}), center (${bboxCenter.x.toFixed(2)}, ${bboxCenter.y.toFixed(2)}, ${bboxCenter.z.toFixed(2)})`);
 
     // 1. Collect per-mesh data: name, vertex count, center, average normal, coherence
     object.updateMatrixWorld(true);
@@ -594,7 +594,7 @@ export class BodyMesh extends THREE.Object3D {
     });
 
     // Log meshes sorted by vertex count
-    // console.log(`[SpiceCraft] Model meshes (${meshInfos.length} total, ${allVertices.length} verts):`);
+    // console.log(`[Cosmolabe] Model meshes (${meshInfos.length} total, ${allVertices.length} verts):`);
     for (const m of meshInfos.sort((a, b) => b.vertexCount - a.vertexCount).slice(0, 15)) {
       const c = m.center;
       const n = m.avgNormal;
@@ -605,7 +605,7 @@ export class BodyMesh extends THREE.Object3D {
     const centroid = new THREE.Vector3();
     for (const v of allVertices) centroid.add(v);
     centroid.divideScalar(allVertices.length);
-    // console.log(`[SpiceCraft] Centroid: (${centroid.x.toFixed(2)},${centroid.y.toFixed(2)},${centroid.z.toFixed(2)})`);
+    // console.log(`[Cosmolabe] Centroid: (${centroid.x.toFixed(2)},${centroid.y.toFixed(2)},${centroid.z.toFixed(2)})`);
 
     // 3. Identify features by mesh name (case-insensitive substring match)
     const findMesh = (keywords: string[]) =>
@@ -617,7 +617,7 @@ export class BodyMesh extends THREE.Object3D {
     if (dishMesh) {
       // HGA boresight: direction from centroid toward the dish center (outward from spacecraft)
       const hgaDir = dishMesh.center.clone().sub(centroid).normalize();
-      // console.log(`[SpiceCraft] HGA dish: "${dishMesh.name}" at (${dishMesh.center.x.toFixed(2)},${dishMesh.center.y.toFixed(2)},${dishMesh.center.z.toFixed(2)}), boresight dir=(${hgaDir.x.toFixed(3)},${hgaDir.y.toFixed(3)},${hgaDir.z.toFixed(3)})`);
+      // console.log(`[Cosmolabe] HGA dish: "${dishMesh.name}" at (${dishMesh.center.x.toFixed(2)},${dishMesh.center.y.toFixed(2)},${dishMesh.center.z.toFixed(2)}), boresight dir=(${hgaDir.x.toFixed(3)},${hgaDir.y.toFixed(3)},${hgaDir.z.toFixed(3)})`);
 
       // Second constraint: Huygens probe position → body +X, or fallback to geometric analysis
       let secondDir: THREE.Vector3;
@@ -625,7 +625,7 @@ export class BodyMesh extends THREE.Object3D {
       if (huygensMesh) {
         secondDir = huygensMesh.center.clone().sub(centroid).normalize();
         secondBodyDir = new THREE.Vector3(1, 0, 0); // Huygens = body +X
-        // console.log(`[SpiceCraft] Huygens: "${huygensMesh.name}" at (${huygensMesh.center.x.toFixed(2)},${huygensMesh.center.y.toFixed(2)},${huygensMesh.center.z.toFixed(2)}), dir=(${secondDir.x.toFixed(3)},${secondDir.y.toFixed(3)},${secondDir.z.toFixed(3)})`);
+        // console.log(`[Cosmolabe] Huygens: "${huygensMesh.name}" at (${huygensMesh.center.x.toFixed(2)},${huygensMesh.center.y.toFixed(2)},${huygensMesh.center.z.toFixed(2)}), dir=(${secondDir.x.toFixed(3)},${secondDir.y.toFixed(3)},${secondDir.z.toFixed(3)})`);
       } else {
         // Fallback: farthest vertex from centroid (likely boom tip) → body +Y
         let maxDist = 0;
@@ -636,7 +636,7 @@ export class BodyMesh extends THREE.Object3D {
         }
         secondDir = tip.clone().sub(centroid).normalize();
         secondBodyDir = new THREE.Vector3(0, 1, 0); // boom = body +Y
-        // console.log(`[SpiceCraft] Boom tip: (${tip.x.toFixed(2)},${tip.y.toFixed(2)},${tip.z.toFixed(2)}), dir=(${secondDir.x.toFixed(3)},${secondDir.y.toFixed(3)},${secondDir.z.toFixed(3)})`);
+        // console.log(`[Cosmolabe] Boom tip: (${tip.x.toFixed(2)},${tip.y.toFixed(2)},${tip.z.toFixed(2)}), dir=(${secondDir.x.toFixed(3)},${secondDir.y.toFixed(3)},${secondDir.z.toFixed(3)})`);
       }
 
       // 4. Compute rotation from two direction pairs:
@@ -660,9 +660,9 @@ export class BodyMesh extends THREE.Object3D {
       const rotation = bodyFrame.clone().multiply(modelFrame.clone().invert());
 
       const q = new THREE.Quaternion().setFromRotationMatrix(rotation);
-      // console.log(`[SpiceCraft] Computed meshRotation [w,x,y,z]: [${q.w.toFixed(4)}, ${q.x.toFixed(4)}, ${q.y.toFixed(4)}, ${q.z.toFixed(4)}]`);
+      // console.log(`[Cosmolabe] Computed meshRotation [w,x,y,z]: [${q.w.toFixed(4)}, ${q.x.toFixed(4)}, ${q.y.toFixed(4)}, ${q.z.toFixed(4)}]`);
     } else {
-      // console.log(`[SpiceCraft] No dish mesh found — cannot compute meshRotation analytically`);
+      // console.log(`[Cosmolabe] No dish mesh found — cannot compute meshRotation analytically`);
     }
   }
 
@@ -936,7 +936,7 @@ export class BodyMesh extends THREE.Object3D {
         const texture = await this.loadTexture(baseMapUrl);
         this.applyBaseMap(material, texture, baseMapUrl);
       } catch (e) {
-        console.warn(`[SpiceCraft] Failed to load baseMap for ${this.body.name}:`, e);
+        console.warn(`[Cosmolabe] Failed to load baseMap for ${this.body.name}:`, e);
       }
     }
 
@@ -945,9 +945,9 @@ export class BodyMesh extends THREE.Object3D {
         const texture = await this.loadTexture(normalMapUrl);
         material.normalMap = texture;
         material.needsUpdate = true;
-        console.log(`[SpiceCraft] Loaded normalMap for ${this.body.name}: ${normalMapUrl}`);
+        console.log(`[Cosmolabe] Loaded normalMap for ${this.body.name}: ${normalMapUrl}`);
       } catch (e) {
-        console.warn(`[SpiceCraft] Failed to load normalMap for ${this.body.name}:`, e);
+        console.warn(`[Cosmolabe] Failed to load normalMap for ${this.body.name}:`, e);
       }
     }
 
@@ -959,7 +959,7 @@ export class BodyMesh extends THREE.Object3D {
         material.displacementScale = displacementScale ?? 10;
         material.displacementBias = displacementBias ?? 0;
         material.needsUpdate = true;
-        console.log(`[SpiceCraft] Loaded displacementMap for ${this.body.name}: ${displacementMapUrl} (scale=${material.displacementScale}, bias=${material.displacementBias})`);
+        console.log(`[Cosmolabe] Loaded displacementMap for ${this.body.name}: ${displacementMapUrl} (scale=${material.displacementScale}, bias=${material.displacementBias})`);
 
         // Auto-generate a normal map from displacement when no explicit normal or bump map
         // is provided. Bump maps use screen-space derivatives (dFdx/dFdy) which are zoom-
@@ -971,11 +971,11 @@ export class BodyMesh extends THREE.Object3D {
             material.normalMap = normalTex;
             material.normalScale = new THREE.Vector2(1, 1);
             material.needsUpdate = true;
-            console.log(`[SpiceCraft] Auto-generated normalMap from displacementMap for ${this.body.name}`);
+            console.log(`[Cosmolabe] Auto-generated normalMap from displacementMap for ${this.body.name}`);
           }
         }
       } catch (e) {
-        console.warn(`[SpiceCraft] Failed to load displacementMap for ${this.body.name}:`, e);
+        console.warn(`[Cosmolabe] Failed to load displacementMap for ${this.body.name}:`, e);
       }
     }
 
@@ -989,7 +989,7 @@ export class BodyMesh extends THREE.Object3D {
           material.normalMap = normalTex;
           material.normalScale = new THREE.Vector2(1, 1);
           material.needsUpdate = true;
-          console.log(`[SpiceCraft] Generated normalMap from bumpMap for ${this.body.name}`);
+          console.log(`[Cosmolabe] Generated normalMap from bumpMap for ${this.body.name}`);
         } else {
           // Fallback to bump map if normal generation fails
           material.bumpMap = texture;
@@ -997,7 +997,7 @@ export class BodyMesh extends THREE.Object3D {
           material.needsUpdate = true;
         }
       } catch (e) {
-        console.warn(`[SpiceCraft] Failed to load bumpMap for ${this.body.name}:`, e);
+        console.warn(`[Cosmolabe] Failed to load bumpMap for ${this.body.name}:`, e);
       }
     }
   }
@@ -1098,7 +1098,7 @@ export class BodyMesh extends THREE.Object3D {
         this.applyBaseMap(material, texture, `tiled[${tileUrls[0]},${tileUrls[1]}]`);
       }
     } catch (e) {
-      console.warn(`[SpiceCraft] Failed to load tiled baseMap for ${this.body.name}:`, e);
+      console.warn(`[Cosmolabe] Failed to load tiled baseMap for ${this.body.name}:`, e);
     }
   }
 
@@ -1111,7 +1111,7 @@ export class BodyMesh extends THREE.Object3D {
       material.emissive.setHex(0xffffff);
     }
     material.needsUpdate = true;
-    console.log(`[SpiceCraft] Loaded baseMap for ${this.body.name}: ${label}`);
+    console.log(`[Cosmolabe] Loaded baseMap for ${this.body.name}: ${label}`);
   }
 
   private async loadTexture(url: string): Promise<THREE.Texture> {
@@ -1231,7 +1231,7 @@ export class BodyMesh extends THREE.Object3D {
     outCtx.putImageData(outImg, 0, 0);
     const normalTexture = new THREE.CanvasTexture(outCanvas);
     normalTexture.colorSpace = THREE.LinearSRGBColorSpace;
-    console.log(`[SpiceCraft] Generated ${w}x${h} normal map for ${this.body.name} (strength=${strength})`);
+    console.log(`[Cosmolabe] Generated ${w}x${h} normal map for ${this.body.name} (strength=${strength})`);
     return normalTexture;
   }
 

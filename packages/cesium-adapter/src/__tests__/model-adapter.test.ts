@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Body } from '@spicecraft/core';
-import { FixedPointTrajectory } from '@spicecraft/core';
+import { Body } from '@cosmolabe/core';
+import { FixedPointTrajectory } from '@cosmolabe/core';
 import { getModelInfo } from '../ModelAdapter.js';
 
 describe('ModelAdapter', () => {

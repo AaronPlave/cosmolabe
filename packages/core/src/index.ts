@@ -44,7 +44,7 @@ export { EventFinder } from './geometry/EventFinder.js';
 export type { EventType, EventFinderConfig } from './geometry/EventFinder.js';
 
 // Plugins
-export type { SpiceCraftPlugin } from './plugins/Plugin.js';
+export type { CosmolabePlugin } from './plugins/Plugin.js';
 export type { ResourceLayer } from './plugins/ResourceLayer.js';
 
 // Events

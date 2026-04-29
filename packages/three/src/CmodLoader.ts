@@ -488,15 +488,15 @@ function loadTexture(
     import('three/examples/jsm/loaders/DDSLoader.js').then(({ DDSLoader }) => {
       const loader = new DDSLoader();
       loader.load(url, applyTexture, undefined, (err) => {
-        console.warn(`[SpiceCraft] Failed to load DDS texture ${filename}:`, err);
+        console.warn(`[Cosmolabe] Failed to load DDS texture ${filename}:`, err);
       });
     }).catch(() => {
-      console.warn(`[SpiceCraft] DDSLoader not available, skipping ${filename}`);
+      console.warn(`[Cosmolabe] DDSLoader not available, skipping ${filename}`);
     });
   } else {
     // JPG/PNG: standard TextureLoader
     textureLoader.load(url, applyTexture, undefined, (err) => {
-      console.warn(`[SpiceCraft] Failed to load texture ${filename}:`, err);
+      console.warn(`[Cosmolabe] Failed to load texture ${filename}:`, err);
     });
   }
 }

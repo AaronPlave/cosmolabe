@@ -1,5 +1,5 @@
 /**
- * Maps a SpiceCraft Body to a Cesium Entity using SampledPositionProperty
+ * Maps a Cosmolabe Body to a Cesium Entity using SampledPositionProperty
  * in the INERTIAL reference frame.
  *
  * For equatorial-frame bodies (TLE), samples are stored in ICRF and Cesium
@@ -7,7 +7,7 @@
  * This produces correct circular orbits and smooth camera tracking.
  */
 
-import type { Body } from '@spicecraft/core';
+import type { Body } from '@cosmolabe/core';
 import type { EntityStyleOptions, ResolvedEntityStyle } from './EntityStyle.js';
 import { resolveEntityStyle } from './EntityStyle.js';
 
@@ -99,7 +99,7 @@ export class BodyEntity {
       : undefined;
 
     const entityOpts: any = {
-      id: `spicecraft-body-${body.name}`,
+      id: `cosmolabe-body-${body.name}`,
       name: body.name,
       position: this._positionProperty,
       point: new Cesium.PointGraphics({

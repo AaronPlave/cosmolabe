@@ -1,9 +1,9 @@
 {
-  "name": "@spicecraft/cesium-adapter",
+  "name": "@cosmolabe/cesium-adapter",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Bridge SpiceCraft data into CesiumJS — CZML export, coordinate transforms, time conversions.",
+  "description": "Bridge Cosmolabe data into CesiumJS — CZML export, coordinate transforms, time conversions.",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@spicecraft/core": "*"
+    "@cosmolabe/core": "*"
   },
   "peerDependencies": {
     "cesium": ">=1.100.0"

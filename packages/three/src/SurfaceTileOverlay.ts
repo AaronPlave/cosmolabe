@@ -124,7 +124,7 @@ export class SurfaceTileOverlay {
             if (typeof cb !== 'function') return noopCb;
             return (tile: any) => {
               try { return cb(tile); } catch (e) {
-                console.warn('[SpiceCraft] Error in surface tile dispose, caught to prevent stall:', (e as Error).message);
+                console.warn('[Cosmolabe] Error in surface tile dispose, caught to prevent stall:', (e as Error).message);
               }
             };
           };
@@ -210,7 +210,7 @@ export class SurfaceTileOverlay {
     try {
       this.tiles.update();
     } catch (e) {
-      console.error('[SpiceCraft] Surface tiles update crashed:', e);
+      console.error('[Cosmolabe] Surface tiles update crashed:', e);
     }
 
     // Restore original near/far for the main render passes

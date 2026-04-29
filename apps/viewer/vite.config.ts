@@ -23,6 +23,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Don't pre-bundle workspace packages — use source directly for HMR
-    exclude: ['@spicecraft/core', '@spicecraft/three', '@spicecraft/spice'],
+    exclude: ['@cosmolabe/core', '@cosmolabe/three', '@cosmolabe/spice'],
   },
 });

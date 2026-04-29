@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CompositeTrajectory, SpiceTrajectory, EventBus, type Universe, type Body } from '@spicecraft/core';
+import { CompositeTrajectory, SpiceTrajectory, EventBus, type Universe, type Body } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
@@ -328,7 +328,7 @@ export class UniverseRenderer {
       // Reuse last valid origin position — avoids camera jump on coverage gaps
       originAbsPos = this._lastOriginAbsPos;
       if (!this._coverageWarned) {
-        console.warn(`[SpiceCraft] No coverage for ${originBodyName} at ET=${et.toFixed(0)} — holding last origin position`);
+        console.warn(`[Cosmolabe] No coverage for ${originBodyName} at ET=${et.toFixed(0)} — holding last origin position`);
         this._coverageWarned = true;
       }
     } else {
@@ -491,7 +491,7 @@ export class UniverseRenderer {
         tl.update(et, this.scaleFactor, this.absolutePositionOf, undefined, undefined, vertOff);
       }
       } catch (err) {
-        console.error(`[SpiceCraft] Trail update error for ${tl.body.name}:`, err);
+        console.error(`[Cosmolabe] Trail update error for ${tl.body.name}:`, err);
       }
     }
 
@@ -745,7 +745,7 @@ export class UniverseRenderer {
           this.instrumentView.render(this.renderer, this.scene);
         }
       } catch (err) {
-        console.warn('[SpiceCraft] Instrument PiP render error:', err);
+        console.warn('[Cosmolabe] Instrument PiP render error:', err);
       }
     }
 
@@ -804,7 +804,7 @@ export class UniverseRenderer {
 
     const sf = this.sensorFrustums.get(sensorName);
     if (!sf) {
-      console.warn(`[SpiceCraft] No sensor frustum found for "${sensorName}"`);
+      console.warn(`[Cosmolabe] No sensor frustum found for "${sensorName}"`);
       return;
     }
 
@@ -1582,7 +1582,7 @@ export class UniverseRenderer {
             if (resolved) terrainCfg.normalMapUrl = resolved;
           }
           bm.initTerrain(terrainCfg, this.renderer);
-          console.log(`[SpiceCraft] Initialized terrain for ${body.name}: ${terrainCfg.type} ${terrainCfg.url ?? `ion:${terrainCfg.cesiumIonAssetId}`}`);
+          console.log(`[Cosmolabe] Initialized terrain for ${body.name}: ${terrainCfg.type} ${terrainCfg.url ?? `ion:${terrainCfg.cesiumIonAssetId}`}`);
         }
       }
 
@@ -1594,7 +1594,7 @@ export class UniverseRenderer {
           const overlay = bm.addSurfaceTiles(tileCfg, this.renderer);
           this.tileScene.add(overlay.group);
 
-          console.log(`[SpiceCraft] Initialized surface tiles "${tileCfg.name}" on ${body.name}`);
+          console.log(`[Cosmolabe] Initialized surface tiles "${tileCfg.name}" on ${body.name}`);
         }
       }
 
@@ -1928,16 +1928,16 @@ export class UniverseRenderer {
       if (cache.count > 0) {
         tl.setCache(cache);
         tl.setUserVisible(true);
-        console.log(`[SpiceCraft] Async cache ready for ${body.name}: ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
+        console.log(`[Cosmolabe] Async cache ready for ${body.name}: ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
         this.events.emit('trajectory:cacheReady' as any, { bodyName: body.name });
       } else {
         // Empty cache — worker's SPICE may lack kernels. Fall back to sync.
-        console.warn(`[SpiceCraft] Worker returned empty cache for ${body.name}, falling back to sync`);
+        console.warn(`[Cosmolabe] Worker returned empty cache for ${body.name}, falling back to sync`);
         this.buildCacheSync(body, tl, trajOpts);
         tl.setUserVisible(true);
       }
     }).catch((err) => {
-      console.warn(`[SpiceCraft] Worker cache failed for ${body.name}, falling back to sync:`, err);
+      console.warn(`[Cosmolabe] Worker cache failed for ${body.name}, falling back to sync:`, err);
       this.buildCacheSync(body, tl, trajOpts);
       tl.setUserVisible(true);
     });
@@ -1984,7 +1984,7 @@ export class UniverseRenderer {
     if (cache.count > 0) {
       tl.setCache(cache);
       const method = coverageWindows ? 'spkcov' : 'probe';
-      console.log(`[SpiceCraft] Built sync cache for ${body.name} (${method}): ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
+      console.log(`[Cosmolabe] Built sync cache for ${body.name} (${method}): ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
     }
   }
 

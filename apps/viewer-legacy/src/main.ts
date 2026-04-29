@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
-import { Universe } from "@spicecraft/core";
-import { Spice, type SpiceInstance } from "@spicecraft/spice";
-import { UniverseRenderer, rateLabel, CameraModeName, SpiceCacheWorker } from "@spicecraft/three";
+import { Universe } from "@cosmolabe/core";
+import { Spice, type SpiceInstance } from "@cosmolabe/spice";
+import { UniverseRenderer, rateLabel, CameraModeName, SpiceCacheWorker } from "@cosmolabe/three";
 
 
 let universe: Universe | null = null;
@@ -135,7 +135,7 @@ async function fetchWithProgress(
   // Check gzip magic bytes — if the server already decompressed transparently, skip
   const header = new Uint8Array(buffer, 0, 2);
   if (header[0] !== 0x1f || header[1] !== 0x8b) {
-    console.log(`[SpiceCraft] ${url} already decompressed by server`);
+    console.log(`[Cosmolabe] ${url} already decompressed by server`);
     return buffer;
   }
 
@@ -304,14 +304,14 @@ async function loadNaifKernels(): Promise<void> {
     const progress = `(${i + 1}/${NAIF_KERNELS.length})`;
     infoPanel.textContent = `${progress} Fetching ${kernel.label}...`;
     btnLoadNaif.textContent = `Loading ${progress} ${kernel.label}...`;
-    console.log(`[SpiceCraft] Fetching NAIF kernel: ${kernel.file}`);
+    console.log(`[Cosmolabe] Fetching NAIF kernel: ${kernel.file}`);
 
     try {
       const url = `${NAIF_BASE}/${kernel.file}`;
       await spice.furnish({ type: "url", url });
       trackKernelForWorker(url);
     } catch (err) {
-      console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+      console.error(`[Cosmolabe] Failed to load ${kernel.file}:`, err);
       infoPanel.textContent = `Failed to load ${kernel.label} — CORS or network error`;
       btnLoadNaif.textContent = "Load NAIF Generic Kernels (retry)";
       (btnLoadNaif as HTMLButtonElement).disabled = false;
@@ -323,7 +323,7 @@ async function loadNaifKernels(): Promise<void> {
   btnLoadNaif.textContent = "NAIF Kernels Loaded";
   infoPanel.textContent = `${spice.totalLoaded()} NAIF kernel(s) loaded — drop catalogs or use demos`;
   console.log(
-    `[SpiceCraft] All NAIF generic kernels loaded (${spice.totalLoaded()} total)`,
+    `[Cosmolabe] All NAIF generic kernels loaded (${spice.totalLoaded()} total)`,
   );
 }
 
@@ -334,13 +334,13 @@ async function loadCassiniKernels(): Promise<void> {
   // Phase 1: small text kernels (FK, SCLK, IK, existing SOI SPK+CK) — direct fetch
   for (const kernel of CASSINI_KERNELS_SMALL) {
     infoPanel.textContent = `Loading ${kernel.label}...`;
-    console.log(`[SpiceCraft] Fetching Cassini kernel: ${kernel.file}`);
+    console.log(`[Cosmolabe] Fetching Cassini kernel: ${kernel.file}`);
     try {
       const url = `${NAIF_BASE}/${kernel.file}`;
       await spice!.furnish({ type: "url", url });
       trackKernelForWorker(url);
     } catch (err) {
-      console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+      console.error(`[Cosmolabe] Failed to load ${kernel.file}:`, err);
     }
   }
 
@@ -354,7 +354,7 @@ async function loadCassiniKernels(): Promise<void> {
       const kernel = CASSINI_KERNELS_LARGE[i];
       const progress = `(${i + 1}/${CASSINI_KERNELS_LARGE.length})`;
       infoPanel.textContent = `${progress} Loading ${kernel.label}...`;
-      console.log(`[SpiceCraft] Fetching Cassini kernel: ${kernel.file}`);
+      console.log(`[Cosmolabe] Fetching Cassini kernel: ${kernel.file}`);
 
       try {
         const url = `${NAIF_BASE}/${kernel.file}`;
@@ -373,7 +373,7 @@ async function loadCassiniKernels(): Promise<void> {
         await spice!.furnish({ type: "buffer", data: buffer, filename });
         trackKernelForWorker(url);
       } catch (err) {
-        console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+        console.error(`[Cosmolabe] Failed to load ${kernel.file}:`, err);
       }
       loadedSize += kernel.size;
       updateLoadingBar(
@@ -387,7 +387,7 @@ async function loadCassiniKernels(): Promise<void> {
   }
 
   cassiniLoaded = true;
-  console.log(`[SpiceCraft] Cassini kernels loaded (${spice!.totalLoaded()} total)`);
+  console.log(`[Cosmolabe] Cassini kernels loaded (${spice!.totalLoaded()} total)`);
 }
 
 async function loadLroKernels(): Promise<void> {
@@ -402,7 +402,7 @@ async function loadLroKernels(): Promise<void> {
     const kernel = LRO_KERNELS[i];
     const progress = `(${i + 1}/${LRO_KERNELS.length})`;
     infoPanel.textContent = `${progress} Loading ${kernel.label}...`;
-    console.log(`[SpiceCraft] Fetching LRO kernel: ${kernel.file}`);
+    console.log(`[Cosmolabe] Fetching LRO kernel: ${kernel.file}`);
 
     try {
       const url = `${NAIF_BASE}/${kernel.file}`;
@@ -422,7 +422,7 @@ async function loadLroKernels(): Promise<void> {
       await spice!.furnish({ type: "buffer", data: buffer, filename });
       trackKernelForWorker(url);
     } catch (err) {
-      console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+      console.error(`[Cosmolabe] Failed to load ${kernel.file}:`, err);
     }
     loadedSize += kernel.size;
     updateLoadingBar((loadedSize / totalSize) * 100, `${progress} ${kernel.label} loaded`, `${formatBytes(loadedSize)} / ${formatBytes(totalSize)}`);
@@ -430,7 +430,7 @@ async function loadLroKernels(): Promise<void> {
 
   hideLoadingBar();
   lroLoaded = true;
-  console.log(`[SpiceCraft] LRO kernels loaded (${spice!.totalLoaded()} total)`);
+  console.log(`[Cosmolabe] LRO kernels loaded (${spice!.totalLoaded()} total)`);
 }
 
 async function loadEuropaClipperKernels(): Promise<void> {
@@ -440,17 +440,17 @@ async function loadEuropaClipperKernels(): Promise<void> {
     const kernel = EUROPA_CLIPPER_KERNELS[i];
     const progress = `(${i + 1}/${EUROPA_CLIPPER_KERNELS.length})`;
     infoPanel.textContent = `${progress} Loading ${kernel.label}...`;
-    console.log(`[SpiceCraft] Fetching Europa Clipper kernel: ${kernel.file}`);
+    console.log(`[Cosmolabe] Fetching Europa Clipper kernel: ${kernel.file}`);
     try {
       const url = `${NAIF_BASE}/${kernel.file}`;
       await spice!.furnish({ type: "url", url });
       trackKernelForWorker(url);
     } catch (err) {
-      console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+      console.error(`[Cosmolabe] Failed to load ${kernel.file}:`, err);
     }
   }
   europaClipperLoaded = true;
-  console.log(`[SpiceCraft] Europa Clipper kernels loaded (${spice!.totalLoaded()} total)`);
+  console.log(`[Cosmolabe] Europa Clipper kernels loaded (${spice!.totalLoaded()} total)`);
 }
 
 async function loadMslKernels(): Promise<void> {
@@ -458,15 +458,15 @@ async function loadMslKernels(): Promise<void> {
   await loadNaifKernels();
   for (const kernel of MSL_KERNELS) {
     infoPanel.textContent = `Loading ${kernel.label}...`;
-    console.log(`[SpiceCraft] Fetching MSL kernel: ${kernel.file}`);
+    console.log(`[Cosmolabe] Fetching MSL kernel: ${kernel.file}`);
     try {
       await spice!.furnish({ type: "url", url: `${NAIF_BASE}/${kernel.file}` });
     } catch (err) {
-      console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+      console.error(`[Cosmolabe] Failed to load ${kernel.file}:`, err);
     }
   }
   mslLoaded = true;
-  console.log(`[SpiceCraft] MSL kernels loaded (${spice!.totalLoaded()} total)`);
+  console.log(`[Cosmolabe] MSL kernels loaded (${spice!.totalLoaded()} total)`);
 }
 
 btnLoadNaif.addEventListener("click", (e) => {
@@ -669,7 +669,7 @@ async function handleFileList(files: File[]) {
   if (jsonFiles.size === 0 && kernelFiles.length === 0) return;
 
   console.log(
-    `[SpiceCraft] Files: ${jsonFiles.size} JSON, ${kernelFiles.length} kernels, ${dataFiles.size} data files`,
+    `[Cosmolabe] Files: ${jsonFiles.size} JSON, ${kernelFiles.length} kernels, ${dataFiles.size} data files`,
   );
 
   // Initialize SPICE if we have kernel files
@@ -682,7 +682,7 @@ async function handleFileList(files: File[]) {
   if (spice && kernelFiles.length > 0) {
     infoPanel.textContent = `Loading ${kernelFiles.length} kernel(s)...`;
     for (const file of kernelFiles) {
-      console.log(`[SpiceCraft] Loading kernel: ${file.name}`);
+      console.log(`[Cosmolabe] Loading kernel: ${file.name}`);
       const buffer = await file.arrayBuffer();
       await spice.furnish({
         type: "buffer",
@@ -690,13 +690,13 @@ async function handleFileList(files: File[]) {
         filename: file.name,
       });
     }
-    console.log(`[SpiceCraft] ${spice.totalLoaded()} kernel(s) loaded`);
+    console.log(`[Cosmolabe] ${spice.totalLoaded()} kernel(s) loaded`);
     infoPanel.textContent = `${spice.totalLoaded()} kernel(s) loaded`;
   }
 
   if (kernelFiles.length === 0) {
     console.log(
-      "[SpiceCraft] No kernel files found — Builtin trajectories will use Keplerian fallbacks",
+      "[Cosmolabe] No kernel files found — Builtin trajectories will use Keplerian fallbacks",
     );
   }
 
@@ -704,7 +704,7 @@ async function handleFileList(files: File[]) {
   if (jsonFiles.size > 0) {
     const catalogs = resolveCatalogOrder(jsonFiles);
     console.log(
-      `[SpiceCraft] Loading ${catalogs.length} catalog(s): ${[...jsonFiles.keys()].join(", ")}`,
+      `[Cosmolabe] Loading ${catalogs.length} catalog(s): ${[...jsonFiles.keys()].join(", ")}`,
     );
     infoPanel.textContent = `Loading ${catalogs.length} catalog(s)...`;
     if (catalogs.length > 0) {
@@ -744,7 +744,7 @@ for (const btn of document.querySelectorAll(".demo-btn")) {
     }
     const resp = await fetch(`./${name}.json`);
     const json = await resp.json();
-    console.log(`[SpiceCraft] Loading demo catalog: ${name}`);
+    console.log(`[Cosmolabe] Loading demo catalog: ${name}`);
     initScene([json]);
   });
 }
@@ -814,9 +814,9 @@ function initScene(
           et = (new Date(dt).getTime() - j2000Ms) / 1000;
         }
         universe.setTime(et);
-        console.log(`[SpiceCraft] Set default time: ${dt} (ET=${et.toFixed(1)})`);
+        console.log(`[Cosmolabe] Set default time: ${dt} (ET=${et.toFixed(1)})`);
       } catch (e) {
-        console.warn(`[SpiceCraft] Failed to parse defaultTime "${dt}":`, e);
+        console.warn(`[Cosmolabe] Failed to parse defaultTime "${dt}":`, e);
       }
       break;
     }
@@ -835,12 +835,12 @@ function initScene(
         new URL('./workers/spice-cache-relay.ts', import.meta.url),
       );
       cacheWorker.loadKernels([...workerKernelUrls]).then(() => {
-        console.log(`[SpiceCraft] Cache worker ready (${workerKernelUrls.length} kernels loaded)`);
+        console.log(`[Cosmolabe] Cache worker ready (${workerKernelUrls.length} kernels loaded)`);
       }).catch((err) => {
-        console.warn('[SpiceCraft] Cache worker kernel loading failed:', err);
+        console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
       });
     } catch (err) {
-      console.warn('[SpiceCraft] Failed to create cache worker:', err);
+      console.warn('[Cosmolabe] Failed to create cache worker:', err);
       cacheWorker = null;
     }
   }

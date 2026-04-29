@@ -5,9 +5,9 @@
  * catalog dependency resolution, and scene creation.
  */
 import * as THREE from 'three';
-import { Universe } from '@spicecraft/core';
-import { Spice, type SpiceInstance } from '@spicecraft/spice';
-import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, OrbitalInfoPlugin } from '@spicecraft/three';
+import { Universe } from '@cosmolabe/core';
+import { Spice, type SpiceInstance } from '@cosmolabe/spice';
+import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, OrbitalInfoPlugin } from '@cosmolabe/three';
 import {
   vs,
   bindRenderer,
@@ -224,7 +224,7 @@ async function loadKernelSet(
       await spice!.furnish({ type: 'url', url });
       trackKernelForWorker(url);
     } catch (err) {
-      console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+      console.error(`[Cosmolabe] Failed to load ${kernel.file}:`, err);
     }
   }
 
@@ -251,7 +251,7 @@ async function loadKernelSet(
         await spice!.furnish({ type: 'buffer', data: buffer, filename });
         trackKernelForWorker(url);
       } catch (err) {
-        console.error(`[SpiceCraft] Failed to load ${kernel.file}:`, err);
+        console.error(`[Cosmolabe] Failed to load ${kernel.file}:`, err);
       }
       loadedSize += kernel.size ?? 0;
     }
@@ -445,7 +445,7 @@ function initScene(
         }
         universe.setTime(et);
       } catch (e) {
-        console.warn(`[SpiceCraft] Failed to parse defaultTime "${dt}":`, e);
+        console.warn(`[Cosmolabe] Failed to parse defaultTime "${dt}":`, e);
       }
       break;
     }
@@ -460,10 +460,10 @@ function initScene(
         new URL('../workers/spice-cache-relay.ts', import.meta.url),
       );
       cacheWorker.loadKernels([...workerKernelUrls]).catch((err) => {
-        console.warn('[SpiceCraft] Cache worker kernel loading failed:', err);
+        console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
       });
     } catch (err) {
-      console.warn('[SpiceCraft] Failed to create cache worker:', err);
+      console.warn('[Cosmolabe] Failed to create cache worker:', err);
       cacheWorker = null;
     }
   }

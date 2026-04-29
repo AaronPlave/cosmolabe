@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Downloads NAIF generic SPICE kernels for the SpiceCraft viewer.
+# Downloads NAIF generic SPICE kernels for the Cosmolabe viewer.
 # Only fetches reasonably-sized kernels suitable for web loading.
 # Moon positions use analytical theories (TASS17, L1, Gust86, MarsSat) as fallbacks.
 #
@@ -24,7 +24,7 @@ KERNELS=(
 #   sat441.bsp  = 631 MB (Saturn)
 #   jup365.bsp  = 1.1 GB (Jupiter)
 #   mar099s.bsp = 64 MB  (Mars)
-# Instead, spicecraft uses analytical theories (TASS17, L1, Gust86, MarsSat)
+# Instead, Cosmolabe uses analytical theories (TASS17, L1, Gust86, MarsSat)
 # for satellite positions when SPICE kernels aren't available.
 
 for kernel in "${KERNELS[@]}"; do

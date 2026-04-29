@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Body } from '@spicecraft/core';
+import type { Body } from '@cosmolabe/core';
 import type { PositionResolver } from './TrajectoryLine.js';
 
 export type EventMarkerType = 'periapsis' | 'apoapsis' | 'ascending_node' | 'descending_node' | 'custom';

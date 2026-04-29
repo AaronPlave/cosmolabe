@@ -285,7 +285,7 @@ export class TerrainManager {
       const now = Date.now();
       if (now - errLoggedAt > 5000) {
         const suffix = errCount > 1 ? ` (+${errCount - 1} suppressed since last log)` : '';
-        console.warn('[SpiceCraft:Terrain] Tile load error:', event.url, event.error?.message, suffix);
+        console.warn('[Cosmolabe:Terrain] Tile load error:', event.url, event.error?.message, suffix);
         errCount = 0;
         errLoggedAt = now;
       }
@@ -348,7 +348,7 @@ export class TerrainManager {
             if (typeof cb !== 'function') return noopCb;
             return (tile: any) => {
               try { return cb(tile); } catch (e) {
-                console.warn('[SpiceCraft] Error in tile dispose, caught to prevent stall:', (e as Error).message);
+                console.warn('[Cosmolabe] Error in tile dispose, caught to prevent stall:', (e as Error).message);
               }
             };
           };
@@ -359,7 +359,7 @@ export class TerrainManager {
     });
 
     // The tiles.group contains tile meshes in meters, Z-up (3D Tiles convention).
-    // We need to transform to spicecraft's coordinate system: km, Y-up.
+    // We need to transform to cosmolabe's coordinate system: km, Y-up.
     // Wrap in a parent group that applies the conversion.
     this.group = new THREE.Group();
     this.group.name = 'terrain';
@@ -497,7 +497,7 @@ export class TerrainManager {
     try {
       this.tiles.update();
     } catch (e) {
-      console.error('[SpiceCraft] tiles.update() crashed:', e);
+      console.error('[Cosmolabe] tiles.update() crashed:', e);
     }
   }
 
@@ -592,7 +592,7 @@ export class TerrainManager {
       if (err > maxErr) maxErr = err;
       if (err < minErr) minErr = err;
     });
-    console.log('[SpiceCraft] Active tiles by depth:', depthCounts,
+    console.log('[Cosmolabe] Active tiles by depth:', depthCounts,
       '| error range:', minErr.toFixed(2), '-', maxErr.toFixed(2));
   }
 
@@ -641,14 +641,14 @@ export class TerrainManager {
       });
 
       this.normalMap = this.generateNormalMap(img, strength);
-      console.log(`[SpiceCraft] Generated terrain normal map from heightmap (${this.normalMap.image.width}x${this.normalMap.image.height})`);
+      console.log(`[Cosmolabe] Generated terrain normal map from heightmap (${this.normalMap.image.width}x${this.normalMap.image.height})`);
 
       // Retroactively apply to tiles that loaded before the normal map was ready
       this.tiles.forEachLoadedModel((scene: THREE.Object3D, tile: any) => {
         this.applyNormalMap(scene, tile);
       });
     } catch (e) {
-      console.warn('[SpiceCraft] Failed to load terrain normal map source:', e);
+      console.warn('[Cosmolabe] Failed to load terrain normal map source:', e);
     }
   }
 

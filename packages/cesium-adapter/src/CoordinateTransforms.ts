@@ -1,8 +1,8 @@
 /**
- * Coordinate transforms between SpiceCraft's J2000 Ecliptic frame (km)
+ * Coordinate transforms between Cosmolabe's J2000 Ecliptic frame (km)
  * and Cesium's coordinate systems (ICRF equatorial, meters).
  *
- * SpiceCraft positions are in ECLIPJ2000: X toward vernal equinox, Z toward
+ * Cosmolabe positions are in ECLIPJ2000: X toward vernal equinox, Z toward
  * ecliptic north pole, in km.
  *
  * Cesium uses ICRF (≈J2000 equatorial): X toward vernal equinox, Z toward
@@ -21,7 +21,7 @@ const SIN_OBL = Math.sin(OBLIQUITY_RAD);
 const KM_TO_M = 1000;
 
 /**
- * Transform a position from SpiceCraft's J2000 Ecliptic frame (km)
+ * Transform a position from Cosmolabe's J2000 Ecliptic frame (km)
  * to J2000 Equatorial/ICRF frame (meters).
  *
  * Rotation: X unchanged, Y/Z rotated by obliquity.
@@ -42,7 +42,7 @@ export function eclipticToEquatorial(
 
 /**
  * Transform a position from J2000 Equatorial/ICRF (meters)
- * back to SpiceCraft's J2000 Ecliptic frame (km).
+ * back to Cosmolabe's J2000 Ecliptic frame (km).
  */
 export function equatorialToEcliptic(
   position: [number, number, number],
@@ -57,7 +57,7 @@ export function equatorialToEcliptic(
 }
 
 /**
- * Transform a SpiceCraft quaternion (w,x,y,z) from ecliptic frame
+ * Transform a Cosmolabe quaternion (w,x,y,z) from ecliptic frame
  * to equatorial frame. The rotation is applied as:
  *   q_eq = q_ecl2eq * q_ecl
  * where q_ecl2eq is the rotation around X by obliquity.
@@ -80,7 +80,7 @@ export function quaternionEclipticToEquatorial(
 }
 
 /**
- * Convert a SpiceCraft absolute position (ecliptic km) to a Cesium-compatible
+ * Convert a Cosmolabe absolute position (ecliptic km) to a Cesium-compatible
  * ICRF Cartesian3 array [x, y, z] in meters.
  *
  * This is the most common transform: take the output of

@@ -2,7 +2,6 @@
  * Initialize a CesiumJS Viewer with globe imagery, day/night lighting,
  * atmosphere, and starfield.
  *
- * Ported from is-timeline's CesiumGlobe.svelte (RA-231/Intelligent-Space).
  */
 
 import { patchCesiumWorkers } from './util/workerPatch.js';

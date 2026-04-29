@@ -26,7 +26,7 @@ export class ScreenshotPlugin implements RendererPlugin {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `spicecraft-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+            a.download = `cosmolabe-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
             a.click();
             URL.revokeObjectURL(url);
           }, 'image/png');

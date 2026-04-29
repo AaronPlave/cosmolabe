@@ -1,9 +1,9 @@
 {
-  "name": "spicecraft",
+  "name": "cosmolabe",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Web SPICE geometry and 3D mission visualization",
+  "description": "Web mission visualization — SPICE-accurate geometry, TLE tracking, planetary terrain, and a 3D renderer",
   "workspaces": [
     "packages/*",
     "apps/*"

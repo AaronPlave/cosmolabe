@@ -1,8 +1,8 @@
 # Choosing a Renderer
 
-SpiceCraft supports two rendering approaches: the built-in Three.js viewer (`@spicecraft/three`) and CesiumJS integration via `@spicecraft/cesium-adapter`. This guide helps you choose the right one.
+Cosmolabe supports two rendering approaches: the built-in Three.js viewer (`@cosmolabe/three`) and CesiumJS integration via `@cosmolabe/cesium-adapter`. This guide helps you choose the right one.
 
-## When to use the Three.js Viewer (`@spicecraft/three`)
+## When to use the Three.js Viewer (`@cosmolabe/three`)
 
 - **Multi-body solar system visualization** — planets, moons, spacecraft in one scene
 - **Deep space missions** with interplanetary trajectories (Cassini, Europa Clipper, etc.)
@@ -11,16 +11,16 @@ SpiceCraft supports two rendering approaches: the built-in Three.js viewer (`@sp
 - **Any mission that spans multiple gravitational bodies**
 - **Terrain streaming** — 3D Tiles, quantized-mesh, Cesium Ion, with WMS/WMTS/TMS/XYZ imagery overlays
 
-The Three.js viewer is SpiceCraft's primary renderer. It handles cosmic scales (logarithmic depth, camera-relative rendering), arbitrary reference frames, and multi-body scenes that Cesium cannot.
+The Three.js viewer is Cosmolabe's primary renderer. It handles cosmic scales (logarithmic depth, camera-relative rendering), arbitrary reference frames, and multi-body scenes that Cesium cannot.
 
-## When to use CesiumJS (via `@spicecraft/cesium-adapter`)
+## When to use CesiumJS (via `@cosmolabe/cesium-adapter`)
 
-- **You already have a Cesium-based ground system** and want to feed SpiceCraft ephemeris data into it
+- **You already have a Cesium-based ground system** and want to feed Cosmolabe ephemeris data into it
 - **You need geospatial formats** — KML, GeoJSON, GPX, CZML load natively in Cesium
 - **Your audience expects the Cesium interface** — the "Google Earth"-style globe they already know
 - **Ground-clamped visualization** — polygons and polylines that automatically follow terrain
 
-The adapter is a **library you drop into your own Cesium app**, not a standalone viewer. It exports CZML documents or live Cesium Property objects from SpiceCraft's Universe model.
+The adapter is a **library you drop into your own Cesium app**, not a standalone viewer. It exports CZML documents or live Cesium Property objects from Cosmolabe's Universe model.
 
 ## When you might use both
 
@@ -34,20 +34,20 @@ The adapter is a **library you drop into your own Cesium app**, not a standalone
 |---|---|
 | `TimeConversions` | ET (seconds past J2000) ↔ Cesium JulianDate / ISO strings |
 | `CoordinateTransforms` | J2000 Ecliptic (km) ↔ ICRF Equatorial (meters) |
-| `ModelAdapter` | Extract glTF/GLB model info from SpiceCraft bodies |
+| `ModelAdapter` | Extract glTF/GLB model info from Cosmolabe bodies |
 | `CzmlExporter` | Generate complete CZML documents from a Universe |
 
 ## Quick start
 
 ```typescript
 import { Viewer, CzmlDataSource } from 'cesium';
-import { Universe, CatalogLoader } from '@spicecraft/core';
-import { exportToCzml } from '@spicecraft/cesium-adapter';
+import { Universe, CatalogLoader } from '@cosmolabe/core';
+import { exportToCzml } from '@cosmolabe/cesium-adapter';
 
 // Your existing Cesium viewer
 const viewer = new Viewer('cesiumContainer');
 
-// SpiceCraft data pipeline (same as Three.js viewer)
+// Cosmolabe data pipeline (same as Three.js viewer)
 const universe = new Universe(spice);
 universe.loadCatalog(catalogJson);
 

@@ -1,8 +1,8 @@
-# spicecraft
+# cosmolabe
 
-Web SPICE geometry and 3D mission visualization. A TypeScript monorepo that brings NASA JPL's CSPICE toolkit to the browser and renders spacecraft missions in 3D using Three.js.
+Web mission visualization — SPICE-accurate geometry, TLE tracking, planetary terrain, and a 3D renderer. A TypeScript monorepo for visualizing spacecraft missions in the browser.
 
-Spicecraft picks up where [Cosmographia](https://naif.jpl.nasa.gov/naif/cosmographia.html) left off — a C++ desktop visualization app originally created by Chris Laurel (author of [Celestia](https://celestiaproject.space/)), with SPICE-enhanced releases published by NASA NAIF and ESA, but no longer actively developed. Spicecraft reimplements its catalog format and rendering capabilities as composable web packages where you load a JSON catalog and optionally SPICE kernels and get an interactive 3D mission visualization in the browser.
+Named after the [cosmolabe](https://en.wikipedia.org/wiki/Cosmolabe), Jacques Besson's 1566 universal instrument designed to replace the sphere, astrolabes, geometric square, quadrant, and celestial/terrestrial globes — one tool for astrometry, cartography, navigation, and surveying. Cosmolabe picks up where [Cosmographia](https://naif.jpl.nasa.gov/naif/cosmographia.html) left off — a C++ desktop visualization app originally created by Chris Laurel (author of [Celestia](https://celestiaproject.space/)), with SPICE-enhanced releases published by NASA NAIF and ESA, but no longer actively developed. Cosmolabe reimplements its catalog format and rendering capabilities as composable web packages, supporting SPICE kernels, TLE data, Keplerian elements, and time-series simulation results — load any combination and get an interactive 3D mission visualization in the browser.
 
 ## What It Does
 
@@ -15,11 +15,11 @@ Spicecraft picks up where [Cosmographia](https://naif.jpl.nasa.gov/naif/cosmogra
 ## Repo Structure
 
 ```
-spicecraft/
+cosmolabe/
 ├── packages/
-│   ├── spice/          # @spicecraft/spice — CSPICE WASM bindings
-│   ├── core/           # @spicecraft/core  — Universe model (zero rendering deps)
-│   └── three/          # @spicecraft/three  — Three.js rendering layer
+│   ├── spice/          # @cosmolabe/spice — CSPICE WASM bindings
+│   ├── core/           # @cosmolabe/core  — Universe model (zero rendering deps)
+│   └── three/          # @cosmolabe/three  — Three.js rendering layer
 ├── apps/
 │   └── viewer/         # Standalone demo app (drag-drop catalogs + kernels)
 ├── scripts/            # Build tooling (star catalog compiler, normal map generator)
@@ -27,13 +27,13 @@ spicecraft/
 └── tsconfig.json
 ```
 
-### `@spicecraft/spice`
+### `@cosmolabe/spice`
 
 Typed wrappers over the full CSPICE function library compiled to WASM. Handles all the `malloc`/`ccall`/`getValue`/`free` memory management and returns clean TypeScript objects.
 
 **Wrapped functions:** `spkpos`, `spkezr`, `pxform`, `sxform`, `sincpt`, `subpnt`, `subslr`, `ilumin`, `oscelt`, `conics`, `bodvcd`, `bodvrd`, `gfposc`, `gfsep`, `gfoclt`, `gfdist`, `mxv`, `mtxv`, `vcrss`, `vnorm`, `vdot`, `utc2et`, `et2utc`, `et2lst`, `str2et`.
 
-### `@spicecraft/core`
+### `@cosmolabe/core`
 
 Pure TypeScript universe model with no rendering dependencies. Usable server-side or with any renderer.
 
@@ -44,7 +44,7 @@ Pure TypeScript universe model with no rendering dependencies. Usable server-sid
 - **GeometryCalculator** — altitude, sub-spacecraft point, sun angles, orbital elements, eclipse/occultation detection
 - **Plugin interfaces** — `SpiceScenePlugin` for data-only plugins, `RendererPlugin` for Three.js visualization
 
-### `@spicecraft/three`
+### `@cosmolabe/three`
 
 Three.js rendering layer that syncs a `Universe` into an interactive 3D scene.
 
@@ -96,11 +96,11 @@ npx vitest run
 ┌─────────────────────────────────────┐
 │           Viewer App                │   Drag-drop UI, time controls
 ├─────────────────────────────────────┤
-│       @spicecraft/three             │   Three.js scene graph, rendering
+│       @cosmolabe/three             │   Three.js scene graph, rendering
 ├─────────────────────────────────────┤
-│       @spicecraft/core              │   Universe model, catalog loader
+│       @cosmolabe/core              │   Universe model, catalog loader
 ├─────────────────────────────────────┤
-│       @spicecraft/spice             │   CSPICE WASM bindings
+│       @cosmolabe/spice             │   CSPICE WASM bindings
 ├─────────────────────────────────────┤
 │         timecraftjs                 │   CSPICE compiled to WASM (npm dep)
 └─────────────────────────────────────┘

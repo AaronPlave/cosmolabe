@@ -1,9 +1,9 @@
 {
-  "name": "@spicecraft/viewer",
+  "name": "@cosmolabe/viewer",
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "SpiceCraft Viewer — space mission visualization",
+  "description": "Cosmolabe Viewer — space mission visualization",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -12,9 +12,9 @@
   },
   "dependencies": {
     "@lucide/svelte": "^1.8.0",
-    "@spicecraft/core": "*",
-    "@spicecraft/spice": "*",
-    "@spicecraft/three": "*",
+    "@cosmolabe/core": "*",
+    "@cosmolabe/spice": "*",
+    "@cosmolabe/three": "*",
     "bits-ui": "^2.18.0",
     "clsx": "^2.1.1",
     "lucide-svelte": "^1.0.1",

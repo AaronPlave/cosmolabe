@@ -1,8 +1,8 @@
-import type { SpiceInstance } from '@spicecraft/spice';
+import type { SpiceInstance } from '@cosmolabe/spice';
 import { Body } from './Body.js';
 import { CatalogLoader } from './catalog/CatalogLoader.js';
 import type { CatalogJson, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory } from './catalog/CatalogLoader.js';
-import type { SpiceCraftPlugin } from './plugins/Plugin.js';
+import type { CosmolabePlugin } from './plugins/Plugin.js';
 import { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
 import { EventBus } from './events/EventBus.js';
 import type { UniverseEventMap } from './events/EventTypes.js';
@@ -26,7 +26,7 @@ export class Universe {
   private _viewpoints: ViewpointDefinition[] = [];
   private _defaultViewpoint?: string;
   private currentEt = 0;
-  private plugins: SpiceCraftPlugin[] = [];
+  private plugins: CosmolabePlugin[] = [];
   private readonly spice?: SpiceInstance;
   private readonly resolveFile?: (source: string) => string | undefined;
   private readonly resolveFileBinary?: (source: string) => ArrayBuffer | undefined;
@@ -136,7 +136,7 @@ export class Universe {
     }
   }
 
-  use(plugin: SpiceCraftPlugin): void {
+  use(plugin: CosmolabePlugin): void {
     this.plugins.push(plugin);
     if (this.bodies.size > 0) {
       plugin.onUniverseLoaded?.(this);

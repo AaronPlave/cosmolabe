@@ -42,7 +42,7 @@ export class CommLinks {
   ) {
     this._viewer = viewer;
     this._Cesium = Cesium;
-    this._issEntityId = `spicecraft-body-${issBodyName}`;
+    this._issEntityId = `cosmolabe-body-${issBodyName}`;
 
     // Create a PolylineCollection primitive — doesn't interfere with entity picking
     this._collection = viewer.scene.primitives.add(
@@ -60,7 +60,7 @@ export class CommLinks {
       });
       this._links.push({
         type: 'relay',
-        targetEntityId: `spicecraft-body-${relay.name}`,
+        targetEntityId: `cosmolabe-body-${relay.name}`,
         color,
         polyline,
       });
@@ -77,7 +77,7 @@ export class CommLinks {
       });
       this._links.push({
         type: 'ground',
-        targetEntityId: `spicecraft-surface-${gs.name}`,
+        targetEntityId: `cosmolabe-surface-${gs.name}`,
         color,
         polyline,
         precomputedEcef: Cesium.Cartesian3.fromDegrees(gs.lon, gs.lat, 0),

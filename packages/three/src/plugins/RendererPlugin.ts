@@ -1,5 +1,5 @@
-import type { SpiceCraftPlugin } from '@spicecraft/core';
-import type { Body } from '@spicecraft/core';
+import type { CosmolabePlugin } from '@cosmolabe/core';
+import type { Body } from '@cosmolabe/core';
 import type { RendererContext } from './RendererContext.js';
 import type { PluginUISlots } from './PluginUI.js';
 
@@ -9,7 +9,7 @@ import type { PluginUISlots } from './PluginUI.js';
  * Tier 2: Configurable built-in plugins (TrajectoryColor, LinkLine, ActivityMarker)
  * Tier 3: Custom mission plugins (radar swath, instrument FOV, etc.)
  */
-export interface RendererPlugin extends SpiceCraftPlugin {
+export interface RendererPlugin extends CosmolabePlugin {
   /** Called once when the renderer scene is initialized. */
   onSceneSetup?(ctx: RendererContext): void;
 

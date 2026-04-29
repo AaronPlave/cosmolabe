@@ -1,6 +1,6 @@
 <script lang="ts">
   import { vs, selectBody, getRenderer } from '../lib/viewer-state.svelte';
-  import type { InfoRow, InfoSectionResult } from '@spicecraft/three';
+  import type { InfoRow, InfoSectionResult } from '@cosmolabe/three';
   import { X, Navigation } from 'lucide-svelte';
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));

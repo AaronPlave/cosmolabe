@@ -1,4 +1,4 @@
-import type { Body, Universe } from '@spicecraft/core';
+import type { Body, Universe } from '@cosmolabe/core';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
 import type { RendererContext } from './plugins/RendererContext.js';
 

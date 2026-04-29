@@ -484,7 +484,7 @@ export function resolveAtmosphereParams(
     // Try body name
     if (bodyName && ATMOSPHERE_PRESETS[bodyName]) return ATMOSPHERE_PRESETS[bodyName];
 
-    console.warn(`[SpiceCraft] No atmosphere preset for "${value}" (body: ${bodyName ?? 'unknown'}). Use inline params: { mieCoeff, mieScaleHeight, rayleighCoeff, ... }`);
+    console.warn(`[Cosmolabe] No atmosphere preset for "${value}" (body: ${bodyName ?? 'unknown'}). Use inline params: { mieCoeff, mieScaleHeight, rayleighCoeff, ... }`);
     return null;
   }
 

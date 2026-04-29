@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { Body } from '@spicecraft/core';
+import type { Body } from '@cosmolabe/core';
 import type { RendererContext } from './RendererContext.js';
 
 /**

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Downloads Cassini SPICE kernels for the SpiceCraft viewer demo.
+# Downloads Cassini SPICE kernels for the Cosmolabe viewer demo.
 #
 # SPK coverage: continuous reconstructed chain from Mar 2001 through Jul 24, 2005.
 #   Covers SOI, Titan T-A, Huygens, Enceladus E-2, and everything in between.

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { CameraModeName } from '@spicecraft/three';
-  import type { PluginOverlay } from '@spicecraft/three';
+  import { CameraModeName } from '@cosmolabe/three';
+  import type { PluginOverlay } from '@cosmolabe/three';
   import { vs, clearLookAt, getRenderer } from '../lib/viewer-state.svelte';
   import { X } from 'lucide-svelte';
 

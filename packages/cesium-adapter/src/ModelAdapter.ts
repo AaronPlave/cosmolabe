@@ -1,6 +1,6 @@
-import type { Body } from '@spicecraft/core';
+import type { Body } from '@cosmolabe/core';
 
-/** Model metadata extracted from a SpiceCraft Body for use in Cesium. */
+/** Model metadata extracted from a Cosmolabe Body for use in Cesium. */
 export interface CesiumModelInfo {
   /** URI to the glTF/GLB model file */
   uri: string;
@@ -11,12 +11,12 @@ export interface CesiumModelInfo {
 }
 
 /**
- * Extract Cesium-compatible model information from a SpiceCraft Body.
+ * Extract Cesium-compatible model information from a Cosmolabe Body.
  *
  * Returns undefined if the body has no mesh geometry or uses an unsupported
  * format (e.g. .cmod).
  *
- * @param body The SpiceCraft body to extract model info from
+ * @param body The Cosmolabe body to extract model info from
  * @param resolveUri Optional function to resolve model source paths to URIs
  */
 export function getModelInfo(
