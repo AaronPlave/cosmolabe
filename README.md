@@ -64,23 +64,19 @@ If your need is *one of these*, you're in the right place. If you need a 2D grou
 ## Gallery
 
 <!--
-  SCREENSHOT GRID  ───────────────────────────────────────────────────────────
-  Drop PNG/JPG screenshots into `docs/img/` (regular files — small enough that
-  LFS isn't worth it; keep each ≤500 KB if you can). Replace the placeholder
-  paths below. Aim for a tight visual crop, dark background, label visible.
-
-  For inline clips that show motion (eclipse transitions, surface explorer),
-  use the same user-attachments trick as the hero — `<video src="...">` works
-  inside a table cell. Don't reference repo files for video unless you want to
-  spend LFS bandwidth.
+  Screenshots live in `docs/img/`. Source PNGs were ~3456×1990 retina captures;
+  resized to 1600px wide and re-encoded as JPG (q=85) with sips. To add more,
+  use:  sips -s format jpeg -s formatOptions 85 --resampleWidth 1600 src.png --out dst.jpg
+  For motion clips (eclipse transitions, scrubbing), drop into a comment on a
+  draft GitHub issue and embed via the user-attachments URL — same as the hero.
 -->
 
-| | | |
-|:-:|:-:|:-:|
-| ![LRO at the Moon](docs/img/lro-moon.png) | ![Cassini at Saturn](docs/img/cassini-saturn.png) | ![Europa Clipper](docs/img/europa-clipper.png) |
-| **LRO at the Moon** — high-res terrain streaming | **Cassini at Saturn** — rings + sensor frustums | **Europa Clipper** — multi-body Jupiter system |
-| ![ISS live](docs/img/iss-live.png) | ![Cesium comm relay](docs/img/cesium-comm-relay.png) | ![Surface Explorer](docs/img/surface-explorer.png) |
-| **ISS live tracking** — TLE-driven, no kernels | **Cesium viewer** — comm relay + eclipse | **Surface Explorer** *(experimental)* — ground-level Mars |
+| | |
+|:-:|:-:|
+| ![LRO at the Moon](docs/img/lro-moon.jpg) | ![Cassini at Saturn](docs/img/cassini-saturn.jpg) |
+| **LRO at the Moon** — high-res terrain streaming | **Cassini at Saturn** — rings + sensor frustums |
+| ![ISS live](docs/img/iss-live.jpg) | ![Surface Explorer](docs/img/surface-explorer.jpg) |
+| **ISS live tracking** — TLE-driven, no kernels | **Curiosity at Dingo Gap** *(experimental)* — ground-level Mars via Surface Explorer |
 
 ## Repo Structure
 
@@ -238,20 +234,9 @@ Key constraints:
 
 ## Planned Work
 
-**Rendering:**
-- Ring shadow casting (planet-to-ring and ring-to-planet)
-- Night-side emission (city lights / thermal maps)
-- Lunar-Lambert / Hapke BRDF for airless bodies
-- Bloom/glare post-processing
+Two focus areas are driving most of the active work: **surface visualization** (ground-level atmosphere, rovers and landers, higher-resolution DEM and imagery overlays, promoting Surface Explorer out of experimental) and **library extensibility** (stabilizing the plugin API, more extension points, framework bindings, and making Cosmolabe a solid foundation to build real apps on top of). Other tracks include rendering polish (ring shadows, night-side emission, Lunar-Lambert, bloom), the PlanDev sim-replay adapter, CSPICE WASM modernization, and a hosted demo gallery with more example scenes.
 
-**Plugin system:**
-- PlanDev adapter (sim-result-driven 3D panel)
-- `GroundTrackPlugin`
-
-**Future:**
-- WebGPU renderer path
-- Expanded Web Worker offloading for SPICE computation
-- React Three Fiber bindings
+See **[ROADMAP.md](ROADMAP.md)** for the full list.
 
 ## Contributing
 
