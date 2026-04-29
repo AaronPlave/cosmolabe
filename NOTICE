@@ -1,9 +1,14 @@
-cosmolabe
+Cosmolabe
 Copyright 2026
 
 This product includes software developed at or derived from the following
 projects. Their original licenses and copyrights are retained per their
 respective terms.
+
+This software is not approved or endorsed by the National Aeronautics and
+Space Administration (NASA) or the Jet Propulsion Laboratory (JPL). It
+uses NASA-released open-source components (CSPICE via TimeCraftJS,
+3DTilesRendererJS) but is independently developed and maintained.
 
 ================================================================================
 

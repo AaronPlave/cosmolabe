@@ -3,12 +3,46 @@
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "SPICE WASM layer — uses TimeCraftJS, extended with geometry finders",
+  "description": "SPICE WASM layer — typed wrappers over CSPICE via TimeCraftJS, extended with geometry finders",
+  "author": "Aaron Plave",
+  "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
+  "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaronPlave/cosmolabe.git",
+    "directory": "packages/spice"
+  },
+  "keywords": [
+    "spice",
+    "cspice",
+    "naif",
+    "spacecraft",
+    "ephemeris",
+    "wasm",
+    "spice-kernel",
+    "astronomy",
+    "space"
+  ],
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "timecraftjs": "^2.0.0"

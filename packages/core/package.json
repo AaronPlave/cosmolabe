@@ -3,12 +3,47 @@
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Universe model — zero rendering dependencies. Catalog loader, trajectories, geometry.",
+  "description": "Universe model — zero rendering dependencies. Catalog loader, trajectories (SPICE/TLE/Keplerian), rotations, frames, geometry calculator.",
+  "author": "Aaron Plave",
+  "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
+  "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaronPlave/cosmolabe.git",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "spice",
+    "tle",
+    "ephemeris",
+    "spacecraft",
+    "trajectory",
+    "orbit",
+    "celestial-mechanics",
+    "cosmographia",
+    "astronomy",
+    "space"
+  ],
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@cosmolabe/spice": "*",

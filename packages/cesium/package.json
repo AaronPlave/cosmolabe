@@ -3,12 +3,47 @@
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "CesiumJS rendering layer — globe, orbit tracks, surface points, camera",
+  "description": "CesiumJS rendering layer for Cosmolabe — body entities, orbit tracks, surface points, comm links, eclipse shadow.",
+  "author": "Aaron Plave",
+  "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
+  "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaronPlave/cosmolabe.git",
+    "directory": "packages/cesium"
+  },
+  "keywords": [
+    "cesium",
+    "cesiumjs",
+    "spice",
+    "tle",
+    "spacecraft",
+    "globe",
+    "ground-track",
+    "iss",
+    "astronomy",
+    "space"
+  ],
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@cosmolabe/core": "*",

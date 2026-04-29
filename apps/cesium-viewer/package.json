@@ -4,6 +4,12 @@
   "private": true,
   "license": "Apache-2.0",
   "description": "Example Cesium viewer — demonstrates @cosmolabe/cesium-adapter with CesiumJS",
+  "author": "Aaron Plave",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaronPlave/cosmolabe.git",
+    "directory": "apps/cesium-viewer"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
