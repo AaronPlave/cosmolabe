@@ -39,9 +39,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        # `npm install` (not `npm ci`) re-resolves optional platform-specific
-        # binaries that the lockfile may omit (npm/cli#4828).
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Typecheck + build
         run: npm run build
