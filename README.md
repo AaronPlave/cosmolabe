@@ -16,7 +16,7 @@ Web mission visualization — SPICE-accurate geometry, TLE tracking, planetary t
   Recommended capture: LRO at the Moon w/ terrain streaming, or Cassini at Saturn.
 -->
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/REPLACE-ME-HERO-VIDEO-UUID"
+  <video src="https://github.com/user-attachments/assets/3457a5fe-61f4-4884-9fa5-1a5fdc1312f2"
          autoplay loop muted playsinline
          width="800">
   </video>
