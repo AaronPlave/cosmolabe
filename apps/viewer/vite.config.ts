@@ -3,7 +3,15 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
+function normalizeBase(raw: string | undefined): string {
+  if (!raw) return '/';
+  let b = raw.startsWith('/') ? raw : `/${raw}`;
+  if (!b.endsWith('/')) b = `${b}/`;
+  return b;
+}
+
 export default defineConfig({
+  base: normalizeBase(process.env.VITE_BASE),
   plugins: [svelte(), tailwindcss()],
   publicDir: 'test-catalogs',
   resolve: {

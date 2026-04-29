@@ -20,7 +20,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          lfs: true
+          lfs: false
+
+      - name: Cache LFS test kernels
+        id: lfs-cache
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**') }}
+
+      - name: Pull test-kernel LFS files
+        run: git lfs pull --include "packages/spice/test-kernels/**"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,7 +39,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        # `npm install` (not `npm ci`) re-resolves optional platform-specific
+        # binaries that the lockfile may omit (npm/cli#4828).
+        run: npm install --no-audit --no-fund
 
       - name: Typecheck + build
         run: npm run build

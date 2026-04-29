@@ -100,7 +100,6 @@ const LRO_KERNELS = [
   { file: 'lro/lro_clkcor_2025351_v00.tsc.gz', label: 'LRO clock', size: 2_200_000 },
   { file: 'lro/lrorg_2024350_2025074_v01.bsp.gz', label: 'LRO trajectory', size: 7_200_000 },
   { file: 'lro/moon_pa_de421_1900_2050.bpc.gz', label: 'Lunar orientation', size: 1_700_000 },
-  { file: 'lro/lrosc_2025011_2025021_v01.bc.gz', label: 'LRO bus attitude (CK)', size: 554_000_000 },
 ];
 
 const EUROPA_CLIPPER_KERNELS = [
@@ -473,7 +472,7 @@ function initScene(
     showTrajectories: true,
     showLabels: true,
     showStars: true,
-    starFieldOptions: { catalogUrl: '/stars.bin' },
+    starFieldOptions: { catalogUrl: `${import.meta.env.BASE_URL}stars.bin` },
     trajectoryOptions: { trailDuration: 86400 * 30 },
     minBodyPixels: 0,
     cacheWorker: cacheWorker ?? undefined,

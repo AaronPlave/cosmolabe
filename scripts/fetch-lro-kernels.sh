@@ -6,8 +6,11 @@
 #   IK   — All LRO instrument FOVs (LROC, LOLA, Diviner, LAMP, CRaTER, LEND)
 #   SCLK — Spacecraft clock (required for CK attitude)
 #   SPK  — LRO trajectory, ~90 days (~7.2 MB)
-#   CK   — Reconstructed spacecraft bus attitude, Jan 11–21 2025 (~528 MB)
 #   PCK  — High-accuracy lunar orientation (binary, 1.7 MB)
+#
+# Note: the reconstructed spacecraft bus CK (lrosc_*.bc, ~528 MB) is intentionally
+# omitted — too large to ship in the deployed viewer. Without it, LRO orbit and
+# instrument FOV definitions still load but spacecraft attitude is unavailable.
 #
 # All kernels are gzipped after download for faster web delivery.
 # The viewer decompresses them client-side via DecompressionStream.
@@ -44,10 +47,6 @@ KERNELS=(
 
   # LRO trajectory around Moon (Dec 16 2024 – Mar 15 2025, ~7.2 MB)
   "$NAIF_PDS/spk/lrorg_2024350_2025074_v01.bsp"
-
-  # Reconstructed spacecraft bus attitude (CK ID -85000, Jan 11–21 2025, ~528 MB)
-  # Contains real pointing data: slews, off-nadir maneuvers, momentum dumps
-  "$NAIF_PDS/ck/lrosc_2025011_2025021_v01.bc"
 
   # High-accuracy lunar orientation (binary PCK, 1900–2050, 1.7 MB)
   "$NAIF_PDS/pck/moon_pa_de421_1900_2050.bpc"

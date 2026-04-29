@@ -91,8 +91,9 @@
             "center": "MOON"
           },
           "rotationModel": {
-            "type": "Spice",
-            "bodyFrame": "LRO_SC_BUS"
+            "type": "Nadir",
+            "target": "LRO",
+            "center": "MOON"
           },
           "geometry": {
             "type": "Mesh",
