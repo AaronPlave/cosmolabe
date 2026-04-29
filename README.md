@@ -6,16 +6,81 @@
 
 Web mission visualization — SPICE-accurate geometry, TLE tracking, planetary terrain, and a 3D renderer. A TypeScript monorepo for visualizing spacecraft missions in the browser.
 
-Named after the [cosmolabe](https://en.wikipedia.org/wiki/Cosmolabe), Jacques Besson's 1566 universal instrument designed to replace the sphere, astrolabes, geometric square, quadrant, and celestial/terrestrial globes — one tool for astrometry, cartography, navigation, and surveying. Cosmolabe picks up where [Cosmographia](https://naif.jpl.nasa.gov/naif/cosmographia.html) left off — a C++ desktop visualization app originally created by Chris Laurel (author of [Celestia](https://celestiaproject.space/)), with SPICE-enhanced releases published by NASA NAIF and ESA, but no longer actively developed. Cosmolabe reimplements its catalog format and rendering capabilities as composable web packages, supporting SPICE kernels, TLE data, Keplerian elements, and time-series simulation results — load any combination and get an interactive 3D mission visualization in the browser.
+<!--
+  HERO VIDEO  ────────────────────────────────────────────────────────────────
+  How to add: open https://github.com/AaronPlave/cosmolabe/issues/new in a browser,
+  drag the MP4 (≤10 MB, 5–8 s loop) into the comment textbox, wait for upload,
+  copy the resulting `https://github.com/user-attachments/assets/<uuid>` URL,
+  paste it into the `src` below, then close the draft without submitting.
+  This serves the video from GitHub's CDN — no LFS bandwidth, no repo bloat.
+  Recommended capture: LRO at the Moon w/ terrain streaming, or Cassini at Saturn.
+-->
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/REPLACE-ME-HERO-VIDEO-UUID"
+         autoplay loop muted playsinline
+         width="800">
+  </video>
+</p>
+
+You configure a scene by writing a **catalog** — a JSON file that names the bodies, their trajectories, their orientations, and what the viewer should draw. See **[docs/catalog-format.md](docs/catalog-format.md)** for the full reference. Catalogs support SPICE kernels, TLE data, Keplerian elements, and time-series simulation output — load any combination and get an interactive 3D mission visualization in the browser, no rendering code required.
+
+Named after the [cosmolabe](https://en.wikipedia.org/wiki/Cosmolabe), Jacques Besson's 1566 universal instrument designed to replace the sphere, astrolabes, geometric square, quadrant, and celestial/terrestrial globes — one tool for astrometry, cartography, navigation, and surveying. The catalog format is adopted from NASA JPL's [Cosmographia](https://naif.jpl.nasa.gov/naif/cosmographia.html), a desktop visualization app originally created by Chris Laurel (author of [Celestia](https://celestiaproject.space/)) and SPICE-enhanced by NASA NAIF / ESA but no longer actively developed. Existing Cosmographia catalogs load unmodified, but you do not need any prior knowledge of Cosmographia to write one.
+
+## Who It's For
+
+Cosmolabe is built for engineers and developers who need to visualize where a spacecraft is — and what it can see — at a specific moment in time, in a browser, without standing up a desktop tool. **SPICE is one supported input among several; you do not need it.**
+
+Typical users:
+
+- **Mission engineers** preparing pre-flight reviews, public outreach, or operations dashboards. Drop in your SPICE kernels and a Cosmographia catalog and get an interactive 3D scene with no UI code.
+- **Simulation / planning teams** (e.g. PlanDev or any similar planning/replay tool) replaying time-series spacecraft state — feed `InterpolatedStates` and tabulated quaternion attitude from sim output, no kernels required.
+- **Satellite operators and CubeSat teams** tracking objects with TLE data — ISS, Starlink, debris, anything with a published TLE. Uses [satellite.js](https://github.com/shashwatak/satellite-js) for SGP4/SDP4 propagation.
+- **Surface-ops developers** working on rovers, landers, or drone-swarm concepts. Quantized-mesh / 3D Tiles streaming terrain — plus an experimental Surface Explorer camera mode for ground-level navigation.
+- **Web developers at space companies** embedding mission viz in larger dashboards — the renderer composes over Three.js or CesiumJS depending on what's already in your stack.
+
+Representative use cases:
+
+| Use case | What you load | Renderer |
+|---|---|---|
+| Live ISS tracker | TLE (no kernels) | Three.js or Cesium |
+| Cassini at Saturn — full mission replay | SPK + CK + spacecraft model | Three.js |
+| Lunar rover EDL + surface ops | SPK + DEM tiles + Surface Explorer (*experimental*) | Three.js |
+| PlanDev sim result playback | `InterpolatedStates` from sim output | Three.js |
+| Mission concept design / proposal viz | Keplerian elements + body catalog | Three.js |
+| Globe-centric ops dashboard with comm relay | TLE + ground stations + CZML export | Cesium |
+
+If your need is *one of these*, you're in the right place. If you need a 2D ground-track-only tool, an analysis backend without a renderer, or a fully-fledged trajectory optimizer, Cosmolabe is the wrong layer.
 
 ## What It Does
 
 - **SPICE in the browser** — typed TypeScript wrappers over CSPICE compiled to WASM (via TimeCraftJS). Position/velocity, frame transforms, surface geometry, illumination, orbital elements, and geometry event finders (eclipses, occultations, conjunctions).
-- **Cosmographia-compatible catalogs** — load the same JSON catalog files that the desktop app used. Bodies, trajectories, rotations, instruments, viewpoints — all parsed and rendered.
-- **Queryable universe model** — `universe.getBody('LRO').stateAt(et)` returns SPICE-accurate position and velocity at any ephemeris time. Zero rendering dependencies in the core.
-- **Three.js rendering** — textured globes with DDS/JPG surface maps, streaming 3D terrain (quantized mesh, 3D Tiles, Cesium Ion), orbit trails, instrument FOV cones, atmospheric scattering, planetary rings, star fields from the HYG catalog, body labels, and geometry readouts.
+- **Catalog-driven scene configuration** — describe a scene declaratively in JSON: 10 trajectory types, 6 rotation models, 8 geometry types, and 4 inertial frames + body-fixed + two-vector frames. Existing Cosmographia catalogs load unmodified. See [docs/catalog-format.md](docs/catalog-format.md).
+- **Queryable universe model** — `universe.getBody('LRO').stateAt(et)` returns SPICE-accurate position and velocity at any ephemeris time. Zero rendering dependencies in the core, so it's usable server-side or with any renderer.
+- **Three.js rendering** — textured globes with DDS/JPG surface maps, streaming 3D terrain (quantized mesh, 3D Tiles, Cesium Ion, with WMS/WMTS/TMS imagery overlays), orbit trails, instrument FOV cones, eclipse umbra/penumbra shading, atmospheric scattering, planetary rings, star fields from the HYG catalog, labels, and geometry readouts.
 - **CesiumJS adapter** — optional bridge for teams already invested in Cesium. CZML export, coordinate transforms, and a parallel renderer (`@cosmolabe/cesium`).
+- **Off-thread trajectory caching** — Web Worker prebuilds adaptive samples (Visvalingam-Whyatt simplification) so scrubbing stays smooth on long missions.
 - **Time controls** — play/pause, adjustable rate, scrub to any moment in a mission's timeline.
+
+## Gallery
+
+<!--
+  SCREENSHOT GRID  ───────────────────────────────────────────────────────────
+  Drop PNG/JPG screenshots into `docs/img/` (regular files — small enough that
+  LFS isn't worth it; keep each ≤500 KB if you can). Replace the placeholder
+  paths below. Aim for a tight visual crop, dark background, label visible.
+
+  For inline clips that show motion (eclipse transitions, surface explorer),
+  use the same user-attachments trick as the hero — `<video src="...">` works
+  inside a table cell. Don't reference repo files for video unless you want to
+  spend LFS bandwidth.
+-->
+
+| | | |
+|:-:|:-:|:-:|
+| ![LRO at the Moon](docs/img/lro-moon.png) | ![Cassini at Saturn](docs/img/cassini-saturn.png) | ![Europa Clipper](docs/img/europa-clipper.png) |
+| **LRO at the Moon** — high-res terrain streaming | **Cassini at Saturn** — rings + sensor frustums | **Europa Clipper** — multi-body Jupiter system |
+| ![ISS live](docs/img/iss-live.png) | ![Cesium comm relay](docs/img/cesium-comm-relay.png) | ![Surface Explorer](docs/img/surface-explorer.png) |
+| **ISS live tracking** — TLE-driven, no kernels | **Cesium viewer** — comm relay + eclipse | **Surface Explorer** *(experimental)* — ground-level Mars |
 
 ## Repo Structure
 
@@ -48,7 +113,7 @@ Typed wrappers over the full CSPICE function library compiled to WASM. Handles a
 Pure TypeScript universe model with no rendering dependencies. Usable server-side or with any renderer.
 
 - **Universe** — body registry, time state, state queries
-- **CatalogLoader** — parses Cosmographia JSON catalogs (all 10 trajectory types, 6 rotation models, 8 geometry types, 4 inertial frames, body-fixed and two-vector frames)
+- **CatalogLoader** — parses [catalog JSON](docs/catalog-format.md): all 10 trajectory types, 6 rotation models, 8 geometry types, 4 inertial frames, plus body-fixed and two-vector frames
 - **Trajectories** — FixedPoint, Keplerian, Spice, InterpolatedStates, Composite, Builtin, ChebyshevPoly, LinearCombination, TLE (via satellite.js)
 - **Rotations** — Uniform, Fixed, Euler, Spice, Interpolated, TrajectoryNadir
 - **GeometryCalculator** — altitude, sub-spacecraft point, sun angles, orbital elements, eclipse/occultation detection
@@ -69,9 +134,10 @@ Three.js rendering layer that syncs a `Universe` into an interactive 3D scene.
 - **RingMesh** — planetary rings
 - **StarField** — naked-eye stars from the HYG catalog with magnitude-based filtering
 - **LabelManager**, **GeometryReadout**, **EventMarkers** — UI overlays
-- **CameraController** — orbit camera, body tracking, Surface Explorer mode for ground-level navigation, smooth transitions, keyboard shortcuts
+- **CameraController** — orbit camera, body tracking, smooth transitions, keyboard shortcuts. Surface Explorer mode for ground-level navigation is *experimental*.
 - **TimeController** — play/pause/rate/scrub
-- **Plugins** — TrajectoryColor, ManeuverVector, CommLink, Screenshot
+- **TrajectoryCache + SpiceCacheWorker** — off-thread adaptive sampling and Visvalingam-Whyatt simplification for long-arc trajectories
+- **Plugins** — TrajectoryColor, ManeuverVector, CommLink, Screenshot (GroundTrack pending)
 
 ### `@cosmolabe/cesium-adapter`
 
@@ -83,7 +149,7 @@ CesiumJS rendering layer composing over `@cosmolabe/core` and `@cosmolabe/cesium
 
 ### Viewer Apps
 
-- **`apps/viewer/`** — Three.js + Svelte 5 demo app. Drag-drop SPICE kernel files and Cosmographia JSON catalogs, or pick from built-in demos: LRO at the Moon (16K textures), Europa Clipper at Jupiter, Cassini at Saturn (with rings + sensor frustums), ISS (TLE-propagated), inner solar system, Saturn system, Earth-Moon, MSL at Dingo Gap (Curiosity rover with high-res Mars terrain).
+- **`apps/viewer/`** — Three.js + Svelte 5 demo app. Drag-drop a [catalog JSON](docs/catalog-format.md) (and optional SPICE kernel files), or pick from built-in demos: LRO at the Moon (16K textures), Europa Clipper at Jupiter, Cassini at Saturn (with rings + sensor frustums), ISS (TLE-propagated), inner solar system, Saturn system, Earth-Moon, and MSL at Dingo Gap (Curiosity rover with high-res Mars terrain — *experimental*).
 - **`apps/cesium-viewer/`** — CesiumJS demo featuring live ISS telemetry, eclipse highlighting, and ground-station comm relay.
 
 ## Getting Started
@@ -107,7 +173,7 @@ cd apps/viewer && npm run dev          # Three.js viewer
 cd apps/cesium-viewer && npm run dev   # Cesium viewer
 ```
 
-Open the viewer and choose a demo catalog, or drag in your own kernel files and catalog JSON.
+Open the viewer and choose a demo catalog, or drag in your own [catalog JSON](docs/catalog-format.md) (plus any SPICE kernels it references).
 
 ### Running Tests
 
@@ -145,27 +211,47 @@ Key constraints:
 
 ## Adoption Model
 
-**Tier 1 (today):** Load SPICE kernels + a Cosmographia catalog JSON — get a full 3D mission visualization with no code. Trajectories, globes, terrain, instruments, time controls, stars, labels, event markers all come free from the catalog.
+**Tier 1 (today):** Write a [catalog JSON](docs/catalog-format.md) (optionally pointing at SPICE kernels) — get a full 3D mission visualization with no code. Trajectories, globes, terrain, instruments, time controls, stars, labels, event markers all come free from the catalog.
 
-**Tier 2:** Built-in configurable plugins for common patterns — color orbits by eclipse state, show comm link lines, mark maneuvers on trajectories — enabled with a few lines of config.
+**Tier 2 (today):** Built-in configurable plugins for common patterns — `TrajectoryColorPlugin`, `ManeuverVectorPlugin`, `CommLinkPlugin`, `ScreenshotPlugin`. Enable with a few lines of config; data-agnostic, accept typed event arrays from any source. `GroundTrackPlugin` is pending.
 
-**Tier 3:** Custom `RendererPlugin` interface for novel instrument visualization.
+**Tier 3 (today):** Custom `RendererPlugin` interface with typed `RendererContext` and `attachToBody()` lifecycle helpers — for novel instrument visualization, mission-specific overlays, or anything beyond the stock plugins.
+
+## Status
+
+| Area | Status |
+|---|---|
+| SPICE WASM layer (~25 typed wrappers) | Complete |
+| Cosmographia catalog loader (full schema) | Complete |
+| Three.js renderer | Complete |
+| CesiumJS renderer + adapter | Complete |
+| Eclipse shadows (analytical + SPICE) | Complete |
+| Atmospheric scattering | Complete |
+| Plugin system (6 patterns, 4 stock plugins) | Complete |
+| Surface Explorer camera mode | Experimental |
+| High-res Mars terrain (Dingo Gap demo) | Experimental |
+| Ring shadows, night-side emission, Lunar-Lambert, bloom | Planned |
+| `GroundTrackPlugin` | Planned |
+| PlanDev sim-replay adapter | Planned |
+| WebGPU renderer path | Future |
+| Hosted demo | Not yet published |
 
 ## Planned Work
 
 **Rendering:**
 - Ring shadow casting (planet-to-ring and ring-to-planet)
 - Night-side emission (city lights / thermal maps)
-- Lunar-Lambert lighting for airless bodies
+- Lunar-Lambert / Hapke BRDF for airless bodies
 - Bloom/glare post-processing
 
 **Plugin system:**
-- Aerie adapter (sim-result-driven 3D panel)
-- GroundTrackPlugin
+- PlanDev adapter (sim-result-driven 3D panel)
+- `GroundTrackPlugin`
 
 **Future:**
 - WebGPU renderer path
 - Expanded Web Worker offloading for SPICE computation
+- React Three Fiber bindings
 
 ## Contributing
 

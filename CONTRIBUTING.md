@@ -59,7 +59,7 @@ Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LF
 - New trajectory type? See `packages/core/src/trajectories/Trajectory.ts` for the interface and existing implementations (Keplerian, TLE, FixedPoint, etc.) for patterns.
 - New rotation model? `packages/core/src/rotations/RotationModel.ts`.
 - New renderer plugin? `packages/three/src/plugins/RendererPlugin.ts` and the stock plugins in `packages/three/src/plugins/stock/`.
-- New mission catalog? Drop a Cosmographia-format JSON into `apps/viewer/test-catalogs/`. See existing catalogs (`iss.json`, `cassini-soi.json`) for examples.
+- New mission catalog? Drop a [catalog JSON](docs/catalog-format.md) into `apps/viewer/test-catalogs/`. See existing catalogs (`iss.json`, `cassini-soi.json`) for examples.
 
 ## Opening a PR
 
