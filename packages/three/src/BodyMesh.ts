@@ -6,6 +6,7 @@ import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
 import { injectShadowIntoShader, makeShadowUniforms, type ShadowUniforms } from './EclipseShadow.js';
+import { BLOOM_LAYER } from './BloomEffect.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import type { Body } from '@cosmolabe/core';
 
@@ -127,12 +128,16 @@ export class BodyMesh extends THREE.Object3D {
       : new THREE.MeshPhongMaterial({ color });
 
     // Stars and emissive bodies (e.g. Sun with "emissive": true in Cosmographia geometry) emit light
-    if (body.classification === 'star' || body.geometryData?.emissive === true) {
+    const isEmissive = body.classification === 'star' || body.geometryData?.emissive === true;
+    if (isEmissive) {
       material.emissive = new THREE.Color(0xffdd44);
       material.emissiveIntensity = 0.8;
     }
 
     this.mesh = new THREE.Mesh(geometry, material);
+    // Route emissive bodies onto the bloom layer in addition to their normal layer.
+    // No effect when bloom is disabled; BloomEffect renders this layer offscreen.
+    if (isEmissive) this.mesh.layers.enable(BLOOM_LAYER);
     this.add(this.mesh);
 
     // Globe bodies: pre-rotate geometry so Three.js Y-pole aligns with body-fixed Z-pole.
@@ -251,8 +256,10 @@ export class BodyMesh extends THREE.Object3D {
     // Multi-pass rendering: models are rendered in a separate pass (layer 1) with
     // cleared depth buffer and tight near/far, so standard hardware depth interpolation
     // handles intra-model face sorting with full precision. No log depth override needed.
+    const emissiveModel = this.body.classification === 'star' || this.body.geometryData?.emissive === true;
     object.traverse((child) => {
       child.layers.set(1);
+      if (emissiveModel) child.layers.enable(BLOOM_LAYER);
 
       if (child instanceof THREE.Mesh) {
         if (!child.material) {

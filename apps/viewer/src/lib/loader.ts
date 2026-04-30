@@ -478,6 +478,7 @@ function initScene(
     modelResolver: modelFiles?.size
       ? (source: string) => findInMap(modelFiles, source)
       : (source: string) => `./${source}`,
+    bloom: { enabled: true },
   });
 
   renderer.camera.position.set(0, 300, 500);
@@ -556,6 +557,9 @@ function initScene(
 
   setSceneLoaded(true);
   renderer.start();
+
+  // Expose for console-based tuning during development.
+  (window as unknown as { renderer: UniverseRenderer }).renderer = renderer;
 }
 
 // ── Public API for components ──

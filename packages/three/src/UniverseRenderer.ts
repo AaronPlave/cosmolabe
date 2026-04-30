@@ -17,6 +17,7 @@ import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
 import { TimeController } from './controls/TimeController.js';
 import type { TerrainConfig } from './TerrainManager.js';
 import type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
+import { BloomEffect, type BloomConfig } from './BloomEffect.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
 import type { RendererContext } from './plugins/RendererContext.js';
 import type { BodyVisualizer } from './plugins/BodyVisualizer.js';
@@ -71,6 +72,10 @@ export interface UniverseRendererOptions {
    *  When provided, spacecraft caches are built off the main thread and
    *  hot-swapped onto trajectory lines when ready. */
   cacheWorker?: SpiceCacheWorker;
+  /** Selective bloom / Sun glare. Pass `{ enabled: true }` to opt in;
+   *  bodies marked emissive (Sun, stars) are auto-routed to the bloom layer.
+   *  Default: disabled. */
+  bloom?: BloomConfig;
 }
 
 // Classes that should NOT show trajectories by default
@@ -126,6 +131,8 @@ export class UniverseRenderer {
   private readonly _shadowOccluderCache = new Map<string, { pos: THREE.Vector3; radius: number }[]>();
   /** Current lighting mode — eclipse shadows only apply in 'natural' mode */
   private _lightingMode: 'natural' | 'shadow' | 'flood' = 'natural';
+  /** Selective bloom / Sun glare overlay (null when disabled). */
+  private bloomEffect: BloomEffect | null = null;
 
   /** Renderer-level event bus. Forwards universe events and adds renderer-specific events. */
   readonly events = new EventBus<RendererEventMap>();
@@ -247,6 +254,16 @@ export class UniverseRenderer {
         if (tl.body === body) tl.invalidate();
       }
     });
+
+    // Selective bloom / Sun glare. Constructed before buildScene so emissive
+    // bodies can be routed onto BLOOM_LAYER as they're added.
+    if (options.bloom?.enabled) {
+      this.bloomEffect = new BloomEffect(
+        this.renderer, this.scene, this.camera,
+        canvas.clientWidth, canvas.clientHeight,
+        options.bloom,
+      );
+    }
 
     // Build scene from universe
     this.buildScene();
@@ -754,6 +771,12 @@ export class UniverseRenderer {
       this.renderer.render(this._markerScene, this.camera);
     }
 
+    // Bloom / Sun glare overlay — additive composite of BLOOM_LAYER objects.
+    // Skip when an instrument PiP fully covers the canvas.
+    if (this.bloomEffect && !(this.instrumentView?.active && this.instrumentView.fullScreen)) {
+      this.bloomEffect.render();
+    }
+
     // Plugins — after render
     for (const plugin of this.plugins) {
       plugin.onAfterRender?.(et, this._ctx);
@@ -771,10 +794,33 @@ export class UniverseRenderer {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
     this.instrumentView?.onResize();
+    this.bloomEffect?.setSize(width, height);
     this.events.emit('renderer:resize', { width, height });
     for (const plugin of this.plugins) {
       plugin.onResize?.(width, height);
     }
+  }
+
+  /** Get the bloom effect (null when disabled). */
+  getBloomEffect(): BloomEffect | null {
+    return this.bloomEffect;
+  }
+
+  /**
+   * Toggle or update the bloom / Sun glare effect at runtime.
+   * Pass `{ enabled: true }` to lazily construct it on first call.
+   */
+  setBloom(config: BloomConfig): void {
+    if (config.enabled && !this.bloomEffect) {
+      const canvas = this.renderer.domElement;
+      this.bloomEffect = new BloomEffect(
+        this.renderer, this.scene, this.camera,
+        canvas.clientWidth, canvas.clientHeight,
+        config,
+      );
+      return;
+    }
+    this.bloomEffect?.setConfig(config);
   }
 
   getBodyMesh(name: string): BodyMesh | undefined {
@@ -1449,6 +1495,8 @@ export class UniverseRenderer {
       this.scene.remove(av.object);
     }
     this._attachedVisuals.length = 0;
+    this.bloomEffect?.dispose();
+    this.bloomEffect = null;
     this.renderer.dispose();
     this.events.dispose();
     for (const plugin of this.plugins) plugin.dispose?.();
