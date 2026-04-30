@@ -87,7 +87,8 @@
           "geometry": {
             "type": "Mesh",
             "size": 0.1,
-            "source": "models/iss/iss.cmod"
+            "source": "models/ISS_stationary.glb",
+            "meshRotation": [0, 1, 0, 0]
           },
           "label": { "color": [1.0, 1.0, 1.0] },
           "trajectoryPlot": {
