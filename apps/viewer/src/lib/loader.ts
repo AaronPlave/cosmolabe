@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { Universe } from '@cosmolabe/core';
 import { Spice, type SpiceInstance } from '@cosmolabe/spice';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, OrbitalInfoPlugin } from '@cosmolabe/three';
+import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import {
   vs,
   bindRenderer,
@@ -455,9 +456,7 @@ function initScene(
   cacheWorker = null;
   if (workerKernelUrls.length > 0) {
     try {
-      cacheWorker = new SpiceCacheWorker(
-        new URL('../workers/spice-cache-relay.ts', import.meta.url),
-      );
+      cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
       cacheWorker.loadKernels([...workerKernelUrls]).catch((err) => {
         console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
       });

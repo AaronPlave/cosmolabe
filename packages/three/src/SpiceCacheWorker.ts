@@ -45,12 +45,14 @@ export class SpiceCacheWorker {
   private kernelsLoadedPromise: Promise<void> = Promise.resolve();
 
   /**
-   * @param workerUrl URL to the worker script. Typically:
-   *   `new URL('./workers/spice-cache.worker.ts', import.meta.url)`
-   *   Vite resolves this at build time and bundles the worker separately.
+   * Accepts either a URL pointing at the worker script or an already-
+   * instantiated Worker. The instance form is required for Vite's `?worker`
+   * import to bundle the worker as a separate chunk in production.
    */
-  constructor(workerUrl: URL) {
-    this.worker = new Worker(workerUrl, { type: 'module' });
+  constructor(workerOrUrl: URL | Worker) {
+    this.worker = workerOrUrl instanceof Worker
+      ? workerOrUrl
+      : new Worker(workerOrUrl, { type: 'module' });
     this.readyPromise = new Promise<void>((resolve, reject) => {
       this.readyResolve = resolve;
       this.readyReject = reject;

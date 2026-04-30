@@ -171,7 +171,9 @@ export class BodyMesh extends THREE.Object3D {
       if (ext === 'glb' || ext === 'gltf') {
         const loader = new GLTFLoader();
         const dracoLoader = new DRACOLoader();
-        dracoLoader.setDecoderPath('./draco/');
+        // Google's CDN ships the matched decoder.js + decoder.wasm and serves
+        // them with CORS, so we don't have to bundle the WASM blob ourselves.
+        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
         loader.setDRACOLoader(dracoLoader);
         const gltf = await loader.loadAsync(url);
         object = gltf.scene;

@@ -14,6 +14,9 @@ export default defineConfig({
   base: normalizeBase(process.env.VITE_BASE),
   plugins: [svelte(), tailwindcss()],
   publicDir: 'test-catalogs',
+  // The spice-cache relay worker pulls in further chunks (TimeCraftJS asm),
+  // so it can't use the default IIFE format which forbids code-splitting.
+  worker: { format: 'es' },
   resolve: {
     alias: {
       $lib: path.resolve(__dirname, './src/lib'),
