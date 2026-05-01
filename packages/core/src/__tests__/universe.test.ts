@@ -61,4 +61,32 @@ describe('Universe', () => {
     expect(roots.length).toBe(1);
     expect(roots[0].name).toBe('Sun');
   });
+
+  it('cleans up old parent.children when a body is overridden by a later catalog', () => {
+    const universe = new Universe();
+    universe.loadCatalog({
+      name: 'Base',
+      items: [
+        { name: 'Sun', trajectory: { type: 'FixedPoint', position: [0, 0, 0] } },
+        { name: 'Earth', center: 'Sun', trajectory: { type: 'FixedPoint', position: [1, 0, 0] } },
+      ],
+    });
+    const sun = universe.getBody('Sun')!;
+    expect(sun.children.map(c => c.name)).toEqual(['Earth']);
+
+    universe.loadCatalog({
+      name: 'Override',
+      items: [
+        { name: 'EMB', trajectory: { type: 'FixedPoint', position: [2, 0, 0] } },
+        { name: 'Earth', center: 'EMB', trajectory: { type: 'FixedPoint', position: [3, 0, 0] } },
+      ],
+    });
+    const sunAfter = universe.getBody('Sun')!;
+    const emb = universe.getBody('EMB')!;
+    const earth = universe.getBody('Earth')!;
+    expect(sunAfter.children.map(c => c.name)).toEqual([]);
+    expect(emb.children.map(c => c.name)).toEqual(['Earth']);
+    expect(earth.parentName).toBe('EMB');
+    expect(universe.getAllBodies().filter(b => b.name === 'Earth')).toHaveLength(1);
+  });
 });

@@ -57,9 +57,21 @@ export class Universe {
     const result = loader.load(json);
 
     for (const body of result.bodies) {
+      // If a body with this name already exists (e.g. brought in by a `require`d
+      // catalog and now being overridden), splice it out of its previous parent's
+      // children before installing the replacement — otherwise the old reference
+      // lingers and consumers see two bodies with the same name in the tree.
+      const existing = this.bodies.get(body.name);
+      if (existing && existing.parentName) {
+        const oldParent = this.bodies.get(existing.parentName);
+        if (oldParent) {
+          const idx = oldParent.children.indexOf(existing);
+          if (idx >= 0) oldParent.children.splice(idx, 1);
+        }
+      }
+
       this.bodies.set(body.name, body);
       this.wireBodyChangeCallback(body);
-      // Set up parent-child relationships
       if (body.parentName) {
         const parent = this.bodies.get(body.parentName);
         if (parent) parent.children.push(body);

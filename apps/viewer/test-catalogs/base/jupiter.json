@@ -1,0 +1,23 @@
+{
+  "name": "Jupiter",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Jupiter",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Jupiter" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "9.924912500121965h",
+        "inclination": 25.57,
+        "ascendingNode": 358.05,
+        "meridianAngle": 284.95
+      },
+      "geometry": { "type": "Globe", "radii": [71492, 71492, 66854], "baseMap": "textures/jupiter.dds" },
+      "label": { "color": [0.8, 0.7, 0.5] }
+    }
+  ]
+}

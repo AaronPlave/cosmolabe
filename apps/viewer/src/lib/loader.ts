@@ -1,14 +1,17 @@
 /**
- * Catalog & kernel loading logic — ported from legacy main.ts.
+ * Catalog & kernel loading logic.
  *
- * Manages SPICE initialization, kernel fetching (with progress), file drops,
- * catalog dependency resolution, and scene creation.
+ * Catalog-driven: a catalog file (URL or dropped JSON) declares its `require`
+ * dependencies and `spiceKernels`. The resolver walks the require graph,
+ * furnishes all referenced kernels (with `.tm` meta-kernels expanded), and
+ * initializes the scene. There is no per-mission code path.
  */
 import * as THREE from 'three';
-import { Universe } from '@cosmolabe/core';
+import { Universe, loadCatalogFromUrl, type ResolvedCatalogGraph, type ResolvedKernel } from '@cosmolabe/core';
 import { Spice, type SpiceInstance } from '@cosmolabe/spice';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, OrbitalInfoPlugin } from '@cosmolabe/three';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
+import { parseMetaKernel } from './metakernel';
 import {
   vs,
   bindRenderer,
@@ -26,14 +29,15 @@ let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
 const workerKernelUrls: string[] = [];
+/** URLs of kernels already furnished in this session — prevents redundant fetch + furnish across demos. */
+const furnishedKernels = new Set<string>();
 
 const KERNEL_EXTENSIONS = new Set([
-  '.bsp', '.tls', '.tpc', '.tf', '.tsc', '.ti', '.ck', '.bc', '.bpc', '.spk', '.pck', '.fk',
+  '.bsp', '.tls', '.tpc', '.tf', '.tsc', '.ti', '.ck', '.bc', '.bpc', '.spk', '.pck', '.fk', '.tm',
 ]);
 const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod']);
 const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.tga']);
 
-const NAIF_BASE = './kernels';
 const WORKER_KERNEL_EXTS = new Set(['.bsp', '.tls', '.tpc']);
 
 function trackKernelForWorker(url: string): void {
@@ -45,92 +49,6 @@ function trackKernelForWorker(url: string): void {
     }
   }
 }
-
-// ── Kernel sets ──
-
-const NAIF_KERNELS = [
-  { file: 'naif0012.tls', label: 'Leap seconds' },
-  { file: 'pck00011.tpc', label: 'Body constants' },
-  { file: 'de440s.bsp', label: 'Planets + Moon' },
-];
-
-const CASSINI_KERNELS_SMALL = [
-  { file: 'cassini/cas_v43.tf', label: 'Cassini frames' },
-  { file: 'cassini/cas00172.tsc', label: 'Cassini clock' },
-  { file: 'cassini/cas_iss_v10.ti', label: 'ISS NAC/WAC' },
-  { file: 'cassini/cas_vims_v06.ti', label: 'VIMS' },
-  { file: 'cassini/cas_uvis_v07.ti', label: 'UVIS' },
-  { file: 'cassini/cas_radar_v11.ti', label: 'RADAR' },
-  { file: 'cassini/cas_cirs_v10.ti', label: 'CIRS' },
-  { file: 'cassini/cas_caps_v03.ti', label: 'CAPS' },
-  { file: 'cassini/04183_04185ra.bc', label: 'SOI attitude' },
-];
-
-const CASSINI_KERNELS_LARGE = [
-  { file: 'cassini/040909R_SCPSE_01066_04199.bsp.gz', label: 'Trajectory (cruise–SOI)', size: 36_000_000 },
-  { file: 'cassini/041219R_SCPSE_04199_04247.bsp.gz', label: 'Trajectory (post-SOI)', size: 4_500_000 },
-  { file: 'cassini/050105RB_SCPSE_04247_04336.bsp.gz', label: 'Trajectory (Titan T-A)', size: 7_800_000 },
-  { file: 'cassini/050214R_SCPSE_04336_05015.bsp.gz', label: 'Trajectory (Huygens)', size: 16_000_000 },
-  { file: 'cassini/050411R_SCPSE_05015_05034.bsp.gz', label: 'Trajectory (Jan–Feb 05)', size: 7_300_000 },
-  { file: 'cassini/050414R_SCPSE_05034_05060.bsp.gz', label: 'Trajectory (Feb–Mar 05)', size: 7_900_000 },
-  { file: 'cassini/050504R_SCPSE_05060_05081.bsp.gz', label: 'Trajectory (Mar 05)', size: 4_500_000 },
-  { file: 'cassini/050506R_SCPSE_05081_05097.bsp.gz', label: 'Trajectory (Mar–Apr 05)', size: 4_400_000 },
-  { file: 'cassini/050513R_SCPSE_05097_05114.bsp.gz', label: 'Trajectory (Apr 05)', size: 4_200_000 },
-  { file: 'cassini/050606R_SCPSE_05114_05132.bsp.gz', label: 'Trajectory (Apr–May 05)', size: 3_100_000 },
-  { file: 'cassini/050623R_SCPSE_05132_05150.bsp.gz', label: 'Trajectory (May 05)', size: 2_500_000 },
-  { file: 'cassini/050708R_SCPSE_05150_05169.bsp.gz', label: 'Trajectory (May–Jun 05)', size: 2_900_000 },
-  { file: 'cassini/050802R_SCPSE_05169_05186.bsp.gz', label: 'Trajectory (Jun–Jul 05)', size: 2_700_000 },
-  { file: 'cassini/050825R_SCPSE_05186_05205.bsp.gz', label: 'Trajectory (Enceladus E-2)', size: 2_500_000 },
-  { file: 'cassini/04179_04183ra.bc.gz', label: 'SOI approach attitude', size: 10_000_000 },
-  { file: 'cassini/04296_04301ra.bc.gz', label: 'Titan T-A attitude', size: 6_400_000 },
-  { file: 'cassini/04356_04361ra.bc.gz', label: 'Huygens release attitude', size: 7_000_000 },
-  { file: 'cassini/05012_05017ra.bc.gz', label: 'Huygens landing attitude', size: 6_400_000 },
-  { file: 'cassini/05192_05197ra.bc.gz', label: 'Enceladus E-2 attitude', size: 6_600_000 },
-];
-
-const LRO_KERNELS = [
-  { file: 'lro/lro_frames_2014049_v01.tf.gz', label: 'LRO frames', size: 45_000 },
-  { file: 'lro/moon_080317.tf.gz', label: 'Lunar frames', size: 22_000 },
-  { file: 'lro/moon_assoc_me.tf.gz', label: 'Lunar ME frame', size: 10_000 },
-  { file: 'lro/lro_lroc_v20.ti.gz', label: 'LROC instruments', size: 74_000 },
-  { file: 'lro/lro_lola_v00.ti.gz', label: 'LOLA instrument', size: 12_000 },
-  { file: 'lro/lro_dlre_v05.ti.gz', label: 'Diviner instrument', size: 47_000 },
-  { file: 'lro/lro_lamp_v03.ti.gz', label: 'LAMP instrument', size: 26_000 },
-  { file: 'lro/lro_crater_v03.ti.gz', label: 'CRaTER instrument', size: 7_000 },
-  { file: 'lro/lro_lend_v00.ti.gz', label: 'LEND instrument', size: 10_000 },
-  { file: 'lro/lro_clkcor_2025351_v00.tsc.gz', label: 'LRO clock', size: 2_200_000 },
-  { file: 'lro/lrorg_2024350_2025074_v01.bsp.gz', label: 'LRO trajectory', size: 7_200_000 },
-  { file: 'lro/moon_pa_de421_1900_2050.bpc.gz', label: 'Lunar orientation', size: 1_700_000 },
-];
-
-const EUROPA_CLIPPER_KERNELS = [
-  { file: 'europa-clipper/clipper_v16.tf', label: 'Clipper frames' },
-  { file: 'europa-clipper/clipper_dyn_v06.tf', label: 'Clipper dynamic frames' },
-  { file: 'europa-clipper/europaclipper_00227.tsc', label: 'Clipper clock' },
-  { file: 'europa-clipper/gm_de440.tpc', label: 'GM values' },
-  { file: 'europa-clipper/clipper_eis_v06.ti', label: 'EIS instruments' },
-  { file: 'europa-clipper/clipper_ethemis_v06.ti', label: 'E-THEMIS instrument' },
-  { file: 'europa-clipper/clipper_mise_v05.ti', label: 'MISE instrument' },
-  { file: 'europa-clipper/clipper_uvs_v07.ti', label: 'UVS instrument' },
-  { file: 'europa-clipper/ref_trj_scpse.bsp', label: 'Clipper trajectory (44 MB)' },
-];
-
-const MSL_KERNELS = [
-  { file: 'msl/msl.tf', label: 'MSL frames' },
-  { file: 'msl/msl_tp_ops120808_iau2000_v1.tf', label: 'MSL topocentric frame' },
-  { file: 'msl/MSL_76_SCLKSCET.00012.tsc', label: 'MSL clock' },
-  { file: 'msl/msl_ls_ops120808_iau2000_v1.bsp', label: 'MSL landing site' },
-  { file: 'msl/msl_surf_rover_loc_0000_2003_v1.bsp', label: 'MSL site locations' },
-  { file: 'msl/msl_surf_rover_tlm_0449_0583_v1.bsp', label: 'MSL rover position' },
-  { file: 'msl/msl_surf_rover_tlm_0449_0583_v1.bc', label: 'MSL rover attitude' },
-  { file: 'msl/mar099s.bsp', label: 'Mars satellite ephemeris (64 MB)' },
-];
-
-let naifLoaded = false;
-let cassiniLoaded = false;
-let lroLoaded = false;
-let europaClipperLoaded = false;
-let mslLoaded = false;
 
 // ── Fetch with progress + gzip decompression ──
 
@@ -180,7 +98,7 @@ async function fetchWithProgress(
   return result.buffer;
 }
 
-// ── Kernel loading ──
+// ── Kernel pipeline ──
 
 async function ensureSpice(): Promise<SpiceInstance> {
   if (!spice) {
@@ -190,93 +108,102 @@ async function ensureSpice(): Promise<SpiceInstance> {
   return spice;
 }
 
-async function loadNaifKernels(): Promise<void> {
-  if (naifLoaded) return;
-  const s = await ensureSpice();
-
-  for (let i = 0; i < NAIF_KERNELS.length; i++) {
-    const kernel = NAIF_KERNELS[i];
-    setLoadingState({ label: `(${i + 1}/${NAIF_KERNELS.length}) Fetching ${kernel.label}...` });
-    const url = `${NAIF_BASE}/${kernel.file}`;
-    await s.furnish({ type: 'url', url });
-    trackKernelForWorker(url);
-  }
-  naifLoaded = true;
-  setKernelCount(s.totalLoaded());
+function isLargeKernel(k: ResolvedKernel): boolean {
+  return typeof k.size === 'number' && k.size > 1_000_000;
 }
 
-async function loadKernelSet(
-  kernels: { file: string; label: string; size?: number }[],
-  flag: () => boolean,
-  setFlag: () => void,
-) {
-  if (flag()) return;
-  await loadNaifKernels();
+/** Furnish a single kernel URL. Handles `.gz` decompression. Tracks for cache worker. */
+async function furnishKernelUrl(url: string, opts?: { size?: number; onProgress?: (loaded: number) => void }): Promise<void> {
+  if (furnishedKernels.has(url)) return;
+  const s = await ensureSpice();
 
-  const small = kernels.filter(k => !k.size);
-  const large = kernels.filter(k => k.size);
+  if (opts?.size && opts.size > 0) {
+    const buffer = await fetchWithProgress(url, (loaded) => opts.onProgress?.(loaded));
+    const filename = filenameFromUrl(url).replace(/\.gz$/, '');
+    await s.furnish({ type: 'buffer', data: buffer, filename });
+  } else {
+    await s.furnish({ type: 'url', url });
+  }
+  furnishedKernels.add(url);
+  trackKernelForWorker(url);
+}
 
-  // Small kernels: direct fetch
-  for (const kernel of small) {
-    setLoadingState({ label: `Loading ${kernel.label}...` });
-    try {
-      const url = `${NAIF_BASE}/${kernel.file}`;
-      await spice!.furnish({ type: 'url', url });
-      trackKernelForWorker(url);
-    } catch (err) {
-      console.error(`[Cosmolabe] Failed to load ${kernel.file}:`, err);
+/** Resolve a meta-kernel (.tm) into a list of absolute kernel URLs. */
+async function expandMetaKernel(metaUrl: string): Promise<string[]> {
+  const resp = await fetch(metaUrl);
+  if (!resp.ok) throw new Error(`Failed to fetch meta-kernel: ${metaUrl} (${resp.status})`);
+  const text = await resp.text();
+  const mk = parseMetaKernel(text);
+  return mk.kernels.map(k => new URL(k, metaUrl).href);
+}
+
+/** Furnish every kernel referenced by a resolved catalog graph. */
+async function furnishKernelsFromGraph(graph: ResolvedCatalogGraph): Promise<void> {
+  // Expand any .tm meta-kernels first so we have the complete flat list.
+  const flat: ResolvedKernel[] = [];
+  for (const k of graph.kernels) {
+    if (furnishedKernels.has(k.url)) continue;
+    if (k.url.toLowerCase().endsWith('.tm')) {
+      try {
+        const expanded = await expandMetaKernel(k.url);
+        for (const exp of expanded) flat.push({ url: exp });
+      } catch (err) {
+        console.warn(`[Cosmolabe] Failed to expand meta-kernel ${k.url}:`, err);
+      }
+    } else {
+      flat.push(k);
     }
   }
 
-  // Large kernels: with progress
+  const small = flat.filter(k => !isLargeKernel(k));
+  const large = flat.filter(k => isLargeKernel(k));
+
+  for (const k of small) {
+    setLoadingState({ label: `Loading ${k.label ?? filenameFromUrl(k.url)}...` });
+    try {
+      await furnishKernelUrl(k.url);
+    } catch (err) {
+      console.warn(`[Cosmolabe] Failed to load ${k.url}:`, err);
+    }
+  }
+
   if (large.length > 0) {
     const totalSize = large.reduce((s, k) => s + (k.size ?? 0), 0);
     let loadedSize = 0;
     setLoadingState({ show: true });
 
     for (let i = 0; i < large.length; i++) {
-      const kernel = large[i];
+      const k = large[i];
       const progress = `(${i + 1}/${large.length})`;
-      setLoadingState({ label: `${progress} ${kernel.label}` });
-
+      setLoadingState({ label: `${progress} ${k.label ?? filenameFromUrl(k.url)}` });
       try {
-        const url = `${NAIF_BASE}/${kernel.file}`;
-        const buffer = await fetchWithProgress(url, (loaded) => {
-          setLoadingState({
-            progress: ((loadedSize + loaded) / totalSize) * 100,
-            detail: `${formatBytes(loadedSize + loaded)} / ${formatBytes(totalSize)}`,
-          });
+        await furnishKernelUrl(k.url, {
+          size: k.size,
+          onProgress: (loaded) => {
+            setLoadingState({
+              progress: ((loadedSize + loaded) / totalSize) * 100,
+              detail: `${formatBytes(loadedSize + loaded)} / ${formatBytes(totalSize)}`,
+            });
+          },
         });
-        const filename = kernel.file.replace(/\.gz$/, '');
-        await spice!.furnish({ type: 'buffer', data: buffer, filename });
-        trackKernelForWorker(url);
       } catch (err) {
-        console.error(`[Cosmolabe] Failed to load ${kernel.file}:`, err);
+        console.warn(`[Cosmolabe] Failed to load ${k.url}:`, err);
       }
-      loadedSize += kernel.size ?? 0;
+      loadedSize += k.size ?? 0;
     }
     setLoadingState({ show: false });
   }
 
-  setFlag();
-  setKernelCount(spice!.totalLoaded());
+  setKernelCount(spice?.totalLoaded() ?? 0);
 }
 
-async function loadCassiniKernels() {
-  await loadKernelSet(
-    [...CASSINI_KERNELS_SMALL, ...CASSINI_KERNELS_LARGE],
-    () => cassiniLoaded,
-    () => { cassiniLoaded = true; },
-  );
-}
-async function loadLroKernels() {
-  await loadKernelSet(LRO_KERNELS, () => lroLoaded, () => { lroLoaded = true; });
-}
-async function loadEuropaClipperKernels() {
-  await loadKernelSet(EUROPA_CLIPPER_KERNELS, () => europaClipperLoaded, () => { europaClipperLoaded = true; });
-}
-async function loadMslKernels() {
-  await loadKernelSet(MSL_KERNELS, () => mslLoaded, () => { mslLoaded = true; });
+function filenameFromUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.pathname.split('/').pop() || url;
+  } catch {
+    return url.split('/').pop() ?? url;
+  }
 }
 
 // ── File handling ──
@@ -431,22 +358,23 @@ function initScene(
     universe.loadCatalog(json as any);
   }
 
-  // Set initial time from catalog defaultTime
+  // Set initial time from catalog defaultTime. SPICE str2et needs the LSK kernel —
+  // if it isn't loaded (e.g. TLE-only demos) the call throws; fall back to Date math
+  // so a missing kernel doesn't silently leave the universe at J2000.
   for (const json of catalogs) {
     const dt = (json as Record<string, unknown>).defaultTime;
     if (typeof dt === 'string') {
-      try {
-        let et: number;
-        if (spice) {
-          et = spice.str2et(dt);
-        } else {
-          const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
-          et = (new Date(dt).getTime() - j2000Ms) / 1000;
-        }
-        universe.setTime(et);
-      } catch (e) {
-        console.warn(`[Cosmolabe] Failed to parse defaultTime "${dt}":`, e);
+      let et: number | undefined;
+      if (spice) {
+        try { et = spice.str2et(dt); } catch { /* fall through */ }
       }
+      if (et === undefined) {
+        const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
+        const ms = new Date(dt).getTime();
+        if (!Number.isNaN(ms)) et = (ms - j2000Ms) / 1000;
+      }
+      if (et !== undefined) universe.setTime(et);
+      else console.warn(`[Cosmolabe] Failed to parse defaultTime "${dt}"`);
       break;
     }
   }
@@ -564,27 +492,20 @@ function initScene(
 
 // ── Public API for components ──
 
-/** Load a demo catalog by name */
+/** Load a demo catalog by name. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
 export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
   setLoadingState({ label: `Loading ${name}...` });
 
-  if (name === 'iss') {
-    // TLE — no kernels
-  } else if (name === 'cassini-soi') {
-    await loadCassiniKernels();
-  } else if (name === 'lro-moon') {
-    await loadLroKernels();
-  } else if (name === 'europa-clipper') {
-    await loadEuropaClipperKernels();
-  } else if (name === 'msl-dingo-gap') {
-    await loadMslKernels();
-  } else {
-    await loadNaifKernels();
-  }
+  const entryUrl = new URL(`./${name}.json`, location.href).href;
+  const graph = await loadCatalogFromUrl(entryUrl);
 
-  const resp = await fetch(`./${name}.json`);
-  const json = await resp.json();
-  initScene(canvas, [json]);
+  // SPICE-free path: if the catalog graph declares no kernels, skip SPICE init
+  // entirely. The CatalogLoader falls through to Keplerian/analytical trajectories.
+  if (graph.kernels.length > 0) {
+    await ensureSpice();
+    await furnishKernelsFromGraph(graph);
+  }
+  initScene(canvas, graph.catalogs.map(c => c.json as Record<string, unknown>));
 }
 
 /** Handle dropped files */

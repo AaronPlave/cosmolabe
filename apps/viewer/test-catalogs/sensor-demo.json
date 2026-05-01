@@ -1,5 +1,6 @@
 {
   "name": "Sensor Frustum Demo",
+  "require": ["base/naif.json"],
   "items": [
     {
       "name": "Sun",

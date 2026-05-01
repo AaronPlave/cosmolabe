@@ -1,6 +1,17 @@
 {
   "name": "MSL Curiosity at Dingo Gap",
   "defaultTime": "2014-02-05T12:00:00Z",
+  "require": ["base/naif.json"],
+  "spiceKernels": [
+    "kernels/msl/msl.tf",
+    "kernels/msl/msl_tp_ops120808_iau2000_v1.tf",
+    "kernels/msl/MSL_76_SCLKSCET.00012.tsc",
+    "kernels/msl/msl_ls_ops120808_iau2000_v1.bsp",
+    "kernels/msl/msl_surf_rover_loc_0000_2003_v1.bsp",
+    "kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+    "kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc",
+    { "url": "kernels/msl/mar099s.bsp", "label": "Mars satellite ephemeris", "size": 64000000 }
+  ],
   "items": [
     {
       "name": "Mars Orbit",

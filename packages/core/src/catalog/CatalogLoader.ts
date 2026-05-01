@@ -20,12 +20,24 @@ import { FixedRotation } from '../rotations/FixedRotation.js';
 import { FixedEulerRotation } from '../rotations/FixedEulerRotation.js';
 import { InterpolatedRotation, parseQFile } from '../rotations/InterpolatedRotation.js';
 
+/**
+ * A SPICE kernel reference inside a catalog. Bare strings are Cosmographia-native;
+ * the object form is a cosmolabe extension that adds optional metadata used by the
+ * viewer's progress UI (Cosmographia ignores unknown fields).
+ */
+export type KernelRef = string | { url: string; size?: number; label?: string };
+
 // Cosmographia catalog JSON schema types
 export interface CatalogJson {
   name?: string;
   version?: string;
   require?: string[];
   items?: CatalogItem[];
+  /**
+   * SPICE kernels needed by this catalog. Resolved relative to the catalog's URL.
+   * `.tm` meta-kernels are expanded by the viewer pipeline. Cosmographia-native field name.
+   */
+  spiceKernels?: KernelRef[];
   /** Default time to set when loading this catalog (UTC string, e.g. "2004-07-01T02:48:00Z") */
   defaultTime?: string;
   /** Name of a Viewpoint item to apply as the initial camera view when this catalog loads */
@@ -63,6 +75,8 @@ export interface CatalogItem {
   items?: CatalogItem[];
   // Top-level arcs (Cosmographia uses this for spacecraft with multiple mission phases)
   arcs?: ArcSpec[];
+  /** Item-scoped SPICE kernels (accumulate with catalog-level `spiceKernels`). */
+  spiceKernels?: KernelRef[];
 }
 
 export interface ArcSpec {
@@ -204,8 +218,27 @@ export interface LoadedCatalog {
   name?: string;
   version?: string;
   require?: string[];
+  /** Kernel refs collected from catalog-level + items, in declaration order. Unresolved (paths as written). */
+  spiceKernels?: KernelRef[];
   /** Name of the viewpoint to apply as the initial camera view */
   defaultViewpoint?: string;
+}
+
+/** Walk a catalog JSON and collect all `spiceKernels` entries (catalog-level + every item, recursively). */
+export function collectKernelRefs(json: CatalogJson): KernelRef[] {
+  const refs: KernelRef[] = [];
+  if (json.spiceKernels) refs.push(...json.spiceKernels);
+  if (json.items) {
+    for (const item of json.items) collectItemKernelRefs(item, refs);
+  }
+  return refs;
+}
+
+function collectItemKernelRefs(item: CatalogItem, out: KernelRef[]): void {
+  if (item.spiceKernels) out.push(...item.spiceKernels);
+  if (item.items) {
+    for (const child of item.items) collectItemKernelRefs(child, out);
+  }
 }
 
 const DISTANCE_SCALE: Record<string, number> = {
@@ -447,7 +480,16 @@ export class CatalogLoader {
       }
     }
 
-    return { bodies, viewpoints, name: json.name, version: json.version, require: json.require, defaultViewpoint: json.defaultViewpoint };
+    const kernels = collectKernelRefs(json);
+    return {
+      bodies,
+      viewpoints,
+      name: json.name,
+      version: json.version,
+      require: json.require,
+      spiceKernels: kernels.length > 0 ? kernels : undefined,
+      defaultViewpoint: json.defaultViewpoint,
+    };
   }
 
   private parseViewpoint(item: CatalogItem): ViewpointDefinition {
@@ -785,20 +827,31 @@ export class CatalogLoader {
           spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000',
         );
 
-      case 'Nadir':
+      case 'Nadir': {
+        const target = spec.target ?? item.name;
+        // Bodies with a non-SPICE trajectory (TLE, Keplerian, FixedPoint) have no
+        // SPICE ephemeris — when the catalog asks for the body's own nadir, use
+        // its trajectory directly. SpiceTrajectory bodies still get NadirRotation.
+        if (
+          trajectory
+          && target === item.name
+          && !(trajectory instanceof SpiceTrajectory)
+        ) {
+          return new TrajectoryNadirRotation(trajectory);
+        }
         if (this.spice) {
           return new NadirRotation(
             this.spice,
-            spec.target ?? item.name,
+            target,
             spec.center ?? item.center ?? 'EARTH',
             spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000',
           );
         }
-        // Fall back to trajectory-based nadir when SPICE isn't available (e.g. TLE bodies)
         if (trajectory) {
           return new TrajectoryNadirRotation(trajectory);
         }
         return undefined;
+      }
 
       case 'Fixed': {
         if (spec.quaternion && spec.quaternion.length >= 4) {

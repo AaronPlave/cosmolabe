@@ -1,0 +1,43 @@
+{
+  "name": "Galilean Moons",
+  "version": "1.0",
+  "require": ["jupiter.json"],
+  "items": [
+    {
+      "name": "Io",
+      "class": "moon",
+      "center": "Jupiter",
+      "trajectory": { "type": "Builtin", "name": "Io" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Io" },
+      "geometry": { "type": "Globe", "radius": 1821.6, "baseMap": "textures/io.dds" },
+      "label": { "color": [1.0, 0.85, 0.5] }
+    },
+    {
+      "name": "Europa",
+      "class": "moon",
+      "center": "Jupiter",
+      "trajectory": { "type": "Builtin", "name": "Europa" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Europa" },
+      "geometry": { "type": "Globe", "radius": 1560.8, "baseMap": "textures/europa.dds" },
+      "label": { "color": [0.8, 0.7, 0.6] }
+    },
+    {
+      "name": "Ganymede",
+      "class": "moon",
+      "center": "Jupiter",
+      "trajectory": { "type": "Builtin", "name": "Ganymede" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Ganymede" },
+      "geometry": { "type": "Globe", "radius": 2634.1, "baseMap": "textures/ganymede.dds" },
+      "label": { "color": [0.7, 0.65, 0.6] }
+    },
+    {
+      "name": "Callisto",
+      "class": "moon",
+      "center": "Jupiter",
+      "trajectory": { "type": "Builtin", "name": "Callisto" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Callisto" },
+      "geometry": { "type": "Globe", "radius": 2410.3, "baseMap": "textures/callisto.dds" },
+      "label": { "color": [0.6, 0.55, 0.5] }
+    }
+  ]
+}

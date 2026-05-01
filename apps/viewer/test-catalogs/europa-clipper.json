@@ -3,6 +3,18 @@
   "version": "1.0",
   "defaultTime": "2031-03-06T12:00:00Z",
   "defaultViewpoint": "Track Clipper",
+  "require": ["base/naif.json"],
+  "spiceKernels": [
+    "kernels/europa-clipper/clipper_v16.tf",
+    "kernels/europa-clipper/clipper_dyn_v06.tf",
+    "kernels/europa-clipper/europaclipper_00227.tsc",
+    "kernels/europa-clipper/gm_de440.tpc",
+    "kernels/europa-clipper/clipper_eis_v06.ti",
+    "kernels/europa-clipper/clipper_ethemis_v06.ti",
+    "kernels/europa-clipper/clipper_mise_v05.ti",
+    "kernels/europa-clipper/clipper_uvs_v07.ti",
+    { "url": "kernels/europa-clipper/ref_trj_scpse.bsp", "label": "Clipper trajectory", "size": 44000000 }
+  ],
   "items": [
     {
       "name": "Jupiter System Overview",

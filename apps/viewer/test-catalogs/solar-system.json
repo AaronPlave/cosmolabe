@@ -1,5 +1,6 @@
 {
   "name": "Solar System",
+  "require": ["base/naif.json"],
   "items": [
     {
       "name": "Solar System Overview",

@@ -1,7 +1,7 @@
 {
   "name": "Rotation Models Demo",
   "version": "1.0",
-
+  "require": ["base/naif.json"],
   "items": [
     {
       "name": "Earth Overview",

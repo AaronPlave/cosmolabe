@@ -1,0 +1,78 @@
+{
+  "name": "Saturn Major Moons",
+  "version": "1.0",
+  "require": ["saturn.json"],
+  "items": [
+    {
+      "name": "Mimas",
+      "class": "moon",
+      "center": "Saturn",
+      "trajectory": { "type": "Builtin", "name": "Mimas" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Mimas" },
+      "geometry": { "type": "Globe", "radius": 198, "baseMap": "textures/mimas.dds" },
+      "label": { "color": [0.7, 0.7, 0.7] }
+    },
+    {
+      "name": "Enceladus",
+      "class": "moon",
+      "center": "Saturn",
+      "trajectory": { "type": "Builtin", "name": "Enceladus" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Enceladus" },
+      "geometry": { "type": "Globe", "radius": 252, "baseMap": "textures/enceladus.dds" },
+      "label": { "color": [0.95, 0.95, 1.0] }
+    },
+    {
+      "name": "Tethys",
+      "class": "moon",
+      "center": "Saturn",
+      "trajectory": { "type": "Builtin", "name": "Tethys" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Tethys" },
+      "geometry": { "type": "Globe", "radius": 533, "baseMap": "textures/tethys.dds" },
+      "label": { "color": [0.85, 0.85, 0.8] }
+    },
+    {
+      "name": "Dione",
+      "class": "moon",
+      "center": "Saturn",
+      "trajectory": { "type": "Builtin", "name": "Dione" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Dione" },
+      "geometry": { "type": "Globe", "radius": 562, "baseMap": "textures/dione.dds" },
+      "label": { "color": [0.8, 0.8, 0.75] }
+    },
+    {
+      "name": "Rhea",
+      "class": "moon",
+      "center": "Saturn",
+      "trajectory": { "type": "Builtin", "name": "Rhea" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Rhea" },
+      "geometry": { "type": "Globe", "radius": 764, "baseMap": "textures/rhea.dds" },
+      "label": { "color": [0.75, 0.75, 0.7] }
+    },
+    {
+      "name": "Titan",
+      "class": "moon",
+      "center": "Saturn",
+      "trajectory": { "type": "Builtin", "name": "Titan" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Titan" },
+      "geometry": { "type": "Globe", "radius": 2575, "baseMap": "textures/titan.dds", "atmosphere": "Titan" },
+      "label": { "color": [0.85, 0.7, 0.3] }
+    },
+    {
+      "name": "Hyperion",
+      "class": "moon",
+      "center": "Saturn",
+      "trajectory": { "type": "Builtin", "name": "Hyperion" },
+      "geometry": { "type": "Mesh", "source": "models/hyperion.cmod" },
+      "label": { "color": [0.6, 0.55, 0.5] }
+    },
+    {
+      "name": "Iapetus",
+      "class": "moon",
+      "center": "Saturn",
+      "trajectory": { "type": "Builtin", "name": "Iapetus" },
+      "rotationModel": { "type": "Builtin", "name": "IAU Iapetus" },
+      "geometry": { "type": "Globe", "radius": 736, "baseMap": "textures/iapetus.dds" },
+      "label": { "color": [0.6, 0.5, 0.4] }
+    }
+  ]
+}

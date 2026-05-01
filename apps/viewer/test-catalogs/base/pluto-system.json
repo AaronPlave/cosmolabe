@@ -1,0 +1,42 @@
+{
+  "name": "Pluto System",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Pluto",
+      "class": "dwarfPlanet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Pluto" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "153.2928h",
+        "inclination": 122.53,
+        "ascendingNode": 312.993,
+        "meridianAngle": 302.695
+      },
+      "geometry": { "type": "Globe", "radius": 1188, "baseMap": "textures/pluto.png" },
+      "label": { "color": [0.85, 0.75, 0.65] },
+      "items": [
+        {
+          "name": "Charon",
+          "class": "moon",
+          "center": "Pluto",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 19591,
+            "eccentricity": 0.0002,
+            "inclination": 0.001,
+            "ascendingNode": 223.046,
+            "argumentOfPeriapsis": 0,
+            "meanAnomaly": 0,
+            "epoch": "2000-01-01T12:00:00Z"
+          },
+          "geometry": { "type": "Globe", "radius": 606, "baseMap": "textures/charon.png" },
+          "label": { "color": [0.7, 0.65, 0.6] }
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "name": "Io Volcanic Features (FixedSpherical + ParticleSystem Demo)",
   "version": "1.0",
-
+  "require": ["base/naif.json"],
   "items": [
     {
       "name": "Tvashtar View",

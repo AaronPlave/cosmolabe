@@ -2,6 +2,21 @@
   "name": "LRO at the Moon",
   "defaultTime": "2025-01-15T00:00:00Z",
   "defaultViewpoint": "Track LRO",
+  "require": ["base/naif.json"],
+  "spiceKernels": [
+    "kernels/lro/lro_frames_2014049_v01.tf.gz",
+    "kernels/lro/moon_080317.tf.gz",
+    "kernels/lro/moon_assoc_me.tf.gz",
+    "kernels/lro/lro_lroc_v20.ti.gz",
+    "kernels/lro/lro_lola_v00.ti.gz",
+    "kernels/lro/lro_dlre_v05.ti.gz",
+    "kernels/lro/lro_lamp_v03.ti.gz",
+    "kernels/lro/lro_crater_v03.ti.gz",
+    "kernels/lro/lro_lend_v00.ti.gz",
+    { "url": "kernels/lro/lro_clkcor_2025351_v00.tsc.gz", "label": "LRO clock", "size": 2200000 },
+    { "url": "kernels/lro/lrorg_2024350_2025074_v01.bsp.gz", "label": "LRO trajectory", "size": 7200000 },
+    { "url": "kernels/lro/moon_pa_de421_1900_2050.bpc.gz", "label": "Lunar orientation", "size": 1700000 }
+  ],
   "items": [
     {
       "name": "Moon Overview",

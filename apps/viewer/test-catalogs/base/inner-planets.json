@@ -1,0 +1,10 @@
+{
+  "name": "Inner Planets",
+  "version": "1.0",
+  "require": [
+    "mercury.json",
+    "venus.json",
+    "earth-system.json",
+    "mars-system.json"
+  ]
+}

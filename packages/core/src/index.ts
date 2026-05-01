@@ -2,8 +2,10 @@ export { Body } from './Body.js';
 export type { BodyProperties, TrajectoryPlotConfig, BodyChangeField, BodyChangeCallback } from './Body.js';
 export { Universe } from './Universe.js';
 export type { UniverseOptions } from './Universe.js';
-export { CatalogLoader } from './catalog/CatalogLoader.js';
-export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory, TrajectoryFactoryContext, RotationFactoryContext } from './catalog/CatalogLoader.js';
+export { CatalogLoader, collectKernelRefs } from './catalog/CatalogLoader.js';
+export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory, TrajectoryFactoryContext, RotationFactoryContext, KernelRef } from './catalog/CatalogLoader.js';
+export { loadCatalogFromUrl } from './catalog/CatalogResolver.js';
+export type { ResolvedCatalog, ResolvedCatalogGraph, ResolvedKernel, CatalogFetcher } from './catalog/CatalogResolver.js';
 
 // Trajectories
 export type { CartesianState, Trajectory } from './trajectories/Trajectory.js';

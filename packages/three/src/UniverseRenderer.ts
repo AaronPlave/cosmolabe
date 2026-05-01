@@ -1948,8 +1948,16 @@ export class UniverseRenderer {
 
   private shouldBuildCache(body: Body, trajOpts: TrajectoryLineOptions): boolean {
     const trailDur = trajOpts.trailDuration ?? 86400;
-    return trailDur > 86400 * 7
-      && !UniverseRenderer.CACHE_EXCLUDED.has(body.classification ?? '');
+    if (trailDur <= 86400 * 7) return false;
+    if (UniverseRenderer.CACHE_EXCLUDED.has(body.classification ?? '')) return false;
+    // Skip cache for periodic orbits. The trail covers ~one period (capped at 10y),
+    // and at typical scales that's many orbital cycles' worth of cache range
+    // (search ±4× trail). Visvalingam simplification on a multi-cycle closed loop
+    // distributes points unevenly — windows can land in low-density regions and
+    // render nearly empty trails. Live sampling stays uniform and Keplerian /
+    // analytical eval is cheap, so the cache buys nothing here.
+    if (body.trajectory.period && body.trajectory.period > 0) return false;
+    return true;
   }
 
   /** Dispatch an async cache build to the Web Worker. Trail stays hidden until ready. */
@@ -2022,6 +2030,19 @@ export class UniverseRenderer {
           }
         }
       } catch { /* spkcov not available */ }
+    }
+
+    // Cap the cache range to ±1 period for periodic trajectories. Without this,
+    // Visvalingam-Whyatt simplification of a multi-cycle closed loop distributes
+    // points unevenly across cycles — some windows land in low-density regions
+    // and render nearly-empty trails. One period of data is plenty: trail length
+    // is at most ~1 period anyway. shouldBuildCache already skips most of these
+    // up front; this is a safety net for any periodic trajectory that slips past
+    // (e.g. a SPICE-backed body without a planet/moon classification).
+    const periodSec = body.trajectory.period;
+    if (periodSec && periodSec > 0) {
+      searchStart = Math.max(searchStart, currentEt - periodSec);
+      searchEnd = Math.min(searchEnd, currentEt + periodSec);
     }
 
     const t0 = performance.now();

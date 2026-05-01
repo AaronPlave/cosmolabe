@@ -13,16 +13,45 @@
   let fileInput: HTMLInputElement;
   let dragging = $state(false);
 
-  const demos = [
-    { id: "earth-moon", label: "Earth + Moon" },
-    { id: "solar-system", label: "Solar System" },
-    { id: "saturn-system", label: "Saturn System" },
-    { id: "sensor-demo", label: "Sensor Frustums" },
-    { id: "cassini-soi", label: "Cassini Saturn Tour" },
-    { id: "lro-moon", label: "LRO at Moon" },
-    { id: "europa-clipper", label: "Europa Clipper" },
-    { id: "iss", label: "ISS (TLE)" },
-    { id: "msl-dingo-gap", label: "MSL Dingo Gap (Experimental)" },
+  type DemoEntry = { id: string; label: string; desc: string };
+  type DemoSection = { heading: string; items: DemoEntry[] };
+
+  const sections: DemoSection[] = [
+    {
+      heading: "No SPICE — loads instantly",
+      items: [
+        { id: "earth-moon", label: "Earth + Moon", desc: "Keplerian orbits, no kernels" },
+        { id: "inner-planets-keplerian", label: "Inner Planets", desc: "Sun → Mars via Keplerian fallback" },
+        { id: "iss", label: "ISS (TLE)", desc: "Two-line element propagation around Earth" },
+      ],
+    },
+    {
+      heading: "Base library — composable catalogs",
+      items: [
+        { id: "base/solarsys", label: "Solar System", desc: "All planets via require composition" },
+        { id: "base/inner-planets", label: "Inner Planets", desc: "Mercury → Mars + moons, NAIF de440s" },
+        { id: "base/outer-planets", label: "Outer Planets", desc: "Jupiter → Neptune + major moons" },
+        { id: "base/jupiter-system", label: "Jupiter System", desc: "Jupiter + Galileans (L1 analytical)" },
+        { id: "base/saturn-system", label: "Saturn System", desc: "Saturn + rings + major moons (TASS17)" },
+        { id: "base/small-bodies", label: "Small Bodies", desc: "Dwarf planets, main belt, NEAs, comet 67P" },
+      ],
+    },
+    {
+      heading: "Extended scenes",
+      items: [
+        { id: "solar-system", label: "Solar System Tour", desc: "Planets + Ceres + sample spacecraft arc" },
+        { id: "sensor-demo", label: "Sensor Frustums", desc: "FOV cones from spacecraft instruments" },
+      ],
+    },
+    {
+      heading: "Mission demos — full SPICE",
+      items: [
+        { id: "cassini-soi", label: "Cassini Saturn Tour", desc: "2004 SOI through Enceladus E-2 (~150 MB)" },
+        { id: "lro-moon", label: "LRO at the Moon", desc: "Lunar Reconnaissance Orbiter, 2025" },
+        { id: "europa-clipper", label: "Europa Clipper", desc: "Jupiter science phase, 2031" },
+        { id: "msl-dingo-gap", label: "MSL Curiosity", desc: "Mars surface rover (experimental)" },
+      ],
+    },
   ];
 
   function handleDragOver(e: DragEvent) {
@@ -90,24 +119,27 @@
         {/if}
       </div>
     {:else}
-      <!-- Demos -->
-      <div class="w-full">
-        <h2 class="text-[11px] text-text-muted uppercase tracking-widest mb-3">
-          Demo Catalog
-        </h2>
-        <div class="flex flex-col gap-0.5">
-          {#each demos as demo}
-            <button
-              class="text-[13px] text-text-secondary hover:text-text-primary transition-colors cursor-pointer bg-transparent border-none py-1 text-left"
-              onclick={(e: MouseEvent) => {
-                e.stopPropagation();
-                onLoadDemo(demo.id);
-              }}
-            >
-              {demo.label}
-            </button>
-          {/each}
-        </div>
+      <!-- Demos: CSS columns flow sections evenly into 1/2 columns -->
+      <div class="demo-columns">
+        {#each sections as section}
+          <div class="demo-section">
+            <h2 class="demo-heading">{section.heading}</h2>
+            <div class="flex flex-col gap-0.5">
+              {#each section.items as demo}
+                <button
+                  class="demo-item"
+                  onclick={(e: MouseEvent) => {
+                    e.stopPropagation();
+                    onLoadDemo(demo.id);
+                  }}
+                >
+                  <div class="demo-item-label">{demo.label}</div>
+                  <div class="demo-item-desc">{demo.desc}</div>
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/each}
       </div>
 
       <!-- Drop hint -->
@@ -152,8 +184,65 @@
 
   .welcome-card {
     cursor: default;
-    max-width: 500px;
+    max-width: 760px;
     width: 100%;
     padding: 0 2rem;
+  }
+
+  /* CSS multi-column flows sections evenly without row alignment */
+  .demo-columns {
+    column-count: 1;
+    column-gap: 2.5rem;
+  }
+  @media (min-width: 640px) {
+    .demo-columns {
+      column-count: 2;
+    }
+  }
+  .demo-section {
+    break-inside: avoid;
+    margin-bottom: 1.75rem;
+  }
+  .demo-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .demo-heading {
+    /* display: inline-flex; */
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-text-muted) 35%, transparent);
+  }
+
+  .demo-item {
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin-left: -0.75rem;
+    margin-right: -0.75rem;
+    cursor: pointer;
+    transition: background 0.12s ease;
+  }
+  .demo-item:hover {
+    background: var(--color-surface-2);
+  }
+  .demo-item-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    line-height: 1.3;
+  }
+  .demo-item-desc {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    line-height: 1.35;
+    margin-top: 2px;
   }
 </style>

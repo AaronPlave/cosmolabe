@@ -1,0 +1,9 @@
+{
+  "name": "NAIF Base Kernels",
+  "version": "1.0",
+  "spiceKernels": [
+    "../kernels/naif0012.tls",
+    "../kernels/pck00011.tpc",
+    { "url": "../kernels/de440s.bsp", "label": "Planets + Moon (de440s)", "size": 32000000 }
+  ]
+}

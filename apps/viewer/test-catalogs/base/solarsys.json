@@ -1,0 +1,50 @@
+{
+  "name": "Solar System",
+  "version": "1.0",
+  "defaultViewpoint": "Solar System Overview",
+  "require": [
+    "inner-planets.json",
+    "outer-planets.json",
+    "pluto-system.json"
+  ],
+  "items": [
+    {
+      "name": "Solar System Overview",
+      "type": "Viewpoint",
+      "distance": 3000000000,
+      "latitude": 30,
+      "longitude": -30
+    },
+    {
+      "name": "Inner System",
+      "type": "Viewpoint",
+      "distance": 600000000,
+      "latitude": 25,
+      "longitude": -45
+    },
+    {
+      "name": "View from Earth",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 50000,
+      "latitude": 20,
+      "longitude": 0
+    },
+    {
+      "name": "Jupiter Close-up",
+      "type": "Viewpoint",
+      "center": "Jupiter",
+      "distance": 300000,
+      "latitude": 15,
+      "longitude": 45
+    },
+    {
+      "name": "Saturn Close-up",
+      "type": "Viewpoint",
+      "center": "Saturn",
+      "distance": 500000,
+      "latitude": 5,
+      "longitude": 60
+    }
+  ]
+}

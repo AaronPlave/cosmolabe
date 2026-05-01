@@ -1,4 +1,4 @@
-export { CatalogLoader } from './CatalogLoader.js';
+export { CatalogLoader, collectKernelRefs } from './CatalogLoader.js';
 export type {
   CatalogJson,
   CatalogItem,
@@ -7,4 +7,7 @@ export type {
   GeometrySpec,
   LabelSpec,
   LoadedCatalog,
+  KernelRef,
 } from './CatalogLoader.js';
+export { loadCatalogFromUrl } from './CatalogResolver.js';
+export type { ResolvedCatalog, ResolvedCatalogGraph, ResolvedKernel, CatalogFetcher } from './CatalogResolver.js';

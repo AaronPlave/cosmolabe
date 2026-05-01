@@ -1,0 +1,80 @@
+{
+  "name": "Dwarf Planets",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Ceres",
+      "class": "dwarfPlanet",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "2.7670au",
+        "eccentricity": 0.0758,
+        "inclination": 10.59,
+        "ascendingNode": 80.31,
+        "argumentOfPeriapsis": 73.60,
+        "meanAnomaly": 95.99,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radii": [482.1, 482.1, 445.9], "baseMap": "textures/ceres.png" },
+      "label": { "color": [0.6, 0.55, 0.5] },
+      "trajectoryPlot": { "color": "#998877", "duration": "4.6y", "fade": 0.4, "visible": true }
+    },
+    {
+      "name": "Eris",
+      "class": "dwarfPlanet",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "67.781au",
+        "eccentricity": 0.4361,
+        "inclination": 44.04,
+        "ascendingNode": 35.95,
+        "argumentOfPeriapsis": 151.64,
+        "meanAnomaly": 204.35,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radius": 1163 },
+      "label": { "color": [0.85, 0.85, 0.95] }
+    },
+    {
+      "name": "Haumea",
+      "class": "dwarfPlanet",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "43.218au",
+        "eccentricity": 0.1955,
+        "inclination": 28.21,
+        "ascendingNode": 121.79,
+        "argumentOfPeriapsis": 240.20,
+        "meanAnomaly": 220.03,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radius": 620 },
+      "label": { "color": [0.9, 0.85, 0.75] }
+    },
+    {
+      "name": "Makemake",
+      "class": "dwarfPlanet",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "45.715au",
+        "eccentricity": 0.1556,
+        "inclination": 29.00,
+        "ascendingNode": 79.31,
+        "argumentOfPeriapsis": 296.70,
+        "meanAnomaly": 153.71,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radius": 715 },
+      "label": { "color": [0.85, 0.6, 0.45] }
+    }
+  ]
+}

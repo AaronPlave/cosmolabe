@@ -1,0 +1,32 @@
+{
+  "name": "Saturn System",
+  "version": "1.0",
+  "defaultViewpoint": "Saturn Overview",
+  "require": ["saturn.json", "saturn-major-moons.json"],
+  "items": [
+    {
+      "name": "Saturn Overview",
+      "type": "Viewpoint",
+      "center": "Saturn",
+      "distance": 1500000,
+      "latitude": 25,
+      "longitude": -30
+    },
+    {
+      "name": "Ring Plane",
+      "type": "Viewpoint",
+      "center": "Saturn",
+      "distance": 500000,
+      "latitude": 2,
+      "longitude": 60
+    },
+    {
+      "name": "Titan Close-up",
+      "type": "Viewpoint",
+      "center": "Titan",
+      "distance": 15000,
+      "latitude": 15,
+      "longitude": 0
+    }
+  ]
+}
