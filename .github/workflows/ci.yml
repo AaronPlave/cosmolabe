@@ -28,9 +28,15 @@ jobs:
         with:
           path: .git/lfs
           key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**') }}
+          restore-keys: lfs-test-kernels-
 
-      - name: Pull test-kernel LFS files
-        run: git lfs pull --include "packages/spice/test-kernels/**"
+      - name: Smudge test-kernel LFS files
+        # See deploy-pages.yml: `git lfs install --local` is required so the
+        # smudge filter is active when we fetch + checkout.
+        run: |
+          git lfs install --local
+          git lfs fetch --include "packages/spice/test-kernels/**"
+          git lfs checkout packages/spice/test-kernels/
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

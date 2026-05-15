@@ -31,9 +31,35 @@ jobs:
         with:
           path: .git/lfs
           key: lfs-deploy-${{ hashFiles('apps/viewer/test-catalogs/**', 'docs/img/**', 'packages/spice/test-kernels/**') }}
+          restore-keys: lfs-deploy-
 
-      - name: Pull LFS files
-        run: git lfs pull
+      - name: Smudge LFS files
+        # `git lfs install --local` is required: actions/checkout with lfs:false
+        # does not register the LFS filter, so plain `git lfs pull` silently
+        # no-ops. With the filter installed, fetch+checkout downloads any
+        # missing objects (skipping ones already in the restored cache) and
+        # rewrites pointer files in the working tree with the real binaries.
+        run: |
+          git lfs install --local
+          git lfs fetch
+          git lfs checkout
+
+      - name: Verify LFS smudge
+        # Fail loudly if any tracked LFS file is still a pointer text file —
+        # otherwise vite copies the 130-byte pointer into dist and browsers
+        # serve plaintext under .jpg/.png URLs.
+        run: |
+          pointers=$(git lfs ls-files -n | xargs -I{} sh -c '
+            f="$1"
+            if [ -f "$f" ] && head -c 50 "$f" 2>/dev/null | grep -q "git-lfs.github.com"; then
+              echo "$f"
+            fi
+          ' _ {})
+          if [ -n "$pointers" ]; then
+            echo "::error::Unsmudged LFS pointers found:"
+            echo "$pointers"
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
