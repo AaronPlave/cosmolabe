@@ -21,6 +21,21 @@ export interface StarFieldOptions {
  */
 export class StarField extends THREE.Object3D {
   private points: THREE.Points | null = null;
+  /** Daytime sky brightness 0..1; 1 fully hides stars, 0 leaves them at full intensity. */
+  private skyBrightness = 0;
+
+  /**
+   * Set daytime sky brightness 0..1. Multiplies star color by (1 - skyBrightness)
+   * so additive stars fade out under a bright atmosphere. Call once per frame
+   * before render.
+   */
+  setSkyBrightness(b: number): void {
+    this.skyBrightness = Math.max(0, Math.min(1, b));
+    if (this.points) {
+      const mat = this.points.material as THREE.ShaderMaterial;
+      mat.uniforms.uSkyBrightness.value = this.skyBrightness;
+    }
+  }
 
   constructor(options: StarFieldOptions = {}) {
     super();
@@ -203,11 +218,14 @@ export class StarField extends THREE.Object3D {
     const material = new THREE.ShaderMaterial({
       uniforms: {
         uMaxSize: { value: maxSize },
+        uSkyBrightness: { value: this.skyBrightness },
       },
       vertexShader: /* glsl */ `
         attribute float aMag;
         uniform float uMaxSize;
+        uniform float uSkyBrightness;
         varying vec3 vColor;
+        varying float vSkyFade;
         void main() {
           // aMag: 0 = brightest, 1 = faintest (normalized magnitude).
           // Magnitude is already a log scale (each step = 2.512× flux),
@@ -219,6 +237,7 @@ export class StarField extends THREE.Object3D {
 
           // Color: pre-baked spectral chromaticity × brightness
           vColor = color * brightness;
+          vSkyFade = 1.0 - uSkyBrightness;
 
           // Variable point size: cubic curve — only the brightest stars
           // get noticeably larger, dim stars stay at minimum 2px.
@@ -235,12 +254,16 @@ export class StarField extends THREE.Object3D {
       `,
       fragmentShader: /* glsl */ `
         varying vec3 vColor;
+        varying float vSkyFade;
         void main() {
           // Soft circle via alpha — no discard, so no pixel-boundary flicker.
           // Additive blending means black/transparent edges add nothing.
           float d = length(gl_PointCoord - vec2(0.5));
           float alpha = 1.0 - smoothstep(0.45, 0.5, d);
-          gl_FragColor = vec4(vColor * alpha, 1.0);
+          // Daytime sky fade: when camera is under a sunlit atmosphere, dim
+          // stars by (1 - skyBrightness). Additive blending means scaling vColor
+          // is enough — no need to also touch alpha.
+          gl_FragColor = vec4(vColor * alpha * vSkyFade, 1.0);
         }
       `,
       transparent: true,

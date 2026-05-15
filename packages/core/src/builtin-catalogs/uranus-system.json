@@ -1,0 +1,76 @@
+{
+  "name": "Uranus System",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Uranus",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Uranus" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "17.24h",
+        "inclination": 97.77,
+        "ascendingNode": 167.95,
+        "meridianAngle": 203.81
+      },
+      "geometry": { "type": "Globe", "radii": [25559, 25559, 24973], "baseMap": "textures/uranus.jpg" },
+      "label": { "color": [0.6, 0.85, 0.95] },
+      "items": [
+        {
+          "name": "Uranus Rings",
+          "class": "other",
+          "center": "Uranus",
+          "geometry": {
+            "type": "Rings",
+            "innerRadius": 41840,
+            "outerRadius": 51149,
+            "texture": "textures/uranus-rings.png"
+          }
+        },
+        {
+          "name": "Miranda",
+          "class": "moon",
+          "center": "Uranus",
+          "trajectory": { "type": "Builtin", "name": "Miranda" },
+          "geometry": { "type": "Globe", "radius": 235.8, "baseMap": "textures/miranda.dds" },
+          "label": { "color": [0.7, 0.7, 0.7] }
+        },
+        {
+          "name": "Ariel",
+          "class": "moon",
+          "center": "Uranus",
+          "trajectory": { "type": "Builtin", "name": "Ariel" },
+          "geometry": { "type": "Globe", "radius": 578.9, "baseMap": "textures/ariel.dds" },
+          "label": { "color": [0.75, 0.75, 0.7] }
+        },
+        {
+          "name": "Umbriel",
+          "class": "moon",
+          "center": "Uranus",
+          "trajectory": { "type": "Builtin", "name": "Umbriel" },
+          "geometry": { "type": "Globe", "radius": 584.7, "baseMap": "textures/umbriel.dds" },
+          "label": { "color": [0.55, 0.5, 0.45] }
+        },
+        {
+          "name": "Titania",
+          "class": "moon",
+          "center": "Uranus",
+          "trajectory": { "type": "Builtin", "name": "Titania" },
+          "geometry": { "type": "Globe", "radius": 788.4, "baseMap": "textures/titania.dds" },
+          "label": { "color": [0.65, 0.6, 0.55] }
+        },
+        {
+          "name": "Oberon",
+          "class": "moon",
+          "center": "Uranus",
+          "trajectory": { "type": "Builtin", "name": "Oberon" },
+          "geometry": { "type": "Globe", "radius": 761.4, "baseMap": "textures/oberon.dds" },
+          "label": { "color": [0.65, 0.6, 0.55] }
+        }
+      ]
+    }
+  ]
+}

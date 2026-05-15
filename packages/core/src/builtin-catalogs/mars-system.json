@@ -1,0 +1,5 @@
+{
+  "name": "Mars System",
+  "version": "1.0",
+  "require": ["mars.json", "mars-satellites.json"]
+}

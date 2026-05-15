@@ -9,6 +9,7 @@ import { SensorFrustum } from './SensorFrustum.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { EventMarkers } from './EventMarkers.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
+import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
 import { LabelManager, type LabelManagerOptions } from './LabelManager.js';
 import { CameraController } from './controls/CameraController.js';
@@ -76,6 +77,18 @@ export interface UniverseRendererOptions {
    *  bodies marked emissive (Sun, stars) are auto-routed to the bloom layer.
    *  Default: disabled. */
   bloom?: BloomConfig;
+  /** Custom geometry-type visualizers (Pattern D). Registered BEFORE the
+   *  initial buildScene() so bodies with matching geometryType render via the
+   *  visualizer instead of the default placeholder sphere. Equivalent to
+   *  calling `useVisualizer(...)` for each before any bodies are processed. */
+  visualizers?: BodyVisualizer[];
+  /** Cap the render loop at this frames-per-second. Useful for battery-sensitive
+   *  hosts (laptops, embedded panels) and live-clock scenes where 60+ fps gives
+   *  no perceptual gain. Undefined or <= 0 = uncapped (RAF-paced).
+   *  Enforced by skipping renderFrame() on RAFs whose dt since the last render
+   *  is below 1/maxFps. Time is wall-clock driven, so the next rendered frame
+   *  picks up the elapsed time correctly. */
+  maxFps?: number;
 }
 
 // Classes that should NOT show trajectories by default
@@ -100,6 +113,8 @@ export class UniverseRenderer {
   private readonly ringMeshes = new Map<string, { ring: RingMesh; parentName: string }>();
   private readonly eventMarkerGroups = new Map<string, EventMarkers>();
   private readonly atmosphereMeshes = new Map<string, { atm: AtmosphereMesh; parentName: string }>();
+  /** One AP uniform set per atmosphere body, shared between body sphere + terrain materials. */
+  private readonly aerialPerspectiveUniforms = new Map<string, AerialPerspectiveUniforms>();
   private _coverageWarned = false;
   private _lastOriginAbsPos: [number, number, number] = [0, 0, 0];
   private readonly plugins: RendererPlugin[] = [];
@@ -112,6 +127,10 @@ export class UniverseRenderer {
   private ambientLight: THREE.AmbientLight | null = null;
   private sunLight: THREE.PointLight | null = null;
   private animFrameId = 0;
+  /** Wall-clock ms of the last renderFrame() call. Used by maxFps throttle. */
+  private _lastRenderMs = 0;
+  /** Minimum ms between rendered frames (1000/maxFps). 0 = uncapped. */
+  private _frameBudgetMs = 0;
   private readonly labelContainer: HTMLDivElement;
   private _dblClickRaycaster: THREE.Raycaster | null = null;
   private instrumentView: InstrumentView | null = null;
@@ -159,6 +178,7 @@ export class UniverseRenderer {
     this.scaleFactor = options.scaleFactor ?? 1e-6;
     this.minBodyPixels = options.minBodyPixels ?? 4;
     this.cacheWorker = options.cacheWorker;
+    this._frameBudgetMs = options.maxFps && options.maxFps > 0 ? 1000 / options.maxFps : 0;
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({
@@ -265,11 +285,23 @@ export class UniverseRenderer {
       );
     }
 
+    // Register custom-geometry visualizers BEFORE buildScene so matching
+    // bodies are routed to the visualizer instead of getting a default mesh.
+    if (options.visualizers) {
+      for (const vis of options.visualizers) {
+        this._visualizers.set(vis.geometryType, vis);
+      }
+    }
+
     // Build scene from universe
     this.buildScene();
 
-    // Double-click: pick body and emit event (consumer handles flyTo, info, etc.)
+    // Single + double click: pick body and emit corresponding event. Click
+    // emits synchronously so selection feels instant; dblclick fires after the
+    // native browser dblclick (which always follows one or two `click` events).
+    // Consumer selection handlers should be idempotent.
     this._dblClickRaycaster = new THREE.Raycaster();
+    canvas.addEventListener('click', this._onClick);
     canvas.addEventListener('dblclick', this._onDblClick);
   }
 
@@ -292,6 +324,12 @@ export class UniverseRenderer {
   /** Register a custom geometry type visualizer. */
   useVisualizer(vis: BodyVisualizer): void {
     this._visualizers.set(vis.geometryType, vis);
+  }
+
+  /** Cap the render loop at this fps. Pass undefined/0 to uncap. Hosts can call
+   *  this when visibility/focus changes (e.g. drop to 10 fps when tab is hidden). */
+  setMaxFps(fps: number | undefined): void {
+    this._frameBudgetMs = fps && fps > 0 ? 1000 / fps : 0;
   }
 
   /** Start the render loop */
@@ -438,6 +476,7 @@ export class UniverseRenderer {
     }
 
     // Update atmosphere shells (follow parent body position, pass camera + sun)
+    let maxSkyBrightness = 0;
     if (this.atmosphereMeshes.size > 0) {
       const sunBm = this.bodyMeshes.get('Sun');
       const sunPos = sunBm ? sunBm.position : new THREE.Vector3(0, 0, 0);
@@ -462,9 +501,55 @@ export class UniverseRenderer {
             this._sunRadiusKm * this.scaleFactor,
             atm.shellRadius * this.scaleFactor,
           );
+          const b = atm.getDaytimeSkyBrightness();
+          if (b > maxSkyBrightness) maxSkyBrightness = b;
+
+          // Aerial perspective uniforms — refresh per frame so terrain compositing
+          // tracks the sun and camera. Coefficients are scaled to 1/scene-unit.
+          const apu = this.aerialPerspectiveUniforms.get(parentName);
+          if (apu) {
+            const sf = this.scaleFactor;
+            apu.uAPCameraWorldPos.value.copy(this.camera.position);
+            apu.uAPSunWorldPos.value.copy(sunPos);
+            apu.uAPPlanetWorldPos.value.copy(parentBm.position);
+            apu.uAPPlanetRadius.value = atm.planetRadius * sf;
+            apu.uAPShellRadius.value = atm.shellRadius * sf;
+            const p = atm.params;
+            apu.uAPRayleighCoeff.value.set(
+              p.rayleighCoeff[0] / sf,
+              p.rayleighCoeff[1] / sf,
+              p.rayleighCoeff[2] / sf,
+            );
+            const mieRGB: [number, number, number] = typeof p.mieCoeff === 'number'
+              ? [p.mieCoeff, p.mieCoeff, p.mieCoeff]
+              : p.mieCoeff;
+            apu.uAPMieCoeff.value.set(mieRGB[0] / sf, mieRGB[1] / sf, mieRGB[2] / sf);
+            apu.uAPExtinctionCoeff.value.set(
+              (p.rayleighCoeff[0] + p.absorptionCoeff[0] + mieRGB[0]) / sf,
+              (p.rayleighCoeff[1] + p.absorptionCoeff[1] + mieRGB[1]) / sf,
+              (p.rayleighCoeff[2] + p.absorptionCoeff[2] + mieRGB[2]) / sf,
+            );
+            // Schlick g→k (matches AtmosphereMesh).
+            const g = p.miePhaseAsymmetry;
+            apu.uAPMieK.value = 1.55 * g - 0.55 * g * g * g;
+            apu.uAPInvScaleH.value = 1 / (p.mieScaleHeight * sf);
+            // Strength fades out fast with altitude. AP and AtmosphereMesh both
+            // scatter along view rays — past the surface boundary layer (single
+            // scale-height worth of altitude) AP would only double-count what
+            // the shell shader already does and at long horizon-grazing paths
+            // would over-fog distant terrain. Earth: ~0 above ~10km AGL.
+            const camToPlanet = this.camera.position.distanceTo(parentBm.position);
+            const altScene = camToPlanet - atm.planetRadius * sf;
+            const scaleHeightScene = p.mieScaleHeight * sf;
+            const tt = altScene / Math.max(1e-6, scaleHeightScene);
+            apu.uAPStrength.value = Math.max(0, Math.min(1, 1 - tt));
+          }
         }
       }
     }
+    // Fade the additive star field under a sunlit atmosphere so daytime stars
+    // don't bleed through. 0 outside any atmosphere — orbital views unchanged.
+    this.starField?.setSkyBrightness(maxSkyBrightness);
 
     // Update trajectory lines.
     // Vertices are offset in Float64 (km) so they're near origin in scene space,
@@ -1231,7 +1316,15 @@ export class UniverseRenderer {
     const candidates = [...this.bodyMeshes.values()].filter(bm =>
       bm.body.classification !== 'star' &&
       bm.body.geometryData?.emissive !== true &&
-      bm.displayRadius >= this._shadowMinOccluderKm,
+      bm.displayRadius >= this._shadowMinOccluderKm &&
+      // Bodies rendered by a custom visualizer don't have a real sphere — their
+      // displayRadius is just a hint for label/flyTo framing, not the actual
+      // visual size. Excluding them prevents spurious shadow disks under
+      // surface-locked bodies (ground stations, rovers).
+      !this._visualizers.has(bm.body.geometryType ?? '') &&
+      // Surface-locked bodies sit on the parent's surface — they can't cast a
+      // meaningful shadow on the body they're sitting on.
+      !bm.body.geometryData?.surfaceLock,
     );
 
     this._shadowOccluderCache.clear();
@@ -1470,6 +1563,7 @@ export class UniverseRenderer {
 
   dispose(): void {
     this.stop();
+    this.renderer.domElement.removeEventListener('click', this._onClick);
     this.renderer.domElement.removeEventListener('dblclick', this._onDblClick);
     this.timeController.dispose();
     this.cameraController.dispose();
@@ -1569,6 +1663,10 @@ export class UniverseRenderer {
       // Hide placeholder sphere for instrument-class sensors (e.g. ISS NAC on Cassini)
       // but keep it for spacecraft-class sensors (e.g. WeatherSat in sensor demo)
       if (body.geometryType === 'Sensor' && body.classification === 'instrument') bm.mesh.visible = false;
+      // Hide placeholder sphere for bodies with a custom visualizer — the
+      // visualizer fully owns the body's appearance, and the placeholder
+      // would otherwise render alongside it (z-fighting / engulf-on-flyTo).
+      if (customVis) bm.mesh.visible = false;
       this.bodyMeshes.set(body.name, bm);
       this.scene.add(bm);
       bm.enableShadowReceiving();
@@ -1652,9 +1750,19 @@ export class UniverseRenderer {
         const atmParams = resolveAtmosphereParams(atmValue, body.name);
         if (atmParams) {
           const radius = bm.displayRadius;
-          const atm = new AtmosphereMesh(radius, atmParams);
+          // Pass renderer so AtmosphereMesh can build its multi-scattering LUT
+          // (one-time render-to-texture; ~150 KB GPU memory per atmosphere).
+          const atm = new AtmosphereMesh(radius, atmParams, this.renderer);
           this.atmosphereMeshes.set(body.name, { atm, parentName: body.name });
           this.scene.add(atm);
+          // Aerial perspective: enable on the body sphere + any terrain so distant
+          // terrain fades toward sky color. Static uniforms (coefficients, radii)
+          // are set once here; camera/sun positions are refreshed per-frame.
+          // Share the parent atmosphere's LUT so MS lookups stay consistent.
+          const apu = makeAerialPerspectiveUniforms();
+          apu.uAPMultiScatterLUT.value = atm.multiScatterLUT;
+          this.aerialPerspectiveUniforms.set(body.name, apu);
+          bm.enableAerialPerspective(apu);
         }
       }
 
@@ -2181,6 +2289,24 @@ export class UniverseRenderer {
   }
 
   /**
+   * Single-click handler: picks the body and emits 'body:click' synchronously
+   * so selection feels instant. A subsequent native dblclick will still
+   * trigger `_onDblClick`, so consumers should design selection handlers to be
+   * idempotent (re-selecting the same body should be a no-op).
+   */
+  private _onClick = (event: MouseEvent): void => {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+
+    const bodyName = this.pickBody(screenX, screenY);
+    if (!bodyName) return;
+
+    const et = this.universe.time;
+    this.events.emit('body:click', { bodyName, et, screenX, screenY });
+  };
+
+  /**
    * Double-click handler: picks the body and emits 'body:dblclick'.
    * The consumer (viewer app) decides what to do — flyTo, show info, etc.
    */
@@ -2210,6 +2336,11 @@ export class UniverseRenderer {
 
   private renderLoop = (): void => {
     this.animFrameId = requestAnimationFrame(this.renderLoop);
+    if (this._frameBudgetMs > 0) {
+      const now = performance.now();
+      if (now - this._lastRenderMs < this._frameBudgetMs) return;
+      this._lastRenderMs = now;
+    }
     this.renderFrame();
   };
 }

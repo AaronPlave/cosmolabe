@@ -1,0 +1,23 @@
+{
+  "name": "Main Belt — 300 Asteroids (SPK Bulk Import)",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "spiceKernels": [
+    "../kernels/codes_300ast_20100725.tf",
+    { "url": "../kernels/codes_300ast_20100725.bsp", "label": "300 Main-Belt Asteroids", "size": 61864960 }
+  ],
+  "defaultTime": "2025-01-01T00:00:00Z",
+  "spkImport": [
+    {
+      "kernel": "codes_300ast_20100725.bsp",
+      "center": "SUN",
+      "defaults": {
+        "class": "asteroid",
+        "trajectoryFrame": "ECLIPJ2000",
+        "geometry": { "type": "Globe", "radius": 2000 },
+        "label": { "visible": false },
+        "trajectoryPlot": { "visible": false }
+      }
+    }
+  ]
+}

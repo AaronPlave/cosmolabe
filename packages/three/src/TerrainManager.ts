@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
+import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
+import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin } from '3d-tiles-renderer/three/plugins';
 
 export interface TerrainImageryConfig {
@@ -172,6 +174,7 @@ export class TerrainManager {
   private readonly bodyRadiusKm: number;
   private disposed = false;
   private shadowUniforms: ShadowUniforms | null = null;
+  private aerialPerspectiveUniforms: AerialPerspectiveUniforms | null = null;
   /** Global equirectangular normal map derived from heightmap. Applied per-tile with UV transforms. */
   private normalMap: THREE.CanvasTexture | null = null;
   private debugPlugin: DebugTilesPlugin | null = null;
@@ -721,30 +724,65 @@ export class TerrainManager {
     this.shadowUniforms = uniforms;
   }
 
+  /** Enable aerial-perspective compositing on all current and future terrain tiles. */
+  enableAerialPerspective(uniforms: AerialPerspectiveUniforms): void {
+    this.aerialPerspectiveUniforms = uniforms;
+  }
+
   private customizeTileMaterial(scene: THREE.Object3D, tile: any): void {
     // Disable Three.js frustum culling — TilesRenderer handles visibility.
     // The main camera's extreme near/far ratio (up to 10^14 with log depth)
     // can produce degenerate frustum planes that incorrectly cull tiles.
     scene.traverse((child) => { child.frustumCulled = false; });
 
+    // Pin tile renderables to renderOrder = -2 for imagery-only tilesets.
+    // TilesFadePlugin (registered above) flips tile materials to
+    // `transparent: true` for 300 ms after a tile loads, which puts the tile in
+    // three.js's transparent pass at the OBJECT3D's renderOrder. TrajectoryLine
+    // uses renderOrder = -1, so without this every fading tile (default
+    // renderOrder 0) would render AFTER trails and paint over them whenever the
+    // camera moved.
+    //
+    // Scoped to imagery-only because real 3D Tiles (terrain.url) have actual
+    // displacement and interact with the placeholder body sphere differently —
+    // setting renderOrder = -2 there can let trajectory lines render visibly
+    // *through* the planet at viewpoints where the fading tiles don't yet write
+    // depth and the body sphere has been hidden by the close-zoom transition.
+    // Imagery-only tiles sit at exact sphere altitude so this concern doesn't
+    // apply to them.
+    if (this.isImageryOnly) {
+      scene.traverse((child) => {
+        const c = child as THREE.Object3D & { isMesh?: boolean; isLine?: boolean; isPoints?: boolean; isSprite?: boolean };
+        if (c.isMesh || c.isLine || c.isPoints || c.isSprite) {
+          c.renderOrder = -2;
+        }
+      });
+    }
+
     const su = this.shadowUniforms;
+    const apu = this.aerialPerspectiveUniforms;
+    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v1' : '');
 
     scene.traverse((child) => {
-      if (!(child instanceof THREE.Mesh) || !child.material) return;
+      if (!isMesh(child) || !child.material) return;
+      const material = child.material as THREE.Material;
 
       // Imagery-only tiles use MeshBasicMaterial (unlit). Swap to MeshStandardMaterial
       // to match the placeholder sphere's lighting response.
-      if (this.isImageryOnly && child.material instanceof THREE.MeshBasicMaterial && child.material.map) {
-        const basic = child.material;
+      if (this.isImageryOnly && isMeshBasicMaterial(material) && material.map) {
+        const basic = material;
         const mat = new THREE.MeshStandardMaterial({
           map: basic.map,
           transparent: false,
           metalness: 0,
           roughness: 0.85,
         });
-        if (su) {
-          mat.onBeforeCompile = (shader) => injectShadowIntoShader(shader, su);
-          mat.customProgramCacheKey = () => '_shadow_v1';
+        if (su || apu) {
+          mat.onBeforeCompile = (shader) => {
+            if (su) injectShadowIntoShader(shader, su);
+            if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
+          };
+          mat.customProgramCacheKey = () => cacheKey;
         }
         child.material = mat;
         basic.dispose();
@@ -761,13 +799,14 @@ export class TerrainManager {
       for (const mat of mats) {
         if ('roughness' in mat) (mat as THREE.MeshStandardMaterial).roughness = 0.85;
         if ('metalness' in mat) (mat as THREE.MeshStandardMaterial).metalness = 0;
-        if (su) {
+        if (su || apu) {
           const prevOBC = (mat as any).onBeforeCompile;
           (mat as any).onBeforeCompile = (shader: any) => {
             prevOBC?.(shader);
-            injectShadowIntoShader(shader, su);
+            if (su) injectShadowIntoShader(shader, su);
+            if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
           };
-          (mat as any).customProgramCacheKey = () => '_shadow_v1';
+          (mat as any).customProgramCacheKey = () => cacheKey;
           (mat as any).needsUpdate = true;
         }
       }
@@ -865,7 +904,7 @@ export class TerrainManager {
     const offsetY = (Math.PI / 2 - south) / Math.PI;
 
     scene.traverse((child) => {
-      if (!(child instanceof THREE.Mesh) || !child.material) return;
+      if (!isMesh(child) || !child.material) return;
       const mat = child.material as THREE.MeshStandardMaterial;
       if (!('normalMap' in mat)) return;
 

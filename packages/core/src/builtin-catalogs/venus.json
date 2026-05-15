@@ -1,0 +1,23 @@
+{
+  "name": "Venus",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Venus",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Venus" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "243.018483985891967d",
+        "inclination": 157.16,
+        "ascendingNode": 182.76,
+        "meridianAngle": 160.20
+      },
+      "geometry": { "type": "Globe", "radius": 6051.8, "baseMap": "textures/venus.dds", "atmosphere": "Venus" },
+      "label": { "color": [1.0, 0.85, 0.5] }
+    }
+  ]
+}

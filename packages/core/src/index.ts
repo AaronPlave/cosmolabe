@@ -7,6 +7,11 @@ export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, Geome
 export { loadCatalogFromUrl } from './catalog/CatalogResolver.js';
 export type { ResolvedCatalog, ResolvedCatalogGraph, ResolvedKernel, CatalogFetcher } from './catalog/CatalogResolver.js';
 
+// Built-in catalogs (Sun, Earth system, planets, asteroids, …) for programmatic
+// catalog composition.
+export { builtinCatalogs } from './builtin-catalogs/index.js';
+export type { BuiltinCatalogName } from './builtin-catalogs/index.js';
+
 // Trajectories
 export type { CartesianState, Trajectory } from './trajectories/Trajectory.js';
 export { FixedPointTrajectory } from './trajectories/FixedPoint.js';

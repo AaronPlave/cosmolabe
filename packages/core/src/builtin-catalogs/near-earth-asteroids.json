@@ -1,0 +1,83 @@
+{
+  "name": "Near-Earth Asteroids",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Eros",
+      "class": "asteroid",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "1.4583au",
+        "eccentricity": 0.2227,
+        "inclination": 10.83,
+        "ascendingNode": 304.29,
+        "argumentOfPeriapsis": 178.86,
+        "meanAnomaly": 320.91,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Mesh", "source": "models/eros.cmod" },
+      "label": { "color": [0.7, 0.6, 0.5] },
+      "trajectoryPlot": { "color": "#aa6644", "duration": "1.76y", "fade": 0.4, "visible": true }
+    },
+    {
+      "name": "Itokawa",
+      "class": "asteroid",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "1.3239au",
+        "eccentricity": 0.2801,
+        "inclination": 1.62,
+        "ascendingNode": 69.08,
+        "argumentOfPeriapsis": 162.83,
+        "meanAnomaly": 308.47,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Mesh", "source": "models/itokawa.cmod" },
+      "label": { "color": [0.7, 0.65, 0.55] },
+      "trajectoryPlot": { "color": "#9988aa", "duration": "1.52y", "fade": 0.4, "visible": true }
+    },
+    {
+      "name": "Ryugu",
+      "class": "asteroid",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "1.1896au",
+        "eccentricity": 0.1903,
+        "inclination": 5.88,
+        "ascendingNode": 251.62,
+        "argumentOfPeriapsis": 211.43,
+        "meanAnomaly": 339.52,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radius": 0.432 },
+      "label": { "color": [0.55, 0.5, 0.45] },
+      "trajectoryPlot": { "color": "#776666", "duration": "1.30y", "fade": 0.4, "visible": true }
+    },
+    {
+      "name": "Bennu",
+      "class": "asteroid",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "1.1264au",
+        "eccentricity": 0.2037,
+        "inclination": 6.04,
+        "ascendingNode": 2.06,
+        "argumentOfPeriapsis": 66.22,
+        "meanAnomaly": 101.70,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radius": 0.245 },
+      "label": { "color": [0.5, 0.45, 0.4] },
+      "trajectoryPlot": { "color": "#665544", "duration": "1.20y", "fade": 0.4, "visible": true }
+    }
+  ]
+}

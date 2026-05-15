@@ -208,6 +208,32 @@ export class Universe {
         currentParent = body.trajectory.arcAt(et).centerName;
       }
 
+      // Body-fixed trajectories (e.g. FixedSpherical for surface points) output
+      // positions in the parent body's body-fixed frame. Rotate by the parent's
+      // body-fixed → inertial transform before adding the parent's inertial
+      // position, so the child rotates with the parent (e.g. ground stations on
+      // Earth, volcanoes on Io).
+      if (body.trajectoryFrame === 'body-fixed' && currentParent) {
+        const parent = this.getBody(currentParent);
+        const q = parent?.rotationAt(et);
+        if (q) {
+          // RotationModel.rotationAt returns inertial → body-fixed. Use the
+          // conjugate [w, -x, -y, -z] to go body-fixed → inertial.
+          const qw = q[0];
+          const qx = -q[1];
+          const qy = -q[2];
+          const qz = -q[3];
+          // Standard quaternion-vector rotation: v' = v + 2 q_xyz × (q_xyz × v + w v)
+          const tx = 2 * (qy * z - qz * y);
+          const ty = 2 * (qz * x - qx * z);
+          const tz = 2 * (qx * y - qy * x);
+          const rx = x + qw * tx + (qy * tz - qz * ty);
+          const ry = y + qw * ty + (qz * tx - qx * tz);
+          const rz = z + qw * tz + (qx * ty - qy * tx);
+          x = rx; y = ry; z = rz;
+        }
+      }
+
       while (currentParent) {
         const parent = this.getBody(currentParent);
         if (!parent) break;

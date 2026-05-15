@@ -612,10 +612,14 @@ export class CatalogLoader {
     const trajectoryPlot = this.parseTrajectoryPlot(item.trajectoryPlot);
 
     // TLE trajectories output in TEME (≈equatorial), not ecliptic.
+    // FixedSpherical takes lat/lon which is intrinsically body-fixed (rotates with parent).
     // Catalog may also specify trajectoryFrame explicitly.
-    const trajectoryFrame = item.trajectoryFrame === 'J2000' || item.trajectory?.type === 'TLE'
-      ? 'equatorial' as const
-      : undefined;
+    let trajectoryFrame: 'ecliptic' | 'equatorial' | 'body-fixed' | undefined;
+    if (item.trajectoryFrame === 'J2000' || item.trajectory?.type === 'TLE') {
+      trajectoryFrame = 'equatorial';
+    } else if (item.trajectoryFrame === 'BodyFixed' || item.trajectory?.type === 'FixedSpherical') {
+      trajectoryFrame = 'body-fixed';
+    }
 
     const body = new Body({
       name: item.name,

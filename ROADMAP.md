@@ -19,6 +19,24 @@ Ground-level use cases (rovers, landers, drone-swarm concepts, EDL replay) drive
 - Lunar-Lambert / Hapke BRDF for airless bodies
 - Bloom / glare post-processing
 - WebGPU renderer path
+- **Re-composite overlay objects after the surface-tile pass.** Pass 1.5
+  (`UniverseRenderer.update()`, the `hasVisibleTiles` block) calls
+  `clearDepth()` and renders surface tiles in a camera-relative projection.
+  After it returns, the depth buffer reflects only the tile depth — Pass 1's
+  body-sphere depth values are gone. This is fine for color compositing of
+  *tiles vs bodies* (Pass 1's body color survives where tiles don't cover and
+  is overwritten where they do), but it means an overlay re-rendered after
+  Pass 1.5 has no body-sphere depth to test against. An earlier attempt
+  ("Pass 1.6") re-rendered `OVERLAY_LAYER` after the tile pass to fix a
+  perceived trail-disappearing bug — that bug turned out to be the
+  TilesFadePlugin renderOrder issue handled now in `TerrainManager`, while the
+  Pass 1.6 re-render itself broke depth-correct occlusion of trails behind
+  bodies for scenes with surface tiles (e.g. Curiosity@Mars). It was reverted.
+  If we ever need to re-composite overlays on top of surface tiles, do it
+  correctly: either preserve body-sphere depth across Pass 1.5 (e.g.
+  re-render body silhouettes into the depth buffer before the overlay pass),
+  or move overlays into a dedicated `overlayScene` and depth-test against a
+  combined depth buffer built by including body silhouettes in the tile pass.
 
 ## Library extensibility (priority)
 

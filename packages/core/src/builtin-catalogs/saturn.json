@@ -1,0 +1,36 @@
+{
+  "name": "Saturn",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Saturn",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Saturn" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "10.656222221732387h",
+        "inclination": 6.463,
+        "ascendingNode": 130.589,
+        "meridianAngle": 38.90
+      },
+      "geometry": { "type": "Globe", "radii": [60268, 60268, 54364], "baseMap": "textures/saturn.jpg" },
+      "label": { "color": [0.9, 0.8, 0.5] },
+      "items": [
+        {
+          "name": "Saturn Rings",
+          "class": "other",
+          "center": "Saturn",
+          "geometry": {
+            "type": "Rings",
+            "innerRadius": 74660,
+            "outerRadius": 140220,
+            "texture": "textures/saturn-rings.png"
+          }
+        }
+      ]
+    }
+  ]
+}

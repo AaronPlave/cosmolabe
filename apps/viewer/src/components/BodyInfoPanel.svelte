@@ -15,6 +15,18 @@
     return r.camera.position.distanceTo(bm.position) / r.scaleFactor;
   });
 
+  // Altitude above the body's surface (range minus body display radius). Shown
+  // alongside Range because "Range" is camera-to-center, which can be misleading
+  // when standing close to the surface (Earth: range 6400 km = altitude ~22 km).
+  let altitude = $derived.by(() => {
+    void vs.et;
+    const r = getRenderer();
+    if (!r || !vs.selectedBodyName || distance == null) return null;
+    const bm = r.getBodyMesh(vs.selectedBodyName);
+    if (!bm) return null;
+    return distance - bm.displayRadius;
+  });
+
   // Compute live state vector
   let stateInfo = $derived.by(() => {
     void vs.et;
@@ -132,6 +144,12 @@
         <span class="text-text-muted">Range</span>
         <span class="font-mono text-text-primary">{formatDist(distance)}</span>
       </div>
+      {#if altitude != null}
+        <div class="flex justify-between gap-3">
+          <span class="text-text-muted">Altitude</span>
+          <span class="font-mono text-text-primary">{formatDist(altitude)}</span>
+        </div>
+      {/if}
       {#if stateInfo}
         <div class="flex justify-between gap-3">
           <span class="text-text-muted">Speed</span>

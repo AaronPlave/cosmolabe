@@ -1,0 +1,44 @@
+{
+  "name": "Small Bodies",
+  "version": "1.0",
+  "defaultViewpoint": "Inner System",
+  "require": [
+    "dwarf-planets.json",
+    "main-belt-named.json",
+    "near-earth-asteroids.json",
+    "comets.json",
+    "pluto-system.json"
+  ],
+  "items": [
+    {
+      "name": "Inner System",
+      "type": "Viewpoint",
+      "distance": 700000000,
+      "latitude": 25,
+      "longitude": -45
+    },
+    {
+      "name": "Outer System (incl. Eris)",
+      "type": "Viewpoint",
+      "distance": 12000000000,
+      "latitude": 30,
+      "longitude": -30
+    },
+    {
+      "name": "Vesta Close-up",
+      "type": "Viewpoint",
+      "center": "Vesta",
+      "distance": 800,
+      "latitude": 20,
+      "longitude": 30
+    },
+    {
+      "name": "67P Close-up",
+      "type": "Viewpoint",
+      "center": "67P/Churyumov-Gerasimenko",
+      "distance": 8,
+      "latitude": 10,
+      "longitude": 0
+    }
+  ]
+}

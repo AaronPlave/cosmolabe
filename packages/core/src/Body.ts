@@ -37,7 +37,7 @@ export interface BodyProperties {
   geometryData?: Record<string, unknown>;
   trajectoryPlot?: TrajectoryPlotConfig;
   /** Reference frame of the trajectory output. 'ecliptic' (default) or 'equatorial' (TEME/J2000 equatorial). */
-  trajectoryFrame?: 'ecliptic' | 'equatorial';
+  trajectoryFrame?: 'ecliptic' | 'equatorial' | 'body-fixed';
 }
 
 export type BodyChangeField = 'trajectory' | 'rotation';
@@ -58,7 +58,7 @@ export class Body {
   readonly geometryType?: string;
   readonly geometryData?: Record<string, unknown>;
   readonly trajectoryPlot?: TrajectoryPlotConfig;
-  readonly trajectoryFrame?: 'ecliptic' | 'equatorial';
+  readonly trajectoryFrame?: 'ecliptic' | 'equatorial' | 'body-fixed';
   readonly children: Body[] = [];
 
   /** Called when trajectory or rotation is changed at runtime. Set by Universe. */

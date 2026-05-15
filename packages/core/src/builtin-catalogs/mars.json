@@ -1,0 +1,23 @@
+{
+  "name": "Mars",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Mars",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Mars" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "24.622962155909364h",
+        "inclination": 37.1135,
+        "ascendingNode": 47.68143,
+        "meridianAngle": 176.630
+      },
+      "geometry": { "type": "Globe", "radius": 3389, "baseMap": "textures/mars.dds", "atmosphere": "Mars" },
+      "label": { "color": [1.0, 0.5, 0.3] }
+    }
+  ]
+}

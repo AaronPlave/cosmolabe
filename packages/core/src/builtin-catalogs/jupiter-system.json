@@ -1,0 +1,5 @@
+{
+  "name": "Jupiter System",
+  "version": "1.0",
+  "require": ["jupiter.json", "jupiter-galilean.json"]
+}

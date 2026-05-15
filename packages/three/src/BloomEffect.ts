@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { isLine, isMesh, isPoints, isSprite } from './internal/three-typeguards.js';
 
 /**
  * Layer reserved for bloom-eligible objects (Sun, engine plumes, glowing instruments).
@@ -176,7 +177,7 @@ export class BloomEffect {
     this.scene.traverse((obj) => {
       if (obj.layers.test(_bloomTestLayers)) return;
 
-      if (obj instanceof THREE.Mesh) {
+      if (isMesh(obj)) {
         // Transparent / non-depth-writing meshes (atmosphere shells, rings) are
         // visual overlays. Hide them in the bloom pass — using them as occluders
         // dims a planet-shell-shaped region across the screen, which is wrong for
@@ -199,11 +200,7 @@ export class BloomEffect {
           obj.visible = true;
           this.forcedVisibleMeshes.push(obj);
         }
-      } else if (
-        obj instanceof THREE.Line
-        || obj instanceof THREE.Points
-        || obj instanceof THREE.Sprite
-      ) {
+      } else if (isLine(obj) || isPoints(obj) || isSprite(obj)) {
         if (obj.visible) {
           obj.visible = false;
           this.hiddenNonMesh.push(obj);
@@ -215,7 +212,7 @@ export class BloomEffect {
   private restoreMaterials(): void {
     if (this.originalMaterials.size > 0) {
       this.scene.traverse((obj) => {
-        if (!(obj instanceof THREE.Mesh)) return;
+        if (!isMesh(obj)) return;
         const mat = this.originalMaterials.get(obj.uuid);
         if (mat) obj.material = mat;
       });

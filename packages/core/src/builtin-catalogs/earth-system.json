@@ -1,0 +1,42 @@
+{
+  "name": "Earth System",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Earth" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": 0.997269632262793,
+        "inclination": 0.0,
+        "ascendingNode": 0.0,
+        "meridianAngle": 280.147
+      },
+      "geometry": { "type": "Globe", "radius": 6378.1, "baseMap": "textures/earth-5k.jpg", "atmosphere": "Earth" },
+      "label": { "color": [0.4, 0.6, 1.0] },
+      "items": [
+        {
+          "name": "Moon",
+          "class": "moon",
+          "center": "Earth",
+          "trajectory": { "type": "Builtin", "name": "Moon" },
+          "rotationModel": { "type": "Builtin", "name": "IAU Moon" },
+          "geometry": {
+            "type": "Globe",
+            "radius": 1737.4,
+            "baseMap": "textures/moon-4k.jpg",
+            "normalMap": "textures/moon-normal-16k.jpg",
+            "displacementMap": "textures/moon-displacement-2k.jpg",
+            "displacementScale": 20,
+            "displacementBias": -9
+          },
+          "label": { "color": [0.7, 0.7, 0.7] }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Outer Planets",
+  "version": "1.0",
+  "require": [
+    "jupiter-system.json",
+    "saturn-system.json",
+    "uranus-system.json",
+    "neptune-system.json"
+  ]
+}

@@ -444,6 +444,23 @@ export class CameraController {
     }
   }
 
+  /**
+   * Stop tracking the current body. The camera stays where it is — origin body
+   * is preserved so the scene doesn't jump — but the orbit target is freed and
+   * the camera no longer locks to (0,0,0) each frame. If currently in a
+   * tracking-dependent mode (anything other than FREE_ORBIT), also returns
+   * to FREE_ORBIT since those modes are meaningless without a target.
+   * Idempotent: safe to call when nothing is tracked.
+   */
+  stopTracking(): void {
+    this._trackTarget = null;
+    this.clearLookAt();
+    if (this._activeMode.name !== CameraModeName.FREE_ORBIT) {
+      this.setMode(CameraModeName.FREE_ORBIT);
+      this.camera.up.set(0, 1, 0);
+    }
+  }
+
   /** Reset to Free Orbit mode, cancelling any animation and clearing look-at. */
   resetToFreeOrbit(): void {
     this.cancelAnimation();
@@ -731,6 +748,23 @@ export class CameraController {
       this.controls.target.set(0, 0, 0);
     }
 
+    // Surface clamp via TrackballControls is camera-to-*target* distance, which
+    // only equals camera-to-body-center when the target sits at the body.
+    // - Tracking mode: target is at (0,0,0) = body center, so minDistance =
+    //   body radius works perfectly. Use it; the built-in clamp is smoother
+    //   than a per-frame position fixup.
+    // - Free-look mode: target is offset away from the body. Setting minDistance
+    //   to body-radius would lock zoom-in long before the camera reached the
+    //   surface. Leave minDistance unconstrained and rely on the body-center
+    //   guard at the end of update() to keep the camera from entering the body.
+    if (this._trackTarget) {
+      const sf = this._trackTarget.scaleFactor;
+      this.controls.minDistance = this._trackTarget.displayRadius * sf * 1.0001;
+    } else {
+      this.controls.minDistance = 1e-10;
+    }
+    const clampBody = this._trackTarget ?? this._originBody;
+
     // Mouse left-drag orbit + scroll zoom
     this.controls.update();
 
@@ -746,7 +780,37 @@ export class CameraController {
     if (this._lookAtTarget) {
       this.camera.lookAt(this._lookAtTarget.position);
     }
+
+    // Surface guard: regardless of where the orbit target is, the camera must
+    // never end up inside the focused body. Left-click rotation around an
+    // offset target (after right-click free-look) can drive the camera through
+    // the planet despite controls.minDistance, because that clamp is measured
+    // to target, not to body center. Push the camera back along the radial
+    // direction if it has crossed the surface.
+    if (clampBody) {
+      const sf = clampBody.scaleFactor;
+      const minR = clampBody.displayRadius * sf * 1.0001;
+      const offset = this._tmpV1.subVectors(this.camera.position, clampBody.position);
+      const dist = offset.length();
+      if (dist > 0 && dist < minR) {
+        offset.multiplyScalar(minR / dist);
+        this.camera.position.copy(clampBody.position).add(offset);
+        // Also nudge the orbit target out so subsequent rotations don't keep
+        // pulling the camera back into the body.
+        const targetOffset = this._tmpV2.subVectors(this.controls.target, clampBody.position);
+        const targetDist = targetOffset.length();
+        if (targetDist < minR) {
+          if (targetDist > 1e-6) {
+            targetOffset.multiplyScalar(minR / targetDist);
+            this.controls.target.copy(clampBody.position).add(targetOffset);
+          }
+        }
+      }
+    }
   }
+
+  private readonly _tmpV1 = new THREE.Vector3();
+  private readonly _tmpV2 = new THREE.Vector3();
 
   dispose(): void {
     this._anim = null;

@@ -1,0 +1,39 @@
+{
+  "name": "Mars Satellites",
+  "version": "1.0",
+  "require": ["mars.json"],
+  "items": [
+    {
+      "name": "Phobos",
+      "class": "moon",
+      "center": "Mars",
+      "trajectory": { "type": "Builtin", "name": "Phobos" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "7.653843686551413h",
+        "inclination": 37.10,
+        "ascendingNode": 47.68,
+        "meridianAngle": 35.06
+      },
+      "geometry": { "type": "Mesh", "source": "models/phobos.cmod" },
+      "label": { "color": [0.6, 0.5, 0.4] }
+    },
+    {
+      "name": "Deimos",
+      "class": "moon",
+      "center": "Mars",
+      "trajectory": { "type": "Builtin", "name": "Deimos" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "30.298578074054543h",
+        "inclination": 36.48,
+        "ascendingNode": 46.65,
+        "meridianAngle": 79.41
+      },
+      "geometry": { "type": "Mesh", "source": "models/deimos.cmod" },
+      "label": { "color": [0.6, 0.5, 0.4] }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Sun",
+  "version": "1.0",
+  "require": ["naif.json"],
+  "items": [
+    {
+      "name": "Sun",
+      "class": "star",
+      "center": "SSB",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": 25.379994924,
+        "inclination": 26.13,
+        "ascendingNode": 16.13,
+        "meridianAngle": 84.10
+      },
+      "geometry": { "type": "Globe", "radius": 695000, "baseMap": "textures/sun.jpg", "emissive": true },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    }
+  ]
+}

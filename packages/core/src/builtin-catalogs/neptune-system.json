@@ -1,0 +1,42 @@
+{
+  "name": "Neptune System",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Neptune",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Neptune" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "16.11h",
+        "inclination": 28.32,
+        "ascendingNode": 49.255,
+        "meridianAngle": 253.18
+      },
+      "geometry": { "type": "Globe", "radii": [24764, 24764, 24341], "baseMap": "textures/neptune.jpg" },
+      "label": { "color": [0.4, 0.6, 0.95] },
+      "items": [
+        {
+          "name": "Triton",
+          "class": "moon",
+          "center": "Neptune",
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 354759,
+            "eccentricity": 0.000016,
+            "inclination": 156.885,
+            "ascendingNode": 172.43,
+            "argumentOfPeriapsis": 0,
+            "meanAnomaly": 264.775,
+            "epoch": "2000-01-01T12:00:00Z"
+          },
+          "geometry": { "type": "Globe", "radius": 1353.4, "baseMap": "textures/triton.dds" },
+          "label": { "color": [0.85, 0.8, 0.75] }
+        }
+      ]
+    }
+  ]
+}

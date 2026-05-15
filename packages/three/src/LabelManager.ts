@@ -150,17 +150,41 @@ export class LabelManager {
     const toOcc = this._toOccluder;
     ray.subVectors(worldPos, camPos).normalize();
 
-    // For surface-locked bodies (rovers, landers), don't check the parent as occluder.
-    // Surface-locked bodies sit on or slightly below the parent's reference sphere
-    // (e.g., Curiosity is ~5 km inside the Mars 3396.19 km sphere because Gale Crater
-    // is below the IAU datum). Any ray from camera to such a body passes through the
-    // parent's sphere, which would otherwise fade the label even when it's clearly
-    // visible on the front-facing surface.
+    // For surface-locked bodies (rovers, landers, ground stations), the parent
+    // body needs special handling. The ray-sphere test would either:
+    //   - flicker at the limb (label position is right on the parent's silhouette,
+    //     so closest-approach jitters across the threshold each frame), or
+    //   - falsely fade visible front-side labels (the ray from camera to a surface
+    //     point necessarily passes through the parent's sphere from the camera's POV).
+    // Instead, we do a hemisphere check: dot(ray_dir, surface_normal). If the ray
+    // is going into the surface (back-facing), the label is occluded; otherwise
+    // it's visible. Smoothstep gives a clean limb fade with no numerical jitter.
     const excludeParentName = excludeBody?.body.geometryData?.surfaceLock
       ? excludeBody.body.parentName
       : undefined;
+    let surfaceHemiFade = 1.0;
+    if (excludeParentName) {
+      const parent = bodyMeshes.find((b) => b.body.name === excludeParentName);
+      if (parent) {
+        const nx = worldPos.x - parent.position.x;
+        const ny = worldPos.y - parent.position.y;
+        const nz = worldPos.z - parent.position.z;
+        const nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        if (nLen > 1e-12) {
+          // ray.dot(outwardNormal): positive ⇒ ray goes into surface ⇒ back-facing
+          const dot = (ray.x * nx + ray.y * ny + ray.z * nz) / nLen;
+          // Smooth fade across a narrow band centered on the limb (dot ≈ 0).
+          // Width chosen so the fade extends ~5° around the silhouette.
+          const fadeWidth = 0.087; // sin(5°)
+          // dot < -fadeWidth ⇒ fully visible (1); dot > +fadeWidth ⇒ fully hidden (0)
+          const t = Math.max(0, Math.min(1, (dot + fadeWidth) / (2 * fadeWidth)));
+          const smooth = t * t * (3 - 2 * t);
+          surfaceHemiFade = 1 - smooth;
+        }
+      }
+    }
 
-    let fade = 1.0;
+    let fade = surfaceHemiFade;
     for (const other of bodyMeshes) {
       if (other === excludeBody) continue;
       if (excludeParentName && other.body.name === excludeParentName) continue;

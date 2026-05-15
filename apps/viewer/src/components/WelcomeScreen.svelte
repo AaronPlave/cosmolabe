@@ -52,7 +52,7 @@
         { id: "europa-clipper", label: "Europa Clipper", desc: "Jupiter science phase, 2031" },
         { id: "psyche", label: "Psyche", desc: "Launch → Mars flyby → asteroid arrival 2029 (~125 MB)" },
         { id: "voyagers", label: "Voyager 1 & 2", desc: "Grand Tour: 1977 launch → interstellar (~85 MB)" },
-        { id: "msl-dingo-gap", label: "MSL Curiosity", desc: "Mars surface rover (experimental)" },
+        { id: "msl-dingo-gap", label: "Curiosity at Mars", desc: "Mars surface rendering (experimental)" },
       ],
     },
   ];
@@ -166,7 +166,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    overflow-y: auto;
     z-index: 100;
     cursor: pointer;
     /* Subtle radial gradient — dark center fading to slightly lighter edge, gives depth */
@@ -189,7 +189,8 @@
     cursor: default;
     max-width: 760px;
     width: 100%;
-    padding: 0 2rem;
+    padding: 2rem;
+    margin: auto;
   }
 
   /* CSS multi-column flows sections evenly without row alignment */

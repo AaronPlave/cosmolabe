@@ -1,0 +1,97 @@
+{
+  "name": "Main Belt — Named Asteroids",
+  "version": "1.0",
+  "require": ["sun.json"],
+  "items": [
+    {
+      "name": "Ceres",
+      "class": "dwarfPlanet",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "2.7670au",
+        "eccentricity": 0.0758,
+        "inclination": 10.59,
+        "ascendingNode": 80.31,
+        "argumentOfPeriapsis": 73.60,
+        "meanAnomaly": 95.99,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Globe", "radii": [482.1, 482.1, 445.9], "baseMap": "textures/ceres.png" },
+      "label": { "color": [0.6, 0.55, 0.5] }
+    },
+    {
+      "name": "Pallas",
+      "class": "asteroid",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "2.7720au",
+        "eccentricity": 0.2299,
+        "inclination": 34.83,
+        "ascendingNode": 173.10,
+        "argumentOfPeriapsis": 309.97,
+        "meanAnomaly": 78.37,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Mesh", "source": "models/pallas.cmod" },
+      "label": { "color": [0.7, 0.65, 0.55] }
+    },
+    {
+      "name": "Juno",
+      "class": "asteroid",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "2.6700au",
+        "eccentricity": 0.2570,
+        "inclination": 12.97,
+        "ascendingNode": 169.85,
+        "argumentOfPeriapsis": 248.40,
+        "meanAnomaly": 33.10,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Mesh", "source": "models/juno.cmod" },
+      "label": { "color": [0.7, 0.65, 0.55] }
+    },
+    {
+      "name": "Vesta",
+      "class": "asteroid",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "2.3617au",
+        "eccentricity": 0.0890,
+        "inclination": 7.13,
+        "ascendingNode": 103.83,
+        "argumentOfPeriapsis": 151.20,
+        "meanAnomaly": 116.46,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Mesh", "source": "models/vesta.cmod" },
+      "label": { "color": [0.85, 0.8, 0.7] }
+    },
+    {
+      "name": "Hygiea",
+      "class": "asteroid",
+      "center": "Sun",
+      "trajectoryFrame": "EclipticJ2000",
+      "trajectory": {
+        "type": "Keplerian",
+        "semiMajorAxis": "3.1414au",
+        "eccentricity": 0.1146,
+        "inclination": 3.84,
+        "ascendingNode": 283.18,
+        "argumentOfPeriapsis": 312.31,
+        "meanAnomaly": 38.18,
+        "epoch": "2000-01-01T12:00:00Z"
+      },
+      "geometry": { "type": "Mesh", "source": "models/hygiea.cmod" },
+      "label": { "color": [0.65, 0.6, 0.5] }
+    }
+  ]
+}

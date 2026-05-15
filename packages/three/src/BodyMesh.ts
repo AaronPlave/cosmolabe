@@ -6,7 +6,9 @@ import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
 import { injectShadowIntoShader, makeShadowUniforms, type ShadowUniforms } from './EclipseShadow.js';
+import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { BLOOM_LAYER } from './BloomEffect.js';
+import { isLine, isMesh, isSprite } from './internal/three-typeguards.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import type { Body } from '@cosmolabe/core';
 
@@ -63,6 +65,10 @@ export class BodyMesh extends THREE.Object3D {
   private terrainSampleFrame = 0;
   /** Whether eclipse shadow receiving is enabled on this body's materials */
   private shadowEnabled = false;
+  /** Whether aerial perspective is enabled on this body's materials */
+  private aerialPerspectiveEnabled = false;
+  /** Aerial-perspective uniforms — set by UniverseRenderer when an atmosphere covers this body. */
+  private aerialPerspectiveUniforms: AerialPerspectiveUniforms | null = null;
   /** Suppress repeated rotation-failure warnings after first occurrence */
   private _rotationFailed = false;
   /** Shared uniform values — patched into every compiled shader by reference */
@@ -77,6 +83,7 @@ export class BodyMesh extends THREE.Object3D {
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
   get hasShadowReceiving(): boolean { return this.shadowEnabled; }
+  get hasAerialPerspective(): boolean { return this.aerialPerspectiveEnabled; }
 
   /** Apply a multiplier on top of the model's base scale (for minBodyPixels) */
   setModelScale(multiplier: number): void {
@@ -96,7 +103,7 @@ export class BodyMesh extends THREE.Object3D {
   setModelOpacity(opacity: number): void {
     if (!this.modelContainer) return;
     this.modelContainer.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.material) {
+      if (isMesh(child) && child.material) {
         const mats = Array.isArray(child.material) ? child.material : [child.material];
         for (const mat of mats) {
           mat.opacity = opacity;
@@ -261,7 +268,7 @@ export class BodyMesh extends THREE.Object3D {
       child.layers.set(1);
       if (emissiveModel) child.layers.enable(BLOOM_LAYER);
 
-      if (child instanceof THREE.Mesh) {
+      if (isMesh(child)) {
         if (!child.material) {
           child.material = new THREE.MeshPhongMaterial({
             color: DEFAULT_BODY_COLORS[this.body.classification ?? ''] ?? 0xcccccc,
@@ -323,6 +330,39 @@ export class BodyMesh extends THREE.Object3D {
 
     // Also enable on terrain tiles if already initialized
     this.terrainManager?.enableShadowReceiving(this.shadowUniforms);
+  }
+
+  /**
+   * Enable aerial-perspective compositing on this body's placeholder sphere
+   * material and any terrain tiles. Mirrors enableShadowReceiving — composes
+   * with whatever onBeforeCompile already exists. The uniforms object is
+   * shared by reference; UniverseRenderer updates it per-frame for moving sun
+   * and camera. No-op for stars and emissive bodies.
+   */
+  enableAerialPerspective(uniforms: AerialPerspectiveUniforms): void {
+    if (this.aerialPerspectiveEnabled) return;
+    if (this.body.classification === 'star' || this.body.geometryData?.emissive === true) return;
+    this.aerialPerspectiveEnabled = true;
+    this.aerialPerspectiveUniforms = uniforms;
+
+    const mat = this.mesh.material as THREE.Material & {
+      onBeforeCompile?: (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }, renderer: unknown) => void;
+      customProgramCacheKey?: () => string;
+      needsUpdate: boolean;
+    };
+
+    const prevOBC = mat.onBeforeCompile?.bind(mat);
+    mat.onBeforeCompile = (shader, renderer) => {
+      prevOBC?.(shader, renderer);
+      injectAerialPerspectiveIntoShader(shader, uniforms as unknown as Record<string, { value: unknown }>);
+    };
+    // Bump cache key so the program is recompiled with both injections combined.
+    const prevKey = (mat.customProgramCacheKey ?? (() => ''))();
+    mat.customProgramCacheKey = () => prevKey + '_ap_v1';
+    mat.needsUpdate = true;
+
+    // Forward to terrain tiles if already initialized (or queued for future tiles).
+    this.terrainManager?.enableAerialPerspective(uniforms);
   }
 
   /** Update eclipse shadow occluder uniforms for this frame. Call after body positions are updated. */
@@ -573,7 +613,7 @@ export class BodyMesh extends THREE.Object3D {
     const allVertices: THREE.Vector3[] = [];
 
     object.traverse((child) => {
-      if (!(child instanceof THREE.Mesh) || !child.geometry) return;
+      if (!isMesh(child) || !child.geometry) return;
       const pos = child.geometry.getAttribute('position');
       const norm = child.geometry.getAttribute('normal');
       if (!pos) return;
@@ -1076,7 +1116,7 @@ export class BodyMesh extends THREE.Object3D {
 
         // Clean up temp scene
         scene.traverse(c => {
-          if (c instanceof THREE.Mesh) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
+          if (isMesh(c)) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
         });
         tex0.dispose();
         tex1.dispose();
@@ -1256,11 +1296,11 @@ export class BodyMesh extends THREE.Object3D {
     }
     if (this.gridLines) {
       this.gridLines.traverse((child) => {
-        if (child instanceof THREE.Line) {
+        if (isLine(child)) {
           child.geometry.dispose();
           (child.material as THREE.Material).dispose();
         }
-        if (child instanceof THREE.Sprite) {
+        if (isSprite(child)) {
           child.material.map?.dispose();
           child.material.dispose();
         }
@@ -1268,7 +1308,7 @@ export class BodyMesh extends THREE.Object3D {
     }
     if (this.modelContainer) {
       this.modelContainer.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
+        if (isMesh(child)) {
           child.geometry.dispose();
           if (Array.isArray(child.material)) {
             child.material.forEach(m => m.dispose());
