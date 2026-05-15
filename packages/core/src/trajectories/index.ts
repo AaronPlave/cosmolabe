@@ -8,7 +8,7 @@ export type { StateRecord } from './InterpolatedStates.js';
 export { CompositeTrajectory } from './CompositeTrajectory.js';
 export type { TrajectoryArc } from './CompositeTrajectory.js';
 export { TLETrajectory } from './TLETrajectory.js';
-export type { TLEData } from './TLETrajectory.js';
+export type { TLEData, TLETrajectoryOptions } from './TLETrajectory.js';
 export { createBuiltinTrajectory } from './BuiltinTrajectory.js';
 export { ChebyshevPolyTrajectory } from './ChebyshevPolyTrajectory.js';
 export { LinearCombinationTrajectory } from './LinearCombinationTrajectory.js';

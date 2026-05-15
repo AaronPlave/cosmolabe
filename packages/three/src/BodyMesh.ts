@@ -847,8 +847,9 @@ export class BodyMesh extends THREE.Object3D {
 
     // Two thresholds: pre-load starts fetching tiles while sphere is still showing,
     // so by the time we swap, higher-LOD tiles are already cached → less pop-in.
-    const TERRAIN_PRELOAD_PX = 40;
-    const TERRAIN_SHOW_PX = 80;
+    // Defaults 40 / 80 are tunable per-body via TerrainConfig.preloadAtPixels/showAtPixels.
+    const TERRAIN_PRELOAD_PX = this.terrainManager.preloadAtPixels;
+    const TERRAIN_SHOW_PX = this.terrainManager.showAtPixels;
 
     if (screenPixels >= TERRAIN_SHOW_PX) {
       // Show terrain tiles. At orbital distances, keep the static sphere slightly

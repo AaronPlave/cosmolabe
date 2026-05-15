@@ -3,21 +3,42 @@ import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
-import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin } from '3d-tiles-renderer/three/plugins';
+import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader } from '3d-tiles-renderer/three/plugins';
 
 export interface TerrainImageryConfig {
-  /** Imagery source type. Default 'xyz'. */
-  type?: 'xyz' | 'wms' | 'wmts' | 'tms';
-  /** Tile URL template (XYZ: {x},{y},{z} placeholders; WMS/TMS: base URL) */
+  /** Imagery source type. Default 'xyz'.
+   *
+   *  - `'xyz'`, `'tms'`, `'wms'`, `'wmts'`: standard tile sources assuming
+   *    a 2^z × (2^z or 2^(z-1)) tile-count progression per level.
+   *  - `'wmts-capabilities'`: discovers tile grid + projection from the
+   *    service's `WMTSCapabilities.xml`. Required for services with
+   *    non-standard tile grids (e.g. NASA GIBS' EPSG:4326 endpoint uses
+   *    2/3/5/10/20/40/80/160/320 columns per level). `url` is the
+   *    GetCapabilities URL; `layer` + `tileMatrixSet` pick which layer
+   *    and which matrix set inside the capabilities document. */
+  type?: 'xyz' | 'wms' | 'wmts' | 'tms' | 'wmts-capabilities';
+  /** Tile URL template (XYZ: {x},{y},{z} placeholders; WMS/TMS: base URL).
+   *  For `'wmts-capabilities'`: URL of the GetCapabilities XML document. */
   url: string;
   /** Max zoom level available. Default 8. */
   levels?: number;
   /** Tile pixel dimension. Default 256. */
   dimension?: number;
-  /** Projection identifier. Default 'EPSG:4326'. */
+  /** Projection identifier. Default 'EPSG:4326'.
+   *
+   *  Applies to `type: 'xyz'` overlays. For `'wmts'`, projection is read from
+   *  the GetCapabilities `tileMatrixSet.supportedCRS` and this field is ignored
+   *  (the upstream `WMTSImageSource` does not accept an override). For `'wms'`,
+   *  use the separate `crs` field. */
   projection?: string;
-  /** WMS layer name (required for type: 'wms') */
+  /** WMS layer name (required for `type: 'wms'`). For `'wmts-capabilities'`:
+   *  layer identifier in the capabilities document (e.g.
+   *  `'BlueMarble_NextGeneration'`). If omitted, the first layer is used. */
   layer?: string;
+  /** TileMatrixSet identifier (only for `type: 'wmts-capabilities'`).
+   *  e.g. `'500m'` selects the 500m EPSG:4326 matrix set on NASA GIBS. If
+   *  omitted, the first tileMatrixSet on the layer is used. */
+  tileMatrixSet?: string;
   /** WMS coordinate reference system. Default 'EPSG:4326'. */
   crs?: string;
   /** WMS image format. Default 'image/png'. */
@@ -32,6 +53,11 @@ export interface TerrainImageryConfig {
   bounds?: [number, number, number, number];
   /** Minimum zoom level. Tiles below this are skipped (regional data doesn't exist at low zoom). */
   minZoom?: number;
+  /** Stretch the top/bottom tile row to ±90° latitude when using Mercator (EPSG:3857).
+   *  Default true (3d-tiles-renderer default). Set false for `type: 'imagery'` if
+   *  you'd rather see the underlying body sphere at the polar cap than a smear of
+   *  the highest-latitude mercator pixel row. Only meaningful for mercator content. */
+  endCaps?: boolean;
 }
 
 export interface TerrainConfig {
@@ -54,6 +80,15 @@ export interface TerrainConfig {
   normalMapUrl?: string;
   /** Normal map strength (higher = more dramatic shadows). Default 3. */
   normalMapStrength?: number;
+  /** Screen-space body size (pixels) at which to start streaming tiles below the
+   *  visible sphere. Tiles pre-load so they're warm by the time the sphere swaps
+   *  out. Default 40. Pair with showAtPixels (must be < showAtPixels). */
+  preloadAtPixels?: number;
+  /** Screen-space body size (pixels) at which to swap from the static sphere to
+   *  streamed tiles. Lower = tiles appear sooner (more bandwidth, more pop-in
+   *  on slow connections). Default 80. Tune per-body: a high-res GIBS Earth
+   *  might warrant 60; a coarse Mars overlay might warrant 200. */
+  showAtPixels?: number;
   /** Offset (km) between this tileset's reference surface and the body's IAU sphere.
    *  Some Mars QuantizedMesh datasets (e.g., marshub Mars_v14) encode heights against
    *  a non-standard reference, putting decoded ECEF positions ~8 km above where SPICE
@@ -202,9 +237,16 @@ export class TerrainManager {
    * @param bodyRadiusKm Mean body radius in km (used to set ellipsoid)
    * @param renderer WebGL renderer (needed for ImageOverlayPlugin texture rendering)
    */
+  /** Screen-px threshold to begin pre-loading tiles below the visible sphere. */
+  readonly preloadAtPixels: number;
+  /** Screen-px threshold to swap the static sphere for streamed tiles. */
+  readonly showAtPixels: number;
+
   constructor(config: TerrainConfig, bodyRadiusKm: number, renderer: THREE.WebGLRenderer) {
     this.bodyRadiusKm = bodyRadiusKm;
     this.isImageryOnly = config.type === 'imagery';
+    this.preloadAtPixels = config.preloadAtPixels ?? 40;
+    this.showAtPixels = config.showAtPixels ?? 80;
 
     // For imagery-only mode, no tileset URL needed — XYZTilesPlugin generates geometry.
     // For terrain modes, QuantizedMeshPlugin needs the base URL (it fetches layer.json).
@@ -221,16 +263,48 @@ export class TerrainManager {
     } as any);
 
     if (this.isImageryOnly) {
-      // Imagery-only mode: XYZTilesPlugin generates ellipsoid geometry with draped image tiles.
-      // No terrain mesh needed — imagery is projected directly onto the ellipsoid surface.
+      // Imagery-only mode: XYZTilesPlugin or WMTSTilesPlugin generates ellipsoid
+      // geometry with draped image tiles. No terrain mesh needed — imagery is
+      // projected directly onto the ellipsoid surface.
       const imgArr = Array.isArray(config.imagery) ? config.imagery : [config.imagery!];
       const img = imgArr[0];
-      this.tiles.registerPlugin(new XYZTilesPlugin({
-        url: img.url,
-        levels: img.levels ?? 8,
-        shape: 'ellipsoid',
+
+      // Common options passed through to whichever plugin we register.
+      const pluginOpts = {
+        shape: 'ellipsoid' as const,
         useRecommendedSettings: true,
-      }));
+        // Mercator end caps stretch the top/bottom tile row to ±90°. Useful when
+        // there's no underlying sphere, awkward when there is one (the smeared
+        // ocean color of the southernmost mercator row covers the body's static
+        // baseMap at the polar cap). Default true upstream; respect explicit
+        // false to fall through to the body's sphere at the cap.
+        ...(img.endCaps === false ? { endCaps: false } : {}),
+      };
+
+      if (img.type === 'wmts-capabilities') {
+        // WMTS capabilities discovery — required for services with non-standard
+        // tile grids (e.g. NASA GIBS' EPSG:4326 endpoint uses 2/3/5/10/20/40
+        // columns per level). Fetch + parse XML, then register WMTSTilesPlugin
+        // which reads matrixWidth/matrixHeight per level from the document.
+        // Async: the static sphere is visible until the plugin is registered.
+        const loader = new WMTSCapabilitiesLoader();
+        loader.loadAsync(img.url).then((capabilities) => {
+          this.tiles.registerPlugin(new WMTSTilesPlugin({
+            capabilities,
+            layer: img.layer,
+            tileMatrixSet: img.tileMatrixSet,
+            ...pluginOpts,
+          }));
+        }).catch((err) => {
+          console.error(`[TerrainManager] Failed to load WMTS capabilities from ${img.url}:`, err);
+        });
+      } else {
+        this.tiles.registerPlugin(new XYZTilesPlugin({
+          url: img.url,
+          levels: img.levels ?? 8,
+          ...pluginOpts,
+        }));
+      }
     } else {
       if (config.type === 'quantized-mesh') {
         this.tiles.registerPlugin(new QuantizedMeshPlugin({

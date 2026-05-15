@@ -23,7 +23,7 @@ export type { StateRecord } from './trajectories/InterpolatedStates.js';
 export { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
 export type { TrajectoryArc } from './trajectories/CompositeTrajectory.js';
 export { TLETrajectory } from './trajectories/TLETrajectory.js';
-export type { TLEData } from './trajectories/TLETrajectory.js';
+export type { TLEData, TLETrajectoryOptions } from './trajectories/TLETrajectory.js';
 export { createBuiltinTrajectory } from './trajectories/BuiltinTrajectory.js';
 export { parseXyzv } from './trajectories/XyzvParser.js';
 

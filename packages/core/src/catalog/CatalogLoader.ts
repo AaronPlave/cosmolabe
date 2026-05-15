@@ -153,6 +153,9 @@ export interface TrajectorySpec {
   // TLE
   line1?: string;
   line2?: string;
+  /** Half-window (days) around TLE epoch over which the trajectory is valid.
+   *  Default 30. See TLETrajectoryOptions.windowDays. */
+  windowDays?: number;
   // Composite
   arcs?: ArcSpec[];
   /** Cosmographia alias for arcs (used in some catalog files) */
@@ -790,7 +793,10 @@ export class CatalogLoader {
 
       case 'TLE':
         if (spec.line1 && spec.line2) {
-          return new TLETrajectory({ line1: spec.line1, line2: spec.line2 });
+          return new TLETrajectory(
+            { line1: spec.line1, line2: spec.line2 },
+            spec.windowDays !== undefined ? { windowDays: spec.windowDays } : undefined,
+          );
         }
         return new FixedPointTrajectory([0, 0, 0]);
 

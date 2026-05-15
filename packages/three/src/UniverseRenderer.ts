@@ -83,13 +83,6 @@ export interface UniverseRendererOptions {
    *  visualizer instead of the default placeholder sphere. Equivalent to
    *  calling `useVisualizer(...)` for each before any bodies are processed. */
   visualizers?: BodyVisualizer[];
-  /** Cap the render loop at this frames-per-second. Useful for battery-sensitive
-   *  hosts (laptops, embedded panels) and live-clock scenes where 60+ fps gives
-   *  no perceptual gain. Undefined or <= 0 = uncapped (RAF-paced).
-   *  Enforced by skipping renderFrame() on RAFs whose dt since the last render
-   *  is below 1/maxFps. Time is wall-clock driven, so the next rendered frame
-   *  picks up the elapsed time correctly. */
-  maxFps?: number;
 }
 
 // Classes that should NOT show trajectories by default
@@ -128,10 +121,6 @@ export class UniverseRenderer {
   private ambientLight: THREE.AmbientLight | null = null;
   private sunLight: THREE.PointLight | null = null;
   private animFrameId = 0;
-  /** Wall-clock ms of the last renderFrame() call. Used by maxFps throttle. */
-  private _lastRenderMs = 0;
-  /** Minimum ms between rendered frames (1000/maxFps). 0 = uncapped. */
-  private _frameBudgetMs = 0;
   private readonly labelContainer: HTMLDivElement;
   private _dblClickRaycaster: THREE.Raycaster | null = null;
   private instrumentView: InstrumentView | null = null;
@@ -179,7 +168,6 @@ export class UniverseRenderer {
     this.scaleFactor = options.scaleFactor ?? 1e-6;
     this.minBodyPixels = options.minBodyPixels ?? 4;
     this.cacheWorker = options.cacheWorker;
-    this._frameBudgetMs = options.maxFps && options.maxFps > 0 ? 1000 / options.maxFps : 0;
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({
@@ -325,12 +313,6 @@ export class UniverseRenderer {
   /** Register a custom geometry type visualizer. */
   useVisualizer(vis: BodyVisualizer): void {
     this._visualizers.set(vis.geometryType, vis);
-  }
-
-  /** Cap the render loop at this fps. Pass undefined/0 to uncap. Hosts can call
-   *  this when visibility/focus changes (e.g. drop to 10 fps when tab is hidden). */
-  setMaxFps(fps: number | undefined): void {
-    this._frameBudgetMs = fps && fps > 0 ? 1000 / fps : 0;
   }
 
   /** Start the render loop */
@@ -2095,6 +2077,9 @@ export class UniverseRenderer {
     }
   }
 
+  /** Bodies whose probe-state threw inside shouldShowTrajectory — one warn per body. */
+  private readonly _trajectoryProbeWarned = new Set<string>();
+
   private shouldShowTrajectory(body: Body): boolean {
     if (this.options.showTrajectories === false) return false;
 
@@ -2111,7 +2096,21 @@ export class UniverseRenderer {
       const mag1 = Math.abs(s1.position[0]) + Math.abs(s1.position[1]) + Math.abs(s1.position[2]);
       const mag2 = Math.abs(s2.position[0]) + Math.abs(s2.position[1]) + Math.abs(s2.position[2]);
       if (mag1 === 0 && mag2 === 0) return false;
-    } catch {
+    } catch (err) {
+      // Most common cause: stateAt() called outside the trajectory's valid range
+      // (e.g., TLE epoch 2026 but ET still at J2000=0 because Universe.setTime()
+      // wasn't called before UniverseRenderer was constructed). Without this warn
+      // the trajectory just silently never appears, which is brutal to debug.
+      // One warn per body so the console stays readable.
+      if (!this._trajectoryProbeWarned.has(body.name)) {
+        this._trajectoryProbeWarned.add(body.name);
+        console.warn(
+          `[UniverseRenderer] Trajectory probe threw for body "${body.name}" at et=${this.timeController.et}; ` +
+          `hiding trajectory. Check that Universe.setTime() was called before renderer construction ` +
+          `(or that the body's trajectory covers the current ET).`,
+          err,
+        );
+      }
       return false;
     }
 
@@ -2383,11 +2382,6 @@ export class UniverseRenderer {
 
   private renderLoop = (): void => {
     this.animFrameId = requestAnimationFrame(this.renderLoop);
-    if (this._frameBudgetMs > 0) {
-      const now = performance.now();
-      if (now - this._lastRenderMs < this._frameBudgetMs) return;
-      this._lastRenderMs = now;
-    }
     this.renderFrame();
   };
 }
