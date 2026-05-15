@@ -206,6 +206,11 @@ export class TerrainManager {
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
   private readonly isImageryOnly: boolean;
+  /** False while we're still waiting on an async plugin registration (e.g.
+   *  wmts-capabilities fetch). tiles.update() crashes on a TilesRenderer with
+   *  no URL and no plugin (tries to fetch a null tileset URL), so the render
+   *  loop skips updates until this flips true. */
+  private _pluginReady = true;
   private readonly bodyRadiusKm: number;
   private disposed = false;
   private shadowUniforms: ShadowUniforms | null = null;
@@ -287,6 +292,10 @@ export class TerrainManager {
         // columns per level). Fetch + parse XML, then register WMTSTilesPlugin
         // which reads matrixWidth/matrixHeight per level from the document.
         // Async: the static sphere is visible until the plugin is registered.
+        // Until then, _pluginReady is false so update() skips tiles.update() —
+        // calling it on a TilesRenderer with no URL and no plugin crashes inside
+        // fetch(null) trying to load the root tileset.
+        this._pluginReady = false;
         const loader = new WMTSCapabilitiesLoader();
         loader.loadAsync(img.url).then((capabilities) => {
           this.tiles.registerPlugin(new WMTSTilesPlugin({
@@ -295,6 +304,7 @@ export class TerrainManager {
             tileMatrixSet: img.tileMatrixSet,
             ...pluginOpts,
           }));
+          this._pluginReady = true;
         }).catch((err) => {
           console.error(`[TerrainManager] Failed to load WMTS capabilities from ${img.url}:`, err);
         });
@@ -571,6 +581,7 @@ export class TerrainManager {
       }
     }
 
+    if (!this._pluginReady) return;
     try {
       this.tiles.update();
     } catch (e) {

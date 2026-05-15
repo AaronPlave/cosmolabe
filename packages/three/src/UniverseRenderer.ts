@@ -1726,7 +1726,7 @@ export class UniverseRenderer {
             // Simple string path
             const baseMapUrl = resolver(geo.baseMap as string);
             if (baseMapUrl || normalMapUrl || dispMapUrl || bumpMapUrl) {
-              bm.loadGlobeTextures(baseMapUrl, normalMapUrl, dispMapUrl, dispScale, dispBias, bumpMapUrl, bumpScaleVal);
+              bm.loadGlobeTextures(baseMapUrl, normalMapUrl, dispMapUrl, dispScale, dispBias, bumpMapUrl, bumpScaleVal, this.renderer);
             }
           } else if (geo.baseMap && typeof geo.baseMap === 'object') {
             // Tiled texture (NameTemplate or MultiWMS) — load level-0 tiles
@@ -1736,10 +1736,10 @@ export class UniverseRenderer {
             }
             // Also load normalMap / displacementMap / bumpMap if present
             if (normalMapUrl || dispMapUrl || bumpMapUrl) {
-              bm.loadGlobeTextures(undefined, normalMapUrl, dispMapUrl, dispScale, dispBias, bumpMapUrl, bumpScaleVal);
+              bm.loadGlobeTextures(undefined, normalMapUrl, dispMapUrl, dispScale, dispBias, bumpMapUrl, bumpScaleVal, this.renderer);
             }
           } else if (normalMapUrl || dispMapUrl || bumpMapUrl) {
-            bm.loadGlobeTextures(undefined, normalMapUrl, dispMapUrl, dispScale, dispBias, bumpMapUrl, bumpScaleVal);
+            bm.loadGlobeTextures(undefined, normalMapUrl, dispMapUrl, dispScale, dispBias, bumpMapUrl, bumpScaleVal, this.renderer);
           }
         }
       }

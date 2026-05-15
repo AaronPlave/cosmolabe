@@ -1018,6 +1018,12 @@ export class BodyMesh extends THREE.Object3D {
   /**
    * Load textures for Globe geometry (baseMap, normalMap, displacementMap).
    * Supports DDS (S3TC compressed) and standard image formats (PNG, JPG).
+   *
+   * If `renderer` is passed, each texture is eagerly uploaded to the GPU via
+   * `renderer.initTexture(tex)` once its bytes are decoded. Without this, the
+   * GL upload happens on first render that references the texture — causing
+   * a noticeable main-thread freeze for large maps (e.g. a 16k normal map can
+   * stall ~1s on first display of the body).
    */
   async loadGlobeTextures(
     baseMapUrl?: string,
@@ -1027,6 +1033,7 @@ export class BodyMesh extends THREE.Object3D {
     displacementBias?: number,
     bumpMapUrl?: string,
     bumpScale?: number,
+    renderer?: THREE.WebGLRenderer,
   ): Promise<void> {
     const material = this.mesh.material as THREE.MeshPhongMaterial | THREE.MeshStandardMaterial;
 
@@ -1034,6 +1041,7 @@ export class BodyMesh extends THREE.Object3D {
       try {
         const texture = await this.loadTexture(baseMapUrl);
         this.applyBaseMap(material, texture, baseMapUrl);
+        renderer?.initTexture(texture);
       } catch (e) {
         console.warn(`[Cosmolabe] Failed to load baseMap for ${this.body.name}:`, e);
       }
@@ -1044,6 +1052,7 @@ export class BodyMesh extends THREE.Object3D {
         const texture = await this.loadTexture(normalMapUrl);
         material.normalMap = texture;
         material.needsUpdate = true;
+        renderer?.initTexture(texture);
         console.log(`[Cosmolabe] Loaded normalMap for ${this.body.name}: ${normalMapUrl}`);
       } catch (e) {
         console.warn(`[Cosmolabe] Failed to load normalMap for ${this.body.name}:`, e);
@@ -1058,6 +1067,7 @@ export class BodyMesh extends THREE.Object3D {
         material.displacementScale = displacementScale ?? 10;
         material.displacementBias = displacementBias ?? 0;
         material.needsUpdate = true;
+        renderer?.initTexture(texture);
         console.log(`[Cosmolabe] Loaded displacementMap for ${this.body.name}: ${displacementMapUrl} (scale=${material.displacementScale}, bias=${material.displacementBias})`);
 
         // Auto-generate a normal map from displacement when no explicit normal or bump map
@@ -1070,6 +1080,7 @@ export class BodyMesh extends THREE.Object3D {
             material.normalMap = normalTex;
             material.normalScale = new THREE.Vector2(1, 1);
             material.needsUpdate = true;
+            renderer?.initTexture(normalTex);
             console.log(`[Cosmolabe] Auto-generated normalMap from displacementMap for ${this.body.name}`);
           }
         }
@@ -1088,12 +1099,14 @@ export class BodyMesh extends THREE.Object3D {
           material.normalMap = normalTex;
           material.normalScale = new THREE.Vector2(1, 1);
           material.needsUpdate = true;
+          renderer?.initTexture(normalTex);
           console.log(`[Cosmolabe] Generated normalMap from bumpMap for ${this.body.name}`);
         } else {
           // Fallback to bump map if normal generation fails
           material.bumpMap = texture;
           material.bumpScale = bumpScale ?? 1;
           material.needsUpdate = true;
+          renderer?.initTexture(texture);
         }
       } catch (e) {
         console.warn(`[Cosmolabe] Failed to load bumpMap for ${this.body.name}:`, e);
