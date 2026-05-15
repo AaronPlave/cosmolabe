@@ -23,16 +23,18 @@ jobs:
           lfs: false
 
       - name: Cache LFS test kernels
+        # No restore-keys — see deploy-pages.yml for why a stale prefix match
+        # can hide missing OIDs.
         id: lfs-cache
         uses: actions/cache@v4
         with:
           path: .git/lfs
           key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**') }}
-          restore-keys: lfs-test-kernels-
 
       - name: Smudge test-kernel LFS files
         # See deploy-pages.yml: `git lfs install --local` is required so the
-        # smudge filter is active when we fetch + checkout.
+        # smudge filter is active when we fetch + checkout. Sparse pull keeps
+        # bandwidth low; tests don't touch the viewer's textures/models.
         run: |
           git lfs install --local
           git lfs fetch --include "packages/spice/test-kernels/**"

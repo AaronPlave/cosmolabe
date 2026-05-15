@@ -26,22 +26,24 @@ jobs:
           lfs: false
 
       - name: Cache LFS objects
+        # No restore-keys: a partial / stale cache leaves new OIDs missing,
+        # and `git lfs fetch` (current ref) won't necessarily refetch them.
+        # An exact-content cache hit or a clean fetch — nothing in between.
         id: lfs-cache
         uses: actions/cache@v4
         with:
           path: .git/lfs
           key: lfs-deploy-${{ hashFiles('apps/viewer/test-catalogs/**', 'docs/img/**', 'packages/spice/test-kernels/**') }}
-          restore-keys: lfs-deploy-
 
       - name: Smudge LFS files
         # `git lfs install --local` is required: actions/checkout with lfs:false
         # does not register the LFS filter, so plain `git lfs pull` silently
-        # no-ops. With the filter installed, fetch+checkout downloads any
-        # missing objects (skipping ones already in the restored cache) and
-        # rewrites pointer files in the working tree with the real binaries.
+        # no-ops. `--all` fetches every referenced OID (covering files added
+        # since the cache key was last populated). `git lfs checkout` then
+        # smudges every working-tree pointer to the real binary.
         run: |
           git lfs install --local
-          git lfs fetch
+          git lfs fetch --all
           git lfs checkout
 
       - name: Verify LFS smudge
