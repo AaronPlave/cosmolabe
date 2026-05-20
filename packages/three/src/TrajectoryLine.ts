@@ -163,6 +163,11 @@ export class TrajectoryLine extends THREE.Object3D {
       transparent: true,
       opacity: options.opacity ?? 0.8,
       depthWrite: false,
+      // Additive so the line stays the same hue as it crosses backgrounds
+      // of different brightness (dark sky → bright atmosphere limb glow).
+      // Alpha blending shifted the perceived color mid-stroke at the limb;
+      // additive contributes constant brightness on top.
+      blending: THREE.AdditiveBlending,
     });
     this.trailLine = new THREE.Line(trailGeometry, trailMaterial);
     this.trailLine.frustumCulled = false;
@@ -180,6 +185,7 @@ export class TrajectoryLine extends THREE.Object3D {
         transparent: true,
         opacity: options.orbitOpacity ?? 0.35,
         depthWrite: false,
+        blending: THREE.AdditiveBlending,
       });
       this.orbitLine = new THREE.LineLoop(orbitGeometry, orbitMaterial);
       this.orbitLine.frustumCulled = false;

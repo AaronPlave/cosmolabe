@@ -595,9 +595,19 @@ export class AtmosphereMesh extends THREE.Mesh {
     this.shellRadius = shellRadius;
     this.params = params;
     this.frustumCulled = false;
-    // Render after trajectory lines so the atmosphere blends over them
-    // (prevents orbit arcs from appearing as dark lines through the glow)
-    this.renderOrder = 1000;
+    // Render BEFORE trajectory lines (renderOrder -1) so trajectories paint
+    // on top of the limb glow. The custom blend equation here is
+    // `final = atmColor + dst * srcAlpha`, which multiplies the destination
+    // by srcAlpha — at the bright limb where srcAlpha is small (high
+    // inscatter, low transmittance) it effectively erases anything painted
+    // earlier. Previously this was set to 1000 to prevent faint orbit rings
+    // from darkening the limb glow where they crossed it, but the cost was
+    // wholesale erasure of front-of-limb trajectories. The thin-orbit-ring
+    // darkening is a 1-px artifact; the trajectory disappearance was much
+    // worse. If the ring darkening proves bad, switch trajectory
+    // LineBasicMaterial.blending to AdditiveBlending in TrajectoryLine.ts
+    // (always brightens, never darkens) — deferred until needed.
+    this.renderOrder = -3;
 
     this.setAtmosphereUniforms(params, planetRadius, shellRadius);
 
