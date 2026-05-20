@@ -418,6 +418,57 @@ export class BodyMesh extends THREE.Object3D {
     mat.needsUpdate = true;
   }
 
+  /**
+   * Apply this body's atmospheric shader effects to a consumer-supplied
+   * material. Wraps the material's `onBeforeCompile` so the per-frame
+   * uniforms cosmolabe maintains on the body's main mesh also drive shading
+   * on the consumer's mesh.
+   *
+   * Use this for child meshes parented to a BodyMesh that should render as
+   * if they live inside the body's atmosphere — e.g. cloud shells, ice
+   * extents, surface decorations.
+   *
+   * @param opts.shadow Inject eclipse-shadow occlusion. Default true.
+   * @param opts.aerialPerspective Inject atmospheric scattering / extinction
+   *        (only meaningful for low-altitude surface viewing — cosmolabe
+   *        zeros the strength at orbital distance). Default true.
+   *
+   * Skips silently when this body has neither effect active (stars, emissive
+   * bodies, bodies with no atmosphere). Safe to call once per material.
+   */
+  applyAtmosphericsToChildMaterial(
+    material: THREE.Material,
+    opts: { shadow?: boolean; aerialPerspective?: boolean } = {},
+  ): void {
+    if (this.body.classification === 'star' || this.body.geometryData?.emissive === true) return;
+    const wantShadow = opts.shadow ?? true;
+    const wantAP = opts.aerialPerspective ?? true;
+
+    const su = wantShadow && this.shadowEnabled ? this.shadowUniforms : null;
+    const apu = wantAP ? this.aerialPerspectiveUniforms : null;
+    if (!su && !apu) return;
+
+    const mat = material as THREE.Material & {
+      onBeforeCompile?: (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }, renderer: unknown) => void;
+      customProgramCacheKey?: () => string;
+      needsUpdate: boolean;
+    };
+
+    // Material is expected to be fresh (never compiled). We replace
+    // `onBeforeCompile` outright and set a stable `customProgramCacheKey`
+    // — same shape TerrainManager.customizeTileMaterial uses for tile
+    // materials. The "wrap previous + set needsUpdate" pattern used by the
+    // body's own enable* methods is for materials that may already have
+    // compiled; on a fresh transparent child material it breaks rendering
+    // in some Three.js paths.
+    mat.onBeforeCompile = (shader) => {
+      if (su) injectShadowIntoShader(shader, su);
+      if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
+    };
+    const suffix = (su ? '_shadow_v1' : '') + (apu ? '_ap_v1' : '') + '_child';
+    mat.customProgramCacheKey = () => suffix;
+  }
+
   /** Update ring-on-body frame in world space (per-frame). */
   setRingShadowFrame(centerWorld: THREE.Vector3, normalWorld: THREE.Vector3): void {
     const u = this.ringShadowUniforms;

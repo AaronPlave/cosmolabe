@@ -572,6 +572,21 @@ export class AtmosphereMesh extends THREE.Mesh {
       blendSrc: THREE.OneFactor,
       blendDst: THREE.SrcAlphaFactor,
       blendEquation: THREE.AddEquation,
+      // BackSide only — visible at the limb (where the planet doesn't
+      // depth-occlude) but invisible across the disc. Combined with the
+      // altitude-fadeout on `uAPStrength` in UniverseRenderer, this leaves
+      // the planet's disc untinted by atmospheric scattering at orbital
+      // distance — the day/night terminator is a sharp Lambert cutoff with
+      // no warm Rayleigh-extinction band like real orbital photos show.
+      //
+      // TODO(disc-terminator-tint): switch to DoubleSide and branch the
+      // fragment shader on `gl_FrontFacing`. Front-face path ray-traces from
+      // camera toward planet surface, integrates inscatter along the
+      // in-atmosphere segment, discards on rays that miss the planet (leaves
+      // that area to the back-face limb pass). Adds warm color on the disc
+      // at orbital views without re-introducing the AP altitude fadeout —
+      // multi-body-safe, no hardcoded altitude constants. See
+      // ~/code/claude-plans/cosmolabe/atmosphere-disc-tint.md.
       side: THREE.BackSide,
     });
 
