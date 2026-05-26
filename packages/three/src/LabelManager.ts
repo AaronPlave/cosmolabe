@@ -49,8 +49,13 @@ interface LabelEntry {
   // 0..1 NASA-Eyes-style fade: 1 when the body is small enough to need a
   // label, 0 once it's visually identifiable by its own silhouette. Computed
   // each frame from the projected screen size. Final material.opacity =
-  // occlusionOpacity * collisionFade * selfSizeFade.
+  // occlusionOpacity * collisionFade * selfSizeFade * opacityMultiplier.
   selfSizeFade: number;
+  // Caller-controlled multiplier on top of the automated fades. Used by
+  // host apps to dim non-selected labels alongside their non-selected
+  // markers / trajectories without fighting the automated occlusion +
+  // collision + self-size fades. Default 1 (no effect).
+  opacityMultiplier: number;
 }
 
 /** Priority for keeping a label visible when bboxes overlap. Higher wins. */
@@ -135,6 +140,7 @@ export class LabelManager {
       occlusionOpacity: 1,
       collisionFade: 1,
       selfSizeFade: 1,
+      opacityMultiplier: 1,
     });
   }
 
@@ -148,6 +154,17 @@ export class LabelManager {
     for (const entry of this.labels.values()) {
       entry.sprite.visible = visible;
     }
+  }
+
+  /**
+   * Set a multiplicative factor on this label's final opacity. Composes on
+   * top of the automated occlusion / self-size / collision fades, so host
+   * apps can dim non-selected labels (or boost a focused one) without
+   * stomping the manager's internal fade logic. Default 1.
+   */
+  setLabelOpacityMultiplier(name: string, multiplier: number): void {
+    const entry = this.labels.get(name);
+    if (entry) entry.opacityMultiplier = multiplier;
   }
 
   /**
@@ -304,10 +321,10 @@ export class LabelManager {
       entry.selfSizeFade = selfSizeFade;
       // Bake into mat.opacity now so the disable-collision path also fades
       // correctly. The collision pass below overwrites this with the unified
-      // formula (occlusion * collisionFade * selfSizeFade) for entries it
-      // visits. Don't touch userData — applyOcclusionFade owns that for its
-      // own temporal smoothing.
-      mat.opacity = entry.occlusionOpacity * selfSizeFade;
+      // formula (occlusion * collisionFade * selfSizeFade * opacityMultiplier)
+      // for entries it visits. Don't touch userData — applyOcclusionFade
+      // owns that for its own temporal smoothing.
+      mat.opacity = entry.occlusionOpacity * selfSizeFade * entry.opacityMultiplier;
 
       // Stash the projected screen position + pixel size for the collision pass.
       this._projected.copy(sprite.position);
@@ -414,9 +431,14 @@ export class LabelManager {
       entry.collisionFade += (target - entry.collisionFade) * rate;
       const mat = entry.sprite.material as THREE.SpriteMaterial;
       // Unified opacity: intrinsic occlusion × NASA-Eyes self-size fade ×
-      // collision-pass arbitration. Each channel is independent so they
-      // compose cleanly instead of fighting in steady state.
-      mat.opacity = entry.occlusionOpacity * entry.selfSizeFade * entry.collisionFade;
+      // collision-pass arbitration × host-supplied multiplier. Each channel
+      // is independent so they compose cleanly instead of fighting in
+      // steady state.
+      mat.opacity =
+        entry.occlusionOpacity *
+        entry.selfSizeFade *
+        entry.collisionFade *
+        entry.opacityMultiplier;
       if (!collides) placed.push({ x0, y0, x1, y1 });
     }
   }

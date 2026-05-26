@@ -1106,6 +1106,17 @@ export class UniverseRenderer {
     this.labelManager?.clearPinnedLabels();
   }
 
+  /**
+   * Set a multiplicative opacity factor on a single body's label. Composes
+   * on top of the automated occlusion / self-size / collision fades, so
+   * host apps can dim non-selected labels alongside their non-selected
+   * markers / trajectories without fighting cosmolabe's internal logic.
+   * Default 1 (no effect).
+   */
+  setLabelOpacityMultiplier(name: string, multiplier: number): void {
+    this.labelManager?.setLabelOpacityMultiplier(name, multiplier);
+  }
+
   /** Place (or clear) a constant screen-space dot at a picked surface point. */
   setPickMarker(result: SurfacePickResult | null): void {
     // Remove old marker
