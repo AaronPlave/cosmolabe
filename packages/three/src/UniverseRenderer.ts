@@ -117,6 +117,7 @@ export class UniverseRenderer {
   private _ctx!: RendererContext;
 
   private labelManager: LabelManager | null = null;
+  private _dprMediaQuery: MediaQueryList | null = null;
   private starField: StarField | null = null;
   private ambientLight: THREE.AmbientLight | null = null;
   private sunLight: THREE.PointLight | null = null;
@@ -177,6 +178,11 @@ export class UniverseRenderer {
     });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    // Watch for devicePixelRatio changes — fires when the window is dragged
+    // across monitors with different DPI scaling. Without this, the WebGL
+    // backing store stays at the original DPR and the browser upscales it
+    // (blurry), and label canvas textures stay sized for the original DPR.
+    this._watchDevicePixelRatio();
 
     // Scene
     this.scene = new THREE.Scene();
@@ -872,6 +878,22 @@ export class UniverseRenderer {
       plugin.onResize?.(width, height);
     }
   }
+
+  private _watchDevicePixelRatio(): void {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    this._dprMediaQuery?.removeEventListener('change', this._onDprChange);
+    this._dprMediaQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    this._dprMediaQuery.addEventListener('change', this._onDprChange);
+  }
+
+  private _onDprChange = (): void => {
+    const dpr = window.devicePixelRatio;
+    this.renderer.setPixelRatio(dpr);
+    this.bloomEffect?.setSize(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight);
+    this.labelManager?.refreshTextures();
+    // Rebind the media query against the new DPR so the next monitor change fires.
+    this._watchDevicePixelRatio();
+  };
 
   /** Get the bloom effect (null when disabled). */
   getBloomEffect(): BloomEffect | null {
@@ -1621,6 +1643,8 @@ export class UniverseRenderer {
     this.labelManager?.dispose();
     this.instrumentView?.dispose();
     this.labelContainer.remove();
+    this._dprMediaQuery?.removeEventListener('change', this._onDprChange);
+    this._dprMediaQuery = null;
     // Clean up custom visuals
     for (const [bodyName, obj] of this._customVisuals) {
       const body = this.universe.getBody(bodyName);

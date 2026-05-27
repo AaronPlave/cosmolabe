@@ -34,6 +34,11 @@ interface LabelEntry {
   sprite: THREE.Sprite;
   bodyMesh: BodyMesh;
   priority: number;
+  // The fontSize used when rasterizing this entry's canvas texture. The canvas
+  // is taller than this (texFontSize + 2·padding) for the glow margin; we need
+  // the raw em-square value to compute the sprite scale that puts the *text*
+  // at `this.fontSize` px on screen (rather than the padded sprite envelope).
+  texFontSize: number;
   // Scratch fields updated each frame by update() so the collision pass
   // doesn't reproject.
   screenX: number;
@@ -93,7 +98,7 @@ export class LabelManager {
   private _globalVisible = true;
 
   constructor(_container: HTMLElement, options: LabelManagerOptions = {}) {
-    this.fontSize = options.fontSize ?? 14;
+    this.fontSize = options.fontSize ?? 12;
     this.labelScale = options.labelScale ?? 1;
     this.disableCollision = options.disableCollision ?? false;
     this.minLabelOffsetPx = options.minLabelOffsetPx ?? 12;
@@ -108,8 +113,11 @@ export class LabelManager {
       ? `rgb(${Math.round(lc[0] * 255)},${Math.round(lc[1] * 255)},${Math.round(lc[2] * 255)})`
       : '#cccccc';
 
-    // Render at 2x resolution for retina crispness
-    const textureFontSize = this.fontSize * 4;
+    // Oversample the canvas texture so the sprite stays crisp at any device
+    // pixel ratio. 4x covers DPR≤2 (the common retina case); the divide-by-2
+    // term bumps to 6x/8x on DPR=3/4 displays so dragging the window across
+    // monitors of different DPI doesn't soften the labels.
+    const textureFontSize = this.fontSize * 4 * Math.max(1, window.devicePixelRatio / 2);
     const texture = this.createTextTexture(name, color, textureFontSize);
     const material = new THREE.SpriteMaterial({
       map: texture,
@@ -120,9 +128,10 @@ export class LabelManager {
     });
     const sprite = new THREE.Sprite(material);
 
-    // Scale so it appears ~fontSize pixels tall on screen
+    // Placeholder scale — update() rewrites this every frame with the formula
+    // that maps fontSize px to NDC for the current viewport + FOV.
     const aspect = texture.image.width / texture.image.height;
-    const height = (this.fontSize / 600) * this.labelScale; // normalized to ~600px viewport
+    const height = this.fontSize / 600;
     sprite.scale.set(height * aspect, height, 1);
     sprite.center.set(0, 0.5); // anchor at left-center
 
@@ -133,6 +142,7 @@ export class LabelManager {
       sprite,
       bodyMesh,
       priority: priorityFor(bodyMesh.body),
+      texFontSize: textureFontSize,
       screenX: 0,
       screenY: 0,
       widthPx: 0,
@@ -185,6 +195,28 @@ export class LabelManager {
     this._pinnedNames.clear();
   }
 
+  /**
+   * Rebuild every label's canvas texture at the current `window.devicePixelRatio`.
+   * Call this after the host renderer detects a DPR change (e.g. window dragged
+   * to a higher-DPI monitor) so labels stay crisp instead of being upscaled by
+   * the browser.
+   */
+  refreshTextures(): void {
+    const textureFontSize = this.fontSize * 4 * Math.max(1, window.devicePixelRatio / 2);
+    for (const entry of this.labels.values()) {
+      const mat = entry.sprite.material as THREE.SpriteMaterial;
+      const oldMap = mat.map;
+      const lc = entry.bodyMesh.body.labelColor;
+      const color = lc
+        ? `rgb(${Math.round(lc[0] * 255)},${Math.round(lc[1] * 255)},${Math.round(lc[2] * 255)})`
+        : '#cccccc';
+      mat.map = this.createTextTexture(entry.bodyMesh.body.name, color, textureFontSize);
+      mat.needsUpdate = true;
+      entry.texFontSize = textureFontSize;
+      oldMap?.dispose();
+    }
+  }
+
   removeLabel(name: string): void {
     const entry = this.labels.get(name);
     if (entry) {
@@ -201,10 +233,13 @@ export class LabelManager {
     this.right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
     this.up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
 
-    // Scale labels with FOV so they shrink when zoomed in (narrow FOV).
-    // At the default 60° FOV, fovScale = 1. At 5° FOV, fovScale ≈ 0.08.
+    // Labels render at a fixed pixel size regardless of FOV or viewport size.
+    // With sizeAttenuation=false, sprite.scale.y maps to on-screen pixel height
+    // as: pixelHeight = scale.y · (heightPx / 2) / tan(fov/2). Invert that to
+    // hit `fontSize * labelScale` exactly, so:
+    //   - shrinking the window doesn't shrink the labels
+    //   - changing FOV (zoom slider) doesn't shrink the labels
     const fov = (camera as THREE.PerspectiveCamera).fov ?? 60;
-    const fovScale = fov / 60;
     const fovRad = (fov * Math.PI) / 180;
     const tanHalfFov = Math.tan(fovRad / 2);
     const heightPx = Math.max(rendererSize.height, 1);
@@ -222,11 +257,16 @@ export class LabelManager {
         continue;
       }
 
-      // Rescale sprite for current FOV
+      // Rescale sprite so the text em-square lands at exactly
+      // `fontSize * labelScale` CSS pixels on screen — matching CSS sizing
+      // convention. The canvas is taller than the em-square by the glow
+      // padding; divide that out so we scale the *text*, not the padded sprite.
       const texture = mat.map!;
       const img = texture.image as { width: number; height: number };
       const aspect = img.width / img.height;
-      const height = (this.fontSize / 600) * this.labelScale * fovScale;
+      const paddingFactor = img.height / entry.texFontSize; // ≈ 1.6 (canvas/em ratio)
+      const targetSpritePx = this.fontSize * this.labelScale * paddingFactor;
+      const height = (targetSpritePx * 2 * tanHalfFov) / heightPx;
       sprite.scale.set(height * aspect, height, 1);
 
       // Place the label outside the body's on-screen silhouette, measured in
@@ -333,10 +373,11 @@ export class LabelManager {
       const behind = this._projected.z > 1;
       entry.screenX = (this._projected.x * 0.5 + 0.5) * rendererSize.width;
       entry.screenY = (-this._projected.y * 0.5 + 0.5) * rendererSize.height;
-      // Sprite scale.y is normalized to ~600px viewport in this.fontSize/600;
-      // reverse to recover the on-screen pixel height. (Stays in sync with the
-      // labelScale * fovScale rescale above.)
-      const labelHeightPx = (height * 600) / this.labelScale;
+      // Collision bbox tracks the full sprite envelope on screen (text +
+      // glow padding), so labels that look like they touch are flagged as
+      // overlapping. Sprite is `fontSize * paddingFactor` px tall; width
+      // follows from canvas aspect.
+      const labelHeightPx = this.fontSize * paddingFactor;
       const labelWidthPx = labelHeightPx * aspect;
       entry.heightPx = labelHeightPx;
       entry.widthPx = labelWidthPx;
