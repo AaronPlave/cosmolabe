@@ -61,6 +61,8 @@
       { key: 'labels', label: 'Labels', shortcut: 'L', value: vs.showLabels },
       { key: 'grid', label: 'Grid', shortcut: 'G', value: vs.showGrid },
       { key: 'axes', label: 'Axes', shortcut: 'X', value: vs.showAxes },
+      { key: 'sensors', label: 'Sensors', shortcut: '', value: vs.showSensors },
+      { key: 'sensorLabels', label: 'Sensor labels', shortcut: '', value: vs.showSensorLabels },
       { key: 'debug', label: 'Debug stats', shortcut: '', value: debugActive },
     ] as opt}
       <label class="flex items-center gap-2 px-3 py-1 text-[12px] cursor-pointer hover:bg-surface-3 transition-colors">

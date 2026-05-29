@@ -9,6 +9,8 @@ export interface ViewerPrefs {
   showLabels: boolean;
   showGrid: boolean;
   showAxes: boolean;
+  showSensors: boolean;
+  showSensorLabels: boolean;
   lightingMode: 'natural' | 'shadow' | 'flood';
   fov: number;
 }
@@ -18,6 +20,8 @@ const DEFAULTS: ViewerPrefs = {
   showLabels: true,
   showGrid: false,
   showAxes: false,
+  showSensors: true,
+  showSensorLabels: true,
   lightingMode: 'natural',
   fov: 60,
 };
