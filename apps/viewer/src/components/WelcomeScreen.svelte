@@ -53,6 +53,7 @@
         { id: "psyche", label: "Psyche", desc: "Launch → Mars flyby → asteroid arrival 2029 (~125 MB)" },
         { id: "voyagers", label: "Voyager 1 & 2", desc: "Grand Tour: 1977 launch → interstellar (~85 MB)" },
         { id: "msl-dingo-gap", label: "Curiosity at Mars", desc: "Mars surface rendering (experimental)" },
+        { id: "ingenuity-jezero", label: "Ingenuity at Jezero", desc: "Mars helicopter at Wright Brothers Field — no SPICE" },
       ],
     },
   ];

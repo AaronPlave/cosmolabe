@@ -5,17 +5,19 @@ import { FixedPointTrajectory } from '../trajectories/FixedPoint.js';
 import { KeplerianTrajectory } from '../trajectories/Keplerian.js';
 import { SpiceTrajectory } from '../trajectories/SpiceTrajectory.js';
 import { CompositeTrajectory } from '../trajectories/CompositeTrajectory.js';
-import { InterpolatedStatesTrajectory } from '../trajectories/InterpolatedStates.js';
+import { InterpolatedStatesTrajectory, type StateRecord } from '../trajectories/InterpolatedStates.js';
 import { parseXyzv } from '../trajectories/XyzvParser.js';
 import { TLETrajectory } from '../trajectories/TLETrajectory.js';
 import { ChebyshevPolyTrajectory } from '../trajectories/ChebyshevPolyTrajectory.js';
 import { LinearCombinationTrajectory } from '../trajectories/LinearCombinationTrajectory.js';
+import { WaypointTrajectory, type Waypoint } from '../trajectories/WaypointTrajectory.js';
 import { createAnalyticalTrajectory, createAnalyticalTrajectoryByName } from '../trajectories/analytical/AnalyticalTrajectory.js';
 import type { RotationModel } from '../rotations/RotationModel.js';
 import { UniformRotation } from '../rotations/UniformRotation.js';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 import { NadirRotation } from '../rotations/NadirRotation.js';
 import { TrajectoryNadirRotation } from '../rotations/TrajectoryNadirRotation.js';
+import { SurfaceUpRotation } from '../rotations/SurfaceUpRotation.js';
 import { FixedRotation } from '../rotations/FixedRotation.js';
 import { FixedEulerRotation } from '../rotations/FixedEulerRotation.js';
 import { InterpolatedRotation, parseQFile } from '../rotations/InterpolatedRotation.js';
@@ -115,6 +117,14 @@ export interface ArcSpec {
   bodyFrame?: string | BodyFrameSpec;
   startTime?: string | number;
   endTime?: string | number;
+  /** When false, the composite-trajectory line builder skips drawing a
+   *  line for this arc. The arc's samples are still consulted for body
+   *  positioning. Default true. */
+  showLine?: boolean;
+  /** Override default key-sample count for this arc's trajectory line
+   *  (long cruise arcs benefit from a higher count to avoid a faceted
+   *  appearance at high eccentricity). */
+  numKeySamples?: number;
 }
 
 export interface BodyFrameSpec {
@@ -150,6 +160,13 @@ export interface TrajectorySpec {
   name?: string;
   // InterpolatedStates
   source?: string;
+  /** Inline state records as an alternative to `source` (which fetches a
+   *  `.xyzv` file). Useful when the catalog producer already has the samples
+   *  in memory — e.g. after parsing an OEM or pulling from a live FDS feed —
+   *  and wants to skip the file round-trip. Each record carries an ET (s
+   *  past J2000 TDB), a position (km), and a velocity (km/s). If both
+   *  `samples` and `source` are present, `samples` wins. */
+  samples?: StateRecord[];
   // TLE
   line1?: string;
   line2?: string;
@@ -169,8 +186,33 @@ export interface TrajectorySpec {
   latitude?: number;
   longitude?: number;
   radius?: number;
+  // Waypoints
+  referenceRadius?: number | string;
+  waypoints?: WaypointSpec[];
+  /**
+   * When true, the waypoint `alt` values are absolute (km above referenceRadius)
+   * and surface-lock terrain adjustment will not be applied to this body.
+   * Use for long flights where terrain pre-sampling isn't reliable —
+   * pre-compute absolute altitudes from an offline DEM and set this flag.
+   */
+  useAbsoluteAlt?: boolean;
   // Units
   distanceUnits?: string;
+}
+
+export interface WaypointSpec {
+  /** ISO UTC string, or seconds offset from the trajectory's `epoch`. */
+  t: string | number;
+  lat?: number;
+  /** Cosmographia alias for `lat`. */
+  latitude?: number;
+  lon?: number;
+  /** Cosmographia alias for `lon`. */
+  longitude?: number;
+  /** Altitude above the trajectory's `referenceRadius`. Bare number = km; string accepts unit suffix (e.g. "3m"). */
+  alt?: number | string;
+  /** Alias for `alt`. */
+  altitude?: number | string;
 }
 
 export interface RotationModelSpec {
@@ -197,6 +239,12 @@ export interface RotationModelSpec {
   angles?: number[];
   /** For Interpolated type: source data file (e.g. "attitude.q") */
   source?: string;
+  /** For Interpolated type: in-memory orientation records, used when the
+   *  caller pre-parses the attitude data (e.g. a CCSDS AEM file parsed at
+   *  SSR time). Takes precedence over `source`. Quaternion is [w, x, y, z]
+   *  scalar-first; interpretation matches `InterpolatedRotation` (body-to-
+   *  inertial). */
+  records?: Array<{ et: number; q: [number, number, number, number] }>;
 }
 
 export interface GeometrySpec {
@@ -609,7 +657,8 @@ export class CatalogLoader {
     // Other items without trajectory/arcs are kept (e.g. Rings).
 
     const trajectory = this.buildItemTrajectory(item);
-    const rotation = this.buildRotationModel(item, trajectory);
+    const parentBody = parentName ? bodies.find(b => b.name === parentName) : (item.center ? bodies.find(b => b.name === item.center) : undefined);
+    const rotation = this.buildRotationModel(item, trajectory, parentBody);
     const radii = this.extractRadii(item);
 
     const trajectoryPlot = this.parseTrajectoryPlot(item.trajectoryPlot);
@@ -620,7 +669,7 @@ export class CatalogLoader {
     let trajectoryFrame: 'ecliptic' | 'equatorial' | 'body-fixed' | undefined;
     if (item.trajectoryFrame === 'J2000' || item.trajectory?.type === 'TLE') {
       trajectoryFrame = 'equatorial';
-    } else if (item.trajectoryFrame === 'BodyFixed' || item.trajectory?.type === 'FixedSpherical') {
+    } else if (item.trajectoryFrame === 'BodyFixed' || item.trajectory?.type === 'FixedSpherical' || item.trajectory?.type === 'Waypoints') {
       trajectoryFrame = 'body-fixed';
     }
 
@@ -681,6 +730,8 @@ export class CatalogLoader {
         startTime,
         endTime,
         centerName: arc.center ?? item.center,
+        showLine: arc.showLine,
+        numKeySamples: arc.numKeySamples,
       };
     });
 
@@ -779,6 +830,13 @@ export class CatalogLoader {
         );
 
       case 'InterpolatedStates': {
+        // Inline `samples` wins over `source` so producers that already have
+        // state records in memory (e.g. an OEM parser, a live FDS feed) can
+        // skip the file round-trip entirely. Falls through to the `source`
+        // path if `samples` is absent or too small to interpolate.
+        if (Array.isArray(spec.samples) && spec.samples.length >= 2) {
+          return new InterpolatedStatesTrajectory(spec.samples);
+        }
         if (spec.source && this.resolveFile) {
           const text = this.resolveFile(spec.source);
           if (text) {
@@ -856,12 +914,39 @@ export class CatalogLoader {
         ]);
       }
 
+      case 'Waypoints': {
+        const refRadius = parseValueWithUnit(spec.referenceRadius, 0);
+        if (!Array.isArray(spec.waypoints) || spec.waypoints.length < 2) {
+          return new FixedPointTrajectory([0, 0, 0]);
+        }
+        const epochEt = spec.epoch != null ? this.parseEpochValue(spec.epoch) : 0;
+        const waypoints: Waypoint[] = [];
+        for (const w of spec.waypoints) {
+          let et: number;
+          if (typeof w.t === 'string') {
+            et = this.parseEpochValue(w.t);
+          } else if (typeof w.t === 'number') {
+            et = epochEt + w.t;
+          } else {
+            continue;
+          }
+          waypoints.push({
+            et,
+            latDeg: w.lat ?? w.latitude ?? 0,
+            lonDeg: w.lon ?? w.longitude ?? 0,
+            altKm: parseValueWithUnit(w.alt ?? w.altitude, 0),
+          });
+        }
+        if (waypoints.length < 2) return new FixedPointTrajectory([0, 0, 0]);
+        return new WaypointTrajectory(waypoints, refRadius, { useAbsoluteAlt: spec.useAbsoluteAlt === true });
+      }
+
       default:
         return new FixedPointTrajectory([0, 0, 0]);
     }
   }
 
-  private buildRotationModel(item: CatalogItem, trajectory?: Trajectory): RotationModel | undefined {
+  private buildRotationModel(item: CatalogItem, trajectory?: Trajectory, parentBody?: Body): RotationModel | undefined {
     const spec = item.rotationModel;
     if (!spec) return undefined;
 
@@ -952,6 +1037,16 @@ export class CatalogLoader {
         return undefined;
       }
 
+      case 'SurfaceUp': {
+        // Body's +X axis points along the local up (radially outward from
+        // parent center) at any moment; co-rotates with the parent. Used for
+        // aircraft / landers whose model is authored with vertical = local +X.
+        if (trajectory && parentBody) {
+          return new SurfaceUpRotation(trajectory, parentBody);
+        }
+        return undefined;
+      }
+
       case 'Fixed': {
         if (spec.quaternion && spec.quaternion.length >= 4) {
           return new FixedRotation([spec.quaternion[0], spec.quaternion[1], spec.quaternion[2], spec.quaternion[3]]);
@@ -972,6 +1067,15 @@ export class CatalogLoader {
       }
 
       case 'Interpolated': {
+        // Prefer in-memory records when the caller pre-parsed the attitude
+        // data (e.g. from a server-side CCSDS AEM parse). Falls through to
+        // the `source` path for Cosmographia .q files routed via
+        // `resolveFile`.
+        if (spec.records && spec.records.length >= 2) {
+          return new InterpolatedRotation(
+            spec.records.map((r) => ({ et: r.et, q: r.q })),
+          );
+        }
         if (spec.source && this.resolveFile) {
           const text = this.resolveFile(spec.source);
           if (text) {

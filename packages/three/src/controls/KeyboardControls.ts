@@ -57,6 +57,17 @@ export class KeyboardControls {
   /** True during the frame if translation was applied */
   translatedThisFrame = false;
 
+  /**
+   * Altitude (in scene units) above the nearest Globe body, set by
+   * `CameraController.adaptSpeeds()` each frame. When non-null, WASD
+   * translation amount uses this rather than camera-to-orbit-target so close
+   * to a surface, the heli-scale `transAmt` is sane (a 340 m altitude moves
+   * meters per frame, not kilometers).
+   *
+   * Null when no Globe is nearby — falls back to dist-to-orbit-target.
+   */
+  altitudeRefSceneUnits: number | null = null;
+
   private readonly _keys = new Set<string>();
   private readonly _onKeyDown: (e: KeyboardEvent) => void;
   private readonly _onKeyUp: (e: KeyboardEvent) => void;
@@ -177,8 +188,16 @@ export class KeyboardControls {
     // ── Translation (WASD + Z/C) ──
     // Moves camera.position and orbitTarget together, preserving the relative
     // offset so TrackballControls orbit/zoom state is undisturbed.
+    // Speed reference: the smaller of (distance to orbit-target) and (altitude
+    // above nearest Globe surface). At orbital scale, dist-to-target dominates
+    // (orbit-rate movement); near a body, altitude-above-surface dominates so
+    // surface ops aren't kilometric per keypress. `altitudeRefSceneUnits` is
+    // set by `CameraController.adaptSpeeds()` with the ground floor already
+    // applied — see comment there for the floor logic.
     const dist = camera.position.distanceTo(orbitTarget);
-    const transAmt = dist * this.translateSpeed * dt * speedMod;
+    const altRef = this.altitudeRefSceneUnits;
+    const speedRef = altRef != null ? Math.min(dist, altRef) : dist;
+    const transAmt = speedRef * this.translateSpeed * dt * speedMod;
     const move = new THREE.Vector3();
 
     if (this._pressed(ACTIONS.forward))  move.addScaledVector(forward, transAmt);

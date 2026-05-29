@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CompositeTrajectory, SpiceTrajectory, EventBus, type Universe, type Body } from '@cosmolabe/core';
+import { CompositeTrajectory, SpiceTrajectory, WaypointTrajectory, EventBus, type Universe, type Body } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
@@ -59,6 +59,10 @@ export interface UniverseRendererOptions {
   showLabels?: boolean;
   /** Label options */
   labelOptions?: LabelManagerOptions;
+  /** Show sensor frustum visualizations (default true) */
+  showSensors?: boolean;
+  /** Show sensor frustum labels (default true). Has no visible effect when showSensors is false. */
+  showSensorLabels?: boolean;
   /** Antialias */
   antialias?: boolean;
   /** Bodies to show trajectories for (if not set, shows for spacecraft/comet/asteroid) */
@@ -120,7 +124,7 @@ export class UniverseRenderer {
   private _dprMediaQuery: MediaQueryList | null = null;
   private starField: StarField | null = null;
   private ambientLight: THREE.AmbientLight | null = null;
-  private sunLight: THREE.PointLight | null = null;
+  private sunLight: THREE.DirectionalLight | null = null;
   private animFrameId = 0;
   private readonly labelContainer: HTMLDivElement;
   private _dblClickRaycaster: THREE.Raycaster | null = null;
@@ -143,6 +147,10 @@ export class UniverseRenderer {
   private _lightingMode: 'natural' | 'shadow' | 'flood' = 'natural';
   /** Selective bloom / Sun glare overlay (null when disabled). */
   private bloomEffect: BloomEffect | null = null;
+  /** Current global show-sensors state — applied to every sensor frustum. */
+  private _sensorsVisible = true;
+  /** Current global sensor-label state — applied to each frustum's label sprite. */
+  private _sensorLabelsVisible = true;
 
   /** Renderer-level event bus. Forwards universe events and adds renderer-specific events. */
   readonly events = new EventBus<RendererEventMap>();
@@ -183,6 +191,12 @@ export class UniverseRenderer {
     // backing store stays at the original DPR and the browser upscales it
     // (blurry), and label canvas textures stay sized for the original DPR.
     this._watchDevicePixelRatio();
+    // Shadow maps for small mesh-on-terrain shadows (helicopter, drones, etc.).
+    // Driven by the model-shadow DirectionalLight set up alongside the sun
+    // PointLight; planet/moon eclipse shadows go through the analytical
+    // EclipseShadow shader, not these.
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     // Scene
     this.scene = new THREE.Scene();
@@ -636,10 +650,13 @@ export class UniverseRenderer {
       }
     }
 
-    // Update sun light position
+    // Update sun light position + shadow camera frustum. The light shines from
+    // the sun toward the (first) body flagged with castShadow; the shadow
+    // camera is a tight ortho frustum around that body so the helicopter /
+    // drone casts a real silhouette on the parent body's terrain.
     if (this.sunLight) {
       const sun = this.bodyMeshes.get('Sun');
-      if (sun) this.sunLight.position.copy(sun.position);
+      if (sun) this.updateSunLightAndShadow(sun);
     }
 
     this.updateShadowOccluders();
@@ -1006,6 +1023,15 @@ export class UniverseRenderer {
     }
   }
 
+  // Note: previous calibration helpers (dumpAbsoluteAlts, dumpGeoidCalibration,
+  // dumpAirfieldsCalibration) were removed when the Ingenuity preprocessor
+  // switched from "calibrate trajectory to currently-rendered terrain" to
+  // "bake trajectory against the IAU Mars ellipsoid + MMGIS Elev_Geoid
+  // analytically." The trajectory is now data-correct against MOLA regardless
+  // of any specific terrain renderer's mesh registration. If a renderer's
+  // mesh disagrees with MOLA, address it by swapping the terrain source.
+
+
   /** Toggle body-fixed orientation axes for a body (or all bodies if no name given).
    *  Red=X (prime meridian), Green=Y, Blue=Z (pole). */
   showBodyAxes(show: boolean, bodyName?: string): void {
@@ -1139,6 +1165,27 @@ export class UniverseRenderer {
   setLabelOpacityMultiplier(name: string, multiplier: number): void {
     this.labelManager?.setLabelOpacityMultiplier(name, multiplier);
   }
+
+  /** Show or hide all sensor frustums (and their labels). */
+  setSensorsVisible(visible: boolean): void {
+    this._sensorsVisible = visible;
+    for (const sf of this.sensorFrustums.values()) {
+      sf.visible = visible;
+    }
+  }
+
+  /** Show or hide all sensor frustum labels. No visible effect while sensors are hidden. */
+  setSensorLabelsVisible(visible: boolean): void {
+    this._sensorLabelsVisible = visible;
+    for (const sf of this.sensorFrustums.values()) {
+      sf.labelSprite.visible = visible;
+    }
+  }
+
+  /** Current global sensors-visible state. */
+  get sensorsVisible(): boolean { return this._sensorsVisible; }
+  /** Current global sensor-labels-visible state. */
+  get sensorLabelsVisible(): boolean { return this._sensorLabelsVisible; }
 
   /** Place (or clear) a constant screen-space dot at a picked surface point. */
   setPickMarker(result: SurfacePickResult | null): void {
@@ -1336,6 +1383,58 @@ export class UniverseRenderer {
   private _terrainClampCache = new Map<string, { elevationKm: number; frame: number }>();
   /** Cached terrain elevation per surface-locked body (samples every 10 frames). */
   private _surfaceLockElevCache = new Map<string, { elevationKm: number; angularDistDeg: number; frame: number }>();
+  /** Per-waypoint terrain elevations cached for WaypointTrajectory bodies in
+   *  aboveTerrain mode. Built up as tiles load; once we have ≥1 sample we use
+   *  these (interpolated along time) as the ground reference instead of
+   *  sampling the body's current local terrain — that keeps the body flying
+   *  at constant altitude relative to the takeoff/landing terrain rather than
+   *  bobbing with every terrain feature it crosses. Outer key = body name. */
+  private _waypointTerrainCache = new Map<string, Map<number, number>>();
+
+  /**
+   * Reposition the sun DirectionalLight and its shadow camera frustum.
+   * The light's position is the sun. Its target is the first body flagged
+   * `castShadow: true` (small spacecraft on a body's surface), so the shadow
+   * camera ortho frustum can sit tightly around the caster. With no caster,
+   * shadow casting is disabled.
+   */
+  private updateSunLightAndShadow(sun: BodyMesh): void {
+    const light = this.sunLight!;
+    light.position.copy(sun.position);
+
+    let caster: BodyMesh | null = null;
+    for (const bm of this.bodyMeshes.values()) {
+      if (bm.body.geometryData?.castShadow === true) { caster = bm; break; }
+    }
+
+    if (!caster) {
+      light.castShadow = false;
+      light.target.position.set(0, 0, 0);
+      light.target.updateMatrixWorld();
+      return;
+    }
+
+    light.castShadow = true;
+    light.target.position.copy(caster.position);
+    light.target.updateMatrixWorld();
+
+    // Tight ortho frustum centered on the caster. Sized for small surface
+    // assets (helicopter / drone, ~1–2 m mesh, casting a few-m shadow on the
+    // adjacent terrain). `scaleFactor` is 1e-6 — 1 m = 1e-9 scene units, so a
+    // ±50 m frustum is ±5e-8 (NOT ±5e-5; previous version was 1000× too big,
+    // making the 1.2 m helicopter sub-pixel in a 1024² shadow map → invisible).
+    const cam = light.shadow.camera;
+    const dist = sun.position.distanceTo(caster.position);
+    const halfSize = 5e-8;   // ±50 m perpendicular to sun direction
+    const halfDepth = 1e-7;  // ±100 m along sun direction
+    cam.near = Math.max(1e-9, dist - halfDepth);
+    cam.far = dist + halfDepth;
+    cam.left = -halfSize;
+    cam.right = halfSize;
+    cam.top = halfSize;
+    cam.bottom = -halfSize;
+    cam.updateProjectionMatrix();
+  }
 
   /** Recompute eclipse shadow occluder lists for all bodies and push to shader uniforms. */
   private updateShadowOccluders(): void {
@@ -1359,7 +1458,9 @@ export class UniverseRenderer {
     const sunPos = sunBm.position;
     const sunRadius = this._sunRadiusKm * this.scaleFactor;
 
-    // Candidate occluders: non-star, non-emissive, large enough to cast a meaningful shadow
+    // Candidate occluders: non-star, non-emissive, large enough to cast a meaningful shadow.
+    // Small bodies (spacecraft, drones) use Three.js shadow maps via the dedicated
+    // model-shadow DirectionalLight — eclipse-shader occlusion handles only planet/moon scale.
     const candidates = [...this.bodyMeshes.values()].filter(bm =>
       bm.body.classification !== 'star' &&
       bm.body.geometryData?.emissive !== true &&
@@ -1369,8 +1470,8 @@ export class UniverseRenderer {
       // visual size. Excluding them prevents spurious shadow disks under
       // surface-locked bodies (ground stations, rovers).
       !this._visualizers.has(bm.body.geometryType ?? '') &&
-      // Surface-locked bodies sit on the parent's surface — they can't cast a
-      // meaningful shadow on the body they're sitting on.
+      // Surface-locked bodies sit on (or just above) the parent's surface — handled
+      // by the per-mesh shadow map instead of the analytical eclipse shader.
       !bm.body.geometryData?.surfaceLock,
     );
 
@@ -1425,6 +1526,27 @@ export class UniverseRenderer {
   private clampSurfaceLockedBodies(): void {
     for (const bm of this.bodyMeshes.values()) {
       if (!bm.body.geometryData?.surfaceLock) continue;
+      // surfaceLock = terrain-clamp + always-show-model behavior. Only
+      // WaypointTrajectory wants the terrain clamp (its `alt` is authored as
+      // height-above-terrain or above-reference, and the renderer pins the
+      // body to the sampled terrain). Other trajectory types — InterpolatedStates,
+      // SpiceTrajectory, Composite arcs — have absolute Cartesian positions and
+      // must NOT be clamped; for them surfaceLock only governs visibility.
+      const traj = bm.body.trajectory;
+      if (!(traj instanceof WaypointTrajectory)) continue;
+      if (traj.useAbsoluteAlt) continue;
+      const lockSpec = bm.body.geometryData.surfaceLock;
+      // "aboveTerrain" mode: trajectory altitude is height above local terrain.
+      // Renderer samples terrain at the body's lat/lon and offsets the body
+      // (or its parent, if the body is the origin) so the body sits exactly
+      // `trajectory_alt` above the live terrain — works across varying terrain.
+      const aboveTerrain = lockSpec === 'aboveTerrain'
+        || (typeof lockSpec === 'object' && lockSpec !== null && (lockSpec as { mode?: string }).mode === 'aboveTerrain');
+      const isOrigin = bm.body.name === this.cameraController.originBody?.body.name;
+      // Snap mode on the origin body would move it off (0,0,0) and break CRR.
+      // aboveTerrain on the origin body is handled below by shifting the parent
+      // body instead, keeping the origin body at (0,0,0).
+      if (isOrigin && !aboveTerrain) continue;
       const parentName = bm.body.parentName;
       if (!parentName) continue;
       const parentBm = this.bodyMeshes.get(parentName);
@@ -1462,25 +1584,78 @@ export class UniverseRenderer {
         sample = cached;
       }
 
-      // Snap to terrain only when a tile vertex is within 0.5° (≈30 km on Mars) AND
-      // the terrain elevation closely agrees with the SPICE-derived radius. The agreement
-      // check prevents a distant tile at a very different elevation from displacing the
-      // rover by kilometres; SPICE is authoritative for the rover's actual ground truth.
+      // For WaypointTrajectory bodies in aboveTerrain mode, sample terrain at
+      // each waypoint's lat/lon (whenever the tile arrives) and cache. Once we
+      // have ≥1 sample, use the cached samples interpolated along time as the
+      // ground reference instead of the body's CURRENT local terrain — keeps
+      // the body at constant absolute altitude rather than bumping with every
+      // hill it crosses.
+      let waypointGroundKm: number | null = null;
+      if (aboveTerrain && bm.body.trajectory instanceof WaypointTrajectory) {
+        const wps = bm.body.trajectory.waypoints;
+        let perBodyCache = this._waypointTerrainCache.get(bodyKey);
+        if (!perBodyCache) {
+          perBodyCache = new Map();
+          this._waypointTerrainCache.set(bodyKey, perBodyCache);
+        }
+        if (perBodyCache.size < wps.length && frame % 10 === 0) {
+          for (let wi = 0; wi < wps.length; wi++) {
+            if (perBodyCache.has(wi)) continue;
+            const w = wps[wi];
+            const s = parentBm.sampleTerrainElevation(w.latDeg, w.lonDeg);
+            if (s && s.angularDistDeg < 0.5) perBodyCache.set(wi, s.elevationKm);
+          }
+        }
+        if (perBodyCache.size > 0) {
+          // Build the (et, terrainElev) curve from whatever waypoints we've
+          // sampled so far; linearly interpolate at the body's current time.
+          const known: Array<{ et: number; elev: number }> = [];
+          for (let wi = 0; wi < wps.length; wi++) {
+            const elev = perBodyCache.get(wi);
+            if (elev != null) known.push({ et: wps[wi].et, elev });
+          }
+          if (known.length > 0) {
+            const et = this.universe.time;
+            if (et <= known[0].et || known.length === 1) {
+              waypointGroundKm = known[0].elev;
+            } else if (et >= known[known.length - 1].et) {
+              waypointGroundKm = known[known.length - 1].elev;
+            } else {
+              let i = 0;
+              while (i < known.length - 1 && et > known[i + 1].et) i++;
+              const a = known[i], b = known[i + 1];
+              const u = (et - a.et) / (b.et - a.et);
+              waypointGroundKm = a.elev + u * (b.elev - a.elev);
+            }
+          }
+        }
+      }
+
       const spiceElevKm = dist / sf - parentBm.displayRadius;
-      // Snap when a tile vertex is within 0.5° (≈30 km on Mars) AND the terrain
-      // elevation agrees with SPICE within 1 km. With referenceRadiusOffsetKm
-      // calibrated correctly, terrain and SPICE should agree to meters; a >1 km
-      // disagreement means either the offset is wrong, the wrong tile is loaded,
-      // or this isn't a real surface lock candidate.
-      if (sample && sample.angularDistDeg < 0.5 && Math.abs(sample.elevationKm - spiceElevKm) < 1.0) {
-        // 1 cm clearance — just enough to prevent z-fighting with the terrain mesh.
-        // Larger values produce visible float for ground vehicles whose model origin
-        // is at wheel level. Models centred at chassis height should compensate inside
-        // their meshRotation/meshOffset, not here.
-        const targetR = (parentBm.displayRadius + sample.elevationKm + 0.00001) * sf;
-        if (Math.abs(dist - targetR) > 1e-15) {
-          toBody.normalize().multiplyScalar(targetR);
-          bm.position.copy(parentBm.position).add(toBody);
+      if (sample && sample.angularDistDeg < 0.5) {
+        let targetR: number | null = null;
+        if (aboveTerrain) {
+          // trajectory's "altitude" is height above terrain. Prefer the
+          // pre-sampled waypoint reference (smooth) when available; fall back
+          // to the body's current local terrain sample otherwise.
+          const groundKm = waypointGroundKm ?? sample.elevationKm;
+          targetR = (parentBm.displayRadius + groundKm + spiceElevKm + 0.00001) * sf;
+        } else if (Math.abs(sample.elevationKm - spiceElevKm) < 1.0) {
+          // snap mode: pin to terrain when trajectory and terrain agree within 1 km.
+          targetR = (parentBm.displayRadius + sample.elevationKm + 0.00001) * sf;
+        }
+        if (targetR !== null && Math.abs(dist - targetR) > 1e-15) {
+          if (isOrigin) {
+            // Body is at (0,0,0) and we must keep it there for CRR. Instead,
+            // scale the parent's position so that |body - parent| = targetR.
+            // This shifts the parent (and visually, the planet's surface) so
+            // the body still appears at the right altitude above terrain.
+            const scale = targetR / dist;
+            parentBm.position.multiplyScalar(scale);
+          } else {
+            toBody.normalize().multiplyScalar(targetR);
+            bm.position.copy(parentBm.position).add(toBody);
+          }
         }
       }
     }
@@ -1950,13 +2125,29 @@ export class UniverseRenderer {
 
     }
 
-    // Sun light
+    // Sun light. Directional rather than point because (a) the sun is far
+    // enough at any reasonable focus body that parallel light is physically
+    // correct, and (b) Three.js shadow maps need a DirectionalLight (or Spot)
+    // with a manageable ortho/perspective frustum — used here for the
+    // helicopter-style mesh-on-terrain shadows.
     const sun = this.bodyMeshes.get('Sun');
     if (sun) {
-      this.sunLight = new THREE.PointLight(0xffffff, 2, 0, 0);
-      this.sunLight.layers.enableAll();
-      this.sunLight.position.copy(sun.position);
-      this.scene.add(this.sunLight);
+      const light = new THREE.DirectionalLight(0xffffff, 2);
+      light.layers.enableAll();
+      light.position.copy(sun.position);
+      light.castShadow = true;
+      light.shadow.mapSize.set(1024, 1024);
+      // `bias` is in NDC depth over the shadow camera's near→far range. With
+      // our shadow camera spanning ~200 m of depth (1e-7 scene units), a bias
+      // of 1e-4 NDC ≈ 2 cm of real-world depth offset — enough to suppress
+      // self-shadow acne without obvious peter-panning.
+      light.shadow.bias = 1e-4;
+      // `normalBias` is in WORLD (scene) units. 1m = 1e-9 scene units, so
+      // 1e-9 nudges the shadow query 1 m along the surface normal.
+      light.shadow.normalBias = 1e-9;
+      this.sunLight = light;
+      this.scene.add(light);
+      this.scene.add(light.target);
     }
 
     // Star field
@@ -1972,6 +2163,10 @@ export class UniverseRenderer {
         if (bm.body.labelVisible) this.labelManager.addLabel(bm);
       }
     }
+
+    // Sensor visibility (apply after frustums are built)
+    if (this.options.showSensorLabels === false) this.setSensorLabelsVisible(false);
+    if (this.options.showSensors === false) this.setSensorsVisible(false);
   }
 
   /**
@@ -2067,6 +2262,12 @@ export class UniverseRenderer {
     for (let i = 0; i < composite.arcs.length; i++) {
       const arc = composite.arcs[i];
 
+      // Per-arc opt-out (e.g., a landed/surface arc where the inertial-frame
+      // samples trace a body-rotation circle that visually contradicts the
+      // "spacecraft is parked" story). Body positioning still uses the arc's
+      // samples — only the trajectory line is suppressed.
+      if (arc.showLine === false) continue;
+
       // Skip degenerate arcs (failed xyzv load → FixedPoint(0,0,0))
       try {
         const mid = (arc.startTime + arc.endTime) / 2;
@@ -2121,6 +2322,10 @@ export class UniverseRenderer {
         maxTime: isLastArc ? undefined : arc.endTime,
         fixedResolver: arcResolver,
         fadeFraction: plotCfg?.fade ?? 1.0,
+        // Per-arc sample-count override lets long cruise arcs request a
+        // higher vertex budget than the default cap (~500) so the orbit
+        // line doesn't appear as a faceted polygon at high eccentricity.
+        numKeySamples: arc.numKeySamples,
       });
       // Tag with arc center name so the update loop can position it correctly
       (tl as any)._arcCenterName = arcCenterName;
@@ -2128,6 +2333,51 @@ export class UniverseRenderer {
       tl.traverse(c => c.layers.set(OVERLAY_LAYER));
       this.trajectoryLines.set(`${body.name}__arc${i}`, tl);
       this.scene.add(tl);
+
+      // Build a per-arc TrajectoryCache. The single-trajectory path runs
+      // `buildCacheSync` for long-duration spacecraft trails (above) —
+      // composite-arc trails benefit equally, and skipping the cache
+      // forces the live-sampling path to spread a fixed budget uniformly
+      // in time. Uniform time = sparse vertex density at high-curvature
+      // regions (e.g. tight lunar-orbit phases at the end of a cruise),
+      // where Visvalingam-Whyatt's curvature-aware concentration is
+      // exactly what we want. `TrajectoryCache.build` uses the arc's
+      // own bounds (not the routing-extended endTime) so we don't waste
+      // vertices on a clamped-to-last-sample post-arc gap.
+      try {
+        const trajStart = arc.trajectory.startTime;
+        const trajEnd = arc.trajectory.endTime;
+        if (trajStart != null && trajEnd != null && trajEnd > trajStart) {
+          const cacheResolver = (t: number): [number, number, number] => {
+            try {
+              const s = arc.trajectory.stateAt(t);
+              return [s.position[0], s.position[1], s.position[2]];
+            } catch {
+              return [NaN, NaN, NaN];
+            }
+          };
+          const t0 = performance.now();
+          const cache = TrajectoryCache.build(cacheResolver, trajStart, trajEnd, {
+            maxPoints: 100_000,
+            coverageWindows: [{ start: trajStart, end: trajEnd }],
+          });
+          if (cache.count > 0) {
+            tl.setCache(cache);
+            console.log(
+              `[Cosmolabe] Arc cache built for ${body.name} arc${i}: ` +
+                `${cache.count} pts in ${(performance.now() - t0).toFixed(0)}ms`,
+            );
+          }
+        }
+      } catch (err) {
+        // Fall back to live sampling — the line works either way, just
+        // with the lower coarse cap.
+        console.warn(
+          `[Cosmolabe] Arc cache failed for ${body.name} arc${i}, ` +
+            `using live sampling:`,
+          err,
+        );
+      }
     }
   }
 
@@ -2268,6 +2518,25 @@ export class UniverseRenderer {
           }
         }
       } catch { /* spkcov not available */ }
+    }
+
+    // For non-SPICE trajectories that expose their own time bounds (e.g.
+    // `InterpolatedStates`, `Waypoints`), use those as authoritative coverage
+    // instead of letting the cache builder probe at 1-day intervals. The
+    // probe path assumes out-of-range returns NaN; trajectories that *clamp*
+    // to their first/last sample (the natural choice for state-vector
+    // ephemerides — there's no "no data" failure mode) fool the probe into
+    // reporting wildly over-broad coverage, which spreads simplification
+    // points across irrelevant time and produces sparse cache windows.
+    if (!coverageWindows
+        && body.trajectory.startTime != null
+        && body.trajectory.endTime != null) {
+      coverageWindows = [{
+        start: body.trajectory.startTime,
+        end: body.trajectory.endTime,
+      }];
+      searchStart = body.trajectory.startTime;
+      searchEnd = body.trajectory.endTime;
     }
 
     // Cap the cache range to ±1 period for periodic trajectories. Without this,

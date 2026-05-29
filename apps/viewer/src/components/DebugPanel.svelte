@@ -17,6 +17,7 @@
   let frameCount = 0;
   let currentFps = $state(0);
   let currentHeapMB = $state<number | null>(null);
+  let terrainDebug = $state(false);
 
   onMount(() => {
     let running = true;
@@ -155,6 +156,20 @@
       <div class="section-label mt-3">Time</div>
       <div class="row"><span class="label">ET</span><span class="val">{info.et.toFixed(1)}</span></div>
       <div class="row"><span class="label">Rate</span><span class="val">{vs.rateText}</span></div>
+
+      <div class="section-label mt-3">Terrain</div>
+      <label class="row cursor-pointer">
+        <span class="label">Tile bounds</span>
+        <input
+          type="checkbox"
+          class="m-0"
+          checked={terrainDebug}
+          onchange={(e) => {
+            terrainDebug = (e.target as HTMLInputElement).checked;
+            getRenderer()?.showTerrainDebug(terrainDebug);
+          }}
+        />
+      </label>
     </div>
   </div>
 {/if}

@@ -280,9 +280,15 @@ export class BodyMesh extends THREE.Object3D {
     // cleared depth buffer and tight near/far, so standard hardware depth interpolation
     // handles intra-model face sorting with full precision. No log depth override needed.
     const emissiveModel = this.body.classification === 'star' || this.body.geometryData?.emissive === true;
+    // Three.js shadow-map casting flag, read from the catalog. Used by the
+    // sun DirectionalLight to render this mesh's silhouette into the shadow
+    // map, which the parent body's terrain shader then samples. Independent
+    // of the eclipse-shadow analytical system.
+    const castShadowFlag = this.body.geometryData?.castShadow === true;
     object.traverse((child) => {
       child.layers.set(1);
       if (emissiveModel) child.layers.enable(BLOOM_LAYER);
+      if (castShadowFlag && isMesh(child)) child.castShadow = true;
 
       if (isMesh(child)) {
         if (!child.material) {
@@ -865,6 +871,24 @@ export class BodyMesh extends THREE.Object3D {
     return this.terrainManager?.sampleElevationKm(latDeg, lonDeg, this.displayRadius) ?? null;
   }
 
+  /**
+   * IAU oblate-ellipsoid radius (km) at the given geodetic latitude.
+   * For Mars at Jezero's 18°N this is ~2.2 km smaller than the equatorial
+   * `displayRadius`; near the poles the gap is ~20 km. Use this in altitude
+   * readouts so users see sensible numbers at high latitudes.
+   *
+   * Falls back to `displayRadius` (sphere) when `body.radii` is unset or
+   * its X/Z components are equal.
+   */
+  surfaceRadiusAtLat(latDeg: number): number {
+    const radii = this.body.radii;
+    if (!radii || radii[0] === radii[2]) return this.displayRadius;
+    const lat = latDeg * Math.PI / 180;
+    const cosLat = Math.cos(lat), sinLat = Math.sin(lat);
+    const a = radii[0], c = radii[2];
+    return (a * c) / Math.sqrt(c * c * cosLat * cosLat + a * a * sinLat * sinLat);
+  }
+
   /** Log terrain tile stats to console */
   logTerrainStats(): void {
     this.terrainManager?.logStats();
@@ -876,7 +900,14 @@ export class BodyMesh extends THREE.Object3D {
    */
   initTerrain(config: TerrainConfig, renderer: THREE.WebGLRenderer): void {
     if (this.terrainManager) return; // Already initialized
-    this.terrainManager = new TerrainManager(config, this.displayRadius, renderer);
+    // Pass body radii through so TerrainManager can build an oblate ellipsoid.
+    // For Mars this matters: at Jezero's 18.44°N the IAU radius is 2.24 km
+    // smaller than equatorial — treating Mars as a sphere puts terrain that
+    // much too high vs the trajectory's lat-aware positions.
+    const bodyRadii: [number, number, number] | number = this.body.radii
+      ? [this.body.radii[0], this.body.radii[1], this.body.radii[2]]
+      : this.displayRadius;
+    this.terrainManager = new TerrainManager(config, bodyRadii, renderer);
     if (this.shadowEnabled) this.terrainManager.enableShadowReceiving(this.shadowUniforms);
     this.add(this.terrainManager.group);
     // Terrain starts hidden; updateTerrain will show it based on camera distance
@@ -914,24 +945,18 @@ export class BodyMesh extends THREE.Object3D {
     const TERRAIN_SHOW_PX = this.terrainManager.showAtPixels;
 
     if (screenPixels >= TERRAIN_SHOW_PX) {
-      // Show terrain tiles. At orbital distances, keep the static sphere slightly
-      // shrunk (0.5%) behind tiles as a fallback during tile loading transitions.
-      // At ground level (screenPixels > 2000), hide the sphere entirely — it sits
-      // km below the actual terrain surface (e.g., 12+ km at Dingo Gap) and would
-      // be visible through tile gaps at oblique viewing angles.
+      // Show terrain tiles, hide the placeholder sphere entirely. We used to
+      // keep the sphere shrunk 0.5% behind tiles as a "fill the gaps while
+      // tiles stream in" fallback, but with hierarchical 3D Tiles assets
+      // (e.g. Cesium Mars) whose root doesn't always cover the whole globe,
+      // the sphere bleeds through with mismatched shading + different LOD
+      // texture, producing a patchwork that looks worse than the brief blank
+      // gaps during initial tile load.
       if (!this.terrainVisible) {
         this.terrainManager.group.visible = true;
         this.terrainVisible = true;
       }
-      // At ground level the shrunk sphere sits km below terrain and is visible
-      // through tile gaps at oblique angles. Hide it when within 1% of body radius.
-      const camDistKm = camera.position.distanceTo(this.position) / this.scaleFactor;
-      const altAboveSphere = camDistKm - this.displayRadius;
-      if (Math.abs(altAboveSphere) < this.displayRadius * 0.01) {
-        this.mesh.visible = false;
-      } else {
-        this.applyMeshScale(this.scaleFactor * 0.995);
-      }
+      this.mesh.visible = false;
 
       // Scale grid lines above terrain surface (not shrunk with the mesh).
       // 0.5% above terrain clears typical topography while staying close to surface.

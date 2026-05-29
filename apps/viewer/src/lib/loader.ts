@@ -354,7 +354,13 @@ function initScene(
     (resolveFile || resolveFileBinary) ? { resolveFile, resolveFileBinary } : undefined,
   );
 
+  // Inject Cesium Ion token from VITE_CESIUM_ION_TOKEN into any `terrain` block
+  // of type "cesium-ion" before the Universe parses the catalog. Keeps the
+  // catalog files shareable (no token in source) — operator just sets the env
+  // var in apps/viewer/.env.local once.
+  const ionToken = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
   for (const json of catalogs) {
+    injectCesiumIonToken(json, ionToken);
     universe.loadCatalog(json as any);
   }
 
@@ -443,11 +449,39 @@ function initScene(
       const dist = vpDef.distance * scaleFactor;
       const lon = ((vpDef.longitude ?? 0) * Math.PI) / 180;
       const lat = ((vpDef.latitude ?? 0) * Math.PI) / 180;
+      // Body-fixed Cartesian (Z = pole, X = prime meridian) at distance `dist`
+      // in the direction of (lat, lon). This is the same convention trajectories
+      // and pick-marker code use; the rotation below maps it to world coords.
       pos = {
         x: dist * Math.cos(lat) * Math.cos(lon),
-        y: dist * Math.sin(lat),
-        z: dist * Math.cos(lat) * Math.sin(lon),
+        y: dist * Math.cos(lat) * Math.sin(lon),
+        z: dist * Math.sin(lat),
       };
+      // Viewpoint distance + lat/lon are intended as a body-fixed offset from
+      // the tracked body (e.g. "Jezero Overhead" should point at Jezero on
+      // Mars, not at random inertial coords that Mars no longer faces). Rotate
+      // the position by the tracked body's (or its parent's) body-fixed →
+      // inertial transform at defaultTime so the camera lands at the right
+      // surface location.
+      const refBody = vpDef.center ? universe.getBody(vpDef.center) : undefined;
+      // For a body that itself spins (planet, moon), use the body's own rotation.
+      // For a child of a spinning body (e.g. Ingenuity → Mars), use the parent's rotation.
+      const spinBody = refBody?.rotation
+        ? refBody
+        : refBody?.parentName ? universe.getBody(refBody.parentName) : undefined;
+      const q = spinBody?.rotationAt(universe.time);
+      if (q) {
+        // rotationAt returns inertial → body-fixed. Use conjugate to go the other way.
+        const qw = q[0], qx = -q[1], qy = -q[2], qz = -q[3];
+        const tx = 2 * (qy * pos.z - qz * pos.y);
+        const ty = 2 * (qz * pos.x - qx * pos.z);
+        const tz = 2 * (qx * pos.y - qy * pos.x);
+        pos = {
+          x: pos.x + qw * tx + (qy * tz - qz * ty),
+          y: pos.y + qw * ty + (qz * tx - qx * tz),
+          z: pos.z + qw * tz + (qx * ty - qy * tx),
+        };
+      }
     } else {
       pos = { x: 0, y: 300, z: 500 };
     }
@@ -506,7 +540,70 @@ export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
     await ensureSpice();
     await furnishKernelsFromGraph(graph);
   }
-  initScene(canvas, graph.catalogs.map(c => c.json as Record<string, unknown>));
+
+  const dataFiles = await fetchCatalogDataFiles(graph);
+  initScene(canvas, graph.catalogs.map(c => c.json as Record<string, unknown>), dataFiles);
+}
+
+/**
+ * Pre-fetch text data files referenced by trajectory specs (e.g. `.xyzv` for
+ * InterpolatedStates). Drag-drop already populates a dataFiles map; URL-loaded
+ * demos otherwise have no way to resolve relative `source:` paths.
+ */
+async function fetchCatalogDataFiles(graph: ResolvedCatalogGraph): Promise<Map<string, string> | undefined> {
+  const refs: { absUrl: string; sourcePath: string }[] = [];
+  for (const { url: catalogUrl, json } of graph.catalogs) {
+    collectDataRefs(json as Record<string, unknown>, catalogUrl, refs);
+  }
+  if (refs.length === 0) return undefined;
+
+  const files = new Map<string, string>();
+  await Promise.all(refs.map(async ({ absUrl, sourcePath }) => {
+    const res = await fetch(absUrl);
+    if (!res.ok) {
+      console.warn(`[Cosmolabe] Failed to fetch trajectory data ${absUrl}: ${res.status}`);
+      return;
+    }
+    files.set(sourcePath, await res.text());
+  }));
+  return files;
+}
+
+/**
+ * Walk a catalog tree and inject `cesiumIonToken` into any `terrain` block
+ * whose `type` is `"cesium-ion"`. Token comes from VITE_CESIUM_ION_TOKEN.
+ * If a terrain config already has its own token, leave it alone. If neither
+ * is set, leave the field unset and let TerrainManager throw a clear error
+ * later — that's better than silently swallowing here.
+ */
+function injectCesiumIonToken(node: unknown, token: string | undefined): void {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    for (const child of node) injectCesiumIonToken(child, token);
+    return;
+  }
+  const obj = node as Record<string, unknown>;
+  if (obj.type === 'cesium-ion' && obj.cesiumIonToken == null && token) {
+    obj.cesiumIonToken = token;
+  }
+  for (const value of Object.values(obj)) injectCesiumIonToken(value, token);
+}
+
+function collectDataRefs(
+  node: unknown,
+  baseUrl: string,
+  out: { absUrl: string; sourcePath: string }[],
+): void {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    for (const child of node) collectDataRefs(child, baseUrl, out);
+    return;
+  }
+  const obj = node as Record<string, unknown>;
+  if (obj.type === 'InterpolatedStates' && typeof obj.source === 'string') {
+    out.push({ absUrl: new URL(obj.source, baseUrl).href, sourcePath: obj.source });
+  }
+  for (const value of Object.values(obj)) collectDataRefs(value, baseUrl, out);
 }
 
 /** Handle dropped files */

@@ -41,6 +41,14 @@ export class CameraController {
   /** Right-click drag sensitivity in radians per pixel (default: 0.003) */
   freeLookSensitivity = 0.003;
 
+  /** Shift+wheel FOV adjustment sensitivity (multiplicative; default: 0.001 per deltaY unit) */
+  fovWheelSensitivity = 0.001;
+  /** Clamp range for shift+wheel FOV adjustment (degrees) */
+  fovMinDeg = 1;
+  fovMaxDeg = 120;
+  /** Continuous internal FOV; rounded to int when written to the camera. Lazy-init from camera.fov on first wheel event. */
+  private _fovTargetDeg: number | null = null;
+
   /** Base speeds (adapted per-frame by distance to nearest body surface) */
   private readonly _baseRotateSpeed = 2.0;
   private readonly _baseZoomSpeed = 1.2;
@@ -118,6 +126,7 @@ export class CameraController {
   private readonly _onMouseMove: (e: MouseEvent) => void;
   private readonly _onMouseUp: (e: MouseEvent) => void;
   private readonly _onContextMenu: (e: Event) => void;
+  private readonly _onWheel: (e: WheelEvent) => void;
   private readonly _domElement: HTMLElement;
 
   constructor(
@@ -180,8 +189,31 @@ export class CameraController {
 
     this._onContextMenu = (e: Event) => e.preventDefault();
 
+    // Shift + wheel adjusts FOV instead of zooming. Capture phase to intercept
+    // before TrackballControls's wheel handler so it doesn't also dolly the camera.
+    this._onWheel = (e: WheelEvent) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // Browsers (notably macOS) remap shift+vertical-wheel to horizontal scroll,
+      // so the delta arrives on deltaX. Use whichever axis has the larger magnitude.
+      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      const cam = this.camera;
+      // Re-sync from camera if FOV was changed externally (e.g. DisplaySettings slider).
+      if (this._fovTargetDeg === null || Math.round(this._fovTargetDeg) !== cam.fov) {
+        this._fovTargetDeg = cam.fov;
+      }
+      const next = this._fovTargetDeg * Math.exp(delta * this.fovWheelSensitivity);
+      this._fovTargetDeg = Math.max(this.fovMinDeg, Math.min(this.fovMaxDeg, next));
+      const rounded = Math.round(this._fovTargetDeg);
+      if (rounded === cam.fov) return;
+      cam.fov = rounded;
+      cam.updateProjectionMatrix();
+    };
+
     domElement.addEventListener('mousedown', this._onRightDown, { capture: true });
     domElement.addEventListener('contextmenu', this._onContextMenu);
+    domElement.addEventListener('wheel', this._onWheel, { capture: true, passive: false });
     window.addEventListener('mousemove', this._onMouseMove);
     window.addEventListener('mouseup', this._onMouseUp);
   }
@@ -560,13 +592,20 @@ export class CameraController {
     if (!body) return;
     this._pendingOriginSwitch = null;
 
-    // Adjust camera from old-origin coords to new-origin coords
-    const bodyPos = body.position; // still in old-origin coords from last frame
+    // Adjust camera from old-origin coords to new-origin coords. Skip the
+    // subtract if the body was already origin — the flyTo lerped the camera to
+    // its true endPos (followBody.position + dir * dist); subtracting bodyPos
+    // would yank the camera away by the body's rendered offset (relevant for
+    // surface-locked bodies whose rendered position isn't at origin).
+    const wasAlreadyOrigin = this._originBody === body;
+    const bodyPos = body.position;
     this._originBody = body;
     this._trackTarget = body;
     this._prevTargetPos.copy(bodyPos);
-    this.camera.position.sub(bodyPos);
-    this.controls.target.set(0, 0, 0);
+    if (!wasAlreadyOrigin) {
+      this.camera.position.sub(bodyPos);
+    }
+    this.controls.target.copy(bodyPos);
 
     // Defer mode-state resync to after body positions are recomputed under
     // the new origin — syncing now would use stale body positions and produce
@@ -625,6 +664,8 @@ export class CameraController {
     }
 
     let minAltRatio = Infinity;
+    let minAltScene = Infinity;
+    let nearestSurfaceR = 0;
 
     for (const bm of bodyMeshes) {
       const gt = bm.body.geometryType;
@@ -635,6 +676,30 @@ export class CameraController {
       const altitude = Math.max(dist - surfaceR, 0);
       const ratio = altitude / surfaceR;
       if (ratio < minAltRatio) minAltRatio = ratio;
+      if (altitude < minAltScene) {
+        minAltScene = altitude;
+        nearestSurfaceR = surfaceR;
+      }
+    }
+
+    // Pass altitude-above-nearest-Globe-surface to KeyboardControls so WASD
+    // translation amount scales with altitude rather than dist-to-orbit-target
+    // when close to a body. Without this, at 340 m above Mars the camera-to-
+    // Mars-center distance (3400 km) drives WASD speed → kilometric per keypress
+    // even when you're hovering meters above terrain.
+    //
+    // Floor at 0.0001 of the nearest body's surface radius so ground-level
+    // WASD doesn't stall — at altitude=0, plain `altitude` gives speed=0 and
+    // the user can't move at all. 0.0001×R scales naturally: Mars (3396 km)
+    // → ~340 m floor; Moon (1737 km) → ~170 m; Earth (6378 km) → ~640 m;
+    // asteroid (10 km) → ~1 m. translateSpeed (default 1.0) multiplies this
+    // for the final per-second pace, so on Mars surface WASD walks at ~340 m/s
+    // (Shift = 1.7 km/s, Alt = 68 m/s).
+    if (isFinite(minAltScene)) {
+      const surfaceFloor = nearestSurfaceR * 0.0001;
+      this.keyboard.altitudeRefSceneUnits = Math.max(minAltScene, surfaceFloor);
+    } else {
+      this.keyboard.altitudeRefSceneUnits = null;
     }
 
     if (!isFinite(minAltRatio)) return; // no nearby Globe — keep base speeds
@@ -743,9 +808,12 @@ export class CameraController {
       this._rightDragDy = 0;
     }
 
-    // Tracking: lock orbit target to the tracked body at origin
+    // Tracking: lock orbit target to the tracked body. The body is normally at
+    // (0,0,0) thanks to CRR origin-shifting, but surface-locked bodies may be
+    // shifted off-origin by the renderer's terrain clamp — read bm.position
+    // directly so the camera always looks at the body's rendered position.
     if (this._trackTarget) {
-      this.controls.target.set(0, 0, 0);
+      this.controls.target.copy(this._trackTarget.position);
     }
 
     // Surface clamp via TrackballControls is camera-to-*target* distance, which
@@ -759,7 +827,22 @@ export class CameraController {
     //   guard at the end of update() to keep the camera from entering the body.
     if (this._trackTarget) {
       const sf = this._trackTarget.scaleFactor;
-      this.controls.minDistance = this._trackTarget.displayRadius * sf * 1.0001;
+      if (this._trackTarget.hasTerrain) {
+        // With terrain configured, the renderer's per-frame
+        // `clampCameraAboveSurfaces` owns the actual ground floor: it samples
+        // real terrain at the camera's lat/lon and only pushes the camera up
+        // when it would clip the rendered mesh. Importantly that clamp is
+        // already body-agnostic — it works with the same logic for Jezero
+        // (below the IAU mean), Olympus Mons (above), Hellas, the lunar South
+        // Pole-Aitken basin, etc. Drop the trackball minDistance to effectively
+        // zero so the controls don't gate zoom-in before the terrain clamp can
+        // run. No body-specific magic numbers.
+        this.controls.minDistance = 1e-10;
+      } else {
+        // No terrain data — the reference ellipsoid IS the ground. Use the
+        // existing displayRadius floor.
+        this.controls.minDistance = this._trackTarget.displayRadius * sf * 1.0001;
+      }
     } else {
       this.controls.minDistance = 1e-10;
     }
@@ -787,7 +870,12 @@ export class CameraController {
     // the planet despite controls.minDistance, because that clamp is measured
     // to target, not to body center. Push the camera back along the radial
     // direction if it has crossed the surface.
-    if (clampBody) {
+    //
+    // Skipped for bodies with terrain: the renderer's per-frame
+    // `clampCameraAboveSurfaces` does a proper terrain sample and handles the
+    // "below reference but above actual terrain" case (Jezero, Hellas, etc.)
+    // that this static reference-radius guard would otherwise break.
+    if (clampBody && !clampBody.hasTerrain) {
       const sf = clampBody.scaleFactor;
       const minR = clampBody.displayRadius * sf * 1.0001;
       const offset = this._tmpV1.subVectors(this.camera.position, clampBody.position);
@@ -820,6 +908,7 @@ export class CameraController {
 
     this._domElement.removeEventListener('mousedown', this._onRightDown, { capture: true });
     this._domElement.removeEventListener('contextmenu', this._onContextMenu);
+    this._domElement.removeEventListener('wheel', this._onWheel, { capture: true });
     window.removeEventListener('mousemove', this._onMouseMove);
     window.removeEventListener('mouseup', this._onMouseUp);
   }

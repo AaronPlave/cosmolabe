@@ -24,6 +24,8 @@ export { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
 export type { TrajectoryArc } from './trajectories/CompositeTrajectory.js';
 export { TLETrajectory } from './trajectories/TLETrajectory.js';
 export type { TLEData, TLETrajectoryOptions } from './trajectories/TLETrajectory.js';
+export { WaypointTrajectory } from './trajectories/WaypointTrajectory.js';
+export type { Waypoint } from './trajectories/WaypointTrajectory.js';
 export { createBuiltinTrajectory } from './trajectories/BuiltinTrajectory.js';
 export { parseXyzv } from './trajectories/XyzvParser.js';
 

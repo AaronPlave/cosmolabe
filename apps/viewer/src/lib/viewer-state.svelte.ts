@@ -28,6 +28,10 @@ export const vs = $state({
   playing: false,
   rateText: '1 min/s',
   timeText: '--',
+  /** Increments on every animation frame so components that read live renderer
+   *  state (e.g. bm.position which updates per-frame, not per-time-change) can
+   *  trigger re-derivation by reading `vs.frameTick`. */
+  frameTick: 0,
 
   // Camera
   cameraMode: CameraModeName.FREE_ORBIT as CameraModeName,
@@ -43,6 +47,8 @@ export const vs = $state({
   showLabels: true,
   showGrid: false,
   showAxes: false,
+  showSensors: true,
+  showSensorLabels: true,
   showStats: false,
   lightingMode: 'natural' as 'natural' | 'shadow' | 'flood',
 
@@ -121,7 +127,10 @@ function initScrubberRange() {
   let min: number, max: number;
   if (range) {
     const span = range[1] - range[0];
-    const pad = Math.max(span * 0.1, 86400);
+    // Pad by 10 % of the span, but never less than 5 s (so short missions like
+    // Ingenuity Flight 1 — 39 s — don't get drowned in a 1-day scrubber window)
+    // and never more than 1 day (so multi-decade ephemerides don't add a decade).
+    const pad = Math.max(5, Math.min(span * 0.1, 86400));
     min = range[0] - pad;
     max = range[1] + pad;
   } else {
@@ -166,11 +175,15 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   vs.showLabels = prefs.showLabels;
   vs.showGrid = prefs.showGrid;
   vs.showAxes = prefs.showAxes;
+  vs.showSensors = prefs.showSensors;
+  vs.showSensorLabels = prefs.showSensorLabels;
   vs.lightingMode = prefs.lightingMode;
   renderer.setTrajectoriesVisible(prefs.showTrajectories);
   renderer.setLabelsVisible(prefs.showLabels);
   renderer.showBodyGrid(prefs.showGrid);
   renderer.showBodyAxes(prefs.showAxes);
+  renderer.setSensorLabelsVisible(prefs.showSensorLabels);
+  renderer.setSensorsVisible(prefs.showSensors);
   renderer.setLightingMode(prefs.lightingMode);
   if (prefs.fov !== 60) {
     renderer.camera.fov = prefs.fov;
@@ -185,6 +198,17 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     vs.rateText = rateLabel(renderer.timeController.rate);
   });
   _unsubscribers.push(unsub);
+
+  // Drive a per-frame tick so components that depend on live renderer state
+  // (e.g. body mesh positions) can re-derive once per render, even while
+  // playback is paused.
+  let rafId = 0;
+  const tick = () => {
+    vs.frameTick++;
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+  _unsubscribers.push(() => cancelAnimationFrame(rafId));
 
   syncTimeState();
   syncCameraState();
@@ -395,6 +419,16 @@ export function setDisplayOption(option: string, value: boolean) {
       vs.showAxes = value;
       _renderer.showBodyAxes(value);
       savePrefs({ showAxes: value });
+      break;
+    case 'sensors':
+      vs.showSensors = value;
+      _renderer.setSensorsVisible(value);
+      savePrefs({ showSensors: value });
+      break;
+    case 'sensorLabels':
+      vs.showSensorLabels = value;
+      _renderer.setSensorLabelsVisible(value);
+      savePrefs({ showSensorLabels: value });
       break;
   }
 }

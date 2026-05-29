@@ -15,16 +15,68 @@
     return r.camera.position.distanceTo(bm.position) / r.scaleFactor;
   });
 
-  // Altitude above the body's surface (range minus body display radius). Shown
-  // alongside Range because "Range" is camera-to-center, which can be misleading
-  // when standing close to the surface (Earth: range 6400 km = altitude ~22 km).
+  // Altitude above the body's surface at the lat under the camera. Uses the
+  // body's IAU oblate radius — `displayRadius` is the equatorial value, and
+  // would give wildly wrong altitudes near the poles of a flattened body
+  // (Mars: ~20 km gap, Earth: ~21 km gap).
   let altitude = $derived.by(() => {
     void vs.et;
     const r = getRenderer();
     if (!r || !vs.selectedBodyName || distance == null) return null;
     const bm = r.getBodyMesh(vs.selectedBodyName);
     if (!bm) return null;
-    return distance - bm.displayRadius;
+    // Convert camera position into the body's body-fixed frame to find the
+    // subpoint latitude.
+    const toCam = r.camera.position.clone().sub(bm.position);
+    const bf = toCam.divideScalar(r.scaleFactor).applyQuaternion(bm.mesh.quaternion.clone().invert());
+    const len = bf.length();
+    if (len < 1e-10) return null;
+    const latDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
+    return distance - bm.surfaceRadiusAtLat(latDeg);
+  });
+
+  // Body's altitude above the parent body's surface in two flavors:
+  // - aboveTerrain: sampled at the body's CURRENT lat/lon on the parent's
+  //   rendered terrain. Null if the parent has no terrain, or no tile yet
+  //   covers that lat/lon (angularDistDeg > 1° from any loaded vertex).
+  // - aboveRef: distance from parent's center minus parent's reference
+  //   radius (IAU mean). Always defined when a parent exists. Less useful
+  //   visually (negative numbers below sea level) but a deterministic fallback.
+  let bodyAltitudes = $derived.by((): { aboveTerrain: number | null; aboveRef: number | null; parentBmName: string | null } => {
+    void vs.et;
+    void vs.frameTick;
+    const r = getRenderer();
+    if (!r || !vs.selectedBodyName) return { aboveTerrain: null, aboveRef: null, parentBmName: null };
+    const bm = r.getBodyMesh(vs.selectedBodyName);
+    if (!bm || !bm.body.parentName) return { aboveTerrain: null, aboveRef: null, parentBmName: null };
+    const parentBm = r.getBodyMesh(bm.body.parentName);
+    if (!parentBm) return { aboveTerrain: null, aboveRef: null, parentBmName: null };
+    const dist = bm.position.distanceTo(parentBm.position) / r.scaleFactor;
+    // Compute the subpoint latitude on the parent body so radii (sphere or
+    // oblate) work correctly for both readouts.
+    const toBody = bm.position.clone().sub(parentBm.position);
+    const invQ = parentBm.mesh.quaternion.clone().invert();
+    const bf = toBody.clone().divideScalar(r.scaleFactor).applyQuaternion(invQ);
+    const ecefX = bf.x, ecefY = -bf.z, ecefZ = bf.y;
+    const rr = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
+    const latDeg = rr > 1e-10
+      ? Math.asin(Math.max(-1, Math.min(1, ecefZ / rr))) * (180 / Math.PI)
+      : 0;
+    const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
+    const refRadius = parentBm.surfaceRadiusAtLat(latDeg);
+    const aboveRef = dist - refRadius;
+
+    let aboveTerrain: number | null = null;
+    if (parentBm.hasTerrain && rr > 1e-10) {
+      const sample = parentBm.sampleTerrainElevation(latDeg, lonDeg);
+      if (sample && sample.angularDistDeg < 1.0) {
+        // sample.elevationKm = closestRadiusKm - displayRadius (see
+        // TerrainManager.sampleElevationKm). So the absolute terrain radius
+        // at the sampled vertex is displayRadius + elevationKm.
+        aboveTerrain = dist - (parentBm.displayRadius + sample.elevationKm);
+      }
+    }
+    return { aboveTerrain, aboveRef, parentBmName: bm.body.parentName };
   });
 
   // Compute live state vector
@@ -138,7 +190,8 @@
       <div class="text-[10px] text-text-muted uppercase tracking-wider mb-2">{bodyEntry.classification}</div>
     {/if}
 
-    <!-- Core metrics -->
+    <!-- VIEW: camera-relative -->
+    <div class="text-[10px] text-text-muted uppercase tracking-wider mt-1 mb-1">View</div>
     <div class="flex flex-col gap-0.5">
       <div class="flex justify-between gap-3">
         <span class="text-text-muted">Range</span>
@@ -146,27 +199,51 @@
       </div>
       {#if altitude != null}
         <div class="flex justify-between gap-3">
-          <span class="text-text-muted">Altitude</span>
+          <span class="text-text-muted">Cam alt</span>
           <span class="font-mono text-text-primary">{formatDist(altitude)}</span>
         </div>
       {/if}
-      {#if stateInfo}
+    </div>
+
+    <!-- BODY: this body's height above its parent's surface (terrain primary, ref fallback) -->
+    {#if bodyAltitudes.aboveTerrain != null || bodyAltitudes.aboveRef != null}
+      <div class="text-[10px] text-text-muted uppercase tracking-wider mt-2 mb-1 pt-2 border-t border-border">Body</div>
+      <div class="flex flex-col gap-0.5">
+        {#if bodyAltitudes.aboveTerrain != null}
+          <div class="flex justify-between gap-3">
+            <span class="text-text-muted">Above terrain</span>
+            <span class="font-mono text-text-primary">{formatDist(bodyAltitudes.aboveTerrain)}</span>
+          </div>
+        {:else if bodyAltitudes.aboveRef != null}
+          <div class="flex justify-between gap-3">
+            <span class="text-text-muted">Above ref</span>
+            <span class="font-mono text-text-primary">{formatDist(bodyAltitudes.aboveRef)}</span>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    <!-- ORBIT: this body's motion relative to its parent -->
+    {#if stateInfo && bodyAltitudes.parentBmName}
+      <div class="text-[10px] text-text-muted uppercase tracking-wider mt-2 mb-1 pt-2 border-t border-border">Orbit</div>
+      <div class="flex flex-col gap-0.5">
+        <div class="flex justify-between gap-3">
+          <span class="text-text-muted">{bodyAltitudes.parentBmName} distance</span>
+          <span class="font-mono text-text-primary">{formatDist(stateInfo.range)}</span>
+        </div>
         <div class="flex justify-between gap-3">
           <span class="text-text-muted">Speed</span>
           <span class="font-mono text-text-primary">{formatSpeed(stateInfo.speed)}</span>
         </div>
-        <div class="flex justify-between gap-3">
-          <span class="text-text-muted">Dist from origin</span>
-          <span class="font-mono text-text-primary">{formatDist(stateInfo.range)}</span>
-        </div>
-      {/if}
-      {#if speAngle != null}
-        <div class="flex justify-between gap-3">
-          <span class="text-text-muted">SPE angle</span>
-          <span class="font-mono {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>
-        </div>
-      {/if}
-    </div>
+      </div>
+    {/if}
+
+    {#if speAngle != null}
+      <div class="flex justify-between gap-3 mt-2 pt-2 border-t border-border">
+        <span class="text-text-muted">SPE angle</span>
+        <span class="font-mono {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>
+      </div>
+    {/if}
 
     <!-- Plugin-contributed info sections -->
     {#each pluginSections as section (section.id)}

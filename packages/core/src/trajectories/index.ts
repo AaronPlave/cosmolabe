@@ -12,4 +12,6 @@ export type { TLEData, TLETrajectoryOptions } from './TLETrajectory.js';
 export { createBuiltinTrajectory } from './BuiltinTrajectory.js';
 export { ChebyshevPolyTrajectory } from './ChebyshevPolyTrajectory.js';
 export { LinearCombinationTrajectory } from './LinearCombinationTrajectory.js';
+export { WaypointTrajectory } from './WaypointTrajectory.js';
+export type { Waypoint } from './WaypointTrajectory.js';
 export { AnalyticalTrajectory, createAnalyticalTrajectory, createAnalyticalTrajectoryByName } from './analytical/AnalyticalTrajectory.js';
