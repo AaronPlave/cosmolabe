@@ -3,7 +3,7 @@ import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
-import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
+import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
@@ -114,6 +114,40 @@ export interface TerrainConfig {
    *  at a body with a known SPICE position (e.g., a rover) and computing
    *  `terrain_sample_elev - spice_elev`. */
   referenceRadiusOffsetKm?: number;
+  /** Quantized-mesh tile skirt length (m). Each tile edge gets a vertical
+   *  skirt hanging down from its perimeter, hiding cracks at LOD-swap
+   *  boundaries. The default `null` makes the plugin use `tile.geometricError`
+   *  per zoom, which shrinks at high zooms (~1m at z15) and becomes too small
+   *  to hide the few-tens-of-meters height mismatches caused by overview
+   *  resampling at LOD boundaries. Setting this to a fixed value (e.g., 50)
+   *  forces uniform skirts at all zoom levels — same trick the marshub
+   *  Mars_v14 setup uses. Use `skirtScale` for distance-adaptive sizing. */
+  skirtLength?: number;
+  /** Multiplier applied to `tile.geometricError` to derive per-tile skirt
+   *  length. Lets you keep small skirts at close zoom (z15 default ~1.25 m)
+   *  while scaling them up at altitude (z10 default ~40 m) so they actually
+   *  cover the gaps between low-LOD tiles. Typical values 0.03–0.1. When
+   *  unset (and `skirtLength` also unset), the plugin defaults to
+   *  `tile.geometricError` outright, which produces visible terraces. Ignored
+   *  when `skirtLength` is set (skirtLength wins). */
+  skirtScale?: number;
+  /** `TilesFadePlugin` fade duration in ms. When unset, the fade plugin is
+   *  disabled (was 300 ms by default — caused visible jitter on high-zoom
+   *  HiRISE tiles while the camera was moving, as tiles streaming in/out
+   *  triggered fade animations every frame). Set to a positive number to
+   *  re-enable. */
+  fadeDurationMs?: number;
+  /** ImageOverlayPlugin per-terrain-tile composited texture resolution in
+   *  pixels. When unset the plugin uses its built-in default of 256. Each
+   *  terrain tile gets one composited texture at this resolution containing
+   *  all WMTS overlays sampled across its lat/lon span. Higher = sharper
+   *  imagery + less downsampling seams between adjacent terrain tiles, at
+   *  the cost of GPU memory (R² × 4 bytes × N tiles) and per-tile composite
+   *  cost (re-rendered when LOD changes). Bumping from 256 to 1024 makes the
+   *  composite ~16× more expensive per tile, which can outweigh the
+   *  resolution gain when terrain is moving — tiles arrive stale-looking
+   *  during pan/zoom. Try modest steps (e.g. 512) before reaching for 1024+. */
+  overlayResolution?: number;
 }
 
 /**
@@ -150,6 +184,40 @@ function timeSubstitutedURL(url: string, resolvedTime: string): string {
   return url.replace(/\/default\/\d{4}-\d{2}-\d{2}\//, `/default/${resolvedTime}/`);
 }
 
+/** Build a `preprocessURL` callback for a WMTS overlay that does time
+ *  substitution. Returns undefined if no time substitution is needed.
+ *  (For XYZ overlays, the equivalent helper in `createImageryOverlay` also
+ *  enforces minZoom-skipping; for WMTS overlays minZoom semantics live on
+ *  `calculateLevel` instead — clamping the requested level so the data is
+ *  *up*-sampled rather than skipped.) */
+function buildWmtsOverlayPreprocessURL(
+  time: string | undefined,
+): ((url: string) => string) | undefined {
+  if (!time) return undefined;
+  return (url: string) => timeSubstitutedURL(url, time);
+}
+
+/** Clamp a WMTS overlay's `calculateLevel` to a minimum, so far-out zooms
+ *  request good-quality tiles rather than the source's coarse-LOD output.
+ *  Distinct from `preprocessURL`-based skipping (the XYZ pattern): a clamp
+ *  *up-samples* — the overlay fetches level-`min` tiles even when the base
+ *  is rendering at level 0, and `ImageOverlayPlugin` composites them over
+ *  the larger base region. Result: overlay stays visible at every zoom,
+ *  just uses a fixed-floor LOD when the natural one would be too coarse.
+ *
+ *  Use case: NASA GIBS' VIIRS_*_TrueColor at levels 0-2 shows individual
+ *  orbital swaths (data not composited). Level 3+ blends cleanly. Clamping
+ *  to 3 keeps clouds visible without the streaky low-LOD artifacts.
+ *
+ *  `calculateLevel` lives on `TiledImageOverlay`, the (non-exported)
+ *  superclass of `WMTSTilesOverlay`, so we monkey-patch through `any`. */
+function clampOverlayMinLevel(overlay: WMTSTilesOverlay, minLevel: number): void {
+  type CalcFn = (range: number[], tile: unknown) => number;
+  const o = overlay as unknown as { calculateLevel: CalcFn };
+  const original = o.calculateLevel.bind(o);
+  o.calculateLevel = (range, tile) => Math.max(original(range, tile), minLevel);
+}
+
 /** Create the appropriate imagery overlay based on config type. */
 function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMSTilesOverlay | WMTSTilesOverlay | TMSTilesOverlay {
   const type = img.type ?? 'xyz';
@@ -168,12 +236,17 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
         color: 0xffffff,
         opacity: 1,
       });
-    case 'wmts':
-      return new WMTSTilesOverlay({
+    case 'wmts': {
+      const preprocessURL = buildWmtsOverlayPreprocessURL(resolveTime(img.time));
+      const overlay = new WMTSTilesOverlay({
         url: img.url,
         color: 0xffffff,
         opacity: 1,
+        ...(preprocessURL ? { preprocessURL } : {}),
       });
+      if (img.minZoom != null) clampOverlayMinLevel(overlay, img.minZoom);
+      return overlay;
+    }
     case 'tms':
       return new TMSTilesOverlay({
         url: img.url,
@@ -286,7 +359,12 @@ export class TerrainManager {
 
   /**
    * @param config Terrain source configuration
-   * @param bodyRadiusKm Mean body radius in km (used to set ellipsoid)
+   * @param bodyRadii Body radii in km — either a single value (treats body as
+   *   a sphere) or `[rx, ry, rz]` for oblate bodies. Oblateness matters
+   *   visibly on Mars: at Jezero's 18.44°N the IAU radius is ~3393.95 km,
+   *   2.24 km smaller than the equatorial 3396.19 km — treating Mars as a
+   *   sphere puts terrain ~2.24 km too high at that latitude vs the
+   *   trajectory's latitude-aware position.
    * @param renderer WebGL renderer (needed for ImageOverlayPlugin texture rendering)
    */
   /** Screen-px threshold to begin pre-loading tiles below the visible sphere. */
@@ -294,16 +372,26 @@ export class TerrainManager {
   /** Screen-px threshold to swap the static sphere for streamed tiles. */
   readonly showAtPixels: number;
 
-  constructor(config: TerrainConfig, bodyRadiusKm: number, renderer: THREE.WebGLRenderer) {
-    this.bodyRadiusKm = bodyRadiusKm;
+  constructor(
+    config: TerrainConfig,
+    bodyRadii: number | [number, number, number],
+    renderer: THREE.WebGLRenderer,
+  ) {
+    const [rxKm, ryKm, rzKm] = typeof bodyRadii === 'number'
+      ? [bodyRadii, bodyRadii, bodyRadii]
+      : bodyRadii;
+    this.bodyRadiusKm = Math.max(rxKm, ryKm, rzKm);
     this.isImageryOnly = config.type === 'imagery';
     this.hasOverlays = Array.isArray(config.imagery) && config.imagery.length > 1;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
     this.showAtPixels = config.showAtPixels ?? 80;
 
     // For imagery-only mode, no tileset URL needed — XYZTilesPlugin generates geometry.
-    // For quantized-mesh / 3dtiles, the URL points at the tileset's layer.json / tileset.json.
-    this.tiles = new TilesRenderer(this.isImageryOnly ? undefined : config.url);
+    // For Cesium Ion, the auth plugin resolves the tileset URL via the Ion API, so we
+    // also construct without a URL. For quantized-mesh / 3dtiles, the URL points at
+    // the tileset's layer.json / tileset.json.
+    const constructWithoutUrl = this.isImageryOnly || config.type === 'cesium-ion';
+    this.tiles = new TilesRenderer(constructWithoutUrl ? undefined : config.url);
 
     // Upstream bug guard: multiple plugins (QuantizedMeshPlugin, ImageOverlayPlugin)
     // access tile.children.length in disposeTile without null checks. During LRU cache
@@ -395,14 +483,11 @@ export class TerrainManager {
       const overlaysReady: Promise<unknown>[] = overlayImgs.map(async (img) => {
         const opacity = img.opacity ?? 1;
         const color = img.color ?? 0xffffff;
-        const time = resolveTime(img.time);
-        const preprocessURL = time
-          ? (url: string) => timeSubstitutedURL(url, time)
-          : undefined;
+        const preprocessURL = buildWmtsOverlayPreprocessURL(resolveTime(img.time));
 
         if (img.type === 'wmts-capabilities') {
           const capabilities = await fetchCapabilities(img.url);
-          return new WMTSTilesOverlay({
+          const overlay = new WMTSTilesOverlay({
             capabilities,
             layer: img.layer,
             tileMatrixSet: img.tileMatrixSet,
@@ -410,14 +495,16 @@ export class TerrainManager {
             opacity,
             ...(preprocessURL ? { preprocessURL } : {}),
           } as ConstructorParameters<typeof WMTSTilesOverlay>[0]);
+          if (img.minZoom != null) clampOverlayMinLevel(overlay, img.minZoom);
+          return overlay;
         }
 
+        // For non-WMTS overlays, `createImageryOverlay` handles its own
+        // minZoom/bounds logic via its XYZ preprocessURL. We override color
+        // and opacity afterward since createImageryOverlay hardcodes 0xffffff/1.
         const overlay = createImageryOverlay(img);
         (overlay as { opacity: number }).opacity = opacity;
         (overlay as { color: number }).color = color;
-        if (preprocessURL) {
-          (overlay as { preprocessURL?: (url: string) => string }).preprocessURL = preprocessURL;
-        }
         return overlay;
       });
 
@@ -441,25 +528,79 @@ export class TerrainManager {
       });
     } else {
       if (config.type === 'quantized-mesh') {
-        this.tiles.registerPlugin(new QuantizedMeshPlugin({
+        const qmOpts: { useRecommendedSettings: boolean; skirtLength?: number } = {
           useRecommendedSettings: true,
+        };
+        if (config.skirtLength != null) qmOpts.skirtLength = config.skirtLength;
+        // Monkey-patch parseToMesh so skirtLength = tile.geometricError * skirtScale
+        // per tile. The plugin only supports a single scalar skirtLength, but a
+        // single value either visibly terraces at altitude (when big enough to
+        // hide low-LOD gaps) or shows hairline cracks at high LOD (when small).
+        // skirtScale gives us a per-LOD skirt without forking the plugin.
+        const qmPlugin = new QuantizedMeshPlugin(qmOpts) as unknown as {
+          parseToMesh: (buffer: ArrayBuffer, tile: any, extension: string, uri: string) => unknown;
+          skirtLength: number | null;
+        };
+        if (config.skirtLength == null && config.skirtScale != null) {
+          const skirtScale = config.skirtScale;
+          const origParseToMesh = qmPlugin.parseToMesh.bind(qmPlugin);
+          qmPlugin.parseToMesh = function (buffer, tile, extension, uri) {
+            const prev = qmPlugin.skirtLength;
+            qmPlugin.skirtLength = tile.geometricError * skirtScale;
+            try {
+              return origParseToMesh(buffer, tile, extension, uri);
+            } finally {
+              qmPlugin.skirtLength = prev;
+            }
+          };
+        }
+        this.tiles.registerPlugin(qmPlugin as any);
+      } else if (config.type === 'cesium-ion') {
+        if (!config.cesiumIonToken) {
+          throw new Error(`TerrainManager: type "cesium-ion" requires \`cesiumIonToken\` (Cesium Ion API token). Set VITE_CESIUM_ION_TOKEN in apps/viewer/.env.local and the loader will inject it.`);
+        }
+        if (config.cesiumIonAssetId == null) {
+          throw new Error(`TerrainManager: type "cesium-ion" requires \`cesiumIonAssetId\` (e.g. 3644333 for Cesium Mars).`);
+        }
+        this.tiles.registerPlugin(new CesiumIonAuthPlugin({
+          apiToken: config.cesiumIonToken,
+          assetId: String(config.cesiumIonAssetId),
         }));
+        // Cesium Ion returns 404 "ResourceNotFound" when the asset isn't in
+        // your account, even with a valid token. Premium assets (Cesium Mars,
+        // Moon, etc.) require an explicit "Add to my assets" click in the
+        // Asset Depot first — surface this hint instead of the bare 404.
+        const ionAssetId = config.cesiumIonAssetId;
+        this.tiles.addEventListener('load-error', (event: any) => {
+          if (event.url?.includes(`/v1/assets/${ionAssetId}/endpoint`) && event.error?.message?.includes('404')) {
+            console.error(`[Cosmolabe:Terrain] Cesium Ion asset ${ionAssetId} returned 404. Likely cause: the asset isn't in your account yet. Visit https://ion.cesium.com/assetdepot, find the asset, click "Add to my assets", then reload.`);
+          }
+        });
       }
 
       // Imagery overlays: drape image tiles onto terrain geometry
       if (config.imagery) {
         const imgConfigs = Array.isArray(config.imagery) ? config.imagery : [config.imagery];
         const overlays = imgConfigs.map(img => createImageryOverlay(img));
-        this.tiles.registerPlugin(new ImageOverlayPlugin({
+        const overlayOpts: { overlays: typeof overlays; renderer: typeof renderer; enableTileSplitting: boolean; resolution?: number } = {
           overlays,
           renderer,
           enableTileSplitting: false,
-        }));
+        };
+        if (config.overlayResolution != null) overlayOpts.resolution = config.overlayResolution;
+        this.tiles.registerPlugin(new ImageOverlayPlugin(overlayOpts as ConstructorParameters<typeof ImageOverlayPlugin>[0]));
       }
     }
 
     // Fade between LOD transitions to smooth color differences between zoom levels.
-    this.tiles.registerPlugin(new TilesFadePlugin({ fadeDuration: 300 }));
+    // Default 300 ms preserves existing behavior. Set `fadeDurationMs: 0` in
+    // the catalog to disable — useful for HiRISE-detail tilesets where the
+    // fade animation can cause visible jitter as tiles stream in/out while
+    // the camera is moving.
+    const fadeMs = config.fadeDurationMs ?? 300;
+    if (fadeMs > 0) {
+      this.tiles.registerPlugin(new TilesFadePlugin({ fadeDuration: fadeMs }));
+    }
 
     // Upstream bug: QuantizedMeshPlugin.expandChildren always pushes new children
     // without checking if children already exist. When a tile is evicted from the LRU
@@ -508,12 +649,18 @@ export class TerrainManager {
       this.loadNormalMap(config.normalMapUrl, config.normalMapStrength ?? 1.5);
     }
 
-    // Set ellipsoid to the body's radius (in meters, which is what 3D Tiles uses).
+    // Set ellipsoid to the body's actual radii (oblate spheroids matter here —
+    // Mars at Jezero's 18.44°N has a 2.24 km smaller radius than at the equator,
+    // and treating it as a sphere puts terrain that much too high at that
+    // latitude vs the trajectory's latitude-aware position).
     // referenceRadiusOffsetKm compensates for tilesets that encode heights against
     // a non-standard reference (see TerrainConfig.referenceRadiusOffsetKm doc).
     const offsetKm = config.referenceRadiusOffsetKm ?? 0;
-    const radiusM = (bodyRadiusKm - offsetKm) * 1000;
-    this.tiles.ellipsoid.radius.set(radiusM, radiusM, radiusM);
+    this.tiles.ellipsoid.radius.set(
+      (rxKm - offsetKm) * 1000,
+      (ryKm - offsetKm) * 1000,
+      (rzKm - offsetKm) * 1000,
+    );
 
     // Only override errorTarget if explicitly set in config.
     // QuantizedMeshPlugin's useRecommendedSettings already sets errorTarget=2.
@@ -981,8 +1128,13 @@ export class TerrainManager {
       // the terrain underneath. Independent of the analytical eclipse shadow.
       child.receiveShadow = true;
 
-      // Imagery-only tiles use MeshBasicMaterial (unlit). Swap to MeshStandardMaterial
-      // to match the placeholder sphere's lighting response.
+      // Unlit tiles (MeshBasicMaterial — used by XYZTilesPlugin imagery and
+      // also by 3D Tiles that ship with the KHR_materials_unlit extension,
+      // e.g. Cesium Mars's photo-baked global imagery) need a swap to
+      // MeshStandardMaterial to receive the sun DirectionalLight + atmosphere
+      // shading. Originally gated on `isImageryOnly`, but cesium-ion terrain
+      // hits the same case via KHR_materials_unlit, so the gate is just
+      // "incoming material is unlit".
       //
       // When ImageOverlayPlugin has already wrapped this MeshBasicMaterial
       // (multi-layer config), preserve its wrap: the wrap is an

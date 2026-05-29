@@ -1,0 +1,187 @@
+{
+  "name": "Ingenuity at Jezero",
+  "version": "1.1",
+  "defaultTime": "2021-07-05T09:00:08Z",
+  "defaultViewpoint": "Jezero Overhead",
+  "items": [
+    {
+      "name": "Jezero Overhead",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3500,
+      "latitude": 18.4,
+      "longitude": 77.5
+    },
+    {
+      "name": "Wright Brothers Field",
+      "type": "Viewpoint",
+      "center": "Ingenuity",
+      "distance": 0.05,
+      "latitude": 25,
+      "longitude": 90
+    },
+    {
+      "name": "Ingenuity Close-up",
+      "type": "Viewpoint",
+      "center": "Ingenuity",
+      "distance": 0.015,
+      "latitude": 20,
+      "longitude": 60
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "EMB" },
+      "geometry": { "type": "Globe", "radius": 6378, "atmosphere": "Earth" },
+      "label": { "color": [0.4, 0.6, 1.0] }
+    },
+    {
+      "name": "Mars",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Mars" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "24.622962155909364h",
+        "inclination": 37.1135,
+        "ascendingNode": 47.68143,
+        "meridianAngle": 176.630
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [3396.19, 3396.19, 3376.2],
+        "baseMap": "textures/mars.dds",
+        "terrain": {
+          "type": "quantized-mesh",
+          "url": "/test-catalogs/data/mars-terrain/",
+          "referenceRadiusOffsetKm": 0,
+          "errorTarget": 3,
+          "fadeDurationMs": 0,
+          "skirtScale": 0.1,
+          "imagery": [
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
+              "levels": 8
+            },
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+              "levels": 13,
+              "bounds": [77.16, 18.21, 77.70, 18.72],
+              "minZoom": 5
+            },
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+              "levels": 17,
+              "bounds": [77.22, 18.31, 77.58, 18.67],
+              "minZoom": 9
+            }
+          ]
+        },
+        "atmosphere": "Mars"
+      },
+      "label": { "color": [1.0, 0.5, 0.3] },
+      "items": [
+        {
+          "name": "Ingenuity",
+          "class": "spacecraft",
+          "naifId": -266,
+          "trajectoryFrame": "BodyFixed",
+          "arcs": [
+            {"startTime":"2021-04-19T07:30:50.116Z","endTime":"2021-04-22T09:29:41.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_01.xyzv"}},
+            {"startTime":"2021-04-22T09:29:41.116Z","endTime":"2021-04-25T11:28:24.916Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_02.xyzv"}},
+            {"startTime":"2021-04-25T11:28:24.916Z","endTime":"2021-04-30T14:46:18.516Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_03.xyzv"}},
+            {"startTime":"2021-04-30T14:46:18.516Z","endTime":"2021-05-07T19:23:21.816Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_04.xyzv"}},
+            {"startTime":"2021-05-07T19:23:21.816Z","endTime":"2021-05-23T05:17:08.516Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_05.xyzv"}},
+            {"startTime":"2021-05-23T05:17:08.516Z","endTime":"2021-06-08T15:50:17.616Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_06.xyzv"}},
+            {"startTime":"2021-06-08T15:50:17.616Z","endTime":"2021-06-22T00:24:25.416Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_07.xyzv"}},
+            {"startTime":"2021-06-22T00:24:25.416Z","endTime":"2021-07-05T08:58:59.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_08.xyzv"}},
+            {"startTime":"2021-07-05T08:58:59.116Z","endTime":"2021-07-24T21:01:01.616Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_09.xyzv"}},
+            {"startTime":"2021-07-24T21:01:01.616Z","endTime":"2021-08-05T04:47:06.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_10.xyzv"}},
+            {"startTime":"2021-08-05T04:47:06.116Z","endTime":"2021-08-16T12:53:50.516Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_11.xyzv"}},
+            {"startTime":"2021-08-16T12:53:50.516Z","endTime":"2021-09-05T00:03:34.916Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_12.xyzv"}},
+            {"startTime":"2021-09-05T00:03:34.916Z","endTime":"2021-10-24T08:14:00.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_13.xyzv"}},
+            {"startTime":"2021-10-24T08:14:00.116Z","endTime":"2021-11-06T16:17:41.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_14.xyzv"}},
+            {"startTime":"2021-11-06T16:17:41.116Z","endTime":"2021-11-21T02:02:32.016Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_15.xyzv"}},
+            {"startTime":"2021-11-21T02:02:32.016Z","endTime":"2021-12-05T12:18:17.416Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_16.xyzv"}},
+            {"startTime":"2021-12-05T12:18:17.416Z","endTime":"2021-12-15T17:20:09.716Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_17.xyzv"}},
+            {"startTime":"2021-12-15T17:20:09.716Z","endTime":"2022-02-08T04:18:20.516Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_18.xyzv"}},
+            {"startTime":"2022-02-08T04:18:20.516Z","endTime":"2022-02-25T13:27:17.416Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_19.xyzv"}},
+            {"startTime":"2022-02-25T13:27:17.416Z","endTime":"2022-03-10T22:01:47.316Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_20.xyzv"}},
+            {"startTime":"2022-03-10T22:01:47.316Z","endTime":"2022-03-20T03:57:55.516Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_21.xyzv"}},
+            {"startTime":"2022-03-20T03:57:55.516Z","endTime":"2022-03-24T06:36:14.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_22.xyzv"}},
+            {"startTime":"2022-03-24T06:36:14.116Z","endTime":"2022-04-03T12:41:12.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_23.xyzv"}},
+            {"startTime":"2022-04-03T12:41:12.116Z","endTime":"2022-04-08T16:30:09.016Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_24.xyzv"}},
+            {"startTime":"2022-04-08T16:30:09.016Z","endTime":"2022-04-20T01:22:50.916Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_25.xyzv"}},
+            {"startTime":"2022-04-20T01:22:50.916Z","endTime":"2022-04-24T04:01:07.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_26.xyzv"}},
+            {"startTime":"2022-04-24T04:01:07.116Z","endTime":"2022-04-29T07:34:27.016Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_27.xyzv"}},
+            {"startTime":"2022-04-29T07:34:27.016Z","endTime":"2022-06-11T14:57:41.616Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_28.xyzv"}},
+            {"startTime":"2022-06-11T14:57:41.616Z","endTime":"2022-08-20T12:30:01.316Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_29.xyzv"}},
+            {"startTime":"2022-08-20T12:30:01.316Z","endTime":"2022-09-06T23:22:19.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_30.xyzv"}},
+            {"startTime":"2022-09-06T23:22:19.116Z","endTime":"2022-09-18T06:37:35.916Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_31.xyzv"}},
+            {"startTime":"2022-09-18T06:37:35.916Z","endTime":"2022-09-24T11:05:55.416Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_32.xyzv"}},
+            {"startTime":"2022-09-24T11:05:55.416Z","endTime":"2022-11-23T01:43:31.916Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_33.xyzv"}},
+            {"startTime":"2022-11-23T01:43:31.916Z","endTime":"2022-12-03T08:15:58.416Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_34.xyzv"}},
+            {"startTime":"2022-12-03T08:15:58.416Z","endTime":"2022-12-10T12:47:50.716Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_35.xyzv"}},
+            {"startTime":"2022-12-10T12:47:50.716Z","endTime":"2022-12-17T17:24:54.816Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_36.xyzv"}},
+            {"startTime":"2022-12-17T17:24:54.816Z","endTime":"2023-01-05T05:17:17.616Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_37.xyzv"}},
+            {"startTime":"2023-01-05T05:17:17.616Z","endTime":"2023-01-11T09:54:11.516Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_38.xyzv"}},
+            {"startTime":"2023-01-11T09:54:11.516Z","endTime":"2023-01-19T14:51:55.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_39.xyzv"}},
+            {"startTime":"2023-01-19T14:51:55.116Z","endTime":"2023-01-27T19:16:41.816Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_40.xyzv"}},
+            {"startTime":"2023-01-27T19:16:41.816Z","endTime":"2023-02-05T00:39:53.316Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_41.xyzv"}},
+            {"startTime":"2023-02-05T00:39:53.316Z","endTime":"2023-02-16T07:51:02.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_42.xyzv"}},
+            {"startTime":"2023-02-16T07:51:02.116Z","endTime":"2023-02-19T09:51:49.916Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_43.xyzv"}},
+            {"startTime":"2023-02-19T09:51:49.916Z","endTime":"2023-02-22T12:53:12.116Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_44.xyzv"}},
+            {"startTime":"2023-02-22T12:53:12.116Z","endTime":"2023-02-25T13:50:18.616Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_45.xyzv"}},
+            {"startTime":"2023-02-25T13:50:18.616Z","endTime":"2023-03-09T21:45:12.816Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_46.xyzv"}},
+            {"startTime":"2023-03-09T21:45:12.816Z","endTime":"2023-03-22T04:45:39.912Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_47.xyzv"}},
+            {"startTime":"2023-03-22T04:45:39.912Z","endTime":"2023-04-02T11:52:48.163Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_48.xyzv"}},
+            {"startTime":"2023-04-02T11:52:48.163Z","endTime":"2023-04-13T19:08:07.365Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_49.xyzv"}},
+            {"startTime":"2023-04-13T19:08:07.365Z","endTime":"2023-04-23T01:21:06.431Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_50.xyzv"}},
+            {"startTime":"2023-04-23T01:21:06.431Z","endTime":"2023-04-27T03:58:04.971Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_51.xyzv"}},
+            {"startTime":"2023-04-27T03:58:04.971Z","endTime":"2023-07-26T11:21:27.936Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_52.xyzv"}},
+            {"startTime":"2023-07-26T11:21:27.936Z","endTime":"2023-08-03T19:09:35.291Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_53.xyzv"}},
+            {"startTime":"2023-08-03T19:09:35.291Z","endTime":"2023-08-12T22:54:47.625Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_54.xyzv"}},
+            {"startTime":"2023-08-12T22:54:47.625Z","endTime":"2023-08-26T05:26:00.885Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_55.xyzv"}},
+            {"startTime":"2023-08-26T05:26:00.885Z","endTime":"2023-09-03T12:45:54.461Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_56.xyzv"}},
+            {"startTime":"2023-09-03T12:45:54.461Z","endTime":"2023-09-11T16:12:30.852Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_57.xyzv"}},
+            {"startTime":"2023-09-11T16:12:30.852Z","endTime":"2023-09-16T19:17:08.525Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_58.xyzv"}},
+            {"startTime":"2023-09-16T19:17:08.525Z","endTime":"2023-09-26T01:13:18.856Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_59.xyzv"}},
+            {"startTime":"2023-09-26T01:13:18.856Z","endTime":"2023-10-05T08:11:08.213Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_60.xyzv"}},
+            {"startTime":"2023-10-05T08:11:08.213Z","endTime":"2023-10-12T11:03:10.713Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_61.xyzv"}},
+            {"startTime":"2023-10-12T11:03:10.713Z","endTime":"2023-10-19T15:52:42.351Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_62.xyzv"}},
+            {"startTime":"2023-10-19T15:52:42.351Z","endTime":"2023-10-27T20:46:44.373Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_63.xyzv"}},
+            {"startTime":"2023-10-27T20:46:44.373Z","endTime":"2023-11-03T01:04:29.087Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_64.xyzv"}},
+            {"startTime":"2023-11-03T01:04:29.087Z","endTime":"2023-11-04T01:23:41.454Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_65.xyzv"}},
+            {"startTime":"2023-11-04T01:23:41.454Z","endTime":"2023-12-02T19:59:03.037Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_66.xyzv"}},
+            {"startTime":"2023-12-02T19:59:03.037Z","endTime":"2023-12-16T04:26:22.541Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_67.xyzv"}},
+            {"startTime":"2023-12-16T04:26:22.541Z","endTime":"2023-12-20T07:04:39.546Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_68.xyzv"}},
+            {"startTime":"2023-12-20T07:04:39.546Z","endTime":"2023-12-22T08:23:46.079Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_69.xyzv"}},
+            {"startTime":"2023-12-22T08:23:46.079Z","endTime":"2024-01-06T18:17:57.800Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_70.xyzv"}},
+            {"startTime":"2024-01-06T18:17:57.800Z","endTime":"2024-01-19T01:00:22.029Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_71.xyzv"}},
+            {"startTime":"2024-01-19T01:00:22.029Z","endTime":"2025-01-18T01:00:54.227Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_72.xyzv"}}
+          ],
+          "rotationModel": { "type": "SurfaceUp" },
+          "geometry": {
+            "type": "Mesh",
+            "source": "models/Ingenuity.glb",
+            "size": 0.0012,
+            "radii": [0.0006, 0.0006, 0.0006],
+            "surfaceLock": "aboveTerrain",
+            "meshRotation": [0.7071, 0, 0, -0.7071],
+            "castShadow": true
+          },
+          "label": { "color": [0.9, 0.7, 1.0] }
+        }
+      ]
+    }
+  ]
+}
