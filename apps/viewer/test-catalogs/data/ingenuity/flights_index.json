@@ -1,0 +1,722 @@
+[
+  {
+    "flight": 1,
+    "file": "data/ingenuity/flight_01.xyzv",
+    "etStart": 672089519.3,
+    "etEnd": 672089558.4,
+    "durationS": 39.10000002384186,
+    "peakAltM": 3,
+    "fromAirfld": "Wright Brothers Field",
+    "toAirfld": "Wright Brothers Field"
+  },
+  {
+    "flight": 2,
+    "file": "data/ingenuity/flight_02.xyzv",
+    "etStart": 672355850.3,
+    "etEnd": 672355902.1,
+    "durationS": 51.800000071525574,
+    "peakAltM": 5,
+    "fromAirfld": "Wright Brothers Field",
+    "toAirfld": "Wright Brothers Field"
+  },
+  {
+    "flight": 3,
+    "file": "data/ingenuity/flight_03.xyzv",
+    "etStart": 672622174.1,
+    "etEnd": 672622254.4,
+    "durationS": 80.29999995231628,
+    "peakAltM": 5,
+    "fromAirfld": "Wright Brothers Field",
+    "toAirfld": "Wright Brothers Field"
+  },
+  {
+    "flight": 4,
+    "file": "data/ingenuity/flight_04.xyzv",
+    "etStart": 673066047.7,
+    "etEnd": 673066164.6,
+    "durationS": 116.89999997615814,
+    "peakAltM": 5,
+    "fromAirfld": "Wright Brothers Field",
+    "toAirfld": "Wright Brothers Field"
+  },
+  {
+    "flight": 5,
+    "file": "data/ingenuity/flight_05.xyzv",
+    "etStart": 673687471,
+    "etEnd": 673687579.2,
+    "durationS": 108.20000004768372,
+    "peakAltM": 10,
+    "fromAirfld": "Wright Brothers Field",
+    "toAirfld": "Airfield B"
+  },
+  {
+    "flight": 6,
+    "file": "data/ingenuity/flight_06.xyzv",
+    "etStart": 675019097.7,
+    "etEnd": 675019237.6,
+    "durationS": 139.89999997615814,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield B",
+    "toAirfld": "Airfield C"
+  },
+  {
+    "flight": 7,
+    "file": "data/ingenuity/flight_07.xyzv",
+    "etStart": 676439486.8,
+    "etEnd": 676439549.6,
+    "durationS": 62.800000071525574,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield C",
+    "toAirfld": "Airfield D"
+  },
+  {
+    "flight": 8,
+    "file": "data/ingenuity/flight_08.xyzv",
+    "etStart": 677593534.6,
+    "etEnd": 677593612,
+    "durationS": 77.39999997615814,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield D",
+    "toAirfld": "Airfield E"
+  },
+  {
+    "flight": 9,
+    "file": "data/ingenuity/flight_09.xyzv",
+    "etStart": 678747608.3,
+    "etEnd": 678747774.7,
+    "durationS": 166.40000009536743,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield E",
+    "toAirfld": "Airfield F"
+  },
+  {
+    "flight": 10,
+    "file": "data/ingenuity/flight_10.xyzv",
+    "etStart": 680432530.8,
+    "etEnd": 680432696.2,
+    "durationS": 165.40000009536743,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield F",
+    "toAirfld": "Airfield G"
+  },
+  {
+    "flight": 11,
+    "file": "data/ingenuity/flight_11.xyzv",
+    "etStart": 681410895.3,
+    "etEnd": 681411026.2,
+    "durationS": 130.90000009536743,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield G",
+    "toAirfld": "Airfield H"
+  },
+  {
+    "flight": 12,
+    "file": "data/ingenuity/flight_12.xyzv",
+    "etStart": 682390499.7,
+    "etEnd": 682390669.2,
+    "durationS": 169.5,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield H",
+    "toAirfld": "Airfield H"
+  },
+  {
+    "flight": 13,
+    "file": "data/ingenuity/flight_13.xyzv",
+    "etStart": 684072284.1,
+    "etEnd": 684072444.6,
+    "durationS": 160.5,
+    "peakAltM": 8,
+    "fromAirfld": "Airfield H",
+    "toAirfld": "Airfield H"
+  },
+  {
+    "flight": 14,
+    "file": "data/ingenuity/flight_14.xyzv",
+    "etStart": 688335309.3,
+    "etEnd": 688335332.3,
+    "durationS": 23,
+    "peakAltM": 5,
+    "fromAirfld": "Airfield H",
+    "toAirfld": "Airfield H"
+  },
+  {
+    "flight": 15,
+    "file": "data/ingenuity/flight_15.xyzv",
+    "etStart": 689487530.3,
+    "etEnd": 689487659.2,
+    "durationS": 128.90000009536743,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield H",
+    "toAirfld": "Airfield F"
+  },
+  {
+    "flight": 16,
+    "file": "data/ingenuity/flight_16.xyzv",
+    "etStart": 690732221.2,
+    "etEnd": 690732329.1,
+    "durationS": 107.89999997615814,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield F",
+    "toAirfld": "Airfield J"
+  },
+  {
+    "flight": 17,
+    "file": "data/ingenuity/flight_17.xyzv",
+    "etStart": 691978766.6,
+    "etEnd": 691978883.4,
+    "durationS": 116.79999995231628,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield J",
+    "toAirfld": "Airfield K"
+  },
+  {
+    "flight": 18,
+    "file": "data/ingenuity/flight_18.xyzv",
+    "etStart": 692860878.9,
+    "etEnd": 692861003.1,
+    "durationS": 124.20000004768372,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield K",
+    "toAirfld": "Airfield L"
+  },
+  {
+    "flight": 19,
+    "file": "data/ingenuity/flight_19.xyzv",
+    "etStart": 697565969.7,
+    "etEnd": 697566069.5,
+    "durationS": 99.79999995231628,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield L",
+    "toAirfld": "Airfield E"
+  },
+  {
+    "flight": 20,
+    "file": "data/ingenuity/flight_20.xyzv",
+    "etStart": 699067706.6,
+    "etEnd": 699067836.9,
+    "durationS": 130.29999995231628,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield E",
+    "toAirfld": "Airfield M"
+  },
+  {
+    "flight": 21,
+    "file": "data/ingenuity/flight_21.xyzv",
+    "etStart": 700221776.5,
+    "etEnd": 700221905.7,
+    "durationS": 129.20000004768372,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield M",
+    "toAirfld": "Airfield N"
+  },
+  {
+    "flight": 22,
+    "file": "data/ingenuity/flight_22.xyzv",
+    "etStart": 701020744.7,
+    "etEnd": 701020846.1,
+    "durationS": 101.39999997615814,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield N",
+    "toAirfld": "Airfield N"
+  },
+  {
+    "flight": 23,
+    "file": "data/ingenuity/flight_23.xyzv",
+    "etStart": 701375843.3,
+    "etEnd": 701375972.4,
+    "durationS": 129.10000002384186,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield N",
+    "toAirfld": "Airfield P"
+  },
+  {
+    "flight": 24,
+    "file": "data/ingenuity/flight_24.xyzv",
+    "etStart": 702261741.3,
+    "etEnd": 702261810.8,
+    "durationS": 69.5,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield P",
+    "toAirfld": "Airfield P"
+  },
+  {
+    "flight": 25,
+    "file": "data/ingenuity/flight_25.xyzv",
+    "etStart": 702707478.2,
+    "etEnd": 702707639.4,
+    "durationS": 161.19999992847443,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield P",
+    "toAirfld": "Airfield Q"
+  },
+  {
+    "flight": 26,
+    "file": "data/ingenuity/flight_26.xyzv",
+    "etStart": 703689840.1,
+    "etEnd": 703689999.1,
+    "durationS": 159,
+    "peakAltM": 8,
+    "fromAirfld": "Airfield Q",
+    "toAirfld": "Airfield R"
+  },
+  {
+    "flight": 27,
+    "file": "data/ingenuity/flight_27.xyzv",
+    "etStart": 704044936.3,
+    "etEnd": 704045089.2,
+    "durationS": 152.90000009536743,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield R",
+    "toAirfld": "Airfield S"
+  },
+  {
+    "flight": 28,
+    "file": "data/ingenuity/flight_28.xyzv",
+    "etStart": 704489736.2,
+    "etEnd": 704489888.6,
+    "durationS": 152.39999997615814,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield S",
+    "toAirfld": "Airfield T"
+  },
+  {
+    "flight": 29,
+    "file": "data/ingenuity/flight_29.xyzv",
+    "etStart": 708231530.8,
+    "etEnd": 708231597.3,
+    "durationS": 66.5,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield T",
+    "toAirfld": "Airfield U"
+  },
+  {
+    "flight": 30,
+    "file": "data/ingenuity/flight_30.xyzv",
+    "etStart": 714270670.5,
+    "etEnd": 714270703.8,
+    "durationS": 33.299999952316284,
+    "peakAltM": 5,
+    "fromAirfld": "Airfield U",
+    "toAirfld": "Airfield U"
+  },
+  {
+    "flight": 31,
+    "file": "data/ingenuity/flight_31.xyzv",
+    "etStart": 715778608.3,
+    "etEnd": 715778663.9,
+    "durationS": 55.60000002384186,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield U",
+    "toAirfld": "Airfield V"
+  },
+  {
+    "flight": 32,
+    "file": "data/ingenuity/flight_32.xyzv",
+    "etStart": 716755125.1,
+    "etEnd": 716755180.4,
+    "durationS": 55.299999952316284,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield V",
+    "toAirfld": "Airfield W"
+  },
+  {
+    "flight": 33,
+    "file": "data/ingenuity/flight_33.xyzv",
+    "etStart": 717289624.6,
+    "etEnd": 717289679.8,
+    "durationS": 55.199999928474426,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield W",
+    "toAirfld": "Airfield X"
+  },
+  {
+    "flight": 34,
+    "file": "data/ingenuity/flight_34.xyzv",
+    "etStart": 722439881.1,
+    "etEnd": 722439899.4,
+    "durationS": 18.299999952316284,
+    "peakAltM": 5,
+    "fromAirfld": "Airfield X",
+    "toAirfld": "Airfield X"
+  },
+  {
+    "flight": 35,
+    "file": "data/ingenuity/flight_35.xyzv",
+    "etStart": 723327427.6,
+    "etEnd": 723327479.6,
+    "durationS": 52,
+    "peakAltM": 14,
+    "fromAirfld": "Airfield X",
+    "toAirfld": "Airfield X"
+  },
+  {
+    "flight": 36,
+    "file": "data/ingenuity/flight_36.xyzv",
+    "etStart": 723948539.9,
+    "etEnd": 723948600.4,
+    "durationS": 60.5,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield X",
+    "toAirfld": "Airfield X"
+  },
+  {
+    "flight": 37,
+    "file": "data/ingenuity/flight_37.xyzv",
+    "etStart": 724569964,
+    "etEnd": 724570019.2,
+    "durationS": 55.200000047683716,
+    "peakAltM": 14,
+    "fromAirfld": "Airfield X",
+    "toAirfld": "Airfield Y"
+  },
+  {
+    "flight": 38,
+    "file": "data/ingenuity/flight_38.xyzv",
+    "etStart": 726167906.8,
+    "etEnd": 726167981,
+    "durationS": 74.20000004768372,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield Y",
+    "toAirfld": "Airfield Z"
+  },
+  {
+    "flight": 39,
+    "file": "data/ingenuity/flight_39.xyzv",
+    "etStart": 726702920.7,
+    "etEnd": 726702999.5,
+    "durationS": 78.79999995231628,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield Z",
+    "toAirfld": "Airfield Z"
+  },
+  {
+    "flight": 40,
+    "file": "data/ingenuity/flight_40.xyzv",
+    "etStart": 727411984.3,
+    "etEnd": 727412075.9,
+    "durationS": 91.60000002384186,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield Z",
+    "toAirfld": "Airfield Beta"
+  },
+  {
+    "flight": 41,
+    "file": "data/ingenuity/flight_41.xyzv",
+    "etStart": 728119071,
+    "etEnd": 728119180,
+    "durationS": 109,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield Beta",
+    "toAirfld": "Airfield Beta"
+  },
+  {
+    "flight": 42,
+    "file": "data/ingenuity/flight_42.xyzv",
+    "etStart": 728829662.5,
+    "etEnd": 728829799.6,
+    "durationS": 137.10000002384186,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield Beta",
+    "toAirfld": "Airfield Gamma"
+  },
+  {
+    "flight": 43,
+    "file": "data/ingenuity/flight_43.xyzv",
+    "etStart": 729805931.3,
+    "etEnd": 729806077.3,
+    "durationS": 146,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Gamma",
+    "toAirfld": "Airfield Epsilon"
+  },
+  {
+    "flight": 44,
+    "file": "data/ingenuity/flight_44.xyzv",
+    "etStart": 730072379.1,
+    "etEnd": 730072520.3,
+    "durationS": 141.19999992847443,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Epsilon",
+    "toAirfld": "Airfield Zeta"
+  },
+  {
+    "flight": 45,
+    "file": "data/ingenuity/flight_45.xyzv",
+    "etStart": 730342461.3,
+    "etEnd": 730342605.9,
+    "durationS": 144.60000002384186,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Zeta",
+    "toAirfld": "Airfield Eta"
+  },
+  {
+    "flight": 46,
+    "file": "data/ingenuity/flight_46.xyzv",
+    "etStart": 730605087.8,
+    "etEnd": 730605223.6,
+    "durationS": 135.80000007152557,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Eta",
+    "toAirfld": "Airfield Theta"
+  },
+  {
+    "flight": 47,
+    "file": "data/ingenuity/flight_47.xyzv",
+    "etStart": 731670382,
+    "etEnd": 731670528.1,
+    "durationS": 146.10000002384186,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Theta",
+    "toAirfld": "Airfield Iota"
+  },
+  {
+    "flight": 48,
+    "file": "data/ingenuity/flight_48.xyzv",
+    "etStart": 732732409.096,
+    "etEnd": 732732559.002,
+    "durationS": 149.9060000181198,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Iota",
+    "toAirfld": "Airfield Kappa"
+  },
+  {
+    "flight": 49,
+    "file": "data/ingenuity/flight_49.xyzv",
+    "etStart": 733708437.347,
+    "etEnd": 733708580.057,
+    "durationS": 142.71000003814697,
+    "peakAltM": 16,
+    "fromAirfld": "Airfield Kappa",
+    "toAirfld": "Airfield Lambda"
+  },
+  {
+    "flight": 50,
+    "file": "data/ingenuity/flight_50.xyzv",
+    "etStart": 734684956.549,
+    "etEnd": 734685102.203,
+    "durationS": 145.65399992465973,
+    "peakAltM": 18,
+    "fromAirfld": "Airfield Lambda",
+    "toAirfld": "Airfield Mu"
+  },
+  {
+    "flight": 51,
+    "file": "data/ingenuity/flight_51.xyzv",
+    "etStart": 735484935.615,
+    "etEnd": 735485072.509,
+    "durationS": 136.89399993419647,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Mu",
+    "toAirfld": "Airfield Nu"
+  },
+  {
+    "flight": 52,
+    "file": "data/ingenuity/flight_52.xyzv",
+    "etStart": 735839954.155,
+    "etEnd": 735840099.155,
+    "durationS": 145,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Nu",
+    "toAirfld": "Airfield Xi"
+  },
+  {
+    "flight": 53,
+    "file": "data/ingenuity/flight_53.xyzv",
+    "etStart": 743642557.12,
+    "etEnd": 743642631.979,
+    "durationS": 74.85899996757507,
+    "peakAltM": 5,
+    "fromAirfld": "Airfield Xi",
+    "toAirfld": "Airfield Omicron"
+  },
+  {
+    "flight": 54,
+    "file": "data/ingenuity/flight_54.xyzv",
+    "etStart": 744361844.475,
+    "etEnd": 744361868.853,
+    "durationS": 24.378000020980835,
+    "peakAltM": 5,
+    "fromAirfld": "Airfield Omicron",
+    "toAirfld": "Airfield Omicron"
+  },
+  {
+    "flight": 55,
+    "file": "data/ingenuity/flight_55.xyzv",
+    "etStart": 745152956.809,
+    "etEnd": 745153099.779,
+    "durationS": 142.97000002861023,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield Omicron",
+    "toAirfld": "Airfield Pi"
+  },
+  {
+    "flight": 56,
+    "file": "data/ingenuity/flight_56.xyzv",
+    "etStart": 746299630.069,
+    "etEnd": 746299771.009,
+    "durationS": 140.93999993801117,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Pi",
+    "toAirfld": "Airfield Rho"
+  },
+  {
+    "flight": 57,
+    "file": "data/ingenuity/flight_57.xyzv",
+    "etStart": 747017223.645,
+    "etEnd": 747017352.231,
+    "durationS": 128.58599996566772,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield Rho",
+    "toAirfld": "Airfield Rho"
+  },
+  {
+    "flight": 58,
+    "file": "data/ingenuity/flight_58.xyzv",
+    "etStart": 747720820.036,
+    "etEnd": 747720926.811,
+    "durationS": 106.77499997615814,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield Rho",
+    "toAirfld": "Airfield Sigma"
+  },
+  {
+    "flight": 59,
+    "file": "data/ingenuity/flight_59.xyzv",
+    "etStart": 748163897.709,
+    "etEnd": 748164040.303,
+    "durationS": 142.5939999818802,
+    "peakAltM": 20,
+    "fromAirfld": "Airfield Sigma",
+    "toAirfld": "Airfield Sigma"
+  },
+  {
+    "flight": 60,
+    "file": "data/ingenuity/flight_60.xyzv",
+    "etStart": 748962868.04,
+    "etEnd": 748963000.876,
+    "durationS": 132.836000084877,
+    "peakAltM": 16,
+    "fromAirfld": "Airfield Sigma",
+    "toAirfld": "Airfield Tau"
+  },
+  {
+    "flight": 61,
+    "file": "data/ingenuity/flight_61.xyzv",
+    "etStart": 749765537.397,
+    "etEnd": 749765666.852,
+    "durationS": 129.45500004291534,
+    "peakAltM": 24,
+    "fromAirfld": "Airfield Tau",
+    "toAirfld": "Airfield Tau"
+  },
+  {
+    "flight": 62,
+    "file": "data/ingenuity/flight_62.xyzv",
+    "etStart": 750380659.897,
+    "etEnd": 750380780.967,
+    "durationS": 121.07000005245209,
+    "peakAltM": 18,
+    "fromAirfld": "Airfield Tau",
+    "toAirfld": "Airfield Tau"
+  },
+  {
+    "flight": 63,
+    "file": "data/ingenuity/flight_63.xyzv",
+    "etStart": 751002831.535,
+    "etEnd": 751002974.157,
+    "durationS": 142.62199997901917,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Tau",
+    "toAirfld": "Airfield Upsilon"
+  },
+  {
+    "flight": 64,
+    "file": "data/ingenuity/flight_64.xyzv",
+    "etStart": 751711673.557,
+    "etEnd": 751711812.641,
+    "durationS": 139.08399999141693,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Upsilon",
+    "toAirfld": "Airfield Phi"
+  },
+  {
+    "flight": 65,
+    "file": "data/ingenuity/flight_65.xyzv",
+    "etStart": 752245538.271,
+    "etEnd": 752245586.272,
+    "durationS": 48.00099992752075,
+    "peakAltM": 10,
+    "fromAirfld": "Airfield Phi",
+    "toAirfld": "Airfield Phi"
+  },
+  {
+    "flight": 66,
+    "file": "data/ingenuity/flight_66.xyzv",
+    "etStart": 752333090.638,
+    "etEnd": 752333113.667,
+    "durationS": 23.02900004386902,
+    "peakAltM": 3,
+    "fromAirfld": "Airfield Phi",
+    "toAirfld": "Airfield Phi"
+  },
+  {
+    "flight": 67,
+    "file": "data/ingenuity/flight_67.xyzv",
+    "etStart": 754819212.221,
+    "etEnd": 754819348.151,
+    "durationS": 135.9300000667572,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Phi",
+    "toAirfld": "Airfield Chi"
+  },
+  {
+    "flight": 68,
+    "file": "data/ingenuity/flight_68.xyzv",
+    "etStart": 755972851.725,
+    "etEnd": 755972986.86,
+    "durationS": 135.13499999046326,
+    "peakAltM": 16,
+    "fromAirfld": "Airfield Chi",
+    "toAirfld": "Airfield Chi"
+  },
+  {
+    "flight": 69,
+    "file": "data/ingenuity/flight_69.xyzv",
+    "etStart": 756327948.73,
+    "etEnd": 756328084.141,
+    "durationS": 135.41100001335144,
+    "peakAltM": 16,
+    "fromAirfld": "Airfield Chi",
+    "toAirfld": "Airfield Chi"
+  },
+  {
+    "flight": 70,
+    "file": "data/ingenuity/flight_70.xyzv",
+    "etStart": 756505495.263,
+    "etEnd": 756505628.159,
+    "durationS": 132.89600002765656,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Chi",
+    "toAirfld": "Airfield Chi"
+  },
+  {
+    "flight": 71,
+    "file": "data/ingenuity/flight_71.xyzv",
+    "etStart": 757837146.984,
+    "etEnd": 757837181.948,
+    "durationS": 34.96399998664856,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Chi",
+    "toAirfld": "Airfield Chi"
+  },
+  {
+    "flight": 72,
+    "file": "data/ingenuity/flight_72.xyzv",
+    "etStart": 758898091.213,
+    "etEnd": 758898123.411,
+    "durationS": 32.19799995422363,
+    "peakAltM": 12,
+    "fromAirfld": "Airfield Chi",
+    "toAirfld": "Airfield Chi"
+  }
+]
