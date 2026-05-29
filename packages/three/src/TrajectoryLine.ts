@@ -1,6 +1,6 @@
-import * as THREE from 'three';
-import type { Body } from '@cosmolabe/core';
-import type { TrajectoryCache } from './TrajectoryCache.js';
+import type { Body } from "@cosmolabe/core";
+import * as THREE from "three";
+import type { TrajectoryCache } from "./TrajectoryCache.js";
 
 /** A color segment overrides the trail color for a time range. */
 export interface ColorSegment {
@@ -51,11 +51,16 @@ export interface TrajectoryLineOptions {
 }
 
 /** Resolves a body's absolute position (km) at a given time */
-export type PositionResolver = (bodyName: string, et: number) => [number, number, number];
+export type PositionResolver = (
+  bodyName: string,
+  et: number,
+) => [number, number, number];
 
 interface Sample {
   t: number;
-  x: number; y: number; z: number;
+  x: number;
+  y: number;
+  z: number;
 }
 
 export class TrajectoryLine extends THREE.Object3D {
@@ -99,7 +104,11 @@ export class TrajectoryLine extends THREE.Object3D {
   private _lastOffY = NaN;
   private _lastOffZ = NaN;
   // Color segments: override base color for time ranges
-  private _colorSegments: Array<{ startEt: number; endEt: number; color: THREE.Color }> = [];
+  private _colorSegments: Array<{
+    startEt: number;
+    endEt: number;
+    color: THREE.Color;
+  }> = [];
 
   // Pre-computed trajectory cache (null = live sampling)
   private cache: TrajectoryCache | null = null;
@@ -128,10 +137,20 @@ export class TrajectoryLine extends THREE.Object3D {
     this.cache = options.cache ?? null;
     // When a cache is provided, default buffer size to cache count (ensures the
     // full pre-computed dataset can be displayed). Explicit maxPoints still overrides.
-    this.maxPoints = options.maxPoints ?? (this.cache ? this.cache.count : (options.numPoints ?? 32000));
+    this.maxPoints =
+      options.maxPoints ??
+      (this.cache ? this.cache.count : (options.numPoints ?? 32000));
     this.trailDuration = options.trailDuration ?? 86400;
-    // Scale coarse count with duration: ~2/day, min 100, max 500
-    const defaultCoarse = Math.max(100, Math.min(500, Math.round(this.trailDuration / 43200)));
+    // Scale coarse count with duration. Cap depends on whether a cheap
+    // fixedResolver is set: SPICE-backed live sampling stays at the
+    // classic 500-vertex cap (per-frame call cost matters), pre-baked
+    // resolvers (InterpolatedStates, composite arcs) get up to 10k
+    // vertices to keep long elliptical orbits looking smooth.
+    const coarseCap = options.fixedResolver ? 10000 : 500;
+    const defaultCoarse = Math.max(
+      100,
+      Math.min(coarseCap, Math.round(this.trailDuration / 43200)),
+    );
     this.numCoarse = options.numKeySamples ?? defaultCoarse;
     this.leadDuration = options.leadDuration ?? 0;
     this.orbitPeriod = options.orbitPeriod ?? 0;
@@ -142,11 +161,16 @@ export class TrajectoryLine extends THREE.Object3D {
     this.fadeFraction = options.fadeFraction ?? 1.0;
     this.subdivisionPixels = options.subdivisionPixels ?? 1;
 
-    this.baseColor = options.color != null
-      ? new THREE.Color(options.color)
-      : (body.labelColor
-        ? new THREE.Color(body.labelColor[0], body.labelColor[1], body.labelColor[2])
-        : new THREE.Color(0x4488ff));
+    this.baseColor =
+      options.color != null
+        ? new THREE.Color(options.color)
+        : body.labelColor
+          ? new THREE.Color(
+              body.labelColor[0],
+              body.labelColor[1],
+              body.labelColor[2],
+            )
+          : new THREE.Color(0x4488ff);
     const colorHex = this.baseColor.getHex();
     this.staticOrbit = options.staticOrbit ?? false;
 
@@ -154,8 +178,14 @@ export class TrajectoryLine extends THREE.Object3D {
     this.trailPositions = new Float32Array(this.maxPoints * 3);
     this.trailColors = new Float32Array(this.maxPoints * 3);
     const trailGeometry = new THREE.BufferGeometry();
-    trailGeometry.setAttribute('position', new THREE.BufferAttribute(this.trailPositions, 3));
-    trailGeometry.setAttribute('color', new THREE.BufferAttribute(this.trailColors, 3));
+    trailGeometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(this.trailPositions, 3),
+    );
+    trailGeometry.setAttribute(
+      "color",
+      new THREE.BufferAttribute(this.trailColors, 3),
+    );
     trailGeometry.setDrawRange(0, 0);
 
     const trailMaterial = new THREE.LineBasicMaterial({
@@ -178,7 +208,10 @@ export class TrajectoryLine extends THREE.Object3D {
     if (this.orbitPeriod > 0) {
       this.orbitPositions = new Float32Array(this.orbitNumPoints * 3);
       const orbitGeometry = new THREE.BufferGeometry();
-      orbitGeometry.setAttribute('position', new THREE.BufferAttribute(this.orbitPositions, 3));
+      orbitGeometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(this.orbitPositions, 3),
+      );
 
       const orbitMaterial = new THREE.LineBasicMaterial({
         color: colorHex,
@@ -212,8 +245,14 @@ export class TrajectoryLine extends THREE.Object3D {
       this.trailPositions = new Float32Array(requiredPoints * 3);
       this.trailColors = new Float32Array(requiredPoints * 3);
       const geometry = this.trailLine.geometry;
-      geometry.setAttribute('position', new THREE.BufferAttribute(this.trailPositions, 3));
-      geometry.setAttribute('color', new THREE.BufferAttribute(this.trailColors, 3));
+      geometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(this.trailPositions, 3),
+      );
+      geometry.setAttribute(
+        "color",
+        new THREE.BufferAttribute(this.trailColors, 3),
+      );
     }
     this.invalidate();
   }
@@ -222,7 +261,14 @@ export class TrajectoryLine extends THREE.Object3D {
    * @param vertexOffset - km offset added to all vertex positions (in Float64) before Float32 conversion.
    *   Keeps vertices near origin for GPU precision. Typically (arcCenter - sceneOrigin) in km.
    */
-  update(et: number, scaleFactor: number, resolvePos?: PositionResolver, _camera?: THREE.Camera, _canvasHeight?: number, vertexOffset?: [number, number, number]): void {
+  update(
+    et: number,
+    scaleFactor: number,
+    resolvePos?: PositionResolver,
+    _camera?: THREE.Camera,
+    _canvasHeight?: number,
+    vertexOffset?: [number, number, number],
+  ): void {
     if (!this.userVisible) return;
 
     this._currentEt = et;
@@ -242,9 +288,10 @@ export class TrajectoryLine extends THREE.Object3D {
     if (this.cache) {
       // ── Cache path: throttled resample (binary search) + bridge + tail ──
       const CACHE_RESAMPLE = 300; // 5 min — just a binary search, no SPICE calls
-      const needsResample = this._needsResample
-        || this.lastComputedEt === -Infinity
-        || Math.abs(et - this.lastComputedEt) >= CACHE_RESAMPLE;
+      const needsResample =
+        this._needsResample ||
+        this.lastComputedEt === -Infinity ||
+        Math.abs(et - this.lastComputedEt) >= CACHE_RESAMPLE;
       if (needsResample) {
         this._needsResample = false;
         this.lastComputedEt = et;
@@ -255,7 +302,9 @@ export class TrajectoryLine extends THREE.Object3D {
       let tailEt = et + this.leadDuration;
       if (this.maxTime != null && tailEt > this.maxTime) tailEt = this.maxTime;
       const pos = this.resolveAt(tailEt, resolver);
-      this._tailSample = !isNaN(pos[0]) ? { t: tailEt, x: pos[0], y: pos[1], z: pos[2] } : null;
+      this._tailSample = !isNaN(pos[0])
+        ? { t: tailEt, x: pos[0], y: pos[1], z: pos[2] }
+        : null;
     } else {
       // ── Legacy path: throttled resample + tail ──
       // Resample when enough ET has elapsed (~1% of trail duration), not every frame.
@@ -265,10 +314,15 @@ export class TrajectoryLine extends THREE.Object3D {
       // staticOrbit bodies (closed periodic orbits) sample once and never resample —
       // the spatial extent of the orbit doesn't change with time, and the body's
       // own mesh already marks the current position so no tail line is needed.
-      const LEGACY_RESAMPLE = Math.min(Math.max(this.trailDuration * 0.01, 60), 3600);
-      const needsResample = this._needsResample
-        || this.lastComputedEt === -Infinity
-        || (!this.staticOrbit && Math.abs(et - this.lastComputedEt) >= LEGACY_RESAMPLE);
+      const LEGACY_RESAMPLE = Math.min(
+        Math.max(this.trailDuration * 0.01, 60),
+        3600,
+      );
+      const needsResample =
+        this._needsResample ||
+        this.lastComputedEt === -Infinity ||
+        (!this.staticOrbit &&
+          Math.abs(et - this.lastComputedEt) >= LEGACY_RESAMPLE);
       if (needsResample) {
         this._needsResample = false;
         this.lastComputedEt = et;
@@ -280,9 +334,12 @@ export class TrajectoryLine extends THREE.Object3D {
       } else {
         // Tail sample: 1 SPICE call per frame to reach exact current position
         let tailEt = et + this.leadDuration;
-        if (this.maxTime != null && tailEt > this.maxTime) tailEt = this.maxTime;
+        if (this.maxTime != null && tailEt > this.maxTime)
+          tailEt = this.maxTime;
         const pos = this.resolveAt(tailEt, resolver);
-        this._tailSample = !isNaN(pos[0]) ? { t: tailEt, x: pos[0], y: pos[1], z: pos[2] } : null;
+        this._tailSample = !isNaN(pos[0])
+          ? { t: tailEt, x: pos[0], y: pos[1], z: pos[2] }
+          : null;
       }
       this._bridgeSamples = [];
     }
@@ -327,9 +384,14 @@ export class TrajectoryLine extends THREE.Object3D {
         const lastCacheTime = this.cache.times[lo + windowCount - 1];
         const gap = endEt - lastCacheTime;
         this._bridgeSamples = [];
-        if (gap > 60 && resolver) { // > 1 minute gap
+        if (gap > 60 && resolver) {
+          // > 1 minute gap
           const BRIDGE_STEP = Math.max(gap / 50, 30); // ~50 points, min 30s apart
-          for (let t = lastCacheTime + BRIDGE_STEP; t < endEt; t += BRIDGE_STEP) {
+          for (
+            let t = lastCacheTime + BRIDGE_STEP;
+            t < endEt;
+            t += BRIDGE_STEP
+          ) {
             const pos = this.resolveAt(t, resolver);
             if (!isNaN(pos[0])) {
               this._bridgeSamples.push({ t, x: pos[0], y: pos[1], z: pos[2] });
@@ -347,7 +409,8 @@ export class TrajectoryLine extends THREE.Object3D {
 
     // ── Legacy path: live sampling with adaptive subdivision ──
     // Curvature threshold: 0.5% deviation ratio for smooth curves
-    const curvatureThreshold = this.subdivisionPixels > 0 ? 0.005 / this.subdivisionPixels : 0;
+    const curvatureThreshold =
+      this.subdivisionPixels > 0 ? 0.005 / this.subdivisionPixels : 0;
 
     // Coarse samples anchored to fixed time grid.
     // NaN positions (from out-of-coverage SPICE queries) are skipped — the trail
@@ -357,23 +420,34 @@ export class TrajectoryLine extends THREE.Object3D {
     const coarseSamples: Sample[] = [];
     {
       const pos = this.resolveAt(startEt, resolver);
-      if (!isNaN(pos[0])) coarseSamples.push({ t: startEt, x: pos[0], y: pos[1], z: pos[2] });
+      if (!isNaN(pos[0]))
+        coarseSamples.push({ t: startEt, x: pos[0], y: pos[1], z: pos[2] });
     }
     for (let t = gridStart; t < endEt; t += dt) {
       if (t <= startEt) continue;
       const pos = this.resolveAt(t, resolver);
-      if (!isNaN(pos[0])) coarseSamples.push({ t, x: pos[0], y: pos[1], z: pos[2] });
+      if (!isNaN(pos[0]))
+        coarseSamples.push({ t, x: pos[0], y: pos[1], z: pos[2] });
     }
     {
       const pos = this.resolveAt(endEt, resolver);
-      if (!isNaN(pos[0])) coarseSamples.push({ t: endEt, x: pos[0], y: pos[1], z: pos[2] });
+      if (!isNaN(pos[0]))
+        coarseSamples.push({ t: endEt, x: pos[0], y: pos[1], z: pos[2] });
     }
 
     // Recursive subdivision with per-pair budget cap.
     // Cap live sampling to keep per-frame SPICE calls manageable. The legacy
     // path resamples every frame — with 9 moons × ~500 calls each = ~4500 SPICE
     // calls/frame. Original main branch had numPoints:300 (~300 calls/trajectory).
-    const MAX_LIVE_SAMPLES = 500;
+    //
+    // When a `fixedResolver` was supplied, the caller is signaling "my
+    // resolver doesn't hit SPICE" (typical for InterpolatedStates,
+    // composite-arc resolvers, or any pre-baked sample array). In that
+    // case the per-frame cost is just a binary search + lerp — plenty of
+    // headroom to raise the cap, which lets long-duration / high-
+    // eccentricity arcs render with the resolution they actually have
+    // available instead of being capped to a faceted 500-vertex polygon.
+    const MAX_LIVE_SAMPLES = this.fixedResolver ? 10000 : 500;
     const liveBudget = Math.min(this.maxPoints, MAX_LIVE_SAMPLES);
     const maxDepth = 12;
     const numPairs = Math.max(coarseSamples.length - 1, 1);
@@ -395,15 +469,28 @@ export class TrajectoryLine extends THREE.Object3D {
           finalSamples.push(s0);
           return;
         }
-        const linMx = (s0.x + s1.x) * 0.5, linMy = (s0.y + s1.y) * 0.5, linMz = (s0.z + s1.z) * 0.5;
-        const devX = midPos[0] - linMx, devY = midPos[1] - linMy, devZ = midPos[2] - linMz;
+        const linMx = (s0.x + s1.x) * 0.5,
+          linMy = (s0.y + s1.y) * 0.5,
+          linMz = (s0.z + s1.z) * 0.5;
+        const devX = midPos[0] - linMx,
+          devY = midPos[1] - linMy,
+          devZ = midPos[2] - linMz;
         const deviation = Math.sqrt(devX * devX + devY * devY + devZ * devZ);
 
-        const chordX = s1.x - s0.x, chordY = s1.y - s0.y, chordZ = s1.z - s0.z;
-        const chordLen = Math.sqrt(chordX * chordX + chordY * chordY + chordZ * chordZ);
+        const chordX = s1.x - s0.x,
+          chordY = s1.y - s0.y,
+          chordZ = s1.z - s0.z;
+        const chordLen = Math.sqrt(
+          chordX * chordX + chordY * chordY + chordZ * chordZ,
+        );
 
         if (chordLen > 0 && deviation / chordLen > curvatureThreshold) {
-          const mid: Sample = { t: midT, x: midPos[0], y: midPos[1], z: midPos[2] };
+          const mid: Sample = {
+            t: midT,
+            x: midPos[0],
+            y: midPos[1],
+            z: midPos[2],
+          };
           subdivide(s0, mid, depth + 1);
           subdivide(mid, s1, depth + 1);
           return;
@@ -416,7 +503,11 @@ export class TrajectoryLine extends THREE.Object3D {
 
     if (coarseSamples.length >= 2) {
       // Reserve 1 slot for the endpoint so the trail always reaches current time
-      for (let i = 0; i < coarseSamples.length - 1 && finalSamples.length < liveBudget - 1; i++) {
+      for (
+        let i = 0;
+        i < coarseSamples.length - 1 && finalSamples.length < liveBudget - 1;
+        i++
+      ) {
         pairBudget = 0;
         subdivide(coarseSamples[i], coarseSamples[i + 1], 0);
       }
@@ -438,7 +529,12 @@ export class TrajectoryLine extends THREE.Object3D {
         const t = this.lastComputedEt + i * orbitDt;
         const pos = this.resolveAt(t);
         if (!isNaN(pos[0])) {
-          this._orbitSamples[orbitCount++] = { t, x: pos[0], y: pos[1], z: pos[2] };
+          this._orbitSamples[orbitCount++] = {
+            t,
+            x: pos[0],
+            y: pos[1],
+            z: pos[2],
+          };
         }
       }
       this._orbitSamples.length = orbitCount;
@@ -448,8 +544,13 @@ export class TrajectoryLine extends THREE.Object3D {
   private _orbitSamples?: Sample[];
 
   /** Apply vertex offset and write to Float32 buffers — called every frame */
-  private applyOffset(scaleFactor: number, vertexOffset?: [number, number, number]): void {
-    const offX = vertexOffset?.[0] ?? 0, offY = vertexOffset?.[1] ?? 0, offZ = vertexOffset?.[2] ?? 0;
+  private applyOffset(
+    scaleFactor: number,
+    vertexOffset?: [number, number, number],
+  ): void {
+    const offX = vertexOffset?.[0] ?? 0,
+      offY = vertexOffset?.[1] ?? 0,
+      offZ = vertexOffset?.[2] ?? 0;
     // Guard: if offset is NaN (e.g. SPICE kernel out of coverage), hide the line
     if (isNaN(offX) || isNaN(offY) || isNaN(offZ)) {
       this.trailLine.geometry.setDrawRange(0, 0);
@@ -500,16 +601,23 @@ export class TrajectoryLine extends THREE.Object3D {
         for (let i = 0; i < count; i++) {
           const ci = (lo + i) * 3;
           this.trailPositions[i * 3] = (cPositions[ci] + offX) * scaleFactor;
-          this.trailPositions[i * 3 + 1] = (cPositions[ci + 1] + offY) * scaleFactor;
-          this.trailPositions[i * 3 + 2] = (cPositions[ci + 2] + offZ) * scaleFactor;
+          this.trailPositions[i * 3 + 1] =
+            (cPositions[ci + 1] + offY) * scaleFactor;
+          this.trailPositions[i * 3 + 2] =
+            (cPositions[ci + 2] + offZ) * scaleFactor;
 
           const t = cTimes[lo + i];
           const fadeT = (t - startEt) / totalDuration;
-          const fade = this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
-          let cr = this.baseColor.r, cg = this.baseColor.g, cb = this.baseColor.b;
+          const fade =
+            this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
+          let cr = this.baseColor.r,
+            cg = this.baseColor.g,
+            cb = this.baseColor.b;
           for (const seg of this._colorSegments) {
             if (t >= seg.startEt && t <= seg.endEt) {
-              cr = seg.color.r; cg = seg.color.g; cb = seg.color.b;
+              cr = seg.color.r;
+              cg = seg.color.g;
+              cb = seg.color.b;
               break;
             }
           }
@@ -524,7 +632,7 @@ export class TrajectoryLine extends THREE.Object3D {
       let drawCount = count;
       // Bridge samples were generated against the previous resample's endEt and
       // can sit beyond cutoffT after a backward scrub — drop those before drawing.
-      const bridgeAndTail = this._bridgeSamples.filter(s => s.t <= cutoffT);
+      const bridgeAndTail = this._bridgeSamples.filter((s) => s.t <= cutoffT);
       if (this._tailSample) bridgeAndTail.push(this._tailSample);
       for (const s of bridgeAndTail) {
         if (drawCount >= this.maxPoints) break;
@@ -533,11 +641,16 @@ export class TrajectoryLine extends THREE.Object3D {
         this.trailPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
         this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
         const fadeT = (s.t - startEt) / totalDuration;
-        const fade = this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
-        let cr = this.baseColor.r, cg = this.baseColor.g, cb = this.baseColor.b;
+        const fade =
+          this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
+        let cr = this.baseColor.r,
+          cg = this.baseColor.g,
+          cb = this.baseColor.b;
         for (const seg of this._colorSegments) {
           if (s.t >= seg.startEt && s.t <= seg.endEt) {
-            cr = seg.color.r; cg = seg.color.g; cb = seg.color.b;
+            cr = seg.color.r;
+            cg = seg.color.g;
+            cb = seg.color.b;
             break;
           }
         }
@@ -567,7 +680,10 @@ export class TrajectoryLine extends THREE.Object3D {
     // cachedSamples are ascending in t — find the first index where t > cutoff.
     const legacyCutoffT = this._currentEt + this.leadDuration;
     let visibleSampleCount = samples.length;
-    while (visibleSampleCount > 0 && samples[visibleSampleCount - 1].t > legacyCutoffT) {
+    while (
+      visibleSampleCount > 0 &&
+      samples[visibleSampleCount - 1].t > legacyCutoffT
+    ) {
       visibleSampleCount--;
     }
     if (visibleSampleCount === 0 && !this._tailSample) {
@@ -583,11 +699,16 @@ export class TrajectoryLine extends THREE.Object3D {
         this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
 
         const fadeT = (s.t - startEt) / totalDuration;
-        const fade = this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
-        let cr = this.baseColor.r, cg = this.baseColor.g, cb = this.baseColor.b;
+        const fade =
+          this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
+        let cr = this.baseColor.r,
+          cg = this.baseColor.g,
+          cb = this.baseColor.b;
         for (const seg of this._colorSegments) {
           if (s.t >= seg.startEt && s.t <= seg.endEt) {
-            cr = seg.color.r; cg = seg.color.g; cb = seg.color.b;
+            cr = seg.color.r;
+            cg = seg.color.g;
+            cb = seg.color.b;
             break;
           }
         }
@@ -606,11 +727,16 @@ export class TrajectoryLine extends THREE.Object3D {
       this.trailPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
       this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
       const fadeT = (s.t - startEt) / totalDuration;
-      const fade = this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
-      let cr = this.baseColor.r, cg = this.baseColor.g, cb = this.baseColor.b;
+      const fade =
+        this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
+      let cr = this.baseColor.r,
+        cg = this.baseColor.g,
+        cb = this.baseColor.b;
       for (const seg of this._colorSegments) {
         if (s.t >= seg.startEt && s.t <= seg.endEt) {
-          cr = seg.color.r; cg = seg.color.g; cb = seg.color.b;
+          cr = seg.color.r;
+          cg = seg.color.g;
+          cb = seg.color.b;
           break;
         }
       }
@@ -639,7 +765,10 @@ export class TrajectoryLine extends THREE.Object3D {
     }
   }
 
-  private resolveAt(t: number, resolver?: PositionResolver): [number, number, number] {
+  private resolveAt(
+    t: number,
+    resolver?: PositionResolver,
+  ): [number, number, number] {
     if (resolver) {
       return resolver(this.body.name, t);
     }
@@ -649,7 +778,7 @@ export class TrajectoryLine extends THREE.Object3D {
 
   /** Set color segments that override the base trail color for specific time ranges. */
   setColorSegments(segments: ColorSegment[]): void {
-    this._colorSegments = segments.map(s => ({
+    this._colorSegments = segments.map((s) => ({
       startEt: s.startEt,
       endEt: s.endEt,
       color: new THREE.Color(s.color),
