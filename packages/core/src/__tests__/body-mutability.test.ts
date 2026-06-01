@@ -14,10 +14,12 @@ class TrajectoryB implements Trajectory {
 }
 
 class RotationA implements RotationModel {
+  readonly sourceFrame = 'EclipticJ2000';
   rotationAt(): Quaternion { return [1, 0, 0, 0]; }
 }
 
 class RotationB implements RotationModel {
+  readonly sourceFrame = 'EclipticJ2000';
   rotationAt(): Quaternion { return [0, 1, 0, 0]; }
 }
 

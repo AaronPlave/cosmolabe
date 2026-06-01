@@ -13,6 +13,7 @@ class CustomTrajectory implements Trajectory {
 }
 
 class CustomRotation implements RotationModel {
+  readonly sourceFrame = 'EclipticJ2000';
   rotationAt(et: number): Quaternion {
     return [1, 0, 0, 0];
   }

@@ -1,12 +1,24 @@
 import type { SpiceInstance } from '@cosmolabe/spice';
-import type { Quaternion, RotationModel } from './RotationModel.js';
+import type {
+  InertialFrameName,
+  Quaternion,
+  RotationModel,
+} from './RotationModel.js';
 
 export class SpiceRotation implements RotationModel {
+  /** The inertial frame the rotation is sourced FROM. Same value as the
+   *  `inertialFrame` constructor arg — exposed under the standard
+   *  `RotationModel.sourceFrame` name so consumers can compose frames
+   *  without caring whether the body is Spice- or Builtin-driven. */
+  readonly sourceFrame: InertialFrameName;
+
   constructor(
     private readonly spice: SpiceInstance,
     private readonly bodyFixedFrame: string,
     private readonly inertialFrame: string = 'ECLIPJ2000',
-  ) {}
+  ) {
+    this.sourceFrame = inertialFrame;
+  }
 
   rotationAt(et: number): Quaternion {
     const m = this.spice.pxform(this.inertialFrame, this.bodyFixedFrame, et);

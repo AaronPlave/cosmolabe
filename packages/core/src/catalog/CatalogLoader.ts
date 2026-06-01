@@ -982,12 +982,17 @@ export class CatalogLoader {
           poleRaDeg = nodeDeg - 90;
         }
 
+        // UniformRotation conventionally interprets pole RA/Dec in
+        // J2000-equatorial (the IAU 2009 pole-table frame). Honor an
+        // explicit catalog frame override; otherwise default the rotation's
+        // own 'EquatorJ2000'.
         return new UniformRotation(
           periodSec,
           spec.epoch ? this.parseEpochValue(spec.epoch) : 0,
           (spec.meridianAngle ?? 0) * Math.PI / 180,
           poleRaDeg * Math.PI / 180,
           poleDecDeg * Math.PI / 180,
+          spec.inertialFrame ?? 'EquatorJ2000',
         );
       }
 
@@ -1013,6 +1018,7 @@ export class CatalogLoader {
 
       case 'Nadir': {
         const target = spec.target ?? item.name;
+        const inertialFrame = spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000';
         // Bodies with a non-SPICE trajectory (TLE, Keplerian, FixedPoint) have no
         // SPICE ephemeris — when the catalog asks for the body's own nadir, use
         // its trajectory directly. SpiceTrajectory bodies still get NadirRotation.
@@ -1021,18 +1027,18 @@ export class CatalogLoader {
           && target === item.name
           && !(trajectory instanceof SpiceTrajectory)
         ) {
-          return new TrajectoryNadirRotation(trajectory);
+          return new TrajectoryNadirRotation(trajectory, inertialFrame);
         }
         if (this.spice) {
           return new NadirRotation(
             this.spice,
             target,
             spec.center ?? item.center ?? 'EARTH',
-            spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000',
+            inertialFrame,
           );
         }
         if (trajectory) {
-          return new TrajectoryNadirRotation(trajectory);
+          return new TrajectoryNadirRotation(trajectory, inertialFrame);
         }
         return undefined;
       }
@@ -1041,6 +1047,8 @@ export class CatalogLoader {
         // Body's +X axis points along the local up (radially outward from
         // parent center) at any moment; co-rotates with the parent. Used for
         // aircraft / landers whose model is authored with vertical = local +X.
+        // sourceFrame is derived from the parent's rotation (see
+        // SurfaceUpRotation) so we don't pass it here.
         if (trajectory && parentBody) {
           return new SurfaceUpRotation(trajectory, parentBody);
         }
@@ -1048,25 +1056,41 @@ export class CatalogLoader {
       }
 
       case 'Fixed': {
+        const sourceFrame = spec.inertialFrame ?? 'EquatorJ2000';
         if (spec.quaternion && spec.quaternion.length >= 4) {
-          return new FixedRotation([spec.quaternion[0], spec.quaternion[1], spec.quaternion[2], spec.quaternion[3]]);
+          return new FixedRotation(
+            [spec.quaternion[0], spec.quaternion[1], spec.quaternion[2], spec.quaternion[3]],
+            sourceFrame,
+          );
         }
         // Pole angles form: inclination/ascendingNode/meridianAngle (degrees)
         return FixedRotation.fromPoleAngles(
           (spec.inclination ?? 0) * Math.PI / 180,
           (spec.ascendingNode ?? 0) * Math.PI / 180,
           (spec.meridianAngle ?? 0) * Math.PI / 180,
+          sourceFrame,
         );
       }
 
       case 'FixedEuler': {
         if (spec.sequence && spec.angles) {
-          return new FixedEulerRotation(spec.sequence, spec.angles);
+          return new FixedEulerRotation(
+            spec.sequence,
+            spec.angles,
+            spec.inertialFrame ?? 'EquatorJ2000',
+          );
         }
         return undefined;
       }
 
       case 'Interpolated': {
+        // sourceFrame: catalog declaration wins, then `item.trajectoryFrame`
+        // for catalogs that pre-rotated samples into the body's trajectory
+        // frame, then cosmolabe's native default. Cosmographia `.q` files
+        // don't pin a frame; producers writing AEM-derived data should pass
+        // an explicit `inertialFrame` so the catalog boundary is self-
+        // describing.
+        const sourceFrame = spec.inertialFrame ?? item.trajectoryFrame ?? 'EclipticJ2000';
         // Prefer in-memory records when the caller pre-parsed the attitude
         // data (e.g. from a server-side CCSDS AEM parse). Falls through to
         // the `source` path for Cosmographia .q files routed via
@@ -1074,6 +1098,7 @@ export class CatalogLoader {
         if (spec.records && spec.records.length >= 2) {
           return new InterpolatedRotation(
             spec.records.map((r) => ({ et: r.et, q: r.q })),
+            sourceFrame,
           );
         }
         if (spec.source && this.resolveFile) {
@@ -1081,7 +1106,7 @@ export class CatalogLoader {
           if (text) {
             const records = parseQFile(text);
             if (records.length >= 2) {
-              return new InterpolatedRotation(records);
+              return new InterpolatedRotation(records, sourceFrame);
             }
           }
         }

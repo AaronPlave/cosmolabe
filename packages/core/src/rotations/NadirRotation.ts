@@ -1,5 +1,9 @@
 import type { SpiceInstance } from '@cosmolabe/spice';
-import type { Quaternion, RotationModel } from './RotationModel.js';
+import type {
+  InertialFrameName,
+  Quaternion,
+  RotationModel,
+} from './RotationModel.js';
 
 /**
  * Computes nadir-pointing orientation from the spacecraft's state vector.
@@ -10,14 +14,21 @@ import type { Quaternion, RotationModel } from './RotationModel.js';
  *
  * This is the standard LVLH (Local Vertical Local Horizontal) frame,
  * appropriate for nadir-pointing spacecraft like LRO, MRO, etc.
+ *
+ * `sourceFrame` is whatever inertial frame SPICE pulls the state in; the
+ * resulting LVLH quaternion rotates FROM that frame TO body-fixed.
  */
 export class NadirRotation implements RotationModel {
+  readonly sourceFrame: InertialFrameName;
+
   constructor(
     private readonly spice: SpiceInstance,
     private readonly target: string,
     private readonly center: string,
     private readonly inertialFrame: string = 'ECLIPJ2000',
-  ) {}
+  ) {
+    this.sourceFrame = inertialFrame;
+  }
 
   rotationAt(et: number): Quaternion {
     const { state } = this.spice.spkezr(this.target, et, this.inertialFrame, 'NONE', this.center);

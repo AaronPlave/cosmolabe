@@ -1,13 +1,26 @@
-import type { Quaternion, RotationModel } from './RotationModel.js';
+import type {
+  InertialFrameName,
+  Quaternion,
+  RotationModel,
+} from './RotationModel.js';
 
 export class UniformRotation implements RotationModel {
+  /** Pole RA/Dec are interpreted in this inertial frame. Cosmographia
+   *  convention (and IAU 2009 pole tables) puts these in J2000-equatorial
+   *  — hence the default. Override only if your catalog explicitly
+   *  expresses the pole in a different frame. */
+  readonly sourceFrame: InertialFrameName;
+
   constructor(
     private readonly period: number,       // seconds
     private readonly epoch: number,        // ET reference time
     private readonly meridianAngle: number, // radians at epoch
     private readonly poleRA: number,        // radians
     private readonly poleDec: number,       // radians
-  ) {}
+    sourceFrame: InertialFrameName = 'EquatorJ2000',
+  ) {
+    this.sourceFrame = sourceFrame;
+  }
 
   rotationAt(et: number): Quaternion {
     const dt = et - this.epoch;

@@ -1,4 +1,8 @@
-import type { Quaternion, RotationModel } from './RotationModel.js';
+import type {
+  InertialFrameName,
+  Quaternion,
+  RotationModel,
+} from './RotationModel.js';
 
 /**
  * Interpolated rotation model. SLERP between time-tagged quaternion records.
@@ -9,6 +13,14 @@ import type { Quaternion, RotationModel } from './RotationModel.js';
  *   (one record per line, TDB Julian dates, quaternion [w,x,y,z])
  *
  * Times are clamped to the range of available records.
+ *
+ * Defaults `sourceFrame` to 'EclipticJ2000' — cosmolabe's internal canonical
+ * inertial frame. The Cosmographia `.q` file format doesn't specify a frame,
+ * so picking the cosmolabe-native default minimises compose-time conversions
+ * for catalogs that don't override. Producers writing AEM-derived attitude
+ * (e.g. is-timeline-three's body→inertial AEM samples) should pass an
+ * explicit frame so the catalog boundary handles direction conversion
+ * without a silent re-interpretation.
  */
 export interface OrientationRecord {
   /** Ephemeris time (seconds past J2000 TDB) */
@@ -18,11 +30,16 @@ export interface OrientationRecord {
 }
 
 export class InterpolatedRotation implements RotationModel {
+  readonly sourceFrame: InertialFrameName;
   private readonly records: OrientationRecord[];
 
-  constructor(records: OrientationRecord[]) {
+  constructor(
+    records: OrientationRecord[],
+    sourceFrame: InertialFrameName = 'EclipticJ2000',
+  ) {
     // Sort by time (should already be sorted, but be safe)
     this.records = [...records].sort((a, b) => a.et - b.et);
+    this.sourceFrame = sourceFrame;
   }
 
   rotationAt(et: number): Quaternion {

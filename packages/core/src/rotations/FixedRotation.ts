@@ -1,4 +1,8 @@
-import type { Quaternion, RotationModel } from './RotationModel.js';
+import type {
+  InertialFrameName,
+  Quaternion,
+  RotationModel,
+} from './RotationModel.js';
 
 /**
  * Fixed (constant) rotation model. Returns the same quaternion at all times.
@@ -7,12 +11,21 @@ import type { Quaternion, RotationModel } from './RotationModel.js';
  *  1. Explicit quaternion: { type: "Fixed", quaternion: [w, x, y, z] }
  *  2. Pole angles: { type: "Fixed", inclination, ascendingNode, meridianAngle }
  *     Composed as Rz(ascendingNode) * Rx(inclination) * Rz(meridianAngle).
+ *
+ * Defaults `sourceFrame` to 'EquatorJ2000' since Cosmographia Fixed catalogs
+ * conventionally express attitude in J2000-equatorial. Pass an explicit
+ * frame to override.
  */
 export class FixedRotation implements RotationModel {
+  readonly sourceFrame: InertialFrameName;
   private readonly q: Quaternion;
 
-  constructor(quaternion: Quaternion) {
+  constructor(
+    quaternion: Quaternion,
+    sourceFrame: InertialFrameName = 'EquatorJ2000',
+  ) {
     this.q = quaternion;
+    this.sourceFrame = sourceFrame;
   }
 
   rotationAt(_et: number): Quaternion {
@@ -23,8 +36,16 @@ export class FixedRotation implements RotationModel {
    * Create from Cosmographia pole angles (all in radians).
    * Equivalent to Rz(ascendingNode) * Rx(inclination) * Rz(meridianAngle).
    */
-  static fromPoleAngles(inclination: number, ascendingNode: number, meridianAngle: number): FixedRotation {
-    return new FixedRotation(composeZXZ(ascendingNode, inclination, meridianAngle));
+  static fromPoleAngles(
+    inclination: number,
+    ascendingNode: number,
+    meridianAngle: number,
+    sourceFrame: InertialFrameName = 'EquatorJ2000',
+  ): FixedRotation {
+    return new FixedRotation(
+      composeZXZ(ascendingNode, inclination, meridianAngle),
+      sourceFrame,
+    );
   }
 }
 

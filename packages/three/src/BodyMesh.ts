@@ -34,6 +34,53 @@ function isDDSMagic(buffer: ArrayBuffer): boolean {
 }
 
 const _tmpQ = new THREE.Quaternion();
+const _tmpQ2 = new THREE.Quaternion();
+
+// J2000 mean obliquity (IAU 1976), in radians. The angle between Earth's
+// mean equator and the mean ecliptic at the J2000 epoch — the rotation
+// that turns an EquatorJ2000-frame vector into an EclipticJ2000-frame
+// vector is R_x(-ε), and the corresponding quaternion sits below.
+const OBLIQUITY_J2000_RAD = (23.4392911 * Math.PI) / 180;
+
+/** Quaternion that rotates a vector from EquatorJ2000 (EME2000 / J2000 /
+ *  ICRF) into EclipticJ2000 (cosmolabe's internal canonical inertial
+ *  frame). Used to compose the final mesh quaternion when a rotation
+ *  model's `sourceFrame` is the equatorial pole frame but `absolutePos`
+ *  lives in ecliptic coords. Reuse via .clone() — never mutate. */
+const Q_EQUATOR_TO_ECLIPTIC = new THREE.Quaternion(
+  -Math.sin(OBLIQUITY_J2000_RAD / 2), // x
+  0, // y
+  0, // z
+  Math.cos(OBLIQUITY_J2000_RAD / 2), // w (Three.js stores xyzw)
+);
+
+/** Map a rotation model's source frame to the quaternion that rotates
+ *  vectors from that frame into cosmolabe's native EclipticJ2000. Returns
+ *  null when the source already IS ECLIPJ2000 (no conversion needed) or
+ *  when it's a SPICE-named frame we can't compose without a SPICE handle
+ *  (caller falls back to leaving the rotation as-is; matches today's
+ *  behavior for those frames). */
+function frameToEclipticQuat(sourceFrame: string): THREE.Quaternion | null {
+  switch (sourceFrame) {
+    case 'EclipticJ2000':
+    case 'ECLIPJ2000':
+      return null;
+    case 'EquatorJ2000':
+    case 'J2000':
+    case 'EME2000':
+    case 'ICRF':
+      return Q_EQUATOR_TO_ECLIPTIC;
+    default:
+      // SPICE frame names (IAU_*, MOON_ME, BGM1_LANDER, ...) flow through
+      // unchanged — the rotation model already composed the SPICE chain
+      // internally, and the caller's absolutePos is whatever frame the
+      // body's trajectory declared. No further composition needed at
+      // this layer; if a future caller mixes a SPICE frame on rotation
+      // with ECLIPJ2000 on position, BodyMesh would need SPICE access
+      // to compose, which is more refactor than this phase warrants.
+      return null;
+  }
+}
 
 
 export class BodyMesh extends THREE.Object3D {
@@ -666,15 +713,36 @@ export class BodyMesh extends THREE.Object3D {
     // Apply rotation if available (try/catch: CK-based rotations may not cover all times)
     try {
       const q = this.body.rotationAt(et);
-      if (q) {
+      const rotation = this.body.rotation;
+      if (q && rotation) {
         const target = this.modelContainer ?? this.mesh;
-        // SPICE quaternion [w,x,y,z] rotates inertial → body-fixed.
-        // Three.js needs local → world (body → inertial), so conjugate (negate xyz).
-        const spiceQ = _tmpQ.set(-q[1], -q[2], -q[3], q[0]);
-        // Compose: (body → inertial) * (model → body) = model → inertial
-        target.quaternion.multiplyQuaternions(spiceQ, this.meshRotationQ);
+        // SPICE quaternion [w,x,y,z] rotates sourceFrame → body-fixed.
+        // Three.js needs local → world (body → world), so conjugate.
+        const bodyToSource = _tmpQ.set(-q[1], -q[2], -q[3], q[0]);
+
+        // World frame is EclipticJ2000 (cosmolabe's internal canonical
+        // inertial frame — `absolutePos` lives here). If the rotation's
+        // sourceFrame is EquatorJ2000 we need to compose the
+        // obliquity rotation to bring the body-to-source-frame mesh
+        // orientation into the ecliptic-aligned world. Earth's
+        // UniformRotation is the prototypical EquatorJ2000 case; without
+        // this composition Earth would render with its spin axis along
+        // the ecliptic pole instead of the celestial pole (a ~23.4°
+        // tilt). frameToEclipticQuat returns null when sourceFrame is
+        // already ECLIPJ2000 (no-op) or a SPICE frame we don't compose
+        // here.
+        const frameAdjust = frameToEclipticQuat(rotation.sourceFrame);
+        let bodyToWorld: THREE.Quaternion;
+        if (frameAdjust) {
+          bodyToWorld = _tmpQ2.copy(frameAdjust).multiply(bodyToSource);
+        } else {
+          bodyToWorld = bodyToSource;
+        }
+        // Compose: (body → world) * (model → body) = model → world
+        target.quaternion.multiplyQuaternions(bodyToWorld, this.meshRotationQ);
         if (this.axesHelper) {
-          this.axesHelper.quaternion.copy(spiceQ); // Axes show body frame in inertial space
+          // Axes show the body frame oriented in world space.
+          this.axesHelper.quaternion.copy(bodyToWorld);
         }
         if (this.gridLines && this.gridVisible) {
           this.gridLines.quaternion.copy(target.quaternion);

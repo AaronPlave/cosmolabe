@@ -1,6 +1,10 @@
 import type { Trajectory } from '../trajectories/Trajectory.js';
 import type { Body } from '../Body.js';
-import type { Quaternion, RotationModel } from './RotationModel.js';
+import type {
+  InertialFrameName,
+  Quaternion,
+  RotationModel,
+} from './RotationModel.js';
 
 /**
  * Orientation for a body sitting on (or hovering over) a parent body's surface.
@@ -16,12 +20,22 @@ import type { Quaternion, RotationModel } from './RotationModel.js';
  *
  * Used for aircraft / landers / surface assets whose model is authored with
  * its vertical axis as local +X.
+ *
+ * `sourceFrame` mirrors the parent's rotation source frame, since this
+ * model's output is the composition `parent_b2i ∘ pf2body` (parent body-
+ * fixed → body, then parent's inertial-from rotation). Falls back to
+ * cosmolabe's native default when the parent has no rotation registered
+ * (degenerate setup — rotation reduces to pf2body alone).
  */
 export class SurfaceUpRotation implements RotationModel {
   constructor(
     private readonly trajectory: Trajectory,
     private readonly parent: Body,
   ) {}
+
+  get sourceFrame(): InertialFrameName {
+    return this.parent.rotation?.sourceFrame ?? 'EclipticJ2000';
+  }
 
   rotationAt(et: number): Quaternion {
     // Trajectory is body-fixed for surface bodies — position is already in the

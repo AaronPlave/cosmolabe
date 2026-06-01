@@ -1,4 +1,8 @@
-import type { Quaternion, RotationModel } from './RotationModel.js';
+import type {
+  InertialFrameName,
+  Quaternion,
+  RotationModel,
+} from './RotationModel.js';
 
 /**
  * Fixed rotation from an Euler angle sequence.
@@ -9,12 +13,20 @@ import type { Quaternion, RotationModel } from './RotationModel.js';
  * Angles are in degrees in the catalog. The sequence string specifies the
  * rotation axes (e.g. "XYZ", "ZXZ", "YZX"). The resulting quaternion is
  * the composition R_seq[0](angles[0]) * R_seq[1](angles[1]) * ...
+ *
+ * Defaults `sourceFrame` to 'EquatorJ2000' (Cosmographia convention).
  */
 export class FixedEulerRotation implements RotationModel {
+  readonly sourceFrame: InertialFrameName;
   private readonly q: Quaternion;
 
-  constructor(sequence: string, anglesDeg: number[]) {
+  constructor(
+    sequence: string,
+    anglesDeg: number[],
+    sourceFrame: InertialFrameName = 'EquatorJ2000',
+  ) {
     this.q = composeEuler(sequence, anglesDeg);
+    this.sourceFrame = sourceFrame;
   }
 
   rotationAt(_et: number): Quaternion {

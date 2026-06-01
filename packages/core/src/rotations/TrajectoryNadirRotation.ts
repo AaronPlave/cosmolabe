@@ -1,5 +1,9 @@
 import type { Trajectory } from '../trajectories/Trajectory.js';
-import type { Quaternion, RotationModel } from './RotationModel.js';
+import type {
+  InertialFrameName,
+  Quaternion,
+  RotationModel,
+} from './RotationModel.js';
 
 /**
  * Computes nadir-pointing orientation directly from a Trajectory's state vector,
@@ -12,9 +16,22 @@ import type { Quaternion, RotationModel } from './RotationModel.js';
  *
  * This is the standard LVLH (Local Vertical Local Horizontal) frame.
  * The trajectory must return positions relative to the center body.
+ *
+ * `sourceFrame` is the inertial frame the trajectory's state vectors live
+ * in. For TLE the natural answer is 'EquatorJ2000' (TEME ≈ J2000-equatorial
+ * for visualisation purposes). For SPICE-backed trajectories the catalog
+ * layer should pass whichever frame `item.trajectoryFrame` declared. The
+ * resulting LVLH quaternion rotates FROM that frame TO body-fixed.
  */
 export class TrajectoryNadirRotation implements RotationModel {
-  constructor(private readonly trajectory: Trajectory) {}
+  readonly sourceFrame: InertialFrameName;
+
+  constructor(
+    private readonly trajectory: Trajectory,
+    sourceFrame: InertialFrameName = 'EclipticJ2000',
+  ) {
+    this.sourceFrame = sourceFrame;
+  }
 
   rotationAt(et: number): Quaternion {
     const { position, velocity } = this.trajectory.stateAt(et);
