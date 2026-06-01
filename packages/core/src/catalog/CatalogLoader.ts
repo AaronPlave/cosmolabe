@@ -1161,8 +1161,23 @@ export class CatalogLoader {
 
   parseEpochValue(timeValue: string | number): number {
     if (typeof timeValue === 'number') {
-      // Julian Date — convert to ET
-      // JD 2451545.0 = J2000.0 epoch
+      // Numeric epochs come in two conventions in the wild:
+      //   - Julian Date (Cosmographia / classical astronomy) — values
+      //     around 2.45e6 for the modern era; convert to ET via
+      //     (jd − 2451545.0) × 86400.
+      //   - Ephemeris Time seconds past J2000 (cosmolabe-native, SPICE
+      //     convention) — values around 1e9 for the modern era.
+      //
+      // The two number ranges don't overlap (JD ≲ 1e7 covers ~30000 BC
+      // to ~2025; ET ≳ 1e8 covers ~3 AD onward), so we dispatch on
+      // magnitude. Programmatically-built catalogs (e.g. is-timeline-three's
+      // OEM-to-composite-arc generator) that already work in ET seconds
+      // can pass them straight in instead of pre-converting to JD.
+      if (Math.abs(timeValue) >= 5e7) {
+        // ET seconds past J2000 — large positive (or negative for
+        // pre-J2000 epochs).
+        return timeValue;
+      }
       return (timeValue - 2451545.0) * 86400;
     }
     return this.parseEpoch(timeValue);

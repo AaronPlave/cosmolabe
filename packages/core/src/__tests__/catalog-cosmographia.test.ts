@@ -299,6 +299,31 @@ describe('CatalogLoader — real Cosmographia patterns', () => {
       const et = loader.parseEpochValue('2000-01-01T12:00:00Z');
       expect(et).toBeCloseTo(0, -1); // Within ~10s (no leap seconds without SPICE)
     });
+
+    it('passes through ET-seconds values (≥ 5e7) unchanged', () => {
+      // ET and JD number ranges don't overlap — JD ≲ 1e7 covers
+      // through ~2025, ET ≳ 1e8 covers from ~3 AD. Programmatically-
+      // built catalogs (e.g. OEM converters) that work in ET seconds
+      // can pass values directly without pre-converting to JD.
+      const loader = new CatalogLoader();
+      // Roughly 2025-03-02T08:34:55Z, the Blue Ghost touchdown ET that
+      // bit is-timeline-three's catalog builder before this heuristic
+      // was added.
+      const touchdownEt = 794176564;
+      expect(loader.parseEpochValue(touchdownEt)).toBe(touchdownEt);
+      // Negative ETs (pre-J2000) still treated as ET when |value| ≥ 5e7.
+      expect(loader.parseEpochValue(-1e9)).toBe(-1e9);
+    });
+
+    it('still treats modern JD values (~2.46e6) as Julian Date', () => {
+      const loader = new CatalogLoader();
+      // JD 2460000.0 ≈ 2023-02-24 noon TDB — well inside the JD-numeric
+      // range and below the ET-cutoff (5e7).
+      expect(loader.parseEpochValue(2460000.0)).toBeCloseTo(
+        (2460000.0 - 2451545.0) * 86400,
+        0,
+      );
+    });
   });
 
   describe('Universe integration', () => {
