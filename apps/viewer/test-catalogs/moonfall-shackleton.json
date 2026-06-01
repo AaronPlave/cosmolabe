@@ -1,6 +1,6 @@
 {
   "name": "MoonFall at Shackleton",
-  "defaultTime": "2028-12-15T10:30:00Z",
+  "defaultTime": "2028-12-15T10:04:00Z",
   "defaultViewpoint": "Shackleton Overview",
   "items": [
     {
@@ -397,12 +397,12 @@
           "trajectoryFrame": "BodyFixed",
           "arcs": [
             {
-              "startTime": "2028-12-15T18:30:00Z",
-              "endTime": "2028-12-15T18:38:10.000Z",
+              "startTime": "2028-12-15T10:00:00Z",
+              "endTime": "2028-12-15T10:08:10.000Z",
               "trajectory": {
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
-                "epoch": "2028-12-15T18:30:00Z",
+                "epoch": "2028-12-15T10:00:00Z",
                 "waypoints": [
                   {
                     "t": 0,
@@ -462,12 +462,12 @@
               }
             },
             {
-              "startTime": "2028-12-15T18:38:10.000Z",
+              "startTime": "2028-12-15T10:08:10.000Z",
               "endTime": "2028-12-19T06:00:00Z",
               "trajectory": {
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
-                "epoch": "2028-12-15T18:38:10.000Z",
+                "epoch": "2028-12-15T10:08:10.000Z",
                 "waypoints": [
                   {
                     "t": 0,
@@ -476,7 +476,7 @@
                     "alt": "1m"
                   },
                   {
-                    "t": 300110,
+                    "t": 330710,
                     "lat": -89.4,
                     "lon": 30,
                     "alt": "1m"
@@ -655,12 +655,12 @@
           "trajectoryFrame": "BodyFixed",
           "arcs": [
             {
-              "startTime": "2028-12-16T09:00:00Z",
-              "endTime": "2028-12-16T09:08:20.000Z",
+              "startTime": "2028-12-15T10:00:00Z",
+              "endTime": "2028-12-15T10:08:20.000Z",
               "trajectory": {
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
-                "epoch": "2028-12-16T09:00:00Z",
+                "epoch": "2028-12-15T10:00:00Z",
                 "waypoints": [
                   {
                     "t": 0,
@@ -720,12 +720,12 @@
               }
             },
             {
-              "startTime": "2028-12-16T09:08:20.000Z",
+              "startTime": "2028-12-15T10:08:20.000Z",
               "endTime": "2028-12-20T15:00:00Z",
               "trajectory": {
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
-                "epoch": "2028-12-16T09:08:20.000Z",
+                "epoch": "2028-12-15T10:08:20.000Z",
                 "waypoints": [
                   {
                     "t": 0,
@@ -734,7 +734,7 @@
                     "alt": "1m"
                   },
                   {
-                    "t": 366700,
+                    "t": 449500,
                     "lat": -89.78,
                     "lon": 90,
                     "alt": "1m"
@@ -931,12 +931,12 @@
           "trajectoryFrame": "BodyFixed",
           "arcs": [
             {
-              "startTime": "2028-12-16T20:00:00Z",
-              "endTime": "2028-12-16T20:13:00.000Z",
+              "startTime": "2028-12-15T10:00:00Z",
+              "endTime": "2028-12-15T10:13:00.000Z",
               "trajectory": {
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
-                "epoch": "2028-12-16T20:00:00Z",
+                "epoch": "2028-12-15T10:00:00Z",
                 "waypoints": [
                   {
                     "t": 0,
@@ -1002,12 +1002,12 @@
               }
             },
             {
-              "startTime": "2028-12-16T20:13:00.000Z",
+              "startTime": "2028-12-15T10:13:00.000Z",
               "endTime": "2028-12-21T07:30:00Z",
               "trajectory": {
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
-                "epoch": "2028-12-16T20:13:00.000Z",
+                "epoch": "2028-12-15T10:13:00.000Z",
                 "waypoints": [
                   {
                     "t": 0,
@@ -1016,7 +1016,7 @@
                     "alt": "1m"
                   },
                   {
-                    "t": 386220,
+                    "t": 508620,
                     "lat": -89.5,
                     "lon": -135,
                     "alt": "1m"

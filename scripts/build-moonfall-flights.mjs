@@ -34,7 +34,10 @@ const OUT = join(__dirname, '..', 'apps', 'viewer', 'test-catalogs', 'moonfall-s
 
 const MISSION = {
   catalogName: 'MoonFall at Shackleton',
-  defaultTime: '2028-12-15T10:30:00Z',  // mid-Polaris-A first flight
+  // Mid-coordinated-first-burst — all 4 hoppers airborne. See per-hopper
+  // flight epochs below; flights 1 of all 4 hoppers start at 10:00 UTC and
+  // overlap until ~10:08.
+  defaultTime: '2028-12-15T10:04:00Z',
   defaultViewpoint: 'Shackleton Overview',
 };
 
@@ -99,7 +102,7 @@ const hoppers = [
     base: { lat: -89.40, lon: 30 },
     flights: [
       {
-        epoch: '2028-12-15T18:30:00Z',
+        epoch: '2028-12-15T10:00:00Z',
         label: 'Rim traverse east',
         waypoints: [
           { t:   0, lat: -89.40, lon:  30, altM:   1 },
@@ -148,7 +151,7 @@ const hoppers = [
     base: { lat: -89.78, lon: 90 },
     flights: [
       {
-        epoch: '2028-12-16T09:00:00Z',
+        epoch: '2028-12-15T10:00:00Z',
         label: 'Crater inner-wall transect',
         waypoints: [
           { t:   0, lat: -89.78, lon:  90, altM:   1 },
@@ -200,7 +203,7 @@ const hoppers = [
     base: { lat: -89.50, lon: -135 },
     flights: [
       {
-        epoch: '2028-12-16T20:00:00Z',
+        epoch: '2028-12-15T10:00:00Z',
         label: 'Connector hop to de Gerlache',
         waypoints: [
           { t:   0, lat: -89.50, lon: -135, altM:   1 },
