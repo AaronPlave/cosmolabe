@@ -30,7 +30,8 @@ export { createBuiltinTrajectory } from './trajectories/BuiltinTrajectory.js';
 export { parseXyzv } from './trajectories/XyzvParser.js';
 
 // Rotations
-export type { Quaternion, RotationModel } from './rotations/RotationModel.js';
+export type { Quaternion, RotationModel, InertialFrameName } from './rotations/RotationModel.js';
+export { DEFAULT_INERTIAL_FRAME } from './rotations/RotationModel.js';
 export { UniformRotation } from './rotations/UniformRotation.js';
 export { SpiceRotation } from './rotations/SpiceRotation.js';
 export { TrajectoryNadirRotation } from './rotations/TrajectoryNadirRotation.js';
@@ -38,6 +39,15 @@ export { FixedRotation } from './rotations/FixedRotation.js';
 export { FixedEulerRotation } from './rotations/FixedEulerRotation.js';
 export { InterpolatedRotation, parseQFile } from './rotations/InterpolatedRotation.js';
 export type { OrientationRecord } from './rotations/InterpolatedRotation.js';
+
+// Kinematics — frame-aware sub-point and body-fixed velocity primitives,
+// plus the inter-inertial-frame composition utility (`alignPositionToFrame`)
+// that underlies BodyMesh.updatePosition and Universe.subPointOf. Apps
+// that build their own body-fixed math (sub-points for 2D ground tracks,
+// surface velocities for custom HUDs) should reach for these rather than
+// reinvent the obliquity rotation and quaternion-rotate-vec primitives.
+export { alignPositionToFrame, bodyTrajectoryFrameName, rotateVecByQuat } from './kinematics.js';
+export type { Vec3 } from './kinematics.js';
 
 // Frames
 export type { Frame } from './frames/Frame.js';
