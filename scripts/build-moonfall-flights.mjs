@@ -13,24 +13,42 @@
  *   - Polaris-D does long-range hops connecting Shackleton to adjacent craters.
  *
  * Each hopper does 3 flights over ~14 days (rest periods are for thermal /
- * power margin). Per-flight waypoints land at ~5 m altitude (above-terrain
- * clamp gets the rest).
+ * power margin).
+ *
+ * Authoring vs runtime: waypoints below specify (lat, lon, altM_above_terrain)
+ * for human readability — "fly to lat X, lon Y, 80 m above the ground". The
+ * build script then samples the USGS-hosted LOLA 118m global DEM at each
+ * waypoint's lat/lon via GDAL /vsicurl/ (no local download — HTTP byte-range
+ * reads), adds the authored altM offset, and emits ABSOLUTE altitudes (km
+ * above the 1737.4 km lunar mean radius) with `useAbsoluteAlt: true`. The
+ * renderer treats those waypoints as fixed Cartesian positions — no runtime
+ * terrain-clamp pipeline involved, no angular-distance thresholds to tune at
+ * high latitudes.
+ *
+ * Sampled elevations are cached in scripts/data/moon-elevations.json so
+ * subsequent builds don't re-query.
  *
  * Output: apps/viewer/test-catalogs/moonfall-shackleton.json
  *
  * Run: node scripts/build-moonfall-flights.mjs
  */
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = join(__dirname, '..', 'apps', 'viewer', 'test-catalogs', 'moonfall-shackleton.json');
+const CACHE_DIR = join(__dirname, 'data');
+const CACHE_FILE = join(CACHE_DIR, 'moon-elevations.json');
 
-// At the lunar pole, longitude wraps wildly while latitude advances slowly.
-// We keep coordinates as plain lat/lon — the renderer handles the geometry.
-// For human-readable design we just pick lat/lon for each waypoint directly;
-// 0.01° of latitude ≈ 300 m, 0.1° of longitude at lat=-89.7° ≈ 530 m.
+// USGS Astrogeology LOLA 118 m/px global DEM in SimpleCylindrical projection.
+// Int16 stored as half-metres (Scale=0.5 in GeoTIFF metadata); the file is
+// 8.5 GB on disk, but /vsicurl/ + range reads only pull a few KB per sample.
+const LOLA_URL = '/vsicurl/https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif';
+const MOON_RADIUS_M = 1737400;
+const DEM_SCALE = 0.5;
+const DEM_NODATA = -32768;
 
 const MISSION = {
   catalogName: 'MoonFall at Shackleton',
@@ -253,13 +271,107 @@ const hoppers = [
   },
 ];
 
+// --- Terrain elevation sampling --------------------------------------------
+
+// Lat/lon → SimpleCylindrical projected metres (LOLA DEM's CRS).
+function latLonToProjMeters(latDeg, lonDeg) {
+  return {
+    x: (lonDeg * Math.PI / 180) * MOON_RADIUS_M,
+    y: (latDeg * Math.PI / 180) * MOON_RADIUS_M,
+  };
+}
+
+function cacheKey(latDeg, lonDeg) {
+  // 5 decimal places ≈ 30 cm at lunar surface — well below DEM sampling resolution
+  return `${latDeg.toFixed(5)},${lonDeg.toFixed(5)}`;
+}
+
+function loadCache() {
+  if (!existsSync(CACHE_FILE)) return {};
+  try { return JSON.parse(readFileSync(CACHE_FILE, 'utf8')); }
+  catch { return {}; }
+}
+
+function saveCache(cache) {
+  if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true });
+  writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2) + '\n');
+}
+
+/** Batch-sample LOLA DEM at all (latDeg, lonDeg) pairs. Returns a Map keyed
+ *  by cacheKey() with elevation in METRES above lunar mean radius. Issues a
+ *  single gdallocationinfo call piping all coords on stdin so we amortize the
+ *  /vsicurl/ open cost across the batch. */
+function sampleBatch(coords) {
+  if (coords.length === 0) return new Map();
+  const stdin = coords.map(({ latDeg, lonDeg }) => {
+    const { x, y } = latLonToProjMeters(latDeg, lonDeg);
+    return `${x} ${y}`;
+  }).join('\n');
+  const result = spawnSync(
+    'gdallocationinfo',
+    ['-valonly', '-geoloc', LOLA_URL],
+    { input: stdin, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
+  );
+  if (result.status !== 0) {
+    throw new Error(`gdallocationinfo failed (exit ${result.status}):\n${result.stderr}`);
+  }
+  const lines = result.stdout.split('\n');
+  const out = new Map();
+  for (let i = 0; i < coords.length; i++) {
+    const raw = (lines[i] || '').trim();
+    if (raw === '' || raw === String(DEM_NODATA)) continue;
+    const stored = parseFloat(raw);
+    if (!Number.isFinite(stored)) continue;
+    out.set(cacheKey(coords[i].latDeg, coords[i].lonDeg), stored * DEM_SCALE);
+  }
+  return out;
+}
+
+function collectAllWaypointCoords() {
+  const seen = new Set();
+  const out = [];
+  for (const h of hoppers) {
+    for (const f of h.flights) {
+      for (const w of f.waypoints) {
+        const k = cacheKey(w.lat, w.lon);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push({ latDeg: w.lat, lonDeg: w.lon });
+      }
+    }
+  }
+  return out;
+}
+
+function ensureElevations() {
+  const cache = loadCache();
+  const allCoords = collectAllWaypointCoords();
+  const missing = allCoords.filter(c => !(cacheKey(c.latDeg, c.lonDeg) in cache));
+  if (missing.length === 0) {
+    console.log(`Elevation cache hit (${allCoords.length} waypoint sites already cached).`);
+    return cache;
+  }
+  console.log(`Sampling LOLA DEM at ${missing.length} new waypoint sites (of ${allCoords.length} total)...`);
+  const sampled = sampleBatch(missing);
+  if (sampled.size !== missing.length) {
+    console.warn(`  warning: ${missing.length - sampled.size} samples returned nodata (treating as 0 m)`);
+  }
+  for (const c of missing) {
+    const k = cacheKey(c.latDeg, c.lonDeg);
+    cache[k] = sampled.get(k) ?? 0;
+  }
+  saveCache(cache);
+  console.log(`  wrote ${CACHE_FILE}`);
+  return cache;
+}
+
 // --- Build catalog ---------------------------------------------------------
 
 function isoAdd(iso, seconds) {
   return new Date(new Date(iso).getTime() + seconds * 1000).toISOString();
 }
 
-function flightArc(hopper, flight) {
+function flightArc(flight, elevations) {
   const last = flight.waypoints[flight.waypoints.length - 1];
   return {
     startTime: flight.epoch,
@@ -268,31 +380,39 @@ function flightArc(hopper, flight) {
       type: 'Waypoints',
       referenceRadius: 1737.4,
       epoch: flight.epoch,
-      waypoints: flight.waypoints.map(w => ({
-        t: w.t,
-        lat: w.lat,
-        lon: w.lon,
-        alt: `${w.altM}m`,
-      })),
+      // Absolute altitudes (km above 1737.4 km lunar mean). Pre-computed at
+      // build time from LOLA DEM ground elevation + authored altM above terrain.
+      useAbsoluteAlt: true,
+      waypoints: flight.waypoints.map(w => {
+        const groundM = elevations[cacheKey(w.lat, w.lon)] ?? 0;
+        const absAltKm = (groundM + w.altM) / 1000;
+        return {
+          t: w.t,
+          lat: w.lat,
+          lon: w.lon,
+          alt: `${absAltKm.toFixed(6)}km`,
+        };
+      }),
     },
   };
 }
 
-function hopperItem(hopper) {
+function hopperItem(hopper, elevations) {
   // Between flights, the body sits at its last-flight-landing position. We
-  // bridge each pair of arcs with a "rest" arc that uses a single-waypoint
-  // FixedSpherical position at the landing site, sustained until the next
-  // flight begins. Cheaper than authoring it via Waypoints (one point).
+  // bridge each pair of arcs with a "rest" arc that uses a 2-point Waypoints
+  // trajectory holding the landing site's (lat, lon, abs-alt) constant until
+  // the next flight begins.
   const arcs = [];
   for (let i = 0; i < hopper.flights.length; i++) {
     const f = hopper.flights[i];
-    arcs.push(flightArc(hopper, f));
-    // Rest arc until next flight (if any). We hold position at the flight's
-    // last waypoint by emitting a 2-point Waypoints trajectory.
+    arcs.push(flightArc(f, elevations));
     if (i < hopper.flights.length - 1) {
       const restStart = arcs[arcs.length - 1].endTime;
       const next = hopper.flights[i + 1];
       const lastWp = f.waypoints[f.waypoints.length - 1];
+      const groundM = elevations[cacheKey(lastWp.lat, lastWp.lon)] ?? 0;
+      const absAltKm = (groundM + lastWp.altM) / 1000;
+      const altStr = `${absAltKm.toFixed(6)}km`;
       arcs.push({
         startTime: restStart,
         endTime: next.epoch,
@@ -300,9 +420,10 @@ function hopperItem(hopper) {
           type: 'Waypoints',
           referenceRadius: 1737.4,
           epoch: restStart,
+          useAbsoluteAlt: true,
           waypoints: [
-            { t: 0, lat: lastWp.lat, lon: lastWp.lon, alt: `${lastWp.altM}m` },
-            { t: (new Date(next.epoch).getTime() - new Date(restStart).getTime()) / 1000, lat: lastWp.lat, lon: lastWp.lon, alt: `${lastWp.altM}m` },
+            { t: 0, lat: lastWp.lat, lon: lastWp.lon, alt: altStr },
+            { t: (new Date(next.epoch).getTime() - new Date(restStart).getTime()) / 1000, lat: lastWp.lat, lon: lastWp.lon, alt: altStr },
           ],
         },
       });
@@ -321,13 +442,17 @@ function hopperItem(hopper) {
       source: 'models/Ingenuity.glb',
       size: 0.0015,
       radii: [0.00075, 0.00075, 0.00075],
-      surfaceLock: 'aboveTerrain',
+      // No surfaceLock — waypoints encode absolute altitudes (terrain + offset
+      // baked at build time), so the renderer just plays them through. The
+      // SurfaceUp rotation model still orients the mesh nose-up at its lat/lon.
       meshRotation: [0.7071, 0, 0, -0.7071],
       castShadow: true,
     },
     label: { color: hopper.color },
   };
 }
+
+const elevations = ensureElevations();
 
 const catalog = {
   name: MISSION.catalogName,
@@ -369,7 +494,7 @@ const catalog = {
       name: 'Earth',
       class: 'planet',
       center: 'Sun',
-      trajectory: { type: 'Builtin', name: 'Earth' },
+      trajectory: { type: 'Builtin', name: 'Earth', visible: false },
       geometry: {
         type: 'Globe',
         radius: 6378,
@@ -402,7 +527,7 @@ const catalog = {
         },
       },
       label: { color: [0.7, 0.7, 0.7] },
-      items: hoppers.map(hopperItem),
+      items: hoppers.map(h => hopperItem(h, elevations)),
     },
   ],
 };

@@ -56,7 +56,8 @@
       "center": "Sun",
       "trajectory": {
         "type": "Builtin",
-        "name": "Earth"
+        "name": "Earth",
+        "visible": false
       },
       "geometry": {
         "type": "Globe",
@@ -121,60 +122,61 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-15T10:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "1m"
+                    "alt": "-0.930500km"
                   },
                   {
                     "t": 25,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "80m"
+                    "alt": "-0.851500km"
                   },
                   {
                     "t": 90,
                     "lat": -89.62,
                     "lon": -30,
-                    "alt": "140m"
+                    "alt": "-0.731500km"
                   },
                   {
                     "t": 160,
                     "lat": -89.69,
                     "lon": -10,
-                    "alt": "90m"
+                    "alt": "-0.432000km"
                   },
                   {
                     "t": 200,
                     "lat": -89.71,
                     "lon": -2,
-                    "alt": "5m"
+                    "alt": "-0.296500km"
                   },
                   {
                     "t": 260,
                     "lat": -89.71,
                     "lon": -2,
-                    "alt": "90m"
+                    "alt": "-0.211500km"
                   },
                   {
                     "t": 330,
                     "lat": -89.62,
                     "lon": -30,
-                    "alt": "140m"
+                    "alt": "-0.731500km"
                   },
                   {
                     "t": 400,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "60m"
+                    "alt": "-0.871500km"
                   },
                   {
                     "t": 430,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "1m"
+                    "alt": "-0.930500km"
                   }
                 ]
               }
@@ -186,18 +188,19 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-15T10:07:10.000Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "1m"
+                    "alt": "-0.930500km"
                   },
                   {
                     "t": 215570,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "1m"
+                    "alt": "-0.930500km"
                   }
                 ]
               }
@@ -209,66 +212,67 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-17T22:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "1m"
+                    "alt": "-0.930500km"
                   },
                   {
                     "t": 25,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "70m"
+                    "alt": "-0.861500km"
                   },
                   {
                     "t": 110,
                     "lat": -89.65,
                     "lon": -35,
-                    "alt": "110m"
+                    "alt": "-0.700500km"
                   },
                   {
                     "t": 180,
                     "lat": -89.72,
                     "lon": -25,
-                    "alt": "40m"
+                    "alt": "-0.558500km"
                   },
                   {
                     "t": 240,
                     "lat": -89.78,
                     "lon": -15,
-                    "alt": "40m"
+                    "alt": "-0.210000km"
                   },
                   {
                     "t": 300,
                     "lat": -89.78,
                     "lon": -15,
-                    "alt": "5m"
+                    "alt": "-0.245000km"
                   },
                   {
                     "t": 360,
                     "lat": -89.78,
                     "lon": -15,
-                    "alt": "70m"
+                    "alt": "-0.180000km"
                   },
                   {
                     "t": 440,
                     "lat": -89.65,
                     "lon": -35,
-                    "alt": "130m"
+                    "alt": "-0.680500km"
                   },
                   {
                     "t": 510,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "60m"
+                    "alt": "-0.871500km"
                   },
                   {
                     "t": 540,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "1m"
+                    "alt": "-0.930500km"
                   }
                 ]
               }
@@ -280,18 +284,19 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-17T22:09:00.000Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "1m"
+                    "alt": "-0.930500km"
                   },
                   {
                     "t": 402660,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "1m"
+                    "alt": "-0.930500km"
                   }
                 ]
               }
@@ -303,60 +308,61 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-22T14:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "1m"
+                    "alt": "-0.930500km"
                   },
                   {
                     "t": 30,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "90m"
+                    "alt": "-0.841500km"
                   },
                   {
                     "t": 100,
                     "lat": -89.52,
                     "lon": -55,
-                    "alt": "180m"
+                    "alt": "-0.594500km"
                   },
                   {
                     "t": 170,
                     "lat": -89.5,
                     "lon": -65,
-                    "alt": "240m"
+                    "alt": "-0.333500km"
                   },
                   {
                     "t": 230,
                     "lat": -89.5,
                     "lon": -65,
-                    "alt": "5m"
+                    "alt": "-0.568500km"
                   },
                   {
                     "t": 320,
                     "lat": -89.5,
                     "lon": -65,
-                    "alt": "240m"
+                    "alt": "-0.333500km"
                   },
                   {
                     "t": 390,
                     "lat": -89.52,
                     "lon": -55,
-                    "alt": "180m"
+                    "alt": "-0.594500km"
                   },
                   {
                     "t": 460,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "60m"
+                    "alt": "-0.871500km"
                   },
                   {
                     "t": 490,
                     "lat": -89.55,
                     "lon": -45,
-                    "alt": "1m"
+                    "alt": "-0.930500km"
                   }
                 ]
               }
@@ -374,7 +380,6 @@
               0.00075,
               0.00075
             ],
-            "surfaceLock": "aboveTerrain",
             "meshRotation": [
               0.7071,
               0,
@@ -403,60 +408,61 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-15T10:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "1m"
+                    "alt": "-0.550000km"
                   },
                   {
                     "t": 25,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "80m"
+                    "alt": "-0.471000km"
                   },
                   {
                     "t": 110,
                     "lat": -89.42,
                     "lon": 55,
-                    "alt": "110m"
+                    "alt": "-0.559500km"
                   },
                   {
                     "t": 200,
                     "lat": -89.45,
                     "lon": 85,
-                    "alt": "110m"
+                    "alt": "0.666500km"
                   },
                   {
                     "t": 240,
                     "lat": -89.45,
                     "lon": 85,
-                    "alt": "5m"
+                    "alt": "0.561500km"
                   },
                   {
                     "t": 310,
                     "lat": -89.45,
                     "lon": 85,
-                    "alt": "90m"
+                    "alt": "0.646500km"
                   },
                   {
                     "t": 380,
                     "lat": -89.42,
                     "lon": 55,
-                    "alt": "130m"
+                    "alt": "-0.539500km"
                   },
                   {
                     "t": 460,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "60m"
+                    "alt": "-0.491000km"
                   },
                   {
                     "t": 490,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "1m"
+                    "alt": "-0.550000km"
                   }
                 ]
               }
@@ -468,18 +474,19 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-15T10:08:10.000Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "1m"
+                    "alt": "-0.550000km"
                   },
                   {
                     "t": 330710,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "1m"
+                    "alt": "-0.550000km"
                   }
                 ]
               }
@@ -491,60 +498,61 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-19T06:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "1m"
+                    "alt": "-0.550000km"
                   },
                   {
                     "t": 30,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "100m"
+                    "alt": "-0.451000km"
                   },
                   {
                     "t": 90,
                     "lat": -89.36,
                     "lon": 20,
-                    "alt": "220m"
+                    "alt": "-0.456000km"
                   },
                   {
                     "t": 150,
                     "lat": -89.34,
                     "lon": 10,
-                    "alt": "220m"
+                    "alt": "-0.317500km"
                   },
                   {
                     "t": 190,
                     "lat": -89.34,
                     "lon": 10,
-                    "alt": "5m"
+                    "alt": "-0.532500km"
                   },
                   {
                     "t": 260,
                     "lat": -89.34,
                     "lon": 10,
-                    "alt": "220m"
+                    "alt": "-0.317500km"
                   },
                   {
                     "t": 330,
                     "lat": -89.38,
                     "lon": 25,
-                    "alt": "160m"
+                    "alt": "-0.388000km"
                   },
                   {
                     "t": 400,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "60m"
+                    "alt": "-0.491000km"
                   },
                   {
                     "t": 430,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "1m"
+                    "alt": "-0.550000km"
                   }
                 ]
               }
@@ -556,18 +564,19 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-19T06:07:10.000Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "1m"
+                    "alt": "-0.550000km"
                   },
                   {
                     "t": 622370,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "1m"
+                    "alt": "-0.550000km"
                   }
                 ]
               }
@@ -579,42 +588,43 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-26T11:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "1m"
+                    "alt": "-0.550000km"
                   },
                   {
                     "t": 30,
                     "lat": -89.4,
                     "lon": 30,
-                    "alt": "100m"
+                    "alt": "-0.451000km"
                   },
                   {
                     "t": 150,
                     "lat": -89.36,
                     "lon": 60,
-                    "alt": "160m"
+                    "alt": "-0.642000km"
                   },
                   {
                     "t": 280,
                     "lat": -89.32,
                     "lon": 95,
-                    "alt": "200m"
+                    "alt": "0.477000km"
                   },
                   {
                     "t": 380,
                     "lat": -89.3,
                     "lon": 120,
-                    "alt": "100m"
+                    "alt": "1.220000km"
                   },
                   {
                     "t": 420,
                     "lat": -89.3,
                     "lon": 120,
-                    "alt": "1m"
+                    "alt": "1.121000km"
                   }
                 ]
               }
@@ -632,7 +642,6 @@
               0.00075,
               0.00075
             ],
-            "surfaceLock": "aboveTerrain",
             "meshRotation": [
               0.7071,
               0,
@@ -661,60 +670,61 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-15T10:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "1m"
+                    "alt": "-0.729500km"
                   },
                   {
                     "t": 25,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "80m"
+                    "alt": "-0.650500km"
                   },
                   {
                     "t": 100,
                     "lat": -89.75,
                     "lon": 75,
-                    "alt": "110m"
+                    "alt": "0.529000km"
                   },
                   {
                     "t": 180,
                     "lat": -89.73,
                     "lon": 50,
-                    "alt": "80m"
+                    "alt": "1.141500km"
                   },
                   {
                     "t": 240,
                     "lat": -89.73,
                     "lon": 50,
-                    "alt": "5m"
+                    "alt": "1.066500km"
                   },
                   {
                     "t": 310,
                     "lat": -89.73,
                     "lon": 50,
-                    "alt": "90m"
+                    "alt": "1.151500km"
                   },
                   {
                     "t": 390,
                     "lat": -89.75,
                     "lon": 75,
-                    "alt": "130m"
+                    "alt": "0.549000km"
                   },
                   {
                     "t": 470,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "60m"
+                    "alt": "-0.670500km"
                   },
                   {
                     "t": 500,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "1m"
+                    "alt": "-0.729500km"
                   }
                 ]
               }
@@ -726,18 +736,19 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-15T10:08:20.000Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "1m"
+                    "alt": "-0.729500km"
                   },
                   {
                     "t": 449500,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "1m"
+                    "alt": "-0.729500km"
                   }
                 ]
               }
@@ -749,60 +760,61 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-20T15:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "1m"
+                    "alt": "-0.729500km"
                   },
                   {
                     "t": 25,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "70m"
+                    "alt": "-0.660500km"
                   },
                   {
                     "t": 110,
                     "lat": -89.75,
                     "lon": 60,
-                    "alt": "60m"
+                    "alt": "1.426000km"
                   },
                   {
                     "t": 190,
                     "lat": -89.72,
                     "lon": 30,
-                    "alt": "40m"
+                    "alt": "0.451000km"
                   },
                   {
                     "t": 240,
                     "lat": -89.72,
                     "lon": 30,
-                    "alt": "5m"
+                    "alt": "0.416000km"
                   },
                   {
                     "t": 320,
                     "lat": -89.72,
                     "lon": 30,
-                    "alt": "60m"
+                    "alt": "0.471000km"
                   },
                   {
                     "t": 400,
                     "lat": -89.75,
                     "lon": 60,
-                    "alt": "90m"
+                    "alt": "1.456000km"
                   },
                   {
                     "t": 480,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "60m"
+                    "alt": "-0.670500km"
                   },
                   {
                     "t": 510,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "1m"
+                    "alt": "-0.729500km"
                   }
                 ]
               }
@@ -814,18 +826,19 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-20T15:08:30.000Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "1m"
+                    "alt": "-0.729500km"
                   },
                   {
                     "t": 384690,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "1m"
+                    "alt": "-0.729500km"
                   }
                 ]
               }
@@ -837,60 +850,61 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-25T02:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "1m"
+                    "alt": "-0.729500km"
                   },
                   {
                     "t": 30,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "90m"
+                    "alt": "-0.640500km"
                   },
                   {
                     "t": 130,
                     "lat": -89.8,
                     "lon": 130,
-                    "alt": "130m"
+                    "alt": "-2.064000km"
                   },
                   {
                     "t": 240,
                     "lat": -89.78,
                     "lon": 170,
-                    "alt": "100m"
+                    "alt": "-0.522500km"
                   },
                   {
                     "t": 280,
                     "lat": -89.78,
                     "lon": 170,
-                    "alt": "5m"
+                    "alt": "-0.617500km"
                   },
                   {
                     "t": 360,
                     "lat": -89.78,
                     "lon": 170,
-                    "alt": "100m"
+                    "alt": "-0.522500km"
                   },
                   {
                     "t": 470,
                     "lat": -89.8,
                     "lon": 130,
-                    "alt": "150m"
+                    "alt": "-2.044000km"
                   },
                   {
                     "t": 580,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "60m"
+                    "alt": "-0.670500km"
                   },
                   {
                     "t": 610,
                     "lat": -89.78,
                     "lon": 90,
-                    "alt": "1m"
+                    "alt": "-0.729500km"
                   }
                 ]
               }
@@ -908,7 +922,6 @@
               0.00075,
               0.00075
             ],
-            "surfaceLock": "aboveTerrain",
             "meshRotation": [
               0.7071,
               0,
@@ -937,66 +950,67 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-15T10:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "1m"
+                    "alt": "1.758000km"
                   },
                   {
                     "t": 30,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "100m"
+                    "alt": "1.857000km"
                   },
                   {
                     "t": 160,
                     "lat": -89.4,
                     "lon": -150,
-                    "alt": "250m"
+                    "alt": "1.751500km"
                   },
                   {
                     "t": 320,
                     "lat": -89.2,
                     "lon": -160,
-                    "alt": "250m"
+                    "alt": "0.826000km"
                   },
                   {
                     "t": 380,
                     "lat": -89.1,
                     "lon": -160,
-                    "alt": "40m"
+                    "alt": "0.091000km"
                   },
                   {
                     "t": 420,
                     "lat": -89.1,
                     "lon": -160,
-                    "alt": "5m"
+                    "alt": "0.056000km"
                   },
                   {
                     "t": 490,
                     "lat": -89.1,
                     "lon": -160,
-                    "alt": "80m"
+                    "alt": "0.131000km"
                   },
                   {
                     "t": 620,
                     "lat": -89.3,
                     "lon": -155,
-                    "alt": "200m"
+                    "alt": "1.454500km"
                   },
                   {
                     "t": 750,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "60m"
+                    "alt": "1.817000km"
                   },
                   {
                     "t": 780,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "1m"
+                    "alt": "1.758000km"
                   }
                 ]
               }
@@ -1008,18 +1022,19 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-15T10:13:00.000Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "1m"
+                    "alt": "1.758000km"
                   },
                   {
                     "t": 508620,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "1m"
+                    "alt": "1.758000km"
                   }
                 ]
               }
@@ -1031,60 +1046,61 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-21T07:30:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "1m"
+                    "alt": "1.758000km"
                   },
                   {
                     "t": 30,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "80m"
+                    "alt": "1.837000km"
                   },
                   {
                     "t": 120,
                     "lat": -89.6,
                     "lon": -120,
-                    "alt": "60m"
+                    "alt": "0.813500km"
                   },
                   {
                     "t": 220,
                     "lat": -89.68,
                     "lon": -100,
-                    "alt": "40m"
+                    "alt": "0.302500km"
                   },
                   {
                     "t": 270,
                     "lat": -89.68,
                     "lon": -100,
-                    "alt": "5m"
+                    "alt": "0.267500km"
                   },
                   {
                     "t": 340,
                     "lat": -89.68,
                     "lon": -100,
-                    "alt": "60m"
+                    "alt": "0.322500km"
                   },
                   {
                     "t": 440,
                     "lat": -89.6,
                     "lon": -120,
-                    "alt": "100m"
+                    "alt": "0.853500km"
                   },
                   {
                     "t": 530,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "60m"
+                    "alt": "1.817000km"
                   },
                   {
                     "t": 560,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "1m"
+                    "alt": "1.758000km"
                   }
                 ]
               }
@@ -1096,18 +1112,19 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-21T07:39:20.000Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "1m"
+                    "alt": "1.758000km"
                   },
                   {
                     "t": 555640,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "1m"
+                    "alt": "1.758000km"
                   }
                 ]
               }
@@ -1119,66 +1136,67 @@
                 "type": "Waypoints",
                 "referenceRadius": 1737.4,
                 "epoch": "2028-12-27T18:00:00Z",
+                "useAbsoluteAlt": true,
                 "waypoints": [
                   {
                     "t": 0,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "1m"
+                    "alt": "1.758000km"
                   },
                   {
                     "t": 30,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "120m"
+                    "alt": "1.877000km"
                   },
                   {
                     "t": 180,
                     "lat": -89.3,
                     "lon": -125,
-                    "alt": "280m"
+                    "alt": "1.414000km"
                   },
                   {
                     "t": 350,
                     "lat": -88.85,
                     "lon": -110,
-                    "alt": "280m"
+                    "alt": "0.094000km"
                   },
                   {
                     "t": 430,
                     "lat": -88.65,
                     "lon": -100,
-                    "alt": "100m"
+                    "alt": "-1.095500km"
                   },
                   {
                     "t": 480,
                     "lat": -88.65,
                     "lon": -100,
-                    "alt": "5m"
+                    "alt": "-1.190500km"
                   },
                   {
                     "t": 560,
                     "lat": -88.65,
                     "lon": -100,
-                    "alt": "100m"
+                    "alt": "-1.095500km"
                   },
                   {
                     "t": 720,
                     "lat": -89.15,
                     "lon": -120,
-                    "alt": "250m"
+                    "alt": "0.540000km"
                   },
                   {
                     "t": 880,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "60m"
+                    "alt": "1.817000km"
                   },
                   {
                     "t": 910,
                     "lat": -89.5,
                     "lon": -135,
-                    "alt": "1m"
+                    "alt": "1.758000km"
                   }
                 ]
               }
@@ -1196,7 +1214,6 @@
               0.00075,
               0.00075
             ],
-            "surfaceLock": "aboveTerrain",
             "meshRotation": [
               0.7071,
               0,
