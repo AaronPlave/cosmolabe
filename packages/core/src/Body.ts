@@ -1,5 +1,6 @@
 import type { Vec3 } from '@cosmolabe/spice';
 import type { CartesianState, Trajectory } from './trajectories/Trajectory.js';
+import { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
 import type { RotationModel, Quaternion } from './rotations/RotationModel.js';
 
 /** Per-body trajectory plot configuration from Cosmographia's `trajectoryPlot` JSON field */
@@ -103,5 +104,28 @@ export class Body {
 
   rotationAt(et: number): Quaternion | undefined {
     return this._rotation?.rotationAt(et);
+  }
+
+  /** Returns the parent body name that's authoritative for THIS body AT
+   *  this time. For bodies with a static (non-composite) trajectory this
+   *  is just `parentName`. For bodies with a `CompositeTrajectory` whose
+   *  arcs declare different `centerName` values, the active arc's center
+   *  wins — matching what `Universe.absolutePositionOf` already uses
+   *  internally for the parent-chain walk.
+   *
+   *  Use this whenever you'd reach for `body.parentName` to do body-fixed
+   *  math (sub-point, surface velocity, altitude) on a multi-phase
+   *  spacecraft: e.g. a lunar-lander mission whose cruise arc is
+   *  Earth-centric and EDL/landed arcs are Moon-centric should switch
+   *  from Earth body-fixed math to Moon body-fixed math at the EDL
+   *  boundary, and that switch lives here.
+   *
+   *  Returns `undefined` only when neither the active arc nor the static
+   *  `parentName` resolves a parent (e.g. the universe root). */
+  activeParentAt(et: number): string | undefined {
+    if (this._trajectory instanceof CompositeTrajectory) {
+      return this._trajectory.arcAt(et).centerName ?? this.parentName;
+    }
+    return this.parentName;
   }
 }
