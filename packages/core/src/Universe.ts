@@ -5,6 +5,7 @@ import type { CatalogJson, CatalogLoaderOptions, ViewpointDefinition, Trajectory
 import type { CosmolabePlugin } from './plugins/Plugin.js';
 import { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
 import { alignPositionToFrame, bodyTrajectoryFrameName, rotateVecByQuat } from './kinematics.js';
+import type { InertialFrameName } from './rotations/RotationModel.js';
 import { EventBus } from './events/EventBus.js';
 import type { UniverseEventMap } from './events/EventTypes.js';
 import { StateStore } from './state/StateStore.js';
@@ -247,11 +248,43 @@ export class Universe {
         }
       }
 
+      // Walk up the parent chain. At each step the accumulated position is
+      // in some inertial frame — initially the child's own `trajectoryFrame`,
+      // after the body-fixed unwrap above the parent's inertial frame. Each
+      // leg's `parent.stateAt` returns positions in `parent.trajectoryFrame`,
+      // so before summing we rotate the accumulated position from the
+      // current child's frame to the parent's frame. Without this the
+      // EquatorJ2000 ↔ EclipticJ2000 obliquity (~23.4°) injects positional
+      // error proportional to orbital radius — at the Saturn-moon distance
+      // that's ~73 km of off-axis displacement per moon, enough to visibly
+      // tilt Saturn's moon orbits out of the ring plane (was masked
+      // pre-Phase-3 by a matching rotation-side bug that cancelled).
+      let accumFrameName: InertialFrameName = bodyTrajectoryFrameName(body);
+      // If we did the body-fixed unwrap above, the accumulated position is
+      // now in the parent's inertial frame (= parent.trajectoryFrame), so
+      // reset accumFrameName to track that.
+      if (body.trajectoryFrame === 'body-fixed' && currentParent) {
+        const firstParent = this.getBody(currentParent);
+        if (firstParent) accumFrameName = bodyTrajectoryFrameName(firstParent);
+      }
+
       while (currentParent) {
         const parent = this.getBody(currentParent);
         if (!parent) break;
         const ps = parent.stateAt(et);
         if (isNaN(ps.position[0])) return [NaN, NaN, NaN];
+        const parentFrame = bodyTrajectoryFrameName(parent);
+        if (parentFrame !== accumFrameName) {
+          // Rotate accumulated position from child's frame to parent's
+          // frame before summing parent's contribution. Pass-through for
+          // SPICE-named frames cosmolabe doesn't analytically handle —
+          // those typically don't mix with named-inertial-frame chains.
+          const aligned = alignPositionToFrame([x, y, z], accumFrameName, parentFrame);
+          x = aligned[0];
+          y = aligned[1];
+          z = aligned[2];
+          accumFrameName = parentFrame;
+        }
         x += ps.position[0];
         y += ps.position[1];
         z += ps.position[2];

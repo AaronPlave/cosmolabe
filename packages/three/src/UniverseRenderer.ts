@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CompositeTrajectory, SpiceTrajectory, WaypointTrajectory, EventBus, type Universe, type Body } from '@cosmolabe/core';
+import { CompositeTrajectory, SpiceTrajectory, WaypointTrajectory, EventBus, alignPositionToFrame, bodyTrajectoryFrameName, DEFAULT_INERTIAL_FRAME, type Universe, type Body } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
@@ -583,9 +583,31 @@ export class UniverseRenderer {
         ];
 
         if (!arcCenter && parentName) {
+          // Per-frame trail sampler. `stateAt(t).position` is the body's
+          // offset from its parent in the body's own `trajectoryFrame`
+          // (e.g. EquatorJ2000 for Saturn moons declaring
+          // `trajectoryFrame: "J2000"`). The trail's `vertOff` is the
+          // parent's position in cosmolabe's world frame (EclipticJ2000),
+          // so the per-sample offset must be rotated into that same world
+          // frame before the two are summed at the vertex. Align straight
+          // to the world frame — NOT merely to the direct parent's frame —
+          // because `absolutePositionOf` (which drives the body marker)
+          // applies every frame change up the whole parent chain to the
+          // body's offset, including ones ABOVE the direct parent (e.g.
+          // Europa Clipper's J2000 offset gets rotated by the Jupiter→Sun
+          // obliquity even though Clipper and Jupiter share J2000). Aligning
+          // child→world here keeps cached/live trails in lockstep with the
+          // marker; aligning child→parent left the body drawn ~23.4° off
+          // its trail whenever the obliquity entered higher in the chain.
           const relativeResolver: typeof this.absolutePositionOf = (name, t) => {
-            const state = this.universe.getBody(name)!.stateAt(t);
-            return state.position as [number, number, number];
+            const childBody = this.universe.getBody(name);
+            if (!childBody) return [NaN, NaN, NaN];
+            const state = childBody.stateAt(t);
+            return alignPositionToFrame(
+              state.position as [number, number, number],
+              bodyTrajectoryFrameName(childBody),
+              DEFAULT_INERTIAL_FRAME,
+            );
           };
           tl.update(et, this.scaleFactor, relativeResolver, undefined, undefined, vertOff);
         } else {
@@ -2284,9 +2306,17 @@ export class UniverseRenderer {
       // The trajectory line's Object3D position is set to the center body's absolute
       // position each frame (in the update loop), so we only emit relative coords here.
       // This avoids Float32 precision loss for arcs around distant planets.
+      // Match `absolutePositionOf`: an arc's offset from its center is in the
+      // body's own `trajectoryFrame`, so rotate it into the world frame
+      // (EclipticJ2000) before it's summed with the world-frame `vertOff`.
+      const arcFrame = bodyTrajectoryFrameName(body);
       const arcResolver = (_name: string, t: number): [number, number, number] => {
         const state = arc.trajectory.stateAt(t);
-        return [state.position[0], state.position[1], state.position[2]];
+        return alignPositionToFrame(
+          [state.position[0], state.position[1], state.position[2]],
+          arcFrame,
+          DEFAULT_INERTIAL_FRAME,
+        );
       };
 
       const plotCfg = body.trajectoryPlot;
@@ -2434,6 +2464,29 @@ export class UniverseRenderer {
    * than a static full-orbit ring. */
   private static readonly STATIC_ORBIT_CLASSES = new Set(['asteroid']);
 
+  /**
+   * Rotate a freshly-built cache's interleaved positions from the body's
+   * trajectory frame into cosmolabe's world frame (EclipticJ2000) in place,
+   * so cached trail vertices match `absolutePositionOf`-driven markers. Used
+   * for the async worker path, which bakes points in the raw SPICE frame.
+   * No-op when the body's frame is already the world frame (or a SPICE-named
+   * frame `alignPositionToFrame` passes through) — probed once up front.
+   */
+  private alignCacheToWorldFrame(cache: { positions: Float64Array; count: number }, body: Body): void {
+    const srcFrame = bodyTrajectoryFrameName(body);
+    // Probe with an off-axis vector ([0,0,1] is rotated by the obliquity;
+    // [1,0,0] would be invariant and falsely report "no alignment needed").
+    const probe = alignPositionToFrame([0, 0, 1], srcFrame, DEFAULT_INERTIAL_FRAME);
+    if (probe[0] === 0 && probe[1] === 0 && probe[2] === 1) return;
+    const p = cache.positions;
+    for (let i = 0; i < cache.count * 3; i += 3) {
+      const a = alignPositionToFrame([p[i], p[i + 1], p[i + 2]], srcFrame, DEFAULT_INERTIAL_FRAME);
+      p[i] = a[0];
+      p[i + 1] = a[1];
+      p[i + 2] = a[2];
+    }
+  }
+
   private shouldBuildCache(body: Body, trajOpts: TrajectoryLineOptions): boolean {
     const trailDur = trajOpts.trailDuration ?? 86400;
     if (trailDur <= 86400 * 7) return false;
@@ -2470,6 +2523,10 @@ export class UniverseRenderer {
       // Guard: scene may have been disposed while we waited
       if (!this.trajectoryLines.has(body.name)) return;
       if (cache.count > 0) {
+        // The worker sampled in the trajectory's SPICE frame (`request.frame`,
+        // e.g. J2000-equatorial). Rotate the baked points into the world frame
+        // so the cached trail lines up with the `absolutePositionOf` marker.
+        this.alignCacheToWorldFrame(cache, body);
         tl.setCache(cache);
         tl.setUserVisible(true);
         console.log(`[Cosmolabe] Async cache ready for ${body.name}: ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
@@ -2494,10 +2551,19 @@ export class UniverseRenderer {
     let searchStart = currentEt - trailDur * 4;
     let searchEnd = currentEt + trailDur * 4;
 
+    // Bake samples in the world frame (EclipticJ2000), aligned from the body's
+    // own `trajectoryFrame`, so cached trail vertices match the marker that
+    // `absolutePositionOf` places. Without this the body draws ~23.4° (the
+    // J2000 obliquity) off its trail for any equatorial-frame trajectory.
+    const cacheFrame = bodyTrajectoryFrameName(body);
     const resolver = (t: number): [number, number, number] => {
       try {
         const state = body.trajectory.stateAt(t);
-        return [state.position[0], state.position[1], state.position[2]];
+        return alignPositionToFrame(
+          [state.position[0], state.position[1], state.position[2]],
+          cacheFrame,
+          DEFAULT_INERTIAL_FRAME,
+        );
       } catch {
         return [NaN, NaN, NaN];
       }

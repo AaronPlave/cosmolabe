@@ -187,3 +187,76 @@ describe('Universe.bodyFixedVelocityMagnitudeOf', () => {
     expect(u.bodyFixedVelocityMagnitudeOf('Child', 0)).toBeNull();
   });
 });
+
+describe('Universe.absolutePositionOf — per-leg frame composition', () => {
+  // Mirrors the cassini-soi catalog mismatch: planet's trajectory is in
+  // EclipticJ2000 (Sun-centric Builtin), moons declare J2000-equatorial
+  // for their planet-relative trajectory. The accumulated position has to
+  // rotate from EquatorJ2000 → EclipticJ2000 before adding the planet's
+  // ecliptic-frame contribution. Pre-fix this was a silent mismatch that
+  // visibly broke Saturn's moons being coplanar with its rings post-Phase 3.
+  it('rotates child position to parent frame when frames differ', () => {
+    const u = new Universe();
+    // Sun at origin in ECLIPJ2000.
+    const sun = new Body({
+      name: 'Sun',
+      trajectory: new FixedPointTrajectory([0, 0, 0]),
+    });
+    // "Saturn" 1,400,000,000 km from Sun on the ecliptic +X axis, in
+    // ECLIPJ2000 frame (default).
+    const saturn = new Body({
+      name: 'Saturn',
+      trajectory: new FixedPointTrajectory([1_400_000_000, 0, 0]),
+      parentName: 'Sun',
+    });
+    // "Mimas" 185,520 km from Saturn along EquatorJ2000 +Y. Declares
+    // trajectoryFrame=equatorial, matching the Cosmographia convention.
+    const mimas = new Body({
+      name: 'Mimas',
+      trajectory: new FixedPointTrajectory([0, 185_520, 0]),
+      parentName: 'Saturn',
+      trajectoryFrame: 'equatorial',
+    });
+    u.addBody(sun);
+    u.addBody(saturn);
+    u.addBody(mimas);
+
+    // Expected: Mimas's EquatorJ2000 offset [0, 185520, 0] rotated to
+    // EclipticJ2000 via R_x(-ε) ≈ [0, 170243, -73806], then added to
+    // Saturn's [1.4e9, 0, 0] ECLIPJ2000 position.
+    const eps = (23.4392911 * Math.PI) / 180;
+    const expectedY = 185_520 * Math.cos(eps);
+    const expectedZ = -185_520 * Math.sin(eps);
+    const pos = u.absolutePositionOf('Mimas', 0);
+    expect(pos[0]).toBeCloseTo(1_400_000_000, 0);
+    expect(pos[1]).toBeCloseTo(expectedY, 0);
+    expect(pos[2]).toBeCloseTo(expectedZ, 0);
+  });
+
+  it('is a no-op when all parent-chain frames match', () => {
+    const u = new Universe();
+    const sun = new Body({
+      name: 'Sun',
+      trajectory: new FixedPointTrajectory([0, 0, 0]),
+    });
+    const planet = new Body({
+      name: 'Planet',
+      trajectory: new FixedPointTrajectory([1e8, 0, 0]),
+      parentName: 'Sun',
+    });
+    const moon = new Body({
+      name: 'Moon',
+      trajectory: new FixedPointTrajectory([0, 1000, 0]),
+      parentName: 'Planet',
+      // Same frame as planet (both default to ecliptic).
+    });
+    u.addBody(sun);
+    u.addBody(planet);
+    u.addBody(moon);
+    const pos = u.absolutePositionOf('Moon', 0);
+    // No obliquity rotation — moon's offset preserved exactly.
+    expect(pos[0]).toBeCloseTo(1e8, 0);
+    expect(pos[1]).toBeCloseTo(1000, 6);
+    expect(pos[2]).toBeCloseTo(0, 6);
+  });
+});
