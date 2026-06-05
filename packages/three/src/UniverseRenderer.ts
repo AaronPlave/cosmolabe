@@ -1881,12 +1881,15 @@ export class UniverseRenderer {
         const fovFrame = this.enrichSensorFromSpice(body);
         const sf = new SensorFrustum(body);
         if (fovFrame) sf.spiceFovFrame = fovFrame;
-        // Match the inertial frame to the parent body's trajectory frame so sensor
-        // orientation aligns with scene positions (J2000 for Cassini, ECLIPJ2000 for LRO, etc.)
-        const parentBody = body.parentName ? this.universe.getBody(body.parentName) : undefined;
-        if (parentBody?.trajectoryFrame === 'equatorial') {
-          sf.spiceInertialFrame = 'J2000';
-        }
+        // Fetch sensor orientation in the scene's world frame (ECLIPJ2000).
+        // `Universe.absolutePositionOf` aligns every body's position into
+        // EclipticJ2000, so the scene is uniformly ecliptic regardless of a
+        // body's declared `trajectoryFrame`. The boresight must be fetched in
+        // that same frame (pxform does the J2000→ecliptic obliquity rotation
+        // internally) — otherwise an equatorial-frame parent (e.g. Cassini,
+        // trajectoryFrame "J2000") leaves the frustum/PiP boresight ~23.4° off
+        // the ecliptic scene. `SensorFrustum.spiceInertialFrame` already
+        // defaults to 'ECLIPJ2000'; nothing more to set here.
         sf.layers.set(OVERLAY_LAYER);
         sf.traverse(c => c.layers.set(OVERLAY_LAYER));
         this.sensorFrustums.set(body.name, sf);
