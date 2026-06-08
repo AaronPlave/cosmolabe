@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CameraModeName, ensureQuatContinuity, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
+import { CameraModeName, ensureQuatContinuity, bodyWorldOrientation, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 
 const _surfaceNormal = /* @__PURE__ */ new THREE.Vector3();
@@ -8,6 +8,7 @@ const _right = /* @__PURE__ */ new THREE.Vector3();
 const _move = /* @__PURE__ */ new THREE.Vector3();
 const _lookTarget = /* @__PURE__ */ new THREE.Vector3();
 const _toBody = /* @__PURE__ */ new THREE.Vector3();
+const _bodyWorldQ = /* @__PURE__ */ new THREE.Quaternion();
 
 /**
  * Surface Flight Camera — WASD flight over a body's surface, airplane-style.
@@ -300,35 +301,9 @@ export class SurfaceMode implements ICameraMode {
   }
 
   private getBodyQuat(ctx: CameraModeContext, bm: BodyMesh): THREE.Quaternion | null {
-    const r = this.getBodyFixedMatrix(ctx);
-    if (r) {
-      const m = new THREE.Matrix4();
-      m.set(
-        r[0], r[1], r[2], 0,
-        r[3], r[4], r[5], 0,
-        r[6], r[7], r[8], 0,
-        0,    0,    0,    1,
-      );
-      const q = new THREE.Quaternion();
-      q.setFromRotationMatrix(m);
-      return q;
-    }
-    if (bm.body.rotation) {
-      const q = bm.body.rotation.rotationAt(ctx.et);
-      if (q) {
-        return new THREE.Quaternion(-q[1], -q[2], -q[3], q[0]);
-      }
-    }
-    return null;
-  }
-
-  private getBodyFixedMatrix(ctx: CameraModeContext): number[] | null {
-    if (!ctx.spice) return null;
-    const frameName = 'IAU_' + this.bodyName.toUpperCase().replace(/\s+/g, '_');
-    try {
-      return ctx.spice.pxform(frameName, 'ECLIPJ2000', ctx.et);
-    } catch {
-      return null;
-    }
+    // Body→world orientation as the mesh renders it (catalog rotation model +
+    // obliquity), so surface lat/lon placement and horizon stay locked to the
+    // rendered terrain. Callers copy the result, so a shared scratch is safe.
+    return bodyWorldOrientation(bm, ctx.et, _bodyWorldQ);
   }
 }

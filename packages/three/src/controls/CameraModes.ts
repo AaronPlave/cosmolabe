@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
+import { composeBodyToWorldQuat } from '@cosmolabe/core';
 import type { BodyMesh } from '../BodyMesh.js';
 
 /** SPICE-like interface for frame transforms — matches SpiceFrames + SpiceState */
@@ -77,6 +78,30 @@ export function ensureQuatContinuity(cur: import('three').Quaternion, prev: impo
   if (cur.dot(prev) < 0) {
     cur.set(-cur.x, -cur.y, -cur.z, -cur.w);
   }
+}
+
+/**
+ * Body→world orientation quaternion in THREE (x,y,z,w) order, computed the SAME
+ * way `BodyMesh` orients the rendered mesh — `composeBodyToWorldQuat(rotationAt,
+ * sourceFrame)`. Camera modes that lock onto a body MUST use this so they track
+ * the mesh exactly every frame: it carries the EquatorJ2000→EclipticJ2000
+ * obliquity (the rendered scene is uniformly EclipticJ2000) and uses the body's
+ * own rotation model rather than a hardcoded `IAU_<body>` SPICE frame, which can
+ * differ from a catalog's custom UniformRotation (e.g. Saturn's tour catalog).
+ * Writes into `out` and returns it, or null when the body has no rotation model
+ * (the mesh isn't oriented in that case either).
+ */
+export function bodyWorldOrientation(
+  bm: BodyMesh,
+  et: number,
+  out: THREE.Quaternion,
+): THREE.Quaternion | null {
+  const rotation = bm.body.rotation;
+  if (!rotation) return null;
+  const q = bm.body.rotationAt(et);
+  if (!q) return null;
+  const bw = composeBodyToWorldQuat(q, rotation.sourceFrame);
+  return out.set(bw[1], bw[2], bw[3], bw[0]);
 }
 
 export interface ICameraMode {
