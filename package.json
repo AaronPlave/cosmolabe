@@ -1,0 +1,14 @@
+{
+  "name": "@cosmolabe/frames",
+  "description": "The frames tier of ADR M-0002: the two published seam contracts, StateProvider (batched states, correction explicit and required) and FramesService (single epoch conversion authority, inspectable frame chains, hashable kernel set), implemented over cspice-wasm. Nothing above this tier calls CSPICE (iron rule 1).",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "dependencies": {
+    "cspice-wasm": "workspace:*"
+  }
+}
