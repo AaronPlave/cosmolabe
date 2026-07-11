@@ -17,7 +17,7 @@ Engine surface (`SpiceEngine` / `SpiceComputeEngine`):
 
 - Kernels: `furnsh`, `unload`, `kclear`, `ktotal`.
 - Time: `str2et`, `et2utc`, `utc2et`.
-- Ephemeris: `spkpos`, `spkezr`, `spkposBatch` (zero-copy n*3 positions).
+- Ephemeris: `spkpos`, `spkezr`, `spkposBatch` (zero-copy n*3 positions), `spkezrBatch` (zero-copy n*6 states plus light times, the batched-states primitive under the frames tier of ADR M-0002).
 - Two-body math: `oscelt`, `conics`, `prop2b`; SPK Type 13 writeback via `writeSpkType13`.
 - Geometry events: `gfoclt`, `gfdist`, `occult`.
 - Frames and bodies: `pxform`, `sxform`, `bodvrd`, `bodvcd`, `getfov`.
@@ -26,7 +26,7 @@ Engine surface (`SpiceEngine` / `SpiceComputeEngine`):
 - Spacecraft clock and CK attitude: `sce2c`/`sct2e` (ET <-> encoded SCLK ticks), `ckgp` (CK pointing query), and `writeCk03`, which writes a CK Type 3 segment (discrete quaternions plus optional angular rate, linear interpolation) and furnshes it so the attitude history is queryable through the same `pxform`/`ckgp` path. A class-3 frame (defined in an FK with `FRAME_<id>_CLASS=3`, `CK_<id>_SCLK`, `CK_<id>_SPK`) drives the scene orientation from a furnished C-kernel. See `ck.test.ts` for the write-then-read round trip and `scripts/make-fixture-ck.mjs` for the demo CK generator.
 - Time series: `evalSeries` plus `runEvalSpec`, `gridEpochs`, `PROVIDER_CATALOG` for one-round-trip, cancellable sweeps over a grid.
 
-Types include `Vec3`, `StateVector`, `PositionResult`, `CartesianState`, `OsculatingElements`, `AberrationCorrection`, `Mat3`, and the located `SpiceError`.
+Types include `Vec3`, `StateVector`, `PositionResult`, `CartesianState`, `OsculatingElements`, `AberrationCorrection`, `Mat3`, `StateBatchArrays`, and the located `SpiceError`. For in-process synchronous consumers (the frames tier, conformance rigs) the package also exports `SpiceBindings` and `createSpiceBindings`, the typed marshaling layer beneath the promise surface, including `namfrm` and `frmnam` for frame id resolution.
 
 ```ts
 const engine = await createSpiceEngine();
@@ -38,9 +38,11 @@ const { position, lightTime } = await engine.spkpos('6', et, 'J2000', 'NONE', '1
 
 ## Dependency rule
 
-Depends on: `@bessel/pal`. Part of the core layer; it never imports a concrete PAL
+Depends on nothing in the workspace. Part of the core layer; it never imports a PAL
 implementation, UI, or shell. Kernel bytes are passed in by the caller (`furnsh(name, bytes)`),
-so the engine never reads kernel files directly.
+so the engine never reads kernel files directly. `@bessel/spice` remains as a thin facade
+re-exporting this package for bessel-heritage imports; the tier above it is
+`@cosmolabe/frames` (ADR M-0002), and nothing above that tier calls this package directly.
 
 ## Tests
 
