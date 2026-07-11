@@ -9,6 +9,7 @@ export {
   type OemState,
 } from './oem.ts';
 export { writeOem } from './oem-write.ts';
+export { oemToProduct, type OemProductOptions } from './oem-product.ts';
 export {
   seriesToCsv,
   intervalsToCsv,

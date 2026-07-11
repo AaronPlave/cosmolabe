@@ -21,12 +21,16 @@ function stateLine(s: OemState): string {
 
 /**
  * Serialize an OEM (KVN) document. The version defaults to the current CCSDS OEM
- * revision; metadata fields are emitted in the standard order, omitting absent ones.
- * `parseOem(writeOem(oem))` reproduces the version, metadata, and states.
+ * revision; the header CREATION_DATE and ORIGINATOR are emitted when present (they
+ * carry the file's provenance in its own terms); metadata fields are emitted in the
+ * standard order, omitting absent ones. `parseOem(writeOem(oem))` reproduces the
+ * version, header, metadata, and states.
  */
 export function writeOem(oem: Oem): string {
   const lines: string[] = [];
   lines.push(`CCSDS_OEM_VERS = ${oem.version || '2.0'}`);
+  if (oem.creationDate !== undefined) lines.push(`CREATION_DATE = ${oem.creationDate}`);
+  if (oem.originator !== undefined) lines.push(`ORIGINATOR = ${oem.originator}`);
   lines.push('META_START');
   for (const [key, field] of META_ORDER) {
     const value = oem.metadata[field];

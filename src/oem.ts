@@ -22,6 +22,10 @@ export interface OemState {
 
 export interface Oem {
   readonly version: string;
+  /** Header ORIGINATOR, when present: whose states these are, in the file's own terms. */
+  readonly originator?: string;
+  /** Header CREATION_DATE, when present: when the originator produced the file. */
+  readonly creationDate?: string;
   readonly metadata: OemMetadata;
   readonly states: readonly OemState[];
 }
@@ -47,6 +51,8 @@ const META_KEYS: Record<string, keyof OemMetadata> = {
 export function parseOem(text: string): Oem {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '' && !l.startsWith('COMMENT'));
   let version = '';
+  let originator: string | undefined;
+  let creationDate: string | undefined;
   const metadata: Record<string, string> = {};
   const states: OemState[] = [];
   let inMeta = false;
@@ -66,12 +72,19 @@ export function parseOem(text: string): Oem {
     }
     if (line.includes('=')) {
       // A '=' line is metadata only inside a META block. Outside META it is a header
-      // line (CREATION_DATE, ORIGINATOR) or a data-region label (a COVARIANCE_START
-      // section key, USER_DEFINED_x, ...): skip it so it neither overwrites a segment's
-      // metadata (a second META would clobber the first) nor reaches the data parser.
+      // line (CREATION_DATE, ORIGINATOR, captured for provenance since the OEM
+      // ingest adapter carries them in the file's own terms) or a data-region label
+      // (a COVARIANCE_START section key, USER_DEFINED_x, ...): the rest are skipped
+      // so they neither overwrite a segment's metadata (a second META would clobber
+      // the first) nor reach the data parser.
+      const [k, v] = line.split('=');
+      const key = k!.trim();
       if (inMeta) {
-        const [k, v] = line.split('=');
-        metadata[k!.trim()] = v!.trim();
+        metadata[key] = v!.trim();
+      } else if (key === 'ORIGINATOR') {
+        originator = v!.trim();
+      } else if (key === 'CREATION_DATE') {
+        creationDate = v!.trim();
       }
       continue;
     }
@@ -98,5 +111,11 @@ export function parseOem(text: string): Oem {
   for (const [key, field] of Object.entries(META_KEYS)) {
     if (metadata[key] !== undefined) (meta as Record<string, string>)[field] = metadata[key]!;
   }
-  return { version, metadata: meta, states };
+  return {
+    version,
+    ...(originator !== undefined ? { originator } : {}),
+    ...(creationDate !== undefined ? { creationDate } : {}),
+    metadata: meta,
+    states,
+  };
 }
