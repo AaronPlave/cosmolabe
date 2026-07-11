@@ -563,6 +563,20 @@ export class SpiceBindings {
     });
   }
 
+  /**
+   * Read back the bytes of a kernel in the staging FS by its furnsh/write
+   * name. Lets a generated kernel (writeSpkType13, writeCk03) be furnished
+   * byte-identically into another SPICE stack, which is how the differential
+   * harness feeds one synthetic fixture to both wrappers (ADR M-0002).
+   */
+  readKernelBytes(name: string): Uint8Array {
+    const path = `${KERNEL_DIR}/${name}`;
+    if (!this.mod.FS.analyzePath(path).exists) {
+      throw new SpiceError(`readKernelBytes: no staged kernel named '${name}'`);
+    }
+    return this.mod.FS.readFile(path);
+  }
+
   /** Ephemeris seconds past J2000 (ET) to continuous encoded SCLK ticks (sce2c). */
   sce2c(sc: number, et: number): number {
     return this.scope(() => {
