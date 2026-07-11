@@ -12,9 +12,18 @@ export interface SpiceEngineOptions {
   locateFile?: (path: string) => string;
 }
 
-export async function createSpiceEngine(options?: SpiceEngineOptions): Promise<SpiceEngine> {
+/**
+ * Load the CSPICE WASM module and return the synchronous typed bindings. The
+ * in-process path for callers that need the full surface without the promise
+ * wrapper, notably the frames tier (ADR M-0002) and conformance rigs.
+ */
+export async function createSpiceBindings(options?: SpiceEngineOptions): Promise<SpiceBindings> {
   const mod = await CSpice(options?.locateFile ? { locateFile: options.locateFile } : undefined);
-  const bindings = new SpiceBindings(mod);
+  return new SpiceBindings(mod);
+}
+
+export async function createSpiceEngine(options?: SpiceEngineOptions): Promise<SpiceEngine> {
+  const bindings = await createSpiceBindings(options);
 
   return {
     async furnsh(name, bytes) {

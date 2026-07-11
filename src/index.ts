@@ -424,7 +424,7 @@ export interface SpiceComputeEngine extends SpiceEngine {
 
 export type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.ts';
 export { SpiceBindings } from './bindings.ts';
-export { createSpiceEngine, type SpiceEngineOptions } from './engine.ts';
+export { createSpiceBindings, createSpiceEngine, type SpiceEngineOptions } from './engine.ts';
 export { createSpiceWorkerClient } from './client.ts';
 export { createSpiceWorkerPool, type SpiceWorkerPool } from './pool.ts';
 export { installSpiceWorker, dispatchSpice, JobCancelledError, type SpiceWorkerScope } from './worker-core.ts';
