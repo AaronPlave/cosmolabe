@@ -1,0 +1,15 @@
+{
+  "name": "cspice-wasm",
+  "description": "NAIF CSPICE compiled to WebAssembly with a typed full-surface wrapper, worker pool, and zero-copy batch API; extracted from bessel's spice layer per ADR M-0002 (the npm name is reserved; this workspace package is the internal publication)",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./worker": "./src/worker.ts",
+    "./worker-core": "./src/worker-core.ts",
+    "./wasm/cspice.mjs": "./wasm/cspice.mjs",
+    "./wasm/cspice.wasm": "./wasm/cspice.wasm"
+  },
+  "types": "./src/index.ts"
+}
