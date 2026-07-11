@@ -38,7 +38,7 @@ describe('@cosmolabe/frames heritage adapter', () => {
 
   it('answers time conversions like the oracle', () => {
     expect(et0).toBe(oracle.str2et('2004-07-01T02:00:00'));
-    expect(spice.utc2et('2004-07-01T02:00:00Z')).toBe(oracle.utc2et('2004-07-01T02:00:00'));
+    expect(spice.utc2et('2004-07-01T02:00:00')).toBe(oracle.utc2et('2004-07-01T02:00:00'));
     expect(spice.et2utc(et0, 'ISOC', 3).startsWith('2004-07-01T02:00:00')).toBe(true);
     expect(spice.timout(et0, 'YYYY-MM-DD HR:MN:SC ::UTC')).toContain('2004-07-01');
     expect(spice.unitim(et0, 'TDB', 'TDB')).toBe(et0);
@@ -141,5 +141,82 @@ describe('@cosmolabe/frames heritage adapter', () => {
     scratch.clear();
     expect(scratch.totalLoaded()).toBe(0);
     expect(scratch.frames.kernels().count).toBe(0);
+  });
+
+  // ── the charter, pinned one row at a time ─────────────────────────────────
+  // Every semantic choice enumerated in the heritage-spice.ts charter doc
+  // block has exactly one test here. A change to any of these is a change to
+  // measured heritage behavior and belongs in a reviewed migration, never in
+  // a refactor.
+
+  describe('charter: correction handling', () => {
+    it('passes every heritage correction verbatim, including the transmission set', () => {
+      const corrections = [
+        'NONE', 'LT', 'LT+S', 'CN', 'CN+S', 'XLT', 'XLT+S', 'XCN', 'XCN+S',
+      ] as const;
+      for (const abcorr of corrections) {
+        const a = spice.spkezr('CASSINI', et0, 'J2000', abcorr, 'SATURN');
+        const r = oracle.spkezr('CASSINI', et0, 'J2000', abcorr, 'SATURN');
+        expect(a.state[0]).toBe(r.position.x);
+        expect(a.lightTime).toBe(r.lightTime);
+        const p = spice.spkpos('CASSINI', et0, 'J2000', abcorr, 'SATURN');
+        expect(p.position[0]).toBe(oracle.spkpos('CASSINI', et0, 'J2000', abcorr, 'SATURN').position.x);
+      }
+    });
+  });
+
+  describe('charter: frame handling', () => {
+    it('passes frame strings verbatim with no default frame of its own', () => {
+      for (const frame of ['J2000', 'ECLIPJ2000', 'IAU_SATURN']) {
+        const a = spice.spkezr('CASSINI', et0, frame, 'NONE', 'SATURN');
+        const r = oracle.spkezr('CASSINI', et0, frame, 'NONE', 'SATURN');
+        expect(a.state).toEqual([
+          r.position.x, r.position.y, r.position.z,
+          r.velocity.x, r.velocity.y, r.velocity.z,
+        ]);
+      }
+    });
+  });
+
+  describe('charter: epoch parsing', () => {
+    it('str2et strips one trailing Z, exactly as heritage does', () => {
+      expect(spice.str2et('2004-07-01T02:00:00Z')).toBe(oracle.str2et('2004-07-01T02:00:00'));
+    });
+    it('utc2et passes verbatim, so a trailing Z fails loudly as heritage does', () => {
+      expect(spice.utc2et('2004-07-01T02:00:00')).toBe(oracle.utc2et('2004-07-01T02:00:00'));
+      expect(() => spice.utc2et('2004-07-01T02:00:00Z')).toThrow(SpiceError);
+    });
+  });
+
+  describe('charter: window semantics', () => {
+    it('searches each cnfine window independently and concatenates in order', () => {
+      const w1 = { start: et0, end: et0 + 3600 };
+      const w2 = { start: et0 + 7200, end: et0 + 10800 };
+      const windows = spice.gfdist('SUN', 'NONE', 'CASSINI', '<', 2.0e9, 0, 1800, [w1, w2]);
+      expect(windows.length).toBe(2);
+      expect(windows[0]!.start).toBeCloseTo(w1.start, 3);
+      expect(windows[0]!.end).toBeCloseTo(w1.end, 3);
+      expect(windows[1]!.start).toBeCloseTo(w2.start, 3);
+      expect(windows[1]!.end).toBeCloseTo(w2.end, 3);
+    });
+  });
+
+  describe('charter: instrument geometry', () => {
+    it('getfov defaults maxBounds to 20, as heritage does', async () => {
+      const NAC = -82360;
+      const ik = fixtureBytes('cas_iss_v10.ti');
+      await spice.furnish({
+        type: 'buffer',
+        data: ik.buffer.slice(ik.byteOffset, ik.byteOffset + ik.byteLength),
+        filename: 'cas_iss_v10.ti',
+      });
+      oracle.furnsh('cas_iss_v10.ti', ik);
+      const fov = spice.getfov(NAC);
+      const ref = oracle.getfov(NAC, 20);
+      expect(fov.shape).toBe(ref.shape);
+      expect(fov.frame).toBe(ref.frame);
+      expect(fov.boresight).toEqual([ref.boresight.x, ref.boresight.y, ref.boresight.z]);
+      expect(fov.bounds.length).toBe(ref.bounds.length);
+    });
   });
 });

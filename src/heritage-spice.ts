@@ -9,10 +9,46 @@
 // declarations before the packages/ restructure, and TypeScript matches the
 // shapes, not the names.
 //
-// Members whose CSPICE entry points are absent from the WASM export allowlist
-// (cidfrm, fovray, fovtrg, and a nonzero gfdist adjust) throw a typed
-// SpiceError: no cosmolabe runtime path calls them today, and silence would
-// hide a semantic gap. Extend the allowlist deliberately when one is needed.
+// Charter. The adapter makes no semantic choice it did not inherit: every
+// choice below matches measured heritage behavior, is pinned one for one by
+// the charter block in heritage-spice.test.ts, and is value-checked against
+// the live timecraftjs wrapper by the differential harness. Enumerated:
+//   correction   spkpos, spkezr, the gf finders, and the geometry calls take
+//                the caller's aberration correction verbatim; the adapter
+//                never defaults, never substitutes, and accepts the full
+//                nine-value heritage union (the contract's five plus the
+//                transmission corrections) through the tier's own primitive.
+//   frame        every frame string passes through verbatim (spkpos, spkezr,
+//                pxform via FramesService.chain, sxform, sincpt dref and
+//                fixref); the adapter introduces no frame conversion of its
+//                own and owns no default frame.
+//   epochs       str2et strips one trailing Z before str2et_c, exactly as
+//                heritage Spice.str2et does; utc2et passes the string
+//                verbatim, exactly as heritage does, so a Z-suffixed input
+//                fails loudly on both paths identically.
+//   shapes       sub-point results carry planetocentric longitude
+//                atan2(y, x), latitude atan2(z, hypot(x, y)), and altitude
+//                |srfvec|, the heritage reclat semantics; matrices stay
+//                row-major; quaternions never appear on this surface.
+//   windows      the gf finders search each cnfine window independently and
+//                concatenate results in cnfine order; spkcov unions segment
+//                windows across every furnished SPK, ascending and merged;
+//                getfov defaults maxBounds to 20 as heritage does.
+//   gaps         members whose CSPICE entry points are absent from the WASM
+//                export allowlist (cidfrm, fovray, fovtrg, a nonzero gfdist
+//                adjust, KernelSource type 'file') throw a typed SpiceError:
+//                no cosmolabe runtime path calls them today, and silence
+//                would hide a semantic gap. Extend the allowlist
+//                deliberately when a caller appears.
+//
+// Dissolution plan (recorded here and in docs/collab/RE-ENTRY-BRIEF.md): this
+// adapter is scaffolding with a defined end state, not a load-bearing
+// abstraction. At the packages/ restructure, core call sites migrate from
+// the SpiceInstance surface to explicit StateQuery and FramesService calls
+// as Class B work in Aaron's paths (baseline-diffed, correction explicit at
+// every migrated call site), and the adapter shrinks method by method toward
+// zero; if any residue earns permanence, that is decided by ADR with Aaron,
+// not by default.
 
 import {
   createSpiceBindings,
@@ -316,7 +352,9 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
       return bindings.et2utc(et, format, precision);
     },
     utc2et(utcString) {
-      return bindings.utc2et(utcString.endsWith('Z') ? utcString.slice(0, -1) : utcString);
+      // Verbatim, per the charter: heritage utc2et does not strip a trailing
+      // Z (only str2et does), so a Z-suffixed input fails loudly here too.
+      return bindings.utc2et(utcString);
     },
     et2lst(et, bodyId, longitude, type) {
       return bindings.et2lst(et, bodyId, longitude, type);
