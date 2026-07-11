@@ -24,8 +24,14 @@ export type {
 } from './contracts.ts';
 export {
   createFramesLayer,
+  framesLayerOver,
   describeChain,
   type FramesLayer,
   type FramesLayerOptions,
 } from './frames.ts';
+export {
+  createHeritageSpice,
+  type HeritageSpice,
+  type HeritageSpiceOptions,
+} from './heritage-spice.ts';
 export { sha256Hex, sha256HexOfText } from './sha256.ts';

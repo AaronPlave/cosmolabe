@@ -89,7 +89,16 @@ export function describeChain(chain: FrameChain): string {
 
 /** Create the frames layer: loads the CSPICE WASM module and binds both contracts to it. */
 export async function createFramesLayer(options?: FramesLayerOptions): Promise<FramesLayer> {
-  const bindings = await createSpiceBindings(options);
+  return framesLayerOver(await createSpiceBindings(options));
+}
+
+/**
+ * Bind the frames layer over an existing bindings instance, sharing its
+ * kernel pool. The heritage adapter uses this so its auxiliary surface
+ * (coverage walks, body ids, geometry passthroughs) and the contracts operate
+ * on one SPICE state.
+ */
+export function framesLayerOver(bindings: SpiceBindings): FramesLayer {
   const furnished: KernelInfo[] = [];
 
   /** Resolve a body to its body-fixed frame: an explicit frame name passes
