@@ -23,8 +23,16 @@ export async function createSpiceBindings(options?: SpiceEngineOptions): Promise
 }
 
 export async function createSpiceEngine(options?: SpiceEngineOptions): Promise<SpiceEngine> {
-  const bindings = await createSpiceBindings(options);
+  return spiceEngineOver(await createSpiceBindings(options));
+}
 
+/**
+ * Bind the promise-surface engine over an existing bindings instance, sharing
+ * its kernel pool. The compute plane (M-0004) uses this so an engine and a
+ * frames layer operate on one SPICE state and a product's kernel set hash
+ * describes exactly the pool the engine computed with.
+ */
+export function spiceEngineOver(bindings: SpiceBindings): SpiceEngine {
   return {
     async furnsh(name, bytes) {
       bindings.furnsh(name, bytes);
