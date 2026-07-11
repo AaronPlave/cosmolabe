@@ -1,0 +1,10 @@
+{
+  "name": "@bessel/interop",
+  "description": "Standard-format ingest and export: CCSDS OEM/CDM/AEM parsing and OEM writing plus CSV and CZML serialization",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "types": "./src/index.ts",
+  "dependencies": {}
+}
