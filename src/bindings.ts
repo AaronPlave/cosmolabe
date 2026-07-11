@@ -577,6 +577,150 @@ export class SpiceBindings {
     return this.mod.FS.readFile(path);
   }
 
+  /** Format an ET with a timout picture string (timout). */
+  timout(et: number, pictur: string): string {
+    return this.scope(() => {
+      const out = this.scratch(128);
+      this.call('timout_c', et, this.str(pictur), 128, out);
+      this.checkFailed();
+      return this.mod.UTF8ToString(out);
+    });
+  }
+
+  /** Convert an epoch between uniform time systems (unitim), e.g. TDB to TDT. */
+  unitim(epoch: number, insys: string, outsys: string): number {
+    return this.scope(() => {
+      const result = this.call('unitim_c', epoch, this.str(insys), this.str(outsys));
+      this.checkFailed();
+      return result;
+    });
+  }
+
+  /** Body name to NAIF id (bodn2c); null when the name is not recognized. */
+  bodn2c(name: string): number | null {
+    return this.scope(() => {
+      const code = this.scratch(4);
+      const found = this.scratch(4);
+      this.call('bodn2c_c', this.str(name), code, found);
+      this.checkFailed();
+      return this.readInt(found) === 0 ? null : this.readInt(code);
+    });
+  }
+
+  /** NAIF id to body name (bodc2n); null when the id has no name. */
+  bodc2n(code: number): string | null {
+    return this.scope(() => {
+      const out = this.scratch(64);
+      const found = this.scratch(4);
+      this.call('bodc2n_c', code, 64, out, found);
+      this.checkFailed();
+      return this.readInt(found) === 0 ? null : this.mod.UTF8ToString(out);
+    });
+  }
+
+  /** Sub-solar point on target (subslr); same result shape as subpnt. */
+  subslr(
+    method: string,
+    target: string,
+    et: number,
+    fixref: string,
+    abcorr: AberrationCorrection,
+    observer: string,
+  ): SubPointResult {
+    return this.scope(() => {
+      const spoint = this.scratch(24);
+      const trgepc = this.scratch(8);
+      const srfvec = this.scratch(24);
+      this.call(
+        'subslr_c',
+        this.str(method),
+        this.str(target),
+        et,
+        this.str(fixref),
+        this.str(abcorr),
+        this.str(observer),
+        spoint,
+        trgepc,
+        srfvec,
+      );
+      this.checkFailed();
+      return {
+        point: this.readVec3(spoint),
+        trgepc: this.readDouble(trgepc),
+        srfvec: this.readVec3(srfvec),
+      };
+    });
+  }
+
+  /**
+   * Walk the DAF summaries of a staged SPK. spkobj_c and spkcov_c are not in
+   * the WASM export allowlist, but every SPK segment descriptor (ND=2, NI=6)
+   * carries the coverage window in its two doubles and the target id in its
+   * first integer, so the daf* exports reconstruct both queries exactly.
+   */
+  private walkSpkSummaries(
+    name: string,
+    visit: (body: number, start: number, end: number) => void,
+  ): void {
+    this.scope(() => {
+      const path = `${KERNEL_DIR}/${name}`;
+      if (!this.mod.FS.analyzePath(path).exists) {
+        throw new SpiceError(`spk summary walk: no staged kernel named '${name}'`);
+      }
+      const handlePtr = this.scratch(4);
+      this.call('dafopr_c', this.str(path), handlePtr);
+      this.checkFailed();
+      const handle = this.readInt(handlePtr);
+      try {
+        this.call('dafbfs_c', handle);
+        this.checkFailed();
+        const found = this.scratch(4);
+        const sum = this.scratch(5 * 8); // ND doubles + NI ints packed
+        const dc = this.scratch(2 * 8);
+        const ic = this.scratch(6 * 4);
+        for (;;) {
+          this.call('daffna_c', found);
+          this.checkFailed();
+          if (this.readInt(found) === 0) break;
+          this.call('dafgs_c', sum);
+          this.checkFailed();
+          this.call('dafus_c', sum, 2, 6, dc, ic);
+          this.checkFailed();
+          visit(this.readInt(ic), this.readDouble(dc), this.readDouble(dc + 8));
+        }
+      } finally {
+        this.call('dafcls_c', handle);
+        this.checkFailed();
+      }
+    });
+  }
+
+  /** NAIF ids of every body carried by a staged SPK (spkobj equivalent). */
+  spkObjects(name: string): number[] {
+    const ids = new Set<number>();
+    this.walkSpkSummaries(name, (body) => ids.add(body));
+    return [...ids].sort((a, b) => a - b);
+  }
+
+  /**
+   * Coverage windows of `body` in a staged SPK (spkcov equivalent), as
+   * [start, end] ET pairs sorted by start with overlapping segments merged.
+   */
+  spkCoverage(name: string, body: number): [number, number][] {
+    const raw: [number, number][] = [];
+    this.walkSpkSummaries(name, (b, start, end) => {
+      if (b === body) raw.push([start, end]);
+    });
+    raw.sort((a, b) => a[0] - b[0]);
+    const merged: [number, number][] = [];
+    for (const w of raw) {
+      const last = merged[merged.length - 1];
+      if (last && w[0] <= last[1]) last[1] = Math.max(last[1], w[1]);
+      else merged.push([w[0], w[1]]);
+    }
+    return merged;
+  }
+
   /** Ephemeris seconds past J2000 (ET) to continuous encoded SCLK ticks (sce2c). */
   sce2c(sc: number, et: number): number {
     return this.scope(() => {

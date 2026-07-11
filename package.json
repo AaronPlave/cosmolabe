@@ -5,11 +5,23 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./worker": "./src/worker.ts",
-    "./worker-core": "./src/worker-core.ts",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "development": "./src/worker.ts",
+      "import": "./dist/worker.js"
+    },
+    "./worker-core": {
+      "types": "./dist/worker-core.d.ts",
+      "development": "./src/worker-core.ts",
+      "import": "./dist/worker-core.js"
+    },
     "./wasm/cspice.mjs": "./wasm/cspice.mjs",
     "./wasm/cspice.wasm": "./wasm/cspice.wasm"
   },
-  "types": "./src/index.ts"
+  "types": "./dist/index.d.ts"
 }
