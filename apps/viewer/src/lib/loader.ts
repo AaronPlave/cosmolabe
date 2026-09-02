@@ -8,7 +8,15 @@
  */
 import * as THREE from 'three';
 import { Universe, loadCatalogFromUrl, type ResolvedCatalogGraph, type ResolvedKernel } from '@cosmolabe/core';
-import { Spice, type SpiceInstance } from '@cosmolabe/spice';
+import type { SpiceInstance } from '@cosmolabe/spice';
+// The runtime SPICE instance is @cosmolabe/frames' heritage adapter over
+// cspice-wasm. SpiceInstance stays as the type of the exported getSpice()
+// accessor: it is the interface this app programs against, and naming it here
+// keeps that contract explicit even though the implementation moved.
+// The ?url import hands Vite's emitted wasm asset to the engine's locateFile —
+// only the bundler knows where that asset lands.
+import { createHeritageSpice } from '@cosmolabe/frames';
+import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin } from '@cosmolabe/three';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
@@ -109,7 +117,7 @@ async function fetchWithProgress(
 async function ensureSpice(): Promise<SpiceInstance> {
   if (!spice) {
     setLoadingState({ label: 'Initializing SPICE...' });
-    spice = await Spice.init();
+    spice = await createHeritageSpice({ locateFile: () => cspiceWasmUrl });
   }
   return spice;
 }
