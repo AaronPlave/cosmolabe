@@ -49,6 +49,7 @@ export type { OrientationRecord } from './rotations/InterpolatedRotation.js';
 export {
   alignPositionToFrame,
   bodyTrajectoryFrameName,
+  bodyPositionFrame,
   rotateVecByQuat,
   multiplyQuat,
   frameAlignmentQuat,
