@@ -6,10 +6,11 @@
 // Additive evolution updates this snapshot in the same commit, deliberately;
 // anything else is a breaking change.
 //
-// Note the Exact/keyof assertions only bite where a typechecker runs, and
-// this repo excludes __tests__ from tsc --build, so today the runtime export
-// list below is the part that actually holds. Worth wiring a test typecheck
-// step at some point; the snapshot is written to be ready for it.
+// The Exact/keyof assertions only bite where a typechecker runs. That step now
+// exists — `npm run typecheck:tests` (tsconfig.test.json) — so these hold for
+// real. They did not before, and the first run found a pin referencing
+// `OemProductOptions`, a type that left with `oem-product.ts` during the
+// harvest: the assertion had quietly evaluated to `false` and nothing read it.
 
 import { describe, it, expect } from 'vitest';
 import * as api from './index.js';
@@ -111,9 +112,9 @@ type _CsvTimeSystemExact = Assert<Exact<api.CsvTimeSystem, 'UTC' | 'TDB' | 'TAI'
 
 // ── options member pins (rename or removal fails typecheck) ──────────────────
 
-type _OemProductOptionsKeys = Assert<
-  Exact<keyof api.OemProductOptions, 'fileName' | 'kind' | 'toEt'>
->;
+// `OemProductOptions` is intentionally absent: `oem-product.ts` typed against
+// the deferred compute product schema and was dropped when this package was
+// harvested, so there is no pin for it to hold.
 type _SeriesCsvOptionsKeys = Assert<
   Exact<keyof api.SeriesCsvOptions, 'epochHeader' | 'epochLabels' | 'digits' | 'meta'>
 >;

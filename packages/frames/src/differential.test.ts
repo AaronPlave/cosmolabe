@@ -393,9 +393,19 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
 
   describe('instrument fields of view', () => {
     it('getfov agrees', () => {
-      for (const inst of ['-82360', '-82361']) {
+      // NAIF ids, not strings: `getfov` takes an integer instrument id. Passed
+      // as strings both engines returned the same nothing, so this agreed
+      // without exercising either — the failure mode a test typecheck catches.
+      for (const inst of [-82360, -82361]) {
         const h = heritage.getfov(inst, 20);
         const l = legacy.getfov(inst, 20);
+        // Agreement on nothing is not agreement: pin that a real FOV came
+        // back before comparing the two engines' answers.
+        expect(['CIRCLE', 'ELLIPSE', 'RECTANGLE', 'POLYGON'], `${inst} shape`).toContain(h.shape);
+        expect(h.frame, `${inst} frame is named`).toBeTruthy();
+        expect(Math.hypot(...h.boresight), `${inst} boresight is a direction`).toBeGreaterThan(0);
+        expect(h.bounds.length, `${inst} has boundary vectors`).toBeGreaterThan(0);
+
         expect(h.shape, `${inst} shape`).toBe(l.shape);
         expect(h.frame, `${inst} frame`).toBe(l.frame);
         expectNumbersClose(h.boresight, l.boresight, `${inst} boresight`);
