@@ -7,7 +7,13 @@
  * initializes the scene. There is no per-mission code path.
  */
 import * as THREE from 'three';
-import { Universe, loadCatalogFromUrl, type ResolvedCatalogGraph, type ResolvedKernel } from '@cosmolabe/core';
+import {
+  Universe,
+  loadCatalogFromUrl,
+  bodyFixedOffsetToWorld,
+  type ResolvedCatalogGraph,
+  type ResolvedKernel,
+} from '@cosmolabe/core';
 import type { SpiceInstance } from '@cosmolabe/spice';
 // The runtime SPICE instance is @cosmolabe/frames' heritage adapter over
 // cspice-wasm. SpiceInstance stays as the type of the exported getSpice()
@@ -471,22 +477,12 @@ function initScene(
       pos = { x: vpDef.eye[0] * scaleFactor, y: vpDef.eye[1] * scaleFactor, z: vpDef.eye[2] * scaleFactor };
     } else if (vpDef.distance != null) {
       const dist = vpDef.distance * scaleFactor;
-      const lon = ((vpDef.longitude ?? 0) * Math.PI) / 180;
-      const lat = ((vpDef.latitude ?? 0) * Math.PI) / 180;
-      // Body-fixed Cartesian (Z = pole, X = prime meridian) at distance `dist`
-      // in the direction of (lat, lon). This is the same convention trajectories
-      // and pick-marker code use; the rotation below maps it to world coords.
-      pos = {
-        x: dist * Math.cos(lat) * Math.cos(lon),
-        y: dist * Math.cos(lat) * Math.sin(lon),
-        z: dist * Math.sin(lat),
-      };
-      // Viewpoint distance + lat/lon are intended as a body-fixed offset from
-      // the tracked body (e.g. "Jezero Overhead" should point at Jezero on
-      // Mars, not at random inertial coords that Mars no longer faces). Rotate
-      // the position by the tracked body's (or its parent's) body-fixed →
-      // inertial transform at defaultTime so the camera lands at the right
-      // surface location.
+      // Viewpoint distance + lat/lon are a body-fixed offset from the tracked
+      // body (e.g. "Jezero Overhead" should point at Jezero on Mars, not at
+      // inertial coords Mars no longer faces), so it is mapped to world coords
+      // through the tracked body's (or its parent's) orientation at
+      // defaultTime. The convention and the composition both live in core's
+      // `bodyFixedOffsetToWorld` so they are tested against SPICE.
       const refBody = vpDef.center ? universe.getBody(vpDef.center) : undefined;
       // For a body that itself spins (planet, moon), use the body's own rotation.
       // For a child of a spinning body (e.g. Ingenuity → Mars), use the parent's rotation.
@@ -494,17 +490,27 @@ function initScene(
         ? refBody
         : refBody?.parentName ? universe.getBody(refBody.parentName) : undefined;
       const q = spinBody?.rotationAt(universe.time);
-      if (q) {
-        // rotationAt returns inertial → body-fixed. Use conjugate to go the other way.
-        const qw = q[0], qx = -q[1], qy = -q[2], qz = -q[3];
-        const tx = 2 * (qy * pos.z - qz * pos.y);
-        const ty = 2 * (qz * pos.x - qx * pos.z);
-        const tz = 2 * (qx * pos.y - qy * pos.x);
-        pos = {
-          x: pos.x + qw * tx + (qy * tz - qz * ty),
-          y: pos.y + qw * ty + (qz * tx - qx * tz),
-          z: pos.z + qw * tz + (qx * ty - qy * tx),
-        };
+      const sourceFrame = spinBody?.rotation?.sourceFrame;
+      if (q && sourceFrame) {
+        const [x, y, z] = bodyFixedOffsetToWorld(
+          dist,
+          vpDef.latitude ?? 0,
+          vpDef.longitude ?? 0,
+          q,
+          sourceFrame,
+        );
+        pos = { x, y, z };
+      } else {
+        // No rotation model to orient against: fall back to treating the
+        // offset as world-frame, which is what it degenerates to anyway.
+        const [x, y, z] = bodyFixedOffsetToWorld(
+          dist,
+          vpDef.latitude ?? 0,
+          vpDef.longitude ?? 0,
+          [1, 0, 0, 0],
+          'EclipticJ2000',
+        );
+        pos = { x, y, z };
       }
     } else {
       pos = { x: 0, y: 300, z: 500 };

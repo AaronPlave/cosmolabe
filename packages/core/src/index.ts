@@ -66,6 +66,7 @@ export {
   multiplyQuat,
   frameAlignmentQuat,
   composeBodyToWorldQuat,
+  bodyFixedOffsetToWorld,
 } from './kinematics.js';
 export type { Vec3 } from './kinematics.js';
 
