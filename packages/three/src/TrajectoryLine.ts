@@ -2,6 +2,9 @@ import type { Body } from "@cosmolabe/core";
 import * as THREE from "three";
 import type { TrajectoryCache } from "./TrajectoryCache.js";
 
+/** Scratch color for emphasis lerp (avoids per-call allocation). */
+const _emphTmp = /* @__PURE__ */ new THREE.Color();
+
 /** A color segment overrides the trail color for a time range. */
 export interface ColorSegment {
   startEt: number;
@@ -74,6 +77,10 @@ export class TrajectoryLine extends THREE.Object3D {
   private readonly trailDuration: number;
   private readonly leadDuration: number;
   private readonly baseColor: THREE.Color;
+  // Color the trail vertices are written with — equals baseColor at rest, lerped
+  // toward white when this line is hover-highlighted (so a faint additive trail
+  // reads clearly brighter, not just slightly more opaque).
+  private readonly _activeColor = new THREE.Color();
   private readonly fadeFraction: number;
   private readonly subdivisionPixels: number;
   private readonly staticOrbit: boolean;
@@ -83,6 +90,15 @@ export class TrajectoryLine extends THREE.Object3D {
   private orbitPositions: Float32Array | null = null;
   private readonly orbitPeriod: number;
   private readonly orbitNumPoints: number;
+
+  // Hover emphasis via opacity. Base opacities are captured at construction; the
+  // "rest" state sits slightly below them and "highlight" bumps bright.
+  private _baseTrailOpacity = 0.8;
+  private _baseOrbitOpacity = 0.35;
+  /** Opacity all lines rest at, so a hovered one stands out by brightening
+   *  (mirrors the label baseline). */
+  private static readonly REST_OPACITY_SCALE = 0.85;
+  private static readonly _white = /* @__PURE__ */ new THREE.Color(0xffffff);
 
   // Cache: separate expensive sample computation from cheap offset application
   private lastComputedEt = -Infinity;
@@ -171,6 +187,7 @@ export class TrajectoryLine extends THREE.Object3D {
               body.labelColor[2],
             )
           : new THREE.Color(0x4488ff);
+    this._activeColor.copy(this.baseColor);
     const colorHex = this.baseColor.getHex();
     this.staticOrbit = options.staticOrbit ?? false;
 
@@ -203,6 +220,7 @@ export class TrajectoryLine extends THREE.Object3D {
     this.trailLine.frustumCulled = false;
     this.trailLine.renderOrder = -1;
     this.add(this.trailLine);
+    this._baseTrailOpacity = trailMaterial.opacity;
 
     // Full orbit ring (faint)
     if (this.orbitPeriod > 0) {
@@ -224,7 +242,11 @@ export class TrajectoryLine extends THREE.Object3D {
       this.orbitLine.frustumCulled = false;
       this.orbitLine.renderOrder = -1;
       this.add(this.orbitLine);
+      this._baseOrbitOpacity = orbitMaterial.opacity;
     }
+
+    // Start at the slightly-reduced rest opacity so a hovered line stands out.
+    this.setEmphasis('rest');
   }
 
   setUserVisible(visible: boolean): void {
@@ -610,9 +632,9 @@ export class TrajectoryLine extends THREE.Object3D {
           const fadeT = (t - startEt) / totalDuration;
           const fade =
             this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
-          let cr = this.baseColor.r,
-            cg = this.baseColor.g,
-            cb = this.baseColor.b;
+          let cr = this._activeColor.r,
+            cg = this._activeColor.g,
+            cb = this._activeColor.b;
           for (const seg of this._colorSegments) {
             if (t >= seg.startEt && t <= seg.endEt) {
               cr = seg.color.r;
@@ -643,9 +665,9 @@ export class TrajectoryLine extends THREE.Object3D {
         const fadeT = (s.t - startEt) / totalDuration;
         const fade =
           this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
-        let cr = this.baseColor.r,
-          cg = this.baseColor.g,
-          cb = this.baseColor.b;
+        let cr = this._activeColor.r,
+          cg = this._activeColor.g,
+          cb = this._activeColor.b;
         for (const seg of this._colorSegments) {
           if (s.t >= seg.startEt && s.t <= seg.endEt) {
             cr = seg.color.r;
@@ -701,9 +723,9 @@ export class TrajectoryLine extends THREE.Object3D {
         const fadeT = (s.t - startEt) / totalDuration;
         const fade =
           this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
-        let cr = this.baseColor.r,
-          cg = this.baseColor.g,
-          cb = this.baseColor.b;
+        let cr = this._activeColor.r,
+          cg = this._activeColor.g,
+          cb = this._activeColor.b;
         for (const seg of this._colorSegments) {
           if (s.t >= seg.startEt && s.t <= seg.endEt) {
             cr = seg.color.r;
@@ -729,9 +751,9 @@ export class TrajectoryLine extends THREE.Object3D {
       const fadeT = (s.t - startEt) / totalDuration;
       const fade =
         this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
-      let cr = this.baseColor.r,
-        cg = this.baseColor.g,
-        cb = this.baseColor.b;
+      let cr = this._activeColor.r,
+        cg = this._activeColor.g,
+        cb = this._activeColor.b;
       for (const seg of this._colorSegments) {
         if (s.t >= seg.startEt && s.t <= seg.endEt) {
           cr = seg.color.r;
@@ -788,6 +810,41 @@ export class TrajectoryLine extends THREE.Object3D {
   /** Clear all color segments, reverting to the base color. */
   clearColorSegments(): void {
     this._colorSegments = [];
+  }
+
+  /**
+   * Hover emphasis via opacity (mirrors the label highlight). Every line sits at
+   * a slightly reduced "rest" opacity; the hovered body's line is bumped bright
+   * (and its orbit ring tinted toward white) so it stands out — no thickness
+   * change, just opacity/color on the normal `LineBasicMaterial` lines, so depth
+   * and occlusion stay exactly as the un-highlighted lines. O(1); persists until
+   * changed (the per-frame buffer rewrite only touches positions/vertex colors).
+   */
+  setEmphasis(state: 'highlight' | 'rest'): void {
+    const on = state === 'highlight';
+
+    // Brighten the trail's vertex color toward white (faint additive trails need
+    // a color bump, not just opacity, to read as highlighted). Force a recolor on
+    // the next buffer write.
+    const nextColor = on
+      ? _emphTmp.copy(this.baseColor).lerp(TrajectoryLine._white, 0.55)
+      : this.baseColor;
+    if (!this._activeColor.equals(nextColor)) {
+      this._activeColor.copy(nextColor);
+      this._bufferDirty = true;
+    }
+
+    const trailMat = this.trailLine.material as THREE.LineBasicMaterial;
+    trailMat.opacity = on
+      ? Math.min(1, this._baseTrailOpacity * 1.4)
+      : this._baseTrailOpacity * TrajectoryLine.REST_OPACITY_SCALE;
+    if (this.orbitLine) {
+      const orbitMat = this.orbitLine.material as THREE.LineBasicMaterial;
+      orbitMat.opacity = on
+        ? Math.min(1, this._baseOrbitOpacity * 2.5)
+        : this._baseOrbitOpacity * TrajectoryLine.REST_OPACITY_SCALE;
+      orbitMat.color.copy(this._activeColor);
+    }
   }
 
   /** Force a full resample on the next update (e.g. when the body's trajectory changes). */
