@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
-import type { Spice } from '@cosmolabe/spice';
+import type { SpiceInstance } from '@cosmolabe/spice';
 
 /** Bundled, always-present generic + Cassini kernels (`packages/spice/test-kernels`). */
 export const SPICE_TEST_KERNELS = join(__dirname, '../../../../spice/test-kernels');
@@ -33,7 +33,7 @@ export function readKernelBuffer(relPath: string, root: string = SPICE_TEST_KERN
 /** Furnish a list of `root`-relative kernel paths into a Spice instance, in
  *  order. Filenames are de-gzipped in the SPICE filesystem (`.gz` stripped). */
 export async function furnishKernels(
-  spice: Spice,
+  spice: SpiceInstance,
   relPaths: string[],
   root: string = SPICE_TEST_KERNELS,
 ): Promise<void> {
