@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import { Spice } from '../Spice.js';
+import { kernelArrayBuffer } from './_kernel-bytes.js';
 
 const KERNEL_DIR = join(__dirname, '../../../../apps/viewer/test-catalogs/kernels');
 
@@ -40,16 +41,16 @@ describe('LRO position validation', () => {
     const pck = readKernel('pck00011.tpc');
     const spk = readKernel('de440s.bsp');
 
-    await spice.furnish({ type: 'buffer', data: lsk.buffer, filename: 'naif0012.tls' });
-    await spice.furnish({ type: 'buffer', data: pck.buffer, filename: 'pck00011.tpc' });
-    await spice.furnish({ type: 'buffer', data: spk.buffer, filename: 'de440s.bsp' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(lsk), filename: 'naif0012.tls' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(pck), filename: 'pck00011.tpc' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(spk), filename: 'de440s.bsp' });
 
     // Load LRO kernels
     const lroSpk = readKernel('lro/lrorg_2024350_2025074_v01.bsp');
     const lroFrames = readKernel('lro/lro_frames_2014049_v01.tf');
 
-    await spice.furnish({ type: 'buffer', data: lroSpk.buffer, filename: 'lrorg_2024350_2025074_v01.bsp' });
-    await spice.furnish({ type: 'buffer', data: lroFrames.buffer, filename: 'lro_frames_2014049_v01.tf' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(lroSpk), filename: 'lrorg_2024350_2025074_v01.bsp' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(lroFrames), filename: 'lro_frames_2014049_v01.tf' });
 
     et = spice.str2et('2025-01-15T00:03:26');
   }, 30000);

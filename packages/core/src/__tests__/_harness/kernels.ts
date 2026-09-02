@@ -30,6 +30,23 @@ export function readKernelBuffer(relPath: string, root: string = SPICE_TEST_KERN
   }
 }
 
+/** A Buffer's own bytes as a standalone ArrayBuffer.
+ *
+ *  Not `buf.buffer`. `readFileSync` allocates results of 4096 bytes or less out
+ *  of Node's shared 8 KB Buffer pool, so for a small kernel `.buffer` is the
+ *  whole pool: the file sits at some `byteOffset` inside it, surrounded by
+ *  bytes from unrelated reads. Furnishing that hands SPICE a slab that merely
+ *  contains the kernel. Text kernels survive it because SPICE ignores anything
+ *  outside `\begindata`, which is why it went unnoticed — but it is luck, and
+ *  a binary kernel would not be so forgiving.
+ *
+ *  `tsc` reports the difference as ArrayBufferLike vs ArrayBuffer. This
+ *  function previously cast it away (`buf.buffer as ArrayBuffer`), which is
+ *  what let the bug in; it surfaced when tests were finally typechecked. */
+export function kernelArrayBuffer(buf: Buffer): ArrayBuffer {
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+}
+
 /** Furnish a list of `root`-relative kernel paths into a Spice instance, in
  *  order. Filenames are de-gzipped in the SPICE filesystem (`.gz` stripped). */
 export async function furnishKernels(
@@ -40,6 +57,6 @@ export async function furnishKernels(
   for (const rel of relPaths) {
     const buf = readKernelBuffer(rel, root);
     const filename = rel.split('/').pop()!.replace(/\.gz$/, '');
-    await spice.furnish({ type: 'buffer', data: buf.buffer as ArrayBuffer, filename });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(buf), filename });
   }
 }

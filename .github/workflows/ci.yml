@@ -49,5 +49,12 @@ jobs:
       - name: Typecheck + build
         run: npm run build
 
+      # Separate from `build`: the per-package projects emit the shipped
+      # library and several exclude their suites, so the tests are only
+      # typechecked here. Runs after build because it resolves cross-package
+      # imports through each package's built dist types.
+      - name: Typecheck tests
+        run: npm run typecheck:tests
+
       - name: Run tests
         run: npm test

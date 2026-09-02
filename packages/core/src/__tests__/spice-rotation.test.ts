@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Spice, type SpiceInstance } from '@cosmolabe/spice';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
+import { kernelArrayBuffer } from './_harness/kernels.js';
 
 const KERNEL_DIR = join(__dirname, '../../../spice/test-kernels');
 
@@ -37,9 +38,9 @@ describe('SpiceRotation integration', () => {
     const pck = readFileSync(join(KERNEL_DIR, 'pck00010.tpc'));
     const spk = readFileSync(join(KERNEL_DIR, 'de425s.bsp'));
 
-    await s.furnish({ type: 'buffer', data: lsk.buffer, filename: 'naif0012.tls' });
-    await s.furnish({ type: 'buffer', data: pck.buffer, filename: 'pck00010.tpc' });
-    await s.furnish({ type: 'buffer', data: spk.buffer, filename: 'de425s.bsp' });
+    await s.furnish({ type: 'buffer', data: kernelArrayBuffer(lsk), filename: 'naif0012.tls' });
+    await s.furnish({ type: 'buffer', data: kernelArrayBuffer(pck), filename: 'pck00010.tpc' });
+    await s.furnish({ type: 'buffer', data: kernelArrayBuffer(spk), filename: 'de425s.bsp' });
   }, 30000);
 
   it('quaternion is unit-length', () => {
