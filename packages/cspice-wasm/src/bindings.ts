@@ -19,7 +19,7 @@ import {
   type StateVector,
   type SubPointResult,
   type Vec3,
-} from './index.ts';
+} from './index.js';
 
 const KERNEL_DIR = '/kernels';
 

@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { CSpiceModule, CValueType } from 'cspice-wasm/wasm/cspice.mjs';
-import { SpiceBindings } from './bindings.ts';
+import { SpiceBindings } from './bindings.js';
 
 interface MockModule extends CSpiceModule {
   readonly stats: { mallocs: number; frees: number; live: Set<number> };

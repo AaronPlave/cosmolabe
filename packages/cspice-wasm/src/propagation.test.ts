@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
-import { createSpiceEngine, type CartesianState, type SpiceEngine } from './index.ts';
+import { createSpiceEngine, type CartesianState, type SpiceEngine } from './index.js';
 
 const fixture = (name: string) =>
   new Uint8Array(readFileSync(fileURLToPath(new URL(`../../../kernels/fixtures/${name}`, import.meta.url))));

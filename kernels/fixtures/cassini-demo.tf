@@ -1,0 +1,9 @@
+\begindata
+FRAME_BESSEL_CASSINI_CK            = -82000
+FRAME_-82000_NAME     = 'BESSEL_CASSINI_CK'
+FRAME_-82000_CLASS    = 3
+FRAME_-82000_CLASS_ID = -82000
+FRAME_-82000_CENTER   = -82
+CK_-82000_SCLK           = -82
+CK_-82000_SPK            = -82
+\begintext

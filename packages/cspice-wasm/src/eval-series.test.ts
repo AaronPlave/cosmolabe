@@ -17,8 +17,8 @@ import {
   type EvalSpec,
   type SpiceEngine,
   type SpiceWorkerScope,
-} from './index.ts';
-import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.ts';
+} from './index.js';
+import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
 
 const fixture = (name: string) =>
   new Uint8Array(readFileSync(fileURLToPath(new URL(`../../../kernels/fixtures/${name}`, import.meta.url))));

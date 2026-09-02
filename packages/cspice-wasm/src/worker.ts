@@ -2,6 +2,6 @@
 // and geometry calls never block rendering. Bundler shells that need to control
 // the wasm asset URL call installSpiceWorker directly (see worker-core.ts).
 
-import { installSpiceWorker, type SpiceWorkerScope } from './worker-core.ts';
+import { installSpiceWorker, type SpiceWorkerScope } from './worker-core.js';
 
 installSpiceWorker(self as unknown as SpiceWorkerScope);

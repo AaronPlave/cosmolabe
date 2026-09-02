@@ -40,9 +40,12 @@ const { position, lightTime } = await engine.spkpos('6', et, 'J2000', 'NONE', '1
 
 Depends on nothing in the workspace. Part of the core layer; it never imports a PAL
 implementation, UI, or shell. Kernel bytes are passed in by the caller (`furnsh(name, bytes)`),
-so the engine never reads kernel files directly. `@bessel/spice` remains as a thin facade
-re-exporting this package for bessel-heritage imports; the tier above it is
-`@cosmolabe/frames` (ADR M-0002), and nothing above that tier calls this package directly.
+so the engine never reads kernel files directly. The tier above it is `@cosmolabe/frames`
+(ADR M-0002), and nothing above that tier calls this package directly.
+
+(Upstream this paragraph also described a `@bessel/spice` facade that re-exported this
+package for bessel-heritage imports. That facade existed only to bridge two federated
+trees during the merge and was not harvested — there is one tree here.)
 
 ## Tests
 

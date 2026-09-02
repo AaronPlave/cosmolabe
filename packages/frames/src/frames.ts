@@ -26,8 +26,8 @@ import type {
   StateBatch,
   StateProvider,
   StateQuery,
-} from './contracts.ts';
-import { sha256Hex, sha256HexOfText } from './sha256.ts';
+} from './contracts.js';
+import { sha256Hex, sha256HexOfText } from './sha256.js';
 
 const CORRECTIONS: readonly Correction[] = ['NONE', 'LT', 'LT+S', 'CN', 'CN+S'];
 

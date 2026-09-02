@@ -21,17 +21,17 @@ export type {
   StateBatch,
   StateProvider,
   StateQuery,
-} from './contracts.ts';
+} from './contracts.js';
 export {
   createFramesLayer,
   framesLayerOver,
   describeChain,
   type FramesLayer,
   type FramesLayerOptions,
-} from './frames.ts';
+} from './frames.js';
 export {
   createHeritageSpice,
   type HeritageSpice,
   type HeritageSpiceOptions,
-} from './heritage-spice.ts';
-export { sha256Hex, sha256HexOfText } from './sha256.ts';
+} from './heritage-spice.js';
+export { sha256Hex, sha256HexOfText } from './sha256.js';

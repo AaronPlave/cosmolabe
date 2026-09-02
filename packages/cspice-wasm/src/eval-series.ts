@@ -4,7 +4,7 @@
 // heavy sweep is one worker round-trip instead of n. The loop yields periodically and
 // checks a cancellation token, so a long job can be aborted. (STK_PARITY_SPEC F3.)
 
-import { SpiceError, type AberrationCorrection, type SpiceEngine } from './index.ts';
+import { SpiceError, type AberrationCorrection, type SpiceEngine } from './index.js';
 
 /** A uniform time grid [start, stop] with step seconds (stop is included if it lands on a step). */
 export interface UniformGrid {
