@@ -47,6 +47,14 @@ const VIEWPORT = { width: 1024, height: 768 };
 const SCENES = [
   { catalog: 'cassini-soi', viewpoints: ['SOI (2004-07-01)', 'Ring Plane View'] },
   { catalog: 'earth-moon', viewpoints: [] }, // [] ⇒ default viewpoint
+  // The OEM ingest demo. Worth a scene of its own for a reason the numeric
+  // layers can't cover: the OEM body's file is fetched by the *viewer's*
+  // pre-fetch pass (collectDataRefs) because CatalogLoader's resolveFile is
+  // synchronous, and that pass only runs in the browser. If it ever stops
+  // recognizing the OEM trajectory type, the body silently degrades to a fixed
+  // point at Saturn's centre — a scene that still loads and looks nearly right.
+  // Here that shows up as the cyan arc vanishing.
+  { catalog: 'oem-ingest', viewpoints: [] },
 ];
 
 async function loadPlaywright() {
