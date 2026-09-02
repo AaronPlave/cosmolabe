@@ -128,6 +128,15 @@ export class UniverseRenderer {
   private animFrameId = 0;
   private readonly labelContainer: HTMLDivElement;
   private _dblClickRaycaster: THREE.Raycaster | null = null;
+  // Hover highlight (NASA-Eyes style). Pointer picks are coalesced to ≤1/frame
+  // via rAF; only a *change* in hovered body does any work.
+  private _hoveredBody: string | null = null;
+  private _hoverPickTimer = 0;
+  private _lastHoverPickMs = 0;
+  private _lastPointer = { x: 0, y: 0 };
+  /** Throttle hover picks to ~30 Hz — snappy without picking on every single
+   *  frame. The pick is cheap (label-only, against cached screen boxes). */
+  private static readonly _hoverPickIntervalMs = 33;
   private instrumentView: InstrumentView | null = null;
   /** Separate scene for camera-relative rendering of surface tile overlays. */
   private readonly tileScene: THREE.Scene;
@@ -313,6 +322,10 @@ export class UniverseRenderer {
     this._dblClickRaycaster = new THREE.Raycaster();
     canvas.addEventListener('click', this._onClick);
     canvas.addEventListener('dblclick', this._onDblClick);
+
+    // Hover highlight: emphasize the hovered body's trajectory line + label.
+    canvas.addEventListener('pointermove', this._onPointerMove);
+    canvas.addEventListener('pointerleave', this._onPointerLeave);
   }
 
   use(plugin: RendererPlugin): void {
@@ -1860,6 +1873,9 @@ export class UniverseRenderer {
     this.stop();
     this.renderer.domElement.removeEventListener('click', this._onClick);
     this.renderer.domElement.removeEventListener('dblclick', this._onDblClick);
+    this.renderer.domElement.removeEventListener('pointermove', this._onPointerMove);
+    this.renderer.domElement.removeEventListener('pointerleave', this._onPointerLeave);
+    if (this._hoverPickTimer) clearTimeout(this._hoverPickTimer);
     this.timeController.dispose();
     this.cameraController.dispose();
     for (const bm of this.bodyMeshes.values()) bm.dispose();
@@ -2744,8 +2760,13 @@ export class UniverseRenderer {
   /**
    * Pick the nearest body at a screen position — checks labels first (screen-space),
    * then raycasts against body meshes. Returns the body name or null.
+   *
+   * `labelOnly` skips the mesh raycast and only does the cheap screen-space label
+   * pick — used for per-move hover so mousing around doesn't raycast every body
+   * mesh each frame. `labelSlopPx` is how far outside a label's box still counts
+   * as a hit — small for hover (precise), generous for click-to-select.
    */
-  pickBody(screenX: number, screenY: number): string | null {
+  pickBody(screenX: number, screenY: number, labelOnly = false, labelSlopPx = 20): string | null {
     if (!this._dblClickRaycaster) return null;
     const rect = this.renderer.domElement.getBoundingClientRect();
     let bodyName: string | undefined;
@@ -2753,9 +2774,10 @@ export class UniverseRenderer {
     // 1. Screen-space label picking (priority — labels are always in front)
     if (this.labelManager) {
       bodyName = this.labelManager.pickNearest(
-        screenX, screenY, this.camera, rect.width, rect.height,
+        screenX, screenY, this.camera, rect.width, rect.height, labelSlopPx,
       );
     }
+    if (labelOnly) return bodyName ?? null;
 
     // 2. Raycast against body meshes (placeholder sphere) AND terrain meshes.
     // When the camera is near a planet's surface the placeholder sphere is hidden
@@ -2845,6 +2867,69 @@ export class UniverseRenderer {
       plugin.onPick?.(bm.body, et, this._ctx);
     }
   };
+
+  /**
+   * Pointer-move handler for hover highlight. Coalesces high-rate pointer events
+   * to one pick per animation frame, then debounces on the picked body's
+   * identity so the highlight only changes when the hovered body actually
+   * changes.
+   */
+  private _onPointerMove = (event: PointerEvent): void => {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this._lastPointer.x = event.clientX - rect.left;
+    this._lastPointer.y = event.clientY - rect.top;
+    if (this._hoverPickTimer) return; // a pick is already scheduled
+    const wait = Math.max(
+      0,
+      UniverseRenderer._hoverPickIntervalMs - (performance.now() - this._lastHoverPickMs),
+    );
+    this._hoverPickTimer = window.setTimeout(() => {
+      this._hoverPickTimer = 0;
+      this._lastHoverPickMs = performance.now();
+      // Label-only pick (cheap; runs while mousing) with a tight slop so the
+      // hover hitbox hugs the label text rather than a loose 20px halo.
+      const next = this.pickBody(this._lastPointer.x, this._lastPointer.y, true, 3);
+      if (next !== this._hoveredBody) this._applyHover(next);
+    }, wait);
+  };
+
+  private _onPointerLeave = (): void => {
+    if (this._hoverPickTimer) {
+      clearTimeout(this._hoverPickTimer);
+      this._hoverPickTimer = 0;
+    }
+    if (this._hoveredBody) this._applyHover(null);
+  };
+
+  /**
+   * Apply the hover highlight: emphasize the hovered body's trajectory line(s)
+   * via opacity (and its label), with every other line at the reduced rest
+   * opacity so the hovered one stands out. Single-slot — one body at a time.
+   * Public hosts can also drive this via `setHoveredBody`.
+   */
+  private _applyHover(next: string | null): void {
+    this._hoveredBody = next;
+
+    // A body's trajectory may be split into `${name}__arc{i}` lines, so match on
+    // the line's own body name rather than the map key — this emphasizes every
+    // arc of the hovered body.
+    for (const tl of this.trajectoryLines.values()) {
+      tl.setEmphasis(next != null && tl.body.name === next ? 'highlight' : 'rest');
+    }
+
+    this.labelManager?.setLabelHighlighted(next);
+    this.renderer.domElement.style.cursor = next ? 'pointer' : '';
+    this.events.emit('body:hovered', { bodyName: next });
+  }
+
+  /**
+   * Programmatically set the hovered/highlighted body (e.g. from a body-list or
+   * context-menu hover in the host app). Pass null to clear.
+   */
+  setHoveredBody(name: string | null): void {
+    if (name === this._hoveredBody) return;
+    this._applyHover(name);
+  }
 
   private renderLoop = (): void => {
     this.animFrameId = requestAnimationFrame(this.renderLoop);

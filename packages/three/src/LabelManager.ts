@@ -61,6 +61,11 @@ interface LabelEntry {
   // markers / trajectories without fighting the automated occlusion +
   // collision + self-size fades. Default 1 (no effect).
   opacityMultiplier: number;
+  // Hover emphasis multiplier on final opacity. Every label sits at a slightly
+  // reduced baseline (`_baseLabelOpacity`) so the hovered one — bumped to 1 —
+  // stands out by getting brighter rather than by dimming everything else.
+  // Opacity-only: label size and weight never change on hover.
+  emphasisOpacity: number;
 }
 
 /** Priority for keeping a label visible when bboxes overlap. Higher wins. */
@@ -95,6 +100,11 @@ export class LabelManager {
   private readonly _corner = new THREE.Vector3();
   private readonly _bodyScreen = new THREE.Vector3();
   private readonly _pinnedNames = new Set<string>();
+  // Hover highlight: at most one label highlighted at a time. `_hoverPinned`
+  // tracks whether *we* pinned it (so un-highlight only unpins if a host's
+  // selection didn't also pin the same label).
+  private _highlightedName: string | null = null;
+  private _hoverPinned: string | null = null;
   private _globalVisible = true;
 
   constructor(_container: HTMLElement, options: LabelManagerOptions = {}) {
@@ -108,16 +118,13 @@ export class LabelManager {
 
   addLabel(bodyMesh: BodyMesh): void {
     const name = bodyMesh.body.name;
-    const lc = bodyMesh.body.labelColor;
-    const color = lc
-      ? `rgb(${Math.round(lc[0] * 255)},${Math.round(lc[1] * 255)},${Math.round(lc[2] * 255)})`
-      : '#cccccc';
+    const color = this.labelColorString(bodyMesh.body);
 
     // Oversample the canvas texture so the sprite stays crisp at any device
     // pixel ratio. 4x covers DPR≤2 (the common retina case); the divide-by-2
     // term bumps to 6x/8x on DPR=3/4 displays so dragging the window across
     // monitors of different DPI doesn't soften the labels.
-    const textureFontSize = this.fontSize * 4 * Math.max(1, window.devicePixelRatio / 2);
+    const textureFontSize = this.texFontSizePx();
     const texture = this.createTextTexture(name, color, textureFontSize);
     const material = new THREE.SpriteMaterial({
       map: texture,
@@ -151,6 +158,7 @@ export class LabelManager {
       collisionFade: 1,
       selfSizeFade: 1,
       opacityMultiplier: 1,
+      emphasisOpacity: LabelManager._baseLabelOpacity,
     });
   }
 
@@ -195,6 +203,45 @@ export class LabelManager {
     this._pinnedNames.clear();
   }
 
+  /** Baseline opacity all labels render at, so the hovered one (bumped to 1)
+   *  stands out by getting brighter rather than by dimming the rest. */
+  private static readonly _baseLabelOpacity = 0.7;
+
+  /**
+   * Highlight a single label on hover (or pass null to clear). Opacity-only: the
+   * hovered label keeps its exact size and weight, is bumped from the baseline
+   * opacity to full, and is pinned so the collision / self-size fades can't hide
+   * it while the user points at it. Single-slot — highlighting a new label
+   * restores the previous one. Composes with host-set pins: un-highlight only
+   * unpins if *we* pinned it.
+   */
+  setLabelHighlighted(name: string | null): void {
+    if (this._highlightedName === name) return;
+
+    // Restore the previously highlighted label's pin.
+    const prev = this._highlightedName;
+    if (prev && this._hoverPinned === prev) {
+      this._pinnedNames.delete(prev);
+      this._hoverPinned = null;
+    }
+
+    this._highlightedName = name;
+    const entry = name ? this.labels.get(name) : undefined;
+    if (name && !entry) this._highlightedName = null;
+
+    // Hovered label → full opacity; everything else → baseline.
+    for (const [n, e] of this.labels) {
+      e.emphasisOpacity =
+        n === this._highlightedName ? 1 : LabelManager._baseLabelOpacity;
+    }
+
+    if (!entry) return;
+    if (!this._pinnedNames.has(name!)) {
+      this._pinnedNames.add(name!);
+      this._hoverPinned = name;
+    }
+  }
+
   /**
    * Rebuild every label's canvas texture at the current `window.devicePixelRatio`.
    * Call this after the host renderer detects a DPR change (e.g. window dragged
@@ -202,15 +249,15 @@ export class LabelManager {
    * the browser.
    */
   refreshTextures(): void {
-    const textureFontSize = this.fontSize * 4 * Math.max(1, window.devicePixelRatio / 2);
+    const textureFontSize = this.texFontSizePx();
     for (const entry of this.labels.values()) {
       const mat = entry.sprite.material as THREE.SpriteMaterial;
       const oldMap = mat.map;
-      const lc = entry.bodyMesh.body.labelColor;
-      const color = lc
-        ? `rgb(${Math.round(lc[0] * 255)},${Math.round(lc[1] * 255)},${Math.round(lc[2] * 255)})`
-        : '#cccccc';
-      mat.map = this.createTextTexture(entry.bodyMesh.body.name, color, textureFontSize);
+      mat.map = this.createTextTexture(
+        entry.bodyMesh.body.name,
+        this.labelColorString(entry.bodyMesh.body),
+        textureFontSize,
+      );
       mat.needsUpdate = true;
       entry.texFontSize = textureFontSize;
       oldMap?.dispose();
@@ -224,6 +271,9 @@ export class LabelManager {
       (entry.sprite.material as THREE.SpriteMaterial).map?.dispose();
       (entry.sprite.material as THREE.Material).dispose();
       this.labels.delete(name);
+      this._pinnedNames.delete(name);
+      if (this._highlightedName === name) this._highlightedName = null;
+      if (this._hoverPinned === name) this._hoverPinned = null;
     }
   }
 
@@ -364,7 +414,7 @@ export class LabelManager {
       // formula (occlusion * collisionFade * selfSizeFade * opacityMultiplier)
       // for entries it visits. Don't touch userData — applyOcclusionFade
       // owns that for its own temporal smoothing.
-      mat.opacity = entry.occlusionOpacity * selfSizeFade * entry.opacityMultiplier;
+      mat.opacity = entry.occlusionOpacity * selfSizeFade * entry.opacityMultiplier * entry.emphasisOpacity;
 
       // Stash the projected screen position + pixel size for the collision pass.
       this._projected.copy(sprite.position);
@@ -479,7 +529,8 @@ export class LabelManager {
         entry.occlusionOpacity *
         entry.selfSizeFade *
         entry.collisionFade *
-        entry.opacityMultiplier;
+        entry.opacityMultiplier *
+        entry.emphasisOpacity;
       if (!collides) placed.push({ x0, y0, x1, y1 });
     }
   }
@@ -605,55 +656,45 @@ export class LabelManager {
   pickNearest(
     screenX: number,
     screenY: number,
-    camera: THREE.Camera,
-    canvasWidth: number,
-    canvasHeight: number,
+    _camera: THREE.Camera,
+    _canvasWidth: number,
+    _canvasHeight: number,
     maxPixelDist = 20,
   ): string | undefined {
-    const projected = new THREE.Vector3();
     let bestName: string | undefined;
     let bestDist = maxPixelDist;
+
+    // Small box padding for easier targeting (most of the forgiveness comes from
+    // the caller's maxPixelDist slop, kept tight for hover).
+    const padX = 3;
+    const padY = 2;
+    // Use the *text* height (not the padded glow envelope) so the box isn't
+    // overly tall. On-screen text height = fontSize · labelScale (the renderer
+    // sizes labels to a fixed pixel size regardless of zoom).
+    const halfTextH = this.fontSize * this.labelScale * 0.5;
 
     for (const [name, entry] of this.labels) {
       const sprite = entry.sprite;
       if (!sprite.visible || !sprite.parent) continue;
-      // Skip labels that aren't actually rendering — occluded by a body
-      // (back-of-Earth ground stations / spacecraft), collision-faded, or
-      // self-size-faded. Without this the picker happily returns labels you
-      // can't see, so e.g. double-clicking Earth could "track" a satellite
-      // on the far side.
-      const mat = sprite.material as THREE.SpriteMaterial;
-      if (mat.opacity < 0.05) continue;
+      // Skip labels that aren't actually rendering — occluded by a body,
+      // collision-faded, or self-size-faded. Otherwise the picker returns labels
+      // you can't see (e.g. a satellite behind Earth).
+      if ((sprite.material as THREE.SpriteMaterial).opacity < 0.05) continue;
+      // widthPx/heightPx are set to 0 when the label is behind the camera.
+      if (entry.widthPx <= 0 || entry.heightPx <= 0) continue;
 
-      // Project label world position to screen pixels
-      projected.copy(sprite.position);
-      sprite.parent.localToWorld(projected);
-      projected.project(camera);
+      // Reuse the exact screen-space box update() computed each frame (the same
+      // one the collision pass uses) instead of re-deriving it from sprite.scale
+      // with a stale, zoom-dependent constant. The sprite is anchored left-center,
+      // so the box runs right from screenX (its full text+glow width covers long
+      // names like "Europa Clipper") and is vertically centered on screenY.
+      const x0 = entry.screenX - padX;
+      const x1 = entry.screenX + entry.widthPx + padX;
+      const y0 = entry.screenY - halfTextH - padY;
+      const y1 = entry.screenY + halfTextH + padY;
 
-      // Skip labels behind camera
-      if (projected.z > 1) continue;
-
-      const sx = (projected.x * 0.5 + 0.5) * canvasWidth;
-      const sy = (-projected.y * 0.5 + 0.5) * canvasHeight;
-
-      // Compute approximate label width in pixels from sprite scale.
-      // Sprite scale is normalized to ~600px viewport; reverse that to get screen pixels.
-      const aspect = sprite.scale.x / sprite.scale.y;
-      const labelHeightPx = sprite.scale.y * 600 / this.labelScale;
-      const labelWidthPx = labelHeightPx * aspect;
-
-      // Label is anchored at left-center (center = 0, 0.5), so the clickable
-      // region extends from (sx, sy) rightward by labelWidthPx, and ±halfHeight.
-      const halfH = labelHeightPx * 0.5;
-      // Expand the hitbox slightly for easier clicking
-      const padX = 6;
-      const padY = 4;
-      const dx = screenX < sx - padX ? sx - padX - screenX
-        : screenX > sx + labelWidthPx + padX ? screenX - sx - labelWidthPx - padX
-        : 0;
-      const dy = screenY < sy - halfH - padY ? sy - halfH - padY - screenY
-        : screenY > sy + halfH + padY ? screenY - sy - halfH - padY
-        : 0;
+      const dx = screenX < x0 ? x0 - screenX : screenX > x1 ? screenX - x1 : 0;
+      const dy = screenY < y0 ? y0 - screenY : screenY > y1 ? screenY - y1 : 0;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist < bestDist) {
@@ -672,6 +713,18 @@ export class LabelManager {
       (entry.sprite.material as THREE.Material).dispose();
     }
     this.labels.clear();
+  }
+
+  /** Texture rasterization font size, oversampled for the current DPR (see addLabel). */
+  private texFontSizePx(): number {
+    return this.fontSize * 4 * Math.max(1, window.devicePixelRatio / 2);
+  }
+
+  /** CSS color string for a body's label. */
+  private labelColorString(body: Body): string {
+    const lc = body.labelColor;
+    if (!lc) return '#cccccc';
+    return `rgb(${Math.round(lc[0] * 255)},${Math.round(lc[1] * 255)},${Math.round(lc[2] * 255)})`;
   }
 
   private createTextTexture(text: string, color: string, fontSize: number): THREE.CanvasTexture {
