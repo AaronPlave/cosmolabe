@@ -47,6 +47,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@cosmolabe/interop": "*",
     "@cosmolabe/spice": "*",
     "satellite.js": "^6.0.2"
   },

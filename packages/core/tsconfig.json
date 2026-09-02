@@ -4,8 +4,16 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts", "src/**/*.json"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.json"
+  ],
   "references": [
-    { "path": "../spice" }
+    {
+      "path": "../spice"
+    },
+    {
+      "path": "../interop"
+    }
   ]
 }
