@@ -42,6 +42,7 @@
       items: [
         { id: "solar-system", label: "Solar System Tour", desc: "Planets + Ceres + sample spacecraft arc" },
         { id: "sensor-demo", label: "Sensor Frustums", desc: "FOV cones from spacecraft instruments" },
+        { id: "oem-ingest", label: "CCSDS OEM Ingest", desc: "Cassini at Saturn flown from a text ephemeris — no spacecraft SPK" },
       ],
     },
     {

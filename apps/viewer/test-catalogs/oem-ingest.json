@@ -1,27 +1,34 @@
 {
   "name": "CCSDS OEM Ingest",
-  "defaultTime": "2004-07-01T02:48:00Z",
-  "defaultViewpoint": "SOI approach",
+  "defaultTime": "2004-07-01T06:40:00Z",
+  "defaultViewpoint": "SOI outbound",
   "spiceKernels": [
     "kernels/naif0012.tls",
     "kernels/pck00011.tpc"
   ],
   "items": [
     {
-      "name": "SOI approach",
+      "name": "SOI outbound",
       "type": "Viewpoint",
       "center": "Saturn",
-      "distance": 420000,
-      "latitude": 34,
-      "longitude": -58
+      "eye": [
+        229306.5,
+        -774125.9,
+        -296222.2
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
     },
     {
       "name": "Periapsis close-up",
       "type": "Viewpoint",
       "center": "Cassini",
-      "distance": 30000,
-      "latitude": 12,
-      "longitude": 115
+      "distance": 25000,
+      "latitude": 20,
+      "longitude": 110
     },
     {
       "name": "Sun",
