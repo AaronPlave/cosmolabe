@@ -5,9 +5,9 @@
 // grids, conjunction screening, and porkchop sweeps use every core without blocking
 // the UI. (STK_PARITY_SPEC F3.)
 
-import { createSpiceWorkerClient } from './client.ts';
-import { gridEpochs, type EvalSeriesResult, type EvalSpec } from './eval-series.ts';
-import type { SpiceComputeEngine } from './index.ts';
+import { createSpiceWorkerClient } from './client.js';
+import { gridEpochs, type EvalSeriesResult, type EvalSpec } from './eval-series.js';
+import type { SpiceComputeEngine } from './index.js';
 
 export interface SpiceWorkerPool extends SpiceComputeEngine {
   /** Number of workers in the pool. */

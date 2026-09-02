@@ -1,9 +1,33 @@
 {
   "name": "cspice-wasm",
-  "description": "NAIF CSPICE compiled to WebAssembly with a typed full-surface wrapper, worker pool, and zero-copy batch API; extracted from bessel's spice layer per ADR M-0002 (the npm name is reserved; this workspace package is the internal publication)",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
+  "description": "NAIF CSPICE compiled to WebAssembly with a typed full-surface wrapper, worker pool, and zero-copy batch API; extracted from bessel's spice layer per ADR M-0002 (the npm name is reserved; this workspace package is the internal publication)",
+  "author": "Paul M. Ramirez",
+  "contributors": [
+    "Aaron Plave"
+  ],
+  "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
+  "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaronPlave/cosmolabe.git",
+    "directory": "packages/cspice-wasm"
+  },
+  "keywords": [
+    "spice",
+    "cspice",
+    "naif",
+    "wasm",
+    "webassembly",
+    "ephemeris",
+    "spice-kernel",
+    "astronomy",
+    "space"
+  ],
   "type": "module",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -23,5 +47,14 @@
     "./wasm/cspice.mjs": "./wasm/cspice.mjs",
     "./wasm/cspice.wasm": "./wasm/cspice.wasm"
   },
-  "types": "./dist/index.d.ts"
+  "files": [
+    "dist",
+    "src",
+    "wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  }
 }

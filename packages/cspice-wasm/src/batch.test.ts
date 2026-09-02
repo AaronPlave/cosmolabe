@@ -5,9 +5,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
-import { createSpiceEngine, type SpiceEngine } from './index.ts';
-import { installSpiceWorker, type SpiceWorkerScope } from './worker-core.ts';
-import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.ts';
+import { createSpiceEngine, type SpiceEngine } from './index.js';
+import { installSpiceWorker, type SpiceWorkerScope } from './worker-core.js';
+import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
 
 const fixture = (name: string) =>
   new Uint8Array(readFileSync(fileURLToPath(new URL(`../../../kernels/fixtures/${name}`, import.meta.url))));

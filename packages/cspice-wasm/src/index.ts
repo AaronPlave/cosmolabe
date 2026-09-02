@@ -2,7 +2,7 @@
 // Worker. Phase 0 implements the engine and the worker transport; this module
 // is the public surface the renderer and geometry layers call.
 
-import type { EvalSpec, EvalSeriesResult } from './eval-series.ts';
+import type { EvalSpec, EvalSeriesResult } from './eval-series.js';
 
 export interface Vec3 {
   readonly x: number;
@@ -422,17 +422,17 @@ export interface SpiceComputeEngine extends SpiceEngine {
   evalSeries(spec: EvalSpec, signal?: AbortSignal): Promise<EvalSeriesResult>;
 }
 
-export type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.ts';
-export { SpiceBindings } from './bindings.ts';
+export type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
+export { SpiceBindings } from './bindings.js';
 export {
   createSpiceBindings,
   createSpiceEngine,
   spiceEngineOver,
   type SpiceEngineOptions,
-} from './engine.ts';
-export { createSpiceWorkerClient } from './client.ts';
-export { createSpiceWorkerPool, type SpiceWorkerPool } from './pool.ts';
-export { installSpiceWorker, dispatchSpice, JobCancelledError, type SpiceWorkerScope } from './worker-core.ts';
+} from './engine.js';
+export { createSpiceWorkerClient } from './client.js';
+export { createSpiceWorkerPool, type SpiceWorkerPool } from './pool.js';
+export { installSpiceWorker, dispatchSpice, JobCancelledError, type SpiceWorkerScope } from './worker-core.js';
 export {
   runEvalSpec,
   gridEpochs,
@@ -448,4 +448,4 @@ export {
   type ProviderDescriptor,
   type EvalSeriesResult,
   type EvalHooks,
-} from './eval-series.ts';
+} from './eval-series.js';

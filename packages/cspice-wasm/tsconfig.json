@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    // worker.ts / worker-core.ts run inside a DedicatedWorkerGlobalScope.
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    // No ambient @types in the build: the non-test sources are host-agnostic
+    // (the only node: imports are in tests, which this project excludes).
+    "types": []
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

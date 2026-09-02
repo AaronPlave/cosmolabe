@@ -2,10 +2,10 @@
 // worker.ts wires it to a plain module worker; bundler-specific shells (the Vite
 // web app) wire it with a locateFile that points at the emitted cspice.wasm asset.
 
-import { createSpiceEngine, type SpiceEngineOptions } from './engine.ts';
-import { SpiceError, type SpiceEngine } from './index.ts';
-import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.ts';
-import { runEvalSpec } from './eval-series.ts';
+import { createSpiceEngine, type SpiceEngineOptions } from './engine.js';
+import { SpiceError, type SpiceEngine } from './index.js';
+import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
+import { runEvalSpec } from './eval-series.js';
 
 export interface SpiceWorkerScope {
   onmessage: ((ev: MessageEvent<SpiceWorkerRequest>) => void) | null;
@@ -281,4 +281,4 @@ export function installSpiceWorker(scope: SpiceWorkerScope, options?: SpiceEngin
   };
 }
 
-export { JobCancelledError } from './eval-series.ts';
+export { JobCancelledError } from './eval-series.js';

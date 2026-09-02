@@ -18,8 +18,8 @@ import type {
   StateVector,
   SubPointResult,
   Vec3,
-} from './index.ts';
-import type { EvalSeriesResult, EvalSpec } from './eval-series.ts';
+} from './index.js';
+import type { EvalSeriesResult, EvalSpec } from './eval-series.js';
 
 export type SpiceWorkerRequest =
   | { id: number; method: 'furnsh'; name: string; bytes: Uint8Array }

@@ -9,8 +9,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createSpiceBindings, type SpiceBindings } from 'cspice-wasm';
-import { createFramesLayer, describeChain, type FramesLayer } from './index.ts';
-import type { Correction, StateQuery } from './index.ts';
+import { createFramesLayer, describeChain, type FramesLayer } from './index.js';
+import type { Correction, StateQuery } from './index.js';
 
 const fixtureBytes = (name: string) =>
   new Uint8Array(

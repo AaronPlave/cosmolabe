@@ -4,8 +4,8 @@
 // off the main thread; both paths share these bindings.
 
 import CSpice from 'cspice-wasm/wasm/cspice.mjs';
-import { SpiceBindings } from './bindings.ts';
-import type { AberrationCorrection, SpiceEngine } from './index.ts';
+import { SpiceBindings } from './bindings.js';
+import type { AberrationCorrection, SpiceEngine } from './index.js';
 
 export interface SpiceEngineOptions {
   /** Resolve the cspice.wasm URL. Bundlers (Vite) pass the emitted asset URL. */

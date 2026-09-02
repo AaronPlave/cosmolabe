@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Web mission visualization — SPICE-accurate geometry, TLE tracking, planetary terrain, and a 3D renderer",
+  "description": "Web mission visualization \u2014 SPICE-accurate geometry, TLE tracking, planetary terrain, and a 3D renderer",
   "author": "Aaron Plave",
   "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
   "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
@@ -29,7 +29,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "tsc --build packages/spice packages/core packages/three packages/cesium-adapter packages/cesium",
+    "build": "tsc --build packages/cspice-wasm packages/frames packages/spice packages/core packages/three packages/cesium-adapter packages/cesium",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint packages/ apps/",

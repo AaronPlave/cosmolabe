@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
-import { createSpiceBindings, SpiceError, type SpiceBindings } from './index.ts';
+import { createSpiceBindings, SpiceError, type SpiceBindings } from './index.js';
 
 const fixture = (name: string) =>
   new Uint8Array(

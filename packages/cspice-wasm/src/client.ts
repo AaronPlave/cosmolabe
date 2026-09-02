@@ -20,9 +20,9 @@ import {
   type StateVector,
   type SubPointResult,
   type Vec3,
-} from './index.ts';
-import type { EvalSeriesResult, EvalSpec } from './eval-series.ts';
-import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.ts';
+} from './index.js';
+import type { EvalSeriesResult, EvalSpec } from './eval-series.js';
+import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
 
 interface Pending {
   resolve: (value: unknown) => void;

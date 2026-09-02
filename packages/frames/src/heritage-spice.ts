@@ -58,7 +58,7 @@ import {
   type SpiceEngineOptions,
   type Vec3 as WVec3,
 } from 'cspice-wasm';
-import { framesLayerOver, type FramesLayer } from './frames.ts';
+import { framesLayerOver, type FramesLayer } from './frames.js';
 
 // ── structural mirrors of the @cosmolabe/spice types ────────────────────────
 
