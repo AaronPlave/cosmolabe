@@ -17,7 +17,15 @@
 *.bpc filter=lfs diff=lfs merge=lfs -text
 *.tif filter=lfs diff=lfs merge=lfs -text
 *.gz filter=lfs diff=lfs merge=lfs -text
-*.wasm filter=lfs diff=lfs merge=lfs -text
+
+# NOT LFS: *.wasm. WebAssembly modules are build-critical runtime artifacts,
+# not bulk assets — packages/cspice-wasm/wasm/cspice.wasm (1.4 MB) IS the SPICE
+# engine. A clone without git-lfs installed, or one that has exhausted the LFS
+# bandwidth quota, would silently produce a 130-byte pointer where the engine
+# should be and fail at runtime rather than at clone time. This repo is public
+# and cspice-wasm is meant to be published to npm (which has no LFS at all), so
+# the binary has to survive a plain `git clone`. Route a specific oversized
+# module through LFS with a path rule below if one ever shows up.
 
 # GPU-compressed textures (DXT) — ~1–6 MB each, consistently
 *.dds filter=lfs diff=lfs merge=lfs -text
