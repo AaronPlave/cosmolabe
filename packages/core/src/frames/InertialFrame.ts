@@ -1,5 +1,6 @@
 import type { RotationMatrix } from '@cosmolabe/spice';
 import type { Frame } from './Frame.js';
+import { OBLIQUITY_J2000_RAD } from '../constants.js';
 
 export class InertialFrame implements Frame {
   constructor(
@@ -14,10 +15,8 @@ export class InertialFrame implements Frame {
 
 const IDENTITY: RotationMatrix = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
-// Obliquity of the ecliptic at J2000: 23.4392911 degrees
-const eps = 23.4392911 * Math.PI / 180;
-const cosEps = Math.cos(eps);
-const sinEps = Math.sin(eps);
+const cosEps = Math.cos(OBLIQUITY_J2000_RAD);
+const sinEps = Math.sin(OBLIQUITY_J2000_RAD);
 
 // Rotation from equatorial J2000 to ecliptic J2000 (rotate about X by obliquity)
 const EQUATOR_TO_ECLIPTIC: RotationMatrix = [

@@ -1,5 +1,6 @@
 import type { Body } from './Body.js';
 import type { InertialFrameName, Quaternion } from './rotations/RotationModel.js';
+import { OBLIQUITY_J2000_RAD } from './constants.js';
 
 /**
  * Frame-aware kinematics primitives shared by `Universe.subPointOf` and
@@ -16,8 +17,6 @@ import type { InertialFrameName, Quaternion } from './rotations/RotationModel.js
 
 export type Vec3 = [number, number, number];
 
-// J2000 mean obliquity (IAU 1976), in radians.
-const OBLIQUITY_J2000_RAD = (23.4392911 * Math.PI) / 180;
 const OBLIQUITY_COS = Math.cos(OBLIQUITY_J2000_RAD);
 const OBLIQUITY_SIN = Math.sin(OBLIQUITY_J2000_RAD);
 // Half-angle terms for the equivalent quaternion form (see frameAlignmentQuat).

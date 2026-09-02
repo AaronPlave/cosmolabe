@@ -13,6 +13,11 @@ export { builtinCatalogs } from './builtin-catalogs/index.js';
 export type { BuiltinCatalogName } from './builtin-catalogs/index.js';
 
 // Trajectories
+export {
+  OBLIQUITY_J2000_ARCSEC,
+  OBLIQUITY_J2000_DEG,
+  OBLIQUITY_J2000_RAD,
+} from './constants.js';
 export type { CartesianState, Trajectory } from './trajectories/Trajectory.js';
 export { FixedPointTrajectory } from './trajectories/FixedPoint.js';
 export { KeplerianTrajectory } from './trajectories/Keplerian.js';

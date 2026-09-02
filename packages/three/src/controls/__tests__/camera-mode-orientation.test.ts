@@ -18,7 +18,9 @@ import type { Quaternion } from '@cosmolabe/core';
 import { bodyWorldOrientation } from '../CameraModes.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 
-const OBLIQUITY_DEG = 23.4392911;
+// The IAU 1976 value written out independently of src/constants.ts (84381.448
+// arcsec exactly), so this test still fails if that constant is ever wrong.
+const OBLIQUITY_DEG = 84381.448 / 3600;
 const OBLIQUITY_RAD = (OBLIQUITY_DEG * Math.PI) / 180;
 
 /** Minimal BodyMesh stub — the helper only reads body.rotation + body.rotationAt. */
