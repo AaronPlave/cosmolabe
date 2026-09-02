@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Three.js rendering layer — syncs Cosmolabe Universe to a 3D scene graph with terrain, atmosphere, eclipse shadows, sensor frustums, and a plugin system.",
+  "description": "Three.js rendering layer \u2014 syncs Cosmolabe Universe to a 3D scene graph with terrain, atmosphere, eclipse shadows, sensor frustums, and a plugin system.",
   "author": "Aaron Plave",
   "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
   "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
@@ -50,9 +50,11 @@
     "access": "public"
   },
   "dependencies": {
+    "3d-tiles-renderer": "0.4.27",
     "@cosmolabe/core": "*",
+    "@cosmolabe/frames": "*",
     "@types/three": "^0.183.1",
-    "3d-tiles-renderer": "0.4.27"
+    "cspice-wasm": "*"
   },
   "peerDependencies": {
     "three": "^0.183.2"

@@ -1,17 +1,30 @@
 /**
  * Web Worker for off-main-thread trajectory cache building.
  *
- * Initializes its own timecraftjs SPICE instance, loads kernels from URLs
- * (browser HTTP cache makes re-fetching instant), and builds trajectory
- * caches using adaptive sampling + Visvalingam-Whyatt simplification.
+ * Initializes its own SPICE instance, loads kernels from URLs (browser HTTP
+ * cache makes re-fetching instant), and builds trajectory caches using
+ * adaptive sampling + Visvalingam-Whyatt simplification.
  *
  * Results are transferred back via Transferable Float64Arrays (zero-copy).
+ *
+ * The instance is @cosmolabe/frames' heritage adapter over cspice-wasm. It
+ * implements the same surface timecraftjs' Spice did, verified two ways: call
+ * parity at relative 1e-12 (packages/frames/src/differential.test.ts) and
+ * pipeline parity at exactly zero through the core's own accumulation and
+ * frame composition (packages/core/src/__tests__/pipeline-parity.test.ts).
+ * This worker uses four members of it — furnish, spkcov, spkpos, and the
+ * constructor — so the swap is a one-line change in behaviour terms.
+ *
+ * The `?url` import is how the WASM binary gets found: only the host's bundler
+ * knows where the asset lands, so Vite hands us the emitted URL and we pass it
+ * through as locateFile.
  */
 
-import { Spice, type SpiceInstance } from '@cosmolabe/spice';
+import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
+import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { TrajectoryCache, type TrajectoryCacheConfig, type CoverageWindow } from '../TrajectoryCache.js';
 
-let spice: SpiceInstance | null = null;
+let spice: HeritageSpice | null = null;
 
 self.onmessage = async (event: MessageEvent) => {
   const msg = event.data;
@@ -19,7 +32,7 @@ self.onmessage = async (event: MessageEvent) => {
   switch (msg.type) {
     case 'init': {
       try {
-        spice = await Spice.init();
+        spice = await createHeritageSpice({ locateFile: () => cspiceWasmUrl });
         (self as unknown as Worker).postMessage({ type: 'ready' });
       } catch (e) {
         (self as unknown as Worker).postMessage({

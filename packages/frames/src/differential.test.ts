@@ -358,9 +358,17 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
       const file = '040629AP_SCPSE_04179_04185.bsp';
       const hObj = heritage.spkobj(file);
       const lObj = legacy.spkobj(file);
-      expect([...hObj].sort((a, b) => a - b)).toEqual([...lObj].sort((a, b) => a - b));
-      for (const id of [...lObj].sort((a, b) => a - b).slice(0, 5)) {
-        expectNumbersClose(heritage.spkcov(file, id), legacy.spkcov(file, id), `spkcov ${id}`);
+      const ids = [...lObj].sort((a, b) => a - b);
+      expect(ids.length, 'the SPK should report objects').toBeGreaterThan(0);
+      expect([...hObj].sort((a, b) => a - b)).toEqual(ids);
+      // spkcov takes the NAIF id alone and unions that body's segment windows
+      // across every furnished SPK — there is no per-file variant on this
+      // surface. Cover every id the kernel reports, including Cassini itself.
+      for (const id of ids) {
+        const h = heritage.spkcov(id);
+        const l = legacy.spkcov(id);
+        expect(h.length, `spkcov ${id} window count`).toBe(l.length);
+        expectNumbersClose(h, l, `spkcov ${id}`);
       }
     });
   });
