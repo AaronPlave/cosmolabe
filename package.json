@@ -29,7 +29,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "tsc --build packages/cspice-wasm packages/frames packages/spice packages/core packages/three packages/cesium-adapter packages/cesium",
+    "build": "tsc --build packages/cspice-wasm packages/frames packages/interop packages/spice packages/core packages/three packages/cesium-adapter packages/cesium",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint packages/ apps/",

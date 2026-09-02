@@ -1,17 +1,18 @@
-// The API-surface snapshot demanded by the stability policy (schema v0,
-// additive only until the packages restructure; the @bessel/compute
-// mechanism, extended to this publishing package at the Session 9 pre-merge
-// gate). The mirrors below are the committed snapshot of the public message
-// shapes: the Exact assertions fail `pnpm typecheck` if any exported shape
-// drifts in either direction, the keyof pins fail it if an options member
-// is renamed or removed, and the runtime test fails if the export list
-// changes. Additive evolution updates this snapshot in the same commit,
-// deliberately; anything else is a breaking change. Product-schema-typed
-// surfaces (oemToProduct) are governed by ADR M-0004 and snapshot in
-// @bessel/compute; this file pins the message formats.
+// The API-surface snapshot demanded by the stability policy: schema v0,
+// additive only. The mirrors below are the committed snapshot of the public
+// message shapes. The Exact assertions fail the build if any exported shape
+// drifts in either direction, the keyof pins fail it if an options member is
+// renamed or removed, and the runtime test fails if the export list changes.
+// Additive evolution updates this snapshot in the same commit, deliberately;
+// anything else is a breaking change.
+//
+// Note the Exact/keyof assertions only bite where a typechecker runs, and
+// this repo excludes __tests__ from tsc --build, so today the runtime export
+// list below is the part that actually holds. Worth wiring a test typecheck
+// step at some point; the snapshot is written to be ready for it.
 
 import { describe, it, expect } from 'vitest';
-import * as api from './index.ts';
+import * as api from './index.js';
 
 type Exact<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
   ? true
@@ -131,7 +132,6 @@ describe('interop API surface (stability policy)', () => {
       'groundTrackToCzml',
       'intervalsToCsv',
       'intervalsToCzml',
-      'oemToProduct',
       'parseAem',
       'parseCdm',
       'parseOem',

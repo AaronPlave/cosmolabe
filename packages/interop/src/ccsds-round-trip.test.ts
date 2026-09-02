@@ -13,20 +13,19 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
-import {
-  createComputeEnv,
-  decodeAnalysisProduct,
-  encodeAnalysisProduct,
-  type AnalysisProduct,
-  type ComputeEnv,
-} from '@bessel/compute';
-import { parseOem } from './oem.ts';
-import { writeOem } from './oem-write.ts';
-import { parseAem } from './aem.ts';
-import { writeAem } from './aem-write.ts';
-import { parseCdm } from './cdm.ts';
-import type { Oem, OemState } from './oem.ts';
-import type { Aem, AemRecord } from './aem.ts';
+// Upstream this went through @bessel/compute's createComputeEnv, which is
+// exactly createSpiceBindings + framesLayerOver bundled together. We hold both
+// of those directly, so the suite talks to them rather than to a compute plane
+// we deliberately did not harvest — one fewer dependency, not a shim.
+import { createSpiceBindings, type SpiceBindings } from 'cspice-wasm';
+import { framesLayerOver, type FramesLayer } from '@cosmolabe/frames';
+import { parseOem } from './oem.js';
+import { writeOem } from './oem-write.js';
+import { parseAem } from './aem.js';
+import { writeAem } from './aem-write.js';
+import { parseCdm } from './cdm.js';
+import type { Oem, OemState } from './oem.js';
+import type { Aem, AemRecord } from './aem.js';
 
 const fixture = (name: string): Uint8Array =>
   new Uint8Array(
@@ -45,21 +44,23 @@ const VEL_TOL_KMS = 1e-9;
 const QUAT_TOL = 1e-12;
 
 describe('CCSDS round-trip suite (GS-2 engine output through the text boundary)', () => {
-  let env: ComputeEnv;
+  let bindings: SpiceBindings;
+  let frames: FramesLayer;
   let et0: number;
   let epochs: number[];
   let epochStrings: string[];
 
   beforeAll(async () => {
-    env = await createComputeEnv();
-    for (const name of KERNELS) env.furnish(name, fixture(name));
-    et0 = env.frames.toEt('2004-07-01T01:00:00');
+    bindings = await createSpiceBindings();
+    frames = framesLayerOver(bindings);
+    for (const name of KERNELS) frames.furnish(name, fixture(name));
+    et0 = frames.toEt('2004-07-01T01:00:00');
     epochs = Array.from({ length: 25 }, (_, i) => et0 + i * STEP);
-    epochStrings = await Promise.all(epochs.map((et) => env.engine.et2utc(et, 'ISOC', 6)));
+    epochStrings = epochs.map((et) => bindings.et2utc(et, 'ISOC', 6));
   });
 
   it(`OEM: frames-tier states round-trip within ${POS_TOL_KM} km per position component and ${VEL_TOL_KMS} km/s per velocity component (13 significant digit writer quantization)`, async () => {
-    const batch = await env.frames.states({
+    const batch = await frames.states({
       targets: ['CASSINI'],
       observer: 'SATURN',
       frame: 'J2000',
@@ -132,7 +133,7 @@ describe('CCSDS round-trip suite (GS-2 engine output through the text boundary)'
   });
 
   it(`AEM: Saturn body-orientation quaternions round-trip within ${QUAT_TOL} per component, scalar-first preserved`, async () => {
-    const batch = await env.frames.orientation('SATURN', 'J2000', epochs);
+    const batch = await frames.orientation('SATURN', 'J2000', epochs);
     expect(batch.bodyFrame).toBe('IAU_SATURN');
     const records: AemRecord[] = epochs.map((_, i) => ({
       epoch: epochStrings[i]!,
@@ -183,7 +184,7 @@ describe('CCSDS round-trip suite (GS-2 engine output through the text boundary)'
     // back out of the text boundary are compared against a second,
     // independent frames-tier computation of the same query, so the whole
     // chain (compute, write, parse, ingest) is measured against SPICE truth.
-    const batch = await env.frames.states({
+    const batch = await frames.states({
       targets: ['CASSINI'],
       observer: 'SATURN',
       frame: 'J2000',
@@ -210,7 +211,7 @@ describe('CCSDS round-trip suite (GS-2 engine output through the text boundary)'
       })),
     });
     const ingested = parseOem(written);
-    const truth = await env.frames.states({
+    const truth = await frames.states({
       targets: ['CASSINI'],
       observer: 'SATURN',
       frame: 'J2000',
@@ -244,40 +245,16 @@ describe('CCSDS round-trip suite (GS-2 engine output through the text boundary)'
     expect(cdm.object2.designator).toBe('37820');
   });
 
-  it("fidelity statement: the JSON product-file contract (the CLI's format) is bit-exact including NaN, where the CCSDS text contract is quantized within its stated tolerance", () => {
-    const product: AnalysisProduct = {
-      product: {
-        kind: 'series',
-        series: [
-          {
-            name: 'x',
-            unit: 'km',
-            et: new Float64Array([0, 600]),
-            values: new Float64Array([Math.PI * 1e6, Number.NaN]),
-          },
-        ],
-      },
-      provenance: {
-        engine: 'suite',
-        version: '0.0.0',
-        kernels: { setHash: 'abc', names: [] },
-        frame: 'J2000',
-        correction: 'NONE',
-        authority: 'exploratory',
-        computedAt: '2026-07-11T00:00:00Z',
-        jobId: 'fidelity-1',
-      },
-      units: { x: 'km' },
-    };
-    // Bit-exact: every double survives, NaN included (Object.is, not ==).
-    const decoded = decodeAnalysisProduct(encodeAnalysisProduct(product));
-    const d = decoded.product;
-    if (d.kind !== 'series') throw new Error('kind changed in the JSON round trip');
-    expect(Object.is(d.series[0]!.values[0], Math.PI * 1e6)).toBe(true);
-    expect(Object.is(d.series[0]!.values[1], Number.NaN)).toBe(true);
-
-    // Quantized: the same irrational value through the OEM text boundary
-    // moves by a nonzero amount that stays inside the stated tolerance.
+  it('fidelity statement: the CCSDS text contract is quantized, and stays inside its stated tolerance', () => {
+    // Upstream this test paired two fidelity claims: that the JSON
+    // product-file encoding is bit-exact (NaN included) and that the CCSDS
+    // text encoding is merely quantized. The first half needed the
+    // AnalysisProduct codec from the compute plane, which is not harvested,
+    // so what remains is the claim that belongs to this package: an
+    // irrational value through the OEM writer and back moves by a nonzero
+    // amount that stays within the writer's 13-significant-digit tolerance.
+    // "Nonzero" matters as much as the bound — it pins that the text format
+    // really does quantize, so nobody mistakes it for a lossless channel.
     const oem: Oem = {
       version: '2.0',
       metadata: { refFrame: 'J2000', timeSystem: 'UTC' },

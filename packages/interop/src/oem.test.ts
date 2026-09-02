@@ -2,7 +2,7 @@
 // loud failures on malformed input. (STK_PARITY_SPEC §4.11.)
 
 import { describe, it, expect } from 'vitest';
-import { parseOem, OemError } from './index.ts';
+import { parseOem, OemError } from './index.js';
 
 const SAMPLE = `CCSDS_OEM_VERS = 2.0
 CREATION_DATE = 2020-001T00:00:00

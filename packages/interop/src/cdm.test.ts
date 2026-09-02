@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCdm, CdmError } from './cdm.ts';
+import { parseCdm, CdmError } from './cdm.js';
 
 // A trimmed CCSDS CDM (KVN) with the relative-state summary and two objects.
 const CDM = `CCSDS_CDM_VERS = 1.0

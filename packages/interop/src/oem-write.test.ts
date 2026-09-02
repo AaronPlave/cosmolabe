@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseOem } from './oem.ts';
-import { writeOem } from './oem-write.ts';
+import { parseOem } from './oem.js';
+import { writeOem } from './oem-write.js';
 
 describe('writeOem', () => {
   const oem = {
