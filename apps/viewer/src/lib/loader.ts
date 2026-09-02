@@ -604,9 +604,11 @@ export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
 }
 
 /**
- * Pre-fetch text data files referenced by trajectory specs (e.g. `.xyzv` for
- * InterpolatedStates). Drag-drop already populates a dataFiles map; URL-loaded
- * demos otherwise have no way to resolve relative `source:` paths.
+ * Pre-fetch text data files referenced by trajectory specs (`.xyzv` for
+ * InterpolatedStates, `.oem` for OEM). Drag-drop already populates a dataFiles
+ * map; URL-loaded demos otherwise have no way to resolve relative `source:`
+ * paths — CatalogLoader's resolveFile is synchronous, so anything it might be
+ * asked for has to be in hand before the catalog is parsed.
  */
 async function fetchCatalogDataFiles(graph: ResolvedCatalogGraph): Promise<Map<string, string> | undefined> {
   const refs: { absUrl: string; sourcePath: string }[] = [];
@@ -647,6 +649,14 @@ function injectCesiumIonToken(node: unknown, token: string | undefined): void {
   for (const value of Object.values(obj)) injectCesiumIonToken(value, token);
 }
 
+/** Trajectory types whose `source` is a TEXT file resolved through
+ *  CatalogLoader's `resolveFile`. Kept explicit rather than matching any node
+ *  with a `source` key: catalogs use `source` for other things too, and
+ *  speculatively fetching those would mean spurious 404s on every load.
+ *  Binary-source types (ChebyshevPoly) go through resolveFileBinary and are
+ *  not pre-fetched for URL-loaded catalogs. */
+const TEXT_SOURCE_TRAJECTORY_TYPES = new Set(['InterpolatedStates', 'OEM']);
+
 function collectDataRefs(
   node: unknown,
   baseUrl: string,
@@ -658,7 +668,7 @@ function collectDataRefs(
     return;
   }
   const obj = node as Record<string, unknown>;
-  if (obj.type === 'InterpolatedStates' && typeof obj.source === 'string') {
+  if (typeof obj.type === 'string' && TEXT_SOURCE_TRAJECTORY_TYPES.has(obj.type) && typeof obj.source === 'string') {
     out.push({ absUrl: new URL(obj.source, baseUrl).href, sourcePath: obj.source });
   }
   for (const value of Object.values(obj)) collectDataRefs(value, baseUrl, out);
