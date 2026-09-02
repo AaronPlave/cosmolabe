@@ -7,8 +7,8 @@
 // deferred and the AEM round-trip closes the read/write seam meanwhile. Pure and
 // headless; fails loudly. (STK_PARITY_SPEC section 4.6 ATT-7, section 4.11 INTEROP-AEM.)
 
-import type { Aem, AemMetadata, AemRecord } from './aem.ts';
-import { AemError } from './aem.ts';
+import type { Aem, AemMetadata, AemRecord } from './aem.js';
+import { AemError } from './aem.js';
 
 const META_ORDER: readonly (readonly [string, keyof AemMetadata])[] = [
   ['OBJECT_NAME', 'objectName'],

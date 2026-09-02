@@ -1,9 +1,14 @@
-# @bessel/interop
+# @cosmolabe/interop
 
 Standard-format ingest and export for analysis products: CCSDS message parsing
 and writing (OEM, CDM, AEM) plus CSV and CZML serialization. Pure and headless
 string transforms with no rendering or SPICE dependency. Part of the core layer.
-(CCSDS OMM parsing lives in `@bessel/propagator`, next to the TLE ingest it feeds.)
+Harvested from bessel; see the repository NOTICE.
+
+Not included: CCSDS **OMM** parsing. Upstream it lives in bessel's propagator
+package, next to the TLE ingest it feeds, and that package was not harvested —
+this tree's TLE path is satellite.js inside `@cosmolabe/core`. Adding OMM here
+would be the natural home for it if a need appears.
 
 ## Public API
 
@@ -27,8 +32,9 @@ AEM (CCSDS Attitude Ephemeris Message, KVN):
   scalar-first (`QUATERNION_TYPE = FIRST`), so `parseAem(writeAem(aem))` round-trips
   the metadata and quaternions. This is the portable attitude read/write path used in
   place of native CK-binary IO (deferred until the `ck*` CSPICE-WASM exports land);
-  pair it with the `@bessel/attitude` `attitudeHistory` sampler for a pxform-style
-  body-orientation query.
+  pair it with `@cosmolabe/frames`' `orientation(body, frame, epochs)` for a
+  pxform-style body-orientation query (upstream this pointed at bessel's
+  attitude package, which was not harvested).
 - `AemError`, types `Aem`, `AemMetadata`, `AemRecord`
 
 CSV export (RFC 4180, with formula-injection neutralization):
@@ -44,7 +50,7 @@ CZML export (Cesium/CZML 1.0):
 - types `IsoInterval`, `GroundSample`
 
 ```ts
-import { parseOem, writeOem, parseCdm, seriesToCsv } from '@bessel/interop';
+import { parseOem, writeOem, parseCdm, seriesToCsv } from '@cosmolabe/interop';
 
 const oem = parseOem(text);          // OemError on a malformed message
 const back = writeOem(oem);          // round-trippable KVN
@@ -53,10 +59,15 @@ const csv = seriesToCsv(et, [alt], ['altitude_km']);
 
 ## Dependency rule
 
-Depends on: nothing (pure). The package has no `@bessel` dependencies and pulls
-in no SPICE or timeline package; epoch-to-ET conversion is the caller's concern.
-Part of the core layer; lower layers never import higher ones, and the core never
-imports a concrete PAL implementation.
+Depends on: nothing at runtime. Pure string and array transforms — no SPICE, no
+renderer; epoch-to-ET conversion is the caller's concern. `@cosmolabe/frames` and
+`cspice-wasm` are devDependencies only, used by the CCSDS round-trip suite to
+generate real engine states to push through the writers and read back.
+
+Upstream also exported `oemToProduct`, which turned a parsed OEM into an
+`AnalysisProduct`. That adapter is not harvested: it types against the compute
+plane's product schema, which is deferred. In this tree, ingest lands as core's
+`OEMTrajectory` — a catalog points at an OEM and gets a renderable trajectory.
 
 ## Tests
 

@@ -2,7 +2,7 @@
 // of parseOem: serialize a metadata block and tabulated state lines so a computed
 // trajectory can be exported and round-tripped. Pure and headless. (STK §4.11.)
 
-import type { Oem, OemMetadata, OemState } from './oem.ts';
+import type { Oem, OemMetadata, OemState } from './oem.js';
 
 const META_ORDER: readonly (readonly [string, keyof OemMetadata])[] = [
   ['OBJECT_NAME', 'objectName'],

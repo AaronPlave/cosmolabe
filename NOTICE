@@ -124,6 +124,11 @@ https://github.com/PaulMRamirez/cosmolabe
     - kernels/                SPICE test kernels, generated fixtures, and the
                               fetch script used by those packages' tests.
                               Was bessel/kernels.
+    - packages/interop/       CCSDS OEM/CDM/AEM parsing and OEM/AEM writing,
+                              plus CSV and CZML serialization, with a
+                              round-trip suite over a real MGS ephemeris and
+                              a JSPOC conjunction message.
+                              Was bessel/packages/interop.
 
   Modifications made on import (Apache-2.0 section 4(b)):
     - relative import specifiers rewritten from .ts to .js, matching this
@@ -134,4 +139,9 @@ https://github.com/PaulMRamirez/cosmolabe
       this repository's TypeScript project-reference graph;
     - references to merge-only scaffolding removed (the @bessel/spice facade
       and the federated-tree symlink bridge existed only to let two separate
-      trees import each other, and were not harvested).
+      trees import each other, and were not harvested);
+    - interop renamed to @cosmolabe/interop, its oemToProduct adapter and the
+      product-schema half of its fidelity test dropped (they type against the
+      compute plane, which was not harvested), and its round-trip suite
+      rewired from @bessel/compute's createComputeEnv onto cspice-wasm and
+      @cosmolabe/frames directly.

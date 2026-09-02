@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseAem, AemError } from './aem.ts';
+import { parseAem, AemError } from './aem.js';
 
 const HEADER = `CCSDS_AEM_VERS = 1.0
 CREATION_DATE = 2004-001T00:00:00

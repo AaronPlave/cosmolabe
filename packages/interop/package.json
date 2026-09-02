@@ -1,12 +1,51 @@
 {
-  "name": "@bessel/interop",
-  "description": "Standard-format ingest and export: CCSDS OEM/CDM/AEM parsing and OEM writing plus CSV and CZML serialization",
-  "version": "0.0.0",
+  "name": "@cosmolabe/interop",
+  "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
+  "description": "Standard-format ingest and export: CCSDS OEM/CDM/AEM parsing and OEM/AEM writing, plus CSV and CZML serialization",
+  "author": "Paul M. Ramirez",
+  "contributors": [
+    "Aaron Plave"
+  ],
+  "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
+  "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaronPlave/cosmolabe.git",
+    "directory": "packages/interop"
+  },
+  "keywords": [
+    "ccsds",
+    "oem",
+    "aem",
+    "cdm",
+    "czml",
+    "ephemeris",
+    "interoperability",
+    "space"
+  ],
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "types": "./src/index.ts",
-  "dependencies": {
-    "@bessel/compute": "workspace:*"
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cosmolabe/frames": "*",
+    "cspice-wasm": "*"
   }
 }

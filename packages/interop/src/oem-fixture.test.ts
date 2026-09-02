@@ -5,8 +5,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
-import { parseOem } from './oem.ts';
-import { writeOem } from './oem-write.ts';
+import { parseOem } from './oem.js';
+import { writeOem } from './oem-write.js';
 
 const text = readFileSync(fileURLToPath(new URL('../test-fixtures/mgs.oem', import.meta.url)), 'utf8');
 

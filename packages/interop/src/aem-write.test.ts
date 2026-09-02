@@ -5,9 +5,9 @@
 // (STK_PARITY_SPEC section 4.6 ATT-7, section 4.11 INTEROP-AEM.)
 
 import { describe, it, expect } from 'vitest';
-import { parseAem } from './aem.ts';
-import { writeAem } from './aem-write.ts';
-import { AemError, type Aem } from './aem.ts';
+import { parseAem } from './aem.js';
+import { writeAem } from './aem-write.js';
+import { AemError, type Aem } from './aem.js';
 
 const PROFILE: Aem = {
   version: '1.0',

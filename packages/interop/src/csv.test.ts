@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { seriesToCsv, intervalsToCsv, tableToCsv, csvMetaPreamble } from './csv.ts';
+import { seriesToCsv, intervalsToCsv, tableToCsv, csvMetaPreamble } from './csv.js';
 
 describe('seriesToCsv', () => {
   it('writes a header and one row per sample', () => {

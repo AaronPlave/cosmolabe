@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { intervalsToCzml, groundTrackToCzml } from './czml.ts';
+import { intervalsToCzml, groundTrackToCzml } from './czml.js';
 
 describe('intervalsToCzml', () => {
   it('emits a document packet and availability intervals', () => {
