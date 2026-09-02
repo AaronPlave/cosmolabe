@@ -234,11 +234,11 @@ describe('Cassini full-stack integration (SPICE + Catalog + Universe)', () => {
 
       // (2) Regression magnitude: rendering the J2000 boresight tuple directly
       // into the ecliptic scene (the bug) mis-points it from the correct
-      // boresight by a significant, obliquity-bounded angle (≤ 23.4392911°,
+      // boresight by a significant, obliquity-bounded angle (≤ the J2000 obliquity,
       // reached only for a boresight ⊥ the equinox X-axis).
       const misPointDeg = angleDeg(bsEqu, bsEcl);
       expect(misPointDeg).toBeGreaterThan(1);
-      expect(misPointDeg).toBeLessThanOrEqual(23.4392911 + 1e-6);
+      expect(misPointDeg).toBeLessThanOrEqual(84381.448 / 3600 + 1e-6);
 
       // (3) User-visible symptom, in the actual ecliptic scene: the correct
       // (ECLIPJ2000) boresight and the buggy (J2000-rendered) boresight point in

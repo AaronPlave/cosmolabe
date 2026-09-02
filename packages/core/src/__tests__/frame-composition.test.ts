@@ -22,7 +22,9 @@ import {
 } from '../kinematics.js';
 import type { Quaternion } from '../rotations/RotationModel.js';
 
-const OBLIQUITY_DEG = 23.4392911;
+// The IAU 1976 value written out independently of src/constants.ts (84381.448
+// arcsec exactly), so this test still fails if that constant is ever wrong.
+const OBLIQUITY_DEG = 84381.448 / 3600;
 
 function angleBetweenDeg(a: Vec3, b: Vec3): number {
   const dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -61,7 +63,7 @@ describe('obliquity-consistency: position vs rotation encodings agree', () => {
     });
   }
 
-  it('the obliquity rotation is exactly the J2000 mean obliquity (23.4392911°)', () => {
+  it('the obliquity rotation is exactly the IAU 1976 J2000 mean obliquity (84381.448 arcsec)', () => {
     // A vector along +Z (ecliptic) maps to a vector 23.44° off +Z in equator.
     const z: Vec3 = [0, 0, 1];
     const rotated = alignPositionToFrame(z, 'EclipticJ2000', 'EquatorJ2000');

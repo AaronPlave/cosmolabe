@@ -79,7 +79,8 @@ describe('CoordinateTransforms', () => {
     it('identity quaternion rotates only by obliquity', () => {
       const result = quaternionEclipticToEquatorial([1, 0, 0, 0]);
       // Should be the obliquity rotation: (cos(ε/2), sin(ε/2), 0, 0)
-      const halfObl = 23.4392911 * Math.PI / 360;
+      // IAU 1976 obliquity, stated independently of the shared constant.
+      const halfObl = ((84381.448 / 3600) * Math.PI) / 180 / 2;
       expect(result[0]).toBeCloseTo(Math.cos(halfObl), 6);
       expect(result[1]).toBeCloseTo(Math.sin(halfObl), 6);
       expect(result[2]).toBeCloseTo(0, 6);

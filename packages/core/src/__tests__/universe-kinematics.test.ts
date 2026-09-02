@@ -224,7 +224,7 @@ describe('Universe.absolutePositionOf — per-leg frame composition', () => {
     // Expected: Mimas's EquatorJ2000 offset [0, 185520, 0] rotated to
     // EclipticJ2000 via R_x(-ε) ≈ [0, 170243, -73806], then added to
     // Saturn's [1.4e9, 0, 0] ECLIPJ2000 position.
-    const eps = (23.4392911 * Math.PI) / 180;
+    const eps = ((84381.448 / 3600) * Math.PI) / 180;
     const expectedY = 185_520 * Math.cos(eps);
     const expectedZ = -185_520 * Math.sin(eps);
     const pos = u.absolutePositionOf('Mimas', 0);
@@ -276,7 +276,7 @@ describe('Universe.absolutePositionOf — per-leg frame composition', () => {
     u.addBody(equatorial);
     u.addBody(polar);
 
-    const eps = (23.4392911 * Math.PI) / 180;
+    const eps = ((84381.448 / 3600) * Math.PI) / 180;
 
     // Equatorial station: body-fixed [6378, 0, 0] → identity-unwrap →
     // EquatorJ2000 [6378, 0, 0]. R_x(-ε) leaves +X (the equinox)
