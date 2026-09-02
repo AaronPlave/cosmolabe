@@ -4,16 +4,37 @@
     "outDir": "dist",
     "rootDir": ".",
     "verbatimModuleSyntax": true,
-    "types": ["vite/client"],
+    "types": [
+      "vite/client"
+    ],
     "paths": {
-      "$lib": ["./src/lib"],
-      "$lib/*": ["./src/lib/*"]
+      "$lib": [
+        "./src/lib"
+      ],
+      "$lib/*": [
+        "./src/lib/*"
+      ]
     }
   },
-  "include": ["src", "*.ts"],
+  "include": [
+    "src",
+    "*.ts"
+  ],
   "references": [
-    { "path": "../../packages/spice" },
-    { "path": "../../packages/core" },
-    { "path": "../../packages/three" }
+    {
+      "path": "../../packages/cspice-wasm"
+    },
+    {
+      "path": "../../packages/frames"
+    },
+    {
+      "path": "../../packages/spice"
+    },
+    {
+      "path": "../../packages/core"
+    },
+    {
+      "path": "../../packages/three"
+    }
   ]
 }
