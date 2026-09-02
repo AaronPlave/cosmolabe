@@ -20,6 +20,13 @@ export type { KeplerianElements } from './trajectories/Keplerian.js';
 export { SpiceTrajectory } from './trajectories/SpiceTrajectory.js';
 export { InterpolatedStatesTrajectory } from './trajectories/InterpolatedStates.js';
 export type { StateRecord } from './trajectories/InterpolatedStates.js';
+export {
+  oemToStateRecords,
+  oemEpochToEt,
+  oemRefFrameToInertial,
+  checkOemFrame,
+  type OemFrameCheck,
+} from './trajectories/OemAdapter.js';
 export { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
 export type { TrajectoryArc } from './trajectories/CompositeTrajectory.js';
 export { TLETrajectory } from './trajectories/TLETrajectory.js';
