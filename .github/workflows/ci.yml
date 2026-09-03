@@ -58,5 +58,22 @@ jobs:
       - name: Typecheck + build
         run: npm run build
 
+      # lro-validation.test.ts reads an LRO reconstructed-orbit SPK that is not
+      # committed. deploy-pages.yml has fetched it from NAIF since April, so the
+      # download is already proven on the runner — this workflow simply never
+      # ran the step, which is why that test has failed every CI run.
+      #
+      # Fetching beats committing it: NAIF is plain HTTPS, so it costs no
+      # git-lfs bandwidth at all, which is the whole point of the sparse smudge
+      # above. Cached on the script's own hash so repeat runs cost no network.
+      - name: Cache mission kernels
+        uses: actions/cache@v4
+        with:
+          path: apps/viewer/test-catalogs/kernels/lro
+          key: lro-kernels-${{ hashFiles('scripts/fetch-lro-kernels.sh') }}
+
+      - name: Fetch LRO kernels
+        run: bash scripts/fetch-lro-kernels.sh
+
       - name: Run tests
         run: npm test
