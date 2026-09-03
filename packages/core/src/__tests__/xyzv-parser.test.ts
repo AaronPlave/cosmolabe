@@ -5,7 +5,15 @@ import { parseXyzv } from '../trajectories/XyzvParser.js';
 import { InterpolatedStatesTrajectory } from '../trajectories/InterpolatedStates.js';
 import { CatalogLoader } from '../catalog/CatalogLoader.js';
 
-const COSMOGRAPHIA_DIR = '/Users/aplave/code/cosmographia';
+import { cosmographiaData, COSMOGRAPHIA_HINT } from './_harness/cosmographia.js';
+
+const COSMOGRAPHIA_DATA = cosmographiaData();
+const VOYAGER1 = COSMOGRAPHIA_DATA
+  ? join(COSMOGRAPHIA_DATA, 'trajectories/voyager1.xyzv')
+  : '';
+/** Skip rather than fail when the fetch has not been run. CI always fetches. */
+const withData = COSMOGRAPHIA_DATA ? describe : describe.skip;
+if (!COSMOGRAPHIA_DATA) console.warn(`[xyzv-parser] ${COSMOGRAPHIA_HINT}`);
 
 describe('parseXyzv', () => {
   it('parses inline xyzv data', () => {
@@ -52,9 +60,9 @@ bad_jd  1.0  2.0  3.0  0.1  0.2  0.3
   });
 });
 
-describe('parseXyzv with real Cosmographia trajectory', () => {
+withData('parseXyzv with real Cosmographia trajectory', () => {
   it('parses voyager1.xyzv', () => {
-    const text = readFileSync(join(COSMOGRAPHIA_DIR, 'data/trajectories/voyager1.xyzv'), 'utf-8');
+    const text = readFileSync(VOYAGER1, 'utf-8');
     const records = parseXyzv(text);
 
     expect(records.length).toBeGreaterThanOrEqual(100);
@@ -77,7 +85,7 @@ describe('parseXyzv with real Cosmographia trajectory', () => {
   });
 
   it('creates working InterpolatedStatesTrajectory from voyager1', () => {
-    const text = readFileSync(join(COSMOGRAPHIA_DIR, 'data/trajectories/voyager1.xyzv'), 'utf-8');
+    const text = readFileSync(VOYAGER1, 'utf-8');
     const records = parseXyzv(text);
     const traj = new InterpolatedStatesTrajectory(records);
 
@@ -95,12 +103,12 @@ describe('parseXyzv with real Cosmographia trajectory', () => {
   });
 });
 
-describe('CatalogLoader with InterpolatedStates + resolveFile', () => {
+withData('CatalogLoader with InterpolatedStates + resolveFile', () => {
   it('loads InterpolatedStates trajectory via resolveFile', () => {
     const loader = new CatalogLoader({
       resolveFile: (source) => {
         if (source === 'trajectories/voyager1.xyzv') {
-          return readFileSync(join(COSMOGRAPHIA_DIR, 'data/trajectories/voyager1.xyzv'), 'utf-8');
+          return readFileSync(VOYAGER1, 'utf-8');
         }
         return undefined;
       },

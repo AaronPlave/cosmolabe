@@ -27,15 +27,31 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**') }}
+          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp') }}
 
       - name: Smudge test-kernel LFS files
         # See deploy-pages.yml for why we install + fetch + checkout
         # explicitly. Sparse fetch keeps the test job's LFS bandwidth tiny.
+        #
+        # The path is a `dir/**` glob, not a bare `dir/`: given a directory,
+        # git-lfs exits 0 and checks out NOTHING, so every kernel stayed a
+        # ~130-byte pointer. SPICE ignores text outside \begindata, so furnish
+        # accepted the pointers and loaded nothing, and the suite failed much
+        # later with SPICE(NOLOADEDFILES) — which is a large part of why this
+        # workflow has never been green. Verified as an A/B on the runner: with
+        # the glob, spice-integration passes; with the bare directory, it fails
+        # with no SPK loaded.
+        #
+        # de440s.bsp is included because lro-validation furnishes it for the
+        # Moon's position relative to the solar-system barycentre. Smudged
+        # rather than downloaded: it is already committed as an LFS object, so
+        # one glob entry costs 33 MB once and nothing after (the cache above
+        # covers it), where scripts/fetch-kernels.sh would pull 94 MB from
+        # NAIF — 62 MB of that an asteroid SPK no test touches.
         run: |
           git lfs install --local
-          git lfs fetch --include "packages/spice/test-kernels/**"
-          git lfs checkout packages/spice/test-kernels/
+          git lfs fetch --include "packages/spice/test-kernels/**,apps/viewer/test-catalogs/kernels/de440s.bsp"
+          git lfs checkout "packages/spice/test-kernels/**" "apps/viewer/test-catalogs/kernels/de440s.bsp"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,6 +64,37 @@ jobs:
 
       - name: Typecheck + build
         run: npm run build
+
+      # lro-validation.test.ts reads an LRO reconstructed-orbit SPK that is not
+      # committed. deploy-pages.yml has fetched it from NAIF since April, so the
+      # download is already proven on the runner — this workflow simply never
+      # ran the step, which is why that test has failed every CI run.
+      #
+      # Fetching beats committing it: NAIF is plain HTTPS, so it costs no
+      # git-lfs bandwidth at all, which is the whole point of the sparse smudge
+      # above. Cached on the script's own hash so repeat runs cost no network.
+      - name: Cache mission kernels
+        uses: actions/cache@v4
+        with:
+          path: apps/viewer/test-catalogs/kernels/lro
+          key: lro-kernels-${{ hashFiles('scripts/fetch-lro-kernels.sh') }}
+
+      - name: Fetch LRO kernels
+        run: bash scripts/fetch-lro-kernels.sh
+
+      # Two suites read Cosmographia's own catalog data as third-party
+      # fixtures. Fetched, never vendored: that repo has no LICENSE file and no
+      # license statement, so committing its data here would be a rights
+      # question we cannot answer, while downloading it at test time is not.
+      # A sparse partial clone takes ~9 MB of its 322 MB data tree.
+      - name: Cache Cosmographia data
+        uses: actions/cache@v4
+        with:
+          path: .cosmographia
+          key: cosmographia-${{ hashFiles('scripts/fetch-cosmographia-data.sh') }}
+
+      - name: Fetch Cosmographia data
+        run: bash scripts/fetch-cosmographia-data.sh
 
       - name: Run tests
         run: npm test
