@@ -3,19 +3,26 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { CatalogLoader } from '../catalog/CatalogLoader.js';
 
-const COSMOGRAPHIA_DATA = '/Users/aplave/code/cosmographia/data';
+import { cosmographiaData, COSMOGRAPHIA_HINT } from './_harness/cosmographia.js';
+
+const COSMOGRAPHIA_DATA = cosmographiaData();
+/** Skip rather than fail when the fetch has not been run. CI always fetches.
+ *  Guarded at module scope because the readdir below used to throw during
+ *  collection, which took the whole file down instead of reporting a skip. */
+const withData = COSMOGRAPHIA_DATA ? describe : describe.skip;
+if (!COSMOGRAPHIA_DATA) console.warn(`[catalog-all-cosmographia] ${COSMOGRAPHIA_HINT}`);
 
 // All JSON catalog files from Cosmographia's data directory
-const catalogFiles = readdirSync(COSMOGRAPHIA_DATA)
-  .filter(f => f.endsWith('.json'))
-  .sort();
+const catalogFiles = COSMOGRAPHIA_DATA
+  ? readdirSync(COSMOGRAPHIA_DATA).filter(f => f.endsWith('.json')).sort()
+  : [];
 
-describe('Load all Cosmographia catalogs without errors', () => {
+withData('Load all Cosmographia catalogs without errors', () => {
   const loader = new CatalogLoader();
 
   for (const file of catalogFiles) {
     it(`loads ${file}`, () => {
-      const text = readFileSync(join(COSMOGRAPHIA_DATA, file), 'utf-8');
+      const text = readFileSync(join(COSMOGRAPHIA_DATA!, file), 'utf-8');
       let json: unknown;
       try {
         json = JSON.parse(text);
@@ -48,7 +55,7 @@ describe('Load all Cosmographia catalogs without errors', () => {
   it('loads all catalogs and produces bodies', () => {
     let totalBodies = 0;
     for (const file of catalogFiles) {
-      const text = readFileSync(join(COSMOGRAPHIA_DATA, file), 'utf-8');
+      const text = readFileSync(join(COSMOGRAPHIA_DATA!, file), 'utf-8');
       let json: unknown;
       try { json = JSON.parse(text); } catch { continue; }
       const result = loader.load(json as Record<string, unknown>);

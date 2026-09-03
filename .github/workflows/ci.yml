@@ -75,5 +75,19 @@ jobs:
       - name: Fetch LRO kernels
         run: bash scripts/fetch-lro-kernels.sh
 
+      # Two suites read Cosmographia's own catalog data as third-party
+      # fixtures. Fetched, never vendored: that repo has no LICENSE file and no
+      # license statement, so committing its data here would be a rights
+      # question we cannot answer, while downloading it at test time is not.
+      # A sparse partial clone takes ~9 MB of its 322 MB data tree.
+      - name: Cache Cosmographia data
+        uses: actions/cache@v4
+        with:
+          path: .cosmographia
+          key: cosmographia-${{ hashFiles('scripts/fetch-cosmographia-data.sh') }}
+
+      - name: Fetch Cosmographia data
+        run: bash scripts/fetch-cosmographia-data.sh
+
       - name: Run tests
         run: npm test
