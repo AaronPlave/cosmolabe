@@ -2,6 +2,7 @@ import type { Vec3 } from '@cosmolabe/spice';
 import type { CartesianState, Trajectory } from './Trajectory.js';
 import { twoline2satrec, propagate } from 'satellite.js';
 import type { SatRec } from 'satellite.js';
+import { etToDate } from '../time.js';
 
 export interface TLEData {
   line1: string;
@@ -17,8 +18,7 @@ export interface TLETrajectoryOptions {
   windowDays?: number;
 }
 
-// J2000 epoch in milliseconds (2000-01-01T12:00:00 UTC)
-const J2000_MS = Date.UTC(2000, 0, 1, 12, 0, 0);
+
 
 /**
  * Trajectory from Two-Line Element set using SGP4/SDP4 propagation via satellite.js.
@@ -52,8 +52,11 @@ export class TLETrajectory implements Trajectory {
   }
 
   stateAt(et: number): CartesianState {
-    // ET (seconds past J2000) → JavaScript Date
-    const date = new Date(J2000_MS + et * 1000);
+    // ET (seconds past J2000) → JavaScript Date. Via core's etToDate, because
+    // the old constant here was noon UTC: J2000 is noon *TDB*, which was
+    // 11:58:55.816 UTC, so SGP4 was handed a Date 64.184 s early and every
+    // satellite drew ~492 km along-track off the SPICE bodies beside it.
+    const date = etToDate(et);
     const result = propagate(this.satrec, date);
 
     if (!result || !result.position || typeof result.position === 'boolean') {

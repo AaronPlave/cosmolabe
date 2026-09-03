@@ -1,5 +1,6 @@
 <script lang="ts">
   import { vs, getRenderer, setTime } from '../lib/viewer-state.svelte';
+  import { etToDate } from '@cosmolabe/core';
   import { X, ZoomIn, ZoomOut } from 'lucide-svelte';
 
   interface Props {
@@ -430,8 +431,7 @@
       const years = et / 31556952;
       return `J2000${years >= 0 ? '+' : ''}${years.toFixed(1)}y`;
     }
-    const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
-    const d = new Date(j2000Ms + et * 1000);
+    const d = etToDate(et);
     // Show date only at low zoom, date+time at high zoom
     const span = windowEnd - windowStart;
     if (span < 86400 * 2) {
