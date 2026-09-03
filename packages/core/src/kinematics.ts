@@ -82,13 +82,18 @@ export function alignPositionToFrame(
   return pos;
 }
 
-/** Frame-name for the position output of `body.stateAt(et)`. Maps the
+/** Inertial frame the body's `stateAt(et).position` lives in. Maps the
  *  3-bucket `Body.trajectoryFrame` ('ecliptic' | 'equatorial' | 'body-fixed')
  *  to a named inertial frame string compatible with
- *  `RotationModel.sourceFrame`. Used by `Universe.subPointOf` to decide
- *  whether to convert a body's parent-relative position before composing
- *  with the parent's rotation. */
-export function bodyTrajectoryFrameName(body: Body): InertialFrameName {
+ *  `RotationModel.sourceFrame`.
+ *
+ *  Returns `undefined` for `'body-fixed'` — body-fixed positions are NOT
+ *  in an inertial frame; they're in the parent body's rotating frame.
+ *  Callers that need an inertial frame for a body-fixed child must first
+ *  apply the parent's rotation conjugate (lifting body-fixed → inertial)
+ *  and then use the parent's `rotation.sourceFrame`. See
+ *  `bodyPositionFrame()` for a helper that bundles this. */
+export function bodyTrajectoryFrameName(body: Body): InertialFrameName | undefined {
   switch (body.trajectoryFrame) {
     case 'equatorial':
       return 'EquatorJ2000';
@@ -96,14 +101,25 @@ export function bodyTrajectoryFrameName(body: Body): InertialFrameName {
     case undefined:
       return 'EclipticJ2000';
     case 'body-fixed':
-      // Body-fixed trajectories (surface points) need parent rotation
-      // applied to produce inertial coords — by the time `subPointOf` is
-      // called these have already been resolved upstream via
-      // `Universe.absolutePositionOf`. Treat the literal stored
-      // position as parent-rotation-frame-aligned (i.e., the caller's
-      // problem to pass the right thing).
-      return 'EclipticJ2000';
+      return undefined;
   }
+}
+
+/** Inertial frame the body's POSITION effectively lives in, accounting for
+ *  body-fixed bodies whose stored position requires unwrapping via the
+ *  parent's rotation. For inertial-trajectory bodies, equivalent to
+ *  `bodyTrajectoryFrameName(body)`. For body-fixed bodies, returns the
+ *  parent's `rotation.sourceFrame` — the frame the body-fixed position
+ *  lifts to after applying the parent's rotation conjugate.
+ *
+ *  Returns `undefined` only when the body is body-fixed AND the parent
+ *  has no rotation registered (a catalog error). Callers that pass a
+ *  non-body-fixed body get a defined result. */
+export function bodyPositionFrame(body: Body, parent?: Body): InertialFrameName | undefined {
+  if (body.trajectoryFrame !== 'body-fixed') {
+    return bodyTrajectoryFrameName(body);
+  }
+  return parent?.rotation?.sourceFrame;
 }
 
 /** Apply a unit quaternion `[w, x, y, z]` to a 3-vector. Matches

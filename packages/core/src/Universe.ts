@@ -259,25 +259,21 @@ export class Universe {
       // that's ~73 km of off-axis displacement per moon, enough to visibly
       // tilt Saturn's moon orbits out of the ring plane (was masked
       // pre-Phase-3 by a matching rotation-side bug that cancelled).
-      let accumFrameName: InertialFrameName = bodyTrajectoryFrameName(body);
-      // If we did the body-fixed unwrap above, the accumulated position now
-      // lives in the PARENT'S ROTATION SOURCE FRAME — not its
-      // `trajectoryFrame`. The two only coincide when the parent's rotation
-      // and trajectory share an inertial frame; for Earth post-Phase-3 they
-      // don't (UniformRotation = EquatorJ2000, but Earth's Builtin
-      // trajectory defaults to EclipticJ2000). Picking the wrong frame here
-      // skips the subsequent obliquity rotation in the chain walk and
-      // visibly mis-places body-fixed children (ground stations on Earth
-      // were ~23.4° off after Phase 3 until this was fixed). Falls back to
-      // the parent's trajectoryFrame when the parent has no rotation
-      // registered.
+      // accumFrameName starts as the body's own trajectory frame, except for
+      // body-fixed bodies whose stateAt position isn't in any inertial frame
+      // — for those the unwrap above lifts position into the PARENT'S
+      // rotation source frame, so accumFrameName starts there instead.
+      // Falls back to EclipticJ2000 only if there's no parent or parent has
+      // no rotation (degenerate catalog).
+      let accumFrameName: InertialFrameName;
       if (body.trajectoryFrame === 'body-fixed' && currentParent) {
         const firstParent = this.getBody(currentParent);
-        if (firstParent) {
-          accumFrameName =
-            firstParent.rotation?.sourceFrame ??
-            bodyTrajectoryFrameName(firstParent);
-        }
+        accumFrameName =
+          firstParent?.rotation?.sourceFrame ??
+          bodyTrajectoryFrameName(firstParent!) ??
+          'EclipticJ2000';
+      } else {
+        accumFrameName = bodyTrajectoryFrameName(body) ?? 'EclipticJ2000';
       }
 
       while (currentParent) {
@@ -285,12 +281,13 @@ export class Universe {
         if (!parent) break;
         const ps = parent.stateAt(et);
         if (isNaN(ps.position[0])) return [NaN, NaN, NaN];
-        const parentFrame = bodyTrajectoryFrameName(parent);
+        // Parent is never body-fixed in a normal catalog (parents have
+        // rotations to drive child unwraps). If it ever is, treat as
+        // EclipticJ2000 to avoid undefined leaking into the alignment math.
+        const parentFrame: InertialFrameName = bodyTrajectoryFrameName(parent) ?? 'EclipticJ2000';
         if (parentFrame !== accumFrameName) {
           // Rotate accumulated position from child's frame to parent's
-          // frame before summing parent's contribution. Pass-through for
-          // SPICE-named frames cosmolabe doesn't analytically handle —
-          // those typically don't mix with named-inertial-frame chains.
+          // frame before summing parent's contribution.
           const aligned = alignPositionToFrame([x, y, z], accumFrameName, parentFrame);
           x = aligned[0];
           y = aligned[1];
@@ -345,9 +342,14 @@ export class Universe {
     if (!state) return null;
     const q = parent.rotationAt(et);
     if (!q) return null;
+    // For body-fixed bodies, state.position is already in the parent's
+    // body-fixed frame — no inertial-frame alignment is meaningful. Pass
+    // through the parent's rotation source frame so alignPositionToFrame
+    // becomes a no-op for this case.
+    const bodyFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? parent.rotation.sourceFrame;
     const aligned = alignPositionToFrame(
       state.position,
-      bodyTrajectoryFrameName(body),
+      bodyFrame,
       parent.rotation.sourceFrame,
     );
     const bf = rotateVecByQuat(aligned, q);
@@ -381,7 +383,10 @@ export class Universe {
     const parent = this.bodies.get(parentName);
     if (!parent || !parent.rotation) return null;
     const parentFrame = parent.rotation.sourceFrame;
-    const scFrame = bodyTrajectoryFrameName(body);
+    // Body-fixed bodies pass through (state.position is already in parent's
+    // body-fixed frame). Aligning a body-fixed value as an inertial source
+    // would be meaningless — make it a no-op by matching the target.
+    const scFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? parentFrame;
     try {
       const sA = body.stateAt(et - dt);
       const sB = body.stateAt(et + dt);

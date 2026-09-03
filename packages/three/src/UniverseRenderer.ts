@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CompositeTrajectory, SpiceTrajectory, WaypointTrajectory, EventBus, alignPositionToFrame, bodyTrajectoryFrameName, DEFAULT_INERTIAL_FRAME, type Universe, type Body } from '@cosmolabe/core';
+import { CompositeTrajectory, SpiceTrajectory, WaypointTrajectory, EventBus, alignPositionToFrame, bodyTrajectoryFrameName, rotateVecByQuat, DEFAULT_INERTIAL_FRAME, type Universe, type Body, type InertialFrameName } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
@@ -128,6 +128,15 @@ export class UniverseRenderer {
   private animFrameId = 0;
   private readonly labelContainer: HTMLDivElement;
   private _dblClickRaycaster: THREE.Raycaster | null = null;
+  // Hover highlight (NASA-Eyes style). Pointer picks are coalesced to ≤1/frame
+  // via rAF; only a *change* in hovered body does any work.
+  private _hoveredBody: string | null = null;
+  private _hoverPickTimer = 0;
+  private _lastHoverPickMs = 0;
+  private _lastPointer = { x: 0, y: 0 };
+  /** Throttle hover picks to ~30 Hz — snappy without picking on every single
+   *  frame. The pick is cheap (label-only, against cached screen boxes). */
+  private static readonly _hoverPickIntervalMs = 33;
   private instrumentView: InstrumentView | null = null;
   /** Separate scene for camera-relative rendering of surface tile overlays. */
   private readonly tileScene: THREE.Scene;
@@ -313,6 +322,10 @@ export class UniverseRenderer {
     this._dblClickRaycaster = new THREE.Raycaster();
     canvas.addEventListener('click', this._onClick);
     canvas.addEventListener('dblclick', this._onDblClick);
+
+    // Hover highlight: emphasize the hovered body's trajectory line + label.
+    canvas.addEventListener('pointermove', this._onPointerMove);
+    canvas.addEventListener('pointerleave', this._onPointerLeave);
   }
 
   use(plugin: RendererPlugin): void {
@@ -599,15 +612,46 @@ export class UniverseRenderer {
           // child→world here keeps cached/live trails in lockstep with the
           // marker; aligning child→parent left the body drawn ~23.4° off
           // its trail whenever the obliquity entered higher in the chain.
+          //
+          // Body-fixed children (MoonFall hoppers, Ingenuity, ground
+          // stations) need the parent's rotation conjugate applied to lift
+          // the position from the parent's body-fixed frame into an inertial
+          // frame BEFORE the alignment-to-world step. `absolutePositionOf`
+          // does this unwrap; without the same step here the trail draws
+          // the body-fixed offset directly in world coords (static against
+          // the inertial sky), while the marker rotates with the parent.
+          // Visible as a label/model that drifts off its trail as time
+          // advances.
+          const parentBody = this.universe.getBody(parentName);
           const relativeResolver: typeof this.absolutePositionOf = (name, t) => {
             const childBody = this.universe.getBody(name);
             if (!childBody) return [NaN, NaN, NaN];
             const state = childBody.stateAt(t);
-            return alignPositionToFrame(
-              state.position as [number, number, number],
-              bodyTrajectoryFrameName(childBody),
-              DEFAULT_INERTIAL_FRAME,
-            );
+            let pos = state.position as [number, number, number];
+
+            if (childBody.trajectoryFrame === 'body-fixed' && parentBody) {
+              const q = parentBody.rotationAt(t);
+              if (q) {
+                // Conjugate: inertial → body-fixed becomes body-fixed → inertial.
+                const qConj: [number, number, number, number] = [q[0], -q[1], -q[2], -q[3]];
+                pos = rotateVecByQuat(pos, qConj);
+                // The unwrapped position now lives in the parent's rotation
+                // source frame. Continue downstream alignment from THAT
+                // frame, not the body's stored trajectoryFrame.
+                const srcFrame: InertialFrameName = parentBody.rotation?.sourceFrame
+                  ?? bodyTrajectoryFrameName(parentBody)
+                  ?? 'EclipticJ2000';
+                return alignPositionToFrame(pos, srcFrame, DEFAULT_INERTIAL_FRAME);
+              }
+            }
+
+            // Non-body-fixed child: bodyTrajectoryFrameName returns a real
+            // inertial frame. (For body-fixed we'd have taken the branch
+            // above.) Fall back to EclipticJ2000 only if some catalog set
+            // the trajectoryFrame to body-fixed AND we got here anyway —
+            // a no-op alignment.
+            const childFrame: InertialFrameName = bodyTrajectoryFrameName(childBody) ?? 'EclipticJ2000';
+            return alignPositionToFrame(pos, childFrame, DEFAULT_INERTIAL_FRAME);
           };
           tl.update(et, this.scaleFactor, relativeResolver, undefined, undefined, vertOff);
         } else {
@@ -1829,6 +1873,9 @@ export class UniverseRenderer {
     this.stop();
     this.renderer.domElement.removeEventListener('click', this._onClick);
     this.renderer.domElement.removeEventListener('dblclick', this._onDblClick);
+    this.renderer.domElement.removeEventListener('pointermove', this._onPointerMove);
+    this.renderer.domElement.removeEventListener('pointerleave', this._onPointerLeave);
+    if (this._hoverPickTimer) clearTimeout(this._hoverPickTimer);
     this.timeController.dispose();
     this.cameraController.dispose();
     for (const bm of this.bodyMeshes.values()) bm.dispose();
@@ -2305,21 +2352,53 @@ export class UniverseRenderer {
       const arcDuration = arc.endTime - arc.startTime;
       const arcCenterName = arc.centerName;
 
-      // Resolver returns positions relative to the arc's center body.
-      // The trajectory line's Object3D position is set to the center body's absolute
-      // position each frame (in the update loop), so we only emit relative coords here.
-      // This avoids Float32 precision loss for arcs around distant planets.
-      // Match `absolutePositionOf`: an arc's offset from its center is in the
-      // body's own `trajectoryFrame`, so rotate it into the world frame
-      // (EclipticJ2000) before it's summed with the world-frame `vertOff`.
-      const arcFrame = bodyTrajectoryFrameName(body);
+      // Resolver returns positions relative to the arc's center body, in
+      // the world frame (EclipticJ2000). The trail's Object3D position is
+      // set to the center body's absolute world position each frame, so we
+      // only emit relative world-frame coords here — keeps vertices near
+      // origin for Float32 precision.
+      //
+      // Three cases:
+      //  1. Body-fixed trajectory (Waypoints, FixedSpherical): state.position
+      //     is in the parent body's body-fixed frame. Apply the parent's
+      //     rotation conjugate to lift body-fixed → inertial (the parent's
+      //     rotation source frame), then align to ECLIPJ2000.
+      //  2. Equatorial/ecliptic inertial trajectory: just align from the
+      //     body's own trajectoryFrame to ECLIPJ2000.
+      //  3. Mismatched: shouldn't happen for well-formed catalogs.
+      //
+      // Without this, body-fixed arcs (MoonFall hoppers, Ingenuity, ground
+      // stations) draw their trail in the parent's body-fixed frame —
+      // visually static against the inertial sky while the body marker
+      // rotates with the parent. Result: trail offset from label/marker by
+      // the parent's rotation since some reference time.
+      // For body-fixed arcs, arcFrame is unused — the body-fixed branch
+      // below handles the unwrap explicitly. Falls back to EclipticJ2000
+      // only as a safety net.
+      const arcFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? 'EclipticJ2000';
+      const arcCenterBodyName = arcCenterName ?? body.parentName;
+      const arcCenterBody = arcCenterBodyName ? this.universe.getBody(arcCenterBodyName) : undefined;
+      const isBodyFixedArc = body.trajectoryFrame === 'body-fixed';
       const arcResolver = (_name: string, t: number): [number, number, number] => {
         const state = arc.trajectory.stateAt(t);
-        return alignPositionToFrame(
-          [state.position[0], state.position[1], state.position[2]],
-          arcFrame,
-          DEFAULT_INERTIAL_FRAME,
-        );
+        let pos: [number, number, number] = [state.position[0], state.position[1], state.position[2]];
+        if (isBodyFixedArc && arcCenterBody) {
+          const q = arcCenterBody.rotationAt(t);
+          if (q) {
+            // Conjugate: inertial → body-fixed becomes body-fixed → inertial.
+            const qConj: [number, number, number, number] = [q[0], -q[1], -q[2], -q[3]];
+            pos = rotateVecByQuat(pos, qConj);
+            // The unwrapped position now lives in the parent's rotation
+            // source frame. Continue downstream alignment from THAT frame.
+            // (NOT body.trajectoryFrame — that's the body-fixed marker,
+            //  bodyTrajectoryFrameName returns undefined for it.)
+            const srcFrame: InertialFrameName = arcCenterBody.rotation?.sourceFrame
+              ?? bodyTrajectoryFrameName(arcCenterBody)
+              ?? 'EclipticJ2000';
+            return alignPositionToFrame(pos, srcFrame, DEFAULT_INERTIAL_FRAME);
+          }
+        }
+        return alignPositionToFrame(pos, arcFrame, DEFAULT_INERTIAL_FRAME);
       };
 
       const plotCfg = body.trajectoryPlot;
@@ -2381,10 +2460,16 @@ export class UniverseRenderer {
         const trajStart = arc.trajectory.startTime;
         const trajEnd = arc.trajectory.endTime;
         if (trajStart != null && trajEnd != null && trajEnd > trajStart) {
+          // Cache must store samples in the SAME frame the trail's runtime
+          // resolver produces, otherwise cached samples and live tail
+          // samples don't agree and the trail draws offset from the marker.
+          // Specifically: for body-fixed arcs the runtime resolver applies
+          // the parent's rotation conjugate (body-fixed → inertial) +
+          // alignment to ECLIPJ2000; the cache MUST do the same. Calling
+          // arcResolver here routes through that exact pipeline.
           const cacheResolver = (t: number): [number, number, number] => {
             try {
-              const s = arc.trajectory.stateAt(t);
-              return [s.position[0], s.position[1], s.position[2]];
+              return arcResolver(body.name, t);
             } catch {
               return [NaN, NaN, NaN];
             }
@@ -2476,7 +2561,10 @@ export class UniverseRenderer {
    * frame `alignPositionToFrame` passes through) — probed once up front.
    */
   private alignCacheToWorldFrame(cache: { positions: Float64Array; count: number }, body: Body): void {
-    const srcFrame = bodyTrajectoryFrameName(body);
+    // This path bakes SPICE-sampled inertial trajectories. Body-fixed
+    // bodies don't reach here (they use the composite-arc path instead),
+    // but fall back to a no-op alignment if one ever slips through.
+    const srcFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? DEFAULT_INERTIAL_FRAME;
     // Probe with an off-axis vector ([0,0,1] is rotated by the obliquity;
     // [1,0,0] would be invariant and falsely report "no alignment needed").
     const probe = alignPositionToFrame([0, 0, 1], srcFrame, DEFAULT_INERTIAL_FRAME);
@@ -2558,7 +2646,9 @@ export class UniverseRenderer {
     // own `trajectoryFrame`, so cached trail vertices match the marker that
     // `absolutePositionOf` places. Without this the body draws ~23.4° (the
     // J2000 obliquity) off its trail for any equatorial-frame trajectory.
-    const cacheFrame = bodyTrajectoryFrameName(body);
+    // Body-fixed bodies use the composite-arc cache path, not this one;
+    // fall back to a no-op alignment if one slips through.
+    const cacheFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? DEFAULT_INERTIAL_FRAME;
     const resolver = (t: number): [number, number, number] => {
       try {
         const state = body.trajectory.stateAt(t);
@@ -2670,8 +2760,13 @@ export class UniverseRenderer {
   /**
    * Pick the nearest body at a screen position — checks labels first (screen-space),
    * then raycasts against body meshes. Returns the body name or null.
+   *
+   * `labelOnly` skips the mesh raycast and only does the cheap screen-space label
+   * pick — used for per-move hover so mousing around doesn't raycast every body
+   * mesh each frame. `labelSlopPx` is how far outside a label's box still counts
+   * as a hit — small for hover (precise), generous for click-to-select.
    */
-  pickBody(screenX: number, screenY: number): string | null {
+  pickBody(screenX: number, screenY: number, labelOnly = false, labelSlopPx = 20): string | null {
     if (!this._dblClickRaycaster) return null;
     const rect = this.renderer.domElement.getBoundingClientRect();
     let bodyName: string | undefined;
@@ -2679,9 +2774,10 @@ export class UniverseRenderer {
     // 1. Screen-space label picking (priority — labels are always in front)
     if (this.labelManager) {
       bodyName = this.labelManager.pickNearest(
-        screenX, screenY, this.camera, rect.width, rect.height,
+        screenX, screenY, this.camera, rect.width, rect.height, labelSlopPx,
       );
     }
+    if (labelOnly) return bodyName ?? null;
 
     // 2. Raycast against body meshes (placeholder sphere) AND terrain meshes.
     // When the camera is near a planet's surface the placeholder sphere is hidden
@@ -2771,6 +2867,69 @@ export class UniverseRenderer {
       plugin.onPick?.(bm.body, et, this._ctx);
     }
   };
+
+  /**
+   * Pointer-move handler for hover highlight. Coalesces high-rate pointer events
+   * to one pick per animation frame, then debounces on the picked body's
+   * identity so the highlight only changes when the hovered body actually
+   * changes.
+   */
+  private _onPointerMove = (event: PointerEvent): void => {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this._lastPointer.x = event.clientX - rect.left;
+    this._lastPointer.y = event.clientY - rect.top;
+    if (this._hoverPickTimer) return; // a pick is already scheduled
+    const wait = Math.max(
+      0,
+      UniverseRenderer._hoverPickIntervalMs - (performance.now() - this._lastHoverPickMs),
+    );
+    this._hoverPickTimer = window.setTimeout(() => {
+      this._hoverPickTimer = 0;
+      this._lastHoverPickMs = performance.now();
+      // Label-only pick (cheap; runs while mousing) with a tight slop so the
+      // hover hitbox hugs the label text rather than a loose 20px halo.
+      const next = this.pickBody(this._lastPointer.x, this._lastPointer.y, true, 3);
+      if (next !== this._hoveredBody) this._applyHover(next);
+    }, wait);
+  };
+
+  private _onPointerLeave = (): void => {
+    if (this._hoverPickTimer) {
+      clearTimeout(this._hoverPickTimer);
+      this._hoverPickTimer = 0;
+    }
+    if (this._hoveredBody) this._applyHover(null);
+  };
+
+  /**
+   * Apply the hover highlight: emphasize the hovered body's trajectory line(s)
+   * via opacity (and its label), with every other line at the reduced rest
+   * opacity so the hovered one stands out. Single-slot — one body at a time.
+   * Public hosts can also drive this via `setHoveredBody`.
+   */
+  private _applyHover(next: string | null): void {
+    this._hoveredBody = next;
+
+    // A body's trajectory may be split into `${name}__arc{i}` lines, so match on
+    // the line's own body name rather than the map key — this emphasizes every
+    // arc of the hovered body.
+    for (const tl of this.trajectoryLines.values()) {
+      tl.setEmphasis(next != null && tl.body.name === next ? 'highlight' : 'rest');
+    }
+
+    this.labelManager?.setLabelHighlighted(next);
+    this.renderer.domElement.style.cursor = next ? 'pointer' : '';
+    this.events.emit('body:hovered', { bodyName: next });
+  }
+
+  /**
+   * Programmatically set the hovered/highlighted body (e.g. from a body-list or
+   * context-menu hover in the host app). Pass null to clear.
+   */
+  setHoveredBody(name: string | null): void {
+    if (name === this._hoveredBody) return;
+    this._applyHover(name);
+  }
 
   private renderLoop = (): void => {
     this.animFrameId = requestAnimationFrame(this.renderLoop);

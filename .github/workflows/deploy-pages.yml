@@ -71,11 +71,8 @@ jobs:
       - name: Build packages
         run: npm run build
 
-      - name: Fetch Cassini kernels
-        run: bash scripts/fetch-cassini-kernels.sh
-
-      - name: Fetch LRO kernels
-        run: bash scripts/fetch-lro-kernels.sh
+      - name: Fetch viewer kernels
+        run: bash scripts/fetch-all.sh
 
       - name: Configure Pages
         id: pages
