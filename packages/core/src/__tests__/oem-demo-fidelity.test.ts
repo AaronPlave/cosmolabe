@@ -49,6 +49,7 @@ import { fileURLToPath } from 'node:url';
 import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
 import { parseOem } from '@cosmolabe/interop';
 import { CatalogLoader, type CatalogJson } from '../catalog/CatalogLoader.js';
+import { furnishKernels, VIEWER_KERNELS } from './_harness/kernels.js';
 import type { Body } from '../Body.js';
 
 const VIEWER = fileURLToPath(new URL('../../../../apps/viewer/test-catalogs/', import.meta.url));
@@ -86,14 +87,12 @@ describe('OEM demo fidelity: the file-driven arc matches SPICE truth', () => {
 
   beforeAll(async () => {
     spice = await createHeritageSpice();
-    for (const rel of [...CATALOG_KERNELS, TRUTH_KERNEL]) {
-      const b = readFileSync(`${VIEWER}kernels/${rel}`);
-      await spice.furnish({
-        type: 'buffer',
-        data: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer,
-        filename: rel.split('/').pop()!,
-      });
-    }
+    // Through the shared harness rather than a local readFileSync: it slices the
+    // Buffer by its own offset (see kernelArrayBuffer) and refuses a git-lfs
+    // pointer loudly. The truth SPK here is LFS-routed, and furnishing an
+    // unsmudged pointer loads nothing silently — the resulting failure is a
+    // SPICE(NOLOADEDFILES) from the first spkezr, 40 lines away from the cause.
+    await furnishKernels(spice, [...CATALOG_KERNELS, TRUTH_KERNEL], VIEWER_KERNELS);
 
     const { bodies } = new CatalogLoader({
       spice,

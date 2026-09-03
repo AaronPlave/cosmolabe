@@ -27,24 +27,31 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'kernels/fixtures/**') }}
+          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**') }}
 
       - name: Smudge test-kernel LFS files
         # See deploy-pages.yml for why we install + fetch + checkout
         # explicitly. Sparse fetch keeps the test job's LFS bandwidth tiny.
         #
-        # Both trees are needed: packages/spice's suite reads test-kernels/,
-        # and the cspice-wasm, frames and interop suites read the shared
-        # kernels/fixtures/ (*.bsp and *.bc are LFS-routed there too).
+        # Three paths are needed: packages/spice's suite reads test-kernels/,
+        # the cspice-wasm, frames and interop suites read the shared
+        # kernels/fixtures/ (*.bsp and *.bc are LFS-routed there too), and
+        # core's oem-demo-fidelity suite reads the viewer's Cassini SOI SPK as
+        # its SPICE truth reference.
+        #
+        # The viewer include stays scoped to cassini/ (4.8 MB) rather than the
+        # whole test-catalogs/kernels/ tree (~150 MB: mar099s, europa-clipper,
+        # de440s), which is the point of a sparse fetch. Add a sibling path
+        # here when a test starts needing one — the harness now fails with
+        # "is a git-lfs pointer, not a kernel" when that step is missed.
         #
         # Paths are given as `dir/**` globs, not `dir/`: git-lfs 3.4 accepts a
         # bare directory silently and checks out nothing, which would leave
-        # pointers in place and fail the tests with a SPICE file-format error
-        # instead of a missing-kernel one.
+        # pointers in place.
         run: |
           git lfs install --local
-          git lfs fetch --include "packages/spice/test-kernels/**,kernels/fixtures/**"
-          git lfs checkout "packages/spice/test-kernels/**" "kernels/fixtures/**"
+          git lfs fetch --include "packages/spice/test-kernels/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**"
+          git lfs checkout "packages/spice/test-kernels/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

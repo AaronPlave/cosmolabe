@@ -18,15 +18,35 @@ export const SPICE_TEST_KERNELS = join(__dirname, '../../../../spice/test-kernel
 /** Larger mission kernels shipped with the viewer (LRO, de440s, MSL, ...). */
 export const VIEWER_KERNELS = join(__dirname, '../../../../../apps/viewer/test-catalogs/kernels');
 
+const LFS_POINTER_MAGIC = 'version https://git-lfs.github.com/spec/v1';
+
+/** Throw if `buf` is a git-lfs pointer rather than the kernel it stands for.
+ *
+ *  Worth its own check because the silent version is expensive to diagnose. A
+ *  pointer is a ~130-byte text file, so `furnish` accepts it happily — SPICE
+ *  ignores text outside `\begindata` — and loads nothing. The failure then
+ *  surfaces much later and somewhere else, as SPICE(NOLOADEDFILES) from
+ *  whichever `spkezr` first needed the data, which reads as a broken test
+ *  rather than an unsmudged checkout. */
+function assertNotLfsPointer(buf: Buffer, full: string): Buffer {
+  if (buf.length < 1024 && buf.subarray(0, LFS_POINTER_MAGIC.length).toString('utf8') === LFS_POINTER_MAGIC) {
+    throw new Error(
+      `${full} is a git-lfs pointer, not a kernel. Run \`git lfs pull\` (or, in CI, ` +
+        `add this path to the sparse fetch in .github/workflows/ci.yml).`,
+    );
+  }
+  return buf;
+}
+
 /** Read a kernel file as a Buffer, transparently gunzipping `<path>.gz` when
  *  the plain file is missing. `relPath` is resolved against `root`. */
 export function readKernelBuffer(relPath: string, root: string = SPICE_TEST_KERNELS): Buffer {
   const full = join(root, relPath);
   try {
-    return readFileSync(full);
+    return assertNotLfsPointer(readFileSync(full), full);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-    return gunzipSync(readFileSync(`${full}.gz`));
+    return gunzipSync(assertNotLfsPointer(readFileSync(`${full}.gz`), `${full}.gz`));
   }
 }
 
