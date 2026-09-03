@@ -27,15 +27,24 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**') }}
+          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'kernels/fixtures/**') }}
 
       - name: Smudge test-kernel LFS files
         # See deploy-pages.yml for why we install + fetch + checkout
         # explicitly. Sparse fetch keeps the test job's LFS bandwidth tiny.
+        #
+        # Both trees are needed: packages/spice's suite reads test-kernels/,
+        # and the cspice-wasm, frames and interop suites read the shared
+        # kernels/fixtures/ (*.bsp and *.bc are LFS-routed there too).
+        #
+        # Paths are given as `dir/**` globs, not `dir/`: git-lfs 3.4 accepts a
+        # bare directory silently and checks out nothing, which would leave
+        # pointers in place and fail the tests with a SPICE file-format error
+        # instead of a missing-kernel one.
         run: |
           git lfs install --local
-          git lfs fetch --include "packages/spice/test-kernels/**"
-          git lfs checkout packages/spice/test-kernels/
+          git lfs fetch --include "packages/spice/test-kernels/**,kernels/fixtures/**"
+          git lfs checkout "packages/spice/test-kernels/**" "kernels/fixtures/**"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
