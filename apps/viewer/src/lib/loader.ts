@@ -549,7 +549,22 @@ function initScene(
   }
 
   setSceneLoaded(true);
+  // The epoch the catalog asked for, before the clock is allowed to run.
+  const catalogEt = universe.time;
   renderer.start();
+
+  if (TEST_MODE) {
+    // `start()` plays at real-time rate, so without this the captured epoch is
+    // whatever the wall clock reached while the page settled — and the goldens
+    // were never deterministic. At Saturn orbit insertion Cassini covers
+    // 29.8 km/s, so the harness's 6 s settle window drifted the scene ~180 km;
+    // raising the window to 20 s made the diff worse rather than better, which
+    // is how this was found. Freeze at the catalog's epoch and restore it,
+    // since a few frames have already advanced it.
+    renderer.timeController.pause();
+    // setTime notifies through to universe.setTime, so this is the one call.
+    renderer.timeController.setTime(catalogEt);
+  }
 
   // Expose for console-based tuning during development.
   (window as unknown as { renderer: UniverseRenderer }).renderer = renderer;
@@ -565,10 +580,12 @@ function initScene(
     (window as unknown as { __cosmolabe: unknown }).__cosmolabe = {
       ready: true,
       viewpoints: () => u.viewpoints.map((v) => v.name),
-      /** Seek to a UTC ISO epoch (no-op if SPICE/LSK unavailable). */
+      /** Seek to a UTC ISO epoch (no-op if SPICE/LSK unavailable). Routed
+       *  through the TimeController rather than `universe.setTime` so its
+       *  `_et` does not go stale and fight the next tick. */
       seek: (iso: string) => {
         if (!spice) return false;
-        try { u.setTime(spice.str2et(iso)); return true; } catch { return false; }
+        try { r.timeController.setTime(spice.str2et(iso)); return true; } catch { return false; }
       },
       /** Apply a named viewpoint, render one frame, return a PNG data URL. */
       capture: (viewpointName?: string) => {
