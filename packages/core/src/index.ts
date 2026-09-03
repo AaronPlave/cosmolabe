@@ -90,4 +90,7 @@ export {
   utcMsFromCalendarString,
   approxEtFromCalendarString,
   J2000_UNIX_MS_APPROX,
+  J2000_UNIX_MS,
+  etToDate,
+  etFromDate,
 } from './time.js';

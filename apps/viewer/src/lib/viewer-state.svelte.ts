@@ -5,7 +5,7 @@
  * that exported $state is either never reassigned, or wrapped in an object
  * whose properties are mutated. We use the latter.
  */
-import type { Universe } from '@cosmolabe/core';
+import { etToDate, type Universe } from '@cosmolabe/core';
 import type { UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
 import { loadPrefs, savePrefs } from './persistence';
@@ -84,9 +84,7 @@ export function etToUtcString(etValue: number): string {
     const years = etValue / 31556952;
     return `J2000 ${years >= 0 ? '+' : ''}${years.toFixed(1)} yr`;
   }
-  const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
-  const date = new Date(j2000Ms + etValue * 1000);
-  return date.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  return etToDate(etValue).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
 }
 
 export function etToShortDate(etValue: number): string {
@@ -96,9 +94,7 @@ export function etToShortDate(etValue: number): string {
     if (abs >= 1e6) return years >= 0 ? '+\u221E' : '-\u221E';
     return `${years >= 0 ? '+' : ''}${years.toFixed(0)}yr`;
   }
-  const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
-  const date = new Date(j2000Ms + etValue * 1000);
-  return date.toISOString().slice(0, 10);
+  return etToDate(etValue).toISOString().slice(0, 10);
 }
 
 export function formatBytes(bytes: number): string {

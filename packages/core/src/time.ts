@@ -57,6 +57,37 @@ export function utcMsFromCalendarString(time: string): number {
 export const J2000_UNIX_MS_APPROX = Date.UTC(2000, 0, 1, 12, 0, 0);
 
 /**
+ * The exact Unix millisecond value of the J2000 epoch.
+ *
+ * J2000 is 2000-01-01T12:00:00 **TDB**, and that instant was
+ * 2000-01-01T11:58:55.816 UTC — TT-TAI is 32.184 s and TAI-UTC was 32 s in
+ * 2000, so TT-UTC was 64.184 s. Use this, not noon, whenever converting an
+ * ephemeris time to or from a JavaScript `Date`. `packages/cesium-adapter` and
+ * `packages/cesium` already did; core and the viewer used noon UTC and were
+ * wrong by that 64.184 s everywhere they showed or consumed a wall-clock time.
+ *
+ * A residual remains: this ignores the leap seconds accrued *since* 2000 (five
+ * of them, so about 5 s today), because doing better needs a leap-second table
+ * this package does not carry. Where SPICE is available its `et2utc`/`str2et`
+ * are exact and should be preferred; this is for the paths that have no SPICE
+ * instance to reach.
+ */
+export const J2000_UNIX_MS = Date.UTC(2000, 0, 1, 11, 58, 55, 816);
+
+/** A `Date` for an ephemeris time, for libraries that speak UTC calendar time.
+ *
+ *  Accurate to the leap seconds since 2000 (see `J2000_UNIX_MS`). satellite.js
+ *  reads the `Date` with UTC getters, so this is the conversion SGP4 wants. */
+export function etToDate(et: number): Date {
+  return new Date(J2000_UNIX_MS + et * 1000);
+}
+
+/** Ephemeris time for a `Date`. The inverse of `etToDate`, same caveat. */
+export function etFromDate(date: Date): number {
+  return (date.getTime() - J2000_UNIX_MS) / 1000;
+}
+
+/**
  * Seconds past J2000 for a UTC calendar string, without SPICE.
  *
  * The fallback for when no leapseconds kernel is loaded and `str2et` is
