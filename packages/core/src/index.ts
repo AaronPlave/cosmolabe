@@ -96,3 +96,10 @@ export { StateStore } from './state/StateStore.js';
 export type { StateListener } from './state/StateStore.js';
 export type { UniverseState } from './state/StateTypes.js';
 export { DEFAULT_UNIVERSE_STATE } from './state/StateTypes.js';
+
+// Time
+export {
+  utcMsFromCalendarString,
+  approxEtFromCalendarString,
+  J2000_UNIX_MS_APPROX,
+} from './time.js';

@@ -9,6 +9,7 @@ import { InterpolatedStatesTrajectory, type StateRecord } from '../trajectories/
 import { parseOem } from '@cosmolabe/interop';
 import { oemToStateRecords, checkOemFrame } from '../trajectories/OemAdapter.js';
 import { parseXyzv } from '../trajectories/XyzvParser.js';
+import { approxEtFromCalendarString } from '../time.js';
 import { TLETrajectory } from '../trajectories/TLETrajectory.js';
 import { ChebyshevPolyTrajectory } from '../trajectories/ChebyshevPolyTrajectory.js';
 import { LinearCombinationTrajectory } from '../trajectories/LinearCombinationTrajectory.js';
@@ -1285,10 +1286,12 @@ export class CatalogLoader {
       const spiceStr = timeStr.endsWith('Z') ? timeStr.slice(0, -1) : timeStr;
       try { return this.spice.str2et(spiceStr); } catch { /* fall through */ }
     }
-    const J2000_MS = Date.UTC(2000, 0, 1, 12, 0, 0);
-    const ms = Date.parse(timeStr);
-    if (isNaN(ms)) return 0;
-    return (ms - J2000_MS) / 1000;
+    // Not Date.parse: it reads an offset-less date-time as LOCAL time, so a
+    // naive catalog epoch used to shift by the machine's timezone offset while
+    // the str2et path above read the same string as UTC.
+    const et = approxEtFromCalendarString(timeStr);
+    if (isNaN(et)) return 0;
+    return et;
   }
 
   private parseColor(color: number[] | string): [number, number, number] {

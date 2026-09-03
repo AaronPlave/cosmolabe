@@ -11,6 +11,7 @@ import {
   Universe,
   loadCatalogFromUrl,
   bodyFixedOffsetToWorld,
+  approxEtFromCalendarString,
   type ResolvedCatalogGraph,
   type ResolvedKernel,
 } from '@cosmolabe/core';
@@ -395,9 +396,13 @@ function initScene(
         try { et = spice.str2et(dt); } catch { /* fall through */ }
       }
       if (et === undefined) {
-        const j2000Ms = Date.UTC(2000, 0, 1, 12, 0, 0);
-        const ms = new Date(dt).getTime();
-        if (!Number.isNaN(ms)) et = (ms - j2000Ms) / 1000;
+        // Not `new Date(dt)`: it reads an offset-less date-time as LOCAL time,
+        // which made a naive `defaultTime` land the scene at a different epoch
+        // for every viewer's timezone. Every catalog shipped here writes an
+        // explicit "Z", so this path is only reached by author-supplied
+        // catalogs — which is exactly why it should not depend on the browser.
+        const fallback = approxEtFromCalendarString(dt);
+        if (!Number.isNaN(fallback)) et = fallback;
       }
       if (et !== undefined) universe.setTime(et);
       else console.warn(`[Cosmolabe] Failed to parse defaultTime "${dt}"`);
