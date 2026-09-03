@@ -196,7 +196,7 @@
         "ascendingNode": 80.39286669,
         "argOfPeriapsis": 72.58981653,
         "meanAnomaly": 113.4104434,
-        "epoch": "2010-07-23T00:00:00"
+        "epoch": "2010-07-23T00:00:00Z"
       },
       "geometry": { "type": "Globe", "radius": 476, "baseMap": "textures/ceres.png" },
       "label": { "color": [0.6, 0.6, 0.6] }
