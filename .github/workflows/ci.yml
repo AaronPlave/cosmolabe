@@ -27,7 +27,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**') }}
+          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp') }}
 
       - name: Smudge test-kernel LFS files
         # See deploy-pages.yml for why we install + fetch + checkout
@@ -41,10 +41,17 @@ jobs:
         # workflow has never been green. Verified as an A/B on the runner: with
         # the glob, spice-integration passes; with the bare directory, it fails
         # with no SPK loaded.
+        #
+        # de440s.bsp is included because lro-validation furnishes it for the
+        # Moon's position relative to the solar-system barycentre. Smudged
+        # rather than downloaded: it is already committed as an LFS object, so
+        # one glob entry costs 33 MB once and nothing after (the cache above
+        # covers it), where scripts/fetch-kernels.sh would pull 94 MB from
+        # NAIF — 62 MB of that an asteroid SPK no test touches.
         run: |
           git lfs install --local
-          git lfs fetch --include "packages/spice/test-kernels/**"
-          git lfs checkout "packages/spice/test-kernels/**"
+          git lfs fetch --include "packages/spice/test-kernels/**,apps/viewer/test-catalogs/kernels/de440s.bsp"
+          git lfs checkout "packages/spice/test-kernels/**" "apps/viewer/test-catalogs/kernels/de440s.bsp"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
