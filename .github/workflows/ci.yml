@@ -32,10 +32,19 @@ jobs:
       - name: Smudge test-kernel LFS files
         # See deploy-pages.yml for why we install + fetch + checkout
         # explicitly. Sparse fetch keeps the test job's LFS bandwidth tiny.
+        #
+        # The path is a `dir/**` glob, not a bare `dir/`: given a directory,
+        # git-lfs exits 0 and checks out NOTHING, so every kernel stayed a
+        # ~130-byte pointer. SPICE ignores text outside \begindata, so furnish
+        # accepted the pointers and loaded nothing, and the suite failed much
+        # later with SPICE(NOLOADEDFILES) — which is a large part of why this
+        # workflow has never been green. Verified as an A/B on the runner: with
+        # the glob, spice-integration passes; with the bare directory, it fails
+        # with no SPK loaded.
         run: |
           git lfs install --local
           git lfs fetch --include "packages/spice/test-kernels/**"
-          git lfs checkout packages/spice/test-kernels/
+          git lfs checkout "packages/spice/test-kernels/**"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
