@@ -34,6 +34,32 @@ export interface GroundSample {
   readonly heightM?: number;
 }
 
+/** An explicit UTC designator or numeric offset at the end of the string. */
+const HAS_OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+/**
+ * Milliseconds for an epoch label, reading an offset-less one as UTC.
+ *
+ * Not `Date.parse` directly: ES reads a date-time carrying no offset as LOCAL
+ * time. Here that leaks in exactly one place, which is why it survived — the
+ * sample times below are *differences*, so a constant local offset cancels and
+ * the output is right. It is only the DST discontinuity that does not cancel: a
+ * track straddling one emits relative times an hour wrong. Measured on a run of
+ * 2024-03-10T01:30 to 04:30 under America/Los_Angeles, `Date.parse` reports the
+ * span as 2 hours instead of 3.
+ *
+ * Duplicated from @cosmolabe/core's `utcMsFromCalendarString` rather than
+ * imported: this package has no runtime dependencies by design (the module note
+ * above — ET to UTC is the caller's concern), and taking one on core to reach a
+ * four-line function would be the wrong trade.
+ */
+function utcMs(label: string): number {
+  const t = label.trim();
+  if (HAS_OFFSET.test(t)) return Date.parse(t);
+  // A date-only form is already UTC per spec; only a time component needs pinning.
+  return Date.parse(t.includes(':') ? `${t}Z` : t);
+}
+
 /**
  * A CZML document with a single positioned entity whose `position` is a time-tagged
  * cartographicDegrees path (lon, lat, height triples interleaved with epoch labels in
@@ -43,10 +69,10 @@ export function groundTrackToCzml(name: string, samples: readonly GroundSample[]
   // CZML cartographicDegrees with epoch: [t0, lon, lat, h, t1, lon, lat, h, ...] where
   // each t is seconds from the reference epoch (the first sample).
   const ref = samples[0]?.epoch ?? '';
-  const refMs = ref ? Date.parse(ref) : 0;
+  const refMs = ref ? utcMs(ref) : 0;
   const cart: number[] = [];
   for (const s of samples) {
-    const t = (Date.parse(s.epoch) - refMs) / 1000;
+    const t = (utcMs(s.epoch) - refMs) / 1000;
     cart.push(t, s.lonDeg, s.latDeg, s.heightM ?? 0);
   }
   const entity: Record<string, unknown> = {
