@@ -89,6 +89,13 @@ jobs:
       - name: Typecheck tests
         run: npm run typecheck:tests
 
+      # apps/viewer was in no gate at all — not typechecked, not tested, not
+      # built on any PR (issue #20) — which is how its camera-view-io.ts kept
+      # the noon-UTC J2000 constant through both #3 and #22. Covers the app's
+      # own .ts; the .svelte components still need svelte-check.
+      - name: Typecheck viewer
+        run: npm run typecheck:viewer
+
       # lro-validation.test.ts reads an LRO reconstructed-orbit SPK that is not
       # committed. deploy-pages.yml has fetched it from NAIF since April, so the
       # download is already proven on the runner — this workflow simply never
