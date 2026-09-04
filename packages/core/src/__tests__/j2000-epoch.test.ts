@@ -17,7 +17,7 @@
  * wrong expectation.
  */
 import { describe, it, expect } from 'vitest';
-import { J2000_UNIX_MS, J2000_UNIX_MS_APPROX, etToDate, etFromDate } from '../time.js';
+import { J2000_UNIX_MS, etToDate, etFromDate } from '../time.js';
 import { TLETrajectory } from '../trajectories/TLETrajectory.js';
 
 /** Real ISS elements (NORAD 25544), epoch 24001.5 = 2024-01-01T12:00 UTC. */
@@ -38,7 +38,9 @@ describe('J2000_UNIX_MS', () => {
   it('differs from the old noon-UTC constant by exactly 64.184 s', () => {
     // Keeps the size of the defect on record, and keeps this test sensitive to
     // it: if someone "simplifies" the constant back to noon, this fails.
-    expect((J2000_UNIX_MS_APPROX - J2000_UNIX_MS) / 1000).toBeCloseTo(64.184, 6);
+    // Stated literally rather than via a constant, so a wrong constant cannot
+    // agree with a wrong expectation. Noon UTC is 64.184 s after noon TDB.
+    expect((Date.UTC(2000, 0, 1, 12, 0, 0) - J2000_UNIX_MS) / 1000).toBeCloseTo(64.184, 6);
   });
 
   it('round-trips through etToDate / etFromDate', () => {

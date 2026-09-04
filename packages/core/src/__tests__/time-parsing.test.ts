@@ -14,7 +14,7 @@
  * wrong parse cannot agree with a wrong expectation.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { utcMsFromCalendarString, approxEtFromCalendarString, J2000_UNIX_MS_APPROX } from '../time.js';
+import { utcMsFromCalendarString, etFromCalendarString } from '../time.js';
 
 /** Run `fn` with `process.env.TZ` set, restoring it afterwards.
  *
@@ -89,29 +89,41 @@ describe('utcMsFromCalendarString', () => {
   });
 });
 
-describe('approxEtFromCalendarString', () => {
+describe('etFromCalendarString', () => {
   it('is seconds past the J2000 epoch, timezone-independent', () => {
-    const et = approxEtFromCalendarString('2004-07-01T02:48:00');
-    expect(et).toBe((Date.UTC(2004, 6, 1, 2, 48, 0) - Date.UTC(2000, 0, 1, 12, 0, 0)) / 1000);
+    const et = etFromCalendarString('2004-07-01T02:48:00');
+    // TAI-UTC was still 32 s in 2004 (the next insertion was 2006-01-01), so
+    // for this epoch the leap-second correction is zero and the value is just
+    // elapsed UTC from the true J2000 instant.
+    const exactJ2000 = Date.UTC(2000, 0, 1, 11, 58, 55, 816);
+    expect(et).toBe((Date.UTC(2004, 6, 1, 2, 48, 0) - exactJ2000) / 1000);
     for (const tz of ZONES) {
-      expect(inTimezone(tz, () => approxEtFromCalendarString('2004-07-01T02:48:00')), tz).toBe(et);
+      expect(inTimezone(tz, () => etFromCalendarString('2004-07-01T02:48:00')), tz).toBe(et);
     }
   });
 
-  it('is zero at the J2000 epoch itself', () => {
-    expect(approxEtFromCalendarString('2000-01-01T12:00:00')).toBe(0);
+  it('is 64.184 s at noon UTC, because J2000 is noon TDB', () => {
+    // Not zero. Noon UTC on 2000-01-01 is 64.184 s AFTER the J2000 epoch,
+    // which is noon TDB = 11:58:55.816 UTC. The old approximation returned 0
+    // here, which is precisely the bug #3 and #12 between them removed.
+    expect(etFromCalendarString('2000-01-01T12:00:00')).toBeCloseTo(64.184, 6);
+  });
+
+  it('is zero at the true J2000 instant', () => {
+    expect(etFromCalendarString('2000-01-01T11:58:55.816')).toBeCloseTo(0, 6);
   });
 
   it('propagates NaN rather than reporting epoch 0', () => {
-    expect(approxEtFromCalendarString('not a time')).toBeNaN();
+    expect(etFromCalendarString('not a time')).toBeNaN();
   });
 
-  it('names the TDB offset it does not model', () => {
-    // The real J2000 epoch is 2000-01-01T12:00:00 TDB = 11:58:55.816 UTC. This
-    // fallback treats it as 12:00:00 UTC, so it runs 64.184 s off — which is
-    // why str2et is always preferred, and is pinned here so the size of the
-    // approximation is visible rather than folk knowledge.
-    const exact = Date.UTC(2000, 0, 1, 11, 58, 55, 816);
-    expect((J2000_UNIX_MS_APPROX - exact) / 1000).toBeCloseTo(64.184, 3);
+  it('applies the leap seconds inserted since 2000', () => {
+    // Five insertions between 2000 and 2024 (2006, 2009, 2012, 2015, 2017), so
+    // an epoch in 2024 sits 5 s further along than elapsed UTC alone implies.
+    // Stated from the count rather than read from the table, so a wrong table
+    // cannot agree with a wrong expectation.
+    const exactJ2000 = Date.UTC(2000, 0, 1, 11, 58, 55, 816);
+    const elapsedUtc = (Date.UTC(2024, 0, 1) - exactJ2000) / 1000;
+    expect(etFromCalendarString('2024-01-01T00:00:00Z') - elapsedUtc).toBeCloseTo(5, 6);
   });
 });

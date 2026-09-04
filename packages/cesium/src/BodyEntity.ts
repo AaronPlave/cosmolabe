@@ -8,6 +8,7 @@
  */
 
 import type { Body } from '@cosmolabe/core';
+import { etToDate as coreEtToDate } from '@cosmolabe/core';
 import type { EntityStyleOptions, ResolvedEntityStyle } from './EntityStyle.js';
 import { resolveEntityStyle } from './EntityStyle.js';
 
@@ -30,11 +31,9 @@ export interface BodyEntityOptions extends EntityStyleOptions {
   modelHpr?: [number, number, number];
 }
 
-/** Convert ET (seconds past J2000 TDB) to JS Date. */
-function etToJsDate(et: number): Date {
-  const J2000_UNIX_MS = Date.UTC(2000, 0, 1, 11, 58, 55, 816);
-  return new Date(J2000_UNIX_MS + et * 1000);
-}
+/** Convert ET (seconds past J2000 TDB) to JS Date. Core owns the single J2000
+ *  constant and the leap-second table; this used to inline its own copy. */
+const etToJsDate = coreEtToDate;
 
 /** km → meters */
 const KM_TO_M = 1000;

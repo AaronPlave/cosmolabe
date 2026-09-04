@@ -176,6 +176,32 @@ Examples: `"1.5h"`, `"42164km"`, `"1au"`.
 
 **Dates** can be ISO-8601 (`"2025-01-01T00:00:00Z"`) or Julian-day numbers.
 
+### How epochs are read
+
+Every date in a catalog is **UTC**, whether or not it carries a `Z`. A naive
+string like `"2004-07-01T02:48:00"` is read as UTC, not as the viewer's local
+time, so a catalog renders the same scene in every timezone.
+
+Two paths convert a date to ephemeris time, and they agree:
+
+- **With a leapseconds kernel furnished** (`naif0012.tls`), SPICE `str2et` reads
+  the string. This is authoritative and accepts forms JS does not — day-of-year
+  (`"2004-183T02:48:00"`), `JD` prefixes, era suffixes.
+- **Without SPICE**, core converts using its own leap-second table. This is
+  exact to the millisecond against `str2et` across the table's range
+  (1972 onward), so a SPICE-free build is not seconds off the SPICE one.
+
+Two things to know:
+
+- **`J2000` is noon TDB, not noon UTC.** ET `0` is `2000-01-01T11:58:55.816Z`.
+  An epoch written as `"2000-01-01T12:00:00Z"` is ET `64.184`, not `0`.
+- **The SPICE-free path cannot read day-of-year form.** It warns and falls back
+  to J2000 rather than failing silently — but J2000 is almost certainly not what
+  the catalog meant, so either furnish an LSK or write the epoch as ISO 8601.
+
+Epochs before 1972 use the SPICE-free table's clamp and are off by about a
+second; furnish an LSK if a pre-1972 epoch has to be exact.
+
 ## More examples
 
 The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can copy from:

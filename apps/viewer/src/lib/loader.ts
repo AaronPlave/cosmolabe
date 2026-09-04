@@ -11,7 +11,7 @@ import {
   Universe,
   loadCatalogFromUrl,
   bodyFixedOffsetToWorld,
-  approxEtFromCalendarString,
+  etFromCalendarString,
   type ResolvedCatalogGraph,
   type ResolvedKernel,
 } from '@cosmolabe/core';
@@ -401,7 +401,7 @@ function initScene(
         // for every viewer's timezone. Every catalog shipped here writes an
         // explicit "Z", so this path is only reached by author-supplied
         // catalogs — which is exactly why it should not depend on the browser.
-        const fallback = approxEtFromCalendarString(dt);
+        const fallback = etFromCalendarString(dt);
         if (!Number.isNaN(fallback)) et = fallback;
       }
       if (et !== undefined) universe.setTime(et);

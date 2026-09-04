@@ -9,7 +9,7 @@ import { InterpolatedStatesTrajectory, type StateRecord } from '../trajectories/
 import { parseOem } from '@cosmolabe/interop';
 import { oemToStateRecords, checkOemFrame } from '../trajectories/OemAdapter.js';
 import { parseXyzv } from '../trajectories/XyzvParser.js';
-import { approxEtFromCalendarString } from '../time.js';
+import { etFromCalendarString } from '../time.js';
 import { TLETrajectory } from '../trajectories/TLETrajectory.js';
 import { ChebyshevPolyTrajectory } from '../trajectories/ChebyshevPolyTrajectory.js';
 import { LinearCombinationTrajectory } from '../trajectories/LinearCombinationTrajectory.js';
@@ -1289,8 +1289,22 @@ export class CatalogLoader {
     // Not Date.parse: it reads an offset-less date-time as LOCAL time, so a
     // naive catalog epoch used to shift by the machine's timezone offset while
     // the str2et path above read the same string as UTC.
-    const et = approxEtFromCalendarString(timeStr);
-    if (isNaN(et)) return 0;
+    const et = etFromCalendarString(timeStr);
+    if (isNaN(et)) {
+      // Returning 0 here used to be silent, and 0 is not a neutral value — it
+      // is J2000, so an epoch this could not read moved the body to
+      // 2000-01-01 and the scene still rendered. The formats that land here are
+      // SPICE-legal but not JS-legal (day-of-year `2004-183T12:00:00`, `JD
+      // 2451545.0`), which means the catalog is usually right and the loader
+      // simply had no LSK furnished to read it with.
+      console.warn(
+        `[Cosmolabe] Could not parse epoch "${timeStr}" without SPICE. ` +
+          `Falling back to J2000 (2000-01-01), which is almost certainly not ` +
+          `what this catalog means. Furnish a leapseconds kernel (naif0012.tls) ` +
+          `so str2et can read it, or write the epoch as ISO 8601 UTC.`,
+      );
+      return 0;
+    }
     return et;
   }
 

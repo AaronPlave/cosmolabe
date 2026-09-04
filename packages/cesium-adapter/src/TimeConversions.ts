@@ -7,27 +7,31 @@
  *
  * TDB-TAI offset is approximately 32.184 seconds (ignoring small periodic
  * terms < 1.7ms). For mission visualization this is more than adequate.
+ *
+ * The ET<->Date pair delegates to `@cosmolabe/core`, which owns the single
+ * J2000 constant and the leap-second table.
  */
+import { etToDate as coreEtToDate, etFromDate as coreEtFromDate } from '@cosmolabe/core';
 
 /** TDB - TAI offset in seconds (constant part only). */
 const TDB_TAI_OFFSET = 32.184;
 
-/** J2000 epoch as a JavaScript Date (2000-01-01T11:58:55.816 UTC). */
-const J2000_UNIX_MS = Date.UTC(2000, 0, 1, 11, 58, 55, 816);
-
 /**
  * Convert SPICE ET (seconds past J2000 TDB) to a JavaScript Date.
- * Approximate: ignores leap seconds added after J2000 and small TDB-TT periodic terms.
+ *
+ * Leap-second exact: core carries the ΔAT table, and this used to keep its own
+ * copy of the J2000 constant with a comment noting it ignored leap seconds
+ * since 2000. It no longer does either.
  */
 export function etToDate(et: number): Date {
-  return new Date(J2000_UNIX_MS + et * 1000);
+  return coreEtToDate(et);
 }
 
 /**
- * Convert a JavaScript Date to approximate SPICE ET (seconds past J2000 TDB).
+ * Convert a JavaScript Date to SPICE ET (seconds past J2000 TDB).
  */
 export function dateToEt(date: Date): number {
-  return (date.getTime() - J2000_UNIX_MS) / 1000;
+  return coreEtFromDate(date);
 }
 
 /**
