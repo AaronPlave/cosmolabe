@@ -16,6 +16,7 @@ import { CameraController } from './controls/CameraController.js';
 import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
 import { TimeController } from './controls/TimeController.js';
+import { applyNamedViewpoint, type ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
 import type { TerrainConfig } from './TerrainManager.js';
 import type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import { BloomEffect, type BloomConfig } from './BloomEffect.js';
@@ -1003,6 +1004,15 @@ export class UniverseRenderer {
 
   getBodyMesh(name: string): BodyMesh | undefined {
     return this.bodyMeshes.get(name);
+  }
+
+  /**
+   * Go to a registered viewpoint by name: track its body, move the camera, and
+   * — when the viewpoint carries an `epoch` (a catalog Viewpoint's `time`) —
+   * seek the clock to that moment. Returns false if no viewpoint by that name.
+   */
+  applyNamedViewpoint(name: string, opts: ApplyViewpointOptions = {}): boolean {
+    return applyNamedViewpoint(this, name, opts);
   }
 
   getTrajectoryLine(name: string): TrajectoryLine | undefined {

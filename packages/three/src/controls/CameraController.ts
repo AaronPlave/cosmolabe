@@ -21,6 +21,13 @@ export interface CameraViewpoint {
   up: THREE.Vector3;
   /** If set, camera tracks this body name */
   trackBody?: string;
+  /**
+   * If set, the moment this viewpoint depicts, in ephemeris seconds past J2000
+   * (a catalog Viewpoint's `time`, already resolved). Applying the viewpoint
+   * seeks the clock to it; a viewpoint that leaves this undefined leaves the
+   * clock where it is.
+   */
+  epoch?: number;
 }
 
 export interface FlyToOptions {

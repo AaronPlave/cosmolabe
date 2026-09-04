@@ -156,9 +156,28 @@ Named camera presets. Each is an item with `"type": "Viewpoint"`:
 }
 ```
 
-`distance` is in kilometers from `center`. `time` is optional; if set, jumping to the viewpoint also sets the clock.
+`distance` is in kilometers from `center`, and `latitude`/`longitude` place the
+camera over that point on the centre body's surface.
 
-Reference one in `defaultViewpoint` to open on it.
+`time` is optional. When it is set, going to the viewpoint **also seeks the
+clock to that moment** — from the Viewpoint menu, from `defaultViewpoint` on
+load, and from the visual-regression capture hook alike. It is read like every
+other catalog date (see *Values and units* below), so it is UTC whether or not
+it carries a `Z`. The camera's `latitude`/`longitude` offset is oriented using
+the centre body's attitude *at that same epoch*, so a viewpoint named for a
+flyby months away from `defaultTime` still looks at the face it names.
+
+A viewpoint with no `time` leaves the clock exactly where it was — it is a
+camera preset and nothing more. This is the difference between "show me the
+rings from the side" and "show me the Huygens landing".
+
+An unparseable `time` is reported on the console and then ignored, rather than
+being silently rounded to J2000: a viewpoint that quietly jumps to the year 2000
+looks like a working scene aimed at empty space.
+
+Reference one in `defaultViewpoint` to open on it. If that viewpoint declares a
+`time`, it wins over the catalog's `defaultTime` — the scene opens at the moment
+the viewpoint names.
 
 ## Values and units
 

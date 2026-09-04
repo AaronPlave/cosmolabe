@@ -485,16 +485,23 @@ function initScene(
       // Viewpoint distance + lat/lon are a body-fixed offset from the tracked
       // body (e.g. "Jezero Overhead" should point at Jezero on Mars, not at
       // inertial coords Mars no longer faces), so it is mapped to world coords
-      // through the tracked body's (or its parent's) orientation at
-      // defaultTime. The convention and the composition both live in core's
-      // `bodyFixedOffsetToWorld` so they are tested against SPICE.
+      // through the tracked body's (or its parent's) orientation at the epoch
+      // the viewpoint is for. The convention and the composition both live in
+      // core's `bodyFixedOffsetToWorld` so they are tested against SPICE.
+      //
+      // That epoch is the viewpoint's own `time` when it names one, and
+      // `defaultTime` otherwise: "Titan T-A Flyby (2004-10-26)" is a lat/lon on
+      // Titan four months after defaultTime, and orienting it with Titan's
+      // defaultTime attitude would aim the camera at the wrong hemisphere even
+      // though the clock it seeks to is right.
+      const layoutEt = vpDef.epoch ?? universe.time;
       const refBody = vpDef.center ? universe.getBody(vpDef.center) : undefined;
       // For a body that itself spins (planet, moon), use the body's own rotation.
       // For a child of a spinning body (e.g. Ingenuity → Mars), use the parent's rotation.
       const spinBody = refBody?.rotation
         ? refBody
         : refBody?.parentName ? universe.getBody(refBody.parentName) : undefined;
-      const q = spinBody?.rotationAt(universe.time);
+      const q = spinBody?.rotationAt(layoutEt);
       const sourceFrame = spinBody?.rotation?.sourceFrame;
       if (q && sourceFrame) {
         const [x, y, z] = bodyFixedOffsetToWorld(
@@ -532,25 +539,18 @@ function initScene(
       target: tgt,
       up,
       trackBody: vpDef.center,
+      // Resolved by CatalogLoader (SPICE str2et, else core's calendar parse),
+      // and undefined when the catalog named no time — which is what keeps a
+      // timeless viewpoint from moving the clock.
+      epoch: vpDef.epoch,
     });
   }
   renderer.cameraController.saveViewpoint('Default');
 
-  // Apply default viewpoint
+  // Apply default viewpoint. Also seeks the clock if that viewpoint declares a
+  // `time`, which is why `catalogEt` below is read after this and not before.
   if (universe.defaultViewpoint) {
-    const vp = renderer.cameraController.getViewpoint(universe.defaultViewpoint);
-    if (vp) {
-      if (vp.trackBody) {
-        const bm = renderer.getBodyMesh(vp.trackBody);
-        if (bm) {
-          renderer.cameraController.track(bm);
-          renderer.cameraController.applyViewpoint(vp);
-          if (vp.target.lengthSq() > 1e-30) renderer.cameraController.track(null);
-        }
-      } else {
-        renderer.cameraController.goToViewpoint(universe.defaultViewpoint, 1.0);
-      }
-    }
+    renderer.applyNamedViewpoint(universe.defaultViewpoint, { animate: true });
   }
 
   setSceneLoaded(true);
@@ -592,18 +592,12 @@ function initScene(
         if (!spice) return false;
         try { r.timeController.setTime(spice.str2et(iso)); return true; } catch { return false; }
       },
-      /** Apply a named viewpoint, render one frame, return a PNG data URL. */
+      /** Apply a named viewpoint, render one frame, return a PNG data URL.
+       *  A viewpoint that declares a `time` seeks the clock to it first, so a
+       *  golden captured at "Huygens Landing (2005-01-14)" is that landing and
+       *  not whatever epoch the previous capture in the scene left behind. */
       capture: (viewpointName?: string) => {
-        if (viewpointName) {
-          const vp = r.cameraController.getViewpoint(viewpointName);
-          if (vp) {
-            if (vp.trackBody) {
-              const bm = r.getBodyMesh(vp.trackBody);
-              if (bm) r.cameraController.track(bm);
-            }
-            r.cameraController.applyViewpoint(vp);
-          }
-        }
+        if (viewpointName) r.applyNamedViewpoint(viewpointName);
         r.renderFrame();
         return (canvas as HTMLCanvasElement).toDataURL('image/png');
       },

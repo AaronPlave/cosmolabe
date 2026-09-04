@@ -34,6 +34,8 @@ export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
 export { CameraController } from './controls/CameraController.js';
 export type { CameraViewpoint, FlyToOptions } from './controls/CameraController.js';
+export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
+export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
 export { KeyboardControls } from './controls/KeyboardControls.js';
 export type { KeyboardControlsConfig } from './controls/KeyboardControls.js';
 export { CameraModeName } from './controls/CameraModes.js';

@@ -295,6 +295,24 @@ export interface ViewpointDefinition {
   up?: [number, number, number];
   /** Field of view in degrees */
   fov?: number;
+  /**
+   * The moment this viewpoint depicts, verbatim from the catalog (UTC, or a
+   * Julian day number). Kept as authored so a consumer can round-trip it; use
+   * `epoch` for the resolved value.
+   */
+  time?: string | number;
+  /**
+   * `time` resolved to ephemeris seconds past J2000, via SPICE `str2et` when a
+   * leapseconds kernel is furnished and core's calendar parse otherwise —
+   * the same path every other catalog epoch takes.
+   *
+   * Undefined when the catalog declared no `time`, and also when it declared
+   * one that could not be parsed (which warns). Deliberately NOT zero on
+   * failure: a viewpoint that says nothing about time must leave the clock
+   * alone, and 0 is a legitimate epoch, so the two cases have to be
+   * distinguishable at the point of use.
+   */
+  epoch?: number;
 }
 
 export interface LoadedCatalog {
@@ -673,6 +691,18 @@ export class CatalogLoader {
     if (Array.isArray(raw.target)) vp.target = raw.target.map(Number) as [number, number, number];
     if (Array.isArray(raw.up)) vp.up = raw.up.map(Number) as [number, number, number];
     if (raw.fov != null) vp.fov = parseFloat(String(raw.fov));
+    if (raw.time != null && (typeof raw.time === 'string' || typeof raw.time === 'number')) {
+      vp.time = raw.time;
+      const et = this.tryParseEpochValue(raw.time);
+      if (et === undefined) {
+        // Warn rather than fall back to 0. A viewpoint named for an epoch that
+        // silently resolves to J2000 is the exact failure this field was added
+        // to remove — the scene still renders, just at the wrong moment.
+        console.warn(`[Cosmolabe] Viewpoint "${item.name}": could not parse time ${JSON.stringify(raw.time)}; leaving the clock alone`);
+      } else {
+        vp.epoch = et;
+      }
+    }
     return vp;
   }
 
@@ -1257,6 +1287,31 @@ export class CatalogLoader {
   }
 
   parseEpochValue(timeValue: string | number): number {
+    const et = this.tryParseEpochValue(timeValue);
+    if (et === undefined) {
+      // 0 is J2000, not a neutral value, so an epoch this could not read moves
+      // the body to 2000-01-01 and the scene still renders. Kept as a fallback
+      // rather than a throw so one bad epoch does not refuse the whole
+      // catalog, but it is no longer silent. The forms that land here are
+      // SPICE-legal but not JS-legal (day-of-year `2004-183T12:00:00`), which
+      // usually means the catalog is right and no LSK was furnished.
+      console.warn(
+        `[Cosmolabe] Could not parse epoch ${JSON.stringify(timeValue)} without SPICE. ` +
+          `Falling back to J2000 (2000-01-01), which is almost certainly not ` +
+          `what this catalog means. Furnish a leapseconds kernel (naif0012.tls) ` +
+          `so str2et can read it, or write the epoch as ISO 8601 UTC.`,
+      );
+      return 0;
+    }
+    return et;
+  }
+
+  /**
+   * `parseEpochValue` without the silent zero: returns `undefined` when the
+   * string cannot be read at all, so a caller that must not move the clock on a
+   * bad value can tell that apart from a legitimate epoch of J2000.
+   */
+  tryParseEpochValue(timeValue: string | number): number | undefined {
     if (typeof timeValue === 'number') {
       // Numeric epochs come in two conventions in the wild:
       //   - Julian Date (Cosmographia / classical astronomy) — values
@@ -1280,7 +1335,7 @@ export class CatalogLoader {
     return this.parseEpoch(timeValue);
   }
 
-  private parseEpoch(timeStr: string): number {
+  private parseEpoch(timeStr: string): number | undefined {
     if (this.spice) {
       // SPICE str2et doesn't accept trailing "Z" — strip it
       const spiceStr = timeStr.endsWith('Z') ? timeStr.slice(0, -1) : timeStr;
@@ -1289,22 +1344,13 @@ export class CatalogLoader {
     // Not Date.parse: it reads an offset-less date-time as LOCAL time, so a
     // naive catalog epoch used to shift by the machine's timezone offset while
     // the str2et path above read the same string as UTC.
+    // Returns undefined rather than 0 on failure, and does NOT warn: 0 is
+    // J2000, not a neutral value, and only the caller knows what it does with
+    // a failure. `parseEpochValue` falls back to J2000 and says so;
+    // `parseViewpoint` leaves the clock alone and says that instead. Emitting
+    // one message here would be wrong for one of them.
     const et = etFromCalendarString(timeStr);
-    if (isNaN(et)) {
-      // Returning 0 here used to be silent, and 0 is not a neutral value — it
-      // is J2000, so an epoch this could not read moved the body to
-      // 2000-01-01 and the scene still rendered. The formats that land here are
-      // SPICE-legal but not JS-legal (day-of-year `2004-183T12:00:00`, `JD
-      // 2451545.0`), which means the catalog is usually right and the loader
-      // simply had no LSK furnished to read it with.
-      console.warn(
-        `[Cosmolabe] Could not parse epoch "${timeStr}" without SPICE. ` +
-          `Falling back to J2000 (2000-01-01), which is almost certainly not ` +
-          `what this catalog means. Furnish a leapseconds kernel (naif0012.tls) ` +
-          `so str2et can read it, or write the epoch as ISO 8601 UTC.`,
-      );
-      return 0;
-    }
+    if (isNaN(et)) return undefined;
     return et;
   }
 
