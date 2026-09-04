@@ -1,0 +1,29 @@
+{
+  // Typecheck the test suites. The per-package `tsconfig.json` files emit the
+  // shipped library and several of them exclude `src/__tests__`, so before this
+  // existed a test could reference a type that was gone, call a function with
+  // the wrong argument type, or assert a compile-time pin that quietly
+  // evaluated to `false` — and still "pass". The first run of this config found
+  // one of each.
+  //
+  // `composite: false` because a composite project may not disable emit, and
+  // this one only typechecks. Cross-package imports resolve through the
+  // workspace symlinks to each package's built `dist` types, so run the normal
+  // `tsc --build` first (`npm run typecheck` does both, in that order).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "packages/*/src/**/*.test.ts",
+    "packages/*/src/__tests__/**/*.ts",
+    // Ambient declarations the suites depend on transitively (e.g. the
+    // `timecraftjs` module shim that @cosmolabe/spice's own sources need).
+    "packages/*/src/**/*.d.ts"
+  ]
+}

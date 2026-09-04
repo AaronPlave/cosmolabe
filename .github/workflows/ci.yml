@@ -27,31 +27,40 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp') }}
+          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp') }}
 
       - name: Smudge test-kernel LFS files
         # See deploy-pages.yml for why we install + fetch + checkout
         # explicitly. Sparse fetch keeps the test job's LFS bandwidth tiny.
         #
-        # The path is a `dir/**` glob, not a bare `dir/`: given a directory,
-        # git-lfs exits 0 and checks out NOTHING, so every kernel stayed a
-        # ~130-byte pointer. SPICE ignores text outside \begindata, so furnish
-        # accepted the pointers and loaded nothing, and the suite failed much
-        # later with SPICE(NOLOADEDFILES) — which is a large part of why this
-        # workflow has never been green. Verified as an A/B on the runner: with
-        # the glob, spice-integration passes; with the bare directory, it fails
-        # with no SPK loaded.
+        # Four paths are needed: packages/spice's suite reads test-kernels/,
+        # the cspice-wasm, frames and interop suites read the shared
+        # kernels/fixtures/ (*.bsp and *.bc are LFS-routed there too), core's
+        # oem-demo-fidelity suite reads the viewer's Cassini SOI SPK as its
+        # SPICE truth reference, and lro-validation furnishes de440s.bsp for
+        # the Moon's position relative to the solar-system barycentre.
         #
-        # de440s.bsp is included because lro-validation furnishes it for the
-        # Moon's position relative to the solar-system barycentre. Smudged
-        # rather than downloaded: it is already committed as an LFS object, so
-        # one glob entry costs 33 MB once and nothing after (the cache above
-        # covers it), where scripts/fetch-kernels.sh would pull 94 MB from
-        # NAIF — 62 MB of that an asteroid SPK no test touches.
+        # The viewer include stays scoped to cassini/ (4.8 MB) rather than the
+        # whole test-catalogs/kernels/ tree (~150 MB: mar099s, europa-clipper),
+        # which is the point of a sparse fetch. Add a sibling path here when a
+        # test starts needing one — the harness now fails with "is a git-lfs
+        # pointer, not a kernel" when that step is missed.
+        #
+        # Paths are given as `dir/**` globs, not `dir/`: git-lfs 3.4 accepts a
+        # bare directory silently and checks out nothing, which would leave
+        # pointers in place. SPICE ignores text outside \begindata, so furnish
+        # would otherwise accept the pointer and load nothing, failing much
+        # later with SPICE(NOLOADEDFILES).
+        #
+        # de440s.bsp is smudged rather than downloaded: it is already
+        # committed as an LFS object, so one glob entry costs 33 MB once and
+        # nothing after (the cache above covers it), where
+        # scripts/fetch-kernels.sh would pull 94 MB from NAIF — 62 MB of that
+        # an asteroid SPK no test touches.
         run: |
           git lfs install --local
-          git lfs fetch --include "packages/spice/test-kernels/**,apps/viewer/test-catalogs/kernels/de440s.bsp"
-          git lfs checkout "packages/spice/test-kernels/**" "apps/viewer/test-catalogs/kernels/de440s.bsp"
+          git lfs fetch --include "packages/spice/test-kernels/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp"
+          git lfs checkout "packages/spice/test-kernels/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp"
 
       - name: Check for stale git-lfs pointers
         # A .gitattributes narrowing does not re-stage blobs committed while the
@@ -72,6 +81,13 @@ jobs:
 
       - name: Typecheck + build
         run: npm run build
+
+      # Separate from `build`: the per-package projects emit the shipped
+      # library and several exclude their suites, so the tests are only
+      # typechecked here. Runs after build because it resolves cross-package
+      # imports through each package's built dist types.
+      - name: Typecheck tests
+        run: npm run typecheck:tests
 
       # lro-validation.test.ts reads an LRO reconstructed-orbit SPK that is not
       # committed. deploy-pages.yml has fetched it from NAIF since April, so the

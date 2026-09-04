@@ -13,6 +13,11 @@ export { builtinCatalogs } from './builtin-catalogs/index.js';
 export type { BuiltinCatalogName } from './builtin-catalogs/index.js';
 
 // Trajectories
+export {
+  OBLIQUITY_J2000_ARCSEC,
+  OBLIQUITY_J2000_DEG,
+  OBLIQUITY_J2000_RAD,
+} from './constants.js';
 export type { CartesianState, Trajectory } from './trajectories/Trajectory.js';
 export { FixedPointTrajectory } from './trajectories/FixedPoint.js';
 export { KeplerianTrajectory } from './trajectories/Keplerian.js';
@@ -20,6 +25,13 @@ export type { KeplerianElements } from './trajectories/Keplerian.js';
 export { SpiceTrajectory } from './trajectories/SpiceTrajectory.js';
 export { InterpolatedStatesTrajectory } from './trajectories/InterpolatedStates.js';
 export type { StateRecord } from './trajectories/InterpolatedStates.js';
+export {
+  oemToStateRecords,
+  oemEpochToEt,
+  oemRefFrameToInertial,
+  checkOemFrame,
+  type OemFrameCheck,
+} from './trajectories/OemAdapter.js';
 export { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
 export type { TrajectoryArc } from './trajectories/CompositeTrajectory.js';
 export { TLETrajectory } from './trajectories/TLETrajectory.js';
@@ -54,6 +66,7 @@ export {
   multiplyQuat,
   frameAlignmentQuat,
   composeBodyToWorldQuat,
+  bodyFixedOffsetToWorld,
 } from './kinematics.js';
 export type { Vec3 } from './kinematics.js';
 

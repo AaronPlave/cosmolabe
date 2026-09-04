@@ -4,8 +4,18 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
-    { "path": "../core" }
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../frames"
+    },
+    {
+      "path": "../cspice-wasm"
+    }
   ]
 }

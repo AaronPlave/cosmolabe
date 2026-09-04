@@ -10,11 +10,20 @@ import * as THREE from 'three';
 import {
   Universe,
   loadCatalogFromUrl,
+  bodyFixedOffsetToWorld,
   approxEtFromCalendarString,
   type ResolvedCatalogGraph,
   type ResolvedKernel,
 } from '@cosmolabe/core';
-import { Spice, type SpiceInstance } from '@cosmolabe/spice';
+import type { SpiceInstance } from '@cosmolabe/spice';
+// The runtime SPICE instance is @cosmolabe/frames' heritage adapter over
+// cspice-wasm. SpiceInstance stays as the type of the exported getSpice()
+// accessor: it is the interface this app programs against, and naming it here
+// keeps that contract explicit even though the implementation moved.
+// The ?url import hands Vite's emitted wasm asset to the engine's locateFile —
+// only the bundler knows where that asset lands.
+import { createHeritageSpice } from '@cosmolabe/frames';
+import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin } from '@cosmolabe/three';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
@@ -115,7 +124,7 @@ async function fetchWithProgress(
 async function ensureSpice(): Promise<SpiceInstance> {
   if (!spice) {
     setLoadingState({ label: 'Initializing SPICE...' });
-    spice = await Spice.init();
+    spice = await createHeritageSpice({ locateFile: () => cspiceWasmUrl });
   }
   return spice;
 }
@@ -473,22 +482,12 @@ function initScene(
       pos = { x: vpDef.eye[0] * scaleFactor, y: vpDef.eye[1] * scaleFactor, z: vpDef.eye[2] * scaleFactor };
     } else if (vpDef.distance != null) {
       const dist = vpDef.distance * scaleFactor;
-      const lon = ((vpDef.longitude ?? 0) * Math.PI) / 180;
-      const lat = ((vpDef.latitude ?? 0) * Math.PI) / 180;
-      // Body-fixed Cartesian (Z = pole, X = prime meridian) at distance `dist`
-      // in the direction of (lat, lon). This is the same convention trajectories
-      // and pick-marker code use; the rotation below maps it to world coords.
-      pos = {
-        x: dist * Math.cos(lat) * Math.cos(lon),
-        y: dist * Math.cos(lat) * Math.sin(lon),
-        z: dist * Math.sin(lat),
-      };
-      // Viewpoint distance + lat/lon are intended as a body-fixed offset from
-      // the tracked body (e.g. "Jezero Overhead" should point at Jezero on
-      // Mars, not at random inertial coords that Mars no longer faces). Rotate
-      // the position by the tracked body's (or its parent's) body-fixed →
-      // inertial transform at defaultTime so the camera lands at the right
-      // surface location.
+      // Viewpoint distance + lat/lon are a body-fixed offset from the tracked
+      // body (e.g. "Jezero Overhead" should point at Jezero on Mars, not at
+      // inertial coords Mars no longer faces), so it is mapped to world coords
+      // through the tracked body's (or its parent's) orientation at
+      // defaultTime. The convention and the composition both live in core's
+      // `bodyFixedOffsetToWorld` so they are tested against SPICE.
       const refBody = vpDef.center ? universe.getBody(vpDef.center) : undefined;
       // For a body that itself spins (planet, moon), use the body's own rotation.
       // For a child of a spinning body (e.g. Ingenuity → Mars), use the parent's rotation.
@@ -496,17 +495,27 @@ function initScene(
         ? refBody
         : refBody?.parentName ? universe.getBody(refBody.parentName) : undefined;
       const q = spinBody?.rotationAt(universe.time);
-      if (q) {
-        // rotationAt returns inertial → body-fixed. Use conjugate to go the other way.
-        const qw = q[0], qx = -q[1], qy = -q[2], qz = -q[3];
-        const tx = 2 * (qy * pos.z - qz * pos.y);
-        const ty = 2 * (qz * pos.x - qx * pos.z);
-        const tz = 2 * (qx * pos.y - qy * pos.x);
-        pos = {
-          x: pos.x + qw * tx + (qy * tz - qz * ty),
-          y: pos.y + qw * ty + (qz * tx - qx * tz),
-          z: pos.z + qw * tz + (qx * ty - qy * tx),
-        };
+      const sourceFrame = spinBody?.rotation?.sourceFrame;
+      if (q && sourceFrame) {
+        const [x, y, z] = bodyFixedOffsetToWorld(
+          dist,
+          vpDef.latitude ?? 0,
+          vpDef.longitude ?? 0,
+          q,
+          sourceFrame,
+        );
+        pos = { x, y, z };
+      } else {
+        // No rotation model to orient against: fall back to treating the
+        // offset as world-frame, which is what it degenerates to anyway.
+        const [x, y, z] = bodyFixedOffsetToWorld(
+          dist,
+          vpDef.latitude ?? 0,
+          vpDef.longitude ?? 0,
+          [1, 0, 0, 0],
+          'EclipticJ2000',
+        );
+        pos = { x, y, z };
       }
     } else {
       pos = { x: 0, y: 300, z: 500 };
@@ -545,7 +554,22 @@ function initScene(
   }
 
   setSceneLoaded(true);
+  // The epoch the catalog asked for, before the clock is allowed to run.
+  const catalogEt = universe.time;
   renderer.start();
+
+  if (TEST_MODE) {
+    // `start()` plays at real-time rate, so without this the captured epoch is
+    // whatever the wall clock reached while the page settled — and the goldens
+    // were never deterministic. At Saturn orbit insertion Cassini covers
+    // 29.8 km/s, so the harness's 6 s settle window drifted the scene ~180 km;
+    // raising the window to 20 s made the diff worse rather than better, which
+    // is how this was found. Freeze at the catalog's epoch and restore it,
+    // since a few frames have already advanced it.
+    renderer.timeController.pause();
+    // setTime notifies through to universe.setTime, so this is the one call.
+    renderer.timeController.setTime(catalogEt);
+  }
 
   // Expose for console-based tuning during development.
   (window as unknown as { renderer: UniverseRenderer }).renderer = renderer;
@@ -561,10 +585,12 @@ function initScene(
     (window as unknown as { __cosmolabe: unknown }).__cosmolabe = {
       ready: true,
       viewpoints: () => u.viewpoints.map((v) => v.name),
-      /** Seek to a UTC ISO epoch (no-op if SPICE/LSK unavailable). */
+      /** Seek to a UTC ISO epoch (no-op if SPICE/LSK unavailable). Routed
+       *  through the TimeController rather than `universe.setTime` so its
+       *  `_et` does not go stale and fight the next tick. */
       seek: (iso: string) => {
         if (!spice) return false;
-        try { u.setTime(spice.str2et(iso)); return true; } catch { return false; }
+        try { r.timeController.setTime(spice.str2et(iso)); return true; } catch { return false; }
       },
       /** Apply a named viewpoint, render one frame, return a PNG data URL. */
       capture: (viewpointName?: string) => {
@@ -606,9 +632,11 @@ export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
 }
 
 /**
- * Pre-fetch text data files referenced by trajectory specs (e.g. `.xyzv` for
- * InterpolatedStates). Drag-drop already populates a dataFiles map; URL-loaded
- * demos otherwise have no way to resolve relative `source:` paths.
+ * Pre-fetch text data files referenced by trajectory specs (`.xyzv` for
+ * InterpolatedStates, `.oem` for OEM). Drag-drop already populates a dataFiles
+ * map; URL-loaded demos otherwise have no way to resolve relative `source:`
+ * paths — CatalogLoader's resolveFile is synchronous, so anything it might be
+ * asked for has to be in hand before the catalog is parsed.
  */
 async function fetchCatalogDataFiles(graph: ResolvedCatalogGraph): Promise<Map<string, string> | undefined> {
   const refs: { absUrl: string; sourcePath: string }[] = [];
@@ -649,6 +677,14 @@ function injectCesiumIonToken(node: unknown, token: string | undefined): void {
   for (const value of Object.values(obj)) injectCesiumIonToken(value, token);
 }
 
+/** Trajectory types whose `source` is a TEXT file resolved through
+ *  CatalogLoader's `resolveFile`. Kept explicit rather than matching any node
+ *  with a `source` key: catalogs use `source` for other things too, and
+ *  speculatively fetching those would mean spurious 404s on every load.
+ *  Binary-source types (ChebyshevPoly) go through resolveFileBinary and are
+ *  not pre-fetched for URL-loaded catalogs. */
+const TEXT_SOURCE_TRAJECTORY_TYPES = new Set(['InterpolatedStates', 'OEM']);
+
 function collectDataRefs(
   node: unknown,
   baseUrl: string,
@@ -660,7 +696,7 @@ function collectDataRefs(
     return;
   }
   const obj = node as Record<string, unknown>;
-  if (obj.type === 'InterpolatedStates' && typeof obj.source === 'string') {
+  if (typeof obj.type === 'string' && TEXT_SOURCE_TRAJECTORY_TYPES.has(obj.type) && typeof obj.source === 'string') {
     out.push({ absUrl: new URL(obj.source, baseUrl).href, sourcePath: obj.source });
   }
   for (const value of Object.values(obj)) collectDataRefs(value, baseUrl, out);

@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Universe model — zero rendering dependencies. Catalog loader, trajectories (SPICE/TLE/Keplerian), rotations, frames, geometry calculator.",
+  "description": "Universe model \u2014 zero rendering dependencies. Catalog loader, trajectories (SPICE/TLE/Keplerian), rotations, frames, geometry calculator.",
   "author": "Aaron Plave",
   "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
   "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
@@ -47,7 +47,11 @@
     "access": "public"
   },
   "dependencies": {
+    "@cosmolabe/interop": "*",
     "@cosmolabe/spice": "*",
     "satellite.js": "^6.0.2"
+  },
+  "devDependencies": {
+    "@cosmolabe/frames": "*"
   }
 }

@@ -9,11 +9,13 @@
  * celestial north pole, in meters.
  *
  * The transform is a rotation around X by the obliquity of the ecliptic
- * (23.4392911 degrees at J2000) plus a km-to-meters scale.
+ * (23.4392911111... degrees at J2000, the exact IAU 1976 value shared from
+ * @cosmolabe/core) plus a km-to-meters scale.
  */
+import { OBLIQUITY_J2000_RAD } from '@cosmolabe/core';
 
 /** Mean obliquity of the ecliptic at J2000 in radians. */
-const OBLIQUITY_RAD = 23.4392911 * Math.PI / 180;
+const OBLIQUITY_RAD = OBLIQUITY_J2000_RAD;
 const COS_OBL = Math.cos(OBLIQUITY_RAD);
 const SIN_OBL = Math.sin(OBLIQUITY_RAD);
 

@@ -4,8 +4,22 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts", "src/**/*.json"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.json"
+  ],
+  // The suites are typechecked by the repo-root tsconfig.test.json, not built
+  // into the shipped package. Without this they emitted into dist/__tests__ —
+  // 920 KB of test JS plus golden JSON in the published tarball.
+  "exclude": [
+    "src/__tests__"
+  ],
   "references": [
-    { "path": "../spice" }
+    {
+      "path": "../spice"
+    },
+    {
+      "path": "../interop"
+    }
   ]
 }

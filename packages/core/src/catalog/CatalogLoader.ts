@@ -6,6 +6,8 @@ import { KeplerianTrajectory } from '../trajectories/Keplerian.js';
 import { SpiceTrajectory } from '../trajectories/SpiceTrajectory.js';
 import { CompositeTrajectory } from '../trajectories/CompositeTrajectory.js';
 import { InterpolatedStatesTrajectory, type StateRecord } from '../trajectories/InterpolatedStates.js';
+import { parseOem } from '@cosmolabe/interop';
+import { oemToStateRecords, checkOemFrame } from '../trajectories/OemAdapter.js';
 import { parseXyzv } from '../trajectories/XyzvParser.js';
 import { approxEtFromCalendarString } from '../time.js';
 import { TLETrajectory } from '../trajectories/TLETrajectory.js';
@@ -874,6 +876,50 @@ export class CatalogLoader {
           }
         }
         return new FixedPointTrajectory([0, 0, 0]);
+      }
+
+      case 'OEM': {
+        // The astrolabe wire: a catalog points at a CCSDS OEM and gets a
+        // renderable arc. Needs SPICE, and says so — OEM epochs are calendar
+        // strings in a declared time system, so converting them without leap
+        // seconds would offset the whole ephemeris by tens of seconds.
+        if (!spec.source || !this.resolveFile) return new FixedPointTrajectory([0, 0, 0]);
+        if (!this.spice) {
+          console.warn(
+            `OEM trajectory for "${item.name}" needs SPICE for epoch conversion ` +
+              `(leap seconds); no instance was supplied, so the body is placed at its ` +
+              `parent's origin. Load an LSK and pass a Spice instance to CatalogLoader.`,
+          );
+          return new FixedPointTrajectory([0, 0, 0]);
+        }
+        const text = this.resolveFile(spec.source);
+        if (!text) {
+          console.warn(`OEM trajectory for "${item.name}": could not resolve ${spec.source}.`);
+          return new FixedPointTrajectory([0, 0, 0]);
+        }
+        try {
+          const oem = parseOem(text);
+          // Warn before building, not after: the mismatch this catches renders
+          // fine and lands the body ~23.44 degrees off about its parent, which
+          // is exactly the class of bug that went unnoticed on Psyche and
+          // Voyager. The file declares its own frame, so we can finally check.
+          const frameCheck = checkOemFrame(oem, item.trajectoryFrame);
+          if (!frameCheck.ok) console.warn(`"${item.name}": ${frameCheck.message}`);
+          const records = oemToStateRecords(oem, (t) => this.spice!.str2et(t));
+          if (records.length < 2) {
+            console.warn(
+              `OEM trajectory for "${item.name}": ${spec.source} has ${records.length} ` +
+                `state(s); at least 2 are needed to interpolate.`,
+            );
+            return new FixedPointTrajectory([0, 0, 0]);
+          }
+          return new InterpolatedStatesTrajectory(records);
+        } catch (e) {
+          console.warn(
+            `OEM trajectory for "${item.name}": ${e instanceof Error ? e.message : String(e)}`,
+          );
+          return new FixedPointTrajectory([0, 0, 0]);
+        }
       }
 
       case 'TLE':

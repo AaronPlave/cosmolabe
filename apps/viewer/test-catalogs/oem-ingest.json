@@ -1,0 +1,133 @@
+{
+  "name": "CCSDS OEM Ingest",
+  "defaultTime": "2004-07-01T06:40:00Z",
+  "defaultViewpoint": "SOI outbound",
+  "spiceKernels": [
+    "kernels/naif0012.tls",
+    "kernels/pck00011.tpc"
+  ],
+  "items": [
+    {
+      "name": "SOI outbound",
+      "type": "Viewpoint",
+      "center": "Saturn",
+      "eye": [
+        229306.5,
+        -774125.9,
+        -296222.2
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Periapsis close-up",
+      "type": "Viewpoint",
+      "center": "Cassini",
+      "distance": 25000,
+      "latitude": 20,
+      "longitude": 110
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695700
+      }
+    },
+    {
+      "name": "Saturn",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Saturn"
+      },
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "10.656222221732387h",
+        "inclination": 6.463,
+        "ascendingNode": 130.589,
+        "meridianAngle": 38.9
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [
+          60268,
+          60268,
+          54364
+        ],
+        "baseMap": "textures/saturn.jpg",
+        "atmosphere": "Saturn"
+      },
+      "label": {
+        "color": [
+          0.8,
+          1.0,
+          0.5
+        ]
+      },
+      "items": [
+        {
+          "name": "Saturn Rings",
+          "class": "other",
+          "center": "Saturn",
+          "geometry": {
+            "type": "Rings",
+            "innerRadius": 74660,
+            "outerRadius": 140220,
+            "texture": "textures/saturn-rings.png"
+          }
+        },
+        {
+          "name": "Cassini",
+          "class": "spacecraft",
+          "center": "Saturn",
+          "trajectoryFrame": "J2000",
+          "trajectory": {
+            "type": "OEM",
+            "source": "ephemerides/cassini-soi.oem"
+          },
+          "geometry": {
+            "type": "Mesh",
+            "size": 0.005,
+            "source": "models/Cassini.glb",
+            "meshRotation": [
+              -0.0478,
+              0.0868,
+              0.7215,
+              -0.6853
+            ]
+          },
+          "label": {
+            "color": [
+              0.2,
+              0.9,
+              1.0
+            ]
+          },
+          "trajectoryPlot": {
+            "color": [
+              0.2,
+              0.9,
+              1.0
+            ],
+            "fade": 0.35,
+            "duration": "2d"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -11,35 +11,72 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
-import type { Spice } from '@cosmolabe/spice';
+import type { SpiceInstance } from '@cosmolabe/spice';
 
 /** Bundled, always-present generic + Cassini kernels (`packages/spice/test-kernels`). */
 export const SPICE_TEST_KERNELS = join(__dirname, '../../../../spice/test-kernels');
 /** Larger mission kernels shipped with the viewer (LRO, de440s, MSL, ...). */
 export const VIEWER_KERNELS = join(__dirname, '../../../../../apps/viewer/test-catalogs/kernels');
 
+const LFS_POINTER_MAGIC = 'version https://git-lfs.github.com/spec/v1';
+
+/** Throw if `buf` is a git-lfs pointer rather than the kernel it stands for.
+ *
+ *  Worth its own check because the silent version is expensive to diagnose. A
+ *  pointer is a ~130-byte text file, so `furnish` accepts it happily — SPICE
+ *  ignores text outside `\begindata` — and loads nothing. The failure then
+ *  surfaces much later and somewhere else, as SPICE(NOLOADEDFILES) from
+ *  whichever `spkezr` first needed the data, which reads as a broken test
+ *  rather than an unsmudged checkout. */
+function assertNotLfsPointer(buf: Buffer, full: string): Buffer {
+  if (buf.length < 1024 && buf.subarray(0, LFS_POINTER_MAGIC.length).toString('utf8') === LFS_POINTER_MAGIC) {
+    throw new Error(
+      `${full} is a git-lfs pointer, not a kernel. Run \`git lfs pull\` (or, in CI, ` +
+        `add this path to the sparse fetch in .github/workflows/ci.yml).`,
+    );
+  }
+  return buf;
+}
+
 /** Read a kernel file as a Buffer, transparently gunzipping `<path>.gz` when
  *  the plain file is missing. `relPath` is resolved against `root`. */
 export function readKernelBuffer(relPath: string, root: string = SPICE_TEST_KERNELS): Buffer {
   const full = join(root, relPath);
   try {
-    return readFileSync(full);
+    return assertNotLfsPointer(readFileSync(full), full);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-    return gunzipSync(readFileSync(`${full}.gz`));
+    return gunzipSync(assertNotLfsPointer(readFileSync(`${full}.gz`), `${full}.gz`));
   }
+}
+
+/** A Buffer's own bytes as a standalone ArrayBuffer.
+ *
+ *  Not `buf.buffer`. `readFileSync` allocates results of 4096 bytes or less out
+ *  of Node's shared 8 KB Buffer pool, so for a small kernel `.buffer` is the
+ *  whole pool: the file sits at some `byteOffset` inside it, surrounded by
+ *  bytes from unrelated reads. Furnishing that hands SPICE a slab that merely
+ *  contains the kernel. Text kernels survive it because SPICE ignores anything
+ *  outside `\begindata`, which is why it went unnoticed — but it is luck, and
+ *  a binary kernel would not be so forgiving.
+ *
+ *  `tsc` reports the difference as ArrayBufferLike vs ArrayBuffer. This
+ *  function previously cast it away (`buf.buffer as ArrayBuffer`), which is
+ *  what let the bug in; it surfaced when tests were finally typechecked. */
+export function kernelArrayBuffer(buf: Buffer): ArrayBuffer {
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
 }
 
 /** Furnish a list of `root`-relative kernel paths into a Spice instance, in
  *  order. Filenames are de-gzipped in the SPICE filesystem (`.gz` stripped). */
 export async function furnishKernels(
-  spice: Spice,
+  spice: SpiceInstance,
   relPaths: string[],
   root: string = SPICE_TEST_KERNELS,
 ): Promise<void> {
   for (const rel of relPaths) {
     const buf = readKernelBuffer(rel, root);
     const filename = rel.split('/').pop()!.replace(/\.gz$/, '');
-    await spice.furnish({ type: 'buffer', data: buf.buffer as ArrayBuffer, filename });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(buf), filename });
   }
 }

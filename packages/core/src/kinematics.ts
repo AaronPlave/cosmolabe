@@ -1,5 +1,6 @@
 import type { Body } from './Body.js';
 import type { InertialFrameName, Quaternion } from './rotations/RotationModel.js';
+import { OBLIQUITY_J2000_RAD } from './constants.js';
 
 /**
  * Frame-aware kinematics primitives shared by `Universe.subPointOf` and
@@ -16,8 +17,6 @@ import type { InertialFrameName, Quaternion } from './rotations/RotationModel.js
 
 export type Vec3 = [number, number, number];
 
-// J2000 mean obliquity (IAU 1976), in radians.
-const OBLIQUITY_J2000_RAD = (23.4392911 * Math.PI) / 180;
 const OBLIQUITY_COS = Math.cos(OBLIQUITY_J2000_RAD);
 const OBLIQUITY_SIN = Math.sin(OBLIQUITY_J2000_RAD);
 // Half-angle terms for the equivalent quaternion form (see frameAlignmentQuat).
@@ -204,4 +203,39 @@ export function composeBodyToWorldQuat(
   ];
   const frameAlign = frameAlignmentQuat(sourceFrame, worldFrame);
   return multiplyQuat(frameAlign, bodyToSource);
+}
+
+/** Place a point at `distance` from a body's centre, in the direction given by
+ *  planetocentric `latitudeDeg` / `longitudeDeg`, expressed in the world frame.
+ *
+ *  This is the catalog viewpoint convention (`distance` + `latitude` +
+ *  `longitude`): the offset is **body-fixed**, so "Jezero Overhead" keeps
+ *  pointing at Jezero as Mars turns, rather than at inertial coordinates Mars
+ *  no longer faces. Body-fixed axes are Z = pole, X = prime meridian, matching
+ *  `WaypointTrajectory` and the surface pick path.
+ *
+ *  `rotationQuat` is `RotationModel.rotationAt(et)` and `sourceFrame` its
+ *  declared frame; the mapping to world goes through
+ *  `composeBodyToWorldQuat`, so it carries the source→world frame alignment
+ *  (i.e. the J2000 obliquity when the model is stated in EquatorJ2000) rather
+ *  than stopping at the model's own source frame. Getting only half of that
+ *  composition right lands the point ~23.44° from the surface feature it
+ *  names, which is why this lives here with a test rather than inline in the
+ *  app that happens to need it. */
+export function bodyFixedOffsetToWorld(
+  distance: number,
+  latitudeDeg: number,
+  longitudeDeg: number,
+  rotationQuat: Quaternion,
+  sourceFrame: InertialFrameName,
+  worldFrame: InertialFrameName = 'EclipticJ2000',
+): Vec3 {
+  const lat = (latitudeDeg * Math.PI) / 180;
+  const lon = (longitudeDeg * Math.PI) / 180;
+  const bodyFixed: Vec3 = [
+    distance * Math.cos(lat) * Math.cos(lon),
+    distance * Math.cos(lat) * Math.sin(lon),
+    distance * Math.sin(lat),
+  ];
+  return rotateVecByQuat(bodyFixed, composeBodyToWorldQuat(rotationQuat, sourceFrame, worldFrame));
 }

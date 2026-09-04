@@ -1,0 +1,52 @@
+{
+  "name": "@cosmolabe/frames",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "The frames tier of ADR M-0002: the two published seam contracts, StateProvider (batched states, correction explicit and required) and FramesService (single epoch conversion authority, inspectable frame chains, hashable kernel set), implemented over cspice-wasm. Nothing above this tier calls CSPICE (iron rule 1).",
+  "author": "Paul M. Ramirez",
+  "contributors": [
+    "Aaron Plave"
+  ],
+  "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
+  "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaronPlave/cosmolabe.git",
+    "directory": "packages/frames"
+  },
+  "keywords": [
+    "spice",
+    "frames",
+    "reference-frames",
+    "ephemeris",
+    "state-vector",
+    "light-time",
+    "astronomy",
+    "space"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "cspice-wasm": "*"
+  },
+  "devDependencies": {
+    "@cosmolabe/spice": "*"
+  }
+}
