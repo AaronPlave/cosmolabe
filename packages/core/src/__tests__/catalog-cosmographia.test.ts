@@ -295,9 +295,12 @@ describe('CatalogLoader — real Cosmographia patterns', () => {
 
     it('parses ISO date string to ET', () => {
       const loader = new CatalogLoader();
-      // J2000.0 epoch: 2000-01-01T12:00:00Z (must include Z for UTC)
+      // Noon UTC on 2000-01-01 is NOT ET 0. J2000 is noon *TDB*, which was
+      // 11:58:55.816 UTC, so noon UTC is 64.184 s past the epoch. This used to
+      // assert ~0 within 10 s, which passed only because the SPICE-free path
+      // was reckoning ET as elapsed UTC from noon — the error #12 removed.
       const et = loader.parseEpochValue('2000-01-01T12:00:00Z');
-      expect(et).toBeCloseTo(0, -1); // Within ~10s (no leap seconds without SPICE)
+      expect(et).toBeCloseTo(64.184, 3);
     });
 
     it('passes through ET-seconds values (≥ 5e7) unchanged', () => {

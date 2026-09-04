@@ -9,7 +9,7 @@ import { Spice, type SpiceInstance } from '@cosmolabe/spice';
 import { createHeritageSpice } from '@cosmolabe/frames';
 import { Universe } from '../../Universe.js';
 import type { CatalogJson } from '../../catalog/CatalogLoader.js';
-import { approxEtFromCalendarString } from '../../time.js';
+import { etFromCalendarString } from '../../time.js';
 import { furnishKernels, SPICE_TEST_KERNELS } from './kernels.js';
 
 /** Which CSPICE build backs the scene.
@@ -68,7 +68,7 @@ export async function buildUniverseFromCatalog(opts: BuildOptions): Promise<Buil
     // SPICE-free path mirrors loader.ts's fallback when no LSK is loaded.
     // Timezone-independent, and so agreeing with the str2et branch above on
     // what a naive `defaultTime` means: both read it as UTC.
-    et = approxEtFromCalendarString(opts.defaultTime);
+    et = etFromCalendarString(opts.defaultTime);
   }
 
   const universe = new Universe(spice);

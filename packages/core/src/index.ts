@@ -101,8 +101,8 @@ export { DEFAULT_UNIVERSE_STATE } from './state/StateTypes.js';
 // Time
 export {
   utcMsFromCalendarString,
-  approxEtFromCalendarString,
-  J2000_UNIX_MS_APPROX,
+  etFromCalendarString,
+  deltaAtSeconds,
   J2000_UNIX_MS,
   etToDate,
   etFromDate,
