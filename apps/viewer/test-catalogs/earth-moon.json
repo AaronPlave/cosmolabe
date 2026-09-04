@@ -1,6 +1,10 @@
 {
   "name": "Earth + Moon",
+  "defaultTime": "2024-07-04T12:00:00Z",
+  "defaultViewpoint": "Earth Close",
   "items": [
+    { "name": "Earth Close", "type": "Viewpoint", "center": "Earth", "distance": 30000, "latitude": 15, "longitude": 0 },
+    { "name": "Lunar Orbit", "type": "Viewpoint", "center": "Earth", "distance": 900000, "latitude": 35, "longitude": 0 },
     {
       "name": "Sun",
       "class": "star",

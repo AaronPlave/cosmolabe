@@ -597,7 +597,16 @@ function initScene(
        *  golden captured at "Huygens Landing (2005-01-14)" is that landing and
        *  not whatever epoch the previous capture in the scene left behind. */
       capture: (viewpointName?: string) => {
-        if (viewpointName) r.applyNamedViewpoint(viewpointName);
+        // Throw rather than photograph whatever the camera happened to be
+        // looking at. A viewpoint name that no longer resolves — renamed in the
+        // catalog, or mistyped in the harness — used to yield a confident
+        // picture of the wrong thing, and the harness would baseline it.
+        if (viewpointName && !r.applyNamedViewpoint(viewpointName)) {
+          throw new Error(
+            `[Cosmolabe] No viewpoint named ${JSON.stringify(viewpointName)}. ` +
+              `This catalog defines: ${u.viewpoints.map((v) => JSON.stringify(v.name)).join(', ')}`,
+          );
+        }
         r.renderFrame();
         return (canvas as HTMLCanvasElement).toDataURL('image/png');
       },
