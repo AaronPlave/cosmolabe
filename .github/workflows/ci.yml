@@ -53,6 +53,14 @@ jobs:
           git lfs fetch --include "packages/spice/test-kernels/**,apps/viewer/test-catalogs/kernels/de440s.bsp"
           git lfs checkout "packages/spice/test-kernels/**" "apps/viewer/test-catalogs/kernels/de440s.bsp"
 
+      - name: Check for stale git-lfs pointers
+        # A .gitattributes narrowing does not re-stage blobs committed while the
+        # old rule was live, so the file keeps serving its ~130-byte pointer and
+        # ships as ASCII wearing a binary's name. Cheap, and it runs before the
+        # build so the failure names the file rather than surfacing as a corrupt
+        # binary much later.
+        run: bash scripts/check-lfs-pointers.sh
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
