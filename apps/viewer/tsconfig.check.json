@@ -14,12 +14,13 @@
   // workspace symlinks to each package's built `dist` types, so run the normal
   // `tsc --build` first (`npm run typecheck` does both, in that order).
   //
-  // Covers the app's own `.ts` only. Two things are out of reach of plain `tsc`
-  // and want `svelte-check`, which is not a dependency here yet (issue #20):
+  // Covers the app's own `.ts` only. Two things are out of reach of plain `tsc`:
   // the `.svelte` components themselves, and `components/ui/*/index.ts` — those
   // barrels re-export *named* members from `.svelte` modules, which the
   // `*.svelte` ambient shim declares as default-only, so `tsc` reports six
-  // TS2614s that are a tooling limit rather than defects.
+  // TS2614s that are a tooling limit rather than defects. Both are covered by
+  // `npm run typecheck:svelte` (svelte-check), which resolves `.svelte` properly
+  // and reports zero on them. Run both; neither subsumes the other.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "composite": false,

@@ -8,9 +8,13 @@
 import { readFileSync } from 'fs';
 import { gunzipSync, gzipSync } from 'zlib';
 import { decodeTile, encodeTile } from './qm-codec.mjs';
-import { join } from 'path';
+import { join, dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
-const BASE = '/Users/aplave/code/cosmolabe/apps/viewer/test-catalogs/data/mars-terrain';
+// Derived from this file's own location, not the author's checkout. `QM_TILE_DIR`
+// overrides it for a tile tree built somewhere else.
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const BASE = process.env.QM_TILE_DIR ?? join(REPO, 'apps/viewer/test-catalogs/data/mars-terrain');
 // Sample across LODs and HiRISE/MOLA regions
 const samples = [
   '0/0/0.terrain', '0/1/0.terrain',                  // root
@@ -21,10 +25,12 @@ const samples = [
 ];
 
 let fail = 0;
+let checked = 0;
 for (const rel of samples) {
   const path = join(BASE, rel);
   let buf;
   try { buf = gunzipSync(readFileSync(path)); } catch (e) { console.log(`SKIP ${rel}: ${e.message}`); continue; }
+  checked++;
   const t = decodeTile(buf);
   const enc = encodeTile(t);
   const t2 = decodeTile(enc);
@@ -63,4 +69,17 @@ for (const rel of samples) {
   }
 }
 
+// The tile tree is build output and gitignored, so on any checkout but the one
+// that produced it every sample SKIPs — and this used to still exit 0, which is
+// a gate reporting success having verified nothing at all. Say so instead.
+if (checked === 0) {
+  console.error(
+    `\nFAIL: none of the ${samples.length} sample tiles exist under ${BASE},\n` +
+      `so nothing was round-tripped. Build the tiles first (scripts/build-mars-terrain/),\n` +
+      `or point QM_TILE_DIR at an existing tree.`,
+  );
+  process.exit(1);
+}
+
+console.log(`\n${checked}/${samples.length} sample tiles round-tripped, ${fail} failed.`);
 process.exit(fail > 0 ? 1 : 0);
