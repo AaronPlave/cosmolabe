@@ -187,11 +187,18 @@ The loader accepts numeric values with unit suffixes:
 
 | Quantity | Suffixes |
 |---|---|
-| Distance | `mm`, `cm`, `m`, `km` (default), `au` |
-| Duration | `ms`, `s`, `min`, `h`, `d`, `y` |
+| Distance | `m`, `km` (default), `au` |
+| Duration | `s`, `min`, `h`, `d`, `y` |
 | Mass | `g`, `kg`, `Mearth` |
 
 Examples: `"1.5h"`, `"42164km"`, `"1au"`.
+
+One parser serves both quantities, so **`m` always means metres**, never
+minutes. Cosmographia's catalogs write durations with `m` for minutes, `a` for
+years and `ms` for milliseconds; write `min`, `y` and fractional `s` here
+instead. An unrecognised suffix is ignored and the bare number is used — km for
+a distance, seconds for a duration — so `"90 m"` is 0.09 seconds, not 90
+minutes. See [cosmographia-parity.md](cosmographia-parity.md) §1.4.
 
 **Colors** can be `[r, g, b]` floats in `[0, 1]`, hex strings (`"#ffcc00"`), or named CSS colors.
 

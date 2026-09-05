@@ -11,284 +11,369 @@ It is a research note, not a spec. The catalog reference is
 [ROADMAP.md](../ROADMAP.md). Findings here that turned into work are
 cross-referenced to those.
 
-## What was read, and what wasn't
+## Sources, and how far to trust each
 
-The guide named in the issue — `cosmographiausersguide_v8.pdf` on
-cosmoguide.org — **was not read.** `cosmoguide.org` and `naif.jpl.nasa.gov`
-are both refused by this environment's egress policy (403 at the proxy on
-CONNECT), so neither the PDF nor the HTML guide could be fetched. Everything
-below comes from these sources instead:
-
-| Source | What it is | How far to trust it |
+| Source | What it covers | Trust |
 |---|---|---|
-| cosmoguide.org pages, via web search | The same guide in HTML form, reaching me as search-engine summaries of individual pages | **Second-hand.** Page-level paraphrase and quoted JSON fragments, not verbatim pages. Field *names* quoted below appeared in returned JSON examples; defaults and edge-case semantics did not. |
-| [`claurel/cosmographia`](https://github.com/claurel/cosmographia) `data/help/*.html` | Upstream (pre-SPICE) Cosmographia's in-app help, ~23 KB | Read in full. Authoritative for the base program, silent on everything NAIF added. |
-| [`NablaZeroLabs/cosmo-demos`](https://github.com/NablaZeroLabs/cosmo-demos) | Four working SPICE-enhanced Cosmographia scenes (catalogs + Python scripts) | Primary evidence of what a real catalog looks like in the field. |
-| This repository | — | Every claim about Cosmolabe below was checked in the source and is cited `file:line`. |
+| **`CosmographiaUsersGuide_v8.pdf`** — *Cosmographia-SPICE User's Guide*, Park & Alam, revised by Acton & Semenov, 14 Aug 2015, 44 pp. | **Catalog files only**: SPICE-data, spacecraft, sensor, observation, natural-body and load catalogs; arcs; loading rules; troubleshooting; three complete worked examples (Cassini). | **First-hand.** Read in full. Every field description and default in §1 below is quoted from it. |
+| cosmoguide.org pages, via web search | The GUI: camera, rendering frames, visual attributes, settings panels, scripting, command line, SPICE log. The PDF covers none of this. | **Second-hand** — page summaries, not verbatim pages. §2 below is flagged accordingly. |
+| [`claurel/cosmographia`](https://github.com/claurel/cosmographia) `data/help/*.html` | Upstream (pre-SPICE) in-app help. | Read in full; authoritative for the base program only. |
+| [`NablaZeroLabs/cosmo-demos`](https://github.com/NablaZeroLabs/cosmo-demos) | Four working SPICE-enhanced scenes. | Primary evidence of catalogs in the field. |
+| This repository | — | Every Cosmolabe claim below is cited `file:line` and was checked. |
 
-So: **Cosmolabe-side claims are verified; Cosmographia-side claims are
-second-hand.** Anything that would turn into schema we ship should be
-re-checked against the PDF before it is implemented. The list of what only the
-PDF can settle is at the end.
+The PDF is narrower than its title suggests: it is the catalog-authoring
+manual, and it says nothing about the viewer's UI. Its own contents are
 
-### The guide's page inventory
+> I. Introduction · II. SPICE catalog file specifications — (1) SPICE data,
+> (2) spacecraft, (3) sensor, (4) observation, (5) natural body, (6) load,
+> (7) arcs, (8) important things to remember, (9) common problems ·
+> III. Complete examples — Cassini orbiter, arcs, natural body
 
-Search surfaced these pages, which is a usable table of contents for whoever
-reads the PDF next. All under `https://cosmoguide.org/`:
+and its own warning is worth keeping in mind while reading anything below:
+"The user will likely find a number of non-intuitive aspects of operation, and
+some documentation that is incomplete or otherwise inadequate."
 
-| Area | Pages |
-|---|---|
-| Orientation | `introduction/`, `glossary/`, `important-things-to-remember/` |
-| Catalog files | `catalog-file-overview/`, `catalog-file-defining-a-natural-body/`, `catalog-file-defining-a-spacecraft/`, `catalog-file-defining-a-sensor/`, `catalog-file-defining-an-observation/`, `catalog-file-setting-up-use-of-spice-data/`, `catalog-file-to-load-multiple-files/`, `other-catalog-files/`, `loading-and-unloading-files/` |
-| Type catalogs | `trajectory-types/`, `rotationmodel-types/`, `bodyframeintermediateframe-types/`, `geometry-types/`, `trajectory/` |
-| Frames | `reference-frames/`, `selecting-a-rendering-frame/` |
-| Camera & objects | `adjusting-the-camera-view/`, `setting-an-object-as-the-center/`, `object-functions-overview/` |
-| Visuals & settings | `visual-attributes-overview/`, `visual-functions/`, `vector-functions-overview/`, `visual-guides-settings/`, `graphics-settings/`, `interface-settings/`, `visualization-settings-overview/`, `other/` |
-| Scripting | `scripting-overview/`, `scripting-functions/`, `scripting-example/` |
-| Operations | `using-the-command-line/`, `using-the-spice-error-log/`, `common-problems-and-possible-solutions/`, `data-used-by-cosmographia/` |
+## 1. Catalog schema — measured against the guide
 
-## Findings
+### 1.1 `trajectoryFrame` has an object form, and we silently misread it
 
-Ordered by what they would change, not by how interesting they are.
-
-### 1. `trajectoryFrame` has an object form, and we silently misread it
-
-Cosmographia writes a frame as an object, the same shape in `trajectoryFrame`
-and `bodyFrame` — the guide documents them together under *Body
-Frame/Intermediate Frame Types*, with `Spice`, `ICRF`, `BodyFixed` and
-`TwoVector` types. Every orbit in `cosmo-demos`' `ct006_iau_earth` scene
-declares:
+Every sensor and every observation in the guide declares its frame as an
+object, not a string:
 
 ```json
-"trajectoryFrame": { "type": "Spice", "name": "IAU_EARTH" },
-"trajectory": { "type": "Spice", "target": "-999", "center": "Earth", "frame": "IAU_EARTH" }
+"trajectoryFrame": { "type": "BodyFixed", "body": "Cassini" }   // sensor
+"trajectoryFrame": { "type": "BodyFixed", "body": "Saturn" }    // observation
+"bodyFrame":       { "type": "Spice", "name": "IAU_SATURN" }    // natural body
 ```
 
-We accept the object form for `bodyFrame` (`CatalogLoader.ts:101`, parsed via
-`BodyFrameSpec`) but type `trajectoryFrame` as a bare `string`
-(`CatalogLoader.ts:97`). Two things then go wrong, neither of them loudly:
+The guide is explicit that these are load-bearing: a sensor's
+`trajectoryFrame.body` "must be identical" to its parent spacecraft's name,
+and an observation's must equal the sensor's target — that is how footprints
+stay fixed on the target surface.
+
+We accept the object form for `bodyFrame` (`CatalogLoader.ts:101`, parsed as
+`BodyFrameSpec` at `:133-140`) but type `trajectoryFrame` as a bare string
+(`CatalogLoader.ts:97`). Two things then go wrong, neither loudly:
 
 - The three-bucket classification compares by identity —
   `item.trajectoryFrame === 'J2000'`, `=== 'BodyFixed'`
-  (`CatalogLoader.ts:729-732`). An object matches neither, so the body falls
-  through to the ecliptic default.
-- The same value is passed straight through as a SPICE frame *name* —
+  (`CatalogLoader.ts:729-732`). An object matches neither, so the item falls
+  through to the ecliptic default instead of being body-fixed.
+- The same value is handed on as a SPICE frame *name* —
   `item.trajectoryFrame ?? 'ECLIPJ2000'` at `CatalogLoader.ts:803`, `:850`,
   `:888`, `:1109`, `:1143`, `:1220`.
 
-So a stock SPICE-enhanced catalog that names a body-fixed trajectory frame is
-either placed in the wrong frame or fails at query time with a frame name that
-was never a string. The README's "existing Cosmographia catalogs load
-unmodified" does not hold here.
+Every sensor in a stock Cosmographia catalog hits this. It is also the shape
+the *cosmo-demos* scenes use for orbits — `{"type":"Spice","name":"IAU_EARTH"}`
+— so the failure is not confined to sensors.
 
-This is the same gap ROADMAP's *Generalised inertial-frame handling* entry
-describes, with one addition worth carrying into the design: **the named-frame
-registry does not need a new schema.** Cosmographia already spells a named
-frame `{ "type": "Spice", "name": "IAU_EARTH" }`, and we already parse that
-shape on the other field. Accepting the object form on `trajectoryFrame` is
-the smaller half of that work and can land before the registry does.
+This is ROADMAP's *Generalised inertial-frame handling* entry, with one thing
+worth carrying into the design: **the named-frame registry needs no new
+schema.** Cosmographia already spells a named frame this way and we already
+parse that shape on the neighbouring field. Accepting the object form on
+`trajectoryFrame` is the smaller half of that work and can land first.
 
-### 2. Sensors are keyed by `instrName`, and we only understand `spiceId`
+### 1.2 Sensors: `type: "Spice"` + `instrName`, which we do not implement
 
-The guide's sensor catalog takes its FOV from SPICE, by instrument *name*:
+The guide's sensor block, verbatim in structure:
 
 ```json
 { "class": "sensor", "name": "CAS_ISS_NAC", "parent": "Cassini",
-  "startTime": "1997-10-15 09:26:08.390 UTC", "endTime": "2015-08-01 01:58:52.000 UTC",
-  "geometry": { "type": "Spice", "instrName": "CASSINI_ISS_NAC", "target": "Saturn",
-                "range": 45000, "rangeTracking": true,
-                "frustumColor": [0,1,1], "frustumBaseLineWidth": 3, "frustumOpacity": 0.3,
+  "startTime": "1997-10-15 09:26:08.390 UTC",
+  "endTime":   "2015-08-01 01:58:52.000 UTC",
+  "center": "Cassini",
+  "trajectoryFrame": { "type": "BodyFixed", "body": "Cassini" },
+  "geometry": { "type": "Spice", "instrName": "CASSINI_ISS_NAC",
+                "target": "Saturn", "range": 45000, "rangeTracking": true,
+                "frustumColor": [0,1,1], "frustumOpacity": 0.3,
                 "gridOpacity": 1, "footprintOpacity": 0.8,
-                "sideDivisions": 300, "onlyVisibleDuringObs": false } }
+                "sideDivisions": 3000, "onlyVisibleDuringObs": false } }
 ```
 
-Note the geometry `type`: the SPICE-enhanced build spells a SPICE-driven
-sensor `"type": "Spice"`, distinct from the upstream `"type": "Sensor"` block
-that carries explicit FOV angles. We handle only the latter, and two separate
-things go wrong:
+Three separate incompatibilities:
 
-- **`type: "Spice"` draws nothing.** A frustum is built only for
-  `geometryType === 'Sensor'` (`UniverseRenderer.ts:1936`). A stock
-  SPICE-enhanced sensor catalog loads, creates a body, and renders no
-  instrument at all — with no diagnostic, because an unrecognised geometry
-  type is not an error anywhere in the loader.
-- **`type: "Sensor"` without angles silently invents them.** `SensorFrustum`
-  reads `horizontalFov` / `verticalFov` / `spiceId`
-  (`SensorFrustum.ts:52-58`) — our own field names — and defaults a missing
-  horizontal FOV to **10°** (`SensorFrustum.ts:52`) rather than reporting that
-  it has none. A catalog that expected SPICE to supply the FOV gets a
-  plausible-looking frustum of the wrong size.
+- **The geometry type is `Spice`, and we only build frustums for `Sensor`.**
+  `UniverseRenderer.ts:1936` gates on `geometryType === 'Sensor'`. A stock
+  sensor catalog loads, creates a body, and draws no instrument — with no
+  diagnostic, because an unrecognised geometry type is not an error anywhere
+  in the loader.
+- **The class is `sensor`, and we key on `instrument`.** All 18 sensors in
+  `apps/viewer/test-catalogs/` are `"class": "instrument"`; the renderer
+  suppresses the body sphere only for that value
+  (`UniverseRenderer.ts:2005`), and `LabelManager.ts:305` places instrument
+  labels specially. A Cosmographia sensor would also get a sphere drawn at it.
+- **`instrName` appears nowhere in this repository.** Where FOV angles are
+  absent, `SensorFrustum` defaults the horizontal FOV to 10°
+  (`SensorFrustum.ts:52`) rather than reporting that it has none.
 
-`instrName` appears nowhere in this repository.
+The fix is smaller than it looks. `UniverseRenderer.enrichSensorFromSpice()`
+already calls `getfov`, derives `shape` from the FOV shape word, and converts
+CIRCLE / ELLIPSE / RECTANGLE boundary vectors into `horizontalFov` /
+`verticalFov` — it is gated on `geo.spiceId`. `bodn2c`
+(`packages/cspice-wasm/src/bindings.ts:600`) turns `instrName` into that id;
+`getfov` (`bindings.ts:1111`) is already exercised against the Cassini ISS NAC
+in `packages/cspice-wasm/src/geometry.test.ts:45`. Accept `type: "Spice"` and
+`class: "sensor"`, resolve the name, and the existing path does the rest.
 
-This is a smaller fix than it looks, because the hard part is already
-written. `UniverseRenderer.enrichSensorFromSpice()` calls `getfov`, derives
-`shape` from the FOV shape word, and converts CIRCLE / ELLIPSE / RECTANGLE
-boundary vectors into our `horizontalFov` / `verticalFov` — it is just gated on
-`geo.spiceId`. `bodn2c` is wrapped (`packages/cspice-wasm/src/bindings.ts:600`)
-and would turn `instrName` into the id that gate wants; `getfov`
-(`bindings.ts:1111`) is already exercised against the Cassini ISS NAC in
-`packages/cspice-wasm/src/geometry.test.ts:45`. So: accept `type: "Spice"` as a
-sensor geometry, resolve `instrName` through `bodn2c`, and the existing
-enrichment path does the rest.
+Sensor fields we read from no path at all, with the guide's definitions and
+defaults — worth having exactly right, because two of them do not mean what
+the names suggest:
 
-Sensor fields we read from no path at all, in rough order of visual
-consequence: `rangeTracking` (range follows the target rather than staying
-fixed), `sideDivisions`, `frustumBaseLineWidth`, `gridOpacity`,
-`footprintOpacity`, `onlyVisibleDuringObs`.
+| Field | Guide's definition | Default |
+|---|---|---|
+| `rangeTracking` | Frustum length is set dynamically to the spacecraft–target distance; when true, `range` is ignored | — (recommended `true`) |
+| `range` | Fixed frustum length in km | — |
+| `gridOpacity` | Opacity of the frustum's *grid lines* | not stated |
+| `footprintOpacity` | Opacity of the **outline at the far end of the frustum** — not a mark on the surface | not stated |
+| `sideDivisions` | Points plotted per frustum side; 0 or 1 crashes Cosmographia | **125** |
+| `onlyVisibleDuringObs` | Frustum, grids and footprint drawn only during the observation windows of a matching observation catalog | — |
 
-### 3. Cosmographia *does* have an observation model — ROADMAP says it doesn't
+### 1.3 Observations are a first-class item — and ROADMAP said they weren't
 
-ROADMAP's sensor-footprint entry states that the `active` / `accumulate` /
-`fadeSeconds` extensions have no Cosmographia precedent: "every sensor is
-'always on' while rendered, never persists a stamp." The guide documents an
-`observation` class whose whole purpose is the opposite:
+ROADMAP's sensor-footprint entry said the `active` / `accumulate` /
+`fadeSeconds` extensions had no Cosmographia precedent: "every sensor is
+'always on' while rendered, never persists a stamp." §4 of the guide is an
+entire catalog class for exactly that:
 
 ```json
-{ "class": "observation", "name": "...", "center": "...",
-  "trajectoryFrame": {...}, "bodyFrame": {...},
+{ "class": "observation", "name": "CASSINI_ISS_NAC_OBSERVATION",
+  "startTime": "...", "endTime": "...",
+  "center": "Saturn",
+  "trajectoryFrame": { "type": "BodyFixed", "body": "Saturn" },
+  "bodyFrame":       { "type": "BodyFixed", "body": "Saturn" },
   "geometry": { "type": "Observations", "sensor": "CAS_ISS_NAC",
-                "groups": [ { "startTime": "...", "endTime": "...", "obsRate": 0 } ],
-                "footprintColor": [...], "footprintOpacity": 0.8,
-                "showResWithColor": false, "fillInObservations": false,
-                "sideDivisions": 300, "alongTrackDivisions": 300,
-                "shadowVolumeScaleFactor": 1.0 } }
+                "groups": [ { "startTime": "2004-05-24 05:48:03.043 UTC",
+                              "endTime":   "2004-05-24 05:48:08.643 UTC",
+                              "obsRate": 0 }, … ],
+                "footprintColor": [1,0.5,0], "footprintOpacity": 0.4,
+                "showResWithColor": false,
+                "sideDivisions": 125, "alongTrackDivisions": 500,
+                "shadowVolumeScaleFactor": 1.75,
+                "fillInObservations": false } }
 ```
 
-Corroborated three ways: the *Geometry Types* page lists an `Observations`
-geometry that references a sensor; the catalog-list example loads
-`observations/obs_CASSINI_ISS_NAC-SATURN-0405240548.json` alongside its
-sensor; and the guide carries a feature post on seeing actual instrument
-observations. The ROADMAP claim is corrected in place.
+The semantics, from the guide:
+
+- `groups` are the *actual* observation windows. The item's own
+  `startTime`/`endTime` are only a lifetime and must span them.
+- `obsRate` is **seconds between footprints**; `0` draws a continuous swath
+  instead of a series of discrete footprints.
+- `fillInObservations` fills the footprints with colour versus drawing them as
+  outlines. It is **not** a persistence flag; an earlier draft of these notes,
+  written before the guide could be read, guessed that it was. Corrected here
+  and in ROADMAP.
+- `shadowVolumeScaleFactor` scales the shadow volume used to render filled-in
+  observations; the guide says raise it "on oblong bodies". So Cosmographia
+  paints the surface with a shadow-volume method, which is a data point for
+  issue #27 before it picks an approach.
+- `showResWithColor` colours footprints by spacecraft–target distance, with a
+  `colorScheme` parameter the guide declines to document.
+- Footprints live in the target's **body-fixed** frame, which is what makes a
+  swath stay painted where it was taken.
 
 What this changes for us:
 
-- Our planned `active: [{ start, end }]` is Cosmographia's `groups`, plus an
-  `obsRate`. Adopting the existing names costs nothing and buys catalog
-  portability — which is the stated reason our sensor block mirrors theirs.
-- `fillInObservations` is our `accumulate` under another name.
-- **The observation is a separate catalog item, not a field on the sensor.**
-  Cosmographia splits "what the instrument is" from "when it observed", with
-  the observation pointing at the sensor by name. That is a better fit for
-  issue #28's general observation model than hanging windows off the sensor
-  geometry, and it means an observation timeline can be shipped and unloaded
-  independently of the spacecraft that carries the instrument.
-- `shadowVolumeScaleFactor` suggests Cosmographia does footprint occlusion
-  with shadow volumes — worth knowing before issue #27 picks an approach.
+- Our planned `active: [{ start, end }]` is Cosmographia's `groups`, minus the
+  rate. Adopting their names costs nothing and buys portability — the stated
+  reason our sensor block mirrors theirs in the first place.
+- Persistence is not a flag in Cosmographia: an observation *is* the persisted
+  thing, and `onlyVisibleDuringObs` on the sensor is how the live frustum is
+  tied to those same windows. Our `accumulate` is closest to `obsRate: 0`.
+- **The observation is a separate item, not a field on the sensor**, linked by
+  name. That is a better fit for issue #28 than hanging windows off the sensor
+  geometry: an observation timeline can be loaded and unloaded independently
+  of the spacecraft carrying the instrument, and the guide recommends one file
+  per observation set for exactly that reason.
+- A sensor is a sensor-*target* pair — "each sensor-target pair is treated by
+  Cosmographia as one object", so ISS-Saturn and ISS-Titan are two catalog
+  files. Any observation model we build inherits that assumption from the
+  catalogs it reads.
 
-### 4. An object's existence window is parsed and dropped
+### 1.4 Durations: `m` means minutes, and to us it means metres
 
-Cosmographia items carry `startTime` / `endTime` — the Cassini sensor above is
-bounded to the mission. We declare both on `CatalogItem`
-(`CatalogLoader.ts:107-108`) and use them in exactly one place: as the
-fallback start for a composite arc (`CatalogLoader.ts:776`). Nothing on `Body`
-or in the renderer consults them, so an object with an expiry renders at every
-epoch.
+The guide gives one unit vocabulary for every duration in a catalog: years
+(`y` or `a`), days (`d`), hours (`h`), **minutes (`m`)**, seconds (`s`),
+milliseconds (`ms`).
 
-Same shape as the bug in issue #5 (viewpoint `time` parsed and discarded),
-which was worth fixing.
+`parseValueWithUnit` (`CatalogLoader.ts:352-377`) is shared between distances
+and durations, and resolves `m` as metres — `num * 0.001`. It has no case for
+`a` or `ms`, and the `default` branch returns the number unchanged, i.e. as
+seconds. So:
 
-### 5. Two declared catalog fields that are read by nobody
+| Catalog says | Cosmographia means | We produce |
+|---|---|---|
+| `"duration": "90 m"` | 90 minutes | 0.09 seconds |
+| `"duration": "1 a"` | 1 year | 1 second |
+| `"lead": "500 ms"` | 0.5 seconds | 500 seconds |
 
-- `trajectoryPlot.lineWidth` — declared at `CatalogLoader.ts:89`, absent from
-  `parseTrajectoryPlot` (`CatalogLoader.ts:1374`). All four `cosmo-demos`
-  scenes set `"lineWidth": 4`.
-- `label.fadeSize` — declared at `CatalogLoader.ts:272`, referenced nowhere
-  else in the repo. Cosmographia also has `label.showText`, which we do not
-  declare at all; we read only `color` and `visible`
-  (`CatalogLoader.ts:744-745`).
+`"90 m"` is the natural way to write a LEO orbit period, and a trail duration
+of 0.09 s renders as nothing at all. The root cause is one switch serving two
+unit systems; the fix is to resolve durations and distances separately, at
+which point `m` can mean minutes in a duration and metres in a distance the
+way both formats intend.
 
-A field in the type that the parser ignores is a promise the schema does not
-keep. Either wire them or drop them from the interface.
-
-### 6. Catalog-file taxonomy — we already have it, but the docs deny it
-
-The guide splits catalogs by role: a *SPICE data* catalog listing
-`spiceKernels` (metakernels included — `kernels/cas_1997_v15.tm` and friends),
-a *catalog list* catalog with a `require` array, and per-object spacecraft /
-sensor / observation catalogs, with the rule that files load in dependency
-order and SPICE data comes first.
-
-We implement all of it: `require` and `spiceKernels` at both catalog and item
-level (`CatalogLoader.ts:63`, `:69`, `:113`), a resolver that walks the
-`require` graph parents-first with cycle detection and collects kernels
-(`packages/core/src/catalog/CatalogResolver.ts`), and `.tm` expansion in the
-viewer (`apps/viewer/src/lib/metakernel.ts`, wired at
-`apps/viewer/src/lib/loader.ts:152-172`).
-
-`docs/catalog-format.md` said the opposite — "Catalogs **do not** embed kernel
-paths" — which is wrong and would have sent an author writing a
-Cosmographia-shaped mission directory down the manual-drag-drop path. Fixed in
+`docs/catalog-format.md` also advertised `mm` and `cm` distance suffixes and
+an `ms` duration suffix, none of which that switch implements. Corrected in
 this change.
 
-### 7. Smaller schema gaps
+### 1.5 Arcs: the guide's own shape is misdated by our loader
 
-| Guide | Cosmolabe |
-|---|---|
-| Geometry types: `Mesh`, `Globe`, `Rings`, `ParticleSystem`, `KeplerianSwarm`, `TimeSwitched`, **SPICE DSK** | All but DSK. DSK shape models are the only way to draw a real comet/asteroid body from SPICE data rather than an art asset. |
-| Two-step orientation: `rotationModel` **plus `intermediateFrame`** | No `intermediateFrame` anywhere. Our rotation models resolve in one step against an inertial frame. |
-| Frame types shared by `trajectoryFrame` / `bodyFrame` / `intermediateFrame`: `Spice`, `ICRF`, `BodyFixed`, `TwoVector` (with `primaryAxis` / `primary` / `secondaryAxis` / `secondary`, vectors of type `RelativePosition`, `RelativeVelocity`, `ConstantVector`) | `BodyFrameSpec` matches this shape (`CatalogLoader.ts:133-140`); `trajectoryFrame` does not — see finding 1. |
-| Other catalog kinds: annotations, visualizers, surface | We route `Visualizer` and `FeatureLabels` items (`CatalogLoader.ts:710`); no annotations. |
+Cosmographia's arcs example (guide §III, Example 2) writes the boundaries
+implicitly — the first arc's start comes from the item, each arc runs to its
+`endTime`, and the final arc has none because it runs to the end:
 
-### 8. Viewer surfaces worth stealing
+```json
+"startTime": "1997-10-15 09:26:08.390 UTC",
+"arcs": [
+  { "endTime": "2004-07-01 02:48:00.000 UTC", "center": "Sun",    "trajectory": {…}, "bodyFrame": {…} },
+  {                                            "center": "Saturn", "trajectory": {…}, "bodyFrame": {…} }
+]
+```
 
-**A rendering-frame selector.** Cosmographia's camera is locked to a reference
-frame centred on the central body, chosen from four kinds, switched from the
-object context menu and from scripts (`setCameraToInertialFrame`,
+`buildArcsTrajectory` (`CatalogLoader.ts:770-796`) resolves a missing arc
+start to `item.startTime` — *not* to the previous arc's end — and a missing
+arc end to `start + 365.25 days`. So the second arc here is dated
+1997-10-15 → 1998-10-15: the eleven-year Saturn tour is given a one-year
+window ending before it begins. `CompositeTrajectory.arcAt` clamps
+out-of-range times to the last arc, so positions survive by luck in the
+two-arc case, but `CompositeTrajectory.endTime` is now 1998
+(`CompositeTrajectory.ts:28`), and that value feeds the trail bounds and cache
+windows (`UniverseRenderer.ts:2169-2173`, `:2701-2709`) — the trajectory line
+disappears outside 1997–1998. With three or more arcs, every middle arc gets
+the same 1997→1998 window and becomes unreachable.
+
+Nothing in `apps/viewer/test-catalogs/` catches this: every arc in every
+catalog we ship writes both `startTime` and `endTime` explicitly.
+
+`ArcSpec.bodyFrame` is also declared (`CatalogLoader.ts:120`) and never read — the guide's example sets it on each arc.
+
+### 1.6 Declared fields that no code reads
+
+Beyond `ArcSpec.bodyFrame`:
+
+| Field | Guide's meaning | Where it dies |
+|---|---|---|
+| `trajectoryPlot.lineWidth` | Trail width in pixels, default 1.0 | Declared `CatalogLoader.ts:89`, absent from `parseTrajectoryPlot` (`:1374`) |
+| `label.fadeSize` | Distance in km at which the label fades from opaque to transparent; default is Cosmographia's guess at the orbit's size | Declared `CatalogLoader.ts:272`, referenced nowhere |
+| `label.showText` | Whether the label text is drawn, default true | Not declared at all; we read only `color` and `visible` (`:744-745`) |
+| `density` | Body density in g/cm³ | Not in the schema |
+
+A field in the type that the parser ignores is a promise the schema does not
+keep. Either wire them or drop them.
+
+### 1.7 Smaller mismatches
+
+- **`sampleCount`.** Guide: default 100, range 100–200000. We clamp to
+  100–50000 (`CatalogLoader.ts:1382`), so a catalog asking for 100000
+  samples silently gets less than half of them.
+- **`alongTrackDivisions`.** Guide default 1000; observation-only field, not
+  in our schema.
+- **`class` vocabulary.** Guide: `planet`, `satellite`, `asteroid`, `dwarf
+  planet`, `reference point`, `other`, plus `spacecraft`, `sensor`,
+  `observation`. We document `moon` where they say `satellite` and `location`
+  where they say `reference point`. Only `star`, `spacecraft` and `instrument`
+  actually drive behaviour today, so this is mostly cosmetic — except for
+  `sensor`, per §1.2.
+- **Mesh formats.** Guide: `.3ds` and `.cmod`. We support `.cmod` plus GLTF
+  and OBJ, and no `.3ds` — the Cassini example's model would not load.
+
+### 1.8 Things I checked that are already right
+
+Recorded so the next reader does not re-check them: `require` resolution and
+ordering, `spiceKernels` at catalog and item level with `.tm` meta-kernel
+expansion (`CatalogResolver.ts`, `apps/viewer/src/lib/metakernel.ts`),
+relative-path resolution against the declaring catalog, `meshRotation` read as
+SPICE-order `[w,x,y,z]` (`BodyMesh.ts:232-241`), `fade` in the same direction
+the guide gives (0 opaque, 1 most faded), `mass` with the `Mearth` suffix,
+`Globe.radii` as a tri-axial triple, `Rings.innerRadius`/`outerRadius`/
+`texture`, and hex colour strings alongside RGB triples.
+
+### 1.9 The guide's linking rules, as a validation spec
+
+§8 lists the cross-file identities Cosmographia relies on. This is a
+ready-made specification for issue #10, better than anything we would invent:
+
+| Must be identical |
+|---|
+| spacecraft `items:name` = sensor `items:parent` = sensor `items:center` = sensor `trajectoryFrame:body` = sensor `bodyFrame:body` |
+| sensor `items:name` = observation `geometry:sensor` |
+| sensor `geometry:target` = observation `items:center` = observation `trajectoryFrame:body` = observation `bodyFrame:body` |
+
+| Must be *different* versions of each other |
+|---|
+| `items:center` (Cosmographia name) vs `trajectory:center` (SPICE name) |
+
+Plus: parameters are case-sensitive; load order is SPICE data → spacecraft →
+natural bodies → sensors → observations, and a `require` list must respect it.
+Our resolver already orders dependencies-first, so a Cosmographia `load` file
+works — but nothing checks any of the identities above, and the guide's own
+troubleshooting section says a mismatch shows up as a "cannot be found" error,
+which is precisely the class of error we currently swallow.
+
+## 2. Viewer behaviour — second-hand, from the online guide
+
+The PDF does not cover the GUI. These come from cosmoguide.org page summaries
+and the upstream in-app help, and are unverified against a primary source.
+
+**A SPICE error surface.** The PDF *does* describe the symptom first-hand: when
+data are missing, "a 'No Spice Data' warning with the full or abbreviated list
+of SPICE names of bodies and/or frames will appear across the top of the
+Cosmographia window and the object associated with this gap may jump to the
+Sun (as default)", with the reasons readable in a "Spice Log" under the File
+menu. Two ideas we lack: a banner that names the bodies and frames with no
+data, and a log the author can open. We write both to the browser console,
+where a mission author will not look. Issue #10's validation warnings need the
+same destination. The guide's list of usual causes is a good first message
+catalogue: missing CK for articulating instruments, CK gaps, wrong `bodyFrame`
+name, wrong `instrName`.
+
+**Load warnings rather than load failures.** "Cosmographia will not crash due
+to any syntax error in catalog files"; it warns on redefinition of existing
+bodies and on inconsistent SPICE frames in two-step orientation definitions,
+and loads anyway. That is the posture issue #10 should copy.
+
+**A rendering-frame selector.** The camera is locked to a reference frame
+centred on the central body, chosen from four kinds, switched from the object
+context menu and from scripts (`setCameraToInertialFrame`,
 `setCameraToBodyFixedFrame`, `trackObject`). Issue #13 wants to generalise our
-SPICE-frame camera lock; this is the taxonomy to generalise it *to*, and its
-menu placement — on the object, not in a global settings panel — is the part
-that makes it usable.
+SPICE-frame camera lock; this is the taxonomy to generalise to, and its
+placement on the object rather than in a settings panel is the part that makes
+it usable.
 
-**A SPICE error log.** The guide gives it a page of its own, and the scripting
-API has `hideSpiceMessages()`, so it is a real window a user reads. We log
-SPICE failures to the browser console, where a mission author authoring a
-catalog will not look. Most of the guide's troubleshooting page — "no SPICE
-data", "object is lost", catalog syntax errors, catalog load warnings — is
-answerable from a log surface we already generate but do not show. Related:
-issue #10 (schema validation warnings) has the same missing destination.
-
-**Object context menu.** Right-click gives *Set as Center*, *Set as Fixed
-Center*, *Track*, plus frame visualisation. We have body selection and a body
-drawer, and no context menu. The three centring modes are distinct and all
-useful: `Track` in particular is what makes the guide's documented flyby
-recipe work — go to the spacecraft, track the target, drag it where you want
-it, then run time forward.
+**Object context menu** — *Set as Center*, *Set as Fixed Center*, *Track*,
+plus frame visualisation. We have selection and a body drawer and no context
+menu. `Track` is what makes the documented flyby recipe work: go to the
+spacecraft, track the target, drag it where you want it, run time forward.
 
 **Command line and state URL.** `Cosmographia -u "url" -p script catalog
-catalog ...` — a state URL, a script, and any number of catalogs. Our viewer
-already deep-links a built-in demo by name — `?catalog=<name>`, handled at
-`apps/viewer/src/App.svelte:165` — so the `?view=` half of ROADMAP's
-shareable-state-URL entry is the piece still missing. `cosmo-demos` ships a
-parser for the Cosmographia URL that shows its shape: 11 or 12 `&`-separated
-fields, of which `x,y,z` and `qw,qx,qy,qz` are the camera.
+catalog ...`. Our viewer already deep-links a built-in demo by name
+(`?catalog=<name>`, `apps/viewer/src/App.svelte:165`), so `?view=` is the
+remaining half of ROADMAP's shareable-state-URL entry; `cosmo-demos` ships a
+parser showing the URL's shape (11–12 `&`-separated fields, of which `x,y,z`
+and `qw,qx,qy,qz` are the camera).
 
-**Scripting.** Issue #14 already plans `Cosmo()` parity. The guide groups the
-API as: execution timing and annotations, time manipulation, selecting and
-going to objects, camera position and orientation, and orientation-only moves.
-An inventory drawn from the four `cosmo-demos` scripts and the guide's own
-scripting examples:
-`showFullScreen`, `pause`/`unpause`, `setTime`, `setTimeRate`, `wait`,
-`fadeIn`, `displayNote`, `showObject`/`hideAllObjects`, `showTrajectory`,
-`showLabels`/`hideLabels`, `hideToolBar`, `hideSpiceMessages`, `hideEcliptic`,
-`hideCenterIndicator`, `hidePlanetOrbits`, `setCentralObject`, `selectObject`,
-`gotoObject`, `trackObject`, `setCameraToInertialFrame`,
-`setCameraToBodyFixedFrame`, `setCameraPosition`, `setCameraOrientation`,
-`moveAwayFromCenter`, `moveToPov`, `dollyForward`, `circleCenterLeft`,
-`circleCenterRight`, `circleCenterUp`, `showDirectionVector`,
-`showBodyFixedFrame`, `showLatLongGrid`.
+**Scripting.** Issue #14 plans `Cosmo()` parity. Grouped as: execution timing
+and annotations, time manipulation, selecting and going to objects, camera
+position and orientation, orientation-only moves. Inventory seen in the
+`cosmo-demos` scripts and the guide's examples: `showFullScreen`,
+`pause`/`unpause`, `setTime`, `setTimeRate`, `wait`, `fadeIn`, `displayNote`,
+`showObject`/`hideAllObjects`, `showTrajectory`, `showLabels`/`hideLabels`,
+`hideToolBar`, `hideSpiceMessages`, `hideEcliptic`, `hideCenterIndicator`,
+`hidePlanetOrbits`, `setCentralObject`, `selectObject`, `gotoObject`,
+`trackObject`, `setCameraToInertialFrame`, `setCameraToBodyFixedFrame`,
+`setCameraPosition`, `setCameraOrientation`, `moveAwayFromCenter`, `moveToPov`,
+`dollyForward`, `circleCenterLeft`, `circleCenterRight`, `circleCenterUp`,
+`showDirectionVector`, `showBodyFixedFrame`, `showLatLongGrid`.
 
-### 9. Keyboard shortcuts
-
-From upstream Cosmographia's in-app help (the pre-SPICE program — the
-SPICE-enhanced build may differ), against `apps/viewer/src/App.svelte:105-155`:
+**Keyboard shortcuts**, from upstream Cosmographia's in-app help (pre-SPICE;
+the SPICE build may differ), against `apps/viewer/src/App.svelte:105-155`:
 
 | Cosmographia | Cosmolabe |
 |---|---|
 | Space — pause | Space |
 | ⌘L / ⇧⌘L / ⌘K / ⇧⌘K — time rate ×10, ×2, ÷10, ÷2 | ↑ / ↓, one rate step |
 | ⌘J — reverse time | `r` |
-| ⌘[ / ⌘] — step a day; ⇧⌘] — step a year | ← / → , one scrub step |
+| ⌘[ / ⌘] — step a day; ⇧⌘] — step a year | ← / →, one scrub step |
 | ⌘F — find object | ⌘K command palette |
 | ⌘G — go to selection; ESC — cancel | `f` fly to tracked |
 | ⌘C — centre selection; ⌘B — fix viewpoint to centre | — |
@@ -300,31 +385,31 @@ SPICE-enhanced build may differ), against `apps/viewer/src/App.svelte:105-155`:
 | ↑↓ tilt, ←→ roll | `Q`/`E` roll (`KeyboardControls.ts:36-37`) |
 
 The pattern worth noting is not the individual bindings but that Cosmographia
-gives time-rate and time-step *coarse and fine* variants of the same key. Our
-single-step arrows make scrubbing a long mission tedious in a way the shortcut
-table, not the time controls, is responsible for.
+gives coarse and fine variants of the same time key. Our single-step arrows
+make scrubbing a long mission tedious in a way the shortcut table, not the
+time controls, is responsible for.
 
-## What still needs the PDF
+## 3. Still unread
 
-Things the search summaries could not settle, and which should be read before
-anything above is turned into shipped schema:
+The online guide's other pages remain the only source for the GUI, and the
+PDF's own scope note says the templates and the on-line documentation carry
+directives it does not show. Specifically still second-hand or unknown:
 
-- Defaults and units for every sensor and observation field
-  (`obsRate` units, whether `range` is km, what `sideDivisions` divides).
-- The full scripting function list with signatures — the inventory above is
-  what four demo scripts happened to use.
-- The complete settings enumeration (graphics, visual guides, interface),
-  needed if we want a settings-panel parity pass.
-- The exact four rendering-frame kinds and their switching semantics.
-- `important-things-to-remember/` and `common-problems-and-possible-solutions/`
-  in full: these are Cosmographia's own list of what authors get wrong, which
-  is the best available specification for issue #10's validation messages.
-- Whether `class: "observation"` items are addressable objects (selectable,
-  centrable) or render-only.
+- The geometry-type list beyond `Globe` / `Mesh` / `Rings` — the online pages
+  mention SPICE DSK, `ParticleSystem`, `KeplerianSwarm`, `TimeSwitched`; the
+  PDF describes only the first three.
+- Two-step orientation (`rotationModel` + `intermediateFrame`), which the PDF
+  mentions only through its load-warning text. We have no `intermediateFrame`.
+- `TwoVector` frame details, and the full frame-type vocabulary.
+- The `colorScheme` parameter behind `showResWithColor`.
+- The four rendering-frame kinds and their switching semantics.
+- The full scripting function list with signatures.
+- Whether an `observation` item is selectable and centrable, or render-only.
 
 ## Sources
 
-- [SPICE-enhanced Cosmographia User's Guide](https://cosmoguide.org/) — page inventory above; read as search summaries, not fetched
+- *Cosmographia-SPICE User's Guide*, version 8.0, 14 August 2015 — the PDF read for §1
+- [SPICE-enhanced Cosmographia User's Guide](https://cosmoguide.org/) — the online guide, source for §2
 - [`claurel/cosmographia`](https://github.com/claurel/cosmographia) — upstream source and `data/help/`
-- [`NablaZeroLabs/cosmo-demos`](https://github.com/NablaZeroLabs/cosmo-demos) — SPICE-enhanced Cosmographia tutorial scenes
-- [NAIF Cosmographia](https://naif.jpl.nasa.gov/naif/cosmographia.html) — program and kernels (not reachable from this environment)
+- [`NablaZeroLabs/cosmo-demos`](https://github.com/NablaZeroLabs/cosmo-demos) — SPICE-enhanced tutorial scenes
+- [NAIF Cosmographia](https://naif.jpl.nasa.gov/naif/cosmographia.html) — program and kernels
