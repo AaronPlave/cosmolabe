@@ -553,6 +553,9 @@ function initScene(
     renderer.applyNamedViewpoint(universe.defaultViewpoint, { animate: true });
   }
 
+  // The scene graph is complete. Its models and textures are not — the renderer
+  // is still fetching them, and `bindRenderer` above has the UI waiting on
+  // `assets:ready` before it calls the scene loaded to the user (issue #19).
   setSceneLoaded(true);
   // The epoch the catalog asked for, before the clock is allowed to run.
   const catalogEt = universe.time;
@@ -582,8 +585,17 @@ function initScene(
   if (TEST_MODE) {
     const r = renderer;
     const u = universe;
-    (window as unknown as { __cosmolabe: unknown }).__cosmolabe = {
+    const hook = {
       ready: true,
+      /** Flips true once the catalog's initial models and textures have loaded
+       *  or failed. The harness waits on this instead of sleeping a fixed
+       *  settle window and hoping the textures made it (issue #19). */
+      assetsReady: false,
+      /** Populated alongside `assetsReady` — lets the harness report assets the
+       *  scene is missing instead of silently photographing a thinner scene. */
+      assetSummary: null as unknown,
+      /** Promise form of the same signal, for a driver that would rather await. */
+      whenAssetsReady: () => r.waitForInitialAssets(),
       viewpoints: () => u.viewpoints.map((v) => v.name),
       /** Seek to a UTC ISO epoch (no-op if SPICE/LSK unavailable). Routed
        *  through the TimeController rather than `universe.setTime` so its
@@ -611,6 +623,11 @@ function initScene(
         return (canvas as HTMLCanvasElement).toDataURL('image/png');
       },
     };
+    (window as unknown as { __cosmolabe: unknown }).__cosmolabe = hook;
+    void r.waitForInitialAssets().then((summary) => {
+      hook.assetSummary = summary;
+      hook.assetsReady = true;
+    });
   }
 }
 

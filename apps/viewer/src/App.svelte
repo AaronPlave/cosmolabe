@@ -182,7 +182,10 @@
 <div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive}>
   <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
 
-  {#if !vs.sceneLoaded}
+  <!-- Gated on assetsReady, not sceneLoaded: the scene graph exists well before
+       its models and textures do, and handing over a sky of placeholder spheres
+       reads as a broken scene rather than a loading one. -->
+  {#if !vs.assetsReady}
     <WelcomeScreen
       onLoadDemo={(name) => loadDemo(canvas, name)}
       onDrop={(dt) => handleDrop(canvas, dt)}
@@ -190,7 +193,7 @@
     />
   {/if}
 
-  {#if vs.sceneLoaded && !uiHidden}
+  {#if vs.assetsReady && !uiHidden}
     <ViewportHud />
     <BodyInfoPanel />
 

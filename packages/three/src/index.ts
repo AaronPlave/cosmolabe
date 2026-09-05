@@ -16,6 +16,14 @@ export type { SensorFrustumOptions } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';
 export type { InstrumentViewOptions, FovBoundary } from './InstrumentView.js';
 export { RingMesh } from './RingMesh.js';
+export { AssetLoadTracker, DEFAULT_INITIAL_ASSET_TIMEOUT_MS } from './AssetLoadTracker.js';
+export type {
+  AssetKind,
+  AssetRequest,
+  AssetFailure,
+  AssetProgress,
+  InitialAssetsSummary,
+} from './AssetLoadTracker.js';
 export { AtmosphereMesh, resolveAtmosphereParams, getAtmospherePreset } from './AtmosphereMesh.js';
 export type { AtmosphereParams } from './AtmosphereMesh.js';
 export { BloomEffect, BLOOM_LAYER } from './BloomEffect.js';
