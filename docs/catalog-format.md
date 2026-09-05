@@ -48,6 +48,8 @@ Drop this file into the viewer (or pass it to `CatalogLoader.load()`) and you ge
 | `defaultTime` | ISO-8601 timestamp the scene opens at |
 | `defaultViewpoint` | Name of a `Viewpoint` item to start the camera on |
 | `items` | Array of bodies, viewpoints, and visualizers |
+| `require` | Array of other catalog URLs to load first, resolved relative to this file |
+| `spiceKernels` | Array of kernel URLs (or `{ url, size, label }`) this scene needs. Also accepted per item. |
 
 Each entry in `items` is either:
 
@@ -237,6 +239,32 @@ The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can 
 
 ## SPICE kernels
 
-Catalogs **do not** embed kernel paths. SPICE kernels are loaded separately, either via drag-drop in the demo viewer or by calling `Spice.loadKernel(...)` before invoking `CatalogLoader.load(...)`. A catalog that uses `"trajectory": { "type": "Spice", … }` will fail to evaluate at render time if the required kernel hasn't been loaded — but the catalog itself parses fine.
+There are two ways to get kernels in front of a catalog, and they compose.
 
-This separation lets the same catalog be reused with different kernel sets (e.g. development predicts vs. reconstructed ephemerides).
+**Named in the catalog.** A catalog may list the kernels its scene needs, at
+the top level or on any individual item:
+
+```json
+{
+  "version": "1.0",
+  "name": "Cassini",
+  "require": ["spacecraft_cassini.json", "sensors/iss_nac.json"],
+  "spiceKernels": ["kernels/cas_2004_v27.tm", "kernels/naif0012.tls"]
+}
+```
+
+`loadCatalogFromUrl(...)` walks the `require` graph dependencies-first,
+resolves every path against the catalog that named it, and returns the
+de-duplicated kernel list alongside the catalogs. The viewer furnishes them,
+expanding `.tm` meta-kernels into their `KERNELS_TO_LOAD` entries on the way.
+This is the shape a Cosmographia mission directory already has — a SPICE-data
+catalog, a catalog list, and per-object files — so those load as authored.
+
+**Furnished separately.** Kernels can also be dropped into the demo viewer or
+loaded with `Spice.loadKernel(...)` before `CatalogLoader.load(...)`, and a
+catalog that names none of its own works that way. Keeping a catalog
+kernel-free is what lets the same scene be replayed against different kernel
+sets (development predicts vs. reconstructed ephemerides).
+
+Either way the catalog parses without the kernels; a `"trajectory": { "type":
+"Spice", … }` only fails when it is evaluated at render time.
