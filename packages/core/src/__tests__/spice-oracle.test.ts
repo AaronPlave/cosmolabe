@@ -18,8 +18,20 @@ import { buildScene, SCENES } from './_harness/scenes.js';
 import type { BuiltScene } from './_harness/buildUniverse.js';
 import { composeBodyToWorldQuat, rotateVecByQuat, type Vec3 } from '../kinematics.js';
 
-const POS_TOL_KM = 0.01; // 10 m — cosmolabe & SPICE share kernel + obliquity, so they agree to ~sub-meter; catches the 73 km/moon regression by ~7000×
-const POLE_TOL_DEG = 0.1; // catches a 23.4° obliquity error by ~230×
+// Both bounds are set just above the measured residual, not at a round
+// "close enough" number: this layer exists to pin cosmolabe's hand-rolled
+// composition to SPICE's own, and a bound loose enough to pass a wrong answer
+// pins nothing. Measured by setting each to 0 and reading the residuals off
+// the failures — re-measure the same way if a kernel or rotation model moves.
+//
+// Worst position residual is 9.6e-8 km (0.096 mm), on Titan; Saturn rel. SUN
+// is exact. 1e-6 km leaves ~10× headroom and still catches the 73 km/moon
+// obliquity regression by 7e7×.
+const POS_TOL_KM = 1e-6; // 1 mm
+// Pole residual is 2.56e-4° — a real systematic offset, not float noise,
+// so the bound sits ~4× above it rather than at the float floor. Catches a
+// 23.4° obliquity error by 2e4×.
+const POLE_TOL_DEG = 1e-3;
 
 function sub(a: Vec3 | number[], b: Vec3 | number[]): Vec3 {
   return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];

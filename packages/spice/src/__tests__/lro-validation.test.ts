@@ -15,6 +15,9 @@ import { kernelArrayBuffer } from './_kernel-bytes.js';
 
 const KERNEL_DIR = join(__dirname, '../../../../apps/viewer/test-catalogs/kernels');
 
+/** Mean lunar radius the altitude bound below is expressed against. */
+const MOON_R_KM = 1737.4;
+
 /** Read a kernel file; transparently decompress if it's stored gzipped on
  *  disk. The viewer's mission-specific kernels (LRO, etc.) ship as .gz to
  *  cut the repo checkout size — the catalog loader decompresses at load
@@ -27,6 +30,10 @@ function readKernel(relPath: string): Buffer {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     return gunzipSync(readFileSync(`${fullPath}.gz`));
   }
+}
+
+function norm3(v: readonly number[]): number {
+  return Math.hypot(v[0], v[1], v[2]);
 }
 
 describe('LRO position validation', () => {
@@ -55,63 +62,41 @@ describe('LRO position validation', () => {
     et = spice.str2et('2025-01-15T00:03:26');
   }, 30000);
 
-  it('prints LRO state at screenshot epoch with different aberration corrections', () => {
-    console.log(`\n=== LRO Position Validation ===`);
-    console.log(`Epoch: 2025-01-15 00:03:26 UTC`);
-    console.log(`ET: ${et}`);
-    console.log(`ET formatted: ${spice.et2utc(et, 'ISOC', 3)}\n`);
-
-    // Query LRO relative to Moon in J2000 frame with different aberration corrections
-    const corrections = ['NONE', 'LT', 'LT+S', 'CN+S'] as const;
-
-    for (const abcorr of corrections) {
-      const result = spice.spkezr('LRO', et, 'J2000', abcorr, 'MOON');
-      const [x, y, z, vx, vy, vz] = result.state;
-      const r = Math.sqrt(x * x + y * y + z * z);
-      const v = Math.sqrt(vx * vx + vy * vy + vz * vz);
-
-      console.log(`--- abcorr: ${abcorr} ---`);
-      console.log(`  Position (km): [${x.toFixed(6)}, ${y.toFixed(6)}, ${z.toFixed(6)}]`);
-      console.log(`  Velocity (km/s): [${vx.toFixed(6)}, ${vy.toFixed(6)}, ${vz.toFixed(6)}]`);
-      console.log(`  Distance from Moon center: ${r.toFixed(3)} km`);
-      console.log(`  Altitude above Moon (R=1737.4): ${(r - 1737.4).toFixed(3)} km`);
-      console.log(`  Speed: ${v.toFixed(6)} km/s`);
-      console.log(`  Light time: ${result.lightTime.toFixed(9)} s`);
+  // Was ~56 lines of console.log ending in `expect(true).toBe(true)` — a
+  // diagnostic dump from the NASA Eyes screenshot comparison that ran on every
+  // CI run and could never fail (issue #24). Two of the quantities it printed
+  // are worth bounding; the rest (RA/Dec, Moon-wrt-Earth) restate de440s.bsp,
+  // which other suites already cover, so they are gone rather than reprinted.
+  it('places LRO in low lunar orbit at the screenshot epoch', () => {
+    // LRO's orbit ranges roughly 20-165 km over a cycle, so a bound this tight
+    // pins the right body at the right epoch: a wrong SPK, a wrong centre, or a
+    // UTC/TDB epoch slip all move this by far more than 200 m.
+    for (const abcorr of ['NONE', 'LT', 'LT+S', 'CN+S'] as const) {
+      const r = norm3(spice.spkezr('LRO', et, 'J2000', abcorr, 'MOON').state);
+      const altKm = r - MOON_R_KM;
+      expect(altKm, `altitude with abcorr=${abcorr}`).toBeGreaterThan(75.5);
+      expect(altKm, `altitude with abcorr=${abcorr}`).toBeLessThan(75.9);
     }
+  });
 
-    // Show the difference between NONE and LT+S
+  it('applies aberration corrections to the LRO state', () => {
     const none = spice.spkezr('LRO', et, 'J2000', 'NONE', 'MOON');
     const lts = spice.spkezr('LRO', et, 'J2000', 'LT+S', 'MOON');
-    const dx = none.state[0] - lts.state[0];
-    const dy = none.state[1] - lts.state[1];
-    const dz = none.state[2] - lts.state[2];
-    const posDiff = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    console.log(`\n--- NONE vs LT+S position difference ---`);
-    console.log(`  Delta: ${posDiff.toFixed(6)} km = ${(posDiff * 1000).toFixed(3)} m`);
+    const posDiff = norm3([
+      none.state[0] - lts.state[0],
+      none.state[1] - lts.state[1],
+      none.state[2] - lts.state[2],
+    ]);
 
-    // Also query LRO relative to Earth (for Horizons comparison)
-    console.log(`\n--- LRO wrt Earth (for Horizons comparison) ---`);
-    const earthNone = spice.spkezr('LRO', et, 'J2000', 'NONE', 'EARTH');
-    const [ex, ey, ez] = earthNone.state;
-    const er = Math.sqrt(ex * ex + ey * ey + ez * ez);
-    console.log(`  Position (km): [${ex.toFixed(6)}, ${ey.toFixed(6)}, ${ez.toFixed(6)}]`);
-    console.log(`  Distance from Earth: ${er.toFixed(3)} km`);
-
-    // Moon position wrt Earth (for sanity check)
-    const moonEarth = spice.spkezr('MOON', et, 'J2000', 'NONE', 'EARTH');
-    const [mx, my, mz] = moonEarth.state;
-    const mr = Math.sqrt(mx * mx + my * my + mz * mz);
-    console.log(`\n--- Moon wrt Earth ---`);
-    console.log(`  Position (km): [${mx.toFixed(6)}, ${my.toFixed(6)}, ${mz.toFixed(6)}]`);
-    console.log(`  Distance: ${mr.toFixed(3)} km`);
-
-    // LRO position in RA/Dec (for Horizons comparison)
-    const rrd = spice.recrad([ex, ey, ez]);
-    console.log(`\n--- LRO RA/Dec from Earth ---`);
-    console.log(`  RA: ${(rrd.ra * 180 / Math.PI).toFixed(6)}°`);
-    console.log(`  Dec: ${(rrd.dec * 180 / Math.PI).toFixed(6)}°`);
-
-    expect(true).toBe(true); // Just for output
+    // Bounded by physics rather than a measured constant, because the LRO
+    // kernels are fetched rather than committed: at ~1770 km range the
+    // light-time term is ~10 m (0.006 s of light time at 1.6 km/s) and stellar
+    // aberration is ~180 m (range × v/c, on the observer's ~30 km/s
+    // barycentric motion), so the delta must be well under a kilometre — and
+    // it must not be zero, which is what a binding that silently dropped
+    // `abcorr` would produce.
+    expect(posDiff).toBeGreaterThan(0);
+    expect(posDiff).toBeLessThan(1);
   });
 
   it('compares against JPL Horizons at 00:03:00 UTC', () => {
@@ -129,30 +114,26 @@ describe('LRO position validation', () => {
     const et03 = spice.str2et('2025-01-15T00:03:00');
     const ours = spice.spkezr('LRO', et03, 'J2000', 'NONE', 'MOON');
 
-    const dx = ours.state[0] - horizons.x;
-    const dy = ours.state[1] - horizons.y;
-    const dz = ours.state[2] - horizons.z;
-    const posDiff = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const posDiff = norm3([
+      ours.state[0] - horizons.x,
+      ours.state[1] - horizons.y,
+      ours.state[2] - horizons.z,
+    ]);
+    const velDiff = norm3([
+      ours.state[3] - horizons.vx,
+      ours.state[4] - horizons.vy,
+      ours.state[5] - horizons.vz,
+    ]);
 
-    const dvx = ours.state[3] - horizons.vx;
-    const dvy = ours.state[4] - horizons.vy;
-    const dvz = ours.state[5] - horizons.vz;
-    const velDiff = Math.sqrt(dvx * dvx + dvy * dvy + dvz * dvz);
-
-    console.log(`\n=== Horizons vs Our Kernel at 00:03:00 UTC ===`);
-    console.log(`Horizons (ICRF, geometric, Moon center):`);
-    console.log(`  Pos: [${horizons.x.toFixed(6)}, ${horizons.y.toFixed(6)}, ${horizons.z.toFixed(6)}]`);
-    console.log(`  Vel: [${horizons.vx.toFixed(6)}, ${horizons.vy.toFixed(6)}, ${horizons.vz.toFixed(6)}]`);
-    console.log(`Our kernel (J2000, NONE, MOON):`);
-    console.log(`  Pos: [${ours.state[0].toFixed(6)}, ${ours.state[1].toFixed(6)}, ${ours.state[2].toFixed(6)}]`);
-    console.log(`  Vel: [${ours.state[3].toFixed(6)}, ${ours.state[4].toFixed(6)}, ${ours.state[5].toFixed(6)}]`);
-    console.log(`\nDelta position: ${posDiff.toFixed(3)} km = ${(posDiff * 1000).toFixed(1)} m`);
-    console.log(`Delta velocity: ${(velDiff * 1000).toFixed(3)} m/s`);
-    console.log(`Delta X: ${(dx * 1000).toFixed(1)} m`);
-    console.log(`Delta Y: ${(dy * 1000).toFixed(1)} m`);
-    console.log(`Delta Z: ${(dz * 1000).toFixed(1)} m`);
-
-    // Position should agree to within a few km (same GSFC reconstruction source)
-    expect(posDiff).toBeLessThan(5); // 5 km tolerance
+    // Horizons and this SPK are the same GSFC reconstruction, so they agree far
+    // more closely than "a few km": the old 5 km bound passed a delta 5000×
+    // larger than the real one, and the velocity delta was computed and then
+    // never asserted at all. Both deltas measured as 0 at the print precision
+    // this test used to run at (issue #24), which bounds them at <0.05 m and
+    // <5e-7 km/s; each bound below leaves ~20× headroom over that. Tighten
+    // them once someone reads the real residuals off a run with the LRO
+    // kernels present — they are fetched from NAIF, not committed.
+    expect(posDiff, 'position vs Horizons (km)').toBeLessThan(1e-3); // 1 m
+    expect(velDiff, 'velocity vs Horizons (km/s)').toBeLessThan(1e-5); // 1 cm/s
   });
 });
