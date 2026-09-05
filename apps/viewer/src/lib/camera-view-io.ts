@@ -13,13 +13,24 @@
  */
 import * as THREE from 'three';
 import type { UniverseRenderer } from '@cosmolabe/three';
-import type { ViewpointDefinition } from '@cosmolabe/core';
+import { etToDate, type ViewpointDefinition } from '@cosmolabe/core';
 
-const J2000_MS = Date.UTC(2000, 0, 1, 12, 0, 0);
-
-function etToIso(et: number): string {
+/**
+ * The exported `time`, as a UTC ISO string.
+ *
+ * Via core's `etToDate`, not a local J2000 constant. This used to reckon J2000
+ * as 2000-01-01T12:00:00 UTC, which is 64.184 s off the real epoch
+ * (11:58:55.816 UTC) before the leap seconds accrued since — 69.184 s at a
+ * modern epoch. That is not cosmetic: an exported view is documented as being
+ * droppable into a catalog's viewpoints array, and since a Viewpoint's `time`
+ * is honoured, the epoch this writes is one a scene will actually be seeked to.
+ *
+ * Exported only so `__tests__/camera-view-io.test.ts` can check it against
+ * SPICE; nothing else should call it.
+ */
+export function etToIso(et: number): string {
   if (!Number.isFinite(et) || Math.abs(et) > 7.5e9) return new Date().toISOString();
-  return new Date(J2000_MS + et * 1000).toISOString();
+  return etToDate(et).toISOString();
 }
 
 interface ExportedView extends ViewpointDefinition {

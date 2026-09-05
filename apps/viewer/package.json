@@ -15,6 +15,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
+    "typecheck:svelte": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings --output human",
     "test:visual": "node ../../scripts/visual-regression.mjs",
     "test:visual:update": "UPDATE_VISUAL_GOLDENS=1 node ../../scripts/visual-regression.mjs"
   },
@@ -39,6 +40,7 @@
     "playwright": "^1.49.0",
     "pngjs": "^7.0.0",
     "svelte": "^5.33.0",
+    "svelte-check": "^4.7.6",
     "tailwindcss": "^4.2.2",
     "vite": "^7.3.1"
   }

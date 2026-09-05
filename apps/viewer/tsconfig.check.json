@@ -1,0 +1,32 @@
+{
+  // Typecheck the viewer app. Its own `tsconfig.json` exists for the editor and
+  // for project references; nothing ever ran the compiler over it, because
+  // `vite build` transpiles without typechecking. So the app was in no gate at
+  // all: not typechecked, not tested, not built on any PR (issue #20).
+  //
+  // This half catches type-level breakage only. It would NOT have caught the
+  // bug that prompted it — `camera-view-io.ts` carrying the noon-UTC J2000
+  // constant through all of #3 and #22 — because `Date.UTC(...)` is perfectly
+  // well-typed. That one needed a test, and now has one.
+  //
+  // `composite: false` because a composite project may not disable emit, and
+  // this one only typechecks. Cross-package imports resolve through the
+  // workspace symlinks to each package's built `dist` types, so run the normal
+  // `tsc --build` first (`npm run typecheck` does both, in that order).
+  //
+  // Covers the app's own `.ts` only. Two things are out of reach of plain `tsc`:
+  // the `.svelte` components themselves, and `components/ui/*/index.ts` — those
+  // barrels re-export *named* members from `.svelte` modules, which the
+  // `*.svelte` ambient shim declares as default-only, so `tsc` reports six
+  // TS2614s that are a tooling limit rather than defects. Both are covered by
+  // `npm run typecheck:svelte` (svelte-check), which resolves `.svelte` properly
+  // and reports zero on them. Run both; neither subsumes the other.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true
+  },
+  "exclude": ["src/lib/components/ui"]
+}

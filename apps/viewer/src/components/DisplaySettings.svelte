@@ -129,18 +129,8 @@
               if (!selectedViewpoint) return;
               const r = getRenderer();
               if (!r) return;
-              const vp = r.cameraController.getViewpoint(selectedViewpoint);
-              if (!vp) return;
-              if (vp.trackBody) {
-                const bm = r.getBodyMesh(vp.trackBody);
-                if (bm) {
-                  r.cameraController.track(bm);
-                  r.cameraController.applyViewpoint(vp);
-                  if (vp.target.lengthSq() > 1e-30) r.cameraController.track(null);
-                }
-              } else {
-                r.cameraController.goToViewpoint(selectedViewpoint, 1.0);
-              }
+              // Also seeks the clock when the viewpoint declares a `time`.
+              r.applyNamedViewpoint(selectedViewpoint, { animate: true });
             }}
           >
             <option value="">-- select --</option>

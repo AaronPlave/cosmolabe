@@ -8,8 +8,18 @@
  * wiring (parent / sourceFrame / trajectoryFrame) exactly.
  *
  * Regenerate after an intentional change:
- *   UPDATE_GOLDENS=1 npx vitest run golden-fingerprints
+ *   UPDATE_GOLDENS=1 npx vitest run golden-fingerprints   # rewrite existing goldens
+ *   CREATE_GOLDENS=1 npx vitest run golden-fingerprints   # write a NEW scene's golden
  * then review the JSON diff before committing.
+ *
+ * Creating and rewriting are separate flags, and a writing run reports its
+ * comparisons as SKIPPED rather than passed. Both matter for the same reason:
+ * `UPDATE_GOLDENS=1` used to make this file report four green tests while
+ * asserting nothing at all — the comparison returned early and "golden file
+ * exists" was satisfied by the file `beforeAll` had just written. A green run
+ * that has verified zero is worse than a red one (issue #20). Under UPDATE a
+ * *missing* golden still fails, because that is the renamed-scene case and it
+ * must not self-baseline.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -24,6 +34,9 @@ import {
 
 const GOLDEN_DIR = join(__dirname, '__goldens__');
 const UPDATE = process.env.UPDATE_GOLDENS === '1';
+const CREATE = process.env.CREATE_GOLDENS === '1';
+/** Any run that writes a golden has, by definition, not checked one. */
+const WRITING = UPDATE || CREATE;
 
 // Tolerances: goldens are same-machine deterministic, so deltas come only from
 // JSON rounding (1e-6 km / 1e-9 quat). These are well above that and well below
@@ -82,18 +95,22 @@ describe('golden fingerprints', () => {
 
       beforeAll(async () => {
         actual = fingerprintScene(await buildScene(sceneName), sceneName);
-        if (UPDATE) {
+        // Rewriting what is there is UPDATE's job; bringing a new file into
+        // existence is CREATE's. Neither does the other's.
+        if (existsSync(goldenPath) ? UPDATE : CREATE) {
           if (!existsSync(GOLDEN_DIR)) mkdirSync(GOLDEN_DIR, { recursive: true });
           writeFileSync(goldenPath, serializeFingerprint(actual));
         }
       }, 30000);
 
-      it('golden file exists (run UPDATE_GOLDENS=1 to create)', () => {
+      // Not skipped under UPDATE: a golden that has gone missing while someone
+      // is rewriting goldens means a scene was renamed, and the old file is now
+      // orphaned. Creating it is CREATE's decision to make, explicitly.
+      it.skipIf(CREATE)('golden file exists (run CREATE_GOLDENS=1 to create)', () => {
         expect(existsSync(goldenPath), `missing golden ${goldenPath}`).toBe(true);
       });
 
-      it('matches the committed golden', () => {
-        if (UPDATE) return; // just (re)wrote it
+      it.skipIf(WRITING)('matches the committed golden', () => {
         const golden = JSON.parse(readFileSync(goldenPath, 'utf-8')) as SceneFingerprint;
 
         // Same body set, same order.

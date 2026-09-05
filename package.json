@@ -31,7 +31,9 @@
   "scripts": {
     "build": "tsc --build packages/cspice-wasm packages/frames packages/interop packages/spice packages/core packages/three packages/cesium-adapter packages/cesium",
     "typecheck:tests": "tsc -p tsconfig.test.json",
-    "typecheck": "npm run build && npm run typecheck:tests",
+    "typecheck:viewer": "tsc -p apps/viewer/tsconfig.check.json",
+    "typecheck:svelte": "npm --prefix apps/viewer run typecheck:svelte",
+    "typecheck": "npm run build && npm run typecheck:tests && npm run typecheck:viewer && npm run typecheck:svelte",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint packages/ apps/",
