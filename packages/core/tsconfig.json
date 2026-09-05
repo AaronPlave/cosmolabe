@@ -1,6 +1,20 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    // Narrowed from the root config's ["ES2022", "DOM", "DOM.Iterable"]. core is
+    // the framework-agnostic spine (CONTRIBUTING.md, M-0001) and the embed
+    // targets need it to stay that way, but with DOM in lib nothing stopped a
+    // `document.createElement` from typechecking and building clean. Dropping
+    // DOM makes tsc itself the gate, in the `npm run build` step that already
+    // runs: an allowlist of what core may reach for, complete by construction,
+    // rather than a denylist of browser globals that would always be missing
+    // its newest entry.
+    //
+    // `fetch`, `URL` and friends still resolve — @types/node is ambient here —
+    // so CatalogResolver's fetch is unaffected. Only the shipped library is
+    // covered: src/__tests__ is excluded below and typechecked by the root
+    // tsconfig.test.json, which still has DOM.
+    "lib": ["ES2022"],
     "outDir": "dist",
     "rootDir": "src"
   },

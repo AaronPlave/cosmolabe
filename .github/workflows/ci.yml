@@ -79,6 +79,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # core importing nothing from three or cesium is a property the embed
+      # targets need and M-0001 ratified core on, held until now only by habit
+      # and a sentence in CONTRIBUTING.md (#7). tsc cannot check it: both
+      # packages are hoisted to the root node_modules by the workspace, so the
+      # import would resolve and build green.
+      #
+      # The DOM half of the property is not here — packages/core/tsconfig.json
+      # drops "DOM" from lib, so the build step below rejects `document` on its
+      # own. Its own step rather than folded into `npm run lint`: that script is
+      # broken and unwired (#11, #25) and this should not wait on it.
+      - name: Purity lint (core imports no renderer)
+        run: npm run lint:purity
+
       - name: Typecheck + build
         run: npm run build
 

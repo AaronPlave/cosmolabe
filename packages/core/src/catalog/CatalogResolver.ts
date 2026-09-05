@@ -59,7 +59,12 @@ export async function loadCatalogFromUrl(
   entryUrl: string,
   fetcher: CatalogFetcher = defaultFetcher,
 ): Promise<ResolvedCatalogGraph> {
-  const baseHref = typeof location !== 'undefined' ? location.href : 'file:///';
+  // Typed structurally rather than through the DOM's `location`: core builds
+  // without the DOM lib (packages/core/tsconfig.json), and this is the one site
+  // that reached for it. Same runtime behaviour — the page's href in a browser,
+  // file:/// under Node.
+  const g = globalThis as { location?: { href: string } };
+  const baseHref = g.location?.href ?? 'file:///';
   const entryAbs = new URL(entryUrl, baseHref).href;
 
   const catalogs: ResolvedCatalog[] = [];

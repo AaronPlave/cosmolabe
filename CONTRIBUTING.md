@@ -43,6 +43,7 @@ apps/
 ```
 
 `core` never imports `three` or `cesium`. Renderer packages compose over `core`.
+This is enforced, not just documented: `packages/core/tsconfig.json` builds without the `DOM` lib, so a `document` or `HTMLCanvasElement` in core is a typecheck error, and `npm run lint:purity` (a CI step) fails on an import of `three` or `cesium` — which tsc cannot catch, since the workspace hoists both to the root `node_modules`.
 
 ## Testing
 

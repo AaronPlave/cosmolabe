@@ -37,6 +37,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint packages/ apps/",
+    "lint:purity": "bash scripts/purity-lint.sh",
     "preprocess:displacement": "node scripts/preprocess-displacement.mjs"
   },
   "engines": {
