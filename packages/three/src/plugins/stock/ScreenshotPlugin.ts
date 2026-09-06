@@ -1,5 +1,6 @@
 import type { RendererPlugin } from '../RendererPlugin.js';
 import type { PluginUISlots } from '../PluginUI.js';
+import { captureFilename, captureFrameDataUrl, downloadDataUrl } from '../../scripting/captureFrame.js';
 
 /**
  * Stock plugin that adds a "Save screenshot" command to the command palette.
@@ -14,19 +15,9 @@ export class ScreenshotPlugin implements RendererPlugin {
         id: 'screenshot',
         label: 'Save screenshot',
         category: 'Capture',
-        execute: (ctx) => {
-          // Do a full multi-pass render right now so the canvas backing store
-          // holds the complete composite (bodies + tiles + models + markers +
-          // bloom). Then immediately read pixels via the synchronous
-          // toDataURL — async toBlob is unsafe without preserveDrawingBuffer,
-          // since the next rAF can clear the buffer before encoding reads it.
-          ctx.renderFrame();
-          const dataUrl = ctx.canvas.toDataURL('image/png');
-          const a = document.createElement('a');
-          a.href = dataUrl;
-          a.download = `cosmolabe-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
-          a.click();
-        },
+        // The render-then-read pair, and why each half is the way it is, live
+        // in `captureFrameDataUrl`. This was one of the two copies of it.
+        execute: (ctx) => downloadDataUrl(captureFrameDataUrl(ctx), captureFilename('png')),
       },
     ],
   };

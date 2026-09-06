@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // Narrowed from the root config's ["ES2022", "DOM", "DOM.Iterable"], for the
+    // same reason packages/core narrows it: this package is the contract an
+    // embed host programs against, and a `document` or `HTMLCanvasElement` in it
+    // would tie the port to a browser. Dropping DOM makes tsc the gate in the
+    // build that already runs, rather than a review habit.
+    "lib": ["ES2022"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": []
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/__tests__"]
+}

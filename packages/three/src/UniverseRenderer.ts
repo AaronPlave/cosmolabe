@@ -1201,11 +1201,37 @@ export class UniverseRenderer {
     this.labelManager?.setLabelVisible(name, visible);
   }
 
+  /**
+   * Show or hide **one object's** trajectory line, composite arcs included.
+   *
+   * The per-object counterpart to `setTrajectoriesVisible`, beside the
+   * per-object `setBodyVisible` above. Silent when the object draws no
+   * trajectory: plenty of bodies legitimately have none (a fixed point, a
+   * barycentre), and that is not an error a script should stop on. Whether the
+   * object exists at all is a question the caller can answer, and answers
+   * better — it knows the name it was given.
+   */
+  setTrajectoryVisible(name: string, visible: boolean): void {
+    const tl = this.trajectoryLines.get(name);
+    if (tl) tl.setUserVisible(visible);
+    // Composite arcs (keyed as "name__arc0", "name__arc1", ...), same as
+    // setBodyVisible: a composite trajectory is many lines under one name, and
+    // hiding only the first leaves most of the trail on screen.
+    for (const [key, line] of this.trajectoryLines) {
+      if (key.startsWith(`${name}__arc`)) line.setUserVisible(visible);
+    }
+  }
+
   /** Show or hide all trajectory lines. */
   setTrajectoriesVisible(visible: boolean): void {
     for (const tl of this.trajectoryLines.values()) {
       tl.setUserVisible(visible);
     }
+  }
+
+  /** Show or hide **one object's** label. Silent when the object has none. */
+  setLabelVisible(name: string, visible: boolean): void {
+    this.labelManager?.setLabelVisible(name, visible);
   }
 
   /** Show or hide all body labels. */

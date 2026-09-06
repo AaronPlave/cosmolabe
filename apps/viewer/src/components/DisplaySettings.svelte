@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { vs, setDisplayOption, setLighting, setCameraMode } from '../lib/viewer-state.svelte';
+  import { vs, setDisplayOption, setFov, setLighting, setCameraMode } from '../lib/viewer-state.svelte';
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { exportCameraView, importCameraViewFromFile } from '../lib/camera-view-io';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
@@ -36,8 +36,7 @@
   function onFovInput(e: Event) {
     const val = Number((e.target as HTMLInputElement).value);
     fov = val;
-    const r = getRenderer();
-    if (r) { r.camera.fov = val; r.camera.updateProjectionMatrix(); }
+    setFov(val);
   }
 
   function handleBackdrop(e: MouseEvent) {
@@ -57,13 +56,13 @@
 
     <!-- Toggle rows -->
     {#each [
-      { key: 'trajectories', label: 'Trajectories', shortcut: 'T', value: vs.showTrajectories },
-      { key: 'labels', label: 'Labels', shortcut: 'L', value: vs.showLabels },
-      { key: 'grid', label: 'Grid', shortcut: 'G', value: vs.showGrid },
-      { key: 'axes', label: 'Axes', shortcut: 'X', value: vs.showAxes },
-      { key: 'sensors', label: 'Sensors', shortcut: '', value: vs.showSensors },
-      { key: 'sensorLabels', label: 'Sensor labels', shortcut: '', value: vs.showSensorLabels },
-      { key: 'debug', label: 'Debug stats', shortcut: '', value: debugActive },
+      { key: 'trajectories' as const, label: 'Trajectories', shortcut: 'T', value: vs.showTrajectories },
+      { key: 'labels' as const, label: 'Labels', shortcut: 'L', value: vs.showLabels },
+      { key: 'grid' as const, label: 'Grid', shortcut: 'G', value: vs.showGrid },
+      { key: 'axes' as const, label: 'Axes', shortcut: 'X', value: vs.showAxes },
+      { key: 'sensors' as const, label: 'Sensors', shortcut: '', value: vs.showSensors },
+      { key: 'sensorLabels' as const, label: 'Sensor labels', shortcut: '', value: vs.showSensorLabels },
+      { key: 'debug' as const, label: 'Debug stats', shortcut: '', value: debugActive },
     ] as opt}
       <label class="flex items-center gap-2 px-3 py-1 text-[12px] cursor-pointer hover:bg-surface-3 transition-colors">
         <Checkbox checked={opt.value} onCheckedChange={() => opt.key === 'debug' ? onToggleDebug() : setDisplayOption(opt.key, !opt.value)} class="h-3.5 w-3.5" />

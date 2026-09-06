@@ -29,7 +29,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "tsc --build packages/cspice-wasm packages/frames packages/interop packages/spice packages/core packages/three packages/cesium-adapter packages/cesium",
+    "build": "tsc --build packages/control packages/cspice-wasm packages/frames packages/interop packages/spice packages/core packages/three packages/cesium-adapter packages/cesium",
     "typecheck:tests": "tsc -p tsconfig.test.json",
     "typecheck:viewer": "tsc -p apps/viewer/tsconfig.check.json",
     "typecheck:svelte": "npm --prefix apps/viewer run typecheck:svelte",
