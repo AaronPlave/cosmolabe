@@ -79,3 +79,7 @@ export { VideoRecordPlugin } from './plugins/stock/VideoRecordPlugin.js';
 export { OrbitalInfoPlugin } from './plugins/stock/OrbitalInfoPlugin.js';
 export { AsteroidSwarmPlugin } from './plugins/AsteroidSwarmPlugin.js';
 export type { AsteroidSwarmPluginOptions } from './plugins/AsteroidSwarmPlugin.js';
+
+// Capture
+export { captureFrameDataUrl, captureFilename, downloadDataUrl } from './scripting/captureFrame.js';
+export type { CaptureHost } from './scripting/captureFrame.js';

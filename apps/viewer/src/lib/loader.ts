@@ -24,12 +24,13 @@ import type { SpiceInstance } from '@cosmolabe/spice';
 // only the bundler knows where that asset lands.
 import { createHeritageSpice } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
-import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin } from '@cosmolabe/three';
+import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin, captureFrameDataUrl } from '@cosmolabe/three';
+import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmolabe/control';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
 import {
-  vs,
   bindRenderer,
+  gotoObject,
   syncBodies,
   setSceneLoaded,
   setKernelCount,
@@ -37,6 +38,7 @@ import {
   selectBody,
   formatBytes,
 } from './viewer-state.svelte';
+import { createViewerControl } from './viewer-control';
 
 // ── State ──
 let spice: SpiceInstance | null = null;
@@ -458,15 +460,13 @@ function initScene(
   renderer.use(new VideoRecordPlugin());
   renderer.use(new OrbitalInfoPlugin());
 
-  // Double-click a body → fly to it + select it for the info panel
+  // Double-click a body → fly to it + select it for the info panel.
+  // Delegated to the same mutator the `gotoObject` verb drives, so the two
+  // cannot drift: the pointer and the script reach one implementation.
   const r = renderer;
   r.events.on('body:dblclick', ({ bodyName }) => {
-    const bm = r.getBodyMesh(bodyName);
-    if (bm) r.cameraController.flyTo(bm, { scaleFactor: 1e-6 });
+    gotoObject(bodyName, { animate: true });
     selectBody(bodyName);
-    // Update tracked body in reactive state (flyTo defers the actual
-    // tracking to _pendingOriginSwitch, but UI needs to know now)
-    vs.trackedBodyName = bodyName;
   });
 
   // Bind reactive state
@@ -574,6 +574,13 @@ function initScene(
   // Expose for console-based tuning during development.
   (window as unknown as { renderer: UniverseRenderer }).renderer = renderer;
 
+  // The script host, beside it. `cosmo` is a *binding* of the ViewerControl
+  // contract, not the contract itself — an embedded app or a test holds an
+  // instance from `createViewerControl()` directly, and nothing in the port
+  // reaches for this global. Exposed unconditionally because driving the viewer
+  // from the browser console is the point; only `runScript` below is gated.
+  (window as unknown as { cosmo: ViewerControl }).cosmo = getCosmo();
+
   // Visual-regression capture hook (`?test=1` only). Lets the offscreen driver
   // (scripts/visual-regression.mjs) seek to a fixed epoch, apply a named
   // catalog viewpoint, render exactly one synchronous frame, and read the
@@ -607,8 +614,20 @@ function initScene(
               `This catalog defines: ${u.viewpoints.map((v) => JSON.stringify(v.name)).join(', ')}`,
           );
         }
-        r.renderFrame();
-        return (canvas as HTMLCanvasElement).toDataURL('image/png');
+        return captureFrameDataUrl(r.getContext());
+      },
+      /**
+       * Run a script against the viewer, throwing on the first failing line.
+       *
+       * Throws for the same reason `capture` throws on an unresolved viewpoint:
+       * a scene half-set-up still renders, still looks plausible, and would be
+       * baselined. `forbidWait` is what a deterministic capture passes — a
+       * golden that depends on a wall-clock settle is a coin flip.
+       */
+      runScript: async (source: string, opts?: { forbidWait?: boolean }) => {
+        const program = parse(source, opts?.forbidWait ? { forbid: ['wait'] } : undefined);
+        const report: ExecutionReport = await execute(program, getCosmo());
+        return { ran: report.ran };
       },
     };
   }
@@ -731,6 +750,20 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
     const catalogs = resolveCatalogOrder(jsonFiles);
     if (catalogs.length > 0) initScene(canvas, catalogs, dataFiles, binaryFiles, modelFiles);
   }
+}
+
+/**
+ * The script host, built once.
+ *
+ * One instance is enough and a new one per scene would be wrong: every method
+ * reads the current renderer when it is called, so this survives a catalog
+ * load — which a host that had captured a renderer would not.
+ */
+let cosmo: ViewerControl | null = null;
+
+export function getCosmo(): ViewerControl {
+  cosmo ??= createViewerControl({ getSpice });
+  return cosmo;
 }
 
 /** Get the current renderer instance */

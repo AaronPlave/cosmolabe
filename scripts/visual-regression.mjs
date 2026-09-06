@@ -63,6 +63,19 @@ const PORT = 4173;
  * `viewpoints` are catalog-defined viewpoint names chosen to expose fragile
  * geometry. Ring Plane View is the marquee ring-tilt guard; the oblate Saturn
  * disk in SOI guards triaxial-ellipsoid scaling.
+ *
+ * A scene may also carry:
+ *   script  a cosmolabe script (docs/scripting.md) run after the settle, to
+ *           compose a view the catalog does not define. `wait` is rejected —
+ *           see runSceneScript below.
+ *   label   the golden's filename stem, when the catalog name is not
+ *           descriptive enough. Defaults to the catalog name, so every golden
+ *           committed before this option existed keeps its name.
+ *
+ * Adding one is a hand procedure, not a code change: see the "Scripted
+ * visual-regression scenes" section of docs/scripting.md. A scene added without
+ * walking through it either self-baselines whatever the code happened to do, or
+ * draws too little ink for any change to fail it.
  */
 const SCENES = [
   { catalog: 'cassini-soi', viewpoints: ['SOI (2004-07-01)', 'Ring Plane View'] },
@@ -211,6 +224,27 @@ function inkFrac(png) {
   return n / (png.width * png.height);
 }
 
+/**
+ * Run a scene script in the page, refusing anything that depends on wall-clock.
+ *
+ * `forbidWait` is not a convenience. `wait` is a wall-clock settle, and a
+ * golden composed with one is a coin flip: at Saturn orbit insertion Cassini
+ * covers 29.8 km/s, so the 6 s settle this harness already takes drifted the
+ * scene ~180 km — which is why `loader.ts` freezes the clock in TEST_MODE at
+ * all. The rejection happens in the page, through the same parser the language
+ * uses, so the error names the line rather than guessing at one.
+ *
+ * The hook throws on the first failing statement. That matters more here than
+ * anywhere: a half-applied scene still renders, still looks plausible, and this
+ * script's whole job is deciding whether a picture is right.
+ */
+async function runSceneScript(page, source) {
+  return page.evaluate(
+    ([src]) => window.__cosmolabe.runScript(src, { forbidWait: true }),
+    [source],
+  );
+}
+
 async function main() {
   const chromium = await loadPlaywright();
   const { pixelmatch, PNG } = await loadDiffers();
@@ -330,6 +364,19 @@ async function main() {
       onFatalHttp = null;
       await page.waitForTimeout(SETTLE_MS);
 
+      if (scene.script) {
+        try {
+          await runSceneScript(page, scene.script);
+        } catch (err) {
+          failures.push(`${scene.catalog}: scene script failed — ${String(err).split('\n')[0]}`);
+          continue;
+        }
+        // Settle again. The script may have moved the clock and the camera, and
+        // terrain and textures for wherever it went need the same budget the
+        // initial load got — the first settle says nothing about the second view.
+        await page.waitForTimeout(SETTLE_MS);
+      }
+
       const nonFatal = httpFailures.filter((f) => !f.fatal);
       if (nonFatal.length) {
         warnings.push(
@@ -340,7 +387,7 @@ async function main() {
 
       const viewpoints = scene.viewpoints.length ? scene.viewpoints : [null];
       for (const vp of viewpoints) {
-        const label = `${scene.catalog}${vp ? `--${vp}` : ''}`.replace(/[^\w.-]+/g, '_');
+        const label = `${scene.label ?? scene.catalog}${vp ? `--${vp}` : ''}`.replace(/[^\w.-]+/g, '_');
         let dataUrl;
         try {
           dataUrl = await page.evaluate((name) => window.__cosmolabe.capture(name ?? undefined), vp);

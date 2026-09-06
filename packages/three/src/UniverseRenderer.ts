@@ -1007,6 +1007,21 @@ export class UniverseRenderer {
   }
 
   /**
+   * Names of the bodies that actually have a mesh in this scene.
+   *
+   * Not the same list as `universe.getAllBodies()`, and the difference is the
+   * point: `buildScene` gives some catalog items no `BodyMesh` at all — a
+   * `Rings` body is drawn as its parent's ring and skipped here, and
+   * `cassini-soi` ships one ("Saturn Rings"). Anything that resolves a name for
+   * picking, tracking or visibility has to ask this list rather than the
+   * universe's, or it will offer a name that every one of those operations then
+   * refuses.
+   */
+  getBodyNames(): string[] {
+    return [...this.bodyMeshes.keys()];
+  }
+
+  /**
    * Go to a registered viewpoint by name: track its body, move the camera, and
    * — when the viewpoint carries an `epoch` (a catalog Viewpoint's `time`) —
    * seek the clock to that moment. Returns false if no viewpoint by that name.
@@ -1201,11 +1216,37 @@ export class UniverseRenderer {
     this.labelManager?.setLabelVisible(name, visible);
   }
 
+  /**
+   * Show or hide **one object's** trajectory line, composite arcs included.
+   *
+   * The per-object counterpart to `setTrajectoriesVisible`, beside the
+   * per-object `setBodyVisible` above. Silent when the object draws no
+   * trajectory: plenty of bodies legitimately have none (a fixed point, a
+   * barycentre), and that is not an error a script should stop on. Whether the
+   * object exists at all is a question the caller can answer, and answers
+   * better — it knows the name it was given.
+   */
+  setTrajectoryVisible(name: string, visible: boolean): void {
+    const tl = this.trajectoryLines.get(name);
+    if (tl) tl.setUserVisible(visible);
+    // Composite arcs (keyed as "name__arc0", "name__arc1", ...), same as
+    // setBodyVisible: a composite trajectory is many lines under one name, and
+    // hiding only the first leaves most of the trail on screen.
+    for (const [key, line] of this.trajectoryLines) {
+      if (key.startsWith(`${name}__arc`)) line.setUserVisible(visible);
+    }
+  }
+
   /** Show or hide all trajectory lines. */
   setTrajectoriesVisible(visible: boolean): void {
     for (const tl of this.trajectoryLines.values()) {
       tl.setUserVisible(visible);
     }
+  }
+
+  /** Show or hide **one object's** label. Silent when the object has none. */
+  setLabelVisible(name: string, visible: boolean): void {
+    this.labelManager?.setLabelVisible(name, visible);
   }
 
   /** Show or hide all body labels. */
