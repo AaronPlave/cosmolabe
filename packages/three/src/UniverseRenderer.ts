@@ -88,10 +88,11 @@ export interface UniverseRendererOptions {
    *  bodies marked emissive (Sun, stars) are auto-routed to the bloom layer.
    *  Default: disabled. */
   bloom?: BloomConfig;
-  /** Deadline in ms for the initial asset set (models + textures the catalog
-   *  names up front). Past it, `waitForInitialAssets()` resolves with whatever
-   *  arrived so a stalled fetch can't leave a scene loading forever.
-   *  Default 60000. */
+  /** Deadline in ms for the initial asset set (the models and textures the
+   *  catalog names up front, plus the worker-built trajectory caches its
+   *  spacecraft need). Past it, `waitForInitialAssets()` resolves with whatever
+   *  arrived so a stalled fetch or a wedged worker can't leave a scene loading
+   *  forever. Default 60000. */
   initialAssetTimeoutMs?: number;
   /** Custom geometry-type visualizers (Pattern D). Registered BEFORE the
    *  initial buildScene() so bodies with matching geometryType render via the
@@ -176,10 +177,11 @@ export class UniverseRenderer {
   readonly events = new EventBus<RendererEventMap>();
 
   /**
-   * Tracks the models and textures the initial `buildScene()` starts. The scene
-   * graph exists long before those land, so anything that wants to show a
-   * finished scene (rather than placeholder spheres and untextured globes) waits
-   * on `waitForInitialAssets()` instead of on the constructor returning.
+   * Tracks the models, textures and trajectory caches the initial `buildScene()`
+   * starts. The scene graph exists long before those land, so anything that wants
+   * to show a finished scene (rather than placeholder spheres, untextured globes
+   * and spacecraft with no trail yet) waits on `waitForInitialAssets()` instead
+   * of on the constructor returning.
    */
   readonly assets = new AssetLoadTracker();
   private _initialAssets: Promise<InitialAssetsSummary> | null = null;
@@ -357,13 +359,15 @@ export class UniverseRenderer {
   /**
    * Resolve once every asset the initial `buildScene()` started has loaded or
    * failed — model meshes, globe base/normal/displacement/bump maps, level-0
-   * tiled base maps, ring textures and `.cmod` material textures.
+   * tiled base maps, ring textures, `.cmod` material textures, and the
+   * worker-built trajectory caches whose trails stay hidden until they land.
    *
    * This is the signal to gate an initial-load UI on: the scene graph is ready
    * the moment the constructor returns, but the bodies in it are placeholder
-   * spheres and untextured globes until this settles. Assets that stream later
-   * (terrain tiles, bodies added after the initial catalog) are deliberately not
-   * part of it — they are expected to arrive with the scene already on screen.
+   * spheres and untextured globes, and its spacecraft have no trails, until this
+   * settles. Assets that stream later (terrain tiles, bodies added after the
+   * initial catalog) are deliberately not part of it — they are expected to
+   * arrive with the scene already on screen.
    *
    * Never rejects, and never stays pending: failures are counted in the summary,
    * and a load that neither resolves nor rejects is abandoned at
@@ -2682,7 +2686,12 @@ export class UniverseRenderer {
     return true;
   }
 
-  /** Dispatch an async cache build to the Web Worker. Trail stays hidden until ready. */
+  /**
+   * Dispatch an async cache build to the Web Worker. Trail stays hidden until
+   * ready — which is why the build is registered with the initial-asset tracker:
+   * a scene handed over mid-build is one where Cassini has no trail yet, the
+   * same overclaim as a body still wearing its placeholder sphere.
+   */
   private dispatchAsyncCacheBuild(body: Body, tl: TrajectoryLine, trajOpts: TrajectoryLineOptions): void {
     const spiceTraj = body.trajectory as SpiceTrajectory;
     const trailDur = trajOpts.trailDuration ?? 86400;
@@ -2700,33 +2709,69 @@ export class UniverseRenderer {
     };
 
     const t0 = performance.now();
-    this.cacheWorker!.buildCache(request).then((cache) => {
-      // Guard: scene may have been disposed while we waited
-      if (!this.trajectoryLines.has(body.name)) return;
-      if (cache.count > 0) {
-        // The worker sampled in the trajectory's SPICE frame (`request.frame`,
-        // e.g. J2000-equatorial). Rotate the baked points into the world frame
-        // so the cached trail lines up with the `absolutePositionOf` marker.
-        this.alignCacheToWorldFrame(cache, body);
-        tl.setCache(cache);
-        tl.setUserVisible(true);
-        console.log(`[Cosmolabe] Async cache ready for ${body.name}: ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
-        this.events.emit('trajectory:cacheReady' as any, { bodyName: body.name });
-      } else {
+    // One handler pair, not `.then().catch()`: the fallback below throws when it
+    // cannot produce a trail either, and that rejection is the tracker's failure
+    // record — a `.catch()` chained after the success handler would swallow it.
+    const build = this.cacheWorker!.buildCache(request).then(
+      (cache) => {
+        // Guard: scene may have been disposed while we waited
+        if (!this.trajectoryLines.has(body.name)) return;
+        if (cache.count > 0) {
+          // The worker sampled in the trajectory's SPICE frame (`request.frame`,
+          // e.g. J2000-equatorial). Rotate the baked points into the world frame
+          // so the cached trail lines up with the `absolutePositionOf` marker.
+          this.alignCacheToWorldFrame(cache, body);
+          tl.setCache(cache);
+          tl.setUserVisible(true);
+          console.log(`[Cosmolabe] Async cache ready for ${body.name}: ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
+          this.events.emit('trajectory:cacheReady' as any, { bodyName: body.name });
+          return;
+        }
         // Empty cache — worker's SPICE may lack kernels. Fall back to sync.
         console.warn(`[Cosmolabe] Worker returned empty cache for ${body.name}, falling back to sync`);
-        this.buildCacheSync(body, tl, trajOpts);
-        tl.setUserVisible(true);
-      }
-    }).catch((err) => {
-      console.warn(`[Cosmolabe] Worker cache failed for ${body.name}, falling back to sync:`, err);
-      this.buildCacheSync(body, tl, trajOpts);
-      tl.setUserVisible(true);
-    });
+        this.fallBackToSyncCache(body, tl, trajOpts, 'worker returned an empty cache');
+      },
+      (err) => {
+        console.warn(`[Cosmolabe] Worker cache failed for ${body.name}, falling back to sync:`, err);
+        this.fallBackToSyncCache(
+          body, tl, trajOpts,
+          `worker cache failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      },
+    );
+    this.assets.track(
+      {
+        kind: 'trajectory',
+        owner: body.name,
+        role: 'trajectoryCache',
+        url: `spice:${request.target}@${request.center}/${request.frame}`,
+      },
+      build,
+    );
   }
 
-  /** Synchronous cache build on the main thread (fallback when no worker). */
-  private buildCacheSync(body: Body, tl: TrajectoryLine, trajOpts: TrajectoryLineOptions): void {
+  /**
+   * Main-thread rebuild after the worker path came up empty, plus the trail
+   * reveal that must happen either way — a body whose cache could not be built
+   * still renders through legacy per-frame sampling, so hiding it would be worse
+   * than showing it. Throws when there is no trail to show at all, which is what
+   * turns the worker's failure into a reported one rather than a silent gap.
+   */
+  private fallBackToSyncCache(
+    body: Body,
+    tl: TrajectoryLine,
+    trajOpts: TrajectoryLineOptions,
+    reason: string,
+  ): void {
+    const built = this.buildCacheSync(body, tl, trajOpts);
+    tl.setUserVisible(true);
+    if (!built) throw new Error(`${reason}; the sync fallback found no states either`);
+  }
+
+  /** Synchronous cache build on the main thread (fallback when no worker).
+   *  Returns whether it produced any samples — false means the trajectory had no
+   *  states to bake, and the trail falls back to legacy per-frame sampling. */
+  private buildCacheSync(body: Body, tl: TrajectoryLine, trajOpts: TrajectoryLineOptions): boolean {
     const trailDur = trajOpts.trailDuration ?? 86400;
     const currentEt = this.timeController.et;
     let searchStart = currentEt - trailDur * 4;
@@ -2806,11 +2851,11 @@ export class UniverseRenderer {
       maxPoints: 100_000,
       coverageWindows,
     });
-    if (cache.count > 0) {
-      tl.setCache(cache);
-      const method = coverageWindows ? 'spkcov' : 'probe';
-      console.log(`[Cosmolabe] Built sync cache for ${body.name} (${method}): ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
-    }
+    if (cache.count === 0) return false;
+    tl.setCache(cache);
+    const method = coverageWindows ? 'spkcov' : 'probe';
+    console.log(`[Cosmolabe] Built sync cache for ${body.name} (${method}): ${cache.count} points in ${(performance.now() - t0).toFixed(0)}ms`);
+    return true;
   }
 
   /**

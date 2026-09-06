@@ -11,6 +11,11 @@
  * and a visual-regression harness that papered over it with a fixed settle
  * delay.
  *
+ * Not everything tracked here is fetched. A spacecraft's trajectory cache is
+ * *computed* — sampled out of SPICE on a worker thread — and its trail is hidden
+ * until it lands, so a scene handed over before it finishes is missing Cassini's
+ * trail rather than missing Cassini's texture. Same overclaim, same gate.
+ *
  * Two registration kinds, because "how many assets are there" and "is anything
  * still in flight" are different questions:
  *
@@ -27,8 +32,8 @@
  * yields a summary rather than a scene that is loading forever.
  */
 
-/** What kind of asset a tracked load is fetching. */
-export type AssetKind = 'model' | 'texture' | 'tiles';
+/** What kind of asset a tracked load is fetching, or — for `trajectory` — computing. */
+export type AssetKind = 'model' | 'texture' | 'tiles' | 'trajectory';
 
 /** Identifies one tracked asset for progress display and failure reporting. */
 export interface AssetRequest {
@@ -37,7 +42,8 @@ export interface AssetRequest {
   owner: string;
   /** What the asset is for — `baseMap`, `normalMap`, `cmod:diffuse`, … */
   role: string;
-  /** URL or blob URL being fetched. */
+  /** URL or blob URL being fetched. For an asset that is computed rather than
+   *  fetched (a trajectory cache), a descriptor of what is being built. */
   url: string;
 }
 

@@ -62,9 +62,10 @@ export const vs = $state({
   /** Scene graph is built — bodies exist, but their models and textures may not
    *  have arrived yet. Not the signal to reveal the scene with; see below. */
   sceneLoaded: false,
-  /** The catalog's initial models and textures have all loaded or failed. This
-   *  is what the loading UI waits on, so nobody sees placeholder spheres and
-   *  untextured globes presented as a finished scene. */
+  /** The catalog's initial models, textures and trajectory caches have all
+   *  loaded or failed. This is what the loading UI waits on, so nobody sees
+   *  placeholder spheres, untextured globes, or spacecraft whose trail has not
+   *  been computed yet, presented as a finished scene. */
   assetsReady: false,
   /** Outcome of the initial asset load — null until `assetsReady`. Failures are
    *  counted here rather than blocking readiness. */
@@ -206,7 +207,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // finishes wiring the scene, so no `assets:ready` can be missed.
   vs.assetsReady = false;
   vs.assetSummary = null;
-  setLoadingState({ show: true, label: 'Loading models & textures...', progress: 0, detail: '' });
+  setLoadingState({ show: true, label: 'Loading models, textures & trajectories...', progress: 0, detail: '' });
   _unsubscribers.push(renderer.events.on('assets:progress', (p) => {
     // `total` still grows as nested assets are discovered, so this is a floor on
     // real progress, not a countdown — hence no 100% until 'assets:ready'.

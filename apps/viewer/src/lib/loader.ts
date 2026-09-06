@@ -553,9 +553,10 @@ function initScene(
     renderer.applyNamedViewpoint(universe.defaultViewpoint, { animate: true });
   }
 
-  // The scene graph is complete. Its models and textures are not — the renderer
-  // is still fetching them, and `bindRenderer` above has the UI waiting on
-  // `assets:ready` before it calls the scene loaded to the user (issue #19).
+  // The scene graph is complete. Its models, textures and spacecraft trajectory
+  // caches are not — the renderer is still fetching and computing them, and
+  // `bindRenderer` above has the UI waiting on `assets:ready` before it calls the
+  // scene loaded to the user (issue #19).
   setSceneLoaded(true);
   // The epoch the catalog asked for, before the clock is allowed to run.
   const catalogEt = universe.time;
@@ -587,9 +588,11 @@ function initScene(
     const u = universe;
     const hook = {
       ready: true,
-      /** Flips true once the catalog's initial models and textures have loaded
-       *  or failed. The harness waits on this instead of sleeping a fixed
-       *  settle window and hoping the textures made it (issue #19). */
+      /** Flips true once the catalog's initial models, textures and trajectory
+       *  caches have loaded or failed. The harness waits on this instead of
+       *  sleeping a fixed settle window and hoping the textures made it
+       *  (issue #19). In test mode the cache worker is skipped entirely (see
+       *  above), so here that set is models and textures. */
       assetsReady: false,
       /** Populated alongside `assetsReady` — lets the harness report assets the
        *  scene is missing instead of silently photographing a thinner scene. */

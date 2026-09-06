@@ -33,6 +33,10 @@ loaded **or failed**). It used to sleep a flat six seconds after `ready` and
 hope the textures had landed — which is the same reason a user could watch the
 loading UI disappear off a sky of placeholder spheres (issue #19).
 
+That gate also covers worker-built trajectory caches, but not here: `?test=1`
+skips the cache worker on purpose (see `loader.ts`), so spacecraft trails are
+baked synchronously during scene init and are already in the first frame.
+
 `VR_STREAM_SETTLE_MS` is what remains of that sleep, and it covers only content
 that keeps streaming after the initial gate — 3D Tiles terrain. None of the
 scenes here use terrain. Assets that failed are reported as a run warning:

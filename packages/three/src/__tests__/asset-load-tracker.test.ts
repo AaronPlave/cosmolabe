@@ -110,6 +110,32 @@ describe('AssetLoadTracker', () => {
     ]);
   });
 
+  it('holds readiness for a computed trajectory cache, and records one that fails', async () => {
+    // A spacecraft's trail is hidden until its cache lands, so the build belongs
+    // in the same gate as the textures even though nothing is being fetched.
+    // (Renderer-level wiring for this needs SPICE kernels and a GL context; what
+    // is pinned here is that the tracker treats a computed asset like any other.)
+    const tracker = new AssetLoadTracker();
+    const cassini = deferred();
+    tracker.track(
+      { kind: 'trajectory', owner: 'Cassini', role: 'trajectoryCache', url: 'spice:-82@ECLIPJ2000' },
+      cassini.promise,
+    );
+    tracker.track(req(), Promise.resolve());
+
+    let settled = false;
+    const waiting = tracker.settle({ timeoutMs: 5000 }).then((s) => { settled = true; return s; });
+    await new Promise((r) => setTimeout(r, 5));
+    expect(settled).toBe(false);
+
+    cassini.reject(new Error('worker returned an empty cache; the sync fallback found no states either'));
+    const summary = await waiting;
+    expect(summary.loaded).toBe(1);
+    expect(summary.failures).toEqual([
+      expect.objectContaining({ kind: 'trajectory', owner: 'Cassini' }),
+    ]);
+  });
+
   it('settles immediately when the catalog needs no assets', async () => {
     const tracker = new AssetLoadTracker();
     const summary = await tracker.settle({ timeoutMs: 5000 });
