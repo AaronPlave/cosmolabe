@@ -37,8 +37,10 @@ import {
   vs,
   applyViewpoint,
   bodyNames,
+  clearLookAt,
   displayNote,
   getRenderer,
+  noteIsTimed,
   gotoObject,
   hasBody,
   isDisplayOption,
@@ -107,14 +109,19 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
 
   const camera = (): ScriptCamera => {
     const r = getRenderer();
-    if (!r) return { position: [0, 0, 0], up: [0, 1, 0], fov: 60 };
+    if (!r) return { position: [0, 0, 0], target: [0, 0, 0], up: [0, 1, 0], fov: 60 };
     // Positions are reported in km — the catalog convention, and the unit every
     // other serialization of a camera in this repo already uses.
     const inv = 1 / r.scaleFactor;
     const p = r.camera.position;
+    // `controls.target` is what the camera orbits and looks at. Reporting the
+    // pose without it says where the camera stands and nothing about what it
+    // sees, which is not a pose a view can be rebuilt from.
+    const t = r.cameraController.controls.target;
     const u = r.camera.up;
     return {
       position: [p.x * inv, p.y * inv, p.z * inv],
+      target: [t.x * inv, t.y * inv, t.z * inv],
       up: [u.x, u.y, u.z],
       fov: r.camera.fov,
     };
@@ -131,6 +138,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
       playing: r?.timeController.playing ?? vs.playing,
       selected: vs.selectedBodyName,
       tracked,
+      lookAt: r?.cameraController.lookAtBody?.body.name ?? vs.lookAtBodyName,
       frame: { mode: vs.cameraMode, body: tracked ?? undefined },
       camera: camera(),
       layers: {
@@ -141,7 +149,9 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
         sensors: vs.showSensors,
         sensorLabels: vs.showSensorLabels,
       },
-      note: vs.note ?? undefined,
+      // Persistent captions only — a timed one is a sequencing event, not view
+      // state, and `noteIsTimed` is what tells the two apart.
+      note: (!noteIsTimed() && vs.note) || undefined,
     };
   };
 
@@ -163,6 +173,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     untrack: () => untrack(),
 
     pointAtObject: (name) => pointAtObject(name),
+
+    clearLookAt: () => clearLookAt(),
 
     viewpoint: (name) => applyViewpoint(name),
 
@@ -197,7 +209,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
       return true;
     },
 
-    setCamera: (position, up) => setCameraPose(position, up),
+    setCamera: (position, target, up) => setCameraPose(position, target, up),
 
     // ── Write: time ──
     setTime: (when) => {

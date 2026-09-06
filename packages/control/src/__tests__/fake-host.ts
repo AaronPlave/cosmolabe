@@ -39,9 +39,11 @@ export class FakeViewer implements ViewerControl {
   playing = false;
   selected: string | null = null;
   tracked: string | null = null;
+  lookAt: string | null = null;
   frame: { mode: string; body?: string } = { mode: 'free-orbit' };
-  camera: { position: ScriptVec3; up: ScriptVec3; fov: number } = {
+  camera: { position: ScriptVec3; target: ScriptVec3; up: ScriptVec3; fov: number } = {
     position: [0, 0, 1],
+    target: [0, 0, 0],
     up: [0, 1, 0],
     fov: 60,
   };
@@ -110,7 +112,14 @@ export class FakeViewer implements ViewerControl {
 
   pointAtObject(name: string): boolean {
     this.log('pointAtObject', name);
-    return this.ok(this.known(name));
+    if (!this.known(name)) return false;
+    this.lookAt = name;
+    return this.ok(true);
+  }
+
+  clearLookAt(): void {
+    this.log('clearLookAt');
+    this.lookAt = null;
   }
 
   viewpoint(name: string): boolean {
@@ -154,9 +163,14 @@ export class FakeViewer implements ViewerControl {
     return this.ok(true);
   }
 
-  setCamera(position: ScriptVec3, up?: ScriptVec3): boolean {
-    this.log('setCamera', position, up);
-    this.camera = { ...this.camera, position, up: up ?? this.camera.up };
+  setCamera(position: ScriptVec3, target?: ScriptVec3, up?: ScriptVec3): boolean {
+    this.log('setCamera', position, target, up);
+    this.camera = {
+      ...this.camera,
+      position,
+      target: target ?? [0, 0, 0],
+      up: up ?? this.camera.up,
+    };
     return this.ok(true);
   }
 
@@ -249,6 +263,7 @@ export class FakeViewer implements ViewerControl {
       playing: this.playing,
       selected: this.selected,
       tracked: this.tracked,
+      lookAt: this.lookAt,
       frame: this.frame,
       camera: this.camera,
       layers: { ...this.layers },

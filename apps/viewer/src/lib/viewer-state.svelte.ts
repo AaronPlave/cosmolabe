@@ -548,6 +548,7 @@ export function setFov(deg: number, opts: { persist?: boolean } = {}) {
  */
 export function setCameraPose(
   position: readonly [number, number, number],
+  target?: readonly [number, number, number],
   up?: readonly [number, number, number],
 ): boolean {
   if (!_renderer) return false;
@@ -555,7 +556,12 @@ export function setCameraPose(
   const sf = _renderer.scaleFactor;
   cc.cancelAnimation();
   cc.camera.position.set(position[0] * sf, position[1] * sf, position[2] * sf);
-  cc.controls.target.set(0, 0, 0);
+  // The orbit target is where the camera *looks*; without it a pose says where
+  // the camera stands and nothing about what it sees. Defaulting to the origin
+  // keeps the two-argument form meaning what it used to: the origin is the
+  // tracked body when one is tracked, and the world origin otherwise.
+  if (target) cc.controls.target.set(target[0] * sf, target[1] * sf, target[2] * sf);
+  else cc.controls.target.set(0, 0, 0);
   if (up) cc.camera.up.set(up[0], up[1], up[2]).normalize();
   return true;
 }
@@ -579,14 +585,18 @@ export function hasBody(name: string): boolean {
 }
 
 /**
- * Names of the objects in the loaded scene.
+ * Names of the objects in the loaded scene — the ones a script can act on.
  *
- * Read through the renderer rather than off `vs.bodies`, because a caller may
- * hold this function across a catalog load: `syncBodies` reassigns `vs.bodies`
- * wholesale and `loadDemo` replaces the renderer entirely.
+ * Read through the renderer, not off `vs.bodies`, and the difference is real
+ * rather than stylistic. `vs.bodies` mirrors `universe.getAllBodies()`, which
+ * includes catalog items the renderer never gives a `BodyMesh`: `cassini-soi`
+ * ships a "Saturn Rings" body drawn as part of Saturn. Listing it here while
+ * `hasBody` — and therefore `gotoObject`, `track`, `showLabel` and every other
+ * object verb — refuses it would make the "did you mean …?" suggester propose a
+ * name that cannot work.
  */
 export function bodyNames(): string[] {
-  return vs.bodies.map((b) => b.name);
+  return _renderer?.getBodyNames() ?? [];
 }
 
 /**
@@ -608,6 +618,18 @@ export function displayNote(text: string, seconds?: number) {
       _noteTimer = undefined;
     }, seconds * 1000);
   }
+}
+
+/**
+ * Whether the caption on screen is on a timer.
+ *
+ * A timed note is an event in a sequence, not state the view is in, so
+ * `snapshot()` leaves it out: reproducing one would either resurrect a caption
+ * that has already gone, or mean modelling how much of its duration is left. A
+ * persistent note is view state and is reproduced.
+ */
+export function noteIsTimed(): boolean {
+  return _noteTimer !== undefined;
 }
 
 let _noteTimer: ReturnType<typeof setTimeout> | undefined;

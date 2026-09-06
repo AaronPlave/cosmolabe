@@ -1007,6 +1007,21 @@ export class UniverseRenderer {
   }
 
   /**
+   * Names of the bodies that actually have a mesh in this scene.
+   *
+   * Not the same list as `universe.getAllBodies()`, and the difference is the
+   * point: `buildScene` gives some catalog items no `BodyMesh` at all — a
+   * `Rings` body is drawn as its parent's ring and skipped here, and
+   * `cassini-soi` ships one ("Saturn Rings"). Anything that resolves a name for
+   * picking, tracking or visibility has to ask this list rather than the
+   * universe's, or it will offer a name that every one of those operations then
+   * refuses.
+   */
+  getBodyNames(): string[] {
+    return [...this.bodyMeshes.keys()];
+  }
+
+  /**
    * Go to a registered viewpoint by name: track its body, move the camera, and
    * — when the viewpoint carries an `epoch` (a catalog Viewpoint's `time`) —
    * seek the clock to that moment. Returns false if no viewpoint by that name.

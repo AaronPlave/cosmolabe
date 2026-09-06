@@ -16,7 +16,8 @@ async function posed(): Promise<FakeViewer> {
         'gotoObject Titan',
         'setFrame body-fixed Titan',
         'setFov 35.5',
-        'setCamera [-1234.5, 0.25, 6.0e3] [0, 0, 1]',
+        'pointAtObject Enceladus',
+        'setCamera [-1234.5, 0.25, 6.0e3] [10, 20, 30] [0, 0, 1]',
         'setLayer labels off',
         'setLayer grid on',
         'select Cassini',
@@ -46,9 +47,35 @@ describe('snapshot', () => {
     const replayed = new FakeViewer();
     // Pose the replay differently first, so the snapshot has to actively clear
     // the tracking and selection rather than passively agree with them.
-    await execute(parse(['gotoObject Saturn', 'select Saturn'].join('\n')), replayed);
+    await execute(
+      parse(['gotoObject Saturn', 'select Saturn', 'pointAtObject Titan'].join('\n')),
+      replayed,
+    );
     await execute(parse(original.snapshot()), replayed);
     expect(replayed.snapshotState()).toEqual(original.snapshotState());
+  });
+
+  // The gap this closes: position and up alone do not say where the camera is
+  // *pointing*, and `pointAtObject` state was not emitted at all. A snapshot
+  // that lost both reproduced where the camera stood and not what it saw.
+  it('carries the camera aim — both the orbit target and the look-at object', async () => {
+    const original = await posed();
+    const replayed = new FakeViewer();
+    await execute(parse(original.snapshot()), replayed);
+
+    expect(replayed.camera.target).toEqual(original.camera.target);
+    expect(replayed.camera.up).toEqual(original.camera.up);
+    expect(replayed.lookAt).toBe('Enceladus');
+  });
+
+  it('clears an aim the snapshotted view did not have', async () => {
+    const original = new FakeViewer();
+    const replayed = new FakeViewer();
+    await execute(parse('pointAtObject Titan'), replayed);
+    expect(replayed.lookAt).toBe('Titan');
+
+    await execute(parse(original.snapshot()), replayed);
+    expect(replayed.lookAt).toBeNull();
   });
 
   it('parses clean and emits one statement per line', async () => {
@@ -60,6 +87,7 @@ describe('snapshot', () => {
       'setTimeRate',
       'gotoObject',
       'setFrame',
+      'pointAtObject',
       'setFov',
       'setCamera',
       'setLayer',
@@ -81,8 +109,9 @@ describe('snapshot', () => {
       playing: true,
       selected: null,
       tracked: null,
+      lookAt: null,
       frame: { mode: 'free-orbit' },
-      camera: { position: [0, 0, 1], up: [0, 1, 0], fov: 60 },
+      camera: { position: [0, 0, 1], target: [0, 0, 0], up: [0, 1, 0], fov: 60 },
       layers: {},
     });
     const lines = script.trim().split('\n');

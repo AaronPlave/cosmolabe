@@ -186,6 +186,7 @@ function makeFakeRenderer(objects: string[]) {
       return true;
     },
     getBodyMesh: (name: string) => meshes.get(name),
+    getBodyNames: () => [...meshes.keys()],
     setBodyVisible: (name: string, v: boolean) => log(`setBodyVisible(${name}, ${v})`),
     setTrajectoryVisible: (name: string, v: boolean) => log(`setTrajectoryVisible(${name}, ${v})`),
     setLabelVisible: (name: string, v: boolean) => log(`setLabelVisible(${name}, ${v})`),
@@ -208,14 +209,22 @@ const OBJECTS = ['Cassini', 'Titan', 'Enceladus', 'Saturn'];
 
 let renderer: FakeRenderer;
 
-function bind(objects = OBJECTS) {
+/**
+ * Bind a fake renderer.
+ *
+ * `catalogOnly` names bodies the catalog declares but the renderer gives no
+ * mesh — what a `Rings` item is. They land in `vs.bodies` and nowhere else,
+ * which is exactly the divergence `listObjects` has to respect.
+ */
+function bind(objects = OBJECTS, catalogOnly: string[] = []) {
   renderer = makeFakeRenderer(objects);
+  const all = [...objects, ...catalogOnly];
   const universe = {
     getTimeRange: () => null,
-    getAllBodies: () => objects.map((name) => ({ name, classification: undefined, parentName: undefined })),
+    getAllBodies: () => all.map((name) => ({ name, classification: undefined, parentName: undefined })),
   } as unknown as Universe;
   bindRenderer(renderer as unknown as UniverseRenderer, universe);
-  vs.bodies = objects.map((name) => ({ name, visible: true }));
+  vs.bodies = all.map((name) => ({ name, visible: true }));
 }
 
 beforeEach(() => {
@@ -365,11 +374,80 @@ describe('runTo', () => {
 describe('setCamera', () => {
   it('round-trips km through the renderer scale factor', () => {
     const control = createViewerControl();
-    control.setCamera([1.4e9, -2, 3], [0, 0, 1]);
+    control.setCamera([1.4e9, -2, 3], [10, 20, 30], [0, 0, 1]);
     const cam = control.getCamera();
     expect(cam.position[0]).toBeCloseTo(1.4e9, 0);
     expect(cam.position[1]).toBeCloseTo(-2, 6);
+    expect(cam.target.map(Math.round)).toEqual([10, 20, 30]);
     expect(cam.up).toEqual([0, 0, 1]);
+  });
+
+  it('defaults the target to the scene origin when none is given', () => {
+    const control = createViewerControl();
+    control.setCamera([1, 2, 3], [4, 5, 6]);
+    control.setCamera([1, 2, 3]);
+    expect(control.getCamera().target).toEqual([0, 0, 0]);
+  });
+
+  // It sets a pose and nothing else. Tracking and look-at keep acting on the
+  // camera afterwards, and the contract says so rather than silently clearing
+  // them — a script that wants a standalone pose calls untrack/clearLookAt.
+  it('leaves tracking and look-at alone', () => {
+    const control = createViewerControl();
+    control.gotoObject('Titan');
+    control.pointAtObject('Enceladus');
+    control.setCamera([1, 2, 3], [0, 0, 0]);
+    expect(control.getTracked()).toBe('Titan');
+    expect(vs.lookAtBodyName).toBe('Enceladus');
+  });
+});
+
+describe('pointAtObject', () => {
+  // `lookAtBody` (the UI path) toggles; the verb must not. "Point at Titan"
+  // twice has to leave the camera pointing at Titan, not at nothing.
+  it('does not toggle, and clearLookAt releases it', () => {
+    const control = createViewerControl();
+    expect(control.pointAtObject('Titan')).toBe(true);
+    expect(control.pointAtObject('Titan')).toBe(true);
+    expect(vs.lookAtBodyName).toBe('Titan');
+    control.clearLookAt();
+    expect(vs.lookAtBodyName).toBeNull();
+  });
+
+  it('refuses an object the scene does not have', () => {
+    expect(createViewerControl().pointAtObject('Titam')).toBe(false);
+  });
+});
+
+describe('listObjects', () => {
+  // cassini-soi ships a "Saturn Rings" body: it is in the catalog, so it is in
+  // `universe.getAllBodies()`, but `buildScene` gives it no BodyMesh. Listing it
+  // would make the "did you mean …?" suggester propose a name that gotoObject,
+  // track, showLabel and every other object verb then refuses.
+  it('lists only objects the verbs can actually resolve', () => {
+    unbindRenderer();
+    bind(OBJECTS, ['Saturn Rings']);
+    const control = createViewerControl();
+
+    expect(vs.bodies.map((b) => b.name)).toContain('Saturn Rings');
+    expect(control.listObjects()).toEqual(OBJECTS);
+    expect(control.gotoObject('Saturn Rings')).toBe(false);
+  });
+});
+
+describe('runTo', () => {
+  // Documents the answer rather than leaving it to be discovered: `step` does
+  // not touch the play state, so runTo advances the clock and leaves playback
+  // exactly as it found it, in either direction.
+  it('leaves the play state as it found it', () => {
+    const control = createViewerControl();
+    control.setPlaying(false);
+    control.runTo(60);
+    expect(control.isPlaying()).toBe(false);
+
+    control.setPlaying(true);
+    control.runTo(60);
+    expect(control.isPlaying()).toBe(true);
   });
 });
 
@@ -434,7 +512,8 @@ describe('snapshot', () => {
     control.gotoObject('Titan');
     control.setFrame('body-fixed', 'Titan');
     control.setFov(35);
-    control.setCamera([1000, 2000, 3000], [0, 0, 1]);
+    control.pointAtObject('Enceladus');
+    control.setCamera([1000, 2000, 3000], [-10, 20, -30], [0, 0, 1]);
     control.setLayer('labels', false);
     control.select('Cassini');
     control.displayNote('T-A flyby');
@@ -442,12 +521,15 @@ describe('snapshot', () => {
     const script = control.snapshot();
     expect(() => parse(script)).not.toThrow();
 
+    const before = control.getCamera();
+
     // Move everything away, then replay and check it all came back.
     control.setTime({ kind: 'et', et: 0 });
     control.setTimeRate(1);
     control.untrack();
+    control.clearLookAt();
     control.setFov(60);
-    control.setCamera([0, 0, 1], [0, 1, 0]);
+    control.setCamera([0, 0, 1], [0, 0, 0], [0, 1, 0]);
     control.setLayer('labels', true);
     control.deselect();
     control.displayNote('');
@@ -457,13 +539,29 @@ describe('snapshot', () => {
     expect(control.getTracked()).toBe('Titan');
     expect(control.getSelected()).toBe('Cassini');
     expect(control.getRate()).toBe(60);
-    expect(control.getCamera().fov).toBe(35);
-    expect(control.getCamera().position.map(Math.round)).toEqual([1000, 2000, 3000]);
     expect(vs.showLabels).toBe(false);
     expect(vs.note).toBe('T-A flyby');
     expect(vs.cameraMode).toBe(CameraModeName.BODY_FIXED);
+    // The whole camera, not just the FOV: a snapshot that dropped `target`
+    // still passed a position-and-fov assertion while losing the aim entirely.
+    const after = control.getCamera();
+    expect(after.fov).toBe(before.fov);
+    expect(after.position.map(Math.round)).toEqual(before.position.map(Math.round));
+    expect(after.target.map(Math.round)).toEqual(before.target.map(Math.round));
+    expect(after.up).toEqual(before.up);
+    expect(vs.lookAtBodyName).toBe('Enceladus');
     // Through the ISO round-trip, so seconds rather than exact ET equality.
     expect(control.getTime()).toBeCloseTo(141_000_000, 0);
+  });
+
+  it('omits a timed note, and keeps a persistent one', () => {
+    const control = createViewerControl();
+    control.displayNote('persistent');
+    expect(control.snapshot()).toContain('displayNote persistent');
+
+    control.displayNote('vanishing', 2);
+    expect(vs.note).toBe('vanishing');
+    expect(control.snapshot()).not.toContain('displayNote');
   });
 });
 

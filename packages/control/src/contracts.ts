@@ -46,10 +46,23 @@ export interface ScriptImage {
   readonly label?: string;
 }
 
-/** Camera pose, as the port reports and accepts it. */
+/**
+ * Camera pose, as the port reports and accepts it.
+ *
+ * `target` is not optional decoration. Position and up alone do not say where
+ * the camera is *pointing*: the viewer orbits and looks at `target`, so a pose
+ * without it reproduces where the camera stands and not what it sees.
+ *
+ * All three are in the scene's current frame, which is the tracked object when
+ * one is tracked and the world origin otherwise — so a pose captured while
+ * tracking Titan is relative to Titan, and means something else if replayed
+ * while tracking nothing. `snapshot()` emits the tracking first for that reason.
+ */
 export interface ScriptCamera {
-  /** Eye position in km, in the scene's current frame. */
+  /** Eye position in km. */
   readonly position: ScriptVec3;
+  /** The point the camera orbits and looks at, in km. */
+  readonly target: ScriptVec3;
   /** Camera up vector (unit). */
   readonly up: ScriptVec3;
   /** Vertical field of view, in degrees. */
@@ -95,8 +108,13 @@ export interface ViewerControl {
   track(name: string): boolean;
   /** Release the tracked object. The camera stays where it is. */
   untrack(): void;
-  /** Aim the camera at `name` while continuing to orbit whatever it tracks. */
+  /**
+   * Aim the camera at `name` while continuing to orbit whatever it tracks.
+   * Idempotent: pointing at the same object twice still points at it.
+   */
   pointAtObject(name: string): boolean;
+  /** Stop aiming at an object. The orbit centre returns to what is tracked. */
+  clearLookAt(): void;
   /** Apply a named catalog viewpoint, seeking the clock if it declares an epoch. */
   viewpoint(name: string): boolean;
   /** Switch camera frame. `body` re-parameterizes the frame onto that object. */
@@ -111,8 +129,20 @@ export interface ViewerControl {
   setLayer(layer: string, on: boolean): boolean;
   /** Set the vertical field of view, in degrees. */
   setFov(deg: number): boolean;
-  /** Place the camera at an explicit eye position (km) with an optional up vector. */
-  setCamera(position: ScriptVec3, up?: ScriptVec3): boolean;
+  /**
+   * Place the camera at an explicit pose. Positions are in km.
+   *
+   * This sets the camera's pose and nothing else: it does **not** clear what is
+   * tracked or what is being pointed at, and both of those keep acting on the
+   * camera afterwards. While an object is tracked the pose is relative to it and
+   * the viewer re-centres on it each frame; while `pointAtObject` is in effect
+   * the aim follows that object and overrides `target` on the next frame. Call
+   * `untrack` / `clearLookAt` first if you want the pose to stand alone.
+   *
+   * `target` defaults to the scene origin — the tracked object when there is
+   * one, the world origin otherwise.
+   */
+  setCamera(position: ScriptVec3, target?: ScriptVec3, up?: ScriptVec3): boolean;
 
   // ── Write: time ──
 
@@ -159,7 +189,16 @@ export interface ViewerControl {
   getSelected(): string | null;
   getTracked(): string | null;
   getCamera(): ScriptCamera;
-  /** Every object in the loaded scene, by name. */
+  /**
+   * Every object in the loaded scene, by name.
+   *
+   * "Object" means a body the viewer has actually drawn — one that can be
+   * tracked, picked, hidden and labelled. That is narrower than the catalog's
+   * item list: a `Rings` body is rendered as part of its parent and is not an
+   * object in this sense. The two lists must not be confused, because this one
+   * is what "did you mean …?" draws from, and suggesting a name that every verb
+   * then refuses is worse than suggesting nothing.
+   */
   listObjects(): readonly string[];
   /** Every named viewpoint the catalog defines. */
   listViewpoints(): readonly string[];
@@ -186,11 +225,20 @@ export interface ViewerSnapshotState {
   readonly playing: boolean;
   readonly selected: string | null;
   readonly tracked: string | null;
+  /** The object the camera is aimed at, if any. */
+  readonly lookAt: string | null;
   readonly frame: { readonly mode: string; readonly body?: string };
   readonly camera: ScriptCamera;
   /** Layer name → on. Keys are `LAYERS` entries. */
   readonly layers: Readonly<Record<string, boolean>>;
-  /** The caption currently displayed, if any. */
+  /**
+   * A caption that will stay up until something clears it.
+   *
+   * A *timed* note is deliberately absent: it is an event in a sequence, not
+   * state the view is in, and reproducing it would either resurrect a caption
+   * that has already gone or require modelling how much of its duration is
+   * left. A persistent note is view state and is reproduced.
+   */
   readonly note?: string;
 }
 

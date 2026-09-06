@@ -148,11 +148,23 @@ renders one frame and photographs it gets the camera mid-flight.
 |---|---|
 | `track <object>` | Orbit-lock to an object without moving the camera. |
 | `untrack` | Release it. The camera stays where it is. |
-| `pointAtObject <object>` | Aim at an object while still orbiting what is tracked. |
+| `pointAtObject <object>` | Aim at an object while still orbiting what is tracked. Idempotent — it does not toggle. |
+| `clearLookAt` | Stop aiming at an object. |
 | `viewpoint <name>` | Apply a named catalog viewpoint, seeking the clock if it declares an epoch. |
 | `setFrame <mode> [object]` | Switch camera frame, optionally onto an object. |
-| `setCamera <position> [up]` | Place the camera at an explicit eye position, in km. |
+| `setCamera <position> [target] [up]` | Place the camera: eye, the point it looks at, and up — all in km. |
 | `setFov <degrees>` | Vertical field of view. |
+
+`setCamera` takes eye, target and up in that order — the same order catalog
+`Viewpoint` JSON and `camera-view-io.ts` already use. `target` is not optional
+decoration: position and up alone say where the camera stands and nothing about
+what it sees.
+
+`setCamera` sets a **pose and nothing else**. It does not clear what is tracked
+or what is being pointed at, and both keep acting on the camera afterwards:
+while an object is tracked the pose is relative to it, and while `pointAtObject`
+is in effect the aim follows that object and overrides `target` on the next
+frame. Call `untrack` / `clearLookAt` first if the pose should stand alone.
 
 `<mode>` is one of `free-orbit`, `sc-fixed`, `body-fixed`, `lvlh`, `chase`,
 `surface`, `surface-explorer`, `instrument`.
@@ -205,6 +217,7 @@ cosmo.getTracked();
 cosmo.getCamera();        // { position (km), up, fov }
 cosmo.listObjects();
 cosmo.listViewpoints();
+cosmo.getCamera();        // { position, target, up, fov } — all in km
 
 const off = cosmo.on('select', ({ name }) => …);   // also 'time' and 'load'
 off();
@@ -219,6 +232,17 @@ the renderer, because loading a catalog builds a whole new `UniverseRenderer` �
 a host subscribed to the previous one would silently stop hearing from the scene
 on screen.
 
+### What "object" means
+
+An **object** is a body the viewer has actually drawn — one that can be tracked,
+picked, hidden and labelled. That is narrower than the catalog's item list, and
+the gap is not hypothetical: a `Rings` body is rendered as part of its parent and
+gets no mesh of its own, so `cassini-soi`'s "Saturn Rings" is a catalog item but
+not an object. Every verb that takes an `<object>` resolves against the drawn
+set, and `listObjects()` reports that same set — including for "did you mean …?",
+where suggesting a name that every verb then refuses would be worse than
+suggesting nothing.
+
 ## `snapshot()`
 
 `cosmo.snapshot()` returns the script that reproduces the current view.
@@ -230,12 +254,24 @@ setTime 2004-10-26T15:30:00.000Z
 setTimeRate 60
 gotoObject Titan
 setFrame body-fixed Titan
+clearLookAt
 setFov 35
-setCamera [1000, 2000, 3000] [0, 0, 1]
+setCamera [1000, 2000, 3000] [0, 0, 0] [0, 0, 1]
 setLayer trajectories on
 setLayer labels off
 …
 ```
+
+It captures the whole camera — eye, target, up and FOV — plus what is tracked,
+aimed at, selected and displayed. Two things are deliberately **not** in it:
+
+- **A timed `displayNote`.** A caption on a timer is an event in a sequence, not
+  state the view is in; reproducing it would either resurrect a caption that has
+  already gone or mean modelling how much of its duration is left. A persistent
+  note *is* view state and is reproduced.
+- **Anything the verbs cannot set.** The snapshot is a script, so its fidelity is
+  bounded by the vocabulary — which is the useful bound to have, because it means
+  a view that snapshots cleanly is a view a script can rebuild.
 
 Without it every script starts as a blank textarea. With it, you fly somewhere
 with the mouse and read back the script that gets there — which is also what a
@@ -284,6 +320,7 @@ ceiling. Three rules:
 | — | `viewpoint <name>` | Ours: named catalog viewpoints, with epochs. |
 | — | `select` / `deselect` | Ours. |
 | — | `setFrame <mode> [object]` | Ours: eight camera frames including LVLH and chase. |
+| — | `clearLookAt` | Ours: the pair for `pointAtObject`, so a snapshot can clear an aim as well as set one. |
 | — | `runTo <seconds>` | Ours: the deterministic counterpart to `wait`. |
 | — | `snapshot()` | Ours. |
 

@@ -218,15 +218,27 @@ export const VERB_LIST: readonly VerbSpec[] = [
     invoke: (host, a) => host.setFrame(str(a[0]), optStr(a[1])),
   },
   {
+    name: 'clearLookAt',
+    params: [],
+    category: 'Camera',
+    method: 'clearLookAt',
+    help: 'Stop aiming at an object. The orbit centre returns to what is tracked.',
+    invoke: (host) => host.clearLookAt(),
+  },
+  {
+    // eye, target, up — the order catalog `Viewpoint` JSON and
+    // `camera-view-io.ts` already use, so the three serializations of a camera
+    // in this repo at least agree on the order of their fields.
     name: 'setCamera',
     params: [
       { name: 'position', type: 'vector' },
+      { name: 'target', type: 'vector', optional: true },
       { name: 'up', type: 'vector', optional: true },
     ],
     category: 'Camera',
     method: 'setCamera',
-    help: 'Place the camera at an explicit eye position in km, with an optional up vector.',
-    invoke: (host, a) => host.setCamera(vec(a[0]), optVec(a[1])),
+    help: 'Place the camera: eye position, the point it looks at, and up — all in km.',
+    invoke: (host, a) => host.setCamera(vec(a[0]), optVec(a[1]), optVec(a[2])),
   },
   {
     name: 'setFov',

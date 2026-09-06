@@ -63,8 +63,15 @@ export function snapshotScript(state: ViewerSnapshotState): string {
       : `setFrame ${state.frame.mode}`,
   );
 
+  // Aim before pose. Pointing at an object drives the orbit centre every frame,
+  // so it has to be established before the explicit target below rather than
+  // after, where it would look like the pose had simply been overwritten.
+  lines.push(state.lookAt ? `pointAtObject ${quote(state.lookAt)}` : 'clearLookAt');
+
   lines.push(`setFov ${num(state.camera.fov)}`);
-  lines.push(`setCamera ${vector(state.camera.position)} ${vector(state.camera.up)}`);
+  lines.push(
+    `setCamera ${vector(state.camera.position)} ${vector(state.camera.target)} ${vector(state.camera.up)}`,
+  );
 
   for (const layer of LAYERS) {
     const on = state.layers[layer.id];
@@ -74,6 +81,9 @@ export function snapshotScript(state: ViewerSnapshotState): string {
 
   lines.push(state.selected ? `select ${quote(state.selected)}` : 'deselect');
 
+  // Persistent only: `ViewerSnapshotState.note` carries a caption that will stay
+  // up, and a timed one never reaches here. Emitting it without a duration is
+  // therefore reproducing the note rather than changing what it means.
   if (state.note) lines.push(`displayNote ${quote(state.note)}`);
   if (state.playing) lines.push('setPlaying on');
 
