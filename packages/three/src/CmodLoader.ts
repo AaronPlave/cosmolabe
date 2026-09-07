@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { AssetLoadTracker } from './AssetLoadTracker.js';
 
 /**
  * Loader for Cosmographia .cmod binary mesh files.
@@ -141,11 +142,25 @@ class CmodReader {
 /** Resolves a texture filename (from cmod binary) to a loadable URL */
 export type CmodTextureResolver = (textureName: string) => string | undefined;
 
+/** Optional hooks for the caller that is gating initial readiness on assets. */
+export interface ParseCmodOptions {
+  /** Tracker to register each material texture with. A `.cmod`'s textures are
+   *  only knowable once its materials have parsed, so they join the initial
+   *  asset set here rather than at `buildScene()` time. */
+  assets?: AssetLoadTracker;
+  /** Body the model belongs to — used to label tracked textures. */
+  owner?: string;
+}
+
 /**
  * Parse a .cmod binary buffer into Three.js Object3D.
  * If textureResolver is provided, textures referenced in the cmod are loaded.
  */
-export async function parseCmod(buffer: ArrayBuffer, textureResolver?: CmodTextureResolver): Promise<THREE.Group | null> {
+export async function parseCmod(
+  buffer: ArrayBuffer,
+  textureResolver?: CmodTextureResolver,
+  options: ParseCmodOptions = {},
+): Promise<THREE.Group | null> {
   const reader = new CmodReader(buffer);
 
   // Validate header
@@ -204,14 +219,24 @@ export async function parseCmod(buffer: ArrayBuffer, textureResolver?: CmodTextu
     });
   });
 
-  // Load textures (non-blocking — applied to materials when ready)
+  // Load textures. Still non-blocking for the mesh — the geometry appears as
+  // soon as it is parsed and each texture is applied when it lands — but each
+  // load is registered with the asset tracker so initial readiness can wait for
+  // an untextured spacecraft to finish dressing itself.
   if (textureResolver) {
     const textureLoader = new THREE.TextureLoader();
     for (let i = 0; i < materials.length; i++) {
       for (const tex of materials[i].textures) {
         const url = textureResolver(tex.path);
         if (!url) continue;
-        loadTexture(url, tex.path, tex.type, threeMaterials[i], textureLoader);
+        const load = loadTexture(url, tex.path, tex.type, threeMaterials[i], textureLoader);
+        options.assets?.track(
+          { kind: 'texture', owner: options.owner ?? 'cmod', role: `cmod:${tex.path}`, url },
+          load,
+        );
+        // Failures are already warned about inside loadTexture; this keeps a
+        // rejection from surfacing as an unhandled one when nobody is tracking.
+        load.catch(() => {});
       }
     }
   }
@@ -450,14 +475,18 @@ function skipDataValue(reader: CmodReader, dataType: number): void {
   }
 }
 
-/** Load a texture and apply it to the appropriate material slot. Fire-and-forget. */
+/**
+ * Load a texture and apply it to the appropriate material slot. Applied
+ * asynchronously; the returned promise settles when the texture is on the
+ * material (or rejects with why it never got there).
+ */
 function loadTexture(
   url: string,
   filename: string,
   texType: number,
   material: THREE.Material,
   textureLoader: THREE.TextureLoader,
-): void {
+): Promise<void> {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   const isDDS = ext === 'dds';
 
@@ -482,21 +511,39 @@ function loadTexture(
     material.needsUpdate = true;
   };
 
-  if (isDDS) {
-    // DDS: fetch as ArrayBuffer and parse manually since DDSLoader requires import
-    // from three/examples which may not be bundled. Use fetch + manual DDS parsing.
-    import('three/examples/jsm/loaders/DDSLoader.js').then(({ DDSLoader }) => {
-      const loader = new DDSLoader();
-      loader.load(url, applyTexture, undefined, (err) => {
-        console.warn(`[Cosmolabe] Failed to load DDS texture ${filename}:`, err);
-      });
-    }).catch(() => {
-      console.warn(`[Cosmolabe] DDSLoader not available, skipping ${filename}`);
+  // Typed on the callback rather than on the loader: TextureLoader and
+  // DDSLoader hand back different Texture specializations, and all this needs
+  // from either is "call me with a Texture, or with an error".
+  type TextureLoadFn = (
+    url: string,
+    onLoad: (texture: THREE.Texture) => void,
+    onProgress: undefined,
+    onError: (err: unknown) => void,
+  ) => unknown;
+  const loadWith = (load: TextureLoadFn) =>
+    new Promise<void>((resolve, reject) => {
+      load(
+        url,
+        (texture) => { applyTexture(texture); resolve(); },
+        undefined,
+        (err) => reject(err instanceof Error ? err : new Error(`failed to load ${url}`)),
+      );
     });
-  } else {
-    // JPG/PNG: standard TextureLoader
-    textureLoader.load(url, applyTexture, undefined, (err) => {
-      console.warn(`[Cosmolabe] Failed to load texture ${filename}:`, err);
-    });
-  }
+
+  const load = isDDS
+    // DDS: DDSLoader lives in three/examples and may not be bundled, so it is
+    // imported on demand — a missing loader is a texture failure like any other.
+    ? import('three/examples/jsm/loaders/DDSLoader.js').then(
+        ({ DDSLoader }) => {
+          const loader = new DDSLoader();
+          return loadWith((u, onLoad, onProgress, onError) => loader.load(u, onLoad, onProgress, onError));
+        },
+        () => { throw new Error(`DDSLoader not available for ${filename}`); },
+      )
+    : loadWith((u, onLoad, onProgress, onError) => textureLoader.load(u, onLoad, onProgress, onError));
+
+  return load.catch((err: unknown) => {
+    console.warn(`[Cosmolabe] Failed to load texture ${filename}:`, err);
+    throw err;
+  });
 }

@@ -6,7 +6,7 @@
  * whose properties are mutated. We use the latter.
  */
 import { etToDate, type Universe } from '@cosmolabe/core';
-import type { UniverseRenderer } from '@cosmolabe/three';
+import type { InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
 import { loadPrefs, savePrefs } from './persistence';
 
@@ -59,7 +59,17 @@ export const vs = $state({
   scrubBaseMax: 0,
 
   // UI
+  /** Scene graph is built — bodies exist, but their models and textures may not
+   *  have arrived yet. Not the signal to reveal the scene with; see below. */
   sceneLoaded: false,
+  /** The catalog's initial models, textures and trajectory caches have all
+   *  loaded or failed. This is what the loading UI waits on, so nobody sees
+   *  placeholder spheres, untextured globes, or spacecraft whose trail has not
+   *  been computed yet, presented as a finished scene. */
+  assetsReady: false,
+  /** Outcome of the initial asset load — null until `assetsReady`. Failures are
+   *  counted here rather than blocking readiness. */
+  assetSummary: null as InitialAssetsSummary | null,
   loadingProgress: 0,
   loadingLabel: '',
   loadingDetail: '',
@@ -106,6 +116,10 @@ export function formatBytes(bytes: number): string {
 // ── Setters (called from plain .ts files like loader.ts) ──
 
 export function setSceneLoaded(v: boolean) { vs.sceneLoaded = v; }
+export function setAssetsReady(v: boolean, summary: InitialAssetsSummary | null = null) {
+  vs.assetsReady = v;
+  vs.assetSummary = summary;
+}
 export function setKernelCount(v: number) { vs.kernelCount = v; }
 export function selectBody(name: string | null) { vs.selectedBodyName = name; }
 export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean }) {
@@ -113,6 +127,72 @@ export function setLoadingState(opts: { label?: string; detail?: string; progres
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
   if (opts.progress !== undefined) vs.loadingProgress = opts.progress;
   if (opts.show !== undefined) vs.showLoading = opts.show;
+}
+
+// ── Load progress ──
+//
+// One bar for the whole load, from the first kernel byte to the last texture.
+// It used to be two: the kernel phase ran 0→100 and hid itself, then the asset
+// phase started over at 0, so the same load appeared to happen twice.
+//
+// A single bar over heterogeneous work needs the phases weighted against each
+// other, and only one of them can be measured up front: the catalog declares its
+// kernel sizes, while the asset count isn't knowable until the scene is built
+// (and keeps growing as `.cmod` textures are discovered). So the kernel phase is
+// weighted by its real byte total against a nominal budget for everything after
+// it — a kernel-heavy catalog gives most of the bar to kernels, a texture-heavy
+// one gives most of it to assets, and a catalog with no kernels gives the bar
+// entirely to assets. It is an estimate, and the label and detail lines under
+// the bar say what is actually happening.
+
+/** Nominal size of the model/texture/trajectory phase, used only to weigh it
+ *  against the kernel phase. Never learned for real: assets are fetched without
+ *  a HEAD pass, and a trajectory cache is computed rather than downloaded. */
+const ASSET_PHASE_BUDGET_BYTES = 40 * 1024 * 1024;
+
+type LoadPhase = 'kernels' | 'assets';
+
+let phaseWeight: Record<LoadPhase, number> = { kernels: 0, assets: 1 };
+const phaseFraction: Record<LoadPhase, number> = { kernels: 0, assets: 0 };
+
+/** Start a load: shows the bar at zero and fixes the phase weights for it. */
+export function beginLoad(label: string, opts: { kernelBytes?: number } = {}) {
+  const kernelBytes = opts.kernelBytes ?? 0;
+  const kernels = kernelBytes > 0
+    ? kernelBytes / (kernelBytes + ASSET_PHASE_BUDGET_BYTES)
+    : 0;
+  phaseWeight = { kernels, assets: 1 - kernels };
+  phaseFraction.kernels = 0;
+  phaseFraction.assets = 0;
+  vs.loadingProgress = 0;
+  vs.loadingLabel = label;
+  vs.loadingDetail = '';
+  vs.showLoading = true;
+}
+
+/** Report one phase's own 0-1 progress; the bar shows the weighted total. */
+export function setPhaseProgress(
+  phase: LoadPhase,
+  fraction: number,
+  opts: { label?: string; detail?: string } = {},
+) {
+  phaseFraction[phase] = Math.max(0, Math.min(1, fraction));
+  const overall =
+    (phaseFraction.kernels * phaseWeight.kernels + phaseFraction.assets * phaseWeight.assets) * 100;
+  // Monotonic: the asset phase's denominator grows as nested assets are
+  // discovered, so its raw fraction can drop. A bar that walks backwards reads
+  // as a bug even when the underlying work is fine.
+  vs.loadingProgress = Math.max(vs.loadingProgress, overall);
+  if (opts.label !== undefined) vs.loadingLabel = opts.label;
+  if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
+  vs.showLoading = true;
+}
+
+/** Load finished (or gave up) — hide the bar. */
+export function endLoad() {
+  vs.loadingProgress = 100;
+  vs.loadingDetail = '';
+  vs.showLoading = false;
 }
 
 // ── Internal sync helpers ──
@@ -184,6 +264,42 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   if (prefs.fov !== 60) {
     renderer.camera.fov = prefs.fov;
     renderer.camera.updateProjectionMatrix();
+  }
+
+  // Initial-asset gate — the tail of the same load the kernel phase started, so
+  // it reports into the one bar rather than opening a second one. The renderer
+  // starts its models, textures and trajectory caches during construction and
+  // says when that set has settled; until then the loading UI stays up
+  // (App.svelte gates on this, not on `sceneLoaded`) rather than showing a scene
+  // of placeholder spheres. Bound here, before the loader finishes wiring the
+  // scene, so no `assets:ready` can be missed.
+  vs.assetsReady = false;
+  vs.assetSummary = null;
+  setPhaseProgress('assets', 0, { label: 'Loading models, textures & trajectories...', detail: '' });
+  _unsubscribers.push(renderer.events.on('assets:progress', (p) => {
+    // `total` still grows as nested assets are discovered, so this is a floor on
+    // real progress, not a countdown — which is why setPhaseProgress clamps the
+    // bar monotonic and nothing here claims 100% before 'assets:ready'.
+    setPhaseProgress('assets', p.total > 0 ? p.settled / p.total : 0, {
+      detail: p.total > 0 ? `${p.settled} / ${p.total} assets` : '',
+    });
+  }));
+  _unsubscribers.push(renderer.events.on('assets:ready', (summary) => {
+    setAssetsReady(true, summary);
+    endLoad();
+    if (summary.failed > 0 || summary.timedOut) {
+      console.warn(
+        `[Cosmolabe] Initial assets settled with ${summary.failed} failure(s)` +
+          `${summary.timedOut ? ` and ${summary.stillPending.length} still pending at the deadline` : ''}:`,
+        summary.failures,
+      );
+    }
+  }));
+  // A renderer whose assets settled before this binding (an all-analytical
+  // catalog with nothing to fetch) has already emitted; take the summary it kept.
+  if (renderer.initialAssetsSummary) {
+    setAssetsReady(true, renderer.initialAssetsSummary);
+    endLoad();
   }
 
   const unsub = renderer.timeController.onTimeChange((newEt: number) => {

@@ -139,6 +139,21 @@
       <div class="section-label mt-2">Scene</div>
       <div class="row"><span class="label">Bodies</span><span class="val">{info.bodies}</span></div>
       <div class="row"><span class="label">Kernels</span><span class="val">{info.kernels}</span></div>
+      <!-- Initial models + textures. A scene can be fully "loaded" and still be
+           missing assets; this is where that shows, rather than only in the console. -->
+      {#if vs.assetSummary}
+        <div class="row">
+          <span class="label">Assets</span>
+          <span class="val">
+            {vs.assetSummary.loaded}/{vs.assetSummary.total}
+            {#if vs.assetSummary.failed > 0}&middot; {vs.assetSummary.failed} failed{/if}
+            {#if vs.assetSummary.timedOut}&middot; {vs.assetSummary.stillPending.length} timed out{/if}
+          </span>
+        </div>
+        {#each vs.assetSummary.failures.slice(0, 5) as failure}
+          <div class="row"><span class="label">&nbsp;&nbsp;{failure.owner}</span><span class="val">{failure.role} &mdash; {failure.reason}</span></div>
+        {/each}
+      {/if}
 
       <div class="section-label mt-3">Renderer</div>
       <div class="row"><span class="label">Draw calls</span><span class="val">{fmtNum(info.drawCalls)}</span></div>

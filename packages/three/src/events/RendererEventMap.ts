@@ -1,4 +1,5 @@
 import type { UniverseEventMap } from '@cosmolabe/core';
+import type { AssetProgress, InitialAssetsSummary } from '../AssetLoadTracker.js';
 
 /** Renderer events extend core Universe events with 3D-specific events. */
 export interface RendererEventMap extends UniverseEventMap {
@@ -19,4 +20,12 @@ export interface RendererEventMap extends UniverseEventMap {
   'body:hovered': { bodyName: string | null };
   'camera:targetChanged': { bodyName: string | null };
   'renderer:resize': { width: number; height: number };
+  /** Initial model/texture/trajectory-cache work progressing. `total` grows while
+   *  loading — a `.cmod`'s material textures only join the count once its mesh
+   *  has parsed. */
+  'assets:progress': AssetProgress;
+  /** The catalog's initial models, textures and trajectory caches have all
+   *  loaded or failed. This, not the constructor returning, is when the scene
+   *  looks like itself. Assets that stream in later are not part of it. */
+  'assets:ready': InitialAssetsSummary;
 }

@@ -34,6 +34,9 @@ import {
   setSceneLoaded,
   setKernelCount,
   setLoadingState,
+  beginLoad,
+  setPhaseProgress,
+  endLoad,
   selectBody,
   formatBytes,
 } from './viewer-state.svelte';
@@ -133,6 +136,10 @@ function isLargeKernel(k: ResolvedKernel): boolean {
   return typeof k.size === 'number' && k.size > 1_000_000;
 }
 
+/** Weight given to a kernel the catalog did not size. Only ever used to spread
+ *  the loading bar across the kernel phase — never shown as a byte count. */
+const NOMINAL_KERNEL_BYTES = 250_000;
+
 /** Furnish a single kernel URL. Handles `.gz` decompression. Tracks for cache worker. */
 async function furnishKernelUrl(url: string, opts?: { size?: number; onProgress?: (loaded: number) => void }): Promise<void> {
   if (furnishedKernels.has(url)) return;
@@ -179,42 +186,59 @@ async function furnishKernelsFromGraph(graph: ResolvedCatalogGraph): Promise<voi
   const small = flat.filter(k => !isLargeKernel(k));
   const large = flat.filter(k => isLargeKernel(k));
 
-  for (const k of small) {
-    setLoadingState({ label: `Loading ${k.label ?? filenameFromUrl(k.url)}...` });
+  // Both loops report into one `kernels` fraction, which is one slice of one bar
+  // (see the load-progress notes in viewer-state). Small kernels are furnished
+  // straight from a URL with no byte-level progress, so they are weighed at a
+  // nominal size — enough to keep a catalog of many small kernels from looking
+  // frozen at 0% while it works through them.
+  const sizeOf = (k: ResolvedKernel) => k.size ?? NOMINAL_KERNEL_BYTES;
+  const totalBytes = flat.reduce((s, k) => s + sizeOf(k), 0) || 1;
+  let doneBytes = 0;
+
+  for (let i = 0; i < small.length; i++) {
+    const k = small[i];
+    setPhaseProgress('kernels', doneBytes / totalBytes, {
+      label: `Loading ${k.label ?? filenameFromUrl(k.url)}...`,
+      detail: `${i + 1} / ${flat.length} kernels`,
+    });
     try {
       await furnishKernelUrl(k.url);
     } catch (err) {
       console.warn(`[Cosmolabe] Failed to load ${k.url}:`, err);
     }
+    doneBytes += sizeOf(k);
   }
 
   if (large.length > 0) {
-    const totalSize = large.reduce((s, k) => s + (k.size ?? 0), 0);
-    let loadedSize = 0;
-    setLoadingState({ show: true });
+    const largeTotal = large.reduce((s, k) => s + (k.size ?? 0), 0);
+    let largeLoaded = 0;
 
     for (let i = 0; i < large.length; i++) {
       const k = large[i];
       const progress = `(${i + 1}/${large.length})`;
-      setLoadingState({ label: `${progress} ${k.label ?? filenameFromUrl(k.url)}` });
+      setPhaseProgress('kernels', doneBytes / totalBytes, {
+        label: `${progress} ${k.label ?? filenameFromUrl(k.url)}`,
+      });
       try {
         await furnishKernelUrl(k.url, {
           size: k.size,
           onProgress: (loaded) => {
-            setLoadingState({
-              progress: ((loadedSize + loaded) / totalSize) * 100,
-              detail: `${formatBytes(loadedSize + loaded)} / ${formatBytes(totalSize)}`,
+            setPhaseProgress('kernels', (doneBytes + loaded) / totalBytes, {
+              // Real transferred bytes of the large set — the nominal sizes above
+              // weigh the bar but are never shown as if they were measured.
+              detail: `${formatBytes(largeLoaded + loaded)} / ${formatBytes(largeTotal)}`,
             });
           },
         });
       } catch (err) {
         console.warn(`[Cosmolabe] Failed to load ${k.url}:`, err);
       }
-      loadedSize += k.size ?? 0;
+      doneBytes += sizeOf(k);
+      largeLoaded += k.size ?? 0;
     }
-    setLoadingState({ show: false });
   }
 
+  setPhaseProgress('kernels', 1, { label: 'Building scene...', detail: '' });
   setKernelCount(spice?.totalLoaded() ?? 0);
 }
 
@@ -553,6 +577,10 @@ function initScene(
     renderer.applyNamedViewpoint(universe.defaultViewpoint, { animate: true });
   }
 
+  // The scene graph is complete. Its models, textures and spacecraft trajectory
+  // caches are not — the renderer is still fetching and computing them, and
+  // `bindRenderer` above has the UI waiting on `assets:ready` before it calls the
+  // scene loaded to the user (issue #19).
   setSceneLoaded(true);
   // The epoch the catalog asked for, before the clock is allowed to run.
   const catalogEt = universe.time;
@@ -582,8 +610,19 @@ function initScene(
   if (TEST_MODE) {
     const r = renderer;
     const u = universe;
-    (window as unknown as { __cosmolabe: unknown }).__cosmolabe = {
+    const hook = {
       ready: true,
+      /** Flips true once the catalog's initial models, textures and trajectory
+       *  caches have loaded or failed. The harness waits on this instead of
+       *  sleeping a fixed settle window and hoping the textures made it
+       *  (issue #19). In test mode the cache worker is skipped entirely (see
+       *  above), so here that set is models and textures. */
+      assetsReady: false,
+      /** Populated alongside `assetsReady` — lets the harness report assets the
+       *  scene is missing instead of silently photographing a thinner scene. */
+      assetSummary: null as unknown,
+      /** Promise form of the same signal, for a driver that would rather await. */
+      whenAssetsReady: () => r.waitForInitialAssets(),
       viewpoints: () => u.viewpoints.map((v) => v.name),
       /** Seek to a UTC ISO epoch (no-op if SPICE/LSK unavailable). Routed
        *  through the TimeController rather than `universe.setTime` so its
@@ -611,6 +650,11 @@ function initScene(
         return (canvas as HTMLCanvasElement).toDataURL('image/png');
       },
     };
+    (window as unknown as { __cosmolabe: unknown }).__cosmolabe = hook;
+    void r.waitForInitialAssets().then((summary) => {
+      hook.assetSummary = summary;
+      hook.assetsReady = true;
+    });
   }
 }
 
@@ -618,20 +662,37 @@ function initScene(
 
 /** Load a demo catalog by name. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
 export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
-  setLoadingState({ label: `Loading ${name}...` });
+  // One bar for the whole load. It opens here and closes on `assets:ready`
+  // (viewer-state), so the kernel download and the models/textures/trajectories
+  // that follow it are one continuous run rather than two 0→100 passes. The
+  // catalog graph is what knows the kernel byte total, so the bar sits at zero
+  // for the moment it takes to fetch and then gets its phase weights.
+  beginLoad(`Loading ${name}...`);
 
-  const entryUrl = new URL(`./${name}.json`, location.href).href;
-  const graph = await loadCatalogFromUrl(entryUrl);
+  try {
+    const entryUrl = new URL(`./${name}.json`, location.href).href;
+    const graph = await loadCatalogFromUrl(entryUrl);
+    beginLoad(`Loading ${name}...`, {
+      kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
+    });
 
-  // SPICE-free path: if the catalog graph declares no kernels, skip SPICE init
-  // entirely. The CatalogLoader falls through to Keplerian/analytical trajectories.
-  if (graph.kernels.length > 0) {
-    await ensureSpice();
-    await furnishKernelsFromGraph(graph);
+    // SPICE-free path: if the catalog graph declares no kernels, skip SPICE init
+    // entirely. The CatalogLoader falls through to Keplerian/analytical trajectories.
+    if (graph.kernels.length > 0) {
+      await ensureSpice();
+      await furnishKernelsFromGraph(graph);
+    }
+
+    const dataFiles = await fetchCatalogDataFiles(graph);
+    initScene(canvas, graph.catalogs.map(c => c.json as Record<string, unknown>), dataFiles);
+  } catch (err) {
+    // A load that dies mid-way (missing catalog, a kernel the scene can't do
+    // without) must not leave the bar sitting at whatever fraction it reached.
+    // Close it and let the error surface — the welcome screen comes back, which
+    // is the honest end state for a scene that never built.
+    endLoad();
+    throw err;
   }
-
-  const dataFiles = await fetchCatalogDataFiles(graph);
-  initScene(canvas, graph.catalogs.map(c => c.json as Record<string, unknown>), dataFiles);
 }
 
 /**
@@ -713,23 +774,43 @@ export async function handleDrop(canvas: HTMLCanvasElement, dataTransfer: DataTr
 
 /** Handle file input selection */
 export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
-  setLoadingState({ label: `Processing ${files.length} file(s)...` });
+  // Dropped kernels are already on disk — no download to weigh — so the whole
+  // bar belongs to the asset phase that follows.
+  beginLoad(`Processing ${files.length} file(s)...`);
   const { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles } = await categorizeFiles(files);
 
-  if (jsonFiles.size === 0 && kernelFiles.length === 0) return;
+  if (jsonFiles.size === 0 && kernelFiles.length === 0) {
+    endLoad();
+    return;
+  }
 
   if (kernelFiles.length > 0) {
     const s = await ensureSpice();
-    for (const file of kernelFiles) {
+    for (let i = 0; i < kernelFiles.length; i++) {
+      const file = kernelFiles[i];
+      setPhaseProgress('kernels', (i + 1) / kernelFiles.length, {
+        label: `Furnishing ${file.name}...`,
+        detail: `${i + 1} / ${kernelFiles.length} kernels`,
+      });
       const buffer = await file.arrayBuffer();
       await s.furnish({ type: 'buffer', data: buffer, filename: file.name });
     }
     setKernelCount(s.totalLoaded());
   }
 
-  if (jsonFiles.size > 0) {
-    const catalogs = resolveCatalogOrder(jsonFiles);
-    if (catalogs.length > 0) initScene(canvas, catalogs, dataFiles, binaryFiles, modelFiles);
+  // Only `initScene` opens the asset phase that closes the bar, so a drop that
+  // furnishes kernels and nothing else has to close it here.
+  const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
+  if (catalogs.length === 0) {
+    endLoad();
+    return;
+  }
+
+  try {
+    initScene(canvas, catalogs, dataFiles, binaryFiles, modelFiles);
+  } catch (err) {
+    endLoad();
+    throw err;
   }
 }
 

@@ -4,6 +4,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
+import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
 import { injectShadowIntoShader, makeShadowUniforms, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -72,6 +73,13 @@ export class BodyMesh extends THREE.Object3D {
   private surfaceOverlays: SurfaceTileOverlay[] = [];
   /** Frame counter for throttling terrain elevation sampling */
   private terrainSampleFrame = 0;
+  /**
+   * Initial-asset tracker, set by UniverseRenderer right after construction.
+   * Every model/texture load this mesh starts registers with it, so the viewer
+   * can hold its loading UI until the body actually has its geometry and maps
+   * rather than its placeholder sphere. Null when nobody is gating on assets.
+   */
+  assets: AssetLoadTracker | null = null;
   /** Whether eclipse shadow receiving is enabled on this body's materials */
   private shadowEnabled = false;
   /** Whether aerial perspective is enabled on this body's materials */
@@ -179,6 +187,53 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   /**
+   * Fetch + parse a model file into an Object3D. Rejects on every failure —
+   * transport, parse, and unsupported format alike — so one caller can both warn
+   * and report the failure to the asset tracker.
+   */
+  private async fetchModel(
+    ext: string,
+    url: string,
+    sourcePath?: string,
+    modelResolver?: ModelResolver,
+  ): Promise<THREE.Object3D> {
+    if (ext === 'glb' || ext === 'gltf') {
+      const loader = new GLTFLoader();
+      const dracoLoader = new DRACOLoader();
+      // Google's CDN ships the matched decoder.js + decoder.wasm and serves
+      // them with CORS, so we don't have to bundle the WASM blob ourselves.
+      dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+      loader.setDRACOLoader(dracoLoader);
+      const gltf = await loader.loadAsync(url);
+      return gltf.scene;
+    }
+    if (ext === 'obj') {
+      const loader = new OBJLoader();
+      return await loader.loadAsync(url);
+    }
+    if (ext === 'cmod') {
+      const resp = await fetch(url);
+      const buf = await resp.arrayBuffer();
+      // Build texture resolver: texture filenames are relative to the cmod file's directory
+      let textureResolver: CmodTextureResolver | undefined;
+      if (modelResolver && sourcePath) {
+        const dir = sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1);
+        textureResolver = (texName: string) => modelResolver(dir + texName);
+      }
+      // The material textures are registered with the tracker as they are
+      // discovered — they are only knowable once the mesh header has parsed,
+      // which is why the tracker also holds this whole call (see AssetLoadTracker).
+      const parsed = await parseCmod(buf, textureResolver, {
+        assets: this.assets ?? undefined,
+        owner: this.body.name,
+      });
+      if (!parsed) throw new Error(`Failed to parse .cmod (${url})`);
+      return parsed;
+    }
+    throw new Error(`Unsupported model format: .${ext}`);
+  }
+
+  /**
    * Load a 3D model (GLTF/GLB/OBJ) to replace the placeholder sphere.
    * Applies size scaling, mesh offset, and mesh rotation from the geometry spec.
    */
@@ -192,38 +247,13 @@ export class BodyMesh extends THREE.Object3D {
     const ext = extSource.split('.').pop()?.toLowerCase() ?? '';
     let object: THREE.Object3D;
 
+    // The fetch/parse is a promise the tracker can see, so a body that is still
+    // a placeholder sphere keeps the initial-load gate closed — and a body whose
+    // model never arrives is reported as a failure rather than gating forever.
+    const load = this.fetchModel(ext, url, sourcePath, modelResolver);
+    this.assets?.track({ kind: 'model', owner: this.body.name, role: `model:${ext || 'unknown'}`, url }, load);
     try {
-      if (ext === 'glb' || ext === 'gltf') {
-        const loader = new GLTFLoader();
-        const dracoLoader = new DRACOLoader();
-        // Google's CDN ships the matched decoder.js + decoder.wasm and serves
-        // them with CORS, so we don't have to bundle the WASM blob ourselves.
-        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
-        loader.setDRACOLoader(dracoLoader);
-        const gltf = await loader.loadAsync(url);
-        object = gltf.scene;
-      } else if (ext === 'obj') {
-        const loader = new OBJLoader();
-        object = await loader.loadAsync(url);
-      } else if (ext === 'cmod') {
-        const resp = await fetch(url);
-        const buf = await resp.arrayBuffer();
-        // Build texture resolver: texture filenames are relative to the cmod file's directory
-        let textureResolver: CmodTextureResolver | undefined;
-        if (modelResolver && sourcePath) {
-          const dir = sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1);
-          textureResolver = (texName: string) => modelResolver(dir + texName);
-        }
-        const parsed = await parseCmod(buf, textureResolver);
-        if (!parsed) {
-          console.warn(`[Cosmolabe] Failed to parse .cmod for ${this.body.name}`);
-          return;
-        }
-        object = parsed;
-      } else {
-        console.warn(`[Cosmolabe] Unsupported model format: .${ext} for ${this.body.name}`);
-        return;
-      }
+      object = await load;
     } catch (e) {
       console.warn(`[Cosmolabe] Failed to load model for ${this.body.name}: ${e instanceof Error ? e.message : e}`);
       return;
@@ -1133,7 +1163,7 @@ export class BodyMesh extends THREE.Object3D {
 
     if (baseMapUrl) {
       try {
-        const texture = await this.loadTexture(baseMapUrl);
+        const texture = await this.trackTexture('baseMap', baseMapUrl);
         this.applyBaseMap(material, texture, baseMapUrl);
         renderer?.initTexture(texture);
       } catch (e) {
@@ -1143,7 +1173,7 @@ export class BodyMesh extends THREE.Object3D {
 
     if (normalMapUrl) {
       try {
-        const texture = await this.loadTexture(normalMapUrl);
+        const texture = await this.trackTexture('normalMap', normalMapUrl);
         material.normalMap = texture;
         material.needsUpdate = true;
         renderer?.initTexture(texture);
@@ -1155,7 +1185,7 @@ export class BodyMesh extends THREE.Object3D {
 
     if (displacementMapUrl) {
       try {
-        const texture = await this.loadTexture(displacementMapUrl);
+        const texture = await this.trackTexture('displacementMap', displacementMapUrl);
         texture.colorSpace = THREE.LinearSRGBColorSpace;
         material.displacementMap = texture;
         material.displacementScale = displacementScale ?? 10;
@@ -1185,7 +1215,7 @@ export class BodyMesh extends THREE.Object3D {
 
     if (bumpMapUrl) {
       try {
-        const texture = await this.loadTexture(bumpMapUrl);
+        const texture = await this.trackTexture('bumpMap', bumpMapUrl);
         texture.colorSpace = THREE.LinearSRGBColorSpace;
         // Generate a normal map from bump texture for zoom-independent shading
         const normalTex = this.generateNormalMapFromHeight(texture, bumpScale ?? 5);
@@ -1215,6 +1245,21 @@ export class BodyMesh extends THREE.Object3D {
    * For DDS tiles: rendered via Three.js to a RenderTarget.
    */
   async loadTiledBaseMap(tileUrls: [string, string], renderer: THREE.WebGLRenderer): Promise<void> {
+    const load = this.fetchTiledBaseMap(tileUrls, renderer);
+    this.assets?.track(
+      { kind: 'tiles', owner: this.body.name, role: 'baseMap', url: tileUrls[0] },
+      load,
+    );
+    try {
+      await load;
+    } catch (e) {
+      console.warn(`[Cosmolabe] Failed to load tiled baseMap for ${this.body.name}:`, e);
+    }
+  }
+
+  /** Stitch + apply the level-0 tiles. Rejects on failure so the caller can both
+   *  warn and report the failure to the asset tracker. */
+  private async fetchTiledBaseMap(tileUrls: [string, string], renderer: THREE.WebGLRenderer): Promise<void> {
     const material = this.mesh.material as THREE.MeshPhongMaterial | THREE.MeshStandardMaterial;
 
     // Detect format: extension for regular URLs, magic bytes for blob URLs
@@ -1227,84 +1272,80 @@ export class BodyMesh extends THREE.Object3D {
       isDDS = isDDSMagic(probeBuf);
     }
 
-    try {
-      if (isDDS) {
-        // DDS tiles: manual fetch + parse (DDSLoader.loadAsync can silently hang)
-        const loadDDS = async (url: string) => {
-          const resp = await fetch(url);
-          const buf = await resp.arrayBuffer();
-          const loader = new DDSLoader();
-          const texData = loader.parse(buf, false);
-          const tex = new THREE.CompressedTexture(
-            texData.mipmaps, texData.width, texData.height,
-            texData.format as THREE.CompressedPixelFormat,
-          );
-          tex.minFilter = texData.mipmaps.length === 1 ? THREE.LinearFilter : THREE.LinearMipmapLinearFilter;
-          tex.magFilter = THREE.LinearFilter;
-          tex.needsUpdate = true;
-          return tex;
-        };
-        const [tex0, tex1] = await Promise.all([
-          loadDDS(tileUrls[0]),
-          loadDDS(tileUrls[1]),
-        ]);
+    if (isDDS) {
+    // DDS tiles: manual fetch + parse (DDSLoader.loadAsync can silently hang)
+      const loadDDS = async (url: string) => {
+        const resp = await fetch(url);
+        const buf = await resp.arrayBuffer();
+        const loader = new DDSLoader();
+        const texData = loader.parse(buf, false);
+        const tex = new THREE.CompressedTexture(
+          texData.mipmaps, texData.width, texData.height,
+          texData.format as THREE.CompressedPixelFormat,
+        );
+        tex.minFilter = texData.mipmaps.length === 1 ? THREE.LinearFilter : THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.needsUpdate = true;
+        return tex;
+      };
+      const [tex0, tex1] = await Promise.all([
+        loadDDS(tileUrls[0]),
+        loadDDS(tileUrls[1]),
+      ]);
 
-        // Determine tile dimensions from the compressed texture
-        const w = tex0.image.width;
-        const h = tex0.image.height;
-        const rt = new THREE.WebGLRenderTarget(w * 2, h);
-        const cam = new THREE.OrthographicCamera(0, 2, 1, 0, -1, 1);
-        const scene = new THREE.Scene();
+      // Determine tile dimensions from the compressed texture
+      const w = tex0.image.width;
+      const h = tex0.image.height;
+      const rt = new THREE.WebGLRenderTarget(w * 2, h);
+      const cam = new THREE.OrthographicCamera(0, 2, 1, 0, -1, 1);
+      const scene = new THREE.Scene();
 
-        // Two quads: left tile [0,1] and right tile [1,2]
-        for (let i = 0; i < 2; i++) {
-          const mat = new THREE.MeshBasicMaterial({ map: i === 0 ? tex0 : tex1 });
-          const plane = new THREE.PlaneGeometry(1, 1);
-          const mesh = new THREE.Mesh(plane, mat);
-          mesh.position.set(i + 0.5, 0.5, 0);
-          scene.add(mesh);
-        }
-
-        const savedRT = renderer.getRenderTarget();
-        renderer.setRenderTarget(rt);
-        renderer.clear();
-        renderer.render(scene, cam);
-        renderer.setRenderTarget(savedRT);
-
-        // Clean up temp scene
-        scene.traverse(c => {
-          if (isMesh(c)) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
-        });
-        tex0.dispose();
-        tex1.dispose();
-
-        rt.texture.colorSpace = THREE.SRGBColorSpace;
-        this.applyBaseMap(material, rt.texture, `tiled[${tileUrls[0]},${tileUrls[1]}]`);
-      } else {
-        // Image tiles (JPG/PNG): stitch on a canvas
-        const [img0, img1] = await Promise.all(tileUrls.map(url =>
-          new Promise<HTMLImageElement>((resolve, reject) => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = url;
-          })
-        ));
-
-        const canvas = document.createElement('canvas');
-        canvas.width = img0.width + img1.width;
-        canvas.height = Math.max(img0.height, img1.height);
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img0, 0, 0);
-        ctx.drawImage(img1, img0.width, 0);
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        this.applyBaseMap(material, texture, `tiled[${tileUrls[0]},${tileUrls[1]}]`);
+      // Two quads: left tile [0,1] and right tile [1,2]
+      for (let i = 0; i < 2; i++) {
+        const mat = new THREE.MeshBasicMaterial({ map: i === 0 ? tex0 : tex1 });
+        const plane = new THREE.PlaneGeometry(1, 1);
+        const mesh = new THREE.Mesh(plane, mat);
+        mesh.position.set(i + 0.5, 0.5, 0);
+        scene.add(mesh);
       }
-    } catch (e) {
-      console.warn(`[Cosmolabe] Failed to load tiled baseMap for ${this.body.name}:`, e);
+
+      const savedRT = renderer.getRenderTarget();
+      renderer.setRenderTarget(rt);
+      renderer.clear();
+      renderer.render(scene, cam);
+      renderer.setRenderTarget(savedRT);
+
+      // Clean up temp scene
+      scene.traverse(c => {
+        if (isMesh(c)) { c.geometry.dispose(); (c.material as THREE.Material).dispose(); }
+      });
+      tex0.dispose();
+      tex1.dispose();
+
+      rt.texture.colorSpace = THREE.SRGBColorSpace;
+      this.applyBaseMap(material, rt.texture, `tiled[${tileUrls[0]},${tileUrls[1]}]`);
+    } else {
+      // Image tiles (JPG/PNG): stitch on a canvas
+      const [img0, img1] = await Promise.all(tileUrls.map(url =>
+        new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = url;
+        })
+      ));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img0.width + img1.width;
+      canvas.height = Math.max(img0.height, img1.height);
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img0, 0, 0);
+      ctx.drawImage(img1, img0.width, 0);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      this.applyBaseMap(material, texture, `tiled[${tileUrls[0]},${tileUrls[1]}]`);
     }
   }
 
@@ -1318,6 +1359,17 @@ export class BodyMesh extends THREE.Object3D {
     }
     material.needsUpdate = true;
     console.log(`[Cosmolabe] Loaded baseMap for ${this.body.name}: ${label}`);
+  }
+
+  /**
+   * Load a texture and register it with the initial-asset tracker under `role`
+   * (`baseMap`, `normalMap`, …). Rejection still propagates to the caller, which
+   * warns; the tracker records the same failure for the loading UI.
+   */
+  private trackTexture(role: string, url: string): Promise<THREE.Texture> {
+    const load = this.loadTexture(url);
+    this.assets?.track({ kind: 'texture', owner: this.body.name, role, url }, load);
+    return load;
   }
 
   private async loadTexture(url: string): Promise<THREE.Texture> {
