@@ -25,6 +25,16 @@
   let debugPanelOpen = $state(false);
   let measureToolOpen = $state(false);
 
+  /**
+   * One condition for the whole load, so there is one loading screen rather than
+   * a welcome screen that comes and goes between phases. `showLoading` covers a
+   * load in flight — including loading a *second* catalog over a scene that is
+   * already up, which otherwise ran its kernel download behind a hidden bar —
+   * and `assetsReady` covers the stretch after the scene graph exists but its
+   * models, textures and trajectories have not landed yet.
+   */
+  const loading = $derived(vs.showLoading || !vs.assetsReady);
+
   // Right-click: track mousedown + pointerup for drag detection.
   // macOS fires contextmenu synchronously with mousedown, so we can't use it
   // for drag detection. Instead: suppress native contextmenu, detect on pointerup.
@@ -182,10 +192,10 @@
 <div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive}>
   <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
 
-  <!-- Gated on assetsReady, not sceneLoaded: the scene graph exists well before
+  <!-- Gated on `loading`, not `sceneLoaded`: the scene graph exists well before
        its models and textures do, and handing over a sky of placeholder spheres
        reads as a broken scene rather than a loading one. -->
-  {#if !vs.assetsReady}
+  {#if loading}
     <WelcomeScreen
       onLoadDemo={(name) => loadDemo(canvas, name)}
       onDrop={(dt) => handleDrop(canvas, dt)}
@@ -193,7 +203,7 @@
     />
   {/if}
 
-  {#if vs.assetsReady && !uiHidden}
+  {#if !loading && !uiHidden}
     <ViewportHud />
     <BodyInfoPanel />
 
