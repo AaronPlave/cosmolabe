@@ -9,6 +9,7 @@ import { etToDate, type Universe } from '@cosmolabe/core';
 import type { InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
 import { loadPrefs, savePrefs } from './persistence';
+import { LoadProgress, type LoadPhase } from './load-progress';
 
 // ── Exported types ──
 
@@ -133,38 +134,16 @@ export function setLoadingState(opts: { label?: string; detail?: string; progres
 //
 // One bar for the whole load, from the first kernel byte to the last texture.
 // It used to be two: the kernel phase ran 0→100 and hid itself, then the asset
-// phase started over at 0, so the same load appeared to happen twice.
-//
-// A single bar over heterogeneous work needs the phases weighted against each
-// other, and only one of them can be measured up front: the catalog declares its
-// kernel sizes, while the asset count isn't knowable until the scene is built
-// (and keeps growing as `.cmod` textures are discovered). So the kernel phase is
-// weighted by its real byte total against a nominal budget for everything after
-// it — a kernel-heavy catalog gives most of the bar to kernels, a texture-heavy
-// one gives most of it to assets, and a catalog with no kernels gives the bar
-// entirely to assets. It is an estimate, and the label and detail lines under
-// the bar say what is actually happening.
+// phase started over at 0, so the same load appeared to happen twice. The
+// arithmetic — phase weighting, and the monotonic clamp that keeps the bar from
+// walking backwards — lives in `load-progress.ts`, where it is unit-tested.
 
-/** Nominal size of the model/texture/trajectory phase, used only to weigh it
- *  against the kernel phase. Never learned for real: assets are fetched without
- *  a HEAD pass, and a trajectory cache is computed rather than downloaded. */
-const ASSET_PHASE_BUDGET_BYTES = 40 * 1024 * 1024;
-
-type LoadPhase = 'kernels' | 'assets';
-
-let phaseWeight: Record<LoadPhase, number> = { kernels: 0, assets: 1 };
-const phaseFraction: Record<LoadPhase, number> = { kernels: 0, assets: 0 };
+const loadProgress = new LoadProgress();
 
 /** Start a load: shows the bar at zero and fixes the phase weights for it. */
 export function beginLoad(label: string, opts: { kernelBytes?: number } = {}) {
-  const kernelBytes = opts.kernelBytes ?? 0;
-  const kernels = kernelBytes > 0
-    ? kernelBytes / (kernelBytes + ASSET_PHASE_BUDGET_BYTES)
-    : 0;
-  phaseWeight = { kernels, assets: 1 - kernels };
-  phaseFraction.kernels = 0;
-  phaseFraction.assets = 0;
-  vs.loadingProgress = 0;
+  loadProgress.begin(opts);
+  vs.loadingProgress = loadProgress.value;
   vs.loadingLabel = label;
   vs.loadingDetail = '';
   vs.showLoading = true;
@@ -176,13 +155,7 @@ export function setPhaseProgress(
   fraction: number,
   opts: { label?: string; detail?: string } = {},
 ) {
-  phaseFraction[phase] = Math.max(0, Math.min(1, fraction));
-  const overall =
-    (phaseFraction.kernels * phaseWeight.kernels + phaseFraction.assets * phaseWeight.assets) * 100;
-  // Monotonic: the asset phase's denominator grows as nested assets are
-  // discovered, so its raw fraction can drop. A bar that walks backwards reads
-  // as a bug even when the underlying work is fine.
-  vs.loadingProgress = Math.max(vs.loadingProgress, overall);
+  vs.loadingProgress = loadProgress.set(phase, fraction);
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
   vs.showLoading = true;
@@ -190,7 +163,8 @@ export function setPhaseProgress(
 
 /** Load finished (or gave up) — hide the bar. */
 export function endLoad() {
-  vs.loadingProgress = 100;
+  loadProgress.finish();
+  vs.loadingProgress = loadProgress.value;
   vs.loadingDetail = '';
   vs.showLoading = false;
 }
