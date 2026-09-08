@@ -99,6 +99,12 @@ function makeFakeRenderer(objects: string[]) {
     calls,
     scaleFactor: 1e-6,
     camera,
+    // The production renderer emits initial-asset progress and readiness here.
+    // This control-layer fake has no asynchronous assets, but it must expose
+    // the same subscription surface so binding it follows the production path.
+    events: {
+      on: () => () => {},
+    },
     timeController: {
       get et() {
         return et;
