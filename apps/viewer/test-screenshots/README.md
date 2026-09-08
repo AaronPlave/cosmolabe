@@ -24,6 +24,24 @@ noise — antialias, bloom, starfield — pauses the clock at the catalog's
 renders one synchronous frame and returns a PNG. Frames are pixel-diffed
 (`pixelmatch`) against the goldens in `__goldens__/`.
 
+### Waiting for the scene, not sleeping
+
+Capture waits on two signals from that hook: `ready` (the scene graph is built)
+and then `assetsReady` (every model mesh, base/normal/displacement map, level-0
+tile, ring texture and `.cmod` material texture the catalog names up front has
+loaded **or failed**). It used to sleep a flat six seconds after `ready` and
+hope the textures had landed — which is the same reason a user could watch the
+loading UI disappear off a sky of placeholder spheres (issue #19).
+
+That gate also covers worker-built trajectory caches, but not here: `?test=1`
+skips the cache worker on purpose (see `loader.ts`), so spacecraft trails are
+baked synchronously during scene init and are already in the first frame.
+
+`VR_STREAM_SETTLE_MS` is what remains of that sleep, and it covers only content
+that keeps streaming after the initial gate — 3D Tiles terrain. None of the
+scenes here use terrain. Assets that failed are reported as a run warning:
+a scene missing a texture still captures, and that must not baseline quietly.
+
 ### The build is part of the run
 
 Don't skip it. A production viewer build resolves `@cosmolabe/*` to each
@@ -116,7 +134,8 @@ instead of photographing whatever the camera was already pointing at.
 |-----|---------|---------|
 | `VR_THRESHOLD` | `0.1` | pixelmatch per-pixel color threshold |
 | `VR_MAX_DIFF` | `0.005` | max fraction of differing pixels before failing |
-| `VR_SETTLE_MS` | `6000` | wait after scene-ready for async textures/tiles to stream |
+| `VR_STREAM_SETTLE_MS` | `500` | wait *after* the initial assets have settled, for content that streams later (terrain tiles) |
+| `VR_ASSET_TIMEOUT_MS` | `180000` | how long to wait for the catalog's initial models + textures |
 | `VR_INK_LEVEL` | `24` | luminance (0-255) above which a pixel counts as drawn |
 | `VR_SKIP_BUILD` | — | `1` trusts the existing build; fast iteration only |
 | `UPDATE_VISUAL_GOLDENS` | — | `1` rewrites goldens that already exist |

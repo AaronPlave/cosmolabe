@@ -34,7 +34,10 @@
  *                             a renamed scene or viewpoint must not self-baseline)
  *   VR_THRESHOLD              pixelmatch per-pixel threshold (default 0.1)
  *   VR_MAX_DIFF               max fraction of differing pixels before failing (default 0.005 = 0.5%)
- *   VR_SETTLE_MS              wait after scene-ready before capture, for textures/tiles to stream (default 6000)
+ *   VR_STREAM_SETTLE_MS       extra wait after the initial assets have settled, for content that
+ *                             streams in later (terrain tiles) — NOT a stand-in for asset loading,
+ *                             which is now awaited explicitly (default 500)
+ *   VR_ASSET_TIMEOUT_MS       how long to wait for the initial models + textures (default 180000)
  *   VR_INK_LEVEL              luminance above which a pixel counts as drawn, 0-255 (default 24)
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -53,7 +56,13 @@ const UPDATE = process.env.UPDATE_VISUAL_GOLDENS === '1';
 const CREATE = process.env.CREATE_VISUAL_GOLDENS === '1';
 const THRESHOLD = Number(process.env.VR_THRESHOLD ?? 0.1);
 const MAX_DIFF_FRAC = Number(process.env.VR_MAX_DIFF ?? 0.005);
-const SETTLE_MS = Number(process.env.VR_SETTLE_MS ?? 6000);
+// Capture used to sleep a flat six seconds after scene-ready and hope the
+// models and textures had arrived. They are now awaited through the viewer's
+// initial-asset gate (`__cosmolabe.assetsReady`), so this is only the
+// streaming-only tail: content that keeps arriving after that gate, i.e. 3D
+// Tiles terrain. None of the scenes below use terrain, so it is small.
+const STREAM_SETTLE_MS = Number(process.env.VR_STREAM_SETTLE_MS ?? 500);
+const ASSET_TIMEOUT_MS = Number(process.env.VR_ASSET_TIMEOUT_MS ?? 180000);
 const INK_LEVEL = Number(process.env.VR_INK_LEVEL ?? 24);
 const VIEWPORT = { width: 1024, height: 768 };
 const PORT = 4173;
@@ -328,7 +337,37 @@ async function main() {
         continue;
       }
       onFatalHttp = null;
-      await page.waitForTimeout(SETTLE_MS);
+
+      // Wait for the catalog's initial models and textures — the viewer flips
+      // this once every one of them has loaded or failed, so a capture is of the
+      // dressed scene, not of placeholder spheres that a settle delay happened
+      // to outlast.
+      let assetSummary = null;
+      try {
+        await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, {
+          timeout: ASSET_TIMEOUT_MS,
+        });
+        assetSummary = await page.evaluate(() => window.__cosmolabe.assetSummary);
+      } catch (err) {
+        const progress = await page
+          .evaluate(() => window.renderer?.assets?.progress ?? null)
+          .catch(() => null);
+        failures.push(
+          `${scene.catalog}: initial assets never settled — ${err.message}` +
+            (progress ? `\n    ${progress.settled}/${progress.total} assets settled` : ''),
+        );
+        continue;
+      }
+      if (assetSummary && (assetSummary.failed > 0 || assetSummary.timedOut)) {
+        // Not fatal — a scene missing a texture still captures — but it changes
+        // pixels, so say so rather than let it self-baseline as the new normal.
+        warnings.push(
+          `${scene.catalog}: ${assetSummary.failed} initial asset(s) failed` +
+            (assetSummary.timedOut ? ` and ${assetSummary.stillPending.length} timed out` : '') +
+            `: ${assetSummary.failures.slice(0, 5).map((f) => `${f.owner}/${f.role}`).join(', ')}`,
+        );
+      }
+      await page.waitForTimeout(STREAM_SETTLE_MS);
 
       const nonFatal = httpFailures.filter((f) => !f.fatal);
       if (nonFatal.length) {
