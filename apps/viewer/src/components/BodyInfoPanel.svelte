@@ -19,7 +19,7 @@
   // body's IAU oblate radius — `displayRadius` is the equatorial value, and
   // would give wildly wrong altitudes near the poles of a flattened body
   // (Mars: ~20 km gap, Earth: ~21 km gap).
-  let altitude = $derived.by(() => {
+  let altitude = $derived.by((): { value: number; sampled: boolean } | null => {
     void vs.et;
     const r = getRenderer();
     if (!r || !vs.selectedBodyName || distance == null) return null;
@@ -32,13 +32,21 @@
     const len = bf.length();
     if (len < 1e-10) return null;
     const latDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
-    return distance - bm.surfaceRadiusAtLat(latDeg);
+    const lonDeg = Math.atan2(-bf.z, bf.x) * (180 / Math.PI);
+    const terrainSample = bm.sampleTerrain(latDeg, lonDeg);
+    const referenceAltitude = distance - bm.surfaceRadiusAtLat(latDeg);
+    return {
+      value: terrainSample
+        ? distance - (bm.terrainReferenceRadiusAt(latDeg) + terrainSample.elevationKm)
+        : referenceAltitude,
+      sampled: terrainSample != null,
+    };
   });
 
   // Body's altitude above the parent body's surface in two flavors:
   // - aboveTerrain: sampled at the body's CURRENT lat/lon on the parent's
   //   rendered terrain. Null if the parent has no terrain, or no tile yet
-  //   covers that lat/lon (angularDistDeg > 1° from any loaded vertex).
+  //   has decoded CPU coverage for that lat/lon.
   // - aboveRef: distance from parent's center minus parent's reference
   //   radius (IAU mean). Always defined when a parent exists. Less useful
   //   visually (negative numbers below sea level) but a deterministic fallback.
@@ -69,11 +77,8 @@
     let aboveTerrain: number | null = null;
     if (parentBm.hasTerrain && rr > 1e-10) {
       const sample = parentBm.sampleTerrainElevation(latDeg, lonDeg);
-      if (sample && sample.angularDistDeg < 1.0) {
-        // sample.elevationKm = closestRadiusKm - displayRadius (see
-        // TerrainManager.sampleElevationKm). So the absolute terrain radius
-        // at the sampled vertex is displayRadius + elevationKm.
-        aboveTerrain = dist - (parentBm.displayRadius + sample.elevationKm);
+      if (sample) {
+        aboveTerrain = dist - (parentBm.terrainReferenceRadiusAt(latDeg) + sample.elevationKm);
       }
     }
     return { aboveTerrain, aboveRef, parentBmName: bm.body.parentName };
@@ -199,8 +204,8 @@
       </div>
       {#if altitude != null}
         <div class="flex justify-between gap-3">
-          <span class="text-text-muted">Cam alt</span>
-          <span class="font-mono text-text-primary">{formatDist(altitude)}</span>
+          <span class="text-text-muted">{altitude.sampled ? 'Cam alt terrain' : 'Cam alt ref'}</span>
+          <span class="font-mono text-text-primary">{formatDist(altitude.value)}</span>
         </div>
       {/if}
     </div>
@@ -211,12 +216,12 @@
       <div class="flex flex-col gap-0.5">
         {#if bodyAltitudes.aboveTerrain != null}
           <div class="flex justify-between gap-3">
-            <span class="text-text-muted">Above terrain</span>
+            <span class="text-text-muted">Above {bodyAltitudes.parentBmName} terrain</span>
             <span class="font-mono text-text-primary">{formatDist(bodyAltitudes.aboveTerrain)}</span>
           </div>
         {:else if bodyAltitudes.aboveRef != null}
           <div class="flex justify-between gap-3">
-            <span class="text-text-muted">Above ref</span>
+            <span class="text-text-muted">Above {bodyAltitudes.parentBmName} ref</span>
             <span class="font-mono text-text-primary">{formatDist(bodyAltitudes.aboveRef)}</span>
           </div>
         {/if}

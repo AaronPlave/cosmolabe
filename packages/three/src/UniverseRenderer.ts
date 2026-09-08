@@ -48,6 +48,8 @@ export interface SurfacePickResult {
   altKm: number;
   /** Distance from camera to pick point in km */
   cameraDistanceKm: number;
+  /** Exact rendered hit in body-fixed ECEF km, used to keep the marker on the clicked surface. */
+  bodyFixedHitKm: readonly [number, number, number];
 }
 
 export interface UniverseRendererOptions {
@@ -1409,27 +1411,23 @@ export class UniverseRenderer {
 
   private _updatePickMarkerPosition(): void {
     if (!this._pickMarker || !this._pickMarkerInfo) return;
-    const { bodyName, latDeg, lonDeg, altKm } = this._pickMarkerInfo;
+    const { bodyName } = this._pickMarkerInfo;
     const bm = this.bodyMeshes.get(bodyName);
     if (!bm) return;
 
-    const latRad = latDeg * (Math.PI / 180);
-    const lonRad = lonDeg * (Math.PI / 180);
-    const r = bm.displayRadius + altKm;
-
     // lat/lon/alt → ECEF Z-up km
-    const ecefX = r * Math.cos(latRad) * Math.cos(lonRad);
-    const ecefY = r * Math.cos(latRad) * Math.sin(lonRad);
-    const ecefZ = r * Math.sin(latRad);
+    const [ecefX, ecefY, ecefZ] = this._pickMarkerInfo.bodyFixedHitKm;
 
     // ECEF Z-up → body-fixed geometry Y-up (inverse of pickSurface conversion)
     // geoX=ecefX, geoY=ecefZ(pole), geoZ=-ecefY
     const geom = new THREE.Vector3(ecefX, ecefZ, -ecefY);
 
     // Rotate body-fixed → inertial, scale to scene units, translate to world pos
+    const bodyWorldPosition = new THREE.Vector3();
+    bm.getWorldPosition(bodyWorldPosition);
     geom.applyQuaternion(bm.mesh.quaternion)
         .multiplyScalar(this.scaleFactor)
-        .add(bm.position);
+      .add(bodyWorldPosition);
 
     this._pickMarker.position.copy(geom);
   }
@@ -1548,18 +1546,29 @@ export class UniverseRenderer {
     const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
     if (r < 1e-10) return null;
 
-    const latDeg = Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI);
-    const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
-    const altKm = r - bm.displayRadius;
+    const terrainPosition = bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
+    const latDeg = terrainPosition?.latDeg ?? (Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI));
+    const lonDeg = terrainPosition?.lonDeg ?? (Math.atan2(ecefY, ecefX) * (180 / Math.PI));
+    // Keep the rendered intersection as the visual hit, but prefer decoded CPU
+    // terrain for its physical altitude when coverage is available.
+    const terrainSample = bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
+    const altKm = terrainSample?.elevationKm ?? (terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg)));
     const cameraDistanceKm = bestWorldPoint.distanceTo(this.camera.position) / this.scaleFactor;
 
-    return { bodyName: bm.body.name, latDeg, lonDeg, altKm, cameraDistanceKm };
+    return {
+      bodyName: bm.body.name,
+      latDeg,
+      lonDeg,
+      altKm,
+      cameraDistanceKm,
+      bodyFixedHitKm: [ecefX, ecefY, ecefZ],
+    };
   }
 
   /** Cached terrain elevation per body for camera clamp (samples every 5 frames). */
   private _terrainClampCache = new Map<string, { elevationKm: number; frame: number }>();
   /** Cached terrain elevation per surface-locked body (samples every 10 frames). */
-  private _surfaceLockElevCache = new Map<string, { elevationKm: number; angularDistDeg: number; frame: number }>();
+  private _surfaceLockElevCache = new Map<string, { elevationKm: number; frame: number }>();
   /** Per-waypoint terrain elevations cached for WaypointTrajectory bodies in
    *  aboveTerrain mode. Built up as tiles load; once we have ≥1 sample we use
    *  these (interpolated along time) as the ground reference instead of
@@ -1748,12 +1757,12 @@ export class UniverseRenderer {
       const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
 
       // Sample terrain elevation at most every 10 frames — surface-locked bodies move slowly
-      // and sampleElevationKm traverses all loaded tile vertices, so calling it every frame
-      // is expensive at high tile counts. Use the cached elevation on intermediate frames.
+      // and CPU sampling is cached to avoid unnecessary work. Use the cached
+      // elevation on intermediate frames.
       const bodyKey = bm.body.name;
       const frame = this._renderDebugFrame;
       const cached = this._surfaceLockElevCache.get(bodyKey);
-      let sample: { elevationKm: number; angularDistDeg: number } | null = null;
+      let sample: { elevationKm: number } | null = null;
       if (!cached || frame - cached.frame >= 10) {
         sample = parentBm.sampleTerrainElevation(latDeg, lonDeg);
         if (sample) this._surfaceLockElevCache.set(bodyKey, { ...sample, frame });
@@ -1780,7 +1789,7 @@ export class UniverseRenderer {
             if (perBodyCache.has(wi)) continue;
             const w = wps[wi];
             const s = parentBm.sampleTerrainElevation(w.latDeg, w.lonDeg);
-            if (s && s.angularDistDeg < 0.5) perBodyCache.set(wi, s.elevationKm);
+            if (s) perBodyCache.set(wi, s.elevationKm);
           }
         }
         if (perBodyCache.size > 0) {
@@ -1808,18 +1817,19 @@ export class UniverseRenderer {
         }
       }
 
-      const spiceElevKm = dist / sf - parentBm.displayRadius;
-      if (sample && sample.angularDistDeg < 0.5) {
+      const referenceRadiusKm = parentBm.terrainReferenceRadiusAt(latDeg);
+      const spiceElevKm = dist / sf - referenceRadiusKm;
+      if (sample) {
         let targetR: number | null = null;
         if (aboveTerrain) {
           // trajectory's "altitude" is height above terrain. Prefer the
           // pre-sampled waypoint reference (smooth) when available; fall back
           // to the body's current local terrain sample otherwise.
           const groundKm = waypointGroundKm ?? sample.elevationKm;
-          targetR = (parentBm.displayRadius + groundKm + spiceElevKm + 0.00001) * sf;
+          targetR = (referenceRadiusKm + groundKm + spiceElevKm + 0.00001) * sf;
         } else if (Math.abs(sample.elevationKm - spiceElevKm) < 1.0) {
           // snap mode: pin to terrain when trajectory and terrain agree within 1 km.
-          targetR = (parentBm.displayRadius + sample.elevationKm + 0.00001) * sf;
+          targetR = (referenceRadiusKm + sample.elevationKm + 0.00001) * sf;
         }
         if (targetR !== null && Math.abs(dist - targetR) > 1e-15) {
           if (isOrigin) {
@@ -1904,14 +1914,14 @@ export class UniverseRenderer {
           const frame = this._renderDebugFrame;
           if (!cached || frame - cached.frame >= 5) {
             const sample = bm.sampleTerrainElevation(latDeg, lonDeg);
-            if (sample && sample.angularDistDeg < 1.0) {
+            if (sample) {
               const elev = sample.elevationKm;
               this._terrainClampCache.set(bodyName, { elevationKm: elev, frame });
-              clampRadiusKm = bm.displayRadius + elev;
+              clampRadiusKm = bm.terrainReferenceRadiusAt(latDeg) + elev;
               hasTerrainSample = true;
             }
           } else {
-            clampRadiusKm = bm.displayRadius + cached.elevationKm;
+            clampRadiusKm = bm.terrainReferenceRadiusAt(latDeg) + cached.elevationKm;
             hasTerrainSample = true;
           }
         }

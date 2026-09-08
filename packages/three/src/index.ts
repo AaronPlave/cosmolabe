@@ -52,6 +52,8 @@ export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice 
 // Terrain
 export { TerrainManager } from './TerrainManager.js';
 export type { TerrainConfig, TerrainImageryConfig } from './TerrainManager.js';
+export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic } from './TerrainSampler.js';
+export type { TerrainDatum, TerrainSourceMetadata, TerrainSample, TerrainHeightTile, BodyFixedPosition, BodyFixedCartesian } from './TerrainSampler.js';
 export { SurfaceTileOverlay, SURFACE_TILE_LAYER } from './SurfaceTileOverlay.js';
 export type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 
