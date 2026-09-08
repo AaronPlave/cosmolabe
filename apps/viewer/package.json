@@ -20,6 +20,7 @@
     "test:visual:update": "UPDATE_VISUAL_GOLDENS=1 node ../../scripts/visual-regression.mjs"
   },
   "dependencies": {
+    "@cosmolabe/control": "*",
     "@cosmolabe/core": "*",
     "@cosmolabe/frames": "*",
     "@cosmolabe/spice": "*",

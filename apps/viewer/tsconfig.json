@@ -22,6 +22,9 @@
   ],
   "references": [
     {
+      "path": "../../packages/control"
+    },
+    {
       "path": "../../packages/cspice-wasm"
     },
     {

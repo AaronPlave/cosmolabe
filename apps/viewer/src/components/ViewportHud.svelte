@@ -53,6 +53,20 @@
 {/if}
 
 
+<!-- Script caption (`displayNote`).
+     `{#if}`-guarded, never mounted-and-hidden: an always-rendered box with a
+     backdrop-blur would bleed into every visual-regression golden.
+     Plain interpolation, never {@html} — unlike the plugin overlay below, this
+     text comes from a script or an embed host. -->
+{#if vs.note}
+  <div class="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 max-w-[70%] pointer-events-none">
+    <p class="m-0 px-3 py-1.5 rounded-md bg-black/70 backdrop-blur-sm border border-border text-center text-[13px] leading-snug text-text-primary whitespace-pre-wrap">
+      {vs.note}
+    </p>
+  </div>
+{/if}
+
+
 <!-- Plugin overlays (rendered per corner) -->
 {#each Object.entries(getPluginOverlays()) as [position, overlays]}
   {@const posClasses = {

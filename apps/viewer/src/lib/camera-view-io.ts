@@ -25,8 +25,10 @@ import { etToDate, type ViewpointDefinition } from '@cosmolabe/core';
  * droppable into a catalog's viewpoints array, and since a Viewpoint's `time`
  * is honoured, the epoch this writes is one a scene will actually be seeked to.
  *
- * Exported only so `__tests__/camera-view-io.test.ts` can check it against
- * SPICE; nothing else should call it.
+ * Exported so `__tests__/camera-view-io.test.ts` can check it against SPICE,
+ * and so `viewer-control.ts`'s `snapshot()` can render the same epoch the same
+ * way. A fourth hand-rolled J2000 conversion is exactly what this comment
+ * exists to prevent, so new callers should come here rather than write one.
  */
 export function etToIso(et: number): string {
   if (!Number.isFinite(et) || Math.abs(et) > 7.5e9) return new Date().toISOString();

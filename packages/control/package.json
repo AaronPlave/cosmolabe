@@ -1,0 +1,42 @@
+{
+  "name": "@cosmolabe/control",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "ViewerControl — the viewer's control and observation port, plus the no-eval `verb arg…` script language written against it. Zero dependencies, no DOM: one verb vocabulary shared by the typed interface, the text language, and the command palette.",
+  "author": "Aaron Plave",
+  "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
+  "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaronPlave/cosmolabe.git",
+    "directory": "packages/control"
+  },
+  "keywords": [
+    "scripting",
+    "cosmographia",
+    "automation",
+    "visualization",
+    "embed",
+    "space"
+  ],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  }
+}

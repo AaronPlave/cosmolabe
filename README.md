@@ -85,6 +85,7 @@ cosmolabe/
 ├── packages/
 │   ├── spice/            # @cosmolabe/spice           — CSPICE WASM bindings
 │   ├── core/             # @cosmolabe/core            — Universe model (zero rendering deps)
+│   ├── control/          # @cosmolabe/control         — ViewerControl port + script language
 │   ├── three/            # @cosmolabe/three           — Three.js rendering layer
 │   ├── cesium-adapter/   # @cosmolabe/cesium-adapter  — CZML export + coordinate transforms
 │   └── cesium/           # @cosmolabe/cesium          — CesiumJS rendering layer
@@ -96,7 +97,7 @@ cosmolabe/
 └── tsconfig.json
 ```
 
-`@cosmolabe/core` never imports `three` or `cesium`. The renderer packages compose over `core`. See [packages/cesium-adapter/CHOOSING_A_RENDERER.md](packages/cesium-adapter/CHOOSING_A_RENDERER.md) for guidance on which renderer fits your project.
+`@cosmolabe/core` and `@cosmolabe/control` never import `three` or `cesium`. The renderer packages compose over `core`. See [packages/cesium-adapter/CHOOSING_A_RENDERER.md](packages/cesium-adapter/CHOOSING_A_RENDERER.md) for guidance on which renderer fits your project.
 
 ### `@cosmolabe/spice`
 
@@ -134,6 +135,15 @@ Three.js rendering layer that syncs a `Universe` into an interactive 3D scene.
 - **TimeController** — play/pause/rate/scrub
 - **TrajectoryCache + SpiceCacheWorker** — off-thread adaptive sampling and Visvalingam-Whyatt simplification for long-arc trajectories
 - **Plugins** — TrajectoryColor, ManeuverVector, CommLink, Screenshot (GroundTrack pending)
+
+### `@cosmolabe/control`
+
+The viewer's control and observation port, `ViewerControl` — `gotoObject`,
+`setFrame`, `setTime`, `setLayer`, the reads that go with them, and a
+`snapshot()` that returns the script reproducing the current view. Plus a
+no-eval `verb arg…` language over the same verb table, for scene setup, saved
+programs and reproducible captures. Zero dependencies, no DOM. Cosmographia
+`Cosmo()` parity where the concepts overlap; see [docs/scripting.md](docs/scripting.md).
 
 ### `@cosmolabe/cesium-adapter`
 

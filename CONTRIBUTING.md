@@ -34,6 +34,7 @@ cd apps/viewer && npm run dev
 packages/
   spice/            # CSPICE WASM bindings (uses TimeCraftJS)
   core/             # Universe model — pure TypeScript, no rendering deps
+  control/          # ViewerControl port + script language — no renderer, no DOM
   three/            # Three.js renderer
   cesium-adapter/   # CZML export + coordinate transforms
   cesium/           # CesiumJS renderer
@@ -42,8 +43,8 @@ apps/
   cesium-viewer/    # CesiumJS demo app
 ```
 
-`core` never imports `three` or `cesium`. Renderer packages compose over `core`.
-This is enforced, not just documented: `packages/core/tsconfig.json` builds without the `DOM` lib, so a `document` or `HTMLCanvasElement` in core is a typecheck error, and `npm run lint:purity` (a CI step) fails on an import of `three` or `cesium` — which tsc cannot catch, since the workspace hoists both to the root `node_modules`.
+`core` and `control` never import `three` or `cesium`. Renderer packages compose over `core`.
+This is enforced, not just documented: their `tsconfig.json` files build without the `DOM` lib, so a `document` or `HTMLCanvasElement` in either is a typecheck error, and `npm run lint:purity` (a CI step) fails on an import of `three` or `cesium` — which tsc cannot catch, since the workspace hoists both to the root `node_modules`.
 
 ## Testing
 
@@ -60,6 +61,7 @@ Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LF
 - New trajectory type? See `packages/core/src/trajectories/Trajectory.ts` for the interface and existing implementations (Keplerian, TLE, FixedPoint, etc.) for patterns.
 - New rotation model? `packages/core/src/rotations/RotationModel.ts`.
 - New renderer plugin? `packages/three/src/plugins/RendererPlugin.ts` and the stock plugins in `packages/three/src/plugins/stock/`.
+- New script verb, or a new way to drive the viewer from a host? `packages/control/src/verbs.ts` is the one table the language, the port and the palette all read; see [docs/scripting.md](docs/scripting.md).
 - New mission catalog? Drop a [catalog JSON](docs/catalog-format.md) into `apps/viewer/test-catalogs/`. See existing catalogs (`iss.json`, `cassini-soi.json`) for examples.
 
 ## Opening a PR
