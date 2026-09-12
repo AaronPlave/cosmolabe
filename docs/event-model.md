@@ -87,6 +87,11 @@ coarsely. Rejecting those would block legitimate searches over short analysis
 windows. A kind whose geometry needs a tighter step enforces that in its own
 `validate`.
 
+What the step does govern is *completeness*, not validity: an event that both
+begins and ends between two samples is missed, so a step below the duration of
+the briefest event of interest is how you avoid missing events. That is a
+choice the caller makes, not a constraint the model enforces.
+
 ## Timeline and 3D integration
 
 Selecting an event always does the same two things: move simulation time, and

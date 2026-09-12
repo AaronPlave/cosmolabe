@@ -134,8 +134,14 @@ export interface EventQuery<P = Record<string, unknown>> {
   /** Confinement window for the search. */
   window: EtInterval;
   /**
-   * GF search step in seconds. Must be shorter than the briefest event of
-   * interest. Falls back to the kind's default.
+   * GF search step in seconds. Falls back to the kind's default.
+   *
+   * This is a sampling interval, and it governs completeness rather than
+   * validity: GF samples the confinement window at this spacing, so an event
+   * that both begins and ends between two samples is missed. Keeping it below
+   * the duration of the briefest event of interest is therefore how you avoid
+   * missing events — but a longer step is a legitimate coarse search, not an
+   * error, and `EventSearch` only rejects a non-finite or non-positive one.
    */
   step?: EtSeconds;
   /** SPICE aberration correction; falls back to the kind's default. */

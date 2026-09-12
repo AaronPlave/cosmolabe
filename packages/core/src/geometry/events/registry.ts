@@ -45,7 +45,10 @@ export interface EventKind<P = Record<string, unknown>> {
    * not set its own. Leave unset to accept `focusForEvent`'s fallback.
    */
   primaryRole?: EventRole;
-  /** Default GF search step (s), used when the query omits one. */
+  /**
+   * Default GF search step (s), used when the query omits one. Pick it from
+   * the shortest event this kind should not miss; see `EventQuery.step`.
+   */
   defaultStep: EtSeconds;
   /** Default aberration correction, used when the query omits one. */
   defaultAbcorr?: string;
