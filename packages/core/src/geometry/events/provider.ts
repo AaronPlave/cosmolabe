@@ -38,6 +38,18 @@ export interface GeometryFinderProvider {
     step: EtSeconds, cnfine: EtInterval[],
   ): Awaitable<EtInterval[]>;
 
+  /**
+   * Observer→target distance (km) at one instant.
+   *
+   * Optional, and deliberately not a GF call: GF answers *when* a condition
+   * holds, never *how far* it was. Reporting the range at a closest approach —
+   * the number the search is actually about — needs one position lookup, so
+   * providers that can do one expose it here and kinds annotate their events
+   * with it. A provider without it still searches; its events simply carry no
+   * distance metric.
+   */
+  range?(target: string, abcorr: string, observer: string, et: EtSeconds): Awaitable<number>;
+
   /** Intervals where one coordinate of the observer→target vector satisfies `relate`. */
   gfposc(
     target: string, frame: string, abcorr: string, observer: string,
@@ -77,6 +89,14 @@ export interface CspiceWasmGeometryFinder {
     crdsys: string, coord: string, relate: string, refval: number,
     adjust: number, step: number, start: number, stop: number,
   ): Promise<[number, number][]>;
+  /**
+   * The engine's position lookup, which is what lets the adapter satisfy
+   * {@link GeometryFinderProvider.range}. Optional: an engine without it still
+   * searches, and its events simply carry no distance metric.
+   */
+  spkpos?(
+    target: string, et: number, frame: string, abcorr: string, observer: string,
+  ): Promise<{ position: { x: number; y: number; z: number } }>;
 }
 
 function toIntervals(tuples: [number, number][]): EtInterval[] {
@@ -102,7 +122,21 @@ async function overWindows(
 
 /** Adapts the worker-backed wasm engine to {@link GeometryFinderProvider}. */
 export function cspiceWasmGeometryFinder(engine: CspiceWasmGeometryFinder): GeometryFinderProvider {
+  const spkpos = engine.spkpos?.bind(engine);
+
   return {
+    // J2000 is an arbitrary choice for a *distance*: the magnitude of the
+    // observer→target vector is frame-independent, so the frame only has to be
+    // one every kernel set can chain to.
+    ...(spkpos
+      ? {
+          range: async (target: string, abcorr: string, observer: string, et: number) => {
+            const { position } = await spkpos(target, et, 'J2000', abcorr, observer);
+            return Math.hypot(position.x, position.y, position.z);
+          },
+        }
+      : {}),
+
     gfdist: (target, abcorr, observer, relate, refval, adjust, step, cnfine) => {
       // The wasm binding exposes no `adjust`; failing loudly beats silently
       // searching for unadjusted extrema.

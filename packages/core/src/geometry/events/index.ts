@@ -2,6 +2,7 @@ export type {
   EtInterval,
   EtSeconds,
   EventMetric,
+  EventParamSpec,
   EventParticipants,
   EventQuery,
   EventRole,
@@ -33,7 +34,19 @@ export type {
 export { cspiceWasmGeometryFinder } from './provider.js';
 
 export type { EventKind, EventKindContext, ResolvedEventQuery } from './registry.js';
-export { EventKindRegistry, requiredRoles } from './registry.js';
+export { EventKindRegistry, defaultParams, requiredRoles } from './registry.js';
+
+export type { ClosestApproachParams, DistanceRangeParams } from './kinds/index.js';
+export {
+  BUILTIN_EVENT_KINDS,
+  builtinEventKinds,
+  closestApproachKind,
+  distanceRangeKind,
+  rangeAt,
+  rangeExtremum,
+  rangeMetric,
+  registerBuiltinEventKinds,
+} from './kinds/index.js';
 
 export type { EventSearchOptions } from './search.js';
 export { EventSearch } from './search.js';

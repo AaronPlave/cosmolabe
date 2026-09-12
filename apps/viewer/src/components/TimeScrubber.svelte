@@ -31,6 +31,13 @@
     globalPlayhead?: number;
     /** Visible duration label (e.g. "~43d") — clickable for presets */
     rangeLabel?: string;
+    /**
+     * Ticks to draw on the track, as fractions of the *zoomed* range. Event
+     * finder results use this so a search result reads as a position in time
+     * and not only as a row in a list. Out-of-range fractions are the caller's
+     * to drop.
+     */
+    markers?: readonly { fraction: number; selected?: boolean; title?: string }[];
   }
 
   let {
@@ -38,7 +45,7 @@
     onZoom, onResetZoom, onSetZoom,
     startLabel, endLabel,
     isZoomed = false, viewportStart = 0, viewportEnd = 1, globalPlayhead = 0.5,
-    rangeLabel,
+    rangeLabel, markers = [],
   }: Props = $props();
 
   let trackEl: HTMLDivElement | undefined = $state();
@@ -154,6 +161,14 @@
         onpointermove={onPointerMove}
         onpointerup={onPointerUp}
       >
+        {#each markers as marker}
+          <div
+            class="event-marker"
+            class:selected={marker.selected}
+            style="left: {marker.fraction * 100}%"
+            title={marker.title}
+          ></div>
+        {/each}
         <div class="playhead" style="left: {displayFraction * 100}%"></div>
       </div>
 
@@ -253,6 +268,24 @@
     background: var(--color-text-primary);
     transform: translateX(-50%);
     pointer-events: none;
+  }
+
+  /* ── Event finder results ── */
+
+  .event-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--color-success);
+    opacity: 0.45;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .event-marker.selected {
+    width: 2px;
+    opacity: 1;
   }
 
   .track:hover .playhead {

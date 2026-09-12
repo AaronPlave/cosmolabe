@@ -1,6 +1,7 @@
 import type { GeometryFinderProvider } from './provider.js';
 import type {
   EtSeconds,
+  EventParamSpec,
   EventParticipants,
   EventRole,
   EventQuery,
@@ -39,6 +40,13 @@ export interface EventKind<P = Record<string, unknown>> {
   temporality?: EventTemporality;
   /** Roles this kind consumes, in the order a picker should present them. */
   roles: readonly EventRoleSpec[];
+  /**
+   * Everything the kind needs beyond bodies — thresholds, relations, scopes —
+   * declared so a generic configuration form can render it. The search service
+   * fills in the declared defaults before `run`, so `run` reads `query.params`
+   * without re-deriving them. Kinds validate values in `validate`.
+   */
+  params?: readonly EventParamSpec[];
   /**
    * The role whose body selecting one of this kind's events should select.
    * The search service stamps it onto every event the kind returns that does
@@ -100,4 +108,19 @@ export class EventKindRegistry {
 /** Roles a kind requires, i.e. those a caller must fill in. */
 export function requiredRoles(kind: EventKind<never>): EventRoleSpec[] {
   return kind.roles.filter((r) => r.required !== false);
+}
+
+/**
+ * The params a kind declares a default for, as a ready-to-use `params` object.
+ *
+ * A configuration UI uses this to seed its form; {@link EventSearch} applies
+ * the same defaults to any query that omits them, so a caller that passes no
+ * params at all still gets the kind's intended search.
+ */
+export function defaultParams(kind: EventKind<never>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const spec of kind.params ?? []) {
+    if (spec.default !== undefined) out[spec.key] = spec.default;
+  }
+  return out;
 }

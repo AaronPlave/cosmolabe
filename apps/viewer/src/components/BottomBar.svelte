@@ -6,11 +6,13 @@
   } from '../lib/viewer-state.svelte';
   import { formatDuration } from '../lib/scrubber-math';
   import { getSpice } from '../lib/loader';
+  import { ef } from '../lib/event-finder.svelte';
+  import { eventFraction } from '../lib/event-query';
   import { CameraModeName } from '@cosmolabe/three';
   import {
     Globe, ChevronsLeft, ChevronLeft, Rewind, Play, Pause,
     ChevronRight, ChevronsRight, Crosshair, Camera, Settings,
-    Keyboard, Info, Ruler,
+    Keyboard, Info, Ruler, Radar,
   } from 'lucide-svelte';
   import TimeScrubber from './TimeScrubber.svelte';
   import * as Popover from '$lib/components/ui/popover';
@@ -23,12 +25,18 @@
     onTogglePick: () => void;
     onToggleInfoPanel: () => void;
     onToggleMeasure: () => void;
+    onToggleEvents: () => void;
     pickModeActive: boolean;
     infoPanelActive: boolean;
     measureActive: boolean;
+    eventsActive: boolean;
   }
 
-  let { onToggleBodyDrawer, onToggleDisplaySettings, onTogglePick, onToggleInfoPanel, onToggleMeasure, pickModeActive, infoPanelActive, measureActive }: Props = $props();
+  let {
+    onToggleBodyDrawer, onToggleDisplaySettings, onTogglePick, onToggleInfoPanel,
+    onToggleMeasure, onToggleEvents,
+    pickModeActive, infoPanelActive, measureActive, eventsActive,
+  }: Props = $props();
 
   let scrubberDragging = $state(false);
   let gotoTimeOpen = $state(false);
@@ -51,6 +59,19 @@
   let viewportStart = $derived(baseRange > 0 ? (vs.scrubMin - vs.scrubBaseMin) / baseRange : 0);
   let viewportEnd = $derived(baseRange > 0 ? (vs.scrubMax - vs.scrubBaseMin) / baseRange : 1);
   let globalPlayhead = $derived(baseRange > 0 ? (vs.et - vs.scrubBaseMin) / baseRange : 0.5);
+
+  // Event finder results as scrubber ticks, on the zoomed range the track
+  // actually draws. Events outside it are dropped rather than clamped to an
+  // edge, where they would read as happening at a time they do not.
+  let eventMarkers = $derived(
+    ef.events
+      .map((event) => ({
+        fraction: eventFraction(event, { start: vs.scrubMin, end: vs.scrubMax }),
+        selected: ef.selectedId === event.id,
+        title: event.label,
+      }))
+      .filter((m): m is { fraction: number; selected: boolean; title: string } => m.fraction != null),
+  );
 
   let rangeLabel = $derived(isZoomed ? formatDuration(currentRange) : '');
   let startLabel = $derived(isZoomed ? etToShortDate(vs.scrubMin) : etToShortDate(vs.scrubBaseMin));
@@ -91,7 +112,7 @@
 <div class="absolute bottom-3 left-3 right-3 z-20 border border-border rounded-lg bg-black/90 backdrop-blur-md flex flex-col gap-0.5 px-3 py-1.5">
   {#if showShortcuts}
     <div class="text-[12px] text-text-muted text-center py-0.5">
-      Space: play &middot; &larr;/&rarr;: step &middot; &uarr;/&darr;: speed &middot; R: reverse &middot; F: fly to &middot; B: bodies &middot; D: display &middot; P: pick &middot; M: camera &middot; Cmd+K: search &middot; \: zen
+      Space: play &middot; &larr;/&rarr;: step &middot; &uarr;/&darr;: speed &middot; R: reverse &middot; F: fly to &middot; B: bodies &middot; E: events &middot; D: display &middot; P: pick &middot; M: camera &middot; Cmd+K: search &middot; \: zen
     </div>
   {/if}
 
@@ -128,6 +149,7 @@
       {viewportEnd}
       {globalPlayhead}
       {rangeLabel}
+      markers={eventMarkers}
     />
 
     <!-- Time display + go-to-time popover -->
@@ -161,6 +183,7 @@
     <button class="icon-btn" onclick={() => cycleCamera()} title="Camera mode (M)"><Camera size={15} /></button>
     <button class="icon-btn" class:text-accent={pickModeActive} onclick={onTogglePick} title="Pick surface (P)"><Crosshair size={15} /></button>
     <button class="icon-btn" class:text-accent={measureActive} onclick={onToggleMeasure} title="Measure distance"><Ruler size={15} /></button>
+    <button class="icon-btn" class:text-accent={eventsActive} onclick={onToggleEvents} title="Event finder"><Radar size={15} /></button>
     <button class="icon-btn" class:text-accent={infoPanelActive} onclick={onToggleInfoPanel} title="Body info"><Info size={15} /></button>
     <button class="icon-btn" onclick={onToggleDisplaySettings} title="Display settings (D)"><Settings size={15} /></button>
     <button class="icon-btn" class:text-accent={showShortcuts} onclick={() => showShortcuts = !showShortcuts} title="Keyboard shortcuts"><Keyboard size={15} /></button>

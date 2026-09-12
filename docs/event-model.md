@@ -17,6 +17,7 @@ re-exported from the package root.
 | `EventQuery` | What to search for: kind, bodies by role, time window, step, aberration correction, kind-specific `params`. |
 | `GeometryEvent` | What was found: an `InstantEvent` or an `IntervalEvent`, carrying the bodies involved, a label, and display `metrics`. |
 | `EventKind` | How one kind of search maps its roles and params onto GF calls and events. The only per-kind code. |
+| `closestApproachKind`, `distanceRangeKind` | The kinds that ship today, both over `gfdist`. |
 | `EventKindRegistry` | The set of searches the application offers. Drives the "what can I search for?" picker. |
 | `EventSearch` | Validates, applies kind defaults, dispatches, sorts, and converts thrown errors into structured faults. |
 | `GeometryFinderProvider` | The boundary to SPICE GF. Above it is Cosmolabe's; below it is CSPICE's. |
@@ -56,6 +57,31 @@ of truth for both the `EventRole` union and anything role-ordered — notably
 `eventBodies`, whose output drives 3D highlighting. Ordering by a participant
 object's own key order would make highlighting depend on how that object
 happened to be built.
+
+## Params, declared the same way
+
+Roles cover *which bodies*; `EventKind.params` covers everything else a kind
+needs — a threshold, a relation, a scope — declared as `EventParamSpec`s rather
+than left as an opaque bag:
+
+```ts
+params: [
+  { kind: 'choice', key: 'relation', label: 'Condition', default: '<',
+    options: [{ value: '<', label: 'Closer than' }, { value: '>', label: 'Farther than' }] },
+  { kind: 'number', key: 'distanceKm', label: 'Distance', unit: 'km', default: 1_000_000 },
+]
+```
+
+That is what lets one configuration form drive every kind: a UI that renders a
+body picker per role and one input per param can configure a kind it has never
+heard of, which is the same bargain the role list makes. `EventSearch` fills in
+the declared defaults before `run` and before the kind's own `validate`, so a
+query that carries no params at all still runs the kind's intended search, and
+adding a parameter does not invalidate queries written before it existed.
+`defaultParams(kind)` is the same set, for seeding a form.
+
+Values themselves are still the kind's business: `validate` is where a
+threshold is checked for sign and a relation for membership.
 
 Which body a user *means* by "this event" is also a property of the kind, not
 of the model — an occultation is about the occulted body, an access window
@@ -119,7 +145,8 @@ culling predicate, and `eventNearest` answers "what is happening now?".
 
 ## The SPICE boundary
 
-`GeometryFinderProvider` exposes `gfdist`, `gfsep`, `gfoclt`, and `gfposc`.
+`GeometryFinderProvider` exposes `gfdist`, `gfsep`, `gfoclt`, `gfposc`, and one
+optional non-GF member, `range`.
 Kinds compose these; they never reimplement the geometry. The signatures mirror
 CSPICE's `gf*_c` routines, so a synchronous `Spice` instance satisfies the
 interface structurally with no adapter. The worker-backed
@@ -132,6 +159,34 @@ const provider = cspiceWasmGeometryFinder(engine);
 
 That bridge searches each confinement window independently, so adjacent
 intervals are not coalesced the way native GF window arithmetic would.
+
+`range` is the exception to "GF only", and it exists because GF answers *when* a
+condition held and never *how far*: the distance at a closest approach — the
+number the result is actually about — is one `spkpos` away and nowhere in a
+`gf*` result. Providers that can do that lookup expose it; kinds annotate their
+events with it when present and omit the metric when absent, so a provider
+without it still searches. `cspiceWasmGeometryFinder` wires it up when the
+engine offers `spkpos`, and the viewer's adapter measures it with SPICE's own
+`vnorm`.
+
+## The kinds that ship
+
+Two, both over `gfdist`, both `observer`/`target`:
+
+| Kind | Yields | Params |
+| --- | --- | --- |
+| `closest-approach` | Instants — GF's own `LOCMIN`/`ABSMIN` distance extrema, refined by CSPICE rather than sampled in the UI. | `scope` (every local minimum, or the deepest), `maxRangeKm` (optional filter). |
+| `distance-range` | Intervals for `<`/`>`, instants for `=`. | `relation`, `distanceKm`. |
+
+A closest approach carries the range at the instant. A range window carries its
+threshold, its duration, and the extreme range *inside* it — the endpoints sit
+on the threshold by construction, so the interesting number is how close it got
+(or how far it went), found with one nested extremum search. All three distance
+metrics need the provider's `range`; without it the events still list.
+
+Everything from #58 — occultation, eclipse, FOV access, phase angle,
+latitude/longitude crossings, shadow — is a further row in that table, not a
+further subsystem.
 
 ## Adding a kind
 

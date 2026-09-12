@@ -10,6 +10,7 @@
   import BodyInfoPanel from './components/BodyInfoPanel.svelte';
   import DebugPanel from './components/DebugPanel.svelte';
   import MeasureTool from './components/MeasureTool.svelte';
+  import EventFinder from './components/EventFinder.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
   import { loadDemo, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import { X } from 'lucide-svelte';
@@ -24,6 +25,7 @@
   let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
   let debugPanelOpen = $state(false);
   let measureToolOpen = $state(false);
+  let eventFinderOpen = $state(false);
 
   /**
    * One condition for the whole load, so there is one loading screen rather than
@@ -143,6 +145,7 @@
         case 'x': setDisplayOption('axes', !vs.showAxes); return;
         case 'm': cycleCamera(); return;
         case 'b': bodyDrawerOpen = !bodyDrawerOpen; return;
+        case 'e': eventFinderOpen = !eventFinderOpen; return;
         case 'i': {
           const sensors = renderer.getSensorNames();
           if (sensors.length === 0) return;
@@ -155,6 +158,7 @@
         case 'p': togglePickMode(); return;
         case 'Escape':
           if (displaySettingsOpen) displaySettingsOpen = false;
+          else if (eventFinderOpen) eventFinderOpen = false;
           else if (bodyDrawerOpen) bodyDrawerOpen = false;
           else if (pickModeActive) closePickResult();
           else if (vs.selectedBodyName) selectBody(null);
@@ -215,6 +219,10 @@
       <MeasureTool onClose={() => measureToolOpen = false} />
     {/if}
 
+    {#if eventFinderOpen}
+      <EventFinder onClose={() => eventFinderOpen = false} />
+    {/if}
+
     <BodyDrawer open={bodyDrawerOpen} onClose={() => bodyDrawerOpen = false} />
 
     {#if displaySettingsOpen}
@@ -245,9 +253,11 @@
         else if (vs.trackedBodyName) selectBody(vs.trackedBodyName);
       }}
       onToggleMeasure={() => measureToolOpen = !measureToolOpen}
+      onToggleEvents={() => eventFinderOpen = !eventFinderOpen}
       {pickModeActive}
       infoPanelActive={!!vs.selectedBodyName}
       measureActive={measureToolOpen}
+      eventsActive={eventFinderOpen}
     />
 
     <CommandPalette open={commandPaletteOpen} onClose={() => commandPaletteOpen = false} />

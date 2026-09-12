@@ -115,12 +115,17 @@ export const vs = $state({
 
   /** Caption over the viewport, from `displayNote`. Null when there is none. */
   note: null as string | null,
+
+  /** Bodies currently identified in the 3D view by `highlightBodies`. */
+  highlightedBodies: [] as string[],
 });
 
 // ── Renderer reference (not reactive — internal only) ──
 
 let _renderer: UniverseRenderer | null = null;
 let _universe: Universe | null = null;
+/** Bodies this module pinned, so the next highlight unpins exactly those. */
+let _highlightedBodies: readonly string[] = [];
 let _unsubscribers: (() => void)[] = [];
 
 // ── Utilities ──
@@ -163,6 +168,34 @@ export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
   emit('select', name);
 }
+/**
+ * Identify a set of bodies in the 3D view — the highlight channel event
+ * selection drives.
+ *
+ * Built from the renderer's existing emphasis surfaces rather than a new one:
+ * every highlighted body's label is pinned so it survives collision arbitration
+ * and the self-size fade, and the first one is set as the renderer's hovered
+ * body, which brightens its trajectory the same way pointing at it would. Both
+ * are idempotent and reversible, so the previous highlight is unpinned before
+ * the next is applied and a host that never highlights sees no change at all.
+ *
+ * Pass an empty array to clear.
+ */
+export function highlightBodies(names: readonly string[]) {
+  const next = names.filter((name) => hasBody(name));
+
+  // Unpin only what this channel pinned. `clearPinnedLabels` would also drop
+  // pins another feature set, and there is no way to ask which are whose.
+  for (const name of _highlightedBodies) {
+    if (!next.includes(name)) _renderer?.setLabelPinned(name, false);
+  }
+  for (const name of next) _renderer?.setLabelPinned(name, true);
+
+  _highlightedBodies = next;
+  _renderer?.setHoveredBody(next[0] ?? null);
+  vs.highlightedBodies = next;
+}
+
 export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean }) {
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
@@ -378,6 +411,10 @@ export function unbindRenderer() {
   _unsubscribers = [];
   _renderer = null;
   _universe = null;
+  // The pins went with the renderer; keeping the names would unpin bodies in
+  // the *next* scene that this one never highlighted.
+  _highlightedBodies = [];
+  vs.highlightedBodies = [];
 }
 
 export function getRenderer(): UniverseRenderer | null {

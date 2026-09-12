@@ -1,5 +1,11 @@
 import type { GeometryFinderProvider } from './provider.js';
-import { EventKindRegistry, requiredRoles, type EventKind, type ResolvedEventQuery } from './registry.js';
+import {
+  EventKindRegistry,
+  defaultParams,
+  requiredRoles,
+  type EventKind,
+  type ResolvedEventQuery,
+} from './registry.js';
 import {
   compareEvents,
   type EventParticipants,
@@ -132,9 +138,17 @@ function resolveQuery<P>(query: EventQuery<P>, kind: EventKind<never>): Resolved
     if (!bodies[spec.role] && spec.default) bodies[spec.role] = spec.default;
   }
 
+  // Declared param defaults fill only the keys the caller left out, so a kind
+  // can add a parameter without invalidating queries written before it existed.
+  const defaults = defaultParams(kind);
+  const params = (
+    Object.keys(defaults).length ? { ...defaults, ...(query.params ?? {}) } : query.params
+  ) as P | undefined;
+
   return {
     ...query,
     bodies,
+    params,
     step: query.step ?? kind.defaultStep,
     abcorr: query.abcorr ?? kind.defaultAbcorr ?? 'NONE',
   };
