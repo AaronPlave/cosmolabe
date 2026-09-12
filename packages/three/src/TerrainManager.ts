@@ -4,7 +4,8 @@ import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js'
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
-import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainHeightTile, type TerrainSample, type TerrainSourceMetadata } from './TerrainSampler.js';
+import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSourceMetadata } from './TerrainSampler.js';
+import { decodeQuantizedMesh } from './internal/quantized-mesh.js';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
@@ -325,35 +326,6 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
  */
 const _camPos = /* @__PURE__ */ new THREE.Vector3();
 
-interface DecodedQuantizedMesh {
-  minHeight: number;
-  maxHeight: number;
-  u: Float32Array;
-  v: Float32Array;
-  height: Float32Array;
-}
-
-function decodeQuantizedMeshHeights(buffer: ArrayBuffer): DecodedQuantizedMesh {
-  const view = new DataView(buffer);
-  let offset = 88; // quantized-mesh header through horizonOcclusionPoint
-  const readUint32 = () => { const value = view.getUint32(offset, true); offset += 4; return value; };
-  const vertexCount = readUint32();
-  const uEncoded = new Uint16Array(buffer, offset, vertexCount); offset += vertexCount * 2;
-  const vEncoded = new Uint16Array(buffer, offset, vertexCount); offset += vertexCount * 2;
-  const hEncoded = new Uint16Array(buffer, offset, vertexCount);
-  const u = new Float32Array(vertexCount), v = new Float32Array(vertexCount), height = new Float32Array(vertexCount);
-  let uValue = 0, vValue = 0, heightValue = 0;
-  for (let i = 0; i < vertexCount; i++) {
-    uValue += (uEncoded[i] >> 1) ^ (-(uEncoded[i] & 1));
-    vValue += (vEncoded[i] >> 1) ^ (-(vEncoded[i] & 1));
-    heightValue += (hEncoded[i] >> 1) ^ (-(hEncoded[i] & 1));
-    u[i] = uValue / 32767;
-    v[i] = vValue / 32767;
-    height[i] = heightValue / 32767;
-  }
-  return { minHeight: view.getFloat32(24, true), maxHeight: view.getFloat32(28, true), u, v, height };
-}
-
 export class TerrainManager {
   readonly tiles: TilesRenderer;
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
@@ -372,6 +344,8 @@ export class TerrainManager {
    *  loop skips updates until this flips true. */
   private _pluginReady = true;
   private readonly bodyRadiusKm: number;
+  /** Tileset height-encoding correction applied to CPU samples, in km. */
+  private readonly terrainHeightOffsetKm: number;
   /** CPU-only sampler. It never reads renderer scene meshes during a query. */
   readonly sampler: TerrainSampler;
   private disposed = false;
@@ -418,8 +392,11 @@ export class TerrainManager {
       ? [bodyRadii, bodyRadii, bodyRadii]
       : bodyRadii;
     this.bodyRadiusKm = Math.max(rxKm, ryKm, rzKm);
-    // `referenceRadiusOffsetKm` remains a renderer compatibility shim for old
-    // tilesets. It must not redefine the body's physical terrain datum.
+    // The datum stays the body's true IAU shape. `referenceRadiusOffsetKm` is a
+    // property of the TILESET's height encoding, not of the body, so it is
+    // applied to decoded sample heights (see captureDecodedQuantizedMesh)
+    // rather than folded into the reference shape here.
+    this.terrainHeightOffsetKm = config.referenceRadiusOffsetKm ?? 0;
     const datum: TerrainDatum = {
       referenceShape: rxKm === ryKm && ryKm === rzKm
         ? { kind: 'sphere', radiusKm: rxKm }
@@ -937,39 +914,76 @@ export class TerrainManager {
     return bodyFixedToGeodetic(point, this.sampler.datum);
   }
 
-  /** Decode quantized heights before the renderer turns them into geometry. */
+  /**
+   * Decode a quantized-mesh tile into the CPU sampler before the renderer turns
+   * it into geometry. The tile is kept as the TIN it actually is — its vertices
+   * are scattered, not a U×V raster, so it cannot be flattened to a height grid.
+   *
+   * Only `terrain` payloads are captured. Tiles the plugin synthesizes by
+   * splitting a parent (`quantized_tile_split`) carry no quantized-mesh buffer
+   * of their own; the parent they were cut from already provides CPU coverage
+   * for the same ground, at one level coarser.
+   */
   private captureDecodedQuantizedMesh(buffer: ArrayBuffer, tile: any, uri: string): void {
     if (this.isImageryOnly) return;
-    const parsed = decodeQuantizedMeshHeights(buffer);
-    const [westRad, southRad, eastRad, northRad] = tile.boundingVolume.region;
-    const uValues = [...new Set(parsed.u)].sort((a, b) => a - b);
-    const vValues = [...new Set(parsed.v)].sort((a, b) => a - b);
-    const width = uValues.length;
-    const height = vValues.length;
-    if (width < 2 || height < 2 || width * height !== parsed.u.length) return;
-    const values = new Float32Array(width * height);
-    for (let i = 0; i < parsed.u.length; i++) {
-      const x = uValues.indexOf(parsed.u[i]);
-      const y = vValues.indexOf(parsed.v[i]);
-      values[y * width + x] = (parsed.minHeight + parsed.height[i] * (parsed.maxHeight - parsed.minHeight)) / 1000;
-    }
-    const id = this.cpuTileId(tile, uri);
+    const id = this.cpuTileId(tile);
     if (!id) return;
-    this.sampler.addTile({
-      id,
-      westDeg: westRad * 180 / Math.PI,
-      eastDeg: eastRad * 180 / Math.PI,
-      southDeg: southRad * 180 / Math.PI,
-      northDeg: northRad * 180 / Math.PI,
-      width,
-      height,
-      elevationsKm: values,
-      source: this.sampler.source,
-    });
+    const region = tile?.boundingVolume?.region;
+    if (!region) return;
+    let parsed;
+    try {
+      parsed = decodeQuantizedMesh(buffer);
+    } catch (err) {
+      // A tile we cannot decode must be loud: silently skipping it strands the
+      // sampler with no coverage and every consumer falls back to the datum.
+      this.warnOnce('qm-decode', `Terrain: failed to decode quantized-mesh tile ${uri}`, err);
+      return;
+    }
+    const [westRad, southRad, eastRad, northRad] = region;
+    // Heights decode against the tileset's own reference surface. The renderer
+    // compensates for a non-standard one by shrinking the decode ellipsoid
+    // (see TerrainConfig.referenceRadiusOffsetKm), so the same correction has to
+    // be applied here or CPU samples sit `offset` km above the rendered surface.
+    const offsetKm = this.terrainHeightOffsetKm;
+    const elevationsKm = new Float32Array(parsed.heightMeters.length);
+    for (let i = 0; i < elevationsKm.length; i++) {
+      elevationsKm[i] = parsed.heightMeters[i] / 1000 - offsetKm;
+    }
+    try {
+      this.sampler.addTile({
+        id,
+        kind: 'mesh',
+        westDeg: westRad * 180 / Math.PI,
+        eastDeg: eastRad * 180 / Math.PI,
+        southDeg: southRad * 180 / Math.PI,
+        northDeg: northRad * 180 / Math.PI,
+        u: parsed.u,
+        v: parsed.v,
+        elevationsKm,
+        indices: parsed.indices,
+        source: this.sampler.source,
+      });
+    } catch (err) {
+      this.warnOnce('qm-tile', `Terrain: rejected decoded tile ${uri}`, err);
+    }
   }
 
-  private cpuTileId(tile: any, uri?: string): string | null {
-    const value = uri ?? tile?.content?.uri ?? tile?.__cacheKey ?? tile?.id;
+  /** Rate-limited warning so a systematically broken tileset logs once, not per tile. */
+  private readonly warnedKeys = new Set<string>();
+  private warnOnce(key: string, message: string, err?: unknown): void {
+    if (this.warnedKeys.has(key)) return;
+    this.warnedKeys.add(key);
+    console.warn(message, err);
+  }
+
+  /**
+   * Identity for a decoded CPU tile. Derived only from the tile object, never
+   * from the URL handed to `parseToMesh` — the renderer resolves that against
+   * the base path, so it is absolute while `content.uri` stays relative. Using
+   * one on insert and the other on dispose leaks every tile.
+   */
+  private cpuTileId(tile: any): string | null {
+    const value = tile?.content?.uri ?? tile?.__cacheKey ?? tile?.id;
     return value == null ? null : `decoded:${value}`;
   }
 

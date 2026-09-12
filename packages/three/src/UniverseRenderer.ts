@@ -1765,7 +1765,7 @@ export class UniverseRenderer {
       let sample: { elevationKm: number } | null = null;
       if (!cached || frame - cached.frame >= 10) {
         sample = parentBm.sampleTerrainElevation(latDeg, lonDeg);
-        if (sample) this._surfaceLockElevCache.set(bodyKey, { ...sample, frame });
+        if (sample) this._surfaceLockElevCache.set(bodyKey, { elevationKm: sample.elevationKm, frame });
       } else {
         sample = cached;
       }
