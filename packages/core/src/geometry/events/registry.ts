@@ -1,6 +1,7 @@
 import type { GeometryFinderProvider } from './provider.js';
 import type {
   EtSeconds,
+  EventParamSpec,
   EventParticipants,
   EventRole,
   EventQuery,
@@ -35,10 +36,25 @@ export interface EventKind<P = Record<string, unknown>> {
   kind: string;
   /** Human label for pickers and result grouping. */
   label: string;
+  /**
+   * One sentence saying what this kind searches for, in a user's terms.
+   *
+   * Lives on the kind because the kind is what knows: "distance / range" does
+   * not explain itself from its label, and a UI cannot write the sentence for a
+   * kind it has never heard of. Shown as the picker's explainer.
+   */
+  description?: string;
   /** What this kind yields; `undefined` when it yields both. */
   temporality?: EventTemporality;
   /** Roles this kind consumes, in the order a picker should present them. */
   roles: readonly EventRoleSpec[];
+  /**
+   * Everything the kind needs beyond bodies — thresholds, relations, scopes —
+   * declared so a generic configuration form can render it. The search service
+   * fills in the declared defaults before `run`, so `run` reads `query.params`
+   * without re-deriving them. Kinds validate values in `validate`.
+   */
+  params?: readonly EventParamSpec[];
   /**
    * The role whose body selecting one of this kind's events should select.
    * The search service stamps it onto every event the kind returns that does
@@ -60,6 +76,21 @@ export interface EventKind<P = Record<string, unknown>> {
   validate?(query: EventQuery<P>): EventSearchFault | undefined;
   /** Runs the search. Faults are raised by throwing; the service wraps them. */
   run(query: ResolvedEventQuery<P>, ctx: EventKindContext): Promise<GeometryEvent[]>;
+  /**
+   * Optional: one sentence explaining an empty result, for kinds that can turn
+   * "nothing matched" into an actual answer — a distance search that found no
+   * window can say how close the bodies actually got.
+   *
+   * Called only when the search ran and produced no events. It may use the
+   * provider, so it costs an extra query; keep it to something cheap. Throwing
+   * or returning `undefined` simply leaves the result unexplained — an
+   * explanation that fails must never turn a legitimate empty result into a
+   * fault.
+   */
+  explainEmpty?(
+    query: ResolvedEventQuery<P>,
+    ctx: EventKindContext,
+  ): Promise<string | undefined> | string | undefined;
 }
 
 /**
@@ -100,4 +131,19 @@ export class EventKindRegistry {
 /** Roles a kind requires, i.e. those a caller must fill in. */
 export function requiredRoles(kind: EventKind<never>): EventRoleSpec[] {
   return kind.roles.filter((r) => r.required !== false);
+}
+
+/**
+ * The params a kind declares a default for, as a ready-to-use `params` object.
+ *
+ * A configuration UI uses this to seed its form; {@link EventSearch} applies
+ * the same defaults to any query that omits them, so a caller that passes no
+ * params at all still gets the kind's intended search.
+ */
+export function defaultParams(kind: EventKind<never>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const spec of kind.params ?? []) {
+    if (spec.default !== undefined) out[spec.key] = spec.default;
+  }
+  return out;
 }

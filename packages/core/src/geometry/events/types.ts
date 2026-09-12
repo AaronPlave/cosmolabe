@@ -63,6 +63,51 @@ export interface EventRoleSpec {
 }
 
 /**
+ * One kind-specific parameter, as UI needs to present it.
+ *
+ * Roles cover *which bodies*; this covers *everything else a kind needs* — a
+ * threshold, a relation, a scope. Declaring parameters the same way roles are
+ * declared is what lets one configuration form drive every kind: a UI that can
+ * render a body picker per {@link EventRoleSpec} and one input per
+ * {@link EventParamSpec} can configure a kind it has never heard of.
+ *
+ * The `key` is the property the kind reads out of `EventQuery.params`.
+ */
+export type EventParamSpec =
+  | {
+      kind: 'number';
+      key: string;
+      label: string;
+      /** Display unit, e.g. `km`, `s`. */
+      unit?: string;
+      default?: number;
+      min?: number;
+      max?: number;
+      /** Input granularity, not a search step. */
+      increment?: number;
+      /** When false the kind runs without it. Defaults to required. */
+      required?: boolean;
+      /** One-line explanation for a hint or tooltip. */
+      help?: string;
+    }
+  | {
+      kind: 'choice';
+      key: string;
+      label: string;
+      options: readonly { value: string; label: string }[];
+      default?: string;
+      required?: boolean;
+      help?: string;
+    }
+  | {
+      kind: 'boolean';
+      key: string;
+      label: string;
+      default?: boolean;
+      help?: string;
+    };
+
+/**
  * A displayable quantity attached to an event — range at closest approach,
  * angular separation, duration of totality. Kept as data rather than
  * preformatted text so lists, detail panels, and 3D labels can each decide
@@ -176,7 +221,18 @@ export interface EventSearchFault {
 }
 
 export type EventSearchResult =
-  | { ok: true; queryId: string; events: GeometryEvent[] }
+  | {
+      ok: true;
+      queryId: string;
+      events: GeometryEvent[];
+      /**
+       * Why a search that ran found nothing, in the kind's own words — e.g.
+       * "the closest they get is 1,839 km". Present only on an empty result,
+       * and only for kinds that can say something useful; see
+       * {@link EventKind.explainEmpty}.
+       */
+      hint?: string;
+    }
   | { ok: false; queryId: string; fault: EventSearchFault };
 
 /** Narrows a {@link GeometryEvent} to its interval form. */
