@@ -8,12 +8,12 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
-  import { X, Loader2, Search } from 'lucide-svelte';
+  import { X, Loader2, Search, Ban } from 'lucide-svelte';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
   import { vs, etToUtcString } from '../lib/viewer-state.svelte';
   import { getSpice } from '../lib/loader';
   import {
-    EVENT_KINDS, ef, clearSelection, currentKind, resetForm, runSearch,
+    EVENT_KINDS, cancelSearch, ef, clearSelection, currentKind, resetForm, runSearch,
     selectEvent, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
   } from '../lib/event-finder.svelte';
   import {
@@ -237,19 +237,32 @@
       </p>
     {/if}
 
-    <!-- Run -->
-    <button
-      class="w-full flex items-center justify-center gap-1.5 rounded border border-border bg-surface-3 px-2 py-1.5 text-[11px] text-text-primary
-             hover:border-accent disabled:opacity-40 disabled:hover:border-border transition-colors cursor-pointer"
-      disabled={!canSearch}
-      onclick={runSearch}
-    >
+    <!-- Run. A long search is survivable now that it runs off the main thread,
+         so it is also worth being able to give up on. -->
+    <div class="flex items-center gap-1.5">
+      <button
+        class="flex-1 flex items-center justify-center gap-1.5 rounded border border-border bg-surface-3 px-2 py-1.5 text-[11px] text-text-primary
+               hover:border-accent disabled:opacity-40 disabled:hover:border-border transition-colors cursor-pointer"
+        disabled={!canSearch}
+        onclick={runSearch}
+      >
+        {#if ef.running}
+          <Loader2 size={12} class="animate-spin" /> Searching…
+        {:else}
+          <Search size={12} /> Find events
+        {/if}
+      </button>
       {#if ef.running}
-        <Loader2 size={12} class="animate-spin" /> Searching…
-      {:else}
-        <Search size={12} /> Find events
+        <button
+          class="flex items-center justify-center gap-1.5 rounded border border-border bg-surface-3 px-2 py-1.5 text-[11px] text-text-secondary
+                 hover:border-accent hover:text-text-primary transition-colors cursor-pointer"
+          onclick={cancelSearch}
+          title="Stop this search"
+        >
+          <Ban size={12} /> Cancel
+        </button>
       {/if}
-    </button>
+    </div>
 
     {#if unfilledRoles.length > 0}
       <div class="mt-1.5 text-[11px] text-text-muted">
