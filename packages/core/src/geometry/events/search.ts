@@ -75,7 +75,14 @@ export class EventSearch {
       });
     }
 
-    return { ok: true, queryId: query.id, events: [...events].sort(compareEvents) };
+    // The kind's declared primary role applies to every event it returns that
+    // did not name its own, so `focusForEvent` never has to guess for a kind
+    // that has already answered the question.
+    const stamped = kind.primaryRole
+      ? events.map((event) => (event.primaryRole ? event : { ...event, primaryRole: kind.primaryRole }))
+      : events;
+
+    return { ok: true, queryId: query.id, events: stamped.sort(compareEvents) };
   }
 
   private fault(query: EventQuery<never> | EventQuery<any>, fault: EventSearchFault): EventSearchResult {
@@ -94,16 +101,15 @@ function validateShared(query: EventQuery<any>, kind: EventKind<never>): EventSe
     };
   }
 
+  // Only finiteness and sign are checked. A GF step is a sampling step, not a
+  // span the confinement window has to contain: GF samples the window's
+  // endpoints too, so a step longer than the window still resolves a condition
+  // that changes across it — coarsely, but not not-at-all. Rejecting those
+  // would block legitimate searches over short analysis windows. A kind whose
+  // geometry needs a tighter step says so in its own `validate`.
   const step = query.step ?? kind.defaultStep;
   if (!Number.isFinite(step) || step <= 0) {
     return { code: 'invalid-step', message: 'Search step must be a positive number of seconds' };
-  }
-  if (step > end - start) {
-    return {
-      code: 'invalid-step',
-      message: 'Search step is longer than the search window; no event could be detected',
-      window: query.window,
-    };
   }
 
   for (const spec of requiredRoles(kind)) {

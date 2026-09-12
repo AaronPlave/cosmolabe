@@ -51,6 +51,19 @@ A UI that can render a picker for a role list can configure *any* kind, which
 is what keeps the configuration UI from going event-type-specific. Roles may be
 optional (`required: false`) and may carry a `default`.
 
+`EVENT_ROLES` fixes the canonical order of the roles, and is the single source
+of truth for both the `EventRole` union and anything role-ordered — notably
+`eventBodies`, whose output drives 3D highlighting. Ordering by a participant
+object's own key order would make highlighting depend on how that object
+happened to be built.
+
+Which body a user *means* by "this event" is also a property of the kind, not
+of the model — an occultation is about the occulted body, an access window
+about the observer. A kind declares that once as `primaryRole`, and
+`EventSearch` stamps it onto every event the kind returns that does not name
+its own. `focusForEvent` only falls back to a built-in role preference for
+events where neither said.
+
 ## Faults vs. no results
 
 "We looked and found nothing" and "we could not look" are different answers and
@@ -63,9 +76,16 @@ else if (!result.events.length) showEmptyState(query);  // the search ran; nothi
 ```
 
 `EventSearch` applies the shared checks — known kind, required roles filled, a
-finite forward window, a step that could actually resolve an event inside it —
-so a kind's own `validate` only handles its `params`. `missing-body` faults
-carry the `role`, so a picker can point at the offending field.
+finite forward window, a finite positive step — so a kind's own `validate` only
+handles its `params`. `missing-body` faults carry the `role`, so a picker can
+point at the offending field.
+
+The step check is deliberately weak. A GF step is a sampling step, not a span
+the confinement window has to contain: GF samples the window's endpoints, so a
+step longer than the window still resolves a condition that changes across it,
+coarsely. Rejecting those would block legitimate searches over short analysis
+windows. A kind whose geometry needs a tighter step enforces that in its own
+`validate`.
 
 ## Timeline and 3D integration
 
@@ -82,9 +102,9 @@ applyEventFocus(focus, {
 });
 ```
 
-`focusForEvent` picks the most specific role present as the `primary` body to
-select outright, and hands intervals back their full span so a timeline can
-frame the event rather than merely seeking to it. `EventFocusTarget`'s optional
+`focusForEvent` resolves the `primary` body to select from the event's
+`primaryRole`, and hands intervals back their full span so a timeline can frame
+the event rather than merely seeking to it. `EventFocusTarget`'s optional
 members mean a host with no highlight channel still gets time and selection
 sync.
 
@@ -121,6 +141,7 @@ const closestApproach: EventKind<{ /* … */ }> = {
   ],
   defaultStep: 3600,
   defaultAbcorr: 'NONE',
+  primaryRole: 'target',
   validate: (query) => /* params only */ undefined,
   run: async (query, ctx) => {
     // query.step / query.abcorr / query.bodies already have defaults applied.
@@ -133,8 +154,13 @@ registry.register(closestApproach);
 ```
 
 `run` receives a `ResolvedEventQuery` — defaults already applied — and mints
-ids through `ctx.nextEventId()` so results stay addressable across re-runs.
+ids through `ctx.nextEventId()`. Those ids are positional and unique within one
+result set; the same query run twice mints the same ids, so treat them as an
+address within a result rather than an identity for the event across searches.
 Throw to fail; `EventSearch` wraps it as a `provider-error` fault.
+
+Set `primaryRole` on the kind when one role is what its events are "about", so
+selection does not fall back to a guess.
 
 ## Relationship to `EventFinder`
 

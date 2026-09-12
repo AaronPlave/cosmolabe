@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
+  EVENT_ROLES,
   EventKindRegistry,
   EventSearch,
   applyEventFocus,
@@ -122,6 +123,18 @@ describe('geometry event model', () => {
     expect(eventBodies(instant(0, { bodies: { observer: 'MARS', target: 'MARS' } }))).toEqual(['MARS']);
   });
 
+  it('orders bodies canonically, not by participant-object insertion order', () => {
+    // Same roles, opposite key order: highlighting must not depend on how the
+    // participant object happened to be built.
+    const forward = instant(0, { bodies: { observer: 'EARTH', front: 'MOON', back: 'SUN' } });
+    const reversed = instant(0, { bodies: { back: 'SUN', front: 'MOON', observer: 'EARTH' } });
+
+    expect(eventBodies(forward)).toEqual(eventBodies(reversed));
+    expect(eventBodies(reversed)).toEqual(['EARTH', 'MOON', 'SUN']);
+    // And the order is EVENT_ROLES', not the union's incidental spelling.
+    expect(EVENT_ROLES.indexOf('observer')).toBeLessThan(EVENT_ROLES.indexOf('front'));
+  });
+
   it('sorts mixed instant and interval events chronologically', () => {
     const events: GeometryEvent[] = [interval(500, 900), instant(100), interval(100, 400)];
     expect([...events].sort(compareEvents).map(eventStart)).toEqual([100, 100, 500]);
@@ -198,16 +211,26 @@ describe('EventSearch', () => {
     }
   });
 
-  it('rejects a step that could not resolve an event in the window', async () => {
-    const tooLong = await search(fakeProvider()).run({ ...baseQuery, step: 999999 });
-    expect(tooLong.ok).toBe(false);
-    if (tooLong.ok) return;
-    expect(tooLong.fault.code).toBe('invalid-step');
+  it('rejects a non-positive or non-finite step', async () => {
+    for (const step of [0, -60, NaN, Infinity]) {
+      const result = await search(fakeProvider()).run({ ...baseQuery, step });
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      expect(result.fault.code).toBe('invalid-step');
+    }
+  });
 
-    const nonPositive = await search(fakeProvider()).run({ ...baseQuery, step: 0 });
-    expect(nonPositive.ok).toBe(false);
-    if (nonPositive.ok) return;
-    expect(nonPositive.fault.code).toBe('invalid-step');
+  it('allows a step longer than the search window', async () => {
+    // A GF step is a sampling step, not a span the window must contain: GF
+    // samples the endpoints, so a condition changing across a short window is
+    // still resolvable. Kinds needing a tighter step enforce it themselves.
+    const provider = fakeProvider([{ start: 0, end: 600 }]);
+    const result = await search(provider).run({ ...baseQuery, window: { start: 0, end: 600 }, step: 999999 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events).toHaveLength(1);
+    expect(provider.calls[0][7]).toBe(999999);
   });
 
   it('surfaces kind-specific parameter validation', async () => {
@@ -226,6 +249,34 @@ describe('EventSearch', () => {
     if (result.ok) return;
     expect(result.fault).toMatchObject({ code: 'provider-error', window: baseQuery.window });
     expect(result.fault.message).toContain('NOFRAMECONNECT');
+  });
+
+  it('stamps the kind\'s declared primary role onto the events it returns', async () => {
+    const registry = new EventKindRegistry().register({ ...rangeKind, primaryRole: 'observer' });
+    const provider = fakeProvider([{ start: 1, end: 2 }]);
+    const result = await new EventSearch({ registry, provider }).run(baseQuery);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events[0].primaryRole).toBe('observer');
+    // …so selection follows the kind rather than the fallback ordering.
+    expect(focusForEvent(result.events[0]).primary).toBe('EARTH');
+  });
+
+  it('leaves an event\'s own primary role in place over the kind default', async () => {
+    const registry = new EventKindRegistry().register({
+      ...rangeKind,
+      primaryRole: 'observer',
+      run: async (query, ctx) => [{
+        id: ctx.nextEventId(), queryId: query.id, kind: query.kind, temporality: 'instant',
+        bodies: query.bodies, label: 'x', et: 0, primaryRole: 'target',
+      }],
+    });
+    const result = await new EventSearch({ registry, provider: fakeProvider() }).run(baseQuery);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events[0].primaryRole).toBe('target');
   });
 
   it('exposes registered kinds and their required roles for query configuration', () => {
@@ -250,12 +301,26 @@ describe('timeline and 3D integration', () => {
     expect(focus.interval).toBeUndefined();
   });
 
-  it('picks the most specific body as the selection target', () => {
+  it('selects the body the event names as primary', () => {
+    const event = instant(0, {
+      bodies: { observer: 'EARTH', target: 'MOON' },
+      primaryRole: 'observer',
+    });
+    // The declared role wins over the fallback ordering, which prefers target.
+    expect(focusForEvent(event).primary).toBe('EARTH');
+  });
+
+  it('falls back to a role preference only when nothing declared one', () => {
     expect(focusForEvent(instant(0)).primary).toBe('MOON');
     // Occultation-shaped roles: the occulted body is what the user cares about.
     expect(focusForEvent(interval(0, 1)).primary).toBe('SUN');
     expect(focusForEvent(instant(0, { bodies: { observer: 'EARTH' } })).primary).toBe('EARTH');
     expect(focusForEvent(instant(0, { bodies: {} })).primary).toBeUndefined();
+  });
+
+  it('falls back when the declared role has no body assigned', () => {
+    const event = instant(0, { bodies: { target: 'MOON' }, primaryRole: 'illuminator' });
+    expect(focusForEvent(event).primary).toBe('MOON');
   });
 
   it('drives simulation time, selection, and highlighting on the host', () => {

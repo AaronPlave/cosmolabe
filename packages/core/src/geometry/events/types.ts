@@ -27,14 +27,26 @@ export interface EtInterval {
  * illumination search adds `illuminator`. A UI that can render a picker for
  * these roles can configure any event kind.
  */
-export type EventRole =
-  | 'observer'
-  | 'target'
-  | 'secondary'
-  | 'front'
-  | 'back'
-  | 'center'
-  | 'illuminator';
+/**
+ * The canonical role order.
+ *
+ * This is the single source of truth for both {@link EventRole} and the order
+ * anything role-ordered is emitted in — {@link eventBodies} above all, whose
+ * output drives 3D highlighting. Deriving the order from a participant
+ * object's own key order would make highlighting depend on how that object
+ * happened to be built, so it is fixed here instead.
+ */
+export const EVENT_ROLES = [
+  'observer',
+  'target',
+  'secondary',
+  'front',
+  'back',
+  'center',
+  'illuminator',
+] as const;
+
+export type EventRole = (typeof EVENT_ROLES)[number];
 
 /** Body names (SPICE-resolvable) assigned to the roles a kind declares. */
 export type EventParticipants = Partial<Record<EventRole, string>>;
@@ -70,7 +82,7 @@ export interface EventMetric {
 export type EventTemporality = 'instant' | 'interval';
 
 interface GeometryEventBase {
-  /** Unique within a search result. */
+  /** Unique within one search result. Not an identity across searches. */
   id: string;
   /** The query that produced this event. */
   queryId: string;
@@ -81,6 +93,16 @@ interface GeometryEventBase {
   /** Short human label, e.g. "Europa closest approach". */
   label: string;
   metrics?: EventMetric[];
+  /**
+   * The role whose body selecting this event should select outright.
+   *
+   * Which body a user means by "this event" is a property of the kind, not of
+   * the model: an occultation is about the occulted body, an access window is
+   * about the observer. Kinds declare it once via `EventKind.primaryRole` and
+   * the search service stamps it here; a kind whose answer varies per event
+   * sets it directly. See `focusForEvent`.
+   */
+  primaryRole?: EventRole;
 }
 
 /** A point-in-time event: closest approach, node crossing, threshold crossing. */
@@ -176,10 +198,17 @@ export function eventMidpoint(event: GeometryEvent): EtSeconds {
   return isIntervalEvent(event) ? (event.start + event.end) / 2 : event.et;
 }
 
-/** Distinct body names involved in an event, in role-declaration order. */
+/**
+ * Distinct body names involved in an event, in {@link EVENT_ROLES} order.
+ *
+ * The order is canonical rather than participant-object insertion order, so
+ * two events with the same bodies highlight identically no matter how their
+ * participant objects were constructed.
+ */
 export function eventBodies(event: GeometryEvent): string[] {
   const seen = new Set<string>();
-  for (const name of Object.values(event.bodies)) {
+  for (const role of EVENT_ROLES) {
+    const name = event.bodies[role];
     if (name) seen.add(name);
   }
   return [...seen];

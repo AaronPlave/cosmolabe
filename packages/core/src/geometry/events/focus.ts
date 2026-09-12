@@ -35,15 +35,31 @@ export interface EventFocus {
   interval?: EtInterval;
 }
 
-/** Roles worth selecting outright, most specific first. */
-const PRIMARY_ROLES = ['target', 'back', 'front', 'secondary', 'observer'] as const;
+/**
+ * Fallback role preference, used only when neither the event nor its kind said
+ * which body it is about.
+ *
+ * This is a guess, not a general truth: it happens to suit observer/target and
+ * occultation geometry, but which body a user means by "this event" is a
+ * property of the kind. Kinds should declare `primaryRole` rather than rely on
+ * this ordering.
+ */
+const FALLBACK_PRIMARY_ROLES = ['target', 'back', 'front', 'secondary', 'observer'] as const;
 
-/** Derives the time and bodies an event selection should drive. */
+/**
+ * Derives the time and bodies an event selection should drive.
+ *
+ * The body to select is the one the event's `primaryRole` names — set by the
+ * kind, which is what knows. Only an event that declares no role, and whose
+ * kind declared none either, falls back to {@link FALLBACK_PRIMARY_ROLES}.
+ */
 export function focusForEvent(event: GeometryEvent, anchor: EventFocusAnchor = 'start'): EventFocus {
   const et =
     anchor === 'end' ? eventEnd(event) : anchor === 'middle' ? eventMidpoint(event) : eventStart(event);
 
-  const primary = PRIMARY_ROLES.map((role) => event.bodies[role]).find((name) => !!name);
+  const declared = event.primaryRole ? event.bodies[event.primaryRole] : undefined;
+  const primary =
+    declared ?? FALLBACK_PRIMARY_ROLES.map((role) => event.bodies[role]).find((name) => !!name);
 
   return {
     et,

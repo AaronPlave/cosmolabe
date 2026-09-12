@@ -2,6 +2,7 @@ import type { GeometryFinderProvider } from './provider.js';
 import type {
   EtSeconds,
   EventParticipants,
+  EventRole,
   EventQuery,
   EventRoleSpec,
   EventSearchFault,
@@ -13,8 +14,9 @@ import type {
 export interface EventKindContext {
   provider: GeometryFinderProvider;
   /**
-   * Mints an id unique within the search. Kinds should use this rather than
-   * inventing ids, so results stay addressable across re-runs.
+   * Mints an id unique within this search result. Ids are positional, so the
+   * same query run twice mints the same ids — they address an event within one
+   * result set, and are not an identity for the event across searches.
    */
   nextEventId(): string;
 }
@@ -37,6 +39,12 @@ export interface EventKind<P = Record<string, unknown>> {
   temporality?: EventTemporality;
   /** Roles this kind consumes, in the order a picker should present them. */
   roles: readonly EventRoleSpec[];
+  /**
+   * The role whose body selecting one of this kind's events should select.
+   * The search service stamps it onto every event the kind returns that does
+   * not set its own. Leave unset to accept `focusForEvent`'s fallback.
+   */
+  primaryRole?: EventRole;
   /** Default GF search step (s), used when the query omits one. */
   defaultStep: EtSeconds;
   /** Default aberration correction, used when the query omits one. */

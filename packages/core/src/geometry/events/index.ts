@@ -15,6 +15,7 @@ export type {
   IntervalEvent,
 } from './types.js';
 export {
+  EVENT_ROLES,
   compareEvents,
   eventBodies,
   eventDuration,
