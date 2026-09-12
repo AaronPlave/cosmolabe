@@ -118,7 +118,19 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
       // one, and is identical when it does not.
       const et = (window.start + window.end) / 2;
       const km = await rangeAt(ctx.provider, target, query.abcorr, observer, et);
-      if (maxRangeKm !== undefined && km !== undefined && km > maxRangeKm) continue;
+
+      if (maxRangeKm !== undefined) {
+        // A provider that has `range` but could not measure *this* instant is a
+        // different failure from one that cannot measure at all, and it is the
+        // dangerous one: letting the event through would present an approach
+        // that was never checked against the filter as one that passed it.
+        if (km === undefined) {
+          throw new Error(
+            `Closest approach: the range at ET ${et} could not be measured, so the max-range filter cannot be applied`,
+          );
+        }
+        if (km > maxRangeKm) continue;
+      }
 
       events.push({
         id: ctx.nextEventId(),

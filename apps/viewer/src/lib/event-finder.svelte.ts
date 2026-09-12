@@ -23,7 +23,7 @@ import {
 import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
 import { getSpice } from './loader';
 import { buildQuery, formForKind, type EventQueryForm, type EventSortMode } from './event-query';
-import { highlightBodies, selectBody, setTime, vs } from './viewer-state.svelte';
+import { highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
 const registry = builtinEventKinds();
@@ -91,11 +91,11 @@ function coverageWindow(spice: SpiceInstance, bodies: EventParticipants, span: E
     }
   }
 
-  // A hair inside the boundary: GF evaluates the endpoints themselves, and a
-  // request for the exact last instant of coverage is the one most likely to
-  // land just outside it once light time or interpolation is involved.
-  const margin = 1;
-  return end - start > 2 * margin ? { start: start + margin, end: end - margin } : span;
+  // The bounds are used as-is. SPK coverage includes its endpoints: measured
+  // against the Clipper kernels, `spkpos` and `gfdist` both succeed at exactly
+  // the first and last instant `spkcov` reports, and fail one second outside.
+  // A safety margin would therefore buy nothing and silently narrow the search.
+  return end > start ? { start, end } : span;
 }
 
 export const ef = $state({
@@ -303,3 +303,25 @@ export function clearSelection() {
   ef.selectedId = null;
   highlightBodies([]);
 }
+
+/**
+ * Discards everything tied to the scene that just went away.
+ *
+ * Results outlive nothing: they name bodies from the previous catalog, sit at
+ * epochs the new one may not cover, and were computed against kernels that have
+ * since been replaced. Left alone they would keep looking like answers. The
+ * form goes too, since its bodies and window belong to the old catalog — but
+ * the kind and the sort order are preferences rather than data, so they stay.
+ */
+export function resetForScene() {
+  clearResults();
+  highlightBodies([]);
+  ef.form = null;
+  ef.windowPinned = false;
+  ef.windowTrimmed = false;
+}
+
+// Scene loads are the only thing that replaces the kernels and the body list
+// underneath a result set. Subscribed at module scope rather than from the
+// panel: results have to be invalidated whether or not anyone has it open.
+onViewerEvent('load', () => resetForScene());

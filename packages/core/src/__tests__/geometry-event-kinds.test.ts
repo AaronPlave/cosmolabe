@@ -174,6 +174,51 @@ describe('closest approach', () => {
     expect(result.fault.message).toMatch(/max range/i);
   });
 
+  it('fails rather than passing through an approach it could not measure', async () => {
+    // The dangerous case: the provider has `range`, so the up-front check
+    // passes, but this instant comes back unmeasurable. Letting it through
+    // would show an approach that was never tested against the filter as one
+    // that satisfied it.
+    const p = provider({
+      windows: { LOCMIN: [{ start: 100, end: 100 }, { start: 500, end: 500 }] },
+      range: (_t, _o, et) => (et === 100 ? 5_000 : Number.NaN),
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'closest-approach',
+      bodies: { observer: 'JUNO', target: 'EUROPA' },
+      window: WINDOW,
+      params: { maxRangeKm: 10_000 },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.fault.code).toBe('provider-error');
+    expect(result.fault.message).toMatch(/could not be measured/i);
+  });
+
+  it('still reports unmeasurable approaches when no filter depends on the range', async () => {
+    // Without `maxRangeKm` nothing is being decided by the measurement, so a
+    // gap costs the event its metric rather than the whole search.
+    const p = provider({
+      windows: { LOCMIN: [{ start: 100, end: 100 }] },
+      range: () => Number.NaN,
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'closest-approach',
+      bodies: { observer: 'JUNO', target: 'EUROPA' },
+      window: WINDOW,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].metrics).toBeUndefined();
+  });
+
   it('reports one deepest approach even if the provider hands back several', async () => {
     // CSPICE documents ABSMIN as one extremum per confinement window, but the
     // UI offers this scope as "Deepest approach only", so the kind keeps that
