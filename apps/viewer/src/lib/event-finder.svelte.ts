@@ -291,9 +291,14 @@ export function setStep(step: number) {
  *
  * A results list that outlives the query that produced it is worse than an
  * empty one: the rows still look like answers, and nothing on screen says they
- * answer a question the form no longer asks.
+ * answer a question the form no longer asks. That applies to a result still on
+ * its way as much as one already on screen, so a search in flight is abandoned
+ * and its token retired here — otherwise editing the form mid-search leaves the
+ * old answer to land afterwards, against a query nobody asked.
  */
 function clearResults() {
+  active?.cancel();
+  inFlight++;
   ef.events = [];
   ef.fault = null;
   ef.hint = null;
@@ -348,8 +353,14 @@ export async function runSearch() {
     }
     ef.searched = result.ok;
   } finally {
-    if (active === running) active = null;
-    if (token === inFlight) ef.running = false;
+    // Ownership of the spinner follows `active`, not the token: a search
+    // abandoned by an edit to the form has had its token retired, and checking
+    // that instead would leave "Searching…" on screen forever. A search
+    // superseded by a *newer* one leaves both alone — the new one owns them.
+    if (active === running) {
+      active = null;
+      ef.running = false;
+    }
   }
 }
 
@@ -398,8 +409,8 @@ export function clearSelection() {
  * the kind and the sort order are preferences rather than data, so they stay.
  */
 export function resetForScene() {
-  // The kernels this search was running against are being replaced under it.
-  active?.cancel();
+  // `clearResults` abandons the search in flight, which matters more here than
+  // anywhere: the kernels it was running against are being replaced under it.
   clearResults();
   highlightBodies([]);
   ef.form = null;

@@ -49,8 +49,18 @@ let spice: SpiceInstance | null = null;
 let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
-const workerKernelUrls: string[] = [];
-const workerKernelFiles: File[] = [];
+/**
+ * Every kernel furnished on the main thread, in furnish order.
+ *
+ * One ordered list rather than a list per source, because furnish order *is*
+ * kernel precedence — two SPKs covering the same body, later wins — and the
+ * worker has to reproduce it exactly or its searches quietly answer a different
+ * question. A dropped kernel is furnished before the catalog's own (the drop
+ * handler furnishes, then loads the scene), so appending each entry as it is
+ * furnished is the only thing that keeps the two paths in step. Files are held
+ * as handles, not bytes: the buffer is read once, when the worker is built.
+ */
+const workerKernelSources: ({ url: string } | { file: File })[] = [];
 /** URLs of kernels already furnished in this session — prevents redundant fetch + furnish across demos. */
 const furnishedKernels = new Set<string>();
 
@@ -89,18 +99,12 @@ function isWorkerKernel(name: string): boolean {
 }
 
 function trackKernelForWorker(url: string): void {
-  if (isWorkerKernel(url)) workerKernelUrls.push(new URL(url, location.href).href);
+  if (isWorkerKernel(url)) workerKernelSources.push({ url: new URL(url, location.href).href });
 }
 
-/**
- * A kernel the user dropped in, which the worker cannot fetch for itself.
- *
- * The `File` is kept rather than its bytes: it is a handle, so holding it for
- * the session costs nothing, and the buffer is read once when the worker is
- * built.
- */
+/** A kernel the user dropped in, which the worker cannot fetch for itself. */
 function trackKernelFileForWorker(file: File): void {
-  if (isWorkerKernel(file.name)) workerKernelFiles.push(file);
+  if (isWorkerKernel(file.name)) workerKernelSources.push({ file });
 }
 
 // ── Fetch with progress + gzip decompression ──
@@ -470,17 +474,21 @@ function initScene(
   // Cassini's), with no timing/settle race.
   cacheWorker?.dispose();
   cacheWorker = null;
-  if (!TEST_MODE && (workerKernelUrls.length > 0 || workerKernelFiles.length > 0)) {
+  if (!TEST_MODE && workerKernelSources.length > 0) {
     try {
       cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
       const worker = cacheWorker;
-      // URLs first, then dropped files, which is the order the main thread
-      // furnished them in — and furnish order is kernel precedence.
+      // In furnish order, whatever the source: the worker's kernel precedence
+      // has to match the main thread's.
       void (async () => {
-        const dropped: KernelSource[] = await Promise.all(
-          workerKernelFiles.map(async (file) => ({ name: file.name, data: await file.arrayBuffer() })),
+        const sources: KernelSource[] = await Promise.all(
+          workerKernelSources.map(async (source) =>
+            'url' in source
+              ? source.url
+              : { name: source.file.name, data: await source.file.arrayBuffer() },
+          ),
         );
-        await worker.loadKernels([...workerKernelUrls, ...dropped]);
+        await worker.loadKernels(sources);
       })().catch((err) => {
         console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
       });

@@ -206,6 +206,27 @@ describe('SpiceCacheWorker geometry searches', () => {
     await expect(loading).resolves.toBeUndefined();
   });
 
+  it('rejects outstanding searches when the worker is disposed', async () => {
+    const { fake, worker } = client();
+    const search = worker.geometrySearch();
+
+    const pending = search.provider.gfdist('MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, [
+      { start: 0, end: 1 },
+    ]);
+    await settle();
+    expect(fake.last('geometry')).toBeDefined();
+
+    // A scene replacement disposes the worker under any search still running.
+    // The caller has to hear about it rather than waiting on an answer that is
+    // never coming.
+    worker.dispose();
+    await expect(pending).rejects.toThrow('Worker disposed');
+
+    await expect(
+      search.provider.gfdist('MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, [{ start: 0, end: 1 }]),
+    ).rejects.toThrow('Worker disposed');
+  });
+
   it('waits for the kernels before searching', async () => {
     const { fake, worker } = client();
     const loading = worker.loadKernels(['naif0012.tls']);
