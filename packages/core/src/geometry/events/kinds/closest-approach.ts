@@ -37,7 +37,7 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
   kind: 'closest-approach',
   label: 'Closest approach',
   description:
-    'Moments when the target is nearer to the observer than at any time just before or after — one result per encounter.',
+    'Moments when the target is nearer to the observer than at any time just before or after — one result per encounter. Range is measured centre to centre, not as altitude above the surface.',
   temporality: 'instant',
   roles: [
     { role: 'observer', label: 'Observer' },
@@ -132,6 +132,21 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
       });
     }
 
+    // `ABSMIN` is documented to report one extremum per confinement window, and
+    // the UI offers this scope as "Deepest approach only" — so the promise is
+    // kept here rather than assumed of the provider. Measured range decides;
+    // with no provider `range` there is nothing to compare, and the first stands.
+    if (query.params?.scope === 'global' && events.length > 1) {
+      const deepest = events.reduce((best, event) =>
+        rangeOf(event) < rangeOf(best) ? event : best);
+      return [deepest];
+    }
+
     return events;
   },
 };
+
+/** An event's reported range, or +∞ when the provider could not measure one. */
+function rangeOf(event: InstantEvent): number {
+  return event.metrics?.find((m) => m.key === 'range')?.value ?? Infinity;
+}

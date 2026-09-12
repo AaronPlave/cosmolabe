@@ -221,7 +221,18 @@ export interface EventSearchFault {
 }
 
 export type EventSearchResult =
-  | { ok: true; queryId: string; events: GeometryEvent[] }
+  | {
+      ok: true;
+      queryId: string;
+      events: GeometryEvent[];
+      /**
+       * Why a search that ran found nothing, in the kind's own words — e.g.
+       * "the closest they get is 1,839 km". Present only on an empty result,
+       * and only for kinds that can say something useful; see
+       * {@link EventKind.explainEmpty}.
+       */
+      hint?: string;
+    }
   | { ok: false; queryId: string; fault: EventSearchFault };
 
 /** Narrows a {@link GeometryEvent} to its interval form. */

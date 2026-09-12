@@ -33,7 +33,7 @@ export const distanceRangeKind: EventKind<DistanceRangeParams> = {
   kind: 'distance-range',
   label: 'Distance / range',
   description:
-    'Stretches of time for which the observer→target distance stays on one side of a threshold. Each result is a window, and its duration is how long the condition held.',
+    'Stretches of time for which the observer→target distance stays on one side of a threshold. Distances are centre to centre, so a threshold below the target\'s own radius can never match. Each result is a window, and its duration is how long the condition held.',
   roles: [
     { role: 'observer', label: 'Observer' },
     { role: 'target', label: 'Target' },
@@ -57,7 +57,8 @@ export const distanceRangeKind: EventKind<DistanceRangeParams> = {
       unit: 'km',
       default: 1_000_000,
       min: 0,
-      help: 'Threshold the observer→target distance is compared against.',
+      help:
+        'Threshold the observer→target distance is compared against, measured centre to centre — not altitude above the surface.',
     },
   ],
   primaryRole: 'target',
@@ -146,11 +147,39 @@ export const distanceRangeKind: EventKind<DistanceRangeParams> = {
 
     return events;
   },
+
+  // A distance search that matches nothing has a useful answer sitting one GF
+  // call away: how close (or far) the pair actually got. Without it the user is
+  // left guessing whether the threshold was wrong, the window was wrong, or the
+  // geometry never happens — and the most common cause, a threshold below the
+  // target's own radius, is invisible from an empty list.
+  explainEmpty: async (query, ctx) => {
+    if (!ctx.provider.range) return undefined;
+
+    const target = query.bodies.target!;
+    const observer = query.bodies.observer!;
+    const relation = query.params!.relation!;
+    if (relation === '=') return undefined;
+
+    const extremum = await rangeExtremum(
+      ctx.provider,
+      target,
+      query.abcorr,
+      observer,
+      relation === '>' ? 'ABSMAX' : 'ABSMIN',
+      query.step,
+      query.window,
+    );
+    if (!extremum) return undefined;
+
+    const reached = relation === '>' ? 'farthest apart they get is' : 'closest they get is';
+    return `Over this window the ${reached} ${formatKm(extremum.km)}, centre to centre.`;
+  },
 };
 
 /** Compact km for a label; the UI formats metrics itself. */
 function formatKm(km: number): string {
   if (km >= 1e6) return `${(km / 1e6).toPrecision(3)}M km`;
-  if (km >= 1e3) return `${(km / 1e3).toPrecision(3)}k km`;
+  if (km >= 1e3) return `${(km / 1e3).toPrecision(3)}K km`;
   return `${km} km`;
 }

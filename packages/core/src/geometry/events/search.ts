@@ -88,7 +88,25 @@ export class EventSearch {
       ? events.map((event) => (event.primaryRole ? event : { ...event, primaryRole: kind.primaryRole }))
       : events;
 
-    return { ok: true, queryId: query.id, events: stamped.sort(compareEvents) };
+    if (stamped.length > 0) {
+      return { ok: true, queryId: query.id, events: stamped.sort(compareEvents) };
+    }
+
+    // "Nothing matched" is an answer, and some kinds can say why. The
+    // explanation is strictly a bonus: one that throws leaves the empty result
+    // exactly as it was, since failing to explain an answer is not failing to
+    // produce it.
+    let hint: string | undefined;
+    try {
+      hint = await (kind as unknown as EventKind<P>).explainEmpty?.(
+        resolved as ResolvedEventQuery<P>,
+        ctx,
+      );
+    } catch {
+      hint = undefined;
+    }
+
+    return { ok: true, queryId: query.id, events: [], ...(hint ? { hint } : {}) };
   }
 
   private fault(query: EventQuery<never> | EventQuery<any>, fault: EventSearchFault): EventSearchResult {

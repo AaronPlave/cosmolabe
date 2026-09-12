@@ -76,6 +76,21 @@ export interface EventKind<P = Record<string, unknown>> {
   validate?(query: EventQuery<P>): EventSearchFault | undefined;
   /** Runs the search. Faults are raised by throwing; the service wraps them. */
   run(query: ResolvedEventQuery<P>, ctx: EventKindContext): Promise<GeometryEvent[]>;
+  /**
+   * Optional: one sentence explaining an empty result, for kinds that can turn
+   * "nothing matched" into an actual answer — a distance search that found no
+   * window can say how close the bodies actually got.
+   *
+   * Called only when the search ran and produced no events. It may use the
+   * provider, so it costs an extra query; keep it to something cheap. Throwing
+   * or returning `undefined` simply leaves the result unexplained — an
+   * explanation that fails must never turn a legitimate empty result into a
+   * fault.
+   */
+  explainEmpty?(
+    query: ResolvedEventQuery<P>,
+    ctx: EventKindContext,
+  ): Promise<string | undefined> | string | undefined;
 }
 
 /**

@@ -13,7 +13,9 @@ import {
   applyEventFocus,
   builtinEventKinds,
   focusForEvent,
+  type EtInterval,
   type EventKind,
+  type EventParticipants,
   type EventSearchFault,
   type GeometryEvent,
   type GeometryFinderProvider,
@@ -55,6 +57,47 @@ export function spiceGeometryFinder(spice: SpiceInstance): GeometryFinderProvide
   };
 }
 
+/**
+ * The span the chosen bodies actually have ephemeris for, intersected with the
+ * catalog's own span.
+ *
+ * Without this the finder defaults to the scrubber's full range, which for the
+ * Clipper catalog starts about a day before the trajectory kernel does — so the
+ * first search a user runs fails with a raw SPICE "insufficient ephemeris data"
+ * for a window they never chose. Coverage is a fact SPICE can state (`spkcov`),
+ * so the default window respects it instead of making the user discover it.
+ *
+ * Bodies SPICE cannot name, or that no SPK covers, constrain nothing: a
+ * Keplerian body in a kernel-free catalog is not a reason to refuse a window.
+ */
+function coverageWindow(spice: SpiceInstance, bodies: EventParticipants, span: EtInterval): EtInterval {
+  let { start, end } = span;
+
+  for (const name of Object.values(bodies)) {
+    if (!name) continue;
+    try {
+      const id = spice.bodn2c(name);
+      if (id == null) continue;
+      const windows = spice.spkcov(id);
+      if (windows.length === 0) continue;
+
+      // The outer bounds, not each segment: a gap inside coverage is a fault to
+      // report when a search hits it, not a reason to narrow the default.
+      start = Math.max(start, Math.min(...windows.map((w) => w.start)));
+      end = Math.min(end, Math.max(...windows.map((w) => w.end)));
+    } catch {
+      // bodn2c/spkcov throwing means we know nothing about this body's
+      // coverage, which is not the same as it having none.
+    }
+  }
+
+  // A hair inside the boundary: GF evaluates the endpoints themselves, and a
+  // request for the exact last instant of coverage is the one most likely to
+  // land just outside it once light time or interpolation is involved.
+  const margin = 1;
+  return end - start > 2 * margin ? { start: start + margin, end: end - margin } : span;
+}
+
 export const ef = $state({
   /** The kind being configured. */
   kind: EVENT_KINDS[0].kind,
@@ -76,6 +119,12 @@ export const ef = $state({
    * the component so it survives the panel being closed and reopened.
    */
   sort: 'time' as EventSortMode,
+  /** Why a search that ran found nothing, when the kind can say. */
+  hint: null as string | null,
+  /** True once the user has set the window themselves; stops it being re-derived. */
+  windowPinned: false,
+  /** Set when the default window was trimmed to the bodies' kernel coverage. */
+  windowTrimmed: false,
 });
 
 let sequence = 0;
@@ -87,23 +136,50 @@ export function currentKind(): EventKind<never> {
   return registry.get(ef.kind) ?? EVENT_KINDS[0];
 }
 
-/** The catalog's full time span — the window a fresh form searches. */
-function catalogWindow() {
+/** The catalog's full time span. */
+function catalogWindow(): EtInterval {
   return vs.scrubBaseMax > vs.scrubBaseMin
     ? { start: vs.scrubBaseMin, end: vs.scrubBaseMax }
     : { start: vs.et, end: vs.et + 86_400 };
 }
 
+/** The window a fresh form searches: the catalog span, trimmed to coverage. */
+function defaultWindow(bodies: EventParticipants = {}): EtInterval {
+  const span = catalogWindow();
+  const spice = getSpice();
+  if (!spice) return span;
+
+  const covered = coverageWindow(spice, bodies, span);
+  ef.windowTrimmed = covered.start > span.start || covered.end < span.end;
+  return covered;
+}
+
+/**
+ * Re-derives the window for the bodies now chosen, unless the user has set one.
+ *
+ * Picking the bodies is what determines which kernels matter, so the window
+ * that suits them can only be known after the choice — but a window the user
+ * typed is theirs and is never overwritten.
+ */
+function syncWindowToBodies() {
+  if (!ef.form || ef.windowPinned) return;
+  const { start, end } = defaultWindow(ef.form.bodies);
+  ef.form.startEt = start;
+  ef.form.endEt = end;
+}
+
 /** Builds the form for the current kind, carrying over what still applies. */
 export function resetForm() {
-  ef.form = formForKind(currentKind(), catalogWindow(), ef.form ?? undefined);
+  const previous = ef.form ?? undefined;
+  ef.form = formForKind(currentKind(), defaultWindow(previous?.bodies), previous);
+  syncWindowToBodies();
 }
 
 /** Switches kind, keeping shared roles and params filled in. */
 export function setKind(kind: string) {
   if (!registry.has(kind)) return;
   ef.kind = kind;
-  ef.form = formForKind(currentKind(), catalogWindow(), ef.form ?? undefined);
+  resetForm();
   clearResults();
 }
 
@@ -111,6 +187,7 @@ export function setRole(role: string, body: string) {
   if (!ef.form) return;
   if (body) ef.form.bodies[role as keyof typeof ef.form.bodies] = body;
   else delete ef.form.bodies[role as keyof typeof ef.form.bodies];
+  syncWindowToBodies();
   clearResults();
 }
 
@@ -124,6 +201,16 @@ export function setWindow(startEt: number, endEt: number) {
   if (!ef.form) return;
   ef.form.startEt = startEt;
   ef.form.endEt = endEt;
+  // The user has now said what they want searched; stop second-guessing it.
+  ef.windowPinned = true;
+  ef.windowTrimmed = false;
+  clearResults();
+}
+
+/** Drops a hand-set window and goes back to the coverage-trimmed default. */
+export function resetWindow() {
+  ef.windowPinned = false;
+  syncWindowToBodies();
   clearResults();
 }
 
@@ -147,6 +234,7 @@ export function setStep(step: number) {
 function clearResults() {
   ef.events = [];
   ef.fault = null;
+  ef.hint = null;
   ef.searched = false;
   ef.selectedId = null;
 }
@@ -181,9 +269,11 @@ export async function runSearch() {
     if (result.ok) {
       ef.events = result.events;
       ef.fault = null;
+      ef.hint = result.hint ?? null;
     } else {
       ef.events = [];
       ef.fault = result.fault;
+      ef.hint = null;
     }
     ef.searched = result.ok;
   } finally {

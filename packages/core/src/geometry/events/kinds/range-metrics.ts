@@ -33,9 +33,15 @@ export async function rangeAt(
 /**
  * The extreme range inside a window, and when it occurred.
  *
- * `relate` is `ABSMIN` or `ABSMAX`; the GF call returns the extremum as a
- * degenerate interval, which is then measured through {@link rangeAt}. A
- * degenerate input window has no interior to search, so its single instant is
+ * `relate` is `ABSMIN` or `ABSMAX`. CSPICE's absolute-extremum relations are
+ * documented to report the extremum over the whole confinement window, but
+ * every candidate GF hands back is measured and compared rather than trusting
+ * the first: a provider that reports local extrema under an absolute relation,
+ * or splits the window, would otherwise silently yield "the minimum" that is
+ * merely the earliest one. The cost is one position lookup per candidate, and
+ * GF normally returns exactly one.
+ *
+ * A degenerate input window has no interior to search, so its single instant is
  * measured directly.
  */
 export async function rangeExtremum(
@@ -55,10 +61,14 @@ export async function rangeExtremum(
   }
 
   const found = await provider.gfdist(target, abcorr, observer, relate, 0, 0, step, [window]);
-  const at = found[0];
-  if (!at) return undefined;
 
-  const et = (at.start + at.end) / 2;
-  const km = await rangeAt(provider, target, abcorr, observer, et);
-  return km === undefined ? undefined : { et, km };
+  let best: { et: EtSeconds; km: number } | undefined;
+  for (const candidate of found) {
+    const et = (candidate.start + candidate.end) / 2;
+    const km = await rangeAt(provider, target, abcorr, observer, et);
+    if (km === undefined) continue;
+    if (!best || (relate === 'ABSMIN' ? km < best.km : km > best.km)) best = { et, km };
+  }
+
+  return best;
 }

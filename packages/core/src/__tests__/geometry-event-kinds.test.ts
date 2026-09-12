@@ -174,6 +174,47 @@ describe('closest approach', () => {
     expect(result.fault.message).toMatch(/max range/i);
   });
 
+  it('reports one deepest approach even if the provider hands back several', async () => {
+    // CSPICE documents ABSMIN as one extremum per confinement window, but the
+    // UI offers this scope as "Deepest approach only", so the kind keeps that
+    // promise itself rather than assuming it.
+    const p = provider({
+      windows: { ABSMIN: [{ start: 100, end: 100 }, { start: 500, end: 500 }] },
+      range: (_t, _o, et) => (et === 100 ? 9_000 : 120),
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'closest-approach',
+      bodies: { observer: 'JUNO', target: 'EUROPA' },
+      window: WINDOW,
+      params: { scope: 'global' },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events).toHaveLength(1);
+    const [only] = result.events;
+    expect(only.temporality === 'instant' && only.et).toBe(500);
+    expect(only.metrics?.[0].value).toBe(120);
+  });
+
+  it('keeps every local minimum when the scope is local', async () => {
+    const p = provider({
+      windows: { LOCMIN: [{ start: 100, end: 100 }, { start: 500, end: 500 }] },
+      range: () => 42,
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'closest-approach',
+      bodies: { observer: 'JUNO', target: 'EUROPA' },
+      window: WINDOW,
+    });
+
+    expect(result.ok && result.events).toHaveLength(2);
+  });
+
   it('reports a missing body against the role a picker would highlight', async () => {
     const result = await searchOver(provider()).run({
       id: 'q1',
@@ -272,6 +313,110 @@ describe('distance range', () => {
     if (!result.ok) return;
     expect(p.calls[1].args[3]).toBe('ABSMAX');
     expect(result.events[0].metrics?.at(-1)?.key).toBe('maxRange');
+  });
+
+  it('takes the true extremum when the provider returns more than one candidate', async () => {
+    // A long in-range window can hold several local minima. Trusting the first
+    // returned extremum would report "min range" that is merely the earliest.
+    const p = provider({
+      windows: {
+        '<': [{ start: 0, end: 10_000 }],
+        ABSMIN: [{ start: 2_000, end: 2_000 }, { start: 8_000, end: 8_000 }],
+      },
+      range: (_t, _o, et) => (et === 2_000 ? 900_000 : 120_000),
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'distance-range',
+      bodies: { observer: 'EARTH', target: 'MARS' },
+      window: WINDOW,
+      params: { relation: '<', distanceKm: 1_000_000 },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events[0].metrics?.at(-1)).toMatchObject({ key: 'minRange', value: 120_000 });
+  });
+
+  it('takes the largest candidate for a "farther than" window', async () => {
+    const p = provider({
+      windows: {
+        '>': [{ start: 0, end: 10_000 }],
+        ABSMAX: [{ start: 2_000, end: 2_000 }, { start: 8_000, end: 8_000 }],
+      },
+      range: (_t, _o, et) => (et === 2_000 ? 3e6 : 9e6),
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'distance-range',
+      bodies: { observer: 'EARTH', target: 'MARS' },
+      window: WINDOW,
+      params: { relation: '>', distanceKm: 2e6 },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events[0].metrics?.at(-1)).toMatchObject({ key: 'maxRange', value: 9e6 });
+  });
+
+  it('explains an empty result with how close the pair actually got', async () => {
+    // The common cause of an empty "closer than" search is a threshold below
+    // the target's own radius, which an empty list cannot show.
+    const p = provider({
+      windows: { '<': [], ABSMIN: [{ start: 4_000, end: 4_000 }] },
+      range: () => 1_838.6,
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'distance-range',
+      bodies: { observer: 'CLIPPER', target: 'EUROPA' },
+      window: WINDOW,
+      params: { relation: '<', distanceKm: 1_000 },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events).toEqual([]);
+    expect(result.hint).toMatch(/closest they get is/i);
+    expect(result.hint).toMatch(/centre to centre/i);
+  });
+
+  it('leaves a result unexplained rather than failing when the explanation throws', async () => {
+    const p = provider({ windows: { '<': [] }, range: () => 1 });
+    p.gfdist = async (_t: string, _a: string, _o: string, relate: string) => {
+      if (relate === 'ABSMIN') throw new Error('coverage gap');
+      return [];
+    };
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'distance-range',
+      bodies: { observer: 'CLIPPER', target: 'EUROPA' },
+      window: WINDOW,
+      params: { relation: '<', distanceKm: 1_000 },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events).toEqual([]);
+    expect(result.hint).toBeUndefined();
+  });
+
+  it('does not try to explain an empty result against a provider with no range', async () => {
+    const p = provider({ windows: { '<': [] } });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'distance-range',
+      bodies: { observer: 'EARTH', target: 'MARS' },
+      window: WINDOW,
+      params: { relation: '<', distanceKm: 1_000 },
+    });
+
+    expect(result.ok && result.hint).toBeUndefined();
   });
 
   it('reports a threshold crossing as an instant rather than an empty span', async () => {

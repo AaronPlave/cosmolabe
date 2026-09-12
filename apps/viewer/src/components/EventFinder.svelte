@@ -14,7 +14,7 @@
   import { getSpice } from '../lib/loader';
   import {
     EVENT_KINDS, ef, clearSelection, currentKind, resetForm, runSearch,
-    selectEvent, setKind, setParam, setRole, setSort, setStep, setWindow,
+    selectEvent, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, missingRoles,
@@ -225,6 +225,18 @@
       <button class="ctrl-link shrink-0" onclick={() => useRange(vs.scrubMin, vs.scrubMax)}>visible</button>
     </div>
 
+    <!-- Say when the window is not simply the catalog's span, so a default that
+         differs from the scrubber is explained rather than merely odd. -->
+    {#if ef.windowTrimmed}
+      <p class="text-[10px] text-text-muted leading-snug mb-2 ml-22">
+        Trimmed to the kernel coverage of the chosen bodies.
+      </p>
+    {:else if ef.windowPinned}
+      <p class="text-[10px] text-text-muted leading-snug mb-2 ml-22">
+        Using your window. <button class="ctrl-link underline" onclick={resetWindow}>Reset to kernel coverage</button>
+      </p>
+    {/if}
+
     <!-- Run -->
     <button
       class="w-full flex items-center justify-center gap-1.5 rounded border border-border bg-surface-3 px-2 py-1.5 text-[11px] text-text-primary
@@ -255,7 +267,12 @@
     </div>
   {:else if ef.searched && ef.events.length === 0}
     <div class="mt-2 pt-2 border-t border-border text-[11px] text-text-muted">
-      No matching events in this window. Try a wider window, a looser condition, or a shorter step.
+      <p>No matching events in this window.</p>
+      {#if ef.hint}
+        <!-- The kind turning "nothing matched" into an actual measurement. -->
+        <p class="mt-1 text-text-secondary">{ef.hint}</p>
+      {/if}
+      <p class="mt-1">Try a wider window, a looser condition, or a shorter step.</p>
     </div>
   {:else if ef.events.length > 0}
     <div class="mt-2 pt-2 border-t border-border">
@@ -305,6 +322,13 @@
             <div class="text-[10px] text-text-secondary">{eventSummary(event)}</div>
             {#if ef.selectedId === event.id}
               <div class="mt-1 flex flex-col gap-0.5">
+                {#if detailMetrics(event).length === 0}
+                  <!-- A closest approach with no range is a thin answer; say the
+                       measurement is missing rather than showing a blank. -->
+                  <div class="text-[10px] text-text-muted">
+                    No measurements — this SPICE provider cannot report distances.
+                  </div>
+                {/if}
                 {#each detailMetrics(event) as metric}
                   <div class="flex justify-between gap-2 text-[10px]">
                     <span class="text-text-muted">{metric.label}</span>
