@@ -65,6 +65,12 @@ describe('built-in event kinds', () => {
     expect(registry.get('closest-approach')?.label).toBe('Closest approach');
   });
 
+  it('explains itself, since a picker cannot write the sentence for it', () => {
+    for (const kind of builtinEventKinds().list()) {
+      expect(kind.description, `${kind.kind} has no description`).toBeTruthy();
+    }
+  });
+
   it('declares its parameters so a generic form can render them', () => {
     expect(closestApproachKind.params?.map((p) => p.key)).toEqual(['scope', 'maxRangeKm']);
     expect(defaultParams(closestApproachKind)).toEqual({ scope: 'local' });

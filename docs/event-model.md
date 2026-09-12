@@ -83,6 +83,10 @@ adding a parameter does not invalidate queries written before it existed.
 Values themselves are still the kind's business: `validate` is where a
 threshold is checked for sign and a relation for membership.
 
+A kind also carries a one-sentence `description`, for the same reason: "distance
+/ range" does not explain itself from its label, and a UI cannot write the
+sentence for a kind it has never heard of.
+
 Which body a user *means* by "this event" is also a property of the kind, not
 of the model — an occultation is about the occulted body, an access window
 about the observer. A kind declares that once as `primaryRole`, and

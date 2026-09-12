@@ -22,7 +22,13 @@ import type {
   EventSearchFault,
   GeometryEvent,
 } from '@cosmolabe/core';
-import { defaultParams, eventDuration, eventStart, isIntervalEvent } from '@cosmolabe/core';
+import {
+  compareEvents,
+  defaultParams,
+  eventDuration,
+  eventStart,
+  isIntervalEvent,
+} from '@cosmolabe/core';
 
 /**
  * The panel's editable state for one search.
@@ -180,12 +186,70 @@ export function formatSeconds(seconds: number): string {
   return `${(seconds / 86_400).toFixed(1)} d`;
 }
 
+/**
+ * The metric a result is *about* — what a row leads with and what sorting by
+ * value sorts on.
+ *
+ * `threshold` is the query's own input, the same on every row, and `duration`
+ * already has its own column; neither says anything about this result. What is
+ * left is the range at a closest approach, or the extreme range inside a
+ * distance window.
+ */
+export function headlineMetric(event: GeometryEvent): EventMetric | undefined {
+  return event.metrics?.find((m) => m.key !== 'threshold' && m.key !== 'duration');
+}
+
 /** The one-line summary a result row leads with, after its time. */
 export function eventSummary(event: GeometryEvent): string {
-  const headline = event.metrics?.find((m) => m.key !== 'threshold' && m.key !== 'duration');
+  const headline = headlineMetric(event);
   if (headline) return `${headline.label} ${formatMetric(headline)}`;
   if (isIntervalEvent(event)) return `Duration ${formatSeconds(eventDuration(event))}`;
   return event.label;
+}
+
+/** How a results list is ordered. */
+export type EventSortMode = 'time' | 'metric';
+
+/**
+ * Results in the requested order, without disturbing the search's own.
+ *
+ * `metric` sorts ascending by {@link headlineMetric} — nearest approach first,
+ * which is the question "which was the closest?" — and falls back to
+ * chronological for ties and for events carrying no metric at all, so a mixed
+ * list stays deterministic rather than half-ordered. `EventSearch` returns
+ * chronological order, so `time` is the identity.
+ */
+export function sortEvents(
+  events: readonly GeometryEvent[],
+  mode: EventSortMode,
+): GeometryEvent[] {
+  const sorted = [...events];
+  if (mode === 'time') return sorted.sort(compareEvents);
+
+  return sorted.sort((a, b) => {
+    const va = headlineMetric(a)?.value;
+    const vb = headlineMetric(b)?.value;
+    if (va === undefined && vb === undefined) return compareEvents(a, b);
+    // A result with no measurement cannot be ranked against one that has it;
+    // it sorts last rather than as if it were zero.
+    if (va === undefined) return 1;
+    if (vb === undefined) return -1;
+    return va - vb || compareEvents(a, b);
+  });
+}
+
+/**
+ * What to call the value-sorted order in the UI, taken from the results
+ * themselves — "Range" for closest approaches, "Min range" for distance
+ * windows — so the control never names a quantity this kind does not report.
+ * Undefined when nothing in the list carries a headline metric.
+ */
+export function sortMetricLabel(events: readonly GeometryEvent[]): string | undefined {
+  for (const event of events) {
+    const metric = headlineMetric(event);
+    if (metric) return metric.label.toLowerCase();
+  }
+  return undefined;
 }
 
 /** Where an event sits on a full-range timeline, as a 0-1 fraction. */

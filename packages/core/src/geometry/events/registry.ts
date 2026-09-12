@@ -36,6 +36,14 @@ export interface EventKind<P = Record<string, unknown>> {
   kind: string;
   /** Human label for pickers and result grouping. */
   label: string;
+  /**
+   * One sentence saying what this kind searches for, in a user's terms.
+   *
+   * Lives on the kind because the kind is what knows: "distance / range" does
+   * not explain itself from its label, and a UI cannot write the sentence for a
+   * kind it has never heard of. Shown as the picker's explainer.
+   */
+  description?: string;
   /** What this kind yields; `undefined` when it yields both. */
   temporality?: EventTemporality;
   /** Roles this kind consumes, in the order a picker should present them. */

@@ -14,10 +14,11 @@
   import { getSpice } from '../lib/loader';
   import {
     EVENT_KINDS, ef, clearSelection, currentKind, resetForm, runSearch,
-    selectEvent, setKind, setParam, setRole, setStep, setWindow,
+    selectEvent, setKind, setParam, setRole, setSort, setStep, setWindow,
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, missingRoles,
+    sortEvents, sortMetricLabel,
   } from '../lib/event-query';
 
   interface Props {
@@ -34,6 +35,9 @@
 
   let kind = $derived(currentKind());
   let form = $derived(ef.form);
+  /** Display order is a view concern: the search's own order is chronological. */
+  let shownEvents = $derived(sortEvents(ef.events, ef.sort));
+  let metricSortLabel = $derived(sortMetricLabel(ef.events));
   let unfilledRoles = $derived(form ? missingRoles(kind, form) : []);
   let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running);
 
@@ -118,6 +122,12 @@
       {/each}
     </select>
   </div>
+
+  <!-- What the selected kind actually searches for. Its own words: the panel
+       cannot write this sentence for a kind it has never heard of. -->
+  {#if kind.description}
+    <p class="text-[10px] text-text-muted leading-snug mb-2 ml-22">{kind.description}</p>
+  {/if}
 
   {#if form}
     <!-- Bodies, one picker per role the kind declares -->
@@ -249,16 +259,30 @@
     </div>
   {:else if ef.events.length > 0}
     <div class="mt-2 pt-2 border-t border-border">
-      <div class="flex items-center justify-between mb-1">
+      <div class="flex items-center justify-between gap-2 mb-1">
         <span class="text-text-secondary text-[11px]">
           {ef.events.length} event{ef.events.length === 1 ? '' : 's'}
         </span>
-        {#if ef.selectedId}
-          <button class="ctrl-link" onclick={clearSelection}>clear</button>
-        {/if}
+        <div class="flex items-center gap-1.5">
+          {#if metricSortLabel}
+            <span class="text-[10px] text-text-muted">sort</span>
+            <button
+              class="ctrl-link {ef.sort === 'time' ? 'text-text-primary' : ''}"
+              onclick={() => setSort('time')}
+            >time</button>
+            <button
+              class="ctrl-link {ef.sort === 'metric' ? 'text-text-primary' : ''}"
+              onclick={() => setSort('metric')}
+              title="Smallest first"
+            >{metricSortLabel}</button>
+          {/if}
+          {#if ef.selectedId}
+            <button class="ctrl-link" onclick={clearSelection}>clear</button>
+          {/if}
+        </div>
       </div>
       <div class="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
-        {#each ef.events as event}
+        {#each shownEvents as event}
           <button
             class="text-left rounded px-1.5 py-1 border transition-colors cursor-pointer
                    {ef.selectedId === event.id ? 'border-accent bg-surface-3' : 'border-transparent hover:bg-surface-3'}"
@@ -267,8 +291,15 @@
           >
             <div class="flex justify-between gap-2 items-baseline">
               <span class="font-mono text-[11px] text-text-primary">{eventTime(event)}</span>
-              <span class="text-[10px] text-text-muted">
-                {isIntervalEvent(event) ? formatSeconds(eventDuration(event)) : 'instant'}
+              <!-- A bare "2.5 d" beside a date reads as an offset from it.
+                   Say which quantity it is. -->
+              <span
+                class="text-[10px] text-text-muted"
+                title={isIntervalEvent(event)
+                  ? 'How long this event lasted, start to end'
+                  : 'This event is a single instant, not a span'}
+              >
+                {isIntervalEvent(event) ? `lasts ${formatSeconds(eventDuration(event))}` : 'instant'}
               </span>
             </div>
             <div class="text-[10px] text-text-secondary">{eventSummary(event)}</div>
@@ -281,6 +312,10 @@
                   </div>
                 {/each}
                 {#if isIntervalEvent(event)}
+                  <div class="flex justify-between gap-2 text-[10px]">
+                    <span class="text-text-muted">Duration</span>
+                    <span class="font-mono text-text-primary">{formatSeconds(eventDuration(event))}</span>
+                  </div>
                   <div class="flex justify-between gap-2 text-[10px]">
                     <span class="text-text-muted">Ends</span>
                     <span class="font-mono text-text-primary">{etToUtcString(event.end).replace(' UTC', '')}</span>

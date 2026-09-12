@@ -3,6 +3,9 @@ import { closestApproachKind, distanceRangeKind, type EventKind, type GeometryEv
 import {
   buildQuery,
   eventFraction,
+  headlineMetric,
+  sortEvents,
+  sortMetricLabel,
   eventSummary,
   faultMessage,
   formForKind,
@@ -141,6 +144,72 @@ describe('formatting', () => {
       ],
     };
     expect(eventSummary(interval)).toBe('Min range 400.0K km');
+  });
+});
+
+describe('sorting', () => {
+  /** Three results: chronological order is the reverse of nearest-first. */
+  function approach(id: string, et: number, km?: number): GeometryEvent {
+    return {
+      id,
+      queryId: 'q1',
+      kind: 'closest-approach',
+      temporality: 'instant',
+      et,
+      bodies: { observer: 'JUNO', target: 'EUROPA' },
+      label: 'approach',
+      ...(km === undefined ? {} : { metrics: [{ key: 'range', label: 'Range', value: km, unit: 'km' }] }),
+    };
+  }
+
+  const events = [approach('a', 100, 9000), approach('b', 200, 2200), approach('c', 300, 5000)];
+
+  it('leaves chronological order alone', () => {
+    expect(sortEvents(events, 'time').map((e) => e.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('puts the nearest approach first when sorting by value', () => {
+    expect(sortEvents(events, 'metric').map((e) => e.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('does not mutate the list it was given', () => {
+    sortEvents(events, 'metric');
+    expect(events.map((e) => e.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('sorts an unmeasured result last rather than as if it were zero', () => {
+    const mixed = [approach('none', 50), approach('near', 400, 10)];
+    expect(sortEvents(mixed, 'metric').map((e) => e.id)).toEqual(['near', 'none']);
+  });
+
+  it('falls back to chronological order for equal values', () => {
+    const tied = [approach('late', 900, 500), approach('early', 100, 500)];
+    expect(sortEvents(tied, 'metric').map((e) => e.id)).toEqual(['early', 'late']);
+  });
+
+  it('names the sort after the metric the results actually carry', () => {
+    expect(sortMetricLabel(events)).toBe('range');
+    expect(sortMetricLabel([approach('x', 1)])).toBeUndefined();
+  });
+
+  it('ignores the threshold when picking the metric a result is about', () => {
+    const window: GeometryEvent = {
+      id: 'w',
+      queryId: 'q2',
+      kind: 'distance-range',
+      temporality: 'interval',
+      start: 0,
+      end: 600,
+      bodies: { observer: 'EARTH', target: 'MARS' },
+      label: 'window',
+      metrics: [
+        { key: 'threshold', label: 'Threshold', value: 1e6, unit: 'km' },
+        { key: 'duration', label: 'Duration', value: 600, unit: 's' },
+        { key: 'minRange', label: 'Min range', value: 4e5, unit: 'km' },
+      ],
+    };
+    expect(headlineMetric(window)?.key).toBe('minRange');
+    expect(sortMetricLabel([window])).toBe('min range');
   });
 });
 

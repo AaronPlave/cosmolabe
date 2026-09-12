@@ -36,6 +36,8 @@ export interface ClosestApproachParams {
 export const closestApproachKind: EventKind<ClosestApproachParams> = {
   kind: 'closest-approach',
   label: 'Closest approach',
+  description:
+    'Moments when the target is nearer to the observer than at any time just before or after — one result per encounter.',
   temporality: 'instant',
   roles: [
     { role: 'observer', label: 'Observer' },

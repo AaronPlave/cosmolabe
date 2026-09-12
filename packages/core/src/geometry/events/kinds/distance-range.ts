@@ -32,6 +32,8 @@ const RELATION_LABEL: Record<string, string> = {
 export const distanceRangeKind: EventKind<DistanceRangeParams> = {
   kind: 'distance-range',
   label: 'Distance / range',
+  description:
+    'Stretches of time for which the observer→target distance stays on one side of a threshold. Each result is a window, and its duration is how long the condition held.',
   roles: [
     { role: 'observer', label: 'Observer' },
     { role: 'target', label: 'Target' },

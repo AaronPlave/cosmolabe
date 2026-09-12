@@ -20,7 +20,7 @@ import {
 } from '@cosmolabe/core';
 import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
 import { getSpice } from './loader';
-import { buildQuery, formForKind, type EventQueryForm } from './event-query';
+import { buildQuery, formForKind, type EventQueryForm, type EventSortMode } from './event-query';
 import { highlightBodies, selectBody, setTime, vs } from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
@@ -70,6 +70,12 @@ export const ef = $state({
   searched: false,
   /** Id of the selected result, or null. */
   selectedId: null as string | null,
+  /**
+   * Display order. Chronological by default, since that is how a mission reads;
+   * `metric` answers "which was the closest?" instead. Held here rather than in
+   * the component so it survives the panel being closed and reopened.
+   */
+  sort: 'time' as EventSortMode,
 });
 
 let sequence = 0;
@@ -119,6 +125,10 @@ export function setWindow(startEt: number, endEt: number) {
   ef.form.startEt = startEt;
   ef.form.endEt = endEt;
   clearResults();
+}
+
+export function setSort(mode: EventSortMode) {
+  ef.sort = mode;
 }
 
 export function setStep(step: number) {
