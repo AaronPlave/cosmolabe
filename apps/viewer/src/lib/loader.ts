@@ -25,6 +25,7 @@ import type { SpiceInstance } from '@cosmolabe/spice';
 import { createHeritageSpice } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin, captureFrameDataUrl } from '@cosmolabe/three';
+import type { KernelSource } from '@cosmolabe/three';
 import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmolabe/control';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
@@ -49,6 +50,7 @@ let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
 const workerKernelUrls: string[] = [];
+const workerKernelFiles: File[] = [];
 /** URLs of kernels already furnished in this session — prevents redundant fetch + furnish across demos. */
 const furnishedKernels = new Set<string>();
 
@@ -64,16 +66,41 @@ const KERNEL_EXTENSIONS = new Set([
 const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod']);
 const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.tga']);
 
+/**
+ * The kernel types furnished into the SPICE worker.
+ *
+ * Ephemeris, leapseconds and text PCK: what a trajectory cache needs, and what
+ * the geometry-event searches that now run there need too — `gfdist` over an
+ * observer→target distance reads SPK and LSK, and body shapes come from the
+ * text PCK. Attitude (`.bc`), frame (`.tf`) and instrument (`.ti`) kernels are
+ * deliberately not loaded: nothing in the worker reads them today, and they are
+ * the expensive ones. An event kind that needs them — an FOV or a body-fixed
+ * `gfposc` search — must add them here, or its search will find nothing in the
+ * worker that the main thread would have found.
+ */
 const WORKER_KERNEL_EXTS = new Set(['.bsp', '.tls', '.tpc']);
 
-function trackKernelForWorker(url: string): void {
-  const lower = url.toLowerCase().replace(/\.gz$/, '');
+function isWorkerKernel(name: string): boolean {
+  const lower = name.toLowerCase().replace(/\.gz$/, '');
   for (const ext of WORKER_KERNEL_EXTS) {
-    if (lower.endsWith(ext)) {
-      workerKernelUrls.push(new URL(url, location.href).href);
-      return;
-    }
+    if (lower.endsWith(ext)) return true;
   }
+  return false;
+}
+
+function trackKernelForWorker(url: string): void {
+  if (isWorkerKernel(url)) workerKernelUrls.push(new URL(url, location.href).href);
+}
+
+/**
+ * A kernel the user dropped in, which the worker cannot fetch for itself.
+ *
+ * The `File` is kept rather than its bytes: it is a handle, so holding it for
+ * the session costs nothing, and the buffer is read once when the worker is
+ * built.
+ */
+function trackKernelFileForWorker(file: File): void {
+  if (isWorkerKernel(file.name)) workerKernelFiles.push(file);
 }
 
 // ── Fetch with progress + gzip decompression ──
@@ -443,10 +470,18 @@ function initScene(
   // Cassini's), with no timing/settle race.
   cacheWorker?.dispose();
   cacheWorker = null;
-  if (!TEST_MODE && workerKernelUrls.length > 0) {
+  if (!TEST_MODE && (workerKernelUrls.length > 0 || workerKernelFiles.length > 0)) {
     try {
       cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
-      cacheWorker.loadKernels([...workerKernelUrls]).catch((err) => {
+      const worker = cacheWorker;
+      // URLs first, then dropped files, which is the order the main thread
+      // furnished them in — and furnish order is kernel precedence.
+      void (async () => {
+        const dropped: KernelSource[] = await Promise.all(
+          workerKernelFiles.map(async (file) => ({ name: file.name, data: await file.arrayBuffer() })),
+        );
+        await worker.loadKernels([...workerKernelUrls, ...dropped]);
+      })().catch((err) => {
         console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
       });
     } catch (err) {
@@ -813,6 +848,7 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
       });
       const buffer = await file.arrayBuffer();
       await s.furnish({ type: 'buffer', data: buffer, filename: file.name });
+      trackKernelFileForWorker(file);
     }
     setKernelCount(s.totalLoaded());
   }
@@ -855,6 +891,19 @@ export function getCurrentRenderer(): UniverseRenderer | null {
 /** Get the current SPICE instance */
 export function getSpice(): SpiceInstance | null {
   return spice;
+}
+
+/**
+ * The SPICE worker backing the scene, when there is one.
+ *
+ * It exists for the trajectory caches, but its SPICE instance has the same
+ * kernels furnished as the main thread's — so it is also where a geometry-event
+ * search runs, which is the only way a long search leaves the viewer usable.
+ * Null in TEST_MODE and for a catalog with no kernels; callers fall back to the
+ * main thread.
+ */
+export function getCacheWorker(): SpiceCacheWorker | null {
+  return cacheWorker;
 }
 
 /** Resize the renderer */

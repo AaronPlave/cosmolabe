@@ -4,9 +4,18 @@
  * One search at a time: a form, its result, and which result is selected.
  * Everything kind-specific lives in the registered {@link EventKind}s, and
  * everything pure — building the query, formatting a metric — lives in
- * `event-query.ts`. What is left here is the wiring: a GF provider over the
- * viewer's SPICE instance, the async run with its in-flight bookkeeping, and
- * turning a selected event into simulation time plus a 3D highlight.
+ * `event-query.ts`. What is left here is the wiring: choosing a GF provider,
+ * the async run with its in-flight bookkeeping and cancellation, and turning a
+ * selected event into simulation time plus a 3D highlight.
+ *
+ * Searches run in the SPICE worker whenever the scene has one. That is not an
+ * optimisation: CSPICE's GF routines are synchronous, so a search on the main
+ * thread freezes the viewer — no camera, no scrubber, not even a spinner —
+ * for as long as it runs, which a one-minute step over a multi-year window
+ * makes seconds. The worker already has the catalog's kernels furnished for
+ * the trajectory caches, so the search costs no loading of its own. The
+ * main-thread provider stays as the fallback for scenes with no worker (test
+ * mode, and kernel-free catalogs).
  */
 import {
   EventSearch,
@@ -21,7 +30,8 @@ import {
   type GeometryFinderProvider,
 } from '@cosmolabe/core';
 import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
-import { getSpice } from './loader';
+import { GeometrySearchCancelled } from '@cosmolabe/three';
+import { getCacheWorker, getSpice } from './loader';
 import { buildQuery, formForKind, type EventQueryForm, type EventSortMode } from './event-query';
 import { highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 
@@ -54,6 +64,56 @@ export function spiceGeometryFinder(spice: SpiceInstance): GeometryFinderProvide
     // expressed in.
     range: (target, abcorr, observer, et) =>
       spice.vnorm(spice.spkpos(target, et, 'J2000', abcorr as AberrationCorrection, observer).position),
+  };
+}
+
+/**
+ * One search's provider, plus the means to abandon it.
+ *
+ * Cancellation is what makes a long search survivable rather than merely
+ * non-freezing: a superseded or cancelled search stops making calls instead of
+ * running to completion and having its answer thrown away.
+ */
+interface RunningSearch {
+  provider: GeometryFinderProvider;
+  cancel(): void;
+  readonly cancelled: boolean;
+}
+
+/**
+ * The provider this search will use: the worker's when there is one, the main
+ * thread's when there is not.
+ *
+ * The two answer identically — the worker runs the same heritage adapter over
+ * the same kernels, with the arguments passed through untouched — so the choice
+ * is about where the time is spent, not about what comes back.
+ */
+function beginSearch(spice: SpiceInstance): RunningSearch {
+  const worker = getCacheWorker();
+  if (worker) return worker.geometrySearch();
+
+  // No worker: the calls block, and nothing can change that. Cancelling still
+  // stops the *next* call, which is why the guard is here rather than only in
+  // `runSearch` — a kind that searches an extremum inside each interval it
+  // found would otherwise keep going after the user gave up.
+  let cancelled = false;
+  const base = spiceGeometryFinder(spice);
+  const guard = <T extends (...args: never[]) => unknown>(fn: T): T =>
+    ((...args: never[]) => {
+      if (cancelled) throw new GeometrySearchCancelled();
+      return fn(...args);
+    }) as T;
+
+  return {
+    get cancelled() { return cancelled; },
+    cancel() { cancelled = true; },
+    provider: {
+      gfdist: guard(base.gfdist),
+      gfsep: guard(base.gfsep),
+      gfoclt: guard(base.gfoclt),
+      gfposc: guard(base.gfposc),
+      range: guard(base.range!),
+    },
   };
 }
 
@@ -130,6 +190,8 @@ export const ef = $state({
 let sequence = 0;
 /** Guards against an earlier search landing after a later one. */
 let inFlight = 0;
+/** The search currently running, so it can be stopped. */
+let active: RunningSearch | null = null;
 
 /** The kind definition the form is currently configuring. */
 export function currentKind(): EventKind<never> {
@@ -257,14 +319,23 @@ export async function runSearch() {
   }
 
   const kind = currentKind();
-  const search = new EventSearch({ registry, provider: spiceGeometryFinder(spice) });
+  // A search the user has replaced is work nobody wants done; stopping it also
+  // frees the worker for the one they do want.
+  active?.cancel();
+
+  const running = beginSearch(spice);
+  active = running;
+  const search = new EventSearch({ registry, provider: running.provider });
   const token = ++inFlight;
 
   ef.running = true;
   ef.selectedId = null;
   try {
     const result = await search.run(buildQuery(kind, form, `q${++sequence}`));
-    if (token !== inFlight) return; // a later search already answered
+    // A later search already answered, or this one was abandoned. Either way
+    // there is nothing to show — and a cancelled search's provider error is
+    // the cancellation, not a fault worth putting on screen.
+    if (token !== inFlight || running.cancelled) return;
 
     if (result.ok) {
       ef.events = result.events;
@@ -277,8 +348,21 @@ export async function runSearch() {
     }
     ef.searched = result.ok;
   } finally {
+    if (active === running) active = null;
     if (token === inFlight) ef.running = false;
   }
+}
+
+/**
+ * Abandons the running search.
+ *
+ * What stops is every call the search has not made yet. A CSPICE call already
+ * under way finishes either way — it is synchronous, and there is no point at
+ * which it could be interrupted — but on the worker path the viewer is not
+ * waiting on it, and its answer is discarded.
+ */
+export function cancelSearch() {
+  active?.cancel();
 }
 
 /**
@@ -314,6 +398,8 @@ export function clearSelection() {
  * the kind and the sort order are preferences rather than data, so they stay.
  */
 export function resetForScene() {
+  // The kernels this search was running against are being replaced under it.
+  active?.cancel();
   clearResults();
   highlightBodies([]);
   ef.form = null;

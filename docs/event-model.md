@@ -173,6 +173,43 @@ without it still searches. `cspiceWasmGeometryFinder` wires it up when the
 engine offers `spkpos`, and the viewer's adapter measures it with SPICE's own
 `vnorm`.
 
+## Where a search runs
+
+CSPICE's GF routines are synchronous, and a fine step over a long window is
+genuinely expensive — so a search on the main thread freezes the viewer for as
+long as it runs: no camera, no scrubbing, not even a spinner. The viewer
+therefore runs its searches in the SPICE worker it already keeps for trajectory
+caches (`SpiceCacheWorker.geometrySearch()`), whose instance has the catalog's
+kernels furnished, so a search pays for no loading of its own.
+
+```ts
+const search = cacheWorker.geometrySearch();
+const result = await new EventSearch({ registry, provider: search.provider }).run(query);
+search.cancel();  // rejects everything still pending or yet to be called
+```
+
+The provider passes its arguments through untouched to the same heritage
+adapter over the same kernels, so the worker path's results are the main-thread
+path's results — the choice is about where the time is spent. Where there is no
+worker (test mode, kernel-free catalogs) the viewer falls back to the
+main-thread provider, which is the same code path it always was.
+
+`cancel()` is what makes a long search survivable rather than merely
+non-freezing: a superseded or cancelled search stops making calls instead of
+running to completion and having its answer discarded. A CSPICE call already
+under way is not interrupted — the worker is single-threaded and CSPICE is
+synchronous, so there is no point at which it could be — but the calls after it
+do not run, and the viewer is not waiting on it either way. Calls rejected this
+way throw `GeometrySearchCancelled`, which is how a caller tells "you stopped
+this" from "this failed"; `EventSearch` reports it as a `provider-error` fault,
+so a cancelling caller checks its own flag rather than showing that fault.
+
+Worker kernels are the one way the two paths can diverge: the viewer furnishes
+SPK, LSK and text PCK into the worker, which is what the shipped kinds' `gfdist`
+searches read. A kind that needs attitude, frame or instrument kernels has to
+widen that set (`WORKER_KERNEL_EXTS` in the viewer's loader) or it will find
+nothing off-thread that the main thread would have found.
+
 ## The kinds that ship
 
 Two, both over `gfdist`, both `observer`/`target`:
