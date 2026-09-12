@@ -83,6 +83,11 @@ export type { BodyGeometry, GeometryConfig } from './geometry/GeometryCalculator
 export { EventFinder } from './geometry/EventFinder.js';
 export type { EventType, EventFinderConfig } from './geometry/EventFinder.js';
 
+// Geometry/event finder — the shared query + result model every geometry
+// search is expressed in, the SPICE GF boundary it runs against, and the
+// timeline/3D integration selecting an event drives. See docs/event-model.md.
+export * from './geometry/events/index.js';
+
 // Plugins
 export type { CosmolabePlugin } from './plugins/Plugin.js';
 export type { ResourceLayer } from './plugins/ResourceLayer.js';

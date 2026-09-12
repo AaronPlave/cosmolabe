@@ -13,6 +13,7 @@ Use this package server-side, in tests, or under any renderer. The companion pac
 - **Frames** — `EclipticJ2000`, `ICRF`, `EquatorJ2000`, `EquatorB1950`, `BodyFixed`, `TwoVector`
 - **`GeometryCalculator`** — altitude, sub-spacecraft point, sun angles, orbital elements, eclipse/occultation detection
 - **`EventFinder`** — eclipse / occultation / conjunction window search via SPICE geometry finders
+- **Geometry/event finder model** — one query and result type for every geometry search, a registry of `EventKind`s, the SPICE GF boundary they run against, and the timeline/3D integration selecting an event drives. See [docs/event-model.md](https://github.com/AaronPlave/cosmolabe/blob/main/docs/event-model.md).
 - **Plugin system** — `SpiceScenePlugin` (data) and `RendererPlugin` (visual), with reactive `EventBus` and `StateStore`
 
 ## SPICE is optional
