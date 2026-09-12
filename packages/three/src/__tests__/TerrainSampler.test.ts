@@ -279,3 +279,46 @@ describe('tileset height-encoding offset', () => {
     expect(sampler.referenceRadiusAt(latDeg) + sample.elevationKm).toBeCloseTo(renderedRadiusKm, 5);
   });
 });
+
+describe('TerrainSampler mesh coverage edges', () => {
+  // One triangle over the lower-left half of the tile, so the upper-right half
+  // is a genuine hole. Vertex heights 0/1/2 make the interpolant exactly u + 2v.
+  const holeTile = () => ({
+    id: 'half', kind: 'mesh' as const,
+    westDeg: 0, eastDeg: 10, southDeg: 0, northDeg: 10,
+    u: new Float32Array([0, 1, 0]),
+    v: new Float32Array([0, 0, 1]),
+    elevationsKm: new Float32Array([0, 1, 2]),
+    indices: new Uint16Array([0, 1, 2]),
+  });
+
+  it('interpolates inside the triangulation', () => {
+    const sampler = new TerrainSampler(datum, { id: 'test', kind: 'quantized-mesh' });
+    sampler.addTile(holeTile());
+    expect(sampler.sample(2, 2)?.elevationKm).toBeCloseTo(0.6, 6);
+    expect(sampler.sample(0.5, 8)?.elevationKm).toBeCloseTo(0.9, 6);
+  });
+
+  it('returns null in a real hole rather than inventing a height', () => {
+    const sampler = new TerrainSampler(datum, { id: 'test', kind: 'quantized-mesh' });
+    sampler.addTile(holeTile());
+    // Well inside the tile bounds, but outside the triangulated half.
+    expect(sampler.sample(6, 6)).toBeNull();
+    expect(sampler.sample(9, 9)).toBeNull();
+  });
+
+  it('absorbs a sub-tolerance miss at a triangle edge', () => {
+    const sampler = new TerrainSampler(datum, { id: 'test', kind: 'quantized-mesh' });
+    sampler.addTile(holeTile());
+    // A hair past the hypotenuse: numerically outside, physically on the surface.
+    const sample = sampler.sample(5.002, 5.002);
+    expect(sample).not.toBeNull();
+    expect(sample!.elevationKm).toBeCloseTo(1.5006, 3);
+  });
+
+  it('rejects a mesh tile with malformed vertex or index arrays', () => {
+    const sampler = new TerrainSampler(datum, { id: 'test', kind: 'quantized-mesh' });
+    expect(() => sampler.addTile({ ...holeTile(), v: new Float32Array([0, 0]) })).toThrow(/vertex arrays/);
+    expect(() => sampler.addTile({ ...holeTile(), indices: new Uint16Array([0, 1]) })).toThrow(/index buffer/);
+  });
+});
