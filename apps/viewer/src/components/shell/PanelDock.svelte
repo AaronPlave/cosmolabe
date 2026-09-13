@@ -3,7 +3,8 @@
    * Where docked panels sit.
    *
    * Desktop: a column down one side, offset past the rail, stacked in the order
-   * they were opened and scrolling as a group when there are more than fit. The
+   * they were opened. Each panel owns its scrolling; the dock never scrolls as
+   * a group, which keeps every visible panel header anchored and reachable. The
    * scene stays continuous behind it — the dock floats over the canvas rather
    * than claiming a column of the layout, which is the distinction #59 draws
    * between a workspace and a dashboard. A panel dragged out of here goes
@@ -38,12 +39,12 @@
 {#if side === 'sheet'}
   <!-- Capped at half the screen: the sheet is a reading surface over the scene,
        never a replacement for it. -->
-  <div class="pointer-events-none absolute z-15 flex max-h-[50%] flex-col gap-2 overflow-y-auto" {style}>
+  <div class="pointer-events-none absolute z-15 flex max-h-[50%] flex-col gap-2 overflow-hidden" {style}>
     {@render children()}
   </div>
 {:else}
   <div
-    class="pointer-events-none absolute top-3 z-15 flex flex-col gap-2 overflow-y-auto"
+    class="pointer-events-none absolute top-3 z-15 flex flex-col gap-2 overflow-hidden"
     class:items-start={side === 'left'}
     class:items-end={side === 'right'}
     {style}

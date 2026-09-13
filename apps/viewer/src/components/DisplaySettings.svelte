@@ -4,7 +4,9 @@
   import { exportCameraView, importCameraViewFromFile } from '../lib/camera-view-io';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
   import { CameraModeName } from '@cosmolabe/three';
-  import { X, Save, Navigation, Download, Upload, Camera, Video, Square } from 'lucide-svelte';
+  import { Save, Navigation, Download, Upload, Camera, Video, Square } from 'lucide-svelte';
+  import { toolDef } from '../lib/shell.svelte';
+  import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
 
@@ -39,24 +41,9 @@
     setFov(val);
   }
 
-  function handleBackdrop(e: MouseEvent) {
-    if ((e.target as HTMLElement).classList.contains('settings-backdrop')) onClose();
-  }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="settings-backdrop absolute inset-0 z-25" onclick={handleBackdrop}>
-  <!-- Anchored beside the rail that now opens it, above the timeline dock. -->
-  <div
-    class="absolute w-60 rounded-lg border border-border bg-panel backdrop-blur-xl py-2 animate-fade-up"
-    style="left: calc(var(--size-rail) + 1rem); bottom: calc(var(--size-dock-base) + 0.75rem)"
-  >
-    <!-- Header -->
-    <div class="flex items-center justify-between px-3 pb-1.5 text-[12px] font-semibold text-text-primary border-b border-border mb-1">
-      <span>Display</span>
-      <button class="bg-transparent border-none text-text-muted cursor-pointer p-0.5 hover:text-text-primary" onclick={onClose}><X size={14} /></button>
-    </div>
+<InstrumentPanel key="display" title="Display" width={toolDef('display').width} {onClose}>
 
     <!-- Toggle rows -->
     {#each [
@@ -205,13 +192,4 @@
         <span class="text-[10px] text-text-muted bg-surface-3 px-1 py-px rounded">I</span>
       </div>
     {/if}
-  </div>
-</div>
-
-<style>
-  @keyframes fade-up {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .animate-fade-up { animation: fade-up 0.12s ease; }
-</style>
+</InstrumentPanel>

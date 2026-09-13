@@ -161,7 +161,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <section
   bind:this={root}
-  class="instrument pointer-events-auto flex min-h-0 shrink-0 flex-col rounded-md border border-border bg-panel backdrop-blur-md text-[12px]"
+  class="instrument pointer-events-auto flex min-h-7 shrink flex-col overflow-hidden rounded-md border border-border bg-panel backdrop-blur-md text-[12px]"
   class:w-full={compact}
   class:floating
   {style}

@@ -55,11 +55,9 @@ export type PanelKey = (typeof PANEL_KEYS)[number];
  * How a surface presents itself.
  *
  * `panel` is the default and the one #59 asks new analysis features to use. The
- * other two exist because the catalog and the display menu already had
- * presentations that earn their shape — a full-height browsing drawer and a
- * small anchored menu — and #59's point is that the catalog is a *separate
- * contextual instrument*, not a panel in a stack. Only `panel` surfaces are laid
- * out by `PanelDock`, and only they float and minimize.
+ * The union leaves room for genuinely transient surfaces, but every current
+ * tool is a panel: consistent chrome and placement are more valuable than the
+ * catalog and display settings keeping their legacy drawer/menu shells.
  */
 export type ToolPresentation = 'panel' | 'drawer' | 'menu';
 
@@ -82,10 +80,12 @@ export interface ToolDef {
  * list between `App.svelte` and `BottomBar.svelte`.
  */
 export const TOOLS: readonly ToolDef[] = [
-  { id: 'catalog', label: 'Catalog',  icon: Globe,    presentation: 'drawer', dock: 'left',  width: 300, shortcut: 'b' },
-  { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384, shortcut: 'e' },
+  { id: 'catalog', label: 'Catalog',  icon: Globe,    presentation: 'panel',  dock: 'left',  width: 300, shortcut: 'b' },
+  // E is camera roll-right in KeyboardControls; tool shortcuts must not steal
+  // renderer controls while the canvas has focus.
+  { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
   { id: 'measure', label: 'Measure',  icon: Ruler,    presentation: 'panel',  dock: 'left',  width: 400 },
-  { id: 'display', label: 'Display',  icon: Settings, presentation: 'menu',   dock: 'right', width: 240 },
+  { id: 'display', label: 'Display',  icon: Settings, presentation: 'panel',  dock: 'right', width: 240 },
   { id: 'debug',   label: 'Diagnostics', icon: Bug,   presentation: 'panel',  dock: 'right', width: 260 },
 ];
 
@@ -293,9 +293,8 @@ export const FLOAT_Z_BASE = 16;
 /**
  * A floating panel's `z-index`, from its place in the focus order.
  *
- * Bounded by the number of panels, and deliberately kept under the drawer and
- * menu layers (25+): a floating instrument is part of the workspace, not
- * something that should cover the catalog.
+ * Bounded by the number of panels and kept below modal/transient layers (25+):
+ * a floating instrument remains part of the workspace.
  */
 export function panelZIndex(key: PanelKey): number {
   const i = shell.panelOrder.indexOf(key);

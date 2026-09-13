@@ -66,12 +66,10 @@ presentation all follow from the table row.
 
 ## Presentations
 
-Most surfaces are `panel`s. Two are not, and both earn it: the catalog is a
-full-height browsing `drawer` — a separate contextual instrument, not a second
-navigation column — and display settings is a small anchored `menu`. Only
-`panel` surfaces are laid out by `PanelDock`; the other two render themselves
-and are merely *opened* through the same state. Prefer `panel` unless a surface
-has a reason of that kind.
+All current tools are `panel`s. This keeps the header, movement, minimization,
+dock layout and compact-sheet behavior consistent, and prevents a legacy
+full-screen backdrop from blocking another open tool. The presentation type
+still leaves room for a genuinely transient drawer or menu in the future.
 
 ## Floating
 
