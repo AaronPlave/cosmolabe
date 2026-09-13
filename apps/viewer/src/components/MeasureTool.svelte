@@ -1,7 +1,9 @@
 <script lang="ts">
   import { vs, getRenderer, setTime } from '../lib/viewer-state.svelte';
   import { etToDate } from '@cosmolabe/core';
-  import { X, ZoomIn, ZoomOut } from 'lucide-svelte';
+  import { ZoomIn, ZoomOut } from 'lucide-svelte';
+  import { toolDef } from '../lib/shell.svelte';
+  import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   interface Props {
     onClose: () => void;
@@ -540,26 +542,24 @@
   );
 </script>
 
-<div class="absolute top-3 left-3 z-15 bg-black/90 backdrop-blur-md border border-border rounded-lg p-3 min-w-96 text-[12px] animate-fade-in">
-  <div class="flex items-center justify-between mb-2">
-    <span class="text-text-secondary text-[10px] uppercase tracking-wider font-semibold">Geometry</span>
-    <div class="flex items-center gap-0.5">
-      <button
-        class="bg-transparent border-none cursor-pointer p-0.5 rounded transition-colors {zoomIndex > 0 ? 'text-text-muted hover:text-text-primary' : 'text-text-muted opacity-30'}"
-        onclick={zoomOut}
-        disabled={zoomIndex === 0}
-        title="Zoom out"
-      ><ZoomOut size={13} /></button>
-      <span class="text-[10px] text-text-muted font-mono min-w-8 text-center">{zoomLevel}x</span>
-      <button
-        class="bg-transparent border-none cursor-pointer p-0.5 rounded transition-colors {zoomIndex < ZOOM_LEVELS.length - 1 ? 'text-text-muted hover:text-text-primary' : 'text-text-muted opacity-30'}"
-        onclick={zoomIn}
-        disabled={zoomIndex === ZOOM_LEVELS.length - 1}
-        title="Zoom in"
-      ><ZoomIn size={13} /></button>
-      <button class="bg-transparent border-none text-text-muted cursor-pointer p-0.5 rounded hover:text-text-primary transition-colors ml-1" onclick={onClose}><X size={13} /></button>
-    </div>
-  </div>
+<InstrumentPanel key="measure" title="Geometry" width={toolDef('measure').width} {onClose}>
+  {#snippet actions()}
+    <button
+      class="cursor-pointer rounded p-0.5 transition-colors {zoomIndex > 0 ? 'text-text-muted hover:text-text-primary' : 'text-text-muted opacity-30'}"
+      onclick={zoomOut}
+      disabled={zoomIndex === 0}
+      title="Zoom out"
+      aria-label="Zoom out"
+    ><ZoomOut size={13} /></button>
+    <span class="min-w-8 text-center font-mono text-[10px] text-text-muted">{zoomLevel}x</span>
+    <button
+      class="cursor-pointer rounded p-0.5 transition-colors {zoomIndex < ZOOM_LEVELS.length - 1 ? 'text-text-muted hover:text-text-primary' : 'text-text-muted opacity-30'}"
+      onclick={zoomIn}
+      disabled={zoomIndex === ZOOM_LEVELS.length - 1}
+      title="Zoom in"
+      aria-label="Zoom in"
+    ><ZoomIn size={13} /></button>
+  {/snippet}
 
   <!-- From body -->
   <div class="flex items-center gap-5 mb-1.5">
@@ -596,23 +596,6 @@
     </select>
   </div>
 
-  <!-- Shared SVG snippet for close approach lines + cursors on any chart -->
-  {#snippet chartOverlays()}
-    {#if showApproaches}
-      {#each closeApproachMarkers as ca}
-        <line x1={ca.x} y1="0" x2={ca.x} y2={H}
-          stroke="var(--color-success)"
-          stroke-width={nearestCA?.et === ca.et ? 2 : 1}
-          vector-effect="non-scaling-stroke"
-          opacity={nearestCA?.et === ca.et ? 0.9 : 0.3}
-        />
-      {/each}
-    {/if}
-    <line x1={playheadFrac * W} y1="0" x2={playheadFrac * W} y2={H} stroke="white" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.9" />
-    {#if hoverX != null}
-      <line x1={hoverX} y1="0" x2={hoverX} y2={H} stroke="var(--color-accent)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.7" />
-    {/if}
-  {/snippet}
 
   <!-- Results -->
   {#if current}
@@ -745,14 +728,28 @@
   {:else if !fromBodyName}
     <div class="text-text-muted text-[11px] pt-2 border-t border-border">Select a From body or track one in the viewport</div>
   {/if}
-</div>
+</InstrumentPanel>
+
+<!-- Declared outside the panel on purpose: a snippet that is a direct child
+     of a component is passed to it as a prop, and this one is local. -->
+  {#snippet chartOverlays()}
+    {#if showApproaches}
+      {#each closeApproachMarkers as ca}
+        <line x1={ca.x} y1="0" x2={ca.x} y2={H}
+          stroke="var(--color-success)"
+          stroke-width={nearestCA?.et === ca.et ? 2 : 1}
+          vector-effect="non-scaling-stroke"
+          opacity={nearestCA?.et === ca.et ? 0.9 : 0.3}
+        />
+      {/each}
+    {/if}
+    <line x1={playheadFrac * W} y1="0" x2={playheadFrac * W} y2={H} stroke="white" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.9" />
+    {#if hoverX != null}
+      <line x1={hoverX} y1="0" x2={hoverX} y2={H} stroke="var(--color-accent)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.7" />
+    {/if}
+  {/snippet}
 
 <style>
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .animate-fade-in { animation: fade-in 0.12s ease; }
 
   .chart-wrap {
     position: relative;

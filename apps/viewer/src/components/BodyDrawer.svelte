@@ -9,6 +9,7 @@
     type BodyEntry,
   } from "../lib/viewer-state.svelte";
   import { X, Search, ChevronRight, Eye, EyeClosed } from "lucide-svelte";
+  import { shell, toolDef } from "../lib/shell.svelte";
   import * as Button from "$lib/components/ui/button";
   import Input from "$lib/components/ui/input/input.svelte";
 
@@ -18,6 +19,14 @@
   }
 
   let { open, onClose }: Props = $props();
+
+  const compact = $derived(shell.layout === 'compact');
+  /** One style string, so the drawer's geometry is decided in one place. */
+  const drawerStyle = $derived(
+    compact
+      ? 'left: 0.75rem; right: 0.75rem; bottom: calc(var(--size-dock-base) + 0.75rem)'
+      : `left: calc(var(--size-rail) + 1rem); width: ${toolDef('catalog').width}px; bottom: calc(var(--size-dock-base) + 0.75rem)`,
+  );
 
   let search = $state("");
   let soloMode = $state(false);
@@ -171,8 +180,12 @@
     class="drawer-backdrop absolute inset-0 z-30"
     onclick={handleBackdropClick}
   >
+    <!-- Docked against the rail rather than at the viewport edge, and above the
+         timeline rather than a fixed 4rem: the catalog is a contextual
+         instrument beside the rail, not a second navigation column (#59). -->
     <div
-      class="absolute top-3 left-3 bottom-16 bg-black/90 backdrop-blur-xl border border-border rounded-lg flex flex-col animate-slide-in overflow-hidden"
+      class="absolute top-3 flex flex-col overflow-hidden rounded-lg border border-border bg-panel backdrop-blur-xl animate-slide-in"
+      style={drawerStyle}
     >
       <!-- Header -->
       <div class="flex items-center gap-1.5 px-3 pt-2.5 pb-1.5 shrink-0">

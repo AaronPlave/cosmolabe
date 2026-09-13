@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
-  import { X } from 'lucide-svelte';
+  import { toolDef } from '../lib/shell.svelte';
+  import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   interface Props {
     onClose: () => void;
@@ -105,11 +106,8 @@
 </script>
 
 {#if info}
-  <div class="absolute top-3 left-3 z-15 bg-black/90 backdrop-blur-md border border-border rounded-lg p-2.5 min-w-52 text-[11px] font-mono text-text-muted animate-fade-in">
-    <div class="flex items-center justify-between mb-2">
-      <span class="text-text-secondary text-[10px] uppercase tracking-wider font-sans font-semibold">Debug</span>
-      <button class="bg-transparent border-none text-text-muted cursor-pointer p-0.5 rounded hover:text-text-primary transition-colors" onclick={onClose}><X size={12} /></button>
-    </div>
+  <InstrumentPanel key="debug" title="Diagnostics" width={toolDef('debug').width} {onClose}>
+    <div class="text-[11px] font-mono text-text-muted">
 
     <!-- FPS chart -->
     <div class="mb-1.5">
@@ -186,15 +184,11 @@
         />
       </label>
     </div>
-  </div>
+    </div>
+  </InstrumentPanel>
 {/if}
 
 <style>
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .animate-fade-in { animation: fade-in 0.12s ease; }
 
   .section-label {
     font-family: var(--font-sans);

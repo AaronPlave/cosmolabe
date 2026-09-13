@@ -1,7 +1,8 @@
 <script lang="ts">
   import { vs, selectBody, getRenderer } from '../lib/viewer-state.svelte';
   import type { InfoRow, InfoSectionResult } from '@cosmolabe/three';
-  import { X, Navigation } from 'lucide-svelte';
+  import { Navigation } from 'lucide-svelte';
+  import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
 
@@ -174,17 +175,17 @@
 </script>
 
 {#if vs.selectedBodyName}
-  <div class="absolute top-3 right-3 z-15 bg-black/90 backdrop-blur-md border border-border rounded-lg p-3 min-w-52 max-w-72 text-[12px] animate-fade-in">
-    <!-- Header -->
-    <div class="flex items-center gap-1.5 mb-1">
-      <span class="text-[14px] font-semibold text-text-primary flex-1">{vs.selectedBodyName}</span>
-      <button class="bg-transparent border-none text-text-muted cursor-pointer p-0.5 rounded hover:text-text-primary transition-colors" onclick={flyTo} title="Fly to">
+  <InstrumentPanel key="info" title={vs.selectedBodyName} width={288} onClose={() => selectBody(null)}>
+    {#snippet actions()}
+      <button
+        class="flex h-7 w-7 items-center justify-center rounded text-text-muted transition-colors hover:text-text-primary"
+        onclick={flyTo}
+        title="Fly to"
+        aria-label="Fly to {vs.selectedBodyName}"
+      >
         <Navigation size={13} />
       </button>
-      <button class="bg-transparent border-none text-text-muted cursor-pointer p-0.5 rounded hover:text-text-primary transition-colors" onclick={() => selectBody(null)}>
-        <X size={13} />
-      </button>
-    </div>
+    {/snippet}
 
     {#if bodyEntry?.classification}
       <div class="text-[10px] text-text-muted uppercase tracking-wider mb-2">{bodyEntry.classification}</div>
@@ -263,13 +264,5 @@
         {/if}
       </div>
     {/each}
-  </div>
+  </InstrumentPanel>
 {/if}
-
-<style>
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .animate-fade-in { animation: fade-in 0.12s ease; }
-</style>

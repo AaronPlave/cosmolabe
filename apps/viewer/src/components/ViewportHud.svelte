@@ -34,9 +34,15 @@
   }
 </script>
 
-<!-- Tracked body / camera mode HUD -->
+<!-- Tracked body / camera mode HUD.
+     Offset against the shell's measurements rather than a fixed `bottom-16
+     left-3`: the timeline's height is no longer a constant, and the rail now
+     owns the left edge. -->
 {#if vs.trackedBodyName || vs.cameraMode !== CameraModeName.FREE_ORBIT}
-  <div class="absolute bottom-16 left-3 z-10 flex flex-col gap-0.5 pointer-events-none">
+  <div
+    class="absolute z-10 flex flex-col gap-0.5 pointer-events-none"
+    style="left: calc(var(--size-rail) + 1rem); bottom: calc(var(--size-dock-base) + 0.5rem)"
+  >
     {#if vs.trackedBodyName}
       <span class="text-[13px] font-medium text-text-primary opacity-80">{vs.trackedBodyName}</span>
     {/if}
@@ -59,7 +65,10 @@
      Plain interpolation, never {@html} — unlike the plugin overlay below, this
      text comes from a script or an embed host. -->
 {#if vs.note}
-  <div class="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 max-w-[70%] pointer-events-none">
+  <div
+    class="absolute left-1/2 -translate-x-1/2 z-10 max-w-[70%] pointer-events-none"
+    style="bottom: calc(var(--size-dock-base) + 3rem)"
+  >
     <p class="m-0 px-3 py-1.5 rounded-md bg-black/70 backdrop-blur-sm border border-border text-center text-[13px] leading-snug text-text-primary whitespace-pre-wrap">
       {vs.note}
     </p>
@@ -69,13 +78,14 @@
 
 <!-- Plugin overlays (rendered per corner) -->
 {#each Object.entries(getPluginOverlays()) as [position, overlays]}
-  {@const posClasses = {
-    'top-left': 'top-10 left-3',
-    'top-right': 'top-2.5 right-3',
-    'bottom-left': 'bottom-16 left-3',
-    'bottom-right': 'bottom-16 right-3',
-  }[position] ?? 'top-2.5 left-3'}
-  <div class="absolute {posClasses} z-10 flex flex-col gap-1 pointer-events-none">
+  <!-- Plugin corners clear the rail and the timeline the same way. -->
+  {@const posStyle = {
+    'top-left': 'top: 2.5rem; left: calc(var(--size-rail) + 1rem)',
+    'top-right': 'top: 0.625rem; right: 0.75rem',
+    'bottom-left': 'left: calc(var(--size-rail) + 1rem); bottom: calc(var(--size-dock-base) + 0.5rem)',
+    'bottom-right': 'right: 0.75rem; bottom: calc(var(--size-dock-base) + 0.5rem)',
+  }[position] ?? 'top: 0.625rem; left: calc(var(--size-rail) + 1rem)'}
+  <div class="absolute z-10 flex flex-col gap-1 pointer-events-none" style={posStyle}>
     {#each overlays as overlay (overlay.id)}
       {@const html = renderOverlay(overlay)}
       {#if html}
