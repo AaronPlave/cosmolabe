@@ -57,6 +57,22 @@
   --color-input: #2a2a30;
   --color-ring: #6eaaff;
 
+  /* Shell — the 3D-first workspace's own measurements.
+   * The rail is icon-width and nothing more (#59: icon-first, never an
+   * expanded navigation sidebar); the timeline height is a default the
+   * shell overrides inline when the timeline expands. */
+  --size-rail: 2.75rem;
+  --size-timeline: 4rem;
+  /* Where surfaces docked *above* the timeline stop. Equal to the timeline on
+     desktop; taller when compact, where the rail is horizontal and sits
+     between the two. `App.svelte` sets all three for the live values. */
+  --size-dock-base: 4rem;
+
+  /* Instrument chrome. Panels used to spell `bg-black/90 border-border` at
+   * seven call sites; naming it once is what lets the chrome be retuned
+   * without visiting every panel. */
+  --color-panel: rgba(9, 9, 12, 0.88);
+
   /* Radius */
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;

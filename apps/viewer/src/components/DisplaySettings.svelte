@@ -47,7 +47,11 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="settings-backdrop absolute inset-0 z-25" onclick={handleBackdrop}>
-  <div class="absolute bottom-16 right-3 w-60 bg-black/90 backdrop-blur-xl border border-border rounded-lg py-2 shadow-2xl animate-fade-up">
+  <!-- Anchored beside the rail that now opens it, above the timeline dock. -->
+  <div
+    class="absolute w-60 rounded-lg border border-border bg-panel backdrop-blur-xl py-2 animate-fade-up"
+    style="left: calc(var(--size-rail) + 1rem); bottom: calc(var(--size-dock-base) + 0.75rem)"
+  >
     <!-- Header -->
     <div class="flex items-center justify-between px-3 pb-1.5 text-[12px] font-semibold text-text-primary border-b border-border mb-1">
       <span>Display</span>

@@ -8,9 +8,11 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
-  import { X, Loader2, Search, Ban } from 'lucide-svelte';
+  import { Loader2, Search, Ban } from 'lucide-svelte';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
   import { vs, etToUtcString } from '../lib/viewer-state.svelte';
+  import { toolDef } from '../lib/shell.svelte';
+  import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import { getSpice } from '../lib/loader';
   import {
     EVENT_KINDS, cancelSearch, ef, clearSelection, currentKind, resetForm, runSearch,
@@ -101,13 +103,7 @@
   }
 </script>
 
-<div class="absolute top-3 left-3 z-15 bg-black/90 backdrop-blur-md border border-border rounded-lg p-3 w-96 text-[12px] animate-fade-in">
-  <div class="flex items-center justify-between mb-2">
-    <span class="text-text-secondary text-[10px] uppercase tracking-wider font-semibold">Event finder</span>
-    <button class="bg-transparent border-none text-text-muted cursor-pointer p-0.5 rounded hover:text-text-primary transition-colors" onclick={onClose}>
-      <X size={13} />
-    </button>
-  </div>
+<InstrumentPanel title="Event finder" width={toolDef('events').width} {onClose}>
 
   <!-- Event type -->
   <div class="flex items-center gap-2 mb-1.5">
@@ -365,7 +361,7 @@
       </div>
     </div>
   {/if}
-</div>
+</InstrumentPanel>
 
 <style>
   /* Matches the measure tool's inline text controls. */

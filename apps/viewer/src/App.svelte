@@ -1,31 +1,50 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import WelcomeScreen from './components/WelcomeScreen.svelte';
-  import BottomBar from './components/BottomBar.svelte';
   import BodyDrawer from './components/BodyDrawer.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
   import DisplaySettings from './components/DisplaySettings.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
   import BodyInfoPanel from './components/BodyInfoPanel.svelte';
-  import DebugPanel from './components/DebugPanel.svelte';
-  import MeasureTool from './components/MeasureTool.svelte';
-  import EventFinder from './components/EventFinder.svelte';
+  import ToolRail from './components/shell/ToolRail.svelte';
+  import PanelDock from './components/shell/PanelDock.svelte';
+  import ToolPanels from './components/shell/ToolPanels.svelte';
+  import TimelineDock from './components/shell/TimelineDock.svelte';
+  import InstrumentPanel from './components/shell/InstrumentPanel.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
+  import { shell, TOOLS, isToolOpen, toggleTool, closeTool, closeTopTool, watchLayout } from './lib/shell.svelte';
   import { loadDemo, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
-  import { X } from 'lucide-svelte';
 
   let canvas: HTMLCanvasElement;
-  let bodyDrawerOpen = $state(false);
-  let displaySettingsOpen = $state(false);
   let commandPaletteOpen = $state(false);
   let pickModeActive = $state(false);
   let pickResult = $state<{ bodyName: string; latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number } | null>(null);
   let uiHidden = $state(false);
   let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
-  let debugPanelOpen = $state(false);
-  let measureToolOpen = $state(false);
-  let eventFinderOpen = $state(false);
+
+  const compact = $derived(shell.layout === 'compact');
+
+  /**
+   * The shell's own measurements, published to the panels and docks that offset
+   * against them. The timeline is the only one that changes: it grows when it
+   * expands, and everything docked above it has to move with it rather than
+   * each surface guessing a fixed 4rem the way they used to.
+   */
+  const shellVars = $derived.by(() => {
+    // Distance from the bottom of the viewport to the top of each docked
+    // surface, from what those surfaces actually measure rather than from a
+    // constant that has to be kept in step with their contents.
+    const gap = 12; // the docks' own `bottom-3`
+    const timeline = shell.timelineHeight + gap;
+    // Compact puts the rail between the timeline and everything above it.
+    const dockBase = compact ? timeline + shell.railHeight + 8 : timeline;
+    // The rail has no width to offset against once it is horizontal, so
+    // collapsing the variable is what spares every left-docked surface a
+    // compact branch of its own.
+    const rail = compact ? '0rem' : '2.75rem';
+    return `--size-rail: ${rail}; --size-timeline: ${timeline}px; --size-dock-base: ${dockBase}px`;
+  });
 
   /**
    * One condition for the whole load, so there is one loading screen rather than
@@ -144,8 +163,6 @@
         case 'g': setDisplayOption('grid', !vs.showGrid); return;
         case 'x': setDisplayOption('axes', !vs.showAxes); return;
         case 'm': cycleCamera(); return;
-        case 'b': bodyDrawerOpen = !bodyDrawerOpen; return;
-        case 'e': eventFinderOpen = !eventFinderOpen; return;
         case 'i': {
           const sensors = renderer.getSensorNames();
           if (sensors.length === 0) return;
@@ -157,15 +174,22 @@
         }
         case 'p': togglePickMode(); return;
         case 'Escape':
-          if (displaySettingsOpen) displaySettingsOpen = false;
-          else if (eventFinderOpen) eventFinderOpen = false;
-          else if (bodyDrawerOpen) bodyDrawerOpen = false;
+          // Most-recently-opened first. The chain this replaced went in source
+          // order, so Escape closed whichever panel happened to be listed
+          // first rather than the one the user had just opened.
+          if (shell.shortcutsOpen) shell.shortcutsOpen = false;
+          else if (closeTopTool()) return;
           else if (pickModeActive) closePickResult();
           else if (vs.selectedBodyName) selectBody(null);
           else resetCamera();
           return;
         case '\\': e.preventDefault(); uiHidden = !uiHidden; return;
       }
+
+      // Tool shortcuts come from the shell's own table, so adding a tool does
+      // not mean remembering to add a case above as well.
+      const tool = TOOLS.find((t) => t.shortcut === e.key);
+      if (tool) toggleTool(tool.id);
     }
   }
 
@@ -179,10 +203,12 @@
     const catalogParam = new URLSearchParams(location.search).get('catalog');
     if (catalogParam) loadDemo(canvas, catalogParam);
     window.addEventListener('resize', onResize);
+    const stopLayoutWatch = watchLayout();
     // Capture phase so we see right-clicks before CameraController stops propagation
     window.addEventListener('mousedown', onWindowMouseDown, true);
     window.addEventListener('pointerup', onWindowPointerUp);
     return () => {
+      stopLayoutWatch();
       window.removeEventListener('resize', onResize);
       window.removeEventListener('mousedown', onWindowMouseDown, true);
       window.removeEventListener('pointerup', onWindowPointerUp);
@@ -193,7 +219,7 @@
 <svelte:window onkeydown={onKeydown} />
 <svelte:document ondragover={onDocDragOver} ondrop={onDocDrop} />
 
-<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive}>
+<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive} style={shellVars}>
   <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
 
   <!-- Gated on `loading`, not `sceneLoaded`: the scene graph exists well before
@@ -209,56 +235,50 @@
 
   {#if !loading && !uiHidden}
     <ViewportHud />
-    <BodyInfoPanel />
 
-    {#if debugPanelOpen}
-      <DebugPanel onClose={() => debugPanelOpen = false} />
+    <!-- Instruments overlay the scene; none of them positions itself. On a
+         phone both docks feed one bottom-sheet stack, which is why the compact
+         branch is a different composition of the same pieces rather than a
+         second set of components. -->
+    {#if compact}
+      <PanelDock side="sheet">
+        <BodyInfoPanel />
+        <ToolPanels dock="all" />
+        {#if pickResult}
+          <InstrumentPanel title="Surface pick" onClose={closePickResult}>
+            <div class="font-semibold text-text-primary mb-1.5">{pickResult.bodyName}</div>
+            {@render pickRows(pickResult)}
+          </InstrumentPanel>
+        {/if}
+      </PanelDock>
+    {:else}
+      <PanelDock side="left">
+        <ToolPanels dock="left" />
+      </PanelDock>
+      <PanelDock side="right">
+        <BodyInfoPanel />
+        <ToolPanels dock="right" />
+        {#if pickResult}
+          <InstrumentPanel title="Surface pick" width={224} onClose={closePickResult}>
+            <div class="font-semibold text-text-primary mb-1.5">{pickResult.bodyName}</div>
+            {@render pickRows(pickResult)}
+          </InstrumentPanel>
+        {/if}
+      </PanelDock>
     {/if}
 
-    {#if measureToolOpen}
-      <MeasureTool onClose={() => measureToolOpen = false} />
-    {/if}
+    <BodyDrawer open={isToolOpen('catalog')} onClose={() => closeTool('catalog')} />
 
-    {#if eventFinderOpen}
-      <EventFinder onClose={() => eventFinderOpen = false} />
-    {/if}
-
-    <BodyDrawer open={bodyDrawerOpen} onClose={() => bodyDrawerOpen = false} />
-
-    {#if displaySettingsOpen}
+    {#if isToolOpen('display')}
       <DisplaySettings
-        onClose={() => displaySettingsOpen = false}
-        debugActive={debugPanelOpen}
-        onToggleDebug={() => debugPanelOpen = !debugPanelOpen}
+        onClose={() => closeTool('display')}
+        debugActive={isToolOpen('debug')}
+        onToggleDebug={() => toggleTool('debug')}
       />
     {/if}
 
-    {#if pickResult}
-      <div class="absolute top-3 right-3 z-20 bg-black/90 backdrop-blur-md border border-border rounded-lg p-2.5 min-w-50 text-[12px]">
-        <button class="absolute top-1.5 right-2 bg-transparent border-none cursor-pointer text-text-muted hover:text-text-primary" onclick={closePickResult}><X size={13} /></button>
-        <div class="text-text-primary font-semibold mb-1.5">{pickResult.bodyName}</div>
-        <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lat</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pickResult.latDeg), 5)}&deg; {pickResult.latDeg >= 0 ? 'N' : 'S'}</span></div>
-        <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lon</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pickResult.lonDeg), 5)}&deg; {pickResult.lonDeg >= 0 ? 'E' : 'W'}</span></div>
-        <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Alt</span><span class="font-mono text-text-primary">{pickResult.altKm >= 0 ? '+' : ''}{fmtCoord(pickResult.altKm * 1000, 1)} m</span></div>
-        <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Dist</span><span class="font-mono text-text-primary">{pickResult.cameraDistanceKm < 1 ? `${fmtCoord(pickResult.cameraDistanceKm * 1000, 1)} m` : `${fmtCoord(pickResult.cameraDistanceKm, 3)} km`}</span></div>
-      </div>
-    {/if}
-
-    <BottomBar
-      onToggleBodyDrawer={() => bodyDrawerOpen = !bodyDrawerOpen}
-      onToggleDisplaySettings={() => displaySettingsOpen = !displaySettingsOpen}
-      onTogglePick={togglePickMode}
-      onToggleInfoPanel={() => {
-        if (vs.selectedBodyName) selectBody(null);
-        else if (vs.trackedBodyName) selectBody(vs.trackedBodyName);
-      }}
-      onToggleMeasure={() => measureToolOpen = !measureToolOpen}
-      onToggleEvents={() => eventFinderOpen = !eventFinderOpen}
-      {pickModeActive}
-      infoPanelActive={!!vs.selectedBodyName}
-      measureActive={measureToolOpen}
-      eventsActive={eventFinderOpen}
-    />
+    <ToolRail {pickModeActive} onTogglePick={togglePickMode} />
+    <TimelineDock />
 
     <CommandPalette open={commandPaletteOpen} onClose={() => commandPaletteOpen = false} />
 
@@ -272,3 +292,10 @@
     {/if}
   {/if}
 </div>
+
+{#snippet pickRows(pick: { latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number })}
+  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lat</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.latDeg), 5)}&deg; {pick.latDeg >= 0 ? 'N' : 'S'}</span></div>
+  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lon</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.lonDeg), 5)}&deg; {pick.lonDeg >= 0 ? 'E' : 'W'}</span></div>
+  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Alt</span><span class="font-mono text-text-primary">{pick.altKm >= 0 ? '+' : ''}{fmtCoord(pick.altKm * 1000, 1)} m</span></div>
+  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Dist</span><span class="font-mono text-text-primary">{pick.cameraDistanceKm < 1 ? `${fmtCoord(pick.cameraDistanceKm * 1000, 1)} m` : `${fmtCoord(pick.cameraDistanceKm, 3)} km`}</span></div>
+{/snippet}
