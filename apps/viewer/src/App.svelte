@@ -13,7 +13,7 @@
   import TimelineDock from './components/shell/TimelineDock.svelte';
   import InstrumentPanel from './components/shell/InstrumentPanel.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
-  import { shell, TOOLS, isToolOpen, toggleTool, closeTool, closeTopTool, watchLayout } from './lib/shell.svelte';
+  import { shell, TOOLS, isToolOpen, toggleTool, closeTool, closeTopTool, watchLayout, isMinimized, reclampFloats } from './lib/shell.svelte';
   import { loadDemo, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
 
   let canvas: HTMLCanvasElement;
@@ -32,19 +32,30 @@
    * each surface guessing a fixed 4rem the way they used to.
    */
   const shellVars = $derived.by(() => {
-    // Distance from the bottom of the viewport to the top of each docked
-    // surface, from what those surfaces actually measure rather than from a
-    // constant that has to be kept in step with their contents.
-    const gap = 12; // the docks' own `bottom-3`
-    const timeline = shell.timelineHeight + gap;
-    // Compact puts the rail between the timeline and everything above it.
-    const dockBase = compact ? timeline + shell.railHeight + 8 : timeline;
+    // Distance from the bottom of the viewport to the top of whatever docks
+    // above the bottom chrome, from what that chrome actually measures rather
+    // than from a constant that has to be kept in step with its contents.
+    const dockBase = shell.chromeBottom + 12; // the dock's own `bottom-3`
     // The rail has no width to offset against once it is horizontal, so
     // collapsing the variable is what spares every left-docked surface a
     // compact branch of its own.
     const rail = compact ? '0rem' : '2.75rem';
-    return `--size-rail: ${rail}; --size-timeline: ${timeline}px; --size-dock-base: ${dockBase}px`;
+    return `--size-rail: ${rail}; --size-dock-base: ${dockBase}px`;
   });
+
+  /**
+   * Which panel the compact layout shows, when no tool has claimed the sheet.
+   *
+   * The selection-driven panels do not open through the rail, so they fall back
+   * into the sheet rather than competing for it: whatever the user last did —
+   * opened a tool, picked a surface, selected a body — is what is on screen.
+   */
+  const fallbackSheet = $derived.by(() => {
+    if (shell.activeSheet != null) return null;
+    if (pickResult && !isMinimized('pick')) return 'pick';
+    if (vs.selectedBodyName && !isMinimized('info')) return 'info';
+    return null;
+  });;
 
   /**
    * One condition for the whole load, so there is one loading screen rather than
@@ -66,6 +77,9 @@
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     resize(window.innerWidth, window.innerHeight);
+    // A floating panel must not be stranded off-screen by a window that shrank
+    // under it — there would be no header left to drag it back by.
+    reclampFloats({ width: window.innerWidth, height: window.innerHeight });
   }
 
   function onDocDragOver(e: DragEvent) { e.preventDefault(); }
@@ -236,16 +250,18 @@
   {#if !loading && !uiHidden}
     <ViewportHud />
 
-    <!-- Instruments overlay the scene; none of them positions itself. On a
-         phone both docks feed one bottom-sheet stack, which is why the compact
-         branch is a different composition of the same pieces rather than a
-         second set of components. -->
+    <!-- Instruments overlay the scene; none of them places itself, and any of
+         them can be dragged out of its dock. Compact shows one sheet at a time
+         — the scene is the point, and a phone has room for it and one
+         instrument. -->
     {#if compact}
       <PanelDock side="sheet">
-        <BodyInfoPanel />
         <ToolPanels dock="all" />
-        {#if pickResult}
-          <InstrumentPanel title="Surface pick" onClose={closePickResult}>
+        {#if shell.activeSheet === 'info' || fallbackSheet === 'info'}
+          <BodyInfoPanel />
+        {/if}
+        {#if pickResult && (shell.activeSheet === 'pick' || fallbackSheet === 'pick')}
+          <InstrumentPanel key="pick" title="Surface pick" onClose={closePickResult}>
             <div class="font-semibold text-text-primary mb-1.5">{pickResult.bodyName}</div>
             {@render pickRows(pickResult)}
           </InstrumentPanel>
@@ -259,7 +275,7 @@
         <BodyInfoPanel />
         <ToolPanels dock="right" />
         {#if pickResult}
-          <InstrumentPanel title="Surface pick" width={224} onClose={closePickResult}>
+          <InstrumentPanel key="pick" title="Surface pick" width={224} onClose={closePickResult}>
             <div class="font-semibold text-text-primary mb-1.5">{pickResult.bodyName}</div>
             {@render pickRows(pickResult)}
           </InstrumentPanel>
@@ -277,8 +293,21 @@
       />
     {/if}
 
-    <ToolRail {pickModeActive} onTogglePick={togglePickMode} />
-    <TimelineDock />
+    {#if compact}
+      <!-- One bar, not two: the rail and the transport share a box so the
+           chrome costs the scene one strip instead of a third of the screen. -->
+      <div
+        bind:clientHeight={shell.chromeBottom}
+        class="pointer-events-auto absolute inset-x-2 bottom-3 z-20 rounded-lg border border-border bg-panel backdrop-blur-md"
+      >
+        <TimelineDock inline />
+        <div class="mx-2 border-t border-border/60"></div>
+        <ToolRail inline {pickModeActive} onTogglePick={togglePickMode} />
+      </div>
+    {:else}
+      <ToolRail {pickModeActive} onTogglePick={togglePickMode} />
+      <TimelineDock />
+    {/if}
 
     <CommandPalette open={commandPaletteOpen} onClose={() => commandPaletteOpen = false} />
 

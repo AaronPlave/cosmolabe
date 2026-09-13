@@ -7,8 +7,17 @@ viewport into dashboard regions, and nothing positions itself.
 That last part is the rule this shell exists to enforce. Before it, panels each
 carried their own `absolute top-3 left-3 …`, and the event finder, the measure
 tool and the diagnostics panel all claimed the same slot: opening two drew one
-on top of the other. A panel now says what it is; the dock decides where it
-goes.
+on top of the other. A panel now says what it is; the shell decides where it
+goes — and the user overrules the shell.
+
+Two properties follow from "the arrangement is a default, not an address":
+
+- **Panels are manipulable.** Drag a panel's header and it leaves the dock,
+  floating where it was picked up, movable and resizable from there. The dock
+  button sends it back.
+- **Minimized is not closed.** An instrument you want out of the way keeps its
+  search, its selection and its form; only its body is hidden. Closing is the
+  separate, destructive act, and it should not be the only way to see the scene.
 
 The shell lives in `apps/viewer/src/lib/shell.svelte.ts` (state) and
 `apps/viewer/src/components/shell/` (the primitives).
@@ -19,9 +28,12 @@ The shell lives in `apps/viewer/src/lib/shell.svelte.ts` (state) and
 | --- | --- |
 | `TOOLS` | The tool table: id, label, icon, presentation, dock, width, shortcut. The rail, the keyboard map and anything else that enumerates tools read this one list. |
 | `shell.openTools` | Open surfaces, least-recently-opened first. It is both the dock's stacking order and what Escape closes. |
+| `shell.panels` | Per-panel placement: `{ minimized, float }`, keyed by `PanelKey`. Seeded for every panel, so none has to create its entry while rendering. |
 | `shell.layout` | `desktop` or `compact`. One `matchMedia` listener, bound by `watchLayout()`. |
+| `shell.activeSheet` | The one panel showing when compact. |
+| `panel-geometry.ts` | `clampFloat` / `moveFloat` / `resizeFloat` — the constraints on a floating rect, as plain functions so they can be tested without a browser. |
 | `ToolRail` | The persistent rail. Icon width, never more. Opens surfaces; never contains them. |
-| `InstrumentPanel` | The one panel primitive: quiet chrome, a caption, an optional `actions` snippet, a close button. |
+| `InstrumentPanel` | The one panel primitive: quiet chrome, a caption, an optional `actions` snippet, and the minimize / float / dock / close controls. Owns the drag and resize gestures. |
 | `PanelDock` | Lays open panels out down one side, or into one bottom sheet when compact. |
 | `ToolPanels` | Maps the open `panel` tools to their components, in open order. |
 | `TimelineDock` | Transport, time axis and playhead, plus the expandable region that event lanes and geometry profiles share. |
@@ -32,10 +44,16 @@ Add a row to `TOOLS`, and a branch to `ToolPanels`. The component wraps its own
 content in `InstrumentPanel` and positions nothing:
 
 ```svelte
-<InstrumentPanel title="Occultations" width={toolDef('occultations').width} {onClose}>
+<InstrumentPanel key="occultations" title="Occultations" width={toolDef('occultations').width} {onClose}>
   …
 </InstrumentPanel>
 ```
+
+The `key` is what makes a panel manipulable: without one it is a plain box,
+because there is nowhere to keep its minimized flag or its float rect. `info`
+and `pick` are keys without being tools — the body info panel follows the
+selection and the pick readout follows a click, so neither belongs on the rail,
+but both should move and minimize like anything else.
 
 That is the whole integration. The rail button, the keyboard shortcut, the dock
 placement, the stacking order, the Escape behaviour and the compact bottom-sheet
@@ -50,30 +68,63 @@ navigation column — and display settings is a small anchored `menu`. Only
 and are merely *opened* through the same state. Prefer `panel` unless a surface
 has a reason of that kind.
 
+## Floating
+
+Dragging a panel's header past a few pixels of slack converts it to floating at
+the rect it already occupies, so the gesture reads as picking the panel up
+rather than as it jumping somewhere and then moving. Floating panels use
+`position: fixed`, which escapes the dock's scroll clipping with no portal.
+
+That is the entire mechanism. There is no z-order to manage, no tiling, no
+snapping and no persistence — a rectangle, and two constraints:
+
+- A panel cannot be resized below `MIN_PANEL_W` × `MIN_PANEL_H`.
+- A grabbable strip always stays on screen (`KEEP_VISIBLE_X` / `_Y`), and the
+  header never goes above the top edge. A panel dragged into a corner is always
+  recoverable by dragging, which is why there is no "reset layout" command.
+
+`reclampFloats` re-applies those when the window resizes, so a shrinking viewport
+cannot strand a panel where nothing can reach it. Float rects survive closing a
+panel — where you put an instrument is a preference — but not a switch to the
+compact layout, which has nowhere to put them.
+
 ## Measurements
 
-Three CSS variables, published by `App.svelte` onto the shell root:
+Two CSS variables, published by `App.svelte` onto the shell root:
 
 - `--size-rail` — the rail's width, or `0` when it is horizontal, so left-docked
   surfaces need no compact branch of their own.
-- `--size-timeline` — bottom of the viewport to the top of the timeline dock.
 - `--size-dock-base` — bottom of the viewport to the top of whatever docks above
-  the timeline. Equal to `--size-timeline` on desktop; taller when compact,
-  where the rail sits between the two.
+  the bottom chrome.
 
-The last two come from `bind:clientHeight` on the timeline and the rail rather
-than from constants. The timeline's height is not the shell's to choose: it
-grows with the expanded lane region, with the shortcut strip, and — at a phone
-width, where the transport wraps — with the viewport. The first version used rem
-constants, and the wrapped transport promptly grew underneath the rail and
-swallowed its clicks.
+`--size-dock-base` comes from `bind:clientHeight` on that chrome rather than from
+a constant. Its height is not the shell's to choose: it grows with the expanded
+lane region, with the shortcut strip, and at a phone width with a transport that
+wraps. The first version used rem constants, and the wrapped transport promptly
+grew underneath the rail and swallowed its clicks.
 
 ## Compact
 
 The compact layout is a different presentation of the same state, never a second
-feature model: the rail turns horizontal above the timeline, and both docks feed
-one bottom-sheet stack. No component has a mobile twin, and
-`shell.layout` is the only thing that branches.
+feature model. No component has a mobile twin; `shell.layout` is the only thing
+that branches.
+
+Two rules shape it, both in service of keeping the scene primary:
+
+- **One sheet at a time.** `shell.activeSheet` names it. Other open tools stay
+  open with their state intact, and the rail switches between them — pressing
+  the visible one puts it away, pressing any other brings it forward. The
+  version this replaced scrolled every open panel into one tall sheet and left
+  the scene a strip at the top.
+- **One bar of chrome.** The rail and the transport share a single bottom dock,
+  and the transport keeps to one row — play, axis, clock — with the rate and
+  step controls behind the same expand toggle the lane region uses. Two stacked
+  bars with a three-row wrapped transport cost the scene about a third of a
+  phone screen before a sheet was even open.
+
+The rail marks a stowed tool differently from both a closed one and the one on
+screen. That distinction is the point of minimizing: it is what tells the user
+their search is still there.
 
 ## What this is not
 

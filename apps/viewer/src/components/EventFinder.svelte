@@ -103,7 +103,7 @@
   }
 </script>
 
-<InstrumentPanel title="Event finder" width={toolDef('events').width} {onClose}>
+<InstrumentPanel key="events" title="Event finder" width={toolDef('events').width} {onClose}>
 
   <!-- Event type -->
   <div class="flex items-center gap-2 mb-1.5">

@@ -106,7 +106,7 @@
 </script>
 
 {#if info}
-  <InstrumentPanel title="Diagnostics" width={toolDef('debug').width} {onClose}>
+  <InstrumentPanel key="debug" title="Diagnostics" width={toolDef('debug').width} {onClose}>
     <div class="text-[11px] font-mono text-text-muted">
 
     <!-- FPS chart -->

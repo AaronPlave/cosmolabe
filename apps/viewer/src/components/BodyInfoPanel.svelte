@@ -175,7 +175,7 @@
 </script>
 
 {#if vs.selectedBodyName}
-  <InstrumentPanel title={vs.selectedBodyName} width={288} onClose={() => selectBody(null)}>
+  <InstrumentPanel key="info" title={vs.selectedBodyName} width={288} onClose={() => selectBody(null)}>
     {#snippet actions()}
       <button
         class="flex h-7 w-7 items-center justify-center rounded text-text-muted transition-colors hover:text-text-primary"

@@ -33,12 +33,33 @@
   import Input from '$lib/components/ui/input/input.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
 
+  interface Props {
+    /** Render bare, for a parent that supplies the surrounding chrome. */
+    inline?: boolean;
+  }
+
+  let { inline = false }: Props = $props();
+
+  let height = $state(0);
+  $effect(() => {
+    // Only the outermost bottom surface reports: when compact folds this into
+    // the shared dock, that dock measures itself and this would report the
+    // inner row's height instead.
+    if (!inline) shell.chromeBottom = height;
+  });
+
   let gotoTimeOpen = $state(false);
   let gotoTimeValue = $state('');
   let gotoTimeError = $state(false);
 
   const compact = $derived(shell.layout === 'compact');
   const expanded = $derived(shell.timelineDepth === 'expanded');
+  /**
+   * The rate and step controls are secondary: on a phone they are what pushes
+   * the transport onto extra rows. Expanding the timeline brings them back,
+   * which is the same progressive-depth control the lane region uses.
+   */
+  const secondaryHidden = $derived(compact && !expanded);
 
   // ── Scrubber state ──
 
@@ -70,8 +91,11 @@
   );
 
   let rangeLabel = $derived(isZoomed ? formatDuration(currentRange) : '');
-  let startLabel = $derived(isZoomed ? etToShortDate(vs.scrubMin) : etToShortDate(vs.scrubBaseMin));
-  let endLabel = $derived(isZoomed ? etToShortDate(vs.scrubMax) : etToShortDate(vs.scrubBaseMax));
+  // The bounds are dropped at a phone width, where they left the track about
+  // forty pixels to draw a two-year mission in. The clock and the zoom readout
+  // still say where in time the playhead is; a squeezed axis says nothing.
+  let startLabel = $derived(compact ? '' : isZoomed ? etToShortDate(vs.scrubMin) : etToShortDate(vs.scrubBaseMin));
+  let endLabel = $derived(compact ? '' : isZoomed ? etToShortDate(vs.scrubMax) : etToShortDate(vs.scrubBaseMax));
 
   // ── Go to time ──
 
@@ -100,13 +124,25 @@
   }
 </script>
 
-<!-- Its own height is published back to the shell: the transport wraps at a
-     phone width and the lane region grows when expanded, so what docks above
-     this has to follow the measurement, not a constant. -->
+<!-- Desktop: its own dock along the bottom, offset past the rail. Compact:
+     rendered bare inside the shared bottom dock, so the phone gets one bar of
+     chrome rather than two stacked boxes. -->
 <div
-  bind:clientHeight={shell.timelineHeight}
-  class="pointer-events-auto absolute bottom-3 right-3 z-20 flex flex-col gap-0.5 rounded-lg border border-border bg-panel backdrop-blur-md px-3 py-1.5"
-  style:left={compact ? '0.5rem' : 'calc(var(--size-rail) + 1rem)'}
+  bind:clientHeight={height}
+  class="flex flex-col gap-0.5"
+  class:pointer-events-auto={!inline}
+  class:absolute={!inline}
+  class:bottom-3={!inline}
+  class:right-3={!inline}
+  class:z-20={!inline}
+  class:rounded-lg={!inline}
+  class:border={!inline}
+  class:border-border={!inline}
+  class:bg-panel={!inline}
+  class:backdrop-blur-md={!inline}
+  class:px-3={true}
+  class:py-1.5={true}
+  style:left={inline ? undefined : 'calc(var(--size-rail) + 1rem)'}
 >
   {#if shell.shortcutsOpen}
     <div class="py-0.5 text-center text-[12px] text-text-muted">
@@ -114,25 +150,31 @@
     </div>
   {/if}
 
-  <!-- The transport wraps rather than overflowing: at a phone width the time
-       readout drops to its own row instead of pushing the axis off-screen. -->
-  <div class="flex w-full flex-wrap items-center gap-1.5">
+  <!-- Compact keeps this to one row — play, axis, clock — and puts the rest
+       behind the expand toggle. The wrapped three-row transport it replaced
+       cost the scene a third of a phone screen before a sheet was even open,
+       which is backwards for a shell whose premise is scene-first. -->
+  <div class="flex w-full items-center gap-1.5">
     <div class="flex shrink-0 gap-px">
-      <button class="tl-btn" onclick={slower} title="Slower (Down)" aria-label="Slower"><ChevronsLeft size={14} /></button>
-      <button class="tl-btn" onclick={stepBackward} title="Step back (Left)" aria-label="Step back"><ChevronLeft size={14} /></button>
-      <button class="tl-btn" onclick={reverse} title="Reverse (R)" aria-label="Reverse"><Rewind fill="currentColor" size={13} /></button>
+      {#if !secondaryHidden}
+        <button class="tl-btn" onclick={slower} title="Slower (Down)" aria-label="Slower"><ChevronsLeft size={14} /></button>
+        <button class="tl-btn" onclick={stepBackward} title="Step back (Left)" aria-label="Step back"><ChevronLeft size={14} /></button>
+        <button class="tl-btn" onclick={reverse} title="Reverse (R)" aria-label="Reverse"><Rewind fill="currentColor" size={13} /></button>
+      {/if}
       <button class="tl-btn mx-0.5 border border-border bg-surface-3 px-2" onclick={togglePlay} title="Play/Pause (Space)" aria-label={vs.playing ? 'Pause' : 'Play'}>
         {#if vs.playing}<Pause fill="currentColor" size={14} />{:else}<Play fill="currentColor" size={14} />{/if}
       </button>
-      <button class="tl-btn" onclick={stepForward} title="Step forward (Right)" aria-label="Step forward"><ChevronRight size={14} /></button>
-      <button class="tl-btn" onclick={faster} title="Faster (Up)" aria-label="Faster"><ChevronsRight size={14} /></button>
+      {#if !secondaryHidden}
+        <button class="tl-btn" onclick={stepForward} title="Step forward (Right)" aria-label="Step forward"><ChevronRight size={14} /></button>
+        <button class="tl-btn" onclick={faster} title="Faster (Up)" aria-label="Faster"><ChevronsRight size={14} /></button>
+      {/if}
     </div>
 
-    <span class="min-w-16 shrink-0 text-center font-mono text-[11px] text-text-secondary">{vs.rateText}</span>
+    {#if !secondaryHidden}
+      <span class="min-w-16 shrink-0 text-center font-mono text-[11px] text-text-secondary">{vs.rateText}</span>
+    {/if}
 
-    <!-- `order-last` when compact gives the axis a full row of its own; on
-         desktop it keeps its place inline between transport and readout. -->
-    <div class="flex min-w-40 flex-1 items-center" class:order-last={compact} class:w-full={compact}>
+    <div class="flex min-w-24 flex-1 items-center">
       <TimeScrubber
         fraction={currentFraction}
         onScrub={scrubTo}
@@ -151,8 +193,8 @@
     </div>
 
     <Popover.Root bind:open={gotoTimeOpen} onOpenChange={onGotoOpen}>
-      <Popover.Trigger class="shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-[12px] text-text-primary transition-colors hover:bg-surface-3 cursor-pointer">
-        {vs.timeText}
+      <Popover.Trigger class="shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'text-[10px]' : 'text-[12px]'}">
+        {compact ? vs.timeText.replace(' UTC', '') : vs.timeText}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content side="top" sideOffset={8} class="w-80 p-3">
@@ -173,7 +215,7 @@
       </Popover.Portal>
     </Popover.Root>
 
-    {#if vs.cameraMode !== CameraModeName.FREE_ORBIT}
+    {#if vs.cameraMode !== CameraModeName.FREE_ORBIT && !compact}
       <span class="shrink-0 rounded bg-surface-3 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-secondary">{vs.cameraMode}</span>
     {/if}
 

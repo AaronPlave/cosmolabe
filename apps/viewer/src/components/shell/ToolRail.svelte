@@ -7,26 +7,43 @@
    * rather than this rail growing into a navigation sidebar. So the rail only
    * ever opens things; it never contains them.
    *
-   * Two groups: the instruments from the shell's `TOOLS` table, then the scene
-   * controls that act on the viewport directly rather than opening a surface.
-   * Compact layout lays the same buttons out horizontally above the timeline —
-   * the same controls in a different presentation, not a separate mobile bar.
+   * Compact gives it a second job. With one sheet on screen at a time, the rail
+   * is also the switcher: a press on the visible instrument puts it away, a
+   * press on any other brings it forward. Nothing closes, so nothing is lost —
+   * which is why a minimized tool reads differently here from a closed one.
+   *
+   * `inline` drops the rail's own box so the compact layout can fold it into
+   * one bottom dock with the timeline, instead of stacking two bordered bars.
    */
   import { Crosshair, Camera, Info, Keyboard } from 'lucide-svelte';
-  import { TOOLS, shell, isToolOpen, toggleTool, type ToolDef } from '../../lib/shell.svelte';
+  import { TOOLS, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
   import { vs, cycleCamera, selectBody } from '../../lib/viewer-state.svelte';
 
   interface Props {
     pickModeActive: boolean;
     onTogglePick: () => void;
+    /** Render bare, for a parent that supplies the surrounding chrome. */
+    inline?: boolean;
   }
 
-  let { pickModeActive, onTogglePick }: Props = $props();
+  let { pickModeActive, onTogglePick, inline = false }: Props = $props();
 
   const compact = $derived(shell.layout === 'compact');
 
   function hint(tool: ToolDef): string {
     return tool.shortcut ? `${tool.label} (${tool.shortcut.toUpperCase()})` : tool.label;
+  }
+
+  /**
+   * A tool can be in three states, and the button has to say which: closed,
+   * open and showing, or open but put away. The third is the one worth marking
+   * — it is what tells the user their search is still there.
+   */
+  function state(tool: ToolDef): 'closed' | 'active' | 'stowed' {
+    if (!isToolOpen(tool.id)) return 'closed';
+    if (isMinimized(tool.id)) return 'stowed';
+    if (compact && tool.presentation === 'panel' && shell.activeSheet !== tool.id) return 'stowed';
+    return 'active';
   }
 
   /**
@@ -41,21 +58,31 @@
 </script>
 
 <nav
-  bind:clientHeight={shell.railHeight}
   aria-label="Tools"
-  class="pointer-events-auto absolute z-20 flex gap-0.5 rounded-lg border border-border bg-panel backdrop-blur-md p-1"
+  class="flex gap-0.5"
+  class:pointer-events-auto={!inline}
+  class:absolute={!inline}
+  class:z-20={!inline}
+  class:rounded-lg={!inline}
+  class:border={!inline}
+  class:border-border={!inline}
+  class:bg-panel={!inline}
+  class:backdrop-blur-md={!inline}
+  class:p-1={!inline}
   class:flex-col={!compact}
-  class:left-3={!compact}
-  class:top-3={!compact}
-  class:inset-x-2={compact}
+  class:left-3={!inline && !compact}
+  class:top-3={!inline && !compact}
   class:justify-center={compact}
-  style={compact ? 'bottom: calc(var(--size-timeline) + 0.5rem)' : undefined}
+  class:px-1={inline}
+  class:py-1={inline}
 >
   {#each TOOLS as tool (tool.id)}
     {@const Icon = tool.icon}
+    {@const s = state(tool)}
     <button
       class="rail-btn"
-      aria-pressed={isToolOpen(tool.id)}
+      class:stowed={s === 'stowed'}
+      aria-pressed={s === 'active'}
       aria-label={tool.label}
       title={hint(tool)}
       onclick={() => toggleTool(tool.id)}
@@ -90,15 +117,17 @@
     <Info size={16} />
   </button>
 
-  <button
-    class="rail-btn"
-    aria-pressed={shell.shortcutsOpen}
-    aria-label="Keyboard shortcuts"
-    title="Keyboard shortcuts"
-    onclick={() => (shell.shortcutsOpen = !shell.shortcutsOpen)}
-  >
-    <Keyboard size={16} />
-  </button>
+  {#if !compact}
+    <button
+      class="rail-btn"
+      aria-pressed={shell.shortcutsOpen}
+      aria-label="Keyboard shortcuts"
+      title="Keyboard shortcuts"
+      onclick={() => (shell.shortcutsOpen = !shell.shortcutsOpen)}
+    >
+      <Keyboard size={16} />
+    </button>
+  {/if}
 </nav>
 
 <style>
@@ -106,6 +135,7 @@
      keeps the rail usable on a phone without inventing a second mobile control
      (#59 — hit targets, and no hover-only functionality). */
   .rail-btn {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -128,6 +158,22 @@
   .rail-btn[aria-pressed='true'] {
     color: var(--color-accent);
     background: var(--color-accent-muted);
+  }
+  /* Open but put away: the accent without the ground, plus a marker. Distinct
+     from both a closed tool and the one on screen, because "your search is
+     still here" is exactly what a user who minimized something needs to see. */
+  .rail-btn.stowed {
+    color: var(--color-accent);
+    opacity: 0.65;
+  }
+  .rail-btn.stowed::after {
+    content: '';
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    transform: translate(0, 13px);
   }
 
   .rail-divider {

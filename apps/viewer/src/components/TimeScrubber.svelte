@@ -18,9 +18,10 @@
     onResetZoom?: () => void;
     /** Called to set a specific zoom duration in seconds */
     onSetZoom?: (seconds: number) => void;
-    /** Start date label (always shown) */
+    /** Start date label. Empty hides it — the compact layout drops both
+     *  bounds so the track itself gets the width. */
     startLabel: string;
-    /** End date label (always shown) */
+    /** End date label. Empty hides it, as with `startLabel`. */
     endLabel: string;
     /** Whether the scrubber is zoomed in */
     isZoomed?: boolean;
@@ -151,7 +152,7 @@
   onkeydown={onKeyDown}
 >
   <div class="scrubber-row">
-    <span class="date-label">{startLabel}</span>
+    {#if startLabel}<span class="date-label">{startLabel}</span>{/if}
 
     <div class="track-column">
       <div
@@ -183,7 +184,7 @@
       </div>
     </div>
 
-    <span class="date-label">{endLabel}</span>
+    {#if endLabel}<span class="date-label">{endLabel}</span>{/if}
 
     <!-- Range / zoom popover -->
     <Popover.Root bind:open={zoomMenuOpen}>

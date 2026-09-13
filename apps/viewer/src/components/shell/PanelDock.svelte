@@ -1,16 +1,17 @@
 <script lang="ts">
   /**
-   * Where open `panel` surfaces live.
+   * Where docked panels sit.
    *
    * Desktop: a column down one side, offset past the rail, stacked in the order
    * they were opened and scrolling as a group when there are more than fit. The
    * scene stays continuous behind it — the dock floats over the canvas rather
    * than claiming a column of the layout, which is the distinction #59 draws
-   * between a workspace and a dashboard.
+   * between a workspace and a dashboard. A panel dragged out of here goes
+   * `position: fixed` and leaves the flow; the dock neither knows nor cares.
    *
-   * Compact: one bottom-sheet stack above the timeline, capped so the scene
-   * keeps the upper half of the screen. Both sides feed the same stack there,
-   * which is why `sheet` is a side of its own rather than a flag.
+   * Compact: one sheet, the panel the shell has made active. Not a stack —
+   * a phone has room for one instrument and the scene, and the shell's job is
+   * to keep the scene primary.
    */
   import type { Snippet } from 'svelte';
 
@@ -35,7 +36,9 @@
 <!-- `pointer-events-none` on the dock, `auto` on each panel (InstrumentPanel):
      the gaps between panels are still scene, and must stay draggable. -->
 {#if side === 'sheet'}
-  <div class="pointer-events-none absolute z-15 flex max-h-[55%] flex-col gap-2 overflow-y-auto" {style}>
+  <!-- Capped at half the screen: the sheet is a reading surface over the scene,
+       never a replacement for it. -->
+  <div class="pointer-events-none absolute z-15 flex max-h-[50%] flex-col gap-2 overflow-y-auto" {style}>
     {@render children()}
   </div>
 {:else}

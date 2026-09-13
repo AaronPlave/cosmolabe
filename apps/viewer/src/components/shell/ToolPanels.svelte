@@ -7,19 +7,31 @@
    * opened lands at the bottom of the dock and is the one Escape closes, no
    * matter where its component happens to sit in this file.
    */
-  import { openToolsWith, closeTool } from '../../lib/shell.svelte';
+  import { shell, openToolsWith, closeTool, toolDef } from '../../lib/shell.svelte';
   import EventFinder from '../EventFinder.svelte';
   import MeasureTool from '../MeasureTool.svelte';
   import DebugPanel from '../DebugPanel.svelte';
 
   interface Props {
-    /** `all` feeds the compact bottom-sheet stack, which both docks share. */
+    /** `all` is the compact case, where the shell picks one sheet instead. */
     dock: 'left' | 'right' | 'all';
   }
 
   let { dock }: Props = $props();
 
-  const panels = $derived(openToolsWith('panel', dock === 'all' ? undefined : dock));
+  const panels = $derived.by(() => {
+    // Compact shows exactly the active sheet. Every other open tool stays open
+    // with its state intact and is one rail press away — the alternative, which
+    // this replaced, scrolled all of them into one tall sheet and left the
+    // scene a strip at the top.
+    if (shell.layout === 'compact') {
+      const active = shell.activeSheet;
+      if (active == null || active === 'info' || active === 'pick') return [];
+      const def = toolDef(active);
+      return def.presentation === 'panel' && shell.openTools.includes(active) ? [def] : [];
+    }
+    return openToolsWith('panel', dock === 'all' ? undefined : dock);
+  });
 </script>
 
 {#each panels as tool (tool.id)}

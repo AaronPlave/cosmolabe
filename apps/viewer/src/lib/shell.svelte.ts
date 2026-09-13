@@ -1,6 +1,6 @@
 /**
- * Shell state — which contextual tool surfaces are open, and how the shell is
- * laid out.
+ * Shell state — which contextual tool surfaces are open, where they are, and
+ * how much of themselves they are currently showing.
  *
  * This is the state half of Cosmolabe's 3D-first workspace (#59): the scene is
  * the continuous base layer, and everything here describes instruments that
@@ -8,13 +8,19 @@
  * options and the rest stay in `viewer-state.svelte.ts`, and the shell reads
  * them like any other consumer.
  *
- * It replaces the six independent `$state` booleans `App.svelte` used to keep,
- * which had two problems beyond the bookkeeping: three panels hardcoded the
- * same `top-3 left-3` slot and overlapped when opened together, and "what does
- * Escape close?" was an if/else chain in source order rather than a property of
- * what the user actually opened last.
+ * Two ideas carry most of the weight:
+ *
+ * - **A panel's place is not fixed.** Panels open into a dock, and the dock is
+ *   a default rather than an address: drag one by its header and it floats,
+ *   where it can be moved and resized. This is not a window manager — there is
+ *   no z-order to manage, no tiling, no persistence — it is a rectangle and two
+ *   constraints (`panel-geometry.ts`).
+ * - **Minimized is not closed.** An instrument you want out of the way keeps
+ *   its search, its selection and its form; only its body is hidden. Closing is
+ *   the separate, destructive act.
  */
 import { Globe, Radar, Ruler, Settings, Bug } from 'lucide-svelte';
+import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 
 /**
  * What a rail icon is. Taken from a concrete icon rather than written as
@@ -33,14 +39,24 @@ export function isToolId(value: string): value is ToolId {
 }
 
 /**
+ * Everything that can be a panel, which is not the same as everything the rail
+ * opens: the body info panel follows the selection and the surface-pick readout
+ * follows a click, so neither is a tool, but both are instruments the user
+ * should be able to move and minimize like any other.
+ */
+export const PANEL_KEYS = [...TOOL_IDS, 'info', 'pick'] as const;
+
+export type PanelKey = (typeof PANEL_KEYS)[number];
+
+/**
  * How a surface presents itself.
  *
- * `panel` is the default and the one #59 asks new analysis features to use: a
- * compact instrument stacked in a side dock. The other two exist because the
- * catalog and the display menu already had presentations that earn their shape
- * — a full-height browsing drawer and a small anchored menu — and #59's point
- * is that the catalog is a *separate contextual instrument*, not a panel in a
- * stack. Only `panel` surfaces are laid out by `PanelDock`.
+ * `panel` is the default and the one #59 asks new analysis features to use. The
+ * other two exist because the catalog and the display menu already had
+ * presentations that earn their shape — a full-height browsing drawer and a
+ * small anchored menu — and #59's point is that the catalog is a *separate
+ * contextual instrument*, not a panel in a stack. Only `panel` surfaces are laid
+ * out by `PanelDock`, and only they float and minimize.
  */
 export type ToolPresentation = 'panel' | 'drawer' | 'menu';
 
@@ -49,7 +65,7 @@ export interface ToolDef {
   label: string;
   icon: IconComponent;
   presentation: ToolPresentation;
-  /** Which dock a `panel` surface stacks in. */
+  /** Which dock a `panel` surface opens into, before the user moves it. */
   dock: 'left' | 'right';
   /** Panel width in px at the desktop layout; ignored when compact. */
   width: number;
@@ -78,6 +94,20 @@ export function toolDef(id: ToolId): ToolDef {
   return def;
 }
 
+/** Per-panel placement, independent of whether the panel is currently open. */
+export interface PanelRuntime {
+  /** Showing its header only. The body's state is untouched. */
+  minimized: boolean;
+  /** Non-null once the user drags the panel out of its dock. */
+  float: FloatRect | null;
+}
+
+function seedPanels(): Record<PanelKey, PanelRuntime> {
+  return Object.fromEntries(
+    PANEL_KEYS.map((key) => [key, { minimized: false, float: null }]),
+  ) as Record<PanelKey, PanelRuntime>;
+}
+
 /**
  * The shell's own reactive state. Same shape as `vs`: one `$state` object whose
  * properties are mutated, never reassigned.
@@ -90,19 +120,27 @@ export const shell = $state({
   openTools: [] as ToolId[],
 
   /**
-   * `compact` is the phone/narrow presentation: the rail becomes a horizontal
-   * strip and panels become bottom sheets. It is a presentation switch over the
-   * same state, not a separate feature model — #59's requirement, and what
+   * Placement for every panel, seeded up front so a panel never has to create
+   * its own entry while rendering.
+   */
+  panels: seedPanels(),
+
+  /**
+   * `compact` is the phone/narrow presentation. It is a presentation switch over
+   * the same state, not a separate feature model — #59's requirement, and what
    * keeps a second mobile-only code path from appearing.
    */
   layout: 'desktop' as 'desktop' | 'compact',
 
   /**
-   * Progressive analysis depth on the timeline. `transport` is the minimal time
-   * strip; `expanded` adds the region event lanes (#67) and continuous profiles
-   * (#65) will draw into. Further levels belong to those issues, not here.
+   * The one panel showing when compact.
+   *
+   * A phone has room for one instrument and the scene, and not for both plus a
+   * stack of others: the first version scrolled every open panel into one tall
+   * sheet, which buried the scene the shell exists to keep primary. Other open
+   * tools stay open and keep their state; the rail switches between them.
    */
-  timelineDepth: 'transport' as 'transport' | 'expanded',
+  activeSheet: null as PanelKey | null,
 
   /**
    * The keyboard-shortcut strip in the timeline dock. Chrome rather than an
@@ -112,18 +150,26 @@ export const shell = $state({
   shortcutsOpen: false,
 
   /**
-   * Measured heights of the two surfaces everything else docks above, in px.
-   *
-   * Measured rather than declared because the timeline's height is not a
-   * constant the shell gets to pick: it grows with the expanded lane region,
-   * with the shortcut strip, and — at a phone width, where the transport wraps
-   * onto a second row — with the viewport itself. The first version of this
-   * used rem constants, and the wrapped transport promptly grew under the rail
-   * and swallowed its clicks.
+   * Progressive analysis depth on the timeline. `transport` is the minimal time
+   * strip; `expanded` adds the secondary transport and the region event lanes
+   * (#67) and continuous profiles (#65) will draw into.
    */
-  timelineHeight: 0,
-  railHeight: 0,
+  timelineDepth: 'transport' as 'transport' | 'expanded',
+
+  /**
+   * Measured height of the bottom chrome, in px — the timeline dock on desktop,
+   * the combined timeline-and-rail dock when compact.
+   *
+   * Measured rather than declared because it is not a constant the shell gets to
+   * pick: it grows with the expanded lane region, with the shortcut strip, and
+   * at a phone width with a transport that wraps. The first version used rem
+   * constants, and the wrapped transport promptly grew under the rail and
+   * swallowed its clicks.
+   */
+  chromeBottom: 0,
 });
+
+// ── Open / close ──
 
 export function isToolOpen(id: ToolId): boolean {
   return shell.openTools.includes(id);
@@ -131,18 +177,62 @@ export function isToolOpen(id: ToolId): boolean {
 
 /** Opens `id`, or raises it to the top of the stack if already open. */
 export function openTool(id: ToolId) {
-  closeTool(id);
+  closeToolSilently(id);
   shell.openTools.push(id);
+  shell.panels[id].minimized = false;
+  if (shell.layout === 'compact') shell.activeSheet = id;
 }
 
-export function closeTool(id: ToolId) {
+function closeToolSilently(id: ToolId) {
   const i = shell.openTools.indexOf(id);
   if (i >= 0) shell.openTools.splice(i, 1);
 }
 
+export function closeTool(id: ToolId) {
+  closeToolSilently(id);
+  // Minimizing is a view state and closing resets it, so reopening a panel does
+  // not hand it back collapsed. Its float rect survives: where the user put an
+  // instrument is a preference, not a transient.
+  shell.panels[id].minimized = false;
+  if (shell.activeSheet === id) shell.activeSheet = lastOpenPanel();
+}
+
+function lastOpenPanel(): ToolId | null {
+  for (let i = shell.openTools.length - 1; i >= 0; i--) {
+    const id = shell.openTools[i];
+    if (toolDef(id).presentation === 'panel' && !shell.panels[id].minimized) return id;
+  }
+  return null;
+}
+
+/**
+ * What the rail's button does, which differs by layout because the layouts
+ * answer different questions.
+ *
+ * Desktop asks "is this instrument on my workspace?" — so a second press closes
+ * it, and a press on a minimized one brings it back rather than closing
+ * something the user cannot currently see.
+ *
+ * Compact asks "which instrument am I looking at?" — so a press on the visible
+ * one puts it away without losing it, and a press on any other switches to it.
+ */
 export function toggleTool(id: ToolId) {
-  if (isToolOpen(id)) closeTool(id);
-  else openTool(id);
+  const runtime = shell.panels[id];
+  if (!isToolOpen(id)) {
+    openTool(id);
+    return;
+  }
+  if (shell.layout === 'compact') {
+    if (shell.activeSheet === id) minimizePanel(id);
+    else activateSheet(id);
+    return;
+  }
+  if (runtime.minimized) {
+    runtime.minimized = false;
+    openTool(id); // raise
+    return;
+  }
+  closeTool(id);
 }
 
 /**
@@ -151,12 +241,16 @@ export function toggleTool(id: ToolId) {
  * exactly as it did before.
  */
 export function closeTopTool(): boolean {
-  const top = shell.openTools.pop();
-  return top !== undefined;
+  const top = shell.openTools[shell.openTools.length - 1];
+  if (top === undefined) return false;
+  closeTool(top);
+  return true;
 }
 
 export function closeAllTools() {
+  for (const id of [...shell.openTools]) closeTool(id);
   shell.openTools.length = 0;
+  shell.activeSheet = null;
 }
 
 /** Open surfaces of one presentation, in the order they should be laid out. */
@@ -166,8 +260,77 @@ export function openToolsWith(presentation: ToolPresentation, dock?: 'left' | 'r
     .filter((t) => t.presentation === presentation && (dock === undefined || t.dock === dock));
 }
 
+// ── Minimize ──
+
+export function isMinimized(key: PanelKey): boolean {
+  return shell.panels[key].minimized;
+}
+
+export function minimizePanel(key: PanelKey) {
+  shell.panels[key].minimized = true;
+  // Compact shows one sheet, so minimizing the visible one gives the scene the
+  // whole screen rather than promoting the next panel into its place.
+  if (shell.activeSheet === key) shell.activeSheet = null;
+}
+
+export function restorePanel(key: PanelKey) {
+  shell.panels[key].minimized = false;
+  if (shell.layout === 'compact') shell.activeSheet = key;
+}
+
+export function toggleMinimized(key: PanelKey) {
+  if (shell.panels[key].minimized) restorePanel(key);
+  else minimizePanel(key);
+}
+
+// ── Compact sheets ──
+
+export function activateSheet(key: PanelKey | null) {
+  shell.activeSheet = key;
+  if (key) shell.panels[key].minimized = false;
+}
+
+// ── Floating ──
+
+export function isFloating(key: PanelKey): boolean {
+  return shell.panels[key].float !== null;
+}
+
+export function floatOf(key: PanelKey): FloatRect | null {
+  return shell.panels[key].float;
+}
+
+export function setFloat(key: PanelKey, rect: FloatRect, viewport: Viewport) {
+  shell.panels[key].float = clampFloat(rect, viewport);
+}
+
+/** Sends a floating panel back to its dock, discarding the rect. */
+export function dockPanel(key: PanelKey) {
+  shell.panels[key].float = null;
+}
+
+/**
+ * Re-clamps every floating panel, for when the viewport changes under them —
+ * a resized window or a rotated phone must not strand a panel off-screen.
+ */
+export function reclampFloats(viewport: Viewport) {
+  for (const key of PANEL_KEYS) {
+    const rect = shell.panels[key].float;
+    if (rect) shell.panels[key].float = clampFloat(rect, viewport);
+  }
+}
+
+// ── Layout ──
+
 export function setLayout(layout: 'desktop' | 'compact') {
+  if (shell.layout === layout) return;
   shell.layout = layout;
+  // Floating is a desktop gesture; a phone-width screen has no room for it, and
+  // carrying rects across would drop panels at desktop coordinates.
+  if (layout === 'compact') {
+    for (const key of PANEL_KEYS) shell.panels[key].float = null;
+    shell.activeSheet = lastOpenPanel();
+  }
 }
 
 export function setTimelineDepth(depth: 'transport' | 'expanded') {

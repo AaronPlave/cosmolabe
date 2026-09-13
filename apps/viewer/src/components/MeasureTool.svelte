@@ -542,7 +542,7 @@
   );
 </script>
 
-<InstrumentPanel title="Geometry" width={toolDef('measure').width} {onClose}>
+<InstrumentPanel key="measure" title="Geometry" width={toolDef('measure').width} {onClose}>
   {#snippet actions()}
     <button
       class="cursor-pointer rounded p-0.5 transition-colors {zoomIndex > 0 ? 'text-text-muted hover:text-text-primary' : 'text-text-muted opacity-30'}"
