@@ -8,25 +8,17 @@
     hideAllBodies,
     type BodyEntry,
   } from "../lib/viewer-state.svelte";
-  import { X, Search, ChevronRight, Eye, EyeClosed } from "lucide-svelte";
-  import { shell, toolDef } from "../lib/shell.svelte";
+  import { Search, ChevronRight, Eye, EyeClosed } from "lucide-svelte";
+  import { toolDef } from "../lib/shell.svelte";
+  import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import * as Button from "$lib/components/ui/button";
   import Input from "$lib/components/ui/input/input.svelte";
 
   interface Props {
-    open: boolean;
     onClose: () => void;
   }
 
-  let { open, onClose }: Props = $props();
-
-  const compact = $derived(shell.layout === 'compact');
-  /** One style string, so the drawer's geometry is decided in one place. */
-  const drawerStyle = $derived(
-    compact
-      ? 'left: 0.75rem; right: 0.75rem; bottom: calc(var(--size-dock-base) + 0.75rem)'
-      : `left: calc(var(--size-rail) + 1rem); width: ${toolDef('catalog').width}px; bottom: calc(var(--size-dock-base) + 0.75rem)`,
-  );
+  let { onClose }: Props = $props();
 
   let search = $state("");
   let soloMode = $state(false);
@@ -95,10 +87,6 @@
     lookAtBody(name);
   }
 
-  function handleBackdropClick(e: MouseEvent) {
-    if ((e.target as HTMLElement).classList.contains("drawer-backdrop"))
-      onClose();
-  }
 </script>
 
 {#snippet bodyRow(body: BodyEntry, indent: number)}
@@ -173,35 +161,19 @@
   {/if}
 {/snippet}
 
-{#if open}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="drawer-backdrop absolute inset-0 z-30"
-    onclick={handleBackdropClick}
-  >
-    <!-- Docked against the rail rather than at the viewport edge, and above the
-         timeline rather than a fixed 4rem: the catalog is a contextual
-         instrument beside the rail, not a second navigation column (#59). -->
-    <div
-      class="absolute top-3 flex flex-col overflow-hidden rounded-lg border border-border bg-panel backdrop-blur-xl animate-slide-in"
-      style={drawerStyle}
-    >
-      <!-- Header -->
-      <div class="flex items-center gap-1.5 px-3 pt-2.5 pb-1.5 shrink-0">
-        <span class="text-[13px] font-semibold text-text-primary">Bodies</span>
-        <span
-          class="text-[10px] text-text-muted bg-surface-3 px-1.5 py-px rounded-full"
-          >{vs.bodies.length}</span
-        >
-        <button
-          class="ml-auto bg-transparent border-none text-text-muted cursor-pointer p-0.5 rounded hover:text-text-primary"
-          onclick={onClose}><X size={14} /></button
-        >
-      </div>
+<InstrumentPanel key="catalog" title="Bodies" width={toolDef('catalog').width} {onClose}>
+  {#snippet actions()}
+    <span class="rounded-full bg-surface-3 px-1.5 py-px text-[10px] text-text-muted">
+      {vs.bodies.length}
+    </span>
+  {/snippet}
+
+  <!-- Keep the catalog useful for large body sets without letting it become a
+       full-height drawer. The shared panel body handles the outer scrolling. -->
+  <div class="flex max-h-[28rem] min-h-0 flex-col">
 
       <!-- Search -->
-      <div class="relative mx-2.5 mb-1.5 shrink-0">
+      <div class="relative mb-1.5 shrink-0">
         <Search
           size={12}
           class="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
@@ -215,7 +187,7 @@
       </div>
 
       <!-- Controls -->
-      <div class="flex gap-1 px-2.5 pb-2 border-b border-border shrink-0">
+      <div class="flex gap-1 pb-2 border-b border-border shrink-0">
         <Button.Root
           variant="outline"
           size="sm"
@@ -237,7 +209,7 @@
       </div>
 
       <!-- Body tree / search results -->
-      <div class="flex-1 overflow-y-auto py-1 px-1">
+      <div class="min-h-0 flex-1 overflow-y-auto py-1 px-1">
         {#if isSearching}
           <!-- Flat search results -->
           {#each searchResults ?? [] as body (body.name)}
@@ -255,22 +227,5 @@
           {/each}
         {/if}
       </div>
-    </div>
   </div>
-{/if}
-
-<style>
-  @keyframes slide-in {
-    from {
-      transform: translateX(-100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-  .animate-slide-in {
-    animation: slide-in 0.15s ease;
-  }
-</style>
+</InstrumentPanel>

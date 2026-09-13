@@ -48,6 +48,10 @@ describe('the tool table', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
+  it('does not bind Events to camera roll-right', () => {
+    expect(toolDef('events').shortcut).toBeUndefined();
+  });
+
   it('resolves a tool by id, and refuses one it does not have', () => {
     expect(toolDef('events').label).toBe('Events');
     expect(() => toolDef('nonesuch' as never)).toThrow();
@@ -123,13 +127,13 @@ describe('focus order', () => {
     expect(shell.panelOrder.at(-1)).toBe('info');
   });
 
-  it('stacks floating panels by that order, under the drawer and menu layers', () => {
+  it('stacks floating panels by that order, under transient overlay layers', () => {
     openTool('events');
     openTool('debug');
     expect(panelZIndex('debug')).toBeGreaterThan(panelZIndex('events'));
     expect(panelZIndex('events')).toBeGreaterThanOrEqual(FLOAT_Z_BASE);
-    // 25 is the display menu; 30 the catalog drawer. A floating instrument is
-    // part of the workspace and must not cover either.
+    // 25+ is reserved for transient overlays. A floating instrument stays in
+    // the workspace layer.
     expect(panelZIndex('debug')).toBeLessThan(25);
   });
 
@@ -212,12 +216,12 @@ describe('dock layout', () => {
     expect([...left, ...right].sort()).toEqual([...panels].sort());
   });
 
-  it('keeps surfaces with their own presentation out of the panel docks', () => {
+  it('puts catalog and display settings in panel docks too', () => {
     openTool('catalog');
     openTool('display');
-    expect(openToolsWith('panel')).toEqual([]);
-    expect(openToolsWith('drawer').map((t) => t.id)).toEqual(['catalog']);
-    expect(openToolsWith('menu').map((t) => t.id)).toEqual(['display']);
+    expect(openToolsWith('panel').map((t) => t.id)).toEqual(['catalog', 'display']);
+    expect(openToolsWith('drawer')).toEqual([]);
+    expect(openToolsWith('menu')).toEqual([]);
   });
 
   it('collects both sides into one stack when no dock is named, for the compact sheet', () => {

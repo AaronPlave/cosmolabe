@@ -1,9 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import WelcomeScreen from './components/WelcomeScreen.svelte';
-  import BodyDrawer from './components/BodyDrawer.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
-  import DisplaySettings from './components/DisplaySettings.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
   import BodyInfoPanel from './components/BodyInfoPanel.svelte';
@@ -14,7 +12,7 @@
   import InstrumentPanel from './components/shell/InstrumentPanel.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
   import {
-    shell, TOOLS, isToolOpen, toggleTool, closeTool, watchLayout, isMinimized,
+    shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
   } from './lib/shell.svelte';
   import { loadDemo, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
@@ -310,16 +308,6 @@
           </InstrumentPanel>
         {/if}
       </PanelDock>
-    {/if}
-
-    <BodyDrawer open={isToolOpen('catalog')} onClose={() => closeTool('catalog')} />
-
-    {#if isToolOpen('display')}
-      <DisplaySettings
-        onClose={() => closeTool('display')}
-        debugActive={isToolOpen('debug')}
-        onToggleDebug={() => toggleTool('debug')}
-      />
     {/if}
 
     {#if compact}
