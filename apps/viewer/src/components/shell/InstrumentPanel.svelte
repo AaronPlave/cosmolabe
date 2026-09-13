@@ -16,9 +16,11 @@
    *   search, selection or form — the thing closing would destroy.
    *
    * Floating panels use `position: fixed`, which escapes the dock's scroll
-   * clipping without a portal. That is the whole of the "window management"
-   * here: a rectangle, two constraints in `panel-geometry.ts`, and no z-order,
-   * tiling or persistence.
+   * clipping without a portal. Clicking one raises it, which is the only sense
+   * in which there is a stack: `shell.panelOrder` is a focus order, and the
+   * `z-index` falls out of it. That is the whole of the "window management"
+   * here — a rectangle, two constraints in `panel-geometry.ts`, one ordered
+   * list, and no tiling, snapping or persistence.
    *
    * The chrome is deliberately quiet: a hairline border, one translucent
    * surface, a 10px uppercase caption, no shadow except while floating, where a
@@ -28,7 +30,7 @@
   import { X, Minus, Square, PictureInPicture2, Dock } from 'lucide-svelte';
   import {
     shell, isMinimized, toggleMinimized, isFloating, floatOf, setFloat, dockPanel,
-    type PanelKey,
+    raisePanel, panelZIndex, setPanelMounted, type PanelKey,
   } from '../../lib/shell.svelte';
   import { moveFloat, resizeFloat, floatFromDocked, type FloatRect } from '../../lib/panel-geometry';
 
@@ -50,6 +52,16 @@
   let { key, title, width = 320, onClose, actions, children }: Props = $props();
 
   let root = $state<HTMLElement | null>(null);
+
+  // A rendered panel is one the shell can consider on screen — which is what
+  // lets Escape dismiss what the user is actually looking at without the shell
+  // having to model why each panel is up.
+  $effect(() => {
+    if (key == null) return;
+    const k = key;
+    setPanelMounted(k, true);
+    return () => setPanelMounted(k, false);
+  });
 
   const compact = $derived(shell.layout === 'compact');
   const minimized = $derived(key != null && isMinimized(key));
@@ -102,6 +114,15 @@
     window.addEventListener('pointercancel', up);
   }
 
+  /**
+   * Any press anywhere on the panel brings it forward — a click on its body
+   * counts as using it, not only a grab of its header. Runs before the header
+   * and grip handlers, which are nested inside this one.
+   */
+  function onPanelPointerDown() {
+    if (key != null) raisePanel(key);
+  }
+
   function onHeaderPointerDown(e: PointerEvent) {
     // Buttons in the header are controls, not handles.
     if ((e.target as HTMLElement | null)?.closest('button')) return;
@@ -131,18 +152,20 @@
       // Height is dropped while minimized so the panel shrinks to its header
       // rather than leaving a translucent empty box over the scene.
       const h = minimized ? '' : ` height: ${rect.h}px;`;
-      return `position: fixed; left: ${rect.x}px; top: ${rect.y}px; width: ${rect.w}px;${h} z-index: 18`;
+      return `position: fixed; left: ${rect.x}px; top: ${rect.y}px; width: ${rect.w}px;${h} z-index: ${key != null ? panelZIndex(key) : 16}`;
     }
     return `width: ${width}px`;
   });
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <section
   bind:this={root}
   class="instrument pointer-events-auto flex min-h-0 shrink-0 flex-col rounded-md border border-border bg-panel backdrop-blur-md text-[12px]"
   class:w-full={compact}
   class:floating
   {style}
+  onpointerdown={onPanelPointerDown}
 >
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header

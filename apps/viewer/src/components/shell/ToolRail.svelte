@@ -14,6 +14,10 @@
    *
    * `inline` drops the rail's own box so the compact layout can fold it into
    * one bottom dock with the timeline, instead of stacking two bordered bars.
+   *
+   * The compact row scrolls rather than squeezing. It fits today; it will not
+   * once #58's event kinds and #57's measurement tools arrive, and a row that
+   * silently drops its last button is a worse failure than one that scrolls.
    */
   import { Crosshair, Camera, Info, Keyboard } from 'lucide-svelte';
   import { TOOLS, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
@@ -57,25 +61,7 @@
   }
 </script>
 
-<nav
-  aria-label="Tools"
-  class="flex gap-0.5"
-  class:pointer-events-auto={!inline}
-  class:absolute={!inline}
-  class:z-20={!inline}
-  class:rounded-lg={!inline}
-  class:border={!inline}
-  class:border-border={!inline}
-  class:bg-panel={!inline}
-  class:backdrop-blur-md={!inline}
-  class:p-1={!inline}
-  class:flex-col={!compact}
-  class:left-3={!inline && !compact}
-  class:top-3={!inline && !compact}
-  class:justify-center={compact}
-  class:px-1={inline}
-  class:py-1={inline}
->
+{#snippet buttons()}
   {#each TOOLS as tool (tool.id)}
     {@const Icon = tool.icon}
     {@const s = state(tool)}
@@ -128,9 +114,48 @@
       <Keyboard size={16} />
     </button>
   {/if}
+{/snippet}
+
+<nav
+  aria-label="Tools"
+  class="rail flex"
+  class:pointer-events-auto={!inline}
+  class:absolute={!inline}
+  class:z-20={!inline}
+  class:rounded-lg={!inline}
+  class:border={!inline}
+  class:border-border={!inline}
+  class:bg-panel={!inline}
+  class:backdrop-blur-md={!inline}
+  class:p-1={!inline}
+  class:flex-col={!compact}
+  class:gap-0.5={!compact}
+  class:left-3={!inline && !compact}
+  class:top-3={!inline && !compact}
+  class:overflow-x-auto={compact}
+  class:px-1={inline}
+  class:py-1={inline}
+>
+  {#if compact}
+    <!-- The buttons get their own row so centring and scrolling do not fight:
+         `justify-center` on a scroll container clips the overflow at the
+         *start*, putting the first tools permanently out of reach. `margin:
+         auto` centres while there is room and gives way once there is not. -->
+    <div class="m-auto flex shrink-0 gap-0.5">{@render buttons()}</div>
+  {:else}
+    {@render buttons()}
+  {/if}
 </nav>
 
 <style>
+  .rail {
+    /* The compact row is a scroller; its scrollbar would be chrome on chrome. */
+    scrollbar-width: none;
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
   /* 36px square: the smallest that still takes a thumb reliably, which is what
      keeps the rail usable on a phone without inventing a second mobile control
      (#59 — hit targets, and no hover-only functionality). */

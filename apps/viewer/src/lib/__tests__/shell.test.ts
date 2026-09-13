@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   TOOLS, PANEL_KEYS, shell, toolDef, isToolOpen, openTool, closeTool, toggleTool,
-  closeTopTool, closeAllTools, openToolsWith, setLayout, setTimelineDepth,
+  closeAllTools, openToolsWith, setLayout, setTimelineDepth,
   watchLayout, isToolId, isMinimized, minimizePanel, restorePanel, toggleMinimized,
   isFloating, setFloat, dockPanel, floatOf, reclampFloats, activateSheet,
+  raisePanel, panelZIndex, setPanelMounted, isPanelVisible, topVisiblePanel,
+  FLOAT_Z_BASE, type PanelKey,
 } from '../shell.svelte';
 
 /**
@@ -23,11 +25,18 @@ beforeEach(() => {
   setTimelineDepth('transport');
   shell.shortcutsOpen = false;
   shell.activeSheet = null;
+  shell.panelOrder.length = 0;
   for (const key of PANEL_KEYS) {
     shell.panels[key].minimized = false;
     shell.panels[key].float = null;
+    shell.mounted[key] = false;
   }
 });
+
+/** Stands in for the panels registering themselves as they render. */
+function mount(...keys: PanelKey[]) {
+  for (const key of keys) setPanelMounted(key, true);
+}
 
 describe('the tool table', () => {
   it('gives every tool a unique id', () => {
@@ -76,16 +85,112 @@ describe('opening and closing', () => {
   });
 });
 
-describe('what Escape closes', () => {
-  it('closes the most recently opened tool, not the first one listed', () => {
+/**
+ * Escape and the panel stack both answer "what is the user working on?", and
+ * both used to answer it from the wrong list. The first version walked an
+ * if/else chain in source order; the second took the end of `openTools`, which
+ * ignores the selection-driven panels and can name a tool hidden behind the
+ * sheet in front of the user.
+ */
+describe('focus order', () => {
+  it('puts an opened panel on top', () => {
     openTool('events');
     openTool('debug');
-    expect(closeTopTool()).toBe(true);
-    expect(shell.openTools).toEqual(['events']);
+    expect(shell.panelOrder.at(-1)).toBe('debug');
   });
 
-  it('reports that there was nothing to close, so Escape can fall through', () => {
-    expect(closeTopTool()).toBe(false);
+  it('raises a panel that is merely used, without reopening it', () => {
+    openTool('events');
+    openTool('debug');
+    raisePanel('events');
+    expect(shell.panelOrder.at(-1)).toBe('events');
+    // Raising is not opening: the open stack, which the docks lay out by, is
+    // untouched.
+    expect(shell.openTools).toEqual(['events', 'debug']);
+  });
+
+  it('does not churn the order when the top panel is raised again', () => {
+    openTool('events');
+    openTool('debug');
+    const before = [...shell.panelOrder];
+    raisePanel('debug');
+    expect(shell.panelOrder).toEqual(before);
+  });
+
+  it('covers panels that no tool opens', () => {
+    openTool('events');
+    raisePanel('info');
+    expect(shell.panelOrder.at(-1)).toBe('info');
+  });
+
+  it('stacks floating panels by that order, under the drawer and menu layers', () => {
+    openTool('events');
+    openTool('debug');
+    expect(panelZIndex('debug')).toBeGreaterThan(panelZIndex('events'));
+    expect(panelZIndex('events')).toBeGreaterThanOrEqual(FLOAT_Z_BASE);
+    // 25 is the display menu; 30 the catalog drawer. A floating instrument is
+    // part of the workspace and must not cover either.
+    expect(panelZIndex('debug')).toBeLessThan(25);
+  });
+
+  it('gives every panel a legal z-index even with none raised yet', () => {
+    for (const key of PANEL_KEYS) {
+      expect(panelZIndex(key)).toBeGreaterThanOrEqual(FLOAT_Z_BASE);
+      expect(panelZIndex(key)).toBeLessThan(25);
+    }
+  });
+});
+
+describe('what Escape dismisses', () => {
+  it('finds nothing when nothing is on screen, so Escape falls through', () => {
+    expect(topVisiblePanel()).toBe(null);
+  });
+
+  it('takes the most recently touched visible panel', () => {
+    openTool('events');
+    openTool('debug');
+    mount('events', 'debug');
+    expect(topVisiblePanel()).toBe('debug');
+    raisePanel('events');
+    expect(topVisiblePanel()).toBe('events');
+  });
+
+  it('skips a minimized panel, which is on screen but not in the way', () => {
+    openTool('events');
+    openTool('debug');
+    mount('events', 'debug');
+    minimizePanel('debug');
+    expect(isPanelVisible('debug')).toBe(false);
+    expect(topVisiblePanel()).toBe('events');
+  });
+
+  it('prefers a pick readout the user is looking at over a stowed tool', () => {
+    openTool('events');
+    mount('events', 'pick');
+    minimizePanel('events');
+    raisePanel('pick');
+    expect(topVisiblePanel()).toBe('pick');
+  });
+
+  it('prefers the body info panel over a tool opened earlier', () => {
+    openTool('events');
+    mount('events', 'info');
+    raisePanel('info');
+    expect(topVisiblePanel()).toBe('info');
+  });
+
+  it('never names a tool that is open but not rendered', () => {
+    // The compact case: only the active sheet mounts, so a background tool must
+    // not be what Escape reaches for.
+    openTool('events');
+    openTool('debug');
+    mount('debug');
+    expect(topVisiblePanel()).toBe('debug');
+  });
+
+  it('finds a panel that is on screen but has never been touched', () => {
+    mount('info');
+    expect(topVisiblePanel()).toBe('info');
   });
 });
 
@@ -244,10 +349,13 @@ describe('floating', () => {
     expect(rect!.y).toBeLessThanOrEqual(600);
   });
 
-  it('is dropped entirely when the layout goes compact, which has no room for it', () => {
+  it('is kept, not cleared, when the layout goes compact', () => {
+    // Compact has nowhere to float anything and ignores the rect; storing it is
+    // what lets a narrowed-and-widened window hand the arrangement back. See
+    // the round-trip test below.
     setFloat('events', { x: 200, y: 80, w: 380, h: 300 }, viewport);
     setLayout('compact');
-    expect(isFloating('events')).toBe(false);
+    expect(floatOf('events')).toMatchObject({ x: 200, y: 80 });
   });
 });
 
@@ -327,5 +435,53 @@ describe('the compact sheet', () => {
     minimizePanel('events');
     setLayout('compact');
     expect(shell.activeSheet).toBe(null);
+  });
+});
+
+
+/**
+ * A window narrowed to a phone and widened again should hand back the workspace
+ * the user arranged. The first version cleared every float rect on the way into
+ * compact, so a stray resize silently flattened the layout.
+ */
+describe('float rects across layout changes', () => {
+  it('keeps the desktop arrangement through a round trip', () => {
+    openTool('events');
+    openTool('debug');
+    setFloat('events', { x: 300, y: 120, w: 420, h: 360 }, viewport);
+    setFloat('debug', { x: 800, y: 260, w: 300, h: 420 }, viewport);
+
+    setLayout('compact');
+    setLayout('desktop');
+
+    expect(floatOf('events')).toMatchObject({ x: 300, y: 120, w: 420, h: 360 });
+    expect(floatOf('debug')).toMatchObject({ x: 800, y: 260, w: 300, h: 420 });
+    expect(isFloating('events')).toBe(true);
+  });
+
+  it('ignores a resize to a compact width even before the layout has caught up', () => {
+    // `resize` and the `matchMedia` listener fire in no guaranteed order, so on
+    // the way down to a phone width this runs at least once while the layout
+    // still says `desktop`. Judging by the viewport rather than by the layout
+    // is what keeps that from flattening the stored arrangement.
+    setFloat('events', { x: 900, y: 600, w: 420, h: 360 }, viewport);
+    expect(shell.layout).toBe('desktop');
+    reclampFloats({ width: 390, height: 844 });
+    expect(floatOf('events')).toMatchObject({ x: 900, y: 600 });
+  });
+
+  it('leaves stored rects alone while compact, where clamping would flatten them', () => {
+    setFloat('events', { x: 900, y: 600, w: 420, h: 360 }, viewport);
+    setLayout('compact');
+    // A phone-sized resize arrives while the desktop rect is in storage.
+    reclampFloats({ width: 390, height: 844 });
+    setLayout('desktop');
+    expect(floatOf('events')).toMatchObject({ x: 900, y: 600 });
+  });
+
+  it('still re-clamps on a desktop resize, where the rect is on screen', () => {
+    setFloat('events', { x: 1200, y: 800, w: 380, h: 300 }, viewport);
+    reclampFloats({ width: 800, height: 600 });
+    expect(floatOf('events')!.x).toBeLessThanOrEqual(800);
   });
 });

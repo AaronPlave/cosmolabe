@@ -18,6 +18,9 @@
  * - **Minimized is not closed.** An instrument you want out of the way keeps
  *   its search, its selection and its form; only its body is hidden. Closing is
  *   the separate, destructive act.
+ * - **The user's attention has an order.** `panelOrder` records which panel was
+ *   touched most recently. It answers two questions with one list: which
+ *   floating panel draws on top, and which surface Escape dismisses.
  */
 import { Globe, Radar, Ruler, Settings, Bug } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
@@ -126,6 +129,26 @@ export const shell = $state({
   panels: seedPanels(),
 
   /**
+   * Focus order, least-recently-touched first.
+   *
+   * Not the same list as `openTools`: it covers the selection-driven panels too,
+   * it survives closing, and it moves when a panel is merely clicked. Opening a
+   * panel is one way to reach the top of it; using one is the other.
+   */
+  panelOrder: [] as PanelKey[],
+
+  /**
+   * Which panels are currently rendered. A panel registers itself, so the shell
+   * does not have to model why each one is on screen — the info panel follows
+   * the selection and the pick readout follows a click, and neither condition
+   * belongs here.
+   *
+   * Mounted is not the same as visible: a minimized panel still renders its
+   * header.
+   */
+  mounted: Object.fromEntries(PANEL_KEYS.map((k) => [k, false])) as Record<PanelKey, boolean>,
+
+  /**
    * `compact` is the phone/narrow presentation. It is a presentation switch over
    * the same state, not a separate feature model — #59's requirement, and what
    * keeps a second mobile-only code path from appearing.
@@ -180,6 +203,7 @@ export function openTool(id: ToolId) {
   closeToolSilently(id);
   shell.openTools.push(id);
   shell.panels[id].minimized = false;
+  raisePanel(id);
   if (shell.layout === 'compact') shell.activeSheet = id;
 }
 
@@ -235,18 +259,6 @@ export function toggleTool(id: ToolId) {
   closeTool(id);
 }
 
-/**
- * Closes the most recently opened surface. Returns whether there was one, so
- * Escape can fall through to clearing the selection and resetting the camera
- * exactly as it did before.
- */
-export function closeTopTool(): boolean {
-  const top = shell.openTools[shell.openTools.length - 1];
-  if (top === undefined) return false;
-  closeTool(top);
-  return true;
-}
-
 export function closeAllTools() {
   for (const id of [...shell.openTools]) closeTool(id);
   shell.openTools.length = 0;
@@ -258,6 +270,64 @@ export function openToolsWith(presentation: ToolPresentation, dock?: 'left' | 'r
   return shell.openTools
     .map(toolDef)
     .filter((t) => t.presentation === presentation && (dock === undefined || t.dock === dock));
+}
+
+// ── Focus order ──
+
+/**
+ * Brings a panel to the front of the focus order. Called when a panel is
+ * clicked or dragged, and when one is opened.
+ */
+export function raisePanel(key: PanelKey) {
+  const i = shell.panelOrder.indexOf(key);
+  // `i >= 0` guards the empty list, where `indexOf` and `length - 1` are both
+  // -1 and the "already on top" test would swallow the first raise.
+  if (i >= 0 && i === shell.panelOrder.length - 1) return; // on top; don't churn
+  if (i >= 0) shell.panelOrder.splice(i, 1);
+  shell.panelOrder.push(key);
+}
+
+/** Where a floating panel sits in the stack. */
+export const FLOAT_Z_BASE = 16;
+
+/**
+ * A floating panel's `z-index`, from its place in the focus order.
+ *
+ * Bounded by the number of panels, and deliberately kept under the drawer and
+ * menu layers (25+): a floating instrument is part of the workspace, not
+ * something that should cover the catalog.
+ */
+export function panelZIndex(key: PanelKey): number {
+  const i = shell.panelOrder.indexOf(key);
+  return FLOAT_Z_BASE + (i < 0 ? 0 : Math.min(i, PANEL_KEYS.length - 1));
+}
+
+/** A panel reports whether it is on screen at all. */
+export function setPanelMounted(key: PanelKey, value: boolean) {
+  shell.mounted[key] = value;
+}
+
+/** Rendered and showing its body — what a user would point at and call open. */
+export function isPanelVisible(key: PanelKey): boolean {
+  return shell.mounted[key] && !shell.panels[key].minimized;
+}
+
+/**
+ * The surface Escape should dismiss: the most recently touched panel that is
+ * actually on screen.
+ *
+ * Escape used to take the end of `openTools`, which is neither — it ignored the
+ * selection-driven panels entirely, and on a phone it could close a tool the
+ * user could not see while the sheet in front of them stayed put.
+ */
+export function topVisiblePanel(): PanelKey | null {
+  for (let i = shell.panelOrder.length - 1; i >= 0; i--) {
+    const key = shell.panelOrder[i];
+    if (isPanelVisible(key)) return key;
+  }
+  // Nothing has been touched yet but something may still be on screen — a panel
+  // opened by a keyboard shortcut and never clicked, for instance.
+  return PANEL_KEYS.find(isPanelVisible) ?? null;
 }
 
 // ── Minimize ──
@@ -275,6 +345,7 @@ export function minimizePanel(key: PanelKey) {
 
 export function restorePanel(key: PanelKey) {
   shell.panels[key].minimized = false;
+  raisePanel(key);
   if (shell.layout === 'compact') shell.activeSheet = key;
 }
 
@@ -287,7 +358,10 @@ export function toggleMinimized(key: PanelKey) {
 
 export function activateSheet(key: PanelKey | null) {
   shell.activeSheet = key;
-  if (key) shell.panels[key].minimized = false;
+  if (key) {
+    shell.panels[key].minimized = false;
+    raisePanel(key);
+  }
 }
 
 // ── Floating ──
@@ -314,6 +388,15 @@ export function dockPanel(key: PanelKey) {
  * a resized window or a rotated phone must not strand a panel off-screen.
  */
 export function reclampFloats(viewport: Viewport) {
+  // Judged from the viewport passed in, not from `shell.layout`: `resize` and
+  // the `matchMedia` listener fire in no guaranteed order, so on the way down
+  // to a phone width this ran once while the layout still said `desktop` and
+  // flattened every stored rect against a 390px viewport before compact was
+  // even entered. The argument is the only thing here that is certainly current.
+  //
+  // At these widths the rects are a stored desktop arrangement rather than
+  // anything on screen (see `setLayout`), and clamping them would destroy it.
+  if (viewport.width <= COMPACT_MAX_WIDTH) return;
   for (const key of PANEL_KEYS) {
     const rect = shell.panels[key].float;
     if (rect) shell.panels[key].float = clampFloat(rect, viewport);
@@ -325,12 +408,13 @@ export function reclampFloats(viewport: Viewport) {
 export function setLayout(layout: 'desktop' | 'compact') {
   if (shell.layout === layout) return;
   shell.layout = layout;
-  // Floating is a desktop gesture; a phone-width screen has no room for it, and
-  // carrying rects across would drop panels at desktop coordinates.
-  if (layout === 'compact') {
-    for (const key of PANEL_KEYS) shell.panels[key].float = null;
-    shell.activeSheet = lastOpenPanel();
-  }
+  // Float rects are kept, not cleared. Compact ignores them — a phone-width
+  // screen has nowhere to float anything — but narrowing a window and widening
+  // it again should hand back the workspace the user arranged, not a pile of
+  // panels back in their docks. `reclampFloats` leaves them alone while compact
+  // for the same reason: clamping a desktop rect to a phone viewport would
+  // destroy it on the way through.
+  if (layout === 'compact') shell.activeSheet = lastOpenPanel();
 }
 
 export function setTimelineDepth(depth: 'transport' | 'expanded') {

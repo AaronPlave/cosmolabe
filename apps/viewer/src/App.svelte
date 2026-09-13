@@ -13,7 +13,10 @@
   import TimelineDock from './components/shell/TimelineDock.svelte';
   import InstrumentPanel from './components/shell/InstrumentPanel.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
-  import { shell, TOOLS, isToolOpen, toggleTool, closeTool, closeTopTool, watchLayout, isMinimized, reclampFloats } from './lib/shell.svelte';
+  import {
+    shell, TOOLS, isToolOpen, toggleTool, closeTool, watchLayout, isMinimized,
+    reclampFloats, topVisiblePanel, minimizePanel, isToolId,
+  } from './lib/shell.svelte';
   import { loadDemo, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
 
   let canvas: HTMLCanvasElement;
@@ -188,11 +191,8 @@
         }
         case 'p': togglePickMode(); return;
         case 'Escape':
-          // Most-recently-opened first. The chain this replaced went in source
-          // order, so Escape closed whichever panel happened to be listed
-          // first rather than the one the user had just opened.
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
-          else if (closeTopTool()) return;
+          else if (dismissTopSurface()) return;
           else if (pickModeActive) closePickResult();
           else if (vs.selectedBodyName) selectBody(null);
           else resetCamera();
@@ -205,6 +205,35 @@
       const tool = TOOLS.find((t) => t.shortcut === e.key);
       if (tool) toggleTool(tool.id);
     }
+  }
+
+  /**
+   * Escape dismisses whatever the user is actually looking at: the most
+   * recently touched panel that is on screen.
+   *
+   * Two earlier versions got this wrong in the same way — they went by list
+   * order rather than by what was visible. The first walked an if/else chain in
+   * source order; the second took the end of `openTools`, which ignores the
+   * selection-driven panels entirely and, on a phone, could close a tool behind
+   * the sheet the user was reading.
+   *
+   * Compact minimizes instead of closing. There is one sheet on screen, getting
+   * it out of the way is the whole request, and destroying a search to do it
+   * would be a poor trade.
+   */
+  function dismissTopSurface(): boolean {
+    const top = topVisiblePanel();
+    if (top == null) return false;
+    if (compact) {
+      minimizePanel(top);
+      return true;
+    }
+    // The selection-driven panels have no open flag to clear: closing them is
+    // undoing what put them there.
+    if (isToolId(top)) closeTool(top);
+    else if (top === 'pick') closePickResult();
+    else if (top === 'info') selectBody(null);
+    return true;
   }
 
   function fmtCoord(n: number, dec: number) { return n.toFixed(dec); }

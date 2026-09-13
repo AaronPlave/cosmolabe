@@ -18,6 +18,9 @@ Two properties follow from "the arrangement is a default, not an address":
 - **Minimized is not closed.** An instrument you want out of the way keeps its
   search, its selection and its form; only its body is hidden. Closing is the
   separate, destructive act, and it should not be the only way to see the scene.
+- **Attention has an order.** `shell.panelOrder` records which panel was touched
+  most recently. One list answers two questions: which floating panel draws on
+  top, and which surface Escape dismisses.
 
 The shell lives in `apps/viewer/src/lib/shell.svelte.ts` (state) and
 `apps/viewer/src/components/shell/` (the primitives).
@@ -31,6 +34,8 @@ The shell lives in `apps/viewer/src/lib/shell.svelte.ts` (state) and
 | `shell.panels` | Per-panel placement: `{ minimized, float }`, keyed by `PanelKey`. Seeded for every panel, so none has to create its entry while rendering. |
 | `shell.layout` | `desktop` or `compact`. One `matchMedia` listener, bound by `watchLayout()`. |
 | `shell.activeSheet` | The one panel showing when compact. |
+| `shell.panelOrder` | Focus order, least-recently-touched last-but-one. Drives floating `z-index` and Escape. |
+| `shell.mounted` | Which panels are rendered. Panels register themselves, so the shell need not model why each one is up. |
 | `panel-geometry.ts` | `clampFloat` / `moveFloat` / `resizeFloat` — the constraints on a floating rect, as plain functions so they can be tested without a browser. |
 | `ToolRail` | The persistent rail. Icon width, never more. Opens surfaces; never contains them. |
 | `InstrumentPanel` | The one panel primitive: quiet chrome, a caption, an optional `actions` snippet, and the minimize / float / dock / close controls. Owns the drag and resize gestures. |
@@ -75,8 +80,13 @@ the rect it already occupies, so the gesture reads as picking the panel up
 rather than as it jumping somewhere and then moving. Floating panels use
 `position: fixed`, which escapes the dock's scroll clipping with no portal.
 
-That is the entire mechanism. There is no z-order to manage, no tiling, no
-snapping and no persistence — a rectangle, and two constraints:
+Pressing anywhere on a floating panel raises it: `panelZIndex` is just its place
+in `panelOrder`, offset from `FLOAT_Z_BASE` and bounded below the drawer and menu
+layers, because a floating instrument is part of the workspace and should not
+cover the catalog.
+
+That is the entire mechanism. There is no tiling, no snapping and no
+persistence — a rectangle, one ordered list, and two constraints:
 
 - A panel cannot be resized below `MIN_PANEL_W` × `MIN_PANEL_H`.
 - A grabbable strip always stays on screen (`KEEP_VISIBLE_X` / `_Y`), and the
@@ -84,9 +94,29 @@ snapping and no persistence — a rectangle, and two constraints:
   recoverable by dragging, which is why there is no "reset layout" command.
 
 `reclampFloats` re-applies those when the window resizes, so a shrinking viewport
-cannot strand a panel where nothing can reach it. Float rects survive closing a
-panel — where you put an instrument is a preference — but not a switch to the
-compact layout, which has nowhere to put them.
+cannot strand a panel where nothing can reach it. It judges by the viewport it is
+handed rather than by `shell.layout`: `resize` and the `matchMedia` listener fire
+in no guaranteed order, so on the way down to a phone width it runs at least once
+while the layout still says `desktop`.
+
+Float rects outlive both closing a panel and a trip through the compact layout.
+Where you put an instrument is a preference, and a window narrowed and widened
+again should hand back the workspace you arranged, not a pile of panels in their
+docks. Compact ignores the rects while it is active; it has nowhere to float
+anything.
+
+## Escape
+
+Escape dismisses the topmost *visible* panel — `topVisiblePanel()`, the most
+recently touched panel that is mounted and not minimized. Compact minimizes it;
+desktop closes it. Then it falls through to pick mode, the selection, and a
+camera reset, as it always did.
+
+Two earlier versions got this wrong the same way, by going from list order rather
+than from what was on screen: the first walked an if/else chain in source order,
+so Escape closed whichever panel happened to be written first; the second took
+the end of `openTools`, which ignores the selection-driven panels entirely and,
+on a phone, could close a tool hidden behind the sheet being read.
 
 ## Measurements
 
@@ -121,6 +151,13 @@ Two rules shape it, both in service of keeping the scene primary:
   step controls behind the same expand toggle the lane region uses. Two stacked
   bars with a three-row wrapped transport cost the scene about a third of a
   phone screen before a sheet was even open.
+
+The compact rail scrolls horizontally rather than squeezing. It fits today and
+will not once #58's event kinds and #57's measurement tools arrive, and a row
+that silently drops its last button is a worse failure than one that scrolls.
+The buttons sit in an inner row with `margin: auto` rather than the scroller
+using `justify-center`, which would clip the overflow at the *start* and put the
+first tools permanently out of reach.
 
 The rail marks a stowed tool differently from both a closed one and the one on
 screen. That distinction is the point of minimizing: it is what tells the user
