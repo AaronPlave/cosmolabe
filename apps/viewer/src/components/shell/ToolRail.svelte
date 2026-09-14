@@ -241,7 +241,7 @@
   .rail-divider {
     height: 1px;
     margin: 5px 7px;
-    background: var(--color-chrome-divider);
+    background: var(--color-border-default);
   }
   .rail-divider.horizontal {
     height: 24px;
