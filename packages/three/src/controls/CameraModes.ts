@@ -27,6 +27,16 @@ export enum CameraModeName {
   INSTRUMENT = 'instrument',
 }
 
+/** Surface raycast data used by camera modes. The Cartesian hit is the exact
+ * rendered intersection; lat/lon/alt may come from the CPU terrain sampler. */
+export interface CameraSurfacePickResult {
+  bodyName: string;
+  latDeg: number;
+  lonDeg: number;
+  altKm: number;
+  bodyFixedHitKm: readonly [number, number, number];
+}
+
 /** Context passed to camera modes each frame */
 export interface CameraModeContext {
   camera: THREE.PerspectiveCamera;
@@ -38,7 +48,7 @@ export interface CameraModeContext {
   scaleFactor: number;
   originBody: BodyMesh | null;
   /** Raycast from screen coordinates to body surface. Uses the renderer's proven pickSurface. */
-  pickSurface?: (ndcX: number, ndcY: number) => { bodyName: string; latDeg: number; lonDeg: number; altKm: number } | null;
+  pickSurface?: (ndcX: number, ndcY: number) => CameraSurfacePickResult | null;
   /** Scene rendered last (after CRR passes) — markers placed here are always visible. */
   markerScene?: import('three').Scene;
 }
