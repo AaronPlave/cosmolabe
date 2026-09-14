@@ -1753,8 +1753,10 @@ export class UniverseRenderer {
       const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
       if (r < 1e-10) continue;
 
-      const latDeg = Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI);
-      const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
+      const bodyFixedPoint = { xKm: ecefX, yKm: ecefY, zKm: ecefZ };
+      const terrainPosition = parentBm.terrainBodyFixedToGeodetic(bodyFixedPoint);
+      if (!terrainPosition) continue;
+      const latDeg = terrainPosition.latDeg;
 
       // Sample terrain elevation at most every 10 frames — surface-locked bodies move slowly
       // and CPU sampling is cached to avoid unnecessary work. Use the cached
@@ -1764,7 +1766,7 @@ export class UniverseRenderer {
       const cached = this._surfaceLockElevCache.get(bodyKey);
       let sample: { elevationKm: number } | null = null;
       if (!cached || frame - cached.frame >= 10) {
-        sample = parentBm.sampleTerrainElevation(latDeg, lonDeg);
+        sample = parentBm.sampleTerrainBodyFixed(bodyFixedPoint);
         if (sample) this._surfaceLockElevCache.set(bodyKey, { elevationKm: sample.elevationKm, frame });
       } else {
         sample = cached;
@@ -1902,8 +1904,10 @@ export class UniverseRenderer {
         const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
 
         if (r > 1e-10) {
-          const latDeg = Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI);
-          const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
+          const bodyFixedPoint = { xKm: ecefX, yKm: ecefY, zKm: ecefZ };
+          const terrainPosition = bm.terrainBodyFixedToGeodetic(bodyFixedPoint);
+          if (!terrainPosition) continue;
+          const latDeg = terrainPosition.latDeg;
 
           // Sample terrain every 5 frames, use cached value between samples.
           // Use terrain elevation for both positive (mountains) and negative (basins/craters)
@@ -1913,7 +1917,7 @@ export class UniverseRenderer {
           const cached = this._terrainClampCache.get(bodyName);
           const frame = this._renderDebugFrame;
           if (!cached || frame - cached.frame >= 5) {
-            const sample = bm.sampleTerrainElevation(latDeg, lonDeg);
+            const sample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
             if (sample) {
               const elev = sample.elevationKm;
               this._terrainClampCache.set(bodyName, { elevationKm: elev, frame });

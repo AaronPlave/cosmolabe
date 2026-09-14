@@ -18,9 +18,10 @@
     onResetZoom?: () => void;
     /** Called to set a specific zoom duration in seconds */
     onSetZoom?: (seconds: number) => void;
-    /** Start date label (always shown) */
+    /** Start date label. Empty hides it — the compact layout drops both
+     *  bounds so the track itself gets the width. */
     startLabel: string;
-    /** End date label (always shown) */
+    /** End date label. Empty hides it, as with `startLabel`. */
     endLabel: string;
     /** Whether the scrubber is zoomed in */
     isZoomed?: boolean;
@@ -31,6 +32,13 @@
     globalPlayhead?: number;
     /** Visible duration label (e.g. "~43d") — clickable for presets */
     rangeLabel?: string;
+    /**
+     * Ticks to draw on the track, as fractions of the *zoomed* range. Event
+     * finder results use this so a search result reads as a position in time
+     * and not only as a row in a list. Out-of-range fractions are the caller's
+     * to drop.
+     */
+    markers?: readonly { fraction: number; selected?: boolean; title?: string }[];
   }
 
   let {
@@ -38,7 +46,7 @@
     onZoom, onResetZoom, onSetZoom,
     startLabel, endLabel,
     isZoomed = false, viewportStart = 0, viewportEnd = 1, globalPlayhead = 0.5,
-    rangeLabel,
+    rangeLabel, markers = [],
   }: Props = $props();
 
   let trackEl: HTMLDivElement | undefined = $state();
@@ -144,7 +152,7 @@
   onkeydown={onKeyDown}
 >
   <div class="scrubber-row">
-    <span class="date-label">{startLabel}</span>
+    {#if startLabel}<span class="date-label">{startLabel}</span>{/if}
 
     <div class="track-column">
       <div
@@ -154,6 +162,14 @@
         onpointermove={onPointerMove}
         onpointerup={onPointerUp}
       >
+        {#each markers as marker}
+          <div
+            class="event-marker"
+            class:selected={marker.selected}
+            style="left: {marker.fraction * 100}%"
+            title={marker.title}
+          ></div>
+        {/each}
         <div class="playhead" style="left: {displayFraction * 100}%"></div>
       </div>
 
@@ -168,7 +184,7 @@
       </div>
     </div>
 
-    <span class="date-label">{endLabel}</span>
+    {#if endLabel}<span class="date-label">{endLabel}</span>{/if}
 
     <!-- Range / zoom popover -->
     <Popover.Root bind:open={zoomMenuOpen}>
@@ -203,7 +219,7 @@
   .scrubber-wrapper {
     flex: 1;
     min-width: 5rem;
-    outline: none;
+    border-radius: 4px;
   }
 
   .scrubber-row {
@@ -216,7 +232,7 @@
 
   .date-label {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--text-section);
     color: var(--color-text-muted);
     white-space: nowrap;
     flex-shrink: 0;
@@ -237,8 +253,10 @@
   .track {
     position: relative;
     width: 100%;
-    height: 16px;
-    background: var(--color-surface-3);
+    height: 12px;
+    border: 1px solid var(--color-chrome-divider);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.07);
     cursor: pointer;
     touch-action: none;
     user-select: none;
@@ -253,10 +271,41 @@
     background: var(--color-text-primary);
     transform: translateX(-50%);
     pointer-events: none;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+  }
+
+  /* ── Event finder results ── */
+
+  .event-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--color-event-accent);
+    opacity: 0.45;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .event-marker.selected {
+    width: 2px;
+    opacity: 1;
   }
 
   .track:hover .playhead {
-    box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.38);
+  }
+
+  .track:hover .event-marker {
+    opacity: 0.68;
+  }
+
+  .track:hover .event-marker.selected {
+    opacity: 1;
+  }
+
+  .scrubber-wrapper:focus-visible .track {
+    border-color: rgba(110, 170, 255, 0.7);
   }
 
   /* ── Minimap line — always visible, 1px below track ── */
@@ -264,7 +313,7 @@
   .minimap-line {
     width: 100%;
     height: 2px;
-    background: var(--color-surface-3);
+    background: var(--color-border);
     margin-top: 1px;
     position: relative;
   }
@@ -297,7 +346,7 @@
 
   .zoom-preset {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--text-interface);
     color: var(--color-text-secondary);
     background: none;
     border: none;
@@ -333,5 +382,11 @@
   :global(.icon-btn:hover) {
     color: var(--color-text-primary);
     background: var(--color-surface-3);
+  }
+
+  @media (max-width: 719px) {
+    :global(.icon-btn) {
+      display: none;
+    }
   }
 </style>

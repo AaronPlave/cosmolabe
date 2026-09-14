@@ -205,7 +205,7 @@ export class LabelManager {
 
   /** Baseline opacity all labels render at, so the hovered one (bumped to 1)
    *  stands out by getting brighter rather than by dimming the rest. */
-  private static readonly _baseLabelOpacity = 0.7;
+  private static readonly _baseLabelOpacity = 0.82;
 
   /**
    * Highlight a single label on hover (or pass null to clear). Opacity-only: the

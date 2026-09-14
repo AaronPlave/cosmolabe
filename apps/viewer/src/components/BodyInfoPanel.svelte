@@ -1,7 +1,8 @@
 <script lang="ts">
   import { vs, selectBody, getRenderer } from '../lib/viewer-state.svelte';
   import type { InfoRow, InfoSectionResult } from '@cosmolabe/three';
-  import { X, Navigation } from 'lucide-svelte';
+  import { Navigation } from 'lucide-svelte';
+  import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
 
@@ -31,13 +32,17 @@
     const bf = toCam.divideScalar(r.scaleFactor).applyQuaternion(bm.mesh.quaternion.clone().invert());
     const len = bf.length();
     if (len < 1e-10) return null;
-    const latDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
-    const lonDeg = Math.atan2(-bf.z, bf.x) * (180 / Math.PI);
-    const terrainSample = bm.sampleTerrain(latDeg, lonDeg);
-    const referenceAltitude = distance - bm.surfaceRadiusAtLat(latDeg);
+    const bodyFixedPoint = { xKm: bf.x, yKm: -bf.z, zKm: bf.y };
+    const terrainPosition = bm.terrainBodyFixedToGeodetic(bodyFixedPoint);
+    // This latitude is intentionally planetocentric: surfaceRadiusAtLat()
+    // intersects the ellipsoid along the camera's radial direction.
+    const radialLatDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
+    const terrainLatDeg = terrainPosition?.latDeg ?? radialLatDeg;
+    const terrainSample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
+    const referenceAltitude = distance - bm.surfaceRadiusAtLat(radialLatDeg);
     return {
       value: terrainSample
-        ? distance - (bm.terrainReferenceRadiusAt(latDeg) + terrainSample.elevationKm)
+        ? distance - (bm.terrainReferenceRadiusAt(terrainLatDeg) + terrainSample.elevationKm)
         : referenceAltitude,
       sampled: terrainSample != null,
     };
@@ -67,18 +72,22 @@
     const bf = toBody.clone().divideScalar(r.scaleFactor).applyQuaternion(invQ);
     const ecefX = bf.x, ecefY = -bf.z, ecefZ = bf.y;
     const rr = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
-    const latDeg = rr > 1e-10
+    // The radial latitude is retained only for the reference-ellipsoid
+    // intersection fallback. Terrain tiles are indexed by geodetic latitude.
+    const radialLatDeg = rr > 1e-10
       ? Math.asin(Math.max(-1, Math.min(1, ecefZ / rr))) * (180 / Math.PI)
       : 0;
-    const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
-    const refRadius = parentBm.surfaceRadiusAtLat(latDeg);
+    const bodyFixedPoint = { xKm: ecefX, yKm: ecefY, zKm: ecefZ };
+    const terrainPosition = parentBm.terrainBodyFixedToGeodetic(bodyFixedPoint);
+    const terrainLatDeg = terrainPosition?.latDeg ?? radialLatDeg;
+    const refRadius = parentBm.surfaceRadiusAtLat(radialLatDeg);
     const aboveRef = dist - refRadius;
 
     let aboveTerrain: number | null = null;
     if (parentBm.hasTerrain && rr > 1e-10) {
-      const sample = parentBm.sampleTerrainElevation(latDeg, lonDeg);
+      const sample = parentBm.sampleTerrainBodyFixed(bodyFixedPoint);
       if (sample) {
-        aboveTerrain = dist - (parentBm.terrainReferenceRadiusAt(latDeg) + sample.elevationKm);
+        aboveTerrain = dist - (parentBm.terrainReferenceRadiusAt(terrainLatDeg) + sample.elevationKm);
       }
     }
     return { aboveTerrain, aboveRef, parentBmName: bm.body.parentName };
@@ -176,53 +185,58 @@
     const bm = r.getBodyMesh(vs.selectedBodyName);
     if (bm) r.cameraController.flyTo(bm, { scaleFactor: r.scaleFactor });
   }
+
+  function classificationLabel(classification: string): string {
+    if (classification === 'dwarfplanet') return 'Dwarf planet';
+    return classification.replaceAll('-', ' ').replace(/^./, (c) => c.toUpperCase());
+  }
 </script>
 
 {#if vs.selectedBodyName}
-  <div class="absolute top-3 right-3 z-15 bg-black/90 backdrop-blur-md border border-border rounded-lg p-3 min-w-52 max-w-72 text-[12px] animate-fade-in">
-    <!-- Header -->
-    <div class="flex items-center gap-1.5 mb-1">
-      <span class="text-[14px] font-semibold text-text-primary flex-1">{vs.selectedBodyName}</span>
-      <button class="bg-transparent border-none text-text-muted cursor-pointer p-0.5 rounded hover:text-text-primary transition-colors" onclick={flyTo} title="Fly to">
+  <InstrumentPanel key="info" title={vs.selectedBodyName} width={320} onClose={() => selectBody(null)}>
+    {#snippet actions()}
+      <button
+        class="flex h-7 w-7 items-center justify-center rounded text-text-muted transition-colors hover:text-text-primary"
+        onclick={flyTo}
+        title="Fly to"
+        aria-label="Fly to {vs.selectedBodyName}"
+      >
         <Navigation size={13} />
       </button>
-      <button class="bg-transparent border-none text-text-muted cursor-pointer p-0.5 rounded hover:text-text-primary transition-colors" onclick={() => selectBody(null)}>
-        <X size={13} />
-      </button>
-    </div>
+    {/snippet}
 
     {#if bodyEntry?.classification}
-      <div class="text-[10px] text-text-muted uppercase tracking-wider mb-2">{bodyEntry.classification}</div>
+      <div class="body-kind">{classificationLabel(bodyEntry.classification)}</div>
     {/if}
 
-    <!-- VIEW: camera-relative -->
-    <div class="text-[10px] text-text-muted uppercase tracking-wider mt-1 mb-1">View</div>
+    <!-- CAMERA: camera-relative -->
+    <div class="ui-section-label mb-1">Camera</div>
     <div class="flex flex-col gap-0.5">
-      <div class="flex justify-between gap-3">
-        <span class="text-text-muted">Range</span>
-        <span class="font-mono text-text-primary">{formatDist(distance)}</span>
+      <div class="ui-data-row">
+        <span class="ui-label">Range</span>
+        <span class="ui-readout">{formatDist(distance)}</span>
       </div>
       {#if altitude != null}
-        <div class="flex justify-between gap-3">
-          <span class="text-text-muted">{altitude.sampled ? 'Cam alt terrain' : 'Cam alt ref'}</span>
-          <span class="font-mono text-text-primary">{formatDist(altitude.value)}</span>
+        <div class="ui-data-row">
+          <span class="ui-label">{altitude.sampled ? 'Camera alt terrain' : 'Camera alt ref'}</span>
+          <span class="ui-readout">{formatDist(altitude.value)}</span>
         </div>
       {/if}
     </div>
 
     <!-- BODY: this body's height above its parent's surface (terrain primary, ref fallback) -->
     {#if bodyAltitudes.aboveTerrain != null || bodyAltitudes.aboveRef != null}
-      <div class="text-[10px] text-text-muted uppercase tracking-wider mt-2 mb-1 pt-2 border-t border-border">Body</div>
+      <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Body</div>
       <div class="flex flex-col gap-0.5">
         {#if bodyAltitudes.aboveTerrain != null}
-          <div class="flex justify-between gap-3">
-            <span class="text-text-muted">Above {bodyAltitudes.parentBmName} terrain</span>
-            <span class="font-mono text-text-primary">{formatDist(bodyAltitudes.aboveTerrain)}</span>
+          <div class="ui-data-row">
+            <span class="ui-label">Above {bodyAltitudes.parentBmName} terrain</span>
+            <span class="ui-readout">{formatDist(bodyAltitudes.aboveTerrain)}</span>
           </div>
         {:else if bodyAltitudes.aboveRef != null}
-          <div class="flex justify-between gap-3">
-            <span class="text-text-muted">Above {bodyAltitudes.parentBmName} ref</span>
-            <span class="font-mono text-text-primary">{formatDist(bodyAltitudes.aboveRef)}</span>
+          <div class="ui-data-row">
+            <span class="ui-label">Above {bodyAltitudes.parentBmName} ref</span>
+            <span class="ui-readout">{formatDist(bodyAltitudes.aboveRef)}</span>
           </div>
         {/if}
       </div>
@@ -230,36 +244,36 @@
 
     <!-- ORBIT: this body's motion relative to its parent -->
     {#if stateInfo && bodyAltitudes.parentBmName}
-      <div class="text-[10px] text-text-muted uppercase tracking-wider mt-2 mb-1 pt-2 border-t border-border">Orbit</div>
+      <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Orbit</div>
       <div class="flex flex-col gap-0.5">
-        <div class="flex justify-between gap-3">
-          <span class="text-text-muted">{bodyAltitudes.parentBmName} distance</span>
-          <span class="font-mono text-text-primary">{formatDist(stateInfo.range)}</span>
+        <div class="ui-data-row">
+          <span class="ui-label">{bodyAltitudes.parentBmName} distance</span>
+          <span class="ui-readout">{formatDist(stateInfo.range)}</span>
         </div>
-        <div class="flex justify-between gap-3">
-          <span class="text-text-muted">Speed</span>
-          <span class="font-mono text-text-primary">{formatSpeed(stateInfo.speed)}</span>
+        <div class="ui-data-row">
+          <span class="ui-label">Speed</span>
+          <span class="ui-readout">{formatSpeed(stateInfo.speed)}</span>
         </div>
       </div>
     {/if}
 
     {#if speAngle != null}
-      <div class="flex justify-between gap-3 mt-2 pt-2 border-t border-border">
-        <span class="text-text-muted">SPE angle</span>
-        <span class="font-mono {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>
+      <div class="ui-data-row mt-2 pt-2 border-t border-border">
+        <span class="ui-label">SPE angle</span>
+        <span class="ui-readout {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>
       </div>
     {/if}
 
     <!-- Plugin-contributed info sections -->
     {#each pluginSections as section (section.id)}
       <div class="mt-2 pt-2 border-t border-border">
-        <div class="text-[10px] text-text-muted uppercase tracking-wider mb-1">{section.label}</div>
+        <div class="ui-section-label mb-1">{section.label}</div>
         {#if section.rows}
           <div class="flex flex-col gap-0.5">
             {#each section.rows as row}
-              <div class="flex justify-between gap-3">
-                <span class="text-text-muted">{row.label}</span>
-                <span class="font-mono text-text-primary">{row.value}{#if row.unit}<span class="text-text-muted">{row.unit}</span>{/if}</span>
+              <div class="ui-data-row">
+                <span class="ui-label">{row.label}</span>
+                <span class="ui-readout">{row.value}{#if row.unit}<span class="text-text-muted">{row.unit}</span>{/if}</span>
               </div>
             {/each}
           </div>
@@ -268,13 +282,20 @@
         {/if}
       </div>
     {/each}
-  </div>
+  </InstrumentPanel>
 {/if}
 
 <style>
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
+  .body-kind {
+    width: fit-content;
+    margin-bottom: var(--space-ui-3);
+    border-radius: 3px;
+    background: var(--color-control);
+    padding: 2px 6px;
+    color: var(--color-text-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--text-metadata);
+    font-weight: 550;
+    line-height: 1.2;
   }
-  .animate-fade-in { animation: fade-in 0.12s ease; }
 </style>

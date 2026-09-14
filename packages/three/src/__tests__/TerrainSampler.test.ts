@@ -39,6 +39,24 @@ describe('TerrainSampler', () => {
     expect(recovered.heightKm).toBeCloseTo(original.heightKm, 9);
   });
 
+  it('uses geodetic latitude for body-fixed sampling on an oblate body', () => {
+    const sampler = new TerrainSampler(datum, { id: 'oblate', kind: 'height-grid' });
+    sampler.addTile(grid({
+      id: 'mid-latitude', westDeg: 4.9, eastDeg: 5.1, southDeg: 44.9, northDeg: 45.1,
+      elevationsKm: new Float32Array([7, 7, 7, 7]),
+    }));
+    const point = geodeticToBodyFixed({ latDeg: 45, lonDeg: 5, heightKm: 10 }, datum);
+    const planetocentricLatDeg = Math.atan2(point.zKm, Math.hypot(point.xKm, point.yKm)) * (180 / Math.PI);
+
+    // Mars's flattening separates the two latitude conventions enough that a
+    // high-LOD tile can cover the geodetic point but not the radial latitude.
+    expect(Math.abs(planetocentricLatDeg - 45)).toBeGreaterThan(0.3);
+    expect(sampler.sample(planetocentricLatDeg, 5)).toBeNull();
+    const sample = sampler.sampleBodyFixedCartesian(point);
+    expect(sample?.position.latDeg).toBeCloseTo(45, 9);
+    expect(sample?.elevationKm).toBe(7);
+  });
+
   it('recovers height at the exact poles, where the p/cos(lat) form collapses', () => {
     for (const latDeg of [90, -90, 89.9999, -89.9999]) {
       const recovered = bodyFixedToGeodetic(geodeticToBodyFixed({ latDeg, lonDeg: 0, heightKm: 2 }, datum), datum);

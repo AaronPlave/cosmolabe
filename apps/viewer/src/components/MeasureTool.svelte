@@ -1,7 +1,9 @@
 <script lang="ts">
   import { vs, getRenderer, setTime } from '../lib/viewer-state.svelte';
   import { etToDate } from '@cosmolabe/core';
-  import { X, ZoomIn, ZoomOut } from 'lucide-svelte';
+  import { ZoomIn, ZoomOut } from 'lucide-svelte';
+  import { toolDef } from '../lib/shell.svelte';
+  import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   interface Props {
     onClose: () => void;
@@ -540,32 +542,30 @@
   );
 </script>
 
-<div class="absolute top-3 left-3 z-15 bg-black/90 backdrop-blur-md border border-border rounded-lg p-3 min-w-96 text-[12px] animate-fade-in">
-  <div class="flex items-center justify-between mb-2">
-    <span class="text-text-secondary text-[10px] uppercase tracking-wider font-semibold">Geometry</span>
-    <div class="flex items-center gap-0.5">
-      <button
-        class="bg-transparent border-none cursor-pointer p-0.5 rounded transition-colors {zoomIndex > 0 ? 'text-text-muted hover:text-text-primary' : 'text-text-muted opacity-30'}"
-        onclick={zoomOut}
-        disabled={zoomIndex === 0}
-        title="Zoom out"
-      ><ZoomOut size={13} /></button>
-      <span class="text-[10px] text-text-muted font-mono min-w-8 text-center">{zoomLevel}x</span>
-      <button
-        class="bg-transparent border-none cursor-pointer p-0.5 rounded transition-colors {zoomIndex < ZOOM_LEVELS.length - 1 ? 'text-text-muted hover:text-text-primary' : 'text-text-muted opacity-30'}"
-        onclick={zoomIn}
-        disabled={zoomIndex === ZOOM_LEVELS.length - 1}
-        title="Zoom in"
-      ><ZoomIn size={13} /></button>
-      <button class="bg-transparent border-none text-text-muted cursor-pointer p-0.5 rounded hover:text-text-primary transition-colors ml-1" onclick={onClose}><X size={13} /></button>
-    </div>
-  </div>
+<InstrumentPanel key="measure" title="Geometry" width={toolDef('measure').width} {onClose}>
+  {#snippet actions()}
+    <button
+      class="cursor-pointer rounded p-0.5 transition-colors {zoomIndex > 0 ? 'text-text-muted hover:text-text-primary' : 'text-text-muted opacity-30'}"
+      onclick={zoomOut}
+      disabled={zoomIndex === 0}
+      title="Zoom out"
+      aria-label="Zoom out"
+    ><ZoomOut size={13} /></button>
+    <span class="ui-meta min-w-8 text-center font-mono">{zoomLevel}x</span>
+    <button
+      class="cursor-pointer rounded p-0.5 transition-colors {zoomIndex < ZOOM_LEVELS.length - 1 ? 'text-text-muted hover:text-text-primary' : 'text-text-muted opacity-30'}"
+      onclick={zoomIn}
+      disabled={zoomIndex === ZOOM_LEVELS.length - 1}
+      title="Zoom in"
+      aria-label="Zoom in"
+    ><ZoomIn size={13} /></button>
+  {/snippet}
 
   <!-- From body -->
   <div class="flex items-center gap-5 mb-1.5">
-    <span class="text-text-muted text-[11px] w-8">From</span>
+    <span class="ui-label w-8">From</span>
     <select
-      class="flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 text-[11px] cursor-pointer outline-none"
+      class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
       value={fromOverride ?? vs.trackedBodyName ?? ''}
       onchange={(e) => {
         const val = (e.target as HTMLSelectElement).value;
@@ -584,9 +584,9 @@
 
   <!-- To body -->
   <div class="flex items-center gap-5 mb-2">
-    <span class="text-text-muted text-[11px] w-8">To</span>
+    <span class="ui-label w-8">To</span>
     <select
-      class="flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 text-[11px] cursor-pointer outline-none"
+      class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
       bind:value={targetBodyName}
     >
       <option value="">Select body...</option>
@@ -596,23 +596,6 @@
     </select>
   </div>
 
-  <!-- Shared SVG snippet for close approach lines + cursors on any chart -->
-  {#snippet chartOverlays()}
-    {#if showApproaches}
-      {#each closeApproachMarkers as ca}
-        <line x1={ca.x} y1="0" x2={ca.x} y2={H}
-          stroke="var(--color-success)"
-          stroke-width={nearestCA?.et === ca.et ? 2 : 1}
-          vector-effect="non-scaling-stroke"
-          opacity={nearestCA?.et === ca.et ? 0.9 : 0.3}
-        />
-      {/each}
-    {/if}
-    <line x1={playheadFrac * W} y1="0" x2={playheadFrac * W} y2={H} stroke="white" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.9" />
-    {#if hoverX != null}
-      <line x1={hoverX} y1="0" x2={hoverX} y2={H} stroke="var(--color-accent)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.7" />
-    {/if}
-  {/snippet}
 
   <!-- Results -->
   {#if current}
@@ -621,8 +604,8 @@
       {#snippet metricChart(label: string, value: string, valueClass: string, lineData: { line: string; min: number; max: number }, yFmt: (n: number) => string, zeroline?: boolean)}
         <div>
           <div class="flex justify-between items-baseline mb-1">
-            <span class="text-text-secondary text-[12px]">{label}</span>
-            <span class="font-mono text-[12px] {valueClass}">{value}</span>
+            <span class="ui-label text-text-secondary">{label}</span>
+            <span class="ui-readout {valueClass}">{value}</span>
           </div>
           <div class="chart-wrap">
             <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -680,7 +663,7 @@
 
 
       <!-- Time range -->
-      <div class="flex justify-between text-[10px] font-mono text-text-muted">
+      <div class="ui-meta flex justify-between font-mono">
         <span>{windowStartLabel}</span>
         <span>{windowEndLabel}</span>
       </div>
@@ -688,7 +671,7 @@
       <!-- Close approaches -->
       {#if allCloseApproaches.length > 0}
         <div class="flex items-center gap-2 pt-1.5 border-t border-border">
-          <span class="text-[11px] font-mono flex-1 {showApproaches ? 'text-success' : 'text-text-muted'}">
+          <span class="ui-readout flex-1 {showApproaches ? 'text-success' : 'text-text-muted'}">
             {#if nearestCA && showApproaches}
               {nearestCA.altKm != null ? `alt ${fmtDist(nearestCA.altKm)}` : fmtDist(nearestCA.distKm)} — {fmtTimeShort(nearestCA.et)}
             {:else}
@@ -711,7 +694,7 @@
       {#if showApproachTable && allCloseApproaches.length > 0}
         <div class="pt-1.5 border-t border-border">
           <div class="flex items-center justify-between mb-1.5">
-            <span class="text-[10px] text-text-secondary uppercase tracking-wider font-semibold">Close Approaches</span>
+            <span class="ui-section-label text-text-secondary">Close Approaches</span>
             <div class="flex gap-0.5">
               <button
                 class="sort-btn"
@@ -728,7 +711,7 @@
           <div class="max-h-56 overflow-y-auto flex flex-col">
             {#each sortedApproaches as ca, i}
               <button
-                class="flex justify-between gap-2 text-[11px] font-mono bg-transparent border-none cursor-pointer text-left px-1.5 py-1 rounded hover:bg-surface-3 transition-colors w-full"
+                class="ui-readout flex justify-between gap-2 bg-transparent border-none cursor-pointer text-left px-1.5 py-1 rounded hover:bg-surface-3 transition-colors w-full"
                 onclick={() => setTime(ca.et)}
               >
                 <span class="text-text-muted opacity-50 w-5">{i + 1}</span>
@@ -741,18 +724,32 @@
       {/if}
     </div>
   {:else if targetBodyName && fromBodyName}
-    <div class="text-text-muted text-[11px] pt-2 border-t border-border">Computing...</div>
+    <div class="ui-label pt-2 border-t border-border">Computing...</div>
   {:else if !fromBodyName}
-    <div class="text-text-muted text-[11px] pt-2 border-t border-border">Select a From body or track one in the viewport</div>
+    <div class="ui-label pt-2 border-t border-border">Select a From body or track one in the viewport</div>
   {/if}
-</div>
+</InstrumentPanel>
+
+<!-- Declared outside the panel on purpose: a snippet that is a direct child
+     of a component is passed to it as a prop, and this one is local. -->
+  {#snippet chartOverlays()}
+    {#if showApproaches}
+      {#each closeApproachMarkers as ca}
+        <line x1={ca.x} y1="0" x2={ca.x} y2={H}
+          stroke="var(--color-success)"
+          stroke-width={nearestCA?.et === ca.et ? 2 : 1}
+          vector-effect="non-scaling-stroke"
+          opacity={nearestCA?.et === ca.et ? 0.9 : 0.3}
+        />
+      {/each}
+    {/if}
+    <line x1={playheadFrac * W} y1="0" x2={playheadFrac * W} y2={H} stroke="white" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.9" />
+    {#if hoverX != null}
+      <line x1={hoverX} y1="0" x2={hoverX} y2={H} stroke="var(--color-accent)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.7" />
+    {/if}
+  {/snippet}
 
 <style>
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .animate-fade-in { animation: fade-in 0.12s ease; }
 
   .chart-wrap {
     position: relative;
