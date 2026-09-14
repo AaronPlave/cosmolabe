@@ -19,18 +19,20 @@
    * once #58's event kinds and #57's measurement tools arrive, and a row that
    * silently drops its last button is a worse failure than one that scrolls.
    */
-  import { Crosshair, Camera, Info, Keyboard } from 'lucide-svelte';
+  import { Search, Crosshair, Camera, Info, Keyboard } from 'lucide-svelte';
   import { TOOLS, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
   import { vs, cycleCamera, selectBody } from '../../lib/viewer-state.svelte';
 
   interface Props {
     pickModeActive: boolean;
     onTogglePick: () => void;
+    searchActive?: boolean;
+    onOpenSearch: () => void;
     /** Render bare, for a parent that supplies the surrounding chrome. */
     inline?: boolean;
   }
 
-  let { pickModeActive, onTogglePick, inline = false }: Props = $props();
+  let { pickModeActive, onTogglePick, searchActive = false, onOpenSearch, inline = false }: Props = $props();
 
   const compact = $derived(shell.layout === 'compact');
 
@@ -62,6 +64,18 @@
 </script>
 
 {#snippet buttons()}
+  <button
+    class="rail-btn"
+    aria-pressed={searchActive}
+    aria-label="Search commands"
+    title="Search commands (Cmd+K)"
+    onclick={onOpenSearch}
+  >
+    <Search size={16} />
+  </button>
+
+  <div class="rail-divider" class:horizontal={compact}></div>
+
   {#each TOOLS as tool (tool.id)}
     {@const Icon = tool.icon}
     {@const s = state(tool)}

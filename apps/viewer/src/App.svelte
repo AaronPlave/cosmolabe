@@ -322,10 +322,21 @@
       >
         <TimelineDock inline />
         <div class="shell-divider mx-2 border-t"></div>
-        <ToolRail inline {pickModeActive} onTogglePick={togglePickMode} />
+        <ToolRail
+          inline
+          {pickModeActive}
+          onTogglePick={togglePickMode}
+          searchActive={commandPaletteOpen}
+          onOpenSearch={() => commandPaletteOpen = true}
+        />
       </div>
     {:else}
-      <ToolRail {pickModeActive} onTogglePick={togglePickMode} />
+      <ToolRail
+        {pickModeActive}
+        onTogglePick={togglePickMode}
+        searchActive={commandPaletteOpen}
+        onOpenSearch={() => commandPaletteOpen = true}
+      />
       <TimelineDock />
     {/if}
 
