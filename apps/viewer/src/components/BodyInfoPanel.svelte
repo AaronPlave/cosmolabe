@@ -177,6 +177,9 @@
 {#if vs.selectedBodyName}
   <InstrumentPanel key="info" title={vs.selectedBodyName} width={288} onClose={() => selectBody(null)}>
     {#snippet actions()}
+      {#if bodyEntry?.classification}
+        <span class="body-kind">{bodyEntry.classification}</span>
+      {/if}
       <button
         class="flex h-7 w-7 items-center justify-center rounded text-text-muted transition-colors hover:text-text-primary"
         onclick={flyTo}
@@ -187,20 +190,16 @@
       </button>
     {/snippet}
 
-    {#if bodyEntry?.classification}
-      <div class="ui-meta mb-2">{bodyEntry.classification}</div>
-    {/if}
-
-    <!-- VIEW: camera-relative -->
-    <div class="ui-section-label mt-1 mb-1">View</div>
+    <!-- CAMERA: camera-relative -->
+    <div class="ui-section-label mb-1">Camera</div>
     <div class="flex flex-col gap-0.5">
-      <div class="flex justify-between gap-3">
-        <span class="text-text-muted">Range</span>
+      <div class="ui-data-row">
+        <span class="ui-label">Range</span>
         <span class="ui-readout">{formatDist(distance)}</span>
       </div>
       {#if altitude != null}
-        <div class="flex justify-between gap-3">
-          <span class="text-text-muted">Cam alt</span>
+        <div class="ui-data-row">
+          <span class="ui-label">Camera altitude</span>
           <span class="ui-readout">{formatDist(altitude)}</span>
         </div>
       {/if}
@@ -211,13 +210,13 @@
       <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Body</div>
       <div class="flex flex-col gap-0.5">
         {#if bodyAltitudes.aboveTerrain != null}
-          <div class="flex justify-between gap-3">
-            <span class="text-text-muted">Above terrain</span>
+          <div class="ui-data-row">
+            <span class="ui-label">Above terrain</span>
             <span class="ui-readout">{formatDist(bodyAltitudes.aboveTerrain)}</span>
           </div>
         {:else if bodyAltitudes.aboveRef != null}
-          <div class="flex justify-between gap-3">
-            <span class="text-text-muted">Above ref</span>
+          <div class="ui-data-row">
+            <span class="ui-label">Above reference</span>
             <span class="ui-readout">{formatDist(bodyAltitudes.aboveRef)}</span>
           </div>
         {/if}
@@ -228,20 +227,20 @@
     {#if stateInfo && bodyAltitudes.parentBmName}
       <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Orbit</div>
       <div class="flex flex-col gap-0.5">
-        <div class="flex justify-between gap-3">
-          <span class="text-text-muted">{bodyAltitudes.parentBmName} distance</span>
+        <div class="ui-data-row">
+          <span class="ui-label">{bodyAltitudes.parentBmName} distance</span>
           <span class="ui-readout">{formatDist(stateInfo.range)}</span>
         </div>
-        <div class="flex justify-between gap-3">
-          <span class="text-text-muted">Speed</span>
+        <div class="ui-data-row">
+          <span class="ui-label">Speed</span>
           <span class="ui-readout">{formatSpeed(stateInfo.speed)}</span>
         </div>
       </div>
     {/if}
 
     {#if speAngle != null}
-      <div class="flex justify-between gap-3 mt-2 pt-2 border-t border-border">
-        <span class="text-text-muted">SPE angle</span>
+      <div class="ui-data-row mt-2 pt-2 border-t border-border">
+        <span class="ui-label">SPE angle</span>
         <span class="ui-readout {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>
       </div>
     {/if}
@@ -253,8 +252,8 @@
         {#if section.rows}
           <div class="flex flex-col gap-0.5">
             {#each section.rows as row}
-              <div class="flex justify-between gap-3">
-                <span class="text-text-muted">{row.label}</span>
+              <div class="ui-data-row">
+                <span class="ui-label">{row.label}</span>
                 <span class="ui-readout">{row.value}{#if row.unit}<span class="text-text-muted">{row.unit}</span>{/if}</span>
               </div>
             {/each}
@@ -266,3 +265,18 @@
     {/each}
   </InstrumentPanel>
 {/if}
+
+<style>
+  .body-kind {
+    flex-shrink: 0;
+    border-radius: 3px;
+    background: var(--color-control);
+    padding: 2px 6px;
+    color: var(--color-text-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--text-label);
+    font-weight: 550;
+    line-height: 1.2;
+    text-transform: lowercase;
+  }
+</style>
