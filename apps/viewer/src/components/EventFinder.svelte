@@ -9,6 +9,7 @@
    * concrete, and only that an event has a time, a label and metrics.
    */
   import { Loader2, Search, Ban } from 'lucide-svelte';
+  import * as Select from '$lib/components/ui/select/index.js';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
   import { vs, etToUtcString } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
@@ -42,6 +43,7 @@
   let metricSortLabel = $derived(sortMetricLabel(ef.events));
   let unfilledRoles = $derived(form ? missingRoles(kind, form) : []);
   let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running);
+  const eventKindItems = EVENT_KINDS.map(({ kind, label }) => ({ value: kind, label }));
 
   /** Window fields are edited as UTC text and only committed when they parse. */
   let startText = $state('');
@@ -108,22 +110,33 @@
   <!-- Event type -->
   <div class="flex items-center gap-2 mb-1.5">
     <span class="ui-label w-20 shrink-0">Event</span>
-    <select
-      class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
+    <Select.Root
+      type="single"
+      items={eventKindItems}
       value={ef.kind}
-      onchange={(e) => setKind((e.target as HTMLSelectElement).value)}
+      onValueChange={(value) => {
+        if (value !== ef.kind) setKind(value);
+      }}
     >
-      {#each EVENT_KINDS as k}
-        <option value={k.kind}>{k.label}</option>
-      {/each}
-    </select>
+      <Select.Trigger size="sm" class="ui-control min-w-0 flex-1 rounded border-border bg-surface-3 px-2 text-text-primary">
+        <Select.Value placeholder="Select event type" />
+      </Select.Trigger>
+      <Select.Content align="start" class="w-[360px] max-w-[calc(100vw-24px)] rounded-md border border-border bg-panel p-1">
+        {#each EVENT_KINDS as k (k.kind)}
+          <Select.Item
+            value={k.kind}
+            label={k.label}
+            class="event-kind-option items-start py-2 pr-8 [&>span:last-child]:items-start [&>span:last-child]:whitespace-normal"
+          >
+            <div class="flex min-w-0 flex-col gap-0.5 pr-2">
+              <span class="event-kind-label text-[11px] font-medium leading-tight text-text-primary">{k.label}</span>
+              <span class="event-kind-description ui-meta whitespace-normal text-text-secondary">{k.description}</span>
+            </div>
+          </Select.Item>
+        {/each}
+      </Select.Content>
+    </Select.Root>
   </div>
-
-  <!-- What the selected kind actually searches for. Its own words: the panel
-       cannot write this sentence for a kind it has never heard of. -->
-  {#if kind.description}
-    <p class="ui-meta event-helper mb-2 ml-22">{kind.description}</p>
-  {/if}
 
   {#if form}
     <!-- Bodies, one picker per role the kind declares -->
@@ -167,7 +180,7 @@
         {:else}
           <input
             type="number"
-            class="ui-readout flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 outline-none"
+            class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 font-mono outline-none"
             placeholder={param.required === false ? 'optional' : ''}
             min={param.min}
             max={param.max}
@@ -184,7 +197,7 @@
     <div class="flex items-center gap-2 mb-1.5">
       <span class="ui-label w-20 shrink-0">From</span>
       <input
-        class="ui-readout flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 outline-none
+        class="ui-control flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
                {startBad ? 'border-warning' : 'border-border'}"
         bind:value={startText}
         onblur={commitStart}
@@ -194,7 +207,7 @@
     <div class="flex items-center gap-2 mb-1.5">
       <span class="ui-label w-20 shrink-0">To</span>
       <input
-        class="ui-readout flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 outline-none
+        class="ui-control flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
                {endBad ? 'border-warning' : 'border-border'}"
         bind:value={endText}
         onblur={commitEnd}
@@ -421,5 +434,15 @@
   }
   .event-helper {
     color: var(--color-text-faint);
+  }
+  :global(.event-kind-option:is(:focus, [data-highlighted])) {
+    background: var(--color-control-hover);
+    color: var(--color-text-primary);
+  }
+  :global(.event-kind-option:is(:focus, [data-highlighted]) .event-kind-label) {
+    color: var(--color-text-primary);
+  }
+  :global(.event-kind-option:is(:focus, [data-highlighted]) .event-kind-description) {
+    color: var(--color-text-secondary);
   }
 </style>
