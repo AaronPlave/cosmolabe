@@ -129,8 +129,8 @@
             class="event-kind-option items-start py-2 pr-8 [&>span:last-child]:items-start [&>span:last-child]:whitespace-normal"
           >
             <div class="flex min-w-0 flex-col gap-0.5 pr-2">
-              <span class="event-kind-label text-[11px] font-medium leading-tight text-text-primary">{k.label}</span>
-              <span class="event-kind-description ui-meta whitespace-normal text-text-secondary">{k.description}</span>
+              <span class="event-kind-label ui-body font-medium text-text-primary">{k.label}</span>
+              <span class="event-kind-description ui-helper whitespace-normal">{k.description}</span>
             </div>
           </Select.Item>
         {/each}
@@ -236,11 +236,11 @@
     <!-- Say when the window is not simply the catalog's span, so a default that
          differs from the scrubber is explained rather than merely odd. -->
     {#if ef.windowTrimmed}
-      <p class="ui-meta event-helper mb-2 ml-22">
+      <p class="ui-helper event-helper mb-2 ml-22">
         Trimmed to the kernel coverage of the chosen bodies.
       </p>
     {:else if ef.windowPinned}
-      <p class="ui-meta event-helper mb-2 ml-22">
+      <p class="ui-helper event-helper mb-2 ml-22">
         Using your window. <button class="ctrl-link underline" onclick={resetWindow}>Reset to kernel coverage</button>
       </p>
     {/if}
@@ -323,7 +323,7 @@
         {#each shownEvents as event}
           {@const headline = headlineMetric(event)}
           <button
-            class="event-result text-left rounded px-2 py-1.5 border cursor-pointer"
+            class="event-result text-left rounded px-2 py-2 border cursor-pointer"
             class:selected={ef.selectedId === event.id}
             onclick={() => selectEvent(event)}
             title={event.label}
@@ -354,7 +354,7 @@
                 {#if detailMetrics(event).length === 0}
                   <!-- A closest approach with no range is a thin answer; say the
                        measurement is missing rather than showing a blank. -->
-                  <div class="ui-meta">
+                  <div class="ui-helper">
                     No measurements — this SPICE provider cannot report distances.
                   </div>
                 {/if}
@@ -434,6 +434,9 @@
   }
   .event-helper {
     color: var(--color-text-faint);
+  }
+  .event-helper .ctrl-link {
+    font-size: inherit;
   }
   :global(.event-kind-option:is(:focus, [data-highlighted])) {
     background: var(--color-control-hover);

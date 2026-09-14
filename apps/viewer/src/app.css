@@ -4,6 +4,15 @@
 
 /* ── Design tokens ── */
 @theme {
+  /* Tailwind's rem-based defaults shrink when used under this app's 13px root.
+   * Pin shared utility sizes to the same readable pixel scale as shell roles. */
+  --text-xs: 11px;
+  --text-xs--line-height: 1.35;
+  --text-sm: 13px;
+  --text-sm--line-height: 1.4;
+  --text-base: 13px;
+  --text-base--line-height: 1.4;
+
   /* Semantic application palette. Feature CSS should prefer these names over
    * inventing another near-black surface or hairline. */
   --color-canvas: #000000;
@@ -118,18 +127,21 @@
   --font-instrument: var(--font-mono);
 
   /* A small role-based type scale. Ten pixels is deliberately restricted to
-   * tertiary metadata and compact section captions; normal interface copy
-   * stays readable, while changing scientific values get a distinct mono role. */
+   * genuinely short microcopy; readable UI and sentence-length copy live in
+   * the 11–13px working range. */
   /* Pixels are intentional here. The application root is 13px, so rem values
    * that look like 11px on a browser-default root silently rendered at 8.94px. */
-  --text-panel-title: 10px;
-  --text-interface: 12px;
-  --text-control: 11px;
-  --text-label: 11px;
+  --text-panel-title: 11px;
+  --text-interface: 13px;
+  --text-control: 13px;
+  --text-label: 12px;
+  --text-helper: 12px;
+  --text-section: 11px;
   --text-metadata: 10px;
-  --text-readout: 12px;
+  --text-readout: 13px;
   --text-readout-strong: 13px;
-  --leading-interface: 1.35;
+  --leading-interface: 1.4;
+  --leading-helper: 1.45;
 
   /* Compact shared spacing/control scale for shell primitives. */
   --space-ui-1: 4px;
@@ -137,7 +149,7 @@
   --space-ui-3: 8px;
   --space-ui-4: 12px;
   --space-ui-5: 16px;
-  --size-control: 24px;
+  --size-control: 28px;
   --radius-control: 4px;
 }
 
@@ -217,9 +229,16 @@
     color: var(--color-text-muted);
   }
 
+  .ui-helper {
+    font-family: var(--font-sans);
+    font-size: var(--text-helper);
+    line-height: var(--leading-helper);
+    color: var(--color-text-muted);
+  }
+
   .ui-section-label {
     font-family: var(--font-sans);
-    font-size: var(--text-metadata);
+    font-size: var(--text-section);
     font-weight: 600;
     line-height: var(--leading-interface);
     letter-spacing: 0.06em;

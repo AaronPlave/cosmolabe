@@ -232,7 +232,7 @@
 
   .date-label {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--text-section);
     color: var(--color-text-muted);
     white-space: nowrap;
     flex-shrink: 0;
@@ -346,7 +346,7 @@
 
   .zoom-preset {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--text-interface);
     color: var(--color-text-secondary);
     background: none;
     border: none;

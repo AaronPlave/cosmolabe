@@ -23,7 +23,6 @@
   import { getSpice } from '../../lib/loader';
   import { ef } from '../../lib/event-finder.svelte';
   import { eventFraction } from '../../lib/event-query';
-  import { CameraModeName } from '@cosmolabe/three';
   import {
     ChevronsLeft, ChevronLeft, Rewind, Play, Pause,
     ChevronRight, ChevronsRight, ChevronUp, ChevronDown,
@@ -124,7 +123,7 @@
   }
 </script>
 
-<!-- Desktop: its own dock along the bottom, offset past the rail. Compact:
+<!-- Desktop: its own dock along the full bottom edge. Compact:
      rendered bare inside the shared bottom dock, so the phone gets one bar of
      chrome rather than two stacked boxes. -->
 <div
@@ -192,11 +191,11 @@
       <Popover.Portal>
         <Popover.Content side="top" sideOffset={8} class="w-80 p-3">
           <div class="flex flex-col gap-2">
-            <span class="text-[11px] text-muted-foreground">Go to time</span>
+            <span class="ui-label">Go to time</span>
             <div class="flex gap-1.5">
               <Input
                 bind:value={gotoTimeValue}
-                class="font-mono text-[12px] h-8 {gotoTimeError ? 'border-error' : ''}"
+                class="font-mono text-[13px] h-8 {gotoTimeError ? 'border-error' : ''}"
                 placeholder="e.g. 2004-06-30T12:00:00"
                 onkeydown={onGotoKeydown}
                 autofocus
@@ -207,10 +206,6 @@
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
-
-    {#if vs.cameraMode !== CameraModeName.FREE_ORBIT && !compact}
-      <span class="shrink-0 rounded bg-surface-3 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-secondary">{vs.cameraMode}</span>
-    {/if}
 
     <button
       class="tl-btn"
@@ -227,7 +222,7 @@
     <!-- The shared-axis region. Event lanes (#67) and continuous geometry
          profiles (#65) land here, against this playhead — the placeholder is
          what keeps them from each arriving with a timeline of their own. -->
-    <div class="lane-region flex h-16 items-center justify-center rounded border text-[10px] uppercase tracking-wider text-text-muted">
+    <div class="lane-region ui-helper flex h-16 items-center justify-center rounded border">
       Event lanes and geometry profiles share this axis
     </div>
   {/if}
@@ -240,7 +235,7 @@
   .desktop-timeline {
     right: 0;
     bottom: 0;
-    left: var(--size-rail);
+    left: 0;
     border-top: 1px solid var(--color-chrome-border);
     background: var(--color-panel);
     box-shadow: inset 0 1px rgba(255, 255, 255, 0.015);

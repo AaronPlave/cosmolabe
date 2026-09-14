@@ -2,7 +2,13 @@
   import { CameraModeName } from '@cosmolabe/three';
   import type { PluginOverlay } from '@cosmolabe/three';
   import { vs, clearLookAt, getRenderer } from '../lib/viewer-state.svelte';
-  import { X } from 'lucide-svelte';
+  import { ArrowRight, X } from 'lucide-svelte';
+
+  const frameLabel = $derived.by(() => {
+    if (vs.cameraMode === CameraModeName.FREE_ORBIT) return 'Free orbit';
+    const mode = vs.cameraMode.replaceAll('-', ' ');
+    return vs.trackedBodyName ? `${vs.trackedBodyName} ${mode}` : mode;
+  });
 
   /** Collect plugin overlays grouped by corner position */
   function getPluginOverlays(): Record<string, PluginOverlay[]> {
@@ -34,27 +40,25 @@
   }
 </script>
 
-<!-- Tracked body / camera mode HUD.
-     Offset against the shell's measurements rather than a fixed `bottom-16
-     left-3`: the timeline's height is no longer a constant, and the rail now
-     owns the left edge. -->
-{#if vs.trackedBodyName || vs.cameraMode !== CameraModeName.FREE_ORBIT}
-  <div
-    class="absolute z-10 flex flex-col gap-0.5 pointer-events-none"
-    style="left: calc(var(--size-rail) + 1rem); bottom: calc(var(--size-dock-base) + 0.5rem)"
-  >
-    {#if vs.trackedBodyName}
-      <span class="text-[13px] font-medium text-text-primary opacity-80">{vs.trackedBodyName}</span>
+<!-- View context belongs to the viewport rather than either panel dock. Keeping
+     it top-centred gives tracking, look-at and reference frame one stable home
+     without competing with the rail or timeline. -->
+{#if vs.trackedBodyName || vs.lookAtBodyName || vs.cameraMode !== CameraModeName.FREE_ORBIT}
+  <div class="view-context pointer-events-auto absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-7rem)] -translate-x-1/2 items-center">
+    {#if vs.trackedBodyName || vs.lookAtBodyName}
+      <span class="context-label">Tracking</span>
+      <span class="context-value truncate">{vs.trackedBodyName ?? 'Free camera'}</span>
+      {#if vs.lookAtBodyName}
+        <ArrowRight class="context-arrow" size={13} aria-hidden="true" />
+        <span class="context-value truncate">{vs.lookAtBodyName}</span>
+        <button class="clear-look-at" aria-label="Clear look-at target" title="Clear look-at target" onclick={clearLookAt}>
+          <X size={12} />
+        </button>
+      {/if}
+      <span class="context-divider" aria-hidden="true"></span>
     {/if}
-    {#if vs.cameraMode !== CameraModeName.FREE_ORBIT}
-      <span class="text-[11px] text-text-secondary opacity-70 uppercase tracking-wider">{vs.cameraMode}</span>
-    {/if}
-    {#if vs.lookAtBodyName}
-      <span class="text-[11px] text-text-secondary flex items-center gap-1 pointer-events-auto">
-        Look at: {vs.lookAtBodyName}
-        <button class="bg-transparent border-none text-text-muted cursor-pointer p-0 leading-none hover:text-text-primary pointer-events-auto" onclick={clearLookAt}><X size={12} /></button>
-      </span>
-    {/if}
+    <span class="context-label">Frame</span>
+    <span class="frame-value truncate">{frameLabel}</span>
   </div>
 {/if}
 
@@ -96,3 +100,101 @@
     {/each}
   </div>
 {/each}
+
+<style>
+  .view-context {
+    min-height: 34px;
+    padding: 0 10px;
+    gap: 8px;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-panel) 92%, transparent);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(8px);
+    color: var(--color-text-secondary);
+  }
+
+  .context-label {
+    flex: none;
+    font-family: var(--font-sans);
+    font-size: var(--text-metadata);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+  }
+
+  .context-value {
+    min-width: 0;
+    max-width: 180px;
+    font-family: var(--font-sans);
+    font-size: var(--text-label);
+    font-weight: 600;
+    line-height: 1;
+    color: var(--color-text-primary);
+  }
+
+  :global(.context-arrow) {
+    flex: none;
+    color: var(--color-text-muted);
+    stroke-width: 1.75;
+  }
+
+  .context-divider {
+    align-self: stretch;
+    width: 1px;
+    margin: 7px 2px;
+    background: var(--color-border-subtle);
+  }
+
+  .frame-value {
+    min-width: 0;
+    max-width: 200px;
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--color-text-secondary);
+  }
+
+  .clear-look-at {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    flex: none;
+    place-items: center;
+    margin-left: -4px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-faint);
+    cursor: pointer;
+  }
+
+  .clear-look-at:hover {
+    background: var(--color-control-hover);
+    color: var(--color-text-primary);
+  }
+
+  .clear-look-at:focus-visible {
+    outline: 1px solid var(--color-border-strong);
+    outline-offset: 1px;
+  }
+
+  @media (max-width: 719px) {
+    .view-context {
+      left: 8px;
+      right: 8px;
+      top: 8px;
+      max-width: none;
+      transform: none;
+    }
+
+    .context-value,
+    .frame-value {
+      max-width: none;
+    }
+  }
+</style>

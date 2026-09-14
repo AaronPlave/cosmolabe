@@ -159,15 +159,19 @@
   }
   .desktop-rail {
     top: 0;
-    bottom: var(--size-bottom-chrome);
     left: 0;
     width: var(--size-rail);
+    height: fit-content;
+    max-height: calc(100% - var(--size-bottom-chrome) - 8px);
     box-sizing: border-box;
     padding: 10px 6px;
     border-right: 1px solid var(--color-chrome-border);
+    border-bottom: 1px solid var(--color-chrome-border);
+    border-bottom-right-radius: var(--radius-md);
     background: var(--color-panel);
     box-shadow: inset -1px 0 rgba(255, 255, 255, 0.015);
     backdrop-filter: blur(8px);
+    overflow-y: auto;
   }
   .rail::-webkit-scrollbar {
     display: none;

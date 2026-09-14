@@ -172,14 +172,16 @@
     const bm = r.getBodyMesh(vs.selectedBodyName);
     if (bm) r.cameraController.flyTo(bm, { scaleFactor: r.scaleFactor });
   }
+
+  function classificationLabel(classification: string): string {
+    if (classification === 'dwarfplanet') return 'Dwarf planet';
+    return classification.replaceAll('-', ' ').replace(/^./, (c) => c.toUpperCase());
+  }
 </script>
 
 {#if vs.selectedBodyName}
-  <InstrumentPanel key="info" title={vs.selectedBodyName} width={288} onClose={() => selectBody(null)}>
+  <InstrumentPanel key="info" title={vs.selectedBodyName} width={320} onClose={() => selectBody(null)}>
     {#snippet actions()}
-      {#if bodyEntry?.classification}
-        <span class="body-kind">{bodyEntry.classification}</span>
-      {/if}
       <button
         class="flex h-7 w-7 items-center justify-center rounded text-text-muted transition-colors hover:text-text-primary"
         onclick={flyTo}
@@ -189,6 +191,10 @@
         <Navigation size={13} />
       </button>
     {/snippet}
+
+    {#if bodyEntry?.classification}
+      <div class="body-kind">{classificationLabel(bodyEntry.classification)}</div>
+    {/if}
 
     <!-- CAMERA: camera-relative -->
     <div class="ui-section-label mb-1">Camera</div>
@@ -268,15 +274,15 @@
 
 <style>
   .body-kind {
-    flex-shrink: 0;
+    width: fit-content;
+    margin-bottom: var(--space-ui-3);
     border-radius: 3px;
     background: var(--color-control);
     padding: 2px 6px;
     color: var(--color-text-secondary);
     font-family: var(--font-sans);
-    font-size: var(--text-label);
+    font-size: var(--text-metadata);
     font-weight: 550;
     line-height: 1.2;
-    text-transform: lowercase;
   }
 </style>

@@ -176,7 +176,7 @@
     onpointerdown={onHeaderPointerDown}
     ondblclick={() => key != null && toggleMinimized(key)}
   >
-    <h2 class="panel-title min-w-0 flex-1 truncate font-semibold uppercase text-text-secondary">
+    <h2 class="panel-title min-w-0 flex-1 truncate font-semibold uppercase text-text-secondary" title={title}>
       {title}
     </h2>
 
