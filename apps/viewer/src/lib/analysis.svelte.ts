@@ -28,13 +28,23 @@ let itemSequence = 0;
 
 /** The live context consumed by event, timeline, measurement, and 3D surfaces. */
 export function analysisContext(): AnalysisContext {
+  const enabledEventIds = new Set(
+    analysis.items
+      .filter((item) => item.type === 'event-query' && item.enabled)
+      .map((item) => item.id),
+  );
+
   return {
     bodies: { ...analysis.bodies },
     reference: { ...analysis.reference },
     window: { start: vs.scrubBaseMin, end: vs.scrubBaseMax },
     currentTime: vs.et,
     quantities: analysis.quantities,
-    eventResults: Object.values(analysis.eventResults).flat(),
+    // Visibility is a presentation concern; enabled is the participation
+    // boundary shared by 3D, measurement, and other analysis consumers.
+    eventResults: Object.entries(analysis.eventResults)
+      .filter(([id]) => enabledEventIds.has(id))
+      .flatMap(([, events]) => events),
   };
 }
 

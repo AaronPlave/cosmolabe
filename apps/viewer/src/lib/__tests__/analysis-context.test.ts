@@ -58,11 +58,17 @@ describe('viewer analysis state', () => {
 
     setConfiguredItemVisible(query.id, false);
     expect(visibleTimelineEvents()).toEqual([]);
+    // Hidden is presentation-only: other analysis consumers still receive it.
+    expect(analysisContext().eventResults).toHaveLength(1);
     expect(profile.visible).toBe(true);
 
     setConfiguredItemVisible(query.id, true);
     setConfiguredItemEnabled(query.id, false);
     expect(visibleTimelineEvents()).toEqual([]);
+    // Disabled means the item no longer participates in shared analysis, even
+    // though its cached result remains available if it is enabled again.
+    expect(analysisContext().eventResults).toEqual([]);
+    expect(analysis.eventResults[query.id]).toHaveLength(1);
     expect(profile.enabled).toBe(true);
   });
 
