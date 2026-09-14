@@ -22,6 +22,7 @@
   import { formatDuration } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
   import { ef } from '../../lib/event-finder.svelte';
+  import { visibleTimelineEvents } from '../../lib/analysis.svelte';
   import { eventFraction } from '../../lib/event-query';
   import {
     ChevronsLeft, ChevronLeft, Rewind, Play, Pause,
@@ -80,7 +81,7 @@
   // actually draws. Events outside it are dropped rather than clamped to an
   // edge, where they would read as happening at a time they do not.
   let eventMarkers = $derived(
-    ef.events
+    visibleTimelineEvents()
       .map((event) => ({
         fraction: eventFraction(event, { start: vs.scrubMin, end: vs.scrubMax }),
         selected: ef.selectedId === event.id,

@@ -18,6 +18,7 @@
   import {
     EVENT_KINDS, cancelSearch, ef, clearSelection, currentKind, resetForm, runSearch,
     selectEvent, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
+    currentConfiguredQuery, setCurrentQueryVisible,
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, headlineMetric, missingRoles,
@@ -42,6 +43,7 @@
   let shownEvents = $derived(sortEvents(ef.events, ef.sort));
   let metricSortLabel = $derived(sortMetricLabel(ef.events));
   let unfilledRoles = $derived(form ? missingRoles(kind, form) : []);
+  let configured = $derived(currentConfiguredQuery());
   let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running);
   const eventKindItems = EVENT_KINDS.map(({ kind, label }) => ({ value: kind, label }));
 
@@ -271,6 +273,20 @@
         </button>
       {/if}
     </div>
+
+    {#if configured}
+      <div class="mt-1.5 flex items-center ui-helper">
+        <label class="flex items-center gap-1 cursor-pointer" title="Show this query's results on the shared timeline">
+          <input
+            type="checkbox"
+            class="accent-accent"
+            checked={configured.visible}
+            onchange={(e) => setCurrentQueryVisible((e.target as HTMLInputElement).checked)}
+          />
+          Timeline
+        </label>
+      </div>
+    {/if}
 
     {#if unfilledRoles.length > 0}
       <div class="ui-label mt-1.5">
