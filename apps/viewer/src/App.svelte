@@ -326,7 +326,6 @@
           inline
           {pickModeActive}
           onTogglePick={togglePickMode}
-          searchActive={commandPaletteOpen}
           onOpenSearch={() => commandPaletteOpen = true}
         />
       </div>
@@ -334,7 +333,6 @@
       <ToolRail
         {pickModeActive}
         onTogglePick={togglePickMode}
-        searchActive={commandPaletteOpen}
         onOpenSearch={() => commandPaletteOpen = true}
       />
       <TimelineDock />

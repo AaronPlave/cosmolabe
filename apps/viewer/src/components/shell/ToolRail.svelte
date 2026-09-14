@@ -26,13 +26,12 @@
   interface Props {
     pickModeActive: boolean;
     onTogglePick: () => void;
-    searchActive?: boolean;
     onOpenSearch: () => void;
     /** Render bare, for a parent that supplies the surrounding chrome. */
     inline?: boolean;
   }
 
-  let { pickModeActive, onTogglePick, searchActive = false, onOpenSearch, inline = false }: Props = $props();
+  let { pickModeActive, onTogglePick, onOpenSearch, inline = false }: Props = $props();
 
   const compact = $derived(shell.layout === 'compact');
 
@@ -66,7 +65,6 @@
 {#snippet buttons()}
   <button
     class="rail-btn"
-    aria-pressed={searchActive}
     aria-label="Search commands"
     title="Search commands (Cmd+K)"
     onclick={onOpenSearch}
