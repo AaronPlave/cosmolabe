@@ -4,6 +4,8 @@ import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js'
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
+import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSourceMetadata } from './TerrainSampler.js';
+import { decodeQuantizedMesh } from './internal/quantized-mesh.js';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
@@ -114,6 +116,12 @@ export interface TerrainConfig {
    *  at a body with a known SPICE position (e.g., a rover) and computing
    *  `terrain_sample_elev - spice_elev`. */
   referenceRadiusOffsetKm?: number;
+  /** Explicit scientific datum metadata for CPU terrain samples. */
+  datum?: Partial<Omit<TerrainDatum, 'referenceShape'>>;
+  /** Provenance and stated vertical uncertainty for terrain samples. */
+  sourceMetadata?: Partial<TerrainSourceMetadata>;
+  /** Maximum number of decoded CPU terrain tiles retained for sampling. */
+  samplerMaxTiles?: number;
   /** Quantized-mesh tile skirt length (m). Each tile edge gets a vertical
    *  skirt hanging down from its perimeter, hiding cracks at LOD-swap
    *  boundaries. The default `null` makes the plugin use `tile.geometricError`
@@ -336,6 +344,10 @@ export class TerrainManager {
    *  loop skips updates until this flips true. */
   private _pluginReady = true;
   private readonly bodyRadiusKm: number;
+  /** Tileset height-encoding correction applied to CPU samples, in km. */
+  private readonly terrainHeightOffsetKm: number;
+  /** CPU-only sampler. It never reads renderer scene meshes during a query. */
+  readonly sampler: TerrainSampler;
   private disposed = false;
   private shadowUniforms: ShadowUniforms | null = null;
   private aerialPerspectiveUniforms: AerialPerspectiveUniforms | null = null;
@@ -355,11 +367,6 @@ export class TerrainManager {
    *  The scene camera's near/far can have extreme ratios (1e-12/1e6) that
    *  produce degenerate frustum planes in the tiles renderer's SAT test. */
   private terrainCam: THREE.PerspectiveCamera | null = null;
-
-  // Reusable temporaries for sampleElevationKm — avoids per-call Matrix4/Vector3 allocation.
-  private readonly _sampleGroupInv = new THREE.Matrix4();
-  private readonly _sampleLocalMat = new THREE.Matrix4();
-  private readonly _sampleV = new THREE.Vector3();
 
   /**
    * @param config Terrain source configuration
@@ -385,6 +392,24 @@ export class TerrainManager {
       ? [bodyRadii, bodyRadii, bodyRadii]
       : bodyRadii;
     this.bodyRadiusKm = Math.max(rxKm, ryKm, rzKm);
+    // The datum stays the body's true IAU shape. `referenceRadiusOffsetKm` is a
+    // property of the TILESET's height encoding, not of the body, so it is
+    // applied to decoded sample heights (see captureDecodedQuantizedMesh)
+    // rather than folded into the reference shape here.
+    this.terrainHeightOffsetKm = config.referenceRadiusOffsetKm ?? 0;
+    const datum: TerrainDatum = {
+      referenceShape: rxKm === ryKm && ryKm === rzKm
+        ? { kind: 'sphere', radiusKm: rxKm }
+        : { kind: 'ellipsoid', radiiKm: [rxKm, ryKm, rzKm] },
+      verticalDatum: config.datum?.verticalDatum ?? 'ellipsoid',
+      heightConvention: config.datum?.heightConvention ?? 'radial',
+    };
+    this.sampler = new TerrainSampler(datum, {
+      id: config.sourceMetadata?.id ?? config.url ?? `terrain:${config.type}`,
+      kind: config.sourceMetadata?.kind ?? (config.type === 'quantized-mesh' ? 'quantized-mesh' : config.type === 'imagery' ? 'imagery' : 'unknown'),
+      url: config.sourceMetadata?.url ?? config.url,
+      uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
+    }, config.samplerMaxTiles ?? 256);
     this.isImageryOnly = config.type === 'imagery';
     this.hasOverlays = Array.isArray(config.imagery) && config.imagery.length > 1;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
@@ -548,6 +573,11 @@ export class TerrainManager {
           parseToMesh: (buffer: ArrayBuffer, tile: any, extension: string, uri: string) => unknown;
           skirtLength: number | null;
         };
+        const parseToMesh = qmPlugin.parseToMesh.bind(qmPlugin);
+        qmPlugin.parseToMesh = (buffer, tile, extension, uri) => {
+          if (extension === 'terrain') this.captureDecodedQuantizedMesh(buffer, tile, uri);
+          return parseToMesh(buffer, tile, extension, uri);
+        };
         if (config.skirtLength == null && config.skirtScale != null) {
           const skirtScale = config.skirtScale;
           const origParseToMesh = qmPlugin.parseToMesh.bind(qmPlugin);
@@ -633,6 +663,10 @@ export class TerrainManager {
     // Customize tile materials as they load
     this.tiles.addEventListener('load-model', (event: { scene: THREE.Object3D; tile: any }) => {
       this.customizeTileMaterial(event.scene, event.tile);
+    });
+    this.tiles.addEventListener('dispose-model', (event: { tile: any }) => {
+      const id = this.cpuTileId(event.tile);
+      if (id) this.sampler.removeTile(id);
     });
 
     // Log tile load errors — rate-limited to avoid flooding the console.
@@ -867,70 +901,90 @@ export class TerrainManager {
     }
   }
 
+  /** CPU terrain query. Null means decoded data is not currently cached. */
+  sample(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
+    return this.sampler.sample(latDeg, lonDeg, deriveNormal);
+  }
+
+  sampleBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
+    return this.sampler.sampleBodyFixedCartesian(point, deriveNormal);
+  }
+
+  bodyFixedToGeodetic(point: BodyFixedCartesian): BodyFixedPosition {
+    return bodyFixedToGeodetic(point, this.sampler.datum);
+  }
+
   /**
-   * Sample terrain elevation at a given geodetic position by finding the closest
-   * loaded terrain vertex. Returns height in km above the reference sphere, or null
-   * if no terrain is loaded near that position.
+   * Decode a quantized-mesh tile into the CPU sampler before the renderer turns
+   * it into geometry. The tile is kept as the TIN it actually is — its vertices
+   * are scattered, not a U×V raster, so it cannot be flattened to a height grid.
    *
-   * Also returns the angular distance (degrees) of the closest vertex for diagnostics.
+   * Only `terrain` payloads are captured. Tiles the plugin synthesizes by
+   * splitting a parent (`quantized_tile_split`) carry no quantized-mesh buffer
+   * of their own; the parent they were cut from already provides CPU coverage
+   * for the same ground, at one level coarser.
    */
-  sampleElevationKm(latDeg: number, lonDeg: number, bodyRadiusKm: number): { elevationKm: number; angularDistDeg: number } | null {
-    const lat = latDeg * Math.PI / 180;
-    const lon = lonDeg * Math.PI / 180;
-    const cosLat = Math.cos(lat);
-    const sinLat = Math.sin(lat);
-    const cosLon = Math.cos(lon);
-    const sinLon = Math.sin(lon);
+  private captureDecodedQuantizedMesh(buffer: ArrayBuffer, tile: any, uri: string): void {
+    if (this.isImageryOnly) return;
+    const id = this.cpuTileId(tile);
+    if (!id) return;
+    const region = tile?.boundingVolume?.region;
+    if (!region) return;
+    let parsed;
+    try {
+      parsed = decodeQuantizedMesh(buffer);
+    } catch (err) {
+      // A tile we cannot decode must be loud: silently skipping it strands the
+      // sampler with no coverage and every consumer falls back to the datum.
+      this.warnOnce('qm-decode', `Terrain: failed to decode quantized-mesh tile ${uri}`, err);
+      return;
+    }
+    const [westRad, southRad, eastRad, northRad] = region;
+    // Heights decode against the tileset's own reference surface. The renderer
+    // compensates for a non-standard one by shrinking the decode ellipsoid
+    // (see TerrainConfig.referenceRadiusOffsetKm), so the same correction has to
+    // be applied here or CPU samples sit `offset` km above the rendered surface.
+    const offsetKm = this.terrainHeightOffsetKm;
+    const elevationsKm = new Float32Array(parsed.heightMeters.length);
+    for (let i = 0; i < elevationsKm.length; i++) {
+      elevationsKm[i] = parsed.heightMeters[i] / 1000 - offsetKm;
+    }
+    try {
+      this.sampler.addTile({
+        id,
+        kind: 'mesh',
+        westDeg: westRad * 180 / Math.PI,
+        eastDeg: eastRad * 180 / Math.PI,
+        southDeg: southRad * 180 / Math.PI,
+        northDeg: northRad * 180 / Math.PI,
+        u: parsed.u,
+        v: parsed.v,
+        elevationsKm,
+        indices: parsed.indices,
+        source: this.sampler.source,
+      });
+    } catch (err) {
+      this.warnOnce('qm-tile', `Terrain: rejected decoded tile ${uri}`, err);
+    }
+  }
 
-    // Target direction in ECEF Z-up (unit vector)
-    const targetX = cosLat * cosLon;
-    const targetY = cosLat * sinLon;
-    const targetZ = sinLat;
+  /** Rate-limited warning so a systematically broken tileset logs once, not per tile. */
+  private readonly warnedKeys = new Set<string>();
+  private warnOnce(key: string, message: string, err?: unknown): void {
+    if (this.warnedKeys.has(key)) return;
+    this.warnedKeys.add(key);
+    console.warn(message, err);
+  }
 
-    let closestDist = Infinity;
-    let closestRadiusKm = 0;
-
-    // tiles.group.matrixWorld⁻¹ × child.matrixWorld gives us the child's
-    // transform in tiles.group's child space, which is ECEF meters Z-up
-    // (that's what the QuantizedMeshLoader outputs).
-    this._sampleGroupInv.copy(this.tiles.group.matrixWorld).invert();
-    const groupInv = this._sampleGroupInv;
-    const localMat = this._sampleLocalMat;
-    const v = this._sampleV;
-
-    this.tiles.group.traverse((child: any) => {
-      if (!child.isMesh || !child.geometry) return;
-      const pos = child.geometry.getAttribute('position');
-      if (!pos) return;
-
-      localMat.multiplyMatrices(groupInv, child.matrixWorld);
-
-      // Sample every 4th vertex to keep per-frame cost reasonable.
-      // At step=4, each 65×65 tile contributes ~1056 samples — still dense
-      // enough to find a vertex within ~0.01° of any target lat/lon.
-      for (let i = 0; i < pos.count; i += 4) {
-        v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
-        v.applyMatrix4(localMat);
-        // v is now in ECEF meters, Z-up
-        const r = v.length();
-        if (r < 1) continue;
-        // Direction in ECEF Z-up
-        const dx = v.x / r - targetX;
-        const dy = v.y / r - targetY;
-        const dz = v.z / r - targetZ;
-        const angDist = dx * dx + dy * dy + dz * dz;
-        if (angDist < closestDist) {
-          closestDist = angDist;
-          closestRadiusKm = r / 1000;
-        }
-      }
-    });
-
-    if (closestDist === Infinity) return null;
-    // angDist² ≈ 2(1 - cos θ) ≈ θ² for small θ; convert to degrees
-    const angularDistDeg = Math.sqrt(closestDist) * (180 / Math.PI);
-
-    return { elevationKm: closestRadiusKm - bodyRadiusKm, angularDistDeg };
+  /**
+   * Identity for a decoded CPU tile. Derived only from the tile object, never
+   * from the URL handed to `parseToMesh` — the renderer resolves that against
+   * the base path, so it is absolute while `content.uri` stays relative. Using
+   * one on insert and the other on dispose leaks every tile.
+   */
+  private cpuTileId(tile: any): string | null {
+    const value = tile?.content?.uri ?? tile?.__cacheKey ?? tile?.id;
+    return value == null ? null : `decoded:${value}`;
   }
 
   /** Log tile renderer stats to console for debugging */
@@ -946,6 +1000,9 @@ export class TerrainManager {
       cacheMB: `${((cache.cachedBytes ?? 0) / (1024 * 1024)).toFixed(1)} / ${(cache.maxBytesSize / (1024 * 1024)).toFixed(0)}`,
       downloading: queue.currJobs ?? '?',
       queued: queue.items?.length ?? '?',
+      cpuTiles: this.sampler.diagnostics.tileCount,
+      cpuSampleUs: this.sampler.diagnostics.lastSampleMicros.toFixed(1),
+      cpuState: this.sampler.diagnostics.state,
     });
 
     // Active tile depth and error

@@ -62,6 +62,12 @@
     const cam = r.camera;
     const cc = r.cameraController;
     const camDistKm = cam.position.distanceTo(cc.controls.target) / r.scaleFactor;
+    const selectedTerrain = vs.selectedBodyName
+      ? r.getBodyMesh(vs.selectedBodyName)?.terrainDiagnostics
+      : null;
+    const selectedTerrainSource = vs.selectedBodyName
+      ? r.getBodyMesh(vs.selectedBodyName)?.terrainSourceId
+      : null;
 
     return {
       kernels: vs.kernelCount,
@@ -76,6 +82,8 @@
       mode: cc.mode,
       tracked: cc.trackedBody?.body.name ?? '—',
       et: vs.et,
+      terrain: selectedTerrain,
+      terrainSource: selectedTerrainSource,
     };
   });
 
@@ -171,6 +179,14 @@
       <div class="row"><span class="label">Rate</span><span class="val">{vs.rateText}</span></div>
 
       <div class="ui-section-label mt-3">Terrain</div>
+      {#if info.terrain}
+        <div class="row"><span class="label">Sampler</span><span class="val">{info.terrain.state}</span></div>
+        <div class="row"><span class="label">CPU tiles</span><span class="val">{info.terrain.tileCount}</span></div>
+        <div class="row"><span class="label">Last sample</span><span class="val">{info.terrain.lastSampleMicros.toFixed(1)} us</span></div>
+        <div class="row"><span class="label">Source</span><span class="val max-w-32 truncate" title={info.terrainSource ?? undefined}>{info.terrainSource ?? '—'}</span></div>
+      {:else}
+        <div class="row"><span class="label">Sampler</span><span class="val">none</span></div>
+      {/if}
       <label class="row cursor-pointer">
         <span class="label">Tile bounds</span>
         <input

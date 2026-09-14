@@ -6,6 +6,7 @@ import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
+import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import { injectShadowIntoShader, makeShadowUniforms, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUniforms } from './RingShadow.js';
@@ -903,9 +904,37 @@ export class BodyMesh extends THREE.Object3D {
     this.terrainManager?.setDebug(show);
   }
 
-  /** Sample terrain elevation at a given lat/lon. Returns elevation (km above reference) and angular distance, or null. */
-  sampleTerrainElevation(latDeg: number, lonDeg: number): { elevationKm: number; angularDistDeg: number } | null {
-    return this.terrainManager?.sampleElevationKm(latDeg, lonDeg, this.displayRadius) ?? null;
+  /** Sample decoded CPU terrain. Null is the explicit unloaded-data fallback. */
+  sampleTerrain(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
+    return this.terrainManager?.sample(latDeg, lonDeg, deriveNormal) ?? null;
+  }
+
+  sampleTerrainBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
+    return this.terrainManager?.sampleBodyFixed(point, deriveNormal) ?? null;
+  }
+
+  terrainBodyFixedToGeodetic(point: BodyFixedCartesian): BodyFixedPosition | null {
+    return this.terrainManager?.bodyFixedToGeodetic(point) ?? null;
+  }
+
+  /** @deprecated Use sampleTerrain. Retained for compatibility with callers. */
+  sampleTerrainElevation(latDeg: number, lonDeg: number): TerrainSample | null {
+    return this.sampleTerrain(latDeg, lonDeg);
+  }
+
+  /** Physical terrain datum radius, never the renderer's displayRadius. */
+  terrainReferenceRadiusAt(latDeg: number): number {
+    return this.terrainManager?.sampler.referenceRadiusAt(latDeg) ?? this.surfaceRadiusAtLat(latDeg);
+  }
+
+  /** Current CPU terrain cache state for diagnostics and UI. */
+  get terrainDiagnostics(): TerrainSamplerDiagnostics | null {
+    return this.terrainManager?.sampler.diagnostics ?? null;
+  }
+
+  /** Configured terrain source identifier for diagnostics and UI. */
+  get terrainSourceId(): string | null {
+    return this.terrainManager?.sampler.source.id ?? null;
   }
 
   /**
@@ -1090,7 +1119,7 @@ export class BodyMesh extends THREE.Object3D {
       // is at a slightly different height than the sampled elevation.
       if (this.terrainSampleFrame % 5 === 0) {
         const terrainSample = this.sampleTerrainElevation(overlay.lat, overlay.lon);
-        if (terrainSample != null && terrainSample.angularDistDeg < 0.5) {
+        if (terrainSample != null) {
           overlay.terrainAdjustKm = terrainSample.elevationKm - overlay.altitudeOffset - 0.005;
         }
       }

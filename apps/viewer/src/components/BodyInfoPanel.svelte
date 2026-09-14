@@ -20,7 +20,7 @@
   // body's IAU oblate radius — `displayRadius` is the equatorial value, and
   // would give wildly wrong altitudes near the poles of a flattened body
   // (Mars: ~20 km gap, Earth: ~21 km gap).
-  let altitude = $derived.by(() => {
+  let altitude = $derived.by((): { value: number; sampled: boolean } | null => {
     void vs.et;
     const r = getRenderer();
     if (!r || !vs.selectedBodyName || distance == null) return null;
@@ -32,14 +32,26 @@
     const bf = toCam.divideScalar(r.scaleFactor).applyQuaternion(bm.mesh.quaternion.clone().invert());
     const len = bf.length();
     if (len < 1e-10) return null;
-    const latDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
-    return distance - bm.surfaceRadiusAtLat(latDeg);
+    const bodyFixedPoint = { xKm: bf.x, yKm: -bf.z, zKm: bf.y };
+    const terrainPosition = bm.terrainBodyFixedToGeodetic(bodyFixedPoint);
+    // This latitude is intentionally planetocentric: surfaceRadiusAtLat()
+    // intersects the ellipsoid along the camera's radial direction.
+    const radialLatDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
+    const terrainLatDeg = terrainPosition?.latDeg ?? radialLatDeg;
+    const terrainSample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
+    const referenceAltitude = distance - bm.surfaceRadiusAtLat(radialLatDeg);
+    return {
+      value: terrainSample
+        ? distance - (bm.terrainReferenceRadiusAt(terrainLatDeg) + terrainSample.elevationKm)
+        : referenceAltitude,
+      sampled: terrainSample != null,
+    };
   });
 
   // Body's altitude above the parent body's surface in two flavors:
   // - aboveTerrain: sampled at the body's CURRENT lat/lon on the parent's
   //   rendered terrain. Null if the parent has no terrain, or no tile yet
-  //   covers that lat/lon (angularDistDeg > 1° from any loaded vertex).
+  //   has decoded CPU coverage for that lat/lon.
   // - aboveRef: distance from parent's center minus parent's reference
   //   radius (IAU mean). Always defined when a parent exists. Less useful
   //   visually (negative numbers below sea level) but a deterministic fallback.
@@ -60,21 +72,22 @@
     const bf = toBody.clone().divideScalar(r.scaleFactor).applyQuaternion(invQ);
     const ecefX = bf.x, ecefY = -bf.z, ecefZ = bf.y;
     const rr = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
-    const latDeg = rr > 1e-10
+    // The radial latitude is retained only for the reference-ellipsoid
+    // intersection fallback. Terrain tiles are indexed by geodetic latitude.
+    const radialLatDeg = rr > 1e-10
       ? Math.asin(Math.max(-1, Math.min(1, ecefZ / rr))) * (180 / Math.PI)
       : 0;
-    const lonDeg = Math.atan2(ecefY, ecefX) * (180 / Math.PI);
-    const refRadius = parentBm.surfaceRadiusAtLat(latDeg);
+    const bodyFixedPoint = { xKm: ecefX, yKm: ecefY, zKm: ecefZ };
+    const terrainPosition = parentBm.terrainBodyFixedToGeodetic(bodyFixedPoint);
+    const terrainLatDeg = terrainPosition?.latDeg ?? radialLatDeg;
+    const refRadius = parentBm.surfaceRadiusAtLat(radialLatDeg);
     const aboveRef = dist - refRadius;
 
     let aboveTerrain: number | null = null;
     if (parentBm.hasTerrain && rr > 1e-10) {
-      const sample = parentBm.sampleTerrainElevation(latDeg, lonDeg);
-      if (sample && sample.angularDistDeg < 1.0) {
-        // sample.elevationKm = closestRadiusKm - displayRadius (see
-        // TerrainManager.sampleElevationKm). So the absolute terrain radius
-        // at the sampled vertex is displayRadius + elevationKm.
-        aboveTerrain = dist - (parentBm.displayRadius + sample.elevationKm);
+      const sample = parentBm.sampleTerrainBodyFixed(bodyFixedPoint);
+      if (sample) {
+        aboveTerrain = dist - (parentBm.terrainReferenceRadiusAt(terrainLatDeg) + sample.elevationKm);
       }
     }
     return { aboveTerrain, aboveRef, parentBmName: bm.body.parentName };
@@ -205,8 +218,8 @@
       </div>
       {#if altitude != null}
         <div class="ui-data-row">
-          <span class="ui-label">Camera altitude</span>
-          <span class="ui-readout">{formatDist(altitude)}</span>
+          <span class="ui-label">{altitude.sampled ? 'Camera alt terrain' : 'Camera alt ref'}</span>
+          <span class="ui-readout">{formatDist(altitude.value)}</span>
         </div>
       {/if}
     </div>
@@ -217,12 +230,12 @@
       <div class="flex flex-col gap-0.5">
         {#if bodyAltitudes.aboveTerrain != null}
           <div class="ui-data-row">
-            <span class="ui-label">Above terrain</span>
+            <span class="ui-label">Above {bodyAltitudes.parentBmName} terrain</span>
             <span class="ui-readout">{formatDist(bodyAltitudes.aboveTerrain)}</span>
           </div>
         {:else if bodyAltitudes.aboveRef != null}
           <div class="ui-data-row">
-            <span class="ui-label">Above reference</span>
+            <span class="ui-label">Above {bodyAltitudes.parentBmName} ref</span>
             <span class="ui-readout">{formatDist(bodyAltitudes.aboveRef)}</span>
           </div>
         {/if}

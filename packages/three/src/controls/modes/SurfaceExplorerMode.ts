@@ -149,7 +149,7 @@ export class SurfaceExplorerMode implements ICameraMode {
       const sample = bm.sampleTerrainElevation(
         this.latRad * 180 / Math.PI, this.lonRad * 180 / Math.PI,
       );
-      if (sample && sample.angularDistDeg < 1.0) {
+      if (sample) {
         const clearance = this.altKm;
         this.altKm = sample.elevationKm + clearance;
       }
@@ -267,7 +267,7 @@ export class SurfaceExplorerMode implements ICameraMode {
       // Use actual camera distance to body center (avoids ellipsoid-vs-sphere mismatch)
       const distToCenter = ctx.camera.position.distanceTo(bm.position) / ctx.scaleFactor;
       const altAboveSphere = distToCenter - this.re;
-      if (sample && sample.angularDistDeg < 1.0) {
+      if (sample) {
         this.altAboveTerrainKm = Math.max(0.0001, altAboveSphere - sample.elevationKm);
         this.lastTerrainElev = sample.elevationKm;
       } else {
