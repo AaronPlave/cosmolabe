@@ -22,6 +22,8 @@ import {
   applyEventFocus,
   builtinEventKinds,
   focusForEvent,
+  resolveEventQuery,
+  type ConfiguredEventQuery,
   type EtInterval,
   type EventKind,
   type EventParticipants,
@@ -33,6 +35,16 @@ import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
 import { GeometrySearchCancelled } from '@cosmolabe/three';
 import { getCacheWorker, getSpice } from './loader';
 import { buildQuery, formForKind, type EventQueryForm, type EventSortMode } from './event-query';
+import {
+  analysis,
+  analysisContext,
+  configuredItem,
+  createConfiguredEventQuery,
+  resetAnalysis,
+  setConfiguredItemVisible,
+  setEventResults,
+  updateConfiguredEventQuery,
+} from './analysis.svelte';
 import { highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
@@ -130,8 +142,15 @@ function beginSearch(spice: SpiceInstance): RunningSearch {
  * Bodies SPICE cannot name, or that no SPK covers, constrain nothing: a
  * Keplerian body in a kernel-free catalog is not a reason to refuse a window.
  */
-function coverageWindow(spice: SpiceInstance, bodies: EventParticipants, span: EtInterval): EtInterval {
+export function coverageWindow(
+  spice: Pick<SpiceInstance, 'bodn2c' | 'spkcov'>,
+  bodies: EventParticipants,
+  span: EtInterval,
+): EtInterval {
   let { start, end } = span;
+  let coverageStart = -Infinity;
+  let coverageEnd = Infinity;
+  let hasCoverage = false;
 
   for (const name of Object.values(bodies)) {
     if (!name) continue;
@@ -143,18 +162,30 @@ function coverageWindow(spice: SpiceInstance, bodies: EventParticipants, span: E
 
       // The outer bounds, not each segment: a gap inside coverage is a fault to
       // report when a search hits it, not a reason to narrow the default.
-      start = Math.max(start, Math.min(...windows.map((w) => w.start)));
-      end = Math.min(end, Math.max(...windows.map((w) => w.end)));
+      const bodyStart = Math.min(...windows.map((w) => w.start));
+      const bodyEnd = Math.max(...windows.map((w) => w.end));
+      coverageStart = Math.max(coverageStart, bodyStart);
+      coverageEnd = Math.min(coverageEnd, bodyEnd);
+      start = Math.max(start, bodyStart);
+      end = Math.min(end, bodyEnd);
+      hasCoverage = true;
     } catch {
       // bodn2c/spkcov throwing means we know nothing about this body's
       // coverage, which is not the same as it having none.
     }
   }
 
-  // The bounds are used as-is. SPK coverage includes its endpoints: measured
-  // against the Clipper kernels, `spkpos` and `gfdist` both succeed at exactly
-  // the first and last instant `spkcov` reports, and fail one second outside.
-  // A safety margin would therefore buy nothing and silently narrow the search.
+  // A direct state lookup is valid at an SPK endpoint, but gfdist may compute
+  // observer state as much as two seconds outside its confinement window.
+  // NAIF also requires callers to allow for round-off when assessing coverage,
+  // so an exact two-second inset is itself a boundary case. Reserve one extra
+  // second, and only on an edge the automatic window actually touches. This is
+  // defensive coverage handling; the practical two-year default above is what
+  // prevents huge catalog-wide searches in normal use.
+  const gfBoundaryInset = 3;
+  if (hasCoverage && start === coverageStart) start += gfBoundaryInset;
+  if (hasCoverage && end === coverageEnd) end -= gfBoundaryInset;
+
   return end > start ? { start, end } : span;
 }
 
@@ -185,9 +216,10 @@ export const ef = $state({
   windowPinned: false,
   /** Set when the default window was trimmed to the bodies' kernel coverage. */
   windowTrimmed: false,
+  /** Stable configured-query identity shared with timeline and later analysis surfaces. */
+  configuredId: null as string | null,
 });
 
-let sequence = 0;
 /** Guards against an earlier search landing after a later one. */
 let inFlight = 0;
 /** The search currently running, so it can be stopped. */
@@ -198,11 +230,27 @@ export function currentKind(): EventKind<never> {
   return registry.get(ef.kind) ?? EVENT_KINDS[0];
 }
 
-/** The catalog's full time span. */
+const MAX_DEFAULT_SEARCH_SPAN = 2 * 365.25 * 86_400;
+
+/**
+ * Keep an automatic search window interactive on century-scale kernels.
+ * The full catalog remains available through the form's explicit `all` action.
+ */
+export function practicalSearchWindow(span: EtInterval, currentTime: number): EtInterval {
+  const duration = span.end - span.start;
+  if (!(duration > MAX_DEFAULT_SEARCH_SPAN)) return { ...span };
+
+  const half = MAX_DEFAULT_SEARCH_SPAN / 2;
+  const center = Math.max(span.start + half, Math.min(span.end - half, currentTime));
+  return { start: center - half, end: center + half };
+}
+
+/** The practical default inside the catalog's full time span. */
 function catalogWindow(): EtInterval {
-  return vs.scrubBaseMax > vs.scrubBaseMin
+  const span = vs.scrubBaseMax > vs.scrubBaseMin
     ? { start: vs.scrubBaseMin, end: vs.scrubBaseMax }
     : { start: vs.et, end: vs.et + 86_400 };
+  return practicalSearchWindow(span, vs.et);
 }
 
 /** The window a fresh form searches: the catalog span, trimmed to coverage. */
@@ -235,6 +283,41 @@ export function resetForm() {
   const previous = ef.form ?? undefined;
   ef.form = formForKind(currentKind(), defaultWindow(previous?.bodies), previous);
   syncWindowToBodies();
+  syncConfiguredQuery();
+}
+
+/** The configured item backing the current form, if it has been established. */
+export function currentConfiguredQuery(): ConfiguredEventQuery | undefined {
+  if (!ef.configuredId) return undefined;
+  const item = configuredItem(ef.configuredId);
+  return item?.type === 'event-query' ? item : undefined;
+}
+
+/** Keep the editable form and the durable configured item on one identity. */
+function syncConfiguredQuery(): ConfiguredEventQuery | undefined {
+  if (!ef.form) return undefined;
+  const kind = currentKind();
+  const concrete = buildQuery(kind, ef.form, ef.configuredId ?? 'draft');
+  const { id: _id, ...query } = concrete;
+  const label = concrete.label ?? `${kind.label}: ${Object.values(concrete.bodies).join(' / ')}`;
+
+  let item = ef.configuredId
+    ? updateConfiguredEventQuery(ef.configuredId, query, label)
+    : undefined;
+  if (!item) {
+    item = createConfiguredEventQuery(query, label);
+    ef.configuredId = item.id;
+  }
+
+  // The currently edited relationship supplies defaults to other analysis
+  // surfaces. Every configured item still carries overrides, so older items
+  // and future comparison profiles do not get rewritten by this assignment.
+  analysis.bodies = { ...concrete.bodies };
+  return item;
+}
+
+export function setCurrentQueryVisible(visible: boolean) {
+  if (ef.configuredId) setConfiguredItemVisible(ef.configuredId, visible);
 }
 
 /** Switches kind, keeping shared roles and params filled in. */
@@ -250,12 +333,14 @@ export function setRole(role: string, body: string) {
   if (body) ef.form.bodies[role as keyof typeof ef.form.bodies] = body;
   else delete ef.form.bodies[role as keyof typeof ef.form.bodies];
   syncWindowToBodies();
+  syncConfiguredQuery();
   clearResults();
 }
 
 export function setParam(key: string, value: string) {
   if (!ef.form) return;
   ef.form.params[key] = value;
+  syncConfiguredQuery();
   clearResults();
 }
 
@@ -266,6 +351,7 @@ export function setWindow(startEt: number, endEt: number) {
   // The user has now said what they want searched; stop second-guessing it.
   ef.windowPinned = true;
   ef.windowTrimmed = false;
+  syncConfiguredQuery();
   clearResults();
 }
 
@@ -273,6 +359,7 @@ export function setWindow(startEt: number, endEt: number) {
 export function resetWindow() {
   ef.windowPinned = false;
   syncWindowToBodies();
+  syncConfiguredQuery();
   clearResults();
 }
 
@@ -283,6 +370,7 @@ export function setSort(mode: EventSortMode) {
 export function setStep(step: number) {
   if (!ef.form) return;
   ef.form.step = step;
+  syncConfiguredQuery();
   clearResults();
 }
 
@@ -304,13 +392,13 @@ function clearResults() {
   ef.hint = null;
   ef.searched = false;
   ef.selectedId = null;
+  if (ef.configuredId) setEventResults(ef.configuredId, []);
 }
 
 /** Runs the configured search, replacing the previous result. */
 export async function runSearch() {
   if (!ef.form) resetForm();
-  const form = ef.form;
-  if (!form) return;
+  if (!ef.form) return;
 
   const spice = getSpice();
   if (!spice) {
@@ -323,7 +411,8 @@ export async function runSearch() {
     return;
   }
 
-  const kind = currentKind();
+  const item = syncConfiguredQuery();
+  if (!item || !item.enabled) return;
   // A search the user has replaced is work nobody wants done; stopping it also
   // frees the worker for the one they do want.
   active?.cancel();
@@ -336,7 +425,9 @@ export async function runSearch() {
   ef.running = true;
   ef.selectedId = null;
   try {
-    const result = await search.run(buildQuery(kind, form, `q${++sequence}`));
+    // Resolution applies the shared context defaults but preserves this item's
+    // explicit bodies/window, then enters the unchanged EventQuery boundary.
+    const result = await search.run(resolveEventQuery(item, analysisContext()));
     // A later search already answered, or this one was abandoned. Either way
     // there is nothing to show — and a cancelled search's provider error is
     // the cancellation, not a fault worth putting on screen.
@@ -344,10 +435,12 @@ export async function runSearch() {
 
     if (result.ok) {
       ef.events = result.events;
+      setEventResults(item.id, result.events);
       ef.fault = null;
       ef.hint = result.hint ?? null;
     } else {
       ef.events = [];
+      setEventResults(item.id, []);
       ef.fault = result.fault;
       ef.hint = null;
     }
@@ -416,6 +509,8 @@ export function resetForScene() {
   ef.form = null;
   ef.windowPinned = false;
   ef.windowTrimmed = false;
+  ef.configuredId = null;
+  resetAnalysis();
 }
 
 // Scene loads are the only thing that replaces the kernels and the body list

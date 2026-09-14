@@ -1,5 +1,10 @@
 # Geometry / event finder model
 
+Event queries can be used directly by calculation-only consumers. Viewer
+surfaces that need durable identity, enable/visibility state, or shared context
+wrap them as configured analysis items; see [Analysis context and configured
+items](./analysis-context.md).
+
 Every geometry search in Cosmolabe — closest approach, range thresholds,
 occultations, eclipses, FOV access, phase angle, latitude crossings — is
 expressed as one **query** type and answered with one **event** type. Adding a

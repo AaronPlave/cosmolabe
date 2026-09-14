@@ -82,6 +82,18 @@ export { GeometryCalculator } from './geometry/GeometryCalculator.js';
 export type { BodyGeometry, GeometryConfig } from './geometry/GeometryCalculator.js';
 export { EventFinder } from './geometry/EventFinder.js';
 export type { EventType, EventFinderConfig } from './geometry/EventFinder.js';
+export type {
+  AnalysisContext,
+  AnalysisQuantity,
+  AnalysisReferenceContext,
+  ConfiguredAnalysisItem,
+  ConfiguredContinuousProfile,
+  ConfiguredEventQuery,
+  ContinuousProfileConfiguration,
+  EventQueryConfiguration,
+  ResolvedContinuousProfile,
+} from './geometry/analysis.js';
+export { resolveContinuousProfile, resolveEventQuery } from './geometry/analysis.js';
 
 // Geometry/event finder — the shared query + result model every geometry
 // search is expressed in, the SPICE GF boundary it runs against, and the
