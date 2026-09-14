@@ -23,7 +23,6 @@
   import { getSpice } from '../../lib/loader';
   import { ef } from '../../lib/event-finder.svelte';
   import { eventFraction } from '../../lib/event-query';
-  import { CameraModeName } from '@cosmolabe/three';
   import {
     ChevronsLeft, ChevronLeft, Rewind, Play, Pause,
     ChevronRight, ChevronsRight, ChevronUp, ChevronDown,
@@ -124,25 +123,18 @@
   }
 </script>
 
-<!-- Desktop: its own dock along the bottom, offset past the rail. Compact:
+<!-- Desktop: its own dock along the full bottom edge. Compact:
      rendered bare inside the shared bottom dock, so the phone gets one bar of
      chrome rather than two stacked boxes. -->
 <div
   bind:clientHeight={height}
-  class="flex flex-col gap-0.5"
+  class="timeline flex flex-col gap-0.5"
   class:pointer-events-auto={!inline}
   class:absolute={!inline}
-  class:bottom-3={!inline}
-  class:right-3={!inline}
   class:z-20={!inline}
-  class:rounded-lg={!inline}
-  class:border={!inline}
-  class:border-border={!inline}
-  class:bg-panel={!inline}
-  class:backdrop-blur-md={!inline}
+  class:desktop-timeline={!inline}
   class:px-3={true}
   class:py-1.5={true}
-  style:left={inline ? undefined : 'calc(var(--size-rail) + 1rem)'}
 >
   {#if shell.shortcutsOpen}
     <div class="py-0.5 text-center text-[12px] text-text-muted">
@@ -154,24 +146,24 @@
        behind the expand toggle. The wrapped three-row transport it replaced
        cost the scene a third of a phone screen before a sheet was even open,
        which is backwards for a shell whose premise is scene-first. -->
-  <div class="flex w-full items-center gap-1.5">
+  <div class="transport-row flex w-full items-center gap-1.5">
     <div class="flex shrink-0 gap-px">
       {#if !secondaryHidden}
-        <button class="tl-btn" onclick={slower} title="Slower (Down)" aria-label="Slower"><ChevronsLeft size={14} /></button>
+        <button class="tl-btn compact-hide" onclick={slower} title="Slower (Down)" aria-label="Slower"><ChevronsLeft size={14} /></button>
         <button class="tl-btn" onclick={stepBackward} title="Step back (Left)" aria-label="Step back"><ChevronLeft size={14} /></button>
         <button class="tl-btn" onclick={reverse} title="Reverse (R)" aria-label="Reverse"><Rewind fill="currentColor" size={13} /></button>
       {/if}
-      <button class="tl-btn mx-0.5 border border-border bg-surface-3 px-2" onclick={togglePlay} title="Play/Pause (Space)" aria-label={vs.playing ? 'Pause' : 'Play'}>
+      <button class="tl-btn play-btn mx-0.5 border px-2" onclick={togglePlay} title="Play/Pause (Space)" aria-label={vs.playing ? 'Pause' : 'Play'} aria-pressed={vs.playing}>
         {#if vs.playing}<Pause fill="currentColor" size={14} />{:else}<Play fill="currentColor" size={14} />{/if}
       </button>
       {#if !secondaryHidden}
         <button class="tl-btn" onclick={stepForward} title="Step forward (Right)" aria-label="Step forward"><ChevronRight size={14} /></button>
-        <button class="tl-btn" onclick={faster} title="Faster (Up)" aria-label="Faster"><ChevronsRight size={14} /></button>
+        <button class="tl-btn compact-hide" onclick={faster} title="Faster (Up)" aria-label="Faster"><ChevronsRight size={14} /></button>
       {/if}
     </div>
 
     {#if !secondaryHidden}
-      <span class="min-w-16 shrink-0 text-center font-mono text-[11px] text-text-secondary">{vs.rateText}</span>
+      <span class="ui-readout compact-hide min-w-16 shrink-0 text-center text-text-secondary">{vs.rateText}</span>
     {/if}
 
     <div class="flex min-w-24 flex-1 items-center">
@@ -193,17 +185,17 @@
     </div>
 
     <Popover.Root bind:open={gotoTimeOpen} onOpenChange={onGotoOpen}>
-      <Popover.Trigger class="shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'text-[10px]' : 'text-[12px]'}">
-        {compact ? vs.timeText.replace(' UTC', '') : vs.timeText}
+      <Popover.Trigger class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'compact-current' : ''}">
+        {compact ? vs.timeText.replace(' UTC', '').slice(11) : vs.timeText}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content side="top" sideOffset={8} class="w-80 p-3">
           <div class="flex flex-col gap-2">
-            <span class="text-[11px] text-muted-foreground">Go to time</span>
+            <span class="ui-label">Go to time</span>
             <div class="flex gap-1.5">
               <Input
                 bind:value={gotoTimeValue}
-                class="font-mono text-[12px] h-8 {gotoTimeError ? 'border-error' : ''}"
+                class="font-mono text-[13px] h-8 {gotoTimeError ? 'border-error' : ''}"
                 placeholder="e.g. 2004-06-30T12:00:00"
                 onkeydown={onGotoKeydown}
                 autofocus
@@ -214,10 +206,6 @@
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
-
-    {#if vs.cameraMode !== CameraModeName.FREE_ORBIT && !compact}
-      <span class="shrink-0 rounded bg-surface-3 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-secondary">{vs.cameraMode}</span>
-    {/if}
 
     <button
       class="tl-btn"
@@ -234,13 +222,25 @@
     <!-- The shared-axis region. Event lanes (#67) and continuous geometry
          profiles (#65) land here, against this playhead — the placeholder is
          what keeps them from each arriving with a timeline of their own. -->
-    <div class="flex h-16 items-center justify-center rounded border border-dashed border-border/60 text-[11px] text-text-muted">
+    <div class="lane-region ui-helper flex h-16 items-center justify-center rounded border">
       Event lanes and geometry profiles share this axis
     </div>
   {/if}
 </div>
 
 <style>
+  .timeline {
+    font-family: var(--font-sans);
+  }
+  .desktop-timeline {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    border-top: 1px solid var(--color-chrome-border);
+    background: var(--color-panel);
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.015);
+    backdrop-filter: blur(8px);
+  }
   .tl-btn {
     display: flex;
     align-items: center;
@@ -251,13 +251,65 @@
     background: none;
     color: var(--color-text-secondary);
     cursor: pointer;
-    transition: color 0.1s, background 0.1s;
+    transition:
+      color var(--duration-chrome) var(--ease-chrome),
+      background var(--duration-chrome) var(--ease-chrome),
+      transform var(--duration-chrome) var(--ease-chrome);
   }
   .tl-btn:hover {
     color: var(--color-text-primary);
-    background: var(--color-surface-3);
+    background: var(--color-control-hover);
+  }
+  .tl-btn:active {
+    transform: translateY(1px);
   }
   .tl-btn[aria-pressed='true'] {
-    color: var(--color-accent);
+    color: var(--color-chrome-active);
+    background: var(--color-chrome-active-bg);
+  }
+  .play-btn {
+    border-color: var(--color-chrome-border);
+    background: rgba(255, 255, 255, 0.055);
+    color: var(--color-text-primary);
+  }
+  .play-btn[aria-pressed='true'] {
+    border-color: rgba(220, 224, 232, 0.2);
+    background: var(--color-chrome-active-bg);
+    color: var(--color-chrome-active);
+  }
+  .lane-region {
+    border-color: var(--color-chrome-divider);
+    background-color: rgba(255, 255, 255, 0.012);
+    background-image: linear-gradient(
+      to right,
+      transparent 24%,
+      rgba(220, 224, 232, 0.045) 25%,
+      transparent 26%
+    );
+    background-size: 48px 100%;
+  }
+  :global(.current-time) {
+    font-size: var(--text-readout-strong);
+    font-weight: 560;
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+  :global(.current-time.compact-current) {
+    font-size: var(--text-metadata);
+  }
+  @media (max-width: 719px) {
+    .compact-hide {
+      display: none;
+    }
+    .transport-row {
+      min-height: 38px;
+    }
+    .tl-btn {
+      min-width: 34px;
+      min-height: 34px;
+      justify-content: center;
+    }
+    .lane-region {
+      height: 52px;
+    }
   }
 </style>

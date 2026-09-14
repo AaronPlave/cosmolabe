@@ -7,14 +7,14 @@
 		class: className,
 		children,
 		...restProps
-	}: WithElementRef<HTMLAttributes<HTMLSpanElement>> = $props();
+	}: WithElementRef<HTMLAttributes<HTMLDivElement>> & {} = $props();
 </script>
 
-<span
+<div
 	bind:this={ref}
-	data-slot="command-shortcut"
-	class={cn("text-muted-foreground group-data-selected/command-item:text-foreground ml-auto text-[10px] tracking-widest", className)}
+	data-slot="select-label"
+	class={cn("text-muted-foreground px-1.5 py-1 text-xs", className)}
 	{...restProps}
 >
 	{@render children?.()}
-</span>
+</div>

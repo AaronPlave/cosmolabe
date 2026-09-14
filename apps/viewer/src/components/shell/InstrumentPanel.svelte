@@ -161,21 +161,22 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <section
   bind:this={root}
-  class="instrument pointer-events-auto flex min-h-7 shrink flex-col overflow-hidden rounded-md border border-border bg-panel backdrop-blur-md text-[12px]"
+  class="instrument shell-surface pointer-events-auto flex min-h-7 shrink flex-col overflow-hidden rounded-[5px] border backdrop-blur-sm"
   class:w-full={compact}
   class:floating
+  class:minimized
   {style}
   onpointerdown={onPanelPointerDown}
 >
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header
-    class="flex h-7 shrink-0 items-center gap-2 border-b border-border/60 px-2.5"
+    class="panel-header flex h-[34px] shrink-0 items-center gap-2 border-b px-3"
     class:draggable={key != null && !compact}
     class:border-transparent={minimized}
     onpointerdown={onHeaderPointerDown}
     ondblclick={() => key != null && toggleMinimized(key)}
   >
-    <h2 class="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wider text-text-secondary">
+    <h2 class="panel-title min-w-0 flex-1 truncate font-semibold uppercase text-text-secondary" title={title}>
       {title}
     </h2>
 
@@ -213,7 +214,7 @@
   </header>
 
   {#if !minimized}
-    <div class="min-h-0 overflow-y-auto overflow-x-hidden px-2.5 py-2">
+    <div class="instrument-body min-h-0 overflow-y-auto overflow-x-hidden">
       {@render children()}
     </div>
 
@@ -226,12 +227,91 @@
 
 <style>
   .instrument {
-    animation: instrument-in 0.12s ease;
+    position: relative;
+    animation: instrument-in var(--duration-chrome) var(--ease-chrome);
+    transition:
+      border-color var(--duration-chrome) var(--ease-chrome),
+      background var(--duration-chrome) var(--ease-chrome),
+      box-shadow var(--duration-chrome) var(--ease-chrome);
   }
   /* The one place a shadow is warranted: a floating panel has no dock edge to
      sit against, so something has to separate it from the scene. */
   .instrument.floating {
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    border-color: rgba(184, 197, 220, 0.2);
+    background:
+      linear-gradient(180deg, var(--color-chrome-highlight), transparent 18px),
+      var(--color-panel-raised);
+    box-shadow: var(--shadow-float);
+  }
+  .instrument:hover {
+    border-color: rgba(184, 197, 220, 0.155);
+  }
+  .instrument.minimized {
+    border-color: rgba(184, 197, 220, 0.135);
+    background: var(--color-panel-raised);
+  }
+  .instrument.minimized .panel-header {
+    color: var(--color-text-primary);
+  }
+  .instrument.minimized::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: var(--color-chrome-active);
+    opacity: 0.65;
+  }
+  .panel-header {
+    border-color: var(--color-chrome-divider);
+    background: var(--color-panel-header);
+  }
+  .panel-title {
+    font-family: var(--font-sans);
+    font-size: var(--text-panel-title);
+    letter-spacing: 0.06em;
+  }
+  .instrument-body {
+    scrollbar-gutter: stable;
+    padding: var(--space-ui-3) var(--space-ui-4);
+    font-family: var(--font-sans);
+    font-size: var(--text-interface);
+    font-weight: 420;
+    line-height: var(--leading-interface);
+  }
+  .instrument-body :global(select),
+  .instrument-body :global(input:not([type='range']):not([type='checkbox'])) {
+    min-height: var(--size-control);
+    padding-inline: var(--space-ui-2);
+    border-color: var(--color-border-default);
+    border-radius: var(--radius-control);
+    background: var(--color-control);
+    line-height: 1.2;
+    transition:
+      border-color var(--duration-chrome) var(--ease-chrome),
+      background var(--duration-chrome) var(--ease-chrome);
+  }
+  .instrument-body :global(select:hover),
+  .instrument-body :global(input:not([type='range']):not([type='checkbox']):hover) {
+    border-color: var(--color-border-strong);
+    background: color-mix(in srgb, var(--color-control) 92%, white);
+  }
+  .instrument-body :global(select:disabled),
+  .instrument-body :global(input:disabled),
+  .instrument-body :global(button:disabled) {
+    cursor: default;
+    opacity: 0.42;
+  }
+  .instrument-body :global(select:not(.font-mono):not(.ui-readout)),
+  .instrument-body :global(input:not([type='range']):not([type='checkbox']):not(.font-mono):not(.ui-readout)),
+  .instrument-body :global(button:not(.font-mono)) {
+    font-family: var(--font-sans);
+    font-weight: 440;
+    font-size: var(--text-control);
+  }
+  .instrument-body :global(input.ui-readout) {
+    font-family: var(--font-mono);
+    font-size: var(--text-readout);
+    font-variant-numeric: tabular-nums slashed-zero;
   }
   @keyframes instrument-in {
     from { opacity: 0; transform: translateY(-2px); }
@@ -251,38 +331,64 @@
     cursor: grabbing;
   }
 
-  /* 24px square, inside a 28px header. Compact bumps these to a thumb-sized
+  /* 28px square, inside a 34px header. Compact bumps these to a thumb-sized
      target below, where there is no hover to fall back on. */
   .panel-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     flex-shrink: 0;
     border: none;
     border-radius: 4px;
     background: none;
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
+    opacity: 0.62;
     cursor: pointer;
-    transition: color 0.1s, background 0.1s;
+    transition:
+      color var(--duration-chrome) var(--ease-chrome),
+      background var(--duration-chrome) var(--ease-chrome),
+      transform var(--duration-chrome) var(--ease-chrome);
   }
   .panel-btn:hover {
     color: var(--color-text-primary);
-    background: var(--color-surface-3);
+    background: var(--color-control-hover);
+    opacity: 1;
+  }
+  .panel-btn:active {
+    transform: translateY(1px);
+    background: var(--color-control-pressed);
+  }
+  .panel-btn :global(svg) {
+    stroke-width: 1.75;
   }
 
   .grip {
     position: absolute;
     right: 0;
     bottom: 0;
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
     cursor: nwse-resize;
     touch-action: none;
     /* Two hairlines rather than an icon: visible when looked for, invisible
        otherwise, which is the register the rest of this chrome is in. */
     background:
       linear-gradient(135deg, transparent 0 55%, var(--color-border-active) 55% 65%, transparent 65% 78%, var(--color-border-active) 78% 88%, transparent 88%);
+  }
+
+  @media (max-width: 719px), (pointer: coarse) {
+    .panel-header {
+      height: 40px;
+      padding-inline: 12px 6px;
+    }
+    .panel-btn {
+      width: 36px;
+      height: 36px;
+    }
+    .instrument-body {
+      padding: var(--space-ui-3) var(--space-ui-4) var(--space-ui-4);
+    }
   }
 </style>

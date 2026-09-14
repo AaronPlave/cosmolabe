@@ -551,7 +551,7 @@
       title="Zoom out"
       aria-label="Zoom out"
     ><ZoomOut size={13} /></button>
-    <span class="min-w-8 text-center font-mono text-[10px] text-text-muted">{zoomLevel}x</span>
+    <span class="ui-meta min-w-8 text-center font-mono">{zoomLevel}x</span>
     <button
       class="cursor-pointer rounded p-0.5 transition-colors {zoomIndex < ZOOM_LEVELS.length - 1 ? 'text-text-muted hover:text-text-primary' : 'text-text-muted opacity-30'}"
       onclick={zoomIn}
@@ -563,9 +563,9 @@
 
   <!-- From body -->
   <div class="flex items-center gap-5 mb-1.5">
-    <span class="text-text-muted text-[11px] w-8">From</span>
+    <span class="ui-label w-8">From</span>
     <select
-      class="flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 text-[11px] cursor-pointer outline-none"
+      class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
       value={fromOverride ?? vs.trackedBodyName ?? ''}
       onchange={(e) => {
         const val = (e.target as HTMLSelectElement).value;
@@ -584,9 +584,9 @@
 
   <!-- To body -->
   <div class="flex items-center gap-5 mb-2">
-    <span class="text-text-muted text-[11px] w-8">To</span>
+    <span class="ui-label w-8">To</span>
     <select
-      class="flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 text-[11px] cursor-pointer outline-none"
+      class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
       bind:value={targetBodyName}
     >
       <option value="">Select body...</option>
@@ -604,8 +604,8 @@
       {#snippet metricChart(label: string, value: string, valueClass: string, lineData: { line: string; min: number; max: number }, yFmt: (n: number) => string, zeroline?: boolean)}
         <div>
           <div class="flex justify-between items-baseline mb-1">
-            <span class="text-text-secondary text-[12px]">{label}</span>
-            <span class="font-mono text-[12px] {valueClass}">{value}</span>
+            <span class="ui-label text-text-secondary">{label}</span>
+            <span class="ui-readout {valueClass}">{value}</span>
           </div>
           <div class="chart-wrap">
             <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -663,7 +663,7 @@
 
 
       <!-- Time range -->
-      <div class="flex justify-between text-[10px] font-mono text-text-muted">
+      <div class="ui-meta flex justify-between font-mono">
         <span>{windowStartLabel}</span>
         <span>{windowEndLabel}</span>
       </div>
@@ -671,7 +671,7 @@
       <!-- Close approaches -->
       {#if allCloseApproaches.length > 0}
         <div class="flex items-center gap-2 pt-1.5 border-t border-border">
-          <span class="text-[11px] font-mono flex-1 {showApproaches ? 'text-success' : 'text-text-muted'}">
+          <span class="ui-readout flex-1 {showApproaches ? 'text-success' : 'text-text-muted'}">
             {#if nearestCA && showApproaches}
               {nearestCA.altKm != null ? `alt ${fmtDist(nearestCA.altKm)}` : fmtDist(nearestCA.distKm)} — {fmtTimeShort(nearestCA.et)}
             {:else}
@@ -694,7 +694,7 @@
       {#if showApproachTable && allCloseApproaches.length > 0}
         <div class="pt-1.5 border-t border-border">
           <div class="flex items-center justify-between mb-1.5">
-            <span class="text-[10px] text-text-secondary uppercase tracking-wider font-semibold">Close Approaches</span>
+            <span class="ui-section-label text-text-secondary">Close Approaches</span>
             <div class="flex gap-0.5">
               <button
                 class="sort-btn"
@@ -711,7 +711,7 @@
           <div class="max-h-56 overflow-y-auto flex flex-col">
             {#each sortedApproaches as ca, i}
               <button
-                class="flex justify-between gap-2 text-[11px] font-mono bg-transparent border-none cursor-pointer text-left px-1.5 py-1 rounded hover:bg-surface-3 transition-colors w-full"
+                class="ui-readout flex justify-between gap-2 bg-transparent border-none cursor-pointer text-left px-1.5 py-1 rounded hover:bg-surface-3 transition-colors w-full"
                 onclick={() => setTime(ca.et)}
               >
                 <span class="text-text-muted opacity-50 w-5">{i + 1}</span>
@@ -724,9 +724,9 @@
       {/if}
     </div>
   {:else if targetBodyName && fromBodyName}
-    <div class="text-text-muted text-[11px] pt-2 border-t border-border">Computing...</div>
+    <div class="ui-label pt-2 border-t border-border">Computing...</div>
   {:else if !fromBodyName}
-    <div class="text-text-muted text-[11px] pt-2 border-t border-border">Select a From body or track one in the viewport</div>
+    <div class="ui-label pt-2 border-t border-border">Select a From body or track one in the viewport</div>
   {/if}
 </InstrumentPanel>
 

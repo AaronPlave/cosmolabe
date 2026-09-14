@@ -161,6 +161,47 @@ The rail marks a stowed tool differently from both a closed one and the one on
 screen. That distinction is the point of minimizing: it is what tells the user
 their search is still there.
 
+## Visual grammar
+
+The shell uses two type families with distinct jobs. Martian Mono is reserved
+for scientific values: time, coordinates, distances, angles, identifiers and
+telemetry. Public Sans belongs to panel titles, navigation, controls, labels,
+body names and explanatory text. Both are bundled with the viewer; the
+workspace does not depend on a web-font request.
+Within panels, interface copy and controls share an explicit 11px baseline,
+supporting metadata steps down to an explicit 10px minimum, and only analytical
+values step up from that base. These are pixel tokens because the viewer uses a
+13px root; rem-derived type here would otherwise fall below the minimum.
+
+Desktop chrome is structurally attached to the viewport: a narrow rail at the
+left and a timeline at the bottom, separated from the scene by one crisp line.
+Panels remain movable surfaces above that frame. Their near-black material,
+small radius and sparse shadow keep them related to the frame without reading
+as generic dashboard cards. Only floating panels receive a shadow.
+
+Canvas, panel, control, hover, selected, border, text, primary-accent and
+event-accent colors are named semantic tokens in `app.css`. Blue is used for
+active, selected, focused or primary state; restrained amber identifies event
+information. Routine structure relies on surface contrast and spacing before
+outlines.
+
+Chrome feedback is shared: the same focus ring, quick transition timing and
+pressed movement are used by panel, rail and timeline controls. Active and
+stowed shell state is monochrome; blue is reserved for keyboard focus and
+genuinely analytical or mission emphasis. Borders and surface area stay neutral
+so the data retains the strongest visual emphasis. Nonessential chrome motion
+collapses to effectively zero when the system requests reduced motion.
+
+The expanded timeline uses a faint plotting grid instead of a card-like empty
+state. Its transport remains secondary, while the white playhead is the highest
+contrast element on the shared time axis.
+
+At compact widths, controls retain touch-sized targets while the rail and
+transport share one bottom surface. Secondary rate controls and the zoom menu
+leave the transport row, and the clock uses time-only notation. An active sheet
+is capped at 42 percent of the viewport and scrolls internally, preserving the
+3D scene as the largest single region.
+
 ## What this is not
 
 The arrangement is a useful default, not information architecture. Panel

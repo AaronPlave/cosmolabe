@@ -91,7 +91,7 @@
 
 {#snippet bodyRow(body: BodyEntry, indent: number)}
   <div
-    class="flex items-center gap-1 py-0.5 rounded text-[12px] transition-colors hover:bg-surface-3 {body.name ===
+    class="body-row ui-body flex items-center gap-1 py-0.5 rounded transition-colors hover:bg-surface-3 {body.name ===
     vs.lookAtBodyName
       ? 'bg-accent-muted'
       : ''}"
@@ -118,7 +118,7 @@
           : ''}">{body.name}</span
       >
       {#if body.classification}
-        <span class="ml-auto text-[10px] text-text-muted shrink-0"
+        <span class="ui-secondary-column ml-auto shrink-0"
           >{body.classification}</span
         >
       {/if}
@@ -163,7 +163,7 @@
 
 <InstrumentPanel key="catalog" title="Bodies" width={toolDef('catalog').width} {onClose}>
   {#snippet actions()}
-    <span class="rounded-full bg-surface-3 px-1.5 py-px text-[10px] text-text-muted">
+    <span class="ui-meta rounded-full bg-surface-3 px-1.5 py-px">
       {vs.bodies.length}
     </span>
   {/snippet}
@@ -182,7 +182,7 @@
           bind:value={search}
           type="text"
           placeholder="Search..."
-          class="pl-7 h-7 text-[12px] bg-surface-3 border-border"
+          class="ui-control pl-7 h-7 bg-surface-3 border-border"
         />
       </div>
 
@@ -191,19 +191,19 @@
         <Button.Root
           variant="outline"
           size="sm"
-          class="h-6 text-[11px] px-2"
+          class="ui-control h-6 px-2"
           onclick={showAllBodies}>Show All</Button.Root
         >
         <Button.Root
           variant="outline"
           size="sm"
-          class="h-6 text-[11px] px-2"
+          class="ui-control h-6 px-2"
           onclick={hideAllBodies}>Hide All</Button.Root
         >
         <Button.Root
           variant={soloMode ? "default" : "outline"}
           size="sm"
-          class="h-6 text-[11px] px-2"
+          class="ui-control h-6 px-2"
           onclick={() => (soloMode = !soloMode)}>Solo</Button.Root
         >
       </div>
@@ -216,7 +216,7 @@
             {@render bodyRow(body, 0)}
           {/each}
           {#if searchResults?.length === 0}
-            <div class="text-[11px] text-text-muted text-center py-4">
+            <div class="ui-label text-center py-4">
               No matches
             </div>
           {/if}
@@ -229,3 +229,9 @@
       </div>
   </div>
 </InstrumentPanel>
+
+<style>
+  .body-row:focus-within {
+    background: var(--color-selected);
+  }
+</style>
