@@ -604,7 +604,7 @@
       {#snippet metricChart(label: string, value: string, valueClass: string, lineData: { line: string; min: number; max: number }, yFmt: (n: number) => string, zeroline?: boolean)}
         <div>
           <div class="flex justify-between items-baseline mb-1">
-            <span class="text-text-secondary text-[12px]">{label}</span>
+            <span class="text-text-secondary text-[11px]">{label}</span>
             <span class="font-mono text-[12px] {valueClass}">{value}</span>
           </div>
           <div class="chart-wrap">

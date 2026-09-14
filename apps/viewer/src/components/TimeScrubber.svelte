@@ -219,7 +219,7 @@
   .scrubber-wrapper {
     flex: 1;
     min-width: 5rem;
-    outline: none;
+    border-radius: 4px;
   }
 
   .scrubber-row {
@@ -253,8 +253,10 @@
   .track {
     position: relative;
     width: 100%;
-    height: 16px;
-    background: var(--color-surface-3);
+    height: 12px;
+    border: 1px solid var(--color-chrome-divider);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.07);
     cursor: pointer;
     touch-action: none;
     user-select: none;
@@ -269,6 +271,7 @@
     background: var(--color-text-primary);
     transform: translateX(-50%);
     pointer-events: none;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
   }
 
   /* ── Event finder results ── */
@@ -278,7 +281,7 @@
     top: 0;
     bottom: 0;
     width: 1px;
-    background: var(--color-success);
+    background: var(--color-event-accent);
     opacity: 0.45;
     transform: translateX(-50%);
     pointer-events: none;
@@ -290,7 +293,11 @@
   }
 
   .track:hover .playhead {
-    box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.38);
+  }
+
+  .scrubber-wrapper:focus-visible .track {
+    border-color: rgba(110, 170, 255, 0.7);
   }
 
   /* ── Minimap line — always visible, 1px below track ── */
@@ -298,7 +305,7 @@
   .minimap-line {
     width: 100%;
     height: 2px;
-    background: var(--color-surface-3);
+    background: var(--color-border);
     margin-top: 1px;
     position: relative;
   }
@@ -367,5 +374,11 @@
   :global(.icon-btn:hover) {
     color: var(--color-text-primary);
     background: var(--color-surface-3);
+  }
+
+  @media (max-width: 719px) {
+    :global(.icon-btn) {
+      display: none;
+    }
   }
 </style>

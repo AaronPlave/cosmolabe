@@ -91,7 +91,7 @@
 
 {#snippet bodyRow(body: BodyEntry, indent: number)}
   <div
-    class="flex items-center gap-1 py-0.5 rounded text-[12px] transition-colors hover:bg-surface-3 {body.name ===
+    class="flex items-center gap-1 py-0.5 rounded text-[11px] transition-colors hover:bg-surface-3 {body.name ===
     vs.lookAtBodyName
       ? 'bg-accent-muted'
       : ''}"
@@ -182,7 +182,7 @@
           bind:value={search}
           type="text"
           placeholder="Search..."
-          class="pl-7 h-7 text-[12px] bg-surface-3 border-border"
+          class="pl-7 h-7 text-[11px] bg-surface-3 border-border"
         />
       </div>
 

@@ -55,7 +55,7 @@
       { key: 'sensorLabels' as const, label: 'Sensor labels', shortcut: '', value: vs.showSensorLabels },
       { key: 'debug' as const, label: 'Debug stats', shortcut: '', value: debugActive },
     ] as opt}
-      <label class="flex items-center gap-2 px-3 py-1 text-[12px] cursor-pointer hover:bg-surface-3 transition-colors">
+      <label class="flex items-center gap-2 px-3 py-1 text-[11px] cursor-pointer hover:bg-surface-3 transition-colors">
         <Checkbox checked={opt.value} onCheckedChange={() => opt.key === 'debug' ? onToggleDebug() : setDisplayOption(opt.key, !opt.value)} class="h-3.5 w-3.5" />
         <span class="flex-1 text-text-primary">{opt.label}</span>
         {#if opt.shortcut}
@@ -67,7 +67,7 @@
     <Separator class="my-1" />
 
     <!-- Lighting -->
-    <div class="flex items-center gap-2 px-3 py-1 text-[12px]">
+    <div class="flex items-center gap-2 px-3 py-1 text-[11px]">
       <span class="flex-1 text-text-primary">Lighting</span>
       <select
         class="bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 text-[11px] cursor-pointer outline-none"
@@ -81,14 +81,14 @@
     </div>
 
     <!-- FOV -->
-    <div class="flex items-center gap-2 px-3 py-1 text-[12px]">
+    <div class="flex items-center gap-2 px-3 py-1 text-[11px]">
       <span class="text-text-primary">FOV</span>
-      <input type="range" class="flex-1 min-w-15 h-4" min="1" max="120" value={fov} oninput={onFovInput} />
+      <input type="range" class="fov-slider flex-1 min-w-15" min="1" max="120" value={fov} oninput={onFovInput} />
       <span class="font-mono text-[11px] text-text-secondary min-w-7 text-right">{fov}&deg;</span>
     </div>
 
     <!-- Camera mode -->
-    <div class="flex items-center gap-2 px-3 py-1 text-[12px]">
+    <div class="flex items-center gap-2 px-3 py-1 text-[11px]">
       <span class="flex-1 text-text-primary">Camera</span>
       <select
         class="bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 text-[11px] cursor-pointer outline-none"
@@ -109,7 +109,7 @@
     <!-- Viewpoints -->
     {#if viewpoints.length > 0}
       <Separator class="my-1" />
-      <div class="px-3 py-1 text-[12px]">
+      <div class="px-3 py-1 text-[11px]">
         <div class="text-text-primary mb-1">Viewpoint</div>
         <div class="mb-1">
           <select
@@ -159,7 +159,7 @@
 
     <!-- Capture -->
     <Separator class="my-1" />
-    <div class="px-3 py-1 text-[12px]">
+    <div class="px-3 py-1 text-[11px]">
       <div class="flex items-center gap-2 mb-1">
         <span class="flex-1 text-text-primary">Capture</span>
         {#if recording}<span class="flex items-center gap-1 text-[10px] text-red-400"><span class="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>REC</span>{/if}
@@ -179,7 +179,7 @@
     <!-- Instruments -->
     {#if sensors.length > 0}
       <Separator class="my-1" />
-      <div class="flex items-center gap-2 px-3 py-1 text-[12px]">
+      <div class="flex items-center gap-2 px-3 py-1 text-[11px]">
         <span class="flex-1 text-text-primary">Instrument</span>
         <select
           class="bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 text-[11px] cursor-pointer outline-none max-w-28"
@@ -193,3 +193,41 @@
       </div>
     {/if}
 </InstrumentPanel>
+
+<style>
+  .fov-slider {
+    height: 16px;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+  .fov-slider::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--color-border-strong);
+  }
+  .fov-slider::-webkit-slider-thumb {
+    width: 10px;
+    height: 10px;
+    margin-top: -3.5px;
+    appearance: none;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 50%;
+    background: var(--color-text-secondary);
+  }
+  .fov-slider:hover::-webkit-slider-thumb {
+    background: var(--color-text-primary);
+  }
+  .fov-slider::-moz-range-track {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--color-border-strong);
+  }
+  .fov-slider::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 50%;
+    background: var(--color-text-secondary);
+  }
+</style>

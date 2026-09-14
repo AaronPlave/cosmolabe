@@ -122,16 +122,9 @@
   class:pointer-events-auto={!inline}
   class:absolute={!inline}
   class:z-20={!inline}
-  class:rounded-lg={!inline}
-  class:border={!inline}
-  class:border-border={!inline}
-  class:bg-panel={!inline}
-  class:backdrop-blur-md={!inline}
-  class:p-1={!inline}
+  class:desktop-rail={!inline && !compact}
   class:flex-col={!compact}
   class:gap-0.5={!compact}
-  class:left-3={!inline && !compact}
-  class:top-3={!inline && !compact}
   class:overflow-x-auto={compact}
   class:px-1={inline}
   class:py-1={inline}
@@ -152,13 +145,24 @@
     /* The compact row is a scroller; its scrollbar would be chrome on chrome. */
     scrollbar-width: none;
   }
+  .desktop-rail {
+    top: 0;
+    bottom: var(--size-bottom-chrome);
+    left: 0;
+    width: var(--size-rail);
+    box-sizing: border-box;
+    padding: 10px 6px;
+    border-right: 1px solid var(--color-chrome-border);
+    background: var(--color-panel);
+    box-shadow: inset -1px 0 rgba(255, 255, 255, 0.015);
+    backdrop-filter: blur(8px);
+  }
   .rail::-webkit-scrollbar {
     display: none;
   }
 
-  /* 36px square: the smallest that still takes a thumb reliably, which is what
-     keeps the rail usable on a phone without inventing a second mobile control
-     (#59 — hit targets, and no hover-only functionality). */
+  /* Desktop stays compact without clipping its hover ground. Compact retains
+     larger touch targets below. */
   .rail-btn {
     position: relative;
     display: flex;
@@ -172,24 +176,39 @@
     background: none;
     color: var(--color-text-secondary);
     cursor: pointer;
-    transition: color 0.1s, background 0.1s;
+    transition:
+      color var(--duration-chrome) var(--ease-chrome),
+      background var(--duration-chrome) var(--ease-chrome),
+      transform var(--duration-chrome) var(--ease-chrome);
   }
   .rail-btn:hover {
     color: var(--color-text-primary);
-    background: var(--color-surface-3);
+    background: var(--color-control-hover);
   }
-  /* Active state is a low-salience accent, not a filled block: selection and
-     mission data own the strong colors in this UI, chrome does not. */
+  .rail-btn:active {
+    transform: scale(0.94);
+  }
+  /* Active state is monochrome and low-salience: selection and mission data
+     own the strong colors in this UI, chrome does not. */
   .rail-btn[aria-pressed='true'] {
-    color: var(--color-accent);
-    background: var(--color-accent-muted);
+    color: var(--color-chrome-active);
+    background: var(--color-chrome-active-bg);
   }
-  /* Open but put away: the accent without the ground, plus a marker. Distinct
+  .rail-btn[aria-pressed='true']::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    width: 2px;
+    height: 14px;
+    border-radius: 2px;
+    background: var(--color-chrome-active);
+  }
+  /* Open but put away: muted chrome plus a marker. Distinct
      from both a closed tool and the one on screen, because "your search is
      still here" is exactly what a user who minimized something needs to see. */
   .rail-btn.stowed {
-    color: var(--color-accent);
-    opacity: 0.65;
+    color: var(--color-text-secondary);
+    opacity: 0.72;
   }
   .rail-btn.stowed::after {
     content: '';
@@ -197,19 +216,37 @@
     width: 3px;
     height: 3px;
     border-radius: 50%;
-    background: var(--color-accent);
+    background: var(--color-chrome-active);
     transform: translate(0, 13px);
   }
 
   .rail-divider {
     height: 1px;
-    margin: 2px 4px;
-    background: var(--color-border);
+    margin: 5px 7px;
+    background: var(--color-chrome-divider);
   }
   .rail-divider.horizontal {
     height: 24px;
     width: 1px;
     margin: 6px 2px;
     align-self: center;
+  }
+
+  @media (max-width: 719px) {
+    .rail-btn {
+      width: 42px;
+      height: 42px;
+    }
+    .rail-btn[aria-pressed='true']::before {
+      left: 50%;
+      top: auto;
+      bottom: -4px;
+      width: 14px;
+      height: 2px;
+      transform: translateX(-50%);
+    }
+    .rail-btn.stowed::after {
+      transform: translate(0, 15px);
+    }
   }
 </style>

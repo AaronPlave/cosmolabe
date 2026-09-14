@@ -29,7 +29,7 @@
     side === 'sheet'
       ? 'left: 0.5rem; right: 0.5rem; bottom: calc(var(--size-dock-base) + 0.5rem)'
       : side === 'left'
-        ? 'left: calc(var(--size-rail) + 1rem); bottom: calc(var(--size-dock-base) + 0.75rem)'
+        ? 'left: calc(var(--size-rail) + 0.75rem); bottom: calc(var(--size-dock-base) + 0.75rem)'
         : 'right: 0.75rem; bottom: calc(var(--size-dock-base) + 0.75rem)',
   );
 </script>
@@ -37,9 +37,9 @@
 <!-- `pointer-events-none` on the dock, `auto` on each panel (InstrumentPanel):
      the gaps between panels are still scene, and must stay draggable. -->
 {#if side === 'sheet'}
-  <!-- Capped at half the screen: the sheet is a reading surface over the scene,
-       never a replacement for it. -->
-  <div class="pointer-events-none absolute z-15 flex max-h-[50%] flex-col gap-2 overflow-hidden" {style}>
+  <!-- Even with an instrument open, more of a phone remains scene than sheet.
+       Long instruments scroll inside the shared panel body. -->
+  <div class="pointer-events-none absolute z-15 flex max-h-[42%] flex-col gap-2 overflow-hidden" {style}>
     {@render children()}
   </div>
 {:else}

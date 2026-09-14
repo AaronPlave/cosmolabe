@@ -40,8 +40,11 @@
     // The rail has no width to offset against once it is horizontal, so
     // collapsing the variable is what spares every left-docked surface a
     // compact branch of its own.
-    const rail = compact ? '0rem' : '2.75rem';
-    return `--size-rail: ${rail}; --size-dock-base: ${dockBase}px`;
+    // Only override the token in compact mode. Re-declaring a desktop width
+    // here let this stale value drift from the rail primitive, so the button
+    // could become wider than its shrink-wrapped rail.
+    const railOverride = compact ? '--size-rail: 0rem;' : '';
+    return `${railOverride} --size-bottom-chrome: ${shell.chromeBottom}px; --size-dock-base: ${dockBase}px`;
   });
 
   /**
@@ -315,10 +318,10 @@
            chrome costs the scene one strip instead of a third of the screen. -->
       <div
         bind:clientHeight={shell.chromeBottom}
-        class="pointer-events-auto absolute inset-x-2 bottom-3 z-20 rounded-lg border border-border bg-panel backdrop-blur-md"
+        class="compact-dock shell-surface pointer-events-auto absolute inset-x-2 bottom-2 z-20 overflow-hidden rounded-md border backdrop-blur-md"
       >
         <TimelineDock inline />
-        <div class="mx-2 border-t border-border/60"></div>
+        <div class="shell-divider mx-2 border-t"></div>
         <ToolRail inline {pickModeActive} onTogglePick={togglePickMode} />
       </div>
     {:else}
@@ -338,6 +341,12 @@
     {/if}
   {/if}
 </div>
+
+<style>
+  .compact-dock {
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.24);
+  }
+</style>
 
 {#snippet pickRows(pick: { latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number })}
   <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lat</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.latDeg), 5)}&deg; {pick.latDeg >= 0 ? 'N' : 'S'}</span></div>

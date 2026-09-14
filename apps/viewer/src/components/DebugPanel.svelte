@@ -107,7 +107,7 @@
 
 {#if info}
   <InstrumentPanel key="debug" title="Diagnostics" width={toolDef('debug').width} {onClose}>
-    <div class="text-[11px] font-mono text-text-muted">
+    <div class="text-[11px] text-text-muted">
 
     <!-- FPS chart -->
     <div class="mb-1.5">
@@ -192,7 +192,7 @@
 
   .section-label {
     font-family: var(--font-sans);
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 600;
     color: var(--color-text-secondary);
     text-transform: uppercase;
@@ -212,6 +212,8 @@
   }
 
   .val {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums slashed-zero;
     color: var(--color-text-primary);
     opacity: 0.9;
   }

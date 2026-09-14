@@ -131,8 +131,7 @@
       <div class="flex items-center gap-2 mb-1.5">
         <span class="text-text-muted text-[11px] w-20 shrink-0">{role.label}</span>
         <select
-          class="flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 text-[11px] cursor-pointer outline-none
-                 {unfilledRoles.includes(role.role) ? 'border-warning' : 'border-border'}"
+          class="flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 text-[11px] cursor-pointer outline-none"
           value={form.bodies[role.role] ?? ''}
           onchange={(e) => setRole(role.role, (e.target as HTMLSelectElement).value)}
         >
@@ -310,8 +309,8 @@
       <div class="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
         {#each shownEvents as event}
           <button
-            class="text-left rounded px-1.5 py-1 border transition-colors cursor-pointer
-                   {ef.selectedId === event.id ? 'border-accent bg-surface-3' : 'border-transparent hover:bg-surface-3'}"
+            class="event-result text-left rounded px-1.5 py-1 border cursor-pointer"
+            class:selected={ef.selectedId === event.id}
             onclick={() => selectEvent(event)}
             title={event.label}
           >
@@ -376,5 +375,20 @@
   }
   .ctrl-link:hover {
     color: var(--color-text-primary);
+  }
+
+  .event-result {
+    border-color: transparent;
+    background: transparent;
+    transition:
+      border-color var(--duration-chrome) var(--ease-chrome),
+      background var(--duration-chrome) var(--ease-chrome);
+  }
+  .event-result:hover {
+    background: var(--color-hover);
+  }
+  .event-result.selected {
+    border-color: color-mix(in srgb, var(--color-event-accent) 52%, transparent);
+    background: color-mix(in srgb, var(--color-event-accent) 8%, transparent);
   }
 </style>

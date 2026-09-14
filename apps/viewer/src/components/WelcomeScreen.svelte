@@ -153,7 +153,7 @@
         <p class="text-text-muted text-[12px]">
           Drop a catalog folder here, or click to browse files
         </p>
-        <p class="text-text-muted text-[11px] mt-1 opacity-40 font-mono">
+        <p class="text-text-muted text-[11px] mt-1 opacity-40">
           .json &middot; .bsp &middot; .tls &middot; .tpc &middot; .tf &middot;
           .ck
         </p>
