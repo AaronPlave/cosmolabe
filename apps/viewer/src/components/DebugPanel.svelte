@@ -107,7 +107,7 @@
 
 {#if info}
   <InstrumentPanel key="debug" title="Diagnostics" width={toolDef('debug').width} {onClose}>
-    <div class="text-[11px] text-text-muted">
+    <div class="diagnostics">
 
     <!-- FPS chart -->
     <div class="mb-1.5">
@@ -134,7 +134,7 @@
     {/if}
 
     <div class="flex flex-col">
-      <div class="section-label mt-2">Scene</div>
+      <div class="ui-section-label mt-2">Scene</div>
       <div class="row"><span class="label">Bodies</span><span class="val">{info.bodies}</span></div>
       <div class="row"><span class="label">Kernels</span><span class="val">{info.kernels}</span></div>
       <!-- Initial models + textures. A scene can be fully "loaded" and still be
@@ -153,24 +153,24 @@
         {/each}
       {/if}
 
-      <div class="section-label mt-3">Renderer</div>
+      <div class="ui-section-label mt-3">Renderer</div>
       <div class="row"><span class="label">Draw calls</span><span class="val">{fmtNum(info.drawCalls)}</span></div>
       <div class="row"><span class="label">Triangles</span><span class="val">{fmtNum(info.triangles)}</span></div>
       <div class="row"><span class="label">Geometries</span><span class="val">{info.geometries}</span></div>
       <div class="row"><span class="label">Textures</span><span class="val">{info.textures}</span></div>
       <div class="row"><span class="label">Programs</span><span class="val">{info.programs}</span></div>
 
-      <div class="section-label mt-3">Camera</div>
+      <div class="ui-section-label mt-3">Camera</div>
       <div class="row"><span class="label">Mode</span><span class="val">{info.mode}</span></div>
       <div class="row"><span class="label">Tracking</span><span class="val">{info.tracked}</span></div>
       <div class="row"><span class="label">Distance</span><span class="val">{fmtDist(info.camDistKm)}</span></div>
       <div class="row"><span class="label">FOV</span><span class="val">{info.fov}&deg;</span></div>
 
-      <div class="section-label mt-3">Time</div>
+      <div class="ui-section-label mt-3">Time</div>
       <div class="row"><span class="label">ET</span><span class="val">{info.et.toFixed(1)}</span></div>
       <div class="row"><span class="label">Rate</span><span class="val">{vs.rateText}</span></div>
 
-      <div class="section-label mt-3">Terrain</div>
+      <div class="ui-section-label mt-3">Terrain</div>
       <label class="row cursor-pointer">
         <span class="label">Tile bounds</span>
         <input
@@ -190,14 +190,9 @@
 
 <style>
 
-  .section-label {
+  .diagnostics {
     font-family: var(--font-sans);
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    padding-bottom: 2px;
+    color: var(--color-text-muted);
   }
 
   .row {
@@ -208,17 +203,18 @@
   }
 
   .label {
+    font-size: var(--text-label);
     color: var(--color-text-muted);
   }
 
   .val {
     font-family: var(--font-mono);
+    font-size: var(--text-readout);
     font-variant-numeric: tabular-nums slashed-zero;
     color: var(--color-text-primary);
-    opacity: 0.9;
   }
 
   svg {
-    background: var(--color-surface-3);
+    background: transparent;
   }
 </style>

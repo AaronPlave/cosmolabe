@@ -19,7 +19,7 @@
     selectEvent, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
   } from '../lib/event-finder.svelte';
   import {
-    eventSummary, faultMessage, formatMetric, formatSeconds, missingRoles,
+    eventSummary, faultMessage, formatMetric, formatSeconds, headlineMetric, missingRoles,
     sortEvents, sortMetricLabel,
   } from '../lib/event-query';
 
@@ -107,9 +107,9 @@
 
   <!-- Event type -->
   <div class="flex items-center gap-2 mb-1.5">
-    <span class="text-text-muted text-[11px] w-20 shrink-0">Event</span>
+    <span class="ui-label w-20 shrink-0">Event</span>
     <select
-      class="flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 text-[11px] cursor-pointer outline-none"
+      class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
       value={ef.kind}
       onchange={(e) => setKind((e.target as HTMLSelectElement).value)}
     >
@@ -122,16 +122,16 @@
   <!-- What the selected kind actually searches for. Its own words: the panel
        cannot write this sentence for a kind it has never heard of. -->
   {#if kind.description}
-    <p class="text-[10px] text-text-muted leading-snug mb-2 ml-22">{kind.description}</p>
+    <p class="ui-meta event-helper mb-2 ml-22">{kind.description}</p>
   {/if}
 
   {#if form}
     <!-- Bodies, one picker per role the kind declares -->
     {#each kind.roles as role}
       <div class="flex items-center gap-2 mb-1.5">
-        <span class="text-text-muted text-[11px] w-20 shrink-0">{role.label}</span>
+        <span class="ui-label w-20 shrink-0">{role.label}</span>
         <select
-          class="flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 text-[11px] cursor-pointer outline-none"
+          class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
           value={form.bodies[role.role] ?? ''}
           onchange={(e) => setRole(role.role, (e.target as HTMLSelectElement).value)}
         >
@@ -146,10 +146,10 @@
     <!-- Kind-specific parameters -->
     {#each kind.params ?? [] as param}
       <div class="flex items-center gap-2 mb-1.5">
-        <span class="text-text-muted text-[11px] w-20 shrink-0" title={param.help}>{param.label}</span>
+        <span class="ui-label w-20 shrink-0" title={param.help}>{param.label}</span>
         {#if param.kind === 'choice'}
           <select
-            class="flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 text-[11px] cursor-pointer outline-none"
+            class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
             value={form.params[param.key] ?? ''}
             onchange={(e) => setParam(param.key, (e.target as HTMLSelectElement).value)}
           >
@@ -167,7 +167,7 @@
         {:else}
           <input
             type="number"
-            class="flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 text-[11px] font-mono outline-none"
+            class="ui-readout flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 outline-none"
             placeholder={param.required === false ? 'optional' : ''}
             min={param.min}
             max={param.max}
@@ -175,16 +175,16 @@
             value={form.params[param.key] ?? ''}
             oninput={(e) => setParam(param.key, (e.target as HTMLInputElement).value)}
           />
-          {#if param.unit}<span class="text-text-muted text-[10px] w-6">{param.unit}</span>{/if}
+          {#if param.unit}<span class="ui-meta w-6">{param.unit}</span>{/if}
         {/if}
       </div>
     {/each}
 
     <!-- Search window -->
     <div class="flex items-center gap-2 mb-1.5">
-      <span class="text-text-muted text-[11px] w-20 shrink-0">From</span>
+      <span class="ui-label w-20 shrink-0">From</span>
       <input
-        class="flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 text-[11px] font-mono outline-none
+        class="ui-readout flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 outline-none
                {startBad ? 'border-warning' : 'border-border'}"
         bind:value={startText}
         onblur={commitStart}
@@ -192,9 +192,9 @@
       />
     </div>
     <div class="flex items-center gap-2 mb-1.5">
-      <span class="text-text-muted text-[11px] w-20 shrink-0">To</span>
+      <span class="ui-label w-20 shrink-0">To</span>
       <input
-        class="flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 text-[11px] font-mono outline-none
+        class="ui-readout flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 outline-none
                {endBad ? 'border-warning' : 'border-border'}"
         bind:value={endText}
         onblur={commitEnd}
@@ -202,9 +202,9 @@
       />
     </div>
     <div class="flex items-center gap-2 mb-2">
-      <span class="text-text-muted text-[11px] w-20 shrink-0">Step</span>
+      <span class="ui-label w-20 shrink-0">Step</span>
       <select
-        class="flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 text-[11px] cursor-pointer outline-none"
+        class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
         value={String(form.step)}
         onchange={(e) => setStep(Number((e.target as HTMLSelectElement).value))}
         title="Sampling interval. An event shorter than the step can be missed."
@@ -223,11 +223,11 @@
     <!-- Say when the window is not simply the catalog's span, so a default that
          differs from the scrubber is explained rather than merely odd. -->
     {#if ef.windowTrimmed}
-      <p class="text-[10px] text-text-muted leading-snug mb-2 ml-22">
+      <p class="ui-meta event-helper mb-2 ml-22">
         Trimmed to the kernel coverage of the chosen bodies.
       </p>
     {:else if ef.windowPinned}
-      <p class="text-[10px] text-text-muted leading-snug mb-2 ml-22">
+      <p class="ui-meta event-helper mb-2 ml-22">
         Using your window. <button class="ctrl-link underline" onclick={resetWindow}>Reset to kernel coverage</button>
       </p>
     {/if}
@@ -236,7 +236,7 @@
          so it is also worth being able to give up on. -->
     <div class="flex items-center gap-1.5">
       <button
-        class="flex-1 flex items-center justify-center gap-1.5 rounded border border-border bg-surface-3 px-2 py-1.5 text-[11px] text-text-primary
+        class="ui-control flex-1 flex items-center justify-center gap-1.5 rounded border border-border bg-surface-3 px-2 py-1.5 text-text-primary
                hover:border-accent disabled:opacity-40 disabled:hover:border-border transition-colors cursor-pointer"
         disabled={!canSearch}
         onclick={runSearch}
@@ -249,7 +249,7 @@
       </button>
       {#if ef.running}
         <button
-          class="flex items-center justify-center gap-1.5 rounded border border-border bg-surface-3 px-2 py-1.5 text-[11px] text-text-secondary
+          class="ui-control flex items-center justify-center gap-1.5 rounded border border-border bg-surface-3 px-2 py-1.5 text-text-secondary
                  hover:border-accent hover:text-text-primary transition-colors cursor-pointer"
           onclick={cancelSearch}
           title="Stop this search"
@@ -260,7 +260,7 @@
     </div>
 
     {#if unfilledRoles.length > 0}
-      <div class="mt-1.5 text-[11px] text-text-muted">
+      <div class="ui-label mt-1.5">
         Choose a body for {kind.roles.filter((r) => unfilledRoles.includes(r.role)).map((r) => r.label.toLowerCase()).join(' and ')}.
       </div>
     {/if}
@@ -270,11 +270,11 @@
   {#if ef.fault}
     <!-- A fault is "we could not look", which reads differently from a search
          that ran and matched nothing. -->
-    <div class="mt-2 pt-2 border-t border-border text-[11px] text-warning">
+    <div class="ui-label mt-2 pt-2 border-t border-border text-warning">
       {faultMessage(ef.fault)}
     </div>
   {:else if ef.searched && ef.events.length === 0}
-    <div class="mt-2 pt-2 border-t border-border text-[11px] text-text-muted">
+    <div class="ui-label mt-2 pt-2 border-t border-border">
       <p>No matching events in this window.</p>
       {#if ef.hint}
         <!-- The kind turning "nothing matched" into an actual measurement. -->
@@ -285,12 +285,12 @@
   {:else if ef.events.length > 0}
     <div class="mt-2 pt-2 border-t border-border">
       <div class="flex items-center justify-between gap-2 mb-1">
-        <span class="text-text-secondary text-[11px]">
+        <span class="ui-section-label">
           {ef.events.length} event{ef.events.length === 1 ? '' : 's'}
         </span>
         <div class="flex items-center gap-1.5">
           {#if metricSortLabel}
-            <span class="text-[10px] text-text-muted">sort</span>
+            <span class="ui-meta">sort</span>
             <button
               class="ctrl-link {ef.sort === 'time' ? 'text-text-primary' : ''}"
               onclick={() => setSort('time')}
@@ -306,20 +306,21 @@
           {/if}
         </div>
       </div>
-      <div class="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
+      <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
         {#each shownEvents as event}
+          {@const headline = headlineMetric(event)}
           <button
-            class="event-result text-left rounded px-1.5 py-1 border cursor-pointer"
+            class="event-result text-left rounded px-2 py-1.5 border cursor-pointer"
             class:selected={ef.selectedId === event.id}
             onclick={() => selectEvent(event)}
             title={event.label}
           >
             <div class="flex justify-between gap-2 items-baseline">
-              <span class="font-mono text-[11px] text-text-primary">{eventTime(event)}</span>
+              <span class="ui-readout event-time">{eventTime(event)}</span>
               <!-- A bare "2.5 d" beside a date reads as an offset from it.
                    Say which quantity it is. -->
               <span
-                class="text-[10px] text-text-muted"
+                class="ui-meta"
                 title={isIntervalEvent(event)
                   ? 'How long this event lasted, start to end'
                   : 'This event is a single instant, not a span'}
@@ -327,30 +328,37 @@
                 {isIntervalEvent(event) ? `lasts ${formatSeconds(eventDuration(event))}` : 'instant'}
               </span>
             </div>
-            <div class="text-[10px] text-text-secondary">{eventSummary(event)}</div>
+            {#if headline}
+              <div class="event-summary">
+                <span>{headline.label}</span>
+                <span class="ui-readout event-value">{formatMetric(headline)}</span>
+              </div>
+            {:else}
+              <div class="event-summary">{eventSummary(event)}</div>
+            {/if}
             {#if ef.selectedId === event.id}
               <div class="mt-1 flex flex-col gap-0.5">
                 {#if detailMetrics(event).length === 0}
                   <!-- A closest approach with no range is a thin answer; say the
                        measurement is missing rather than showing a blank. -->
-                  <div class="text-[10px] text-text-muted">
+                  <div class="ui-meta">
                     No measurements — this SPICE provider cannot report distances.
                   </div>
                 {/if}
                 {#each detailMetrics(event) as metric}
-                  <div class="flex justify-between gap-2 text-[10px]">
-                    <span class="text-text-muted">{metric.label}</span>
-                    <span class="font-mono text-text-primary">{formatMetric(metric)}</span>
+                  <div class="ui-data-row">
+                    <span class="ui-label">{metric.label}</span>
+                    <span class="ui-readout">{formatMetric(metric)}</span>
                   </div>
                 {/each}
                 {#if isIntervalEvent(event)}
-                  <div class="flex justify-between gap-2 text-[10px]">
-                    <span class="text-text-muted">Duration</span>
-                    <span class="font-mono text-text-primary">{formatSeconds(eventDuration(event))}</span>
+                  <div class="ui-data-row">
+                    <span class="ui-label">Duration</span>
+                    <span class="ui-readout">{formatSeconds(eventDuration(event))}</span>
                   </div>
-                  <div class="flex justify-between gap-2 text-[10px]">
-                    <span class="text-text-muted">Ends</span>
-                    <span class="font-mono text-text-primary">{etToUtcString(event.end).replace(' UTC', '')}</span>
+                  <div class="ui-data-row">
+                    <span class="ui-label">Ends</span>
+                    <span class="ui-readout">{etToUtcString(event.end).replace(' UTC', '')}</span>
                   </div>
                 {/if}
               </div>
@@ -384,11 +392,34 @@
       border-color var(--duration-chrome) var(--ease-chrome),
       background var(--duration-chrome) var(--ease-chrome);
   }
+  .event-result:focus-visible {
+    border-color: var(--color-primary-accent);
+  }
   .event-result:hover {
     background: var(--color-hover);
   }
   .event-result.selected {
     border-color: color-mix(in srgb, var(--color-event-accent) 52%, transparent);
     background: color-mix(in srgb, var(--color-event-accent) 8%, transparent);
+  }
+  .event-summary {
+    margin-top: 1px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-ui-3);
+    font-family: var(--font-sans);
+    font-size: var(--text-label);
+    color: var(--color-text-secondary);
+  }
+  .event-time {
+    font-weight: 590;
+  }
+  .event-value {
+    font-weight: 500;
+    color: var(--color-text-secondary);
+  }
+  .event-helper {
+    color: var(--color-text-faint);
   }
 </style>

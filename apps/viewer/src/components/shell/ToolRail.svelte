@@ -175,6 +175,7 @@
     border-radius: 6px;
     background: none;
     color: var(--color-text-secondary);
+    opacity: 0.82;
     cursor: pointer;
     transition:
       color var(--duration-chrome) var(--ease-chrome),
@@ -184,6 +185,7 @@
   .rail-btn:hover {
     color: var(--color-text-primary);
     background: var(--color-control-hover);
+    opacity: 1;
   }
   .rail-btn:active {
     transform: scale(0.94);
@@ -193,6 +195,7 @@
   .rail-btn[aria-pressed='true'] {
     color: var(--color-chrome-active);
     background: var(--color-chrome-active-bg);
+    opacity: 1;
   }
   .rail-btn[aria-pressed='true']::before {
     content: '';
@@ -209,6 +212,9 @@
   .rail-btn.stowed {
     color: var(--color-text-secondary);
     opacity: 0.72;
+  }
+  .rail-btn :global(svg) {
+    stroke-width: 1.75;
   }
   .rail-btn.stowed::after {
     content: '';

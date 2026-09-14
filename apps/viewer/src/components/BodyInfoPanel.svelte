@@ -188,37 +188,37 @@
     {/snippet}
 
     {#if bodyEntry?.classification}
-      <div class="text-[10px] text-text-muted uppercase tracking-wider mb-2">{bodyEntry.classification}</div>
+      <div class="ui-meta mb-2">{bodyEntry.classification}</div>
     {/if}
 
     <!-- VIEW: camera-relative -->
-    <div class="text-[10px] text-text-muted uppercase tracking-wider mt-1 mb-1">View</div>
+    <div class="ui-section-label mt-1 mb-1">View</div>
     <div class="flex flex-col gap-0.5">
       <div class="flex justify-between gap-3">
         <span class="text-text-muted">Range</span>
-        <span class="font-mono text-text-primary">{formatDist(distance)}</span>
+        <span class="ui-readout">{formatDist(distance)}</span>
       </div>
       {#if altitude != null}
         <div class="flex justify-between gap-3">
           <span class="text-text-muted">Cam alt</span>
-          <span class="font-mono text-text-primary">{formatDist(altitude)}</span>
+          <span class="ui-readout">{formatDist(altitude)}</span>
         </div>
       {/if}
     </div>
 
     <!-- BODY: this body's height above its parent's surface (terrain primary, ref fallback) -->
     {#if bodyAltitudes.aboveTerrain != null || bodyAltitudes.aboveRef != null}
-      <div class="text-[10px] text-text-muted uppercase tracking-wider mt-2 mb-1 pt-2 border-t border-border">Body</div>
+      <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Body</div>
       <div class="flex flex-col gap-0.5">
         {#if bodyAltitudes.aboveTerrain != null}
           <div class="flex justify-between gap-3">
             <span class="text-text-muted">Above terrain</span>
-            <span class="font-mono text-text-primary">{formatDist(bodyAltitudes.aboveTerrain)}</span>
+            <span class="ui-readout">{formatDist(bodyAltitudes.aboveTerrain)}</span>
           </div>
         {:else if bodyAltitudes.aboveRef != null}
           <div class="flex justify-between gap-3">
             <span class="text-text-muted">Above ref</span>
-            <span class="font-mono text-text-primary">{formatDist(bodyAltitudes.aboveRef)}</span>
+            <span class="ui-readout">{formatDist(bodyAltitudes.aboveRef)}</span>
           </div>
         {/if}
       </div>
@@ -226,15 +226,15 @@
 
     <!-- ORBIT: this body's motion relative to its parent -->
     {#if stateInfo && bodyAltitudes.parentBmName}
-      <div class="text-[10px] text-text-muted uppercase tracking-wider mt-2 mb-1 pt-2 border-t border-border">Orbit</div>
+      <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">Orbit</div>
       <div class="flex flex-col gap-0.5">
         <div class="flex justify-between gap-3">
           <span class="text-text-muted">{bodyAltitudes.parentBmName} distance</span>
-          <span class="font-mono text-text-primary">{formatDist(stateInfo.range)}</span>
+          <span class="ui-readout">{formatDist(stateInfo.range)}</span>
         </div>
         <div class="flex justify-between gap-3">
           <span class="text-text-muted">Speed</span>
-          <span class="font-mono text-text-primary">{formatSpeed(stateInfo.speed)}</span>
+          <span class="ui-readout">{formatSpeed(stateInfo.speed)}</span>
         </div>
       </div>
     {/if}
@@ -242,20 +242,20 @@
     {#if speAngle != null}
       <div class="flex justify-between gap-3 mt-2 pt-2 border-t border-border">
         <span class="text-text-muted">SPE angle</span>
-        <span class="font-mono {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>
+        <span class="ui-readout {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>
       </div>
     {/if}
 
     <!-- Plugin-contributed info sections -->
     {#each pluginSections as section (section.id)}
       <div class="mt-2 pt-2 border-t border-border">
-        <div class="text-[10px] text-text-muted uppercase tracking-wider mb-1">{section.label}</div>
+        <div class="ui-section-label mb-1">{section.label}</div>
         {#if section.rows}
           <div class="flex flex-col gap-0.5">
             {#each section.rows as row}
               <div class="flex justify-between gap-3">
                 <span class="text-text-muted">{row.label}</span>
-                <span class="font-mono text-text-primary">{row.value}{#if row.unit}<span class="text-text-muted">{row.unit}</span>{/if}</span>
+                <span class="ui-readout">{row.value}{#if row.unit}<span class="text-text-muted">{row.unit}</span>{/if}</span>
               </div>
             {/each}
           </div>

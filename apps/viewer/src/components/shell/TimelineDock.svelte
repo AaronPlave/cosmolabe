@@ -164,7 +164,7 @@
     </div>
 
     {#if !secondaryHidden}
-      <span class="compact-hide min-w-16 shrink-0 text-center font-mono text-[11px] text-text-secondary">{vs.rateText}</span>
+      <span class="ui-readout compact-hide min-w-16 shrink-0 text-center text-text-secondary">{vs.rateText}</span>
     {/if}
 
     <div class="flex min-w-24 flex-1 items-center">
@@ -186,7 +186,7 @@
     </div>
 
     <Popover.Root bind:open={gotoTimeOpen} onOpenChange={onGotoOpen}>
-      <Popover.Trigger class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'text-[10px]' : 'text-[12px]'}">
+      <Popover.Trigger class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'compact-current' : ''}">
         {compact ? vs.timeText.replace(' UTC', '').slice(11) : vs.timeText}
       </Popover.Trigger>
       <Popover.Portal>
@@ -294,8 +294,12 @@
     background-size: 48px 100%;
   }
   :global(.current-time) {
+    font-size: var(--text-readout-strong);
     font-weight: 560;
     font-variant-numeric: tabular-nums slashed-zero;
+  }
+  :global(.current-time.compact-current) {
+    font-size: var(--text-metadata);
   }
   @media (max-width: 719px) {
     .compact-hide {

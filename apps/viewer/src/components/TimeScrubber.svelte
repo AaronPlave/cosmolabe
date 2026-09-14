@@ -296,6 +296,14 @@
     box-shadow: 0 0 5px rgba(255, 255, 255, 0.38);
   }
 
+  .track:hover .event-marker {
+    opacity: 0.68;
+  }
+
+  .track:hover .event-marker.selected {
+    opacity: 1;
+  }
+
   .scrubber-wrapper:focus-visible .track {
     border-color: rgba(110, 170, 255, 0.7);
   }

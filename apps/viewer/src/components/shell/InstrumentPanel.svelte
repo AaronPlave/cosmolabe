@@ -176,7 +176,7 @@
     onpointerdown={onHeaderPointerDown}
     ondblclick={() => key != null && toggleMinimized(key)}
   >
-    <h2 class="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-text-secondary">
+    <h2 class="panel-title min-w-0 flex-1 truncate font-semibold uppercase text-text-secondary">
       {title}
     </h2>
 
@@ -265,6 +265,11 @@
     border-color: var(--color-chrome-divider);
     background: var(--color-panel-header);
   }
+  .panel-title {
+    font-family: var(--font-sans);
+    font-size: var(--text-panel-title);
+    letter-spacing: 0.06em;
+  }
   .instrument-body {
     scrollbar-gutter: stable;
     padding: var(--space-ui-3) var(--space-ui-4);
@@ -280,7 +285,6 @@
     border-color: var(--color-border-default);
     border-radius: var(--radius-control);
     background: var(--color-control);
-    font-size: var(--text-interface);
     line-height: 1.2;
     transition:
       border-color var(--duration-chrome) var(--ease-chrome),
@@ -297,12 +301,17 @@
     cursor: default;
     opacity: 0.42;
   }
-  .instrument-body :global(select:not(.font-mono)),
-  .instrument-body :global(input:not([type='range']):not([type='checkbox']):not(.font-mono)),
+  .instrument-body :global(select:not(.font-mono):not(.ui-readout)),
+  .instrument-body :global(input:not([type='range']):not([type='checkbox']):not(.font-mono):not(.ui-readout)),
   .instrument-body :global(button:not(.font-mono)) {
     font-family: var(--font-sans);
     font-weight: 440;
-    font-size: var(--text-interface);
+    font-size: var(--text-control);
+  }
+  .instrument-body :global(input.ui-readout) {
+    font-family: var(--font-mono);
+    font-size: var(--text-readout);
+    font-variant-numeric: tabular-nums slashed-zero;
   }
   @keyframes instrument-in {
     from { opacity: 0; transform: translateY(-2px); }
@@ -334,7 +343,8 @@
     border: none;
     border-radius: 4px;
     background: none;
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
+    opacity: 0.62;
     cursor: pointer;
     transition:
       color var(--duration-chrome) var(--ease-chrome),
@@ -344,10 +354,14 @@
   .panel-btn:hover {
     color: var(--color-text-primary);
     background: var(--color-control-hover);
+    opacity: 1;
   }
   .panel-btn:active {
     transform: translateY(1px);
     background: var(--color-control-pressed);
+  }
+  .panel-btn :global(svg) {
+    stroke-width: 1.75;
   }
 
   .grip {
