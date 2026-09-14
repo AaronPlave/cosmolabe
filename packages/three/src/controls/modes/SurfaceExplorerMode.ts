@@ -465,16 +465,11 @@ export class SurfaceExplorerMode implements ICameraMode {
 
     if (!hit) { this.hasPivot = false; return; }
 
-    // Store pivot as body-fixed ECEF (geometry Y-up) in km.
-    // pickSurface returns geocentric lat/lon/alt (spherical). Convert directly
-    // to Cartesian — no geodetic formulas, no ellipsoid-vs-sphere mismatch.
-    const latRad = hit.latDeg * Math.PI / 180;
-    const lonRad = hit.lonDeg * Math.PI / 180;
-    const r = this.re + hit.altKm; // spherical radius at hit point
-    const cosLat = Math.cos(latRad);
-    const ecefX = r * cosLat * Math.cos(lonRad);
-    const ecefY = r * cosLat * Math.sin(lonRad);
-    const ecefZ = r * Math.sin(latRad);
+    // Orbit around the exact rendered raycast intersection. The reported
+    // lat/lon and altitude describe the CPU terrain sample and are deliberately
+    // not another point on the ray; reconstructing Cartesian coordinates from
+    // them causes visible parallax near the surface.
+    const [ecefX, ecefY, ecefZ] = hit.bodyFixedHitKm;
     // ECEF Z-up → geometry Y-up
     this.pivotBodyFixed.set(ecefX, ecefZ, -ecefY);
     this.hasPivot = true;

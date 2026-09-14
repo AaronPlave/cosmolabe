@@ -3,7 +3,14 @@ import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls
 import { KeyboardControls } from './KeyboardControls.js';
 import type { KeyboardControlsConfig } from './KeyboardControls.js';
 import type { BodyMesh } from '../BodyMesh.js';
-import { CameraModeName, type ICameraMode, type CameraModeContext, type CameraModeParams, type CameraModeSpice } from './CameraModes.js';
+import {
+  CameraModeName,
+  type ICameraMode,
+  type CameraModeContext,
+  type CameraModeParams,
+  type CameraModeSpice,
+  type CameraSurfacePickResult,
+} from './CameraModes.js';
 import { FreeOrbitMode } from './modes/FreeOrbitMode.js';
 import { ScFixedMode } from './modes/ScFixedMode.js';
 import { BodyFixedMode } from './modes/BodyFixedMode.js';
@@ -544,7 +551,7 @@ export class CameraController {
     et: number,
     scaleFactor: number,
     bodyMeshes: Map<string, BodyMesh>,
-    pickSurface?: (ndcX: number, ndcY: number) => { bodyName: string; latDeg: number; lonDeg: number; altKm: number } | null,
+    pickSurface?: (ndcX: number, ndcY: number) => CameraSurfacePickResult | null,
     markerScene?: THREE.Scene,
   ): void {
     if (!this._modeCtx) {
