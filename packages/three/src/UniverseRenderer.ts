@@ -13,6 +13,7 @@ import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js'
 import { SensorFrustum } from './SensorFrustum.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { EventMarkers } from './EventMarkers.js';
+import { OccultationGeometry } from './OccultationGeometry.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { StarField, type StarFieldOptions } from './StarField.js';
@@ -124,6 +125,7 @@ export class UniverseRenderer {
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
   private readonly ringMeshes = new Map<string, { ring: RingMesh; parentName: string }>();
   private readonly eventMarkerGroups = new Map<string, EventMarkers>();
+  private _occultationGeometry: OccultationGeometry | null = null;
   private readonly atmosphereMeshes = new Map<string, { atm: AtmosphereMesh; parentName: string }>();
   /** One AP uniform set per atmosphere body, shared between body sphere + terrain materials. */
   private readonly aerialPerspectiveUniforms = new Map<string, AerialPerspectiveUniforms>();
@@ -526,6 +528,8 @@ export class UniverseRenderer {
         bm.applyMeshScale(this.scaleFactor);
       }
     }
+
+    this._occultationGeometry?.update(et);
 
     // Clamp surface-locked bodies (rovers, landers) to the parent's terrain surface.
     // The body's SPICE trajectory gives the surface position, but ellipsoid-vs-sphere
@@ -1066,6 +1070,40 @@ export class UniverseRenderer {
 
   getBodyMesh(name: string): BodyMesh | undefined {
     return this.bodyMeshes.get(name);
+  }
+
+  /** Show or clear the selected event's observer/occulter/background geometry. */
+  setOccultationGeometry(
+    event: {
+      observer: string;
+      front: string;
+      back: string;
+      state?: string;
+      startEt: number;
+      endEt: number;
+    } | null,
+  ): boolean {
+    if (this._occultationGeometry) {
+      this.scene.remove(this._occultationGeometry);
+      this._occultationGeometry.dispose();
+      this._occultationGeometry = null;
+    }
+    if (!event) return true;
+
+    const observer = this.bodyMeshes.get(event.observer);
+    const front = this.bodyMeshes.get(event.front);
+    const back = this.bodyMeshes.get(event.back);
+    if (!observer || !front || !back) return false;
+    this._occultationGeometry = new OccultationGeometry({
+      observer,
+      front,
+      back,
+      state: event.state,
+      startEt: event.startEt,
+      endEt: event.endEt,
+    });
+    this.scene.add(this._occultationGeometry);
+    return true;
   }
 
   /**
@@ -2009,6 +2047,7 @@ export class UniverseRenderer {
     for (const tl of this.trajectoryLines.values()) tl.dispose();
     for (const sf of this.sensorFrustums.values()) sf.dispose();
     for (const em of this.eventMarkerGroups.values()) em.dispose();
+    this.setOccultationGeometry(null);
     this.starField?.dispose();
     this.labelManager?.dispose();
     this.instrumentView?.dispose();

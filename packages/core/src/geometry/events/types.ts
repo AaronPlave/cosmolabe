@@ -137,6 +137,8 @@ interface GeometryEventBase {
   bodies: EventParticipants;
   /** Short human label, e.g. "Europa closest approach". */
   label: string;
+  /** Kind-defined categorical state, e.g. partial/full/annular occultation. */
+  state?: string;
   metrics?: EventMetric[];
   /**
    * The role whose body selecting this event should select outright.

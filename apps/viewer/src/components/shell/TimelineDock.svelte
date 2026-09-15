@@ -21,9 +21,9 @@
   import { shell, setTimelineDepth } from '../../lib/shell.svelte';
   import { formatDuration } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
-  import { ef } from '../../lib/event-finder.svelte';
+  import { ef, selectEvent, syncOccultationGeometryAtTime } from '../../lib/event-finder.svelte';
   import { visibleTimelineEvents } from '../../lib/analysis.svelte';
-  import { eventFraction } from '../../lib/event-query';
+  import { activeEventAtTime, eventTimelineFractions } from '../../lib/event-query';
   import {
     ChevronsLeft, ChevronLeft, Rewind, Play, Pause,
     ChevronRight, ChevronsRight, ChevronUp, ChevronDown,
@@ -77,17 +77,37 @@
   let viewportEnd = $derived(baseRange > 0 ? (vs.scrubMax - vs.scrubBaseMin) / baseRange : 1);
   let globalPlayhead = $derived(baseRange > 0 ? (vs.et - vs.scrubBaseMin) / baseRange : 0.5);
 
+  // A clicked result is navigation/detail state. The 3D explanatory overlay
+  // follows whichever enabled occultation the shared playhead is actually in,
+  // so scrubbing and playback reveal cached events without extra clicks.
+  $effect(() => {
+    syncOccultationGeometryAtTime();
+  });
+
+  let playheadEventId = $derived(
+    activeEventAtTime(visibleTimelineEvents(), vs.et, ef.selectedId)?.id ?? null,
+  );
+
   // Event finder results as scrubber ticks, on the zoomed range the track
   // actually draws. Events outside it are dropped rather than clamped to an
   // edge, where they would read as happening at a time they do not.
   let eventMarkers = $derived(
     visibleTimelineEvents()
-      .map((event) => ({
-        fraction: eventFraction(event, { start: vs.scrubMin, end: vs.scrubMax }),
-        selected: ef.selectedId === event.id,
-        title: event.label,
-      }))
-      .filter((m): m is { fraction: number; selected: boolean; title: string } => m.fraction != null),
+      .map((event) => {
+        const span = eventTimelineFractions(event, { start: vs.scrubMin, end: vs.scrubMax });
+        if (!span) return null;
+        return {
+          fraction: span.start,
+          endFraction: span.end,
+          selected: ef.selectedId === event.id,
+          active: playheadEventId === event.id,
+          title: event.label,
+          kind: event.kind,
+          state: event.state,
+          onSelect: () => selectEvent(event),
+        };
+      })
+      .filter((marker) => marker != null),
   );
 
   let rangeLabel = $derived(isZoomed ? formatDuration(currentRange) : '');

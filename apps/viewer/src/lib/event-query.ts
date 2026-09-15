@@ -26,6 +26,7 @@ import {
   compareEvents,
   defaultParams,
   eventDuration,
+  eventEnd,
   eventStart,
   isIntervalEvent,
 } from '@cosmolabe/core';
@@ -258,4 +259,48 @@ export function eventFraction(event: GeometryEvent, range: EtInterval): number |
   if (!(span > 0)) return null;
   const fraction = (eventStart(event) - range.start) / span;
   return fraction < 0 || fraction > 1 ? null : fraction;
+}
+
+/** Visible start/end fractions for drawing an event on the shared timeline. */
+export function eventTimelineFractions(
+  event: GeometryEvent,
+  range: EtInterval,
+): { start: number; end: number } | null {
+  const span = range.end - range.start;
+  if (!(span > 0)) return null;
+  const startEt = eventStart(event);
+  const endEt = eventEnd(event);
+  if (endEt < range.start || startEt > range.end) return null;
+  return {
+    start: Math.max(0, (startEt - range.start) / span),
+    end: Math.min(1, (endEt - range.start) / span),
+  };
+}
+
+/** Whether the live playhead is inside an event's inclusive time span. */
+export function eventContainsTime(event: GeometryEvent, et: number): boolean {
+  return Number.isFinite(et) && et >= eventStart(event) && et <= eventEnd(event);
+}
+
+/**
+ * The event the playhead is currently traversing.
+ *
+ * An explicit selection wins only when it is one of the active intervals. If
+ * several unselected intervals overlap, the shortest is the most specific
+ * description of what is happening at that instant; chronological order and
+ * id keep the result deterministic after that.
+ */
+export function activeEventAtTime(
+  events: readonly GeometryEvent[],
+  et: number,
+  preferredId?: string | null,
+): GeometryEvent | undefined {
+  const active = events.filter((event) => eventContainsTime(event, et));
+  const preferred = active.find((event) => event.id === preferredId);
+  if (preferred) return preferred;
+  return active.sort((a, b) =>
+    eventDuration(a) - eventDuration(b)
+    || compareEvents(a, b)
+    || a.id.localeCompare(b.id)
+  )[0];
 }

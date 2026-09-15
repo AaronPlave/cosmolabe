@@ -19,6 +19,7 @@ describe('cspice-wasm gfoclt occultation vs occult', () => {
   let et0: number;
   let et1: number;
   let intervals: [number, number][];
+  let classified: Record<'PARTIAL' | 'FULL' | 'ANNULAR', [number, number][]>;
 
   // Sun occulted by Saturn from Cassini. occult requires a non-blank frame even for
   // a POINT target (where it is unused), so J2000 is passed for the Sun point.
@@ -51,6 +52,20 @@ describe('cspice-wasm gfoclt occultation vs occult', () => {
       et0,
       et1,
     );
+    classified = {
+      PARTIAL: await spice.gfoclt(
+        'PARTIAL', 'SATURN', 'ELLIPSOID', 'IAU_SATURN',
+        'SUN', 'ELLIPSOID', 'IAU_SUN', 'LT', CASSINI, 10, et0, et1,
+      ),
+      FULL: await spice.gfoclt(
+        'FULL', 'SATURN', 'ELLIPSOID', 'IAU_SATURN',
+        'SUN', 'ELLIPSOID', 'IAU_SUN', 'LT', CASSINI, 10, et0, et1,
+      ),
+      ANNULAR: await spice.gfoclt(
+        'ANNULAR', 'SATURN', 'ELLIPSOID', 'IAU_SATURN',
+        'SUN', 'ELLIPSOID', 'IAU_SUN', 'LT', CASSINI, 10, et0, et1,
+      ),
+    };
   });
 
   it('finds at least one occultation interval, ordered within the window', () => {
@@ -93,5 +108,23 @@ describe('cspice-wasm gfoclt occultation vs occult', () => {
     expect(await eclipse(s + 60)).toBeLessThan(0);
     expect(await eclipse(e - 60)).toBeLessThan(0);
     if (s - 60 > et0) expect(await eclipse(s - 60)).toBe(0);
+  });
+
+  it('classifies eclipse intervals and preserves each GFOCLT boundary', async () => {
+    expect(classified.PARTIAL.length).toBeGreaterThan(0);
+    expect(classified.FULL.length).toBeGreaterThan(0);
+
+    const expectedCode = { PARTIAL: -1, FULL: -3, ANNULAR: -2 } as const;
+    for (const state of ['PARTIAL', 'FULL', 'ANNULAR'] as const) {
+      for (const [start, end] of classified[state]) {
+        expect(end).toBeGreaterThan(start);
+        const code = await spice.occult(
+          'SUN', 'ELLIPSOID', 'IAU_SUN',
+          'SATURN', 'ELLIPSOID', 'IAU_SATURN',
+          'LT', CASSINI, (start + end) / 2,
+        );
+        expect(code).toBe(expectedCode[state]);
+      }
+    }
   });
 });

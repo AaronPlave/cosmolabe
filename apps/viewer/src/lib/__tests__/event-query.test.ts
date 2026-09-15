@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { closestApproachKind, distanceRangeKind, type EventKind, type GeometryEvent } from '@cosmolabe/core';
 import {
   buildQuery,
+  activeEventAtTime,
+  eventContainsTime,
   eventFraction,
+  eventTimelineFractions,
   headlineMetric,
   sortEvents,
   sortMetricLabel,
@@ -247,5 +250,42 @@ describe('timeline placement', () => {
     expect(eventFraction(event, { start: 300, end: 1000 })).toBeNull();
     expect(eventFraction(event, { start: 0, end: 100 })).toBeNull();
     expect(eventFraction(event, { start: 5, end: 5 })).toBeNull();
+  });
+
+  it('draws and clips interval events as spans', () => {
+    const interval: GeometryEvent = {
+      ...event,
+      temporality: 'interval',
+      start: 100,
+      end: 600,
+    };
+    expect(eventTimelineFractions(interval, { start: 0, end: 1000 }))
+      .toEqual({ start: 0.1, end: 0.6 });
+    expect(eventTimelineFractions(interval, { start: 200, end: 400 }))
+      .toEqual({ start: 0, end: 1 });
+    expect(eventTimelineFractions(interval, { start: 700, end: 900 })).toBeNull();
+  });
+
+  it('finds the event under the playhead without requiring selection', () => {
+    const wide: GeometryEvent = {
+      ...event,
+      id: 'wide',
+      temporality: 'interval',
+      start: 100,
+      end: 600,
+    };
+    const narrow: GeometryEvent = {
+      ...wide,
+      id: 'narrow',
+      start: 200,
+      end: 300,
+    };
+
+    expect(eventContainsTime(wide, 100)).toBe(true);
+    expect(eventContainsTime(wide, 600)).toBe(true);
+    expect(eventContainsTime(wide, 601)).toBe(false);
+    expect(activeEventAtTime([wide, narrow], 250)?.id).toBe('narrow');
+    expect(activeEventAtTime([wide, narrow], 250, 'wide')?.id).toBe('wide');
+    expect(activeEventAtTime([wide, narrow], 700)).toBeUndefined();
   });
 });

@@ -22,7 +22,7 @@ re-exported from the package root.
 | `EventQuery` | What to search for: kind, bodies by role, time window, step, aberration correction, kind-specific `params`. |
 | `GeometryEvent` | What was found: an `InstantEvent` or an `IntervalEvent`, carrying the bodies involved, a label, and display `metrics`. |
 | `EventKind` | How one kind of search maps its roles and params onto GF calls and events. The only per-kind code. |
-| `closestApproachKind`, `distanceRangeKind` | The kinds that ship today, both over `gfdist`. |
+| `closestApproachKind`, `distanceRangeKind`, `occultationKind` | The kinds that ship today, over `gfdist` and `gfoclt`. |
 | `EventKindRegistry` | The set of searches the application offers. Drives the "what can I search for?" picker. |
 | `EventSearch` | Validates, applies kind defaults, dispatches, sorts, and converts thrown errors into structured faults. |
 | `GeometryFinderProvider` | The boundary to SPICE GF. Above it is Cosmolabe's; below it is CSPICE's. |
@@ -152,6 +152,31 @@ For drawing, `eventTimelineSpan(event, minWidth)` widens instants and very
 brief intervals so they stay clickable at a coarse zoom, `eventOverlaps` is the
 culling predicate, and `eventNearest` answers "what is happening now?".
 
+The viewer draws interval results as selectable spans on that shared axis. A
+selected solar eclipse uses the renderer's existing analytical eclipse-shadow
+system for surface lighting and adds an explanatory observer sightline plus
+spherical-body umbra/penumbra tangent boundaries. GFOCLT remains authoritative
+for the event and its ellipsoid-based classification; the overlay is exact for
+spheres and an explanatory approximation for oblate bodies. A non-solar
+occultation draws the foreground body's observer-relative apparent tangent cone
+instead of incorrectly presenting the alignment as a physical shadow. The
+volumes use translucent surfaces, smooth boundary rings, and sparse tangent
+guides; they remain to scale, so the penumbra can legitimately sit almost on
+the umbra when the observer is close to an occulter far from the Sun. This is
+selected-event geometry, not a persistent shadow-display mode: the selection
+remains intact when the user scrubs elsewhere, but its overlay is visible only
+while the playhead is inside that event's interval. Enabled cached occultation
+results also become the active overlay automatically when playback or scrubbing
+enters their interval. Selection remains navigation/detail state and only
+breaks ties if active intervals overlap; it is not a visibility gate.
+
+For a non-solar occultation, the tangent construction begins at the observer
+because apparent size is viewpoint-dependent. Only the guide rays occupy the
+observer-to-foreground span; the shaded occulted region begins at the
+foreground body's exact tangency ring and continues toward the hidden
+background body. Umbra and penumbra colors describe those physical regions and
+do not change with the selected event's partial/full/annular classification.
+
 ## The SPICE boundary
 
 `GeometryFinderProvider` exposes `gfdist`, `gfsep`, `gfoclt`, `gfposc`, and one
@@ -217,12 +242,15 @@ nothing off-thread that the main thread would have found.
 
 ## The kinds that ship
 
-Two, both over `gfdist`, both `observer`/`target`:
+Three kinds ship. Closest approach and distance/range use `gfdist` with
+`observer`/`target`; eclipse/occultation uses `gfoclt` with
+`observer`/`front`/`back`:
 
 | Kind | Yields | Params |
 | --- | --- | --- |
 | `closest-approach` | Instants — GF's own `LOCMIN`/`ABSMIN` distance extrema, refined by CSPICE rather than sampled in the UI. | `scope` (every local minimum, or the deepest), `maxRangeKm` (optional filter). |
 | `distance-range` | Intervals for `<`/`>`, instants for `=`. | `relation`, `distanceKm`. |
+| `occultation` | Classified partial, full, and annular intervals from `GFOCLT`; using the Sun as `back` gives eclipse/shadow windows. | `state` (all classified states, or one state). |
 
 A closest approach carries the range at the instant. A range window carries its
 threshold, its duration, and the extreme range *inside* it — the endpoints sit
@@ -230,9 +258,8 @@ on the threshold by construction, so the interesting number is how close it got
 (or how far it went), found with one nested extremum search. All three distance
 metrics need the provider's `range`; without it the events still list.
 
-Everything from #58 — occultation, eclipse, FOV access, phase angle,
-latitude/longitude crossings, shadow — is a further row in that table, not a
-further subsystem.
+FOV access, phase angle, and latitude/longitude crossings are further rows in
+that table, not further subsystems.
 
 ## Adding a kind
 
