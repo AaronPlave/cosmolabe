@@ -345,7 +345,13 @@ function syncWindowToBodies() {
 /** Builds the form for the current kind, carrying over what still applies. */
 export function resetForm() {
   const previous = ef.form ?? undefined;
-  ef.form = formForKind(currentKind(), defaultWindow(previous?.bodies), previous);
+  // A user-chosen time range is independent of event type. Preserve it when
+  // switching kinds; automatic windows are re-derived so kind-specific limits
+  // (such as occultation's shorter practical span) still take effect.
+  const window = ef.windowPinned && previous
+    ? { start: previous.startEt, end: previous.endEt }
+    : defaultWindow(previous?.bodies);
+  ef.form = formForKind(currentKind(), window, previous);
   syncWindowToBodies();
   syncConfiguredQuery();
 }
