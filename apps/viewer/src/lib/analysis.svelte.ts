@@ -55,6 +55,7 @@ export function configuredItem(id: string): ConfiguredAnalysisItem | undefined {
 export function createConfiguredEventQuery(
   query: EventQueryConfiguration,
   label: string,
+  windowMode: ConfiguredEventQuery['windowMode'] = 'automatic',
 ): ConfiguredEventQuery {
   const item: ConfiguredEventQuery = {
     id: `event-query-${++itemSequence}`,
@@ -63,6 +64,7 @@ export function createConfiguredEventQuery(
     enabled: true,
     visible: true,
     query,
+    windowMode,
   };
   analysis.items.push(item);
   return item;
@@ -89,11 +91,13 @@ export function updateConfiguredEventQuery(
   id: string,
   query: EventQueryConfiguration,
   label?: string,
+  windowMode?: ConfiguredEventQuery['windowMode'],
 ): ConfiguredEventQuery | undefined {
   const item = configuredItem(id);
   if (!item || item.type !== 'event-query') return undefined;
   item.query = query;
   if (label !== undefined) item.label = label;
+  if (windowMode !== undefined) item.windowMode = windowMode;
   return item;
 }
 

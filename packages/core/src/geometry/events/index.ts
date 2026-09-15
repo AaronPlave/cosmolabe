@@ -36,12 +36,18 @@ export { cspiceWasmGeometryFinder } from './provider.js';
 export type { EventKind, EventKindContext, ResolvedEventQuery } from './registry.js';
 export { EventKindRegistry, defaultParams, requiredRoles } from './registry.js';
 
-export type { ClosestApproachParams, DistanceRangeParams } from './kinds/index.js';
+export type {
+  ClosestApproachParams,
+  DistanceRangeParams,
+  OccultationParams,
+  OccultationState,
+} from './kinds/index.js';
 export {
   BUILTIN_EVENT_KINDS,
   builtinEventKinds,
   closestApproachKind,
   distanceRangeKind,
+  occultationKind,
   rangeAt,
   rangeExtremum,
   rangeMetric,

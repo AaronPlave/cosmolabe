@@ -8,7 +8,7 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
-  import { Loader2, Search, Ban } from 'lucide-svelte';
+  import { Loader2, Search, Ban, Plus } from 'lucide-svelte';
   import * as Select from '$lib/components/ui/select/index.js';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
   import { vs, etToUtcString } from '../lib/viewer-state.svelte';
@@ -19,10 +19,12 @@
     EVENT_KINDS, cancelSearch, ef, clearSelection, currentKind, resetForm, runSearch,
     selectEvent, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
     currentConfiguredQuery, setCurrentQueryVisible,
+    configuredEventQueries, createNewSearch, openConfiguredQuery,
+    setConfiguredQueryEnabled, setConfiguredQueryVisible,
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, headlineMetric, missingRoles,
-    sortEvents, sortMetricLabel,
+    eventContainsTime, sortEvents, sortMetricLabel,
   } from '../lib/event-query';
 
   interface Props {
@@ -44,6 +46,7 @@
   let metricSortLabel = $derived(sortMetricLabel(ef.events));
   let unfilledRoles = $derived(form ? missingRoles(kind, form) : []);
   let configured = $derived(currentConfiguredQuery());
+  let configuredQueries = $derived(configuredEventQueries());
   let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running);
   const eventKindItems = EVENT_KINDS.map(({ kind, label }) => ({ value: kind, label }));
 
@@ -104,6 +107,10 @@
   /** Metrics worth a second line under a result, in the kind's own order. */
   function detailMetrics(event: GeometryEvent) {
     return (event.metrics ?? []).filter((m) => m.key !== 'duration');
+  }
+
+  function roleLabel(role: string): string {
+    return kind.roles.find((spec) => spec.role === role)?.label ?? role;
   }
 </script>
 
@@ -275,8 +282,17 @@
     </div>
 
     {#if configured}
-      <div class="mt-1.5 flex items-center ui-helper">
-        <label class="flex items-center gap-1 cursor-pointer" title="Show this query's results on the shared timeline">
+      <div class="mt-1.5 flex items-center gap-3 ui-helper">
+        <label class="flex items-center gap-1 cursor-pointer" title="Include this configured event category in analysis">
+          <input
+            type="checkbox"
+            class="accent-accent"
+            checked={configured.enabled}
+            onchange={(e) => setConfiguredQueryEnabled(configured.id, (e.target as HTMLInputElement).checked)}
+          />
+          Enabled
+        </label>
+        <label class="flex items-center gap-1 cursor-pointer" title="Show this category's cached results on the shared timeline">
           <input
             type="checkbox"
             class="accent-accent"
@@ -293,6 +309,38 @@
         Choose a body for {kind.roles.filter((r) => unfilledRoles.includes(r.role)).map((r) => r.label.toLowerCase()).join(' and ')}.
       </div>
     {/if}
+  {/if}
+
+  {#if configuredQueries.length > 1}
+    <div class="mt-2 pt-2 border-t border-border">
+      <div class="flex items-center justify-between gap-2 mb-1">
+        <span class="ui-section-label">Event categories</span>
+        <button class="ctrl-link flex items-center gap-0.5" onclick={createNewSearch}>
+          <Plus size={10} /> New
+        </button>
+      </div>
+      <div class="flex flex-col gap-0.5">
+        {#each configuredQueries as query (query.id)}
+          <div class="configured-query flex items-center gap-1 rounded px-1.5 py-1" class:active={query.id === ef.configuredId}>
+            <button class="min-w-0 flex-1 truncate text-left ui-helper" onclick={() => openConfiguredQuery(query.id)} title={query.label}>
+              {query.label}
+            </button>
+            <label title="Enabled in analysis" class="ui-meta flex items-center gap-0.5 cursor-pointer">
+              <input type="checkbox" checked={query.enabled} onchange={(e) => setConfiguredQueryEnabled(query.id, (e.target as HTMLInputElement).checked)} /> on
+            </label>
+            <label title="Visible on timeline" class="ui-meta flex items-center gap-0.5 cursor-pointer">
+              <input type="checkbox" checked={query.visible} onchange={(e) => setConfiguredQueryVisible(query.id, (e.target as HTMLInputElement).checked)} /> time
+            </label>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {:else if configuredQueries.length === 1 && ef.searched}
+    <div class="mt-1 flex justify-end">
+      <button class="ctrl-link flex items-center gap-0.5" onclick={createNewSearch}>
+        <Plus size={10} /> Add event category
+      </button>
+    </div>
   {/if}
 
   <!-- Results -->
@@ -338,9 +386,11 @@
       <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
         {#each shownEvents as event}
           {@const headline = headlineMetric(event)}
+          {@const atPlayhead = eventContainsTime(event, vs.et)}
           <button
             class="event-result text-left rounded px-2 py-2 border cursor-pointer"
             class:selected={ef.selectedId === event.id}
+            class:at-playhead={atPlayhead}
             onclick={() => selectEvent(event)}
             title={event.label}
           >
@@ -348,13 +398,16 @@
               <span class="ui-readout event-time">{eventTime(event)}</span>
               <!-- A bare "2.5 d" beside a date reads as an offset from it.
                    Say which quantity it is. -->
-              <span
-                class="ui-meta"
-                title={isIntervalEvent(event)
-                  ? 'How long this event lasted, start to end'
-                  : 'This event is a single instant, not a span'}
-              >
-                {isIntervalEvent(event) ? `lasts ${formatSeconds(eventDuration(event))}` : 'instant'}
+              <span class="flex items-center gap-1.5">
+                {#if atPlayhead}<span class="ui-meta event-now">at playhead</span>{/if}
+                <span
+                  class="ui-meta"
+                  title={isIntervalEvent(event)
+                    ? 'How long this event lasted, start to end'
+                    : 'This event is a single instant, not a span'}
+                >
+                  {isIntervalEvent(event) ? `lasts ${formatSeconds(eventDuration(event))}` : 'instant'}
+                </span>
               </span>
             </div>
             {#if headline}
@@ -367,7 +420,37 @@
             {/if}
             {#if ef.selectedId === event.id}
               <div class="mt-1 flex flex-col gap-0.5">
-                {#if detailMetrics(event).length === 0}
+                {#if event.state}
+                  <div class="ui-data-row">
+                    <span class="ui-label">State</span>
+                    <span class="ui-readout capitalize">{event.state}</span>
+                  </div>
+                {/if}
+                {#if event.kind === 'occultation' && ef.activeId === event.id}
+                  <div class="geometry-legend ui-helper" aria-label="3D geometry legend">
+                    <span><i class="legend-line sightline"></i>{event.bodies.back?.toLowerCase() === 'sun' ? 'Observer sightline' : 'Background line of sight'}</span>
+                    {#if event.bodies.back?.toLowerCase() === 'sun'}
+                      <span><i class="legend-fill inner-shadow"></i>Umbra / antumbra boundary</span>
+                      <span><i class="legend-line penumbra"></i>Penumbra boundary</span>
+                      <small>End rings are shadow cross-sections at the {event.bodies.observer} plane; volumes are to scale.</small>
+                    {:else}
+                      <span><i class="legend-line tangent-guide"></i>Tangent guides</span>
+                      <span><i class="legend-fill inner-shadow"></i>Occulted region</span>
+                      <small>Guides converge at {event.bodies.observer}; shading begins where they touch the {event.bodies.front} limb.</small>
+                    {/if}
+                  </div>
+                {:else if event.kind === 'occultation'}
+                  <div class="geometry-standby ui-helper">
+                    3D geometry follows the event under the playhead.
+                  </div>
+                {/if}
+                {#each Object.entries(event.bodies) as [role, body]}
+                  <div class="ui-data-row">
+                    <span class="ui-label">{roleLabel(role)}</span>
+                    <span class="ui-readout">{body}</span>
+                  </div>
+                {/each}
+                {#if !event.metrics?.length}
                   <!-- A closest approach with no range is a thin answer; say the
                        measurement is missing rather than showing a blank. -->
                   <div class="ui-helper">
@@ -387,7 +470,21 @@
                   </div>
                   <div class="ui-data-row">
                     <span class="ui-label">Ends</span>
-                    <span class="ui-readout">{etToUtcString(event.end).replace(' UTC', '')}</span>
+                    <span
+                      class="ctrl-link ui-readout"
+                      role="button"
+                      tabindex="0"
+                      onclick={(click) => { click.stopPropagation(); selectEvent(event, 'end'); }}
+                      onkeydown={(key) => {
+                        if (key.key === 'Enter' || key.key === ' ') {
+                          key.preventDefault();
+                          key.stopPropagation();
+                          selectEvent(event, 'end');
+                        }
+                      }}
+                    >
+                      {etToUtcString(event.end).replace(' UTC', '')}
+                    </span>
                   </div>
                 {/if}
               </div>
@@ -414,6 +511,14 @@
     color: var(--color-text-primary);
   }
 
+  .configured-query {
+    border: 1px solid transparent;
+  }
+  .configured-query.active {
+    border-color: var(--color-chrome-active-border);
+    background: var(--color-chrome-active-bg);
+  }
+
   .event-result {
     border-color: transparent;
     background: transparent;
@@ -430,6 +535,17 @@
   .event-result.selected {
     border-color: color-mix(in srgb, var(--color-event-accent) 52%, transparent);
     background: color-mix(in srgb, var(--color-event-accent) 8%, transparent);
+  }
+  .event-result.at-playhead {
+    box-shadow: inset 2px 0 0 var(--color-event-accent);
+  }
+  .event-now {
+    color: var(--color-event-accent);
+  }
+  .geometry-standby {
+    margin: 3px 0 2px;
+    padding: 4px 6px;
+    border-left: 1px solid color-mix(in srgb, var(--color-event-accent) 52%, transparent);
   }
   .event-summary {
     margin-top: 1px;
@@ -453,6 +569,41 @@
   }
   .event-helper .ctrl-link {
     font-size: inherit;
+  }
+  .geometry-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 10px;
+    margin: 3px 0 2px;
+    padding: 5px 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
+  }
+  .geometry-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .geometry-legend small {
+    flex-basis: 100%;
+    color: var(--color-text-faint);
+    font-size: inherit;
+    line-height: 1.3;
+  }
+  .legend-line,
+  .legend-fill {
+    display: inline-block;
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+  }
+  .legend-line.sightline { background: #7cc7e8; }
+  .legend-line.penumbra { background: #e0a84c; }
+  .legend-line.tangent-guide { background: #8c72d8; }
+  .legend-fill.inner-shadow {
+    height: 7px;
+    border: 1px solid #8c72d8;
+    background: color-mix(in srgb, #8c72d8 22%, transparent);
   }
   :global(.event-kind-option:is(:focus, [data-highlighted])) {
     background: var(--color-control-hover);

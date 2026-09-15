@@ -5,6 +5,7 @@ import {
   closestApproachKind,
   defaultParams,
   distanceRangeKind,
+  occultationKind,
   eventBodies,
   focusForEvent,
   isIntervalEvent,
@@ -23,6 +24,7 @@ import {
  */
 function provider(options: {
   windows?: Record<string, EtInterval[]>;
+  occultationWindows?: Record<string, EtInterval[]>;
   /** Omit to build a provider that cannot measure range. */
   range?: (target: string, observer: string, et: number) => number;
 } = {}) {
@@ -37,7 +39,10 @@ function provider(options: {
       return options.windows?.[relate] ?? [];
     },
     gfsep: async () => [],
-    gfoclt: async () => [],
+    gfoclt: async (...args: unknown[]) => {
+      calls.push({ fn: 'gfoclt', args });
+      return options.occultationWindows?.[String(args[0])] ?? [];
+    },
     gfposc: async () => [],
   };
 
@@ -61,7 +66,11 @@ function searchOver(p: GeometryFinderProvider) {
 describe('built-in event kinds', () => {
   it('registers both kinds under the names queries use', () => {
     const registry = builtinEventKinds();
-    expect(registry.list().map((k) => k.kind)).toEqual(['closest-approach', 'distance-range']);
+    expect(registry.list().map((k) => k.kind)).toEqual([
+      'closest-approach',
+      'distance-range',
+      'occultation',
+    ]);
     expect(registry.get('closest-approach')?.label).toBe('Closest approach');
   });
 
@@ -75,6 +84,80 @@ describe('built-in event kinds', () => {
     expect(closestApproachKind.params?.map((p) => p.key)).toEqual(['scope', 'maxRangeKm']);
     expect(defaultParams(closestApproachKind)).toEqual({ scope: 'local' });
     expect(defaultParams(distanceRangeKind)).toEqual({ relation: '<', distanceKm: 1_000_000 });
+    expect(defaultParams(occultationKind)).toEqual({ state: 'all' });
+  });
+});
+
+describe('eclipse / occultation', () => {
+  it('uses GFOCLT and preserves deterministic interval boundaries and classification', async () => {
+    const p = provider({
+      occultationWindows: {
+        PARTIAL: [{ start: 100, end: 160 }],
+        FULL: [{ start: 160, end: 220 }],
+        ANNULAR: [{ start: 500, end: 530 }],
+      },
+    });
+
+    const result = await searchOver(p).run({
+      id: 'eclipse-1',
+      kind: 'occultation',
+      bodies: { observer: 'CASSINI', back: 'SUN', front: 'SATURN' },
+      window: WINDOW,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(p.calls.filter((call) => call.fn === 'gfoclt').map((call) => call.args[0]))
+      .toEqual(['PARTIAL', 'FULL', 'ANNULAR']);
+    expect(p.calls[0].args).toEqual([
+      'PARTIAL', 'SATURN', 'ELLIPSOID', 'IAU_SATURN',
+      'SUN', 'ELLIPSOID', 'IAU_SUN', 'LT', 'CASSINI', 10, [WINDOW],
+    ]);
+    expect(result.events.map((event) => ({
+      state: event.state,
+      start: isIntervalEvent(event) ? event.start : NaN,
+      end: isIntervalEvent(event) ? event.end : NaN,
+      duration: event.metrics?.find((metric) => metric.key === 'duration')?.value,
+    }))).toEqual([
+      { state: 'partial', start: 100, end: 160, duration: 60 },
+      { state: 'full', start: 160, end: 220, duration: 60 },
+      { state: 'annular', start: 500, end: 530, duration: 30 },
+    ]);
+    expect(result.events[0].label).toBe('Partial eclipse: SATURN in front of SUN');
+    expect(focusForEvent(result.events[0])).toEqual({
+      et: 100,
+      bodies: ['CASSINI', 'SATURN', 'SUN'],
+      primary: 'SUN',
+      interval: { start: 100, end: 160 },
+    });
+  });
+
+  it('can filter to a single occultation state', async () => {
+    const p = provider({ occultationWindows: { FULL: [{ start: 25, end: 75 }] } });
+    const result = await searchOver(p).run({
+      id: 'occultation-1',
+      kind: 'occultation',
+      bodies: { observer: 'EARTH', back: 'STAR', front: 'MOON' },
+      window: WINDOW,
+      params: { state: 'full' },
+    });
+
+    expect(result.ok && result.events).toHaveLength(1);
+    expect(p.calls.filter((call) => call.fn === 'gfoclt')).toHaveLength(1);
+    expect(p.calls.find((call) => call.fn === 'gfoclt')?.args[0]).toBe('FULL');
+  });
+
+  it('rejects repeated participants before calling SPICE', async () => {
+    const p = provider();
+    const result = await searchOver(p).run({
+      id: 'bad',
+      kind: 'occultation',
+      bodies: { observer: 'EARTH', back: 'SUN', front: 'EARTH' },
+      window: WINDOW,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(p.calls).toHaveLength(0);
   });
 });
 

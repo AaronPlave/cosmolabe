@@ -38,7 +38,16 @@
      * and not only as a row in a list. Out-of-range fractions are the caller's
      * to drop.
      */
-    markers?: readonly { fraction: number; selected?: boolean; title?: string }[];
+    markers?: readonly {
+      fraction: number;
+      endFraction?: number;
+      selected?: boolean;
+      active?: boolean;
+      title?: string;
+      kind?: string;
+      state?: string;
+      onSelect?: () => void;
+    }[];
   }
 
   let {
@@ -54,6 +63,9 @@
   let dragging = $state(false);
   let dragFraction = $state(0);
   let lastClientX = 0;
+  let pointerStartX = 0;
+  let pointerMoved = false;
+  let pendingMarkerSelect: (() => void) | undefined;
   let trackRect: DOMRect | null = null;
 
   let zoomMenuOpen = $state(false);
@@ -87,10 +99,15 @@
 
   function onPointerDown(e: PointerEvent) {
     if (!trackEl) return;
+    if (!(e.target instanceof Element) || !e.target.closest('.event-marker')) {
+      pendingMarkerSelect = undefined;
+    }
     trackRect = trackEl.getBoundingClientRect();
     trackEl.setPointerCapture(e.pointerId);
     dragFraction = clampFraction((e.clientX - trackRect.left) / trackRect.width);
     lastClientX = e.clientX;
+    pointerStartX = e.clientX;
+    pointerMoved = false;
     dragging = true;
     onScrubStart?.();
     onScrub(dragFraction);
@@ -99,9 +116,17 @@
   function onPointerMove(e: PointerEvent) {
     if (!dragging || !trackRect) return;
     const dx = e.clientX - lastClientX;
+    if (Math.abs(e.clientX - pointerStartX) > 3) pointerMoved = true;
     lastClientX = e.clientX;
     dragFraction = clampFraction(dragFraction + dx / trackRect.width);
     onScrub(dragFraction);
+  }
+
+  function onMarkerClick(event: MouseEvent, onSelect?: () => void) {
+    event.stopPropagation();
+    // Pointer activation is resolved in onPointerUp because capture retargets
+    // the click to the track. A keyboard-generated click has detail === 0.
+    if (event.detail === 0) onSelect?.();
   }
 
   function onPointerUp(e: PointerEvent) {
@@ -109,6 +134,9 @@
     trackEl?.releasePointerCapture(e.pointerId);
     dragging = false;
     onScrubEnd?.();
+    const select = pendingMarkerSelect;
+    pendingMarkerSelect = undefined;
+    if (!pointerMoved) select?.();
   }
 
   function selectPreset(seconds: number) {
@@ -163,12 +191,22 @@
         onpointerup={onPointerUp}
       >
         {#each markers as marker}
-          <div
+          <button
+            type="button"
             class="event-marker"
+            class:interval={(marker.endFraction ?? marker.fraction) > marker.fraction}
             class:selected={marker.selected}
-            style="left: {marker.fraction * 100}%"
+            class:active={marker.active}
+            class:partial={marker.state === 'partial'}
+            class:full={marker.state === 'full'}
+            class:annular={marker.state === 'annular'}
+            data-kind={marker.kind}
+            style="left: {marker.fraction * 100}%; width: {Math.max(0, (marker.endFraction ?? marker.fraction) - marker.fraction) * 100}%"
             title={marker.title}
-          ></div>
+            aria-label={marker.title ?? 'Select timeline event'}
+            onpointerdown={() => { pendingMarkerSelect = marker.onSelect; }}
+            onclick={(event) => onMarkerClick(event, marker.onSelect)}
+          ></button>
         {/each}
         <div class="playhead" style="left: {displayFraction * 100}%"></div>
       </div>
@@ -281,16 +319,39 @@
     top: 0;
     bottom: 0;
     width: 1px;
+    min-width: 2px;
+    padding: 0;
+    border: 0;
+    border-radius: 1px;
     background: var(--color-event-accent);
     opacity: 0.45;
     transform: translateX(-50%);
-    pointer-events: none;
+    cursor: pointer;
+  }
+
+  .event-marker.interval {
+    min-width: 4px;
+    opacity: 0.72;
+    transform: none;
   }
 
   .event-marker.selected {
     width: 2px;
     opacity: 1;
+    box-shadow: inset 0 0 0 1px var(--color-text-primary);
   }
+
+  .event-marker.active {
+    opacity: 1;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72), 0 0 4px currentColor;
+  }
+
+  .event-marker[data-kind='closest-approach'] { background: #72b7d8; }
+  .event-marker[data-kind='distance-range'] { background: #71b896; }
+  .event-marker[data-kind='occultation'] { background: #8c72d8; }
+  .event-marker.partial { background: #e0a84c; }
+  .event-marker.full { background: #8c72d8; }
+  .event-marker.annular { background: #d96f4c; }
 
   .track:hover .playhead {
     box-shadow: 0 0 5px rgba(255, 255, 255, 0.38);
@@ -301,6 +362,10 @@
   }
 
   .track:hover .event-marker.selected {
+    opacity: 1;
+  }
+
+  .track:hover .event-marker.active {
     opacity: 1;
   }
 

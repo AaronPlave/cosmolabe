@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { coverageWindow, practicalSearchWindow } from '../event-finder.svelte';
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  coverageWindow,
+  currentConfiguredQuery,
+  ef,
+  practicalSearchWindow,
+  resetForScene,
+  setKind,
+} from '../event-finder.svelte';
+import { vs } from '../viewer-state.svelte';
+
+afterEach(() => resetForScene());
 
 function coverage(start: number, end: number) {
   return {
@@ -64,5 +74,38 @@ describe('event finder practical default window', () => {
 
   it('leaves a shorter catalog span unchanged', () => {
     expect(practicalSearchWindow({ start: 10, end: 20 }, 15)).toEqual({ start: 10, end: 20 });
+  });
+
+  it('supports a smaller kind-specific practical span', () => {
+    const day = 86_400;
+    expect(practicalSearchWindow({ start: 0, end: 365 * day }, 180 * day, 90 * day)).toEqual({
+      start: 135 * day,
+      end: 225 * day,
+    });
+  });
+});
+
+describe('event finder window provenance', () => {
+  it('preserves an explicit window when the event type changes', () => {
+    vs.et = 500;
+    vs.scrubBaseMin = 0;
+    vs.scrubBaseMax = 1_000;
+    ef.kind = 'closest-approach';
+    ef.form = {
+      kind: 'closest-approach',
+      bodies: { observer: 'EARTH', target: 'MOON' },
+      params: {},
+      startEt: 120,
+      endEt: 340,
+      step: 3_600,
+    };
+    ef.windowPinned = true;
+
+    setKind('distance-range');
+
+    expect(ef.form).toMatchObject({ kind: 'distance-range', startEt: 120, endEt: 340 });
+    expect(ef.windowPinned).toBe(true);
+    expect(currentConfiguredQuery()?.windowMode).toBe('explicit');
+    expect(currentConfiguredQuery()?.query.window).toEqual({ start: 120, end: 340 });
   });
 });

@@ -21,6 +21,9 @@ import {
   EventSearch,
   applyEventFocus,
   builtinEventKinds,
+  defaultParams,
+  eventEnd,
+  eventStart,
   focusForEvent,
   resolveEventQuery,
   type ConfiguredEventQuery,
@@ -34,7 +37,13 @@ import {
 import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
 import { GeometrySearchCancelled } from '@cosmolabe/three';
 import { getCacheWorker, getSpice } from './loader';
-import { buildQuery, formForKind, type EventQueryForm, type EventSortMode } from './event-query';
+import {
+  activeEventAtTime,
+  buildQuery,
+  formForKind,
+  type EventQueryForm,
+  type EventSortMode,
+} from './event-query';
 import {
   analysis,
   analysisContext,
@@ -42,10 +51,11 @@ import {
   createConfiguredEventQuery,
   resetAnalysis,
   setConfiguredItemVisible,
+  setConfiguredItemEnabled,
   setEventResults,
   updateConfiguredEventQuery,
 } from './analysis.svelte';
-import { highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
+import { getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
 const registry = builtinEventKinds();
@@ -204,6 +214,8 @@ export const ef = $state({
   searched: false,
   /** Id of the selected result, or null. */
   selectedId: null as string | null,
+  /** Id of the occultation currently represented at the live playhead. */
+  activeId: null as string | null,
   /**
    * Display order. Chronological by default, since that is how a mission reads;
    * `metric` answers "which was the closest?" instead. Held here rather than in
@@ -224,6 +236,50 @@ export const ef = $state({
 let inFlight = 0;
 /** The search currently running, so it can be stopped. */
 let active: RunningSearch | null = null;
+/** Event currently represented by the renderer's single explanatory overlay. */
+let displayedOccultation: GeometryEvent | null = null;
+
+function displayOccultation(event: GeometryEvent | null): void {
+  const renderer = getRenderer();
+  if (!renderer) return;
+  // Result ids are positional within a search and may recur after a rerun.
+  // Object identity distinguishes the newly minted result from the stale one.
+  if (event === displayedOccultation) return;
+
+  if (!event) {
+    renderer.setOccultationGeometry(null);
+    displayedOccultation = null;
+    return;
+  }
+
+  const { observer, front, back } = event.bodies;
+  const displayed = observer && front && back && renderer.setOccultationGeometry({
+    observer,
+    front,
+    back,
+    state: event.state,
+    startEt: eventStart(event),
+    endEt: eventEnd(event),
+  });
+  displayedOccultation = displayed ? event : null;
+}
+
+/**
+ * Keep explanatory geometry attached to time, not to a stale result click.
+ * Selection is only a tie-breaker for overlapping intervals; enabled cached
+ * results appear automatically during playback and timeline scrubbing.
+ */
+export function syncOccultationGeometryAtTime(): GeometryEvent | undefined {
+  const activeEvent = activeEventAtTime(
+    analysisContext().eventResults.filter((event) => event.kind === 'occultation'),
+    vs.et,
+    ef.selectedId,
+  );
+  const activeId = activeEvent?.id ?? null;
+  if (ef.activeId !== activeId) ef.activeId = activeId;
+  displayOccultation(activeEvent ?? null);
+  return activeEvent;
+}
 
 /** The kind definition the form is currently configuring. */
 export function currentKind(): EventKind<never> {
@@ -231,16 +287,21 @@ export function currentKind(): EventKind<never> {
 }
 
 const MAX_DEFAULT_SEARCH_SPAN = 2 * 365.25 * 86_400;
+const MAX_OCCULTATION_DEFAULT_SEARCH_SPAN = 90 * 86_400;
 
 /**
  * Keep an automatic search window interactive on century-scale kernels.
  * The full catalog remains available through the form's explicit `all` action.
  */
-export function practicalSearchWindow(span: EtInterval, currentTime: number): EtInterval {
+export function practicalSearchWindow(
+  span: EtInterval,
+  currentTime: number,
+  maxSpan = MAX_DEFAULT_SEARCH_SPAN,
+): EtInterval {
   const duration = span.end - span.start;
-  if (!(duration > MAX_DEFAULT_SEARCH_SPAN)) return { ...span };
+  if (!(duration > maxSpan)) return { ...span };
 
-  const half = MAX_DEFAULT_SEARCH_SPAN / 2;
+  const half = maxSpan / 2;
   const center = Math.max(span.start + half, Math.min(span.end - half, currentTime));
   return { start: center - half, end: center + half };
 }
@@ -250,7 +311,10 @@ function catalogWindow(): EtInterval {
   const span = vs.scrubBaseMax > vs.scrubBaseMin
     ? { start: vs.scrubBaseMin, end: vs.scrubBaseMax }
     : { start: vs.et, end: vs.et + 86_400 };
-  return practicalSearchWindow(span, vs.et);
+  const maxSpan = ef.kind === 'occultation'
+    ? MAX_OCCULTATION_DEFAULT_SEARCH_SPAN
+    : MAX_DEFAULT_SEARCH_SPAN;
+  return practicalSearchWindow(span, vs.et, maxSpan);
 }
 
 /** The window a fresh form searches: the catalog span, trimmed to coverage. */
@@ -281,7 +345,13 @@ function syncWindowToBodies() {
 /** Builds the form for the current kind, carrying over what still applies. */
 export function resetForm() {
   const previous = ef.form ?? undefined;
-  ef.form = formForKind(currentKind(), defaultWindow(previous?.bodies), previous);
+  // A user-chosen time range is independent of event type. Preserve it when
+  // switching kinds; automatic windows are re-derived so kind-specific limits
+  // (such as occultation's shorter practical span) still take effect.
+  const window = ef.windowPinned && previous
+    ? { start: previous.startEt, end: previous.endEt }
+    : defaultWindow(previous?.bodies);
+  ef.form = formForKind(currentKind(), window, previous);
   syncWindowToBodies();
   syncConfiguredQuery();
 }
@@ -302,10 +372,19 @@ function syncConfiguredQuery(): ConfiguredEventQuery | undefined {
   const label = concrete.label ?? `${kind.label}: ${Object.values(concrete.bodies).join(' / ')}`;
 
   let item = ef.configuredId
-    ? updateConfiguredEventQuery(ef.configuredId, query, label)
+    ? updateConfiguredEventQuery(
+      ef.configuredId,
+      query,
+      label,
+      ef.windowPinned ? 'explicit' : 'automatic',
+    )
     : undefined;
   if (!item) {
-    item = createConfiguredEventQuery(query, label);
+    item = createConfiguredEventQuery(
+      query,
+      label,
+      ef.windowPinned ? 'explicit' : 'automatic',
+    );
     ef.configuredId = item.id;
   }
 
@@ -320,11 +399,86 @@ export function setCurrentQueryVisible(visible: boolean) {
   if (ef.configuredId) setConfiguredItemVisible(ef.configuredId, visible);
 }
 
+/** Every durable event category, in creation order, for the shared timeline controls. */
+export function configuredEventQueries(): ConfiguredEventQuery[] {
+  return analysis.items.filter((item): item is ConfiguredEventQuery => item.type === 'event-query');
+}
+
+export function setConfiguredQueryEnabled(id: string, enabled: boolean) {
+  setConfiguredItemEnabled(id, enabled);
+}
+
+export function setConfiguredQueryVisible(id: string, visible: boolean) {
+  setConfiguredItemVisible(id, visible);
+}
+
+/** Start another independently cached event category without discarding this one. */
+export function createNewSearch() {
+  active?.cancel();
+  inFlight++;
+  const previous = ef.form ?? undefined;
+  ef.configuredId = null;
+  ef.windowPinned = false;
+  ef.form = formForKind(currentKind(), defaultWindow(previous?.bodies), previous);
+  ef.events = [];
+  ef.fault = null;
+  ef.hint = null;
+  ef.searched = false;
+  ef.selectedId = null;
+  syncWindowToBodies();
+  syncConfiguredQuery();
+  highlightBodies([]);
+  syncOccultationGeometryAtTime();
+}
+
+/** Reopen a configured category and its cached results for browsing or editing. */
+export function openConfiguredQuery(id: string) {
+  const item = configuredItem(id);
+  if (!item || item.type !== 'event-query') return;
+  const kind = registry.get(item.query.kind);
+  if (!kind) return;
+
+  active?.cancel();
+  inFlight++;
+  ef.kind = kind.kind;
+  const window = item.query.window ?? catalogWindow();
+  const form = formForKind(kind, window);
+  form.bodies = { ...(item.query.bodies ?? {}) };
+  form.params = Object.fromEntries(
+    Object.entries(item.query.params ?? {}).map(([key, value]) => [key, String(value)]),
+  );
+  for (const [key, value] of Object.entries(defaultParams(kind))) {
+    if (form.params[key] === undefined) form.params[key] = String(value);
+  }
+  form.step = item.query.step ?? kind.defaultStep;
+  ef.form = form;
+  ef.configuredId = id;
+  ef.events = [...(analysis.eventResults[id] ?? [])];
+  ef.searched = Object.prototype.hasOwnProperty.call(analysis.eventResults, id);
+  ef.fault = null;
+  ef.hint = null;
+  ef.selectedId = null;
+  // Old saved items have no provenance. Treat them as automatic: every
+  // configured query stores a concrete window, so its mere presence cannot
+  // mean the user explicitly pinned it.
+  ef.windowPinned = item.windowMode === 'explicit';
+  ef.windowTrimmed = false;
+  highlightBodies([]);
+  syncOccultationGeometryAtTime();
+}
+
 /** Switches kind, keeping shared roles and params filled in. */
 export function setKind(kind: string) {
   if (!registry.has(kind)) return;
   ef.kind = kind;
   resetForm();
+  // Search-step completeness belongs to the kind. In particular, carrying the
+  // closest-approach default (1 hour) into occultation misses short partial
+  // ingress/egress phases that the occultation kind's 10-second default finds.
+  if (ef.form) {
+    ef.form.step = currentKind().defaultStep;
+    syncConfiguredQuery();
+  }
   clearResults();
 }
 
@@ -477,19 +631,22 @@ export function cancelSearch() {
  * panel's — every kind gets the same behavior, including the ones that do not
  * exist yet.
  */
-export function selectEvent(event: GeometryEvent) {
+export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' = 'start') {
+  if (event.queryId !== ef.configuredId) openConfiguredQuery(event.queryId);
   ef.selectedId = event.id;
-  applyEventFocus(focusForEvent(event, 'start'), {
+  applyEventFocus(focusForEvent(event, anchor), {
     setTime,
     selectBody,
     highlightBodies,
   });
+  syncOccultationGeometryAtTime();
 }
 
 /** Clears the selection and the highlight it applied. */
 export function clearSelection() {
   ef.selectedId = null;
   highlightBodies([]);
+  syncOccultationGeometryAtTime();
 }
 
 /**
@@ -506,7 +663,9 @@ export function resetForScene() {
   // anywhere: the kernels it was running against are being replaced under it.
   clearResults();
   highlightBodies([]);
+  displayOccultation(null);
   ef.form = null;
+  ef.activeId = null;
   ef.windowPinned = false;
   ef.windowTrimmed = false;
   ef.configuredId = null;

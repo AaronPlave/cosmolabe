@@ -1,21 +1,24 @@
 import { EventKindRegistry } from '../registry.js';
 import { closestApproachKind } from './closest-approach.js';
 import { distanceRangeKind } from './distance-range.js';
+import { occultationKind } from './occultation.js';
 
 export type { ClosestApproachParams } from './closest-approach.js';
 export { closestApproachKind } from './closest-approach.js';
 export type { DistanceRangeParams } from './distance-range.js';
 export { distanceRangeKind } from './distance-range.js';
+export type { OccultationParams, OccultationState } from './occultation.js';
+export { occultationKind } from './occultation.js';
 export { rangeAt, rangeExtremum, rangeMetric } from './range-metrics.js';
 
 /**
  * The event kinds Cosmolabe ships, in the order a picker should offer them.
  *
- * Both are distance searches over `gfdist`, which is the whole of the first
- * slice: occultation, eclipse, FOV access, phase angle and latitude crossings
- * are further entries in this list, not further subsystems.
+ * Distance searches use `gfdist`; eclipse/occultation uses `gfoclt`. Future FOV,
+ * phase-angle and latitude-crossing capabilities are further entries in this
+ * list, not further subsystems.
  */
-export const BUILTIN_EVENT_KINDS = [closestApproachKind, distanceRangeKind] as const;
+export const BUILTIN_EVENT_KINDS = [closestApproachKind, distanceRangeKind, occultationKind] as const;
 
 /** A registry holding the built-in kinds — the usual starting point. */
 export function builtinEventKinds(): EventKindRegistry {
@@ -28,5 +31,6 @@ export function registerBuiltinEventKinds(registry: EventKindRegistry): EventKin
   // kind carries its own params type, and a loop would erase them all to a cast.
   registry.register(closestApproachKind);
   registry.register(distanceRangeKind);
+  registry.register(occultationKind);
   return registry;
 }

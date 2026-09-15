@@ -34,6 +34,8 @@ export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
 export { EventMarkers } from './EventMarkers.js';
 export type { EventMarker, EventMarkerType, EventMarkersOptions } from './EventMarkers.js';
+export { OccultationGeometry } from './OccultationGeometry.js';
+export type { OccultationGeometryParticipants } from './OccultationGeometry.js';
 export { GeometryReadout } from './GeometryReadout.js';
 export type { GeometryReadoutOptions } from './GeometryReadout.js';
 
