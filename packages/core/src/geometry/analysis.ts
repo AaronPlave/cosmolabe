@@ -68,6 +68,8 @@ export interface ConfiguredEventQuery<P = Record<string, unknown>>
   extends ConfiguredAnalysisItemBase {
   type: 'event-query';
   query: EventQueryConfiguration<P>;
+  /** Whether the stored window follows scene/body coverage or was chosen by the user. */
+  windowMode?: 'automatic' | 'explicit';
 }
 
 /** A time-series definition. Sampling and rendering belong to its consumer. */

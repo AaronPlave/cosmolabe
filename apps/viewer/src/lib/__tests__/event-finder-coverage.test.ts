@@ -65,4 +65,12 @@ describe('event finder practical default window', () => {
   it('leaves a shorter catalog span unchanged', () => {
     expect(practicalSearchWindow({ start: 10, end: 20 }, 15)).toEqual({ start: 10, end: 20 });
   });
+
+  it('supports a smaller kind-specific practical span', () => {
+    const day = 86_400;
+    expect(practicalSearchWindow({ start: 0, end: 365 * day }, 180 * day, 90 * day)).toEqual({
+      start: 135 * day,
+      end: 225 * day,
+    });
+  });
 });

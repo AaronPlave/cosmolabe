@@ -13,6 +13,9 @@ export interface OccultationGeometryParticipants {
 const RING_SEGMENTS = 64;
 const GENERATOR_SEGMENTS = 4;
 const EPSILON = 1e-12;
+const MAX_LINE_VERTICES = 2 * (RING_SEGMENTS * 4 + GENERATOR_SEGMENTS * 2);
+const MAX_SURFACE_VERTICES = RING_SEGMENTS * 3;
+const MAX_SURFACE_INDICES = RING_SEGMENTS * 6 * 2;
 
 /**
  * Scientific scene overlay for a selected occultation/eclipsing relationship.
@@ -271,20 +274,32 @@ export class OccultationGeometry extends THREE.Group {
     const u = new THREE.Vector3().crossVectors(axis, reference).normalize();
     const v = new THREE.Vector3().crossVectors(axis, u).normalize();
     const values: number[] = [];
-    const point = (center: THREE.Vector3, radius: number, angle: number) => center.clone()
-      .addScaledVector(u, Math.cos(angle) * radius)
-      .addScaledVector(v, Math.sin(angle) * radius);
-    const pushSegment = (a: THREE.Vector3, b: THREE.Vector3) => values.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    const pushPoint = (center: THREE.Vector3, radius: number, angle: number) => {
+      const cosRadius = Math.cos(angle) * radius;
+      const sinRadius = Math.sin(angle) * radius;
+      values.push(
+        center.x + u.x * cosRadius + v.x * sinRadius,
+        center.y + u.y * cosRadius + v.y * sinRadius,
+        center.z + u.z * cosRadius + v.z * sinRadius,
+      );
+    };
+    const pushSegment = (
+      aCenter: THREE.Vector3, aRadius: number, aAngle: number,
+      bCenter: THREE.Vector3, bRadius: number, bAngle: number,
+    ) => {
+      pushPoint(aCenter, aRadius, aAngle);
+      pushPoint(bCenter, bRadius, bAngle);
+    };
 
     for (let i = 0; i < RING_SEGMENTS; i++) {
       const a0 = i * Math.PI * 2 / RING_SEGMENTS;
       const a1 = (i + 1) * Math.PI * 2 / RING_SEGMENTS;
-      if (includeStartRing && startRadius > EPSILON) pushSegment(point(start, startRadius, a0), point(start, startRadius, a1));
-      if (endRadius > EPSILON) pushSegment(point(end, endRadius, a0), point(end, endRadius, a1));
+      if (includeStartRing && startRadius > EPSILON) pushSegment(start, startRadius, a0, start, startRadius, a1);
+      if (endRadius > EPSILON) pushSegment(end, endRadius, a0, end, endRadius, a1);
     }
     for (let i = 0; i < GENERATOR_SEGMENTS; i++) {
       const angle = generatorOffset + i * Math.PI * 2 / GENERATOR_SEGMENTS;
-      pushSegment(point(start, startRadius, angle), point(end, endRadius, angle));
+      pushSegment(start, startRadius, angle, end, endRadius, angle);
     }
     return values;
   }
@@ -299,17 +314,38 @@ export class OccultationGeometry extends THREE.Group {
   }
 
   private makeSegments(name: string, color: number, opacity: number): THREE.LineSegments {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(MAX_LINE_VERTICES * 3), 3)
+        .setUsage(THREE.DynamicDrawUsage),
+    );
+    geometry.setDrawRange(0, 0);
     const segments = new THREE.LineSegments(
-      new THREE.BufferGeometry(),
+      geometry,
       new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthTest: true, depthWrite: false }),
     );
     segments.name = name;
+    // Dynamic geometry spans solar-system distances; a stale bounding sphere
+    // would be worse than skipping culling for these few explanatory objects.
+    segments.frustumCulled = false;
     return segments;
   }
 
   private makeSurface(name: string, color: number, opacity: number): THREE.Mesh {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(MAX_SURFACE_VERTICES * 3), 3)
+        .setUsage(THREE.DynamicDrawUsage),
+    );
+    geometry.setIndex(
+      new THREE.BufferAttribute(new Uint16Array(MAX_SURFACE_INDICES), 1)
+        .setUsage(THREE.DynamicDrawUsage),
+    );
+    geometry.setDrawRange(0, 0);
     const surface = new THREE.Mesh(
-      new THREE.BufferGeometry(),
+      geometry,
       new THREE.MeshBasicMaterial({
         color,
         transparent: true,
@@ -320,12 +356,15 @@ export class OccultationGeometry extends THREE.Group {
       }),
     );
     surface.name = name;
+    surface.frustumCulled = false;
     return surface;
   }
 
   private setSegments(lines: THREE.LineSegments, values: number[]): void {
-    lines.geometry.setAttribute('position', new THREE.Float32BufferAttribute(values, 3));
-    lines.geometry.computeBoundingSphere();
+    const positions = lines.geometry.getAttribute('position') as THREE.BufferAttribute;
+    (positions.array as Float32Array).set(values);
+    positions.needsUpdate = true;
+    lines.geometry.setDrawRange(0, values.length / 3);
   }
 
   private frustumSurface(
@@ -356,10 +395,13 @@ export class OccultationGeometry extends THREE.Group {
     for (const section of sections) {
       for (let i = 0; i < RING_SEGMENTS; i++) {
         const angle = i * Math.PI * 2 / RING_SEGMENTS;
-        const point = section.center.clone()
-          .addScaledVector(u, Math.cos(angle) * section.radius)
-          .addScaledVector(v, Math.sin(angle) * section.radius);
-        positions.push(point.x, point.y, point.z);
+        const cosRadius = Math.cos(angle) * section.radius;
+        const sinRadius = Math.sin(angle) * section.radius;
+        positions.push(
+          section.center.x + u.x * cosRadius + v.x * sinRadius,
+          section.center.y + u.y * cosRadius + v.y * sinRadius,
+          section.center.z + u.z * cosRadius + v.z * sinRadius,
+        );
       }
     }
     for (let section = 0; section < sections.length - 1; section++) {
@@ -377,10 +419,13 @@ export class OccultationGeometry extends THREE.Group {
     surface: THREE.Mesh,
     geometry: { positions: number[]; indices: number[] },
   ): void {
-    surface.geometry.setAttribute('position', new THREE.Float32BufferAttribute(geometry.positions, 3));
-    surface.geometry.setIndex(geometry.indices);
-    surface.geometry.computeVertexNormals();
-    surface.geometry.computeBoundingSphere();
+    const positions = surface.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const indices = surface.geometry.getIndex()!;
+    (positions.array as Float32Array).set(geometry.positions);
+    (indices.array as Uint16Array).set(geometry.indices);
+    positions.needsUpdate = true;
+    indices.needsUpdate = true;
+    surface.geometry.setDrawRange(0, geometry.indices.length);
   }
 
   private updateLineGeometry(line: THREE.Line, start: THREE.Vector3, end: THREE.Vector3): void {

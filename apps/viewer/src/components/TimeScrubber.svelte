@@ -63,6 +63,9 @@
   let dragging = $state(false);
   let dragFraction = $state(0);
   let lastClientX = 0;
+  let pointerStartX = 0;
+  let pointerMoved = false;
+  let pendingMarkerSelect: (() => void) | undefined;
   let trackRect: DOMRect | null = null;
 
   let zoomMenuOpen = $state(false);
@@ -96,10 +99,15 @@
 
   function onPointerDown(e: PointerEvent) {
     if (!trackEl) return;
+    if (!(e.target instanceof Element) || !e.target.closest('.event-marker')) {
+      pendingMarkerSelect = undefined;
+    }
     trackRect = trackEl.getBoundingClientRect();
     trackEl.setPointerCapture(e.pointerId);
     dragFraction = clampFraction((e.clientX - trackRect.left) / trackRect.width);
     lastClientX = e.clientX;
+    pointerStartX = e.clientX;
+    pointerMoved = false;
     dragging = true;
     onScrubStart?.();
     onScrub(dragFraction);
@@ -108,9 +116,17 @@
   function onPointerMove(e: PointerEvent) {
     if (!dragging || !trackRect) return;
     const dx = e.clientX - lastClientX;
+    if (Math.abs(e.clientX - pointerStartX) > 3) pointerMoved = true;
     lastClientX = e.clientX;
     dragFraction = clampFraction(dragFraction + dx / trackRect.width);
     onScrub(dragFraction);
+  }
+
+  function onMarkerClick(event: MouseEvent, onSelect?: () => void) {
+    event.stopPropagation();
+    // Pointer activation is resolved in onPointerUp because capture retargets
+    // the click to the track. A keyboard-generated click has detail === 0.
+    if (event.detail === 0) onSelect?.();
   }
 
   function onPointerUp(e: PointerEvent) {
@@ -118,6 +134,9 @@
     trackEl?.releasePointerCapture(e.pointerId);
     dragging = false;
     onScrubEnd?.();
+    const select = pendingMarkerSelect;
+    pendingMarkerSelect = undefined;
+    if (!pointerMoved) select?.();
   }
 
   function selectPreset(seconds: number) {
@@ -185,8 +204,8 @@
             style="left: {marker.fraction * 100}%; width: {Math.max(0, (marker.endFraction ?? marker.fraction) - marker.fraction) * 100}%"
             title={marker.title}
             aria-label={marker.title ?? 'Select timeline event'}
-            onpointerdown={(event) => event.stopPropagation()}
-            onclick={(event) => { event.stopPropagation(); marker.onSelect?.(); }}
+            onpointerdown={() => { pendingMarkerSelect = marker.onSelect; }}
+            onclick={(event) => onMarkerClick(event, marker.onSelect)}
           ></button>
         {/each}
         <div class="playhead" style="left: {displayFraction * 100}%"></div>

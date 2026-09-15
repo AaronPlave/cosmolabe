@@ -237,16 +237,18 @@ let inFlight = 0;
 /** The search currently running, so it can be stopped. */
 let active: RunningSearch | null = null;
 /** Event currently represented by the renderer's single explanatory overlay. */
-let displayedOccultationId: string | null = null;
+let displayedOccultation: GeometryEvent | null = null;
 
 function displayOccultation(event: GeometryEvent | null): void {
   const renderer = getRenderer();
   if (!renderer) return;
-  if (event?.id === displayedOccultationId) return;
+  // Result ids are positional within a search and may recur after a rerun.
+  // Object identity distinguishes the newly minted result from the stale one.
+  if (event === displayedOccultation) return;
 
   if (!event) {
     renderer.setOccultationGeometry(null);
-    displayedOccultationId = null;
+    displayedOccultation = null;
     return;
   }
 
@@ -259,7 +261,7 @@ function displayOccultation(event: GeometryEvent | null): void {
     startEt: eventStart(event),
     endEt: eventEnd(event),
   });
-  displayedOccultationId = displayed ? event.id : null;
+  displayedOccultation = displayed ? event : null;
 }
 
 /**
@@ -285,16 +287,21 @@ export function currentKind(): EventKind<never> {
 }
 
 const MAX_DEFAULT_SEARCH_SPAN = 2 * 365.25 * 86_400;
+const MAX_OCCULTATION_DEFAULT_SEARCH_SPAN = 90 * 86_400;
 
 /**
  * Keep an automatic search window interactive on century-scale kernels.
  * The full catalog remains available through the form's explicit `all` action.
  */
-export function practicalSearchWindow(span: EtInterval, currentTime: number): EtInterval {
+export function practicalSearchWindow(
+  span: EtInterval,
+  currentTime: number,
+  maxSpan = MAX_DEFAULT_SEARCH_SPAN,
+): EtInterval {
   const duration = span.end - span.start;
-  if (!(duration > MAX_DEFAULT_SEARCH_SPAN)) return { ...span };
+  if (!(duration > maxSpan)) return { ...span };
 
-  const half = MAX_DEFAULT_SEARCH_SPAN / 2;
+  const half = maxSpan / 2;
   const center = Math.max(span.start + half, Math.min(span.end - half, currentTime));
   return { start: center - half, end: center + half };
 }
@@ -304,7 +311,10 @@ function catalogWindow(): EtInterval {
   const span = vs.scrubBaseMax > vs.scrubBaseMin
     ? { start: vs.scrubBaseMin, end: vs.scrubBaseMax }
     : { start: vs.et, end: vs.et + 86_400 };
-  return practicalSearchWindow(span, vs.et);
+  const maxSpan = ef.kind === 'occultation'
+    ? MAX_OCCULTATION_DEFAULT_SEARCH_SPAN
+    : MAX_DEFAULT_SEARCH_SPAN;
+  return practicalSearchWindow(span, vs.et, maxSpan);
 }
 
 /** The window a fresh form searches: the catalog span, trimmed to coverage. */
@@ -356,10 +366,19 @@ function syncConfiguredQuery(): ConfiguredEventQuery | undefined {
   const label = concrete.label ?? `${kind.label}: ${Object.values(concrete.bodies).join(' / ')}`;
 
   let item = ef.configuredId
-    ? updateConfiguredEventQuery(ef.configuredId, query, label)
+    ? updateConfiguredEventQuery(
+      ef.configuredId,
+      query,
+      label,
+      ef.windowPinned ? 'explicit' : 'automatic',
+    )
     : undefined;
   if (!item) {
-    item = createConfiguredEventQuery(query, label);
+    item = createConfiguredEventQuery(
+      query,
+      label,
+      ef.windowPinned ? 'explicit' : 'automatic',
+    );
     ef.configuredId = item.id;
   }
 
@@ -393,6 +412,7 @@ export function createNewSearch() {
   inFlight++;
   const previous = ef.form ?? undefined;
   ef.configuredId = null;
+  ef.windowPinned = false;
   ef.form = formForKind(currentKind(), defaultWindow(previous?.bodies), previous);
   ef.events = [];
   ef.fault = null;
@@ -432,7 +452,10 @@ export function openConfiguredQuery(id: string) {
   ef.fault = null;
   ef.hint = null;
   ef.selectedId = null;
-  ef.windowPinned = !!item.query.window;
+  // Old saved items have no provenance. Treat them as automatic: every
+  // configured query stores a concrete window, so its mere presence cannot
+  // mean the user explicitly pinned it.
+  ef.windowPinned = item.windowMode === 'explicit';
   ef.windowTrimmed = false;
   highlightBodies([]);
   syncOccultationGeometryAtTime();

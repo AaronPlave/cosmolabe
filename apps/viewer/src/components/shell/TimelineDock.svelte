@@ -23,7 +23,7 @@
   import { getSpice } from '../../lib/loader';
   import { ef, selectEvent, syncOccultationGeometryAtTime } from '../../lib/event-finder.svelte';
   import { visibleTimelineEvents } from '../../lib/analysis.svelte';
-  import { activeEventAtTime, eventTimelineFractions } from '../../lib/event-query';
+  import { eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
   import {
     ChevronsLeft, ChevronLeft, Rewind, Play, Pause,
     ChevronRight, ChevronsRight, ChevronUp, ChevronDown,
@@ -84,10 +84,6 @@
     syncOccultationGeometryAtTime();
   });
 
-  let playheadEventId = $derived(
-    activeEventAtTime(visibleTimelineEvents(), vs.et, ef.selectedId)?.id ?? null,
-  );
-
   // Event finder results as scrubber ticks, on the zoomed range the track
   // actually draws. Events outside it are dropped rather than clamped to an
   // edge, where they would read as happening at a time they do not.
@@ -100,7 +96,7 @@
           fraction: span.start,
           endFraction: span.end,
           selected: ef.selectedId === event.id,
-          active: playheadEventId === event.id,
+          active: eventContainsTime(event, vs.et),
           title: event.label,
           kind: event.kind,
           state: event.state,

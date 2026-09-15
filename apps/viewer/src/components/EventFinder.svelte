@@ -24,7 +24,7 @@
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, headlineMetric, missingRoles,
-    sortEvents, sortMetricLabel,
+    eventContainsTime, sortEvents, sortMetricLabel,
   } from '../lib/event-query';
 
   interface Props {
@@ -386,10 +386,11 @@
       <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
         {#each shownEvents as event}
           {@const headline = headlineMetric(event)}
+          {@const atPlayhead = eventContainsTime(event, vs.et)}
           <button
             class="event-result text-left rounded px-2 py-2 border cursor-pointer"
             class:selected={ef.selectedId === event.id}
-            class:at-playhead={ef.activeId === event.id}
+            class:at-playhead={atPlayhead}
             onclick={() => selectEvent(event)}
             title={event.label}
           >
@@ -398,7 +399,7 @@
               <!-- A bare "2.5 d" beside a date reads as an offset from it.
                    Say which quantity it is. -->
               <span class="flex items-center gap-1.5">
-                {#if ef.activeId === event.id}<span class="ui-meta event-now">at playhead</span>{/if}
+                {#if atPlayhead}<span class="ui-meta event-now">at playhead</span>{/if}
                 <span
                   class="ui-meta"
                   title={isIntervalEvent(event)
@@ -427,9 +428,9 @@
                 {/if}
                 {#if event.kind === 'occultation' && ef.activeId === event.id}
                   <div class="geometry-legend ui-helper" aria-label="3D geometry legend">
-                    <span><i class="legend-line sightline"></i>{event.bodies.back === 'Sun' ? 'Observer sightline' : 'Background line of sight'}</span>
-                    {#if event.bodies.back === 'Sun'}
-                      <span><i class="legend-fill inner-shadow"></i>Umbra / inner shadow</span>
+                    <span><i class="legend-line sightline"></i>{event.bodies.back?.toLowerCase() === 'sun' ? 'Observer sightline' : 'Background line of sight'}</span>
+                    {#if event.bodies.back?.toLowerCase() === 'sun'}
+                      <span><i class="legend-fill inner-shadow"></i>Umbra / antumbra boundary</span>
                       <span><i class="legend-line penumbra"></i>Penumbra boundary</span>
                       <small>End rings are shadow cross-sections at the {event.bodies.observer} plane; volumes are to scale.</small>
                     {:else}

@@ -48,6 +48,22 @@ describe('viewer analysis state', () => {
     expect(changed?.type === 'event-query' && changed.query.bodies?.target).toBe('MARS');
   });
 
+  it('preserves whether an event window was automatic or explicitly chosen', () => {
+    const item = createConfiguredEventQuery(
+      { kind: 'closest-approach', window: { start: 100, end: 200 } },
+      'Approach',
+    );
+    expect(item.windowMode).toBe('automatic');
+
+    const changed = updateConfiguredEventQuery(
+      item.id,
+      { kind: 'closest-approach', window: { start: 120, end: 180 } },
+      undefined,
+      'explicit',
+    );
+    expect(changed?.windowMode).toBe('explicit');
+  });
+
   it('lets event and profile items coexist with independent state', () => {
     const query = createConfiguredEventQuery({ kind: 'closest-approach' }, 'Approaches');
     const profile = createConfiguredProfile({ quantity: 'range', bodies: { target: 'MARS' } }, 'Mars range');

@@ -18,7 +18,13 @@ const EVENT_WINDOW = { startEt: 10, endEt: 20 };
 
 function positions(object: THREE.Object3D): Float32Array {
   const geometry = (object as THREE.LineSegments).geometry;
-  return (geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;
+  const values = (geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;
+  const vertexCount = geometry.index
+    ? Math.max(...Array.from(
+      (geometry.index.array as Uint16Array).slice(0, geometry.drawRange.count),
+    )) + 1
+    : geometry.drawRange.count;
+  return values.slice(0, vertexCount * 3);
 }
 
 function maxRadiusAtX(values: Float32Array, x: number): number {
@@ -47,7 +53,7 @@ describe('OccultationGeometry', () => {
     expect(penumbra.visible).toBe(true);
     expect(viewCone.visible).toBe(false);
     expect(umbraFill.visible).toBe(true);
-    expect(umbraFill.geometry.index?.count).toBe(64 * 6);
+    expect(umbraFill.geometry.drawRange.count).toBe(64 * 6);
     expect((umbraFill.material as THREE.MeshBasicMaterial).depthTest).toBe(true);
     expect((umbra.material as THREE.LineBasicMaterial).color.getHex()).toBe(0x8c72d8);
     expect((penumbra.material as THREE.LineBasicMaterial).color.getHex()).toBe(0xe0a84c);
@@ -138,5 +144,27 @@ describe('OccultationGeometry', () => {
     expect(overlay.visible).toBe(true);
     overlay.update(9.999);
     expect(overlay.visible).toBe(false);
+  });
+
+  it('reuses dynamic attributes across frame updates', () => {
+    const overlay = new OccultationGeometry({
+      back: body('Sun', [-100, 0, 0], 10),
+      front: body('Planet', [0, 0, 0], 2),
+      observer: body('Spacecraft', [20, 0, 0]),
+      state: 'full',
+      ...EVENT_WINDOW,
+    });
+    const umbra = overlay.getObjectByName('occultation-umbra') as THREE.LineSegments;
+    const fill = overlay.getObjectByName('occultation-umbra-fill') as THREE.Mesh;
+    const linePositions = umbra.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const fillPositions = fill.geometry.getAttribute('position');
+    const fillIndex = fill.geometry.getIndex();
+
+    overlay.update(15);
+
+    expect(umbra.geometry.getAttribute('position')).toBe(linePositions);
+    expect(fill.geometry.getAttribute('position')).toBe(fillPositions);
+    expect(fill.geometry.getIndex()).toBe(fillIndex);
+    expect(linePositions.usage).toBe(THREE.DynamicDrawUsage);
   });
 });
