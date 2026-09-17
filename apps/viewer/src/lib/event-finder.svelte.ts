@@ -36,7 +36,7 @@ import {
 } from '@cosmolabe/core';
 import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
 import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
-import { getCacheWorker, getSpice } from './loader';
+import { getGeometryWorker, getSpice } from './loader';
 import {
   activeEventAtTime,
   buildQuery,
@@ -122,12 +122,12 @@ export type SearchProgress = GeometrySearchProgress | null;
  * is about where the time is spent, not about what comes back.
  */
 function beginSearch(spice: SpiceInstance): RunningSearch {
-  const worker = getCacheWorker();
+  const worker = getGeometryWorker();
   if (worker) {
     // Only the search that owns the panel writes to it. A superseded search can
     // still report for a moment before it stops, and its progress is nobody's.
     let self: RunningSearch | null = null;
-    self = worker.geometrySearch({
+    self = worker.search({
       onProgress: (progress) => {
         if (active === self) ef.progress = progress;
       },

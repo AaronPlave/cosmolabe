@@ -208,12 +208,23 @@ engine offers `spkpos`, and the viewer's adapter measures it with SPICE's own
 CSPICE's GF routines are synchronous, and a fine step over a long window is
 genuinely expensive — so a search on the main thread freezes the viewer for as
 long as it runs: no camera, no scrubbing, not even a spinner. The viewer
-therefore runs its searches in the SPICE worker it already keeps for trajectory
-caches (`SpiceCacheWorker.geometrySearch()`), whose instance has the catalog's
-kernels furnished, so a search pays for no loading of its own.
+therefore runs its searches in a worker (`GeometrySearchWorker`), furnished with
+the same kernels the main thread has, so a search pays for no loading of its own.
+
+It is a *separate* worker from the trajectory cache's, for two reasons that both
+come back to CSPICE being synchronous on a single-threaded worker. A search
+sharing the cache worker blocks every trajectory build queued behind it for as
+long as it runs. And cancelling a search that cannot be interrupted in place
+means terminating its worker, which is only survivable if that worker holds
+nothing else — terminating the cache worker would throw away the trajectory
+caches and the kernel pool they depend on.
+
+The worker is built on the first search, not at load: it is a second CSPICE heap
+with its own copy of the catalog's SPKs, and a session that never searches should
+not pay for it. One search runs at a time; starting another supersedes it.
 
 ```ts
-const search = cacheWorker.geometrySearch({
+const search = geometryWorker.search({
   onProgress: ({ fraction, pass }) => showBar(fraction),
 });
 const result = await new EventSearch({ registry, provider: search.provider }).run(query);
@@ -235,9 +246,9 @@ cancelling caller checks its own flag rather than showing that fault.
 
 It also stops the CSPICE call executing right now, which is what frees the
 *worker* rather than only the viewer — otherwise a quick search started straight
-after a cancel queues behind the abandoned one, as do the trajectory cache builds
-that share the worker. See [progress and interruption](#progress-and-interruption)
-for how that reaches a thread already inside CSPICE, and when it cannot.
+after a cancel queues behind the abandoned one. See
+[progress and interruption](#progress-and-interruption) for the two ways that
+reaches a thread already inside CSPICE.
 
 ### Progress and interruption
 
@@ -262,15 +273,29 @@ search.
   Progress is posted out of the worker from inside the running CSPICE call —
   a worker can `postMessage` from synchronous code, and since searches moved off
   the main thread there is a main thread free to receive it.
-- **Interruption** needs `SharedArrayBuffer`. The bail-out handler is polled while
+- **Interruption** happens one of two ways, and a caller gets the same guarantee
+  either way: the executing call stops, and the next search does not queue behind
+  an abandoned one.
+
+  The cheap route needs `SharedArrayBuffer`. The bail-out handler is polled while
   the worker is blocked in a synchronous call, and a blocked worker cannot read
   its own message queue, so the flag it polls has to be memory both threads can
-  see. `SharedArrayBuffer` is only constructible on a cross-origin-isolated page,
-  which the dev and preview servers arrange with COOP/COEP headers
-  (`apps/viewer/vite.config.ts`). Where the headers are absent — GitHub Pages
-  cannot set them — `WorkerGeometrySearch.interruptible` is false, progress still
-  reports, and `cancel()` falls back to abandoning the search rather than
-  interrupting it.
+  see. That needs a cross-origin-isolated page, which the dev and preview servers
+  arrange with COOP/COEP headers (`apps/viewer/vite.config.ts`). The search then
+  bails out at its next poll — within ~25 ms — and the worker carries on with its
+  kernels furnished.
+
+  Where isolation is unavailable — GitHub Pages cannot set headers, and an
+  embedding host may not grant them — `cancel()` terminates the geometry worker
+  instead, which is the one thing that always stops synchronous wasm. The next
+  search rebuilds it and re-furnishes transparently: measured at ~260 ms for a
+  31 MB kernel set (41 ms to instantiate the wasm, 216 ms to furnish), against
+  the tens of seconds a long search can run for. This is why cosmolabe does not
+  *require* COOP/COEP; isolation makes cancellation cheaper, not possible.
+
+  `GeometrySearchWorker.interruptible` reports which route is in use; a search
+  handle's `interruptible` is always true, because it describes the guarantee
+  rather than the mechanism.
 
 That the general routines return the same windows as the simplified ones is
 checked, not assumed: `packages/cspice-wasm/src/gf-reporting.test.ts` runs both

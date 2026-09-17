@@ -9,7 +9,12 @@ export { TrajectoryLine } from './TrajectoryLine.js';
 export type { TrajectoryLineOptions, PositionResolver, ColorSegment } from './TrajectoryLine.js';
 export { TrajectoryCache } from './TrajectoryCache.js';
 export type { TrajectoryCacheConfig } from './TrajectoryCache.js';
-export { SpiceCacheWorker, GeometrySearchCancelled } from './SpiceCacheWorker.js';
+export {
+  SpiceCacheWorker,
+  GeometrySearchCancelled,
+  sharedCancellationAvailable,
+} from './SpiceCacheWorker.js';
+export { GeometrySearchWorker, type GeometrySearchWorkerOptions } from './GeometrySearchWorker.js';
 export type {
   CacheBuildRequest,
   GeometrySearchOptions,

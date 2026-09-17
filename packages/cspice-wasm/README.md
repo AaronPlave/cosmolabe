@@ -116,9 +116,11 @@ All calls are async even in-process. Geometry-event finders (`gfoclt`, `gfdist`)
 require a search `step` shorter than the briefest event or they can miss intervals;
 correctness follows CSPICE semantics.
 
-Interrupting a search that is already executing needs `SharedArrayBuffer`, and so a
-cross-origin-isolated page. Without it, `cancelFlag` cannot be supplied and a search
-runs to completion; progress reporting is unaffected.
+Interrupting a search through `cancelFlag` needs `SharedArrayBuffer`, and so a
+cross-origin-isolated page. Without it a search run through these bindings goes to
+completion; progress reporting is unaffected. A host that cannot be isolated can still
+stop a search by terminating the worker it runs in — see `GeometrySearchWorker` in
+`@cosmolabe/three`, which is how the viewer cancels when the flag is unavailable.
 
 `gfstol_c` is not exported, so the reporting entry points pass `SPICE_GF_CNVTOL` as the
 convergence tolerance — the same value the simplified wrappers fall back to. Exporting

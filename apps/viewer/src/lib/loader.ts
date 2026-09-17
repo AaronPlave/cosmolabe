@@ -25,7 +25,7 @@ import type { SpiceInstance } from '@cosmolabe/spice';
 import { createHeritageSpice } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin, captureFrameDataUrl } from '@cosmolabe/three';
-import type { KernelSource } from '@cosmolabe/three';
+import { GeometrySearchWorker, type KernelSource } from '@cosmolabe/three';
 import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmolabe/control';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
@@ -50,6 +50,17 @@ let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
 /**
+ * Searches run here, not on the cache worker.
+ *
+ * Two reasons, both about the fact that CSPICE is synchronous and a worker has
+ * one thread. A search sharing the cache worker blocks every trajectory build
+ * queued behind it for as long as it runs; and cancelling a search that cannot
+ * be interrupted in place (no SharedArrayBuffer, so no cross-origin isolation)
+ * means terminating its worker, which is only survivable if that worker holds
+ * nothing else. Built on the first search, not here.
+ */
+let geometryWorker: GeometrySearchWorker | null = null;
+/**
  * Every kernel furnished on the main thread, in furnish order.
  *
  * One ordered list rather than a list per source, because furnish order *is*
@@ -58,9 +69,28 @@ let cacheWorker: SpiceCacheWorker | null = null;
  * question. A dropped kernel is furnished before the catalog's own (the drop
  * handler furnishes, then loads the scene), so appending each entry as it is
  * furnished is the only thing that keeps the two paths in step. Files are held
- * as handles, not bytes: the buffer is read once, when the worker is built.
+ * as handles, not bytes, and re-read on every worker start -- the geometry
+ * worker is rebuilt whenever a cancellation had to terminate it, so a dropped
+ * kernel the user has since moved or deleted will fail to re-furnish.
  */
 const workerKernelSources: ({ url: string } | { file: File })[] = [];
+/**
+ * The worker kernel list as bytes-or-URLs, read fresh each call.
+ *
+ * Called once per worker start rather than once per session, because the
+ * geometry worker is rebuilt after a cancellation that had to terminate it and
+ * has to come back furnished exactly as it was.
+ */
+async function currentWorkerKernels(): Promise<KernelSource[]> {
+  return Promise.all(
+    workerKernelSources.map(async (source) =>
+      'url' in source
+        ? source.url
+        : { name: source.file.name, data: await source.file.arrayBuffer() },
+    ),
+  );
+}
+
 /** URLs of kernels already furnished in this session — prevents redundant fetch + furnish across demos. */
 const furnishedKernels = new Set<string>();
 
@@ -474,27 +504,28 @@ function initScene(
   // Cassini's), with no timing/settle race.
   cacheWorker?.dispose();
   cacheWorker = null;
+  geometryWorker?.dispose();
+  geometryWorker = null;
   if (!TEST_MODE && workerKernelSources.length > 0) {
     try {
       cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
       const worker = cacheWorker;
-      // In furnish order, whatever the source: the worker's kernel precedence
-      // has to match the main thread's.
-      void (async () => {
-        const sources: KernelSource[] = await Promise.all(
-          workerKernelSources.map(async (source) =>
-            'url' in source
-              ? source.url
-              : { name: source.file.name, data: await source.file.arrayBuffer() },
-          ),
-        );
-        await worker.loadKernels(sources);
-      })().catch((err) => {
-        console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
+      void currentWorkerKernels()
+        .then((sources) => worker.loadKernels(sources))
+        .catch((err) => {
+          console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
+        });
+      // Lazy: nothing is spawned until a search actually runs, and the same
+      // kernel list is replayed whenever the geometry worker is rebuilt after a
+      // cancellation that had to terminate it.
+      geometryWorker = new GeometrySearchWorker({
+        createWorker: () => new SpiceCacheRelayWorker(),
+        kernels: currentWorkerKernels,
       });
     } catch (err) {
       console.warn('[Cosmolabe] Failed to create cache worker:', err);
       cacheWorker = null;
+      geometryWorker = null;
     }
   }
 
@@ -912,6 +943,18 @@ export function getSpice(): SpiceInstance | null {
  */
 export function getCacheWorker(): SpiceCacheWorker | null {
   return cacheWorker;
+}
+
+/**
+ * The worker geometry-event searches run on, when there is one.
+ *
+ * Separate from the cache worker so a long search never delays a trajectory
+ * build, and so cancelling one can take its worker down without taking the
+ * scene's caches with it. Null in TEST_MODE and for a catalog with no kernels;
+ * callers fall back to the main thread.
+ */
+export function getGeometryWorker(): GeometrySearchWorker | null {
+  return geometryWorker;
 }
 
 /** Resize the renderer */

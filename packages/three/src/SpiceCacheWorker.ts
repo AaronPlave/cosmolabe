@@ -103,12 +103,39 @@ export interface WorkerGeometrySearch {
    */
   readonly progress: GeometrySearchProgress | null;
   /**
-   * True when {@link cancel} can stop a CSPICE call that is already executing —
-   * that is, when `SharedArrayBuffer` was available to allocate the flag it
-   * polls. False means cancelling still abandons the search, but the worker
-   * stays busy until the running call finishes on its own.
+   * True while a call this search made is outstanding in the worker.
+   *
+   * What distinguishes "this search is holding the worker" from "this search is
+   * done and only the handle is left". A caller that cancels by terminating the
+   * worker needs the difference: superseding a search that already finished
+   * should cost nothing.
+   */
+  readonly busy: boolean;
+  /**
+   * True when {@link cancel} stops a CSPICE call that is already executing.
+   *
+   * On a search taken straight from {@link SpiceCacheWorker.geometrySearch} this
+   * means `SharedArrayBuffer` was available to allocate the flag the search
+   * polls; false there means cancelling abandons the search but leaves the
+   * worker busy until the running call finishes on its own.
+   *
+   * A search from `GeometrySearchWorker` is always true: where the flag is
+   * unavailable it cancels by terminating that worker instead, which stops the
+   * call at the cost of a restart rather than leaving it running.
    */
   readonly interruptible: boolean;
+}
+
+/**
+ * Whether a running CSPICE call can be stopped where it is.
+ *
+ * True when a `SharedArrayBuffer` can be allocated, which needs a
+ * cross-origin-isolated page. False is not a dead end: it means cancellation has
+ * to stop the search by terminating the worker instead (see
+ * `GeometrySearchWorker`), which costs a restart rather than a bail-out.
+ */
+export function sharedCancellationAvailable(): boolean {
+  return createCancelFlag() !== undefined;
 }
 
 /**
@@ -375,6 +402,7 @@ export class SpiceCacheWorker {
     return {
       get cancelled() { return cancelled; },
       get progress() { return progress; },
+      get busy() { return ids.size > 0; },
       interruptible: cancelFlag !== undefined,
 
       cancel: () => {

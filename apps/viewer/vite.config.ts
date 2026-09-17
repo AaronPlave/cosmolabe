@@ -59,17 +59,18 @@ const marsTerrainPlugin = {
 /**
  * Cross-origin isolation, which is what makes `SharedArrayBuffer` available.
  *
- * Stopping a geometry search that is already executing needs it. CSPICE polls a
+ * It makes stopping a geometry search *cheap*, not possible. CSPICE polls a
  * bail-out handler from inside the running search, and a Web Worker blocked in a
  * synchronous call cannot read its own message queue — so the flag that handler
  * polls has to be memory both threads can see, and a `SharedArrayBuffer` is only
- * constructible on a cross-origin-isolated page.
+ * constructible on a cross-origin-isolated page. With it, a cancelled search
+ * bails out within ~25 ms and the worker keeps its kernels.
  *
- * Without these headers the viewer still works and searches still report
- * progress; cancelling just goes back to abandoning the search rather than
- * interrupting it, leaving the worker busy until the running call finishes.
- * GitHub Pages cannot set response headers, so the deployed build is in exactly
- * that position — see packages/three/src/SpiceCacheWorker.ts.
+ * Without these headers the viewer still works, still reports progress, and
+ * still cancels: GeometrySearchWorker terminates the geometry worker instead and
+ * the next search rebuilds it, at roughly 260 ms for a 31 MB kernel set. So
+ * cosmolabe does not require COOP/COEP — which matters for GitHub Pages, which
+ * cannot set headers, and for any host that embeds the viewer.
  *
  * COEP `credentialless` rather than `require-corp`, and that is not a
  * preference: `require-corp` demands a `Cross-Origin-Resource-Policy` header on
