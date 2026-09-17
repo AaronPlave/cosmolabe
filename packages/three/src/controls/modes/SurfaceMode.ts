@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CameraModeName, ensureQuatContinuity, bodyWorldOrientation, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
-import { attachPointerInput, pinchToWheelDelta } from '../PointerInput.js';
+import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 
 const _surfaceNormal = /* @__PURE__ */ new THREE.Vector3();
@@ -144,9 +144,7 @@ export class SurfaceMode implements ICameraMode {
         },
         // Two fingers change altitude. There is nothing to pan — WASD moves the
         // camera — so the centroid drag is ignored.
-        onPinch: (scale) => {
-          this.zoomAltitude(Math.pow(1.15, pinchToWheelDelta(scale) / 100));
-        },
+        onPinch: (scale) => { this.zoomAltitude(pinchZoomFactor(scale)); },
         onCancel: () => { this.dragging = false; },
       });
     }

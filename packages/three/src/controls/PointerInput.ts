@@ -134,17 +134,20 @@ export class TouchGestureTracker {
 }
 
 /**
- * A pinch expressed as the `deltaY` an equivalent wheel gesture would carry, so
- * a mode can run its existing wheel curve instead of growing a second
- * sensitivity to keep in step.
+ * The factor a pinch increment scales the viewing distance by: doubling the
+ * finger spread brings you `strength` times closer, so the default of 2 means
+ * a doubled spread halves the distance and pinching back restores it.
  *
- * `scale` > 1 (fingers spreading) means zoom in, which is a negative `deltaY`.
- * The 400 matches a pinch that doubles the finger spread to roughly four wheel
- * notches of 100, which is about what a trackpad pinch produces for the same
- * hand movement.
+ * Multiplicative on purpose. A pinch arrives as dozens of tiny per-event ratios
+ * that multiply back up to the ratio of the whole gesture, so a factor composes
+ * correctly however many events the device cuts the gesture into. Routing a
+ * pinch through a wheel curve instead does not: those curves log-normalize
+ * `deltaY` to even out trackpad and mouse notches, which turns each tiny pinch
+ * increment into a near-full-notch step — one gesture then drives the camera
+ * through the ground, by an amount that depends on the event rate.
  */
-export function pinchToWheelDelta(scale: number): number {
-  return -Math.log2(scale) * 400;
+export function pinchZoomFactor(scale: number, strength = 2): number {
+  return Math.pow(scale, -Math.log2(strength));
 }
 
 /** Handlers for `attachPointerInput`. */
@@ -158,7 +161,12 @@ export interface PointerInputSpec extends TouchGestureHandlers {
   onButtonDrag?(dx: number, dy: number, e: PointerEvent): void;
   /** A mouse or pen button was released (anywhere, not just over the canvas). */
   onButtonUp?(e: PointerEvent): void;
-  /** The window lost focus, or a pointer was cancelled — drop all drag state. */
+  /**
+   * Drop all drag state: the window lost focus, or a pointer was cancelled.
+   * A cancel is not a button transition — it carries `button: -1` — so a
+   * consumer that only clears state on its own button in `onButtonUp` would
+   * stay stuck in a drag without this.
+   */
   onCancel?(): void;
   /** Suppress the native context menu on the canvas (default: false). */
   preventContextMenu?: boolean;
@@ -173,6 +181,9 @@ export interface PointerInputSpec extends TouchGestureHandlers {
  * `window.addEventListener('mousemove', …)` had.
  */
 export function attachPointerInput(canvas: HTMLElement, spec: PointerInputSpec): () => void {
+  // The canvas's own window, not the ambient global: correct inside an iframe,
+  // and it lets the wiring be exercised without a browser.
+  const view = canvas.ownerDocument?.defaultView ?? (globalThis as unknown as Window);
   const touch = new TouchGestureTracker(spec);
   /** Mouse/pen buttons currently held, so a drag needs no per-mode bookkeeping. */
   const held = new Set<number>();
@@ -206,7 +217,7 @@ export function attachPointerInput(canvas: HTMLElement, spec: PointerInputSpec):
   const onPointerCancel = (e: PointerEvent) => {
     if (e.pointerType === 'touch') { touch.cancel(); return; }
     held.delete(e.pointerId);
-    spec.onButtonUp?.(e);
+    spec.onCancel?.();
   };
 
   const onBlur = () => {
@@ -218,18 +229,18 @@ export function attachPointerInput(canvas: HTMLElement, spec: PointerInputSpec):
   const onContextMenu = (e: Event) => e.preventDefault();
 
   canvas.addEventListener('pointerdown', onPointerDown, { capture: true });
-  window.addEventListener('pointermove', onPointerMove);
-  window.addEventListener('pointerup', onPointerUp);
-  window.addEventListener('pointercancel', onPointerCancel);
-  window.addEventListener('blur', onBlur);
+  view.addEventListener('pointermove', onPointerMove);
+  view.addEventListener('pointerup', onPointerUp);
+  view.addEventListener('pointercancel', onPointerCancel);
+  view.addEventListener('blur', onBlur);
   if (spec.preventContextMenu) canvas.addEventListener('contextmenu', onContextMenu);
 
   return () => {
     canvas.removeEventListener('pointerdown', onPointerDown, { capture: true } as EventListenerOptions);
-    window.removeEventListener('pointermove', onPointerMove);
-    window.removeEventListener('pointerup', onPointerUp);
-    window.removeEventListener('pointercancel', onPointerCancel);
-    window.removeEventListener('blur', onBlur);
+    view.removeEventListener('pointermove', onPointerMove);
+    view.removeEventListener('pointerup', onPointerUp);
+    view.removeEventListener('pointercancel', onPointerCancel);
+    view.removeEventListener('blur', onBlur);
     if (spec.preventContextMenu) canvas.removeEventListener('contextmenu', onContextMenu);
   };
 }

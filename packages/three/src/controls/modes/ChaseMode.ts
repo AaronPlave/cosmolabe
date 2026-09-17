@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CameraModeName, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
-import { attachPointerInput, pinchToWheelDelta } from '../PointerInput.js';
+import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
 
 const _velDir = /* @__PURE__ */ new THREE.Vector3();
 const _lookTarget = /* @__PURE__ */ new THREE.Vector3();
@@ -42,9 +42,7 @@ export class ChaseMode implements ICameraMode {
       this.detachPointerInput = attachPointerInput(canvas, {
         // The chase camera owns position and orientation outright, so a pinch
         // is the only gesture it has any use for.
-        onPinch: (scale) => {
-          this.zoomDistance(Math.pow(1.1, pinchToWheelDelta(scale) / 100));
-        },
+        onPinch: (scale) => { this.zoomDistance(pinchZoomFactor(scale)); },
       });
     }
   }

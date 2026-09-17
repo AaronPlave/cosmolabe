@@ -126,6 +126,10 @@ export class CameraController {
   private _rightDragDx = 0;   // accumulated pixel delta since last update()
   private _rightDragDy = 0;
 
+  /** Two-finger pan, accumulated in pixels since the last update() */
+  private _touchPanDx = 0;
+  private _touchPanDy = 0;
+
   /** Camera mode system */
   private readonly _modes: Map<CameraModeName, ICameraMode>;
   private _activeMode: ICameraMode;
@@ -198,6 +202,14 @@ export class CameraController {
         if (e.button === 2) this._rightDragging = false;
       },
       onCancel: () => { this._rightDragging = false; },
+      // Two-finger drag pans. TrackballControls computes the same centroid
+      // motion for touch, but only applies it when `noPan` is false — and
+      // `noPan` is what keeps a right-mouse drag from panning *and* free
+      // looking at once. Panning here keeps those two independent.
+      onPinch: (_scale, dx, dy) => {
+        this._touchPanDx += dx;
+        this._touchPanDy += dy;
+      },
     });
 
     // Shift + wheel adjusts FOV instead of zooming. Capture phase to intercept
@@ -774,7 +786,12 @@ export class CameraController {
 
       // Orbit controls (before mode update so mode sees user-adjusted position)
       if (this._activeMode.allowsOrbitControls) {
+        this._applyTouchPan();
         this.controls.update();
+      } else {
+        // The mode owns the camera; a two-finger drag is its own to interpret.
+        this._touchPanDx = 0;
+        this._touchPanDy = 0;
       }
 
       // Mode update: applies delta rotation to position, target, quaternion, and up.
@@ -859,7 +876,8 @@ export class CameraController {
     }
     const clampBody = this._trackTarget ?? this._originBody;
 
-    // Mouse left-drag orbit + scroll zoom
+    // Mouse left-drag orbit + scroll zoom; one-finger orbit + pinch zoom
+    this._applyTouchPan();
     this.controls.update();
 
     // Keyboard: roll (Q/E), translation (WASD/ZC), slew
@@ -906,6 +924,38 @@ export class CameraController {
         }
       }
     }
+  }
+
+  /**
+   * Apply an accumulated two-finger pan: move the camera and the orbit target
+   * together in the camera's screen plane, scaled by the distance to the target,
+   * which is what TrackballControls' own pan does.
+   *
+   * Panning while a body is tracked is undone the same frame — the tracked body
+   * holds the orbit target — which is the point of tracking, not a gap here.
+   */
+  private _applyTouchPan(): void {
+    const dx = this._touchPanDx;
+    const dy = this._touchPanDy;
+    this._touchPanDx = 0;
+    this._touchPanDy = 0;
+    if (dx === 0 && dy === 0) return;
+
+    const el = this._domElement;
+    if (!el.clientWidth || !el.clientHeight) return;
+
+    const eye = this._tmpV1.subVectors(this.camera.position, this.controls.target);
+    const reach = eye.length() * this.controls.panSpeed;
+    if (reach === 0) return;
+
+    const pan = this._tmpV2.crossVectors(eye, this.camera.up);
+    // Degenerate only when the view direction and up are parallel, which
+    // TrackballControls' own gimbal handling already avoids.
+    if (pan.lengthSq() > 0) pan.setLength((dx / el.clientWidth) * reach);
+    pan.addScaledVector(this.camera.up, (dy / el.clientHeight) * reach);
+
+    this.camera.position.add(pan);
+    this.controls.target.add(pan);
   }
 
   private readonly _tmpV1 = new THREE.Vector3();

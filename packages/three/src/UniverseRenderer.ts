@@ -3103,16 +3103,28 @@ export class UniverseRenderer {
       : { id: event.pointerId, x: event.clientX, y: event.clientY, t: performance.now() };
   };
 
-  private _onTouchPointerUp = (event: PointerEvent): void => {
-    if (event.pointerType !== 'touch') return;
+  /**
+   * Cancel the candidate the moment the contact leaves the slop radius, rather
+   * than judging it on where the finger finally lands: a drag that wanders off
+   * and comes back would otherwise read as a tap and select a body the user was
+   * only navigating past.
+   */
+  private _trackTapCandidate(event: PointerEvent): void {
     const candidate = this._tapCandidate;
-    this._tapCandidate = null;
     if (!candidate || candidate.id !== event.pointerId) return;
-
     const dx = event.clientX - candidate.x;
     const dy = event.clientY - candidate.y;
     const slop = UniverseRenderer._tapSlopPx;
-    if (dx * dx + dy * dy > slop * slop) return;          // dragged — that was navigation
+    if (dx * dx + dy * dy > slop * slop) this._tapCandidate = null;
+  }
+
+  private _onTouchPointerUp = (event: PointerEvent): void => {
+    if (event.pointerType !== 'touch') return;
+    this._trackTapCandidate(event);
+    const candidate = this._tapCandidate;
+    this._tapCandidate = null;
+    if (!candidate) return;
+
     if (performance.now() - candidate.t > UniverseRenderer._tapMaxMs) return; // a press, not a tap
 
     const rect = this.renderer.domElement.getBoundingClientRect();
@@ -3160,6 +3172,7 @@ export class UniverseRenderer {
    * changes.
    */
   private _onPointerMove = (event: PointerEvent): void => {
+    if (event.pointerType === 'touch') this._trackTapCandidate(event);
     const rect = this.renderer.domElement.getBoundingClientRect();
     this._lastPointer.x = event.clientX - rect.left;
     this._lastPointer.y = event.clientY - rect.top;

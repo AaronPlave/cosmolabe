@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CameraModeName, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
-import { attachPointerInput, pinchToWheelDelta } from '../PointerInput.js';
+import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 
 const _tmpV = /* @__PURE__ */ new THREE.Vector3();
@@ -30,7 +30,7 @@ function makeRotateAroundPoint(point: THREE.Vector3, quat: THREE.Quaternion, tar
  * - Right-click drag: raycast to surface pivot, orbit camera around it
  *   (horizontal = yaw around surface normal, vertical = tilt around camera right axis)
  * - WASD: translate along the surface in heading direction
- * - Scroll wheel: dolly zoom along the camera's look direction
+ * - Scroll wheel / two-finger pinch: dolly zoom along the camera's look direction
  * - Shift: speed boost (5×)
  */
 export class SurfaceExplorerMode implements ICameraMode {
@@ -166,7 +166,7 @@ export class SurfaceExplorerMode implements ICameraMode {
         keyup: (e: KeyboardEvent) => { this.keys.delete(e.code); },
         wheel: (e: WheelEvent) => {
           e.preventDefault();
-          this.dolly(e.deltaY);
+          this.dolly(this.wheelStepKm(e.deltaY), ctx);
         },
         blur: () => { this.keys.clear(); },
       };
@@ -218,7 +218,7 @@ export class SurfaceExplorerMode implements ICameraMode {
         onPinch: (scale, dx, dy) => {
           this.dragDx += dx;
           this.dragDy += dy;
-          this.dolly(pinchToWheelDelta(scale));
+          this.dolly(this.pinchStepKm(scale), ctx);
         },
         onCancel: () => {
           this.leftDragging = false;
@@ -431,20 +431,21 @@ export class SurfaceExplorerMode implements ICameraMode {
     this.hidePivotDot();
   }
 
-  /**
-   * Dolly along the camera's look direction (heading + pitch) by a wheel-style
-   * `deltaY`. A two-finger pinch comes through here too, as the `deltaY` the
-   * same gesture would carry on a trackpad, so both share this one curve.
-   *
-   * deltaY > 0 = scroll down on Mac natural scroll = zoom OUT.
-   */
-  private dolly(deltaY: number): void {
-    this.suppressGeodetic = false;
-    // Log-normalize deltaY for consistent feel across platforms/trackpads.
-    const normalizedDelta = Math.log2(Math.abs(deltaY) + 1);
+  /** Height above the terrain the camera last sampled, for zoom speed. */
+  private get zoomReferenceAltKm(): number {
     // Fresh altitude estimate from altKm (updated every scroll) and the last
     // terrain sample, instead of the 10-frame-stale altAboveTerrainKm.
-    const alt = Math.max(0.001, this.altKm - this.lastTerrainElev);
+    return Math.max(0.001, this.altKm - this.lastTerrainElev);
+  }
+
+  /**
+   * Signed distance, in km, that a wheel `deltaY` dollies the camera along its
+   * look direction. deltaY > 0 = scroll down on Mac natural scroll = zoom OUT.
+   */
+  private wheelStepKm(deltaY: number): number {
+    // Log-normalize deltaY for consistent feel across platforms/trackpads.
+    const normalizedDelta = Math.log2(Math.abs(deltaY) + 1);
+    const alt = this.zoomReferenceAltKm;
     const scrollCoeff = alt > 1.0 ? 0.06 : 0.03;
     // Linear speed — no quadratic brake. The renderer's surface clamp prevents
     // going through terrain, so the brake is unnecessary and makes the last
@@ -452,12 +453,50 @@ export class SurfaceExplorerMode implements ICameraMode {
     const rawSpeed = alt * scrollCoeff * normalizedDelta;
     // Floor ensures camera can always scroll out even if trapped below terrain
     const speed = Math.max(0.003 * normalizedDelta, rawSpeed);
-    const sign = deltaY > 0 ? -1 : 1;
+    return deltaY > 0 ? -speed : speed;
+  }
+
+  /**
+   * The same step for a pinch increment, as a fraction of the height above
+   * terrain rather than through the wheel curve above: that curve's
+   * log-normalization is calibrated for whole wheel notches and would turn each
+   * tiny pinch ratio into a near-full notch, sending the camera underground
+   * within one gesture. A fraction composes across increments, so the zoom
+   * depends on the gesture and not on the device's event rate.
+   */
+  private pinchStepKm(scale: number): number {
+    const fraction = 1 - pinchZoomFactor(scale);
+    const magnitude = Math.abs(fraction);
+    // Floor mirrors wheelStepKm's, for a camera trapped below terrain.
+    const speed = Math.max(0.003 * magnitude, this.zoomReferenceAltKm * magnitude);
+    return fraction < 0 ? -speed : speed;
+  }
+
+  /**
+   * Dolly by `stepKm` along the look direction.
+   *
+   * While orbiting, the camera is what's authoritative — `update()` rewrites the
+   * geodetic state from it — so the step has to move the camera itself. Writing
+   * it into latRad/lonRad/altKm there would be overwritten before it was ever
+   * applied, which is how a pinch over terrain used to do nothing at all.
+   */
+  private dolly(stepKm: number, ctx: CameraModeContext): void {
+    if (this.rightDragging && this.hasPivot) {
+      ctx.camera.getWorldDirection(_tmpV);
+      ctx.camera.position.addScaledVector(_tmpV, stepKm * ctx.scaleFactor);
+      return;
+    }
+    this.dollyGeodetic(stepKm);
+  }
+
+  /** Dolly by moving the geodetic state along heading + pitch. */
+  private dollyGeodetic(step: number): void {
+    this.suppressGeodetic = false;
     const cosPitch = Math.cos(this.pitch);
     const sinPitch = Math.sin(this.pitch);
 
     // Horizontal: forward/back along heading
-    const angStep = (sign * speed * cosPitch) / this.re;
+    const angStep = (step * cosPitch) / this.re;
     const cosH = Math.cos(this.heading);
     const sinH = Math.sin(this.heading);
     const cosLat = Math.cos(this.latRad);
@@ -466,7 +505,7 @@ export class SurfaceExplorerMode implements ICameraMode {
     this.lonRad += sinH * angStep * safeCos;
 
     // Vertical: along pitch direction
-    this.altKm = Math.max(-20, Math.min(10000, this.altKm + sign * speed * sinPitch));
+    this.altKm = Math.max(-20, Math.min(10000, this.altKm + step * sinPitch));
     this.dirty = true;
   }
 
