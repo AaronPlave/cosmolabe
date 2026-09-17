@@ -10,6 +10,7 @@ import {
 } from '../EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, makeAerialPerspectiveUniforms } from '../AerialPerspective.js';
 import { injectRingShadowIntoShader, makeRingShadowUniforms } from '../RingShadow.js';
+import { RingMesh } from '../RingMesh.js';
 
 // Scene units: kilometres × scaleFactor, matching UniverseRenderer's default.
 const S = 1e-6;
@@ -102,12 +103,14 @@ describe('selectShadowOccluders', () => {
     const got = selectShadowOccluders(candidates, saturnPos, saturnRadius, sunAtOrigin(), SUN_RADIUS);
     expect(got).toContainEqual(mimas);
 
-    // Ranking by apparent size — the old behaviour — would have filled every
-    // slot with the four outer moons and dropped Mimas.
+    // Ranking by apparent size — the old behaviour — filled all four of its
+    // slots with the outer moons and dropped Mimas. The 4 is the old code's
+    // own literal, not MAX_SHADOW_OCCLUDERS: this describes what shipped, so it
+    // must not move if the slot count is ever retuned.
     const byApparentSize = [...candidates]
       .sort((a, b) =>
         b.radius / b.pos.distanceTo(saturnPos) - a.radius / a.pos.distanceTo(saturnPos))
-      .slice(0, MAX_SHADOW_OCCLUDERS);
+      .slice(0, 4);
     expect(byApparentSize).not.toContainEqual(mimas);
   });
 
@@ -143,12 +146,12 @@ describe('selectShadowOccluders', () => {
     const picked = got.map(o => names.find(n => moons[n].pos === o.pos));
     expect(picked).toEqual(['Mimas']);
 
-    // Apparent-size ranking fills all four slots and leaves out the only moon
-    // whose shadow is on the planet.
+    // Apparent-size ranking filled all four of its slots and left out the only
+    // moon whose shadow is on the planet. As above, 4 is the old code's literal.
     const byApparentSize = names
       .sort((a, b) =>
         moons[b].radius / moons[b].pos.length() - moons[a].radius / moons[a].pos.length())
-      .slice(0, MAX_SHADOW_OCCLUDERS);
+      .slice(0, 4);
     expect(byApparentSize).not.toContain('Mimas');
   });
 
@@ -216,6 +219,22 @@ describe('injectShadowIntoShader', () => {
     injectShadowIntoShader(shader, su as unknown as Record<string, { value: unknown }>);
     expect(shader.uniforms.uShadowOccluderPos).toBe(su.uShadowOccluderPos);
     expect(shader.uniforms.uShadowOccluderCount).toBe(su.uShadowOccluderCount);
+  });
+
+  // Four consumers carry the shadow uniform block: the body material, the ring
+  // material, the atmosphere shell and the sky-view LUT. They are fed from one
+  // occluder list, so a setter that caps at its own literal would either write
+  // past its uniform array or silently ignore slots the others use.
+  it('caps every setter at the number of slots its uniforms actually have', () => {
+    const many: ShadowOccluder[] = Array.from({ length: MAX_SHADOW_OCCLUDERS + 3 }, (_, i) => ({
+      pos: v(km(1000 * (i + 1))), radius: km(100),
+    }));
+    const ring = new RingMesh(km(74660), km(140220));
+    expect(() => ring.setShadowOccluders(many, v(1), 0.7)).not.toThrow();
+    const u = (ring as unknown as { shadowUniforms: ReturnType<typeof makeShadowUniforms> }).shadowUniforms;
+    expect(u.uShadowOccluderCount.value).toBe(MAX_SHADOW_OCCLUDERS);
+    expect(u.uShadowOccluderPos.value).toHaveLength(MAX_SHADOW_OCCLUDERS);
+    expect(u.uShadowOccluderRadius.value).toHaveLength(MAX_SHADOW_OCCLUDERS);
   });
 
   it('sizes its arrays and its loop to MAX_SHADOW_OCCLUDERS', () => {

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { AtmosphereParams } from './AtmosphereMesh.js';
+import { MAX_SHADOW_OCCLUDERS } from './EclipseShadow.js';
 
 /**
  * Sky-view LUT (Hillaire 2020 §6.4). Renders the atmospheric ray-march once
@@ -96,8 +97,8 @@ export class SkyViewLUT {
         // AtmosphereMesh shader; copied per-frame from atm material).
         uSunWorldPos:          { value: new THREE.Vector3() },
         uSunRadius:            { value: 0 },
-        uShadowOccluderPos:    { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] },
-        uShadowOccluderRadius: { value: new Float32Array(4) },
+        uShadowOccluderPos:    { value: Array.from({ length: MAX_SHADOW_OCCLUDERS }, () => new THREE.Vector3()) },
+        uShadowOccluderRadius: { value: new Float32Array(MAX_SHADOW_OCCLUDERS) },
         uShadowOccluderCount:  { value: 0.0 },
         uPlanetWorldPos:       { value: new THREE.Vector3() },
         uShellSceneScale:      { value: 1.0 },
@@ -129,8 +130,8 @@ export class SkyViewLUT {
 
         uniform vec3  uSunWorldPos;
         uniform float uSunRadius;
-        uniform vec3  uShadowOccluderPos[4];
-        uniform float uShadowOccluderRadius[4];
+        uniform vec3  uShadowOccluderPos[${MAX_SHADOW_OCCLUDERS}];
+        uniform float uShadowOccluderRadius[${MAX_SHADOW_OCCLUDERS}];
         uniform float uShadowOccluderCount;
         uniform vec3  uPlanetWorldPos;
         uniform float uShellSceneScale;
@@ -145,7 +146,7 @@ export class SkyViewLUT {
           if (distToSun < 1e-20) return 1.0;
           vec3 rayDir = toSun / distToSun;
           float shadowFactor = 1.0;
-          for (int i = 0; i < 4; i++) {
+          for (int i = 0; i < ${MAX_SHADOW_OCCLUDERS}; i++) {
             if (float(i) >= uShadowOccluderCount) break;
             vec3 toOcc = uShadowOccluderPos[i] - worldPos;
             float t = dot(toOcc, rayDir);
@@ -285,7 +286,7 @@ export class SkyViewLUT {
     u.uPlanetWorldPos.value.copy(planetWorldPos);
     u.uShellSceneScale.value = shellSceneScale;
     if (occluders && occluders.length > 0) {
-      const count = Math.min(occluders.length, 4);
+      const count = Math.min(occluders.length, MAX_SHADOW_OCCLUDERS);
       u.uShadowOccluderCount.value = count;
       for (let i = 0; i < count; i++) {
         u.uShadowOccluderPos.value[i].copy(occluders[i].pos);

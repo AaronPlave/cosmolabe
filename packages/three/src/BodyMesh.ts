@@ -7,7 +7,7 @@ import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
 import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
-import { injectShadowIntoShader, makeShadowUniforms, type ShadowUniforms } from './EclipseShadow.js';
+import { injectShadowIntoShader, makeShadowUniforms, MAX_SHADOW_OCCLUDERS, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUniforms } from './RingShadow.js';
 import { BLOOM_LAYER } from './BloomEffect.js';
@@ -535,7 +535,7 @@ export class BodyMesh extends THREE.Object3D {
     sunRadius: number,
   ): void {
     const u = this.shadowUniforms;
-    const count = Math.min(occluders.length, 4);
+    const count = Math.min(occluders.length, MAX_SHADOW_OCCLUDERS);
     u.uShadowOccluderCount.value = count;
     u.uSunWorldPos.value.copy(sunPos);
     u.uSunRadius.value = sunRadius;

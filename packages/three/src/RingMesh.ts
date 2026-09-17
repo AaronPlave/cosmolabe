@@ -3,6 +3,7 @@ import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import {
   injectShadowIntoShader,
   makeShadowUniforms,
+  MAX_SHADOW_OCCLUDERS,
   type ShadowUniforms,
 } from './EclipseShadow.js';
 
@@ -133,7 +134,7 @@ export class RingMesh extends THREE.Object3D {
     sunRadius: number,
   ): void {
     const u = this.shadowUniforms;
-    const count = Math.min(occluders.length, 4);
+    const count = Math.min(occluders.length, MAX_SHADOW_OCCLUDERS);
     u.uShadowOccluderCount.value = count;
     u.uSunWorldPos.value.copy(sunPos);
     u.uSunRadius.value = sunRadius;
