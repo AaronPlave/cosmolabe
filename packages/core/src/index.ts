@@ -52,12 +52,17 @@ export { FixedEulerRotation } from './rotations/FixedEulerRotation.js';
 export { InterpolatedRotation, parseQFile } from './rotations/InterpolatedRotation.js';
 export type { OrientationRecord } from './rotations/InterpolatedRotation.js';
 
-// Kinematics — frame-aware sub-point and body-fixed velocity primitives,
-// plus the inter-inertial-frame composition utility (`alignPositionToFrame`)
-// that underlies BodyMesh.updatePosition and Universe.subPointOf. Apps
-// that build their own body-fixed math (sub-points for 2D ground tracks,
-// surface velocities for custom HUDs) should reach for these rather than
-// reinvent the obliquity rotation and quaternion-rotate-vec primitives.
+// Kinematics — frame-aware sub-point and body-fixed velocity geometry, plus
+// the inter-inertial-frame composition utility (`alignPositionToFrame`) that
+// underlies BodyMesh.updatePosition and subPointOf. Apps that build their own
+// body-fixed math (sub-points for 2D ground tracks, surface velocities for
+// custom HUDs) should reach for these rather than reinvent the obliquity
+// rotation and quaternion-rotate-vec primitives.
+//
+// `subPointOf` and `bodyFixedVelocityMagnitudeOf` take a `BodyLookup` —
+// `(name) => universe.getBody(name)` — rather than living on `Universe`,
+// which held them only for that lookup. New geometry belongs here or in
+// `geometry/`, not as another method on the model.
 export {
   alignPositionToFrame,
   bodyTrajectoryFrameName,
@@ -67,8 +72,10 @@ export {
   frameAlignmentQuat,
   composeBodyToWorldQuat,
   bodyFixedOffsetToWorld,
+  subPointOf,
+  bodyFixedVelocityMagnitudeOf,
 } from './kinematics.js';
-export type { Vec3 } from './kinematics.js';
+export type { Vec3, BodyLookup } from './kinematics.js';
 
 // Frames
 export type { Frame } from './frames/Frame.js';

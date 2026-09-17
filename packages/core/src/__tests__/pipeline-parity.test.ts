@@ -28,6 +28,7 @@
  * Nothing keys off that text.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
+import { subPointOf } from '../kinematics.js';
 import { buildUniverseFromCatalog, type BuiltScene } from './_harness/buildUniverse.js';
 import { SCENES } from './_harness/scenes.js';
 import { composeBodyToWorldQuat } from '../kinematics.js';
@@ -175,8 +176,8 @@ describe('pipeline parity: cspice-wasm vs timecraftjs through the core', () => {
     for (const name of legacy.bodyNames) {
       for (const hr of SAMPLE_OFFSETS_HR) {
         const t = legacy.et + hr * 3600;
-        const a = legacy.universe.subPointOf(name, t);
-        const b = harvested.universe.subPointOf(name, t);
+        const a = subPointOf((n) => legacy.universe.getBody(n), name, t);
+        const b = subPointOf((n) => harvested.universe.getBody(n), name, t);
         expect(b === null, `${name} @${hr}h: subPointOf nullity disagreement`).toBe(a === null);
         if (!a || !b) continue;
         track(worstAlt, `${name} @${hr}h`, Math.abs(a.altKm - b.altKm));
