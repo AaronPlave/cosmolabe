@@ -34,4 +34,5 @@ export {
   type HeritageSpice,
   type HeritageSpiceOptions,
 } from './heritage-spice.js';
+export { spiceUtcFromIso } from './iso-epoch.js';
 export { sha256Hex, sha256HexOfText } from './sha256.js';

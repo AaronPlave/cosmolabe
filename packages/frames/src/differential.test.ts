@@ -121,6 +121,38 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
       }
     });
 
+    it('retiring the Z-strip re-baselines nothing: every Z form is bit-identical', () => {
+      // Issue #8. The adapter no longer strips the designator and leans on
+      // CSPICE's default UTC reading; it emits the calendar form with UTC
+      // named. Heritage's answer is the baseline, and the two agree exactly —
+      // not to a tolerance — over the epoch shapes the catalogs carry
+      // (whole-minute, whole-second, and millisecond OEM epochs), so no golden
+      // moves.
+      for (const s of [
+        '2004-07-01T02:48:00Z',
+        '2004-07-01T02:00:00Z',
+        '2021-04-19T07:30:50.116Z',
+        '1977-08-20T14:29:00Z',
+        '2031-03-06T12:00:00Z',
+        '2004-07-01T02:00:00',
+        '2004-07-01',
+      ]) {
+        expect(heritage.str2et(s), s).toBe(legacy.str2et(s));
+      }
+    });
+
+    it('accepts the ISO forms heritage rejected, the one deliberate divergence', () => {
+      // Heritage stripped exactly one trailing Z, so an offset epoch or a
+      // stray space reached str2et_c intact and threw SPICE(UNPARSEDTIME).
+      // Normalisation resolves both, and lands on heritage's own value for the
+      // equivalent UTC instant.
+      const noon = legacy.str2et('2004-07-01T12:00:00');
+      for (const s of ['2004-07-01T14:00:00+02:00', '2004-07-01T07:00:00-05:00', ' 2004-07-01T12:00:00Z ']) {
+        expect(() => legacy.str2et(s), s).toThrow();
+        expect(heritage.str2et(s), s).toBe(noon);
+      }
+    });
+
     it('et2utc agrees for every format and precision', () => {
       for (const fmt of ['C', 'D', 'J', 'ISOC', 'ISOD'] as const) {
         for (const prec of [0, 3, 6]) {
