@@ -37,6 +37,7 @@ import {
 import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
 import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
 import { getGeometryWorker, getSpice } from './loader';
+import { noteMemory } from './memory-probe';
 import {
   activeEventAtTime,
   buildQuery,
@@ -637,6 +638,11 @@ export async function runSearch() {
       active = null;
       ef.running = false;
       ef.progress = null;
+      // A no-op unless the page was loaded with `?mem=1`. Here because a search
+      // is the operation that creates the geometry worker and its second copy
+      // of the catalog's kernels, so it is the one whose cost is worth a
+      // before-and-after.
+      noteMemory(`after ${ef.kind} search`);
     }
   }
 }
