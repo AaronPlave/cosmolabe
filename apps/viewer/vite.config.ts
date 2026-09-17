@@ -56,6 +56,30 @@ const marsTerrainPlugin = {
   },
 };
 
+/**
+ * Cross-origin isolation, which is what makes `SharedArrayBuffer` available.
+ *
+ * Stopping a geometry search that is already executing needs it. CSPICE polls a
+ * bail-out handler from inside the running search, and a Web Worker blocked in a
+ * synchronous call cannot read its own message queue — so the flag that handler
+ * polls has to be memory both threads can see, and a `SharedArrayBuffer` is only
+ * constructible on a cross-origin-isolated page.
+ *
+ * Without these headers the viewer still works and searches still report
+ * progress; cancelling just goes back to abandoning the search rather than
+ * interrupting it, leaving the worker busy until the running call finishes.
+ * GitHub Pages cannot set response headers, so the deployed build is in exactly
+ * that position — see packages/three/src/SpiceCacheWorker.ts.
+ *
+ * COEP `credentialless` rather than `require-corp`: the viewer fetches kernels
+ * and terrain from its own origin, and `credentialless` does not demand CORP
+ * headers on every one of them.
+ */
+const CROSS_ORIGIN_ISOLATION = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'credentialless',
+};
+
 export default defineConfig({
   base: normalizeBase(process.env.VITE_BASE),
   plugins: [svelte(), tailwindcss(), marsTerrainPlugin],
@@ -69,6 +93,7 @@ export default defineConfig({
     },
   },
   server: {
+    headers: CROSS_ORIGIN_ISOLATION,
     fs: {
       // Allow serving files from the monorepo root (needed for workspace packages)
       allow: [path.resolve(__dirname, '../..')],
@@ -85,6 +110,9 @@ export default defineConfig({
         '**/scripts/build-mars-terrain/data/**',
       ],
     },
+  },
+  preview: {
+    headers: CROSS_ORIGIN_ISOLATION,
   },
   optimizeDeps: {
     // Don't pre-bundle workspace packages — use source directly for HMR

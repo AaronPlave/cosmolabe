@@ -264,7 +264,12 @@
         onclick={runSearch}
       >
         {#if ef.running}
-          <Loader2 size={12} class="animate-spin" /> Searching…
+          <Loader2 size={12} class="animate-spin" />
+          {#if ef.progress}
+            Searching… {Math.round(ef.progress.fraction * 100)}%
+          {:else}
+            Searching…
+          {/if}
         {:else}
           <Search size={12} /> Find events
         {/if}
@@ -280,6 +285,29 @@
         </button>
       {/if}
     </div>
+
+    <!-- A determinate bar, from CSPICE's own progress reporter running inside
+         the search. The fraction is of the geometry call currently running, not
+         of the search, so it can restart when the search moves to its next call
+         or its next pass — which is why there is no percentage promised here
+         beyond the one on the button. Absent on the main-thread path, where the
+         simplified CSPICE wrappers report nothing and the spinner is all there
+         is. -->
+    {#if ef.running && ef.progress}
+      <div
+        class="mt-1.5 h-1 w-full overflow-hidden rounded bg-surface-3"
+        role="progressbar"
+        aria-label="Geometry search progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(ef.progress.fraction * 100)}
+      >
+        <div
+          class="h-full bg-accent transition-[width] duration-200"
+          style={`width: ${Math.round(ef.progress.fraction * 100)}%`}
+        ></div>
+      </div>
+    {/if}
 
     {#if configured}
       <div class="mt-1.5 flex items-center gap-3 ui-helper">

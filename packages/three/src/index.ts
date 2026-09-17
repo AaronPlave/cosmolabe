@@ -10,7 +10,13 @@ export type { TrajectoryLineOptions, PositionResolver, ColorSegment } from './Tr
 export { TrajectoryCache } from './TrajectoryCache.js';
 export type { TrajectoryCacheConfig } from './TrajectoryCache.js';
 export { SpiceCacheWorker, GeometrySearchCancelled } from './SpiceCacheWorker.js';
-export type { CacheBuildRequest, KernelSource, WorkerGeometrySearch } from './SpiceCacheWorker.js';
+export type {
+  CacheBuildRequest,
+  GeometrySearchOptions,
+  GeometrySearchProgress,
+  KernelSource,
+  WorkerGeometrySearch,
+} from './SpiceCacheWorker.js';
 export { SensorFrustum } from './SensorFrustum.js';
 export type { SensorFrustumOptions } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';

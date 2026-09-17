@@ -51,23 +51,79 @@ export class GeometrySearchCancelled extends Error {
   }
 }
 
+/**
+ * How far the geometry call currently running has got.
+ *
+ * `fraction` is of the confinement window that call was given, not of elapsed
+ * time and not of the search as a whole: CSPICE reports the window it has swept,
+ * which advances unevenly and is honest for a bar but misleading as an ETA.
+ *
+ * `pass` is the 1-based pass number *within* that call — a relational search
+ * sweeps its window once to find where the quantity is decreasing before it
+ * solves the relation, and the fraction restarts at each pass. A search is also
+ * usually several calls (an extremum search inside each interval a window search
+ * found), and the fraction restarts at each of those too. So this says "this
+ * step is n% done", never "the search is n% done"; nothing CSPICE reports can
+ * say the latter.
+ */
+export interface GeometrySearchProgress {
+  readonly fraction: number;
+  readonly pass: number;
+}
+
+/** Options for one worker-backed search. */
+export interface GeometrySearchOptions {
+  /** Called whenever the running call reports progress. */
+  onProgress?: (progress: GeometrySearchProgress) => void;
+}
+
 /** A cancellable, worker-backed geometry-finder provider for one search. */
 export interface WorkerGeometrySearch {
   /** The provider to hand to `EventSearch`. */
   provider: GeometryFinderProvider;
   /**
-   * Abandons the search: every call still pending or yet to be made rejects
-   * with {@link GeometrySearchCancelled}.
+   * Stops the search: every call still pending or yet to be made rejects with
+   * {@link GeometrySearchCancelled}, and the call the worker is executing right
+   * now is asked to stop too.
    *
-   * A CSPICE call already running in the worker is not interrupted — the worker
-   * is single-threaded and CSPICE is synchronous, so there is no point at which
-   * it could be. What stops is everything after it, which for a search of any
-   * size is most of the work. The main thread is free either way; that is what
-   * running the search over there bought.
+   * That last part needs `SharedArrayBuffer`. CSPICE polls a bail-out handler
+   * from inside the running search, and a worker blocked in a synchronous call
+   * cannot read its own message queue — so the flag it polls has to be memory
+   * both threads can see. Where `SharedArrayBuffer` is unavailable (a page that
+   * is not cross-origin isolated), the executing call runs to completion as it
+   * always did: the caller is freed immediately either way, but the worker is
+   * not, and the next search queues behind the abandoned one.
    */
   cancel(): void;
   /** True once {@link cancel} has been called. */
   readonly cancelled: boolean;
+  /**
+   * The running call's progress, or null before it has reported any.
+   * See {@link GeometrySearchProgress} for what the fraction is a fraction of.
+   */
+  readonly progress: GeometrySearchProgress | null;
+  /**
+   * True when {@link cancel} can stop a CSPICE call that is already executing —
+   * that is, when `SharedArrayBuffer` was available to allocate the flag it
+   * polls. False means cancelling still abandons the search, but the worker
+   * stays busy until the running call finishes on its own.
+   */
+  readonly interruptible: boolean;
+}
+
+/**
+ * The shared word a running search polls to learn it should stop, or undefined
+ * where the page is not cross-origin isolated and `SharedArrayBuffer` is
+ * therefore unavailable.
+ */
+function createCancelFlag(): Int32Array | undefined {
+  if (typeof SharedArrayBuffer === 'undefined') return undefined;
+  try {
+    return new Int32Array(new SharedArrayBuffer(4));
+  } catch {
+    // Some environments expose the constructor but refuse to allocate.
+    return undefined;
+  }
 }
 
 export class SpiceCacheWorker {
@@ -81,6 +137,8 @@ export class SpiceCacheWorker {
     resolve: (value: unknown) => void;
     reject: (error: Error) => void;
   }>();
+  /** Progress sinks for in-flight geometry calls, keyed by request id. */
+  private geometryProgress = new Map<string, (progress: GeometrySearchProgress) => void>();
   private nextId = 0;
   // Resolves when loadKernels() completes. buildCache() awaits this to avoid
   // racing with kernel loading (both await readyPromise, but buildCache must
@@ -142,6 +200,15 @@ export class SpiceCacheWorker {
           pending.resolve(cache);
           this.pendingRequests.delete(msg.id as string);
         }
+        break;
+      }
+
+      case 'geometryProgress': {
+        // Interim: the call is still running, so the pending entry stays put.
+        this.geometryProgress.get(msg.id as string)?.({
+          fraction: msg.fraction as number,
+          pass: msg.pass as number,
+        });
         break;
       }
 
@@ -258,10 +325,14 @@ export class SpiceCacheWorker {
    * against the same heritage adapter the main thread would have used, so the
    * results are the main-thread path's results, not an approximation of them.
    */
-  geometrySearch(): WorkerGeometrySearch {
+  geometrySearch(options?: GeometrySearchOptions): WorkerGeometrySearch {
     const search = `search_${this.nextId++}`;
     let cancelled = false;
+    let progress: GeometrySearchProgress | null = null;
     const ids = new Set<string>();
+    // One flag for the whole search: every call it makes polls the same word, so
+    // one store stops whichever of them the worker happens to be executing.
+    const cancelFlag = createCancelFlag();
 
     const call = async (fn: string, args: unknown[]): Promise<unknown> => {
       if (cancelled) throw new GeometrySearchCancelled();
@@ -273,13 +344,28 @@ export class SpiceCacheWorker {
 
       const id = `geom_${this.nextId++}`;
       ids.add(id);
+      // `range` is a single position lookup: nothing to report, nothing to stop.
+      // Nor is there anything to ask for when the caller wants no progress and
+      // no flag could be allocated — the search then stays on CSPICE's
+      // simplified wrappers, exactly where it was before any of this.
+      const reported = fn !== 'range' && (!!options?.onProgress || cancelFlag !== undefined);
+      if (reported) {
+        this.geometryProgress.set(id, (p) => {
+          progress = p;
+          options?.onProgress?.(p);
+        });
+      }
       try {
         return await new Promise<unknown>((resolve, reject) => {
           this.pendingRequests.set(id, { resolve, reject });
-          this.worker.postMessage({ type: 'geometry', id, search, fn, args });
+          this.worker.postMessage({
+            type: 'geometry', id, search, fn, args,
+            report: reported ? { progress: !!options?.onProgress, cancelFlag } : undefined,
+          });
         });
       } finally {
         ids.delete(id);
+        this.geometryProgress.delete(id);
       }
     };
 
@@ -288,17 +374,25 @@ export class SpiceCacheWorker {
 
     return {
       get cancelled() { return cancelled; },
+      get progress() { return progress; },
+      interruptible: cancelFlag !== undefined,
 
       cancel: () => {
         if (cancelled) return;
         cancelled = true;
+        // Three things stop, in the order they can be reached. The shared flag
+        // is the only one the executing CSPICE call will ever see, and it is set
+        // first so the worker starts unwinding while the rest is bookkeeping.
+        if (cancelFlag) Atomics.store(cancelFlag, 0, 1);
         // The worker is told as well as the caller: a call can already be in
         // the worker's queue, and the point of cancelling is that it does not
-        // run.
+        // run. This message is what stops those — it cannot reach the running
+        // call, because the worker will not read its queue until that returns.
         if (!this.disposed) this.worker.postMessage({ type: 'cancelGeometry', search });
         for (const id of ids) {
           this.pendingRequests.get(id)?.reject(new GeometrySearchCancelled());
           this.pendingRequests.delete(id);
+          this.geometryProgress.delete(id);
         }
         ids.clear();
       },
@@ -331,5 +425,6 @@ export class SpiceCacheWorker {
       reject(new Error('Worker disposed'));
     }
     this.pendingRequests.clear();
+    this.geometryProgress.clear();
   }
 }

@@ -35,7 +35,7 @@ import {
   type GeometryFinderProvider,
 } from '@cosmolabe/core';
 import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
-import { GeometrySearchCancelled } from '@cosmolabe/three';
+import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
 import { getCacheWorker, getSpice } from './loader';
 import {
   activeEventAtTime,
@@ -103,6 +103,17 @@ interface RunningSearch {
 }
 
 /**
+ * Progress of the geometry call currently running, or null when there is none
+ * to be had.
+ *
+ * Null on the main-thread path: the fraction comes from CSPICE's own progress
+ * reporter, which only the general GF entry points accept, and only the worker's
+ * adapter calls those. A search without it shows an indeterminate spinner, which
+ * is what every search showed before.
+ */
+export type SearchProgress = GeometrySearchProgress | null;
+
+/**
  * The provider this search will use: the worker's when there is one, the main
  * thread's when there is not.
  *
@@ -112,7 +123,17 @@ interface RunningSearch {
  */
 function beginSearch(spice: SpiceInstance): RunningSearch {
   const worker = getCacheWorker();
-  if (worker) return worker.geometrySearch();
+  if (worker) {
+    // Only the search that owns the panel writes to it. A superseded search can
+    // still report for a moment before it stops, and its progress is nobody's.
+    let self: RunningSearch | null = null;
+    self = worker.geometrySearch({
+      onProgress: (progress) => {
+        if (active === self) ef.progress = progress;
+      },
+    });
+    return self;
+  }
 
   // No worker: the calls block, and nothing can change that. Cancelling still
   // stops the *next* call, which is why the guard is here rather than only in
@@ -206,6 +227,13 @@ export const ef = $state({
   form: null as EventQueryForm | null,
   /** True while a search is in flight. */
   running: false,
+  /**
+   * How far the running search's current geometry call has got, or null when
+   * the path it is running on cannot say. See {@link SearchProgress}: it is the
+   * fraction of one call's window, not of the search, so it can restart —
+   * a determinate bar for the step, never a prediction of the whole.
+   */
+  progress: null as SearchProgress,
   /** Results of the last completed search, chronological. */
   events: [] as GeometryEvent[],
   /** Why the last search could not run. Null when it ran, even if it found nothing. */
@@ -577,6 +605,7 @@ export async function runSearch() {
   const token = ++inFlight;
 
   ef.running = true;
+  ef.progress = null;
   ef.selectedId = null;
   try {
     // Resolution applies the shared context defaults but preserves this item's
@@ -607,17 +636,23 @@ export async function runSearch() {
     if (active === running) {
       active = null;
       ef.running = false;
+      ef.progress = null;
     }
   }
 }
 
 /**
- * Abandons the running search.
+ * Stops the running search.
  *
- * What stops is every call the search has not made yet. A CSPICE call already
- * under way finishes either way — it is synchronous, and there is no point at
- * which it could be interrupted — but on the worker path the viewer is not
- * waiting on it, and its answer is discarded.
+ * Every call it has not made yet stops, and on the worker path the call CSPICE
+ * is executing right now is asked to stop too — through a bail-out handler
+ * polled from inside that call. That is what frees the worker rather than merely
+ * freeing the viewer: the next search, and the trajectory cache builds that
+ * share the worker, no longer queue behind an abandoned one.
+ *
+ * The interruption needs shared memory to reach a thread already inside CSPICE,
+ * so on a page that is not cross-origin isolated it degrades to what it always
+ * did: the viewer is freed immediately, the worker finishes the call first.
  */
 export function cancelSearch() {
   active?.cancel();

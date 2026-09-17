@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createSpiceEngine, type SpiceEngine } from './index.js';
 import { installSpiceWorker, type SpiceWorkerScope } from './worker-core.js';
-import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
+import { isWorkerResult, type SpiceWorkerRequest, type SpiceWorkerResult } from './protocol.js';
 
 const fixture = (name: string) =>
   new Uint8Array(readFileSync(fileURLToPath(new URL(`../../../kernels/fixtures/${name}`, import.meta.url))));
@@ -36,10 +36,14 @@ describe('cspice-wasm spkposBatch (F3 batching)', () => {
 
   it('transfers the result buffer zero-copy from the worker', async () => {
     // Drive installSpiceWorker with a fake scope that captures responses by id.
-    const responses = new Map<number, { res: SpiceWorkerResponse; transfer?: Transferable[] }>();
+    // Only the response that ends a request is collected: an interim progress
+    // report shares its id and would otherwise overwrite it.
+    const responses = new Map<number, { res: SpiceWorkerResult; transfer?: Transferable[] }>();
     const scope: SpiceWorkerScope = {
       onmessage: null,
-      postMessage: (res, transfer) => responses.set(res.id, { res, transfer }),
+      postMessage: (res, transfer) => {
+        if (isWorkerResult(res)) responses.set(res.id, { res, transfer });
+      },
     };
     installSpiceWorker(scope);
     const send = (req: SpiceWorkerRequest) => scope.onmessage!({ data: req } as MessageEvent<SpiceWorkerRequest>);

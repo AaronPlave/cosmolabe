@@ -351,6 +351,49 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
       expect(h.length, 'window count').toBe(l.length);
       expectNumbersClose(h, l, 'gfsep windows');
     });
+
+    it('the reporting entry points agree with the legacy engine too', () => {
+      // Passing a report moves the adapter off CSPICE's simplified gf*_c
+      // wrappers and onto the general routines underneath, which are the only
+      // ones that take a progress reporter and a bail-out handler.
+      //
+      // cspice-wasm's gf-reporting.test.ts already holds the two tiers against
+      // each other inside one build. This is the stronger statement: the tier
+      // the viewer now searches on still agrees with a different CSPICE build
+      // entirely. A progress bar is not worth a different answer.
+      const start = legacy.str2et('2004-07-01T00:00:00');
+      const end = legacy.str2et('2004-07-02T00:00:00');
+      const cnfine = [{ start, end }];
+      const seen: number[] = [];
+      const report = { onProgress: (fraction: number) => seen.push(fraction) };
+
+      expectNumbersClose(
+        heritage.gfdist('MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, cnfine, report),
+        legacy.gfdist('MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, cnfine),
+        'gfdist windows (reporting)',
+      );
+
+      const sepArgs = ['TITAN', 'SPHERE', 'IAU_TITAN', 'SATURN', 'SPHERE', 'IAU_SATURN', 'NONE',
+        'CASSINI', 'LOCMAX', 0, 0, 600, cnfine] as const;
+      expectNumbersClose(
+        heritage.gfsep(...sepArgs, report),
+        legacy.gfsep(...sepArgs),
+        'gfsep windows (reporting)',
+      );
+
+      const ocltArgs = ['ANY', 'TITAN', 'ELLIPSOID', 'IAU_TITAN', 'SATURN', 'ELLIPSOID',
+        'IAU_SATURN', 'NONE', 'CASSINI', 300, cnfine] as const;
+      expectNumbersClose(
+        heritage.gfoclt(...ocltArgs, report),
+        legacy.gfoclt(...ocltArgs),
+        'gfoclt windows (reporting)',
+      );
+
+      // And the reporting actually happened: agreement would be trivial if the
+      // report had been ignored and the simplified wrapper called after all.
+      expect(seen.length, 'progress reports').toBeGreaterThan(0);
+      expect(Math.max(...seen)).toBe(1);
+    });
   });
 
   describe('coverage', () => {

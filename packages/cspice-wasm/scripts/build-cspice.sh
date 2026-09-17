@@ -4,8 +4,13 @@
 #
 # Vendors NASA/JPL CSPICE via the arturania/cspice fork (ADR-0004), compiles it
 # to a static library with Emscripten, then links the SPICE surface Bessel needs
-# into an ES module plus a .wasm payload. Kernels are never embedded: they arrive
-# at runtime through the PAL KernelSource and are written into the Emscripten FS.
+# -- plus this package's own native/gf-report.c -- into an ES module plus a .wasm
+# payload. Kernels are never embedded: they arrive at runtime through the PAL
+# KernelSource and are written into the Emscripten FS.
+#
+# The vendored source lands in vendor/ (gitignored); the two artifacts in wasm/
+# are committed, so this only needs running when the export list, the native
+# shim, or the CSPICE version changes.
 #
 # Usage: bash packages/cspice-wasm/scripts/build-cspice.sh
 # Requires: emscripten (emcc) and csh on PATH; run from the repository root.
@@ -15,6 +20,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 VENDOR="$REPO_ROOT/vendor/cspice"
 OUT="$REPO_ROOT/packages/cspice-wasm/wasm"
+NATIVE="$REPO_ROOT/packages/cspice-wasm/native"
 CSPICE_REMOTE="https://github.com/arturania/cspice.git"
 
 mkdir -p "$OUT"
@@ -52,6 +58,7 @@ EXPORTS='[
   "_prop2b_c","_conics_c","_oscelt_c","_oscltx_c",
   "_spkw09_c","_spkw13_c",
   "_gfdist_c","_gfsep_c","_gfposc_c","_gfoclt_c","_gfrfov_c","_gftfov_c","_occult_c",
+  "_gfrpt_dist","_gfrpt_sep","_gfrpt_posc","_gfrpt_oclt",
   "_ssize_c","_scard_c","_wninsd_c","_wncard_c","_wnfetd_c",
   "_wnintd_c","_wnunid_c","_wndifd_c","_wnsumd_c",
   "_recgeo_c","_recpgr_c","_et2lst_c","_georec_c",
@@ -61,9 +68,16 @@ EXPORTS='[
 
 RUNTIME_METHODS='["FS","ccall","cwrap","getValue","setValue","UTF8ToString","stringToUTF8","lengthBytesUTF8","writeArrayToMemory"]'
 
+# native/gf-report.c compiles alongside CSPICE. It is what makes the general GF
+# entry points (gfevnt_c, gfocce_c) usable from JavaScript: they take progress
+# and bail-out handlers as C function pointers, and compiling those handlers here
+# -- each calling out to JS through EM_JS -- avoids addFunction and
+# ALLOW_TABLE_GROWTH entirely, keeping the handler signatures in C where CSPICE
+# declares them.
 echo "Linking cspice.mjs + cspice.wasm ..."
-emcc "$VENDOR/lib/libcspice_wasm.a" -o "$OUT/cspice.mjs" \
+emcc "$NATIVE/gf-report.c" "$VENDOR/lib/libcspice_wasm.a" -o "$OUT/cspice.mjs" \
   -O2 \
+  -I "$VENDOR/include" \
   -s MODULARIZE=1 \
   -s EXPORT_ES6=1 \
   -s EXPORT_NAME=CSpice \

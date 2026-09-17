@@ -31,7 +31,9 @@ export {
 } from './frames.js';
 export {
   createHeritageSpice,
+  SpiceSearchCancelled,
   type HeritageSpice,
   type HeritageSpiceOptions,
+  type HGfReport,
 } from './heritage-spice.js';
 export { sha256Hex, sha256HexOfText } from './sha256.js';

@@ -213,9 +213,11 @@ caches (`SpiceCacheWorker.geometrySearch()`), whose instance has the catalog's
 kernels furnished, so a search pays for no loading of its own.
 
 ```ts
-const search = cacheWorker.geometrySearch();
+const search = cacheWorker.geometrySearch({
+  onProgress: ({ fraction, pass }) => showBar(fraction),
+});
 const result = await new EventSearch({ registry, provider: search.provider }).run(query);
-search.cancel();  // rejects everything still pending or yet to be called
+search.cancel();  // stops the call running now, and everything after it
 ```
 
 The provider passes its arguments through untouched to the same heritage
@@ -226,13 +228,55 @@ main-thread provider, which is the same code path it always was.
 
 `cancel()` is what makes a long search survivable rather than merely
 non-freezing: a superseded or cancelled search stops making calls instead of
-running to completion and having its answer discarded. A CSPICE call already
-under way is not interrupted — the worker is single-threaded and CSPICE is
-synchronous, so there is no point at which it could be — but the calls after it
-do not run, and the viewer is not waiting on it either way. Calls rejected this
-way throw `GeometrySearchCancelled`, which is how a caller tells "you stopped
-this" from "this failed"; `EventSearch` reports it as a `provider-error` fault,
-so a cancelling caller checks its own flag rather than showing that fault.
+running to completion and having its answer discarded. Calls rejected this way
+throw `GeometrySearchCancelled`, which is how a caller tells "you stopped this"
+from "this failed"; `EventSearch` reports it as a `provider-error` fault, so a
+cancelling caller checks its own flag rather than showing that fault.
+
+It also stops the CSPICE call executing right now, which is what frees the
+*worker* rather than only the viewer — otherwise a quick search started straight
+after a cancel queues behind the abandoned one, as do the trajectory cache builds
+that share the worker. See [progress and interruption](#progress-and-interruption)
+for how that reaches a thread already inside CSPICE, and when it cannot.
+
+### Progress and interruption
+
+CSPICE ships two tiers of geometry-finder routine. The simplified wrappers —
+`gfdist_c`, `gfsep_c`, `gfposc_c`, `gfoclt_c` — take no progress handler and no
+bail-out handler, which is why a search under them is one opaque synchronous call:
+nothing to show, nothing to stop. The general routines underneath them,
+`gfevnt_c` and `gfocce_c`, take both, and the viewer's searches now go through
+those (`packages/cspice-wasm/native/gf-report.c` supplies the handlers in C, so
+no JavaScript function pointers or wasm table growth are involved).
+
+Progress and interruption are the same mechanism seen from two sides: CSPICE
+calls the reporter and polls the bail-out handler from the same points inside the
+search.
+
+- **Progress** is the fraction of the *confinement window* swept, not of elapsed
+  time. It advances unevenly — honest for a bar, misleading as an ETA. It is also
+  per call and per pass: a relational search sweeps its window once to find where
+  the quantity is decreasing before it solves the relation, and a search is
+  usually several calls. So the fraction says "this step is n% done" and restarts;
+  nothing CSPICE reports can say how far the search as a whole has got.
+  Progress is posted out of the worker from inside the running CSPICE call —
+  a worker can `postMessage` from synchronous code, and since searches moved off
+  the main thread there is a main thread free to receive it.
+- **Interruption** needs `SharedArrayBuffer`. The bail-out handler is polled while
+  the worker is blocked in a synchronous call, and a blocked worker cannot read
+  its own message queue, so the flag it polls has to be memory both threads can
+  see. `SharedArrayBuffer` is only constructible on a cross-origin-isolated page,
+  which the dev and preview servers arrange with COOP/COEP headers
+  (`apps/viewer/vite.config.ts`). Where the headers are absent — GitHub Pages
+  cannot set them — `WorkerGeometrySearch.interruptible` is false, progress still
+  reports, and `cancel()` falls back to abandoning the search rather than
+  interrupting it.
+
+That the general routines return the same windows as the simplified ones is
+checked, not assumed: `packages/cspice-wasm/src/gf-reporting.test.ts` runs both
+tiers over the same kernels and requires them to agree interval for interval, and
+`packages/frames/src/differential.test.ts` holds the reporting path against the
+legacy timecraftjs engine as well.
 
 Worker kernels are the one way the two paths can diverge: the viewer furnishes
 SPK, LSK and text PCK into the worker, which is what the shipped kinds' `gfdist`

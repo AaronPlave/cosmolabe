@@ -26,7 +26,7 @@
  * through as locateFile.
  */
 
-import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
+import { createHeritageSpice, SpiceSearchCancelled, type HeritageSpice, type HGfReport } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { TrajectoryCache, type TrajectoryCacheConfig, type CoverageWindow } from '../TrajectoryCache.js';
 
@@ -35,12 +35,16 @@ let spice: HeritageSpice | null = null;
 /**
  * Searches the main thread has given up on.
  *
- * CSPICE is synchronous and this worker has one thread, so a `gf*` call already
- * under way cannot be interrupted — what cancellation buys is that none of the
- * calls *after* it run. A search is usually several calls (an extremum search
- * nested inside each interval a window search found, plus a position lookup per
- * event), so dropping the queued remainder is most of the work in the cases
- * that take long enough for anyone to want to cancel.
+ * This set is half of cancellation: it stops the calls a cancelled search has
+ * not made yet. A search is usually several calls (an extremum search nested
+ * inside each interval a window search found, plus a position lookup per event),
+ * and a `cancelGeometry` message can only be read between them — while a
+ * synchronous CSPICE call holds this thread, nothing in the message queue is
+ * reachable.
+ *
+ * The other half is the bail-out handler CSPICE polls from inside the running
+ * call, which reads a shared flag the main thread can store into. Together they
+ * stop a search wherever it happens to be; see `GeometryReportRequest`.
  *
  * Bounded: ids only ever arrive from this worker's own client, but a session
  * can run any number of searches and nothing tells us when the last call of a
@@ -58,6 +62,21 @@ const GEOMETRY_CALLS: readonly GeometryCall[] = ['gfdist', 'gfsep', 'gfoclt', 'g
 type Abcorr = Parameters<HeritageSpice['spkpos']>[3];
 
 /**
+ * The reporting half of a `geometry` message.
+ *
+ * `cancelFlag` is shared memory, and has to be: the bail-out handler is polled
+ * from inside a synchronous CSPICE call, and while that call holds this thread
+ * the worker cannot read its own message queue. A `cancelGeometry` message is
+ * what stops the calls a search has not made yet; this flag is what stops the
+ * one it is making. The main thread leaves it unset where SharedArrayBuffer is
+ * unavailable, and searches then run to completion as they did before.
+ */
+interface GeometryReportRequest {
+  progress?: boolean;
+  cancelFlag?: Int32Array;
+}
+
+/**
  * Runs one geometry call against the worker's SPICE instance.
  *
  * The arguments are passed through untouched, so these are the same routines
@@ -69,18 +88,27 @@ type Abcorr = Parameters<HeritageSpice['spkpos']>[3];
  * held and never *how far*, so a closest-approach result gets its number from
  * one `spkpos`, measured with SPICE's own `vnorm`. J2000 only has to be a frame
  * every kernel set can chain to — a vector's magnitude does not depend on the
- * frame it is expressed in.
+ * frame it is expressed in. It is also the one call that takes no report: a
+ * single position lookup has no progress to report and nothing to interrupt.
  */
-function runGeometryCall(s: HeritageSpice, fn: GeometryCall, args: unknown[]): unknown {
+function runGeometryCall(
+  s: HeritageSpice,
+  fn: GeometryCall,
+  args: unknown[],
+  report?: HGfReport,
+): unknown {
+  // The report is the trailing optional argument of every gf* signature, so it
+  // joins the passed-through arguments rather than being spliced in per call.
+  const gfArgs = [...args, report];
   switch (fn) {
     case 'gfdist':
-      return s.gfdist(...(args as Parameters<HeritageSpice['gfdist']>));
+      return s.gfdist(...(gfArgs as Parameters<HeritageSpice['gfdist']>));
     case 'gfsep':
-      return s.gfsep(...(args as Parameters<HeritageSpice['gfsep']>));
+      return s.gfsep(...(gfArgs as Parameters<HeritageSpice['gfsep']>));
     case 'gfoclt':
-      return s.gfoclt(...(args as Parameters<HeritageSpice['gfoclt']>));
+      return s.gfoclt(...(gfArgs as Parameters<HeritageSpice['gfoclt']>));
     case 'gfposc':
-      return s.gfposc(...(args as Parameters<HeritageSpice['gfposc']>));
+      return s.gfposc(...(gfArgs as Parameters<HeritageSpice['gfposc']>));
     case 'range': {
       const [target, abcorr, observer, et] = args as [string, string, string, number];
       return s.vnorm(s.spkpos(target, et, 'J2000', abcorr as Abcorr, observer).position);
@@ -223,8 +251,9 @@ self.onmessage = async (event: MessageEvent) => {
     }
 
     case 'geometry': {
-      const { id, search, fn, args } = msg as {
+      const { id, search, fn, args, report } = msg as {
         id: string; search?: string; fn: GeometryCall; args: unknown[];
+        report?: GeometryReportRequest;
       };
       try {
         if (!spice) throw new Error('SPICE not initialized');
@@ -238,10 +267,33 @@ self.onmessage = async (event: MessageEvent) => {
           break;
         }
 
+        // Progress is posted from inside the running CSPICE call. A worker can
+        // postMessage from synchronous code, and since searches moved off the
+        // main thread there is a main thread free to receive it — which is what
+        // makes a live progress bar possible at all.
+        const flag = report?.cancelFlag;
+        const gfReport: HGfReport | undefined = report && {
+          onProgress: report.progress
+            ? (fraction, pass) =>
+                (self as unknown as Worker).postMessage({
+                  type: 'geometryProgress', id, search, fraction, pass,
+                })
+            : undefined,
+          shouldBail: flag ? () => Atomics.load(flag, 0) !== 0 : undefined,
+        };
+
         (self as unknown as Worker).postMessage({
-          type: 'geometryResult', id, value: runGeometryCall(spice, fn, args),
+          type: 'geometryResult', id, value: runGeometryCall(spice, fn, args, gfReport),
         });
       } catch (e) {
+        // A search that bailed out is not a failure: the caller asked it to
+        // stop, and it did — mid-CSPICE-call, which is the whole point of the
+        // bail-out handler. Report it as a cancellation so the client rejects
+        // with GeometrySearchCancelled rather than raising a fault.
+        if (e instanceof SpiceSearchCancelled) {
+          (self as unknown as Worker).postMessage({ type: 'geometryCancelled', id });
+          break;
+        }
         (self as unknown as Worker).postMessage({
           type: 'error', id,
           message: e instanceof Error ? e.message : String(e),

@@ -3,8 +3,8 @@
 // web app) wire it with a locateFile that points at the emitted cspice.wasm asset.
 
 import { createSpiceEngine, type SpiceEngineOptions } from './engine.js';
-import { SpiceError, type SpiceEngine } from './index.js';
-import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
+import { SpiceError, type GfSearchReport, type SpiceEngine } from './index.js';
+import type { GfWorkerReport, SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
 import { runEvalSpec } from './eval-series.js';
 
 export interface SpiceWorkerScope {
@@ -27,7 +27,28 @@ function transferList(result: unknown, depth = 0): Transferable[] {
 /** A macrotask yield so the worker can deliver a queued cancelJob between batches. */
 const macrotaskYield = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-export async function dispatchSpice(engine: SpiceEngine, req: SpiceWorkerRequest): Promise<unknown> {
+/**
+ * Rebuild a geometry search's report on the worker side: the cancellation flag
+ * came over as shared memory and is used as-is, and the caller's progress
+ * callback is replaced by one that posts back under the request's id.
+ */
+function workerReport(
+  req: GfWorkerReport | undefined,
+  post: (fraction: number, pass: number) => void,
+): GfSearchReport | undefined {
+  if (!req) return undefined;
+  return {
+    onProgress: req.progress ? post : undefined,
+    cancelFlag: req.cancelFlag,
+  };
+}
+
+export async function dispatchSpice(
+  engine: SpiceEngine,
+  req: SpiceWorkerRequest,
+  /** Posts an interim progress report for this request; supplied by the worker shell. */
+  postProgress: (fraction: number, pass: number) => void = () => {},
+): Promise<unknown> {
   switch (req.method) {
     case 'furnsh':
       return engine.furnsh(req.name, req.bytes);
@@ -73,6 +94,7 @@ export async function dispatchSpice(engine: SpiceEngine, req: SpiceWorkerRequest
         req.step,
         req.start,
         req.stop,
+        workerReport(req.report, postProgress),
       );
     case 'gfdist':
       return engine.gfdist(
@@ -84,6 +106,7 @@ export async function dispatchSpice(engine: SpiceEngine, req: SpiceWorkerRequest
         req.step,
         req.start,
         req.stop,
+        workerReport(req.report, postProgress),
       );
     case 'gfsep':
       return engine.gfsep(
@@ -101,6 +124,7 @@ export async function dispatchSpice(engine: SpiceEngine, req: SpiceWorkerRequest
         req.step,
         req.start,
         req.stop,
+        workerReport(req.report, postProgress),
       );
     case 'gfposc':
       return engine.gfposc(
@@ -116,6 +140,7 @@ export async function dispatchSpice(engine: SpiceEngine, req: SpiceWorkerRequest
         req.step,
         req.start,
         req.stop,
+        workerReport(req.report, postProgress),
       );
     case 'occult':
       return engine.occult(
@@ -272,8 +297,14 @@ export function installSpiceWorker(scope: SpiceWorkerScope, options?: SpiceEngin
         );
       return;
     }
+    // Progress goes out under the request's id while the search is still
+    // running. That this reaches the main thread live is exactly what moving
+    // searches into the worker bought: the reporter fires inside a synchronous
+    // CSPICE call, and a worker can postMessage from there.
+    const postProgress = (fraction: number, pass: number): void =>
+      scope.postMessage({ id: req.id, progress: { fraction, pass } });
     engine()
-      .then((e) => dispatchSpice(e, req))
+      .then((e) => dispatchSpice(e, req, postProgress))
       .then(
         (result) => ok(req.id, result),
         (err: unknown) => fail(req.id, err),
