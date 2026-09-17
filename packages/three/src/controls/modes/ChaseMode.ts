@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CameraModeName, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
+import { attachPointerInput, pinchToWheelDelta } from '../PointerInput.js';
 
 const _velDir = /* @__PURE__ */ new THREE.Vector3();
 const _lookTarget = /* @__PURE__ */ new THREE.Vector3();
@@ -10,7 +11,7 @@ const _v = /* @__PURE__ */ new THREE.Vector3();
 /**
  * Chase Camera — follows behind the velocity vector, looking forward along the trajectory.
  * Directly controls camera position and orientation each frame.
- * Scroll wheel adjusts follow distance.
+ * Scroll wheel (or a two-finger pinch) adjusts follow distance.
  */
 export class ChaseMode implements ICameraMode {
   readonly name = CameraModeName.CHASE;
@@ -22,21 +23,29 @@ export class ChaseMode implements ICameraMode {
   private distanceKm = 100;
   /** Wheel listener for adjusting distance */
   private wheelHandler: ((e: WheelEvent) => void) | null = null;
+  /** Pointer listeners for the pinch equivalent of the wheel */
+  private detachPointerInput: (() => void) | null = null;
 
   activate(ctx: CameraModeContext, params: CameraModeParams): void {
     this.bodyName = params.bodyName ?? '';
     this.centerBodyName = params.centerBodyName ?? '';
     this.distanceKm = params.offset ?? 100;
 
-    // Listen to scroll wheel for distance adjustment
+    // Listen to scroll wheel (and its pinch equivalent) for distance adjustment
     const canvas = ctx.controls.domElement as HTMLElement | undefined;
     if (canvas) {
       this.wheelHandler = (e: WheelEvent) => {
         e.preventDefault();
-        const factor = e.deltaY > 0 ? 1.1 : 0.9;
-        this.distanceKm = Math.max(0.001, this.distanceKm * factor); // 1 meter minimum
+        this.zoomDistance(e.deltaY > 0 ? 1.1 : 0.9);
       };
       canvas.addEventListener('wheel', this.wheelHandler, { passive: false });
+      this.detachPointerInput = attachPointerInput(canvas, {
+        // The chase camera owns position and orientation outright, so a pinch
+        // is the only gesture it has any use for.
+        onPinch: (scale) => {
+          this.zoomDistance(Math.pow(1.1, pinchToWheelDelta(scale) / 100));
+        },
+      });
     }
   }
 
@@ -76,12 +85,19 @@ export class ChaseMode implements ICameraMode {
     this.bodyName = '';
     this.centerBodyName = '';
 
-    // Clean up wheel listener
+    // Clean up input listeners
     if (this.wheelHandler) {
       const canvas = ctx.controls.domElement as HTMLElement | undefined;
       canvas?.removeEventListener('wheel', this.wheelHandler);
       this.wheelHandler = null;
     }
+    this.detachPointerInput?.();
+    this.detachPointerInput = null;
+  }
+
+  /** Scale the follow distance, with a 1 metre minimum. */
+  private zoomDistance(factor: number): void {
+    this.distanceKm = Math.max(0.001, this.distanceKm * factor);
   }
 
   private getStateVector(ctx: CameraModeContext): [number, number, number, number, number, number] | null {

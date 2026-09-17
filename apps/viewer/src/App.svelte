@@ -71,9 +71,9 @@
    */
   const loading = $derived(vs.showLoading || !vs.assetsReady);
 
-  // Right-click: track mousedown + pointerup for drag detection.
-  // macOS fires contextmenu synchronously with mousedown, so we can't use it
-  // for drag detection. Instead: suppress native contextmenu, detect on pointerup.
+  // Right-click: track pointerdown + pointerup for drag detection.
+  // macOS fires contextmenu synchronously with the button press, so we can't use
+  // it for drag detection. Instead: suppress native contextmenu, detect on pointerup.
   let rightClickStart = { x: 0, y: 0 };
 
   function onResize() {
@@ -107,8 +107,8 @@
     }
   }
 
-  /** Capture-phase mousedown on window — records right-click start before CameraController blocks it */
-  function onWindowMouseDown(e: MouseEvent) {
+  /** Capture-phase pointerdown on window — records right-click start before CameraController blocks it */
+  function onWindowPointerDown(e: PointerEvent) {
     if (e.button === 2) {
       rightClickStart = { x: e.clientX, y: e.clientY };
     }
@@ -249,12 +249,12 @@
     window.addEventListener('resize', onResize);
     const stopLayoutWatch = watchLayout();
     // Capture phase so we see right-clicks before CameraController stops propagation
-    window.addEventListener('mousedown', onWindowMouseDown, true);
+    window.addEventListener('pointerdown', onWindowPointerDown, true);
     window.addEventListener('pointerup', onWindowPointerUp);
     return () => {
       stopLayoutWatch();
       window.removeEventListener('resize', onResize);
-      window.removeEventListener('mousedown', onWindowMouseDown, true);
+      window.removeEventListener('pointerdown', onWindowPointerDown, true);
       window.removeEventListener('pointerup', onWindowPointerUp);
     };
   });
@@ -264,7 +264,9 @@
 <svelte:document ondragover={onDocDragOver} ondrop={onDocDrop} />
 
 <div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive} style={shellVars}>
-  <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
+  <!-- `touch-none`: the browser must not claim a drag as a scroll or a pinch as
+       a page zoom before the camera controls see the gesture. -->
+  <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
 
   <!-- Gated on `loading`, not `sceneLoaded`: the scene graph exists well before
        its models and textures do, and handing over a sky of placeholder spheres

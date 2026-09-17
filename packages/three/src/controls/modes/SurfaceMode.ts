@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CameraModeName, ensureQuatContinuity, bodyWorldOrientation, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
+import { attachPointerInput, pinchToWheelDelta } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 
 const _surfaceNormal = /* @__PURE__ */ new THREE.Vector3();
@@ -16,8 +17,8 @@ const _bodyWorldQ = /* @__PURE__ */ new THREE.Quaternion();
  * Controls:
  * - W/S: fly forward/backward in the look direction (pitch changes altitude)
  * - A/D: strafe left/right
- * - Mouse drag: look around (yaw/pitch, horizon stays level)
- * - Scroll wheel: adjust altitude directly
+ * - Mouse drag / one-finger drag: look around (yaw/pitch, horizon stays level)
+ * - Scroll wheel / two-finger pinch: adjust altitude directly
  * - Shift: speed boost
  *
  * The camera co-rotates with the body. Heading is maintained as a body-fixed
@@ -46,16 +47,13 @@ export class SurfaceMode implements ICameraMode {
 
   private readonly keys = new Set<string>();
   private dragging = false;
-  private prevMouseX = 0;
-  private prevMouseY = 0;
   private dragDx = 0;
   private dragDy = 0;
   private handlers: {
     keydown: (e: KeyboardEvent) => void; keyup: (e: KeyboardEvent) => void;
-    mousedown: (e: MouseEvent) => void; mousemove: (e: MouseEvent) => void;
-    mouseup: (e: MouseEvent) => void; wheel: (e: WheelEvent) => void;
-    blur: () => void; contextmenu: (e: Event) => void;
+    wheel: (e: WheelEvent) => void; blur: () => void;
   } | null = null;
+  private detachPointerInput: (() => void) | null = null;
 
   activate(ctx: CameraModeContext, params: CameraModeParams): void {
     this.bodyName = params.bodyName ?? '';
@@ -117,38 +115,40 @@ export class SurfaceMode implements ICameraMode {
           this.keys.add(e.code);
         },
         keyup: (e: KeyboardEvent) => { this.keys.delete(e.code); },
-        mousedown: (e: MouseEvent) => {
-          if (e.button === 0 || e.button === 2) {
-            this.dragging = true;
-            this.prevMouseX = e.clientX;
-            this.prevMouseY = e.clientY;
-          }
-        },
-        mousemove: (e: MouseEvent) => {
-          if (!this.dragging) return;
-          this.dragDx += e.clientX - this.prevMouseX;
-          this.dragDy += e.clientY - this.prevMouseY;
-          this.prevMouseX = e.clientX;
-          this.prevMouseY = e.clientY;
-        },
-        mouseup: () => { this.dragging = false; },
         wheel: (e: WheelEvent) => {
           e.preventDefault();
-          const factor = e.deltaY > 0 ? 1.15 : 0.87;
-          this.altitudeKm = Math.max(0.01, this.altitudeKm * factor);
-          this.speedKmPerSec = this.altitudeKm * 2;
+          this.zoomAltitude(e.deltaY > 0 ? 1.15 : 0.87);
         },
-        blur: () => { this.keys.clear(); this.dragging = false; },
-        contextmenu: (e: Event) => { e.preventDefault(); },
+        blur: () => { this.keys.clear(); },
       };
-      canvas.addEventListener('mousedown', this.handlers.mousedown, { capture: true });
-      canvas.addEventListener('contextmenu', this.handlers.contextmenu);
       window.addEventListener('keydown', this.handlers.keydown);
       window.addEventListener('keyup', this.handlers.keyup);
-      window.addEventListener('mousemove', this.handlers.mousemove);
-      window.addEventListener('mouseup', this.handlers.mouseup);
       canvas.addEventListener('wheel', this.handlers.wheel, { passive: false });
       window.addEventListener('blur', this.handlers.blur);
+
+      this.detachPointerInput = attachPointerInput(canvas, {
+        preventContextMenu: true,
+        onButtonDown: (e) => {
+          if (e.button === 0 || e.button === 2) this.dragging = true;
+        },
+        onButtonDrag: (dx, dy) => {
+          if (!this.dragging) return;
+          this.dragDx += dx;
+          this.dragDy += dy;
+        },
+        onButtonUp: () => { this.dragging = false; },
+        // One finger looks around, as a left-drag does.
+        onDrag: (dx, dy) => {
+          this.dragDx += dx;
+          this.dragDy += dy;
+        },
+        // Two fingers change altitude. There is nothing to pan — WASD moves the
+        // camera — so the centroid drag is ignored.
+        onPinch: (scale) => {
+          this.zoomAltitude(Math.pow(1.15, pinchToWheelDelta(scale) / 100));
+        },
+        onCancel: () => { this.dragging = false; },
+      });
     }
   }
 
@@ -288,16 +288,20 @@ export class SurfaceMode implements ICameraMode {
 
     if (this.handlers) {
       const canvas = ctx.controls.domElement as HTMLElement;
-      canvas?.removeEventListener('mousedown', this.handlers.mousedown, { capture: true } as EventListenerOptions);
-      canvas?.removeEventListener('contextmenu', this.handlers.contextmenu);
       canvas?.removeEventListener('wheel', this.handlers.wheel);
       window.removeEventListener('keydown', this.handlers.keydown);
       window.removeEventListener('keyup', this.handlers.keyup);
-      window.removeEventListener('mousemove', this.handlers.mousemove);
-      window.removeEventListener('mouseup', this.handlers.mouseup);
       window.removeEventListener('blur', this.handlers.blur);
       this.handlers = null;
     }
+    this.detachPointerInput?.();
+    this.detachPointerInput = null;
+  }
+
+  /** Scale altitude (and the speed derived from it) by a zoom factor. */
+  private zoomAltitude(factor: number): void {
+    this.altitudeKm = Math.max(0.01, this.altitudeKm * factor);
+    this.speedKmPerSec = this.altitudeKm * 2;
   }
 
   private getBodyQuat(ctx: CameraModeContext, bm: BodyMesh): THREE.Quaternion | null {

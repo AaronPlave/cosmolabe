@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CameraModeName, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
+import { attachPointerInput, pinchToWheelDelta } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 
 const _tmpV = /* @__PURE__ */ new THREE.Vector3();
@@ -73,8 +74,6 @@ export class SurfaceExplorerMode implements ICameraMode {
   private readonly keys = new Set<string>();
   private leftDragging = false;
   private rightDragging = false;
-  private prevMouseX = 0;
-  private prevMouseY = 0;
   private dragDx = 0;
   private dragDy = 0;
 
@@ -90,10 +89,9 @@ export class SurfaceExplorerMode implements ICameraMode {
   // --- Event handlers ---
   private handlers: {
     keydown: (e: KeyboardEvent) => void; keyup: (e: KeyboardEvent) => void;
-    mousedown: (e: MouseEvent) => void; mousemove: (e: MouseEvent) => void;
-    mouseup: (e: MouseEvent) => void; wheel: (e: WheelEvent) => void;
-    blur: () => void; contextmenu: (e: Event) => void;
+    wheel: (e: WheelEvent) => void; blur: () => void;
   } | null = null;
+  private detachPointerInput: (() => void) | null = null;
 
   activate(ctx: CameraModeContext, params: CameraModeParams): void {
     this.bodyName = params.bodyName ?? '';
@@ -166,84 +164,67 @@ export class SurfaceExplorerMode implements ICameraMode {
           this.keys.add(e.code);
         },
         keyup: (e: KeyboardEvent) => { this.keys.delete(e.code); },
-        mousedown: (e: MouseEvent) => {
+        wheel: (e: WheelEvent) => {
+          e.preventDefault();
+          this.dolly(e.deltaY);
+        },
+        blur: () => { this.keys.clear(); },
+      };
+      window.addEventListener('keydown', this.handlers.keydown);
+      window.addEventListener('keyup', this.handlers.keyup);
+      canvas.addEventListener('wheel', this.handlers.wheel, { passive: false });
+      window.addEventListener('blur', this.handlers.blur);
+
+      this.detachPointerInput = attachPointerInput(canvas, {
+        preventContextMenu: true,
+        onButtonDown: (e) => {
           if (e.button === 0) {
             this.leftDragging = true;
           } else if (e.button === 2) {
             this.rightDragging = true;
             this.initOrbitPivot(e.clientX, e.clientY, ctx);
           }
-          this.prevMouseX = e.clientX;
-          this.prevMouseY = e.clientY;
           this.dragDx = 0;
           this.dragDy = 0;
         },
-        mousemove: (e: MouseEvent) => {
+        onButtonDrag: (dx, dy) => {
           if (!this.leftDragging && !this.rightDragging) return;
-          this.dragDx += e.clientX - this.prevMouseX;
-          this.dragDy += e.clientY - this.prevMouseY;
-          this.prevMouseX = e.clientX;
-          this.prevMouseY = e.clientY;
+          this.dragDx += dx;
+          this.dragDy += dy;
         },
-        mouseup: (e: MouseEvent) => {
+        onButtonUp: (e) => {
           if (e.button === 0) this.leftDragging = false;
-          if (e.button === 2) {
-            this.rightDragging = false;
-            this.hasPivot = false;
-            this.hidePivotDot();
+          if (e.button === 2) this.endOrbit();
+        },
+        // One finger looks around (left-drag), two orbit the pivot (right-drag)
+        // while the pinch between them dollies.
+        onCountChange: (count, x, y) => {
+          this.dragDx = 0;
+          this.dragDy = 0;
+          this.leftDragging = count === 1;
+          if (count >= 2) {
+            if (!this.rightDragging) {
+              this.rightDragging = true;
+              this.initOrbitPivot(x, y, ctx);
+            }
+          } else if (this.rightDragging) {
+            this.endOrbit();
           }
         },
-        wheel: (e: WheelEvent) => {
-          e.preventDefault();
-          this.suppressGeodetic = false;
-          // Dolly zoom along the camera's look direction (heading + pitch).
-          // Log-normalize deltaY for consistent feel across platforms/trackpads.
-          // deltaY > 0 = scroll down on Mac natural scroll = zoom OUT.
-          const normalizedDelta = Math.log2(Math.abs(e.deltaY) + 1);
-          // Fresh altitude estimate from altKm (updated every scroll) and the last
-          // terrain sample, instead of the 10-frame-stale altAboveTerrainKm.
-          const alt = Math.max(0.001, this.altKm - this.lastTerrainElev);
-          const scrollCoeff = alt > 1.0 ? 0.06 : 0.03;
-          // Linear speed — no quadratic brake. The renderer's surface clamp prevents
-          // going through terrain, so the brake is unnecessary and makes the last
-          // 100m approach to surface painfully slow.
-          const rawSpeed = alt * scrollCoeff * normalizedDelta;
-          // Floor ensures camera can always scroll out even if trapped below terrain
-          const speed = Math.max(0.003 * normalizedDelta, rawSpeed);
-          const sign = e.deltaY > 0 ? -1 : 1;
-          const cosPitch = Math.cos(this.pitch);
-          const sinPitch = Math.sin(this.pitch);
-
-          // Horizontal: forward/back along heading
-          const angStep = (sign * speed * cosPitch) / this.re;
-          const cosH = Math.cos(this.heading);
-          const sinH = Math.sin(this.heading);
-          const cosLat = Math.cos(this.latRad);
-          const safeCos = cosLat > 0.01 ? 1 / cosLat : 100;
-          this.latRad += cosH * angStep;
-          this.lonRad += sinH * angStep * safeCos;
-
-          // Vertical: along pitch direction
-          this.altKm = Math.max(-20, Math.min(10000, this.altKm + sign * speed * sinPitch));
-          this.dirty = true;
+        onDrag: (dx, dy) => {
+          this.dragDx += dx;
+          this.dragDy += dy;
         },
-        blur: () => {
-          this.keys.clear();
+        onPinch: (scale, dx, dy) => {
+          this.dragDx += dx;
+          this.dragDy += dy;
+          this.dolly(pinchToWheelDelta(scale));
+        },
+        onCancel: () => {
           this.leftDragging = false;
-          this.rightDragging = false;
-          this.hasPivot = false;
-          this.hidePivotDot();
+          this.endOrbit();
         },
-        contextmenu: (e: Event) => { e.preventDefault(); },
-      };
-      canvas.addEventListener('mousedown', this.handlers.mousedown, { capture: true });
-      canvas.addEventListener('contextmenu', this.handlers.contextmenu);
-      window.addEventListener('keydown', this.handlers.keydown);
-      window.addEventListener('keyup', this.handlers.keyup);
-      window.addEventListener('mousemove', this.handlers.mousemove);
-      window.addEventListener('mouseup', this.handlers.mouseup);
-      canvas.addEventListener('wheel', this.handlers.wheel, { passive: false });
-      window.addEventListener('blur', this.handlers.blur);
+      });
     }
   }
 
@@ -385,16 +366,14 @@ export class SurfaceExplorerMode implements ICameraMode {
 
     if (this.handlers) {
       const canvas = ctx.controls.domElement as HTMLElement;
-      canvas?.removeEventListener('mousedown', this.handlers.mousedown, { capture: true } as EventListenerOptions);
-      canvas?.removeEventListener('contextmenu', this.handlers.contextmenu);
       canvas?.removeEventListener('wheel', this.handlers.wheel);
       window.removeEventListener('keydown', this.handlers.keydown);
       window.removeEventListener('keyup', this.handlers.keyup);
-      window.removeEventListener('mousemove', this.handlers.mousemove);
-      window.removeEventListener('mouseup', this.handlers.mouseup);
       window.removeEventListener('blur', this.handlers.blur);
       this.handlers = null;
     }
+    this.detachPointerInput?.();
+    this.detachPointerInput = null;
   }
 
   // ─── Camera positioning ──────────────────────────────────────────────
@@ -445,6 +424,52 @@ export class SurfaceExplorerMode implements ICameraMode {
   // ─── Right-click orbit ───────────────────────────────────────────────
 
   /** Raycast to find orbit pivot using the renderer's pickSurface. */
+  /** End an orbit gesture — the right button released, or the fingers lifted. */
+  private endOrbit(): void {
+    this.rightDragging = false;
+    this.hasPivot = false;
+    this.hidePivotDot();
+  }
+
+  /**
+   * Dolly along the camera's look direction (heading + pitch) by a wheel-style
+   * `deltaY`. A two-finger pinch comes through here too, as the `deltaY` the
+   * same gesture would carry on a trackpad, so both share this one curve.
+   *
+   * deltaY > 0 = scroll down on Mac natural scroll = zoom OUT.
+   */
+  private dolly(deltaY: number): void {
+    this.suppressGeodetic = false;
+    // Log-normalize deltaY for consistent feel across platforms/trackpads.
+    const normalizedDelta = Math.log2(Math.abs(deltaY) + 1);
+    // Fresh altitude estimate from altKm (updated every scroll) and the last
+    // terrain sample, instead of the 10-frame-stale altAboveTerrainKm.
+    const alt = Math.max(0.001, this.altKm - this.lastTerrainElev);
+    const scrollCoeff = alt > 1.0 ? 0.06 : 0.03;
+    // Linear speed — no quadratic brake. The renderer's surface clamp prevents
+    // going through terrain, so the brake is unnecessary and makes the last
+    // 100m approach to surface painfully slow.
+    const rawSpeed = alt * scrollCoeff * normalizedDelta;
+    // Floor ensures camera can always scroll out even if trapped below terrain
+    const speed = Math.max(0.003 * normalizedDelta, rawSpeed);
+    const sign = deltaY > 0 ? -1 : 1;
+    const cosPitch = Math.cos(this.pitch);
+    const sinPitch = Math.sin(this.pitch);
+
+    // Horizontal: forward/back along heading
+    const angStep = (sign * speed * cosPitch) / this.re;
+    const cosH = Math.cos(this.heading);
+    const sinH = Math.sin(this.heading);
+    const cosLat = Math.cos(this.latRad);
+    const safeCos = cosLat > 0.01 ? 1 / cosLat : 100;
+    this.latRad += cosH * angStep;
+    this.lonRad += sinH * angStep * safeCos;
+
+    // Vertical: along pitch direction
+    this.altKm = Math.max(-20, Math.min(10000, this.altKm + sign * speed * sinPitch));
+    this.dirty = true;
+  }
+
   private initOrbitPivot(clientX: number, clientY: number, ctx: CameraModeContext): void {
     const bm = ctx.bodyMeshes.get(this.bodyName);
     if (!bm || !ctx.pickSurface) { this.hasPivot = false; return; }
