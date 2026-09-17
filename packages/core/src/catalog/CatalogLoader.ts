@@ -1337,9 +1337,13 @@ export class CatalogLoader {
 
   private parseEpoch(timeStr: string): number | undefined {
     if (this.spice) {
-      // SPICE str2et doesn't accept trailing "Z" — strip it
-      const spiceStr = timeStr.endsWith('Z') ? timeStr.slice(0, -1) : timeStr;
-      try { return this.spice.str2et(spiceStr); } catch { /* fall through */ }
+      // Verbatim: the time authority owns the ISO-8601 → SPICE translation
+      // (issue #8, @cosmolabe/frames iso-epoch.ts), and it is explicit about
+      // reading an instant as UTC. Core used to strip a trailing "Z" here
+      // first, which the normalisation makes redundant and which was always
+      // the wrong layer for the job — it also swallowed the offset and
+      // whitespace forms the authority now resolves.
+      try { return this.spice.str2et(timeStr); } catch { /* fall through */ }
     }
     // Not Date.parse: it reads an offset-less date-time as LOCAL time, so a
     // naive catalog epoch used to shift by the machine's timezone offset while
