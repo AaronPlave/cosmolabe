@@ -71,9 +71,18 @@ const marsTerrainPlugin = {
  * GitHub Pages cannot set response headers, so the deployed build is in exactly
  * that position — see packages/three/src/SpiceCacheWorker.ts.
  *
- * COEP `credentialless` rather than `require-corp`: the viewer fetches kernels
- * and terrain from its own origin, and `credentialless` does not demand CORP
- * headers on every one of them.
+ * COEP `credentialless` rather than `require-corp`, and that is not a
+ * preference: `require-corp` demands a `Cross-Origin-Resource-Policy` header on
+ * every cross-origin subresource, and the viewer loads plenty that will never
+ * carry one — NASA Trek and GIBS imagery tiles, terrain from marshub S3, 3D
+ * Tiles from raw.githubusercontent.com, Cesium Ion endpoints, and the Draco
+ * decoder from gstatic (BodyMesh.ts). `credentialless` loads those as no-cors
+ * without credentials instead, which is what they need.
+ *
+ * The cost is Safari, which implements `require-corp` but not `credentialless`:
+ * it gets no isolation, so no interruptible search. Fixing that would mean
+ * proxying every third-party asset through this origin, which is a far larger
+ * change than cancellation is worth.
  */
 const CROSS_ORIGIN_ISOLATION = {
   'Cross-Origin-Opener-Policy': 'same-origin',
