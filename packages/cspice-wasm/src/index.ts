@@ -433,10 +433,15 @@ export interface GfSearchReport {
    * misleading as an ETA. Throttled inside the C reporter, so do not rely on a
    * fixed cadence.
    *
-   * `pass` is the 1-based pass number. A search can take more than one pass over
-   * its window (a relational search finds where the quantity is decreasing
-   * before it solves the relation), and the fraction is of the pass, restarting
-   * at each. The final 1.0 is reported once, for the call as a whole.
+   * The fraction is of the whole call. A search can take more than one pass
+   * over its window — a relational search finds where the quantity is
+   * decreasing before it solves the relation — and CSPICE restarts its reporter
+   * at each, but the pass count is known before the call starts, so each pass
+   * is mapped into its own slice and the fraction only ever moves forward. The
+   * final 1.0 is reported once.
+   *
+   * `pass` is the 1-based pass number, passed through unscaled, for a caller
+   * that wants to name the stage rather than measure it.
    */
   onProgress?: (fraction: number, pass: number) => void;
   /**

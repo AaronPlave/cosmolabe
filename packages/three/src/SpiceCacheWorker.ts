@@ -58,13 +58,16 @@ export class GeometrySearchCancelled extends Error {
  * time and not of the search as a whole: CSPICE reports the window it has swept,
  * which advances unevenly and is honest for a bar but misleading as an ETA.
  *
- * `pass` is the 1-based pass number *within* that call — a relational search
- * sweeps its window once to find where the quantity is decreasing before it
- * solves the relation, and the fraction restarts at each pass. A search is also
- * usually several calls (an extremum search inside each interval a window search
- * found), and the fraction restarts at each of those too. So this says "this
- * step is n% done", never "the search is n% done"; nothing CSPICE reports can
- * say the latter.
+ * Within one call the fraction is monotonic: a relational search sweeps its
+ * window once to find where the quantity is decreasing before it solves the
+ * relation, and CSPICE restarts its reporter at each of those passes, but the
+ * count is known up front and each pass is mapped into its own slice. `pass` is
+ * the 1-based number of the one running, passed through unscaled.
+ *
+ * What this still cannot say is how far through *the search* it is: a search
+ * may be several calls (an occultation search runs one per requested state),
+ * and the fraction restarts at each. So it reads as "this step is n% done",
+ * never "the search is n% done".
  */
 export interface GeometrySearchProgress {
   readonly fraction: number;

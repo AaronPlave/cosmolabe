@@ -125,7 +125,7 @@ export interface HInstrumentFov {
  * message, which a thread blocked in CSPICE could never receive.
  */
 export interface HGfReport {
-  /** Fraction (0..1) of the current pass's window searched, and the pass number. */
+  /** Fraction (0..1) of the whole search window covered, and the running pass number. */
   onProgress?: (fraction: number, pass: number) => void;
   /** Polled during the search; returning true aborts it, throwing SpiceSearchCancelled. */
   shouldBail?: () => boolean;

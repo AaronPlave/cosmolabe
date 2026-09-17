@@ -36,6 +36,35 @@ const KERNEL_DIR = '/kernels';
 const GF_CNVTOL = 1e-6;
 
 /**
+ * How many passes over the confinement window a relational GF search makes.
+ *
+ * CSPICE reports progress per pass: it restarts its reporter at the head of
+ * each one, so a caller that forwards the raw per-pass fraction shows a bar
+ * that runs to the end and then jumps back to zero. Knowing the count up front
+ * is what lets {@link SpiceBindings.gfdistReporting} and its siblings map each
+ * pass into its own slice of the call and report a fraction that only ever goes
+ * forward.
+ *
+ * The rule is CSPICE's own, from `gfevnt.c` (the `npass` assignment at lines
+ * 2464-2474), reproduced rather than inferred:
+ *
+ *     localx = LOCMIN or LOCMAX
+ *     noadjx = (ABSMIN or ABSMAX) and adjust == 0
+ *     npass  = localx or noadjx ? 1 : 2
+ *
+ * So a local extremum, or an absolute extremum that needs no second pass to
+ * apply an adjustment, searches once; `<`, `>`, `=` and an adjusted absolute
+ * extremum search twice. `gfocce_c` — the occultation finder — has a single
+ * reporter block and is always one pass, so it does not go through here.
+ */
+export function gfPassCount(relate: string, adjust: number): 1 | 2 {
+  const op = relate.trim().toUpperCase();
+  const localExtremum = op === 'LOCMIN' || op === 'LOCMAX';
+  const unadjustedExtremum = adjust === 0 && (op === 'ABSMIN' || op === 'ABSMAX');
+  return localExtremum || unadjustedExtremum ? 1 : 2;
+}
+
+/**
  * Progress reporting and interruption for one reporting geometry-finder call.
  *
  * `shouldBail` is polled from inside the running CSPICE search, so it must
@@ -46,8 +75,14 @@ const GF_CNVTOL = 1e-6;
  */
 export interface GfReport {
   /**
-   * The fraction (0..1) of the current pass's confinement window searched so
-   * far, with the 1-based pass number. See {@link GfSearchReport.onProgress}.
+   * The fraction (0..1) of *this call's* work done so far, with the 1-based
+   * number of the pass it is currently in.
+   *
+   * The fraction spans the whole call, not the current pass: a two-pass search
+   * reports 0..0.5 through its first pass and 0.5..1 through its second, so it
+   * never runs to the end and starts again. See {@link gfPassCount}. The pass
+   * number is passed through as CSPICE reports it, for a caller that wants to
+   * say which stage is running.
    */
   onProgress?: (fraction: number, pass: number) => void;
   /** Polled during the search; returning true aborts it. */
@@ -951,12 +986,20 @@ export class SpiceBindings {
    * state unreadable, so both are wrapped: the throw is stashed, the search is
    * asked to stop, and the original error is re-thrown once the stack is back in
    * JavaScript.
+   *
+   * `passes` is how many times CSPICE will restart its reporter during this
+   * call (see {@link gfPassCount}). Each pass is mapped into its own equal slice
+   * of 0..1, which is what turns a sequence that would read 0..1, 0..1 into one
+   * that reads 0..1 once. Equal slices because the two passes cover the same
+   * confinement window; the second is usually the faster of the two, so the bar
+   * tends to accelerate rather than stall.
    */
   private runReportingGfWindow(
     start: number,
     stop: number,
     maxIntervals: number,
     report: GfReport,
+    passes: 1 | 2,
     call: (cnfineCell: number, resultCell: number) => void,
   ): [number, number][] {
     const mod = this.mod;
@@ -965,12 +1008,21 @@ export class SpiceBindings {
     let bailed = false;
     let handlerError: unknown = null;
     let lastPass = 1;
+    let furthest = 0;
 
     mod.onGfProgress = (fraction: number, pass: number): void => {
       lastPass = pass;
       if (handlerError !== null || !report.onProgress) return;
+      // Slice this pass's fraction into its share of the call. The clamp and
+      // the running maximum are a backstop, not the mechanism: if a future
+      // CSPICE ever reports a pass this build did not predict, the bar should
+      // stall rather than jump backwards. gf-reporting.test.ts checks the
+      // predicted counts, so a stall here is a test failure, not a quiet fudge.
+      const slice = Math.min(Math.max(pass, 1), passes) - 1;
+      const overall = Math.min(1, Math.max(0, (slice + Math.min(1, Math.max(0, fraction))) / passes));
+      furthest = Math.max(furthest, overall);
       try {
-        report.onProgress(fraction, pass);
+        report.onProgress(furthest, pass);
       } catch (err) {
         handlerError = err;
       }
@@ -1204,7 +1256,7 @@ export class SpiceBindings {
     report: GfReport,
     maxIntervals = 1000,
   ): [number, number][] {
-    return this.runReportingGfWindow(start, stop, maxIntervals, report, (cnfineCell, resultCell) =>
+    return this.runReportingGfWindow(start, stop, maxIntervals, report, 1, (cnfineCell, resultCell) =>
       this.call(
         'gfrpt_oclt',
         this.str(occtyp),
@@ -1237,7 +1289,7 @@ export class SpiceBindings {
     report: GfReport,
     maxIntervals = 1000,
   ): [number, number][] {
-    return this.runReportingGfWindow(start, stop, maxIntervals, report, (cnfineCell, resultCell) =>
+    return this.runReportingGfWindow(start, stop, maxIntervals, report, gfPassCount(relate, 0), (cnfineCell, resultCell) =>
       this.call(
         'gfrpt_dist',
         this.str(target),
@@ -1274,7 +1326,7 @@ export class SpiceBindings {
     report: GfReport,
     maxIntervals = 1000,
   ): [number, number][] {
-    return this.runReportingGfWindow(start, stop, maxIntervals, report, (cnfineCell, resultCell) =>
+    return this.runReportingGfWindow(start, stop, maxIntervals, report, gfPassCount(relate, adjust), (cnfineCell, resultCell) =>
       this.call(
         'gfrpt_sep',
         this.str(targ1),
@@ -1314,7 +1366,7 @@ export class SpiceBindings {
     report: GfReport,
     maxIntervals = 1000,
   ): [number, number][] {
-    return this.runReportingGfWindow(start, stop, maxIntervals, report, (cnfineCell, resultCell) =>
+    return this.runReportingGfWindow(start, stop, maxIntervals, report, gfPassCount(relate, adjust), (cnfineCell, resultCell) =>
       this.call(
         'gfrpt_posc',
         this.str(target),

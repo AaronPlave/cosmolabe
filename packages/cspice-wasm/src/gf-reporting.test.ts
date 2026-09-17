@@ -19,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createSpiceBindings } from './engine.js';
+import { gfPassCount } from './bindings.js';
 import type { GfReport, SpiceBindings } from './bindings.js';
 import { createSpiceWorkerClient, SpiceError, SpiceSearchCancelled } from './index.js';
 import { installSpiceWorker, type SpiceWorkerScope } from './worker-core.js';
@@ -140,19 +141,76 @@ describe('general GF entry points vs the simplified wrappers', () => {
       expect(fraction).toBeLessThanOrEqual(1);
       expect(pass).toBeGreaterThanOrEqual(1);
     }
-    // Passes only ever advance, and within one pass the fraction never goes
-    // backwards -- a bar that regresses mid-pass is worse than no bar.
+    // Monotonic across the whole call, not merely within a pass. "<" is a
+    // two-pass search and CSPICE restarts its reporter at the second, so this
+    // only holds because the binding maps each pass into its own slice.
     for (let i = 1; i < seen.length; i++) {
       const prev = seen[i - 1]!;
       const here = seen[i]!;
       expect(here.pass).toBeGreaterThanOrEqual(prev.pass);
-      if (here.pass === prev.pass) expect(here.fraction).toBeGreaterThanOrEqual(prev.fraction);
+      expect(here.fraction).toBeGreaterThanOrEqual(prev.fraction);
     }
+
+    // Both passes are visible, and the second one *starts at the boundary*.
+    // This is the assertion that pins the slicing: CSPICE reports 0.0 at the
+    // head of every pass, so a binding that forwarded the raw fraction (even
+    // clamped to a running maximum, which would still satisfy the monotonicity
+    // check above) would report 0 here instead of 0.5.
+    const pass2 = seen.find((p) => p.pass === 2);
+    expect(pass2).toBeDefined();
+    expect(pass2!.fraction).toBe(0.5);
 
     // Exactly one report says the call is finished, and it is the last one: a
     // 1.0 at the end of every pass would complete the bar and then restart it.
     expect(seen.filter((p) => p.fraction === 1)).toHaveLength(1);
     expect(seen[seen.length - 1]!.fraction).toBe(1);
+  });
+
+  it('keeps the first pass inside the first half while it runs', () => {
+    // The test above only sees the reports CSPICE makes at the head of each
+    // pass, because a six-hour window outruns the reporter's 100 ms throttle.
+    // This one searches four days at a ten-second step -- long enough that the
+    // throttle actually fires mid-pass -- so there is a fraction from *inside*
+    // pass 1 to check, which is where a wrong slice width would show up.
+    const long1 = et0 + 4 * 86_400;
+    const seen: { fraction: number; pass: number }[] = [];
+    spice.gfdistReporting(
+      'SATURN', 'NONE', CASSINI, '<', 1.5e6, 10, et0, long1,
+      { onProgress: (fraction, pass) => seen.push({ fraction, pass }) },
+    );
+
+    const midPass1 = seen.filter((p) => p.pass === 1 && p.fraction > 0);
+    expect(midPass1.length).toBeGreaterThan(0);
+    for (const { fraction } of midPass1) expect(fraction).toBeLessThan(0.5);
+  });
+
+  it('spans the whole bar in one pass when the search only takes one', () => {
+    // LOCMIN is a one-pass search, so there is no slicing to do and the raw
+    // fraction is already the call's. Pinned because the slice width comes from
+    // gfPassCount: get the count wrong here and the bar would stop at 50%.
+    const seen: { fraction: number; pass: number }[] = [];
+    spice.gfdistReporting(
+      'SATURN', 'NONE', CASSINI, 'LOCMIN', 0, STEP, et0, et1,
+      { onProgress: (fraction, pass) => seen.push({ fraction, pass }) },
+    );
+
+    expect(seen.every((p) => p.pass === 1)).toBe(true);
+    expect(seen[0]!.fraction).toBe(0);
+    expect(seen[seen.length - 1]!.fraction).toBe(1);
+  });
+
+  it('runs an occultation search as a single pass', () => {
+    // gfocce_c has one reporter block, unlike the relational entry points, so
+    // its progress needs no slicing at all.
+    const seen: number[] = [];
+    spice.gfocltReporting(
+      'ANY', 'SATURN', 'ELLIPSOID', 'IAU_SATURN', 'SUN', 'ELLIPSOID', 'IAU_SUN',
+      'NONE', CASSINI, STEP, et0, et1,
+      { onProgress: (_fraction, pass) => seen.push(pass) },
+    );
+
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(seen)).toEqual(new Set([1]));
   });
 
   it('stops the executing search when the bail-out handler says to', () => {
@@ -328,5 +386,47 @@ describe('reporting searches across the worker protocol', () => {
     // of interrupting one is that the next search does not queue behind it.
     const intervals = await engine.gfdist('SATURN', 'NONE', CASSINI, '<', 1.5e6, STEP, wet0, wet1);
     expect(intervals.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The pass count the slicing depends on.
+ *
+ * This is not a guess about CSPICE's behaviour: `gfevnt.c` computes exactly the
+ * same thing for its own progress prefixes, in the `npass` assignment quoted in
+ * gfPassCount's doc comment. Pinning it here is what makes a CSPICE bump that
+ * changes the rule show up as a failing test rather than as a progress bar that
+ * silently stops at 50% -- which the reporting tests above would not catch,
+ * since a stalled bar is still a monotonic one.
+ */
+describe('gfPassCount', () => {
+  it('gives one pass to a local extremum', () => {
+    // Local extrema never need a second sweep, adjusted or not.
+    expect(gfPassCount('LOCMIN', 0)).toBe(1);
+    expect(gfPassCount('LOCMAX', 0)).toBe(1);
+    expect(gfPassCount('LOCMIN', 1e5)).toBe(1);
+  });
+
+  it('gives one pass to an unadjusted absolute extremum', () => {
+    expect(gfPassCount('ABSMIN', 0)).toBe(1);
+    expect(gfPassCount('ABSMAX', 0)).toBe(1);
+  });
+
+  it('gives two passes to an adjusted absolute extremum', () => {
+    // A nonzero adjustment turns the search into "find the extremum, then find
+    // where the quantity is within the adjustment of it" -- a second sweep.
+    expect(gfPassCount('ABSMIN', 1e5)).toBe(2);
+    expect(gfPassCount('ABSMAX', 1e5)).toBe(2);
+  });
+
+  it('gives two passes to every relational operator', () => {
+    for (const op of ['<', '>', '=']) expect(gfPassCount(op, 0)).toBe(2);
+  });
+
+  it('reads the operator the way CSPICE does', () => {
+    // gfevnt left-justifies and upper-cases before comparing, so a caller that
+    // passes "locmin" gets a one-pass search and must be sliced as one.
+    expect(gfPassCount('locmin', 0)).toBe(1);
+    expect(gfPassCount('  ABSMIN  ', 0)).toBe(1);
   });
 });
