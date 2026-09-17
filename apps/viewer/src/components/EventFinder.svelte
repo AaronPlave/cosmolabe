@@ -264,12 +264,12 @@
         onclick={runSearch}
       >
         {#if ef.running}
-          <Loader2 size={12} class="animate-spin" />
-          {#if ef.progress}
-            Searching… {Math.round(ef.progress.fraction * 100)}%
-          {:else}
-            Searching…
-          {/if}
+          <!-- No percentage here. The fraction is of the geometry call running
+               right now, not of the search, so a number on the primary control
+               would claim a completeness nothing can measure — and would count
+               up and start over within one "Find events". The bar below says the
+               same thing without promising it. -->
+          <Loader2 size={12} class="animate-spin" /> Searching…
         {:else}
           <Search size={12} /> Find events
         {/if}
@@ -287,17 +287,19 @@
     </div>
 
     <!-- A determinate bar, from CSPICE's own progress reporter running inside
-         the search. The fraction is of the geometry call currently running, not
-         of the search, so it can restart when the search moves to its next call
-         or its next pass — which is why there is no percentage promised here
-         beyond the one on the button. Absent on the main-thread path, where the
-         simplified CSPICE wrappers report nothing and the spinner is all there
-         is. -->
+         the search. It measures the step in progress: the fraction is of the
+         geometry call currently running, and it restarts when the search moves
+         to its next call or that call's next pass. So it reads as "still
+         moving, and here is how far through this piece", never as a prediction
+         of the whole — which is all CSPICE can honestly report. Absent on the
+         main-thread path, where the simplified wrappers report nothing and the
+         spinner is all there is. -->
     {#if ef.running && ef.progress}
       <div
         class="mt-1.5 h-1 w-full overflow-hidden rounded bg-surface-3"
         role="progressbar"
-        aria-label="Geometry search progress"
+        aria-label="Progress of the current search step"
+        title="Progress of the step running now. A search runs in several steps, so this restarts."
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(ef.progress.fraction * 100)}

@@ -20,7 +20,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createSpiceBindings } from './engine.js';
 import type { GfReport, SpiceBindings } from './bindings.js';
-import { SpiceSearchCancelled } from './index.js';
+import { createSpiceWorkerClient, SpiceError, SpiceSearchCancelled } from './index.js';
+import { installSpiceWorker, type SpiceWorkerScope } from './worker-core.js';
+import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
 
 const fixture = (name: string) =>
   new Uint8Array(readFileSync(fileURLToPath(new URL(`../../../kernels/fixtures/${name}`, import.meta.url))));
@@ -236,5 +238,95 @@ describe('general GF entry points vs the simplified wrappers', () => {
         { onProgress: () => { throw boom; } },
       ),
     ).toThrow(boom);
+  });
+});
+
+/**
+ * The worker protocol end of the same thing.
+ *
+ * `cancelFlag` only means anything across a thread boundary -- its whole reason
+ * for being shared memory is that a worker blocked in a synchronous CSPICE call
+ * cannot be reached any other way -- so the path that has to work is the one
+ * through `createSpiceWorkerClient`, not the in-process one above. Two things
+ * can go wrong there and cannot go wrong in-process: the flag can fail to reach
+ * the search, and the error can lose its type on the way back. An interrupted
+ * search that rejects with a bare SpiceError is indistinguishable from one that
+ * failed, which is exactly the distinction cancellation exists to make.
+ */
+function fakeWorker(): Worker {
+  const listeners = new Set<(ev: MessageEvent<SpiceWorkerResponse>) => void>();
+  const scope: SpiceWorkerScope = {
+    onmessage: null,
+    // Asynchronous in both directions, as a real worker is.
+    postMessage: (res) => {
+      setTimeout(() => {
+        const ev = { data: res } as MessageEvent<SpiceWorkerResponse>;
+        for (const l of listeners) l(ev);
+      }, 0);
+    },
+  };
+  installSpiceWorker(scope);
+  return {
+    postMessage: (msg: unknown) =>
+      setTimeout(
+        () => scope.onmessage?.({ data: msg as SpiceWorkerRequest } as MessageEvent<SpiceWorkerRequest>),
+        0,
+      ),
+    addEventListener: (_t: 'message', h: (ev: MessageEvent<SpiceWorkerResponse>) => void) => listeners.add(h),
+    removeEventListener: (_t: 'message', h: (ev: MessageEvent<SpiceWorkerResponse>) => void) => listeners.delete(h),
+    terminate: () => listeners.clear(),
+  } as unknown as Worker;
+}
+
+describe('reporting searches across the worker protocol', () => {
+  const engine = createSpiceWorkerClient(fakeWorker());
+  let wet0: number;
+  let wet1: number;
+
+  beforeAll(async () => {
+    for (const k of ['naif0012.tls', 'pck00011.tpc', 'de440s-inner-cassini.bsp', 'cassini-soi.bsp']) {
+      await engine.furnsh(k, fixture(k));
+    }
+    wet0 = await engine.str2et('2004-07-01T00:00:00');
+    wet1 = await engine.str2et('2004-07-01T06:00:00');
+  });
+
+  it('carries progress back over the protocol', async () => {
+    const seen: { fraction: number; pass: number }[] = [];
+    const intervals = await engine.gfdist('SATURN', 'NONE', CASSINI, '<', 1.5e6, STEP, wet0, wet1, {
+      onProgress: (fraction, pass) => seen.push({ fraction, pass }),
+    });
+
+    expect(intervals).toEqual(await engine.gfdist('SATURN', 'NONE', CASSINI, '<', 1.5e6, STEP, wet0, wet1));
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    expect(seen[0]).toEqual({ fraction: 0, pass: 1 });
+    expect(seen[seen.length - 1]!.fraction).toBe(1);
+  });
+
+  it('reads the shared cancellation flag and rejects with SpiceSearchCancelled', async () => {
+    const cancelFlag = new Int32Array(new SharedArrayBuffer(4));
+    Atomics.store(cancelFlag, 0, 1);
+
+    const pending = engine.gfdist('SATURN', 'NONE', CASSINI, '<', 1.5e6, STEP, wet0, wet1, { cancelFlag });
+
+    // The type, not just the message. A caller branches on this to decide
+    // whether to show a fault, and SpiceError would send it down the wrong path.
+    await expect(pending).rejects.toBeInstanceOf(SpiceSearchCancelled);
+  });
+
+  it('still reports a genuine SPICE failure as a SpiceError', async () => {
+    // The discriminator must not turn every failure into a cancellation.
+    const pending = engine.gfdist('NOSUCHBODY', 'NONE', CASSINI, '<', 1.5e6, STEP, wet0, wet1, {
+      cancelFlag: new Int32Array(new SharedArrayBuffer(4)),
+    });
+    await expect(pending).rejects.toBeInstanceOf(SpiceError);
+    await expect(pending).rejects.not.toBeInstanceOf(SpiceSearchCancelled);
+  });
+
+  it('leaves the worker usable for the next search', async () => {
+    // A cancelled search must free the worker, not poison it -- the whole point
+    // of interrupting one is that the next search does not queue behind it.
+    const intervals = await engine.gfdist('SATURN', 'NONE', CASSINI, '<', 1.5e6, STEP, wet0, wet1);
+    expect(intervals.length).toBeGreaterThan(0);
   });
 });

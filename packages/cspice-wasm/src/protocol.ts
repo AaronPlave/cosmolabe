@@ -290,7 +290,22 @@ export type SpiceWorkerResultMap = {
 
 export type SpiceWorkerResponse =
   | { id: number; ok: true; result: unknown }
-  | { id: number; ok: false; error: string; shortMessage?: string }
+  | {
+      id: number;
+      ok: false;
+      error: string;
+      shortMessage?: string;
+      /**
+       * The thrown error's class name, so the client can rebuild the type
+       * instead of flattening every failure to SpiceError.
+       *
+       * It has to cross: an interrupted search rejects with
+       * SpiceSearchCancelled, and {@link GfSearchReport} promises that to
+       * worker callers as much as to in-process ones. A caller has to tell "you
+       * stopped this" from "this failed", and a message string is not a type.
+       */
+      name?: string;
+    }
   /**
    * An in-flight geometry search reporting how far it has got. Carries no `ok`,
    * because the request is not finished: more progress, and then a result or an

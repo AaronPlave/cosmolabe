@@ -262,7 +262,8 @@ export function installSpiceWorker(scope: SpiceWorkerScope, options?: SpiceEngin
       err && typeof err === 'object' && 'shortMessage' in err
         ? String((err as { shortMessage?: unknown }).shortMessage)
         : undefined;
-    scope.postMessage({ id, ok: false, error, shortMessage });
+    const name = err instanceof Error ? err.name : undefined;
+    scope.postMessage({ id, ok: false, error, shortMessage, name });
   };
 
   scope.onmessage = (ev) => {

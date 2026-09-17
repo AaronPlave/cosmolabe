@@ -3,6 +3,7 @@
 
 import {
   SpiceError,
+  SpiceSearchCancelled,
   type AberrationCorrection,
   type CartesianState,
   type CkPointing,
@@ -22,7 +23,7 @@ import {
   type SubPointResult,
   type Vec3,
 } from './index.js';
-import type { EvalSeriesResult, EvalSpec } from './eval-series.js';
+import { JobCancelledError, type EvalSeriesResult, type EvalSpec } from './eval-series.js';
 import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
 
 interface Pending {
@@ -30,6 +31,32 @@ interface Pending {
   reject: (reason: unknown) => void;
   /** Set when the caller asked for progress on a geometry search. */
   onProgress?: (fraction: number, pass: number) => void;
+}
+
+/**
+ * Rebuild the error the worker threw, from the class name it sent with it.
+ *
+ * Without this every failure arrives as a SpiceError, and a caller cannot tell
+ * a search it stopped itself from a search that went wrong -- which is the one
+ * distinction cancellation exists to make. The in-process engine throws the real
+ * types, so the worker path has to as well or the two are not the same API.
+ *
+ * An unrecognised name falls back to SpiceError: a worker built against a newer
+ * version of this package must not fail to report an error at all.
+ */
+function reviveWorkerError(res: {
+  error: string;
+  shortMessage?: string;
+  name?: string;
+}): Error {
+  switch (res.name) {
+    case 'SpiceSearchCancelled':
+      return new SpiceSearchCancelled(res.error);
+    case 'JobCancelledError':
+      return new JobCancelledError();
+    default:
+      return new SpiceError(res.error, res.shortMessage);
+  }
 }
 
 // Omit must distribute over the request union, otherwise it collapses to the
@@ -52,7 +79,7 @@ export function createSpiceWorkerClient(worker: Worker): SpiceComputeEngine {
     }
     pending.delete(res.id);
     if (res.ok) p.resolve(res.result);
-    else p.reject(new SpiceError(res.error, res.shortMessage));
+    else p.reject(reviveWorkerError(res));
   });
 
   function send<T>(req: DistributiveOmit<SpiceWorkerRequest, 'id'>): Promise<T> {
