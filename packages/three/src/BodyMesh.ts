@@ -7,7 +7,7 @@ import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
 import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
-import { injectShadowIntoShader, makeShadowUniforms, type ShadowUniforms } from './EclipseShadow.js';
+import { injectShadowIntoShader, makeShadowUniforms, MAX_SHADOW_OCCLUDERS, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUniforms } from './RingShadow.js';
 import { BLOOM_LAYER } from './BloomEffect.js';
@@ -42,6 +42,17 @@ export class BodyMesh extends THREE.Object3D {
   readonly mesh: THREE.Mesh;
   /** Display radius in km (before scale factor). Updated when a model with known size loads. */
   displayRadius: number;
+  /**
+   * Whether `displayRadius` came from real geometry (catalog radii, or a loaded
+   * model's measured extent) rather than the per-classification fallback in
+   * `getDisplayRadius()`.
+   *
+   * Eclipse-shadow occluder selection reads this: a barycenter or any
+   * size-less body falls back to 100 km, which is exactly the occluder
+   * threshold, so without this flag those placeholder spheres enter the
+   * candidate list and cast shadows that have no body behind them.
+   */
+  private _hasMeasuredRadius: boolean;
   /** Container for loaded 3D model (replaces placeholder sphere) */
   modelContainer: THREE.Object3D | null = null;
   /**
@@ -105,6 +116,8 @@ export class BodyMesh extends THREE.Object3D {
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
   get hasShadowReceiving(): boolean { return this.shadowEnabled; }
+  /** True when `displayRadius` reflects real geometry rather than a classification fallback. */
+  get hasMeasuredRadius(): boolean { return this._hasMeasuredRadius; }
   get hasAerialPerspective(): boolean { return this.aerialPerspectiveEnabled; }
 
   /** Apply a multiplier on top of the model's base scale (for minBodyPixels) */
@@ -141,6 +154,7 @@ export class BodyMesh extends THREE.Object3D {
     this.name = body.name;
 
     this.displayRadius = this.getDisplayRadius();
+    this._hasMeasuredRadius = !!body.radii;
     // Globe bodies get higher segment count for texture quality and smooth silhouettes
     // (faceted polygon edges visible through thick atmospheres like Titan's).
     // Bump up further when displacement map is present for vertex-level detail.
@@ -294,6 +308,8 @@ export class BodyMesh extends THREE.Object3D {
       // Update displayRadius from model's actual extent (in km)
       this.displayRadius = maxExtent / 2;
     }
+    // Either branch replaces the classification fallback with a measured size.
+    this._hasMeasuredRadius = true;
     object.scale.setScalar(this.modelBaseScale);
 
     // Apply mesh offset (in model-native units, re-centers geometry on body position)
@@ -519,7 +535,7 @@ export class BodyMesh extends THREE.Object3D {
     sunRadius: number,
   ): void {
     const u = this.shadowUniforms;
-    const count = Math.min(occluders.length, 4);
+    const count = Math.min(occluders.length, MAX_SHADOW_OCCLUDERS);
     u.uShadowOccluderCount.value = count;
     u.uSunWorldPos.value.copy(sunPos);
     u.uSunRadius.value = sunRadius;

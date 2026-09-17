@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CompositeTrajectory, SpiceTrajectory, WaypointTrajectory, EventBus, alignPositionToFrame, bodyTrajectoryFrameName, rotateVecByQuat, DEFAULT_INERTIAL_FRAME, type Universe, type Body, type InertialFrameName } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
+import { selectShadowOccluders } from './EclipseShadow.js';
 import {
   AssetLoadTracker,
   DEFAULT_INITIAL_ASSET_TIMEOUT_MS,
@@ -1688,6 +1689,12 @@ export class UniverseRenderer {
     const candidates = [...this.bodyMeshes.values()].filter(bm =>
       bm.body.classification !== 'star' &&
       bm.body.geometryData?.emissive !== true &&
+      // A body with no declared radii and no loaded model falls back to a
+      // per-classification display size — 100 km for barycenters and anything
+      // unclassified, which is exactly the threshold below. Those spheres are
+      // framing hints, not geometry, and a barycenter sitting on its planet's
+      // center (or on the sun) casts a shadow nothing in the scene explains.
+      bm.hasMeasuredRadius &&
       bm.displayRadius >= this._shadowMinOccluderKm &&
       // Bodies rendered by a custom visualizer don't have a real sphere — their
       // displayRadius is just a hint for label/flyTo framing, not the actual
@@ -1704,17 +1711,20 @@ export class UniverseRenderer {
       if (receiver.body.classification === 'star') continue;
       if (receiver.body.geometryData?.emissive === true) continue;
 
-      // Pick up to 4 occluders with the largest angular size as seen from this receiver.
-      // Largest angular size = most likely to cast a visible shadow.
-      const occluders = candidates
-        .filter(c => c !== receiver)
-        .map(c => {
-          const dist = Math.max(c.position.distanceTo(receiver.position), 1e-20);
-          return { pos: c.position, radius: c.displayRadius * this.scaleFactor, angularSize: (c.displayRadius * this.scaleFactor) / dist };
-        })
-        .sort((a, b) => b.angularSize - a.angularSize)
-        .slice(0, 4)
-        .map(({ pos, radius }) => ({ pos, radius }));
+      // Keep only the occluders whose penumbra actually reaches this receiver,
+      // ranked by how centered the receiver sits in it. Ranking by apparent
+      // size instead would hand the slots to the same few moons every frame
+      // regardless of where they are in their orbits — see
+      // `selectShadowOccluders`.
+      const occluders = selectShadowOccluders(
+        candidates
+          .filter(c => c !== receiver)
+          .map(c => ({ pos: c.position, radius: c.displayRadius * this.scaleFactor })),
+        receiver.position,
+        receiver.displayRadius * this.scaleFactor,
+        sunPos,
+        sunRadius,
+      );
 
       this._shadowOccluderCache.set(receiver.body.name, occluders);
       if (receiver.hasShadowReceiving) {
@@ -1722,23 +1732,17 @@ export class UniverseRenderer {
       }
     }
 
-    // Rings: top 4 occluders from the ring's perspective. Unlike bodies, the
-    // parent planet is NOT filtered out — it sits at the ring's center and is
-    // the dominant shadow caster (the dark arc on the night-side rings).
+    // Rings: same relevance test from the ring's perspective. Unlike bodies,
+    // the parent planet is NOT filtered out — it sits at the ring's center and
+    // is the dominant shadow caster (the dark arc on the night-side rings).
     for (const [, { ring }] of this.ringMeshes) {
-      const ringPos = ring.position;
-      const ringOccluders = candidates
-        .map(c => {
-          const dist = Math.max(c.position.distanceTo(ringPos), 1e-20);
-          return {
-            pos: c.position,
-            radius: c.displayRadius * this.scaleFactor,
-            angularSize: (c.displayRadius * this.scaleFactor) / dist,
-          };
-        })
-        .sort((a, b) => b.angularSize - a.angularSize)
-        .slice(0, 4)
-        .map(({ pos, radius }) => ({ pos, radius }));
+      const ringOccluders = selectShadowOccluders(
+        candidates.map(c => ({ pos: c.position, radius: c.displayRadius * this.scaleFactor })),
+        ring.position,
+        ring.outerRadius * this.scaleFactor,
+        sunPos,
+        sunRadius,
+      );
       ring.setShadowOccluders(ringOccluders, sunPos, sunRadius);
     }
   }

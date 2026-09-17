@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildMultiScatterLUT } from './MultiScatterLUT.js';
+import { MAX_SHADOW_OCCLUDERS } from './EclipseShadow.js';
 
 /**
  * Atmosphere scattering parameters for a body.
@@ -191,8 +192,8 @@ uniform sampler2D uMultiScatterLUT;
 
 uniform vec3  uSunWorldPos;
 uniform float uSunRadius;
-uniform vec3  uShadowOccluderPos[4];
-uniform float uShadowOccluderRadius[4];
+uniform vec3  uShadowOccluderPos[${MAX_SHADOW_OCCLUDERS}];
+uniform float uShadowOccluderRadius[${MAX_SHADOW_OCCLUDERS}];
 uniform float uShadowOccluderCount;
 uniform vec3  uPlanetWorldPos;
 uniform float uShellSceneScale;
@@ -212,7 +213,7 @@ float computeAtmEclipseShadow(vec3 samplePos) {
   if (distToSun < 1e-20) return 1.0;
   vec3 rayDir = toSun / distToSun;
   float shadowFactor = 1.0;
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < ${MAX_SHADOW_OCCLUDERS}; i++) {
     if (float(i) >= uShadowOccluderCount) break;
     vec3 toOcc = uShadowOccluderPos[i] - worldPos;
     float t = dot(toOcc, rayDir);
@@ -352,8 +353,8 @@ uniform sampler2D uMultiScatterLUT;
 
 uniform vec3  uSunWorldPos;
 uniform float uSunRadius;
-uniform vec3  uShadowOccluderPos[4];
-uniform float uShadowOccluderRadius[4];
+uniform vec3  uShadowOccluderPos[${MAX_SHADOW_OCCLUDERS}];
+uniform float uShadowOccluderRadius[${MAX_SHADOW_OCCLUDERS}];
 uniform float uShadowOccluderCount;
 uniform vec3  uPlanetWorldPos;
 uniform float uShellSceneScale;
@@ -380,7 +381,7 @@ float computeAtmEclipseShadow(vec3 samplePos) {
   if (distToSun < 1e-20) return 1.0;
   vec3 rayDir = toSun / distToSun;
   float shadowFactor = 1.0;
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < ${MAX_SHADOW_OCCLUDERS}; i++) {
     if (float(i) >= uShadowOccluderCount) break;
     vec3 toOcc = uShadowOccluderPos[i] - worldPos;
     float t = dot(toOcc, rayDir);
@@ -555,8 +556,8 @@ export class AtmosphereMesh extends THREE.Mesh {
         uCameraInsideShell:    { value: 0.0 },
         uSunWorldPos:          { value: new THREE.Vector3() },
         uSunRadius:            { value: 0 },
-        uShadowOccluderPos:    { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] },
-        uShadowOccluderRadius: { value: new Float32Array(4) },
+        uShadowOccluderPos:    { value: Array.from({ length: MAX_SHADOW_OCCLUDERS }, () => new THREE.Vector3()) },
+        uShadowOccluderRadius: { value: new Float32Array(MAX_SHADOW_OCCLUDERS) },
         uShadowOccluderCount:  { value: 0.0 },
         uPlanetWorldPos:       { value: new THREE.Vector3() },
         uShellSceneScale:      { value: 1.0 },
@@ -670,7 +671,7 @@ export class AtmosphereMesh extends THREE.Mesh {
       u.uSunRadius.value = sunRadius ?? 0;
       u.uPlanetWorldPos.value.copy(planetWorldPos);
       u.uShellSceneScale.value = shellSceneScale;
-      const count = Math.min(occluders.length, 4);
+      const count = Math.min(occluders.length, MAX_SHADOW_OCCLUDERS);
       u.uShadowOccluderCount.value = count;
       for (let i = 0; i < count; i++) {
         u.uShadowOccluderPos.value[i].copy(occluders[i].pos);
