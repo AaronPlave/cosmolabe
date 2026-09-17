@@ -111,6 +111,47 @@ describe('selectShadowOccluders', () => {
     expect(byApparentSize).not.toContainEqual(mimas);
   });
 
+  // Real geometry, not a constructed one. Saturn's heliocentric position comes
+  // from de440s and the moon positions from TASS17 — the same analytical theory
+  // the renderer drives the moons with — at 2023-03-07T23:00Z, an epoch found by
+  // scanning 2004-2030 for a tick where exactly one moon's shadow lands on
+  // Saturn. Hardcoded so the test needs no kernels.
+  //
+  // Saturn's sub-solar latitude runs to +-27 degrees, so moon shadows only
+  // reach the planet near its equinoxes, and the closer-in a moon orbits the
+  // wider its window: Mimas casts whenever |lat| < 19 degrees, Titan only
+  // within 2.8. Across that span Mimas accounts for more shadow-on-Saturn time
+  // than every other moon combined, and apparent-size ranking put it last.
+  it('picks the one moon actually casting on Saturn at a real epoch', () => {
+    const saturnPos = v(0, 0, 0); // work in Saturn-centred scene coordinates
+    const saturnRadius = km(60268);
+    const sun = v(km(-1245747314.05), km(777426994.333), km(36058658.05));
+    const moons: Record<string, ShadowOccluder> = {
+      Mimas:     { pos: v(km(-159292.5), km(85458.0), km(-26429.7)),    radius: km(209) },
+      Enceladus: { pos: v(km(49455.5), km(-207113.9), km(103819.7)),    radius: km(256) },
+      Tethys:    { pos: v(km(-64442.1), km(-249338.4), km(143125.7)),   radius: km(536) },
+      Dione:     { pos: v(km(-84917.5), km(329543.1), km(-164268.6)),   radius: km(560) },
+      Rhea:      { pos: v(km(-298521.1), km(-372758.9), km(223295.3)),  radius: km(764) },
+      Titan:     { pos: v(km(-757106.0), km(911316.8), km(-394505.2)),  radius: km(2575) },
+      Hyperion:  { pos: v(km(1052586.9), km(932625.7), km(-564215.3)),  radius: km(135) },
+      Iapetus:   { pos: v(km(-1874396.6), km(3049916.5), km(-327022.4)), radius: km(718) },
+    };
+    const names = Object.keys(moons);
+    const got = selectShadowOccluders(
+      Object.values(moons), saturnPos, saturnRadius, sun, SUN_RADIUS,
+    );
+    const picked = got.map(o => names.find(n => moons[n].pos === o.pos));
+    expect(picked).toEqual(['Mimas']);
+
+    // Apparent-size ranking fills all four slots and leaves out the only moon
+    // whose shadow is on the planet.
+    const byApparentSize = names
+      .sort((a, b) =>
+        moons[b].radius / moons[b].pos.length() - moons[a].radius / moons[a].pos.length())
+      .slice(0, MAX_SHADOW_OCCLUDERS);
+    expect(byApparentSize).not.toContain('Mimas');
+  });
+
   it('keeps the parent planet when the receiver is its ring system', () => {
     const saturnPos = v(km(9.5 * AU));
     const saturn: ShadowOccluder = { pos: saturnPos, radius: km(60268) };
