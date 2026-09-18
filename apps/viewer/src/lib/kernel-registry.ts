@@ -28,6 +28,7 @@
  */
 
 import { kernelNameFromUrl } from '@cosmolabe/frames';
+import type { KernelWindow } from './geometry-kernels';
 
 /** A kernel a worker can be given: fetched by URL, or read from a dropped file. */
 export type KernelSourceRef = { url: string } | { file: File };
@@ -49,6 +50,19 @@ export interface FurnishedKernel {
   readonly owner: KernelOwner;
   /** The name SPICE knows it by, which is what `unload` takes. */
   readonly name: string;
+  /**
+   * What this kernel covers, measured when it was furnished, or null for one
+   * with no coverage to report.
+   *
+   * Carried on the entry rather than looked up by name when a search needs it,
+   * because `spkFileCoverage` answers about the file staged at
+   * `/kernels/<name>` -- and two entries can share that name, in which case the
+   * lookup would give one kernel's coverage for the other's entry and narrow a
+   * search to the wrong set. Measured at furnish time is the one moment the
+   * name unambiguously means this kernel. It cannot go stale: coverage is a
+   * property of the bytes.
+   */
+  readonly coverage: readonly KernelWindow[] | null;
 }
 
 /**
@@ -94,21 +108,54 @@ export class KernelRegistry {
     return this.#entries;
   }
 
+  /**
+   * The entry furnished under `name`, if one is.
+   *
+   * There is at most one, and keeping it that way is what
+   * `displaceKernelNamed` in the loader exists for: the wasm build stages every
+   * kernel at `/kernels/<name>`, so a second kernel furnished under a name
+   * another still holds does not become a second file. It overwrites the bytes
+   * of the one that is there while CSPICE still holds that file open against
+   * its old contents -- measured, the newcomer's data is unreachable and the
+   * occupant's reads come back corrupt ("beginning address greater than ending
+   * address"). A name is a slot, and this is how the loader checks whether the
+   * slot is taken before putting something in it.
+   */
+  findByName(name: string): FurnishedKernel | undefined {
+    return this.#entries.find((e) => e.name === name);
+  }
+
   /** Whether this URL is already furnished — the check that skips a re-fetch. */
   has(url: string): boolean {
     return this.#entries.some((e) => 'url' in e.source && e.source.url === url);
   }
 
-  register(source: KernelSourceRef, owner: KernelOwner): void {
-    this.#entries.push({ source, owner, name: kernelName(source) });
+  /**
+   * Record a kernel just furnished.
+   *
+   * `coverage` is measured by the caller, which is the only place that can:
+   * it has the SPICE instance, and it is there at the moment this kernel is
+   * what its name refers to. Null for anything with no coverage to report.
+   */
+  register(
+    source: KernelSourceRef,
+    owner: KernelOwner,
+    coverage: readonly KernelWindow[] | null = null,
+  ): void {
+    this.#entries.push({ source, owner, name: kernelName(source), coverage });
   }
 
   /**
    * What the workers are furnished with: the same list, same order, minus the
    * kernel types no worker reads.
    */
+  workerEntries(): FurnishedKernel[] {
+    return this.#entries.filter((e) => isWorkerKernel(e.name));
+  }
+
+  /** The same list as sources, for a caller that needs no more than that. */
   workerSources(): KernelSourceRef[] {
-    return this.#entries.filter((e) => isWorkerKernel(e.name)).map((e) => e.source);
+    return this.workerEntries().map((e) => e.source);
   }
 
   /** Drop one entry, for a kernel the SPICE instance turned out not to have. */
@@ -128,28 +175,22 @@ export class KernelRegistry {
    * Unload names come back in reverse furnish order, which is the order CSPICE
    * would undo them in.
    *
-   * A name held by more than one entry cannot be taken out this way at all, and
-   * is reported as a collision instead. Two reasons, both structural. `furnsh_c`
-   * records every load, including a repeat of one it already has, and
-   * `unload_c` undoes only the most recent load of that file -- so N furnishes
-   * under one name need N unloads, and one call leaves the rest furnished and
-   * invisible. And beneath that, the wasm build stages every kernel at
-   * `/kernels/<name>`, so two different byte streams sharing a basename were
-   * never two files to begin with: the second furnish overwrote the first's
-   * bytes, and one unload unlinks the path for both.
+   * A name held by more than one entry is reported as a collision instead, and
+   * the caller rebuilds the instance rather than unloading anything.
+   *
+   * This is a backstop, not the primary defence. The loader keeps one entry per
+   * name by displacing the occupant before it furnishes (`findByName`), so a
+   * collision should not arise at all. It is checked anyway because the cost of
+   * being wrong is not a warning: `furnsh_c` records every load, including a
+   * repeat under a name it already has, and `unload_c` undoes only the most
+   * recent -- so N furnishes under one name need N unloads, and one call leaves
+   * the rest furnished and unaccounted for. A future furnish path that forgets
+   * to displace should cost a rebuilt instance, not a silently divergent one.
    *
    * Counting entries is a sound proxy for counting furnishes because they are
    * one to one: the only skip on the furnish path is by URL (`has`), so a
    * repeat of the same URL is never furnished twice, and everything that is
-   * furnished is registered. Two catalog URLs ending in the same basename, or a
-   * user's dropped file sharing a name with a catalog's kernel, are each two
-   * entries and two furnishes.
-   *
-   * What a collision is for is deciding, not repairing: the caller rebuilds the
-   * instance from the survivors instead of unloading anything. Collisions are
-   * rare enough that its cost does not matter, and it is the one outcome whose
-   * correctness does not depend on reasoning about how many loads CSPICE is
-   * holding of a path that two files were staged at.
+   * furnished is registered.
    */
   releaseCatalog(): KernelReleasePlan {
     const released = this.#entries.filter((e) => e.owner === 'catalog');

@@ -17,6 +17,7 @@
  * releases between them.
  */
 import { describe, it, expect } from 'vitest';
+import { kernelsForWindow, type KernelWindow } from './geometry-kernels';
 import {
   KernelRegistry,
   isWorkerKernel,
@@ -107,12 +108,64 @@ describe('releasing a scene’s kernels', () => {
 });
 
 /**
- * Names that stand for more than one furnished kernel.
+ * A name refers to one furnished kernel, and to which one.
  *
- * `unload_c` undoes the most recent furnish of a file and no more, and beneath
- * that the wasm build stages every kernel at `/kernels/<name>` -- so a basename
- * two entries share was never two files CSPICE could be asked to separate. The
- * registry must not pretend otherwise by unloading once and forgetting twice.
+ * The wasm build stages every kernel at `/kernels/<name>`, so a name is a slot.
+ * The loader keeps one kernel per slot by unloading the occupant before it
+ * furnishes (`displaceKernelNamed`); `findByName` is how it asks. What follows
+ * is the consequence for everything that reasons about a kernel afterwards --
+ * above all its coverage, which decides what a search is narrowed to.
+ */
+describe('a name and the kernel it refers to', () => {
+  it('finds the entry furnished under a name, and only that one', () => {
+    const registry = new KernelRegistry();
+    registry.register(url('de440s.bsp'), 'catalog');
+    registry.register(url('naif0012.tls'), 'catalog');
+
+    expect(registry.findByName('de440s.bsp')?.source).toEqual(url('de440s.bsp'));
+    expect(registry.findByName('nothing.bsp')).toBeUndefined();
+  });
+
+  it('narrows by the kernel an entry stands for, not by what its name means now', () => {
+    // The trap this exists to avoid: `spkFileCoverage(name)` answers about
+    // whatever is staged under that name *now*. Here a name has been reused --
+    // the loader displaced the first kernel, and the registry entry for the
+    // second carries the coverage measured when it was furnished. Narrowing on
+    // a by-name lookup would give the surviving entry the displaced kernel's
+    // 2004 coverage and keep it for a 2004 search it cannot serve.
+    const registry = new KernelRegistry();
+    const displaced = { url: `${CATALOG}/a/shared.bsp` };
+    const current = { url: `${CATALOG}/b/shared.bsp` };
+    registry.register(displaced, 'catalog', [{ start: 0, end: 1_000 }]);
+    registry.forget(registry.findByName('shared.bsp')!);
+    registry.register(current, 'catalog', [{ start: 9_000, end: 10_000 }]);
+    registry.register(url('naif0012.tls'), 'catalog');
+
+    const narrow = (window: KernelWindow) =>
+      kernelsForWindow(registry.workerEntries(), (e) => e.coverage, window, 0)
+        .map((e) => e.source);
+
+    expect(narrow({ start: 100, end: 200 })).toEqual([url('naif0012.tls')]);
+    expect(narrow({ start: 9_100, end: 9_200 })).toEqual([current, url('naif0012.tls')]);
+  });
+
+  it('keeps a kernel whose coverage was never measured', () => {
+    // Null is "nothing to test", not "covers nothing": every non-SPK, and any
+    // SPK the loader could not measure. Dropping those would break searches.
+    const registry = new KernelRegistry();
+    registry.register(url('naif0012.tls'), 'catalog');
+    registry.register(url('unmeasured.bsp'), 'catalog', null);
+
+    const kept = kernelsForWindow(registry.workerEntries(), (e) => e.coverage, { start: 0, end: 1 }, 0);
+    expect(kept.map((e) => e.name)).toEqual(['naif0012.tls', 'unmeasured.bsp']);
+  });
+});
+
+/**
+ * Two entries under one name, which the loader does not create.
+ *
+ * Kept as a backstop: a furnish path that forgot to displace would otherwise
+ * leave `unload` undoing one of two loads and the registry forgetting both.
  */
 describe('two kernels furnished under one name', () => {
   it('will not be unloaded when two catalog URLs share a basename', () => {

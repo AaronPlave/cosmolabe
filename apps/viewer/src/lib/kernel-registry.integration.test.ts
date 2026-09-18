@@ -19,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
+import { kernelsForWindow, type KernelWindow } from './geometry-kernels';
 import {
   KernelRegistry,
   kernelName,
@@ -65,8 +66,22 @@ describe('replacing a scene releases its kernels', () => {
       const [name, from = name] = spec.split('=');
       const source = { url: `https://example.test/kernels/${owner}/${name}` };
       bytesFor.set(source, from);
-      await spice.furnish({ type: 'buffer', data: fixture(from), filename: kernelName(source) });
-      registry.register(source, owner);
+      const furnishedAs = kernelName(source);
+      // `displaceKernelNamed`: a name is a slot, and the occupant comes out
+      // before anything else goes in. Furnishing over it corrupts both.
+      const held = registry.findByName(furnishedAs);
+      if (held) {
+        spice.unload(held.name);
+        registry.forget(held);
+      }
+      await spice.furnish({ type: 'buffer', data: fixture(from), filename: furnishedAs });
+      // As `measureCoverage` in the loader does it: while this kernel is the one
+      // its name refers to, which for a shared basename is only now.
+      registry.register(
+        source,
+        owner,
+        /\.bsp$/i.test(furnishedAs) ? spice.spkFileCoverage(furnishedAs) : null,
+      );
     }
   };
 
@@ -91,6 +106,7 @@ describe('replacing a scene releases its kernels', () => {
         for (const entry of keep) {
           const from = bytesFor.get(entry.source as object) ?? entry.name;
           await spice.furnish({ type: 'buffer', data: fixture(from), filename: entry.name });
+          // The entry keeps its measured coverage: same bytes, same coverage.
           refurnished.push(entry);
         }
         return refurnished;
@@ -178,67 +194,129 @@ describe('replacing a scene releases its kernels', () => {
   }, 180_000);
 
 /**
- * Two kernels furnished under one name.
+ * A name is a slot, and what happens if you treat it as anything else.
  *
- * CSPICE counts furnishes: `unload_c` undoes the most recent load of a file and
- * leaves any earlier one in place. Beneath that, the wasm build stages every
- * kernel at `/kernels/<name>`, so two different byte streams sharing a basename
- * were only ever one path -- the second furnish overwrote the first's bytes.
- * Either way a name is not an identity, and a release that unloads once and
- * forgets twice leaves SPICE holding a kernel the registry has stopped
- * accounting for. The rebuild is what avoids having to reason about it.
- *
- * `de440s-inner-cassini.bsp` and `cassini-soi.bsp` are what make it observable:
- * the planetary file answers the Moon, the Cassini file answers the spacecraft,
- * and here one of them is furnished under the other's name.
+ * The wasm build stages every kernel at `/kernels/<name>`, so two kernels
+ * sharing a basename are one path. The loader keeps one furnished kernel per
+ * name by unloading the occupant first (`displaceKernelNamed`); these pin both
+ * halves of why -- what that costs, and what skipping it costs.
  */
-describe('when a catalog furnishes a name something else already holds', () => {
-  it('leaves nothing of the catalog behind, user first', async () => {
-    // The case the PR's own policy creates: the user dropped a kernel, and a
-    // catalog later furnished its own under the same name.
-    await furnish(['planets.bsp=de440s-inner-cassini.bsp', 'naif0012.tls'], 'user');
-    await loadScene(['planets.bsp=cassini-soi.bsp', 'pck00011.tpc']);
-    expect(() => cassiniQuery()).not.toThrow();
+describe('a kernel furnished under a name another one holds', () => {
+  it('is a second load of one path, which one unload does not undo', async () => {
+    // Not a policy, an observation, and the reason the loader displaces at
+    // furnish time rather than coping at release time. Driven straight against
+    // SPICE, because the registry is what stops the app reaching this state.
+    const raw = await createHeritageSpice();
+    await raw.furnish({ type: 'buffer', data: fixture('naif0012.tls'), filename: 'naif0012.tls' });
+    await raw.furnish({ type: 'buffer', data: fixture('de440s-inner-cassini.bsp'), filename: 'shared.bsp' });
+    await raw.furnish({ type: 'buffer', data: fixture('cassini-soi.bsp'), filename: 'shared.bsp' });
 
-    await loadScene(SCENE_B);
+    // Two loads of one staged path. Which kernel answers from here is not
+    // stable -- it depends on what SPICE has buffered, since the second furnish
+    // overwrote the bytes of a file it already had open -- and that is the
+    // point: past this furnish the instance is not describable. What is stable
+    // is the count, and what it costs.
+    expect(raw.totalLoaded()).toBe(3);
 
-    // The catalog's kernel is gone, even though its name is one the user's
-    // kernel also holds and no unload of that name could have been trusted.
-    expect(() => cassiniQuery()).toThrow();
-    // And the user's own kernel is back, with its own bytes -- the rebuild
-    // re-furnished what the entry was furnished from.
-    expect(registry.entries.map((e) => e.name)).toEqual(['planets.bsp', 'naif0012.tls', ...SCENE_B]);
-    expect(spice.totalLoaded()).toBe(2 + SCENE_B.length);
-    expect(() => moonQuery()).not.toThrow();
+    raw.unload('shared.bsp');
+
+    // One load remains, for a file that is no longer even on the staging path,
+    // and it still answers. A release that unloaded this name once and forgot
+    // both entries would leave exactly this: a kernel belonging to no scene,
+    // serving geometry, that nothing can name to get rid of.
+    expect(raw.totalLoaded()).toBe(2);
+    expect(() => raw.spkpos('-82', raw.str2et('2004-07-01T12:00:00'), 'J2000', 'NONE', 'SATURN')).not.toThrow();
   }, 180_000);
 
-  it('leaves nothing of the catalog behind, catalog first', async () => {
-    await loadScene(['naif0012.tls', 'pck00011.tpc', 'planets.bsp=cassini-soi.bsp']);
+  it('replaces it cleanly when the occupant is unloaded first', async () => {
+    await furnish(['naif0012.tls', 'shared.bsp=de440s-inner-cassini.bsp']);
+    expect(() => moonQuery()).not.toThrow();
+
+    await furnish(['shared.bsp=cassini-soi.bsp']);
+
+    // The slot holds exactly the newcomer: its data is reachable, and what it
+    // displaced is gone honestly rather than half-readable.
+    expect(() => cassiniQuery()).not.toThrow();
+    expect(() => moonQuery()).toThrow(/insufficient/i);
+    expect(spice.totalLoaded()).toBe(2);
+    expect(registry.entries.map((e) => e.name)).toEqual(['naif0012.tls', 'shared.bsp']);
+  }, 180_000);
+
+  it('leaves one entry per name, whoever furnished first', async () => {
+    // The three orderings the review asked about, now all one shape: the
+    // registry never holds two entries for a name, so a release never has two
+    // furnishes to undo with one unload.
+    await furnish(['planets.bsp=de440s-inner-cassini.bsp'], 'user');
+    await furnish(['naif0012.tls', 'planets.bsp=cassini-soi.bsp'], 'catalog');
     await furnish(['planets.bsp=de440s-inner-cassini.bsp'], 'user');
 
-    await loadScene(SCENE_B);
-
-    // The overwrite hides the stale bytes here -- the user's furnish wrote the
-    // same staged path -- so the count is what shows the load itself is gone,
-    // rather than still sitting under the registry's one entry for that name.
-    expect(() => cassiniQuery()).toThrow();
-    expect(registry.entries.map((e) => e.name)).toEqual(['planets.bsp', ...SCENE_B]);
-    expect(spice.totalLoaded()).toBe(1 + SCENE_B.length);
+    expect(registry.entries.map((e) => e.name)).toEqual(['naif0012.tls', 'planets.bsp']);
+    expect(registry.entries.map((e) => e.owner)).toEqual(['catalog', 'user']);
     expect(() => moonQuery()).not.toThrow();
   }, 180_000);
 
-  it('leaves nothing behind when two of one catalog’s URLs share a basename', async () => {
-    // Two different URLs, same basename: the furnish path deduplicates by URL,
-    // so both were fetched and both were furnished.
-    await furnish(['cas_iss_v10.ti'], 'user');
-    await loadScene(['naif0012.tls', 'pck00011.tpc', 'shared.bsp=de440s-inner-cassini.bsp', 'shared.bsp=cassini-soi.bsp']);
-    expect(() => cassiniQuery()).not.toThrow();
+  it('releases a scene whose kernel displaced the user’s', async () => {
+    // And the release is then an ordinary one: one furnish, one unload, no
+    // rebuild -- the collision backstop in `releaseCatalog` never fires.
+    await furnish(['planets.bsp=de440s-inner-cassini.bsp'], 'user');
+    await furnish(['naif0012.tls', 'planets.bsp=cassini-soi.bsp'], 'catalog');
 
-    await loadScene(SCENE_B);
+    const result = await release();
 
-    expect(() => cassiniQuery()).toThrow();
-    expect(registry.entries.map((e) => e.name)).toEqual(['cas_iss_v10.ti', ...SCENE_B]);
-    expect(spice.totalLoaded()).toBe(1 + SCENE_B.length);
+    expect(result.rebuilt).toBe(false);
+    expect(result.collided).toEqual([]);
+    expect(registry.entries).toEqual([]);
+    expect(spice.totalLoaded()).toBe(0);
+  }, 180_000);
+});
+
+/**
+ * Narrowing when a name has been reused.
+ *
+ * The geometry worker is given only the kernels a search's window could reach,
+ * decided by each file's coverage. Asking SPICE for that coverage at search
+ * time asks about whatever is staged at `/kernels/<name>` now -- which, once a
+ * name can be reused, is not necessarily the kernel whose entry is being
+ * narrowed. So coverage is measured when the kernel is furnished, while its
+ * name unambiguously means it, and carried on the entry.
+ *
+ * The fixtures differ in exactly the way that makes it observable:
+ * `de440s-inner-cassini.bsp` covers all of 2004, `cassini-soi.bsp` only
+ * 2004-06-21 to 2004-08-23.
+ */
+describe('narrowing after a name has been reused', () => {
+  const window = (from: string, to: string): KernelWindow => ({
+    start: spice.str2et(from),
+    end: spice.str2et(to),
+  });
+
+  /** As the loader narrows: by each entry's own coverage, never by its name. */
+  const narrowed = (w: KernelWindow) =>
+    kernelsForWindow(registry.workerEntries(), (e) => e.coverage, w)
+      .map((e) => bytesFor.get(e.source as object));
+
+  it('narrows the surviving kernel by its own coverage, not the displaced one’s', async () => {
+    // `shared.bsp` was the planetary kernel and is now the Cassini one. A
+    // February search must drop it -- the name's old meaning covered February,
+    // the kernel actually furnished under it does not.
+    await furnish(['naif0012.tls', 'shared.bsp=de440s-inner-cassini.bsp']);
+    await furnish(['shared.bsp=cassini-soi.bsp']);
+
+    expect(narrowed(window('2004-02-01T00:00:00', '2004-02-08T00:00:00'))).toEqual(['naif0012.tls']);
+    expect(narrowed(window('2004-07-01T00:00:00', '2004-07-08T00:00:00'))).toEqual([
+      'naif0012.tls', 'cassini-soi.bsp',
+    ]);
+  }, 180_000);
+
+  it('narrows by the kernel each entry stands for when two names swap contents', async () => {
+    // Both names are reused, crosswise, so a by-name lookup at search time
+    // would hand each entry the other's coverage.
+    await furnish(['naif0012.tls', 'a.bsp=de440s-inner-cassini.bsp', 'b.bsp=cassini-soi.bsp']);
+    await furnish(['a.bsp=cassini-soi.bsp', 'b.bsp=de440s-inner-cassini.bsp']);
+
+    expect(narrowed(window('2004-02-01T00:00:00', '2004-02-08T00:00:00'))).toEqual([
+      'naif0012.tls', 'de440s-inner-cassini.bsp',
+    ]);
   }, 180_000);
 });
 });
