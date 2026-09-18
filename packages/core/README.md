@@ -8,7 +8,7 @@ Use this package server-side, in tests, or under any renderer. The companion pac
 
 - **`Universe`** — body registry, time state, `universe.getBody('LRO').stateAt(et)` API
 - **`CatalogLoader`** — parses [catalog JSON](https://github.com/AaronPlave/cosmolabe/blob/main/docs/catalog-format.md) in full: 10 trajectory types, 6 rotation models, 8 geometry types, 4 inertial frames + body-fixed + two-vector frames. The format is the primary way to configure a scene; existing Cosmographia catalogs load unmodified.
-- **Trajectories** — `FixedPoint`, `Keplerian`, `Spice`, `InterpolatedStates`, `Composite`, `Builtin` (JPL DE), `ChebyshevPoly`, `LinearCombination`, `TLE` (via [satellite.js](https://github.com/shashwatak/satellite-js)). Each implements `stateAt(et) → { pos, vel }`.
+- **Trajectories** — `FixedPoint`, `Keplerian`, `Spice`, `InterpolatedStates`, `Composite`, `Builtin` (JPL DE), `ChebyshevPoly`, `LinearCombination`, `TLE` (via [satellite.js](https://github.com/shashwatak/satellite-js)). Each implements `stateAt(et) → { position, velocity }`.
 - **Rotations** — `Uniform`, `Fixed`, `FixedEuler`, `Interpolated` (quaternion SLERP), `Spice`, `TrajectoryNadir`. Each implements `rotationAt(et) → Quaternion`.
 - **Frames** — `EclipticJ2000`, `ICRF`, `EquatorJ2000`, `EquatorB1950`, `BodyFixed`, `TwoVector`
 - **`GeometryCalculator`** — altitude, sub-spacecraft point, sun angles, orbital elements, eclipse/occultation detection
@@ -47,18 +47,17 @@ npm install @cosmolabe/core @cosmolabe/frames
 ## Quick example
 
 ```ts
-import { Universe, CatalogLoader } from '@cosmolabe/core';
+import { Universe } from '@cosmolabe/core';
 import { createHeritageSpice } from '@cosmolabe/frames';
 
 const spice = await createHeritageSpice();
 await spice.furnish({ type: 'url', url: naif0012TlsUrl });
 
-const universe = new Universe({ spice });
-const loader = new CatalogLoader(universe);
-await loader.load(catalogJson);
+const universe = new Universe(spice);
+universe.loadCatalog(catalogJson);
 
 const et = spice.str2et('2025-01-01T00:00:00Z');
-const { pos, vel } = universe.getBody('LRO')!.stateAt(et);
+const { position, velocity } = universe.getBody('LRO')!.stateAt(et);
 ```
 
 ## License

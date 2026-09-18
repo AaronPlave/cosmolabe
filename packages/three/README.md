@@ -34,7 +34,7 @@ npm install @cosmolabe/three @cosmolabe/core @cosmolabe/frames three
 import { Universe } from '@cosmolabe/core';
 import { UniverseRenderer } from '@cosmolabe/three';
 
-const universe = new Universe({ spice });
+const universe = new Universe(spice);
 const renderer = new UniverseRenderer({
   universe,
   container: document.getElementById('viewer')!,

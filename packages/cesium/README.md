@@ -30,7 +30,7 @@ npm install @cosmolabe/cesium @cosmolabe/core @cosmolabe/cesium-adapter cesium
 import { Universe } from '@cosmolabe/core';
 import { CesiumRenderer } from '@cosmolabe/cesium';
 
-const universe = new Universe({ spice });
+const universe = new Universe(spice);
 const renderer = new CesiumRenderer({
   universe,
   container: 'cesium-container',
