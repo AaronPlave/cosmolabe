@@ -123,26 +123,63 @@ export class KernelRegistry {
   }
 
   /**
-   * Forget every catalog-owned kernel and report what to unload.
+   * Forget every catalog-owned kernel, and say how to take them out of SPICE.
    *
-   * Reverse furnish order, which is the order CSPICE itself would undo them
-   * in, and never a name some surviving entry still holds — a user-dropped
-   * kernel sharing a filename with the catalog's is furnished under the one
-   * name, so unloading the catalog's would take the user's with it.
+   * Unload names come back in reverse furnish order, which is the order CSPICE
+   * would undo them in.
+   *
+   * A name held by more than one entry cannot be taken out this way at all, and
+   * is reported as a collision instead. Two reasons, both structural. `furnsh_c`
+   * records every load, including a repeat of one it already has, and
+   * `unload_c` undoes only the most recent load of that file -- so N furnishes
+   * under one name need N unloads, and one call leaves the rest furnished and
+   * invisible. And beneath that, the wasm build stages every kernel at
+   * `/kernels/<name>`, so two different byte streams sharing a basename were
+   * never two files to begin with: the second furnish overwrote the first's
+   * bytes, and one unload unlinks the path for both.
+   *
+   * Counting entries is a sound proxy for counting furnishes because they are
+   * one to one: the only skip on the furnish path is by URL (`has`), so a
+   * repeat of the same URL is never furnished twice, and everything that is
+   * furnished is registered. Two catalog URLs ending in the same basename, or a
+   * user's dropped file sharing a name with a catalog's kernel, are each two
+   * entries and two furnishes.
+   *
+   * What a collision is for is deciding, not repairing: the caller rebuilds the
+   * instance from the survivors instead of unloading anything. Collisions are
+   * rare enough that its cost does not matter, and it is the one outcome whose
+   * correctness does not depend on reasoning about how many loads CSPICE is
+   * holding of a path that two files were staged at.
    */
-  releaseCatalogKernels(): string[] {
+  releaseCatalog(): KernelReleasePlan {
     const released = this.#entries.filter((e) => e.owner === 'catalog');
+
+    // Counted before the prune, over everything furnished: a released name that
+    // a survivor also holds is exactly as unloadable-by-name as one two
+    // catalogs both brought, which is to say not at all.
+    const furnishes = new Map<string, number>();
+    for (const e of this.#entries) furnishes.set(e.name, (furnishes.get(e.name) ?? 0) + 1);
+
     this.#entries = this.#entries.filter((e) => e.owner !== 'catalog');
 
-    const kept = new Set(this.#entries.map((e) => e.name));
-    const names: string[] = [];
+    const unload: string[] = [];
+    const collisions: string[] = [];
     for (let i = released.length - 1; i >= 0; i--) {
       const name = released[i].name;
-      if (kept.has(name) || names.includes(name)) continue;
-      names.push(name);
+      if (unload.includes(name) || collisions.includes(name)) continue;
+      if ((furnishes.get(name) ?? 0) > 1) collisions.push(name);
+      else unload.push(name);
     }
-    return names;
+    return { unload, collisions };
   }
+}
+
+/** How a release can be carried out, or why it cannot be. */
+export interface KernelReleasePlan {
+  /** Names to unload, once each, in reverse furnish order. */
+  readonly unload: readonly string[];
+  /** Released names standing for more than one furnish, which force a rebuild. */
+  readonly collisions: readonly string[];
 }
 
 /**
@@ -164,10 +201,12 @@ export interface KernelReleaseHost {
 }
 
 export interface KernelReleaseResult {
-  /** The names the release tried to unload. */
+  /** The names the release unloaded, or would have but for a rebuild. */
   readonly released: readonly string[];
-  /** The ones that would not unload, which is what forced a rebuild. */
+  /** The ones that would not unload, if that is what forced the rebuild. */
   readonly failed: readonly string[];
+  /** The names that stood for more than one furnish, if that is what did. */
+  readonly collided: readonly string[];
   /** Whether the instance had to be replaced rather than unloaded from. */
   readonly rebuilt: boolean;
 }
@@ -176,38 +215,52 @@ export interface KernelReleaseResult {
  * Release the previous catalog's kernels, leaving the registry and the SPICE
  * instance agreeing about what is furnished.
  *
- * That agreement is the whole point, and it is why a failed unload cannot just
- * be logged. The registry is what the new scene's workers are built from, so an
- * entry dropped here while the kernel stayed furnished on the main thread gives
- * the two paths different kernel sets -- the exact thing this module exists to
- * prevent -- and leaves a kernel no longer belonging to any scene answering
- * main-thread geometry for the rest of the session. Leaving the entry in place
- * instead is no better: Scene B would go on seeing Scene A's kernel, knowingly.
+ * That agreement is the whole point. The registry is what the new scene's
+ * workers are built from, so a kernel the registry has forgotten but the
+ * instance still holds gives the two paths different kernel sets -- the exact
+ * thing this module exists to prevent -- and leaves a kernel belonging to no
+ * scene answering main-thread geometry for the rest of the session.
  *
- * So an unload that fails escalates: the instance is abandoned and rebuilt from
- * the entries that survive, which is the one outcome that is true of both sides
- * however the unload failed. A survivor the rebuild cannot re-furnish (a dropped
- * file the user has since moved) is forgotten with it, because the new instance
- * really does not have it. If the rebuild itself fails the registry is emptied
- * and the error is raised: the scene load that called this is abandoned, and
- * nothing downstream gets to believe in kernels that are not there.
+ * Two things can cost that agreement, and both take the same way out: abandon
+ * the instance and rebuild it from the entries that survive. It is the one
+ * outcome that is true of both sides whatever went wrong.
+ *
+ * A *collision* is known before anything is attempted -- a released name that
+ * stands for more than one furnish, which no number of `unload` calls can be
+ * trusted to undo (see `releaseCatalog`). Nothing is unloaded in that case; the
+ * rebuild is the plan, not a recovery.
+ *
+ * An *unload that fails* is the recovery. Logging it and going on would be the
+ * silent divergence above; leaving the entry in the registry instead is no
+ * better, since Scene B would then go on seeing Scene A's kernel knowingly.
+ *
+ * Either way, a survivor the rebuild cannot re-furnish (a dropped file the user
+ * has since moved) is forgotten with it, because the new instance really does
+ * not have it. If the rebuild itself fails the registry is emptied and the
+ * error is raised: the scene load that called this is abandoned, and nothing
+ * downstream gets to believe in kernels that are not there.
  */
 export async function releaseCatalogKernels(
   registry: KernelRegistry,
   host: KernelReleaseHost,
 ): Promise<KernelReleaseResult> {
-  const released = registry.releaseCatalogKernels();
-  if (released.length === 0) return { released, failed: [], rebuilt: false };
+  const { unload, collisions } = registry.releaseCatalog();
+  const released = [...unload, ...collisions];
+  if (released.length === 0) {
+    return { released, failed: [], collided: [], rebuilt: false };
+  }
 
   const failed: string[] = [];
-  for (const name of released) {
-    try {
-      host.unload(name);
-    } catch {
-      failed.push(name);
+  if (collisions.length === 0) {
+    for (const name of unload) {
+      try {
+        host.unload(name);
+      } catch {
+        failed.push(name);
+      }
     }
+    if (failed.length === 0) return { released, failed, collided: [], rebuilt: false };
   }
-  if (failed.length === 0) return { released, failed, rebuilt: false };
 
   const keep = [...registry.entries];
   let refurnished: readonly FurnishedKernel[];
@@ -222,5 +275,5 @@ export async function releaseCatalogKernels(
   for (const entry of keep) {
     if (!kept.has(entry)) registry.forget(entry);
   }
-  return { released, failed, rebuilt: true };
+  return { released, failed, collided: collisions, rebuilt: true };
 }

@@ -50,7 +50,7 @@ const expectedWorkerNames = (registry: KernelRegistry): string[] =>
 
 /** A catalog's set, as a scene load furnishes it: LSK, PCK, then its SPKs. */
 const loadCatalog = (registry: KernelRegistry, prefix: string, extras: string[] = []) => {
-  registry.releaseCatalogKernels();
+  registry.releaseCatalog();
   for (const name of [`${prefix}.tls`, `${prefix}.tpc`, `${prefix}.bsp`, ...extras]) {
     registry.register(url(name), 'catalog');
   }
@@ -90,38 +90,71 @@ describe('releasing a scene’s kernels', () => {
     const registry = new KernelRegistry();
     loadCatalog(registry, 'cassini');
 
-    expect(registry.releaseCatalogKernels()).toEqual([
-      'cassini.bsp', 'cassini.tpc', 'cassini.tls',
-    ]);
+    expect(registry.releaseCatalog()).toEqual({
+      unload: ['cassini.bsp', 'cassini.tpc', 'cassini.tls'],
+      collisions: [],
+    });
     expect(names(registry)).toEqual([]);
-  });
-
-  it('releases a kernel once however many catalogs asked for it', () => {
-    const registry = new KernelRegistry();
-    registry.register(url('naif0012.tls'), 'catalog');
-    registry.register(url('naif0012.tls'), 'catalog');
-
-    expect(registry.releaseCatalogKernels()).toEqual(['naif0012.tls']);
-  });
-
-  it('never unloads a name a surviving kernel still holds', () => {
-    // The user dropped a file under the same name the catalog furnishes; SPICE
-    // knows one file by that name, so unloading "the catalog's" would take the
-    // user's with it.
-    const registry = new KernelRegistry();
-    registry.register(file('de440s.bsp'), 'user');
-    registry.register(url('de440s.bsp'), 'catalog');
-
-    expect(registry.releaseCatalogKernels()).toEqual([]);
-    expect(names(registry)).toEqual(['de440s.bsp']);
   });
 
   it('is a no-op with nothing of a catalog’s furnished', () => {
     const registry = new KernelRegistry();
     registry.register(file('dropped.bsp'), 'user');
 
-    expect(registry.releaseCatalogKernels()).toEqual([]);
+    expect(registry.releaseCatalog()).toEqual({ unload: [], collisions: [] });
     expect(names(registry)).toEqual(['dropped.bsp']);
+  });
+});
+
+/**
+ * Names that stand for more than one furnished kernel.
+ *
+ * `unload_c` undoes the most recent furnish of a file and no more, and beneath
+ * that the wasm build stages every kernel at `/kernels/<name>` -- so a basename
+ * two entries share was never two files CSPICE could be asked to separate. The
+ * registry must not pretend otherwise by unloading once and forgetting twice.
+ */
+describe('two kernels furnished under one name', () => {
+  it('will not be unloaded when two catalog URLs share a basename', () => {
+    // Deduplication on the furnish path is by URL, so both were fetched and
+    // both were furnished -- two loads of `/kernels/de440s.bsp`, of which one
+    // unload undoes one.
+    const registry = new KernelRegistry();
+    registry.register({ url: `${CATALOG}/a/de440s.bsp` }, 'catalog');
+    registry.register({ url: `${CATALOG}/b/de440s.bsp` }, 'catalog');
+
+    expect(registry.releaseCatalog()).toEqual({ unload: [], collisions: ['de440s.bsp'] });
+  });
+
+  it('will not be unloaded when the user dropped one first', () => {
+    const registry = new KernelRegistry();
+    registry.register(file('de440s.bsp'), 'user');
+    registry.register(url('de440s.bsp'), 'catalog');
+
+    expect(registry.releaseCatalog()).toEqual({ unload: [], collisions: ['de440s.bsp'] });
+    // The user's entry survives the plan; what it stands for is the rebuild's
+    // to restore, since the catalog's furnish is on top of it in SPICE.
+    expect(names(registry)).toEqual(['de440s.bsp']);
+  });
+
+  it('will not be unloaded when the user dropped one afterwards', () => {
+    const registry = new KernelRegistry();
+    registry.register(url('de440s.bsp'), 'catalog');
+    registry.register(file('de440s.bsp'), 'user');
+
+    expect(registry.releaseCatalog()).toEqual({ unload: [], collisions: ['de440s.bsp'] });
+    expect(names(registry)).toEqual(['de440s.bsp']);
+  });
+
+  it('still unloads the names that stand for one kernel each', () => {
+    const registry = new KernelRegistry();
+    loadCatalog(registry, 'cassini');
+    registry.register({ url: `${CATALOG}/b/cassini.bsp` }, 'catalog');
+
+    expect(registry.releaseCatalog()).toEqual({
+      unload: ['cassini.tpc', 'cassini.tls'],
+      collisions: ['cassini.bsp'],
+    });
   });
 });
 
@@ -207,7 +240,7 @@ describe('the already-furnished check', () => {
     registry.register(url('de440s.bsp'), 'catalog');
     expect(registry.has(`${CATALOG}/de440s.bsp`)).toBe(true);
 
-    registry.releaseCatalogKernels();
+    registry.releaseCatalog();
     // The point of releasing: the next scene re-fetches and re-furnishes rather
     // than skipping a kernel it no longer has.
     expect(registry.has(`${CATALOG}/de440s.bsp`)).toBe(false);
@@ -313,7 +346,56 @@ describe('an unload that fails', () => {
     const host = hostRefusing([]);
     const result = await releaseCatalogKernels(registry, host);
 
-    expect(result).toEqual({ released: [], failed: [], rebuilt: false });
+    expect(result).toEqual({ released: [], failed: [], collided: [], rebuilt: false });
+    expect(names(registry)).toEqual(['dropped.bsp']);
+  });
+});
+
+describe('a release that cannot be done by unloading', () => {
+  const host = () => {
+    const unloaded: string[] = [];
+    const rebuilds: (readonly FurnishedKernel[])[] = [];
+    return {
+      unloaded,
+      rebuilds,
+      unload: (name: string) => { unloaded.push(name); },
+      rebuild: async (keep: readonly FurnishedKernel[]) => { rebuilds.push(keep); return keep; },
+    };
+  };
+
+  it('rebuilds instead of unloading when a name stands for two kernels', async () => {
+    // Nothing is unloaded at all: the rebuild is the plan, not a recovery, so
+    // there is no point undoing half of a set that is about to be discarded.
+    const registry = new KernelRegistry();
+    registry.register(file('de440s.bsp'), 'user');
+    registry.register(url('de440s.bsp'), 'catalog');
+    registry.register(url('cassini.bsp'), 'catalog');
+
+    const h = host();
+    const result = await releaseCatalogKernels(registry, h);
+
+    expect(h.unloaded).toEqual([]);
+    expect(result.collided).toEqual(['de440s.bsp']);
+    expect(result.failed).toEqual([]);
+    expect(result.rebuilt).toBe(true);
+    // And the instance comes back holding exactly the user's kernel -- the
+    // catalog's furnish of that same name goes with the instance it was in.
+    expect(h.rebuilds[0].map((e) => e.name)).toEqual(['de440s.bsp']);
+    expect(names(registry)).toEqual(['de440s.bsp']);
+  });
+
+  it('rebuilds when two catalog URLs shared a basename', async () => {
+    const registry = new KernelRegistry();
+    registry.register(file('dropped.bsp'), 'user');
+    registry.register({ url: `${CATALOG}/a/de440s.bsp` }, 'catalog');
+    registry.register({ url: `${CATALOG}/b/de440s.bsp` }, 'catalog');
+
+    const h = host();
+    const result = await releaseCatalogKernels(registry, h);
+
+    expect(h.unloaded).toEqual([]);
+    expect(result.rebuilt).toBe(true);
+    expect(h.rebuilds[0].map((e) => e.name)).toEqual(['dropped.bsp']);
     expect(names(registry)).toEqual(['dropped.bsp']);
   });
 });

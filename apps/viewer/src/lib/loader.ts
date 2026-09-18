@@ -205,10 +205,11 @@ const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.t
  * `kernel-registry` for why, and `handleFileList` for which drops count as a
  * catalog's.
  *
- * An unload that fails is not survivable as a warning, so it escalates to a
- * rebuild of the whole instance -- `releaseCatalogKernels` in `kernel-registry`
- * has the reasoning. It throws if even that fails, which fails the scene load:
- * the caller closes the loading bar and the error surfaces, rather than a scene
+ * Two cases escalate to rebuilding the whole instance rather than unloading
+ * from it -- a name that stands for more than one furnish, and an unload that
+ * fails. `releaseCatalogKernels` in `kernel-registry` has the reasoning for
+ * both. It throws if even the rebuild fails, which fails the scene load: the
+ * caller closes the loading bar and the error surfaces, rather than a scene
  * building on a kernel set nobody can describe.
  *
  * The cost of the ordinary path is that switching demos back and forth
@@ -222,20 +223,22 @@ async function releaseCatalogKernels(): Promise<void> {
   if (!s) {
     // Nothing is furnished, so nothing can be registered either; a release
     // before the first `ensureSpice` is the drop path arriving early.
-    kernels.releaseCatalogKernels();
+    kernels.releaseCatalog();
     return;
   }
 
-  const { released, failed, rebuilt } = await releaseFromRegistry(kernels, {
+  const { released, failed, collided, rebuilt } = await releaseFromRegistry(kernels, {
     unload: (name) => s.unload(name),
     rebuild: refurnishOnFreshSpice,
   });
 
   if (rebuilt) {
-    console.warn(
-      `[Cosmolabe] Rebuilt SPICE after ${failed.join(', ')} would not unload`,
-    );
+    const why = collided.length > 0
+      ? `${collided.join(', ')} named more than one furnished kernel`
+      : `${failed.join(', ')} would not unload`;
+    console.warn(`[Cosmolabe] Rebuilt SPICE: ${why}`);
   } else {
+    // The rebuild clears the whole cache for itself, so this is the other path.
     for (const name of released) kernelCoverageCache.delete(name);
   }
   setKernelCount(spice?.totalLoaded() ?? 0);
@@ -1047,9 +1050,18 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
 
   // Resolved before the kernels are furnished, not after, because it is what
   // says whether this drop is a scene load — and a scene load releases the
-  // previous catalog's kernels first.
+  // previous catalog's kernels first. A release that cannot leave SPICE in a
+  // state it can describe throws, and takes the drop down with it rather than
+  // furnishing onto it; the bar has to close on the way out either way.
   const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
-  if (catalogs.length > 0) await releaseCatalogKernels();
+  if (catalogs.length > 0) {
+    try {
+      await releaseCatalogKernels();
+    } catch (err) {
+      endLoad();
+      throw err;
+    }
+  }
 
   if (kernelFiles.length > 0) {
     const s = await ensureSpice();
