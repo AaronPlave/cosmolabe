@@ -63,6 +63,7 @@ Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LF
 - New renderer plugin? `packages/three/src/plugins/RendererPlugin.ts` and the stock plugins in `packages/three/src/plugins/stock/`.
 - New script verb, or a new way to drive the viewer from a host? `packages/control/src/verbs.ts` is the one table the language, the port and the palette all read; see [docs/scripting.md](docs/scripting.md).
 - New mission catalog? Drop a [catalog JSON](docs/catalog-format.md) into `apps/viewer/test-catalogs/`. See existing catalogs (`iss.json`, `cassini-soi.json`) for examples.
+- Anything that adds a long-lived CSPICE instance, or keeps kernels furnished for the life of a scene, is a memory decision before it is anything else — a wasm heap is reserved per instance and never shrinks. See [docs/memory-budget.md](docs/memory-budget.md).
 
 ## Opening a PR
 

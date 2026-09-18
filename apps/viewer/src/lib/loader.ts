@@ -29,6 +29,7 @@ import { GeometrySearchWorker, type GeometrySearchScope, type KernelSource } fro
 import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmolabe/control';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
+import { shouldRunSpiceWorkersHere } from './device-budget';
 import { kernelSetKey, kernelsForWindow, type KernelWindow } from './geometry-kernels';
 import {
   bindRenderer,
@@ -36,6 +37,7 @@ import {
   syncBodies,
   setSceneLoaded,
   setKernelCount,
+  unbindRenderer,
   setLoadingState,
   beginLoad,
   setPhaseProgress,
@@ -193,6 +195,16 @@ const furnishedKernels = new Set<string>();
 const TEST_MODE =
   typeof location !== 'undefined' && new URLSearchParams(location.search).has('test');
 
+/**
+ * Whether this device can afford the workers' own CSPICE instances.
+ *
+ * Read once: the signals behind it (reported RAM, pointer type, the
+ * `?spiceWorkers` override) are fixed for the life of the page, and a scene
+ * that decided differently from the one before it would make the viewer's
+ * memory profile depend on when a catalog happened to be loaded.
+ */
+const runSpiceWorkers = shouldRunSpiceWorkersHere();
+
 const KERNEL_EXTENSIONS = new Set([
   '.bsp', '.tls', '.tpc', '.tf', '.tsc', '.ti', '.ck', '.bc', '.bpc', '.spk', '.pck', '.fk', '.tm',
 ]);
@@ -286,6 +298,41 @@ async function ensureSpice(): Promise<SpiceInstance> {
     spice = await createHeritageSpice({ locateFile: () => cspiceWasmUrl });
   }
   return spice;
+}
+
+/**
+ * Release everything the current scene holds, before the next one starts
+ * loading rather than after it has finished.
+ *
+ * Order is the whole point. `initScene` used to do these disposals at the top
+ * of the build, which meant the outgoing scene -- its renderer and GPU targets,
+ * its universe, and the workers' whole CSPICE instances with the kernels they
+ * had furnished -- stayed resident for all of the incoming scene's kernel
+ * download and furnish. Peak was therefore up to three CSPICE instances and two
+ * kernel sets at once, reached during the phase that allocates most; on a phone
+ * that peak is what the browser kills the page over (issue #88). Nothing here
+ * is needed while the next catalog downloads, so nothing here waits for it.
+ *
+ * This is only the workers' half of the outgoing scene. Unloading what the
+ * previous catalog furnished into the *main thread's* instance is a separate
+ * question -- it is a correctness bug before it is a memory one, since a scene
+ * resolving geometry against a replaced scene's kernels answers wrongly and
+ * silently -- and it is answered by `KernelRegistry` in #70/#91, not here.
+ *
+ * `unbindRenderer` first: viewer-state's subscriptions are to the renderer
+ * being disposed, and leaving them attached would point the UI at a dead scene
+ * for the length of a load.
+ */
+function disposeScene(): void {
+  unbindRenderer();
+  renderer?.dispose();
+  renderer = null;
+  universe?.dispose();
+  universe = null;
+  cacheWorker?.dispose();
+  cacheWorker = null;
+  geometryWorker?.dispose();
+  geometryWorker = null;
 }
 
 function isLargeKernel(k: ResolvedKernel): boolean {
@@ -534,9 +581,11 @@ function initScene(
   binaryFiles?: Map<string, ArrayBuffer>,
   modelFiles?: Map<string, string>,
 ) {
-  // Clean up previous
-  renderer?.dispose();
-  universe?.dispose();
+  // Usually a no-op: `loadDemo` disposes the outgoing scene before it starts
+  // downloading the incoming one, so nothing is still held by the time we get
+  // here. The drop path (`handleFileList`) reaches `initScene` directly, and
+  // for that one this is the disposal.
+  disposeScene();
 
   const findInMap = <T>(map: Map<string, T>, source: string): T | undefined => {
     if (map.has(source)) return map.get(source);
@@ -590,16 +639,23 @@ function initScene(
     }
   }
 
-  // Create cache worker. Skipped in TEST_MODE: with no worker, long-duration
-  // spacecraft trajectory caches build SYNCHRONOUSLY during scene init
-  // (UniverseRenderer.buildCacheSync) instead of popping in async a second
-  // later — so a capture is deterministic and includes every trail (e.g.
-  // Cassini's), with no timing/settle race.
-  cacheWorker?.dispose();
-  cacheWorker = null;
-  geometryWorker?.dispose();
-  geometryWorker = null;
-  if (!TEST_MODE && workerKernelSources.length > 0) {
+  // Create the workers that bring their own CSPICE instance. Two cases skip
+  // them, and both land on paths that already exist:
+  //
+  // TEST_MODE, because with no worker the long-duration spacecraft trajectory
+  // caches build SYNCHRONOUSLY during scene init (UniverseRenderer's
+  // buildCacheSync) instead of popping in async a second later — so a capture
+  // is deterministic and includes every trail (e.g. Cassini's), with no
+  // timing/settle race.
+  //
+  // A memory-constrained device, because each worker reserves a second and
+  // third wasm heap on top of the main thread's and furnishes its own copy of
+  // the kernels, which is what a phone runs out of room for (issue #88).
+  // Skipping both leaves the viewer with exactly one CSPICE instance: caches
+  // bake through the same buildCacheSync, and event searches through the main
+  // thread's own provider (event-finder's `beginSearch`). See
+  // device-budget.ts for how that device is recognised and how to override it.
+  if (!TEST_MODE && runSpiceWorkers && workerKernelSources.length > 0) {
     try {
       cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
       const worker = cacheWorker;
@@ -862,6 +918,13 @@ export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
     beginLoad(`Loading ${name}...`, {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
     });
+
+    // The outgoing scene goes now, not when the incoming one is built: from
+    // here on this load only allocates, and everything the previous scene holds
+    // is dead weight through the most expensive phase of it. Deliberately after
+    // the catalog fetch above -- a catalog URL that 404s should leave the scene
+    // on screen, not tear it down on the way to an error.
+    disposeScene();
 
     // SPICE-free path: if the catalog graph declares no kernels, skip SPICE init
     // entirely. The CatalogLoader falls through to Keplerian/analytical trajectories.

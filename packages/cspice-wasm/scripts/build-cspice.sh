@@ -113,6 +113,12 @@ RUNTIME_METHODS='["FS","ccall","cwrap","getValue","setValue","UTF8ToString","str
 # -- each calling out to JS through EM_JS -- avoids addFunction and
 # ALLOW_TABLE_GROWTH entirely, keeping the handler signatures in C where CSPICE
 # declares them.
+# INITIAL_MEMORY is a budget, not a convenience: a SPICE-backed viewer scene
+# runs two always-on CSPICE instances (main thread + trajectory-cache worker),
+# so whatever is passed here is reserved twice before a single kernel is
+# fetched. It is documented, and pinned by a test, in src/wasm-memory.ts --
+# keep the two in step. An artifact can also be re-pinned without a rebuild
+# (scripts/set-initial-memory.mjs), which is what that one number reaches.
 echo "Linking cspice.mjs + cspice.wasm ..."
 emcc "$NATIVE/gf-report.c" "$VENDOR/lib/libcspice_wasm.a" -o "$OUT/cspice.mjs" \
   -O2 \
@@ -122,7 +128,7 @@ emcc "$NATIVE/gf-report.c" "$VENDOR/lib/libcspice_wasm.a" -o "$OUT/cspice.mjs" \
   -s EXPORT_NAME=CSpice \
   -s WASM=1 \
   -s ALLOW_MEMORY_GROWTH=1 \
-  -s INITIAL_MEMORY=167772160 \
+  -s INITIAL_MEMORY=117440512 \
   -s STACK_SIZE=5242880 \
   -s FORCE_FILESYSTEM=1 \
   -s EXPORTED_RUNTIME_METHODS="$RUNTIME_METHODS" \

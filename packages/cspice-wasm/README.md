@@ -86,6 +86,21 @@ and requires them to agree interval for interval, and
 `packages/frames/src/differential.test.ts` holds the reporting path against the
 legacy timecraftjs engine too.
 
+## Heap budget
+
+Every engine instantiates its own wasm heap, and each one reserves 112 MiB up
+front before a kernel is furnished. That number is a budget: a viewer scene runs
+more than one instance, so it is multiplied by however many the host keeps
+alive. It is declared in `src/wasm-memory.ts`, passed by
+`scripts/build-cspice.sh` as `INITIAL_MEMORY`, asserted against the committed
+`wasm/cspice.wasm` by `src/wasm-memory.test.ts`, and re-pinnable without a full
+Emscripten rebuild via `scripts/set-initial-memory.mjs`.
+
+Most of the reservation is CSPICE's static data -- f2c-translated COMMON blocks
+for the DAF/DAS buffer pools, the kernel pool and the GF workspaces -- which is
+why it cannot be lowered much further. See [docs/memory-budget.md](../../docs/memory-budget.md)
+for the whole picture, including what it costs a host to run several instances.
+
 ## Dependency rule
 
 Depends on nothing in the workspace. Part of the core layer; it never imports a PAL
