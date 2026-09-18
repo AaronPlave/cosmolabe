@@ -1,4 +1,4 @@
-import type { Vec3 } from '@cosmolabe/spice';
+import type { Vec3 } from './spice-api.js';
 import type { CartesianState, Trajectory } from './trajectories/Trajectory.js';
 import { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
 import type { RotationModel, Quaternion } from './rotations/RotationModel.js';

@@ -19,8 +19,7 @@
  * the line number; the interpreter does, and turns the `false` into a located
  * error with a suggestion drawn from the scene actually loaded.
  */
-import type { SpiceInstance } from '@cosmolabe/spice';
-import { etFromCalendarString } from '@cosmolabe/core';
+import { etFromCalendarString, type SpiceInstance } from '@cosmolabe/core';
 import { CameraModeName } from '@cosmolabe/three';
 import {
   snapshotScript,

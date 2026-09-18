@@ -32,7 +32,9 @@ cd apps/viewer && npm run dev
 
 ```
 packages/
-  spice/            # CSPICE WASM bindings (uses TimeCraftJS)
+  cspice-wasm/      # CSPICE compiled to WASM + raw bindings — the runtime SPICE
+  frames/           # The ADR M-0002 seam: StateProvider, FramesService, heritage adapter
+  spice/            # Heritage CSPICE wrappers (TimeCraftJS) — test-only reference implementation
   core/             # Universe model — pure TypeScript, no rendering deps
   control/          # ViewerControl port + script language — no renderer, no DOM
   three/            # Three.js renderer
@@ -44,6 +46,9 @@ apps/
 ```
 
 `core` and `control` never import `three` or `cesium`. Renderer packages compose over `core`.
+`core` also imports no SPICE package: it declares the interface it consumes (`SpiceInstance`, in
+`packages/core/src/spice-api.ts`) and takes an engine by injection, which `frames`' heritage adapter
+satisfies. Keep that direction — a `cspice-wasm → frames → core` static chain would undo it.
 This is enforced, not just documented: their `tsconfig.json` files build without the `DOM` lib, so a `document` or `HTMLCanvasElement` in either is a typecheck error, and `npm run lint:purity` (a CI step) fails on an import of `three` or `cesium` — which tsc cannot catch, since the workspace hoists both to the root `node_modules`.
 
 ## Testing

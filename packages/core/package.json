@@ -48,10 +48,10 @@
   },
   "dependencies": {
     "@cosmolabe/interop": "*",
-    "@cosmolabe/spice": "*",
     "satellite.js": "^6.0.2"
   },
   "devDependencies": {
-    "@cosmolabe/frames": "*"
+    "@cosmolabe/frames": "*",
+    "@cosmolabe/spice": "*"
   }
 }

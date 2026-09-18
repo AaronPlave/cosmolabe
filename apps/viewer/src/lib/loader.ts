@@ -14,12 +14,13 @@ import {
   etFromCalendarString,
   type ResolvedCatalogGraph,
   type ResolvedKernel,
+  type SpiceInstance,
 } from '@cosmolabe/core';
-import type { SpiceInstance } from '@cosmolabe/spice';
 // The runtime SPICE instance is @cosmolabe/frames' heritage adapter over
-// cspice-wasm. SpiceInstance stays as the type of the exported getSpice()
-// accessor: it is the interface this app programs against, and naming it here
-// keeps that contract explicit even though the implementation moved.
+// cspice-wasm. SpiceInstance — core's injection seam, above — stays as the
+// type of the exported getSpice() accessor: it is the interface this app
+// programs against, and naming it there keeps the contract independent of
+// which package implements it.
 // The ?url import hands Vite's emitted wasm asset to the engine's locateFile —
 // only the bundler knows where that asset lands.
 import { createHeritageSpice } from '@cosmolabe/frames';

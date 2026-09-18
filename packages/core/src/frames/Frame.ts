@@ -1,4 +1,4 @@
-import type { Vec3, RotationMatrix } from '@cosmolabe/spice';
+import type { Vec3, RotationMatrix } from '../spice-api.js';
 
 export interface Frame {
   readonly name: string;

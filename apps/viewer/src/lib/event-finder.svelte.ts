@@ -34,8 +34,9 @@ import {
   type EventSearchFault,
   type GeometryEvent,
   type GeometryFinderProvider,
+  type AberrationCorrection,
+  type SpiceInstance,
 } from '@cosmolabe/core';
-import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
 import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
 import { geometryScopeForWindow, getGeometryWorker, getSpice } from './loader';
 import {

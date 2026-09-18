@@ -1,4 +1,4 @@
-import type { SpiceInstance } from '@cosmolabe/spice';
+import type { SpiceInstance } from './spice-api.js';
 import { Body } from './Body.js';
 import { CatalogLoader } from './catalog/CatalogLoader.js';
 import type { CatalogJson, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory } from './catalog/CatalogLoader.js';

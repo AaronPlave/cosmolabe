@@ -23,7 +23,7 @@ Three.js rendering layer for [Cosmolabe](https://github.com/AaronPlave/cosmolabe
 ## Install
 
 ```bash
-npm install @cosmolabe/three @cosmolabe/core @cosmolabe/spice three
+npm install @cosmolabe/three @cosmolabe/core @cosmolabe/frames three
 ```
 
 `three` is a peer dependency.

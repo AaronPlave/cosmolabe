@@ -2,6 +2,28 @@
 
 Typed TypeScript wrappers over the full CSPICE function library compiled to WASM. Part of [Cosmolabe](https://github.com/AaronPlave/cosmolabe), a web mission visualization toolkit.
 
+## Its role: the independent reference implementation
+
+**This package is not on any runtime path, and nothing in the repo depends on it at runtime.** The
+viewer and the trajectory cache worker construct `createHeritageSpice()` from
+[`@cosmolabe/frames`](../frames), over `cspice-wasm`, so every state and orientation reaching the
+model flows through the ADR M-0002 contracts. `@cosmolabe/core` does not import this package either:
+it declares the interface it consumes (`SpiceInstance`, `packages/core/src/spice-api.ts`) and takes
+an engine by injection.
+
+What is left is more valuable than another code path: a second, separately compiled CSPICE — a
+different toolkit build reached through a different binding layer — whose values the WASM path is
+differentially checked against. That is an oracle, and it is what keeps the heritage adapter honest:
+
+- [`packages/frames/src/differential.test.ts`](../frames/src/differential.test.ts) — value-for-value
+  comparison of the adapter against this wrapper, over the same kernels
+- `packages/spice/src/__tests__` — the oracle suites (`cassini-integration`, `lro-validation`,
+  `spice-fov`)
+
+It is therefore a **devDependency** everywhere it appears. Adding it back as a runtime dependency
+would give up the property the migration bought: one CSPICE on the runtime path, one independent one
+to check it against.
+
 CSPICE is provided by [TimeCraftJS](https://github.com/NASA-AMMOS/timecraftjs), whose `exports.json` already exposes ~500 CSPICE entry points via Emscripten. This package handles the `malloc` / `ccall` / `getValue` / `free` memory management and returns clean typed JS objects.
 
 ## Wrapped functions

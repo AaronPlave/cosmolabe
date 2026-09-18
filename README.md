@@ -83,7 +83,9 @@ If your need is *one of these*, you're in the right place. If you need a 2D grou
 ```
 cosmolabe/
 ├── packages/
-│   ├── spice/            # @cosmolabe/spice           — CSPICE WASM bindings
+│   ├── cspice-wasm/      # cspice-wasm                — CSPICE compiled to WASM + raw bindings
+│   ├── frames/           # @cosmolabe/frames          — the M-0002 seam: StateProvider, FramesService
+│   ├── spice/            # @cosmolabe/spice           — heritage CSPICE wrappers (test-only oracle)
 │   ├── core/             # @cosmolabe/core            — Universe model (zero rendering deps)
 │   ├── control/          # @cosmolabe/control         — ViewerControl port + script language
 │   ├── three/            # @cosmolabe/three           — Three.js rendering layer
@@ -99,9 +101,11 @@ cosmolabe/
 
 `@cosmolabe/core` and `@cosmolabe/control` never import `three` or `cesium`. The renderer packages compose over `core`. See [packages/cesium-adapter/CHOOSING_A_RENDERER.md](packages/cesium-adapter/CHOOSING_A_RENDERER.md) for guidance on which renderer fits your project.
 
-### `@cosmolabe/spice`
+### `@cosmolabe/spice` — the reference implementation
 
-Typed wrappers over the full CSPICE function library compiled to WASM. Handles all the `malloc`/`ccall`/`getValue`/`free` memory management and returns clean TypeScript objects.
+Typed wrappers over the full CSPICE function library compiled to WASM (via TimeCraftJS). Handles all the `malloc`/`ccall`/`getValue`/`free` memory management and returns clean TypeScript objects.
+
+**It is no longer on any runtime path.** The viewer and the trajectory cache worker both construct `createHeritageSpice()` from `@cosmolabe/frames`, over `cspice-wasm`, so every state and orientation reaching the model flows through the M-0002 contracts. What `@cosmolabe/spice` is today is the *independent reference implementation* the WASM path is differentially checked against — a second, separately compiled CSPICE whose values pin the heritage adapter's, in `packages/frames/src/differential.test.ts` and the oracle suites under `packages/spice/src/__tests__`. It is a devDependency of the packages whose tests use it and a runtime dependency of nothing.
 
 **Wrapped functions:** `spkpos`, `spkezr`, `pxform`, `sxform`, `sincpt`, `subpnt`, `subslr`, `ilumin`, `oscelt`, `conics`, `bodvcd`, `bodvrd`, `gfposc`, `gfsep`, `gfoclt`, `gfdist`, `mxv`, `mtxv`, `vcrss`, `vnorm`, `vdot`, `utc2et`, `et2utc`, `et2lst`, `str2et`.
 
@@ -202,16 +206,23 @@ npx vitest run --reporter=verbose <test-name>   # debug single test
 │                  │ /cesium-adapter  │   CZML + coordinate transforms
 ├──────────────────┴──────────────────┤
 │         @cosmolabe/core             │   Universe model, catalog loader
+│(SpiceInstance arrives by injection) │
 ├─────────────────────────────────────┤
-│         @cosmolabe/spice            │   CSPICE WASM bindings
+│         @cosmolabe/frames           │   M-0002 seam: StateProvider,
+│                                     │   FramesService, heritage adapter
 ├─────────────────────────────────────┤
-│           timecraftjs               │   CSPICE compiled to WASM (npm dep)
+│            cspice-wasm              │   CSPICE compiled to WASM + bindings
 └─────────────────────────────────────┘
+
+        @cosmolabe/spice                 test-only: the independent reference
+                                         implementation (TimeCraftJS) the WASM
+                                         path is differentially checked against
 ```
 
 Key constraints:
 - `core` never imports `three` or `cesium` — it's a pure data model
-- `spice` wraps the WASM layer and handles all memory management
+- `core` never imports a SPICE package either: it declares the interface it needs (`SpiceInstance`, `packages/core/src/spice-api.ts`) and takes an implementation by injection — which is what let the heritage adapter be swapped in underneath it without a line of `core` changing
+- nothing above `frames` calls CSPICE directly (ADR M-0002, iron rule 1); `spice` is test-only
 - Renderer packages compose `core` with their respective rendering libraries
 - The viewer apps are thin shells that wire everything together with a UI
 

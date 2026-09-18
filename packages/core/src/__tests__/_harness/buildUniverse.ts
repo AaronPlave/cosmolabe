@@ -5,7 +5,8 @@
  * tests can assert on the same numeric state the renderer consumes
  * (`absolutePositionOf`, `rotationAt`, and kinematics' `subPointOf`).
  */
-import { Spice, type SpiceInstance } from '@cosmolabe/spice';
+import { Spice } from '@cosmolabe/spice';
+import type { SpiceInstance } from '../../spice-api.js';
 import { createHeritageSpice } from '@cosmolabe/frames';
 import { Universe } from '../../Universe.js';
 import type { CatalogJson } from '../../catalog/CatalogLoader.js';

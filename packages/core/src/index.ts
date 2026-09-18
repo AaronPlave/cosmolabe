@@ -75,7 +75,29 @@ export {
   subPointOf,
   bodyFixedVelocityMagnitudeOf,
 } from './kinematics.js';
-export type { Vec3, BodyLookup } from './kinematics.js';
+export type { BodyLookup } from './kinematics.js';
+
+// The SPICE interface core is written against. core never constructs an
+// engine — every entry point that needs one takes a `SpiceInstance` by
+// injection, and both @cosmolabe/frames (createHeritageSpice, the runtime
+// path) and @cosmolabe/spice (the reference implementation used in tests)
+// satisfy it structurally. See src/spice-api.ts.
+export type {
+  AberrationCorrection,
+  FovShape,
+  IlluminationAngles,
+  InstrumentFov,
+  KernelSource,
+  OrbitalElements,
+  RotationMatrix,
+  SpiceInstance,
+  StateTransformMatrix,
+  StateVector,
+  SubPoint,
+  SurfaceIntercept,
+  TimeWindow,
+  Vec3,
+} from './spice-api.js';
 
 // Frames
 export type { Frame } from './frames/Frame.js';

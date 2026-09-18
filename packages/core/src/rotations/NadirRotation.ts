@@ -1,4 +1,4 @@
-import type { SpiceInstance } from '@cosmolabe/spice';
+import type { SpiceInstance } from '../spice-api.js';
 import type {
   InertialFrameName,
   Quaternion,

@@ -1,4 +1,4 @@
-import type { SpiceInstance, Vec3 } from '@cosmolabe/spice';
+import type { SpiceInstance, Vec3 } from '../spice-api.js';
 import type { CartesianState, Trajectory } from './Trajectory.js';
 
 export class SpiceTrajectory implements Trajectory {

@@ -18,7 +18,9 @@ import { OBLIQUITY_J2000_RAD } from './constants.js';
  * bodies whose trajectory shares the rotation's inertialFrame.
  */
 
-export type Vec3 = [number, number, number];
+// The one Vec3 of the tree, from the SPICE interface core is written against.
+export type { Vec3 } from './spice-api.js';
+import type { Vec3 } from './spice-api.js';
 
 const OBLIQUITY_COS = Math.cos(OBLIQUITY_J2000_RAD);
 const OBLIQUITY_SIN = Math.sin(OBLIQUITY_J2000_RAD);

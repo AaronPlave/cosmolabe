@@ -20,26 +20,35 @@ Use this package server-side, in tests, or under any renderer. The companion pac
 
 Trajectories like `TLE`, `Keplerian`, `InterpolatedStates`, `FixedPoint`, and `ChebyshevPoly` work with no SPICE kernels loaded. Rotations like `Uniform`, `Fixed`, `Euler`, `Interpolated`, and `TrajectoryNadir` also work without SPICE. Load SPICE only when you need high-precision SPK / CK ephemerides, exact frame transforms, or geometry event finders.
 
+## SPICE arrives by injection
+
+core imports no SPICE package. It declares the interface it needs — `SpiceInstance` in
+[`src/spice-api.ts`](src/spice-api.ts) — and every entry point that needs an engine takes one as an
+argument. Anything with the right shape satisfies it; in this repo [`@cosmolabe/frames`](../frames)
+does, with `createHeritageSpice()` over `cspice-wasm`, which is what the viewer and the trajectory
+cache worker construct. That direction is deliberate: core depends on an interface and the frames
+tier satisfies it, so the engine underneath can be replaced without core changing.
+
 ## Install
 
 ```bash
-npm install @cosmolabe/core @cosmolabe/spice
+npm install @cosmolabe/core @cosmolabe/frames
 ```
 
 ## Quick example
 
 ```ts
 import { Universe, CatalogLoader } from '@cosmolabe/core';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 
-await Spice.init();
-await Spice.loadKernel(naif0012Tls);
+const spice = await createHeritageSpice();
+await spice.furnish({ type: 'url', url: naif0012TlsUrl });
 
-const universe = new Universe({ spice: Spice });
+const universe = new Universe({ spice });
 const loader = new CatalogLoader(universe);
 await loader.load(catalogJson);
 
-const et = Spice.utc2et('2025-01-01T00:00:00');
+const et = spice.str2et('2025-01-01T00:00:00Z');
 const { pos, vel } = universe.getBody('LRO')!.stateAt(et);
 ```
 

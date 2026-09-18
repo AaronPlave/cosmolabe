@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@cosmolabe/core": "*",
-    "@cosmolabe/spice": "*",
     "@cosmolabe/cesium-adapter": "*",
     "@cosmolabe/cesium": "*",
     "cesium": "^1.130.0",

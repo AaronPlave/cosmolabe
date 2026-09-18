@@ -1,4 +1,4 @@
-import type { SpiceInstance, TimeWindow } from '@cosmolabe/spice';
+import type { SpiceInstance, TimeWindow } from '../spice-api.js';
 
 export type EventType = 'eclipse' | 'occultation' | 'conjunction' | 'opposition' | 'periapsis' | 'apoapsis';
 
