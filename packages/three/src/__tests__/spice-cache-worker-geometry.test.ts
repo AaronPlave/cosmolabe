@@ -210,9 +210,12 @@ describe('SpiceCacheWorker geometry searches', () => {
     dispatch(search.provider.gfdist('MOON', 'NONE', 'EARTH', '<', 4e5, 0, 3600, [{ start: 0, end: 1 }]));
     await settle();
 
-    // Every progress report is a postMessage from inside a running CSPICE call;
-    // a caller with nothing to show should not be paying for them.
-    expect((fake.last('geometry')!.report as { progress: boolean }).progress).toBe(false);
+    // No report at all, not a report asking for nothing: the worker reads that
+    // as "use the simplified CSPICE wrappers", which is where a search with
+    // nothing to report belongs. Every progress report is a postMessage from
+    // inside a running CSPICE call, and a caller with nothing to show should
+    // not be paying for them.
+    expect(fake.last('geometry')!.report).toBeUndefined();
   });
 
   it('sends no report on range, which has no progress and nothing to interrupt', async () => {
@@ -223,58 +226,6 @@ describe('SpiceCacheWorker geometry searches', () => {
     await settle();
 
     expect(fake.last('geometry')!.report).toBeUndefined();
-  });
-
-  it('gives every call of a search the same cancellation flag, and sets it on cancel', async () => {
-    const { fake, worker } = client();
-    const search = worker.geometrySearch();
-
-    // The flag is only allocable on a cross-origin-isolated page. Where it is
-    // not, cancelling still abandons the search; it just cannot reach the call
-    // the worker is executing.
-    if (!search.interruptible) {
-      expect(typeof SharedArrayBuffer).toBe('undefined');
-      return;
-    }
-
-    dispatch(search.provider.gfdist('MOON', 'NONE', 'EARTH', '<', 4e5, 0, 3600, [{ start: 0, end: 1 }]));
-    await settle();
-    const first = fake.last('geometry')!.report as { cancelFlag: Int32Array };
-
-    dispatch(search.provider.gfsep(
-      'MOON', 'POINT', 'J2000', 'SUN', 'POINT', 'J2000',
-      'NONE', 'EARTH', '<', 0.1, 0, 3600, [{ start: 0, end: 1 }],
-    ));
-    await settle();
-    const second = fake.last('geometry')!.report as { cancelFlag: Int32Array };
-
-    // One flag for the whole search: the caller cannot know which of its calls
-    // the worker is inside, so one store has to stop whichever it is.
-    expect(second.cancelFlag.buffer).toBe(first.cancelFlag.buffer);
-    expect(Atomics.load(first.cancelFlag, 0)).toBe(0);
-
-    search.cancel();
-    expect(Atomics.load(first.cancelFlag, 0)).toBe(1);
-  });
-
-  it('gives separate searches separate cancellation flags', async () => {
-    const { fake, worker } = client();
-    const abandoned = worker.geometrySearch();
-    const kept = worker.geometrySearch();
-    if (!abandoned.interruptible) return;
-
-    dispatch(abandoned.provider.gfdist('MOON', 'NONE', 'EARTH', '<', 4e5, 0, 3600, [{ start: 0, end: 1 }]));
-    await settle();
-    const abandonedFlag = (fake.last('geometry')!.report as { cancelFlag: Int32Array }).cancelFlag;
-
-    dispatch(kept.provider.gfdist('MARS', 'NONE', 'EARTH', '<', 4e5, 0, 3600, [{ start: 0, end: 1 }]));
-    await settle();
-    const keptFlag = (fake.last('geometry')!.report as { cancelFlag: Int32Array }).cancelFlag;
-
-    abandoned.cancel();
-    // Cancelling one search must not stop the one that replaced it.
-    expect(Atomics.load(abandonedFlag, 0)).toBe(1);
-    expect(Atomics.load(keptFlag, 0)).toBe(0);
   });
 
   it('reports a SPICE error from the worker as an error', async () => {

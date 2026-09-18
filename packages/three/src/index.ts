@@ -12,7 +12,6 @@ export type { TrajectoryCacheConfig } from './TrajectoryCache.js';
 export {
   SpiceCacheWorker,
   GeometrySearchCancelled,
-  sharedCancellationAvailable,
 } from './SpiceCacheWorker.js';
 export {
   GeometrySearchWorker,

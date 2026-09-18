@@ -56,40 +56,6 @@ const marsTerrainPlugin = {
   },
 };
 
-/**
- * Cross-origin isolation, which is what makes `SharedArrayBuffer` available.
- *
- * It makes stopping a geometry search *cheap*, not possible. CSPICE polls a
- * bail-out handler from inside the running search, and a Web Worker blocked in a
- * synchronous call cannot read its own message queue — so the flag that handler
- * polls has to be memory both threads can see, and a `SharedArrayBuffer` is only
- * constructible on a cross-origin-isolated page. With it, a cancelled search
- * bails out within ~25 ms and the worker keeps its kernels.
- *
- * Without these headers the viewer still works, still reports progress, and
- * still cancels: GeometrySearchWorker terminates the geometry worker instead and
- * the next search rebuilds it, at roughly 260 ms for a 31 MB kernel set. So
- * cosmolabe does not require COOP/COEP — which matters for GitHub Pages, which
- * cannot set headers, and for any host that embeds the viewer.
- *
- * COEP `credentialless` rather than `require-corp`, and that is not a
- * preference: `require-corp` demands a `Cross-Origin-Resource-Policy` header on
- * every cross-origin subresource, and the viewer loads plenty that will never
- * carry one — NASA Trek and GIBS imagery tiles, terrain from marshub S3, 3D
- * Tiles from raw.githubusercontent.com, Cesium Ion endpoints, and the Draco
- * decoder from gstatic (BodyMesh.ts). `credentialless` loads those as no-cors
- * without credentials instead, which is what they need.
- *
- * The cost is Safari, which implements `require-corp` but not `credentialless`:
- * it gets no isolation, so no interruptible search. Fixing that would mean
- * proxying every third-party asset through this origin, which is a far larger
- * change than cancellation is worth.
- */
-const CROSS_ORIGIN_ISOLATION = {
-  'Cross-Origin-Opener-Policy': 'same-origin',
-  'Cross-Origin-Embedder-Policy': 'credentialless',
-};
-
 export default defineConfig({
   base: normalizeBase(process.env.VITE_BASE),
   plugins: [svelte(), tailwindcss(), marsTerrainPlugin],
@@ -103,7 +69,6 @@ export default defineConfig({
     },
   },
   server: {
-    headers: CROSS_ORIGIN_ISOLATION,
     fs: {
       // Allow serving files from the monorepo root (needed for workspace packages)
       allow: [path.resolve(__dirname, '../..')],
@@ -122,7 +87,6 @@ export default defineConfig({
     },
   },
   preview: {
-    headers: CROSS_ORIGIN_ISOLATION,
   },
   optimizeDeps: {
     // Don't pre-bundle workspace packages — use source directly for HMR

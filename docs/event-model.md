@@ -276,29 +276,29 @@ search.
   Progress is posted out of the worker from inside the running CSPICE call —
   a worker can `postMessage` from synchronous code, and since searches moved off
   the main thread there is a main thread free to receive it.
-- **Interruption** happens one of two ways, and a caller gets the same guarantee
-  either way: the executing call stops, and the next search does not queue behind
-  an abandoned one.
+- **Interruption** works one way: cancelling a search the worker is executing
+  terminates that worker. A worker blocked inside a synchronous CSPICE call will
+  not read its own message queue until the call returns, so nothing sent to it
+  can be seen; terminating is the only thing that always stops synchronous wasm.
+  The next search rebuilds and re-furnishes transparently — about a second for
+  the narrowed kernel set a search needs — against the tens of seconds a long
+  search can run for. Cancelling a search that is *not* executing costs nothing
+  and takes the worker down with it; see `GeometrySearchWorker`.
 
-  The cheap route needs `SharedArrayBuffer`. The bail-out handler is polled while
-  the worker is blocked in a synchronous call, and a blocked worker cannot read
-  its own message queue, so the flag it polls has to be memory both threads can
-  see. That needs a cross-origin-isolated page, which the dev and preview servers
-  arrange with COOP/COEP headers (`apps/viewer/vite.config.ts`). The search then
-  bails out at its next poll — within ~25 ms — and the worker carries on with its
-  kernels furnished.
+  This is why the geometry searches have a worker of their own. Terminating the
+  trajectory-cache worker would throw away the caches and the kernel pool they
+  depend on; terminating a worker that exists only to search throws away a
+  search.
 
-  Where isolation is unavailable — GitHub Pages cannot set headers, and an
-  embedding host may not grant them — `cancel()` terminates the geometry worker
-  instead, which is the one thing that always stops synchronous wasm. The next
-  search rebuilds it and re-furnishes transparently: measured at ~260 ms for a
-  31 MB kernel set (41 ms to instantiate the wasm, 216 ms to furnish), against
-  the tens of seconds a long search can run for. This is why cosmolabe does not
-  *require* COOP/COEP; isolation makes cancellation cheaper, not possible.
-
-  `GeometrySearchWorker.interruptible` reports which route is in use; a search
-  handle's `interruptible` is always true, because it describes the guarantee
-  rather than the mechanism.
+  `cspice-wasm` also offers a cooperative bail-out, polled by CSPICE from inside
+  the running call, which stops a search in ~25 ms and keeps the worker's kernels
+  furnished. Cosmolabe deliberately does not use it. It needs a
+  `SharedArrayBuffer` to reach a thread already inside CSPICE, so it needs a
+  cross-origin-isolated page — which GitHub Pages cannot arrange and an embedding
+  host may not grant. Carrying it would mean two cancellation paths, a COOP/COEP
+  requirement, and behaviour that differs by host, to save about a second on the
+  one flow where a user aborts a running search and immediately starts another.
+  It stays available to library callers who know their page is isolated.
 
 That the general routines return the same windows as the simplified ones is
 checked, not assumed: `packages/cspice-wasm/src/gf-reporting.test.ts` runs both

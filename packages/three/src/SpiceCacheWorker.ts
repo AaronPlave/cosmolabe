@@ -86,20 +86,17 @@ export interface WorkerGeometrySearch {
   provider: GeometryFinderProvider;
   /**
    * Stops the search: every call still pending or yet to be made rejects with
-   * {@link GeometrySearchCancelled}, and the call the worker is executing right
-   * now is asked to stop too.
+   * {@link GeometrySearchCancelled}.
    *
-   * That last part needs `SharedArrayBuffer`. CSPICE polls a bail-out handler
-   * from inside the running search, and a worker blocked in a synchronous call
-   * cannot read its own message queue — so the flag it polls has to be memory
-   * both threads can see. Where `SharedArrayBuffer` is unavailable (a page that
-   * is not cross-origin isolated), this layer cannot stop the executing call:
-   * the caller is freed, but the worker runs it to completion.
+   * Not the call the worker is already executing. A worker blocked inside
+   * synchronous CSPICE will not read its own message queue until that call
+   * returns, so nothing sent from here can reach it, and this leaves the worker
+   * busy until it finishes on its own.
    *
-   * That is not the guarantee the viewer gets, because it does not cancel here.
-   * {@link GeometrySearchWorker} wraps this and terminates the worker instead
-   * when no shared flag is available, which always stops synchronous wasm — see
-   * its notes for why that is survivable there and would not be here.
+   * That is why the viewer does not cancel here. {@link GeometrySearchWorker}
+   * wraps this and terminates the worker, which is the one thing that always
+   * stops synchronous wasm — survivable there because that worker exists only
+   * to search, and not here, where the trajectory caches would go with it.
    */
   cancel(): void;
   /** True once {@link cancel} has been called. */
@@ -118,46 +115,6 @@ export interface WorkerGeometrySearch {
    * should cost nothing.
    */
   readonly busy: boolean;
-  /**
-   * True when {@link cancel} stops a CSPICE call that is already executing.
-   *
-   * On a search taken straight from {@link SpiceCacheWorker.geometrySearch} this
-   * means `SharedArrayBuffer` was available to allocate the flag the search
-   * polls; false there means cancelling abandons the search but leaves the
-   * worker busy until the running call finishes on its own.
-   *
-   * A search from `GeometrySearchWorker` is always true: where the flag is
-   * unavailable it cancels by terminating that worker instead, which stops the
-   * call at the cost of a restart rather than leaving it running.
-   */
-  readonly interruptible: boolean;
-}
-
-/**
- * Whether a running CSPICE call can be stopped where it is.
- *
- * True when a `SharedArrayBuffer` can be allocated, which needs a
- * cross-origin-isolated page. False is not a dead end: it means cancellation has
- * to stop the search by terminating the worker instead (see
- * `GeometrySearchWorker`), which costs a restart rather than a bail-out.
- */
-export function sharedCancellationAvailable(): boolean {
-  return createCancelFlag() !== undefined;
-}
-
-/**
- * The shared word a running search polls to learn it should stop, or undefined
- * where the page is not cross-origin isolated and `SharedArrayBuffer` is
- * therefore unavailable.
- */
-function createCancelFlag(): Int32Array | undefined {
-  if (typeof SharedArrayBuffer === 'undefined') return undefined;
-  try {
-    return new Int32Array(new SharedArrayBuffer(4));
-  } catch {
-    // Some environments expose the constructor but refuse to allocate.
-    return undefined;
-  }
 }
 
 export class SpiceCacheWorker {
@@ -364,9 +321,6 @@ export class SpiceCacheWorker {
     let cancelled = false;
     let progress: GeometrySearchProgress | null = null;
     const ids = new Set<string>();
-    // One flag for the whole search: every call it makes polls the same word, so
-    // one store stops whichever of them the worker happens to be executing.
-    const cancelFlag = createCancelFlag();
 
     const call = async (fn: string, args: unknown[]): Promise<unknown> => {
       if (cancelled) throw new GeometrySearchCancelled();
@@ -378,11 +332,11 @@ export class SpiceCacheWorker {
 
       const id = `geom_${this.nextId++}`;
       ids.add(id);
-      // `range` is a single position lookup: nothing to report, nothing to stop.
-      // Nor is there anything to ask for when the caller wants no progress and
-      // no flag could be allocated — the search then stays on CSPICE's
-      // simplified wrappers, exactly where it was before any of this.
-      const reported = fn !== 'range' && (!!options?.onProgress || cancelFlag !== undefined);
+      // `range` is a single position lookup: nothing to report. Without a
+      // progress callback there is nothing to ask for either, and the search
+      // stays on CSPICE's simplified wrappers, exactly where it was before any
+      // of this.
+      const reported = fn !== 'range' && !!options?.onProgress;
       if (reported) {
         this.geometryProgress.set(id, (p) => {
           progress = p;
@@ -394,7 +348,7 @@ export class SpiceCacheWorker {
           this.pendingRequests.set(id, { resolve, reject });
           this.worker.postMessage({
             type: 'geometry', id, search, fn, args,
-            report: reported ? { progress: !!options?.onProgress, cancelFlag } : undefined,
+            report: reported ? { progress: true } : undefined,
           });
         });
       } finally {
@@ -410,15 +364,10 @@ export class SpiceCacheWorker {
       get cancelled() { return cancelled; },
       get progress() { return progress; },
       get busy() { return ids.size > 0; },
-      interruptible: cancelFlag !== undefined,
 
       cancel: () => {
         if (cancelled) return;
         cancelled = true;
-        // Three things stop, in the order they can be reached. The shared flag
-        // is the only one the executing CSPICE call will ever see, and it is set
-        // first so the worker starts unwinding while the rest is bookkeeping.
-        if (cancelFlag) Atomics.store(cancelFlag, 0, 1);
         // The worker is told as well as the caller: a call can already be in
         // the worker's queue, and the point of cancelling is that it does not
         // run. This message is what stops those — it cannot reach the running

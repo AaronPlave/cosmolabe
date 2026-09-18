@@ -8,26 +8,29 @@
  * while a search runs, every cache build queued behind it waits. Sharing meant
  * that was bounded only by how long the search took.
  *
- * The second is cancellation without `SharedArrayBuffer`. Stopping a CSPICE call
- * that is already executing needs a bail-out flag in memory both threads can
- * see, and that needs a cross-origin-isolated page — which a static host like
- * GitHub Pages cannot arrange, and which an embedding host may not grant. The
- * fallback is to terminate the worker outright, which is the one thing that
- * always stops synchronous wasm. That is only survivable if the worker is
- * expendable: terminating the shared cache worker would throw away the
- * trajectory caches and the furnished kernel pool they depend on. Terminating a
- * worker that exists solely to search throws away a search.
+ * The second is cancellation. A CSPICE call already executing cannot be
+ * interrupted from outside by any ordinary means: the worker is blocked inside
+ * synchronous wasm and will not read its own message queue until the call
+ * returns. Terminating the worker is the one thing that always stops it — and
+ * that is only survivable if the worker is expendable. Terminating the cache
+ * worker would throw away the trajectory caches and the kernel pool they depend
+ * on; terminating a worker that exists solely to search throws away a search.
  *
- * So cancellation takes whichever route is open, and the caller sees the same
- * guarantee either way — the executing call stops, and the next search does not
- * queue behind an abandoned one:
+ * So cancelling a running search terminates this worker, and the next search
+ * transparently rebuilds it and re-furnishes — about a second for the narrowed
+ * kernel set a search actually needs, against the tens of seconds a long search
+ * can run for.
  *
- *   - cross-origin isolated: the search bails out at its next poll, ~25 ms, and
- *     the worker carries on with its kernels furnished.
- *   - otherwise: the worker is terminated, and the next search transparently
- *     rebuilds it and re-furnishes. Measured at ~260 ms for a 31 MB kernel set
- *     (41 ms to instantiate the wasm, 216 ms to furnish), against the tens of
- *     seconds a long search can run for.
+ * `cspice-wasm` does offer a cooperative bail-out, polled by CSPICE from inside
+ * the running call, which stops a search in ~25 ms and keeps the worker's
+ * kernels furnished. It is deliberately not used here. It needs a
+ * `SharedArrayBuffer` to reach a thread already inside CSPICE, so it needs a
+ * cross-origin-isolated page — which GitHub Pages cannot arrange and an
+ * embedding host may not grant. Carrying it would mean two cancellation paths,
+ * a COOP/COEP requirement, and behaviour that differs by host, to save about a
+ * second on the one flow where a user aborts a running search and immediately
+ * starts another. It stays available to library callers who know their page is
+ * isolated; Cosmolabe takes the single mechanism that works everywhere.
  *
  * The worker is created on the first search, not at load: it holds a second
  * CSPICE heap with its own copy of the catalog's SPKs, and a session that never
@@ -37,7 +40,6 @@
 import {
   GeometrySearchCancelled,
   SpiceCacheWorker,
-  sharedCancellationAvailable,
   type GeometrySearchOptions,
   type GeometrySearchProgress,
   type KernelSource,
@@ -99,12 +101,6 @@ export interface GeometrySearchWorkerOptions {
    */
   kernels: (scope?: GeometrySearchScope) => KernelSource[] | Promise<KernelSource[]>;
   /**
-   * Whether a running CSPICE call can be interrupted in place. Defaults to
-   * probing `SharedArrayBuffer`; injectable so the terminate-and-restore path
-   * can be exercised on a platform where the flag would have worked.
-   */
-  canInterrupt?: () => boolean;
-  /**
    * How long the worker may sit idle before it is released, in milliseconds.
    * Zero or absent keeps it alive for the session.
    *
@@ -115,10 +111,9 @@ export interface GeometrySearchWorkerOptions {
    * feature used in bursts should not hold a quarter of a gigabyte between
    * them.
    *
-   * This is the same teardown a cancellation performs where no
-   * `SharedArrayBuffer` is available, so it is not a new failure mode: the next
-   * search rebuilds transparently, and a dropped kernel that has since been
-   * moved fails the same way it already would.
+   * This is the same teardown a cancellation performs, so it is not a new
+   * failure mode: the next search rebuilds transparently, and a dropped kernel
+   * that has since been moved fails the same way it already would.
    */
   idleTimeoutMs?: number;
 }
@@ -144,19 +139,8 @@ export class GeometrySearchWorker {
   private furnishedFor: string | null = null;
   /** Pending release of an idle worker; cleared whenever one is wanted again. */
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly canInterrupt: () => boolean;
 
-  constructor(private readonly options: GeometrySearchWorkerOptions) {
-    this.canInterrupt = options.canInterrupt ?? sharedCancellationAvailable;
-  }
-
-  /**
-   * True when a cancelled search stops by bailing out rather than by taking the
-   * worker down with it. False still cancels; it just costs a restart.
-   */
-  get interruptible(): boolean {
-    return this.canInterrupt();
-  }
+  constructor(private readonly options: GeometrySearchWorkerOptions) {}
 
   /** True once a worker exists. Nothing creates one until the first search. */
   get started(): boolean {
@@ -300,19 +284,31 @@ export class GeometrySearchWorker {
       return inner!;
     };
 
-    // Every provider call goes through here, so this is where the worker is
-    // claimed: held for as long as calls keep arriving.
-    //
-    // Re-arming on settle is a backstop, not the signal -- `finish` is. It
-    // cannot release mid-search, because each call clears the timer on entry
-    // and calls within one search follow each other immediately; what it does
-    // is bound the damage when a caller never says it is done.
+    /** Provider calls this handle has in flight. The worker is its while > 0. */
+    let outstanding = 0;
+    let finished = false;
+
+    /**
+     * Claim the worker for one provider call, and release the claim after.
+     *
+     * The count, rather than a flag, is what makes the release safe: `finish`
+     * can be called while a call is still outstanding -- from a `finally` that
+     * runs before the last call settles, or simply by a caller that got it
+     * wrong -- and arming the timer there would let it fire into a running
+     * CSPICE call and terminate the worker mid-search. Nothing arms while this
+     * is above zero.
+     *
+     * Re-arming on settle is a backstop, not the signal; `finish` is. What it
+     * does is bound the cost when a caller never says it is done.
+     */
     const held = async <T>(run: () => Promise<T>): Promise<T> => {
+      outstanding += 1;
       this.clearIdleRelease();
       try {
         return await run();
       } finally {
-        this.scheduleIdleRelease();
+        outstanding -= 1;
+        if (outstanding === 0) this.scheduleIdleRelease();
       }
     };
 
@@ -326,32 +322,36 @@ export class GeometrySearchWorker {
       // A handle whose worker has been replaced holds nothing, whatever the
       // search bound to the old one still says about itself.
       get busy() { return innerIsCurrent() ? inner!.busy : false; },
-      // The guarantee, not the mechanism: a cancelled search stops the call the
-      // worker is executing either way.
-      interruptible: true,
-
       cancel: () => {
         if (cancelled) return;
         cancelled = true;
         // Whether the worker is holding a call for *this* search, which is what
         // decides if taking it down is worth anything. A search that already
         // finished, or never started, costs nothing to cancel.
+        // Whether the worker is executing a call for *this* search, which is
+        // what decides whether taking it down buys anything. A search that
+        // already finished, or never started, costs nothing to cancel.
         const holdingTheWorker = innerIsCurrent() && inner!.busy;
         if (innerIsCurrent()) inner!.cancel();
-        if (holdingTheWorker && !this.canInterrupt()) this.restart();
+        if (holdingTheWorker) this.restart();
         if (this.active === handle) this.active = null;
         // A cancelled search leaves the worker idle as surely as a finished
         // one, and a user who gives up on a search is if anything less likely
-        // to start another.
-        this.scheduleIdleRelease();
+        // to start another. Not while a call is still outstanding, though: the
+        // rejections above free the caller, not the worker.
+        if (outstanding === 0) this.scheduleIdleRelease();
       },
 
       finish: () => {
         // Said by the caller when its whole search is done, which is the only
         // place that knows: a search is however many calls its kind chooses to
         // make, and from here the last one is indistinguishable from the rest.
+        // Idempotent, so a `finally` that runs twice cannot keep pushing the
+        // release back.
+        if (finished) return;
+        finished = true;
         if (this.active === handle) this.active = null;
-        this.scheduleIdleRelease();
+        if (outstanding === 0) this.scheduleIdleRelease();
       },
 
       provider: {

@@ -72,10 +72,10 @@ const GEOMETRY_WORKER_IDLE_MS = 60_000;
  *
  * Two reasons, both about the fact that CSPICE is synchronous and a worker has
  * one thread. A search sharing the cache worker blocks every trajectory build
- * queued behind it for as long as it runs; and cancelling a search that cannot
- * be interrupted in place (no SharedArrayBuffer, so no cross-origin isolation)
- * means terminating its worker, which is only survivable if that worker holds
- * nothing else. Built on the first search, not here.
+ * queued behind it for as long as it runs; and cancelling a running search means
+ * terminating its worker -- the only thing that stops synchronous wasm -- which
+ * is survivable only if that worker holds nothing else. Built on the first
+ * search, not here.
  */
 let geometryWorker: GeometrySearchWorker | null = null;
 

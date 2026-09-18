@@ -64,16 +64,15 @@ type Abcorr = Parameters<HeritageSpice['spkpos']>[3];
 /**
  * The reporting half of a `geometry` message.
  *
- * `cancelFlag` is shared memory, and has to be: the bail-out handler is polled
- * from inside a synchronous CSPICE call, and while that call holds this thread
- * the worker cannot read its own message queue. A `cancelGeometry` message is
- * what stops the calls a search has not made yet; this flag is what stops the
- * one it is making. The main thread leaves it unset where SharedArrayBuffer is
- * unavailable, and searches then run to completion as they did before.
+ * Progress only. The bail-out handler CSPICE also offers is not wired up here:
+ * reaching a thread already inside a synchronous CSPICE call needs a
+ * `SharedArrayBuffer`, so it needs a cross-origin-isolated page, and the viewer
+ * cancels by terminating this worker instead — one mechanism that works on
+ * every host rather than two that differ by one. `cspice-wasm` still exposes
+ * the bail-out to callers who know their page is isolated.
  */
 interface GeometryReportRequest {
   progress?: boolean;
-  cancelFlag?: Int32Array;
 }
 
 /**
@@ -271,7 +270,6 @@ self.onmessage = async (event: MessageEvent) => {
         // postMessage from synchronous code, and since searches moved off the
         // main thread there is a main thread free to receive it — which is what
         // makes a live progress bar possible at all.
-        const flag = report?.cancelFlag;
         const gfReport: HGfReport | undefined = report && {
           onProgress: report.progress
             ? (fraction, pass) =>
@@ -279,7 +277,6 @@ self.onmessage = async (event: MessageEvent) => {
                   type: 'geometryProgress', id, search, fraction, pass,
                 })
             : undefined,
-          shouldBail: flag ? () => Atomics.load(flag, 0) !== 0 : undefined,
         };
 
         (self as unknown as Worker).postMessage({
