@@ -668,14 +668,15 @@ export async function runSearch() {
  * Stops the running search.
  *
  * Every call it has not made yet stops, and on the worker path so does the one
- * CSPICE is executing right now — by a bail-out handler polled from inside it
- * where shared memory can reach the worker, and otherwise by terminating the
- * worker, which is the one thing that always stops synchronous wasm. Either
- * way the executing call stops, so the next search does not queue behind an
- * abandoned one.
+ * CSPICE is executing right now — by terminating the geometry worker, which is
+ * the one thing that stops synchronous wasm, since a worker blocked inside
+ * CSPICE will not read its own message queue. So the executing call stops and
+ * the next search does not queue behind an abandoned one.
  *
- * Terminating is survivable because searches have a worker of their own; the
- * trajectory caches are on another and are untouched by any of this.
+ * Terminating is survivable because searches have a worker of their own: the
+ * trajectory caches are on another and are untouched. The next search rebuilds
+ * it and re-furnishes, which is why cancelling one search and immediately
+ * running another costs about a second.
  */
 export function cancelSearch() {
   active?.cancel();

@@ -139,6 +139,16 @@ export class GeometrySearchWorker {
   private furnishedFor: string | null = null;
   /** Pending release of an idle worker; cleared whenever one is wanted again. */
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Counts searches, so each handle can tell whether it is still the newest.
+   *
+   * The outstanding-call count below is per handle, but the idle timer belongs
+   * to the worker they share. Without this, a superseded search settling late --
+   * its call rejected by the restart, its `finally` running afterwards -- would
+   * arm a timer that then terminated the search which replaced it, sixty
+   * seconds into a call it knew nothing about.
+   */
+  private searchSeq = 0;
 
   constructor(private readonly options: GeometrySearchWorkerOptions) {}
 
@@ -237,6 +247,20 @@ export class GeometrySearchWorker {
    * cancel one search would take every other search on it down as well.
    */
   search(options?: GeometrySearchOptions & { scope?: GeometrySearchScope }): GeometrySearch {
+    // Claimed before the previous search is cancelled, so that one is already
+    // stale by the time its `cancel` runs and cannot arm the timer on its way
+    // out.
+    const token = ++this.searchSeq;
+    /**
+     * Whether this handle still speaks for the worker.
+     *
+     * Only the newest search may arm the idle timer. A superseded one is also
+     * cancelled -- `search` cancels its predecessor -- so it cannot start new
+     * calls either; what this stops is the calls it had already made settling
+     * afterwards and scheduling a release the newest search would pay for.
+     */
+    const isCurrent = (): boolean => this.searchSeq === token;
+
     this.active?.cancel();
 
     // A worker furnished for a different kernel set would answer this search
@@ -308,7 +332,7 @@ export class GeometrySearchWorker {
         return await run();
       } finally {
         outstanding -= 1;
-        if (outstanding === 0) this.scheduleIdleRelease();
+        if (isCurrent() && outstanding === 0) this.scheduleIdleRelease();
       }
     };
 
@@ -339,7 +363,14 @@ export class GeometrySearchWorker {
         // one, and a user who gives up on a search is if anything less likely
         // to start another. Not while a call is still outstanding, though: the
         // rejections above free the caller, not the worker.
-        if (outstanding === 0) this.scheduleIdleRelease();
+        //
+        // The `isCurrent` half is belt and braces here, and knowingly so: the
+        // only way a superseded search reaches this is through `search`, which
+        // clears the timer immediately afterwards, so dropping the check breaks
+        // no test. It is kept because the same predicate guards the two sites
+        // where it *is* load-bearing, and because a future reordering of
+        // `search` would otherwise reintroduce the bug in silence.
+        if (isCurrent() && outstanding === 0) this.scheduleIdleRelease();
       },
 
       finish: () => {
@@ -351,7 +382,7 @@ export class GeometrySearchWorker {
         if (finished) return;
         finished = true;
         if (this.active === handle) this.active = null;
-        if (outstanding === 0) this.scheduleIdleRelease();
+        if (isCurrent() && outstanding === 0) this.scheduleIdleRelease();
       },
 
       provider: {

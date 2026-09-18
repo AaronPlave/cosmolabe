@@ -443,6 +443,30 @@ describe('GeometrySearchWorker', () => {
       expect(worker.terminated).toBe(true);
     });
 
+    it('does not let a superseded search release the worker under its replacement', async () => {
+      // The outstanding count is per handle; the idle timer is the worker's.
+      // So a superseded search settling late -- its call rejected by the
+      // restart, its finally running afterwards -- must not arm a timer that
+      // would then terminate the search that replaced it, mid-CSPICE-call.
+      const { built, geometry } = harness(60_000);
+      const first = geometry.search();
+      dispatch(aSearch(first.provider));
+      await tick();
+
+      // Superseding a running search terminates its worker; the replacement
+      // gets a fresh one and starts a call of its own.
+      const second = geometry.search();
+      dispatch(aSearch(second.provider));
+      await tick();
+      expect(built).toHaveLength(2);
+      expect(built[0]!.terminated).toBe(true);
+
+      // The old search catches up long after it stopped mattering.
+      first.finish();
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(built[1]!.terminated).toBe(false);
+    });
+
     it('does not push the release back when finish is called twice', async () => {
       // A `finally` can run more than once across a retry, and a caller may
       // simply be defensive. Re-arming each time would let a worker outlive its

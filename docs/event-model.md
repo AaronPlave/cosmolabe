@@ -209,25 +209,38 @@ CSPICE's GF routines are synchronous, and a fine step over a long window is
 genuinely expensive — so a search on the main thread freezes the viewer for as
 long as it runs: no camera, no scrubbing, not even a spinner. The viewer
 therefore runs its searches in a worker (`GeometrySearchWorker`), furnished with
-the same kernels the main thread has, so a search pays for no loading of its own.
+the kernels that search can reach — an SPK whose coverage misses the search
+window cannot contribute to the answer, so the worker is given a narrowed set
+rather than the catalog's whole one, and re-furnished when a search needs a
+different set.
 
 It is a *separate* worker from the trajectory cache's, for two reasons that both
 come back to CSPICE being synchronous on a single-threaded worker. A search
 sharing the cache worker blocks every trajectory build queued behind it for as
-long as it runs. And cancelling a search that cannot be interrupted in place
-means terminating its worker, which is only survivable if that worker holds
-nothing else — terminating the cache worker would throw away the trajectory
-caches and the kernel pool they depend on.
+long as it runs. And cancelling a running search means terminating its worker,
+which is only survivable if that worker holds nothing else — terminating the
+cache worker would throw away the trajectory caches and the kernel pool they
+depend on.
 
 The worker is built on the first search, not at load: it is a second CSPICE heap
 with its own copy of the catalog's SPKs, and a session that never searches should
-not pay for it. One search runs at a time; starting another supersedes it.
+not pay for it, and it is released again after a minute idle. One search runs at
+a time; starting another supersedes it.
 
 ```ts
 const search = geometryWorker.search({
+  scope: geometryScopeForWindow(query.window),
   onProgress: ({ fraction, pass }) => showBar(fraction),
 });
-const result = await new EventSearch({ registry, provider: search.provider }).run(query);
+try {
+  const result = await new EventSearch({ registry, provider: search.provider }).run(query);
+} finally {
+  // Says the whole search is over, which only the caller knows: from inside the
+  // worker a search is however many calls its kind makes, and the last looks
+  // like the rest. Idempotent, and it does not cancel anything still running.
+  search.finish();
+}
+
 search.cancel();  // stops the call running now, and everything after it
 ```
 
@@ -247,8 +260,8 @@ cancelling caller checks its own flag rather than showing that fault.
 It also stops the CSPICE call executing right now, which is what frees the
 *worker* rather than only the viewer — otherwise a quick search started straight
 after a cancel queues behind the abandoned one. See
-[progress and interruption](#progress-and-interruption) for the two ways that
-reaches a thread already inside CSPICE.
+[progress and interruption](#progress-and-interruption) for how that reaches a
+thread already inside CSPICE.
 
 ### Progress and interruption
 

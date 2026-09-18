@@ -86,8 +86,6 @@ export default defineConfig({
       ],
     },
   },
-  preview: {
-  },
   optimizeDeps: {
     // Don't pre-bundle workspace packages — use source directly for HMR
     exclude: ['@cosmolabe/control', '@cosmolabe/core', '@cosmolabe/three', '@cosmolabe/spice'],
