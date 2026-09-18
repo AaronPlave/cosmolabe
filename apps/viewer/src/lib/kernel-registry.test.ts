@@ -17,7 +17,14 @@
  * releases between them.
  */
 import { describe, it, expect } from 'vitest';
-import { KernelRegistry, isWorkerKernel, kernelName, type KernelSourceRef } from './kernel-registry';
+import {
+  KernelRegistry,
+  isWorkerKernel,
+  kernelName,
+  releaseCatalogKernels,
+  type FurnishedKernel,
+  type KernelSourceRef,
+} from './kernel-registry';
 
 const CATALOG = 'https://example.test/catalogs';
 
@@ -52,6 +59,14 @@ const loadCatalog = (registry: KernelRegistry, prefix: string, extras: string[] 
 describe('kernelName', () => {
   it('is the basename a URL is furnished under, without .gz', () => {
     expect(kernelName({ url: 'https://example.test/a/b/de440s.bsp.gz' })).toBe('de440s.bsp');
+  });
+
+  it('ignores a query string, which is not part of the kernel', () => {
+    // A signed or cache-busted URL is the same kernel as the bare one, and the
+    // adapter furnishes it under the same name -- so registering it under a
+    // name carrying the token would mean unloading something that is not there.
+    expect(kernelName({ url: 'https://example.test/de440s.bsp?token=abc123' })).toBe('de440s.bsp');
+    expect(kernelName({ url: 'https://example.test/de440s.bsp.gz?v=2#frag' })).toBe('de440s.bsp');
   });
 
   it('is a dropped file’s own name, verbatim', () => {
@@ -202,5 +217,103 @@ describe('the already-furnished check', () => {
     const registry = new KernelRegistry();
     registry.register(file('de440s.bsp'), 'user');
     expect(registry.has('de440s.bsp')).toBe(false);
+  });
+});
+
+/**
+ * The failure path, which is the one a healthy CSPICE will not produce.
+ *
+ * It matters more than its likelihood suggests: an unload that fails leaves a
+ * kernel furnished on the main thread, and if the registry has already forgotten
+ * it, the scene's workers are built from a list the main thread does not match.
+ * That is the invariant this module exists to hold, failing silently.
+ */
+describe('an unload that fails', () => {
+  /** A host whose unload refuses for the named kernels. */
+  const hostRefusing = (refuse: string[]) => {
+    const unloaded: string[] = [];
+    const rebuilds: (readonly FurnishedKernel[])[] = [];
+    return {
+      unloaded,
+      rebuilds,
+      /** What the rebuilt instance manages to re-furnish. Everything, by default. */
+      restore: (keep: readonly FurnishedKernel[]): readonly FurnishedKernel[] => keep,
+      unload(name: string) {
+        if (refuse.includes(name)) throw new Error(`unload_c refused ${name}`);
+        unloaded.push(name);
+      },
+      async rebuild(keep: readonly FurnishedKernel[]) {
+        rebuilds.push(keep);
+        return this.restore(keep);
+      },
+    };
+  };
+
+  it('rebuilds the instance from the entries that survive, in order', async () => {
+    const registry = new KernelRegistry();
+    registry.register(file('dropped.bsp'), 'user');
+    loadCatalog(registry, 'cassini');
+
+    const host = hostRefusing(['cassini.bsp']);
+    const result = await releaseCatalogKernels(registry, host);
+
+    expect(result.failed).toEqual(['cassini.bsp']);
+    expect(result.rebuilt).toBe(true);
+    expect(host.rebuilds).toHaveLength(1);
+    expect(host.rebuilds[0].map((e) => e.name)).toEqual(['dropped.bsp']);
+    expect(names(registry)).toEqual(['dropped.bsp']);
+  });
+
+  it('does not rebuild when every unload succeeds', async () => {
+    const registry = new KernelRegistry();
+    loadCatalog(registry, 'cassini');
+
+    const host = hostRefusing([]);
+    const result = await releaseCatalogKernels(registry, host);
+
+    expect(result.rebuilt).toBe(false);
+    expect(host.rebuilds).toEqual([]);
+    expect(host.unloaded).toEqual(['cassini.bsp', 'cassini.tpc', 'cassini.tls']);
+  });
+
+  it('forgets a survivor the rebuilt instance could not take back', async () => {
+    // A dropped file the user has since moved cannot be re-read. The new
+    // instance genuinely does not have it, so neither may the registry --
+    // otherwise the workers are promised a kernel the main thread lacks.
+    const registry = new KernelRegistry();
+    registry.register(file('moved.bsp'), 'user');
+    registry.register(file('still-there.bsp'), 'user');
+    loadCatalog(registry, 'cassini');
+
+    const host = hostRefusing(['cassini.tls']);
+    host.restore = (keep) => keep.filter((e) => e.name !== 'moved.bsp');
+    await releaseCatalogKernels(registry, host);
+
+    expect(names(registry)).toEqual(['still-there.bsp']);
+  });
+
+  it('empties the registry if the rebuild itself fails', async () => {
+    // Nothing downstream may go on believing in kernels no one can account
+    // for; the throw fails the scene load that asked for the release.
+    const registry = new KernelRegistry();
+    registry.register(file('dropped.bsp'), 'user');
+    loadCatalog(registry, 'cassini');
+
+    const host = hostRefusing(['cassini.bsp']);
+    host.rebuild = async () => { throw new Error('wasm instantiation failed'); };
+
+    await expect(releaseCatalogKernels(registry, host)).rejects.toThrow('wasm instantiation failed');
+    expect(names(registry)).toEqual([]);
+  });
+
+  it('is a no-op when the previous scene furnished nothing', async () => {
+    const registry = new KernelRegistry();
+    registry.register(file('dropped.bsp'), 'user');
+
+    const host = hostRefusing([]);
+    const result = await releaseCatalogKernels(registry, host);
+
+    expect(result).toEqual({ released: [], failed: [], rebuilt: false });
+    expect(names(registry)).toEqual(['dropped.bsp']);
   });
 });

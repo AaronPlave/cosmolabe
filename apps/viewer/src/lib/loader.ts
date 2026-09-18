@@ -23,7 +23,7 @@ import {
 // deliberately only what core itself calls.
 // The ?url import hands Vite's emitted wasm asset to the engine's locateFile —
 // only the bundler knows where that asset lands.
-import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
+import { createHeritageSpice, kernelNameFromUrl, type HeritageSpice } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin, captureFrameDataUrl } from '@cosmolabe/three';
 import { GeometrySearchWorker, type GeometrySearchScope, type KernelSource } from '@cosmolabe/three';
@@ -31,7 +31,13 @@ import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmo
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
 import { kernelSetKey, kernelsForWindow, type KernelWindow } from './geometry-kernels';
-import { KernelRegistry, kernelName, type KernelSourceRef } from './kernel-registry';
+import {
+  KernelRegistry,
+  kernelName,
+  releaseCatalogKernels as releaseFromRegistry,
+  type FurnishedKernel,
+  type KernelSourceRef,
+} from './kernel-registry';
 import {
   bindRenderer,
   gotoObject,
@@ -199,26 +205,78 @@ const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.t
  * `kernel-registry` for why, and `handleFileList` for which drops count as a
  * catalog's.
  *
- * The cost is that switching demos back and forth re-furnishes each time rather
- * than finding everything already loaded. The browser's HTTP cache covers the
- * fetch but not the CSPICE load, so this is a real second or two on a large
- * catalog -- paid for answers that belong to the scene on screen.
+ * An unload that fails is not survivable as a warning, so it escalates to a
+ * rebuild of the whole instance -- `releaseCatalogKernels` in `kernel-registry`
+ * has the reasoning. It throws if even that fails, which fails the scene load:
+ * the caller closes the loading bar and the error surfaces, rather than a scene
+ * building on a kernel set nobody can describe.
+ *
+ * The cost of the ordinary path is that switching demos back and forth
+ * re-furnishes each time rather than finding everything already loaded. The
+ * browser's HTTP cache covers the fetch but not the CSPICE load, so this is a
+ * real second or two on a large catalog -- paid for answers that belong to the
+ * scene on screen.
  */
-function releaseCatalogKernels(): void {
-  const released = kernels.releaseCatalogKernels();
-  if (released.length === 0) return;
+async function releaseCatalogKernels(): Promise<void> {
+  const s = spice;
+  if (!s) {
+    // Nothing is furnished, so nothing can be registered either; a release
+    // before the first `ensureSpice` is the drop path arriving early.
+    kernels.releaseCatalogKernels();
+    return;
+  }
 
-  for (const name of released) {
-    try {
-      spice?.unload(name);
-    } catch (err) {
-      // An unload that fails leaves that kernel furnished, which is the old
-      // behaviour for one file rather than a broken scene. Worth saying so.
-      console.warn(`[Cosmolabe] Failed to unload ${name}:`, err);
-    }
-    kernelCoverageCache.delete(name);
+  const { released, failed, rebuilt } = await releaseFromRegistry(kernels, {
+    unload: (name) => s.unload(name),
+    rebuild: refurnishOnFreshSpice,
+  });
+
+  if (rebuilt) {
+    console.warn(
+      `[Cosmolabe] Rebuilt SPICE after ${failed.join(', ')} would not unload`,
+    );
+  } else {
+    for (const name of released) kernelCoverageCache.delete(name);
   }
   setKernelCount(spice?.totalLoaded() ?? 0);
+}
+
+/**
+ * Throw away the SPICE instance and furnish `keep` into a fresh one.
+ *
+ * The recovery half of a failed unload. A new instance is the only way to be
+ * sure of what is furnished once CSPICE has refused to unload something: it
+ * starts empty, and what goes back into it is exactly the registry's surviving
+ * entries, in their order.
+ *
+ * Returns the ones that made it. A dropped file the user has since moved cannot
+ * be re-read, and reporting it back is what lets the registry forget it rather
+ * than promise the workers a kernel the main thread does not have.
+ *
+ * The scene on screen keeps the old instance until `initScene` replaces it --
+ * this only ever runs at the top of a scene load, so that is a moment away, and
+ * an old instance nothing new points at is collected with its heap.
+ */
+async function refurnishOnFreshSpice(
+  keep: readonly FurnishedKernel[],
+): Promise<readonly FurnishedKernel[]> {
+  spice = null;
+  kernelCoverageCache.clear();
+  const s = await ensureSpice();
+
+  const refurnished: FurnishedKernel[] = [];
+  for (const entry of keep) {
+    try {
+      const data = 'url' in entry.source
+        ? await fetchWithProgress(entry.source.url)
+        : await entry.source.file.arrayBuffer();
+      await s.furnish({ type: 'buffer', data, filename: entry.name });
+      refurnished.push(entry);
+    } catch (err) {
+      console.warn(`[Cosmolabe] Could not restore ${entry.name} after rebuild:`, err);
+    }
+  }
+  return refurnished;
 }
 
 // ── Fetch with progress + gzip decompression ──
@@ -305,8 +363,7 @@ async function furnishKernelUrl(url: string, opts?: { size?: number; onProgress?
 
   if (opts?.size && opts.size > 0) {
     const buffer = await fetchWithProgress(url, (loaded) => opts.onProgress?.(loaded));
-    const filename = filenameFromUrl(url).replace(/\.gz$/, '');
-    await s.furnish({ type: 'buffer', data: buffer, filename });
+    await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(url) });
   } else {
     await s.furnish({ type: 'url', url });
   }
@@ -355,7 +412,7 @@ async function furnishKernelsFromGraph(graph: ResolvedCatalogGraph): Promise<voi
   for (let i = 0; i < small.length; i++) {
     const k = small[i];
     setPhaseProgress('kernels', doneBytes / totalBytes, {
-      label: `Loading ${k.label ?? filenameFromUrl(k.url)}...`,
+      label: `Loading ${k.label ?? kernelNameFromUrl(k.url)}...`,
       detail: `${i + 1} / ${flat.length} kernels`,
     });
     try {
@@ -374,7 +431,7 @@ async function furnishKernelsFromGraph(graph: ResolvedCatalogGraph): Promise<voi
       const k = large[i];
       const progress = `(${i + 1}/${large.length})`;
       setPhaseProgress('kernels', doneBytes / totalBytes, {
-        label: `${progress} ${k.label ?? filenameFromUrl(k.url)}`,
+        label: `${progress} ${k.label ?? kernelNameFromUrl(k.url)}`,
       });
       try {
         await furnishKernelUrl(k.url, {
@@ -397,15 +454,6 @@ async function furnishKernelsFromGraph(graph: ResolvedCatalogGraph): Promise<voi
 
   setPhaseProgress('kernels', 1, { label: 'Building scene...', detail: '' });
   setKernelCount(spice?.totalLoaded() ?? 0);
-}
-
-function filenameFromUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.pathname.split('/').pop() || url;
-  } catch {
-    return url.split('/').pop() ?? url;
-  }
 }
 
 // ── File handling ──
@@ -869,7 +917,7 @@ export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
     // Unconditional after that, kernels or none — a catalog with no kernels of
     // its own still replaces the scene, and would otherwise resolve what
     // geometry it has against the last catalog's.
-    releaseCatalogKernels();
+    await releaseCatalogKernels();
 
     // SPICE-free path: if the catalog graph declares no kernels, skip SPICE init
     // entirely. The CatalogLoader falls through to Keplerian/analytical trajectories.
@@ -1001,7 +1049,7 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   // says whether this drop is a scene load — and a scene load releases the
   // previous catalog's kernels first.
   const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
-  if (catalogs.length > 0) releaseCatalogKernels();
+  if (catalogs.length > 0) await releaseCatalogKernels();
 
   if (kernelFiles.length > 0) {
     const s = await ensureSpice();
