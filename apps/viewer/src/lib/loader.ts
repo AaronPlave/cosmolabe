@@ -31,6 +31,7 @@ import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import GeometrySearchRelayWorker from '../workers/geometry-search-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
 import { kernelSetKey, kernelsForWindow, type KernelWindow } from './geometry-kernels';
+import { noteKernelScope } from './memory-probe';
 import {
   bindRenderer,
   gotoObject,
@@ -139,8 +140,17 @@ function scopedKernelSources(window: KernelWindow | null): WorkerKernelSource[] 
  * narrowed and the full set is what the worker should hold.
  */
 export function geometryScopeForWindow(window: KernelWindow): GeometrySearchScope | undefined {
-  if (!getSpice()) return undefined;
+  const s = getSpice();
+  if (!s) return undefined;
   const names = scopedKernelSources(window).map(workerKernelName);
+
+  noteKernelScope({
+    kept: names,
+    dropped: workerKernelSources.map(workerKernelName).filter((n) => !names.includes(n)),
+    window,
+    describeEt: (et) => s.et2utc(et, 'ISOC', 0),
+  });
+
   const scope: ViewerGeometryScope = { key: kernelSetKey(names), window };
   return scope;
 }

@@ -232,6 +232,42 @@ export function noteMemory(label: string): void {
 }
 
 /**
+ * Report which kernels a search's worker was given, and which it was spared.
+ *
+ * The realm rows say what a worker holds but not why, and the two are easy to
+ * confuse: a worker declaring 160 MB of WebAssembly memory it has barely
+ * touched looks much like one holding 160 MB of kernels, because the browser
+ * counts declared wasm memory whether or not it is resident. So when the
+ * narrowing appears not to have helped, this is what distinguishes "it kept
+ * everything" from "it dropped plenty and the fixed cost dominates".
+ */
+export function noteKernelScope(info: {
+  readonly kept: readonly string[];
+  readonly dropped: readonly string[];
+  readonly window: { start: number; end: number };
+  readonly describeEt?: (et: number) => string;
+}): void {
+  if (!MEMORY_PROBE_ENABLED) return;
+
+  const when = (et: number): string => {
+    try {
+      return info.describeEt?.(et) ?? String(Math.round(et));
+    } catch {
+      return String(Math.round(et));
+    }
+  };
+
+  const total = info.kept.length + info.dropped.length;
+  console.groupCollapsed(
+    `[Cosmolabe] geometry kernels: ${info.kept.length} of ${total} kept`
+      + ` for ${when(info.window.start)} .. ${when(info.window.end)}`,
+  );
+  console.log('furnished:', info.kept.length ? info.kept.join(', ') : '(none)');
+  console.log('skipped:', info.dropped.length ? info.dropped.join(', ') : '(none)');
+  console.groupEnd();
+}
+
+/**
  * Wire up `__cosmolabeMemory()` and take a baseline.
  *
  * The baseline matters more than it looks: every later sample is reported as a
