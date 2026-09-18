@@ -5,6 +5,11 @@
  * JPL Horizons as an independent reference.
  *
  * Test epoch: 2025-01-15 00:03:26 UTC (matches NASA Eyes screenshot)
+ *
+ * Oracle suite. @cosmolabe/spice is off the runtime path (ADR M-0002): this
+ * wrapper's job now is to be the independent reference implementation the
+ * cspice-wasm path is differentially checked against. See
+ * packages/spice/README.md and packages/frames/src/differential.test.ts.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';

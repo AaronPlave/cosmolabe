@@ -19,8 +19,8 @@
  * the line number; the interpreter does, and turns the `false` into a located
  * error with a suggestion drawn from the scene actually loaded.
  */
-import type { SpiceInstance } from '@cosmolabe/spice';
 import { etFromCalendarString } from '@cosmolabe/core';
+import type { HeritageSpice } from '@cosmolabe/frames';
 import { CameraModeName } from '@cosmolabe/three';
 import {
   snapshotScript,
@@ -73,7 +73,7 @@ export interface ViewerControlDeps {
    * scene like `earth-moon` — which is exactly the case `resolveEpoch` below
    * has to keep working for.
    */
-  getSpice?: () => SpiceInstance | null;
+  getSpice?: () => HeritageSpice | null;
 }
 
 /**
@@ -85,7 +85,7 @@ export interface ViewerControlDeps {
  * would silently move the scene there. `BottomBar`'s go-to-time field does the
  * lesser version of this today and lands on *today* when SPICE is absent.
  */
-function resolveEpoch(when: ScriptTime, spice: SpiceInstance | null): number | null {
+function resolveEpoch(when: ScriptTime, spice: HeritageSpice | null): number | null {
   if (when.kind === 'et') return Number.isFinite(when.et) ? when.et : null;
   if (spice) {
     try {

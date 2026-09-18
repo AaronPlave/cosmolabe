@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@cosmolabe/core', '@cosmolabe/cesium-adapter', '@cosmolabe/cesium', '@cosmolabe/spice'],
+    exclude: ['@cosmolabe/core', '@cosmolabe/cesium-adapter', '@cosmolabe/cesium'],
   },
   define: {
     // Cesium looks for this global to find its static assets (Workers, Assets, etc.)

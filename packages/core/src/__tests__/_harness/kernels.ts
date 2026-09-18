@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
-import type { SpiceInstance } from '@cosmolabe/spice';
+import type { SpiceInstance } from '../../spice-injection.js';
 
 /** Bundled, always-present generic + Cassini kernels (`packages/spice/test-kernels`). */
 export const SPICE_TEST_KERNELS = join(__dirname, '../../../../spice/test-kernels');

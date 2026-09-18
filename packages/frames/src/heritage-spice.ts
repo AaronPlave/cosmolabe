@@ -1,13 +1,17 @@
 // The heritage adapter of the Session 4 re-point: a drop-in implementation of
-// the @cosmolabe/spice SpiceInstance runtime surface over the frames tier and
-// its cspice-wasm bindings. Cosmolabe's injection sites (the viewer loader,
-// the trajectory cache worker, the test harness) construct this instead of
-// the timecraftjs Spice, so every state and orientation the core consumes
-// flows through the M-0002 contracts (iron rule 1) while the core's own code
-// keeps its existing interface. The types below are structural mirrors of
-// @cosmolabe/spice's: the federated trees cannot import each other's type
-// declarations before the packages/ restructure, and TypeScript matches the
-// shapes, not the names.
+// the SpiceInstance runtime surface over the frames tier and its cspice-wasm
+// bindings. Cosmolabe's injection sites (the viewer loader, the trajectory
+// cache worker, the test harness) construct this instead of the timecraftjs
+// Spice, so every state and orientation the core consumes flows through the
+// M-0002 contracts (iron rule 1) while the core's own code keeps its existing
+// interface. The part of that interface core still calls now lives with its
+// consumer, in packages/core/src/spice-injection.ts — narrower than this
+// adapter, and shrinking, per the dissolution plan below. The types here stay
+// structural mirrors rather than imports: frames sits *below* core, so
+// importing core's declarations would invert the tier order that makes the
+// injection work at all. TypeScript matches the shapes, not the names, and
+// core pins this adapter to its interface at compile time
+// (packages/core/src/__tests__/spice-injection-conformance.test.ts).
 //
 // Charter. The adapter makes no semantic choice it did not inherit: every
 // choice below matches measured heritage behavior, is pinned one for one by
@@ -82,7 +86,7 @@ import { framesLayerOver, type FramesLayer } from './frames.js';
 // seam, and this error crosses it.
 export { SpiceSearchCancelled };
 
-// ── structural mirrors of the @cosmolabe/spice types ────────────────────────
+// ── structural mirrors of core's spice-injection types ──────────────────────
 
 export type HVec3 = [number, number, number];
 export type HState = [number, number, number, number, number, number];

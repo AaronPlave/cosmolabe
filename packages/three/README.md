@@ -23,7 +23,7 @@ Three.js rendering layer for [Cosmolabe](https://github.com/AaronPlave/cosmolabe
 ## Install
 
 ```bash
-npm install @cosmolabe/three @cosmolabe/core @cosmolabe/spice three
+npm install @cosmolabe/three @cosmolabe/core @cosmolabe/frames three
 ```
 
 `three` is a peer dependency.
@@ -34,7 +34,7 @@ npm install @cosmolabe/three @cosmolabe/core @cosmolabe/spice three
 import { Universe } from '@cosmolabe/core';
 import { UniverseRenderer } from '@cosmolabe/three';
 
-const universe = new Universe({ spice });
+const universe = new Universe(spice);
 const renderer = new UniverseRenderer({
   universe,
   container: document.getElementById('viewer')!,

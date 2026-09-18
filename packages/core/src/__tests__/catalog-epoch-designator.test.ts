@@ -20,7 +20,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { SpiceInstance } from '@cosmolabe/spice';
+import type { SpiceInstance } from '../spice-injection.js';
 import { createHeritageSpice } from '@cosmolabe/frames';
 import { CatalogLoader, type CatalogJson } from '../catalog/CatalogLoader.js';
 import { etFromCalendarString } from '../time.js';

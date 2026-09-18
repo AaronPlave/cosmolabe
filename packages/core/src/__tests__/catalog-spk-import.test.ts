@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CatalogLoader } from '../catalog/CatalogLoader.js';
-import type { SpiceInstance } from '@cosmolabe/spice';
+import type { SpiceInstance } from '../spice-injection.js';
 
 // Minimal SPICE stub: only the calls that CatalogLoader exercises during
 // spkImport. Anything else throws so missing wiring shows up as a test failure.

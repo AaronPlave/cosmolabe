@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "SPICE WASM layer — typed wrappers over CSPICE via TimeCraftJS, extended with geometry finders",
+  "description": "Heritage SPICE WASM layer — typed wrappers over CSPICE via TimeCraftJS, extended with geometry finders. Off the runtime path since the M-0002 migration: the independent reference implementation the cspice-wasm path is differentially checked against, and a devDependency everywhere it is used",
   "author": "Aaron Plave",
   "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
   "bugs": "https://github.com/AaronPlave/cosmolabe/issues",

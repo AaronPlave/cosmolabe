@@ -28,10 +28,12 @@
   "exclude": [
     "src/__tests__"
   ],
+  // No reference to ../spice: core's SPICE interface lives in src/spice-injection.ts
+  // and the engine arrives by injection, so @cosmolabe/spice is a test-only
+  // dependency (the reference implementation the WASM path is checked
+  // against). The test suites resolve it through the workspace symlink to its
+  // built dist, which `npm run build` still produces.
   "references": [
-    {
-      "path": "../spice"
-    },
     {
       "path": "../interop"
     }

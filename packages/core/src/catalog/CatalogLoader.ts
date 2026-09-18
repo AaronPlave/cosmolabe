@@ -1,4 +1,4 @@
-import type { SpiceInstance, Vec3 } from '@cosmolabe/spice';
+import type { SpiceInstance, Vec3 } from '../spice-injection.js';
 import { Body, type TrajectoryPlotConfig } from '../Body.js';
 import type { Trajectory } from '../trajectories/Trajectory.js';
 import { FixedPointTrajectory } from '../trajectories/FixedPoint.js';

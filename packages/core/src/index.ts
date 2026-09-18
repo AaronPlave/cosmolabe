@@ -75,7 +75,27 @@ export {
   subPointOf,
   bodyFixedVelocityMagnitudeOf,
 } from './kinematics.js';
-export type { Vec3, BodyLookup } from './kinematics.js';
+export type { BodyLookup } from './kinematics.js';
+
+// The SPICE surface core still calls — transitional, and deliberately narrow:
+// only what core's own call sites use, not the heritage adapter's full surface.
+// core never constructs an engine; it takes one by injection, and both
+// @cosmolabe/frames (createHeritageSpice, the runtime path) and
+// @cosmolabe/spice (the reference implementation used in tests) satisfy this
+// structurally. It shrinks as call sites migrate to the M-0002 contracts.
+// See src/spice-injection.ts.
+export type {
+  AberrationCorrection,
+  IlluminationAngles,
+  KernelSource,
+  OrbitalElements,
+  RotationMatrix,
+  SpiceInstance,
+  StateVector,
+  SubPoint,
+  TimeWindow,
+  Vec3,
+} from './spice-injection.js';
 
 // Frames
 export type { Frame } from './frames/Frame.js';

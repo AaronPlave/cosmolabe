@@ -1,4 +1,4 @@
-import type { RotationMatrix } from '@cosmolabe/spice';
+import type { RotationMatrix } from '../spice-injection.js';
 import type { Frame } from './Frame.js';
 import { OBLIQUITY_J2000_RAD } from '../constants.js';
 

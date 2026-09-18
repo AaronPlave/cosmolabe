@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice, type SpiceInstance } from '@cosmolabe/spice';
+import { Spice } from '@cosmolabe/spice';
+import type { SpiceInstance } from '../spice-injection.js';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 import { kernelArrayBuffer } from './_harness/kernels.js';
 

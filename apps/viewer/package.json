@@ -23,7 +23,6 @@
     "@cosmolabe/control": "*",
     "@cosmolabe/core": "*",
     "@cosmolabe/frames": "*",
-    "@cosmolabe/spice": "*",
     "@cosmolabe/three": "*",
     "@fontsource-variable/martian-mono": "^5.3.0",
     "@fontsource-variable/public-sans": "^5.3.0",
@@ -37,6 +36,7 @@
     "three": "^0.183.2"
   },
   "devDependencies": {
+    "@cosmolabe/spice": "*",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@tailwindcss/vite": "^4.2.2",
     "pixelmatch": "^6.0.0",

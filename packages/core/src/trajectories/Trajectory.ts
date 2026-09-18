@@ -1,4 +1,4 @@
-import type { Vec3 } from '@cosmolabe/spice';
+import type { Vec3 } from '../spice-injection.js';
 
 export interface CartesianState {
   position: Vec3;

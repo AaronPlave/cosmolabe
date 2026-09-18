@@ -1,3 +1,11 @@
+/**
+ * Oracle suite. @cosmolabe/spice is off the runtime path (ADR M-0002): this
+ * wrapper's job now is to be the independent reference implementation — a
+ * separately compiled CSPICE, reached through a different binding layer —
+ * that the cspice-wasm path is differentially checked against. Kept and run
+ * for that reason; see packages/spice/README.md and
+ * packages/frames/src/differential.test.ts.
+ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
