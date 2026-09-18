@@ -1,11 +1,14 @@
 import type { Body } from './Body.js';
-import type { InertialFrameName, Quaternion } from './rotations/RotationModel.js';
+import type { InertialFrameName, Quaternion, RotationModel } from './rotations/RotationModel.js';
 import { OBLIQUITY_J2000_RAD } from './constants.js';
 
 /**
- * Frame-aware kinematics primitives shared by `Universe.subPointOf` and
- * `Universe.bodyFixedVelocityMagnitudeOf`. Kept in a sibling module so
- * the math isn't tangled with universe / body / trajectory plumbing.
+ * Frame-aware kinematics: the low-level primitives (frame alignment,
+ * quaternion composition) and the two body-fixed geometry functions built on
+ * them, `subPointOf` and `bodyFixedVelocityMagnitudeOf`. Both used to be
+ * methods on `Universe`, which they needed only for a name → body lookup;
+ * they take that lookup as an argument instead, so the geometry is reachable
+ * without a universe and new helpers land here rather than on the model.
  *
  * Today only the EclipticJ2000 ↔ EquatorJ2000 (J2000 obliquity) and
  * trivial body-fixed pass-through cases are handled — covers every stock
@@ -238,4 +241,120 @@ export function bodyFixedOffsetToWorld(
     distance * Math.sin(lat),
   ];
   return rotateVecByQuat(bodyFixed, composeBodyToWorldQuat(rotationQuat, sourceFrame, worldFrame));
+}
+
+/** Resolve a body by name. `Universe.getBody` satisfies this, and it is the
+ *  only thing the two geometry helpers below need a universe for — they are
+ *  otherwise pure functions of `(body, parent, et)`. */
+export type BodyLookup = (name: string) => Body | undefined;
+
+/** A body, the parent it is active around at `et`, and that parent's rotation
+ *  model — or null when any of the three is missing.
+ *
+ *  Shared by `subPointOf` and `bodyFixedVelocityMagnitudeOf` so their null
+ *  conditions cannot drift apart: both are defined relative to the body-fixed
+ *  frame of the active parent, and neither means anything without one. The
+ *  rotation is returned rather than re-read off `parent` so callers get it
+ *  already narrowed to non-undefined. */
+function activeParentPair(
+  lookup: BodyLookup,
+  bodyName: string,
+  et: number,
+): { body: Body; parent: Body; parentRotation: RotationModel } | null {
+  const body = lookup(bodyName);
+  if (!body) return null;
+  const parentName = body.activeParentAt(et);
+  if (!parentName) return null;
+  const parent = lookup(parentName);
+  if (!parent?.rotation) return null;
+  return { body, parent, parentRotation: parent.rotation };
+}
+
+/** Planetocentric sub-point — the lat/lon on the body's active parent
+ *  (per `body.activeParentAt(et)`) directly below the body, plus altitude
+ *  above the parent's equatorial radius. Returns null when the body has
+ *  no parent, the parent has no rotation model, or out-of-coverage.
+ *
+ *  Frame composition: walks the parent rotation's `sourceFrame` and
+ *  rotates `body.stateAt(et).position` into that frame if its own
+ *  trajectory lives in a different one (EquatorJ2000 ↔ EclipticJ2000
+ *  via the J2000 obliquity). Same machinery as `BodyMesh.updatePosition`,
+ *  exposed so app-side body-fixed math doesn't have to re-derive. */
+export function subPointOf(
+  lookup: BodyLookup,
+  bodyName: string,
+  et: number,
+): { lat: number; lon: number; altKm: number } | null {
+  const pair = activeParentPair(lookup, bodyName, et);
+  if (!pair) return null;
+  const { body, parent, parentRotation } = pair;
+  let state;
+  try {
+    state = body.stateAt(et);
+  } catch {
+    return null;
+  }
+  if (!state) return null;
+  const q = parent.rotationAt(et);
+  if (!q) return null;
+  // For body-fixed bodies, state.position is already in the parent's
+  // body-fixed frame — no inertial-frame alignment is meaningful. Pass
+  // through the parent's rotation source frame so alignPositionToFrame
+  // becomes a no-op for this case.
+  const bodyFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? parentRotation.sourceFrame;
+  const aligned = alignPositionToFrame(
+    state.position,
+    bodyFrame,
+    parentRotation.sourceFrame,
+  );
+  const bf = rotateVecByQuat(aligned, q);
+  const r = Math.sqrt(bf[0] * bf[0] + bf[1] * bf[1] + bf[2] * bf[2]);
+  if (r <= 0) return null;
+  const lat = (Math.asin(bf[2] / r) * 180) / Math.PI;
+  const lon = (Math.atan2(bf[1], bf[0]) * 180) / Math.PI;
+  const surfaceRadius = parent.radii
+    ? Math.max(parent.radii[0], parent.radii[1])
+    : 0;
+  return { lat, lon, altKm: r - surfaceRadius };
+}
+
+/** Body-fixed (rotating-frame) velocity magnitude of a body relative to
+ *  its active parent, via numerical d/dt of body-fixed position. Goes to
+ *  ~0 for a landed spacecraft co-rotating with its parent; ~7.2 km/s
+ *  for a typical LEO sat (ground-track speed).
+ *
+ *  Returns null on the same conditions as `subPointOf` (missing parent /
+ *  parent rotation / out-of-coverage). `dt` defaults to 1 second — finer
+ *  is noisier, coarser smears burns. */
+export function bodyFixedVelocityMagnitudeOf(
+  lookup: BodyLookup,
+  bodyName: string,
+  et: number,
+  dt: number = 1,
+): number | null {
+  const pair = activeParentPair(lookup, bodyName, et);
+  if (!pair) return null;
+  const { body, parent, parentRotation } = pair;
+  const parentFrame = parentRotation.sourceFrame;
+  // Body-fixed bodies pass through (state.position is already in parent's
+  // body-fixed frame). Aligning a body-fixed value as an inertial source
+  // would be meaningless — make it a no-op by matching the target.
+  const scFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? parentFrame;
+  try {
+    const sA = body.stateAt(et - dt);
+    const sB = body.stateAt(et + dt);
+    const qA = parent.rotationAt(et - dt);
+    const qB = parent.rotationAt(et + dt);
+    if (!sA || !sB || !qA || !qB) return null;
+    const pA = alignPositionToFrame(sA.position, scFrame, parentFrame);
+    const pB = alignPositionToFrame(sB.position, scFrame, parentFrame);
+    const bfA = rotateVecByQuat(pA, qA);
+    const bfB = rotateVecByQuat(pB, qB);
+    const dvx = (bfB[0] - bfA[0]) / (2 * dt);
+    const dvy = (bfB[1] - bfA[1]) / (2 * dt);
+    const dvz = (bfB[2] - bfA[2]) / (2 * dt);
+    return Math.sqrt(dvx * dvx + dvy * dvy + dvz * dvz);
+  } catch {
+    return null;
+  }
 }

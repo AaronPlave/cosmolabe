@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { Body } from '../Body.js';
 import { Universe } from '../Universe.js';
+import { subPointOf, bodyFixedVelocityMagnitudeOf, type BodyLookup } from '../kinematics.js';
 import { CompositeTrajectory } from '../trajectories/CompositeTrajectory.js';
 import { FixedPointTrajectory } from '../trajectories/FixedPoint.js';
 import { UniformRotation } from '../rotations/UniformRotation.js';
 import type { Quaternion, RotationModel } from '../rotations/RotationModel.js';
+
+/** The geometry functions need only a name → body lookup; `Universe` is the
+ *  fixture here because it is what wires parents and composite-arc switches. */
+const look = (u: Universe): BodyLookup => (name) => u.getBody(name);
 
 // A rotation that's identity at every ET. Used to make sub-point math
 // deterministic without dragging in SPICE.
@@ -15,7 +20,7 @@ class IdentityRotation implements RotationModel {
   }
 }
 
-describe('Universe.subPointOf', () => {
+describe('subPointOf', () => {
   it('returns the equatorial sub-point for a body at the parent equator', () => {
     const u = new Universe();
     const earth = new Body({
@@ -33,7 +38,7 @@ describe('Universe.subPointOf', () => {
     u.addBody(earth);
     u.addBody(sat);
 
-    const sp = u.subPointOf('Sat', 0);
+    const sp = subPointOf(look(u), 'Sat', 0);
     expect(sp).not.toBeNull();
     expect(sp!.lat).toBeCloseTo(0, 5);
     expect(sp!.lon).toBeCloseTo(0, 5);
@@ -55,12 +60,12 @@ describe('Universe.subPointOf', () => {
     u.addBody(earth);
     u.addBody(sat);
 
-    expect(u.subPointOf('Sat', 0)).toBeNull();
+    expect(subPointOf(look(u), 'Sat', 0)).toBeNull();
   });
 
   it('returns null for unknown body', () => {
     const u = new Universe();
-    expect(u.subPointOf('Nope', 0)).toBeNull();
+    expect(subPointOf(look(u), 'Nope', 0)).toBeNull();
   });
 
   it('uses the active arc parent for composite trajectories', () => {
@@ -102,15 +107,15 @@ describe('Universe.subPointOf', () => {
     u.addBody(moon);
     u.addBody(probe);
 
-    const cruise = u.subPointOf('Probe', 50);
+    const cruise = subPointOf(look(u), 'Probe', 50);
     expect(cruise!.altKm).toBeCloseTo(7000 - 6378, 5);
 
-    const lunar = u.subPointOf('Probe', 150);
+    const lunar = subPointOf(look(u), 'Probe', 150);
     expect(lunar!.altKm).toBeCloseTo(1900 - 1737, 5);
   });
 });
 
-describe('Universe.bodyFixedVelocityMagnitudeOf', () => {
+describe('bodyFixedVelocityMagnitudeOf', () => {
   it('returns ~0 for a stationary body in its parent body-fixed frame', () => {
     const u = new Universe();
     const parent = new Body({
@@ -128,7 +133,7 @@ describe('Universe.bodyFixedVelocityMagnitudeOf', () => {
     u.addBody(parent);
     u.addBody(child);
 
-    const v = u.bodyFixedVelocityMagnitudeOf('Child', 0);
+    const v = bodyFixedVelocityMagnitudeOf(look(u), 'Child', 0);
     expect(v).not.toBeNull();
     expect(v!).toBeLessThan(1e-9);
   });
@@ -166,7 +171,7 @@ describe('Universe.bodyFixedVelocityMagnitudeOf', () => {
     u.addBody(parent);
     u.addBody(child);
 
-    const v = u.bodyFixedVelocityMagnitudeOf('Child', 0);
+    const v = bodyFixedVelocityMagnitudeOf(look(u), 'Child', 0);
     const expectedSurfaceSpeed = omega * moonRadiusKm; // km/s
     expect(v!).toBeCloseTo(expectedSurfaceSpeed, 5);
   });
@@ -184,7 +189,7 @@ describe('Universe.bodyFixedVelocityMagnitudeOf', () => {
     });
     u.addBody(parent);
     u.addBody(child);
-    expect(u.bodyFixedVelocityMagnitudeOf('Child', 0)).toBeNull();
+    expect(bodyFixedVelocityMagnitudeOf(look(u), 'Child', 0)).toBeNull();
   });
 });
 

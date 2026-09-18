@@ -4,7 +4,7 @@ import { CatalogLoader } from './catalog/CatalogLoader.js';
 import type { CatalogJson, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory } from './catalog/CatalogLoader.js';
 import type { CosmolabePlugin } from './plugins/Plugin.js';
 import { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
-import { alignPositionToFrame, bodyTrajectoryFrameName, rotateVecByQuat } from './kinematics.js';
+import { alignPositionToFrame, bodyTrajectoryFrameName } from './kinematics.js';
 import type { InertialFrameName } from './rotations/RotationModel.js';
 import { EventBus } from './events/EventBus.js';
 import type { UniverseEventMap } from './events/EventTypes.js';
@@ -310,99 +310,6 @@ export class Universe {
       // trajectory-line offsets, close-approach finders — can detect this and
       // skip rather than silently treating the body as if it were at the origin.
       return [NaN, NaN, NaN];
-    }
-  }
-
-  /** Planetocentric sub-point — the lat/lon on the body's active parent
-   *  (per `body.activeParentAt(et)`) directly below the body, plus altitude
-   *  above the parent's equatorial radius. Returns null when the body has
-   *  no parent, the parent has no rotation model, or out-of-coverage.
-   *
-   *  Frame composition: walks the parent rotation's `sourceFrame` and
-   *  rotates `body.stateAt(et).position` into that frame if its own
-   *  trajectory lives in a different one (EquatorJ2000 ↔ EclipticJ2000
-   *  via the J2000 obliquity). Same machinery as `BodyMesh.updatePosition`,
-   *  exposed so app-side body-fixed math doesn't have to re-derive. */
-  subPointOf(
-    bodyName: string,
-    et: number,
-  ): { lat: number; lon: number; altKm: number } | null {
-    const body = this.bodies.get(bodyName);
-    if (!body) return null;
-    const parentName = body.activeParentAt(et);
-    if (!parentName) return null;
-    const parent = this.bodies.get(parentName);
-    if (!parent || !parent.rotation) return null;
-    let state;
-    try {
-      state = body.stateAt(et);
-    } catch {
-      return null;
-    }
-    if (!state) return null;
-    const q = parent.rotationAt(et);
-    if (!q) return null;
-    // For body-fixed bodies, state.position is already in the parent's
-    // body-fixed frame — no inertial-frame alignment is meaningful. Pass
-    // through the parent's rotation source frame so alignPositionToFrame
-    // becomes a no-op for this case.
-    const bodyFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? parent.rotation.sourceFrame;
-    const aligned = alignPositionToFrame(
-      state.position,
-      bodyFrame,
-      parent.rotation.sourceFrame,
-    );
-    const bf = rotateVecByQuat(aligned, q);
-    const r = Math.sqrt(bf[0] * bf[0] + bf[1] * bf[1] + bf[2] * bf[2]);
-    if (r <= 0) return null;
-    const lat = (Math.asin(bf[2] / r) * 180) / Math.PI;
-    const lon = (Math.atan2(bf[1], bf[0]) * 180) / Math.PI;
-    const surfaceRadius = parent.radii
-      ? Math.max(parent.radii[0], parent.radii[1])
-      : 0;
-    return { lat, lon, altKm: r - surfaceRadius };
-  }
-
-  /** Body-fixed (rotating-frame) velocity magnitude of a body relative to
-   *  its active parent, via numerical d/dt of body-fixed position. Goes to
-   *  ~0 for a landed spacecraft co-rotating with its parent; ~7.2 km/s
-   *  for a typical LEO sat (ground-track speed).
-   *
-   *  Returns null on the same conditions as `subPointOf` (missing parent /
-   *  parent rotation / out-of-coverage). `dt` defaults to 1 second — finer
-   *  is noisier, coarser smears burns. */
-  bodyFixedVelocityMagnitudeOf(
-    bodyName: string,
-    et: number,
-    dt: number = 1,
-  ): number | null {
-    const body = this.bodies.get(bodyName);
-    if (!body) return null;
-    const parentName = body.activeParentAt(et);
-    if (!parentName) return null;
-    const parent = this.bodies.get(parentName);
-    if (!parent || !parent.rotation) return null;
-    const parentFrame = parent.rotation.sourceFrame;
-    // Body-fixed bodies pass through (state.position is already in parent's
-    // body-fixed frame). Aligning a body-fixed value as an inertial source
-    // would be meaningless — make it a no-op by matching the target.
-    const scFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? parentFrame;
-    try {
-      const sA = body.stateAt(et - dt);
-      const sB = body.stateAt(et + dt);
-      const qA = parent.rotationAt(et - dt);
-      const qB = parent.rotationAt(et + dt);
-      if (!sA || !sB || !qA || !qB) return null;
-      const pA = alignPositionToFrame(sA.position, scFrame, parentFrame);
-      const pB = alignPositionToFrame(sB.position, scFrame, parentFrame);
-      const bfA = rotateVecByQuat(pA, qA);
-      const bfB = rotateVecByQuat(pB, qB);
-      const dvx = (bfB[0] - bfA[0]) / (2 * dt);
-      const dvy = (bfB[1] - bfA[1]) / (2 * dt);
-      const dvz = (bfB[2] - bfA[2]) / (2 * dt);
-      return Math.sqrt(dvx * dvx + dvy * dvy + dvz * dvz);
-    } catch {
-      return null;
     }
   }
 

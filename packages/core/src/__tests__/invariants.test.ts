@@ -9,12 +9,12 @@
  *     (the obliquity-in-position bug tilted all moon orbits ~23° off the ring
  *     plane — caught from a positions-only angle, independent of Layer 1).
  *   - subPointOf altitudes are physical (≥ 0), exercising the third obliquity
- *     copy (alignPositionToFrame + rotateVecByQuat in Universe.subPointOf).
+ *     copy (alignPositionToFrame + rotateVecByQuat in kinematics' subPointOf).
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { buildScene } from './_harness/scenes.js';
 import type { BuiltScene } from './_harness/buildUniverse.js';
-import { composeBodyToWorldQuat, rotateVecByQuat, type Vec3 } from '../kinematics.js';
+import { composeBodyToWorldQuat, rotateVecByQuat, subPointOf, type Vec3 } from '../kinematics.js';
 
 function sub(a: number[], b: number[]): Vec3 {
   return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -82,7 +82,7 @@ describe('invariants: saturn-soi', () => {
   it('subPointOf altitudes are physical (≥ 0) for moons and Cassini', () => {
     const { universe, et } = scene;
     for (const name of ['Titan', 'Rhea', 'Cassini']) {
-      const sp = universe.subPointOf(name, et);
+      const sp = subPointOf((n) => universe.getBody(n), name, et);
       expect(sp, `${name} subPointOf returned null`).not.toBeNull();
       expect(sp!.altKm, `${name} altitude`).toBeGreaterThan(0);
       expect(Math.abs(sp!.lat)).toBeLessThanOrEqual(90.0001);

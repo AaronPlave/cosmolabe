@@ -3,7 +3,7 @@
  * viewer's `initScene` (apps/viewer/src/lib/loader.ts) does to turn a catalog
  * into a time-set Universe — minus all the Three.js / rendering plumbing — so
  * tests can assert on the same numeric state the renderer consumes
- * (`absolutePositionOf`, `rotationAt`, `subPointOf`).
+ * (`absolutePositionOf`, `rotationAt`, and kinematics' `subPointOf`).
  */
 import { Spice, type SpiceInstance } from '@cosmolabe/spice';
 import { createHeritageSpice } from '@cosmolabe/frames';
