@@ -19,7 +19,13 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
-import { KernelRegistry, kernelName, type KernelOwner } from './kernel-registry';
+import {
+  KernelRegistry,
+  kernelName,
+  releaseCatalogKernels,
+  type FurnishedKernel,
+  type KernelOwner,
+} from './kernel-registry';
 
 const fixture = (name: string): ArrayBuffer => {
   const buf = readFileSync(fileURLToPath(new URL(`../../../../kernels/fixtures/${name}`, import.meta.url)));
@@ -44,14 +50,35 @@ describe('replacing a scene releases its kernels', () => {
     }
   };
 
-  /** `releaseCatalogKernels`, minus the progress reporting. */
-  const release = () => {
-    for (const name of registry.releaseCatalogKernels()) spice.unload(name);
-  };
+  /**
+   * The loader's release, minus the progress reporting: unload what the last
+   * catalog furnished, and if an unload refuses, start the instance over from
+   * the entries that survive (`refurnishOnFreshSpice`).
+   *
+   * `refuse` forces that second path. CSPICE will not fail an unload on demand,
+   * and the path it guards -- registry and instance disagreeing about what is
+   * furnished -- is precisely the one that is invisible when it goes wrong.
+   */
+  const release = (refuse: string[] = []) =>
+    releaseCatalogKernels(registry, {
+      unload: (name) => {
+        if (refuse.includes(name)) throw new Error(`unload_c refused ${name}`);
+        spice.unload(name);
+      },
+      rebuild: async (keep) => {
+        spice = await createHeritageSpice();
+        const refurnished: FurnishedKernel[] = [];
+        for (const entry of keep) {
+          await spice.furnish({ type: 'buffer', data: fixture(entry.name), filename: entry.name });
+          refurnished.push(entry);
+        }
+        return refurnished;
+      },
+    });
 
   /** A scene load: out with the last catalog's, in with this one's. */
-  const loadScene = async (names: string[]) => {
-    release();
+  const loadScene = async (names: string[], refuse: string[] = []) => {
+    await release(refuse);
     await furnish(names);
   };
 
@@ -90,7 +117,7 @@ describe('replacing a scene releases its kernels', () => {
     await loadScene(SCENE_A);
     expect(spice.totalLoaded()).toBe(SCENE_A.length);
 
-    release();
+    await release();
     // Nothing of the scene is left loaded -- which is the memory claim, since
     // CSPICE holds a kernel's bytes for exactly as long as it is furnished.
     expect(spice.totalLoaded()).toBe(0);
@@ -104,6 +131,27 @@ describe('replacing a scene releases its kernels', () => {
     await loadScene(SCENE_B);
 
     expect(() => cassiniQuery()).not.toThrow();
+    expect(() => moonQuery()).not.toThrow();
+  }, 180_000);
+
+  it('starts the instance over when an unload refuses', async () => {
+    // The failure the review of #70 caught: unload fails, the entry is already
+    // gone from the registry, and the kernel stays furnished -- so the scene's
+    // workers are built from a list the main thread no longer matches, and a
+    // kernel belonging to no scene goes on answering main-thread geometry.
+    await furnish(['cas_iss_v10.ti'], 'user');
+    await loadScene(SCENE_A);
+    expect(() => cassiniQuery()).not.toThrow();
+
+    await loadScene(SCENE_B, ['cassini-soi.bsp']);
+
+    // The kernel that refused to unload is gone with the instance that would
+    // not let go of it, rather than left answering for a scene that is over.
+    expect(() => cassiniQuery()).toThrow();
+    // And the instance holds exactly what the registry still claims: the user's
+    // drop, which the rebuild restored, then Scene B's own.
+    expect(registry.entries.map((e) => e.name)).toEqual(['cas_iss_v10.ti', ...SCENE_B]);
+    expect(spice.totalLoaded()).toBe(1 + SCENE_B.length);
     expect(() => moonQuery()).not.toThrow();
   }, 180_000);
 });

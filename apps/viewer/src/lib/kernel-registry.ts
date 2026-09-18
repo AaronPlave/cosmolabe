@@ -27,6 +27,8 @@
  * re-furnish.
  */
 
+import { kernelNameFromUrl } from '@cosmolabe/frames';
+
 /** A kernel a worker can be given: fetched by URL, or read from a dropped file. */
 export type KernelSourceRef = { url: string } | { file: File };
 
@@ -68,24 +70,19 @@ export function isWorkerKernel(name: string): boolean {
   return WORKER_KERNEL_EXTS.some((ext) => lower.endsWith(ext));
 }
 
-function basename(url: string): string {
-  try {
-    return new URL(url).pathname.split('/').pop() || url;
-  } catch {
-    return url.split('/').pop() ?? url;
-  }
-}
-
 /**
  * The name SPICE knows a kernel by.
  *
  * It has to match what was handed to `furnish`, because it is what `unload`
- * and the per-file coverage queries take. A URL is furnished under its
- * basename with any `.gz` stripped (the bytes are decompressed on the way in);
- * a dropped file is furnished under its own name, verbatim.
+ * and the per-file coverage queries take -- and what the workers name the same
+ * kernel, or their sets cannot be compared. So a URL goes through the adapter's
+ * own `kernelNameFromUrl` rather than a second basename rule here: a signed URL
+ * whose query string one side kept and the other dropped would be furnished
+ * under one name and unloaded under another, and nothing would say so. A
+ * dropped file is furnished under its own name, verbatim.
  */
 export function kernelName(source: KernelSourceRef): string {
-  return 'url' in source ? basename(source.url).replace(/\.gz$/i, '') : source.file.name;
+  return 'url' in source ? kernelNameFromUrl(source.url) : source.file.name;
 }
 
 /** The furnished set: one ordered list, filtered for the workers, pruned per scene. */
@@ -114,6 +111,17 @@ export class KernelRegistry {
     return this.#entries.filter((e) => isWorkerKernel(e.name)).map((e) => e.source);
   }
 
+  /** Drop one entry, for a kernel the SPICE instance turned out not to have. */
+  forget(entry: FurnishedKernel): void {
+    const at = this.#entries.indexOf(entry);
+    if (at >= 0) this.#entries.splice(at, 1);
+  }
+
+  /** Forget everything, for an instance that had to be abandoned wholesale. */
+  clear(): void {
+    this.#entries = [];
+  }
+
   /**
    * Forget every catalog-owned kernel and report what to unload.
    *
@@ -135,4 +143,84 @@ export class KernelRegistry {
     }
     return names;
   }
+}
+
+/**
+ * What a release needs of the SPICE instance behind the registry.
+ *
+ * An interface rather than the instance itself so the failure path below is
+ * reachable from a test: it is the path that cannot be exercised by asking a
+ * healthy CSPICE to misbehave.
+ */
+export interface KernelReleaseHost {
+  /** Unload one kernel by the name it was furnished under. Throws on failure. */
+  unload(name: string): void;
+  /**
+   * Abandon the SPICE instance, start a fresh one, and re-furnish `keep` in
+   * order. Returns the entries that came back -- anything missing from the
+   * result is a kernel the new instance does not have.
+   */
+  rebuild(keep: readonly FurnishedKernel[]): Promise<readonly FurnishedKernel[]>;
+}
+
+export interface KernelReleaseResult {
+  /** The names the release tried to unload. */
+  readonly released: readonly string[];
+  /** The ones that would not unload, which is what forced a rebuild. */
+  readonly failed: readonly string[];
+  /** Whether the instance had to be replaced rather than unloaded from. */
+  readonly rebuilt: boolean;
+}
+
+/**
+ * Release the previous catalog's kernels, leaving the registry and the SPICE
+ * instance agreeing about what is furnished.
+ *
+ * That agreement is the whole point, and it is why a failed unload cannot just
+ * be logged. The registry is what the new scene's workers are built from, so an
+ * entry dropped here while the kernel stayed furnished on the main thread gives
+ * the two paths different kernel sets -- the exact thing this module exists to
+ * prevent -- and leaves a kernel no longer belonging to any scene answering
+ * main-thread geometry for the rest of the session. Leaving the entry in place
+ * instead is no better: Scene B would go on seeing Scene A's kernel, knowingly.
+ *
+ * So an unload that fails escalates: the instance is abandoned and rebuilt from
+ * the entries that survive, which is the one outcome that is true of both sides
+ * however the unload failed. A survivor the rebuild cannot re-furnish (a dropped
+ * file the user has since moved) is forgotten with it, because the new instance
+ * really does not have it. If the rebuild itself fails the registry is emptied
+ * and the error is raised: the scene load that called this is abandoned, and
+ * nothing downstream gets to believe in kernels that are not there.
+ */
+export async function releaseCatalogKernels(
+  registry: KernelRegistry,
+  host: KernelReleaseHost,
+): Promise<KernelReleaseResult> {
+  const released = registry.releaseCatalogKernels();
+  if (released.length === 0) return { released, failed: [], rebuilt: false };
+
+  const failed: string[] = [];
+  for (const name of released) {
+    try {
+      host.unload(name);
+    } catch {
+      failed.push(name);
+    }
+  }
+  if (failed.length === 0) return { released, failed, rebuilt: false };
+
+  const keep = [...registry.entries];
+  let refurnished: readonly FurnishedKernel[];
+  try {
+    refurnished = await host.rebuild(keep);
+  } catch (err) {
+    registry.clear();
+    throw err;
+  }
+
+  const kept = new Set(refurnished);
+  for (const entry of keep) {
+    if (!kept.has(entry)) registry.forget(entry);
+  }
+  return { released, failed, rebuilt: true };
 }
