@@ -8,6 +8,11 @@ dist/
 .env.*.local
 CLAUDE.md
 
+# Vendored CSPICE source, cloned and built by
+# packages/cspice-wasm/scripts/build-cspice.sh. The build's outputs
+# (wasm/cspice.mjs, wasm/cspice.wasm) are committed; its ~2000 C inputs are not.
+vendor/
+
 # TypeScript build info
 *.tsbuildinfo
 

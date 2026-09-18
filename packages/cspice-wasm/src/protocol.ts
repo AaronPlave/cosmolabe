@@ -20,6 +20,24 @@ import type {
   Vec3,
 } from './index.js';
 import type { EvalSeriesResult, EvalSpec } from './eval-series.js';
+import type { GfSearchReport } from './index.js';
+
+/**
+ * The half of a {@link GfSearchReport} that survives structured cloning.
+ *
+ * A progress callback does not cross a worker boundary, so the request asks for
+ * progress and the worker answers with `progress` responses the client routes
+ * back to the caller's callback. The cancellation flag does cross, because it is
+ * shared memory -- and it has to be shared memory for the same reason it exists:
+ * a worker blocked in a synchronous CSPICE call cannot read its own message
+ * queue, so nothing short of shared memory reaches the running search.
+ */
+export interface GfWorkerReport {
+  /** Post `progress` responses for this request. */
+  progress?: boolean;
+  /** Shared cancellation flag; see {@link GfSearchReport.cancelFlag}. */
+  cancelFlag?: Int32Array;
+}
 
 export type SpiceWorkerRequest =
   | { id: number; method: 'furnsh'; name: string; bytes: Uint8Array }
@@ -66,6 +84,7 @@ export type SpiceWorkerRequest =
       step: number;
       start: number;
       stop: number;
+      report?: GfWorkerReport;
     }
   | {
       id: number;
@@ -78,6 +97,7 @@ export type SpiceWorkerRequest =
       step: number;
       start: number;
       stop: number;
+      report?: GfWorkerReport;
     }
   | {
       id: number;
@@ -96,6 +116,7 @@ export type SpiceWorkerRequest =
       step: number;
       start: number;
       stop: number;
+      report?: GfWorkerReport;
     }
   | {
       id: number;
@@ -112,6 +133,7 @@ export type SpiceWorkerRequest =
       step: number;
       start: number;
       stop: number;
+      report?: GfWorkerReport;
     }
   | {
       id: number;
@@ -268,4 +290,39 @@ export type SpiceWorkerResultMap = {
 
 export type SpiceWorkerResponse =
   | { id: number; ok: true; result: unknown }
-  | { id: number; ok: false; error: string; shortMessage?: string };
+  | {
+      id: number;
+      ok: false;
+      error: string;
+      shortMessage?: string;
+      /**
+       * The thrown error's class name, so the client can rebuild the type
+       * instead of flattening every failure to SpiceError.
+       *
+       * It has to cross: an interrupted search rejects with
+       * SpiceSearchCancelled, and {@link GfSearchReport} promises that to
+       * worker callers as much as to in-process ones. A caller has to tell "you
+       * stopped this" from "this failed", and a message string is not a type.
+       */
+      name?: string;
+    }
+  /**
+   * An in-flight geometry search reporting how far it has got. Carries no `ok`,
+   * because the request is not finished: more progress, and then a result or an
+   * error, still follow under the same id.
+   */
+  | { id: number; progress: { fraction: number; pass: number } };
+
+/**
+ * The response that ends a request, as opposed to an interim progress report.
+ *
+ * A request gets any number of `progress` messages and then exactly one of
+ * these, so a caller collecting results keys on this type and lets progress
+ * through separately.
+ */
+export type SpiceWorkerResult = Extract<SpiceWorkerResponse, { ok: boolean }>;
+
+/** True for the response that ends a request; false for an interim progress report. */
+export function isWorkerResult(res: SpiceWorkerResponse): res is SpiceWorkerResult {
+  return !('progress' in res);
+}

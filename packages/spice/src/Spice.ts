@@ -55,6 +55,8 @@ export interface SpiceInstance {
   spkcov(idcode: number): TimeWindow[];
   /** Return the NAIF IDs of all bodies present in the named SPK kernel. The kernel must be furnished. */
   spkobj(filename: string): number[];
+  /** Return the coverage of one SPK file, unioned over every body it carries. */
+  spkFileCoverage(filename: string): TimeWindow[];
   // FOV
   getfov(instId: number, maxBounds?: number): InstrumentFov;
   fovray(inst: string, raydir: Vec3, rframe: string, abcorr: AberrationCorrection, observer: string, et: number): boolean;
@@ -656,6 +658,38 @@ export class Spice implements SpiceInstance {
       return ids;
     } finally {
       this.freeSpiceCell(cell);
+    }
+  }
+
+  /**
+   * Coverage of one SPK file, unioned over every body it carries.
+   *
+   * {@link spkcov} answers the opposite question -- one body across every
+   * loaded file -- which cannot say whether a particular file is worth loading
+   * at all. That is what this is for: a search confined to a window can only be
+   * served by segments covering that window, so a file whose coverage misses it
+   * contributes nothing and need not be furnished.
+   *
+   * `spkcov_c` unions into the cell it is given, so one cell accumulates every
+   * body's coverage and comes back as the file's envelope, already merged and
+   * sorted by SPICE itself.
+   */
+  spkFileCoverage(filename: string): TimeWindow[] {
+    const path = this.fileMap.get(filename) ?? filename;
+    const MAXWIN = 10000;
+    const coverCell = this.createEmptySpiceWindow(MAXWIN);
+    try {
+      for (const id of this.spkobj(filename)) {
+        this.module.ccall('spkcov_c', null, ['string', 'number', 'number'], [path, id, coverCell.cellPtr]);
+        // As in spkcov: "no coverage for this id in this file" is signalled as a
+        // failure but is not one, and leaving it set would fail the next call.
+        if (this.module.ccall('failed_c', 'number', [], [])) {
+          this.module.ccall('reset_c', null, [], []);
+        }
+      }
+      return this.readSpiceWindow(coverCell.cellPtr);
+    } finally {
+      this.freeSpiceCell(coverCell);
     }
   }
 

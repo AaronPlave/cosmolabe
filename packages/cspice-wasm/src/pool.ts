@@ -77,14 +77,14 @@ export function createSpiceWorkerPool(workers: Worker[]): SpiceWorkerPool {
     oscelt: (state, et, mu) => next().oscelt(state, et, mu),
     conics: (elements, et) => next().conics(elements, et),
     prop2b: (mu, state, dt) => next().prop2b(mu, state, dt),
-    gfoclt: (occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop) =>
-      next().gfoclt(occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop),
-    gfdist: (target, abcorr, observer, relate, refval, step, start, stop) =>
-      next().gfdist(target, abcorr, observer, relate, refval, step, start, stop),
-    gfsep: (targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop) =>
-      next().gfsep(targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop),
-    gfposc: (target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop) =>
-      next().gfposc(target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop),
+    gfoclt: (occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop, report) =>
+      next().gfoclt(occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop, report),
+    gfdist: (target, abcorr, observer, relate, refval, step, start, stop, report) =>
+      next().gfdist(target, abcorr, observer, relate, refval, step, start, stop, report),
+    gfsep: (targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop, report) =>
+      next().gfsep(targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop, report),
+    gfposc: (target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop, report) =>
+      next().gfposc(target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop, report),
     occult: (targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, et) =>
       next().occult(targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, et),
     spkposBatch: (target, etArray, frame, abcorr, observer) =>

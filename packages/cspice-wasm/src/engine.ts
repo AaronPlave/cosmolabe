@@ -4,8 +4,27 @@
 // off the main thread; both paths share these bindings.
 
 import CSpice from 'cspice-wasm/wasm/cspice.mjs';
-import { SpiceBindings } from './bindings.js';
-import type { AberrationCorrection, SpiceEngine } from './index.js';
+import { SpiceBindings, type GfReport } from './bindings.js';
+import type { AberrationCorrection, GfSearchReport, SpiceEngine } from './index.js';
+
+/**
+ * A caller's {@link GfSearchReport} as the bindings want it, or null when there
+ * is nothing to report and nothing to interrupt -- in which case the search goes
+ * through the simplified gf*_c wrapper, exactly as it did before reporting
+ * existed.
+ *
+ * The cancellation flag becomes a predicate here rather than crossing into the
+ * bindings as data: the bindings call it from inside the running CSPICE search,
+ * where reading one shared word is all that is safe to do.
+ */
+function bindingReport(report: GfSearchReport | undefined): GfReport | null {
+  if (!report || (!report.onProgress && !report.cancelFlag)) return null;
+  const flag = report.cancelFlag;
+  return {
+    onProgress: report.onProgress,
+    shouldBail: flag ? (): boolean => Atomics.load(flag, 0) !== 0 : undefined,
+  };
+}
 
 export interface SpiceEngineOptions {
   /** Resolve the cspice.wasm URL. Bundlers (Vite) pass the emitted asset URL. */
@@ -73,17 +92,29 @@ export function spiceEngineOver(bindings: SpiceBindings): SpiceEngine {
     async prop2b(mu, state, dt) {
       return bindings.prop2b(mu, state, dt);
     },
-    async gfoclt(occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop) {
-      return bindings.gfoclt(occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop);
+    async gfoclt(occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop, report) {
+      const r = bindingReport(report);
+      return r
+        ? bindings.gfocltReporting(occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop, r)
+        : bindings.gfoclt(occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop);
     },
-    async gfdist(target, abcorr, observer, relate, refval, step, start, stop) {
-      return bindings.gfdist(target, abcorr, observer, relate, refval, step, start, stop);
+    async gfdist(target, abcorr, observer, relate, refval, step, start, stop, report) {
+      const r = bindingReport(report);
+      return r
+        ? bindings.gfdistReporting(target, abcorr, observer, relate, refval, step, start, stop, r)
+        : bindings.gfdist(target, abcorr, observer, relate, refval, step, start, stop);
     },
-    async gfsep(targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop) {
-      return bindings.gfsep(targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop);
+    async gfsep(targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop, report) {
+      const r = bindingReport(report);
+      return r
+        ? bindings.gfsepReporting(targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop, r)
+        : bindings.gfsep(targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop);
     },
-    async gfposc(target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop) {
-      return bindings.gfposc(target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop);
+    async gfposc(target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop, report) {
+      const r = bindingReport(report);
+      return r
+        ? bindings.gfposcReporting(target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop, r)
+        : bindings.gfposc(target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop);
     },
     async occult(targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, et) {
       return bindings.occult(targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, et);

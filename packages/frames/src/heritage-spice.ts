@@ -53,12 +53,19 @@
 import {
   createSpiceBindings,
   SpiceError,
+  SpiceSearchCancelled,
+  type GfReport,
   type SpiceBindings,
   type AberrationCorrection,
   type SpiceEngineOptions,
   type Vec3 as WVec3,
 } from 'cspice-wasm';
 import { framesLayerOver, type FramesLayer } from './frames.js';
+
+// Re-exported so a caller that interrupts a search can recognise the result
+// without taking a dependency on cspice-wasm of its own: the adapter is the
+// seam, and this error crosses it.
+export { SpiceSearchCancelled };
 
 // ── structural mirrors of the @cosmolabe/spice types ────────────────────────
 
@@ -105,12 +112,51 @@ export interface HInstrumentFov {
   boresight: HVec3;
   bounds: HVec3[];
 }
+/**
+ * Progress reporting and interruption for one geometry-finder call.
+ *
+ * Optional on every gf* method below, and present only on this adapter: the
+ * heritage `Spice` these signatures mirror has no way to report progress or be
+ * interrupted, because the simplified CSPICE wrappers it calls take neither
+ * handler. Omit it and the call goes through those wrappers exactly as before.
+ *
+ * `shouldBail` is polled from inside the running CSPICE call, so it must answer
+ * from state the caller already has -- reading a shared word, not waiting on a
+ * message, which a thread blocked in CSPICE could never receive.
+ */
+export interface HGfReport {
+  /** Fraction (0..1) of the whole search window covered, and the running pass number. */
+  onProgress?: (fraction: number, pass: number) => void;
+  /** Polled during the search; returning true aborts it, throwing SpiceSearchCancelled. */
+  shouldBail?: () => boolean;
+}
+
 export type HKernelSource =
   | { type: 'file'; path: string }
   | { type: 'url'; url: string }
   | { type: 'buffer'; data: ArrayBuffer; filename: string };
 
 const vec = (v: WVec3): HVec3 => [v.x, v.y, v.z];
+
+/**
+ * Coverage intervals, ascending and merged -- the shape heritage `spkcov`
+ * returns, and the charter's "ascending and merged" above.
+ *
+ * Adjacent rather than merely overlapping intervals are joined too (`start <=
+ * last.end`), because a body whose coverage is split across two SPKs that abut
+ * exactly has continuous coverage, and reporting a seam there would invite a
+ * caller to refuse an epoch SPICE can actually answer for.
+ */
+function mergeWindows(raw: [number, number][]): HTimeWindow[] {
+  raw.sort((a, b) => a[0] - b[0]);
+  const merged: HTimeWindow[] = [];
+  for (const [start, end] of raw) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last.end) last.end = Math.max(last.end, end);
+    else merged.push({ start, end });
+  }
+  return merged;
+}
 
 /** The SpiceInstance-compatible surface plus the seam beneath it. */
 export interface HeritageSpice {
@@ -203,6 +249,7 @@ export interface HeritageSpice {
     adjust: number,
     step: number,
     cnfine: HTimeWindow[],
+    report?: HGfReport,
   ): HTimeWindow[];
   gfsep(
     target1: string,
@@ -218,6 +265,7 @@ export interface HeritageSpice {
     adjust: number,
     step: number,
     cnfine: HTimeWindow[],
+    report?: HGfReport,
   ): HTimeWindow[];
   gfoclt(
     occtyp: string,
@@ -231,6 +279,7 @@ export interface HeritageSpice {
     observer: string,
     step: number,
     cnfine: HTimeWindow[],
+    report?: HGfReport,
   ): HTimeWindow[];
   gfdist(
     target: string,
@@ -241,9 +290,11 @@ export interface HeritageSpice {
     adjust: number,
     step: number,
     cnfine: HTimeWindow[],
+    report?: HGfReport,
   ): HTimeWindow[];
   spkcov(idcode: number): HTimeWindow[];
   spkobj(filename: string): number[];
+  spkFileCoverage(filename: string): HTimeWindow[];
   getfov(instId: number, maxBounds?: number): HInstrumentFov;
   fovray(
     inst: string,
@@ -304,12 +355,38 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
   const windows = (intervals: [number, number][]): HTimeWindow[] =>
     intervals.map(([start, end]) => ({ start, end }));
 
+  /**
+   * Run a finder once per confinement interval and concatenate the results.
+   *
+   * When the caller asked for a report, the progress fraction each CSPICE call
+   * hands back is of *that* interval, so it is rescaled into the whole window by
+   * duration -- a caller with a two-interval window should see one bar cross
+   * once, not twice. The pass number goes through untouched: it says which pass
+   * of the CSPICE search is running, and rescaling would make it a lie.
+   */
   const overCnfine = (
     cnfine: HTimeWindow[],
-    find: (start: number, stop: number) => [number, number][],
+    report: HGfReport | undefined,
+    find: (start: number, stop: number, report: GfReport | null) => [number, number][],
   ): HTimeWindow[] => {
     const out: HTimeWindow[] = [];
-    for (const w of cnfine) out.push(...windows(find(w.start, w.end)));
+    const total = cnfine.reduce((n, w) => n + Math.max(0, w.end - w.start), 0);
+    let done = 0;
+    for (const w of cnfine) {
+      const span = Math.max(0, w.end - w.start);
+      const before = done;
+      const scoped: GfReport | null = report?.onProgress || report?.shouldBail
+        ? {
+            onProgress: report.onProgress
+              ? (fraction: number, pass: number) =>
+                  report.onProgress!(total > 0 ? (before + fraction * span) / total : fraction, pass)
+              : undefined,
+            shouldBail: report.shouldBail,
+          }
+        : null;
+      out.push(...windows(find(w.start, w.end, scoped)));
+      done += span;
+    }
     return out;
   };
 
@@ -456,38 +533,55 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
       return bindings.bodn2c(name);
     },
 
-    gfposc(target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, cnfine) {
-      return overCnfine(cnfine, (start, stop) =>
-        bindings.gfposc(
-          target, frame, abcorr as AberrationCorrection, observer,
-          crdsys, coord, relate, refval, adjust, step, start, stop,
-        ),
+    gfposc(target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, cnfine, report) {
+      return overCnfine(cnfine, report, (start, stop, r) =>
+        r
+          ? bindings.gfposcReporting(
+              target, frame, abcorr as AberrationCorrection, observer,
+              crdsys, coord, relate, refval, adjust, step, start, stop, r,
+            )
+          : bindings.gfposc(
+              target, frame, abcorr as AberrationCorrection, observer,
+              crdsys, coord, relate, refval, adjust, step, start, stop,
+            ),
       );
     },
-    gfsep(target1, shape1, frame1, target2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, cnfine) {
-      return overCnfine(cnfine, (start, stop) =>
-        bindings.gfsep(
-          target1, shape1, frame1, target2, shape2, frame2,
-          abcorr as AberrationCorrection, observer, relate, refval, adjust, step, start, stop,
-        ),
+    gfsep(target1, shape1, frame1, target2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, cnfine, report) {
+      return overCnfine(cnfine, report, (start, stop, r) =>
+        r
+          ? bindings.gfsepReporting(
+              target1, shape1, frame1, target2, shape2, frame2,
+              abcorr as AberrationCorrection, observer, relate, refval, adjust, step, start, stop, r,
+            )
+          : bindings.gfsep(
+              target1, shape1, frame1, target2, shape2, frame2,
+              abcorr as AberrationCorrection, observer, relate, refval, adjust, step, start, stop,
+            ),
       );
     },
-    gfoclt(occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, cnfine) {
-      return overCnfine(cnfine, (start, stop) =>
-        bindings.gfoclt(
-          occtyp, front, fshape, fframe, back, bshape, bframe,
-          abcorr as AberrationCorrection, observer, step, start, stop,
-        ),
+    gfoclt(occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, cnfine, report) {
+      return overCnfine(cnfine, report, (start, stop, r) =>
+        r
+          ? bindings.gfocltReporting(
+              occtyp, front, fshape, fframe, back, bshape, bframe,
+              abcorr as AberrationCorrection, observer, step, start, stop, r,
+            )
+          : bindings.gfoclt(
+              occtyp, front, fshape, fframe, back, bshape, bframe,
+              abcorr as AberrationCorrection, observer, step, start, stop,
+            ),
       );
     },
-    gfdist(target, abcorr, observer, relate, refval, adjust, step, cnfine) {
+    gfdist(target, abcorr, observer, relate, refval, adjust, step, cnfine, report) {
       if (adjust !== 0) {
         throw new SpiceError(
           'gfdist: the cspice-wasm wrapper does not carry the adjust parameter; extend it deliberately if a nonzero adjust caller appears',
         );
       }
-      return overCnfine(cnfine, (start, stop) =>
-        bindings.gfdist(target, abcorr as AberrationCorrection, observer, relate, refval, step, start, stop),
+      return overCnfine(cnfine, report, (start, stop, r) =>
+        r
+          ? bindings.gfdistReporting(target, abcorr as AberrationCorrection, observer, relate, refval, step, start, stop, r)
+          : bindings.gfdist(target, abcorr as AberrationCorrection, observer, relate, refval, step, start, stop),
       );
     },
 
@@ -497,17 +591,27 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
         if (!/\.bsp$/i.test(k.name)) continue;
         raw.push(...bindings.spkCoverage(k.name, idcode));
       }
-      raw.sort((a, b) => a[0] - b[0]);
-      const merged: HTimeWindow[] = [];
-      for (const [start, end] of raw) {
-        const last = merged[merged.length - 1];
-        if (last && start <= last.end) last.end = Math.max(last.end, end);
-        else merged.push({ start, end });
-      }
-      return merged;
+      return mergeWindows(raw);
     },
     spkobj(filename) {
       return bindings.spkObjects(filename);
+    },
+
+    /**
+     * One file's coverage, unioned over every body it carries.
+     *
+     * The transpose of `spkcov`, which asks about one body across every loaded
+     * file. This asks whether a *file* is worth loading at all, which is a
+     * question `spkcov` cannot answer: a search confined to a window can only
+     * be served by segments covering it, so a file whose coverage misses the
+     * window need not be furnished into a worker at all.
+     */
+    spkFileCoverage(filename) {
+      const raw: [number, number][] = [];
+      for (const body of bindings.spkObjects(filename)) {
+        raw.push(...bindings.spkCoverage(filename, body));
+      }
+      return mergeWindows(raw);
     },
 
     getfov(instId, maxBounds = 20) {

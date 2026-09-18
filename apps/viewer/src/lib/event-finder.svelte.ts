@@ -8,14 +8,15 @@
  * the async run with its in-flight bookkeeping and cancellation, and turning a
  * selected event into simulation time plus a 3D highlight.
  *
- * Searches run in the SPICE worker whenever the scene has one. That is not an
- * optimisation: CSPICE's GF routines are synchronous, so a search on the main
- * thread freezes the viewer — no camera, no scrubber, not even a spinner —
- * for as long as it runs, which a one-minute step over a multi-year window
- * makes seconds. The worker already has the catalog's kernels furnished for
- * the trajectory caches, so the search costs no loading of its own. The
- * main-thread provider stays as the fallback for scenes with no worker (test
- * mode, and kernel-free catalogs).
+ * Searches run in a SPICE worker of their own whenever the scene has one. That
+ * is not an optimisation: CSPICE's GF routines are synchronous, so a search on
+ * the main thread freezes the viewer — no camera, no scrubber, not even a
+ * spinner — for as long as it runs, which a one-minute step over a multi-year
+ * window makes seconds. It is a worker of its own rather than the trajectory
+ * cache's so that cancelling a search may terminate it, and so that a long
+ * search does not starve the cache builds queued behind it. The main-thread
+ * provider stays as the fallback for scenes with no worker (test mode, and
+ * kernel-free catalogs).
  */
 import {
   EventSearch,
@@ -35,8 +36,8 @@ import {
   type GeometryFinderProvider,
 } from '@cosmolabe/core';
 import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
-import { GeometrySearchCancelled } from '@cosmolabe/three';
-import { getCacheWorker, getSpice } from './loader';
+import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
+import { geometryScopeForWindow, getGeometryWorker, getSpice } from './loader';
 import {
   activeEventAtTime,
   buildQuery,
@@ -99,8 +100,28 @@ export function spiceGeometryFinder(spice: SpiceInstance): GeometryFinderProvide
 interface RunningSearch {
   provider: GeometryFinderProvider;
   cancel(): void;
+  /**
+   * The whole search is over, however it ended.
+   *
+   * Said here because this is the only layer that knows: below it a search is
+   * an unpredictable sequence of provider calls, and the last is
+   * indistinguishable from the rest. The worker path uses it to decide when its
+   * worker may be released.
+   */
+  finish(): void;
   readonly cancelled: boolean;
 }
+
+/**
+ * Progress of the geometry call currently running, or null when there is none
+ * to be had.
+ *
+ * Null on the main-thread path: the fraction comes from CSPICE's own progress
+ * reporter, which only the general GF entry points accept, and only the worker's
+ * adapter calls those. A search without it shows an indeterminate spinner, which
+ * is what every search showed before.
+ */
+export type SearchProgress = GeometrySearchProgress | null;
 
 /**
  * The provider this search will use: the worker's when there is one, the main
@@ -110,9 +131,25 @@ interface RunningSearch {
  * the same kernels, with the arguments passed through untouched — so the choice
  * is about where the time is spent, not about what comes back.
  */
-function beginSearch(spice: SpiceInstance): RunningSearch {
-  const worker = getCacheWorker();
-  if (worker) return worker.geometrySearch();
+function beginSearch(spice: SpiceInstance, window: EtInterval): RunningSearch {
+  const worker = getGeometryWorker();
+  if (worker) {
+    // Only the search that owns the panel writes to it. A superseded search can
+    // still report for a moment before it stops, and its progress is nobody's.
+    let self: RunningSearch | null = null;
+    self = worker.search({
+      // The window is what decides which kernels the worker needs: an SPK whose
+      // coverage misses it cannot contribute to the answer, and the geometry
+      // worker holds its own copy of everything it is given. For a mission-length
+      // catalog that is the difference between a second copy of the catalog and a
+      // second copy of the two files this search can actually reach.
+      scope: geometryScopeForWindow(window),
+      onProgress: (progress) => {
+        if (active === self) ef.progress = progress;
+      },
+    });
+    return self;
+  }
 
   // No worker: the calls block, and nothing can change that. Cancelling still
   // stops the *next* call, which is why the guard is here rather than only in
@@ -129,6 +166,9 @@ function beginSearch(spice: SpiceInstance): RunningSearch {
   return {
     get cancelled() { return cancelled; },
     cancel() { cancelled = true; },
+    // Nothing to release: these calls run on the main thread's own instance,
+    // which the viewer keeps for as long as the scene is loaded.
+    finish() {},
     provider: {
       gfdist: guard(base.gfdist),
       gfsep: guard(base.gfsep),
@@ -206,6 +246,13 @@ export const ef = $state({
   form: null as EventQueryForm | null,
   /** True while a search is in flight. */
   running: false,
+  /**
+   * How far the running search's current geometry call has got, or null when
+   * the path it is running on cannot say. See {@link SearchProgress}: it is the
+   * fraction of one call's window, not of the search, so it can restart —
+   * a determinate bar for the step, never a prediction of the whole.
+   */
+  progress: null as SearchProgress,
   /** Results of the last completed search, chronological. */
   events: [] as GeometryEvent[],
   /** Why the last search could not run. Null when it ran, even if it found nothing. */
@@ -571,12 +618,13 @@ export async function runSearch() {
   // frees the worker for the one they do want.
   active?.cancel();
 
-  const running = beginSearch(spice);
+  const running = beginSearch(spice, { start: ef.form.startEt, end: ef.form.endEt });
   active = running;
   const search = new EventSearch({ registry, provider: running.provider });
   const token = ++inFlight;
 
   ef.running = true;
+  ef.progress = null;
   ef.selectedId = null;
   try {
     // Resolution applies the shared context defaults but preserves this item's
@@ -604,20 +652,31 @@ export async function runSearch() {
     // abandoned by an edit to the form has had its token retired, and checking
     // that instead would leave "Searching…" on screen forever. A search
     // superseded by a *newer* one leaves both alone — the new one owns them.
+    // Every search says it is done, including one superseded by a newer search:
+    // the claim on the worker is this search's to release either way, and the
+    // newer one has already made its own.
+    running.finish();
     if (active === running) {
       active = null;
       ef.running = false;
+      ef.progress = null;
     }
   }
 }
 
 /**
- * Abandons the running search.
+ * Stops the running search.
  *
- * What stops is every call the search has not made yet. A CSPICE call already
- * under way finishes either way — it is synchronous, and there is no point at
- * which it could be interrupted — but on the worker path the viewer is not
- * waiting on it, and its answer is discarded.
+ * Every call it has not made yet stops, and on the worker path so does the one
+ * CSPICE is executing right now — by terminating the geometry worker, which is
+ * the one thing that stops synchronous wasm, since a worker blocked inside
+ * CSPICE will not read its own message queue. So the executing call stops and
+ * the next search does not queue behind an abandoned one.
+ *
+ * Terminating is survivable because searches have a worker of their own: the
+ * trajectory caches are on another and are untouched. The next search rebuilds
+ * it and re-furnishes, which is why cancelling one search and immediately
+ * running another costs about a second.
  */
 export function cancelSearch() {
   active?.cancel();

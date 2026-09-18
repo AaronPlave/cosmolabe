@@ -25,10 +25,11 @@ import type { SpiceInstance } from '@cosmolabe/spice';
 import { createHeritageSpice } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin, captureFrameDataUrl } from '@cosmolabe/three';
-import type { KernelSource } from '@cosmolabe/three';
+import { GeometrySearchWorker, type GeometrySearchScope, type KernelSource } from '@cosmolabe/three';
 import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmolabe/control';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
+import { kernelSetKey, kernelsForWindow, type KernelWindow } from './geometry-kernels';
 import {
   bindRenderer,
   gotoObject,
@@ -50,6 +51,37 @@ let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
 /**
+ * How long the geometry worker may sit idle before it is released.
+ *
+ * It costs 235 MB on the Cassini catalog -- a CSPICE instance's fixed 160 MB
+ * heap plus the kernels its last search needed -- and the event finder is used
+ * in bursts. Holding that between bursts is the worse trade: coming back to it
+ * costs about a second (the wasm instantiates in tens of milliseconds, and the
+ * narrowed kernel set furnishes at roughly 7-20 ms per megabyte after its
+ * fetch, which the browser's HTTP cache serves), against searches that
+ * themselves take seconds.
+ *
+ * A minute rather than something tighter because every call pushes the release
+ * back, so this is the gap after which someone has plainly stopped searching --
+ * not a budget for one search. Editing a query and re-running never pays it.
+ */
+const GEOMETRY_WORKER_IDLE_MS = 60_000;
+
+/**
+ * Searches run here, not on the cache worker.
+ *
+ * Two reasons, both about the fact that CSPICE is synchronous and a worker has
+ * one thread. A search sharing the cache worker blocks every trajectory build
+ * queued behind it for as long as it runs; and cancelling a running search means
+ * terminating its worker -- the only thing that stops synchronous wasm -- which
+ * is survivable only if that worker holds nothing else. Built on the first
+ * search, not here.
+ */
+let geometryWorker: GeometrySearchWorker | null = null;
+
+/** A kernel the worker can be given: fetched by URL, or read from a dropped file. */
+type WorkerKernelSource = { url: string } | { file: File };
+/**
  * Every kernel furnished on the main thread, in furnish order.
  *
  * One ordered list rather than a list per source, because furnish order *is*
@@ -58,9 +90,100 @@ let cacheWorker: SpiceCacheWorker | null = null;
  * question. A dropped kernel is furnished before the catalog's own (the drop
  * handler furnishes, then loads the scene), so appending each entry as it is
  * furnished is the only thing that keeps the two paths in step. Files are held
- * as handles, not bytes: the buffer is read once, when the worker is built.
+ * as handles, not bytes, and re-read on every worker start -- the geometry
+ * worker is rebuilt whenever a cancellation had to terminate it, so a dropped
+ * kernel the user has since moved or deleted will fail to re-furnish.
  */
-const workerKernelSources: ({ url: string } | { file: File })[] = [];
+const workerKernelSources: WorkerKernelSource[] = [];
+
+/** The name a kernel is furnished under, which is what SPICE knows it by. */
+function workerKernelName(source: WorkerKernelSource): string {
+  const raw = 'url' in source ? filenameFromUrl(source.url) : source.file.name;
+  return raw.replace(/\.gz$/i, '');
+}
+
+/**
+ * Per-file SPK coverage, asked of the main thread's SPICE and remembered.
+ *
+ * The main thread has every kernel furnished, so it can answer this for any of
+ * them; the worker being narrowed obviously cannot. Cached because it is asked
+ * once per search and the answer cannot change -- a furnished kernel's coverage
+ * is a property of its bytes, and nothing here ever unloads one.
+ *
+ * Null means "no coverage to test": a leapseconds or text PCK kernel, or an SPK
+ * SPICE would not answer for. Both must be kept, so both are reported the same
+ * way -- a file we cannot judge is never one we drop.
+ */
+const kernelCoverageCache = new Map<string, KernelWindow[] | null>();
+
+function kernelCoverage(name: string): readonly KernelWindow[] | null {
+  const cached = kernelCoverageCache.get(name);
+  if (cached !== undefined) return cached;
+
+  let windows: KernelWindow[] | null = null;
+  const s = getSpice();
+  if (s && /\.(bsp|spk)$/i.test(name)) {
+    try {
+      windows = s.spkFileCoverage(name);
+    } catch {
+      // Unreadable coverage is not absent coverage; keeping the kernel is the
+      // safe reading, which null already means.
+      windows = null;
+    }
+  }
+  kernelCoverageCache.set(name, windows);
+  return windows;
+}
+
+/** The scope a viewer search carries: its key, plus the window that produced it. */
+interface ViewerGeometryScope extends GeometrySearchScope {
+  readonly window: KernelWindow;
+}
+
+function scopeWindow(scope?: GeometrySearchScope): KernelWindow | null {
+  return scope && 'window' in scope ? (scope as ViewerGeometryScope).window : null;
+}
+
+/** The sources a search over `window` could reach, or all of them for no window. */
+function scopedKernelSources(window: KernelWindow | null): WorkerKernelSource[] {
+  if (!window) return [...workerKernelSources];
+  return kernelsForWindow(workerKernelSources, workerKernelName, kernelCoverage, window);
+}
+
+/**
+ * The scope for a search over `window`, or undefined when nothing can be
+ * narrowed and the full set is what the worker should hold.
+ */
+export function geometryScopeForWindow(window: KernelWindow): GeometrySearchScope | undefined {
+  if (!getSpice()) return undefined;
+  const names = scopedKernelSources(window).map(workerKernelName);
+  const scope: ViewerGeometryScope = { key: kernelSetKey(names), window };
+  return scope;
+}
+
+/**
+ * The worker kernel list as bytes-or-URLs, read fresh each call.
+ *
+ * Called once per worker start rather than once per session, because the
+ * geometry worker is rebuilt after a cancellation that had to terminate it, or
+ * when a search needs a different set, and has to come back furnished for
+ * whatever it is being started for.
+ *
+ * With a scope, the list is narrowed to the kernels that search can reach --
+ * the geometry worker holds its own copy of every one, so the catalog's whole
+ * set is a second copy of the catalog. Without one (the trajectory-cache
+ * worker, which serves the whole timeline) it is everything.
+ */
+async function currentWorkerKernels(scope?: GeometrySearchScope): Promise<KernelSource[]> {
+  return Promise.all(
+    scopedKernelSources(scopeWindow(scope)).map(async (source) =>
+      'url' in source
+        ? source.url
+        : { name: source.file.name, data: await source.file.arrayBuffer() },
+    ),
+  );
+}
+
 /** URLs of kernels already furnished in this session — prevents redundant fetch + furnish across demos. */
 const furnishedKernels = new Set<string>();
 
@@ -474,27 +597,29 @@ function initScene(
   // Cassini's), with no timing/settle race.
   cacheWorker?.dispose();
   cacheWorker = null;
+  geometryWorker?.dispose();
+  geometryWorker = null;
   if (!TEST_MODE && workerKernelSources.length > 0) {
     try {
       cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
       const worker = cacheWorker;
-      // In furnish order, whatever the source: the worker's kernel precedence
-      // has to match the main thread's.
-      void (async () => {
-        const sources: KernelSource[] = await Promise.all(
-          workerKernelSources.map(async (source) =>
-            'url' in source
-              ? source.url
-              : { name: source.file.name, data: await source.file.arrayBuffer() },
-          ),
-        );
-        await worker.loadKernels(sources);
-      })().catch((err) => {
-        console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
+      void currentWorkerKernels()
+        .then((sources) => worker.loadKernels(sources))
+        .catch((err) => {
+          console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
+        });
+      // Lazy: nothing is spawned until a search actually runs, and the same
+      // kernel list is replayed whenever the geometry worker is rebuilt after a
+      // cancellation that had to terminate it.
+      geometryWorker = new GeometrySearchWorker({
+        createWorker: () => new SpiceCacheRelayWorker(),
+        kernels: currentWorkerKernels,
+        idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
       });
     } catch (err) {
       console.warn('[Cosmolabe] Failed to create cache worker:', err);
       cacheWorker = null;
+      geometryWorker = null;
     }
   }
 
@@ -912,6 +1037,18 @@ export function getSpice(): SpiceInstance | null {
  */
 export function getCacheWorker(): SpiceCacheWorker | null {
   return cacheWorker;
+}
+
+/**
+ * The worker geometry-event searches run on, when there is one.
+ *
+ * Separate from the cache worker so a long search never delays a trajectory
+ * build, and so cancelling one can take its worker down without taking the
+ * scene's caches with it. Null in TEST_MODE and for a catalog with no kernels;
+ * callers fall back to the main thread.
+ */
+export function getGeometryWorker(): GeometrySearchWorker | null {
+  return geometryWorker;
 }
 
 /** Resize the renderer */

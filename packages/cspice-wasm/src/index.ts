@@ -112,6 +112,7 @@ export interface SpiceEngine {
     step: number,
     start: number,
     stop: number,
+    report?: GfSearchReport,
   ): Promise<[number, number][]>;
   /**
    * Distance interval finder (gfdist): intervals over [start,stop] in which the
@@ -126,6 +127,7 @@ export interface SpiceEngine {
     step: number,
     start: number,
     stop: number,
+    report?: GfSearchReport,
   ): Promise<[number, number][]>;
   /**
    * Angular-separation interval finder (gfsep): intervals over [start,stop] in which
@@ -149,6 +151,7 @@ export interface SpiceEngine {
     step: number,
     start: number,
     stop: number,
+    report?: GfSearchReport,
   ): Promise<[number, number][]>;
   /**
    * Coordinate interval finder on an observer-target position (gfposc): intervals
@@ -171,6 +174,7 @@ export interface SpiceEngine {
     step: number,
     start: number,
     stop: number,
+    report?: GfSearchReport,
   ): Promise<[number, number][]>;
   /** Instantaneous occultation code at et (occult); nonzero when an occultation occurs. */
   occult(
@@ -398,6 +402,63 @@ export interface CkPointing {
   readonly clkout: number;
 }
 
+/**
+ * Thrown by a reporting geometry-finder call whose bail-out handler asked it to
+ * stop. Not a failure: the search ran, and the caller is the one that ended it.
+ *
+ * Distinguished from {@link SpiceError} by type rather than by message, because
+ * a caller has to tell "you stopped this" from "this went wrong" -- only the
+ * second is worth reporting as a fault.
+ */
+export class SpiceSearchCancelled extends Error {
+  constructor(message = 'Geometry search cancelled') {
+    super(message);
+    this.name = 'SpiceSearchCancelled';
+  }
+}
+
+/**
+ * Progress reporting and interruption for one geometry-finder call.
+ *
+ * Both halves come from the same place: CSPICE's general GF entry points
+ * (gfevnt_c, gfocce_c) take a progress reporter and a bail-out handler, and the
+ * bail-out handler is polled from the same points inside the search that drive
+ * the reporter. The simplified gf*_c wrappers take neither, which is why a
+ * search under them is an indeterminate spinner that cannot be stopped.
+ */
+export interface GfSearchReport {
+  /**
+   * Called with the fraction (0..1) of the *confinement window* searched so far
+   * -- not of elapsed time. It advances unevenly, which is honest for a bar and
+   * misleading as an ETA. Throttled inside the C reporter, so do not rely on a
+   * fixed cadence.
+   *
+   * The fraction is of the whole call. A search can take more than one pass
+   * over its window — a relational search finds where the quantity is
+   * decreasing before it solves the relation — and CSPICE restarts its reporter
+   * at each, but the pass count is known before the call starts, so each pass
+   * is mapped into its own slice and the fraction only ever moves forward. The
+   * final 1.0 is reported once.
+   *
+   * `pass` is the 1-based pass number, passed through unscaled, for a caller
+   * that wants to name the stage rather than measure it.
+   */
+  onProgress?: (fraction: number, pass: number) => void;
+  /**
+   * Cancellation flag: an `Int32Array` of length >= 1, over a
+   * `SharedArrayBuffer`. A nonzero value at index 0 aborts the executing search,
+   * which then rejects with {@link SpiceSearchCancelled}.
+   *
+   * It has to be shared memory. The handler is polled from inside a synchronous
+   * CSPICE call, and a worker blocked in one cannot process an incoming message
+   * until it returns -- shared memory is the only channel that reaches it. Where
+   * `SharedArrayBuffer` is unavailable (no cross-origin isolation), leave this
+   * unset: the search then runs to completion as it does under the simplified
+   * wrappers, and progress still reports.
+   */
+  cancelFlag?: Int32Array;
+}
+
 /** Located, typed SPICE error. Fail loudly (CLAUDE.md). */
 export class SpiceError extends Error {
   constructor(
@@ -422,8 +483,14 @@ export interface SpiceComputeEngine extends SpiceEngine {
   evalSeries(spec: EvalSpec, signal?: AbortSignal): Promise<EvalSeriesResult>;
 }
 
-export type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
-export { SpiceBindings } from './bindings.js';
+export type {
+  GfWorkerReport,
+  SpiceWorkerRequest,
+  SpiceWorkerResponse,
+  SpiceWorkerResult,
+} from './protocol.js';
+export { isWorkerResult } from './protocol.js';
+export { SpiceBindings, type GfReport } from './bindings.js';
 export {
   createSpiceBindings,
   createSpiceEngine,

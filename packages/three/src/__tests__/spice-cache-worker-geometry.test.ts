@@ -55,6 +55,15 @@ function client() {
   return { fake, worker: new SpiceCacheWorker(fake as unknown as Worker) };
 }
 
+/**
+ * Dispatches a call the test never answers, because the assertion is on what was
+ * sent rather than on what comes back. The rejection when the search is torn
+ * down is expected, so it is swallowed rather than left unhandled.
+ */
+const dispatch = (call: unknown): void => {
+  void Promise.resolve(call).catch(() => {});
+};
+
 /** Lets the client's awaits (ready, kernels) settle before asserting. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -169,6 +178,54 @@ describe('SpiceCacheWorker geometry searches', () => {
     // queue; the caller must be able to tell that from a search that failed.
     fake.reply({ type: 'geometryCancelled', id: fake.last('geometry')!.id });
     await expect(pending).rejects.toBeInstanceOf(GeometrySearchCancelled);
+  });
+
+  it('routes progress reports to the caller while the call is still running', async () => {
+    const { fake, worker } = client();
+    const seen: { fraction: number; pass: number }[] = [];
+    const search = worker.geometrySearch({ onProgress: (p) => seen.push(p) });
+
+    const pending = search.provider.gfdist('MOON', 'NONE', 'EARTH', '<', 4e5, 0, 3600, [
+      { start: 0, end: 1 },
+    ]);
+    await settle();
+    const sent = fake.last('geometry')!;
+    expect(sent.report).toMatchObject({ progress: true });
+
+    // Progress shares the call's id and does not settle it: the search is still
+    // running, and more reports (then a result) follow under the same id.
+    fake.reply({ type: 'geometryProgress', id: sent.id, fraction: 0.25, pass: 1 });
+    fake.reply({ type: 'geometryProgress', id: sent.id, fraction: 0.5, pass: 2 });
+    expect(seen).toEqual([{ fraction: 0.25, pass: 1 }, { fraction: 0.5, pass: 2 }]);
+    expect(search.progress).toEqual({ fraction: 0.5, pass: 2 });
+
+    fake.reply({ type: 'geometryResult', id: sent.id, value: [] });
+    await expect(pending).resolves.toEqual([]);
+  });
+
+  it('asks for no progress when the caller wants none', async () => {
+    const { fake, worker } = client();
+    const search = worker.geometrySearch();
+
+    dispatch(search.provider.gfdist('MOON', 'NONE', 'EARTH', '<', 4e5, 0, 3600, [{ start: 0, end: 1 }]));
+    await settle();
+
+    // No report at all, not a report asking for nothing: the worker reads that
+    // as "use the simplified CSPICE wrappers", which is where a search with
+    // nothing to report belongs. Every progress report is a postMessage from
+    // inside a running CSPICE call, and a caller with nothing to show should
+    // not be paying for them.
+    expect(fake.last('geometry')!.report).toBeUndefined();
+  });
+
+  it('sends no report on range, which has no progress and nothing to interrupt', async () => {
+    const { fake, worker } = client();
+    const search = worker.geometrySearch({ onProgress: () => {} });
+
+    dispatch(search.provider.range!('MOON', 'NONE', 'EARTH', 42));
+    await settle();
+
+    expect(fake.last('geometry')!.report).toBeUndefined();
   });
 
   it('reports a SPICE error from the worker as an error', async () => {

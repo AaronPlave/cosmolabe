@@ -264,6 +264,11 @@
         onclick={runSearch}
       >
         {#if ef.running}
+          <!-- No percentage here. The fraction is of the geometry call running
+               right now, not of the search, so a number on the primary control
+               would claim a completeness nothing can measure — and would count
+               up and start over within one "Find events". The bar below says the
+               same thing without promising it. -->
           <Loader2 size={12} class="animate-spin" /> Searching…
         {:else}
           <Search size={12} /> Find events
@@ -280,6 +285,31 @@
         </button>
       {/if}
     </div>
+
+    <!-- A determinate bar, from CSPICE's own progress reporter running inside
+         the search. It measures the step in progress: the fraction is of the
+         geometry call currently running — monotonic within it, since the call's
+         pass count is known up front — and it restarts when the search moves to
+         its next call. So it reads as "still moving, and here is how far through
+         this piece", never as a prediction of the whole, which is why no number
+         is shown beside it. Absent on the main-thread path, where the simplified
+         wrappers report nothing and the spinner is all there is. -->
+    {#if ef.running && ef.progress}
+      <div
+        class="mt-1.5 h-1 w-full overflow-hidden rounded bg-surface-3"
+        role="progressbar"
+        aria-label="Progress of the current search step"
+        title="Progress of the step running now. A search runs in several steps, so this restarts."
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(ef.progress.fraction * 100)}
+      >
+        <div
+          class="h-full bg-accent transition-[width] duration-200"
+          style={`width: ${Math.round(ef.progress.fraction * 100)}%`}
+        ></div>
+      </div>
+    {/if}
 
     {#if configured}
       <div class="mt-1.5 flex items-center gap-3 ui-helper">

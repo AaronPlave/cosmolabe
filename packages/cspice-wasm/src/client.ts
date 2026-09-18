@@ -3,12 +3,14 @@
 
 import {
   SpiceError,
+  SpiceSearchCancelled,
   type AberrationCorrection,
   type CartesianState,
   type CkPointing,
   type DskShape,
   type FovResult,
   type GeodeticPoint,
+  type GfSearchReport,
   type IluminResult,
   type InterceptResult,
   type LocalSolarTime,
@@ -21,12 +23,40 @@ import {
   type SubPointResult,
   type Vec3,
 } from './index.js';
-import type { EvalSeriesResult, EvalSpec } from './eval-series.js';
+import { JobCancelledError, type EvalSeriesResult, type EvalSpec } from './eval-series.js';
 import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
 
 interface Pending {
   resolve: (value: unknown) => void;
   reject: (reason: unknown) => void;
+  /** Set when the caller asked for progress on a geometry search. */
+  onProgress?: (fraction: number, pass: number) => void;
+}
+
+/**
+ * Rebuild the error the worker threw, from the class name it sent with it.
+ *
+ * Without this every failure arrives as a SpiceError, and a caller cannot tell
+ * a search it stopped itself from a search that went wrong -- which is the one
+ * distinction cancellation exists to make. The in-process engine throws the real
+ * types, so the worker path has to as well or the two are not the same API.
+ *
+ * An unrecognised name falls back to SpiceError: a worker built against a newer
+ * version of this package must not fail to report an error at all.
+ */
+function reviveWorkerError(res: {
+  error: string;
+  shortMessage?: string;
+  name?: string;
+}): Error {
+  switch (res.name) {
+    case 'SpiceSearchCancelled':
+      return new SpiceSearchCancelled(res.error);
+    case 'JobCancelledError':
+      return new JobCancelledError();
+    default:
+      return new SpiceError(res.error, res.shortMessage);
+  }
 }
 
 // Omit must distribute over the request union, otherwise it collapses to the
@@ -41,9 +71,15 @@ export function createSpiceWorkerClient(worker: Worker): SpiceComputeEngine {
     const res = ev.data;
     const p = pending.get(res.id);
     if (!p) return;
+    // Progress is an interim report: the request is still running, so the
+    // pending entry stays put and more messages follow under the same id.
+    if ('progress' in res) {
+      p.onProgress?.(res.progress.fraction, res.progress.pass);
+      return;
+    }
     pending.delete(res.id);
     if (res.ok) p.resolve(res.result);
-    else p.reject(new SpiceError(res.error, res.shortMessage));
+    else p.reject(reviveWorkerError(res));
   });
 
   function send<T>(req: DistributiveOmit<SpiceWorkerRequest, 'id'>): Promise<T> {
@@ -51,6 +87,32 @@ export function createSpiceWorkerClient(worker: Worker): SpiceComputeEngine {
     return new Promise<T>((resolve, reject) => {
       pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
       worker.postMessage({ ...req, id } as SpiceWorkerRequest);
+    });
+  }
+
+  /**
+   * A geometry-finder request carrying its caller's report.
+   *
+   * The callback stays on this side and the request asks the worker to post
+   * progress; the cancellation flag goes over as shared memory, which is the
+   * only thing that can reach a search already running in the worker.
+   */
+  function sendGf(
+    req: DistributiveOmit<SpiceWorkerRequest, 'id'>,
+    report: GfSearchReport | undefined,
+  ): Promise<[number, number][]> {
+    const id = nextId++;
+    return new Promise<[number, number][]>((resolve, reject) => {
+      pending.set(id, {
+        resolve: resolve as (v: unknown) => void,
+        reject,
+        onProgress: report?.onProgress,
+      });
+      worker.postMessage({
+        ...req,
+        id,
+        report: report && { progress: !!report.onProgress, cancelFlag: report.cancelFlag },
+      } as SpiceWorkerRequest);
     });
   }
 
@@ -74,8 +136,8 @@ export function createSpiceWorkerClient(worker: Worker): SpiceComputeEngine {
     oscelt: (state, et, mu) => send<OsculatingElements>({ method: 'oscelt', state, et, mu }),
     conics: (elements, et) => send<CartesianState>({ method: 'conics', elements, et }),
     prop2b: (mu, state, dt) => send<CartesianState>({ method: 'prop2b', mu, state, dt }),
-    gfoclt: (occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop) =>
-      send<[number, number][]>({
+    gfoclt: (occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, step, start, stop, report) =>
+      sendGf({
         method: 'gfoclt',
         occtyp,
         front,
@@ -89,9 +151,9 @@ export function createSpiceWorkerClient(worker: Worker): SpiceComputeEngine {
         step,
         start,
         stop,
-      }),
-    gfdist: (target, abcorr, observer, relate, refval, step, start, stop) =>
-      send<[number, number][]>({
+      }, report),
+    gfdist: (target, abcorr, observer, relate, refval, step, start, stop, report) =>
+      sendGf({
         method: 'gfdist',
         target,
         abcorr,
@@ -101,9 +163,9 @@ export function createSpiceWorkerClient(worker: Worker): SpiceComputeEngine {
         step,
         start,
         stop,
-      }),
-    gfsep: (targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop) =>
-      send<[number, number][]>({
+      }, report),
+    gfsep: (targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, relate, refval, adjust, step, start, stop, report) =>
+      sendGf({
         method: 'gfsep',
         targ1,
         shape1,
@@ -119,9 +181,9 @@ export function createSpiceWorkerClient(worker: Worker): SpiceComputeEngine {
         step,
         start,
         stop,
-      }),
-    gfposc: (target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop) =>
-      send<[number, number][]>({
+      }, report),
+    gfposc: (target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, start, stop, report) =>
+      sendGf({
         method: 'gfposc',
         target,
         frame,
@@ -135,7 +197,7 @@ export function createSpiceWorkerClient(worker: Worker): SpiceComputeEngine {
         step,
         start,
         stop,
-      }),
+      }, report),
     occult: (targ1, shape1, frame1, targ2, shape2, frame2, abcorr, observer, et) =>
       send<number>({
         method: 'occult',

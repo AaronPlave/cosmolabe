@@ -18,7 +18,12 @@ import {
   type SpiceEngine,
   type SpiceWorkerScope,
 } from './index.js';
-import type { SpiceWorkerRequest, SpiceWorkerResponse } from './protocol.js';
+import {
+  isWorkerResult,
+  type SpiceWorkerRequest,
+  type SpiceWorkerResponse,
+  type SpiceWorkerResult,
+} from './protocol.js';
 
 const fixture = (name: string) =>
   new Uint8Array(readFileSync(fileURLToPath(new URL(`../../../kernels/fixtures/${name}`, import.meta.url))));
@@ -115,10 +120,14 @@ describe('cspice-wasm EvalSpec interpreter (F3)', () => {
 
 describe('cspice-wasm evalSeries worker job (F3)', () => {
   it('runs a series job and a cancelJob aborts it', async () => {
-    const responses = new Map<number, { res: SpiceWorkerResponse }>();
+    // Only the response that ends a request is collected: an interim progress
+    // report shares its id and would otherwise overwrite it.
+    const responses = new Map<number, { res: SpiceWorkerResult }>();
     const scope: SpiceWorkerScope = {
       onmessage: null,
-      postMessage: (res) => responses.set(res.id, { res }),
+      postMessage: (res) => {
+        if (isWorkerResult(res)) responses.set(res.id, { res });
+      },
     };
     installSpiceWorker(scope);
     const send = (req: SpiceWorkerRequest) => scope.onmessage!({ data: req } as MessageEvent<SpiceWorkerRequest>);

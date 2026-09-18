@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createSpiceBindings, SpiceError, type SpiceBindings } from 'cspice-wasm';
-import { createHeritageSpice, type HeritageSpice } from './index.js';
+import { createHeritageSpice, SpiceSearchCancelled, type HeritageSpice } from './index.js';
 
 const fixtureBytes = (name: string) =>
   new Uint8Array(
@@ -198,6 +198,64 @@ describe('@cosmolabe/frames heritage adapter', () => {
       expect(windows[0]!.end).toBeCloseTo(w1.end, 3);
       expect(windows[1]!.start).toBeCloseTo(w2.start, 3);
       expect(windows[1]!.end).toBeCloseTo(w2.end, 3);
+    });
+  });
+
+  describe('reporting geometry searches', () => {
+    // A report moves the call onto CSPICE's general GF entry points. What the
+    // adapter adds on top of them is the confinement window: it runs the finder
+    // once per interval, so the per-call fraction each one reports has to be
+    // rescaled into the window as a whole before a caller can draw a bar with it.
+
+    const WINDOW = () => {
+      const start = spice.str2et('2004-07-01T00:00:00');
+      return [
+        { start, end: start + 3 * 3600 },
+        { start: start + 3 * 3600, end: start + 6 * 3600 },
+      ];
+    };
+
+    it('returns the same windows with a report as without one', () => {
+      const cnfine = WINDOW();
+      const plain = spice.gfdist('SATURN', 'NONE', '-82', '<', 1.5e6, 0, 300, cnfine);
+      const reported = spice.gfdist('SATURN', 'NONE', '-82', '<', 1.5e6, 0, 300, cnfine, {
+        onProgress: () => {},
+      });
+      expect(reported).toEqual(plain);
+      expect(plain.length).toBeGreaterThan(0);
+    });
+
+    it('reports one 0..1 sweep across a multi-interval confinement window', () => {
+      const seen: number[] = [];
+      spice.gfdist('SATURN', 'NONE', '-82', '<', 1.5e6, 0, 300, WINDOW(), {
+        onProgress: (fraction) => seen.push(fraction),
+      });
+
+      // Two intervals, two CSPICE calls, each reporting 0..1 of *its* interval.
+      // Unscaled, a caller would see the bar cross twice.
+      expect(seen.length).toBeGreaterThan(0);
+      for (const f of seen) {
+        expect(f).toBeGreaterThanOrEqual(0);
+        expect(f).toBeLessThanOrEqual(1);
+      }
+      expect(Math.max(...seen)).toBe(1);
+      // The first interval is the first half of the window, so nothing it
+      // reports may claim more than half of the search is done.
+      expect(seen.filter((f) => f === 1)).toHaveLength(1);
+      expect(seen.indexOf(0.5)).toBeGreaterThanOrEqual(0);
+    });
+
+    it('stops an executing search when the bail-out handler says to', () => {
+      expect(() =>
+        spice.gfdist('SATURN', 'NONE', '-82', '<', 1.5e6, 0, 300, WINDOW(), {
+          shouldBail: () => true,
+        }),
+      ).toThrow(SpiceSearchCancelled);
+
+      // And the adapter is still usable: a cancelled search that left CSPICE
+      // mid-state would poison every search after it.
+      expect(spice.gfdist('SATURN', 'NONE', '-82', '<', 1.5e6, 0, 300, WINDOW()).length)
+        .toBeGreaterThan(0);
     });
   });
 

@@ -7,6 +7,7 @@
 import type { CSpiceModule } from 'cspice-wasm/wasm/cspice.mjs';
 import {
   SpiceError,
+  SpiceSearchCancelled,
   type AberrationCorrection,
   type CartesianState,
   type DskShape,
@@ -22,6 +23,71 @@ import {
 } from './index.js';
 
 const KERNEL_DIR = '/kernels';
+
+/**
+ * SPICE_GF_CNVTOL: the convergence tolerance the simplified gf*_c wrappers use.
+ *
+ * Those wrappers read a tolerance stashed by gfstol_c and fall back to this when
+ * none was stashed. The general entry points take the tolerance as an argument
+ * and that store has no public reader, so the reporting calls below pass this
+ * value -- which is the same number, because gfstol_c is not in the wasm export
+ * list and no caller can have stashed anything.
+ */
+const GF_CNVTOL = 1e-6;
+
+/**
+ * How many passes over the confinement window a relational GF search makes.
+ *
+ * CSPICE reports progress per pass: it restarts its reporter at the head of
+ * each one, so a caller that forwards the raw per-pass fraction shows a bar
+ * that runs to the end and then jumps back to zero. Knowing the count up front
+ * is what lets {@link SpiceBindings.gfdistReporting} and its siblings map each
+ * pass into its own slice of the call and report a fraction that only ever goes
+ * forward.
+ *
+ * The rule is CSPICE's own, from `gfevnt.c` (the `npass` assignment at lines
+ * 2464-2474), reproduced rather than inferred:
+ *
+ *     localx = LOCMIN or LOCMAX
+ *     noadjx = (ABSMIN or ABSMAX) and adjust == 0
+ *     npass  = localx or noadjx ? 1 : 2
+ *
+ * So a local extremum, or an absolute extremum that needs no second pass to
+ * apply an adjustment, searches once; `<`, `>`, `=` and an adjusted absolute
+ * extremum search twice. `gfocce_c` — the occultation finder — has a single
+ * reporter block and is always one pass, so it does not go through here.
+ */
+export function gfPassCount(relate: string, adjust: number): 1 | 2 {
+  const op = relate.trim().toUpperCase();
+  const localExtremum = op === 'LOCMIN' || op === 'LOCMAX';
+  const unadjustedExtremum = adjust === 0 && (op === 'ABSMIN' || op === 'ABSMAX');
+  return localExtremum || unadjustedExtremum ? 1 : 2;
+}
+
+/**
+ * Progress reporting and interruption for one reporting geometry-finder call.
+ *
+ * `shouldBail` is polled from inside the running CSPICE search, so it must
+ * answer from state the caller already has: it must not re-enter SPICE, and
+ * (on a worker) it cannot wait for a message, because the worker cannot process
+ * one while the search holds the thread. Reading a `SharedArrayBuffer` is the
+ * shape that works.
+ */
+export interface GfReport {
+  /**
+   * The fraction (0..1) of *this call's* work done so far, with the 1-based
+   * number of the pass it is currently in.
+   *
+   * The fraction spans the whole call, not the current pass: a two-pass search
+   * reports 0..0.5 through its first pass and 0.5..1 through its second, so it
+   * never runs to the end and starts again. See {@link gfPassCount}. The pass
+   * number is passed through as CSPICE reports it, for a caller that wants to
+   * say which stage is running.
+   */
+  onProgress?: (fraction: number, pass: number) => void;
+  /** Polled during the search; returning true aborts it. */
+  shouldBail?: () => boolean;
+}
 
 export class SpiceBindings {
   // The stack of active per-call allocation scopes. str() (and any scratch()
@@ -908,6 +974,92 @@ export class SpiceBindings {
   }
 
   /**
+   * The reporting counterpart of {@link runGfWindow}.
+   *
+   * Installs the report's two handlers on the wasm module for the duration of
+   * one call, runs the general entry point, and takes them off again. The C
+   * reporter in native/gf-report.c calls them from *inside* the running CSPICE
+   * search, which is the whole point: it is the only place a search can say how
+   * far it has got, and the only place it can be told to stop.
+   *
+   * A handler that throws would unwind through wasm frames and leave CSPICE's
+   * state unreadable, so both are wrapped: the throw is stashed, the search is
+   * asked to stop, and the original error is re-thrown once the stack is back in
+   * JavaScript.
+   *
+   * `passes` is how many times CSPICE will restart its reporter during this
+   * call (see {@link gfPassCount}). Each pass is mapped into its own equal slice
+   * of 0..1, which is what turns a sequence that would read 0..1, 0..1 into one
+   * that reads 0..1 once. Equal slices because the two passes cover the same
+   * confinement window; the second is usually the faster of the two, so the bar
+   * tends to accelerate rather than stall.
+   */
+  private runReportingGfWindow(
+    start: number,
+    stop: number,
+    maxIntervals: number,
+    report: GfReport,
+    passes: 1 | 2,
+    call: (cnfineCell: number, resultCell: number) => void,
+  ): [number, number][] {
+    const mod = this.mod;
+    const previousProgress = mod.onGfProgress;
+    const previousBail = mod.onGfBail;
+    let bailed = false;
+    let handlerError: unknown = null;
+    let lastPass = 1;
+    let furthest = 0;
+
+    mod.onGfProgress = (fraction: number, pass: number): void => {
+      lastPass = pass;
+      if (handlerError !== null || !report.onProgress) return;
+      // Slice this pass's fraction into its share of the call. The clamp and
+      // the running maximum are a backstop, not the mechanism: if a future
+      // CSPICE ever reports a pass this build did not predict, the bar should
+      // stall rather than jump backwards. gf-reporting.test.ts checks the
+      // predicted counts, so a stall here is a test failure, not a quiet fudge.
+      const slice = Math.min(Math.max(pass, 1), passes) - 1;
+      const overall = Math.min(1, Math.max(0, (slice + Math.min(1, Math.max(0, fraction))) / passes));
+      furthest = Math.max(furthest, overall);
+      try {
+        report.onProgress(furthest, pass);
+      } catch (err) {
+        handlerError = err;
+      }
+    };
+    mod.onGfBail = (): boolean => {
+      // A reporter that threw stops the search too: there is no way to finish
+      // reporting on it, and running to completion would bury the error.
+      if (handlerError !== null) return true;
+      if (!report.shouldBail) return false;
+      try {
+        if (!report.shouldBail()) return false;
+      } catch (err) {
+        handlerError = err;
+        return true;
+      }
+      bailed = true;
+      return true;
+    };
+
+    try {
+      const intervals = this.runGfWindow(start, stop, maxIntervals, call);
+      if (handlerError !== null) throw handlerError;
+      // CSPICE returns whatever it had found when the bail-out fired, which is a
+      // partial answer to a question nobody is waiting on any more. Reject it
+      // rather than pass it off as the search's result.
+      if (bailed) throw new SpiceSearchCancelled();
+      // The one report that means the call is finished. The C reporter stays
+      // silent at the end of each pass precisely so this is the only 1.0.
+      report.onProgress?.(1, lastPass);
+      return intervals;
+    } finally {
+      mod.onGfProgress = previousProgress;
+      mod.onGfBail = previousBail;
+    }
+  }
+
+  /**
    * Occultation/eclipse interval finder (gfoclt): intervals over [start,stop] in
    * which `back` is occulted by `front` as seen from the observer. Returns [s,e]
    * ET-second intervals.
@@ -1066,6 +1218,169 @@ export class SpiceBindings {
         adjust,
         step,
         maxIntervals,
+        cnfineCell,
+        resultCell,
+      ),
+    );
+  }
+
+  // --- Reporting geometry finders -----------------------------------------------
+  // The same four searches as above, run through CSPICE's general entry points
+  // (gfevnt_c, gfocce_c via native/gf-report.c) instead of the simplified
+  // gf*_c wrappers, so they can report progress and be interrupted mid-call.
+  //
+  // They stand alongside the simplified calls rather than replacing them: the
+  // simplified ones remain the default path, and gf-reporting.test.ts holds the
+  // two tiers against each other interval for interval, which is what makes
+  // "the general routines answer identically" a checked claim rather than an
+  // assumption.
+  //
+  // Argument lists match their simplified counterparts exactly. The workspace
+  // interval count and the convergence tolerance, which the wrappers supply
+  // internally, are supplied here from `maxIntervals` and GF_CNVTOL.
+
+  /** {@link gfoclt}, reporting progress and interruptible. */
+  gfocltReporting(
+    occtyp: string,
+    front: string,
+    fshape: string,
+    fframe: string,
+    back: string,
+    bshape: string,
+    bframe: string,
+    abcorr: AberrationCorrection,
+    observer: string,
+    step: number,
+    start: number,
+    stop: number,
+    report: GfReport,
+    maxIntervals = 1000,
+  ): [number, number][] {
+    return this.runReportingGfWindow(start, stop, maxIntervals, report, 1, (cnfineCell, resultCell) =>
+      this.call(
+        'gfrpt_oclt',
+        this.str(occtyp),
+        this.str(front),
+        this.str(fshape),
+        this.str(fframe),
+        this.str(back),
+        this.str(bshape),
+        this.str(bframe),
+        this.str(abcorr),
+        this.str(observer),
+        step,
+        GF_CNVTOL,
+        cnfineCell,
+        resultCell,
+      ),
+    );
+  }
+
+  /** {@link gfdist}, reporting progress and interruptible. */
+  gfdistReporting(
+    target: string,
+    abcorr: AberrationCorrection,
+    observer: string,
+    relate: string,
+    refval: number,
+    step: number,
+    start: number,
+    stop: number,
+    report: GfReport,
+    maxIntervals = 1000,
+  ): [number, number][] {
+    return this.runReportingGfWindow(start, stop, maxIntervals, report, gfPassCount(relate, 0), (cnfineCell, resultCell) =>
+      this.call(
+        'gfrpt_dist',
+        this.str(target),
+        this.str(abcorr),
+        this.str(observer),
+        this.str(relate),
+        refval,
+        0, // adjust (used only by ABSMAX/ABSMIN/LOCMAX/LOCMIN), as gfdist above
+        step,
+        maxIntervals,
+        GF_CNVTOL,
+        cnfineCell,
+        resultCell,
+      ),
+    );
+  }
+
+  /** {@link gfsep}, reporting progress and interruptible. */
+  gfsepReporting(
+    targ1: string,
+    shape1: string,
+    frame1: string,
+    targ2: string,
+    shape2: string,
+    frame2: string,
+    abcorr: AberrationCorrection,
+    observer: string,
+    relate: string,
+    refval: number,
+    adjust: number,
+    step: number,
+    start: number,
+    stop: number,
+    report: GfReport,
+    maxIntervals = 1000,
+  ): [number, number][] {
+    return this.runReportingGfWindow(start, stop, maxIntervals, report, gfPassCount(relate, adjust), (cnfineCell, resultCell) =>
+      this.call(
+        'gfrpt_sep',
+        this.str(targ1),
+        this.str(shape1),
+        this.str(frame1),
+        this.str(targ2),
+        this.str(shape2),
+        this.str(frame2),
+        this.str(abcorr),
+        this.str(observer),
+        this.str(relate),
+        refval,
+        adjust,
+        step,
+        maxIntervals,
+        GF_CNVTOL,
+        cnfineCell,
+        resultCell,
+      ),
+    );
+  }
+
+  /** {@link gfposc}, reporting progress and interruptible. */
+  gfposcReporting(
+    target: string,
+    frame: string,
+    abcorr: AberrationCorrection,
+    observer: string,
+    crdsys: string,
+    coord: string,
+    relate: string,
+    refval: number,
+    adjust: number,
+    step: number,
+    start: number,
+    stop: number,
+    report: GfReport,
+    maxIntervals = 1000,
+  ): [number, number][] {
+    return this.runReportingGfWindow(start, stop, maxIntervals, report, gfPassCount(relate, adjust), (cnfineCell, resultCell) =>
+      this.call(
+        'gfrpt_posc',
+        this.str(target),
+        this.str(frame),
+        this.str(abcorr),
+        this.str(observer),
+        this.str(crdsys),
+        this.str(coord),
+        this.str(relate),
+        refval,
+        adjust,
+        step,
+        maxIntervals,
+        GF_CNVTOL,
         cnfineCell,
         resultCell,
       ),

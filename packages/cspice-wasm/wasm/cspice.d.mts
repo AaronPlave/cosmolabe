@@ -24,6 +24,19 @@ export interface CSpiceModule {
   UTF8ToString(ptr: number, maxBytes?: number): string;
   lengthBytesUTF8(str: string): number;
   FS: CSpiceFS;
+  /**
+   * Progress sink for the reporting GF entry points (native/gf-report.c). The
+   * C reporter calls it from inside the running CSPICE search, with the
+   * fraction of the current pass's confinement window searched so far and the
+   * 1-based pass number.
+   */
+  onGfProgress?: (fraction: number, pass: number) => void;
+  /**
+   * Bail-out poll for the reporting GF entry points. Returning true aborts the
+   * running CSPICE search; it is called from inside that search, so it must not
+   * re-enter SPICE and must answer from state the worker already has.
+   */
+  onGfBail?: () => boolean;
   // SPICE entry points are exported as _<name>_c. Indexed access is typed loosely
   // because the marshaling layer (bindings.ts) owns the per-function contract.
   [exported: `_${string}`]: (...args: number[]) => number;
