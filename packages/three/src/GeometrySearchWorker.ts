@@ -85,6 +85,23 @@ export interface GeometrySearchWorkerOptions {
    * can be exercised on a platform where the flag would have worked.
    */
   canInterrupt?: () => boolean;
+  /**
+   * How long the worker may sit idle before it is released, in milliseconds.
+   * Zero or absent keeps it alive for the session.
+   *
+   * It is expensive to keep and cheap to rebuild, which is the whole argument
+   * for releasing it. Measured on the Cassini catalog: 235 MB held — a CSPICE
+   * instance's fixed 160 MB heap plus its kernels — against a rebuild that
+   * re-furnishes only the handful of kernels the next search can reach. A
+   * feature used in bursts should not hold a quarter of a gigabyte between
+   * them.
+   *
+   * This is the same teardown a cancellation performs where no
+   * `SharedArrayBuffer` is available, so it is not a new failure mode: the next
+   * search rebuilds transparently, and a dropped kernel that has since been
+   * moved fails the same way it already would.
+   */
+  idleTimeoutMs?: number;
 }
 
 /** One search at a time, over a worker that may be rebuilt underneath it. */
@@ -106,6 +123,8 @@ export class GeometrySearchWorker {
    * Null when no scope was given, which means the caller's full set.
    */
   private furnishedFor: string | null = null;
+  /** Pending release of an idle worker; cleared whenever one is wanted again. */
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly canInterrupt: () => boolean;
 
   constructor(private readonly options: GeometrySearchWorkerOptions) {
@@ -171,6 +190,42 @@ export class GeometrySearchWorker {
     this.worker = null;
     this.starting = null;
     this.furnishedFor = null;
+    this.clearIdleRelease();
+  }
+
+  private clearIdleRelease(): void {
+    if (this.idleTimer === null) return;
+    clearTimeout(this.idleTimer);
+    this.idleTimer = null;
+  }
+
+  /**
+   * Start the clock on releasing an idle worker.
+   *
+   * Armed when a call settles rather than when a search "finishes", because
+   * nothing tells us a search has finished: a search is however many calls its
+   * kind chooses to make, and the last one looks like all the others. Waiting
+   * out the timeout from the most recent call is what turns that into an
+   * answerable question -- and it is also what makes a burst of searches cost
+   * one worker rather than one each, since every call pushes the release back.
+   *
+   * What keeps it from firing mid-search is that every call clears it on entry
+   * and re-arms only once it settles, so a live timer means no call is in
+   * flight. Anything that arms it from somewhere else has to preserve that:
+   * releasing under a running call would terminate CSPICE and lose the answer.
+   */
+  private scheduleIdleRelease(): void {
+    const timeout = this.options.idleTimeoutMs ?? 0;
+    this.clearIdleRelease();
+    if (timeout <= 0 || this.disposed || !this.worker) return;
+
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      this.restart();
+    }, timeout);
+    // Node keeps the process alive for a pending timer; a release is never
+    // worth delaying an exit for. Browsers have no such notion.
+    this.idleTimer?.unref?.();
   }
 
   /**
@@ -186,6 +241,7 @@ export class GeometrySearchWorker {
     // a file, and with a needlessly large heap if it is holding files this
     // search cannot reach. Either way it has to be rebuilt, and doing it here
     // rather than inside `start` keeps the in-flight-start sharing below honest.
+    this.clearIdleRelease();
     const scope = options?.scope;
     if ((this.worker || this.starting) && (scope?.key ?? null) !== this.furnishedFor) {
       this.restart();
@@ -209,9 +265,21 @@ export class GeometrySearchWorker {
       }));
     };
 
+    // Every provider call goes through here, so this is where the worker is
+    // claimed and released: held for as long as calls keep arriving, and put on
+    // the clock once they stop.
+    const held = async <T>(run: () => Promise<T>): Promise<T> => {
+      this.clearIdleRelease();
+      try {
+        return await run();
+      } finally {
+        this.scheduleIdleRelease();
+      }
+    };
+
     const intervals = async (
       call: (p: GeometryFinderProvider) => EtInterval[] | Promise<EtInterval[]>,
-    ): Promise<EtInterval[]> => call((await delegate()).provider);
+    ): Promise<EtInterval[]> => held(async () => call((await delegate()).provider));
 
     const handle: WorkerGeometrySearch = {
       get cancelled() { return cancelled; },
@@ -231,6 +299,10 @@ export class GeometrySearchWorker {
         inner?.cancel();
         if (holdingTheWorker && !this.canInterrupt()) this.restart();
         if (this.active === handle) this.active = null;
+        // A cancelled search leaves the worker idle as surely as a finished
+        // one, and a user who gives up on a search is if anything less likely
+        // to start another.
+        this.scheduleIdleRelease();
       },
 
       provider: {
@@ -252,8 +324,8 @@ export class GeometrySearchWorker {
             p.gfposc(target, frame, abcorr, observer, crdsys, coord, relate, refval, adjust, step, cnfine),
           ),
 
-        range: async (target: string, abcorr: string, observer: string, et: EtSeconds) =>
-          (await delegate()).provider.range!(target, abcorr, observer, et),
+        range: (target: string, abcorr: string, observer: string, et: EtSeconds) =>
+          held(async () => (await delegate()).provider.range!(target, abcorr, observer, et)),
       },
     };
 

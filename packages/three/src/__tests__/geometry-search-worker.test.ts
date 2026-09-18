@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 
 /**
  * The dedicated geometry worker, and the cancellation route it opens.
@@ -54,6 +54,7 @@ class FakeWorker extends FakeWorkerBase {
 }
 
 const { GeometrySearchWorker } = await import('../GeometrySearchWorker.js');
+type GeometrySearchWorkerInstance = InstanceType<typeof GeometrySearchWorker>;
 const { GeometrySearchCancelled } = await import('../SpiceCacheWorker.js');
 
 /** Lets the client's awaits (ready, kernels, worker start) settle. */
@@ -61,9 +62,10 @@ const settle = async (): Promise<void> => {
   for (let i = 0; i < 6; i++) await new Promise((resolve) => setTimeout(resolve, 0));
 };
 
-function harness(canInterrupt: boolean) {
+function harness(canInterrupt: boolean, idleTimeoutMs?: number) {
   const built: FakeWorker[] = [];
   const geometry = new GeometrySearchWorker({
+    ...(idleTimeoutMs === undefined ? {} : { idleTimeoutMs }),
     createWorker: () => {
       const w = new FakeWorker();
       built.push(w);
@@ -287,6 +289,91 @@ describe('GeometrySearchWorker', () => {
       dispatch(aSearch(geometry.search({ scope: { key: 'phase1' } }).provider));
       await settle();
       expect(built).toHaveLength(1);
+    });
+  });
+
+  describe('releasing an idle worker', () => {
+    // Fake timers from the first line of each test: the release is armed when a
+    // call settles, so a timer installed afterwards would never see it. That
+    // makes the harness's real-setTimeout settle() unusable here, hence the
+    // async advance below, which flushes microtasks and zero-delay timers alike.
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    const tick = async (): Promise<void> => {
+      for (let i = 0; i < 6; i++) await vi.advanceTimersByTimeAsync(0);
+    };
+
+    /** Answer the worker's outstanding geometry call, so nothing is in flight. */
+    const answer = (worker: FakeWorker): void => {
+      worker.reply({ type: 'geometryResult', id: worker.last('geometry')!.id, value: [] });
+    };
+
+    /** One complete search: dispatched, started, and answered. */
+    const runSearch = async (geometry: GeometrySearchWorkerInstance, worker: () => FakeWorker | undefined) => {
+      dispatch(aSearch(geometry.search().provider));
+      await tick();
+      const w = worker();
+      if (w) { answer(w); await tick(); }
+    };
+
+    it('takes the worker down once searching stops', async () => {
+      // 235 MB on the Cassini catalog -- a CSPICE heap plus its kernels -- held
+      // for a feature used in bursts. Releasing it is the same teardown a
+      // cancellation already performs where SharedArrayBuffer is unavailable.
+      const { built, geometry } = harness(true, 60_000);
+      await runSearch(geometry, () => built[0]);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(built[0]!.terminated).toBe(true);
+      expect(geometry.started).toBe(false);
+    });
+
+    it('keeps it while a call is still in flight', async () => {
+      // A search is however many calls its kind makes, and the last looks like
+      // the rest. Releasing between two of them would terminate CSPICE
+      // mid-search and lose the answer.
+      const { built, geometry } = harness(true, 60_000);
+      dispatch(aSearch(geometry.search().provider));
+      await tick();
+
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(built[0]!.terminated).toBe(false);
+    });
+
+    it('rebuilds transparently for the next search', async () => {
+      const { built, geometry } = harness(true, 60_000);
+      await runSearch(geometry, () => built[0]);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      await runSearch(geometry, () => built[1]);
+      expect(built).toHaveLength(2);
+      // Re-furnished, and the search actually reached it: a released worker
+      // that came back empty would answer every search with no ephemeris.
+      expect(built[1]!.sent.filter((m) => m.type === 'loadKernel')).toHaveLength(2);
+      expect(built[1]!.last('geometry')).toBeDefined();
+    });
+
+    it('pushes the release back on each new call', async () => {
+      // Otherwise a burst of searches would each pay a rebuild, which is the
+      // opposite of what the timeout is for.
+      const { built, geometry } = harness(true, 60_000);
+      await runSearch(geometry, () => built[0]);
+      await vi.advanceTimersByTimeAsync(59_000);
+
+      await runSearch(geometry, () => built[0]);
+      await vi.advanceTimersByTimeAsync(59_000);
+
+      expect(built[0]!.terminated).toBe(false);
+      expect(built).toHaveLength(1);
+    });
+
+    it('keeps the worker for the session when no timeout is set', async () => {
+      const { built, geometry } = harness(true);
+      await runSearch(geometry, () => built[0]);
+
+      await vi.advanceTimersByTimeAsync(3_600_000);
+      expect(built[0]!.terminated).toBe(false);
     });
   });
 

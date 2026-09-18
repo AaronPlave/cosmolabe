@@ -53,6 +53,23 @@ let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
 /**
+ * How long the geometry worker may sit idle before it is released.
+ *
+ * It costs 235 MB on the Cassini catalog -- a CSPICE instance's fixed 160 MB
+ * heap plus the kernels its last search needed -- and the event finder is used
+ * in bursts. Holding that between bursts is the worse trade: coming back to it
+ * costs about a second (the wasm instantiates in tens of milliseconds, and the
+ * narrowed kernel set furnishes at roughly 7-20 ms per megabyte after its
+ * fetch, which the browser's HTTP cache serves), against searches that
+ * themselves take seconds.
+ *
+ * A minute rather than something tighter because every call pushes the release
+ * back, so this is the gap after which someone has plainly stopped searching --
+ * not a budget for one search. Editing a query and re-running never pays it.
+ */
+const GEOMETRY_WORKER_IDLE_MS = 60_000;
+
+/**
  * Searches run here, not on the cache worker.
  *
  * Two reasons, both about the fact that CSPICE is synchronous and a worker has
@@ -608,6 +625,7 @@ function initScene(
       geometryWorker = new GeometrySearchWorker({
         createWorker: () => new GeometrySearchRelayWorker(),
         kernels: currentWorkerKernels,
+        idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
       });
     } catch (err) {
       console.warn('[Cosmolabe] Failed to create cache worker:', err);
