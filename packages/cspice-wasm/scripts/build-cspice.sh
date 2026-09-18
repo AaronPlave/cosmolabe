@@ -76,6 +76,14 @@ fi
 
 # The SPICE surface the renderer and geometry layers call. Extend deliberately;
 # every symbol here is reachable from cspice-wasm's typed API.
+#
+# Extending it is the cheap part, and it is the right part: an entry point left
+# out here is one a caller has to approximate in TypeScript, and the
+# approximation is where NAIF's semantics quietly go missing. ckcov_c/ckobj_c
+# (issue #39) are the worked example -- a DAF-summary reconstruction of them
+# gets segment coverage right and silently loses interval level, the
+# CK_<id>_SCLK clock assignment, and CSPICE's own notion of which loaded
+# kernels are CKs. Two symbols and ~9 KB of .wasm buy all of that back.
 EXPORTS='[
   "_malloc","_free",
   "_tkvrsn_c","_erract_c","_errprt_c","_errdev_c","_failed_c","_getmsg_c","_reset_c",
@@ -91,6 +99,7 @@ EXPORTS='[
   "_dafopr_c","_dafcls_c","_dafbfs_c","_daffna_c","_dafgs_c","_dafgn_c","_dafus_c",
   "_spkopn_c","_spksub_c","_spkcls_c",
   "_ckopn_c","_ckw03_c","_ckcls_c","_ckgp_c","_ckgpav_c",
+  "_ckcov_c","_ckobj_c",
   "_dasopr_c","_dascls_c","_dlabfs_c","_dlafns_c",
   "_dskobj_c","_dsksrf_c","_dskgd_c","_dskz02_c","_dskv02_c","_dskp02_c","_dskb02_c",
   "_dskw02_c","_dskmi2_c","_dskrb2_c",

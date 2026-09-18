@@ -1,5 +1,5 @@
 export { Spice } from './Spice.js';
-export type { SpiceInstance } from './Spice.js';
+export type { SpiceInstance, CkCoverageOptions } from './Spice.js';
 export type { KernelSource, SpiceKernelManager } from './SpiceKernel.js';
 export type { SpiceTime } from './SpiceTime.js';
 export type { SpiceState } from './SpiceState.js';

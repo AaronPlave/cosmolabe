@@ -34,6 +34,7 @@ export {
   SpiceSearchCancelled,
   type HeritageSpice,
   type HeritageSpiceOptions,
+  type HCkCoverageOptions,
   type HGfReport,
 } from './heritage-spice.js';
 export { spiceUtcFromIso } from './iso-epoch.js';

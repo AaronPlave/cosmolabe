@@ -14,7 +14,18 @@ const fixtureBytes = (name: string) =>
     readFileSync(fileURLToPath(new URL(`../../../kernels/fixtures/${name}`, import.meta.url))),
   );
 
-const FIXTURES = ['naif0012.tls', 'pck00011.tpc', 'de440s-inner-cassini.bsp', 'cassini-soi.bsp'];
+// The CK trio (clock, frame kernel, C-kernel) is here so `ckcov` has something
+// to answer about: coverage of an orientation is only meaningful once a CK and
+// the SCLK that dates it are both furnished.
+const FIXTURES = [
+  'naif0012.tls',
+  'pck00011.tpc',
+  'de440s-inner-cassini.bsp',
+  'cassini-soi.bsp',
+  'cassini-demo.tsc',
+  'cassini-demo.tf',
+  'cassini-demo.bc',
+];
 
 describe('@cosmolabe/frames heritage adapter', () => {
   let spice: HeritageSpice;
@@ -81,6 +92,46 @@ describe('@cosmolabe/frames heritage adapter', () => {
     for (let i = 1; i < windows.length; i++) {
       expect(windows[i]!.start).toBeGreaterThan(windows[i - 1]!.end);
     }
+  });
+
+  it('reconstructs ckobj and ckcov from CK DAF summaries', () => {
+    const CK_ID = -82000;
+    expect(spice.ckobj('cassini-demo.bc')).toContain(CK_ID);
+
+    // Ticks are what the descriptor holds; ET is the default, and the two must
+    // describe the same interval through the demo clock.
+    const ticks = spice.ckcov(CK_ID, { timeSystem: 'SCLK' });
+    const windows = spice.ckcov(CK_ID);
+    expect(ticks.length).toBeGreaterThan(0);
+    expect(windows.length).toBe(ticks.length);
+    for (let i = 0; i < windows.length; i++) {
+      expect(windows[i]!.start).toBeCloseTo(oracle.sct2e(-82, ticks[i]!.start), 6);
+      expect(windows[i]!.end).toBeCloseTo(oracle.sct2e(-82, ticks[i]!.end), 6);
+      expect(windows[i]!.end).toBeGreaterThan(windows[i]!.start);
+    }
+
+    // The window is the real one: ckgp answers inside it and not outside.
+    const inside = (windows[0]!.start + windows[0]!.end) / 2;
+    expect(oracle.ckgp(CK_ID, oracle.sce2c(-82, inside), 0, 'J2000').found).toBe(true);
+    const outside = windows[windows.length - 1]!.end + 86400;
+    expect(oracle.ckgp(CK_ID, oracle.sce2c(-82, outside), 0, 'J2000').found).toBe(false);
+
+    // Interval level is CSPICE's, not an approximation of it: it reports the
+    // interpolation intervals inside each segment, so it can only be a subset
+    // of the segment span.
+    const intervals = spice.ckcov(CK_ID, { level: 'INTERVAL' });
+    expect(intervals.length).toBeGreaterThan(0);
+    expect(intervals[0]!.start).toBeGreaterThanOrEqual(windows[0]!.start);
+    expect(intervals[intervals.length - 1]!.end).toBeLessThanOrEqual(
+      windows[windows.length - 1]!.end,
+    );
+
+    // An id no CK carries is empty coverage, not an error.
+    expect(spice.ckcov(-99000)).toEqual([]);
+    // A bad time system is an error, not an empty window that reads like
+    // "no attitude here".
+    expect(() => spice.ckcov(CK_ID, { timeSystem: 'NOPE' as never })).toThrow(SpiceError);
+    expect(() => spice.ckcov(CK_ID, { level: 'NOPE' as never })).toThrow(SpiceError);
   });
 
   it('computes sub-points with heritage lat, lon, and altitude semantics', () => {

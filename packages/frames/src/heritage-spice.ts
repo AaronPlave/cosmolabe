@@ -41,13 +41,19 @@
 //   windows      the gf finders search each cnfine window independently and
 //                concatenate results in cnfine order; spkcov unions segment
 //                windows across every furnished SPK, ascending and merged;
+//                ckcov is ckcov_c itself over every loaded CK, unioned by
+//                SPICE, defaulting to segment level in TDB so a coverage
+//                answer reads the same whichever kernel kind produced it;
 //                getfov defaults maxBounds to 20 as heritage does.
 //   gaps         members whose CSPICE entry points are absent from the WASM
 //                export allowlist (cidfrm, fovray, fovtrg, a nonzero gfdist
 //                adjust, KernelSource type 'file') throw a typed SpiceError:
 //                no cosmolabe runtime path calls them today, and silence
 //                would hide a semantic gap. Extend the allowlist
-//                deliberately when a caller appears.
+//                deliberately when a caller appears -- as ckcov_c and ckobj_c
+//                were for issue #39, which is the shape that change should
+//                take: the allowlist is the mechanism that keeps NAIF's
+//                semantics instead of a second reader approximating them.
 //
 // Dissolution plan (recorded here and in docs/collab/RE-ENTRY-BRIEF.md): this
 // adapter is scaffolding with a defined end state, not a load-bearing
@@ -62,6 +68,7 @@ import {
   createSpiceBindings,
   SpiceError,
   SpiceSearchCancelled,
+  type CkCoverageOptions,
   type GfReport,
   type SpiceBindings,
   type AberrationCorrection,
@@ -165,6 +172,14 @@ function mergeWindows(raw: [number, number][]): HTimeWindow[] {
   }
   return merged;
 }
+
+/**
+ * `ckcov` options. These are `ckcov_c`'s own arguments, forwarded unchanged --
+ * the adapter adds no default CSPICE does not already have, and reinterprets
+ * none of them. Re-exported from the tier below so the adapter and the engine
+ * cannot drift apart.
+ */
+export type HCkCoverageOptions = CkCoverageOptions;
 
 /** The SpiceInstance-compatible surface plus the seam beneath it. */
 export interface HeritageSpice {
@@ -303,6 +318,8 @@ export interface HeritageSpice {
   spkcov(idcode: number): HTimeWindow[];
   spkobj(filename: string): number[];
   spkFileCoverage(filename: string): HTimeWindow[];
+  ckcov(idcode: number, options?: CkCoverageOptions): HTimeWindow[];
+  ckobj(filename: string): number[];
   getfov(instId: number, maxBounds?: number): HInstrumentFov;
   fovray(
     inst: string,
@@ -620,6 +637,34 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
         raw.push(...bindings.spkCoverage(filename, body));
       }
       return mergeWindows(raw);
+    },
+
+    /**
+     * When attitude is available for a CK structure, unioned across every
+     * loaded C-kernel -- the `spkcov` of orientation.
+     *
+     * The asymmetry this removes: without it a caller could say when a position
+     * is available and could only discover the absence of an orientation one
+     * epoch at a time, by asking and being told no. A window list is what turns
+     * "attitude unavailable" from a dead end into an answer ("not here; here").
+     *
+     * Every semantic choice is `ckcov_c`'s. The loaded CKs are the ones CSPICE
+     * reports for the 'CK' kind, not the ones whose names end in `.bc`; segment
+     * versus interval coverage, the tolerance, the angular-velocity filter and
+     * the SCLK the TDB conversion runs through (`ckmeta_c`, which honours a
+     * `CK_<id>_SCLK` pool assignment) are all resolved inside CSPICE. The
+     * adapter only reshapes the pairs into the `HTimeWindow` objects this
+     * surface returns.
+     */
+    ckcov(idcode, options) {
+      return bindings
+        .ckCoverageAll(idcode, options)
+        .map(([start, end]) => ({ start, end }));
+    },
+
+    /** The CK structure ids a furnished C-kernel carries (ckobj). */
+    ckobj(filename) {
+      return bindings.ckObjects(filename);
     },
 
     getfov(instId, maxBounds = 20) {
