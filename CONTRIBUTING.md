@@ -37,8 +37,9 @@ packages/
   spice/            # Heritage CSPICE wrappers (TimeCraftJS) — test-only reference implementation
   core/             # Universe model — pure TypeScript, no rendering deps
   control/          # ViewerControl port + script language — no renderer, no DOM
+  interop/          # CCSDS (OEM, CDM, AEM), CSV and CZML parse/write — pure string transforms
   three/            # Three.js renderer
-  cesium-adapter/   # CZML export + coordinate transforms
+  cesium-adapter/   # CZML export + coordinate transforms — cesium is an optional peer dep
   cesium/           # CesiumJS renderer
 apps/
   viewer/           # Three.js demo app (Svelte 5)
@@ -67,7 +68,7 @@ Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LF
 
 ## Adding a feature
 
-- New trajectory type? See `packages/core/src/trajectories/Trajectory.ts` for the interface and existing implementations (Keplerian, TLE, FixedPoint, etc.) for patterns.
+- New trajectory type? See `packages/core/src/trajectories/Trajectory.ts` for the interface and existing implementations (Keplerian, TLE, FixedPoint, etc.) for patterns. To add one without touching this repo, pass `trajectoryFactories: { MyType: factory }` to `Universe` or `CatalogLoader` — catalog entries with that `type` are built by your factory, and a name already in the table is overridden.
 - New rotation model? `packages/core/src/rotations/RotationModel.ts`.
 - New renderer plugin? `packages/three/src/plugins/RendererPlugin.ts` and the stock plugins in `packages/three/src/plugins/stock/`.
 - New script verb, or a new way to drive the viewer from a host? `packages/control/src/verbs.ts` is the one table the language, the port and the palette all read; see [docs/scripting.md](docs/scripting.md).
