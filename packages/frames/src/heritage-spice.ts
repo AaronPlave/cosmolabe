@@ -138,6 +138,26 @@ export type HKernelSource =
 
 const vec = (v: WVec3): HVec3 => [v.x, v.y, v.z];
 
+/**
+ * Coverage intervals, ascending and merged -- the shape heritage `spkcov`
+ * returns, and the charter's "ascending and merged" above.
+ *
+ * Adjacent rather than merely overlapping intervals are joined too (`start <=
+ * last.end`), because a body whose coverage is split across two SPKs that abut
+ * exactly has continuous coverage, and reporting a seam there would invite a
+ * caller to refuse an epoch SPICE can actually answer for.
+ */
+function mergeWindows(raw: [number, number][]): HTimeWindow[] {
+  raw.sort((a, b) => a[0] - b[0]);
+  const merged: HTimeWindow[] = [];
+  for (const [start, end] of raw) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last.end) last.end = Math.max(last.end, end);
+    else merged.push({ start, end });
+  }
+  return merged;
+}
+
 /** The SpiceInstance-compatible surface plus the seam beneath it. */
 export interface HeritageSpice {
   /** The frames tier under the adapter, for provenance (the kernel set hash). */
@@ -274,6 +294,7 @@ export interface HeritageSpice {
   ): HTimeWindow[];
   spkcov(idcode: number): HTimeWindow[];
   spkobj(filename: string): number[];
+  spkFileCoverage(filename: string): HTimeWindow[];
   getfov(instId: number, maxBounds?: number): HInstrumentFov;
   fovray(
     inst: string,
@@ -570,17 +591,27 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
         if (!/\.bsp$/i.test(k.name)) continue;
         raw.push(...bindings.spkCoverage(k.name, idcode));
       }
-      raw.sort((a, b) => a[0] - b[0]);
-      const merged: HTimeWindow[] = [];
-      for (const [start, end] of raw) {
-        const last = merged[merged.length - 1];
-        if (last && start <= last.end) last.end = Math.max(last.end, end);
-        else merged.push({ start, end });
-      }
-      return merged;
+      return mergeWindows(raw);
     },
     spkobj(filename) {
       return bindings.spkObjects(filename);
+    },
+
+    /**
+     * One file's coverage, unioned over every body it carries.
+     *
+     * The transpose of `spkcov`, which asks about one body across every loaded
+     * file. This asks whether a *file* is worth loading at all, which is a
+     * question `spkcov` cannot answer: a search confined to a window can only
+     * be served by segments covering it, so a file whose coverage misses the
+     * window need not be furnished into a worker at all.
+     */
+    spkFileCoverage(filename) {
+      const raw: [number, number][] = [];
+      for (const body of bindings.spkObjects(filename)) {
+        raw.push(...bindings.spkCoverage(filename, body));
+      }
+      return mergeWindows(raw);
     },
 
     getfov(instId, maxBounds = 20) {

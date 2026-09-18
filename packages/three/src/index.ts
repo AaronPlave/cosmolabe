@@ -14,7 +14,11 @@ export {
   GeometrySearchCancelled,
   sharedCancellationAvailable,
 } from './SpiceCacheWorker.js';
-export { GeometrySearchWorker, type GeometrySearchWorkerOptions } from './GeometrySearchWorker.js';
+export {
+  GeometrySearchWorker,
+  type GeometrySearchScope,
+  type GeometrySearchWorkerOptions,
+} from './GeometrySearchWorker.js';
 export type {
   CacheBuildRequest,
   GeometrySearchOptions,

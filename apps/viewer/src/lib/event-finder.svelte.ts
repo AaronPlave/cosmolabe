@@ -36,7 +36,7 @@ import {
 } from '@cosmolabe/core';
 import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
 import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
-import { getGeometryWorker, getSpice } from './loader';
+import { geometryScopeForWindow, getGeometryWorker, getSpice } from './loader';
 import { noteMemory } from './memory-probe';
 import {
   activeEventAtTime,
@@ -122,13 +122,19 @@ export type SearchProgress = GeometrySearchProgress | null;
  * the same kernels, with the arguments passed through untouched — so the choice
  * is about where the time is spent, not about what comes back.
  */
-function beginSearch(spice: SpiceInstance): RunningSearch {
+function beginSearch(spice: SpiceInstance, window: EtInterval): RunningSearch {
   const worker = getGeometryWorker();
   if (worker) {
     // Only the search that owns the panel writes to it. A superseded search can
     // still report for a moment before it stops, and its progress is nobody's.
     let self: RunningSearch | null = null;
     self = worker.search({
+      // The window is what decides which kernels the worker needs: an SPK whose
+      // coverage misses it cannot contribute to the answer, and the geometry
+      // worker holds its own copy of everything it is given. For a mission-length
+      // catalog that is the difference between a second copy of the catalog and a
+      // second copy of the two files this search can actually reach.
+      scope: geometryScopeForWindow(window),
       onProgress: (progress) => {
         if (active === self) ef.progress = progress;
       },
@@ -600,7 +606,7 @@ export async function runSearch() {
   // frees the worker for the one they do want.
   active?.cancel();
 
-  const running = beginSearch(spice);
+  const running = beginSearch(spice, { start: ef.form.startEt, end: ef.form.endEt });
   active = running;
   const search = new EventSearch({ registry, provider: running.provider });
   const token = ++inFlight;

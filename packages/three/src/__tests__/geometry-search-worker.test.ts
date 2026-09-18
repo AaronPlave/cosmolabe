@@ -69,7 +69,10 @@ function harness(canInterrupt: boolean) {
       built.push(w);
       return w as unknown as Worker;
     },
-    kernels: () => ['naif0012.tls', 'de440s.bsp'],
+    // Narrowed per scope, as the viewer's provider is: the scope's key names
+    // the set, so a start for a different key must furnish a different list.
+    kernels: (scope) =>
+      scope ? ['naif0012.tls', `${scope.key}.bsp`] : ['naif0012.tls', 'de440s.bsp'],
     canInterrupt: () => canInterrupt,
   });
   return { built, geometry };
@@ -221,6 +224,69 @@ describe('GeometrySearchWorker', () => {
       geometry.search().cancel();
       await settle();
       expect(built).toHaveLength(0);
+    });
+  });
+
+  describe('when a search needs a different kernel set', () => {
+    it('rebuilds the worker, because the furnished pool is the wrong one', async () => {
+      // The reason the scope exists: this worker holds its own copy of every
+      // kernel it is given, so it is furnished for one search's window rather
+      // than for the whole catalog. A worker furnished for another window is
+      // missing files this search needs and holding files it cannot reach.
+      const { built, geometry } = harness(true);
+      dispatch(aSearch(geometry.search({ scope: { key: 'phase1' } }).provider));
+      await settle();
+      expect(built).toHaveLength(1);
+
+      dispatch(aSearch(geometry.search({ scope: { key: 'phase2' } }).provider));
+      await settle();
+
+      expect(built).toHaveLength(2);
+      expect(built[1]!.sent.filter((m) => m.type === 'loadKernel').map((m) => m.url))
+        .toEqual(['naif0012.tls', 'phase2.bsp']);
+    });
+
+    it('keeps the worker when the set is unchanged', async () => {
+      // Two windows inside one mission phase need the same files, and editing a
+      // query is the common case. Rebuilding there would make every keystroke
+      // cost a re-furnish.
+      const { built, geometry } = harness(true);
+      dispatch(aSearch(geometry.search({ scope: { key: 'phase1' } }).provider));
+      await settle();
+
+      dispatch(aSearch(geometry.search({ scope: { key: 'phase1' } }).provider));
+      await settle();
+
+      expect(built).toHaveLength(1);
+    });
+
+    it('rebuilds when a scoped search follows an unscoped one', async () => {
+      // No scope means the caller's full set, which is a different pool again.
+      // Treating absent as "matches anything" would run a narrowed search
+      // against the whole catalog, or worse, the reverse.
+      const { built, geometry } = harness(true);
+      dispatch(aSearch(geometry.search().provider));
+      await settle();
+
+      dispatch(aSearch(geometry.search({ scope: { key: 'phase1' } }).provider));
+      await settle();
+      expect(built).toHaveLength(2);
+
+      dispatch(aSearch(geometry.search().provider));
+      await settle();
+      expect(built).toHaveLength(3);
+      expect(built[2]!.sent.filter((m) => m.type === 'loadKernel').map((m) => m.url))
+        .toEqual(['naif0012.tls', 'de440s.bsp']);
+    });
+
+    it('builds nothing extra when the first search is scoped', async () => {
+      // The rebuild check runs on every search, including the first. With no
+      // worker yet there is nothing to rebuild, and restarting here would be a
+      // wasted generation bump.
+      const { built, geometry } = harness(true);
+      dispatch(aSearch(geometry.search({ scope: { key: 'phase1' } }).provider));
+      await settle();
+      expect(built).toHaveLength(1);
     });
   });
 

@@ -45,6 +45,24 @@ import {
 } from './SpiceCacheWorker.js';
 import type { EtInterval, EtSeconds, GeometryFinderProvider } from '@cosmolabe/core';
 
+/**
+ * What a search needs furnished, as its caller understands it.
+ *
+ * This worker holds a second copy of every kernel it is given, so a caller that
+ * can narrow the set to what one search can reach saves that much memory for as
+ * long as the worker lives. Which kernels those are is the caller's judgement,
+ * not this class's — all it does is carry the scope through to `kernels` and
+ * notice when the key changes.
+ */
+export interface GeometrySearchScope {
+  /**
+   * Identity of the kernel set. A search whose key differs from the furnished
+   * worker's rebuilds it; one that matches reuses it, so editing a query within
+   * a mission phase costs nothing.
+   */
+  readonly key: string;
+}
+
 export interface GeometrySearchWorkerOptions {
   /**
    * Makes a fresh worker. Called on the first search and again after a restart,
@@ -55,8 +73,12 @@ export interface GeometrySearchWorkerOptions {
    * The kernels to furnish, in furnish order — precedence has to match the main
    * thread's. Re-read on every start, so whatever backs them (a URL, a dropped
    * `File`) has to stay readable for as long as searching does.
+   *
+   * Given the scope of the search that triggered the start, when one was
+   * supplied. The list it returns must be the one the scope's key names, or a
+   * worker will be reused for a search it is not furnished for.
    */
-  kernels: () => KernelSource[] | Promise<KernelSource[]>;
+  kernels: (scope?: GeometrySearchScope) => KernelSource[] | Promise<KernelSource[]>;
   /**
    * Whether a running CSPICE call can be interrupted in place. Defaults to
    * probing `SharedArrayBuffer`; injectable so the terminate-and-restore path
@@ -78,6 +100,12 @@ export class GeometrySearchWorker {
    * nobody asked for over the one that replaced it.
    */
   private generation = 0;
+  /**
+   * The scope key the live worker is furnished for, so a search needing a
+   * different kernel set rebuilds rather than running against the wrong pool.
+   * Null when no scope was given, which means the caller's full set.
+   */
+  private furnishedFor: string | null = null;
   private readonly canInterrupt: () => boolean;
 
   constructor(private readonly options: GeometrySearchWorkerOptions) {
@@ -98,7 +126,7 @@ export class GeometrySearchWorker {
   }
 
   /** The worker, started and furnished. Shared by every caller that races here. */
-  private start(): Promise<SpiceCacheWorker> {
+  private start(scope?: GeometrySearchScope): Promise<SpiceCacheWorker> {
     if (this.disposed) return Promise.reject(new Error('GeometrySearchWorker disposed'));
     if (this.starting) return this.starting;
 
@@ -107,7 +135,7 @@ export class GeometrySearchWorker {
       const worker = new SpiceCacheWorker(this.options.createWorker());
       try {
         await worker.waitUntilReady();
-        await worker.loadKernels(await this.options.kernels());
+        await worker.loadKernels(await this.options.kernels(scope));
       } catch (err) {
         // A worker that failed to furnish would answer every search with
         // "insufficient ephemeris data". Drop it so the next search builds a new
@@ -125,6 +153,7 @@ export class GeometrySearchWorker {
         throw new Error('GeometrySearchWorker disposed');
       }
       this.worker = worker;
+      this.furnishedFor = scope?.key ?? null;
       return worker;
     })();
 
@@ -141,6 +170,7 @@ export class GeometrySearchWorker {
     this.worker?.dispose();
     this.worker = null;
     this.starting = null;
+    this.furnishedFor = null;
   }
 
   /**
@@ -148,8 +178,18 @@ export class GeometrySearchWorker {
    * a convenience here but a requirement, because terminating the worker to
    * cancel one search would take every other search on it down as well.
    */
-  search(options?: GeometrySearchOptions): WorkerGeometrySearch {
+  search(options?: GeometrySearchOptions & { scope?: GeometrySearchScope }): WorkerGeometrySearch {
     this.active?.cancel();
+
+    // A worker furnished for a different kernel set would answer this search
+    // from the wrong pool -- with "insufficient ephemeris data" if it is missing
+    // a file, and with a needlessly large heap if it is holding files this
+    // search cannot reach. Either way it has to be rebuilt, and doing it here
+    // rather than inside `start` keeps the in-flight-start sharing below honest.
+    const scope = options?.scope;
+    if ((this.worker || this.starting) && (scope?.key ?? null) !== this.furnishedFor) {
+      this.restart();
+    }
 
     let cancelled = false;
     let progress: GeometrySearchProgress | null = null;
@@ -159,7 +199,7 @@ export class GeometrySearchWorker {
     // search that is superseded before it asks anything costs nothing.
     const delegate = async (): Promise<WorkerGeometrySearch> => {
       if (cancelled) throw new GeometrySearchCancelled();
-      const worker = await this.start();
+      const worker = await this.start(scope);
       if (cancelled) throw new GeometrySearchCancelled();
       return (inner ??= worker.geometrySearch({
         onProgress: (p) => {
