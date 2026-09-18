@@ -31,6 +31,7 @@ import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmo
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
 import { kernelSetKey, kernelsForWindow, type KernelWindow } from './geometry-kernels';
+import { KernelRegistry, kernelName, type KernelSourceRef } from './kernel-registry';
 import {
   bindRenderer,
   gotoObject,
@@ -80,28 +81,12 @@ const GEOMETRY_WORKER_IDLE_MS = 60_000;
  */
 let geometryWorker: GeometrySearchWorker | null = null;
 
-/** A kernel the worker can be given: fetched by URL, or read from a dropped file. */
-type WorkerKernelSource = { url: string } | { file: File };
 /**
- * Every kernel furnished on the main thread, in furnish order.
- *
- * One ordered list rather than a list per source, because furnish order *is*
- * kernel precedence — two SPKs covering the same body, later wins — and the
- * worker has to reproduce it exactly or its searches quietly answer a different
- * question. A dropped kernel is furnished before the catalog's own (the drop
- * handler furnishes, then loads the scene), so appending each entry as it is
- * furnished is the only thing that keeps the two paths in step. Files are held
- * as handles, not bytes, and re-read on every worker start -- the geometry
- * worker is rebuilt whenever a cancellation had to terminate it, so a dropped
- * kernel the user has since moved or deleted will fail to re-furnish.
+ * Every kernel furnished on the main thread, in furnish order, with whose it
+ * is. The workers' list is a filter over it, so the two cannot disagree about
+ * order; releasing a scene's kernels is a prune of it. See `kernel-registry`.
  */
-const workerKernelSources: WorkerKernelSource[] = [];
-
-/** The name a kernel is furnished under, which is what SPICE knows it by. */
-function workerKernelName(source: WorkerKernelSource): string {
-  const raw = 'url' in source ? filenameFromUrl(source.url) : source.file.name;
-  return raw.replace(/\.gz$/i, '');
-}
+const kernels = new KernelRegistry();
 
 /**
  * Per-file SPK coverage, asked of the main thread's SPICE and remembered.
@@ -109,7 +94,9 @@ function workerKernelName(source: WorkerKernelSource): string {
  * The main thread has every kernel furnished, so it can answer this for any of
  * them; the worker being narrowed obviously cannot. Cached because it is asked
  * once per search and the answer cannot change -- a furnished kernel's coverage
- * is a property of its bytes, and nothing here ever unloads one.
+ * is a property of its bytes. A scene load unloads the previous catalog's
+ * kernels and drops their entries here with them, so a name re-furnished later
+ * from different bytes is asked again rather than answered from the old file.
  *
  * Null means "no coverage to test": a leapseconds or text PCK kernel, or an SPK
  * SPICE would not answer for. Both must be kept, so both are reported the same
@@ -146,9 +133,10 @@ function scopeWindow(scope?: GeometrySearchScope): KernelWindow | null {
 }
 
 /** The sources a search over `window` could reach, or all of them for no window. */
-function scopedKernelSources(window: KernelWindow | null): WorkerKernelSource[] {
-  if (!window) return [...workerKernelSources];
-  return kernelsForWindow(workerKernelSources, workerKernelName, kernelCoverage, window);
+function scopedKernelSources(window: KernelWindow | null): KernelSourceRef[] {
+  const sources = kernels.workerSources();
+  if (!window) return sources;
+  return kernelsForWindow(sources, kernelName, kernelCoverage, window);
 }
 
 /**
@@ -157,7 +145,7 @@ function scopedKernelSources(window: KernelWindow | null): WorkerKernelSource[] 
  */
 export function geometryScopeForWindow(window: KernelWindow): GeometrySearchScope | undefined {
   if (!getSpice()) return undefined;
-  const names = scopedKernelSources(window).map(workerKernelName);
+  const names = scopedKernelSources(window).map(kernelName);
   const scope: ViewerGeometryScope = { key: kernelSetKey(names), window };
   return scope;
 }
@@ -185,9 +173,6 @@ async function currentWorkerKernels(scope?: GeometrySearchScope): Promise<Kernel
   );
 }
 
-/** URLs of kernels already furnished in this session — prevents redundant fetch + furnish across demos. */
-const furnishedKernels = new Set<string>();
-
 /** Visual-regression test mode — set via `?test=1`. Strips GPU-variant noise
  *  (antialias / bloom / starfield) and installs the `window.__cosmolabe`
  *  deterministic-capture hook. Never true in normal use. */
@@ -201,34 +186,39 @@ const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod']);
 const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.tga']);
 
 /**
- * The kernel types furnished into the SPICE worker.
+ * Release the kernels the previous catalog furnished.
  *
- * Ephemeris, leapseconds and text PCK: what a trajectory cache needs, and what
- * the geometry-event searches that now run there need too — `gfdist` over an
- * observer→target distance reads SPK and LSK, and body shapes come from the
- * text PCK. Attitude (`.bc`), frame (`.tf`) and instrument (`.ti`) kernels are
- * deliberately not loaded: nothing in the worker reads them today, and they are
- * the expensive ones. An event kind that needs them — an FOV or a body-fixed
- * `gfposc` search — must add them here, or its search will find nothing in the
- * worker that the main thread would have found.
+ * Called at the top of every scene load, before the new catalog's own kernels
+ * go in, so a scene's geometry is resolved against that scene's kernels and
+ * nothing else. Without it the SPICE instance accumulates every catalog of the
+ * session: the later furnish wins wherever two catalogs' SPKs, PCKs or LSKs
+ * overlap -- whichever scene the user is actually looking at -- and nothing is
+ * ever reclaimed.
+ *
+ * Kernels the user dropped in without a catalog survive this; see
+ * `kernel-registry` for why, and `handleFileList` for which drops count as a
+ * catalog's.
+ *
+ * The cost is that switching demos back and forth re-furnishes each time rather
+ * than finding everything already loaded. The browser's HTTP cache covers the
+ * fetch but not the CSPICE load, so this is a real second or two on a large
+ * catalog -- paid for answers that belong to the scene on screen.
  */
-const WORKER_KERNEL_EXTS = new Set(['.bsp', '.tls', '.tpc']);
+function releaseCatalogKernels(): void {
+  const released = kernels.releaseCatalogKernels();
+  if (released.length === 0) return;
 
-function isWorkerKernel(name: string): boolean {
-  const lower = name.toLowerCase().replace(/\.gz$/, '');
-  for (const ext of WORKER_KERNEL_EXTS) {
-    if (lower.endsWith(ext)) return true;
+  for (const name of released) {
+    try {
+      spice?.unload(name);
+    } catch (err) {
+      // An unload that fails leaves that kernel furnished, which is the old
+      // behaviour for one file rather than a broken scene. Worth saying so.
+      console.warn(`[Cosmolabe] Failed to unload ${name}:`, err);
+    }
+    kernelCoverageCache.delete(name);
   }
-  return false;
-}
-
-function trackKernelForWorker(url: string): void {
-  if (isWorkerKernel(url)) workerKernelSources.push({ url: new URL(url, location.href).href });
-}
-
-/** A kernel the user dropped in, which the worker cannot fetch for itself. */
-function trackKernelFileForWorker(file: File): void {
-  if (isWorkerKernel(file.name)) workerKernelSources.push({ file });
+  setKernelCount(spice?.totalLoaded() ?? 0);
 }
 
 // ── Fetch with progress + gzip decompression ──
@@ -297,9 +287,20 @@ function isLargeKernel(k: ResolvedKernel): boolean {
  *  the loading bar across the kernel phase — never shown as a byte count. */
 const NOMINAL_KERNEL_BYTES = 250_000;
 
-/** Furnish a single kernel URL. Handles `.gz` decompression. Tracks for cache worker. */
+/**
+ * The key a kernel URL is registered under.
+ *
+ * Absolute, because a catalog's own `spiceKernels` are resolved against the
+ * catalog URL while a meta-kernel's are resolved against the `.tm`, and the
+ * already-furnished check has to see the two spellings of one file as one file.
+ */
+function absoluteKernelUrl(url: string): string {
+  return new URL(url, location.href).href;
+}
+
+/** Furnish a single kernel URL. Handles `.gz` decompression. Registers it as the catalog's. */
 async function furnishKernelUrl(url: string, opts?: { size?: number; onProgress?: (loaded: number) => void }): Promise<void> {
-  if (furnishedKernels.has(url)) return;
+  if (kernels.has(absoluteKernelUrl(url))) return;
   const s = await ensureSpice();
 
   if (opts?.size && opts.size > 0) {
@@ -309,8 +310,7 @@ async function furnishKernelUrl(url: string, opts?: { size?: number; onProgress?
   } else {
     await s.furnish({ type: 'url', url });
   }
-  furnishedKernels.add(url);
-  trackKernelForWorker(url);
+  kernels.register({ url: absoluteKernelUrl(url) }, 'catalog');
 }
 
 /** Resolve a meta-kernel (.tm) into a list of absolute kernel URLs. */
@@ -327,7 +327,7 @@ async function furnishKernelsFromGraph(graph: ResolvedCatalogGraph): Promise<voi
   // Expand any .tm meta-kernels first so we have the complete flat list.
   const flat: ResolvedKernel[] = [];
   for (const k of graph.kernels) {
-    if (furnishedKernels.has(k.url)) continue;
+    if (kernels.has(absoluteKernelUrl(k.url))) continue;
     if (k.url.toLowerCase().endsWith('.tm')) {
       try {
         const expanded = await expandMetaKernel(k.url);
@@ -600,7 +600,7 @@ function initScene(
   cacheWorker = null;
   geometryWorker?.dispose();
   geometryWorker = null;
-  if (!TEST_MODE && workerKernelSources.length > 0) {
+  if (!TEST_MODE && kernels.workerSources().length > 0) {
     try {
       cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
       const worker = cacheWorker;
@@ -864,6 +864,13 @@ export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
     });
 
+    // Only once the graph is in hand: a catalog that failed to fetch is not a
+    // scene load, and must leave the scene on screen with its kernels intact.
+    // Unconditional after that, kernels or none — a catalog with no kernels of
+    // its own still replaces the scene, and would otherwise resolve what
+    // geometry it has against the last catalog's.
+    releaseCatalogKernels();
+
     // SPICE-free path: if the catalog graph declares no kernels, skip SPICE init
     // entirely. The CatalogLoader falls through to Keplerian/analytical trajectories.
     if (graph.kernels.length > 0) {
@@ -960,7 +967,25 @@ export async function handleDrop(canvas: HTMLCanvasElement, dataTransfer: DataTr
   await handleFileList(canvas, files);
 }
 
-/** Handle file input selection */
+/**
+ * Handle file input selection.
+ *
+ * Whose the dropped kernels are is decided here, and it is decided by whether
+ * the same drop brought a catalog.
+ *
+ * A drop carrying a catalog is a scene load like any other: its kernels are
+ * that scene's, they are registered as the catalog's, and they go when the next
+ * scene replaces this one -- with the previous catalog's released first, before
+ * anything in this drop is furnished, so furnish order stays the order the
+ * workers will reproduce.
+ *
+ * A drop with no catalog is the user adding kernels: onto an empty viewer, or
+ * onto a scene already up (a CK for an attitude the catalog omitted, a newer
+ * SPK). Those are registered as the user's and survive every later scene load,
+ * because a file someone dragged in by hand disappearing on a catalog switch
+ * they made for other reasons is not what they asked for. Clearing them means
+ * reloading the page.
+ */
 export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   // Dropped kernels are already on disk — no download to weigh — so the whole
   // bar belongs to the asset phase that follows.
@@ -972,6 +997,12 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
     return;
   }
 
+  // Resolved before the kernels are furnished, not after, because it is what
+  // says whether this drop is a scene load — and a scene load releases the
+  // previous catalog's kernels first.
+  const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
+  if (catalogs.length > 0) releaseCatalogKernels();
+
   if (kernelFiles.length > 0) {
     const s = await ensureSpice();
     for (let i = 0; i < kernelFiles.length; i++) {
@@ -982,14 +1013,13 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
       });
       const buffer = await file.arrayBuffer();
       await s.furnish({ type: 'buffer', data: buffer, filename: file.name });
-      trackKernelFileForWorker(file);
+      kernels.register({ file }, catalogs.length > 0 ? 'catalog' : 'user');
     }
     setKernelCount(s.totalLoaded());
   }
 
   // Only `initScene` opens the asset phase that closes the bar, so a drop that
   // furnishes kernels and nothing else has to close it here.
-  const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
   if (catalogs.length === 0) {
     endLoad();
     return;
