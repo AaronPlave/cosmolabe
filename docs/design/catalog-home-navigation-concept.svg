@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#090b0f"/><stop offset="1" stop-color="#020304"/>
+    </linearGradient>
+    <linearGradient id="planet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6c75ac"/><stop offset=".45" stop-color="#31364f"/><stop offset=".58" stop-color="#06070a"/>
+    </linearGradient>
+    <style>
+      .t{font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;fill:#f1f3f6}
+      .m{fill:#8f96a3}.d{fill:#5f6672}.line{stroke:#2c323b;fill:none}
+      .panel{fill:#0c1016;stroke:#2b313b}.row{fill:#11161e}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#05070a"/>
+  <text x="36" y="35" class="t" font-size="15" opacity=".72">Concept — minimal home + catalog navigation</text>
+
+  <rect x="32" y="62" width="742" height="790" rx="5" fill="url(#bg)" stroke="#303641"/>
+  <circle cx="78" cy="112" r="14" fill="none" stroke="#7d8fcb" stroke-width="4"/>
+  <text x="107" y="120" class="t" font-size="25" font-weight="600">Cosmolabe</text>
+  <path d="M400 230 C590 110 710 130 806 205" class="line" stroke-width="1"/>
+  <circle cx="598" cy="153" r="5" fill="#91a5e5"/>
+  <path d="M250 735 C380 470 550 315 770 245" class="line" stroke-width="1"/>
+  <circle cx="544" cy="424" r="6" fill="#7f93d0"/>
+  <circle cx="736" cy="470" r="196" fill="none" stroke="#27344b" stroke-width="2"/>
+
+  <text x="75" y="270" class="t" font-size="18" font-weight="600">Cosmolabe</text>
+  <text x="75" y="314" class="t" font-size="31" font-weight="500">3D space mission visualization in the browser.</text>
+  <text x="75" y="356" class="m" font-family="Inter,ui-sans-serif,system-ui" font-size="17">Render trajectories, planetary systems, sensor frustums,</text>
+  <text x="75" y="382" class="m" font-family="Inter,ui-sans-serif,system-ui" font-size="17">and mission events from SPICE kernels, TLE data, or</text>
+  <text x="75" y="408" class="m" font-family="Inter,ui-sans-serif,system-ui" font-size="17">Cosmographia catalogs.</text>
+
+  <rect x="75" y="455" width="160" height="42" rx="5" fill="#dce4f7"/>
+  <text x="96" y="482" fill="#11151b" font-family="Inter,ui-sans-serif,system-ui" font-size="14" font-weight="600">Browse catalogs →</text>
+  <text x="260" y="482" class="t" font-size="14" text-decoration="underline">Open local data</text>
+
+  <line x1="75" y1="540" x2="380" y2="540" stroke="#252b34"/>
+  <text x="75" y="579" class="m" font-size="14">Start with</text>
+  <text x="75" y="620" class="t" font-size="16">Earth + Moon</text><text x="350" y="620" class="m" font-size="18">›</text>
+  <text x="75" y="661" class="t" font-size="16">Europa Clipper</text><text x="350" y="661" class="m" font-size="18">›</text>
+  <text x="75" y="702" class="t" font-size="16">Cassini — Saturn</text><text x="350" y="702" class="m" font-size="18">›</text>
+  <text x="75" y="743" class="t" font-size="16">Curiosity — Mars</text><text x="350" y="743" class="m" font-size="18">›</text>
+  <text x="75" y="817" class="d" font-size="12">GitHub  ·  Docs</text>
+
+  <rect x="802" y="62" width="766" height="790" rx="5" fill="#020304" stroke="#303641"/>
+  <rect x="802" y="62" width="42" height="790" fill="#090c11" stroke="#1f252d"/>
+  <g class="m" font-family="Inter,ui-sans-serif,system-ui" font-size="19" text-anchor="middle">
+    <text x="823" y="102">⌕</text><text x="823" y="145">◎</text><text x="823" y="188">◉</text>
+    <text x="823" y="231">⌁</text><text x="823" y="274">⚙</text><text x="823" y="317">☼</text>
+    <text x="823" y="360">⊕</text><text x="823" y="403">▣</text><text x="823" y="446">ⓘ</text>
+  </g>
+  <circle cx="1278" cy="435" r="156" fill="url(#planet)"/>
+  <path d="M1055 62 L1033 636 L1090 590" stroke="#66758f" fill="none"/>
+
+  <rect x="857" y="91" width="294" height="548" rx="7" class="panel"/>
+  <text x="878" y="126" class="t" font-size="17" font-weight="600">Open</text>
+  <rect x="875" y="143" width="258" height="36" rx="5" class="row"/>
+  <text x="890" y="166" class="m" font-size="13">Search catalogs…</text>
+
+  <text x="878" y="207" class="m" font-size="12">EXAMPLES</text>
+  <text x="893" y="240" class="t" font-size="14">Earth + Moon</text>
+  <text x="1110" y="240" class="m" font-size="17">›</text>
+  <text x="893" y="274" class="t" font-size="14">Europa Clipper</text>
+  <text x="1110" y="274" class="m" font-size="17">›</text>
+  <text x="893" y="308" class="t" font-size="14">Cassini — Saturn</text>
+  <text x="1110" y="308" class="m" font-size="17">›</text>
+  <text x="893" y="342" class="t" font-size="14">Curiosity — Mars</text>
+  <text x="1110" y="342" class="m" font-size="17">›</text>
+
+  <text x="878" y="389" class="m" font-size="12">MISSION</text>
+  <text x="893" y="422" class="t" font-size="14">Baseline geometry</text>
+  <text x="1110" y="422" class="m" font-size="17">›</text>
+  <text x="893" y="456" class="t" font-size="14">Flyby scenarios</text>
+  <text x="1110" y="456" class="m" font-size="17">›</text>
+
+  <text x="878" y="503" class="m" font-size="12">SHARED</text>
+  <text x="893" y="536" class="t" font-size="14">Solar System</text>
+  <text x="1110" y="536" class="m" font-size="17">›</text>
+  <line x1="875" y1="560" x2="1133" y2="560" stroke="#282f39"/>
+  <text x="878" y="590" class="t" font-size="13">Open files…</text>
+  <text x="878" y="619" class="t" font-size="13">Add catalog source…</text>
+
+  <rect x="857" y="786" width="690" height="42" rx="4" fill="#0a0d11" stroke="#1f252d"/>
+  <text x="874" y="811" class="m" font-size="12">‹‹  ◀  ▮▮  ››   1x</text>
+  <rect x="1038" y="802" width="390" height="9" rx="4" fill="#151a20" stroke="#252c35"/>
+  <line x1="1270" y1="798" x2="1270" y2="817" stroke="#f1f3f6"/>
+  <text x="1450" y="812" class="t" font-size="12">2024-07-04 12:00 UTC</text>
+  <text x="824" y="877" class="m" font-size="14">Viewer: compact catalog switching, no persistent top banner.</text>
+</svg>
