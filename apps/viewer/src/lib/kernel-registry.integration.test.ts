@@ -41,11 +41,31 @@ describe('replacing a scene releases its kernels', () => {
   let spice: HeritageSpice;
   let registry: KernelRegistry;
 
-  /** `furnishKernelUrl`: furnish, then register under the name SPICE knows. */
-  const furnish = async (names: string[], owner: KernelOwner = 'catalog') => {
-    for (const name of names) {
-      const source = { url: `https://example.test/kernels/${name}` };
-      await spice.furnish({ type: 'buffer', data: fixture(name), filename: kernelName(source) });
+  /**
+   * Which fixture's bytes each registered source stands for.
+   *
+   * The loader's kernels carry their bytes in their source -- a URL to fetch or
+   * a File to read. Here the source is a stand-in, so the rebuild needs this to
+   * play the same part: re-furnish what the entry was furnished from, not
+   * whatever fixture happens to share its name. Which is the whole point of the
+   * same-basename cases below, where the two differ.
+   */
+  let bytesFor: WeakMap<object, string>;
+
+  /**
+   * `furnishKernelUrl`: furnish, then register under the name SPICE knows.
+   *
+   * A spec of `'<name>'` furnishes the fixture of that name. `'<name>=<fixture>'`
+   * furnishes that fixture's bytes under a different name -- what a catalog
+   * whose kernel happens to share a basename with another one is, from SPICE's
+   * side.
+   */
+  const furnish = async (specs: string[], owner: KernelOwner = 'catalog') => {
+    for (const spec of specs) {
+      const [name, from = name] = spec.split('=');
+      const source = { url: `https://example.test/kernels/${owner}/${name}` };
+      bytesFor.set(source, from);
+      await spice.furnish({ type: 'buffer', data: fixture(from), filename: kernelName(source) });
       registry.register(source, owner);
     }
   };
@@ -69,7 +89,8 @@ describe('replacing a scene releases its kernels', () => {
         spice = await createHeritageSpice();
         const refurnished: FurnishedKernel[] = [];
         for (const entry of keep) {
-          await spice.furnish({ type: 'buffer', data: fixture(entry.name), filename: entry.name });
+          const from = bytesFor.get(entry.source as object) ?? entry.name;
+          await spice.furnish({ type: 'buffer', data: fixture(from), filename: entry.name });
           refurnished.push(entry);
         }
         return refurnished;
@@ -90,6 +111,7 @@ describe('replacing a scene releases its kernels', () => {
   beforeEach(async () => {
     spice = await createHeritageSpice();
     registry = new KernelRegistry();
+    bytesFor = new WeakMap();
   }, 120_000);
 
   it('stops answering what only the replaced scene could answer', async () => {
@@ -154,4 +176,69 @@ describe('replacing a scene releases its kernels', () => {
     expect(spice.totalLoaded()).toBe(1 + SCENE_B.length);
     expect(() => moonQuery()).not.toThrow();
   }, 180_000);
+
+/**
+ * Two kernels furnished under one name.
+ *
+ * CSPICE counts furnishes: `unload_c` undoes the most recent load of a file and
+ * leaves any earlier one in place. Beneath that, the wasm build stages every
+ * kernel at `/kernels/<name>`, so two different byte streams sharing a basename
+ * were only ever one path -- the second furnish overwrote the first's bytes.
+ * Either way a name is not an identity, and a release that unloads once and
+ * forgets twice leaves SPICE holding a kernel the registry has stopped
+ * accounting for. The rebuild is what avoids having to reason about it.
+ *
+ * `de440s-inner-cassini.bsp` and `cassini-soi.bsp` are what make it observable:
+ * the planetary file answers the Moon, the Cassini file answers the spacecraft,
+ * and here one of them is furnished under the other's name.
+ */
+describe('when a catalog furnishes a name something else already holds', () => {
+  it('leaves nothing of the catalog behind, user first', async () => {
+    // The case the PR's own policy creates: the user dropped a kernel, and a
+    // catalog later furnished its own under the same name.
+    await furnish(['planets.bsp=de440s-inner-cassini.bsp', 'naif0012.tls'], 'user');
+    await loadScene(['planets.bsp=cassini-soi.bsp', 'pck00011.tpc']);
+    expect(() => cassiniQuery()).not.toThrow();
+
+    await loadScene(SCENE_B);
+
+    // The catalog's kernel is gone, even though its name is one the user's
+    // kernel also holds and no unload of that name could have been trusted.
+    expect(() => cassiniQuery()).toThrow();
+    // And the user's own kernel is back, with its own bytes -- the rebuild
+    // re-furnished what the entry was furnished from.
+    expect(registry.entries.map((e) => e.name)).toEqual(['planets.bsp', 'naif0012.tls', ...SCENE_B]);
+    expect(spice.totalLoaded()).toBe(2 + SCENE_B.length);
+    expect(() => moonQuery()).not.toThrow();
+  }, 180_000);
+
+  it('leaves nothing of the catalog behind, catalog first', async () => {
+    await loadScene(['naif0012.tls', 'pck00011.tpc', 'planets.bsp=cassini-soi.bsp']);
+    await furnish(['planets.bsp=de440s-inner-cassini.bsp'], 'user');
+
+    await loadScene(SCENE_B);
+
+    // The overwrite hides the stale bytes here -- the user's furnish wrote the
+    // same staged path -- so the count is what shows the load itself is gone,
+    // rather than still sitting under the registry's one entry for that name.
+    expect(() => cassiniQuery()).toThrow();
+    expect(registry.entries.map((e) => e.name)).toEqual(['planets.bsp', ...SCENE_B]);
+    expect(spice.totalLoaded()).toBe(1 + SCENE_B.length);
+    expect(() => moonQuery()).not.toThrow();
+  }, 180_000);
+
+  it('leaves nothing behind when two of one catalog’s URLs share a basename', async () => {
+    // Two different URLs, same basename: the furnish path deduplicates by URL,
+    // so both were fetched and both were furnished.
+    await furnish(['cas_iss_v10.ti'], 'user');
+    await loadScene(['naif0012.tls', 'pck00011.tpc', 'shared.bsp=de440s-inner-cassini.bsp', 'shared.bsp=cassini-soi.bsp']);
+    expect(() => cassiniQuery()).not.toThrow();
+
+    await loadScene(SCENE_B);
+
+    expect(() => cassiniQuery()).toThrow();
+    expect(registry.entries.map((e) => e.name)).toEqual(['cas_iss_v10.ti', ...SCENE_B]);
+    expect(spice.totalLoaded()).toBe(1 + SCENE_B.length);
+  }, 180_000);
+});
 });
