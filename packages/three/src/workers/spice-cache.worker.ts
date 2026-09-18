@@ -26,7 +26,7 @@
  * through as locateFile.
  */
 
-import { createHeritageSpice, SpiceSearchCancelled, type HeritageSpice, type HGfReport } from '@cosmolabe/frames';
+import { createHeritageSpice, kernelNameFromUrl, SpiceSearchCancelled, type HeritageSpice, type HGfReport } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { TrajectoryCache, type TrajectoryCacheConfig, type CoverageWindow } from '../TrajectoryCache.js';
 
@@ -158,10 +158,13 @@ self.onmessage = async (event: MessageEvent) => {
           buffer = await decompressGzip(buffer);
         }
 
-        // Strip .gz from filename so CSPICE can identify the kernel type from
-        // the extension (.bsp, .tls, .tpc). Without this, kernels get a .gz
-        // extension in the Emscripten FS and CSPICE silently ignores them.
-        const filename = (name ?? url!).replace(/\.gz$/i, '');
+        // The same name the host furnished this kernel under, which is what
+        // makes the two kernel sets comparable at all: `kernelNameFromUrl`
+        // strips the query string a signed URL carries and the `.gz` CSPICE
+        // would otherwise fail to recognise a kernel type from. Bytes that came
+        // with a name (a file the user dropped) keep it -- there is no URL, and
+        // the host furnished it under that name too.
+        const filename = name !== undefined ? name.replace(/\.gz$/i, '') : kernelNameFromUrl(url!);
         await spice.furnish({
           type: 'buffer',
           data: buffer,
