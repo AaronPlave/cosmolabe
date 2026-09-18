@@ -1,5 +1,5 @@
 import type { Trajectory, CartesianState } from '../Trajectory.js';
-import type { Vec3 } from '../../spice-api.js';
+import type { Vec3 } from '../../spice-injection.js';
 import { tass17Position, TASS17Satellite } from './TASS17.js';
 import { l1Position, L1Satellite } from './L1.js';
 import { gust86Position, Gust86Satellite } from './Gust86.js';

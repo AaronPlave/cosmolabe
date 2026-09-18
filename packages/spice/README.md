@@ -8,8 +8,9 @@ Typed TypeScript wrappers over the full CSPICE function library compiled to WASM
 viewer and the trajectory cache worker construct `createHeritageSpice()` from
 [`@cosmolabe/frames`](../frames), over `cspice-wasm`, so every state and orientation reaching the
 model flows through the ADR M-0002 contracts. `@cosmolabe/core` does not import this package either:
-it declares the interface it consumes (`SpiceInstance`, `packages/core/src/spice-api.ts`) and takes
-an engine by injection.
+it declares the narrow surface it calls (`SpiceInstance`, `packages/core/src/spice-injection.ts`) and
+takes an engine by injection. This package satisfies that interface structurally, which is checked at
+compile time by `packages/core/src/__tests__/spice-injection-conformance.test.ts`.
 
 What is left is more valuable than another code path: a second, separately compiled CSPICE — a
 different toolkit build reached through a different binding layer — whose values the WASM path is

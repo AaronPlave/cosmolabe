@@ -1,4 +1,4 @@
-import type { Vec3 } from '../spice-api.js';
+import type { Vec3 } from '../spice-injection.js';
 import type { CartesianState, Trajectory } from './Trajectory.js';
 import { twoline2satrec, propagate } from 'satellite.js';
 import type { SatRec } from 'satellite.js';

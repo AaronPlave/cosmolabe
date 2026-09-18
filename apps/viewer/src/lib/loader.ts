@@ -14,16 +14,16 @@ import {
   etFromCalendarString,
   type ResolvedCatalogGraph,
   type ResolvedKernel,
-  type SpiceInstance,
 } from '@cosmolabe/core';
 // The runtime SPICE instance is @cosmolabe/frames' heritage adapter over
-// cspice-wasm. SpiceInstance — core's injection seam, above — stays as the
-// type of the exported getSpice() accessor: it is the interface this app
-// programs against, and naming it there keeps the contract independent of
-// which package implements it.
+// cspice-wasm, and HeritageSpice — the adapter's own type — is what the
+// exported getSpice() accessor returns. The app genuinely programs against the
+// wide heritage surface (spkFileCoverage, totalLoaded, vnorm), so it names the
+// implementation's type rather than core's injection interface, which is
+// deliberately only what core itself calls.
 // The ?url import hands Vite's emitted wasm asset to the engine's locateFile —
 // only the bundler knows where that asset lands.
-import { createHeritageSpice } from '@cosmolabe/frames';
+import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin, captureFrameDataUrl } from '@cosmolabe/three';
 import { GeometrySearchWorker, type GeometrySearchScope, type KernelSource } from '@cosmolabe/three';
@@ -47,7 +47,7 @@ import {
 import { createViewerControl } from './viewer-control';
 
 // ── State ──
-let spice: SpiceInstance | null = null;
+let spice: HeritageSpice | null = null;
 let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
@@ -281,7 +281,7 @@ async function fetchWithProgress(
 
 // ── Kernel pipeline ──
 
-async function ensureSpice(): Promise<SpiceInstance> {
+async function ensureSpice(): Promise<HeritageSpice> {
   if (!spice) {
     setLoadingState({ label: 'Initializing SPICE...' });
     spice = await createHeritageSpice({ locateFile: () => cspiceWasmUrl });
@@ -1023,7 +1023,7 @@ export function getCurrentRenderer(): UniverseRenderer | null {
 }
 
 /** Get the current SPICE instance */
-export function getSpice(): SpiceInstance | null {
+export function getSpice(): HeritageSpice | null {
   return spice;
 }
 

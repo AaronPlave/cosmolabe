@@ -13,6 +13,7 @@ import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
 import { SensorFrustum } from './SensorFrustum.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
+import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 import { EventMarkers } from './EventMarkers.js';
 import { OccultationGeometry } from './OccultationGeometry.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
@@ -1185,10 +1186,10 @@ export class UniverseRenderer {
     let fovBoundary: import('./InstrumentView.js').FovBoundary | undefined;
     const geo = sf.body.geometryData as Record<string, unknown> | undefined;
     const spiceId = geo?.spiceId as number | undefined;
-    const spice = this.universe.spiceInstance;
-    if (spiceId != null && spice) {
+    const fovProvider = instrumentFovProviderOf(this.universe.spiceInstance);
+    if (spiceId != null && fovProvider) {
       try {
-        const fov = spice.getfov(spiceId);
+        const fov = fovProvider.getfov(spiceId);
         fovBoundary = {
           shape: fov.shape,
           boresight: fov.boresight,
@@ -2462,11 +2463,11 @@ export class UniverseRenderer {
     if (!geo) return;
     const spiceId = geo.spiceId as number | undefined;
     if (spiceId == null) return;
-    const spice = this.universe.spiceInstance;
-    if (!spice) return;
+    const fovProvider = instrumentFovProviderOf(this.universe.spiceInstance);
+    if (!fovProvider) return;
 
     try {
-      const fov = spice.getfov(spiceId);
+      const fov = fovProvider.getfov(spiceId);
 
       // Cache the frame name for per-frame pxform calls (avoids calling getfov every frame)
       const fovFrame = fov.frame;

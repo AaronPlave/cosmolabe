@@ -30,7 +30,7 @@
  *    velocities puts a spacecraft roughly 500 km from where it belongs while
  *    looking entirely plausible.
  */
-import type { Vec3 } from '../spice-api.js';
+import type { Vec3 } from '../spice-injection.js';
 import type { Oem } from '@cosmolabe/interop';
 import type { StateRecord } from './InterpolatedStates.js';
 import type { InertialFrameName } from '../rotations/RotationModel.js';

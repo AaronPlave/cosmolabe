@@ -46,9 +46,13 @@ apps/
 ```
 
 `core` and `control` never import `three` or `cesium`. Renderer packages compose over `core`.
-`core` also imports no SPICE package: it declares the interface it consumes (`SpiceInstance`, in
-`packages/core/src/spice-api.ts`) and takes an engine by injection, which `frames`' heritage adapter
-satisfies. Keep that direction — a `cspice-wasm → frames → core` static chain would undo it.
+`core` also imports no SPICE package: it declares the narrow surface it calls (`SpiceInstance`, in
+`packages/core/src/spice-injection.ts`) and takes an engine by injection, which `frames`' heritage
+adapter satisfies. Keep that direction — a `cspice-wasm → frames → core` static chain would undo it.
+That interface is transitional scaffolding, not `core`'s SPICE API: it holds only what `core`'s own
+call sites use, and it shrinks as they migrate to the M-0002 contracts. If you need a SPICE
+capability `core` does not already call, declare a narrow contract in the consumer that needs it
+(`GeometryFinderProvider`, `InstrumentFovProvider`) rather than widening this one.
 This is enforced, not just documented: their `tsconfig.json` files build without the `DOM` lib, so a `document` or `HTMLCanvasElement` in either is a typecheck error, and `npm run lint:purity` (a CI step) fails on an import of `three` or `cesium` — which tsc cannot catch, since the workspace hoists both to the root `node_modules`.
 
 ## Testing

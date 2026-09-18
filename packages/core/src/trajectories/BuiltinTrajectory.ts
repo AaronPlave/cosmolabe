@@ -1,4 +1,4 @@
-import type { SpiceInstance } from '../spice-api.js';
+import type { SpiceInstance } from '../spice-injection.js';
 import type { Trajectory } from './Trajectory.js';
 import { SpiceTrajectory } from './SpiceTrajectory.js';
 

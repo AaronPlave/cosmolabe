@@ -1,4 +1,4 @@
-import type { SpiceInstance, Vec3, OrbitalElements, IlluminationAngles } from '../spice-api.js';
+import type { SpiceInstance, Vec3, OrbitalElements, IlluminationAngles } from '../spice-injection.js';
 
 export interface BodyGeometry {
   // Position & velocity

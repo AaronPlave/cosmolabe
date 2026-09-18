@@ -35,8 +35,8 @@ import {
   type GeometryEvent,
   type GeometryFinderProvider,
   type AberrationCorrection,
-  type SpiceInstance,
 } from '@cosmolabe/core';
+import type { HeritageSpice } from '@cosmolabe/frames';
 import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
 import { geometryScopeForWindow, getGeometryWorker, getSpice } from './loader';
 import {
@@ -67,13 +67,13 @@ export const EVENT_KINDS: EventKind<never>[] = registry.list();
 /**
  * The viewer's SPICE instance as a GF provider.
  *
- * `SpiceInstance` already satisfies the GF half of the interface structurally,
+ * `HeritageSpice` already satisfies the GF half of the interface structurally,
  * which is the point of the boundary's signatures mirroring `gf*_c`. Only
  * `range` is added: GF says *when* a distance condition held and never *how
  * far*, so the number a closest-approach result is about comes from one
  * `spkpos`, measured with SPICE's own `vnorm` rather than a hand-rolled norm.
  */
-export function spiceGeometryFinder(spice: SpiceInstance): GeometryFinderProvider {
+export function spiceGeometryFinder(spice: HeritageSpice): GeometryFinderProvider {
   return {
     gfdist: (target, abcorr, observer, relate, refval, adjust, step, cnfine) =>
       spice.gfdist(target, abcorr, observer, relate, refval, adjust, step, cnfine),
@@ -132,7 +132,7 @@ export type SearchProgress = GeometrySearchProgress | null;
  * the same kernels, with the arguments passed through untouched — so the choice
  * is about where the time is spent, not about what comes back.
  */
-function beginSearch(spice: SpiceInstance, window: EtInterval): RunningSearch {
+function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
   const worker = getGeometryWorker();
   if (worker) {
     // Only the search that owns the panel writes to it. A superseded search can
@@ -194,7 +194,7 @@ function beginSearch(spice: SpiceInstance, window: EtInterval): RunningSearch {
  * Keplerian body in a kernel-free catalog is not a reason to refuse a window.
  */
 export function coverageWindow(
-  spice: Pick<SpiceInstance, 'bodn2c' | 'spkcov'>,
+  spice: Pick<HeritageSpice, 'bodn2c' | 'spkcov'>,
   bodies: EventParticipants,
   span: EtInterval,
 ): EtInterval {

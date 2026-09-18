@@ -221,7 +221,7 @@ npx vitest run --reporter=verbose <test-name>   # debug single test
 
 Key constraints:
 - `core` never imports `three` or `cesium` — it's a pure data model
-- `core` never imports a SPICE package either: it declares the interface it needs (`SpiceInstance`, `packages/core/src/spice-api.ts`) and takes an implementation by injection — which is what let the heritage adapter be swapped in underneath it without a line of `core` changing
+- `core` never imports a SPICE package either: it declares the narrow surface it calls (`SpiceInstance`, `packages/core/src/spice-injection.ts`) and takes an implementation by injection — which is what let the heritage adapter be swapped in underneath it without a line of `core` changing. That interface is transitional: it holds only what `core` calls, and shrinks as call sites migrate to the M-0002 contracts
 - nothing above `frames` calls CSPICE directly (ADR M-0002, iron rule 1); `spice` is test-only
 - Renderer packages compose `core` with their respective rendering libraries
 - The viewer apps are thin shells that wire everything together with a UI

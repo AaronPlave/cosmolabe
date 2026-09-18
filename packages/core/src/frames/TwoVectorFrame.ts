@@ -1,4 +1,4 @@
-import type { Vec3, RotationMatrix, SpiceInstance, AberrationCorrection } from '../spice-api.js';
+import type { Vec3, RotationMatrix, SpiceInstance, AberrationCorrection } from '../spice-injection.js';
 import type { Frame } from './Frame.js';
 
 export type VectorDefinition = {

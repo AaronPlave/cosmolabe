@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Spice } from '@cosmolabe/spice';
-import type { SpiceInstance } from '../spice-api.js';
+import type { SpiceInstance } from '../spice-injection.js';
 import { etFromCalendarString, deltaAtSeconds, etToDate, etFromDate } from '../time.js';
 
 const LSK = join(__dirname, '../../../spice/test-kernels/naif0012.tls');

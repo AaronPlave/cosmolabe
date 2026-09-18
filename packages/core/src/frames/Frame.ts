@@ -1,4 +1,4 @@
-import type { Vec3, RotationMatrix } from '../spice-api.js';
+import type { Vec3, RotationMatrix } from '../spice-injection.js';
 
 export interface Frame {
   readonly name: string;

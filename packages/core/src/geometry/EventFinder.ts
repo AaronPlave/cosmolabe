@@ -1,4 +1,4 @@
-import type { SpiceInstance, TimeWindow } from '../spice-api.js';
+import type { SpiceInstance, TimeWindow } from '../spice-injection.js';
 
 export type EventType = 'eclipse' | 'occultation' | 'conjunction' | 'opposition' | 'periapsis' | 'apoapsis';
 

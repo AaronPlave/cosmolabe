@@ -22,12 +22,21 @@ Trajectories like `TLE`, `Keplerian`, `InterpolatedStates`, `FixedPoint`, and `C
 
 ## SPICE arrives by injection
 
-core imports no SPICE package. It declares the interface it needs — `SpiceInstance` in
-[`src/spice-api.ts`](src/spice-api.ts) — and every entry point that needs an engine takes one as an
-argument. Anything with the right shape satisfies it; in this repo [`@cosmolabe/frames`](../frames)
-does, with `createHeritageSpice()` over `cspice-wasm`, which is what the viewer and the trajectory
-cache worker construct. That direction is deliberate: core depends on an interface and the frames
-tier satisfies it, so the engine underneath can be replaced without core changing.
+core imports no SPICE package. It declares the surface it calls — `SpiceInstance` in
+[`src/spice-injection.ts`](src/spice-injection.ts) — and every entry point that needs an engine takes
+one as an argument. Anything with the right shape satisfies it; in this repo
+[`@cosmolabe/frames`](../frames) does, with `createHeritageSpice()` over `cspice-wasm`, which is what
+the viewer and the trajectory cache worker construct. That direction is deliberate: core depends on
+an interface and the frames tier satisfies it, so the engine underneath can be replaced without core
+changing.
+
+**It is transitional, and deliberately narrow.** It holds the 25 members core's own call sites use —
+not the heritage adapter's 47 — and it shrinks as those call sites migrate to the published M-0002
+contracts (`StateProvider`, `FramesService`), which is the heritage adapter's documented dissolution
+plan. A new capability belongs in a narrow contract owned by its consumer — the model is
+`GeometryFinderProvider` in [`src/geometry/events/provider.ts`](src/geometry/events/provider.ts) —
+not here. Both implementations are pinned to it at compile time by
+[`src/__tests__/spice-injection-conformance.test.ts`](src/__tests__/spice-injection-conformance.test.ts).
 
 ## Install
 
