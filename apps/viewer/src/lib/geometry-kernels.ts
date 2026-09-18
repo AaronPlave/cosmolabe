@@ -56,24 +56,31 @@ export function coversWindow(
 /**
  * Narrow a kernel list to those a search over `window` could reach.
  *
- * `coverage` returns a file's coverage, or null when it has none to report --
- * which is the answer for every non-SPK. Those are kept unconditionally: a
- * leapseconds or text PCK kernel has no coverage window to test, is required by
- * every search, and is measured in kilobytes. So is any SPK the caller cannot
- * get coverage for, since "I could not tell" must not read as "not needed".
+ * `coverageOf` answers for one member of the list, not for a filename. That
+ * distinction is the whole safety of this function once two furnished kernels
+ * can share a basename: the coverage query CSPICE answers is by name, and both
+ * of them are staged at the same `/kernels/<name>`, so asking it here would
+ * give one file's coverage for the other's entry -- and drop a kernel that does
+ * cover the window because its namesake does not. The caller measures each
+ * kernel's coverage while that kernel is the one furnished under its name, and
+ * hands the answer along with it.
+ *
+ * Null means the kernel has no coverage to test -- the answer for every non-SPK,
+ * and for an SPK the caller could not measure. Those are kept unconditionally: a
+ * leapseconds or text PCK kernel has no window, is required by every search, and
+ * is measured in kilobytes; and "I could not tell" must not read as "not needed".
  *
  * Order is preserved, because furnish order is kernel precedence and a search
  * over a differently-ordered pool can answer a different question.
  */
 export function kernelsForWindow<T>(
   sources: readonly T[],
-  nameOf: (source: T) => string,
-  coverage: (name: string) => readonly KernelWindow[] | null,
+  coverageOf: (source: T) => readonly KernelWindow[] | null,
   window: KernelWindow,
   pad = KERNEL_WINDOW_PAD_SECONDS,
 ): T[] {
   return sources.filter((source) => {
-    const windows = coverage(nameOf(source));
+    const windows = coverageOf(source);
     if (windows === null || windows.length === 0) return true;
     return coversWindow(windows, window, pad);
   });

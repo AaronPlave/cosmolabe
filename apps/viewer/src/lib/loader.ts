@@ -95,38 +95,32 @@ let geometryWorker: GeometrySearchWorker | null = null;
 const kernels = new KernelRegistry();
 
 /**
- * Per-file SPK coverage, asked of the main thread's SPICE and remembered.
+ * What a kernel covers, asked the moment it is furnished.
  *
- * The main thread has every kernel furnished, so it can answer this for any of
- * them; the worker being narrowed obviously cannot. Cached because it is asked
- * once per search and the answer cannot change -- a furnished kernel's coverage
- * is a property of its bytes. A scene load unloads the previous catalog's
- * kernels and drops their entries here with them, so a name re-furnished later
- * from different bytes is asked again rather than answered from the old file.
+ * Asked then, and kept on its registry entry, because that is the only moment
+ * its name unambiguously means this kernel: `spkFileCoverage` answers about the
+ * file staged at `/kernels/<name>`, and a later kernel sharing that basename
+ * takes the name over. Asking at search time would then narrow one kernel's
+ * search by its namesake's coverage and drop a file that does cover the window
+ * -- a silently wrong answer, which is what narrowing must never cost.
+ *
+ * It is also cheaper than it looks: this walks an SPK's segment summaries,
+ * against a furnish that has just read the whole file. And it cannot go stale,
+ * because a kernel's coverage is a property of its bytes.
  *
  * Null means "no coverage to test": a leapseconds or text PCK kernel, or an SPK
  * SPICE would not answer for. Both must be kept, so both are reported the same
  * way -- a file we cannot judge is never one we drop.
  */
-const kernelCoverageCache = new Map<string, KernelWindow[] | null>();
-
-function kernelCoverage(name: string): readonly KernelWindow[] | null {
-  const cached = kernelCoverageCache.get(name);
-  if (cached !== undefined) return cached;
-
-  let windows: KernelWindow[] | null = null;
-  const s = getSpice();
-  if (s && /\.(bsp|spk)$/i.test(name)) {
-    try {
-      windows = s.spkFileCoverage(name);
-    } catch {
-      // Unreadable coverage is not absent coverage; keeping the kernel is the
-      // safe reading, which null already means.
-      windows = null;
-    }
+function measureCoverage(s: HeritageSpice, name: string): readonly KernelWindow[] | null {
+  if (!/\.(bsp|spk)$/i.test(name)) return null;
+  try {
+    return s.spkFileCoverage(name);
+  } catch {
+    // Unreadable coverage is not absent coverage; keeping the kernel is the
+    // safe reading, which null already means.
+    return null;
   }
-  kernelCoverageCache.set(name, windows);
-  return windows;
 }
 
 /** The scope a viewer search carries: its key, plus the window that produced it. */
@@ -138,11 +132,13 @@ function scopeWindow(scope?: GeometrySearchScope): KernelWindow | null {
   return scope && 'window' in scope ? (scope as ViewerGeometryScope).window : null;
 }
 
-/** The sources a search over `window` could reach, or all of them for no window. */
-function scopedKernelSources(window: KernelWindow | null): KernelSourceRef[] {
-  const sources = kernels.workerSources();
-  if (!window) return sources;
-  return kernelsForWindow(sources, kernelName, kernelCoverage, window);
+/** The kernels a search over `window` could reach, or all of them for no window. */
+function scopedKernelEntries(window: KernelWindow | null): readonly FurnishedKernel[] {
+  const entries = kernels.workerEntries();
+  if (!window) return entries;
+  // By the entry's own measured coverage, never by a lookup on its name: two
+  // entries can share a name, and only the entry knows which kernel it is.
+  return kernelsForWindow(entries, (e) => e.coverage, window);
 }
 
 /**
@@ -151,7 +147,7 @@ function scopedKernelSources(window: KernelWindow | null): KernelSourceRef[] {
  */
 export function geometryScopeForWindow(window: KernelWindow): GeometrySearchScope | undefined {
   if (!getSpice()) return undefined;
-  const names = scopedKernelSources(window).map(kernelName);
+  const names = scopedKernelEntries(window).map((e) => e.name);
   const scope: ViewerGeometryScope = { key: kernelSetKey(names), window };
   return scope;
 }
@@ -171,7 +167,7 @@ export function geometryScopeForWindow(window: KernelWindow): GeometrySearchScop
  */
 async function currentWorkerKernels(scope?: GeometrySearchScope): Promise<KernelSource[]> {
   return Promise.all(
-    scopedKernelSources(scopeWindow(scope)).map(async (source) =>
+    scopedKernelEntries(scopeWindow(scope)).map(async ({ source }) =>
       'url' in source
         ? source.url
         : { name: source.file.name, data: await source.file.arrayBuffer() },
@@ -237,9 +233,6 @@ async function releaseCatalogKernels(): Promise<void> {
       ? `${collided.join(', ')} named more than one furnished kernel`
       : `${failed.join(', ')} would not unload`;
     console.warn(`[Cosmolabe] Rebuilt SPICE: ${why}`);
-  } else {
-    // The rebuild clears the whole cache for itself, so this is the other path.
-    for (const name of released) kernelCoverageCache.delete(name);
   }
   setKernelCount(spice?.totalLoaded() ?? 0);
 }
@@ -256,6 +249,9 @@ async function releaseCatalogKernels(): Promise<void> {
  * be re-read, and reporting it back is what lets the registry forget it rather
  * than promise the workers a kernel the main thread does not have.
  *
+ * The entries come back unchanged, coverage included: same bytes, same
+ * coverage, so there is nothing to re-measure.
+ *
  * The scene on screen keeps the old instance until `initScene` replaces it --
  * this only ever runs at the top of a scene load, so that is a moment away, and
  * an old instance nothing new points at is collected with its heap.
@@ -264,7 +260,6 @@ async function refurnishOnFreshSpice(
   keep: readonly FurnishedKernel[],
 ): Promise<readonly FurnishedKernel[]> {
   spice = null;
-  kernelCoverageCache.clear();
   const s = await ensureSpice();
 
   const refurnished: FurnishedKernel[] = [];
@@ -359,18 +354,66 @@ function absoluteKernelUrl(url: string): string {
   return new URL(url, location.href).href;
 }
 
+/**
+ * Take `name` out of SPICE if something is furnished under it, so the caller
+ * can furnish under it safely. False means it could not be, and the caller must
+ * not furnish.
+ *
+ * A name is a slot, because the wasm build stages every kernel at
+ * `/kernels/<name>`. Furnishing over an occupied slot does not add a second
+ * file: it overwrites the bytes of the one that is there while CSPICE still
+ * holds that file open against its old contents. Measured on two SPKs sharing a
+ * basename, the newcomer's data never becomes reachable *and* the occupant's
+ * own reads start failing with "beginning address greater than ending address"
+ * -- a corrupted instance, from one furnish, before anything is released.
+ *
+ * So the occupant is unloaded first, which the same measurement shows is clean:
+ * the slot then holds exactly the new kernel, and what it displaced is gone
+ * honestly rather than half-readable. Later-furnish-wins is the precedence rule
+ * this module is built on anyway; this is that rule holding for a whole file
+ * rather than for the bodies inside it.
+ *
+ * It is worth saying out loud when it happens. A catalog whose kernel displaces
+ * one the user dropped in is not what either of them asked for, and the only
+ * other honest outcome -- leaving the drop and refusing the scene's own kernel
+ * -- is worse for the scene on screen.
+ */
+function displaceKernelNamed(s: HeritageSpice, name: string): boolean {
+  const held = kernels.findByName(name);
+  if (!held) return true;
+
+  try {
+    s.unload(held.name);
+  } catch (err) {
+    // Furnishing over it anyway would corrupt what is there, so the caller
+    // goes without rather than the scene going wrong.
+    console.warn(`[Cosmolabe] Skipping ${name}: ${held.name} is furnished and would not unload:`, err);
+    return false;
+  }
+  kernels.forget(held);
+  console.warn(`[Cosmolabe] ${name} replaced the kernel already furnished under that name`);
+  return true;
+}
+
 /** Furnish a single kernel URL. Handles `.gz` decompression. Registers it as the catalog's. */
 async function furnishKernelUrl(url: string, opts?: { size?: number; onProgress?: (loaded: number) => void }): Promise<void> {
   if (kernels.has(absoluteKernelUrl(url))) return;
   const s = await ensureSpice();
+  const name = kernelNameFromUrl(url);
 
   if (opts?.size && opts.size > 0) {
+    // Fetched before the slot is cleared, so a fetch that fails costs nothing.
     const buffer = await fetchWithProgress(url, (loaded) => opts.onProgress?.(loaded));
-    await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(url) });
+    if (!displaceKernelNamed(s, name)) return;
+    await s.furnish({ type: 'buffer', data: buffer, filename: name });
   } else {
+    // This path fetches inside `furnish`, so the slot is cleared first and a
+    // failed fetch leaves it empty -- one kernel short, which is what the
+    // caller's warning already says, rather than one kernel corrupt.
+    if (!displaceKernelNamed(s, name)) return;
     await s.furnish({ type: 'url', url });
   }
-  kernels.register({ url: absoluteKernelUrl(url) }, 'catalog');
+  kernels.register({ url: absoluteKernelUrl(url) }, 'catalog', measureCoverage(s, name));
 }
 
 /** Resolve a meta-kernel (.tm) into a list of absolute kernel URLs. */
@@ -1072,8 +1115,9 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
         detail: `${i + 1} / ${kernelFiles.length} kernels`,
       });
       const buffer = await file.arrayBuffer();
+      if (!displaceKernelNamed(s, file.name)) continue;
       await s.furnish({ type: 'buffer', data: buffer, filename: file.name });
-      kernels.register({ file }, catalogs.length > 0 ? 'catalog' : 'user');
+      kernels.register({ file }, catalogs.length > 0 ? 'catalog' : 'user', measureCoverage(s, file.name));
     }
     setKernelCount(s.totalLoaded());
   }
