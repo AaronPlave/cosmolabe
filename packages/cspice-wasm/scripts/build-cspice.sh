@@ -76,6 +76,16 @@ fi
 
 # The SPICE surface the renderer and geometry layers call. Extend deliberately;
 # every symbol here is reachable from cspice-wasm's typed API.
+#
+# Not here on purpose: spkobj_c/spkcov_c and ckobj_c/ckcov_c. SPKs and CKs are
+# DAFs whose segment descriptors (ND=2, NI=6) already carry everything those
+# four answers need -- the object id, the coverage bounds, and a CK's rates
+# flag -- so bindings.ts reconstructs them from the daf* exports above, value
+# for value against CSPICE's own (packages/frames/src/differential.test.ts).
+# Exporting them would grow the committed .wasm and force a toolchain rebuild
+# to say the same thing. The one query the descriptors cannot answer is
+# ckcov_c's INTERVAL level, which lives in each segment's type-specific data;
+# the adapter throws on it rather than answer with segment bounds.
 EXPORTS='[
   "_malloc","_free",
   "_tkvrsn_c","_erract_c","_errprt_c","_errdev_c","_failed_c","_getmsg_c","_reset_c",

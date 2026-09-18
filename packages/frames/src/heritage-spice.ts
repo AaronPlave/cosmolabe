@@ -41,13 +41,19 @@
 //   windows      the gf finders search each cnfine window independently and
 //                concatenate results in cnfine order; spkcov unions segment
 //                windows across every furnished SPK, ascending and merged;
+//                ckcov does the same over every furnished CK, at ckcov_c's
+//                SEGMENT level, and reports ET by default so a coverage answer
+//                reads the same whichever kernel kind produced it;
 //                getfov defaults maxBounds to 20 as heritage does.
 //   gaps         members whose CSPICE entry points are absent from the WASM
 //                export allowlist (cidfrm, fovray, fovtrg, a nonzero gfdist
 //                adjust, KernelSource type 'file') throw a typed SpiceError:
 //                no cosmolabe runtime path calls them today, and silence
 //                would hide a semantic gap. Extend the allowlist
-//                deliberately when a caller appears.
+//                deliberately when a caller appears. ckcov at INTERVAL level
+//                is the same kind of gap for a different reason: the answer is
+//                not in the DAF summaries the adapter reads, so it throws
+//                rather than return segment bounds mislabelled as intervals.
 //
 // Dissolution plan (recorded here and in docs/collab/RE-ENTRY-BRIEF.md): this
 // adapter is scaffolding with a defined end state, not a load-bearing
@@ -164,6 +170,37 @@ function mergeWindows(raw: [number, number][]): HTimeWindow[] {
     else merged.push({ start, end });
   }
   return merged;
+}
+
+/**
+ * `ckcov` options, one for one with the arguments ckcov_c takes beyond the CK
+ * and the id. The defaults are the ones a "when do we have attitude?" caller
+ * wants: every segment, no padding, answered in ET like every other window on
+ * this surface.
+ */
+export interface HCkCoverageOptions {
+  /**
+   * ckcov_c's `needav`. Set when the caller needs angular velocity and not just
+   * pointing: segments written without rates are then not counted as coverage.
+   */
+  needAv?: boolean;
+  /**
+   * ckcov_c's `tol`: encoded SCLK ticks each segment window is padded by on
+   * both sides, the same slack a `ckgp` call would be given. Default 0.
+   */
+  tol?: number;
+  /**
+   * ckcov_c's `timsys`. 'TDB' (the default) reports ephemeris seconds past
+   * J2000, so the windows are directly comparable with `spkcov`'s and need a
+   * furnished SCLK to convert; 'SCLK' reports the raw encoded ticks.
+   */
+  timeSystem?: 'TDB' | 'SCLK';
+  /**
+   * ckcov_c's `level`. Only 'SEGMENT' is served -- see the `ckcov` comment
+   * below for why 'INTERVAL' throws rather than silently answering something
+   * else.
+   */
+  level?: 'SEGMENT' | 'INTERVAL';
 }
 
 /** The SpiceInstance-compatible surface plus the seam beneath it. */
@@ -303,6 +340,8 @@ export interface HeritageSpice {
   spkcov(idcode: number): HTimeWindow[];
   spkobj(filename: string): number[];
   spkFileCoverage(filename: string): HTimeWindow[];
+  ckcov(idcode: number, options?: HCkCoverageOptions): HTimeWindow[];
+  ckobj(filename: string): number[];
   getfov(instId: number, maxBounds?: number): HInstrumentFov;
   fovray(
     inst: string,
@@ -620,6 +659,62 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
         raw.push(...bindings.spkCoverage(filename, body));
       }
       return mergeWindows(raw);
+    },
+
+    /**
+     * When attitude is available for a CK structure, unioned across every
+     * furnished C-kernel -- the `spkcov` of orientation.
+     *
+     * The asymmetry this removes: without it a caller could say when a position
+     * is available and could only discover the absence of an orientation one
+     * epoch at a time, by asking and being told no. A window list is what turns
+     * "attitude unavailable" from a dead end into an answer ("not here; here").
+     *
+     * Two deliberate narrowings of ckcov_c, both loud rather than silent:
+     *
+     *   level     'INTERVAL' throws. Interval level reports the interpolation
+     *             intervals inside a segment, which live in each segment's own
+     *             type-specific data, not in the DAF summary this reads; a
+     *             segment whose records are sparse covers less at interval
+     *             level than at segment level, so answering with segment bounds
+     *             under an interval label would overstate coverage.
+     *   clock     the SCLK used for the TDB conversion is ckmeta's fallback,
+     *             `idcode / 1000` truncated toward zero (-82000 -> -82), and not
+     *             a `CK_<id>_SCLK` pool override, which would need gipool_c --
+     *             absent from the WASM export allowlist. The two agree for every
+     *             kernel that follows the NAIF id convention; ask in 'SCLK' to
+     *             sidestep the conversion entirely.
+     */
+    ckcov(idcode, options = {}) {
+      const { needAv = false, tol = 0, timeSystem = 'TDB', level = 'SEGMENT' } = options;
+      if (level !== 'SEGMENT') {
+        throw new SpiceError(
+          `ckcov: level '${level}' is not reconstructible from DAF segment summaries; ` +
+            "only 'SEGMENT' is served",
+        );
+      }
+      const raw: [number, number][] = [];
+      for (const k of frames.kernels().kernels) {
+        if (!/\.bc$/i.test(k.name)) continue;
+        for (const [start, end] of bindings.ckCoverage(k.name, idcode, needAv)) {
+          raw.push([start - tol, end + tol]);
+        }
+      }
+      // Merge in ticks, then convert: that is ckcov_c's order (it unions into a
+      // SCLK cell and converts the assembled window), and it is the order that
+      // makes two segments abutting exactly in ticks come back as one window.
+      const ticks = mergeWindows(raw);
+      if (timeSystem === 'SCLK') return ticks;
+      const clock = Math.trunc(idcode / 1000);
+      return ticks.map((w) => ({
+        start: bindings.sct2e(clock, w.start),
+        end: bindings.sct2e(clock, w.end),
+      }));
+    },
+
+    /** The CK structure ids a furnished C-kernel carries (ckobj). */
+    ckobj(filename) {
+      return bindings.ckObjects(filename);
     },
 
     getfov(instId, maxBounds = 20) {

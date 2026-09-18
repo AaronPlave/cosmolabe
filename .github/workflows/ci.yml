@@ -27,13 +27,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp') }}
+          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc') }}
 
       - name: Smudge test-kernel LFS files
         # See deploy-pages.yml for why we install + fetch + checkout
         # explicitly. Sparse fetch keeps the test job's LFS bandwidth tiny.
         #
-        # Four paths are needed: packages/spice's suite reads test-kernels/,
+        # Five paths are needed: packages/spice's suite reads test-kernels/,
         # the cspice-wasm, frames and interop suites read the shared
         # kernels/fixtures/ (*.bsp and *.bc are LFS-routed there too), core's
         # oem-demo-fidelity suite reads the viewer's Cassini SOI SPK as its
@@ -52,6 +52,11 @@ jobs:
         # would otherwise accept the pointer and load nothing, failing much
         # later with SPICE(NOLOADEDFILES).
         #
+        # The fifth path is one file, not a directory: the frames differential
+        # harness checks CK coverage on a second mission (issue #39) and needs
+        # only the MSL rover telemetry CK (335 KB), not the rest of msl/, which
+        # is 70 MB of Mars ephemeris no test here touches.
+        #
         # de440s.bsp is smudged rather than downloaded: it is already
         # committed as an LFS object, so one glob entry costs 33 MB once and
         # nothing after (the cache above covers it), where
@@ -59,8 +64,8 @@ jobs:
         # an asteroid SPK no test touches.
         run: |
           git lfs install --local
-          git lfs fetch --include "packages/spice/test-kernels/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp"
-          git lfs checkout "packages/spice/test-kernels/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp"
+          git lfs fetch --include "packages/spice/test-kernels/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
+          git lfs checkout "packages/spice/test-kernels/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
 
       - name: Check for stale git-lfs pointers
         # A .gitattributes narrowing does not re-stage blobs committed while the

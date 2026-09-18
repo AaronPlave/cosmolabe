@@ -23,11 +23,29 @@ import { createHeritageSpice, type HeritageSpice } from './index.js';
 
 const KERNEL_DIR = fileURLToPath(new URL('../../spice/test-kernels/', import.meta.url));
 
+/** The viewer's catalog kernels, for the MSL coverage case below. */
+const CATALOG_KERNEL_DIR = fileURLToPath(
+  new URL('../../../apps/viewer/test-catalogs/kernels/', import.meta.url),
+);
+
 /** Kernel bytes as a standalone ArrayBuffer. readFileSync can hand back a view
  *  into a larger pooled buffer, so slice to this file's own bytes. */
-function kernelBytes(rel: string): ArrayBuffer {
-  const buf = readFileSync(KERNEL_DIR + rel);
+function bytesAt(dir: string, rel: string): ArrayBuffer {
+  const buf = readFileSync(dir + rel);
+  // An unsmudged git-lfs pointer is ~130 bytes of ASCII that SPICE furnishes
+  // without complaint and that loads nothing, so the failure would otherwise
+  // surface much later as empty coverage. Name the file instead.
+  if (buf.length < 1024 && buf.subarray(0, 7).toString('utf8') === 'version') {
+    throw new Error(
+      `${dir}${rel} is a git-lfs pointer, not a kernel. Run \`git lfs pull\` for it, ` +
+        'or add the path to the sparse fetch in .github/workflows/ci.yml.',
+    );
+  }
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+}
+
+function kernelBytes(rel: string): ArrayBuffer {
+  return bytesAt(KERNEL_DIR, rel);
 }
 
 /** Generic kernels plus the Cassini SOI set. The CK and FK matter: they make
@@ -446,6 +464,52 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         expectNumbersClose(h, l, `spkcov ${id}`);
       }
     });
+
+    it('ckobj and ckcov agree', () => {
+      const file = '04183_04185ra.bc';
+      const hObj = heritage.ckobj(file);
+      const lObj = legacy.ckobj(file);
+      const ids = [...lObj].sort((a, b) => a - b);
+      // Agreement on nothing is not agreement: the reconstructed CK walk has to
+      // find the structures the real ckobj_c finds, starting with the bus.
+      expect(ids, 'the CK should carry the Cassini bus').toContain(-82000);
+      expect([...hObj].sort((a, b) => a - b)).toEqual(ids);
+
+      for (const id of ids) {
+        // Ticks first: the descriptor bounds themselves, with no SCLK
+        // conversion in the way to absorb a discrepancy.
+        const hTicks = heritage.ckcov(id, { timeSystem: 'SCLK' });
+        const lTicks = legacy.ckcov(id, { timeSystem: 'SCLK' });
+        expect(hTicks.length, `ckcov ${id} SCLK window count`).toBe(lTicks.length);
+        expect(hTicks.length, `ckcov ${id} should report coverage`).toBeGreaterThan(0);
+        expectNumbersClose(hTicks, lTicks, `ckcov ${id} (SCLK)`);
+
+        // Then ET, the default and the shape spkcov established.
+        const h = heritage.ckcov(id);
+        const l = legacy.ckcov(id);
+        expect(h.length, `ckcov ${id} window count`).toBe(l.length);
+        expectNumbersClose(h, l, `ckcov ${id}`);
+
+        // And the angular-velocity filter, which selects on the descriptor's
+        // rates flag rather than on the id.
+        const hAv = heritage.ckcov(id, { needAv: true });
+        const lAv = legacy.ckcov(id, { needAv: true });
+        expect(hAv.length, `ckcov ${id} needAv window count`).toBe(lAv.length);
+        expectNumbersClose(hAv, lAv, `ckcov ${id} (needAv)`);
+      }
+    });
+
+    it('ckcov pads by tol exactly as ckcov_c does', () => {
+      const TOL = 1000;
+      const h = heritage.ckcov(-82000, { timeSystem: 'SCLK', tol: TOL });
+      const l = legacy.ckcov(-82000, { timeSystem: 'SCLK', tol: TOL });
+      expect(h.length, 'padded window count').toBe(l.length);
+      expectNumbersClose(h, l, 'ckcov -82000 (SCLK, tol)');
+
+      // The padding is real, not a no-op both engines ignored.
+      const bare = legacy.ckcov(-82000, { timeSystem: 'SCLK' });
+      expect(l[0]!.start).toBeLessThan(bare[0]!.start);
+    });
   });
 
   describe('vector math', () => {
@@ -487,5 +551,67 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         expectNumbersClose(h.bounds, l.bounds, `${inst} bounds`);
       }
     });
+  });
+});
+
+/**
+ * CK coverage on a second mission, in its own engines.
+ *
+ * The Cassini CK above is one orbiter bus over two days; this is a surface
+ * rover's telemetry CK over 134 sols, with a different clock and several
+ * structures in one file — the second kernel named in issue #39, and the case
+ * that keeps `ckcov` from being tuned to one file's shape. Separate engines
+ * rather than more kernels in the set above, because the MSL frame kernels
+ * redefine Mars-relative frames and are not something the Cassini parity
+ * checks should be sharing a pool with.
+ */
+describe('cspice-wasm vs timecraftjs: CK coverage on a second mission', () => {
+  const MSL_KERNELS = [
+    'msl/MSL_76_SCLKSCET.00012.tsc',
+    'msl/msl_surf_rover_tlm_0449_0583_v1.bc',
+  ];
+  const CK = 'msl_surf_rover_tlm_0449_0583_v1.bc';
+
+  let heritage: HeritageSpice;
+  let legacy: SpiceInstance;
+
+  beforeAll(async () => {
+    heritage = await createHeritageSpice();
+    legacy = await Spice.init();
+    for (const rel of ['naif0012.tls']) {
+      const data = kernelBytes(rel);
+      await heritage.furnish({ type: 'buffer', data: data.slice(0), filename: rel });
+      await legacy.furnish({ type: 'buffer', data: data.slice(0), filename: rel });
+    }
+    for (const rel of MSL_KERNELS) {
+      const data = bytesAt(CATALOG_KERNEL_DIR, rel);
+      const filename = rel.split('/').pop()!;
+      await heritage.furnish({ type: 'buffer', data: data.slice(0), filename });
+      await legacy.furnish({ type: 'buffer', data: data.slice(0), filename });
+    }
+  }, 120_000);
+
+  it('ckobj and ckcov agree for the MSL rover telemetry CK', () => {
+    const ids = [...legacy.ckobj(CK)].sort((a, b) => a - b);
+    expect(ids.length, 'the MSL CK should carry structures').toBeGreaterThan(0);
+    expect([...heritage.ckobj(CK)].sort((a, b) => a - b)).toEqual(ids);
+
+    for (const id of ids) {
+      const hTicks = heritage.ckcov(id, { timeSystem: 'SCLK' });
+      const lTicks = legacy.ckcov(id, { timeSystem: 'SCLK' });
+      expect(hTicks.length, `ckcov ${id} SCLK window count`).toBe(lTicks.length);
+      expect(hTicks.length, `ckcov ${id} should report coverage`).toBeGreaterThan(0);
+      expectNumbersClose(hTicks, lTicks, `ckcov ${id} (SCLK)`);
+
+      const h = heritage.ckcov(id);
+      const l = legacy.ckcov(id);
+      expect(h.length, `ckcov ${id} window count`).toBe(l.length);
+      expectNumbersClose(h, l, `ckcov ${id}`);
+
+      const hAv = heritage.ckcov(id, { needAv: true });
+      const lAv = legacy.ckcov(id, { needAv: true });
+      expect(hAv.length, `ckcov ${id} needAv window count`).toBe(lAv.length);
+      expectNumbersClose(hAv, lAv, `ckcov ${id} (needAv)`);
+    }
   });
 });

@@ -719,19 +719,30 @@ export class SpiceBindings {
   }
 
   /**
-   * Walk the DAF summaries of a staged SPK. spkobj_c and spkcov_c are not in
-   * the WASM export allowlist, but every SPK segment descriptor (ND=2, NI=6)
-   * carries the coverage window in its two doubles and the target id in its
-   * first integer, so the daf* exports reconstruct both queries exactly.
+   * Walk the DAF segment summaries of a staged SPK or CK.
+   *
+   * None of spkobj_c, spkcov_c, ckobj_c or ckcov_c are in the WASM export
+   * allowlist, but both file kinds are DAFs whose segment descriptors are
+   * ND=2, NI=6, so the daf* exports reconstruct all four queries exactly:
+   *
+   *   SPK  dc = [start ET, end ET]                ic = [target, center, frame,
+   *                                                     type, begin, end]
+   *   CK   dc = [start ticks, end ticks]          ic = [instrument, frame,
+   *                                                     type, avflag, begin,
+   *                                                     end]
+   *
+   * A CK's bounds are *encoded SCLK ticks*, not seconds: converting them is the
+   * caller's job (ckcov_c's `timsys`), because it needs the clock id, which
+   * lives in the kernel pool rather than in the descriptor.
    */
-  private walkSpkSummaries(
+  private walkDafSummaries(
     name: string,
-    visit: (body: number, start: number, end: number) => void,
+    visit: (start: number, end: number, ic: readonly number[]) => void,
   ): void {
     this.scope(() => {
       const path = `${KERNEL_DIR}/${name}`;
       if (!this.mod.FS.analyzePath(path).exists) {
-        throw new SpiceError(`spk summary walk: no staged kernel named '${name}'`);
+        throw new SpiceError(`daf summary walk: no staged kernel named '${name}'`);
       }
       const handlePtr = this.scratch(4);
       this.call('dafopr_c', this.str(path), handlePtr);
@@ -752,7 +763,9 @@ export class SpiceBindings {
           this.checkFailed();
           this.call('dafus_c', sum, 2, 6, dc, ic);
           this.checkFailed();
-          visit(this.readInt(ic), this.readDouble(dc), this.readDouble(dc + 8));
+          const ints: number[] = [];
+          for (let i = 0; i < 6; i++) ints.push(this.readInt(ic + i * 4));
+          visit(this.readDouble(dc), this.readDouble(dc + 8), ints);
         }
       } finally {
         this.call('dafcls_c', handle);
@@ -761,10 +774,25 @@ export class SpiceBindings {
     });
   }
 
+  /**
+   * Sort by start and merge windows that overlap or abut, the union SPICE's own
+   * `wninsd_c` performs as each segment goes into a coverage cell.
+   */
+  private static mergeRanges(raw: [number, number][]): [number, number][] {
+    raw.sort((a, b) => a[0] - b[0]);
+    const merged: [number, number][] = [];
+    for (const w of raw) {
+      const last = merged[merged.length - 1];
+      if (last && w[0] <= last[1]) last[1] = Math.max(last[1], w[1]);
+      else merged.push([w[0], w[1]]);
+    }
+    return merged;
+  }
+
   /** NAIF ids of every body carried by a staged SPK (spkobj equivalent). */
   spkObjects(name: string): number[] {
     const ids = new Set<number>();
-    this.walkSpkSummaries(name, (body) => ids.add(body));
+    this.walkDafSummaries(name, (_start, _end, ic) => ids.add(ic[0]!));
     return [...ids].sort((a, b) => a - b);
   }
 
@@ -774,17 +802,46 @@ export class SpiceBindings {
    */
   spkCoverage(name: string, body: number): [number, number][] {
     const raw: [number, number][] = [];
-    this.walkSpkSummaries(name, (b, start, end) => {
-      if (b === body) raw.push([start, end]);
+    this.walkDafSummaries(name, (start, end, ic) => {
+      if (ic[0] === body) raw.push([start, end]);
     });
-    raw.sort((a, b) => a[0] - b[0]);
-    const merged: [number, number][] = [];
-    for (const w of raw) {
-      const last = merged[merged.length - 1];
-      if (last && w[0] <= last[1]) last[1] = Math.max(last[1], w[1]);
-      else merged.push([w[0], w[1]]);
-    }
-    return merged;
+    return SpiceBindings.mergeRanges(raw);
+  }
+
+  /**
+   * Ids of every instrument or structure carried by a staged CK (ckobj
+   * equivalent). These are CK structure ids (a spacecraft clock id times 1000
+   * plus an offset, e.g. -82000 for the Cassini bus), not body ids.
+   */
+  ckObjects(name: string): number[] {
+    const ids = new Set<number>();
+    this.walkDafSummaries(name, (_start, _end, ic) => ids.add(ic[0]!));
+    return [...ids].sort((a, b) => a - b);
+  }
+
+  /**
+   * Coverage windows of `inst` in a staged CK, as [start, end] pairs of
+   * **encoded SCLK ticks**, sorted and merged -- ckcov_c at `level='SEGMENT'`,
+   * `tol=0`, `timsys='SCLK'`.
+   *
+   * SEGMENT level is what a descriptor walk can answer: it is the span the
+   * segment declares. INTERVAL level would mean decoding each segment's
+   * type-specific interpolation-interval table, which is a reader per CK type
+   * and not reconstructible from the summary, so the adapter above refuses it
+   * rather than quietly returning segment bounds under an interval label.
+   *
+   * `needAv` is ckcov_c's `needav`: with it set, only segments that carry
+   * angular velocity count, since a consumer that needs a rate cannot use the
+   * pointing-only ones.
+   */
+  ckCoverage(name: string, inst: number, needAv = false): [number, number][] {
+    const raw: [number, number][] = [];
+    this.walkDafSummaries(name, (start, end, ic) => {
+      if (ic[0] !== inst) return;
+      if (needAv && ic[3] !== 1) return;
+      raw.push([start, end]);
+    });
+    return SpiceBindings.mergeRanges(raw);
   }
 
   /** Ephemeris seconds past J2000 (ET) to continuous encoded SCLK ticks (sce2c). */

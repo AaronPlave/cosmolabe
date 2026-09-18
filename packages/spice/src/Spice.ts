@@ -57,6 +57,10 @@ export interface SpiceInstance {
   spkobj(filename: string): number[];
   /** Return the coverage of one SPK file, unioned over every body it carries. */
   spkFileCoverage(filename: string): TimeWindow[];
+  /** Return the attitude coverage of a CK structure across all loaded C-kernels. */
+  ckcov(idcode: number, options?: CkCoverageOptions): TimeWindow[];
+  /** Return the CK structure IDs present in the named C-kernel. The kernel must be furnished. */
+  ckobj(filename: string): number[];
   // FOV
   getfov(instId: number, maxBounds?: number): InstrumentFov;
   fovray(inst: string, raydir: Vec3, rframe: string, abcorr: AberrationCorrection, observer: string, et: number): boolean;
@@ -73,6 +77,18 @@ export interface SpiceInstance {
   vadd(v1: Vec3, v2: Vec3): Vec3;
   vscl(s: number, v: Vec3): Vec3;
   recrad(rectan: Vec3): { range: number; ra: number; dec: number };
+}
+
+/** Options for {@link SpiceInstance.ckcov}, one for one with ckcov_c's arguments. */
+export interface CkCoverageOptions {
+  /** ckcov_c's `needav`: count only segments that carry angular velocity. Default false. */
+  needAv?: boolean;
+  /** ckcov_c's `tol`: encoded SCLK ticks of padding on each side of a segment. Default 0. */
+  tol?: number;
+  /** ckcov_c's `timsys`: 'TDB' (default) for ephemeris seconds past J2000, 'SCLK' for ticks. */
+  timeSystem?: 'TDB' | 'SCLK';
+  /** ckcov_c's `level`: 'SEGMENT' (default) or 'INTERVAL'. */
+  level?: 'SEGMENT' | 'INTERVAL';
 }
 
 let bufferFileCount = 0;
@@ -690,6 +706,92 @@ export class Spice implements SpiceInstance {
       return this.readSpiceWindow(coverCell.cellPtr);
     } finally {
       this.freeSpiceCell(coverCell);
+    }
+  }
+
+  // --- CK coverage ---
+
+  /**
+   * Attitude coverage of a CK structure, unioned across every loaded C-kernel.
+   *
+   * The orientation counterpart of {@link spkcov}, and the reason both exist:
+   * a caller that can only ask "is there attitude at this instant" learns
+   * nothing about where to look next, while a window list says both when the
+   * answer is no and where the nearest yes is.
+   *
+   * Loaded CKs are enumerated with ktotal_c / kdata_c, exactly as spkcov
+   * enumerates SPKs, and ckcov_c unions each file's windows into one cell.
+   * `timeSystem` defaults to 'TDB' so the windows are ET, directly comparable
+   * with spkcov's; 'SCLK' returns the raw encoded ticks and needs no SCLK
+   * kernel furnished.
+   */
+  ckcov(idcode: number, options: CkCoverageOptions = {}): TimeWindow[] {
+    const { needAv = false, tol = 0, timeSystem = 'TDB', level = 'SEGMENT' } = options;
+    const MAXWIN = 10000;
+    const coverCell = this.createEmptySpiceWindow(MAXWIN);
+
+    const countPtr = this.module._malloc(INT_SIZE);
+    this.module.ccall('ktotal_c', null, ['string', 'number'], ['CK', countPtr]);
+    const numCk = this.module.getValue(countPtr, 'i32');
+    this.module._free(countPtr);
+
+    const FILELEN = 512;
+    const TYPLEN = 64;
+    const SRCLEN = 512;
+    const filePtr = this.module._malloc(FILELEN);
+    const typPtr = this.module._malloc(TYPLEN);
+    const srcPtr = this.module._malloc(SRCLEN);
+    const handlePtr = this.module._malloc(INT_SIZE);
+    const foundPtr = this.module._malloc(INT_SIZE);
+
+    try {
+      for (let i = 0; i < numCk; i++) {
+        this.module.ccall('kdata_c', null,
+          ['number', 'string', 'number', 'number', 'number', 'number', 'number', 'number'],
+          [i, 'CK', FILELEN, TYPLEN, SRCLEN, filePtr, typPtr, srcPtr, handlePtr, foundPtr]);
+        if (!this.module.getValue(foundPtr, 'i32')) continue;
+
+        this.module.ccall('ckcov_c', null,
+          ['string', 'number', 'number', 'string', 'number', 'string', 'number'],
+          [this.module.UTF8ToString(filePtr), idcode, needAv ? 1 : 0, level, tol, timeSystem, coverCell.cellPtr]);
+        // As in spkcov: "this file carries nothing for this id" is signalled as
+        // a failure but is not one, and leaving it set would fail the next call.
+        if (this.module.ccall('failed_c', 'number', [], [])) {
+          this.module.ccall('reset_c', null, [], []);
+        }
+      }
+      return this.readSpiceWindow(coverCell.cellPtr);
+    } finally {
+      this.module._free(filePtr);
+      this.module._free(typPtr);
+      this.module._free(srcPtr);
+      this.module._free(handlePtr);
+      this.module._free(foundPtr);
+      this.freeSpiceCell(coverCell);
+    }
+  }
+
+  /**
+   * Enumerate the CK structure IDs a furnished C-kernel carries. These are CK
+   * ids (a clock id times 1000 plus an offset, e.g. -82000 for the Cassini
+   * bus), not body ids, and each is a valid `idcode` for {@link ckcov}.
+   */
+  ckobj(filename: string): number[] {
+    const path = this.fileMap.get(filename) ?? filename;
+    const MAXOBJ = 10000;
+    const cell = this.allocSpiceIntCell(MAXOBJ);
+    try {
+      this.module.ccall('ckobj_c', null, ['string', 'number'], [path, cell.cellPtr]);
+      this.checkError();
+      const card = this.module.getValue(cell.cellPtr + 12, 'i32') as number;
+      const dataStart = this.module.getValue(cell.cellPtr + 32, 'i32') as number;
+      const ids: number[] = [];
+      for (let i = 0; i < card; i++) {
+        ids.push(this.module.getValue(dataStart + i * INT_SIZE, 'i32') as number);
+      }
+      return ids;
+    } finally {
+      this.freeSpiceCell(cell);
     }
   }
 
