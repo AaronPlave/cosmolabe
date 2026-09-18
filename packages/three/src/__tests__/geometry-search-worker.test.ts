@@ -368,6 +368,44 @@ describe('GeometrySearchWorker', () => {
       expect(built).toHaveLength(1);
     });
 
+    it('rebinds a surviving handle to the new worker', async () => {
+      // The handle outlives the worker it started on. Its inner search belongs
+      // to the disposed one, so reusing it would post into a terminated worker
+      // and hang -- a call that never settles, with no error to show for it.
+      const { built, geometry } = harness(true, 60_000);
+      const search = geometry.search();
+      dispatch(aSearch(search.provider));
+      await tick();
+      answer(built[0]!);
+      await tick();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(built[0]!.terminated).toBe(true);
+      // A handle holding a disposed worker's search is holding nothing.
+      expect(search.busy).toBe(false);
+
+      // The same handle, used again: it must reach the new worker.
+      dispatch(aSearch(search.provider));
+      await tick();
+      expect(built).toHaveLength(2);
+      expect(built[1]!.last('geometry')).toBeDefined();
+    });
+
+    it('waits for the caller to say the search is over', async () => {
+      // `finish` is the signal, not the gap between calls: a caller that has
+      // not finished still owns the worker.
+      const { built, geometry } = harness(true, 60_000);
+      const search = geometry.search();
+      dispatch(aSearch(search.provider));
+      await tick();
+      answer(built[0]!);
+      await tick();
+
+      search.finish();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(built[0]!.terminated).toBe(true);
+    });
+
     it('keeps the worker for the session when no timeout is set', async () => {
       const { built, geometry } = harness(true);
       await runSearch(geometry, () => built[0]);

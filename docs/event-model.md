@@ -265,11 +265,14 @@ calls the reporter and polls the bail-out handler from the same points inside th
 search.
 
 - **Progress** is the fraction of the *confinement window* swept, not of elapsed
-  time. It advances unevenly — honest for a bar, misleading as an ETA. It is also
-  per call and per pass: a relational search sweeps its window once to find where
-  the quantity is decreasing before it solves the relation, and a search is
-  usually several calls. So the fraction says "this step is n% done" and restarts;
-  nothing CSPICE reports can say how far the search as a whole has got.
+  time. It advances unevenly — honest for a bar, misleading as an ETA. It is per
+  call, and monotonic within one: a relational search sweeps its window once to
+  find where the quantity is decreasing before it solves the relation, and CSPICE
+  restarts its reporter at each of those passes, but the pass count is known
+  before the call starts so each is mapped into its own slice. A search is still
+  usually several calls, and the fraction restarts between them. So it says "this
+  step is n% done"; nothing CSPICE reports can say how far the search as a whole
+  has got, which is why no percentage is shown beside the bar.
   Progress is posted out of the worker from inside the running CSPICE call —
   a worker can `postMessage` from synchronous code, and since searches moved off
   the main thread there is a main thread free to receive it.

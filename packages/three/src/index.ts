@@ -16,6 +16,7 @@ export {
 } from './SpiceCacheWorker.js';
 export {
   GeometrySearchWorker,
+  type GeometrySearch,
   type GeometrySearchScope,
   type GeometrySearchWorkerOptions,
 } from './GeometrySearchWorker.js';

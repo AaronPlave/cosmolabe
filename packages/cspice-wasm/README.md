@@ -55,10 +55,12 @@ const intervals = await engine.gfdist('SATURN', 'NONE', '-82', '<', 1.5e6, 300, 
 ```
 
 - `onProgress` reports the fraction of the **confinement window** swept, not of
-  elapsed time, and it is per pass: a relational search sweeps its window once to
-  find where the quantity is decreasing before it solves the relation, so the
-  fraction restarts and `pass` says which one is running. Honest for a bar,
-  misleading as an ETA. The final `1` is reported once, for the call as a whole.
+  elapsed time, and it only ever moves forward within one call: a relational
+  search sweeps its window once to find where the quantity is decreasing before
+  it solves the relation, and CSPICE restarts its reporter at each of those
+  passes, but the count is known up front (see `gfPassCount`) so each pass is
+  mapped into its own slice. `pass` says which one is running, unscaled. Honest
+  for a bar, misleading as an ETA. The final `1` is reported once.
 - `cancelFlag` must be an `Int32Array` over a `SharedArrayBuffer`. The bail-out
   handler is polled from inside the running CSPICE call, and a worker blocked in
   one cannot read its own message queue, so shared memory is the only channel

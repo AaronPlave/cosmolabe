@@ -8,14 +8,15 @@
  * the async run with its in-flight bookkeeping and cancellation, and turning a
  * selected event into simulation time plus a 3D highlight.
  *
- * Searches run in the SPICE worker whenever the scene has one. That is not an
- * optimisation: CSPICE's GF routines are synchronous, so a search on the main
- * thread freezes the viewer — no camera, no scrubber, not even a spinner —
- * for as long as it runs, which a one-minute step over a multi-year window
- * makes seconds. The worker already has the catalog's kernels furnished for
- * the trajectory caches, so the search costs no loading of its own. The
- * main-thread provider stays as the fallback for scenes with no worker (test
- * mode, and kernel-free catalogs).
+ * Searches run in a SPICE worker of their own whenever the scene has one. That
+ * is not an optimisation: CSPICE's GF routines are synchronous, so a search on
+ * the main thread freezes the viewer — no camera, no scrubber, not even a
+ * spinner — for as long as it runs, which a one-minute step over a multi-year
+ * window makes seconds. It is a worker of its own rather than the trajectory
+ * cache's so that cancelling a search may terminate it, and so that a long
+ * search does not starve the cache builds queued behind it. The main-thread
+ * provider stays as the fallback for scenes with no worker (test mode, and
+ * kernel-free catalogs).
  */
 import {
   EventSearch,
@@ -37,7 +38,6 @@ import {
 import type { AberrationCorrection, SpiceInstance } from '@cosmolabe/spice';
 import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
 import { geometryScopeForWindow, getGeometryWorker, getSpice } from './loader';
-import { noteMemory } from './memory-probe';
 import {
   activeEventAtTime,
   buildQuery,
@@ -100,6 +100,15 @@ export function spiceGeometryFinder(spice: SpiceInstance): GeometryFinderProvide
 interface RunningSearch {
   provider: GeometryFinderProvider;
   cancel(): void;
+  /**
+   * The whole search is over, however it ended.
+   *
+   * Said here because this is the only layer that knows: below it a search is
+   * an unpredictable sequence of provider calls, and the last is
+   * indistinguishable from the rest. The worker path uses it to decide when its
+   * worker may be released.
+   */
+  finish(): void;
   readonly cancelled: boolean;
 }
 
@@ -157,6 +166,9 @@ function beginSearch(spice: SpiceInstance, window: EtInterval): RunningSearch {
   return {
     get cancelled() { return cancelled; },
     cancel() { cancelled = true; },
+    // Nothing to release: these calls run on the main thread's own instance,
+    // which the viewer keeps for as long as the scene is loaded.
+    finish() {},
     provider: {
       gfdist: guard(base.gfdist),
       gfsep: guard(base.gfsep),
@@ -640,15 +652,14 @@ export async function runSearch() {
     // abandoned by an edit to the form has had its token retired, and checking
     // that instead would leave "Searching…" on screen forever. A search
     // superseded by a *newer* one leaves both alone — the new one owns them.
+    // Every search says it is done, including one superseded by a newer search:
+    // the claim on the worker is this search's to release either way, and the
+    // newer one has already made its own.
+    running.finish();
     if (active === running) {
       active = null;
       ef.running = false;
       ef.progress = null;
-      // A no-op unless the page was loaded with `?mem=1`. Here because a search
-      // is the operation that creates the geometry worker and its second copy
-      // of the catalog's kernels, so it is the one whose cost is worth a
-      // before-and-after.
-      noteMemory(`after ${ef.kind} search`);
     }
   }
 }
@@ -656,15 +667,15 @@ export async function runSearch() {
 /**
  * Stops the running search.
  *
- * Every call it has not made yet stops, and on the worker path the call CSPICE
- * is executing right now is asked to stop too — through a bail-out handler
- * polled from inside that call. That is what frees the worker rather than merely
- * freeing the viewer: the next search, and the trajectory cache builds that
- * share the worker, no longer queue behind an abandoned one.
+ * Every call it has not made yet stops, and on the worker path so does the one
+ * CSPICE is executing right now — by a bail-out handler polled from inside it
+ * where shared memory can reach the worker, and otherwise by terminating the
+ * worker, which is the one thing that always stops synchronous wasm. Either
+ * way the executing call stops, so the next search does not queue behind an
+ * abandoned one.
  *
- * The interruption needs shared memory to reach a thread already inside CSPICE,
- * so on a page that is not cross-origin isolated it degrades to what it always
- * did: the viewer is freed immediately, the worker finishes the call first.
+ * Terminating is survivable because searches have a worker of their own; the
+ * trajectory caches are on another and are untouched by any of this.
  */
 export function cancelSearch() {
   active?.cancel();

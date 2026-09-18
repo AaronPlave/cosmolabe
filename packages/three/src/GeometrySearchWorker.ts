@@ -63,6 +63,25 @@ export interface GeometrySearchScope {
   readonly key: string;
 }
 
+/**
+ * A search this worker is running, plus the caller's say in when it is over.
+ *
+ * The extra method is `finish`, and it exists because the worker's lifetime has
+ * to be decided by someone who knows what a search *is*. From in here a search
+ * is an unpredictable number of provider calls whose last one looks exactly
+ * like the rest; only the caller driving them knows when there will be no more.
+ */
+export interface GeometrySearch extends WorkerGeometrySearch {
+  /**
+   * The caller is done with this search, successfully or not.
+   *
+   * Idempotent, and safe to call from a `finally`. It releases the caller's
+   * claim on the worker; it does not cancel anything still running, which is
+   * what `cancel` is for.
+   */
+  finish(): void;
+}
+
 export interface GeometrySearchWorkerOptions {
   /**
    * Makes a fresh worker. Called on the first search and again after a restart,
@@ -233,7 +252,7 @@ export class GeometrySearchWorker {
    * a convenience here but a requirement, because terminating the worker to
    * cancel one search would take every other search on it down as well.
    */
-  search(options?: GeometrySearchOptions & { scope?: GeometrySearchScope }): WorkerGeometrySearch {
+  search(options?: GeometrySearchOptions & { scope?: GeometrySearchScope }): GeometrySearch {
     this.active?.cancel();
 
     // A worker furnished for a different kernel set would answer this search
@@ -250,6 +269,18 @@ export class GeometrySearchWorker {
     let cancelled = false;
     let progress: GeometrySearchProgress | null = null;
     let inner: WorkerGeometrySearch | null = null;
+    /**
+     * The worker generation `inner` belongs to.
+     *
+     * A handle outlives the worker it started on -- an idle release or a
+     * cancellation that had to terminate replaces it underneath. The inner
+     * search is bound to the worker that created it, so reusing one across a
+     * restart would route the call into a disposed worker and hang. Rebinding
+     * on the next call is what lets the handle carry on regardless.
+     */
+    let innerGeneration = -1;
+    /** Whether `inner` is the one this handle's live worker knows about. */
+    const innerIsCurrent = (): boolean => inner !== null && innerGeneration === this.generation;
 
     // The worker is built on the first call the search actually makes, so a
     // search that is superseded before it asks anything costs nothing.
@@ -257,17 +288,25 @@ export class GeometrySearchWorker {
       if (cancelled) throw new GeometrySearchCancelled();
       const worker = await this.start(scope);
       if (cancelled) throw new GeometrySearchCancelled();
-      return (inner ??= worker.geometrySearch({
-        onProgress: (p) => {
-          progress = p;
-          options?.onProgress?.(p);
-        },
-      }));
+      if (!innerIsCurrent()) {
+        inner = worker.geometrySearch({
+          onProgress: (p) => {
+            progress = p;
+            options?.onProgress?.(p);
+          },
+        });
+        innerGeneration = this.generation;
+      }
+      return inner!;
     };
 
     // Every provider call goes through here, so this is where the worker is
-    // claimed and released: held for as long as calls keep arriving, and put on
-    // the clock once they stop.
+    // claimed: held for as long as calls keep arriving.
+    //
+    // Re-arming on settle is a backstop, not the signal -- `finish` is. It
+    // cannot release mid-search, because each call clears the timer on entry
+    // and calls within one search follow each other immediately; what it does
+    // is bound the damage when a caller never says it is done.
     const held = async <T>(run: () => Promise<T>): Promise<T> => {
       this.clearIdleRelease();
       try {
@@ -281,10 +320,12 @@ export class GeometrySearchWorker {
       call: (p: GeometryFinderProvider) => EtInterval[] | Promise<EtInterval[]>,
     ): Promise<EtInterval[]> => held(async () => call((await delegate()).provider));
 
-    const handle: WorkerGeometrySearch = {
+    const handle: GeometrySearch = {
       get cancelled() { return cancelled; },
       get progress() { return progress; },
-      get busy() { return inner?.busy ?? false; },
+      // A handle whose worker has been replaced holds nothing, whatever the
+      // search bound to the old one still says about itself.
+      get busy() { return innerIsCurrent() ? inner!.busy : false; },
       // The guarantee, not the mechanism: a cancelled search stops the call the
       // worker is executing either way.
       interruptible: true,
@@ -295,13 +336,21 @@ export class GeometrySearchWorker {
         // Whether the worker is holding a call for *this* search, which is what
         // decides if taking it down is worth anything. A search that already
         // finished, or never started, costs nothing to cancel.
-        const holdingTheWorker = inner?.busy ?? false;
-        inner?.cancel();
+        const holdingTheWorker = innerIsCurrent() && inner!.busy;
+        if (innerIsCurrent()) inner!.cancel();
         if (holdingTheWorker && !this.canInterrupt()) this.restart();
         if (this.active === handle) this.active = null;
         // A cancelled search leaves the worker idle as surely as a finished
         // one, and a user who gives up on a search is if anything less likely
         // to start another.
+        this.scheduleIdleRelease();
+      },
+
+      finish: () => {
+        // Said by the caller when its whole search is done, which is the only
+        // place that knows: a search is however many calls its kind chooses to
+        // make, and from here the last one is indistinguishable from the rest.
+        if (this.active === handle) this.active = null;
         this.scheduleIdleRelease();
       },
 

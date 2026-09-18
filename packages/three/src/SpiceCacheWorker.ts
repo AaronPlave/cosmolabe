@@ -93,9 +93,13 @@ export interface WorkerGeometrySearch {
    * from inside the running search, and a worker blocked in a synchronous call
    * cannot read its own message queue — so the flag it polls has to be memory
    * both threads can see. Where `SharedArrayBuffer` is unavailable (a page that
-   * is not cross-origin isolated), the executing call runs to completion as it
-   * always did: the caller is freed immediately either way, but the worker is
-   * not, and the next search queues behind the abandoned one.
+   * is not cross-origin isolated), this layer cannot stop the executing call:
+   * the caller is freed, but the worker runs it to completion.
+   *
+   * That is not the guarantee the viewer gets, because it does not cancel here.
+   * {@link GeometrySearchWorker} wraps this and terminates the worker instead
+   * when no shared flag is available, which always stops synchronous wasm — see
+   * its notes for why that is survivable there and would not be here.
    */
   cancel(): void;
   /** True once {@link cancel} has been called. */

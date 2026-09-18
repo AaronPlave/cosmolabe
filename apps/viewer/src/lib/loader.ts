@@ -28,10 +28,8 @@ import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin
 import { GeometrySearchWorker, type GeometrySearchScope, type KernelSource } from '@cosmolabe/three';
 import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmolabe/control';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
-import GeometrySearchRelayWorker from '../workers/geometry-search-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
 import { kernelSetKey, kernelsForWindow, type KernelWindow } from './geometry-kernels';
-import { noteKernelScope } from './memory-probe';
 import {
   bindRenderer,
   gotoObject,
@@ -157,17 +155,8 @@ function scopedKernelSources(window: KernelWindow | null): WorkerKernelSource[] 
  * narrowed and the full set is what the worker should hold.
  */
 export function geometryScopeForWindow(window: KernelWindow): GeometrySearchScope | undefined {
-  const s = getSpice();
-  if (!s) return undefined;
+  if (!getSpice()) return undefined;
   const names = scopedKernelSources(window).map(workerKernelName);
-
-  noteKernelScope({
-    kept: names,
-    dropped: workerKernelSources.map(workerKernelName).filter((n) => !names.includes(n)),
-    window,
-    describeEt: (et) => s.et2utc(et, 'ISOC', 0),
-  });
-
   const scope: ViewerGeometryScope = { key: kernelSetKey(names), window };
   return scope;
 }
@@ -623,7 +612,7 @@ function initScene(
       // kernel list is replayed whenever the geometry worker is rebuilt after a
       // cancellation that had to terminate it.
       geometryWorker = new GeometrySearchWorker({
-        createWorker: () => new GeometrySearchRelayWorker(),
+        createWorker: () => new SpiceCacheRelayWorker(),
         kernels: currentWorkerKernels,
         idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
       });
