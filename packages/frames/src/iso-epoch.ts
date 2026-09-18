@@ -47,6 +47,15 @@ function pad(value: number, width = 2): string {
   return String(value).padStart(width, '0');
 }
 
+/** Days in a Gregorian month, so `2024-02-31` is caught before any arithmetic. */
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) {
+    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    return leap ? 29 : 28;
+  }
+  return month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
+}
+
 /**
  * The SPICE time string for an ISO-8601 instant, explicit about UTC.
  *
@@ -59,7 +68,10 @@ function pad(value: number, width = 2): string {
  * difference is that the result now says so.
  *
  * Input that is not an ISO-8601 calendar date-time is returned unchanged, for
- * `str2et` to parse or reject in its own terms.
+ * `str2et` to parse or reject in its own terms. So is input that only *looks*
+ * like one: a field out of range (`'2024-02-31T12:00:00+01:00'`, minute `60`,
+ * an offset of `+02:99`) is an error to SPICE, and normalising it would quietly
+ * turn that error into a plausible, wrong epoch.
  */
 export function spiceUtcFromIso(time: string): string {
   const match = ISO_DATE_TIME.exec(time.trim());
@@ -70,13 +82,6 @@ export function spiceUtcFromIso(time: string): string {
     string | undefined, string | undefined,
   ];
 
-  // CSPICE's calendar form cannot read a leading-zero year: it resolves
-  // `'0999-07-01 …'` field by field and gives up on the day token, where the
-  // ISO form parses it fine. That is the one case the calendar form loses to
-  // the ISO form, so keep the ISO form there — still UTC, by CSPICE's default
-  // rather than by the token, and still with any offset resolved below.
-  const calendarSafeYear = !year.startsWith('0');
-
   let y = Number(year);
   let mo = Number(month);
   let d = Number(day);
@@ -85,11 +90,24 @@ export function spiceUtcFromIso(time: string): string {
   // ISO allows a comma as the decimal mark; CSPICE does not.
   const s = (second ?? '00').replace(',', '.');
 
+  // The pattern above fixes the *shape* of each field, not its range, and the
+  // `Date` arithmetic below normalises rather than rejects — `2024-02-31` would
+  // come back out as March. SPICE treats an out-of-range component as an error,
+  // so anything invalid is handed back untouched for `str2et` to reject, exactly
+  // as it did before this module existed. A second of `60` stays legal: it is a
+  // leap-second reading, and it never reaches the shift.
+  if (mo < 1 || mo > 12) return time;
+  if (d < 1 || d > daysInMonth(y, mo)) return time;
+  if (h > 23 || mi > 59) return time;
+  if (Number(s.split('.')[0]) > 60) return time;
+
   if (designator !== undefined && designator.toUpperCase() !== 'Z') {
     const sign = designator.startsWith('-') ? -1 : 1;
     const digits = designator.slice(1).replace(':', '');
-    const offsetMinutes =
-      sign * (Number(digits.slice(0, 2)) * 60 + (digits.length > 2 ? Number(digits.slice(2)) : 0));
+    const offsetHours = Number(digits.slice(0, 2));
+    const offsetMins = digits.length > 2 ? Number(digits.slice(2)) : 0;
+    if (offsetHours > 23 || offsetMins > 59) return time;
+    const offsetMinutes = sign * (offsetHours * 60 + offsetMins);
     // Date.UTC does the calendar arithmetic (month lengths, leap years) and is
     // exact here: the shift is whole minutes, so no part of the seconds field
     // reaches it and nothing rounds. Years below 100 would be remapped to the
@@ -104,7 +122,19 @@ export function spiceUtcFromIso(time: string): string {
     mi = shifted.getUTCMinutes();
   }
 
-  const date = `${pad(y, year.length)}-${pad(mo)}-${pad(d)}`;
+  // A shift backwards out of year 0 has no ISO calendar spelling here; leave it
+  // to `str2et`.
+  if (y < 0) return time;
+
+  // CSPICE's calendar form cannot read a leading-zero year: it resolves
+  // `'0999-07-01 …'` field by field and gives up on the day token, where the
+  // ISO form parses it fine. That is the one case the calendar form loses to
+  // the ISO form, so keep the ISO form there — still UTC, by CSPICE's default
+  // rather than by the token. The choice is made on the year actually emitted,
+  // not the one the input carried: an offset can shift across the boundary, and
+  // `'1000-01-01T00:30:00+01:00'` resolves into `0999`.
+  const yearText = pad(y, year.length);
+  const date = `${yearText}-${pad(mo)}-${pad(d)}`;
   const clock = `${pad(h)}:${pad(mi)}:${s}`;
-  return calendarSafeYear ? `${date} ${clock} UTC` : `${date}T${clock}`;
+  return yearText.startsWith('0') ? `${date}T${clock}` : `${date} ${clock} UTC`;
 }

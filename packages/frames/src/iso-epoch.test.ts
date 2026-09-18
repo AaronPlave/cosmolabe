@@ -70,6 +70,44 @@ describe('spiceUtcFromIso', () => {
     expect(spiceUtcFromIso('0999-07-01T04:00:00+02:00')).toBe('0999-07-01T02:00:00');
   });
 
+  it('decides the calendar form on the year the offset lands in, not the one it started in', () => {
+    // The input year is calendar-safe and the resolved one is not; the choice
+    // has to follow the string actually emitted.
+    expect(spiceUtcFromIso('1000-01-01T00:30:00+01:00')).toBe('0999-12-31T23:30:00');
+    // …and the other way across the same boundary.
+    expect(spiceUtcFromIso('0999-12-31T23:30:00-01:00')).toBe('1000-01-01 00:30:00 UTC');
+  });
+
+  it('returns an out-of-range field untouched instead of letting Date normalise it', () => {
+    // `Date` would roll each of these into a real instant — February 31st into
+    // March, minute 60 into the next hour — and hand back a plausible, wrong
+    // epoch. SPICE calls them errors, so they go to `str2et` as written.
+    for (const s of [
+      '2024-02-31T12:00:00+01:00',
+      '2024-02-30T12:00:00Z',
+      '2023-02-29T12:00:00Z',
+      '1900-02-29T12:00:00Z',
+      '2024-01-01T12:60:00+00:00',
+      '2024-01-01T24:00:00Z',
+      '2024-13-01T12:00:00Z',
+      '2024-00-01T12:00:00Z',
+      '2024-01-00T12:00:00Z',
+      '2024-01-01T12:00:61Z',
+      '2024-01-01T12:00:00+02:99',
+      '2024-01-01T12:00:00+24:00',
+      '2024-01-01T12:00:00-02:60',
+    ]) {
+      expect(spiceUtcFromIso(s), s).toBe(s);
+    }
+  });
+
+  it('still accepts the range edges that are legal', () => {
+    expect(spiceUtcFromIso('2024-02-29T23:59:59Z')).toBe('2024-02-29 23:59:59 UTC');
+    expect(spiceUtcFromIso('2000-02-29T00:00:00Z')).toBe('2000-02-29 00:00:00 UTC');
+    expect(spiceUtcFromIso('2024-12-31T23:59:60.5Z')).toBe('2024-12-31 23:59:60.5 UTC');
+    expect(spiceUtcFromIso('2024-01-01T12:00:00+23:59')).toBe('2023-12-31 12:01:00 UTC');
+  });
+
   it('passes every non-ISO form through untouched', () => {
     for (const s of [
       '2004 JUL 01 02:00:00',
@@ -122,6 +160,15 @@ describe('spiceUtcFromIso against CSPICE', () => {
         `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}` +
         `T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}${frac}`;
       expect(spice.str2et(spiceUtcFromIso(`${bare}Z`)), bare).toBe(spice.str2et(bare));
+    }
+  });
+
+  it('leaves an out-of-range component for CSPICE to reject, as before', () => {
+    // The point of handing these back untouched: `str2et` still errors on them.
+    // Normalised, `'2024-02-31T12:00:00+01:00'` would have resolved to a real
+    // March epoch instead.
+    for (const s of ['2024-02-31T12:00:00+01:00', '2024-01-01T12:60:00+00:00', '2024-01-01T12:00:00+02:99']) {
+      expect(() => spice.str2et(spiceUtcFromIso(s)), s).toThrow(SpiceError);
     }
   });
 
