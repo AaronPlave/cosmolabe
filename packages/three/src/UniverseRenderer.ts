@@ -151,6 +151,13 @@ export class UniverseRenderer {
   private _hoverPickTimer = 0;
   private _lastHoverPickMs = 0;
   private _lastPointer = { x: 0, y: 0 };
+  /** In-flight touch contact, for tap detection (see `_onTouchPointerDown`). */
+  private _tapCandidate: { id: number; x: number; y: number; t: number } | null = null;
+  /** When the last tap was turned into a selection, to drop its synthetic click. */
+  private _lastTapMs = -Infinity;
+  /** A tap is a contact that stays under this many pixels, for under this long. */
+  private static readonly _tapSlopPx = 12;
+  private static readonly _tapMaxMs = 500;
   /** Throttle hover picks to ~30 Hz — snappy without picking on every single
    *  frame. The pick is cheap (label-only, against cached screen boxes). */
   private static readonly _hoverPickIntervalMs = 33;
@@ -355,6 +362,14 @@ export class UniverseRenderer {
     this._dblClickRaycaster = new THREE.Raycaster();
     canvas.addEventListener('click', this._onClick);
     canvas.addEventListener('dblclick', this._onDblClick);
+
+    // Touch: a browser synthesizes a click for a tap, but only when it decides
+    // the gesture was a tap — and the camera controls capture the pointer for
+    // an orbit, which can swallow it. Detecting the tap ourselves makes
+    // selection work the same on glass as under a mouse.
+    canvas.addEventListener('pointerdown', this._onTouchPointerDown);
+    canvas.addEventListener('pointerup', this._onTouchPointerUp);
+    canvas.addEventListener('pointercancel', this._onTouchPointerCancel);
 
     // Hover highlight: emphasize the hovered body's trajectory line + label.
     canvas.addEventListener('pointermove', this._onPointerMove);
@@ -2040,6 +2055,9 @@ export class UniverseRenderer {
     this.stop();
     this.renderer.domElement.removeEventListener('click', this._onClick);
     this.renderer.domElement.removeEventListener('dblclick', this._onDblClick);
+    this.renderer.domElement.removeEventListener('pointerdown', this._onTouchPointerDown);
+    this.renderer.domElement.removeEventListener('pointerup', this._onTouchPointerUp);
+    this.renderer.domElement.removeEventListener('pointercancel', this._onTouchPointerCancel);
     this.renderer.domElement.removeEventListener('pointermove', this._onPointerMove);
     this.renderer.domElement.removeEventListener('pointerleave', this._onPointerLeave);
     if (this._hoverPickTimer) clearTimeout(this._hoverPickTimer);
@@ -3062,15 +3080,65 @@ export class UniverseRenderer {
    * idempotent (re-selecting the same body should be a no-op).
    */
   private _onClick = (event: MouseEvent): void => {
+    // A tap we already handled also arrives here as a synthetic click; picking
+    // twice would emit `body:click` twice for the one gesture.
+    if (performance.now() - this._lastTapMs < 700) return;
     const rect = this.renderer.domElement.getBoundingClientRect();
-    const screenX = event.clientX - rect.left;
-    const screenY = event.clientY - rect.top;
+    this._selectAt(event.clientX - rect.left, event.clientY - rect.top);
+  };
 
+  /** Pick at canvas coordinates and emit `body:click`. Empty space selects nothing. */
+  private _selectAt(screenX: number, screenY: number): void {
     const bodyName = this.pickBody(screenX, screenY);
     if (!bodyName) return;
 
     const et = this.universe.time;
     this.events.emit('body:click', { bodyName, et, screenX, screenY });
+  }
+
+  /**
+   * Touch tap detection. A second contact cancels the candidate, so a two-finger
+   * pinch or pan never ends in a selection.
+   */
+  private _onTouchPointerDown = (event: PointerEvent): void => {
+    if (event.pointerType !== 'touch') return;
+    this._tapCandidate = this._tapCandidate
+      ? null
+      : { id: event.pointerId, x: event.clientX, y: event.clientY, t: performance.now() };
+  };
+
+  /**
+   * Cancel the candidate the moment the contact leaves the slop radius, rather
+   * than judging it on where the finger finally lands: a drag that wanders off
+   * and comes back would otherwise read as a tap and select a body the user was
+   * only navigating past.
+   */
+  private _trackTapCandidate(event: PointerEvent): void {
+    const candidate = this._tapCandidate;
+    if (!candidate || candidate.id !== event.pointerId) return;
+    const dx = event.clientX - candidate.x;
+    const dy = event.clientY - candidate.y;
+    const slop = UniverseRenderer._tapSlopPx;
+    if (dx * dx + dy * dy > slop * slop) this._tapCandidate = null;
+  }
+
+  private _onTouchPointerUp = (event: PointerEvent): void => {
+    if (event.pointerType !== 'touch') return;
+    this._trackTapCandidate(event);
+    const candidate = this._tapCandidate;
+    this._tapCandidate = null;
+    if (!candidate) return;
+
+    if (performance.now() - candidate.t > UniverseRenderer._tapMaxMs) return; // a press, not a tap
+
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this._selectAt(event.clientX - rect.left, event.clientY - rect.top);
+    this._lastTapMs = performance.now();
+  };
+
+  private _onTouchPointerCancel = (event: PointerEvent): void => {
+    if (event.pointerType !== 'touch') return;
+    this._tapCandidate = null;
   };
 
   /**
@@ -3108,6 +3176,7 @@ export class UniverseRenderer {
    * changes.
    */
   private _onPointerMove = (event: PointerEvent): void => {
+    if (event.pointerType === 'touch') this._trackTapCandidate(event);
     const rect = this.renderer.domElement.getBoundingClientRect();
     this._lastPointer.x = event.clientX - rect.left;
     this._lastPointer.y = event.clientY - rect.top;

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
 import { KeyboardControls } from './KeyboardControls.js';
+import { attachPointerInput } from './PointerInput.js';
 import type { KeyboardControlsConfig } from './KeyboardControls.js';
 import type { BodyMesh } from '../BodyMesh.js';
 import {
@@ -120,12 +121,14 @@ export class CameraController {
   /** Frame timing for keyboard dt */
   private _lastFrameMs: number;
 
-  /** Right-click free-look state */
+  /** Right-button free-look state (mouse and pen; a finger orbits instead) */
   private _rightDragging = false;
   private _rightDragDx = 0;   // accumulated pixel delta since last update()
   private _rightDragDy = 0;
-  private _prevMouseX = 0;
-  private _prevMouseY = 0;
+
+  /** Two-finger pan, accumulated in pixels since the last update() */
+  private _touchPanDx = 0;
+  private _touchPanDy = 0;
 
   /** Camera mode system */
   private readonly _modes: Map<CameraModeName, ICameraMode>;
@@ -136,10 +139,7 @@ export class CameraController {
   get mode(): CameraModeName { return this._activeMode.name; }
 
   /** Bound event handlers (for cleanup) */
-  private readonly _onRightDown: (e: MouseEvent) => void;
-  private readonly _onMouseMove: (e: MouseEvent) => void;
-  private readonly _onMouseUp: (e: MouseEvent) => void;
-  private readonly _onContextMenu: (e: Event) => void;
+  private readonly _detachPointerInput: () => void;
   private readonly _onWheel: (e: WheelEvent) => void;
   private readonly _domElement: HTMLElement;
 
@@ -179,29 +179,38 @@ export class CameraController {
     ]);
     this._activeMode = freeOrbit;
 
-    // --- Right-click free look ---
-    // Capture phase so we intercept before TrackballControls
-    this._onRightDown = (e: MouseEvent) => {
-      if (e.button !== 2) return;
-      e.stopPropagation();
-      this._rightDragging = true;
-      this._prevMouseX = e.clientX;
-      this._prevMouseY = e.clientY;
-    };
-
-    this._onMouseMove = (e: MouseEvent) => {
-      if (!this._rightDragging) return;
-      this._rightDragDx += e.clientX - this._prevMouseX;
-      this._rightDragDy += e.clientY - this._prevMouseY;
-      this._prevMouseX = e.clientX;
-      this._prevMouseY = e.clientY;
-    };
-
-    this._onMouseUp = (e: MouseEvent) => {
-      if (e.button === 2) this._rightDragging = false;
-    };
-
-    this._onContextMenu = (e: Event) => e.preventDefault();
+    // --- Right-button free look ---
+    // Mouse and pen only: a finger has no second button, and TrackballControls
+    // already gives touch a one-finger orbit and a two-finger pinch zoom.
+    // The pointerdown runs in the capture phase so we intercept before
+    // TrackballControls — and, because the capture phase reaches the window
+    // first, `App.svelte`'s window-level listener still sees the right-click
+    // before this `stopPropagation`.
+    this._detachPointerInput = attachPointerInput(domElement, {
+      preventContextMenu: true,
+      onButtonDown: (e) => {
+        if (e.button !== 2) return;
+        e.stopPropagation();
+        this._rightDragging = true;
+      },
+      onButtonDrag: (dx, dy) => {
+        if (!this._rightDragging) return;
+        this._rightDragDx += dx;
+        this._rightDragDy += dy;
+      },
+      onButtonUp: (e) => {
+        if (e.button === 2) this._rightDragging = false;
+      },
+      onCancel: () => { this._rightDragging = false; },
+      // Two-finger drag pans. TrackballControls computes the same centroid
+      // motion for touch, but only applies it when `noPan` is false — and
+      // `noPan` is what keeps a right-mouse drag from panning *and* free
+      // looking at once. Panning here keeps those two independent.
+      onPinch: (_scale, dx, dy) => {
+        this._touchPanDx += dx;
+        this._touchPanDy += dy;
+      },
+    });
 
     // Shift + wheel adjusts FOV instead of zooming. Capture phase to intercept
     // before TrackballControls's wheel handler so it doesn't also dolly the camera.
@@ -225,11 +234,11 @@ export class CameraController {
       cam.updateProjectionMatrix();
     };
 
-    domElement.addEventListener('mousedown', this._onRightDown, { capture: true });
-    domElement.addEventListener('contextmenu', this._onContextMenu);
     domElement.addEventListener('wheel', this._onWheel, { capture: true, passive: false });
-    window.addEventListener('mousemove', this._onMouseMove);
-    window.addEventListener('mouseup', this._onMouseUp);
+
+    // Without this the browser claims a touch drag as a scroll or a pinch as a
+    // page zoom, and the gesture never reaches the canvas.
+    domElement.style.touchAction = 'none';
   }
 
   /** Focus on a body — move orbit target to body position */
@@ -777,7 +786,12 @@ export class CameraController {
 
       // Orbit controls (before mode update so mode sees user-adjusted position)
       if (this._activeMode.allowsOrbitControls) {
+        this._applyTouchPan();
         this.controls.update();
+      } else {
+        // The mode owns the camera; a two-finger drag is its own to interpret.
+        this._touchPanDx = 0;
+        this._touchPanDy = 0;
       }
 
       // Mode update: applies delta rotation to position, target, quaternion, and up.
@@ -862,7 +876,8 @@ export class CameraController {
     }
     const clampBody = this._trackTarget ?? this._originBody;
 
-    // Mouse left-drag orbit + scroll zoom
+    // Mouse left-drag orbit + scroll zoom; one-finger orbit + pinch zoom
+    this._applyTouchPan();
     this.controls.update();
 
     // Keyboard: roll (Q/E), translation (WASD/ZC), slew
@@ -911,6 +926,38 @@ export class CameraController {
     }
   }
 
+  /**
+   * Apply an accumulated two-finger pan: move the camera and the orbit target
+   * together in the camera's screen plane, scaled by the distance to the target,
+   * which is what TrackballControls' own pan does.
+   *
+   * Panning while a body is tracked is undone the same frame — the tracked body
+   * holds the orbit target — which is the point of tracking, not a gap here.
+   */
+  private _applyTouchPan(): void {
+    const dx = this._touchPanDx;
+    const dy = this._touchPanDy;
+    this._touchPanDx = 0;
+    this._touchPanDy = 0;
+    if (dx === 0 && dy === 0) return;
+
+    const el = this._domElement;
+    if (!el.clientWidth || !el.clientHeight) return;
+
+    const eye = this._tmpV1.subVectors(this.camera.position, this.controls.target);
+    const reach = eye.length() * this.controls.panSpeed;
+    if (reach === 0) return;
+
+    const pan = this._tmpV2.crossVectors(eye, this.camera.up);
+    // Degenerate only when the view direction and up are parallel, which
+    // TrackballControls' own gimbal handling already avoids.
+    if (pan.lengthSq() > 0) pan.setLength((dx / el.clientWidth) * reach);
+    pan.addScaledVector(this.camera.up, (dy / el.clientHeight) * reach);
+
+    this.camera.position.add(pan);
+    this.controls.target.add(pan);
+  }
+
   private readonly _tmpV1 = new THREE.Vector3();
   private readonly _tmpV2 = new THREE.Vector3();
 
@@ -920,11 +967,8 @@ export class CameraController {
     this.keyboard.dispose();
     this.controls.dispose();
 
-    this._domElement.removeEventListener('mousedown', this._onRightDown, { capture: true });
-    this._domElement.removeEventListener('contextmenu', this._onContextMenu);
+    this._detachPointerInput();
     this._domElement.removeEventListener('wheel', this._onWheel, { capture: true });
-    window.removeEventListener('mousemove', this._onMouseMove);
-    window.removeEventListener('mouseup', this._onMouseUp);
   }
 
   private _startAnimation(
