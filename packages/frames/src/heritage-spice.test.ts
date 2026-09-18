@@ -179,8 +179,32 @@ describe('@cosmolabe/frames heritage adapter', () => {
   });
 
   describe('charter: epoch parsing', () => {
-    it('str2et strips one trailing Z, exactly as heritage does', () => {
-      expect(spice.str2et('2004-07-01T02:00:00Z')).toBe(oracle.str2et('2004-07-01T02:00:00'));
+    it('str2et reads an ISO instant as UTC explicitly, Z or not (issue #8)', () => {
+      // The Z-strip is retired: the adapter now hands CSPICE the calendar form
+      // with the system token spelled out. Value-identical to the bare ISO form
+      // heritage produced, and the designator is no longer load-bearing.
+      const bare = oracle.str2et('2004-07-01 02:00:00 UTC');
+      expect(spice.str2et('2004-07-01T02:00:00Z')).toBe(bare);
+      expect(spice.str2et('2004-07-01T02:00:00')).toBe(bare);
+      expect(bare).toBe(oracle.str2et('2004-07-01T02:00:00'));
+    });
+    it('str2et resolves an ISO offset that heritage rejected outright', () => {
+      expect(spice.str2et('2004-07-01T04:00:00+02:00')).toBe(
+        oracle.str2et('2004-07-01 02:00:00 UTC'),
+      );
+      // Heritage stripped only a trailing Z, so str2et_c saw the offset and
+      // threw SPICE(UNPARSEDTIME) two frames below the caller.
+      expect(() => oracle.str2et('2004-07-01T04:00:00+02:00')).toThrow(SpiceError);
+    });
+    it('str2et passes non-ISO forms through verbatim, including a system token', () => {
+      for (const s of ['2004 JUL 01 02:00:00', '2004-183 // 02:00:00', 'JD 2453187.5']) {
+        expect(spice.str2et(s), s).toBe(oracle.str2et(s));
+      }
+      // What OemAdapter.oemEpochToEt builds for a TDB file: the calendar form
+      // with an explicit system. Normalisation must not touch it.
+      expect(spice.str2et('1996-12-18 12:00:00.331 TDB')).toBe(
+        oracle.str2et('1996-12-18 12:00:00.331 TDB'),
+      );
     });
     it('utc2et passes verbatim, so a trailing Z fails loudly as heritage does', () => {
       expect(spice.utc2et('2004-07-01T02:00:00')).toBe(oracle.utc2et('2004-07-01T02:00:00'));

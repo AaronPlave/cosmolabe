@@ -22,10 +22,18 @@
 //                pxform via FramesService.chain, sxform, sincpt dref and
 //                fixref); the adapter introduces no frame conversion of its
 //                own and owns no default frame.
-//   epochs       str2et strips one trailing Z before str2et_c, exactly as
-//                heritage Spice.str2et does; utc2et passes the string
-//                verbatim, exactly as heritage does, so a Z-suffixed input
-//                fails loudly on both paths identically.
+//   epochs       str2et normalises an ISO-8601 instant to the SPICE calendar
+//                form with UTC named explicitly (frames toEt, iso-epoch.ts)
+//                and passes every other form verbatim. This is the one
+//                charter entry that is deliberately no longer heritage's
+//                behavior: heritage stripped one trailing Z and left the UTC
+//                reading to CSPICE's default (issue #8). It is value-identical
+//                on every form heritage accepted — measured, see the
+//                differential harness — and additionally accepts the ISO forms
+//                heritage threw on (an offset epoch, a designator on a
+//                date-only string). utc2et still passes the string verbatim,
+//                exactly as heritage does, so a Z-suffixed input fails loudly
+//                on that path as it always did.
 //   shapes       sub-point results carry planetocentric longitude
 //                atan2(y, x), latitude atan2(z, hypot(x, y)), and altitude
 //                |srfvec|, the heritage reclat semantics; matrices stay

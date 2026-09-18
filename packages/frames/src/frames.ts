@@ -27,6 +27,7 @@ import type {
   StateProvider,
   StateQuery,
 } from './contracts.js';
+import { spiceUtcFromIso } from './iso-epoch.js';
 import { sha256Hex, sha256HexOfText } from './sha256.js';
 
 const CORRECTIONS: readonly Correction[] = ['NONE', 'LT', 'LT+S', 'CN', 'CN+S'];
@@ -180,9 +181,12 @@ export function framesLayerOver(bindings: SpiceBindings): FramesLayer {
     },
 
     toEt(utc: IsoString): Et {
-      // ISO instants are UTC by definition; str2et rejects a trailing Z, so the
-      // one conversion authority strips it rather than every caller learning to.
-      return bindings.str2et(utc.endsWith('Z') ? utc.slice(0, -1) : utc);
+      // str2et speaks a subset of ISO-8601 and no designator at all, so the one
+      // conversion authority translates an ISO instant into the SPICE calendar
+      // form with UTC named explicitly, rather than stripping the Z and letting
+      // CSPICE's default carry the meaning. Non-ISO forms (day-of-year, JD, an
+      // explicit time system) pass through untouched. See iso-epoch.ts.
+      return bindings.str2et(spiceUtcFromIso(utc));
     },
 
     chain(from: FrameId, to: FrameId, epoch: Et): FrameChain {
