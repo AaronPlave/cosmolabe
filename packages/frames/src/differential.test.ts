@@ -490,12 +490,32 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         expect(h.length, `ckcov ${id} window count`).toBe(l.length);
         expectNumbersClose(h, l, `ckcov ${id}`);
 
-        // And the angular-velocity filter, which selects on the descriptor's
-        // rates flag rather than on the id.
+        // The angular-velocity filter.
         const hAv = heritage.ckcov(id, { needAv: true });
         const lAv = legacy.ckcov(id, { needAv: true });
         expect(hAv.length, `ckcov ${id} needAv window count`).toBe(lAv.length);
         expectNumbersClose(hAv, lAv, `ckcov ${id} (needAv)`);
+
+        // And interval level, which reports each segment's interpolation
+        // intervals. It is a strictly finer answer than segment level here —
+        // agreement on it is the check that both lanes really are CSPICE.
+        const hInt = heritage.ckcov(id, { level: 'INTERVAL' });
+        const lInt = legacy.ckcov(id, { level: 'INTERVAL' });
+        expect(lInt.length, `ckcov ${id} should have interval structure`).toBeGreaterThan(
+          l.length,
+        );
+        expect(hInt.length, `ckcov ${id} INTERVAL window count`).toBe(lInt.length);
+        expectNumbersClose(hInt, lInt, `ckcov ${id} (INTERVAL)`);
+      }
+    });
+
+    it('ckcov surfaces invalid arguments as errors on both lanes', () => {
+      // The failure mode worth pinning: a bad time system or level must not
+      // come back as an empty window, which a caller would read as
+      // "no attitude here" rather than "you asked wrong".
+      for (const bad of [{ timeSystem: 'NOPE' }, { level: 'NOPE' }] as const) {
+        expect(() => heritage.ckcov(-82000, bad as never), `heritage ${JSON.stringify(bad)}`).toThrow();
+        expect(() => legacy.ckcov(-82000, bad as never), `legacy ${JSON.stringify(bad)}`).toThrow();
       }
     });
 

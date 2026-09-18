@@ -36,6 +36,33 @@ const KERNEL_DIR = '/kernels';
 const GF_CNVTOL = 1e-6;
 
 /**
+ * Options for the CK coverage queries, one for one with the arguments
+ * `ckcov_c` takes beyond the file and the id. Every one of them is CSPICE's
+ * own: nothing here is reinterpreted on the way through.
+ */
+export interface CkCoverageOptions {
+  /** `needav`: count only segments that carry angular velocity. Default false. */
+  needAv?: boolean;
+  /**
+   * `level`: 'SEGMENT' (default) reports each segment's declared span;
+   * 'INTERVAL' reports the interpolation intervals inside it, which is
+   * strictly the more honest answer for a segment with gaps.
+   */
+  level?: 'SEGMENT' | 'INTERVAL';
+  /** `tol`: encoded SCLK ticks of padding on each side of a window. Default 0. */
+  tol?: number;
+  /**
+   * `timsys`: 'TDB' (default) for ephemeris seconds past J2000, converted
+   * through the clock `ckmeta_c` resolves for the id; 'SCLK' for raw ticks.
+   */
+  timeSystem?: 'TDB' | 'SCLK';
+}
+
+/** Cell sizes for the CK coverage queries: intervals, and ids per file. */
+const CK_MAX_INTERVALS = 20000;
+const CK_MAX_OBJECTS = 10000;
+
+/**
  * How many passes over the confinement window a relational GF search makes.
  *
  * CSPICE reports progress per pass: it restarts its reporter at the head of
@@ -719,21 +746,15 @@ export class SpiceBindings {
   }
 
   /**
-   * Walk the DAF segment summaries of a staged SPK or CK.
+   * Walk the DAF segment summaries of a staged SPK.
    *
-   * None of spkobj_c, spkcov_c, ckobj_c or ckcov_c are in the WASM export
-   * allowlist, but both file kinds are DAFs whose segment descriptors are
-   * ND=2, NI=6, so the daf* exports reconstruct all four queries exactly:
-   *
-   *   SPK  dc = [start ET, end ET]                ic = [target, center, frame,
-   *                                                     type, begin, end]
-   *   CK   dc = [start ticks, end ticks]          ic = [instrument, frame,
-   *                                                     type, avflag, begin,
-   *                                                     end]
-   *
-   * A CK's bounds are *encoded SCLK ticks*, not seconds: converting them is the
-   * caller's job (ckcov_c's `timsys`), because it needs the clock id, which
-   * lives in the kernel pool rather than in the descriptor.
+   * spkobj_c and spkcov_c are not in the WASM export allowlist, but every SPK
+   * segment descriptor (ND=2, NI=6) carries the coverage window in its two
+   * doubles and the target id in its first integer, so the daf* exports
+   * reconstruct both queries. (The CK queries below do *not* work this way:
+   * ckcov_c and ckobj_c are exported, because a CK's descriptor bounds are
+   * encoded SCLK and the conversion, the interval level and the clock lookup
+   * are semantics worth taking from CSPICE rather than reimplementing.)
    */
   private walkDafSummaries(
     name: string,
@@ -742,7 +763,7 @@ export class SpiceBindings {
     this.scope(() => {
       const path = `${KERNEL_DIR}/${name}`;
       if (!this.mod.FS.analyzePath(path).exists) {
-        throw new SpiceError(`daf summary walk: no staged kernel named '${name}'`);
+        throw new SpiceError(`spk summary walk: no staged kernel named '${name}'`);
       }
       const handlePtr = this.scratch(4);
       this.call('dafopr_c', this.str(path), handlePtr);
@@ -809,39 +830,129 @@ export class SpiceBindings {
   }
 
   /**
-   * Ids of every instrument or structure carried by a staged CK (ckobj
-   * equivalent). These are CK structure ids (a spacecraft clock id times 1000
-   * plus an offset, e.g. -82000 for the Cassini bus), not body ids.
+   * Ids of every instrument or structure a staged CK carries (ckobj_c).
+   *
+   * These are CK structure ids -- a spacecraft clock id times 1000 plus an
+   * offset, e.g. -82000 for the Cassini bus -- not body ids, and each is a
+   * valid `inst` for {@link ckCoverage}.
    */
   ckObjects(name: string): number[] {
-    const ids = new Set<number>();
-    this.walkDafSummaries(name, (_start, _end, ic) => ids.add(ic[0]!));
-    return [...ids].sort((a, b) => a - b);
+    return this.scope(() => {
+      const path = `${KERNEL_DIR}/${name}`;
+      if (!this.mod.FS.analyzePath(path).exists) {
+        throw new SpiceError(`ckobj: no staged kernel named '${name}'`);
+      }
+      const { cell } = this.makeIntCell(CK_MAX_OBJECTS);
+      this.call('ckobj_c', this.str(path), cell);
+      this.checkFailed();
+      return this.readIntCell(cell).sort((a, b) => a - b);
+    });
   }
 
   /**
-   * Coverage windows of `inst` in a staged CK, as [start, end] pairs of
-   * **encoded SCLK ticks**, sorted and merged -- ckcov_c at `level='SEGMENT'`,
-   * `tol=0`, `timsys='SCLK'`.
+   * Attitude coverage of `inst` in one staged CK (ckcov_c).
    *
-   * SEGMENT level is what a descriptor walk can answer: it is the span the
-   * segment declares. INTERVAL level would mean decoding each segment's
-   * type-specific interpolation-interval table, which is a reader per CK type
-   * and not reconstructible from the summary, so the adapter above refuses it
-   * rather than quietly returning segment bounds under an interval label.
+   * Everything the answer depends on is CSPICE's. `level` picks segment or
+   * interval coverage -- the latter reads each segment's own interpolation
+   * intervals, which is why it cannot be reconstructed from a DAF summary.
+   * `tol` pads in encoded SCLK ticks. `needAv` drops segments without angular
+   * velocity. `timeSystem` 'TDB' converts through the clock `ckmeta_c` resolves
+   * for this id, honouring a `CK_<id>_SCLK` pool assignment rather than
+   * assuming `id / 1000`.
    *
-   * `needAv` is ckcov_c's `needav`: with it set, only segments that carry
-   * angular velocity count, since a consumer that needs a rate cannot use the
-   * pointing-only ones.
+   * {@link ckCoverageAll} is the usual entry point; this one answers about a
+   * single file, the way {@link spkCoverage} does for an SPK.
    */
-  ckCoverage(name: string, inst: number, needAv = false): [number, number][] {
-    const raw: [number, number][] = [];
-    this.walkDafSummaries(name, (start, end, ic) => {
-      if (ic[0] !== inst) return;
-      if (needAv && ic[3] !== 1) return;
-      raw.push([start, end]);
+  ckCoverage(
+    name: string,
+    inst: number,
+    options: CkCoverageOptions = {},
+  ): [number, number][] {
+    const { needAv = false, level = 'SEGMENT', tol = 0, timeSystem = 'TDB' } = options;
+    return this.scope(() => {
+      const path = `${KERNEL_DIR}/${name}`;
+      if (!this.mod.FS.analyzePath(path).exists) {
+        throw new SpiceError(`ckcov: no staged kernel named '${name}'`);
+      }
+      const { cell } = this.makeWindowCell(2 * CK_MAX_INTERVALS);
+      this.call(
+        'ckcov_c',
+        this.str(path),
+        inst,
+        needAv ? 1 : 0,
+        this.str(level),
+        tol,
+        this.str(timeSystem),
+        cell,
+      );
+      // No error is swallowed here: an id this file does not carry is simply an
+      // empty window, while a bad level, a bad time system, or a clock that
+      // cannot be resolved is a real failure and must surface as one.
+      this.checkFailed();
+      return this.readWindowCell(cell);
     });
-    return SpiceBindings.mergeRanges(raw);
+  }
+
+  /** Paths of the loaded kernels of `kind`, as CSPICE reports them (kdata_c). */
+  private loadedKernelPaths(kind: string): string[] {
+    return this.scope(() => {
+      const total = this.ktotal(kind);
+      const paths: string[] = [];
+      const FILELEN = 512;
+      const TYPLEN = 64;
+      const SRCLEN = 512;
+      const file = this.scratch(FILELEN);
+      const filtyp = this.scratch(TYPLEN);
+      const srcfil = this.scratch(SRCLEN);
+      const handle = this.scratch(4);
+      const found = this.scratch(4);
+      for (let i = 0; i < total; i++) {
+        this.call(
+          'kdata_c', i, this.str(kind), FILELEN, TYPLEN, SRCLEN,
+          file, filtyp, srcfil, handle, found,
+        );
+        this.checkFailed();
+        if (this.readInt(found) === 0) continue;
+        paths.push(this.mod.UTF8ToString(file, FILELEN));
+      }
+      return paths;
+    });
+  }
+
+  /**
+   * Attitude coverage of `inst` across every loaded CK, merged -- the whole
+   * answer to "when do we have an orientation for this structure?".
+   *
+   * Which kernels are CKs is CSPICE's answer, not a filename's: the loaded set
+   * is enumerated with ktotal_c/kdata_c over the 'CK' kind, so a C-kernel
+   * furnished under any name is included and a non-CK named `.bc` is not.
+   *
+   * `ckcov_c` unions into the cell it is handed, so one cell accumulates every
+   * file's contribution and SPICE performs the merge itself. Options are as
+   * {@link ckCoverage}.
+   */
+  ckCoverageAll(
+    inst: number,
+    options: CkCoverageOptions = {},
+  ): [number, number][] {
+    const { needAv = false, level = 'SEGMENT', tol = 0, timeSystem = 'TDB' } = options;
+    return this.scope(() => {
+      const { cell } = this.makeWindowCell(2 * CK_MAX_INTERVALS);
+      for (const path of this.loadedKernelPaths('CK')) {
+        this.call(
+          'ckcov_c',
+          this.str(path),
+          inst,
+          needAv ? 1 : 0,
+          this.str(level),
+          tol,
+          this.str(timeSystem),
+          cell,
+        );
+        this.checkFailed();
+      }
+      return this.readWindowCell(cell);
+    });
   }
 
   /** Ephemeris seconds past J2000 (ET) to continuous encoded SCLK ticks (sce2c). */
@@ -993,6 +1104,39 @@ export class SpiceBindings {
     this.mod.setValue(cell + 28, data, 'i32'); // base
     this.mod.setValue(cell + 32, data + ctrl * 8, 'i32'); // data (first endpoint)
     return { cell, data };
+  }
+
+  /**
+   * Allocate an integer cell holding up to `size` ids. Same 9-field struct as
+   * the double window above, with dtype SPICE_INT and a data area of ints, so
+   * the control area is CTRLSZ ints rather than CTRLSZ doubles.
+   */
+  private makeIntCell(size: number): { cell: number; data: number } {
+    const ctrl = SpiceBindings.CELL_CTRLSZ;
+    const data = this.scratch((ctrl + size) * 4);
+    for (let i = 0; i < ctrl + size; i++) this.mod.setValue(data + i * 4, 0, 'i32');
+    const cell = this.scratch(SpiceBindings.CELL_BYTES);
+    this.mod.setValue(cell + 0, 2, 'i32'); // dtype = SPICE_INT
+    this.mod.setValue(cell + 4, 0, 'i32'); // length (strings only)
+    this.mod.setValue(cell + 8, size, 'i32'); // size (max elements)
+    this.mod.setValue(cell + 12, 0, 'i32'); // card (current elements)
+    this.mod.setValue(cell + 16, 1, 'i32'); // isSet = SPICETRUE
+    this.mod.setValue(cell + 20, 0, 'i32'); // adjust
+    this.mod.setValue(cell + 24, 0, 'i32'); // init (CSPICE initializes on first use)
+    this.mod.setValue(cell + 28, data, 'i32'); // base
+    this.mod.setValue(cell + 32, data + ctrl * 4, 'i32'); // data (first element)
+    this.call('ssize_c', size, cell);
+    this.checkFailed();
+    return { cell, data };
+  }
+
+  /** Read an integer cell's elements: card ints from the data pointer. */
+  private readIntCell(cell: number): number[] {
+    const card = this.readInt(cell + 12);
+    const dataPtr = this.readInt(cell + 32);
+    const out: number[] = [];
+    for (let i = 0; i < card; i++) out.push(this.readInt(dataPtr + i * 4));
+    return out;
   }
 
   /** Read a window cell's intervals: card endpoints from the data pointer. */

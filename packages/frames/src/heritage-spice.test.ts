@@ -116,8 +116,22 @@ describe('@cosmolabe/frames heritage adapter', () => {
     const outside = windows[windows.length - 1]!.end + 86400;
     expect(oracle.ckgp(CK_ID, oracle.sce2c(-82, outside), 0, 'J2000').found).toBe(false);
 
+    // Interval level is CSPICE's, not an approximation of it: it reports the
+    // interpolation intervals inside each segment, so it can only be a subset
+    // of the segment span.
+    const intervals = spice.ckcov(CK_ID, { level: 'INTERVAL' });
+    expect(intervals.length).toBeGreaterThan(0);
+    expect(intervals[0]!.start).toBeGreaterThanOrEqual(windows[0]!.start);
+    expect(intervals[intervals.length - 1]!.end).toBeLessThanOrEqual(
+      windows[windows.length - 1]!.end,
+    );
+
     // An id no CK carries is empty coverage, not an error.
     expect(spice.ckcov(-99000)).toEqual([]);
+    // A bad time system is an error, not an empty window that reads like
+    // "no attitude here".
+    expect(() => spice.ckcov(CK_ID, { timeSystem: 'NOPE' as never })).toThrow(SpiceError);
+    expect(() => spice.ckcov(CK_ID, { level: 'NOPE' as never })).toThrow(SpiceError);
   });
 
   it('computes sub-points with heritage lat, lon, and altitude semantics', () => {
@@ -161,8 +175,6 @@ describe('@cosmolabe/frames heritage adapter', () => {
 
   it('fails loudly on the deliberate allowlist gaps and file sources', async () => {
     expect(() => spice.cidfrm(699)).toThrow(SpiceError);
-    // Interval-level CK coverage is not in the DAF summaries the adapter reads.
-    expect(() => spice.ckcov(-82000, { level: 'INTERVAL' })).toThrow(SpiceError);
     expect(() =>
       spice.fovray('X', [1, 0, 0], 'J2000', 'NONE', 'CASSINI', et0),
     ).toThrow(SpiceError);

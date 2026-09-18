@@ -754,11 +754,13 @@ export class Spice implements SpiceInstance {
         this.module.ccall('ckcov_c', null,
           ['string', 'number', 'number', 'string', 'number', 'string', 'number'],
           [this.module.UTF8ToString(filePtr), idcode, needAv ? 1 : 0, level, tol, timeSystem, coverCell.cellPtr]);
-        // As in spkcov: "this file carries nothing for this id" is signalled as
-        // a failure but is not one, and leaving it set would fail the next call.
-        if (this.module.ccall('failed_c', 'number', [], [])) {
-          this.module.ccall('reset_c', null, [], []);
-        }
+        // Errors propagate. A CK that carries nothing for this id is not a
+        // failure -- ckcov_c leaves the window untouched and returns cleanly --
+        // so there is nothing here to forgive, and resetting indiscriminately
+        // would turn an invalid time system, an invalid level, or an
+        // unresolvable clock into a plausible empty window. This is the
+        // reference lane; it has to be the one that tells the truth.
+        this.checkError();
       }
       return this.readSpiceWindow(coverCell.cellPtr);
     } finally {
