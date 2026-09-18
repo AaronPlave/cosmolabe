@@ -28,6 +28,7 @@ import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin
 import { GeometrySearchWorker, type KernelSource } from '@cosmolabe/three';
 import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmolabe/control';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
+import GeometrySearchRelayWorker from '../workers/geometry-search-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
 import {
   bindRenderer,
@@ -519,7 +520,7 @@ function initScene(
       // kernel list is replayed whenever the geometry worker is rebuilt after a
       // cancellation that had to terminate it.
       geometryWorker = new GeometrySearchWorker({
-        createWorker: () => new SpiceCacheRelayWorker(),
+        createWorker: () => new GeometrySearchRelayWorker(),
         kernels: currentWorkerKernels,
       });
     } catch (err) {
