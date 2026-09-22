@@ -206,6 +206,35 @@ the Display panel and will see again next visit.
 | `screenshot [label]` | Capture the current frame. |
 | `record on\|off` | Start or stop video recording. Idempotent in both directions. |
 
+## The script console
+
+The viewer's **Script** tool (rail, or <kbd>`</kbd>) is the text language's
+home in the app. It is a shell panel rather than a dialog, so the scene it
+drives stays visible and interactive while a script runs.
+
+- **Run** (or <kbd>Cmd/Ctrl</kbd>+<kbd>Enter</kbd>) parses and executes the
+  editor. The transcript **streams** one row per statement as it starts, with
+  its 1-based source line in the gutter; a failing line is shown with its
+  message and nothing after it runs. A syntax error runs nothing and lists every
+  problem at once, as `parse` does.
+- **Snapshot** replaces the editor with `cosmo.snapshot()`, a script that
+  reproduces the current view. Fly somewhere with the mouse, snapshot it, then
+  save it.
+- **Programs** are named scripts kept in `localStorage` under
+  `cosmolabe-viewer-scripts`, separate from the display preferences. If what is
+  stored there cannot be read, saving is disabled rather than risk overwriting
+  it.
+- **Verbs** lists the vocabulary, derived from `VERB_LIST`, so it cannot
+  advertise a verb the interpreter does not have.
+
+Keys pressed inside the console stay in it (apart from Escape), so pressing `t`
+with focus on a console button does not toggle trajectories.
+
+The welcome screen's **Scripted Tour** loads the kernel-free Earth + Moon scene
+and runs a short script in the console. The demo scripts live in
+`apps/viewer/src/lib/script-demo.svelte.ts`, and a unit test parses every one
+against the verb table, so a renamed verb cannot break them silently.
+
 ## The read side
 
 ```ts

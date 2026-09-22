@@ -1,19 +1,23 @@
 <script lang="ts">
   import { vs } from "../lib/viewer-state.svelte";
   import Button from "$lib/components/ui/button/button.svelte";
+  import { SCRIPT_DEMOS, type ScriptDemo } from "../lib/script-demo.svelte";
 
   interface Props {
     onLoadDemo: (name: string) => void;
+    /** A catalog plus a script the console runs once it has loaded. */
+    onLoadScriptDemo: (demo: ScriptDemo) => void;
     onDrop: (dt: DataTransfer) => void;
     onFiles: (files: File[]) => void;
   }
 
-  let { onLoadDemo, onDrop, onFiles }: Props = $props();
+  let { onLoadDemo, onLoadScriptDemo, onDrop, onFiles }: Props = $props();
 
   let fileInput: HTMLInputElement;
   let dragging = $state(false);
 
-  type DemoEntry = { id: string; label: string; desc: string };
+  /** `script` marks a scripted demo: a catalog, then a script run in the console. */
+  type DemoEntry = { id: string; label: string; desc: string; script?: ScriptDemo };
   type DemoSection = { heading: string; items: DemoEntry[] };
 
   const sections: DemoSection[] = [
@@ -24,6 +28,10 @@
         { id: "inner-planets-keplerian", label: "Inner Planets", desc: "Sun → Mars via Keplerian fallback" },
         { id: "iss", label: "ISS (TLE)", desc: "Two-line element propagation around Earth" },
       ],
+    },
+    {
+      heading: "Scripting — the viewer driven from text",
+      items: SCRIPT_DEMOS.map((d) => ({ id: d.id, label: d.label, desc: d.desc, script: d })),
     },
     {
       heading: "Base library — composable catalogs",
@@ -136,7 +144,8 @@
                   class="demo-item"
                   onclick={(e: MouseEvent) => {
                     e.stopPropagation();
-                    onLoadDemo(demo.id);
+                    if (demo.script) onLoadScriptDemo(demo.script);
+                    else onLoadDemo(demo.id);
                   }}
                 >
                   <div class="demo-item-label">{demo.label}</div>
