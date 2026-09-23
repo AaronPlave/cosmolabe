@@ -795,3 +795,57 @@ describe('Review fixes: SPICE-present validation', () => {
     }
   });
 });
+
+describe('Review fixes (round 2)', () => {
+  it('normalizes and validates nested Composite trajectory arcs like top-level arcs', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const { bodies } = new CatalogLoader().load({
+        name: 'nested composite',
+        items: [
+          { name: 'Mars', trajectory: { type: 'FixedPoint', position: [0, 0, 0] } },
+          {
+            name: 'Lander', center: 'Mars',
+            trajectory: {
+              type: 'Composite',
+              arcs: [
+                { trajectoryFrame: { type: 'BodyFixed', body: 'Mars' }, trajectory: { type: 'FixedPoint', position: [3390, 0, 0] }, startTime: '2024-01-01T00:00:00Z', endTime: '2024-01-02T00:00:00Z' },
+                { trajectoryFrame: 'LVLH', trajectory: { type: 'FixedPoint', position: [0, 0, 0] }, startTime: '2024-01-02T00:00:00Z', endTime: '2024-01-03T00:00:00Z' },
+              ],
+            },
+          },
+        ],
+      } as unknown as CatalogJson);
+      const lander = bodies.find((b) => b.name === 'Lander')!;
+      expect(lander.frameAt(etFromCalendarString('2024-01-01T12:00:00Z'))).toBe('IAU_MARS');
+      const text = warn.mock.calls.map((c) => c.join(' ')).join('\n');
+      expect(text).toMatch(/"Lander \(arc 1\)".*state-dependent/);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('forgets a cached "unknown frame" once invalidated, so a later FK takes effect', async () => {
+    const s = await Spice.init();
+    const r = new FrameRegistry({ spice: s });
+    const fk = EARTH_OF_DATE_FK.replaceAll('EARTH_MOD_TEST', 'LATE_FK_FRAME').replaceAll('1599001', '1599101');
+    expect(r.isResolvable('LATE_FK_FRAME', 0)).toBe(false);
+    expect(r.spiceRejects('LATE_FK_FRAME')).toBe(true);
+    await s.furnish({ type: 'buffer', data: kernelArrayBuffer(Buffer.from(fk)), filename: 'late.tf' });
+    // Cached rejection still stands…
+    expect(r.isResolvable('LATE_FK_FRAME', 0)).toBe(false);
+    // …until the pool change is signalled.
+    r.invalidate();
+    expect(r.isResolvable('LATE_FK_FRAME', 0)).toBe(true);
+  });
+
+  it('recognizes an unknown frame on the runtime SPICE adapter (cspice-wasm heritage) too', async () => {
+    const { createHeritageSpice } = await import('@cosmolabe/frames');
+    const s = await createHeritageSpice();
+    const r = new FrameRegistry({ spice: s as unknown as SpiceInstance });
+    expect(r.isResolvable('NOT_A_SPICE_FRAME', 0)).toBe(false);
+    // Remembered as unknown — so load-time validation reports it and the
+    // per-frame path does not retry pxform on every call.
+    expect(r.spiceRejects('NOT_A_SPICE_FRAME')).toBe(true);
+  });
+});

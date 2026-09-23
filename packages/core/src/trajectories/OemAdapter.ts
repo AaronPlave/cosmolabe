@@ -34,7 +34,7 @@ import type { Vec3 } from '../spice-injection.js';
 import type { Oem } from '@cosmolabe/interop';
 import type { StateRecord } from './InterpolatedStates.js';
 import type { InertialFrameName } from '../rotations/RotationModel.js';
-import { DEFAULT_FRAMES } from '../frames/FrameRegistry.js';
+import { DEFAULT_FRAMES, type FrameRegistry } from '../frames/FrameRegistry.js';
 
 /** Time systems we can hand to SPICE and get an exact answer for. CSPICE's
  *  str2et reads a trailing system token, so the conversion is the file's own
@@ -47,16 +47,20 @@ const SUPPORTED_TIME_SYSTEMS: Record<string, string> = {
 };
 
 /**
- * The frame-registry name for an OEM `REF_FRAME` (CCSDS 502.0 names:
- * `EME2000`, `ICRF`, `GCRF`, `TEME`, `TOD`, `ITRF-93`, `ITRF2000`, `TDR`, …).
- * Returns undefined when the file declares none or the registry does not know
- * the name (`MCI`, a mission frame) — the catalog's `trajectoryFrame` applies
- * then. An unknown name may still be a SPICE frame; the loader's
- * `trajectoryFrame` can say so explicitly.
+ * The frame name for an OEM `REF_FRAME` (CCSDS 502.0 names: `EME2000`, `ICRF`,
+ * `GCRF`, `TEME`, `TOD`, `ITRF-93`, `ITRF2000`, `TDR`, …). A name the registry
+ * defines comes back canonical (`ITRF-93` → `ITRF`); any other non-empty name
+ * (`MCI`, a mission or FK-defined frame) is kept as written, for the universe's
+ * registry to resolve through SPICE or a catalog-declared frame. The file's
+ * frame is authoritative either way; the loader reports one nothing resolves.
+ * Undefined only when the file declares no frame.
  */
-export function oemFrameName(refFrame: string | undefined): string | undefined {
+export function oemFrameName(
+  refFrame: string | undefined,
+  frames: FrameRegistry = DEFAULT_FRAMES,
+): string | undefined {
   if (!refFrame || !refFrame.trim()) return undefined;
-  return DEFAULT_FRAMES.get(refFrame)?.name;
+  return frames.canonicalName(refFrame);
 }
 
 /** EME2000, ICRF and EME2000_IERS: one label family whose meaning depends on
@@ -73,10 +77,14 @@ function isJ2000EquatorFamily(frame: string): boolean {
  * bias-aware producer's file is honoured. Any other disagreement leaves the
  * file's frame in charge (and `checkOemFrame` reports it).
  */
-export function refineOemFrame(fileFrame: string | undefined, trajectoryFrame: string | undefined): string | undefined {
+export function refineOemFrame(
+  fileFrame: string | undefined,
+  trajectoryFrame: string | undefined,
+  frames: FrameRegistry = DEFAULT_FRAMES,
+): string | undefined {
   if (!fileFrame || trajectoryFrame === undefined) return fileFrame;
-  const item = DEFAULT_FRAMES.get(trajectoryFrame)?.name;
-  if (item && isJ2000EquatorFamily(fileFrame) && isJ2000EquatorFamily(item)) return item;
+  const item = frames.canonicalName(trajectoryFrame);
+  if (isJ2000EquatorFamily(fileFrame) && isJ2000EquatorFamily(item)) return item;
   return fileFrame;
 }
 
@@ -115,12 +123,18 @@ export interface OemFrameCheck {
  * obliquity, 23.44°, about the parent), so an author relying on it should
  * hear that it no longer applies.
  */
-export function checkOemFrame(oem: Oem, trajectoryFrame: string | undefined): OemFrameCheck {
+export function checkOemFrame(
+  oem: Oem,
+  trajectoryFrame: string | undefined,
+  frames: FrameRegistry = DEFAULT_FRAMES,
+): OemFrameCheck {
   if (trajectoryFrame === undefined) return { ok: true };
-  const fileFrame = oemFrameName(oem.metadata.refFrame);
-  const itemFrame = DEFAULT_FRAMES.get(trajectoryFrame)?.name;
-  if (!fileFrame || !itemFrame) return { ok: true };
-  if (DEFAULT_FRAMES.sameFrame(fileFrame, itemFrame)) return { ok: true };
+  const fileFrame = oemFrameName(oem.metadata.refFrame, frames);
+  const itemFrame = frames.canonicalName(trajectoryFrame);
+  // A file frame the registry cannot see at all (no definition, no SPICE)
+  // cannot be compared; the loader reports it as unresolvable instead.
+  if (!fileFrame || !frames.get(fileFrame)) return { ok: true };
+  if (frames.sameFrame(fileFrame, itemFrame)) return { ok: true };
   // Within the J2000-equator family a catalog declaration refines the file's
   // label rather than contradicting it (see `refineOemFrame`).
   if (isJ2000EquatorFamily(fileFrame) && isJ2000EquatorFamily(itemFrame)) return { ok: true };

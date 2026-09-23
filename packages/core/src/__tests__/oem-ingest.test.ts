@@ -130,7 +130,9 @@ describe('CCSDS OEM ingest', () => {
       expect(oemFrameName('ITRF-93')).toBe('ITRF');
       expect(oemFrameName('ITRF2000')).toBe('ITRF');
       expect(oemFrameName('TDR')).toBe('ITRF');
-      expect(oemFrameName('MCI')).toBeUndefined();
+      // Names the registry does not define are kept for the universe to resolve.
+      expect(oemFrameName('MCI')).toBe('MCI');
+      expect(oemFrameName('  MY_MISSION_FRAME ')).toBe('MY_MISSION_FRAME');
       expect(oemFrameName(undefined)).toBeUndefined();
     });
 
@@ -269,6 +271,43 @@ describe('CCSDS OEM ingest', () => {
       }
       expect(frame).toBe('EME2000_IERS');
       expect(warnings.join('\n')).not.toMatch(/frame mismatch/i);
+    });
+
+    it('keeps a REF_FRAME only the universe can resolve, and places the states in it', () => {
+      // A mission frame declared in the catalog, named only by the file.
+      const half = Math.SQRT1_2;
+      const text = OEM_TEXT.replace('REF_FRAME = EME2000', 'REF_FRAME = MISSION_FRAME');
+      const u = new Universe(spice, { resolveFile: () => text });
+      u.loadCatalog({
+        ...catalogWith(),
+        // 90° about +Z from EME2000.
+        frames: [{ name: 'MISSION_FRAME', base: 'EME2000', quaternion: [half, 0, 0, half] }],
+      } as unknown as CatalogJson);
+      expect(u.getBody('MGS')!.frame).toBe('MISSION_FRAME');
+      const et = str2et(`${EXPECTED[0]!.epoch.replace('T', ' ')} UTC`);
+      const [x, y, z] = EXPECTED[0]!.p as [number, number, number];
+      const eme: [number, number, number] = [-y, x, z]; // the frame's +X is EME2000 +Y
+      const c = Math.cos(OBLIQUITY_J2000_RAD);
+      const sn = Math.sin(OBLIQUITY_J2000_RAD);
+      const expected = [eme[0], c * eme[1] + sn * eme[2], -sn * eme[1] + c * eme[2]];
+      const got = u.absolutePositionOf('MGS', et);
+      for (let i = 0; i < 3; i++) expect(got[i]).toBeCloseTo(expected[i]!, 6);
+    });
+
+    it('reports a REF_FRAME nothing can resolve instead of silently using the default', () => {
+      const warnings: string[] = [];
+      const original = console.warn;
+      console.warn = (...args: unknown[]) => void warnings.push(args.join(' '));
+      let frame: string | undefined;
+      try {
+        const text = OEM_TEXT.replace('REF_FRAME = EME2000', 'REF_FRAME = MCI');
+        const loader = new CatalogLoader({ spice, resolveFile: () => text });
+        frame = loader.load(catalogWith()).bodies.find((b) => b.name === 'MGS')?.frame;
+      } finally {
+        console.warn = original;
+      }
+      expect(frame).toBe('MCI');
+      expect(warnings.join('\n')).toMatch(/MGS \(OEM REF_FRAME\).*MCI/);
     });
 
     it('warns rather than throwing when the catalog frame contradicts the file', () => {

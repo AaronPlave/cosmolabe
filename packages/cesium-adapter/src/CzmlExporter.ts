@@ -1,4 +1,4 @@
-import { mat3ToQuat, multiplyQuat, type Universe, type Body } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, type Universe, type Body } from '@cosmolabe/core';
 import { etToIso, etIntervalToIso } from './TimeConversions.js';
 import { positionForCesium } from './CoordinateTransforms.js';
 import { getModelInfo, type CesiumModelInfo } from './ModelAdapter.js';
@@ -229,12 +229,12 @@ function sampleOrientations(
     const q = body.rotationAt(et);
     if (!q || isNaN(q[0])) continue;
 
-    // Re-express from the rotation's own source frame into ICRF through the
-    // universe's registry — the frame `q` is actually stated in, not the
-    // body's trajectory frame, which is unrelated to its attitude.
-    const source = body.rotation!.sourceFrame;
-    const align = universe.frames.rotation(source, 'ICRF', et);
-    const outQ = align ? multiplyQuat(mat3ToQuat(align), q) : q;
+    // Cesium orients an entity relative to Earth-fixed axes (Entity.orientation
+    // is "in respect to Earth-fixed-Earth-centered"), so the sample is the
+    // body → ITRF rotation. `q` is source → body; the one composition helper
+    // conjugates it and applies source → ITRF through the universe's registry
+    // (SPICE ITRF93 when loaded, else the analytical Earth rotation).
+    const outQ = composeBodyToWorldQuat(q, body.rotation!.sourceFrame, 'ITRF', et, universe.frames);
 
     // CZML quaternion order: x, y, z, w (not w, x, y, z)
     samples.push(et - startEt, outQ[1], outQ[2], outQ[3], outQ[0]);

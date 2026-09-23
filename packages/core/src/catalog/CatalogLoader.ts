@@ -650,12 +650,10 @@ export class CatalogLoader {
   /** Rewrite an item's (and its arcs') `trajectoryFrame` to names, checking
    *  each once. */
   private normalizeItemFrames(item: CatalogItem): CatalogItem {
-    const frame = this.normalizeFrame(item.name, item.trajectoryFrame);
-    const arcs = item.arcs?.map((arc, i) => ({
-      ...arc,
-      trajectoryFrame: this.normalizeFrame(`${item.name} (arc ${i})`, arc.trajectoryFrame),
-    }));
-    return { ...item, trajectoryFrame: frame, ...(arcs ? { arcs } : {}) };
+    // Arc frames — top-level `arcs` and a `Composite` trajectory's
+    // `arcs`/`segments` alike — are normalized in `buildArcsTrajectory`, the
+    // one place both paths meet.
+    return { ...item, trajectoryFrame: this.normalizeFrame(item.name, item.trajectoryFrame) };
   }
 
   /** A catalog frame reference as a name: strings pass through, Cosmographia's
@@ -932,7 +930,13 @@ export class CatalogLoader {
     return this.buildTrajectory(item.trajectory, item);
   }
 
-  private buildArcsTrajectory(item: CatalogItem, arcs: ArcSpec[]): Trajectory {
+  private buildArcsTrajectory(item: CatalogItem, rawArcs: ArcSpec[]): Trajectory {
+    // Structured and invalid arc frames are handled here for top-level `arcs`
+    // and nested `Composite` arcs alike.
+    const arcs = rawArcs.map((arc, i) => ({
+      ...arc,
+      trajectoryFrame: this.normalizeFrame(`${item.name} (arc ${i})`, arc.trajectoryFrame),
+    }));
     // Always wrap in CompositeTrajectory so centerName is preserved for absolutePositionOf.
     // Even single-arc items (e.g. MSL Cruise Stage with center="MSL") need this.
     const compositeArcs = arcs.map((arc, i) => {
@@ -1102,9 +1106,17 @@ export class CatalogLoader {
           // The file's REF_FRAME is the frame of record: the states are in
           // it, so the trajectory declares it and Universe rotates from it.
           // A catalog trajectoryFrame that disagrees is reported, not used.
-          const frameCheck = checkOemFrame(oem, frameName(item.trajectoryFrame));
+          const frameCheck = checkOemFrame(oem, frameName(item.trajectoryFrame), this.frames);
           if (!frameCheck.ok) console.warn(`"${item.name}": ${frameCheck.message}`);
-          const oemFrame = refineOemFrame(oemFrameName(oem.metadata.refFrame), frameName(item.trajectoryFrame));
+          const oemFrame = refineOemFrame(
+            oemFrameName(oem.metadata.refFrame, this.frames),
+            frameName(item.trajectoryFrame),
+            this.frames,
+          );
+          // A REF_FRAME the registry does not define (MCI, a mission frame)
+          // is kept and resolved through SPICE or a declared frame; report it
+          // now if nothing can.
+          this.checkFrameName(`${item.name} (OEM REF_FRAME)`, oemFrame);
           const records = oemToStateRecords(oem, (t) => this.spice!.str2et(t));
           if (records.length < 2) {
             console.warn(
