@@ -255,7 +255,7 @@ Key constraints:
 
 ## Planned Work
 
-Two focus areas are driving most of the active work: **surface visualization** (ground-level atmosphere, rovers and landers, higher-resolution DEM and imagery overlays, promoting Surface Explorer out of experimental) and **library extensibility** (stabilizing the plugin API, more extension points, framework bindings, and making Cosmolabe a solid foundation to build real apps on top of). Other tracks include rendering polish (ring shadows, night-side emission, Lunar-Lambert, bloom), the PlanDev sim-replay adapter, CSPICE WASM modernization, and a hosted demo gallery with more example scenes.
+Cosmolabe is aimed at **mission-aware** visualization rather than generic planetary rendering, shipped both as a standalone viewer and as a library that embeds inside mission applications. The roadmap is organised in four priority layers — not sequential phases — **foundation** (named frames, the catalog factory mechanism, structured faults, typing cleanup), the **viewer and integration surface** (a hosted viewer, viewer UX, one shareable view-state format, host time/selection/camera sync, provenance, the PlanDev adapter, stable `RendererPlugin` and `ViewerControl` contracts), **mission semantics** (event/interval and observation models, finder results in the scene, LOS/access/footprint), and **mission-aware visualization** (sensor footprints, surface and terrain work tied to observations and operations). Extension points and schema are added only when a named consumer asks. Rendering polish and WebGPU sit below all of it.
 
 See **[ROADMAP.md](ROADMAP.md)** for the full list.
 
