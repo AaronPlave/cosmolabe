@@ -3,9 +3,9 @@ import { Body } from './Body.js';
 import { CatalogLoader } from './catalog/CatalogLoader.js';
 import type { CatalogJson, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory } from './catalog/CatalogLoader.js';
 import type { CosmolabePlugin } from './plugins/Plugin.js';
-import { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
 import type { Vec3 } from './kinematics.js';
-import type { RotationModel } from './rotations/RotationModel.js';
+import type { Quaternion, RotationModel } from './rotations/RotationModel.js';
+import { composeBodyToWorldQuat } from './kinematics.js';
 import {
   BODY_FIXED,
   FrameRegistry,
@@ -244,6 +244,19 @@ export class Universe {
     return this.frames.transform(position, this.resolveFrame(frame, centerName), WORLD_FRAME, et);
   }
 
+  /** A body's body → world (ECLIPJ2000) orientation quaternion `[w, x, y, z]`
+   *  at `et`, composed through this universe's frame registry — so a rotation
+   *  stated in a catalog-declared or SPICE frame orients the mesh exactly as
+   *  `absolutePositionOf` positions it. Undefined when the body has no
+   *  rotation model or it cannot be evaluated at `et`. */
+  bodyToWorldQuat(body: Body | string, et: number): Quaternion | undefined {
+    const b = typeof body === 'string' ? this.getBody(body) : body;
+    const rotation = b?.rotation;
+    if (!rotation) return undefined;
+    const q = rotation.rotationAt(et);
+    return composeBodyToWorldQuat(q, rotation.sourceFrame, WORLD_FRAME, et, this.frames);
+  }
+
   /** A body's position relative to its active parent, in the scene frame. */
   relativePositionInWorld(bodyName: string, et: number): Vec3 {
     const body = this.getBody(bodyName);
@@ -291,10 +304,10 @@ export class Universe {
         const ps = parent.stateAt(et);
         if (isNaN(ps.position[0])) return [NaN, NaN, NaN];
 
-        let nextParent = parent.parentName;
-        if (!nextParent && parent.trajectory instanceof CompositeTrajectory) {
-          nextParent = parent.trajectory.arcAt(et).centerName;
-        }
+        // Same rule at every level: a composite ancestor's active arc center
+        // wins over its static parentName, so an instrument on a multi-phase
+        // spacecraft follows the spacecraft's current center.
+        const nextParent = parent.activeParentAt(et);
         const parentFrame = this.resolveFrame(parent.frameAt(et), nextParent);
 
         pos = this.frames.transform(pos, frame, parentFrame, et);

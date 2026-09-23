@@ -1,6 +1,6 @@
-import type { Universe, Body } from '@cosmolabe/core';
+import { mat3ToQuat, multiplyQuat, type Universe, type Body } from '@cosmolabe/core';
 import { etToIso, etIntervalToIso } from './TimeConversions.js';
-import { positionForCesium, quaternionEclipticToEquatorial } from './CoordinateTransforms.js';
+import { positionForCesium } from './CoordinateTransforms.js';
 import { getModelInfo, type CesiumModelInfo } from './ModelAdapter.js';
 
 /** Options for CZML export. */
@@ -106,7 +106,7 @@ function exportBody(
 
   // Orientation (sampled)
   if (body.rotation) {
-    const orientations = sampleOrientations(body, startEt, endEt, interval);
+    const orientations = sampleOrientations(universe, body, startEt, endEt, interval);
     if (orientations) {
       packet.orientation = {
         epoch: etToIso(startEt),
@@ -216,6 +216,7 @@ function samplePositions(
  * Note: CZML quaternion order is (x, y, z, w), not Cosmolabe's (w, x, y, z).
  */
 function sampleOrientations(
+  universe: Universe,
   body: Body,
   startEt: number,
   endEt: number,
@@ -228,11 +229,12 @@ function sampleOrientations(
     const q = body.rotationAt(et);
     if (!q || isNaN(q[0])) continue;
 
-    // For ecliptic-frame bodies, rotate quaternion to equatorial.
-    // For equatorial-frame bodies (TLE), use as-is.
-    const outQ = body.trajectoryFrame === 'equatorial'
-      ? q
-      : quaternionEclipticToEquatorial(q);
+    // Re-express from the rotation's own source frame into ICRF through the
+    // universe's registry — the frame `q` is actually stated in, not the
+    // body's trajectory frame, which is unrelated to its attitude.
+    const source = body.rotation!.sourceFrame;
+    const align = universe.frames.rotation(source, 'ICRF', et);
+    const outQ = align ? multiplyQuat(mat3ToQuat(align), q) : q;
 
     // CZML quaternion order: x, y, z, w (not w, x, y, z)
     samples.push(et - startEt, outQ[1], outQ[2], outQ[3], outQ[0]);

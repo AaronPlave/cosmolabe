@@ -372,6 +372,12 @@ export class FrameRegistry {
     return this.canonicalName(a) === this.canonicalName(b);
   }
 
+  /** True when SPICE has been asked for `spiceName` and said it does not know
+   *  the frame (as opposed to lacking coverage at an epoch). */
+  spiceRejects(spiceName: string): boolean {
+    return this.spiceUnknown.has(spiceName);
+  }
+
   /** SPICE `pxform(name, 'J2000', et)`, or undefined when there is no SPICE
    *  instance or SPICE cannot produce it. A frame SPICE does not know is
    *  remembered and not retried; a coverage gap (CK, binary PCK) is retried. */

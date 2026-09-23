@@ -2158,7 +2158,7 @@ export class UniverseRenderer {
       }
 
       // Create body mesh (needed for click/track even for sensor bodies)
-      const bm = new BodyMesh(body);
+      const bm = new BodyMesh(body, this.universe.frames);
       bm.mesh.scale.setScalar(this.scaleFactor);
       // Hide placeholder sphere for instrument-class sensors (e.g. ISS NAC on Cassini)
       // but keep it for spacecraft-class sensors (e.g. WeatherSat in sensor demo)

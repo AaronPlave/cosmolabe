@@ -748,6 +748,7 @@ function initScene(
           sourceFrame,
           undefined,
           layoutEt,
+          universe.frames,
         );
         pos = { x, y, z };
       } else {

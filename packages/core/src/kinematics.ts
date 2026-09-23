@@ -1,6 +1,6 @@
 import type { Body } from './Body.js';
 import type { InertialFrameName, Quaternion, RotationModel } from './rotations/RotationModel.js';
-import { DEFAULT_FRAMES } from './frames/FrameRegistry.js';
+import { DEFAULT_FRAMES, type FrameRegistry } from './frames/FrameRegistry.js';
 import { mat3ToQuat, mat3Vec } from './frames/mat3.js';
 
 /**
@@ -30,17 +30,18 @@ import type { RotationMatrix, Vec3 } from './spice-injection.js';
  *  GALACTIC — and, when `et` is given, the time-dependent Earth frames (TEME,
  *  MOD, TOD, ITRF).
  *
- *  Frames it cannot resolve pass through unchanged: SPICE-named and
- *  body-fixed frames need a SPICE instance or a universe (use
- *  `Universe.frames`), and a time-dependent frame needs `et`. That lets
+ *  Frames it cannot resolve pass through unchanged: SPICE-named, declared and
+ *  body-fixed frames need the registry that knows them — pass
+ *  `universe.frames` as `frames` — and a time-dependent frame needs `et`. That lets
  *  callers thread the function unconditionally without per-frame dispatch. */
 export function alignPositionToFrame(
   pos: Vec3,
   sourceFrame: InertialFrameName,
   targetFrame: InertialFrameName,
   et?: number,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): Vec3 {
-  const m = staticOrTimedRotation(sourceFrame, targetFrame, et);
+  const m = staticOrTimedRotation(sourceFrame, targetFrame, et, frames);
   return m ? mat3Vec(m, pos) : pos;
 }
 
@@ -51,14 +52,15 @@ function staticOrTimedRotation(
   sourceFrame: InertialFrameName,
   targetFrame: InertialFrameName,
   et: number | undefined,
+  frames: FrameRegistry,
 ): RotationMatrix | undefined {
-  if (sourceFrame === targetFrame || DEFAULT_FRAMES.sameFrame(sourceFrame, targetFrame)) return undefined;
+  if (sourceFrame === targetFrame || frames.sameFrame(sourceFrame, targetFrame)) return undefined;
   if (et === undefined) {
-    if (!DEFAULT_FRAMES.get(sourceFrame)?.isStatic || !DEFAULT_FRAMES.get(targetFrame)?.isStatic) {
+    if (!frames.get(sourceFrame)?.isStatic || !frames.get(targetFrame)?.isStatic) {
       return undefined;
     }
   }
-  return DEFAULT_FRAMES.rotation(sourceFrame, targetFrame, et ?? 0);
+  return frames.rotation(sourceFrame, targetFrame, et ?? 0);
 }
 
 /** Inertial frame the body's `stateAt(et).position` lives in, by name
@@ -134,8 +136,9 @@ export function frameAlignmentQuat(
   sourceFrame: InertialFrameName,
   worldFrame: InertialFrameName = 'EclipticJ2000',
   et?: number,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): Quaternion {
-  const m = staticOrTimedRotation(sourceFrame, worldFrame, et);
+  const m = staticOrTimedRotation(sourceFrame, worldFrame, et, frames);
   return m ? mat3ToQuat(m) : [1, 0, 0, 0];
 }
 
@@ -155,6 +158,7 @@ export function composeBodyToWorldQuat(
   sourceFrame: InertialFrameName,
   worldFrame: InertialFrameName = 'EclipticJ2000',
   et?: number,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): Quaternion {
   // rotationAt returns source→body; conjugate [w,-x,-y,-z] gives body→source.
   const bodyToSource: Quaternion = [
@@ -163,7 +167,7 @@ export function composeBodyToWorldQuat(
     -rotationQuat[2],
     -rotationQuat[3],
   ];
-  const frameAlign = frameAlignmentQuat(sourceFrame, worldFrame, et);
+  const frameAlign = frameAlignmentQuat(sourceFrame, worldFrame, et, frames);
   return multiplyQuat(frameAlign, bodyToSource);
 }
 
@@ -192,6 +196,7 @@ export function bodyFixedOffsetToWorld(
   sourceFrame: InertialFrameName,
   worldFrame: InertialFrameName = 'EclipticJ2000',
   et?: number,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): Vec3 {
   const lat = (latitudeDeg * Math.PI) / 180;
   const lon = (longitudeDeg * Math.PI) / 180;
@@ -200,7 +205,7 @@ export function bodyFixedOffsetToWorld(
     distance * Math.cos(lat) * Math.sin(lon),
     distance * Math.sin(lat),
   ];
-  return rotateVecByQuat(bodyFixed, composeBodyToWorldQuat(rotationQuat, sourceFrame, worldFrame, et));
+  return rotateVecByQuat(bodyFixed, composeBodyToWorldQuat(rotationQuat, sourceFrame, worldFrame, et, frames));
 }
 
 /** Resolve a body by name. `Universe.getBody` satisfies this, and it is the
@@ -244,6 +249,7 @@ export function subPointOf(
   lookup: BodyLookup,
   bodyName: string,
   et: number,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): { lat: number; lon: number; altKm: number } | null {
   const pair = activeParentPair(lookup, bodyName, et);
   if (!pair) return null;
@@ -267,6 +273,7 @@ export function subPointOf(
     bodyFrame,
     parentRotation.sourceFrame,
     et,
+    frames,
   );
   const bf = rotateVecByQuat(aligned, q);
   const r = Math.sqrt(bf[0] * bf[0] + bf[1] * bf[1] + bf[2] * bf[2]);
@@ -292,6 +299,7 @@ export function bodyFixedVelocityMagnitudeOf(
   bodyName: string,
   et: number,
   dt: number = 1,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): number | null {
   const pair = activeParentPair(lookup, bodyName, et);
   if (!pair) return null;
@@ -307,8 +315,8 @@ export function bodyFixedVelocityMagnitudeOf(
     const qA = parent.rotationAt(et - dt);
     const qB = parent.rotationAt(et + dt);
     if (!sA || !sB || !qA || !qB) return null;
-    const pA = alignPositionToFrame(sA.position, scFrame, parentFrame, et - dt);
-    const pB = alignPositionToFrame(sB.position, scFrame, parentFrame, et + dt);
+    const pA = alignPositionToFrame(sA.position, scFrame, parentFrame, et - dt, frames);
+    const pB = alignPositionToFrame(sB.position, scFrame, parentFrame, et + dt, frames);
     const bfA = rotateVecByQuat(pA, qA);
     const bfB = rotateVecByQuat(pB, qB);
     const dvx = (bfB[0] - bfA[0]) / (2 * dt);

@@ -34,7 +34,7 @@ import {
 } from '../frames/FrameRegistry.js';
 import { mat3Mul, mat3Transpose, mat3Vec, quatToMat3 } from '../frames/mat3.js';
 import { j2000ToTeme, j2000ToEarthFixed, j2000ToTod } from '../frames/earthOrientation.js';
-import { alignPositionToFrame, frameAlignmentQuat, rotateVecByQuat } from '../kinematics.js';
+import { alignPositionToFrame, composeBodyToWorldQuat, frameAlignmentQuat, rotateVecByQuat } from '../kinematics.js';
 import { Universe } from '../Universe.js';
 import { Body } from '../Body.js';
 import { CatalogLoader, type CatalogJson } from '../catalog/CatalogLoader.js';
@@ -43,6 +43,7 @@ import { CompositeTrajectory } from '../trajectories/CompositeTrajectory.js';
 import { TLETrajectory } from '../trajectories/TLETrajectory.js';
 import { SpiceTrajectory } from '../trajectories/SpiceTrajectory.js';
 import { UniformRotation } from '../rotations/UniformRotation.js';
+import { FixedRotation } from '../rotations/FixedRotation.js';
 import { OBLIQUITY_J2000_RAD } from '../constants.js';
 import { etFromCalendarString } from '../time.js';
 
@@ -660,5 +661,137 @@ describe('DEFAULT_FRAMES', () => {
   it('is a registry with the built-ins only', () => {
     expect(DEFAULT_FRAMES.isResolvable('TEME', 0)).toBe(true);
     expect(DEFAULT_FRAMES.isResolvable('IAU_EARTH', 0)).toBe(false);
+  });
+});
+
+describe('Review fixes: structured frames, shared registry, composite ancestors, validation', () => {
+  const quiet = () => vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+  it('normalizes Cosmographia’s structured BodyFixed frames on items and arcs', () => {
+    const warn = quiet();
+    try {
+      const { bodies } = new CatalogLoader().load({
+        name: 'structured',
+        items: [
+          { name: 'Mars', trajectory: { type: 'FixedPoint', position: [0, 0, 0] } },
+          // dawn.json / msl.json form: the named body's frame, not the center's.
+          { name: 'Cam', center: 'Mars', trajectoryFrame: { type: 'BodyFixed', body: 'Rover' }, trajectory: { type: 'FixedPoint', position: [1, 0, 0] } },
+          {
+            name: 'Lander', center: 'Mars',
+            arcs: [
+              { trajectoryFrame: { type: 'BodyFixed' }, trajectory: { type: 'FixedPoint', position: [3390, 0, 0] }, startTime: '2024-01-01T00:00:00Z', endTime: '2024-01-02T00:00:00Z' },
+              { trajectoryFrame: { type: 'BodyFixed', body: 'Mars' }, trajectory: { type: 'FixedPoint', position: [3390, 0, 0] }, startTime: '2024-01-02T00:00:00Z', endTime: '2024-01-03T00:00:00Z' },
+            ],
+          },
+          { name: 'Odd', center: 'Mars', trajectoryFrame: { type: 'TwoVector' }, trajectory: { type: 'FixedPoint', position: [0, 0, 0] } },
+        ],
+      } as unknown as CatalogJson);
+      const body = (n: string) => bodies.find((b) => b.name === n)!;
+      expect(body('Cam').frame).toBe('IAU_ROVER');
+      expect(body('Lander').frameAt(etFromCalendarString('2024-01-01T12:00:00Z'))).toBe(BODY_FIXED);
+      expect(body('Lander').frameAt(etFromCalendarString('2024-01-02T12:00:00Z'))).toBe('IAU_MARS');
+      expect(body('Odd').frame).toBe(WORLD_FRAME);
+      const text = warn.mock.calls.map((c) => c.join(' ')).join('\n');
+      expect(text).toMatch(/"Odd".*not supported/);
+      // IAU_ROVER has no body behind it in this catalog and no SPICE.
+      expect(text).toMatch(/"Cam".*IAU_ROVER/);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('orients through the same registry that positions: a declared frame reaches the orientation', () => {
+    const half = Math.SQRT1_2;
+    const u = new Universe();
+    u.loadCatalog({
+      name: 'tilted',
+      // 90° about +X from the scene frame.
+      frames: [{ name: 'TILT', base: 'ECLIPJ2000', quaternion: [half, half, 0, 0] }],
+      items: [{ name: 'Probe', trajectory: { type: 'FixedPoint', position: [0, 0, 0] } }],
+    } as unknown as CatalogJson);
+    const probe = u.getBody('Probe')!;
+    probe.setRotation(new FixedRotation([1, 0, 0, 0], 'TILT'));
+
+    const q = u.bodyToWorldQuat(probe, 0)!;
+    const bodyAxis: Vec3 = [0, 1, 0];
+    const qr = probe.rotationAt(0)!;
+    const inSource = rotateVecByQuat(bodyAxis, [qr[0], -qr[1], -qr[2], -qr[3]]);
+    const expected = u.toWorldFrame(inSource, 'TILT', undefined, 0);
+    expect(maxAbsDiff(rotateVecByQuat(bodyAxis, q), expected)).toBeLessThan(1e-12);
+    // The built-in registry alone cannot see TILT — the gap this closes.
+    const viaDefault = rotateVecByQuat(bodyAxis, composeBodyToWorldQuat(qr, 'TILT', WORLD_FRAME, 0));
+    expect(maxAbsDiff(viaDefault, expected)).toBeGreaterThan(0.5);
+  });
+
+  it('follows a composite ancestor’s active arc center, not its static parent', () => {
+    const u = new Universe();
+    u.addBody(new Body({ name: 'Earth', trajectory: new FixedPointTrajectory([1.5e8, 0, 0]) }));
+    u.addBody(new Body({ name: 'Moon', parentName: 'Earth', trajectory: new FixedPointTrajectory([384400, 0, 0]) }));
+    const phases = new CompositeTrajectory([
+      { trajectory: new FixedPointTrajectory([7000, 0, 0]), startTime: 0, endTime: 100, centerName: 'Earth' },
+      { trajectory: new FixedPointTrajectory([2000, 0, 0]), startTime: 100, endTime: 200, centerName: 'Moon' },
+    ]);
+    // Static parent is Earth; in the second phase the spacecraft orbits the Moon.
+    u.addBody(new Body({ name: 'Craft', parentName: 'Earth', trajectory: phases }));
+    u.addBody(new Body({ name: 'Instrument', parentName: 'Craft', trajectory: new FixedPointTrajectory([0.001, 0, 0]) }));
+    expect(u.absolutePositionOf('Instrument', 50)[0]).toBeCloseTo(1.5e8 + 7000.001, 6);
+    expect(u.absolutePositionOf('Instrument', 150)[0]).toBeCloseTo(1.5e8 + 384400 + 2000.001, 6);
+  });
+});
+
+describe('Review fixes: SPICE-present validation', () => {
+  let spice: SpiceInstance;
+  beforeAll(async () => {
+    const s = await Spice.init();
+    for (const f of ['naif0012.tls', 'pck00010.tpc', 'de425s.bsp']) {
+      await s.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(KERNELS, f))), filename: f });
+    }
+    spice = s;
+  }, 30000);
+
+  it('reports a frame SPICE does not recognize, on items and arcs', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      new CatalogLoader({ spice }).load({
+        name: 'typos',
+        items: [
+          { name: 'Mars', trajectoryFrame: 'IAU_MARS', trajectory: { type: 'FixedPoint', position: [0, 0, 0] } },
+          { name: 'A', trajectoryFrame: 'ECLIPJ200', trajectory: { type: 'FixedPoint', position: [0, 0, 0] } },
+          {
+            name: 'B',
+            arcs: [{ trajectoryFrame: 'LVLH', trajectory: { type: 'FixedPoint', position: [0, 0, 0] }, startTime: 0, endTime: 1 }],
+          },
+        ],
+      } as unknown as CatalogJson);
+      const text = warn.mock.calls.map((c) => c.join(' ')).join('\n');
+      expect(text).toMatch(/"A".*ECLIPJ200.*SPICE does not recognize/);
+      expect(text).toMatch(/"B \(arc 0\)".*state-dependent/);
+      // IAU_MARS is in the PCK: no warning.
+      expect(text).not.toMatch(/"Mars"/);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('queries SPICE in J2000 for a body-fixed frame SPICE has no definition of', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const { bodies } = new CatalogLoader({ spice }).load({
+        name: 'bodyfixed spice',
+        items: [
+          { name: 'Probe', trajectory: { type: 'FixedPoint', position: [0, 0, 0] } },
+          {
+            name: 'Mars', center: 'Sun', trajectoryFrame: { type: 'BodyFixed', body: 'Probe' },
+            trajectory: { type: 'Spice', target: 'MARS BARYCENTER', center: 'SUN' },
+          },
+        ],
+      } as unknown as CatalogJson);
+      const mars = bodies.find((b) => b.name === 'Mars')!;
+      expect((mars.trajectory as SpiceTrajectory).spiceFrame).toBe('J2000');
+      expect(mars.frame).toBe('EME2000');
+      expect(Number.isFinite(mars.stateAt(spice.str2et('2020-01-01')).position[0])).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

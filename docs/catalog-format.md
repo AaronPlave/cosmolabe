@@ -159,7 +159,9 @@ Rendered accuracy is pinned end to end in `spice-oracle.test.ts`: positions afte
 
 When a catalog frame reaches SPICE (a `Spice` or `Builtin` trajectory, a `Spice` rotation), it goes out in SPICE's spelling (`EclipticJ2000` → `ECLIPJ2000`, `EME2000` → `J2000`). Frames SPICE cannot know (TEME, declared frames) are queried in J2000 and labelled as such.
 
-A frame nothing can resolve is reported once when the catalog loads, and positions in it are then used unrotated.
+Cosmographia's structured form `"trajectoryFrame": { "type": "BodyFixed", "body": "Mars" }` is accepted on items and arcs. It means `IAU_MARS`, the named body's frame, which need not be the center. Without `body` it means `BodyFixed`. When SPICE has no definition of such a frame (for example `IAU_CASSINI`), a `Spice` trajectory is fetched in J2000 instead, which is still exact.
+
+A frame nothing can resolve is reported once when the catalog loads, and positions in it are then used unrotated. With SPICE loaded, a name SPICE does not recognize is reported too. Arc frames are checked, and so are `IAU_<BODY>` frames with no body or SPICE frame behind them.
 
 ### Declaring frames
 

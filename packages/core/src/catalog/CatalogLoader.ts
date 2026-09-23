@@ -30,6 +30,7 @@ import {
   WORLD_FRAME,
   bodyFixedFrameName,
   isStateDependentFrameName,
+  normalizeFrameKey,
   type FixedFrameSpec,
 } from '../frames/FrameRegistry.js';
 
@@ -109,7 +110,10 @@ export interface CatalogItem {
   type?: string;
   center?: string;
   class?: string;
-  trajectoryFrame?: string;
+  /** A frame name, or Cosmographia's structured form
+   *  (`{ "type": "BodyFixed", "body": "Mars" }`). Normalized to a name when
+   *  the catalog loads. */
+  trajectoryFrame?: string | TrajectoryFrameSpec;
   trajectory?: TrajectorySpec;
   trajectoryPlot?: TrajectoryPlotSpec;
   rotationModel?: RotationModelSpec;
@@ -130,7 +134,7 @@ export interface CatalogItem {
 
 export interface ArcSpec {
   center?: string;
-  trajectoryFrame?: string;
+  trajectoryFrame?: string | TrajectoryFrameSpec;
   trajectory: TrajectorySpec;
   bodyFrame?: string | BodyFrameSpec;
   startTime?: string | number;
@@ -143,6 +147,20 @@ export interface ArcSpec {
    *  (long cruise arcs benefit from a higher count to avoid a faceted
    *  appearance at high eccentricity). */
   numKeySamples?: number;
+}
+
+/** Cosmographia's structured frame reference. `BodyFixed` (with an optional
+ *  `body`) is the only kind that can hold positions; others are rejected. */
+export interface TrajectoryFrameSpec {
+  type: string;
+  body?: string;
+  [key: string]: unknown;
+}
+
+/** The frame name of an already-normalized `trajectoryFrame` (a type narrow:
+ *  the loader rewrites structured forms to names before anything reads them). */
+function frameName(frame: string | TrajectoryFrameSpec | undefined): string | undefined {
+  return typeof frame === 'string' ? frame : undefined;
 }
 
 export interface BodyFrameSpec {
@@ -616,8 +634,52 @@ export class CatalogLoader {
   private spiceFrame(frame: string | undefined, center: string | undefined, fallback = 'ECLIPJ2000'): string {
     if (frame === undefined) return fallback;
     const canonical = this.frames.canonicalName(frame);
-    if (canonical === BODY_FIXED) return center ? bodyFixedFrameName(center) : 'J2000';
-    return this.frames.spiceName(canonical) ?? 'J2000';
+    const name = canonical === BODY_FIXED
+      ? (center ? bodyFixedFrameName(center) : undefined)
+      : this.frames.spiceName(canonical);
+    if (!name) return 'J2000';
+    // A body-fixed frame of a body SPICE has no PCK or CK frame for
+    // (IAU_CASSINI, IAU_MSL) cannot be queried. Fetching in J2000 instead is
+    // still exact: the trajectory reports J2000 and the registry rotates it.
+    if (this.spice && name !== 'J2000' && name !== 'ECLIPJ2000' && !this.frames.spiceToJ2000(name, this.probeEpoch)) {
+      return 'J2000';
+    }
+    return name;
+  }
+
+  /** Rewrite an item's (and its arcs') `trajectoryFrame` to names, checking
+   *  each once. */
+  private normalizeItemFrames(item: CatalogItem): CatalogItem {
+    const frame = this.normalizeFrame(item.name, item.trajectoryFrame);
+    const arcs = item.arcs?.map((arc, i) => ({
+      ...arc,
+      trajectoryFrame: this.normalizeFrame(`${item.name} (arc ${i})`, arc.trajectoryFrame),
+    }));
+    return { ...item, trajectoryFrame: frame, ...(arcs ? { arcs } : {}) };
+  }
+
+  /** A catalog frame reference as a name: strings pass through, Cosmographia's
+   *  `{ "type": "BodyFixed", "body": "Mars" }` becomes `IAU_MARS` (the named
+   *  body's frame, which need not be the center), and a `BodyFixed` with no
+   *  body becomes BODY_FIXED (the center's). Anything else cannot hold a
+   *  trajectory and is reported. */
+  private normalizeFrame(owner: string, frame: string | TrajectoryFrameSpec | undefined): string | undefined {
+    if (frame === undefined || frame === null) return undefined;
+    if (typeof frame === 'string') {
+      this.checkFrameName(owner, frame);
+      return frame;
+    }
+    const type = typeof frame.type === 'string' ? frame.type : '';
+    if (/^body[-_ ]?fixed$/i.test(type)) {
+      const name = typeof frame.body === 'string' && frame.body ? bodyFixedFrameName(frame.body) : BODY_FIXED;
+      this.checkFrameName(owner, name);
+      return name;
+    }
+    console.warn(
+      `[Cosmolabe] "${owner}": trajectoryFrame ${JSON.stringify(frame)} is not supported as a trajectory ` +
+        `frame (only a frame name or { "type": "BodyFixed", "body": … }); states are used unrotated.`,
+    );
+    return undefined;
   }
 
   /** Warn once, at load, about a frame nothing will be able to resolve —
@@ -634,13 +696,50 @@ export class CatalogLoader {
       return;
     }
     const canonical = this.frames.canonicalName(frame);
-    if (canonical === BODY_FIXED || canonical.startsWith('IAU_')) return;
-    if (!this.spice && !this.frames.get(canonical)) {
+    if (canonical === BODY_FIXED) return;
+    if (canonical.startsWith('IAU_')) {
+      // Its body may be further down this catalog; checked once it has loaded.
+      this.pendingBodyFrames.push({ owner, frame: canonical });
+      return;
+    }
+    if (!this.spice) {
+      if (!this.frames.get(canonical)) {
+        console.warn(
+          `[Cosmolabe] "${owner}": unknown frame "${frame}" and no SPICE instance to resolve it; ` +
+            `states are used unrotated. Declare it in the catalog's "frames" or use a registered frame.`,
+        );
+      }
+      return;
+    }
+    // With SPICE, a name the registry does not define goes to pxform. Probe
+    // it now: a name SPICE rejects is a typo or a missing FK, and would
+    // otherwise pass every vector through unrotated. A coverage gap at the
+    // probe epoch (a CK) is not an error and is not reported.
+    const spiceName = this.frames.spiceName(canonical);
+    if (!this.frames.isResolvable(canonical, this.probeEpoch) && spiceName && this.frames.spiceRejects(spiceName)) {
       console.warn(
-        `[Cosmolabe] "${owner}": unknown frame "${frame}" and no SPICE instance to resolve it; ` +
-          `states are used unrotated. Declare it in the catalog's "frames" or use a registered frame.`,
+        `[Cosmolabe] "${owner}": frame "${frame}" is not a registry frame and SPICE does not recognize it ` +
+          `(missing frame kernel?); states are used unrotated.`,
       );
     }
+  }
+
+  /** `IAU_<BODY>` references waiting for the catalog to finish loading. */
+  private pendingBodyFrames: Array<{ owner: string; frame: string }> = [];
+
+  /** Report `IAU_<BODY>` frames with neither a body in this catalog or the
+   *  universe (rotation model) nor a SPICE frame behind them. */
+  private checkPendingBodyFrames(bodies: Body[]): void {
+    for (const { owner, frame } of this.pendingBodyFrames) {
+      const key = frame.slice('IAU_'.length);
+      const inCatalog = bodies.some((b) => normalizeFrameKey(b.name) === key && b.rotation);
+      if (inCatalog || this.frames.isResolvable(frame, this.probeEpoch)) continue;
+      console.warn(
+        `[Cosmolabe] "${owner}": body-fixed frame "${frame}" has no body with a rotation model and no ` +
+          `SPICE frame behind it; states are used unrotated.`,
+      );
+    }
+    this.pendingBodyFrames = [];
   }
 
   load(json: CatalogJson): LoadedCatalog {
@@ -685,6 +784,8 @@ export class CatalogLoader {
         }
       }
     }
+
+    this.checkPendingBodyFrames(bodies);
 
     const kernels = collectKernelRefs(json);
     return {
@@ -771,10 +872,13 @@ export class CatalogLoader {
     return vp;
   }
 
-  private loadItem(item: CatalogItem, bodies: Body[], parentName: string | undefined): void {
-    if (item.type === 'Visualizer' || item.type === 'FeatureLabels') {
+  private loadItem(rawItem: CatalogItem, bodies: Body[], parentName: string | undefined): void {
+    if (rawItem.type === 'Visualizer' || rawItem.type === 'FeatureLabels') {
       return;
     }
+    // Structured frame references become names here, once, for the item and
+    // every arc; everything below reads names only.
+    const item = this.normalizeItemFrames(rawItem);
 
     // ParticleSystem items without a trajectory get a FixedPoint at origin
     // (they're decorative — comet tails, volcanic plumes — positioned relative to their parent).
@@ -791,8 +895,7 @@ export class CatalogLoader {
     // `trajectoryFrame` passes through to Body, which lets a trajectory that
     // knows its own frame override it (TLE → TEME, FixedSpherical and
     // Waypoints → BODY_FIXED, SPICE → the frame it queried, OEM → REF_FRAME).
-    const trajectoryFrame = item.trajectoryFrame;
-    this.checkFrameName(item.name, trajectoryFrame);
+    const trajectoryFrame = frameName(item.trajectoryFrame);
 
     const body = new Body({
       name: item.name,
@@ -851,7 +954,7 @@ export class CatalogLoader {
         startTime,
         endTime,
         centerName: arc.center ?? item.center,
-        frame: arc.trajectoryFrame ?? item.trajectoryFrame,
+        frame: frameName(arc.trajectoryFrame) ?? frameName(item.trajectoryFrame),
         showLine: arc.showLine,
         numKeySamples: arc.numKeySamples,
       };
@@ -863,7 +966,7 @@ export class CatalogLoader {
   private buildTrajectory(spec: TrajectorySpec | undefined, item: CatalogItem): Trajectory {
     if (!spec) {
       if (this.spice) {
-        return new SpiceTrajectory(this.spice, item.name, item.center ?? 'SUN', this.spiceFrame(item.trajectoryFrame, item.center ?? 'SUN'));
+        return new SpiceTrajectory(this.spice, item.name, item.center ?? 'SUN', this.spiceFrame(frameName(item.trajectoryFrame), item.center ?? 'SUN'));
       }
       return new FixedPointTrajectory([0, 0, 0]);
     }
@@ -910,7 +1013,7 @@ export class CatalogLoader {
         if (this.spice) {
           const target = info?.target ?? bodyName;
           const center = item.center ?? info?.center ?? 'SUN';
-          const frame = this.spiceFrame(item.trajectoryFrame, center);
+          const frame = this.spiceFrame(frameName(item.trajectoryFrame), center);
           const spiceTraj = new SpiceTrajectory(this.spice, target, center, frame);
           // Probe: check if SPICE actually has data for this body at the catalog's epoch
           try {
@@ -948,7 +1051,7 @@ export class CatalogLoader {
           this.spice,
           spec.target ?? item.name,
           spec.center ?? item.center ?? 'SUN',
-          this.spiceFrame(item.trajectoryFrame, spec.center ?? item.center ?? 'SUN'),
+          this.spiceFrame(frameName(item.trajectoryFrame), spec.center ?? item.center ?? 'SUN'),
         );
 
       case 'InterpolatedStates': {
@@ -999,9 +1102,9 @@ export class CatalogLoader {
           // The file's REF_FRAME is the frame of record: the states are in
           // it, so the trajectory declares it and Universe rotates from it.
           // A catalog trajectoryFrame that disagrees is reported, not used.
-          const frameCheck = checkOemFrame(oem, item.trajectoryFrame);
+          const frameCheck = checkOemFrame(oem, frameName(item.trajectoryFrame));
           if (!frameCheck.ok) console.warn(`"${item.name}": ${frameCheck.message}`);
-          const oemFrame = refineOemFrame(oemFrameName(oem.metadata.refFrame), item.trajectoryFrame);
+          const oemFrame = refineOemFrame(oemFrameName(oem.metadata.refFrame), frameName(item.trajectoryFrame));
           const records = oemToStateRecords(oem, (t) => this.spice!.str2et(t));
           if (records.length < 2) {
             console.warn(
@@ -1167,14 +1270,14 @@ export class CatalogLoader {
       }
 
       case 'Builtin': {
-        const frameName = spec.name ?? `IAU_${item.name.toUpperCase()}`;
+        const bodyFrame = spec.name ?? `IAU_${item.name.toUpperCase()}`;
         // "IAU Moon" → "IAU_MOON"
-        const normalized = frameName.replace(/\s+/g, '_').toUpperCase();
+        const normalized = bodyFrame.replace(/\s+/g, '_').toUpperCase();
         // Use the trajectory's inertial frame so the rotation matches body positions.
         // Without this, a body with trajectoryFrame=J2000 but rotation in ECLIPJ2000
         // creates a ~23.4° offset (ecliptic obliquity).
         if (this.spice) {
-          return new SpiceRotation(this.spice, normalized, this.spiceFrame(item.trajectoryFrame, item.center));
+          return new SpiceRotation(this.spice, normalized, this.spiceFrame(frameName(item.trajectoryFrame), item.center));
         }
         // Fallback: hardcoded IAU 2009 pole + spin for major bodies, when no
         // SPICE is loaded. This lets SPICE-free demos still get correct
@@ -1206,14 +1309,14 @@ export class CatalogLoader {
         return new SpiceRotation(
           this.spice,
           spec.bodyFrame ?? `IAU_${item.name.toUpperCase()}`,
-          this.spiceFrame(spec.inertialFrame ?? item.trajectoryFrame, item.center),
+          this.spiceFrame(spec.inertialFrame ?? frameName(item.trajectoryFrame), item.center),
         );
 
       case 'Nadir': {
         const target = spec.target ?? item.name;
         // A trajectory-driven nadir is stated in the frame the trajectory's
         // states are actually in (TEME for a TLE), not the catalog's claim.
-        const trajectoryInertialFrame = spec.inertialFrame ?? trajectory?.frame ?? item.trajectoryFrame ?? WORLD_FRAME;
+        const trajectoryInertialFrame = spec.inertialFrame ?? trajectory?.frame ?? frameName(item.trajectoryFrame) ?? WORLD_FRAME;
         // Bodies with a non-SPICE trajectory (TLE, Keplerian, FixedPoint) have no
         // SPICE ephemeris — when the catalog asks for the body's own nadir, use
         // its trajectory directly. SpiceTrajectory bodies still get NadirRotation.
@@ -1229,7 +1332,7 @@ export class CatalogLoader {
             this.spice,
             target,
             spec.center ?? item.center ?? 'EARTH',
-            this.spiceFrame(spec.inertialFrame ?? item.trajectoryFrame, spec.center ?? item.center ?? 'EARTH'),
+            this.spiceFrame(spec.inertialFrame ?? frameName(item.trajectoryFrame), spec.center ?? item.center ?? 'EARTH'),
           );
         }
         if (trajectory) {
@@ -1285,7 +1388,7 @@ export class CatalogLoader {
         // don't pin a frame; producers writing AEM-derived data should pass
         // an explicit `inertialFrame` so the catalog boundary is self-
         // describing.
-        const sourceFrame = spec.inertialFrame ?? item.trajectoryFrame ?? 'EclipticJ2000';
+        const sourceFrame = spec.inertialFrame ?? frameName(item.trajectoryFrame) ?? 'EclipticJ2000';
         // Prefer in-memory records when the caller pre-parsed the attitude
         // data (e.g. from a server-side CCSDS AEM parse). Falls through to
         // the `source` path for Cosmographia .q files routed via
