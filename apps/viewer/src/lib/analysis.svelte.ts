@@ -126,11 +126,12 @@ export function configuredProfiles(): ConfiguredContinuousProfile[] {
 }
 
 /**
- * Moves a profile one row up (`-1`) or down (`1`) among the profiles. Event
- * queries interleaved in `items` keep their own relative order.
+ * Moves a profile one row up (`-1`) or down (`1`) among the enabled profiles —
+ * the rows the timeline draws. Event queries and disabled profiles
+ * interleaved in `items` keep their places.
  */
 export function moveConfiguredProfile(id: string, delta: -1 | 1) {
-  const profiles = configuredProfiles();
+  const profiles = configuredProfiles().filter((item) => item.enabled);
   const from = profiles.findIndex((item) => item.id === id);
   const to = from + delta;
   if (from < 0 || to < 0 || to >= profiles.length) return;

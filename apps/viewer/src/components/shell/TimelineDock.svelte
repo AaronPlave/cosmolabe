@@ -22,11 +22,11 @@
     stepForward, stepBackward, scrubTo, setTime,
     zoomScrubber, resetScrubberZoom, setZoomDuration, etToShortDate, etToUtcString,
   } from '../../lib/viewer-state.svelte';
-  import { timeline, setTimelineHover, timelineEt, type ProfileEventTick } from '../../lib/timeline.svelte';
+  import { timeline, setTimelineHover, timelineEt, timelineFraction, type ProfileEventTick } from '../../lib/timeline.svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
   import { shell, setTimelineDepth } from '../../lib/shell.svelte';
-  import { formatDuration } from '../../lib/scrubber-math';
+  import { formatDuration, snapFraction } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
   import { ef, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries } from '../../lib/event-finder.svelte';
   import { visibleTimelineEvents } from '../../lib/analysis.svelte';
@@ -70,11 +70,10 @@
 
   // ── Scrubber state ──
 
-  let currentFraction = $derived(
-    vs.scrubMax > vs.scrubMin
-      ? Math.max(0, Math.min(1, (vs.et - vs.scrubMin) / (vs.scrubMax - vs.scrubMin)))
-      : 0.5
-  );
+  // Unclamped: a playhead outside the zoomed window is out of view, on the
+  // track exactly as on the lanes, rather than pinned to an edge where it
+  // would name a time it is not at.
+  let currentFraction = $derived(timelineFraction(vs.et));
 
   let baseRange = $derived(vs.scrubBaseMax - vs.scrubBaseMin);
   let currentRange = $derived(vs.scrubMax - vs.scrubMin);
@@ -161,6 +160,20 @@
 
   // Labels in a gutter left of the axis need room; a phone overlays them.
   const wideLanes = $derived(!compact && axis.left >= 120);
+
+  // A hover on the track snaps to its marks like one on a lane, so pointing at
+  // an event on the collapsed strip cross-highlights it too.
+  function onTrackHover(fraction: number | null) {
+    if (fraction == null) {
+      setTimelineHover(null);
+      return;
+    }
+    const targets = eventMarkers.flatMap((m) => m.endFraction > m.fraction
+      ? [{ fraction: m.fraction, id: m.id }, { fraction: m.endFraction, id: m.id }]
+      : [{ fraction: m.fraction, id: m.id }]);
+    const snap = snapFraction(fraction, targets, trackEl?.clientWidth ?? 0);
+    setTimelineHover(timelineEt(snap?.fraction ?? fraction), snap?.id ?? null);
+  }
 
   const hoverFraction = $derived(
     timeline.hoverEt == null || !(currentRange > 0) ? null : (timeline.hoverEt - vs.scrubMin) / currentRange,
@@ -251,7 +264,7 @@
         fraction={currentFraction}
         onScrub={scrubTo}
         onZoom={(zoomIn, anchor) => zoomScrubber(zoomIn, timelineEt(anchor))}
-        onHover={(f) => setTimelineHover(f == null ? null : timelineEt(f))}
+        onHover={onTrackHover}
         {hoverFraction}
         {hoverLabel}
         bind:trackEl

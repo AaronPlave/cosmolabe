@@ -28,7 +28,8 @@
 
   let { axisLeft, axisWidth, wide, ticks }: Props = $props();
 
-  const profiles = $derived(configuredProfiles());
+  // Disabled items are out of the analysis, as with event lanes.
+  const profiles = $derived(configuredProfiles().filter((item) => item.enabled));
 
   let addOpen = $state(false);
 

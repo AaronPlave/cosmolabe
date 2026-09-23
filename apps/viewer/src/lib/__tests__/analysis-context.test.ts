@@ -147,4 +147,17 @@ describe('viewer analysis state', () => {
     expect(resolveProfile(shared).bodies.observer).toBe('SUN');
     expect(resolveProfile(own).window).toEqual({ start: 100, end: 200 });
   });
+
+  it('reorders only the enabled profiles the timeline draws', () => {
+    const a = createConfiguredProfile({ quantity: 'range' }, 'A');
+    const off = createConfiguredProfile({ quantity: 'range' }, 'Off');
+    const b = createConfiguredProfile({ quantity: 'range' }, 'B');
+    setConfiguredItemEnabled(off.id, false);
+
+    // B moves above A in one step, past the disabled item in between.
+    moveConfiguredProfile(b.id, -1);
+    const enabled = configuredProfiles().filter((p) => p.enabled).map((p) => p.id);
+    expect(enabled).toEqual([b.id, a.id]);
+  });
 });
+

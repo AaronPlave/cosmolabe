@@ -18,6 +18,7 @@
   import { ef, selectEvent, setConfiguredQueryVisible } from '../../lib/event-finder.svelte';
   import { activeEventAtTime, eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
   import { timeline, timelineFraction, timelineGestures } from '../../lib/timeline.svelte';
+  import { inWindow } from '../../lib/scrubber-math';
   import { Eye, EyeOff } from 'lucide-svelte';
 
   interface Props {
@@ -50,7 +51,7 @@
 
   const playheadFrac = $derived(timelineFraction(vs.et));
   const ghostFrac = $derived(timeline.hoverEt == null ? null : timelineFraction(timeline.hoverEt));
-  const inView = (f: number | null): f is number => f != null && f >= 0 && f <= 1;
+  const inView = inWindow;
 
   // Readout: the event under the ghost (or the playhead), else the count.
   const readoutEt = $derived(timeline.hoverEt ?? vs.et);
@@ -147,8 +148,14 @@
     min-width: 0;
     z-index: 1;
   }
+  /* Over the plot the label is text only; the eye toggle is the one part
+     that takes presses, so the lane stays tappable and draggable beneath. */
   .lane-label.overlay {
     justify-content: flex-start;
+    pointer-events: none;
+  }
+  .lane-label.overlay .eye-btn {
+    pointer-events: auto;
   }
   .label-text {
     overflow: hidden;
@@ -187,7 +194,8 @@
     border-radius: 2px;
     background: rgba(255, 255, 255, 0.025);
     cursor: crosshair;
-    touch-action: none;
+    /* Vertical swipes scroll the lane region; see `timelineGestures`. */
+    touch-action: pan-y;
     user-select: none;
   }
 

@@ -1,10 +1,13 @@
 <script lang="ts">
-  import { clampFraction, KEYBOARD_STEP } from '../lib/scrubber-math';
+  import { clampFraction, inWindow, KEYBOARD_STEP } from '../lib/scrubber-math';
   import { Search } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
 
   interface Props {
-    /** Current position 0-1 on the zoomed range */
+    /**
+     * Current position on the zoomed range. Not clamped: outside 0-1 the
+     * playhead is out of view and is not drawn.
+     */
     fraction: number;
     /** Called during drag with the new fraction */
     onScrub: (fraction: number) => void;
@@ -167,10 +170,10 @@
     let newFraction: number | null = null;
     switch (e.key) {
       case 'ArrowLeft':
-        newFraction = clampFraction(fraction - KEYBOARD_STEP);
+        newFraction = clampFraction(clampFraction(fraction) - KEYBOARD_STEP);
         break;
       case 'ArrowRight':
-        newFraction = clampFraction(fraction + KEYBOARD_STEP);
+        newFraction = clampFraction(clampFraction(fraction) + KEYBOARD_STEP);
         break;
       case 'Home':
         newFraction = 0;
@@ -194,7 +197,7 @@
   tabindex="0"
   aria-valuemin={0}
   aria-valuemax={100}
-  aria-valuenow={Math.round(displayFraction * 100)}
+  aria-valuenow={Math.round(clampFraction(displayFraction) * 100)}
   aria-label="Time scrubber — scroll to zoom"
   onkeydown={onKeyDown}
 >
@@ -232,7 +235,9 @@
         {#if hoverFraction != null && !dragging && hoverFraction >= 0 && hoverFraction <= 1}
           <div class="ghost-playhead" style="left: {hoverFraction * 100}%"></div>
         {/if}
-        <div class="playhead" style="left: {displayFraction * 100}%"></div>
+        {#if inWindow(displayFraction)}
+          <div class="playhead" style="left: {displayFraction * 100}%"></div>
+        {/if}
       </div>
       {#if hoverLabel && hoverFraction != null && !dragging && hoverFraction >= 0 && hoverFraction <= 1}
         <div class="ghost-label" style="left: {hoverFraction * 100}%">{hoverLabel}</div>

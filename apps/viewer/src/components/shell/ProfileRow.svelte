@@ -24,6 +24,7 @@
     profileQuantity, sampleProfile, sampleCountFor, profilePath, quantityAt, valueY,
     type PositionOf, type ProfileBodies,
   } from '../../lib/profile-sampling';
+  import { inWindow } from '../../lib/scrubber-math';
   import { Eye, EyeOff } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
   import ProfileConfig from './ProfileConfig.svelte';
@@ -89,7 +90,7 @@
 
   const playheadFrac = $derived(timelineFraction(vs.et));
   const ghostFrac = $derived(timeline.hoverEt == null ? null : timelineFraction(timeline.hoverEt));
-  const inView = (f: number | null): f is number => f != null && f >= 0 && f <= 1;
+  const inView = inWindow;
 
   const dotY = $derived(readout != null && series && hasData ? valueY(readout, series, H) : null);
 
@@ -241,10 +242,18 @@
     min-width: 0;
     z-index: 1;
   }
+  /* Over the plot, only the label itself takes presses — the rest of the
+     row stays the plot's, so a drag or tap anywhere else reaches it. */
   .row-label.overlay {
     bottom: auto;
     top: 1px;
     justify-content: flex-start;
+    pointer-events: none;
+  }
+  .row-label.overlay :global(.label-btn) {
+    padding: 0 3px;
+    line-height: 12px;
+    pointer-events: auto;
   }
   :global(.label-btn) {
     display: flex;
@@ -275,6 +284,7 @@
   .overlay .label-quantity,
   .overlay .label-pair {
     font-size: var(--text-metadata);
+    line-height: 12px;
   }
   .eye-btn {
     display: flex;
@@ -301,7 +311,8 @@
     top: 0;
     bottom: 0;
     cursor: crosshair;
-    touch-action: none;
+    /* Vertical swipes scroll the lane region; see `timelineGestures`. */
+    touch-action: pan-y;
     user-select: none;
   }
   .plot svg {

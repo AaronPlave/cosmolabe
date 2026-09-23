@@ -6,6 +6,21 @@ export function clampFraction(f: number): number {
   return Math.max(0, Math.min(1, f));
 }
 
+/**
+ * Where `et` sits in the window `[min, max]`, as a fraction that is *not*
+ * clamped: below 0 or above 1 means out of view. Every row on the timeline
+ * uses this, so none of them draws the playhead at an edge it is not at.
+ */
+export function windowFraction(et: number, min: number, max: number): number {
+  const span = max - min;
+  return span > 0 ? (et - min) / span : 0.5;
+}
+
+/** Whether a fraction from `windowFraction` is on screen. */
+export function inWindow(fraction: number | null | undefined): fraction is number {
+  return fraction != null && fraction >= 0 && fraction <= 1;
+}
+
 /** Human-readable label for a duration in seconds (e.g. "~2.5h", "~30s") */
 export function formatDuration(seconds: number): string {
   const abs = Math.abs(seconds);
