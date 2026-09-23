@@ -46,7 +46,7 @@ export default tseslint.config(
       ],
       // Off until the existing `any` sites get real types. As a warning it
       // printed 100+ lines on every run without stopping the count growing;
-      // turn it back on as an error once the typing cleanup lands.
+      // turn it back on as an error once the typing cleanup lands (#98).
       '@typescript-eslint/no-explicit-any': 'off',
       // A key is only correct if it is unique, and a duplicate throws at
       // runtime (each_key_duplicate). Svelte 5 handles unkeyed lists fine, so
