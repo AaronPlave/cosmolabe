@@ -88,7 +88,7 @@ export const TOOLS: readonly ToolDef[] = [
   // Backtick: the universal console idiom, unclaimed, and not a letter, so it
   // cannot collide with a renderer control or #15's keymap. The app's input
   // guard runs first, so a backtick typed into a text field stays a backtick.
-  { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right', width: 340, shortcut: '`' },
+  { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right', width: 380, shortcut: '`' },
   { id: 'display', label: 'Display',  icon: Settings, presentation: 'panel',  dock: 'right', width: 240 },
   { id: 'debug',   label: 'Diagnostics', icon: Bug,   presentation: 'panel',  dock: 'right', width: 260 },
 ];

@@ -208,48 +208,94 @@ the Display panel and will see again next visit.
 
 ## The script console
 
-The viewer's **Script** tool (rail, or <kbd>`</kbd>) is the text language's
-home in the app. It is a shell panel rather than a dialog, so the scene it
-drives stays visible and interactive while a script runs.
+The viewer's **Script** tool (rail, or <kbd>`</kbd>) is a lightweight sequence
+runner for the text language, not an embedded IDE. It is a shell panel rather
+than a dialog, so the scene it drives stays visible while a script runs.
 
-- **Run** (or <kbd>Cmd/Ctrl</kbd>+<kbd>Enter</kbd>) parses and executes the
-  editor. The transcript **streams** one row per statement as it starts, with
-  its 1-based source line in the gutter; a failing line is shown with its
-  message and nothing after it runs. A syntax error runs nothing and lists every
-  problem at once, as `parse` does.
-- **Snapshot** replaces the editor with `cosmo.snapshot()`, a script that
-  reproduces the current view. Fly somewhere with the mouse, snapshot it, then
-  save it.
-- **Programs** are named scripts kept in `localStorage` under
-  `cosmolabe-viewer-scripts`, separate from the display preferences. If what is
-  stored there cannot be read, saving is disabled rather than risk overwriting
-  it. A save the browser refuses, for example because storage is full, is
-  reported and stays on screen until a later write succeeds.
-- **Verbs** lists the vocabulary, derived from `VERB_LIST`, so it cannot
-  advertise a verb the interpreter does not have.
+### The editor is the execution view
+
+The editor (CodeMirror 6) shows line numbers, and during a run it marks the
+statement running with a thin rail. Finished lines step back, and a failed or
+stopped line is marked in the error or warning colour. A running `wait` shows
+its countdown at the end of its line. Below the editor there is only what the
+editor cannot show: a status line with real progress (`RUNNING · 5 / 17 ·
+wait 3 · 1.8s remaining`, counting statements, not lines), a thin progress bar,
+and any problems. Clicking a problem jumps to its line. The source is
+read-only while a script is running or paused, so the marks always refer to the
+program being executed; editing after a run clears them.
+
+Editing is language-aware, and all of it comes from `@cosmolabe/control`
+(`cursorContext`, `completionsAt`, `signatureAt`), so the editor cannot disagree
+with the interpreter:
+
+- **Completion.** Verbs at the start of a line; then each argument's values:
+  enum ids (`setFrame body-fixed`), `on`/`off`, and the loaded scene's own
+  object and viewpoint names, quoted when they need it.
+- **Signature help.** The current line's usage, with the parameter under the
+  cursor emphasised, plus the verb's one-line help.
+- **Lint.** `parse` runs as you type and underlines every problem it would
+  report, before you press Run.
+
+### Running
+
+| State | Controls | Status |
+|---|---|---|
+| Idle | **Run** (<kbd>Cmd/Ctrl</kbd>+<kbd>Enter</kbd>), Snapshot | |
+| Running | **Pause**, Stop | `RUNNING · 5 / 17 · wait 3 · 1.8s remaining` |
+| Paused | **Resume**, Step, Stop | `PAUSED · 5 / 17` |
+| Finished | **Run again**, Snapshot | `✓ Completed · 17 steps · 26.4s` |
+
+- **Pause** means *after the current statement*: the runner holds `execute`'s
+  `beforeStatement` gate, and the rail moves to the statement that runs next.
+  Nothing in flight is frozen; a camera fly-to cannot honestly be paused
+  mid-way. The exception is `wait`, which is the runner's own timer: a paused
+  `wait 60` stops counting at once and resumes with the time it had left.
+- **Step** runs exactly one statement (or finishes a held `wait`), then pauses
+  again.
+- **Stop** is immediate, even in the middle of a `wait`: the run stops awaiting
+  the statement in flight, and a recording the script started is stopped then
+  and there.
+- Pausing a script does not pause scene time. The timeline has its own
+  play/pause; the script controls are labelled "script" to keep the two apart.
 
 A run ends with the console. Closing the panel, or loading a catalog (which
-replaces the whole workspace), cancels the script at once, even in the middle
-of a `wait`: the run stops awaiting the statement in flight, a recording the
-script started is stopped immediately, and the transcript marks the line it
-stopped at. Otherwise `record on` / `wait 3600` would keep filming for an hour
-after the console closed, and the lines after a `wait` would go on to drive the
-next scene with nothing on screen to show it. Minimizing the panel does not
-cancel.
+replaces the whole workspace), stops the script at once. Minimizing the panel
+does not.
 
-Hosts get the same control through `execute(program, host, { signal })`, where
-the signal is an `AbortSignal` or anything with its `aborted` flag and `abort`
-listeners. The host call in flight is abandoned rather than undone, so a
-cancelled `wait` leaves a timer that nobody listens to any more. A statement
-that already finished synchronously counts as run.
+Hosts get the same control through `execute(program, host, { signal,
+beforeStatement })`. `signal` is an `AbortSignal` or anything with its `aborted`
+flag and `abort` listeners; the host call in flight is abandoned rather than
+undone, and a statement that already finished synchronously counts as run.
+`beforeStatement` is an awaited gate before each statement, which is all
+Pause and Step are.
 
-Keys pressed inside the console stay in it (apart from Escape), so pressing `t`
-with focus on a console button does not toggle trajectories.
+### Snapshot, programs and reference
 
-The welcome screen's **Scripted Tour** loads the kernel-free Earth + Moon scene
-and runs a short script in the console. The demo scripts live in
-`apps/viewer/src/lib/script-demo.svelte.ts`, and a unit test parses every one
-against the verb table, so a renamed verb cannot break them silently.
+- **Snapshot** replaces the editor with `cosmo.snapshot()`, a script that
+  reproduces the current view.
+- **Programs** live in the panel header (`Untitled ▾`): save, save under a new
+  name, load, delete. They are kept in `localStorage` under
+  `cosmolabe-viewer-scripts`, separate from the display preferences. If what is
+  stored there cannot be read, saving is disabled rather than risk overwriting
+  it. A save the browser refuses (for example, storage is full) is reported and
+  stays on screen until a later write succeeds.
+- **Verb reference** is collapsed by default and derived from `VERB_LIST`.
+
+Keys pressed inside the console stay in it. Escape from the editor closes
+whatever the editor has open, and otherwise just leaves the editor; it does not
+close the panel from there.
+
+### The Earth–Moon Scripted Tour
+
+The welcome screen's **Earth–Moon Scripted Tour** loads the kernel-free Earth +
+Moon scene and runs a script in the console. It follows Cosmographia's
+Earth–Moon scripting example, using the verbs the two programs share. Where the
+original uses something Cosmolabe has no verb for yet (`hideToolBar`,
+`showDirectionVector`, `circleCenterUp`), a comment in the script says so rather
+than faking it. Cosmolabe scripts are conceptually similar to Cosmographia's but
+are not source-compatible with its `cosmoscripting` Python API. The demo scripts
+live in `apps/viewer/src/lib/script-demo.svelte.ts`, and a unit test parses every
+one against the verb table.
 
 ## The read side
 

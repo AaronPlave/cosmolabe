@@ -1,76 +1,22 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ViewerControl } from '@cosmolabe/control';
-import { runWithTranscript, startScriptRun, type TranscriptEntry } from '../script-console';
+import { ScriptRunner, formatDuration, type RunnerState } from '../script-console';
 
-/** Just enough host for the verbs these tests use. */
-function host(objects: string[], calls: string[] = []): ViewerControl {
-  return {
+/**
+ * Just enough host for these tests. `wait` is deliberately absent from the
+ * log: the runner must use its own timer, never the host's.
+ */
+function fakeHost(objects: string[] = ['Moon', 'Earth']) {
+  const calls: string[] = [];
+  const loadListeners = new Set<() => void>();
+  let recording = false;
+  const host = {
     listObjects: () => objects,
     listViewpoints: () => [],
     gotoObject: (name: string) => { calls.push(`gotoObject ${name}`); return objects.includes(name); },
     deselect: () => { calls.push('deselect'); },
-    wait: async () => { calls.push('wait'); },
-    on: () => () => {},
-  } as unknown as ViewerControl;
-}
-
-async function run(source: string, h: ViewerControl) {
-  const snapshots: (readonly TranscriptEntry[])[] = [];
-  const result = await runWithTranscript(source, h, (e) => snapshots.push(e));
-  return { result, snapshots, final: snapshots.at(-1)! };
-}
-
-describe('runWithTranscript', () => {
-  it('streams one entry per statement, each running before it is ok', async () => {
-    const { result, snapshots, final } = await run('gotoObject Titan\n\n# settle\nwait 0\n', host(['Titan']));
-    expect(result).toMatchObject({ ok: true, ran: 2 });
-    expect(final.map((e) => [e.line, e.status])).toEqual([[1, 'ok'], [4, 'ok']]);
-    // The second statement was announced while the first had already settled.
-    expect(snapshots.some((s) => s.length === 2 && s[0].status === 'ok' && s[1].status === 'running')).toBe(true);
-  });
-
-  it('marks the failing line with its message and runs nothing after it', async () => {
-    const calls: string[] = [];
-    const { result, final } = await run('deselect\ngotoObject Titam\ndeselect', host(['Titan'], calls));
-    expect(result).toMatchObject({ ok: false, ran: 1 });
-    expect(final.map((e) => [e.line, e.status])).toEqual([[1, 'ok'], [2, 'error']]);
-    expect(final[1].message).toBe('gotoObject: no object named "Titam" (did you mean "Titan"?)');
-    expect(calls).toEqual(['deselect', 'gotoObject Titam']);
-  });
-
-  it('reports every syntax problem and runs nothing', async () => {
-    const calls: string[] = [];
-    const { result, final } = await run('gotoobject Titan\ndeselect\nsetFov wide', host(['Titan'], calls));
-    expect(result).toMatchObject({ ok: false, ran: 0 });
-    expect(final.map((e) => e.line)).toEqual([1, 3]);
-    expect(final.every((e) => e.status === 'error')).toBe(true);
-    expect(final[0].message).toContain('did you mean "gotoObject"?');
-    expect(calls).toEqual([]);
-  });
-
-  it('reports a verb the host cannot perform at its line', async () => {
-    const { final } = await run('deselect\nscreenshot', host([]));
-    expect(final.at(-1)).toMatchObject({ line: 2, status: 'error', message: 'screenshot is not supported by this viewer' });
-  });
-});
-
-/**
- * A host whose `wait` blocks until the test releases it, and whose `load`
- * event the test can fire — the two ways a run's scene goes away mid-`wait`.
- */
-function pausingHost(objects: string[]) {
-  const calls: string[] = [];
-  const loadListeners = new Set<() => void>();
-  let release: () => void = () => {};
-  let waiting: () => void = () => {};
-  const inWait = new Promise<void>((r) => { waiting = r; });
-  const h = {
-    ...host(objects, calls),
-    wait: () => {
-      calls.push('wait');
-      waiting();
-      return new Promise<void>((r) => { release = r; });
-    },
+    wait: () => { calls.push('HOST WAIT'); return new Promise<void>(() => {}); },
+    record: (on: boolean) => { calls.push(`record ${on}`); recording = on; return true; },
     on: (event: string, cb: () => void) => {
       if (event !== 'load') return () => {};
       loadListeners.add(cb);
@@ -78,76 +24,209 @@ function pausingHost(objects: string[]) {
     },
   } as unknown as ViewerControl;
   return {
-    host: h, calls, inWait, loadListeners,
-    release: () => release(),
+    host, calls, loadListeners,
+    get recording() { return recording; },
     load: () => { for (const cb of [...loadListeners]) cb(); },
   };
 }
 
-describe('startScriptRun cancellation', () => {
-  const SOURCE = 'deselect\nwait 5\ngotoObject Moon\ndeselect';
+function runner() {
+  const states: RunnerState[] = [];
+  const r = new ScriptRunner((s) => states.push(s));
+  return { r, states };
+}
 
-  it('ends the run while the wait is still pending when the console closes', async () => {
-    const h = pausingHost(['Moon']);
-    let final: readonly TranscriptEntry[] = [];
-    const run = startScriptRun(SOURCE, h.host, (e) => { final = e; });
-    await h.inWait;
-    run.cancel('the console closed');
-    // The wait is never released.
-    const result = await run.done;
+/** Let promise chains settle without moving the clock. */
+const flush = () => vi.advanceTimersByTimeAsync(0);
 
-    expect(result).toMatchObject({ ok: false, cancelled: true, ran: 1 });
-    expect(h.calls).toEqual(['deselect', 'wait']);
-    expect(final.map((e) => [e.line, e.status])).toEqual([[1, 'ok'], [2, 'cancelled']]);
-    expect(final[1].message).toContain('the console closed');
+beforeEach(() => { vi.useFakeTimers(); });
+afterEach(() => { vi.useRealTimers(); });
+
+describe('ScriptRunner', () => {
+  it('runs to completion, counting statements rather than lines', async () => {
+    const h = fakeHost();
+    const { r } = runner();
+    const done = r.run('deselect\n\n# comment\ngotoObject Moon\n', h.host);
+    const final = await done;
+    expect(final).toMatchObject({ phase: 'done', total: 2, completed: 2, activeLine: null, lines: { 1: 'done', 4: 'done' } });
+    expect(r.current.phase).toBe('done');
+    expect(h.calls).toEqual(['deselect', 'gotoObject Moon']);
   });
 
-  it('stops a script-started recording at once, without waiting out the wait', async () => {
-    const h = pausingHost([]);
-    let recording = false;
-    const records: boolean[] = [];
-    (h.host as unknown as { record: (on: boolean) => boolean }).record = (on) => {
-      records.push(on);
-      recording = on;
-      return true;
-    };
-    const run = startScriptRun('record on\nwait 3600\nrecord off', h.host, () => {});
-    await h.inWait;
-    expect(recording).toBe(true);
-    run.cancel('the console closed');
-    await run.done;
-    expect(recording).toBe(false);
-    expect(records).toEqual([true, false]);
+  it('reports every syntax problem, marks their lines, and runs nothing', async () => {
+    const h = fakeHost();
+    const { r } = runner();
+    const final = await r.run('gotoobject Moon\ndeselect\nsetFov wide', h.host);
+    expect(final.phase).toBe('failed');
+    expect(final.lines).toEqual({ 1: 'error', 3: 'error' });
+    expect(final.problems.map((p) => p.line)).toEqual([1, 3]);
+    expect(h.calls).toEqual([]);
   });
 
-  it('stops when a new catalog loads mid-wait, and lets go of the load event', async () => {
-    const h = pausingHost(['Moon']);
-    let final: readonly TranscriptEntry[] = [];
-    const run = startScriptRun(SOURCE, h.host, (e) => { final = e; });
-    await h.inWait;
-    expect(h.loadListeners.size).toBe(1);
-    h.load();
-    const result = await run.done;
-
-    expect(result).toMatchObject({ ok: false, cancelled: true });
-    expect(h.calls).not.toContain('gotoObject Moon');
-    expect(final.at(-1)).toMatchObject({ line: 2, status: 'cancelled' });
-    expect(final.at(-1)?.message).toContain('a new scene loaded');
-    expect(h.loadListeners.size).toBe(0);
-    // The abandoned wait finishing later changes nothing.
-    h.release();
-    await Promise.resolve();
-    expect(h.calls).not.toContain('gotoObject Moon');
+  it('marks a runtime failure on its line and stops there', async () => {
+    const h = fakeHost();
+    const { r } = runner();
+    const final = await r.run('deselect\ngotoObject Mooon\ndeselect', h.host);
+    expect(final).toMatchObject({ phase: 'failed', completed: 1, lines: { 1: 'done', 2: 'error' } });
+    expect(final.problems[0].message).toContain('did you mean "Moon"?');
+    expect(h.calls).toEqual(['deselect', 'gotoObject Mooon']);
   });
 
-  it('lets go of the load event after a run that finishes normally', async () => {
-    const h = pausingHost(['Moon']);
-    const run = startScriptRun(SOURCE, h.host, () => {});
-    await h.inWait;
-    h.release();
-    expect(await run.done).toMatchObject({ ok: true, ran: 4 });
-    expect(h.loadListeners.size).toBe(0);
-    // A load after the run is over cancels nothing and throws nothing.
-    h.load();
+  it('uses its own timer for wait, and counts it down', async () => {
+    const h = fakeHost();
+    const { r, states } = runner();
+    const done = r.run('wait 3\ndeselect', h.host);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(r.current).toMatchObject({ phase: 'running', activeLine: 1 });
+    expect(r.current.wait?.remaining).toBeCloseTo(1.8, 5);
+    await vi.advanceTimersByTimeAsync(1800);
+    expect((await done).phase).toBe('done');
+    expect(h.calls).toEqual(['deselect']);
+    expect(states.some((s) => s.wait?.total === 3)).toBe(true);
+  });
+
+  describe('pause', () => {
+    it('finishes the current statement, then holds before the next', async () => {
+      const h = fakeHost();
+      const { r } = runner();
+      // gotoObject resolves synchronously here, so pause lands at the gate after it.
+      const done = r.run('deselect\ngotoObject Moon\ndeselect', h.host);
+      r.pause();
+      await flush();
+      expect(r.current.phase).toBe('paused');
+      const heldAt = r.current.activeLine;
+      const callsWhenPaused = [...h.calls];
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(h.calls).toEqual(callsWhenPaused);
+      expect(r.current.activeLine).toBe(heldAt);
+      r.resume();
+      expect((await done).phase).toBe('done');
+    });
+
+    it('freezes a wait at once, and resumes it with the time it had left', async () => {
+      const h = fakeHost();
+      const { r } = runner();
+      const done = r.run('wait 10\ndeselect', h.host);
+      await vi.advanceTimersByTimeAsync(4000);
+      r.pause();
+      expect(r.current.phase).toBe('paused');
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(r.current.wait?.remaining).toBeCloseTo(6, 5);
+      expect(h.calls).toEqual([]);
+      r.resume();
+      await vi.advanceTimersByTimeAsync(5999);
+      expect(h.calls).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect((await done).phase).toBe('done');
+    });
+
+    it('excludes paused time from elapsed', async () => {
+      const h = fakeHost();
+      const { r } = runner();
+      const done = r.run('wait 2', h.host);
+      await vi.advanceTimersByTimeAsync(1000);
+      r.pause();
+      await vi.advanceTimersByTimeAsync(30_000);
+      r.resume();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect((await done).elapsedMs).toBe(2000);
+    });
+  });
+
+  describe('step', () => {
+    it('runs exactly one statement, then pauses again', async () => {
+      const h = fakeHost();
+      const { r } = runner();
+      const done = r.run('deselect\ngotoObject Moon\ngotoObject Earth\ndeselect', h.host);
+      r.pause();
+      await flush();
+      const before = h.calls.length;
+      r.step();
+      await flush();
+      expect(r.current.phase).toBe('paused');
+      expect(h.calls.length).toBe(before + 1);
+      r.step();
+      await flush();
+      expect(h.calls.length).toBe(before + 2);
+      r.resume();
+      expect((await done).phase).toBe('done');
+    });
+
+    it('through a held wait finishes the wait and pauses before the next statement', async () => {
+      const h = fakeHost();
+      const { r } = runner();
+      const done = r.run('wait 5\ndeselect\ndeselect', h.host);
+      await vi.advanceTimersByTimeAsync(1000);
+      r.pause();
+      r.step();
+      await vi.advanceTimersByTimeAsync(4000);
+      // Held before line 2: the rail is on what runs next, not the finished wait.
+      expect(r.current).toMatchObject({ phase: 'paused', activeLine: 2, completed: 1, wait: null, lines: { 1: 'done', 2: 'active' } });
+      expect(h.calls).toEqual([]);
+      r.step();
+      await flush();
+      expect(h.calls).toEqual(['deselect']);
+      r.stop();
+      await done;
+    });
+  });
+
+  describe('stop', () => {
+    it('ends a run mid-wait without the wait finishing, and stops its recording at once', async () => {
+      const h = fakeHost();
+      const { r } = runner();
+      const done = r.run('record on\nwait 3600\nrecord off', h.host);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(h.recording).toBe(true);
+      r.stop('the console closed');
+      const final = await done;
+      expect(final).toMatchObject({ phase: 'cancelled', stopReason: 'the console closed', lines: { 1: 'done', 2: 'cancelled' } });
+      expect(h.recording).toBe(false);
+      expect(h.calls).toEqual(['record true', 'record false']);
+    });
+
+    it('ends a paused run', async () => {
+      const h = fakeHost();
+      const { r } = runner();
+      const done = r.run('deselect\ndeselect\ndeselect', h.host);
+      r.pause();
+      await flush();
+      r.stop();
+      const final = await done;
+      expect(final.phase).toBe('cancelled');
+      expect(h.calls.length).toBeLessThan(3);
+    });
+
+    it('happens by itself when a new catalog loads, and releases the load event', async () => {
+      const h = fakeHost();
+      const { r } = runner();
+      const done = r.run('wait 60\ngotoObject Moon', h.host);
+      await flush();
+      expect(h.loadListeners.size).toBe(1);
+      h.load();
+      const final = await done;
+      expect(final).toMatchObject({ phase: 'cancelled', stopReason: 'a new scene loaded' });
+      expect(h.calls).not.toContain('gotoObject Moon');
+      expect(h.loadListeners.size).toBe(0);
+    });
+  });
+
+  it('ignores run while busy, and runs again once finished', async () => {
+    const h = fakeHost();
+    const { r } = runner();
+    const first = r.run('wait 1', h.host);
+    await flush();
+    await r.run('deselect', h.host);
+    expect(h.calls).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1000);
+    await first;
+    expect((await r.run('deselect', h.host)).phase).toBe('done');
+  });
+});
+
+describe('formatDuration', () => {
+  it('reads as seconds, then minutes', () => {
+    expect(formatDuration(26_400)).toBe('26.4s');
+    expect(formatDuration(65_000)).toBe('1m 05s');
   });
 });

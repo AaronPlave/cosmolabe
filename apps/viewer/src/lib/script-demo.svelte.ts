@@ -20,37 +20,53 @@ export interface ScriptDemo {
 export const SCRIPT_DEMOS: readonly ScriptDemo[] = [
   {
     id: 'script-tour',
-    label: 'Scripted Tour',
-    desc: 'Earth + Moon driven line by line from the Script console — no kernels',
+    label: 'Earth–Moon Scripted Tour',
+    desc: "Adapted from the Cosmographia scripting example; demonstrates the equivalent Cosmolabe viewer-control workflow",
     // Kernel-free on purpose: it loads instantly, so the first thing a visitor
     // sees is the script running rather than a download bar.
     catalog: 'earth-moon',
-    source: `# Every line is one ViewerControl call. Edit it and press Run.
+    source: `# Adapted from the Cosmographia Earth–Moon scripting example
+# (cosmoguide.org/scripting-example).
+# Cosmolabe scripts are conceptually similar but are not source-compatible
+# with Cosmographia's cosmoscripting Python API.
+# Where the original uses something Cosmolabe has no verb for yet, a comment
+# says so rather than faking it.
+
 setPlaying off
 setTime 2024-07-04T12:00:00Z
 viewpoint "Lunar Orbit"
-displayNote "A script is driving this view" 3
-wait 3
+displayNote "A short trip to the Earth and the Moon" 4
+wait 4
+# cosmo.hideToolBar() - no equivalent; the shell's rail stays put.
 
-gotoObject Moon 2
-displayNote "gotoObject Moon 2 - fly there over two seconds" 3
+gotoObject Earth 3
+displayNote "Earth" 3
 wait 3
+setFrame body-fixed Earth
+setTimeRate 1800
+setPlaying on
+displayNote "Body-fixed frame: the camera turns with the planet" 4
+wait 4
+setPlaying off
 
+gotoObject Moon 3
+displayNote "The Moon" 3
+wait 3
+setFrame body-fixed Moon
+# cosmo.showBodyFixedFrame / showLatLongGrid - Cosmolabe's layers are
+# scene-wide rather than per body.
+setLayer axes on
+setLayer grid on
+displayNote "The Moon's body-fixed axes and latitude/longitude grid" 5
+wait 5
+# Not yet in Cosmolabe: showDirectionVector (directions to other bodies)
+# and circleCenterUp (orbiting over the Moon's north pole).
+setLayer grid off
+setLayer axes off
+
+viewpoint "Lunar Orbit"
 setTimeRate 3600
 setPlaying on
-displayNote "setTimeRate 3600 - one hour per second" 4
-wait 4
-
-gotoObject Earth 2
-wait 2
-setFrame body-fixed Earth
-displayNote "setFrame body-fixed Earth - the camera turns with the planet" 4
-wait 4
-
-setLayer labels off
-displayNote "setLayer labels off" 2
-wait 2
-setLayer labels on
 displayNote "Try Snapshot to turn what you see into a script"
 `,
   },

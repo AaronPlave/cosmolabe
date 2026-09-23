@@ -163,7 +163,13 @@
     // Let command palette handle all keys when open (arrow nav, typing, etc.)
     if (commandPaletteOpen) return;
 
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    // Text entry of any kind, contenteditable included — the script editor is
+    // one, and a bare `t` typed into it must not toggle trajectories.
+    if (
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement ||
+      (e.target instanceof HTMLElement && e.target.isContentEditable)
+    ) return;
 
     const renderer = getRenderer();
     if (!renderer) return;

@@ -205,3 +205,42 @@ describe('cancellation', () => {
     expect(host.calls).toEqual([]);
   });
 });
+
+describe('beforeStatement gate', () => {
+  it('holds the run between statements until the gate opens', async () => {
+    const host = new FakeViewer();
+    let open: () => void = () => {};
+    const gates: number[] = [];
+    const running = execute(parse(['runTo 1', 'runTo 2', 'runTo 3'].join('\n')), host, {
+      beforeStatement: (s) => {
+        gates.push(s.line);
+        // Hold before line 2 only — a pause after line 1.
+        if (s.line === 2) return new Promise<void>((r) => { open = r; });
+      },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(host.calls).toEqual(['runTo(1)']);
+    open();
+    await running;
+    expect(host.calls).toEqual(['runTo(1)', 'runTo(2)', 'runTo(3)']);
+    expect(gates).toEqual([1, 2, 3]);
+  });
+
+  it('ends a run held at the gate the moment it is cancelled', async () => {
+    const host = new FakeViewer();
+    const controller = new AbortController();
+    const announced: number[] = [];
+    const running = execute(parse(['runTo 1', 'runTo 2'].join('\n')), host, {
+      signal: controller.signal,
+      beforeStatement: (s) => (s.line === 2 ? new Promise<void>(() => {}) : undefined),
+      onStatement: (s) => announced.push(s.line),
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    controller.abort();
+    await expect(running).rejects.toMatchObject({
+      problems: [{ kind: 'cancelled', line: 2, message: 'cancelled before this statement ran' }],
+      ran: 1,
+    });
+    expect(announced).toEqual([1]);
+  });
+});

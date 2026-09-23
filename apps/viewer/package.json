@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Cosmolabe Viewer \u2014 space mission visualization",
+  "description": "Cosmolabe Viewer — space mission visualization",
   "author": "Aaron Plave",
   "repository": {
     "type": "git",
@@ -20,12 +20,19 @@
     "test:visual:update": "UPDATE_VISUAL_GOLDENS=1 node ../../scripts/visual-regression.mjs"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
     "@cosmolabe/control": "*",
     "@cosmolabe/core": "*",
     "@cosmolabe/frames": "*",
     "@cosmolabe/three": "*",
     "@fontsource-variable/martian-mono": "^5.3.0",
     "@fontsource-variable/public-sans": "^5.3.0",
+    "@lezer/highlight": "^1.2.3",
     "@lucide/svelte": "^1.8.0",
     "bits-ui": "^2.18.0",
     "clsx": "^2.1.1",

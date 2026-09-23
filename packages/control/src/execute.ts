@@ -146,6 +146,24 @@ export async function execute(
       });
     }
 
+    if (opts.beforeStatement) {
+      try {
+        await untilSettledOrAborted(opts.beforeStatement(statement), opts.signal);
+      } catch (err) {
+        if (err !== CANCELLED) throw err;
+      }
+      // Held at the gate when Stop came: this statement is the first not to run.
+      if (opts.signal?.aborted) {
+        throw abort(statement, {
+          kind: 'cancelled',
+          line: statement.line,
+          verb: spec.name,
+          message: 'cancelled before this statement ran',
+          text: statement.text,
+        });
+      }
+    }
+
     opts.onStatement?.(statement);
 
     // An optional method the host did not implement is a capability it does not

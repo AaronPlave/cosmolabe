@@ -283,6 +283,17 @@ export interface ScriptCancelSignal {
 }
 
 export interface ExecuteOptions {
+  /**
+   * Awaited before each statement, after the cancellation check and before
+   * `onStatement`: a gate. Resolving lets the statement run; a promise that
+   * has not resolved yet holds the run between statements. That is what a
+   * console's Pause and Step are, and it is why pausing means "after the
+   * current statement" — nothing in flight is frozen.
+   *
+   * Aborting `signal` while the gate is held ends the run at once, so Stop
+   * works on a paused script.
+   */
+  beforeStatement?(statement: Statement): void | Promise<void>;
   /** Called before each statement runs — the console's streaming transcript. */
   onStatement?(statement: Statement): void;
   /**

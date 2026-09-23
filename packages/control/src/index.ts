@@ -36,3 +36,7 @@ export type { ScriptProblem, ScriptProblemKind } from './errors.js';
 export { VERBS, VERB_LIST, VERB_NAMES, FRAME_MODES, LAYERS, verbUsage } from './verbs.js';
 export type { ParamType, VerbParam, VerbPreset, VerbSpec } from './verbs.js';
 export { suggest } from './suggest.js';
+
+// Editor support
+export { cursorContext, completionsAt, signatureAt } from './complete.js';
+export type { CursorContext, ScriptCompletion, CompletionNames, ScriptSignature } from './complete.js';
