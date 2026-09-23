@@ -34,6 +34,7 @@ import type { Vec3 } from '../spice-injection.js';
 import type { Oem } from '@cosmolabe/interop';
 import type { StateRecord } from './InterpolatedStates.js';
 import type { InertialFrameName } from '../rotations/RotationModel.js';
+import { DEFAULT_FRAMES } from '../frames/FrameRegistry.js';
 
 /** Time systems we can hand to SPICE and get an exact answer for. CSPICE's
  *  str2et reads a trailing system token, so the conversion is the file's own
@@ -46,49 +47,36 @@ const SUPPORTED_TIME_SYSTEMS: Record<string, string> = {
 };
 
 /**
- * Map an OEM `REF_FRAME` onto the inertial frame the states are expressed in.
- *
- * EME2000, J2000 and ICRF are the same equatorial frame for our purposes (ICRF
- * and J2000 differ by well under an arcsecond — far below anything this
- * pipeline resolves). Returns undefined for a frame we don't recognize, which
- * the caller should treat as "cannot verify" rather than "no frame".
+ * The frame-registry name for an OEM `REF_FRAME` (CCSDS 502.0 names:
+ * `EME2000`, `ICRF`, `GCRF`, `TEME`, `TOD`, `ITRF-93`, `ITRF2000`, `TDR`, …).
+ * Returns undefined when the file declares none or the registry does not know
+ * the name (`MCI`, a mission frame) — the catalog's `trajectoryFrame` applies
+ * then. An unknown name may still be a SPICE frame; the loader's
+ * `trajectoryFrame` can say so explicitly.
  */
-export function oemRefFrameToInertial(refFrame: string | undefined): InertialFrameName | undefined {
-  if (!refFrame) return undefined;
-  switch (refFrame.trim().toUpperCase()) {
-    case 'EME2000':
-    case 'J2000':
-    case 'ICRF':
-    case 'GCRF':
-      return 'EquatorJ2000';
-    case 'ECLIPJ2000':
-    case 'ECLIPTIC':
-      return 'EclipticJ2000';
-    default:
-      return undefined;
-  }
+export function oemFrameName(refFrame: string | undefined): string | undefined {
+  if (!refFrame || !refFrame.trim()) return undefined;
+  return DEFAULT_FRAMES.get(refFrame)?.name;
 }
 
-/** What a catalog item's 3-bucket `trajectoryFrame` means as an inertial frame. */
-function itemFrameToInertial(trajectoryFrame: string | undefined): InertialFrameName | undefined {
-  switch (trajectoryFrame) {
-    case undefined:
-    case 'ecliptic':
-    case 'EclipticJ2000':
-    case 'ECLIPJ2000':
-      return 'EclipticJ2000';
-    case 'equatorial':
-    case 'EquatorJ2000':
-    case 'J2000':
-      return 'EquatorJ2000';
-    default:
-      return undefined;
-  }
+/**
+ * Map an OEM `REF_FRAME` onto the two J2000 inertial frames of the old
+ * three-bucket model.
+ *
+ * @deprecated Use `oemFrameName`, which keeps TEME, ICRF, EME2000 and ITRF
+ * apart instead of collapsing them. Returns undefined for anything that is
+ * neither J2000-equatorial nor J2000-ecliptic.
+ */
+export function oemRefFrameToInertial(refFrame: string | undefined): InertialFrameName | undefined {
+  const name = oemFrameName(refFrame);
+  if (name === 'EME2000' || name === 'ICRF') return 'EquatorJ2000';
+  if (name === 'ECLIPJ2000') return 'EclipticJ2000';
+  return undefined;
 }
 
 export interface OemFrameCheck {
-  /** True when the file's frame and the catalog item's frame agree, or when
-   *  one of them is unrecognized and no claim can be made. */
+  /** True when the catalog item declares no frame, or one that agrees with
+   *  the file's, or when either is unrecognized and no claim can be made. */
   readonly ok: boolean;
   /** Human-readable explanation when `ok` is false. */
   readonly message?: string;
@@ -98,27 +86,31 @@ export interface OemFrameCheck {
  * Check an OEM's declared reference frame against the catalog item's
  * `trajectoryFrame`.
  *
- * This exists because the failure it catches is silent and expensive. A child
- * whose declared frame does not match the frame its states are actually in
- * still renders — it just renders in the wrong place, off by the J2000
- * obliquity (23.44 degrees) about the parent. At Psyche and Voyager distances
- * that put trajectory lines roughly 12 million km from the body they belong
- * to, and nothing in the pipeline complained. An OEM makes the mismatch
- * checkable for the first time, because the file states its own frame.
+ * The file's `REF_FRAME` is the frame of record — the loader tags the
+ * trajectory with it and the frame registry rotates from it — so a catalog
+ * that declares nothing is fine. A catalog that declares a *different* frame
+ * is reported: it used to decide where the states were drawn, and it is how
+ * Psyche and Voyager ended up ~12 million km off their bodies (the J2000
+ * obliquity, 23.44°, about the parent), so an author relying on it should
+ * hear that it no longer applies.
  */
 export function checkOemFrame(oem: Oem, trajectoryFrame: string | undefined): OemFrameCheck {
-  const fileFrame = oemRefFrameToInertial(oem.metadata.refFrame);
-  const itemFrame = itemFrameToInertial(trajectoryFrame);
+  if (trajectoryFrame === undefined) return { ok: true };
+  const fileFrame = oemFrameName(oem.metadata.refFrame);
+  const itemFrame = DEFAULT_FRAMES.get(trajectoryFrame)?.name;
   if (!fileFrame || !itemFrame) return { ok: true };
-  if (fileFrame === itemFrame) return { ok: true };
+  if (DEFAULT_FRAMES.sameFrame(fileFrame, itemFrame)) return { ok: true };
+  // EME2000 and ICRF are distinct names for what SPICE (and this registry)
+  // treat as one orientation; declaring one for a file in the other is not an
+  // error worth a warning.
+  const eq = (f: string) => f === 'EME2000' || f === 'ICRF';
+  if (eq(fileFrame) && eq(itemFrame)) return { ok: true };
   return {
     ok: false,
     message:
       `OEM frame mismatch: the file declares REF_FRAME=${oem.metadata.refFrame} ` +
-      `(${fileFrame}) but the catalog item declares trajectoryFrame=` +
-      `${trajectoryFrame ?? '(default ecliptic)'} (${itemFrame}). The states will be ` +
-      `rendered as if they were ${itemFrame}, placing them off by the J2000 obliquity ` +
-      `(23.44 degrees) about the parent body. Set trajectoryFrame to match the file.`,
+      `(${fileFrame}) but the catalog item declares trajectoryFrame=${trajectoryFrame} ` +
+      `(${itemFrame}). The file's frame is used; remove trajectoryFrame or set it to match.`,
   };
 }
 

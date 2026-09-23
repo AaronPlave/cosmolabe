@@ -10,7 +10,8 @@
  *
  * What this pins, in order of how much it would hurt to get wrong:
  *   1. epoch conversion goes through SPICE, so leap seconds are real;
- *   2. a frame mismatch between file and catalog is reported, not silent;
+ *   2. the file's REF_FRAME is the frame of record, and a catalog frame that
+ *      contradicts it is reported, not silently used;
  *   3. an unconvertible time system is refused rather than guessed at;
  *   4. the tabulated states survive the trip into the interpolator.
  */
@@ -23,8 +24,11 @@ import {
   oemToStateRecords,
   oemEpochToEt,
   oemRefFrameToInertial,
+  oemFrameName,
   checkOemFrame,
 } from '../trajectories/OemAdapter.js';
+import { Universe } from '../Universe.js';
+import { OBLIQUITY_J2000_RAD } from '../constants.js';
 import { InterpolatedStatesTrajectory } from '../trajectories/InterpolatedStates.js';
 import { CatalogLoader } from '../catalog/CatalogLoader.js';
 import type { CatalogJson } from '../catalog/CatalogLoader.js';
@@ -117,22 +121,36 @@ describe('CCSDS OEM ingest', () => {
       expect(oemRefFrameToInertial(undefined)).toBeUndefined();
     });
 
-    it('reports a mismatch against the catalog frame, naming the consequence', () => {
+    it('names every CCSDS frame the registry knows, keeping them apart', () => {
+      expect(oemFrameName('EME2000')).toBe('EME2000');
+      expect(oemFrameName('ICRF')).toBe('ICRF');
+      expect(oemFrameName('GCRF')).toBe('ICRF');
+      expect(oemFrameName('TEME')).toBe('TEME');
+      expect(oemFrameName('TOD')).toBe('TOD');
+      expect(oemFrameName('ITRF-93')).toBe('ITRF');
+      expect(oemFrameName('ITRF2000')).toBe('ITRF');
+      expect(oemFrameName('TDR')).toBe('ITRF');
+      expect(oemFrameName('MCI')).toBeUndefined();
+      expect(oemFrameName(undefined)).toBeUndefined();
+    });
+
+    it('reports a catalog frame that contradicts the file', () => {
       const oem = parseOem(OEM_TEXT); // EME2000, i.e. equatorial
-      // The catalog default is ecliptic, so declaring nothing is a mismatch —
-      // and this is the common way to get it wrong.
-      const bad = checkOemFrame(oem, undefined);
+      // Declaring nothing is fine now: the file's own frame is used.
+      expect(checkOemFrame(oem, undefined).ok).toBe(true);
+
+      const bad = checkOemFrame(oem, 'ecliptic');
       expect(bad.ok).toBe(false);
       expect(bad.message).toMatch(/EME2000/);
-      expect(bad.message).toMatch(/23\.44/);
-
-      expect(checkOemFrame(oem, 'ecliptic').ok).toBe(false);
+      expect(bad.message).toMatch(/file's frame is used/);
       expect(checkOemFrame(oem, 'J2000').ok).toBe(true);
       expect(checkOemFrame(oem, 'equatorial').ok).toBe(true);
+      expect(checkOemFrame(oem, 'ICRF').ok).toBe(true);
+      expect(checkOemFrame(oem, 'TEME').ok).toBe(false);
     });
 
     it('makes no claim when either side is unrecognized', () => {
-      const oem = parseOem(OEM_TEXT.replace('REF_FRAME = EME2000', 'REF_FRAME = ITRF93'));
+      const oem = parseOem(OEM_TEXT.replace('REF_FRAME = EME2000', 'REF_FRAME = MCI'));
       expect(checkOemFrame(oem, 'ecliptic').ok).toBe(true);
     });
   });
@@ -216,22 +234,46 @@ describe('CCSDS OEM ingest', () => {
       }
     });
 
+    it('takes the frame from REF_FRAME, so the catalog need not declare one', () => {
+      const loader = new CatalogLoader({ spice, resolveFile: () => OEM_TEXT });
+      const { bodies } = loader.load(catalogWith());
+      const mgs = bodies.find((b) => b.name === 'MGS')!;
+      expect(mgs.frame).toBe('EME2000');
+    });
+
+    it('places the states by the file frame, with no app-side rotation', () => {
+      // The acceptance case of #101: an EME2000 OEM loads as-is and lands where
+      // the file says, i.e. rotated into the ecliptic scene frame by the J2000
+      // obliquity, not drawn raw as if it were already ecliptic.
+      const u = new Universe(spice, { resolveFile: () => OEM_TEXT });
+      u.loadCatalog(catalogWith());
+      const et = str2et(`${EXPECTED[0]!.epoch.replace('T', ' ')} UTC`);
+      const [x, y, z] = EXPECTED[0]!.p as [number, number, number];
+      const c = Math.cos(OBLIQUITY_J2000_RAD);
+      const sn = Math.sin(OBLIQUITY_J2000_RAD);
+      const expected = [x, c * y + sn * z, -sn * y + c * z];
+      const got = u.absolutePositionOf('MGS', et);
+      for (let i = 0; i < 3; i++) expect(got[i]).toBeCloseTo(expected[i]!, 9);
+    });
+
     it('warns rather than throwing when the catalog frame contradicts the file', () => {
       const warnings: string[] = [];
       const original = console.warn;
       console.warn = (...args: unknown[]) => void warnings.push(args.join(' '));
+      let frame: string | undefined;
       try {
         const loader = new CatalogLoader({
           spice,
           resolveFile: () => OEM_TEXT,
         });
-        // No trajectoryFrame, so the catalog default (ecliptic) contradicts
-        // the file's EME2000. The body still loads — that is the hazard.
-        const { bodies } = loader.load(catalogWith());
-        expect(bodies.find((b) => b.name === 'MGS')).toBeDefined();
+        // The catalog says ecliptic; the file says EME2000. The body loads in
+        // the file's frame and the contradiction is reported.
+        const { bodies } = loader.load(catalogWith('ecliptic'));
+        frame = bodies.find((b) => b.name === 'MGS')?.frame;
       } finally {
         console.warn = original;
       }
+      expect(frame).toBe('EME2000');
       expect(warnings.join('\n')).toMatch(/frame mismatch/i);
       expect(warnings.join('\n')).toMatch(/MGS/);
     });

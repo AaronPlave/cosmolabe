@@ -15,7 +15,9 @@ export class SpiceTrajectory implements Trajectory {
   /** SPICE center body name (e.g. 'SATURN', 'SUN') */
   get spiceCenter(): string { return this.center; }
   /** SPICE reference frame (e.g. 'ECLIPJ2000', 'J2000') */
-  get spiceFrame(): string { return this.frame; }
+  get spiceFrame(): string { return this.spiceFrameName; }
+  /** The frame states are returned in: the SPICE frame they are queried in. */
+  get frame(): string { return this.spiceFrameName; }
 
   get startTime(): number | undefined {
     this.queryCoverage();
@@ -31,7 +33,7 @@ export class SpiceTrajectory implements Trajectory {
     private readonly spice: SpiceInstance,
     private readonly target: string,
     private readonly center: string,
-    private readonly frame: string,
+    private readonly spiceFrameName: string,
   ) {}
 
   private queryCoverage(): void {
@@ -63,7 +65,7 @@ export class SpiceTrajectory implements Trajectory {
 
   stateAt(et: number): CartesianState {
     try {
-      const result = this.spice.spkezr(this.target, et, this.frame, 'NONE', this.center);
+      const result = this.spice.spkezr(this.target, et, this.spiceFrameName, 'NONE', this.center);
       return {
         position: [result.state[0], result.state[1], result.state[2]] as Vec3,
         velocity: [result.state[3], result.state[4], result.state[5]] as Vec3,

@@ -197,12 +197,12 @@ function samplePositions(
 
     if (isNaN(pos[0])) continue;
 
-    // If body's trajectory is already in equatorial frame (e.g. TLE/TEME),
-    // just convert km→meters. Otherwise, rotate from ecliptic to equatorial.
-    const isEquatorial = body.trajectoryFrame === 'equatorial';
-    const cesiumPos: [number, number, number] = isEquatorial
-      ? [pos[0] * 1000, pos[1] * 1000, pos[2] * 1000]
-      : positionForCesium(pos);
+    // `absolutePositionOf` returns the scene frame (ECLIPJ2000) whatever the
+    // body's own trajectory frame, so every sample rotates ecliptic → ICRF.
+    // (Keying this on an "equatorial" trajectory frame put TLE bodies into
+    // ICRF unrotated, ~23.44° off, once the parent chain reached an
+    // ecliptic root.)
+    const cesiumPos: [number, number, number] = positionForCesium(pos);
     samples.push(et - startEt, cesiumPos[0], cesiumPos[1], cesiumPos[2]);
     hasValidSample = true;
   }

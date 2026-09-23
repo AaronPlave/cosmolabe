@@ -722,7 +722,7 @@ export class BodyMesh extends THREE.Object3D {
         // obliquity for EquatorJ2000-sourced rotations like Earth's; identity
         // for ECLIPJ2000 / SPICE-named frames). Returns [w,x,y,z]; THREE
         // stores [x,y,z,w].
-        const bw = composeBodyToWorldQuat(q, rotation.sourceFrame);
+        const bw = composeBodyToWorldQuat(q, rotation.sourceFrame, undefined, et);
         const bodyToWorld = _tmpQ.set(bw[1], bw[2], bw[3], bw[0]);
         // Compose: (body → world) * (model → body) = model → world
         target.quaternion.multiplyQuaternions(bodyToWorld, this.meshRotationQ);

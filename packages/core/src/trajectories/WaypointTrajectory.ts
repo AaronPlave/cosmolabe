@@ -1,5 +1,6 @@
 import type { Vec3 } from '../spice-injection.js';
 import type { CartesianState, Trajectory } from './Trajectory.js';
+import { BODY_FIXED } from '../frames/FrameRegistry.js';
 
 export interface Waypoint {
   /** ET seconds (J2000 TDB). Use the loader to convert UTC strings or epoch+offset. */
@@ -13,10 +14,10 @@ export interface Waypoint {
 /**
  * A body-fixed trajectory expressed as a small list of (lat, lon, alt) keyframes.
  *
- * Output positions are body-fixed Cartesian with radius = referenceRadius + alt.
- * The catalog must set the body's `trajectoryFrame` to "BodyFixed" so the
- * Universe rotates samples by the parent's rotation conjugate before stacking
- * the parent's inertial position.
+ * Output positions are body-fixed Cartesian with radius = referenceRadius + alt,
+ * and the trajectory declares that (`frame` is `BODY_FIXED`): the Universe
+ * rotates samples out of the center body's body-fixed frame before stacking
+ * the parent's inertial position, whatever the catalog's `trajectoryFrame`.
  *
  * Interpolation uses C¹ cubic Hermite splines with centered-difference tangents.
  * Linear interpolation made position continuous but velocity discontinuous at
@@ -37,6 +38,7 @@ export class WaypointTrajectory implements Trajectory {
    * with absolute altitudes pre-computed from an offline DEM.
    */
   readonly useAbsoluteAlt: boolean;
+  readonly frame = BODY_FIXED;
   readonly startTime: number;
   readonly endTime: number;
 

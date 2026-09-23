@@ -746,6 +746,8 @@ function initScene(
           vpDef.longitude ?? 0,
           q,
           sourceFrame,
+          undefined,
+          layoutEt,
         );
         pos = { x, y, z };
       } else {

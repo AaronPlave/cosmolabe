@@ -7,7 +7,7 @@ import { SpiceTrajectory } from '../trajectories/SpiceTrajectory.js';
 import { CompositeTrajectory } from '../trajectories/CompositeTrajectory.js';
 import { InterpolatedStatesTrajectory, type StateRecord } from '../trajectories/InterpolatedStates.js';
 import { parseOem } from '@cosmolabe/interop';
-import { oemToStateRecords, checkOemFrame } from '../trajectories/OemAdapter.js';
+import { oemToStateRecords, checkOemFrame, oemFrameName } from '../trajectories/OemAdapter.js';
 import { parseXyzv } from '../trajectories/XyzvParser.js';
 import { etFromCalendarString } from '../time.js';
 import { TLETrajectory } from '../trajectories/TLETrajectory.js';
@@ -24,6 +24,14 @@ import { SurfaceUpRotation } from '../rotations/SurfaceUpRotation.js';
 import { FixedRotation } from '../rotations/FixedRotation.js';
 import { FixedEulerRotation } from '../rotations/FixedEulerRotation.js';
 import { InterpolatedRotation, parseQFile } from '../rotations/InterpolatedRotation.js';
+import {
+  BODY_FIXED,
+  FrameRegistry,
+  WORLD_FRAME,
+  bodyFixedFrameName,
+  isStateDependentFrameName,
+  type FixedFrameSpec,
+} from '../frames/FrameRegistry.js';
 
 /**
  * A SPICE kernel reference inside a catalog. Bare strings are Cosmographia-native;
@@ -76,6 +84,13 @@ export interface CatalogJson {
   defaultTime?: string;
   /** Name of a Viewpoint item to apply as the initial camera view when this catalog loads */
   defaultViewpoint?: string;
+  /**
+   * Cosmolabe-only: frames this catalog declares, each a fixed rotation from a
+   * base frame (`{ "name": "MY_FRAME", "base": "EME2000", "quaternion": [w, x, y, z] }`
+   * or a row-major `"matrix"`). Registered before any item loads, so items'
+   * `trajectoryFrame` and rotation `inertialFrame` can name them.
+   */
+  frames?: FixedFrameSpec[];
 }
 
 export interface TrajectoryPlotSpec {
@@ -560,6 +575,10 @@ export interface CatalogLoaderOptions {
   trajectoryFactories?: Record<string, TrajectoryFactory>;
   /** Custom rotation factories keyed by type string. Checked before built-in types. */
   rotationFactories?: Record<string, RotationFactory>;
+  /** The frame registry catalog `frames` are registered into and frame names
+   *  are resolved against. `Universe` passes its own; a standalone loader
+   *  makes one. */
+  frames?: FrameRegistry;
 }
 
 export class CatalogLoader {
@@ -568,21 +587,59 @@ export class CatalogLoader {
   private readonly resolveFileBinary?: (source: string) => ArrayBuffer | undefined;
   private readonly trajectoryFactories?: Record<string, TrajectoryFactory>;
   private readonly rotationFactories?: Record<string, RotationFactory>;
+  private frames: FrameRegistry;
   /** Epoch (ET) used to probe whether SPICE kernels have coverage. Set from catalog's defaultTime. */
   private probeEpoch = 0;
 
   constructor(spiceOrOptions?: SpiceInstance | CatalogLoaderOptions) {
-    if (!spiceOrOptions) return;
+    let frames: FrameRegistry | undefined;
     // Distinguish SpiceInstance (has furnish method) from options object
-    if (typeof (spiceOrOptions as SpiceInstance).furnish === 'function') {
+    if (spiceOrOptions && typeof (spiceOrOptions as SpiceInstance).furnish === 'function') {
       this.spice = spiceOrOptions as SpiceInstance;
-    } else {
+    } else if (spiceOrOptions) {
       const opts = spiceOrOptions as CatalogLoaderOptions;
       this.spice = opts.spice;
       this.resolveFile = opts.resolveFile;
       this.resolveFileBinary = opts.resolveFileBinary;
       this.trajectoryFactories = opts.trajectoryFactories;
       this.rotationFactories = opts.rotationFactories;
+      frames = opts.frames;
+    }
+    this.frames = frames ?? new FrameRegistry({ spice: this.spice });
+  }
+
+  /** The frame to ask SPICE for when a catalog names `frame`: its SPICE
+   *  spelling (`EclipticJ2000` → `ECLIPJ2000`, `EME2000` → `J2000`), the
+   *  center's `IAU_` frame for `BodyFixed`, and J2000 for frames SPICE cannot
+   *  know (TEME, declared frames). The trajectory or rotation then reports the
+   *  frame it actually used, and the registry does the rest. */
+  private spiceFrame(frame: string | undefined, center: string | undefined, fallback = 'ECLIPJ2000'): string {
+    if (frame === undefined) return fallback;
+    const canonical = this.frames.canonicalName(frame);
+    if (canonical === BODY_FIXED) return center ? bodyFixedFrameName(center) : 'J2000';
+    return this.frames.spiceName(canonical) ?? 'J2000';
+  }
+
+  /** Warn once, at load, about a frame nothing will be able to resolve —
+   *  `Universe` passes unresolvable frames through unrotated rather than
+   *  failing every frame, so this is the only place the mistake surfaces. */
+  private checkFrameName(owner: string, frame: string | undefined): void {
+    if (frame === undefined) return;
+    if (isStateDependentFrameName(frame)) {
+      console.warn(
+        `[Cosmolabe] "${owner}": trajectoryFrame "${frame}" is a spacecraft-state-dependent frame ` +
+          `(LVLH/RIC family). Those are not supported as a trajectory frame; states are used unrotated. ` +
+          `Express the trajectory in an inertial or body-fixed frame.`,
+      );
+      return;
+    }
+    const canonical = this.frames.canonicalName(frame);
+    if (canonical === BODY_FIXED || canonical.startsWith('IAU_')) return;
+    if (!this.spice && !this.frames.get(canonical)) {
+      console.warn(
+        `[Cosmolabe] "${owner}": unknown frame "${frame}" and no SPICE instance to resolve it; ` +
+          `states are used unrotated. Declare it in the catalog's "frames" or use a registered frame.`,
+      );
     }
   }
 
@@ -594,6 +651,14 @@ export class CatalogLoader {
       try {
         this.probeEpoch = this.spice.str2et(json.defaultTime);
       } catch { /* keep default 0 */ }
+    }
+
+    for (const spec of json.frames ?? []) {
+      try {
+        this.frames.defineFixedFrame(spec);
+      } catch (err) {
+        console.warn(`[Cosmolabe] catalog frame ${JSON.stringify(spec?.name)}:`, err instanceof Error ? err.message : err);
+      }
     }
 
     const bodies: Body[] = [];
@@ -722,15 +787,12 @@ export class CatalogLoader {
 
     const trajectoryPlot = this.parseTrajectoryPlot(item.trajectoryPlot);
 
-    // TLE trajectories output in TEME (≈equatorial), not ecliptic.
-    // FixedSpherical takes lat/lon which is intrinsically body-fixed (rotates with parent).
-    // Catalog may also specify trajectoryFrame explicitly.
-    let trajectoryFrame: 'ecliptic' | 'equatorial' | 'body-fixed' | undefined;
-    if (item.trajectoryFrame === 'J2000' || item.trajectory?.type === 'TLE') {
-      trajectoryFrame = 'equatorial';
-    } else if (item.trajectoryFrame === 'BodyFixed' || item.trajectory?.type === 'FixedSpherical' || item.trajectory?.type === 'Waypoints') {
-      trajectoryFrame = 'body-fixed';
-    }
+    // The body's frame is named, not classified: the catalog's
+    // `trajectoryFrame` passes through to Body, which lets a trajectory that
+    // knows its own frame override it (TLE → TEME, FixedSpherical and
+    // Waypoints → BODY_FIXED, SPICE → the frame it queried, OEM → REF_FRAME).
+    const trajectoryFrame = item.trajectoryFrame;
+    this.checkFrameName(item.name, trajectoryFrame);
 
     const body = new Body({
       name: item.name,
@@ -789,6 +851,7 @@ export class CatalogLoader {
         startTime,
         endTime,
         centerName: arc.center ?? item.center,
+        frame: arc.trajectoryFrame ?? item.trajectoryFrame,
         showLine: arc.showLine,
         numKeySamples: arc.numKeySamples,
       };
@@ -800,7 +863,7 @@ export class CatalogLoader {
   private buildTrajectory(spec: TrajectorySpec | undefined, item: CatalogItem): Trajectory {
     if (!spec) {
       if (this.spice) {
-        return new SpiceTrajectory(this.spice, item.name, item.center ?? 'SUN', item.trajectoryFrame ?? 'ECLIPJ2000');
+        return new SpiceTrajectory(this.spice, item.name, item.center ?? 'SUN', this.spiceFrame(item.trajectoryFrame, item.center ?? 'SUN'));
       }
       return new FixedPointTrajectory([0, 0, 0]);
     }
@@ -847,7 +910,7 @@ export class CatalogLoader {
         if (this.spice) {
           const target = info?.target ?? bodyName;
           const center = item.center ?? info?.center ?? 'SUN';
-          const frame = item.trajectoryFrame ?? 'ECLIPJ2000';
+          const frame = this.spiceFrame(item.trajectoryFrame, center);
           const spiceTraj = new SpiceTrajectory(this.spice, target, center, frame);
           // Probe: check if SPICE actually has data for this body at the catalog's epoch
           try {
@@ -885,7 +948,7 @@ export class CatalogLoader {
           this.spice,
           spec.target ?? item.name,
           spec.center ?? item.center ?? 'SUN',
-          item.trajectoryFrame ?? 'ECLIPJ2000',
+          this.spiceFrame(item.trajectoryFrame, spec.center ?? item.center ?? 'SUN'),
         );
 
       case 'InterpolatedStates': {
@@ -933,8 +996,12 @@ export class CatalogLoader {
           // fine and lands the body ~23.44 degrees off about its parent, which
           // is exactly the class of bug that went unnoticed on Psyche and
           // Voyager. The file declares its own frame, so we can finally check.
+          // The file's REF_FRAME is the frame of record: the states are in
+          // it, so the trajectory declares it and Universe rotates from it.
+          // A catalog trajectoryFrame that disagrees is reported, not used.
           const frameCheck = checkOemFrame(oem, item.trajectoryFrame);
           if (!frameCheck.ok) console.warn(`"${item.name}": ${frameCheck.message}`);
+          const oemFrame = oemFrameName(oem.metadata.refFrame);
           const records = oemToStateRecords(oem, (t) => this.spice!.str2et(t));
           if (records.length < 2) {
             console.warn(
@@ -943,7 +1010,7 @@ export class CatalogLoader {
             );
             return new FixedPointTrajectory([0, 0, 0]);
           }
-          return new InterpolatedStatesTrajectory(records);
+          return new InterpolatedStatesTrajectory(records, { frame: oemFrame });
         } catch (e) {
           console.warn(
             `OEM trajectory for "${item.name}": ${e instanceof Error ? e.message : String(e)}`,
@@ -1014,7 +1081,7 @@ export class CatalogLoader {
           r * Math.cos(latRad) * Math.cos(lonRad),
           r * Math.cos(latRad) * Math.sin(lonRad),
           r * Math.sin(latRad),
-        ]);
+        ], { frame: BODY_FIXED });
       }
 
       case 'Waypoints': {
@@ -1106,9 +1173,8 @@ export class CatalogLoader {
         // Use the trajectory's inertial frame so the rotation matches body positions.
         // Without this, a body with trajectoryFrame=J2000 but rotation in ECLIPJ2000
         // creates a ~23.4° offset (ecliptic obliquity).
-        const inertialFrame = item.trajectoryFrame ?? 'ECLIPJ2000';
         if (this.spice) {
-          return new SpiceRotation(this.spice, normalized, inertialFrame);
+          return new SpiceRotation(this.spice, normalized, this.spiceFrame(item.trajectoryFrame, item.center));
         }
         // Fallback: hardcoded IAU 2009 pole + spin for major bodies, when no
         // SPICE is loaded. This lets SPICE-free demos still get correct
@@ -1140,12 +1206,14 @@ export class CatalogLoader {
         return new SpiceRotation(
           this.spice,
           spec.bodyFrame ?? `IAU_${item.name.toUpperCase()}`,
-          spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000',
+          this.spiceFrame(spec.inertialFrame ?? item.trajectoryFrame, item.center),
         );
 
       case 'Nadir': {
         const target = spec.target ?? item.name;
-        const inertialFrame = spec.inertialFrame ?? item.trajectoryFrame ?? 'ECLIPJ2000';
+        // A trajectory-driven nadir is stated in the frame the trajectory's
+        // states are actually in (TEME for a TLE), not the catalog's claim.
+        const trajectoryInertialFrame = spec.inertialFrame ?? trajectory?.frame ?? item.trajectoryFrame ?? WORLD_FRAME;
         // Bodies with a non-SPICE trajectory (TLE, Keplerian, FixedPoint) have no
         // SPICE ephemeris — when the catalog asks for the body's own nadir, use
         // its trajectory directly. SpiceTrajectory bodies still get NadirRotation.
@@ -1154,18 +1222,18 @@ export class CatalogLoader {
           && target === item.name
           && !(trajectory instanceof SpiceTrajectory)
         ) {
-          return new TrajectoryNadirRotation(trajectory, inertialFrame);
+          return new TrajectoryNadirRotation(trajectory, trajectoryInertialFrame);
         }
         if (this.spice) {
           return new NadirRotation(
             this.spice,
             target,
             spec.center ?? item.center ?? 'EARTH',
-            inertialFrame,
+            this.spiceFrame(spec.inertialFrame ?? item.trajectoryFrame, spec.center ?? item.center ?? 'EARTH'),
           );
         }
         if (trajectory) {
-          return new TrajectoryNadirRotation(trajectory, inertialFrame);
+          return new TrajectoryNadirRotation(trajectory, trajectoryInertialFrame);
         }
         return undefined;
       }
