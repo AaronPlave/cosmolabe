@@ -39,6 +39,7 @@ import {
 } from './kernel-set';
 import {
   bindRenderer,
+  unbindRenderer,
   gotoObject,
   syncBodies,
   setSceneLoaded,
@@ -273,7 +274,7 @@ interface PlannedKernel {
 }
 
 /**
- * The URL a kernel is fetched and registered under.
+ * The URL a kernel is fetched under, and the source it is remembered as.
  *
  * Absolute, because a catalog's own `spiceKernels` are resolved against the
  * catalog URL while a meta-kernel's are resolved against the `.tm` -- and
@@ -321,11 +322,14 @@ async function plannedFromGraph(graph: ResolvedCatalogGraph): Promise<PlannedKer
  * instance it runs on has never held anything else, and the memory the last
  * scene's kernels occupied goes with the instance.
  *
- * The workers go first, before the instance they were furnished from is gone,
- * so nothing is left answering out of a kernel set that no longer exists.
+ * The old scene is torn down first, in full -- see `teardownScene`. Two CSPICE
+ * heaps at once is 320 MB before a kernel is read, which is the memory this
+ * issue is about, and it is the difference between a catalog switch working on
+ * a phone and not.
  *
- * Callers resolve their catalog *before* calling this: a catalog that failed to
- * fetch is not a scene load, and must leave the scene on screen intact.
+ * Callers fetch everything the new scene needs *before* calling this: a catalog
+ * or data file that failed to fetch is not a scene load, and must leave the
+ * scene on screen intact.
  *
  * The cost is that switching demos back and forth re-furnishes each time rather
  * than finding everything already loaded. The browser's HTTP cache covers the
@@ -333,13 +337,7 @@ async function plannedFromGraph(graph: ResolvedCatalogGraph): Promise<PlannedKer
  * catalog -- paid for answers that belong to the scene on screen.
  */
 async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promise<void> {
-  cacheWorker?.dispose();
-  cacheWorker = null;
-  geometryWorker?.dispose();
-  geometryWorker = null;
-
-  spice = null;
-  furnished = [];
+  teardownScene();
   const s = await ensureSpice();
 
   const plan = furnishOrder(
@@ -382,6 +380,35 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promis
 
   setPhaseProgress('kernels', 1, { label: 'Building scene...', detail: '' });
   setKernelCount(s.totalLoaded());
+}
+
+/**
+ * Let go of the scene that is up: its workers, its renderer, its universe, and
+ * the SPICE instance all three were reading.
+ *
+ * In one place and in this order, because the point is that none of it outlives
+ * the moment. A CSPICE instance is a ~160 MB heap before it holds a kernel, so
+ * a switch that builds the new one while the old renderer still references the
+ * old one pays for both at once -- exactly the peak #70 set out to remove.
+ *
+ * `unbindRenderer` matters for the same reason: viewer-state holds the renderer
+ * and universe for the UI, and a binding left in place is a reference the
+ * collector honours.
+ */
+function teardownScene(): void {
+  cacheWorker?.dispose();
+  cacheWorker = null;
+  geometryWorker?.dispose();
+  geometryWorker = null;
+
+  unbindRenderer();
+  renderer?.dispose();
+  renderer = null;
+  universe?.dispose();
+  universe = null;
+
+  spice = null;
+  furnished = [];
 }
 
 /** Furnish one planned kernel, reading its bytes from wherever they come from. */
@@ -537,6 +564,44 @@ function resolveCatalogOrder(
 
 // ── Scene initialization ──
 
+/**
+ * Bring up the workers for the kernels now furnished.
+ *
+ * Skipped in TEST_MODE: with no worker, long-duration spacecraft trajectory
+ * caches build SYNCHRONOUSLY during scene init (UniverseRenderer.buildCacheSync)
+ * instead of popping in async a second later — so a capture is deterministic and
+ * includes every trail (e.g. Cassini's), with no timing/settle race.
+ */
+function startSceneWorkers(): void {
+  cacheWorker?.dispose();
+  cacheWorker = null;
+  geometryWorker?.dispose();
+  geometryWorker = null;
+  if (TEST_MODE || workerKernels(furnished).length === 0) return;
+
+  try {
+    cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
+    const worker = cacheWorker;
+    void currentWorkerKernels()
+      .then((sources) => worker.loadKernels(sources))
+      .catch((err) => {
+        console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
+      });
+    // Lazy: nothing is spawned until a search actually runs, and the same
+    // kernel list is replayed whenever the geometry worker is rebuilt after a
+    // cancellation that had to terminate it.
+    geometryWorker = new GeometrySearchWorker({
+      createWorker: () => new SpiceCacheRelayWorker(),
+      kernels: currentWorkerKernels,
+      idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
+    });
+  } catch (err) {
+    console.warn('[Cosmolabe] Failed to create cache worker:', err);
+    cacheWorker = null;
+    geometryWorker = null;
+  }
+}
+
 function initScene(
   canvas: HTMLCanvasElement,
   catalogs: Record<string, unknown>[],
@@ -544,10 +609,8 @@ function initScene(
   binaryFiles?: Map<string, ArrayBuffer>,
   modelFiles?: Map<string, string>,
 ) {
-  // Clean up previous
-  renderer?.dispose();
-  universe?.dispose();
-
+  // Nothing to clean up here: the scene that was up was torn down before its
+  // SPICE instance was replaced (`teardownScene`), which is the only way in.
   const findInMap = <T>(map: Map<string, T>, source: string): T | undefined => {
     if (map.has(source)) return map.get(source);
     const basename = source.split('/').pop()!;
@@ -600,38 +663,7 @@ function initScene(
     }
   }
 
-  // Create cache worker. Skipped in TEST_MODE: with no worker, long-duration
-  // spacecraft trajectory caches build SYNCHRONOUSLY during scene init
-  // (UniverseRenderer.buildCacheSync) instead of popping in async a second
-  // later — so a capture is deterministic and includes every trail (e.g.
-  // Cassini's), with no timing/settle race.
-  cacheWorker?.dispose();
-  cacheWorker = null;
-  geometryWorker?.dispose();
-  geometryWorker = null;
-  if (!TEST_MODE && workerKernels(furnished).length > 0) {
-    try {
-      cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
-      const worker = cacheWorker;
-      void currentWorkerKernels()
-        .then((sources) => worker.loadKernels(sources))
-        .catch((err) => {
-          console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
-        });
-      // Lazy: nothing is spawned until a search actually runs, and the same
-      // kernel list is replayed whenever the geometry worker is rebuilt after a
-      // cancellation that had to terminate it.
-      geometryWorker = new GeometrySearchWorker({
-        createWorker: () => new SpiceCacheRelayWorker(),
-        kernels: currentWorkerKernels,
-        idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
-      });
-    } catch (err) {
-      console.warn('[Cosmolabe] Failed to create cache worker:', err);
-      cacheWorker = null;
-      geometryWorker = null;
-    }
-  }
+  startSceneWorkers();
 
   // Visual-regression test mode (`?test=1`): strip GPU-variant noise so
   // screenshots are stable across machines — no antialias, no bloom, no
@@ -884,21 +916,23 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
     });
 
-    // Everything the new instance will hold, worked out before the old one is
-    // touched: the meta-kernel expansion is a fetch, and a fetch that fails
-    // should leave the scene on screen intact.
+    // Every fetch the new scene needs happens before the old one is touched:
+    // the meta-kernel expansion and the trajectory data files are both network,
+    // and a network failure should leave the scene on screen intact rather than
+    // tear it down for a scene that then cannot be built.
     const catalogKernels = await plannedFromGraph(graph);
+    const dataFiles = await fetchCatalogDataFiles(graph);
 
-    // SPICE-free path: a catalog with no kernels, and no kernels carried over
-    // from a drop, needs no SPICE instance at all — CatalogLoader falls through
-    // to Keplerian/analytical trajectories. Any other case builds the scene a
-    // fresh instance, kernels or none: a catalog replaces the scene, and must
-    // not resolve what geometry it has against the last one's kernels.
+    // A catalog replaces the scene, so the scene that is up goes either way.
+    // Only the SPICE half is conditional: a catalog with no kernels, no kernels
+    // carried over from a drop, and no instance already standing needs no SPICE
+    // at all — CatalogLoader falls through to Keplerian/analytical trajectories.
     if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice) {
       await buildSceneSpice(catalogKernels);
+    } else {
+      teardownScene();
     }
 
-    const dataFiles = await fetchCatalogDataFiles(graph);
     // Each catalog's asset paths are relative to that catalog, not to this
     // page; the renderer only sees JSON, so pin them down while the URL is in
     // hand (catalog-assets.ts).
@@ -988,26 +1022,35 @@ function collectDataRefs(
 /**
  * Furnish kernels the user dropped onto the scene that is already up.
  *
- * Into the live instance, because there is no new scene to build. A name the
- * instance already holds is skipped rather than furnished over: the wasm build
- * stages every kernel at `/kernels/<name>`, so furnishing a second kernel under
- * a name in use overwrites the bytes of a file CSPICE still has open, and what
- * the instance answers afterwards stops being describable. The next scene load
- * resolves it the other way -- the plan keeps the last of a repeated name -- so
- * a drop that clashes with the current scene will take effect when a scene that
- * does not claim that name loads.
+ * Into the live instance, because there is no new scene to build -- and into
+ * the workers with it. A kernel the main thread has and the cache worker does
+ * not is the drift #68 closed: the same search would answer differently
+ * depending on which path ran it. The cache worker is appended to rather than
+ * rebuilt, since it is holding this scene's trajectory caches; the geometry
+ * worker is lazy and holds nothing, so it is simply replaced and picks up the
+ * new list on its next search.
+ *
+ * A name the instance already holds is skipped rather than furnished over: the
+ * wasm build stages every kernel at `/kernels/<name>`, so furnishing a second
+ * kernel under a name in use overwrites the bytes of a file CSPICE still has
+ * open, and what the instance answers afterwards stops being describable. It is
+ * still remembered, so the next scene load -- which builds its plan with the
+ * last of a repeated name -- puts it in, unless that scene claims the name too.
  */
 async function furnishUserKernels(files: File[]): Promise<void> {
   const s = await ensureSpice();
+  const added: FurnishedKernel[] = [];
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     setPhaseProgress('kernels', (i + 1) / files.length, {
       label: `Furnishing ${file.name}...`,
       detail: `${i + 1} / ${files.length} kernels`,
     });
+    const source: KernelSourceRef = { file };
     if (furnished.some((k) => k.name === file.name)) {
       console.warn(`[Cosmolabe] ${file.name} is already furnished; keeping the one the scene loaded`);
-      userKernelSources.push({ file });
+      userKernelSources.push(source);
       continue;
     }
     try {
@@ -1016,11 +1059,54 @@ async function furnishUserKernels(files: File[]): Promise<void> {
       console.warn(`[Cosmolabe] Failed to furnish ${file.name}:`, err);
       continue;
     }
-    const source: KernelSourceRef = { file };
-    furnished.push({ source, name: file.name, coverage: measureCoverage(s, file.name) });
+    const entry: FurnishedKernel = { source, name: file.name, coverage: measureCoverage(s, file.name) };
+    furnished.push(entry);
+    added.push(entry);
     userKernelSources.push(source);
   }
+
   setKernelCount(s.totalLoaded());
+  await syncWorkersWithDroppedKernels(added);
+}
+
+/**
+ * Give the running workers the kernels just dropped in, in the order the main
+ * thread furnished them.
+ *
+ * Nothing to do when no worker is up: the next scene load builds them from the
+ * whole list. The append is awaited so a caller that goes on to build a
+ * trajectory is not racing a half-furnished worker.
+ */
+async function syncWorkersWithDroppedKernels(added: readonly FurnishedKernel[]): Promise<void> {
+  const forWorkers = workerKernels(added);
+  if (forWorkers.length === 0) return;
+
+  // Rebuilt rather than appended to: it holds nothing between searches, and its
+  // next one re-reads `currentWorkerKernels`, which now includes these.
+  geometryWorker?.dispose();
+  geometryWorker = null;
+  if (!TEST_MODE && cacheWorker) {
+    geometryWorker = new GeometrySearchWorker({
+      createWorker: () => new SpiceCacheRelayWorker(),
+      kernels: currentWorkerKernels,
+      idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
+    });
+  }
+
+  if (!cacheWorker) return;
+  try {
+    await cacheWorker.loadKernels(
+      await Promise.all(
+        forWorkers.map(async ({ source }) =>
+          'url' in source
+            ? source.url
+            : { name: source.file.name, data: await source.file.arrayBuffer() },
+        ),
+      ),
+    );
+  } catch (err) {
+    console.warn('[Cosmolabe] Cache worker did not take the dropped kernels:', err);
+  }
 }
 
 /** Handle dropped files */
@@ -1035,18 +1121,19 @@ export async function handleDrop(canvas: HTMLCanvasElement, dataTransfer: DataTr
  * Whose the dropped kernels are is decided here, and it is decided by whether
  * the same drop brought a catalog.
  *
- * A drop carrying a catalog is a scene load like any other: its kernels are
- * that scene's, they are registered as the catalog's, and they go when the next
- * scene replaces this one -- with the previous catalog's released first, before
- * anything in this drop is furnished, so furnish order stays the order the
- * workers will reproduce.
+ * A drop carrying a catalog is a scene load like any other: the scene that is
+ * up is torn down, and this drop's kernels go into the SPICE instance the new
+ * scene is built with. They belong to that scene and go with it, so they are
+ * not remembered once the next scene replaces it.
  *
  * A drop with no catalog is the user adding kernels: onto an empty viewer, or
  * onto a scene already up (a CK for an attitude the catalog omitted, a newer
- * SPK). Those are registered as the user's and survive every later scene load,
- * because a file someone dragged in by hand disappearing on a catalog switch
- * they made for other reasons is not what they asked for. Clearing them means
- * reloading the page.
+ * SPK). Those are furnished into the instance that is running, remembered in
+ * `userKernelSources`, and furnished again into every instance built after --
+ * ahead of the scene's own kernels, which can override them by name. A file
+ * someone dragged in by hand disappearing on a catalog switch they made for
+ * other reasons is not what they asked for. Clearing them means reloading the
+ * page.
  */
 export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   // Dropped kernels are already on disk — no download to weigh — so the whole
@@ -1064,10 +1151,16 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
 
   if (catalogs.length > 0) {
-    // A drop carrying a catalog is a scene load like any other: its kernels are
-    // that scene's, they go into the fresh instance the scene gets, and they go
-    // when the next scene replaces it. They are not remembered as the user's.
-    await buildSceneSpice(kernelFiles.map((file) => ({ source: { file } })));
+    // A drop carrying a catalog is a scene load like any other: the scene that
+    // is up is torn down, and this drop's kernels go into the fresh instance
+    // the new scene gets. They are that scene's, not the user's, so they are
+    // not remembered past it.
+    const droppedKernels = kernelFiles.map((file) => ({ source: { file } }));
+    if (droppedKernels.length > 0 || userKernelSources.length > 0 || spice) {
+      await buildSceneSpice(droppedKernels);
+    } else {
+      teardownScene();
+    }
   } else if (kernelFiles.length > 0) {
     // A drop with no catalog is the user adding kernels: onto an empty viewer,
     // or onto a scene already up (a CK for an attitude the catalog omitted, a

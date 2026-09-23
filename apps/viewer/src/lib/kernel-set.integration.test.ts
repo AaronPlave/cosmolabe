@@ -222,4 +222,81 @@ describe('a scene gets a SPICE instance holding exactly its kernels', () => {
     // And SPICE knows it by that name: a time conversion needs the LSK it is.
     expect(() => spice.str2et('2004-07-01T12:00:00')).not.toThrow();
   }, 180_000);
+
+  describe('a kernel dropped onto a scene already up', () => {
+    /**
+     * The cache worker, as a second SPICE instance furnished from the same
+     * list. It is a real instance because the claim is about what the two can
+     * answer, not about messages: the worker runs its own CSPICE, and a kernel
+     * the main thread has and it does not is a search that answers differently
+     * depending on which path ran it (#68).
+     */
+    let workerSpice: HeritageSpice;
+    let workerFurnished: string[];
+
+    /** `startSceneWorkers`: the worker is built from the scene's kernel list. */
+    const startWorker = async (): Promise<void> => {
+      workerSpice = await createHeritageSpice();
+      workerFurnished = [];
+      for (const kernel of workerKernels(furnished)) {
+        await workerSpice.furnish({ type: 'buffer', data: bytesOf(kernel.source), filename: kernel.name });
+        workerFurnished.push(kernel.name);
+      }
+    };
+
+    /**
+     * `furnishUserKernels` + `syncWorkersWithDroppedKernels`: furnish into the
+     * live instance, then append the same kernels to the worker that is up.
+     */
+    const dropOntoScene = async (spec: string): Promise<void> => {
+      await dropUserKernel(spec);
+      const added = furnished.slice(-1);
+      for (const kernel of workerKernels(added)) {
+        await workerSpice.furnish({ type: 'buffer', data: bytesOf(kernel.source), filename: kernel.name });
+        workerFurnished.push(kernel.name);
+      }
+    };
+
+    it('reaches the worker too, in the main thread’s order', async () => {
+      await loadScene(PLANETS);
+      await startWorker();
+      expect(workerFurnished).toEqual(PLANETS);
+
+      await dropOntoScene('mine.bsp=cassini-soi.bsp');
+
+      // The invariant: same kernels, same order, on both sides.
+      expect(furnished.map((k) => k.name)).toEqual([...PLANETS, 'mine.bsp']);
+      expect(workerFurnished).toEqual(workerKernels(furnished).map((k) => k.name));
+      // And it is not bookkeeping only -- the worker can answer from it.
+      expect(() =>
+        workerSpice.spkpos('-82', workerSpice.str2et('2004-07-01T12:00:00'), 'J2000', 'NONE', 'SATURN'),
+      ).not.toThrow();
+    }, 180_000);
+
+    it('does not send the worker a kernel type it does not read', async () => {
+      // Attitude, frame and instrument kernels are deliberately not furnished
+      // into the workers, so the worker list stays a filter over the host's.
+      await loadScene(PLANETS);
+      await startWorker();
+
+      await dropOntoScene('cas_iss_v10.ti');
+
+      expect(furnished.map((k) => k.name)).toEqual([...PLANETS, 'cas_iss_v10.ti']);
+      expect(workerFurnished).toEqual(PLANETS);
+      expect(workerFurnished).toEqual(workerKernels(furnished).map((k) => k.name));
+    }, 180_000);
+
+    it('is furnished into the next scene’s instance and its worker', async () => {
+      await loadScene(PLANETS);
+      await startWorker();
+      await dropOntoScene('mine.bsp=cassini-soi.bsp');
+
+      await loadScene(CASSINI);
+      await startWorker();
+
+      // Ahead of the new scene's own kernels, and on both sides.
+      expect(furnished.map((k) => k.name)).toEqual(['mine.bsp', ...CASSINI]);
+      expect(workerFurnished).toEqual(workerKernels(furnished).map((k) => k.name));
+    }, 180_000);
+  });
 });
