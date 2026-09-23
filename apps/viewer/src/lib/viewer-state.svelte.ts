@@ -109,6 +109,11 @@ export const vs = $state({
   loadingLabel: '',
   loadingDetail: '',
   showLoading: false,
+  /** The catalog the load in flight is for — what the loading screen names. */
+  loadingCatalog: '',
+  /** The catalog whose scene is up, or null with no scene. Committed when the
+   *  scene binds, so a load that fails part-way leaves the previous name. */
+  catalogName: null as string | null,
 
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
@@ -196,7 +201,8 @@ export function highlightBodies(names: readonly string[]) {
   vs.highlightedBodies = next;
 }
 
-export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean }) {
+export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean; catalog?: string }) {
+  if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
   if (opts.progress !== undefined) vs.loadingProgress = opts.progress;
@@ -246,9 +252,14 @@ function emit<K extends keyof ViewerEventMap>(event: K, data: ViewerEventMap[K])
 
 const loadProgress = new LoadProgress();
 
-/** Start a load: shows the bar at zero and fixes the phase weights for it. */
-export function beginLoad(label: string, opts: { kernelBytes?: number } = {}) {
+/**
+ * Start a load: shows the bar at zero and fixes the phase weights for it.
+ * `catalog` names what is being loaded; leaving it out keeps the name the load
+ * already had, for the second call once the kernel byte total is known.
+ */
+export function beginLoad(label: string, opts: { kernelBytes?: number; catalog?: string } = {}) {
   loadProgress.begin(opts);
+  if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   vs.loadingProgress = loadProgress.value;
   vs.loadingLabel = label;
   vs.loadingDetail = '';
@@ -324,6 +335,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   unbindRenderer();
   _renderer = renderer;
   _universe = universe;
+  vs.catalogName = vs.loadingCatalog || null;
 
   // Restore persisted display preferences
   const prefs = loadPrefs();
@@ -415,6 +427,13 @@ export function unbindRenderer() {
   // the *next* scene that this one never highlighted.
   _highlightedBodies = [];
   vs.highlightedBodies = [];
+  // With the renderer gone there is no scene, whatever the last one reached —
+  // a load that tears the old scene down and then fails must not hand the
+  // viewer chrome an empty canvas as though it were a finished scene.
+  vs.catalogName = null;
+  vs.sceneLoaded = false;
+  vs.assetsReady = false;
+  vs.assetSummary = null;
 }
 
 export function getRenderer(): UniverseRenderer | null {

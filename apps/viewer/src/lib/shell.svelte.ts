@@ -173,6 +173,13 @@ export const shell = $state({
   shortcutsOpen: false,
 
   /**
+   * The catalog switcher popover off the rail (issue #94). A flag here rather
+   * than local to the rail so the command palette and the `O` shortcut can
+   * open it too.
+   */
+  catalogMenuOpen: false,
+
+  /**
    * Progressive analysis depth on the timeline. `transport` is the minimal time
    * strip; `expanded` adds the secondary transport and the region event lanes
    * (#67) and continuous profiles (#65) will draw into.

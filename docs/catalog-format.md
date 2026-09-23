@@ -227,7 +227,7 @@ second; furnish an LSK if a pre-1972 epoch has to be exact.
 
 ## More examples
 
-The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can copy from. They are listed for the viewer's welcome screen by `test-catalogs/index.json`; see [catalog-sources.md](catalog-sources.md) for how a deployment chooses which catalogs it offers.
+The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can copy from. They are listed on the viewer's home screen and catalog switcher by `test-catalogs/index.json`; see [catalog-sources.md](catalog-sources.md) for how a deployment chooses which catalogs it offers.
 
 | File | What it shows |
 |---|---|

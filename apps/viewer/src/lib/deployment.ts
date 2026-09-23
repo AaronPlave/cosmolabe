@@ -1,7 +1,7 @@
 /**
  * Deployment configuration for catalog discovery (issue #93).
  *
- * Everything a deployment decides about which catalogs the welcome screen
+ * Everything a deployment decides about which catalogs the home screen
  * offers lives here, read from build-time environment variables:
  *
  * - `VITE_CATALOG_SOURCES` — JSON array of `{ id, name, indexUrl }`. `[]`
@@ -24,10 +24,12 @@ import { parseSourceConfig, type CatalogSourceConfig } from './catalog-sources';
 
 export interface CatalogSourceDeployment {
   sources: CatalogSourceConfig[];
-  /** Configuration problems, surfaced on the welcome screen rather than thrown. */
+  /** Configuration problems, surfaced on the home screen rather than thrown. */
   errors: string[];
   /** URL relative `indexUrl`s resolve against. */
   baseUrl: string;
+  /** Whether visitors may add sources at runtime (`?source=`, or the switcher's "Add catalog source…"). */
+  allowSourceParam: boolean;
 }
 
 export interface DeploymentEnv {
@@ -48,7 +50,8 @@ export function resolveCatalogSourceDeployment(
   const sources = configured.sources;
   const errors = [...configured.errors];
 
-  if (env.VITE_ALLOW_CATALOG_SOURCE_PARAM === 'true') {
+  const allowSourceParam = env.VITE_ALLOW_CATALOG_SOURCE_PARAM === 'true';
+  if (allowSourceParam) {
     const ids = new Set(sources.map((s) => s.id));
     new URLSearchParams(search).getAll('source').forEach((indexUrl, i) => {
       if (indexUrl.trim() === '') return;
@@ -59,7 +62,7 @@ export function resolveCatalogSourceDeployment(
     });
   }
 
-  return { sources, errors, baseUrl };
+  return { sources, errors, baseUrl, allowSourceParam };
 }
 
 export function catalogSourceDeployment(): CatalogSourceDeployment {

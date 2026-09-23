@@ -42,6 +42,8 @@ export interface CatalogEntry {
   description?: string;
   /** Optional heading the entry is listed under. */
   group?: string;
+  /** Listed on the home screen's short "start with" list. */
+  featured?: boolean;
 }
 
 /** A validated index. */
@@ -147,6 +149,7 @@ export function parseCatalogIndex(json: unknown, indexUrl: string): { index: Cat
     const entry: CatalogEntry = { id: e.id, name: isNonEmptyString(e.name) ? e.name : e.id, catalogUrl };
     if (isNonEmptyString(e.description)) entry.description = e.description;
     if (isNonEmptyString(e.group)) entry.group = e.group;
+    if (e.featured === true) entry.featured = true;
     catalogs.push(entry);
   });
 

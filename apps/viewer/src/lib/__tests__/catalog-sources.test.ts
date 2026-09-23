@@ -58,6 +58,21 @@ describe('parseSourceConfig', () => {
 describe('parseCatalogIndex', () => {
   const indexUrl = 'https://data.example/mission/catalogs/index.json';
 
+  it('keeps featured only when it is exactly true', () => {
+    const { index } = parseCatalogIndex(
+      {
+        version: 1,
+        catalogs: [
+          { id: 'a', catalog: 'a.json', featured: true },
+          { id: 'b', catalog: 'b.json', featured: 'yes' },
+          { id: 'c', catalog: 'c.json' },
+        ],
+      },
+      indexUrl,
+    );
+    expect(index.catalogs.map((e) => e.featured)).toEqual([true, undefined, undefined]);
+  });
+
   it('resolves catalog URLs against the index URL', () => {
     const { index, warnings } = parseCatalogIndex(
       {

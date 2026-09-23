@@ -3,11 +3,11 @@
   "name": "Examples",
   "description": "Example catalogs shipped in the Cosmolabe repository",
   "catalogs": [
-    { "id": "earth-moon", "name": "Earth + Moon", "catalog": "./earth-moon.json", "description": "Keplerian orbits, no kernels", "group": "No SPICE — loads instantly" },
+    { "id": "earth-moon", "name": "Earth + Moon", "catalog": "./earth-moon.json", "description": "Keplerian orbits, no kernels", "group": "No SPICE — loads instantly" , "featured": true },
     { "id": "inner-planets-keplerian", "name": "Inner Planets", "catalog": "./inner-planets-keplerian.json", "description": "Sun → Mars via Keplerian fallback", "group": "No SPICE — loads instantly" },
     { "id": "iss", "name": "ISS (TLE)", "catalog": "./iss.json", "description": "Two-line element propagation around Earth", "group": "No SPICE — loads instantly" },
 
-    { "id": "base/solarsys", "name": "Solar System", "catalog": "./base/solarsys.json", "description": "All planets via require composition", "group": "Base library — composable catalogs" },
+    { "id": "base/solarsys", "name": "Solar System", "catalog": "./base/solarsys.json", "description": "All planets via require composition", "group": "Base library — composable catalogs" , "featured": true },
     { "id": "base/inner-planets", "name": "Inner Planets", "catalog": "./base/inner-planets.json", "description": "Mercury → Mars + moons, NAIF de440s", "group": "Base library — composable catalogs" },
     { "id": "base/outer-planets", "name": "Outer Planets", "catalog": "./base/outer-planets.json", "description": "Jupiter → Neptune + major moons", "group": "Base library — composable catalogs" },
     { "id": "base/jupiter-system", "name": "Jupiter System", "catalog": "./base/jupiter-system.json", "description": "Jupiter + Galileans (L1 analytical)", "group": "Base library — composable catalogs" },
@@ -19,11 +19,11 @@
     { "id": "sensor-demo", "name": "Sensor Frustums", "catalog": "./sensor-demo.json", "description": "FOV cones from spacecraft instruments", "group": "Extended scenes" },
     { "id": "oem-ingest", "name": "CCSDS OEM Ingest", "catalog": "./oem-ingest.json", "description": "Cassini at Saturn flown from a text ephemeris — no spacecraft SPK", "group": "Extended scenes" },
 
-    { "id": "cassini-soi", "name": "Cassini Saturn Tour", "catalog": "./cassini-soi.json", "description": "2004 SOI through Enceladus E-2 (~150 MB)", "group": "Mission demos — full SPICE" },
+    { "id": "cassini-soi", "name": "Cassini Saturn Tour", "catalog": "./cassini-soi.json", "description": "2004 SOI through Enceladus E-2 (~150 MB)", "group": "Mission demos — full SPICE" , "featured": true },
     { "id": "lro-moon", "name": "LRO at the Moon", "catalog": "./lro-moon.json", "description": "Lunar Reconnaissance Orbiter, 2025", "group": "Mission demos — full SPICE" },
-    { "id": "europa-clipper", "name": "Europa Clipper", "catalog": "./europa-clipper.json", "description": "Jupiter science phase, 2031", "group": "Mission demos — full SPICE" },
+    { "id": "europa-clipper", "name": "Europa Clipper", "catalog": "./europa-clipper.json", "description": "Jupiter science phase, 2031", "group": "Mission demos — full SPICE" , "featured": true },
     { "id": "psyche", "name": "Psyche", "catalog": "./psyche.json", "description": "Launch → Mars flyby → asteroid arrival 2029 (~125 MB)", "group": "Mission demos — full SPICE" },
-    { "id": "voyagers", "name": "Voyager 1 & 2", "catalog": "./voyagers.json", "description": "Grand Tour: 1977 launch → interstellar (~85 MB)", "group": "Mission demos — full SPICE" },
+    { "id": "voyagers", "name": "Voyager 1 & 2", "catalog": "./voyagers.json", "description": "Grand Tour: 1977 launch → interstellar (~85 MB)", "group": "Mission demos — full SPICE" , "featured": true },
     { "id": "msl-dingo-gap", "name": "Curiosity at Mars", "catalog": "./msl-dingo-gap.json", "description": "Mars surface rendering (experimental)", "group": "Mission demos — full SPICE" },
     { "id": "ingenuity-jezero", "name": "Ingenuity at Jezero", "catalog": "./ingenuity-jezero.json", "description": "Mars helicopter at Wright Brothers Field — no SPICE", "group": "Mission demos — full SPICE" },
     { "id": "moonfall-shackleton", "name": "MoonFall at Shackleton", "catalog": "./moonfall-shackleton.json", "description": "Synthetic 4-hopper lunar South Pole mission, Dec 2028", "group": "Mission demos — full SPICE" }

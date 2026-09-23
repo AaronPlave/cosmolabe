@@ -1,6 +1,6 @@
 # Catalog sources and indexes
 
-A viewer deployment tells the welcome screen which catalogs to offer through
+A viewer deployment tells the home screen and the catalog switcher which catalogs to offer through
 zero or more **catalog sources**. Each source points at an **index**: a small,
 versioned JSON file listing catalogs by name. The entries point at ordinary
 [catalog JSON](catalog-format.md). Nothing about the catalogs changes.
@@ -31,7 +31,8 @@ textures and kernels resolve against the catalog file itself, not the index
       "name": "Baseline mission",
       "catalog": "./baseline.json",
       "description": "Jupiter science phase, 2031",
-      "group": "Mission"
+      "group": "Mission",
+      "featured": true
     }
   ]
 }
@@ -48,6 +49,7 @@ textures and kernels resolve against the catalog file itself, not the index
 | `catalogs[].name` | no | Display name. Defaults to `id`. |
 | `catalogs[].description` | no | One-line description shown under the name. |
 | `catalogs[].group` | no | Heading to list the entry under. Groups appear in the order they first occur. |
+| `catalogs[].featured` | no | `true` lists the entry in the home screen's short "start with" list. With no featured entries in any source, the home screen lists the first few entries instead. |
 
 If the index as a whole is invalid (not an object, missing or unsupported
 `version`, no `catalogs` array), that source reports an error. A single bad
@@ -69,8 +71,9 @@ VITE_CATALOG_SOURCES='[
 - **Each source** has an `id` (unique), a `name` (display, defaults to `id`),
   and an `indexUrl`. A relative `indexUrl` resolves against the viewer's base
   URL (`VITE_BASE`).
-- **`[]`** means no sources. The welcome screen then shows only the file drop
-  target. This suits a bare viewer or an embed.
+- **`[]`** means no sources. The home screen and the switcher then offer only
+  *Open local catalog…* and the file drop target. This suits a bare viewer or
+  an embed.
 - **Unset** is the same as `[]`. The viewer never assumes a source exists,
   Examples included. `npm run dev` lists the repository's examples because
   `apps/viewer/.env.development` configures them. Vite reads that file only
@@ -92,7 +95,7 @@ Typical setups:
 
 ## Listed is not the same as served
 
-Sources control which catalogs the welcome screen **lists**. They don't
+Sources control which catalogs the viewer **lists**. They don't
 control which files a build **serves**. The viewer's Vite `publicDir` is
 `apps/viewer/test-catalogs/`, so every build ships the repository examples,
 including a mission build whose only source is the mission's own. Anyone who
@@ -104,6 +107,35 @@ directory holds assets the viewer itself needs, such as the star catalog
 `stars.bin`. Keeping the examples out of a build first needs the app's own
 assets separated from the example content.
 
+## Where the catalogs appear
+
+- **Home screen** (no scene up): a short list — featured entries, or the first
+  few — plus *Browse …* for the full list and *Open local catalog…*. With one
+  source the action is named after it (*Browse examples*); with several it is
+  *Browse catalogs*; with none there is nothing to browse.
+- **Catalog switcher** (the folder button at the top of the rail, `O`, or
+  *Open catalog…* in the command palette): the full list as a compact popover,
+  plus *Open local catalog…*, and *Add catalog source…* where
+  `VITE_ALLOW_CATALOG_SOURCE_PARAM` permits it. Opening it leaves the current
+  scene alone; choosing a catalog replaces the scene through the normal load.
+
+The rail's *Catalog* tool is a different thing: it browses the bodies of the
+catalog that is loaded, not the catalogs a deployment offers.
+
+## Catalogs in the URL
+
+Choosing a catalog adds a browser history entry, so back and forward move
+between catalogs:
+
+- A catalog served from the viewer's own origin is written as
+  `?catalog=<path>` (for example `?catalog=cassini-soi`), the same deep link
+  the viewer has always read.
+- A catalog on another origin is written as `?entry=<sourceId>/<entryId>`. It
+  resolves only against a source the deployment configured, so a link can't
+  point the viewer at an arbitrary catalog URL.
+- A scene opened from local files has no URL; the catalog parameter is removed.
+  Going back to a URL with no catalog parameter leaves the scene as it is.
+
 ## Failure isolation
 
 The viewer fetches every source concurrently and shows each one as soon as it
@@ -113,7 +145,7 @@ and `?catalog=<name>` keep working.
 
 ## Direct loading is independent
 
-Sources only change what the welcome screen lists. These still work with any
+Sources only change what the viewer lists. These still work with any
 source configuration, including `[]`:
 
 - `?catalog=<name>` loads `<name>.json` relative to the viewer. The
