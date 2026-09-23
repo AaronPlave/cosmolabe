@@ -20,6 +20,7 @@ import type {
   Vec3,
 } from './index.js';
 import type { EvalSeriesResult, EvalSpec } from './eval-series.js';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- referenced by {@link} in the TSDoc below
 import type { GfSearchReport } from './index.js';
 
 /**

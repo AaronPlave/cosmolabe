@@ -96,7 +96,8 @@ export class TimeController {
   }
 
   toggle(): void {
-    this._playing ? this.pause() : this.play();
+    if (this._playing) this.pause();
+    else this.play();
   }
 
   /** Reverse the current playback direction (negate rate) */

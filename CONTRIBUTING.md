@@ -20,6 +20,7 @@ git lfs pull          # required to fetch demo kernels, models, textures
 npm install
 npm run build         # typecheck + build all packages
 npm test              # run vitest
+npm run lint          # eslint
 ```
 
 To run the viewer:
@@ -37,8 +38,9 @@ packages/
   spice/            # Heritage CSPICE wrappers (TimeCraftJS) — test-only reference implementation
   core/             # Universe model — pure TypeScript, no rendering deps
   control/          # ViewerControl port + script language — no renderer, no DOM
+  interop/          # CCSDS (OEM, CDM, AEM), CSV and CZML parse/write — pure string transforms
   three/            # Three.js renderer
-  cesium-adapter/   # CZML export + coordinate transforms
+  cesium-adapter/   # CZML export + coordinate transforms — cesium is an optional peer dep
   cesium/           # CesiumJS renderer
 apps/
   viewer/           # Three.js demo app (Svelte 5)
@@ -67,7 +69,7 @@ Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LF
 
 ## Adding a feature
 
-- New trajectory type? See `packages/core/src/trajectories/Trajectory.ts` for the interface and existing implementations (Keplerian, TLE, FixedPoint, etc.) for patterns.
+- New trajectory type? See `packages/core/src/trajectories/Trajectory.ts` for the interface and existing implementations (Keplerian, TLE, FixedPoint, etc.) for patterns. To add one without touching this repo, pass `trajectoryFactories: { MyType: factory }` to `Universe` or `CatalogLoader` — catalog entries with that `type` are built by your factory, and a name already in the table is overridden.
 - New rotation model? `packages/core/src/rotations/RotationModel.ts`.
 - New renderer plugin? `packages/three/src/plugins/RendererPlugin.ts` and the stock plugins in `packages/three/src/plugins/stock/`.
 - New script verb, or a new way to drive the viewer from a host? `packages/control/src/verbs.ts` is the one table the language, the port and the palette all read; see [docs/scripting.md](docs/scripting.md).
@@ -76,7 +78,7 @@ Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LF
 ## Opening a PR
 
 1. Fork, branch from `main`
-2. `npm run build && npm test` should pass
+2. `npm run build && npm run lint && npm test` should pass
 3. Describe what changed and why; screenshots for visual changes
 4. By submitting, you agree your contribution is licensed under Apache-2.0
 
