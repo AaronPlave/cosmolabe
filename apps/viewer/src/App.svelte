@@ -18,7 +18,7 @@
   } from './lib/shell.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import type { CatalogEntry } from './lib/catalog-sources';
-  import { catalogs, initCatalogSources } from './lib/catalogs.svelte';
+  import { catalogs, initCatalogSources, sourceSettled, syncSourceParams } from './lib/catalogs.svelte';
   import {
     catalogLocation, findEntry, requestedCatalog, withCatalogLocation, allEntries,
     type CatalogLocation, type SourcedEntry,
@@ -285,28 +285,56 @@
   }
 
   /**
+   * Browser navigation, counted. Every Back/Forward bumps it, and a load
+   * started before the latest one finishes without touching history: pushing
+   * its own location then would stack an entry on top of where the user just
+   * went, and drop the forward entry they came from.
+   */
+  let navGeneration = 0;
+  /** A load is in flight; set and cleared by `runLoad`. */
+  let loadInFlight = $state(false);
+  /** Back/Forward arrived during a load and is still owed a reconcile. */
+  let navPending = $state(false);
+
+  // The owed reconcile runs once the scene has settled — the loader call and
+  // the asset phase after it — rather than being dropped: the URL has already
+  // changed, and the scene has to follow it.
+  $effect(() => {
+    if (navPending && !loadInFlight && !vs.showLoading) {
+      navPending = false;
+      reconcileWithUrl();
+    }
+  });
+
+  /**
    * Run one load. The scene that is up stays up until the loader has what it
    * needs for the next one (#70), so a load that fails early leaves it on
-   * screen; either way the failure is reported, not just logged.
+   * screen; either way the failure is reported, not just logged. `after` is
+   * told whether the user navigated during the load, so it can leave history
+   * alone.
    */
-  async function runLoad(load: () => Promise<void>, after: () => void) {
+  async function runLoad(load: () => Promise<void>, after: (navigatedAway: boolean) => void) {
+    const generation = navGeneration;
     catalogs.loadError = null;
+    loadInFlight = true;
     try {
       await load();
-      after();
+      after(generation !== navGeneration);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       catalogs.loadError = `Couldn't load ${vs.loadingCatalog || 'the catalog'}: ${message}`;
       console.error('[Cosmolabe] Catalog load failed:', err);
+    } finally {
+      loadInFlight = false;
     }
   }
 
   function loadEntry(item: SourcedEntry, push = true) {
     void runLoad(
       () => loadCatalogUrl(canvas, item.entry.catalogUrl, item.entry.name),
-      () => {
+      (navigatedAway) => {
         catalogs.currentUrl = item.entry.catalogUrl;
-        if (push) pushLocation(catalogLocation(item, location.href));
+        if (push && !navigatedAway) pushLocation(catalogLocation(item, location.href));
       },
     );
   }
@@ -336,28 +364,60 @@
    */
   function loadFiles(load: () => Promise<void>) {
     const before = getCurrentRenderer();
-    void runLoad(load, () => {
+    void runLoad(load, (navigatedAway) => {
       if (getCurrentRenderer() === before) return;
       catalogs.currentUrl = null;
-      pushLocation(null);
+      if (!navigatedAway) pushLocation(null);
     });
   }
 
   /**
-   * Back and forward. A URL that names a catalog loads it; one that names
-   * none leaves the scene alone, since there is no scene it could mean — the
-   * one before might have come from dropped files.
+   * Back and forward. Never ignored: during a load the navigation is owed
+   * and reconciled once the load settles (the effect above).
    */
   function onPopState() {
-    if (vs.showLoading) return;
+    // An entry from before a source was added lacks its `?source=`.
+    syncSourceParams();
+    navGeneration++;
+    if (loadInFlight || vs.showLoading) navPending = true;
+    else reconcileWithUrl();
+  }
+
+  /**
+   * Bring the scene in line with the URL. One that names a catalog loads it
+   * (unless it is already up); one that names none leaves the scene alone,
+   * since there is no scene it could mean — the one before might have come
+   * from dropped files.
+   */
+  function reconcileWithUrl() {
     const req = requestedCatalog(location.search);
     if (!req) return;
     if ('catalog' in req) {
       if (demoCatalogUrl(req.catalog) !== catalogs.currentUrl) loadNamed(req.catalog);
     } else {
-      const item = findEntry(catalogs.sources, req.entry);
-      if (item && item.entry.catalogUrl !== catalogs.currentUrl) loadEntry(item, false);
+      openEntryParam(req.entry);
     }
+  }
+
+  /**
+   * `?entry=<source>/<entry>`: waits for that source only, then loads the
+   * entry — unless the user has navigated again meanwhile, in which case the
+   * newer navigation's own reconcile owns the scene.
+   */
+  function openEntryParam(param: string) {
+    const generation = navGeneration;
+    const sourceId = param.slice(0, Math.max(0, param.indexOf('/')));
+    void sourceSettled(sourceId).then((state) => {
+      if (generation !== navGeneration) return;
+      const item = state ? findEntry([state], param) : null;
+      if (!item) {
+        catalogs.loadError = `No catalog "${param}" in this viewer's catalog sources.`;
+        return;
+      }
+      if (item.entry.catalogUrl === catalogs.currentUrl) return;
+      if (loadInFlight || vs.showLoading) navPending = true;
+      else loadEntry(item, false);
+    });
   }
 
   onMount(() => {
@@ -366,15 +426,13 @@
     // (combine with `?test=1` for deterministic offscreen capture — see
     // scripts/visual-regression.mjs).
     // `?entry=<source>/<entry>` names a catalog in a configured source, so it
-    // waits for that source; `?catalog=` never needs one.
+    // waits for that source — and only that one; `?catalog=` needs none.
     const requested = requestedCatalog(location.search);
     if (requested && 'catalog' in requested) loadNamed(requested.catalog);
-    void initCatalogSources().then((states) => {
-      if (requested && 'entry' in requested) {
-        const item = findEntry(states, requested.entry);
-        if (item) loadEntry(item, false);
-        else catalogs.loadError = `No catalog "${requested.entry}" in this viewer's catalog sources.`;
-      } else if (requested && 'catalog' in requested) {
+    const sourcesDone = initCatalogSources();
+    if (requested && 'entry' in requested) openEntryParam(requested.entry);
+    void sourcesDone.then((states) => {
+      if (requested && 'catalog' in requested) {
         // A deep-linked example is named by its path until the sources say
         // what it is called.
         const url = demoCatalogUrl(requested.catalog);

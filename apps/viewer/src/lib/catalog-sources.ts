@@ -99,6 +99,11 @@ export function parseSourceConfig(raw: unknown): { sources: CatalogSourceConfig[
       errors.push(`Catalog source #${i + 1} needs a string "id" and "indexUrl"`);
       return;
     }
+    if (s.id.includes('/')) {
+      // `?entry=<sourceId>/<entryId>` splits at the first `/`.
+      errors.push(`Catalog source id "${s.id}" must not contain "/"`);
+      return;
+    }
     if (ids.has(s.id)) {
       errors.push(`Catalog source id "${s.id}" is used more than once`);
       return;

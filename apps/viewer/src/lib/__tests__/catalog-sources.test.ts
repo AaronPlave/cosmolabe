@@ -11,7 +11,13 @@ import {
   type CatalogSourceState,
   type IndexFetcher,
 } from '../catalog-sources';
-import { resolveCatalogSourceDeployment } from '../deployment';
+import {
+  nextSourceParam,
+  resolveCatalogSourceDeployment,
+  sourceParamValues,
+  sourcesFromParams,
+  withSourceParams,
+} from '../deployment';
 import { loadCatalogFromUrl } from '@cosmolabe/core';
 
 const BASE = 'https://viewer.example/app/';
@@ -41,6 +47,15 @@ describe('parseSourceConfig', () => {
     const { sources, errors } = parseSourceConfig('[{');
     expect(sources).toEqual([]);
     expect(errors).toHaveLength(1);
+  });
+
+  it('rejects a source id containing "/", which ?entry= links split on', () => {
+    const { sources, errors } = parseSourceConfig([
+      { id: 'team/a', indexUrl: 'a.json' },
+      { id: 'b', indexUrl: 'b.json' },
+    ]);
+    expect(sources.map((s) => s.id)).toEqual(['b']);
+    expect(errors).toEqual(['Catalog source id "team/a" must not contain "/"']);
   });
 
   it('drops an invalid or duplicate source and keeps the rest', () => {
@@ -276,5 +291,61 @@ describe('the repository Examples index', () => {
     // top-level file, and the graph pulls in the rest.
     expect(graph.catalogs.length).toBeGreaterThan(1);
     expect(graph.catalogs.at(-1)!.url).toBe(pathToFileURL(fileURLToPath(solarsys!.catalogUrl)).href);
+  });
+});
+
+describe('runtime-added sources survive a reload', () => {
+  const env = {
+    VITE_CATALOG_SOURCES: '[{"id":"examples","name":"Examples","indexUrl":"index.json"}]',
+    VITE_ALLOW_CATALOG_SOURCE_PARAM: 'true',
+  };
+  /** What a reload of `search` assigns, for the param sources only. */
+  const reloadIds = (search: string) =>
+    resolveCatalogSourceDeployment(env, search, BASE).sources.filter((s) => s.id !== 'examples').map((s) => s.id);
+
+  /** Add each url in turn the way the switcher does, from the startup URL `search`. */
+  function addAll(search: string, urls: string[]) {
+    const configured = resolveCatalogSourceDeployment(env, search, BASE).configuredIds;
+    let values = sourceParamValues(search);
+    const ids: string[] = [];
+    for (const url of urls) {
+      const next = nextSourceParam(configured, values, url);
+      ids.push(next.source.id);
+      values = next.values;
+    }
+    return { ids, search: withSourceParams(search, values) };
+  }
+
+  it('gives an added source the id a reload gives it, alongside a configured source', () => {
+    const { ids, search } = addAll('?catalog=earth-moon', ['https://data.example/a/index.json']);
+    expect(ids).toEqual(['url-1']);
+    expect(reloadIds(search)).toEqual(ids);
+    // The catalog parameter rides along.
+    expect(new URLSearchParams(search).get('catalog')).toBe('earth-moon');
+  });
+
+  it('continues from sources already in the startup URL', () => {
+    const start = '?source=https://data.example/a/index.json';
+    const { ids, search } = addAll(start, ['https://data.example/b/index.json', 'https://data.example/c/index.json']);
+    expect(reloadIds(search)).toEqual([...reloadIds(start), ...ids]);
+  });
+
+  it('counts empty values and steps around configured ids the same way startup does', () => {
+    const clashEnv = {
+      VITE_CATALOG_SOURCES: '[{"id":"url-2","indexUrl":"x.json"}]',
+      VITE_ALLOW_CATALOG_SOURCE_PARAM: 'true',
+    };
+    const start = '?source=&source=a.json';
+    const configured = resolveCatalogSourceDeployment(clashEnv, start, BASE).configuredIds;
+    const next = nextSourceParam(configured, sourceParamValues(start), 'b.json');
+    const reloaded = resolveCatalogSourceDeployment(clashEnv, withSourceParams(start, next.values), BASE).sources;
+    expect(reloaded.map((s) => s.id)).toEqual(['url-2', 'url-2-', 'url-3']);
+    expect(next.source.id).toBe('url-3');
+  });
+
+  it('is independent of how many sources are loaded, failed or configured', () => {
+    // The id comes from the ?source= list alone: a failed addition is never
+    // appended to it, so it cannot shift the next one.
+    expect(sourcesFromParams(['examples', 'mission', 'shared'], ['a.json']).map((s) => s.id)).toEqual(['url-1']);
   });
 });

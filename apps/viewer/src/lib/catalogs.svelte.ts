@@ -8,7 +8,9 @@
  */
 
 import { fetchCatalogSource, loadCatalogSources, type CatalogSourceState } from './catalog-sources';
-import { catalogSourceDeployment } from './deployment';
+import {
+  catalogSourceDeployment, nextSourceParam, sourceParamValues, withSourceParams,
+} from './deployment';
 
 const deployment = catalogSourceDeployment();
 
@@ -31,6 +33,11 @@ let started: Promise<CatalogSourceState[]> | null = null;
 export function initCatalogSources(): Promise<CatalogSourceState[]> {
   started ??= loadCatalogSources(deployment.sources, deployment.baseUrl, (states) => {
     catalogs.sources = states;
+    for (const state of states) {
+      if (state.status === 'loading') continue;
+      settled.get(state.source.id)?.(state);
+      settled.delete(state.source.id);
+    }
   }).then((states) => {
     for (const s of states) {
       if (s.status === 'error') console.warn(`[Cosmolabe] Catalog source "${s.source.id}" unavailable: ${s.error}`);
@@ -41,24 +48,78 @@ export function initCatalogSources(): Promise<CatalogSourceState[]> {
   return started;
 }
 
+const settled = new Map<string, (state: CatalogSourceState) => void>();
+
+/**
+ * One configured source's state once it has loaded or failed — without
+ * waiting on any other source, so a slow or hung source elsewhere never holds
+ * up a link into this one. Null for an id the deployment does not configure.
+ * Call after `initCatalogSources`.
+ */
+export function sourceSettled(id: string): Promise<CatalogSourceState | null> {
+  const current = catalogs.sources.find((s) => s.source.id === id);
+  if (current && current.status !== 'loading') return Promise.resolve(current);
+  if (!deployment.sources.some((s) => s.id === id)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const prev = settled.get(id);
+    settled.set(id, (state) => {
+      prev?.(state);
+      resolve(state);
+    });
+  });
+}
+
+/**
+ * The `?source=` values this session's param sources were derived from —
+ * those in the URL at startup, plus any added since. Their ids come from this
+ * list alone (`sourcesFromParams`), and `syncSourceParams` keeps every URL the
+ * viewer lands on carrying it, so a reload always rebuilds the same ids.
+ */
+let sourceParams: string[] = deployment.allowSourceParam ? sourceParamValues(location.search) : [];
+
+/**
+ * Put this session's `?source=` values back on the current URL if it lacks
+ * them — as a history entry from before a source was added does. Call on
+ * every history navigation, before reading the URL.
+ */
+export function syncSourceParams(): void {
+  if (!deployment.allowSourceParam) return;
+  if (JSON.stringify(sourceParamValues(location.search)) === JSON.stringify(sourceParams)) return;
+  history.replaceState(history.state, '', `${location.pathname}${withSourceParams(location.search, sourceParams)}${location.hash}`);
+}
+
 /**
  * Add a source at runtime, where the deployment permits it. Recorded as
  * `?source=` so a reload — or a shared link — keeps it, which is the same
- * parameter a deployment that allows it already reads at startup.
+ * parameter a deployment that allows it already reads at startup, and with
+ * the id startup will give it, so an `?entry=` link into it survives.
+ *
+ * A source that fails to load is dropped again rather than kept: it is never
+ * written to the URL or the list ids derive from, so keeping it would leave a
+ * live source a reload does not have. The switcher reports the error.
  */
-export async function addCatalogSource(indexUrl: string): Promise<CatalogSourceState> {
+export function addCatalogSource(indexUrl: string): Promise<CatalogSourceState> {
+  // One at a time: each addition's id depends on the list the one before it
+  // leaves, so two in flight at once would both claim the same next id.
+  const run = adding.then(() => addOne(indexUrl));
+  adding = run.catch(() => undefined);
+  return run;
+}
+
+let adding: Promise<unknown> = Promise.resolve();
+
+async function addOne(indexUrl: string): Promise<CatalogSourceState> {
   const url = indexUrl.trim();
-  const ids = new Set(catalogs.sources.map((s) => s.source.id));
-  let id = `url-${catalogs.sources.length + 1}`;
-  while (ids.has(id)) id = `${id}-`;
-  const source = { id, name: url, indexUrl: url };
+  const next = nextSourceParam(deployment.configuredIds, sourceParams, url);
+  const { source } = next;
   catalogs.sources = [...catalogs.sources, { source, status: 'loading' }];
   const state = await fetchCatalogSource(source, deployment.baseUrl);
-  catalogs.sources = catalogs.sources.map((s) => (s.source.id === id ? state : s));
   if (state.status === 'ready') {
-    const params = new URLSearchParams(location.search);
-    params.append('source', url);
-    history.replaceState(history.state, '', `${location.pathname}?${params}${location.hash}`);
+    catalogs.sources = catalogs.sources.map((s) => (s.source.id === source.id ? state : s));
+    sourceParams = next.values;
+    syncSourceParams();
+  } else {
+    catalogs.sources = catalogs.sources.filter((s) => s.source.id !== source.id);
   }
   return state;
 }

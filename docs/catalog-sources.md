@@ -68,7 +68,9 @@ VITE_CATALOG_SOURCES='[
 ]'
 ```
 
-- **Each source** has an `id` (unique), a `name` (display, defaults to `id`),
+- **Each source** has an `id` (unique, and without `/`, since
+  `?entry=<sourceId>/<entryId>` links split on the first one), a `name`
+  (display, defaults to `id`),
   and an `indexUrl`. A relative `indexUrl` resolves against the viewer's base
   URL (`VITE_BASE`).
 - **`[]`** means no sources. The home screen and the switcher then offer only
@@ -82,7 +84,11 @@ VITE_CATALOG_SOURCES='[
 - **`VITE_ALLOW_CATALOG_SOURCE_PARAM=true`** lets a visitor add more sources
   at runtime with `?source=<indexUrl>` (the parameter can repeat). It is off
   by default, because whether to accept arbitrary external sources is a
-  choice for each deployment to make.
+  choice for each deployment to make. The same setting enables *Add catalog
+  source…* in the switcher, which records the source as another `?source=`.
+  A `?source=` source's id is `url-<n>`, from its position among the
+  `source` parameters, so a source added at runtime keeps its id, and
+  `?entry=` links into it keep working, across a reload.
 
 Typical setups:
 
@@ -135,6 +141,11 @@ between catalogs:
   point the viewer at an arbitrary catalog URL.
 - A scene opened from local files has no URL; the catalog parameter is removed.
   Going back to a URL with no catalog parameter leaves the scene as it is.
+- Back or Forward during a load is not dropped. The load finishes without
+  adding a history entry, and then the scene follows the URL the user
+  navigated to.
+- An `?entry=` link waits only for the source it names, so a slow or broken
+  source elsewhere doesn't hold it up.
 
 ## Failure isolation
 
