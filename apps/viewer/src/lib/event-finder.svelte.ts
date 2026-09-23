@@ -319,8 +319,9 @@ export const ef = $state({
   /** Shared transient preview from scene, result list, or timeline. */
   previewId: null as string | null,
   previewQueryId: null as string | null,
-  /** Id of the occultation currently represented at the live playhead. */
+  /** Id and query of the occultation represented at the live playhead. */
   activeId: null as string | null,
+  activeQueryId: null as string | null,
   /**
    * Display order. Chronological by default, since that is how a mission reads;
    * `metric` answers "which was the closest?" instead. Held here rather than in
@@ -401,10 +402,13 @@ export function syncOccultationGeometryAtTime(): GeometryEvent | undefined {
   const activeEvent = activeEventAtTime(
     analysisContext().eventResults.filter((event) => event.kind === 'occultation'),
     vs.et,
-    ef.selectedId,
+    // The selection belongs to the configured query (selectEvent opens it).
+    ef.selectedId && ef.configuredId ? { id: ef.selectedId, queryId: ef.configuredId } : null,
   );
   const activeId = activeEvent?.id ?? null;
+  const activeQueryId = activeEvent?.queryId ?? null;
   if (ef.activeId !== activeId) ef.activeId = activeId;
+  if (ef.activeQueryId !== activeQueryId) ef.activeQueryId = activeQueryId;
   displayOccultation(activeEvent ?? null);
   return activeEvent;
 }
@@ -825,6 +829,7 @@ export function resetForScene() {
   displayOccultation(null);
   ef.form = null;
   ef.activeId = null;
+  ef.activeQueryId = null;
   ef.windowPinned = false;
   ef.windowTrimmed = false;
   ef.configuredId = null;

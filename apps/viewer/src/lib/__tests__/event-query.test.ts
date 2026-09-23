@@ -286,8 +286,21 @@ describe('timeline placement', () => {
     expect(eventContainsTime(wide, 600)).toBe(true);
     expect(eventContainsTime(wide, 601)).toBe(false);
     expect(activeEventAtTime([wide, narrow], 250)?.id).toBe('narrow');
-    expect(activeEventAtTime([wide, narrow], 250, 'wide')?.id).toBe('wide');
+    expect(activeEventAtTime([wide, narrow], 250, { id: 'wide', queryId: wide.queryId })?.id).toBe('wide');
     expect(activeEventAtTime([wide, narrow], 700)).toBeUndefined();
+  });
+
+  it('matches the preferred event by id and query, since ids recur across searches', () => {
+    // Two configured searches whose first results share the positional id.
+    const mine: GeometryEvent = {
+      id: 'r0', queryId: 'q-mine', kind: 'occultation', temporality: 'interval',
+      start: 0, end: 1000, bodies: {}, label: 'mine',
+    };
+    const other: GeometryEvent = { ...mine, queryId: 'q-other', start: 100, end: 200, label: 'other' };
+    expect(activeEventAtTime([other, mine], 150, { id: 'r0', queryId: 'q-mine' })?.label).toBe('mine');
+    expect(activeEventAtTime([mine, other], 150, { id: 'r0', queryId: 'q-other' })?.label).toBe('other');
+    // Unselected ties still pick the shortest, whichever query it came from.
+    expect(activeEventAtTime([mine, other], 150)?.label).toBe('other');
   });
 });
 

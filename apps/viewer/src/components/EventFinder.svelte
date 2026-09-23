@@ -481,7 +481,7 @@
             {:else}
               <div class="event-summary">{eventSummary(event)}</div>
             {/if}
-            {#if ef.selectedId === event.id}
+            {#if ef.selectedId === event.id && ef.configuredId === event.queryId}
               <div class="mt-1 flex flex-col gap-0.5">
                 {#if event.state}
                   <div class="ui-data-row">
@@ -489,7 +489,7 @@
                     <span class="ui-readout capitalize">{event.state}</span>
                   </div>
                 {/if}
-                {#if event.kind === 'occultation' && ef.activeId === event.id}
+                {#if event.kind === 'occultation' && ef.activeId === event.id && ef.activeQueryId === event.queryId}
                   <div class="geometry-legend ui-helper" aria-label="3D geometry legend">
                     <span><i class="legend-line sightline"></i>{event.bodies.back?.toLowerCase() === 'sun' ? 'Observer sightline' : 'Background line of sight'}</span>
                     {#if event.bodies.back?.toLowerCase() === 'sun'}

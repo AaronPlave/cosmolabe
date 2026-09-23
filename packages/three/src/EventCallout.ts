@@ -319,7 +319,7 @@ export class EventCallout {
       this.box.style.transform = transform;
       this.lastTransform = transform;
     }
-    const [sx, sy, ex, ey, hx, hy] = placement.leader;
+    const [sx, sy, ex, , hx, hy] = placement.leader;
     // Horizontal shoulder on a half-pixel row stays a crisp 1px line at DPR 1.
     const shoulderY = Math.round(hy + dy) + 0.5;
     const points = `${sx.toFixed(1)},${sy.toFixed(1)} ${(ex + dx).toFixed(1)},${shoulderY} ${(hx + dx).toFixed(1)},${shoulderY}`;

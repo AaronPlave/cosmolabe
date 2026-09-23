@@ -4,7 +4,8 @@ import type { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { Body } from '@cosmolabe/core';
 import { EventMarkers, eventAnchorOpacityAtSphere, pickEventMarkerGroups, type EventMarker } from './EventMarkers.js';
 import { TrajectoryLine } from './TrajectoryLine.js';
-import { selectEventTrajectoryBody } from './UniverseRenderer.js';
+import { eventPiecesOnLines, selectEventTrajectoryBody } from './UniverseRenderer.js';
+import type { GeometryEvent } from '@cosmolabe/core';
 
 const body = { name: 'Europa Clipper' } as Body;
 
@@ -463,7 +464,83 @@ describe('EventMarkers', () => {
   });
 });
 
+describe('interval pieces and span hits', () => {
+  const camera = () => {
+    const c = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+    c.position.z = 10;
+    c.lookAt(0, 0, 0);
+    c.updateMatrixWorld();
+    return c;
+  };
+  const screenX = (c: THREE.Camera, x: number) => (new THREE.Vector3(x, 0, 0).project(c).x + 1) * 100;
+
+  it('draws only true bounds as caps and the midpoint glyph on the piece that owns it', () => {
+    // Event 0..20 split at 8 across two arcs; its midpoint (10) is on the second.
+    const first = new EventMarkers(body, { intervalSamples: 5 });
+    const second = new EventMarkers(body, { intervalSamples: 5 });
+    const event = { temporality: 'interval' as const, startEt: 0, endEt: 20 };
+    first.setMarkers([marker({ ...event, pieceStartEt: 0, pieceEndEt: 8 })]);
+    second.setMarkers([marker({ ...event, pieceStartEt: 8, pieceEndEt: 20 })]);
+    const resolve = (_name: string, et: number): [number, number, number] => [et - 10, 0, 0];
+    first.update(1, [0, 0, 0], resolve, [0, 20]);
+    second.update(1, [0, 0, 0], resolve, [0, 20]);
+    const shown = (group: EventMarkers) => group.children
+      .filter((child): child is THREE.Sprite => child instanceof THREE.Sprite && child.visible)
+      .map((sprite) => sprite.name.split('_').pop());
+    expect(shown(first)).toEqual(['start']);
+    expect(shown(second)).toEqual(['midpoint', 'end']);
+    expect(second.anchorFor('e1', 'q1')?.x).toBeCloseTo(0); // the event midpoint, exactly
+    expect(first.anchorFor('e1', 'q1')).toBeNull(); // leaves the callout to the owner
+    expect(first.anchorFor('e1', 'q1', 'start')?.x).toBeCloseTo(-10);
+    first.dispose();
+    second.dispose();
+  });
+
+  it('anchors a span hit where the pointer is, and picks the stretch up to the trail head', () => {
+    // Trail vertices every 4 s, head sample at 13.9: the last coarse interval
+    // sample (12.5) is behind the head, but the drawn span reaches it.
+    const times = [0, 4, 8, 12, 13.9];
+    const trail = {
+      times: Float64Array.from(times),
+      positions: Float32Array.from(times.flatMap((t) => [t - 10, 0, 0])),
+      count: times.length,
+    };
+    const group = new EventMarkers(body, { intervalSamples: 5, trail: () => trail });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 2, endEt: 20 })]);
+    group.update(1, [0, 0, 0], (_name, et) => [et - 10, 0, 0], [0, 13.9]);
+    const c = camera();
+    // Between the last sample and the head (x = 3.4 → et 13.4).
+    const hit = group.pick(c, screenX(c, 3.4), 100, 200, 200);
+    expect(hit?.span).toBe(true);
+    expect(hit?.et).toBeCloseTo(13.4, 1);
+    expect(group.anchorAt('e1', 'q1', 13.4)?.x).toBeCloseTo(3.4);
+    expect(group.anchorAt('e1', 'q1', 1)).toBeNull(); // before the event
+    expect(group.anchorAt('e1', 'q1', 15)).toBeNull(); // not drawn yet
+    group.dispose();
+  });
+});
+
 describe('trajectory-line event placement', () => {
+  it('splits an interval straddling two arcs into one piece per arc', () => {
+    const clipper = { name: 'Europa Clipper', labelColor: [1, 1, 1], trajectory: { startTime: 0, endTime: 400 } } as Body;
+    const arc0 = new TrajectoryLine(clipper, { minTime: 0, maxTime: 100 });
+    const arc1 = new TrajectoryLine(clipper, { minTime: 100 });
+    const lines = [['Europa Clipper__arc0', arc0], ['Europa Clipper__arc1', arc1]] as const;
+    const interval = {
+      id: 'r0', queryId: 'q', kind: 'occultation', temporality: 'interval', start: 60, end: 180,
+      bodies: {}, label: 'eclipse',
+    } as GeometryEvent;
+    expect(eventPiecesOnLines(interval, lines).map(({ key, start, end }) => [key, start, end])).toEqual([
+      ['Europa Clipper__arc0', 60, 100],
+      ['Europa Clipper__arc1', 100, 180],
+    ]);
+    // Instants still go to the one arc that owns them.
+    const instant = { ...interval, temporality: 'instant', et: 150 } as GeometryEvent;
+    expect(eventPiecesOnLines(instant, lines).map(({ key }) => key)).toEqual(['Europa Clipper__arc1']);
+    arc0.dispose();
+    arc1.dispose();
+  });
+
   it('uses the composite arc fixed resolver and its epoch bounds', () => {
     const line = new TrajectoryLine(
       { name: 'Europa Clipper', labelColor: [1, 1, 1], trajectory: { startTime: 100, endTime: 200 } } as Body,

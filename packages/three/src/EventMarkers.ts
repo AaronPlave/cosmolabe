@@ -21,6 +21,14 @@ export interface EventMarker {
   temporality: GeometryEvent['temporality'];
   startEt: number;
   endEt: number;
+  /**
+   * The part of an interval this trajectory line draws, when the interval
+   * crosses arc boundaries and is split across lines. Caps appear only at the
+   * event's true bounds and the midpoint glyph only on the piece containing
+   * it; defaults to the whole interval.
+   */
+  pieceStartEt?: number;
+  pieceEndEt?: number;
 }
 
 export interface EventMarkerHit {
@@ -85,6 +93,64 @@ interface MarkerVisual {
   points: THREE.Vector3[];
   visibleRange: readonly [number, number] | null;
   layout: IntervalLayout;
+  /** Whether each sprite belongs to this piece (midpoint, start cap, end cap). */
+  present: boolean[];
+  /** Epochs this visual covers: the whole event, or its piece on this line. */
+  pieceStart: number;
+  pieceEnd: number;
+}
+
+/** A time-tagged polyline: the drawn trail, or an interval's own samples. */
+interface Polyline {
+  count: number;
+  time(i: number): number;
+  /** Writes vertex `i` into `out` (world space). */
+  at(i: number, out: THREE.Vector3): THREE.Vector3;
+}
+
+const trailPolyline = (trail: DrawnTrail): Polyline => ({
+  count: trail.count,
+  time: (i) => trail.times[i],
+  at: (i, out) => out.set(trail.positions[i * 3], trail.positions[i * 3 + 1], trail.positions[i * 3 + 2]),
+});
+
+/**
+ * Visit `line` restricted to [start, end]: the vertices inside, plus points
+ * interpolated at the bounds, in time order. Times must ascend.
+ */
+function traceRange(
+  line: Polyline,
+  start: number,
+  end: number,
+  emit: (point: THREE.Vector3, et: number) => void,
+): void {
+  const { count } = line;
+  if (count < 2 || !(start <= end) || line.time(count - 1) < start || line.time(0) > end) return;
+  const first = lowerBound(line, start); // first vertex with t >= start
+  let last = lowerBound(line, end);
+  while (last < count && line.time(last) <= end) last++;
+  last--; // last vertex with t <= end
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const cut = (et: number, i: number) => {
+    const t0 = line.time(i);
+    const f = (et - t0) / (line.time(i + 1) - t0 || 1);
+    emit(line.at(i, a).lerp(line.at(i + 1, b), f), et);
+  };
+  if (first > 0 && line.time(first) > start) cut(start, first - 1);
+  for (let i = first; i <= last; i++) emit(line.at(i, a), line.time(i));
+  if (last < count - 1 && line.time(last) < end) cut(end, last);
+}
+
+/** Position on `line` at `et` by linear interpolation, or null outside it. */
+function polylineAt(line: Polyline, et: number, out: THREE.Vector3): THREE.Vector3 | null {
+  const { count } = line;
+  if (count < 1 || et < line.time(0) || et > line.time(count - 1)) return null;
+  const i = Math.max(1, Math.min(count - 1, lowerBound(line, et)));
+  if (count === 1) return line.at(0, out);
+  const t0 = line.time(i - 1);
+  const f = (et - t0) / (line.time(i) - t0 || 1);
+  return line.at(i - 1, out).lerp(line.at(i, new THREE.Vector3()), f);
 }
 
 export interface EventMarkersViewport {
@@ -320,59 +386,21 @@ class SpanStroke {
   }
 
   /**
-   * Retrace the trail's vertices inside [start, end], cut exactly at the event
-   * boundaries. The newest trail vertex is its live head sample, so while the
-   * playhead is inside the event the stroke reaches the body itself.
+   * Rewrite the stroke from `trace`, which emits the polyline's points in
+   * order; `maxPoints` bounds how many it can emit.
    */
-  writeTrail(trail: DrawnTrail, start: number, end: number): number {
-    const { positions, times, count } = trail;
-    if (count < 2 || times[count - 1] < start || times[0] > end) return 0;
-    const first = lowerBound(times, count, start); // first vertex with t >= start
-    let last = lowerBound(times, count, end);
-    while (last < count && times[last] <= end) last++;
-    last--; // last vertex with t <= end
-    const cutStart = first > 0 && times[first] > start;
-    const cutEnd = last < count - 1 && times[last] < end;
-    const array = this.reserve(Math.max(0, last - first) + 2);
+  write(maxPoints: number, trace: (emit: (point: THREE.Vector3) => void) => void): number {
+    const array = this.reserve(Math.max(1, maxPoints - 1));
     let segments = 0;
     let px = NaN, py = NaN, pz = NaN;
-    const emit = (x: number, y: number, z: number) => {
+    trace((point) => {
       if (!Number.isNaN(px)) {
         const o = segments++ * 6;
         array[o] = px; array[o + 1] = py; array[o + 2] = pz;
-        array[o + 3] = x; array[o + 4] = y; array[o + 5] = z;
-      }
-      px = x; py = y; pz = z;
-    };
-    const emitAt = (et: number, a: number) => {
-      const f = (et - times[a]) / (times[a + 1] - times[a] || 1);
-      emit(
-        positions[a * 3] + (positions[a * 3 + 3] - positions[a * 3]) * f,
-        positions[a * 3 + 1] + (positions[a * 3 + 4] - positions[a * 3 + 1]) * f,
-        positions[a * 3 + 2] + (positions[a * 3 + 5] - positions[a * 3 + 2]) * f,
-      );
-    };
-    if (cutStart) emitAt(start, first - 1);
-    for (let i = first; i <= last; i++) emit(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
-    if (cutEnd) emitAt(end, last);
-    return segments;
-  }
-
-  /** Fallback without a trail: chords between the interval's own samples. */
-  writeSamples(points: readonly THREE.Vector3[], times: readonly number[], range: readonly [number, number]): number {
-    const array = this.reserve(points.length);
-    let segments = 0;
-    let previous: THREE.Vector3 | null = null;
-    for (let i = 0; i < points.length; i++) {
-      if (times[i] < range[0] || times[i] > range[1]) continue;
-      const point = points[i];
-      if (previous) {
-        const o = segments++ * 6;
-        array[o] = previous.x; array[o + 1] = previous.y; array[o + 2] = previous.z;
         array[o + 3] = point.x; array[o + 4] = point.y; array[o + 5] = point.z;
       }
-      previous = point;
-    }
+      px = point.x; py = point.y; pz = point.z;
+    });
     return segments;
   }
 
@@ -459,6 +487,9 @@ export class EventMarkers extends THREE.Object3D {
       visual.sprites[index]?.visible) {
       return visual.sprites[index].position.clone();
     }
+    // Pieces of a split interval that do not own the midpoint leave the
+    // anchor to the piece that does.
+    if (!visual.present[0]) return null;
     if (visual.sprites[0]?.visible || visual.spriteBaseOpacity[0] > 0) return visual.sprites[0].position.clone();
     return visual.sprites.find((sprite) => sprite.visible)?.position.clone() ?? null;
   }
@@ -502,7 +533,7 @@ export class EventMarkers extends THREE.Object3D {
       const { marker } = visual;
       visual.visibleRange = visibleRange;
       const inTrail = visibleRange !== null &&
-        marker.startEt <= visibleRange[1] && marker.endEt >= visibleRange[0];
+        visual.pieceStart <= visibleRange[1] && visual.pieceEnd >= visibleRange[0];
       if (!inTrail) {
         for (let i = 0; i < visual.sprites.length; i++) {
           visual.spriteBaseOpacity[i] = 0;
@@ -557,7 +588,7 @@ export class EventMarkers extends THREE.Object3D {
         glyphUniforms(visual.sprites[i].material as THREE.SpriteMaterial).eventGlyphDpr.value = pixelRatio;
         const alpha = marker.selected || this.isPreview(marker) ? 1 : trailAlphaAt(visual.times[sampleIndex]);
         const inRange = visual.times[sampleIndex] >= clipStart && visual.times[sampleIndex] <= clipEnd;
-        visual.spriteBaseOpacity[i] = inRange ? alpha : 0;
+        visual.spriteBaseOpacity[i] = inRange && visual.present[i] ? alpha : 0;
         // A collapsed interval keeps the anchor opacity of its hidden glyphs
         // (callouts still attach there) but draws none of them.
         const drawn = marker.temporality !== 'interval' ||
@@ -601,12 +632,43 @@ export class EventMarkers extends THREE.Object3D {
     let segments = 0;
     if (visual) {
       if (stroke === this.previewStroke) stroke.setColor(visual.marker.color ?? this.options.color ?? DEFAULT_COLOR);
-      const trail = this.options.trail?.();
-      segments = trail
-        ? stroke.writeTrail(trail, visual.marker.startEt, visual.marker.endEt)
-        : stroke.writeSamples(visual.points, visual.times, visual.visibleRange!);
+      const { line, start, end } = this.drawnSpan(visual);
+      segments = stroke.write(line.count + 2, (emit) => traceRange(line, start, end, emit));
     }
     stroke.show(this.visible && segments > 0, segments);
+  }
+
+  /**
+   * The polyline an interval is drawn along and the epochs of it this visual
+   * covers. With a trail that is the trail's own vertices (cut at the piece
+   * bounds, reaching the live head sample), so the stroke, picking, and hit
+   * anchoring all agree with what is on screen; otherwise the interval's
+   * samples, cut at the trail's visible range.
+   */
+  private drawnSpan(visual: MarkerVisual): { line: Polyline; start: number; end: number } {
+    const trail = this.options.trail?.();
+    if (trail) return { line: trailPolyline(trail), start: visual.pieceStart, end: visual.pieceEnd };
+    const range = visual.visibleRange ?? [Infinity, -Infinity];
+    return {
+      line: { count: visual.points.length, time: (i) => visual.times[i], at: (i, out) => out.copy(visual.points[i]) },
+      start: Math.max(visual.pieceStart, range[0]),
+      end: Math.min(visual.pieceEnd, range[1]),
+    };
+  }
+
+  /**
+   * Where the drawn span of an interval is at `et` (e.g. where the pointer
+   * hit it), or null if this line does not draw that epoch right now.
+   */
+  anchorAt(id: string, queryId: string, et: number): THREE.Vector3 | null {
+    for (const visual of this.visuals) {
+      if (visual.marker.id !== id || visual.marker.queryId !== queryId || !visual.visibleRange) continue;
+      const { line, start, end } = this.drawnSpan(visual);
+      if (et < start || et > end) continue;
+      const point = polylineAt(line, et, new THREE.Vector3());
+      if (point) return point;
+    }
+    return null;
   }
 
   /** Called after camera movement, immediately before the final marker pass. */
@@ -715,29 +777,38 @@ export class EventMarkers extends THREE.Object3D {
     }
     // Spans only when no glyph is under the pointer.
     if (nearest) return nearest;
+    // Test the polyline actually drawn (the trail, cut at the piece bounds),
+    // so every visible bit of a span is pickable, including the stretch
+    // between the last coarse sample and the trail head.
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
     for (const visual of this.visuals) {
       if (visual.marker.temporality !== 'interval' || !visual.visibleRange) continue;
-      for (let i = 1; i < visual.points.length; i++) {
-        const aEt = visual.times[i - 1];
-        const bEt = visual.times[i];
-        if (aEt < visual.visibleRange[0] || bEt > visual.visibleRange[1]) continue;
-        const a = visual.points[i - 1].clone().project(camera);
-        const b = visual.points[i].clone().project(camera);
-        if (a.z < -1 || a.z > 1 || b.z < -1 || b.z > 1) continue;
-        const ax = (a.x + 1) * width / 2;
-        const ay = (1 - a.y) * height / 2;
-        const dx = (b.x - a.x) * width / 2;
-        const dy = (a.y - b.y) * height / 2;
-        const fraction = Math.max(0, Math.min(1, ((screenX - ax) * dx + (screenY - ay) * dy) / (dx * dx + dy * dy || 1)));
-        const d2 = (ax + dx * fraction - screenX) ** 2 + (ay + dy * fraction - screenY) ** 2;
-        if (d2 > radiusSq) continue;
-        const worldPosition = visual.points[i - 1].clone().lerp(visual.points[i], fraction);
-        if (!accept(worldPosition)) continue;
-        const renderOrder = visual.marker.selected || this.isPreview(visual.marker) ? 3 : 1;
-        const hit: EventMarkerHit = { marker: visual.marker, et: aEt + (bEt - aEt) * fraction,
-          distanceSq: d2, renderOrder, worldPosition, span: true };
-        if (preferHit(hit, nearest)) nearest = hit;
-      }
+      const renderOrder = visual.marker.selected || this.isPreview(visual.marker) ? 3 : 1;
+      const { line, start, end } = this.drawnSpan(visual);
+      let aEt = NaN;
+      let aIn = false;
+      traceRange(line, start, end, (point, bEt) => {
+        b.copy(point).project(camera);
+        const bIn = b.z >= -1 && b.z <= 1;
+        if (aIn && bIn) {
+          const ax = (a.x + 1) * width / 2;
+          const ay = (1 - a.y) * height / 2;
+          const dx = (b.x - a.x) * width / 2;
+          const dy = (a.y - b.y) * height / 2;
+          const fraction = Math.max(0, Math.min(1, ((screenX - ax) * dx + (screenY - ay) * dy) / (dx * dx + dy * dy || 1)));
+          const d2 = (ax + dx * fraction - screenX) ** 2 + (ay + dy * fraction - screenY) ** 2;
+          const et = aEt + (bEt - aEt) * fraction;
+          if (d2 <= radiusSq && (!nearest || d2 < nearest.distanceSq)) {
+            const worldPosition = polylineAt(line, et, new THREE.Vector3()) ?? point.clone();
+            const hit: EventMarkerHit = { marker: visual.marker, et, distanceSq: d2, renderOrder, worldPosition, span: true };
+            if (accept(worldPosition) && preferHit(hit, nearest)) nearest = hit;
+          }
+        }
+        a.copy(b);
+        aEt = bEt;
+        aIn = bIn;
+      });
     }
     return nearest;
   }
@@ -820,6 +891,9 @@ export class EventMarkers extends THREE.Object3D {
         points: [],
         visibleRange: null,
         layout: 'full',
+        present: [],
+        pieceStart: marker.pieceStartEt ?? marker.startEt,
+        pieceEnd: marker.pieceEndEt ?? marker.endEt,
       };
 
       if (marker.temporality === 'instant') {
@@ -831,24 +905,36 @@ export class EventMarkers extends THREE.Object3D {
           `${marker.kind}_${marker.id}`,
         ));
         visual.spriteSampleIndices.push(0);
+        visual.present.push(true);
       } else {
-        const duration = marker.endEt - marker.startEt;
+        // Sample this line's piece; the event's midpoint is always a sample
+        // on the piece that owns it, so its glyph sits exactly there.
+        const { pieceStart, pieceEnd } = visual;
+        const duration = pieceEnd - pieceStart;
         visual.times = Array.from(
           { length: intervalSamples },
-          (_, i) => marker.startEt + duration * i / (intervalSamples - 1),
+          (_, i) => pieceStart + duration * i / (intervalSamples - 1),
         );
+        const midpoint = (marker.startEt + marker.endEt) / 2;
+        // A midpoint on a shared arc boundary belongs to the later piece.
+        const ownsMidpoint = midpoint >= pieceStart && (midpoint < pieceEnd || pieceEnd >= marker.endEt);
+        let midIndex = 0;
+        if (ownsMidpoint) {
+          midIndex = visual.times.findIndex((t) => t >= midpoint);
+          if (Math.abs(visual.times[midIndex] - midpoint) > duration * 1e-9) visual.times.splice(midIndex, 0, midpoint);
+        }
         visual.sprites.push(this.makeSprite(
           eventGlyphShape(marker.glyph ?? 'diamond'),
           color,
           markerSize,
           `${marker.kind}_${marker.id}_midpoint`,
         ));
-        visual.spriteSampleIndices.push(Math.floor((intervalSamples - 1) / 2));
         visual.sprites.push(
           this.makeSprite('cap', color, markerSize, `${marker.kind}_${marker.id}_start`),
           this.makeSprite('cap', color, markerSize, `${marker.kind}_${marker.id}_end`),
         );
-        visual.spriteSampleIndices.push(0, intervalSamples - 1);
+        visual.spriteSampleIndices.push(midIndex, 0, visual.times.length - 1);
+        visual.present.push(ownsMidpoint, pieceStart <= marker.startEt, pieceEnd >= marker.endEt);
       }
 
       this.styleVisual(visual);
@@ -924,13 +1010,13 @@ export function pickEventMarkerGroups(
   return nearest;
 }
 
-/** First index in the ascending prefix `values[0, count)` whose value is >= `target`. */
-function lowerBound(values: Float64Array, count: number, target: number): number {
+/** First vertex index whose time is >= `target` (`line.count` if none). */
+function lowerBound(line: Polyline, target: number): number {
   let lo = 0;
-  let hi = count;
+  let hi = line.count;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
-    if (values[mid] < target) lo = mid + 1;
+    if (line.time(mid) < target) lo = mid + 1;
     else hi = mid;
   }
   return lo;

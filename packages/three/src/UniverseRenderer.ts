@@ -159,6 +159,33 @@ export function selectEventTrajectoryBody(candidates: readonly Body[], primary?:
   })[0];
 }
 
+/**
+ * Which of a body's trajectory lines draw an event, and the epochs each one
+ * covers. An interval can begin on one composite arc and end on another, so
+ * every overlapping line gets its piece of the same logical event; instants
+ * (and intervals no line claims) go to the line owning their midpoint.
+ */
+export function eventPiecesOnLines<K>(
+  event: GeometryEvent,
+  lines: ReadonlyArray<readonly [K, TrajectoryLine]>,
+): Array<{ key: K; line: TrajectoryLine; start: number; end: number }> {
+  const start = eventStart(event);
+  const end = eventEnd(event);
+  const pieces: Array<{ key: K; line: TrajectoryLine; start: number; end: number }> = [];
+  if (event.temporality === 'interval') {
+    for (const [key, line] of lines) {
+      const [lo, hi] = line.timeBounds();
+      if (lo <= end && hi >= start) pieces.push({ key, line, start: Math.max(start, lo), end: Math.min(end, hi) });
+    }
+  }
+  if (pieces.length === 0) {
+    const mid = eventMidpoint(event);
+    const entry = lines.find(([, line]) => line.containsTime(mid)) ?? lines[0];
+    if (entry) pieces.push({ key: entry[0], line: entry[1], start, end });
+  }
+  return pieces;
+}
+
 export class UniverseRenderer {
   readonly scene: THREE.Scene;
   readonly renderer: THREE.WebGLRenderer;
@@ -178,6 +205,8 @@ export class UniverseRenderer {
   private _eventPreviewBoundary: 'start' | 'end' | undefined;
   private _selectedEvent: { id: string; queryId: string } | null = null;
   private _hoveredSceneEvent: string | null = null;
+  /** Epoch under the pointer when the scene hover is on an interval span. */
+  private _sceneEventHit: { id: string; queryId: string; et: number } | null = null;
   /** Hover copy for the previewed feature; selection copy persists until cleared. */
   private _eventPreviewAnnotation = '';
   private _selectedEventAnnotation = '';
@@ -1277,7 +1306,8 @@ export class UniverseRenderer {
 
     const linesForBody = (name: string): Array<[string, TrajectoryLine]> =>
       [...this.trajectoryLines].filter(([key]) => key === name || key.startsWith(`${name}__arc`));
-    const grouped = new Map<string, { body: Body; line: TrajectoryLine; events: GeometryEvent[] }>();
+    type Piece = { event: GeometryEvent; start: number; end: number };
+    const grouped = new Map<string, { body: Body; line: TrajectoryLine; pieces: Piece[] }>();
 
     for (const event of events) {
       const focus = focusForEvent(event);
@@ -1288,21 +1318,19 @@ export class UniverseRenderer {
       const body = selectEventTrajectoryBody(candidates, focus.primary);
       if (!body) continue;
 
-      const bodyLines = linesForBody(body.name);
-      const eventEt = eventMidpoint(event);
-      const entry = bodyLines.find(([, line]) => line.containsTime(eventEt)) ?? bodyLines[0];
-      if (!entry) continue;
-      const [lineKey, line] = entry;
-      const bucket = grouped.get(lineKey) ?? { body, line, events: [] };
-      bucket.events.push(event);
-      grouped.set(lineKey, bucket);
+      for (const piece of eventPiecesOnLines(event, linesForBody(body.name))) {
+        const bucket = grouped.get(piece.key) ?? { body, line: piece.line, pieces: [] };
+        bucket.pieces.push({ event, start: piece.start, end: piece.end });
+        grouped.set(piece.key, bucket);
+      }
     }
 
-    for (const [lineKey, { body, line, events: lineEvents }] of grouped) {
+    for (const [lineKey, { body, line, pieces }] of grouped) {
+      const lineEvents = pieces.map(({ event }) => event);
       // The selected-span stroke retraces this line's drawn vertices, including
       // its live head sample, so it reaches the body while the event is underway.
       const markers = new EventMarkers(body, { trail: () => line.drawnTrail() });
-      markers.setMarkers(lineEvents.map((event) => ({
+      markers.setMarkers(pieces.map(({ event, start, end }) => ({
         id: event.id,
         queryId: event.queryId,
         kind: event.kind,
@@ -1312,6 +1340,8 @@ export class UniverseRenderer {
         temporality: event.temporality,
         startEt: eventStart(event),
         endEt: eventEnd(event),
+        pieceStartEt: start,
+        pieceEndEt: end,
         selected: selected?.id === event.id && selected.queryId === event.queryId,
       })));
       markers.setPreview(this._eventPreview);
@@ -1397,13 +1427,21 @@ export class UniverseRenderer {
     // Candidates in priority order. A preview whose anchor is off-trail or
     // hidden (the pointer rests where the event used to be) yields to the
     // selection rather than blanking it.
-    const candidates: Array<{ target: { id: string; queryId: string }; boundary?: 'start' | 'end'; text: string }> = [];
+    const candidates: Array<{
+      target: { id: string; queryId: string }; boundary?: 'start' | 'end'; hitEt?: number; text: string;
+    }> = [];
     if (this._eventPreview && this._eventPreviewAnnotation) {
       const boundary = this._eventPreviewBoundary;
       const useSelectionCopy = !boundary && isSelected(this._eventPreview) && this._selectedEventAnnotation;
+      // A span hovered in the scene anchors where the pointer is on it, not
+      // at the interval's midpoint (which may be far away or off the trail).
+      const hit = this._sceneEventHit;
+      const hitEt = !boundary && hit && hit.id === this._eventPreview.id && hit.queryId === this._eventPreview.queryId
+        ? hit.et : undefined;
       candidates.push({
         target: this._eventPreview,
         boundary,
+        hitEt,
         text: useSelectionCopy ? this._selectedEventAnnotation : this._eventPreviewAnnotation,
       });
     }
@@ -1411,17 +1449,30 @@ export class UniverseRenderer {
       candidates.push({ target: selectedKey, text: this._selectedEventAnnotation });
     }
 
-    for (const { target, boundary, text } of candidates) {
-      const placement = [...this.eventMarkerGroups.values()]
-        .find(({ markers, events }) => markers.visible &&
-          events.some((event) => event.id === target.id && event.queryId === target.queryId));
-      const event = placement?.events.find((item) => item.id === target.id && item.queryId === target.queryId);
-      const anchor = placement?.markers.anchorFor(target.id, target.queryId, boundary) ?? null;
-      if (!placement || !event || !anchor || this.eventAnchorOpacity(anchor) <= 0.15) continue;
-      const p = anchor.clone().project(this.camera);
-      // Off-screen anchors get no callout (it would point at nothing); an
-      // off-screen preview yields to an on-screen selection.
-      if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
+    for (const { target, boundary, hitEt, text } of candidates) {
+      // An interval split across arcs lives in several groups; the first
+      // with a usable anchor (the hit point, the cap, or the midpoint piece)
+      // hosts the callout.
+      let placement: EventMarkerPlacement | undefined;
+      let event: GeometryEvent | undefined;
+      const p = new THREE.Vector3();
+      for (const group of this.eventMarkerGroups.values()) {
+        if (!group.markers.visible) continue;
+        const found = group.events.find((item) => item.id === target.id && item.queryId === target.queryId);
+        if (!found) continue;
+        const anchor = hitEt !== undefined
+          ? group.markers.anchorAt(target.id, target.queryId, hitEt)
+          : group.markers.anchorFor(target.id, target.queryId, boundary);
+        if (!anchor || this.eventAnchorOpacity(anchor) <= 0.15) continue;
+        p.copy(anchor).project(this.camera);
+        // Off-screen anchors get no callout (it would point at nothing); an
+        // off-screen preview yields to an on-screen selection.
+        if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
+        placement = group;
+        event = found;
+        break;
+      }
+      if (!placement || !event) continue;
 
       const selected = isSelected(target);
       this._eventCallout.setContent({
@@ -3581,12 +3632,13 @@ export class UniverseRenderer {
       // Label-only pick (cheap; runs while mousing) with a tight slop so the
       // hover hitbox hugs the label text rather than a loose 20px halo.
       const eventHit = this.pickSceneEvent(this._lastPointer.x, this._lastPointer.y, 11);
+      this.recordSceneEventHit(eventHit);
       const eventKey = eventHit ? `${eventHit.marker.queryId}:${eventHit.marker.id}:${eventHit.boundary ?? ''}` : null;
       if (eventKey !== this._hoveredSceneEvent) {
         this._hoveredSceneEvent = eventKey;
         this.events.emit('event:hover', eventHit ? {
           id: eventHit.marker.id, queryId: eventHit.marker.queryId,
-          boundary: eventHit.boundary,
+          boundary: eventHit.boundary, et: eventHit.span ? eventHit.et : undefined,
         } : null);
       }
       const next = eventHit ? null : this.pickBody(this._lastPointer.x, this._lastPointer.y, true, 3);
@@ -3606,16 +3658,27 @@ export class UniverseRenderer {
     if (performance.now() - this._lastHoverPickMs < UniverseRenderer._hoverPickIntervalMs * 4) return;
     this._lastHoverPickMs = performance.now();
     const hit = this.pickSceneEvent(this._lastPointer.x, this._lastPointer.y, 11);
+    this.recordSceneEventHit(hit);
     const key = hit ? `${hit.marker.queryId}:${hit.marker.id}:${hit.boundary ?? ''}` : null;
     if (key === this._hoveredSceneEvent) return;
     this._hoveredSceneEvent = key;
     this.events.emit('event:hover', hit ? {
       id: hit.marker.id, queryId: hit.marker.queryId, boundary: hit.boundary,
+      et: hit.span ? hit.et : undefined,
     } : null);
     if (!hit) this.renderer.domElement.style.cursor = '';
   }
 
+  /**
+   * Remember where on a span the pointer is (an epoch, not a scene point, so
+   * the anchor stays on the span as the origin shifts or time plays).
+   */
+  private recordSceneEventHit(hit: ReturnType<typeof pickEventMarkerGroups>): void {
+    this._sceneEventHit = hit?.span ? { id: hit.marker.id, queryId: hit.marker.queryId, et: hit.et } : null;
+  }
+
   private _onPointerLeave = (): void => {
+    this._sceneEventHit = null;
     if (this._hoverPickTimer) {
       clearTimeout(this._hoverPickTimer);
       this._hoverPickTimer = 0;
