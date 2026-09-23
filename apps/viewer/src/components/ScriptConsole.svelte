@@ -10,14 +10,14 @@
    * advertise a verb the interpreter lacks — the defect class of a shortcut
    * strip that promised a key nothing implemented.
    */
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { Play, Loader2, Camera, Save, Trash2 } from 'lucide-svelte';
   import { VERB_LIST, verbUsage, type VerbSpec } from '@cosmolabe/control';
   import { toolDef } from '../lib/shell.svelte';
   import { getCosmo } from '../lib/loader';
-  import { runWithTranscript, type TranscriptEntry } from '../lib/script-console';
+  import { startScriptRun, type ScriptRun, type TranscriptEntry } from '../lib/script-console';
   import {
-    listPrograms, saveProgram, deleteProgram, storeProblem, type ScriptStoreFailure,
+    readLibrary, saveToLibrary, deleteFromLibrary, type ProgramLibrary, type ScriptStoreFailure,
   } from '../lib/script-store';
   import { takePendingScript } from '../lib/script-demo.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
@@ -33,8 +33,8 @@
   let running = $state(false);
   let transcript = $state<readonly TranscriptEntry[]>([]);
   let summary = $state<string | null>(null);
-  let programs = $state(listPrograms());
-  let storeFailure = $state<ScriptStoreFailure | null>(storeProblem());
+  let library = $state<ProgramLibrary>(readLibrary());
+  let current: ScriptRun | null = null;
   let log = $state<HTMLElement | null>(null);
 
   // Keep the statement that is running in view as the transcript streams.
@@ -49,10 +49,19 @@
     .map((category) => ({ category, verbs: VERB_LIST.filter((v) => v.category === category) }))
     .filter((g) => g.verbs.length > 0);
 
-  const STORE_MESSAGES: Record<ScriptStoreFailure, string> = {
+  const READ_MESSAGES: Record<ScriptStoreFailure, string> = {
     unavailable: 'Browser storage is unavailable, so programs cannot be saved here.',
     unreadable: 'Saved programs could not be read; saving is disabled so they are not overwritten.',
   };
+
+  const writeMessage = $derived.by(() => {
+    const w = library.writeProblem;
+    if (!w) return null;
+    const what = w.op === 'save' ? `save "${w.name}"` : `delete "${w.name}"`;
+    return w.reason === 'unreadable'
+      ? `Could not ${what}: saved programs could not be read.`
+      : `Could not ${what}: browser storage refused the write (it may be full).`;
+  });
 
   // A scripted demo from the welcome screen queues its script before the scene
   // has loaded; the console mounts once it has, which is when it should run.
@@ -68,11 +77,14 @@
     running = true;
     summary = null;
     try {
-      const result = await runWithTranscript(source, getCosmo(), (entries) => { transcript = entries; });
+      current = startScriptRun(source, getCosmo(), (entries) => { transcript = entries; });
+      const result = await current.done;
       if (result.ok) {
         const frames = result.images.length;
         summary = `Ran ${result.ran} statement${result.ran === 1 ? '' : 's'}` +
           (frames ? `, captured ${frames} frame${frames === 1 ? '' : 's'}` : '');
+      } else if (result.cancelled) {
+        summary = `Cancelled after ${result.ran} statement${result.ran === 1 ? '' : 's'}`;
       } else {
         summary = result.ran > 0 ? `Stopped after ${result.ran} statement${result.ran === 1 ? '' : 's'}` : 'Nothing ran';
       }
@@ -80,36 +92,37 @@
       // Not a script error — a bug in the viewer. Say so rather than swallow it.
       summary = `Internal error: ${err instanceof Error ? err.message : String(err)}`;
     } finally {
+      current = null;
       running = false;
     }
   }
+
+  // Closing the console — or anything that unmounts it, loading a catalog
+  // included — ends its script. Otherwise the lines after a `wait` would go on
+  // to drive whatever is on screen next, with no transcript left to show it.
+  // Minimizing does not come through here: it hides the panel body, not this
+  // component.
+  onDestroy(() => current?.cancel('the console closed'));
 
   function snapshot() {
     source = getCosmo().snapshot();
   }
 
-  function refreshPrograms() {
-    programs = listPrograms();
-    storeFailure = storeProblem();
-  }
-
   function save() {
     const name = programName.trim();
     if (!name) return;
-    storeFailure = saveProgram(name, source);
-    refreshPrograms();
+    library = saveToLibrary(name, source);
   }
 
   function load(name: string) {
-    const found = programs.find((p) => p.name === name);
+    const found = library.programs.find((p) => p.name === name);
     if (!found) return;
     source = found.program.source;
     programName = name;
   }
 
   function remove(name: string) {
-    storeFailure = deleteProgram(name);
-    refreshPrograms();
+    library = deleteFromLibrary(name);
   }
 
   function onEditorKeydown(e: KeyboardEvent) {
@@ -176,12 +189,13 @@
                 class:text-text-secondary={entry.status === 'ok'}
                 class:text-text-primary={entry.status === 'running'}
                 class:text-error={entry.status === 'error'}
+                class:text-text-muted={entry.status === 'cancelled'}
                 title={entry.text}
               >
                 {entry.text.trim()}
               </div>
               {#if entry.message}
-                <div class="ui-helper whitespace-normal text-error">{entry.message}</div>
+                <div class="ui-helper whitespace-normal" class:text-error={entry.status === 'error'}>{entry.message}</div>
               {/if}
             </div>
           </div>
@@ -195,8 +209,11 @@
     <div class="shell-divider border-t"></div>
 
     <div class="ui-section-label">Programs</div>
-    {#if storeFailure}
-      <p class="ui-helper text-warning">{STORE_MESSAGES[storeFailure]}</p>
+    {#if library.readProblem}
+      <p class="ui-helper text-warning">{READ_MESSAGES[library.readProblem]}</p>
+    {/if}
+    {#if writeMessage}
+      <p class="ui-helper text-error" role="alert">{writeMessage}</p>
     {/if}
     <div class="flex items-center gap-1.5">
       <input
@@ -209,15 +226,15 @@
       <button
         class="ui-control flex items-center gap-1 rounded border border-border bg-surface-3 px-2 py-1 text-text-secondary hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
         onclick={save}
-        disabled={programName.trim() === '' || storeFailure != null}
+        disabled={programName.trim() === '' || library.readProblem != null}
         title="Save the editor under this name"
       >
         <Save size={12} /> Save
       </button>
     </div>
-    {#if programs.length > 0}
+    {#if library.programs.length > 0}
       <ul class="flex flex-col">
-        {#each programs as { name } (name)}
+        {#each library.programs as { name } (name)}
           <li class="group flex items-center gap-1 rounded hover:bg-hover">
             <button class="ui-body min-w-0 flex-1 truncate px-1.5 py-1 text-left text-text-primary" onclick={() => load(name)} title="Load into the editor">
               {name}
@@ -233,7 +250,7 @@
           </li>
         {/each}
       </ul>
-    {:else if !storeFailure}
+    {:else if !library.readProblem}
       <p class="ui-helper">No saved programs.</p>
     {/if}
 

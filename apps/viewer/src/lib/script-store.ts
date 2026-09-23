@@ -127,3 +127,40 @@ export function deleteProgram(
   const { [name]: _removed, ...rest } = result.programs;
   return write(storage!, rest);
 }
+
+/**
+ * What the console shows about the store: the list, and two problems kept apart.
+ *
+ * `readProblem` is a property of the store — it disables saving until the page
+ * reloads. `writeProblem` is the outcome of the last save or delete, and must
+ * survive the re-read that follows it: a write refused for quota leaves the
+ * store perfectly *readable*, so re-deriving everything from a read would
+ * report all clear over a program that was never saved.
+ */
+export interface ProgramLibrary {
+  readonly programs: { name: string; program: SavedProgram }[];
+  readonly readProblem: ScriptStoreFailure | null;
+  readonly writeProblem: { op: 'save' | 'delete'; name: string; reason: ScriptStoreFailure } | null;
+}
+
+export function readLibrary(storage: ScriptStorage | null = defaultStorage()): ProgramLibrary {
+  return { programs: listPrograms(storage), readProblem: storeProblem(storage), writeProblem: null };
+}
+
+export function saveToLibrary(
+  name: string,
+  source: string,
+  storage: ScriptStorage | null = defaultStorage(),
+  now: number = Date.now(),
+): ProgramLibrary {
+  const reason = saveProgram(name, source, storage, now);
+  return { ...readLibrary(storage), writeProblem: reason ? { op: 'save', name, reason } : null };
+}
+
+export function deleteFromLibrary(
+  name: string,
+  storage: ScriptStorage | null = defaultStorage(),
+): ProgramLibrary {
+  const reason = deleteProgram(name, storage);
+  return { ...readLibrary(storage), writeProblem: reason ? { op: 'delete', name, reason } : null };
+}

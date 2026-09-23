@@ -99,6 +99,22 @@ export async function execute(
     // Non-null: `parse` rejects an unknown verb, so a statement can only name
     // one that is in the table.
     const spec = VERBS.get(statement.verb)!;
+
+    // Before announcing the statement, so a consumer streaming a transcript
+    // never shows a line as running that never ran. The usual cause is the
+    // console that started the run closing, or the scene it was written for
+    // being replaced — either way, the remaining lines would drive a viewer
+    // nobody is watching the script in.
+    if (opts.signal?.aborted) {
+      throw abort(statement, {
+        kind: 'cancelled',
+        line: statement.line,
+        verb: spec.name,
+        message: 'cancelled before this statement ran',
+        text: statement.text,
+      });
+    }
+
     opts.onStatement?.(statement);
 
     // An optional method the host did not implement is a capability it does not

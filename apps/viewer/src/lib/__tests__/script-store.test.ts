@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   deleteProgram, listPrograms, saveProgram, storeProblem, type ScriptStorage,
+  readLibrary, saveToLibrary, deleteFromLibrary,
 } from '../script-store';
 
 function memory(initial?: string): ScriptStorage & { raw: () => string | null } {
@@ -61,5 +62,33 @@ describe('script-store', () => {
 
     const full: ScriptStorage = { getItem: () => null, setItem: () => { throw new Error('quota'); } };
     expect(saveProgram('a', 'x', full)).toBe('unavailable');
+  });
+});
+
+describe('program library', () => {
+  it('keeps a write failure visible when the store still reads fine', () => {
+    // Reads succeed, writes fail: a quota error. Re-reading after the save
+    // finds a perfectly readable store, which must not erase the failure.
+    const s = memory(JSON.stringify({ kept: { source: 'deselect', updated: 1 } }));
+    const full: ScriptStorage = { getItem: s.getItem, setItem: () => { throw new Error('QuotaExceededError'); } };
+
+    const lib = saveToLibrary('new one', 'untrack', full);
+    expect(lib.readProblem).toBeNull();
+    expect(lib.writeProblem).toEqual({ op: 'save', name: 'new one', reason: 'unavailable' });
+    expect(lib.programs.map((p) => p.name)).toEqual(['kept']);
+
+    expect(deleteFromLibrary('kept', full).writeProblem).toEqual({ op: 'delete', name: 'kept', reason: 'unavailable' });
+  });
+
+  it('clears the write failure once a write succeeds', () => {
+    const s = memory();
+    expect(saveToLibrary('a', 'deselect', s).writeProblem).toBeNull();
+    expect(deleteFromLibrary('a', s)).toEqual({ programs: [], readProblem: null, writeProblem: null });
+  });
+
+  it('reports an unreadable store as a read problem, and a save into it as refused', () => {
+    const s = memory('not json');
+    expect(readLibrary(s)).toEqual({ programs: [], readProblem: 'unreadable', writeProblem: null });
+    expect(saveToLibrary('a', 'x', s).writeProblem).toEqual({ op: 'save', name: 'a', reason: 'unreadable' });
   });
 });

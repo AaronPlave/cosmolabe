@@ -129,3 +129,50 @@ describe('the transcript hook', () => {
     expect(seen).toEqual([1, 4]);
   });
 });
+
+describe('cancellation', () => {
+  it('runs nothing after the signal aborts, and names the statement that did not run', async () => {
+    const host = new FakeViewer();
+    const signal = { aborted: false };
+    const announced: number[] = [];
+    let caught: unknown;
+    try {
+      await execute(parse(['runTo 60', 'screenshot a', 'screenshot b'].join('\n')), host, {
+        signal,
+        onStatement: (s) => {
+          announced.push(s.line);
+          // Abort while line 1 is running, as a console closing mid-`wait` would.
+          if (s.line === 1) signal.aborted = true;
+        },
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ScriptRuntimeError);
+    const err = caught as ScriptRuntimeError;
+    expect(err.problems[0]).toMatchObject({ kind: 'cancelled', line: 2 });
+    expect(err.ran).toBe(1);
+    // The unrun line is never announced, so a streamed transcript never shows it running.
+    expect(announced).toEqual([1]);
+    expect(host.calls.some((c) => c.startsWith('screenshot'))).toBe(false);
+  });
+
+  it('stops a recording the cancelled script started', async () => {
+    const host = new FakeViewer();
+    const signal = { aborted: false };
+    await expect(
+      execute(parse(['record on', 'runTo 60'].join('\n')), host, {
+        signal,
+        onStatement: (s) => { if (s.line === 1) signal.aborted = true; },
+      }),
+    ).rejects.toBeInstanceOf(ScriptRuntimeError);
+    expect(host.recording).toBe(false);
+  });
+
+  it('accepts an AbortSignal', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(execute(parse('runTo 60'), new FakeViewer(), { signal: controller.signal }))
+      .rejects.toMatchObject({ problems: [{ kind: 'cancelled', line: 1 }] });
+  });
+});

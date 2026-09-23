@@ -278,6 +278,15 @@ export interface ParseOptions {
 export interface ExecuteOptions {
   /** Called before each statement runs — the console's streaming transcript. */
   onStatement?(statement: Statement): void;
+  /**
+   * Checked before each statement; once `aborted` is true the run stops with a
+   * `cancelled` problem at the statement that did not run.
+   *
+   * Structural rather than `AbortSignal` so this package keeps no DOM types —
+   * an `AbortSignal` satisfies it. Checked *between* statements only: a `wait`
+   * already in progress finishes its sleep, and nothing after it runs.
+   */
+  signal?: { readonly aborted: boolean };
 }
 
 export interface ExecutionReport {

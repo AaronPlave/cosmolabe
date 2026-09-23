@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ViewerControl } from '@cosmolabe/control';
-import { runWithTranscript, type TranscriptEntry } from '../script-console';
+import { runWithTranscript, startScriptRun, type TranscriptEntry } from '../script-console';
 
 /** Just enough host for the verbs these tests use. */
 function host(objects: string[], calls: string[] = []): ViewerControl {
@@ -10,6 +10,7 @@ function host(objects: string[], calls: string[] = []): ViewerControl {
     gotoObject: (name: string) => { calls.push(`gotoObject ${name}`); return objects.includes(name); },
     deselect: () => { calls.push('deselect'); },
     wait: async () => { calls.push('wait'); },
+    on: () => () => {},
   } as unknown as ViewerControl;
 }
 
@@ -50,5 +51,82 @@ describe('runWithTranscript', () => {
   it('reports a verb the host cannot perform at its line', async () => {
     const { final } = await run('deselect\nscreenshot', host([]));
     expect(final.at(-1)).toMatchObject({ line: 2, status: 'error', message: 'screenshot is not supported by this viewer' });
+  });
+});
+
+/**
+ * A host whose `wait` blocks until the test releases it, and whose `load`
+ * event the test can fire — the two ways a run's scene goes away mid-`wait`.
+ */
+function pausingHost(objects: string[]) {
+  const calls: string[] = [];
+  const loadListeners = new Set<() => void>();
+  let release: () => void = () => {};
+  let waiting: () => void = () => {};
+  const inWait = new Promise<void>((r) => { waiting = r; });
+  const h = {
+    ...host(objects, calls),
+    wait: () => {
+      calls.push('wait');
+      waiting();
+      return new Promise<void>((r) => { release = r; });
+    },
+    on: (event: string, cb: () => void) => {
+      if (event !== 'load') return () => {};
+      loadListeners.add(cb);
+      return () => loadListeners.delete(cb);
+    },
+  } as unknown as ViewerControl;
+  return {
+    host: h, calls, inWait, loadListeners,
+    release: () => release(),
+    load: () => { for (const cb of [...loadListeners]) cb(); },
+  };
+}
+
+describe('startScriptRun cancellation', () => {
+  const SOURCE = 'deselect\nwait 5\ngotoObject Moon\ndeselect';
+
+  it('runs nothing after a wait once the console closes mid-run', async () => {
+    const h = pausingHost(['Moon']);
+    let final: readonly TranscriptEntry[] = [];
+    const run = startScriptRun(SOURCE, h.host, (e) => { final = e; });
+    await h.inWait;
+    run.cancel('the console closed');
+    h.release();
+    const result = await run.done;
+
+    expect(result).toMatchObject({ ok: false, cancelled: true, ran: 2 });
+    expect(h.calls).toEqual(['deselect', 'wait']);
+    expect(final.map((e) => [e.line, e.status])).toEqual([[1, 'ok'], [2, 'ok'], [3, 'cancelled']]);
+    expect(final[2].message).toContain('the console closed');
+  });
+
+  it('stops when a new catalog loads mid-run, and lets go of the load event', async () => {
+    const h = pausingHost(['Moon']);
+    let final: readonly TranscriptEntry[] = [];
+    const run = startScriptRun(SOURCE, h.host, (e) => { final = e; });
+    await h.inWait;
+    expect(h.loadListeners.size).toBe(1);
+    h.load();
+    h.release();
+    const result = await run.done;
+
+    expect(result).toMatchObject({ ok: false, cancelled: true });
+    expect(h.calls).not.toContain('gotoObject Moon');
+    expect(final.at(-1)).toMatchObject({ line: 3, status: 'cancelled' });
+    expect(final.at(-1)?.message).toContain('a new scene loaded');
+    expect(h.loadListeners.size).toBe(0);
+  });
+
+  it('lets go of the load event after a run that finishes normally', async () => {
+    const h = pausingHost(['Moon']);
+    const run = startScriptRun(SOURCE, h.host, () => {});
+    await h.inWait;
+    h.release();
+    expect(await run.done).toMatchObject({ ok: true, ran: 4 });
+    expect(h.loadListeners.size).toBe(0);
+    // A load after the run is over cancels nothing and throws nothing.
+    h.load();
   });
 });

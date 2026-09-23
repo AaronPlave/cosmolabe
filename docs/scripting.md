@@ -223,9 +223,18 @@ drives stays visible and interactive while a script runs.
 - **Programs** are named scripts kept in `localStorage` under
   `cosmolabe-viewer-scripts`, separate from the display preferences. If what is
   stored there cannot be read, saving is disabled rather than risk overwriting
-  it.
+  it. A save the browser refuses, for example because storage is full, is
+  reported and stays on screen until a later write succeeds.
 - **Verbs** lists the vocabulary, derived from `VERB_LIST`, so it cannot
   advertise a verb the interpreter does not have.
+
+A run ends with the console. Closing the panel, or loading a catalog (which
+replaces the whole workspace), cancels the script before its next statement,
+and the transcript marks the first line that did not run. Otherwise the lines
+after a `wait` would go on to drive the next scene with nothing on screen to
+show it. Minimizing the panel does not cancel. Hosts get the same control
+through `execute(program, host, { signal })`: any object with an `aborted` flag,
+`AbortSignal` included, checked between statements.
 
 Keys pressed inside the console stay in it (apart from Escape), so pressing `t`
 with focus on a console button does not toggle trajectories.
