@@ -6,8 +6,9 @@
    * reads the same window (`vs.scrubMin`/`scrubMax`), playhead (`vs.et`) and
    * ghost playhead (`timeline.hoverEt`) as the track does. It owns no time
    * state of its own: its gestures are `timelineGestures`, the same ones the
-   * event lanes use — wheel zooms the shared window about the pointer, a press
-   * or drag seeks the shared playhead, and a hover sets the shared ghost —
+   * event lanes use — wheel zooms the shared window about the pointer, a drag
+   * pans it, a click seeks the shared playhead, and a hover sets the shared
+   * ghost —
    * which is what lets the ruler's private zoom window, playhead and hover
    * scrub go away rather than move here.
    */

@@ -22,7 +22,9 @@
     stepForward, stepBackward, scrubTo, setTime,
     zoomScrubber, resetScrubberZoom, setZoomDuration, etToShortDate, etToUtcString,
   } from '../../lib/viewer-state.svelte';
-  import { timeline, setTimelineHover, timelineEt, timelineFraction, type ProfileEventTick } from '../../lib/timeline.svelte';
+  import {
+    timeline, setTimelineHover, timelineEt, timelineFraction, panTimelineByPixels, type ProfileEventTick,
+  } from '../../lib/timeline.svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
   import { shell, setTimelineDepth } from '../../lib/shell.svelte';
@@ -264,6 +266,7 @@
         fraction={currentFraction}
         onScrub={scrubTo}
         onZoom={(zoomIn, anchor) => zoomScrubber(zoomIn, timelineEt(anchor))}
+        onPan={panTimelineByPixels}
         onHover={onTrackHover}
         {hoverFraction}
         {hoverLabel}

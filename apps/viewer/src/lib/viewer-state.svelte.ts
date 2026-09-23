@@ -545,6 +545,18 @@ export function panScrubber(centerFraction: number) {
   vs.scrubMax = newMax;
 }
 
+/**
+ * Slide the timeline window by `seconds` (positive = later) without changing
+ * its span, stopping at the base range's edges.
+ */
+export function panScrubberBy(seconds: number) {
+  const span = vs.scrubMax - vs.scrubMin;
+  if (!(span > 0) || !Number.isFinite(seconds)) return;
+  const newMin = Math.max(vs.scrubBaseMin, Math.min(vs.scrubMin + seconds, vs.scrubBaseMax - span));
+  vs.scrubMin = newMin;
+  vs.scrubMax = newMin + span;
+}
+
 /** Set the scrubber to a specific duration (in seconds) centered on current time */
 export function setZoomDuration(seconds: number) {
   const half = seconds / 2;

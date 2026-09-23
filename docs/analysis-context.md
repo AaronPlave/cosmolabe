@@ -85,8 +85,11 @@ reads the same zoomed window (`vs.scrubMin`/`scrubMax`), playhead (`vs.et`)
 and ghost playhead (`timeline.hoverEt` in `lib/timeline.svelte.ts`) as the
 track. Rows hold no time state, and share their gestures with the event lanes
 (`timelineGestures`): hover previews an instant everywhere on the
-axis without moving time, a press or drag seeks, and the wheel zooms the shared
-window about the pointer. Visible event results are drawn faintly on each row,
+axis without moving time, a click seeks, a drag pans the shared window, and the
+wheel zooms it about the pointer; a sideways or Shift wheel pans, on the track
+too. Dragging the transport track still scrubs — the track is the playhead's,
+the rows are for navigating the axis. On touch, a horizontal drag on a row
+pans, a vertical one scrolls the lane region, and a tap seeks. Visible event results are drawn faintly on each row,
 and a hover snaps subtly to an event edge and cross-highlights that event on
 the track, so a closest approach visibly sits on the distance minimum.
 

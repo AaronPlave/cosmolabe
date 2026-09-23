@@ -18,6 +18,11 @@
     /** Called on scroll wheel — true = zoom in, about the pointer's fraction */
     onZoom?: (zoomIn: boolean, anchorFraction: number) => void;
     /**
+     * Called on a sideways or Shift wheel with the pan in px of track width
+     * (positive = later). Without it, such wheels zoom as before.
+     */
+    onPan?: (px: number, trackWidthPx: number) => void;
+    /**
      * The timeline's ghost playhead, as a fraction of the zoomed range, or
      * null. Shared with the profile rows, so a hover anywhere on the axis
      * previews the same instant everywhere on it.
@@ -69,7 +74,7 @@
 
   let {
     fraction, onScrub, onScrubStart, onScrubEnd,
-    onZoom, onResetZoom, onSetZoom,
+    onZoom, onPan, onResetZoom, onSetZoom,
     startLabel, endLabel,
     isZoomed = false, viewportStart = 0, viewportEnd = 1, globalPlayhead = 0.5,
     rangeLabel, markers = [],
@@ -107,8 +112,13 @@
     const el = trackEl;
     const handler = (e: WheelEvent) => {
       e.preventDefault();
-      if (e.deltaY === 0) return;
       const rect = el.getBoundingClientRect();
+      const sideways = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      if (onPan && (sideways || (e.shiftKey && e.deltaY !== 0))) {
+        onPan(sideways ? e.deltaX : e.deltaY, rect.width);
+        return;
+      }
+      if (e.deltaY === 0) return;
       onZoom?.(e.deltaY < 0, clampFraction((e.clientX - rect.left) / rect.width));
     };
     el.addEventListener('wheel', handler, { passive: false });
@@ -198,7 +208,7 @@
   aria-valuemin={0}
   aria-valuemax={100}
   aria-valuenow={Math.round(clampFraction(displayFraction) * 100)}
-  aria-label="Time scrubber — scroll to zoom"
+  aria-label="Time scrubber — scroll to zoom, Shift+scroll to pan"
   onkeydown={onKeyDown}
 >
   <div class="scrubber-row">
