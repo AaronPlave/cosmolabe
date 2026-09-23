@@ -255,7 +255,7 @@ Key constraints:
 
 ## Planned Work
 
-Cosmolabe is aimed at being a **mission-aware** spatial reasoning layer that embeds inside mission applications, rather than a generic planetary viewer. Work is sequenced in four tiers: **foundation** (named frames, the catalog factory mechanism, lint, structured faults), the **integration surface** (`ViewerControl`, host time/selection/camera sync, shareable view state, provenance, the PlanDev adapter, a stable `RendererPlugin` API), **mission semantics** (event/interval and observation models, interactive LOS/access/footprint/eclipse), and **mission-aware visualization** (sensor footprints, surface and terrain work tied to observations and operations). Extension points are added only when an integration asks for one. Rendering polish and WebGPU sit below all of it.
+Cosmolabe is aimed at **mission-aware** visualization rather than generic planetary rendering, shipped both as a standalone viewer and as a library that embeds inside mission applications. Work is sequenced in four tiers: **foundation** (named frames, the catalog factory mechanism, lint, structured faults), the **viewer and integration surface** (a hosted viewer, viewer UX, `ViewerControl`, host time/selection/camera sync, shareable view state, provenance, the PlanDev adapter, a stable `RendererPlugin` API), **mission semantics** (event/interval and observation models, interactive LOS/access/footprint/eclipse), and **mission-aware visualization** (sensor footprints, surface and terrain work tied to observations and operations). Extension points are added only when an integration asks for one. Rendering polish and WebGPU sit below all of it.
 
 See **[ROADMAP.md](ROADMAP.md)** for the full list.
 

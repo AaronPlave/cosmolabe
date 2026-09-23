@@ -4,14 +4,21 @@ This is a snapshot of planned work. Issues and PRs welcome — see [CONTRIBUTING
 
 ## What Cosmolabe is for
 
-Cosmolabe is a **mission-aware spatial reasoning layer that embeds inside mission applications** — not a generic planetary viewer that happens to do geometry. Generic planetary visualization is ground Cesium has covered for years; competing there is not the goal. What the tree already has that a generic viewer does not is the mission plumbing: the SPICE conformance layer, `@cosmolabe/interop`'s CCSDS OEM / AEM / CDM, CZML and CSV parsers *and* writers, CK-driven attitude, sensor and instrument geometry, and the geometry/event finders.
+Cosmolabe is **mission-aware visualization and spatial reasoning** — not a generic planetary viewer that happens to do geometry. It ships in two forms, and both are first-class:
+
+- **The standalone viewer** (`apps/viewer`) — drag in a catalog and its kernels, or pick a built-in scene, and get an interactive mission view with the timeline, event finders and sensor geometry, no code required.
+- **The embeddable library** — the same core, renderer and `ViewerControl` surface inside a mission application (PlanDev, `is-timeline-three`, a dashboard).
+
+The viewer is also the library's first and most demanding consumer: anything it needs from the packages is something an embedding host will need too.
+
+Generic planetary visualization is ground Cesium has covered for years; competing there is not the goal. What the tree already has that a generic viewer does not is the mission plumbing: the SPICE conformance layer, `@cosmolabe/interop`'s CCSDS OEM / AEM / CDM, CZML and CSV parsers *and* writers, CK-driven attitude, sensor and instrument geometry, and the geometry/event finders.
 
 So the aim is the best *mission-aware* viewer: terrain plus spacecraft state plus instrument FOV plus observation footprint plus illumination plus access plus the mission timeline. The rendering work is largely the same; what changes is how it is chosen and sequenced — by whether it serves a mission workflow.
 
 The sections below are in priority order, and each builds on the ones above it:
 
 1. **Foundation** — correctness and mechanism everything else depends on.
-2. **Integration surface** — how a host application drives and synchronises with Cosmolabe.
+2. **Viewer and integration surface** — the standalone viewer as a product, and how a host application drives and synchronises with Cosmolabe.
 3. **Mission semantics** — events, intervals, observations, and the geometry that answers questions about them.
 4. **Mission-aware visualization** — surface, terrain and sensor rendering tied to observations and operations.
 
@@ -19,24 +26,31 @@ Rendering polish and WebGPU sit below all four absent a concrete performance or 
 
 ## 1. Foundation
 
-- **Generalised named frames.** Today `trajectoryFrame` is a three-bucket classification (`ecliptic` | `equatorial` | `body-fixed`). `Universe.absolutePositionOf` *does* rotate between the equatorial and ecliptic inertial frames when summing across the parent chain — `0dff40d` added that, and it is measured exact — so the obliquity error this entry originally described is fixed. What remains is the coarseness of the classification itself: three buckets cannot name TEME vs EME2000 vs ICRF, cannot express a body-fixed frame per body, and give an author no way to declare a frame the renderer does not already know. Real ops viewers (STK, NASA Eyes) carry a named-frame registry — `ICRF`, `EME2000`, `ECLIPJ2000`, `TEME`, `ITRF`, `IAU_MOON`, per-spacecraft `LVLH` / `RIC`, etc. — with rotations from each frame to a canonical (typically ICRF), composed on demand. The proper fix: `trajectoryFrame` becomes a frame name (string from a registered set); each trajectory declares its frame explicitly; `absolutePositionOf` inserts the correct rotation per parent-chain leg; SPICE provides accurate dynamic rotations when available (precession + nutation + libration), and a small set of static analytical transforms covers the SPICE-free path. Consumers that today work around the gap (e.g. `is-timeline-three` rotates EME2000 OEM samples to ECLIPJ2000 at catalog-emit time in `MissionConfigToCatalog.ts`) can drop their app-side rotations once this lands. Estimated 2–3 days: design the registry, retrofit existing trajectory classes to declare their frame by name, thread transforms through `absolutePositionOf`, update the rotation-model frame compatibility checks, write the test matrix. Worth doing before a third deep-space mission lands — and several items below (OEM/AEM source types, observation geometry, host frame sync) depend on it.
+- **Generalised named frames.** Today `trajectoryFrame` is a three-bucket classification (`ecliptic` | `equatorial` | `body-fixed`). `Universe.absolutePositionOf` *does* rotate between the equatorial and ecliptic inertial frames when summing across the parent chain — `0dff40d` added that, and it is measured exact — so the obliquity error this entry originally described is fixed. What remains is the coarseness of the classification itself: three buckets cannot name TEME vs EME2000 vs ICRF, cannot express a body-fixed frame per body, and give an author no way to declare a frame the renderer does not already know. Real ops viewers (STK, NASA Eyes) carry a named-frame registry — `ICRF`, `EME2000`, `ECLIPJ2000`, `TEME`, `ITRF`, `IAU_MOON`, per-spacecraft `LVLH` / `RIC`, etc. — with rotations from each frame to a canonical (typically ICRF), composed on demand. The proper fix: `trajectoryFrame` becomes a frame name (string from a registered set); each trajectory declares its frame explicitly; `absolutePositionOf` inserts the correct rotation per parent-chain leg; SPICE provides accurate dynamic rotations when available (precession + nutation + libration), and a small set of static analytical transforms covers the SPICE-free path. Consumers that today work around the gap (e.g. `is-timeline-three` rotates EME2000 OEM samples to ECLIPJ2000 at catalog-emit time in `MissionConfigToCatalog.ts`) can drop their app-side rotations once this lands. Estimated 2–3 days: design the registry, retrofit existing trajectory classes to declare their frame by name, thread transforms through `absolutePositionOf`, update the rotation-model frame compatibility checks, write the test matrix. Worth doing before a third deep-space mission lands — and several items below (OEM/AEM source types, observation geometry, view state and host sync) depend on it.
 - **One factory mechanism for trajectory and rotation types** (#38) — built-in types go through the same `trajectoryFactories` / `rotationFactories` path as user-supplied ones.
 - **Lint that actually runs** (#11, #25) — a working eslint flat config, and `npm run lint` in CI.
 - **Structured faults** (#43) — say why geometry is unavailable, with the coverage window that explains it. Its only dependency (#39, `ckcov` / `ckobj`) has landed, so this goes early rather than waiting on the visualization tier: every tier above reports "no data here" somewhere.
 - SPICE / WASM layer: the M-0002 migration onto `cspice-wasm` is done (#34). Remaining: wrap additional CSPICE functions on demand (the WASM layer already exports all ~500; wrappers are added as features need them), and expand Web Worker offloading for SPICE computation beyond trajectory caching and geometry searches.
 
-## 2. Integration surface
+## 2. Viewer and integration surface
 
-Cosmolabe should be viable as a library that mission applications embed — not just a viewer. That means a small, stable surface with real consumers behind it, and minimal lock-in.
+Two consumers of the same core: people using the standalone viewer directly, and mission applications embedding Cosmolabe. Both want a small, stable surface with real consumers behind it, and minimal lock-in.
 
 **The rule for extension points: build one when an integration needs to extend it, not when something could eventually be extensible.** An extension point built before a consumer exists doesn't stay free — `StateStore` (#33) is the in-tree proof: observable-state machinery with one write and no readers, now sitting on the plugin surface via `RendererContext`. Every item below names the consumer it serves; a new one has to do the same.
 
-- **Stabilise `ViewerControl`** (#31) — the imperative surface a host drives Cosmolabe through. *Consumer: every embedding host.*
-- **Host synchronisation** for time, selection and camera — a host timeline or planning tool and the 3D view stay in step in both directions. *Consumer: PlanDev and timeline hosts.*
+### Standalone viewer
+
+- **Hosted viewer** — a published build anyone can open with no clone, with the built-in scenes as a gallery. *Consumer: viewer users; also the demo for every embedding pitch.*
 - **Shareable view state** — one JSON shape for a full view (camera mode + target body + position/orientation/distance + time + frame + selection + time scale + FOV), with three ways in and out:
   - *Import / export.* A "download view" button producing the JSON blob, an "upload view" / paste-to-load path, and the same shape valid as a catalog viewpoint entry so a saved view drops directly into a catalog. Today a view can only be saved to the in-session store.
   - *Shareable URL.* Cosmographia ships a `cosmo://` URL scheme (`UniverseView.cpp` `getStateUrl()` / `setStateFromUrl()`) that bundles the same fields into a single pasteable URL. Plan: a `cosmolabe://` (or `?view=…` query string on the hosted demo) that round-trips the JSON fields, plus a "Copy share link" button next to Download. Avoid baking secrets/state larger than ~2 KB into the URL — kick anything bigger back to the JSON path.
-  - *Consumer:* hosts restoring a view from their own state, and people sharing a view in review.
+  - *Consumer:* viewer users sharing a view in review, and hosts restoring a view from their own state.
+- **Viewer UX** — the 3D-first analysis UX (#71), responsive and mobile foundation (#59), catalog sources and navigation (#93, #94), readiness gating on models and textures (#19). *Consumer: viewer users.*
+
+### Embedding
+
+- **Stabilise `ViewerControl`** (#31) — the imperative surface a host drives Cosmolabe through. *Consumer: the standalone viewer's own UI and every embedding host.*
+- **Host synchronisation** for time, selection and camera — a host timeline or planning tool and the 3D view stay in step in both directions. *Consumer: PlanDev and timeline hosts.*
 - **Provenance and authority in the plugin data model** (#9), including the `CommLinkPlugin` refactor. *Consumer: hosts mixing predicted, as-flown and simulated data.*
 - **PlanDev adapter** — sim-result-driven 3D panel, drop-in for planning/replay tools. *Consumer: PlanDev.*
 - **Stabilise `RendererPlugin`** and document the full lifecycle (`attachToBody`, `RendererContext`, time/state hooks, teardown). *Consumer: the stock plugins.*
@@ -44,7 +58,7 @@ Cosmolabe should be viable as a library that mission applications embed — not 
 - **Custom trajectory and rotation types** — the mechanism already exists (`trajectoryFactories` / `rotationFactories`); #38 finishes it. *Consumer: `is-timeline-three` and mission-specific ephemeris sources.*
 - **CCSDS OEM / AEM as built-in trajectory + rotation source types** — `@cosmolabe/interop` already parses these; `is-timeline-three` parses them server-side today and feeds the records into existing types via the catalog `samples` / `records` extensions. Library-side source types would let a catalog declare `trajectory: { type: "OEM", source: "..." }` and `rotationModel: { type: "AEM", source: "..." }` the same way `.xyzv` and `.q` work today, with segment-to-arc mapping for OEMs that span multiple center bodies (cruise → Moon flyby → return). Depends on named frames above — OEM segments declare `REF_FRAME` explicitly, so frame composition becomes routine rather than per-app pre-rotation. *Consumer: `is-timeline-three`.*
 - **Headless / server-side `@cosmolabe/core`** — first-class examples, tests, and bundling guidance (the architecture supports it; the docs and ergonomics need work).
-- **Embedding without the demo chrome** — theming and UI composition so the renderer drops into an existing app shell without inheriting the demo viewer's UI.
+- **Embedding without the viewer chrome** — theming and UI composition so the renderer drops into an existing app shell without inheriting the standalone viewer's UI.
 
 ### Dropped until an integration asks
 
@@ -118,7 +132,6 @@ These run alongside the tiers above and are pulled forward when a tier needs the
 
 ### Demos, examples, and docs
 
-- Hosted demo gallery (no clone required)
 - More built-in scenes, favouring mission workflows: Mars rover EDL, lunar lander, comet flyby, drone-swarm concept, asteroid sample return, an instrument-observation flyby
 - Recipe-style examples: PlanDev sim replay, embedding in a dashboard, embedding from React / Svelte / Vue through `ViewerControl` (examples, not packages), writing a custom `RendererPlugin`, surface-ops scene authoring
 - Expanded test coverage around terrain streaming, surface camera, and renderer plugins
@@ -157,7 +170,7 @@ Not scheduled absent a concrete performance requirement or a mission workflow th
 
 ## Out of scope (for now)
 
-- Competing as a generic planetary terrain viewer — terrain work is in service of mission workflows (see [What Cosmolabe is for](#what-cosmolabe-is-for))
+- Competing as a generic planetary terrain viewer — the standalone viewer is a mission viewer, and terrain work is in service of mission workflows (see [What Cosmolabe is for](#what-cosmolabe-is-for))
 - 2D ground-track-only tooling
 - Trajectory optimization or maneuver design
 - Headless analysis tooling without a renderer (the `core` package supports headless use and the integration tier documents it, but analysis tooling around it is not a focus)
