@@ -527,7 +527,7 @@
 </InstrumentPanel>
 
 <style>
-  /* Matches the measure tool's inline text controls. */
+  /* Inline text controls. */
   .ctrl-link {
     font-size: 10px;
     color: var(--color-text-muted);

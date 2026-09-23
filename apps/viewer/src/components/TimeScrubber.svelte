@@ -12,8 +12,20 @@
     onScrubStart?: () => void;
     /** Called when drag ends */
     onScrubEnd?: () => void;
-    /** Called on scroll wheel — true = zoom in */
-    onZoom?: (zoomIn: boolean) => void;
+    /** Called on scroll wheel — true = zoom in, about the pointer's fraction */
+    onZoom?: (zoomIn: boolean, anchorFraction: number) => void;
+    /**
+     * The timeline's ghost playhead, as a fraction of the zoomed range, or
+     * null. Shared with the profile rows, so a hover anywhere on the axis
+     * previews the same instant everywhere on it.
+     */
+    hoverFraction?: number | null;
+    /** Timestamp shown over the ghost playhead. */
+    hoverLabel?: string;
+    /** Pointer hover over the track, as a fraction; null when it leaves. */
+    onHover?: (fraction: number | null) => void;
+    /** The track element, for rows that must share its horizontal extent. */
+    trackEl?: HTMLDivElement;
     /** Called to reset zoom */
     onResetZoom?: () => void;
     /** Called to set a specific zoom duration in seconds */
@@ -46,6 +58,8 @@
       title?: string;
       kind?: string;
       state?: string;
+      /** Cross-highlighted from a hover elsewhere on the timeline. */
+      previewed?: boolean;
       onSelect?: () => void;
     }[];
   }
@@ -56,9 +70,9 @@
     startLabel, endLabel,
     isZoomed = false, viewportStart = 0, viewportEnd = 1, globalPlayhead = 0.5,
     rangeLabel, markers = [],
+    hoverFraction = null, hoverLabel = '', onHover,
+    trackEl = $bindable(),
   }: Props = $props();
-
-  let trackEl: HTMLDivElement | undefined = $state();
 
   let dragging = $state(false);
   let dragFraction = $state(0);
@@ -91,7 +105,8 @@
     const handler = (e: WheelEvent) => {
       e.preventDefault();
       if (e.deltaY === 0) return;
-      onZoom?.(e.deltaY < 0);
+      const rect = el.getBoundingClientRect();
+      onZoom?.(e.deltaY < 0, clampFraction((e.clientX - rect.left) / rect.width));
     };
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
@@ -114,6 +129,10 @@
   }
 
   function onPointerMove(e: PointerEvent) {
+    if (!dragging && trackEl) {
+      const rect = trackEl.getBoundingClientRect();
+      onHover?.(clampFraction((e.clientX - rect.left) / rect.width));
+    }
     if (!dragging || !trackRect) return;
     const dx = e.clientX - lastClientX;
     if (Math.abs(e.clientX - pointerStartX) > 3) pointerMoved = true;
@@ -189,6 +208,7 @@
         onpointerdown={onPointerDown}
         onpointermove={onPointerMove}
         onpointerup={onPointerUp}
+        onpointerleave={() => onHover?.(null)}
       >
         {#each markers as marker}
           <button
@@ -197,6 +217,7 @@
             class:interval={(marker.endFraction ?? marker.fraction) > marker.fraction}
             class:selected={marker.selected}
             class:active={marker.active}
+            class:previewed={marker.previewed}
             class:partial={marker.state === 'partial'}
             class:full={marker.state === 'full'}
             class:annular={marker.state === 'annular'}
@@ -208,8 +229,14 @@
             onclick={(event) => onMarkerClick(event, marker.onSelect)}
           ></button>
         {/each}
+        {#if hoverFraction != null && !dragging && hoverFraction >= 0 && hoverFraction <= 1}
+          <div class="ghost-playhead" style="left: {hoverFraction * 100}%"></div>
+        {/if}
         <div class="playhead" style="left: {displayFraction * 100}%"></div>
       </div>
+      {#if hoverLabel && hoverFraction != null && !dragging && hoverFraction >= 0 && hoverFraction <= 1}
+        <div class="ghost-label" style="left: {hoverFraction * 100}%">{hoverLabel}</div>
+      {/if}
 
       <!-- Minimap line below the track — always visible -->
       <div class="minimap-line">
@@ -279,6 +306,7 @@
   /* ── Track column ── */
 
   .track-column {
+    position: relative;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -310,6 +338,37 @@
     transform: translateX(-50%);
     pointer-events: none;
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+  }
+
+  /* ── Ghost playhead: preview, never commit. Thinner and dimmer than the
+     real one, so the two read apart by weight rather than by colour. ── */
+
+  .ghost-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--color-text-secondary);
+    opacity: 0.7;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .ghost-label {
+    position: absolute;
+    bottom: calc(100% + 3px);
+    transform: translateX(-50%);
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: var(--color-panel);
+    border: 1px solid var(--color-chrome-divider);
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--text-section);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1;
   }
 
   /* ── Event finder results ── */
@@ -344,6 +403,11 @@
   .event-marker.active {
     opacity: 1;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72), 0 0 4px currentColor;
+  }
+
+  .event-marker.previewed {
+    opacity: 1;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55);
   }
 
   .event-marker[data-kind='closest-approach'] { background: #72b7d8; }

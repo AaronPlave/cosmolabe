@@ -8,16 +8,21 @@
    * What is left here is everything that shares the time axis.
    *
    * `shell.timelineDepth` is the progressive-depth control #71 asks for: a
-   * minimal transport strip by default, and an expanded region below the axis
-   * that event lanes (#67) and continuous geometry profiles (#65) will draw
-   * into. Those issues add lanes; this establishes that they share one axis and
-   * one playhead rather than each bringing a timeline of its own.
+   * minimal transport strip by default — which already carries the configured
+   * event results as marks on the track — and an expanded region below the
+   * axis where continuous geometry profiles (#65) stack. Every row is laid over
+   * the track's own horizontal extent and reads the same window, playhead and
+   * ghost playhead, so the whole dock is one instrument rather than a
+   * transport with charts attached. Collapsing returns the region's height to
+   * the scene; the profiles stay configured.
    */
   import {
     vs, togglePlay, reverse, faster, slower,
     stepForward, stepBackward, scrubTo, setTime,
-    zoomScrubber, resetScrubberZoom, setZoomDuration, etToShortDate,
+    zoomScrubber, resetScrubberZoom, setZoomDuration, etToShortDate, etToUtcString,
   } from '../../lib/viewer-state.svelte';
+  import { timeline, setTimelineHover, timelineEt, type ProfileEventTick } from '../../lib/timeline.svelte';
+  import ProfileLanes from './ProfileLanes.svelte';
   import { shell, setTimelineDepth } from '../../lib/shell.svelte';
   import { formatDuration } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
@@ -93,6 +98,7 @@
         const span = eventTimelineFractions(event, { start: vs.scrubMin, end: vs.scrubMax });
         if (!span) return null;
         return {
+          id: event.id,
           fraction: span.start,
           endFraction: span.end,
           selected: ef.selectedId === event.id,
@@ -100,10 +106,60 @@
           title: event.label,
           kind: event.kind,
           state: event.state,
+          previewed: timeline.previewEventId === event.id,
           onSelect: () => selectEvent(event),
         };
       })
       .filter((marker) => marker != null),
+  );
+
+  // The same results, as the profile rows draw them.
+  let profileTicks = $derived(
+    eventMarkers.map((m): ProfileEventTick => ({
+      id: m.id, fraction: m.fraction, endFraction: m.endFraction, selected: m.selected, active: m.active,
+    })),
+  );
+
+  // ── Shared axis ──
+  //
+  // Profile rows align to the transport track, wherever the transport's
+  // buttons and clock leave it. Measured, not assumed: the track's extent
+  // moves with the layout, the rate readout and the compact toggle.
+  let trackEl: HTMLDivElement | undefined = $state();
+  let regionEl: HTMLDivElement | undefined = $state();
+  let axis = $state({ left: 0, width: 0 });
+
+  $effect(() => {
+    const track = trackEl;
+    const region = regionEl;
+    if (!track || !region) return;
+    const measure = () => {
+      const r = region.getBoundingClientRect();
+      // A phone leaves the track a sliver once the secondary transport is
+      // back; there the rows draw the same window across the dock's full
+      // width instead, with their labels overlaid.
+      if (compact) {
+        axis = { left: 0, width: region.clientWidth };
+        return;
+      }
+      const t = track.getBoundingClientRect();
+      axis = { left: t.left - r.left, width: t.width };
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(track);
+    ro.observe(region);
+    return () => ro.disconnect();
+  });
+
+  // Labels in a gutter left of the axis need room; a phone overlays them.
+  const wideLanes = $derived(!compact && axis.left >= 120);
+
+  const hoverFraction = $derived(
+    timeline.hoverEt == null || !(currentRange > 0) ? null : (timeline.hoverEt - vs.scrubMin) / currentRange,
+  );
+  const hoverLabel = $derived(
+    timeline.hoverEt == null ? '' : etToUtcString(timeline.hoverEt).replace(' UTC', ''),
   );
 
   let rangeLabel = $derived(isZoomed ? formatDuration(currentRange) : '');
@@ -187,7 +243,11 @@
       <TimeScrubber
         fraction={currentFraction}
         onScrub={scrubTo}
-        onZoom={zoomScrubber}
+        onZoom={(zoomIn, anchor) => zoomScrubber(zoomIn, timelineEt(anchor))}
+        onHover={(f) => setTimelineHover(f == null ? null : timelineEt(f))}
+        {hoverFraction}
+        {hoverLabel}
+        bind:trackEl
         onResetZoom={resetScrubberZoom}
         onSetZoom={setZoomDuration}
         {startLabel}
@@ -236,11 +296,11 @@
   </div>
 
   {#if expanded}
-    <!-- The shared-axis region. Event lanes (#67) and continuous geometry
-         profiles (#65) land here, against this playhead — the placeholder is
-         what keeps them from each arriving with a timeline of their own. -->
-    <div class="lane-region ui-helper flex h-16 items-center justify-center rounded border">
-      Event lanes and geometry profiles share this axis
+    <!-- The shared-axis region: continuous profiles, drawn against the
+         track's extent, window and playhead. Scrolls past a few rows so a
+         long list of profiles cannot take the scene's height. -->
+    <div bind:this={regionEl} class="lane-region">
+      <ProfileLanes axisLeft={axis.left} axisWidth={axis.width} wide={wideLanes} ticks={profileTicks} />
     </div>
   {/if}
 </div>
@@ -295,15 +355,11 @@
     color: var(--color-chrome-active);
   }
   .lane-region {
-    border-color: var(--color-chrome-divider);
-    background-color: rgba(255, 255, 255, 0.012);
-    background-image: linear-gradient(
-      to right,
-      transparent 24%,
-      rgba(220, 224, 232, 0.045) 25%,
-      transparent 26%
-    );
-    background-size: 48px 100%;
+    position: relative;
+    max-height: min(36vh, 260px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   :global(.current-time) {
     font-size: var(--text-readout-strong);
@@ -326,7 +382,7 @@
       justify-content: center;
     }
     .lane-region {
-      height: 52px;
+      max-height: 30vh;
     }
   }
 </style>

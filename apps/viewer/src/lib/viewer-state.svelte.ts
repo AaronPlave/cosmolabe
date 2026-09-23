@@ -501,13 +501,17 @@ export function scrubTo(fraction: number) {
   _renderer.timeController.setTime(newEt);
 }
 
-export function zoomScrubber(zoomIn: boolean) {
+/**
+ * Zoom the timeline window by one step about `anchorEt` — the pointer, when
+ * the gesture has one — or the playhead.
+ */
+export function zoomScrubber(zoomIn: boolean, anchorEt: number = vs.et) {
   const ZOOM_FACTOR = 0.8;
   const MIN_RANGE = 10; // seconds
   const factor = zoomIn ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
 
   // Clamp anchor to the current view so playback drift doesn't blow up the range
-  const anchor = Math.max(vs.scrubMin, Math.min(vs.scrubMax, vs.et));
+  const anchor = Math.max(vs.scrubMin, Math.min(vs.scrubMax, anchorEt));
   let newMin = anchor - (anchor - vs.scrubMin) * factor;
   let newMax = anchor + (vs.scrubMax - anchor) * factor;
 

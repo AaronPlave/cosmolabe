@@ -4,12 +4,17 @@ import {
   analysis,
   analysisContext,
   createConfiguredEventQuery,
+  configuredProfiles,
   createConfiguredProfile,
+  moveConfiguredProfile,
+  removeConfiguredItem,
   resetAnalysis,
+  resolveProfile,
   setConfiguredItemEnabled,
   setConfiguredItemVisible,
   setEventResults,
   updateConfiguredEventQuery,
+  updateConfiguredProfile,
   visibleTimelineEvents,
 } from '../analysis.svelte';
 import { vs } from '../viewer-state.svelte';
@@ -105,5 +110,41 @@ describe('viewer analysis state', () => {
     });
     expect(analysisContext().quantities).toHaveLength(1);
     expect(analysisContext().eventResults).toHaveLength(1);
+  });
+
+  it('keeps multiple profile rows configurable, reorderable and removable', () => {
+    const query = createConfiguredEventQuery({ kind: 'closest-approach' }, 'Approaches');
+    const range = createConfiguredProfile({ quantity: 'range', bodies: { target: 'MOON' } }, 'Distance');
+    const speed = createConfiguredProfile({ quantity: 'relative-speed' }, 'Rel. speed');
+    const phase = createConfiguredProfile({ quantity: 'phase-angle' }, 'Phase angle');
+    setEventResults(query.id, [{ ...event, queryId: query.id }]);
+
+    moveConfiguredProfile(phase.id, -1);
+    expect(configuredProfiles().map((p) => p.id)).toEqual([range.id, phase.id, speed.id]);
+    // Moving past either end is a no-op, and event queries keep their place.
+    moveConfiguredProfile(range.id, -1);
+    expect(configuredProfiles()[0].id).toBe(range.id);
+    expect(analysis.items[0].id).toBe(query.id);
+
+    setConfiguredItemVisible(speed.id, false);
+    const changed = updateConfiguredProfile(speed.id, { quantity: 'range-rate', bodies: { target: 'MARS' } }, 'Range rate');
+    expect(changed).toMatchObject({ id: speed.id, visible: false, label: 'Range rate' });
+
+    removeConfiguredItem(phase.id);
+    expect(configuredProfiles().map((p) => p.id)).toEqual([range.id, speed.id]);
+    removeConfiguredItem(query.id);
+    expect(analysis.eventResults[query.id]).toBeUndefined();
+  });
+
+  it('resolves a profile against the shared relationship without pinning it to it', () => {
+    analysis.bodies = { observer: 'EARTH', target: 'MOON' };
+    const shared = createConfiguredProfile({ quantity: 'range' }, 'Distance');
+    const own = createConfiguredProfile({ quantity: 'range', bodies: { target: 'MARS' } }, 'Distance');
+
+    expect(resolveProfile(shared).bodies).toEqual({ observer: 'EARTH', target: 'MOON' });
+    expect(resolveProfile(own).bodies).toEqual({ observer: 'EARTH', target: 'MARS' });
+    analysis.bodies = { observer: 'SUN', target: 'MOON' };
+    expect(resolveProfile(shared).bodies.observer).toBe('SUN');
+    expect(resolveProfile(own).window).toEqual({ start: 100, end: 200 });
   });
 });

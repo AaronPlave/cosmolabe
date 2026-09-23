@@ -56,3 +56,30 @@ Scene changes clear configured items and their derived data because their body
 names, kernel coverage, and epochs belong to the previous catalog. Display and
 analysis features can add items through `createConfiguredEventQuery()` or
 `createConfiguredProfile()` without adding another global observer/target pair.
+
+## Continuous profiles on the timeline
+
+Profiles render as rows in the timeline's expanded depth
+(`components/shell/ProfileLanes.svelte`, one `ProfileRow.svelte` per item), in
+the order of the `continuous-profile` items in `analysis.items`. There is no
+built-in set: each row names its own `quantity` — `range`, `relative-speed`,
+`range-rate` or `phase-angle` to start with (`lib/profile-sampling.ts`) — and
+may pin any role or leave it to inherit the shared relationship. Rows are
+added, configured, hidden, reordered and removed from a popover on the row
+label (`updateConfiguredProfile()`, `setConfiguredItemVisible()`,
+`moveConfiguredProfile()`, `removeConfiguredItem()`).
+
+Every row is laid over the transport track's measured horizontal extent and
+reads the same zoomed window (`vs.scrubMin`/`scrubMax`), playhead (`vs.et`)
+and ghost playhead (`timeline.hoverEt` in `lib/timeline.svelte.ts`) as the
+track. Rows hold no time state: hover previews an instant everywhere on the
+axis without moving time, a press or drag seeks, and the wheel zooms the shared
+window about the pointer. Visible event results are drawn faintly on each row,
+and a hover snaps subtly to an event edge and cross-highlights that event on
+the track, so a closest approach visibly sits on the distance minimum.
+
+Sampling is a display sampling of `Universe.absolutePositionOf` across the
+visible window, about one sample per two pixels, and is unrelated to any
+geometry-finder step. It needs no SPICE kernels, so profiles work on Keplerian,
+TLE and sampled-trajectory catalogs. Readouts are computed exactly at the
+hovered or current instant rather than read off the nearest sample.

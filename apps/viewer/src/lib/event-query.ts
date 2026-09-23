@@ -168,7 +168,7 @@ export function formatMetric(metric: EventMetric): string {
   return metric.unit ? `${metric.value.toFixed(digits)} ${metric.unit}` : metric.value.toFixed(digits);
 }
 
-/** Adaptive distance, matching the measure tool's vocabulary. */
+/** Adaptive distance, shared by event metrics and timeline profiles. */
 export function formatKm(km: number): string {
   const abs = Math.abs(km);
   if (abs < 1) return `${(km * 1000).toFixed(1)} m`;

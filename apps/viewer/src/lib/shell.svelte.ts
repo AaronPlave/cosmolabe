@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Ruler, Settings, Bug } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 
 /**
@@ -32,8 +32,16 @@ import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
  */
 export type IconComponent = typeof Globe;
 
-/** The contextual tool surfaces the rail can open. */
-export const TOOL_IDS = ['catalog', 'events', 'measure', 'display', 'debug'] as const;
+/**
+ * The contextual tool surfaces the rail can open.
+ *
+ * There is no `measure` tool any more: its time-series charts are timeline
+ * profile rows (#65), its close-approach list is the event finder's, and the
+ * live two-body readout is each profile row's value at the playhead. #57's
+ * interactive measurement returns as its own tool rather than as a second
+ * analysis entry point beside the timeline.
+ */
+export const TOOL_IDS = ['catalog', 'events', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -84,7 +92,6 @@ export const TOOLS: readonly ToolDef[] = [
   // E is camera roll-right in KeyboardControls; tool shortcuts must not steal
   // renderer controls while the canvas has focus.
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
-  { id: 'measure', label: 'Measure',  icon: Ruler,    presentation: 'panel',  dock: 'left',  width: 400 },
   { id: 'display', label: 'Display',  icon: Settings, presentation: 'panel',  dock: 'right', width: 240 },
   { id: 'debug',   label: 'Diagnostics', icon: Bug,   presentation: 'panel',  dock: 'right', width: 260 },
 ];
@@ -174,8 +181,8 @@ export const shell = $state({
 
   /**
    * Progressive analysis depth on the timeline. `transport` is the minimal time
-   * strip; `expanded` adds the secondary transport and the region event lanes
-   * (#67) and continuous profiles (#65) will draw into.
+   * strip, event marks on its track included; `expanded` adds the secondary
+   * transport and the continuous-profile rows (#65) on the same axis.
    */
   timelineDepth: 'transport' as 'transport' | 'expanded',
 

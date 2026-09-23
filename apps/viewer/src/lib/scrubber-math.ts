@@ -16,3 +16,28 @@ export function formatDuration(seconds: number): string {
   if (abs < 63113904) return `~${(abs / 2592000).toFixed(1)}mo`;
   return `~${(abs / 31556952).toFixed(1)}yr`;
 }
+
+/**
+ * Subtle event snapping for a hover on the timeline: the nearest candidate
+ * fraction within `tolerancePx` of `fraction`, or null. Deliberately small —
+ * it should catch a pointer that is aiming at an event, not drag one that is
+ * merely passing.
+ */
+export function snapFraction(
+  fraction: number,
+  candidates: readonly { fraction: number; id: string }[],
+  widthPx: number,
+  tolerancePx = 5,
+): { fraction: number; id: string } | null {
+  if (!(widthPx > 0)) return null;
+  let best: { fraction: number; id: string } | null = null;
+  let bestPx = tolerancePx;
+  for (const c of candidates) {
+    const px = Math.abs(c.fraction - fraction) * widthPx;
+    if (px <= bestPx) {
+      bestPx = px;
+      best = c;
+    }
+  }
+  return best;
+}
