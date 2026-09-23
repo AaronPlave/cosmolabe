@@ -20,6 +20,7 @@ git lfs pull          # required to fetch demo kernels, models, textures
 npm install
 npm run build         # typecheck + build all packages
 npm test              # run vitest
+npm run lint          # eslint (errors fail CI; `any` is a warning)
 ```
 
 To run the viewer:
@@ -76,7 +77,7 @@ Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LF
 ## Opening a PR
 
 1. Fork, branch from `main`
-2. `npm run build && npm test` should pass
+2. `npm run build && npm run lint && npm test` should pass
 3. Describe what changed and why; screenshots for visual changes
 4. By submitting, you agree your contribution is licensed under Apache-2.0
 

@@ -4,17 +4,16 @@ import { CatalogLoader } from '../catalog/CatalogLoader.js';
 import type { CatalogJson, TrajectoryFactory, RotationFactory } from '../catalog/CatalogLoader.js';
 import type { Trajectory, CartesianState } from '../trajectories/Trajectory.js';
 import type { RotationModel, Quaternion } from '../rotations/RotationModel.js';
-import { FixedPointTrajectory } from '../trajectories/FixedPoint.js';
 
 class CustomTrajectory implements Trajectory {
-  stateAt(et: number): CartesianState {
+  stateAt(_et: number): CartesianState {
     return { position: [100, 200, 300], velocity: [0, 0, 0] };
   }
 }
 
 class CustomRotation implements RotationModel {
   readonly sourceFrame = 'EclipticJ2000';
-  rotationAt(et: number): Quaternion {
+  rotationAt(_et: number): Quaternion {
     return [1, 0, 0, 0];
   }
 }

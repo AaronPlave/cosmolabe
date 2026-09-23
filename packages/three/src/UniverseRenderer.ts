@@ -2314,7 +2314,7 @@ export class UniverseRenderer {
           this.buildCompositeTrajectoryLines(body, body.trajectory);
         } else {
           // Standard single trajectory
-          let trajOpts = { ...this.options.trajectoryOptions };
+          const trajOpts = { ...this.options.trajectoryOptions };
           const plotCfg = body.trajectoryPlot;
 
           // If catalog specifies explicit duration, use it. Otherwise derive from orbit period.

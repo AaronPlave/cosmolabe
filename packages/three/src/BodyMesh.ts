@@ -816,7 +816,9 @@ export class BodyMesh extends THREE.Object3D {
     // Log meshes sorted by vertex count
     // console.log(`[Cosmolabe] Model meshes (${meshInfos.length} total, ${allVertices.length} verts):`);
     for (const m of meshInfos.sort((a, b) => b.vertexCount - a.vertexCount).slice(0, 15)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- read by the commented-out diagnostic log
       const c = m.center;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- read by the commented-out diagnostic log
       const n = m.avgNormal;
       // console.log(`  "${m.name}": ${m.vertexCount} verts, center=(${c.x.toFixed(2)},${c.y.toFixed(2)},${c.z.toFixed(2)}), normal=(${n.x.toFixed(3)},${n.y.toFixed(3)},${n.z.toFixed(3)}), coherence=${m.coherence.toFixed(3)}`);
     }
@@ -879,6 +881,7 @@ export class BodyMesh extends THREE.Object3D {
       const bodyFrame = new THREE.Matrix4().makeBasis(bA, bB, bC);
       const rotation = bodyFrame.clone().multiply(modelFrame.clone().invert());
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- read by the commented-out diagnostic log
       const q = new THREE.Quaternion().setFromRotationMatrix(rotation);
       // console.log(`[Cosmolabe] Computed meshRotation [w,x,y,z]: [${q.w.toFixed(4)}, ${q.x.toFixed(4)}, ${q.y.toFixed(4)}, ${q.z.toFixed(4)}]`);
     } else {

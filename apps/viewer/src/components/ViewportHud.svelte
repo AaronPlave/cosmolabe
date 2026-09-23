@@ -94,6 +94,7 @@
       {@const html = renderOverlay(overlay)}
       {#if html}
         <div class="text-[11px] text-text-secondary font-mono pointer-events-auto">
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -- plugin HTML is a documented escape hatch (PluginUI.ts), and plugins already run with full page access -->
           {@html html}
         </div>
       {/if}

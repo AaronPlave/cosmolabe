@@ -94,10 +94,18 @@ jobs:
       #
       # The DOM half of the property is not here — each package's tsconfig.json
       # drops "DOM" from lib, so the build step below rejects `document` on its
-      # own. Its own step rather than folded into `npm run lint`: that script is
-      # broken and unwired (#11, #25) and this should not wait on it.
+      # own. Its own step rather than folded into `npm run lint`: a grep over
+      # import specifiers is simpler to audit than an eslint rule, and a failure
+      # here names the property it protects.
       - name: Purity lint (core and control import no renderer)
         run: npm run lint:purity
+
+      # eslint over packages/ and apps/ (eslint.config.mjs). Errors fail the
+      # job; `no-explicit-any` is a warning, so its adoption-time sites stay
+      # visible in the log without gating (#11, #25). Needs no build output, so
+      # it runs before the build and fails fast.
+      - name: Lint
+        run: npm run lint
 
       - name: Typecheck + build
         run: npm run build

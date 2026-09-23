@@ -1,6 +1,5 @@
 <script lang="ts">
   import { vs } from "../lib/viewer-state.svelte";
-  import Button from "$lib/components/ui/button/button.svelte";
 
   interface Props {
     onLoadDemo: (name: string) => void;

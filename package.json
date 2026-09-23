@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Web mission visualization \u2014 SPICE-accurate geometry, TLE tracking, planetary terrain, and a 3D renderer",
+  "description": "Web mission visualization — SPICE-accurate geometry, TLE tracking, planetary terrain, and a 3D renderer",
   "author": "Aaron Plave",
   "homepage": "https://github.com/AaronPlave/cosmolabe#readme",
   "bugs": "https://github.com/AaronPlave/cosmolabe/issues",
@@ -44,10 +44,15 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "delaunator": "^5.1.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-svelte": "^3.23.0",
+    "globals": "^17.12.0",
     "lightstreamer-client-web": "^9.2.3",
     "sharp": "^0.34.5",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.1",
     "vitest": "^4.0.18"
   },
   "supportedArchitectures": {

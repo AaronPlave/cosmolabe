@@ -156,7 +156,7 @@ describe('GeometryCalculator (SPICE integration)', () => {
   });
 
   it('computes RA/Dec', () => {
-    const result = calc.compute(MOON_FROM_EARTH, J2000_ET);
+    calc.compute(MOON_FROM_EARTH, J2000_ET);
 
     // RA/Dec of Earth from Earth → RA/Dec of Moon's observer (Earth) from Earth
     // Actually this is RA/Dec of the observer (EARTH) from EARTH → not meaningful
