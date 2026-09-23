@@ -133,16 +133,17 @@ describe('the transcript hook', () => {
 describe('cancellation', () => {
   it('runs nothing after the signal aborts, and names the statement that did not run', async () => {
     const host = new FakeViewer();
-    const signal = { aborted: false };
+    const controller = new AbortController();
     const announced: number[] = [];
     let caught: unknown;
     try {
       await execute(parse(['runTo 60', 'screenshot a', 'screenshot b'].join('\n')), host, {
-        signal,
+        signal: controller.signal,
         onStatement: (s) => {
           announced.push(s.line);
-          // Abort while line 1 is running, as a console closing mid-`wait` would.
-          if (s.line === 1) signal.aborted = true;
+          // Abort as line 1 starts; it is synchronous, so it completes, and
+          // the check before line 2 stops the run.
+          if (s.line === 1) controller.abort();
         },
       });
     } catch (err) {
@@ -151,28 +152,56 @@ describe('cancellation', () => {
     expect(caught).toBeInstanceOf(ScriptRuntimeError);
     const err = caught as ScriptRuntimeError;
     expect(err.problems[0]).toMatchObject({ kind: 'cancelled', line: 2 });
-    expect(err.ran).toBe(1);
     // The unrun line is never announced, so a streamed transcript never shows it running.
     expect(announced).toEqual([1]);
     expect(host.calls.some((c) => c.startsWith('screenshot'))).toBe(false);
   });
 
-  it('stops a recording the cancelled script started', async () => {
+  it('interrupts a wait that never ends, and stops the recording at once', async () => {
+    // `record on; wait 3600; record off`, closed during the wait. The wait is
+    // never released: the run must end, and the recording stop, without it.
     const host = new FakeViewer();
-    const signal = { aborted: false };
-    await expect(
-      execute(parse(['record on', 'runTo 60'].join('\n')), host, {
-        signal,
-        onStatement: (s) => { if (s.line === 1) signal.aborted = true; },
-      }),
-    ).rejects.toBeInstanceOf(ScriptRuntimeError);
+    host.wait = (seconds: number) => {
+      host.calls.push(`wait(${seconds})`);
+      return new Promise<void>(() => {});
+    };
+    const controller = new AbortController();
+    const running = execute(parse(['record on', 'wait 3600', 'record off'].join('\n')), host, {
+      signal: controller.signal,
+      onStatement: (s) => {
+        if (s.line === 2) queueMicrotask(() => controller.abort());
+      },
+    });
+
+    await expect(running).rejects.toMatchObject({
+      problems: [{ kind: 'cancelled', line: 2, message: 'cancelled while this statement was running' }],
+      ran: 1,
+    });
     expect(host.recording).toBe(false);
+    expect(host.calls.filter((c) => c.startsWith('record'))).toEqual(['record(true)', 'record(false)']);
   });
 
-  it('accepts an AbortSignal', async () => {
+  it('does not report an abandoned call that fails later', async () => {
+    let fail: (e: Error) => void = () => {};
+    const host = new FakeViewer();
+    host.wait = () => new Promise<void>((_, reject) => { fail = reject; });
+    const controller = new AbortController();
+    const running = execute(parse('wait 10'), host, {
+      signal: controller.signal,
+      onStatement: () => queueMicrotask(() => controller.abort()),
+    });
+    await expect(running).rejects.toMatchObject({ problems: [{ kind: 'cancelled' }] });
+    // Would surface as an unhandled rejection and fail the run if it leaked.
+    fail(new Error('timer torn down'));
+    await Promise.resolve();
+  });
+
+  it('runs nothing when the signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
-    await expect(execute(parse('runTo 60'), new FakeViewer(), { signal: controller.signal }))
+    const host = new FakeViewer();
+    await expect(execute(parse('runTo 60'), host, { signal: controller.signal }))
       .rejects.toMatchObject({ problems: [{ kind: 'cancelled', line: 1 }] });
+    expect(host.calls).toEqual([]);
   });
 });

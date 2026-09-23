@@ -15,6 +15,7 @@ import type {
   ExecuteOptions,
   ExecutionReport,
   Program,
+  ScriptCancelSignal,
   ScriptImage,
   Statement,
   ViewerControl,
@@ -69,6 +70,36 @@ function isImage(value: unknown): value is ScriptImage {
     value !== null &&
     typeof (value as ScriptImage).dataUrl === 'string'
   );
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return typeof (value as PromiseLike<unknown> | null)?.then === 'function';
+}
+
+/** What `untilSettledOrAborted` rejects with when the signal wins. */
+const CANCELLED = Symbol('cancelled');
+
+/**
+ * Await a host call, unless the signal fires first.
+ *
+ * Without this, cancellation could only land between statements, and a
+ * statement can last as long as the script says: `record on; wait 3600`
+ * closed after a minute would keep filming for the other fifty-nine.
+ */
+function untilSettledOrAborted(value: unknown, signal: ScriptCancelSignal | undefined): Promise<unknown> {
+  // A synchronous call has already happened by the time we see its result;
+  // reporting it as cancelled would describe a line that did run as one that
+  // did not. Only a pending call can be interrupted.
+  if (!signal || !isThenable(value)) return Promise.resolve(value);
+  if (signal.aborted) return Promise.reject(CANCELLED);
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(CANCELLED);
+    signal.addEventListener('abort', onAbort);
+    Promise.resolve(value).then(
+      (v) => { signal.removeEventListener('abort', onAbort); resolve(v); },
+      (e) => { signal.removeEventListener('abort', onAbort); reject(e); },
+    );
+  });
 }
 
 export async function execute(
@@ -133,8 +164,19 @@ export async function execute(
 
     let result: unknown;
     try {
-      result = await spec.invoke(host, statement.args);
+      result = await untilSettledOrAborted(spec.invoke(host, statement.args), opts.signal);
     } catch (err) {
+      if (err === CANCELLED) {
+        // `abort` stops a recording this script started — now, not when the
+        // abandoned call would have returned.
+        throw abort(statement, {
+          kind: 'cancelled',
+          line: statement.line,
+          verb: spec.name,
+          message: 'cancelled while this statement was running',
+          text: statement.text,
+        });
+      }
       throw abort(statement, {
         kind: 'failed',
         line: statement.line,

@@ -275,18 +275,27 @@ export interface ParseOptions {
   readonly forbid?: readonly string[];
 }
 
+/** The part of `AbortSignal` that `execute` uses. */
+export interface ScriptCancelSignal {
+  readonly aborted: boolean;
+  addEventListener(type: 'abort', listener: () => void): void;
+  removeEventListener(type: 'abort', listener: () => void): void;
+}
+
 export interface ExecuteOptions {
   /** Called before each statement runs — the console's streaming transcript. */
   onStatement?(statement: Statement): void;
   /**
-   * Checked before each statement; once `aborted` is true the run stops with a
-   * `cancelled` problem at the statement that did not run.
+   * Cancels the run. Checked before each statement, and it also interrupts
+   * the statement in flight: `execute` stops awaiting it the moment the signal
+   * fires, so a `wait 3600` does not hold a cancelled run — and a recording it
+   * started — open for an hour. The host's call is abandoned rather than
+   * undone; for `wait`, that is a timer nobody is listening to any more.
    *
    * Structural rather than `AbortSignal` so this package keeps no DOM types —
-   * an `AbortSignal` satisfies it. Checked *between* statements only: a `wait`
-   * already in progress finishes its sleep, and nothing after it runs.
+   * an `AbortSignal` satisfies it.
    */
-  signal?: { readonly aborted: boolean };
+  signal?: ScriptCancelSignal;
 }
 
 export interface ExecutionReport {

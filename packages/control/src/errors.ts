@@ -27,7 +27,7 @@ export type ScriptProblemKind =
   | 'unknown-target'
   /** The host threw. */
   | 'failed'
-  /** `ExecuteOptions.signal` was aborted before this statement ran. */
+  /** `ExecuteOptions.signal` fired before or during this statement. */
   | 'cancelled';
 
 export interface ScriptProblem {

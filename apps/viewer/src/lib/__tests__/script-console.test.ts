@@ -87,36 +87,57 @@ function pausingHost(objects: string[]) {
 describe('startScriptRun cancellation', () => {
   const SOURCE = 'deselect\nwait 5\ngotoObject Moon\ndeselect';
 
-  it('runs nothing after a wait once the console closes mid-run', async () => {
+  it('ends the run while the wait is still pending when the console closes', async () => {
     const h = pausingHost(['Moon']);
     let final: readonly TranscriptEntry[] = [];
     const run = startScriptRun(SOURCE, h.host, (e) => { final = e; });
     await h.inWait;
     run.cancel('the console closed');
-    h.release();
+    // The wait is never released.
     const result = await run.done;
 
-    expect(result).toMatchObject({ ok: false, cancelled: true, ran: 2 });
+    expect(result).toMatchObject({ ok: false, cancelled: true, ran: 1 });
     expect(h.calls).toEqual(['deselect', 'wait']);
-    expect(final.map((e) => [e.line, e.status])).toEqual([[1, 'ok'], [2, 'ok'], [3, 'cancelled']]);
-    expect(final[2].message).toContain('the console closed');
+    expect(final.map((e) => [e.line, e.status])).toEqual([[1, 'ok'], [2, 'cancelled']]);
+    expect(final[1].message).toContain('the console closed');
   });
 
-  it('stops when a new catalog loads mid-run, and lets go of the load event', async () => {
+  it('stops a script-started recording at once, without waiting out the wait', async () => {
+    const h = pausingHost([]);
+    let recording = false;
+    const records: boolean[] = [];
+    (h.host as unknown as { record: (on: boolean) => boolean }).record = (on) => {
+      records.push(on);
+      recording = on;
+      return true;
+    };
+    const run = startScriptRun('record on\nwait 3600\nrecord off', h.host, () => {});
+    await h.inWait;
+    expect(recording).toBe(true);
+    run.cancel('the console closed');
+    await run.done;
+    expect(recording).toBe(false);
+    expect(records).toEqual([true, false]);
+  });
+
+  it('stops when a new catalog loads mid-wait, and lets go of the load event', async () => {
     const h = pausingHost(['Moon']);
     let final: readonly TranscriptEntry[] = [];
     const run = startScriptRun(SOURCE, h.host, (e) => { final = e; });
     await h.inWait;
     expect(h.loadListeners.size).toBe(1);
     h.load();
-    h.release();
     const result = await run.done;
 
     expect(result).toMatchObject({ ok: false, cancelled: true });
     expect(h.calls).not.toContain('gotoObject Moon');
-    expect(final.at(-1)).toMatchObject({ line: 3, status: 'cancelled' });
+    expect(final.at(-1)).toMatchObject({ line: 2, status: 'cancelled' });
     expect(final.at(-1)?.message).toContain('a new scene loaded');
     expect(h.loadListeners.size).toBe(0);
+    // The abandoned wait finishing later changes nothing.
+    h.release();
+    await Promise.resolve();
+    expect(h.calls).not.toContain('gotoObject Moon');
   });
 
   it('lets go of the load event after a run that finishes normally', async () => {

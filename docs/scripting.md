@@ -229,12 +229,19 @@ drives stays visible and interactive while a script runs.
   advertise a verb the interpreter does not have.
 
 A run ends with the console. Closing the panel, or loading a catalog (which
-replaces the whole workspace), cancels the script before its next statement,
-and the transcript marks the first line that did not run. Otherwise the lines
-after a `wait` would go on to drive the next scene with nothing on screen to
-show it. Minimizing the panel does not cancel. Hosts get the same control
-through `execute(program, host, { signal })`: any object with an `aborted` flag,
-`AbortSignal` included, checked between statements.
+replaces the whole workspace), cancels the script at once, even in the middle
+of a `wait`: the run stops awaiting the statement in flight, a recording the
+script started is stopped immediately, and the transcript marks the line it
+stopped at. Otherwise `record on` / `wait 3600` would keep filming for an hour
+after the console closed, and the lines after a `wait` would go on to drive the
+next scene with nothing on screen to show it. Minimizing the panel does not
+cancel.
+
+Hosts get the same control through `execute(program, host, { signal })`, where
+the signal is an `AbortSignal` or anything with its `aborted` flag and `abort`
+listeners. The host call in flight is abandoned rather than undone, so a
+cancelled `wait` leaves a timer that nobody listens to any more. A statement
+that already finished synchronously counts as run.
 
 Keys pressed inside the console stay in it (apart from Escape), so pressing `t`
 with focus on a console button does not toggle trajectories.
