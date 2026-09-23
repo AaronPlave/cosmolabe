@@ -30,6 +30,7 @@ export {
   oemEpochToEt,
   oemRefFrameToInertial,
   oemFrameName,
+  refineOemFrame,
   checkOemFrame,
   type OemFrameCheck,
 } from './trajectories/OemAdapter.js';

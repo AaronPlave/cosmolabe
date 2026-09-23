@@ -59,6 +59,27 @@ export function oemFrameName(refFrame: string | undefined): string | undefined {
   return DEFAULT_FRAMES.get(refFrame)?.name;
 }
 
+/** EME2000, ICRF and EME2000_IERS: one label family whose meaning depends on
+ *  the file's producer (see `FrameRegistry` on the frame bias). */
+function isJ2000EquatorFamily(frame: string): boolean {
+  return frame === 'EME2000' || frame === 'ICRF' || frame === 'EME2000_IERS';
+}
+
+/**
+ * The frame an OEM's states are taken to be in: the file's `REF_FRAME`, unless
+ * the catalog names another member of the J2000-equator family. "EME2000" means
+ * SPICE's J2000 from a JPL producer and FK5 J2000 from Orekit or STK, and only
+ * the catalog author knows which, so `trajectoryFrame: "EME2000_IERS"` on a
+ * bias-aware producer's file is honoured. Any other disagreement leaves the
+ * file's frame in charge (and `checkOemFrame` reports it).
+ */
+export function refineOemFrame(fileFrame: string | undefined, trajectoryFrame: string | undefined): string | undefined {
+  if (!fileFrame || trajectoryFrame === undefined) return fileFrame;
+  const item = DEFAULT_FRAMES.get(trajectoryFrame)?.name;
+  if (item && isJ2000EquatorFamily(fileFrame) && isJ2000EquatorFamily(item)) return item;
+  return fileFrame;
+}
+
 /**
  * Map an OEM `REF_FRAME` onto the two J2000 inertial frames of the old
  * three-bucket model.
@@ -100,11 +121,9 @@ export function checkOemFrame(oem: Oem, trajectoryFrame: string | undefined): Oe
   const itemFrame = DEFAULT_FRAMES.get(trajectoryFrame)?.name;
   if (!fileFrame || !itemFrame) return { ok: true };
   if (DEFAULT_FRAMES.sameFrame(fileFrame, itemFrame)) return { ok: true };
-  // EME2000 and ICRF are distinct names for what SPICE (and this registry)
-  // treat as one orientation; declaring one for a file in the other is not an
-  // error worth a warning.
-  const eq = (f: string) => f === 'EME2000' || f === 'ICRF';
-  if (eq(fileFrame) && eq(itemFrame)) return { ok: true };
+  // Within the J2000-equator family a catalog declaration refines the file's
+  // label rather than contradicting it (see `refineOemFrame`).
+  if (isJ2000EquatorFamily(fileFrame) && isJ2000EquatorFamily(itemFrame)) return { ok: true };
   return {
     ok: false,
     message:

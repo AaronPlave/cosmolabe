@@ -7,7 +7,7 @@ import { SpiceTrajectory } from '../trajectories/SpiceTrajectory.js';
 import { CompositeTrajectory } from '../trajectories/CompositeTrajectory.js';
 import { InterpolatedStatesTrajectory, type StateRecord } from '../trajectories/InterpolatedStates.js';
 import { parseOem } from '@cosmolabe/interop';
-import { oemToStateRecords, checkOemFrame, oemFrameName } from '../trajectories/OemAdapter.js';
+import { oemToStateRecords, checkOemFrame, oemFrameName, refineOemFrame } from '../trajectories/OemAdapter.js';
 import { parseXyzv } from '../trajectories/XyzvParser.js';
 import { etFromCalendarString } from '../time.js';
 import { TLETrajectory } from '../trajectories/TLETrajectory.js';
@@ -1001,7 +1001,7 @@ export class CatalogLoader {
           // A catalog trajectoryFrame that disagrees is reported, not used.
           const frameCheck = checkOemFrame(oem, item.trajectoryFrame);
           if (!frameCheck.ok) console.warn(`"${item.name}": ${frameCheck.message}`);
-          const oemFrame = oemFrameName(oem.metadata.refFrame);
+          const oemFrame = refineOemFrame(oemFrameName(oem.metadata.refFrame), item.trajectoryFrame);
           const records = oemToStateRecords(oem, (t) => this.spice!.str2et(t));
           if (records.length < 2) {
             console.warn(

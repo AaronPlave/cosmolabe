@@ -145,6 +145,7 @@ Frames are named, and every name resolves through one registry (`Universe.frames
 | `ECLIPJ2000` | `EclipticJ2000`, `ecliptic` | inertial (the scene frame, and the default) | fixed matrix | same |
 | `EME2000` | `J2000`, `EquatorJ2000`, `equatorial` | inertial | fixed matrix | same |
 | `ICRF` | `GCRF` | inertial | identity to EME2000, as in SPICE | same |
+| `EME2000_IERS` | | inertial | FK5 J2000 with the IERS 2003 frame bias (~23 mas from ICRF); for data from bias-aware producers | same |
 | `B1950`, `FK4`, `ECLIPB1950`, `GALACTIC` | `EquatorB1950` | inertial | SPICE's fixed matrices | same |
 | `MOD`, `TOD`, `TEME` | `TETE` (TOD) | inertial, time-dependent | IAU-1976 precession, IAU-1980 nutation | same (SPICE has no TEME) |
 | `ITRF` | `ITRF93`, `ITRF2000`…`ITRF2020`, `ECEF`, `TDR` | Earth-fixed | SPICE `ITRF93` when a binary Earth PCK is loaded | TEME + GMST, with UT1 ≈ UTC (≤ 0.4 km at the surface) |
@@ -152,7 +153,11 @@ Frames are named, and every name resolves through one registry (`Universe.frames
 | `BodyFixed` | `body-fixed` | body-fixed to the item's current `center` | resolves to `IAU_<CENTER>` | same |
 | any SPICE frame | | per SPICE | `pxform` (CK, TK and dynamic frames, `MOON_ME`, …) | not resolvable |
 
-The static inertial frames use their fixed matrices even when SPICE is loaded. They are identical to SPICE's built-in definitions (the tests check this to 1e-12) and keep `pxform` off the per-frame path. EME2000 and ICRF are distinct names with an identity rotation between them. SPICE treats `J2000` as ICRF-aligned, and every JPL ephemeris is delivered that way, so applying the ~23 mas frame bias would offset SPICE-driven planets by about 17 km at 1 AU. When a catalog frame reaches SPICE (a `Spice` or `Builtin` trajectory, a `Spice` rotation), it goes out in SPICE's spelling (`EclipticJ2000` → `ECLIPJ2000`, `EME2000` → `J2000`). Frames SPICE cannot know (TEME, declared frames) are queried in J2000 and labelled as such.
+The static inertial frames use their fixed matrices even when SPICE is loaded. They are identical to SPICE's built-in definitions (the tests check this to 1e-12) and keep `pxform` off the per-frame path. EME2000 and ICRF are distinct names with an identity rotation between them. SPICE treats `J2000` as ICRF-aligned, and every JPL ephemeris is delivered that way, so applying the ~23 mas frame bias would offset SPICE-driven planets by about 17 km at 1 AU. What "EME2000" means depends on who wrote the file. From JPL and SPICE tools it is SPICE's J2000, which is ICRF-aligned; from Orekit, STK or GMAT it is FK5 J2000, which carries the bias. For the second kind, set `"trajectoryFrame": "EME2000_IERS"`: on an OEM whose `REF_FRAME` is EME2000 or ICRF, that declaration refines the file's label rather than being reported as a mismatch.
+
+Rendered accuracy is pinned end to end in `spice-oracle.test.ts`: positions after the renderer's floating-origin, scale and float32 step are checked against SPICE. Error is float32 rounding relative to the tracked body, about 1e-7 of the distance (tens of metres across the Saturn system from Cassini).
+
+When a catalog frame reaches SPICE (a `Spice` or `Builtin` trajectory, a `Spice` rotation), it goes out in SPICE's spelling (`EclipticJ2000` → `ECLIPJ2000`, `EME2000` → `J2000`). Frames SPICE cannot know (TEME, declared frames) are queried in J2000 and labelled as such.
 
 A frame nothing can resolve is reported once when the catalog loads, and positions in it are then used unrotated.
 

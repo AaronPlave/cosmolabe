@@ -256,6 +256,21 @@ describe('CCSDS OEM ingest', () => {
       for (let i = 0; i < 3; i++) expect(got[i]).toBeCloseTo(expected[i]!, 9);
     });
 
+    it('lets the catalog say which EME2000 a bias-aware producer meant', () => {
+      const warn = console.warn;
+      const warnings: string[] = [];
+      console.warn = (...args: unknown[]) => void warnings.push(args.join(' '));
+      let frame: string | undefined;
+      try {
+        const loader = new CatalogLoader({ spice, resolveFile: () => OEM_TEXT });
+        frame = loader.load(catalogWith('EME2000_IERS')).bodies.find((b) => b.name === 'MGS')?.frame;
+      } finally {
+        console.warn = warn;
+      }
+      expect(frame).toBe('EME2000_IERS');
+      expect(warnings.join('\n')).not.toMatch(/frame mismatch/i);
+    });
+
     it('warns rather than throwing when the catalog frame contradicts the file', () => {
       const warnings: string[] = [];
       const original = console.warn;

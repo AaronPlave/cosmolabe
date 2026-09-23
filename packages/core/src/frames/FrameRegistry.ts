@@ -1,7 +1,7 @@
 import type { RotationMatrix, SpiceInstance, Vec3 } from '../spice-injection.js';
 import type { Quaternion, RotationModel } from '../rotations/RotationModel.js';
 import { OBLIQUITY_J2000_RAD } from '../constants.js';
-import { IDENTITY3, mat3Mul, mat3Transpose, mat3Vec, quatToMat3 } from './mat3.js';
+import { IDENTITY3, mat3Mul, mat3Transpose, mat3Vec, quatToMat3, rotX, rotY, rotZ } from './mat3.js';
 import { j2000ToEarthFixed, j2000ToMod, j2000ToTeme, j2000ToTod } from './earthOrientation.js';
 
 /**
@@ -45,6 +45,8 @@ import { j2000ToEarthFixed, j2000ToMod, j2000ToTeme, j2000ToTod } from './earthO
  * so applying the bias would move SPICE-driven planets ~17 km at 1 AU relative
  * to everything else. The two names stay distinct so a trajectory's declared
  * frame is preserved; the rotation between them is identity, as in SPICE.
+ * Data from a producer that does apply the bias (Orekit, STK, GMAT) is
+ * declared `EME2000_IERS`: FK5 J2000 with the IERS 2003 bias.
  */
 
 export type FrameKind = 'inertial' | 'body-fixed';
@@ -139,6 +141,16 @@ const GALACTIC_TO_J2000: RotationMatrix = [
   -0.4838349917700252, 0.7469822486998919, 0.4559837945214199,
 ];
 
+// IERS 2003 frame bias (Conventions 2003 §5.5.1), in SOFA's exact form
+// (iauBi00 / iauBp00): Δψ and Δε of the FK5 J2000 pole from the ICRS pole,
+// and the equinox offset; ξ0 = Δψ·sin ε0, η0 = Δε.
+const MAS = Math.PI / (180 * 3600 * 1000);
+const XI0 = -41.775 * MAS * Math.sin(OBLIQUITY_J2000_RAD);
+const ETA0 = -6.8192 * MAS;
+const DA0 = -14.6 * MAS;
+/** B takes ICRS vectors to FK5 J2000: R1(−η0)·R2(ξ0)·R3(dα0); its transpose goes back. */
+const EME2000_IERS_TO_ICRF: RotationMatrix = mat3Transpose(mat3Mul(rotX(-ETA0), mat3Mul(rotY(XI0), rotZ(DA0))));
+
 function staticFrame(
   name: string,
   toICRF: RotationMatrix,
@@ -174,6 +186,9 @@ function earthFrame(
 export const BUILTIN_FRAMES: readonly FrameDefinition[] = [
   staticFrame('ICRF', IDENTITY3, ['GCRF', 'ICRF2', 'ICRF3'], 'J2000'),
   staticFrame('EME2000', IDENTITY3, ['J2000', 'EquatorJ2000', 'EMEJ2000', 'EME_J2000', 'equatorial'], 'J2000'),
+  // No spiceName: SPICE has no frame-bias rotation, so SPICE queries for this
+  // frame go out in J2000 and are labelled as such.
+  { ...staticFrame('EME2000_IERS', EME2000_IERS_TO_ICRF, ['FK5_J2000_BIASED']), spiceName: undefined },
   staticFrame('ECLIPJ2000', ECLIPJ2000_TO_J2000, ['EclipticJ2000', 'ecliptic', 'ECLIPTIC_J2000']),
   staticFrame('B1950', B1950_TO_J2000, ['EquatorB1950', 'EME1950']),
   staticFrame('FK4', FK4_TO_J2000, []),

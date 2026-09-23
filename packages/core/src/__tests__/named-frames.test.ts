@@ -81,7 +81,7 @@ FRAME_1599002_ROTATION_STATE = 'ROTATING'
 
 /** The built-in frames the matrix runs over. */
 const FRAMES = [
-  'ICRF', 'EME2000', 'ECLIPJ2000', 'B1950', 'FK4', 'ECLIPB1950', 'GALACTIC',
+  'ICRF', 'EME2000', 'EME2000_IERS', 'ECLIPJ2000', 'B1950', 'FK4', 'ECLIPB1950', 'GALACTIC',
   'MOD', 'TOD', 'TEME', 'ITRF',
 ] as const;
 
@@ -325,6 +325,28 @@ describe('FrameRegistry: the frame-pair matrix', () => {
     expect(maxAbsDiff(u.frames.toICRF('IAU_EARTH', et)!, expected)).toBeLessThan(1e-12);
     // …which is nowhere near SPICE's IAU_EARTH at the same epoch.
     expect(angleBetween(expected, spice.pxform('IAU_EARTH', 'J2000', et))).toBeGreaterThan(0.1);
+  });
+});
+
+describe('EME2000_IERS: FK5 J2000 with the IERS frame bias', () => {
+  it('matches SOFA’s ICRS → J2000 bias matrix (iauBp00 rb)', () => {
+    // SOFA t_sofa_c.c, t_bp00: the frame-bias matrix rb.
+    const rb: RotationMatrix = [
+      0.9999999999999942, -7.078279744199195e-8, 8.056217146976134e-8,
+      7.078279477857338e-8, 0.9999999999999969, 3.306041454222136e-8,
+      -8.056217380986972e-8, -3.306040883980552e-8, 0.9999999999999962,
+    ];
+    const r = new FrameRegistry();
+    expect(maxAbsDiff(r.rotation('ICRF', 'EME2000_IERS', 0)!, rb)).toBeLessThan(1e-14);
+  });
+
+  it('is ~23 mas from EME2000, which stays identity to ICRF as in SPICE', () => {
+    const r = new FrameRegistry();
+    const mas = angleBetween(r.toICRF('EME2000_IERS', 0)!, IDENTITY) / ARCSEC * 1000;
+    expect(mas).toBeGreaterThan(23);
+    expect(mas).toBeLessThan(23.3);
+    expect(r.rotation('EME2000', 'ICRF', 0)).toEqual(IDENTITY);
+    expect(r.spiceName('EME2000_IERS')).toBeUndefined();
   });
 });
 
