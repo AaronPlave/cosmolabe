@@ -282,6 +282,11 @@ export class TrajectoryLine extends THREE.Object3D {
       (this.maxTime == null || et <= this.maxTime);
   }
 
+  /** Epochs this line can draw: its arc bounds, unbounded for plain trails. */
+  timeBounds(): [number, number] {
+    return [this.minTime ?? -Infinity, this.maxTime ?? Infinity];
+  }
+
   /** Epochs represented by the moving trail at the current simulation time. */
   visibleTimeRange(et: number): [number, number] | null {
     if (!this.userVisible || !this.visible) return null;

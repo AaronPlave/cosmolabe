@@ -15,8 +15,11 @@ export interface RendererEventMap extends UniverseEventMap {
   'body:click': { bodyName: string; et: number; screenX: number; screenY: number };
   /** A visible scene event marker was selected with a click or tap. */
   'event:click': { id: string; queryId: string; et: number };
-  /** Transient in-scene preview; never changes time or selection. */
-  'event:hover': { id: string; queryId: string; boundary?: 'start' | 'end' } | null;
+  /**
+   * Transient in-scene preview; never changes time or selection. `et` is
+   * where an interval's span was hit when the hover began (absent for glyphs).
+   */
+  'event:hover': { id: string; queryId: string; boundary?: 'start' | 'end'; et?: number } | null;
   /** Emitted on double-click of a body or label. Consumer decides what to do (flyTo, show info, etc.) */
   'body:dblclick': { bodyName: string; et: number; screenX: number; screenY: number };
   /** @deprecated Use 'body:dblclick' instead. Still emitted for backward compat. */
