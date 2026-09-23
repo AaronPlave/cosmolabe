@@ -26,6 +26,7 @@ import {
   type InitialAssetsSummary,
 } from './AssetLoadTracker.js';
 import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
+import type { LeadRequest } from './TrajectoryLead.js';
 import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
 import { SensorFrustum } from './SensorFrustum.js';
@@ -1767,6 +1768,34 @@ export class UniverseRenderer {
     // hiding only the first leaves most of the trail on screen.
     for (const [key, line] of this.trajectoryLines) {
       if (key.startsWith(`${name}__arc`)) line.setUserVisible(visible);
+    }
+  }
+
+  /**
+   * Ask for (or, with null, withdraw) future trajectory ahead of current
+   * simulation time on one object's line(s), composite arcs included.
+   *
+   * `key` names the consumer — an event hover preview, a selected event, a
+   * focus mode — so several can ask at once and each withdraws only its own.
+   * Each line windows the requests by its lead policy and clips them to its
+   * coverage, so an arc only draws the part of a request it actually covers.
+   * Silent when the object draws no trajectory.
+   */
+  setTrajectoryLead(name: string, key: string, request: LeadRequest | null): void {
+    for (const tl of this.trajectoryLinesOf(name)) tl.setLeadRequest(key, request);
+  }
+
+  /** Withdraw one consumer's lead request from every trajectory line. */
+  clearTrajectoryLead(key: string): void {
+    for (const tl of this.trajectoryLines.values()) tl.setLeadRequest(key, null);
+  }
+
+  /** The line(s) drawing one object's trajectory: itself, or its arcs. */
+  private *trajectoryLinesOf(name: string): Iterable<TrajectoryLine> {
+    const tl = this.trajectoryLines.get(name);
+    if (tl) yield tl;
+    for (const [key, line] of this.trajectoryLines) {
+      if (key.startsWith(`${name}__arc`)) yield line;
     }
   }
 
