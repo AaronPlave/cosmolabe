@@ -183,7 +183,7 @@ cd apps/viewer && npm run dev          # Three.js viewer
 cd apps/cesium-viewer && npm run dev   # Cesium viewer
 ```
 
-Open the viewer and choose a demo catalog, or drag in your own [catalog JSON](docs/catalog-format.md) (plus any SPICE kernels it references). A deployment chooses which catalogs the welcome screen lists through [catalog sources](docs/catalog-sources.md).
+Open the viewer and choose a demo catalog, or drag in your own [catalog JSON](docs/catalog-format.md) (plus any SPICE kernels it references). A deployment chooses which catalogs the home screen and the in-viewer catalog switcher list through [catalog sources](docs/catalog-sources.md).
 
 ### Running Tests
 

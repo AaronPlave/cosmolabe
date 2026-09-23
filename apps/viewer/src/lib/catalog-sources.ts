@@ -42,6 +42,8 @@ export interface CatalogEntry {
   description?: string;
   /** Optional heading the entry is listed under. */
   group?: string;
+  /** Listed on the home screen's short "start with" list. */
+  featured?: boolean;
 }
 
 /** A validated index. */
@@ -97,6 +99,11 @@ export function parseSourceConfig(raw: unknown): { sources: CatalogSourceConfig[
       errors.push(`Catalog source #${i + 1} needs a string "id" and "indexUrl"`);
       return;
     }
+    if (s.id.includes('/')) {
+      // `?entry=<sourceId>/<entryId>` splits at the first `/`.
+      errors.push(`Catalog source id "${s.id}" must not contain "/"`);
+      return;
+    }
     if (ids.has(s.id)) {
       errors.push(`Catalog source id "${s.id}" is used more than once`);
       return;
@@ -147,6 +154,7 @@ export function parseCatalogIndex(json: unknown, indexUrl: string): { index: Cat
     const entry: CatalogEntry = { id: e.id, name: isNonEmptyString(e.name) ? e.name : e.id, catalogUrl };
     if (isNonEmptyString(e.description)) entry.description = e.description;
     if (isNonEmptyString(e.group)) entry.group = e.group;
+    if (e.featured === true) entry.featured = true;
     catalogs.push(entry);
   });
 

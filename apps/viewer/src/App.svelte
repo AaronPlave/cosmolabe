@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import WelcomeScreen from './components/WelcomeScreen.svelte';
+  import HomeScreen from './components/HomeScreen.svelte';
+  import LoadingScreen from './components/LoadingScreen.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
@@ -15,9 +16,13 @@
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
   } from './lib/shell.svelte';
-  import { loadDemo, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
-  import { loadCatalogSources, type CatalogSourceState } from './lib/catalog-sources';
-  import { catalogSourceDeployment } from './lib/deployment';
+  import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
+  import type { CatalogEntry } from './lib/catalog-sources';
+  import { catalogs, initCatalogSources, sourceSettled, syncSourceParams } from './lib/catalogs.svelte';
+  import {
+    catalogLocation, findEntry, requestedCatalog, withCatalogLocation, allEntries,
+    type CatalogLocation, type SourcedEntry,
+  } from './lib/catalog-nav';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -28,11 +33,20 @@
 
   const compact = $derived(shell.layout === 'compact');
 
-  // The deployment's catalog sources (issue #93) — zero or more, each fetched
-  // on its own so one that fails reports its error without holding back the
-  // rest, or dropped files and `?catalog=`.
-  const sourceDeployment = catalogSourceDeployment();
-  let catalogSources = $state<CatalogSourceState[]>([]);
+  // The window title carries the current catalog, so the identity costs the
+  // scene nothing (#94: no persistent header).
+  $effect(() => {
+    document.title = vs.catalogName ? `${vs.catalogName} — Cosmolabe` : 'Cosmolabe';
+  });
+
+  // A scene deep-linked by path is named by that path until a source lists it
+  // — at startup, or when a source is added later — and then by its entry.
+  $effect(() => {
+    const url = catalogs.currentUrl;
+    if (!url || !vs.catalogName) return;
+    const listed = allEntries(catalogs.sources).find((e) => e.entry.catalogUrl === url);
+    if (listed && listed.entry.name !== vs.catalogName) vs.catalogName = listed.entry.name;
+  });
 
   /**
    * The shell's own measurements, published to the panels and docks that offset
@@ -71,11 +85,15 @@
 
   /**
    * One condition for the whole load, so there is one loading screen rather than
-   * a welcome screen that comes and goes between phases. `showLoading` covers a
-   * load in flight — including loading a *second* catalog over a scene that is
-   * already up, which otherwise ran its kernel download behind a hidden bar —
-   * and `assetsReady` covers the stretch after the scene graph exists but its
+   * one that comes and goes between phases. `showLoading` covers a load in
+   * flight — including loading a *second* catalog over a scene that is already
+   * up, which otherwise ran its kernel download behind a hidden bar — and
+   * `assetsReady` covers the stretch after the scene graph exists but its
    * models, textures and trajectories have not landed yet.
+   *
+   * Which screen stands in for the scene meanwhile is split (#94): a load in
+   * flight gets the loading screen, naming the catalog; no scene and no load
+   * is the home screen.
    */
   const loading = $derived(vs.showLoading || !vs.assetsReady);
 
@@ -97,7 +115,8 @@
   function onDocDragOver(e: DragEvent) { e.preventDefault(); }
   function onDocDrop(e: DragEvent) {
     e.preventDefault();
-    if (e.dataTransfer) handleDrop(canvas, e.dataTransfer);
+    const dt = e.dataTransfer;
+    if (dt) loadFiles(() => handleDrop(canvas, dt));
   }
 
   function onCanvasClick(e: MouseEvent) {
@@ -169,6 +188,9 @@
 
     // Let command palette handle all keys when open (arrow nav, typing, etc.)
     if (commandPaletteOpen) return;
+    // Likewise the catalog switcher, which also handles its own Escape and
+    // marks it handled, so the Escape does not go on to dismiss a panel too.
+    if (shell.catalogMenuOpen || e.defaultPrevented) return;
 
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
@@ -199,6 +221,7 @@
           return;
         }
         case 'p': togglePickMode(); return;
+        case 'o': shell.catalogMenuOpen = true; return;
         case 'Escape':
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
           else if (dismissTopSurface()) return;
@@ -247,21 +270,177 @@
 
   function fmtCoord(n: number, dec: number) { return n.toFixed(dec); }
 
+  // ── Catalog navigation (#94) ──
+  //
+  // Every way into a scene — the home screen, the switcher, a deep link, the
+  // browser's back button, dropped files — ends in the same loader call; this
+  // is only the bookkeeping around it: what is current, what the URL says, and
+  // what to tell the user when a load fails.
+
+  /** Record the scene in the URL, as a new history entry, unless it already says so. */
+  function pushLocation(loc: CatalogLocation | null) {
+    const now = requestedCatalog(location.search);
+    if (JSON.stringify(now) === JSON.stringify(loc)) return;
+    history.pushState(null, '', `${location.pathname}${withCatalogLocation(location.search, loc)}${location.hash}`);
+  }
+
+  /**
+   * Browser navigation, counted. Every Back/Forward bumps it, and a load
+   * started before the latest one finishes without touching history: pushing
+   * its own location then would stack an entry on top of where the user just
+   * went, and drop the forward entry they came from.
+   */
+  let navGeneration = 0;
+  /** A load is in flight; set and cleared by `runLoad`. */
+  let loadInFlight = $state(false);
+  /** Back/Forward arrived during a load and is still owed a reconcile. */
+  let navPending = $state(false);
+
+  // The owed reconcile runs once the scene has settled — the loader call and
+  // the asset phase after it — rather than being dropped: the URL has already
+  // changed, and the scene has to follow it.
+  $effect(() => {
+    if (navPending && !loadInFlight && !vs.showLoading) {
+      navPending = false;
+      reconcileWithUrl();
+    }
+  });
+
+  /**
+   * Run one load. The scene that is up stays up until the loader has what it
+   * needs for the next one (#70), so a load that fails early leaves it on
+   * screen; either way the failure is reported, not just logged. `after` is
+   * told whether the user navigated during the load, so it can leave history
+   * alone.
+   */
+  async function runLoad(load: () => Promise<void>, after: (navigatedAway: boolean) => void) {
+    const generation = navGeneration;
+    catalogs.loadError = null;
+    loadInFlight = true;
+    try {
+      await load();
+      after(generation !== navGeneration);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      catalogs.loadError = `Couldn't load ${vs.loadingCatalog || 'the catalog'}: ${message}`;
+      console.error('[Cosmolabe] Catalog load failed:', err);
+    } finally {
+      loadInFlight = false;
+    }
+  }
+
+  function loadEntry(item: SourcedEntry, push = true) {
+    void runLoad(
+      () => loadCatalogUrl(canvas, item.entry.catalogUrl, item.entry.name),
+      (navigatedAway) => {
+        catalogs.currentUrl = item.entry.catalogUrl;
+        if (push && !navigatedAway) pushLocation(catalogLocation(item, location.href));
+      },
+    );
+  }
+
+  function selectCatalog(sourceId: string, entry: CatalogEntry) {
+    loadEntry({ sourceId, entry });
+  }
+
+  /**
+   * `?catalog=<name>`. Named by its entry where a source lists it, and by the
+   * path until then — a deep link does not wait on the sources, and the name
+   * is corrected once they arrive (onMount).
+   */
+  function loadNamed(name: string) {
+    const url = demoCatalogUrl(name);
+    const listed = allEntries(catalogs.sources).find((e) => e.entry.catalogUrl === url);
+    void runLoad(() => loadDemo(canvas, name, listed?.entry.name ?? name), () => {
+      catalogs.currentUrl = url;
+    });
+  }
+
+  /**
+   * Dropped or picked files. Only a drop that brought a catalog replaced the
+   * scene — kernels alone are added to the one that is up — and a scene from
+   * local files has no URL, so the catalog parameter is dropped rather than
+   * left naming a scene that is no longer on screen.
+   */
+  function loadFiles(load: () => Promise<void>) {
+    const before = getCurrentRenderer();
+    void runLoad(load, (navigatedAway) => {
+      if (getCurrentRenderer() === before) return;
+      catalogs.currentUrl = null;
+      if (!navigatedAway) pushLocation(null);
+    });
+  }
+
+  /**
+   * Back and forward. Never ignored: during a load the navigation is owed
+   * and reconciled once the load settles (the effect above).
+   */
+  function onPopState() {
+    // An entry from before a source was added lacks its `?source=`.
+    syncSourceParams();
+    navGeneration++;
+    if (loadInFlight || vs.showLoading) navPending = true;
+    else reconcileWithUrl();
+  }
+
+  /**
+   * Bring the scene in line with the URL. One that names a catalog loads it
+   * (unless it is already up); one that names none leaves the scene alone,
+   * since there is no scene it could mean — the one before might have come
+   * from dropped files.
+   */
+  function reconcileWithUrl() {
+    const req = requestedCatalog(location.search);
+    if (!req) return;
+    if ('catalog' in req) {
+      if (demoCatalogUrl(req.catalog) !== catalogs.currentUrl) loadNamed(req.catalog);
+    } else {
+      openEntryParam(req.entry);
+    }
+  }
+
+  /**
+   * `?entry=<source>/<entry>`: waits for that source only, then loads the
+   * entry — unless the user has navigated again meanwhile, in which case the
+   * newer navigation's own reconcile owns the scene.
+   */
+  function openEntryParam(param: string) {
+    const generation = navGeneration;
+    const sourceId = param.slice(0, Math.max(0, param.indexOf('/')));
+    void sourceSettled(sourceId).then((state) => {
+      if (generation !== navGeneration) return;
+      const item = state ? findEntry([state], param) : null;
+      if (!item) {
+        catalogs.loadError = `No catalog "${param}" in this viewer's catalog sources.`;
+        return;
+      }
+      if (item.entry.catalogUrl === catalogs.currentUrl) return;
+      if (loadInFlight || vs.showLoading) navPending = true;
+      else loadEntry(item, false);
+    });
+  }
+
   onMount(() => {
     onResize();
     // Visual-regression / deep-link entry: `?catalog=<name>` auto-loads a demo
     // (combine with `?test=1` for deterministic offscreen capture — see
     // scripts/visual-regression.mjs).
-    const catalogParam = new URLSearchParams(location.search).get('catalog');
-    if (catalogParam) loadDemo(canvas, catalogParam);
-    void loadCatalogSources(sourceDeployment.sources, sourceDeployment.baseUrl, (states) => {
-      catalogSources = states;
-    }).then((states) => {
-      for (const s of states) {
-        if (s.status === 'error') console.warn(`[Cosmolabe] Catalog source "${s.source.id}" unavailable: ${s.error}`);
-        else if (s.status === 'ready') for (const w of s.warnings) console.warn(`[Cosmolabe] Catalog source "${s.source.id}": ${w}`);
+    // `?entry=<source>/<entry>` names a catalog in a configured source, so it
+    // waits for that source — and only that one; `?catalog=` needs none.
+    const requested = requestedCatalog(location.search);
+    if (requested && 'catalog' in requested) loadNamed(requested.catalog);
+    const sourcesDone = initCatalogSources();
+    if (requested && 'entry' in requested) openEntryParam(requested.entry);
+    void sourcesDone.then((states) => {
+      if (requested && 'catalog' in requested) {
+        // A deep-linked example is named by its path until the sources say
+        // what it is called.
+        const url = demoCatalogUrl(requested.catalog);
+        const listed = allEntries(states).find((e) => e.entry.catalogUrl === url);
+        if (listed && vs.loadingCatalog === requested.catalog) vs.loadingCatalog = listed.entry.name;
       }
     });
+    window.addEventListener('popstate', onPopState);
     window.addEventListener('resize', onResize);
     const stopLayoutWatch = watchLayout();
     // Capture phase so we see right-clicks before CameraController stops propagation
@@ -270,6 +449,7 @@
     return () => {
       stopLayoutWatch();
       window.removeEventListener('resize', onResize);
+      window.removeEventListener('popstate', onPopState);
       window.removeEventListener('pointerdown', onWindowPointerDown, true);
       window.removeEventListener('pointerup', onWindowPointerUp);
     };
@@ -287,14 +467,23 @@
   <!-- Gated on `loading`, not `sceneLoaded`: the scene graph exists well before
        its models and textures do, and handing over a sky of placeholder spheres
        reads as a broken scene rather than a loading one. -->
-  {#if loading}
-    <WelcomeScreen
-      sources={catalogSources}
-      configErrors={sourceDeployment.errors}
-      onLoadCatalog={(entry) => loadCatalogUrl(canvas, entry.catalogUrl, entry.name)}
-      onDrop={(dt) => handleDrop(canvas, dt)}
-      onFiles={(files) => handleFileList(canvas, files)}
+  {#if vs.showLoading}
+    <LoadingScreen />
+  {:else if !vs.assetsReady}
+    <HomeScreen
+      onSelect={selectCatalog}
+      onDrop={(dt) => loadFiles(() => handleDrop(canvas, dt))}
+      onFiles={(files) => loadFiles(() => handleFileList(canvas, files))}
     />
+  {/if}
+
+  {#if !loading && catalogs.loadError}
+    <!-- A switch that failed before touching the scene leaves it up; say so
+         over it, briefly and out of the way, rather than only in the console. -->
+    <div class="load-notice shell-surface pointer-events-auto absolute left-1/2 top-3 z-30 flex max-w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 items-start gap-3 rounded-md border px-3 py-2 text-[12px] text-text-secondary backdrop-blur-md" role="alert">
+      <span class="min-w-0 break-words">{catalogs.loadError}</span>
+      <button class="shrink-0 text-text-muted hover:text-text-primary" aria-label="Dismiss" onclick={() => (catalogs.loadError = null)}>&times;</button>
+    </div>
   {/if}
 
   {#if !loading && !uiHidden}
@@ -347,6 +536,8 @@
           {pickModeActive}
           onTogglePick={togglePickMode}
           onOpenSearch={() => commandPaletteOpen = true}
+          onSelectCatalog={selectCatalog}
+          onOpenFiles={(files) => loadFiles(() => handleFileList(canvas, files))}
         />
       </div>
     {:else}
@@ -354,6 +545,8 @@
         {pickModeActive}
         onTogglePick={togglePickMode}
         onOpenSearch={() => commandPaletteOpen = true}
+        onSelectCatalog={selectCatalog}
+        onOpenFiles={(files) => loadFiles(() => handleFileList(canvas, files))}
       />
       <TimelineDock />
     {/if}

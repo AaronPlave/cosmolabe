@@ -900,8 +900,13 @@ function initScene(
  * of catalog-source discovery — a deployment with no sources can still load
  * any catalog it serves this way.
  */
-export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
-  await loadCatalogUrl(canvas, new URL(`./${name}.json`, location.href).href, name);
+export async function loadDemo(canvas: HTMLCanvasElement, name: string, displayName = name) {
+  await loadCatalogUrl(canvas, demoCatalogUrl(name), displayName);
+}
+
+/** The URL `?catalog=<name>` resolves to. */
+export function demoCatalogUrl(name: string): string {
+  return new URL(`./${name}.json`, location.href).href;
 }
 
 /** Load a catalog by URL. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
@@ -911,11 +916,11 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
   // that follow it are one continuous run rather than two 0→100 passes. The
   // catalog graph is what knows the kernel byte total, so the bar sits at zero
   // for the moment it takes to fetch and then gets its phase weights.
-  beginLoad(`Loading ${name}...`);
+  beginLoad('Fetching catalog...', { catalog: name });
 
   try {
     const graph = await loadCatalogFromUrl(entryUrl);
-    beginLoad(`Loading ${name}...`, {
+    beginLoad('Preparing scene...', {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
     });
 
@@ -944,7 +949,7 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
   } catch (err) {
     // A load that dies mid-way (missing catalog, a kernel the scene can't do
     // without) must not leave the bar sitting at whatever fraction it reached.
-    // Close it and let the error surface — the welcome screen comes back, which
+    // Close it and let the error surface. The home screen comes back, which
     // is the honest end state for a scene that never built.
     endLoad();
     throw err;
@@ -1145,7 +1150,7 @@ export async function handleDrop(canvas: HTMLCanvasElement, dataTransfer: DataTr
 export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   // Dropped kernels are already on disk — no download to weigh — so the whole
   // bar belongs to the asset phase that follows.
-  beginLoad(`Processing ${files.length} file(s)...`);
+  beginLoad(`Processing ${files.length} file(s)...`, { catalog: 'Local files' });
   const { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles } = await categorizeFiles(files);
 
   if (jsonFiles.size === 0 && kernelFiles.length === 0) {
@@ -1156,6 +1161,9 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   // Resolved before anything is furnished, because it is what says whether this
   // drop is a scene load, and the two cases furnish into different instances.
   const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
+  // Dependencies come first, so the last catalog is the one the drop is of.
+  const top = catalogs.at(-1);
+  if (top) setLoadingState({ catalog: typeof top.name === 'string' && top.name ? top.name : 'Local catalog' });
 
   if (catalogs.length > 0) {
     // A drop carrying a catalog is a scene load like any other: the scene that
