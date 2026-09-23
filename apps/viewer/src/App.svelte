@@ -16,6 +16,7 @@
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
   } from './lib/shell.svelte';
   import { loadDemo, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
+  import { queueScriptDemo, type ScriptDemo } from './lib/script-demo.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -237,6 +238,17 @@
     return true;
   }
 
+  /**
+   * Load a scripted demo's catalog, then hand its script to the console.
+   *
+   * Queued only once the load has succeeded, so a catalog that fails to load
+   * does not leave a script waiting to run against whatever loads next.
+   */
+  async function loadScriptDemo(demo: ScriptDemo) {
+    await loadDemo(canvas, demo.catalog);
+    queueScriptDemo(demo);
+  }
+
   function fmtCoord(n: number, dec: number) { return n.toFixed(dec); }
 
   onMount(() => {
@@ -274,6 +286,7 @@
   {#if loading}
     <WelcomeScreen
       onLoadDemo={(name) => loadDemo(canvas, name)}
+      onLoadScriptDemo={loadScriptDemo}
       onDrop={(dt) => handleDrop(canvas, dt)}
       onFiles={(files) => handleFileList(canvas, files)}
     />

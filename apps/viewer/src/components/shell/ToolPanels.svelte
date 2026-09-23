@@ -15,6 +15,7 @@
   import EventFinder from '../EventFinder.svelte';
   import MeasureTool from '../MeasureTool.svelte';
   import DebugPanel from '../DebugPanel.svelte';
+  import ScriptConsole from '../ScriptConsole.svelte';
 
   interface Props {
     /** `all` is the compact case, where the shell picks one sheet instead. */
@@ -45,6 +46,8 @@
     <EventFinder onClose={() => closeTool('events')} />
   {:else if tool.id === 'measure'}
     <MeasureTool onClose={() => closeTool('measure')} />
+  {:else if tool.id === 'script'}
+    <ScriptConsole onClose={() => closeTool('script')} />
   {:else if tool.id === 'debug'}
     <DebugPanel onClose={() => closeTool('debug')} />
   {:else if tool.id === 'display'}

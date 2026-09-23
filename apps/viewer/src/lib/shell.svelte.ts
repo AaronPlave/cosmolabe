@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Ruler, Settings, Bug } from 'lucide-svelte';
+import { Globe, Radar, Ruler, Settings, Bug, Terminal } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 
 /**
@@ -33,7 +33,7 @@ import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 export type IconComponent = typeof Globe;
 
 /** The contextual tool surfaces the rail can open. */
-export const TOOL_IDS = ['catalog', 'events', 'measure', 'display', 'debug'] as const;
+export const TOOL_IDS = ['catalog', 'events', 'measure', 'script', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -85,6 +85,10 @@ export const TOOLS: readonly ToolDef[] = [
   // renderer controls while the canvas has focus.
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
   { id: 'measure', label: 'Measure',  icon: Ruler,    presentation: 'panel',  dock: 'left',  width: 400 },
+  // Backtick: the universal console idiom, unclaimed, and not a letter, so it
+  // cannot collide with a renderer control or #15's keymap. The app's input
+  // guard runs first, so a backtick typed into a text field stays a backtick.
+  { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right', width: 340, shortcut: '`' },
   { id: 'display', label: 'Display',  icon: Settings, presentation: 'panel',  dock: 'right', width: 240 },
   { id: 'debug',   label: 'Diagnostics', icon: Bug,   presentation: 'panel',  dock: 'right', width: 260 },
 ];

@@ -13,6 +13,7 @@ export type {
 // The language
 export type {
   ExecuteOptions,
+  ScriptCancelSignal,
   ExecutionReport,
   ParseOptions,
   Program,
