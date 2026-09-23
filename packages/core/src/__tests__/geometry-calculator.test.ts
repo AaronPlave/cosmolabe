@@ -155,16 +155,14 @@ describe('GeometryCalculator (SPICE integration)', () => {
     expect(result.earthSCBodyAngle!).toBeCloseTo(0, 0);
   });
 
-  it('computes RA/Dec', () => {
-    calc.compute(MOON_FROM_EARTH, J2000_ET);
+  it('computes RA/Dec of the observer as seen from Earth', () => {
+    // RA/Dec is of observerName from Earth, so observer = MOON gives the
+    // Moon's geocentric J2000 direction: ~14h50m, -10.9° at the J2000 epoch.
+    // (MOON_FROM_EARTH would ask for Earth from Earth, a zero vector.)
+    const result = calc.compute(EARTH_FROM_MOON, J2000_ET);
 
-    // RA/Dec of Earth from Earth → RA/Dec of Moon's observer (Earth) from Earth
-    // Actually this is RA/Dec of the observer (EARTH) from EARTH → not meaningful
-    // Let's test with Moon from Earth → RA/Dec of Moon observer from Earth
-    // For MOON_FROM_EARTH config, RA/Dec of MOON (observerName=EARTH) → SC RA/Dec from Earth
-    // This computes RA/Dec of observerName from EARTH, which is EARTH from EARTH = undefined
-    // Let me just check it doesn't crash
-    // The RA/Dec is of observerName (EARTH) from EARTH, which may produce zero vector → skip
+    expect(result.spacecraftRA).toBeCloseTo(222.45, 1);
+    expect(result.spacecraftDec).toBeCloseTo(-10.90, 1);
   });
 
   it('computes beta angle', () => {

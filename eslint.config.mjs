@@ -44,9 +44,8 @@ export default tseslint.config(
           destructuredArrayIgnorePattern: '^_',
         },
       ],
-      // 132 sites at adoption, each wanting a real type rather than a
-      // suppression. A warning keeps them visible without gating on a typing
-      // project; promoting to "error" is its own piece of work (#25).
+      // Existing sites each want a real type rather than a suppression, so
+      // this is a warning: visible without gating on a typing project.
       '@typescript-eslint/no-explicit-any': 'warn',
       // A key is only correct if it is unique, and a duplicate throws at
       // runtime (each_key_duplicate). Svelte 5 handles unkeyed lists fine, so
