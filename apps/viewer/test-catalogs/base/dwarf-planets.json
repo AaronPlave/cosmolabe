@@ -18,7 +18,7 @@
         "meanAnomaly": 95.99,
         "epoch": "2000-01-01T12:00:00Z"
       },
-      "geometry": { "type": "Globe", "radii": [482.1, 482.1, 445.9], "baseMap": "textures/ceres.png" },
+      "geometry": { "type": "Globe", "radii": [482.1, 482.1, 445.9], "baseMap": "../textures/ceres.png" },
       "label": { "color": [0.6, 0.55, 0.5] },
       "trajectoryPlot": { "color": "#998877", "duration": "4.6y", "fade": 0.4, "visible": true }
     },

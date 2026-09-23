@@ -18,7 +18,7 @@
         "meanAnomaly": 320.91,
         "epoch": "2000-01-01T12:00:00Z"
       },
-      "geometry": { "type": "Mesh", "source": "models/eros.cmod" },
+      "geometry": { "type": "Mesh", "source": "../models/eros.cmod" },
       "label": { "color": [0.7, 0.6, 0.5] },
       "trajectoryPlot": { "color": "#aa6644", "duration": "1.76y", "fade": 0.4, "visible": true }
     },
@@ -37,7 +37,7 @@
         "meanAnomaly": 308.47,
         "epoch": "2000-01-01T12:00:00Z"
       },
-      "geometry": { "type": "Mesh", "source": "models/itokawa.cmod" },
+      "geometry": { "type": "Mesh", "source": "../models/itokawa.cmod" },
       "label": { "color": [0.7, 0.65, 0.55] },
       "trajectoryPlot": { "color": "#9988aa", "duration": "1.52y", "fade": 0.4, "visible": true }
     },

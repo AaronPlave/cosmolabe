@@ -16,7 +16,7 @@
         "ascendingNode": 16.13,
         "meridianAngle": 84.10
       },
-      "geometry": { "type": "Globe", "radius": 695000, "baseMap": "textures/sun.jpg", "emissive": true },
+      "geometry": { "type": "Globe", "radius": 695000, "baseMap": "../textures/sun.jpg", "emissive": true },
       "label": { "color": [1.0, 0.9, 0.3] }
     }
   ]

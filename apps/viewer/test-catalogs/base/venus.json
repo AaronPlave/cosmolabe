@@ -16,7 +16,7 @@
         "ascendingNode": 182.76,
         "meridianAngle": 160.20
       },
-      "geometry": { "type": "Globe", "radius": 6051.8, "baseMap": "textures/venus.dds", "atmosphere": "Venus" },
+      "geometry": { "type": "Globe", "radius": 6051.8, "baseMap": "../textures/venus.dds", "atmosphere": "Venus" },
       "label": { "color": [1.0, 0.85, 0.5] }
     }
   ]

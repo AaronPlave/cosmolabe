@@ -45,6 +45,7 @@ import {
   formatBytes,
 } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
+import { absolutizeCatalogAssets } from './catalog-assets';
 
 // ── State ──
 let spice: HeritageSpice | null = null;
@@ -639,7 +640,9 @@ function initScene(
     cacheWorker: cacheWorker ?? undefined,
     modelResolver: modelFiles?.size
       ? (source: string) => findInMap(modelFiles, source)
-      : (source: string) => `./${source}`,
+      // URL-loaded catalogs arrive with absolute asset URLs; anything still
+      // relative (a catalog built in code) resolves against the page.
+      : (source: string) => new URL(source, location.href).href,
     bloom: { enabled: !TEST_MODE },
   });
   // DPR is pinned to 1 for capture via the browser context (Playwright
@@ -848,8 +851,18 @@ function initScene(
 
 // ── Public API for components ──
 
-/** Load a demo catalog by name. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
+/**
+ * Load a catalog by demo name: `name` is resolved as `./<name>.json` against
+ * the page. This is the `?catalog=<name>` deep link, and it stays independent
+ * of catalog-source discovery — a deployment with no sources can still load
+ * any catalog it serves this way.
+ */
 export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
+  await loadCatalogUrl(canvas, new URL(`./${name}.json`, location.href).href, name);
+}
+
+/** Load a catalog by URL. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
+export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string, name: string) {
   // One bar for the whole load. It opens here and closes on `assets:ready`
   // (viewer-state), so the kernel download and the models/textures/trajectories
   // that follow it are one continuous run rather than two 0→100 passes. The
@@ -858,7 +871,6 @@ export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
   beginLoad(`Loading ${name}...`);
 
   try {
-    const entryUrl = new URL(`./${name}.json`, location.href).href;
     const graph = await loadCatalogFromUrl(entryUrl);
     beginLoad(`Loading ${name}...`, {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
@@ -872,6 +884,10 @@ export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
     }
 
     const dataFiles = await fetchCatalogDataFiles(graph);
+    // Each catalog's asset paths are relative to that catalog, not to this
+    // page; the renderer only sees JSON, so pin them down while the URL is in
+    // hand (catalog-assets.ts).
+    for (const { url, json } of graph.catalogs) absolutizeCatalogAssets(json, url);
     initScene(canvas, graph.catalogs.map(c => c.json as Record<string, unknown>), dataFiles);
   } catch (err) {
     // A load that dies mid-way (missing catalog, a kernel the scene can't do
