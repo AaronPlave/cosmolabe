@@ -848,8 +848,18 @@ function initScene(
 
 // ── Public API for components ──
 
-/** Load a demo catalog by name. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
+/**
+ * Load a catalog by demo name: `name` is resolved as `./<name>.json` against
+ * the page. This is the `?catalog=<name>` deep link, and it stays independent
+ * of catalog-source discovery — a deployment with no sources can still load
+ * any catalog it serves this way.
+ */
 export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
+  await loadCatalogUrl(canvas, new URL(`./${name}.json`, location.href).href, name);
+}
+
+/** Load a catalog by URL. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
+export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string, name: string) {
   // One bar for the whole load. It opens here and closes on `assets:ready`
   // (viewer-state), so the kernel download and the models/textures/trajectories
   // that follow it are one continuous run rather than two 0→100 passes. The
@@ -858,7 +868,6 @@ export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
   beginLoad(`Loading ${name}...`);
 
   try {
-    const entryUrl = new URL(`./${name}.json`, location.href).href;
     const graph = await loadCatalogFromUrl(entryUrl);
     beginLoad(`Loading ${name}...`, {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),

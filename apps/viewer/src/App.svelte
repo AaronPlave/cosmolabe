@@ -15,7 +15,9 @@
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
   } from './lib/shell.svelte';
-  import { loadDemo, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
+  import { loadDemo, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
+  import { loadCatalogSources, type CatalogSourceState } from './lib/catalog-sources';
+  import { catalogSourceDeployment } from './lib/deployment';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -25,6 +27,12 @@
   let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
 
   const compact = $derived(shell.layout === 'compact');
+
+  // The deployment's catalog sources (issue #93) — zero or more, each fetched
+  // on its own so one that fails reports its error without holding back the
+  // rest, or dropped files and `?catalog=`.
+  const sourceDeployment = catalogSourceDeployment();
+  let catalogSources = $state<CatalogSourceState[]>([]);
 
   /**
    * The shell's own measurements, published to the panels and docks that offset
@@ -246,6 +254,14 @@
     // scripts/visual-regression.mjs).
     const catalogParam = new URLSearchParams(location.search).get('catalog');
     if (catalogParam) loadDemo(canvas, catalogParam);
+    void loadCatalogSources(sourceDeployment.sources, sourceDeployment.baseUrl, (states) => {
+      catalogSources = states;
+    }).then((states) => {
+      for (const s of states) {
+        if (s.status === 'error') console.warn(`[Cosmolabe] Catalog source "${s.source.id}" unavailable: ${s.error}`);
+        else if (s.status === 'ready') for (const w of s.warnings) console.warn(`[Cosmolabe] Catalog source "${s.source.id}": ${w}`);
+      }
+    });
     window.addEventListener('resize', onResize);
     const stopLayoutWatch = watchLayout();
     // Capture phase so we see right-clicks before CameraController stops propagation
@@ -273,7 +289,9 @@
        reads as a broken scene rather than a loading one. -->
   {#if loading}
     <WelcomeScreen
-      onLoadDemo={(name) => loadDemo(canvas, name)}
+      sources={catalogSources}
+      configErrors={sourceDeployment.errors}
+      onLoadCatalog={(entry) => loadCatalogUrl(canvas, entry.catalogUrl, entry.name)}
       onDrop={(dt) => handleDrop(canvas, dt)}
       onFiles={(files) => handleFileList(canvas, files)}
     />

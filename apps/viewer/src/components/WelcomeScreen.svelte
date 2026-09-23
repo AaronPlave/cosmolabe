@@ -1,64 +1,30 @@
 <script lang="ts">
   import { vs } from "../lib/viewer-state.svelte";
   import Button from "$lib/components/ui/button/button.svelte";
+  import {
+    groupEntries,
+    type CatalogEntry,
+    type CatalogSourceState,
+  } from "../lib/catalog-sources";
 
   interface Props {
-    onLoadDemo: (name: string) => void;
+    /** The deployment's catalog sources — possibly none. */
+    sources: CatalogSourceState[];
+    /** Problems with the deployment's source configuration itself. */
+    configErrors?: string[];
+    onLoadCatalog: (entry: CatalogEntry) => void;
     onDrop: (dt: DataTransfer) => void;
     onFiles: (files: File[]) => void;
   }
 
-  let { onLoadDemo, onDrop, onFiles }: Props = $props();
+  let { sources, configErrors = [], onLoadCatalog, onDrop, onFiles }: Props = $props();
 
   let fileInput: HTMLInputElement;
   let dragging = $state(false);
 
-  type DemoEntry = { id: string; label: string; desc: string };
-  type DemoSection = { heading: string; items: DemoEntry[] };
-
-  const sections: DemoSection[] = [
-    {
-      heading: "No SPICE — loads instantly",
-      items: [
-        { id: "earth-moon", label: "Earth + Moon", desc: "Keplerian orbits, no kernels" },
-        { id: "inner-planets-keplerian", label: "Inner Planets", desc: "Sun → Mars via Keplerian fallback" },
-        { id: "iss", label: "ISS (TLE)", desc: "Two-line element propagation around Earth" },
-      ],
-    },
-    {
-      heading: "Base library — composable catalogs",
-      items: [
-        { id: "base/solarsys", label: "Solar System", desc: "All planets via require composition" },
-        { id: "base/inner-planets", label: "Inner Planets", desc: "Mercury → Mars + moons, NAIF de440s" },
-        { id: "base/outer-planets", label: "Outer Planets", desc: "Jupiter → Neptune + major moons" },
-        { id: "base/jupiter-system", label: "Jupiter System", desc: "Jupiter + Galileans (L1 analytical)" },
-        { id: "base/saturn-system", label: "Saturn System", desc: "Saturn + rings + major moons (TASS17)" },
-        { id: "base/small-bodies", label: "Small Bodies", desc: "Dwarf planets, main belt, NEAs, comet 67P" },
-        { id: "base/main-belt-300", label: "Main Belt × 300", desc: "Bulk SPK import: 300 numbered asteroids (no trails — pending swarm plugin)" },
-      ],
-    },
-    {
-      heading: "Extended scenes",
-      items: [
-        { id: "solar-system", label: "Solar System Tour", desc: "Planets + Ceres + sample spacecraft arc" },
-        { id: "sensor-demo", label: "Sensor Frustums", desc: "FOV cones from spacecraft instruments" },
-        { id: "oem-ingest", label: "CCSDS OEM Ingest", desc: "Cassini at Saturn flown from a text ephemeris — no spacecraft SPK" },
-      ],
-    },
-    {
-      heading: "Mission demos — full SPICE",
-      items: [
-        { id: "cassini-soi", label: "Cassini Saturn Tour", desc: "2004 SOI through Enceladus E-2 (~150 MB)" },
-        { id: "lro-moon", label: "LRO at the Moon", desc: "Lunar Reconnaissance Orbiter, 2025" },
-        { id: "europa-clipper", label: "Europa Clipper", desc: "Jupiter science phase, 2031" },
-        { id: "psyche", label: "Psyche", desc: "Launch → Mars flyby → asteroid arrival 2029 (~125 MB)" },
-        { id: "voyagers", label: "Voyager 1 & 2", desc: "Grand Tour: 1977 launch → interstellar (~85 MB)" },
-        { id: "msl-dingo-gap", label: "Curiosity at Mars", desc: "Mars surface rendering (experimental)" },
-        { id: "ingenuity-jezero", label: "Ingenuity at Jezero", desc: "Mars helicopter at Wright Brothers Field — no SPICE" },
-        { id: "moonfall-shackleton", label: "MoonFall at Shackleton", desc: "Synthetic 4-hopper lunar South Pole mission, Dec 2028" },
-      ],
-    },
-  ];
+  // A single source is the whole list, so its name would only restate the
+  // page; with several, each one's catalogs sit under its name.
+  const showSourceNames = $derived(sources.length > 1);
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
@@ -125,31 +91,57 @@
         {/if}
       </div>
     {:else}
-      <!-- Demos: CSS columns flow sections evenly into 1/2 columns -->
-      <div class="demo-columns">
-        {#each sections as section}
-          <div class="demo-section">
-            <h2 class="demo-heading">{section.heading}</h2>
-            <div class="flex flex-col gap-0.5">
-              {#each section.items as demo}
-                <button
-                  class="demo-item"
-                  onclick={(e: MouseEvent) => {
-                    e.stopPropagation();
-                    onLoadDemo(demo.id);
-                  }}
-                >
-                  <div class="demo-item-label">{demo.label}</div>
-                  <div class="demo-item-desc">{demo.desc}</div>
-                </button>
+      {#each configErrors as message}
+        <p class="source-error mb-4">{message}</p>
+      {/each}
+
+      {#each sources as state (state.source.id)}
+        <div class="source">
+          {#if showSourceNames || state.status === "error"}
+            <h2 class="source-name">{state.source.name}</h2>
+          {/if}
+          {#if state.status === "loading"}
+            <p class="text-text-muted text-[12px]">Loading catalogs…</p>
+          {:else if state.status === "error"}
+            <p class="source-error">
+              Couldn't load this catalog source ({state.error}).
+              <span class="opacity-60">{state.indexUrl}</span>
+            </p>
+          {:else if state.index.catalogs.length === 0}
+            <p class="text-text-muted text-[12px]">No catalogs in this source.</p>
+          {:else}
+            <!-- CSS columns flow groups evenly into 1/2 columns -->
+            <div class="demo-columns">
+              {#each groupEntries(state.index.catalogs) as group}
+                <div class="demo-section">
+                  {#if group.heading}
+                    <h3 class="demo-heading">{group.heading}</h3>
+                  {/if}
+                  <div class="flex flex-col gap-0.5">
+                    {#each group.entries as entry (entry.id)}
+                      <button
+                        class="demo-item"
+                        onclick={(e: MouseEvent) => {
+                          e.stopPropagation();
+                          onLoadCatalog(entry);
+                        }}
+                      >
+                        <div class="demo-item-label">{entry.name}</div>
+                        {#if entry.description}
+                          <div class="demo-item-desc">{entry.description}</div>
+                        {/if}
+                      </button>
+                    {/each}
+                  </div>
+                </div>
               {/each}
             </div>
-          </div>
-        {/each}
-      </div>
+          {/if}
+        </div>
+      {/each}
 
       <!-- Drop hint -->
-      <div class="mt-8 pt-6 border-t border-border w-full">
+      <div class="w-full" class:drop-hint-separated={sources.length > 0 || configErrors.length > 0}>
         <p class="text-text-muted text-[12px]">
           Drop a catalog folder here, or click to browse files
         </p>
@@ -194,6 +186,26 @@
     width: 100%;
     padding: 2rem;
     margin: auto;
+  }
+
+  .source + .source {
+    margin-top: 2rem;
+  }
+  .source-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 1rem;
+  }
+  .source-error {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    overflow-wrap: anywhere;
+  }
+  .drop-hint-separated {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
   }
 
   /* CSS multi-column flows sections evenly without row alignment */
