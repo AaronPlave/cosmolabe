@@ -21,7 +21,7 @@
   import { shell, setTimelineDepth } from '../../lib/shell.svelte';
   import { formatDuration } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
-  import { ef, selectEvent, syncOccultationGeometryAtTime } from '../../lib/event-finder.svelte';
+  import { ef, previewEvent, selectEvent, syncOccultationGeometryAtTime } from '../../lib/event-finder.svelte';
   import { visibleTimelineEvents } from '../../lib/analysis.svelte';
   import { eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
   import {
@@ -95,12 +95,15 @@
         return {
           fraction: span.start,
           endFraction: span.end,
-          selected: ef.selectedId === event.id,
+          selected: ef.selectedId === event.id && ef.configuredId === event.queryId,
+          preview: ef.previewId === event.id && ef.previewQueryId === event.queryId,
           active: eventContainsTime(event, vs.et),
           title: event.label,
           kind: event.kind,
           state: event.state,
           onSelect: () => selectEvent(event),
+          onPreview: () => previewEvent(event),
+          onPreviewEnd: () => previewEvent(null),
         };
       })
       .filter((marker) => marker != null),

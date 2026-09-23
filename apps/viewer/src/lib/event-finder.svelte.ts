@@ -42,6 +42,7 @@ import { geometryScopeForWindow, getGeometryWorker, getSpice } from './loader';
 import {
   activeEventAtTime,
   buildQuery,
+  eventSummary,
   formForKind,
   type EventQueryForm,
   type EventSortMode,
@@ -57,7 +58,7 @@ import {
   setEventResults,
   updateConfiguredEventQuery,
 } from './analysis.svelte';
-import { getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
+import { etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
 const registry = builtinEventKinds();
@@ -262,6 +263,9 @@ export const ef = $state({
   searched: false,
   /** Id of the selected result, or null. */
   selectedId: null as string | null,
+  /** Shared transient preview from scene, result list, or timeline. */
+  previewId: null as string | null,
+  previewQueryId: null as string | null,
   /** Id of the occultation currently represented at the live playhead. */
   activeId: null as string | null,
   /**
@@ -286,6 +290,31 @@ let inFlight = 0;
 let active: RunningSearch | null = null;
 /** Event currently represented by the renderer's single explanatory overlay. */
 let displayedOccultation: GeometryEvent | null = null;
+let unsubscribeSceneMarkerClick: (() => void) | null = null;
+let unsubscribeSceneMarkerHover: (() => void) | null = null;
+
+export function previewEvent(event: GeometryEvent | null, boundary?: 'start' | 'end'): void {
+  ef.previewId = event?.id ?? null;
+  ef.previewQueryId = event?.queryId ?? null;
+  if (!event) {
+    getRenderer()?.setEventPreview(null);
+    return;
+  }
+  const title = boundary ? `${event.label} ${boundary === 'start' ? 'begins' : 'ends'}` : event.label;
+  const et = boundary === 'end' ? eventEnd(event) : boundary === 'start' ? eventStart(event) :
+    event.temporality === 'instant' ? eventStart(event) : (eventStart(event) + eventEnd(event)) / 2;
+  const detail = boundary ? etToUtcString(et) : `${eventSummary(event)} · ${etToUtcString(et)}`;
+  getRenderer()?.setEventPreview(event, `${title}\n${detail}`, boundary);
+}
+
+function syncEventResultsInScene(): void {
+  const renderer = getRenderer();
+  if (!renderer) return;
+  const selected = ef.selectedId
+    ? ef.events.find((event) => event.id === ef.selectedId) ?? null
+    : null;
+  renderer.setEventResults(analysisContext().eventResults, selected);
+}
 
 function displayOccultation(event: GeometryEvent | null): void {
   const renderer = getRenderer();
@@ -454,6 +483,8 @@ export function configuredEventQueries(): ConfiguredEventQuery[] {
 
 export function setConfiguredQueryEnabled(id: string, enabled: boolean) {
   setConfiguredItemEnabled(id, enabled);
+  if (!enabled && ef.previewQueryId === id) previewEvent(null);
+  syncEventResultsInScene();
 }
 
 export function setConfiguredQueryVisible(id: string, visible: boolean) {
@@ -462,6 +493,7 @@ export function setConfiguredQueryVisible(id: string, visible: boolean) {
 
 /** Start another independently cached event category without discarding this one. */
 export function createNewSearch() {
+  previewEvent(null);
   active?.cancel();
   inFlight++;
   const previous = ef.form ?? undefined;
@@ -476,6 +508,7 @@ export function createNewSearch() {
   syncWindowToBodies();
   syncConfiguredQuery();
   highlightBodies([]);
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
@@ -512,6 +545,7 @@ export function openConfiguredQuery(id: string) {
   ef.windowPinned = item.windowMode === 'explicit';
   ef.windowTrimmed = false;
   highlightBodies([]);
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
@@ -587,6 +621,7 @@ export function setStep(step: number) {
  * old answer to land afterwards, against a query nobody asked.
  */
 function clearResults() {
+  previewEvent(null);
   active?.cancel();
   inFlight++;
   ef.events = [];
@@ -595,6 +630,7 @@ function clearResults() {
   ef.searched = false;
   ef.selectedId = null;
   if (ef.configuredId) setEventResults(ef.configuredId, []);
+  syncEventResultsInScene();
 }
 
 /** Runs the configured search, replacing the previous result. */
@@ -615,6 +651,7 @@ export async function runSearch() {
 
   const item = syncConfiguredQuery();
   if (!item || !item.enabled) return;
+  previewEvent(null);
   // A search the user has replaced is work nobody wants done; stopping it also
   // frees the worker for the one they do want.
   active?.cancel();
@@ -627,6 +664,7 @@ export async function runSearch() {
   ef.running = true;
   ef.progress = null;
   ef.selectedId = null;
+  syncEventResultsInScene();
   try {
     // Resolution applies the shared context defaults but preserves this item's
     // explicit bodies/window, then enters the unchanged EventQuery boundary.
@@ -648,6 +686,7 @@ export async function runSearch() {
       ef.hint = null;
     }
     ef.searched = result.ok;
+    syncEventResultsInScene();
   } finally {
     // Ownership of the spinner follows `active`, not the token: a search
     // abandoned by an edit to the form has had its token retired, and checking
@@ -691,14 +730,17 @@ export function cancelSearch() {
  * panel's — every kind gets the same behavior, including the ones that do not
  * exist yet.
  */
-export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' = 'start') {
+export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' | number = 'start') {
   if (event.queryId !== ef.configuredId) openConfiguredQuery(event.queryId);
   ef.selectedId = event.id;
-  applyEventFocus(focusForEvent(event, anchor), {
+  const focus = focusForEvent(event, typeof anchor === 'number' ? 'start' : anchor);
+  if (typeof anchor === 'number') focus.et = Math.max(eventStart(event), Math.min(anchor, eventEnd(event)));
+  applyEventFocus(focus, {
     setTime,
     selectBody,
     highlightBodies,
   });
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
@@ -706,6 +748,7 @@ export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'mid
 export function clearSelection() {
   ef.selectedId = null;
   highlightBodies([]);
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
@@ -719,6 +762,11 @@ export function clearSelection() {
  * the kind and the sort order are preferences rather than data, so they stay.
  */
 export function resetForScene() {
+  unsubscribeSceneMarkerClick?.();
+  unsubscribeSceneMarkerClick = null;
+  unsubscribeSceneMarkerHover?.();
+  unsubscribeSceneMarkerHover = null;
+  previewEvent(null);
   // `clearResults` abandons the search in flight, which matters more here than
   // anywhere: the kernels it was running against are being replaced under it.
   clearResults();
@@ -735,4 +783,14 @@ export function resetForScene() {
 // Scene loads are the only thing that replaces the kernels and the body list
 // underneath a result set. Subscribed at module scope rather than from the
 // panel: results have to be invalidated whether or not anyone has it open.
-onViewerEvent('load', () => resetForScene());
+onViewerEvent('load', () => {
+  resetForScene();
+  unsubscribeSceneMarkerClick = getRenderer()?.events.on('event:click', ({ id, queryId, et }) => {
+    const event = analysisContext().eventResults.find((item) => item.id === id && item.queryId === queryId);
+    if (event) selectEvent(event, et);
+  }) ?? null;
+  unsubscribeSceneMarkerHover = getRenderer()?.events.on('event:hover', (hit) => {
+    const event = hit ? analysisContext().eventResults.find((item) => item.id === hit.id && item.queryId === hit.queryId) : null;
+    previewEvent(event ?? null, hit?.boundary);
+  }) ?? null;
+});

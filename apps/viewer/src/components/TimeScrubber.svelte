@@ -42,11 +42,14 @@
       fraction: number;
       endFraction?: number;
       selected?: boolean;
+      preview?: boolean;
       active?: boolean;
       title?: string;
       kind?: string;
       state?: string;
       onSelect?: () => void;
+      onPreview?: () => void;
+      onPreviewEnd?: () => void;
     }[];
   }
 
@@ -66,6 +69,7 @@
   let pointerStartX = 0;
   let pointerMoved = false;
   let pendingMarkerSelect: (() => void) | undefined;
+  let markerPointerDown = false;
   let trackRect: DOMRect | null = null;
 
   let zoomMenuOpen = $state(false);
@@ -99,7 +103,8 @@
 
   function onPointerDown(e: PointerEvent) {
     if (!trackEl) return;
-    if (!(e.target instanceof Element) || !e.target.closest('.event-marker')) {
+    markerPointerDown = e.target instanceof Element && !!e.target.closest('.event-marker');
+    if (!markerPointerDown) {
       pendingMarkerSelect = undefined;
     }
     trackRect = trackEl.getBoundingClientRect();
@@ -109,17 +114,23 @@
     pointerStartX = e.clientX;
     pointerMoved = false;
     dragging = true;
-    onScrubStart?.();
-    onScrub(dragFraction);
+    if (!markerPointerDown) {
+      onScrubStart?.();
+      onScrub(dragFraction);
+    }
   }
 
   function onPointerMove(e: PointerEvent) {
     if (!dragging || !trackRect) return;
     const dx = e.clientX - lastClientX;
     if (Math.abs(e.clientX - pointerStartX) > 3) pointerMoved = true;
+    if (markerPointerDown && pointerMoved) {
+      markerPointerDown = false;
+      onScrubStart?.();
+    }
     lastClientX = e.clientX;
     dragFraction = clampFraction(dragFraction + dx / trackRect.width);
-    onScrub(dragFraction);
+    if (!markerPointerDown) onScrub(dragFraction);
   }
 
   function onMarkerClick(event: MouseEvent, onSelect?: () => void) {
@@ -133,9 +144,10 @@
     if (!dragging) return;
     trackEl?.releasePointerCapture(e.pointerId);
     dragging = false;
-    onScrubEnd?.();
+    if (!markerPointerDown) onScrubEnd?.();
     const select = pendingMarkerSelect;
     pendingMarkerSelect = undefined;
+    markerPointerDown = false;
     if (!pointerMoved) select?.();
   }
 
@@ -196,6 +208,7 @@
             class="event-marker"
             class:interval={(marker.endFraction ?? marker.fraction) > marker.fraction}
             class:selected={marker.selected}
+            class:preview={marker.preview}
             class:active={marker.active}
             class:partial={marker.state === 'partial'}
             class:full={marker.state === 'full'}
@@ -205,6 +218,10 @@
             title={marker.title}
             aria-label={marker.title ?? 'Select timeline event'}
             onpointerdown={() => { pendingMarkerSelect = marker.onSelect; }}
+            onpointerenter={marker.onPreview}
+            onpointerleave={marker.onPreviewEnd}
+            onfocus={marker.onPreview}
+            onblur={marker.onPreviewEnd}
             onclick={(event) => onMarkerClick(event, marker.onSelect)}
           ></button>
         {/each}
@@ -344,6 +361,11 @@
   .event-marker.active {
     opacity: 1;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72), 0 0 4px currentColor;
+  }
+  .event-marker.preview {
+    opacity: 1;
+    filter: brightness(1.45);
+    box-shadow: 0 0 0 1px rgba(230, 240, 247, 0.45);
   }
 
   .event-marker[data-kind='closest-approach'] { background: #72b7d8; }
