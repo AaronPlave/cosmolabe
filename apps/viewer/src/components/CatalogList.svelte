@@ -1,13 +1,14 @@
 <script lang="ts">
   /**
-   * The deployment's catalogs as a plain text list (issue #94): source, then
-   * group, then one row per catalog. Shared by the home screen and the
-   * in-viewer switcher, so both list exactly what the deployment configured
-   * (#93) — a mission deployment never shows an Examples section it does not
-   * have.
+   * The deployment's catalogs as a dense text list (issue #94): source, then
+   * group, then one row per catalog. The body of the catalog chooser, so the
+   * home screen's Browse and the in-viewer switcher list exactly what the
+   * deployment configured (#93) in exactly the same way — a mission
+   * deployment never shows an Examples section it does not have.
    *
    * Text rather than cards on purpose. The list is a way into a scene, not a
-   * gallery; a thumbnail per row would cost more than the scene it previews.
+   * gallery. Names only; a row's description is its tooltip. The scene that
+   * is up is marked quietly, because the chooser's header already names it.
    */
   import { groupEntries, type CatalogEntry, type CatalogSourceState } from '../lib/catalog-sources';
 
@@ -17,18 +18,16 @@
     onSelect: (sourceId: string, entry: CatalogEntry) => void;
     /** Catalog URL of the scene that is up, marked rather than hidden. */
     currentUrl?: string | null;
-    /** Tighter rows and no descriptions, for the switcher popover. */
-    dense?: boolean;
   }
 
-  let { sources, configErrors = [], onSelect, currentUrl = null, dense = false }: Props = $props();
+  let { sources, configErrors = [], onSelect, currentUrl = null }: Props = $props();
 
   // A single source is the whole list, so its name would only restate the
   // surface around it; with several, each one's catalogs sit under its name.
   const showSourceNames = $derived(sources.length > 1);
 </script>
 
-<div class="catalog-list" class:dense>
+<div class="catalog-list">
   {#each configErrors as message}
     <p class="note error">{message}</p>
   {/each}
@@ -55,19 +54,14 @@
             {/if}
             <ul>
               {#each group.entries as entry (entry.id)}
-                {@const current = entry.catalogUrl === currentUrl}
                 <li>
                   <button
                     class="row"
-                    aria-current={current ? 'true' : undefined}
-                    title={dense ? entry.description : undefined}
+                    aria-current={entry.catalogUrl === currentUrl ? 'true' : undefined}
+                    title={entry.description}
                     onclick={() => onSelect(state.source.id, entry)}
                   >
-                    <span class="row-name">{entry.name}</span>
-                    {#if !dense && entry.description}
-                      <span class="row-desc">{entry.description}</span>
-                    {/if}
-                    {#if current}<span class="row-current">current</span>{/if}
+                    {entry.name}
                   </button>
                 </li>
               {/each}
@@ -81,107 +75,92 @@
 
 <style>
   .source + .source {
-    margin-top: 1.25rem;
-  }
-  .dense .source + .source {
-    margin-top: 0.75rem;
+    margin-top: 0.625rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-chrome-divider);
   }
   .source-name {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    color: var(--color-text-primary);
-    margin-bottom: 0.5rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.125rem;
   }
   .note {
-    font-size: 12px;
+    font-size: 11px;
+    line-height: 1.4;
     color: var(--color-text-muted);
     overflow-wrap: anywhere;
+    padding: 0.125rem 0;
   }
   .note.error {
     color: var(--color-text-secondary);
   }
-  .note + .note,
-  .note + .source {
+
+  /* Group headings stay well below the rows they label: smaller, wider set,
+     muted, and close to their rows. */
+  .group {
     margin-top: 0.5rem;
   }
-
-  .group + .group {
-    margin-top: 1rem;
-  }
-  .dense .group + .group {
-    margin-top: 0.625rem;
+  .group:first-of-type {
+    margin-top: 0.125rem;
   }
   .group-heading {
-    font-size: 10px;
-    font-weight: 600;
+    font-size: 9.5px;
+    font-weight: 500;
     color: var(--color-text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    margin-bottom: 0.25rem;
-  }
-
-  .row {
-    display: flex;
-    align-items: baseline;
-    gap: 0.75rem;
-    text-align: left;
-    background: transparent;
-    border: none;
-    border-radius: 4px;
-    padding: 0.3rem 0.5rem;
-    margin: 0 -0.5rem;
-    width: calc(100% + 1rem);
-    cursor: pointer;
-    transition: background var(--duration-chrome) var(--ease-chrome);
-  }
-  .dense .row {
-    padding: 0.25rem 0.5rem;
-  }
-  .row:hover {
-    background: var(--color-control-hover);
-  }
-  .row:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-chrome);
-  }
-  .row-name {
-    flex-shrink: 0;
-    font-size: 13px;
-    color: var(--color-text-primary);
-    line-height: 1.35;
-  }
-  .row-desc {
-    min-width: 0;
-    font-size: 12px;
-    color: var(--color-text-muted);
-    line-height: 1.35;
+    letter-spacing: 0.14em;
+    line-height: 1.2;
+    padding: 0.25rem 0 0.1875rem;
+    opacity: 0.85;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .row-current {
-    margin-left: auto;
-    flex-shrink: 0;
-    font-size: 10px;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+
+  .row {
+    display: block;
+    width: calc(100% + 0.75rem);
+    margin: 0 -0.375rem;
+    padding: 0.25rem 0.375rem;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    text-align: left;
+    font-size: 12.5px;
+    line-height: 1.3;
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color var(--duration-chrome) var(--ease-chrome),
+      background var(--duration-chrome) var(--ease-chrome);
   }
-  .row[aria-current='true'] .row-name {
-    color: var(--color-chrome-active);
+  .row:hover {
+    color: var(--color-text-primary);
+    background: var(--color-control-hover);
+  }
+  /* Visible but in the shell's own register: popovers put focus on the
+     first row when opened from the keyboard, and the full focus ring there
+     reads as a selection. */
+  .row:focus-visible {
+    outline: none;
+    color: var(--color-text-primary);
+    box-shadow: inset 0 0 0 1px rgba(220, 224, 232, 0.32);
+  }
+  /* The scene that is up: brighter, on the shell's own quiet active ground. */
+  .row[aria-current='true'] {
+    color: var(--color-text-primary);
+    background: var(--color-chrome-active-bg);
   }
 
-  @media (max-width: 639px) {
-    /* A phone has no room for name and description side by side. */
+  @media (max-width: 719px) {
+    /* Touch targets. */
     .row {
-      flex-direction: column;
-      gap: 0;
-    }
-    .row-desc {
-      white-space: normal;
-    }
-    .row-current {
-      margin-left: 0;
+      padding: 0.4375rem 0.375rem;
+      font-size: 13px;
     }
   }
 </style>
