@@ -38,7 +38,7 @@
 <Popover.Content
   side={compact ? 'top' : 'right'}
   align={compact ? 'center' : 'start'}
-  sideOffset={compact ? 8 : 16}
+  sideOffset={compact ? 8 : 22}
   alignOffset={compact ? 0 : 4}
   collisionPadding={8}
   customAnchor={compact ? '.compact-dock' : null}

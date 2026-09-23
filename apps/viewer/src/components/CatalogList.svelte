@@ -99,19 +99,19 @@
   /* Group headings stay well below the rows they label: smaller, wider set,
      muted, and close to their rows. */
   .group {
-    margin-top: 0.5rem;
+    margin-top: 0.375rem;
   }
   .group:first-of-type {
     margin-top: 0.125rem;
   }
   .group-heading {
-    font-size: 9.5px;
+    font-size: 9px;
     font-weight: 500;
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.14em;
     line-height: 1.2;
-    padding: 0.25rem 0 0.1875rem;
+    padding: 0.1875rem 0 0.125rem;
     opacity: 0.85;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -122,13 +122,13 @@
     display: block;
     width: calc(100% + 0.75rem);
     margin: 0 -0.375rem;
-    padding: 0.25rem 0.375rem;
+    padding: 0.1875rem 0.375rem;
     border: none;
     border-radius: 3px;
     background: transparent;
     text-align: left;
-    font-size: 12.5px;
-    line-height: 1.3;
+    font-size: 12px;
+    line-height: 1.25;
     color: var(--color-text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -150,10 +150,10 @@
     color: var(--color-text-primary);
     box-shadow: inset 0 0 0 1px rgba(220, 224, 232, 0.32);
   }
-  /* The scene that is up: brighter, on the shell's own quiet active ground. */
+  /* The scene that is up: only brighter. The chooser's header already names
+     it, so the row needs no ground or badge of its own. */
   .row[aria-current='true'] {
     color: var(--color-text-primary);
-    background: var(--color-chrome-active-bg);
   }
 
   @media (max-width: 719px) {

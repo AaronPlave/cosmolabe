@@ -7,16 +7,17 @@
    * from the deployment's catalog sources (#93); a mission deployment lists its
    * own catalogs, and a bare viewer with no sources is just the local-open
    * action. The full list is one press away, in the same catalog chooser the
-   * viewer's rail opens — a popover over this screen, so the screen itself
-   * stays this sparse however much a deployment offers.
+   * viewer's rail opens. It takes the place of the short list and footer while
+   * it is open, at a fixed height, rather than floating over them or growing
+   * the page, so the screen stays this sparse however much a deployment
+   * offers.
    *
    * Loading is not this screen's job any more (LoadingScreen), and neither is
    * switching catalogs once a scene is up (CatalogMenu).
    */
-  import * as Popover from '$lib/components/ui/popover';
+  import { tick } from 'svelte';
   import CatalogChooser, { CHOOSER_SURFACE, CHOOSER_OVER_PAGE } from './CatalogChooser.svelte';
   import { catalogs, pickLocalFiles } from '../lib/catalogs.svelte';
-  import { shell } from '../lib/shell.svelte';
   import { browseLabel, featuredEntries, allEntries } from '../lib/catalog-nav';
   import type { CatalogEntry } from '../lib/catalog-sources';
 
@@ -30,7 +31,30 @@
 
   let browsing = $state(false);
   let dragging = $state(false);
-  const compact = $derived(shell.layout === 'compact');
+  let browseButton = $state<HTMLButtonElement>();
+  let chooserEl = $state<HTMLElement>();
+  let lowerEl = $state<HTMLElement>();
+  /** The short list and footer's height, held while the chooser has their place. */
+  let lockedHeight = $state<number | null>(null);
+
+  /**
+   * Open or close the chooser, taking focus in and handing it back out. The
+   * region keeps the height it had, and the taller chooser runs on below it,
+   * so the page — which is centred on that height — does not move.
+   */
+  async function setBrowsing(open: boolean) {
+    lockedHeight = open ? (lowerEl?.offsetHeight ?? null) : null;
+    browsing = open;
+    await tick();
+    if (open) chooserEl?.querySelector<HTMLElement>('.row, .item')?.focus();
+    else browseButton?.focus();
+  }
+
+  function onChooserKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    void setBrowsing(false);
+  }
 
   const featured = $derived(featuredEntries(catalogs.sources));
   const total = $derived(allEntries(catalogs.sources).length);
@@ -44,9 +68,6 @@
       s.status === 'error' ? [`Couldn't load ${s.source.name} (${s.error}).`] : [],
     ),
   ]);
-  // With one source the short list sits under that source's name; with several
-  // it is a cross-section, so it gets a neutral heading.
-  const listHeading = $derived(catalogs.sources.length === 1 ? catalogs.sources[0].source.name : 'Start with');
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
@@ -108,22 +129,15 @@
 
     <div class="actions">
       {#if browse && total > featured.length}
-        <Popover.Root bind:open={browsing}>
-          <Popover.Trigger>
-            {#snippet child({ props })}
-              <button {...props} class="action primary">{browse}</button>
-            {/snippet}
-          </Popover.Trigger>
-          <Popover.Content
-            side="bottom"
-            align="start"
-            sideOffset={8}
-            collisionPadding={8}
-            class="{CHOOSER_SURFACE} {CHOOSER_OVER_PAGE} z-[110] {compact ? 'compact w-[calc(100vw-1rem)]' : 'w-[320px]'}"
-          >
-            <CatalogChooser {onSelect} {onFiles} close={() => (browsing = false)} />
-          </Popover.Content>
-        </Popover.Root>
+        <button
+          bind:this={browseButton}
+          class="action primary"
+          aria-expanded={browsing}
+          aria-controls="home-chooser"
+          onclick={() => setBrowsing(!browsing)}
+        >
+          {browse}
+        </button>
       {/if}
       <button class="action" class:primary={!browse} onclick={() => pickLocalFiles(onFiles)}>
         Open local catalog…
@@ -134,9 +148,22 @@
       <p class="load-error" role="alert">{catalogs.loadError}</p>
     {/if}
 
-    {#if featured.length > 0}
+    <div class="lower" bind:this={lowerEl} style:height={lockedHeight != null ? `${lockedHeight}px` : null}>
+    {#if browsing}
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <div
+        id="home-chooser"
+        bind:this={chooserEl}
+        class="home-chooser {CHOOSER_SURFACE} {CHOOSER_OVER_PAGE}"
+        role="region"
+        aria-label="Catalogs"
+        onkeydown={onChooserKeydown}
+      >
+        <CatalogChooser {onSelect} {onFiles} close={() => { lockedHeight = null; browsing = false; }} />
+      </div>
+    {:else if featured.length > 0}
       <div class="list">
-        <h2 class="list-heading">{listHeading}</h2>
+        <h2 class="list-heading">Start with</h2>
         <ul>
           {#each featured as item (`${item.sourceId}/${item.entry.id}`)}
             <li>
@@ -156,6 +183,7 @@
       {/each}
     {/if}
 
+    {#if !browsing}
     <footer class="foot">
       <span>Or drop a catalog folder or kernel files anywhere.</span>
       <span class="links">
@@ -163,6 +191,8 @@
         <a href="https://github.com/AaronPlave/cosmolabe" target="_blank" rel="noopener noreferrer">GitHub</a>
       </span>
     </footer>
+    {/if}
+    </div>
   </main>
 </div>
 
@@ -248,7 +278,7 @@
   .home-body {
     position: relative;
     width: 100%;
-    max-width: 576px;
+    max-width: 608px;
     margin: auto;
     /* Sits left of centre on a wide screen, like a document; centred text
        would read as a splash page. */
@@ -263,16 +293,16 @@
   }
 
   .title {
-    font-size: 31px;
+    font-size: 34px;
     font-weight: 600;
     letter-spacing: -0.01em;
     line-height: 1.1;
   }
   .lede {
     margin-top: 0.75rem;
-    font-size: 13.75px;
+    font-size: 14.5px;
     line-height: 1.55;
-    color: color-mix(in srgb, var(--color-text-secondary) 82%, var(--color-text-primary));
+    color: color-mix(in srgb, var(--color-text-secondary) 68%, var(--color-text-primary));
   }
 
   .actions {
@@ -282,13 +312,13 @@
     margin-top: 1.5rem;
   }
   .action {
-    height: 30px;
+    height: 32px;
     padding: 0 0.75rem;
     border: 1px solid var(--color-border-default);
     border-radius: var(--radius-control);
     background: transparent;
-    color: var(--color-text-secondary);
-    font-size: 12px;
+    color: color-mix(in srgb, var(--color-text-secondary) 80%, var(--color-text-primary));
+    font-size: 12.5px;
     cursor: pointer;
     transition:
       color var(--duration-chrome) var(--ease-chrome),
@@ -320,10 +350,22 @@
   .list {
     margin-top: 2rem;
   }
+  /* The chooser in place of the short list and footer: the same box every
+     time it opens, whatever a deployment lists, and no wider than the one the
+     viewer's rail opens — the list inside scrolls. */
+  .home-chooser {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 400px;
+    height: min(380px, 60vh);
+    /* The list's own offset, so the chooser opens exactly where it was. */
+    margin-top: 2rem;
+  }
   .list-heading {
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 600;
-    color: var(--color-text-muted);
+    color: color-mix(in srgb, var(--color-text-muted) 75%, var(--color-text-secondary));
     text-transform: uppercase;
     letter-spacing: 0.12em;
     margin-bottom: 0.375rem;
@@ -347,13 +389,13 @@
   }
   .start-name {
     flex-shrink: 0;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--color-text-primary);
   }
   .start-desc {
     min-width: 0;
-    font-size: 12px;
-    color: color-mix(in srgb, var(--color-text-muted) 72%, var(--color-text-secondary));
+    font-size: 12.5px;
+    color: color-mix(in srgb, var(--color-text-muted) 50%, var(--color-text-secondary));
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -382,15 +424,15 @@
     margin-top: 2.5rem;
     padding-top: 1rem;
     border-top: 1px solid var(--color-border-subtle);
-    font-size: 11px;
-    color: var(--color-text-muted);
+    font-size: 11.5px;
+    color: color-mix(in srgb, var(--color-text-muted) 65%, var(--color-text-secondary));
   }
   .links {
     display: flex;
     gap: 0.875rem;
   }
   .links a {
-    color: var(--color-text-muted);
+    color: inherit;
     text-decoration: none;
     border-radius: 2px;
   }

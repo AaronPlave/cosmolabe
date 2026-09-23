@@ -121,7 +121,7 @@
     flex-shrink: 0;
   }
   .head {
-    padding: 0.5625rem 0.75rem 0.5rem;
+    padding: 0.5rem 0.75rem 0.4375rem;
     border-bottom: 1px solid var(--color-chrome-divider);
   }
   .title {
@@ -131,7 +131,7 @@
   }
   .current {
     margin-top: 1px;
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--color-text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -147,13 +147,19 @@
     max-height: min(380px, calc(100vh - 11rem));
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 0.375rem 0.625rem 0.5rem;
+    padding: 0.25rem 0.625rem 0.375rem;
     border-bottom: 1px solid var(--color-chrome-divider);
     scrollbar-width: thin;
     scrollbar-color: var(--color-surface-3) transparent;
   }
   :global(.compact) .list {
     max-height: min(60vh, calc(100vh - 14rem));
+  }
+  /* In place on the home screen the box has a fixed height; the list fills
+     whatever the header and foot leave. */
+  :global(.home-chooser) .list {
+    flex: 1 1 auto;
+    max-height: none;
   }
 
   .foot {
@@ -162,12 +168,12 @@
   .item {
     display: block;
     width: 100%;
-    padding: 0.3125rem 0.5rem;
+    padding: 0.25rem 0.5rem;
     border: none;
     border-radius: 4px;
     background: transparent;
     text-align: left;
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--color-text-secondary);
     cursor: pointer;
     transition:
