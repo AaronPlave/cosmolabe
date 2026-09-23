@@ -6,7 +6,10 @@ import {
   practicalSearchWindow,
   resetForScene,
   setKind,
+  spiceNameForBody,
+  withSpiceNames,
 } from '../event-finder.svelte';
+import { SpiceTrajectory, type GeometryFinderProvider } from '@cosmolabe/core';
 import { vs } from '../viewer-state.svelte';
 
 afterEach(() => resetForScene());
@@ -48,6 +51,66 @@ describe('event finder coverage window', () => {
       { observer: 'EARTH', target: 'MOON' },
       { start: 0, end: 100 },
     )).toEqual({ start: 23, end: 77 });
+  });
+});
+
+describe('event finder SPICE names', () => {
+  // The Psyche FK maps the name PSYCHE to the asteroid (2000016); the catalog's
+  // "Psyche" is the spacecraft (-255). Passing the display name through made a
+  // spacecraft→Mars search measure the asteroid and miss the Mars flyby.
+  it('prefers the catalog naifId over the display name', () => {
+    expect(spiceNameForBody({ naifId: -255 }, 'Psyche')).toBe('-255');
+  });
+
+  it('falls back to the SPICE trajectory target, then the name', () => {
+    const trajectory = Object.create(SpiceTrajectory.prototype, {
+      spiceTarget: { get: () => '-159' },
+    });
+    expect(spiceNameForBody({ trajectory }, 'Europa Clipper')).toBe('-159');
+    expect(spiceNameForBody({ trajectory: {} }, 'Mars')).toBe('Mars');
+    expect(spiceNameForBody(undefined, 'Mars')).toBe('Mars');
+  });
+
+  it('translates body arguments only, leaving frames and shapes alone', async () => {
+    const calls: unknown[][] = [];
+    const record = (...args: unknown[]) => { calls.push(args); return []; };
+    const provider = {
+      gfdist: record, gfsep: record, gfoclt: record, gfposc: record,
+      range: (...args: unknown[]) => { calls.push(args); return 1; },
+    } as unknown as GeometryFinderProvider;
+    const toSpice = (name: string) => (name === 'Psyche' ? '-255' : name);
+    const wrapped = withSpiceNames(provider, toSpice);
+    const w = [{ start: 0, end: 1 }];
+
+    await wrapped.gfdist('Mars', 'NONE', 'Psyche', '<', 1, 0, 60, w);
+    await wrapped.gfsep('Psyche', 'POINT', '', 'Sun', 'SPHERE', '', 'NONE', 'Psyche', '<', 1, 0, 60, w);
+    await wrapped.gfoclt('ANY', 'Mars', 'ELLIPSOID', 'IAU_Mars', 'Psyche', 'POINT', '', 'NONE', 'Psyche', 60, w);
+    await wrapped.gfposc('Psyche', 'J2000', 'NONE', 'Mars', 'LATITUDINAL', 'LATITUDE', '>', 0, 0, 60, w);
+    await wrapped.range!('Mars', 'NONE', 'Psyche', 0);
+
+    expect(calls).toEqual([
+      ['Mars', 'NONE', '-255', '<', 1, 0, 60, w],
+      ['-255', 'POINT', '', 'Sun', 'SPHERE', '', 'NONE', '-255', '<', 1, 0, 60, w],
+      ['ANY', 'Mars', 'ELLIPSOID', 'IAU_Mars', '-255', 'POINT', '', 'NONE', '-255', 60, w],
+      ['-255', 'J2000', 'NONE', 'Mars', 'LATITUDINAL', 'LATITUDE', '>', 0, 0, 60, w],
+      ['Mars', 'NONE', '-255', 0],
+    ]);
+  });
+
+  it('computes default coverage for the SPICE object, not the display name', () => {
+    const fake = {
+      // bodn2c('PSYCHE') would be the asteroid; an ID string must skip it.
+      bodn2c: (_name: string) => 2000016,
+      spkcov: (id: number) => id === -255
+        ? [{ start: 10, end: 50 }]
+        : [{ start: 0, end: 100 }],
+    };
+    expect(coverageWindow(
+      fake,
+      { observer: 'Psyche' },
+      { start: 0, end: 100 },
+      (name) => (name === 'Psyche' ? '-255' : name),
+    )).toEqual({ start: 13, end: 47 });
   });
 });
 

@@ -1,15 +1,30 @@
 import type { Body } from "@cosmolabe/core";
 import * as THREE from "three";
 import type { TrajectoryCache } from "./TrajectoryCache.js";
+import { EmphasisClock, stepEmphasis } from "./emphasisFade.js";
 
 /** Scratch color for emphasis lerp (avoids per-call allocation). */
 const _emphTmp = /* @__PURE__ */ new THREE.Color();
 
 /** A color segment overrides the trail color for a time range. */
+/** Read-only view of the polyline a TrajectoryLine drew this frame. */
+export interface DrawnTrail {
+  /** Local-space xyz per vertex; only the first `count` vertices are valid. */
+  readonly positions: Float32Array;
+  /** Ascending epoch (ET seconds) per vertex; the last is the live head sample. */
+  readonly times: Float64Array;
+  readonly count: number;
+}
+
 export interface ColorSegment {
   startEt: number;
   endEt: number;
   color: THREE.ColorRepresentation;
+  /**
+   * Multiplier on the segment color. Values above 1 lift a span over the
+   * trail's rest opacity without changing line width. Default 1.
+   */
+  intensity?: number;
 }
 
 export interface TrajectoryLineOptions {
@@ -72,6 +87,8 @@ export class TrajectoryLine extends THREE.Object3D {
   private readonly trailLine: THREE.Line;
   private trailPositions: Float32Array;
   private trailColors: Float32Array;
+  // Epoch of each drawn vertex, parallel to trailPositions (kept in Float64).
+  private trailTimes: Float64Array;
   private maxPoints: number;
   private readonly numCoarse: number;
   private readonly trailDuration: number;
@@ -99,6 +116,10 @@ export class TrajectoryLine extends THREE.Object3D {
    *  (mirrors the label baseline). */
   private static readonly REST_OPACITY_SCALE = 0.85;
   private static readonly _white = /* @__PURE__ */ new THREE.Color(0xffffff);
+  private _emphasis = 0;
+  private _emphasisTarget = 0;
+  private _emphasisApplied = false;
+  private readonly _emphasisClock = new EmphasisClock();
 
   // Cache: separate expensive sample computation from cheap offset application
   private lastComputedEt = -Infinity;
@@ -194,6 +215,7 @@ export class TrajectoryLine extends THREE.Object3D {
     // Trail line with per-vertex color fade
     this.trailPositions = new Float32Array(this.maxPoints * 3);
     this.trailColors = new Float32Array(this.maxPoints * 3);
+    this.trailTimes = new Float64Array(this.maxPoints);
     const trailGeometry = new THREE.BufferGeometry();
     trailGeometry.setAttribute(
       "position",
@@ -246,7 +268,7 @@ export class TrajectoryLine extends THREE.Object3D {
     }
 
     // Start at the slightly-reduced rest opacity so a hovered line stands out.
-    this.setEmphasis('rest');
+    this.applyEmphasis(0);
   }
 
   setUserVisible(visible: boolean): void {
@@ -277,6 +299,19 @@ export class TrajectoryLine extends THREE.Object3D {
     return Math.min(1, Math.max(0, (sampleEt - range[0]) / duration / this.fadeFraction));
   }
 
+  /**
+   * The polyline drawn this frame, in this object's local space. Read-only
+   * view for screen-space annotation placement; do not mutate.
+   */
+  drawnTrail(): DrawnTrail {
+    const count = this.trailLine.geometry.drawRange.count;
+    return {
+      positions: this.trailPositions,
+      times: this.trailTimes,
+      count: Number.isFinite(count) ? count : 0,
+    };
+  }
+
   /** Resolve through the exact fixed/fallback resolver used to draw this line. */
   positionAt(et: number, resolver?: PositionResolver): [number, number, number] {
     return this.resolveAt(et, this.fixedResolver ?? resolver);
@@ -294,6 +329,7 @@ export class TrajectoryLine extends THREE.Object3D {
       this.maxPoints = requiredPoints;
       this.trailPositions = new Float32Array(requiredPoints * 3);
       this.trailColors = new Float32Array(requiredPoints * 3);
+      this.trailTimes = new Float64Array(requiredPoints);
       const geometry = this.trailLine.geometry;
       geometry.setAttribute(
         "position",
@@ -334,6 +370,7 @@ export class TrajectoryLine extends THREE.Object3D {
       return;
     }
     this.visible = true;
+    this.stepEmphasis();
 
     if (this.cache) {
       // ── Cache path: throttled resample (binary search) + bridge + tail ──
@@ -657,6 +694,7 @@ export class TrajectoryLine extends THREE.Object3D {
             (cPositions[ci + 2] + offZ) * scaleFactor;
 
           const t = cTimes[lo + i];
+          this.trailTimes[i] = t;
           const fadeT = (t - startEt) / totalDuration;
           const fade =
             this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
@@ -690,6 +728,7 @@ export class TrajectoryLine extends THREE.Object3D {
         this.trailPositions[i * 3] = (s.x + offX) * scaleFactor;
         this.trailPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
         this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
+        this.trailTimes[i] = s.t;
         const fadeT = (s.t - startEt) / totalDuration;
         const fade =
           this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
@@ -747,6 +786,7 @@ export class TrajectoryLine extends THREE.Object3D {
         this.trailPositions[i * 3] = (s.x + offX) * scaleFactor;
         this.trailPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
         this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
+        this.trailTimes[i] = s.t;
 
         const fadeT = (s.t - startEt) / totalDuration;
         const fade =
@@ -776,6 +816,7 @@ export class TrajectoryLine extends THREE.Object3D {
       this.trailPositions[i * 3] = (s.x + offX) * scaleFactor;
       this.trailPositions[i * 3 + 1] = (s.y + offY) * scaleFactor;
       this.trailPositions[i * 3 + 2] = (s.z + offZ) * scaleFactor;
+      this.trailTimes[i] = s.t;
       const fadeT = (s.t - startEt) / totalDuration;
       const fade =
         this.fadeFraction > 0 ? Math.min(fadeT / this.fadeFraction, 1) : 1;
@@ -831,7 +872,7 @@ export class TrajectoryLine extends THREE.Object3D {
     this._colorSegments = segments.map((s) => ({
       startEt: s.startEt,
       endEt: s.endEt,
-      color: new THREE.Color(s.color),
+      color: new THREE.Color(s.color).multiplyScalar(s.intensity ?? 1),
     }));
     this._bufferDirty = true;
   }
@@ -847,32 +888,40 @@ export class TrajectoryLine extends THREE.Object3D {
    * a slightly reduced "rest" opacity; the hovered body's line is bumped bright
    * (and its orbit ring tinted toward white) so it stands out — no thickness
    * change, just opacity/color on the normal `LineBasicMaterial` lines, so depth
-   * and occlusion stay exactly as the un-highlighted lines. O(1); persists until
-   * changed (the per-frame buffer rewrite only touches positions/vertex colors).
+   * and occlusion stay exactly as the un-highlighted lines. The change eases
+   * over `EMPHASIS_FADE_MS` in `update()`; persists until changed.
    */
   setEmphasis(state: 'highlight' | 'rest'): void {
-    const on = state === 'highlight';
+    this._emphasisTarget = state === 'highlight' ? 1 : 0;
+  }
 
+  /** Advance the hover ease one frame; recolors only while it moves. */
+  private stepEmphasis(): void {
+    // The first frame, and any after a gap (a hidden line), snap.
+    const next = stepEmphasis(this._emphasis, this._emphasisTarget, this._emphasisClock.tick());
+    if (next !== this._emphasis || !this._emphasisApplied) this.applyEmphasis(next);
+  }
+
+  private applyEmphasis(amount: number): void {
+    this._emphasis = amount;
+    this._emphasisApplied = true;
     // Brighten the trail's vertex color toward white (faint additive trails need
     // a color bump, not just opacity, to read as highlighted). Force a recolor on
     // the next buffer write.
-    const nextColor = on
-      ? _emphTmp.copy(this.baseColor).lerp(TrajectoryLine._white, 0.55)
-      : this.baseColor;
+    const nextColor = _emphTmp.copy(this.baseColor).lerp(TrajectoryLine._white, 0.55 * amount);
     if (!this._activeColor.equals(nextColor)) {
       this._activeColor.copy(nextColor);
       this._bufferDirty = true;
     }
 
+    const rest = TrajectoryLine.REST_OPACITY_SCALE;
     const trailMat = this.trailLine.material as THREE.LineBasicMaterial;
-    trailMat.opacity = on
-      ? Math.min(1, this._baseTrailOpacity * 1.4)
-      : this._baseTrailOpacity * TrajectoryLine.REST_OPACITY_SCALE;
+    trailMat.opacity = THREE.MathUtils.lerp(
+      this._baseTrailOpacity * rest, Math.min(1, this._baseTrailOpacity * 1.4), amount);
     if (this.orbitLine) {
       const orbitMat = this.orbitLine.material as THREE.LineBasicMaterial;
-      orbitMat.opacity = on
-        ? Math.min(1, this._baseOrbitOpacity * 2.5)
-        : this._baseOrbitOpacity * TrajectoryLine.REST_OPACITY_SCALE;
+      orbitMat.opacity = THREE.MathUtils.lerp(
+        this._baseOrbitOpacity * rest, Math.min(1, this._baseOrbitOpacity * 2.5), amount);
       orbitMat.color.copy(this._activeColor);
     }
   }

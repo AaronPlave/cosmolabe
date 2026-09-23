@@ -147,6 +147,7 @@
      rendered bare inside the shared bottom dock, so the phone gets one bar of
      chrome rather than two stacked boxes. -->
 <div
+  data-scene-occluder
   bind:clientHeight={height}
   class="timeline flex flex-col gap-0.5"
   class:pointer-events-auto={!inline}
