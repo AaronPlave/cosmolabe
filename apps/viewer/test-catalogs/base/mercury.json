@@ -16,7 +16,7 @@
         "ascendingNode": 11.01,
         "meridianAngle": 329.548
       },
-      "geometry": { "type": "Globe", "radius": 2439, "baseMap": "textures/mercury.dds" },
+      "geometry": { "type": "Globe", "radius": 2439, "baseMap": "../textures/mercury.dds" },
       "label": { "color": [0.7, 0.7, 0.7] }
     }
   ]

@@ -8,7 +8,9 @@ versioned JSON file listing catalogs by name. The entries point at ordinary
 The index is only for discovery. It is not a scene format, and loading an
 entry is the same as loading that catalog directly. A catalog's dependencies
 still come from its own `require` array. The index names the top-level
-choices, and the catalogs own their dependency graph.
+choices, and the catalogs own their dependency graph. An entry's models,
+textures and kernels resolve against the catalog file itself, not the index
+(see [asset paths](catalog-format.md#asset-paths)).
 
 > **Cosmographia.** Cosmographia has no equivalent layer: it opens individual
 > catalog files (*File → Open Catalog…* or the command line) and composes them
@@ -69,11 +71,11 @@ VITE_CATALOG_SOURCES='[
   URL (`VITE_BASE`).
 - **`[]`** means no sources. The welcome screen then shows only the file drop
   target. This suits a bare viewer or an embed.
-- **Unset** means the repository's own examples index
-  (`apps/viewer/test-catalogs/index.json`), so a plain `npm run dev` has
-  something to show. This default lives in `deployment.ts` and is the only
-  place the viewer names the examples. No other code depends on a source
-  called `Examples`.
+- **Unset** is the same as `[]`. The viewer never assumes a source exists,
+  Examples included. `npm run dev` lists the repository's examples because
+  `apps/viewer/.env.development` configures them. Vite reads that file only
+  for the dev server, so production builds don't see it. Override it locally
+  in `.env.development.local`.
 - **`VITE_ALLOW_CATALOG_SOURCE_PARAM=true`** lets a visitor add more sources
   at runtime with `?source=<indexUrl>` (the parameter can repeat). It is off
   by default, because whether to accept arbitrary external sources is a
@@ -87,6 +89,20 @@ Typical setups:
 | Mission | That mission's source(s) only |
 | Controlled / multi-team | Mission sources plus shared or reference sources |
 | Bare viewer / embed | `[]` |
+
+## Listed is not the same as served
+
+Sources control which catalogs the welcome screen **lists**. They don't
+control which files a build **serves**. The viewer's Vite `publicDir` is
+`apps/viewer/test-catalogs/`, so every build ships the repository examples,
+including a mission build whose only source is the mission's own. Anyone who
+knows a path can still load those examples, for example with
+`?catalog=cassini-soi`.
+
+You can't fix this by switching `publicDir` off for a mission build. The same
+directory holds assets the viewer itself needs, such as the star catalog
+`stars.bin`. Keeping the examples out of a build first needs the app's own
+assets separated from the example content.
 
 ## Failure isolation
 

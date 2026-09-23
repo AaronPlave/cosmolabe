@@ -16,7 +16,7 @@
         "ascendingNode": 47.68143,
         "meridianAngle": 176.630
       },
-      "geometry": { "type": "Globe", "radius": 3389, "baseMap": "textures/mars.dds", "atmosphere": "Mars" },
+      "geometry": { "type": "Globe", "radius": 3389, "baseMap": "../textures/mars.dds", "atmosphere": "Mars" },
       "label": { "color": [1.0, 0.5, 0.3] }
     }
   ]

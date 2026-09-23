@@ -122,6 +122,10 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 | `ParticleSystem` | Plumes, exhaust, dust | (renderer-specific) |
 | `TimeSwitched` | Different geometry at different times | `arcs: [{ startEt, endEt, geometry }]` |
 
+### Asset paths
+
+Relative paths in `Mesh.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
+
 ### `Globe.terrain`
 
 Streaming terrain over the basemap. Supports three sources:

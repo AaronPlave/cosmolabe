@@ -17,6 +17,12 @@
  * resolving paths via `textureResolver` / `modelResolver` on
  * `UniverseRendererOptions`.
  *
+ * These copies deliberately keep "textures/…" and "models/…" paths. The
+ * viewer's `base/` originals now write "../textures/…" and "../models/…",
+ * because the viewer resolves a URL-loaded catalog's assets against that
+ * catalog's own location. That is the only way the copies differ; when
+ * copying a catalog here, drop the leading "../" from its asset paths.
+ *
  * Maintenance: when a new base catalog is added under
  * `apps/viewer/test-catalogs/base/`, copy the JSON here and add an entry
  * below. There's no automatic glob-import for tsc-built packages.

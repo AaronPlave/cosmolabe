@@ -13,18 +13,14 @@
  *   whether arbitrary external sources are acceptable is the deployment's
  *   call, not the viewer's.
  *
- * When `VITE_CATALOG_SOURCES` is unset, this repository's own examples index
- * is used so `npm run dev` has something to show. That default is the only
- * place the examples are named; nothing else in the viewer knows about them.
+ * Unset is the same as `[]`: the viewer assumes no source exists, Examples
+ * included. The repository's examples are listed only where a deployment
+ * asks for them — the Pages workflow, and `.env.development` for
+ * `npm run dev`.
  * See docs/catalog-sources.md.
  */
 
 import { parseSourceConfig, type CatalogSourceConfig } from './catalog-sources';
-
-/** The repository's example catalogs, indexed in test-catalogs/index.json. */
-const REPOSITORY_DEFAULT_SOURCES: CatalogSourceConfig[] = [
-  { id: 'examples', name: 'Examples', indexUrl: 'index.json' },
-];
 
 export interface CatalogSourceDeployment {
   sources: CatalogSourceConfig[];
@@ -48,10 +44,7 @@ export function resolveCatalogSourceDeployment(
   search: string,
   baseUrl: string,
 ): CatalogSourceDeployment {
-  const configured =
-    env.VITE_CATALOG_SOURCES === undefined
-      ? { sources: [...REPOSITORY_DEFAULT_SOURCES], errors: [] }
-      : parseSourceConfig(env.VITE_CATALOG_SOURCES);
+  const configured = parseSourceConfig(env.VITE_CATALOG_SOURCES);
   const sources = configured.sources;
   const errors = [...configured.errors];
 

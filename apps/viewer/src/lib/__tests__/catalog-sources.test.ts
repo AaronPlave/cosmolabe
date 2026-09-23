@@ -180,10 +180,27 @@ describe('groupEntries', () => {
 });
 
 describe('deployment configuration', () => {
-  it('uses the repository examples when nothing is configured', () => {
+  it('assumes no sources when nothing is configured', () => {
     const d = resolveCatalogSourceDeployment({}, '', BASE);
-    expect(d.sources).toEqual([{ id: 'examples', name: 'Examples', indexUrl: 'index.json' }]);
+    expect(d.sources).toEqual([]);
     expect(d.errors).toEqual([]);
+  });
+
+  it('matches what dev and the Pages deployment configure', () => {
+    // The two places the examples are named: they must stay in step with the
+    // index they point at.
+    const readSources = (file: string, pattern: RegExp) => {
+      const m = readFileSync(new URL(file, import.meta.url), 'utf8').match(pattern);
+      expect(m, file).not.toBeNull();
+      return resolveCatalogSourceDeployment({ VITE_CATALOG_SOURCES: m![1] }, '', BASE);
+    };
+    for (const d of [
+      readSources('../../../.env.development', /^VITE_CATALOG_SOURCES='(.*)'$/m),
+      readSources('../../../../../.github/workflows/deploy-pages.yml', /VITE_CATALOG_SOURCES: '(.*)'$/m),
+    ]) {
+      expect(d.errors).toEqual([]);
+      expect(d.sources).toEqual([{ id: 'examples', name: 'Examples', indexUrl: 'index.json' }]);
+    }
   });
 
   it('configures zero sources with an empty list', () => {
