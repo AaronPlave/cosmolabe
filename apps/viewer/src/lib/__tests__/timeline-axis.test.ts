@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { vs, zoomScrubber } from '../viewer-state.svelte';
 import { timelineFraction } from '../timeline.svelte';
-import { inWindow, windowFraction } from '../scrubber-math';
+import { inWindow, windowFollowing, windowFraction } from '../scrubber-math';
 
 /**
  * One axis, one playhead: every row derives the playhead's position from the
@@ -42,5 +42,32 @@ describe('timeline axis', () => {
     expect(inWindow(1)).toBe(true);
     expect(inWindow(1.01)).toBe(false);
     expect(inWindow(null)).toBe(false);
+  });
+});
+
+/**
+ * Jumping the playhead — selecting an event on the track, typing a time, a
+ * script's `setTime` — must not throw away the user's zoom.
+ */
+describe('window following a jump', () => {
+  const base = { min: 0, max: 10_000 };
+
+  it('leaves a zoomed window alone when the new time is already in view', () => {
+    expect(windowFollowing(1500, { min: 1000, max: 2000 }, base)).toEqual({ min: 1000, max: 2000 });
+  });
+
+  it('slides the window, keeping its span, to centre an off-screen time', () => {
+    expect(windowFollowing(6000, { min: 1000, max: 2000 }, base)).toEqual({ min: 5500, max: 6500 });
+  });
+
+  it('stops at the base range’s edges rather than showing time outside it', () => {
+    expect(windowFollowing(9900, { min: 1000, max: 2000 }, base)).toEqual({ min: 9000, max: 10_000 });
+    expect(windowFollowing(100, { min: 5000, max: 6000 }, base)).toEqual({ min: 0, max: 1000 });
+  });
+
+  it('asks for a rebuilt range when the new time is outside the base', () => {
+    expect(windowFollowing(20_000, { min: 1000, max: 2000 }, base)).toBeNull();
+    expect(windowFollowing(NaN, { min: 1000, max: 2000 }, base)).toBeNull();
+    expect(windowFollowing(500, { min: 0, max: 0 }, { min: 0, max: 0 })).toBeNull();
   });
 });

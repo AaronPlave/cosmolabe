@@ -21,6 +21,28 @@ export function inWindow(fraction: number | null | undefined): fraction is numbe
   return fraction != null && fraction >= 0 && fraction <= 1;
 }
 
+/**
+ * The timeline window to show after the playhead jumps to `et` (an event
+ * selected, a typed time, a script's `setTime`), keeping the user's zoom.
+ *
+ * Already in view: the window stays put. Off-screen but inside the base
+ * range: the window slides, span unchanged, to centre `et` as nearly as the
+ * base allows. Outside the base range, or with no usable base: null, and the
+ * caller rebuilds the range around the new time.
+ */
+export function windowFollowing(
+  et: number,
+  window: { min: number; max: number },
+  base: { min: number; max: number },
+): { min: number; max: number } | null {
+  if (!Number.isFinite(et) || !(base.max > base.min) || et < base.min || et > base.max) return null;
+  const span = window.max - window.min;
+  if (!(span > 0) || span > base.max - base.min) return null;
+  if (et >= window.min && et <= window.max) return { min: window.min, max: window.max };
+  const min = Math.max(base.min, Math.min(et - span / 2, base.max - span));
+  return { min, max: min + span };
+}
+
 /** Human-readable label for a duration in seconds (e.g. "~2.5h", "~30s") */
 export function formatDuration(seconds: number): string {
   const abs = Math.abs(seconds);

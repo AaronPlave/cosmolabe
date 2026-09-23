@@ -10,6 +10,7 @@ import type { InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
+import { windowFollowing } from './scrubber-math';
 
 // ── Exported types ──
 
@@ -456,10 +457,25 @@ export function slower() {
   syncTimeState();
 }
 
+/**
+ * Jump the playhead to `newEt`. The timeline keeps its zoom — it slides to
+ * bring the new time into view if needed — and is rebuilt only when the new
+ * time falls outside its range altogether.
+ */
 export function setTime(newEt: number) {
   if (!_renderer) return;
   _renderer.timeController.setTime(newEt);
-  initScrubberRange();
+  const next = windowFollowing(
+    newEt,
+    { min: vs.scrubMin, max: vs.scrubMax },
+    { min: vs.scrubBaseMin, max: vs.scrubBaseMax },
+  );
+  if (!next) {
+    initScrubberRange();
+    return;
+  }
+  vs.scrubMin = next.min;
+  vs.scrubMax = next.max;
 }
 
 /**
