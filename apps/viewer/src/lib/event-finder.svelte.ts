@@ -21,6 +21,9 @@
 import {
   EventSearch,
   applyEventFocus,
+  assessEventCoverage,
+  eventGeometry,
+  windowOutsideCoverage,
   builtinEventKinds,
   defaultParams,
   eventEnd,
@@ -35,6 +38,9 @@ import {
   type GeometryEvent,
   type GeometryFinderProvider,
   type AberrationCorrection,
+  type CoverageAssessment,
+  type CoverageSource,
+  type SpkSegmentInfo,
 } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
 import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
@@ -57,7 +63,15 @@ import {
   setEventResults,
   updateConfiguredEventQuery,
 } from './analysis.svelte';
-import { getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
+import {
+  etToUtcString,
+  getRenderer,
+  highlightBodies,
+  onViewerEvent,
+  selectBody,
+  setTime,
+  vs,
+} from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
 const registry = builtinEventKinds();
@@ -240,6 +254,60 @@ export function coverageWindow(
   return end > start ? { start, end } : span;
 }
 
+/**
+ * The loaded kernels as a {@link CoverageSource}: their segments, and the
+ * calculation a search evaluates, run at one epoch.
+ *
+ * The probe is the search's own geometry, not a stand-in for it: the GF
+ * distance and occultation finders read each observer→target state through
+ * the same `spkez` path `spkpos` takes, with the same correction, and GFOCLT
+ * additionally reads each body's body-fixed frame and radii.
+ */
+export function spiceCoverageSource(
+  spice: Pick<HeritageSpice, 'bodn2c' | 'bodc2n' | 'spkSegments' | 'spkpos' | 'pxform' | 'bodvrd'>
+    & Partial<Pick<HeritageSpice, 'totalLoaded'>>,
+): CoverageSource {
+  return {
+    bodn2c: (name) => spice.bodn2c(name),
+    bodc2n: (code) => spice.bodc2n(code),
+    spkSegments: () => loadedSegments(spice),
+    lightTime: (target, observer, et) => spice.spkpos(target, et, 'J2000', 'NONE', observer).lightTime,
+    probe: (dependencies, et) => {
+      for (const v of dependencies.vectors) {
+        spice.spkpos(v.target, et, 'J2000', v.abcorr as AberrationCorrection, v.observer);
+      }
+      for (const frame of dependencies.frames ?? []) spice.pxform(frame, 'J2000', et);
+      for (const body of dependencies.radii ?? []) spice.bodvrd(body, 'RADII');
+    },
+  };
+}
+
+/**
+ * Segment listings, kept per SPICE instance and kernel count.
+ *
+ * The listing is a walk over every loaded SPK's descriptors, and the
+ * suggestion is recomputed on every body or kind change. A scene load replaces
+ * the instance, and a dropped kernel changes its count, so neither can leave a
+ * stale listing behind.
+ */
+const segmentCache = new WeakMap<object, { count: number; segments: readonly SpkSegmentInfo[] }>();
+
+function loadedSegments(
+  spice: Pick<HeritageSpice, 'spkSegments'> & Partial<Pick<HeritageSpice, 'totalLoaded'>>,
+): readonly SpkSegmentInfo[] {
+  const count = spice.totalLoaded?.() ?? -1;
+  const cached = segmentCache.get(spice);
+  if (cached && cached.count === count) return cached.segments;
+  const segments = spice.spkSegments();
+  segmentCache.set(spice, { count, segments });
+  return segments;
+}
+
+/** Recompute the suggestion, for when kernels were furnished into the running scene. */
+export function refreshCoverage(): void {
+  syncCoverage();
+}
+
 export const ef = $state({
   /** The kind being configured. */
   kind: EVENT_KINDS[0].kind,
@@ -278,6 +346,12 @@ export const ef = $state({
   windowTrimmed: false,
   /** Stable configured-query identity shared with timeline and later analysis surfaces. */
   configuredId: null as string | null,
+  /**
+   * When the current query can actually be computed with the loaded kernels,
+   * or null when that cannot be assessed (no kernels, bodies not yet chosen,
+   * a kind that declares no geometry). See {@link assessEventCoverage}.
+   */
+  coverage: null as CoverageAssessment | null,
 });
 
 /** Guards against an earlier search landing after a later one. */
@@ -365,15 +439,103 @@ function catalogWindow(): EtInterval {
   return practicalSearchWindow(span, vs.et, maxSpan);
 }
 
-/** The window a fresh form searches: the catalog span, trimmed to coverage. */
+/**
+ * Whether the query `kind` would run with `bodies` can be computed, and when.
+ *
+ * Params are left to the kind's defaults: no built-in kind's geometry depends
+ * on them, and the ones that will (an instrument, a frame) are a matter for
+ * the kind's own `geometry`.
+ */
+function assessFor(kind: EventKind<never>, bodies: EventParticipants): CoverageAssessment | null {
+  const spice = getSpice();
+  if (!spice) return null;
+  const geometry = eventGeometry(
+    { id: 'coverage', kind: kind.kind, bodies, window: { start: 0, end: 1 } },
+    kind,
+  );
+  if (!geometry) return null;
+  try {
+    return assessEventCoverage(geometry, spiceCoverageSource(spice), {
+      formatEt: (et) => etToUtcString(et),
+    });
+  } catch {
+    // An assessment that fails is not an assessment of "none": fall back to
+    // the plain per-body coverage, as before there was one.
+    return null;
+  }
+}
+
+/** Recompute the suggestion for the form as it now stands. */
+function syncCoverage(): void {
+  ef.coverage = ef.form ? assessFor(currentKind(), ef.form.bodies) : null;
+}
+
+/**
+ * The usable window a default should use, clipped to `span`: the one holding
+ * the current time if any does, else the one sharing most time with `span`.
+ * Undefined when none overlaps.
+ */
+function bestUsableWithin(
+  usable: readonly EtInterval[],
+  span: EtInterval,
+  now: number,
+): EtInterval | undefined {
+  let best: EtInterval | undefined;
+  for (const w of usable) {
+    const start = Math.max(w.start, span.start);
+    const end = Math.min(w.end, span.end);
+    if (!(end > start)) continue;
+    if (start <= now && now <= end) return { start, end };
+    if (!best || end - start > best.end - best.start) best = { start, end };
+  }
+  return best;
+}
+
+/**
+ * The window a fresh form searches: the catalog span, trimmed to where the
+ * query can actually be computed.
+ *
+ * With an assessment, that is the usable window overlapping the catalog span
+ * most — one window, never an envelope across a gap. Without one, it falls
+ * back to the chosen bodies' own SPK coverage.
+ */
 function defaultWindow(bodies: EventParticipants = {}): EtInterval {
   const span = catalogWindow();
   const spice = getSpice();
   if (!spice) return span;
 
+  const assessment = assessFor(currentKind(), bodies);
+  if (assessment?.status === 'available') {
+    const best = bestUsableWithin(assessment.windows, span, vs.et);
+    if (best) {
+      ef.windowTrimmed = best.start > span.start || best.end < span.end;
+      return best;
+    }
+  }
+
   const covered = coverageWindow(spice, bodies, span);
   ef.windowTrimmed = covered.start > span.start || covered.end < span.end;
   return covered;
+}
+
+/**
+ * The parts of the form's window that fall outside every usable window, so a
+ * search can be warned about before it runs rather than after SPICE refuses.
+ * Empty when the window is fine or there is no assessment to judge it by.
+ */
+export function windowOutsideUsable(): EtInterval[] {
+  if (!ef.form || !ef.coverage || ef.coverage.status === 'unknown') return [];
+  return windowOutsideCoverage({ start: ef.form.startEt, end: ef.form.endEt }, ef.coverage.windows);
+}
+
+/**
+ * Fill From and To with one usable window. Nothing is searched, and the
+ * window counts as the user's: they chose it.
+ */
+export function useAvailableWindow(index: number) {
+  const w = ef.coverage?.windows[index];
+  if (!w) return;
+  setWindow(w.start, w.end);
 }
 
 /**
@@ -402,6 +564,7 @@ export function resetForm() {
   ef.form = formForKind(currentKind(), window, previous);
   syncWindowToBodies();
   syncConfiguredQuery();
+  syncCoverage();
 }
 
 /** The configured item backing the current form, if it has been established. */
@@ -475,6 +638,7 @@ export function createNewSearch() {
   ef.selectedId = null;
   syncWindowToBodies();
   syncConfiguredQuery();
+  syncCoverage();
   highlightBodies([]);
   syncOccultationGeometryAtTime();
 }
@@ -511,6 +675,7 @@ export function openConfiguredQuery(id: string) {
   // mean the user explicitly pinned it.
   ef.windowPinned = item.windowMode === 'explicit';
   ef.windowTrimmed = false;
+  syncCoverage();
   highlightBodies([]);
   syncOccultationGeometryAtTime();
 }
@@ -536,6 +701,7 @@ export function setRole(role: string, body: string) {
   else delete ef.form.bodies[role as keyof typeof ef.form.bodies];
   syncWindowToBodies();
   syncConfiguredQuery();
+  syncCoverage();
   clearResults();
 }
 
@@ -557,7 +723,7 @@ export function setWindow(startEt: number, endEt: number) {
   clearResults();
 }
 
-/** Drops a hand-set window and goes back to the coverage-trimmed default. */
+/** Drops a hand-set window and goes back to the default for the loaded coverage. */
 export function resetWindow() {
   ef.windowPinned = false;
   syncWindowToBodies();
@@ -729,6 +895,7 @@ export function resetForScene() {
   ef.windowPinned = false;
   ef.windowTrimmed = false;
   ef.configuredId = null;
+  ef.coverage = null;
   resetAnalysis();
 }
 

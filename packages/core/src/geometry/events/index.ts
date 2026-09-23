@@ -55,7 +55,17 @@ export {
 } from './kinds/index.js';
 
 export type { EventSearchOptions } from './search.js';
-export { EventSearch } from './search.js';
+export { EventSearch, eventGeometry } from './search.js';
+
+export type {
+  CoverageAssessment,
+  CoverageAssessmentOptions,
+  CoverageSource,
+  EventGeometryDependencies,
+  EventGeometryVector,
+  SpkSegmentInfo,
+} from './coverage.js';
+export { assessEventCoverage, windowOutsideCoverage } from './coverage.js';
 
 export type { EventFocus, EventFocusAnchor, EventFocusTarget } from './focus.js';
 export {

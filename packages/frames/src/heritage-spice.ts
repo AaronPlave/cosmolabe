@@ -177,6 +177,17 @@ function mergeWindows(raw: [number, number][]): HTimeWindow[] {
   return merged;
 }
 
+/** One loaded SPK segment descriptor; see {@link HeritageSpice.spkSegments}. */
+export interface HSpkSegment {
+  file: string;
+  body: number;
+  center: number;
+  frame: number;
+  type: number;
+  start: number;
+  end: number;
+}
+
 /**
  * `ckcov` options. These are `ckcov_c`'s own arguments, forwarded unchanged --
  * the adapter adds no default CSPICE does not already have, and reinterprets
@@ -344,6 +355,12 @@ export interface HeritageSpice {
   spkcov(idcode: number): HTimeWindow[];
   spkobj(filename: string): number[];
   spkFileCoverage(filename: string): HTimeWindow[];
+  /**
+   * Every loaded SPK segment, lowest priority first (see
+   * `SpiceBindings.loadedSpkSegments`): the per-segment centers and frames
+   * `spkcov` unions away, which deciding whether a state is computable needs.
+   */
+  spkSegments(): HSpkSegment[];
   ckcov(idcode: number, options?: CkCoverageOptions): HTimeWindow[];
   ckobj(filename: string): number[];
   getfov(instId: number, maxBounds?: number): HInstrumentFov;
@@ -660,6 +677,10 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
         raw.push(...bindings.spkCoverage(filename, body));
       }
       return mergeWindows(raw);
+    },
+
+    spkSegments() {
+      return bindings.loadedSpkSegments();
     },
 
     /**
