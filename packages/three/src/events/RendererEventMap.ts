@@ -13,6 +13,10 @@ export interface RendererEventMap extends UniverseEventMap {
    * picked — empty-space clicks produce no event.
    */
   'body:click': { bodyName: string; et: number; screenX: number; screenY: number };
+  /** A visible scene event marker was selected with a click or tap. */
+  'event:click': { id: string; queryId: string; et: number };
+  /** Transient in-scene preview; never changes time or selection. */
+  'event:hover': { id: string; queryId: string; boundary?: 'start' | 'end' } | null;
   /** Emitted on double-click of a body or label. Consumer decides what to do (flyTo, show info, etc.) */
   'body:dblclick': { bodyName: string; et: number; screenX: number; screenY: number };
   /** @deprecated Use 'body:dblclick' instead. Still emitted for backward compat. */

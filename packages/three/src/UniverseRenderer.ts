@@ -1,5 +1,22 @@
 import * as THREE from 'three';
-import { CompositeTrajectory, SpiceTrajectory, WaypointTrajectory, EventBus, alignPositionToFrame, bodyTrajectoryFrameName, rotateVecByQuat, DEFAULT_INERTIAL_FRAME, type Universe, type Body, type InertialFrameName } from '@cosmolabe/core';
+import {
+  CompositeTrajectory,
+  SpiceTrajectory,
+  WaypointTrajectory,
+  EventBus,
+  alignPositionToFrame,
+  bodyTrajectoryFrameName,
+  eventEnd,
+  eventMidpoint,
+  eventStart,
+  focusForEvent,
+  rotateVecByQuat,
+  DEFAULT_INERTIAL_FRAME,
+  type Universe,
+  type Body,
+  type GeometryEvent,
+  type InertialFrameName,
+} from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
 import { selectShadowOccluders } from './EclipseShadow.js';
@@ -14,7 +31,7 @@ import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js'
 import { SensorFrustum } from './SensorFrustum.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
-import { EventMarkers } from './EventMarkers.js';
+import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMarkerGroups } from './EventMarkers.js';
 import { OccultationGeometry } from './OccultationGeometry.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -112,6 +129,35 @@ const EXCLUDED_TRAJECTORY_CLASSES = new Set(['star', 'barycenter']);
 /** Layer 2: overlay objects excluded from instrument PiP (trajectories, frustums, markers) */
 const OVERLAY_LAYER = 2;
 
+const EVENT_TRAJECTORY_PRIORITY: Record<string, number> = {
+  spacecraft: 6,
+  comet: 5,
+  asteroid: 5,
+  moon: 4,
+  other: 3,
+  planet: 2,
+  star: 1,
+  barycenter: 0,
+};
+
+interface EventMarkerPlacement {
+  markers: EventMarkers;
+  line: TrajectoryLine;
+  events: GeometryEvent[];
+}
+
+/** Choose the participant whose rendered path most usefully explains an event. */
+export function selectEventTrajectoryBody(candidates: readonly Body[], primary?: string): Body | undefined {
+  return [...candidates].sort((a, b) => {
+    const aPriority = EVENT_TRAJECTORY_PRIORITY[a.classification ?? 'other'] ?? 3;
+    const bPriority = EVENT_TRAJECTORY_PRIORITY[b.classification ?? 'other'] ?? 3;
+    if (aPriority !== bPriority) return bPriority - aPriority;
+    if (a.name === primary) return -1;
+    if (b.name === primary) return 1;
+    return 0;
+  })[0];
+}
+
 export class UniverseRenderer {
   readonly scene: THREE.Scene;
   readonly renderer: THREE.WebGLRenderer;
@@ -126,7 +172,12 @@ export class UniverseRenderer {
   private readonly trajectoryLines = new Map<string, TrajectoryLine>();
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
   private readonly ringMeshes = new Map<string, { ring: RingMesh; parentName: string }>();
-  private readonly eventMarkerGroups = new Map<string, EventMarkers>();
+  private readonly eventMarkerGroups = new Map<string, EventMarkerPlacement>();
+  private _eventPreview: { id: string; queryId: string } | null = null;
+  private _eventPreviewBoundary: 'start' | 'end' | undefined;
+  private _selectedEvent: { id: string; queryId: string } | null = null;
+  private _hoveredSceneEvent: string | null = null;
+  private readonly _eventAnnotation: HTMLDivElement;
   private _occultationGeometry: OccultationGeometry | null = null;
   private readonly atmosphereMeshes = new Map<string, { atm: AtmosphereMesh; parentName: string }>();
   /** One AP uniform set per atmosphere body, shared between body sphere + terrain materials. */
@@ -282,6 +333,15 @@ export class UniverseRenderer {
     this.labelContainer.style.pointerEvents = 'none';
     this.labelContainer.style.overflow = 'hidden';
     canvas.parentElement?.appendChild(this.labelContainer);
+    this._eventAnnotation = document.createElement('div');
+    Object.assign(this._eventAnnotation.style, {
+      position: 'absolute', display: 'none', pointerEvents: 'none',
+      padding: '5px 7px', borderLeft: '1px solid #b9c9d2',
+      background: 'rgba(11, 16, 21, 0.82)', color: '#dbe4e9',
+      font: '11px/1.35 ui-monospace, SFMono-Regular, monospace',
+      whiteSpace: 'pre',
+    });
+    this.labelContainer.appendChild(this._eventAnnotation);
 
     // Forward universe events on the renderer event bus
     for (const event of ['time:change', 'body:added', 'body:removed', 'body:trajectoryChanged', 'body:rotationChanged', 'catalog:loaded'] as const) {
@@ -453,6 +513,34 @@ export class UniverseRenderer {
    */
   absolutePositionOf = (bodyName: string, et: number): [number, number, number] => {
     return this.universe.absolutePositionOf(bodyName, et);
+  };
+
+  /** Resolve a non-composite trajectory in the same parent-relative world frame as its line. */
+  private relativeTrajectoryPositionOf = (
+    bodyName: string,
+    et: number,
+    parentName: string,
+  ): [number, number, number] => {
+    const childBody = this.universe.getBody(bodyName);
+    const parentBody = this.universe.getBody(parentName);
+    if (!childBody) return [NaN, NaN, NaN];
+    const state = childBody.stateAt(et);
+    let pos = state.position as [number, number, number];
+
+    if (childBody.trajectoryFrame === 'body-fixed' && parentBody) {
+      const q = parentBody.rotationAt(et);
+      if (q) {
+        const qConj: [number, number, number, number] = [q[0], -q[1], -q[2], -q[3]];
+        pos = rotateVecByQuat(pos, qConj);
+        const srcFrame: InertialFrameName = parentBody.rotation?.sourceFrame
+          ?? bodyTrajectoryFrameName(parentBody)
+          ?? 'EclipticJ2000';
+        return alignPositionToFrame(pos, srcFrame, DEFAULT_INERTIAL_FRAME);
+      }
+    }
+
+    const childFrame: InertialFrameName = bodyTrajectoryFrameName(childBody) ?? 'EclipticJ2000';
+    return alignPositionToFrame(pos, childFrame, DEFAULT_INERTIAL_FRAME);
   };
 
   /** Render a single frame at current time */
@@ -706,36 +794,8 @@ export class UniverseRenderer {
           // the inertial sky), while the marker rotates with the parent.
           // Visible as a label/model that drifts off its trail as time
           // advances.
-          const parentBody = this.universe.getBody(parentName);
           const relativeResolver: typeof this.absolutePositionOf = (name, t) => {
-            const childBody = this.universe.getBody(name);
-            if (!childBody) return [NaN, NaN, NaN];
-            const state = childBody.stateAt(t);
-            let pos = state.position as [number, number, number];
-
-            if (childBody.trajectoryFrame === 'body-fixed' && parentBody) {
-              const q = parentBody.rotationAt(t);
-              if (q) {
-                // Conjugate: inertial → body-fixed becomes body-fixed → inertial.
-                const qConj: [number, number, number, number] = [q[0], -q[1], -q[2], -q[3]];
-                pos = rotateVecByQuat(pos, qConj);
-                // The unwrapped position now lives in the parent's rotation
-                // source frame. Continue downstream alignment from THAT
-                // frame, not the body's stored trajectoryFrame.
-                const srcFrame: InertialFrameName = parentBody.rotation?.sourceFrame
-                  ?? bodyTrajectoryFrameName(parentBody)
-                  ?? 'EclipticJ2000';
-                return alignPositionToFrame(pos, srcFrame, DEFAULT_INERTIAL_FRAME);
-              }
-            }
-
-            // Non-body-fixed child: bodyTrajectoryFrameName returns a real
-            // inertial frame. (For body-fixed we'd have taken the branch
-            // above.) Fall back to EclipticJ2000 only if some catalog set
-            // the trajectoryFrame to body-fixed AND we got here anyway —
-            // a no-op alignment.
-            const childFrame: InertialFrameName = bodyTrajectoryFrameName(childBody) ?? 'EclipticJ2000';
-            return alignPositionToFrame(pos, childFrame, DEFAULT_INERTIAL_FRAME);
+            return this.relativeTrajectoryPositionOf(name, t, parentName);
           };
           tl.update(et, this.scaleFactor, relativeResolver, undefined, undefined, vertOff);
         } else {
@@ -776,11 +836,42 @@ export class UniverseRenderer {
       sf.update(et, this.scaleFactor, targetBody, originRelResolver, spiceRot);
     }
 
-    // Update event markers (each knows its own trail/lead duration)
-    for (const em of this.eventMarkerGroups.values()) {
-      em.update(et, this.scaleFactor, originRelResolver);
+    // Event annotations use the owning TrajectoryLine's exact resolver and
+    // current center offset. This is essential for parent-relative and
+    // composite trajectories: a Jupiter-centered Clipper path must not be
+    // reconstructed as a heliocentric absolute position.
+    for (const { markers, line } of this.eventMarkerGroups.values()) {
+      const arcCenter = (line as any)._arcCenterName as string | undefined;
+      const parentName = line.body.parentName;
+      const centerName = arcCenter ?? parentName;
+      const center = centerName ? this.absolutePositionOf(centerName, et) : null;
+      if (center && !center.every(Number.isFinite)) {
+        markers.visible = false;
+        continue;
+      }
+      markers.visible = this.bodyMeshes.get(markers.body.name)?.visible ?? true;
+      const vertexOffset: [number, number, number] = centerName
+        ? [
+            center![0] - originAbsPos[0],
+            center![1] - originAbsPos[1],
+            center![2] - originAbsPos[2],
+          ]
+        : [-originAbsPos[0], -originAbsPos[1], -originAbsPos[2]];
+      const fallbackResolver = arcCenter
+        ? undefined
+        : parentName
+          ? (name: string, t: number) => this.relativeTrajectoryPositionOf(name, t, parentName)
+          : this.absolutePositionOf;
+      markers.update(
+        this.scaleFactor,
+        vertexOffset,
+        (name, t) => line.positionAt(t, fallbackResolver),
+        line.visibleTimeRange(et),
+        (t) => line.trailAlphaAt(t, et),
+        this.camera,
+        this.renderer.getPixelRatio(),
+      );
     }
-
     // Update labels
     const bodyMeshArr = Array.from(this.bodyMeshes.values());
     if (this.labelManager) {
@@ -1012,6 +1103,14 @@ export class UniverseRenderer {
       }
     }
 
+    // Event glyphs are atomic annotations: fade the entire sprite from its
+    // anchor's visibility after the camera has moved this frame. Trajectory
+    // lines stay in the main scene and retain normal depth occlusion.
+    for (const { markers } of this.eventMarkerGroups.values()) {
+      markers.applyAnchorOpacity((anchor) => this.eventAnchorOpacity(anchor));
+    }
+    this.updateEventAnnotation();
+
     // Final pass: markers (pick marker, orbit pivot dot, etc.) — always on top.
     if (this._markerScene.children.length > 0) {
       this.renderer.render(this._markerScene, this.camera);
@@ -1149,6 +1248,147 @@ export class UniverseRenderer {
 
   getTrajectoryLine(name: string): TrajectoryLine | undefined {
     return this.trajectoryLines.get(name);
+  }
+
+  /** Replace the enabled event results drawn on their explanatory trajectory arcs. */
+  setEventResults(
+    events: readonly GeometryEvent[],
+    selected: Pick<GeometryEvent, 'id' | 'queryId'> | null = null,
+  ): void {
+    this._selectedEvent = selected;
+    for (const { markers } of this.eventMarkerGroups.values()) {
+      this._markerScene.remove(markers);
+      markers.dispose();
+    }
+    this.eventMarkerGroups.clear();
+    for (const line of this.trajectoryLines.values()) line.clearColorSegments();
+
+    const linesForBody = (name: string): Array<[string, TrajectoryLine]> =>
+      [...this.trajectoryLines].filter(([key]) => key === name || key.startsWith(`${name}__arc`));
+    const grouped = new Map<string, { body: Body; line: TrajectoryLine; events: GeometryEvent[] }>();
+
+    for (const event of events) {
+      const focus = focusForEvent(event);
+      const candidates = focus.bodies.flatMap((name) => {
+        const body = this.universe.getBody(name);
+        return body && linesForBody(name).length > 0 ? [body] : [];
+      });
+      const body = selectEventTrajectoryBody(candidates, focus.primary);
+      if (!body) continue;
+
+      const bodyLines = linesForBody(body.name);
+      const eventEt = eventMidpoint(event);
+      const entry = bodyLines.find(([, line]) => line.containsTime(eventEt)) ?? bodyLines[0];
+      if (!entry) continue;
+      const [lineKey, line] = entry;
+      const bucket = grouped.get(lineKey) ?? { body, line, events: [] };
+      bucket.events.push(event);
+      grouped.set(lineKey, bucket);
+    }
+
+    for (const [lineKey, { body, line, events: lineEvents }] of grouped) {
+      const markers = new EventMarkers(body);
+      markers.setMarkers(lineEvents.map((event) => ({
+        id: event.id,
+        queryId: event.queryId,
+        kind: event.kind,
+        label: event.label,
+        glyph: 'diamond',
+        color: eventMarkerColor(event.kind, event.state),
+        temporality: event.temporality,
+        startEt: eventStart(event),
+        endEt: eventEnd(event),
+        selected: selected?.id === event.id && selected.queryId === event.queryId,
+      })));
+      markers.setPreview(this._eventPreview);
+      markers.layers.set(OVERLAY_LAYER);
+      markers.traverse((child) => child.layers.set(OVERLAY_LAYER));
+      markers.visible = this.bodyMeshes.get(body.name)?.visible ?? true;
+      this.eventMarkerGroups.set(lineKey, { markers, line, events: lineEvents });
+      this._markerScene.add(markers);
+    }
+    this.refreshEventLineColors();
+  }
+
+  /** Preview never seeks time or changes the committed event selection. */
+  setEventPreview(preview: { id: string; queryId: string } | null, annotation = '', boundary?: 'start' | 'end'): void {
+    const sameEvent = this._eventPreview?.id === preview?.id && this._eventPreview?.queryId === preview?.queryId;
+    if (sameEvent &&
+      this._eventAnnotation.textContent === annotation && this._eventPreviewBoundary === boundary) return;
+    this._eventPreview = preview;
+    this._eventPreviewBoundary = boundary;
+    this._eventAnnotation.textContent = annotation;
+    if (!sameEvent) {
+      for (const { markers } of this.eventMarkerGroups.values()) markers.setPreview(preview);
+      this.refreshEventLineColors();
+    }
+  }
+
+  private refreshEventLineColors(): void {
+    for (const { line, events } of this.eventMarkerGroups.values()) {
+      const intervals = events.filter((event) => event.temporality === 'interval');
+      intervals.sort((a, b) => {
+        const rank = (event: GeometryEvent) =>
+          this._eventPreview?.id === event.id && this._eventPreview.queryId === event.queryId ? 2 :
+            this._selectedEvent?.id === event.id && this._selectedEvent.queryId === event.queryId ? 1 : 0;
+        return rank(b) - rank(a);
+      });
+      line.setColorSegments(intervals.map((event) => ({
+        startEt: eventStart(event), endEt: eventEnd(event),
+        color: this._selectedEvent?.id === event.id && this._selectedEvent.queryId === event.queryId
+          ? 0xffc857 : this._eventPreview?.id === event.id && this._eventPreview.queryId === event.queryId
+            ? new THREE.Color(eventMarkerColor(event.kind, event.state)).lerp(new THREE.Color(0xffffff), 0.28)
+            : eventMarkerColor(event.kind, event.state),
+      })));
+    }
+  }
+
+  private updateEventAnnotation(): void {
+    const preview = this._eventPreview;
+    if (!preview || !this._eventAnnotation.textContent) {
+      this._eventAnnotation.style.display = 'none';
+      return;
+    }
+    const anchor = [...this.eventMarkerGroups.values()]
+      .filter(({ markers }) => markers.visible)
+      .map(({ markers }) => markers.anchorFor(preview.id, preview.queryId, this._eventPreviewBoundary))
+      .find((point) => point != null);
+    if (!anchor) {
+      this._eventAnnotation.style.display = 'none';
+      return;
+    }
+    if (this.eventAnchorOpacity(anchor) <= 0.15) {
+      this._eventAnnotation.style.display = 'none';
+      return;
+    }
+    const p = anchor.project(this.camera);
+    if (p.z < -1 || p.z > 1) {
+      this._eventAnnotation.style.display = 'none';
+      return;
+    }
+    this._eventAnnotation.style.display = 'block';
+    const width = this.renderer.domElement.clientWidth;
+    const height = this.renderer.domElement.clientHeight;
+    const x = (p.x + 1) * width / 2;
+    const y = (1 - p.y) * height / 2;
+    this._eventAnnotation.style.left = `${Math.max(6, Math.min(x + 10, width - this._eventAnnotation.offsetWidth - 6))}px`;
+    this._eventAnnotation.style.top = `${Math.max(6, Math.min(y - this._eventAnnotation.offsetHeight / 2, height - this._eventAnnotation.offsetHeight - 6))}px`;
+  }
+
+  /** Match the whole-glyph limb fade for annotation and picking. */
+  private eventAnchorOpacity(anchor: THREE.Vector3): number {
+    const height = this.renderer.domElement.clientHeight;
+    const focalLengthPx = height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
+    let opacity = 1;
+    for (const bm of this.bodyMeshes.values()) {
+      if (!bm.visible || !(bm.mesh.visible || bm.isModelVisible || bm.hasSurfaceTiles)) continue;
+      const radius = bm.displayRadius * this.scaleFactor;
+      opacity = Math.min(opacity, eventAnchorOpacityAtSphere(
+        anchor, this.camera.position, bm.position, radius, focalLengthPx,
+      ));
+      if (opacity === 0) break;
+    }
+    return opacity;
   }
 
   /** Get all sensor frustum names (for UI instrument selection). */
@@ -1326,8 +1566,9 @@ export class UniverseRenderer {
     if (atm) atm.atm.visible = visible;
 
     // Event markers
-    const em = this.eventMarkerGroups.get(name);
-    if (em) em.visible = visible;
+    for (const { markers } of this.eventMarkerGroups.values()) {
+      if (markers.body.name === name) markers.visible = visible;
+    }
 
     // Label
     this.labelManager?.setLabelVisible(name, visible);
@@ -2069,7 +2310,7 @@ export class UniverseRenderer {
     for (const [, { atm }] of this.atmosphereMeshes) atm.dispose();
     for (const tl of this.trajectoryLines.values()) tl.dispose();
     for (const sf of this.sensorFrustums.values()) sf.dispose();
-    for (const em of this.eventMarkerGroups.values()) em.dispose();
+    for (const { markers } of this.eventMarkerGroups.values()) markers.dispose();
     this.setOccultationGeometry(null);
     this.starField?.dispose();
     this.labelManager?.dispose();
@@ -3089,12 +3330,33 @@ export class UniverseRenderer {
   };
 
   /** Pick at canvas coordinates and emit `body:click`. Empty space selects nothing. */
-  private _selectAt(screenX: number, screenY: number): void {
+  private _selectAt(screenX: number, screenY: number, markerRadiusPx = 11): void {
+    const marker = this.pickSceneEvent(screenX, screenY, markerRadiusPx);
+    if (marker) {
+      this.events.emit('event:click', {
+        id: marker.marker.id,
+        queryId: marker.marker.queryId,
+        et: marker.et,
+      });
+      return;
+    }
     const bodyName = this.pickBody(screenX, screenY);
     if (!bodyName) return;
 
     const et = this.universe.time;
     this.events.emit('body:click', { bodyName, et, screenX, screenY });
+  }
+
+  private pickSceneEvent(screenX: number, screenY: number, radiusPx = 11): ReturnType<typeof pickEventMarkerGroups> {
+    const width = this.renderer.domElement.clientWidth;
+    const height = this.renderer.domElement.clientHeight;
+    const groups = Array.from(this.eventMarkerGroups.values(), ({ markers }) => markers);
+    const candidates = groups.filter((group) => group.visible)
+      .map((group) => group.pick(this.camera, screenX, screenY, width, height, radiusPx,
+        (point) => this.eventAnchorOpacity(point) > 0.15))
+      .filter((hit) => hit != null);
+    candidates.sort((a, b) => a!.distanceSq - b!.distanceSq || b!.renderOrder - a!.renderOrder);
+    return candidates[0] ?? null;
   }
 
   /**
@@ -3133,7 +3395,7 @@ export class UniverseRenderer {
     if (performance.now() - candidate.t > UniverseRenderer._tapMaxMs) return; // a press, not a tap
 
     const rect = this.renderer.domElement.getBoundingClientRect();
-    this._selectAt(event.clientX - rect.left, event.clientY - rect.top);
+    this._selectAt(event.clientX - rect.left, event.clientY - rect.top, 14);
     this._lastTapMs = performance.now();
   };
 
@@ -3191,8 +3453,19 @@ export class UniverseRenderer {
       this._lastHoverPickMs = performance.now();
       // Label-only pick (cheap; runs while mousing) with a tight slop so the
       // hover hitbox hugs the label text rather than a loose 20px halo.
-      const next = this.pickBody(this._lastPointer.x, this._lastPointer.y, true, 3);
+      const eventHit = this.pickSceneEvent(this._lastPointer.x, this._lastPointer.y, 11);
+      const eventKey = eventHit ? `${eventHit.marker.queryId}:${eventHit.marker.id}:${eventHit.boundary ?? ''}` : null;
+      if (eventKey !== this._hoveredSceneEvent) {
+        this._hoveredSceneEvent = eventKey;
+        this.events.emit('event:hover', eventHit ? {
+          id: eventHit.marker.id, queryId: eventHit.marker.queryId,
+          boundary: eventHit.boundary,
+        } : null);
+      }
+      const next = eventHit ? null : this.pickBody(this._lastPointer.x, this._lastPointer.y, true, 3);
       if (next !== this._hoveredBody) this._applyHover(next);
+      this.renderer.domElement.style.cursor =
+        eventHit || next ? 'pointer' : '';
     }, wait);
   };
 
@@ -3202,6 +3475,11 @@ export class UniverseRenderer {
       this._hoverPickTimer = 0;
     }
     if (this._hoveredBody) this._applyHover(null);
+    if (this._hoveredSceneEvent) {
+      this._hoveredSceneEvent = null;
+      this.events.emit('event:hover', null);
+    }
+    this.renderer.domElement.style.cursor = '';
   };
 
   /**

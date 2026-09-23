@@ -254,6 +254,34 @@ export class TrajectoryLine extends THREE.Object3D {
     this.visible = visible;
   }
 
+  /** Whether this rendered line owns the supplied trajectory epoch. */
+  containsTime(et: number): boolean {
+    return (this.minTime == null || et >= this.minTime) &&
+      (this.maxTime == null || et <= this.maxTime);
+  }
+
+  /** Epochs represented by the moving trail at the current simulation time. */
+  visibleTimeRange(et: number): [number, number] | null {
+    if (!this.userVisible || !this.visible) return null;
+    const end = Math.min(et + this.leadDuration, this.maxTime ?? Infinity, this.body.trajectory.endTime ?? Infinity);
+    const start = Math.max(end - this.trailDuration, this.minTime ?? -Infinity, this.body.trajectory.startTime ?? -Infinity);
+    return start <= end ? [start, end] : null;
+  }
+
+  /** Match the trail's per-vertex fade for an annotation at this epoch. */
+  trailAlphaAt(sampleEt: number, et: number): number {
+    const range = this.visibleTimeRange(et);
+    if (!range || sampleEt < range[0] || sampleEt > range[1]) return 0;
+    const duration = range[1] - range[0];
+    if (duration <= 0 || this.fadeFraction <= 0) return 1;
+    return Math.min(1, Math.max(0, (sampleEt - range[0]) / duration / this.fadeFraction));
+  }
+
+  /** Resolve through the exact fixed/fallback resolver used to draw this line. */
+  positionAt(et: number, resolver?: PositionResolver): [number, number, number] {
+    return this.resolveAt(et, this.fixedResolver ?? resolver);
+  }
+
   /**
    * Hot-swap a pre-computed trajectory cache. Used when an async Web Worker
    * completes a cache build after the line was created with legacy sampling.
@@ -805,11 +833,13 @@ export class TrajectoryLine extends THREE.Object3D {
       endEt: s.endEt,
       color: new THREE.Color(s.color),
     }));
+    this._bufferDirty = true;
   }
 
   /** Clear all color segments, reverting to the base color. */
   clearColorSegments(): void {
     this._colorSegments = [];
+    this._bufferDirty = true;
   }
 
   /**
