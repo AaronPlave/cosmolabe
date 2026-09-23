@@ -1,7 +1,6 @@
 <script lang="ts">
   import * as Command from '$lib/components/ui/command';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { getCommands, getBodyCommands, getCommandCategories } from '../lib/commands';
+  import { getCommands, getBodyCommands } from '../lib/commands';
   import { trackBody, getRenderer } from '../lib/viewer-state.svelte';
   import { Orbit, Eye, Camera, Timer } from 'lucide-svelte';
 

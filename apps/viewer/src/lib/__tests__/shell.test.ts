@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   TOOLS, PANEL_KEYS, shell, toolDef, isToolOpen, openTool, closeTool, toggleTool,
   closeAllTools, openToolsWith, setLayout, setTimelineDepth,
-  watchLayout, isToolId, isMinimized, minimizePanel, restorePanel, toggleMinimized,
+  watchLayout, isToolId, isMinimized, minimizePanel, toggleMinimized,
   isFloating, setFloat, dockPanel, floatOf, reclampFloats, activateSheet,
   raisePanel, panelZIndex, setPanelMounted, isPanelVisible, topVisiblePanel,
   FLOAT_Z_BASE, type PanelKey,

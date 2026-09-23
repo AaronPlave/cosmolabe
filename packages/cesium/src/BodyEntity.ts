@@ -184,7 +184,6 @@ export class BodyEntity {
       interpolationAlgorithm: Cesium.LagrangePolynomialApproximation,
     });
 
-    let sampleCount = 0;
     for (let et = startEt; et <= endEt; et += this._sampleStep) {
       const pos = this._getPosition(et);
       if (!pos) continue;
@@ -200,7 +199,6 @@ export class BodyEntity {
 
       const julianDate = Cesium.JulianDate.fromDate(etToJsDate(et));
       newProp.addSample(julianDate, cartesian);
-      sampleCount++;
     }
 
     this._positionProperty = newProp;
