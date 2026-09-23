@@ -57,6 +57,17 @@ names, kernel coverage, and epochs belong to the previous catalog. Display and
 analysis features can add items through `createConfiguredEventQuery()` or
 `createConfiguredProfile()` without adding another global observer/target pair.
 
+## Event lanes on the timeline
+
+The collapsed timeline shows every visible event result merged into one strip
+of marks on the transport track. Expanding it adds one lane per enabled
+`event-query` item (`components/shell/EventLane.svelte`), above the profile
+rows and on the same axis. A lane's eye toggle flips the item's shared
+`visible` flag, so the track, the event finder and the lane agree; hidden lanes
+stay listed, dimmed, so they can be shown again. Clicking a mark calls the same
+`selectEvent` the track's marks use. The lane's readout names the event under
+the ghost playhead or the playhead, or else counts the results.
+
 ## Continuous profiles on the timeline
 
 Profiles render as rows in the timeline's expanded depth
@@ -72,7 +83,8 @@ label (`updateConfiguredProfile()`, `setConfiguredItemVisible()`,
 Every row is laid over the transport track's measured horizontal extent and
 reads the same zoomed window (`vs.scrubMin`/`scrubMax`), playhead (`vs.et`)
 and ghost playhead (`timeline.hoverEt` in `lib/timeline.svelte.ts`) as the
-track. Rows hold no time state: hover previews an instant everywhere on the
+track. Rows hold no time state, and share their gestures with the event lanes
+(`timelineGestures`): hover previews an instant everywhere on the
 axis without moving time, a press or drag seeks, and the wheel zooms the shared
 window about the pointer. Visible event results are drawn faintly on each row,
 and a hover snaps subtly to an event edge and cross-highlights that event on

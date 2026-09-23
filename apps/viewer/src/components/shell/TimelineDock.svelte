@@ -10,7 +10,8 @@
    * `shell.timelineDepth` is the progressive-depth control #71 asks for: a
    * minimal transport strip by default — which already carries the configured
    * event results as marks on the track — and an expanded region below the
-   * axis where continuous geometry profiles (#65) stack. Every row is laid over
+   * axis: one lane per configured event query, then the continuous geometry
+   * profiles (#65). Every row is laid over
    * the track's own horizontal extent and reads the same window, playhead and
    * ghost playhead, so the whole dock is one instrument rather than a
    * transport with charts attached. Collapsing returns the region's height to
@@ -23,10 +24,11 @@
   } from '../../lib/viewer-state.svelte';
   import { timeline, setTimelineHover, timelineEt, type ProfileEventTick } from '../../lib/timeline.svelte';
   import ProfileLanes from './ProfileLanes.svelte';
+  import EventLane from './EventLane.svelte';
   import { shell, setTimelineDepth } from '../../lib/shell.svelte';
   import { formatDuration } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
-  import { ef, selectEvent, syncOccultationGeometryAtTime } from '../../lib/event-finder.svelte';
+  import { ef, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries } from '../../lib/event-finder.svelte';
   import { visibleTimelineEvents } from '../../lib/analysis.svelte';
   import { eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
   import {
@@ -112,6 +114,11 @@
       })
       .filter((marker) => marker != null),
   );
+
+  // One lane per participating query. Hidden ones stay listed (dimmed, with
+  // their eye toggle) so they can be shown again from here; disabled ones are
+  // out of the analysis entirely and have nothing to draw.
+  let eventLanes = $derived(configuredEventQueries().filter((item) => item.enabled));
 
   // The same results, as the profile rows draw them.
   let profileTicks = $derived(
@@ -296,10 +303,13 @@
   </div>
 
   {#if expanded}
-    <!-- The shared-axis region: continuous profiles, drawn against the
-         track's extent, window and playhead. Scrolls past a few rows so a
-         long list of profiles cannot take the scene's height. -->
+    <!-- The shared-axis region: event lanes, then continuous profiles, all
+         drawn against the track's extent, window and playhead. Scrolls past a
+         few rows so a long list cannot take the scene's height. -->
     <div bind:this={regionEl} class="lane-region">
+      {#each eventLanes as item (item.id)}
+        <EventLane {item} axisLeft={axis.left} axisWidth={axis.width} wide={wideLanes} />
+      {/each}
       <ProfileLanes axisLeft={axis.left} axisWidth={axis.width} wide={wideLanes} ticks={profileTicks} />
     </div>
   {/if}

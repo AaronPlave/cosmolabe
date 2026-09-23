@@ -5,25 +5,25 @@
    * The plot is laid over the transport track's exact horizontal extent and
    * reads the same window (`vs.scrubMin`/`scrubMax`), playhead (`vs.et`) and
    * ghost playhead (`timeline.hoverEt`) as the track does. It owns no time
-   * state of its own: wheel zooms the shared window about the pointer, a press
+   * state of its own: its gestures are `timelineGestures`, the same ones the
+   * event lanes use — wheel zooms the shared window about the pointer, a press
    * or drag seeks the shared playhead, and a hover sets the shared ghost —
    * which is what lets the ruler's private zoom window, playhead and hover
    * scrub go away rather than move here.
    */
   import type { ConfiguredContinuousProfile, ContinuousProfileConfiguration } from '@cosmolabe/core';
-  import { vs, getRenderer, scrubTo, zoomScrubber } from '../../lib/viewer-state.svelte';
+  import { vs, getRenderer } from '../../lib/viewer-state.svelte';
   import {
     resolveProfile, setConfiguredItemVisible, updateConfiguredProfile,
     moveConfiguredProfile, removeConfiguredItem,
   } from '../../lib/analysis.svelte';
   import {
-    timeline, setTimelineHover, timelineFraction, timelineEt, type ProfileEventTick,
+    timeline, timelineFraction, timelineGestures, type ProfileEventTick,
   } from '../../lib/timeline.svelte';
   import {
     profileQuantity, sampleProfile, sampleCountFor, profilePath, quantityAt, valueY,
     type PositionOf, type ProfileBodies,
   } from '../../lib/profile-sampling';
-  import { clampFraction, snapFraction } from '../../lib/scrubber-math';
   import { Eye, EyeOff } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
   import ProfileConfig from './ProfileConfig.svelte';
@@ -99,63 +99,6 @@
       : [{ fraction: t.fraction, id: t.id }]),
   );
 
-  let plotEl: HTMLDivElement | undefined = $state();
-  let dragging = false;
-
-  function fractionAt(e: PointerEvent | WheelEvent): number {
-    const rect = plotEl!.getBoundingClientRect();
-    return clampFraction((e.clientX - rect.left) / rect.width);
-  }
-
-  /** Sets the shared ghost, snapped subtly to an event edge; returns the fraction used. */
-  function previewAt(e: PointerEvent): number {
-    const f = fractionAt(e);
-    const snap = snapFraction(f, snapTargets, axisWidth);
-    const at = snap?.fraction ?? f;
-    setTimelineHover(timelineEt(at), snap?.id ?? null);
-    return at;
-  }
-
-  function onPointerDown(e: PointerEvent) {
-    if (e.button !== 0 || !plotEl) return;
-    plotEl.setPointerCapture(e.pointerId);
-    dragging = true;
-    // Click commits: seek to the (snapped) hovered instant, keeping the zoom.
-    const at = previewAt(e);
-    setTimelineHover(null);
-    scrubTo(at);
-  }
-
-  function onPointerMove(e: PointerEvent) {
-    if (!plotEl) return;
-    if (dragging) scrubTo(fractionAt(e));
-    else previewAt(e);
-  }
-
-  function onPointerUp(e: PointerEvent) {
-    if (!dragging) return;
-    plotEl?.releasePointerCapture(e.pointerId);
-    dragging = false;
-    previewAt(e);
-  }
-
-  function onPointerLeave() {
-    if (!dragging) setTimelineHover(null);
-  }
-
-  // Non-passive, so the page does not scroll while the timeline zooms.
-  $effect(() => {
-    const el = plotEl;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      if (e.deltaY === 0) return;
-      zoomScrubber(e.deltaY < 0, timelineEt(fractionAt(e)));
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  });
-
   let configOpen = $state(false);
 
   function apply(profile: ContinuousProfileConfiguration) {
@@ -219,15 +162,11 @@
 
   {#if item.visible}
     <div
-      bind:this={plotEl}
       class="plot"
       style="left: {axisLeft}px; width: {axisWidth}px"
       role="img"
       aria-label="{spec?.label ?? 'Profile'} {pair}: {readoutText}"
-      onpointerdown={onPointerDown}
-      onpointermove={onPointerMove}
-      onpointerup={onPointerUp}
-      onpointerleave={onPointerLeave}
+      use:timelineGestures={{ snapTargets }}
     >
       <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" aria-hidden="true">
         {#if spec?.symmetric && hasData}

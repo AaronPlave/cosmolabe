@@ -182,7 +182,8 @@ export const shell = $state({
   /**
    * Progressive analysis depth on the timeline. `transport` is the minimal time
    * strip, event marks on its track included; `expanded` adds the secondary
-   * transport and the continuous-profile rows (#65) on the same axis.
+   * transport, a lane per event query, and the continuous-profile rows (#65),
+   * all on the same axis.
    */
   timelineDepth: 'transport' as 'transport' | 'expanded',
 

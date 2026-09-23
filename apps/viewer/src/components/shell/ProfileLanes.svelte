@@ -61,7 +61,7 @@
   />
 {/each}
 
-<div class="lanes-footer" class:empty={profiles.length === 0}>
+<div class="lanes-footer">
   <div
     class="footer-add"
     style={wide ? `left: 0; width: ${Math.max(0, axisLeft - 8)}px; justify-content: flex-end` : `left: ${axisLeft}px`}
@@ -91,9 +91,6 @@
     position: relative;
     height: 22px;
     border-top: 1px solid var(--color-chrome-divider);
-  }
-  .lanes-footer.empty {
-    border-top: none;
   }
   .footer-add {
     position: absolute;
