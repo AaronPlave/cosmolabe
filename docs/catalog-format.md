@@ -67,7 +67,7 @@ Bodies can nest other bodies via their own `items` array, which is how you build
 | `trajectory` | object | How position evolves over time. See [Trajectories](#trajectories). |
 | `rotationModel` | object | How orientation evolves over time. See [Rotation models](#rotation-models). |
 | `geometry` | object | What gets drawn at the body's position. See [Geometry](#geometry). |
-| `trajectoryFrame` | string | Reference frame the trajectory is expressed in (e.g. `"J2000"`, `"EclipticJ2000"`, `"ICRF"`). |
+| `trajectoryFrame` | string | Frame the trajectory is expressed in, by name (e.g. `"J2000"`, `"EclipticJ2000"`, `"ICRF"`, `"TEME"`, `"IAU_MARS"`, `"BodyFixed"`). See [Frames](#frames). Defaults to `EclipticJ2000`. Also accepted on each `arcs[]` entry. |
 | `bodyFrame` | string | Reference frame of the body's orientation. |
 | `label` | object | `{ "color": [r, g, b], "text": "..." }` for the on-screen label |
 | `trajectoryPlot` | object | Orbit-trail config: `{ "color", "fade", "duration", "visible" }` |
@@ -90,7 +90,7 @@ Ten types, picked by `trajectory.type`:
 | `LinearCombination` | Weighted sum of other trajectories | `terms: [{ trajectory, weight }]` |
 | `Composite` | Time-switched arcs of different sources | `arcs: [{ startEt, endEt, trajectory }]` |
 
-**TLE objects** must set `trajectoryFrame: "J2000"` since SGP4 outputs are TEME but the renderer expects J2000-relative positions.
+Some trajectory types know their own frame, and that frame is used whatever `trajectoryFrame` says: **TLE** output is TEME, **FixedSpherical** and **Waypoints** are body-fixed to the item's `center`, an **OEM** file's `REF_FRAME` is its frame, and a **Spice** trajectory is in the frame it is queried in. TLE items no longer need `trajectoryFrame: "J2000"` (it is ignored), and TEME is now rotated into J2000 with precession and nutation instead of being treated as J2000. That rotation is about 20 arcminutes by 2026, or tens of km at LEO.
 
 ## Rotation models
 
@@ -138,11 +138,47 @@ Streaming terrain over the basemap. Supports three sources:
 
 ## Frames
 
-Reference frames, used in `trajectoryFrame` and `bodyFrame`:
+Frames are named, and every name resolves through one registry (`Universe.frames`, a `FrameRegistry`). Each frame knows its rotation to ICRF at any epoch, and a conversion between two frames is composed from those rotations. `Universe.absolutePositionOf` applies the right rotation on every leg of the parent chain, so a J2000 moon of an ecliptic planet, a TEME satellite and a surface point all land in the ecliptic scene frame without any rotation done in the app. Names are case-insensitive.
 
-- **Inertial (4):** `EclipticJ2000` (default), `EquatorJ2000` / `J2000`, `EquatorB1950`, `ICRF`
-- **`BodyFixed`** — rotates with a body
-- **`TwoVector`** — defined by two reference vectors (e.g. an LVLH-like frame)
+| Frame | Aliases | Kind | SPICE path | SPICE-free path |
+|---|---|---|---|---|
+| `ECLIPJ2000` | `EclipticJ2000`, `ecliptic` | inertial (the scene frame, and the default) | fixed matrix | same |
+| `EME2000` | `J2000`, `EquatorJ2000`, `equatorial` | inertial | fixed matrix | same |
+| `ICRF` | `GCRF` | inertial | identity to EME2000, as in SPICE | same |
+| `EME2000_IERS` | | inertial | FK5 J2000 with the IERS 2003 frame bias (~23 mas from ICRF); for data from bias-aware producers | same |
+| `B1950`, `FK4`, `ECLIPB1950`, `GALACTIC` | `EquatorB1950` | inertial | SPICE's fixed matrices | same |
+| `MOD`, `TOD`, `TEME` | `TETE` (TOD) | inertial, time-dependent | IAU-1976 precession, IAU-1980 nutation | same (SPICE has no TEME) |
+| `ITRF` | `ITRF93`, `ITRF2000`…`ITRF2020`, `ECEF`, `TDR` | Earth-fixed | SPICE `ITRF93` when a binary Earth PCK is loaded | TEME + GMST, with UT1 ≈ UTC (≤ 0.4 km at the surface) |
+| `IAU_<BODY>` | | body-fixed | the body's own `rotationModel`, else SPICE's PCK frame | the body's own `rotationModel` |
+| `BodyFixed` | `body-fixed` | body-fixed to the item's current `center` | resolves to `IAU_<CENTER>` | same |
+| any SPICE frame | | per SPICE | `pxform` (CK, TK and dynamic frames, `MOON_ME`, …) | not resolvable |
+
+The static inertial frames use their fixed matrices even when SPICE is loaded. They are identical to SPICE's built-in definitions (the tests check this to 1e-12) and keep `pxform` off the per-frame path. EME2000 and ICRF are distinct names with an identity rotation between them. SPICE treats `J2000` as ICRF-aligned, and every JPL ephemeris is delivered that way, so applying the ~23 mas frame bias would offset SPICE-driven planets by about 17 km at 1 AU. What "EME2000" means depends on who wrote the file. From JPL and SPICE tools it is SPICE's J2000, which is ICRF-aligned; from Orekit, STK or GMAT it is FK5 J2000, which carries the bias. For the second kind, set `"trajectoryFrame": "EME2000_IERS"`: on an OEM whose `REF_FRAME` is EME2000 or ICRF, that declaration refines the file's label rather than being reported as a mismatch.
+
+Rendered accuracy is pinned end to end in `spice-oracle.test.ts`: positions after the renderer's floating-origin, scale and float32 step are checked against SPICE. Error is float32 rounding relative to the tracked body, about 1e-7 of the distance (tens of metres across the Saturn system from Cassini).
+
+When a catalog frame reaches SPICE (a `Spice` or `Builtin` trajectory, a `Spice` rotation), it goes out in SPICE's spelling (`EclipticJ2000` → `ECLIPJ2000`, `EME2000` → `J2000`). Frames SPICE cannot know (TEME, declared frames) are queried in J2000 and labelled as such.
+
+Cosmographia's structured form `"trajectoryFrame": { "type": "BodyFixed", "body": "Mars" }` is accepted on items and arcs. It means `IAU_MARS`, the named body's frame, which need not be the center. Without `body` it means `BodyFixed`. When SPICE has no definition of such a frame (for example `IAU_CASSINI`), a `Spice` trajectory is fetched in J2000 instead, which is still exact.
+
+A frame nothing can resolve is reported once when the catalog loads, and positions in it are then used unrotated. With SPICE loaded, a name SPICE does not recognize is reported too. Arc frames are checked, and so are `IAU_<BODY>` frames with no body or SPICE frame behind them.
+
+### Declaring frames
+
+A catalog can declare frames that are fixed relative to another frame (the equivalent of a SPICE TK frame). Declared frames are registered before any item loads:
+
+```json
+"frames": [
+  { "name": "PAD_39A_TOPO", "base": "IAU_EARTH", "quaternion": [0.7071, 0, 0, 0.7071] },
+  { "name": "INSTRUMENT_REF", "base": "EME2000", "matrix": [1, 0, 0, 0, 0, -1, 0, 1, 0] }
+]
+```
+
+`quaternion` (`[w, x, y, z]`) or row-major `matrix` gives the rotation that takes vectors in the new frame into `base`. The frame's kind (inertial or body-fixed) follows its base. Apps can do the same through `universe.frames.defineFixedFrame(...)`, or pass any `FrameDefinition` to `universe.frames.register(...)`.
+
+### State-dependent frames
+
+LVLH, RIC/RSW, RTN, VNC and similar frames are **not** registry frames, and naming one as a `trajectoryFrame` is rejected with a warning. Their orientation is built from a spacecraft's position and velocity relative to a central body, so it depends on another body's state as well as on the epoch. They are therefore a different kind of object from the frames above, which are all "a rotation to ICRF at an epoch". Use `TwoVectorFrame` (`bodyFrame: { "type": "TwoVector", … }`) for orientation defined this way.
 
 ## Viewpoints
 

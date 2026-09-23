@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CompositeTrajectory, SpiceTrajectory, WaypointTrajectory, EventBus, alignPositionToFrame, bodyTrajectoryFrameName, rotateVecByQuat, DEFAULT_INERTIAL_FRAME, type Universe, type Body, type InertialFrameName } from '@cosmolabe/core';
+import { CompositeTrajectory, SpiceTrajectory, WaypointTrajectory, EventBus, WORLD_FRAME, type Universe, type Body } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
 import { selectShadowOccluders } from './EclipseShadow.js';
@@ -681,8 +681,8 @@ export class UniverseRenderer {
 
         if (!arcCenter && parentName) {
           // Per-frame trail sampler. `stateAt(t).position` is the body's
-          // offset from its parent in the body's own `trajectoryFrame`
-          // (e.g. EquatorJ2000 for Saturn moons declaring
+          // offset from its parent in the body's own frame
+          // (e.g. EME2000 for Saturn moons declaring
           // `trajectoryFrame: "J2000"`). The trail's `vertOff` is the
           // parent's position in cosmolabe's world frame (EclipticJ2000),
           // so the per-sample offset must be rotated into that same world
@@ -697,45 +697,16 @@ export class UniverseRenderer {
           // marker; aligning child→parent left the body drawn ~23.4° off
           // its trail whenever the obliquity entered higher in the chain.
           //
-          // Body-fixed children (MoonFall hoppers, Ingenuity, ground
-          // stations) need the parent's rotation conjugate applied to lift
-          // the position from the parent's body-fixed frame into an inertial
-          // frame BEFORE the alignment-to-world step. `absolutePositionOf`
-          // does this unwrap; without the same step here the trail draws
-          // the body-fixed offset directly in world coords (static against
-          // the inertial sky), while the marker rotates with the parent.
-          // Visible as a label/model that drifts off its trail as time
-          // advances.
-          const parentBody = this.universe.getBody(parentName);
+          // `relativePositionInWorld` is the per-leg step of
+          // `absolutePositionOf` without the sum: the body's offset rotated
+          // from its own frame into the world frame through the frame
+          // registry. For body-fixed children (MoonFall hoppers, Ingenuity,
+          // ground stations) that includes lifting the offset out of the
+          // parent's rotating frame, so the trail turns with the parent
+          // exactly as the marker does.
           const relativeResolver: typeof this.absolutePositionOf = (name, t) => {
-            const childBody = this.universe.getBody(name);
-            if (!childBody) return [NaN, NaN, NaN];
-            const state = childBody.stateAt(t);
-            let pos = state.position as [number, number, number];
-
-            if (childBody.trajectoryFrame === 'body-fixed' && parentBody) {
-              const q = parentBody.rotationAt(t);
-              if (q) {
-                // Conjugate: inertial → body-fixed becomes body-fixed → inertial.
-                const qConj: [number, number, number, number] = [q[0], -q[1], -q[2], -q[3]];
-                pos = rotateVecByQuat(pos, qConj);
-                // The unwrapped position now lives in the parent's rotation
-                // source frame. Continue downstream alignment from THAT
-                // frame, not the body's stored trajectoryFrame.
-                const srcFrame: InertialFrameName = parentBody.rotation?.sourceFrame
-                  ?? bodyTrajectoryFrameName(parentBody)
-                  ?? 'EclipticJ2000';
-                return alignPositionToFrame(pos, srcFrame, DEFAULT_INERTIAL_FRAME);
-              }
-            }
-
-            // Non-body-fixed child: bodyTrajectoryFrameName returns a real
-            // inertial frame. (For body-fixed we'd have taken the branch
-            // above.) Fall back to EclipticJ2000 only if some catalog set
-            // the trajectoryFrame to body-fixed AND we got here anyway —
-            // a no-op alignment.
-            const childFrame: InertialFrameName = bodyTrajectoryFrameName(childBody) ?? 'EclipticJ2000';
-            return alignPositionToFrame(pos, childFrame, DEFAULT_INERTIAL_FRAME);
+            if (!this.universe.getBody(name)) return [NaN, NaN, NaN];
+            return this.universe.relativePositionInWorld(name, t);
           };
           tl.update(et, this.scaleFactor, relativeResolver, undefined, undefined, vertOff);
         } else {
@@ -2187,7 +2158,7 @@ export class UniverseRenderer {
       }
 
       // Create body mesh (needed for click/track even for sensor bodies)
-      const bm = new BodyMesh(body);
+      const bm = new BodyMesh(body, this.universe.frames);
       bm.mesh.scale.setScalar(this.scaleFactor);
       // Hide placeholder sphere for instrument-class sensors (e.g. ISS NAC on Cassini)
       // but keep it for spacecraft-class sensors (e.g. WeatherSat in sensor demo)
@@ -2569,47 +2540,26 @@ export class UniverseRenderer {
       // only emit relative world-frame coords here — keeps vertices near
       // origin for Float32 precision.
       //
-      // Three cases:
-      //  1. Body-fixed trajectory (Waypoints, FixedSpherical): state.position
-      //     is in the parent body's body-fixed frame. Apply the parent's
-      //     rotation conjugate to lift body-fixed → inertial (the parent's
-      //     rotation source frame), then align to ECLIPJ2000.
-      //  2. Equatorial/ecliptic inertial trajectory: just align from the
-      //     body's own trajectoryFrame to ECLIPJ2000.
-      //  3. Mismatched: shouldn't happen for well-formed catalogs.
+      // The arc's frame goes through the frame registry: an inertial frame
+      // (EME2000, TEME, …) is rotated into ECLIPJ2000, and a body-fixed arc
+      // (Waypoints, FixedSpherical) is lifted out of the center body's
+      // rotating frame first.
       //
       // Without this, body-fixed arcs (MoonFall hoppers, Ingenuity, ground
       // stations) draw their trail in the parent's body-fixed frame —
       // visually static against the inertial sky while the body marker
       // rotates with the parent. Result: trail offset from label/marker by
       // the parent's rotation since some reference time.
-      // For body-fixed arcs, arcFrame is unused — the body-fixed branch
-      // below handles the unwrap explicitly. Falls back to EclipticJ2000
-      // only as a safety net.
-      const arcFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? 'EclipticJ2000';
+      const arcFrame = body.arcFrame(arc);
       const arcCenterBodyName = arcCenterName ?? body.parentName;
-      const arcCenterBody = arcCenterBodyName ? this.universe.getBody(arcCenterBodyName) : undefined;
-      const isBodyFixedArc = body.trajectoryFrame === 'body-fixed';
       const arcResolver = (_name: string, t: number): [number, number, number] => {
         const state = arc.trajectory.stateAt(t);
-        let pos: [number, number, number] = [state.position[0], state.position[1], state.position[2]];
-        if (isBodyFixedArc && arcCenterBody) {
-          const q = arcCenterBody.rotationAt(t);
-          if (q) {
-            // Conjugate: inertial → body-fixed becomes body-fixed → inertial.
-            const qConj: [number, number, number, number] = [q[0], -q[1], -q[2], -q[3]];
-            pos = rotateVecByQuat(pos, qConj);
-            // The unwrapped position now lives in the parent's rotation
-            // source frame. Continue downstream alignment from THAT frame.
-            // (NOT body.trajectoryFrame — that's the body-fixed marker,
-            //  bodyTrajectoryFrameName returns undefined for it.)
-            const srcFrame: InertialFrameName = arcCenterBody.rotation?.sourceFrame
-              ?? bodyTrajectoryFrameName(arcCenterBody)
-              ?? 'EclipticJ2000';
-            return alignPositionToFrame(pos, srcFrame, DEFAULT_INERTIAL_FRAME);
-          }
-        }
-        return alignPositionToFrame(pos, arcFrame, DEFAULT_INERTIAL_FRAME);
+        return this.universe.toWorldFrame(
+          [state.position[0], state.position[1], state.position[2]],
+          arcFrame,
+          arcCenterBodyName,
+          t,
+        );
       };
 
       const plotCfg = body.trajectoryPlot;
@@ -2768,24 +2718,25 @@ export class UniverseRenderer {
    * trajectory frame into cosmolabe's world frame (EclipticJ2000) in place,
    * so cached trail vertices match `absolutePositionOf`-driven markers. Used
    * for the async worker path, which bakes points in the raw SPICE frame.
-   * No-op when the body's frame is already the world frame (or a SPICE-named
-   * frame `alignPositionToFrame` passes through) — probed once up front.
+   * No-op when the body's frame is already the world frame.
    */
-  private alignCacheToWorldFrame(cache: { positions: Float64Array; count: number }, body: Body): void {
-    // This path bakes SPICE-sampled inertial trajectories. Body-fixed
-    // bodies don't reach here (they use the composite-arc path instead),
-    // but fall back to a no-op alignment if one ever slips through.
-    const srcFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? DEFAULT_INERTIAL_FRAME;
-    // Probe with an off-axis vector ([0,0,1] is rotated by the obliquity;
-    // [1,0,0] would be invariant and falsely report "no alignment needed").
-    const probe = alignPositionToFrame([0, 0, 1], srcFrame, DEFAULT_INERTIAL_FRAME);
-    if (probe[0] === 0 && probe[1] === 0 && probe[2] === 1) return;
+  private alignCacheToWorldFrame(
+    cache: { times: Float64Array; positions: Float64Array; count: number },
+    body: Body,
+  ): void {
+    // This path bakes SPICE-sampled inertial trajectories; body-fixed bodies
+    // use the composite-arc path instead. The frame can be time-dependent
+    // (TEME, a CK frame), so each sample rotates at its own epoch.
+    const frames = this.universe.frames;
+    const srcFrame = this.universe.resolveFrame(body.frame, body.parentName);
+    if (frames.sameFrame(srcFrame, WORLD_FRAME)) return;
     const p = cache.positions;
-    for (let i = 0; i < cache.count * 3; i += 3) {
-      const a = alignPositionToFrame([p[i], p[i + 1], p[i + 2]], srcFrame, DEFAULT_INERTIAL_FRAME);
-      p[i] = a[0];
-      p[i + 1] = a[1];
-      p[i + 2] = a[2];
+    for (let i = 0; i < cache.count; i++) {
+      const j = i * 3;
+      const a = frames.transform([p[j], p[j + 1], p[j + 2]], srcFrame, WORLD_FRAME, cache.times[i]);
+      p[j] = a[0];
+      p[j + 1] = a[1];
+      p[j + 2] = a[2];
     }
   }
 
@@ -2894,21 +2845,13 @@ export class UniverseRenderer {
     let searchStart = currentEt - trailDur * 4;
     let searchEnd = currentEt + trailDur * 4;
 
-    // Bake samples in the world frame (EclipticJ2000), aligned from the body's
-    // own `trajectoryFrame`, so cached trail vertices match the marker that
+    // Bake samples in the world frame (EclipticJ2000), rotated from the
+    // body's own frame, so cached trail vertices match the marker that
     // `absolutePositionOf` places. Without this the body draws ~23.4° (the
     // J2000 obliquity) off its trail for any equatorial-frame trajectory.
-    // Body-fixed bodies use the composite-arc cache path, not this one;
-    // fall back to a no-op alignment if one slips through.
-    const cacheFrame: InertialFrameName = bodyTrajectoryFrameName(body) ?? DEFAULT_INERTIAL_FRAME;
     const resolver = (t: number): [number, number, number] => {
       try {
-        const state = body.trajectory.stateAt(t);
-        return alignPositionToFrame(
-          [state.position[0], state.position[1], state.position[2]],
-          cacheFrame,
-          DEFAULT_INERTIAL_FRAME,
-        );
+        return this.universe.relativePositionInWorld(body.name, t);
       } catch {
         return [NaN, NaN, NaN];
       }

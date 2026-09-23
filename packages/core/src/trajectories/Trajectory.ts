@@ -17,4 +17,13 @@ export interface Trajectory {
    * trails that look stubby or empty in some time windows.
    */
   readonly period?: number;
+  /**
+   * The frame `stateAt` positions and velocities are expressed in, by name
+   * (`TEME`, `J2000`, `ECLIPJ2000`, `IAU_MARS`, `BODY_FIXED`, …), when the
+   * trajectory knows it intrinsically — SGP4 output is TEME whatever a catalog
+   * says. Resolved through `FrameRegistry`. Undefined when the frame is a
+   * property of the data rather than the class (Keplerian elements, `.xyzv`
+   * samples); the catalog's `trajectoryFrame` supplies it then.
+   */
+  readonly frame?: string;
 }

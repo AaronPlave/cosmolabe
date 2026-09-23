@@ -3,9 +3,16 @@ import { Body } from './Body.js';
 import { CatalogLoader } from './catalog/CatalogLoader.js';
 import type { CatalogJson, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory } from './catalog/CatalogLoader.js';
 import type { CosmolabePlugin } from './plugins/Plugin.js';
-import { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
-import { alignPositionToFrame, bodyTrajectoryFrameName } from './kinematics.js';
-import type { InertialFrameName } from './rotations/RotationModel.js';
+import type { Vec3 } from './kinematics.js';
+import type { Quaternion, RotationModel } from './rotations/RotationModel.js';
+import { composeBodyToWorldQuat } from './kinematics.js';
+import {
+  BODY_FIXED,
+  FrameRegistry,
+  WORLD_FRAME,
+  bodyFixedFrameName,
+  normalizeFrameKey,
+} from './frames/FrameRegistry.js';
 import { EventBus } from './events/EventBus.js';
 import type { UniverseEventMap } from './events/EventTypes.js';
 import { StateStore } from './state/StateStore.js';
@@ -37,6 +44,12 @@ export class Universe {
 
   readonly events = new EventBus<UniverseEventMap>();
   readonly state: StateStore<UniverseState>;
+  /** Named frames and the rotations between them, wired to this universe's
+   *  SPICE instance and to its bodies' rotation models (`IAU_<BODY>`).
+   *  Register app-defined frames here. */
+  readonly frames: FrameRegistry;
+  /** Normalized body name → body, for `IAU_<BODY>` lookups; rebuilt lazily. */
+  private frameKeyIndex?: Map<string, Body>;
 
   constructor(spice?: SpiceInstance, options?: UniverseOptions) {
     this.spice = spice;
@@ -45,6 +58,21 @@ export class Universe {
     this.trajectoryFactories = options?.trajectoryFactories;
     this.rotationFactories = options?.rotationFactories;
     this.state = new StateStore<UniverseState>({ ...DEFAULT_UNIVERSE_STATE });
+    this.frames = new FrameRegistry({
+      spice,
+      bodyRotation: (key) => this.bodyRotationByFrameKey(key),
+    });
+  }
+
+  private bodyRotationByFrameKey(key: string): RotationModel | undefined {
+    if (!this.frameKeyIndex) {
+      this.frameKeyIndex = new Map();
+      for (const b of this.bodies.values()) {
+        const k = normalizeFrameKey(b.name);
+        if (!this.frameKeyIndex.has(k)) this.frameKeyIndex.set(k, b);
+      }
+    }
+    return this.frameKeyIndex.get(key)?.rotation;
   }
 
   loadCatalog(json: CatalogJson): void {
@@ -54,6 +82,7 @@ export class Universe {
       resolveFileBinary: this.resolveFileBinary,
       trajectoryFactories: this.trajectoryFactories,
       rotationFactories: this.rotationFactories,
+      frames: this.frames,
     };
     const loader = new CatalogLoader(loaderOpts);
     const result = loader.load(json);
@@ -79,6 +108,7 @@ export class Universe {
         if (parent) parent.children.push(body);
       }
     }
+    this.frameKeyIndex = undefined;
 
     for (const vp of result.viewpoints) {
       this._viewpoints.push(vp);
@@ -97,6 +127,7 @@ export class Universe {
 
   addBody(body: Body): void {
     this.bodies.set(body.name, body);
+    this.frameKeyIndex = undefined;
     this.wireBodyChangeCallback(body);
     if (body.parentName) {
       const parent = this.bodies.get(body.parentName);
@@ -119,6 +150,7 @@ export class Universe {
     const body = this.bodies.get(name);
     if (!body) return false;
     this.bodies.delete(name);
+    this.frameKeyIndex = undefined;
     this.events.emit('body:removed', { bodyName: name });
     return true;
   }
@@ -188,10 +220,64 @@ export class Universe {
     return [min, max];
   }
 
+  /** The frame a body's `stateAt(et)` position is in, resolved for `et`:
+   *  `BODY_FIXED` becomes the active parent's `IAU_<PARENT>` frame. */
+  frameOf(body: Body | string, et: number): string {
+    const b = typeof body === 'string' ? this.getBody(body) : body;
+    if (!b) return WORLD_FRAME;
+    return this.resolveFrame(b.frameAt(et), b.activeParentAt(et));
+  }
+
+  /** Resolve a frame name relative to a center: `BODY_FIXED` means the
+   *  center's body-fixed frame; every other name is returned canonicalized. */
+  resolveFrame(frame: string, centerName: string | undefined): string {
+    const canonical = this.frames.canonicalName(frame);
+    if (canonical !== BODY_FIXED) return canonical;
+    return centerName ? bodyFixedFrameName(centerName) : BODY_FIXED;
+  }
+
+  /** Re-express a center-relative position given in `frame` in the scene frame
+   *  (ECLIPJ2000). This is the per-leg step of `absolutePositionOf` with the
+   *  sum left out — what a trail sampler needs to draw a body's offset from
+   *  its center in the same frame the marker is placed in. */
+  toWorldFrame(position: Vec3, frame: string, centerName: string | undefined, et: number): Vec3 {
+    return this.frames.transform(position, this.resolveFrame(frame, centerName), WORLD_FRAME, et);
+  }
+
+  /** A body's body → world (ECLIPJ2000) orientation quaternion `[w, x, y, z]`
+   *  at `et`, composed through this universe's frame registry — so a rotation
+   *  stated in a catalog-declared or SPICE frame orients the mesh exactly as
+   *  `absolutePositionOf` positions it. Undefined when the body has no
+   *  rotation model or it cannot be evaluated at `et`. */
+  bodyToWorldQuat(body: Body | string, et: number): Quaternion | undefined {
+    const b = typeof body === 'string' ? this.getBody(body) : body;
+    const rotation = b?.rotation;
+    if (!rotation) return undefined;
+    const q = rotation.rotationAt(et);
+    return composeBodyToWorldQuat(q, rotation.sourceFrame, WORLD_FRAME, et, this.frames);
+  }
+
+  /** A body's position relative to its active parent, in the scene frame. */
+  relativePositionInWorld(bodyName: string, et: number): Vec3 {
+    const body = this.getBody(bodyName);
+    if (!body) return [NaN, NaN, NaN];
+    const p = body.stateAt(et).position;
+    return this.frames.transform([p[0], p[1], p[2]], this.frameOf(body, et), WORLD_FRAME, et);
+  }
+
   /**
    * Compute a body's absolute position in km by walking up the parent chain.
    * Trajectories give positions relative to their center body, so Moon's position
-   * is relative to Earth, Earth's is relative to Sun, etc.
+   * is relative to Earth, Earth's is relative to Sun, etc. The result is in the
+   * scene frame, ECLIPJ2000.
+   *
+   * Every leg is one frame-registry transform: the accumulated offset is
+   * re-expressed from the child's frame into the parent's before the parent's
+   * own offset is added. That covers the inertial cases (EME2000 ↔ ECLIPJ2000
+   * obliquity, TEME precession-nutation, …) and the body-fixed one: a
+   * `BODY_FIXED` child's frame resolves to its parent's `IAU_<PARENT>`, whose
+   * rotation to ICRF comes from the parent's rotation model, so a ground
+   * station turns with its planet with no special case.
    */
   absolutePositionOf(bodyName: string, et: number): [number, number, number] {
     try {
@@ -199,111 +285,39 @@ export class Universe {
       if (!body) return [NaN, NaN, NaN];
 
       const state = body.stateAt(et);
-      let x = state.position[0];
-      let y = state.position[1];
-      let z = state.position[2];
-      if (isNaN(x)) return [NaN, NaN, NaN];
+      let pos: Vec3 = [state.position[0], state.position[1], state.position[2]];
+      if (isNaN(pos[0])) return [NaN, NaN, NaN];
 
-      // Walk up the parent chain, resolving composite trajectory centers at
-      // each step. For composite trajectories the ARC's centerName is the
-      // authoritative parent for the body's current state — the arc's
-      // positions are expressed relative to that body, regardless of any
-      // static parentName on the body itself. This matches what
-      // UniverseRenderer's trajectory-line code already does (arc center
-      // first, parentName as fallback) — without this the line drew
-      // correctly but the body marker was placed using the wrong parent
-      // chain (e.g. a multi-phase mission that switches Earth → Moon for
-      // a lunar segment would have its marker added to Earth's position
-      // while the line correctly anchored to the Moon).
-      let currentParent: string | undefined;
-      if (body.trajectory instanceof CompositeTrajectory) {
-        currentParent = body.trajectory.arcAt(et).centerName ?? body.parentName;
-      } else {
-        currentParent = body.parentName;
-      }
-
-      // Body-fixed trajectories (e.g. FixedSpherical for surface points) output
-      // positions in the parent body's body-fixed frame. Rotate by the parent's
-      // body-fixed → inertial transform before adding the parent's inertial
-      // position, so the child rotates with the parent (e.g. ground stations on
-      // Earth, volcanoes on Io).
-      if (body.trajectoryFrame === 'body-fixed' && currentParent) {
-        const parent = this.getBody(currentParent);
-        const q = parent?.rotationAt(et);
-        if (q) {
-          // RotationModel.rotationAt returns inertial → body-fixed. Use the
-          // conjugate [w, -x, -y, -z] to go body-fixed → inertial.
-          const qw = q[0];
-          const qx = -q[1];
-          const qy = -q[2];
-          const qz = -q[3];
-          // Standard quaternion-vector rotation: v' = v + 2 q_xyz × (q_xyz × v + w v)
-          const tx = 2 * (qy * z - qz * y);
-          const ty = 2 * (qz * x - qx * z);
-          const tz = 2 * (qx * y - qy * x);
-          const rx = x + qw * tx + (qy * tz - qz * ty);
-          const ry = y + qw * ty + (qz * tx - qx * tz);
-          const rz = z + qw * tz + (qx * ty - qy * tx);
-          x = rx; y = ry; z = rz;
-        }
-      }
-
-      // Walk up the parent chain. At each step the accumulated position is
-      // in some inertial frame — initially the child's own `trajectoryFrame`,
-      // after the body-fixed unwrap above the parent's inertial frame. Each
-      // leg's `parent.stateAt` returns positions in `parent.trajectoryFrame`,
-      // so before summing we rotate the accumulated position from the
-      // current child's frame to the parent's frame. Without this the
-      // EquatorJ2000 ↔ EclipticJ2000 obliquity (~23.4°) injects positional
-      // error proportional to orbital radius — at the Saturn-moon distance
-      // that's ~73 km of off-axis displacement per moon, enough to visibly
-      // tilt Saturn's moon orbits out of the ring plane (was masked
-      // pre-Phase-3 by a matching rotation-side bug that cancelled).
-      // accumFrameName starts as the body's own trajectory frame, except for
-      // body-fixed bodies whose stateAt position isn't in any inertial frame
-      // — for those the unwrap above lifts position into the PARENT'S
-      // rotation source frame, so accumFrameName starts there instead.
-      // Falls back to EclipticJ2000 only if there's no parent or parent has
-      // no rotation (degenerate catalog).
-      let accumFrameName: InertialFrameName;
-      if (body.trajectoryFrame === 'body-fixed' && currentParent) {
-        const firstParent = this.getBody(currentParent);
-        accumFrameName =
-          firstParent?.rotation?.sourceFrame ??
-          bodyTrajectoryFrameName(firstParent!) ??
-          'EclipticJ2000';
-      } else {
-        accumFrameName = bodyTrajectoryFrameName(body) ?? 'EclipticJ2000';
-      }
+      // For composite trajectories the ARC's centerName is the authoritative
+      // parent for the body's current state — the arc's positions are
+      // expressed relative to that body, regardless of any static parentName.
+      // This matches what UniverseRenderer's trajectory-line code does (arc
+      // center first, parentName as fallback); without it a multi-phase
+      // mission that switches Earth → Moon for a lunar segment would have its
+      // marker added to Earth's position while the line anchored to the Moon.
+      let currentParent = body.activeParentAt(et);
+      let frame = this.resolveFrame(body.frameAt(et), currentParent);
 
       while (currentParent) {
         const parent = this.getBody(currentParent);
         if (!parent) break;
         const ps = parent.stateAt(et);
         if (isNaN(ps.position[0])) return [NaN, NaN, NaN];
-        // Parent is never body-fixed in a normal catalog (parents have
-        // rotations to drive child unwraps). If it ever is, treat as
-        // EclipticJ2000 to avoid undefined leaking into the alignment math.
-        const parentFrame: InertialFrameName = bodyTrajectoryFrameName(parent) ?? 'EclipticJ2000';
-        if (parentFrame !== accumFrameName) {
-          // Rotate accumulated position from child's frame to parent's
-          // frame before summing parent's contribution.
-          const aligned = alignPositionToFrame([x, y, z], accumFrameName, parentFrame);
-          x = aligned[0];
-          y = aligned[1];
-          z = aligned[2];
-          accumFrameName = parentFrame;
-        }
-        x += ps.position[0];
-        y += ps.position[1];
-        z += ps.position[2];
-        currentParent = parent.parentName;
-        if (!currentParent && parent.trajectory instanceof CompositeTrajectory) {
-          currentParent = parent.trajectory.arcAt(et).centerName;
-        }
+
+        // Same rule at every level: a composite ancestor's active arc center
+        // wins over its static parentName, so an instrument on a multi-phase
+        // spacecraft follows the spacecraft's current center.
+        const nextParent = parent.activeParentAt(et);
+        const parentFrame = this.resolveFrame(parent.frameAt(et), nextParent);
+
+        pos = this.frames.transform(pos, frame, parentFrame, et);
+        pos = [pos[0] + ps.position[0], pos[1] + ps.position[1], pos[2] + ps.position[2]];
+        frame = parentFrame;
+        currentParent = nextParent;
       }
 
-      return [x, y, z];
+      pos = this.frames.transform(pos, frame, WORLD_FRAME, et);
+      return [pos[0], pos[1], pos[2]];
     } catch {
       // SPICE throws "insufficient ephemeris" when a body's position can't be
       // computed at this epoch. Return NaN so callers — body-mesh placement,

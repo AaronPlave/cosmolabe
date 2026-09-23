@@ -9,8 +9,12 @@ export interface StateRecord {
 
 export class InterpolatedStatesTrajectory implements Trajectory {
   private readonly records: StateRecord[];
+  /** The frame the records are in, when the source declared one (an OEM's
+   *  `REF_FRAME`). Undefined for sources that don't (`.xyzv`, inline samples). */
+  readonly frame?: string;
 
-  constructor(records: StateRecord[]) {
+  constructor(records: StateRecord[], options: { frame?: string } = {}) {
+    this.frame = options.frame;
     this.records = [...records].sort((a, b) => a.et - b.et);
     if (this.records.length < 2) throw new Error('InterpolatedStates requires at least 2 records');
   }
