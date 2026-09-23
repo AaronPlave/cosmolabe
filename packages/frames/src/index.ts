@@ -31,6 +31,7 @@ export {
 } from './frames.js';
 export {
   createHeritageSpice,
+  kernelNameFromUrl,
   SpiceSearchCancelled,
   type HeritageSpice,
   type HeritageSpiceOptions,

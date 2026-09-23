@@ -13,7 +13,6 @@ import {
   bodyFixedOffsetToWorld,
   etFromCalendarString,
   type ResolvedCatalogGraph,
-  type ResolvedKernel,
 } from '@cosmolabe/core';
 // The runtime SPICE instance is @cosmolabe/frames' heritage adapter over
 // cspice-wasm, and HeritageSpice — the adapter's own type — is what the
@@ -23,7 +22,7 @@ import {
 // deliberately only what core itself calls.
 // The ?url import hands Vite's emitted wasm asset to the engine's locateFile —
 // only the bundler knows where that asset lands.
-import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
+import { createHeritageSpice, kernelNameFromUrl, type HeritageSpice } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin, captureFrameDataUrl } from '@cosmolabe/three';
 import { GeometrySearchWorker, type GeometrySearchScope, type KernelSource } from '@cosmolabe/three';
@@ -32,7 +31,15 @@ import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
 import { parseMetaKernel } from './metakernel';
 import { kernelSetKey, kernelsForWindow, type KernelWindow } from './geometry-kernels';
 import {
+  furnishOrder,
+  kernelName,
+  workerKernels,
+  type FurnishedKernel,
+  type KernelSourceRef,
+} from './kernel-set';
+import {
   bindRenderer,
+  unbindRenderer,
   gotoObject,
   syncBodies,
   setSceneLoaded,
@@ -81,60 +88,57 @@ const GEOMETRY_WORKER_IDLE_MS = 60_000;
  */
 let geometryWorker: GeometrySearchWorker | null = null;
 
-/** A kernel the worker can be given: fetched by URL, or read from a dropped file. */
-type WorkerKernelSource = { url: string } | { file: File };
 /**
- * Every kernel furnished on the main thread, in furnish order.
+ * What the live SPICE instance holds, in furnish order.
  *
- * One ordered list rather than a list per source, because furnish order *is*
- * kernel precedence — two SPKs covering the same body, later wins — and the
- * worker has to reproduce it exactly or its searches quietly answer a different
- * question. A dropped kernel is furnished before the catalog's own (the drop
- * handler furnishes, then loads the scene), so appending each entry as it is
- * furnished is the only thing that keeps the two paths in step. Files are held
- * as handles, not bytes, and re-read on every worker start -- the geometry
- * worker is rebuilt whenever a cancellation had to terminate it, so a dropped
- * kernel the user has since moved or deleted will fail to re-furnish.
+ * Emptied and rebuilt with the instance on every scene load, never edited: a
+ * scene gets a new instance holding exactly its own kernels (#70). The workers'
+ * list is a filter over this one, so the two cannot disagree about order (#68).
  */
-const workerKernelSources: WorkerKernelSource[] = [];
-
-/** The name a kernel is furnished under, which is what SPICE knows it by. */
-function workerKernelName(source: WorkerKernelSource): string {
-  const raw = 'url' in source ? filenameFromUrl(source.url) : source.file.name;
-  return raw.replace(/\.gz$/i, '');
-}
+let furnished: FurnishedKernel[] = [];
 
 /**
- * Per-file SPK coverage, asked of the main thread's SPICE and remembered.
+ * Kernels the user dropped in with no catalog of their own.
  *
- * The main thread has every kernel furnished, so it can answer this for any of
- * them; the worker being narrowed obviously cannot. Cached because it is asked
- * once per search and the answer cannot change -- a furnished kernel's coverage
- * is a property of its bytes, and nothing here ever unloads one.
+ * These outlive a scene. Someone who drags a CK or a newer SPK onto the viewer
+ * has said it belongs to their session, not to whatever catalog happens to be
+ * loaded, so every instance built afterwards is furnished with them -- ahead of
+ * the scene's own kernels, which can then override them by name. A kernel
+ * dropped *with* a catalog is that scene's and is not kept here; see
+ * `handleFileList`. Clearing these means reloading the page.
+ *
+ * Held as sources, not bytes: a dropped file is re-read on each scene load, so
+ * one the user has since moved or deleted drops out with a warning.
+ */
+const userKernelSources: KernelSourceRef[] = [];
+
+/**
+ * What a kernel covers, asked the moment it is furnished.
+ *
+ * Asked then and kept on its entry, rather than looked up by name when a search
+ * needs it. The lookup would need a cache, the cache would need invalidating
+ * against a SPICE instance that is replaced wholesale every scene load, and it
+ * would answer about whatever is staged under that name in the instance that
+ * exists now. Measuring once, into a value discarded with the instance it
+ * describes, has none of those questions.
+ *
+ * It is also cheaper than it looks: this walks an SPK's segment summaries,
+ * against a furnish that has just read the whole file. And it cannot go stale,
+ * because a kernel's coverage is a property of its bytes.
  *
  * Null means "no coverage to test": a leapseconds or text PCK kernel, or an SPK
  * SPICE would not answer for. Both must be kept, so both are reported the same
  * way -- a file we cannot judge is never one we drop.
  */
-const kernelCoverageCache = new Map<string, KernelWindow[] | null>();
-
-function kernelCoverage(name: string): readonly KernelWindow[] | null {
-  const cached = kernelCoverageCache.get(name);
-  if (cached !== undefined) return cached;
-
-  let windows: KernelWindow[] | null = null;
-  const s = getSpice();
-  if (s && /\.(bsp|spk)$/i.test(name)) {
-    try {
-      windows = s.spkFileCoverage(name);
-    } catch {
-      // Unreadable coverage is not absent coverage; keeping the kernel is the
-      // safe reading, which null already means.
-      windows = null;
-    }
+function measureCoverage(s: HeritageSpice, name: string): readonly KernelWindow[] | null {
+  if (!/\.(bsp|spk)$/i.test(name)) return null;
+  try {
+    return s.spkFileCoverage(name);
+  } catch {
+    // Unreadable coverage is not absent coverage; keeping the kernel is the
+    // safe reading, which null already means.
+    return null;
   }
-  kernelCoverageCache.set(name, windows);
-  return windows;
 }
 
 /** The scope a viewer search carries: its key, plus the window that produced it. */
@@ -146,10 +150,11 @@ function scopeWindow(scope?: GeometrySearchScope): KernelWindow | null {
   return scope && 'window' in scope ? (scope as ViewerGeometryScope).window : null;
 }
 
-/** The sources a search over `window` could reach, or all of them for no window. */
-function scopedKernelSources(window: KernelWindow | null): WorkerKernelSource[] {
-  if (!window) return [...workerKernelSources];
-  return kernelsForWindow(workerKernelSources, workerKernelName, kernelCoverage, window);
+/** The kernels a search over `window` could reach, or all of them for no window. */
+function scopedKernelEntries(window: KernelWindow | null): readonly FurnishedKernel[] {
+  const entries = workerKernels(furnished);
+  if (!window) return entries;
+  return kernelsForWindow(entries, (e) => e.coverage, window);
 }
 
 /**
@@ -158,7 +163,7 @@ function scopedKernelSources(window: KernelWindow | null): WorkerKernelSource[] 
  */
 export function geometryScopeForWindow(window: KernelWindow): GeometrySearchScope | undefined {
   if (!getSpice()) return undefined;
-  const names = scopedKernelSources(window).map(workerKernelName);
+  const names = scopedKernelEntries(window).map((e) => e.name);
   const scope: ViewerGeometryScope = { key: kernelSetKey(names), window };
   return scope;
 }
@@ -178,16 +183,13 @@ export function geometryScopeForWindow(window: KernelWindow): GeometrySearchScop
  */
 async function currentWorkerKernels(scope?: GeometrySearchScope): Promise<KernelSource[]> {
   return Promise.all(
-    scopedKernelSources(scopeWindow(scope)).map(async (source) =>
+    scopedKernelEntries(scopeWindow(scope)).map(async ({ source }) =>
       'url' in source
         ? source.url
         : { name: source.file.name, data: await source.file.arrayBuffer() },
     ),
   );
 }
-
-/** URLs of kernels already furnished in this session — prevents redundant fetch + furnish across demos. */
-const furnishedKernels = new Set<string>();
 
 /** Visual-regression test mode — set via `?test=1`. Strips GPU-variant noise
  *  (antialias / bloom / starfield) and installs the `window.__cosmolabe`
@@ -200,37 +202,6 @@ const KERNEL_EXTENSIONS = new Set([
 ]);
 const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod']);
 const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.tga']);
-
-/**
- * The kernel types furnished into the SPICE worker.
- *
- * Ephemeris, leapseconds and text PCK: what a trajectory cache needs, and what
- * the geometry-event searches that now run there need too — `gfdist` over an
- * observer→target distance reads SPK and LSK, and body shapes come from the
- * text PCK. Attitude (`.bc`), frame (`.tf`) and instrument (`.ti`) kernels are
- * deliberately not loaded: nothing in the worker reads them today, and they are
- * the expensive ones. An event kind that needs them — an FOV or a body-fixed
- * `gfposc` search — must add them here, or its search will find nothing in the
- * worker that the main thread would have found.
- */
-const WORKER_KERNEL_EXTS = new Set(['.bsp', '.tls', '.tpc']);
-
-function isWorkerKernel(name: string): boolean {
-  const lower = name.toLowerCase().replace(/\.gz$/, '');
-  for (const ext of WORKER_KERNEL_EXTS) {
-    if (lower.endsWith(ext)) return true;
-  }
-  return false;
-}
-
-function trackKernelForWorker(url: string): void {
-  if (isWorkerKernel(url)) workerKernelSources.push({ url: new URL(url, location.href).href });
-}
-
-/** A kernel the user dropped in, which the worker cannot fetch for itself. */
-function trackKernelFileForWorker(file: File): void {
-  if (isWorkerKernel(file.name)) workerKernelSources.push({ file });
-}
 
 // ── Fetch with progress + gzip decompression ──
 
@@ -290,28 +261,28 @@ async function ensureSpice(): Promise<HeritageSpice> {
   return spice;
 }
 
-function isLargeKernel(k: ResolvedKernel): boolean {
-  return typeof k.size === 'number' && k.size > 1_000_000;
-}
-
 /** Weight given to a kernel the catalog did not size. Only ever used to spread
  *  the loading bar across the kernel phase — never shown as a byte count. */
 const NOMINAL_KERNEL_BYTES = 250_000;
 
-/** Furnish a single kernel URL. Handles `.gz` decompression. Tracks for cache worker. */
-async function furnishKernelUrl(url: string, opts?: { size?: number; onProgress?: (loaded: number) => void }): Promise<void> {
-  if (furnishedKernels.has(url)) return;
-  const s = await ensureSpice();
+/** A kernel to furnish: where its bytes come from, and what the bar should say. */
+interface PlannedKernel {
+  readonly source: KernelSourceRef;
+  /** Declared size, for the progress bar. Only catalogs know it. */
+  readonly size?: number;
+  readonly label?: string;
+}
 
-  if (opts?.size && opts.size > 0) {
-    const buffer = await fetchWithProgress(url, (loaded) => opts.onProgress?.(loaded));
-    const filename = filenameFromUrl(url).replace(/\.gz$/, '');
-    await s.furnish({ type: 'buffer', data: buffer, filename });
-  } else {
-    await s.furnish({ type: 'url', url });
-  }
-  furnishedKernels.add(url);
-  trackKernelForWorker(url);
+/**
+ * The URL a kernel is fetched under, and the source it is remembered as.
+ *
+ * Absolute, because a catalog's own `spiceKernels` are resolved against the
+ * catalog URL while a meta-kernel's are resolved against the `.tm` -- and
+ * because the workers fetch these themselves, with no page to resolve a
+ * relative path against.
+ */
+function absoluteKernelUrl(url: string): string {
+  return new URL(url, location.href).href;
 }
 
 /** Resolve a meta-kernel (.tm) into a list of absolute kernel URLs. */
@@ -323,90 +294,154 @@ async function expandMetaKernel(metaUrl: string): Promise<string[]> {
   return mk.kernels.map(k => new URL(k, metaUrl).href);
 }
 
-/** Furnish every kernel referenced by a resolved catalog graph. */
-async function furnishKernelsFromGraph(graph: ResolvedCatalogGraph): Promise<void> {
-  // Expand any .tm meta-kernels first so we have the complete flat list.
-  const flat: ResolvedKernel[] = [];
+/** A catalog graph's kernels as a flat list, with `.tm` meta-kernels expanded. */
+async function plannedFromGraph(graph: ResolvedCatalogGraph): Promise<PlannedKernel[]> {
+  const flat: PlannedKernel[] = [];
   for (const k of graph.kernels) {
-    if (furnishedKernels.has(k.url)) continue;
     if (k.url.toLowerCase().endsWith('.tm')) {
       try {
         const expanded = await expandMetaKernel(k.url);
-        for (const exp of expanded) flat.push({ url: exp });
+        for (const exp of expanded) flat.push({ source: { url: absoluteKernelUrl(exp) } });
       } catch (err) {
         console.warn(`[Cosmolabe] Failed to expand meta-kernel ${k.url}:`, err);
       }
     } else {
-      flat.push(k);
+      flat.push({ source: { url: absoluteKernelUrl(k.url) }, size: k.size, label: k.label });
     }
   }
+  return flat;
+}
 
-  const small = flat.filter(k => !isLargeKernel(k));
-  const large = flat.filter(k => isLargeKernel(k));
+/**
+ * Build the SPICE instance a scene runs on, furnished with exactly its kernels.
+ *
+ * This is #70's whole answer. The previous instance is dropped rather than
+ * edited: no unloading, so nothing depends on what CSPICE does with a kernel
+ * furnished twice or an `unload` that fails or two files staged under one name.
+ * A scene's geometry is resolved against that scene's kernels because the
+ * instance it runs on has never held anything else, and the memory the last
+ * scene's kernels occupied goes with the instance.
+ *
+ * The old scene is torn down first, in full -- see `teardownScene`. Two CSPICE
+ * heaps at once is 320 MB before a kernel is read, which is the memory this
+ * issue is about, and it is the difference between a catalog switch working on
+ * a phone and not.
+ *
+ * Callers fetch everything the new scene needs *before* calling this: a catalog
+ * or data file that failed to fetch is not a scene load, and must leave the
+ * scene on screen intact.
+ *
+ * The cost is that switching demos back and forth re-furnishes each time rather
+ * than finding everything already loaded. The browser's HTTP cache covers the
+ * fetch but not the CSPICE load, so this is a real second or two on a large
+ * catalog -- paid for answers that belong to the scene on screen.
+ */
+async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promise<void> {
+  teardownScene();
+  const s = await ensureSpice();
 
-  // Both loops report into one `kernels` fraction, which is one slice of one bar
-  // (see the load-progress notes in viewer-state). Small kernels are furnished
-  // straight from a URL with no byte-level progress, so they are weighed at a
-  // nominal size — enough to keep a catalog of many small kernels from looking
-  // frozen at 0% while it works through them.
-  const sizeOf = (k: ResolvedKernel) => k.size ?? NOMINAL_KERNEL_BYTES;
-  const totalBytes = flat.reduce((s, k) => s + sizeOf(k), 0) || 1;
+  const plan = furnishOrder(
+    userKernelSources.map((source): PlannedKernel => ({ source })),
+    catalogKernels,
+    (k) => kernelName(k.source),
+  );
+
+  // Declared order, not smallest-first: furnish order is kernel precedence, so
+  // the order a catalog names its kernels in is an answer it gets to give.
+  const sizeOf = (k: PlannedKernel) => k.size ?? NOMINAL_KERNEL_BYTES;
+  const totalBytes = plan.reduce((sum, k) => sum + sizeOf(k), 0) || 1;
+  const sizedTotal = plan.reduce((sum, k) => sum + (k.size ?? 0), 0);
   let doneBytes = 0;
+  let sizedLoaded = 0;
 
-  for (let i = 0; i < small.length; i++) {
-    const k = small[i];
+  for (let i = 0; i < plan.length; i++) {
+    const k = plan[i];
+    const name = kernelName(k.source);
     setPhaseProgress('kernels', doneBytes / totalBytes, {
-      label: `Loading ${k.label ?? filenameFromUrl(k.url)}...`,
-      detail: `${i + 1} / ${flat.length} kernels`,
+      label: `Loading ${k.label ?? name}...`,
+      detail: `${i + 1} / ${plan.length} kernels`,
     });
     try {
-      await furnishKernelUrl(k.url);
+      await furnishPlanned(s, k, (loaded) => {
+        setPhaseProgress('kernels', (doneBytes + loaded) / totalBytes, {
+          // Real transferred bytes of the sized set — the nominal weights above
+          // spread the bar but are never shown as if they were measured.
+          detail: `${formatBytes(sizedLoaded + loaded)} / ${formatBytes(sizedTotal)}`,
+        });
+      });
+      furnished.push({ source: k.source, name, coverage: measureCoverage(s, name) });
     } catch (err) {
-      console.warn(`[Cosmolabe] Failed to load ${k.url}:`, err);
+      console.warn(`[Cosmolabe] Failed to load ${name}:`, err);
+      dropUserKernel(k.source);
     }
     doneBytes += sizeOf(k);
-  }
-
-  if (large.length > 0) {
-    const largeTotal = large.reduce((s, k) => s + (k.size ?? 0), 0);
-    let largeLoaded = 0;
-
-    for (let i = 0; i < large.length; i++) {
-      const k = large[i];
-      const progress = `(${i + 1}/${large.length})`;
-      setPhaseProgress('kernels', doneBytes / totalBytes, {
-        label: `${progress} ${k.label ?? filenameFromUrl(k.url)}`,
-      });
-      try {
-        await furnishKernelUrl(k.url, {
-          size: k.size,
-          onProgress: (loaded) => {
-            setPhaseProgress('kernels', (doneBytes + loaded) / totalBytes, {
-              // Real transferred bytes of the large set — the nominal sizes above
-              // weigh the bar but are never shown as if they were measured.
-              detail: `${formatBytes(largeLoaded + loaded)} / ${formatBytes(largeTotal)}`,
-            });
-          },
-        });
-      } catch (err) {
-        console.warn(`[Cosmolabe] Failed to load ${k.url}:`, err);
-      }
-      doneBytes += sizeOf(k);
-      largeLoaded += k.size ?? 0;
-    }
+    sizedLoaded += k.size ?? 0;
   }
 
   setPhaseProgress('kernels', 1, { label: 'Building scene...', detail: '' });
-  setKernelCount(spice?.totalLoaded() ?? 0);
+  setKernelCount(s.totalLoaded());
 }
 
-function filenameFromUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.pathname.split('/').pop() || url;
-  } catch {
-    return url.split('/').pop() ?? url;
+/**
+ * Let go of the scene that is up: its workers, its renderer, its universe, and
+ * the SPICE instance all three were reading.
+ *
+ * In one place and in this order, because the point is that none of it outlives
+ * the moment. A CSPICE instance is a ~160 MB heap before it holds a kernel, so
+ * a switch that builds the new one while the old renderer still references the
+ * old one pays for both at once -- exactly the peak #70 set out to remove.
+ *
+ * `unbindRenderer` matters for the same reason: viewer-state holds the renderer
+ * and universe for the UI, and a binding left in place is a reference the
+ * collector honours.
+ */
+function teardownScene(): void {
+  cacheWorker?.dispose();
+  cacheWorker = null;
+  geometryWorker?.dispose();
+  geometryWorker = null;
+
+  unbindRenderer();
+  renderer?.dispose();
+  renderer = null;
+  universe?.dispose();
+  universe = null;
+
+  spice = null;
+  furnished = [];
+}
+
+/** Furnish one planned kernel, reading its bytes from wherever they come from. */
+async function furnishPlanned(
+  s: HeritageSpice,
+  k: PlannedKernel,
+  onProgress: (loaded: number) => void,
+): Promise<void> {
+  const { source } = k;
+  if ('file' in source) {
+    await s.furnish({ type: 'buffer', data: await source.file.arrayBuffer(), filename: source.file.name });
+    return;
   }
+  if (k.size && k.size > 0) {
+    // Fetched here rather than inside `furnish` only to report byte progress,
+    // which is worth it for the files big enough to be declared.
+    const buffer = await fetchWithProgress(source.url, (loaded) => onProgress(loaded));
+    await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
+    return;
+  }
+  await s.furnish({ type: 'url', url: source.url });
+}
+
+/**
+ * Forget a user kernel that could not be furnished.
+ *
+ * A dropped file whose handle has gone stale -- the user moved or deleted it --
+ * cannot come back, and keeping it would mean the same warning on every scene
+ * load for the rest of the session.
+ */
+function dropUserKernel(source: KernelSourceRef): void {
+  const at = userKernelSources.indexOf(source);
+  if (at >= 0) userKernelSources.splice(at, 1);
 }
 
 // ── File handling ──
@@ -529,6 +564,44 @@ function resolveCatalogOrder(
 
 // ── Scene initialization ──
 
+/**
+ * Bring up the workers for the kernels now furnished.
+ *
+ * Skipped in TEST_MODE: with no worker, long-duration spacecraft trajectory
+ * caches build SYNCHRONOUSLY during scene init (UniverseRenderer.buildCacheSync)
+ * instead of popping in async a second later — so a capture is deterministic and
+ * includes every trail (e.g. Cassini's), with no timing/settle race.
+ */
+function startSceneWorkers(): void {
+  cacheWorker?.dispose();
+  cacheWorker = null;
+  geometryWorker?.dispose();
+  geometryWorker = null;
+  if (TEST_MODE || workerKernels(furnished).length === 0) return;
+
+  try {
+    cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
+    const worker = cacheWorker;
+    void currentWorkerKernels()
+      .then((sources) => worker.loadKernels(sources))
+      .catch((err) => {
+        console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
+      });
+    // Lazy: nothing is spawned until a search actually runs, and the same
+    // kernel list is replayed whenever the geometry worker is rebuilt after a
+    // cancellation that had to terminate it.
+    geometryWorker = new GeometrySearchWorker({
+      createWorker: () => new SpiceCacheRelayWorker(),
+      kernels: currentWorkerKernels,
+      idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
+    });
+  } catch (err) {
+    console.warn('[Cosmolabe] Failed to create cache worker:', err);
+    cacheWorker = null;
+    geometryWorker = null;
+  }
+}
+
 function initScene(
   canvas: HTMLCanvasElement,
   catalogs: Record<string, unknown>[],
@@ -536,10 +609,8 @@ function initScene(
   binaryFiles?: Map<string, ArrayBuffer>,
   modelFiles?: Map<string, string>,
 ) {
-  // Clean up previous
-  renderer?.dispose();
-  universe?.dispose();
-
+  // Nothing to clean up here: the scene that was up was torn down before its
+  // SPICE instance was replaced (`teardownScene`), which is the only way in.
   const findInMap = <T>(map: Map<string, T>, source: string): T | undefined => {
     if (map.has(source)) return map.get(source);
     const basename = source.split('/').pop()!;
@@ -592,38 +663,7 @@ function initScene(
     }
   }
 
-  // Create cache worker. Skipped in TEST_MODE: with no worker, long-duration
-  // spacecraft trajectory caches build SYNCHRONOUSLY during scene init
-  // (UniverseRenderer.buildCacheSync) instead of popping in async a second
-  // later — so a capture is deterministic and includes every trail (e.g.
-  // Cassini's), with no timing/settle race.
-  cacheWorker?.dispose();
-  cacheWorker = null;
-  geometryWorker?.dispose();
-  geometryWorker = null;
-  if (!TEST_MODE && workerKernelSources.length > 0) {
-    try {
-      cacheWorker = new SpiceCacheWorker(new SpiceCacheRelayWorker());
-      const worker = cacheWorker;
-      void currentWorkerKernels()
-        .then((sources) => worker.loadKernels(sources))
-        .catch((err) => {
-          console.warn('[Cosmolabe] Cache worker kernel loading failed:', err);
-        });
-      // Lazy: nothing is spawned until a search actually runs, and the same
-      // kernel list is replayed whenever the geometry worker is rebuilt after a
-      // cancellation that had to terminate it.
-      geometryWorker = new GeometrySearchWorker({
-        createWorker: () => new SpiceCacheRelayWorker(),
-        kernels: currentWorkerKernels,
-        idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
-      });
-    } catch (err) {
-      console.warn('[Cosmolabe] Failed to create cache worker:', err);
-      cacheWorker = null;
-      geometryWorker = null;
-    }
-  }
+  startSceneWorkers();
 
   // Visual-regression test mode (`?test=1`): strip GPU-variant noise so
   // screenshots are stable across machines — no antialias, no bloom, no
@@ -876,14 +916,23 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
     });
 
-    // SPICE-free path: if the catalog graph declares no kernels, skip SPICE init
-    // entirely. The CatalogLoader falls through to Keplerian/analytical trajectories.
-    if (graph.kernels.length > 0) {
-      await ensureSpice();
-      await furnishKernelsFromGraph(graph);
+    // Every fetch the new scene needs happens before the old one is touched:
+    // the meta-kernel expansion and the trajectory data files are both network,
+    // and a network failure should leave the scene on screen intact rather than
+    // tear it down for a scene that then cannot be built.
+    const catalogKernels = await plannedFromGraph(graph);
+    const dataFiles = await fetchCatalogDataFiles(graph);
+
+    // A catalog replaces the scene, so the scene that is up goes either way.
+    // Only the SPICE half is conditional: a catalog with no kernels, no kernels
+    // carried over from a drop, and no instance already standing needs no SPICE
+    // at all — CatalogLoader falls through to Keplerian/analytical trajectories.
+    if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice) {
+      await buildSceneSpice(catalogKernels);
+    } else {
+      teardownScene();
     }
 
-    const dataFiles = await fetchCatalogDataFiles(graph);
     // Each catalog's asset paths are relative to that catalog, not to this
     // page; the renderer only sees JSON, so pin them down while the URL is in
     // hand (catalog-assets.ts).
@@ -970,13 +1019,122 @@ function collectDataRefs(
   for (const value of Object.values(obj)) collectDataRefs(value, baseUrl, out);
 }
 
+/**
+ * Furnish kernels the user dropped onto the scene that is already up.
+ *
+ * Into the live instance, because there is no new scene to build -- and into
+ * the workers with it. A kernel the main thread has and the cache worker does
+ * not is the drift #68 closed: the same search would answer differently
+ * depending on which path ran it. The cache worker is appended to rather than
+ * rebuilt, since it is holding this scene's trajectory caches; the geometry
+ * worker is lazy and holds nothing, so it is simply replaced and picks up the
+ * new list on its next search.
+ *
+ * A name the instance already holds is skipped rather than furnished over: the
+ * wasm build stages every kernel at `/kernels/<name>`, so furnishing a second
+ * kernel under a name in use overwrites the bytes of a file CSPICE still has
+ * open, and what the instance answers afterwards stops being describable. It is
+ * still remembered, so the next scene load -- which builds its plan with the
+ * last of a repeated name -- puts it in, unless that scene claims the name too.
+ */
+async function furnishUserKernels(files: File[]): Promise<void> {
+  const s = await ensureSpice();
+  const added: FurnishedKernel[] = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    setPhaseProgress('kernels', (i + 1) / files.length, {
+      label: `Furnishing ${file.name}...`,
+      detail: `${i + 1} / ${files.length} kernels`,
+    });
+    const source: KernelSourceRef = { file };
+    if (furnished.some((k) => k.name === file.name)) {
+      console.warn(`[Cosmolabe] ${file.name} is already furnished; keeping the one the scene loaded`);
+      userKernelSources.push(source);
+      continue;
+    }
+    try {
+      await s.furnish({ type: 'buffer', data: await file.arrayBuffer(), filename: file.name });
+    } catch (err) {
+      console.warn(`[Cosmolabe] Failed to furnish ${file.name}:`, err);
+      continue;
+    }
+    const entry: FurnishedKernel = { source, name: file.name, coverage: measureCoverage(s, file.name) };
+    furnished.push(entry);
+    added.push(entry);
+    userKernelSources.push(source);
+  }
+
+  setKernelCount(s.totalLoaded());
+  await syncWorkersWithDroppedKernels(added);
+}
+
+/**
+ * Give the running workers the kernels just dropped in, in the order the main
+ * thread furnished them.
+ *
+ * Nothing to do when no worker is up: the next scene load builds them from the
+ * whole list. The append is awaited so a caller that goes on to build a
+ * trajectory is not racing a half-furnished worker.
+ */
+async function syncWorkersWithDroppedKernels(added: readonly FurnishedKernel[]): Promise<void> {
+  const forWorkers = workerKernels(added);
+  if (forWorkers.length === 0) return;
+
+  // Rebuilt rather than appended to: it holds nothing between searches, and its
+  // next one re-reads `currentWorkerKernels`, which now includes these.
+  geometryWorker?.dispose();
+  geometryWorker = null;
+  if (!TEST_MODE && cacheWorker) {
+    geometryWorker = new GeometrySearchWorker({
+      createWorker: () => new SpiceCacheRelayWorker(),
+      kernels: currentWorkerKernels,
+      idleTimeoutMs: GEOMETRY_WORKER_IDLE_MS,
+    });
+  }
+
+  if (!cacheWorker) return;
+  try {
+    await cacheWorker.loadKernels(
+      await Promise.all(
+        forWorkers.map(async ({ source }) =>
+          'url' in source
+            ? source.url
+            : { name: source.file.name, data: await source.file.arrayBuffer() },
+        ),
+      ),
+    );
+  } catch (err) {
+    console.warn('[Cosmolabe] Cache worker did not take the dropped kernels:', err);
+  }
+}
+
 /** Handle dropped files */
 export async function handleDrop(canvas: HTMLCanvasElement, dataTransfer: DataTransfer) {
   const files = await collectDroppedFiles(dataTransfer);
   await handleFileList(canvas, files);
 }
 
-/** Handle file input selection */
+/**
+ * Handle file input selection.
+ *
+ * Whose the dropped kernels are is decided here, and it is decided by whether
+ * the same drop brought a catalog.
+ *
+ * A drop carrying a catalog is a scene load like any other: the scene that is
+ * up is torn down, and this drop's kernels go into the SPICE instance the new
+ * scene is built with. They belong to that scene and go with it, so they are
+ * not remembered once the next scene replaces it.
+ *
+ * A drop with no catalog is the user adding kernels: onto an empty viewer, or
+ * onto a scene already up (a CK for an attitude the catalog omitted, a newer
+ * SPK). Those are furnished into the instance that is running, remembered in
+ * `userKernelSources`, and furnished again into every instance built after --
+ * ahead of the scene's own kernels, which can override them by name. A file
+ * someone dragged in by hand disappearing on a catalog switch they made for
+ * other reasons is not what they asked for. Clearing them means reloading the
+ * page.
+ */
 export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   // Dropped kernels are already on disk — no download to weigh — so the whole
   // bar belongs to the asset phase that follows.
@@ -988,24 +1146,33 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
     return;
   }
 
-  if (kernelFiles.length > 0) {
-    const s = await ensureSpice();
-    for (let i = 0; i < kernelFiles.length; i++) {
-      const file = kernelFiles[i];
-      setPhaseProgress('kernels', (i + 1) / kernelFiles.length, {
-        label: `Furnishing ${file.name}...`,
-        detail: `${i + 1} / ${kernelFiles.length} kernels`,
-      });
-      const buffer = await file.arrayBuffer();
-      await s.furnish({ type: 'buffer', data: buffer, filename: file.name });
-      trackKernelFileForWorker(file);
+  // Resolved before anything is furnished, because it is what says whether this
+  // drop is a scene load, and the two cases furnish into different instances.
+  const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
+
+  if (catalogs.length > 0) {
+    // A drop carrying a catalog is a scene load like any other: the scene that
+    // is up is torn down, and this drop's kernels go into the fresh instance
+    // the new scene gets. They are that scene's, not the user's, so they are
+    // not remembered past it.
+    const droppedKernels = kernelFiles.map((file) => ({ source: { file } }));
+    if (droppedKernels.length > 0 || userKernelSources.length > 0 || spice) {
+      await buildSceneSpice(droppedKernels);
+    } else {
+      teardownScene();
     }
-    setKernelCount(s.totalLoaded());
+  } else if (kernelFiles.length > 0) {
+    // A drop with no catalog is the user adding kernels: onto an empty viewer,
+    // or onto a scene already up (a CK for an attitude the catalog omitted, a
+    // newer SPK). Those are remembered and re-furnished into every instance
+    // built afterwards, because a file someone dragged in by hand disappearing
+    // on a catalog switch they made for other reasons is not what they asked
+    // for. Clearing them means reloading the page.
+    await furnishUserKernels(kernelFiles);
   }
 
   // Only `initScene` opens the asset phase that closes the bar, so a drop that
   // furnishes kernels and nothing else has to close it here.
-  const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
   if (catalogs.length === 0) {
     endLoad();
     return;
