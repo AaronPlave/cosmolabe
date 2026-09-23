@@ -16,7 +16,7 @@
         "ascendingNode": 312.993,
         "meridianAngle": 302.695
       },
-      "geometry": { "type": "Globe", "radius": 1188, "baseMap": "textures/pluto.jpg", "atmosphere": "Pluto" },
+      "geometry": { "type": "Globe", "radius": 1188, "baseMap": "../textures/pluto.jpg", "atmosphere": "Pluto" },
       "label": { "color": [0.85, 0.75, 0.65] },
       "items": [
         {
@@ -33,7 +33,7 @@
             "meanAnomaly": 0,
             "epoch": "2000-01-01T12:00:00Z"
           },
-          "geometry": { "type": "Globe", "radius": 606, "baseMap": "textures/charon.jpg" },
+          "geometry": { "type": "Globe", "radius": 606, "baseMap": "../textures/charon.jpg" },
           "label": { "color": [0.7, 0.65, 0.6] }
         }
       ]

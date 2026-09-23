@@ -16,7 +16,7 @@
         "ascendingNode": 0.0,
         "meridianAngle": 280.147
       },
-      "geometry": { "type": "Globe", "radius": 6378.1, "baseMap": "textures/earth-5k.jpg", "atmosphere": "Earth" },
+      "geometry": { "type": "Globe", "radius": 6378.1, "baseMap": "../textures/earth-5k.jpg", "atmosphere": "Earth" },
       "label": { "color": [0.4, 0.6, 1.0] },
       "items": [
         {
@@ -28,9 +28,9 @@
           "geometry": {
             "type": "Globe",
             "radius": 1737.4,
-            "baseMap": "textures/moon-4k.jpg",
-            "normalMap": "textures/moon-normal-16k.jpg",
-            "displacementMap": "textures/moon-displacement-2k.jpg",
+            "baseMap": "../textures/moon-4k.jpg",
+            "normalMap": "../textures/moon-normal-16k.jpg",
+            "displacementMap": "../textures/moon-displacement-2k.jpg",
             "displacementScale": 20,
             "displacementBias": -9
           },

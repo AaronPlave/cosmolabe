@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Body } from '../Body.js';
 import { Universe } from '../Universe.js';
-import { FixedPointTrajectory } from '../trajectories/FixedPoint.js';
 import type { Trajectory, CartesianState } from '../trajectories/Trajectory.js';
 import type { RotationModel, Quaternion } from '../rotations/RotationModel.js';
 

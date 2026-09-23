@@ -1,6 +1,6 @@
 <script lang="ts">
   import { vs, selectBody, getRenderer } from '../lib/viewer-state.svelte';
-  import type { InfoRow, InfoSectionResult } from '@cosmolabe/three';
+  import type { InfoRow } from '@cosmolabe/three';
   import { Navigation } from 'lucide-svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
@@ -278,6 +278,7 @@
             {/each}
           </div>
         {:else if section.html}
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -- plugin HTML is a documented escape hatch (PluginUI.ts), and plugins already run with full page access -->
           <div class="text-text-primary">{@html section.html}</div>
         {/if}
       </div>

@@ -308,4 +308,76 @@ describe('SpiceCacheWorker geometry searches', () => {
     fake.reply({ type: 'geometryResult', id: sent.id, value: [] });
     await expect(pending).resolves.toEqual([]);
   });
+
+  /**
+   * A kernel dropped onto a scene that is already up.
+   *
+   * The host furnishes it into its own SPICE and hands it here; the worker must
+   * end up with the same kernels in the same order (#68), without being rebuilt
+   * -- it is holding the scene's trajectory caches.
+   */
+  describe('kernels added after the scene loaded', () => {
+    /** Answers each `loadKernel` as it arrives, as the real worker does. */
+    const autoLoad = (fake: FakeWorker) => {
+      const seen = new Set<unknown>();
+      return async () => {
+        for (let i = 0; i < 10; i++) {
+          await settle();
+          for (const message of fake.sent) {
+            if (message.type !== 'loadKernel' || seen.has(message.id)) continue;
+            seen.add(message.id);
+            fake.reply({ type: 'kernelLoaded', id: message.id });
+          }
+        }
+      };
+    };
+
+    const loadedNames = (fake: FakeWorker) =>
+      fake.sent.filter((m) => m.type === 'loadKernel').map((m) => m.url ?? m.name);
+
+    it('appends to what the scene furnished, in order', async () => {
+      const { fake, worker } = client();
+      const drain = autoLoad(fake);
+
+      const scene = worker.loadKernels(['naif0012.tls', 'pck00011.tpc', 'de440s.bsp']);
+      await drain();
+      await scene;
+
+      const dropped = worker.loadKernels([{ name: 'mine.bsp', data: new ArrayBuffer(8) }]);
+      await drain();
+      await dropped;
+
+      expect(loadedNames(fake)).toEqual([
+        'naif0012.tls', 'pck00011.tpc', 'de440s.bsp', 'mine.bsp',
+      ]);
+    });
+
+    it('does not let a search run between the two loads', async () => {
+      // The append is chained onto the load in flight, so a cache build or
+      // search dispatched meanwhile waits for both -- not just the later one.
+      const { fake, worker } = client();
+      const scene = worker.loadKernels(['naif0012.tls', 'de440s.bsp']);
+      const dropped = worker.loadKernels([{ name: 'mine.bsp', data: new ArrayBuffer(8) }]);
+
+      const search = worker.geometrySearch();
+      const pending = search.provider.gfdist('MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, [
+        { start: 0, end: 1 },
+      ]);
+      await settle();
+
+      // Only the first kernel has been dispatched; nothing may search yet.
+      expect(fake.last('geometry')).toBeUndefined();
+
+      await autoLoad(fake)();
+      await scene;
+      await dropped;
+      await settle();
+
+      expect(loadedNames(fake)).toEqual(['naif0012.tls', 'de440s.bsp', 'mine.bsp']);
+      const sent = fake.last('geometry')!;
+      expect(sent.fn).toBe('gfdist');
+      fake.reply({ type: 'geometryResult', id: sent.id, value: [] });
+      await expect(pending).resolves.toEqual([]);
+    });
+  });
 });

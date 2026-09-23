@@ -16,7 +16,6 @@
 
   // Effective "from" body — follows tracking unless overridden
   let fromBodyName = $derived(fromOverride ?? vs.trackedBodyName);
-  let isFromTracked = $derived(fromOverride == null || fromOverride === vs.trackedBodyName);
 
   const NUM_SAMPLES = 120;
   const ZOOM_LEVELS = [1, 2, 4, 10, 20, 50, 100, 200, 500, 1000, 5000, 10000, 50000, 100000];
@@ -126,9 +125,6 @@
         try {
           const sunPos = universe.absolutePositionOf('Sun', et);
           if (!isNaN(sunPos[0])) {
-            // Sun→Target vector
-            const stx = toPos[0] - sunPos[0], sty = toPos[1] - sunPos[1], stz = toPos[2] - sunPos[2];
-            // Observer→Target vector (from observer to target, same direction as dx,dy,dz but from target's perspective we want target→observer)
             // Phase angle = angle at target between sun direction and observer direction
             // So: vectors FROM target TO sun, and FROM target TO observer
             const tsX = sunPos[0] - toPos[0], tsY = sunPos[1] - toPos[1], tsZ = sunPos[2] - toPos[2];
@@ -140,7 +136,7 @@
               phaseAngleDeg = Math.acos(Math.max(-1, Math.min(1, dot / (magTS * magTO)))) * (180 / Math.PI);
             }
           }
-        } catch {}
+        } catch { /* phase angle is optional; the Sun may not be in the catalog */ }
 
         points.push({ et, distKm, relSpeed, rangeRate, phaseAngleDeg });
       } catch {
@@ -204,7 +200,7 @@
           phaseAngleDeg = Math.acos(Math.max(-1, Math.min(1, dot / (magTS * magTO)))) * (180 / Math.PI);
         }
       }
-    } catch {}
+    } catch { /* phase angle is optional; the Sun may not be in the catalog */ }
 
     return { distKm, relSpeed, rangeRate, phaseAngleDeg };
   });
@@ -460,7 +456,6 @@
 
   // Hover state — shared across all charts
   let hoverFrac = $state<number | null>(null);
-  const CA_AUTO_THRESHOLD = 50;
   let showApproaches = $state(true);
   let showApproachTable = $state(false);
   let approachSort = $state<'date' | 'distance'>('distance');

@@ -29,7 +29,6 @@ import {
   type ScriptEventName,
   type ScriptImage,
   type ScriptTime,
-  type ScriptVec3,
   type ViewerControl,
   type ViewerSnapshotState,
 } from '@cosmolabe/control';

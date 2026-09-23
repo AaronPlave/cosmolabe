@@ -81,6 +81,10 @@ jobs:
       - name: Build viewer
         env:
           VITE_BASE: ${{ steps.pages.outputs.base_path }}
+          # The public deployment offers the repository's examples through the
+          # same catalog-source mechanism any deployment uses (issue #93). The
+          # viewer lists nothing unless told to. docs/catalog-sources.md.
+          VITE_CATALOG_SOURCES: '[{"id":"examples","name":"Examples","indexUrl":"index.json"}]'
         working-directory: apps/viewer
         run: npx vite build
 
