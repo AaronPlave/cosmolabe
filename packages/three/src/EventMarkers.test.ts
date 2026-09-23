@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { Body } from '@cosmolabe/core';
 import { EventMarkers, eventAnchorOpacityAtSphere, pickEventMarkerGroups, type EventMarker } from './EventMarkers.js';
 import { TrajectoryLine } from './TrajectoryLine.js';
@@ -13,6 +14,8 @@ function marker(overrides: Partial<EventMarker> = {}): EventMarker {
     startEt: 100, endEt: 100, ...overrides,
   };
 }
+
+afterEach(() => vi.restoreAllMocks());
 
 describe('EventMarkers', () => {
   it('fades a whole glyph across a planet limb and hides it well behind the body', () => {
@@ -222,25 +225,153 @@ describe('EventMarkers', () => {
     selected.dispose();
   });
 
-  it('previews the same SDF diamond without texture regeneration or semantic-color change', () => {
+  it('carries state as open → softly filled → solid, not by size', () => {
     const group = new EventMarkers(body);
     group.setMarkers([marker({ color: 0x71b896 })]);
     group.update(1, [0, 0, 0], () => [0, 0, 0], [90, 100]);
     const sprite = group.children[0] as THREE.Sprite;
     const material = sprite.material as THREE.SpriteMaterial;
     const uniforms = material.userData.eventGlyphUniforms;
+    const baseScale = sprite.scale.x;
+    const baseStroke = uniforms.eventGlyphStrokeCssPx.value;
     expect(material.map).toBeNull();
     expect(uniforms.eventGlyphFill.value).toBe(0);
-    expect(uniforms.eventGlyphStrokeCssPx.value).toBe(1.6);
     const originalColor = material.color.getHex();
+
     group.setPreview({ id: 'e1', queryId: 'q1' });
-    expect(uniforms.eventGlyphFill.value).toBeGreaterThan(0);
-    expect(uniforms.eventGlyphStrokeCssPx.value).toBeGreaterThan(1.6);
+    expect(uniforms.eventGlyphFill.value).toBeGreaterThan(0.2);
+    expect(uniforms.eventGlyphFill.value).toBeLessThan(0.5);
+    expect(uniforms.eventGlyphStrokeCssPx.value).toBeGreaterThan(baseStroke);
     expect(material.color.getHex()).toBe(originalColor);
-    expect(sprite.scale.x).toBeGreaterThan(0.021);
+    expect(sprite.scale.x / baseScale).toBeGreaterThan(1);
+    expect(sprite.scale.x / baseScale).toBeLessThanOrEqual(1.05);
     group.setPreview(null);
     expect(uniforms.eventGlyphFill.value).toBe(0);
     expect(group.anchorFor('e1', 'q1')?.toArray()).toEqual([0, 0, 0]);
+
+    group.setMarkers([marker({ color: 0x71b896, selected: true })]);
+    const selected = group.children[0] as THREE.Sprite;
+    const selectedUniforms = (selected.material as THREE.SpriteMaterial).userData.eventGlyphUniforms;
+    expect(selectedUniforms.eventGlyphFill.value).toBe(1);
+    expect(selected.scale.x / baseScale).toBeLessThanOrEqual(1.15);
+    group.dispose();
+  });
+
+  it('sizes glyphs in CSS pixels regardless of viewport height or FOV', () => {
+    const pixelHeight = (fov: number, height: number) => {
+      const group = new EventMarkers(body);
+      group.setMarkers([marker()]);
+      const camera = new THREE.PerspectiveCamera(fov, 1, 0.1, 100);
+      group.update(1, [0, 0, 0], () => [0, 0, 0], [90, 100], () => 1, camera, 1, { width: height, height });
+      const scale = (group.children[0] as THREE.Sprite).scale.y;
+      group.dispose();
+      return scale * (height / 2) / Math.tan(THREE.MathUtils.degToRad(fov) / 2);
+    };
+    expect(pixelHeight(45, 900)).toBeCloseTo(15);
+    expect(pixelHeight(70, 500)).toBeCloseTo(15);
+  });
+
+  it('collapses a projected-short interval instead of piling caps on its midpoint', () => {
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.position.z = 100;
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    const viewport = { width: 1000, height: 1000 };
+    const layoutAtSpan = (span: number) => {
+      const group = new EventMarkers(body, { intervalSamples: 5 });
+      group.setMarkers([marker({ temporality: 'interval', startEt: 10, endEt: 20 })]);
+      group.update(1, [0, 0, 0], (_name, et) => [(et - 15) / 10 * span, 0, 0], [10, 20], () => 1, camera, 1, viewport);
+      const sprites = group.children.filter((child): child is THREE.Sprite => child instanceof THREE.Sprite);
+      const result = {
+        layout: group.layoutFor('e1', 'q1'),
+        visible: sprites.map((sprite) => sprite.visible),
+        startAnchor: group.anchorFor('e1', 'q1', 'start')?.x,
+      };
+      group.dispose();
+      return result;
+    };
+    // At z=100 with a 60° FOV, 1 world unit ≈ 8.66 px on a 1000 px viewport.
+    expect(layoutAtSpan(1)).toEqual({ layout: 'point', visible: [true, false, false], startAnchor: 0 });
+    expect(layoutAtSpan(3).layout).toBe('caps');
+    expect(layoutAtSpan(3).visible).toEqual([false, true, true]);
+    expect(layoutAtSpan(20)).toEqual({ layout: 'full', visible: [true, true, true], startAnchor: -10 });
+  });
+
+  it('draws one glyph for coincident ordinary results but always keeps the selected one', () => {
+    const group = new EventMarkers(body);
+    group.setMarkers([
+      marker({ id: 'a', startEt: 95, endEt: 95 }),
+      marker({ id: 'b', startEt: 96, endEt: 96 }),
+      marker({ id: 'c', startEt: 97, endEt: 97, selected: true }),
+      marker({ id: 'far', startEt: 98, endEt: 98 }),
+    ]);
+    // a, b, c project to (nearly) the same pixel; far is well apart.
+    group.update(1, [0, 0, 0], (_name, et) => [et === 98 ? 1 : (et - 95) * 1e-4, 0, 0], [90, 100]);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+    camera.position.z = 10;
+    camera.updateMatrixWorld();
+    const viewport = { width: 1000, height: 1000 };
+    const occupied = new Map<string, Array<[number, number]>>();
+    group.thinCoincidentGlyphs(camera, viewport, occupied, true);
+    group.thinCoincidentGlyphs(camera, viewport, occupied, false);
+    const visible = Object.fromEntries(group.children.map((child) => [child.name.split('_').pop(), child.visible]));
+    expect(visible).toEqual({ a: false, b: false, c: true, far: true });
+    group.dispose();
+  });
+
+  it('grows the selected-span stroke with the playhead in one fixed GPU buffer', () => {
+    const group = new EventMarkers(body, { intervalSamples: 5 });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 10, endEt: 20, selected: true })]);
+    const geometry = group.spanEmphasis.geometry;
+    const buffer = (geometry.attributes.instanceStart as THREE.InterleavedBufferAttribute).data;
+    const resolve = (_name: string, et: number): [number, number, number] => [et, 0, 0];
+    // Selected at the start: only the first sample pair is on the trail.
+    group.update(1, [0, 0, 0], resolve, [0, 12.5]);
+    expect(geometry.instanceCount).toBe(1);
+    // Playback advances; the stroke must follow instead of freezing at the
+    // draw count three.js cached on first render.
+    group.update(1, [0, 0, 0], resolve, [0, 20]);
+    expect(geometry.instanceCount).toBe(4);
+    expect((geometry.attributes.instanceStart as THREE.InterleavedBufferAttribute).data).toBe(buffer);
+    expect(Array.from(buffer.array.slice(18, 24))).toEqual([17.5, 0, 0, 20, 0, 0]);
+    group.update(1, [0, 0, 0], resolve, [30, 40]);
+    expect(group.spanEmphasis.visible).toBe(false);
+    group.dispose();
+  });
+
+  it('retraces the owning trail to its live head instead of the last interval sample', () => {
+    const trail = { positions: new Float32Array(0), times: new Float64Array(0), count: 0 };
+    const setTrail = (times: number[]) => {
+      trail.times = Float64Array.from(times);
+      trail.positions = Float32Array.from(times.flatMap((t) => [t, t * t, 0]));
+      trail.count = times.length;
+    };
+    const group = new EventMarkers(body, { intervalSamples: 5, trail: () => trail });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 10, endEt: 20, selected: true })]);
+    const resolve = (_name: string, et: number): [number, number, number] => [et, et * et, 0];
+    const geometry = group.spanEmphasis.geometry;
+    const points = () => {
+      const g = group.spanEmphasis.geometry;
+      const a = (g.attributes.instanceStart as THREE.InterleavedBufferAttribute).data.array;
+      return Array.from({ length: g.instanceCount + 1 }, (_, i) =>
+        i < g.instanceCount ? a[i * 6] : a[(i - 1) * 6 + 3]);
+    };
+    // Playhead at 14.3: interval samples are 2.5 s apart, so the old stroke
+    // stopped at 12.5. The trail's newest vertex is the live head sample.
+    setTrail([0, 4, 8, 11, 13, 14.3]);
+    group.update(1, [0, 0, 0], resolve, [0, 14.3]);
+    expect(points()[0]).toBeCloseTo(10); // cut exactly at the event start
+    expect(points().slice(1)).toEqual([11, 13, Math.fround(14.3)]);
+    // After the event: cut exactly at its end, not at the next trail vertex.
+    setTrail([8, 11, 13, 19, 23, 30]);
+    group.update(1, [0, 0, 0], resolve, [0, 30]);
+    expect(points()[0]).toBeCloseTo(10);
+    expect(points().at(-1)).toBeCloseTo(20);
+    // A dense trail outgrows the initial buffer; the swapped geometry draws it all.
+    setTrail(Array.from({ length: 2001 }, (_, i) => 10 + i * 0.005));
+    group.update(1, [0, 0, 0], resolve, [0, 20]);
+    expect(group.spanEmphasis.geometry).not.toBe(geometry);
+    expect(group.spanEmphasis.geometry.instanceCount).toBe(2000);
     group.dispose();
   });
 
@@ -258,6 +389,60 @@ describe('EventMarkers', () => {
     expect(shader.vertexShader).toContain('vEventUv = uv');
     group.update(1, [0, 0, 0], () => [0, 0, 0], [90, 100], () => 1, undefined, 2);
     expect(material.userData.eventGlyphUniforms.eventGlyphDpr.value).toBe(2);
+    group.dispose();
+  });
+
+  it('hit-tests glyphs before the span that runs through them', () => {
+    const group = new EventMarkers(body, { intervalSamples: 5 });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 10, endEt: 20 })]);
+    group.update(1, [0, 0, 0], (_name, et) => [et - 15, 0, 0], [10, 20]);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+    camera.position.z = 10;
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    // On the span (distance 0) but ~9 px from the start cap: the cap wins.
+    const point = new THREE.Vector3(-4.5, 0, 0).project(camera);
+    const hit = group.pick(camera, (point.x + 1) * 100, 100, 200, 200);
+    expect(hit?.boundary).toBe('start');
+    expect(hit?.span).toBeUndefined();
+    expect(pickEventMarkerGroups([group], camera, (point.x + 1) * 100, 100, 200, 200)?.boundary).toBe('start');
+    group.dispose();
+  });
+
+  it('thickens the hovered span in its event color and eases it in and out', () => {
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const group = new EventMarkers(body, { intervalSamples: 5 });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 10, endEt: 20, color: 0x4fd1c5 })]);
+    const resolve = (_name: string, et: number): [number, number, number] => [et, 0, 0];
+    const frame = (ms: number) => { now += ms; group.update(1, [0, 0, 0], resolve, [0, 20]); };
+    const material = group.spanPreview.material as LineMaterial;
+    frame(0);
+    expect(group.spanPreview.visible).toBe(false);
+    group.setPreview({ id: 'e1', queryId: 'q1' });
+    frame(16);
+    expect(group.spanPreview.visible).toBe(true);
+    expect(group.spanPreview.geometry.instanceCount).toBe(4);
+    expect(material.color.getHex()).toBe(0x4fd1c5);
+    expect(material.opacity).toBeGreaterThan(0);
+    expect(material.opacity).toBeLessThan(0.3);
+    frame(200);
+    expect(material.opacity).toBeCloseTo(0.8);
+    // Hover ends: the stroke keeps tracing the span while it fades.
+    group.setPreview(null);
+    frame(60);
+    expect(group.spanPreview.visible).toBe(true);
+    expect(material.opacity).toBeCloseTo(0.4);
+    frame(70);
+    expect(material.opacity).toBe(0);
+    frame(16);
+    expect(group.spanPreview.visible).toBe(false);
+    // Selecting it hands over to the gold stroke; no second stroke on top.
+    group.setMarkers([marker({ temporality: 'interval', startEt: 10, endEt: 20, selected: true })]);
+    group.setPreview({ id: 'e1', queryId: 'q1' });
+    frame(16);
+    expect(group.spanEmphasis.visible).toBe(true);
+    expect(group.spanPreview.visible).toBe(false);
     group.dispose();
   });
 
@@ -304,6 +489,47 @@ describe('trajectory-line event placement', () => {
     expect(line.trailAlphaAt(50, 100)).toBe(0.5);
     expect(line.trailAlphaAt(100, 100)).toBe(1);
     expect(line.trailAlphaAt(101, 100)).toBe(0);
+    line.dispose();
+  });
+
+  it('eases hover emphasis instead of switching it in one frame', () => {
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const line = new TrajectoryLine(
+      { name: 'Cassini', labelColor: [1, 1, 1], trajectory: { startTime: 0, endTime: 200 } } as Body,
+      { trailDuration: 10, numKeySamples: 5 },
+    );
+    const trail = line.children.find((child): child is THREE.Line => child instanceof THREE.Line)!;
+    const opacity = () => (trail.material as THREE.LineBasicMaterial).opacity;
+    const resolve = (_name: string, et: number): [number, number, number] => [et, 0, 0];
+    line.update(10, 1, resolve);
+    const rest = opacity();
+    line.setEmphasis('highlight');
+    now += 60;
+    line.update(10, 1, resolve);
+    const halfway = opacity();
+    now += 100;
+    line.update(10, 1, resolve);
+    const lit = opacity();
+    expect(halfway).toBeGreaterThan(rest);
+    expect(halfway).toBeLessThan(lit);
+    expect(halfway).toBeCloseTo((rest + lit) / 2);
+    line.dispose();
+  });
+
+  it('reports drawn vertex epochs ending at the live head sample', () => {
+    const line = new TrajectoryLine(
+      { name: 'Cassini', labelColor: [1, 1, 1], trajectory: { startTime: 0, endTime: 200 } } as Body,
+      { trailDuration: 100, numKeySamples: 5, fadeFraction: 0 },
+    );
+    const resolve = (_name: string, et: number): [number, number, number] => [et, 0, 0];
+    line.update(100, 1, resolve);
+    line.update(137.25, 1, resolve); // within the resample throttle: only the tail moves
+    const { positions, times, count } = line.drawnTrail();
+    expect(times[count - 1]).toBe(137.25);
+    expect(positions[(count - 1) * 3]).toBe(137.25);
+    for (let i = 1; i < count; i++) expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
+    for (let i = 0; i < count; i++) expect(positions[i * 3]).toBeCloseTo(times[i], 3);
     line.dispose();
   });
 

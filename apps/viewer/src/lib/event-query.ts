@@ -208,6 +208,105 @@ export function eventSummary(event: GeometryEvent): string {
   return event.label;
 }
 
+/** Which feature of an event a scene callout annotates. */
+export interface EventCalloutOptions {
+  /** An interval cap, rather than the event as a whole. */
+  boundary?: 'start' | 'end';
+  /** Selected callouts may carry one extra context line. */
+  selected?: boolean;
+  /** `YYYY-MM-DD HH:MM:SS UTC` for an ET; injected so this stays pure. */
+  utc: (et: number) => string;
+}
+
+const STATE_TITLE: Record<string, string> = { full: 'Full', partial: 'Partial', annular: 'Annular' };
+
+/**
+ * The noun phrase a callout leads with — what happened, and to which body.
+ * The observer is usually implied by the active search, so it is left to the
+ * selected callout's context line.
+ */
+export function eventCalloutTitle(event: GeometryEvent): string {
+  const { observer, target, back } = event.bodies;
+  switch (event.kind) {
+    case 'closest-approach':
+      return target ? `Closest approach · ${target}` : 'Closest approach';
+    case 'occultation': {
+      const phenomenon = back?.toUpperCase() === 'SUN' ? 'eclipse' : 'occultation';
+      const state = event.state ? STATE_TITLE[event.state] ?? event.state : '';
+      const title = state ? `${state} ${phenomenon}` : phenomenon;
+      return title.charAt(0).toUpperCase() + title.slice(1);
+    }
+    case 'distance-range': {
+      // The kind's label is "<target> <relation> <distance> of <observer>";
+      // lift the relation phrase out rather than re-deriving the threshold.
+      const prefix = `${target} `;
+      const suffix = ` of ${observer}`;
+      if (target && observer && event.label.startsWith(prefix) && event.label.endsWith(suffix)) {
+        const relation = event.label.slice(prefix.length, event.label.length - suffix.length);
+        return `${relation.charAt(0).toUpperCase()}${relation.slice(1)} · ${target}`;
+      }
+      return event.label;
+    }
+    default:
+      return event.label;
+  }
+}
+
+/**
+ * Callout copy as lines: a short title, then at most two structured detail
+ * lines — an instrument annotation, not a sentence. Detail beyond this lives
+ * in the Event Finder panel.
+ *
+ *   Closest approach · Europa          Full eclipse begins
+ *   303.3K km · 2030-10-29 15:28 UTC   2031-05-27 12:57:36 UTC
+ */
+export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOptions): string[] {
+  const title = eventCalloutTitle(event);
+  const { front, back } = event.bodies;
+  // Instants read to the minute (the row has the second); interval
+  // boundaries keep seconds because short spans are defined by them.
+  const minute = (et: number) => options.utc(et).replace(/:\d\d UTC$/, ' UTC');
+
+  if (options.boundary && isIntervalEvent(event)) {
+    const et = options.boundary === 'start' ? eventStart(event) : eventEnd(event);
+    return [`${title} ${options.boundary === 'start' ? 'begins' : 'ends'}`, options.utc(et)];
+  }
+
+  const headline = headlineMetric(event);
+  // The marker already sits on the observer's trajectory, so naming the
+  // observer again is noise; hover stays two lines, and selection adds a
+  // third only when it says something the scene does not.
+  if (!isIntervalEvent(event)) {
+    return [title, headline ? `${formatMetric(headline)} · ${minute(eventStart(event))}` : minute(eventStart(event))];
+  }
+
+  const duration = `Duration ${formatSeconds(eventDuration(event))}`;
+  const lines = [title, headline ? `${headline.label} ${formatMetric(headline)} · ${duration}` : duration];
+  if (options.selected) {
+    if (event.kind === 'occultation' && front && back) lines.push(`${front} occults ${back}`);
+    else lines.push(utcSpan(eventStart(event), eventEnd(event), options.utc));
+  }
+  return lines;
+}
+
+/**
+ * "2026-05-13 04:00 → 05-18 08:00 UTC": the end drops whatever it shares with
+ * the start. Spans under ten minutes keep seconds.
+ */
+function utcSpan(start: number, end: number, utc: (et: number) => string): string {
+  const seconds = end - start < 600;
+  const trim = (text: string) => {
+    const bare = text.replace(/ UTC$/, '');
+    return seconds ? bare : bare.replace(/:\d\d$/, '');
+  };
+  const a = trim(utc(start));
+  let b = trim(utc(end));
+  const [aDate, bDate] = [a.slice(0, 10), b.slice(0, 10)];
+  if (aDate === bDate) b = b.slice(11);
+  else if (aDate.slice(0, 4) === bDate.slice(0, 4)) b = b.slice(5);
+  return `${a} → ${b} UTC`;
+}
+
 /** How a results list is ordered. */
 export type EventSortMode = 'time' | 'metric';
 

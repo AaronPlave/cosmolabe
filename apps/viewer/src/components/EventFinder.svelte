@@ -44,6 +44,9 @@
   let form = $derived(ef.form);
   /** Display order is a view concern: the search's own order is chronological. */
   let shownEvents = $derived(sortEvents(ef.events, ef.sort));
+  let mixedTemporality = $derived(
+    ef.events.some(isIntervalEvent) && ef.events.some((event) => !isIntervalEvent(event)),
+  );
   let metricSortLabel = $derived(sortMetricLabel(ef.events));
   let unfilledRoles = $derived(form ? missingRoles(kind, form) : []);
   let configured = $derived(currentConfiguredQuery());
@@ -459,14 +462,15 @@
                    Say which quantity it is. -->
               <span class="flex items-center gap-1.5">
                 {#if atPlayhead}<span class="ui-meta event-now">at playhead</span>{/if}
-                <span
-                  class="ui-meta"
-                  title={isIntervalEvent(event)
-                    ? 'How long this event lasted, start to end'
-                    : 'This event is a single instant, not a span'}
-                >
-                  {isIntervalEvent(event) ? `lasts ${formatSeconds(eventDuration(event))}` : 'instant'}
-                </span>
+                {#if isIntervalEvent(event)}
+                  <span class="ui-meta" title="How long this event lasted, start to end">
+                    lasts {formatSeconds(eventDuration(event))}
+                  </span>
+                {:else if mixedTemporality}
+                  <!-- Only worth saying when the list mixes instants and
+                       spans; otherwise the legend already says it. -->
+                  <span class="ui-meta" title="This event is a single instant, not a span">instant</span>
+                {/if}
               </span>
             </div>
             {#if headline}
@@ -574,7 +578,7 @@
     border: 1px solid transparent;
   }
   .configured-query.active {
-    border-color: var(--color-chrome-active-border);
+    border-color: var(--color-border-strong);
     background: var(--color-chrome-active-bg);
   }
 
@@ -591,16 +595,19 @@
   .event-result:hover {
     background: var(--color-hover);
   }
+  /* Quieter than a full gold frame, matching the in-scene treatment: a gold
+     keyline carries the selection, the frame stays neutral chrome. */
   .event-result.selected {
-    border-color: color-mix(in srgb, var(--color-event-accent) 52%, transparent);
-    background: color-mix(in srgb, var(--color-event-accent) 8%, transparent);
+    border-color: var(--color-border-strong);
+    background: color-mix(in srgb, var(--color-event-accent) 5%, transparent);
+    box-shadow: inset 2px 0 0 var(--color-event-accent);
   }
   .event-result.preview:not(.selected) {
     border-color: color-mix(in srgb, var(--color-primary-accent) 45%, transparent);
     background: color-mix(in srgb, var(--color-primary-accent) 7%, transparent);
   }
-  .event-result.at-playhead {
-    box-shadow: inset 2px 0 0 var(--color-event-accent);
+  .event-result.at-playhead:not(.selected) {
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-event-accent) 60%, transparent);
   }
   .event-now {
     color: var(--color-event-accent);

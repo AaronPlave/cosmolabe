@@ -161,6 +161,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <section
   bind:this={root}
+  data-scene-occluder
   class="instrument shell-surface pointer-events-auto flex min-h-7 shrink flex-col overflow-hidden rounded-[5px] border backdrop-blur-sm"
   class:w-full={compact}
   class:floating

@@ -27,6 +27,7 @@ import {
   eventStart,
   focusForEvent,
   resolveEventQuery,
+  SpiceTrajectory,
   type ConfiguredEventQuery,
   type EtInterval,
   type EventKind,
@@ -38,11 +39,11 @@ import {
 } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
 import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
-import { geometryScopeForWindow, getGeometryWorker, getSpice } from './loader';
+import { geometryScopeForWindow, getGeometryWorker, getSpice, getUniverse } from './loader';
 import {
   activeEventAtTime,
   buildQuery,
-  eventSummary,
+  eventCalloutLines,
   formForKind,
   type EventQueryForm,
   type EventSortMode,
@@ -64,6 +65,56 @@ import { etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody,
 const registry = builtinEventKinds();
 
 export const EVENT_KINDS: EventKind<never>[] = registry.list();
+
+/**
+ * The name SPICE should be given for a catalog body.
+ *
+ * The finder's form, its results and the 3D highlight all speak catalog display
+ * names, but a display name is not a SPICE name: the Psyche frames kernel maps
+ * `PSYCHE` to the asteroid (2000016) while the catalog's "Psyche" is the
+ * spacecraft (-255), so passing the name through silently measured the wrong
+ * object. The catalog already says which SPICE object a body is — its `naifId`,
+ * or the target of its SPICE trajectory — and only a body that says neither
+ * falls back to its name.
+ */
+export function spiceNameForBody(
+  body: { naifId?: number; trajectory?: unknown } | undefined,
+  name: string,
+): string {
+  if (body?.naifId != null) return String(body.naifId);
+  if (body?.trajectory instanceof SpiceTrajectory) return body.trajectory.spiceTarget;
+  return name;
+}
+
+/** Display name → SPICE name for the scene that is up. */
+function sceneSpiceName(name: string): string {
+  return spiceNameForBody(getUniverse()?.getBody(name), name);
+}
+
+/**
+ * A provider that takes catalog display names and hands SPICE the bodies they
+ * mean. Only body arguments are translated; frames and shapes pass untouched.
+ */
+export function withSpiceNames(
+  provider: GeometryFinderProvider,
+  toSpice: (name: string) => string,
+): GeometryFinderProvider {
+  const range = provider.range;
+  return {
+    gfdist: (target, abcorr, observer, ...rest) =>
+      provider.gfdist(toSpice(target), abcorr, toSpice(observer), ...rest),
+    gfsep: (t1, s1, f1, t2, s2, f2, abcorr, observer, ...rest) =>
+      provider.gfsep(toSpice(t1), s1, f1, toSpice(t2), s2, f2, abcorr, toSpice(observer), ...rest),
+    gfoclt: (occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, ...rest) =>
+      provider.gfoclt(occtyp, toSpice(front), fshape, fframe, toSpice(back), bshape, bframe, abcorr, toSpice(observer), ...rest),
+    gfposc: (target, frame, abcorr, observer, ...rest) =>
+      provider.gfposc(toSpice(target), frame, abcorr, toSpice(observer), ...rest),
+    ...(range
+      ? { range: (target: string, abcorr: string, observer: string, et: number) =>
+          range(toSpice(target), abcorr, toSpice(observer), et) }
+      : {}),
+  };
+}
 
 /**
  * The viewer's SPICE instance as a GF provider.
@@ -198,6 +249,7 @@ export function coverageWindow(
   spice: Pick<HeritageSpice, 'bodn2c' | 'spkcov'>,
   bodies: EventParticipants,
   span: EtInterval,
+  toSpice: (name: string) => string = (name) => name,
 ): EtInterval {
   let { start, end } = span;
   let coverageStart = -Infinity;
@@ -207,7 +259,8 @@ export function coverageWindow(
   for (const name of Object.values(bodies)) {
     if (!name) continue;
     try {
-      const id = spice.bodn2c(name);
+      const spiceName = toSpice(name);
+      const id = /^-?\d+$/.test(spiceName) ? Number(spiceName) : spice.bodn2c(spiceName);
       if (id == null) continue;
       const windows = spice.spkcov(id);
       if (windows.length === 0) continue;
@@ -300,11 +353,8 @@ export function previewEvent(event: GeometryEvent | null, boundary?: 'start' | '
     getRenderer()?.setEventPreview(null);
     return;
   }
-  const title = boundary ? `${event.label} ${boundary === 'start' ? 'begins' : 'ends'}` : event.label;
-  const et = boundary === 'end' ? eventEnd(event) : boundary === 'start' ? eventStart(event) :
-    event.temporality === 'instant' ? eventStart(event) : (eventStart(event) + eventEnd(event)) / 2;
-  const detail = boundary ? etToUtcString(et) : `${eventSummary(event)} · ${etToUtcString(et)}`;
-  getRenderer()?.setEventPreview(event, `${title}\n${detail}`, boundary);
+  const lines = eventCalloutLines(event, { boundary, utc: etToUtcString });
+  getRenderer()?.setEventPreview(event, lines.join('\n'), boundary);
 }
 
 function syncEventResultsInScene(): void {
@@ -313,7 +363,8 @@ function syncEventResultsInScene(): void {
   const selected = ef.selectedId
     ? ef.events.find((event) => event.id === ef.selectedId) ?? null
     : null;
-  renderer.setEventResults(analysisContext().eventResults, selected);
+  const annotation = selected ? eventCalloutLines(selected, { selected: true, utc: etToUtcString }).join('\n') : '';
+  renderer.setEventResults(analysisContext().eventResults, selected, annotation);
 }
 
 function displayOccultation(event: GeometryEvent | null): void {
@@ -400,7 +451,7 @@ function defaultWindow(bodies: EventParticipants = {}): EtInterval {
   const spice = getSpice();
   if (!spice) return span;
 
-  const covered = coverageWindow(spice, bodies, span);
+  const covered = coverageWindow(spice, bodies, span, sceneSpiceName);
   ef.windowTrimmed = covered.start > span.start || covered.end < span.end;
   return covered;
 }
@@ -658,7 +709,7 @@ export async function runSearch() {
 
   const running = beginSearch(spice, { start: ef.form.startEt, end: ef.form.endEt });
   active = running;
-  const search = new EventSearch({ registry, provider: running.provider });
+  const search = new EventSearch({ registry, provider: withSpiceNames(running.provider, sceneSpiceName) });
   const token = ++inFlight;
 
   ef.running = true;

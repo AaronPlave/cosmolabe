@@ -1212,6 +1212,11 @@ export function getCurrentRenderer(): UniverseRenderer | null {
   return renderer;
 }
 
+/** The scene's universe, or null before a catalog has loaded. */
+export function getUniverse(): Universe | null {
+  return universe;
+}
+
 /** Get the current SPICE instance */
 export function getSpice(): HeritageSpice | null {
   return spice;

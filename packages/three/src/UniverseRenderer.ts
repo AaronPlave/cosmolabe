@@ -28,6 +28,7 @@ import { SensorFrustum } from './SensorFrustum.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMarkerGroups } from './EventMarkers.js';
+import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 import { OccultationGeometry } from './OccultationGeometry.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -173,7 +174,11 @@ export class UniverseRenderer {
   private _eventPreviewBoundary: 'start' | 'end' | undefined;
   private _selectedEvent: { id: string; queryId: string } | null = null;
   private _hoveredSceneEvent: string | null = null;
-  private readonly _eventAnnotation: HTMLDivElement;
+  /** Hover copy for the previewed feature; selection copy persists until cleared. */
+  private _eventPreviewAnnotation = '';
+  private _selectedEventAnnotation = '';
+  private readonly _eventCallout: EventCallout;
+  private _screenOccluders: (() => readonly ScreenRect[]) | null = null;
   private _occultationGeometry: OccultationGeometry | null = null;
   private readonly atmosphereMeshes = new Map<string, { atm: AtmosphereMesh; parentName: string }>();
   /** One AP uniform set per atmosphere body, shared between body sphere + terrain materials. */
@@ -329,15 +334,7 @@ export class UniverseRenderer {
     this.labelContainer.style.pointerEvents = 'none';
     this.labelContainer.style.overflow = 'hidden';
     canvas.parentElement?.appendChild(this.labelContainer);
-    this._eventAnnotation = document.createElement('div');
-    Object.assign(this._eventAnnotation.style, {
-      position: 'absolute', display: 'none', pointerEvents: 'none',
-      padding: '5px 7px', borderLeft: '1px solid #b9c9d2',
-      background: 'rgba(11, 16, 21, 0.82)', color: '#dbe4e9',
-      font: '11px/1.35 ui-monospace, SFMono-Regular, monospace',
-      whiteSpace: 'pre',
-    });
-    this.labelContainer.appendChild(this._eventAnnotation);
+    this._eventCallout = new EventCallout(this.labelContainer);
 
     // Forward universe events on the renderer event bus
     for (const event of ['time:change', 'body:added', 'body:removed', 'body:trajectoryChanged', 'body:rotationChanged', 'catalog:loaded'] as const) {
@@ -846,6 +843,7 @@ export class UniverseRenderer {
         (t) => line.trailAlphaAt(t, et),
         this.camera,
         this.renderer.getPixelRatio(),
+        { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
       );
     }
     // Update labels
@@ -1085,6 +1083,14 @@ export class UniverseRenderer {
     for (const { markers } of this.eventMarkerGroups.values()) {
       markers.applyAnchorOpacity((anchor) => this.eventAnchorOpacity(anchor));
     }
+    const eventViewport = { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight };
+    const occupiedGlyphs = new Map<string, Array<[number, number]>>();
+    for (const emphasized of [true, false]) {
+      for (const { markers } of this.eventMarkerGroups.values()) {
+        if (markers.visible) markers.thinCoincidentGlyphs(this.camera, eventViewport, occupiedGlyphs, emphasized);
+      }
+    }
+    this.revalidateSceneEventHover();
     this.updateEventAnnotation();
 
     // Final pass: markers (pick marker, orbit pivot dot, etc.) — always on top.
@@ -1226,12 +1232,18 @@ export class UniverseRenderer {
     return this.trajectoryLines.get(name);
   }
 
-  /** Replace the enabled event results drawn on their explanatory trajectory arcs. */
+  /**
+   * Replace the enabled event results drawn on their explanatory trajectory arcs.
+   * `selectedAnnotation` is the selected event's persistent callout: newline-
+   * separated lines, title first (at most three lines). Empty shows none.
+   */
   setEventResults(
     events: readonly GeometryEvent[],
     selected: Pick<GeometryEvent, 'id' | 'queryId'> | null = null,
+    selectedAnnotation = '',
   ): void {
     this._selectedEvent = selected;
+    this._selectedEventAnnotation = selected ? selectedAnnotation : '';
     for (const { markers } of this.eventMarkerGroups.values()) {
       this._markerScene.remove(markers);
       markers.dispose();
@@ -1263,7 +1275,9 @@ export class UniverseRenderer {
     }
 
     for (const [lineKey, { body, line, events: lineEvents }] of grouped) {
-      const markers = new EventMarkers(body);
+      // The selected-span stroke retraces this line's drawn vertices, including
+      // its live head sample, so it reaches the body while the event is underway.
+      const markers = new EventMarkers(body, { trail: () => line.drawnTrail() });
       markers.setMarkers(lineEvents.map((event) => ({
         id: event.id,
         queryId: event.queryId,
@@ -1279,6 +1293,11 @@ export class UniverseRenderer {
       markers.setPreview(this._eventPreview);
       markers.layers.set(OVERLAY_LAYER);
       markers.traverse((child) => child.layers.set(OVERLAY_LAYER));
+      // The span strokes are depth-tested with the trail they emphasize.
+      for (const stroke of [markers.spanEmphasis, markers.spanPreview]) {
+        stroke.layers.set(OVERLAY_LAYER);
+        this.scene.add(stroke);
+      }
       markers.visible = this.bodyMeshes.get(body.name)?.visible ?? true;
       this.eventMarkerGroups.set(lineKey, { markers, line, events: lineEvents });
       this._markerScene.add(markers);
@@ -1286,14 +1305,18 @@ export class UniverseRenderer {
     this.refreshEventLineColors();
   }
 
-  /** Preview never seeks time or changes the committed event selection. */
+  /**
+   * Preview never seeks time or changes the committed event selection.
+   * `annotation` is the transient callout copy (newline-separated, title first);
+   * `boundary` attaches it to that interval cap instead of the event point.
+   */
   setEventPreview(preview: { id: string; queryId: string } | null, annotation = '', boundary?: 'start' | 'end'): void {
     const sameEvent = this._eventPreview?.id === preview?.id && this._eventPreview?.queryId === preview?.queryId;
     if (sameEvent &&
-      this._eventAnnotation.textContent === annotation && this._eventPreviewBoundary === boundary) return;
+      this._eventPreviewAnnotation === annotation && this._eventPreviewBoundary === boundary) return;
     this._eventPreview = preview;
     this._eventPreviewBoundary = boundary;
-    this._eventAnnotation.textContent = annotation;
+    this._eventPreviewAnnotation = preview ? annotation : '';
     if (!sameEvent) {
       for (const { markers } of this.eventMarkerGroups.values()) markers.setPreview(preview);
       this.refreshEventLineColors();
@@ -1309,46 +1332,147 @@ export class UniverseRenderer {
             this._selectedEvent?.id === event.id && this._selectedEvent.queryId === event.queryId ? 1 : 0;
         return rank(b) - rank(a);
       });
-      line.setColorSegments(intervals.map((event) => ({
-        startEt: eventStart(event), endEt: eventEnd(event),
-        color: this._selectedEvent?.id === event.id && this._selectedEvent.queryId === event.queryId
-          ? 0xffc857 : this._eventPreview?.id === event.id && this._eventPreview.queryId === event.queryId
-            ? new THREE.Color(eventMarkerColor(event.kind, event.state)).lerp(new THREE.Color(0xffffff), 0.28)
-            : eventMarkerColor(event.kind, event.state),
-      })));
+      // On the 1px trail, hierarchy is carried by intensity: an ordinary span
+      // is its semantic color, a previewed one lifts toward white, and the
+      // selected one is gold, lifted over the trail's rest opacity. The
+      // selected span also gets a slightly wider stroke (EventMarkers
+      // .spanEmphasis) so cap → span → glyph → cap reads as one object.
+      line.setColorSegments(intervals.map((event) => {
+        const selected = this._selectedEvent?.id === event.id && this._selectedEvent.queryId === event.queryId;
+        const preview = this._eventPreview?.id === event.id && this._eventPreview.queryId === event.queryId;
+        return {
+          startEt: eventStart(event), endEt: eventEnd(event),
+          color: selected ? 0xffc857
+            : preview ? new THREE.Color(eventMarkerColor(event.kind, event.state)).lerp(new THREE.Color(0xffffff), 0.28)
+              : eventMarkerColor(event.kind, event.state),
+          intensity: selected ? 1.45 : preview ? 1.2 : 1,
+        };
+      }));
     }
   }
 
+  /**
+   * Host UI that covers parts of the canvas (floating panels, docks), in
+   * canvas CSS pixels. Scene annotations such as event callouts avoid these
+   * areas. Called while an annotation is visible; the host may cache.
+   */
+  setScreenOccluders(provider: (() => readonly ScreenRect[]) | null): void {
+    this._screenOccluders = provider;
+  }
+
+  /**
+   * One callout at a time: the hovered feature's, else the selected event's.
+   * Hovering the selected event's point shows its (fuller) selection copy.
+   */
   private updateEventAnnotation(): void {
-    const preview = this._eventPreview;
-    if (!preview || !this._eventAnnotation.textContent) {
-      this._eventAnnotation.style.display = 'none';
-      return;
-    }
-    const anchor = [...this.eventMarkerGroups.values()]
-      .filter(({ markers }) => markers.visible)
-      .map(({ markers }) => markers.anchorFor(preview.id, preview.queryId, this._eventPreviewBoundary))
-      .find((point) => point != null);
-    if (!anchor) {
-      this._eventAnnotation.style.display = 'none';
-      return;
-    }
-    if (this.eventAnchorOpacity(anchor) <= 0.15) {
-      this._eventAnnotation.style.display = 'none';
-      return;
-    }
-    const p = anchor.project(this.camera);
-    if (p.z < -1 || p.z > 1) {
-      this._eventAnnotation.style.display = 'none';
-      return;
-    }
-    this._eventAnnotation.style.display = 'block';
     const width = this.renderer.domElement.clientWidth;
     const height = this.renderer.domElement.clientHeight;
-    const x = (p.x + 1) * width / 2;
-    const y = (1 - p.y) * height / 2;
-    this._eventAnnotation.style.left = `${Math.max(6, Math.min(x + 10, width - this._eventAnnotation.offsetWidth - 6))}px`;
-    this._eventAnnotation.style.top = `${Math.max(6, Math.min(y - this._eventAnnotation.offsetHeight / 2, height - this._eventAnnotation.offsetHeight - 6))}px`;
+    const selectedKey = this._selectedEvent;
+    const isSelected = (target: { id: string; queryId: string }) =>
+      selectedKey?.id === target.id && selectedKey.queryId === target.queryId;
+    // Candidates in priority order. A preview whose anchor is off-trail or
+    // hidden (the pointer rests where the event used to be) yields to the
+    // selection rather than blanking it.
+    const candidates: Array<{ target: { id: string; queryId: string }; boundary?: 'start' | 'end'; text: string }> = [];
+    if (this._eventPreview && this._eventPreviewAnnotation) {
+      const boundary = this._eventPreviewBoundary;
+      const useSelectionCopy = !boundary && isSelected(this._eventPreview) && this._selectedEventAnnotation;
+      candidates.push({
+        target: this._eventPreview,
+        boundary,
+        text: useSelectionCopy ? this._selectedEventAnnotation : this._eventPreviewAnnotation,
+      });
+    }
+    if (selectedKey && this._selectedEventAnnotation) {
+      candidates.push({ target: selectedKey, text: this._selectedEventAnnotation });
+    }
+
+    for (const { target, boundary, text } of candidates) {
+      const placement = [...this.eventMarkerGroups.values()]
+        .find(({ markers, events }) => markers.visible &&
+          events.some((event) => event.id === target.id && event.queryId === target.queryId));
+      const event = placement?.events.find((item) => item.id === target.id && item.queryId === target.queryId);
+      const anchor = placement?.markers.anchorFor(target.id, target.queryId, boundary) ?? null;
+      if (!placement || !event || !anchor || this.eventAnchorOpacity(anchor) <= 0.15) continue;
+      const p = anchor.clone().project(this.camera);
+      // Off-screen anchors get no callout (it would point at nothing); an
+      // off-screen preview yields to an on-screen selection.
+      if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
+
+      const selected = isSelected(target);
+      this._eventCallout.setContent({
+        lines: text.split('\n').filter((line) => line.length > 0).slice(0, 3),
+        color: selected ? '#ffc857' : `#${new THREE.Color(eventMarkerColor(event.kind, event.state)).getHexString()}`,
+        tone: selected ? 'selected' : 'preview',
+        feature: boundary && placement.markers.layoutFor(target.id, target.queryId) !== 'point' ? 'boundary' : 'point',
+      });
+      const box = this._eventCallout.update(
+        { x: (p.x + 1) * width / 2, y: (1 - p.y) * height / 2 },
+        { width, height },
+        this.eventCalloutObstacles(placement.line, width, height,
+          placement.markers.visibleSpanPoints(target.id, target.queryId)),
+      );
+      // The active annotation outranks every label: ordinary labels under it
+      // fade, pinned ones step aside (LabelManager collision pass).
+      this.labelManager?.setReservedRects(box ? [box] : []);
+      return;
+    }
+    if (candidates.length === 0) this._eventCallout.setContent(null);
+    this._eventCallout.hide();
+    this.labelManager?.setReservedRects([]);
+  }
+
+  /** What a callout should avoid: drawn labels, the owning path, and body discs. */
+  private eventCalloutObstacles(
+    line: TrajectoryLine,
+    width: number,
+    height: number,
+    span: readonly THREE.Vector3[] = [],
+  ): CalloutObstacles {
+    const rects = (this.labelManager?.getScreenRects() ?? [])
+      .map((rect) => ({ ...rect, weight: rect.pinned ? 3 : 1 }));
+
+    const path: number[] = [];
+    const point = new THREE.Vector3();
+    // The annotated interval itself matters most; weight it by listing it twice.
+    for (let pass = 0; pass < 2 && span.length > 1; pass++) {
+      for (const p of span) {
+        point.copy(p).project(this.camera);
+        if (point.z < -1 || point.z > 1) path.push(NaN, NaN);
+        else path.push((point.x + 1) * width / 2, (1 - point.y) * height / 2);
+      }
+      path.push(NaN, NaN);
+    }
+
+    // Adaptive trail sampling is densest where the path bends, so chords of a
+    // strided walk can cut far from the drawn curve; keep it near full rate.
+    const { positions, count } = line.drawnTrail();
+    const stride = Math.max(1, Math.ceil(count / 12000));
+    line.updateMatrixWorld();
+    for (let i = 0; i < count; i = Math.min(i + stride, i === count - 1 ? count : count - 1)) {
+      // Strided chords plus the newest vertex, which is where the craft is.
+      point.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
+        .applyMatrix4(line.matrixWorld).project(this.camera);
+      if (point.z < -1 || point.z > 1) {
+        path.push(NaN, NaN);
+        continue;
+      }
+      path.push((point.x + 1) * width / 2, (1 - point.y) * height / 2);
+    }
+
+    const discs: Array<{ x: number; y: number; r: number }> = [];
+    const focalLengthPx = height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
+    for (const bm of this.bodyMeshes.values()) {
+      if (!bm.visible || !(bm.mesh.visible || bm.isModelVisible || bm.hasSurfaceTiles)) continue;
+      const distance = bm.position.distanceTo(this.camera.position);
+      if (!(distance > 0)) continue;
+      const r = bm.displayRadius * this.scaleFactor * focalLengthPx / distance;
+      if (r < 3) continue;
+      point.copy(bm.position).project(this.camera);
+      if (point.z < -1 || point.z > 1) continue;
+      discs.push({ x: (point.x + 1) * width / 2, y: (1 - point.y) * height / 2, r });
+    }
+    return { rects, path, discs, blockers: this._screenOccluders?.() ?? [] };
   }
 
   /** Match the whole-glyph limb fade for annotation and picking. */
@@ -2287,6 +2411,7 @@ export class UniverseRenderer {
     for (const tl of this.trajectoryLines.values()) tl.dispose();
     for (const sf of this.sensorFrustums.values()) sf.dispose();
     for (const { markers } of this.eventMarkerGroups.values()) markers.dispose();
+    this._eventCallout.dispose();
     this.setOccultationGeometry(null);
     this.starField?.dispose();
     this.labelManager?.dispose();
@@ -3303,7 +3428,9 @@ export class UniverseRenderer {
       .map((group) => group.pick(this.camera, screenX, screenY, width, height, radiusPx,
         (point) => this.eventAnchorOpacity(point) > 0.15))
       .filter((hit) => hit != null);
-    candidates.sort((a, b) => a!.distanceSq - b!.distanceSq || b!.renderOrder - a!.renderOrder);
+    // Any glyph under the pointer beats a span, across trajectories too.
+    candidates.sort((a, b) => Number(!!a!.span) - Number(!!b!.span) ||
+      a!.distanceSq - b!.distanceSq || b!.renderOrder - a!.renderOrder);
     return candidates[0] ?? null;
   }
 
@@ -3416,6 +3543,25 @@ export class UniverseRenderer {
         eventHit || next ? 'pointer' : '';
     }, wait);
   };
+
+  /**
+   * A scene hover stays valid only while the event is still under the
+   * pointer. Camera motion or playback can carry the marker away from a
+   * resting pointer, which never fires pointermove; re-pick at the hover rate.
+   */
+  private revalidateSceneEventHover(): void {
+    if (!this._hoveredSceneEvent || this._hoverPickTimer) return;
+    if (performance.now() - this._lastHoverPickMs < UniverseRenderer._hoverPickIntervalMs * 4) return;
+    this._lastHoverPickMs = performance.now();
+    const hit = this.pickSceneEvent(this._lastPointer.x, this._lastPointer.y, 11);
+    const key = hit ? `${hit.marker.queryId}:${hit.marker.id}:${hit.boundary ?? ''}` : null;
+    if (key === this._hoveredSceneEvent) return;
+    this._hoveredSceneEvent = key;
+    this.events.emit('event:hover', hit ? {
+      id: hit.marker.id, queryId: hit.marker.queryId, boundary: hit.boundary,
+    } : null);
+    if (!hit) this.renderer.domElement.style.cursor = '';
+  }
 
   private _onPointerLeave = (): void => {
     if (this._hoverPickTimer) {
