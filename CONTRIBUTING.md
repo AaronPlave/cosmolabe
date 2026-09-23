@@ -20,7 +20,7 @@ git lfs pull          # required to fetch demo kernels, models, textures
 npm install
 npm run build         # typecheck + build all packages
 npm test              # run vitest
-npm run lint          # eslint (errors fail CI; `any` is a warning)
+npm run lint          # eslint
 ```
 
 To run the viewer:

@@ -100,10 +100,8 @@ jobs:
       - name: Purity lint (core and control import no renderer)
         run: npm run lint:purity
 
-      # eslint over packages/ and apps/ (eslint.config.mjs). Errors fail the
-      # job; `no-explicit-any` is a warning, so its adoption-time sites stay
-      # visible in the log without gating (#11, #25). Needs no build output, so
-      # it runs before the build and fails fast.
+      # eslint over packages/ and apps/ (eslint.config.mjs; #11, #25). Needs
+      # no build output, so it runs before the build and fails fast.
       - name: Lint
         run: npm run lint
 
