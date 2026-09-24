@@ -374,12 +374,56 @@ export class TrajectoryLine extends THREE.Object3D {
     return [this.minTime ?? -Infinity, this.maxTime ?? Infinity];
   }
 
-  /** Epochs represented by the moving trail at the current simulation time. */
+  /**
+   * Epochs represented by the moving trail at the current simulation time.
+   * The trail ends at current time; what is ahead belongs to the lead (see
+   * {@link drawnTimeRange} for both).
+   */
   visibleTimeRange(et: number): [number, number] | null {
-    if (!this.userVisible || !this.visible) return null;
-    const end = Math.min(et + this.leadDuration, this.maxTime ?? Infinity, this.body.trajectory.endTime ?? Infinity);
-    const start = Math.max(end - this.trailDuration, this.minTime ?? -Infinity, this.body.trajectory.startTime ?? -Infinity);
+    if (!this.userVisible || !this.visible || !this.trailLine.visible) return null;
+    const end = Math.min(et, this.maxTime ?? Infinity, this.body.trajectory.endTime ?? Infinity);
+    const start = Math.max(
+      Math.min(et + this.leadDuration - this.trailDuration, end),
+      this.minTime ?? -Infinity,
+      this.body.trajectory.startTime ?? -Infinity,
+    );
     return start <= end ? [start, end] : null;
+  }
+
+  /**
+   * Envelope of every epoch this line draws right now: its trail and its
+   * lead windows. The lead can be disjoint (an excerpt around a distant
+   * event), so use {@link pathAlphaAt} to ask whether an epoch is drawn.
+   */
+  drawnTimeRange(et: number): [number, number] | null {
+    let range = this.visibleTimeRange(et);
+    if (!this.userVisible || !this.visible) return range;
+    for (const w of this.lead.currentWindows()) {
+      range = range ? [Math.min(range[0], w.start), Math.max(range[1], w.end)] : [w.start, w.end];
+    }
+    return range;
+  }
+
+  /**
+   * Brightness this line draws `sampleEt` with — trail fade behind current
+   * time, lead fade ahead — or 0 where it draws nothing.
+   */
+  pathAlphaAt(sampleEt: number, et: number): number {
+    const trail = this.trailAlphaAt(sampleEt, et);
+    if (trail > 0 || sampleEt <= et) return trail;
+    return this.lead.alphaAt(sampleEt);
+  }
+
+  /**
+   * Everything this line drew this frame, as time-tagged polylines in local
+   * space: the trail, then each unbroken run of the lead. The first lead run
+   * starts at the trail's head. The single source for annotations that sit
+   * on the path, past or future. Read-only; do not mutate.
+   */
+  drawnPath(): readonly DrawnTrail[] {
+    const trail = this.drawnTrail();
+    const runs = this.lead.drawnRuns();
+    return trail.count > 0 ? [trail, ...runs] : runs;
   }
 
   /** Match the trail's per-vertex fade for an annotation at this epoch. */
@@ -396,7 +440,7 @@ export class TrajectoryLine extends THREE.Object3D {
    * view for screen-space annotation placement; do not mutate.
    */
   drawnTrail(): DrawnTrail {
-    const count = this.trailLine.geometry.drawRange.count;
+    const count = this.trailLine.visible ? this.trailLine.geometry.drawRange.count : 0;
     return {
       positions: this.trailPositions,
       times: this.trailTimes,

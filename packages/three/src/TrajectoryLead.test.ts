@@ -199,3 +199,37 @@ describe('TrajectoryLine lead', () => {
     expect(trail.visible).toBe(false);
   });
 });
+
+describe('TrajectoryLine drawn path (trail + lead)', () => {
+  it('ends the trail range at the playhead and adds the lead to the drawn envelope', () => {
+    const et = 2 * DAY;
+    const line = lineFor(circular(), { leadDuration: DAY / 4 });
+    line.update(et, 1);
+    expect(line.visibleTimeRange(et)).toEqual([et - DAY / 4, et]);
+    expect(line.drawnTimeRange(et)).toEqual([et - DAY / 4, et + DAY / 4]);
+  });
+
+  it('gives annotations one time-tagged path: trail, then each unbroken lead run', () => {
+    const et = 2 * DAY;
+    const far = et + 30 * DAY;
+    const line = lineFor(circular(), { leadDuration: 3600, leadMaxContinuous: DAY, leadContextPad: 1800 });
+    line.setLeadRequest('selection', { target: { start: far, end: far } });
+    line.update(et, 1);
+    const path = line.drawnPath();
+    expect(path).toHaveLength(3);
+    const [trail, near, excerpt] = path;
+    expect(trail.times[trail.count - 1]).toBe(et);
+    expect(near.times[0]).toBe(et);
+    expect(near.times[near.count - 1]).toBeCloseTo(et + 3600);
+    expect(excerpt.times[0]).toBeCloseTo(far - 1800);
+    expect(excerpt.times[excerpt.count - 1]).toBeCloseTo(far + 1800);
+    for (const run of path) {
+      for (let i = 1; i < run.count; i++) expect(run.times[i]).toBeGreaterThanOrEqual(run.times[i - 1]);
+    }
+    // Drawn where the path is drawn, nothing in the gap between runs.
+    expect(line.pathAlphaAt(et - 60, et)).toBeGreaterThan(0);
+    expect(line.pathAlphaAt(et + 60, et)).toBeGreaterThan(0);
+    expect(line.pathAlphaAt(et + 10 * DAY, et)).toBe(0);
+    expect(line.pathAlphaAt(far, et)).toBe(1);
+  });
+});
