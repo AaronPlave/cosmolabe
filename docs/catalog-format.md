@@ -123,6 +123,11 @@ Each arc's rotation is built as if the arc were the item — its `center` and
 `trajectoryFrame` — and re-expressed into one inertial source frame, so the
 renderer composes it like any other rotation.
 
+An arc may also carry its own **`trajectoryPlot`** (a cosmolabe extension),
+overriding the item's field by field: Rosetta keeps ten years of trail on its
+cruise arc and thirty days around 67P, in the item's colour. `"visible": false`
+on an arc hides that arc's trail only.
+
 ## Trajectories
 
 Ten types, picked by `trajectory.type`:

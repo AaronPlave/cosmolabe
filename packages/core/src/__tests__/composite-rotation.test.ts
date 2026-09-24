@@ -121,3 +121,27 @@ describe('arcs[].rotationModel in a catalog', () => {
     expect(u.getBody('Craft')!.rotation).toBeInstanceOf(FixedRotation);
   });
 });
+
+describe('arcs[].trajectoryPlot', () => {
+  it('parses per-arc trail settings for the renderer to lay over the body\'s', () => {
+    const u = new Universe();
+    u.loadCatalog({
+      name: 't',
+      items: [{
+        name: 'Probe',
+        trajectoryPlot: { color: '#ffffff', duration: '30d' },
+        arcs: [
+          { startTime: '2004-03-02T00:00:00Z', endTime: '2014-05-01T00:00:00Z', trajectory: { type: 'FixedPoint', position: [1, 0, 0] },
+            trajectoryPlot: { duration: '10y', fade: 0.25 } },
+          { startTime: '2014-05-01T00:00:00Z', trajectory: { type: 'FixedPoint', position: [2, 0, 0] } },
+        ],
+      }],
+    } as unknown as CatalogJson);
+    const body = u.getBody('Probe')!;
+    const [cruise, orbit] = (body.trajectory as unknown as { arcs: { plot?: Record<string, unknown> }[] }).arcs;
+    expect(cruise!.plot).toEqual({ duration: 10 * 365.25 * 86400, fade: 0.25 });
+    expect(orbit!.plot).toBeUndefined();
+    // Only the keys the arc names: the body's colour still applies to both.
+    expect({ ...body.trajectoryPlot, ...cruise!.plot }.color).toBe('#ffffff');
+  });
+});

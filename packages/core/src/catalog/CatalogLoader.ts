@@ -151,6 +151,9 @@ export interface ArcSpec {
    *  (long cruise arcs benefit from a higher count to avoid a faceted
    *  appearance at high eccentricity). */
   numKeySamples?: number;
+  /** Trail settings for this arc alone, overriding the item's
+   *  `trajectoryPlot` field by field. A cosmolabe extension. */
+  trajectoryPlot?: TrajectoryPlotSpec;
 }
 
 /** Cosmographia's structured frame reference. `BodyFixed` (with an optional
@@ -1045,6 +1048,7 @@ export class CatalogLoader {
         frame: frameName(arc.trajectoryFrame) ?? frameName(item.trajectoryFrame),
         showLine: arc.showLine,
         numKeySamples: arc.numKeySamples,
+        plot: arc.trajectoryPlot ? this.parseTrajectoryPlot(arc.trajectoryPlot) : undefined,
       };
     });
 

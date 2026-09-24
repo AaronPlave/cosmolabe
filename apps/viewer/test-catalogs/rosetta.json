@@ -48,7 +48,7 @@
     "kernels/rosetta/LATT_CFF2LDR_FSS_V2_0.BC"
   ],
   "items": [
-    { "name": "Cruise overview", "type": "Viewpoint", "center": "Sun", "distance": 1300000000, "latitude": 60, "longitude": -20 },
+    { "name": "Cruise overview (2010)", "type": "Viewpoint", "center": "Sun", "distance": 1300000000, "latitude": 60, "longitude": -20, "time": "2010-07-10T15:44:55Z" },
     { "name": "Launch (2004-03-02)", "type": "Viewpoint", "center": "Earth", "distance": 80000, "latitude": 20, "longitude": 0, "time": "2004-03-02T12:00:00Z" },
     { "name": "Earth swing-by 1 (2005-03-04)", "type": "Viewpoint", "center": "Earth", "distance": 45000, "latitude": 25, "longitude": 30, "time": "2005-03-04T22:09:14Z" },
     { "name": "Mars swing-by (2007-02-25)", "type": "Viewpoint", "center": "Mars", "distance": 14000, "latitude": 20, "longitude": 40, "time": "2007-02-25T01:57:59Z" },
@@ -147,14 +147,16 @@
         {
           "endTime": "2014-05-01T00:00:00Z",
           "center": "Sun",
-          "trajectory": { "type": "Spice", "target": "-226", "center": "SUN" }
+          "trajectory": { "type": "Spice", "target": "-226", "center": "SUN" },
+          "trajectoryPlot": { "duration": "10.5y", "fade": 0.25 }
         },
         {
           "startTime": "2014-05-01T00:00:00Z",
           "endTime": "2016-09-30T10:39:30Z",
           "center": "67P/Churyumov-Gerasimenko",
           "trajectoryFrame": "J2000",
-          "trajectory": { "type": "Spice", "target": "-226", "center": "1000012" }
+          "trajectory": { "type": "Spice", "target": "-226", "center": "1000012" },
+          "trajectoryPlot": { "duration": "30d", "fade": 0.5 }
         }
       ],
       "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SPACECRAFT" },
@@ -172,7 +174,7 @@
         ]
       },
       "label": { "color": [1.0, 1.0, 1.0] },
-      "trajectoryPlot": { "color": "#ffffff", "duration": "30d", "fade": 0.5, "visible": true },
+      "trajectoryPlot": { "color": "#e8e8e8", "visible": true },
       "items": [
         {
           "name": "Rosetta +Y solar array",

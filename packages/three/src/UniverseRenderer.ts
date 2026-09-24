@@ -2371,19 +2371,8 @@ export class UniverseRenderer {
           if (plotCfg?.sampleCount) trajOpts.maxPoints = plotCfg.sampleCount;
 
           // Apply catalog color (accepts "#rrggbb", "rrggbb", or [r, g, b] floats 0-1)
-          if (plotCfg?.color != null) {
-            const c = plotCfg.color;
-            if (typeof c === 'string') {
-              const hex = c.startsWith('#') ? c.slice(1) : c;
-              const n = parseInt(hex, 16);
-              if (!Number.isNaN(n)) trajOpts.color = n;
-            } else if (Array.isArray(c) && c.length >= 3) {
-              const r = Math.round(Math.max(0, Math.min(1, c[0])) * 255);
-              const g = Math.round(Math.max(0, Math.min(1, c[1])) * 255);
-              const b = Math.round(Math.max(0, Math.min(1, c[2])) * 255);
-              trajOpts.color = (r << 16) | (g << 8) | b;
-            }
-          }
+          const color = plotColor(plotCfg?.color);
+          if (color !== undefined) trajOpts.color = color;
 
           // Apply catalog opacity
           if (plotCfg?.opacity != null) trajOpts.opacity = plotCfg.opacity;
@@ -2620,7 +2609,10 @@ export class UniverseRenderer {
         );
       };
 
-      const plotCfg = body.trajectoryPlot;
+      // An arc's own trajectoryPlot overrides the body's field by field: a
+      // cruise arc can keep years of trail while the orbit phase keeps days.
+      const plotCfg = { ...body.trajectoryPlot, ...arc.plot };
+      if (plotCfg.visible === false) continue;
 
       // Determine trail duration: use catalog value if specified, otherwise estimate from
       // orbit period or cap at 1 year. Showing the entire multi-year arc wastes vertex budget
@@ -2653,6 +2645,8 @@ export class UniverseRenderer {
         maxTime: isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
         fixedResolver: arcResolver,
         fadeFraction: plotCfg?.fade ?? 1.0,
+        color: plotColor(plotCfg.color),
+        opacity: plotCfg.opacity,
         // Per-arc sample-count override lets long cruise arcs request a
         // higher vertex budget than the default cap (~500) so the orbit
         // line doesn't appear as a faceted polygon at high eccentricity.
@@ -2676,8 +2670,15 @@ export class UniverseRenderer {
       // own bounds (not the routing-extended endTime) so we don't waste
       // vertices on a clamped-to-last-sample post-arc gap.
       try {
-        const trajStart = arc.trajectory.startTime;
-        const trajEnd = arc.trajectory.endTime;
+        // The arc's trajectory may cover far more than the arc: a Spice arc's
+        // bounds are the target's whole SPK coverage (Rosetta's comet-relative
+        // arc would otherwise spread its budget over 2004-2016). Inner edges
+        // are the arc's own; the outer ones stay open, since the body keeps
+        // using its first and last arcs beyond them.
+        const coverStart = arc.trajectory.startTime;
+        const coverEnd = arc.trajectory.endTime;
+        const trajStart = coverStart != null && i > 0 ? Math.max(coverStart, arc.startTime) : coverStart;
+        const trajEnd = coverEnd != null && !isLastArc ? Math.min(coverEnd, arc.endTime) : coverEnd;
         if (trajStart != null && trajEnd != null && trajEnd > trajStart) {
           // Cache must store samples in the SAME frame the trail's runtime
           // resolver produces, otherwise cached samples and live tail
@@ -3241,4 +3242,17 @@ export class UniverseRenderer {
     this.animFrameId = requestAnimationFrame(this.renderLoop);
     this.renderFrame();
   };
+}
+
+/** A catalog trail colour ("#rrggbb", "rrggbb", or [r, g, b] in 0–1) as a hex number. */
+function plotColor(c: string | number[] | undefined): number | undefined {
+  if (typeof c === 'string') {
+    const n = parseInt(c.startsWith('#') ? c.slice(1) : c, 16);
+    return Number.isNaN(n) ? undefined : n;
+  }
+  if (Array.isArray(c) && c.length >= 3) {
+    const ch = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255);
+    return (ch(c[0]!) << 16) | (ch(c[1]!) << 8) | ch(c[2]!);
+  }
+  return undefined;
 }
