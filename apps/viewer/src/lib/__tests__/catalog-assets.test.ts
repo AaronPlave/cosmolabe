@@ -159,6 +159,9 @@ describe('the repository catalogs', () => {
       absolutizeCatalogAssets(json, pathToFileURL(file).href);
       for (const url of assetUrls(json)) {
         if (!url.startsWith('file:')) continue; // remote assets aren't this test's business
+        // A DSK is a kernel: like `spiceKernels`, it lives under kernels/ and is
+        // fetched by a script (scripts/fetch-*-kernels.sh), not committed.
+        if (fileURLToPath(url).startsWith(join(ROOT, 'kernels'))) continue;
         checked++;
         if (!existsSync(fileURLToPath(url))) missing.push(`${relative(ROOT, file)} -> ${url}`);
       }

@@ -739,7 +739,15 @@ function initScene(
       const spinBody = refBody?.rotation
         ? refBody
         : refBody?.parentName ? universe.getBody(refBody.parentName) : undefined;
-      const q = spinBody?.rotationAt(layoutEt);
+      // An attitude from a CK can have gaps (a lander between touchdowns); a
+      // viewpoint inside one falls back to the world-frame offset below rather
+      // than taking the whole scene down with the SPICE error.
+      let q: ReturnType<NonNullable<typeof spinBody>['rotationAt']> | undefined;
+      try {
+        q = spinBody?.rotationAt(layoutEt);
+      } catch (err) {
+        console.warn(`[Cosmolabe] Viewpoint "${vpDef.name}": no orientation for ${spinBody?.name} at its epoch; laying it out in the world frame`, err);
+      }
       const sourceFrame = spinBody?.rotation?.sourceFrame;
       if (q && sourceFrame) {
         const [x, y, z] = bodyFixedOffsetToWorld(

@@ -604,10 +604,18 @@ export class SpiceBindings {
   }
 
   /**
-   * Write an SPK Type 13 (Hermite, unequal step) segment for `body` about `center`
+   * Write an SPK Type 13 (Hermite, unequal step) kernel for `body` about `center`
    * into the in-memory FS and furnsh it, so the propagated arc is queryable through
    * the identical spkpos/spkezr path. `states` is n*6 interleaved (x,y,z,vx,vy,vz);
    * `et` is the n epochs (strictly increasing). (STK_PARITY_SPEC PROP-6.)
+   *
+   * `breaks` optionally splits the samples into consecutive segments: each is
+   * an index at which a new segment starts. The samples either side of a break
+   * are not interpolated across, which is how a resampled ephemeris keeps a
+   * discontinuity (an orbit-determination update) as a clean step. Epochs
+   * increase within a segment; to leave no gap, end one segment and start the
+   * next on the same epoch (SPICE uses the later segment there). Each segment
+   * needs at least two samples.
    */
   writeSpkType13(
     name: string,
@@ -618,6 +626,7 @@ export class SpiceBindings {
     degree: number,
     et: Float64Array,
     states: Float64Array,
+    breaks: readonly number[] = [],
   ): void {
     this.scope(() => {
       const path = `${KERNEL_DIR}/${name}`;
@@ -625,6 +634,12 @@ export class SpiceBindings {
       const n = et.length;
       if (n < 2 || states.length !== n * 6) {
         throw new SpiceError(`writeSpkType13: need >=2 epochs and states of length 6n (n=${n})`);
+      }
+      const bounds = [0, ...breaks, n];
+      for (let i = 1; i < bounds.length; i++) {
+        if (bounds[i]! - bounds[i - 1]! < 2) {
+          throw new SpiceError(`writeSpkType13: segment ${i - 1} (samples ${bounds[i - 1]}..${bounds[i]}) has fewer than 2 samples`);
+        }
       }
       const handlePtr = this.scratch(4);
       this.call('spkopn_c', this.str(path), this.str(segid.slice(0, 60) || 'BESSEL'), 0, handlePtr);
@@ -636,21 +651,30 @@ export class SpiceBindings {
       const epochsPtr = this.scratch(n * 8);
       for (let k = 0; k < n; k++) this.mod.setValue(epochsPtr + k * 8, et[k]!, 'double');
 
-      this.call(
-        'spkw13_c',
-        handle,
-        body,
-        center,
-        this.str(frame),
-        et[0]!,
-        et[n - 1]!,
-        this.str(segid),
-        degree,
-        n,
-        statesPtr,
-        epochsPtr,
-      );
-      this.checkFailed();
+      const frameStr = this.str(frame);
+      const segidStr = this.str(segid);
+      for (let i = 1; i < bounds.length; i++) {
+        const a = bounds[i - 1]!;
+        const b = bounds[i]!;
+        const count = b - a;
+        // Hermite degree is odd and needs (degree + 1) / 2 samples in the window.
+        const deg = Math.min(degree, 2 * count - 1);
+        this.call(
+          'spkw13_c',
+          handle,
+          body,
+          center,
+          frameStr,
+          et[a]!,
+          et[b - 1]!,
+          segidStr,
+          deg % 2 === 1 ? deg : deg - 1,
+          count,
+          statesPtr + a * 6 * 8,
+          epochsPtr + a * 8,
+        );
+        this.checkFailed();
+      }
       this.call('spkcls_c', handle);
       this.checkFailed();
 

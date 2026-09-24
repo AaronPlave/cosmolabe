@@ -152,7 +152,7 @@ Six types, picked by `rotationModel.type`:
 | `Fixed` | A constant orientation. Fields: `quaternion: [x, y, z, w]` |
 | `FixedEuler` | A constant orientation given as Euler angles. Fields: `axes: "XYZ"`, `angles: [a, b, c]` |
 | `Interpolated` | Tabulated quaternion samples, SLERP-interpolated. Fields: `samples: [[et, x, y, z, w], …]` |
-| `Spice` | SPICE CK kernel. Fields: `frame`, `center` |
+| `Spice` | SPICE frame (CK, PCK or FK). Fields: `bodyFrame` (the frame the body turns with), `inertialFrame` (defaults to the item's `trajectoryFrame`), `fallbackFrame` (used where `bodyFrame` has no data — a CK gap — e.g. an articulated part's fixed zero frame) |
 | `Nadir` | Spacecraft pointed at a target body's nadir vector. Fields: `target`, `center` |
 
 `Builtin` is also accepted as a rotation type for legacy IAU body rotations.

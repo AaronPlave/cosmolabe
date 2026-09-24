@@ -18,12 +18,23 @@ export class SpiceRotation implements RotationModel {
      *  holding geometry stated in a named frame (a DSK) can check it matches. */
     readonly bodyFixedFrame: string,
     private readonly inertialFrame: string = 'ECLIPJ2000',
+    /** Frame to use where `bodyFixedFrame` cannot be resolved — a CK frame
+     *  outside its coverage. An articulated part's fixed "zero" frame is the
+     *  usual choice (a solar array's ROS_SA+Y_ZERO), so the part sits in its
+     *  rest pose through a gap rather than in whatever pose it last had. */
+    readonly fallbackFrame?: string,
   ) {
     this.sourceFrame = inertialFrame;
   }
 
   rotationAt(et: number): Quaternion {
-    const m = this.spice.pxform(this.inertialFrame, this.bodyFixedFrame, et);
+    let m;
+    try {
+      m = this.spice.pxform(this.inertialFrame, this.bodyFixedFrame, et);
+    } catch (err) {
+      if (!this.fallbackFrame) throw err;
+      m = this.spice.pxform(this.inertialFrame, this.fallbackFrame, et);
+    }
     return rotationMatrixToQuaternion(m);
   }
 }

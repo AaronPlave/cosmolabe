@@ -267,6 +267,8 @@ export interface RotationModelSpec {
   declination?: number;
   bodyFrame?: string;
   inertialFrame?: string;
+  /** Spice rotation: frame to use where `bodyFrame` has no data (a CK gap), e.g. an articulated part's zero frame. */
+  fallbackFrame?: string;
   /** For Nadir type: SPICE target name (e.g. "LRO", "-85") */
   target?: string;
   /** For Nadir type: SPICE center body name (e.g. "MOON") */
@@ -1404,6 +1406,7 @@ export class CatalogLoader {
           this.spice,
           spec.bodyFrame ?? `IAU_${item.name.toUpperCase()}`,
           this.spiceFrame(spec.inertialFrame ?? frameName(item.trajectoryFrame), item.center),
+          spec.fallbackFrame,
         );
 
       case 'Nadir': {
