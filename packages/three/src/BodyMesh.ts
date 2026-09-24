@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { TDSLoader } from 'three/examples/jsm/loaders/TDSLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
@@ -269,11 +270,53 @@ export class BodyMesh extends THREE.Object3D {
       if (!parsed) throw new Error(`Failed to parse .cmod (${url})`);
       return parsed;
     }
+    if (ext === '3ds') {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+      const buf = await resp.arrayBuffer();
+      const manager = this.textureManagerFor(sourcePath, modelResolver);
+      return new TDSLoader(manager).parse(buf, '');
+    }
     throw new Error(`Unsupported model format: .${ext}`);
   }
 
   /**
-   * Load a 3D model (GLTF/GLB/OBJ) to replace the placeholder sphere.
+   * A LoadingManager for a legacy model's material textures (.3ds): each map
+   * name resolves relative to the model file through the catalog's resolver —
+   * which is what lets a dropped model find its dropped textures — and each
+   * one is registered with the asset tracker as it starts, like a .cmod's.
+   */
+  private textureManagerFor(sourcePath?: string, modelResolver?: ModelResolver): THREE.LoadingManager {
+    const manager = new THREE.LoadingManager();
+    const dir = sourcePath ? sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1) : '';
+    manager.setURLModifier((name) => {
+      // 3DS files written on Windows carry backslash paths.
+      const rel = name.replace(/\\/g, '/');
+      return (modelResolver && sourcePath ? modelResolver(dir + rel) : undefined) ?? rel;
+    });
+    const assets = this.assets;
+    if (!assets) return manager;
+    const settle = new Map<string, { ok: () => void; fail: (e: Error) => void }>();
+    const { itemStart, itemEnd, itemError } = manager;
+    manager.itemStart = (url: string) => {
+      itemStart.call(manager, url);
+      const p = new Promise<void>((ok, fail) => settle.set(url, { ok, fail }));
+      assets.track({ kind: 'texture', owner: this.body.name, role: `3ds:${url.split('/').pop()}`, url }, p);
+    };
+    // A failed image reports itemError and then itemEnd; the promise keeps the first.
+    manager.itemError = (url: string) => {
+      itemError.call(manager, url);
+      settle.get(url)?.fail(new Error(`texture failed to load: ${url}`));
+    };
+    manager.itemEnd = (url: string) => {
+      itemEnd.call(manager, url);
+      settle.get(url)?.ok();
+    };
+    return manager;
+  }
+
+  /**
+   * Load a 3D model (GLTF/GLB, OBJ, CMOD, or legacy 3DS) to replace the placeholder sphere.
    * Applies size scaling, mesh offset, and mesh rotation from the geometry spec.
    */
   async loadModel(url: string, scaleFactor: number, sourcePath?: string, modelResolver?: ModelResolver): Promise<void> {

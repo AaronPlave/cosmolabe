@@ -202,7 +202,7 @@ const KERNEL_EXTENSIONS = new Set([
 ]);
 // `.bds` is a DSK shape model. It is read for a Dsk geometry, not furnished, so
 // it travels with the models rather than the kernels.
-const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod', '.bds']);
+const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod', '.3ds', '.bds']);
 const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.tga']);
 
 // ── Fetch with progress + gzip decompression ──

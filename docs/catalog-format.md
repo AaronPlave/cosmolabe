@@ -129,7 +129,7 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 | Type | What it draws | Key fields |
 |---|---|---|
 | `Globe` | Textured sphere; optionally with streaming terrain | `radius`, `baseMap`, `normalMap`, `nightMap`, `atmosphere`, `terrain` |
-| `Mesh` | A 3D model (GLTF, OBJ, CMOD) | `source`, `size`, `meshRotation` |
+| `Mesh` | A 3D model (GLTF/GLB, OBJ, CMOD, 3DS) | `source`, `size`, `meshRotation` |
 | `Dsk` | A SPICE DSK plate model: an irregular body's own surface, in its body-fixed frame | `source`, `color` |
 | `Sensor` | Instrument FOV cone | `target`, `shape` (`circular` / `elliptical` / `rectangular`), `horizontalFov`, `verticalFov`, `frustumColor`, `frustumOpacity` |
 | `Rings` | Planetary rings | `innerRadius`, `outerRadius`, `texture` |
@@ -137,6 +137,20 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 | `KeplerianSwarm` | Many bodies sharing a parent (asteroid belt, debris cloud) | `bodies: []` |
 | `ParticleSystem` | Plumes, exhaust, dust | (renderer-specific) |
 | `TimeSwitched` | Different geometry at different times | `arcs: [{ startEt, endEt, geometry }]` |
+
+### Model formats
+
+`Mesh` picks its loader from the `source` extension:
+
+- **GLB / glTF** — the preferred format for new visual models.
+- **OBJ** — interchange and legacy.
+- **CMOD** — Cosmographia / Celestia compatibility.
+- **3DS** — legacy compatibility, for the mission models Cosmographia packages
+  still ship (Rosetta's among them). Material maps resolve relative to the model
+  file. Prefer converting to GLB for anything you author.
+
+A **DSK** is not a model format: it is a body's authoritative surface, and has
+its own geometry type, [`Dsk`](#dsk).
 
 ### Asset paths
 
