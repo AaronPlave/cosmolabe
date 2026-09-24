@@ -2,6 +2,13 @@ import type { Body } from "@cosmolabe/core";
 import * as THREE from "three";
 import type { TrajectoryCache } from "./TrajectoryCache.js";
 import { EmphasisClock, stepEmphasis } from "./emphasisFade.js";
+import {
+  TrajectoryLead,
+  type DrawnLead,
+  type LeadPolicy,
+  type LeadRequest,
+  type LeadWindow,
+} from "./TrajectoryLead.js";
 
 /** Scratch color for emphasis lerp (avoids per-call allocation). */
 const _emphTmp = /* @__PURE__ */ new THREE.Color();
@@ -30,10 +37,24 @@ export interface ColorSegment {
 export interface TrajectoryLineOptions {
   /** Max number of rendered vertices. Default 32000. */
   maxPoints?: number;
-  /** Duration of trail behind current time (seconds) */
+  /**
+   * Total plotted span in seconds (Cosmographia's plot `duration`): the trail
+   * behind current time covers `trailDuration - leadDuration` of it.
+   */
   trailDuration?: number;
-  /** Duration of trail ahead of current time (seconds) */
+  /**
+   * Persistent future lead ahead of current time (seconds), drawn dashed by
+   * the line's {@link TrajectoryLead}. Default 0: no future path unless a
+   * consumer requests one (see {@link TrajectoryLine.setLeadRequest}).
+   */
   leadDuration?: number;
+  /**
+   * Longest continuous lead drawn from current time; targets further out get
+   * a context excerpt instead. Default: the trail duration, at least a day.
+   */
+  leadMaxContinuous?: number;
+  /** Context drawn either side of a lead target (seconds). Default: 5% of the trail, 10 min – 2 days. */
+  leadContextPad?: number;
   /** Line color */
   color?: number;
   /** Line opacity (0-1) */
@@ -161,6 +182,10 @@ export class TrajectoryLine extends THREE.Object3D {
   // single tail sample draws a visible straight line at periapsis.
   private _bridgeSamples: Sample[] = [];
 
+  // Future path ahead of current time. Owns its own geometry; the trail ends
+  // at current time and the lead starts there.
+  private readonly lead: TrajectoryLead;
+
   // Time bounds
   private readonly minTime?: number;
   private readonly maxTime?: number;
@@ -267,8 +292,70 @@ export class TrajectoryLine extends THREE.Object3D {
       this._baseOrbitOpacity = orbitMaterial.opacity;
     }
 
+    const lead: LeadPolicy = {
+      maxContinuous:
+        options.leadMaxContinuous ?? Math.max(this.trailDuration, 86400),
+      contextPad:
+        options.leadContextPad ??
+        Math.min(Math.max(this.trailDuration * 0.05, 600), 2 * 86400),
+    };
+    // A shade under the trail: the future is context, the past is motion.
+    this.lead = new TrajectoryLead(lead, this._baseTrailOpacity * 0.8);
+    if (this.leadDuration > 0) {
+      this.lead.setRequest(TrajectoryLine.BASE_LEAD, { duration: this.leadDuration });
+    }
+    this.add(this.lead.object);
+
     // Start at the slightly-reduced rest opacity so a hovered line stands out.
     this.applyEmphasis(0);
+  }
+
+  /** Request key for the persistent `leadDuration` option. */
+  static readonly BASE_LEAD = "base";
+
+  /**
+   * Add, replace, or (with null) remove a consumer's future-lead request. Keys
+   * keep consumers independent: an event hover preview and a selected event
+   * can both ask without undoing each other. The drawn lead is their union,
+   * windowed by the line's lead policy and clipped to trajectory coverage.
+   */
+  setLeadRequest(key: string, request: LeadRequest | null): void {
+    this.lead.setRequest(key, request);
+  }
+
+  getLeadRequest(key: string): LeadRequest | undefined {
+    return this.lead.getRequest(key);
+  }
+
+  /** Tune the continuous reach / context padding of this line's lead. */
+  setLeadPolicy(policy: Partial<LeadPolicy>): void {
+    this.lead.setPolicy(policy);
+  }
+
+  /** Windows the lead drew on the last update (empty when it drew none). */
+  leadWindows(): readonly LeadWindow[] {
+    return this.lead.currentWindows();
+  }
+
+  /**
+   * The lead geometry drawn this frame, in this object's local space, with
+   * per-vertex epochs — for markers and highlights that sit on the future
+   * path. Read-only; do not mutate.
+   */
+  drawnLead(): DrawnLead {
+    return this.lead.drawnLead();
+  }
+
+  /**
+   * Coverage the trajectory data supports for this line: the arc bounds and
+   * the trajectory's own start/end. The lead never leaves it.
+   */
+  private coverage(): { start: number; end: number } {
+    const traj = this.body.trajectory;
+    return {
+      start: Math.max(this.minTime ?? -Infinity, traj.startTime ?? -Infinity),
+      end: Math.min(this.maxTime ?? Infinity, traj.endTime ?? Infinity),
+    };
   }
 
   setUserVisible(visible: boolean): void {
@@ -287,12 +374,56 @@ export class TrajectoryLine extends THREE.Object3D {
     return [this.minTime ?? -Infinity, this.maxTime ?? Infinity];
   }
 
-  /** Epochs represented by the moving trail at the current simulation time. */
+  /**
+   * Epochs represented by the moving trail at the current simulation time.
+   * The trail ends at current time; what is ahead belongs to the lead (see
+   * {@link drawnTimeRange} for both).
+   */
   visibleTimeRange(et: number): [number, number] | null {
-    if (!this.userVisible || !this.visible) return null;
-    const end = Math.min(et + this.leadDuration, this.maxTime ?? Infinity, this.body.trajectory.endTime ?? Infinity);
-    const start = Math.max(end - this.trailDuration, this.minTime ?? -Infinity, this.body.trajectory.startTime ?? -Infinity);
+    if (!this.userVisible || !this.visible || !this.trailLine.visible) return null;
+    const end = Math.min(et, this.maxTime ?? Infinity, this.body.trajectory.endTime ?? Infinity);
+    const start = Math.max(
+      Math.min(et + this.leadDuration - this.trailDuration, end),
+      this.minTime ?? -Infinity,
+      this.body.trajectory.startTime ?? -Infinity,
+    );
     return start <= end ? [start, end] : null;
+  }
+
+  /**
+   * Envelope of every epoch this line draws right now: its trail and its
+   * lead windows. The lead can be disjoint (an excerpt around a distant
+   * event), so use {@link pathAlphaAt} to ask whether an epoch is drawn.
+   */
+  drawnTimeRange(et: number): [number, number] | null {
+    let range = this.visibleTimeRange(et);
+    if (!this.userVisible || !this.visible) return range;
+    for (const w of this.lead.currentWindows()) {
+      range = range ? [Math.min(range[0], w.start), Math.max(range[1], w.end)] : [w.start, w.end];
+    }
+    return range;
+  }
+
+  /**
+   * Brightness this line draws `sampleEt` with — trail fade behind current
+   * time, lead fade ahead — or 0 where it draws nothing.
+   */
+  pathAlphaAt(sampleEt: number, et: number): number {
+    const trail = this.trailAlphaAt(sampleEt, et);
+    if (trail > 0 || sampleEt <= et) return trail;
+    return this.lead.alphaAt(sampleEt);
+  }
+
+  /**
+   * Everything this line drew this frame, as time-tagged polylines in local
+   * space: the trail, then each unbroken run of the lead. The first lead run
+   * starts at the trail's head. The single source for annotations that sit
+   * on the path, past or future. Read-only; do not mutate.
+   */
+  drawnPath(): readonly DrawnTrail[] {
+    const trail = this.drawnTrail();
+    const runs = this.lead.drawnRuns();
+    return trail.count > 0 ? [trail, ...runs] : runs;
   }
 
   /** Match the trail's per-vertex fade for an annotation at this epoch. */
@@ -309,7 +440,7 @@ export class TrajectoryLine extends THREE.Object3D {
    * view for screen-space annotation placement; do not mutate.
    */
   drawnTrail(): DrawnTrail {
-    const count = this.trailLine.geometry.drawRange.count;
+    const count = this.trailLine.visible ? this.trailLine.geometry.drawRange.count : 0;
     return {
       positions: this.trailPositions,
       times: this.trailTimes,
@@ -365,13 +496,22 @@ export class TrajectoryLine extends THREE.Object3D {
     this._currentEt = et;
     const resolver = this.fixedResolver ?? resolvePos;
 
-    if (this.minTime != null && et < this.minTime) {
-      this.visible = false;
-      return;
-    }
-    // Hide past arcs once the trail window has moved entirely past their end
-    if (this.maxTime != null && et - this.trailDuration > this.maxTime) {
-      this.visible = false;
+    // The trail is hidden before its arc starts and once its window has moved
+    // entirely past the arc's end. The lead is not: a future arc's path can be
+    // requested (an event on it) before the playhead reaches the arc.
+    const trailActive =
+      !(this.minTime != null && et < this.minTime) &&
+      !(this.maxTime != null && et - this.trailDuration > this.maxTime);
+    this.trailLine.visible = trailActive;
+    if (this.orbitLine) this.orbitLine.visible = trailActive;
+    if (!trailActive) {
+      if (!this.lead.hasRequests) {
+        this.visible = false;
+        return;
+      }
+      this.visible = true;
+      this._tailSample = null;
+      this.updateLead(et, scaleFactor, resolver, vertexOffset);
       return;
     }
     this.visible = true;
@@ -391,7 +531,7 @@ export class TrajectoryLine extends THREE.Object3D {
         this._bufferDirty = true;
       }
       // Tail sample: 1 SPICE call per frame to reach exact current position
-      let tailEt = et + this.leadDuration;
+      let tailEt = et;
       if (this.maxTime != null && tailEt > this.maxTime) tailEt = this.maxTime;
       const pos = this.resolveAt(tailEt, resolver);
       this._tailSample = !isNaN(pos[0])
@@ -425,7 +565,7 @@ export class TrajectoryLine extends THREE.Object3D {
         this._tailSample = null;
       } else {
         // Tail sample: 1 SPICE call per frame to reach exact current position
-        let tailEt = et + this.leadDuration;
+        let tailEt = et;
         if (this.maxTime != null && tailEt > this.maxTime)
           tailEt = this.maxTime;
         const pos = this.resolveAt(tailEt, resolver);
@@ -438,14 +578,46 @@ export class TrajectoryLine extends THREE.Object3D {
 
     // Phase 2: Apply offset and write to Float32 buffers
     this.applyOffset(scaleFactor, vertexOffset);
+    this.updateLead(et, scaleFactor, resolver, vertexOffset);
+  }
+
+  /** Draw the future lead from the same resolver, cache and offset as the trail. */
+  private updateLead(
+    et: number,
+    scaleFactor: number,
+    resolver: PositionResolver | undefined,
+    vertexOffset?: [number, number, number],
+  ): void {
+    if (!this.lead.hasRequests) {
+      this.lead.hide();
+      return;
+    }
+    const tail = this._tailSample;
+    this.lead.update({
+      et,
+      scaleFactor,
+      offset: vertexOffset ?? [0, 0, 0],
+      resolve: (t) => this.resolveAt(t, resolver),
+      cache: this.cache,
+      head: tail && tail.t === et ? tail : null,
+      coverage: this.coverage(),
+      color: this._activeColor,
+      colorSegments: this._colorSegments,
+      // Same budget split as the trail: a pre-baked resolver is cheap.
+      liveSamples: this.fixedResolver ? 2000 : 300,
+    });
   }
 
   /** Recompute trajectory samples — only called when et changes */
   private recomputeSamples(et: number, resolver?: PositionResolver): void {
-    let endEt = et + this.leadDuration;
+    // The trail ends at current time; anything ahead is the lead's. It starts
+    // where a Cosmographia plot of `trailDuration` with `leadDuration` ahead
+    // would, so the total plotted span is unchanged.
+    let endEt = et;
     if (this.maxTime != null && endEt > this.maxTime) endEt = this.maxTime;
 
-    let startEt = endEt - this.trailDuration;
+    let startEt = et + this.leadDuration - this.trailDuration;
+    if (startEt > endEt) startEt = endEt;
     if (this.minTime != null && startEt < this.minTime) startEt = this.minTime;
     const trajStart = this.body.trajectory.startTime;
     if (trajStart != null && startEt < trajStart) startEt = trajStart;
@@ -678,7 +850,7 @@ export class TrajectoryLine extends THREE.Object3D {
       // Clip future vertices when scrubbing backwards across the resample interval
       // (the cached window's right edge can be ahead of current et). Cache times
       // are ascending — walk back from hi until we're at or before the cutoff.
-      const cutoffT = this._currentEt + this.leadDuration;
+      const cutoffT = this._currentEt;
       const cTimesArr = this.cache.times;
       while (hi > lo && cTimesArr[hi - 1] > cutoffT) hi--;
       const count = hi - lo;
@@ -772,7 +944,7 @@ export class TrajectoryLine extends THREE.Object3D {
 
     // Clip future vertices when scrubbing backwards across the resample interval.
     // cachedSamples are ascending in t — find the first index where t > cutoff.
-    const legacyCutoffT = this._currentEt + this.leadDuration;
+    const legacyCutoffT = this._currentEt;
     let visibleSampleCount = samples.length;
     while (
       visibleSampleCount > 0 &&
@@ -923,6 +1095,7 @@ export class TrajectoryLine extends THREE.Object3D {
     const trailMat = this.trailLine.material as THREE.LineBasicMaterial;
     trailMat.opacity = THREE.MathUtils.lerp(
       this._baseTrailOpacity * rest, Math.min(1, this._baseTrailOpacity * 1.4), amount);
+    this.lead.setOpacityScale(THREE.MathUtils.lerp(rest, 1.4, amount));
     if (this.orbitLine) {
       const orbitMat = this.orbitLine.material as THREE.LineBasicMaterial;
       orbitMat.opacity = THREE.MathUtils.lerp(
@@ -940,11 +1113,13 @@ export class TrajectoryLine extends THREE.Object3D {
     this._tailSample = null;
     this._bridgeSamples = [];
     this._orbitSamples = undefined;
+    this.lead.invalidate();
   }
 
   dispose(): void {
     this.trailLine.geometry.dispose();
     (this.trailLine.material as THREE.Material).dispose();
+    this.lead.dispose();
     if (this.orbitLine) {
       this.orbitLine.geometry.dispose();
       (this.orbitLine.material as THREE.Material).dispose();

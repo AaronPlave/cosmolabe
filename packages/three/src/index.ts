@@ -7,6 +7,8 @@ export { BodyMesh } from './BodyMesh.js';
 export type { ModelResolver } from './BodyMesh.js';
 export { TrajectoryLine } from './TrajectoryLine.js';
 export type { TrajectoryLineOptions, PositionResolver, ColorSegment, DrawnTrail } from './TrajectoryLine.js';
+export { TrajectoryLead, resolveLeadWindows, leadDashPeriod, leadFade } from './TrajectoryLead.js';
+export type { LeadRequest, LeadPolicy, LeadSpan, LeadWindow, LeadWindowKind, DrawnLead } from './TrajectoryLead.js';
 export { TrajectoryCache } from './TrajectoryCache.js';
 export type { TrajectoryCacheConfig } from './TrajectoryCache.js';
 export {
