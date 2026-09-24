@@ -13,6 +13,7 @@ import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
 import { SensorFrustum } from './SensorFrustum.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
+import { dskShapeProviderOf } from './DskShapeProvider.js';
 import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 import { EventMarkers } from './EventMarkers.js';
 import { OccultationGeometry } from './OccultationGeometry.js';
@@ -2190,6 +2191,28 @@ export class UniverseRenderer {
             { kind: 'model', owner: body.name, role: 'model', url: source },
             'model source did not resolve to a URL',
           );
+        }
+      }
+
+      // A DSK shape model: the body's own surface, read by SPICE and drawn in
+      // its body-fixed frame (DskShapeProvider.ts). It needs a SPICE engine to
+      // read the file, and fails as an asset — not silently — without one.
+      if (body.geometryType === 'Dsk' && body.geometryData?.source) {
+        const source = body.geometryData.source as string;
+        const url = this.options.modelResolver?.(source);
+        const provider = dskShapeProviderOf(this.universe.spiceInstance);
+        if (!url) {
+          this.assets.fail(
+            { kind: 'model', owner: body.name, role: 'model:dsk', url: source },
+            'DSK source did not resolve to a URL',
+          );
+        } else if (!provider) {
+          this.assets.fail(
+            { kind: 'model', owner: body.name, role: 'model:dsk', url },
+            'reading a DSK needs a SPICE engine, and this scene has none',
+          );
+        } else {
+          this.assets.hold(bm.loadDsk(url, this.scaleFactor, provider, source));
         }
       }
 

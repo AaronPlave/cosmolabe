@@ -17,6 +17,7 @@
 
     { "id": "solar-system", "name": "Solar System Tour", "catalog": "./solar-system.json", "description": "Planets + Ceres + sample spacecraft arc", "group": "Extended scenes" },
     { "id": "sensor-demo", "name": "Sensor Frustums", "catalog": "./sensor-demo.json", "description": "FOV cones from spacecraft instruments", "group": "Extended scenes" },
+    { "id": "arrokoth-dsk", "name": "Arrokoth (DSK)", "catalog": "./arrokoth-dsk.json", "description": "A SPICE DSK plate model drawn natively — New Horizons' MU69 shape", "group": "Extended scenes" },
     { "id": "oem-ingest", "name": "CCSDS OEM Ingest", "catalog": "./oem-ingest.json", "description": "Cassini at Saturn flown from a text ephemeris — no spacecraft SPK", "group": "Extended scenes" },
 
     { "id": "cassini-soi", "name": "Cassini Saturn Tour", "catalog": "./cassini-soi.json", "description": "2004 SOI through Enceladus E-2 (~150 MB)", "group": "Mission demos — full SPICE" },

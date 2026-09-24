@@ -13,7 +13,8 @@ import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUnif
 import { BLOOM_LAYER } from './BloomEffect.js';
 import { isLine, isMesh, isSprite } from './internal/three-typeguards.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
-import { composeBodyToWorldQuat, type Body, type FrameRegistry } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, SpiceRotation, type Body, type FrameRegistry } from '@cosmolabe/core';
+import { dskToBufferGeometry, gunzipIfNeeded, type DskShapeProvider } from './DskShapeProvider.js';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
   star: 0xffdd44,
@@ -262,7 +263,6 @@ export class BodyMesh extends THREE.Object3D {
     if (this.loadedModel) return;
     this.loadedModel = true;
 
-    const geo = this.body.geometryData ?? {};
     // Use sourcePath for extension detection (blob URLs have no extension)
     const extSource = sourcePath ?? url;
     const ext = extSource.split('.').pop()?.toLowerCase() ?? '';
@@ -279,6 +279,88 @@ export class BodyMesh extends THREE.Object3D {
       console.warn(`[Cosmolabe] Failed to load model for ${this.body.name}: ${e instanceof Error ? e.message : e}`);
       return;
     }
+
+    this.installModel(object, scaleFactor, false);
+  }
+
+  /**
+   * Load a SPICE DSK shape model as this body's surface.
+   *
+   * Unlike an art model, a DSK is authoritative: its vertices are already km
+   * in the body-fixed frame, centred on the body, so `size`, `meshRotation`
+   * and `meshOffset` do not apply and are ignored. The body's rotation model
+   * places it, which is why a Dsk body needs one naming the same frame the DSK
+   * does; a mismatch is reported rather than silently drawn in the wrong
+   * orientation.
+   */
+  async loadDsk(url: string, scaleFactor: number, provider: DskShapeProvider, sourcePath?: string): Promise<void> {
+    if (this.loadedModel) return;
+    this.loadedModel = true;
+
+    const name = (sourcePath ?? url).split(/[?#]/)[0]!.split('/').pop()!.replace(/\.gz$/i, '') || 'shape.bds';
+    const load = (async () => {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+      const bytes = await gunzipIfNeeded(new Uint8Array(await resp.arrayBuffer()));
+      const shape = provider.readDsk(name, bytes);
+      this.checkDskFrame(name, shape.centerId, shape.frame);
+      const material = new THREE.MeshStandardMaterial({
+        color: this.dskColor(),
+        roughness: 1,
+        metalness: 0,
+      });
+      const mesh = new THREE.Mesh(dskToBufferGeometry(shape), material);
+      mesh.name = `${this.body.name} DSK`;
+      const group = new THREE.Group();
+      group.add(mesh);
+      return group;
+    })();
+    this.assets?.track({ kind: 'model', owner: this.body.name, role: 'model:dsk', url }, load);
+    let object: THREE.Object3D;
+    try {
+      object = await load;
+    } catch (e) {
+      console.warn(`[Cosmolabe] Failed to load DSK for ${this.body.name}: ${e instanceof Error ? e.message : e}`);
+      return;
+    }
+    this.installModel(object, scaleFactor, true);
+  }
+
+  private dskColor(): THREE.ColorRepresentation {
+    const c = this.body.geometryData?.color;
+    if (Array.isArray(c) && c.length >= 3) return new THREE.Color(c[0] as number, c[1] as number, c[2] as number);
+    if (typeof c === 'string') return c;
+    return DEFAULT_BODY_COLORS[this.body.classification ?? ''] ?? 0xcccccc;
+  }
+
+  /**
+   * Warn when a DSK's own centre or frame disagrees with the body it is drawn
+   * on. Both are read from the file's segment descriptor, so this is the one
+   * place the catalog's claim can be checked against the data.
+   */
+  private checkDskFrame(name: string, centerId: number, frame: string): void {
+    const naifId = this.body.naifId;
+    if (naifId != null && naifId !== centerId) {
+      console.warn(`[Cosmolabe] DSK ${name} describes NAIF body ${centerId}, but it is drawn on ${this.body.name} (${naifId})`);
+    }
+    const rotation = this.body.rotation;
+    if (!rotation) {
+      console.warn(`[Cosmolabe] ${this.body.name} has a DSK surface but no rotationModel; the shape will not turn with the body`);
+      return;
+    }
+    if (frame && rotation instanceof SpiceRotation && rotation.bodyFixedFrame.toUpperCase() !== frame.toUpperCase()) {
+      console.warn(`[Cosmolabe] DSK ${name} is in frame ${frame}, but ${this.body.name} rotates into ${rotation.bodyFixedFrame}`);
+    }
+  }
+
+  /**
+   * Put a parsed model in place of the placeholder sphere: sizing, the model
+   * render layer, shadows and the log-depth strip. `bodyFixedKm` marks geometry
+   * that is already km in the body-fixed frame (a DSK), which skips the
+   * catalog's size and mesh-alignment fields.
+   */
+  private installModel(object: THREE.Object3D, scaleFactor: number, bodyFixedKm: boolean): void {
+    const geo: Record<string, unknown> = bodyFixedKm ? {} : (this.body.geometryData ?? {});
 
     // Store mesh rotation for composition with SPICE attitude (Cosmographia quaternion: [w, x, y, z])
     const meshRotation = geo.meshRotation as number[] | undefined;

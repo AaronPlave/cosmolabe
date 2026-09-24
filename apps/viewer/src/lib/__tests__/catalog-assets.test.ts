@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { absolutizeCatalogAssets, resolveCatalogRelative } from '../catalog-assets';
+import { absolutizeCatalogAssets, catalogsUseDsk, resolveCatalogRelative } from '../catalog-assets';
 
 describe('resolveCatalogRelative', () => {
   const cat = 'https://mission.example/catalogs/scenes/main.json';
@@ -63,13 +63,17 @@ describe('absolutizeCatalogAssets', () => {
           ],
         },
         {
+          name: 'Comet',
+          geometry: { type: 'Dsk', source: '../shapes/comet.bds' },
+        },
+        {
           name: 'Tiled',
           geometry: { type: 'Globe', radius: 1, baseMap: { type: 'NameTemplate', template: 'tex/t_%level_%column_%row.dds' } },
         },
       ],
     };
     absolutizeCatalogAssets(catalog, url);
-    const [sc, planet, tiled] = catalog.items as any[];
+    const [sc, planet, comet, tiled] = catalog.items as any[];
 
     expect(sc.geometry.source).toBe('https://mission.example/catalogs/models/spacecraft.glb');
     // Trajectory data stays as written: the viewer pre-fetches it keyed by that path.
@@ -84,7 +88,21 @@ describe('absolutizeCatalogAssets', () => {
     ]);
     expect(planet.geometry.surfaceTiles[0].url).toBe('https://mission.example/catalogs/scenes/site/tileset.json');
     expect(planet.items[0].geometry.texture).toBe('https://mission.example/catalogs/textures/rings.png');
+    expect(comet.geometry.source).toBe('https://mission.example/catalogs/shapes/comet.bds');
     expect(tiled.geometry.baseMap.template).toBe('https://mission.example/catalogs/scenes/tex/t_%level_%column_%row.dds');
+  });
+});
+
+describe('catalogsUseDsk', () => {
+  it('finds a Dsk geometry at any depth, in any catalog of the scene', () => {
+    const plain = { items: [{ name: 'A', geometry: { type: 'Mesh', source: 'a.glb' } }] };
+    const nested = { items: [{ name: 'B', items: [{ name: 'C', geometry: { type: 'Dsk', source: 'c.bds' } }] }] };
+    expect(catalogsUseDsk([plain])).toBe(false);
+    expect(catalogsUseDsk([plain, nested])).toBe(true);
+  });
+
+  it('ignores a Dsk with no source, which the renderer cannot load either', () => {
+    expect(catalogsUseDsk([{ items: [{ name: 'D', geometry: { type: 'Dsk' } }] }])).toBe(false);
   });
 });
 
@@ -109,7 +127,7 @@ describe('the repository catalogs', () => {
     else if (node && typeof node === 'object') {
       const o = node as Record<string, unknown>;
       const take = (v: unknown) => typeof v === 'string' && out.push(v);
-      if (o.type === 'Mesh') take(o.source);
+      if (o.type === 'Mesh' || o.type === 'Dsk') take(o.source);
       if (o.type === 'Globe') ['baseMap', 'normalMap', 'displacementMap', 'bumpMap'].forEach((k) => take(o[k]));
       if (o.type === 'Rings') take(o.texture);
       Object.values(o).forEach((v) => assetUrls(v, out));

@@ -64,9 +64,10 @@ export function createSpiceWorkerPool(workers: Worker[]): SpiceWorkerPool {
       all((c) => c.writeSpkType13(name, body, center, frame, segid, degree, et, states)),
     writeCk03: (name, inst, ref, segid, sclkdp, quats, avvs, starts) =>
       all((c) => c.writeCk03(name, inst, ref, segid, sclkdp, quats, avvs, starts)),
-    readDsk: (name, bytes) => all((c) => c.readDsk(name, bytes)),
 
-    // Stateless reads: round-robin.
+    // Stateless reads: round-robin. readDsk stages and removes its own bytes,
+    // so it leaves no worker state behind and one worker is enough.
+    readDsk: (name, bytes) => next().readDsk(name, bytes),
     ktotal: (kind) => next().ktotal(kind),
     str2et: (utc) => next().str2et(utc),
     et2utc: (et, format, precision) => next().et2utc(et, format, precision),

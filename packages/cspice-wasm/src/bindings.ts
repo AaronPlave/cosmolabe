@@ -11,6 +11,7 @@ import {
   type AberrationCorrection,
   type CartesianState,
   type DskShape,
+  type DskSegmentInfo,
   type FovResult,
   type IluminResult,
   type InterceptResult,
@@ -23,6 +24,8 @@ import {
 } from './index.js';
 
 const KERNEL_DIR = '/kernels';
+/** sizeof(SpiceDSKDescr): 6 SpiceInt (4 bytes on wasm32) + 24 SpiceDouble. */
+const DSK_DESCR_BYTES = 6 * 4 + 24 * 8;
 
 /**
  * SPICE_GF_CNVTOL: the convergence tolerance the simplified gf*_c wrappers use.
@@ -1786,82 +1789,167 @@ export class SpiceBindings {
     });
   }
 
-  /** Read a DSK type-2 shape model by staging bytes and using DAS-level readers. */
+  /**
+   * Read every type-2 segment of a DSK into one triangle mesh, by staging the
+   * bytes and using the DAS/DLA-level readers.
+   *
+   * Segments are concatenated in file order, each segment's plate indices offset
+   * past the vertices before it. They must agree on centre and frame: one mesh
+   * has one body-fixed frame, and a file that mixes them is two shapes, not one.
+   * Segments of any other data type are skipped and counted in `skippedSegments`.
+   *
+   * The bytes are staged under a private name and removed afterwards, so a
+   * read never shadows or outlives a kernel of the same name that was furnished.
+   */
   readDsk(name: string, bytes: Uint8Array): DskShape {
     return this.scope(() => {
-      const path = `${KERNEL_DIR}/${name}`;
+      const path = `${KERNEL_DIR}/.readdsk-${name}`;
       this.mod.FS.writeFile(path, bytes);
-      const handlePtr = this.scratch(4);
-      this.call('dasopr_c', this.str(path), handlePtr);
-      this.checkFailed();
-      const handle = this.readInt(handlePtr);
-
-      const descr = this.scratch(8 * 4); // SpiceDLADescr: 8 ints
-      const found = this.scratch(4);
-      this.call('dlabfs_c', handle, descr, found);
-      this.checkFailed();
-      if (this.readInt(found) === 0) {
-        this.call('dascls_c', handle);
-        throw new SpiceError(`DSK "${name}" has no segments`);
+      try {
+        return this.readDskStaged(name, path);
+      } finally {
+        if (this.mod.FS.analyzePath(path).exists) this.mod.FS.unlink(path);
       }
-
-      const nvPtr = this.scratch(4);
-      const npPtr = this.scratch(4);
-      this.call('dskz02_c', handle, descr, nvPtr, npPtr);
-      this.checkFailed();
-      const nv = this.readInt(nvPtr);
-      const np = this.readInt(npPtr);
-
-      const vertices = this.readDskChunked(nv, 3, 8, (start, room, nPtr, buf) =>
-        this.call('dskv02_c', handle, descr, start, room, nPtr, buf),
-      );
-      const platesRaw = this.readDskChunked(np, 3, 4, (start, room, nPtr, buf) =>
-        this.call('dskp02_c', handle, descr, start, room, nPtr, buf),
-      );
-
-      this.call('dascls_c', handle);
-      this.checkFailed();
-
-      // Plate vertex indices are 1-based in CSPICE; convert to 0-based.
-      const plates = platesRaw.map((i) => i - 1);
-      return { vertices, plates };
     });
   }
 
-  /** Read count rows of `cols` values (`bytes` each: 8 double, 4 int) in chunks. */
-  private readDskChunked(
-    count: number,
-    cols: number,
-    bytes: number,
-    fetch: (start: number, room: number, nPtr: number, buf: number) => number,
-  ): number[] {
-    return this.scope(() => this.readDskChunkedInner(count, cols, bytes, fetch));
+  private readDskStaged(name: string, path: string): DskShape {
+    const handlePtr = this.scratch(4);
+    this.call('dasopr_c', this.str(path), handlePtr);
+    this.checkFailed();
+    const handle = this.readInt(handlePtr);
+
+    try {
+      // SpiceDLADescr is 8 ints. SpiceDSKDescr is 6 ints (surfce, center,
+      // dclass, dtype, frmcde, corsys) then 24 doubles, 168 bytes in all.
+      let dla = this.scratch(8 * 4);
+      let next = this.scratch(8 * 4);
+      const dsk = this.scratch(DSK_DESCR_BYTES);
+      const found = this.scratch(4);
+      const nvPtr = this.scratch(4);
+      const npPtr = this.scratch(4);
+
+      const parts: { vertices: Float64Array; plates: Int32Array }[] = [];
+      const segments: DskSegmentInfo[] = [];
+      let skippedSegments = 0;
+
+      this.call('dlabfs_c', handle, dla, found);
+      this.checkFailed();
+      while (this.readInt(found) !== 0) {
+        this.call('dskgd_c', handle, dla, dsk);
+        this.checkFailed();
+        const surfaceId = this.readInt(dsk);
+        const centerId = this.readInt(dsk + 4);
+        const dataType = this.readInt(dsk + 12);
+        const frameId = this.readInt(dsk + 16);
+
+        if (dataType === 2) {
+          this.call('dskz02_c', handle, dla, nvPtr, npPtr);
+          this.checkFailed();
+          const nv = this.readInt(nvPtr);
+          const np = this.readInt(npPtr);
+          const vertices = new Float64Array(nv * 3);
+          const plates = new Int32Array(np * 3);
+          this.readDskRows(nv, 3, vertices, (start, room, nPtr, buf) =>
+            this.call('dskv02_c', handle, dla, start, room, nPtr, buf),
+          );
+          this.readDskRows(np, 3, plates, (start, room, nPtr, buf) =>
+            this.call('dskp02_c', handle, dla, start, room, nPtr, buf),
+          );
+          parts.push({ vertices, plates });
+          segments.push({
+            surfaceId,
+            centerId,
+            frameId,
+            frame: this.frmnam(frameId),
+            vertexCount: nv,
+            plateCount: np,
+          });
+        } else {
+          skippedSegments++;
+        }
+
+        this.call('dlafns_c', handle, dla, next, found);
+        this.checkFailed();
+        [dla, next] = [next, dla];
+      }
+
+      const first = segments[0];
+      if (!first) {
+        throw new SpiceError(
+          skippedSegments > 0
+            ? `DSK "${name}" has no type-2 segments (${skippedSegments} of another type)`
+            : `DSK "${name}" has no segments`,
+        );
+      }
+      for (const seg of segments) {
+        if (seg.centerId !== first.centerId || seg.frameId !== first.frameId) {
+          throw new SpiceError(
+            `DSK "${name}" mixes segments for centre ${first.centerId} / frame ${first.frame || first.frameId}` +
+              ` and centre ${seg.centerId} / frame ${seg.frame || seg.frameId}; one mesh needs one body-fixed frame`,
+          );
+        }
+      }
+
+      const totalV = parts.reduce((n, p) => n + p.vertices.length, 0);
+      const totalP = parts.reduce((n, p) => n + p.plates.length, 0);
+      const vertices = new Float64Array(totalV);
+      const plates = new Uint32Array(totalP);
+      let vOff = 0;
+      let pOff = 0;
+      for (const part of parts) {
+        vertices.set(part.vertices, vOff);
+        // Plate vertex indices are 1-based in CSPICE and local to the segment.
+        const base = vOff / 3 - 1;
+        for (let i = 0; i < part.plates.length; i++) plates[pOff + i] = part.plates[i]! + base;
+        vOff += part.vertices.length;
+        pOff += part.plates.length;
+      }
+
+      return {
+        vertices,
+        plates,
+        centerId: first.centerId,
+        frame: first.frame,
+        segments,
+        skippedSegments,
+      };
+    } finally {
+      this.call('dascls_c', handle);
+      this.checkFailed();
+    }
   }
 
-  private readDskChunkedInner(
+  /** Read `count` rows of `cols` values into `out` (Float64Array: doubles; Int32Array: ints), in chunks. */
+  private readDskRows(
     count: number,
     cols: number,
-    bytes: number,
+    out: Float64Array | Int32Array,
     fetch: (start: number, room: number, nPtr: number, buf: number) => number,
-  ): number[] {
-    const CHUNK = 1000;
-    const nPtr = this.scratch(4);
-    const buf = this.scratch(CHUNK * cols * bytes);
-    const out: number[] = [];
-    const isDouble = bytes === 8;
-    let start = 1;
-    while (start <= count) {
-      const room = Math.min(CHUNK, count - start + 1);
-      fetch(start, room, nPtr, buf);
-      this.checkFailed();
-      const n = this.readInt(nPtr);
-      if (n <= 0) break;
-      for (let i = 0; i < n * cols; i++) {
-        out.push(isDouble ? this.readDouble(buf + i * 8) : this.readInt(buf + i * 4));
+  ): void {
+    this.scope(() => {
+      const CHUNK = 1000;
+      const isDouble = out instanceof Float64Array;
+      const bytes = isDouble ? 8 : 4;
+      const nPtr = this.scratch(4);
+      const buf = this.scratch(CHUNK * cols * bytes);
+      let start = 1;
+      let o = 0;
+      while (start <= count) {
+        const room = Math.min(CHUNK, count - start + 1);
+        fetch(start, room, nPtr, buf);
+        this.checkFailed();
+        const n = this.readInt(nPtr);
+        if (n <= 0) break;
+        for (let i = 0; i < n * cols; i++) {
+          out[o++] = isDouble ? this.readDouble(buf + i * 8) : this.readInt(buf + i * 4);
+        }
+        start += n;
       }
-      start += n;
-    }
-    return out;
+      if (o !== count * cols) {
+        throw new SpiceError(`DSK read returned ${o / cols} of ${count} rows`);
+      }
+    });
   }
 
   subpnt(

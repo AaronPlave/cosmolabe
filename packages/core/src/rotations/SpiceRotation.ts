@@ -14,7 +14,9 @@ export class SpiceRotation implements RotationModel {
 
   constructor(
     private readonly spice: SpiceInstance,
-    private readonly bodyFixedFrame: string,
+    /** The SPICE body-fixed frame the rotation goes TO. Public so a consumer
+     *  holding geometry stated in a named frame (a DSK) can check it matches. */
+    readonly bodyFixedFrame: string,
     private readonly inertialFrame: string = 'ECLIPJ2000',
   ) {
     this.sourceFrame = inertialFrame;

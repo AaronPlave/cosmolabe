@@ -115,6 +115,7 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 |---|---|---|
 | `Globe` | Textured sphere; optionally with streaming terrain | `radius`, `baseMap`, `normalMap`, `nightMap`, `atmosphere`, `terrain` |
 | `Mesh` | A 3D model (GLTF, OBJ, CMOD) | `source`, `size`, `meshRotation` |
+| `Dsk` | A SPICE DSK plate model: an irregular body's own surface, in its body-fixed frame | `source`, `color` |
 | `Sensor` | Instrument FOV cone | `target`, `shape` (`circular` / `elliptical` / `rectangular`), `horizontalFov`, `verticalFov`, `frustumColor`, `frustumOpacity` |
 | `Rings` | Planetary rings | `innerRadius`, `outerRadius`, `texture` |
 | `Axes` | Reference frame axes | `length` |
@@ -124,7 +125,47 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 
 ### Asset paths
 
-Relative paths in `Mesh.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
+Relative paths in `Mesh.source`, `Dsk.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
+
+### `Dsk`
+
+A DSK (SPICE Digital Shape Kernel, `.bds`) is a small body's authoritative
+surface: a triangle mesh whose vertices are kilometres in the body-fixed frame,
+centred on the body. `Dsk` draws it as it is, which is what an irregular,
+concave or bilobed body (67P, Arrokoth, Phobos) needs and a `Globe`'s
+ellipsoid-plus-heightfield cannot represent.
+
+```json
+{
+  "name": "486958 Arrokoth",
+  "naifId": 2486958,
+  "rotationModel": { "type": "Uniform", "period": "15.92h", "ascension": 317.5, "declination": -24.9 },
+  "geometry": { "type": "Dsk", "source": "models/arrokoth_mu69_lopoly.bds", "color": [0.72, 0.55, 0.45] }
+}
+```
+
+- **No sizing or alignment.** `size`, `meshRotation` and `meshOffset` do not
+  apply and are ignored: the file already says where every vertex is.
+- **The rotation model places it**, so give the body one whose body-fixed frame
+  is the DSK's. With a `Spice` rotation, `bodyFrame` should name the frame the
+  DSK segments are written in; a body with no rotation model draws the shape
+  fixed in the inertial frame.
+- **The file is checked against the body.** The DSK's segment descriptor carries
+  the body it describes and its frame. A NAIF ID that differs from the item's
+  `naifId`, or a frame that differs from a `Spice` rotation's `bodyFrame`, is
+  reported in the console rather than drawn silently wrong.
+- **Every type-2 segment is merged** into one mesh; segments of another data
+  type are skipped. Segments for different bodies or frames are refused.
+- **The file is read, not furnished.** It needs a SPICE engine to parse — the
+  viewer brings one up for a scene with a `Dsk` even when it lists no kernels —
+  but it adds nothing to the kernel pool. Listing the same file in `spiceKernels`
+  as well is harmless, and is how you would also make it available to SPICE
+  surface computations.
+- **Transport gzip is undone** by magic bytes, so `.bds.gz` works.
+- `color` is optional (`[r, g, b]` in 0–1 or a CSS colour); the default follows
+  the body's `class`.
+
+The viewer also accepts a dropped `.bds` alongside a catalog that names it.
 
 ### `Globe.terrain`
 
