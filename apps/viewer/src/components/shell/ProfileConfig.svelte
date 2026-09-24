@@ -13,6 +13,7 @@
   import { analysis } from '../../lib/analysis.svelte';
   import { PROFILE_QUANTITIES } from '../../lib/profile-sampling';
   import Button from '$lib/components/ui/button/button.svelte';
+  import { ArrowDown, ArrowUp, Eye, EyeOff, Trash2 } from 'lucide-svelte';
 
   interface Props {
     initial: ContinuousProfileConfiguration;
@@ -62,7 +63,7 @@
 
 <div class="flex flex-col gap-1.5">
   <label class="flex items-center gap-2">
-    <span class="ui-label w-16 shrink-0">Quantity</span>
+    <span class="ui-label w-12 shrink-0">Quantity</span>
     <select class={selectClass} bind:value={quantity}>
       {#each PROFILE_QUANTITIES as q}
         <option value={q.id}>{q.label}</option>
@@ -72,7 +73,7 @@
 
   {#snippet bodyPicker(label: string, role: 'observer' | 'target' | 'illuminator', value: string, set: (v: string) => void)}
     <label class="flex items-center gap-2">
-      <span class="ui-label w-16 shrink-0">{label}</span>
+      <span class="ui-label w-12 shrink-0">{label}</span>
       <select class={selectClass} {value} onchange={(e) => set((e.target as HTMLSelectElement).value)}>
         <option value="">{sharedLabel(role)}</option>
         {#each vs.bodies as body}
@@ -88,39 +89,71 @@
     {@render bodyPicker('Light', 'illuminator', illuminator, (v) => illuminator = v)}
   {/if}
 
-  <div class="mt-1 flex items-center gap-1">
-    {#if onToggleVisible}
-      <button class="cfg-link" onclick={onToggleVisible}>{visible ? 'Hide' : 'Show'}</button>
-    {/if}
-    {#if onMoveUp}
-      <button class="cfg-link" onclick={onMoveUp} aria-label="Move row up" title="Move row up">↑</button>
-    {/if}
-    {#if onMoveDown}
-      <button class="cfg-link" onclick={onMoveDown} aria-label="Move row down" title="Move row down">↓</button>
-    {/if}
-    {#if onRemove}
-      <button class="cfg-link danger" onclick={onRemove}>Remove</button>
-    {/if}
-    <span class="flex-1"></span>
+  {#if onToggleVisible || onMoveUp || onMoveDown || onRemove}
+    <!-- Row actions: showing it, where it sits among the profiles, and — last,
+         and quiet until hovered — removing it. -->
+    <div class="mt-1 flex items-center gap-1 border-t border-border pt-2">
+      {#if onToggleVisible}
+        <button class="cfg-action" onclick={onToggleVisible}>
+          {#if visible}<EyeOff size={12} /> Hide{:else}<Eye size={12} /> Show{/if}
+        </button>
+      {/if}
+      {#if onMoveUp || onMoveDown}
+        <span class="cfg-move" role="group" aria-label="Move row">
+          <button class="cfg-action" onclick={onMoveUp} disabled={!onMoveUp} aria-label="Move row up" title="Move row up">
+            <ArrowUp size={12} />
+          </button>
+          <button class="cfg-action" onclick={onMoveDown} disabled={!onMoveDown} aria-label="Move row down" title="Move row down">
+            <ArrowDown size={12} />
+          </button>
+        </span>
+      {/if}
+      <span class="flex-1"></span>
+      {#if onRemove}
+        <button class="cfg-action danger" onclick={onRemove}><Trash2 size={12} /> Remove</button>
+      {/if}
+    </div>
+  {/if}
+  <div class="flex justify-end">
     <Button size="sm" onclick={submit}>{submitLabel}</Button>
   </div>
 </div>
 
 <style>
-  .cfg-link {
-    padding: 2px 6px;
+  .cfg-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
     border: none;
     border-radius: 3px;
     background: none;
-    color: var(--color-text-muted);
-    font-size: var(--text-section);
+    color: var(--color-text-secondary);
+    font-size: var(--text-label);
     cursor: pointer;
   }
-  .cfg-link:hover {
+  .cfg-action:hover:not(:disabled) {
     color: var(--color-text-primary);
     background: var(--color-surface-3);
   }
-  .cfg-link.danger:hover {
+  .cfg-action:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .cfg-move {
+    display: inline-flex;
+    align-items: center;
+  }
+  .cfg-move::before {
+    content: 'Move';
+    margin: 0 2px 0 6px;
+    color: var(--color-text-muted);
+    font-size: var(--text-metadata);
+  }
+  .cfg-action.danger {
+    color: var(--color-text-muted);
+  }
+  .cfg-action.danger:hover {
     color: var(--color-error);
   }
 </style>

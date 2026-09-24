@@ -2,17 +2,16 @@
   /**
    * One continuous profile on the timeline.
    *
-   * The plot is laid over the transport track's exact horizontal extent and
-   * reads the same window (`vs.scrubMin`/`scrubMax`), playhead (`vs.et`) and
-   * ghost playhead (`timeline.hoverEt`) as the track does. It owns no time
-   * state of its own: its gestures are `timelineGestures`, the same ones the
-   * event lanes use — which is what lets the ruler's private zoom window,
-   * playhead and hover scrub go away rather than move here.
+   * A row of the dock's grid: its label in the gutter, its trace in the axis
+   * column — which is the transport track's exact extent, window
+   * (`vs.scrubMin`/`scrubMax`) and playhead — and its value in the readout
+   * rail. It owns no time state and no gestures: hover, seek, pan, playhead
+   * scrub and zoom belong to the dock's one interaction surface, and the
+   * ghost and playhead lines are drawn once, through every row, by the dock.
    *
-   * Compact rows are a signal and nothing else: no axis chrome, just the trace,
-   * the value at the playhead or ghost, and the view's range. Expanding a row
-   * gives it the height to be read quantitatively — three faint gridlines with
-   * values — without turning the timeline into a dashboard.
+   * Short rows are a signal: the trace and the value. Taller rows — a lone
+   * profile, or one the user expands — get three faint gridlines with values,
+   * so they can be read quantitatively without turning into a dashboard.
    */
   import type { ConfiguredContinuousProfile, ContinuousProfileConfiguration } from '@cosmolabe/core';
   import { vs, getRenderer } from '../../lib/viewer-state.svelte';
@@ -21,7 +20,7 @@
     moveConfiguredProfile, removeConfiguredItem,
   } from '../../lib/analysis.svelte';
   import {
-    timeline, timelineFraction, timelineGestures, toggleRowExpanded, eventHoverTargets,
+    timeline, timelineFraction, toggleRowExpanded, ghostEt, PROFILE_GRID_MIN_HEIGHT,
     type ProfileEventTick,
   } from '../../lib/timeline.svelte';
   import {
@@ -35,21 +34,25 @@
 
   interface Props {
     item: ConfiguredContinuousProfile;
-    /** The track's left edge and width, in px, relative to the lane region. */
-    axisLeft: number;
+    /** The axis column's width, px — how densely to sample. */
     axisWidth: number;
-    /** Room for a header column left of the axis and a readout right of it. */
+    /** Desktop: a label gutter and a readout rail around the axis. */
     wide: boolean;
+    /** Row height, px, from the lane stack's adaptive sizing. */
+    height: number;
     ticks: readonly ProfileEventTick[];
     first: boolean;
     last: boolean;
   }
 
-  let { item, axisLeft, axisWidth, wide, ticks, first, last }: Props = $props();
+  let { item, axisWidth, wide, height, ticks, first, last }: Props = $props();
 
   const W = 1000; // viewBox width; fractions map onto it directly
+  const rowId = $derived(`profile:${item.id}`);
   const expanded = $derived(!!timeline.expandedRows[item.id]);
-  const H = $derived(expanded ? 112 : wide ? 30 : 34);
+  const H = $derived(height);
+  const tall = $derived(H >= PROFILE_GRID_MIN_HEIGHT);
+  const inspectedRow = $derived(timeline.hoverRow === rowId);
 
   const spec = $derived(profileQuantity(item.profile.quantity));
 
@@ -81,26 +84,26 @@
     );
   });
 
-  const path = $derived(series ? profilePath(series, W, H) : '');
+  // The trace is inset from the row's edges, so the scale labels of
+  // neighbouring rows do not meet at the rule between them.
+  const PAD = $derived(tall ? 8 : 3);
+  const IH = $derived(Math.max(1, H - 2 * PAD));
+  const yOf = (value: number) => PAD + valueY(value, series!, IH);
+  const path = $derived(series ? profilePath(series, W, IH) : '');
   const hasData = $derived(!!series && series.values.some((v) => v != null));
-  const grid = $derived(expanded && series && hasData ? gridValues(series) : []);
+  const grid = $derived(tall && series && hasData ? gridValues(series) : []);
 
-  // Readout: the ghost instant when previewing, otherwise the committed one.
-  // Computed exactly at that instant rather than read off the nearest sample.
-  const readoutEt = $derived(timeline.hoverEt ?? vs.et);
+  // Value at the ghost when previewing, otherwise at committed time —
+  // computed exactly at that instant rather than read off the nearest sample.
+  const ghost = $derived(ghostEt());
   const readout = $derived.by(() => {
     const pos = positionOf();
     if (!item.visible || !spec || !bodies || !pos) return null;
-    return quantityAt(spec.id, bodies, readoutEt, pos);
+    return quantityAt(spec.id, bodies, ghost ?? vs.et, pos);
   });
 
-  const playheadFrac = $derived(timelineFraction(vs.et));
-  const ghostFrac = $derived(timeline.hoverEt == null ? null : timelineFraction(timeline.hoverEt));
-  const inView = inWindow;
-
-  const dotY = $derived(readout != null && series && hasData ? valueY(readout, series, H) : null);
-
-  const hoverTargets = $derived(eventHoverTargets(ticks));
+  const dotFrac = $derived(timelineFraction(ghost ?? vs.et));
+  const dotY = $derived(readout != null && series && hasData ? yOf(readout) : null);
 
   let configOpen = $state(false);
 
@@ -115,26 +118,24 @@
   const closing = $derived(spec?.id === 'range-rate' && readout != null && readout < 0);
 </script>
 
-<div class="tl-row" class:hidden-row={!item.visible} style="height: {item.visible ? H : 18}px">
-  <!-- Header: the row's identity in the shared header column, or overlaid
-       at the plot's top-left on a phone. The name is the configure
-       affordance; expand and hide sit at the column's right edge. -->
-  <div
-    class="tl-header"
-    class:overlay={!wide}
-    class:top={expanded && wide}
-    style={wide
-      ? `width: ${Math.max(0, axisLeft - 10)}px`
-      : `left: ${axisLeft + 3}px; max-width: ${Math.max(0, axisWidth * 0.7)}px`}
-  >
+<div
+  class="tl-row"
+  class:hidden-row={!item.visible}
+  class:inspected={inspectedRow}
+  data-tl-row={rowId}
+  style="height: {item.visible ? H : 18}px"
+>
+  <!-- Label: the quantity, then between whom. The label is the configure
+       affordance; expand and hide sit at the gutter's right edge. Units live
+       with the value, not here. -->
+  <div class="tl-label" class:overlay={!wide} class:top={tall && wide}>
     <Popover.Root bind:open={configOpen}>
-      <Popover.Trigger class="tl-header-main" title="Configure profile">
-        <span class="tl-h-primary">{spec?.label ?? item.profile.quantity}</span>
-        {#if spec}<span class="tl-h-unit">{spec.unit}</span>{/if}
-        <span class="tl-h-secondary">{pair}</span>
+      <Popover.Trigger class="tl-label-main" title="{spec?.label ?? item.profile.quantity} · {pair} — configure">
+        <span class="tl-primary">{spec?.label ?? item.profile.quantity}</span>
+        <span class="tl-secondary">{pair}</span>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content side="top" sideOffset={8} class="w-72 p-3">
+        <Popover.Content side="right" align="start" sideOffset={6} class="w-80 p-3">
           {#if configOpen}
           <ProfileConfig
             initial={item.profile}
@@ -150,7 +151,7 @@
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
-    <span class="tl-header-controls">
+    <span class="tl-label-controls">
       {#if item.visible}
         <button
           class="tl-icon-btn"
@@ -175,95 +176,79 @@
 
   {#if item.visible}
     <div
-      class="plot tl-plot"
-      style="left: {axisLeft}px; width: {axisWidth}px"
+      class="tl-plot plot"
+      data-tl-plot
       role="img"
       aria-label="{spec?.label ?? 'Profile'} {pair}: {readoutText}"
-      use:timelineGestures={hoverTargets}
     >
       <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" aria-hidden="true">
         {#each grid as value (value)}
-          <line class="grid" x1="0" x2={W} y1={valueY(value, series!, H)} y2={valueY(value, series!, H)} />
+          <line class="grid" x1="0" x2={W} y1={yOf(value)} y2={yOf(value)} />
         {/each}
-        {#if spec?.symmetric && hasData && !expanded}
+        {#if spec?.symmetric && hasData && !tall}
           <line class="zero" x1="0" x2={W} y1={H / 2} y2={H / 2} />
         {/if}
+        <!-- Events behind the trace, in the shared vocabulary but quiet, so
+             the trace stays the row's content. -->
         {#each ticks as tick (tick.id)}
-          {@const emphasis = tick.id === timeline.previewEventId || tick.selected}
           {#if tick.endFraction > tick.fraction}
             <rect
-              class="event-span" class:emphasis class:active={tick.active}
+              class="event-span" class:emphasis={tick.selected || tick.previewed} class:active={tick.active}
+              data-ev-kind={tick.kind} data-ev-state={tick.state}
               x={tick.fraction * W} width={(tick.endFraction - tick.fraction) * W} y="0" height={H}
             />
           {:else}
             <line
-              class="event-tick" class:emphasis class:active={tick.active}
+              class="event-tick" class:emphasis={tick.selected || tick.previewed} class:active={tick.active}
+              data-ev-kind={tick.kind} data-ev-state={tick.state}
               x1={tick.fraction * W} x2={tick.fraction * W} y1="0" y2={H}
             />
           {/if}
         {/each}
         {#if path}
-          <path class="trace" d={path} />
-        {/if}
-        {#if inView(ghostFrac)}
-          <line class="ghost" x1={ghostFrac * W} x2={ghostFrac * W} y1="0" y2={H} />
-        {/if}
-        {#if inView(playheadFrac)}
-          <line class="playhead" x1={playheadFrac * W} x2={playheadFrac * W} y1="0" y2={H} />
+          <path class="trace" d={path} transform="translate(0 {PAD})" />
         {/if}
       </svg>
       {#each grid as value (value)}
-        {@const y = valueY(value, series!, H)}
-        <!-- On a phone the header is overlaid at the top-left; a gridline
+        {@const y = yOf(value)}
+        <!-- On a phone the label is overlaid at the top-left; a gridline
              label under it would collide, so that one goes unlabelled. -->
         {#if wide || y > 16}
-          <span class="grid-label" style="top: {y}px">{spec?.format(value)}</span>
+          <span class="grid-label tl-secondary tl-num" style="top: {y}px">{spec?.format(value)}</span>
         {/if}
       {/each}
-      {#if dotY != null}
-        {@const dotFrac = ghostFrac ?? playheadFrac}
-        {#if inView(dotFrac)}
-          <div class="value-dot" class:preview={ghostFrac != null} style="left: {dotFrac * 100}%; top: {dotY}px"></div>
+      {#if dotY != null && inWindow(dotFrac)}
+        <div class="value-dot" class:preview={ghost != null} style="left: {dotFrac * 100}%; top: {dotY}px"></div>
+        {#if inspectedRow && ghost != null && wide}
+          <!-- The inspected row's value, beside its dot. The rail keeps it too. -->
+          <span
+            class="dot-tip tl-num"
+            class:flip={dotFrac > 0.8}
+            class:below={dotY < 14}
+            style="left: {dotFrac * 100}%; top: {dotY}px"
+          >{readoutText}</span>
         {/if}
       {/if}
       {#if !bodies}
-        <span class="plot-note">Choose a From and To body</span>
+        <span class="plot-note tl-secondary">Choose a From and To body</span>
       {:else if series && !hasData}
-        <span class="plot-note">No state for this pair in view</span>
+        <span class="plot-note tl-secondary">No state for this pair in view</span>
       {/if}
       {#if !wide}
-        <span class="overlay-readout" class:preview={ghostFrac != null} class:closing>{readoutText}</span>
+        <span class="overlay-readout tl-num" class:preview={ghost != null} class:closing>{readoutText}</span>
       {/if}
     </div>
 
     {#if wide}
-      <div
-        class="row-readout"
-        class:top={expanded}
-        style="left: {axisLeft + axisWidth + 8}px"
-        title={rangeText ? `View range ${rangeText}` : undefined}
-      >
-        <span class="readout-value" class:strong={expanded} class:preview={ghostFrac != null} class:closing>{readoutText}</span>
-        {#if rangeText && !expanded}<span class="readout-range">{rangeText}</span>{/if}
+      <div class="tl-readout" class:top={tall} title={rangeText ? `In view: ${rangeText}` : undefined}>
+        <span class="tl-num" class:preview={ghost != null} class:closing>{readoutText}</span>
+        {#if rangeText && !tall && H >= 40}<span class="tl-secondary tl-num range">{rangeText}</span>{/if}
       </div>
     {/if}
   {/if}
 </div>
 
 <style>
-  .hidden-row {
-    opacity: 0.55;
-  }
-
-  .plot {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    cursor: crosshair;
-    /* Vertical swipes scroll the lane region; see `timelineGestures`. */
-    touch-action: pan-y;
-    user-select: none;
-  }
   .plot svg {
     display: block;
     width: 100%;
@@ -274,19 +259,23 @@
     vector-effect: non-scaling-stroke;
     fill: none;
   }
-  /* The signal is the row's content; it reads above the separators. */
+  /* The trace is the row's content; it reads above everything else in it. */
   .trace {
     stroke: var(--color-text-primary);
-    stroke-opacity: 0.82;
+    stroke-opacity: 0.8;
     stroke-width: 1.4;
     stroke-linejoin: round;
+    transition: stroke-opacity var(--duration-chrome) var(--ease-chrome);
+  }
+  :global(.tl-row.inspected) .trace {
+    stroke-opacity: 0.96;
   }
   .zero {
-    stroke: var(--color-chrome-divider);
+    stroke: rgba(255, 255, 255, 0.1);
     stroke-width: 1;
   }
   .grid {
-    stroke: rgba(255, 255, 255, 0.07);
+    stroke: rgba(255, 255, 255, 0.1);
     stroke-width: 1;
     stroke-dasharray: 2 3;
   }
@@ -297,46 +286,32 @@
     padding: 0 2px;
     border-radius: 2px;
     background: var(--color-panel);
-    color: var(--color-text-muted);
-    font-family: var(--font-mono);
-    font-size: 9px;
-    font-variant-numeric: tabular-nums;
-    line-height: 11px;
+    font-size: var(--text-metadata);
     pointer-events: none;
   }
-  /* Real playhead vs. preview: weight and opacity, not a new colour. */
-  .playhead {
-    stroke: var(--color-text-primary);
-    stroke-width: 2;
-    opacity: 0.9;
-  }
-  .ghost {
-    stroke: var(--color-text-secondary);
-    stroke-width: 1;
-    stroke-dasharray: 2 2;
-    opacity: 0.75;
-  }
+  /* Events behind a profile: the vocabulary's colour, desaturated by
+     opacity. Selected, previewed and active raise it. */
   .event-tick {
-    stroke: var(--color-event-accent);
+    stroke: var(--ev);
     stroke-width: 1;
-    opacity: 0.35;
+    opacity: 0.4;
   }
   .event-span {
-    fill: var(--color-event-accent);
-    opacity: 0.07;
+    fill: var(--ev);
+    opacity: 0.08;
   }
   .event-tick.active {
-    opacity: 0.55;
+    opacity: 0.6;
   }
   .event-span.active {
-    opacity: 0.13;
+    opacity: 0.14;
   }
   .event-tick.emphasis {
     stroke-width: 2;
     opacity: 0.95;
   }
   .event-span.emphasis {
-    opacity: 0.2;
+    opacity: 0.22;
   }
 
   .value-dot {
@@ -352,6 +327,30 @@
     background: var(--color-panel);
     box-shadow: 0 0 0 1px var(--color-text-primary);
   }
+  :global(.tl-row.inspected) .value-dot {
+    width: 7px;
+    height: 7px;
+    margin: -3.5px 0 0 -3.5px;
+  }
+  .dot-tip {
+    position: absolute;
+    padding: 0 4px;
+    border-radius: 2px;
+    background: var(--color-panel);
+    color: var(--color-text-primary);
+    transform: translate(8px, -120%);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .dot-tip.flip {
+    transform: translate(calc(-100% - 8px), -120%);
+  }
+  .dot-tip.below {
+    transform: translate(8px, 20%);
+  }
+  .dot-tip.flip.below {
+    transform: translate(calc(-100% - 8px), 20%);
+  }
 
   .plot-note {
     position: absolute;
@@ -359,56 +358,27 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-text-muted);
-    font-size: var(--text-metadata);
     pointer-events: none;
   }
 
-  .row-readout {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-width: 0;
-    overflow: hidden;
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-  .row-readout.top {
-    justify-content: flex-start;
-    padding-top: 5px;
-  }
-  .readout-value {
-    color: var(--color-text-primary);
-    font-size: var(--text-section);
-    line-height: 1.2;
-  }
-  .readout-value.strong {
-    font-size: var(--text-readout-strong);
-  }
-  .readout-range {
+  .range {
+    font-size: var(--text-metadata);
     color: var(--color-text-muted);
-    font-size: 9px;
-    line-height: 1.2;
   }
   .overlay-readout {
     position: absolute;
     top: 1px;
     right: 3px;
     color: var(--color-text-primary);
-    font-family: var(--font-mono);
     font-size: var(--text-metadata);
-    font-variant-numeric: tabular-nums;
+    line-height: 12px;
     pointer-events: none;
   }
-  .preview {
+  .overlay-readout.preview {
     color: var(--color-text-secondary);
   }
-  .closing {
+  .closing,
+  :global(.tl-readout) .closing {
     color: var(--color-success);
   }
 </style>

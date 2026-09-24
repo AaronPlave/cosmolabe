@@ -59,64 +59,110 @@ analysis features can add items through `createConfiguredEventQuery()` or
 
 ## Event lanes on the timeline
 
-The collapsed timeline shows every visible event result merged into one strip
-of marks on the transport track. Expanding it adds one lane per enabled
+The collapsed timeline's transport track is an overview of every visible
+event result: each configured query gets a sub-band a few pixels tall, so
+overlapping results from different queries do not share pixels, and selected
+or previewed results rise to full height. Past four families the overview
+becomes a density instead. Expanding the timeline adds one lane per enabled
 `event-query` item (`components/shell/EventLane.svelte`), above the profile
 rows and on the same axis. A lane's eye toggle flips the item's shared
 `visible` flag, so the track, the event finder and the lane agree; hidden lanes
 stay listed, dimmed, so they can be shown again. Clicking a mark calls the same
-`selectEvent` the track's marks use. The lane's readout names the event under
-the ghost playhead or the playhead, or else counts the results.
+`selectEvent` the track's marks use. The lane's readout is compact state at
+the inspected instant: how many of its events are active (`activeEventsAtTime`),
+or one active event's duration, or else the result count. It never shows an
+event's name; the hover callout does that.
+
+Several events can be active at once, and all of them are: the track, the lanes
+and the event list mark every event the playhead is inside. Selection is
+stronger than activity, and preview is temporary. `activeEventAtTime` (singular)
+only picks one where only one fits, such as the scene's single explanatory
+overlay.
+
+Events speak one visual vocabulary on every surface: shape carries
+temporality (an instant is a line, an interval a span), and colour carries kind
+and occultation state (`data-ev-kind` / `data-ev-state` → `--ev` in `app.css`).
+That includes the spans drawn faintly behind profile traces.
 
 ## Continuous profiles on the timeline
 
 Profiles render as rows in the timeline's expanded depth
 (`components/shell/ProfileLanes.svelte`, one `ProfileRow.svelte` per item), in
-the order of the `continuous-profile` items in `analysis.items`. There is no
-built-in set: each row names its own `quantity` — `range`, `relative-speed`,
-`range-rate` or `phase-angle` to start with (`lib/profile-sampling.ts`) — and
-may pin any role or leave it to inherit the shared relationship. Rows are
-added, configured, hidden, reordered and removed from a popover on the row
-label (`updateConfiguredProfile()`, `setConfiguredItemVisible()`,
-`moveConfiguredProfile()`, `removeConfiguredItem()`).
+the order of the enabled `continuous-profile` items in `analysis.items`.
+Disabled items are not drawn; hidden ones stay listed, dimmed, with their eye
+toggle. There is no built-in set: each row names its own `quantity` — `range`,
+`relative-speed`, `range-rate` or `phase-angle` to start with
+(`lib/profile-sampling.ts`) — and may pin any role or leave it to inherit the
+shared relationship. A small "Profiles +" section header, which stays in view
+while the region scrolls, adds rows. The popover on a row's label configures,
+hides, moves or removes it (`updateConfiguredProfile()`,
+`setConfiguredItemVisible()`, `moveConfiguredProfile()`, `removeConfiguredItem()`).
 
 ## Timeline presentation and interaction
 
-Every analysis row — event lane or profile — has its identity in one
-left-aligned header column (shared `tl-*` styles in `app.css`): the name,
-then a unit for profiles (`Distance · km`), then the relationship in quieter
-text, with expand / hide controls at the column's right edge on hover. On a
-phone the header is overlaid at the plot's top-left.
+On a desktop the expanded timeline is one three-column grid:
 
-Compact profile rows carry no axis chrome. The expand toggle gives a row
-about 110 px and three faint gridlines with values (`gridValues`). The
-analysis region's height is the content's by default; the dock's top edge is a
-resize handle (capped at 60 % of the viewport, double-click toggles a large
-height and back), kept in `timeline.laneHeight`.
+- **Label gutter:** what the row is.
+- **Shared time axis:** how it varies.
+- **Readout rail:** its value at the inspected time.
 
-Gestures on the rows (`timelineGestures`) give each surface one job: the
-transport track scrubs; on the rows a click seeks, a background drag pans the
-view, and a drag that starts on the playhead — a thin line with a ~10 px grab
-target — scrubs. A sideways or Shift wheel pans anywhere; a plain wheel zooms
-about the pointer. Hovering an event on the track, a lane or a profile tick —
-snapped to an edge, or anywhere inside an interval — previews it
-(`timeline.previewEventId`, an `eventKey` that includes the query) and shows a
-callout with the same copy as the scene's event callouts
-(`eventCalloutLines`). The range popover offers Fit results, Fit selected and
-Fit mission; jumping the playhead (`setTime`) keeps the zoom.
+The transport lays itself out on the same columns. Its controls sit over the
+gutter, the track is the axis column, and the clock heads the rail. The rows'
+columns are the track's measured extent (`--tl-gutter`, `--tl-axis`), so every
+row lines up with the track. A label reads `Distance · Earth → Mars`; units
+belong to the values and scale labels, not the label. Rail values are
+right-aligned under the clock in tabular mono, and switch to the ghost's value,
+marked as a preview, while hovering. Timeline text uses three type roles only:
+primary (`.tl-primary`), secondary (`.tl-secondary`) and numeric (`.tl-num`).
+On a phone the axis takes the full width and labels overlay the plots.
 
+Row heights differ by purpose (`profileRowHeight`):
 
-reads the same zoomed window (`vs.scrubMin`/`scrubMax`), playhead (`vs.et`)
-and ghost playhead (`timeline.hoverEt` in `lib/timeline.svelte.ts`) as the
-track. Rows hold no time state, and share their gestures with the event lanes
-(`timelineGestures`): hover previews an instant everywhere on the
-axis without moving time, a click seeks, a drag pans the shared window, and the
-wheel zooms it about the pointer; a sideways or Shift wheel pans, on the track
-too. Dragging the transport track still scrubs — the track is the playhead's,
-the rows are for navigating the axis. On touch, a horizontal drag on a row
-pans, a vertical one scrolls the lane region, and a tap seeks. Visible event results are drawn faintly on each row,
-and a hover snaps subtly to an event edge and cross-highlights that event on
-the track, so a closest approach visibly sits on the distance minimum.
+- **Event lanes:** compact, because they are categorical.
+- **Profiles:** taller, because their shape matters. A lone profile gets the
+  most room, and more profiles compress toward a floor.
+- **Expanded rows:** tall enough for a labelled scale.
+
+The analysis region fits its rows up to about 38 % of the viewport, then
+scrolls. The dock's top edge is a resize handle: drag it for more analysis or
+more scene, and double-click to return to the automatic height. A dragged
+height is remembered for the session, per layout.
+
+The dock is one interaction plane (`timelineSurface` in `lib/timeline.svelte.ts`),
+not a set of per-row handlers. The pointer belongs to the shared axis, so the
+same hovered instant (`timeline.hoverEt`) holds while the pointer moves from
+the track down through the lanes, and the wheel zooms about the pointer
+anywhere over the axis. The row under the pointer (`timeline.hoverRow`) is
+tracked separately. It only changes local emphasis (the inspected row's trace,
+value dot and a small value tip) and which events a hover snaps to. The dock
+draws one ghost line and one playhead through every row. A playhead outside
+the zoomed window is not drawn anywhere, rather than pinned to an edge.
+
+Each surface has one job:
+
+- **Transport track:** scrubs.
+- **Analysis plots:** a click seeks, and a background drag pans the view.
+- **Playhead:** a drag that starts on it scrubs. It is a thin line with a
+  ~10 px grab target.
+- **Wheel:** a sideways or Shift wheel pans; a plain wheel zooms.
+- **Minimap under the track:** a neutral viewport that can be dragged to pan
+  while zoomed.
+- **Touch:** a horizontal drag pans, a vertical one scrolls the lane region,
+  and a tap seeks.
+
+Hover previews and click selects, on every surface:
+
+- **Timeline hover:** hovering an event on the track, a lane or a profile span
+  previews it (`timeline.previewEventId`, an `eventKey` that includes the
+  query), whether snapped to an edge or anywhere inside an interval. It shows a
+  callout with the scene callouts' copy (`eventCalloutLines`) and previews the
+  event in the scene through `previewEvent`.
+- **Previews from elsewhere:** a preview started in the Event Finder's list or
+  in the scene highlights the timeline's marks. It also puts the ghost on the
+  event (`timeline.linkedEt`), so the profiles read out there.
+
+The range control offers Fit results, Fit selected and Fit mission. Jumping the
+playhead (`setTime`) keeps the zoom.
 
 Sampling is a display sampling of `Universe.absolutePositionOf` across the
 visible window, about one sample per two pixels, and is unrelated to any

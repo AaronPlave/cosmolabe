@@ -3,6 +3,7 @@ import { closestApproachKind, distanceRangeKind, type EventKind, type GeometryEv
 import {
   buildQuery,
   activeEventAtTime,
+  activeEventsAtTime,
   eventContainsTime,
   eventFraction,
   eventTimelineFractions,
@@ -301,6 +302,17 @@ describe('timeline placement', () => {
     expect(activeEventAtTime([mine, other], 150, { id: 'r0', queryId: 'q-other' })?.label).toBe('other');
     // Unselected ties still pick the shortest, whichever query it came from.
     expect(activeEventAtTime([mine, other], 150)?.label).toBe('other');
+  });
+
+  it('treats simultaneous events as all active, none suppressing another', () => {
+    const a: GeometryEvent = {
+      id: 'r0', queryId: 'q-a', kind: 'occultation', temporality: 'interval',
+      start: 0, end: 1000, bodies: {}, label: 'a',
+    };
+    const b: GeometryEvent = { ...a, queryId: 'q-b', start: 500, end: 1500, label: 'b' };
+    expect(activeEventsAtTime([a, b], 750).map((e) => e.label)).toEqual(['a', 'b']);
+    expect(activeEventsAtTime([a, b], 250).map((e) => e.label)).toEqual(['a']);
+    expect(activeEventsAtTime([a, b], 2000)).toEqual([]);
   });
 });
 

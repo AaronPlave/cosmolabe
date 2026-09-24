@@ -13,23 +13,25 @@
   import { vs } from '../../lib/viewer-state.svelte';
   import { analysis, configuredProfiles, createConfiguredProfile } from '../../lib/analysis.svelte';
   import { profileQuantity } from '../../lib/profile-sampling';
-  import type { ProfileEventTick } from '../../lib/timeline.svelte';
+  import { timeline, profileRowHeight, type ProfileEventTick } from '../../lib/timeline.svelte';
   import { Plus } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
   import ProfileRow from './ProfileRow.svelte';
   import ProfileConfig from './ProfileConfig.svelte';
 
   interface Props {
-    axisLeft: number;
     axisWidth: number;
     wide: boolean;
     ticks: readonly ProfileEventTick[];
   }
 
-  let { axisLeft, axisWidth, wide, ticks }: Props = $props();
+  let { axisWidth, wide, ticks }: Props = $props();
 
-  // Disabled items are out of the analysis, as with event lanes.
+  // Disabled items are out of the analysis, as with event lanes. Hidden ones
+  // stay listed (dimmed, with their eye toggle) so they can be shown again.
   const profiles = $derived(configuredProfiles().filter((item) => item.enabled));
+  // Height adapts to how many profiles are actually drawn.
+  const shown = $derived(profiles.filter((item) => item.visible).length);
 
   let addOpen = $state(false);
 
@@ -54,25 +56,22 @@
   }
 </script>
 
-{#each profiles as item, i (item.id)}
-  <ProfileRow
-    {item} {axisLeft} {axisWidth} {wide} {ticks}
-    first={i === 0}
-    last={i === profiles.length - 1}
-  />
-{/each}
-
-<div class="lanes-footer">
-  <div
-    class="footer-add"
-    style={wide ? `left: 0; width: ${Math.max(0, axisLeft - 10)}px` : `left: ${axisLeft}px`}
-  >
+<!-- The section header: where profiles start, and the way to add one. It
+     sticks to the top of the scrolling region, so adding is never scrolled
+     out of reach. -->
+<div class="profiles-header" class:wide>
+  <div class="header-label">
+    {#if profiles.length > 0}<span class="tl-secondary">Profiles</span>{/if}
     <Popover.Root bind:open={addOpen}>
-      <Popover.Trigger class="add-profile-btn" title="Add a continuous profile to the timeline">
-        <Plus size={11} /> Profile
+      <Popover.Trigger
+        class="add-profile-btn {profiles.length === 0 ? 'labelled' : ''}"
+        title="Add a continuous profile to the timeline"
+        aria-label="Add profile"
+      >
+        <Plus size={12} />{#if profiles.length === 0}<span>Add profile</span>{/if}
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content side="top" sideOffset={8} class="w-72 p-3">
+        <Popover.Content side="right" align="start" sideOffset={6} class="w-80 p-3">
           {#if addOpen}
             <ProfileConfig initial={seed()} submitLabel="Add" onSubmit={add} />
           {/if}
@@ -81,54 +80,77 @@
     </Popover.Root>
   </div>
   {#if profiles.length === 0}
-    <span class="footer-hint" style="left: {wide ? axisLeft : axisLeft + 72}px; width: {wide ? axisWidth : Math.max(0, axisWidth - 72)}px">
-      Plot distance, speed, range rate or phase angle on this axis
-    </span>
+    <span class="header-hint tl-secondary">Distance, speed, range rate or phase angle, on this time axis</span>
   {/if}
 </div>
 
+{#each profiles as item, i (item.id)}
+  <ProfileRow
+    {item} {axisWidth} {wide} {ticks}
+    height={profileRowHeight(shown, !!timeline.expandedRows[item.id], wide)}
+    first={i === 0}
+    last={i === profiles.length - 1}
+  />
+{/each}
+
 <style>
-  /* Aligned with the row headers: `+ Profile` is the next row's header. */
-  .lanes-footer {
-    position: relative;
-    height: 22px;
-    border-top: 1px solid rgba(255, 255, 255, 0.035);
-  }
-  .footer-add {
-    position: absolute;
+  /* Sticky at both edges: pinned under the top once scrolled past, and to
+     the bottom while many lanes above would push it out of view. */
+  .profiles-header {
+    position: sticky;
     top: 0;
     bottom: 0;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: var(--tl-gutter, 0px) minmax(0, 1fr);
+    align-items: center;
+    height: 22px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--color-panel);
+  }
+  .profiles-header:not(.wide) {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+  .header-label {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    min-width: 0;
+    padding-right: 10px;
+  }
+  .profiles-header:not(.wide) .header-label {
+    padding-left: 3px;
+  }
+  .header-label .tl-secondary {
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
   :global(.add-profile-btn) {
     display: flex;
     align-items: center;
-    gap: 3px;
-    padding: 1px 4px;
+    gap: 4px;
+    padding: 2px 4px;
     border: none;
     border-radius: 3px;
     background: none;
-    color: var(--color-text-muted);
-    font-size: var(--text-metadata);
+    color: var(--color-text-secondary);
+    font-size: var(--text-label);
     cursor: pointer;
     white-space: nowrap;
+  }
+  :global(.add-profile-btn.labelled) {
+    margin-left: -4px;
+    color: var(--color-text-primary);
   }
   :global(.add-profile-btn:hover) {
     color: var(--color-text-primary);
     background: var(--color-control-hover);
   }
-  .footer-hint {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
+  .header-hint {
     overflow: hidden;
-    color: var(--color-text-muted);
-    font-size: var(--text-metadata);
     white-space: nowrap;
     text-overflow: ellipsis;
-    pointer-events: none;
   }
 </style>

@@ -34,8 +34,8 @@ export interface ProfileQuantitySpec {
   /** Row label. */
   label: string;
   /**
-   * The quantity's unit, for the row header. Readouts may scale it (a
-   * distance reads in m, km or AU); this is what the quantity is measured in.
+   * The quantity's unit. Readouts and scale labels carry it, scaled (a
+   * distance reads in m, km or AU); a row's label does not.
    */
   unit: string;
   /** Plotted around zero rather than fitted to [min, max]. */

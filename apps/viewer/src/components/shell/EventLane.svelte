@@ -3,34 +3,38 @@
    * One configured event query as a lane on the timeline — the middle depth
    * between the transport strip and the continuous profiles.
    *
-   * The transport track still carries every visible result merged into one
-   * strip; a lane separates one query's results onto its own row, on the same
-   * axis, so families can be read, compared and hidden independently. Hiding
-   * a lane flips the query's shared `visible` flag, which the track, the event
+   * The transport track is an overview of every visible result; a lane
+   * separates one query's results onto its own row, on the same axis, so
+   * families can be read, compared and hidden independently. Hiding a lane
+   * flips the query's shared `visible` flag, which the track, the event
    * finder and this lane all read, so no surface disagrees about it.
    *
-   * Clicking a mark goes through `selectEvent`, the same call the track's
-   * marks make; this lane adds no selection or 3D behavior of its own.
+   * The lane draws marks only. Hover, the ghost and playhead lines, seeking
+   * and panning belong to the dock's one interaction surface; clicking a mark
+   * goes through `selectEvent`, the same call the track's marks make.
    */
   import type { ConfiguredEventQuery, GeometryEvent } from '@cosmolabe/core';
+  import { eventDuration } from '@cosmolabe/core';
   import { vs } from '../../lib/viewer-state.svelte';
   import { analysis } from '../../lib/analysis.svelte';
   import { ef, selectEvent, setConfiguredQueryVisible } from '../../lib/event-finder.svelte';
-  import { activeEventAtTime, eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
-  import { timeline, timelineFraction, timelineGestures, eventKey, eventHoverTargets } from '../../lib/timeline.svelte';
-  import { inWindow } from '../../lib/scrubber-math';
+  import {
+    activeEventsAtTime, eventContainsTime, eventTimelineFractions, formatSeconds,
+  } from '../../lib/event-query';
+  import { timeline, eventKey, ghostEt } from '../../lib/timeline.svelte';
   import { Eye, EyeOff } from 'lucide-svelte';
 
   interface Props {
     item: ConfiguredEventQuery;
-    axisLeft: number;
-    axisWidth: number;
+    /** Desktop: a label gutter and a readout rail around the axis. */
     wide: boolean;
   }
 
-  let { item, axisLeft, axisWidth, wide }: Props = $props();
+  let { item, wide }: Props = $props();
 
-  const H = $derived(wide ? 18 : 22);
+  /** Lanes are categorical and stay compact; profiles get the height. */
+  const H = $derived(wide ? 20 : 22);
+  const rowId = $derived(`lane:${item.id}`);
 
   const events = $derived<readonly GeometryEvent[]>(analysis.eventResults[item.id] ?? []);
 
@@ -43,50 +47,60 @@
     });
   });
 
-  const hoverTargets = $derived(
-    eventHoverTargets(marks.map((m) => ({ id: eventKey(m.event), fraction: m.start, endFraction: m.end }))),
-  );
-
-  // Header: the kind of result, then how the query relates its bodies.
-  const kindLabel = $derived(item.label);
+  // Label: what the lane finds, then between whom. A default query label
+  // ("Closest approach: Earth / Mars") repeats the bodies the secondary text
+  // already names, so it is cut back to the kind.
   const relation = $derived.by(() => {
     const b = item.query.bodies ?? {};
     if (b.observer && b.target) return `${b.observer} → ${b.target}`;
-    if (b.front && b.back) return `${b.front} / ${b.back}`;
+    if (b.front && b.back) return b.observer ? `${b.front} / ${b.back} from ${b.observer}` : `${b.front} / ${b.back}`;
     return '';
   });
+  const title = $derived.by(() => {
+    const cut = item.label.indexOf(': ');
+    if (cut <= 0) return item.label;
+    const suffix = item.label.slice(cut + 2);
+    const bodies = Object.values(item.query.bodies ?? {}).join(' / ');
+    return suffix === bodies ? item.label.slice(0, cut) : item.label;
+  });
 
-  const playheadFrac = $derived(timelineFraction(vs.et));
-  const ghostFrac = $derived(timeline.hoverEt == null ? null : timelineFraction(timeline.hoverEt));
-  const inView = inWindow;
+  const isSelected = (event: GeometryEvent) => ef.selectedId === event.id && ef.configuredId === event.queryId;
+  const isPreviewed = (event: GeometryEvent) =>
+    timeline.previewEventId === eventKey(event)
+    || (ef.previewId === event.id && ef.previewQueryId === event.queryId);
 
-  // Readout: the event under the ghost (or the playhead), else the count.
-  const readoutEt = $derived(timeline.hoverEt ?? vs.et);
-  const current = $derived(
-    item.visible
-      ? activeEventAtTime(events, readoutEt, ef.selectedId ? { id: ef.selectedId, queryId: ef.configuredId ?? '' } : null)
-      : undefined,
-  );
-  const readout = $derived(current ? current.label : `${events.length} ${events.length === 1 ? 'event' : 'events'}`);
+  // Rail: compact state at the inspected instant — never an event's name,
+  // which the callout, the selection and the list carry. Every event the
+  // instant is inside counts; none is "the" active one.
+  const inspected = $derived(ghostEt());
+  const active = $derived(item.visible ? activeEventsAtTime(events, inspected ?? vs.et) : []);
+  const readout = $derived.by(() => {
+    if (active.length > 1) return { text: `${active.length} active`, value: true };
+    if (active.length === 1) {
+      const d = eventDuration(active[0]);
+      return { text: d > 0 ? formatSeconds(d) : 'Active', value: true };
+    }
+    return { text: `${events.length} ${events.length === 1 ? 'event' : 'events'}`, value: false };
+  });
 
-  function onMarkClick(event: GeometryEvent) {
-    selectEvent(event);
-  }
+  // The lane rises a little while one of its events is selected or previewed.
+  const emphasised = $derived(marks.some((m) => isSelected(m.event) || isPreviewed(m.event)));
 </script>
 
-<div class="tl-row event-lane" class:hidden-row={!item.visible} style="height: {item.visible ? H : 18}px">
-  <div
-    class="tl-header"
-    class:overlay={!wide}
-    style={wide
-      ? `width: ${Math.max(0, axisLeft - 10)}px`
-      : `left: ${axisLeft + 3}px; max-width: ${Math.max(0, axisWidth * 0.5)}px`}
-  >
-    <span class="tl-header-main" title={item.label}>
-      <span class="tl-h-primary">{kindLabel}</span>
-      {#if relation && wide}<span class="tl-h-secondary">{relation}</span>{/if}
+<div
+  class="tl-row event-lane"
+  class:hidden-row={!item.visible}
+  class:inspected={timeline.hoverRow === rowId}
+  class:emphasised
+  data-tl-row={rowId}
+  style="height: {item.visible ? H : 18}px"
+>
+  <div class="tl-label" class:overlay={!wide}>
+    <span class="tl-label-main" title={relation ? `${title} · ${relation}` : title}>
+      <span class="tl-primary">{title}</span>
+      {#if relation && wide}<span class="tl-secondary">{relation}</span>{/if}
     </span>
-    <span class="tl-header-controls">
+    <span class="tl-label-controls">
       <button
         class="tl-icon-btn"
         onclick={() => setConfiguredQueryVisible(item.id, !item.visible)}
@@ -99,71 +113,50 @@
   </div>
 
   {#if item.visible}
-    <div
-      class="lane-plot tl-plot"
-      style="left: {axisLeft}px; width: {axisWidth}px"
-      role="group"
-      aria-label="{item.label} events"
-      use:timelineGestures={hoverTargets}
-    >
+    <div class="tl-plot lane-plot" data-tl-plot role="group" aria-label="{item.label} events">
       {#each marks as mark (eventKey(mark.event))}
         <button
           type="button"
           class="lane-mark"
           class:interval={mark.end > mark.start}
-          class:selected={ef.selectedId === mark.event.id && ef.configuredId === mark.event.queryId}
+          class:selected={isSelected(mark.event)}
           class:active={eventContainsTime(mark.event, vs.et)}
-          class:previewed={timeline.previewEventId === eventKey(mark.event)
-            || (ef.previewId === mark.event.id && ef.previewQueryId === mark.event.queryId)}
-          class:partial={mark.event.state === 'partial'}
-          class:full={mark.event.state === 'full'}
-          class:annular={mark.event.state === 'annular'}
-          data-kind={mark.event.kind}
+          class:previewed={isPreviewed(mark.event)}
+          data-ev-kind={mark.event.kind}
+          data-ev-state={mark.event.state}
           style="left: {mark.start * 100}%; width: {Math.max(0, mark.end - mark.start) * 100}%"
           aria-label={mark.event.label}
           onpointerdown={(e) => e.stopPropagation()}
-          onclick={() => onMarkClick(mark.event)}
+          onclick={() => selectEvent(mark.event)}
         ></button>
       {/each}
-      {#if inView(ghostFrac)}
-        <div class="ghost" style="left: {ghostFrac * 100}%"></div>
-      {/if}
-      {#if inView(playheadFrac)}
-        <div class="playhead" style="left: {playheadFrac * 100}%"></div>
-      {/if}
       {#if !wide}
-        <span class="overlay-readout" class:preview={ghostFrac != null}>{readout}</span>
+        <span class="overlay-readout tl-secondary">{readout.text}</span>
       {/if}
     </div>
 
     {#if wide}
-      <div class="lane-readout" class:preview={ghostFrac != null} style="left: {axisLeft + axisWidth + 8}px" title={readout}>
-        {readout}
+      <div class="tl-readout">
+        {#if readout.value}
+          <span class="tl-num" class:preview={inspected != null}>{readout.text}</span>
+        {:else}
+          <span class="tl-secondary">{readout.text}</span>
+        {/if}
       </div>
     {/if}
   {/if}
 </div>
 
 <style>
-  .hidden-row {
-    opacity: 0.55;
-  }
-
   .lane-plot {
-    position: absolute;
-    top: 3px;
-    bottom: 3px;
+    margin: 3px 0;
     overflow: hidden;
     border-radius: 2px;
-    background: rgba(255, 255, 255, 0.025);
-    cursor: crosshair;
-    /* Vertical swipes scroll the lane region; see `timelineGestures`. */
-    touch-action: pan-y;
-    user-select: none;
   }
 
-  /* Marks follow the track's event-marker language — same colours, same
-     instant/interval/selected/active states — at lane height. */
+  /* Marks speak the shared event vocabulary (`--ev`): an instant is a line,
+     an interval a span. Active, selected and previewed raise them; several
+     can be active at once. */
   .lane-mark {
     position: absolute;
     top: 0;
@@ -172,79 +165,38 @@
     padding: 0;
     border: 0;
     border-radius: 1px;
-    background: var(--color-event-accent);
+    background: var(--ev);
     opacity: 0.55;
     transform: translateX(-50%);
     cursor: pointer;
   }
   .lane-mark.interval {
     min-width: 4px;
-    opacity: 0.72;
+    opacity: 0.62;
     transform: none;
+  }
+  .lane-mark.active {
+    opacity: 0.9;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
   }
   .lane-mark:hover,
   .lane-mark.previewed {
+    z-index: 1;
     opacity: 1;
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55);
   }
   .lane-mark.selected {
+    z-index: 2;
     opacity: 1;
-    box-shadow: inset 0 0 0 1px var(--color-text-primary);
-  }
-  .lane-mark.active {
-    opacity: 1;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72), 0 0 4px currentColor;
-  }
-  .lane-mark[data-kind='closest-approach'] { background: #72b7d8; }
-  .lane-mark[data-kind='distance-range'] { background: #71b896; }
-  .lane-mark[data-kind='occultation'] { background: #8c72d8; }
-  .lane-mark.partial { background: #e0a84c; }
-  .lane-mark.full { background: #8c72d8; }
-  .lane-mark.annular { background: #d96f4c; }
-
-  .playhead,
-  .ghost {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    transform: translateX(-50%);
-    pointer-events: none;
-  }
-  .playhead {
-    width: 2px;
-    background: var(--color-text-primary);
-    opacity: 0.9;
-  }
-  .ghost {
-    width: 1px;
-    background: var(--color-text-secondary);
-    opacity: 0.7;
+    box-shadow: inset 0 0 0 1px var(--color-text-primary), 0 0 4px var(--ev);
   }
 
-  .lane-readout {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    overflow: hidden;
-    color: var(--color-text-secondary);
-    font-size: var(--text-metadata);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   .overlay-readout {
     position: absolute;
     top: 50%;
     right: 3px;
     transform: translateY(-50%);
-    color: var(--color-text-secondary);
-    font-size: var(--text-metadata);
     white-space: nowrap;
     pointer-events: none;
-  }
-  .preview {
-    color: var(--color-text-muted);
   }
 </style>

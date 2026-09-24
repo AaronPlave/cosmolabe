@@ -5,8 +5,8 @@
  * and the committed time is `vs.et`, exactly as before, so the transport
  * track, event markers and profile rows cannot disagree about either. What
  * this adds is the *preview* half of "hover = preview, click = commit" — a
- * ghost playhead any row can set and every row draws, and the event it is
- * snapped to, if any.
+ * ghost playhead the timeline's one interaction surface sets and every row
+ * reads, the event it is snapped to, if any, and the row being inspected.
  */
 import { vs, scrubTo, zoomScrubber, panScrubberBy } from './viewer-state.svelte';
 import { clampFraction, snapFraction, windowFraction } from './scrubber-math';
@@ -24,14 +24,31 @@ export const timeline = $state({
    * the top of the row it happened on.
    */
   anchor: null as { x: number; y: number } | null,
+  /**
+   * The row under the pointer (`data-tl-row`), independent of the hovered
+   * instant: the shared x is *when* is being inspected, this is *what*.
+   * Changing rows never clears the time.
+   */
+  hoverRow: null as string | null,
+  /**
+   * A ghost instant set from outside the timeline — an event previewed in
+   * the Event Finder's list or the scene — so the profiles read out at that
+   * event while it is previewed. The pointer's own hover wins over it.
+   */
+  linkedEt: null as number | null,
   /** Profile rows shown at their expanded height, by item id. */
   expandedRows: {} as Record<string, boolean>,
   /**
    * Height of the analysis region the user dragged it to, in px; null for the
-   * default, content-sized one.
+   * automatic, content-fitted one.
    */
   laneHeight: null as number | null,
 });
+
+/** The inspected (ghost) instant: the pointer's, else a linked preview's. */
+export function ghostEt(): number | null {
+  return timeline.hoverEt ?? timeline.linkedEt;
+}
 
 /**
  * An event's identity on the timeline. Result ids are unique only within one
@@ -48,7 +65,12 @@ export interface ProfileEventTick {
   fraction: number;
   endFraction: number;
   selected: boolean;
+  /** Previewed — hovered on the timeline, in the Event Finder or the scene. */
+  previewed: boolean;
   active: boolean;
+  /** The event vocabulary: colour by kind and state, shape by temporality. */
+  kind: string;
+  state?: string;
 }
 
 export function setTimelineHover(
@@ -60,6 +82,21 @@ export function setTimelineHover(
   timeline.previewEventId = et == null ? null : eventId;
   timeline.anchor = et == null ? null : anchor;
 }
+
+/**
+ * A profile row's height, px. Profiles are read by their shape and get the
+ * room lanes do not: one profile is given generous height, more compress
+ * toward a floor before the region starts scrolling, and an expanded row is
+ * tall enough for a labelled scale.
+ */
+export function profileRowHeight(count: number, expanded: boolean, wide: boolean): number {
+  if (expanded) return 120;
+  if (wide) return count <= 1 ? 76 : count === 2 ? 60 : 46;
+  return count <= 1 ? 64 : count === 2 ? 50 : 40;
+}
+
+/** Rows at least this tall show gridlines with values. */
+export const PROFILE_GRID_MIN_HEIGHT = 56;
 
 export function toggleRowExpanded(id: string) {
   timeline.expandedRows[id] = !timeline.expandedRows[id];
@@ -112,6 +149,8 @@ export function timelineEt(fraction: number): number {
  */
 export function resetTimeline() {
   setTimelineHover(null);
+  timeline.hoverRow = null;
+  timeline.linkedEt = null;
   timeline.expandedRows = {};
 }
 
@@ -120,6 +159,24 @@ export interface TimelineGestureOptions {
   snapTargets: readonly { fraction: number; id: string }[];
   /** Intervals a hover inside previews, as fractions of the zoomed window. */
   spans?: readonly { start: number; end: number; id: string }[];
+}
+
+export interface AxisBounds {
+  left: number;
+  width: number;
+  top: number;
+  bottom: number;
+}
+
+export interface TimelineSurfaceOptions {
+  /**
+   * Where the shared axis is live for a pointer, in client px: the transport
+   * track's horizontal extent, from the top of the transport to the bottom
+   * of the lane region. Null while there is nothing to measure.
+   */
+  bounds: (e: { clientX: number; clientY: number }) => AxisBounds | null;
+  /** The events a hover on a row (its `data-tl-row`) snaps to and previews. */
+  targets: (row: string | null) => TimelineGestureOptions;
 }
 
 /** Half-width, in px, of the invisible grab target around the playhead line. */
@@ -133,7 +190,7 @@ const TOUCH_SLOP = 6;
 /**
  * Wheel input to timeline action: a mostly-horizontal wheel (a trackpad's
  * sideways swipe) or Shift+wheel pans, by that many pixels of the row; any
- * other wheel zooms. Shared with the transport track so every row agrees.
+ * other wheel zooms.
  */
 export function wheelIntent(e: Pick<WheelEvent, 'deltaX' | 'deltaY' | 'shiftKey'>):
   { pan: number } | { zoomIn: boolean } | null {
@@ -149,55 +206,88 @@ export function panTimelineByPixels(px: number, widthPx: number) {
   panScrubberBy((px / widthPx) * (vs.scrubMax - vs.scrubMin));
 }
 
+/** The timeline row an element belongs to, by its `data-tl-row`. */
+function rowOf(target: EventTarget | null): { id: string; el: Element } | null {
+  const el = (target as Element | null)?.closest?.('[data-tl-row]') ?? null;
+  const id = el?.getAttribute('data-tl-row');
+  return el && id ? { id, el } : null;
+}
+
+/** Whether a press landed on an analysis plot's background. */
+function onPlot(target: EventTarget | null): boolean {
+  return !!(target as Element | null)?.closest?.('[data-tl-plot]');
+}
+
 /**
- * The analysis rows' gestures, as a Svelte action for any row drawn across
- * the zoomed window. Event lanes and profile rows both use it, so every row
- * below the transport answers the same gesture the same way:
+ * The timeline's one interaction plane, as a Svelte action on the dock.
+ *
+ * Every row — the transport track, each event lane, each profile — shares one
+ * axis, so the pointer belongs to the axis rather than to a row: moving
+ * vertically from the track through the lanes keeps the same hovered instant,
+ * and the wheel zooms wherever over the axis it turns, not only over the row
+ * it started on. Which row is under the pointer is tracked separately
+ * (`timeline.hoverRow`) and only changes local emphasis and what a hover
+ * snaps to.
  *
  * - hover sets the ghost playhead and previews the event under it (snapped to
  *   an edge within a few px, or the interval it is inside);
- * - a click on the background (a press that does not travel) seeks there;
- * - a drag on the background pans the shared window;
- * - a drag that starts on the playhead — a thin line with a wider invisible
- *   grab target — scrubs time, as dragging the transport track does;
- * - the wheel zooms about the pointer; a sideways or Shift wheel pans.
+ * - the wheel zooms about the pointer; a sideways or Shift wheel pans;
+ * - on an analysis plot (`data-tl-plot`), a click seeks, a drag pans the
+ *   shared window, and a drag that starts on the playhead — a thin line with
+ *   a wider invisible grab target — scrubs time.
  *
- * The transport manipulates time, the analysis background manipulates the
- * view, and the playhead manipulates time everywhere.
+ * Presses on the transport track are the track's own (they scrub, as they
+ * always have); presses on an event mark stop propagation and select it. The
+ * transport manipulates time, the analysis background manipulates the view,
+ * and the playhead manipulates time everywhere.
  *
- * Touch reads direction before committing: these rows sit in a region that
+ * Touch reads direction before committing: the lanes sit in a region that
  * scrolls vertically, so horizontal travel pans (or scrubs, from the
- * playhead), vertical travel is left to the browser as a scroll (rows declare
+ * playhead), vertical travel is left to the browser as a scroll (plots declare
  * `touch-action: pan-y`, and the browser cancels the pointer when it takes
  * over), and a tap seeks.
- *
- * A child that handles its own press (an event mark) stops propagation of
- * `pointerdown`, and this never sees it.
  */
-export function timelineGestures(node: HTMLElement, initial: TimelineGestureOptions) {
+export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptions) {
   let opts = initial;
   /** A press not yet read as a click, a drag, or (touch) a scroll. */
-  let pending: { id: number; x: number; y: number; touch: boolean; onPlayhead: boolean } | null = null;
+  let pending: {
+    id: number; x: number; y: number; touch: boolean; onPlayhead: boolean; row: string | null; bounds: AxisBounds;
+  } | null = null;
   /** The pointer driving a drag, what it drives, and where it was last. */
-  let drag: { id: number; x: number; mode: 'pan' | 'scrub' } | null = null;
+  // The axis a drag started on is the one it keeps, wherever it wanders.
+  let drag: { id: number; x: number; mode: 'pan' | 'scrub'; bounds: AxisBounds } | null = null;
 
-  const fractionAt = (e: PointerEvent | WheelEvent) => {
-    const rect = node.getBoundingClientRect();
-    return clampFraction((e.clientX - rect.left) / rect.width);
+  /** The pointer's fraction of the axis, or null outside the live area. */
+  const fractionAt = (e: PointerEvent | WheelEvent, clamp = false, b = opts.bounds(e)) => {
+    if (!b || !(b.width > 0)) return null;
+    const f = (e.clientX - b.left) / b.width;
+    if (clamp) return clampFraction(f);
+    if (f < 0 || f > 1 || e.clientY < b.top || e.clientY > b.bottom) return null;
+    return f;
   };
 
   const nearPlayhead = (e: PointerEvent) => {
-    const rect = node.getBoundingClientRect();
-    const px = (timelineFraction(vs.et) * rect.width) + rect.left;
+    const b = opts.bounds(e);
+    if (!b) return false;
+    const px = timelineFraction(vs.et) * b.width + b.left;
     const reach = e.pointerType === 'touch' ? PLAYHEAD_GRAB_TOUCH_PX : PLAYHEAD_GRAB_PX;
     return Math.abs(e.clientX - px) <= reach;
   };
 
   const previewAt = (e: PointerEvent) => {
-    const rect = node.getBoundingClientRect();
-    const { at, id } = hoverTarget(fractionAt(e), rect.width, opts);
-    setTimelineHover(timelineEt(at), id, { x: rect.left + at * rect.width, y: rect.top });
-    node.style.cursor = nearPlayhead(e) ? 'ew-resize' : '';
+    const row = rowOf(e.target);
+    if (timeline.hoverRow !== (row?.id ?? null)) timeline.hoverRow = row?.id ?? null;
+    const b = opts.bounds(e);
+    const f = fractionAt(e, false, b);
+    if (f == null || !b) {
+      if (timeline.hoverEt != null) setTimelineHover(null);
+      node.style.cursor = '';
+      return;
+    }
+    const { at, id } = hoverTarget(f, b.width, opts.targets(row?.id ?? null));
+    const top = row ? row.el.getBoundingClientRect().top : b.top;
+    setTimelineHover(timelineEt(at), id, { x: b.left + at * b.width, y: top });
+    node.style.cursor = onPlot(e.target) && nearPlayhead(e) ? 'ew-resize' : '';
   };
 
   const endDrag = () => {
@@ -211,35 +301,38 @@ export function timelineGestures(node: HTMLElement, initial: TimelineGestureOpti
     setTimelineHover(null);
   };
 
-  const beginDrag = (e: PointerEvent, mode: 'pan' | 'scrub', fromX: number) => {
+  const beginDrag = (e: PointerEvent, mode: 'pan' | 'scrub', fromX: number, bounds: AxisBounds) => {
     if (!node.hasPointerCapture(e.pointerId)) node.setPointerCapture(e.pointerId);
     node.style.cursor = mode === 'pan' ? 'grabbing' : 'ew-resize';
     setTimelineHover(null);
-    drag = { id: e.pointerId, x: fromX, mode };
+    drag = { id: e.pointerId, x: fromX, mode, bounds };
   };
 
   const down = (e: PointerEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || !onPlot(e.target)) return;
+    const bounds = opts.bounds(e);
+    if (!bounds || fractionAt(e, false, bounds) == null) return;
     const touch = e.pointerType === 'touch';
     const onPlayhead = nearPlayhead(e);
     if (onPlayhead && !touch) {
       // Grabbing the playhead scrubs at once, like the transport track.
-      beginDrag(e, 'scrub', e.clientX);
+      beginDrag(e, 'scrub', e.clientX, bounds);
       return;
     }
-    pending = { id: e.pointerId, x: e.clientX, y: e.clientY, touch, onPlayhead };
-    // Mouse and pen: capture now, so a release outside the row still ends the
-    // press here. Touch is implicitly captured already, and must stay free to
-    // become a scroll.
+    pending = { id: e.pointerId, x: e.clientX, y: e.clientY, touch, onPlayhead, row: rowOf(e.target)?.id ?? null, bounds };
+    // Mouse and pen: capture now, so a release outside the plot still ends
+    // the press here. Touch is implicitly captured already, and must stay
+    // free to become a scroll.
     if (!touch) node.setPointerCapture(e.pointerId);
   };
   const move = (e: PointerEvent) => {
     if (drag && drag.id === e.pointerId) {
       if (drag.mode === 'scrub') {
-        scrubTo(fractionAt(e));
+        const f = fractionAt(e, true, drag.bounds);
+        if (f != null) scrubTo(f);
       } else {
         // Content follows the pointer: dragging right shows earlier time.
-        panTimelineByPixels(drag.x - e.clientX, node.clientWidth);
+        panTimelineByPixels(drag.x - e.clientX, drag.bounds.width);
       }
       drag.x = e.clientX;
       return;
@@ -253,18 +346,27 @@ export function timelineGestures(node: HTMLElement, initial: TimelineGestureOpti
       // A touch moving vertically is the region's scroll; the browser will
       // cancel us. Anything else drags.
       if (start.touch && dy >= dx) return;
-      beginDrag(e, start.onPlayhead ? 'scrub' : 'pan', start.x);
+      beginDrag(e, start.onPlayhead ? 'scrub' : 'pan', start.x, start.bounds);
       move(e);
       return;
     }
-    if (e.pointerType !== 'touch' && !drag) previewAt(e);
+    if (e.pointerType === 'touch') return;
+    // A press held elsewhere — the transport track scrubbing, a resize — is
+    // not a hover.
+    if (e.buttons) {
+      if (timeline.hoverEt != null) setTimelineHover(null);
+      return;
+    }
+    previewAt(e);
   };
   const up = (e: PointerEvent) => {
     if (pending && pending.id === e.pointerId) {
       // A click or tap: seek to it, snapped to an event edge when close.
+      const start = pending;
       pending = null;
       if (node.hasPointerCapture(e.pointerId)) node.releasePointerCapture(e.pointerId);
-      scrubTo(hoverTarget(fractionAt(e), node.clientWidth, opts).at);
+      const f = fractionAt(e, true, start.bounds);
+      if (f != null) scrubTo(hoverTarget(f, start.bounds.width, opts.targets(start.row)).at);
       if (e.pointerType !== 'touch') previewAt(e);
       return;
     }
@@ -274,40 +376,44 @@ export function timelineGestures(node: HTMLElement, initial: TimelineGestureOpti
     if (e.pointerType !== 'touch') previewAt(e);
   };
   const leave = (e: PointerEvent) => {
-    if (!drag && e.pointerType !== 'touch') {
-      setTimelineHover(null);
-      node.style.cursor = '';
-    }
+    if (drag || e.pointerType === 'touch') return;
+    setTimelineHover(null);
+    timeline.hoverRow = null;
+    node.style.cursor = '';
   };
   // Non-passive, so the page does not scroll while the timeline zooms or pans.
   const wheel = (e: WheelEvent) => {
+    const b = opts.bounds(e);
+    const f = fractionAt(e, false, b);
+    if (f == null || !b) return;
     const intent = wheelIntent(e);
     if (!intent) return;
     e.preventDefault();
-    if ('pan' in intent) panTimelineByPixels(intent.pan, node.clientWidth);
-    else zoomScrubber(intent.zoomIn, timelineEt(fractionAt(e)));
+    if ('pan' in intent) panTimelineByPixels(intent.pan, b.width);
+    else zoomScrubber(intent.zoomIn, timelineEt(f));
   };
 
   const listeners: [string, EventListener, AddEventListenerOptions?][] = [
     ['pointerdown', down as EventListener],
     ['pointermove', move as EventListener],
     ['pointerup', up as EventListener],
-    ['pointercancel', reset],
-    // Only the row's own capture. A touch is implicitly captured by the child
-    // it lands on, and taking capture for the row makes that child's loss
-    // bubble up here — which is not the drag ending.
+    ['pointercancel', ((e: PointerEvent) => { if (pending?.id === e.pointerId || drag?.id === e.pointerId) reset(); }) as EventListener],
+    // Only the surface's own capture. A touch is implicitly captured by the
+    // element it lands on, and taking capture for the surface makes that
+    // element's loss bubble up here — which is not the drag ending.
     ['lostpointercapture', (e) => { if (drag && e.target === node) reset(); }],
     ['pointerleave', leave as EventListener],
     ['wheel', wheel as EventListener, { passive: false }],
   ];
   for (const [type, fn, o] of listeners) node.addEventListener(type, fn, o);
   return {
-    update(next: TimelineGestureOptions) {
+    update(next: TimelineSurfaceOptions) {
       opts = next;
     },
     destroy() {
       for (const [type, fn] of listeners) node.removeEventListener(type, fn);
-      if (drag || (timeline.hoverEt != null && node.matches(':hover'))) setTimelineHover(null);
+      setTimelineHover(null);
+      timeline.hoverRow = null;
     },
   };
 }

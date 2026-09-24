@@ -6,37 +6,64 @@ vi.mock('../viewer-state.svelte', async (importOriginal) => ({
   scrubTo: (f: number) => scrubTo(f),
 }));
 
-const { timeline, timelineGestures, wheelIntent, hoverTarget, eventKey } = await import('../timeline.svelte');
+const { timeline, timelineSurface, wheelIntent, hoverTarget, eventKey, ghostEt, profileRowHeight } =
+  await import('../timeline.svelte');
 const { vs, panScrubberBy, setScrubberWindow } = await import('../viewer-state.svelte');
 
-/** Just enough of an element for the action: 100 px wide at x = 0. */
-function fakeRow() {
+/** A row of the timeline (`data-tl-row`), `top` px down the dock. */
+function fakeRow(id: string, top: number) {
+  return { getAttribute: () => id, getBoundingClientRect: () => ({ top }) };
+}
+
+/** An element in a row; `plot` marks an analysis plot's background. */
+function fakeTarget(row: ReturnType<typeof fakeRow> | null, plot = true) {
+  return {
+    closest: (sel: string) => (sel === '[data-tl-row]' ? row : sel === '[data-tl-plot]' && plot ? {} : null),
+  };
+}
+
+/** Just enough of the dock for the action. */
+function fakeDock() {
   const target = new EventTarget();
   const captured = new Set<number>();
   return Object.assign(target, {
-    clientWidth: 100,
     style: { cursor: '' },
-    getBoundingClientRect: () => ({ left: 0, width: 100 }),
     setPointerCapture: (id: number) => captured.add(id),
     releasePointerCapture: (id: number) => captured.delete(id),
     hasPointerCapture: (id: number) => captured.has(id),
-    matches: () => false,
     captured,
   });
 }
 
-function pointer(node: EventTarget, type: string, x: number, y = 0, pointerType = 'touch', id = 1) {
+const lane = fakeRow('lane:a', 20);
+const profile = fakeRow('profile:p', 40);
+const transport = fakeRow('transport', 0);
+
+function pointer(
+  node: EventTarget, type: string, x: number, y = 0, pointerType = 'touch', id = 1,
+  on: object = fakeTarget(profile), buttons = 0,
+) {
   const e = new Event(type);
-  Object.assign(e, { clientX: x, clientY: y, pointerType, pointerId: id, button: 0 });
+  Object.assign(e, { clientX: x, clientY: y, pointerType, pointerId: id, button: 0, buttons });
+  Object.defineProperty(e, 'target', { value: on });
   node.dispatchEvent(e);
 }
 
+function wheel(node: EventTarget, x: number, deltaY: number, on: object = fakeTarget(profile)) {
+  const e = new Event('wheel', { cancelable: true });
+  Object.assign(e, { clientX: x, clientY: 50, deltaX: 0, deltaY, shiftKey: false });
+  Object.defineProperty(e, 'target', { value: on });
+  node.dispatchEvent(e);
+  return e.defaultPrevented;
+}
+
 /**
- * Rows below the transport navigate the axis: a click seeks, a drag pans,
- * and on touch a vertical swipe is left to the scrolling lane region.
+ * The timeline is one interaction plane over a shared axis — here 100 px wide
+ * at x = 0, live from y = 0 to 100. On an analysis plot a click seeks, a drag
+ * pans, and on touch a vertical swipe is left to the scrolling lane region.
  */
-describe('timeline row gestures', () => {
-  let row: ReturnType<typeof fakeRow>;
+describe('timeline surface gestures', () => {
+  let dock: ReturnType<typeof fakeDock>;
 
   beforeEach(() => {
     scrubTo.mockClear();
@@ -47,68 +74,125 @@ describe('timeline row gestures', () => {
     // Off-screen, so presses in these tests land on the background.
     vs.et = 0;
     timeline.hoverEt = null;
-    row = fakeRow();
-    timelineGestures(row as unknown as HTMLElement, { snapTargets: [{ fraction: 0.5, id: 'ca' }] });
+    timeline.hoverRow = null;
+    timeline.linkedEt = null;
+    dock = fakeDock();
+    timelineSurface(dock as unknown as HTMLElement, {
+      bounds: () => ({ left: 0, width: 100, top: 0, bottom: 100 }),
+      targets: (row) => (row === 'lane:a' ? { snapTargets: [{ fraction: 0.5, id: 'ca' }] } : { snapTargets: [] }),
+    });
   });
 
-  it('seeks on a mouse click, snapped to a nearby event, and previews on hover', () => {
-    pointer(row, 'pointermove', 20, 0, 'mouse');
+  it('keeps the hovered instant while the pointer crosses rows, tracking the row separately', () => {
+    pointer(dock, 'pointermove', 20, 25, 'mouse', 1, fakeTarget(lane));
+    expect([timeline.hoverEt, timeline.hoverRow]).toEqual([1200, 'lane:a']);
+    pointer(dock, 'pointermove', 20, 45, 'mouse', 1, fakeTarget(profile));
+    expect([timeline.hoverEt, timeline.hoverRow]).toEqual([1200, 'profile:p']);
+    // The rule between rows belongs to no row, but is still on the axis.
+    pointer(dock, 'pointermove', 20, 39, 'mouse', 1, fakeTarget(null, false));
+    expect([timeline.hoverEt, timeline.hoverRow]).toEqual([1200, null]);
+    // Off the axis — the label gutter — there is no instant to inspect.
+    pointer(dock, 'pointermove', -30, 45, 'mouse', 1, fakeTarget(profile, false));
+    expect([timeline.hoverEt, timeline.hoverRow]).toEqual([null, 'profile:p']);
+  });
+
+  it('snaps to the events of the row under the pointer', () => {
+    pointer(dock, 'pointermove', 52, 25, 'mouse', 1, fakeTarget(lane));
+    expect([timeline.hoverEt, timeline.previewEventId]).toEqual([1500, 'ca']);
+    expect(timeline.anchor).toEqual({ x: 50, y: 20 });
+    pointer(dock, 'pointermove', 52, 45, 'mouse', 1, fakeTarget(profile));
+    expect([timeline.hoverEt, timeline.previewEventId]).toEqual([1520, null]);
+  });
+
+  it('zooms about the pointer over any row, and leaves the wheel alone off the axis', () => {
+    expect(wheel(dock, 90, -100, fakeTarget(lane))).toBe(true);
+    expect(vs.scrubMax - vs.scrubMin).toBeLessThan(1000);
+    expect(vs.scrubMin).toBeLessThan(1900);
+    expect(vs.scrubMax).toBeGreaterThan(1900);
+    const span = vs.scrubMax - vs.scrubMin;
+    expect(wheel(dock, 90, -100, fakeTarget(transport, false))).toBe(true);
+    expect(vs.scrubMax - vs.scrubMin).toBeLessThan(span);
+    const before = [vs.scrubMin, vs.scrubMax];
+    expect(wheel(dock, -20, -100)).toBe(false);
+    expect([vs.scrubMin, vs.scrubMax]).toEqual(before);
+  });
+
+  it('leaves presses on the transport track to the track', () => {
+    pointer(dock, 'pointerdown', 50, 5, 'mouse', 1, fakeTarget(transport, false));
+    pointer(dock, 'pointerup', 50, 5, 'mouse', 1, fakeTarget(transport, false));
+    expect(scrubTo).not.toHaveBeenCalled();
+    expect(dock.captured.size).toBe(0);
+  });
+
+  it('does not hover while a press held elsewhere (the track scrubbing) moves over it', () => {
+    pointer(dock, 'pointermove', 20, 45, 'mouse');
     expect(timeline.hoverEt).toBe(1200);
-    pointer(row, 'pointerdown', 52, 0, 'mouse');
-    pointer(row, 'pointerup', 53, 0, 'mouse');
+    pointer(dock, 'pointermove', 30, 5, 'mouse', 1, fakeTarget(transport, false), 1);
+    expect(timeline.hoverEt).toBeNull();
+  });
+
+  it('seeks on a mouse click, snapped to a nearby event of that row', () => {
+    pointer(dock, 'pointerdown', 52, 25, 'mouse', 1, fakeTarget(lane));
+    pointer(dock, 'pointerup', 53, 25, 'mouse', 1, fakeTarget(lane));
     expect(scrubTo).toHaveBeenCalledWith(0.5);
-    expect(row.captured.size).toBe(0);
+    expect(dock.captured.size).toBe(0);
   });
 
   it('pans on a mouse drag, content following the pointer, without seeking', () => {
-    pointer(row, 'pointerdown', 50, 0, 'mouse');
-    pointer(row, 'pointermove', 60, 0, 'mouse');
-    pointer(row, 'pointermove', 70, 0, 'mouse');
-    pointer(row, 'pointerup', 70, 0, 'mouse');
-    // 20 px of a 100 px row over a 1000 s window: 200 s earlier.
+    pointer(dock, 'pointerdown', 50, 0, 'mouse');
+    pointer(dock, 'pointermove', 60, 0, 'mouse');
+    pointer(dock, 'pointermove', 70, 0, 'mouse');
+    pointer(dock, 'pointerup', 70, 0, 'mouse');
+    // 20 px of a 100 px axis over a 1000 s window: 200 s earlier.
     expect(vs.scrubMin).toBe(800);
     expect(vs.scrubMax).toBe(1800);
     expect(scrubTo).not.toHaveBeenCalled();
-    expect(row.captured.size).toBe(0);
+    expect(dock.captured.size).toBe(0);
+  });
+
+  it('keeps panning when the drag wanders off the axis vertically', () => {
+    pointer(dock, 'pointerdown', 50, 50, 'mouse');
+    pointer(dock, 'pointermove', 60, 150, 'mouse');
+    expect(vs.scrubMin).toBe(900);
   });
 
   it('leaves a vertical touch swipe to the scrolling region', () => {
-    pointer(row, 'pointerdown', 40, 0);
-    pointer(row, 'pointermove', 41, 30);
-    pointer(row, 'pointercancel', 41, 30);
+    pointer(dock, 'pointerdown', 40, 0);
+    pointer(dock, 'pointermove', 41, 30);
+    pointer(dock, 'pointercancel', 41, 30);
     expect(scrubTo).not.toHaveBeenCalled();
     expect(vs.scrubMin).toBe(1000);
-    expect(row.captured.size).toBe(0);
+    expect(dock.captured.size).toBe(0);
   });
 
   it('pans on a horizontal touch drag and seeks on a tap', () => {
-    pointer(row, 'pointerdown', 40, 0);
-    pointer(row, 'pointermove', 20, 2);
-    pointer(row, 'pointerup', 20, 2);
+    pointer(dock, 'pointerdown', 40, 0);
+    pointer(dock, 'pointermove', 20, 2);
+    pointer(dock, 'pointerup', 20, 2);
     expect(vs.scrubMin).toBe(1200);
     expect(scrubTo).not.toHaveBeenCalled();
 
-    pointer(row, 'pointerdown', 25, 0, 'touch', 2);
-    pointer(row, 'pointerup', 26, 1, 'touch', 2);
+    pointer(dock, 'pointerdown', 25, 0, 'touch', 2);
+    pointer(dock, 'pointerup', 26, 1, 'touch', 2);
     expect(scrubTo).toHaveBeenCalledWith(0.26);
     expect(timeline.hoverEt).toBeNull();
   });
 
-  it('keeps panning when a child hands its implicit touch capture to the row', () => {
-    pointer(row, 'pointerdown', 80, 0);
-    pointer(row, 'pointermove', 70, 1);
+  it('keeps panning when a child hands its implicit touch capture to the dock', () => {
+    pointer(dock, 'pointerdown', 80, 0);
+    pointer(dock, 'pointermove', 70, 1);
     const childLoss = new Event('lostpointercapture');
     Object.defineProperty(childLoss, 'target', { value: {} });
-    row.dispatchEvent(childLoss);
-    pointer(row, 'pointermove', 50, 1);
+    dock.dispatchEvent(childLoss);
+    pointer(dock, 'pointermove', 50, 1);
     expect(vs.scrubMin).toBe(1300);
   });
 
   it('scrubs time from a drag that starts on the playhead, with a grab target wider than the line', () => {
     vs.et = 1500; // x = 50 px
-    pointer(row, 'pointerdown', 54, 0, 'mouse');
-    pointer(row, 'pointermove', 70, 0, 'mouse');
-    pointer(row, 'pointerup', 70, 0, 'mouse');
+    pointer(dock, 'pointerdown', 54, 0, 'mouse');
+    pointer(dock, 'pointermove', 70, 0, 'mouse');
+    pointer(dock, 'pointerup', 70, 0, 'mouse');
     expect(scrubTo.mock.calls.map(([f]) => f)).toEqual([0.7]);
     // Scrubbing moves time, not the view.
     expect([vs.scrubMin, vs.scrubMax]).toEqual([1000, 2000]);
@@ -116,28 +200,46 @@ describe('timeline row gestures', () => {
 
   it('scrubs from the playhead on touch too, once the drag is horizontal', () => {
     vs.et = 1500;
-    pointer(row, 'pointerdown', 58, 0);
-    pointer(row, 'pointermove', 70, 1);
+    pointer(dock, 'pointerdown', 58, 0);
+    pointer(dock, 'pointermove', 70, 1);
     expect(scrubTo).toHaveBeenLastCalledWith(0.7);
     expect(vs.scrubMin).toBe(1000);
   });
 
   it('pans rather than scrubs from just outside the grab target', () => {
     vs.et = 1500;
-    pointer(row, 'pointerdown', 60, 0, 'mouse');
-    pointer(row, 'pointermove', 70, 0, 'mouse');
+    pointer(dock, 'pointerdown', 60, 0, 'mouse');
+    pointer(dock, 'pointermove', 70, 0, 'mouse');
     expect(scrubTo).not.toHaveBeenCalled();
     expect(vs.scrubMin).toBe(900);
   });
 
-  it('ends the pan when the row loses capture', () => {
-    pointer(row, 'pointerdown', 30, 0, 'mouse');
-    pointer(row, 'pointermove', 40, 0, 'mouse');
-    row.dispatchEvent(new Event('lostpointercapture'));
-    pointer(row, 'pointermove', 80, 0, 'mouse');
+  it('ends the pan when the dock loses capture', () => {
+    pointer(dock, 'pointerdown', 30, 0, 'mouse');
+    pointer(dock, 'pointermove', 40, 0, 'mouse');
+    const loss = new Event('lostpointercapture');
+    Object.defineProperty(loss, 'target', { value: dock });
+    dock.dispatchEvent(loss);
+    pointer(dock, 'pointermove', 80, 0, 'mouse');
     // No longer panning: a move previews rather than pans.
     expect(vs.scrubMin).toBe(900);
     expect(timeline.hoverEt).toBe(900 + 800);
+  });
+
+  it('reads out at an event previewed elsewhere, until the pointer inspects a time of its own', () => {
+    timeline.linkedEt = 1700;
+    expect(ghostEt()).toBe(1700);
+    pointer(dock, 'pointermove', 20, 45, 'mouse');
+    expect(ghostEt()).toBe(1200);
+  });
+});
+
+describe('profile row heights', () => {
+  it('gives a lone profile room, compresses more toward a floor, and expands for a scale', () => {
+    expect(profileRowHeight(1, false, true)).toBeGreaterThan(profileRowHeight(2, false, true));
+    expect(profileRowHeight(2, false, true)).toBeGreaterThan(profileRowHeight(3, false, true));
+    expect(profileRowHeight(3, false, true)).toBe(profileRowHeight(8, false, true));
+    expect(profileRowHeight(8, true, true)).toBeGreaterThan(profileRowHeight(1, false, true));
   });
 });
 

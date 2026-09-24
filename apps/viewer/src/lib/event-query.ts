@@ -382,7 +382,18 @@ export function eventContainsTime(event: GeometryEvent, et: number): boolean {
 }
 
 /**
- * The event the playhead is currently traversing.
+ * Every event the playhead is inside. Simultaneous events are normal — two
+ * occultations, an eclipse during a close approach — and each is active in
+ * its own right; none suppresses another for having been found first.
+ */
+export function activeEventsAtTime(events: readonly GeometryEvent[], et: number): GeometryEvent[] {
+  return events.filter((event) => eventContainsTime(event, et));
+}
+
+/**
+ * The one active event to name where only one fits — a one-line readout, or
+ * the scene's single explanatory overlay. Not "the" active event: all of
+ * `activeEventsAtTime` are.
  *
  * An explicit selection wins only when it is one of the active intervals. If
  * several unselected intervals overlap, the shortest is the most specific
@@ -394,7 +405,7 @@ export function activeEventAtTime(
   et: number,
   preferred?: Pick<GeometryEvent, 'id' | 'queryId'> | null,
 ): GeometryEvent | undefined {
-  const active = events.filter((event) => eventContainsTime(event, et));
+  const active = activeEventsAtTime(events, et);
   // Result ids recur across searches: a selection is its id *and* query.
   const match = preferred && active.find((event) => event.id === preferred.id && event.queryId === preferred.queryId);
   if (match) return match;

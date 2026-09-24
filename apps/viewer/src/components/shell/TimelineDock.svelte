@@ -20,19 +20,19 @@
   import {
     vs, togglePlay, reverse, faster, slower,
     stepForward, stepBackward, scrubTo, setTime,
-    zoomScrubber, resetScrubberZoom, setZoomDuration, etToShortDate, etToUtcString,
-    setScrubberWindow,
+    resetScrubberZoom, setZoomDuration, etToShortDate, etToUtcString,
+    setScrubberWindow, panScrubberBy,
   } from '../../lib/viewer-state.svelte';
   import {
-    timeline, setTimelineHover, timelineEt, timelineFraction, panTimelineByPixels,
-    eventKey, eventHoverTargets, hoverTarget, type ProfileEventTick,
+    timeline, timelineSurface, ghostEt, timelineFraction,
+    eventKey, eventHoverTargets, type ProfileEventTick, type TimelineGestureOptions,
   } from '../../lib/timeline.svelte';
   import { eventEnd, eventStart } from '@cosmolabe/core';
   import { untrack } from 'svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
   import { shell, setTimelineDepth } from '../../lib/shell.svelte';
-  import { formatDuration } from '../../lib/scrubber-math';
+  import { formatDuration, inWindow } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
   import {
     ef, previewEvent, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries,
@@ -75,11 +75,18 @@
    * which is the same progressive-depth control the lane region uses.
    */
   const secondaryHidden = $derived(compact && !expanded);
+  /**
+   * Desktop, expanded: the dock is one grid — label gutter, time axis,
+   * readout rail — and the transport lays itself out on it, so the track is
+   * the axis column every row below draws on. Collapsed keeps the compact
+   * transport strip; a phone overlays labels instead of a gutter.
+   */
+  const gridded = $derived(expanded && !compact);
 
   // ── Scrubber state ──
 
-  // Unclamped: a playhead outside the zoomed window is out of view, on the
-  // track exactly as on the lanes, rather than pinned to an edge where it
+  // Unclamped: a playhead outside the zoomed window is out of view — on the
+  // track, on the lanes, everywhere — rather than pinned to an edge where it
   // would name a time it is not at.
   let currentFraction = $derived(timelineFraction(vs.et));
 
@@ -98,94 +105,146 @@
     syncOccultationGeometryAtTime();
   });
 
-  // Event finder results as scrubber ticks, on the zoomed range the track
-  // actually draws. Events outside it are dropped rather than clamped to an
-  // edge, where they would read as happening at a time they do not.
-  let eventMarkers = $derived(
-    visibleTimelineEvents()
-      .map((event) => {
-        const span = eventTimelineFractions(event, { start: vs.scrubMin, end: vs.scrubMax });
-        if (!span) return null;
-        return {
-          id: eventKey(event),
-          fraction: span.start,
-          endFraction: span.end,
-          selected: ef.selectedId === event.id && ef.configuredId === event.queryId,
-          preview: ef.previewId === event.id && ef.previewQueryId === event.queryId,
-          active: eventContainsTime(event, vs.et),
-          title: event.label,
-          kind: event.kind,
-          state: event.state,
-          previewed: timeline.previewEventId === eventKey(event),
-          onSelect: () => selectEvent(event),
-          onPreview: () => previewEvent(event),
-          onPreviewEnd: () => previewEvent(null),
-        };
-      })
-      .filter((marker) => marker != null),
-  );
-
   // One lane per participating query. Hidden ones stay listed (dimmed, with
   // their eye toggle) so they can be shown again from here; disabled ones are
   // out of the analysis entirely and have nothing to draw.
   let eventLanes = $derived(configuredEventQueries().filter((item) => item.enabled));
 
-  // The same results, as the profile rows draw them.
-  // A preview from elsewhere (the Event Finder's list, the scene) emphasises
-  // them as selection does.
+  // ── Transport overview ──
+  //
+  // The track is an overview, not a lossless stack: each event family (query)
+  // gets a sub-band a few px tall, so overlapping results from different
+  // queries do not share pixels; within a family, overlaps merge visually.
+  // Exact distinctions are the lanes'. Past a handful of families, bands get
+  // too thin to read and the overview becomes a density instead.
+  const MAX_BANDS = 4;
+  let eventMarkers = $derived.by(() => {
+    const range = { start: vs.scrubMin, end: vs.scrubMax };
+    const drawn = visibleTimelineEvents().flatMap((event) => {
+      // Events outside the window are dropped rather than clamped to an edge,
+      // where they would read as happening at a time they do not.
+      const span = eventTimelineFractions(event, range);
+      return span ? [{ event, span }] : [];
+    });
+    const families = eventLanes.map((q) => q.id).filter((id) => drawn.some((d) => d.event.queryId === id));
+    return drawn.map(({ event, span }) => ({
+      id: eventKey(event),
+      queryId: event.queryId,
+      fraction: span.start,
+      endFraction: span.end,
+      selected: ef.selectedId === event.id && ef.configuredId === event.queryId,
+      preview: ef.previewId === event.id && ef.previewQueryId === event.queryId,
+      active: eventContainsTime(event, vs.et),
+      title: event.label,
+      kind: event.kind,
+      state: event.state,
+      previewed: timeline.previewEventId === eventKey(event),
+      band: families.length <= MAX_BANDS ? families.indexOf(event.queryId) : undefined,
+      bands: families.length,
+      onSelect: () => selectEvent(event),
+      // Keyboard focus previews; pointer hover is the surface's.
+      onPreview: () => previewEvent(event),
+      onPreviewEnd: () => previewEvent(null),
+    }));
+  });
+  const familyCount = $derived(eventMarkers[0]?.bands ?? 0);
+
+  // The same results, as the profile rows draw them: with their kind and
+  // state, so the spans behind a trace speak the lanes' vocabulary.
   let profileTicks = $derived(
     eventMarkers.map((m): ProfileEventTick => ({
-      id: m.id, fraction: m.fraction, endFraction: m.endFraction, selected: m.selected || m.preview, active: m.active,
+      id: m.id,
+      fraction: m.fraction,
+      endFraction: m.endFraction,
+      selected: m.selected,
+      previewed: m.previewed || m.preview,
+      active: m.active,
+      kind: m.kind,
+      state: m.state,
     })),
   );
 
+  // What a hover snaps to and previews, by row: a lane its own results,
+  // anything else — the track, a profile — every visible result.
+  const allTargets = $derived(eventHoverTargets(eventMarkers));
+  const laneTargets = $derived.by(() => {
+    const byQuery = new Map<string, typeof eventMarkers>();
+    for (const m of eventMarkers) byQuery.set(m.queryId, [...(byQuery.get(m.queryId) ?? []), m]);
+    return new Map([...byQuery].map(([id, ms]) => [id, eventHoverTargets(ms)]));
+  });
+  const NO_TARGETS: TimelineGestureOptions = { snapTargets: [] };
+  function targetsFor(row: string | null): TimelineGestureOptions {
+    if (row?.startsWith('lane:')) return laneTargets.get(row.slice(5)) ?? NO_TARGETS;
+    return allTargets;
+  }
+
   // ── Shared axis ──
   //
-  // Profile rows align to the transport track, wherever the transport's
-  // buttons and clock leave it. Measured, not assumed: the track's extent
-  // moves with the layout, the rate readout and the compact toggle.
+  // Every row aligns to the transport track, measured rather than assumed:
+  // its extent moves with the layout. The lane region exposes it to its rows
+  // as grid columns (`--tl-gutter`, `--tl-axis`, `--tl-rail-end`); the dock
+  // uses it for the lines drawn through every row and for the interaction
+  // surface's bounds.
+  let rootEl: HTMLDivElement | undefined = $state();
   let trackEl: HTMLDivElement | undefined = $state();
+  let transportCellEl: HTMLDivElement | undefined = $state();
   let regionEl: HTMLDivElement | undefined = $state();
-  let axis = $state({ left: 0, width: 0 });
+  let toggleEl: HTMLButtonElement | undefined = $state();
+  let axis = $state({ left: 0, width: 0, railEnd: 0 });
+  /** Geometry of the through-lines, relative to the dock. */
+  let lines = $state<{ left: number; width: number; top: number; lanesTop: number; bottom: number } | null>(null);
 
   $effect(() => {
+    const root = rootEl;
     const track = trackEl;
     const region = regionEl;
-    if (!track || !region) return;
+    if (!root || !track || !region) {
+      lines = null;
+      return;
+    }
     const measure = () => {
+      const o = root.getBoundingClientRect();
       const r = region.getBoundingClientRect();
+      const t = track.getBoundingClientRect();
+      const cell = transportCellEl?.getBoundingClientRect() ?? t;
       // A phone leaves the track a sliver once the secondary transport is
       // back; there the rows draw the same window across the dock's full
       // width instead, with their labels overlaid.
       if (compact) {
-        axis = { left: 0, width: region.clientWidth };
+        axis = { left: 0, width: region.clientWidth, railEnd: 0 };
+        lines = { left: r.left - o.left, width: region.clientWidth, top: r.top - o.top, lanesTop: r.top - o.top, bottom: r.bottom - o.top };
         return;
       }
-      const t = track.getBoundingClientRect();
-      axis = { left: t.left - r.left, width: t.width };
+      // The rail's values right-align under the clock.
+      const clockRight = toggleEl ? toggleEl.getBoundingClientRect().left - 6 : r.right;
+      axis = { left: t.left - r.left, width: t.width, railEnd: Math.max(0, r.left + region.clientWidth - clockRight) };
+      lines = { left: t.left - o.left, width: t.width, top: cell.top - o.top, lanesTop: r.top - o.top, bottom: r.bottom - o.top };
     };
     measure();
     const ro = new ResizeObserver(measure);
+    ro.observe(root);
     ro.observe(track);
     ro.observe(region);
     return () => ro.disconnect();
   });
 
-  // Labels in a gutter left of the axis need room; a phone overlays them.
-  const wideLanes = $derived(!compact && axis.left >= 120);
+  const wideLanes = $derived(gridded);
 
-  // A hover on the track previews its marks like one on a lane — snapped to
-  // an edge or inside an interval — so the collapsed strip cross-highlights
-  // and gets the same callout.
-  const trackHoverTargets = $derived(eventHoverTargets(eventMarkers));
-  function onTrackHover(fraction: number | null) {
-    if (fraction == null || !trackEl) {
-      setTimelineHover(null);
-      return;
+  /**
+   * Where the surface's shared axis is live for a pointer. Desktop: one axis,
+   * the track's extent, from the transport down through the lanes. A phone's
+   * lanes span the full width while its track does not, so there the axis is
+   * whichever of the two the pointer is over.
+   */
+  function surfaceBounds(e: { clientY: number }) {
+    if (!trackEl) return null;
+    const t = trackEl.getBoundingClientRect();
+    const cell = transportCellEl?.getBoundingClientRect() ?? t;
+    const r = expanded ? regionEl?.getBoundingClientRect() : undefined;
+    if (compact && r && regionEl && e.clientY >= r.top) {
+      return { left: r.left, width: regionEl.clientWidth, top: r.top, bottom: r.bottom };
     }
-    const rect = trackEl.getBoundingClientRect();
-    const { at, id } = hoverTarget(fraction, rect.width, trackHoverTargets);
-    setTimelineHover(timelineEt(at), id, { x: rect.left + at * rect.width, y: rect.top });
+    return { left: t.left, width: t.width, top: cell.top, bottom: compact || !r ? cell.bottom : r.bottom };
   }
 
   // ── Hover callout ──
@@ -193,7 +252,6 @@
   // What a previewed event *is*, anchored where it was pointed at. The copy
   // is the scene callouts' (`eventCalloutLines`), so the timeline and the 3D
   // view name events in one language.
-  let rootEl: HTMLDivElement | undefined = $state();
   const hoveredEvent = $derived(
     timeline.previewEventId == null
       ? undefined
@@ -211,9 +269,9 @@
 
   // Hover = preview across linked surfaces: an event hovered on any timeline
   // row is previewed in the scene through the Event Finder's own
-  // `previewEvent`, the same call the track's marks make. Only changes are
-  // pushed, and leaving clears only the preview this set, so a preview from
-  // the Event Finder's list is not cleared by an unrelated timeline hover.
+  // `previewEvent`. Only changes are pushed, and leaving clears only the
+  // preview this set, so a preview from the Event Finder's list is not
+  // cleared by an unrelated timeline hover.
   let drivenPreview: string | null = null;
   $effect(() => {
     const event = hoveredEvent;
@@ -232,13 +290,27 @@
     });
   });
 
-  const hoverFraction = $derived(
-    timeline.hoverEt == null || !(currentRange > 0) ? null : (timeline.hoverEt - vs.scrubMin) / currentRange,
-  );
+  // And the other way: an event previewed elsewhere — the Event Finder's
+  // list, the scene — puts the ghost on it, so every profile reads out at
+  // that event while it is previewed.
+  $effect(() => {
+    const id = ef.previewId;
+    const queryId = ef.previewQueryId;
+    const fromTimeline = timeline.previewEventId;
+    let linked: number | null = null;
+    if (id != null && (fromTimeline == null || fromTimeline !== eventKey({ id, queryId: queryId ?? '' }))) {
+      const event = visibleTimelineEvents().find((e) => e.id === id && e.queryId === queryId);
+      if (event) linked = eventStart(event);
+    }
+    if (timeline.linkedEt !== linked) timeline.linkedEt = linked;
+  });
+
+  const ghost = $derived(ghostEt());
+  const hoverFraction = $derived(ghost == null || !(currentRange > 0) ? null : timelineFraction(ghost));
   // The callout carries the time when an event is previewed; the bare
   // timestamp would only collide with it.
   const hoverLabel = $derived(
-    timeline.hoverEt == null || callout ? '' : etToUtcString(timeline.hoverEt).replace(' UTC', ''),
+    ghost == null || callout ? '' : etToUtcString(ghost).replace(' UTC', ''),
   );
 
   // ── Framing presets ──
@@ -271,14 +343,45 @@
     return options;
   });
 
+  // Minimap navigation: drag the viewport to pan, press elsewhere to go there.
+  function onViewportPan(deltaFraction: number) {
+    panScrubberBy(deltaFraction * baseRange);
+  }
+  function onViewportCenter(fraction: number) {
+    const center = vs.scrubBaseMin + fraction * baseRange;
+    setScrubberWindow(center - currentRange / 2, center + currentRange / 2);
+  }
+
   // ── Analysis region height ──
   //
-  // The dock's top edge is a resize handle while the region is open: drag up
-  // for a deeper analysis workspace, capped so the scene keeps the top of the
-  // screen; double-click toggles between the default and a large height,
-  // remembering the one it left.
+  // Automatic by default: the region fits its rows and stops growing at
+  // about a third of the viewport (`.lane-region`'s max-height), then scrolls.
+  // The dock's top edge is a resize handle while the region is open — drag up
+  // for more analysis, down for more scene; double-click returns to automatic.
+  // A dragged height is remembered for the session, per layout.
   const MIN_LANE_HEIGHT = 44;
-  let previousLaneHeight: number | null = null;
+  const heightKey = () => `cosmolabe.timeline.laneHeight.${shell.layout}`;
+  function readLaneHeight(): number | null {
+    try {
+      const v = Number(sessionStorage.getItem(heightKey()));
+      return v > 0 ? v : null;
+    } catch {
+      return null;
+    }
+  }
+  function writeLaneHeight(v: number | null) {
+    timeline.laneHeight = v;
+    try {
+      if (v == null) sessionStorage.removeItem(heightKey());
+      else sessionStorage.setItem(heightKey(), String(v));
+    } catch {
+      // Storage unavailable: the height still holds for this page.
+    }
+  }
+  $effect(() => {
+    void shell.layout;
+    untrack(() => { timeline.laneHeight = readLaneHeight(); });
+  });
   function maxLaneHeight() {
     return Math.round(window.innerHeight * 0.6);
   }
@@ -296,19 +399,11 @@
       handle.removeEventListener('pointermove', move);
       handle.removeEventListener('pointerup', end);
       handle.removeEventListener('pointercancel', end);
+      writeLaneHeight(timeline.laneHeight);
     };
     handle.addEventListener('pointermove', move);
     handle.addEventListener('pointerup', end);
     handle.addEventListener('pointercancel', end);
-  }
-  function onResizeToggle() {
-    const large = Math.round(window.innerHeight * 0.55);
-    if (timeline.laneHeight != null && timeline.laneHeight >= large * 0.9) {
-      timeline.laneHeight = previousLaneHeight;
-    } else {
-      previousLaneHeight = timeline.laneHeight;
-      timeline.laneHeight = large;
-    }
   }
 
   let rangeLabel = $derived(isZoomed ? formatDuration(currentRange) : '');
@@ -352,6 +447,7 @@
   bind:this={rootEl}
   data-scene-occluder
   bind:clientHeight={height}
+  use:timelineSurface={{ bounds: surfaceBounds, targets: targetsFor }}
   class="timeline flex flex-col gap-0.5"
   class:pointer-events-auto={!inline}
   class:absolute={!inline}
@@ -365,15 +461,16 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="resize-handle"
-      title="Drag to resize the analysis area · double-click to toggle large"
+      class:manual={timeline.laneHeight != null}
+      title="Drag to resize the analysis area · double-click to fit it to its rows"
       onpointerdown={onResizeStart}
-      ondblclick={onResizeToggle}
+      ondblclick={() => writeLaneHeight(null)}
     ></div>
   {/if}
   {#if callout}
     <div class="event-callout" style="left: {callout.x}px; top: {callout.y}px" role="tooltip">
       <div class="callout-title">
-        <span class="callout-glyph" data-kind={callout.kind} data-state={callout.state}></span>
+        <span class="callout-glyph" data-ev-kind={callout.kind} data-ev-state={callout.state}></span>
         {callout.lines[0]}
       </div>
       {#each callout.lines.slice(1) as line}
@@ -390,39 +487,45 @@
   <!-- Compact keeps this to one row — play, axis, clock — and puts the rest
        behind the expand toggle. The wrapped three-row transport it replaced
        cost the scene a third of a phone screen before a sheet was even open,
-       which is backwards for a shell whose premise is scene-first. -->
-  <div class="transport-row flex w-full items-center gap-1.5">
-    <div class="flex shrink-0 gap-px">
+       which is backwards for a shell whose premise is scene-first.
+       Expanded on a desktop, the same three parts take the grid's three
+       columns: controls over the label gutter, the track as the axis column,
+       the clock heading the readout rail. -->
+  <div class="transport-row flex w-full items-center gap-1.5" class:gridded>
+    <div class="transport-controls flex shrink-0 items-center gap-1.5">
+      <div class="flex shrink-0 gap-px">
+        {#if !secondaryHidden}
+          <button class="tl-btn compact-hide" onclick={slower} title="Slower (Down)" aria-label="Slower"><ChevronsLeft size={14} /></button>
+          <button class="tl-btn" onclick={stepBackward} title="Step back (Left)" aria-label="Step back"><ChevronLeft size={14} /></button>
+          <button class="tl-btn" onclick={reverse} title="Reverse (R)" aria-label="Reverse"><Rewind fill="currentColor" size={13} /></button>
+        {/if}
+        <button class="tl-btn play-btn mx-0.5 border px-2" onclick={togglePlay} title="Play/Pause (Space)" aria-label={vs.playing ? 'Pause' : 'Play'} aria-pressed={vs.playing}>
+          {#if vs.playing}<Pause fill="currentColor" size={14} />{:else}<Play fill="currentColor" size={14} />{/if}
+        </button>
+        {#if !secondaryHidden}
+          <button class="tl-btn" onclick={stepForward} title="Step forward (Right)" aria-label="Step forward"><ChevronRight size={14} /></button>
+          <button class="tl-btn compact-hide" onclick={faster} title="Faster (Up)" aria-label="Faster"><ChevronsRight size={14} /></button>
+        {/if}
+      </div>
+
       {#if !secondaryHidden}
-        <button class="tl-btn compact-hide" onclick={slower} title="Slower (Down)" aria-label="Slower"><ChevronsLeft size={14} /></button>
-        <button class="tl-btn" onclick={stepBackward} title="Step back (Left)" aria-label="Step back"><ChevronLeft size={14} /></button>
-        <button class="tl-btn" onclick={reverse} title="Reverse (R)" aria-label="Reverse"><Rewind fill="currentColor" size={13} /></button>
-      {/if}
-      <button class="tl-btn play-btn mx-0.5 border px-2" onclick={togglePlay} title="Play/Pause (Space)" aria-label={vs.playing ? 'Pause' : 'Play'} aria-pressed={vs.playing}>
-        {#if vs.playing}<Pause fill="currentColor" size={14} />{:else}<Play fill="currentColor" size={14} />{/if}
-      </button>
-      {#if !secondaryHidden}
-        <button class="tl-btn" onclick={stepForward} title="Step forward (Right)" aria-label="Step forward"><ChevronRight size={14} /></button>
-        <button class="tl-btn compact-hide" onclick={faster} title="Faster (Up)" aria-label="Faster"><ChevronsRight size={14} /></button>
+        <span class="ui-readout compact-hide min-w-16 shrink-0 text-center text-text-secondary">{vs.rateText}</span>
       {/if}
     </div>
 
-    {#if !secondaryHidden}
-      <span class="ui-readout compact-hide min-w-16 shrink-0 text-center text-text-secondary">{vs.rateText}</span>
-    {/if}
-
-    <div class="flex min-w-24 flex-1 items-center">
+    <div bind:this={transportCellEl} class="transport-axis flex min-w-24 flex-1 items-center self-stretch" data-tl-row="transport">
       <TimeScrubber
         fraction={currentFraction}
         onScrub={scrubTo}
-        onZoom={(zoomIn, anchor) => zoomScrubber(zoomIn, timelineEt(anchor))}
-        onPan={panTimelineByPixels}
-        onHover={onTrackHover}
         {hoverFraction}
         {hoverLabel}
+        ghostLine={!gridded}
+        layout={gridded ? 'stacked' : 'inline'}
         bind:trackEl
         onResetZoom={resetScrubberZoom}
         onSetZoom={setZoomDuration}
+        {onViewportPan}
+        {onViewportCenter}
         {startLabel}
         {endLabel}
         {isZoomed}
@@ -432,57 +535,88 @@
         {rangeLabel}
         {fitOptions}
         markers={eventMarkers}
+        bands={familyCount <= MAX_BANDS ? Math.max(1, familyCount) : 1}
+        dense={familyCount > MAX_BANDS}
       />
     </div>
 
-    <Popover.Root bind:open={gotoTimeOpen} onOpenChange={onGotoOpen}>
-      <Popover.Trigger class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'compact-current' : ''}">
-        {compact ? vs.timeText.replace(' UTC', '').slice(11) : vs.timeText}
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content side="top" sideOffset={8} class="w-80 p-3">
-          <div class="flex flex-col gap-2">
-            <span class="ui-label">Go to time</span>
-            <div class="flex gap-1.5">
-              <Input
-                bind:value={gotoTimeValue}
-                class="font-mono text-[13px] h-8 {gotoTimeError ? 'border-error' : ''}"
-                placeholder="e.g. 2004-06-30T12:00:00"
-                onkeydown={onGotoKeydown}
-                autofocus
-              />
-              <Button size="sm" onclick={goToTime}>Go</Button>
+    <div class="transport-rail flex shrink-0 items-center gap-1.5">
+      <Popover.Root bind:open={gotoTimeOpen} onOpenChange={onGotoOpen}>
+        <Popover.Trigger class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'compact-current' : ''} {gridded ? 'stacked-clock' : ''}">
+          {#if compact}
+            {vs.timeText.replace(' UTC', '').slice(11)}
+          {:else if gridded && /^\d{4}-/.test(vs.timeText)}
+            <span class="clock-date">{vs.timeText.slice(0, 10)}</span>
+            <span class="clock-time">{vs.timeText.slice(11)}</span>
+          {:else}
+            {vs.timeText}
+          {/if}
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content side="top" sideOffset={8} class="w-80 p-3">
+            <div class="flex flex-col gap-2">
+              <span class="ui-label">Go to time</span>
+              <div class="flex gap-1.5">
+                <Input
+                  bind:value={gotoTimeValue}
+                  class="font-mono text-[13px] h-8 {gotoTimeError ? 'border-error' : ''}"
+                  placeholder="e.g. 2004-06-30T12:00:00"
+                  onkeydown={onGotoKeydown}
+                  autofocus
+                />
+                <Button size="sm" onclick={goToTime}>Go</Button>
+              </div>
             </div>
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
 
-    <button
-      class="tl-btn"
-      aria-pressed={expanded}
-      aria-label={expanded ? 'Collapse timeline' : 'Expand timeline'}
-      title={expanded ? 'Collapse timeline' : 'Expand timeline'}
-      onclick={() => setTimelineDepth(expanded ? 'transport' : 'expanded')}
-    >
-      {#if expanded}<ChevronDown size={14} />{:else}<ChevronUp size={14} />{/if}
-    </button>
+      <button
+        bind:this={toggleEl}
+        class="tl-btn"
+        aria-pressed={expanded}
+        aria-label={expanded ? 'Collapse timeline' : 'Expand timeline'}
+        title={expanded ? 'Collapse timeline' : 'Expand timeline'}
+        onclick={() => setTimelineDepth(expanded ? 'transport' : 'expanded')}
+      >
+        {#if expanded}<ChevronDown size={14} />{:else}<ChevronUp size={14} />{/if}
+      </button>
+    </div>
   </div>
 
   {#if expanded}
     <!-- The shared-axis region: event lanes, then continuous profiles, all
-         drawn against the track's extent, window and playhead. Scrolls past a
-         few rows so a long list cannot take the scene's height. -->
+         drawn on the track's extent and window. Fits its rows, up to a third
+         or so of the viewport, then scrolls. -->
     <div
       bind:this={regionEl}
       class="lane-region"
-      style={timeline.laneHeight != null ? `height: ${timeline.laneHeight}px; max-height: none` : undefined}
+      style="--tl-gutter: {axis.left}px; --tl-axis: {axis.width}px; --tl-rail-end: {axis.railEnd}px;{timeline.laneHeight != null
+        ? ` height: ${timeline.laneHeight}px; max-height: none;`
+        : ''}"
     >
       {#each eventLanes as item (item.id)}
-        <EventLane {item} axisLeft={axis.left} axisWidth={axis.width} wide={wideLanes} />
+        <EventLane {item} wide={wideLanes} />
       {/each}
-      <ProfileLanes axisLeft={axis.left} axisWidth={axis.width} wide={wideLanes} ticks={profileTicks} />
+      <ProfileLanes axisWidth={axis.width} wide={wideLanes} ticks={profileTicks} />
     </div>
+
+    <!-- One ghost line and one playhead through every row, so they cannot
+         drift or blink between rows. Out of the window, they are not drawn. -->
+    {#if lines}
+      {#if hoverFraction != null && inWindow(hoverFraction)}
+        <div
+          class="axis-line ghost"
+          style="left: {lines.left + hoverFraction * lines.width}px; top: {lines.top}px; height: {lines.bottom - lines.top}px"
+        ></div>
+      {/if}
+      {#if inWindow(currentFraction)}
+        <div
+          class="axis-line playhead"
+          style="left: {lines.left + currentFraction * lines.width}px; top: {lines.lanesTop}px; height: {lines.bottom - lines.lanesTop}px"
+        ></div>
+      {/if}
+    {/if}
   {/if}
 </div>
 
@@ -563,6 +697,10 @@
   .resize-handle:hover::after {
     opacity: 0.6;
   }
+  /* A dragged height shows its grip faintly, as the sign it is not automatic. */
+  .resize-handle.manual::after {
+    opacity: 0.25;
+  }
 
   /* Hover callout: what a previewed event is, anchored above the row it was
      pointed at. Same copy as the scene's callouts. */
@@ -600,18 +738,58 @@
     width: 7px;
     height: 7px;
     border-radius: 1px;
-    background: var(--color-event-accent);
+    background: var(--ev);
   }
-  .callout-glyph[data-kind='closest-approach'] { background: #72b7d8; }
-  .callout-glyph[data-kind='distance-range'] { background: #71b896; }
-  .callout-glyph[data-kind='occultation'] { background: #8c72d8; }
-  .callout-glyph[data-state='partial'] { background: #e0a84c; }
-  .callout-glyph[data-state='full'] { background: #8c72d8; }
-  .callout-glyph[data-state='annular'] { background: #d96f4c; }
+
+  /* Desktop, expanded: the transport on the grid. The gutter is the label
+     column below it; the rail sizes to the clock. */
+  .transport-row.gridded {
+    display: grid;
+    grid-template-columns: clamp(240px, 21vw, 280px) minmax(0, 1fr) auto;
+    gap: 0;
+  }
+  .transport-row.gridded .transport-controls {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .transport-row.gridded .transport-rail {
+    padding-left: 10px;
+  }
+  :global(.current-time.stacked-clock) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    padding-right: 0;
+    line-height: 1.15;
+  }
+  :global(.stacked-clock .clock-date) {
+    color: var(--color-text-secondary);
+    font-size: var(--text-section);
+    font-weight: 400;
+  }
+
+  /* The ghost and the playhead, once, through every row. Weight and opacity
+     tell them apart, not colour. */
+  .axis-line {
+    position: absolute;
+    z-index: 2;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .axis-line.ghost {
+    width: 1px;
+    background: var(--color-text-secondary);
+    opacity: 0.6;
+  }
+  .axis-line.playhead {
+    width: 2px;
+    background: var(--color-text-primary);
+    opacity: 0.85;
+  }
 
   .lane-region {
     position: relative;
-    max-height: min(36vh, 260px);
+    max-height: 38vh;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
