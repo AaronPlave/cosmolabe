@@ -72,6 +72,21 @@ Bodies can nest other bodies via their own `items` array, which is how you build
 | `label` | object | `{ "color": [r, g, b], "text": "..." }` for the on-screen label |
 | `trajectoryPlot` | object | Orbit-trail config: `{ "color", "fade", "duration", "visible" }` |
 | `items` | array | Children — bodies whose `center` is implicitly this one |
+| `startTime` / `endTime` | UTC string or JD | The body's existence window. Outside it the body — model, label, trail and any sensors on it — is not in the scene, as in Cosmographia. Either may be omitted. See [Existence](#existence). |
+
+### Existence
+
+A body is drawn only while it is **present**: inside its own `startTime` /
+`endTime` window, inside the window of every body it is placed relative to
+(following the active arc's `center`), and with a position to draw at. A
+spacecraft whose SPK has not started yet, or a lander before separation, is
+hidden rather than left frozen where it was last computed; a camera on a
+spacecraft goes with it. The trail is clamped to the window too.
+
+`Universe.isPresentAt(name, et)` answers the window part for headless use; an
+ephemeris gap inside the window shows up as a `NaN` position, which the
+renderer treats the same way. Hiding a body in the viewer and the body leaving
+its window are independent: each is restored without undoing the other.
 
 ## Trajectories
 

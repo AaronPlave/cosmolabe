@@ -390,6 +390,10 @@ export class LabelManager {
 
       this.applyOcclusionFade(sprite, bm.position, distToBody, bodyMeshes, camPos, bm);
       entry.occlusionOpacity = mat.opacity;
+      // A body that is not in the scene right now (outside its existence
+      // window, or with no position) has no label either. This is an opacity,
+      // not `sprite.visible`, which belongs to the user's show/hide choice.
+      if (!bm.present) entry.occlusionOpacity = 0;
 
       // NASA-Eyes-style fade: once the body's silhouette is large enough to
       // be visually identifiable, drop the label. Only applies to bodies
@@ -590,6 +594,7 @@ export class LabelManager {
     let fade = surfaceHemiFade;
     for (const other of bodyMeshes) {
       if (other === excludeBody) continue;
+      if (!other.present) continue;
       if (excludeParentName && other.body.name === excludeParentName) continue;
       // Only large bodies (planets, moons, large asteroids) can meaningfully occlude.
       // Skip spacecraft/instrument body meshes — they are colocated with their parent

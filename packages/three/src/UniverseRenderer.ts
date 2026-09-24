@@ -40,6 +40,7 @@ const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpVec2 = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
+const _NAN3: [number, number, number] = [NaN, NaN, NaN];
 
 export interface SurfacePickResult {
   /** Name of the body that was clicked */
@@ -493,8 +494,13 @@ export class UniverseRenderer {
 
     // Update body positions relative to origin body
     for (const bm of this.bodyMeshes.values()) {
-      const absPos = this.absolutePositionOf(bm.body.name, et);
-      if (isNaN(absPos[0])) continue; // Skip bodies with no coverage at this time
+      // A body outside its existence window, or with no position to draw at
+      // (an ephemeris gap, a lander before its SPK starts), is hidden rather
+      // than left frozen where it was last seen.
+      const present = this.universe.isPresentAt(bm.body.name, et);
+      const absPos = present ? this.absolutePositionOf(bm.body.name, et) : _NAN3;
+      bm.present = present && !isNaN(absPos[0]);
+      if (!bm.present) continue;
       const relPos: [number, number, number] = [
         absPos[0] - originAbsPos[0],
         absPos[1] - originAbsPos[1],
@@ -734,6 +740,10 @@ export class UniverseRenderer {
     };
     const spiceInst = this.universe.spiceInstance;
     for (const sf of this.sensorFrustums.values()) {
+      // A sensor is drawn only while its own body is: an instrument does not
+      // outlive its spacecraft (Universe.isPresentAt follows the parent chain).
+      sf.present = this.bodyMeshes.get(sf.body.name)?.present ?? true;
+      if (!sf.present) continue;
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
       // Try SPICE-based orientation using cached FOV frame (from enrichSensorFromSpice).
       // Use the sensor's inertial frame (J2000 or ECLIPJ2000) to match scene positions.
@@ -1270,7 +1280,7 @@ export class UniverseRenderer {
   /** Toggle visibility of a body's mesh, trajectory line(s), and label */
   setBodyVisible(name: string, visible: boolean): void {
     const bm = this.bodyMeshes.get(name);
-    if (bm) bm.visible = visible;
+    if (bm) bm.userVisible = visible;
 
     // Single trajectory
     const tl = this.trajectoryLines.get(name);
@@ -1283,7 +1293,7 @@ export class UniverseRenderer {
 
     // Sensor frustums
     const sf = this.sensorFrustums.get(name);
-    if (sf) sf.visible = visible;
+    if (sf) sf.userVisible = visible;
 
     // Ring mesh (direct match or parent body match)
     const rm = this.ringMeshes.get(name);
@@ -1376,7 +1386,7 @@ export class UniverseRenderer {
   setSensorsVisible(visible: boolean): void {
     this._sensorsVisible = visible;
     for (const sf of this.sensorFrustums.values()) {
-      sf.visible = visible;
+      sf.userVisible = visible;
     }
   }
 
@@ -1473,6 +1483,7 @@ export class UniverseRenderer {
     // Main scene: globe sphere meshes + terrain tile groups
     const mainTargets: THREE.Object3D[] = [];
     for (const bm of this.bodyMeshes.values()) {
+      if (!bm.visible) continue;
       if (bm.mesh.visible) mainTargets.push(bm.mesh);
       const tg = bm.terrainTileGroup;
       if (tg && tg.visible) mainTargets.push(tg);
@@ -1683,6 +1694,8 @@ export class UniverseRenderer {
       // framing hints, not geometry, and a barycenter sitting on its planet's
       // center (or on the sun) casts a shadow nothing in the scene explains.
       bm.hasMeasuredRadius &&
+      // A body not in the scene right now casts nothing.
+      bm.present &&
       bm.displayRadius >= this._shadowMinOccluderKm &&
       // Bodies rendered by a custom visualizer don't have a real sphere — their
       // displayRadius is just a hint for label/flyTo framing, not the actual
@@ -2367,6 +2380,10 @@ export class UniverseRenderer {
           if (body.trajectory.endTime != null && trajOpts.maxTime == null) {
             trajOpts.maxTime = body.trajectory.endTime;
           }
+          // ...and to the body's existence window: no trail before it exists
+          // or after it is gone.
+          if (body.existsFrom != null) trajOpts.minTime = Math.max(trajOpts.minTime ?? -Infinity, body.existsFrom);
+          if (body.existsUntil != null) trajOpts.maxTime = Math.min(trajOpts.maxTime ?? Infinity, body.existsUntil);
 
           // Periodic orbits whose trail covers roughly one period are spatially
           // static — sample once at scene load, never resample. Critical for the
@@ -2614,8 +2631,8 @@ export class UniverseRenderer {
       const tl = new TrajectoryLine(body, {
         trailDuration: trailDur,
         leadDuration: 0,
-        minTime: arc.startTime,
-        maxTime: isLastArc ? undefined : arc.endTime,
+        minTime: Math.max(arc.startTime, body.existsFrom ?? -Infinity),
+        maxTime: isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
         fixedResolver: arcResolver,
         fadeFraction: plotCfg?.fade ?? 1.0,
         // Per-arc sample-count override lets long cruise arcs request a
@@ -3010,6 +3027,8 @@ export class UniverseRenderer {
       const meshTargets: THREE.Object3D[] = [];
       const terrainOwner = new Map<THREE.Object3D, BodyMesh>();
       for (const bm of this.bodyMeshes.values()) {
+        // Raycasting ignores `visible`, so a hidden or absent body is skipped here.
+        if (!bm.visible) continue;
         if (bm.mesh.visible) {
           meshTargets.push(bm.mesh);
         } else {

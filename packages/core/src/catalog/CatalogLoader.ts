@@ -910,6 +910,8 @@ export class CatalogLoader {
       geometryData: item.geometry ? { ...item.geometry } : undefined,
       trajectoryPlot,
       trajectoryFrame,
+      existsFrom: this.existenceBound(item, 'startTime'),
+      existsUntil: this.existenceBound(item, 'endTime'),
     });
 
     bodies.push(body);
@@ -919,6 +921,22 @@ export class CatalogLoader {
         this.loadItem(child, bodies, item.name);
       }
     }
+  }
+
+  /**
+   * An item's `startTime` / `endTime` as an existence bound. Unlike an arc
+   * boundary, a bound that cannot be read is dropped (with a warning) rather
+   * than read as J2000: a spacecraft whose `endTime` silently became 2000-01-01
+   * would vanish for its whole mission.
+   */
+  private existenceBound(item: CatalogItem, key: 'startTime' | 'endTime'): number | undefined {
+    const value = item[key];
+    if (value == null) return undefined;
+    const et = this.tryParseEpochValue(value);
+    if (et === undefined) {
+      console.warn(`[Cosmolabe] ${item.name}: could not read ${key} ${JSON.stringify(value)}; the body is not bounded there`);
+    }
+    return et;
   }
 
   private buildItemTrajectory(item: CatalogItem): Trajectory {

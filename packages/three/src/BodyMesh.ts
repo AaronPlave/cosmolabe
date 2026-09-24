@@ -114,6 +114,23 @@ export class BodyMesh extends THREE.Object3D {
    */
   readonly ellipsoidRatios: [number, number, number] = [1, 1, 1];
 
+  /** The user's show/hide choice (`UniverseRenderer.setBodyVisible`). */
+  private _userVisible = true;
+  /** Whether the body is in the scene at the current time: inside its
+   *  existence window with a position to draw at. Set by the renderer each frame. */
+  private _present = true;
+
+  /** The user's show/hide choice, independent of whether the body is present. */
+  get userVisible(): boolean { return this._userVisible; }
+  set userVisible(v: boolean) { this._userVisible = v; this.visible = v && this._present; }
+  /** Whether the body is in the scene now. Drawn only when present and user-visible. */
+  get present(): boolean { return this._present; }
+  set present(v: boolean) {
+    if (v === this._present) return;
+    this._present = v;
+    this.visible = v && this._userVisible;
+  }
+
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
   get hasShadowReceiving(): boolean { return this.shadowEnabled; }
