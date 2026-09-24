@@ -478,8 +478,14 @@ export class EventMarkers extends THREE.Object3D {
    * Where a callout for this event attaches: the hovered cap, else the
    * representative point. A collapsed interval still anchors at its midpoint
    * sample even though only one glyph is drawn there.
+   *
+   * A piece of a split interval that does not own the midpoint returns null,
+   * leaving the anchor to the piece that does, unless `fallback` is set: then
+   * it offers its visible true cap, else a point on its visible span. That
+   * keeps a callout when the midpoint's arc is not drawn yet (e.g. right after
+   * selection seeks to the event start).
    */
-  anchorFor(id: string, queryId: string, boundary?: 'start' | 'end'): THREE.Vector3 | null {
+  anchorFor(id: string, queryId: string, boundary?: 'start' | 'end', fallback = false): THREE.Vector3 | null {
     const visual = this.visuals.find((item) => item.marker.id === id && item.marker.queryId === queryId);
     if (!visual) return null;
     const index = boundary === 'start' ? 1 : boundary === 'end' ? 2 : 0;
@@ -487,9 +493,15 @@ export class EventMarkers extends THREE.Object3D {
       visual.sprites[index]?.visible) {
       return visual.sprites[index].position.clone();
     }
-    // Pieces of a split interval that do not own the midpoint leave the
-    // anchor to the piece that does.
-    if (!visual.present[0]) return null;
+    if (!visual.present[0]) {
+      if (!fallback || !visual.visibleRange) return null;
+      const cap = [1, 2].find((i) => visual.present[i] && visual.sprites[i].visible);
+      if (cap !== undefined) return visual.sprites[cap].position.clone();
+      const { line, start, end } = this.drawnSpan(visual);
+      const from = Math.max(start, visual.visibleRange[0]);
+      const to = Math.min(end, visual.visibleRange[1]);
+      return from <= to ? polylineAt(line, (from + to) / 2, new THREE.Vector3()) : null;
+    }
     if (visual.sprites[0]?.visible || visual.spriteBaseOpacity[0] > 0) return visual.sprites[0].position.clone();
     return visual.sprites.find((sprite) => sprite.visible)?.position.clone() ?? null;
   }

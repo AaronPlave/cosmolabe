@@ -4,8 +4,10 @@ import type { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { Body } from '@cosmolabe/core';
 import { EventMarkers, eventAnchorOpacityAtSphere, pickEventMarkerGroups, type EventMarker } from './EventMarkers.js';
 import { TrajectoryLine } from './TrajectoryLine.js';
-import { eventPiecesOnLines, selectEventTrajectoryBody } from './UniverseRenderer.js';
-import type { GeometryEvent } from '@cosmolabe/core';
+import { eventPiecesOnLines, selectEventTrajectoryBody, trajectoryLineResolver } from './UniverseRenderer.js';
+import {
+  BODY_FIXED, Body as CoreBody, FixedPointTrajectory, UniformRotation, Universe, type GeometryEvent,
+} from '@cosmolabe/core';
 
 const body = { name: 'Europa Clipper' } as Body;
 
@@ -496,6 +498,30 @@ describe('interval pieces and span hits', () => {
     second.dispose();
   });
 
+  it('keeps a selected split interval anchored before its midpoint arc is drawn', () => {
+    // Event 0..20 split at 8, selected; selection seeks to t = 0, so only the
+    // first arc's piece is on the trail and the midpoint (10) is not.
+    const first = new EventMarkers(body, { intervalSamples: 5 });
+    const second = new EventMarkers(body, { intervalSamples: 5 });
+    const event = { temporality: 'interval' as const, startEt: 0, endEt: 20, selected: true };
+    first.setMarkers([marker({ ...event, pieceStartEt: 0, pieceEndEt: 8 })]);
+    second.setMarkers([marker({ ...event, pieceStartEt: 8, pieceEndEt: 20 })]);
+    const resolve = (_name: string, et: number): [number, number, number] => [et - 10, 0, 0];
+    first.update(1, [0, 0, 0], resolve, [-10, 0]);
+    second.update(1, [0, 0, 0], resolve, [-10, 0]);
+    // The midpoint owner has nothing drawn; strict anchoring finds nothing.
+    expect(second.anchorFor('e1', 'q1')).toBeNull();
+    expect(second.anchorFor('e1', 'q1', undefined, true)).toBeNull();
+    expect(first.anchorFor('e1', 'q1')).toBeNull();
+    // The fallback offers the visible first piece's true start cap.
+    expect(first.anchorFor('e1', 'q1', undefined, true)?.x).toBeCloseTo(-10);
+    // With the start cap behind the trail window, a point on the visible span.
+    first.update(1, [0, 0, 0], resolve, [3, 5]);
+    expect(first.anchorFor('e1', 'q1', undefined, true)?.x).toBeCloseTo(-6);
+    first.dispose();
+    second.dispose();
+  });
+
   it('anchors a span hit where the pointer is, and picks the stretch up to the trail head', () => {
     // Trail vertices every 4 s, head sample at 13.9: the last coarse interval
     // sample (12.5) is behind the head, but the drawn span reaches it.
@@ -539,6 +565,64 @@ describe('trajectory-line event placement', () => {
     expect(eventPiecesOnLines(instant, lines).map(({ key }) => key)).toEqual(['Europa Clipper__arc1']);
     arc0.dispose();
     arc1.dispose();
+  });
+
+  it('gives an interval starting on an arc boundary no empty piece on the arc before', () => {
+    const clipper = { name: 'Europa Clipper', labelColor: [1, 1, 1], trajectory: { startTime: 0, endTime: 400 } } as Body;
+    const arc0 = new TrajectoryLine(clipper, { minTime: 0, maxTime: 100 });
+    const arc1 = new TrajectoryLine(clipper, { minTime: 100 });
+    const interval = {
+      id: 'r0', queryId: 'q', kind: 'occultation', temporality: 'interval', start: 100, end: 180,
+      bodies: {}, label: 'eclipse',
+    } as GeometryEvent;
+    expect(eventPiecesOnLines(interval, [['arc0', arc0], ['arc1', arc1]] as const)
+      .map(({ key, start, end }) => [key, start, end])).toEqual([['arc1', 100, 180]]);
+    arc0.dispose();
+    arc1.dispose();
+  });
+
+  it('places markers on a body-fixed trail exactly where the trail and body are', () => {
+    // A ground station stated in its spinning parent's body-fixed frame: its
+    // trail and event markers must both turn with the parent (frame registry,
+    // #104), or markers drift off the trajectory they annotate.
+    const universe = new Universe();
+    const spin = new UniformRotation(86400, 0, 0, 0, Math.PI / 2, 'EME2000');
+    universe.addBody(new CoreBody({ name: 'Earth', trajectory: new FixedPointTrajectory([0, 0, 0]), rotation: spin }));
+    const station = new CoreBody({
+      name: 'Station', parentName: 'Earth',
+      trajectory: new FixedPointTrajectory([6378, 0, 0], { frame: BODY_FIXED }),
+    });
+    universe.addBody(station);
+    const line = new TrajectoryLine(station, { trailDuration: 43200, fadeFraction: 0 });
+    const resolver = trajectoryLineResolver(universe, line)!;
+    const et = 21600;
+    // Scene origin on the station, as when it is tracked.
+    const origin = universe.absolutePositionOf('Station', et);
+    const earth = universe.absolutePositionOf('Earth', et);
+    const offset: [number, number, number] = [earth[0] - origin[0], earth[1] - origin[1], earth[2] - origin[2]];
+    line.update(et, 1, resolver, undefined, undefined, offset);
+
+    const markers = new EventMarkers(station, { trail: () => line.drawnTrail() });
+    const earlier = et - 10800;
+    markers.setMarkers([
+      marker({ id: 'now', startEt: et, endEt: et }),
+      marker({ id: 'earlier', startEt: earlier, endEt: earlier }),
+    ]);
+    markers.update(1, offset, (_name, t) => line.positionAt(t, resolver), line.visibleTimeRange(et));
+    const sprite = (id: string) => markers.children.find((child) => child.name.endsWith(`_${id}`)) as THREE.Sprite;
+    const { positions, count } = line.drawnTrail();
+    const head = new THREE.Vector3(positions[(count - 1) * 3], positions[(count - 1) * 3 + 1], positions[(count - 1) * 3 + 2]);
+    // At the playhead: marker, trail head, and the body (the origin) coincide.
+    expect(sprite('now').position.distanceTo(head)).toBeLessThan(1e-6);
+    expect(sprite('now').position.length()).toBeLessThan(1e-6);
+    // Three hours earlier the station was an eighth of a turn back: the marker is
+    // where the body was, which a non-rotating (inertial) offset would miss.
+    const then = universe.absolutePositionOf('Station', earlier);
+    const expected = new THREE.Vector3(then[0] - origin[0], then[1] - origin[1], then[2] - origin[2]);
+    expect(sprite('earlier').position.distanceTo(expected)).toBeLessThan(1e-6);
+    expect(expected.length()).toBeGreaterThan(1000);
+    markers.dispose();
+    line.dispose();
   });
 
   it('uses the composite arc fixed resolver and its epoch bounds', () => {

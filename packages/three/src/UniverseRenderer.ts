@@ -21,7 +21,7 @@ import {
   DEFAULT_INITIAL_ASSET_TIMEOUT_MS,
   type InitialAssetsSummary,
 } from './AssetLoadTracker.js';
-import { TrajectoryLine, type TrajectoryLineOptions } from './TrajectoryLine.js';
+import { TrajectoryLine, type PositionResolver, type TrajectoryLineOptions } from './TrajectoryLine.js';
 import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
 import { SensorFrustum } from './SensorFrustum.js';
@@ -156,6 +156,22 @@ export function selectEventTrajectoryBody(candidates: readonly Body[], primary?:
 }
 
 /**
+ * The resolver a trajectory line's trail and its event annotations both
+ * sample through, so the two cannot drift apart. Composite arcs carry their
+ * own fixed resolver (undefined here). Parent-relative trails use the frame
+ * registry's per-leg transform (`relativePositionInWorld`: the body's offset
+ * rotated from its own frame into the world frame, lifting body-fixed
+ * offsets out of the parent's rotating frame). Everything else is absolute.
+ */
+export function trajectoryLineResolver(universe: Universe, line: TrajectoryLine): PositionResolver | undefined {
+  if ((line as any)._arcCenterName) return undefined;
+  if (line.body.parentName) {
+    return (name, t) => (universe.getBody(name) ? universe.relativePositionInWorld(name, t) : [NaN, NaN, NaN]);
+  }
+  return (name, t) => universe.absolutePositionOf(name, t);
+}
+
+/**
  * Which of a body's trajectory lines draw an event, and the epochs each one
  * covers. An interval can begin on one composite arc and end on another, so
  * every overlapping line gets its piece of the same logical event; instants
@@ -171,7 +187,9 @@ export function eventPiecesOnLines<K>(
   if (event.temporality === 'interval') {
     for (const [key, line] of lines) {
       const [lo, hi] = line.timeBounds();
-      if (lo <= end && hi >= start) pieces.push({ key, line, start: Math.max(start, lo), end: Math.min(end, hi) });
+      // Positive-duration overlap only: an interval starting exactly on an
+      // arc boundary gets no empty piece (and no duplicate cap) on the arc before.
+      if (lo < end && hi > start) pieces.push({ key, line, start: Math.max(start, lo), end: Math.min(end, hi) });
     }
   }
   if (pieces.length === 0) {
@@ -537,15 +555,7 @@ export class UniverseRenderer {
     return this.universe.absolutePositionOf(bodyName, et);
   };
 
-  /**
-   * A non-composite trajectory's parent-relative position in the world frame,
-   * through the frame registry: what parent-relative trails and their event
-   * annotations are drawn from.
-   */
-  private relativeWorldPositionOf = (bodyName: string, et: number): [number, number, number] => {
-    if (!this.universe.getBody(bodyName)) return [NaN, NaN, NaN];
-    return this.universe.relativePositionInWorld(bodyName, et);
-  };
+
 
 
   /** Render a single frame at current time */
@@ -796,9 +806,9 @@ export class UniverseRenderer {
           // registry. For body-fixed children (MoonFall hoppers, Ingenuity,
           // ground stations) that includes lifting the offset out of the
           // parent's rotating frame, so the trail turns with the parent
-          // exactly as the marker does. Event annotations use the same
-          // resolver (`relativeWorldPositionOf`) so they cannot drift off it.
-          const relativeResolver = this.relativeWorldPositionOf;
+          // exactly as the marker does. Event annotations sample through the
+          // same `trajectoryLineResolver`, so they cannot drift off the trail.
+          const relativeResolver = trajectoryLineResolver(this.universe, tl);
           tl.update(et, this.scaleFactor, relativeResolver, undefined, undefined, vertOff);
         } else {
           tl.update(et, this.scaleFactor, undefined, undefined, undefined, vertOff);
@@ -859,11 +869,7 @@ export class UniverseRenderer {
             center![2] - originAbsPos[2],
           ]
         : [-originAbsPos[0], -originAbsPos[1], -originAbsPos[2]];
-      const fallbackResolver = arcCenter
-        ? undefined
-        : parentName
-          ? this.relativeWorldPositionOf
-          : this.absolutePositionOf;
+      const fallbackResolver = trajectoryLineResolver(this.universe, line);
       markers.update(
         this.scaleFactor,
         vertexOffset,
@@ -1429,24 +1435,29 @@ export class UniverseRenderer {
       // An interval split across arcs lives in several groups; the first
       // with a usable anchor (the hit point, the cap, or the midpoint piece)
       // hosts the callout.
+      // The midpoint-owning piece is preferred; if it has no usable anchor
+      // (its arc is not drawn yet), a visible piece's cap or span stands in.
       let placement: EventMarkerPlacement | undefined;
       let event: GeometryEvent | undefined;
       const p = new THREE.Vector3();
-      for (const group of this.eventMarkerGroups.values()) {
-        if (!group.markers.visible) continue;
-        const found = group.events.find((item) => item.id === target.id && item.queryId === target.queryId);
-        if (!found) continue;
-        const anchor = hitEt !== undefined
-          ? group.markers.anchorAt(target.id, target.queryId, hitEt)
-          : group.markers.anchorFor(target.id, target.queryId, boundary);
-        if (!anchor || this.eventAnchorOpacity(anchor) <= 0.15) continue;
-        p.copy(anchor).project(this.camera);
-        // Off-screen anchors get no callout (it would point at nothing); an
-        // off-screen preview yields to an on-screen selection.
-        if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
-        placement = group;
-        event = found;
-        break;
+      for (const fallback of hitEt === undefined && !boundary ? [false, true] : [false]) {
+        for (const group of this.eventMarkerGroups.values()) {
+          if (!group.markers.visible) continue;
+          const found = group.events.find((item) => item.id === target.id && item.queryId === target.queryId);
+          if (!found) continue;
+          const anchor = hitEt !== undefined
+            ? group.markers.anchorAt(target.id, target.queryId, hitEt)
+            : group.markers.anchorFor(target.id, target.queryId, boundary, fallback);
+          if (!anchor || this.eventAnchorOpacity(anchor) <= 0.15) continue;
+          p.copy(anchor).project(this.camera);
+          // Off-screen anchors get no callout (it would point at nothing); an
+          // off-screen preview yields to an on-screen selection.
+          if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
+          placement = group;
+          event = found;
+          break;
+        }
+        if (placement) break;
       }
       if (!placement || !event) continue;
 
