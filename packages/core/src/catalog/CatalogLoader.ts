@@ -24,6 +24,7 @@ import { SurfaceUpRotation } from '../rotations/SurfaceUpRotation.js';
 import { FixedRotation } from '../rotations/FixedRotation.js';
 import { FixedEulerRotation } from '../rotations/FixedEulerRotation.js';
 import { InterpolatedRotation, parseQFile } from '../rotations/InterpolatedRotation.js';
+import { CompositeRotation, type RotationArc } from '../rotations/CompositeRotation.js';
 import {
   BODY_FIXED,
   FrameRegistry,
@@ -137,6 +138,9 @@ export interface ArcSpec {
   trajectoryFrame?: string | TrajectoryFrameSpec;
   trajectory: TrajectorySpec;
   bodyFrame?: string | BodyFrameSpec;
+  /** The body's rotation model while this arc is active (Cosmographia). An
+   *  arc without one uses the item-level `rotationModel`. */
+  rotationModel?: RotationModelSpec;
   startTime?: string | number;
   endTime?: string | number;
   /** When false, the composite-trajectory line builder skips drawing a
@@ -884,7 +888,7 @@ export class CatalogLoader {
 
     const trajectory = this.buildItemTrajectory(item);
     const parentBody = parentName ? bodies.find(b => b.name === parentName) : (item.center ? bodies.find(b => b.name === item.center) : undefined);
-    const rotation = this.buildRotationModel(item, trajectory, parentBody);
+    const rotation = this.buildArcRotations(item, trajectory, bodies, this.buildRotationModel(item, trajectory, parentBody));
     const radii = this.extractRadii(item);
 
     const trajectoryPlot = this.parseTrajectoryPlot(item.trajectoryPlot);
@@ -937,6 +941,40 @@ export class CatalogLoader {
       console.warn(`[Cosmolabe] ${item.name}: could not read ${key} ${JSON.stringify(value)}; the body is not bounded there`);
     }
     return et;
+  }
+
+  /**
+   * Wrap the item rotation in a CompositeRotation when any of its arcs carries
+   * its own `rotationModel`. Each arc's rotation is built as if the arc were
+   * the item — its centre and frame — over the arc's own time window, which is
+   * read back from the composite trajectory so the two can never disagree.
+   */
+  private buildArcRotations(
+    item: CatalogItem,
+    trajectory: Trajectory,
+    bodies: Body[],
+    itemRotation: RotationModel | undefined,
+  ): RotationModel | undefined {
+    const arcs = item.arcs;
+    if (!arcs?.some((a) => a.rotationModel) || !(trajectory instanceof CompositeTrajectory)) return itemRotation;
+    const rotationArcs: RotationArc[] = [];
+    arcs.forEach((arc, i) => {
+      if (!arc.rotationModel) return;
+      const window = trajectory.arcs[i];
+      if (!window) return;
+      const center = arc.center ?? item.center;
+      const arcItem: CatalogItem = {
+        ...item,
+        center,
+        // Already normalised when the trajectory arc was built.
+        trajectoryFrame: window.frame ?? item.trajectoryFrame,
+        rotationModel: arc.rotationModel,
+      };
+      const rotation = this.buildRotationModel(arcItem, window.trajectory, center ? bodies.find((b) => b.name === center) : undefined);
+      if (rotation) rotationArcs.push({ rotation, startTime: window.startTime, endTime: window.endTime });
+      else console.warn(`[Cosmolabe] ${item.name} (arc ${i}): rotationModel ${JSON.stringify(arc.rotationModel.type)} could not be built`);
+    });
+    return rotationArcs.length > 0 ? new CompositeRotation(rotationArcs, itemRotation, this.frames) : itemRotation;
   }
 
   private buildItemTrajectory(item: CatalogItem): Trajectory {

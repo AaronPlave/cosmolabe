@@ -88,6 +88,41 @@ ephemeris gap inside the window shows up as a `NaN` position, which the
 renderer treats the same way. Hiding a body in the viewer and the body leaving
 its window are independent: each is restored without undoing the other.
 
+### Arcs
+
+A body whose motion changes source, centre or frame over a mission lists its
+phases as `arcs` on the item (or as a `Composite` trajectory). Each arc has a
+`startTime`, an `endTime` (defaulting to the next arc's start), a `center`,
+a `trajectoryFrame` and a `trajectory`, and may carry its own
+**`rotationModel`**: the attitude model while that arc is active. An arc
+without one uses the item's `rotationModel`.
+
+A lander that rides its mothership until separation is the case this is for:
+
+```json
+{
+  "name": "Philae",
+  "rotationModel": { "type": "Spice", "bodyFrame": "ROS_LANDER" },
+  "arcs": [
+    {
+      "startTime": "2004-03-02T07:17:44Z", "endTime": "2014-11-12T08:35:00Z",
+      "center": "Rosetta", "trajectoryFrame": { "type": "BodyFixed", "body": "Rosetta" },
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SPACECRAFT" }
+    },
+    {
+      "startTime": "2014-11-12T08:35:00Z",
+      "center": "67P/Churyumov-Gerasimenko",
+      "trajectory": { "type": "Spice", "target": "PHILAE", "center": "1000012" }
+    }
+  ]
+}
+```
+
+Each arc's rotation is built as if the arc were the item — its `center` and
+`trajectoryFrame` — and re-expressed into one inertial source frame, so the
+renderer composes it like any other rotation.
+
 ## Trajectories
 
 Ten types, picked by `trajectory.type`:
@@ -103,7 +138,7 @@ Ten types, picked by `trajectory.type`:
 | `ChebyshevPoly` | Pre-fit Chebyshev coefficients | `coefficients`, `interval` |
 | `TLE` | NORAD two-line elements (SGP4/SDP4) | `line1`, `line2` |
 | `LinearCombination` | Weighted sum of other trajectories | `terms: [{ trajectory, weight }]` |
-| `Composite` | Time-switched arcs of different sources | `arcs: [{ startEt, endEt, trajectory }]` |
+| `Composite` | Time-switched arcs of different sources | `arcs: [{ startTime, endTime, center, trajectory, rotationModel }]` — see [Arcs](#arcs) |
 
 Some trajectory types know their own frame, and that frame is used whatever `trajectoryFrame` says: **TLE** output is TEME, **FixedSpherical** and **Waypoints** are body-fixed to the item's `center`, an **OEM** file's `REF_FRAME` is its frame, and a **Spice** trajectory is in the frame it is queried in. TLE items no longer need `trajectoryFrame: "J2000"` (it is ignored), and TEME is now rotated into J2000 with precession and nutation instead of being treated as J2000. That rotation is about 20 arcminutes by 2026, or tens of km at LEO.
 
@@ -136,7 +171,7 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 | `Axes` | Reference frame axes | `length` |
 | `KeplerianSwarm` | Many bodies sharing a parent (asteroid belt, debris cloud) | `bodies: []` |
 | `ParticleSystem` | Plumes, exhaust, dust | (renderer-specific) |
-| `TimeSwitched` | Different geometry at different times | `arcs: [{ startEt, endEt, geometry }]` |
+| `TimeSwitched` | Different geometry at different times (Cosmographia; **not implemented yet**) | `arcs: [{ startTime, endTime, geometry }]` |
 
 ### Model formats
 
