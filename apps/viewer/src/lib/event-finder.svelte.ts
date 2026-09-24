@@ -272,6 +272,20 @@ export function spiceCoverageSource(
     bodc2n: (code) => spice.bodc2n(code),
     spkSegments: () => loadedSegments(spice),
     lightTime: (target, observer, et) => spice.spkpos(target, et, 'J2000', 'NONE', observer).lightTime,
+    // The edge solver: swap the roles and ask SPICE for the converged light
+    // time from the target's side. Reception reads the target at t - lt, so
+    // the observer epoch for target epoch τ is the arrival time of a signal
+    // the target emits at τ (XCN); transmission, the departure time of one
+    // the target receives at τ (CN).
+    observerEpochFor: (vector, targetEt) => {
+      const reception = !vector.abcorr.trim().toUpperCase().startsWith('X');
+      const { lightTime } = spice.spkpos(
+        vector.observer, targetEt, 'J2000', reception ? 'XCN' : 'CN', vector.target,
+      );
+      return reception ? targetEt + lightTime : targetEt - lightTime;
+    },
+    correctedLightTime: (vector, et) =>
+      spice.spkpos(vector.target, et, 'J2000', vector.abcorr as AberrationCorrection, vector.observer).lightTime,
     probe: (dependencies, et) => {
       for (const v of dependencies.vectors) {
         spice.spkpos(v.target, et, 'J2000', v.abcorr as AberrationCorrection, v.observer);
@@ -306,6 +320,18 @@ function loadedSegments(
 /** Recompute the suggestion, for when kernels were furnished into the running scene. */
 export function refreshCoverage(): void {
   syncCoverage();
+}
+
+/**
+ * Recompute the suggestion if kernels changed since it was computed.
+ *
+ * The comparison is against the count stored with the suggestion itself, not
+ * a watcher's memory, so it holds across the panel being closed: kernels
+ * dropped while the Event Finder was unmounted are caught the moment it
+ * mounts again (and before any search runs).
+ */
+export function ensureCoverageCurrent(): void {
+  if (ef.form && ef.coverageKernelCount !== vs.kernelCount) syncCoverage();
 }
 
 export const ef = $state({
@@ -352,6 +378,8 @@ export const ef = $state({
    * a kind that declares no geometry). See {@link assessEventCoverage}.
    */
   coverage: null as CoverageAssessment | null,
+  /** `vs.kernelCount` when {@link coverage} was computed; see `ensureCoverageCurrent`. */
+  coverageKernelCount: null as number | null,
 });
 
 /** Guards against an earlier search landing after a later one. */
@@ -468,6 +496,7 @@ function assessFor(kind: EventKind<never>, bodies: EventParticipants): CoverageA
 /** Recompute the suggestion for the form as it now stands. */
 function syncCoverage(): void {
   ef.coverage = ef.form ? assessFor(currentKind(), ef.form.bodies) : null;
+  ef.coverageKernelCount = vs.kernelCount;
 }
 
 /**
@@ -779,6 +808,7 @@ export async function runSearch() {
     return;
   }
 
+  ensureCoverageCurrent();
   const item = syncConfiguredQuery();
   if (!item || !item.enabled) return;
   // A search the user has replaced is work nobody wants done; stopping it also
@@ -896,6 +926,7 @@ export function resetForScene() {
   ef.windowTrimmed = false;
   ef.configuredId = null;
   ef.coverage = null;
+  ef.coverageKernelCount = null;
   resetAnalysis();
 }
 

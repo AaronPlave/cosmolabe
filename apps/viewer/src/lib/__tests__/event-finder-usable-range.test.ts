@@ -38,7 +38,10 @@ vi.mock('../loader', async (importOriginal) => ({
 }));
 
 const finder = await import('../event-finder.svelte');
-const { ef, resetForScene, resetForm, setKind, setRole, setWindow, useAvailableWindow, windowOutsideUsable, refreshCoverage } = finder;
+const {
+  ef, resetForScene, resetForm, setKind, setRole, setWindow, useAvailableWindow, windowOutsideUsable,
+  refreshCoverage, ensureCoverageCurrent, runSearch,
+} = finder;
 const { vs } = await import('../viewer-state.svelte');
 
 beforeEach(() => {
@@ -105,6 +108,30 @@ describe('event finder usable range', () => {
     refreshCoverage();
     expect(ef.coverage?.status).toBe('none');
     expect(ef.coverage?.problems.join(' ')).toMatch(/MARS BARYCENTER/);
+  });
+
+  it('catches kernels dropped while the panel was closed, on reopen', () => {
+    // Close: nothing is mounted, nothing watches. Drop a kernel that removes
+    // the barycenter's second piece; the count moves as the loader moves it.
+    expect(ef.coverage?.windows).toHaveLength(2);
+    segments = segments.filter((s) => !(s.body === 4 && s.start === 5_000));
+    loaded++;
+    vs.kernelCount++;
+    expect(ef.coverage?.windows).toHaveLength(2); // stale until someone looks
+
+    // Reopen: the panel's mount-time effect calls this, whatever count it
+    // happens to see first.
+    ensureCoverageCurrent();
+    expect(ef.coverage?.windows).toEqual([{ start: 1_003, end: 2_997 }]);
+    expect(ef.coverageKernelCount).toBe(vs.kernelCount);
+  });
+
+  it('refreshes a stale suggestion before a search runs', async () => {
+    segments = segments.filter((s) => !(s.body === 4 && s.start === 5_000));
+    loaded++;
+    vs.kernelCount++;
+    await runSearch();
+    expect(ef.coverage?.windows).toEqual([{ start: 1_003, end: 2_997 }]);
   });
 
   it('clears the suggestion with the scene', () => {

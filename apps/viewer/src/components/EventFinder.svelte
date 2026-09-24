@@ -22,7 +22,7 @@
     currentConfiguredQuery, setCurrentQueryVisible,
     configuredEventQueries, createNewSearch, openConfiguredQuery,
     setConfiguredQueryEnabled, setConfiguredQueryVisible,
-    useAvailableWindow, windowOutsideUsable, refreshCoverage,
+    useAvailableWindow, windowOutsideUsable, ensureCoverageCurrent,
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, headlineMetric, missingRoles,
@@ -41,14 +41,12 @@
     if (!ef.form) resetForm();
   });
 
-  // Kernels dropped into the running scene change what can be computed; a
-  // scene load already rebuilds the form, and with it the suggestion.
-  let seenKernelCount = vs.kernelCount;
+  // Kernels dropped into the running scene change what can be computed. The
+  // effect runs on mount too, so kernels dropped while this panel was closed
+  // are caught when it reopens; the check itself lives with the state.
   $effect(() => {
-    const count = vs.kernelCount;
-    if (count === seenKernelCount) return;
-    seenKernelCount = count;
-    untrack(refreshCoverage);
+    void vs.kernelCount;
+    untrack(ensureCoverageCurrent);
   });
 
   let kind = $derived(currentKind());

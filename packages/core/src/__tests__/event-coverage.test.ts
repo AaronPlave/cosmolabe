@@ -112,10 +112,60 @@ describe('assessEventCoverage', () => {
     expect(assessEventCoverage(corrected, source(segments)).status).toBe('none');
 
     const withSsb = [...segments, seg('EARTH', 'SSB', 0, 1000)];
-    const result = assessEventCoverage(corrected, source(withSsb, { lightTime: () => 10 }));
-    // Reception: the target is read 10 s (padded to 11.1 s) earlier.
-    expect(result.windows[0]!.start).toBeCloseTo(0 + 10 * 1.01 + 1 + 3);
+    const result = assessEventCoverage(corrected, source(withSsb, {
+      correctedLightTime: (_v, et) => {
+        if (et - 10 < 0) throw new Error('SPICE(SPKINSUFFDATA)');
+        return 10;
+      },
+      observerEpochFor: (_v, tau) => tau + 10,
+    }));
+    // Reception: the target is read 10 s earlier, so the start moves by 10 s
+    // (plus the edge margin); the end is not constrained by the target.
+    expect(result.windows[0]!.start).toBeCloseTo(10 + 3, 6);
     expect(result.windows[0]!.end).toBe(997);
+  });
+
+  it('solves light-time edges exactly where sampling would underestimate them', () => {
+    // Light time with a narrow bump near the target's coverage start: 64
+    // samples across the window step clean over it, so a sampled margin comes
+    // out short. |dL/dt| stays below 1, as it must physically.
+    const L = (t: number) => 5 + 2 * Math.exp(-(((t - 40) / 3) ** 2));
+    const segments = [seg('SC', 'SSB', 0, 1000), seg('MOON', 'SSB', 35, 1000)];
+    const vector = { target: 'MOON', observer: 'SC', abcorr: 'LT' };
+    const covered = (tau: number) => tau >= 35 && tau <= 1000;
+    const result = assessEventCoverage({ vectors: [vector] }, source(segments, {
+      lightTime: (_t, _o, et) => L(et),
+      correctedLightTime: (_v, et) => {
+        if (!covered(et - L(et))) throw new Error('SPICE(SPKINSUFFDATA)');
+        return L(et);
+      },
+      // Fixed point of t = τ + L(t); a contraction since |L'| < 1.
+      observerEpochFor: (_v, tau) => {
+        let t = tau;
+        for (let i = 0; i < 100; i++) t = tau + L(t);
+        return t;
+      },
+      probe: () => undefined,
+    }), { edgeMargin: 0 });
+
+    expect(result.exact).toBe(true);
+    const [w] = result.windows;
+    // Every epoch in the offered window reads the target inside its coverage,
+    // densely checked across the bump.
+    for (let t = w!.start; t <= w!.start + 60; t += 0.01) expect(covered(t - L(t))).toBe(true);
+    // And the edge is tight, not an over-wide pad.
+    expect(covered(w!.start - 0.05 - L(w!.start - 0.05))).toBe(false);
+  });
+
+  it('marks light-time edges an estimate when they cannot be solved', () => {
+    const segments = [seg('SC', 'SSB', 0, 1000), seg('MOON', 'SSB', 0, 1000)];
+    const result = assessEventCoverage(
+      { vectors: [{ target: 'MOON', observer: 'SC', abcorr: 'LT' }] },
+      source(segments, { lightTime: () => 5, probe: () => undefined }),
+    );
+    expect(result.status).toBe('available');
+    expect(result.exact).toBe(false);
+    expect(result.caveats.join(' ')).toMatch(/sampled light time/);
   });
 
   it('drops a window the search calculation refuses, and says why', () => {

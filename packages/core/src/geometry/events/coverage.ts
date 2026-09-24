@@ -62,6 +62,19 @@ export interface CoverageSource {
   /** Geometric one-way light time (s) between two bodies at `et`. */
   lightTime?(target: string, observer: string, et: EtSeconds): number;
   /**
+   * The observer epoch at which `vector`'s correction reads the target at
+   * `targetEt`: the `t` solving `t ∓ lt(t) = targetEt`. For reception that is
+   * the arrival time of a signal the target emits at `targetEt` (SPICE's
+   * `XCN` from the target); for transmission, the departure time of one
+   * arriving there (`CN`). Throws when SPICE cannot compute it.
+   */
+  observerEpochFor?(vector: EventGeometryVector, targetEt: EtSeconds): EtSeconds;
+  /**
+   * The light time `vector`'s own correction applies at observer epoch `et`,
+   * exactly as the search computes it. Throws when SPICE cannot.
+   */
+  correctedLightTime?(vector: EventGeometryVector, et: EtSeconds): number;
+  /**
    * Runs the calculation the search evaluates, at one epoch. Throws, with
    * SPICE's own message, when it cannot be computed there.
    */
@@ -385,8 +398,17 @@ export function assessEventCoverage(
       if (targetReach.length === 0) explainChain(target, true);
 
       const both = intersect(observerReach, targetReach);
-      let ltMax = 0;
-      if (both.length > 0) {
+      let shifted: EtInterval[];
+      const exactShift = both.length > 0 ? mapTargetWindows(vector, direction as -1 | 1, targetReach, observerReach, source) : [];
+      if (exactShift !== undefined) {
+        shifted = exactShift;
+      } else {
+        // No way to solve the edges exactly: size a margin from sampled light
+        // time. That is a heuristic, not a bound, so the answer says so.
+        caveats.push(
+          `Window edges under ${vector.abcorr} were sized from sampled light time, not solved, so they may be optimistic.`,
+        );
+        let ltMax = 0;
         if (source.lightTime) {
           for (const w of both) {
             for (let k = 0; k <= LIGHT_TIME_SAMPLES; k++) {
@@ -394,25 +416,17 @@ export function assessEventCoverage(
               try {
                 ltMax = Math.max(ltMax, source.lightTime(vector.target, vector.observer, t));
               } catch {
-                // An epoch the derivation says works but SPICE refuses is
-                // caught by the probe below; here it only cannot size a margin.
+                // An epoch SPICE refuses is caught by the probe below; here it
+                // only cannot size a margin.
               }
             }
           }
-          // Light time varies between samples; pad for it rather than trust it.
           ltMax = ltMax * 1.01 + 1;
-        } else {
-          caveats.push(
-            `The light-time margin for ${vector.abcorr} could not be measured, so window edges near ${vector.target}'s coverage may be optimistic.`,
-          );
         }
+        shifted = targetReach.map((w) =>
+          direction < 0 ? { start: w.start + ltMax, end: w.end } : { start: w.start, end: w.end - ltMax })
+          .filter((w) => w.end > w.start);
       }
-      // t is usable when t ∓ lt lands in the target's reach; with lt in
-      // [0, ltMax] shrinking each target window by ltMax on the shifted side
-      // is sufficient.
-      const shifted = targetReach.map((w) =>
-        direction < 0 ? { start: w.start + ltMax, end: w.end } : { start: w.start, end: w.end - ltMax })
-        .filter((w) => w.end > w.start);
       windows = intersect(observerReach, shifted);
     }
 
@@ -470,6 +484,85 @@ export function assessEventCoverage(
     problems: [...new Set(problems)],
     caveats,
   };
+}
+
+/** Largest nudge tried when settling a light-time edge, in seconds. */
+const MAX_EDGE_NUDGE = 64;
+
+/**
+ * The observer epochs at which the target's corrected epoch falls inside
+ * `targetReach`, solved per edge rather than bounded by a sampled margin.
+ *
+ * The map from observer epoch t to target epoch τ = t ∓ lt(t) is strictly
+ * increasing, because light time cannot change faster than one second per
+ * second (its rate is a range rate over c). So the preimage of each target
+ * window is one interval, bounded by the preimages of its two edges; nothing
+ * between them can land outside. Each edge is solved with SPICE's converged
+ * light time, then checked against the correction the search actually uses
+ * (a single `LT` iteration differs from the converged solution), and nudged
+ * inward until that check holds.
+ *
+ * Returns undefined when an edge cannot be solved or settled, so the caller
+ * falls back to an estimate instead of presenting a guess as exact.
+ */
+function mapTargetWindows(
+  vector: EventGeometryVector,
+  direction: -1 | 1,
+  targetReach: readonly EtInterval[],
+  observerReach: readonly EtInterval[],
+  source: CoverageSource,
+): EtInterval[] | undefined {
+  // An edge only needs solving if some observer epoch could read past it.
+  // Reception reads the target earlier than t, so a target window ending
+  // after every observer epoch never constrains its end; transmission reads
+  // it later, so one starting before every observer epoch never constrains
+  // its start. Skipping those keeps an unsolvable-but-irrelevant edge (the
+  // observer is uncovered at its arrival time) from forcing an estimate.
+  const observerStart = observerReach[0]?.start ?? Infinity;
+  const observerEnd = observerReach[observerReach.length - 1]?.end ?? -Infinity;
+  const solve = source.observerEpochFor;
+  const corrected = source.correctedLightTime;
+  if (!solve || !corrected) return undefined;
+
+  const read = (t: number): number | undefined => {
+    try {
+      return t + direction * corrected(vector, t);
+    } catch {
+      return undefined;
+    }
+  };
+
+  /** Move `t` inward (by `sign`) until the corrected target epoch is on the covered side of `edge`. */
+  const settle = (t: number, edge: number, sign: 1 | -1): number | undefined => {
+    for (let nudge = 0; nudge <= MAX_EDGE_NUDGE; nudge = nudge === 0 ? 1e-3 : nudge * 4) {
+      const candidate = t + sign * nudge;
+      const tau = read(candidate);
+      if (tau !== undefined && (sign > 0 ? tau >= edge : tau <= edge)) return candidate;
+    }
+    return undefined;
+  };
+
+  const out: EtInterval[] = [];
+  for (const w of targetReach) {
+    let start = direction > 0 && w.start <= observerStart ? -Infinity : w.start;
+    let end = direction < 0 && w.end >= observerEnd ? Infinity : w.end;
+    try {
+      if (Number.isFinite(w.start) && !(direction > 0 && w.start <= observerStart)) {
+        const s = settle(solve(vector, w.start), w.start, 1);
+        if (s === undefined) return undefined;
+        start = s;
+      }
+      if (Number.isFinite(w.end) && !(direction < 0 && w.end >= observerEnd)) {
+        const e = settle(solve(vector, w.end), w.end, -1);
+        if (e === undefined) return undefined;
+        end = e;
+      }
+    } catch {
+      return undefined;
+    }
+    if (end > start) out.push({ start, end });
+  }
+  return out;
 }
 
 function resolveId(source: CoverageSource, name: string): number | null {

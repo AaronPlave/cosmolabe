@@ -168,7 +168,9 @@ describe('usable range against real SPICE', () => {
     const corrected = assess(spice, query({ start: t0, end: t0 + DAY }, 'LT')).windows[0]!;
 
     // Earth is ~7e7 km from Mars here: roughly four minutes of light time.
+    // Solved from SPICE's own light time, so it is exact, not an estimate.
     expect(corrected.start - geometric.start).toBeGreaterThan(200);
+    expect(assess(spice, query({ start: t0, end: t0 + DAY }, 'LT')).exact).toBe(true);
     expect((await search(spice, query({ start: corrected.start, end: corrected.start + DAY }, 'LT'))).ok).toBe(true);
     // Starting at the geometric edge reads Earth before its coverage begins.
     expect((await search(spice, query({ start: geometric.start, end: geometric.start + DAY }, 'LT'))).ok).toBe(false);
