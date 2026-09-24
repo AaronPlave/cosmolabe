@@ -159,7 +159,7 @@ CesiumJS rendering layer composing over `@cosmolabe/core` and `@cosmolabe/cesium
 
 ### Viewer Apps
 
-- **`apps/viewer/`** — Three.js + Svelte 5 demo app. Drag-drop a [catalog JSON](docs/catalog-format.md) (and optional SPICE kernel files), or pick from built-in demos: LRO at the Moon (16K textures), Europa Clipper at Jupiter, Cassini at Saturn (with rings + sensor frustums), ISS (TLE-propagated), inner solar system, Saturn system, Earth-Moon, and MSL at Dingo Gap (Curiosity rover with high-res Mars terrain — *experimental*).
+- **`apps/viewer/`** — Three.js + Svelte 5 demo app. Drag-drop a [catalog JSON](docs/catalog-format.md) (and optional SPICE kernel files), or pick from built-in demos: Rosetta + Philae (the full 2004–2016 mission, with 67P, the asteroids, the spacecraft and the lander all drawn from SPICE DSK shape models), LRO at the Moon (16K textures), Europa Clipper at Jupiter, Cassini at Saturn (with rings + sensor frustums), ISS (TLE-propagated), inner solar system, Saturn system, Earth-Moon, and MSL at Dingo Gap (Curiosity rover with high-res Mars terrain — *experimental*).
 - **`apps/cesium-viewer/`** — CesiumJS demo featuring live ISS telemetry, eclipse highlighting, and ground-station comm relay.
 
 ## Getting Started
@@ -243,6 +243,7 @@ Key constraints:
 | Three.js renderer | Complete |
 | CesiumJS renderer + adapter | Complete |
 | Eclipse shadows (analytical + SPICE) | Complete |
+| Irregular bodies from SPICE DSK shape models | Complete |
 | Atmospheric scattering | Complete |
 | Plugin system (6 patterns, 4 stock plugins) | Complete |
 | Surface Explorer camera mode | Experimental |

@@ -32,6 +32,8 @@ apps/viewer/test-catalogs/kernels/msl/mar099s.bsp
 apps/viewer/test-catalogs/kernels/psyche/
 apps/viewer/test-catalogs/kernels/voyager/
 apps/viewer/test-catalogs/kernels/rosetta/
+# Archive downloads the Rosetta set is rebuilt from — scripts/fetch-rosetta-kernels.sh
+.cache/
 
 # Self-hosted Mars terrain — see scripts/build-mars-terrain/
 # Source GeoTIFFs (~11 GB) and generated quantized-mesh tiles (~1-3 GB).

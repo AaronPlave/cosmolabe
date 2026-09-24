@@ -24,7 +24,7 @@
 # Planetary ephemeris comes from the base catalogs (de440s.bsp, scripts/fetch-kernels.sh).
 #
 # The archive downloads (~700 MB, mostly the attitude files that are thinned)
-# go to $ROSETTA_SOURCE_DIR (default: kernels/rosetta/.source, git-ignored) and
+# go to $ROSETTA_SOURCE_DIR (default: .cache/rosetta-source, git-ignored) and
 # are kept, so a rerun only redoes what is missing. Delete that directory once
 # the set is built if you need the space. The packages must be built first
 # (npm run build): the rebuild scripts run on cspice-wasm.
@@ -36,7 +36,9 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 DEST="$HERE/../apps/viewer/test-catalogs/kernels/rosetta"
-SRC="${ROSETTA_SOURCE_DIR:-$DEST/.source}"
+# Outside test-catalogs/ on purpose: that is the viewer's publicDir, and
+# anything in it is copied into the deployed site.
+SRC="${ROSETTA_SOURCE_DIR:-$HERE/../.cache/rosetta-source}"
 mkdir -p "$DEST" "$SRC"
 
 ESA="https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels"
@@ -232,4 +234,4 @@ fi
 
 echo ""
 echo "Done! Rosetta kernels in $DEST"
-du -sh --exclude=.source "$DEST" 2>/dev/null || du -sh "$DEST"
+du -sh "$DEST"

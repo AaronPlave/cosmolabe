@@ -18,7 +18,9 @@ jobs:
   build:
     name: Build viewer
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A cold Rosetta kernel build (download + rebuild, ~25 min) fits; a warm one
+    # comes from the cache below.
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -70,6 +72,16 @@ jobs:
 
       - name: Build packages
         run: npm run build
+
+      - name: Cache Rosetta kernel set
+        # scripts/fetch-rosetta-kernels.sh downloads ~700 MB from the ESA
+        # archive and spends ~20 min rebuilding the dense trajectory and
+        # attitude files. Its output is a pure function of the scripts that
+        # make it, so it is cached on them; the script skips what is present.
+        uses: actions/cache@v4
+        with:
+          path: apps/viewer/test-catalogs/kernels/rosetta
+          key: rosetta-kernels-${{ hashFiles('scripts/fetch-rosetta-kernels.sh', 'scripts/resample-spk.mjs', 'scripts/thin-ck.mjs', 'packages/cspice-wasm/wasm/cspice.wasm') }}
 
       - name: Fetch viewer kernels
         run: bash scripts/fetch-all.sh
