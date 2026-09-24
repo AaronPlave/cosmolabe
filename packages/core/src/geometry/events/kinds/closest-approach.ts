@@ -86,6 +86,10 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
     return undefined;
   },
 
+  geometry: (query) => ({
+    vectors: [{ target: query.bodies.target!, observer: query.bodies.observer!, abcorr: query.abcorr }],
+  }),
+
   run: async (query, ctx) => {
     const target = query.bodies.target!;
     const observer = query.bodies.observer!;

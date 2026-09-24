@@ -1,3 +1,4 @@
+import type { EventGeometryDependencies } from './coverage.js';
 import type { GeometryFinderProvider } from './provider.js';
 import {
   EventKindRegistry,
@@ -32,6 +33,19 @@ export interface EventSearchOptions {
  * looked and found nothing" (`ok: true` with no events) are different answers
  * and callers should be able to show them differently.
  */
+/**
+ * The geometry a query's search will evaluate, or undefined when its kind does
+ * not declare one or a required body is still unset.
+ */
+export function eventGeometry<P>(
+  query: EventQuery<P>,
+  kind: EventKind<never>,
+): EventGeometryDependencies | undefined {
+  if (!kind.geometry) return undefined;
+  if (requiredRoles(kind).some((spec) => !(query.bodies[spec.role] ?? spec.default))) return undefined;
+  return (kind as unknown as EventKind<P>).geometry!(resolveQuery(query, kind));
+}
+
 export class EventSearch {
   private readonly registry: EventKindRegistry;
   private readonly provider: GeometryFinderProvider;
@@ -150,7 +164,8 @@ function validateShared(query: EventQuery<any>, kind: EventKind<never>): EventSe
   return undefined;
 }
 
-function resolveQuery<P>(query: EventQuery<P>, kind: EventKind<never>): ResolvedEventQuery<P> {
+/** A query with the kind's role, param, step and correction defaults applied. */
+export function resolveQuery<P>(query: EventQuery<P>, kind: EventKind<never>): ResolvedEventQuery<P> {
   const bodies: EventParticipants = { ...query.bodies };
   for (const spec of kind.roles) {
     if (!bodies[spec.role] && spec.default) bodies[spec.role] = spec.default;

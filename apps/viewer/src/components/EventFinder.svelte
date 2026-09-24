@@ -8,6 +8,7 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
+  import { untrack } from 'svelte';
   import { Loader2, Search, Ban, Plus } from 'lucide-svelte';
   import * as Select from '$lib/components/ui/select/index.js';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
@@ -21,6 +22,7 @@
     currentConfiguredQuery, setCurrentQueryVisible,
     configuredEventQueries, createNewSearch, openConfiguredQuery,
     setConfiguredQueryEnabled, setConfiguredQueryVisible,
+    useAvailableWindow, windowOutsideUsable, ensureCoverageCurrent,
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, headlineMetric, missingRoles,
@@ -39,6 +41,14 @@
     if (!ef.form) resetForm();
   });
 
+  // Kernels dropped into the running scene change what can be computed. The
+  // effect runs on mount too, so kernels dropped while this panel was closed
+  // are caught when it reopens; the check itself lives with the state.
+  $effect(() => {
+    void vs.kernelCount;
+    untrack(ensureCoverageCurrent);
+  });
+
   let kind = $derived(currentKind());
   let form = $derived(ef.form);
   /** Display order is a view concern: the search's own order is chronological. */
@@ -48,6 +58,35 @@
   let configured = $derived(currentConfiguredQuery());
   let configuredQueries = $derived(configuredEventQueries());
   let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running);
+  let coverage = $derived(ef.coverage);
+  /** The bodies the suggestion is about, in the kind's role order: "Mars ↔ Earth". */
+  let coverageSubject = $derived(
+    form
+      ? [...new Set(kind.roles.map((r) => form.bodies[r.role]).filter((b): b is string => !!b))]
+          .map(titleCase)
+          .join(' ↔ ')
+      : '',
+  );
+  /** Parts of the current window no usable range covers; empty when it is fine. */
+  let outside = $derived(form && coverage ? windowOutsideUsable() : []);
+  /** More than a handful of disjoint windows is a list to open, not to read. */
+  const COVERAGE_SHOWN = 4;
+  let showAllCoverage = $state(false);
+  let shownCoverage = $derived(
+    coverage ? (showAllCoverage ? coverage.windows : coverage.windows.slice(0, COVERAGE_SHOWN)) : [],
+  );
+
+  function titleCase(name: string): string {
+    return name === name.toUpperCase() ? name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : name;
+  }
+
+  function utc(et: number): string {
+    return etToUtcString(et).replace(' UTC', '');
+  }
+
+  function isCurrentWindow(w: { start: number; end: number }): boolean {
+    return !!form && form.startEt === w.start && form.endEt === w.end;
+  }
   const eventKindItems = EVENT_KINDS.map(({ kind, label }) => ({ value: kind, label }));
 
   /** Window fields are edited as UTC text and only committed when they parse. */
@@ -74,12 +113,16 @@
   }
 
   function commitStart() {
+    // Leaving the field untouched must not re-parse its truncated display text:
+    // that would pin the window and move it by the dropped fraction of a second.
+    if (form && startText === utc(form.startEt)) { startBad = false; return; }
     const et = parseUtc(startText);
     startBad = et === null;
     if (et !== null && form) setWindow(et, form.endEt);
   }
 
   function commitEnd() {
+    if (form && endText === utc(form.endEt)) { endBad = false; return; }
     const et = parseUtc(endText);
     endBad = et === null;
     if (et !== null && form) setWindow(form.startEt, et);
@@ -244,13 +287,63 @@
 
     <!-- Say when the window is not simply the catalog's span, so a default that
          differs from the scrubber is explained rather than merely odd. -->
-    {#if ef.windowTrimmed}
+    {#if coverage && coverage.status === 'available'}
+      <!-- Where this query can actually be computed with the loaded kernels:
+           every center its states are chained through, not just the two
+           bodies' own segments. Disjoint windows stay separate choices. -->
+      <div class="ui-helper event-helper event-coverage mb-2 ml-22">
+        <p>
+          Available for {coverageSubject}{coverage.exact ? '' : ' (estimate)'}{coverage.windows.length > 1 ? ` — ${coverage.windows.length} separate ranges` : ''}:
+        </p>
+        <ul class="mt-0.5">
+          {#each shownCoverage as w, i (w.start)}
+            <li class="flex flex-wrap items-baseline gap-x-2">
+              <span class="font-mono">{utc(w.start)} – {utc(w.end)}</span>
+              {#if isCurrentWindow(w)}
+                <span class="text-text-muted">in use</span>
+              {:else}
+                <button class="ctrl-link underline" onclick={() => { startBad = false; endBad = false; useAvailableWindow(i); }}>
+                  Use available range
+                </button>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+        {#if coverage.windows.length > COVERAGE_SHOWN}
+          <button class="ctrl-link underline" onclick={() => (showAllCoverage = !showAllCoverage)}>
+            {showAllCoverage ? 'Show fewer' : `Show all ${coverage.windows.length}`}
+          </button>
+        {/if}
+        {#if !coverage.exact && coverage.caveats.length}
+          <p class="mt-0.5" title={coverage.caveats.join('\n')}>Estimate: {coverage.caveats[0]}</p>
+        {/if}
+        {#if outside.length > 0}
+          <p class="mt-0.5 text-warning">
+            This window reaches outside the available range
+            ({utc(outside[0].start)} – {utc(outside[0].end)}{outside.length > 1 ? ` and ${outside.length - 1} more` : ''}),
+            so the search may fail there.
+          </p>
+        {/if}
+      </div>
+    {:else if coverage && coverage.status === 'none'}
+      <div class="ui-helper event-helper event-coverage mb-2 ml-22">
+        <p class="text-warning">No usable range for {coverageSubject} with the loaded kernels.</p>
+        <button class="ctrl-link underline" disabled>Use available range</button>
+        {#if coverage.problems.length}
+          <ul class="mt-0.5 list-disc pl-3">
+            {#each coverage.problems as problem}
+              <li>{problem}</li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+    {:else if ef.windowTrimmed}
       <p class="ui-helper event-helper mb-2 ml-22">
         Trimmed to the kernel coverage of the chosen bodies.
       </p>
     {:else if ef.windowPinned}
       <p class="ui-helper event-helper mb-2 ml-22">
-        Using your window. <button class="ctrl-link underline" onclick={resetWindow}>Reset to kernel coverage</button>
+        Using your window. <button class="ctrl-link underline" onclick={resetWindow}>Reset to default window</button>
       </p>
     {/if}
 
@@ -378,7 +471,25 @@
     <!-- A fault is "we could not look", which reads differently from a search
          that ran and matched nothing. -->
     <div class="ui-label mt-2 pt-2 border-t border-border text-warning">
-      {faultMessage(ef.fault)}
+      {#if ef.fault.code === 'provider-error' && coverage?.status === 'available' && outside.length > 0}
+        <!-- Say what to do about it first; SPICE's own words stay one click away. -->
+        <p>
+          The search window reaches outside the range the loaded kernels support for {coverageSubject}.
+          Pick one of the available ranges above.
+        </p>
+        <details class="mt-1 text-text-secondary">
+          <summary class="cursor-pointer">SPICE error</summary>
+          <p class="mt-0.5 font-mono break-words">{ef.fault.message}</p>
+        </details>
+      {:else if ef.fault.code === 'provider-error' && coverage?.status === 'none'}
+        <p>The loaded kernels cannot compute this geometry; see the missing data above.</p>
+        <details class="mt-1 text-text-secondary">
+          <summary class="cursor-pointer">SPICE error</summary>
+          <p class="mt-0.5 font-mono break-words">{ef.fault.message}</p>
+        </details>
+      {:else}
+        {faultMessage(ef.fault)}
+      {/if}
     </div>
   {:else if ef.searched && ef.events.length === 0}
     <div class="ui-label mt-2 pt-2 border-t border-border">
@@ -599,6 +710,10 @@
   }
   .event-helper .ctrl-link {
     font-size: inherit;
+  }
+  .event-helper .ctrl-link:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
   }
   .geometry-legend {
     display: flex;
