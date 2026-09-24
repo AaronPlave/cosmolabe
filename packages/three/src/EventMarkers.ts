@@ -64,15 +64,20 @@ export interface EventMarkersOptions {
   color?: THREE.ColorRepresentation;
   selectedColor?: THREE.ColorRepresentation;
   /**
-   * The owning TrajectoryLine's drawn polyline. When given, the selected-span
-   * stroke retraces those exact vertices, so it bends with the trail and ends
-   * at the trail's live head sample (the body's current position) instead of
-   * at the last coarse interval sample.
+   * The owning TrajectoryLine's drawn path: its trail, then each unbroken run
+   * of its future lead (`TrajectoryLine.drawnPath`). When given, span strokes,
+   * span picking and hit anchoring retrace those exact vertices, so they bend
+   * with what is on screen — behind the playhead and ahead of it — and meet
+   * the body at the trail's live head sample instead of the last coarse
+   * interval sample.
    */
-  trail?: () => DrawnTrail;
+  path?: () => readonly DrawnTrail[];
 }
 
 const SPAN_INITIAL_CAPACITY = 256;
+
+/** Emitted between polyline runs so a stroke never bridges a gap. */
+const BREAK = /* @__PURE__ */ new THREE.Vector3(NaN, NaN, NaN);
 
 /**
  * How an interval is drawn at its current projected length. Caps and the
@@ -387,13 +392,18 @@ class SpanStroke {
 
   /**
    * Rewrite the stroke from `trace`, which emits the polyline's points in
-   * order; `maxPoints` bounds how many it can emit.
+   * order (a NaN point breaks the stroke); `maxPoints` bounds how many it can
+   * emit.
    */
   write(maxPoints: number, trace: (emit: (point: THREE.Vector3) => void) => void): number {
     const array = this.reserve(Math.max(1, maxPoints - 1));
     let segments = 0;
     let px = NaN, py = NaN, pz = NaN;
     trace((point) => {
+      if (Number.isNaN(point.x)) {
+        px = NaN;
+        return;
+      }
       if (!Number.isNaN(px)) {
         const o = segments++ * 6;
         array[o] = px; array[o + 1] = py; array[o + 2] = pz;
@@ -632,28 +642,41 @@ export class EventMarkers extends THREE.Object3D {
     let segments = 0;
     if (visual) {
       if (stroke === this.previewStroke) stroke.setColor(visual.marker.color ?? this.options.color ?? DEFAULT_COLOR);
-      const { line, start, end } = this.drawnSpan(visual);
-      segments = stroke.write(line.count + 2, (emit) => traceRange(line, start, end, emit));
+      const spans = this.drawnSpans(visual);
+      const maxPoints = spans.reduce((sum, span) => sum + span.line.count + 3, 0);
+      segments = stroke.write(maxPoints, (emit) => {
+        for (const { line, start, end } of spans) {
+          traceRange(line, start, end, emit);
+          emit(BREAK);
+        }
+      });
     }
     stroke.show(this.visible && segments > 0, segments);
   }
 
   /**
-   * The polyline an interval is drawn along and the epochs of it this visual
-   * covers. With a trail that is the trail's own vertices (cut at the piece
-   * bounds, reaching the live head sample), so the stroke, picking, and hit
-   * anchoring all agree with what is on screen; otherwise the interval's
-   * samples, cut at the trail's visible range.
+   * The polylines an interval is drawn along and the epochs of them this
+   * visual covers. With a path that is the owning line's drawn runs — trail
+   * and future lead — cut at the piece bounds (reaching the live head sample),
+   * so the stroke, picking, and hit anchoring all agree with what is on
+   * screen; otherwise the interval's samples, cut at the visible range.
    */
-  private drawnSpan(visual: MarkerVisual): { line: Polyline; start: number; end: number } {
-    const trail = this.options.trail?.();
-    if (trail) return { line: trailPolyline(trail), start: visual.pieceStart, end: visual.pieceEnd };
+  private drawnSpans(visual: MarkerVisual): Array<{ line: Polyline; start: number; end: number }> {
+    const path = this.options.path?.();
+    if (path) {
+      // One entry per drawn run the piece overlaps: the trail, the lead from
+      // the playhead, a lead excerpt. Gaps between runs stay gaps.
+      return path
+        .filter((run) => run.count > 1 &&
+          run.times[0] <= visual.pieceEnd && run.times[run.count - 1] >= visual.pieceStart)
+        .map((run) => ({ line: trailPolyline(run), start: visual.pieceStart, end: visual.pieceEnd }));
+    }
     const range = visual.visibleRange ?? [Infinity, -Infinity];
-    return {
+    return [{
       line: { count: visual.points.length, time: (i) => visual.times[i], at: (i, out) => out.copy(visual.points[i]) },
       start: Math.max(visual.pieceStart, range[0]),
       end: Math.min(visual.pieceEnd, range[1]),
-    };
+    }];
   }
 
   /**
@@ -663,10 +686,11 @@ export class EventMarkers extends THREE.Object3D {
   anchorAt(id: string, queryId: string, et: number): THREE.Vector3 | null {
     for (const visual of this.visuals) {
       if (visual.marker.id !== id || visual.marker.queryId !== queryId || !visual.visibleRange) continue;
-      const { line, start, end } = this.drawnSpan(visual);
-      if (et < start || et > end) continue;
-      const point = polylineAt(line, et, new THREE.Vector3());
-      if (point) return point;
+      for (const { line, start, end } of this.drawnSpans(visual)) {
+        if (et < start || et > end) continue;
+        const point = polylineAt(line, et, new THREE.Vector3());
+        if (point) return point;
+      }
     }
     return null;
   }
@@ -777,38 +801,39 @@ export class EventMarkers extends THREE.Object3D {
     }
     // Spans only when no glyph is under the pointer.
     if (nearest) return nearest;
-    // Test the polyline actually drawn (the trail, cut at the piece bounds),
-    // so every visible bit of a span is pickable, including the stretch
-    // between the last coarse sample and the trail head.
+    // Test the polylines actually drawn (trail and lead, cut at the piece
+    // bounds), so every visible bit of a span is pickable, including the
+    // stretch between the last coarse sample and the trail head.
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
     for (const visual of this.visuals) {
       if (visual.marker.temporality !== 'interval' || !visual.visibleRange) continue;
       const renderOrder = visual.marker.selected || this.isPreview(visual.marker) ? 3 : 1;
-      const { line, start, end } = this.drawnSpan(visual);
-      let aEt = NaN;
-      let aIn = false;
-      traceRange(line, start, end, (point, bEt) => {
-        b.copy(point).project(camera);
-        const bIn = b.z >= -1 && b.z <= 1;
-        if (aIn && bIn) {
-          const ax = (a.x + 1) * width / 2;
-          const ay = (1 - a.y) * height / 2;
-          const dx = (b.x - a.x) * width / 2;
-          const dy = (a.y - b.y) * height / 2;
-          const fraction = Math.max(0, Math.min(1, ((screenX - ax) * dx + (screenY - ay) * dy) / (dx * dx + dy * dy || 1)));
-          const d2 = (ax + dx * fraction - screenX) ** 2 + (ay + dy * fraction - screenY) ** 2;
-          const et = aEt + (bEt - aEt) * fraction;
-          if (d2 <= radiusSq && (!nearest || d2 < nearest.distanceSq)) {
-            const worldPosition = polylineAt(line, et, new THREE.Vector3()) ?? point.clone();
-            const hit: EventMarkerHit = { marker: visual.marker, et, distanceSq: d2, renderOrder, worldPosition, span: true };
-            if (accept(worldPosition) && preferHit(hit, nearest)) nearest = hit;
+      for (const { line, start, end } of this.drawnSpans(visual)) {
+        let aEt = NaN;
+        let aIn = false;
+        traceRange(line, start, end, (point, bEt) => {
+          b.copy(point).project(camera);
+          const bIn = b.z >= -1 && b.z <= 1;
+          if (aIn && bIn) {
+            const ax = (a.x + 1) * width / 2;
+            const ay = (1 - a.y) * height / 2;
+            const dx = (b.x - a.x) * width / 2;
+            const dy = (a.y - b.y) * height / 2;
+            const fraction = Math.max(0, Math.min(1, ((screenX - ax) * dx + (screenY - ay) * dy) / (dx * dx + dy * dy || 1)));
+            const d2 = (ax + dx * fraction - screenX) ** 2 + (ay + dy * fraction - screenY) ** 2;
+            const et = aEt + (bEt - aEt) * fraction;
+            if (d2 <= radiusSq && (!nearest || d2 < nearest.distanceSq)) {
+              const worldPosition = polylineAt(line, et, new THREE.Vector3()) ?? point.clone();
+              const hit: EventMarkerHit = { marker: visual.marker, et, distanceSq: d2, renderOrder, worldPosition, span: true };
+              if (accept(worldPosition) && preferHit(hit, nearest)) nearest = hit;
+            }
           }
-        }
-        a.copy(b);
-        aEt = bEt;
-        aIn = bIn;
-      });
+          a.copy(b);
+          aEt = bEt;
+          aIn = bIn;
+        });
+      }
     }
     return nearest;
   }

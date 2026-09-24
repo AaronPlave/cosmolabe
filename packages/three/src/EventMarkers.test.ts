@@ -4,7 +4,7 @@ import type { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { Body } from '@cosmolabe/core';
 import { EventMarkers, eventAnchorOpacityAtSphere, pickEventMarkerGroups, type EventMarker } from './EventMarkers.js';
 import { TrajectoryLine } from './TrajectoryLine.js';
-import { eventPiecesOnLines, selectEventTrajectoryBody } from './UniverseRenderer.js';
+import { eventLeadRequest, eventPiecesOnLines, selectEventTrajectoryBody } from './UniverseRenderer.js';
 import type { GeometryEvent } from '@cosmolabe/core';
 
 const body = { name: 'Europa Clipper' } as Body;
@@ -347,7 +347,7 @@ describe('EventMarkers', () => {
       trail.positions = Float32Array.from(times.flatMap((t) => [t, t * t, 0]));
       trail.count = times.length;
     };
-    const group = new EventMarkers(body, { intervalSamples: 5, trail: () => trail });
+    const group = new EventMarkers(body, { intervalSamples: 5, path: () => [trail] });
     group.setMarkers([marker({ temporality: 'interval', startEt: 10, endEt: 20, selected: true })]);
     const resolve = (_name: string, et: number): [number, number, number] => [et, et * et, 0];
     const geometry = group.spanEmphasis.geometry;
@@ -505,7 +505,7 @@ describe('interval pieces and span hits', () => {
       positions: Float32Array.from(times.flatMap((t) => [t - 10, 0, 0])),
       count: times.length,
     };
-    const group = new EventMarkers(body, { intervalSamples: 5, trail: () => trail });
+    const group = new EventMarkers(body, { intervalSamples: 5, path: () => [trail] });
     group.setMarkers([marker({ temporality: 'interval', startEt: 2, endEt: 20 })]);
     group.update(1, [0, 0, 0], (_name, et) => [et - 10, 0, 0], [0, 13.9]);
     const c = camera();
@@ -638,5 +638,46 @@ describe('trajectory-line event placement', () => {
     const clipper = { name: 'Europa Clipper', classification: 'spacecraft' } as Body;
     const jupiter = { name: 'Jupiter', classification: 'planet' } as Body;
     expect(selectEventTrajectoryBody([clipper, jupiter], 'Jupiter')).toBe(clipper);
+  });
+});
+
+describe('events on the future lead (#105)', () => {
+  it('traces a span across trail and lead runs without bridging a gap between them', () => {
+    // Trail to the playhead at 14, the lead from there to 18, then a lead
+    // excerpt around a later stretch: a gap from 18 to 30.
+    const run = (times: number[]) => ({
+      times: Float64Array.from(times),
+      positions: Float32Array.from(times.flatMap((t) => [t, 0, 0])),
+      count: times.length,
+    });
+    const path = [run([0, 6, 12, 14]), run([14, 16, 18]), run([30, 34, 38])];
+    const group = new EventMarkers(body, { intervalSamples: 5, path: () => path });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 12, endEt: 36, selected: true })]);
+    const resolve = (_name: string, et: number): [number, number, number] => [et, 0, 0];
+    group.update(1, [0, 0, 0], resolve, [0, 38]);
+    const g = group.spanEmphasis.geometry;
+    const a = (g.attributes.instanceStart as THREE.InterleavedBufferAttribute).data.array;
+    const segments = Array.from({ length: g.instanceCount }, (_, i) => [a[i * 6], a[i * 6 + 3]]);
+    expect(segments.length).toBeGreaterThan(0);
+    // Every drawn segment lies inside one run: nothing spans the 18 → 30 gap.
+    for (const [x0, x1] of segments) expect(x0 >= 30 || x1 <= 18).toBe(true);
+    // Both ends of the event are cut exactly, the far one on the excerpt.
+    expect(Math.min(...segments.flat())).toBeCloseTo(12);
+    expect(Math.max(...segments.flat())).toBeCloseTo(36);
+    // Picking and anchoring follow the lead too.
+    expect(group.anchorAt('e1', 'q1', 32)?.x).toBeCloseTo(32);
+    expect(group.anchorAt('e1', 'q1', 24)).toBeNull();
+    group.dispose();
+  });
+
+  it('asks a line for the lead of the previewed or selected event only', () => {
+    const events = [
+      { id: 'a', queryId: 'q', kind: 'closest-approach', temporality: 'instant', et: 50, bodies: {}, label: '' },
+      { id: 'b', queryId: 'q', kind: 'distance-range', temporality: 'interval', start: 60, end: 90, bodies: {}, label: '' },
+    ] as unknown as GeometryEvent[];
+    expect(eventLeadRequest(events, null)).toBeNull();
+    expect(eventLeadRequest(events, { id: 'a', queryId: 'other' })).toBeNull();
+    expect(eventLeadRequest(events, { id: 'a', queryId: 'q' })).toEqual({ target: { start: 50, end: 50 } });
+    expect(eventLeadRequest(events, { id: 'b', queryId: 'q' })).toEqual({ target: { start: 60, end: 90 } });
   });
 });

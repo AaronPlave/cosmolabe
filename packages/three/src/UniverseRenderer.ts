@@ -187,6 +187,19 @@ export function eventPiecesOnLines<K>(
   return pieces;
 }
 
+/**
+ * The future lead a line should draw for one of its events — the one `ref`
+ * names, if it is among `events` — so the event sits on visible path: reach
+ * its span, or show context around it when it is far ahead.
+ */
+export function eventLeadRequest(
+  events: readonly GeometryEvent[],
+  ref: Pick<GeometryEvent, 'id' | 'queryId'> | null,
+): LeadRequest | null {
+  const event = ref && events.find((e) => e.id === ref.id && e.queryId === ref.queryId);
+  return event ? { target: { start: eventStart(event), end: eventEnd(event) } } : null;
+}
+
 export class UniverseRenderer {
   readonly scene: THREE.Scene;
   readonly renderer: THREE.WebGLRenderer;
@@ -893,8 +906,9 @@ export class UniverseRenderer {
         this.scaleFactor,
         vertexOffset,
         (name, t) => line.positionAt(t, fallbackResolver),
-        line.visibleTimeRange(et),
-        (t) => line.trailAlphaAt(t, et),
+        // Trail and lead: an event ahead of the playhead sits on the lead.
+        line.drawnTimeRange(et),
+        (t) => line.pathAlphaAt(t, et),
         this.camera,
         this.renderer.getPixelRatio(),
         { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
@@ -1303,7 +1317,11 @@ export class UniverseRenderer {
       markers.dispose();
     }
     this.eventMarkerGroups.clear();
-    for (const line of this.trajectoryLines.values()) line.clearColorSegments();
+    for (const line of this.trajectoryLines.values()) {
+      line.clearColorSegments();
+      line.setLeadRequest(UniverseRenderer.EVENT_PREVIEW_LEAD, null);
+      line.setLeadRequest(UniverseRenderer.EVENT_SELECTION_LEAD, null);
+    }
 
     const linesForBody = (name: string): Array<[string, TrajectoryLine]> =>
       [...this.trajectoryLines].filter(([key]) => key === name || key.startsWith(`${name}__arc`));
@@ -1328,9 +1346,10 @@ export class UniverseRenderer {
 
     for (const [lineKey, { body, line, pieces }] of grouped) {
       const lineEvents = pieces.map(({ event }) => event);
-      // The selected-span stroke retraces this line's drawn vertices, including
-      // its live head sample, so it reaches the body while the event is underway.
-      const markers = new EventMarkers(body, { trail: () => line.drawnTrail() });
+      // Span strokes retrace this line's drawn vertices — trail, live head
+      // sample, and future lead — so they reach the body while the event is
+      // underway and follow the lead when it is still ahead.
+      const markers = new EventMarkers(body, { path: () => line.drawnPath() });
       markers.setMarkers(pieces.map(({ event, start, end }) => ({
         id: event.id,
         queryId: event.queryId,
@@ -1378,7 +1397,22 @@ export class UniverseRenderer {
     }
   }
 
+  /** Lead request keys owned by event preview and selection. */
+  static readonly EVENT_PREVIEW_LEAD = 'event-preview';
+  static readonly EVENT_SELECTION_LEAD = 'event-selection';
+
+  /**
+   * Colors event spans on their lines, and asks those same lines for enough
+   * future path to place the previewed and selected events (#105). Doing it
+   * here, where preview and selection already land from every surface — the
+   * list, the timeline, 3D marker hover — keeps one interaction state, and
+   * puts the lead on exactly the line the event's markers are drawn on.
+   */
   private refreshEventLineColors(): void {
+    for (const { line, events } of this.eventMarkerGroups.values()) {
+      line.setLeadRequest(UniverseRenderer.EVENT_PREVIEW_LEAD, eventLeadRequest(events, this._eventPreview));
+      line.setLeadRequest(UniverseRenderer.EVENT_SELECTION_LEAD, eventLeadRequest(events, this._selectedEvent));
+    }
     for (const { line, events } of this.eventMarkerGroups.values()) {
       const intervals = events.filter((event) => event.temporality === 'interval');
       intervals.sort((a, b) => {
@@ -1522,18 +1556,22 @@ export class UniverseRenderer {
 
     // Adaptive trail sampling is densest where the path bends, so chords of a
     // strided walk can cut far from the drawn curve; keep it near full rate.
-    const { positions, count } = line.drawnTrail();
-    const stride = Math.max(1, Math.ceil(count / 12000));
     line.updateMatrixWorld();
-    for (let i = 0; i < count; i = Math.min(i + stride, i === count - 1 ? count : count - 1)) {
-      // Strided chords plus the newest vertex, which is where the craft is.
-      point.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
-        .applyMatrix4(line.matrixWorld).project(this.camera);
-      if (point.z < -1 || point.z > 1) {
-        path.push(NaN, NaN);
-        continue;
+    // The whole drawn path: the trail and any future lead.
+    for (const { positions, count } of line.drawnPath()) {
+      const stride = Math.max(1, Math.ceil(count / 12000));
+      for (let i = 0; i < count; i = Math.min(i + stride, i === count - 1 ? count : count - 1)) {
+        // Strided chords plus the newest vertex, which is where the craft is.
+        point.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
+          .applyMatrix4(line.matrixWorld).project(this.camera);
+        if (point.z < -1 || point.z > 1) {
+          path.push(NaN, NaN);
+          continue;
+        }
+        path.push((point.x + 1) * width / 2, (1 - point.y) * height / 2);
       }
-      path.push((point.x + 1) * width / 2, (1 - point.y) * height / 2);
+      // Runs are separate strokes; never join one's end to the next's start.
+      path.push(NaN, NaN);
     }
 
     const discs: Array<{ x: number; y: number; r: number }> = [];

@@ -183,6 +183,17 @@ export interface DrawnLead {
   readonly windows: readonly LeadWindow[];
 }
 
+/**
+ * One unbroken run of the lead as a time-ascending polyline, in the same shape
+ * as the trail's drawn polyline, so annotation code can treat trail and lead
+ * as one time-tagged path. Views into buffers reused every frame.
+ */
+export interface DrawnLeadRun {
+  readonly positions: Float32Array;
+  readonly times: Float64Array;
+  readonly count: number;
+}
+
 /** What the owning line hands the lead each frame. */
 export interface LeadFrame {
   et: number;
@@ -224,6 +235,10 @@ export class TrajectoryLead {
   private times: Float64Array;
   private capacity = 0;
   private count = 0;
+  // The same vertices as polyline runs (no duplicated segment endpoints).
+  private runPositions: Float32Array = new Float32Array(0);
+  private runTimes: Float64Array = new Float64Array(0);
+  private runs: DrawnLeadRun[] = [];
 
   private readonly requests = new Map<string, LeadRequest>();
   private policy: LeadPolicy;
@@ -309,7 +324,27 @@ export class TrajectoryLead {
   hide(): void {
     this.object.visible = false;
     this.count = 0;
+    this.runs = [];
     this.object.geometry.setDrawRange(0, 0);
+  }
+
+  /** The lead drawn this frame as unbroken, time-ascending runs. */
+  drawnRuns(): readonly DrawnLeadRun[] {
+    return this.object.visible ? this.runs : [];
+  }
+
+  /**
+   * Brightness the lead is drawn with at `t` (0 where it draws nothing), so
+   * an annotation on the future path can match it the way trail annotations
+   * match the trail's fade.
+   */
+  alphaAt(t: number): number {
+    if (!this.object.visible) return 0;
+    const w = this.windows.find((win) => t >= win.start - EPS && t <= win.end + EPS);
+    if (!w) return 0;
+    const targets: LeadSpan[] = [];
+    for (const r of this.requests.values()) if (r.target) targets.push(r.target);
+    return leadFade(t, w, targets);
   }
 
   drawnLead(): DrawnLead {
@@ -351,6 +386,10 @@ export class TrajectoryLead {
 
     const s = frame.scaleFactor;
     let n = 0;
+    // Polyline form of the same vertices: `rn` vertices, split into runs.
+    let rn = 0;
+    const runStarts: number[] = [];
+    let runOpen = false;
     for (const w of this.windows) {
       const src = this.sampled.find(
         (sw) => sw.start <= w.start + EPS && sw.end >= w.end - EPS,
@@ -370,12 +409,19 @@ export class TrajectoryLead {
         if (isNaN(x)) {
           // Coverage gap: end the run, never bridge it.
           prevT = NaN;
+          runOpen = false;
           return;
         }
         if (!isNaN(prevT) && t > prevT) {
           this.ensureCapacity(n + 2);
           this.writeVertex(n++, prevT, px, py, pz, frame, w, targets, period, anchor, s);
           this.writeVertex(n++, t, x, y, z, frame, w, targets, period, anchor, s);
+          if (!runOpen) {
+            runStarts.push(rn);
+            this.copyRunVertex(rn++, n - 2);
+            runOpen = true;
+          }
+          this.copyRunVertex(rn++, n - 1);
         }
         prevT = t;
         px = x;
@@ -401,9 +447,18 @@ export class TrajectoryLead {
       }
       const p = interpolate(src, w.end);
       emit(w.end, p[0], p[1], p[2]);
+      runOpen = false;
     }
 
     this.count = n;
+    this.runs = runStarts.map((start, i) => {
+      const end = i + 1 < runStarts.length ? runStarts[i + 1] : rn;
+      return {
+        positions: this.runPositions.subarray(start * 3, end * 3),
+        times: this.runTimes.subarray(start, end),
+        count: end - start,
+      };
+    });
     const geometry = this.object.geometry;
     geometry.setDrawRange(0, n);
     geometry.attributes.position.needsUpdate = true;
@@ -511,6 +566,14 @@ export class TrajectoryLead {
     return { start, end, times, xyz };
   }
 
+  /** Append segment vertex `from` to the polyline-run buffers at `to`. */
+  private copyRunVertex(to: number, from: number): void {
+    this.runPositions[to * 3] = this.positions[from * 3];
+    this.runPositions[to * 3 + 1] = this.positions[from * 3 + 1];
+    this.runPositions[to * 3 + 2] = this.positions[from * 3 + 2];
+    this.runTimes[to] = this.times[from];
+  }
+
   private ensureCapacity(vertices: number): void {
     if (vertices <= this.capacity) return;
     const cap = Math.max(vertices, this.capacity * 2);
@@ -522,6 +585,13 @@ export class TrajectoryLead {
     colors.set(this.colors);
     distances.set(this.distances);
     times.set(this.times);
+    // Runs never hold more vertices than segments do.
+    const runPositions = new Float32Array(cap * 3);
+    const runTimes = new Float64Array(cap);
+    runPositions.set(this.runPositions);
+    runTimes.set(this.runTimes);
+    this.runPositions = runPositions;
+    this.runTimes = runTimes;
     this.positions = positions;
     this.colors = colors;
     this.distances = distances;
