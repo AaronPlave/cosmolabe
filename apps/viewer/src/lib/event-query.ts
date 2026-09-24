@@ -392,14 +392,16 @@ export function eventContainsTime(event: GeometryEvent, et: number): boolean {
 export function activeEventAtTime(
   events: readonly GeometryEvent[],
   et: number,
-  preferredId?: string | null,
+  preferred?: Pick<GeometryEvent, 'id' | 'queryId'> | null,
 ): GeometryEvent | undefined {
   const active = events.filter((event) => eventContainsTime(event, et));
-  const preferred = active.find((event) => event.id === preferredId);
-  if (preferred) return preferred;
+  // Result ids recur across searches: a selection is its id *and* query.
+  const match = preferred && active.find((event) => event.id === preferred.id && event.queryId === preferred.queryId);
+  if (match) return match;
   return active.sort((a, b) =>
     eventDuration(a) - eventDuration(b)
     || compareEvents(a, b)
     || a.id.localeCompare(b.id)
+    || a.queryId.localeCompare(b.queryId)
   )[0];
 }

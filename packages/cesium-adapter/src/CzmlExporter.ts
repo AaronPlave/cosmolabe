@@ -1,6 +1,6 @@
-import type { Universe, Body } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, type Universe, type Body } from '@cosmolabe/core';
 import { etToIso, etIntervalToIso } from './TimeConversions.js';
-import { positionForCesium, quaternionEclipticToEquatorial } from './CoordinateTransforms.js';
+import { positionForCesium } from './CoordinateTransforms.js';
 import { getModelInfo, type CesiumModelInfo } from './ModelAdapter.js';
 
 /** Options for CZML export. */
@@ -106,7 +106,7 @@ function exportBody(
 
   // Orientation (sampled)
   if (body.rotation) {
-    const orientations = sampleOrientations(body, startEt, endEt, interval);
+    const orientations = sampleOrientations(universe, body, startEt, endEt, interval);
     if (orientations) {
       packet.orientation = {
         epoch: etToIso(startEt),
@@ -197,12 +197,12 @@ function samplePositions(
 
     if (isNaN(pos[0])) continue;
 
-    // If body's trajectory is already in equatorial frame (e.g. TLE/TEME),
-    // just convert km→meters. Otherwise, rotate from ecliptic to equatorial.
-    const isEquatorial = body.trajectoryFrame === 'equatorial';
-    const cesiumPos: [number, number, number] = isEquatorial
-      ? [pos[0] * 1000, pos[1] * 1000, pos[2] * 1000]
-      : positionForCesium(pos);
+    // `absolutePositionOf` returns the scene frame (ECLIPJ2000) whatever the
+    // body's own trajectory frame, so every sample rotates ecliptic → ICRF.
+    // (Keying this on an "equatorial" trajectory frame put TLE bodies into
+    // ICRF unrotated, ~23.44° off, once the parent chain reached an
+    // ecliptic root.)
+    const cesiumPos: [number, number, number] = positionForCesium(pos);
     samples.push(et - startEt, cesiumPos[0], cesiumPos[1], cesiumPos[2]);
     hasValidSample = true;
   }
@@ -216,6 +216,7 @@ function samplePositions(
  * Note: CZML quaternion order is (x, y, z, w), not Cosmolabe's (w, x, y, z).
  */
 function sampleOrientations(
+  universe: Universe,
   body: Body,
   startEt: number,
   endEt: number,
@@ -228,11 +229,12 @@ function sampleOrientations(
     const q = body.rotationAt(et);
     if (!q || isNaN(q[0])) continue;
 
-    // For ecliptic-frame bodies, rotate quaternion to equatorial.
-    // For equatorial-frame bodies (TLE), use as-is.
-    const outQ = body.trajectoryFrame === 'equatorial'
-      ? q
-      : quaternionEclipticToEquatorial(q);
+    // Cesium orients an entity relative to Earth-fixed axes (Entity.orientation
+    // is "in respect to Earth-fixed-Earth-centered"), so the sample is the
+    // body → ITRF rotation. `q` is source → body; the one composition helper
+    // conjugates it and applies source → ITRF through the universe's registry
+    // (SPICE ITRF93 when loaded, else the analytical Earth rotation).
+    const outQ = composeBodyToWorldQuat(q, body.rotation!.sourceFrame, 'ITRF', et, universe.frames);
 
     // CZML quaternion order: x, y, z, w (not w, x, y, z)
     samples.push(et - startEt, outQ[1], outQ[2], outQ[3], outQ[0]);

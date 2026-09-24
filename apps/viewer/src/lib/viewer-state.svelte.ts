@@ -321,10 +321,38 @@ function syncCameraState() {
 
 // ── Renderer binding ──
 
+/**
+ * Canvas-relative boxes of the shell chrome marked `data-scene-occluder`
+ * (floating panels, rail, timeline, view context), so scene annotations are
+ * placed where they can be seen. Cached briefly: it is read every frame while
+ * a callout is up, and chrome moves only on drag or resize.
+ */
+function sceneOccluderRects(canvas: () => HTMLCanvasElement): () => Array<{ x0: number; y0: number; x1: number; y1: number }> {
+  let cached: Array<{ x0: number; y0: number; x1: number; y1: number }> = [];
+  let cachedAt = -Infinity;
+  return () => {
+    const now = performance.now();
+    if (now - cachedAt < 250) return cached;
+    cachedAt = now;
+    const origin = canvas().getBoundingClientRect();
+    cached = [...document.querySelectorAll<HTMLElement>('[data-scene-occluder]')]
+      .map((element) => element.getBoundingClientRect())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+      .map((rect) => ({
+        x0: rect.left - origin.left,
+        y0: rect.top - origin.top,
+        x1: rect.right - origin.left,
+        y1: rect.bottom - origin.top,
+      }));
+    return cached;
+  };
+}
+
 export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   unbindRenderer();
   _renderer = renderer;
   _universe = universe;
+  renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
 
   // Restore persisted display preferences
   const prefs = loadPrefs();

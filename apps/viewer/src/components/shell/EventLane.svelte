@@ -62,7 +62,11 @@
 
   // Readout: the event under the ghost (or the playhead), else the count.
   const readoutEt = $derived(timeline.hoverEt ?? vs.et);
-  const current = $derived(item.visible ? activeEventAtTime(events, readoutEt, ef.selectedId) : undefined);
+  const current = $derived(
+    item.visible
+      ? activeEventAtTime(events, readoutEt, ef.selectedId ? { id: ef.selectedId, queryId: ef.configuredId ?? '' } : null)
+      : undefined,
+  );
   const readout = $derived(current ? current.label : `${events.length} ${events.length === 1 ? 'event' : 'events'}`);
 
   function onMarkClick(event: GeometryEvent) {
@@ -107,9 +111,10 @@
           type="button"
           class="lane-mark"
           class:interval={mark.end > mark.start}
-          class:selected={ef.selectedId === mark.event.id}
+          class:selected={ef.selectedId === mark.event.id && ef.configuredId === mark.event.queryId}
           class:active={eventContainsTime(mark.event, vs.et)}
-          class:previewed={timeline.previewEventId === eventKey(mark.event)}
+          class:previewed={timeline.previewEventId === eventKey(mark.event)
+            || (ef.previewId === mark.event.id && ef.previewQueryId === mark.event.queryId)}
           class:partial={mark.event.state === 'partial'}
           class:full={mark.event.state === 'full'}
           class:annular={mark.event.state === 'annular'}

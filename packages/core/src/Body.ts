@@ -1,7 +1,13 @@
 import type { Vec3 } from './spice-injection.js';
 import type { CartesianState, Trajectory } from './trajectories/Trajectory.js';
-import { CompositeTrajectory } from './trajectories/CompositeTrajectory.js';
+import { CompositeTrajectory, type TrajectoryArc } from './trajectories/CompositeTrajectory.js';
 import type { RotationModel, Quaternion } from './rotations/RotationModel.js';
+import { BODY_FIXED, DEFAULT_FRAMES, WORLD_FRAME } from './frames/FrameRegistry.js';
+
+/** The coarse three-bucket classification `trajectoryFrame` used to be. Kept
+ *  as a derived, read-only view of `Body.frame` for consumers that only need
+ *  to know "ecliptic, equatorial-ish inertial, or rotating with a body". */
+export type LegacyTrajectoryFrame = 'ecliptic' | 'equatorial' | 'body-fixed';
 
 /** Per-body trajectory plot configuration from Cosmographia's `trajectoryPlot` JSON field */
 export interface TrajectoryPlotConfig {
@@ -37,8 +43,29 @@ export interface BodyProperties {
   geometryType?: string;   // 'Globe' | 'Mesh' | 'Axes' | 'Sensor' | etc.
   geometryData?: Record<string, unknown>;
   trajectoryPlot?: TrajectoryPlotConfig;
-  /** Reference frame of the trajectory output. 'ecliptic' (default) or 'equatorial' (TEME/J2000 equatorial). */
-  trajectoryFrame?: 'ecliptic' | 'equatorial' | 'body-fixed';
+  /** Frame the trajectory output is expressed in, by name: any `FrameRegistry`
+   *  frame (`ECLIPJ2000`, `EME2000`/`J2000`, `ICRF`, `TEME`, `ITRF`,
+   *  `IAU_<BODY>`, `BODY_FIXED`, a SPICE or declared frame). The legacy
+   *  spellings `'ecliptic'`, `'equatorial'` and `'body-fixed'` are accepted and
+   *  mean ECLIPJ2000, EME2000 and BODY_FIXED. A trajectory that knows its own
+   *  frame (`Trajectory.frame`, e.g. TLE → TEME) overrides this. Defaults to
+   *  ECLIPJ2000. */
+  trajectoryFrame?: string;
+}
+
+function canonicalFrame(name: string): string {
+  return DEFAULT_FRAMES.canonicalName(name);
+}
+
+/** The legacy bucket of a frame name. Unknown names (SPICE frames the default
+ *  registry cannot see) count as inertial, which is what they were before. */
+export function legacyBucket(frame: string): LegacyTrajectoryFrame {
+  const canonical = canonicalFrame(frame);
+  if (canonical === BODY_FIXED) return 'body-fixed';
+  if (canonical === WORLD_FRAME) return 'ecliptic';
+  const def = DEFAULT_FRAMES.get(canonical);
+  if (def?.kind === 'body-fixed') return 'body-fixed';
+  return 'equatorial';
 }
 
 export type BodyChangeField = 'trajectory' | 'rotation';
@@ -59,7 +86,9 @@ export class Body {
   readonly geometryType?: string;
   readonly geometryData?: Record<string, unknown>;
   readonly trajectoryPlot?: TrajectoryPlotConfig;
-  readonly trajectoryFrame?: 'ecliptic' | 'equatorial' | 'body-fixed';
+  /** The frame the body's own properties declared, canonicalized; undefined
+   *  when none was given. `frame` is what to use. */
+  readonly declaredFrame?: string;
   readonly children: Body[] = [];
 
   /** Called when trajectory or rotation is changed at runtime. Set by Universe. */
@@ -80,7 +109,43 @@ export class Body {
     this.geometryType = props.geometryType;
     this.geometryData = props.geometryData;
     this.trajectoryPlot = props.trajectoryPlot;
-    this.trajectoryFrame = props.trajectoryFrame;
+    this.declaredFrame = props.trajectoryFrame !== undefined
+      ? canonicalFrame(props.trajectoryFrame)
+      : undefined;
+  }
+
+  /** Frame `stateAt(et).position` is expressed in, by name. The trajectory's
+   *  intrinsic frame wins (SGP4 output is TEME whatever the catalog says), then
+   *  the declared frame, then ECLIPJ2000. For a `CompositeTrajectory` this is
+   *  the body-level default; `frameAt(et)` gives the active arc's. May be
+   *  `BODY_FIXED`: fixed to the body this one is currently relative to. */
+  get frame(): string {
+    const intrinsic = this._trajectory.frame;
+    return intrinsic !== undefined ? canonicalFrame(intrinsic) : (this.declaredFrame ?? WORLD_FRAME);
+  }
+
+  /** The frame of `stateAt(et)`: the active arc's frame for a composite
+   *  trajectory (arc declaration, then the arc trajectory's intrinsic frame,
+   *  then the body's), `frame` otherwise. */
+  frameAt(et: number): string {
+    if (this._trajectory instanceof CompositeTrajectory) {
+      return this.arcFrame(this._trajectory.arcAt(et));
+    }
+    return this.frame;
+  }
+
+  /** The frame one arc of this body's composite trajectory is expressed in. */
+  arcFrame(arc: TrajectoryArc): string {
+    const f = arc.trajectory.frame ?? arc.frame;
+    return f !== undefined ? canonicalFrame(f) : (this.declaredFrame ?? WORLD_FRAME);
+  }
+
+  /** @deprecated The three-bucket view of `frame`: `'body-fixed'` for frames
+   *  that rotate with a body, `'ecliptic'` for ECLIPJ2000, `'equatorial'` for
+   *  every other inertial frame (EME2000, ICRF, TEME, …). It cannot tell those
+   *  apart; read `frame` / `frameAt(et)` instead. */
+  get trajectoryFrame(): LegacyTrajectoryFrame {
+    return legacyBucket(this.frame);
   }
 
   get trajectory(): Trajectory { return this._trajectory; }

@@ -28,12 +28,15 @@
     eventKey, eventHoverTargets, hoverTarget, type ProfileEventTick,
   } from '../../lib/timeline.svelte';
   import { eventEnd, eventStart } from '@cosmolabe/core';
+  import { untrack } from 'svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
   import { shell, setTimelineDepth } from '../../lib/shell.svelte';
   import { formatDuration } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
-  import { ef, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries } from '../../lib/event-finder.svelte';
+  import {
+    ef, previewEvent, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries,
+  } from '../../lib/event-finder.svelte';
   import { visibleTimelineEvents } from '../../lib/analysis.svelte';
   import { eventCalloutLines, eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
   import {
@@ -107,13 +110,16 @@
           id: eventKey(event),
           fraction: span.start,
           endFraction: span.end,
-          selected: ef.selectedId === event.id,
+          selected: ef.selectedId === event.id && ef.configuredId === event.queryId,
+          preview: ef.previewId === event.id && ef.previewQueryId === event.queryId,
           active: eventContainsTime(event, vs.et),
           title: event.label,
           kind: event.kind,
           state: event.state,
           previewed: timeline.previewEventId === eventKey(event),
           onSelect: () => selectEvent(event),
+          onPreview: () => previewEvent(event),
+          onPreviewEnd: () => previewEvent(null),
         };
       })
       .filter((marker) => marker != null),
@@ -125,9 +131,11 @@
   let eventLanes = $derived(configuredEventQueries().filter((item) => item.enabled));
 
   // The same results, as the profile rows draw them.
+  // A preview from elsewhere (the Event Finder's list, the scene) emphasises
+  // them as selection does.
   let profileTicks = $derived(
     eventMarkers.map((m): ProfileEventTick => ({
-      id: m.id, fraction: m.fraction, endFraction: m.endFraction, selected: m.selected, active: m.active,
+      id: m.id, fraction: m.fraction, endFraction: m.endFraction, selected: m.selected || m.preview, active: m.active,
     })),
   );
 
@@ -186,19 +194,42 @@
   // is the scene callouts' (`eventCalloutLines`), so the timeline and the 3D
   // view name events in one language.
   let rootEl: HTMLDivElement | undefined = $state();
-  const previewEvent = $derived(
+  const hoveredEvent = $derived(
     timeline.previewEventId == null
       ? undefined
       : visibleTimelineEvents().find((event) => eventKey(event) === timeline.previewEventId),
   );
   const callout = $derived.by(() => {
-    if (!previewEvent || !timeline.anchor || !rootEl) return null;
+    if (!hoveredEvent || !timeline.anchor || !rootEl) return null;
     const root = rootEl.getBoundingClientRect();
-    const lines = eventCalloutLines(previewEvent, { utc: etToUtcString, selected: true });
+    const lines = eventCalloutLines(hoveredEvent, { utc: etToUtcString, selected: true });
     // Kept inside the dock horizontally; it may rise above it into the scene.
     const half = 110;
     const x = Math.max(half, Math.min(root.width - half, timeline.anchor.x - root.left));
-    return { lines, x, y: timeline.anchor.y - root.top, kind: previewEvent.kind, state: previewEvent.state };
+    return { lines, x, y: timeline.anchor.y - root.top, kind: hoveredEvent.kind, state: hoveredEvent.state };
+  });
+
+  // Hover = preview across linked surfaces: an event hovered on any timeline
+  // row is previewed in the scene through the Event Finder's own
+  // `previewEvent`, the same call the track's marks make. Only changes are
+  // pushed, and leaving clears only the preview this set, so a preview from
+  // the Event Finder's list is not cleared by an unrelated timeline hover.
+  let drivenPreview: string | null = null;
+  $effect(() => {
+    const event = hoveredEvent;
+    const key = event ? eventKey(event) : null;
+    untrack(() => {
+      if (key === drivenPreview) return;
+      if (event) {
+        previewEvent(event);
+      } else if (
+        drivenPreview != null && ef.previewId != null
+        && eventKey({ id: ef.previewId, queryId: ef.previewQueryId ?? '' }) === drivenPreview
+      ) {
+        previewEvent(null);
+      }
+      drivenPreview = key;
+    });
   });
 
   const hoverFraction = $derived(
@@ -220,7 +251,9 @@
     setScrubberWindow(start - pad, end + pad);
   }
   const selectedEvent = $derived(
-    ef.selectedId == null ? undefined : visibleTimelineEvents().find((event) => event.id === ef.selectedId),
+    ef.selectedId == null
+      ? undefined
+      : visibleTimelineEvents().find((event) => event.id === ef.selectedId && event.queryId === ef.configuredId),
   );
   const fitOptions = $derived.by(() => {
     const events = visibleTimelineEvents();
@@ -317,6 +350,7 @@
      chrome rather than two stacked boxes. -->
 <div
   bind:this={rootEl}
+  data-scene-occluder
   bind:clientHeight={height}
   class="timeline flex flex-col gap-0.5"
   class:pointer-events-auto={!inline}

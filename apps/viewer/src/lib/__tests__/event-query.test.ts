@@ -10,6 +10,7 @@ import {
   sortEvents,
   sortMetricLabel,
   eventSummary,
+  eventCalloutLines,
   faultMessage,
   formForKind,
   formatKm,
@@ -285,7 +286,84 @@ describe('timeline placement', () => {
     expect(eventContainsTime(wide, 600)).toBe(true);
     expect(eventContainsTime(wide, 601)).toBe(false);
     expect(activeEventAtTime([wide, narrow], 250)?.id).toBe('narrow');
-    expect(activeEventAtTime([wide, narrow], 250, 'wide')?.id).toBe('wide');
+    expect(activeEventAtTime([wide, narrow], 250, { id: 'wide', queryId: wide.queryId })?.id).toBe('wide');
     expect(activeEventAtTime([wide, narrow], 700)).toBeUndefined();
+  });
+
+  it('matches the preferred event by id and query, since ids recur across searches', () => {
+    // Two configured searches whose first results share the positional id.
+    const mine: GeometryEvent = {
+      id: 'r0', queryId: 'q-mine', kind: 'occultation', temporality: 'interval',
+      start: 0, end: 1000, bodies: {}, label: 'mine',
+    };
+    const other: GeometryEvent = { ...mine, queryId: 'q-other', start: 100, end: 200, label: 'other' };
+    expect(activeEventAtTime([other, mine], 150, { id: 'r0', queryId: 'q-mine' })?.label).toBe('mine');
+    expect(activeEventAtTime([mine, other], 150, { id: 'r0', queryId: 'q-other' })?.label).toBe('other');
+    // Unselected ties still pick the shortest, whichever query it came from.
+    expect(activeEventAtTime([mine, other], 150)?.label).toBe('other');
+  });
+});
+
+describe('scene callout copy', () => {
+  // Stand-in for etToUtcString: seconds since epoch as a fixed UTC string.
+  const utc = (et: number) => `2031-05-27 12:${String(Math.floor(et / 60)).padStart(2, '0')}:${String(et % 60).padStart(2, '0')} UTC`;
+
+  it('reads as a structured annotation, not a sentence, for a closest approach', () => {
+    const event: GeometryEvent = {
+      id: 'a', queryId: 'q', kind: 'closest-approach', temporality: 'instant', et: 1688,
+      bodies: { observer: 'Europa Clipper', target: 'Europa' },
+      label: 'Europa closest approach from Europa Clipper',
+      metrics: [{ key: 'range', label: 'Range', value: 303_252.98, unit: 'km', precision: 1 }],
+    };
+    expect(eventCalloutLines(event, { utc })).toEqual([
+      'Closest approach · Europa',
+      '303.3K km · 2031-05-27 12:28 UTC',
+    ]);
+    // The marker is on the observer's own trajectory: no "Observer:" line.
+    expect(eventCalloutLines(event, { utc, selected: true })).toEqual([
+      'Closest approach · Europa',
+      '303.3K km · 2031-05-27 12:28 UTC',
+    ]);
+  });
+
+  it('names eclipse boundaries and spans without restating the relationship as prose', () => {
+    const event: GeometryEvent = {
+      id: 'e', queryId: 'q', kind: 'occultation', temporality: 'interval', start: 3456, end: 3894,
+      state: 'full', bodies: { observer: 'Europa Clipper', front: 'Europa', back: 'SUN' },
+      label: 'Full eclipse: Europa in front of SUN',
+      metrics: [{ key: 'duration', label: 'Duration', value: 438, unit: 's', precision: 0 }],
+    };
+    expect(eventCalloutLines(event, { utc, boundary: 'start' })).toEqual([
+      'Full eclipse begins', '2031-05-27 12:57:36 UTC',
+    ]);
+    expect(eventCalloutLines(event, { utc, boundary: 'end' })[0]).toBe('Full eclipse ends');
+    expect(eventCalloutLines(event, { utc })).toEqual(['Full eclipse', 'Duration 7.3 min']);
+    expect(eventCalloutLines(event, { utc, selected: true })).toEqual([
+      'Full eclipse', 'Duration 7.3 min', 'Europa occults SUN',
+    ]);
+  });
+
+  it('lifts the relation out of a distance-range label', () => {
+    const event: GeometryEvent = {
+      id: 'r', queryId: 'q', kind: 'distance-range', temporality: 'interval', start: 0, end: 600,
+      bodies: { observer: 'Europa Clipper', target: 'Europa' },
+      label: 'Europa within 10.0K km of Europa Clipper',
+      metrics: [
+        { key: 'threshold', label: 'Threshold', value: 10_000, unit: 'km' },
+        { key: 'duration', label: 'Duration', value: 600, unit: 's' },
+        { key: 'minRange', label: 'Min range', value: 1_600, unit: 'km' },
+      ],
+    };
+    expect(eventCalloutLines(event, { utc })).toEqual([
+      'Within 10.0K km · Europa', 'Min range 1.6K km · Duration 10.0 min',
+    ]);
+    // Selection adds the window, dropping what the end shares with the start.
+    expect(eventCalloutLines(event, { utc, selected: true })[2]).toBe('2031-05-27 12:00 → 12:10 UTC');
+    const days = (et: number) =>
+      ({ 0: '2026-05-13 04:00:12 UTC', 1e5: '2026-05-18 08:00:40 UTC', 1e7: '2027-01-02 00:00:00 UTC' })[et]!;
+    expect(eventCalloutLines({ ...event, start: 0, end: 1e5 }, { utc: days, selected: true })[2])
+      .toBe('2026-05-13 04:00 → 05-18 08:00 UTC');
+    expect(eventCalloutLines({ ...event, start: 0, end: 1e7 }, { utc: days, selected: true })[2])
+      .toBe('2026-05-13 04:00 → 2027-01-02 00:00 UTC');
   });
 });
