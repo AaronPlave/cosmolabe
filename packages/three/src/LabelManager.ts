@@ -346,7 +346,7 @@ export class LabelManager {
       // each frame and take the max radial distance from the body center.
       let silhouettePx = 0;
       const isGlobe = bm.body.geometryType === 'Globe';
-      const isMesh = bm.body.geometryType === 'Mesh' || bm.body.geometryType === 'Dsk';
+      const isMesh = bm.body.geometryType === 'Mesh' || bm.body.geometryType === 'Dsk' || bm.body.geometryType === 'TimeSwitched';
       if (isGlobe) {
         silhouettePx = (bm.displayRadius * bm.scaleFactor) / Math.max(worldPerPx, 1e-9);
       } else if (isMesh && bm.modelLocalBox && bm.modelContainer && bm.isModelVisible) {

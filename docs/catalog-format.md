@@ -171,7 +171,7 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 | `Axes` | Reference frame axes | `length` |
 | `KeplerianSwarm` | Many bodies sharing a parent (asteroid belt, debris cloud) | `bodies: []` |
 | `ParticleSystem` | Plumes, exhaust, dust | (renderer-specific) |
-| `TimeSwitched` | Different geometry at different times (Cosmographia; **not implemented yet**) | `arcs: [{ startTime, endTime, geometry }]` |
+| `TimeSwitched` | Different geometry at different times (Cosmographia) | `sequence: [{ startTime, endTime, geometry }]` — see [TimeSwitched](#timeswitched) |
 
 ### Model formats
 
@@ -230,6 +230,35 @@ ellipsoid-plus-heightfield cannot represent.
   the body's `class`.
 
 The viewer also accepts a dropped `.bds` alongside a catalog that names it.
+
+Cosmographia's own spelling, `{ "type": "DSK", "kernel": "..." }`, is accepted
+and means the same thing, so ESA's and NAIF's published Cosmographia
+configurations load unchanged.
+
+### `TimeSwitched`
+
+One shape per time window, as in Cosmographia: a spacecraft whose configuration
+changes during the mission. Rosetta carries Philae on its bus until separation
+and flies without it afterwards:
+
+```json
+"geometry": {
+  "type": "TimeSwitched",
+  "sequence": [
+    { "startTime": "2004-03-02T09:25:18Z", "endTime": "2014-11-12T08:35:15Z",
+      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_BUS_LR_V02.BDS" } },
+    { "startTime": "2014-11-12T08:35:15Z",
+      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_BUS_V01.BDS" } }
+  ]
+}
+```
+
+- Each entry's `geometry` is a `Dsk` or a `Mesh`. A Mesh entry takes its own
+  `size`, `meshRotation` and `meshOffset`; a Dsk entry, as always, none.
+- Windows are start-inclusive and end-exclusive. A missing `endTime` runs to the
+  next entry's `startTime` (the last to forever); a missing `startTime` reaches
+  back to the beginning. Outside every window the body draws no shape.
+- An entry that fails to load is reported and left out; the others still draw.
 
 ### `Globe.terrain`
 

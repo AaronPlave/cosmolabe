@@ -67,13 +67,21 @@ describe('absolutizeCatalogAssets', () => {
           geometry: { type: 'Dsk', source: '../shapes/comet.bds' },
         },
         {
+          // Cosmographia's spelling, inside a TimeSwitched sequence.
+          name: 'Orbiter',
+          geometry: {
+            type: 'TimeSwitched',
+            sequence: [{ startTime: '2004-03-02', geometry: { type: 'DSK', kernel: '../shapes/bus.bds' } }],
+          },
+        },
+        {
           name: 'Tiled',
           geometry: { type: 'Globe', radius: 1, baseMap: { type: 'NameTemplate', template: 'tex/t_%level_%column_%row.dds' } },
         },
       ],
     };
     absolutizeCatalogAssets(catalog, url);
-    const [sc, planet, comet, tiled] = catalog.items as any[];
+    const [sc, planet, comet, orbiter, tiled] = catalog.items as any[];
 
     expect(sc.geometry.source).toBe('https://mission.example/catalogs/models/spacecraft.glb');
     // Trajectory data stays as written: the viewer pre-fetches it keyed by that path.
@@ -89,6 +97,7 @@ describe('absolutizeCatalogAssets', () => {
     expect(planet.geometry.surfaceTiles[0].url).toBe('https://mission.example/catalogs/scenes/site/tileset.json');
     expect(planet.items[0].geometry.texture).toBe('https://mission.example/catalogs/textures/rings.png');
     expect(comet.geometry.source).toBe('https://mission.example/catalogs/shapes/comet.bds');
+    expect(orbiter.geometry.sequence[0].geometry.kernel).toBe('https://mission.example/catalogs/shapes/bus.bds');
     expect(tiled.geometry.baseMap.template).toBe('https://mission.example/catalogs/scenes/tex/t_%level_%column_%row.dds');
   });
 });
@@ -99,6 +108,10 @@ describe('catalogsUseDsk', () => {
     const nested = { items: [{ name: 'B', items: [{ name: 'C', geometry: { type: 'Dsk', source: 'c.bds' } }] }] };
     expect(catalogsUseDsk([plain])).toBe(false);
     expect(catalogsUseDsk([plain, nested])).toBe(true);
+  });
+
+  it('recognises Cosmographia\'s { type: "DSK", kernel } spelling', () => {
+    expect(catalogsUseDsk([{ items: [{ name: 'E', geometry: { type: 'DSK', kernel: 'e.bds' } }] }])).toBe(true);
   });
 
   it('ignores a Dsk with no source, which the renderer cannot load either', () => {
@@ -128,6 +141,7 @@ describe('the repository catalogs', () => {
       const o = node as Record<string, unknown>;
       const take = (v: unknown) => typeof v === 'string' && out.push(v);
       if (o.type === 'Mesh' || o.type === 'Dsk') take(o.source);
+      if (typeof o.type === 'string' && o.type.toUpperCase() === 'DSK') take(o.kernel);
       if (o.type === 'Globe') ['baseMap', 'normalMap', 'displacementMap', 'bumpMap'].forEach((k) => take(o[k]));
       if (o.type === 'Rings') take(o.texture);
       Object.values(o).forEach((v) => assetUrls(v, out));

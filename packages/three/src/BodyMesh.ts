@@ -356,25 +356,7 @@ export class BodyMesh extends THREE.Object3D {
   async loadDsk(url: string, scaleFactor: number, provider: DskShapeProvider, sourcePath?: string): Promise<void> {
     if (this.loadedModel) return;
     this.loadedModel = true;
-
-    const name = (sourcePath ?? url).split(/[?#]/)[0]!.split('/').pop()!.replace(/\.gz$/i, '') || 'shape.bds';
-    const load = (async () => {
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
-      const bytes = await gunzipIfNeeded(new Uint8Array(await resp.arrayBuffer()));
-      const shape = provider.readDsk(name, bytes);
-      this.checkDskFrame(name, shape.centerId, shape.frame);
-      const material = new THREE.MeshStandardMaterial({
-        color: this.dskColor(),
-        roughness: 1,
-        metalness: 0,
-      });
-      const mesh = new THREE.Mesh(dskToBufferGeometry(shape), material);
-      mesh.name = `${this.body.name} DSK`;
-      const group = new THREE.Group();
-      group.add(mesh);
-      return group;
-    })();
+    const load = this.buildDskObject(url, provider, sourcePath, this.body.geometryData ?? {});
     this.assets?.track({ kind: 'model', owner: this.body.name, role: 'model:dsk', url }, load);
     let object: THREE.Object3D;
     try {
@@ -386,8 +368,95 @@ export class BodyMesh extends THREE.Object3D {
     this.installModel(object, scaleFactor, true);
   }
 
-  private dskColor(): THREE.ColorRepresentation {
-    const c = this.body.geometryData?.color;
+  /** Fetch, read and mesh one DSK; `geo` is the geometry spec it came from (for `color`). */
+  private async buildDskObject(
+    url: string,
+    provider: DskShapeProvider,
+    sourcePath: string | undefined,
+    geo: Record<string, unknown>,
+  ): Promise<THREE.Object3D> {
+    const name = (sourcePath ?? url).split(/[?#]/)[0]!.split('/').pop()!.replace(/\.gz$/i, '') || 'shape.bds';
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+    const bytes = await gunzipIfNeeded(new Uint8Array(await resp.arrayBuffer()));
+    const shape = provider.readDsk(name, bytes);
+    this.checkDskFrame(name, shape.centerId, shape.frame);
+    const material = new THREE.MeshStandardMaterial({ color: this.dskColor(geo), roughness: 1, metalness: 0 });
+    const mesh = new THREE.Mesh(dskToBufferGeometry(shape), material);
+    mesh.name = `${this.body.name} DSK`;
+    const group = new THREE.Group();
+    group.add(mesh);
+    return group;
+  }
+
+  /** The TimeSwitched entries, when the body's geometry is one; see `applyTimeSwitch`. */
+  private timeSwitch: { startEt: number; endEt: number; object: THREE.Object3D }[] | null = null;
+
+  /**
+   * Load a `TimeSwitched` geometry: one shape per time window, drawn only
+   * inside its window (Cosmographia's `sequence`). Rosetta is the case this is
+   * for: its bus with Philae attached until separation, the bare bus after.
+   *
+   * Each entry is a `Dsk` or a `Mesh`. A Dsk entry is body-fixed km as it
+   * stands; a Mesh entry carries its own `size`, `meshRotation` and
+   * `meshOffset`, applied to that entry alone. The whole set is installed as
+   * one model, so sizing, picking and labels see the union of the shapes.
+   * An entry that fails to load is reported and left out; the rest still draw.
+   */
+  async loadTimeSwitched(
+    entries: readonly TimeSwitchedEntry[],
+    scaleFactor: number,
+    provider: DskShapeProvider | null,
+    modelResolver?: ModelResolver,
+  ): Promise<void> {
+    if (this.loadedModel) return;
+    this.loadedModel = true;
+    const loads = entries.map(async (entry) => {
+      const geo = entry.geometry;
+      const source = typeof geo.source === 'string' ? geo.source : undefined;
+      const url = source ? modelResolver?.(source) : undefined;
+      const type = geo.type;
+      const role = `timeSwitched:${type}`;
+      if (!source || !url) {
+        this.assets?.fail({ kind: 'model', owner: this.body.name, role, url: source ?? '' }, 'TimeSwitched entry source did not resolve to a URL');
+        return null;
+      }
+      if (type === 'Dsk' && !provider) {
+        this.assets?.fail({ kind: 'model', owner: this.body.name, role, url }, 'reading a DSK needs a SPICE engine, and this scene has none');
+        return null;
+      }
+      const load = type === 'Dsk'
+        ? this.buildDskObject(url, provider!, source, geo)
+        : type === 'Mesh'
+          ? this.fetchModel(source.split('.').pop()?.toLowerCase() ?? '', url, source, modelResolver).then((o) => alignMeshEntry(o, geo))
+          : Promise.reject(new Error(`TimeSwitched entries must be Dsk or Mesh, not ${String(type)}`));
+      this.assets?.track({ kind: 'model', owner: this.body.name, role, url }, load);
+      try {
+        return { startEt: entry.startEt, endEt: entry.endEt, object: await load };
+      } catch (e) {
+        console.warn(`[Cosmolabe] ${this.body.name}: TimeSwitched entry ${source} failed: ${e instanceof Error ? e.message : e}`);
+        return null;
+      }
+    });
+    const loaded = (await Promise.all(loads)).filter((x): x is NonNullable<typeof x> => x !== null);
+    if (loaded.length === 0) return;
+    const group = new THREE.Group();
+    for (const l of loaded) group.add(l.object);
+    this.timeSwitch = loaded;
+    this.installModel(group, scaleFactor, true);
+    if (this.lastEt !== undefined) this.applyTimeSwitch(this.lastEt);
+  }
+
+  private lastEt: number | undefined;
+
+  /** Show only the TimeSwitched entry whose window holds `et` (start inclusive, end exclusive). */
+  private applyTimeSwitch(et: number): void {
+    if (!this.timeSwitch) return;
+    for (const e of this.timeSwitch) e.object.visible = et >= e.startEt && et < e.endEt;
+  }
+
+  private dskColor(geo: Record<string, unknown>): THREE.ColorRepresentation {
+    const c = geo.color ?? this.body.geometryData?.color;
     if (Array.isArray(c) && c.length >= 3) return new THREE.Color(c[0] as number, c[1] as number, c[2] as number);
     if (typeof c === 'string') return c;
     return DEFAULT_BODY_COLORS[this.body.classification ?? ''] ?? 0xcccccc;
@@ -400,7 +469,11 @@ export class BodyMesh extends THREE.Object3D {
    */
   private checkDskFrame(name: string, centerId: number, frame: string): void {
     const naifId = this.body.naifId;
-    if (naifId != null && naifId !== centerId) {
+    // A spacecraft's structure frame is conventionally its NAIF ID × 1000
+    // (Rosetta -226, ROS_SPACECRAFT -226000), and spacecraft DSKs are written
+    // about that; it is the same body.
+    const sameBody = centerId === naifId || (naifId != null && naifId < 0 && centerId === naifId * 1000);
+    if (naifId != null && !sameBody) {
       console.warn(`[Cosmolabe] DSK ${name} describes NAIF body ${centerId}, but it is drawn on ${this.body.name} (${naifId})`);
     }
     const rotation = this.body.rotation;
@@ -851,6 +924,8 @@ export class BodyMesh extends THREE.Object3D {
   /** Update position from absolute coordinates (km) and apply rotation. */
   updatePosition(absolutePos: [number, number, number], et: number, scaleFactor: number): void {
     this.scaleFactor = scaleFactor;
+    this.lastEt = et;
+    this.applyTimeSwitch(et);
     this.position.set(
       absolutePos[0] * scaleFactor,
       absolutePos[1] * scaleFactor,
@@ -1724,4 +1799,33 @@ export class BodyMesh extends THREE.Object3D {
       });
     }
   }
+}
+
+/** One entry of a `TimeSwitched` geometry, its window already in ET seconds. */
+export interface TimeSwitchedEntry {
+  startEt: number;
+  endEt: number;
+  geometry: Record<string, unknown>;
+}
+
+/**
+ * Place a Mesh entry of a TimeSwitched geometry in the body frame: `size`
+ * (diameter, km) scales its longest side, `meshRotation` ([w, x, y, z]) turns
+ * it, `meshOffset` moves it, all on the entry's own object — the set is
+ * installed as body-fixed km, so nothing is applied to it as a whole.
+ */
+function alignMeshEntry(object: THREE.Object3D, geo: Record<string, unknown>): THREE.Object3D {
+  const box = new THREE.Box3().setFromObject(object);
+  const extent = box.getSize(new THREE.Vector3());
+  const maxExtent = Math.max(extent.x, extent.y, extent.z);
+  const size = typeof geo.size === 'number' ? geo.size : 0;
+  const scale = size > 0 && maxExtent > 0 ? size / maxExtent : 1;
+  const holder = new THREE.Group();
+  holder.add(object);
+  holder.scale.setScalar(scale);
+  const r = geo.meshRotation as number[] | undefined;
+  if (r && r.length >= 4) holder.quaternion.set(r[1]!, r[2]!, r[3]!, r[0]!);
+  const o = geo.meshOffset as number[] | undefined;
+  if (o && o.length >= 3) object.position.set(o[0]!, o[1]!, o[2]!);
+  return holder;
 }

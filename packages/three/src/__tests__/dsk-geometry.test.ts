@@ -165,3 +165,95 @@ describe('BodyMesh.loadDsk', () => {
     expect(summary.failures[0]?.role).toBe("model:dsk");
   });
 });
+
+describe('BodyMesh.loadTimeSwitched', () => {
+  let spice: HeritageSpice;
+  beforeAll(async () => {
+    spice = await createHeritageSpice();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('draws only the entry whose window holds the current time', async () => {
+    const files: Record<string, Uint8Array> = {
+      'https://example.test/with-lander.bds': fixture('dsk-two-segments.bds'),
+      'https://example.test/bare.bds': fixture('mu69_lopoly.bds'),
+    };
+    vi.stubGlobal('fetch', vi.fn(async (u: string) => new Response(files[u] as BodyInit)));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const body = new Body({
+      name: 'Orbiter',
+      trajectory: fixedPoint,
+      rotation: new FixedRotation([1, 0, 0, 0], 'ECLIPJ2000'),
+      geometryType: 'TimeSwitched',
+      geometryData: { type: 'TimeSwitched' },
+    });
+    const bm = new BodyMesh(body);
+    const assets = new AssetLoadTracker();
+    bm.assets = assets;
+    await bm.loadTimeSwitched(
+      [
+        { startEt: -Infinity, endEt: 100, geometry: { type: 'Dsk', source: 'with-lander.bds' } },
+        { startEt: 100, endEt: Infinity, geometry: { type: 'Dsk', source: 'bare.bds' } },
+      ],
+      1,
+      spice,
+      (p) => `https://example.test/${p}`,
+    );
+    expect(bm.hasModel).toBe(true);
+    const [first, second] = bm.modelContainer!.children;
+    bm.updatePosition([0, 0, 0], 50, 1);
+    expect([first!.visible, second!.visible]).toEqual([true, false]);
+    // End exclusive, start inclusive: the switch happens exactly at 100.
+    bm.updatePosition([0, 0, 0], 100, 1);
+    expect([first!.visible, second!.visible]).toEqual([false, true]);
+    // Sized by the union of the entries: Arrokoth (~18 km radius) dominates.
+    expect(bm.displayRadius).toBeGreaterThan(15);
+    const summary = await assets.settle();
+    expect(summary.loaded).toBe(2);
+  });
+
+  it('keeps the entries that load when one fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (u: string) =>
+      u.endsWith('ok.bds') ? new Response(fixture('dsk-two-segments.bds') as BodyInit) : new Response('nope', { status: 404 })));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const body = new Body({ name: 'Craft', trajectory: fixedPoint, geometryType: 'TimeSwitched', geometryData: { type: 'TimeSwitched' } });
+    const bm = new BodyMesh(body);
+    const assets = new AssetLoadTracker();
+    bm.assets = assets;
+    await bm.loadTimeSwitched(
+      [
+        { startEt: 0, endEt: 10, geometry: { type: 'Dsk', source: 'ok.bds' } },
+        { startEt: 10, endEt: 20, geometry: { type: 'Dsk', source: 'missing.bds' } },
+      ],
+      1,
+      spice,
+      (p) => `https://example.test/${p}`,
+    );
+    expect(bm.modelContainer!.children).toHaveLength(1);
+    const summary = await assets.settle();
+    expect(summary.loaded).toBe(1);
+    expect(summary.failed).toBe(1);
+  });
+});
+
+describe('the DSK centre check', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('accepts a spacecraft DSK written about its structure frame (NAIF ID × 1000), flags anything else', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const bm = new BodyMesh(new Body({
+      name: 'Rosetta', naifId: -226, trajectory: fixedPoint, rotation: new FixedRotation([1, 0, 0, 0], 'ECLIPJ2000'),
+      geometryType: 'Dsk', geometryData: { type: 'Dsk', source: 'bus.bds' },
+    }));
+    const check = (centre: number) =>
+      (bm as unknown as { checkDskFrame(n: string, c: number, f: string): void }).checkDskFrame('bus.bds', centre, '');
+    check(-226);
+    check(-226000); // ROS_SPACECRAFT: the same body
+    expect(warn).not.toHaveBeenCalled();
+    check(-226800); // Philae is not Rosetta
+    expect(warn.mock.calls.some((c) => /describes NAIF body -226800/.test(String(c[0])))).toBe(true);
+  });
+});

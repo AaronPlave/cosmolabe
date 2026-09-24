@@ -2229,6 +2229,24 @@ export class UniverseRenderer {
         }
       }
 
+      // TimeSwitched: one shape per time window (Cosmographia). Entries were
+      // given ET windows by the catalog loader.
+      if (body.geometryType === 'TimeSwitched' && Array.isArray(body.geometryData?.sequence)) {
+        const entries = (body.geometryData.sequence as Record<string, unknown>[])
+          .filter((e) => e && typeof e.geometry === 'object')
+          .map((e) => ({
+            startEt: typeof e.startEt === 'number' ? e.startEt : -Infinity,
+            endEt: typeof e.endEt === 'number' ? e.endEt : Infinity,
+            geometry: e.geometry as Record<string, unknown>,
+          }));
+        this.assets.hold(bm.loadTimeSwitched(
+          entries,
+          this.scaleFactor,
+          dskShapeProviderOf(this.universe.spiceInstance),
+          this.options.modelResolver,
+        ));
+      }
+
       // Load textures for Globe geometry (baseMap, normalMap, displacementMap)
       if (body.geometryType === 'Globe' && body.geometryData) {
         const resolver = this.options.textureResolver ?? this.options.modelResolver;

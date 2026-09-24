@@ -892,6 +892,7 @@ export class CatalogLoader {
     const radii = this.extractRadii(item);
 
     const trajectoryPlot = this.parseTrajectoryPlot(item.trajectoryPlot);
+    const geometry = item.geometry ? this.timeSwitchedWindows(item.name, normalizeGeometry(item.geometry)) : undefined;
 
     // The body's frame is named, not classified: the catalog's
     // `trajectoryFrame` passes through to Body, which lets a trajectory that
@@ -910,8 +911,8 @@ export class CatalogLoader {
       classification: item.class,
       labelColor: item.label?.color ? this.parseColor(item.label.color) : undefined,
       labelVisible: item.label?.visible !== false,
-      geometryType: item.geometry?.type,
-      geometryData: item.geometry ? { ...item.geometry } : undefined,
+      geometryType: geometry?.type as string | undefined,
+      geometryData: geometry,
       trajectoryPlot,
       trajectoryFrame,
       existsFrom: this.existenceBound(item, 'startTime'),
@@ -925,6 +926,31 @@ export class CatalogLoader {
         this.loadItem(child, bodies, item.name);
       }
     }
+  }
+
+  /**
+   * Give each entry of a `TimeSwitched` geometry its window in ET seconds
+   * (`startEt` / `endEt`), which is what the renderer switches on. A missing
+   * `endTime` runs to the next entry's start, the last one's to forever; a
+   * missing `startTime` reaches back to the beginning. Entries are otherwise
+   * left as written.
+   */
+  private timeSwitchedWindows(owner: string, geometry: Record<string, unknown>): Record<string, unknown> {
+    if (geometry.type !== 'TimeSwitched' || !Array.isArray(geometry.sequence)) return geometry;
+    const read = (v: unknown, key: string): number | undefined => {
+      if (typeof v !== 'string' && typeof v !== 'number') return undefined;
+      const et = this.tryParseEpochValue(v);
+      if (et === undefined) console.warn(`[Cosmolabe] ${owner}: TimeSwitched ${key} ${JSON.stringify(v)} could not be read`);
+      return et;
+    };
+    const entries = geometry.sequence as Record<string, unknown>[];
+    const starts = entries.map((e) => read(e?.startTime, 'startTime'));
+    geometry.sequence = entries.map((e, i) => ({
+      ...e,
+      startEt: starts[i] ?? -Infinity,
+      endEt: read(e?.endTime, 'endTime') ?? starts[i + 1] ?? Infinity,
+    }));
+    return geometry;
   }
 
   /**
@@ -1642,4 +1668,28 @@ export class CatalogLoader {
       default: return value;
     }
   }
+}
+
+/**
+ * A geometry spec as the renderer reads it, copied. Cosmographia spells a DSK
+ * `{ "type": "DSK", "kernel": "..." }`; that becomes `{ type: "Dsk", source }`
+ * here, once, including inside a `TimeSwitched` sequence, so an ESA or NAIF
+ * Cosmographia configuration loads without edits.
+ */
+export function normalizeGeometry(spec: GeometrySpec): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...spec };
+  if (typeof out.type === 'string' && out.type.toUpperCase() === 'DSK') {
+    out.type = 'Dsk';
+    if (out.source === undefined && typeof out.kernel === 'string') out.source = out.kernel;
+  }
+  if (out.type === 'TimeSwitched' && Array.isArray(out.sequence)) {
+    out.sequence = (out.sequence as unknown[]).map((entry) => {
+      if (!entry || typeof entry !== 'object') return entry;
+      const e = entry as Record<string, unknown>;
+      return e.geometry && typeof e.geometry === 'object'
+        ? { ...e, geometry: normalizeGeometry(e.geometry as GeometrySpec) }
+        : { ...e };
+    });
+  }
+  return out;
 }
