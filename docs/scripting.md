@@ -288,14 +288,16 @@ close the panel from there.
 ### The Earth–Moon Scripted Tour
 
 The welcome screen's **Earth–Moon Scripted Tour** loads the kernel-free Earth +
-Moon scene and runs a script in the console. It follows Cosmographia's
-Earth–Moon scripting example, using the verbs the two programs share. Where the
-original uses something Cosmolabe has no verb for yet (`hideToolBar`,
-`showDirectionVector`, `circleCenterUp`), a comment in the script says so rather
-than faking it. Cosmolabe scripts are conceptually similar to Cosmographia's but
-are not source-compatible with its `cosmoscripting` Python API. The demo scripts
-live in `apps/viewer/src/lib/script-demo.svelte.ts`, and a unit test parses every
-one against the verb table.
+Moon scene and runs an adaptation of Cosmographia's Earth–Moon scripting example
+in the console, block by block with the original's notes and pacing. Camera
+moves Cosmolabe cannot animate yet (`moveToPov`, the `circleCenter*` moves,
+`craneUp`) become instant `setCamera` poses at the positions the original ends
+on. Calls with no equivalent are left as "No equivalent yet" comments; the
+table under [Not yet in Cosmolabe](#not-yet-in-cosmolabe) lists them.
+Cosmolabe scripts are conceptually similar to Cosmographia's but are not
+source-compatible with its `cosmoscripting` Python API. The demo scripts live in
+`apps/viewer/src/lib/script-demo.svelte.ts`, and a unit test parses every one
+against the verb table.
 
 ## The read side
 
@@ -400,10 +402,12 @@ ceiling. Three rules:
 | `pause()` / `unpause()` | `setPlaying off\|on` | One verb with an argument, so it is idempotent. A toggle run twice is a no-op. |
 | `wait(seconds)` | `wait <seconds>` | Rejected where a frame must be reproducible. |
 | `pointAtObject(name)` | `pointAtObject <object>` | |
-| `trackObject(name)` | `track <object>` | |
-| `gotoObject(name)` | `gotoObject <object> [seconds]` | |
+| `trackObject(name)` | `pointAtObject <object>` | Cosmographia's `trackObject` locks the camera's aim on an object while the camera stays where it is centred. That is our `pointAtObject`. Our `track` is different: it re-centres the orbit on the object. |
+| `gotoObject(name, s)` | `gotoObject <object> [seconds]` | |
+| `setCameraToInertialFrame()` | `setFrame free-orbit` | Free orbit is the camera in the inertial scene frame. |
+| `showBodyFixedFrame(name)` / `showLatLongGrid(name)` | `setLayer axes on` / `setLayer grid on` | Scene-wide here, per body there (follow-up). |
 | `setFov(deg)` | `setFov <degrees>` | |
-| `moveToPov(name, pos, …)` | `setCamera <position> [up]` | |
+| `moveToPov(name, pos, dir, up, s)` | `setFrame body-fixed <name>` + `setCamera <position> [target] [up]` | Instant, not animated. `setCamera` takes the viewer's **Y-up scene axes**, so a body-fixed vector `[x, y, z]` is written `[x, z, -y]` (follow-up: take body-fixed axes directly). |
 | `showTrajectory(name, on)` | `showTrajectory <object> on\|off` | Per-object, their shape. Our global `setLayer trajectories off` stays beside it as the coarse verb. |
 | `saveScreenShot()` | `screenshot [label]` | |
 | `recordVideo(...)` | `record on\|off` | |
@@ -414,6 +418,23 @@ ceiling. Three rules:
 | — | `clearLookAt` | Ours: the pair for `pointAtObject`, so a snapshot can clear an aim as well as set one. |
 | — | `runTo <seconds>` | Ours: the deterministic counterpart to `wait`. |
 | — | `snapshot()` | Ours. |
+
+### Not yet in Cosmolabe
+
+Found by adapting Cosmographia's Earth–Moon scripting example (the welcome
+screen's Earth–Moon Scripted Tour), and tracked as follow-ups. The tour marks
+each one with a "No equivalent yet" comment where it occurs.
+
+| Cosmographia | What is missing | Closest today |
+|---|---|---|
+| `gotoHome(s)` | An animated "home" view. | `viewpoint <name>` (instant) |
+| `moveAwayFromCenter(km, s)`, `craneUp(km, s)` | Dolly and crane moves (also on #15's list). | `setCamera` at the end pose |
+| `circleCenterRight/Left/Up/Down(deg, s)` | Orbiting the centre by an angle. | `setCamera` at the end pose |
+| Durations on camera moves | `moveToPov`, `pointAtObject` and the moves above animate over *s* seconds; only `gotoObject` does here. | Instant verbs plus `wait` |
+| `moveToPov` axes | `setCamera` takes Y-up scene axes, not the body-fixed Z-up frame SPICE and Cosmographia use. | Write `[x, z, -y]` |
+| `showBodyFixedFrame(name)`, `showLatLongGrid(name)` | Per-body axes and grid. | `setLayer axes/grid` (scene-wide) |
+| `showDirectionVector(from, to)` | Direction vectors between bodies. | none |
+| `hideToolBar`, `hideStatusMessages`, `hideInfoText`, `showFullScreen` (and their inverses) | Scripted control of viewer chrome. The app's zen mode (`\`) also unmounts the console, which stops the script, so this needs its own design. Browsers only enter full screen from a user gesture. | none |
 
 **Running real Cosmographia `.py` is out of scope.** It needs Pyodide or a
 translator. This table is what keeps that a mapping problem rather than a
