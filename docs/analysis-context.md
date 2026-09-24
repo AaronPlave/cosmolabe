@@ -80,7 +80,32 @@ added, configured, hidden, reordered and removed from a popover on the row
 label (`updateConfiguredProfile()`, `setConfiguredItemVisible()`,
 `moveConfiguredProfile()`, `removeConfiguredItem()`).
 
-Every row is laid over the transport track's measured horizontal extent and
+## Timeline presentation and interaction
+
+Every analysis row — event lane or profile — has its identity in one
+left-aligned header column (shared `tl-*` styles in `app.css`): the name,
+then a unit for profiles (`Distance · km`), then the relationship in quieter
+text, with expand / hide controls at the column's right edge on hover. On a
+phone the header is overlaid at the plot's top-left.
+
+Compact profile rows carry no axis chrome. The expand toggle gives a row
+about 110 px and three faint gridlines with values (`gridValues`). The
+analysis region's height is the content's by default; the dock's top edge is a
+resize handle (capped at 60 % of the viewport, double-click toggles a large
+height and back), kept in `timeline.laneHeight`.
+
+Gestures on the rows (`timelineGestures`) give each surface one job: the
+transport track scrubs; on the rows a click seeks, a background drag pans the
+view, and a drag that starts on the playhead — a thin line with a ~10 px grab
+target — scrubs. A sideways or Shift wheel pans anywhere; a plain wheel zooms
+about the pointer. Hovering an event on the track, a lane or a profile tick —
+snapped to an edge, or anywhere inside an interval — previews it
+(`timeline.previewEventId`, an `eventKey` that includes the query) and shows a
+callout with the same copy as the scene's event callouts
+(`eventCalloutLines`). The range popover offers Fit results, Fit selected and
+Fit mission; jumping the playhead (`setTime`) keeps the zoom.
+
+
 reads the same zoomed window (`vs.scrubMin`/`scrubMax`), playhead (`vs.et`)
 and ghost playhead (`timeline.hoverEt` in `lib/timeline.svelte.ts`) as the
 track. Rows hold no time state, and share their gestures with the event lanes

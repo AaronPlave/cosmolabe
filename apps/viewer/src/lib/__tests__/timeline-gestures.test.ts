@@ -6,8 +6,8 @@ vi.mock('../viewer-state.svelte', async (importOriginal) => ({
   scrubTo: (f: number) => scrubTo(f),
 }));
 
-const { timeline, timelineGestures, wheelIntent } = await import('../timeline.svelte');
-const { vs, panScrubberBy } = await import('../viewer-state.svelte');
+const { timeline, timelineGestures, wheelIntent, hoverTarget, eventKey } = await import('../timeline.svelte');
+const { vs, panScrubberBy, setScrubberWindow } = await import('../viewer-state.svelte');
 
 /** Just enough of an element for the action: 100 px wide at x = 0. */
 function fakeRow() {
@@ -44,6 +44,8 @@ describe('timeline row gestures', () => {
     vs.scrubBaseMax = 10_000;
     vs.scrubMin = 1000;
     vs.scrubMax = 2000;
+    // Off-screen, so presses in these tests land on the background.
+    vs.et = 0;
     timeline.hoverEt = null;
     row = fakeRow();
     timelineGestures(row as unknown as HTMLElement, { snapTargets: [{ fraction: 0.5, id: 'ca' }] });
@@ -102,6 +104,32 @@ describe('timeline row gestures', () => {
     expect(vs.scrubMin).toBe(1300);
   });
 
+  it('scrubs time from a drag that starts on the playhead, with a grab target wider than the line', () => {
+    vs.et = 1500; // x = 50 px
+    pointer(row, 'pointerdown', 54, 0, 'mouse');
+    pointer(row, 'pointermove', 70, 0, 'mouse');
+    pointer(row, 'pointerup', 70, 0, 'mouse');
+    expect(scrubTo.mock.calls.map(([f]) => f)).toEqual([0.7]);
+    // Scrubbing moves time, not the view.
+    expect([vs.scrubMin, vs.scrubMax]).toEqual([1000, 2000]);
+  });
+
+  it('scrubs from the playhead on touch too, once the drag is horizontal', () => {
+    vs.et = 1500;
+    pointer(row, 'pointerdown', 58, 0);
+    pointer(row, 'pointermove', 70, 1);
+    expect(scrubTo).toHaveBeenLastCalledWith(0.7);
+    expect(vs.scrubMin).toBe(1000);
+  });
+
+  it('pans rather than scrubs from just outside the grab target', () => {
+    vs.et = 1500;
+    pointer(row, 'pointerdown', 60, 0, 'mouse');
+    pointer(row, 'pointermove', 70, 0, 'mouse');
+    expect(scrubTo).not.toHaveBeenCalled();
+    expect(vs.scrubMin).toBe(900);
+  });
+
   it('ends the pan when the row loses capture', () => {
     pointer(row, 'pointerdown', 30, 0, 'mouse');
     pointer(row, 'pointermove', 40, 0, 'mouse');
@@ -135,5 +163,41 @@ describe('timeline wheel and pan', () => {
     expect([vs.scrubMin, vs.scrubMax]).toEqual([0, 1000]);
     panScrubberBy(1e9);
     expect([vs.scrubMin, vs.scrubMax]).toEqual([9000, 10_000]);
+  });
+});
+
+describe('timeline hover targets', () => {
+  const opts = {
+    snapTargets: [{ fraction: 0.2, id: 'instant' }, { fraction: 0.4, id: 'long' }, { fraction: 0.9, id: 'long' }],
+    spans: [{ start: 0.4, end: 0.9, id: 'long' }, { start: 0.5, end: 0.6, id: 'short' }],
+  };
+
+  it('previews a snapped edge first, then the shortest interval the hover is inside', () => {
+    expect(hoverTarget(0.202, 1000, opts)).toEqual({ at: 0.2, id: 'instant' });
+    expect(hoverTarget(0.55, 1000, opts)).toEqual({ at: 0.55, id: 'short' });
+    expect(hoverTarget(0.7, 1000, opts)).toEqual({ at: 0.7, id: 'long' });
+    expect(hoverTarget(0.3, 1000, opts)).toEqual({ at: 0.3, id: null });
+  });
+
+  it('keys events by query as well as id, since result ids recur across searches', () => {
+    expect(eventKey({ id: 'result-1', queryId: 'a' })).not.toBe(eventKey({ id: 'result-1', queryId: 'b' }));
+  });
+});
+
+describe('timeline framing', () => {
+  beforeEach(() => {
+    vs.scrubBaseMin = 0;
+    vs.scrubBaseMax = 10_000;
+  });
+
+  it('frames a requested window, within the base range and minimum span', () => {
+    setScrubberWindow(2000, 3000);
+    expect([vs.scrubMin, vs.scrubMax]).toEqual([2000, 3000]);
+    setScrubberWindow(9500, 11_000);
+    expect([vs.scrubMin, vs.scrubMax]).toEqual([8500, 10_000]);
+    setScrubberWindow(500, 500);
+    expect(vs.scrubMax - vs.scrubMin).toBe(10);
+    setScrubberWindow(-1e9, 1e9);
+    expect([vs.scrubMin, vs.scrubMax]).toEqual([0, 10_000]);
   });
 });

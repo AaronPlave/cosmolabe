@@ -6,11 +6,13 @@
    * reads the same window (`vs.scrubMin`/`scrubMax`), playhead (`vs.et`) and
    * ghost playhead (`timeline.hoverEt`) as the track does. It owns no time
    * state of its own: its gestures are `timelineGestures`, the same ones the
-   * event lanes use — wheel zooms the shared window about the pointer, a drag
-   * pans it, a click seeks the shared playhead, and a hover sets the shared
-   * ghost —
-   * which is what lets the ruler's private zoom window, playhead and hover
-   * scrub go away rather than move here.
+   * event lanes use — which is what lets the ruler's private zoom window,
+   * playhead and hover scrub go away rather than move here.
+   *
+   * Compact rows are a signal and nothing else: no axis chrome, just the trace,
+   * the value at the playhead or ghost, and the view's range. Expanding a row
+   * gives it the height to be read quantitatively — three faint gridlines with
+   * values — without turning the timeline into a dashboard.
    */
   import type { ConfiguredContinuousProfile, ContinuousProfileConfiguration } from '@cosmolabe/core';
   import { vs, getRenderer } from '../../lib/viewer-state.svelte';
@@ -19,14 +21,15 @@
     moveConfiguredProfile, removeConfiguredItem,
   } from '../../lib/analysis.svelte';
   import {
-    timeline, timelineFraction, timelineGestures, type ProfileEventTick,
+    timeline, timelineFraction, timelineGestures, toggleRowExpanded, eventHoverTargets,
+    type ProfileEventTick,
   } from '../../lib/timeline.svelte';
   import {
-    profileQuantity, sampleProfile, sampleCountFor, profilePath, quantityAt, valueY,
+    profileQuantity, sampleProfile, sampleCountFor, profilePath, quantityAt, valueY, gridValues,
     type PositionOf, type ProfileBodies,
   } from '../../lib/profile-sampling';
   import { inWindow } from '../../lib/scrubber-math';
-  import { Eye, EyeOff } from 'lucide-svelte';
+  import { Eye, EyeOff, ChevronsUpDown, ChevronsDownUp } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
   import ProfileConfig from './ProfileConfig.svelte';
 
@@ -35,7 +38,7 @@
     /** The track's left edge and width, in px, relative to the lane region. */
     axisLeft: number;
     axisWidth: number;
-    /** Room for a label gutter left of the axis and a readout right of it. */
+    /** Room for a header column left of the axis and a readout right of it. */
     wide: boolean;
     ticks: readonly ProfileEventTick[];
     first: boolean;
@@ -45,7 +48,8 @@
   let { item, axisLeft, axisWidth, wide, ticks, first, last }: Props = $props();
 
   const W = 1000; // viewBox width; fractions map onto it directly
-  const H = $derived(wide ? 30 : 34);
+  const expanded = $derived(!!timeline.expandedRows[item.id]);
+  const H = $derived(expanded ? 112 : wide ? 30 : 34);
 
   const spec = $derived(profileQuantity(item.profile.quantity));
 
@@ -79,6 +83,7 @@
 
   const path = $derived(series ? profilePath(series, W, H) : '');
   const hasData = $derived(!!series && series.values.some((v) => v != null));
+  const grid = $derived(expanded && series && hasData ? gridValues(series) : []);
 
   // Readout: the ghost instant when previewing, otherwise the committed one.
   // Computed exactly at that instant rather than read off the nearest sample.
@@ -95,11 +100,7 @@
 
   const dotY = $derived(readout != null && series && hasData ? valueY(readout, series, H) : null);
 
-  const snapTargets = $derived(
-    ticks.flatMap((t) => t.endFraction > t.fraction
-      ? [{ fraction: t.fraction, id: t.id }, { fraction: t.endFraction, id: t.id }]
-      : [{ fraction: t.fraction, id: t.id }]),
-  );
+  const hoverTargets = $derived(eventHoverTargets(ticks));
 
   let configOpen = $state(false);
 
@@ -114,24 +115,23 @@
   const closing = $derived(spec?.id === 'range-rate' && readout != null && readout < 0);
 </script>
 
-<div
-  class="profile-row"
-  class:hidden-row={!item.visible}
-  style="height: {item.visible ? H : 18}px"
->
-  <!-- Label: in the gutter left of the axis when there is one, otherwise
-       overlaid at the plot's top-left. It is the configure affordance. -->
+<div class="tl-row" class:hidden-row={!item.visible} style="height: {item.visible ? H : 18}px">
+  <!-- Header: the row's identity in the shared header column, or overlaid
+       at the plot's top-left on a phone. The name is the configure
+       affordance; expand and hide sit at the column's right edge. -->
   <div
-    class="row-label"
+    class="tl-header"
     class:overlay={!wide}
+    class:top={expanded && wide}
     style={wide
-      ? `left: 0; width: ${Math.max(0, axisLeft - 8)}px`
-      : `left: ${axisLeft + 3}px; max-width: ${Math.max(0, axisWidth * 0.6)}px`}
+      ? `width: ${Math.max(0, axisLeft - 10)}px`
+      : `left: ${axisLeft + 3}px; max-width: ${Math.max(0, axisWidth * 0.7)}px`}
   >
     <Popover.Root bind:open={configOpen}>
-      <Popover.Trigger class="label-btn" title="Configure profile">
-        <span class="label-quantity">{spec?.label ?? item.profile.quantity}</span>
-        <span class="label-pair">{pair}</span>
+      <Popover.Trigger class="tl-header-main" title="Configure profile">
+        <span class="tl-h-primary">{spec?.label ?? item.profile.quantity}</span>
+        {#if spec}<span class="tl-h-unit">{spec.unit}</span>{/if}
+        <span class="tl-h-secondary">{pair}</span>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content side="top" sideOffset={8} class="w-72 p-3">
@@ -150,28 +150,42 @@
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
-    {#if wide}
+    <span class="tl-header-controls">
+      {#if item.visible}
+        <button
+          class="tl-icon-btn"
+          onclick={() => toggleRowExpanded(item.id)}
+          aria-pressed={expanded}
+          aria-label={expanded ? 'Collapse profile row' : 'Expand profile row'}
+          title={expanded ? 'Collapse row' : 'Expand row'}
+        >
+          {#if expanded}<ChevronsDownUp size={11} />{:else}<ChevronsUpDown size={11} />{/if}
+        </button>
+      {/if}
       <button
-        class="eye-btn"
+        class="tl-icon-btn"
         onclick={() => setConfiguredItemVisible(item.id, !item.visible)}
         aria-label={item.visible ? 'Hide profile' : 'Show profile'}
         title={item.visible ? 'Hide profile' : 'Show profile'}
       >
         {#if item.visible}<Eye size={11} />{:else}<EyeOff size={11} />{/if}
       </button>
-    {/if}
+    </span>
   </div>
 
   {#if item.visible}
     <div
-      class="plot"
+      class="plot tl-plot"
       style="left: {axisLeft}px; width: {axisWidth}px"
       role="img"
       aria-label="{spec?.label ?? 'Profile'} {pair}: {readoutText}"
-      use:timelineGestures={{ snapTargets }}
+      use:timelineGestures={hoverTargets}
     >
       <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" aria-hidden="true">
-        {#if spec?.symmetric && hasData}
+        {#each grid as value (value)}
+          <line class="grid" x1="0" x2={W} y1={valueY(value, series!, H)} y2={valueY(value, series!, H)} />
+        {/each}
+        {#if spec?.symmetric && hasData && !expanded}
           <line class="zero" x1="0" x2={W} y1={H / 2} y2={H / 2} />
         {/if}
         {#each ticks as tick (tick.id)}
@@ -198,6 +212,14 @@
           <line class="playhead" x1={playheadFrac * W} x2={playheadFrac * W} y1="0" y2={H} />
         {/if}
       </svg>
+      {#each grid as value (value)}
+        {@const y = valueY(value, series!, H)}
+        <!-- On a phone the header is overlaid at the top-left; a gridline
+             label under it would collide, so that one goes unlabelled. -->
+        {#if wide || y > 16}
+          <span class="grid-label" style="top: {y}px">{spec?.format(value)}</span>
+        {/if}
+      {/each}
       {#if dotY != null}
         {@const dotFrac = ghostFrac ?? playheadFrac}
         {#if inView(dotFrac)}
@@ -215,96 +237,22 @@
     </div>
 
     {#if wide}
-      <div class="row-readout" style="left: {axisLeft + axisWidth + 8}px" title={rangeText ? `View range ${rangeText}` : undefined}>
-        <span class="readout-value" class:preview={ghostFrac != null} class:closing>{readoutText}</span>
-        {#if rangeText}<span class="readout-range">{rangeText}</span>{/if}
+      <div
+        class="row-readout"
+        class:top={expanded}
+        style="left: {axisLeft + axisWidth + 8}px"
+        title={rangeText ? `View range ${rangeText}` : undefined}
+      >
+        <span class="readout-value" class:strong={expanded} class:preview={ghostFrac != null} class:closing>{readoutText}</span>
+        {#if rangeText && !expanded}<span class="readout-range">{rangeText}</span>{/if}
       </div>
     {/if}
   {/if}
 </div>
 
 <style>
-  .profile-row {
-    position: relative;
-    border-top: 1px solid var(--color-chrome-divider);
-  }
   .hidden-row {
     opacity: 0.55;
-  }
-
-  .row-label {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 2px;
-    min-width: 0;
-    z-index: 1;
-  }
-  /* Over the plot, only the label itself takes presses — the rest of the
-     row stays the plot's, so a drag or tap anywhere else reaches it. */
-  .row-label.overlay {
-    bottom: auto;
-    top: 1px;
-    justify-content: flex-start;
-    pointer-events: none;
-  }
-  .row-label.overlay :global(.label-btn) {
-    padding: 0 3px;
-    line-height: 12px;
-    pointer-events: auto;
-  }
-  :global(.label-btn) {
-    display: flex;
-    min-width: 0;
-    align-items: baseline;
-    gap: 6px;
-    padding: 1px 4px;
-    border: none;
-    border-radius: 3px;
-    background: none;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  :global(.label-btn:hover) {
-    color: var(--color-text-primary);
-    background: var(--color-control-hover);
-  }
-  .label-quantity {
-    font-size: var(--text-section);
-  }
-  .label-pair {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--color-text-muted);
-    font-size: var(--text-metadata);
-  }
-  .overlay .label-quantity,
-  .overlay .label-pair {
-    font-size: var(--text-metadata);
-    line-height: 12px;
-  }
-  .eye-btn {
-    display: flex;
-    padding: 3px;
-    border: none;
-    border-radius: 3px;
-    background: none;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity var(--duration-chrome) var(--ease-chrome);
-  }
-  .profile-row:hover .eye-btn,
-  .hidden-row .eye-btn,
-  .eye-btn:focus-visible {
-    opacity: 1;
-  }
-  .eye-btn:hover {
-    color: var(--color-text-primary);
   }
 
   .plot {
@@ -326,14 +274,35 @@
     vector-effect: non-scaling-stroke;
     fill: none;
   }
+  /* The signal is the row's content; it reads above the separators. */
   .trace {
-    stroke: var(--color-text-secondary);
-    stroke-width: 1.25;
+    stroke: var(--color-text-primary);
+    stroke-opacity: 0.82;
+    stroke-width: 1.4;
     stroke-linejoin: round;
   }
   .zero {
     stroke: var(--color-chrome-divider);
     stroke-width: 1;
+  }
+  .grid {
+    stroke: rgba(255, 255, 255, 0.07);
+    stroke-width: 1;
+    stroke-dasharray: 2 3;
+  }
+  .grid-label {
+    position: absolute;
+    left: 3px;
+    transform: translateY(-50%);
+    padding: 0 2px;
+    border-radius: 2px;
+    background: var(--color-panel);
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+    line-height: 11px;
+    pointer-events: none;
   }
   /* Real playhead vs. preview: weight and opacity, not a new colour. */
   .playhead {
@@ -356,8 +325,7 @@
     fill: var(--color-event-accent);
     opacity: 0.07;
   }
-  .event-tick.active,
-  .event-span.active {
+  .event-tick.active {
     opacity: 0.55;
   }
   .event-span.active {
@@ -410,10 +378,17 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  .row-readout.top {
+    justify-content: flex-start;
+    padding-top: 5px;
+  }
   .readout-value {
     color: var(--color-text-primary);
     font-size: var(--text-section);
     line-height: 1.2;
+  }
+  .readout-value.strong {
+    font-size: var(--text-readout-strong);
   }
   .readout-range {
     color: var(--color-text-muted);

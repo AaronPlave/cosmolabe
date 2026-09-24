@@ -562,6 +562,22 @@ export function panScrubber(centerFraction: number) {
 }
 
 /**
+ * Show exactly `[min, max]` on the timeline, as far as the base range and the
+ * minimum span allow — the framing presets (fit results, fit an event).
+ */
+export function setScrubberWindow(min: number, max: number) {
+  const MIN_RANGE = 10; // seconds, as zoomScrubber
+  const base = vs.scrubBaseMax - vs.scrubBaseMin;
+  if (!(base > 0) || !Number.isFinite(min) || !Number.isFinite(max)) return;
+  const span = Math.min(base, Math.max(MIN_RANGE, max - min));
+  const center = (min + max) / 2;
+  let lo = center - span / 2;
+  lo = Math.max(vs.scrubBaseMin, Math.min(lo, vs.scrubBaseMax - span));
+  vs.scrubMin = lo;
+  vs.scrubMax = lo + span;
+}
+
+/**
  * Slide the timeline window by `seconds` (positive = later) without changing
  * its span, stopping at the base range's edges.
  */

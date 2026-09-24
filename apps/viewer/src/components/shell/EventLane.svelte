@@ -17,7 +17,7 @@
   import { analysis } from '../../lib/analysis.svelte';
   import { ef, selectEvent, setConfiguredQueryVisible } from '../../lib/event-finder.svelte';
   import { activeEventAtTime, eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
-  import { timeline, timelineFraction, timelineGestures } from '../../lib/timeline.svelte';
+  import { timeline, timelineFraction, timelineGestures, eventKey, eventHoverTargets } from '../../lib/timeline.svelte';
   import { inWindow } from '../../lib/scrubber-math';
   import { Eye, EyeOff } from 'lucide-svelte';
 
@@ -43,11 +43,18 @@
     });
   });
 
-  const snapTargets = $derived(
-    marks.flatMap((m) => m.end > m.start
-      ? [{ fraction: m.start, id: m.event.id }, { fraction: m.end, id: m.event.id }]
-      : [{ fraction: m.start, id: m.event.id }]),
+  const hoverTargets = $derived(
+    eventHoverTargets(marks.map((m) => ({ id: eventKey(m.event), fraction: m.start, endFraction: m.end }))),
   );
+
+  // Header: the kind of result, then how the query relates its bodies.
+  const kindLabel = $derived(item.label);
+  const relation = $derived.by(() => {
+    const b = item.query.bodies ?? {};
+    if (b.observer && b.target) return `${b.observer} → ${b.target}`;
+    if (b.front && b.back) return `${b.front} / ${b.back}`;
+    return '';
+  });
 
   const playheadFrac = $derived(timelineFraction(vs.et));
   const ghostFrac = $derived(timeline.hoverEt == null ? null : timelineFraction(timeline.hoverEt));
@@ -63,47 +70,51 @@
   }
 </script>
 
-<div class="event-lane" class:hidden-row={!item.visible} style="height: {item.visible ? H : 18}px">
+<div class="tl-row event-lane" class:hidden-row={!item.visible} style="height: {item.visible ? H : 18}px">
   <div
-    class="lane-label"
+    class="tl-header"
     class:overlay={!wide}
     style={wide
-      ? `left: 0; width: ${Math.max(0, axisLeft - 8)}px`
+      ? `width: ${Math.max(0, axisLeft - 10)}px`
       : `left: ${axisLeft + 3}px; max-width: ${Math.max(0, axisWidth * 0.5)}px`}
   >
-    <span class="label-text" title={item.label}>{item.label}</span>
-    <button
-      class="eye-btn"
-      onclick={() => setConfiguredQueryVisible(item.id, !item.visible)}
-      aria-label={item.visible ? `Hide ${item.label} lane` : `Show ${item.label} lane`}
-      title={item.visible ? 'Hide lane' : 'Show lane'}
-    >
-      {#if item.visible}<Eye size={11} />{:else}<EyeOff size={11} />{/if}
-    </button>
+    <span class="tl-header-main" title={item.label}>
+      <span class="tl-h-primary">{kindLabel}</span>
+      {#if relation && wide}<span class="tl-h-secondary">{relation}</span>{/if}
+    </span>
+    <span class="tl-header-controls">
+      <button
+        class="tl-icon-btn"
+        onclick={() => setConfiguredQueryVisible(item.id, !item.visible)}
+        aria-label={item.visible ? `Hide ${item.label} lane` : `Show ${item.label} lane`}
+        title={item.visible ? 'Hide lane' : 'Show lane'}
+      >
+        {#if item.visible}<Eye size={11} />{:else}<EyeOff size={11} />{/if}
+      </button>
+    </span>
   </div>
 
   {#if item.visible}
     <div
-      class="lane-plot"
+      class="lane-plot tl-plot"
       style="left: {axisLeft}px; width: {axisWidth}px"
       role="group"
       aria-label="{item.label} events"
-      use:timelineGestures={{ snapTargets }}
+      use:timelineGestures={hoverTargets}
     >
-      {#each marks as mark (mark.event.id)}
+      {#each marks as mark (eventKey(mark.event))}
         <button
           type="button"
           class="lane-mark"
           class:interval={mark.end > mark.start}
           class:selected={ef.selectedId === mark.event.id}
           class:active={eventContainsTime(mark.event, vs.et)}
-          class:previewed={timeline.previewEventId === mark.event.id}
+          class:previewed={timeline.previewEventId === eventKey(mark.event)}
           class:partial={mark.event.state === 'partial'}
           class:full={mark.event.state === 'full'}
           class:annular={mark.event.state === 'annular'}
           data-kind={mark.event.kind}
           style="left: {mark.start * 100}%; width: {Math.max(0, mark.end - mark.start) * 100}%"
-          title={mark.event.label}
           aria-label={mark.event.label}
           onpointerdown={(e) => e.stopPropagation()}
           onclick={() => onMarkClick(mark.event)}
@@ -129,61 +140,8 @@
 </div>
 
 <style>
-  .event-lane {
-    position: relative;
-    border-top: 1px solid var(--color-chrome-divider);
-  }
   .hidden-row {
     opacity: 0.55;
-  }
-
-  .lane-label {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 2px;
-    min-width: 0;
-    z-index: 1;
-  }
-  /* Over the plot the label is text only; the eye toggle is the one part
-     that takes presses, so the lane stays tappable and draggable beneath. */
-  .lane-label.overlay {
-    justify-content: flex-start;
-    pointer-events: none;
-  }
-  .lane-label.overlay .eye-btn {
-    pointer-events: auto;
-  }
-  .label-text {
-    overflow: hidden;
-    padding: 0 4px;
-    color: var(--color-text-secondary);
-    font-size: var(--text-metadata);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .eye-btn {
-    display: flex;
-    flex-shrink: 0;
-    padding: 3px;
-    border: none;
-    border-radius: 3px;
-    background: none;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity var(--duration-chrome) var(--ease-chrome);
-  }
-  .event-lane:hover .eye-btn,
-  .hidden-row .eye-btn,
-  .eye-btn:focus-visible {
-    opacity: 1;
-  }
-  .eye-btn:hover {
-    color: var(--color-text-primary);
   }
 
   .lane-plot {

@@ -52,6 +52,8 @@
     globalPlayhead?: number;
     /** Visible duration label (e.g. "~43d") — clickable for presets */
     rangeLabel?: string;
+    /** Framing presets offered above "Fit mission" in the range popover. */
+    fitOptions?: readonly { label: string; onSelect: () => void }[];
     /**
      * Ticks to draw on the track, as fractions of the *zoomed* range. Event
      * finder results use this so a search result reads as a position in time
@@ -77,7 +79,7 @@
     onZoom, onPan, onResetZoom, onSetZoom,
     startLabel, endLabel,
     isZoomed = false, viewportStart = 0, viewportEnd = 1, globalPlayhead = 0.5,
-    rangeLabel, markers = [],
+    rangeLabel, fitOptions = [], markers = [],
     hoverFraction = null, hoverLabel = '', onHover,
     trackEl = $bindable(),
   }: Props = $props();
@@ -276,7 +278,7 @@
         {/if}
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content side="top" sideOffset={8} class="w-24 p-1">
+        <Popover.Content side="top" sideOffset={8} class="w-28 p-1">
           <div class="flex flex-col gap-0.5">
             {#each ZOOM_PRESETS as preset}
               <button class="zoom-preset" onclick={() => selectPreset(preset.seconds)}>
@@ -284,8 +286,13 @@
               </button>
             {/each}
             <div class="border-t border-border mt-0.5 pt-0.5">
+              {#each fitOptions as option}
+                <button class="zoom-preset" onclick={() => { zoomMenuOpen = false; option.onSelect(); }}>
+                  {option.label}
+                </button>
+              {/each}
               <button class="zoom-preset text-accent" onclick={() => { zoomMenuOpen = false; onResetZoom?.(); }}>
-                All
+                Fit mission
               </button>
             </div>
           </div>

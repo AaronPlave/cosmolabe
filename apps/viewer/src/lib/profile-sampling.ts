@@ -33,6 +33,11 @@ export interface ProfileQuantitySpec {
   id: ProfileQuantityId;
   /** Row label. */
   label: string;
+  /**
+   * The quantity's unit, for the row header. Readouts may scale it (a
+   * distance reads in m, km or AU); this is what the quantity is measured in.
+   */
+  unit: string;
   /** Plotted around zero rather than fitted to [min, max]. */
   symmetric: boolean;
   format: (value: number) => string;
@@ -61,10 +66,10 @@ export function formatAngle(deg: number): string {
  * configured elsewhere lands on the same row type.
  */
 export const PROFILE_QUANTITIES: readonly ProfileQuantitySpec[] = [
-  { id: 'range', label: 'Distance', symmetric: false, format: formatKm },
-  { id: 'relative-speed', label: 'Rel. speed', symmetric: false, format: formatSpeed },
-  { id: 'range-rate', label: 'Range rate', symmetric: true, format: formatRangeRate },
-  { id: 'phase-angle', label: 'Phase angle', symmetric: false, format: formatAngle },
+  { id: 'range', label: 'Distance', unit: 'km', symmetric: false, format: formatKm },
+  { id: 'relative-speed', label: 'Rel. speed', unit: 'km/s', symmetric: false, format: formatSpeed },
+  { id: 'range-rate', label: 'Range rate', unit: 'km/s', symmetric: true, format: formatRangeRate },
+  { id: 'phase-angle', label: 'Phase angle', unit: '°', symmetric: false, format: formatAngle },
 ];
 
 export function profileQuantity(id: string): ProfileQuantitySpec | undefined {
@@ -224,4 +229,14 @@ export function profilePath(series: ProfileSeries, width: number, height: number
 /** Display sample count for a plot `px` wide: about one sample per 2 px. */
 export function sampleCountFor(px: number): number {
   return Math.max(48, Math.min(480, Math.round(px / 2)));
+}
+
+/**
+ * Values for an expanded row's faint gridlines: the view's top, middle and
+ * bottom. Three is enough to read a value off a 100 px row without turning
+ * it into a chart; a symmetric quantity gets its zero line as the middle.
+ */
+export function gridValues(series: Pick<ProfileSeries, 'min' | 'max'>): number[] {
+  if (!(series.max > series.min)) return [];
+  return [series.max, (series.max + series.min) / 2, series.min];
 }

@@ -65,7 +65,7 @@
 <div class="lanes-footer">
   <div
     class="footer-add"
-    style={wide ? `left: 0; width: ${Math.max(0, axisLeft - 8)}px; justify-content: flex-end` : `left: ${axisLeft}px`}
+    style={wide ? `left: 0; width: ${Math.max(0, axisLeft - 10)}px` : `left: ${axisLeft}px`}
   >
     <Popover.Root bind:open={addOpen}>
       <Popover.Trigger class="add-profile-btn" title="Add a continuous profile to the timeline">
@@ -88,10 +88,11 @@
 </div>
 
 <style>
+  /* Aligned with the row headers: `+ Profile` is the next row's header. */
   .lanes-footer {
     position: relative;
     height: 22px;
-    border-top: 1px solid var(--color-chrome-divider);
+    border-top: 1px solid rgba(255, 255, 255, 0.035);
   }
   .footer-add {
     position: absolute;
@@ -104,7 +105,7 @@
     display: flex;
     align-items: center;
     gap: 3px;
-    padding: 1px 6px;
+    padding: 1px 4px;
     border: none;
     border-radius: 3px;
     background: none;

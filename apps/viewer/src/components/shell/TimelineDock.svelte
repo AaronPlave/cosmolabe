@@ -21,18 +21,21 @@
     vs, togglePlay, reverse, faster, slower,
     stepForward, stepBackward, scrubTo, setTime,
     zoomScrubber, resetScrubberZoom, setZoomDuration, etToShortDate, etToUtcString,
+    setScrubberWindow,
   } from '../../lib/viewer-state.svelte';
   import {
-    timeline, setTimelineHover, timelineEt, timelineFraction, panTimelineByPixels, type ProfileEventTick,
+    timeline, setTimelineHover, timelineEt, timelineFraction, panTimelineByPixels,
+    eventKey, eventHoverTargets, hoverTarget, type ProfileEventTick,
   } from '../../lib/timeline.svelte';
+  import { eventEnd, eventStart } from '@cosmolabe/core';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
   import { shell, setTimelineDepth } from '../../lib/shell.svelte';
-  import { formatDuration, snapFraction } from '../../lib/scrubber-math';
+  import { formatDuration } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
   import { ef, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries } from '../../lib/event-finder.svelte';
   import { visibleTimelineEvents } from '../../lib/analysis.svelte';
-  import { eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
+  import { eventCalloutLines, eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
   import {
     ChevronsLeft, ChevronLeft, Rewind, Play, Pause,
     ChevronRight, ChevronsRight, ChevronUp, ChevronDown,
@@ -101,7 +104,7 @@
         const span = eventTimelineFractions(event, { start: vs.scrubMin, end: vs.scrubMax });
         if (!span) return null;
         return {
-          id: event.id,
+          id: eventKey(event),
           fraction: span.start,
           endFraction: span.end,
           selected: ef.selectedId === event.id,
@@ -109,7 +112,7 @@
           title: event.label,
           kind: event.kind,
           state: event.state,
-          previewed: timeline.previewEventId === event.id,
+          previewed: timeline.previewEventId === eventKey(event),
           onSelect: () => selectEvent(event),
         };
       })
@@ -163,26 +166,117 @@
   // Labels in a gutter left of the axis need room; a phone overlays them.
   const wideLanes = $derived(!compact && axis.left >= 120);
 
-  // A hover on the track snaps to its marks like one on a lane, so pointing at
-  // an event on the collapsed strip cross-highlights it too.
+  // A hover on the track previews its marks like one on a lane — snapped to
+  // an edge or inside an interval — so the collapsed strip cross-highlights
+  // and gets the same callout.
+  const trackHoverTargets = $derived(eventHoverTargets(eventMarkers));
   function onTrackHover(fraction: number | null) {
-    if (fraction == null) {
+    if (fraction == null || !trackEl) {
       setTimelineHover(null);
       return;
     }
-    const targets = eventMarkers.flatMap((m) => m.endFraction > m.fraction
-      ? [{ fraction: m.fraction, id: m.id }, { fraction: m.endFraction, id: m.id }]
-      : [{ fraction: m.fraction, id: m.id }]);
-    const snap = snapFraction(fraction, targets, trackEl?.clientWidth ?? 0);
-    setTimelineHover(timelineEt(snap?.fraction ?? fraction), snap?.id ?? null);
+    const rect = trackEl.getBoundingClientRect();
+    const { at, id } = hoverTarget(fraction, rect.width, trackHoverTargets);
+    setTimelineHover(timelineEt(at), id, { x: rect.left + at * rect.width, y: rect.top });
   }
+
+  // ── Hover callout ──
+  //
+  // What a previewed event *is*, anchored where it was pointed at. The copy
+  // is the scene callouts' (`eventCalloutLines`), so the timeline and the 3D
+  // view name events in one language.
+  let rootEl: HTMLDivElement | undefined = $state();
+  const previewEvent = $derived(
+    timeline.previewEventId == null
+      ? undefined
+      : visibleTimelineEvents().find((event) => eventKey(event) === timeline.previewEventId),
+  );
+  const callout = $derived.by(() => {
+    if (!previewEvent || !timeline.anchor || !rootEl) return null;
+    const root = rootEl.getBoundingClientRect();
+    const lines = eventCalloutLines(previewEvent, { utc: etToUtcString, selected: true });
+    // Kept inside the dock horizontally; it may rise above it into the scene.
+    const half = 110;
+    const x = Math.max(half, Math.min(root.width - half, timeline.anchor.x - root.left));
+    return { lines, x, y: timeline.anchor.y - root.top, kind: previewEvent.kind, state: previewEvent.state };
+  });
 
   const hoverFraction = $derived(
     timeline.hoverEt == null || !(currentRange > 0) ? null : (timeline.hoverEt - vs.scrubMin) / currentRange,
   );
+  // The callout carries the time when an event is previewed; the bare
+  // timestamp would only collide with it.
   const hoverLabel = $derived(
-    timeline.hoverEt == null ? '' : etToUtcString(timeline.hoverEt).replace(' UTC', ''),
+    timeline.hoverEt == null || callout ? '' : etToUtcString(timeline.hoverEt).replace(' UTC', ''),
   );
+
+  // ── Framing presets ──
+  //
+  // Behind the range control rather than as a row of buttons. "Fit mission"
+  // is the existing reset to the full range.
+  function fitSpan(start: number, end: number) {
+    const span = end - start;
+    const pad = span > 0 ? span * 0.08 : Math.min(currentRange, 6 * 3600) / 2;
+    setScrubberWindow(start - pad, end + pad);
+  }
+  const selectedEvent = $derived(
+    ef.selectedId == null ? undefined : visibleTimelineEvents().find((event) => event.id === ef.selectedId),
+  );
+  const fitOptions = $derived.by(() => {
+    const events = visibleTimelineEvents();
+    const options: { label: string; onSelect: () => void }[] = [];
+    if (events.length > 0) {
+      options.push({
+        label: 'Fit results',
+        onSelect: () => fitSpan(Math.min(...events.map(eventStart)), Math.max(...events.map(eventEnd))),
+      });
+    }
+    const selected = selectedEvent;
+    if (selected) {
+      options.push({ label: 'Fit selected', onSelect: () => fitSpan(eventStart(selected), eventEnd(selected)) });
+    }
+    return options;
+  });
+
+  // ── Analysis region height ──
+  //
+  // The dock's top edge is a resize handle while the region is open: drag up
+  // for a deeper analysis workspace, capped so the scene keeps the top of the
+  // screen; double-click toggles between the default and a large height,
+  // remembering the one it left.
+  const MIN_LANE_HEIGHT = 44;
+  let previousLaneHeight: number | null = null;
+  function maxLaneHeight() {
+    return Math.round(window.innerHeight * 0.6);
+  }
+  function onResizeStart(e: PointerEvent) {
+    if (e.button !== 0 || !regionEl) return;
+    const handle = e.currentTarget as HTMLElement;
+    handle.setPointerCapture(e.pointerId);
+    const startY = e.clientY;
+    const startHeight = regionEl.clientHeight;
+    const move = (ev: PointerEvent) => {
+      const h = startHeight + (startY - ev.clientY);
+      timeline.laneHeight = Math.round(Math.max(MIN_LANE_HEIGHT, Math.min(maxLaneHeight(), h)));
+    };
+    const end = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
+  function onResizeToggle() {
+    const large = Math.round(window.innerHeight * 0.55);
+    if (timeline.laneHeight != null && timeline.laneHeight >= large * 0.9) {
+      timeline.laneHeight = previousLaneHeight;
+    } else {
+      previousLaneHeight = timeline.laneHeight;
+      timeline.laneHeight = large;
+    }
+  }
 
   let rangeLabel = $derived(isZoomed ? formatDuration(currentRange) : '');
   // The bounds are dropped at a phone width, where they left the track about
@@ -222,15 +316,37 @@
      rendered bare inside the shared bottom dock, so the phone gets one bar of
      chrome rather than two stacked boxes. -->
 <div
+  bind:this={rootEl}
   bind:clientHeight={height}
   class="timeline flex flex-col gap-0.5"
   class:pointer-events-auto={!inline}
   class:absolute={!inline}
   class:z-20={!inline}
   class:desktop-timeline={!inline}
+  class:relative={inline}
   class:px-3={true}
   class:py-1.5={true}
 >
+  {#if expanded}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="resize-handle"
+      title="Drag to resize the analysis area · double-click to toggle large"
+      onpointerdown={onResizeStart}
+      ondblclick={onResizeToggle}
+    ></div>
+  {/if}
+  {#if callout}
+    <div class="event-callout" style="left: {callout.x}px; top: {callout.y}px" role="tooltip">
+      <div class="callout-title">
+        <span class="callout-glyph" data-kind={callout.kind} data-state={callout.state}></span>
+        {callout.lines[0]}
+      </div>
+      {#each callout.lines.slice(1) as line}
+        <div class="callout-line">{line}</div>
+      {/each}
+    </div>
+  {/if}
   {#if shell.shortcutsOpen}
     <div class="py-0.5 text-center text-[12px] text-text-muted">
       Space: play &middot; &larr;/&rarr;: step &middot; &uarr;/&darr;: speed &middot; R: reverse &middot; F: fly to &middot; B: bodies &middot; E: events &middot; P: pick &middot; M: camera &middot; Cmd+K: search &middot; \: zen
@@ -280,6 +396,7 @@
         {viewportEnd}
         {globalPlayhead}
         {rangeLabel}
+        {fitOptions}
         markers={eventMarkers}
       />
     </div>
@@ -322,7 +439,11 @@
     <!-- The shared-axis region: event lanes, then continuous profiles, all
          drawn against the track's extent, window and playhead. Scrolls past a
          few rows so a long list cannot take the scene's height. -->
-    <div bind:this={regionEl} class="lane-region">
+    <div
+      bind:this={regionEl}
+      class="lane-region"
+      style={timeline.laneHeight != null ? `height: ${timeline.laneHeight}px; max-height: none` : undefined}
+    >
       {#each eventLanes as item (item.id)}
         <EventLane {item} axisLeft={axis.left} axisWidth={axis.width} wide={wideLanes} />
       {/each}
@@ -380,6 +501,80 @@
     background: var(--color-chrome-active-bg);
     color: var(--color-chrome-active);
   }
+  /* The top edge, while the analysis region is open. A few px of grab target
+     over the dock's border, visible only as a faint bar on hover. */
+  .resize-handle {
+    position: absolute;
+    top: -4px;
+    right: 0;
+    left: 0;
+    height: 8px;
+    cursor: ns-resize;
+    touch-action: none;
+    z-index: 2;
+  }
+  .resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 50%;
+    width: 36px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--color-text-muted);
+    opacity: 0;
+    transform: translateX(-50%);
+    transition: opacity var(--duration-chrome) var(--ease-chrome);
+  }
+  .resize-handle:hover::after {
+    opacity: 0.6;
+  }
+
+  /* Hover callout: what a previewed event is, anchored above the row it was
+     pointed at. Same copy as the scene's callouts. */
+  .event-callout {
+    position: absolute;
+    z-index: 3;
+    max-width: 240px;
+    padding: 5px 8px;
+    border: 1px solid var(--color-chrome-border);
+    border-radius: 4px;
+    background: var(--color-panel);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    transform: translate(-50%, calc(-100% - 6px));
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .callout-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-text-primary);
+    font-size: var(--text-section);
+    font-weight: 560;
+  }
+  .callout-line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--text-metadata);
+    font-variant-numeric: tabular-nums;
+  }
+  .callout-glyph {
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 1px;
+    background: var(--color-event-accent);
+  }
+  .callout-glyph[data-kind='closest-approach'] { background: #72b7d8; }
+  .callout-glyph[data-kind='distance-range'] { background: #71b896; }
+  .callout-glyph[data-kind='occultation'] { background: #8c72d8; }
+  .callout-glyph[data-state='partial'] { background: #e0a84c; }
+  .callout-glyph[data-state='full'] { background: #8c72d8; }
+  .callout-glyph[data-state='annular'] { background: #d96f4c; }
+
   .lane-region {
     position: relative;
     max-height: min(36vh, 260px);

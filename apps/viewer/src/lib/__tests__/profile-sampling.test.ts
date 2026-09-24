@@ -8,6 +8,7 @@ import {
   sampleCountFor,
   sampleProfile,
   formatRangeRate,
+  gridValues,
   type PositionOf,
 } from '../profile-sampling';
 import { snapFraction } from '../scrubber-math';
@@ -27,8 +28,9 @@ const bodies = { observer: 'Probe', target: 'Rock' };
 const spec = (id: string) => profileQuantity(id)!;
 
 describe('profile quantities', () => {
-  it('starts from the four quantities the ruler had, under shared-model ids', () => {
+  it('starts from the four quantities the ruler had, under shared-model ids, each with a unit', () => {
     expect(PROFILE_QUANTITIES.map((q) => q.id)).toEqual(['range', 'relative-speed', 'range-rate', 'phase-angle']);
+    expect(PROFILE_QUANTITIES.map((q) => q.unit)).toEqual(['km', 'km/s', 'km/s', '°']);
   });
 
   it('computes range, speed, range rate and phase angle from positions alone', () => {
@@ -78,6 +80,12 @@ describe('profile sampling', () => {
     const flat = plotBounds([5, 5], false);
     expect(flat.max).toBeGreaterThan(flat.min);
     expect(plotBounds([null, null], false)).toEqual({ min: 0, max: 0 });
+  });
+
+  it('gives an expanded row three gridlines, and none for a trace with no span', () => {
+    expect(gridValues({ min: 10, max: 30 })).toEqual([30, 20, 10]);
+    expect(gridValues({ min: -5, max: 5 })).toEqual([5, 0, -5]);
+    expect(gridValues({ min: 0, max: 0 })).toEqual([]);
   });
 
   it('scales display density with the pixels available, within bounds', () => {

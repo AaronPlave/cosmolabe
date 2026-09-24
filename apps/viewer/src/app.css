@@ -271,6 +271,130 @@
   }
 }
 
+/* ── Timeline row headers ──
+   One header column for every analysis row — event lanes and profiles —
+   so identities line up down the left of the timeline instead of floating
+   into whatever space the transport leaves. Primary name, then its unit,
+   then the relationship in quieter text; controls sit at the column's right
+   edge and appear on hover. `.overlay` is the phone form, drawn inside the
+   plot's top-left because there is no gutter to put it in. */
+@layer components {
+  .tl-header {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    z-index: 1;
+  }
+  .tl-header.top {
+    align-items: flex-start;
+    padding-top: 5px;
+  }
+  .tl-header-main {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: baseline;
+    gap: 5px;
+    padding: 1px 4px;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    text-align: left;
+    white-space: nowrap;
+    cursor: default;
+  }
+  button.tl-header-main {
+    cursor: pointer;
+  }
+  button.tl-header-main:hover {
+    background: var(--color-control-hover);
+  }
+  .tl-h-primary {
+    flex-shrink: 0;
+    color: var(--color-text-primary);
+    font-size: var(--text-section);
+  }
+  .tl-h-unit {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-metadata);
+  }
+  .tl-h-unit::before {
+    content: '· ';
+  }
+  .tl-h-secondary {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text-muted);
+    font-size: var(--text-metadata);
+  }
+  .tl-header-controls {
+    display: flex;
+    flex-shrink: 0;
+    gap: 1px;
+    opacity: 0;
+    transition: opacity var(--duration-chrome) var(--ease-chrome);
+  }
+  .tl-row:hover .tl-header-controls,
+  .tl-row.hidden-row .tl-header-controls,
+  .tl-header-controls:focus-within {
+    opacity: 1;
+  }
+  .tl-icon-btn {
+    display: flex;
+    padding: 3px;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+  .tl-icon-btn:hover {
+    color: var(--color-text-primary);
+    background: var(--color-control-hover);
+  }
+  .tl-header.overlay {
+    bottom: auto;
+    top: 1px;
+    pointer-events: none;
+  }
+  .tl-header.overlay .tl-header-main,
+  .tl-header.overlay .tl-header-controls {
+    pointer-events: auto;
+  }
+  .tl-header.overlay .tl-header-main {
+    flex: 0 1 auto;
+    padding: 0 3px;
+    line-height: 12px;
+  }
+  .tl-header.overlay .tl-h-primary,
+  .tl-header.overlay .tl-h-secondary,
+  .tl-header.overlay .tl-h-unit {
+    font-size: var(--text-metadata);
+    line-height: 12px;
+  }
+  .tl-header.overlay .tl-header-controls {
+    opacity: 1;
+  }
+  /* Rows read first as continuous signals; the separators stay faint. */
+  .tl-row {
+    position: relative;
+    border-top: 1px solid rgba(255, 255, 255, 0.035);
+  }
+  /* The trace area starts at a faint rule, so the header column reads as a
+     column rather than as labels floating left of the plot. */
+  .tl-plot {
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
