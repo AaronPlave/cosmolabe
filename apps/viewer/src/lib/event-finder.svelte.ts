@@ -27,6 +27,7 @@ import {
   eventStart,
   focusForEvent,
   resolveEventQuery,
+  SpiceTrajectory,
   type ConfiguredEventQuery,
   type EtInterval,
   type EventKind,
@@ -38,10 +39,11 @@ import {
 } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
 import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
-import { geometryScopeForWindow, getGeometryWorker, getSpice } from './loader';
+import { geometryScopeForWindow, getGeometryWorker, getSpice, getUniverse } from './loader';
 import {
   activeEventAtTime,
   buildQuery,
+  eventCalloutLines,
   formForKind,
   type EventQueryForm,
   type EventSortMode,
@@ -57,12 +59,62 @@ import {
   setEventResults,
   updateConfiguredEventQuery,
 } from './analysis.svelte';
-import { getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
+import { etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
 const registry = builtinEventKinds();
 
 export const EVENT_KINDS: EventKind<never>[] = registry.list();
+
+/**
+ * The name SPICE should be given for a catalog body.
+ *
+ * The finder's form, its results and the 3D highlight all speak catalog display
+ * names, but a display name is not a SPICE name: the Psyche frames kernel maps
+ * `PSYCHE` to the asteroid (2000016) while the catalog's "Psyche" is the
+ * spacecraft (-255), so passing the name through silently measured the wrong
+ * object. The catalog already says which SPICE object a body is — its `naifId`,
+ * or the target of its SPICE trajectory — and only a body that says neither
+ * falls back to its name.
+ */
+export function spiceNameForBody(
+  body: { naifId?: number; trajectory?: unknown } | undefined,
+  name: string,
+): string {
+  if (body?.naifId != null) return String(body.naifId);
+  if (body?.trajectory instanceof SpiceTrajectory) return body.trajectory.spiceTarget;
+  return name;
+}
+
+/** Display name → SPICE name for the scene that is up. */
+function sceneSpiceName(name: string): string {
+  return spiceNameForBody(getUniverse()?.getBody(name), name);
+}
+
+/**
+ * A provider that takes catalog display names and hands SPICE the bodies they
+ * mean. Only body arguments are translated; frames and shapes pass untouched.
+ */
+export function withSpiceNames(
+  provider: GeometryFinderProvider,
+  toSpice: (name: string) => string,
+): GeometryFinderProvider {
+  const range = provider.range;
+  return {
+    gfdist: (target, abcorr, observer, ...rest) =>
+      provider.gfdist(toSpice(target), abcorr, toSpice(observer), ...rest),
+    gfsep: (t1, s1, f1, t2, s2, f2, abcorr, observer, ...rest) =>
+      provider.gfsep(toSpice(t1), s1, f1, toSpice(t2), s2, f2, abcorr, toSpice(observer), ...rest),
+    gfoclt: (occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, ...rest) =>
+      provider.gfoclt(occtyp, toSpice(front), fshape, fframe, toSpice(back), bshape, bframe, abcorr, toSpice(observer), ...rest),
+    gfposc: (target, frame, abcorr, observer, ...rest) =>
+      provider.gfposc(toSpice(target), frame, abcorr, toSpice(observer), ...rest),
+    ...(range
+      ? { range: (target: string, abcorr: string, observer: string, et: number) =>
+          range(toSpice(target), abcorr, toSpice(observer), et) }
+      : {}),
+  };
+}
 
 /**
  * The viewer's SPICE instance as a GF provider.
@@ -197,6 +249,7 @@ export function coverageWindow(
   spice: Pick<HeritageSpice, 'bodn2c' | 'spkcov'>,
   bodies: EventParticipants,
   span: EtInterval,
+  toSpice: (name: string) => string = (name) => name,
 ): EtInterval {
   let { start, end } = span;
   let coverageStart = -Infinity;
@@ -206,7 +259,8 @@ export function coverageWindow(
   for (const name of Object.values(bodies)) {
     if (!name) continue;
     try {
-      const id = spice.bodn2c(name);
+      const spiceName = toSpice(name);
+      const id = /^-?\d+$/.test(spiceName) ? Number(spiceName) : spice.bodn2c(spiceName);
       if (id == null) continue;
       const windows = spice.spkcov(id);
       if (windows.length === 0) continue;
@@ -262,8 +316,12 @@ export const ef = $state({
   searched: false,
   /** Id of the selected result, or null. */
   selectedId: null as string | null,
-  /** Id of the occultation currently represented at the live playhead. */
+  /** Shared transient preview from scene, result list, or timeline. */
+  previewId: null as string | null,
+  previewQueryId: null as string | null,
+  /** Id and query of the occultation represented at the live playhead. */
   activeId: null as string | null,
+  activeQueryId: null as string | null,
   /**
    * Display order. Chronological by default, since that is how a mission reads;
    * `metric` answers "which was the closest?" instead. Held here rather than in
@@ -286,6 +344,29 @@ let inFlight = 0;
 let active: RunningSearch | null = null;
 /** Event currently represented by the renderer's single explanatory overlay. */
 let displayedOccultation: GeometryEvent | null = null;
+let unsubscribeSceneMarkerClick: (() => void) | null = null;
+let unsubscribeSceneMarkerHover: (() => void) | null = null;
+
+export function previewEvent(event: GeometryEvent | null, boundary?: 'start' | 'end'): void {
+  ef.previewId = event?.id ?? null;
+  ef.previewQueryId = event?.queryId ?? null;
+  if (!event) {
+    getRenderer()?.setEventPreview(null);
+    return;
+  }
+  const lines = eventCalloutLines(event, { boundary, utc: etToUtcString });
+  getRenderer()?.setEventPreview(event, lines.join('\n'), boundary);
+}
+
+function syncEventResultsInScene(): void {
+  const renderer = getRenderer();
+  if (!renderer) return;
+  const selected = ef.selectedId
+    ? ef.events.find((event) => event.id === ef.selectedId) ?? null
+    : null;
+  const annotation = selected ? eventCalloutLines(selected, { selected: true, utc: etToUtcString }).join('\n') : '';
+  renderer.setEventResults(analysisContext().eventResults, selected, annotation);
+}
 
 function displayOccultation(event: GeometryEvent | null): void {
   const renderer = getRenderer();
@@ -321,10 +402,13 @@ export function syncOccultationGeometryAtTime(): GeometryEvent | undefined {
   const activeEvent = activeEventAtTime(
     analysisContext().eventResults.filter((event) => event.kind === 'occultation'),
     vs.et,
-    ef.selectedId,
+    // The selection belongs to the configured query (selectEvent opens it).
+    ef.selectedId && ef.configuredId ? { id: ef.selectedId, queryId: ef.configuredId } : null,
   );
   const activeId = activeEvent?.id ?? null;
+  const activeQueryId = activeEvent?.queryId ?? null;
   if (ef.activeId !== activeId) ef.activeId = activeId;
+  if (ef.activeQueryId !== activeQueryId) ef.activeQueryId = activeQueryId;
   displayOccultation(activeEvent ?? null);
   return activeEvent;
 }
@@ -371,7 +455,7 @@ function defaultWindow(bodies: EventParticipants = {}): EtInterval {
   const spice = getSpice();
   if (!spice) return span;
 
-  const covered = coverageWindow(spice, bodies, span);
+  const covered = coverageWindow(spice, bodies, span, sceneSpiceName);
   ef.windowTrimmed = covered.start > span.start || covered.end < span.end;
   return covered;
 }
@@ -454,6 +538,8 @@ export function configuredEventQueries(): ConfiguredEventQuery[] {
 
 export function setConfiguredQueryEnabled(id: string, enabled: boolean) {
   setConfiguredItemEnabled(id, enabled);
+  if (!enabled && ef.previewQueryId === id) previewEvent(null);
+  syncEventResultsInScene();
 }
 
 export function setConfiguredQueryVisible(id: string, visible: boolean) {
@@ -462,6 +548,7 @@ export function setConfiguredQueryVisible(id: string, visible: boolean) {
 
 /** Start another independently cached event category without discarding this one. */
 export function createNewSearch() {
+  previewEvent(null);
   active?.cancel();
   inFlight++;
   const previous = ef.form ?? undefined;
@@ -476,6 +563,7 @@ export function createNewSearch() {
   syncWindowToBodies();
   syncConfiguredQuery();
   highlightBodies([]);
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
@@ -512,6 +600,7 @@ export function openConfiguredQuery(id: string) {
   ef.windowPinned = item.windowMode === 'explicit';
   ef.windowTrimmed = false;
   highlightBodies([]);
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
@@ -587,6 +676,7 @@ export function setStep(step: number) {
  * old answer to land afterwards, against a query nobody asked.
  */
 function clearResults() {
+  previewEvent(null);
   active?.cancel();
   inFlight++;
   ef.events = [];
@@ -595,6 +685,7 @@ function clearResults() {
   ef.searched = false;
   ef.selectedId = null;
   if (ef.configuredId) setEventResults(ef.configuredId, []);
+  syncEventResultsInScene();
 }
 
 /** Runs the configured search, replacing the previous result. */
@@ -615,18 +706,20 @@ export async function runSearch() {
 
   const item = syncConfiguredQuery();
   if (!item || !item.enabled) return;
+  previewEvent(null);
   // A search the user has replaced is work nobody wants done; stopping it also
   // frees the worker for the one they do want.
   active?.cancel();
 
   const running = beginSearch(spice, { start: ef.form.startEt, end: ef.form.endEt });
   active = running;
-  const search = new EventSearch({ registry, provider: running.provider });
+  const search = new EventSearch({ registry, provider: withSpiceNames(running.provider, sceneSpiceName) });
   const token = ++inFlight;
 
   ef.running = true;
   ef.progress = null;
   ef.selectedId = null;
+  syncEventResultsInScene();
   try {
     // Resolution applies the shared context defaults but preserves this item's
     // explicit bodies/window, then enters the unchanged EventQuery boundary.
@@ -648,6 +741,7 @@ export async function runSearch() {
       ef.hint = null;
     }
     ef.searched = result.ok;
+    syncEventResultsInScene();
   } finally {
     // Ownership of the spinner follows `active`, not the token: a search
     // abandoned by an edit to the form has had its token retired, and checking
@@ -691,14 +785,17 @@ export function cancelSearch() {
  * panel's — every kind gets the same behavior, including the ones that do not
  * exist yet.
  */
-export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' = 'start') {
+export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' | number = 'start') {
   if (event.queryId !== ef.configuredId) openConfiguredQuery(event.queryId);
   ef.selectedId = event.id;
-  applyEventFocus(focusForEvent(event, anchor), {
+  const focus = focusForEvent(event, typeof anchor === 'number' ? 'start' : anchor);
+  if (typeof anchor === 'number') focus.et = Math.max(eventStart(event), Math.min(anchor, eventEnd(event)));
+  applyEventFocus(focus, {
     setTime,
     selectBody,
     highlightBodies,
   });
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
@@ -706,6 +803,7 @@ export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'mid
 export function clearSelection() {
   ef.selectedId = null;
   highlightBodies([]);
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
@@ -719,6 +817,11 @@ export function clearSelection() {
  * the kind and the sort order are preferences rather than data, so they stay.
  */
 export function resetForScene() {
+  unsubscribeSceneMarkerClick?.();
+  unsubscribeSceneMarkerClick = null;
+  unsubscribeSceneMarkerHover?.();
+  unsubscribeSceneMarkerHover = null;
+  previewEvent(null);
   // `clearResults` abandons the search in flight, which matters more here than
   // anywhere: the kernels it was running against are being replaced under it.
   clearResults();
@@ -726,6 +829,7 @@ export function resetForScene() {
   displayOccultation(null);
   ef.form = null;
   ef.activeId = null;
+  ef.activeQueryId = null;
   ef.windowPinned = false;
   ef.windowTrimmed = false;
   ef.configuredId = null;
@@ -735,4 +839,14 @@ export function resetForScene() {
 // Scene loads are the only thing that replaces the kernels and the body list
 // underneath a result set. Subscribed at module scope rather than from the
 // panel: results have to be invalidated whether or not anyone has it open.
-onViewerEvent('load', () => resetForScene());
+onViewerEvent('load', () => {
+  resetForScene();
+  unsubscribeSceneMarkerClick = getRenderer()?.events.on('event:click', ({ id, queryId, et }) => {
+    const event = analysisContext().eventResults.find((item) => item.id === id && item.queryId === queryId);
+    if (event) selectEvent(event, et);
+  }) ?? null;
+  unsubscribeSceneMarkerHover = getRenderer()?.events.on('event:hover', (hit) => {
+    const event = hit ? analysisContext().eventResults.find((item) => item.id === hit.id && item.queryId === hit.queryId) : null;
+    previewEvent(event ?? null, hit?.boundary);
+  }) ?? null;
+});

@@ -9,6 +9,7 @@
    * concrete, and only that an event has a time, a label and metrics.
    */
   import { Loader2, Search, Ban, Plus } from 'lucide-svelte';
+  import { tick } from 'svelte';
   import * as Select from '$lib/components/ui/select/index.js';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
   import { vs, etToUtcString } from '../lib/viewer-state.svelte';
@@ -17,7 +18,7 @@
   import { getSpice } from '../lib/loader';
   import {
     EVENT_KINDS, cancelSearch, ef, clearSelection, currentKind, resetForm, runSearch,
-    selectEvent, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
+    selectEvent, previewEvent, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
     currentConfiguredQuery, setCurrentQueryVisible,
     configuredEventQueries, createNewSearch, openConfiguredQuery,
     setConfiguredQueryEnabled, setConfiguredQueryVisible,
@@ -43,11 +44,33 @@
   let form = $derived(ef.form);
   /** Display order is a view concern: the search's own order is chronological. */
   let shownEvents = $derived(sortEvents(ef.events, ef.sort));
+  let mixedTemporality = $derived(
+    ef.events.some(isIntervalEvent) && ef.events.some((event) => !isIntervalEvent(event)),
+  );
   let metricSortLabel = $derived(sortMetricLabel(ef.events));
   let unfilledRoles = $derived(form ? missingRoles(kind, form) : []);
   let configured = $derived(currentConfiguredQuery());
   let configuredQueries = $derived(configuredEventQueries());
   let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running);
+  let resultsListEl = $state<HTMLDivElement>();
+
+  // Scene and timeline markers can select a result outside the list's current
+  // scroll window. Reveal its row so the time jump has an obvious explanation.
+  $effect(() => {
+    const selectedId = ef.selectedId;
+    const queryId = ef.configuredId;
+    if (!selectedId) return;
+    void tick().then(() => {
+      if (ef.selectedId !== selectedId || ef.configuredId !== queryId) return;
+      const list = resultsListEl;
+      const selected = list?.querySelector<HTMLElement>('.event-result.selected');
+      if (!list || !selected) return;
+      const listBox = list.getBoundingClientRect();
+      const rowBox = selected.getBoundingClientRect();
+      if (rowBox.top < listBox.top) list.scrollTop -= listBox.top - rowBox.top;
+      else if (rowBox.bottom > listBox.bottom) list.scrollTop += rowBox.bottom - listBox.bottom;
+    });
+  });
   const eventKindItems = EVENT_KINDS.map(({ kind, label }) => ({ value: kind, label }));
 
   /** Window fields are edited as UTC text and only committed when they parse. */
@@ -413,15 +436,24 @@
           {/if}
         </div>
       </div>
-      <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
+      <div class="event-marker-legend ui-helper" aria-label="3D event marker legend">
+        <span><i class="event-marker-diamond" aria-hidden="true"></i>Instant</span>
+        <span><i class="event-marker-span" aria-hidden="true"></i>Interval</span>
+      </div>
+      <div bind:this={resultsListEl} class="flex flex-col gap-1 max-h-64 overflow-y-auto">
         {#each shownEvents as event}
           {@const headline = headlineMetric(event)}
           {@const atPlayhead = eventContainsTime(event, vs.et)}
           <button
             class="event-result text-left rounded px-2 py-2 border cursor-pointer"
-            class:selected={ef.selectedId === event.id}
+            class:selected={ef.selectedId === event.id && ef.configuredId === event.queryId}
+            class:preview={ef.previewId === event.id && ef.previewQueryId === event.queryId}
             class:at-playhead={atPlayhead}
             onclick={() => selectEvent(event)}
+            onpointerenter={() => previewEvent(event)}
+            onpointerleave={() => previewEvent(null)}
+            onfocus={() => previewEvent(event)}
+            onblur={() => previewEvent(null)}
             title={event.label}
           >
             <div class="flex justify-between gap-2 items-baseline">
@@ -430,14 +462,15 @@
                    Say which quantity it is. -->
               <span class="flex items-center gap-1.5">
                 {#if atPlayhead}<span class="ui-meta event-now">at playhead</span>{/if}
-                <span
-                  class="ui-meta"
-                  title={isIntervalEvent(event)
-                    ? 'How long this event lasted, start to end'
-                    : 'This event is a single instant, not a span'}
-                >
-                  {isIntervalEvent(event) ? `lasts ${formatSeconds(eventDuration(event))}` : 'instant'}
-                </span>
+                {#if isIntervalEvent(event)}
+                  <span class="ui-meta" title="How long this event lasted, start to end">
+                    lasts {formatSeconds(eventDuration(event))}
+                  </span>
+                {:else if mixedTemporality}
+                  <!-- Only worth saying when the list mixes instants and
+                       spans; otherwise the legend already says it. -->
+                  <span class="ui-meta" title="This event is a single instant, not a span">instant</span>
+                {/if}
               </span>
             </div>
             {#if headline}
@@ -448,7 +481,7 @@
             {:else}
               <div class="event-summary">{eventSummary(event)}</div>
             {/if}
-            {#if ef.selectedId === event.id}
+            {#if ef.selectedId === event.id && ef.configuredId === event.queryId}
               <div class="mt-1 flex flex-col gap-0.5">
                 {#if event.state}
                   <div class="ui-data-row">
@@ -456,7 +489,7 @@
                     <span class="ui-readout capitalize">{event.state}</span>
                   </div>
                 {/if}
-                {#if event.kind === 'occultation' && ef.activeId === event.id}
+                {#if event.kind === 'occultation' && ef.activeId === event.id && ef.activeQueryId === event.queryId}
                   <div class="geometry-legend ui-helper" aria-label="3D geometry legend">
                     <span><i class="legend-line sightline"></i>{event.bodies.back?.toLowerCase() === 'sun' ? 'Observer sightline' : 'Background line of sight'}</span>
                     {#if event.bodies.back?.toLowerCase() === 'sun'}
@@ -545,7 +578,7 @@
     border: 1px solid transparent;
   }
   .configured-query.active {
-    border-color: var(--color-chrome-active-border);
+    border-color: var(--color-border-strong);
     background: var(--color-chrome-active-bg);
   }
 
@@ -562,12 +595,19 @@
   .event-result:hover {
     background: var(--color-hover);
   }
+  /* Quieter than a full gold frame, matching the in-scene treatment: a gold
+     keyline carries the selection, the frame stays neutral chrome. */
   .event-result.selected {
-    border-color: color-mix(in srgb, var(--color-event-accent) 52%, transparent);
-    background: color-mix(in srgb, var(--color-event-accent) 8%, transparent);
-  }
-  .event-result.at-playhead {
+    border-color: var(--color-border-strong);
+    background: color-mix(in srgb, var(--color-event-accent) 5%, transparent);
     box-shadow: inset 2px 0 0 var(--color-event-accent);
+  }
+  .event-result.preview:not(.selected) {
+    border-color: color-mix(in srgb, var(--color-primary-accent) 45%, transparent);
+    background: color-mix(in srgb, var(--color-primary-accent) 7%, transparent);
+  }
+  .event-result.at-playhead:not(.selected) {
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-event-accent) 60%, transparent);
   }
   .event-now {
     color: var(--color-event-accent);
@@ -599,6 +639,56 @@
   }
   .event-helper .ctrl-link {
     font-size: inherit;
+  }
+  .event-marker-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 10px;
+    margin: 2px 0 6px;
+    color: var(--color-text-secondary);
+  }
+  .event-marker-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .event-marker-diamond,
+  .event-marker-span {
+    display: inline-block;
+    flex: none;
+    width: 12px;
+    height: 12px;
+    position: relative;
+    color: #70b7d7;
+  }
+  .event-marker-diamond::after {
+    content: '';
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border: 1px solid currentColor;
+    transform: rotate(45deg);
+    top: 2px;
+    left: 2px;
+  }
+  .event-marker-span::before {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 1px;
+    width: 10px;
+    border-top: 1px solid currentColor;
+  }
+  .event-marker-span::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 1px;
+    width: 10px;
+    height: 7px;
+    border-left: 1px solid currentColor;
+    border-right: 1px solid currentColor;
   }
   .geometry-legend {
     display: flex;

@@ -129,6 +129,7 @@
 {/snippet}
 
 <nav
+  data-scene-occluder
   aria-label="Tools"
   class="rail flex"
   class:pointer-events-auto={!inline}
