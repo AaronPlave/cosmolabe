@@ -20,6 +20,7 @@
  */
 import {
   EventSearch,
+  EventSearchProgress,
   applyEventFocus,
   builtinEventKinds,
   defaultParams,
@@ -37,7 +38,7 @@ import {
   type AberrationCorrection,
 } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
-import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
+import { GeometrySearchCancelled } from '@cosmolabe/three';
 import { geometryScopeForWindow, getGeometryWorker, getSpice } from './loader';
 import {
   activeEventAtTime,
@@ -111,18 +112,27 @@ interface RunningSearch {
    */
   finish(): void;
   readonly cancelled: boolean;
+  /**
+   * Where the worker's per-call progress is assembled into whole-search
+   * progress. Absent on the main-thread path, which has none to report.
+   */
+  readonly progress?: EventSearchProgress;
 }
 
 /**
- * Progress of the geometry call currently running, or null when there is none
- * to be had.
+ * How far through the whole search it is, or null when there is none to be had.
+ *
+ * Each geometry call reports its own fraction, and `EventSearchProgress` gives
+ * call *n* of the *N* the kind plans its own slice of the bar, so the fraction
+ * never goes backwards across a search of several calls. The slices are equal
+ * by assumption, not by measured cost, so it is a bar, not an estimate.
  *
  * Null on the main-thread path: the fraction comes from CSPICE's own progress
  * reporter, which only the general GF entry points accept, and only the worker's
  * adapter calls those. A search without it shows an indeterminate spinner, which
  * is what every search showed before.
  */
-export type SearchProgress = GeometrySearchProgress | null;
+export type SearchProgress = { readonly fraction: number } | null;
 
 /**
  * The provider this search will use: the worker's when there is one, the main
@@ -138,17 +148,25 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
     // Only the search that owns the panel writes to it. A superseded search can
     // still report for a moment before it stops, and its progress is nobody's.
     let self: RunningSearch | null = null;
-    self = worker.search({
+    const progress = new EventSearchProgress((fraction) => {
+      if (active === self) ef.progress = { fraction };
+    });
+    const handle = worker.search({
       // The window is what decides which kernels the worker needs: an SPK whose
       // coverage misses it cannot contribute to the answer, and the geometry
       // worker holds its own copy of everything it is given. For a mission-length
       // catalog that is the difference between a second copy of the catalog and a
       // second copy of the two files this search can actually reach.
       scope: geometryScopeForWindow(window),
-      onProgress: (progress) => {
-        if (active === self) ef.progress = progress;
-      },
+      onProgress: ({ fraction }) => progress.report(fraction),
     });
+    self = {
+      provider: handle.provider,
+      cancel: () => handle.cancel(),
+      finish: () => handle.finish(),
+      get cancelled() { return handle.cancelled; },
+      progress,
+    };
     return self;
   }
 
@@ -630,7 +648,9 @@ export async function runSearch() {
   try {
     // Resolution applies the shared context defaults but preserves this item's
     // explicit bodies/window, then enters the unchanged EventQuery boundary.
-    const result = await search.run(resolveEventQuery(item, analysisContext()));
+    const result = await search.run(resolveEventQuery(item, analysisContext()), {
+      progress: running.progress,
+    });
     // A later search already answered, or this one was abandoned. Either way
     // there is nothing to show — and a cancelled search's provider error is
     // the cancellation, not a fault worth putting on screen.

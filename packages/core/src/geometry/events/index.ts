@@ -54,8 +54,9 @@ export {
   registerBuiltinEventKinds,
 } from './kinds/index.js';
 
-export type { EventSearchOptions } from './search.js';
+export type { EventSearchOptions, EventSearchRunOptions } from './search.js';
 export { EventSearch } from './search.js';
+export { EventSearchProgress } from './progress.js';
 
 export type { EventFocus, EventFocusAnchor, EventFocusTarget } from './focus.js';
 export {

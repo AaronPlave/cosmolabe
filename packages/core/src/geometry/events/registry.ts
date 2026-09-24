@@ -74,6 +74,18 @@ export interface EventKind<P = Record<string, unknown>> {
    * and step). Return a fault to reject the query.
    */
   validate?(query: EventQuery<P>): EventSearchFault | undefined;
+  /**
+   * How many geometry calls `run` will make for this query, so progress can
+   * give each its own slice of the bar. Defaults to 1.
+   *
+   * Count GF calls only: a plain position lookup such as `range` reports no
+   * progress and takes no slice. Declare it when the count is known before the
+   * search starts — a kind that runs one call per requested state knows it
+   * from the query alone. Calls beyond the count, such as a refinement inside
+   * each window the main call found, share the last slice: the bar holds there
+   * rather than restarting.
+   */
+  plannedCalls?(query: ResolvedEventQuery<P>): number;
   /** Runs the search. Faults are raised by throwing; the service wraps them. */
   run(query: ResolvedEventQuery<P>, ctx: EventKindContext): Promise<GeometryEvent[]>;
   /**

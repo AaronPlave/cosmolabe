@@ -1,3 +1,4 @@
+import type { EventSearchProgress } from './progress.js';
 import type { GeometryFinderProvider } from './provider.js';
 import {
   EventKindRegistry,
@@ -18,6 +19,17 @@ import {
 export interface EventSearchOptions {
   registry: EventKindRegistry;
   provider: GeometryFinderProvider;
+}
+
+/** Per-search options for {@link EventSearch.run}. */
+export interface EventSearchRunOptions {
+  /**
+   * Where this search's whole-search progress goes. The search tells it how
+   * many geometry calls to expect and when each begins; the caller, which is
+   * what hears the provider's per-call progress, feeds that in. Omit it and the
+   * search runs exactly as it would without.
+   */
+  progress?: EventSearchProgress;
 }
 
 /**
@@ -46,7 +58,7 @@ export class EventSearch {
     return this.registry.list();
   }
 
-  async run<P>(query: EventQuery<P>): Promise<EventSearchResult> {
+  async run<P>(query: EventQuery<P>, options?: EventSearchRunOptions): Promise<EventSearchResult> {
     const kind = this.registry.get(query.kind);
     if (!kind) {
       return this.fault(query, {
@@ -63,9 +75,14 @@ export class EventSearch {
     const specific = (kind as unknown as EventKind<P>).validate?.(resolved as EventQuery<P>);
     if (specific) return this.fault(query, specific);
 
+    const progress = options?.progress;
+    progress?.plan(
+      (kind as unknown as EventKind<P>).plannedCalls?.(resolved as ResolvedEventQuery<P>) ?? 1,
+    );
+
     let sequence = 0;
     const ctx = {
-      provider: this.provider,
+      provider: progress ? countingCalls(this.provider, progress) : this.provider,
       nextEventId: () => `${query.id}:${sequence++}`,
     };
 
@@ -73,6 +90,7 @@ export class EventSearch {
     try {
       events = await (kind as unknown as EventKind<P>).run(resolved as ResolvedEventQuery<P>, ctx);
     } catch (cause) {
+      progress?.seal();
       return this.fault(query, {
         code: 'provider-error',
         message: cause instanceof Error ? cause.message : String(cause),
@@ -84,6 +102,10 @@ export class EventSearch {
     // The kind's declared primary role applies to every event it returns that
     // did not name its own, so `focusForEvent` never has to guess for a kind
     // that has already answered the question.
+    // The search is answered. Whatever follows — an explanation for an empty
+    // result — is not part of what the bar describes, and reports nothing.
+    progress?.complete();
+
     const stamped = kind.primaryRole
       ? events.map((event) => (event.primaryRole ? event : { ...event, primaryRole: kind.primaryRole }))
       : events;
@@ -112,6 +134,29 @@ export class EventSearch {
   private fault(query: EventQuery<never> | EventQuery<any>, fault: EventSearchFault): EventSearchResult {
     return { ok: false, queryId: query.id, fault };
   }
+}
+
+/**
+ * The provider, with each GF call marking the start of a new slice of
+ * `progress`. `range` is a position lookup, not a geometry search: it reports
+ * nothing and passes straight through.
+ */
+function countingCalls(
+  provider: GeometryFinderProvider,
+  progress: EventSearchProgress,
+): GeometryFinderProvider {
+  const counted = <A extends unknown[], R>(fn: (...args: A) => R) =>
+    (...args: A): R => {
+      progress.beginCall();
+      return fn.apply(provider, args);
+    };
+  return {
+    ...(provider.range ? { range: provider.range.bind(provider) } : {}),
+    gfdist: counted(provider.gfdist),
+    gfsep: counted(provider.gfsep),
+    gfoclt: counted(provider.gfoclt),
+    gfposc: counted(provider.gfposc),
+  };
 }
 
 /** Shared checks every kind gets for free. */

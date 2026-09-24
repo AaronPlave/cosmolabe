@@ -21,6 +21,12 @@ const GFOCLT_TYPE: Record<OccultationState, string> = {
   annular: 'ANNULAR',
 };
 
+/** The states one search asks GFOCLT for, in the order it asks. */
+function requestedStates(params: OccultationParams | undefined): OccultationState[] {
+  const requested = params?.state ?? 'all';
+  return requested === 'all' ? ['partial', 'full', 'annular'] : [requested];
+}
+
 /**
  * Eclipse and body/body occultation windows, computed by SPICE GFOCLT.
  *
@@ -79,14 +85,14 @@ export const occultationKind: EventKind<OccultationParams> = {
     return undefined;
   },
 
+  // One GFOCLT per requested state, over the same window: clean slices.
+  plannedCalls: (query) => requestedStates(query.params).length,
+
   run: async (query, ctx) => {
     const observer = query.bodies.observer!;
     const front = query.bodies.front!;
     const back = query.bodies.back!;
-    const requested = query.params?.state ?? 'all';
-    const states: OccultationState[] = requested === 'all'
-      ? ['partial', 'full', 'annular']
-      : [requested];
+    const states = requestedStates(query.params);
     const events: IntervalEvent[] = [];
 
     for (const state of states) {

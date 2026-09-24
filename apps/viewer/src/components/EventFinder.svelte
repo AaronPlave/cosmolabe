@@ -287,19 +287,19 @@
     </div>
 
     <!-- A determinate bar, from CSPICE's own progress reporter running inside
-         the search. It measures the step in progress: the fraction is of the
-         geometry call currently running — monotonic within it, since the call's
-         pass count is known up front — and it restarts when the search moves to
-         its next call. So it reads as "still moving, and here is how far through
-         this piece", never as a prediction of the whole, which is why no number
+         the search. It measures the whole search: each geometry call reports
+         its own fraction, and each of the calls the kind plans gets an equal
+         slice, so the bar fills once and never goes backwards. The slices are
+         equal by assumption rather than by measured cost, so a search whose
+         calls differ in cost still advances unevenly — which is why no number
          is shown beside it. Absent on the main-thread path, where the simplified
          wrappers report nothing and the spinner is all there is. -->
     {#if ef.running && ef.progress}
       <div
         class="mt-1.5 h-1 w-full overflow-hidden rounded bg-surface-3"
         role="progressbar"
-        aria-label="Progress of the current search step"
-        title="Progress of the step running now. A search runs in several steps, so this restarts."
+        aria-label="Search progress"
+        title="Progress of the search. Each step gets an equal share, so it may move unevenly."
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(ef.progress.fraction * 100)}

@@ -64,10 +64,10 @@ export class GeometrySearchCancelled extends Error {
  * count is known up front and each pass is mapped into its own slice. `pass` is
  * the 1-based number of the one running, passed through unscaled.
  *
- * What this still cannot say is how far through *the search* it is: a search
- * may be several calls (an occultation search runs one per requested state),
- * and the fraction restarts at each. So it reads as "this step is n% done",
- * never "the search is n% done".
+ * This is still one call's fraction: a search may be several calls (an
+ * occultation search runs one per requested state), and it restarts at each.
+ * `EventSearchProgress` in `@cosmolabe/core` is what turns these into the
+ * search's own fraction, from the number of calls the kind plans.
  */
 export interface GeometrySearchProgress {
   readonly fraction: number;
