@@ -350,7 +350,7 @@
       <ChevronDown size={10} />
     </Popover.Trigger>
     <Popover.Portal>
-      <Popover.Content side="top" sideOffset={8} class="w-36 p-1">
+      <Popover.Content side="top" sideOffset={8} class="w-max min-w-36 max-w-[calc(100vw-16px)] p-1">
         <div class="flex flex-col gap-0.5">
           {#each ZOOM_PRESETS as preset}
             <button class="zoom-preset" onclick={() => selectPreset(preset.seconds)}>

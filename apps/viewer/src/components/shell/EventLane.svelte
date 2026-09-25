@@ -17,7 +17,9 @@
   import { eventDuration } from '@cosmolabe/core';
   import { vs } from '../../lib/viewer-state.svelte';
   import { analysis } from '../../lib/analysis.svelte';
-  import { ef, selectEvent, setConfiguredQueryVisible, removeConfiguredQuery } from '../../lib/event-finder.svelte';
+  import {
+    ef, selectEvent, setConfiguredQueryVisible, removeConfiguredQuery, EVENT_KINDS,
+  } from '../../lib/event-finder.svelte';
   import {
     activeEventsAtTime, eventContainsTime, eventTimelineFractions, formatSeconds,
   } from '../../lib/event-query';
@@ -56,12 +58,20 @@
     if (b.front && b.back) return b.observer ? `${b.front} / ${b.back} from ${b.observer}` : `${b.front} / ${b.back}`;
     return '';
   });
+  // The timeline favours scanability: a default label's kind name gets its
+  // short form here ("Range", not "Distance / range"); the Event Finder keeps
+  // the explicit one. A label the user wrote is left alone.
+  const SHORT_KIND: Record<string, string> = {
+    'distance-range': 'Range',
+    occultation: 'Occultation',
+  };
   const title = $derived.by(() => {
     const cut = item.label.indexOf(': ');
-    if (cut <= 0) return item.label;
-    const suffix = item.label.slice(cut + 2);
+    const suffix = cut > 0 ? item.label.slice(cut + 2) : '';
     const bodies = Object.values(item.query.bodies ?? {}).join(' / ');
-    return suffix === bodies ? item.label.slice(0, cut) : item.label;
+    const base = cut > 0 && suffix === bodies ? item.label.slice(0, cut) : item.label;
+    const kindLabel = EVENT_KINDS.find((k) => k.kind === item.query.kind)?.label;
+    return base === kindLabel ? SHORT_KIND[item.query.kind] ?? base : base;
   });
 
   const isSelected = (event: GeometryEvent) => ef.selectedId === event.id && ef.configuredId === event.queryId;

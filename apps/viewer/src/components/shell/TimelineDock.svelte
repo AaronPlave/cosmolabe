@@ -191,7 +191,7 @@
   let trackEl: HTMLDivElement | undefined = $state();
   let transportCellEl: HTMLDivElement | undefined = $state();
   let regionEl: HTMLDivElement | undefined = $state();
-  let toggleEl: HTMLButtonElement | undefined = $state();
+  let clockEl: HTMLDivElement | undefined = $state();
   let axis = $state({ left: 0, width: 0, railEnd: 0 });
   /** Geometry of the through-lines, relative to the dock. */
   let lines = $state<{ left: number; width: number; top: number; lanesTop: number; bottom: number } | null>(null);
@@ -218,7 +218,8 @@
         return;
       }
       // The rail's values right-align under the clock.
-      const clockRight = toggleEl ? toggleEl.getBoundingClientRect().left - 2 : r.right;
+      // (The clock button's text ends 8 px inside its padding.)
+      const clockRight = clockEl ? clockEl.getBoundingClientRect().right - 8 : r.right;
       axis = { left: t.left - r.left, width: t.width, railEnd: Math.max(0, r.left + region.clientWidth - clockRight) };
       lines = { left: t.left - o.left, width: t.width, top: cell.top - o.top, lanesTop: r.top - o.top, bottom: r.bottom - o.top };
     };
@@ -437,6 +438,10 @@
   let startLabel = $derived(!gridded ? '' : isZoomed ? etToShortDate(vs.scrubMin) : etToShortDate(vs.scrubBaseMin));
   let endLabel = $derived(!gridded ? '' : isZoomed ? etToShortDate(vs.scrubMax) : etToShortDate(vs.scrubBaseMax));
 
+  function toggleDepth() {
+    setTimelineDepth(expanded ? 'transport' : 'expanded');
+  }
+
   // ── Go to time ──
 
   function onGotoOpen(open: boolean) {
@@ -492,6 +497,20 @@
       onpointerdown={onResizeStart}
       ondblclick={() => writeLaneHeight('fit')}
     ></div>
+  {/if}
+  {#if !compact}
+    <!-- Collapse / expand belongs to the timeline's edge, not the clock: a
+         small tab centred on the top edge. The rest of the edge is the
+         resize grip. -->
+    <button
+      class="edge-tab"
+      aria-pressed={expanded}
+      aria-label={expanded ? 'Collapse timeline' : 'Expand timeline'}
+      title={expanded ? 'Collapse timeline' : 'Expand timeline'}
+      onclick={toggleDepth}
+    >
+      {#if expanded}<ChevronDown size={12} />{:else}<ChevronUp size={12} />{/if}
+    </button>
   {/if}
   {#if callout}
     <div class="event-callout" style="left: {callout.x}px; top: {callout.y}px" role="tooltip">
@@ -568,7 +587,7 @@
       />
     </div>
 
-    <div class="transport-rail flex shrink-0 items-center gap-0.5">
+    <div bind:this={clockEl} class="transport-rail flex shrink-0 items-center gap-0.5">
       <Popover.Root bind:open={gotoTimeOpen} onOpenChange={onGotoOpen}>
         <Popover.Trigger class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'compact-current' : ''}">
           {compact ? vs.timeText.replace(' UTC', '').slice(11) : vs.timeText}
@@ -592,16 +611,19 @@
         </Popover.Portal>
       </Popover.Root>
 
-      <button
-        bind:this={toggleEl}
-        class="tl-btn"
-        aria-pressed={expanded}
-        aria-label={expanded ? 'Collapse timeline' : 'Expand timeline'}
-        title={expanded ? 'Collapse timeline' : 'Expand timeline'}
-        onclick={() => setTimelineDepth(expanded ? 'transport' : 'expanded')}
-      >
-        {#if expanded}<ChevronDown size={14} />{:else}<ChevronUp size={14} />{/if}
-      </button>
+      {#if compact}
+        <!-- A phone keeps a full-size button: the edge tab is too small a
+             touch target, and the shared dock owns the edge above it. -->
+        <button
+          class="tl-btn"
+          aria-pressed={expanded}
+          aria-label={expanded ? 'Collapse timeline' : 'Expand timeline'}
+          title={expanded ? 'Collapse timeline' : 'Expand timeline'}
+          onclick={toggleDepth}
+        >
+          {#if expanded}<ChevronDown size={14} />{:else}<ChevronUp size={14} />{/if}
+        </button>
+      {/if}
     </div>
   </div>
 
@@ -704,21 +726,46 @@
     content: '';
     position: absolute;
     top: 3px;
-    left: 50%;
-    width: 36px;
+    right: 0;
+    left: 0;
     height: 2px;
     border-radius: 1px;
     background: var(--color-text-muted);
     opacity: 0;
-    transform: translateX(-50%);
     transition: opacity var(--duration-chrome) var(--ease-chrome);
   }
   .resize-handle:hover::after {
-    opacity: 0.6;
+    opacity: 0.35;
+  }
+  /* The collapse tab: a notch on the dock's top edge, panel-coloured with a
+     faint border, over the resize grip. */
+  .edge-tab {
+    position: absolute;
+    top: -11px;
+    left: 50%;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 12px;
+    padding: 0;
+    border: 1px solid var(--color-chrome-border);
+    border-bottom: none;
+    border-radius: 5px 5px 0 0;
+    background: var(--color-panel);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transform: translateX(-50%);
+    transition: color var(--duration-chrome) var(--ease-chrome), background var(--duration-chrome) var(--ease-chrome);
+  }
+  .edge-tab:hover {
+    color: var(--color-text-primary);
+    background: var(--color-control-hover);
   }
   /* A dragged height shows its grip faintly, as the sign it is not automatic. */
   .resize-handle.manual::after {
-    opacity: 0.25;
+    opacity: 0.12;
   }
 
   /* Hover callout: what a previewed event is, anchored above the row it was
@@ -764,7 +811,7 @@
      column below it; the rail sizes to the clock. */
   .transport-row.gridded {
     display: grid;
-    grid-template-columns: clamp(240px, 21vw, 280px) minmax(0, 1fr) auto;
+    grid-template-columns: clamp(260px, 22vw, 320px) minmax(0, 1fr) auto;
     gap: 0;
   }
   .transport-row.gridded .transport-controls {
@@ -800,8 +847,9 @@
     overflow-y: auto;
     overscroll-behavior: contain;
   }
+  /* The clock is the one strong readout, sized explicitly. */
   :global(.current-time) {
-    font-size: var(--text-readout-strong);
+    font-size: 13px;
     font-weight: 560;
     font-variant-numeric: tabular-nums slashed-zero;
   }

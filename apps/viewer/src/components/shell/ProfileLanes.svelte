@@ -105,7 +105,7 @@
     align-items: center;
     gap: 4px;
     height: 22px;
-    padding-left: 5px;
+    padding-left: var(--tl-label-inset);
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     background: var(--color-panel);
   }
@@ -120,6 +120,7 @@
     align-items: center;
     gap: 4px;
     padding: 2px 3px;
+    margin-left: 2px;
     border: none;
     border-radius: 3px;
     background: none;
@@ -128,7 +129,9 @@
     cursor: pointer;
     white-space: nowrap;
   }
+  /* Alone, the button's text (not its padding) starts at the inset. */
   :global(.add-profile-btn.labelled) {
+    margin-left: -3px;
     color: var(--color-text-primary);
   }
   :global(.add-profile-btn:hover) {

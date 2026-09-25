@@ -140,6 +140,21 @@ export function moveConfiguredProfile(id: string, delta: -1 | 1) {
   [analysis.items[a], analysis.items[b]] = [analysis.items[b], analysis.items[a]];
 }
 
+/**
+ * Moves an event category one place among the other event categories —
+ * lane order, overview band order, list order — leaving interleaved profile
+ * items where they are.
+ */
+export function moveConfiguredEventQuery(id: string, delta: -1 | 1) {
+  const queries = analysis.items.filter((item) => item.type === 'event-query');
+  const from = queries.findIndex((item) => item.id === id);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= queries.length) return;
+  const a = analysis.items.indexOf(queries[from]);
+  const b = analysis.items.indexOf(queries[to]);
+  [analysis.items[a], analysis.items[b]] = [analysis.items[b], analysis.items[a]];
+}
+
 /** Removes a configured item and anything derived from it. */
 export function removeConfiguredItem(id: string) {
   const i = analysis.items.findIndex((item) => item.id === id);

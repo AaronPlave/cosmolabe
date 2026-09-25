@@ -138,8 +138,8 @@
   --text-helper: 12px;
   --text-section: 11px;
   --text-metadata: 10px;
-  --text-readout: 13px;
-  --text-readout-strong: 13px;
+  --text-readout: 12px;
+  --text-readout-strong: 12px;
   --leading-interface: 1.4;
   --leading-helper: 1.45;
 
@@ -309,10 +309,10 @@
     font-size: var(--text-metadata);
     line-height: 14px;
   }
-  /* 12 px: ordinary values. Only genuinely strong state (the clock) is 13. */
+  /* The readout token (12 px). Only the clock is sized up, explicitly. */
   .tl-num {
     font-family: var(--font-mono);
-    font-size: var(--text-label);
+    font-size: var(--text-readout);
     font-variant-numeric: tabular-nums;
     line-height: 14px;
   }
@@ -321,6 +321,9 @@
      lifted plot surface, a faint wash on the inspected row. */
   /* Rows are exactly their height: one grid track that may not grow to its
      content, so a plot can never spill into — and double-paint — the next. */
+  :root {
+    --tl-label-inset: 9px;
+  }
   .tl-row {
     position: relative;
     display: grid;
@@ -342,12 +345,16 @@
   .tl-label { grid-column: 1; }
   .tl-plot { grid-column: 2; }
   .tl-readout { grid-column: 3; }
+  /* Label text starts at --tl-label-inset: the gutter's inset plus the
+     label button's own padding. Anything aligned with row labels (the
+     Profiles heading) uses the same token. */
   .tl-label {
+    --tl-label-pad: 4px;
     display: flex;
     align-items: center;
     gap: 2px;
     min-width: 0;
-    padding: 0 10px 0 5px;
+    padding: 0 10px 0 calc(var(--tl-label-inset) - var(--tl-label-pad));
   }
   .tl-label.top {
     align-items: flex-start;
@@ -359,7 +366,7 @@
     min-width: 0;
     align-items: baseline;
     gap: 4px;
-    padding: 1px 4px;
+    padding: 1px var(--tl-label-pad, 4px);
     border: none;
     border-radius: 3px;
     background: none;

@@ -92,7 +92,16 @@ Event Finder's category list, or from the lane's hover controls. Removing a
 category drops its item and cached results, which also removes its lane. It
 clears a selection or preview of one of its results. If the category was being
 edited, the form moves to a neighbouring category, or to a fresh search when
-none is left.
+none is left. Categories are reordered among themselves with
+`moveConfiguredEventQuery(id, delta)`, using the ↑ ↓ buttons on hover in the
+category list; interleaved profile items keep their places. Category order is
+lane order, overview band order and list order. On the timeline, a default
+label's kind name is shortened ("Range", "Occultation"); the Event Finder keeps
+the explicit names.
+
+A selected result has a × that clears the selection without re-seeking.
+Clicking the row again still re-focuses the event. Escape clears an event
+selection before it closes any panel.
 
 ## Continuous profiles on the timeline
 
@@ -122,7 +131,9 @@ columns are the track's measured extent (`--tl-gutter`, `--tl-axis`), so every
 row lines up with the track. A label reads `Distance · Earth → Mars`; units
 belong to the values and scale labels, not the label. Rail values are
 right-aligned under the clock in tabular mono, and switch to the ghost's value,
-marked as a preview, while hovering. Timeline text uses three type roles only:
+marked as a preview, while hovering. Readouts use the `--text-readout` token
+(12 px); only the clock is sized up (13 px). Timeline text uses three type
+roles only:
 primary (`.tl-primary`), secondary (`.tl-secondary`) and numeric (`.tl-num`).
 On a phone the axis takes the full width and labels overlay the plots.
 
@@ -141,6 +152,8 @@ per layout:
   keeps fitting as rows are added or removed.
 - **Manual:** drag the top edge.
 
+Collapse and expand are a small tab centred on the dock's top edge; the rest of
+that edge is the resize grip. A phone keeps a full-size button instead.
 Collapsed, the dock is a dense overview. It has less padding, a taller event
 strip, and no bound labels, so the axis gets the width. Expanded, the window's
 bounds and span sit in a caption under the track, for example

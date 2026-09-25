@@ -7,6 +7,7 @@ import {
   configuredProfiles,
   createConfiguredProfile,
   moveConfiguredProfile,
+  moveConfiguredEventQuery,
   removeConfiguredItem,
   resetAnalysis,
   resolveProfile,
@@ -110,6 +111,22 @@ describe('viewer analysis state', () => {
     });
     expect(analysisContext().quantities).toHaveLength(1);
     expect(analysisContext().eventResults).toHaveLength(1);
+  });
+
+  it('reorders event categories among themselves, leaving interleaved profiles in place', () => {
+    const a = createConfiguredEventQuery({ kind: 'closest-approach' }, 'A');
+    const p = createConfiguredProfile({ quantity: 'range' }, 'Distance');
+    const b = createConfiguredEventQuery({ kind: 'closest-approach' }, 'B');
+    const c = createConfiguredEventQuery({ kind: 'closest-approach' }, 'C');
+
+    moveConfiguredEventQuery(c.id, -1);
+    expect(analysis.items.map((i) => i.id)).toEqual([a.id, p.id, c.id, b.id]);
+    moveConfiguredEventQuery(a.id, 1);
+    expect(analysis.items.map((i) => i.id)).toEqual([c.id, p.id, a.id, b.id]);
+    // Past either end is a no-op.
+    moveConfiguredEventQuery(c.id, -1);
+    moveConfiguredEventQuery(b.id, 1);
+    expect(analysis.items.map((i) => i.id)).toEqual([c.id, p.id, a.id, b.id]);
   });
 
   it('keeps multiple profile rows configurable, reorderable and removable', () => {

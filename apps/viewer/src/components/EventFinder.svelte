@@ -8,7 +8,8 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
-  import { Loader2, Search, Ban, Plus, Trash2 } from 'lucide-svelte';
+  import { moveConfiguredEventQuery } from '../lib/analysis.svelte';
+  import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X } from 'lucide-svelte';
   import { tick } from 'svelte';
   import * as Select from '$lib/components/ui/select/index.js';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
@@ -373,7 +374,7 @@
         </button>
       </div>
       <div class="flex flex-col gap-0.5">
-        {#each configuredQueries as query (query.id)}
+        {#each configuredQueries as query, qi (query.id)}
           <div class="configured-query flex items-center gap-1 rounded px-1.5 py-1" class:active={query.id === ef.configuredId}>
             <button class="min-w-0 flex-1 truncate text-left ui-helper" onclick={() => openConfiguredQuery(query.id)} title={query.label}>
               {query.label}
@@ -384,8 +385,24 @@
             <label title="Visible on timeline" class="ui-meta flex items-center gap-0.5 cursor-pointer">
               <input type="checkbox" checked={query.visible} onchange={(e) => setConfiguredQueryVisible(query.id, (e.target as HTMLInputElement).checked)} /> time
             </label>
+            <span class="query-move" role="group" aria-label="Move category">
+              <button
+                class="query-action"
+                onclick={() => moveConfiguredEventQuery(query.id, -1)}
+                disabled={qi === 0}
+                aria-label="Move {query.label} up"
+                title="Move up"
+              ><ArrowUp size={11} /></button>
+              <button
+                class="query-action"
+                onclick={() => moveConfiguredEventQuery(query.id, 1)}
+                disabled={qi === configuredQueries.length - 1}
+                aria-label="Move {query.label} down"
+                title="Move down"
+              ><ArrowDown size={11} /></button>
+            </span>
             <button
-              class="remove-query"
+              class="query-action remove-query"
               onclick={() => removeConfiguredQuery(query.id)}
               aria-label="Remove {query.label}"
               title="Remove category"
@@ -450,6 +467,7 @@
         {#each shownEvents as event}
           {@const headline = headlineMetric(event)}
           {@const atPlayhead = eventContainsTime(event, vs.et)}
+          <div class="result-wrap">
           <button
             class="event-result text-left rounded px-2 py-2 border cursor-pointer"
             class:selected={ef.selectedId === event.id && ef.configuredId === event.queryId}
@@ -559,6 +577,14 @@
               </div>
             {/if}
           </button>
+          {#if ef.selectedId === event.id && ef.configuredId === event.queryId}
+            <!-- Deselect without re-seeking; clicking the row itself still
+                 re-focuses the event. -->
+            <button class="clear-selected" onclick={clearSelection} aria-label="Clear selection" title="Clear selection (Esc)">
+              <X size={12} />
+            </button>
+          {/if}
+          </div>
         {/each}
       </div>
     </div>
@@ -583,8 +609,12 @@
   .configured-query {
     border: 1px solid transparent;
   }
-  /* Quiet until the row is hovered or focused; red only on its own hover. */
-  .remove-query {
+  /* Reorder and remove: quiet until the row is hovered or focused; remove
+     turns red only on its own hover. */
+  .query-move {
+    display: flex;
+  }
+  .query-action {
     display: flex;
     padding: 2px;
     border: none;
@@ -594,12 +624,44 @@
     cursor: pointer;
     opacity: 0;
   }
-  .configured-query:hover .remove-query,
-  .configured-query:focus-within .remove-query {
+  .configured-query:hover .query-action,
+  .configured-query:focus-within .query-action {
     opacity: 1;
+  }
+  .configured-query .query-action:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
+  .configured-query:not(:hover):not(:focus-within) .query-action:disabled {
+    opacity: 0;
+  }
+  .query-action:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    background: var(--color-control-hover);
   }
   .remove-query:hover {
     color: var(--color-error);
+  }
+  .result-wrap {
+    position: relative;
+  }
+  .result-wrap .event-result.selected {
+    padding-right: 30px;
+  }
+  .clear-selected {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    padding: 3px;
+    border: none;
+    border-radius: 3px;
+    background: var(--color-surface-3);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+  .clear-selected:hover {
+    color: var(--color-text-primary);
     background: var(--color-control-hover);
   }
   .configured-query.active {
