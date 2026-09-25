@@ -847,10 +847,8 @@
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  /* The clock is the one strong readout, sized explicitly. */
   :global(.current-time) {
-    font-size: 13px;
-    font-weight: 560;
+    font-size: var(--text-readout-strong);
     font-variant-numeric: tabular-nums slashed-zero;
   }
   :global(.current-time.compact-current) {
