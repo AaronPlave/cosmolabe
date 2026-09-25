@@ -124,6 +124,16 @@ describe('timeline surface gestures', () => {
     expect(dock.captured.size).toBe(0);
   });
 
+  it('leaves presses on an event mark to the mark: no capture, no seek, so its click selects', () => {
+    // A mark is a button inside the plot; the dock must not take the press
+    // (capturing would retarget the click away from the mark).
+    const mark = { closest: (sel: string) => (sel === '[data-tl-row]' ? lane : sel === '[data-tl-plot]' || sel.startsWith('button') ? {} : null) };
+    pointer(dock, 'pointerdown', 50, 25, 'mouse', 1, mark);
+    expect(dock.captured.size).toBe(0);
+    pointer(dock, 'pointerup', 50, 25, 'mouse', 1, mark);
+    expect(scrubTo).not.toHaveBeenCalled();
+  });
+
   it('does not hover while a press held elsewhere (the track scrubbing) moves over it', () => {
     pointer(dock, 'pointermove', 20, 45, 'mouse');
     expect(timeline.hoverEt).toBe(1200);

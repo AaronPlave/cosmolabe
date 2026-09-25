@@ -165,7 +165,6 @@
           data-ev-state={mark.event.state}
           style="left: {mark.start * 100}%; width: {Math.max(0, mark.end - mark.start) * 100}%"
           aria-label={mark.event.label}
-          onpointerdown={(e) => e.stopPropagation()}
           onclick={() => selectEvent(mark.event)}
         ></button>
       {/each}

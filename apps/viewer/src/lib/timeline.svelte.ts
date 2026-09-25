@@ -223,9 +223,17 @@ function rowOf(target: EventTarget | null): { id: string; el: Element } | null {
   return el && id ? { id, el } : null;
 }
 
-/** Whether a press landed on an analysis plot's background. */
+/**
+ * Whether a press landed on an analysis plot's background — not on a control
+ * inside it, such as an event mark. That is decided here rather than by the
+ * control stopping propagation: Svelte delegates its handlers to the document
+ * root, so a mark's `stopPropagation` runs only after this surface's native
+ * listener has already taken the press (and captured the pointer, which
+ * retargets the click away from the mark).
+ */
 function onPlot(target: EventTarget | null): boolean {
-  return !!(target as Element | null)?.closest?.('[data-tl-plot]');
+  const el = target as Element | null;
+  return !!el?.closest?.('[data-tl-plot]') && !el.closest?.('button, a, input, select, [role="button"]');
 }
 
 /**
@@ -247,7 +255,7 @@ function onPlot(target: EventTarget | null): boolean {
  *   a wider invisible grab target — scrubs time.
  *
  * Presses on the transport track are the track's own (they scrub, as they
- * always have); presses on an event mark stop propagation and select it. The
+ * always have); presses on an event mark are left to the mark, which selects. The
  * transport manipulates time, the analysis background manipulates the view,
  * and the playhead manipulates time everywhere.
  *
