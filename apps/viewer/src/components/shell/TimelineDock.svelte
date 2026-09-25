@@ -359,7 +359,7 @@
   //
   // Over the selected event's place on the track (pinned to the track's end
   // when it is out of the window). Not shown while the Event Finder is open
-  // on that event's own category, whose selected row already shows it.
+  // on that event's own search, whose selected row already shows it.
   let trackBox = $state({ left: 0, width: 0 });
   $effect(() => {
     const track = trackEl;
@@ -572,6 +572,7 @@
   {#if expanded}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
+      data-tl-no-axis
       class="resize-handle"
       class:manual={timeline.laneHeight != null || timeline.laneFit}
       title="Drag to resize the analysis area · double-click to fit it to its rows"
@@ -653,7 +654,8 @@
       {/if}
     </div>
 
-    <div bind:this={transportCellEl} class="transport-axis flex min-w-24 flex-1 items-center self-stretch" data-tl-row="transport">
+    <!-- The track handles its own presses (it scrubs): not the surface's. -->
+    <div bind:this={transportCellEl} class="transport-axis flex min-w-24 flex-1 items-center self-stretch" data-tl-row="transport" data-tl-no-axis>
       <TimeScrubber
         fraction={currentFraction}
         onScrub={scrubTo}
@@ -1043,6 +1045,9 @@
 
   .lane-region {
     position: relative;
+    /* Vertical swipes scroll; horizontal ones are the surface's, gaps between
+       rows included. */
+    touch-action: pan-y;
     max-height: 38vh;
     overflow-x: hidden;
     overflow-y: auto;

@@ -151,11 +151,12 @@
   class:hidden-row={!item.visible}
   class:inspected={inspectedRow}
   data-tl-row={rowId}
+  data-tl-no-axis={!wide || undefined}
   style="height: {item.visible ? H : TL_HEAD_PX}px"
 >
   <!-- One grammar for every row: the label opens its configuration; expand,
        the eye and the trash sit beside it. Units live with the value. -->
-  <div class="tl-label" class:top={tall && wide}>
+  <div data-tl-no-axis class="tl-label" class:top={tall && wide}>
     <Popover.Root bind:open={configOpen}>
       <Popover.Trigger class="tl-label-main" title="{spec?.label ?? item.profile.quantity} · {pair} — configure">
         <span class="tl-primary">{spec?.label ?? item.profile.quantity}</span>
@@ -269,7 +270,7 @@
       {#if !wide}<PlotCursor />{/if}
     </div>
 
-    <div class="tl-readout" class:top={tall && wide} title={rangeText ? `In view: ${rangeText}` : undefined}>
+    <div data-tl-no-axis class="tl-readout" class:top={tall && wide} title={rangeText ? `In view: ${rangeText}` : undefined}>
       <span class="tl-num" class:preview={ghost != null} class:closing>{readoutText}</span>
       {#if wide && rangeText && !tall && PH >= 40}<span class="tl-secondary tl-num range">{rangeText}</span>{/if}
     </div>

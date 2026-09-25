@@ -175,7 +175,7 @@ describe('event finder window provenance', () => {
   });
 });
 
-describe('removing an event category', () => {
+describe('removing an event search', () => {
   it('drops its item, results, selection and preview, and moves the form to a neighbour', async () => {
     const { removeConfiguredQuery, configuredEventQueries, previewEvent } = await import('../event-finder.svelte');
     const { analysis, createConfiguredEventQuery, setEventResults } = await import('../analysis.svelte');
@@ -201,7 +201,7 @@ describe('removing an event category', () => {
   });
 });
 
-describe('draft and configured categories', () => {
+describe('draft and configured searches', () => {
   const form = () => ({
     kind: 'closest-approach',
     bodies: { observer: 'Earth', target: 'Mars' } as Record<string, string>,
@@ -211,7 +211,7 @@ describe('draft and configured categories', () => {
     step: 3_600,
   });
 
-  it('removing the last category leaves zero, and the form an unsaved draft', async () => {
+  it('removing the last search leaves zero, and the form an unsaved draft', async () => {
     const { removeConfiguredQuery, configuredEventQueries, setRole } = await import('../event-finder.svelte');
     const { analysis, createConfiguredEventQuery, setEventResults } = await import('../analysis.svelte');
     const only = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Mars' } }, 'Only');
@@ -227,13 +227,13 @@ describe('draft and configured categories', () => {
     expect(analysis.eventResults).toEqual({});
     expect(ef.form).not.toBeNull();
 
-    // Editing the draft does not bring a category back.
+    // Editing the draft does not bring a search back.
     setRole('target', 'Venus');
     expect(configuredEventQueries()).toEqual([]);
     expect(ef.configuredId).toBeNull();
   });
 
-  it('a draft form never materialises a category on its own', async () => {
+  it('a draft form never materialises a search on its own', async () => {
     const { configuredEventQueries, createNewSearch, setParam } = await import('../event-finder.svelte');
     ef.kind = 'closest-approach';
     ef.form = form();
@@ -243,7 +243,7 @@ describe('draft and configured categories', () => {
     expect(configuredEventQueries()).toEqual([]);
   });
 
-  it('opening a category to edit keeps an unrelated selection', async () => {
+  it('opening a search to edit keeps an unrelated selection', async () => {
     const { openConfiguredQuery, isSelectedEvent } = await import('../event-finder.svelte');
     const { createConfiguredEventQuery } = await import('../analysis.svelte');
     const a = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Mars' } }, 'A');
@@ -261,7 +261,7 @@ describe('draft and configured categories', () => {
     expect(isSelectedEvent({ id: 'r3', queryId: b.id })).toBe(false);
   });
 
-  it('selecting a result inspects it without switching the category being edited', async () => {
+  it('selecting a result inspects it without switching the search being edited', async () => {
     const { selectEvent, isSelectedEvent } = await import('../event-finder.svelte');
     const { createConfiguredEventQuery, setEventResults } = await import('../analysis.svelte');
     const a = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Mars' } }, 'A');

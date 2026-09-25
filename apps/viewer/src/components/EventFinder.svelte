@@ -330,7 +330,7 @@
 
     {#if configured}
       <div class="mt-1.5 flex items-center gap-3 ui-helper">
-        <label class="flex items-center gap-1 cursor-pointer" title="Include this configured event category in analysis">
+        <label class="flex items-center gap-1 cursor-pointer" title="Include this search in analysis">
           <input
             type="checkbox"
             class="accent-accent"
@@ -339,7 +339,7 @@
           />
           Enabled
         </label>
-        <label class="flex items-center gap-1 cursor-pointer" title="Show this category's cached results on the shared timeline">
+        <label class="flex items-center gap-1 cursor-pointer" title="Show this search on the timeline">
           <input
             type="checkbox"
             class="accent-accent"
@@ -359,11 +359,11 @@
   {/if}
 
   <!-- The list, once there is more than the one being edited: two or more
-       categories, or one while the form holds an unsaved draft. -->
+       searches, or one while the form holds an unsaved draft. -->
   {#if configuredQueries.length > 1 || (configuredQueries.length === 1 && configuredQueries[0].id !== ef.configuredId)}
     <div class="mt-2 pt-2 border-t border-border">
       <div class="flex items-center justify-between gap-2 mb-1">
-        <span class="ui-section-label">Event categories</span>
+        <span class="ui-section-label">Searches</span>
         <button class="ctrl-link flex items-center gap-0.5" onclick={createNewSearch}>
           <Plus size={10} /> New
         </button>
@@ -380,7 +380,7 @@
             <label title="Visible on timeline" class="ui-meta flex items-center gap-0.5 cursor-pointer">
               <input type="checkbox" checked={query.visible} onchange={(e) => setConfiguredQueryVisible(query.id, (e.target as HTMLInputElement).checked)} /> time
             </label>
-            <span class="query-move" role="group" aria-label="Move category">
+            <span class="query-move" role="group" aria-label="Move search">
               <button
                 class="query-action"
                 onclick={() => moveConfiguredEventQuery(query.id, -1)}
@@ -400,7 +400,7 @@
               class="query-action remove-query"
               onclick={() => removeConfiguredQuery(query.id)}
               aria-label="Remove {query.label}"
-              title="Remove category"
+              title="Remove search"
             ><Trash2 size={11} /></button>
           </div>
         {/each}
@@ -409,7 +409,7 @@
   {:else if configuredQueries.length === 1 && ef.searched}
     <div class="mt-1 flex justify-end">
       <button class="ctrl-link flex items-center gap-0.5" onclick={createNewSearch}>
-        <Plus size={10} /> Add event category
+        <Plus size={10} /> New search
       </button>
     </div>
   {/if}

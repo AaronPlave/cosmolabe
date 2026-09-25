@@ -12,6 +12,7 @@ import {
   sortMetricLabel,
   eventSummary,
   eventCalloutLines,
+  eventSceneAnnotationLines,
   faultMessage,
   formForKind,
   formatKm,
@@ -353,6 +354,22 @@ describe('scene callout copy', () => {
     expect(eventCalloutLines(event, { utc, selected: true })).toEqual([
       'Full eclipse', 'Duration 7.3 min', 'Europa occults SUN',
     ]);
+  });
+
+  it('keeps the selected scene annotation to a title and one key fact', () => {
+    const approach: GeometryEvent = {
+      id: 'a', queryId: 'q', kind: 'closest-approach', temporality: 'instant', et: 1688,
+      bodies: { observer: 'Europa Clipper', target: 'Europa' }, label: 'x',
+      metrics: [{ key: 'range', label: 'Range', value: 12_120_000, unit: 'km' }],
+    };
+    expect(eventSceneAnnotationLines(approach)).toEqual(['Closest approach · Europa', '12.12M km']);
+    const eclipse: GeometryEvent = {
+      id: 'e', queryId: 'q', kind: 'occultation', temporality: 'interval', start: 3456, end: 4026,
+      state: 'full', bodies: { observer: 'Europa Clipper', front: 'Europa', back: 'SUN' }, label: 'y',
+      metrics: [{ key: 'duration', label: 'Duration', value: 570, unit: 's' }],
+    };
+    // No timestamp, roles or span: those are the selected-event inspector's.
+    expect(eventSceneAnnotationLines(eclipse)).toEqual(['Full eclipse', '9.5 min']);
   });
 
   it('lifts the relation out of a distance-range label', () => {

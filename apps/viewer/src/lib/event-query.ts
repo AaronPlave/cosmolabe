@@ -290,6 +290,21 @@ export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOpt
 }
 
 /**
+ * The selected event's annotation in the 3D scene: what the geometry there
+ * is, and at most one key fact — the headline metric, or an interval's
+ * duration. Deliberately brief: the scene card's job is to say *where* the
+ * event is; time, roles and the rest are the selected-event inspector's,
+ * which is always on screen while something is selected.
+ */
+export function eventSceneAnnotationLines(event: GeometryEvent): string[] {
+  const title = eventCalloutTitle(event);
+  const headline = headlineMetric(event);
+  if (headline) return [title, formatMetric(headline)];
+  if (isIntervalEvent(event)) return [title, formatSeconds(eventDuration(event))];
+  return [title];
+}
+
+/**
  * "2026-05-13 04:00 → 05-18 08:00 UTC": the end drops whatever it shares with
  * the start. Spans under ten minutes keep seconds.
  */

@@ -229,17 +229,27 @@ function onEventMark(target: EventTarget | null): boolean {
 }
 
 /**
- * Whether a press landed on an analysis plot: its background or an event
- * mark — data on a manipulable axis — but not a row control (a button or
- * input that happens to sit inside the plot). Decided here rather than by a
- * control stopping propagation: Svelte delegates its handlers to the document
- * root, so a `stopPropagation` there runs after this surface's native
- * listener has already seen the press.
+ * Whether a pointer is on timeline chrome rather than on the time axis.
+ *
+ * Inside the surface's bounds, everything is live axis — plots, lane marks,
+ * the padding and gaps between rows — except what explicitly opts out: a
+ * control (a button, link or input, save for an event mark, which is data
+ * on the axis and a valid drag origin), or an element marked
+ * `data-tl-no-axis` (row labels, the readout rail, a phone row's header
+ * line, the transport track that handles its own presses). A plot inside an
+ * opted-out element (`data-tl-plot`) opts back in: the nearer marker wins.
+ *
+ * Decided here rather than by a control stopping propagation: Svelte
+ * delegates its handlers to the document root, so a `stopPropagation` there
+ * runs after this surface's native listener has already seen the press.
  */
-function onPlot(target: EventTarget | null): boolean {
+export function isTimelineControl(target: EventTarget | null): boolean {
   const el = target as Element | null;
-  if (!el?.closest?.('[data-tl-plot]')) return false;
-  return onEventMark(el) || !el.closest?.('button, a, input, select, [role="button"]');
+  if (!el?.closest) return false;
+  if (onEventMark(el)) return false;
+  if (el.closest('button, a, input, select, textarea, [role="button"]')) return true;
+  const zone = el.closest('[data-tl-no-axis], [data-tl-plot]');
+  return !!zone && zone.hasAttribute('data-tl-no-axis');
 }
 
 /**
@@ -256,9 +266,10 @@ function onPlot(target: EventTarget | null): boolean {
  * - hover sets the ghost playhead and previews the event under it (snapped to
  *   an edge within a few px, or the interval it is inside);
  * - the wheel zooms about the pointer; a sideways or Shift wheel pans;
- * - on an analysis plot (`data-tl-plot`), a click seeks, a drag pans the
- *   shared window, and a drag that starts on the playhead — a thin line with
- *   a wider invisible grab target — scrubs time;
+ * - anywhere on the axis — a plot, or the gaps between rows; not chrome
+ *   (`isTimelineControl`) — a click seeks, a drag pans the shared window,
+ *   and a drag that starts on the playhead — a thin line with a wider
+ *   invisible grab target — scrubs time;
  * - an event mark (`data-tl-event-mark`) is selectable data on that same
  *   axis, not a hole in it: a press on one waits for intent. Released within
  *   the slop, it is the mark's click, and selects; moved past it, it pans (or
@@ -266,7 +277,7 @@ function onPlot(target: EventTarget | null): boolean {
  *   would follow is swallowed so the drag does not also select.
  *
  * Presses on the transport track are the track's own (they scrub, as they
- * always have). The transport manipulates time, the analysis background
+ * always have; the track opts out of the axis). The transport manipulates time, the analysis background
  * manipulates the view, and the playhead manipulates time everywhere.
  *
  * Touch reads direction before committing: the lanes sit in a region that
@@ -328,7 +339,7 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
     const { at, id } = hoverTarget(f, b.width, opts.targets(row?.id ?? null));
     const top = row ? row.el.getBoundingClientRect().top : b.top;
     setTimelineHover(timelineEt(at), id, { x: b.left + at * b.width, y: top });
-    setCursor(onPlot(e.target) && nearPlayhead(e) ? 'playhead' : null);
+    setCursor(!isTimelineControl(e.target) && nearPlayhead(e) ? 'playhead' : null);
   };
 
   const endDrag = () => {
@@ -352,7 +363,7 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
   };
 
   const down = (e: PointerEvent) => {
-    if (e.button !== 0 || !onPlot(e.target)) return;
+    if (e.button !== 0 || isTimelineControl(e.target)) return;
     const bounds = opts.bounds(e);
     if (!bounds || fractionAt(e, false, bounds) == null) return;
     const touch = e.pointerType === 'touch';

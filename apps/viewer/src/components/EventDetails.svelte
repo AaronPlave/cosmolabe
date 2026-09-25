@@ -19,11 +19,13 @@
     event: GeometryEvent;
     /** Include the start (the Event Finder's row already leads with it). */
     showStart?: boolean;
+    /** Include the end (off where the caller already shows the span). */
+    showEnd?: boolean;
     /** The occultation's 3D geometry legend. */
     legend?: boolean;
   }
 
-  let { event, showStart = false, legend = false }: Props = $props();
+  let { event, showStart = false, showEnd = true, legend = false }: Props = $props();
 
   const roles = $derived(EVENT_KINDS.find((k) => k.kind === event.kind)?.roles ?? []);
   const roleLabel = (role: string) => roles.find((spec) => spec.role === role)?.label ?? role;
@@ -89,6 +91,7 @@
         <span class="ui-readout">{utc(eventStart(event))}</span>
       </div>
     {/if}
+    {#if showEnd}
     <div class="ui-data-row">
       <span class="ui-label">Ends</span>
       <span
@@ -107,6 +110,7 @@
         {utc(eventEnd(event))}
       </span>
     </div>
+    {/if}
     <div class="ui-data-row">
       <span class="ui-label">Duration</span>
       <span class="ui-readout">{formatSeconds(eventDuration(event))}</span>

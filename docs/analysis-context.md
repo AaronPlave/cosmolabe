@@ -48,12 +48,12 @@ for eclipse/occultation work in #58 and profile sampling/rendering in #65.
 The event finder's form is a draft until its search runs. Running it creates
 the configured query (`ConfiguredEventQuery`), resolves it through the current
 context, and stores results under its stable ID. From then on the form edits
-that item in place. An open form never creates a category on its own, so zero
-categories is a valid state. `ef.configuredId` is the query being edited (null
+that item in place. An open form never creates a search on its own, so zero
+searches is a valid state. `ef.configuredId` is the query being edited (null
 for a draft). The selection is a separate `(ef.selectedId, ef.selectedQueryId)`
 pair, because result ids are unique only within a query. Opening another
-category to edit therefore leaves the selection alone. Selecting a result
-(`selectEvent`) does not switch the category being edited either: a mark click
+search to edit therefore leaves the selection alone. Selecting a result
+(`selectEvent`) does not switch the search being edited either: a mark click
 inspects, and a lane-label click edits.
 
 The selected event has a global inspector (`SelectedEventInspector.svelte`)
@@ -61,9 +61,19 @@ above the timeline, over the event's place on the track, so closing the Event
 Finder does not hide it. By default it shows the event's name, key metric and
 time. Details reveals roles, state and other measurements, from the same
 `EventDetails.svelte` the Event Finder's selected row uses, so the two cannot
-drift apart. It also has "Edit category" and a × that clears the selection
-only; Escape clears it too. It is hidden while the Event Finder is open on the
-event's own category, whose selected row already shows it. Neither view
+drift apart. It also has "Edit search" and a × that clears the selection
+only; Escape clears it too. Its time is structured, not one wrapping run: the
+start → end span (each timestamp kept whole), then the duration on its own
+line, which is dropped once Details shows it.
+
+The three event surfaces have different jobs:
+
+- **Hover callout:** what am I pointing at?
+- **3D annotation:** where is this event in the scene? It is kept to a title
+  and at most one key fact (`eventSceneAnnotationLines`).
+- **Selected-event inspector:** what have I selected, with its full detail and
+  actions. It is hidden while the Event Finder is open on the
+event's own search, whose selected row already shows it. Neither view
 repeats the headline metric in the details.
 
 Active, selected and previewed stay distinct. Active events get no card. When
@@ -90,7 +100,7 @@ rows and on the same axis. A lane's eye toggle flips the item's shared
 `visible` flag, so the track, the event finder and the lane agree; hidden lanes
 stay listed, dimmed, so they can be shown again. Clicking a mark calls the same
 `selectEvent` the track's marks use. Clicking the lane's label opens that
-category in the Event Finder. The lane's readout is compact state at
+search in the Event Finder. The lane's readout is compact state at
 the inspected instant: how many of its events are active (`activeEventsAtTime`),
 or one active event's duration, or else the result count. It never shows an
 event's name; the hover callout does that.
@@ -109,14 +119,14 @@ profile shows by default only the events between its own two bodies. A
 selected or previewed event appears on every profile, so a profile never turns
 into a barcode of every family.
 
-A configured category is removed with `removeConfiguredQuery(id)`: from the
-Event Finder's category list, or from the lane's hover controls. Removing a
-category drops its item and cached results, which also removes its lane. It
-clears a selection or preview of one of its results. If the category was being
-edited, the form moves to a neighbouring category. When none is left, the form
-keeps its settings as an unsaved draft. Categories are reordered among themselves with
+A configured search is removed with `removeConfiguredQuery(id)`: from the
+Event Finder's search list, or from the lane's hover controls. Removing a
+search drops its item and cached results, which also removes its lane. It
+clears a selection or preview of one of its results. If the search was being
+edited, the form moves to a neighbouring search. When none is left, the form
+keeps its settings as an unsaved draft. Searches are reordered among themselves with
 `moveConfiguredEventQuery(id, delta)`, using the ↑ ↓ buttons on hover in the
-category list; interleaved profile items keep their places. Category order is
+search list; interleaved profile items keep their places. Search order is
 lane order, overview band order and list order. On the timeline, a default
 label's kind name is shortened ("Range", "Occultation"); the Event Finder keeps
 the explicit names.
@@ -229,7 +239,13 @@ own crosshair.
 Each surface has one job:
 
 - **Transport track:** scrubs.
-- **Analysis plots:** a click seeks, and a background drag pans the view.
+- **The axis column:** a click seeks, and a drag pans the view. This covers
+  the plots and the gaps and padding between rows alike. Only explicit chrome
+  opts out (`isTimelineControl`): a control, or anything marked
+  `data-tl-no-axis`, such as row labels, the readout rail, a phone row's
+  header line, and the transport track, which scrubs on its own. A plot
+  inside opted-out chrome (`data-tl-plot`) opts back in. The playhead cursor
+  follows the same rule, so it shows in the gaps too.
 - **Event marks in a lane (`data-tl-event-mark`):** selectable data on that
   same axis. A press waits for intent: released within the slop it selects,
   and moved past it, it pans (or scrubs, from the playhead). The click after

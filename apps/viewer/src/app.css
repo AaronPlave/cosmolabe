@@ -345,6 +345,15 @@
   .tl-row.inspected {
     background: rgba(255, 255, 255, 0.022);
   }
+  /* The axis column is one live surface, gaps between plots included; only
+     the label and the rail are chrome. */
+  .tl-row:not(.stacked) {
+    cursor: crosshair;
+  }
+  .tl-row .tl-label,
+  .tl-row .tl-readout {
+    cursor: default;
+  }
   .tl-row.hidden-row {
     opacity: 0.6;
   }
@@ -507,6 +516,7 @@
   /* Cursor state belongs to the timeline surface (`data-tl-cursor` on the
      dock) and must win over the plots' own crosshair. */
   [data-tl-cursor='playhead'],
+  [data-tl-cursor='playhead'] .tl-row,
   [data-tl-cursor='playhead'] .tl-plot,
   [data-tl-cursor='scrub'],
   [data-tl-cursor='scrub'] * {

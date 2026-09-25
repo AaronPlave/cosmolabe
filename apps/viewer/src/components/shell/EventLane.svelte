@@ -101,7 +101,7 @@
     return { text: `${events.length} ${events.length === 1 ? 'event' : 'events'}`, value: false };
   });
 
-  // The label opens this category in the Event Finder, to browse or edit.
+  // The label opens this search in the Event Finder, to browse or edit.
   // That changes what the form edits, not what is selected.
   function edit() {
     if (ef.configuredId !== item.id) openConfiguredQuery(item.id);
@@ -119,11 +119,12 @@
   class:inspected={timeline.hoverRow === rowId}
   class:emphasised
   data-tl-row={rowId}
+  data-tl-no-axis={!wide || undefined}
   style="height: {item.visible ? H : TL_HEAD_PX}px"
 >
   <!-- One grammar for every row: the label opens it for editing, the eye
        shows or hides it, the trash removes it. -->
-  <div class="tl-label">
+  <div data-tl-no-axis class="tl-label">
     <button
       class="tl-label-main"
       onclick={edit}
@@ -145,7 +146,7 @@
         class="tl-icon-btn danger"
         onclick={() => removeConfiguredQuery(item.id)}
         aria-label="Remove {item.label}"
-        title="Remove category"
+        title="Remove search"
       >
         <Trash2 size={wide ? 11 : 13} />
       </button>
@@ -174,7 +175,7 @@
     </div>
   {/if}
 
-  <div class="tl-readout">
+  <div data-tl-no-axis class="tl-readout">
     {#if readout.value && item.visible}
       <span class="tl-num" class:preview={inspected != null}>{readout.text}</span>
     {:else}

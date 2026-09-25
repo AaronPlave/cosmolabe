@@ -141,7 +141,7 @@ export function moveConfiguredProfile(id: string, delta: -1 | 1) {
 }
 
 /**
- * Moves an event category one place among the other event categories —
+ * Moves an event search one place among the other event searches —
  * lane order, overview band order, list order — leaving interleaved profile
  * items where they are.
  */

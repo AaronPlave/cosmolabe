@@ -113,7 +113,7 @@ describe('viewer analysis state', () => {
     expect(analysisContext().eventResults).toHaveLength(1);
   });
 
-  it('reorders event categories among themselves, leaving interleaved profiles in place', () => {
+  it('reorders event searches among themselves, leaving interleaved profiles in place', () => {
     const a = createConfiguredEventQuery({ kind: 'closest-approach' }, 'A');
     const p = createConfiguredProfile({ quantity: 'range' }, 'Distance');
     const b = createConfiguredEventQuery({ kind: 'closest-approach' }, 'B');

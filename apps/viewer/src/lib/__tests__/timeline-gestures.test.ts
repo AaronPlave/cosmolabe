@@ -15,10 +15,26 @@ function fakeRow(id: string, top: number) {
   return { getAttribute: () => id, getBoundingClientRect: () => ({ top }) };
 }
 
-/** An element in a row; `plot` marks an analysis plot's background. */
-function fakeTarget(row: ReturnType<typeof fakeRow> | null, plot = true) {
+/**
+ * An element in a row. `plot`: a plot's background. `gap`: axis space
+ * between plots (padding, the row itself). `chrome`: something marked
+ * `data-tl-no-axis` — a label, the rail, a phone row's header line, the
+ * transport track. `control`: a button that is not an event mark.
+ */
+type Kind = 'plot' | 'gap' | 'chrome' | 'control';
+function fakeTarget(row: ReturnType<typeof fakeRow> | null, kind: Kind = 'plot') {
   return {
-    closest: (sel: string) => (sel === '[data-tl-row]' ? row : sel === '[data-tl-plot]' && plot ? {} : null),
+    closest: (sel: string) => {
+      if (sel === '[data-tl-row]') return row;
+      if (sel.startsWith('button')) return kind === 'control' ? {} : null;
+      if (sel === '[data-tl-no-axis], [data-tl-plot]') {
+        if (kind === 'plot') return { hasAttribute: () => false };
+        if (kind === 'chrome' || kind === 'control') return { hasAttribute: (a: string) => a === 'data-tl-no-axis' };
+        return null;
+      }
+      if (sel === '[data-tl-plot]') return kind === 'plot' ? {} : null;
+      return null;
+    },
   };
 }
 
@@ -104,10 +120,10 @@ describe('timeline surface gestures', () => {
     pointer(dock, 'pointermove', 20, 45, 'mouse', 1, fakeTarget(profile));
     expect([timeline.hoverEt, timeline.hoverRow]).toEqual([1200, 'profile:p']);
     // The rule between rows belongs to no row, but is still on the axis.
-    pointer(dock, 'pointermove', 20, 39, 'mouse', 1, fakeTarget(null, false));
+    pointer(dock, 'pointermove', 20, 39, 'mouse', 1, fakeTarget(null, 'gap'));
     expect([timeline.hoverEt, timeline.hoverRow]).toEqual([1200, null]);
     // Off the axis — the label gutter — there is no instant to inspect.
-    pointer(dock, 'pointermove', -30, 45, 'mouse', 1, fakeTarget(profile, false));
+    pointer(dock, 'pointermove', -30, 45, 'mouse', 1, fakeTarget(profile, 'gap'));
     expect([timeline.hoverEt, timeline.hoverRow]).toEqual([null, 'profile:p']);
   });
 
@@ -125,7 +141,7 @@ describe('timeline surface gestures', () => {
     expect(vs.scrubMin).toBeLessThan(1900);
     expect(vs.scrubMax).toBeGreaterThan(1900);
     const span = vs.scrubMax - vs.scrubMin;
-    expect(wheel(dock, 90, -100, fakeTarget(transport, false))).toBe(true);
+    expect(wheel(dock, 90, -100, fakeTarget(transport, 'chrome'))).toBe(true);
     expect(vs.scrubMax - vs.scrubMin).toBeLessThan(span);
     const before = [vs.scrubMin, vs.scrubMax];
     expect(wheel(dock, -20, -100)).toBe(false);
@@ -133,8 +149,8 @@ describe('timeline surface gestures', () => {
   });
 
   it('leaves presses on the transport track to the track', () => {
-    pointer(dock, 'pointerdown', 50, 5, 'mouse', 1, fakeTarget(transport, false));
-    pointer(dock, 'pointerup', 50, 5, 'mouse', 1, fakeTarget(transport, false));
+    pointer(dock, 'pointerdown', 50, 5, 'mouse', 1, fakeTarget(transport, 'chrome'));
+    pointer(dock, 'pointerup', 50, 5, 'mouse', 1, fakeTarget(transport, 'chrome'));
     expect(scrubTo).not.toHaveBeenCalled();
     expect(dock.captured.size).toBe(0);
   });
@@ -163,7 +179,7 @@ describe('timeline surface gestures', () => {
   });
 
   it('leaves presses on a row control inside a plot to the control', () => {
-    const control = { closest: (sel: string) => (sel === '[data-tl-row]' ? lane : sel === '[data-tl-plot]' || sel.startsWith('button') ? {} : null) };
+    const control = fakeTarget(lane, 'control');
     pointer(dock, 'pointerdown', 50, 25, 'mouse', 1, control);
     pointer(dock, 'pointermove', 30, 25, 'mouse', 1, control, 1);
     pointer(dock, 'pointerup', 30, 25, 'mouse', 1, control);
@@ -172,10 +188,61 @@ describe('timeline surface gestures', () => {
     expect(vs.scrubMin).toBe(1000);
   });
 
+  // The axis column is one surface: the gaps between plots are as live as
+  // the plots; only chrome opts out.
+  it('seeks on a click in an inter-row gap, as on a plot', () => {
+    pointer(dock, 'pointerdown', 30, 38, 'mouse', 1, fakeTarget(null, 'gap'));
+    pointer(dock, 'pointerup', 30, 38, 'mouse', 1, fakeTarget(null, 'gap'));
+    expect(scrubTo).toHaveBeenCalledWith(0.3);
+  });
+
+  it('pans on a drag from an inter-row gap', () => {
+    pointer(dock, 'pointerdown', 50, 38, 'mouse', 1, fakeTarget(profile, 'gap'));
+    pointer(dock, 'pointermove', 40, 38, 'mouse', 1, fakeTarget(profile, 'gap'), 1);
+    pointer(dock, 'pointerup', 40, 38, 'mouse', 1, fakeTarget(profile, 'gap'));
+    expect(vs.scrubMin).toBe(1100);
+    expect(scrubTo).not.toHaveBeenCalled();
+  });
+
+  it('scrubs from the playhead in a gap, and shows the playhead cursor there', () => {
+    vs.et = 1500;
+    pointer(dock, 'pointermove', 52, 38, 'mouse', 1, fakeTarget(null, 'gap'));
+    expect(dock.dataset.tlCursor).toBe('playhead');
+    pointer(dock, 'pointerdown', 52, 38, 'mouse', 1, fakeTarget(null, 'gap'));
+    pointer(dock, 'pointermove', 70, 38, 'mouse', 1, fakeTarget(null, 'gap'), 1);
+    expect(scrubTo).toHaveBeenLastCalledWith(0.7);
+    pointer(dock, 'pointerup', 70, 38, 'mouse', 1, fakeTarget(null, 'gap'));
+  });
+
+  it('zooms on a wheel in a gap', () => {
+    expect(wheel(dock, 50, -100, fakeTarget(null, 'gap'))).toBe(true);
+    expect(vs.scrubMax - vs.scrubMin).toBeLessThan(1000);
+  });
+
+  it('leaves presses on chrome — a label, the rail, a phone row header — alone', () => {
+    vs.et = 1500;
+    const chrome = fakeTarget(lane, 'chrome');
+    pointer(dock, 'pointermove', 50, 25, 'mouse', 1, chrome);
+    expect(dock.dataset.tlCursor).toBeUndefined();
+    pointer(dock, 'pointerdown', 50, 25, 'mouse', 1, chrome);
+    pointer(dock, 'pointermove', 20, 25, 'mouse', 1, chrome, 1);
+    pointer(dock, 'pointerup', 20, 25, 'mouse', 1, chrome);
+    expect(scrubTo).not.toHaveBeenCalled();
+    expect(vs.scrubMin).toBe(1000);
+    expect(dock.captured.size).toBe(0);
+  });
+
+  it('keeps a phone row\'s full-width plot live inside its opted-out row', () => {
+    // The plot is the nearer marker, so it opts back in.
+    pointer(dock, 'pointerdown', 40, 45, 'touch', 1, fakeTarget(profile, 'plot'));
+    pointer(dock, 'pointerup', 40, 45, 'touch', 1, fakeTarget(profile, 'plot'));
+    expect(scrubTo).toHaveBeenCalledWith(0.4);
+  });
+
   it('does not hover while a press held elsewhere (the track scrubbing) moves over it', () => {
     pointer(dock, 'pointermove', 20, 45, 'mouse');
     expect(timeline.hoverEt).toBe(1200);
-    pointer(dock, 'pointermove', 30, 5, 'mouse', 1, fakeTarget(transport, false), 1);
+    pointer(dock, 'pointermove', 30, 5, 'mouse', 1, fakeTarget(transport, 'chrome'), 1);
     expect(timeline.hoverEt).toBeNull();
   });
 

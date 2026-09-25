@@ -44,6 +44,7 @@ import {
   activeEventAtTime,
   buildQuery,
   eventCalloutLines,
+  eventSceneAnnotationLines,
   formForKind,
   type EventQueryForm,
   type EventSortMode,
@@ -319,7 +320,7 @@ export const ef = $state({
    * The selected result, or null: an id and the query it belongs to. Result
    * ids are unique only within a query, so the pair is the identity — and it
    * is independent of which query the form is editing (`configuredId`), so
-   * opening another category to edit does not drop the selection.
+   * opening another search to edit does not drop the selection.
    */
   selectedId: null as string | null,
   selectedQueryId: null as string | null,
@@ -343,8 +344,8 @@ export const ef = $state({
   windowTrimmed: false,
   /**
    * The configured query the form is editing, or null for a draft. A draft is
-   * not a category yet: it becomes one (a durable `ConfiguredEventQuery`, with
-   * a timeline lane) when its search is run. Zero categories is a valid state.
+   * not a saved search yet: it becomes one (a durable `ConfiguredEventQuery`,
+   * with a timeline lane) when it is run. Zero searches is a valid state.
    */
   configuredId: null as string | null,
 });
@@ -395,7 +396,8 @@ function syncEventResultsInScene(): void {
   const renderer = getRenderer();
   if (!renderer) return;
   const selected = selectedEventOf(analysisContext().eventResults) ?? null;
-  const annotation = selected ? eventCalloutLines(selected, { selected: true, utc: etToUtcString }).join('\n') : '';
+  // Brief: the global inspector carries the selection's full detail.
+  const annotation = selected ? eventSceneAnnotationLines(selected).join('\n') : '';
   renderer.setEventResults(analysisContext().eventResults, selected, annotation);
 }
 
@@ -528,9 +530,9 @@ export function currentConfiguredQuery(): ConfiguredEventQuery | undefined {
 /**
  * Keep the editable form and the durable configured item on one identity.
  *
- * Editing a configured category updates it in place. A draft stays a draft —
- * only `persist` (running its search) makes it a category — so an open form
- * never materialises a category, or a lane, on its own.
+ * Editing a configured search updates it in place. A draft stays a draft —
+ * only `persist` (running it) saves it as a search — so an open form
+ * never materialises a search, or a lane, on its own.
  */
 function syncConfiguredQuery(persist = false): ConfiguredEventQuery | undefined {
   if (!ef.form) return undefined;
@@ -567,7 +569,7 @@ export function setCurrentQueryVisible(visible: boolean) {
   if (ef.configuredId) setConfiguredItemVisible(ef.configuredId, visible);
 }
 
-/** Every durable event category, in creation order, for the shared timeline controls. */
+/** Every durable event search, in creation order, for the shared timeline controls. */
 export function configuredEventQueries(): ConfiguredEventQuery[] {
   return analysis.items.filter((item): item is ConfiguredEventQuery => item.type === 'event-query');
 }
@@ -583,11 +585,11 @@ export function setConfiguredQueryVisible(id: string, visible: boolean) {
 }
 
 /**
- * Removes a configured event category and everything tied to it: its item
+ * Removes a configured event search and everything tied to it: its item
  * and cached results (so its timeline lane goes too), a selection or preview
- * of one of its results, and — if it was the category being edited — the
- * form, which moves to an adjacent category or, with none left, stays as
- * an unsaved draft: zero categories is a valid state.
+ * of one of its results, and — if it was the search being edited — the
+ * form, which moves to an adjacent search or, with none left, stays as
+ * an unsaved draft: zero searches is a valid state.
  */
 export function removeConfiguredQuery(id: string) {
   const queries = configuredEventQueries();
@@ -608,7 +610,7 @@ export function removeConfiguredQuery(id: string) {
       openConfiguredQuery(next.id);
       return;
     }
-    // The last one: zero categories, and the form keeps the removed query's
+    // The last one: zero searches, and the form keeps the removed query's
     // settings as an unsaved draft rather than re-creating it.
     ef.events = [];
     ef.fault = null;
@@ -620,8 +622,8 @@ export function removeConfiguredQuery(id: string) {
 }
 
 /**
- * Start a draft for another event category, without discarding this one. It
- * becomes a category when its search runs. An existing selection stays.
+ * Start a draft for another event search, without discarding this one. It
+ * is saved when it runs. An existing selection stays.
  */
 export function createNewSearch() {
   previewEvent(null);
@@ -641,7 +643,7 @@ export function createNewSearch() {
   syncOccultationGeometryAtTime();
 }
 
-/** Reopen a configured category and its cached results for browsing or editing. */
+/** Reopen a configured search and its cached results for browsing or editing. */
 export function openConfiguredQuery(id: string) {
   const item = configuredItem(id);
   if (!item || item.type !== 'event-query') return;
@@ -667,7 +669,7 @@ export function openConfiguredQuery(id: string) {
   ef.searched = Object.prototype.hasOwnProperty.call(analysis.eventResults, id);
   ef.fault = null;
   ef.hint = null;
-  // Opening a category to edit leaves the selection alone: it may belong to
+  // Opening a search to edit leaves the selection alone: it may belong to
   // any query, and stays until it is cleared or replaced.
   // Old saved items have no provenance. Treat them as automatic: every
   // configured query stores a concrete window, so its mere presence cannot
@@ -860,7 +862,7 @@ export function cancelSearch() {
  * exist yet.
  */
 export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' | number = 'start') {
-  // Selecting inspects a result; it does not change which category the form
+  // Selecting inspects a result; it does not change which search the form
   // is editing. Editing is its own action (`openConfiguredQuery`, a lane
   // label). The selection is shown wherever it is, by the global inspector.
   setSelection(event);

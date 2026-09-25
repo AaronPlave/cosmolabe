@@ -16,9 +16,9 @@
   import type { GeometryEvent } from '@cosmolabe/core';
   import { eventDuration, eventEnd, eventStart, isIntervalEvent } from '@cosmolabe/core';
   import { etToUtcString } from '../../lib/viewer-state.svelte';
-  import { clearSelection, openConfiguredQuery } from '../../lib/event-finder.svelte';
+  import { clearSelection, openConfiguredQuery, selectEvent } from '../../lib/event-finder.svelte';
   import { configuredItem } from '../../lib/analysis.svelte';
-  import { eventCalloutTitle, formatMetric, formatSeconds, headlineMetric, utcSpan } from '../../lib/event-query';
+  import { eventCalloutTitle, formatMetric, formatSeconds, headlineMetric } from '../../lib/event-query';
   import { openTool } from '../../lib/shell.svelte';
   import { ChevronDown, ChevronUp, X } from 'lucide-svelte';
   import EventDetails from '../EventDetails.svelte';
@@ -38,8 +38,9 @@
 
   const title = $derived(eventCalloutTitle(event));
   const headline = $derived(headlineMetric(event));
-  const category = $derived(configuredItem(event.queryId)?.label);
+  const search = $derived(configuredItem(event.queryId)?.label);
   const utc = (et: number) => etToUtcString(et);
+  const bare = (et: number) => etToUtcString(et).replace(' UTC', '');
   const left = $derived.by(() => {
     const half = (width || 280) / 2;
     return Math.max(half + 8, Math.min(window.innerWidth - half - 8, x));
@@ -75,23 +76,30 @@
   {#if headline}
     <div class="metric"><span class="ui-label">{headline.label}</span><span class="value">{formatMetric(headline)}</span></div>
   {/if}
+  <!-- Time as structure, not one wrapping run: the span, then (collapsed)
+       its duration on a line of its own. Expanded, the details carry the
+       duration, so it is not repeated here. -->
   <div class="when">
     {#if isIntervalEvent(event)}
-      <span>{utcSpan(eventStart(event), eventEnd(event), utc)}</span>
-      <span class="duration">{formatSeconds(eventDuration(event))}</span>
+      <span class="stamp">{bare(eventStart(event))}</span>
+      <span class="arrow">→</span>
+      <button class="stamp end" onclick={() => selectEvent(event, 'end')} title="Go to the end">{utc(eventEnd(event))}</button>
     {:else}
-      {utc(eventStart(event))}
+      <span class="stamp">{utc(eventStart(event))}</span>
     {/if}
   </div>
+  {#if isIntervalEvent(event) && !open}
+    <div class="when">Duration {formatSeconds(eventDuration(event))}</div>
+  {/if}
   {#if open}
-    <div class="details"><EventDetails {event} /></div>
+    <div class="details"><EventDetails {event} showEnd={false} /></div>
   {/if}
   <div class="actions">
     <button class="link" onclick={() => open = !open} aria-expanded={open}>
       {#if open}<ChevronUp size={11} /> Less{:else}<ChevronDown size={11} /> Details{/if}
     </button>
-    <button class="link" onclick={edit} title={category ? `Edit “${category}” in Event Finder` : 'Open in Event Finder'}>
-      Edit category
+    <button class="link" onclick={edit} title={search ? `Edit “${search}” in Event Finder` : 'Open in Event Finder'}>
+      Edit search
     </button>
   </div>
 </div>
@@ -102,7 +110,7 @@
     z-index: calc(var(--tl-z-callout) - 1);
     width: max-content;
     min-width: 220px;
-    max-width: min(340px, calc(100vw - 16px));
+    max-width: min(420px, calc(100vw - 16px));
     padding: 7px 9px 5px;
     border: 1px solid var(--color-chrome-border);
     border-radius: 5px;
@@ -159,16 +167,30 @@
   }
   .when {
     display: flex;
-    justify-content: space-between;
-    gap: 12px;
+    flex-wrap: wrap;
+    column-gap: 5px;
     margin-top: 1px;
     color: var(--color-text-secondary);
     font-family: var(--font-mono);
     font-size: var(--text-metadata);
     font-variant-numeric: tabular-nums;
   }
-  .duration {
-    flex-shrink: 0;
+  /* Each timestamp stays whole; a narrow inspector breaks at the arrow. */
+  .stamp {
+    white-space: nowrap;
+  }
+  .end {
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .end:hover {
+    color: var(--color-text-primary);
+  }
+  .arrow {
     color: var(--color-text-muted);
   }
   .details {
