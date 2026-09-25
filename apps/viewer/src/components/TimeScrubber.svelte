@@ -114,8 +114,11 @@
   let markerPointerDown = false;
   let trackRect: DOMRect | null = null;
 
-  /** Height of the minimap strip along the track's bottom edge, px. */
-  const MINIMAP_PX = 3;
+  /**
+   * Height of the minimap strip along the track's bottom edge: about a
+   * quarter of the track, so the viewport is easy to see and to grab.
+   */
+  const MINIMAP_PX = $derived(Math.max(4, Math.min(6, Math.round(trackHeight * 0.27))));
 
   let displayFraction = $derived(dragging ? dragFraction : fraction);
 
@@ -503,7 +506,7 @@
   }
   .minimap.interactive {
     z-index: 2;
-    height: calc(var(--mini) + 4px);
+    height: calc(var(--mini) + 3px);
     cursor: pointer;
     touch-action: none;
   }

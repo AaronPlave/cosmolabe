@@ -52,7 +52,23 @@ that item in place. An open form never creates a category on its own, so zero
 categories is a valid state. `ef.configuredId` is the query being edited (null
 for a draft). The selection is a separate `(ef.selectedId, ef.selectedQueryId)`
 pair, because result ids are unique only within a query. Opening another
-category to edit therefore leaves the selection alone. The timeline reads
+category to edit therefore leaves the selection alone. Selecting a result
+(`selectEvent`) does not switch the category being edited either: a mark click
+inspects, and a lane-label click edits.
+
+The selected event has a global inspector (`SelectedEventInspector.svelte`)
+above the timeline, over the event's place on the track, so closing the Event
+Finder does not hide it. By default it shows the event's name, key metric and
+time. Details reveals roles, state and other measurements, from the same
+`EventDetails.svelte` the Event Finder's selected row uses, so the two cannot
+drift apart. It also has "Edit category" and a × that clears the selection
+only; Escape clears it too. It is hidden while the Event Finder is open on the
+event's own category, whose selected row already shows it. Neither view
+repeats the headline metric in the details.
+
+Active, selected and previewed stay distinct. Active events get no card. When
+the timeline is collapsed and events are active, a small "N active" count sits
+by the clock, and clicking it expands the timeline. The timeline reads
 `visibleTimelineEvents()`, which includes results only for event-query items
 that are both enabled and visible. Disabling or hiding one item does not alter
 any other event or profile configuration.
@@ -183,14 +199,15 @@ per layout:
   keeps fitting as rows are added or removed.
 - **Manual:** drag the top edge.
 
-Collapse and expand are a tab (about 46 × 16 px) centred on the dock's top
-edge; the rest of that edge is the resize grip. A phone keeps a full-size
+Collapse and expand are a drawer handle (about 36 × 13 px) centred on the
+dock's top edge; the rest of that edge is the resize grip. A phone keeps a full-size
 button instead. The track is one instrument with fixed geometry: the event
-overview on top, and the mission minimap as a 3 px strip along its bottom.
+overview on top, and the mission minimap along its bottom (about a quarter
+of the 20 px track).
 Unzoomed, the minimap's viewport spans the full width; zoomed, it becomes a
 draggable segment. Zooming changes what the track shows, never its layout.
-Collapsed, the dock is a dense overview. It has less padding, an 18 px track,
-and no bound labels, so the axis gets the width. Expanded, the window's bounds
+Collapsed, the dock is a dense overview. It has less padding and no bound
+labels, so the axis gets the width. Expanded, the window's bounds
 and span sit in the caption row under the track, for example
 `2030-10-14 · Full mission · 3.6 yr ▾ · 2034-05-29`, and the clock is one
 line at the head of the rail.
@@ -213,6 +230,11 @@ Each surface has one job:
 
 - **Transport track:** scrubs.
 - **Analysis plots:** a click seeks, and a background drag pans the view.
+- **Event marks in a lane (`data-tl-event-mark`):** selectable data on that
+  same axis. A press waits for intent: released within the slop it selects,
+  and moved past it, it pans (or scrubs, from the playhead). The click after
+  that drag is swallowed, so it does not also select. Row controls inside a
+  plot are left to themselves.
 - **Playhead:** a drag that starts on it scrubs. It is a thin line with a
   ~14 px grab target.
 - **Wheel:** a sideways or Shift wheel pans; a plain wheel zooms.
@@ -227,7 +249,11 @@ Hover previews and click selects, on every surface:
   previews it (`timeline.previewEventId`, an `eventKey` that includes the
   query), whether snapped to an edge or anywhere inside an interval. It shows a
   callout with the scene callouts' copy (`eventCalloutLines`) and previews the
-  event in the scene through `previewEvent`.
+  event in the scene through `previewEvent`. The callout is brief and
+  transient: name, key metric, time or duration, each on its own line that
+  wraps rather than ellipsizes. It sizes to its content, capped at
+  `min(420px, 100vw − 16px)`, is clamped to the viewport by its measured
+  width, and drops below the row when there is no room above.
 - **Previews from elsewhere:** a preview started in the Event Finder's list or
   in the scene highlights the timeline's marks. It also puts the ghost on the
   event (`timeline.linkedEt`), so the profiles read out there.

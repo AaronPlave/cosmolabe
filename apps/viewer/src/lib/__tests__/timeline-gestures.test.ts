@@ -22,6 +22,21 @@ function fakeTarget(row: ReturnType<typeof fakeRow> | null, plot = true) {
   };
 }
 
+/** An event mark in a lane's plot: a button that is also timeline data. */
+function fakeMark() {
+  return {
+    closest: (sel: string) =>
+      sel === '[data-tl-row]' ? lane : sel === '[data-tl-plot]' || sel === '[data-tl-event-mark]' || sel.startsWith('button') ? {} : null,
+  };
+}
+
+/** Dispatches a click through the dock; whether it got past the dock's capture listener. */
+function click(node: EventTarget) {
+  const e = new Event('click', { cancelable: true });
+  node.dispatchEvent(e);
+  return !e.defaultPrevented;
+}
+
 /** Just enough of the dock for the action. */
 function fakeDock() {
   const target = new EventTarget();
@@ -124,14 +139,37 @@ describe('timeline surface gestures', () => {
     expect(dock.captured.size).toBe(0);
   });
 
-  it('leaves presses on an event mark to the mark: no capture, no seek, so its click selects', () => {
-    // A mark is a button inside the plot; the dock must not take the press
-    // (capturing would retarget the click away from the mark).
-    const mark = { closest: (sel: string) => (sel === '[data-tl-row]' ? lane : sel === '[data-tl-plot]' || sel.startsWith('button') ? {} : null) };
+  it('selects on a click on an event mark: no capture, no seek, the click reaches the mark', () => {
+    const mark = fakeMark();
     pointer(dock, 'pointerdown', 50, 25, 'mouse', 1, mark);
     expect(dock.captured.size).toBe(0);
-    pointer(dock, 'pointerup', 50, 25, 'mouse', 1, mark);
+    pointer(dock, 'pointerup', 51, 25, 'mouse', 1, mark);
     expect(scrubTo).not.toHaveBeenCalled();
+    expect(click(dock)).toBe(true);
+  });
+
+  it('pans on a drag that starts on an event mark, and swallows the click after it', () => {
+    const mark = fakeMark();
+    pointer(dock, 'pointerdown', 50, 25, 'mouse', 1, mark);
+    pointer(dock, 'pointermove', 40, 25, 'mouse', 1, mark, 1);
+    expect(vs.scrubMin).toBe(1100);
+    pointer(dock, 'pointerup', 40, 25, 'mouse', 1, mark);
+    expect(scrubTo).not.toHaveBeenCalled();
+    expect(click(dock)).toBe(false);
+    // The next click is an ordinary one again.
+    pointer(dock, 'pointerdown', 50, 25, 'mouse', 1, mark);
+    pointer(dock, 'pointerup', 50, 25, 'mouse', 1, mark);
+    expect(click(dock)).toBe(true);
+  });
+
+  it('leaves presses on a row control inside a plot to the control', () => {
+    const control = { closest: (sel: string) => (sel === '[data-tl-row]' ? lane : sel === '[data-tl-plot]' || sel.startsWith('button') ? {} : null) };
+    pointer(dock, 'pointerdown', 50, 25, 'mouse', 1, control);
+    pointer(dock, 'pointermove', 30, 25, 'mouse', 1, control, 1);
+    pointer(dock, 'pointerup', 30, 25, 'mouse', 1, control);
+    expect(dock.captured.size).toBe(0);
+    expect(scrubTo).not.toHaveBeenCalled();
+    expect(vs.scrubMin).toBe(1000);
   });
 
   it('does not hover while a press held elsewhere (the track scrubbing) moves over it', () => {

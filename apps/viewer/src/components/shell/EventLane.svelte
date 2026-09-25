@@ -10,8 +10,9 @@
    * finder and this lane all read, so no surface disagrees about it.
    *
    * The lane draws marks only. Hover, the ghost and playhead lines, seeking
-   * and panning belong to the dock's one interaction surface; clicking a mark
-   * goes through `selectEvent`, the same call the track's marks make.
+   * and panning belong to the dock's one interaction surface — including a
+   * drag that starts on a mark (`data-tl-event-mark`); clicking a mark goes
+   * through `selectEvent`, the same call the track's marks make.
    */
   import type { ConfiguredEventQuery, GeometryEvent } from '@cosmolabe/core';
   import { eventDuration } from '@cosmolabe/core';
@@ -165,6 +166,7 @@
           data-ev-state={mark.event.state}
           style="left: {mark.start * 100}%; width: {Math.max(0, mark.end - mark.start) * 100}%"
           aria-label={mark.event.label}
+          data-tl-event-mark
           onclick={() => selectEvent(mark.event)}
         ></button>
       {/each}

@@ -860,7 +860,9 @@ export function cancelSearch() {
  * exist yet.
  */
 export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' | number = 'start') {
-  if (event.queryId !== ef.configuredId) openConfiguredQuery(event.queryId);
+  // Selecting inspects a result; it does not change which category the form
+  // is editing. Editing is its own action (`openConfiguredQuery`, a lane
+  // label). The selection is shown wherever it is, by the global inspector.
   setSelection(event);
   const focus = focusForEvent(event, typeof anchor === 'number' ? 'start' : anchor);
   if (typeof anchor === 'number') focus.et = Math.max(eventStart(event), Math.min(anchor, eventEnd(event)));

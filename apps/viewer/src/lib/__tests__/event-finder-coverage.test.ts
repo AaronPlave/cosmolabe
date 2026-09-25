@@ -260,4 +260,22 @@ describe('draft and configured categories', () => {
     expect(isSelectedEvent({ id: 'r3', queryId: a.id })).toBe(true);
     expect(isSelectedEvent({ id: 'r3', queryId: b.id })).toBe(false);
   });
+
+  it('selecting a result inspects it without switching the category being edited', async () => {
+    const { selectEvent, isSelectedEvent } = await import('../event-finder.svelte');
+    const { createConfiguredEventQuery, setEventResults } = await import('../analysis.svelte');
+    const a = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Mars' } }, 'A');
+    const b = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Venus' } }, 'B');
+    const result = {
+      id: 'r0', queryId: b.id, kind: 'closest-approach', temporality: 'instant' as const,
+      et: 10, bodies: { observer: 'Earth', target: 'Venus' }, label: 'b',
+    };
+    setEventResults(b.id, [result]);
+    ef.configuredId = a.id;
+
+    selectEvent(result);
+
+    expect(ef.configuredId).toBe(a.id);
+    expect(isSelectedEvent(result)).toBe(true);
+  });
 });

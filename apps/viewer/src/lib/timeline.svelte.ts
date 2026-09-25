@@ -223,17 +223,23 @@ function rowOf(target: EventTarget | null): { id: string; el: Element } | null {
   return el && id ? { id, el } : null;
 }
 
+/** Whether a press landed on an event mark (`data-tl-event-mark`). */
+function onEventMark(target: EventTarget | null): boolean {
+  return !!(target as Element | null)?.closest?.('[data-tl-event-mark]');
+}
+
 /**
- * Whether a press landed on an analysis plot's background — not on a control
- * inside it, such as an event mark. That is decided here rather than by the
+ * Whether a press landed on an analysis plot: its background or an event
+ * mark — data on a manipulable axis — but not a row control (a button or
+ * input that happens to sit inside the plot). Decided here rather than by a
  * control stopping propagation: Svelte delegates its handlers to the document
- * root, so a mark's `stopPropagation` runs only after this surface's native
- * listener has already taken the press (and captured the pointer, which
- * retargets the click away from the mark).
+ * root, so a `stopPropagation` there runs after this surface's native
+ * listener has already seen the press.
  */
 function onPlot(target: EventTarget | null): boolean {
   const el = target as Element | null;
-  return !!el?.closest?.('[data-tl-plot]') && !el.closest?.('button, a, input, select, [role="button"]');
+  if (!el?.closest?.('[data-tl-plot]')) return false;
+  return onEventMark(el) || !el.closest?.('button, a, input, select, [role="button"]');
 }
 
 /**
@@ -252,12 +258,16 @@ function onPlot(target: EventTarget | null): boolean {
  * - the wheel zooms about the pointer; a sideways or Shift wheel pans;
  * - on an analysis plot (`data-tl-plot`), a click seeks, a drag pans the
  *   shared window, and a drag that starts on the playhead — a thin line with
- *   a wider invisible grab target — scrubs time.
+ *   a wider invisible grab target — scrubs time;
+ * - an event mark (`data-tl-event-mark`) is selectable data on that same
+ *   axis, not a hole in it: a press on one waits for intent. Released within
+ *   the slop, it is the mark's click, and selects; moved past it, it pans (or
+ *   scrubs, from the playhead) like any press on the plot, and the click that
+ *   would follow is swallowed so the drag does not also select.
  *
  * Presses on the transport track are the track's own (they scrub, as they
- * always have); presses on an event mark are left to the mark, which selects. The
- * transport manipulates time, the analysis background manipulates the view,
- * and the playhead manipulates time everywhere.
+ * always have). The transport manipulates time, the analysis background
+ * manipulates the view, and the playhead manipulates time everywhere.
  *
  * Touch reads direction before committing: the lanes sit in a region that
  * scrolls vertically, so horizontal travel pans (or scrubs, from the
@@ -269,8 +279,11 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
   let opts = initial;
   /** A press not yet read as a click, a drag, or (touch) a scroll. */
   let pending: {
-    id: number; x: number; y: number; touch: boolean; onPlayhead: boolean; row: string | null; bounds: AxisBounds;
+    id: number; x: number; y: number; touch: boolean; onPlayhead: boolean; mark: boolean;
+    row: string | null; bounds: AxisBounds;
   } | null = null;
+  /** A drag just ended that began on a mark: the click after it is not a select. */
+  let swallowClick = false;
   /** The pointer driving a drag, what it drives, and where it was last. */
   // The axis a drag started on is the one it keeps, wherever it wanders.
   let drag: { id: number; x: number; mode: 'pan' | 'scrub'; bounds: AxisBounds } | null = null;
@@ -325,11 +338,13 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
 
   const reset = () => {
     pending = null;
+    swallowClick = false;
     endDrag();
     setTimelineHover(null);
   };
 
-  const beginDrag = (e: PointerEvent, mode: 'pan' | 'scrub', fromX: number, bounds: AxisBounds) => {
+  const beginDrag = (e: PointerEvent, mode: 'pan' | 'scrub', fromX: number, bounds: AxisBounds, mark = false) => {
+    swallowClick = mark;
     if (!node.hasPointerCapture(e.pointerId)) node.setPointerCapture(e.pointerId);
     setCursor(mode);
     setTimelineHover(null);
@@ -342,16 +357,18 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
     if (!bounds || fractionAt(e, false, bounds) == null) return;
     const touch = e.pointerType === 'touch';
     const onPlayhead = nearPlayhead(e);
-    if (onPlayhead && !touch) {
+    const mark = onEventMark(e.target);
+    if (onPlayhead && !touch && !mark) {
       // Grabbing the playhead scrubs at once, like the transport track.
       beginDrag(e, 'scrub', e.clientX, bounds);
       return;
     }
-    pending = { id: e.pointerId, x: e.clientX, y: e.clientY, touch, onPlayhead, row: rowOf(e.target)?.id ?? null, bounds };
+    pending = { id: e.pointerId, x: e.clientX, y: e.clientY, touch, onPlayhead, mark, row: rowOf(e.target)?.id ?? null, bounds };
     // Mouse and pen: capture now, so a release outside the plot still ends
-    // the press here. Touch is implicitly captured already, and must stay
-    // free to become a scroll.
-    if (!touch) node.setPointerCapture(e.pointerId);
+    // the press here. Not on a mark, whose click must still land on it if
+    // this turns out to be one; a drag captures when it starts. Touch is
+    // implicitly captured already, and must stay free to become a scroll.
+    if (!touch && !mark) node.setPointerCapture(e.pointerId);
   };
   const move = (e: PointerEvent) => {
     if (drag && drag.id === e.pointerId) {
@@ -374,7 +391,7 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
       // A touch moving vertically is the region's scroll; the browser will
       // cancel us. Anything else drags.
       if (start.touch && dy >= dx) return;
-      beginDrag(e, start.onPlayhead ? 'scrub' : 'pan', start.x, start.bounds);
+      beginDrag(e, start.onPlayhead ? 'scrub' : 'pan', start.x, start.bounds, start.mark);
       move(e);
       return;
     }
@@ -389,10 +406,13 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
   };
   const up = (e: PointerEvent) => {
     if (pending && pending.id === e.pointerId) {
-      // A click or tap: seek to it, snapped to an event edge when close.
       const start = pending;
       pending = null;
       if (node.hasPointerCapture(e.pointerId)) node.releasePointerCapture(e.pointerId);
+      // A click on a mark is the mark's: it selects.
+      if (start.mark) return;
+      // A click or tap on the background: seek to it, snapped to an event
+      // edge when close.
       const f = fractionAt(e, true, start.bounds);
       if (f != null) scrubTo(hoverTarget(f, start.bounds.width, opts.targets(start.row)).at);
       if (e.pointerType !== 'touch') previewAt(e);
@@ -402,6 +422,15 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
     endDrag();
     if (node.hasPointerCapture(e.pointerId)) node.releasePointerCapture(e.pointerId);
     if (e.pointerType !== 'touch') previewAt(e);
+    // The click, if one follows this release, comes in the same task.
+    if (swallowClick) setTimeout(() => { swallowClick = false; }, 0);
+  };
+  // Capture phase, ahead of the mark's own (delegated) click handler.
+  const click = (e: Event) => {
+    if (!swallowClick) return;
+    swallowClick = false;
+    e.stopPropagation();
+    e.preventDefault();
   };
   const leave = (e: PointerEvent) => {
     if (drag || e.pointerType === 'touch') return;
@@ -432,6 +461,7 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
     ['lostpointercapture', (e) => { if (drag && e.target === node) reset(); }],
     ['pointerleave', leave as EventListener],
     ['wheel', wheel as EventListener, { passive: false }],
+    ['click', click, { capture: true }],
   ];
   for (const [type, fn, o] of listeners) node.addEventListener(type, fn, o);
   return {
@@ -439,7 +469,7 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
       opts = next;
     },
     destroy() {
-      for (const [type, fn] of listeners) node.removeEventListener(type, fn);
+      for (const [type, fn, o] of listeners) node.removeEventListener(type, fn, o);
       setTimelineHover(null);
       timeline.hoverRow = null;
     },

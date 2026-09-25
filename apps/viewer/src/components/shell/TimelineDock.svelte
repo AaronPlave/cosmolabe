@@ -32,15 +32,18 @@
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
   import AddProfile from './AddProfile.svelte';
+  import SelectedEventInspector from './SelectedEventInspector.svelte';
   import RangeControl from '../RangeControl.svelte';
-  import { shell, setTimelineDepth } from '../../lib/shell.svelte';
+  import { shell, setTimelineDepth, isToolOpen } from '../../lib/shell.svelte';
   import { formatDuration, inWindow } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
   import {
     ef, previewEvent, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries, isSelectedEvent, selectedEventOf,
   } from '../../lib/event-finder.svelte';
   import { visibleTimelineEvents } from '../../lib/analysis.svelte';
-  import { eventCalloutLines, eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
+  import {
+    activeEventsAtTime, eventCalloutLines, eventContainsTime, eventTimelineFractions,
+  } from '../../lib/event-query';
   import {
     ChevronsLeft, ChevronLeft, Rewind, Play, Pause,
     ChevronRight, ChevronsRight, ChevronUp, ChevronDown,
@@ -272,12 +275,21 @@
   // Rendered in a page-level layer (`portal`) at viewport coordinates, so no
   // clipping ancestor — the phone's rounded dock — can cut it, and it rises
   // over the scene and the dock's own chrome alike.
+  //
+  // Sized to its content and measured: it is clamped to the viewport by its
+  // real width, and drops below the pointed-at row when there is no room
+  // above. The key facts — name, metric, time — each get a line and wrap
+  // rather than ellipsize. Brief on purpose: the selected-event inspector is
+  // where the full detail lives.
+  let calloutSize = $state({ w: 0, h: 0 });
   const callout = $derived.by(() => {
     if (!hoveredEvent || !timeline.anchor) return null;
-    const lines = eventCalloutLines(hoveredEvent, { utc: etToUtcString, selected: true });
-    const half = 110;
+    const [title, ...rest] = eventCalloutLines(hoveredEvent, { utc: etToUtcString, selected: true });
+    const lines = rest.flatMap((line) => line.split(' · '));
+    const half = (calloutSize.w || 200) / 2;
     const x = Math.max(half + 8, Math.min(window.innerWidth - half - 8, timeline.anchor.x));
-    return { lines, x, y: timeline.anchor.y, kind: hoveredEvent.kind, state: hoveredEvent.state };
+    const below = timeline.anchor.y - (calloutSize.h || 60) - 8 < 8;
+    return { title, lines, x, y: below ? timeline.anchor.y + 24 : timeline.anchor.y, below, kind: hoveredEvent.kind, state: hoveredEvent.state };
   });
 
   /** Moves an element to the end of the page, out of every clipping ancestor. */
@@ -342,6 +354,46 @@
     setScrubberWindow(start - pad, end + pad);
   }
   const selectedEvent = $derived(selectedEventOf(visibleTimelineEvents()));
+
+  // ── Selected-event inspector ──
+  //
+  // Over the selected event's place on the track (pinned to the track's end
+  // when it is out of the window). Not shown while the Event Finder is open
+  // on that event's own category, whose selected row already shows it.
+  let trackBox = $state({ left: 0, width: 0 });
+  $effect(() => {
+    const track = trackEl;
+    if (!track) return;
+    const measure = () => {
+      const r = track.getBoundingClientRect();
+      trackBox = { left: r.left, width: r.width };
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(track);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  });
+  const inspector = $derived.by(() => {
+    const event = selectedEvent;
+    if (!event) return null;
+    if (isToolOpen('events') && ef.configuredId === event.queryId) return null;
+    const span = eventTimelineFractions(event, { start: vs.scrubMin, end: vs.scrubMax });
+    const f = span ? (span.start + span.end) / 2 : timelineFraction(eventStart(event)) < 0 ? 0 : 1;
+    // Desktop: above the dock and its edge handle. A phone: above the
+    // floating dock (inset 8 px from the bottom).
+    const bottom = shell.chromeBottom + (compact ? 16 : 20);
+    return { event, x: trackBox.left + f * trackBox.width, bottom };
+  });
+
+  // ── Active events, collapsed ──
+  //
+  // Collapsed, the lanes that show activity are gone; a small count says
+  // something is active and opens them. Never a card per active event.
+  const activeCount = $derived(expanded ? 0 : activeEventsAtTime(visibleTimelineEvents(), vs.et).length);
   const fitOptions = $derived.by(() => {
     const events = visibleTimelineEvents();
     const options: { label: string; onSelect: () => void }[] = [];
@@ -545,17 +597,23 @@
     <div
       use:portal
       class="event-callout"
+      class:below={callout.below}
       style="left: {callout.x}px; top: {callout.y}px"
       role="tooltip"
+      bind:clientWidth={calloutSize.w}
+      bind:clientHeight={calloutSize.h}
     >
       <div class="callout-title">
         <span class="callout-glyph" data-ev-kind={callout.kind} data-ev-state={callout.state}></span>
-        {callout.lines[0]}
+        {callout.title}
       </div>
-      {#each callout.lines.slice(1) as line}
+      {#each callout.lines as line}
         <div class="callout-line">{line}</div>
       {/each}
     </div>
+  {/if}
+  {#if inspector}
+    <SelectedEventInspector event={inspector.event} x={inspector.x} bottom={inspector.bottom} />
   {/if}
   {#if shell.shortcutsOpen}
     <div class="py-0.5 text-center text-[12px] text-text-muted">
@@ -615,7 +673,7 @@
         {viewportEnd}
         {globalPlayhead}
         {rangeLabel}
-        trackHeight={expanded ? 16 : 18}
+        trackHeight={20}
         {fitOptions}
         markers={eventMarkers}
         bands={familyCount <= MAX_BANDS ? Math.max(1, familyCount) : 1}
@@ -624,6 +682,11 @@
     </div>
 
     <div bind:this={clockEl} class="transport-rail flex shrink-0 items-center gap-0.5">
+      {#if activeCount > 0 && !compact}
+        <button class="active-chip" onclick={toggleDepth} title="Events active at the playhead — expand the timeline to see them">
+          {activeCount} active
+        </button>
+      {/if}
       <Popover.Root bind:open={gotoTimeOpen} onOpenChange={onGotoOpen}>
         <Popover.Trigger
           class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'compact-current' : ''} {clock.length > 1 ? 'two-line' : ''}"
@@ -799,27 +862,45 @@
      border, over the resize grip. Quiet, but visible against the scene. */
   .edge-tab {
     position: absolute;
-    top: -16px;
+    top: -13px;
     left: 50%;
     z-index: var(--tl-z-chrome);
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 46px;
-    height: 16px;
+    width: 36px;
+    height: 13px;
     padding: 0;
-    border: 1px solid rgba(220, 224, 232, 0.24);
+    border: 1px solid rgba(220, 224, 232, 0.12);
     border-bottom: none;
-    border-radius: 6px 6px 0 0;
+    border-radius: 5px 5px 0 0;
     background: var(--color-panel);
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     cursor: pointer;
     transform: translateX(-50%);
     transition: color var(--duration-chrome) var(--ease-chrome), background var(--duration-chrome) var(--ease-chrome);
   }
   .edge-tab:hover {
+    border-color: rgba(220, 224, 232, 0.32);
     color: var(--color-text-primary);
     background: var(--color-control-hover);
+  }
+  /* Collapsed, events active at the playhead: a count, not a card. */
+  .active-chip {
+    flex-shrink: 0;
+    margin-right: 2px;
+    padding: 1px 6px;
+    border: 1px solid color-mix(in srgb, var(--color-event-accent) 40%, transparent);
+    border-radius: 9px;
+    background: none;
+    color: var(--color-text-secondary);
+    font-size: var(--text-metadata);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .active-chip:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-event-accent);
   }
   /* A dragged height shows its grip faintly, as the sign it is not automatic. */
   .resize-handle.manual::after {
@@ -833,7 +914,8 @@
     position: fixed;
     z-index: var(--tl-z-callout);
     font-family: var(--font-sans);
-    max-width: 240px;
+    width: max-content;
+    max-width: min(420px, calc(100vw - 16px));
     padding: 5px 8px;
     border: 1px solid var(--color-chrome-border);
     border-radius: 4px;
@@ -841,7 +923,10 @@
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
     transform: translate(-50%, calc(-100% - 6px));
     pointer-events: none;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+  }
+  .event-callout.below {
+    transform: translate(-50%, 0);
   }
   .callout-title {
     display: flex;
@@ -852,8 +937,6 @@
     font-weight: 560;
   }
   .callout-line {
-    overflow: hidden;
-    text-overflow: ellipsis;
     color: var(--color-text-secondary);
     font-family: var(--font-mono);
     font-size: var(--text-metadata);

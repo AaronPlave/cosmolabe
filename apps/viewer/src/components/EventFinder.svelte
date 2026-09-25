@@ -16,6 +16,7 @@
   import { vs, etToUtcString } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
+  import EventDetails from './EventDetails.svelte';
   import { getSpice } from '../lib/loader';
   import {
     EVENT_KINDS, cancelSearch, ef, clearSelection, currentKind, resetForm, runSearch,
@@ -127,15 +128,6 @@
 
   function eventTime(event: GeometryEvent): string {
     return etToUtcString(eventStart(event)).replace(' UTC', '');
-  }
-
-  /** Metrics worth a second line under a result, in the kind's own order. */
-  function detailMetrics(event: GeometryEvent) {
-    return (event.metrics ?? []).filter((m) => m.key !== 'duration');
-  }
-
-  function roleLabel(role: string): string {
-    return kind.roles.find((spec) => spec.role === role)?.label ?? role;
   }
 </script>
 
@@ -444,23 +436,21 @@
         <span class="ui-section-label">
           {ef.events.length} event{ef.events.length === 1 ? '' : 's'}
         </span>
-        <div class="flex items-center gap-1.5">
-          {#if metricSortLabel}
-            <span class="ui-meta">sort</span>
+        {#if metricSortLabel}
+          <!-- One labelled control: what the list is ordered by. -->
+          <div class="sort-control ui-meta" role="group" aria-label="Sort results">
+            <span>Sort:</span>
+            <button class="ctrl-link" class:on={ef.sort === 'time'} aria-pressed={ef.sort === 'time'} onclick={() => setSort('time')}>Time</button>
+            <span aria-hidden="true">|</span>
             <button
-              class="ctrl-link {ef.sort === 'time' ? 'text-text-primary' : ''}"
-              onclick={() => setSort('time')}
-            >time</button>
-            <button
-              class="ctrl-link {ef.sort === 'metric' ? 'text-text-primary' : ''}"
+              class="ctrl-link capitalize"
+              class:on={ef.sort === 'metric'}
+              aria-pressed={ef.sort === 'metric'}
               onclick={() => setSort('metric')}
               title="Smallest first"
             >{metricSortLabel}</button>
-          {/if}
-          {#if ef.selectedId}
-            <button class="ctrl-link" onclick={clearSelection}>clear</button>
-          {/if}
-        </div>
+          </div>
+        {/if}
       </div>
       <div class="event-marker-legend ui-helper" aria-label="3D event marker legend">
         <span><i class="event-marker-diamond" aria-hidden="true"></i>Instant</span>
@@ -509,75 +499,7 @@
               <div class="event-summary">{eventSummary(event)}</div>
             {/if}
             {#if isSelectedEvent(event)}
-              <div class="mt-1 flex flex-col gap-0.5">
-                {#if event.state}
-                  <div class="ui-data-row">
-                    <span class="ui-label">State</span>
-                    <span class="ui-readout capitalize">{event.state}</span>
-                  </div>
-                {/if}
-                {#if event.kind === 'occultation' && ef.activeId === event.id && ef.activeQueryId === event.queryId}
-                  <div class="geometry-legend ui-helper" aria-label="3D geometry legend">
-                    <span><i class="legend-line sightline"></i>{event.bodies.back?.toLowerCase() === 'sun' ? 'Observer sightline' : 'Background line of sight'}</span>
-                    {#if event.bodies.back?.toLowerCase() === 'sun'}
-                      <span><i class="legend-fill inner-shadow"></i>Umbra / antumbra boundary</span>
-                      <span><i class="legend-line penumbra"></i>Penumbra boundary</span>
-                      <small>End rings are shadow cross-sections at the {event.bodies.observer} plane; volumes are to scale.</small>
-                    {:else}
-                      <span><i class="legend-line tangent-guide"></i>Tangent guides</span>
-                      <span><i class="legend-fill inner-shadow"></i>Occulted region</span>
-                      <small>Guides converge at {event.bodies.observer}; shading begins where they touch the {event.bodies.front} limb.</small>
-                    {/if}
-                  </div>
-                {:else if event.kind === 'occultation'}
-                  <div class="geometry-standby ui-helper">
-                    3D geometry follows the event under the playhead.
-                  </div>
-                {/if}
-                {#each Object.entries(event.bodies) as [role, body]}
-                  <div class="ui-data-row">
-                    <span class="ui-label">{roleLabel(role)}</span>
-                    <span class="ui-readout">{body}</span>
-                  </div>
-                {/each}
-                {#if !event.metrics?.length}
-                  <!-- A closest approach with no range is a thin answer; say the
-                       measurement is missing rather than showing a blank. -->
-                  <div class="ui-helper">
-                    No measurements — this SPICE provider cannot report distances.
-                  </div>
-                {/if}
-                {#each detailMetrics(event) as metric}
-                  <div class="ui-data-row">
-                    <span class="ui-label">{metric.label}</span>
-                    <span class="ui-readout">{formatMetric(metric)}</span>
-                  </div>
-                {/each}
-                {#if isIntervalEvent(event)}
-                  <div class="ui-data-row">
-                    <span class="ui-label">Duration</span>
-                    <span class="ui-readout">{formatSeconds(eventDuration(event))}</span>
-                  </div>
-                  <div class="ui-data-row">
-                    <span class="ui-label">Ends</span>
-                    <span
-                      class="ctrl-link ui-readout"
-                      role="button"
-                      tabindex="0"
-                      onclick={(click) => { click.stopPropagation(); selectEvent(event, 'end'); }}
-                      onkeydown={(key) => {
-                        if (key.key === 'Enter' || key.key === ' ') {
-                          key.preventDefault();
-                          key.stopPropagation();
-                          selectEvent(event, 'end');
-                        }
-                      }}
-                    >
-                      {etToUtcString(event.end).replace(' UTC', '')}
-                    </span>
-                  </div>
-                {/if}
-              </div>
+              <div class="mt-1"><EventDetails {event} legend /></div>
             {/if}
           </button>
           {#if isSelectedEvent(event)}
@@ -648,6 +570,20 @@
   .result-wrap {
     position: relative;
   }
+  /* The card fills its row, so the selected card's × sits in the card's own
+     corner rather than out in the panel's whitespace. */
+  .event-result {
+    display: block;
+    width: 100%;
+  }
+  .sort-control {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .sort-control .ctrl-link.on {
+    color: var(--color-text-primary);
+  }
   .result-wrap .event-result.selected {
     padding-right: 30px;
   }
@@ -701,11 +637,6 @@
   }
   .event-now {
     color: var(--color-event-accent);
-  }
-  .geometry-standby {
-    margin: 3px 0 2px;
-    padding: 4px 6px;
-    border-left: 1px solid color-mix(in srgb, var(--color-event-accent) 52%, transparent);
   }
   .event-summary {
     margin-top: 1px;
@@ -779,41 +710,6 @@
     height: 7px;
     border-left: 1px solid currentColor;
     border-right: 1px solid currentColor;
-  }
-  .geometry-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px 10px;
-    margin: 3px 0 2px;
-    padding: 5px 6px;
-    border-radius: 3px;
-    background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
-  }
-  .geometry-legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .geometry-legend small {
-    flex-basis: 100%;
-    color: var(--color-text-faint);
-    font-size: inherit;
-    line-height: 1.3;
-  }
-  .legend-line,
-  .legend-fill {
-    display: inline-block;
-    width: 12px;
-    height: 2px;
-    border-radius: 1px;
-  }
-  .legend-line.sightline { background: #7cc7e8; }
-  .legend-line.penumbra { background: #e0a84c; }
-  .legend-line.tangent-guide { background: #8c72d8; }
-  .legend-fill.inner-shadow {
-    height: 7px;
-    border: 1px solid #8c72d8;
-    background: color-mix(in srgb, #8c72d8 22%, transparent);
   }
   :global(.event-kind-option:is(:focus, [data-highlighted])) {
     background: var(--color-control-hover);
