@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="body" cx="70%" cy="28%" r="78%">
+      <stop offset="0" stop-color="#173354"/>
+      <stop offset="0.42" stop-color="#0b1a2c"/>
+      <stop offset="0.82" stop-color="#06111d"/>
+      <stop offset="1" stop-color="#030910"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f5fbff"/>
+      <stop offset="0.25" stop-color="#cfe8ff"/>
+      <stop offset="0.62" stop-color="#7fb9ff"/>
+      <stop offset="1" stop-color="#3f83d8"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="1.35"/>
+    </filter>
+    <clipPath id="planet">
+      <circle cx="32" cy="32" r="24"/>
+    </clipPath>
+  </defs>
+
+  <!-- Transparent outside the planet so it works in light and dark browser chrome. -->
+  <circle cx="32" cy="32" r="24" fill="url(#body)"/>
+
+  <!-- Very subtle dimensional lift, intentionally visible even at 16px. -->
+  <ellipse cx="39" cy="25" rx="13" ry="18"
+           fill="#255387" opacity="0.11" clip-path="url(#planet)"/>
+
+  <!-- Soft atmospheric bloom behind the lit limb. -->
+  <path d="M39 8.9 A24 24 0 0 1 39 55.1"
+        fill="none" stroke="#75b7ff" stroke-width="4.2"
+        stroke-linecap="round" opacity="0.42" filter="url(#glow)"/>
+
+  <!-- Crisp illuminated limb. -->
+  <path d="M39 8.9 A24 24 0 0 1 39 55.1"
+        fill="none" stroke="url(#rim)" stroke-width="2.4"
+        stroke-linecap="round"/>
+
+  <!-- Faint unlit-edge definition for light browser chrome. -->
+  <path d="M39 55.1 A24 24 0 1 1 39 8.9"
+        fill="none" stroke="#10233a" stroke-width="0.8" opacity="0.9"/>
+</svg>
