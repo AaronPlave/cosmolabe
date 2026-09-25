@@ -443,7 +443,7 @@
             <button class="ctrl-link" class:on={ef.sort === 'time'} aria-pressed={ef.sort === 'time'} onclick={() => setSort('time')}>Time</button>
             <span aria-hidden="true">|</span>
             <button
-              class="ctrl-link capitalize"
+              class="ctrl-link"
               class:on={ef.sort === 'metric'}
               aria-pressed={ef.sort === 'metric'}
               onclick={() => setSort('metric')}

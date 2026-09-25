@@ -18,7 +18,7 @@
   import { etToUtcString } from '../../lib/viewer-state.svelte';
   import { clearSelection, openConfiguredQuery } from '../../lib/event-finder.svelte';
   import { configuredItem } from '../../lib/analysis.svelte';
-  import { eventCalloutTitle, formatMetric, formatSeconds, headlineMetric } from '../../lib/event-query';
+  import { eventCalloutTitle, formatMetric, formatSeconds, headlineMetric, utcSpan } from '../../lib/event-query';
   import { openTool } from '../../lib/shell.svelte';
   import { ChevronDown, ChevronUp, X } from 'lucide-svelte';
   import EventDetails from '../EventDetails.svelte';
@@ -77,8 +77,8 @@
   {/if}
   <div class="when">
     {#if isIntervalEvent(event)}
-      {utc(eventStart(event)).replace(' UTC', '')} → {utc(eventEnd(event))}
-      <span class="duration">· {formatSeconds(eventDuration(event))}</span>
+      <span>{utcSpan(eventStart(event), eventEnd(event), utc)}</span>
+      <span class="duration">{formatSeconds(eventDuration(event))}</span>
     {:else}
       {utc(eventStart(event))}
     {/if}
@@ -158,6 +158,9 @@
     font-variant-numeric: tabular-nums;
   }
   .when {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
     margin-top: 1px;
     color: var(--color-text-secondary);
     font-family: var(--font-mono);
@@ -165,6 +168,7 @@
     font-variant-numeric: tabular-nums;
   }
   .duration {
+    flex-shrink: 0;
     color: var(--color-text-muted);
   }
   .details {

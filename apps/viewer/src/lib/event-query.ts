@@ -293,7 +293,7 @@ export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOpt
  * "2026-05-13 04:00 → 05-18 08:00 UTC": the end drops whatever it shares with
  * the start. Spans under ten minutes keep seconds.
  */
-function utcSpan(start: number, end: number, utc: (et: number) => string): string {
+export function utcSpan(start: number, end: number, utc: (et: number) => string): string {
   const seconds = end - start < 600;
   const trim = (text: string) => {
     const bare = text.replace(/ UTC$/, '');
