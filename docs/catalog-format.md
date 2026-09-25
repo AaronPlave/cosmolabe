@@ -72,6 +72,61 @@ Bodies can nest other bodies via their own `items` array, which is how you build
 | `label` | object | `{ "color": [r, g, b], "text": "..." }` for the on-screen label |
 | `trajectoryPlot` | object | Orbit-trail config: `{ "color", "fade", "duration", "visible" }` |
 | `items` | array | Children — bodies whose `center` is implicitly this one |
+| `startTime` / `endTime` | UTC string or JD | The body's existence window. Outside it the body — model, label, trail and any sensors on it — is not in the scene, as in Cosmographia. Either may be omitted. See [Existence](#existence). |
+
+### Existence
+
+A body is drawn only while it is **present**: inside its own `startTime` /
+`endTime` window, inside the window of every body it is placed relative to
+(following the active arc's `center`), and with a position to draw at. A
+spacecraft whose SPK has not started yet, or a lander before separation, is
+hidden rather than left frozen where it was last computed; a camera on a
+spacecraft goes with it. The trail is clamped to the window too.
+
+`Universe.isPresentAt(name, et)` answers the window part for headless use; an
+ephemeris gap inside the window shows up as a `NaN` position, which the
+renderer treats the same way. Hiding a body in the viewer and the body leaving
+its window are independent: each is restored without undoing the other.
+
+### Arcs
+
+A body whose motion changes source, centre or frame over a mission lists its
+phases as `arcs` on the item (or as a `Composite` trajectory). Each arc has a
+`startTime`, an `endTime` (defaulting to the next arc's start), a `center`,
+a `trajectoryFrame` and a `trajectory`, and may carry its own
+**`rotationModel`**: the attitude model while that arc is active. An arc
+without one uses the item's `rotationModel`.
+
+A lander that rides its mothership until separation is the case this is for:
+
+```json
+{
+  "name": "Philae",
+  "rotationModel": { "type": "Spice", "bodyFrame": "ROS_LANDER" },
+  "arcs": [
+    {
+      "startTime": "2004-03-02T07:17:44Z", "endTime": "2014-11-12T08:35:00Z",
+      "center": "Rosetta", "trajectoryFrame": { "type": "BodyFixed", "body": "Rosetta" },
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SPACECRAFT" }
+    },
+    {
+      "startTime": "2014-11-12T08:35:00Z",
+      "center": "67P/Churyumov-Gerasimenko",
+      "trajectory": { "type": "Spice", "target": "PHILAE", "center": "1000012" }
+    }
+  ]
+}
+```
+
+Each arc's rotation is built as if the arc were the item — its `center` and
+`trajectoryFrame` — and re-expressed into one inertial source frame, so the
+renderer composes it like any other rotation.
+
+An arc may also carry its own **`trajectoryPlot`** (a cosmolabe extension),
+overriding the item's field by field: Rosetta keeps ten years of trail on its
+cruise arc and thirty days around 67P, in the item's colour. `"visible": false`
+on an arc hides that arc's trail only.
 
 ## Trajectories
 
@@ -88,7 +143,7 @@ Ten types, picked by `trajectory.type`:
 | `ChebyshevPoly` | Pre-fit Chebyshev coefficients | `coefficients`, `interval` |
 | `TLE` | NORAD two-line elements (SGP4/SDP4) | `line1`, `line2` |
 | `LinearCombination` | Weighted sum of other trajectories | `terms: [{ trajectory, weight }]` |
-| `Composite` | Time-switched arcs of different sources | `arcs: [{ startEt, endEt, trajectory }]` |
+| `Composite` | Time-switched arcs of different sources | `arcs: [{ startTime, endTime, center, trajectory, rotationModel }]` — see [Arcs](#arcs) |
 
 Some trajectory types know their own frame, and that frame is used whatever `trajectoryFrame` says: **TLE** output is TEME, **FixedSpherical** and **Waypoints** are body-fixed to the item's `center`, an **OEM** file's `REF_FRAME` is its frame, and a **Spice** trajectory is in the frame it is queried in. TLE items no longer need `trajectoryFrame: "J2000"` (it is ignored), and TEME is now rotated into J2000 with precession and nutation instead of being treated as J2000. That rotation is about 20 arcminutes by 2026, or tens of km at LEO.
 
@@ -102,7 +157,7 @@ Six types, picked by `rotationModel.type`:
 | `Fixed` | A constant orientation. Fields: `quaternion: [x, y, z, w]` |
 | `FixedEuler` | A constant orientation given as Euler angles. Fields: `axes: "XYZ"`, `angles: [a, b, c]` |
 | `Interpolated` | Tabulated quaternion samples, SLERP-interpolated. Fields: `samples: [[et, x, y, z, w], …]` |
-| `Spice` | SPICE CK kernel. Fields: `frame`, `center` |
+| `Spice` | SPICE frame (CK, PCK or FK). Fields: `bodyFrame` (the frame the body turns with), `inertialFrame` (defaults to the item's `trajectoryFrame`), `fallbackFrame` (used where `bodyFrame` has no data — a CK gap — e.g. an articulated part's fixed zero frame) |
 | `Nadir` | Spacecraft pointed at a target body's nadir vector. Fields: `target`, `center` |
 
 `Builtin` is also accepted as a rotation type for legacy IAU body rotations.
@@ -114,17 +169,101 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 | Type | What it draws | Key fields |
 |---|---|---|
 | `Globe` | Textured sphere; optionally with streaming terrain | `radius`, `baseMap`, `normalMap`, `nightMap`, `atmosphere`, `terrain` |
-| `Mesh` | A 3D model (GLTF, OBJ, CMOD) | `source`, `size`, `meshRotation` |
+| `Mesh` | A 3D model (GLTF/GLB, OBJ, CMOD, 3DS) | `source`, `size`, `meshRotation` |
+| `Dsk` | A SPICE DSK plate model: an irregular body's own surface, in its body-fixed frame | `source`, `color` |
 | `Sensor` | Instrument FOV cone | `target`, `shape` (`circular` / `elliptical` / `rectangular`), `horizontalFov`, `verticalFov`, `frustumColor`, `frustumOpacity` |
 | `Rings` | Planetary rings | `innerRadius`, `outerRadius`, `texture` |
 | `Axes` | Reference frame axes | `length` |
 | `KeplerianSwarm` | Many bodies sharing a parent (asteroid belt, debris cloud) | `bodies: []` |
 | `ParticleSystem` | Plumes, exhaust, dust | (renderer-specific) |
-| `TimeSwitched` | Different geometry at different times | `arcs: [{ startEt, endEt, geometry }]` |
+| `TimeSwitched` | Different geometry at different times (Cosmographia) | `sequence: [{ startTime, endTime, geometry }]` — see [TimeSwitched](#timeswitched) |
+
+### Model formats
+
+`Mesh` picks its loader from the `source` extension:
+
+- **GLB / glTF** — the preferred format for new visual models.
+- **OBJ** — interchange and legacy.
+- **CMOD** — Cosmographia / Celestia compatibility.
+- **3DS** — legacy compatibility, for the mission models Cosmographia packages
+  still ship (Rosetta's among them). Material maps resolve relative to the model
+  file. Prefer converting to GLB for anything you author.
+
+A **DSK** is not a model format: it is a body's authoritative surface, and has
+its own geometry type, [`Dsk`](#dsk).
 
 ### Asset paths
 
-Relative paths in `Mesh.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
+Relative paths in `Mesh.source`, `Dsk.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
+
+### `Dsk`
+
+A DSK (SPICE Digital Shape Kernel, `.bds`) is a small body's authoritative
+surface: a triangle mesh whose vertices are kilometres in the body-fixed frame,
+centred on the body. `Dsk` draws it as it is, which is what an irregular,
+concave or bilobed body (67P, Arrokoth, Phobos) needs and a `Globe`'s
+ellipsoid-plus-heightfield cannot represent.
+
+```json
+{
+  "name": "486958 Arrokoth",
+  "naifId": 2486958,
+  "rotationModel": { "type": "Uniform", "period": "15.92h", "ascension": 317.5, "declination": -24.9 },
+  "geometry": { "type": "Dsk", "source": "models/arrokoth_mu69_lopoly.bds", "color": [0.72, 0.55, 0.45] }
+}
+```
+
+- **No sizing or alignment.** `size`, `meshRotation` and `meshOffset` do not
+  apply and are ignored: the file already says where every vertex is.
+- **The rotation model places it**, so give the body one whose body-fixed frame
+  is the DSK's. With a `Spice` rotation, `bodyFrame` should name the frame the
+  DSK segments are written in; a body with no rotation model draws the shape
+  fixed in the inertial frame.
+- **The file is checked against the body.** The DSK's segment descriptor carries
+  the body it describes and its frame. A NAIF ID that differs from the item's
+  `naifId`, or a frame that differs from a `Spice` rotation's `bodyFrame`, is
+  reported in the console rather than drawn silently wrong.
+- **Every type-2 segment is merged** into one mesh; segments of another data
+  type are skipped. Segments for different bodies or frames are refused.
+- **The file is read, not furnished.** It needs a SPICE engine to parse — the
+  viewer brings one up for a scene with a `Dsk` even when it lists no kernels —
+  but it adds nothing to the kernel pool. Listing the same file in `spiceKernels`
+  as well is harmless, and is how you would also make it available to SPICE
+  surface computations.
+- **Transport gzip is undone** by magic bytes, so `.bds.gz` works.
+- `color` is optional (`[r, g, b]` in 0–1 or a CSS colour); the default follows
+  the body's `class`.
+
+The viewer also accepts a dropped `.bds` alongside a catalog that names it.
+
+Cosmographia's own spelling, `{ "type": "DSK", "kernel": "..." }`, is accepted
+and means the same thing, so ESA's and NAIF's published Cosmographia
+configurations load unchanged.
+
+### `TimeSwitched`
+
+One shape per time window, as in Cosmographia: a spacecraft whose configuration
+changes during the mission. Rosetta carries Philae on its bus until separation
+and flies without it afterwards:
+
+```json
+"geometry": {
+  "type": "TimeSwitched",
+  "sequence": [
+    { "startTime": "2004-03-02T09:25:18Z", "endTime": "2014-11-12T08:35:15Z",
+      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_BUS_LR_V02.BDS" } },
+    { "startTime": "2014-11-12T08:35:15Z",
+      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_BUS_V01.BDS" } }
+  ]
+}
+```
+
+- Each entry's `geometry` is a `Dsk` or a `Mesh`. A Mesh entry takes its own
+  `size`, `meshRotation` and `meshOffset`; a Dsk entry, as always, none.
+- Windows are start-inclusive and end-exclusive. A missing `endTime` runs to the
+  next entry's `startTime` (the last to forever); a missing `startTime` reaches
+  back to the beginning. Outside every window the body draws no shape.
+- An entry that fails to load is reported and left out; the others still draw.
 
 ### `Globe.terrain`
 

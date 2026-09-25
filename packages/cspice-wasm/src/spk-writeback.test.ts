@@ -85,3 +85,32 @@ describe('cspice-wasm SPK write and read-back', () => {
     expect(() => writer.readKernelBytes('missing.bsp')).toThrow(SpiceError);
   });
 });
+
+describe('cspice-wasm SPK write with segment breaks', () => {
+  it('keeps a discontinuity as a step instead of interpolating across it', async () => {
+    const b = await createSpiceBindings();
+    b.furnsh('naif0012.tls', fixture('naif0012.tls'));
+    const et0 = b.str2et('2016-01-01T00:00:00');
+    // Straight-line motion at 1 km/s along x, with a 50 km jump in x at t = 300 s
+    // (an orbit-determination update). The jump epoch is sampled on both sides.
+    const t = [0, 100, 200, 300, 300, 400, 500, 600];
+    const epochs = new Float64Array(t.map((dt) => et0 + dt));
+    const states = new Float64Array(t.length * 6);
+    t.forEach((dt, i) => states.set([dt + (i >= 4 ? 50 : 0), 0, 0, 1, 0, 0], i * 6));
+    b.writeSpkType13('broken.bsp', -9991, 399, 'J2000', 'BROKEN', 7, epochs, states, [4]);
+
+    const x = (dt: number) => b.spkpos('-9991', et0 + dt, 'J2000', 'NONE', '399').position.x;
+    // Each side is exact straight-line motion; nothing leaks across the jump.
+    expect(x(250)).toBeCloseTo(250, 9);
+    expect(x(299.999)).toBeCloseTo(299.999, 6);
+    expect(x(350)).toBeCloseTo(400, 9);
+    // At the shared epoch the later segment wins.
+    expect(x(300)).toBeCloseTo(350, 9);
+  });
+
+  it('refuses a segment with fewer than two samples', async () => {
+    const b = await createSpiceBindings();
+    const epochs = new Float64Array([0, 1, 2]);
+    expect(() => b.writeSpkType13('bad.bsp', -9992, 399, 'J2000', 'BAD', 7, epochs, new Float64Array(18), [2])).toThrow(/fewer than 2/);
+  });
+});

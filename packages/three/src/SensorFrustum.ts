@@ -40,6 +40,19 @@ export class SensorFrustum extends THREE.Object3D {
   private readonly fixedLength: number | undefined;
   private readonly shape: 'elliptical' | 'rectangular';
   private readonly sensorOrientation: THREE.Quaternion;
+  private _userVisible = true;
+  private _present = true;
+
+  /** The user's show/hide choice for this sensor. */
+  get userVisible(): boolean { return this._userVisible; }
+  set userVisible(v: boolean) { this._userVisible = v; this.visible = v && this._present; }
+  /** Whether the sensor's body is in the scene now; drawn only when present and user-visible. */
+  get present(): boolean { return this._present; }
+  set present(v: boolean) {
+    if (v === this._present) return;
+    this._present = v;
+    this.visible = v && this._userVisible;
+  }
 
   constructor(body: Body, options: SensorFrustumOptions = {}) {
     super();

@@ -24,6 +24,7 @@ import { SurfaceUpRotation } from '../rotations/SurfaceUpRotation.js';
 import { FixedRotation } from '../rotations/FixedRotation.js';
 import { FixedEulerRotation } from '../rotations/FixedEulerRotation.js';
 import { InterpolatedRotation, parseQFile } from '../rotations/InterpolatedRotation.js';
+import { CompositeRotation, type RotationArc } from '../rotations/CompositeRotation.js';
 import {
   BODY_FIXED,
   FrameRegistry,
@@ -137,6 +138,9 @@ export interface ArcSpec {
   trajectoryFrame?: string | TrajectoryFrameSpec;
   trajectory: TrajectorySpec;
   bodyFrame?: string | BodyFrameSpec;
+  /** The body's rotation model while this arc is active (Cosmographia). An
+   *  arc without one uses the item-level `rotationModel`. */
+  rotationModel?: RotationModelSpec;
   startTime?: string | number;
   endTime?: string | number;
   /** When false, the composite-trajectory line builder skips drawing a
@@ -147,6 +151,9 @@ export interface ArcSpec {
    *  (long cruise arcs benefit from a higher count to avoid a faceted
    *  appearance at high eccentricity). */
   numKeySamples?: number;
+  /** Trail settings for this arc alone, overriding the item's
+   *  `trajectoryPlot` field by field. A cosmolabe extension. */
+  trajectoryPlot?: TrajectoryPlotSpec;
 }
 
 /** Cosmographia's structured frame reference. `BodyFixed` (with an optional
@@ -263,6 +270,8 @@ export interface RotationModelSpec {
   declination?: number;
   bodyFrame?: string;
   inertialFrame?: string;
+  /** Spice rotation: frame to use where `bodyFrame` has no data (a CK gap), e.g. an articulated part's zero frame. */
+  fallbackFrame?: string;
   /** For Nadir type: SPICE target name (e.g. "LRO", "-85") */
   target?: string;
   /** For Nadir type: SPICE center body name (e.g. "MOON") */
@@ -884,10 +893,11 @@ export class CatalogLoader {
 
     const trajectory = this.buildItemTrajectory(item);
     const parentBody = parentName ? bodies.find(b => b.name === parentName) : (item.center ? bodies.find(b => b.name === item.center) : undefined);
-    const rotation = this.buildRotationModel(item, trajectory, parentBody);
+    const rotation = this.buildArcRotations(item, trajectory, bodies, this.buildRotationModel(item, trajectory, parentBody));
     const radii = this.extractRadii(item);
 
     const trajectoryPlot = this.parseTrajectoryPlot(item.trajectoryPlot);
+    const geometry = item.geometry ? this.timeSwitchedWindows(item.name, normalizeGeometry(item.geometry)) : undefined;
 
     // The body's frame is named, not classified: the catalog's
     // `trajectoryFrame` passes through to Body, which lets a trajectory that
@@ -906,10 +916,12 @@ export class CatalogLoader {
       classification: item.class,
       labelColor: item.label?.color ? this.parseColor(item.label.color) : undefined,
       labelVisible: item.label?.visible !== false,
-      geometryType: item.geometry?.type,
-      geometryData: item.geometry ? { ...item.geometry } : undefined,
+      geometryType: geometry?.type as string | undefined,
+      geometryData: geometry,
       trajectoryPlot,
       trajectoryFrame,
+      existsFrom: this.existenceBound(item, 'startTime'),
+      existsUntil: this.existenceBound(item, 'endTime'),
     });
 
     bodies.push(body);
@@ -919,6 +931,81 @@ export class CatalogLoader {
         this.loadItem(child, bodies, item.name);
       }
     }
+  }
+
+  /**
+   * Give each entry of a `TimeSwitched` geometry its window in ET seconds
+   * (`startEt` / `endEt`), which is what the renderer switches on. A missing
+   * `endTime` runs to the next entry's start, the last one's to forever; a
+   * missing `startTime` reaches back to the beginning. Entries are otherwise
+   * left as written.
+   */
+  private timeSwitchedWindows(owner: string, geometry: Record<string, unknown>): Record<string, unknown> {
+    if (geometry.type !== 'TimeSwitched' || !Array.isArray(geometry.sequence)) return geometry;
+    const read = (v: unknown, key: string): number | undefined => {
+      if (typeof v !== 'string' && typeof v !== 'number') return undefined;
+      const et = this.tryParseEpochValue(v);
+      if (et === undefined) console.warn(`[Cosmolabe] ${owner}: TimeSwitched ${key} ${JSON.stringify(v)} could not be read`);
+      return et;
+    };
+    const entries = geometry.sequence as Record<string, unknown>[];
+    const starts = entries.map((e) => read(e?.startTime, 'startTime'));
+    geometry.sequence = entries.map((e, i) => ({
+      ...e,
+      startEt: starts[i] ?? -Infinity,
+      endEt: read(e?.endTime, 'endTime') ?? starts[i + 1] ?? Infinity,
+    }));
+    return geometry;
+  }
+
+  /**
+   * An item's `startTime` / `endTime` as an existence bound. Unlike an arc
+   * boundary, a bound that cannot be read is dropped (with a warning) rather
+   * than read as J2000: a spacecraft whose `endTime` silently became 2000-01-01
+   * would vanish for its whole mission.
+   */
+  private existenceBound(item: CatalogItem, key: 'startTime' | 'endTime'): number | undefined {
+    const value = item[key];
+    if (value == null) return undefined;
+    const et = this.tryParseEpochValue(value);
+    if (et === undefined) {
+      console.warn(`[Cosmolabe] ${item.name}: could not read ${key} ${JSON.stringify(value)}; the body is not bounded there`);
+    }
+    return et;
+  }
+
+  /**
+   * Wrap the item rotation in a CompositeRotation when any of its arcs carries
+   * its own `rotationModel`. Each arc's rotation is built as if the arc were
+   * the item — its centre and frame — over the arc's own time window, which is
+   * read back from the composite trajectory so the two can never disagree.
+   */
+  private buildArcRotations(
+    item: CatalogItem,
+    trajectory: Trajectory,
+    bodies: Body[],
+    itemRotation: RotationModel | undefined,
+  ): RotationModel | undefined {
+    const arcs = item.arcs;
+    if (!arcs?.some((a) => a.rotationModel) || !(trajectory instanceof CompositeTrajectory)) return itemRotation;
+    const rotationArcs: RotationArc[] = [];
+    arcs.forEach((arc, i) => {
+      if (!arc.rotationModel) return;
+      const window = trajectory.arcs[i];
+      if (!window) return;
+      const center = arc.center ?? item.center;
+      const arcItem: CatalogItem = {
+        ...item,
+        center,
+        // Already normalised when the trajectory arc was built.
+        trajectoryFrame: window.frame ?? item.trajectoryFrame,
+        rotationModel: arc.rotationModel,
+      };
+      const rotation = this.buildRotationModel(arcItem, window.trajectory, center ? bodies.find((b) => b.name === center) : undefined);
+      if (rotation) rotationArcs.push({ rotation, startTime: window.startTime, endTime: window.endTime });
+      else console.warn(`[Cosmolabe] ${item.name} (arc ${i}): rotationModel ${JSON.stringify(arc.rotationModel.type)} could not be built`);
+    });
+    return rotationArcs.length > 0 ? new CompositeRotation(rotationArcs, itemRotation, this.frames) : itemRotation;
   }
 
   private buildItemTrajectory(item: CatalogItem): Trajectory {
@@ -961,6 +1048,7 @@ export class CatalogLoader {
         frame: frameName(arc.trajectoryFrame) ?? frameName(item.trajectoryFrame),
         showLine: arc.showLine,
         numKeySamples: arc.numKeySamples,
+        plot: arc.trajectoryPlot ? this.parseTrajectoryPlot(arc.trajectoryPlot) : undefined,
       };
     });
 
@@ -1322,6 +1410,7 @@ export class CatalogLoader {
           this.spice,
           spec.bodyFrame ?? `IAU_${item.name.toUpperCase()}`,
           this.spiceFrame(spec.inertialFrame ?? frameName(item.trajectoryFrame), item.center),
+          spec.fallbackFrame,
         );
 
       case 'Nadir': {
@@ -1586,4 +1675,28 @@ export class CatalogLoader {
       default: return value;
     }
   }
+}
+
+/**
+ * A geometry spec as the renderer reads it, copied. Cosmographia spells a DSK
+ * `{ "type": "DSK", "kernel": "..." }`; that becomes `{ type: "Dsk", source }`
+ * here, once, including inside a `TimeSwitched` sequence, so an ESA or NAIF
+ * Cosmographia configuration loads without edits.
+ */
+export function normalizeGeometry(spec: GeometrySpec): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...spec };
+  if (typeof out.type === 'string' && out.type.toUpperCase() === 'DSK') {
+    out.type = 'Dsk';
+    if (out.source === undefined && typeof out.kernel === 'string') out.source = out.kernel;
+  }
+  if (out.type === 'TimeSwitched' && Array.isArray(out.sequence)) {
+    out.sequence = (out.sequence as unknown[]).map((entry) => {
+      if (!entry || typeof entry !== 'object') return entry;
+      const e = entry as Record<string, unknown>;
+      return e.geometry && typeof e.geometry === 'object'
+        ? { ...e, geometry: normalizeGeometry(e.geometry as GeometrySpec) }
+        : { ...e };
+    });
+  }
+  return out;
 }

@@ -58,11 +58,12 @@ export function resolveCatalogRelative(ref: string, catalogUrl: string): string 
 const GLOBE_TEXTURE_FIELDS = ['normalMap', 'displacementMap', 'bumpMap'] as const;
 
 type Obj = Record<string, unknown>;
+const isDskType = (t: unknown): boolean => typeof t === 'string' && t.toUpperCase() === 'DSK';
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
  * Rewrite a catalog's asset paths as absolute URLs against `catalogUrl`, in
- * place. The fields are the ones the renderer loads: a Mesh's `source`, a
+ * place. The fields are the ones the renderer loads: a Mesh's or Dsk's `source`, a
  * Globe's texture maps and tile templates, its terrain and imagery endpoints
  * and surface tilesets, and a ring system's `texture`.
  *
@@ -85,9 +86,16 @@ export function absolutizeCatalogAssets(catalog: unknown, catalogUrl: string): v
     }
     if (!isObj(node)) return;
 
-    switch (node.type) {
+    // Cosmographia spells a DSK `{ "type": "DSK", "kernel": ... }`; ours is
+    // `Dsk` / `source`. Both are catalog-relative.
+    const type = isDskType(node.type) ? 'Dsk' : node.type;
+    switch (type) {
       case 'Mesh':
         fix(node, 'source');
+        break;
+      case 'Dsk':
+        fix(node, 'source');
+        fix(node, 'kernel');
         break;
       case 'Globe': {
         if (typeof node.baseMap === 'string') fix(node, 'baseMap');
@@ -111,4 +119,18 @@ export function absolutizeCatalogAssets(catalog: unknown, catalogUrl: string): v
     for (const value of Object.values(node)) walk(value);
   };
   walk(catalog);
+}
+
+/**
+ * Whether any catalog in a scene draws a DSK surface. A DSK is read by SPICE,
+ * so a scene with one needs an engine even when it furnishes no kernels at all.
+ */
+export function catalogsUseDsk(catalogs: readonly unknown[]): boolean {
+  const walk = (node: unknown): boolean => {
+    if (Array.isArray(node)) return node.some(walk);
+    if (!isObj(node)) return false;
+    if (isDskType(node.type) && (typeof node.source === 'string' || typeof node.kernel === 'string')) return true;
+    return Object.values(node).some(walk);
+  };
+  return catalogs.some(walk);
 }

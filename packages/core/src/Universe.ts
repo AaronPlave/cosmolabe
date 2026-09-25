@@ -266,6 +266,27 @@ export class Universe {
   }
 
   /**
+   * Whether a body is in the scene at `et`: inside its own existence window
+   * (catalog `startTime` / `endTime`) and so is every body it is placed
+   * relative to, following the active arc's centre the way
+   * `absolutePositionOf` does. An instrument does not outlive its spacecraft.
+   *
+   * Existence is separate from data coverage on purpose. A body inside its
+   * window whose ephemeris has a gap is still meant to be there; that shows up
+   * as a NaN position, which a renderer treats the same way.
+   */
+  isPresentAt(bodyName: string, et: number): boolean {
+    let name: string | undefined = bodyName;
+    for (let depth = 0; name && depth < 64; depth++) {
+      const body = this.getBody(name);
+      if (!body) return depth > 0; // an unknown ancestor ends the chain, as in absolutePositionOf
+      if (!body.existsAt(et)) return false;
+      name = body.activeParentAt(et);
+    }
+    return true;
+  }
+
+  /**
    * Compute a body's absolute position in km by walking up the parent chain.
    * Trajectories give positions relative to their center body, so Moon's position
    * is relative to Earth, Earth's is relative to Sun, etc. The result is in the

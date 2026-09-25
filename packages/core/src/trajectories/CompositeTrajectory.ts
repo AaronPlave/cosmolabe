@@ -1,4 +1,5 @@
 import type { CartesianState, Trajectory } from './Trajectory.js';
+import type { TrajectoryPlotConfig } from '../Body.js';
 
 export interface TrajectoryArc {
   trajectory: Trajectory;
@@ -20,6 +21,9 @@ export interface TrajectoryArc {
    *  for long-duration cruise arcs where the auto-derived count
    *  (clamped to 500) produces a faceted polygon at high eccentricity. */
   numKeySamples?: number;
+  /** This arc's trail settings, overriding the body's `trajectoryPlot` field
+   *  by field (a long trail for a cruise arc, a short one for an orbit phase). */
+  plot?: TrajectoryPlotConfig;
 }
 
 export class CompositeTrajectory implements Trajectory {

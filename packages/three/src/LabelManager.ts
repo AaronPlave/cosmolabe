@@ -417,7 +417,7 @@ export class LabelManager {
       // each frame and take the max radial distance from the body center.
       let silhouettePx = 0;
       const isGlobe = bm.body.geometryType === 'Globe';
-      const isMesh = bm.body.geometryType === 'Mesh';
+      const isMesh = bm.body.geometryType === 'Mesh' || bm.body.geometryType === 'Dsk' || bm.body.geometryType === 'TimeSwitched';
       if (isGlobe) {
         silhouettePx = (bm.displayRadius * bm.scaleFactor) / Math.max(worldPerPx, 1e-9);
       } else if (isMesh && bm.modelLocalBox && bm.modelContainer && bm.isModelVisible) {
@@ -464,6 +464,10 @@ export class LabelManager {
 
       this.applyOcclusionFade(sprite, bm.position, distToBody, bodyMeshes, camPos, bm);
       entry.occlusionOpacity = mat.opacity;
+      // A body that is not in the scene right now (outside its existence
+      // window, or with no position) has no label either. This is an opacity,
+      // not `sprite.visible`, which belongs to the user's show/hide choice.
+      if (!bm.present) entry.occlusionOpacity = 0;
 
       // NASA-Eyes-style fade: once the body's silhouette is large enough to
       // be visually identifiable, drop the label. Only applies to bodies
@@ -707,6 +711,7 @@ export class LabelManager {
     let fade = surfaceHemiFade;
     for (const other of bodyMeshes) {
       if (other === excludeBody) continue;
+      if (!other.present) continue;
       if (excludeParentName && other.body.name === excludeParentName) continue;
       // Only large bodies (planets, moons, large asteroids) can meaningfully occlude.
       // Skip spacecraft/instrument body meshes — they are colocated with their parent

@@ -1,0 +1,229 @@
+{
+  "name": "Rosetta + Philae (2004–2016)",
+  "version": "1.0",
+  "defaultTime": "2014-11-12T08:35:40Z",
+  "defaultViewpoint": "Philae separation (2014-11-12)",
+  "require": [
+    "base/sun.json",
+    "base/mercury.json",
+    "base/venus.json",
+    "base/earth-system.json",
+    "base/mars.json"
+  ],
+  "spiceKernels": [
+    "kernels/rosetta/ROS_V38.TF",
+    "kernels/rosetta/ROS_LUTETIA_RSOC_V03.TF",
+    "kernels/rosetta/ROS_HGA_ZERO.TF",
+    "kernels/rosetta/ROS_160929_STEP.TSC",
+    "kernels/rosetta/LANDER_170904_STEP.TSC",
+    "kernels/rosetta/ROS_CGS_RSOC_V03.TPC",
+    "kernels/rosetta/ROS_STEINS_V05.TPC",
+    "kernels/rosetta/ROS_LUTETIA_RSOC_V03.TPC",
+
+    "kernels/rosetta/ORHW_______________00016.BSP",
+    "kernels/rosetta/ORHW_______________00122.BSP",
+    "kernels/rosetta/CORB_DV_257_03___T19_00345.BSP",
+    "kernels/rosetta/2867_STEINS_2004_2016.BSP",
+    "kernels/rosetta/ORHO_______________00077.BSP",
+    "kernels/rosetta/21_LUTETIA_2004_2016.BSP",
+    "kernels/rosetta/ORHS_______________00109.BSP",
+    { "url": "kernels/rosetta/ORHR___________T19_00122.BSP.gz", "label": "Rosetta cruise, 2004 → 2014", "size": 15832757 },
+    { "url": "kernels/rosetta/ROS_RORB_DV_257_RESAMPLED.BSP.gz", "label": "Rosetta at 67P, 2014 → 2016", "size": 4347137 },
+    "kernels/rosetta/ROS_COG_V4_RESAMPLED.BSP",
+    "kernels/rosetta/ROS_STRUCT_V8.BSP",
+    "kernels/rosetta/LORB_ROS_SC_PRESEP_V1_0.BSP",
+    { "url": "kernels/rosetta/LORB_SUN_J2000_SDL_V1_1.BSP.gz", "label": "Philae separation and descent", "size": 837253 },
+    "kernels/rosetta/LORB_C_G_FIXED_RBD_7_V2_0.BSP",
+    "kernels/rosetta/SPICE_PHILAE_CFF_SONC_V2_0.BSP",
+
+    { "url": "kernels/rosetta/ROS_ATT_THINNED.BC.gz", "label": "Rosetta attitude", "size": 12820062 },
+    "kernels/rosetta/CG_ATT_THINNED.BC",
+    { "url": "kernels/rosetta/ROS_SAPY_THINNED.BC.gz", "label": "Solar array +Y", "size": 3147375 },
+    { "url": "kernels/rosetta/ROS_SAMY_THINNED.BC.gz", "label": "Solar array −Y", "size": 3150291 },
+    { "url": "kernels/rosetta/ROS_HGA_EL_THINNED.BC.gz", "label": "High-gain antenna", "size": 3347806 },
+    { "url": "kernels/rosetta/ROS_HGA_AZ_THINNED.BC.gz", "label": "High-gain antenna", "size": 1364678 },
+    "kernels/rosetta/LATT_ROS2LDR_PRESEP_V1_0.BC",
+    "kernels/rosetta/LATT_EME2LDR_SDL_V1_0.BC",
+    "kernels/rosetta/LATT_ROS2LDR_SDL_ROMAP_V1_0.BC",
+    "kernels/rosetta/LATT_CFF2LDR_FSS_V2_0.BC"
+  ],
+  "items": [
+    { "name": "Cruise overview (2010)", "type": "Viewpoint", "center": "Sun", "distance": 1300000000, "latitude": 60, "longitude": -20, "time": "2010-07-10T15:44:55Z" },
+    { "name": "Launch (2004-03-02)", "type": "Viewpoint", "center": "Earth", "distance": 80000, "latitude": 20, "longitude": 0, "time": "2004-03-02T12:00:00Z" },
+    { "name": "Earth swing-by 1 (2005-03-04)", "type": "Viewpoint", "center": "Earth", "distance": 45000, "latitude": 25, "longitude": 30, "time": "2005-03-04T22:09:14Z" },
+    { "name": "Mars swing-by (2007-02-25)", "type": "Viewpoint", "center": "Mars", "distance": 14000, "latitude": 20, "longitude": 40, "time": "2007-02-25T01:57:59Z" },
+    { "name": "Earth swing-by 2 (2007-11-13)", "type": "Viewpoint", "center": "Earth", "distance": 60000, "latitude": 25, "longitude": 30, "time": "2007-11-13T20:57:23Z" },
+    { "name": "Steins flyby (2008-09-05)", "type": "Viewpoint", "center": "2867 Steins", "distance": 25, "latitude": 20, "longitude": 0, "time": "2008-09-05T18:38:20Z" },
+    { "name": "Earth swing-by 3 (2009-11-13)", "type": "Viewpoint", "center": "Earth", "distance": 50000, "latitude": 25, "longitude": 30, "time": "2009-11-13T07:45:40Z" },
+    { "name": "Lutetia flyby (2010-07-10)", "type": "Viewpoint", "center": "21 Lutetia", "distance": 450, "latitude": 20, "longitude": 0, "time": "2010-07-10T15:44:55Z" },
+    { "name": "Wake-up (2014-01-20)", "type": "Viewpoint", "center": "Rosetta", "distance": 0.09, "latitude": 25, "longitude": 40, "time": "2014-01-20T18:18:00Z" },
+    { "name": "Arrival at 67P (2014-08-06)", "type": "Viewpoint", "center": "67P/Churyumov-Gerasimenko", "distance": 180, "latitude": 20, "longitude": 0, "time": "2014-08-06T09:00:00Z" },
+    { "name": "Philae separation (2014-11-12)", "type": "Viewpoint", "center": "Rosetta", "distance": 0.03, "latitude": 20, "longitude": 150, "time": "2014-11-12T08:35:40Z" },
+    { "name": "Philae descent (2014-11-12)", "type": "Viewpoint", "center": "67P/Churyumov-Gerasimenko", "distance": 45, "latitude": 30, "longitude": 0, "time": "2014-11-12T12:00:00Z" },
+    { "name": "Philae first touchdown, Agilkia (2014-11-12)", "type": "Viewpoint", "center": "Philae", "distance": 0.04, "latitude": 30, "longitude": 0, "time": "2014-11-12T15:32:40Z" },
+    { "name": "Philae final site, Abydos (2014-11-12)", "type": "Viewpoint", "center": "Philae", "distance": 0.04, "latitude": 30, "longitude": 0, "time": "2014-11-12T18:00:00Z" },
+    { "name": "Perihelion (2015-08-13)", "type": "Viewpoint", "center": "67P/Churyumov-Gerasimenko", "distance": 900, "latitude": 20, "longitude": 0, "time": "2015-08-13T02:01:00Z" },
+    { "name": "Final descent (2016-09-30)", "type": "Viewpoint", "center": "Rosetta", "distance": 0.09, "latitude": 20, "longitude": 40, "time": "2016-09-30T08:00:00Z" },
+    { "name": "Impact at Sais (2016-09-30)", "type": "Viewpoint", "center": "67P/Churyumov-Gerasimenko", "distance": 9, "latitude": 20, "longitude": 0, "time": "2016-09-30T10:39:00Z" },
+
+    {
+      "name": "Mars",
+      "class": "planet",
+      "center": "Sun",
+      "trajectoryFrame": "ECLIPJ2000",
+      "trajectory": { "type": "Spice", "target": "4", "center": "SUN" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "24.622962155909364h",
+        "inclination": 37.1135,
+        "ascendingNode": 47.68143,
+        "meridianAngle": 176.630
+      },
+      "geometry": { "type": "Globe", "radius": 3389, "baseMap": "textures/mars.dds", "atmosphere": "Mars" },
+      "label": { "color": [1.0, 0.5, 0.3] }
+    },
+
+    {
+      "name": "67P/Churyumov-Gerasimenko",
+      "class": "comet",
+      "naifId": 1000012,
+      "center": "Sun",
+      "trajectoryFrame": "ECLIPJ2000",
+      "rotationModel": { "type": "Spice", "bodyFrame": "67P/C-G_CK" },
+      "arcs": [
+        {
+          "startTime": "2004-03-02T00:00:00Z",
+          "endTime": "2014-01-01T00:00:00Z",
+          "center": "Sun",
+          "trajectory": { "type": "Spice", "target": "1000012", "center": "SUN" },
+          "rotationModel": { "type": "Spice", "bodyFrame": "67P/C-G_FIXED" }
+        },
+        {
+          "startTime": "2014-01-01T00:00:00Z",
+          "endTime": "2016-12-31T00:00:00Z",
+          "center": "Sun",
+          "trajectory": { "type": "Spice", "target": "1000012", "center": "SUN" }
+        }
+      ],
+      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_CG_K200_OSPGDLR_N_V1.BDS.gz", "color": [0.36, 0.34, 0.32] },
+      "label": { "color": [0.7, 0.85, 0.95] },
+      "trajectoryPlot": { "color": "#88ccdd", "duration": "6.45y", "fade": 0.4 }
+    },
+    {
+      "name": "2867 Steins",
+      "class": "asteroid",
+      "naifId": 2002867,
+      "center": "Sun",
+      "trajectoryFrame": "ECLIPJ2000",
+      "trajectory": { "type": "Spice", "target": "2002867", "center": "SUN" },
+      "rotationModel": { "type": "Spice", "bodyFrame": "STEINS_FIXED" },
+      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_ST_K020_OSPCLAM_N_V1.BDS.gz", "color": [0.5, 0.47, 0.44] },
+      "label": { "color": [0.8, 0.75, 0.65] },
+      "trajectoryPlot": { "color": "#b8a88a", "duration": "3.6y", "fade": 0.5 }
+    },
+    {
+      "name": "21 Lutetia",
+      "class": "asteroid",
+      "naifId": 2000021,
+      "center": "Sun",
+      "trajectoryFrame": "ECLIPJ2000",
+      "trajectory": { "type": "Spice", "target": "2000021", "center": "SUN" },
+      "rotationModel": { "type": "Spice", "bodyFrame": "ROS_LUTETIA" },
+      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_LU_K048_OSPCLAM_N_V1.BDS.gz", "color": [0.42, 0.4, 0.38] },
+      "label": { "color": [0.8, 0.75, 0.65] },
+      "trajectoryPlot": { "color": "#a89a80", "duration": "3.8y", "fade": 0.5 }
+    },
+
+    {
+      "name": "Rosetta",
+      "class": "spacecraft",
+      "naifId": -226,
+      "startTime": "2004-03-02T09:25:18Z",
+      "endTime": "2016-09-30T10:39:30Z",
+      "center": "Sun",
+      "trajectoryFrame": "ECLIPJ2000",
+      "arcs": [
+        {
+          "endTime": "2014-05-01T00:00:00Z",
+          "center": "Sun",
+          "trajectory": { "type": "Spice", "target": "-226", "center": "SUN" },
+          "trajectoryPlot": { "duration": "10.5y", "fade": 0.25 }
+        },
+        {
+          "startTime": "2014-05-01T00:00:00Z",
+          "endTime": "2016-09-30T10:39:30Z",
+          "center": "67P/Churyumov-Gerasimenko",
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Spice", "target": "-226", "center": "1000012" },
+          "trajectoryPlot": { "duration": "30d", "fade": 0.5 }
+        }
+      ],
+      "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SPACECRAFT" },
+      "geometry": {
+        "type": "TimeSwitched",
+        "sequence": [
+          {
+            "endTime": "2014-11-12T08:35:15Z",
+            "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_BUS_LR_V02.BDS.gz", "color": [0.78, 0.74, 0.62] }
+          },
+          {
+            "startTime": "2014-11-12T08:35:15Z",
+            "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_BUS_V01.BDS", "color": [0.78, 0.74, 0.62] }
+          }
+        ]
+      },
+      "label": { "color": [1.0, 1.0, 1.0] },
+      "trajectoryPlot": { "color": "#e8e8e8", "visible": true },
+      "items": [
+        {
+          "name": "Rosetta +Y solar array",
+          "class": "spacecraft",
+          "naifId": -226010,
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Spice", "target": "-226010", "center": "-226" },
+          "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SA+Y", "fallbackFrame": "ROS_SA+Y_ZERO" },
+          "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_SAPY_V02.BDS", "color": [0.22, 0.26, 0.42] },
+          "label": { "visible": false },
+          "trajectoryPlot": { "visible": false }
+        },
+        {
+          "name": "Rosetta -Y solar array",
+          "class": "spacecraft",
+          "naifId": -226020,
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Spice", "target": "-226020", "center": "-226" },
+          "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SA-Y", "fallbackFrame": "ROS_SA-Y_ZERO" },
+          "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_SAMY_V02.BDS", "color": [0.22, 0.26, 0.42] },
+          "label": { "visible": false },
+          "trajectoryPlot": { "visible": false }
+        },
+        {
+          "name": "Rosetta high-gain antenna",
+          "class": "spacecraft",
+          "naifId": -226070,
+          "trajectoryFrame": "J2000",
+          "trajectory": { "type": "Spice", "target": "-226070", "center": "-226" },
+          "rotationModel": { "type": "Spice", "bodyFrame": "ROS_HGA", "fallbackFrame": "ROS_HGA_ZERO" },
+          "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_HGA_V02.BDS.gz", "color": [0.85, 0.85, 0.85] },
+          "label": { "visible": false },
+          "trajectoryPlot": { "visible": false }
+        }
+      ]
+    },
+
+    {
+      "name": "Philae",
+      "class": "spacecraft",
+      "naifId": -226800,
+      "startTime": "2014-11-12T08:35:15Z",
+      "center": "67P/Churyumov-Gerasimenko",
+      "trajectoryFrame": "J2000",
+      "trajectory": { "type": "Spice", "target": "-226800", "center": "1000012" },
+      "rotationModel": { "type": "Spice", "bodyFrame": "ROS_LANDER" },
+      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_LR_D_V03.BDS.gz", "color": [0.8, 0.8, 0.82] },
+      "label": { "color": [0.4, 1.0, 1.0] },
+      "trajectoryPlot": { "color": "#66ffff", "duration": "10h", "fade": 0.3, "visible": true }
+    }
+  ]
+}

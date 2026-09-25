@@ -17,6 +17,7 @@ bash "$HERE/fetch-msl-kernels.sh"
 bash "$HERE/fetch-europa-clipper-kernels.sh"
 bash "$HERE/fetch-psyche-kernels.sh"
 bash "$HERE/fetch-voyager-kernels.sh"
+bash "$HERE/fetch-rosetta-kernels.sh"
 
 echo
 echo "All kernel sets fetched. Demos should now load."

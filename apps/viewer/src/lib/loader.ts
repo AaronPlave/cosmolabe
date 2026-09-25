@@ -52,7 +52,7 @@ import {
   formatBytes,
 } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
-import { absolutizeCatalogAssets } from './catalog-assets';
+import { absolutizeCatalogAssets, catalogsUseDsk } from './catalog-assets';
 
 // ── State ──
 let spice: HeritageSpice | null = null;
@@ -200,7 +200,9 @@ const TEST_MODE =
 const KERNEL_EXTENSIONS = new Set([
   '.bsp', '.tls', '.tpc', '.tf', '.tsc', '.ti', '.ck', '.bc', '.bpc', '.spk', '.pck', '.fk', '.tm',
 ]);
-const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod']);
+// `.bds` is a DSK shape model. It is read for a Dsk geometry, not furnished, so
+// it travels with the models rather than the kernels.
+const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod', '.3ds', '.bds']);
 const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.tga']);
 
 // ── Fetch with progress + gzip decompression ──
@@ -737,7 +739,15 @@ function initScene(
       const spinBody = refBody?.rotation
         ? refBody
         : refBody?.parentName ? universe.getBody(refBody.parentName) : undefined;
-      const q = spinBody?.rotationAt(layoutEt);
+      // An attitude from a CK can have gaps (a lander between touchdowns); a
+      // viewpoint inside one falls back to the world-frame offset below rather
+      // than taking the whole scene down with the SPICE error.
+      let q: ReturnType<NonNullable<typeof spinBody>['rotationAt']> | undefined;
+      try {
+        q = spinBody?.rotationAt(layoutEt);
+      } catch (err) {
+        console.warn(`[Cosmolabe] Viewpoint "${vpDef.name}": no orientation for ${spinBody?.name} at its epoch; laying it out in the world frame`, err);
+      }
       const sourceFrame = spinBody?.rotation?.sourceFrame;
       if (q && sourceFrame) {
         const [x, y, z] = bodyFixedOffsetToWorld(
@@ -930,7 +940,8 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // Only the SPICE half is conditional: a catalog with no kernels, no kernels
     // carried over from a drop, and no instance already standing needs no SPICE
     // at all — CatalogLoader falls through to Keplerian/analytical trajectories.
-    if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice) {
+    // A DSK surface is the exception: it is read by SPICE even with no kernels.
+    if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(graph.catalogs.map((c) => c.json))) {
       await buildSceneSpice(catalogKernels);
     } else {
       teardownScene();
@@ -1163,7 +1174,7 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
     // the new scene gets. They are that scene's, not the user's, so they are
     // not remembered past it.
     const droppedKernels = kernelFiles.map((file) => ({ source: { file } }));
-    if (droppedKernels.length > 0 || userKernelSources.length > 0 || spice) {
+    if (droppedKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(catalogs)) {
       await buildSceneSpice(droppedKernels);
     } else {
       teardownScene();

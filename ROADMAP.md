@@ -36,6 +36,7 @@ Kept here briefly so the tiers below read as what's left, not what's done.
 - Geometry/event finder architecture (#60), eclipse and occultation finder (#58), closest approach and range (#61), off-main-thread searches with progress and cancellation (#66, #69, #83)
 - Deployment-configurable catalog sources and indexes (#93); viewer readiness gated on models and textures (#19)
 - Camera view JSON import/export (`camera-view-io.ts`) and video recording (`VideoRecordPlugin`)
+- Rosetta + Philae full-mission demo (#107): native `Dsk` geometry for irregular bodies and spacecraft, `TimeSwitched` geometry, per-arc rotation models, existence windows (`startTime` / `endTime` hide a body), `.3ds` models, and verified resampling/thinning of dense archive SPKs and CKs (`scripts/resample-spk.mjs`, `scripts/thin-ck.mjs`)
 
 ## 1. Foundation
 
@@ -101,6 +102,7 @@ Terrain is here because observations land on it and surface operations happen on
 - Surface Explorer camera mode — promote from experimental: smoother transitions between orbital and surface views, pose presets, look-around controls (#51)
 - Rover, lander, EDL and drone-swarm scene patterns — first-class catalog support and demo scenes (lunar lander, Mars rover EDL, drone swarm concept)
 - Ground-fixed lighting and shadow improvements at terrain LOD boundaries — illumination on the surface is a mission question (landing-site lighting, rover power)
+- Irregular-body surfaces beyond the first `Dsk` (#107) — multiple DSK resolutions chosen by distance, picking and camera collision against the plate model instead of a sphere, sensor footprints and illumination on the plate model, and imagery projected onto it. Consumers: close operations at 67P, and the footprint work above
 - Atmospheric rendering from the surface — sky color, sun/horizon glow, twilight, aerial perspective for distant terrain (current `AtmosphereMesh` is limb-only / orbital)
 
 ## Supporting tracks
@@ -117,7 +119,7 @@ These run alongside the tiers above and are pulled forward when a tier needs the
 
 ### Demos, examples, and docs
 
-- More built-in scenes, favouring mission workflows: Mars rover EDL, lunar lander, comet flyby, drone-swarm concept, asteroid sample return, an instrument-observation flyby
+- More built-in scenes, favouring mission workflows: Mars rover EDL, lunar lander, drone-swarm concept, asteroid sample return, an instrument-observation flyby (a comet rendezvous landed with Rosetta, #107)
 - Recipe-style examples: PlanDev sim replay, embedding in a dashboard, embedding from React / Svelte / Vue through `ViewerControl` (examples, not packages), writing a custom `RendererPlugin`, surface-ops scene authoring
 - Expanded test coverage around terrain streaming, surface camera, and renderer plugins
 - Visual regression / screenshot tests for stock scenes

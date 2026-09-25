@@ -32,6 +32,8 @@ export { InstrumentView } from './InstrumentView.js';
 export type { InstrumentViewOptions, FovBoundary } from './InstrumentView.js';
 export { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 export type { InstrumentFov, InstrumentFovProvider } from './InstrumentFovProvider.js';
+export { dskShapeProviderOf, dskToBufferGeometry } from './DskShapeProvider.js';
+export type { DskShape, DskShapeProvider } from './DskShapeProvider.js';
 export { RingMesh } from './RingMesh.js';
 export { AssetLoadTracker, DEFAULT_INITIAL_ASSET_TIMEOUT_MS } from './AssetLoadTracker.js';
 export type {
