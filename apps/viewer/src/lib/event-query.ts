@@ -168,7 +168,7 @@ export function formatMetric(metric: EventMetric): string {
   return metric.unit ? `${metric.value.toFixed(digits)} ${metric.unit}` : metric.value.toFixed(digits);
 }
 
-/** Adaptive distance, matching the measure tool's vocabulary. */
+/** Adaptive distance, shared by event metrics and timeline profiles. */
 export function formatKm(km: number): string {
   const abs = Math.abs(km);
   if (abs < 1) return `${(km * 1000).toFixed(1)} m`;
@@ -290,10 +290,25 @@ export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOpt
 }
 
 /**
+ * The selected event's annotation in the 3D scene: what the geometry there
+ * is, and at most one key fact — the headline metric, or an interval's
+ * duration. Deliberately brief: the scene card's job is to say *where* the
+ * event is; time, roles and the rest are the selected-event inspector's,
+ * which is always on screen while something is selected.
+ */
+export function eventSceneAnnotationLines(event: GeometryEvent): string[] {
+  const title = eventCalloutTitle(event);
+  const headline = headlineMetric(event);
+  if (headline) return [title, formatMetric(headline)];
+  if (isIntervalEvent(event)) return [title, formatSeconds(eventDuration(event))];
+  return [title];
+}
+
+/**
  * "2026-05-13 04:00 → 05-18 08:00 UTC": the end drops whatever it shares with
  * the start. Spans under ten minutes keep seconds.
  */
-function utcSpan(start: number, end: number, utc: (et: number) => string): string {
+export function utcSpan(start: number, end: number, utc: (et: number) => string): string {
   const seconds = end - start < 600;
   const trim = (text: string) => {
     const bare = text.replace(/ UTC$/, '');
@@ -382,7 +397,18 @@ export function eventContainsTime(event: GeometryEvent, et: number): boolean {
 }
 
 /**
- * The event the playhead is currently traversing.
+ * Every event the playhead is inside. Simultaneous events are normal — two
+ * occultations, an eclipse during a close approach — and each is active in
+ * its own right; none suppresses another for having been found first.
+ */
+export function activeEventsAtTime(events: readonly GeometryEvent[], et: number): GeometryEvent[] {
+  return events.filter((event) => eventContainsTime(event, et));
+}
+
+/**
+ * The one active event to name where only one fits — a one-line readout, or
+ * the scene's single explanatory overlay. Not "the" active event: all of
+ * `activeEventsAtTime` are.
  *
  * An explicit selection wins only when it is one of the active intervals. If
  * several unselected intervals overlap, the shortest is the most specific
@@ -394,7 +420,7 @@ export function activeEventAtTime(
   et: number,
   preferred?: Pick<GeometryEvent, 'id' | 'queryId'> | null,
 ): GeometryEvent | undefined {
-  const active = events.filter((event) => eventContainsTime(event, et));
+  const active = activeEventsAtTime(events, et);
   // Result ids recur across searches: a selection is its id *and* query.
   const match = preferred && active.find((event) => event.id === preferred.id && event.queryId === preferred.queryId);
   if (match) return match;

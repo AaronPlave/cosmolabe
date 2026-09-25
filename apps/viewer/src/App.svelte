@@ -15,6 +15,7 @@
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
   } from './lib/shell.svelte';
+  import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import { loadCatalogSources, type CatalogSourceState } from './lib/catalog-sources';
   import { catalogSourceDeployment } from './lib/deployment';
@@ -172,6 +173,10 @@
 
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
+    // An open popover or menu handles its own Escape (it closes); that same
+    // press must not also clear a selection or dismiss a panel behind it.
+    if (e.key === 'Escape' && document.querySelector('[data-popover-content], [data-dropdown-menu-content], [data-select-content]')) return;
+
     const renderer = getRenderer();
     if (!renderer) return;
 
@@ -201,6 +206,9 @@
         case 'p': togglePickMode(); return;
         case 'Escape':
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
+          // An event selection is the smallest thing on screen to dismiss:
+          // it goes before any panel does.
+          else if (ef.selectedId) clearSelection();
           else if (dismissTopSurface()) return;
           else if (pickModeActive) closePickResult();
           else if (vs.selectedBodyName) selectBody(null);

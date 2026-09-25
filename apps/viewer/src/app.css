@@ -138,8 +138,8 @@
   --text-helper: 12px;
   --text-section: 11px;
   --text-metadata: 10px;
-  --text-readout: 13px;
-  --text-readout-strong: 13px;
+  --text-readout: 12px;
+  --text-readout-strong: 12px;
   --leading-interface: 1.4;
   --leading-helper: 1.45;
 
@@ -268,6 +268,297 @@
     font-family: var(--font-sans);
     font-size: var(--text-metadata);
     color: var(--color-text-column);
+  }
+}
+
+/* ── Event vocabulary ──
+   One colour per event kind, overridden by an occultation's state, shared by
+   every surface that draws an event: the transport overview, the lanes, the
+   spans behind profiles, the callouts. Shape carries temporality (instant =
+   line, interval = span); colour carries kind and state. Elements opt in with
+   `data-ev-kind` / `data-ev-state` and read `--ev`. */
+@layer components {
+  [data-ev-kind] { --ev: var(--color-event-accent); }
+  [data-ev-kind='closest-approach'] { --ev: #72b7d8; }
+  [data-ev-kind='distance-range'] { --ev: #71b896; }
+  [data-ev-kind='occultation'] { --ev: #8c72d8; }
+  [data-ev-state='partial'] { --ev: #e0a84c; }
+  [data-ev-state='full'] { --ev: #8c72d8; }
+  [data-ev-state='annular'] { --ev: #d96f4c; }
+}
+
+/* ── Timeline rows ──
+   The expanded timeline is one grid: a label gutter, the shared time axis,
+   and a readout rail — "what is this", "how does it vary", "what is it at
+   the inspected time". The axis column is the transport track's measured
+   extent (`--tl-gutter`, `--tl-axis`, set on the lane region), so every row
+   lines up with the track exactly. On a phone there is no gutter: each row
+   stacks (`.stacked`) — a header line with its label, readout and controls,
+   over a plot that takes the full width — so nothing sits on the time
+   canvas but time.
+
+   Three type roles, and no others: `.tl-primary` (what a row is),
+   `.tl-secondary` (bodies, counts, scale — muted, smaller), `.tl-num`
+   (times and values — mono, tabular). */
+@layer components {
+  .tl-primary {
+    color: var(--color-text-primary);
+    font-size: var(--text-label);
+    line-height: 16px;
+  }
+  .tl-secondary {
+    color: var(--color-text-muted);
+    font-size: var(--text-metadata);
+    line-height: 14px;
+  }
+  /* The readout token (12 px). Only the clock is sized up, explicitly. */
+  .tl-num {
+    font-family: var(--font-mono);
+    font-size: var(--text-readout);
+    font-variant-numeric: tabular-nums;
+    line-height: 14px;
+  }
+
+  /* Separate aligned rows, not cards: a thin rule between rows, a slightly
+     lifted plot surface, a faint wash on the inspected row. */
+  /* Rows are exactly their height: one grid track that may not grow to its
+     content, so a plot can never spill into — and double-paint — the next. */
+  :root {
+    --tl-label-inset: 9px;
+    /* One stacking order for the timeline. A transient label or callout is
+       never under structural chrome. */
+    --tl-z-plot: 1;
+    --tl-z-cursor: 3;
+    --tl-z-chrome: 4;
+    --tl-z-label: 10;
+    --tl-z-callout: 40; /* portalled to the page; popovers (50) stay above */
+  }
+  .tl-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--tl-gutter, 0px) var(--tl-axis, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    transition: background var(--duration-chrome) var(--ease-chrome);
+  }
+  .tl-row.inspected {
+    background: rgba(255, 255, 255, 0.022);
+  }
+  /* The axis column is one live surface, gaps between plots included; only
+     the label and the rail are chrome. */
+  .tl-row:not(.stacked) {
+    cursor: crosshair;
+  }
+  .tl-row .tl-label,
+  .tl-row .tl-readout {
+    cursor: default;
+  }
+  .tl-row.hidden-row {
+    opacity: 0.6;
+  }
+  /* Where event lanes give way to profiles: a firmer rule, not a row. */
+  .tl-row.boundary {
+    border-top-color: rgba(255, 255, 255, 0.13);
+  }
+
+  /* Columns pinned: an overlaid (out-of-flow) label must not let the plot
+     slide into the gutter. */
+  .tl-label { grid-column: 1; }
+  .tl-plot { grid-column: 2; }
+  .tl-readout { grid-column: 3; }
+  /* Label text starts at --tl-label-inset: the gutter's inset plus the
+     label button's own padding. Anything aligned with row labels (the
+     Profiles heading) uses the same token. */
+  .tl-label {
+    --tl-label-pad: 4px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 0 10px 0 calc(var(--tl-label-inset) - var(--tl-label-pad));
+  }
+  .tl-label.top {
+    align-items: flex-start;
+    padding-top: 4px;
+  }
+  .tl-label-main {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: baseline;
+    gap: 4px;
+    padding: 1px var(--tl-label-pad, 4px);
+    border: none;
+    border-radius: 3px;
+    background: none;
+    overflow: hidden;
+    text-align: left;
+    white-space: nowrap;
+    cursor: default;
+  }
+  button.tl-label-main {
+    cursor: pointer;
+  }
+  button.tl-label-main:hover {
+    background: var(--color-control-hover);
+  }
+  /* The first character is never clipped; long labels ellipsize right. */
+  .tl-label-main .tl-primary {
+    flex-shrink: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tl-label-main .tl-primary + .tl-secondary::before {
+    content: '· ';
+  }
+  .tl-label-main .tl-secondary {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tl-row:not(.inspected):not(.emphasised) .tl-label-main .tl-primary {
+    color: var(--color-text-secondary);
+  }
+  .tl-label-controls {
+    display: flex;
+    flex-shrink: 0;
+    gap: 1px;
+    opacity: 0;
+    transition: opacity var(--duration-chrome) var(--ease-chrome);
+  }
+  .tl-row:hover .tl-label-controls,
+  .tl-row.hidden-row .tl-label-controls,
+  .tl-label-controls:focus-within {
+    opacity: 1;
+  }
+  .tl-icon-btn {
+    display: flex;
+    padding: 3px;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+  .tl-icon-btn:hover {
+    color: var(--color-text-primary);
+    background: var(--color-control-hover);
+  }
+  .tl-icon-btn.danger:hover {
+    color: var(--color-error);
+  }
+
+  /* Phone: a header line — label, readout, controls — over a full-width
+     plot. The label's children join the row's grid directly. Touch has no
+     hover, so the controls are always shown. */
+  .tl-row.stacked {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: 18px minmax(0, 1fr);
+    grid-template-areas:
+      'label readout controls'
+      'plot plot plot';
+  }
+  .tl-row.stacked .tl-label {
+    display: contents;
+  }
+  .tl-row.stacked .tl-label-main {
+    grid-area: label;
+    align-self: center;
+    padding-left: 0;
+  }
+  .tl-row.stacked .tl-label-controls {
+    grid-area: controls;
+    align-items: center;
+    opacity: 1;
+  }
+  .tl-row.stacked .tl-icon-btn {
+    padding: 2px 5px;
+  }
+  .tl-row.stacked .tl-readout {
+    grid-area: readout;
+    padding: 0 4px 0 8px;
+  }
+  .tl-row.stacked .tl-plot {
+    grid-area: plot;
+  }
+  .tl-row.stacked .tl-primary,
+  .tl-row.stacked .tl-secondary {
+    line-height: 14px;
+  }
+
+  /* Stretched to its grid cell, never sized to 100% of it: an inset
+     (margin) then shrinks the plot inside the row instead of pushing it past
+     the row into its neighbour. The row owns its height. */
+  .tl-plot {
+    position: relative;
+    align-self: stretch;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    overflow: clip;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: crosshair;
+    /* Vertical swipes scroll the lane region; see `timelineSurface`. */
+    touch-action: pan-y;
+    user-select: none;
+  }
+
+  /* Out of intrinsic layout: an SVG sizes to the plot, never the reverse. */
+  .tl-plot > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Cursor state belongs to the timeline surface (`data-tl-cursor` on the
+     dock) and must win over the plots' own crosshair. */
+  [data-tl-cursor='playhead'],
+  [data-tl-cursor='playhead'] .tl-row,
+  [data-tl-cursor='playhead'] .tl-plot,
+  [data-tl-cursor='scrub'],
+  [data-tl-cursor='scrub'] * {
+    cursor: ew-resize;
+  }
+  [data-tl-cursor='pan'],
+  [data-tl-cursor='pan'] * {
+    cursor: grabbing;
+  }
+
+  /* The rail: right-aligned under the clock, one x for every value. */
+  .tl-readout {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    min-width: 0;
+    padding-right: var(--tl-rail-end, 0px);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .tl-readout.top {
+    justify-content: flex-start;
+    padding-top: 4px;
+  }
+  .tl-readout .tl-num {
+    color: var(--color-text-primary);
+    transition: color var(--duration-chrome) var(--ease-chrome);
+  }
+  /* A value at the ghost, not at committed time: dimmer and italic-free, with
+     a hollow marker like the ghost's value dot. */
+  .tl-readout .tl-num.preview {
+    color: var(--color-text-secondary);
+  }
+  .tl-readout .tl-num.preview::before {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    margin: 0 5px 1px 0;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px currentColor;
   }
 }
 
