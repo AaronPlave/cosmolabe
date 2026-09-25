@@ -26,8 +26,8 @@
 # The archive downloads (~700 MB, mostly the attitude files that are thinned)
 # go to $ROSETTA_SOURCE_DIR (default: .cache/rosetta-source, git-ignored) and
 # are kept, so a rerun only redoes what is missing. Delete that directory once
-# the set is built if you need the space. The packages must be built first
-# (npm run build): the rebuild scripts run on cspice-wasm.
+# the set is built if you need the space. The rebuild scripts run on
+# cspice-wasm's dist/, which is rebuilt below so a stale build can't be used.
 #
 # Usage: ./scripts/fetch-rosetta-kernels.sh
 # Output: apps/viewer/test-catalogs/kernels/rosetta/
@@ -40,6 +40,12 @@ DEST="$HERE/../apps/viewer/test-catalogs/kernels/rosetta"
 # anything in it is copied into the deployed site.
 SRC="${ROSETTA_SOURCE_DIR:-$HERE/../.cache/rosetta-source}"
 mkdir -p "$DEST" "$SRC"
+
+# The rebuild scripts import cspice-wasm from its dist/. An out-of-date build
+# fails confusingly (e.g. an old writeSpkType13 ignores segment breaks and SPICE
+# rejects the duplicated break epochs), so bring it up to date; incremental,
+# so a no-op when nothing changed.
+(cd "$HERE/.." && npx tsc --build packages/cspice-wasm)
 
 ESA="https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels"
 
