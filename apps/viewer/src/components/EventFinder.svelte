@@ -8,7 +8,7 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
-  import { Loader2, Search, Ban, Plus } from 'lucide-svelte';
+  import { Loader2, Search, Ban, Plus, Trash2 } from 'lucide-svelte';
   import { tick } from 'svelte';
   import * as Select from '$lib/components/ui/select/index.js';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
@@ -18,7 +18,7 @@
   import { getSpice } from '../lib/loader';
   import {
     EVENT_KINDS, cancelSearch, ef, clearSelection, currentKind, resetForm, runSearch,
-    selectEvent, previewEvent, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
+    selectEvent, previewEvent, removeConfiguredQuery, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
     currentConfiguredQuery, setCurrentQueryVisible,
     configuredEventQueries, createNewSearch, openConfiguredQuery,
     setConfiguredQueryEnabled, setConfiguredQueryVisible,
@@ -384,6 +384,12 @@
             <label title="Visible on timeline" class="ui-meta flex items-center gap-0.5 cursor-pointer">
               <input type="checkbox" checked={query.visible} onchange={(e) => setConfiguredQueryVisible(query.id, (e.target as HTMLInputElement).checked)} /> time
             </label>
+            <button
+              class="remove-query"
+              onclick={() => removeConfiguredQuery(query.id)}
+              aria-label="Remove {query.label}"
+              title="Remove category"
+            ><Trash2 size={11} /></button>
           </div>
         {/each}
       </div>
@@ -576,6 +582,25 @@
 
   .configured-query {
     border: 1px solid transparent;
+  }
+  /* Quiet until the row is hovered or focused; red only on its own hover. */
+  .remove-query {
+    display: flex;
+    padding: 2px;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    opacity: 0;
+  }
+  .configured-query:hover .remove-query,
+  .configured-query:focus-within .remove-query {
+    opacity: 1;
+  }
+  .remove-query:hover {
+    color: var(--color-error);
+    background: var(--color-control-hover);
   }
   .configured-query.active {
     border-color: var(--color-border-strong);

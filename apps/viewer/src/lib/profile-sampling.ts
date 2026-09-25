@@ -226,9 +226,49 @@ export function profilePath(series: ProfileSeries, width: number, height: number
   return d;
 }
 
-/** Display sample count for a plot `px` wide: about one sample per 2 px. */
+/**
+ * Display sample count for a plot `px` wide: about one sample per pixel, so
+ * a curve that oscillates fast across a multi-year window is still drawn
+ * rather than aliased into a smooth line. Capped for very wide plots.
+ */
 export function sampleCountFor(px: number): number {
-  return Math.max(48, Math.min(480, Math.round(px / 2)));
+  return Math.max(48, Math.min(1600, Math.round(px)));
+}
+
+/**
+ * The value the *drawn* trace has at `et`: linear between the two samples
+ * around it, as the polyline is. This, not the exact value, places the
+ * cursor's dot, so the dot always sits on the visible line; readouts stay
+ * exact. Null in a gap or outside the series.
+ */
+export function seriesValueAt(series: Pick<ProfileSeries, 'ets' | 'values'>, et: number): number | null {
+  const { ets, values } = series;
+  const n = ets.length;
+  if (n < 2 || et < ets[0] || et > ets[n - 1]) return null;
+  const t = ((et - ets[0]) / (ets[n - 1] - ets[0])) * (n - 1);
+  const i = Math.min(n - 2, Math.floor(t));
+  const f = t - i;
+  const a = values[i];
+  const b = values[i + 1];
+  // On a sample exactly, that sample is the line, whatever lies beyond it.
+  if (f === 0) return a;
+  if (f === 1) return b;
+  if (a == null || b == null) return null;
+  return a + (b - a) * f;
+}
+
+/**
+ * Whether an event belongs on a profile by default: its participants include
+ * both bodies the profile measures between. A Clipper → Io closest approach
+ * annotates the Clipper → Io distance; a Europa flyby does not, unless it is
+ * selected or previewed.
+ */
+export function eventRelevantToProfile(
+  participants: Readonly<Record<string, string | undefined>>,
+  bodies: Pick<ProfileBodies, 'observer' | 'target'>,
+): boolean {
+  const names = new Set(Object.values(participants).filter((v): v is string => !!v).map((v) => v.toLowerCase()));
+  return names.has(bodies.observer.toLowerCase()) && names.has(bodies.target.toLowerCase());
 }
 
 /**

@@ -172,3 +172,28 @@ describe('event finder window provenance', () => {
     expect(currentConfiguredQuery()?.query.window).toEqual({ start: 120, end: 340 });
   });
 });
+
+describe('removing an event category', () => {
+  it('drops its item, results, selection and preview, and moves the form to a neighbour', async () => {
+    const { removeConfiguredQuery, configuredEventQueries, previewEvent } = await import('../event-finder.svelte');
+    const { analysis, createConfiguredEventQuery, setEventResults } = await import('../analysis.svelte');
+    const a = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Mars' } }, 'A');
+    const b = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Venus' } }, 'B');
+    const result = {
+      id: 'r0', queryId: b.id, kind: 'closest-approach', temporality: 'instant' as const,
+      et: 10, bodies: { observer: 'Earth', target: 'Venus' }, label: 'b',
+    };
+    setEventResults(a.id, []);
+    setEventResults(b.id, [result]);
+    ef.configuredId = b.id;
+    ef.selectedId = 'r0';
+    previewEvent(result);
+
+    removeConfiguredQuery(b.id);
+
+    expect(configuredEventQueries().map((q) => q.id)).toEqual([a.id]);
+    expect(analysis.eventResults[b.id]).toBeUndefined();
+    expect([ef.selectedId, ef.previewId, ef.previewQueryId]).toEqual([null, null, null]);
+    expect(ef.configuredId).toBe(a.id);
+  });
+});

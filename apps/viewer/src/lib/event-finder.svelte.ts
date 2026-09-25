@@ -53,6 +53,7 @@ import {
   analysisContext,
   configuredItem,
   createConfiguredEventQuery,
+  removeConfiguredItem,
   resetAnalysis,
   setConfiguredItemVisible,
   setConfiguredItemEnabled,
@@ -544,6 +545,39 @@ export function setConfiguredQueryEnabled(id: string, enabled: boolean) {
 
 export function setConfiguredQueryVisible(id: string, visible: boolean) {
   setConfiguredItemVisible(id, visible);
+}
+
+/**
+ * Removes a configured event category and everything tied to it: its item
+ * and cached results (so its timeline lane goes too), a selection or preview
+ * of one of its results, and — if it was the category being edited — the
+ * form, which moves to an adjacent category or, with none left, a fresh
+ * search.
+ */
+export function removeConfiguredQuery(id: string) {
+  const queries = configuredEventQueries();
+  const index = queries.findIndex((query) => query.id === id);
+  if (index < 0) return;
+  if (ef.previewQueryId === id) previewEvent(null);
+  const wasCurrent = ef.configuredId === id;
+  if (wasCurrent) {
+    active?.cancel();
+    inFlight++;
+    ef.selectedId = null;
+    ef.configuredId = null;
+  }
+  removeConfiguredItem(id);
+  if (wasCurrent) {
+    const next = queries[index + 1] ?? queries[index - 1];
+    if (next) {
+      openConfiguredQuery(next.id);
+      return;
+    }
+    createNewSearch();
+    return;
+  }
+  syncEventResultsInScene();
+  syncOccultationGeometryAtTime();
 }
 
 /** Start another independently cached event category without discarding this one. */

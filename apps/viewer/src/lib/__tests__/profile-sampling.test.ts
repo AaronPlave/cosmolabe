@@ -6,6 +6,8 @@ import {
   profileQuantity,
   quantityAt,
   sampleCountFor,
+  seriesValueAt,
+  eventRelevantToProfile,
   sampleProfile,
   formatRangeRate,
   gridValues,
@@ -90,8 +92,24 @@ describe('profile sampling', () => {
 
   it('scales display density with the pixels available, within bounds', () => {
     expect(sampleCountFor(10)).toBe(48);
-    expect(sampleCountFor(600)).toBe(300);
-    expect(sampleCountFor(5000)).toBe(480);
+    expect(sampleCountFor(600)).toBe(600);
+    expect(sampleCountFor(5000)).toBe(1600);
+  });
+
+  it('places the cursor on the drawn line, interpolating between samples, not at the exact value', () => {
+    const series = { ets: [0, 10, 20], values: [0, 100, null] };
+    expect(seriesValueAt(series, 5)).toBe(50);
+    expect(seriesValueAt(series, 10)).toBe(100);
+    expect(seriesValueAt(series, 15)).toBeNull();
+    expect(seriesValueAt(series, 25)).toBeNull();
+  });
+
+  it('annotates a profile by default only with events between its own bodies', () => {
+    const pair = { observer: 'Europa Clipper', target: 'Io' };
+    expect(eventRelevantToProfile({ observer: 'Europa Clipper', target: 'Io' }, pair)).toBe(true);
+    expect(eventRelevantToProfile({ observer: 'Io', target: 'europa clipper' }, pair)).toBe(true);
+    expect(eventRelevantToProfile({ observer: 'Europa Clipper', target: 'Europa' }, pair)).toBe(false);
+    expect(eventRelevantToProfile({ front: 'Io', back: 'Jupiter', observer: 'Europa Clipper' }, pair)).toBe(true);
   });
 });
 

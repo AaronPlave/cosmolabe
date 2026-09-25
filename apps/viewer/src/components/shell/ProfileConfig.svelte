@@ -62,8 +62,8 @@
 </script>
 
 <div class="flex flex-col gap-1.5">
-  <label class="flex items-center gap-2">
-    <span class="ui-label w-12 shrink-0">Quantity</span>
+  <label class="cfg-field">
+    <span class="ui-label">Quantity</span>
     <select class={selectClass} bind:value={quantity}>
       {#each PROFILE_QUANTITIES as q}
         <option value={q.id}>{q.label}</option>
@@ -72,8 +72,8 @@
   </label>
 
   {#snippet bodyPicker(label: string, role: 'observer' | 'target' | 'illuminator', value: string, set: (v: string) => void)}
-    <label class="flex items-center gap-2">
-      <span class="ui-label w-12 shrink-0">{label}</span>
+    <label class="cfg-field">
+      <span class="ui-label">{label}</span>
       <select class={selectClass} {value} onchange={(e) => set((e.target as HTMLSelectElement).value)}>
         <option value="">{sharedLabel(role)}</option>
         {#each vs.bodies as body}
@@ -89,32 +89,28 @@
     {@render bodyPicker('Light', 'illuminator', illuminator, (v) => illuminator = v)}
   {/if}
 
-  {#if onToggleVisible || onMoveUp || onMoveDown || onRemove}
-    <!-- Row actions: showing it, where it sits among the profiles, and — last,
-         and quiet until hovered — removing it. -->
-    <div class="mt-1 flex items-center gap-1 border-t border-border pt-2">
-      {#if onToggleVisible}
-        <button class="cfg-action" onclick={onToggleVisible}>
-          {#if visible}<EyeOff size={12} /> Hide{:else}<Eye size={12} /> Show{/if}
+  <!-- One footer: row actions on the left, then Remove (quiet until
+       hovered) and the primary action. -->
+  <div class="mt-1 flex items-center gap-1 border-t border-border pt-2">
+    {#if onToggleVisible}
+      <button class="cfg-action" onclick={onToggleVisible}>
+        {#if visible}<EyeOff size={12} /> Hide{:else}<Eye size={12} /> Show{/if}
+      </button>
+    {/if}
+    {#if onMoveUp || onMoveDown}
+      <span class="inline-flex items-center" role="group" aria-label="Move row">
+        <button class="cfg-action" onclick={onMoveUp} disabled={!onMoveUp} aria-label="Move row up" title="Move row up">
+          <ArrowUp size={12} />
         </button>
-      {/if}
-      {#if onMoveUp || onMoveDown}
-        <span class="cfg-move" role="group" aria-label="Move row">
-          <button class="cfg-action" onclick={onMoveUp} disabled={!onMoveUp} aria-label="Move row up" title="Move row up">
-            <ArrowUp size={12} />
-          </button>
-          <button class="cfg-action" onclick={onMoveDown} disabled={!onMoveDown} aria-label="Move row down" title="Move row down">
-            <ArrowDown size={12} />
-          </button>
-        </span>
-      {/if}
-      <span class="flex-1"></span>
-      {#if onRemove}
-        <button class="cfg-action danger" onclick={onRemove}><Trash2 size={12} /> Remove</button>
-      {/if}
-    </div>
-  {/if}
-  <div class="flex justify-end">
+        <button class="cfg-action" onclick={onMoveDown} disabled={!onMoveDown} aria-label="Move row down" title="Move row down">
+          <ArrowDown size={12} />
+        </button>
+      </span>
+    {/if}
+    <span class="flex-1"></span>
+    {#if onRemove}
+      <button class="cfg-action danger" onclick={onRemove}><Trash2 size={12} /> Remove</button>
+    {/if}
     <Button size="sm" onclick={submit}>{submitLabel}</Button>
   </div>
 </div>
@@ -140,15 +136,12 @@
     opacity: 0.35;
     cursor: default;
   }
-  .cfg-move {
-    display: inline-flex;
+  /* A stable label column wide enough for "Quantity". */
+  .cfg-field {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
     align-items: center;
-  }
-  .cfg-move::before {
-    content: 'Move';
-    margin: 0 2px 0 6px;
-    color: var(--color-text-muted);
-    font-size: var(--text-metadata);
+    gap: 8px;
   }
   .cfg-action.danger {
     color: var(--color-text-muted);

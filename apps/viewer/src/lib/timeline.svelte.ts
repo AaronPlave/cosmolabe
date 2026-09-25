@@ -43,6 +43,11 @@ export const timeline = $state({
    * automatic, content-fitted one.
    */
   laneHeight: null as number | null,
+  /**
+   * Fit mode (double-click the region's edge): sized to its rows, capped only
+   * by the hard scene-preserving maximum. Ignored while `laneHeight` is set.
+   */
+  laneFit: false,
 });
 
 /** The inspected (ghost) instant: the pointer's, else a linked preview's. */
@@ -71,6 +76,8 @@ export interface ProfileEventTick {
   /** The event vocabulary: colour by kind and state, shape by temporality. */
   kind: string;
   state?: string;
+  /** Who the event is between, for relationship-aware annotation. */
+  participants: Readonly<Record<string, string | undefined>>;
 }
 
 export function setTimelineHover(
@@ -84,19 +91,14 @@ export function setTimelineHover(
 }
 
 /**
- * A profile row's height, px. Profiles are read by their shape and get the
- * room lanes do not: one profile is given generous height, more compress
- * toward a floor before the region starts scrolling, and an expanded row is
- * tall enough for a labelled scale.
+ * A profile row's height, px. Exactly two modes, chosen by the row's own
+ * expand toggle and nothing else — never by how many profiles exist: normal
+ * (trace and value) and expanded (tall enough for a labelled scale).
  */
-export function profileRowHeight(count: number, expanded: boolean, wide: boolean): number {
-  if (expanded) return 120;
-  if (wide) return count <= 1 ? 76 : count === 2 ? 60 : 46;
-  return count <= 1 ? 64 : count === 2 ? 50 : 40;
+export function profileRowHeight(expanded: boolean, wide: boolean): number {
+  if (expanded) return 116;
+  return wide ? 46 : 40;
 }
-
-/** Rows at least this tall show gridlines with values. */
-export const PROFILE_GRID_MIN_HEIGHT = 56;
 
 export function toggleRowExpanded(id: string) {
   timeline.expandedRows[id] = !timeline.expandedRows[id];
@@ -180,7 +182,7 @@ export interface TimelineSurfaceOptions {
 }
 
 /** Half-width, in px, of the invisible grab target around the playhead line. */
-const PLAYHEAD_GRAB_PX = 5;
+const PLAYHEAD_GRAB_PX = 7;
 const PLAYHEAD_GRAB_TOUCH_PX = 12;
 
 /** Travel, in px, before a press is read as a pan (or, for touch, a scroll). */
@@ -257,6 +259,16 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
   // The axis a drag started on is the one it keeps, wherever it wanders.
   let drag: { id: number; x: number; mode: 'pan' | 'scrub'; bounds: AxisBounds } | null = null;
 
+  /**
+   * Cursor state as a data attribute, which the stylesheet applies to the
+   * dock and its plots alike — an inline cursor on the dock would lose to
+   * the plots' own crosshair.
+   */
+  const setCursor = (state: 'playhead' | 'scrub' | 'pan' | null) => {
+    if (state) node.dataset.tlCursor = state;
+    else delete node.dataset.tlCursor;
+  };
+
   /** The pointer's fraction of the axis, or null outside the live area. */
   const fractionAt = (e: PointerEvent | WheelEvent, clamp = false, b = opts.bounds(e)) => {
     if (!b || !(b.width > 0)) return null;
@@ -281,18 +293,18 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
     const f = fractionAt(e, false, b);
     if (f == null || !b) {
       if (timeline.hoverEt != null) setTimelineHover(null);
-      node.style.cursor = '';
+      setCursor(null);
       return;
     }
     const { at, id } = hoverTarget(f, b.width, opts.targets(row?.id ?? null));
     const top = row ? row.el.getBoundingClientRect().top : b.top;
     setTimelineHover(timelineEt(at), id, { x: b.left + at * b.width, y: top });
-    node.style.cursor = onPlot(e.target) && nearPlayhead(e) ? 'ew-resize' : '';
+    setCursor(onPlot(e.target) && nearPlayhead(e) ? 'playhead' : null);
   };
 
   const endDrag = () => {
     drag = null;
-    node.style.cursor = '';
+    setCursor(null);
   };
 
   const reset = () => {
@@ -303,7 +315,7 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
 
   const beginDrag = (e: PointerEvent, mode: 'pan' | 'scrub', fromX: number, bounds: AxisBounds) => {
     if (!node.hasPointerCapture(e.pointerId)) node.setPointerCapture(e.pointerId);
-    node.style.cursor = mode === 'pan' ? 'grabbing' : 'ew-resize';
+    setCursor(mode);
     setTimelineHover(null);
     drag = { id: e.pointerId, x: fromX, mode, bounds };
   };
@@ -379,7 +391,7 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
     if (drag || e.pointerType === 'touch') return;
     setTimelineHover(null);
     timeline.hoverRow = null;
-    node.style.cursor = '';
+    setCursor(null);
   };
   // Non-passive, so the page does not scroll while the timeline zooms or pans.
   const wheel = (e: WheelEvent) => {

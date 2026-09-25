@@ -17,12 +17,12 @@
   import { eventDuration } from '@cosmolabe/core';
   import { vs } from '../../lib/viewer-state.svelte';
   import { analysis } from '../../lib/analysis.svelte';
-  import { ef, selectEvent, setConfiguredQueryVisible } from '../../lib/event-finder.svelte';
+  import { ef, selectEvent, setConfiguredQueryVisible, removeConfiguredQuery } from '../../lib/event-finder.svelte';
   import {
     activeEventsAtTime, eventContainsTime, eventTimelineFractions, formatSeconds,
   } from '../../lib/event-query';
   import { timeline, eventKey, ghostEt } from '../../lib/timeline.svelte';
-  import { Eye, EyeOff } from 'lucide-svelte';
+  import { Eye, EyeOff, Trash2 } from 'lucide-svelte';
 
   interface Props {
     item: ConfiguredEventQuery;
@@ -108,6 +108,14 @@
         title={item.visible ? 'Hide lane' : 'Show lane'}
       >
         {#if item.visible}<Eye size={11} />{:else}<EyeOff size={11} />{/if}
+      </button>
+      <button
+        class="tl-icon-btn danger"
+        onclick={() => removeConfiguredQuery(item.id)}
+        aria-label="Remove {item.label}"
+        title="Remove category"
+      >
+        <Trash2 size={11} />
       </button>
     </span>
   </div>

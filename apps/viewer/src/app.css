@@ -309,19 +309,24 @@
     font-size: var(--text-metadata);
     line-height: 14px;
   }
+  /* 12 px: ordinary values. Only genuinely strong state (the clock) is 13. */
   .tl-num {
     font-family: var(--font-mono);
-    font-size: var(--text-section);
+    font-size: var(--text-label);
     font-variant-numeric: tabular-nums;
     line-height: 14px;
   }
 
   /* Separate aligned rows, not cards: a thin rule between rows, a slightly
      lifted plot surface, a faint wash on the inspected row. */
+  /* Rows are exactly their height: one grid track that may not grow to its
+     content, so a plot can never spill into — and double-paint — the next. */
   .tl-row {
     position: relative;
     display: grid;
     grid-template-columns: var(--tl-gutter, 0px) var(--tl-axis, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     transition: background var(--duration-chrome) var(--ease-chrome);
   }
@@ -342,7 +347,7 @@
     align-items: center;
     gap: 2px;
     min-width: 0;
-    padding-right: 10px;
+    padding: 0 10px 0 5px;
   }
   .tl-label.top {
     align-items: flex-start;
@@ -355,7 +360,6 @@
     align-items: baseline;
     gap: 4px;
     padding: 1px 4px;
-    margin-left: -4px;
     border: none;
     border-radius: 3px;
     background: none;
@@ -370,6 +374,7 @@
   button.tl-label-main:hover {
     background: var(--color-control-hover);
   }
+  /* The first character is never clipped; long labels ellipsize right. */
   .tl-label-main .tl-primary {
     flex-shrink: 0;
     max-width: 100%;
@@ -412,6 +417,9 @@
     color: var(--color-text-primary);
     background: var(--color-control-hover);
   }
+  .tl-icon-btn.danger:hover {
+    color: var(--color-error);
+  }
 
   /* Phone: no gutter; the label sits inside the plot's top-left. */
   .tl-label.overlay {
@@ -441,11 +449,35 @@
   .tl-plot {
     position: relative;
     min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: clip;
     background: rgba(255, 255, 255, 0.03);
     cursor: crosshair;
     /* Vertical swipes scroll the lane region; see `timelineSurface`. */
     touch-action: pan-y;
     user-select: none;
+  }
+
+  /* Out of intrinsic layout: an SVG sizes to the plot, never the reverse. */
+  .tl-plot > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Cursor state belongs to the timeline surface (`data-tl-cursor` on the
+     dock) and must win over the plots' own crosshair. */
+  [data-tl-cursor='playhead'],
+  [data-tl-cursor='playhead'] .tl-plot,
+  [data-tl-cursor='scrub'],
+  [data-tl-cursor='scrub'] * {
+    cursor: ew-resize;
+  }
+  [data-tl-cursor='pan'],
+  [data-tl-cursor='pan'] * {
+    cursor: grabbing;
   }
 
   /* The rail: right-aligned under the clock, one x for every value. */

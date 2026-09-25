@@ -27,7 +27,7 @@ function fakeDock() {
   const target = new EventTarget();
   const captured = new Set<number>();
   return Object.assign(target, {
-    style: { cursor: '' },
+    dataset: {} as Record<string, string>,
     setPointerCapture: (id: number) => captured.add(id),
     releasePointerCapture: (id: number) => captured.delete(id),
     hasPointerCapture: (id: number) => captured.has(id),
@@ -235,11 +235,34 @@ describe('timeline surface gestures', () => {
 });
 
 describe('profile row heights', () => {
-  it('gives a lone profile room, compresses more toward a floor, and expands for a scale', () => {
-    expect(profileRowHeight(1, false, true)).toBeGreaterThan(profileRowHeight(2, false, true));
-    expect(profileRowHeight(2, false, true)).toBeGreaterThan(profileRowHeight(3, false, true));
-    expect(profileRowHeight(3, false, true)).toBe(profileRowHeight(8, false, true));
-    expect(profileRowHeight(8, true, true)).toBeGreaterThan(profileRowHeight(1, false, true));
+  it('has exactly two modes, set by the row alone — never by how many profiles exist', () => {
+    expect(profileRowHeight(false, true)).toBeLessThanOrEqual(50);
+    expect(profileRowHeight(false, true)).toBeGreaterThanOrEqual(44);
+    expect(profileRowHeight(true, true)).toBeGreaterThanOrEqual(110);
+    expect(profileRowHeight(true, true)).toBeLessThanOrEqual(120);
+  });
+});
+
+describe('timeline cursor', () => {
+  it('shows the scrub cursor near the playhead and while dragging it, grabbing while panning', () => {
+    scrubTo.mockClear();
+    Object.assign(vs, { scrubBaseMin: 0, scrubBaseMax: 10_000, scrubMin: 1000, scrubMax: 2000, et: 1500 });
+    const dock = fakeDock();
+    timelineSurface(dock as unknown as HTMLElement, {
+      bounds: () => ({ left: 0, width: 100, top: 0, bottom: 100 }),
+      targets: () => ({ snapTargets: [] }),
+    });
+    pointer(dock, 'pointermove', 56, 45, 'mouse');
+    expect(dock.dataset.tlCursor).toBe('playhead');
+    pointer(dock, 'pointermove', 20, 45, 'mouse');
+    expect(dock.dataset.tlCursor).toBeUndefined();
+    pointer(dock, 'pointerdown', 20, 45, 'mouse');
+    pointer(dock, 'pointermove', 30, 45, 'mouse');
+    expect(dock.dataset.tlCursor).toBe('pan');
+    pointer(dock, 'pointerup', 30, 45, 'mouse');
+    // The pan moved the window 100 s earlier: the playhead is now at 60 px.
+    pointer(dock, 'pointerdown', 60, 45, 'mouse');
+    expect(dock.dataset.tlCursor).toBe('scrub');
   });
 });
 

@@ -20,11 +20,12 @@
     moveConfiguredProfile, removeConfiguredItem,
   } from '../../lib/analysis.svelte';
   import {
-    timeline, timelineFraction, toggleRowExpanded, ghostEt, PROFILE_GRID_MIN_HEIGHT,
+    timeline, timelineFraction, toggleRowExpanded, ghostEt,
     type ProfileEventTick,
   } from '../../lib/timeline.svelte';
   import {
     profileQuantity, sampleProfile, sampleCountFor, profilePath, quantityAt, valueY, gridValues,
+    seriesValueAt, eventRelevantToProfile,
     type PositionOf, type ProfileBodies,
   } from '../../lib/profile-sampling';
   import { inWindow } from '../../lib/scrubber-math';
@@ -38,7 +39,7 @@
     axisWidth: number;
     /** Desktop: a label gutter and a readout rail around the axis. */
     wide: boolean;
-    /** Row height, px, from the lane stack's adaptive sizing. */
+    /** Row height, px: the row's mode (normal or expanded), set by the stack. */
     height: number;
     ticks: readonly ProfileEventTick[];
     first: boolean;
@@ -51,7 +52,8 @@
   const rowId = $derived(`profile:${item.id}`);
   const expanded = $derived(!!timeline.expandedRows[item.id]);
   const H = $derived(height);
-  const tall = $derived(H >= PROFILE_GRID_MIN_HEIGHT);
+  // Expanded is the one mode with a labelled scale; nothing else implies it.
+  const tall = $derived(expanded);
   const inspectedRow = $derived(timeline.hoverRow === rowId);
 
   const spec = $derived(profileQuantity(item.profile.quantity));
@@ -102,8 +104,22 @@
     return quantityAt(spec.id, bodies, ghost ?? vs.et, pos);
   });
 
+  // The readout is exact; the dot sits on the *drawn* trace at the cursor, so
+  // at wide spans, where the display sampling smooths fast oscillation, the
+  // dot never floats off the line the user can see.
   const dotFrac = $derived(timelineFraction(ghost ?? vs.et));
-  const dotY = $derived(readout != null && series && hasData ? yOf(readout) : null);
+  const dotY = $derived.by(() => {
+    if (!series || !hasData) return null;
+    const drawn = seriesValueAt(series, ghost ?? vs.et);
+    return drawn == null ? null : yOf(drawn);
+  });
+
+  // Events drawn behind this trace: by default only those between its own
+  // bodies, so a profile does not become a barcode of every family. A
+  // selected or previewed event shows on every profile.
+  const shownTicks = $derived(
+    ticks.filter((t) => t.selected || t.previewed || (bodies != null && eventRelevantToProfile(t.participants, bodies))),
+  );
 
   let configOpen = $state(false);
 
@@ -189,8 +205,9 @@
           <line class="zero" x1="0" x2={W} y1={H / 2} y2={H / 2} />
         {/if}
         <!-- Events behind the trace, in the shared vocabulary but quiet, so
-             the trace stays the row's content. -->
-        {#each ticks as tick (tick.id)}
+             the trace stays the row's content. Relationship-aware: see
+             `shownTicks`. -->
+        {#each shownTicks as tick (tick.id)}
           {#if tick.endFraction > tick.fraction}
             <rect
               class="event-span" class:emphasis={tick.selected || tick.previewed} class:active={tick.active}
@@ -249,11 +266,6 @@
 </div>
 
 <style>
-  .plot svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
   .plot line,
   .plot path {
     vector-effect: non-scaling-stroke;

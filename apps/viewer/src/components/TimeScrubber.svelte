@@ -1,6 +1,6 @@
 <script lang="ts">
   import { clampFraction, inWindow, KEYBOARD_STEP } from '../lib/scrubber-math';
-  import { Search } from 'lucide-svelte';
+  import { ChevronDown } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
 
   interface Props {
@@ -56,8 +56,15 @@
     viewportEnd?: number;
     /** Current time position as fraction of full range (for minimap playhead) */
     globalPlayhead?: number;
-    /** Visible duration label (e.g. "~43d") — clickable for presets */
+    /** Visible span (e.g. "43 d") — the range control's label. */
     rangeLabel?: string;
+    /**
+     * What the span is, when it is not just a zoom: "Full mission". Shown in
+     * the stacked caption, where there is room to say it.
+     */
+    rangeContext?: string;
+    /** Track height, px: taller when collapsed, where it is the overview. */
+    trackHeight?: number;
     /** Framing presets offered above "Fit mission" in the range popover. */
     fitOptions?: readonly { label: string; onSelect: () => void }[];
     /**
@@ -98,7 +105,7 @@
     onResetZoom, onSetZoom,
     startLabel, endLabel,
     isZoomed = false, viewportStart = 0, viewportEnd = 1, globalPlayhead = 0.5,
-    rangeLabel, fitOptions = [], markers = [], bands = 1, dense = false,
+    rangeLabel, rangeContext = '', trackHeight = 12, fitOptions = [], markers = [], bands = 1, dense = false,
     hoverFraction = null, hoverLabel = '', ghostLine = true, layout = 'inline',
     onViewportPan, onViewportCenter,
     trackEl = $bindable(),
@@ -253,6 +260,7 @@
       <div
         bind:this={trackEl}
         class="track"
+        style="height: {trackHeight}px"
         class:banded={bands > 1}
         class:dense
         onpointerdown={onPointerDown}
@@ -338,14 +346,11 @@
       class="icon-btn range-btn font-mono justify-center {layout === 'inline' ? 'min-w-16' : 'caption'}"
       title="Set time range (scroll over the timeline to zoom)"
     >
-      {#if rangeLabel}
-        {rangeLabel}
-      {:else}
-        <Search size={10} />
-      {/if}
+      {layout === 'stacked' && rangeContext ? `${rangeContext} · ${rangeLabel}` : rangeLabel}
+      <ChevronDown size={10} />
     </Popover.Trigger>
     <Popover.Portal>
-      <Popover.Content side="top" sideOffset={8} class="w-28 p-1">
+      <Popover.Content side="top" sideOffset={8} class="w-36 p-1">
         <div class="flex flex-col gap-0.5">
           {#each ZOOM_PRESETS as preset}
             <button class="zoom-preset" onclick={() => selectPreset(preset.seconds)}>
@@ -624,7 +629,9 @@
   /* ── Match icon-btn style from BottomBar ── */
 
   :global(.range-btn) {
+    gap: 3px;
     font-size: 10px;
+    white-space: nowrap;
   }
 
   :global(.icon-btn) {

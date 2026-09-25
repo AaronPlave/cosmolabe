@@ -115,9 +115,9 @@
   // The track is an overview, not a lossless stack: each event family (query)
   // gets a sub-band a few px tall, so overlapping results from different
   // queries do not share pixels; within a family, overlaps merge visually.
-  // Exact distinctions are the lanes'. Past a handful of families, bands get
-  // too thin to read and the overview becomes a density instead.
-  const MAX_BANDS = 4;
+  // Exact distinctions are the lanes'. Past three families, bands get too
+  // thin to read and the overview becomes a density instead.
+  const MAX_BANDS = 3;
   let eventMarkers = $derived.by(() => {
     const range = { start: vs.scrubMin, end: vs.scrubMax };
     const drawn = visibleTimelineEvents().flatMap((event) => {
@@ -138,6 +138,7 @@
       title: event.label,
       kind: event.kind,
       state: event.state,
+      participants: event.bodies,
       previewed: timeline.previewEventId === eventKey(event),
       band: families.length <= MAX_BANDS ? families.indexOf(event.queryId) : undefined,
       bands: families.length,
@@ -161,6 +162,7 @@
       active: m.active,
       kind: m.kind,
       state: m.state,
+      participants: m.participants,
     })),
   );
 
@@ -216,7 +218,7 @@
         return;
       }
       // The rail's values right-align under the clock.
-      const clockRight = toggleEl ? toggleEl.getBoundingClientRect().left - 6 : r.right;
+      const clockRight = toggleEl ? toggleEl.getBoundingClientRect().left - 2 : r.right;
       axis = { left: t.left - r.left, width: t.width, railEnd: Math.max(0, r.left + region.clientWidth - clockRight) };
       lines = { left: t.left - o.left, width: t.width, top: cell.top - o.top, lanesTop: r.top - o.top, bottom: r.bottom - o.top };
     };
@@ -330,15 +332,15 @@
   const fitOptions = $derived.by(() => {
     const events = visibleTimelineEvents();
     const options: { label: string; onSelect: () => void }[] = [];
+    const selected = selectedEvent;
+    if (selected) {
+      options.push({ label: 'Fit selected', onSelect: () => fitSpan(eventStart(selected), eventEnd(selected)) });
+    }
     if (events.length > 0) {
       options.push({
         label: 'Fit results',
         onSelect: () => fitSpan(Math.min(...events.map(eventStart)), Math.max(...events.map(eventEnd))),
       });
-    }
-    const selected = selectedEvent;
-    if (selected) {
-      options.push({ label: 'Fit selected', onSelect: () => fitSpan(eventStart(selected), eventEnd(selected)) });
     }
     return options;
   });
@@ -354,23 +356,30 @@
 
   // ── Analysis region height ──
   //
-  // Automatic by default: the region fits its rows and stops growing at
-  // about a third of the viewport (`.lane-region`'s max-height), then scrolls.
-  // The dock's top edge is a resize handle while the region is open — drag up
-  // for more analysis, down for more scene; double-click returns to automatic.
-  // A dragged height is remembered for the session, per layout.
+  // Three states, remembered for the session per layout:
+  // - automatic (default): the region fits its rows and stops growing at
+  //   about a third of the viewport (`.lane-region`'s max-height), then
+  //   scrolls;
+  // - fit (double-click the top edge): sized to its content, clamped only by
+  //   the hard scene-preserving cap, so it scrolls only if the rows genuinely
+  //   exceed that — and it keeps fitting as rows come and go, since the
+  //   region is content-sized rather than given a measured height;
+  // - manual: dragged to a height.
   const MIN_LANE_HEIGHT = 44;
   const heightKey = () => `cosmolabe.timeline.laneHeight.${shell.layout}`;
-  function readLaneHeight(): number | null {
+  function readLaneHeight(): { height: number | null; fit: boolean } {
     try {
-      const v = Number(sessionStorage.getItem(heightKey()));
-      return v > 0 ? v : null;
+      const raw = sessionStorage.getItem(heightKey());
+      if (raw === 'fit') return { height: null, fit: true };
+      const v = Number(raw);
+      return { height: v > 0 ? v : null, fit: false };
     } catch {
-      return null;
+      return { height: null, fit: false };
     }
   }
-  function writeLaneHeight(v: number | null) {
-    timeline.laneHeight = v;
+  function writeLaneHeight(v: number | 'fit' | null) {
+    timeline.laneHeight = typeof v === 'number' ? v : null;
+    timeline.laneFit = v === 'fit';
     try {
       if (v == null) sessionStorage.removeItem(heightKey());
       else sessionStorage.setItem(heightKey(), String(v));
@@ -380,10 +389,19 @@
   }
   $effect(() => {
     void shell.layout;
-    untrack(() => { timeline.laneHeight = readLaneHeight(); });
+    untrack(() => {
+      const stored = readLaneHeight();
+      timeline.laneHeight = stored.height;
+      timeline.laneFit = stored.fit;
+    });
   });
+  const regionSize = $derived(
+    timeline.laneHeight != null
+      ? ` height: ${timeline.laneHeight}px; max-height: none;`
+      : timeline.laneFit ? ' max-height: 58vh;' : '',
+  );
   function maxLaneHeight() {
-    return Math.round(window.innerHeight * 0.6);
+    return Math.round(window.innerHeight * 0.58);
   }
   function onResizeStart(e: PointerEvent) {
     if (e.button !== 0 || !regionEl) return;
@@ -406,12 +424,18 @@
     handle.addEventListener('pointercancel', end);
   }
 
-  let rangeLabel = $derived(isZoomed ? formatDuration(currentRange) : '');
+  // The range control names what it is framing: the full mission and its
+  // span, or the zoomed span. Never a bare icon.
+  const spanText = (seconds: number) => formatDuration(seconds).replace('~', '').replace(/([\d.])([a-z])/, '$1 $2');
+  let rangeLabel = $derived(isZoomed ? spanText(currentRange) : spanText(baseRange));
+  let rangeContext = $derived(isZoomed ? '' : 'Full mission');
   // The bounds are dropped at a phone width, where they left the track about
   // forty pixels to draw a two-year mission in. The clock and the zoom readout
   // still say where in time the playhead is; a squeezed axis says nothing.
-  let startLabel = $derived(compact ? '' : isZoomed ? etToShortDate(vs.scrubMin) : etToShortDate(vs.scrubBaseMin));
-  let endLabel = $derived(compact ? '' : isZoomed ? etToShortDate(vs.scrubMax) : etToShortDate(vs.scrubBaseMax));
+  // Collapsed, the strip is a dense overview and the axis takes the width:
+  // the bounds live in the expanded axis caption instead.
+  let startLabel = $derived(!gridded ? '' : isZoomed ? etToShortDate(vs.scrubMin) : etToShortDate(vs.scrubBaseMin));
+  let endLabel = $derived(!gridded ? '' : isZoomed ? etToShortDate(vs.scrubMax) : etToShortDate(vs.scrubBaseMax));
 
   // ── Go to time ──
 
@@ -454,17 +478,19 @@
   class:z-20={!inline}
   class:desktop-timeline={!inline}
   class:relative={inline}
-  class:px-3={true}
-  class:py-1.5={true}
+  class:px-3={expanded}
+  class:py-1.5={expanded}
+  class:px-2={!expanded}
+  class:py-1={!expanded}
 >
   {#if expanded}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="resize-handle"
-      class:manual={timeline.laneHeight != null}
+      class:manual={timeline.laneHeight != null || timeline.laneFit}
       title="Drag to resize the analysis area · double-click to fit it to its rows"
       onpointerdown={onResizeStart}
-      ondblclick={() => writeLaneHeight(null)}
+      ondblclick={() => writeLaneHeight('fit')}
     ></div>
   {/if}
   {#if callout}
@@ -533,6 +559,8 @@
         {viewportEnd}
         {globalPlayhead}
         {rangeLabel}
+        {rangeContext}
+        trackHeight={gridded ? 12 : 15}
         {fitOptions}
         markers={eventMarkers}
         bands={familyCount <= MAX_BANDS ? Math.max(1, familyCount) : 1}
@@ -540,17 +568,10 @@
       />
     </div>
 
-    <div class="transport-rail flex shrink-0 items-center gap-1.5">
+    <div class="transport-rail flex shrink-0 items-center gap-0.5">
       <Popover.Root bind:open={gotoTimeOpen} onOpenChange={onGotoOpen}>
-        <Popover.Trigger class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'compact-current' : ''} {gridded ? 'stacked-clock' : ''}">
-          {#if compact}
-            {vs.timeText.replace(' UTC', '').slice(11)}
-          {:else if gridded && /^\d{4}-/.test(vs.timeText)}
-            <span class="clock-date">{vs.timeText.slice(0, 10)}</span>
-            <span class="clock-time">{vs.timeText.slice(11)}</span>
-          {:else}
-            {vs.timeText}
-          {/if}
+        <Popover.Trigger class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'compact-current' : ''}">
+          {compact ? vs.timeText.replace(' UTC', '').slice(11) : vs.timeText}
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content side="top" sideOffset={8} class="w-80 p-3">
@@ -591,9 +612,7 @@
     <div
       bind:this={regionEl}
       class="lane-region"
-      style="--tl-gutter: {axis.left}px; --tl-axis: {axis.width}px; --tl-rail-end: {axis.railEnd}px;{timeline.laneHeight != null
-        ? ` height: ${timeline.laneHeight}px; max-height: none;`
-        : ''}"
+      style="--tl-gutter: {axis.left}px; --tl-axis: {axis.width}px; --tl-rail-end: {axis.railEnd}px;{regionSize}"
     >
       {#each eventLanes as item (item.id)}
         <EventLane {item} wide={wideLanes} />
@@ -755,19 +774,6 @@
   .transport-row.gridded .transport-rail {
     padding-left: 10px;
   }
-  :global(.current-time.stacked-clock) {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    padding-right: 0;
-    line-height: 1.15;
-  }
-  :global(.stacked-clock .clock-date) {
-    color: var(--color-text-secondary);
-    font-size: var(--text-section);
-    font-weight: 400;
-  }
-
   /* The ghost and the playhead, once, through every row. Weight and opacity
      tell them apart, not colour. */
   .axis-line {

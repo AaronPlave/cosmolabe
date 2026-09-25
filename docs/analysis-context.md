@@ -62,7 +62,7 @@ analysis features can add items through `createConfiguredEventQuery()` or
 The collapsed timeline's transport track is an overview of every visible
 event result: each configured query gets a sub-band a few pixels tall, so
 overlapping results from different queries do not share pixels, and selected
-or previewed results rise to full height. Past four families the overview
+or previewed results rise to full height. Past three families the overview
 becomes a density instead. Expanding the timeline adds one lane per enabled
 `event-query` item (`components/shell/EventLane.svelte`), above the profile
 rows and on the same axis. A lane's eye toggle flips the item's shared
@@ -82,7 +82,17 @@ overlay.
 Events speak one visual vocabulary on every surface: shape carries
 temporality (an instant is a line, an interval a span), and colour carries kind
 and occultation state (`data-ev-kind` / `data-ev-state` → `--ev` in `app.css`).
-That includes the spans drawn faintly behind profile traces.
+That includes the events drawn faintly behind profile traces. There, a
+profile shows by default only the events between its own two bodies. A
+selected or previewed event appears on every profile, so a profile never turns
+into a barcode of every family.
+
+A configured category is removed with `removeConfiguredQuery(id)`: from the
+Event Finder's category list, or from the lane's hover controls. Removing a
+category drops its item and cached results, which also removes its lane. It
+clears a selection or preview of one of its results. If the category was being
+edited, the form moves to a neighbouring category, or to a fresh search when
+none is left.
 
 ## Continuous profiles on the timeline
 
@@ -116,17 +126,26 @@ marked as a preview, while hovering. Timeline text uses three type roles only:
 primary (`.tl-primary`), secondary (`.tl-secondary`) and numeric (`.tl-num`).
 On a phone the axis takes the full width and labels overlay the plots.
 
-Row heights differ by purpose (`profileRowHeight`):
+Event lanes are compact. A profile row has exactly two modes, set only by its
+own expand toggle (`profileRowHeight`): normal (about 46 px, trace and value)
+and expanded (about 116 px, with three labelled gridlines). How many profiles
+exist never changes how a row is presented.
 
-- **Event lanes:** compact, because they are categorical.
-- **Profiles:** taller, because their shape matters. A lone profile gets the
-  most room, and more profiles compress toward a floor.
-- **Expanded rows:** tall enough for a labelled scale.
+The analysis region's height has three states, remembered for the session
+per layout:
 
-The analysis region fits its rows up to about 38 % of the viewport, then
-scrolls. The dock's top edge is a resize handle: drag it for more analysis or
-more scene, and double-click to return to the automatic height. A dragged
-height is remembered for the session, per layout.
+- **Automatic (default):** it fits its rows up to about 38 % of the viewport,
+  then scrolls.
+- **Fit to content:** double-click the dock's top edge. The region is
+  content-sized, capped only at the scene-preserving 58 % of the viewport, and
+  keeps fitting as rows are added or removed.
+- **Manual:** drag the top edge.
+
+Collapsed, the dock is a dense overview. It has less padding, a taller event
+strip, and no bound labels, so the axis gets the width. Expanded, the window's
+bounds and span sit in a caption under the track, for example
+`2030-10-14 · Full mission · 3.6 yr ▾ · 2034-05-29`, and the clock is one
+line at the head of the rail.
 
 The dock is one interaction plane (`timelineSurface` in `lib/timeline.svelte.ts`),
 not a set of per-row handlers. The pointer belongs to the shared axis, so the
@@ -138,12 +157,16 @@ value dot and a small value tip) and which events a hover snaps to. The dock
 draws one ghost line and one playhead through every row. A playhead outside
 the zoomed window is not drawn anywhere, rather than pinned to an edge.
 
+Cursor state comes from the surface as `data-tl-cursor` on the dock
+(`playhead`, `scrub`, `pan`). Every plot reads it, so it overrides the plots'
+own crosshair.
+
 Each surface has one job:
 
 - **Transport track:** scrubs.
 - **Analysis plots:** a click seeks, and a background drag pans the view.
 - **Playhead:** a drag that starts on it scrubs. It is a thin line with a
-  ~10 px grab target.
+  ~14 px grab target.
 - **Wheel:** a sideways or Shift wheel pans; a plain wheel zooms.
 - **Minimap under the track:** a neutral viewport that can be dragged to pan
   while zoomed.
@@ -165,7 +188,10 @@ The range control offers Fit results, Fit selected and Fit mission. Jumping the
 playhead (`setTime`) keeps the zoom.
 
 Sampling is a display sampling of `Universe.absolutePositionOf` across the
-visible window, about one sample per two pixels, and is unrelated to any
+visible window, about one sample per pixel (capped at 1600), and is unrelated to any
 geometry-finder step. It needs no SPICE kernels, so profiles work on Keplerian,
 TLE and sampled-trajectory catalogs. Readouts are computed exactly at the
-hovered or current instant rather than read off the nearest sample.
+hovered or current instant rather than read off the nearest sample. The
+cursor's dot is placed by interpolating the drawn series
+(`seriesValueAt`), so it always sits on the visible line, even where the
+display sampling smooths a fast oscillation.
