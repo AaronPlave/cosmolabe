@@ -574,9 +574,19 @@ export function configuredEventQueries(): ConfiguredEventQuery[] {
   return analysis.items.filter((item): item is ConfiguredEventQuery => item.type === 'event-query');
 }
 
+/**
+ * Enables or disables a search in the analysis. Disabling takes its results
+ * out of the analysis, so a preview or selection of one of them goes too —
+ * unlike hiding it from the timeline (`setConfiguredQueryVisible`), which
+ * leaves the selection valid.
+ */
 export function setConfiguredQueryEnabled(id: string, enabled: boolean) {
   setConfiguredItemEnabled(id, enabled);
   if (!enabled && ef.previewQueryId === id) previewEvent(null);
+  if (!enabled && ef.selectedQueryId === id) {
+    clearSelection();
+    return;
+  }
   syncEventResultsInScene();
 }
 

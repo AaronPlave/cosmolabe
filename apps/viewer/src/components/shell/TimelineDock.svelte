@@ -40,7 +40,7 @@
   import {
     ef, previewEvent, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries, isSelectedEvent, selectedEventOf,
   } from '../../lib/event-finder.svelte';
-  import { visibleTimelineEvents } from '../../lib/analysis.svelte';
+  import { analysisContext, visibleTimelineEvents } from '../../lib/analysis.svelte';
   import {
     activeEventsAtTime, eventCalloutLines, eventContainsTime, eventTimelineFractions,
   } from '../../lib/event-query';
@@ -353,7 +353,11 @@
     const pad = span > 0 ? span * 0.08 : Math.min(currentRange, 6 * 3600) / 2;
     setScrubberWindow(start - pad, end + pad);
   }
-  const selectedEvent = $derived(selectedEventOf(visibleTimelineEvents()));
+  // From every enabled search's results, not only the timeline-visible ones:
+  // selection is global, and `visible` is about timeline presentation only.
+  // Hiding a lane keeps its selected event (and its inspector); disabling
+  // the search clears it (`setConfiguredQueryEnabled`).
+  const selectedEvent = $derived(selectedEventOf(analysisContext().eventResults));
 
   // ── Selected-event inspector ──
   //

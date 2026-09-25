@@ -76,6 +76,13 @@ The three event surfaces have different jobs:
 event's own search, whose selected row already shows it. Neither view
 repeats the headline metric in the details.
 
+The selected event is looked up among enabled searches' results
+(`analysisContext().eventResults`), not only the timeline-visible ones. So the
+two flags mean different things. `visible = false` hides a search from the
+timeline, and its selected event (and the inspector) stay. `enabled = false`
+removes it from the analysis, and a selection belonging to it is cleared.
+"Fit selected" uses the same global selected event.
+
 Active, selected and previewed stay distinct. Active events get no card. When
 the timeline is collapsed and events are active, a small "N active" count sits
 by the clock, and clicking it expands the timeline. The timeline reads

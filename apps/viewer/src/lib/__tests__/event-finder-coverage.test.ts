@@ -278,4 +278,28 @@ describe('draft and configured searches', () => {
     expect(ef.configuredId).toBe(a.id);
     expect(isSelectedEvent(result)).toBe(true);
   });
+
+  it('hiding a search from the timeline keeps its selected event; disabling it clears it', async () => {
+    const {
+      selectEvent, selectedEventOf, setConfiguredQueryVisible, setConfiguredQueryEnabled,
+    } = await import('../event-finder.svelte');
+    const { analysisContext, createConfiguredEventQuery, setEventResults, visibleTimelineEvents } = await import('../analysis.svelte');
+    const q = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Venus' } }, 'Q');
+    const result = {
+      id: 'r0', queryId: q.id, kind: 'closest-approach', temporality: 'instant' as const,
+      et: 10, bodies: { observer: 'Earth', target: 'Venus' }, label: 'q',
+    };
+    setEventResults(q.id, [result]);
+    selectEvent(result);
+
+    // `visible` is timeline presentation: the lane goes, the selection stays.
+    setConfiguredQueryVisible(q.id, false);
+    expect(visibleTimelineEvents()).toEqual([]);
+    expect(selectedEventOf(analysisContext().eventResults)?.id).toBe('r0');
+
+    // `enabled` is analysis membership: the selection goes with it.
+    setConfiguredQueryEnabled(q.id, false);
+    expect([ef.selectedId, ef.selectedQueryId]).toEqual([null, null]);
+  });
 });
+
