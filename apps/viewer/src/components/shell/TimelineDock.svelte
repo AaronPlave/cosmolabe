@@ -24,18 +24,20 @@
     setScrubberWindow, panScrubberBy,
   } from '../../lib/viewer-state.svelte';
   import {
-    timeline, timelineSurface, ghostEt, timelineFraction,
+    timeline, timelineSurface, ghostEt, timelineFraction, clockLines,
     eventKey, eventHoverTargets, type ProfileEventTick, type TimelineGestureOptions,
   } from '../../lib/timeline.svelte';
   import { eventEnd, eventStart } from '@cosmolabe/core';
   import { untrack } from 'svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
+  import AddProfile from './AddProfile.svelte';
+  import RangeControl from '../RangeControl.svelte';
   import { shell, setTimelineDepth } from '../../lib/shell.svelte';
   import { formatDuration, inWindow } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
   import {
-    ef, previewEvent, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries,
+    ef, previewEvent, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries, isSelectedEvent, selectedEventOf,
   } from '../../lib/event-finder.svelte';
   import { visibleTimelineEvents } from '../../lib/analysis.svelte';
   import { eventCalloutLines, eventContainsTime, eventTimelineFractions } from '../../lib/event-query';
@@ -77,11 +79,18 @@
   const secondaryHidden = $derived(compact && !expanded);
   /**
    * Desktop, expanded: the dock is one grid — label gutter, time axis,
-   * readout rail — and the transport lays itself out on it, so the track is
-   * the axis column every row below draws on. Collapsed keeps the compact
-   * transport strip; a phone overlays labels instead of a gutter.
+   * readout rail — and the transport takes two rows of it: controls, track
+   * and clock; then "+ Profile", the axis caption, nothing. So the track is
+   * the axis column every row below draws on, and the controls and clock
+   * centre on the track rather than on the track and its caption together.
+   * Collapsed keeps the one-row transport strip.
    */
   const gridded = $derived(expanded && !compact);
+  /**
+   * A phone, expanded: a header line — controls, clock, actions — over a
+   * full-width track, the same width as the stacked rows' plots below it.
+   */
+  const phoneStacked = $derived(expanded && compact);
 
   // ── Scrubber state ──
 
@@ -132,7 +141,7 @@
       queryId: event.queryId,
       fraction: span.start,
       endFraction: span.end,
-      selected: ef.selectedId === event.id && ef.configuredId === event.queryId,
+      selected: isSelectedEvent(event),
       preview: ef.previewId === event.id && ef.previewQueryId === event.queryId,
       active: eventContainsTime(event, vs.et),
       title: event.label,
@@ -209,12 +218,12 @@
       const r = region.getBoundingClientRect();
       const t = track.getBoundingClientRect();
       const cell = transportCellEl?.getBoundingClientRect() ?? t;
-      // A phone leaves the track a sliver once the secondary transport is
-      // back; there the rows draw the same window across the dock's full
-      // width instead, with their labels overlaid.
+      // A phone's rows are full width, as is its expanded track.
+      // A phone's rows stack a header over each plot; each plot draws its
+      // own lines (`PlotCursor`) so none crosses a label or a button.
       if (compact) {
         axis = { left: 0, width: region.clientWidth, railEnd: 0 };
-        lines = { left: r.left - o.left, width: region.clientWidth, top: r.top - o.top, lanesTop: r.top - o.top, bottom: r.bottom - o.top };
+        lines = null;
         return;
       }
       // The rail's values right-align under the clock.
@@ -260,15 +269,22 @@
       ? undefined
       : visibleTimelineEvents().find((event) => eventKey(event) === timeline.previewEventId),
   );
+  // Rendered in a page-level layer (`portal`) at viewport coordinates, so no
+  // clipping ancestor — the phone's rounded dock — can cut it, and it rises
+  // over the scene and the dock's own chrome alike.
   const callout = $derived.by(() => {
-    if (!hoveredEvent || !timeline.anchor || !rootEl) return null;
-    const root = rootEl.getBoundingClientRect();
+    if (!hoveredEvent || !timeline.anchor) return null;
     const lines = eventCalloutLines(hoveredEvent, { utc: etToUtcString, selected: true });
-    // Kept inside the dock horizontally; it may rise above it into the scene.
     const half = 110;
-    const x = Math.max(half, Math.min(root.width - half, timeline.anchor.x - root.left));
-    return { lines, x, y: timeline.anchor.y - root.top, kind: hoveredEvent.kind, state: hoveredEvent.state };
+    const x = Math.max(half + 8, Math.min(window.innerWidth - half - 8, timeline.anchor.x));
+    return { lines, x, y: timeline.anchor.y, kind: hoveredEvent.kind, state: hoveredEvent.state };
   });
+
+  /** Moves an element to the end of the page, out of every clipping ancestor. */
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return { destroy: () => node.remove() };
+  }
 
   // Hover = preview across linked surfaces: an event hovered on any timeline
   // row is previewed in the scene through the Event Finder's own
@@ -325,11 +341,7 @@
     const pad = span > 0 ? span * 0.08 : Math.min(currentRange, 6 * 3600) / 2;
     setScrubberWindow(start - pad, end + pad);
   }
-  const selectedEvent = $derived(
-    ef.selectedId == null
-      ? undefined
-      : visibleTimelineEvents().find((event) => event.id === ef.selectedId && event.queryId === ef.configuredId),
-  );
+  const selectedEvent = $derived(selectedEventOf(visibleTimelineEvents()));
   const fitOptions = $derived.by(() => {
     const events = visibleTimelineEvents();
     const options: { label: string; onSelect: () => void }[] = [];
@@ -430,6 +442,23 @@
   const spanText = (seconds: number) => formatDuration(seconds).replace('~', '').replace(/([\d.])([a-z])/, '$1 $2');
   let rangeLabel = $derived(isZoomed ? spanText(currentRange) : spanText(baseRange));
   let rangeContext = $derived(isZoomed ? '' : 'Full mission');
+
+  // ── Current time ──
+  //
+  // A desktop has room for the whole timestamp. A phone measures what the
+  // transport leaves the clock and steps down a ladder that keeps the date
+  // to the end (`clockLines`).
+  let transportWidth = $state(0);
+  let controlsWidth = $state(0);
+  const TOUCH_BTN = 34;
+  const clockRoom = $derived.by(() => {
+    if (!compact) return Infinity;
+    // Collapsed, the track keeps a usable width beside the clock; expanded,
+    // the track has a line of its own and the clock shares with the actions.
+    const beside = phoneStacked ? TOUCH_BTN + 84 : TOUCH_BTN + 110;
+    return transportWidth - controlsWidth - beside - 12;
+  });
+  const clock = $derived(clockLines(vs.timeText, clockRoom));
   // The bounds are dropped at a phone width, where they left the track about
   // forty pixels to draw a two-year mission in. The clock and the zoom readout
   // still say where in time the playhead is; a squeezed axis says nothing.
@@ -500,8 +529,8 @@
   {/if}
   {#if !compact}
     <!-- Collapse / expand belongs to the timeline's edge, not the clock: a
-         small tab centred on the top edge. The rest of the edge is the
-         resize grip. -->
+         tab centred on the top edge. The rest of the edge is the resize
+         grip. -->
     <button
       class="edge-tab"
       aria-pressed={expanded}
@@ -509,11 +538,16 @@
       title={expanded ? 'Collapse timeline' : 'Expand timeline'}
       onclick={toggleDepth}
     >
-      {#if expanded}<ChevronDown size={12} />{:else}<ChevronUp size={12} />{/if}
+      {#if expanded}<ChevronDown size={14} />{:else}<ChevronUp size={14} />{/if}
     </button>
   {/if}
   {#if callout}
-    <div class="event-callout" style="left: {callout.x}px; top: {callout.y}px" role="tooltip">
+    <div
+      use:portal
+      class="event-callout"
+      style="left: {callout.x}px; top: {callout.y}px"
+      role="tooltip"
+    >
       <div class="callout-title">
         <span class="callout-glyph" data-ev-kind={callout.kind} data-ev-state={callout.state}></span>
         {callout.lines[0]}
@@ -529,15 +563,18 @@
     </div>
   {/if}
 
-  <!-- Compact keeps this to one row — play, axis, clock — and puts the rest
-       behind the expand toggle. The wrapped three-row transport it replaced
-       cost the scene a third of a phone screen before a sheet was even open,
-       which is backwards for a shell whose premise is scene-first.
-       Expanded on a desktop, the same three parts take the grid's three
-       columns: controls over the label gutter, the track as the axis column,
-       the clock heading the readout rail. -->
-  <div class="transport-row flex w-full items-center gap-1.5" class:gridded>
-    <div class="transport-controls flex shrink-0 items-center gap-1.5">
+  <!-- The transport. Collapsed, one row: play, axis, clock — the wrapped
+       three-row transport it replaced cost the scene a third of a phone
+       screen before a sheet was even open. Expanded on a desktop, two rows
+       of the dock's grid (see `gridded`); expanded on a phone, a header line
+       over a full-width track (see `phoneStacked`). -->
+  <div
+    class="transport"
+    class:gridded
+    class:phone-stacked={phoneStacked}
+    bind:clientWidth={transportWidth}
+  >
+    <div class="transport-controls flex shrink-0 items-center gap-1.5" bind:clientWidth={controlsWidth}>
       <div class="flex shrink-0 gap-px">
         {#if !secondaryHidden}
           <button class="tl-btn compact-hide" onclick={slower} title="Slower (Down)" aria-label="Slower"><ChevronsLeft size={14} /></button>
@@ -565,21 +602,20 @@
         {hoverFraction}
         {hoverLabel}
         ghostLine={!gridded}
-        layout={gridded ? 'stacked' : 'inline'}
+        layout={expanded ? 'stacked' : 'inline'}
         bind:trackEl
         onResetZoom={resetScrubberZoom}
         onSetZoom={setZoomDuration}
         {onViewportPan}
         {onViewportCenter}
-        {startLabel}
-        {endLabel}
+        startLabel=""
+        endLabel=""
         {isZoomed}
         {viewportStart}
         {viewportEnd}
         {globalPlayhead}
         {rangeLabel}
-        {rangeContext}
-        trackHeight={gridded ? 12 : 15}
+        trackHeight={expanded ? 16 : 18}
         {fitOptions}
         markers={eventMarkers}
         bands={familyCount <= MAX_BANDS ? Math.max(1, familyCount) : 1}
@@ -589,11 +625,14 @@
 
     <div bind:this={clockEl} class="transport-rail flex shrink-0 items-center gap-0.5">
       <Popover.Root bind:open={gotoTimeOpen} onOpenChange={onGotoOpen}>
-        <Popover.Trigger class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'compact-current' : ''}">
-          {compact ? vs.timeText.replace(' UTC', '').slice(11) : vs.timeText}
+        <Popover.Trigger
+          class="current-time shrink-0 whitespace-nowrap rounded px-2 py-0.5 font-mono text-text-primary transition-colors hover:bg-surface-3 cursor-pointer {compact ? 'compact-current' : ''} {clock.length > 1 ? 'two-line' : ''}"
+          aria-label="Current time {vs.timeText} — go to time"
+        >
+          {#each clock as line}<span class="clock-line">{line}</span>{/each}
         </Popover.Trigger>
         <Popover.Portal>
-          <Popover.Content side="top" sideOffset={8} class="w-80 p-3">
+          <Popover.Content side="top" sideOffset={8} class="w-80 max-w-[calc(100vw-16px)] p-3">
             <div class="flex flex-col gap-2">
               <span class="ui-label">Go to time</span>
               <div class="flex gap-1.5">
@@ -612,6 +651,7 @@
       </Popover.Root>
 
       {#if compact}
+        {#if expanded}<AddProfile compact />{/if}
         <!-- A phone keeps a full-size button: the edge tab is too small a
              touch target, and the shared dock owns the edge above it. -->
         <button
@@ -625,6 +665,24 @@
         </button>
       {/if}
     </div>
+
+    {#if gridded}
+      <!-- Row two: the header's action over the label gutter, and the axis
+           caption — the window's bounds and span — under the track. -->
+      <div class="transport-add"><AddProfile /></div>
+      <div class="axis-caption">
+        <span class="date-label">{startLabel}</span>
+        <RangeControl
+          label={rangeLabel}
+          context={rangeContext}
+          variant="caption"
+          {fitOptions}
+          onSetZoom={setZoomDuration}
+          onResetZoom={resetScrubberZoom}
+        />
+        <span class="date-label">{endLabel}</span>
+      </div>
+    {/if}
   </div>
 
   {#if expanded}
@@ -639,7 +697,7 @@
       {#each eventLanes as item (item.id)}
         <EventLane {item} wide={wideLanes} />
       {/each}
-      <ProfileLanes axisWidth={axis.width} wide={wideLanes} ticks={profileTicks} />
+      <ProfileLanes axisWidth={axis.width} wide={wideLanes} ticks={profileTicks} afterLanes={eventLanes.length > 0} />
     </div>
 
     <!-- One ghost line and one playhead through every row, so they cannot
@@ -720,7 +778,7 @@
     height: 8px;
     cursor: ns-resize;
     touch-action: none;
-    z-index: 2;
+    z-index: var(--tl-z-chrome);
   }
   .resize-handle::after {
     content: '';
@@ -738,23 +796,23 @@
     opacity: 0.35;
   }
   /* The collapse tab: a notch on the dock's top edge, panel-coloured with a
-     faint border, over the resize grip. */
+     border, over the resize grip. Quiet, but visible against the scene. */
   .edge-tab {
     position: absolute;
-    top: -11px;
+    top: -16px;
     left: 50%;
-    z-index: 3;
+    z-index: var(--tl-z-chrome);
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 12px;
+    width: 46px;
+    height: 16px;
     padding: 0;
-    border: 1px solid var(--color-chrome-border);
+    border: 1px solid rgba(220, 224, 232, 0.24);
     border-bottom: none;
-    border-radius: 5px 5px 0 0;
+    border-radius: 6px 6px 0 0;
     background: var(--color-panel);
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
     cursor: pointer;
     transform: translateX(-50%);
     transition: color var(--duration-chrome) var(--ease-chrome), background var(--duration-chrome) var(--ease-chrome);
@@ -769,10 +827,12 @@
   }
 
   /* Hover callout: what a previewed event is, anchored above the row it was
-     pointed at. Same copy as the scene's callouts. */
+     pointed at. Same copy as the scene's callouts. Portalled to the page and
+     fixed at viewport coordinates, above all timeline chrome. */
   .event-callout {
-    position: absolute;
-    z-index: 3;
+    position: fixed;
+    z-index: var(--tl-z-callout);
+    font-family: var(--font-sans);
     max-width: 240px;
     padding: 5px 8px;
     border: 1px solid var(--color-chrome-border);
@@ -807,25 +867,83 @@
     background: var(--ev);
   }
 
-  /* Desktop, expanded: the transport on the grid. The gutter is the label
-     column below it; the rail sizes to the clock. */
-  .transport-row.gridded {
+  /* Collapsed: one row. */
+  .transport {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+  }
+  /* Desktop, expanded: two rows on the dock's grid. The gutter is the label
+     column below; the rail sizes to the clock. Each row centres on its own
+     content, so the controls and clock line up with the track itself. */
+  .transport.gridded {
     display: grid;
     grid-template-columns: clamp(260px, 22vw, 320px) minmax(0, 1fr) auto;
-    gap: 0;
+    grid-template-areas:
+      'controls track clock'
+      'add caption .';
+    row-gap: 1px;
+    column-gap: 0;
   }
-  .transport-row.gridded .transport-controls {
+  .transport.gridded .transport-controls {
+    grid-area: controls;
     min-width: 0;
     overflow: hidden;
   }
-  .transport-row.gridded .transport-rail {
+  .transport.gridded .transport-axis {
+    grid-area: track;
+  }
+  .transport.gridded .transport-rail {
+    grid-area: clock;
     padding-left: 10px;
+  }
+  .transport-add {
+    grid-area: add;
+    display: flex;
+    align-items: center;
+    padding-left: calc(var(--tl-label-inset) - 4px);
+  }
+  .axis-caption {
+    grid-area: caption;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 16px;
+  }
+  .date-label {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-metadata);
+    white-space: nowrap;
+  }
+  /* A phone, expanded: a header line over a full-width track. */
+  .transport.phone-stacked {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'controls clock'
+      'track track';
+    row-gap: 2px;
+    column-gap: 4px;
+  }
+  .transport.phone-stacked .transport-controls {
+    grid-area: controls;
+  }
+  .transport.phone-stacked .transport-rail {
+    grid-area: clock;
+    justify-self: end;
+  }
+  .transport.phone-stacked .transport-axis {
+    grid-area: track;
+    padding-top: 12px; /* room for the ghost's timestamp above the track */
   }
   /* The ghost and the playhead, once, through every row. Weight and opacity
      tell them apart, not colour. */
   .axis-line {
     position: absolute;
-    z-index: 2;
+    z-index: var(--tl-z-cursor);
     transform: translateX(-50%);
     pointer-events: none;
   }
@@ -854,13 +972,24 @@
     font-variant-numeric: tabular-nums slashed-zero;
   }
   :global(.current-time.compact-current) {
-    font-size: var(--text-metadata);
+    font-size: 12px;
+  }
+  :global(.current-time) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  :global(.current-time.two-line) {
+    line-height: 13px;
+  }
+  :global(.current-time.two-line .clock-line + .clock-line) {
+    color: var(--color-text-secondary);
   }
   @media (max-width: 719px) {
     .compact-hide {
       display: none;
     }
-    .transport-row {
+    .transport {
       min-height: 38px;
     }
     .tl-btn {

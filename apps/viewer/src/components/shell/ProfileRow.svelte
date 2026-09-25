@@ -9,9 +9,10 @@
    * scrub and zoom belong to the dock's one interaction surface, and the
    * ghost and playhead lines are drawn once, through every row, by the dock.
    *
-   * Short rows are a signal: the trace and the value. Taller rows — a lone
-   * profile, or one the user expands — get three faint gridlines with values,
-   * so they can be read quantitatively without turning into a dashboard.
+   * Normal rows are a signal: the trace and the value. Expanded rows get
+   * three faint gridlines with values, so they can be read quantitatively
+   * without turning into a dashboard. On a phone the row stacks its label,
+   * value and controls in a header line over a full-width plot.
    */
   import type { ConfiguredContinuousProfile, ContinuousProfileConfiguration } from '@cosmolabe/core';
   import { vs, getRenderer } from '../../lib/viewer-state.svelte';
@@ -20,7 +21,7 @@
     moveConfiguredProfile, removeConfiguredItem,
   } from '../../lib/analysis.svelte';
   import {
-    timeline, timelineFraction, toggleRowExpanded, ghostEt,
+    timeline, timelineFraction, toggleRowExpanded, ghostEt, TL_HEAD_PX,
     type ProfileEventTick,
   } from '../../lib/timeline.svelte';
   import {
@@ -29,7 +30,8 @@
     type PositionOf, type ProfileBodies,
   } from '../../lib/profile-sampling';
   import { inWindow } from '../../lib/scrubber-math';
-  import { Eye, EyeOff, ChevronsUpDown, ChevronsDownUp } from 'lucide-svelte';
+  import { Eye, EyeOff, ChevronsUpDown, ChevronsDownUp, Trash2 } from 'lucide-svelte';
+  import PlotCursor from './PlotCursor.svelte';
   import * as Popover from '$lib/components/ui/popover';
   import ProfileConfig from './ProfileConfig.svelte';
 
@@ -44,14 +46,21 @@
     ticks: readonly ProfileEventTick[];
     first: boolean;
     last: boolean;
+    /** The first profile after the event lanes: a slightly firmer rule. */
+    boundary?: boolean;
   }
 
-  let { item, axisWidth, wide, height, ticks, first, last }: Props = $props();
+  let { item, axisWidth, wide, height, ticks, first, last, boundary = false }: Props = $props();
 
   const W = 1000; // viewBox width; fractions map onto it directly
   const rowId = $derived(`profile:${item.id}`);
   const expanded = $derived(!!timeline.expandedRows[item.id]);
   const H = $derived(height);
+  // The plot's own height, measured: the row owns its allocation, and the
+  // plot is whatever the grid leaves it (less a stacked row's header). The
+  // estimate only covers the first frame.
+  let measuredH = $state(0);
+  const PH = $derived(measuredH > 0 ? measuredH : Math.max(1, H - 1 - (wide ? 0 : TL_HEAD_PX)));
   // Expanded is the one mode with a labelled scale; nothing else implies it.
   const tall = $derived(expanded);
   const inspectedRow = $derived(timeline.hoverRow === rowId);
@@ -89,7 +98,7 @@
   // The trace is inset from the row's edges, so the scale labels of
   // neighbouring rows do not meet at the rule between them.
   const PAD = $derived(tall ? 8 : 3);
-  const IH = $derived(Math.max(1, H - 2 * PAD));
+  const IH = $derived(Math.max(1, PH - 2 * PAD));
   const yOf = (value: number) => PAD + valueY(value, series!, IH);
   const path = $derived(series ? profilePath(series, W, IH) : '');
   const hasData = $derived(!!series && series.values.some((v) => v != null));
@@ -131,27 +140,29 @@
   const pair = $derived(bodies ? `${bodies.observer} → ${bodies.target}` : 'choose bodies');
   const rangeText = $derived(series && hasData && spec ? `${spec.format(series.min)} – ${spec.format(series.max)}` : '');
   const readoutText = $derived(readout != null && spec ? spec.format(readout) : '—');
+  const icon = $derived(wide ? 11 : 13);
   const closing = $derived(spec?.id === 'range-rate' && readout != null && readout < 0);
 </script>
 
 <div
   class="tl-row"
+  class:stacked={!wide}
+  class:boundary
   class:hidden-row={!item.visible}
   class:inspected={inspectedRow}
   data-tl-row={rowId}
-  style="height: {item.visible ? H : 18}px"
+  style="height: {item.visible ? H : TL_HEAD_PX}px"
 >
-  <!-- Label: the quantity, then between whom. The label is the configure
-       affordance; expand and hide sit at the gutter's right edge. Units live
-       with the value, not here. -->
-  <div class="tl-label" class:overlay={!wide} class:top={tall && wide}>
+  <!-- One grammar for every row: the label opens its configuration; expand,
+       the eye and the trash sit beside it. Units live with the value. -->
+  <div class="tl-label" class:top={tall && wide}>
     <Popover.Root bind:open={configOpen}>
       <Popover.Trigger class="tl-label-main" title="{spec?.label ?? item.profile.quantity} · {pair} — configure">
         <span class="tl-primary">{spec?.label ?? item.profile.quantity}</span>
         <span class="tl-secondary">{pair}</span>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content side="right" align="start" sideOffset={6} class="w-80 p-3">
+        <Popover.Content side={wide ? 'right' : 'top'} align="start" sideOffset={6} class="w-80 max-w-[calc(100vw-16px)] p-3">
           {#if configOpen}
           <ProfileConfig
             initial={item.profile}
@@ -176,7 +187,7 @@
           aria-label={expanded ? 'Collapse profile row' : 'Expand profile row'}
           title={expanded ? 'Collapse row' : 'Expand row'}
         >
-          {#if expanded}<ChevronsDownUp size={11} />{:else}<ChevronsUpDown size={11} />{/if}
+          {#if expanded}<ChevronsDownUp size={icon} />{:else}<ChevronsUpDown size={icon} />{/if}
         </button>
       {/if}
       <button
@@ -185,7 +196,15 @@
         aria-label={item.visible ? 'Hide profile' : 'Show profile'}
         title={item.visible ? 'Hide profile' : 'Show profile'}
       >
-        {#if item.visible}<Eye size={11} />{:else}<EyeOff size={11} />{/if}
+        {#if item.visible}<Eye size={icon} />{:else}<EyeOff size={icon} />{/if}
+      </button>
+      <button
+        class="tl-icon-btn danger"
+        onclick={() => removeConfiguredItem(item.id)}
+        aria-label="Remove profile"
+        title="Remove profile"
+      >
+        <Trash2 size={icon} />
       </button>
     </span>
   </div>
@@ -196,13 +215,14 @@
       data-tl-plot
       role="img"
       aria-label="{spec?.label ?? 'Profile'} {pair}: {readoutText}"
+      bind:clientHeight={measuredH}
     >
-      <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" aria-hidden="true">
+      <svg viewBox="0 0 {W} {PH}" preserveAspectRatio="none" aria-hidden="true">
         {#each grid as value (value)}
           <line class="grid" x1="0" x2={W} y1={yOf(value)} y2={yOf(value)} />
         {/each}
         {#if spec?.symmetric && hasData && !tall}
-          <line class="zero" x1="0" x2={W} y1={H / 2} y2={H / 2} />
+          <line class="zero" x1="0" x2={W} y1={PH / 2} y2={PH / 2} />
         {/if}
         <!-- Events behind the trace, in the shared vocabulary but quiet, so
              the trace stays the row's content. Relationship-aware: see
@@ -212,13 +232,13 @@
             <rect
               class="event-span" class:emphasis={tick.selected || tick.previewed} class:active={tick.active}
               data-ev-kind={tick.kind} data-ev-state={tick.state}
-              x={tick.fraction * W} width={(tick.endFraction - tick.fraction) * W} y="0" height={H}
+              x={tick.fraction * W} width={(tick.endFraction - tick.fraction) * W} y="0" height={PH}
             />
           {:else}
             <line
               class="event-tick" class:emphasis={tick.selected || tick.previewed} class:active={tick.active}
               data-ev-kind={tick.kind} data-ev-state={tick.state}
-              x1={tick.fraction * W} x2={tick.fraction * W} y1="0" y2={H}
+              x1={tick.fraction * W} x2={tick.fraction * W} y1="0" y2={PH}
             />
           {/if}
         {/each}
@@ -227,12 +247,7 @@
         {/if}
       </svg>
       {#each grid as value (value)}
-        {@const y = yOf(value)}
-        <!-- On a phone the label is overlaid at the top-left; a gridline
-             label under it would collide, so that one goes unlabelled. -->
-        {#if wide || y > 16}
-          <span class="grid-label tl-secondary tl-num" style="top: {y}px">{spec?.format(value)}</span>
-        {/if}
+        <span class="grid-label tl-secondary tl-num" style="top: {yOf(value)}px">{spec?.format(value)}</span>
       {/each}
       {#if dotY != null && inWindow(dotFrac)}
         <div class="value-dot" class:preview={ghost != null} style="left: {dotFrac * 100}%; top: {dotY}px"></div>
@@ -251,17 +266,13 @@
       {:else if series && !hasData}
         <span class="plot-note tl-secondary">No state for this pair in view</span>
       {/if}
-      {#if !wide}
-        <span class="overlay-readout tl-num" class:preview={ghost != null} class:closing>{readoutText}</span>
-      {/if}
+      {#if !wide}<PlotCursor />{/if}
     </div>
 
-    {#if wide}
-      <div class="tl-readout" class:top={tall} title={rangeText ? `In view: ${rangeText}` : undefined}>
-        <span class="tl-num" class:preview={ghost != null} class:closing>{readoutText}</span>
-        {#if rangeText && !tall && H >= 40}<span class="tl-secondary tl-num range">{rangeText}</span>{/if}
-      </div>
-    {/if}
+    <div class="tl-readout" class:top={tall && wide} title={rangeText ? `In view: ${rangeText}` : undefined}>
+      <span class="tl-num" class:preview={ghost != null} class:closing>{readoutText}</span>
+      {#if wide && rangeText && !tall && PH >= 40}<span class="tl-secondary tl-num range">{rangeText}</span>{/if}
+    </div>
   {/if}
 </div>
 
@@ -376,18 +387,6 @@
   .range {
     font-size: var(--text-metadata);
     color: var(--color-text-muted);
-  }
-  .overlay-readout {
-    position: absolute;
-    top: 1px;
-    right: 3px;
-    color: var(--color-text-primary);
-    font-size: var(--text-metadata);
-    line-height: 12px;
-    pointer-events: none;
-  }
-  .overlay-readout.preview {
-    color: var(--color-text-secondary);
   }
   .closing,
   :global(.tl-readout) .closing {

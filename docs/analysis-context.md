@@ -45,9 +45,14 @@ for eclipse/occultation work in #58 and profile sampling/rendering in #65.
 
 ## Viewer integration
 
-The event finder creates one configured query and updates it in place as its
-form changes. Running the finder resolves that item through the current context
-and stores results under its stable ID. The timeline reads
+The event finder's form is a draft until its search runs. Running it creates
+the configured query (`ConfiguredEventQuery`), resolves it through the current
+context, and stores results under its stable ID. From then on the form edits
+that item in place. An open form never creates a category on its own, so zero
+categories is a valid state. `ef.configuredId` is the query being edited (null
+for a draft). The selection is a separate `(ef.selectedId, ef.selectedQueryId)`
+pair, because result ids are unique only within a query. Opening another
+category to edit therefore leaves the selection alone. The timeline reads
 `visibleTimelineEvents()`, which includes results only for event-query items
 that are both enabled and visible. Disabling or hiding one item does not alter
 any other event or profile configuration.
@@ -68,7 +73,8 @@ becomes a density instead. Expanding the timeline adds one lane per enabled
 rows and on the same axis. A lane's eye toggle flips the item's shared
 `visible` flag, so the track, the event finder and the lane agree; hidden lanes
 stay listed, dimmed, so they can be shown again. Clicking a mark calls the same
-`selectEvent` the track's marks use. The lane's readout is compact state at
+`selectEvent` the track's marks use. Clicking the lane's label opens that
+category in the Event Finder. The lane's readout is compact state at
 the inspected instant: how many of its events are active (`activeEventsAtTime`),
 or one active event's duration, or else the result count. It never shows an
 event's name; the hover callout does that.
@@ -91,8 +97,8 @@ A configured category is removed with `removeConfiguredQuery(id)`: from the
 Event Finder's category list, or from the lane's hover controls. Removing a
 category drops its item and cached results, which also removes its lane. It
 clears a selection or preview of one of its results. If the category was being
-edited, the form moves to a neighbouring category, or to a fresh search when
-none is left. Categories are reordered among themselves with
+edited, the form moves to a neighbouring category. When none is left, the form
+keeps its settings as an unsaved draft. Categories are reordered among themselves with
 `moveConfiguredEventQuery(id, delta)`, using the ↑ ↓ buttons on hover in the
 category list; interleaved profile items keep their places. Category order is
 lane order, overview band order and list order. On the timeline, a default
@@ -112,10 +118,17 @@ Disabled items are not drawn; hidden ones stay listed, dimmed, with their eye
 toggle. There is no built-in set: each row names its own `quantity` — `range`,
 `relative-speed`, `range-rate` or `phase-angle` to start with
 (`lib/profile-sampling.ts`) — and may pin any role or leave it to inherit the
-shared relationship. A small "Profiles +" section header, which stays in view
-while the region scrolls, adds rows. The popover on a row's label configures,
-hides, moves or removes it (`updateConfiguredProfile()`,
-`setConfiguredItemVisible()`, `moveConfiguredProfile()`, `removeConfiguredItem()`).
+shared relationship. Profile rows follow the event lanes directly, with a
+slightly firmer rule at the boundary and no section row. "+ Profile"
+(`AddProfile.svelte`) lives in the timeline header: under the transport
+controls on a desktop, beside the clock on a phone. The popover on a row's
+label configures, hides, moves or removes it (`updateConfiguredProfile()`,
+`setConfiguredItemVisible()`, `moveConfiguredProfile()`,
+`removeConfiguredItem()`).
+
+Every row uses the same controls. The label opens it for editing, the eye
+shows or hides it, and the trash removes it. A profile row also has
+expand/collapse.
 
 ## Timeline presentation and interaction
 
@@ -125,8 +138,10 @@ On a desktop the expanded timeline is one three-column grid:
 - **Shared time axis:** how it varies.
 - **Readout rail:** its value at the inspected time.
 
-The transport lays itself out on the same columns. Its controls sit over the
-gutter, the track is the axis column, and the clock heads the rail. The rows'
+The transport takes two rows of the same columns. Row one holds the controls
+over the gutter, the track as the axis column, and the clock heading the rail.
+Row two holds "+ Profile" and the axis caption. Each row centres on its own
+content, so the controls and clock line up with the track itself. The rows'
 columns are the track's measured extent (`--tl-gutter`, `--tl-axis`), so every
 row lines up with the track. A label reads `Distance · Earth → Mars`; units
 belong to the values and scale labels, not the label. Rail values are
@@ -135,7 +150,23 @@ marked as a preview, while hovering. Readouts use the `--text-readout` token
 (12 px); only the clock is sized up (13 px). Timeline text uses three type
 roles only:
 primary (`.tl-primary`), secondary (`.tl-secondary`) and numeric (`.tl-num`).
-On a phone the axis takes the full width and labels overlay the plots.
+On a phone each row stacks (`.tl-row.stacked`). A header line holds the
+label, readout and controls, and the plot below it takes the full width.
+Nothing but time sits on the time canvas. Each plot draws its own ghost and
+playhead lines (`PlotCursor.svelte`), so no line crosses a label or button.
+The expanded phone transport is a header line (controls, clock, "+ Profile",
+collapse) over a full-width track. The clock always keeps the date
+(`clockLines`): it drops the time zone first, then the seconds, and only then
+breaks onto two lines.
+
+Rows own their height. A plot stretches to its grid cell rather than being
+sized to 100 % of it, so an inset shrinks the plot inside the row instead of
+pushing it into the next row. The timeline has one stacking order
+(`--tl-z-*` in `app.css`): plots, then cursor lines, structural chrome (resize
+edge, collapse tab), transient labels, and callouts. The event callout is
+portalled to the page at viewport coordinates, so no clipping container (the
+phone's rounded dock) can cut it off. Timeline marks carry no native `title`;
+the callout names them, and `aria-label` keeps them accessible.
 
 Event lanes are compact. A profile row has exactly two modes, set only by its
 own expand toggle (`profileRowHeight`): normal (about 46 px, trace and value)
@@ -152,11 +183,15 @@ per layout:
   keeps fitting as rows are added or removed.
 - **Manual:** drag the top edge.
 
-Collapse and expand are a small tab centred on the dock's top edge; the rest of
-that edge is the resize grip. A phone keeps a full-size button instead.
-Collapsed, the dock is a dense overview. It has less padding, a taller event
-strip, and no bound labels, so the axis gets the width. Expanded, the window's
-bounds and span sit in a caption under the track, for example
+Collapse and expand are a tab (about 46 × 16 px) centred on the dock's top
+edge; the rest of that edge is the resize grip. A phone keeps a full-size
+button instead. The track is one instrument with fixed geometry: the event
+overview on top, and the mission minimap as a 3 px strip along its bottom.
+Unzoomed, the minimap's viewport spans the full width; zoomed, it becomes a
+draggable segment. Zooming changes what the track shows, never its layout.
+Collapsed, the dock is a dense overview. It has less padding, an 18 px track,
+and no bound labels, so the axis gets the width. Expanded, the window's bounds
+and span sit in the caption row under the track, for example
 `2030-10-14 · Full mission · 3.6 yr ▾ · 2034-05-29`, and the clock is one
 line at the head of the rail.
 
@@ -181,8 +216,8 @@ Each surface has one job:
 - **Playhead:** a drag that starts on it scrubs. It is a thin line with a
   ~14 px grab target.
 - **Wheel:** a sideways or Shift wheel pans; a plain wheel zooms.
-- **Minimap under the track:** a neutral viewport that can be dragged to pan
-  while zoomed.
+- **Minimap strip along the track's bottom:** a neutral viewport that can be
+  dragged to pan while zoomed.
 - **Touch:** a horizontal drag pans, a vertical one scrolls the lane region,
   and a tap seeks.
 

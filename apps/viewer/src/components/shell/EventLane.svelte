@@ -18,24 +18,31 @@
   import { vs } from '../../lib/viewer-state.svelte';
   import { analysis } from '../../lib/analysis.svelte';
   import {
-    ef, selectEvent, setConfiguredQueryVisible, removeConfiguredQuery, EVENT_KINDS,
+    ef, selectEvent, setConfiguredQueryVisible, removeConfiguredQuery, openConfiguredQuery,
+    EVENT_KINDS, isSelectedEvent,
   } from '../../lib/event-finder.svelte';
   import {
     activeEventsAtTime, eventContainsTime, eventTimelineFractions, formatSeconds,
   } from '../../lib/event-query';
-  import { timeline, eventKey, ghostEt } from '../../lib/timeline.svelte';
+  import { timeline, eventKey, ghostEt, TL_HEAD_PX } from '../../lib/timeline.svelte';
+  import { openTool } from '../../lib/shell.svelte';
   import { Eye, EyeOff, Trash2 } from 'lucide-svelte';
+  import PlotCursor from './PlotCursor.svelte';
 
   interface Props {
     item: ConfiguredEventQuery;
-    /** Desktop: a label gutter and a readout rail around the axis. */
+    /**
+     * Desktop: a label gutter and a readout rail around the axis. Otherwise
+     * (a phone) the row stacks: a header line — label, readout, controls —
+     * over a full-width track.
+     */
     wide: boolean;
   }
 
   let { item, wide }: Props = $props();
 
   /** Lanes are categorical and stay compact; profiles get the height. */
-  const H = $derived(wide ? 20 : 22);
+  const H = $derived(wide ? 20 : TL_HEAD_PX + 22);
   const rowId = $derived(`lane:${item.id}`);
 
   const events = $derived<readonly GeometryEvent[]>(analysis.eventResults[item.id] ?? []);
@@ -74,7 +81,7 @@
     return base === kindLabel ? SHORT_KIND[item.query.kind] ?? base : base;
   });
 
-  const isSelected = (event: GeometryEvent) => ef.selectedId === event.id && ef.configuredId === event.queryId;
+  const isSelected = isSelectedEvent;
   const isPreviewed = (event: GeometryEvent) =>
     timeline.previewEventId === eventKey(event)
     || (ef.previewId === event.id && ef.previewQueryId === event.queryId);
@@ -93,23 +100,37 @@
     return { text: `${events.length} ${events.length === 1 ? 'event' : 'events'}`, value: false };
   });
 
+  // The label opens this category in the Event Finder, to browse or edit.
+  // That changes what the form edits, not what is selected.
+  function edit() {
+    if (ef.configuredId !== item.id) openConfiguredQuery(item.id);
+    openTool('events');
+  }
+
   // The lane rises a little while one of its events is selected or previewed.
   const emphasised = $derived(marks.some((m) => isSelected(m.event) || isPreviewed(m.event)));
 </script>
 
 <div
   class="tl-row event-lane"
+  class:stacked={!wide}
   class:hidden-row={!item.visible}
   class:inspected={timeline.hoverRow === rowId}
   class:emphasised
   data-tl-row={rowId}
-  style="height: {item.visible ? H : 18}px"
+  style="height: {item.visible ? H : TL_HEAD_PX}px"
 >
-  <div class="tl-label" class:overlay={!wide}>
-    <span class="tl-label-main" title={relation ? `${title} · ${relation}` : title}>
+  <!-- One grammar for every row: the label opens it for editing, the eye
+       shows or hides it, the trash removes it. -->
+  <div class="tl-label">
+    <button
+      class="tl-label-main"
+      onclick={edit}
+      title="{relation ? `${title} · ${relation}` : title} — edit in Event Finder"
+    >
       <span class="tl-primary">{title}</span>
-      {#if relation && wide}<span class="tl-secondary">{relation}</span>{/if}
-    </span>
+      {#if relation}<span class="tl-secondary">{relation}</span>{/if}
+    </button>
     <span class="tl-label-controls">
       <button
         class="tl-icon-btn"
@@ -117,7 +138,7 @@
         aria-label={item.visible ? `Hide ${item.label} lane` : `Show ${item.label} lane`}
         title={item.visible ? 'Hide lane' : 'Show lane'}
       >
-        {#if item.visible}<Eye size={11} />{:else}<EyeOff size={11} />{/if}
+        {#if item.visible}<Eye size={wide ? 11 : 13} />{:else}<EyeOff size={wide ? 11 : 13} />{/if}
       </button>
       <button
         class="tl-icon-btn danger"
@@ -125,7 +146,7 @@
         aria-label="Remove {item.label}"
         title="Remove category"
       >
-        <Trash2 size={11} />
+        <Trash2 size={wide ? 11 : 13} />
       </button>
     </span>
   </div>
@@ -148,27 +169,24 @@
           onclick={() => selectEvent(mark.event)}
         ></button>
       {/each}
-      {#if !wide}
-        <span class="overlay-readout tl-secondary">{readout.text}</span>
-      {/if}
+      {#if !wide}<PlotCursor />{/if}
     </div>
-
-    {#if wide}
-      <div class="tl-readout">
-        {#if readout.value}
-          <span class="tl-num" class:preview={inspected != null}>{readout.text}</span>
-        {:else}
-          <span class="tl-secondary">{readout.text}</span>
-        {/if}
-      </div>
-    {/if}
   {/if}
+
+  <div class="tl-readout">
+    {#if readout.value && item.visible}
+      <span class="tl-num" class:preview={inspected != null}>{readout.text}</span>
+    {:else}
+      <span class="tl-secondary">{readout.text}</span>
+    {/if}
+  </div>
 </div>
 
 <style>
+  /* Inset inside the row's own allocation: the plot stretches to its grid
+     cell, so these margins shrink it rather than push past the row. */
   .lane-plot {
-    margin: 3px 0;
-    overflow: hidden;
+    margin-block: 3px;
     border-radius: 2px;
   }
 
@@ -209,12 +227,4 @@
     box-shadow: inset 0 0 0 1px var(--color-text-primary), 0 0 4px var(--ev);
   }
 
-  .overlay-readout {
-    position: absolute;
-    top: 50%;
-    right: 3px;
-    transform: translateY(-50%);
-    white-space: nowrap;
-    pointer-events: none;
-  }
 </style>

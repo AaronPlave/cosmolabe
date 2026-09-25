@@ -149,7 +149,7 @@ describe('event finder practical default window', () => {
 });
 
 describe('event finder window provenance', () => {
-  it('preserves an explicit window when the event type changes', () => {
+  it('preserves an explicit window when the event type changes', async () => {
     vs.et = 500;
     vs.scrubBaseMin = 0;
     vs.scrubBaseMax = 1_000;
@@ -163,6 +163,8 @@ describe('event finder window provenance', () => {
       step: 3_600,
     };
     ef.windowPinned = true;
+    const { createConfiguredEventQuery } = await import('../analysis.svelte');
+    ef.configuredId = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'EARTH', target: 'MOON' } }, 'Q').id;
 
     setKind('distance-range');
 
@@ -187,6 +189,7 @@ describe('removing an event category', () => {
     setEventResults(b.id, [result]);
     ef.configuredId = b.id;
     ef.selectedId = 'r0';
+    ef.selectedQueryId = b.id;
     previewEvent(result);
 
     removeConfiguredQuery(b.id);
@@ -195,5 +198,66 @@ describe('removing an event category', () => {
     expect(analysis.eventResults[b.id]).toBeUndefined();
     expect([ef.selectedId, ef.previewId, ef.previewQueryId]).toEqual([null, null, null]);
     expect(ef.configuredId).toBe(a.id);
+  });
+});
+
+describe('draft and configured categories', () => {
+  const form = () => ({
+    kind: 'closest-approach',
+    bodies: { observer: 'Earth', target: 'Mars' } as Record<string, string>,
+    params: {},
+    startEt: 0,
+    endEt: 100,
+    step: 3_600,
+  });
+
+  it('removing the last category leaves zero, and the form an unsaved draft', async () => {
+    const { removeConfiguredQuery, configuredEventQueries, setRole } = await import('../event-finder.svelte');
+    const { analysis, createConfiguredEventQuery, setEventResults } = await import('../analysis.svelte');
+    const only = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Mars' } }, 'Only');
+    setEventResults(only.id, []);
+    ef.kind = 'closest-approach';
+    ef.form = form();
+    ef.configuredId = only.id;
+
+    removeConfiguredQuery(only.id);
+
+    expect(configuredEventQueries()).toEqual([]);
+    expect(ef.configuredId).toBeNull();
+    expect(analysis.eventResults).toEqual({});
+    expect(ef.form).not.toBeNull();
+
+    // Editing the draft does not bring a category back.
+    setRole('target', 'Venus');
+    expect(configuredEventQueries()).toEqual([]);
+    expect(ef.configuredId).toBeNull();
+  });
+
+  it('a draft form never materialises a category on its own', async () => {
+    const { configuredEventQueries, createNewSearch, setParam } = await import('../event-finder.svelte');
+    ef.kind = 'closest-approach';
+    ef.form = form();
+    createNewSearch();
+    setParam('threshold', '5');
+    setKind('distance-range');
+    expect(configuredEventQueries()).toEqual([]);
+  });
+
+  it('opening a category to edit keeps an unrelated selection', async () => {
+    const { openConfiguredQuery, isSelectedEvent } = await import('../event-finder.svelte');
+    const { createConfiguredEventQuery } = await import('../analysis.svelte');
+    const a = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Mars' } }, 'A');
+    const b = createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Earth', target: 'Venus' } }, 'B');
+    ef.configuredId = a.id;
+    ef.selectedId = 'r3';
+    ef.selectedQueryId = a.id;
+
+    openConfiguredQuery(b.id);
+
+    expect(ef.configuredId).toBe(b.id);
+    expect([ef.selectedId, ef.selectedQueryId]).toEqual(['r3', a.id]);
+    // Identity is the pair: the same id in the edited query is not selected.
+    expect(isSelectedEvent({ id: 'r3', queryId: a.id })).toBe(true);
+    expect(isSelectedEvent({ id: 'r3', queryId: b.id })).toBe(false);
   });
 });

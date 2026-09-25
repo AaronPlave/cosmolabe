@@ -22,7 +22,7 @@
     selectEvent, previewEvent, removeConfiguredQuery, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
     currentConfiguredQuery, setCurrentQueryVisible,
     configuredEventQueries, createNewSearch, openConfiguredQuery,
-    setConfiguredQueryEnabled, setConfiguredQueryVisible,
+    setConfiguredQueryEnabled, setConfiguredQueryVisible, isSelectedEvent,
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, headlineMetric, missingRoles,
@@ -59,10 +59,11 @@
   // scroll window. Reveal its row so the time jump has an obvious explanation.
   $effect(() => {
     const selectedId = ef.selectedId;
-    const queryId = ef.configuredId;
-    if (!selectedId) return;
+    const queryId = ef.selectedQueryId;
+    // Only when the list is showing the selection's own query.
+    if (!selectedId || queryId !== ef.configuredId) return;
     void tick().then(() => {
-      if (ef.selectedId !== selectedId || ef.configuredId !== queryId) return;
+      if (ef.selectedId !== selectedId || ef.selectedQueryId !== queryId) return;
       const list = resultsListEl;
       const selected = list?.querySelector<HTMLElement>('.event-result.selected');
       if (!list || !selected) return;
@@ -365,7 +366,9 @@
     {/if}
   {/if}
 
-  {#if configuredQueries.length > 1}
+  <!-- The list, once there is more than the one being edited: two or more
+       categories, or one while the form holds an unsaved draft. -->
+  {#if configuredQueries.length > 1 || (configuredQueries.length === 1 && configuredQueries[0].id !== ef.configuredId)}
     <div class="mt-2 pt-2 border-t border-border">
       <div class="flex items-center justify-between gap-2 mb-1">
         <span class="ui-section-label">Event categories</span>
@@ -470,7 +473,7 @@
           <div class="result-wrap">
           <button
             class="event-result text-left rounded px-2 py-2 border cursor-pointer"
-            class:selected={ef.selectedId === event.id && ef.configuredId === event.queryId}
+            class:selected={isSelectedEvent(event)}
             class:preview={ef.previewId === event.id && ef.previewQueryId === event.queryId}
             class:at-playhead={atPlayhead}
             onclick={() => selectEvent(event)}
@@ -505,7 +508,7 @@
             {:else}
               <div class="event-summary">{eventSummary(event)}</div>
             {/if}
-            {#if ef.selectedId === event.id && ef.configuredId === event.queryId}
+            {#if isSelectedEvent(event)}
               <div class="mt-1 flex flex-col gap-0.5">
                 {#if event.state}
                   <div class="ui-data-row">
@@ -577,7 +580,7 @@
               </div>
             {/if}
           </button>
-          {#if ef.selectedId === event.id && ef.configuredId === event.queryId}
+          {#if isSelectedEvent(event)}
             <!-- Deselect without re-seeking; clicking the row itself still
                  re-focuses the event. -->
             <button class="clear-selected" onclick={clearSelection} aria-label="Clear selection" title="Clear selection (Esc)">

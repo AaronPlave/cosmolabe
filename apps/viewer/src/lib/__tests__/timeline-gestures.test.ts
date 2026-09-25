@@ -6,7 +6,7 @@ vi.mock('../viewer-state.svelte', async (importOriginal) => ({
   scrubTo: (f: number) => scrubTo(f),
 }));
 
-const { timeline, timelineSurface, wheelIntent, hoverTarget, eventKey, ghostEt, profileRowHeight } =
+const { timeline, timelineSurface, wheelIntent, hoverTarget, eventKey, ghostEt, profileRowHeight, clockLines, TL_HEAD_PX } =
   await import('../timeline.svelte');
 const { vs, panScrubberBy, setScrubberWindow } = await import('../viewer-state.svelte');
 
@@ -324,5 +324,27 @@ describe('timeline framing', () => {
     expect(vs.scrubMax - vs.scrubMin).toBe(10);
     setScrubberWindow(-1e9, 1e9);
     expect([vs.scrubMin, vs.scrubMax]).toEqual([0, 10_000]);
+  });
+});
+
+describe('compact clock', () => {
+  const t = '2030-07-29 18:31:21 UTC';
+  it('keeps the date to the end: zone, then seconds, then two lines', () => {
+    expect(clockLines(t, Infinity)).toEqual(['2030-07-29 18:31:21 UTC']);
+    expect(clockLines(t, 170)).toEqual(['2030-07-29 18:31:21']);
+    expect(clockLines(t, 140)).toEqual(['2030-07-29 18:31']);
+    expect(clockLines(t, 60)).toEqual(['2030-07-29', '18:31']);
+    for (const room of [0, 60, 140, 170, 1000]) expect(clockLines(t, room)[0]).toMatch(/^2030-07-29/);
+  });
+  it('leaves text that is not a UTC timestamp whole', () => {
+    expect(clockLines('J2000 +40.0 yr', 10)).toEqual(['J2000 +40.0 yr']);
+  });
+});
+
+describe('stacked rows', () => {
+  it('a phone row adds its header line over the same plot modes', () => {
+    expect(profileRowHeight(false, false)).toBeGreaterThan(TL_HEAD_PX + 24);
+    expect(profileRowHeight(true, false) - profileRowHeight(false, false))
+      .toBe(profileRowHeight(true, true) - profileRowHeight(false, true));
   });
 });

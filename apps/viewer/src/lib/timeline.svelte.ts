@@ -91,13 +91,21 @@ export function setTimelineHover(
 }
 
 /**
+ * Height, px, of a stacked row's header line — label, readout, controls —
+ * on a phone, where rows put it over a full-width plot instead of in a
+ * gutter beside it. A hidden row is the header alone.
+ */
+export const TL_HEAD_PX = 18;
+
+/**
  * A profile row's height, px. Exactly two modes, chosen by the row's own
  * expand toggle and nothing else — never by how many profiles exist: normal
- * (trace and value) and expanded (tall enough for a labelled scale).
+ * (trace and value) and expanded (tall enough for a labelled scale). A
+ * phone's row adds its header line; the plot heights match.
  */
 export function profileRowHeight(expanded: boolean, wide: boolean): number {
-  if (expanded) return 116;
-  return wide ? 46 : 40;
+  const plot = expanded ? 116 : 46;
+  return wide ? plot : TL_HEAD_PX + plot - 12;
 }
 
 export function toggleRowExpanded(id: string) {
@@ -428,4 +436,27 @@ export function timelineSurface(node: HTMLElement, initial: TimelineSurfaceOptio
       timeline.hoverRow = null;
     },
   };
+}
+
+/** Advance of one character of the 12 px mono clock, px, and its padding. */
+const CLOCK_CHAR_PX = 7.3;
+const CLOCK_PAD_PX = 16;
+
+/**
+ * The current-time readout for a width of `roomPx`, as one or two lines.
+ *
+ * The date is the one part never given up — on a multi-year mission it is
+ * the context everything else hangs on — so the ladder drops the time zone,
+ * then the seconds, and only then breaks the date and time onto two lines:
+ * `2030-07-29 18:31:21 UTC` → `2030-07-29 18:31:21` → `2030-07-29 18:31` →
+ * `2030-07-29` / `18:31`. Text that is not a UTC timestamp is left whole.
+ */
+export function clockLines(timeText: string, roomPx: number): string[] {
+  const m = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(:\d{2}) UTC$/.exec(timeText);
+  if (!m) return [timeText];
+  const [, date, hm, sec] = m;
+  for (const text of [`${date} ${hm}${sec} UTC`, `${date} ${hm}${sec}`, `${date} ${hm}`]) {
+    if (text.length * CLOCK_CHAR_PX + CLOCK_PAD_PX <= roomPx) return [text];
+  }
+  return [date, hm];
 }

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { clampFraction, inWindow, KEYBOARD_STEP } from '../lib/scrubber-math';
-  import { ChevronDown } from 'lucide-svelte';
-  import * as Popover from '$lib/components/ui/popover';
+  import RangeControl from './RangeControl.svelte';
 
   interface Props {
     /**
@@ -29,9 +28,9 @@
      */
     ghostLine?: boolean;
     /**
-     * `inline`: bounds and range control beside the track. `stacked`: under
-     * it, as an axis caption, so the track can span the timeline grid's axis
-     * column exactly.
+     * `inline`: bounds and range control beside the track. `stacked`: the
+     * track alone, so it spans the timeline grid's axis column exactly; the
+     * dock sets the bounds and range control in its own caption row.
      */
     layout?: 'inline' | 'stacked';
     /** Pan the zoom window by a fraction of the full range (minimap drag). */
@@ -58,11 +57,6 @@
     globalPlayhead?: number;
     /** Visible span (e.g. "43 d") — the range control's label. */
     rangeLabel?: string;
-    /**
-     * What the span is, when it is not just a zoom: "Full mission". Shown in
-     * the stacked caption, where there is room to say it.
-     */
-    rangeContext?: string;
     /** Track height, px: taller when collapsed, where it is the overview. */
     trackHeight?: number;
     /** Framing presets offered above "Fit mission" in the range popover. */
@@ -105,7 +99,7 @@
     onResetZoom, onSetZoom,
     startLabel, endLabel,
     isZoomed = false, viewportStart = 0, viewportEnd = 1, globalPlayhead = 0.5,
-    rangeLabel, rangeContext = '', trackHeight = 12, fitOptions = [], markers = [], bands = 1, dense = false,
+    rangeLabel, trackHeight = 12, fitOptions = [], markers = [], bands = 1, dense = false,
     hoverFraction = null, hoverLabel = '', ghostLine = true, layout = 'inline',
     onViewportPan, onViewportCenter,
     trackEl = $bindable(),
@@ -120,21 +114,10 @@
   let markerPointerDown = false;
   let trackRect: DOMRect | null = null;
 
-  let zoomMenuOpen = $state(false);
+  /** Height of the minimap strip along the track's bottom edge, px. */
+  const MINIMAP_PX = 3;
 
   let displayFraction = $derived(dragging ? dragFraction : fraction);
-
-  const ZOOM_PRESETS = [
-    { label: '1 min', seconds: 60 },
-    { label: '10 min', seconds: 600 },
-    { label: '1 hr', seconds: 3600 },
-    { label: '6 hr', seconds: 21600 },
-    { label: '1 day', seconds: 86400 },
-    { label: '1 wk', seconds: 604800 },
-    { label: '1 mo', seconds: 2592000 },
-    { label: '6 mo', seconds: 15552000 },
-    { label: '1 yr', seconds: 31556952 },
-  ];
 
   // ── Minimap: where the visible window sits in the whole mission ──
   //
@@ -213,11 +196,6 @@
     if (!pointerMoved) select?.();
   }
 
-  function selectPreset(seconds: number) {
-    zoomMenuOpen = false;
-    onSetZoom?.(seconds);
-  }
-
   function onKeyDown(e: KeyboardEvent) {
     let newFraction: number | null = null;
     switch (e.key) {
@@ -253,125 +231,89 @@
   aria-label="Time scrubber — scroll to zoom, Shift+scroll to pan"
   onkeydown={onKeyDown}
 >
-  <div class="scrubber-row" class:stacked={layout === 'stacked'}>
+  <div class="scrubber-row">
     {#if startLabel && layout === 'inline'}<span class="date-label">{startLabel}</span>{/if}
 
     <div class="track-column">
+      <!-- One instrument of fixed geometry: the event overview above, the
+           mission minimap as its bottom strip. Zooming changes what they
+           show, never their layout. -->
       <div
         bind:this={trackEl}
         class="track"
-        style="height: {trackHeight}px"
+        style="height: {trackHeight}px; --mini: {MINIMAP_PX}px"
         class:banded={bands > 1}
         class:dense
         onpointerdown={onPointerDown}
         onpointermove={onPointerMove}
         onpointerup={onPointerUp}
       >
-        {#each markers as marker}
-          {@const lifted = marker.selected || marker.preview || marker.previewed}
-          {@const banded = bands > 1 && marker.band != null && !lifted}
-          <button
-            type="button"
-            class="event-marker"
-            class:interval={(marker.endFraction ?? marker.fraction) > marker.fraction}
-            class:selected={marker.selected}
-            class:preview={marker.preview}
-            class:active={marker.active}
-            class:previewed={marker.previewed}
-            data-ev-kind={marker.kind ?? ''}
-            data-ev-state={marker.state}
-            style="left: {marker.fraction * 100}%; width: {Math.max(0, (marker.endFraction ?? marker.fraction) - marker.fraction) * 100}%;{banded
-              ? ` top: ${(marker.band! / bands) * 100}%; height: ${100 / bands}%; bottom: auto;`
-              : ''}"
-            title={marker.title}
-            aria-label={marker.title ?? 'Select timeline event'}
-            onpointerdown={() => { pendingMarkerSelect = marker.onSelect; }}
-            onfocus={marker.onPreview}
-            onblur={marker.onPreviewEnd}
-            onclick={(event) => onMarkerClick(event, marker.onSelect)}
-          ></button>
-        {/each}
-        {#if ghostLine && hoverFraction != null && !dragging && hoverFraction >= 0 && hoverFraction <= 1}
-          <div class="ghost-playhead" style="left: {hoverFraction * 100}%"></div>
-        {/if}
-        {#if inWindow(displayFraction)}
-          <div class="playhead" style="left: {displayFraction * 100}%"></div>
-        {/if}
+        <div class="marks">
+          {#each markers as marker}
+            {@const lifted = marker.selected || marker.preview || marker.previewed}
+            {@const banded = bands > 1 && marker.band != null && !lifted}
+            <!-- No native title: the timeline's own callout names the event. -->
+            <button
+              type="button"
+              class="event-marker"
+              class:interval={(marker.endFraction ?? marker.fraction) > marker.fraction}
+              class:selected={marker.selected}
+              class:preview={marker.preview}
+              class:active={marker.active}
+              class:previewed={marker.previewed}
+              data-ev-kind={marker.kind ?? ''}
+              data-ev-state={marker.state}
+              style="left: {marker.fraction * 100}%; width: {Math.max(0, (marker.endFraction ?? marker.fraction) - marker.fraction) * 100}%;{banded
+                ? ` top: ${(marker.band! / bands) * 100}%; height: ${100 / bands}%; bottom: auto;`
+                : ''}"
+              aria-label={marker.title ?? 'Select timeline event'}
+              onpointerdown={() => { pendingMarkerSelect = marker.onSelect; }}
+              onfocus={marker.onPreview}
+              onblur={marker.onPreviewEnd}
+              onclick={(event) => onMarkerClick(event, marker.onSelect)}
+            ></button>
+          {/each}
+          {#if ghostLine && hoverFraction != null && !dragging && hoverFraction >= 0 && hoverFraction <= 1}
+            <div class="ghost-playhead" style="left: {hoverFraction * 100}%"></div>
+          {/if}
+          {#if inWindow(displayFraction)}
+            <div class="playhead" style="left: {displayFraction * 100}%"></div>
+          {/if}
+        </div>
+
+        <!-- Minimap: the whole mission, the visible window as a neutral
+             viewport — full width until zoomed, then a draggable segment —
+             and the playhead. Navigation context, not an event. -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          bind:this={minimapEl}
+          class="minimap"
+          class:interactive={isZoomed}
+          onpointerdown={onMinimapDown}
+          onpointermove={onMinimapMove}
+          onpointerup={onMinimapUp}
+          onpointercancel={onMinimapUp}
+        >
+          <div class="minimap-line">
+            <div
+              class="minimap-viewport"
+              style="left: {(isZoomed ? viewportStart : 0) * 100}%; width: {(isZoomed ? viewportEnd - viewportStart : 1) * 100}%"
+            ></div>
+            <div class="minimap-playhead" style="left: {globalPlayhead * 100}%"></div>
+          </div>
+        </div>
       </div>
       {#if hoverLabel && hoverFraction != null && !dragging && hoverFraction >= 0 && hoverFraction <= 1}
         <div class="ghost-label" style="left: {hoverFraction * 100}%">{hoverLabel}</div>
-      {/if}
-
-      <!-- Minimap: the whole mission under the track, the visible window as
-           a neutral viewport (draggable while zoomed) and the playhead. -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        bind:this={minimapEl}
-        class="minimap"
-        class:interactive={isZoomed}
-        onpointerdown={onMinimapDown}
-        onpointermove={onMinimapMove}
-        onpointerup={onMinimapUp}
-        onpointercancel={onMinimapUp}
-        title={isZoomed ? 'Visible window in the full range — drag to pan' : undefined}
-      >
-        <div class="minimap-line">
-          {#if isZoomed}
-            <div class="minimap-viewport" style="left: {viewportStart * 100}%; width: {(viewportEnd - viewportStart) * 100}%"></div>
-          {/if}
-          <div class="minimap-playhead" style="left: {globalPlayhead * 100}%"></div>
-        </div>
-      </div>
-
-      {#if layout === 'stacked'}
-        <div class="axis-caption">
-          <span class="date-label">{startLabel}</span>
-          {@render rangeControl()}
-          <span class="date-label">{endLabel}</span>
-        </div>
       {/if}
     </div>
 
     {#if layout === 'inline'}
       {#if endLabel}<span class="date-label">{endLabel}</span>{/if}
-      {@render rangeControl()}
+      <RangeControl label={rangeLabel ?? ''} {fitOptions} {onSetZoom} {onResetZoom} />
     {/if}
   </div>
 </div>
-
-{#snippet rangeControl()}
-  <!-- Range / zoom popover -->
-  <Popover.Root bind:open={zoomMenuOpen}>
-    <Popover.Trigger
-      class="icon-btn range-btn font-mono justify-center {layout === 'inline' ? 'min-w-16' : 'caption'}"
-      title="Set time range (scroll over the timeline to zoom)"
-    >
-      {layout === 'stacked' && rangeContext ? `${rangeContext} · ${rangeLabel}` : rangeLabel}
-      <ChevronDown size={10} />
-    </Popover.Trigger>
-    <Popover.Portal>
-      <Popover.Content side="top" sideOffset={8} class="w-max min-w-36 max-w-[calc(100vw-16px)] p-1">
-        <div class="flex flex-col gap-0.5">
-          {#each ZOOM_PRESETS as preset}
-            <button class="zoom-preset" onclick={() => selectPreset(preset.seconds)}>
-              {preset.label}
-            </button>
-          {/each}
-          <div class="border-t border-border mt-0.5 pt-0.5">
-            {#each fitOptions as option}
-              <button class="zoom-preset" onclick={() => { zoomMenuOpen = false; option.onSelect(); }}>
-                {option.label}
-              </button>
-            {/each}
-            <button class="zoom-preset text-accent" onclick={() => { zoomMenuOpen = false; onResetZoom?.(); }}>
-              Fit mission
-            </button>
-          </div>
-        </div>
-      </Popover.Content>
-    </Popover.Portal>
-  </Popover.Root>
-{/snippet}
 
 <style>
   .scrubber-wrapper {
@@ -461,7 +403,8 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     pointer-events: none;
-    z-index: 1;
+    /* A transient label: above every structural piece of timeline chrome. */
+    z-index: var(--tl-z-label, 10);
   }
 
   /* ── Event finder results ── */
@@ -542,97 +485,67 @@
     border-color: rgba(110, 170, 255, 0.7);
   }
 
-  /* ── Minimap: navigation context, not an event ──
-     Neutral grey, low salience; its hit area is taller than the 2px line so
-     the viewport can be dragged while zoomed. */
+  /* ── Minimap: the track's bottom strip ──
+     Neutral grey, low salience. While zoomed its hit area rises a few px
+     over the marks, so the viewport can be dragged. */
+
+  .marks {
+    position: absolute;
+    inset: 0 0 var(--mini) 0;
+  }
 
   .minimap {
-    width: 100%;
-    padding: 1px 0 4px;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: var(--mini);
   }
   .minimap.interactive {
+    z-index: 2;
+    height: calc(var(--mini) + 4px);
     cursor: pointer;
     touch-action: none;
   }
 
   .minimap-line {
-    position: relative;
-    width: 100%;
-    height: 2px;
-    background: var(--color-border);
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: var(--mini);
+    border-top: 1px solid var(--color-chrome-divider);
+    background: rgba(0, 0, 0, 0.22);
   }
 
   .minimap-viewport {
     position: absolute;
-    top: -1px;
-    bottom: -1px;
+    top: 0;
+    bottom: 0;
     min-width: 4px;
-    border-radius: 1px;
-    background: rgba(220, 224, 232, 0.32);
-    cursor: grab;
+    background: rgba(220, 224, 232, 0.2);
     transition: background var(--duration-chrome) var(--ease-chrome);
   }
+  .minimap.interactive .minimap-viewport {
+    background: rgba(220, 224, 232, 0.4);
+    cursor: grab;
+  }
   .minimap.interactive:hover .minimap-viewport {
-    background: rgba(220, 224, 232, 0.5);
+    background: rgba(220, 224, 232, 0.6);
   }
 
   .minimap-playhead {
     position: absolute;
-    top: -1px;
-    bottom: -1px;
+    top: 0;
+    bottom: 0;
     width: 2px;
-    background: var(--color-text-secondary);
+    background: var(--color-text-primary);
+    opacity: 0.75;
     transform: translateX(-50%);
     pointer-events: none;
-    border-radius: 1px;
-  }
-
-  /* ── Stacked: the window's bounds and span as a caption under the track ── */
-
-  .axis-caption {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 14px;
-  }
-  .axis-caption .date-label {
-    font-size: var(--text-metadata);
-  }
-  :global(.range-btn.caption) {
-    padding: 0 6px;
-    font-size: var(--text-metadata);
-    color: var(--color-text-muted);
-  }
-
-  /* ── Zoom presets in popover ── */
-
-  .zoom-preset {
-    font-family: var(--font-mono);
-    font-size: var(--text-interface);
-    color: var(--color-text-secondary);
-    background: none;
-    border: none;
-    padding: 3px 8px;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: background 0.1s, color 0.1s;
-    white-space: nowrap;
-    width: 100%;
-    text-align: left;
-  }
-
-  .zoom-preset:hover {
-    background: var(--color-surface-3);
-    color: var(--color-text-primary);
   }
 
   /* ── Match icon-btn style from BottomBar ── */
-
-  :global(.range-btn) {
-    gap: 3px;
-    font-size: 10px;
-    white-space: nowrap;
-  }
 
   :global(.icon-btn) {
     background: none;

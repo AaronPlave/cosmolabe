@@ -292,8 +292,10 @@
    and a readout rail — "what is this", "how does it vary", "what is it at
    the inspected time". The axis column is the transport track's measured
    extent (`--tl-gutter`, `--tl-axis`, set on the lane region), so every row
-   lines up with the track exactly. On a phone there is no gutter: the axis
-   takes the full width and labels overlay the plot (`.overlay`).
+   lines up with the track exactly. On a phone there is no gutter: each row
+   stacks (`.stacked`) — a header line with its label, readout and controls,
+   over a plot that takes the full width — so nothing sits on the time
+   canvas but time.
 
    Three type roles, and no others: `.tl-primary` (what a row is),
    `.tl-secondary` (bodies, counts, scale — muted, smaller), `.tl-num`
@@ -323,6 +325,13 @@
      content, so a plot can never spill into — and double-paint — the next. */
   :root {
     --tl-label-inset: 9px;
+    /* One stacking order for the timeline. A transient label or callout is
+       never under structural chrome. */
+    --tl-z-plot: 1;
+    --tl-z-cursor: 3;
+    --tl-z-chrome: 4;
+    --tl-z-label: 10;
+    --tl-z-callout: 40; /* portalled to the page; popovers (50) stay above */
   }
   .tl-row {
     position: relative;
@@ -338,6 +347,10 @@
   }
   .tl-row.hidden-row {
     opacity: 0.6;
+  }
+  /* Where event lanes give way to profiles: a firmer rule, not a row. */
+  .tl-row.boundary {
+    border-top-color: rgba(255, 255, 255, 0.13);
   }
 
   /* Columns pinned: an overlaid (out-of-flow) label must not let the plot
@@ -428,36 +441,53 @@
     color: var(--color-error);
   }
 
-  /* Phone: no gutter; the label sits inside the plot's top-left. */
-  .tl-label.overlay {
-    position: absolute;
-    top: 1px;
-    left: 3px;
-    z-index: 1;
-    padding: 0;
-    pointer-events: none;
+  /* Phone: a header line — label, readout, controls — over a full-width
+     plot. The label's children join the row's grid directly. Touch has no
+     hover, so the controls are always shown. */
+  .tl-row.stacked {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: 18px minmax(0, 1fr);
+    grid-template-areas:
+      'label readout controls'
+      'plot plot plot';
   }
-  .tl-label.overlay .tl-label-main,
-  .tl-label.overlay .tl-label-controls {
-    pointer-events: auto;
+  .tl-row.stacked .tl-label {
+    display: contents;
+  }
+  .tl-row.stacked .tl-label-main {
+    grid-area: label;
+    align-self: center;
+    padding-left: 0;
+  }
+  .tl-row.stacked .tl-label-controls {
+    grid-area: controls;
+    align-items: center;
     opacity: 1;
   }
-  .tl-label.overlay .tl-label-main {
-    flex: 0 1 auto;
-    margin-left: 0;
-    padding: 0 3px;
+  .tl-row.stacked .tl-icon-btn {
+    padding: 2px 5px;
   }
-  .tl-label.overlay .tl-primary,
-  .tl-label.overlay .tl-secondary {
-    font-size: var(--text-metadata);
-    line-height: 12px;
+  .tl-row.stacked .tl-readout {
+    grid-area: readout;
+    padding: 0 4px 0 8px;
+  }
+  .tl-row.stacked .tl-plot {
+    grid-area: plot;
+  }
+  .tl-row.stacked .tl-primary,
+  .tl-row.stacked .tl-secondary {
+    line-height: 14px;
   }
 
+  /* Stretched to its grid cell, never sized to 100% of it: an inset
+     (margin) then shrinks the plot inside the row instead of pushing it past
+     the row into its neighbour. The row owns its height. */
   .tl-plot {
     position: relative;
+    align-self: stretch;
     min-width: 0;
     min-height: 0;
-    height: 100%;
+    height: auto;
     overflow: clip;
     background: rgba(255, 255, 255, 0.03);
     cursor: crosshair;
