@@ -49,13 +49,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Mars" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "24.622962155909364h",
-        "inclination": 37.1135,
-        "ascendingNode": 47.68143,
-        "meridianAngle": 176.630
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": {
         "type": "Globe",
         "radii": [3396.19, 3396.19, 3376.2],

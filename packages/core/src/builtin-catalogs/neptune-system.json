@@ -9,13 +9,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Neptune" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "16.11h",
-        "inclination": 28.32,
-        "ascendingNode": 49.255,
-        "meridianAngle": 253.18
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radii": [24764, 24764, 24341], "baseMap": "textures/neptune.jpg" },
       "label": { "color": [0.4, 0.6, 0.95] },
       "items": [

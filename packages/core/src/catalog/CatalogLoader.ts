@@ -560,6 +560,7 @@ const BUILTIN_IAU_ROTATIONS: Record<string, { poleRaDeg: number; poleDecDeg: num
   SATURN:  { poleRaDeg:  40.589,  poleDecDeg:  83.537,  W0Deg:  38.90,   periodSec: 38362.4 },        // 10h39m22.4s (System III)
   URANUS:  { poleRaDeg: 257.311,  poleDecDeg: -15.175,  W0Deg: 203.81,   periodSec: -62063.712 },     // -17h14m23.712s (retrograde)
   NEPTUNE: { poleRaDeg: 299.36,   poleDecDeg:  43.46,   W0Deg: 253.18,   periodSec: 57996 },          // 16h6m36s (System II)
+  PLUTO:   { poleRaDeg: 132.993,  poleDecDeg:  -6.163,  W0Deg: 302.695,  periodSec: 551856.7 },      // 6.387230 d (IAU positive pole; spin is prograde about it)
   SUN:     { poleRaDeg: 286.13,   poleDecDeg:  63.87,   W0Deg:  84.176,  periodSec: 2192832 },        // ~25.38 d (sidereal at equator)
 };
 
@@ -1288,22 +1289,32 @@ export class CatalogLoader {
         // Use the trajectory's inertial frame so the rotation matches body positions.
         // Without this, a body with trajectoryFrame=J2000 but rotation in ECLIPJ2000
         // creates a ~23.4° offset (ecliptic obliquity).
+        //
+        // Only take the SPICE path when the loaded kernels can actually orient
+        // the frame (a PCK with this body's pole/spin, or a frame kernel for
+        // it). An IAU_<BODY> frame is always *known* to CSPICE, but without
+        // orientation data every pxform throws — which would leave the body
+        // unrotated and break body-fixed children. Probe once here instead.
         if (this.spice) {
-          return new SpiceRotation(this.spice, normalized, this.spiceFrame(frameName(item.trajectoryFrame), item.center));
+          if (this.frames.spiceToJ2000(normalized, this.probeEpoch)) {
+            return new SpiceRotation(this.spice, normalized, this.spiceFrame(frameName(item.trajectoryFrame), item.center));
+          }
+          console.warn(`[Cosmolabe] ${item.name}: SPICE cannot orient ${normalized} (no PCK/frame data loaded) — falling back to analytical IAU rotation`);
         }
-        // Fallback: hardcoded IAU 2009 pole + spin for major bodies, when no
-        // SPICE is loaded. This lets SPICE-free demos still get correct
-        // body-fixed rotation. Without this, a body-fixed child (lander/heli)
-        // gets placed in raw body-fixed coords because Universe.absolutePositionOf
-        // can't find a parent rotation to compose. Returns undefined for bodies
-        // not in the table — caller already handles undefined.
+        // Fallback: hardcoded IAU pole + spin for major bodies, when SPICE is
+        // absent or has no orientation data for this body. This lets
+        // SPICE-free demos still get correct body-fixed rotation. Without
+        // this, a body-fixed child (lander/heli) gets placed in raw body-fixed
+        // coords because Universe.absolutePositionOf can't find a parent
+        // rotation to compose. Returns undefined for bodies not in the table
+        // — caller already handles undefined.
         const builtin = BUILTIN_IAU_ROTATIONS[item.name.toUpperCase()];
         if (builtin) {
           // IAU pole tables are J2000-equatorial (EquatorJ2000), regardless of
           // the catalog's trajectory frame. UniformRotation handles the
           // sourceFrame; BodyMesh + Universe.absolutePositionOf compose the
           // obliquity rotation as needed when sourceFrame != ECLIPJ2000.
-          console.log(`[Cosmolabe] ${item.name}: using analytical IAU rotation (no SPICE)`);
+          if (!this.spice) console.log(`[Cosmolabe] ${item.name}: using analytical IAU rotation (no SPICE)`);
           return new UniformRotation(
             builtin.periodSec,
             0,                                  // epoch et=0 (J2000)
@@ -1320,7 +1331,7 @@ export class CatalogLoader {
         if (!this.spice) return undefined;
         return new SpiceRotation(
           this.spice,
-          spec.bodyFrame ?? `IAU_${item.name.toUpperCase()}`,
+          spec.bodyFrame ?? `IAU_${item.name.replace(/\s+/g, '_').toUpperCase()}`,
           this.spiceFrame(spec.inertialFrame ?? frameName(item.trajectoryFrame), item.center),
         );
 
