@@ -39,7 +39,9 @@ export interface SceneDef {
 
 // ── saturn-soi ───────────────────────────────────────────────────────────────
 
-/** Uniform rotation block copied verbatim from cassini-soi.json. */
+/** Uniform rotation block copied verbatim from cassini-soi.json as it was before
+ *  #118 moved that catalog to SPICE `Builtin` rotations. Kept here as a fixture
+ *  of the analytical Uniform path the goldens pin. */
 function uniform(period: string, inclination: number, ascendingNode: number, meridianAngle: number) {
   return { type: 'Uniform', period, inclination, ascendingNode, meridianAngle };
 }

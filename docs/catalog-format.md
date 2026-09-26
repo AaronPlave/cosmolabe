@@ -94,18 +94,23 @@ Some trajectory types know their own frame, and that frame is used whatever `tra
 
 ## Rotation models
 
-Six types, picked by `rotationModel.type`:
+Picked by `rotationModel.type`:
 
 | Type | Purpose |
 |---|---|
+| `Builtin` | A solar-system body's IAU body-fixed frame. Optional `name` (default `IAU_<BODY>`). See [Planets and moons](#planets-and-moons). |
 | `Uniform` | Constant rotation rate. Fields: `period`, `inclination`, `ascendingNode`, `meridianAngle` |
 | `Fixed` | A constant orientation. Fields: `quaternion: [x, y, z, w]` |
 | `FixedEuler` | A constant orientation given as Euler angles. Fields: `axes: "XYZ"`, `angles: [a, b, c]` |
 | `Interpolated` | Tabulated quaternion samples, SLERP-interpolated. Fields: `samples: [[et, x, y, z, w], …]` |
-| `Spice` | SPICE CK kernel. Fields: `frame`, `center` |
+| `Spice` | Any SPICE frame (CK, PCK or frame kernel). Fields: `bodyFrame` (default `IAU_<BODY>`), `inertialFrame` (default: the item's `trajectoryFrame`) |
 | `Nadir` | Spacecraft pointed at a target body's nadir vector. Fields: `target`, `center` |
 
-`Builtin` is also accepted as a rotation type for legacy IAU body rotations.
+### Planets and moons
+
+Use `{ "type": "Builtin" }` for any body that has an IAU orientation model. When a PCK with the body's data is loaded (`base/naif.json` loads `pck00011.tpc`), the globe is oriented by SPICE's `IAU_<BODY>` frame at the current epoch. That frame includes the pole, the prime meridian, pole precession, and the nutation and libration terms in the PCK. It is the same transform that sub-points, footprints and event searches use, so the rendered globe and the analysis cannot disagree. Without SPICE, or when the loaded kernels have no orientation data for the body, `Builtin` falls back to a constant-rate IAU model for the Sun, the major planets, the Moon and Pluto. That model is within about 1° of the PCK (about 2° for the Moon, whose libration it leaves out). Moons have no fallback, so they stay unrotated without a PCK.
+
+Keep `Uniform` for bodies with no IAU model: synthetic objects, most asteroids, and chaotic rotators like Hyperion. Its `inclination` and `ascendingNode` place the pole at RA = `ascendingNode` − 90° and Dec = 90° − `inclination`, in the J2000 **equatorial** frame unless `inertialFrame` says otherwise. Do not copy a planet's axial tilt relative to its orbit into `inclination`: that is measured from a different plane. For Jupiter it puts the pole about 25° from where it belongs.
 
 ## Geometry
 
