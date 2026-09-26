@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 /**
- * Rasterize the viewer favicon from its SVG source.
+ * Build the derived viewer favicons in apps/viewer/src/assets/favicon/.
  *
- * Source: apps/viewer/src/assets/favicon/favicon.svg
- * Writes, next to it:
- *   favicon-16.png, favicon-32.png   transparent, rendered at exact size
- *   favicon.ico                      16/32/48, PNG-encoded entries
- *   apple-touch-icon.png             180px on an opaque backdrop (iOS fills
- *                                    transparency with black, which swallows
- *                                    the planet's unlit side)
- *
- * Each size is rendered from the vector at its target resolution rather than
- * downsampled from a large bitmap, so small sizes stay crisp.
+ * Inputs (committed, hand-exported per size so tabs never show a
+ * browser-downsampled image):
+ *   favicon-16.png, favicon-32.png, favicon-64.png
+ *   favicon.svg                      vector source for sizes with no export
+ * Writes:
+ *   favicon.ico                      16/32/64 PNG entries, copied byte-for-byte
+ *   apple-touch-icon.png             180px rendered from the SVG on an opaque
+ *                                    backdrop (iOS fills transparency with
+ *                                    black, which swallows the unlit side)
  *
  * Usage: node scripts/build-favicons.mjs
  * Needs the viewer's `playwright` devDependency and a Chromium it can launch;
@@ -61,16 +60,9 @@ function ico(entries) {
   return Buffer.concat([header, dir, ...entries.map((e) => e.png)]);
 }
 
-const png16 = await render(16);
-const png32 = await render(32);
-const png48 = await render(48);
-writeFileSync(join(DIR, 'favicon-16.png'), png16);
-writeFileSync(join(DIR, 'favicon-32.png'), png32);
-writeFileSync(join(DIR, 'favicon.ico'), ico([
-  { size: 16, png: png16 },
-  { size: 32, png: png32 },
-  { size: 48, png: png48 },
-]));
+writeFileSync(join(DIR, 'favicon.ico'), ico(
+  [16, 32, 64].map((size) => ({ size, png: readFileSync(join(DIR, `favicon-${size}.png`)) })),
+));
 writeFileSync(join(DIR, 'apple-touch-icon.png'), await render(180, APPLE_TOUCH_BACKDROP));
 
 await browser.close();
