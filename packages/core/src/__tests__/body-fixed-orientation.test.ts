@@ -102,12 +102,37 @@ describe('SPICE-backed body-fixed orientation', () => {
     });
   }
 
-  it('Spice rotation defaults to IAU_<BODY>, including multi-word names', () => {
+  it('Spice rotation defaults to IAU_<BODY>', () => {
     const loader = new CatalogLoader(spice);
     const rot = loadRotation(loader, { name: 'Jupiter', trajectoryFrame: 'J2000', rotationModel: { type: 'Spice' } });
     const m = spice.pxform('J2000', 'IAU_JUPITER', epochs[2]);
     const q = quatToMat3(rot!.rotationAt(epochs[2]));
     for (let i = 0; i < 9; i++) expect(q[i]).toBeCloseTo(m[i], 9);
+  });
+
+  it('default body-fixed frame names normalise like the frame registry (multi-word, hyphens, padding)', () => {
+    // Record the frame each rotation asks SPICE for; answer with identity.
+    const asked: string[] = [];
+    const recorder = {
+      furnish: async () => {},
+      str2et: () => 0,
+      bodn2c: () => null,
+      pxform: (_from: string, to: string) => { asked.push(to); return [1, 0, 0, 0, 1, 0, 0, 0, 1]; },
+    } as unknown as SpiceInstance;
+    const loader = new CatalogLoader(recorder);
+    for (const type of ['Spice', 'Builtin']) {
+      for (const [name, frame] of [['Ingenuity Heli', 'IAU_INGENUITY_HELI'], [' Comet-Wild 2 ', 'IAU_COMET_WILD_2']]) {
+        asked.length = 0;
+        const rot = loadRotation(loader, { name, trajectoryFrame: 'J2000', rotationModel: { type } });
+        expect(rot, `${type} ${name}`).toBeInstanceOf(SpiceRotation);
+        rot!.rotationAt(0);
+        expect(asked.at(-1), `${type} ${name}`).toBe(frame);
+      }
+    }
+    // An explicit Builtin frame name is normalised the same way.
+    asked.length = 0;
+    loadRotation(loader, { name: 'Moon', rotationModel: { type: 'Builtin', name: 'IAU Moon' } })!.rotationAt(0);
+    expect(asked.at(-1)).toBe('IAU_MOON');
   });
 
   it('analytical IAU fallback puts pole and prime meridian where the PCK does', () => {

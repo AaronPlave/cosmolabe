@@ -1283,9 +1283,8 @@ export class CatalogLoader {
       }
 
       case 'Builtin': {
-        const bodyFrame = spec.name ?? `IAU_${item.name.toUpperCase()}`;
-        // "IAU Moon" → "IAU_MOON"
-        const normalized = bodyFrame.replace(/\s+/g, '_').toUpperCase();
+        // "IAU Moon" → "IAU_MOON"; default "Ingenuity Heli" → "IAU_INGENUITY_HELI"
+        const normalized = spec.name ? normalizeFrameKey(spec.name) : bodyFixedFrameName(item.name);
         // Use the trajectory's inertial frame so the rotation matches body positions.
         // Without this, a body with trajectoryFrame=J2000 but rotation in ECLIPJ2000
         // creates a ~23.4° offset (ecliptic obliquity).
@@ -1331,7 +1330,7 @@ export class CatalogLoader {
         if (!this.spice) return undefined;
         return new SpiceRotation(
           this.spice,
-          spec.bodyFrame ?? `IAU_${item.name.replace(/\s+/g, '_').toUpperCase()}`,
+          spec.bodyFrame ?? bodyFixedFrameName(item.name),
           this.spiceFrame(spec.inertialFrame ?? frameName(item.trajectoryFrame), item.center),
         );
 
