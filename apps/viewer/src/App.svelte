@@ -110,7 +110,7 @@
   $effect(() => {
     const home = !vs.showLoading && !vs.assetsReady;
     if (home && !TEST_MODE && !getCurrentRenderer()) {
-      startHero(canvas, () => (heroReady = true));
+      startHero(canvas, (visible) => (heroReady = visible));
     } else {
       stopHero();
       heroReady = false;
