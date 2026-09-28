@@ -18,6 +18,7 @@
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
   } from './lib/shell.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
+  import { startHero, stopHero } from './lib/hero';
   import type { CatalogEntry } from './lib/catalog-sources';
   import { catalogs, initCatalogSources, sourceSettled, syncSourceParams } from './lib/catalogs.svelte';
   import {
@@ -97,6 +98,24 @@
    * is the home screen.
    */
   const loading = $derived(vs.showLoading || !vs.assetsReady);
+
+  /**
+   * The home screen's backdrop: a presentation-only scene on the same canvas
+   * (lib/hero.ts), up exactly while the home screen is and no scene holds the
+   * canvas. A load stops it the moment it begins, so it never competes with
+   * one for the GPU. Skipped in test mode, whose captures are of catalogs.
+   */
+  const TEST_MODE = new URLSearchParams(location.search).has('test');
+  let heroReady = $state(false);
+  $effect(() => {
+    const home = !vs.showLoading && !vs.assetsReady;
+    if (home && !TEST_MODE && !getCurrentRenderer()) {
+      startHero(canvas, () => (heroReady = true));
+    } else {
+      stopHero();
+      heroReady = false;
+    }
+  });
 
   // Right-click: track pointerdown + pointerup for drag detection.
   // macOS fires contextmenu synchronously with the button press, so we can't use
@@ -474,6 +493,7 @@
     <LoadingScreen />
   {:else if !vs.assetsReady}
     <HomeScreen
+      backdrop={heroReady}
       onSelect={selectCatalog}
       onDrop={(dt) => loadFiles(() => handleDrop(canvas, dt))}
       onFiles={(files) => loadFiles(() => handleFileList(canvas, files))}

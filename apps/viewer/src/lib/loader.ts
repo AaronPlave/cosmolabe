@@ -53,6 +53,7 @@ import {
 } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
 import { absolutizeCatalogAssets } from './catalog-assets';
+import { stopHero } from './hero';
 
 // ── State ──
 let spice: HeritageSpice | null = null;
@@ -611,6 +612,8 @@ function initScene(
 ) {
   // Nothing to clean up here: the scene that was up was torn down before its
   // SPICE instance was replaced (`teardownScene`), which is the only way in.
+  // The home screen's backdrop shares this canvas; a scene takes it over.
+  stopHero();
   const findInMap = <T>(map: Map<string, T>, source: string): T | undefined => {
     if (map.has(source)) return map.get(source);
     const basename = source.split('/').pop()!;

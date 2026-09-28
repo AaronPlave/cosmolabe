@@ -12,6 +12,10 @@
    *
    * Loading is not this screen's job any more (LoadingScreen), and neither is
    * browsing the full list of catalogs (CatalogBrowser).
+   *
+   * Behind it, on the viewer's canvas, the renderer draws a presentation-only
+   * scene (lib/hero.ts); this screen is an overlay with a scrim that keeps the
+   * copy readable over it, and stays opaque until that scene has drawn.
    */
   import { catalogs, pickLocalFiles } from '../lib/catalogs.svelte';
   import { shell } from '../lib/shell.svelte';
@@ -19,12 +23,14 @@
   import type { CatalogEntry } from '../lib/catalog-sources';
 
   interface Props {
+    /** The renderer's backdrop scene is drawn and can show through (lib/hero.ts). */
+    backdrop?: boolean;
     onSelect: (sourceId: string, entry: CatalogEntry) => void;
     onDrop: (dt: DataTransfer) => void;
     onFiles: (files: File[]) => void;
   }
 
-  let { onSelect, onDrop, onFiles }: Props = $props();
+  let { backdrop = false, onSelect, onDrop, onFiles }: Props = $props();
 
   let dragging = $state(false);
 
@@ -56,6 +62,7 @@
 
 <div
   class="home"
+  class:backdrop
   class:dragging
   role="region"
   aria-label="Cosmolabe home"
@@ -63,81 +70,6 @@
   ondragleave={() => (dragging = false)}
   ondrop={handleDropEvent}
 >
-  <!-- One large dark body off the right edge, lit from behind and to the
-       left so only a soft crescent of rim light shows; a small companion on
-       one faint orbit, whose far side passes behind the body and near side in
-       front of it; and a few faint stars. Decoration only — hidden from
-       assistive tech, never takes a pointer — and the quietest thing on the
-       page. Narrower screens crop the body further into the corner and drop
-       the companion rather than let anything sit behind the text. -->
-  <svg class="backdrop" viewBox="0 0 1000 1000" aria-hidden="true">
-    <defs>
-      <!-- Bounding-box units, so both bodies share the lighting. -->
-      <radialGradient id="home-sphere" cx="0.36" cy="0.32" r="0.78">
-        <stop offset="0" stop-color="#101216" />
-        <stop offset="0.6" stop-color="#060709" />
-        <stop offset="1" stop-color="#020203" />
-      </radialGradient>
-      <linearGradient id="home-rim" x1="0.1" y1="0.05" x2="0.62" y2="0.7">
-        <stop offset="0" stop-color="#dfe4ee" stop-opacity="0.34" />
-        <stop offset="0.45" stop-color="#dfe4ee" stop-opacity="0.08" />
-        <stop offset="1" stop-color="#dfe4ee" stop-opacity="0" />
-      </linearGradient>
-      <!-- The disc minus a slightly larger one offset away from the light. -->
-      <mask id="home-crescent" maskContentUnits="objectBoundingBox">
-        <circle cx="0.5" cy="0.5" r="0.5" fill="#fff" />
-        <circle cx="0.52" cy="0.525" r="0.502" fill="#000" />
-      </mask>
-      <!-- A small body needs a proportionally wider crescent to read at all. -->
-      <mask id="home-crescent-small" maskContentUnits="objectBoundingBox">
-        <circle cx="0.5" cy="0.5" r="0.5" fill="#fff" />
-        <circle cx="0.58" cy="0.6" r="0.52" fill="#000" />
-      </mask>
-      <filter id="home-soft" x="-10%" y="-10%" width="120%" height="120%">
-        <feGaussianBlur stdDeviation="2.4" />
-      </filter>
-      <filter id="home-glow" x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur stdDeviation="14" />
-      </filter>
-    </defs>
-
-    <g class="stars" fill="currentColor">
-      <circle cx="120" cy="90" r="1.1" opacity="0.22" />
-      <circle cx="310" cy="40" r="0.8" opacity="0.14" />
-      <circle cx="40" cy="560" r="0.9" opacity="0.14" />
-      <circle cx="210" cy="820" r="1" opacity="0.16" />
-      <circle cx="420" cy="960" r="0.8" opacity="0.1" />
-      <circle cx="610" cy="30" r="0.7" opacity="0.12" />
-      <circle cx="930" cy="60" r="0.9" opacity="0.12" />
-    </g>
-
-    <!-- Orbit plane tilted 18°; a = 470, b = 120, around the body. -->
-    <g class="orbit" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke"
-       transform="rotate(18 500 500)">
-      <path class="orbit-far" d="M 30 500 A 470 120 0 0 1 970 500" />
-    </g>
-
-    <!-- The body: a dark disc, a faint wide glow along the lit limb, and the
-         crescent itself. -->
-    <circle class="limb-glow" cx="500" cy="500" r="400" fill="none" stroke="url(#home-rim)"
-            stroke-width="10" filter="url(#home-glow)" />
-    <circle cx="500" cy="500" r="400" fill="url(#home-sphere)" />
-    <!-- Blurred after masking, so the crescent's outer edge softens too. -->
-    <g filter="url(#home-soft)">
-      <circle cx="500" cy="500" r="400" fill="url(#home-rim)" mask="url(#home-crescent)" />
-    </g>
-
-    <g class="orbit" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke"
-       transform="rotate(18 500 500)">
-      <path class="orbit-near" d="M 970 500 A 470 120 0 0 1 30 500" />
-    </g>
-
-    <!-- The companion, on the orbit's far side, lit the same way. -->
-    <g class="companion">
-      <circle cx="66" cy="337" r="24" fill="url(#home-sphere)" />
-      <circle cx="66" cy="337" r="24" fill="url(#home-rim)" mask="url(#home-crescent-small)" />
-    </g>
-  </svg>
 
   <main class="home-body">
     <h1 class="title">Cosmolabe</h1>
@@ -199,73 +131,60 @@
 </div>
 
 <style>
+  /* Opaque until the backdrop scene has drawn, then a scrim over it: dark
+     behind the copy, clear over the planet on the right. */
   .home {
     position: absolute;
     inset: 0;
     z-index: 100;
     display: flex;
     overflow-y: auto;
-    background: var(--color-canvas);
     color: var(--color-text-primary);
-    transition: background var(--duration-chrome) var(--ease-chrome);
   }
-  .home.dragging {
-    background: var(--color-surface-0);
-  }
-
-  /* Sized to the viewport's height and pushed mostly off the right edge, so
-     the body is a cropped horizon well clear of the copy. Fixed boxes add no
-     scroll overflow, so the crop costs nothing. */
-  .backdrop {
+  .home::before {
+    content: '';
     position: fixed;
-    top: 50%;
-    right: 0;
-    width: min(112vh, 100vw);
-    height: auto;
-    aspect-ratio: 1;
-    transform: translate(42%, -50%);
-    color: var(--color-text-primary);
+    inset: 0;
+    background: var(--color-canvas);
     pointer-events: none;
-    overflow: visible;
+    transition: opacity 1.2s var(--ease-chrome);
   }
-  .backdrop .orbit {
-    stroke-width: 0.9;
+  .home::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.82) 0%,
+      rgba(0, 0, 0, 0.66) 38%,
+      rgba(0, 0, 0, 0.2) 58%,
+      rgba(0, 0, 0, 0) 72%
+    );
+    pointer-events: none;
   }
-  .backdrop .orbit-far {
-    opacity: 0.1;
+  .home.backdrop::before {
+    opacity: 0;
   }
-  .backdrop .orbit-near {
-    opacity: 0.07;
-  }
-  .backdrop .limb-glow {
-    opacity: 0.22;
-  }
-  @media (max-width: 1279px) {
-    /* The copy spans most of the width: centre the body on the right edge
-       and drop the companion, which would sit behind the text. */
-    .backdrop {
-      width: min(92vh, 72vw);
-      transform: translate(50%, -50%);
-    }
-    .backdrop .companion {
-      display: none;
-    }
+  .home.dragging::before {
+    opacity: 0.6;
+    background: var(--color-surface-1);
   }
   @media (max-width: 719px) {
-    /* A phone keeps a corner of the body above the title, and nothing else. */
-    .backdrop {
-      top: 0;
-      width: 20rem;
-      transform: translate(40%, -40%);
-    }
-    .backdrop .stars,
-    .backdrop .orbit {
-      display: none;
+    /* A phone's copy spans the width, so the scrim runs top to bottom:
+       clear over the planet's corner, dark from the title down. */
+    .home::after {
+      background: linear-gradient(
+        180deg,
+        rgba(0, 0, 0, 0.1) 0%,
+        rgba(0, 0, 0, 0.72) 30%,
+        rgba(0, 0, 0, 0.86) 100%
+      );
     }
   }
 
   .home-body {
     position: relative;
+    z-index: 1;
     width: 100%;
     max-width: 608px;
     margin: auto;
