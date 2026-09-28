@@ -28,7 +28,7 @@ export interface CatalogSourceDeployment {
   errors: string[];
   /** URL relative `indexUrl`s resolve against. */
   baseUrl: string;
-  /** Whether visitors may add sources at runtime (`?source=`, or the switcher's "Add catalog source…"). */
+  /** Whether visitors may add sources at runtime (`?source=`, or the catalog browser's "Add catalog source…"). */
   allowSourceParam: boolean;
   /** Ids of the sources the deployment configured, which `?source=` ids must not clash with. */
   configuredIds: string[];

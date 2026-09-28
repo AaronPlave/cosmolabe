@@ -1,6 +1,6 @@
 # Catalog sources and indexes
 
-A viewer deployment tells the home screen and the catalog switcher which catalogs to offer through
+A viewer deployment tells the home screen and the catalog browser which catalogs to offer through
 zero or more **catalog sources**. Each source points at an **index**: a small,
 versioned JSON file listing catalogs by name. The entries point at ordinary
 [catalog JSON](catalog-format.md). Nothing about the catalogs changes.
@@ -73,7 +73,7 @@ VITE_CATALOG_SOURCES='[
   (display, defaults to `id`),
   and an `indexUrl`. A relative `indexUrl` resolves against the viewer's base
   URL (`VITE_BASE`).
-- **`[]`** means no sources. The home screen and the switcher then offer only
+- **`[]`** means no sources. The home screen and the browser then offer only
   *Open local catalog…* and the file drop target. This suits a bare viewer or
   an embed.
 - **Unset** is the same as `[]`. The viewer never assumes a source exists,
@@ -85,7 +85,7 @@ VITE_CATALOG_SOURCES='[
   at runtime with `?source=<indexUrl>` (the parameter can repeat). It is off
   by default, because whether to accept arbitrary external sources is a
   choice for each deployment to make. The same setting enables *Add catalog
-  source…* in the switcher, which records the source as another `?source=`.
+  source…* in the catalog browser, which records the source as another `?source=`.
   A `?source=` source's id is `url-<n>`, from its position among the
   `source` parameters, so a source added at runtime keeps its id, and
   `?entry=` links into it keep working, across a reload.
@@ -119,11 +119,13 @@ assets separated from the example content.
   few — plus *Browse …* for the full list and *Open local catalog…*. With one
   source the action is named after it (*Browse examples*); with several it is
   *Browse catalogs*; with none there is nothing to browse.
-- **Catalog switcher** (the folder button at the top of the rail, `O`, or
-  *Open catalog…* in the command palette): the full list as a compact popover,
-  plus *Open local catalog…*, and *Add catalog source…* where
-  `VITE_ALLOW_CATALOG_SOURCE_PARAM` permits it. Opening it leaves the current
-  scene alone; choosing a catalog replaces the scene through the normal load.
+- **Catalog browser**: one overlay with the full list, grouped, with each
+  entry's description. It opens from the home screen's *Browse …* and, with a
+  scene up, from the folder button at the top of the rail, `O`, or *Open
+  catalog…* in the command palette. It also offers *Open local catalog…*, and
+  *Add catalog source…* where `VITE_ALLOW_CATALOG_SOURCE_PARAM` permits it.
+  Opening it leaves the home screen or the current scene alone underneath;
+  choosing a catalog replaces the scene through the normal load.
 
 The rail's *Catalog* tool is a different thing: it browses the bodies of the
 catalog that is loaded, not the catalogs a deployment offers.

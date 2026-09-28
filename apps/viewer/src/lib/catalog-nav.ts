@@ -1,6 +1,6 @@
 /**
  * Catalog navigation (issue #94): what the home screen and the catalog
- * switcher list, and how a chosen catalog is written into — and read back
+ * browser list, and how a chosen catalog is written into — and read back
  * out of — the page URL.
  *
  * Pure over its inputs, so it can be tested without a browser. Nothing here

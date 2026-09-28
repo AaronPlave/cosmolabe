@@ -1,10 +1,10 @@
 /**
  * The catalogs the viewer can open, as the home screen and the in-viewer
- * catalog switcher both see them (issue #94).
+ * catalog browser both see them (issue #94).
  *
- * One store rather than props threaded through the rail, because two surfaces
- * that never share a parent — the home screen and the switcher in the rail —
- * list the same sources, and a source added at runtime has to appear in both.
+ * One store rather than props threaded through, because the home screen's
+ * short list and the browser list the same sources, and a source added at
+ * runtime has to appear in both.
  */
 
 import { fetchCatalogSource, loadCatalogSources, type CatalogSourceState } from './catalog-sources';
@@ -96,7 +96,7 @@ export function syncSourceParams(): void {
  *
  * A source that fails to load is dropped again rather than kept: it is never
  * written to the URL or the list ids derive from, so keeping it would leave a
- * live source a reload does not have. The switcher reports the error.
+ * live source a reload does not have. The browser reports the error.
  */
 export function addCatalogSource(indexUrl: string): Promise<CatalogSourceState> {
   // One at a time: each addition's id depends on the list the one before it

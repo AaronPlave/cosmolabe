@@ -19,13 +19,10 @@
    * once #58's event kinds and #57's measurement tools arrive, and a row that
    * silently drops its last button is a worse failure than one that scrolls.
    *
-   * The first button opens the catalog switcher (#94). It is not the Catalog
+   * The first button opens the catalog browser (#94). It is not the Catalog
    * tool: that browses the bodies of the loaded scene, this replaces the scene.
    */
   import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen } from 'lucide-svelte';
-  import * as Popover from '$lib/components/ui/popover';
-  import CatalogMenu from './CatalogMenu.svelte';
-  import type { CatalogEntry } from '../../lib/catalog-sources';
   import { TOOLS, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
   import { vs, cycleCamera, selectBody } from '../../lib/viewer-state.svelte';
 
@@ -33,15 +30,11 @@
     pickModeActive: boolean;
     onTogglePick: () => void;
     onOpenSearch: () => void;
-    /** A catalog chosen from the switcher. */
-    onSelectCatalog: (sourceId: string, entry: CatalogEntry) => void;
-    /** Local files chosen from the switcher. */
-    onOpenFiles: (files: File[]) => void;
     /** Render bare, for a parent that supplies the surrounding chrome. */
     inline?: boolean;
   }
 
-  let { pickModeActive, onTogglePick, onOpenSearch, onSelectCatalog, onOpenFiles, inline = false }: Props = $props();
+  let { pickModeActive, onTogglePick, onOpenSearch, inline = false }: Props = $props();
 
   const compact = $derived(shell.layout === 'compact');
 
@@ -73,25 +66,16 @@
 </script>
 
 {#snippet buttons()}
-  <Popover.Root bind:open={shell.catalogMenuOpen}>
-    <Popover.Trigger>
-      {#snippet child({ props })}
-        <button
-          {...props}
-          class="rail-btn"
-          aria-label="Open catalog"
-          title={vs.catalogName ? `Open catalog (O) — current: ${vs.catalogName}` : 'Open catalog (O)'}
-        >
-          <FolderOpen size={16} />
-        </button>
-      {/snippet}
-    </Popover.Trigger>
-    <CatalogMenu
-      onSelect={onSelectCatalog}
-      onFiles={onOpenFiles}
-      close={() => (shell.catalogMenuOpen = false)}
-    />
-  </Popover.Root>
+  <button
+    class="rail-btn"
+    aria-haspopup="dialog"
+    aria-expanded={shell.catalogBrowserOpen}
+    aria-label="Open catalog"
+    title={vs.catalogName ? `Open catalog (O) — current: ${vs.catalogName}` : 'Open catalog (O)'}
+    onclick={() => (shell.catalogBrowserOpen = true)}
+  >
+    <FolderOpen size={16} />
+  </button>
 
   <div class="rail-divider" class:horizontal={compact}></div>
 

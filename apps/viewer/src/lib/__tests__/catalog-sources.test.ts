@@ -303,7 +303,7 @@ describe('runtime-added sources survive a reload', () => {
   const reloadIds = (search: string) =>
     resolveCatalogSourceDeployment(env, search, BASE).sources.filter((s) => s.id !== 'examples').map((s) => s.id);
 
-  /** Add each url in turn the way the switcher does, from the startup URL `search`. */
+  /** Add each url in turn the way the catalog browser does, from the startup URL `search`. */
   function addAll(search: string, urls: string[]) {
     const configured = resolveCatalogSourceDeployment(env, search, BASE).configuredIds;
     let values = sourceParamValues(search);

@@ -22,7 +22,7 @@ export interface Command {
 function getBuiltinCommands(): Command[] {
   return [
     // Catalog
-    { id: 'catalog:open', label: 'Open catalog…', shortcut: 'O', category: 'Catalog', execute: () => { shell.catalogMenuOpen = true; } },
+    { id: 'catalog:open', label: 'Open catalog…', shortcut: 'O', category: 'Catalog', execute: () => { shell.catalogBrowserOpen = true; } },
 
     // Time
     { id: 'time:play', label: vs.playing ? 'Pause' : 'Play', shortcut: 'Space', category: 'Time', execute: () => togglePlay() },

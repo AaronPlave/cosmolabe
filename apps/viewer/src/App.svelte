@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import HomeScreen from './components/HomeScreen.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
+  import CatalogBrowser from './components/CatalogBrowser.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
@@ -116,7 +117,9 @@
   function onDocDrop(e: DragEvent) {
     e.preventDefault();
     const dt = e.dataTransfer;
-    if (dt) loadFiles(() => handleDrop(canvas, dt));
+    if (!dt) return;
+    shell.catalogBrowserOpen = false;
+    loadFiles(() => handleDrop(canvas, dt));
   }
 
   function onCanvasClick(e: MouseEvent) {
@@ -188,9 +191,9 @@
 
     // Let command palette handle all keys when open (arrow nav, typing, etc.)
     if (commandPaletteOpen) return;
-    // Likewise the catalog switcher, which also handles its own Escape and
+    // Likewise the catalog browser, which also handles its own Escape and
     // marks it handled, so the Escape does not go on to dismiss a panel too.
-    if (shell.catalogMenuOpen || e.defaultPrevented) return;
+    if (shell.catalogBrowserOpen || e.defaultPrevented) return;
 
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
@@ -221,7 +224,7 @@
           return;
         }
         case 'p': togglePickMode(); return;
-        case 'o': shell.catalogMenuOpen = true; return;
+        case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
           else if (dismissTopSurface()) return;
@@ -272,7 +275,7 @@
 
   // ── Catalog navigation (#94) ──
   //
-  // Every way into a scene — the home screen, the switcher, a deep link, the
+  // Every way into a scene — the home screen, the catalog browser, a deep link, the
   // browser's back button, dropped files — ends in the same loader call; this
   // is only the bookkeeping around it: what is current, what the URL says, and
   // what to tell the user when a load fails.
@@ -477,6 +480,16 @@
     />
   {/if}
 
+  <!-- One catalog browser for both entry points: the home screen's Browse and
+       the rail's folder button. It sits over whichever is up, and a load
+       covers it with the loading screen only once a catalog is chosen. -->
+  {#if !vs.showLoading}
+    <CatalogBrowser
+      onSelect={selectCatalog}
+      onFiles={(files) => loadFiles(() => handleFileList(canvas, files))}
+    />
+  {/if}
+
   {#if !loading && catalogs.loadError}
     <!-- A switch that failed before touching the scene leaves it up; say so
          over it, briefly and out of the way, rather than only in the console. -->
@@ -536,8 +549,6 @@
           {pickModeActive}
           onTogglePick={togglePickMode}
           onOpenSearch={() => commandPaletteOpen = true}
-          onSelectCatalog={selectCatalog}
-          onOpenFiles={(files) => loadFiles(() => handleFileList(canvas, files))}
         />
       </div>
     {:else}
@@ -545,8 +556,6 @@
         {pickModeActive}
         onTogglePick={togglePickMode}
         onOpenSearch={() => commandPaletteOpen = true}
-        onSelectCatalog={selectCatalog}
-        onOpenFiles={(files) => loadFiles(() => handleFileList(canvas, files))}
       />
       <TimelineDock />
     {/if}

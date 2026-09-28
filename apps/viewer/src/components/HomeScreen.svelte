@@ -6,18 +6,15 @@
    * catalogs to start with. That list — and whether there is one at all — comes
    * from the deployment's catalog sources (#93); a mission deployment lists its
    * own catalogs, and a bare viewer with no sources is just the local-open
-   * action. The full list is one press away, in the same catalog chooser the
-   * viewer's rail opens. It takes the place of the short list and footer while
-   * it is open, at a fixed height, rather than floating over them or growing
-   * the page, so the screen stays this sparse however much a deployment
-   * offers.
+   * action. The full list is one press away, in the same catalog browser the
+   * viewer's folder button opens — an overlay above this screen, which itself
+   * never grows or rearranges, however much a deployment offers.
    *
    * Loading is not this screen's job any more (LoadingScreen), and neither is
-   * switching catalogs once a scene is up (CatalogMenu).
+   * browsing the full list of catalogs (CatalogBrowser).
    */
-  import { tick } from 'svelte';
-  import CatalogChooser, { CHOOSER_SURFACE, CHOOSER_OVER_PAGE } from './CatalogChooser.svelte';
   import { catalogs, pickLocalFiles } from '../lib/catalogs.svelte';
+  import { shell } from '../lib/shell.svelte';
   import { browseLabel, featuredEntries, allEntries } from '../lib/catalog-nav';
   import type { CatalogEntry } from '../lib/catalog-sources';
 
@@ -29,39 +26,14 @@
 
   let { onSelect, onDrop, onFiles }: Props = $props();
 
-  let browsing = $state(false);
   let dragging = $state(false);
-  let browseButton = $state<HTMLButtonElement>();
-  let chooserEl = $state<HTMLElement>();
-  let lowerEl = $state<HTMLElement>();
-  /** The short list and footer's height, held while the chooser has their place. */
-  let lockedHeight = $state<number | null>(null);
-
-  /**
-   * Open or close the chooser, taking focus in and handing it back out. The
-   * region keeps the height it had, and the taller chooser runs on below it,
-   * so the page — which is centred on that height — does not move.
-   */
-  async function setBrowsing(open: boolean) {
-    lockedHeight = open ? (lowerEl?.offsetHeight ?? null) : null;
-    browsing = open;
-    await tick();
-    if (open) chooserEl?.querySelector<HTMLElement>('.row, .item')?.focus();
-    else browseButton?.focus();
-  }
-
-  function onChooserKeydown(e: KeyboardEvent) {
-    if (e.key !== 'Escape') return;
-    e.preventDefault();
-    void setBrowsing(false);
-  }
 
   const featured = $derived(featuredEntries(catalogs.sources));
   const total = $derived(allEntries(catalogs.sources).length);
   const browse = $derived(browseLabel(catalogs.sources));
   const pending = $derived(catalogs.sources.some((s) => s.status === 'loading'));
   // Problems are only worth the home screen's space when they leave it with
-  // nothing to offer; otherwise the chooser, one press away, reports them.
+  // nothing to offer; otherwise the browser, one press away, reports them.
   const problems = $derived([
     ...catalogs.configErrors,
     ...catalogs.sources.flatMap((s) =>
@@ -91,32 +63,59 @@
   ondragleave={() => (dragging = false)}
   ondrop={handleDropEvent}
 >
-  <!-- Orbital drafting, kept to the right of the copy: one body, an inner
-       circular orbit, an eccentric one with the body at its focus (apsis
-       line drawn across it), and part of an outer trajectory. Very low
-       contrast, decoration only — hidden from assistive tech, never takes a
-       pointer. Narrow screens move it below the copy and drop the outer arc
-       rather than let it run through the text. -->
+  <!-- Orbital drafting, kept to the right of the copy. One body with a faint
+       halo; an inner circular orbit with a planet and reference ticks; an
+       eccentric orbit with the body at its focus, its apsis line and a
+       periapsis tick; an inclined orbit whose far half runs behind the body
+       (dashed, fainter) and near half in front; part of an outer trajectory
+       with a spacecraft and its heading; and a sparse scatter of stars. Line
+       weight and opacity step down with distance from the body. Decoration
+       only — hidden from assistive tech, never takes a pointer. Narrow
+       screens move it below the copy and drop the outer arc rather than let
+       it run through the text. -->
   <svg class="orbits" viewBox="0 0 1000 1000" aria-hidden="true">
+    <g class="stars" fill="currentColor">
+      <circle cx="820" cy="140" r="1.1" opacity="0.2" />
+      <circle cx="905" cy="300" r="0.8" opacity="0.13" />
+      <circle cx="960" cy="760" r="1.1" opacity="0.16" />
+      <circle cx="700" cy="905" r="0.9" opacity="0.11" />
+      <circle cx="610" cy="118" r="0.8" opacity="0.12" />
+      <circle cx="380" cy="205" r="0.7" opacity="0.09" />
+      <circle cx="330" cy="760" r="0.9" opacity="0.1" />
+      <circle cx="870" cy="880" r="0.7" opacity="0.13" />
+      <circle cx="982" cy="470" r="0.8" opacity="0.1" />
+      <circle cx="560" cy="712" r="0.6" opacity="0.08" />
+      <circle cx="760" cy="612" r="0.7" opacity="0.1" />
+      <circle cx="430" cy="905" r="0.8" opacity="0.08" />
+    </g>
     <g fill="none" stroke="currentColor" vector-effect="non-scaling-stroke">
-      <g class="ring">
-        <circle cx="500" cy="500" r="108" />
-        <!-- a = 236, e = 0.35: centre offset c = 83 along the major axis,
-             so the body sits at the focus. -->
-        <g transform="rotate(-22 500 500)">
-          <ellipse cx="583" cy="500" rx="236" ry="221" />
-          <line x1="264" y1="500" x2="836" y2="500" class="apsis" />
-        </g>
-        <!-- Ticks on the inner orbit, like a drafted reference circle. -->
-        <path d="M 500 386 V 396 M 614 500 H 604 M 500 614 V 604 M 386 500 H 396" />
+      <circle class="halo" cx="500" cy="500" r="12" />
+      <!-- Inclined orbit: far half dashed behind the body, near half solid. -->
+      <g transform="rotate(16 500 500)">
+        <path class="inclined-far" d="M 240 500 A 260 58 0 0 1 760 500" />
+        <path class="inclined-near" d="M 760 500 A 260 58 0 0 1 240 500" />
+      </g>
+      <circle class="inner" cx="500" cy="500" r="108" />
+      <path class="ticks" d="M 500 386 V 396 M 614 500 H 604 M 500 614 V 604 M 386 500 H 396" />
+      <!-- a = 236, e = 0.35: centre offset c = 83 along the major axis, so the
+           body sits at the near focus and periapsis is the left end. -->
+      <g transform="rotate(-22 500 500)">
+        <ellipse class="eccentric" cx="583" cy="500" rx="236" ry="221" />
+        <line class="apsis" x1="264" y1="500" x2="836" y2="500" />
+        <line class="ticks" x1="347" y1="491" x2="347" y2="509" />
       </g>
       <path class="outer" d="M 700 154 A 400 400 0 0 1 331 863" />
+      <!-- Spacecraft heading along the outer arc. -->
+      <line class="outer heading" x1="876" y1="637" x2="870" y2="654" />
+      <!-- A ring around the inner planet. -->
+      <circle class="marker-ring" cx="424" cy="424" r="5" />
     </g>
     <g fill="currentColor">
-      <circle cx="500" cy="500" r="3.5" class="body" />
-      <circle cx="424" cy="424" r="2" />
-      <circle cx="691" cy="269" r="1.8" />
-      <circle class="outer" cx="892" cy="583" r="1.8" />
+      <circle class="body" cx="500" cy="500" r="3.5" />
+      <circle class="marker" cx="424" cy="424" r="1.8" />
+      <circle class="marker faint" cx="691" cy="269" r="1.6" />
+      <g transform="rotate(16 500 500)"><circle class="marker faint" cx="630" cy="550" r="1.4" /></g>
+      <circle class="outer marker" cx="876" cy="637" r="1.8" />
     </g>
   </svg>
 
@@ -130,11 +129,10 @@
     <div class="actions">
       {#if browse && total > featured.length}
         <button
-          bind:this={browseButton}
           class="action primary"
-          aria-expanded={browsing}
-          aria-controls="home-chooser"
-          onclick={() => setBrowsing(!browsing)}
+          aria-haspopup="dialog"
+          aria-expanded={shell.catalogBrowserOpen}
+          onclick={() => (shell.catalogBrowserOpen = true)}
         >
           {browse}
         </button>
@@ -148,20 +146,7 @@
       <p class="load-error" role="alert">{catalogs.loadError}</p>
     {/if}
 
-    <div class="lower" bind:this={lowerEl} style:height={lockedHeight != null ? `${lockedHeight}px` : null}>
-    {#if browsing}
-      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-      <div
-        id="home-chooser"
-        bind:this={chooserEl}
-        class="home-chooser {CHOOSER_SURFACE} {CHOOSER_OVER_PAGE}"
-        role="region"
-        aria-label="Catalogs"
-        onkeydown={onChooserKeydown}
-      >
-        <CatalogChooser {onSelect} {onFiles} close={() => { lockedHeight = null; browsing = false; }} />
-      </div>
-    {:else if featured.length > 0}
+    {#if featured.length > 0}
       <div class="list">
         <h2 class="list-heading">Start with</h2>
         <ul>
@@ -183,7 +168,6 @@
       {/each}
     {/if}
 
-    {#if !browsing}
     <footer class="foot">
       <span>Or drop a catalog folder or kernel files anywhere.</span>
       <span class="links">
@@ -191,8 +175,6 @@
         <a href="https://github.com/AaronPlave/cosmolabe" target="_blank" rel="noopener noreferrer">GitHub</a>
       </span>
     </footer>
-    {/if}
-    </div>
   </main>
 </div>
 
@@ -224,27 +206,63 @@
     color: var(--color-text-primary);
     pointer-events: none;
   }
-  .orbits .ring {
+  /* Opacity steps down from the body outwards; line weights stay hairline,
+     with the inner orbit a touch heavier. */
+  .orbits .inner {
+    stroke-width: 1.15;
+    opacity: 0.17;
+  }
+  .orbits .eccentric {
     stroke-width: 1;
     opacity: 0.13;
   }
+  .orbits .inclined-near {
+    stroke-width: 0.8;
+    opacity: 0.08;
+  }
+  .orbits .inclined-far {
+    stroke-width: 0.75;
+    stroke-dasharray: 2 4;
+    opacity: 0.045;
+  }
   .orbits .apsis {
+    stroke-width: 0.8;
     stroke-dasharray: 3 5;
-    opacity: 0.7;
+    opacity: 0.08;
+  }
+  .orbits .ticks {
+    stroke-width: 1;
+    opacity: 0.14;
+  }
+  .orbits .halo {
+    stroke-width: 0.8;
+    opacity: 0.08;
+  }
+  .orbits .marker-ring {
+    stroke-width: 0.8;
+    opacity: 0.14;
   }
   .orbits .outer {
     stroke-width: 1;
     stroke-dasharray: 4 5;
     opacity: 0.09;
   }
-  .orbits g[fill] > circle {
+  .orbits .heading {
+    stroke-dasharray: none;
     opacity: 0.16;
   }
-  .orbits g[fill] > .body {
-    opacity: 0.3;
+  .orbits .body {
+    opacity: 0.38;
   }
-  .orbits g[fill] > circle.outer {
-    opacity: 0.12;
+  .orbits .marker {
+    opacity: 0.24;
+  }
+  .orbits .marker.faint {
+    opacity: 0.16;
+  }
+  .orbits circle.outer.marker {
+    stroke-dasharray: none;
+    opacity: 0.2;
   }
   @media (max-width: 1279px) {
     /* The copy spans most of the width: sit the drawing low and to the
@@ -270,7 +288,10 @@
       width: 15rem;
       transform: translate(32%, -32%);
     }
-    .orbits .apsis {
+    .orbits .apsis,
+    .orbits .inclined-far,
+    .orbits .inclined-near,
+    .orbits .stars {
       display: none;
     }
   }
@@ -348,18 +369,6 @@
   }
 
   .list {
-    margin-top: 2rem;
-  }
-  /* The chooser in place of the short list and footer: the same box every
-     time it opens, whatever a deployment lists, and no wider than the one the
-     viewer's rail opens — the list inside scrolls. */
-  .home-chooser {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    max-width: 400px;
-    height: min(380px, 60vh);
-    /* The list's own offset, so the chooser opens exactly where it was. */
     margin-top: 2rem;
   }
   .list-heading {
