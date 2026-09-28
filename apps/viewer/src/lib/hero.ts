@@ -4,11 +4,13 @@
  * catalog is up.
  *
  * Real, not staged: the Sun, Saturn and Dione are where the built-in
- * ephemerides put them on EPOCH, lit by the actual Sun and at their true sizes
- * (minBodyPixels 0), and the clock runs on from there. The picture comes only
- * from the camera: held still with a long lens and a roll, so the edge of the
- * disc and a diagonal of ring sit at the right and the rest of the frame stays
- * black. Dione is the only moon in the scene.
+ * ephemerides put them, lit by the actual Sun and at their true sizes
+ * (minBodyPixels 0). The moment is a real one, Dione's shadow transit of
+ * 14 October 2024: the rings' shadow lies on the planet as a band beside them,
+ * Dione's shadow crosses the disc, and the clock runs on from there. The
+ * picture comes only from the camera: held still with a long lens and a roll,
+ * so part of the disc and a diagonal of ring sit at the right and the rest of
+ * the frame stays black. Dione is the only moon in the scene.
  *
  * Presentation only. It is not a catalog load: nothing here goes through the
  * loader, touches viewer state, the URL or the window title, or binds the
@@ -28,21 +30,25 @@ import { UniverseRenderer, type RendererPlugin } from '@cosmolabe/three';
 
 const SCALE = 1e-6;
 const SATURN_RADIUS = 60268; // km, equatorial
-/** When the scene opens: mid-2020, with the Sun 22 degrees above the rings, so they are
- *  bright and Saturn throws its shadow across them, and Dione at the start of a pass across
- *  the black above them (it comes round every 2.7 days).
- *  Fixed, so the home screen opens on the same sky every visit; the clock runs on from there. */
-const EPOCH = '2020-05-31T15:30:00Z';
-/** Simulated seconds per real second: Saturn's clouds turn, and Dione drifts up through the black over the first several minutes. */
+/** The event the scene opens on: Dione's shadow crossing Saturn on 14 October 2024, one of
+ *  the last transits with the Sun still a few degrees above the rings (so their shadow lies
+ *  on the planet as a band beside them) before the 2025 equinox. Mid-transit is found from
+ *  the ephemerides at startup; the clock starts a little before it and runs on from there. */
+const NEAR = '2024-10-14T04:00:00Z';
+/** How long before mid-transit the scene opens, in simulated seconds: with the shadow just
+ *  in over the limb, to cross the disc over the next eight minutes or so while Dione drifts
+ *  up through the black. */
+const LEAD = 4800;
+/** Simulated seconds per real second. */
 const RATE = 10;
-/** The camera, fixed relative to Saturn: this many Saturn radii out, this far round from the
- *  Sun's direction (the Sun off to the right, so the night side faces the copy), a little
- *  below the ring plane (which lifts the near side of Dione's orbit clear of the rings), and
- *  rolled so the rings cross the frame on a diagonal. */
+/** The camera, fixed relative to Saturn: this many Saturn radii out, this far round Saturn's
+ *  pole from the Sun's direction, this many degrees below the Sun (which sets Dione above
+ *  its shadow, out in the black clear of the disc), and rolled so the rings cross the frame
+ *  on a diagonal. */
 const CAM_DISTANCE = 16;
-const CAM_BEARING = 62;
-const CAM_ELEVATION = -8;
-const CAM_ROLL = -32;
+const CAM_BEARING = 0;
+const CAM_BELOW_SUN = 10;
+const CAM_ROLL = -28;
 /** A long lens, close on the edge of the planet. */
 const FOV = 11.2;
 
@@ -53,7 +59,7 @@ function framing(width: number, height: number): { x: number; y: number; zoom: n
   if (aspect < 0.8) return { x: 1.05, y: 0.02, zoom: 0.6 };
   // Tablets and narrow windows.
   if (aspect < 1.45) return { x: 1.07, y: 0.58, zoom: 0.85 };
-  return { x: 1.04, y: 0.55, zoom: 1 };
+  return { x: 0.99, y: 0.58, zoom: 1 };
 }
 
 const MOON = { name: 'Dione', radius: 562 };
@@ -139,25 +145,39 @@ function sunDirection(universe: Universe, et: number): Vec {
   return vec(universe.getBody('Saturn')!.stateAt(et).position).negate().normalize();
 }
 
+/** Mid-transit near `NEAR`: when Dione's shadow is closest to the middle of the disc. */
+function midTransit(universe: Universe): number {
+  const moon = universe.getBody(MOON.name)!;
+  const near = toEt(NEAR);
+  let mid = near;
+  let best = Infinity;
+  for (let et = near - 12 * 3600; et <= near + 12 * 3600; et += 60) {
+    const sun = sunDirection(universe, et);
+    const m = vec(moon.stateAt(et).position);
+    const along = m.dot(sun);
+    if (along <= 0) continue;
+    const off = m.addScaledVector(sun, -along).length();
+    if (off < best) { best = off; mid = et; }
+  }
+  return mid;
+}
+
 /**
  * The camera, in km relative to Saturn, fixed for the whole scene: out along a
  * direction CAM_BEARING degrees round Saturn's pole from the Sun and
- * CAM_ELEVATION from the ring plane, looking at the planet's centre, with the
- * Sun on the right of the frame.
+ * CAM_BELOW_SUN degrees under it, looking at the planet's centre.
  */
 function planShot(universe: Universe, et: number) {
   const pole = saturnPole(universe, et);
   const sun = sunDirection(universe, et);
   const sunInPlane = sun.clone().addScaledVector(pole, -sun.dot(pole)).normalize();
-  const place = (bearing: number) => {
-    const dir = sunInPlane.clone().applyAxisAngle(pole, THREE.MathUtils.degToRad(bearing));
-    const el = THREE.MathUtils.degToRad(CAM_ELEVATION);
-    return dir.multiplyScalar(Math.cos(el)).addScaledVector(pole, Math.sin(el)).normalize();
-  };
-  // Of the two bearings, the one that puts the Sun on the right.
-  let dir = place(CAM_BEARING);
-  const right = new THREE.Vector3().crossVectors(dir.clone().negate(), pole);
-  if (right.dot(sun) < 0) dir = place(-CAM_BEARING);
+  const sunEl = Math.asin(sun.dot(pole));
+  const el = sunEl - THREE.MathUtils.degToRad(CAM_BELOW_SUN);
+  const dir = sunInPlane
+    .applyAxisAngle(pole, THREE.MathUtils.degToRad(CAM_BEARING))
+    .multiplyScalar(Math.cos(el))
+    .addScaledVector(pole, Math.sin(el))
+    .normalize();
   const position = dir.clone().multiplyScalar(CAM_DISTANCE * SATURN_RADIUS);
   const up = pole.clone().applyAxisAngle(dir, THREE.MathUtils.degToRad(CAM_ROLL));
   return { position, up };
@@ -198,8 +218,9 @@ export function startHero(canvas: HTMLCanvasElement, onReady: () => void): void 
   try {
     universe = new Universe();
     universe.loadCatalog(heroCatalog() as never);
-    const start = toEt(EPOCH);
-    const shot = planShot(universe, start);
+    const mid = midTransit(universe);
+    const start = mid - LEAD;
+    const shot = planShot(universe, mid);
     universe.setTime(start);
 
     renderer = new UniverseRenderer(canvas, universe, {
