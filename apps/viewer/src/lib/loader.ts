@@ -53,7 +53,7 @@ import {
 } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
 import { absolutizeCatalogAssets } from './catalog-assets';
-import { stopHero } from './hero';
+import { stopHero, resizeHero } from './hero';
 
 // ── State ──
 let spice: HeritageSpice | null = null;
@@ -1246,7 +1246,8 @@ export function getGeometryWorker(): GeometrySearchWorker | null {
   return geometryWorker;
 }
 
-/** Resize the renderer */
+/** Resize the renderer, or the home screen's backdrop when no scene is up */
 export function resize(w: number, h: number) {
   renderer?.resize(w, h);
+  resizeHero(w, h);
 }

@@ -77,7 +77,7 @@ function heroCatalog(): Record<string, unknown> {
   };
 }
 
-let hero: { renderer: UniverseRenderer; universe: Universe; onResize: () => void } | null = null;
+let hero: { renderer: UniverseRenderer; universe: Universe } | null = null;
 
 /**
  * Start the backdrop on `canvas`, unless it is already running. `onReady`
@@ -121,33 +121,36 @@ export function startHero(canvas: HTMLCanvasElement, onReady: () => void): void 
   });
   renderer.applyNamedViewpoint('Home', { animate: false });
 
-  const onResize = () => {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    renderer.resize(w, h);
-    // An off-axis frame rather than a turned camera: the planet moves toward
-    // the edge without the perspective stretching it into an egg.
-    const f = framing(w, h);
-    renderer.camera.zoom = f.zoom;
-    renderer.camera.setViewOffset(w, h, (0.5 - f.x) * w, (0.5 - f.y) * h, w, h);
-    renderer.camera.updateProjectionMatrix();
-  };
-  onResize();
-  window.addEventListener('resize', onResize);
-
-  hero = { renderer, universe, onResize };
+  hero = { renderer, universe };
+  resizeHero(window.innerWidth, window.innerHeight);
   renderer.start();
   void renderer.waitForInitialAssets().then(() => {
     if (hero?.renderer === renderer) onReady();
   });
 }
 
+/**
+ * Fit the backdrop to the window. Driven by the app's own resize handling
+ * (`loader.resize`), which also resets the canvas's backing size: a listener
+ * of the backdrop's own could run before that and be undone by it.
+ */
+export function resizeHero(w: number, h: number): void {
+  if (!hero) return;
+  const { renderer } = hero;
+  renderer.resize(w, h);
+  // An off-axis frame rather than a turned camera: the planet moves toward
+  // the edge without the perspective stretching it into an egg.
+  const f = framing(w, h);
+  renderer.camera.zoom = f.zoom;
+  renderer.camera.setViewOffset(w, h, (0.5 - f.x) * w, (0.5 - f.y) * h, w, h);
+  renderer.camera.updateProjectionMatrix();
+}
+
 /** Stop the backdrop and release it, leaving the canvas free for a scene. */
 export function stopHero(): void {
   if (!hero) return;
-  const { renderer, universe, onResize } = hero;
+  const { renderer, universe } = hero;
   hero = null;
-  window.removeEventListener('resize', onResize);
   renderer.stop();
   renderer.camera.clearViewOffset();
   renderer.dispose();
