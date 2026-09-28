@@ -63,59 +63,79 @@
   ondragleave={() => (dragging = false)}
   ondrop={handleDropEvent}
 >
-  <!-- Orbital drafting, kept to the right of the copy. One body with a faint
-       halo; an inner circular orbit with a planet and reference ticks; an
-       eccentric orbit with the body at its focus, its apsis line and a
-       periapsis tick; an inclined orbit whose far half runs behind the body
-       (dashed, fainter) and near half in front; part of an outer trajectory
-       with a spacecraft and its heading; and a sparse scatter of stars. Line
-       weight and opacity step down with distance from the body. Decoration
-       only — hidden from assistive tech, never takes a pointer. Narrow
-       screens move it below the copy and drop the outer arc rather than let
-       it run through the text. -->
-  <svg class="orbits" viewBox="0 0 1000 1000" aria-hidden="true">
+  <!-- One large dark body off the right edge, lit from behind and to the
+       left so only a soft crescent of rim light shows; a small companion on
+       one faint orbit, whose far side passes behind the body and near side in
+       front of it; and a few faint stars. Decoration only — hidden from
+       assistive tech, never takes a pointer — and the quietest thing on the
+       page. Narrower screens crop the body further into the corner and drop
+       the companion rather than let anything sit behind the text. -->
+  <svg class="backdrop" viewBox="0 0 1000 1000" aria-hidden="true">
+    <defs>
+      <!-- Bounding-box units, so both bodies share the lighting. -->
+      <radialGradient id="home-sphere" cx="0.36" cy="0.32" r="0.78">
+        <stop offset="0" stop-color="#101216" />
+        <stop offset="0.6" stop-color="#060709" />
+        <stop offset="1" stop-color="#020203" />
+      </radialGradient>
+      <linearGradient id="home-rim" x1="0.1" y1="0.05" x2="0.62" y2="0.7">
+        <stop offset="0" stop-color="#dfe4ee" stop-opacity="0.34" />
+        <stop offset="0.45" stop-color="#dfe4ee" stop-opacity="0.08" />
+        <stop offset="1" stop-color="#dfe4ee" stop-opacity="0" />
+      </linearGradient>
+      <!-- The disc minus a slightly larger one offset away from the light. -->
+      <mask id="home-crescent" maskContentUnits="objectBoundingBox">
+        <circle cx="0.5" cy="0.5" r="0.5" fill="#fff" />
+        <circle cx="0.52" cy="0.525" r="0.502" fill="#000" />
+      </mask>
+      <!-- A small body needs a proportionally wider crescent to read at all. -->
+      <mask id="home-crescent-small" maskContentUnits="objectBoundingBox">
+        <circle cx="0.5" cy="0.5" r="0.5" fill="#fff" />
+        <circle cx="0.58" cy="0.6" r="0.52" fill="#000" />
+      </mask>
+      <filter id="home-soft" x="-10%" y="-10%" width="120%" height="120%">
+        <feGaussianBlur stdDeviation="2.4" />
+      </filter>
+      <filter id="home-glow" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="14" />
+      </filter>
+    </defs>
+
     <g class="stars" fill="currentColor">
-      <circle cx="820" cy="140" r="1.1" opacity="0.2" />
-      <circle cx="905" cy="300" r="0.8" opacity="0.13" />
-      <circle cx="960" cy="760" r="1.1" opacity="0.16" />
-      <circle cx="700" cy="905" r="0.9" opacity="0.11" />
-      <circle cx="610" cy="118" r="0.8" opacity="0.12" />
-      <circle cx="380" cy="205" r="0.7" opacity="0.09" />
-      <circle cx="330" cy="760" r="0.9" opacity="0.1" />
-      <circle cx="870" cy="880" r="0.7" opacity="0.13" />
-      <circle cx="982" cy="470" r="0.8" opacity="0.1" />
-      <circle cx="560" cy="712" r="0.6" opacity="0.08" />
-      <circle cx="760" cy="612" r="0.7" opacity="0.1" />
-      <circle cx="430" cy="905" r="0.8" opacity="0.08" />
+      <circle cx="120" cy="90" r="1.1" opacity="0.22" />
+      <circle cx="310" cy="40" r="0.8" opacity="0.14" />
+      <circle cx="40" cy="560" r="0.9" opacity="0.14" />
+      <circle cx="210" cy="820" r="1" opacity="0.16" />
+      <circle cx="420" cy="960" r="0.8" opacity="0.1" />
+      <circle cx="610" cy="30" r="0.7" opacity="0.12" />
+      <circle cx="930" cy="60" r="0.9" opacity="0.12" />
     </g>
-    <g fill="none" stroke="currentColor" vector-effect="non-scaling-stroke">
-      <circle class="halo" cx="500" cy="500" r="12" />
-      <!-- Inclined orbit: far half dashed behind the body, near half solid. -->
-      <g transform="rotate(16 500 500)">
-        <path class="inclined-far" d="M 240 500 A 260 58 0 0 1 760 500" />
-        <path class="inclined-near" d="M 760 500 A 260 58 0 0 1 240 500" />
-      </g>
-      <circle class="inner" cx="500" cy="500" r="108" />
-      <path class="ticks" d="M 500 386 V 396 M 614 500 H 604 M 500 614 V 604 M 386 500 H 396" />
-      <!-- a = 236, e = 0.35: centre offset c = 83 along the major axis, so the
-           body sits at the near focus and periapsis is the left end. -->
-      <g transform="rotate(-22 500 500)">
-        <ellipse class="eccentric" cx="583" cy="500" rx="236" ry="221" />
-        <line class="apsis" x1="264" y1="500" x2="836" y2="500" />
-        <line class="ticks" x1="347" y1="491" x2="347" y2="509" />
-      </g>
-      <path class="outer" d="M 700 154 A 400 400 0 0 1 331 863" />
-      <!-- Spacecraft heading along the outer arc. -->
-      <line class="outer heading" x1="876" y1="637" x2="870" y2="654" />
-      <!-- A ring around the inner planet. -->
-      <circle class="marker-ring" cx="424" cy="424" r="5" />
+
+    <!-- Orbit plane tilted 18°; a = 470, b = 120, around the body. -->
+    <g class="orbit" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke"
+       transform="rotate(18 500 500)">
+      <path class="orbit-far" d="M 30 500 A 470 120 0 0 1 970 500" />
     </g>
-    <g fill="currentColor">
-      <circle class="body" cx="500" cy="500" r="3.5" />
-      <circle class="marker" cx="424" cy="424" r="1.8" />
-      <circle class="marker faint" cx="691" cy="269" r="1.6" />
-      <g transform="rotate(16 500 500)"><circle class="marker faint" cx="630" cy="550" r="1.4" /></g>
-      <circle class="outer marker" cx="876" cy="637" r="1.8" />
+
+    <!-- The body: a dark disc, a faint wide glow along the lit limb, and the
+         crescent itself. -->
+    <circle class="limb-glow" cx="500" cy="500" r="400" fill="none" stroke="url(#home-rim)"
+            stroke-width="10" filter="url(#home-glow)" />
+    <circle cx="500" cy="500" r="400" fill="url(#home-sphere)" />
+    <!-- Blurred after masking, so the crescent's outer edge softens too. -->
+    <g filter="url(#home-soft)">
+      <circle cx="500" cy="500" r="400" fill="url(#home-rim)" mask="url(#home-crescent)" />
+    </g>
+
+    <g class="orbit" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke"
+       transform="rotate(18 500 500)">
+      <path class="orbit-near" d="M 970 500 A 470 120 0 0 1 30 500" />
+    </g>
+
+    <!-- The companion, on the orbit's far side, lit the same way. -->
+    <g class="companion">
+      <circle cx="66" cy="337" r="24" fill="url(#home-sphere)" />
+      <circle cx="66" cy="337" r="24" fill="url(#home-rim)" mask="url(#home-crescent-small)" />
     </g>
   </svg>
 
@@ -193,105 +213,53 @@
     background: var(--color-surface-0);
   }
 
-  /* Centred at ~72% across and sized to the viewport's shorter side, so the
-     orbits stay clear of the copy on the left at any desktop aspect. */
-  .orbits {
+  /* Sized to the viewport's height and pushed mostly off the right edge, so
+     the body is a cropped horizon well clear of the copy. Fixed boxes add no
+     scroll overflow, so the crop costs nothing. */
+  .backdrop {
     position: fixed;
     top: 50%;
-    left: 72%;
-    width: min(52vw, 100vh);
+    right: 0;
+    width: min(112vh, 100vw);
     height: auto;
     aspect-ratio: 1;
-    transform: translate(-50%, -50%);
+    transform: translate(42%, -50%);
     color: var(--color-text-primary);
     pointer-events: none;
+    overflow: visible;
   }
-  /* Opacity steps down from the body outwards; line weights stay hairline,
-     with the inner orbit a touch heavier. */
-  .orbits .inner {
-    stroke-width: 1.15;
-    opacity: 0.17;
+  .backdrop .orbit {
+    stroke-width: 0.9;
   }
-  .orbits .eccentric {
-    stroke-width: 1;
-    opacity: 0.13;
+  .backdrop .orbit-far {
+    opacity: 0.1;
   }
-  .orbits .inclined-near {
-    stroke-width: 0.8;
-    opacity: 0.08;
+  .backdrop .orbit-near {
+    opacity: 0.07;
   }
-  .orbits .inclined-far {
-    stroke-width: 0.75;
-    stroke-dasharray: 2 4;
-    opacity: 0.045;
-  }
-  .orbits .apsis {
-    stroke-width: 0.8;
-    stroke-dasharray: 3 5;
-    opacity: 0.08;
-  }
-  .orbits .ticks {
-    stroke-width: 1;
-    opacity: 0.14;
-  }
-  .orbits .halo {
-    stroke-width: 0.8;
-    opacity: 0.08;
-  }
-  .orbits .marker-ring {
-    stroke-width: 0.8;
-    opacity: 0.14;
-  }
-  .orbits .outer {
-    stroke-width: 1;
-    stroke-dasharray: 4 5;
-    opacity: 0.09;
-  }
-  .orbits .heading {
-    stroke-dasharray: none;
-    opacity: 0.16;
-  }
-  .orbits .body {
-    opacity: 0.38;
-  }
-  .orbits .marker {
-    opacity: 0.24;
-  }
-  .orbits .marker.faint {
-    opacity: 0.16;
-  }
-  .orbits circle.outer.marker {
-    stroke-dasharray: none;
-    opacity: 0.2;
+  .backdrop .limb-glow {
+    opacity: 0.22;
   }
   @media (max-width: 1279px) {
-    /* The copy spans most of the width: sit the drawing low and to the
-       right, behind nothing, and without the outer trajectory. */
-    .orbits {
-      top: auto;
-      bottom: 0;
-      left: auto;
-      right: 0;
-      width: min(34rem, 80vw);
-      transform: translate(28%, 26%);
+    /* The copy spans most of the width: centre the body on the right edge
+       and drop the companion, which would sit behind the text. */
+    .backdrop {
+      width: min(92vh, 72vw);
+      transform: translate(50%, -50%);
     }
-    .orbits .outer {
+    .backdrop .companion {
       display: none;
     }
   }
   @media (max-width: 719px) {
-    /* A phone's copy fills the width and the footer fills the bottom, so
-       just the inner orbits show, as a corner fragment above the title. */
-    .orbits {
+    /* A phone keeps a corner of the body above the title, and nothing else. */
+    .backdrop {
       top: 0;
-      bottom: auto;
-      width: 15rem;
-      transform: translate(32%, -32%);
+      width: 20rem;
+      transform: translate(40%, -40%);
     }
-    .orbits .apsis,
-    .orbits .inclined-far,
-    .orbits .inclined-near,
-    .orbits .stars {
+    .backdrop .stars,
+    .backdrop .orbit {
       display: none;
     }
   }
@@ -313,33 +281,39 @@
     }
   }
 
+  /* Four steps of emphasis: the title and Browse; the lede and catalog
+     names; descriptions, the secondary action and the list label; then the
+     footer and the drawing. */
   .title {
-    font-size: 34px;
+    font-size: 42px;
     font-weight: 600;
-    letter-spacing: -0.01em;
-    line-height: 1.1;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    color: #f2f3f5;
   }
   .lede {
-    margin-top: 0.75rem;
+    max-width: 34em;
+    margin-top: 0.9rem;
     font-size: 14.5px;
     line-height: 1.55;
-    color: color-mix(in srgb, var(--color-text-secondary) 68%, var(--color-text-primary));
+    color: color-mix(in srgb, var(--color-text-secondary) 82%, var(--color-text-primary));
   }
 
   .actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 1.5rem;
+    gap: 0.375rem;
+    margin-top: 1.75rem;
   }
+  /* Secondary by default: a ghost, dimmer text, no box until hovered. */
   .action {
-    height: 32px;
-    padding: 0 0.75rem;
-    border: 1px solid var(--color-border-default);
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid transparent;
     border-radius: var(--radius-control);
     background: transparent;
-    color: color-mix(in srgb, var(--color-text-secondary) 80%, var(--color-text-primary));
-    font-size: 12.5px;
+    color: var(--color-text-secondary);
+    font-size: 13px;
     cursor: pointer;
     transition:
       color var(--duration-chrome) var(--ease-chrome),
@@ -351,8 +325,16 @@
     background: var(--color-control-hover);
   }
   .action.primary {
-    color: var(--color-text-primary);
-    border-color: var(--color-border-strong);
+    padding: 0 16px;
+    border-color: rgba(184, 197, 220, 0.2);
+    background: #1a1c21;
+    color: #f2f3f5;
+    font-weight: 500;
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.04);
+  }
+  .action.primary:hover {
+    border-color: rgba(184, 197, 220, 0.28);
+    background: #22252b;
   }
   .action:focus-visible,
   .start-row:focus-visible,
@@ -369,23 +351,23 @@
   }
 
   .list {
-    margin-top: 2rem;
+    margin-top: 2.5rem;
   }
   .list-heading {
-    font-size: 10.5px;
-    font-weight: 600;
-    color: color-mix(in srgb, var(--color-text-muted) 75%, var(--color-text-secondary));
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--color-text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    margin-bottom: 0.375rem;
+    letter-spacing: 0.14em;
+    margin-bottom: 0.5rem;
   }
   .start-row {
     display: flex;
     align-items: baseline;
-    gap: 0.75rem;
+    gap: 0.875rem;
     width: calc(100% + 1rem);
     margin: 0 -0.5rem;
-    padding: 0.3rem 0.5rem;
+    padding: 0.35rem 0.5rem;
     border: none;
     border-radius: 4px;
     background: transparent;
@@ -399,12 +381,13 @@
   .start-name {
     flex-shrink: 0;
     font-size: 14px;
+    font-weight: 500;
     color: var(--color-text-primary);
   }
   .start-desc {
     min-width: 0;
     font-size: 12.5px;
-    color: color-mix(in srgb, var(--color-text-muted) 50%, var(--color-text-secondary));
+    color: var(--color-text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -430,11 +413,11 @@
     flex-wrap: wrap;
     justify-content: space-between;
     gap: 0.5rem 1rem;
-    margin-top: 2.5rem;
+    margin-top: 2.75rem;
     padding-top: 1rem;
     border-top: 1px solid var(--color-border-subtle);
     font-size: 11.5px;
-    color: color-mix(in srgb, var(--color-text-muted) 65%, var(--color-text-secondary));
+    color: color-mix(in srgb, var(--color-text-muted) 72%, var(--color-text-faint));
   }
   .links {
     display: flex;
