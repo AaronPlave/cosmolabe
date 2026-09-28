@@ -21,6 +21,7 @@
   import { shell } from '../lib/shell.svelte';
   import { browseLabel, featuredEntries, allEntries } from '../lib/catalog-nav';
   import type { CatalogEntry } from '../lib/catalog-sources';
+  import { ChevronRight } from 'lucide-svelte';
 
   interface Props {
     /** The renderer's backdrop scene is drawn and can show through (lib/hero.ts). */
@@ -87,9 +88,10 @@
           onclick={() => (shell.catalogBrowserOpen = true)}
         >
           {browse}
+          <ChevronRight size={15} strokeWidth={2} aria-hidden="true" />
         </button>
       {/if}
-      <button class="action" class:primary={!browse} onclick={() => pickLocalFiles(onFiles)}>
+      <button class="action" class:primary={!browse} class:link={!!browse} onclick={() => pickLocalFiles(onFiles)}>
         Open local catalog…
       </button>
     </div>
@@ -213,9 +215,9 @@
   .lede {
     max-width: 34em;
     margin-top: 0.9rem;
-    font-size: 14.5px;
+    font-size: 15.5px;
     line-height: 1.55;
-    color: color-mix(in srgb, var(--color-text-secondary) 82%, var(--color-text-primary));
+    color: color-mix(in srgb, var(--color-text-secondary) 55%, var(--color-text-primary));
   }
 
   .actions {
@@ -244,16 +246,38 @@
     background: var(--color-control-hover);
   }
   .action.primary {
-    padding: 0 16px;
-    border-color: rgba(184, 197, 220, 0.2);
-    background: #1a1c21;
-    color: #f2f3f5;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 12px 0 16px;
+    border-color: rgba(200, 210, 230, 0.26);
+    background: #2a2e36;
+    color: #f5f6f8;
     font-weight: 500;
-    box-shadow: inset 0 1px rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+  .action.primary :global(svg) {
+    opacity: 0.7;
+    transition: transform var(--duration-chrome) var(--ease-chrome);
   }
   .action.primary:hover {
-    border-color: rgba(184, 197, 220, 0.28);
-    background: #22252b;
+    border-color: rgba(200, 210, 230, 0.36);
+    background: #333842;
+  }
+  .action.primary:hover :global(svg) {
+    transform: translateX(2px);
+  }
+  /* Beside a primary action, the local open is nearly a link. */
+  .action.link {
+    padding: 0 8px;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 3px;
+  }
+  .action.link:hover {
+    background: transparent;
+    text-decoration-color: currentColor;
   }
   .action:focus-visible,
   .start-row:focus-visible,
@@ -299,14 +323,14 @@
   }
   .start-name {
     flex-shrink: 0;
-    font-size: 14px;
+    font-size: 14.5px;
     font-weight: 500;
     color: var(--color-text-primary);
   }
   .start-desc {
     min-width: 0;
-    font-size: 12.5px;
-    color: var(--color-text-muted);
+    font-size: 13px;
+    color: color-mix(in srgb, var(--color-text-secondary) 72%, var(--color-text-muted));
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

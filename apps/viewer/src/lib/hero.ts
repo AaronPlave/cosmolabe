@@ -1,15 +1,14 @@
 /**
- * The home screen's backdrop (issue #94): Dione crossing Saturn, with its
- * shadow on the cloud tops, drawn by the real renderer on the viewer's own
- * canvas while no catalog is up.
+ * The home screen's backdrop (issue #94): the edge of Saturn, its rings and
+ * Dione, drawn by the real renderer on the viewer's own canvas while no
+ * catalog is up.
  *
- * Real, not staged: the Sun, Saturn and its moons are where the built-in
- * ephemerides put them, lit by the actual Sun and at their true sizes
- * (minBodyPixels 0). The event is a real one — Dione's shadow transit of
- * 14 October 2024, one of the last with the Sun still a few degrees above the
- * rings before the 2025 equinox — found to the minute at startup, and the
- * clock plays through it and loops. The picture comes only from the camera:
- * held still near Dione's path with a long lens.
+ * Real, not staged: the Sun, Saturn and Dione are where the built-in
+ * ephemerides put them on EPOCH, lit by the actual Sun and at their true sizes
+ * (minBodyPixels 0), and the clock runs on from there. The picture comes only
+ * from the camera: held still with a long lens and a roll, so the edge of the
+ * disc and a diagonal of ring sit at the right and the rest of the frame stays
+ * black. Dione is the only moon in the scene.
  *
  * Presentation only. It is not a catalog load: nothing here goes through the
  * loader, touches viewer state, the URL or the window title, or binds the
@@ -29,44 +28,35 @@ import { UniverseRenderer, type RendererPlugin } from '@cosmolabe/three';
 
 const SCALE = 1e-6;
 const SATURN_RADIUS = 60268; // km, equatorial
-const SATURN_POLAR_RADIUS = 54364;
-/** The moon that transits, and roughly when: the search below finds mid-transit to the minute. */
-const MOON = 'Dione';
-const NEAR = '2024-10-14T04:00:00Z';
-/** The stretch of the event that plays, then loops, in simulated seconds from mid-transit:
- *  from Dione coming out of the dark on the left to its shadow leaving on the right. */
-const FROM = -1600;
-const TO = 900;
-/** Real seconds the scene takes to fade out before the loop restarts (the home screen's cover fades back in over it). */
-const FADE = 1.4;
-/** Simulated seconds per real second: the loop runs close on three minutes, Dione crossing the disc in about a hundred seconds of it. */
-const RATE = 15;
-/** The camera: this far out from Dione (km), in a direction this many degrees off the
- *  Sun's (round Saturn's pole), which sets the moon beside its shadow. */
-const CAM_DISTANCE = 150000;
-const CAM_PHASE = 3;
-/** A long lens, close on the moon and the part of the disc its shadow crosses. */
-const FOV = 8;
+/** When the scene opens: mid-2020, with the Sun 22 degrees above the rings, so they are
+ *  bright and Saturn throws its shadow across them, and Dione at the start of a pass across
+ *  the black above them (it comes round every 2.7 days).
+ *  Fixed, so the home screen opens on the same sky every visit; the clock runs on from there. */
+const EPOCH = '2020-05-31T15:30:00Z';
+/** Simulated seconds per real second: Saturn's clouds turn, and Dione drifts up through the black over the first several minutes. */
+const RATE = 10;
+/** The camera, fixed relative to Saturn: this many Saturn radii out, this far round from the
+ *  Sun's direction (the Sun off to the right, so the night side faces the copy), a little
+ *  below the ring plane (which lifts the near side of Dione's orbit clear of the rings), and
+ *  rolled so the rings cross the frame on a diagonal. */
+const CAM_DISTANCE = 16;
+const CAM_BEARING = 62;
+const CAM_ELEVATION = -8;
+const CAM_ROLL = -32;
+/** A long lens, close on the edge of the planet. */
+const FOV = 11.2;
 
-/** Where the shot's centre sits, as a fraction of the viewport, for each shape of it. */
+/** Where Saturn's centre sits, as a fraction of the viewport (past the right edge), for each shape of it. */
 function framing(width: number, height: number): { x: number; y: number; zoom: number } {
   const aspect = width / height;
-  // A phone: the event above the title.
-  if (aspect < 0.8) return { x: 0.5, y: 0.1, zoom: 0.5 };
-  // Tablets and narrow windows: further right, clear of the copy.
-  if (aspect < 1.45) return { x: 0.9, y: 0.5, zoom: 0.72 };
-  return { x: 0.87, y: 0.5, zoom: 1 };
+  // A phone: the planet's edge above the title.
+  if (aspect < 0.8) return { x: 1.05, y: 0.02, zoom: 0.6 };
+  // Tablets and narrow windows.
+  if (aspect < 1.45) return { x: 1.07, y: 0.58, zoom: 0.85 };
+  return { x: 1.04, y: 0.55, zoom: 1 };
 }
 
-// Mean radii, km.
-const MOONS: [name: string, radiusKm: number][] = [
-  ['Mimas', 198],
-  ['Enceladus', 252],
-  ['Tethys', 533],
-  ['Dione', 562],
-  ['Rhea', 764],
-  ['Titan', 2575],
-];
+const MOON = { name: 'Dione', radius: 562 };
 
 function toEt(utc: string): number {
   // No SPICE to parse it: ET is TDB seconds past J2000, near enough UTC plus
@@ -78,8 +68,8 @@ function heroCatalog(): Record<string, unknown> {
   const asset = (path: string) => new URL(`${import.meta.env.BASE_URL}${path}`, location.href).href;
   // As the base library has them (base/sun.json, saturn.json,
   // saturn-major-moons.json). Without kernels, Saturn follows its built-in
-  // orbital elements and the moons TASS17. Only Dione, the one seen up close,
-  // carries a map: the library's own, at a quarter of its resolution.
+  // orbital elements and Dione TASS17; Dione's map is the library's own, at a
+  // quarter of its resolution.
   return {
     name: 'Home',
     items: [
@@ -104,7 +94,7 @@ function heroCatalog(): Record<string, unknown> {
         },
         geometry: {
           type: 'Globe',
-          radii: [SATURN_RADIUS, SATURN_RADIUS, SATURN_POLAR_RADIUS],
+          radii: [SATURN_RADIUS, SATURN_RADIUS, 54364],
           baseMap: asset('textures/saturn.jpg'),
           atmosphere: 'Saturn',
         },
@@ -122,18 +112,14 @@ function heroCatalog(): Record<string, unknown> {
           },
         ],
       },
-      ...MOONS.map(([name, radius]) => ({
-        name,
+      {
+        name: MOON.name,
         class: 'moon',
         center: 'Saturn',
-        trajectory: { type: 'Builtin', name },
-        rotationModel: { type: 'Builtin', name: `IAU ${name}` },
-        geometry: {
-          type: 'Globe',
-          radius,
-          ...(name === MOON ? { baseMap: asset('textures/dione-1k.jpg') } : {}),
-        },
-      })),
+        trajectory: { type: 'Builtin', name: MOON.name },
+        rotationModel: { type: 'Builtin', name: `IAU ${MOON.name}` },
+        geometry: { type: 'Globe', radius: MOON.radius, baseMap: asset('textures/dione-1k.jpg') },
+      },
     ],
   };
 }
@@ -154,66 +140,40 @@ function sunDirection(universe: Universe, et: number): Vec {
 }
 
 /**
- * The shot, in km relative to Saturn and fixed for the whole event: mid-transit
- * (when the moon's shadow is nearest the centre of the disc), a camera out past
- * the moon a few degrees off the Sun's direction, and the point it looks at —
- * between the moon and its shadow, so both stay in frame.
+ * The camera, in km relative to Saturn, fixed for the whole scene: out along a
+ * direction CAM_BEARING degrees round Saturn's pole from the Sun and
+ * CAM_ELEVATION from the ring plane, looking at the planet's centre, with the
+ * Sun on the right of the frame.
  */
-function planShot(universe: Universe) {
-  const moon = universe.getBody(MOON)!;
-  const near = toEt(NEAR);
-  let mid = near;
-  let best = Infinity;
-  for (let et = near - 12 * 3600; et <= near + 12 * 3600; et += 60) {
-    const sun = sunDirection(universe, et);
-    const m = vec(moon.stateAt(et).position);
-    const along = m.dot(sun);
-    if (along <= 0) continue;
-    const off = m.addScaledVector(sun, -along).length();
-    if (off < best) { best = off; mid = et; }
-  }
-
-  const sun = sunDirection(universe, mid);
-  const pole = saturnPole(universe, mid);
-  const m = vec(moon.stateAt(mid).position);
-  // Where the shadow falls: the sunward point of the disc under the moon.
-  const offset = m.clone().addScaledVector(sun, -m.dot(sun));
-  const shadow = offset.clone().addScaledVector(sun, Math.sqrt(Math.max(0, SATURN_RADIUS ** 2 - offset.lengthSq())));
-  // Off the Sun's direction round Saturn's pole, so the moon stands beside its
-  // shadow rather than over it.
-  const out = sun.clone().applyAxisAngle(pole, THREE.MathUtils.degToRad(CAM_PHASE));
-  const position = m.clone().addScaledVector(out, CAM_DISTANCE);
-  const aim = m.clone().sub(position).normalize().add(shadow.clone().sub(position).normalize()).normalize();
-  const target = position.clone().addScaledVector(aim, shadow.distanceTo(position));
-  return { mid, position, target, up: pole };
+function planShot(universe: Universe, et: number) {
+  const pole = saturnPole(universe, et);
+  const sun = sunDirection(universe, et);
+  const sunInPlane = sun.clone().addScaledVector(pole, -sun.dot(pole)).normalize();
+  const place = (bearing: number) => {
+    const dir = sunInPlane.clone().applyAxisAngle(pole, THREE.MathUtils.degToRad(bearing));
+    const el = THREE.MathUtils.degToRad(CAM_ELEVATION);
+    return dir.multiplyScalar(Math.cos(el)).addScaledVector(pole, Math.sin(el)).normalize();
+  };
+  // Of the two bearings, the one that puts the Sun on the right.
+  let dir = place(CAM_BEARING);
+  const right = new THREE.Vector3().crossVectors(dir.clone().negate(), pole);
+  if (right.dot(sun) < 0) dir = place(-CAM_BEARING);
+  const position = dir.clone().multiplyScalar(CAM_DISTANCE * SATURN_RADIUS);
+  const up = pole.clone().applyAxisAngle(dir, THREE.MathUtils.degToRad(CAM_ROLL));
+  return { position, up };
 }
 
 /**
  * Each frame, after the camera controller and before drawing, hold the camera
- * on the shot, and loop the clock over the event: hidden just before the end
- * (`show(false)`), rewound, then shown again, so the jump happens in the dark.
- * The scene's origin is Saturn (the tracked body), so the shot's
+ * on the shot. The scene's origin is Saturn (the tracked body), so the shot's
  * Saturn-relative km map straight into it.
  */
-function shotCamera(
-  renderer: UniverseRenderer,
-  shot: ReturnType<typeof planShot>,
-  show: (visible: boolean) => void,
-): RendererPlugin {
+function shotCamera(renderer: UniverseRenderer, shot: ReturnType<typeof planShot>): RendererPlugin {
   const position = shot.position.clone().multiplyScalar(SCALE);
-  const target = shot.target.clone().multiplyScalar(SCALE);
-  let hidden = false;
+  const target = new THREE.Vector3();
   return {
     name: 'home-shot-camera',
-    onBeforeRender(et: number) {
-      if (et > shot.mid + TO || et < shot.mid + FROM) {
-        renderer.timeController.setTime(shot.mid + FROM);
-        if (hidden) show(true);
-        hidden = false;
-      } else if (!hidden && et > shot.mid + TO - FADE * RATE) {
-        hidden = true;
-        show(false);
-      }
+    onBeforeRender() {
       const cam = renderer.camera;
       cam.position.copy(position);
       cam.up.copy(shot.up);
@@ -226,22 +186,21 @@ function shotCamera(
 let hero: { renderer: UniverseRenderer; universe: Universe } | null = null;
 
 /**
- * Start the backdrop on `canvas`, unless it is already running. `onVisible`
- * says when the home screen should let it show through: true once its
- * textures and stars have landed (so it fades in rather than showing
- * half-drawn), then false and true again around each loop. It never fires if
- * WebGL is unavailable, which leaves the home screen on its plain background.
+ * Start the backdrop on `canvas`, unless it is already running. `onReady`
+ * fires once its textures and stars have landed, so the home screen can fade
+ * it in instead of showing it half-drawn; it never fires if WebGL is
+ * unavailable, which leaves the home screen on its plain background.
  */
-export function startHero(canvas: HTMLCanvasElement, onVisible: (visible: boolean) => void): void {
+export function startHero(canvas: HTMLCanvasElement, onReady: () => void): void {
   if (hero) return;
   let renderer: UniverseRenderer;
   let universe: Universe;
-  let ready = false;
   try {
     universe = new Universe();
     universe.loadCatalog(heroCatalog() as never);
-    const shot = planShot(universe);
-    universe.setTime(shot.mid + FROM);
+    const start = toEt(EPOCH);
+    const shot = planShot(universe, start);
+    universe.setTime(start);
 
     renderer = new UniverseRenderer(canvas, universe, {
       scaleFactor: SCALE,
@@ -265,9 +224,7 @@ export function startHero(canvas: HTMLCanvasElement, onVisible: (visible: boolea
     const saturn = renderer.getBodyMesh('Saturn');
     if (saturn) controller.track(saturn);
     renderer.camera.fov = FOV;
-    renderer.use(shotCamera(renderer, shot, (visible) => {
-      if (ready) onVisible(visible);
-    }));
+    renderer.use(shotCamera(renderer, shot));
     renderer.timeController.setTime(universe.time);
     renderer.timeController.setRate(RATE);
   } catch (err) {
@@ -279,9 +236,7 @@ export function startHero(canvas: HTMLCanvasElement, onVisible: (visible: boolea
   resizeHero(window.innerWidth, window.innerHeight);
   renderer.start();
   void renderer.waitForInitialAssets().then(() => {
-    if (hero?.renderer !== renderer) return;
-    ready = true;
-    onVisible(true);
+    if (hero?.renderer === renderer) onReady();
   });
 }
 
