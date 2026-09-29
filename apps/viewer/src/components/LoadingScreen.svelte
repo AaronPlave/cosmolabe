@@ -12,7 +12,6 @@
 
 <div class="loading" role="status" aria-live="polite">
   <div class="body">
-    <div class="eyebrow">Loading</div>
     <div class="name">{vs.loadingCatalog || 'Catalog'}</div>
     <div
       class="bar"
@@ -46,15 +45,7 @@
     width: 100%;
     max-width: 20rem;
   }
-  .eyebrow {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-  }
   .name {
-    margin-top: 0.25rem;
     font-size: 15px;
     font-weight: 500;
     color: var(--color-text-primary);
