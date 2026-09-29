@@ -17,7 +17,8 @@
  * renderer the UI drives, so the home screen above it still means "no scene".
  * Its camera takes no input — pointer and keyboard controls are switched off
  * (the keyboard ones listen on the window, so this matters even with the home
- * screen covering the canvas).
+ * screen covering the canvas) — beyond a faint parallax under a desktop
+ * pointer (`pointerLook`).
  *
  * Cheap on purpose: no SPICE (analytical theories, no kernels), about 200 KB
  * of texture and the star catalog every scene already loads. The loader stops
@@ -184,26 +185,120 @@ function planShot(universe: Universe, et: number) {
 }
 
 /**
- * Each frame, after the camera controller and before drawing, hold the camera
- * on the shot. The scene's origin is Saturn (the tracked body), so the shot's
- * Saturn-relative km map straight into it.
+ * A little depth under the pointer. On a desktop, moving the pointer swings
+ * the camera a fraction of a degree round a point partway to Saturn, so the
+ * planet, Dione and the stars shift against each other by real parallax (a
+ * few tens of pixels at most); the pose is always the shot plus the offset
+ * for where the pointer is now, eased toward it, never accumulated. The
+ * pointer at the middle of the window, or gone from it, is the shot exactly.
+ * Off on touch and coarse pointers, the phone layout and reduced motion,
+ * where the scene stays perfectly still.
  */
-function shotCamera(renderer: UniverseRenderer, shot: ReturnType<typeof planShot>): RendererPlugin {
-  const position = shot.position.clone().multiplyScalar(SCALE);
-  const target = new THREE.Vector3();
+const LOOK_YAW = 0.25; // degrees at the window's left and right edges
+const LOOK_PITCH = 0.16; // degrees at its top and bottom
+/** The swing's pivot, as a fraction of the way from the camera to Saturn. */
+const LOOK_PIVOT = 0.4;
+/** Easing time constant, ms: about 95% of the way there in 550 ms, with no overshoot. */
+const LOOK_EASE = 185;
+
+function pointerLook() {
+  const fine = matchMedia('(hover: hover) and (pointer: fine)');
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  const compact = matchMedia('(max-width: 719px)');
+  const enabled = () => fine.matches && !still.matches && !compact.matches;
+  const target = { x: 0, y: 0 };
+  const current = { x: 0, y: 0 };
+  let last = 0;
+  const onMove = (e: PointerEvent) => {
+    if (e.pointerType !== 'mouse' || !enabled()) {
+      target.x = target.y = 0;
+      return;
+    }
+    target.x = THREE.MathUtils.clamp((e.clientX / window.innerWidth) * 2 - 1, -1, 1);
+    target.y = THREE.MathUtils.clamp((e.clientY / window.innerHeight) * 2 - 1, -1, 1);
+  };
+  const onLeave = () => {
+    target.x = target.y = 0;
+  };
+  window.addEventListener('pointermove', onMove, { passive: true });
+  document.documentElement.addEventListener('pointerleave', onLeave);
+  window.addEventListener('blur', onLeave);
   return {
-    name: 'home-shot-camera',
-    onBeforeRender() {
-      const cam = renderer.camera;
-      cam.position.copy(position);
-      cam.up.copy(shot.up);
-      renderer.cameraController.controls.target.copy(target);
-      cam.lookAt(target);
+    /** The eased offset for this frame, [-1, 1] on each axis. */
+    step(): { x: number; y: number } {
+      const now = performance.now();
+      const dt = last ? Math.min(now - last, 100) : 0;
+      last = now;
+      if (!enabled()) {
+        // Snap back rather than ease: this is the reduced-motion path.
+        current.x = current.y = target.x = target.y = 0;
+      } else {
+        const k = 1 - Math.exp(-dt / LOOK_EASE);
+        current.x += (target.x - current.x) * k;
+        current.y += (target.y - current.y) * k;
+        // Settled back on the shot: land on it exactly.
+        if (!target.x && !target.y && Math.abs(current.x) + Math.abs(current.y) < 1e-4) {
+          current.x = current.y = 0;
+        }
+      }
+      return current;
+    },
+    dispose() {
+      window.removeEventListener('pointermove', onMove);
+      document.documentElement.removeEventListener('pointerleave', onLeave);
+      window.removeEventListener('blur', onLeave);
     },
   };
 }
 
-let hero: { renderer: UniverseRenderer; universe: Universe } | null = null;
+/**
+ * Each frame, after the camera controller and before drawing, hold the camera
+ * on the shot, swung by the pointer offset. The scene's origin is Saturn (the
+ * tracked body), so the shot's Saturn-relative km map straight into it.
+ */
+function shotCamera(
+  renderer: UniverseRenderer,
+  shot: ReturnType<typeof planShot>,
+  look: ReturnType<typeof pointerLook>,
+): RendererPlugin {
+  const base = shot.position.clone().multiplyScalar(SCALE);
+  const origin = new THREE.Vector3();
+  const pivot = base.clone().multiplyScalar(1 - LOOK_PIVOT);
+  const arm = base.clone().sub(pivot);
+  const forward = base.clone().negate().normalize();
+  const right = forward.clone().cross(shot.up).normalize();
+  const up = right.clone().cross(forward);
+  const offset = new THREE.Vector3();
+  return {
+    name: 'home-shot-camera',
+    onBeforeRender() {
+      const cam = renderer.camera;
+      const { x, y } = look.step();
+      cam.up.copy(shot.up);
+      renderer.cameraController.controls.target.copy(origin);
+      if (x === 0 && y === 0) {
+        cam.position.copy(base);
+        cam.lookAt(origin);
+        return;
+      }
+      // Pointer right swings the camera right round the pivot, pointer down
+      // swings it down: the far planet drifts with the pointer, the stars
+      // beyond it a little further.
+      offset
+        .copy(arm)
+        .applyAxisAngle(up, THREE.MathUtils.degToRad(x * LOOK_YAW))
+        .applyAxisAngle(right, THREE.MathUtils.degToRad(y * LOOK_PITCH));
+      cam.position.copy(pivot).add(offset);
+      cam.lookAt(pivot);
+    },
+  };
+}
+
+let hero: {
+  renderer: UniverseRenderer;
+  universe: Universe;
+  look: ReturnType<typeof pointerLook>;
+} | null = null;
 
 /**
  * Start the backdrop on `canvas`, unless it is already running. `onReady`
@@ -215,6 +310,7 @@ export function startHero(canvas: HTMLCanvasElement, onReady: () => void): void 
   if (hero) return;
   let renderer: UniverseRenderer;
   let universe: Universe;
+  let look: ReturnType<typeof pointerLook> | undefined;
   try {
     universe = new Universe();
     universe.loadCatalog(heroCatalog() as never);
@@ -245,15 +341,17 @@ export function startHero(canvas: HTMLCanvasElement, onReady: () => void): void 
     const saturn = renderer.getBodyMesh('Saturn');
     if (saturn) controller.track(saturn);
     renderer.camera.fov = FOV;
-    renderer.use(shotCamera(renderer, shot));
+    look = pointerLook();
+    renderer.use(shotCamera(renderer, shot, look));
     renderer.timeController.setTime(universe.time);
     renderer.timeController.setRate(RATE);
   } catch (err) {
+    look?.dispose();
     console.warn('[Cosmolabe] Home backdrop unavailable:', err);
     return;
   }
 
-  hero = { renderer, universe };
+  hero = { renderer, universe, look };
   resizeHero(window.innerWidth, window.innerHeight);
   renderer.start();
   void renderer.waitForInitialAssets().then(() => {
@@ -281,8 +379,9 @@ export function resizeHero(w: number, h: number): void {
 /** Stop the backdrop and release it, leaving the canvas free for a scene. */
 export function stopHero(): void {
   if (!hero) return;
-  const { renderer, universe } = hero;
+  const { renderer, universe, look } = hero;
   hero = null;
+  look.dispose();
   renderer.stop();
   renderer.camera.clearViewOffset();
   renderer.dispose();
