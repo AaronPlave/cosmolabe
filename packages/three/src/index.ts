@@ -56,6 +56,7 @@ export { OccultationGeometry } from './OccultationGeometry.js';
 export type { OccultationGeometryParticipants } from './OccultationGeometry.js';
 export { GeometryReadout } from './GeometryReadout.js';
 export type { GeometryReadoutOptions } from './GeometryReadout.js';
+export { SpatialRelationshipLayer } from './SpatialRelationshipLayer.js';
 
 // Controls
 export { TimeController, rateLabel } from './controls/TimeController.js';

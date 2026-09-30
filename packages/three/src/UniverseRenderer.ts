@@ -12,6 +12,7 @@ import {
   type Universe,
   type Body,
   type GeometryEvent,
+  type SpatialRelationship,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
@@ -47,6 +48,7 @@ import type { RendererContext } from './plugins/RendererContext.js';
 import type { BodyVisualizer } from './plugins/BodyVisualizer.js';
 import type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
 import type { RendererEventMap } from './events/RendererEventMap.js';
+import { SpatialRelationshipLayer } from './SpatialRelationshipLayer.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -208,6 +210,7 @@ export class UniverseRenderer {
   readonly timeController: TimeController;
 
   private readonly universe: Universe;
+  private readonly spatialRelationships: SpatialRelationshipLayer;
   readonly scaleFactor: number;
   private readonly minBodyPixels: number;
   private readonly bodyMeshes = new Map<string, BodyMesh>();
@@ -319,6 +322,7 @@ export class UniverseRenderer {
     this.universe = universe;
     this.options = options;
     this.scaleFactor = options.scaleFactor ?? 1e-6;
+    this.spatialRelationships = new SpatialRelationshipLayer(universe, this.scaleFactor);
     this.minBodyPixels = options.minBodyPixels ?? 4;
     this.cacheWorker = options.cacheWorker;
 
@@ -344,6 +348,7 @@ export class UniverseRenderer {
 
     // Scene
     this.scene = new THREE.Scene();
+    this.spatialRelationships.attach(this.scene);
     // Very dim ambient — just enough to see body silhouettes on the dark side.
     // In space the unlit hemisphere is essentially black; 0x080808 ≈ 3%.
     this.ambientLight = new THREE.AmbientLight(0x080808);
@@ -555,6 +560,11 @@ export class UniverseRenderer {
     return this.universe.absolutePositionOf(bodyName, et);
   };
 
+  /** Replace the persistent, semantic measurements and direction indicators. */
+  setSpatialRelationships(relationships: readonly SpatialRelationship[]): void {
+    this.spatialRelationships.setRelationships(relationships);
+  }
+
 
 
 
@@ -665,6 +675,7 @@ export class UniverseRenderer {
 
     // Update pick marker world position (tracks body rotation/position each frame)
     this._updatePickMarkerPosition();
+    this.spatialRelationships.update(et, this._lastOriginAbsPos);
 
     // Update ring positions (follow parent body position and rotation)
     for (const [, { ring, parentName }] of this.ringMeshes) {
@@ -2474,6 +2485,7 @@ export class UniverseRenderer {
     for (const sf of this.sensorFrustums.values()) sf.dispose();
     for (const { markers } of this.eventMarkerGroups.values()) markers.dispose();
     this._eventCallout.dispose();
+    this.spatialRelationships.dispose();
     this.setOccultationGeometry(null);
     this.starField?.dispose();
     this.labelManager?.dispose();

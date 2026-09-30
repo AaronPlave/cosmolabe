@@ -19,6 +19,7 @@
   import { loadDemo, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import { loadCatalogSources, type CatalogSourceState } from './lib/catalog-sources';
   import { catalogSourceDeployment } from './lib/deployment';
+  import { captureSurfaceEndpoint, measurements } from './lib/spatial-measurements.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -102,7 +103,7 @@
   }
 
   function onCanvasClick(e: MouseEvent) {
-    if (!pickModeActive) return;
+    if (!pickModeActive && !measurements.pendingPickSlot) return;
     const renderer = getCurrentRenderer();
     if (!renderer) return;
     e.stopPropagation();
@@ -111,8 +112,10 @@
     const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     const result = renderer.pickSurface(ndcX, ndcY);
     if (result) {
+      const captured = captureSurfaceEndpoint(result.bodyName, result.bodyFixedHitKm);
       pickResult = result;
       renderer.setPickMarker(result);
+      if (captured) pickModeActive = false;
     }
   }
 
@@ -204,6 +207,7 @@
           return;
         }
         case 'p': togglePickMode(); return;
+        case 'd': toggleTool('measure'); return;
         case 'Escape':
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
           // An event selection is the smallest thing on screen to dismiss:
@@ -287,7 +291,7 @@
 <svelte:window onkeydown={onKeydown} />
 <svelte:document ondragover={onDocDragOver} ondrop={onDocDrop} />
 
-<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive} style={shellVars}>
+<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive || !!measurements.pendingPickSlot} style={shellVars}>
   <!-- `touch-none`: the browser must not claim a drag as a scroll or a pinch as
        a page zoom before the camera controls see the gesture. -->
   <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
@@ -352,14 +356,14 @@
         <div class="shell-divider mx-2 border-t"></div>
         <ToolRail
           inline
-          {pickModeActive}
+          pickModeActive={pickModeActive || !!measurements.pendingPickSlot}
           onTogglePick={togglePickMode}
           onOpenSearch={() => commandPaletteOpen = true}
         />
       </div>
     {:else}
       <ToolRail
-        {pickModeActive}
+        pickModeActive={pickModeActive || !!measurements.pendingPickSlot}
         onTogglePick={togglePickMode}
         onOpenSearch={() => commandPaletteOpen = true}
       />
