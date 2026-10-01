@@ -18,8 +18,11 @@
    * The compact row scrolls rather than squeezing. It fits today; it will not
    * once #58's event kinds and #57's measurement tools arrive, and a row that
    * silently drops its last button is a worse failure than one that scrolls.
+   *
+   * The first button opens the catalog browser (#94). It is not the Catalog
+   * tool: that browses the bodies of the loaded scene, this replaces the scene.
    */
-  import { Search, Crosshair, Camera, Info, Keyboard } from 'lucide-svelte';
+  import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen } from 'lucide-svelte';
   import { TOOLS, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
   import { vs, cycleCamera, selectBody } from '../../lib/viewer-state.svelte';
 
@@ -63,6 +66,19 @@
 </script>
 
 {#snippet buttons()}
+  <button
+    class="rail-btn"
+    aria-haspopup="dialog"
+    aria-expanded={shell.catalogBrowserOpen}
+    aria-label="Open catalog"
+    title={vs.catalogName ? `Open catalog (O) — current: ${vs.catalogName}` : 'Open catalog (O)'}
+    onclick={() => (shell.catalogBrowserOpen = true)}
+  >
+    <FolderOpen size={16} />
+  </button>
+
+  <div class="rail-divider" class:horizontal={compact}></div>
+
   <button
     class="rail-btn"
     aria-label="Search commands"
@@ -209,12 +225,14 @@
   }
   /* Active state is monochrome and low-salience: selection and mission data
      own the strong colors in this UI, chrome does not. */
-  .rail-btn[aria-pressed='true'] {
+  .rail-btn[aria-pressed='true'],
+  .rail-btn[aria-expanded='true'] {
     color: var(--color-chrome-active);
     background: var(--color-chrome-active-bg);
     opacity: 1;
   }
-  .rail-btn[aria-pressed='true']::before {
+  .rail-btn[aria-pressed='true']::before,
+  .rail-btn[aria-expanded='true']::before {
     content: '';
     position: absolute;
     left: -4px;
@@ -260,7 +278,8 @@
       width: 42px;
       height: 42px;
     }
-    .rail-btn[aria-pressed='true']::before {
+    .rail-btn[aria-pressed='true']::before,
+    .rail-btn[aria-expanded='true']::before {
       left: 50%;
       top: auto;
       bottom: -4px;

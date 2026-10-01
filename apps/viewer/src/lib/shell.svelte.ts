@@ -180,6 +180,13 @@ export const shell = $state({
   shortcutsOpen: false,
 
   /**
+   * The catalog browser overlay (issue #94). A flag here rather than local to
+   * any one surface, since the home screen's Browse, the rail's folder
+   * button, the command palette and the `O` shortcut all open it.
+   */
+  catalogBrowserOpen: false,
+
+  /**
    * Progressive analysis depth on the timeline. `transport` is the minimal time
    * strip, event marks on its track included; `expanded` adds the secondary
    * transport, a lane per event query, and the continuous-profile rows (#65),
