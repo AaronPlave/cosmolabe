@@ -57,7 +57,8 @@ export interface CameraModeContext {
 export interface CameraModeParams {
   /** Target body name (spacecraft for SC_FIXED/LVLH/CHASE, body for BODY_FIXED/SURFACE) */
   bodyName?: string;
-  /** SPICE frame name override (e.g. 'LRO_SC_BUS'). Auto-resolved if omitted. */
+  /** SC_FIXED / BODY_FIXED: lock to this SPICE frame (e.g. 'LRO_SC_BUS', 'IAU_MOON')
+   *  instead of the body's own rotation model. `bodyName` stays the orbit pivot. */
   frameName?: string;
   /** Which spacecraft axis is camera "forward" for SC_FIXED/LVLH (default: '-Z') */
   axis?: '+X' | '-X' | '+Y' | '-Y' | '+Z' | '-Z';

@@ -68,6 +68,10 @@ export { KeyboardControls } from './controls/KeyboardControls.js';
 export type { KeyboardControlsConfig } from './controls/KeyboardControls.js';
 export { CameraModeName } from './controls/CameraModes.js';
 export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice } from './controls/CameraModes.js';
+export { FrameLockedMode, FRAME_AXIS_BASIS } from './controls/modes/FrameLockedMode.js';
+export type { FrameLockBehavior, FrameLockedModeOptions, AxisBasis } from './controls/modes/FrameLockedMode.js';
+export { bodyRotationFrame, spiceFrame, lvlhFrame, frameToWorldQuat } from './controls/frameOrientation.js';
+export type { FrameOrientationSource } from './controls/frameOrientation.js';
 
 // Terrain
 export { TerrainManager } from './TerrainManager.js';
