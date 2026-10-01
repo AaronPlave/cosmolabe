@@ -18,24 +18,28 @@ uniform float     uRingOuterRadius;
 float computeRingShadow() {
   vec3 toSun = uSunWorldPos - vShadowWorldPos;
   float distToSun = length(toSun);
-  if (distToSun < 1e-20) return 1.0;
-  vec3 L = toSun / distToSun;
+  vec3 L = toSun / max(distToSun, 1e-20);
 
   float denom = dot(L, uRingNormalWorld);
-  // Ray nearly parallel to ring plane — no meaningful shadow.
-  if (abs(denom) < 1e-6) return 1.0;
-
-  float t = dot(uRingCenterWorld - vShadowWorldPos, uRingNormalWorld) / denom;
-  // Ring plane is behind the fragment along the sun direction, or past the sun.
-  if (t <= 0.0 || t > distToSun) return 1.0;
+  // Keep the intersection finite even for rays rejected below. Derivatives
+  // and the filtered texture lookup must run before any divergent returns.
+  float safeDenom = denom < 0.0 ? min(denom, -1e-6) : max(denom, 1e-6);
+  float t = dot(uRingCenterWorld - vShadowWorldPos, uRingNormalWorld) / safeDenom;
 
   vec3 hit = vShadowWorldPos + L * t;
   float r = length(hit - uRingCenterWorld);
-  if (r < uRingInnerRadius || r > uRingOuterRadius) return 1.0;
+  // Each edge transitions over one pixel's radial footprint. Only the
+  // annulus cutoff is softened; texture-defined gaps and bands stay intact.
+  float halfPixel = max(0.5 * fwidth(r), 1e-20);
+  float coverage = smoothstep(uRingInnerRadius - halfPixel, uRingInnerRadius + halfPixel, r)
+    * (1.0 - smoothstep(uRingOuterRadius - halfPixel, uRingOuterRadius + halfPixel, r));
 
-  float u = (r - uRingInnerRadius) / (uRingOuterRadius - uRingInnerRadius);
+  float u = clamp((r - uRingInnerRadius) / (uRingOuterRadius - uRingInnerRadius), 0.0, 1.0);
   float a = texture2D(uRingMap, vec2(u, 0.5)).a;
-  return 1.0 - a;
+
+  // Ray nearly parallel to the ring plane, or no intersection toward the sun.
+  if (distToSun < 1e-20 || abs(denom) < 1e-6 || t <= 0.0 || t > distToSun) return 1.0;
+  return 1.0 - a * coverage;
 }
 `;
 
