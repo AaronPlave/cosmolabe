@@ -1,6 +1,6 @@
 import type { EventKind } from '../registry.js';
 import type { InstantEvent } from '../types.js';
-import { rangeAt, rangeMetric } from './range-metrics.js';
+import { altitudeAt, rangeAt, rangeMetric } from './range-metrics.js';
 
 /** Parameters of a {@link closestApproachKind} search. */
 export interface ClosestApproachParams {
@@ -29,15 +29,18 @@ export interface ClosestApproachParams {
  * approach that begins and ends between two samples is missed — so it wants to
  * be shorter than the encounter, not shorter than the mission.
  *
- * `gfdist` returns *when*, never *how far*. The range at the approach — the
- * number the result is about — is one position lookup through the provider's
- * optional `range`, so events carry it whenever the provider can answer.
+ * `gfdist` returns *when*, never *how far*. The numbers the result is about
+ * are measured at the instant GF found, through the provider's optional
+ * non-GF members: `altitude` above the target's reference ellipsoid — what a
+ * flyby is quoted by, and so the headline whenever SPICE knows the target's
+ * shape — and the centre-to-centre `range`, which the max-range filter and the
+ * deepest-approach choice are defined on.
  */
 export const closestApproachKind: EventKind<ClosestApproachParams> = {
   kind: 'closest-approach',
   label: 'Closest approach',
   description:
-    'Moments when the target is nearer to the observer than at any time just before or after — one result per encounter. Range is measured centre to centre, not as altitude above the surface.',
+    'Moments when the target is nearer to the observer than at any time just before or after — one result per encounter. Reports altitude above the target\'s surface where SPICE knows its shape, and centre-to-centre range.',
   temporality: 'instant',
   roles: [
     { role: 'observer', label: 'Observer' },
@@ -132,6 +135,14 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
         if (km > maxRangeKm) continue;
       }
 
+      // Altitude leads when there is one: it is the number a flyby is quoted
+      // by, and the result list and callouts lead with the first metric.
+      const altitudeKm = await altitudeAt(ctx.provider, target, query.abcorr, observer, et);
+      const metrics = [
+        ...(altitudeKm === undefined ? [] : [rangeMetric('altitude', 'Altitude', altitudeKm)]),
+        ...(km === undefined ? [] : [rangeMetric('range', 'Range', km)]),
+      ];
+
       events.push({
         id: ctx.nextEventId(),
         queryId: query.id,
@@ -140,7 +151,7 @@ export const closestApproachKind: EventKind<ClosestApproachParams> = {
         et,
         bodies: { observer, target },
         label: query.label ?? `${target} closest approach from ${observer}`,
-        ...(km === undefined ? {} : { metrics: [rangeMetric('range', 'Range', km)] }),
+        ...(metrics.length ? { metrics } : {}),
       });
     }
 

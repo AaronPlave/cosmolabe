@@ -19,6 +19,7 @@ export {
   type GeometrySearchScope,
   type GeometrySearchWorkerOptions,
 } from './GeometrySearchWorker.js';
+export { spiceAltitude, type SpiceAltitudeSource } from './spice-altitude.js';
 export type {
   CacheBuildRequest,
   GeometrySearchOptions,

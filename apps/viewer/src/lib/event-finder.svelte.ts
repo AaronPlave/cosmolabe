@@ -16,7 +16,8 @@
  * cache's so that cancelling a search may terminate it, and so that a long
  * search does not starve the cache builds queued behind it. The main-thread
  * provider stays as the fallback for scenes with no worker (test mode, and
- * kernel-free catalogs).
+ * kernels dropped onto a kernel-free catalog). A catalog with no kernels at all
+ * cannot search; see {@link eventSearchUnavailable}.
  */
 import {
   EventSearch,
@@ -38,7 +39,7 @@ import {
   type AberrationCorrection,
 } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
-import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
+import { GeometrySearchCancelled, spiceAltitude, type GeometrySearchProgress } from '@cosmolabe/three';
 import { geometryScopeForWindow, getGeometryWorker, getSpice, getUniverse } from './loader';
 import {
   activeEventAtTime,
@@ -102,6 +103,7 @@ export function withSpiceNames(
   toSpice: (name: string) => string,
 ): GeometryFinderProvider {
   const range = provider.range;
+  const altitude = provider.altitude;
   return {
     gfdist: (target, abcorr, observer, ...rest) =>
       provider.gfdist(toSpice(target), abcorr, toSpice(observer), ...rest),
@@ -115,6 +117,10 @@ export function withSpiceNames(
       ? { range: (target: string, abcorr: string, observer: string, et: number) =>
           range(toSpice(target), abcorr, toSpice(observer), et) }
       : {}),
+    ...(altitude
+      ? { altitude: (target: string, abcorr: string, observer: string, et: number) =>
+          altitude(toSpice(target), abcorr, toSpice(observer), et) }
+      : {}),
   };
 }
 
@@ -123,9 +129,10 @@ export function withSpiceNames(
  *
  * `HeritageSpice` already satisfies the GF half of the interface structurally,
  * which is the point of the boundary's signatures mirroring `gf*_c`. Only
- * `range` is added: GF says *when* a distance condition held and never *how
- * far*, so the number a closest-approach result is about comes from one
- * `spkpos`, measured with SPICE's own `vnorm` rather than a hand-rolled norm.
+ * `range` and `altitude` are added: GF says *when* a distance condition held and
+ * never *how far*, so the numbers a closest-approach result is about come from
+ * one `spkpos` measured with SPICE's own `vnorm`, and one `subpnt` against the
+ * target's ellipsoid — never a hand-rolled norm or projection.
  */
 export function spiceGeometryFinder(spice: HeritageSpice): GeometryFinderProvider {
   return {
@@ -142,6 +149,7 @@ export function spiceGeometryFinder(spice: HeritageSpice): GeometryFinderProvide
     // expressed in.
     range: (target, abcorr, observer, et) =>
       spice.vnorm(spice.spkpos(target, et, 'J2000', abcorr as AberrationCorrection, observer).position),
+    altitude: (target, abcorr, observer, et) => spiceAltitude(spice, target, abcorr, observer, et),
   };
 }
 
@@ -230,8 +238,79 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
       gfoclt: guard(base.gfoclt),
       gfposc: guard(base.gfposc),
       range: guard(base.range!),
+      altitude: guard(base.altitude!),
     },
   };
+}
+
+/**
+ * Why an event search cannot run in this scene, or null when it can.
+ *
+ * Every event kind is a composition of SPICE Geometry Finder calls, and GF sees
+ * only what the furnished kernels describe. That makes event search a SPICE
+ * feature, deliberately: a catalog that furnishes no kernels — Earth–Moon, ISS,
+ * the Keplerian inner planets, Ingenuity at Jezero, MoonFall — moves its bodies
+ * on Keplerian, TLE or analytic models SPICE cannot see, and the finder says so
+ * rather than substituting a sampled search whose accuracy would differ by
+ * catalog without saying so. (The viewer once had such a fallback, the measure
+ * tool's sampled close-approach list; it is gone, and this is the decision that
+ * replaced it.) Continuous profiles on the timeline still sample those
+ * catalogs: a profile is a display of a quantity, not a claim about when an
+ * event happened.
+ *
+ * The same holds per body inside a SPICE scene: a body SPICE cannot even name is
+ * one no kernel describes, so a search involving it is refused up front instead
+ * of failing inside CSPICE.
+ *
+ * Pure, so the policy is tested directly: `kernelCount` is what the pool holds,
+ * `bodies` the chosen roles, `spiceCanName` whether SPICE resolves a catalog body.
+ */
+export function eventSearchUnavailable(
+  kernelCount: number,
+  bodies: EventParticipants,
+  spiceCanName: (name: string) => boolean,
+): EventSearchFault | null {
+  if (!(kernelCount > 0)) {
+    return {
+      code: 'unavailable',
+      message: NO_KERNELS_MESSAGE,
+    };
+  }
+
+  const unnamed = [...new Set(Object.values(bodies).filter((name): name is string => !!name))]
+    .filter((name) => !spiceCanName(name));
+  if (unnamed.length > 0) {
+    const list = unnamed.join(' and ');
+    return {
+      code: 'unavailable',
+      message: `SPICE has no ephemeris for ${list}: ${unnamed.length === 1 ? 'it moves' : 'they move'} on a model the furnished kernels do not describe, so events involving ${unnamed.length === 1 ? 'it' : 'them'} cannot be searched.`,
+    };
+  }
+
+  return null;
+}
+
+/** What the finder says in a catalog with no kernels. Exported for tests. */
+export const NO_KERNELS_MESSAGE =
+  'Event search needs SPICE kernels, and this catalog furnishes none: its bodies move on Keplerian, TLE or analytic models that SPICE\'s Geometry Finder cannot see. Open a catalog that declares kernels, or drop kernels onto the viewer.';
+
+/** Whether SPICE resolves a catalog body in the scene that is up. */
+function spiceCanName(name: string): boolean {
+  const spiceName = sceneSpiceName(name);
+  if (/^-?\d+$/.test(spiceName)) return true;
+  try {
+    return getSpice()?.bodn2c(spiceName) != null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * {@link eventSearchUnavailable} for the scene and form that are up. Reactive on
+ * the kernel count, so dropping kernels onto a kernel-free scene lifts it.
+ */
+export function currentSearchUnavailable(): EventSearchFault | null {
+  return eventSearchUnavailable(vs.kernelCount, ef.form?.bodies ?? {}, spiceCanName);
 }
 
 /**
@@ -780,13 +859,11 @@ export async function runSearch() {
   if (!ef.form) return;
 
   const spice = getSpice();
-  if (!spice) {
+  const unavailable = currentSearchUnavailable();
+  if (!spice || unavailable) {
     ef.events = [];
     ef.searched = false;
-    ef.fault = {
-      code: 'provider-error',
-      message: 'no kernels are loaded yet',
-    };
+    ef.fault = unavailable ?? { code: 'unavailable', message: NO_KERNELS_MESSAGE };
     return;
   }
 
