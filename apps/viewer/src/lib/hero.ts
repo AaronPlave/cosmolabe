@@ -25,9 +25,9 @@
  * as soon as a load begins, so the two never render at once.
  */
 import * as THREE from 'three';
-import { Universe } from '@cosmolabe/core';
+import { Universe, builtinCatalogs } from '@cosmolabe/core';
 import { UniverseRenderer, type RendererPlugin } from '@cosmolabe/three';
-import canonicalSaturn from '../../test-catalogs/base/saturn.json';
+const canonicalSaturn = builtinCatalogs.saturn.items![0];
 
 const SCALE = 1e-6;
 const SATURN_RADIUS = 60268; // km, equatorial
@@ -94,8 +94,8 @@ function heroCatalog(): Record<string, unknown> {
         center: 'Sun',
         trajectory: { type: 'Builtin', name: 'Saturn' },
         // Share the ordinary catalog's frame and IAU rotation semantics.
-        bodyFrame: canonicalSaturn.items[0].bodyFrame,
-        rotationModel: canonicalSaturn.items[0].rotationModel,
+        bodyFrame: canonicalSaturn.bodyFrame,
+        rotationModel: canonicalSaturn.rotationModel,
         geometry: {
           type: 'Globe',
           radii: [SATURN_RADIUS, SATURN_RADIUS, 54364],

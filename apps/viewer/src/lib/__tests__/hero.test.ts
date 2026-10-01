@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Universe } from '@cosmolabe/core';
-import canonicalSaturn from '../../../test-catalogs/base/saturn.json';
+import { Universe, builtinCatalogs } from '@cosmolabe/core';
+const canonicalSaturn = builtinCatalogs.saturn;
 
 const instances = vi.hoisted(() => [] as any[]);
 vi.mock('@cosmolabe/three', async (importOriginal) => {
