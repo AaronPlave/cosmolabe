@@ -117,14 +117,14 @@
   }
   .group {
     break-inside: avoid;
-    padding-bottom: 22px;
+    padding-bottom: 30px;
   }
 
   .group-heading {
     font-size: 12.5px;
-    font-weight: 500;
+    font-weight: 600;
     line-height: 1.3;
-    color: color-mix(in srgb, var(--color-text-muted) 55%, var(--color-text-secondary));
+    color: var(--color-text-secondary);
     padding: 0 10px 6px;
   }
 
@@ -156,9 +156,10 @@
   .row-desc {
     display: block;
     margin-top: 2px;
-    font-size: 12.5px;
+    font-size: 12px;
+    font-weight: 400;
     line-height: 1.4;
-    color: color-mix(in srgb, var(--color-text-muted) 60%, var(--color-text-secondary));
+    color: var(--color-text-muted);
   }
   .row:hover .row-name {
     color: var(--color-text-primary);

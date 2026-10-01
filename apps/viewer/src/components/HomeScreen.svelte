@@ -19,7 +19,7 @@
    */
   import { catalogs, pickLocalFiles } from '../lib/catalogs.svelte';
   import { shell } from '../lib/shell.svelte';
-  import { browseLabel, featuredEntries, allEntries } from '../lib/catalog-nav';
+  import { browseLabel, featuredEntries } from '../lib/catalog-nav';
   import type { CatalogEntry } from '../lib/catalog-sources';
   import { ChevronRight } from 'lucide-svelte';
 
@@ -36,7 +36,6 @@
   let dragging = $state(false);
 
   const featured = $derived(featuredEntries(catalogs.sources));
-  const total = $derived(allEntries(catalogs.sources).length);
   const browse = $derived(browseLabel(catalogs.sources));
   const pending = $derived(catalogs.sources.some((s) => s.status === 'loading'));
   // Problems are only worth the home screen's space when they leave it with
@@ -80,7 +79,7 @@
     </p>
 
     <div class="actions">
-      {#if browse && total > featured.length}
+      {#if browse}
         <button
           class="action primary"
           aria-haspopup="dialog"

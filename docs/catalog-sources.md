@@ -118,17 +118,27 @@ assets separated from the example content.
 - **Home screen** (no scene up): a short list — featured entries, or the first
   few — plus *Browse …* for the full list and *Open local catalog…*. With one
   source the action is named after it (*Browse examples*); with several it is
-  *Browse catalogs*; with none there is nothing to browse.
+  *Browse catalogs*. Browse stays available whenever a source exists, even if
+  all entries fit in *Start with* or a source fails. With none there is nothing
+  to browse.
 - **Catalog browser**: one overlay with the full list, grouped, with each
   entry's description. It opens from the home screen's *Browse …* and, with a
   scene up, from the folder button at the top of the rail, `O`, or *Open
   catalog…* in the command palette. It also offers *Open local catalog…*, and
   *Add catalog source…* where `VITE_ALLOW_CATALOG_SOURCE_PARAM` permits it.
   Opening it leaves the home screen or the current scene alone underneath;
-  choosing a catalog replaces the scene through the normal load.
+  choosing a catalog replaces the scene through the normal load. Desktop uses
+  a large shared overlay; phones use a full-screen sheet.
 
 The rail's *Catalog* tool is a different thing: it browses the bodies of the
 catalog that is loaded, not the catalogs a deployment offers.
+
+The sparse technical Home uses a renderer-backed animated Saturn backdrop,
+with canonical Builtin rotation and frame behavior. Simulation time runs at
+100× from 80 minutes before Dione's shadow mid-transit to 160 minutes after,
+then resets (a 144-second presentation window). The fixed camera preserves
+the diagonal rings and ring shadow. Home rendering pauses while the document
+is hidden and releases the canvas before a real catalog scene takes over.
 
 ## Catalogs in the URL
 

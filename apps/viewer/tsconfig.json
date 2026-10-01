@@ -18,6 +18,7 @@
   },
   "include": [
     "src",
+    "test-catalogs/base/saturn.json",
     "*.ts"
   ],
   "references": [

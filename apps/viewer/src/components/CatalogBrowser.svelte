@@ -322,7 +322,7 @@
   }
   @media (max-width: 719px) {
     .head {
-      padding: 18px 16px 14px 18px;
+      padding: calc(18px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 14px calc(18px + env(safe-area-inset-left));
     }
     .body {
       padding: 16px 18px 20px;

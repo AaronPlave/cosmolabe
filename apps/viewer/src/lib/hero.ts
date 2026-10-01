@@ -25,8 +25,9 @@
  * as soon as a load begins, so the two never render at once.
  */
 import * as THREE from 'three';
-import { Universe, composeBodyToWorldQuat } from '@cosmolabe/core';
+import { Universe } from '@cosmolabe/core';
 import { UniverseRenderer, type RendererPlugin } from '@cosmolabe/three';
+import canonicalSaturn from '../../test-catalogs/base/saturn.json';
 
 const SCALE = 1e-6;
 const SATURN_RADIUS = 60268; // km, equatorial
@@ -36,11 +37,13 @@ const SATURN_RADIUS = 60268; // km, equatorial
  *  the ephemerides at startup; the clock starts a little before it and runs on from there. */
 const NEAR = '2024-10-14T04:00:00Z';
 /** How long before mid-transit the scene opens, in simulated seconds: with the shadow just
- *  in over the limb, to cross the disc over the next couple of hours (well under a minute
+ *  in over the limb, to cross the disc over the next couple of hours (about a minute
  *  at RATE) while Dione drifts up through the black. */
 const LEAD = 4800;
 /** Simulated seconds per real second. */
 const RATE = 100;
+/** End after the shadow has crossed the disc: 4 simulated hours, 144 real seconds. */
+const TRAIL = 9600;
 /** The camera, fixed relative to Saturn: this many Saturn radii out, this far round Saturn's
  *  pole from the Sun's direction, this many degrees below the Sun (which sets Dione above
  *  its shadow, out in the black clear of the disc), and rolled so the rings cross the frame
@@ -90,14 +93,9 @@ function heroCatalog(): Record<string, unknown> {
         class: 'planet',
         center: 'Sun',
         trajectory: { type: 'Builtin', name: 'Saturn' },
-        bodyFrame: 'EquatorJ2000',
-        rotationModel: {
-          type: 'Uniform',
-          period: '10.656222221732387h',
-          inclination: 6.463,
-          ascendingNode: 130.589,
-          meridianAngle: 38.9,
-        },
+        // Share the ordinary catalog's frame and IAU rotation semantics.
+        bodyFrame: canonicalSaturn.items[0].bodyFrame,
+        rotationModel: canonicalSaturn.items[0].rotationModel,
         geometry: {
           type: 'Globe',
           radii: [SATURN_RADIUS, SATURN_RADIUS, 54364],
@@ -135,8 +133,7 @@ const vec = (a: readonly number[]) => new THREE.Vector3(a[0], a[1], a[2]);
 
 /** Saturn's north pole in world space. */
 function saturnPole(universe: Universe, et: number): Vec {
-  const saturn = universe.getBody('Saturn')!;
-  const q = composeBodyToWorldQuat(saturn.rotationAt(et)!, saturn.rotation!.sourceFrame);
+  const q = universe.bodyToWorldQuat('Saturn', et)!;
   return new THREE.Vector3(0, 0, 1).applyQuaternion(new THREE.Quaternion(q[1], q[2], q[3], q[0]));
 }
 
@@ -203,7 +200,7 @@ function shotCamera(renderer: UniverseRenderer, shot: ReturnType<typeof planShot
   };
 }
 
-let hero: { renderer: UniverseRenderer; universe: Universe } | null = null;
+let hero: { renderer: UniverseRenderer; universe: Universe; removeVisibility: () => void } | null = null;
 
 /**
  * Start the backdrop on `canvas`, unless it is already running. `onReady`
@@ -248,14 +245,27 @@ export function startHero(canvas: HTMLCanvasElement, onReady: () => void): void 
     renderer.use(shotCamera(renderer, shot));
     renderer.timeController.setTime(universe.time);
     renderer.timeController.setRate(RATE);
+    // Reset the clock before the next render; camera and physical orientation
+    // stay authored, and all changing geometry comes from simulation time.
+    renderer.timeController.onTimeChange((et) => {
+      if (et >= mid + TRAIL) renderer.timeController.setTime(start);
+    });
   } catch (err) {
     console.warn('[Cosmolabe] Home backdrop unavailable:', err);
     return;
   }
 
-  hero = { renderer, universe };
+  const onVisibility = () => {
+    if (document.hidden) renderer.stop();
+    else renderer.start();
+  };
+  document.addEventListener('visibilitychange', onVisibility);
+  hero = {
+    renderer, universe,
+    removeVisibility: () => document.removeEventListener('visibilitychange', onVisibility),
+  };
   resizeHero(window.innerWidth, window.innerHeight);
-  renderer.start();
+  onVisibility();
   void renderer.waitForInitialAssets().then(() => {
     if (hero?.renderer === renderer) onReady();
   });
@@ -281,8 +291,9 @@ export function resizeHero(w: number, h: number): void {
 /** Stop the backdrop and release it, leaving the canvas free for a scene. */
 export function stopHero(): void {
   if (!hero) return;
-  const { renderer, universe } = hero;
+  const { renderer, universe, removeVisibility } = hero;
   hero = null;
+  removeVisibility();
   renderer.stop();
   renderer.camera.clearViewOffset();
   renderer.dispose();

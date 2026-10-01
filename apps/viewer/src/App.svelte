@@ -478,6 +478,7 @@
     window.addEventListener('pointerdown', onWindowPointerDown, true);
     window.addEventListener('pointerup', onWindowPointerUp);
     return () => {
+      stopHero();
       stopLayoutWatch();
       window.removeEventListener('resize', onResize);
       window.removeEventListener('popstate', onPopState);
