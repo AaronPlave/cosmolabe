@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import WelcomeScreen from './components/WelcomeScreen.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
@@ -19,6 +19,7 @@
   import { loadDemo, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import { loadCatalogSources, type CatalogSourceState } from './lib/catalog-sources';
   import { catalogSourceDeployment } from './lib/deployment';
+  import { cancelMeasurementPick, captureSurfaceEndpoint, measurements, resetMeasurementDraft } from './lib/spatial-measurements.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -80,6 +81,16 @@
    */
   const loading = $derived(vs.showLoading || !vs.assetsReady);
 
+  // Every shell close discards the draft; minimization retains endpoints but cancels picking.
+  $effect(() => {
+    const open = shell.openTools.includes('measure');
+    const hidden = shell.panels.measure.minimized || (shell.layout === 'compact' && shell.activeSheet !== 'measure');
+    untrack(() => {
+      if (!open) resetMeasurementDraft();
+      else if (hidden) cancelMeasurementPick();
+    });
+  });
+
   // Right-click: track pointerdown + pointerup for drag detection.
   // macOS fires contextmenu synchronously with the button press, so we can't use
   // it for drag detection. Instead: suppress native contextmenu, detect on pointerup.
@@ -102,7 +113,7 @@
   }
 
   function onCanvasClick(e: MouseEvent) {
-    if (!pickModeActive) return;
+    if (!pickModeActive && !measurements.pendingPickSlot) return;
     const renderer = getCurrentRenderer();
     if (!renderer) return;
     e.stopPropagation();
@@ -111,8 +122,10 @@
     const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     const result = renderer.pickSurface(ndcX, ndcY);
     if (result) {
+      const captured = captureSurfaceEndpoint(result.bodyName, result.bodyFixedHitKm);
       pickResult = result;
       renderer.setPickMarker(result);
+      if (captured) pickModeActive = false;
     }
   }
 
@@ -143,6 +156,7 @@
   }
 
   function togglePickMode() {
+    cancelMeasurementPick();
     pickModeActive = !pickModeActive;
     if (!pickModeActive) {
       pickResult = null;
@@ -205,6 +219,7 @@
         }
         case 'p': togglePickMode(); return;
         case 'Escape':
+          if (cancelMeasurementPick()) return;
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.
@@ -220,7 +235,7 @@
       // Tool shortcuts come from the shell's own table, so adding a tool does
       // not mean remembering to add a case above as well.
       const tool = TOOLS.find((t) => t.shortcut === e.key);
-      if (tool) toggleTool(tool.id);
+      if (tool && !e.repeat) toggleTool(tool.id);
     }
   }
 
@@ -287,7 +302,7 @@
 <svelte:window onkeydown={onKeydown} />
 <svelte:document ondragover={onDocDragOver} ondrop={onDocDrop} />
 
-<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive} style={shellVars}>
+<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive || !!measurements.pendingPickSlot} style={shellVars}>
   <!-- `touch-none`: the browser must not claim a drag as a scroll or a pinch as
        a page zoom before the camera controls see the gesture. -->
   <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
@@ -352,14 +367,14 @@
         <div class="shell-divider mx-2 border-t"></div>
         <ToolRail
           inline
-          {pickModeActive}
+          pickModeActive={pickModeActive || !!measurements.pendingPickSlot}
           onTogglePick={togglePickMode}
           onOpenSearch={() => commandPaletteOpen = true}
         />
       </div>
     {:else}
       <ToolRail
-        {pickModeActive}
+        pickModeActive={pickModeActive || !!measurements.pendingPickSlot}
         onTogglePick={togglePickMode}
         onOpenSearch={() => commandPaletteOpen = true}
       />

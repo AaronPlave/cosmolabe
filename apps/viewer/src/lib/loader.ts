@@ -6,6 +6,7 @@
  * furnishes all referenced kernels (with `.tm` meta-kernels expanded), and
  * initializes the scene. There is no per-mission code path.
  */
+import { resetMeasurementsForScene } from './spatial-measurements.svelte';
 import * as THREE from 'three';
 import {
   Universe,
@@ -396,6 +397,7 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promis
  * collector honours.
  */
 function teardownScene(): void {
+  resetMeasurementsForScene();
   cacheWorker?.dispose();
   cacheWorker = null;
   geometryWorker?.dispose();

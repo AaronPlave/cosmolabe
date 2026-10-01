@@ -152,6 +152,13 @@ export type {
   ResolvedContinuousProfile,
 } from './geometry/analysis.js';
 export { resolveContinuousProfile, resolveEventQuery } from './geometry/analysis.js';
+export {
+  endpointLabel,
+  resolveSpatialEndpoint,
+  resolveSpatialRelationship,
+  formatSpatialDistance,
+} from './geometry/spatial-relationships.js';
+export type { SpatialEndpoint, SpatialRelationship, ResolvedSpatialRelationship } from './geometry/spatial-relationships.js';
 
 // Geometry/event finder — the shared query + result model every geometry
 // search is expressed in, the SPICE GF boundary it runs against, and the

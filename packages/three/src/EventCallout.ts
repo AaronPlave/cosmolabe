@@ -68,6 +68,11 @@ function overlapArea(a: ScreenRect, b: ScreenRect): number {
   return w > 0 && h > 0 ? w * h : 0;
 }
 
+/** Leave breathing room for fractional CSS-pixel bounds and rounded card placement. */
+function paddedBlocker(rect: ScreenRect): ScreenRect {
+  return { x0: rect.x0 - 3, y0: rect.y0 - 3, x1: rect.x1 + 3, y1: rect.y1 + 3 };
+}
+
 /** Candidate box + leader for one direction and reach. */
 function candidate(
   ax: number,
@@ -129,15 +134,18 @@ function placementCost(
   viewport: { width: number; height: number },
   obstacles: CalloutObstacles,
 ): number {
-  const { box } = c;
+  // Score the same viewport-clamped box that update() actually draws.
+  const dx = Math.max(EDGE_MARGIN - c.box.x0, Math.min(0, viewport.width - EDGE_MARGIN - c.box.x1));
+  const dy = Math.max(EDGE_MARGIN - c.box.y0, Math.min(0, viewport.height - EDGE_MARGIN - c.box.y1));
+  const box = { x0: c.box.x0 + dx, y0: c.box.y0 + dy, x1: c.box.x1 + dx, y1: c.box.y1 + dy };
   let cost = 0;
   const overflow =
-    Math.max(0, EDGE_MARGIN - box.x0) + Math.max(0, box.x1 - (viewport.width - EDGE_MARGIN)) +
-    Math.max(0, EDGE_MARGIN - box.y0) + Math.max(0, box.y1 - (viewport.height - EDGE_MARGIN));
+    Math.max(0, EDGE_MARGIN - c.box.x0) + Math.max(0, c.box.x1 - (viewport.width - EDGE_MARGIN)) +
+    Math.max(0, EDGE_MARGIN - c.box.y0) + Math.max(0, c.box.y1 - (viewport.height - EDGE_MARGIN));
   if (overflow > 0) cost += 400 + overflow * 8;
   for (const blocker of obstacles.blockers ?? []) {
-    const area = overlapArea(box, blocker);
-    if (area > 0) cost += 400 + area * 0.5;
+    const area = overlapArea(box, paddedBlocker(blocker));
+    if (area > 0) cost += 1_000_000 + area;
   }
 
   // Labels: overlapping a pinned (selected / involved) label costs most.
@@ -236,7 +244,8 @@ export class EventCallout {
       // Neutral and quiet: the glyph and leader carry event color and state.
       border: '1px solid rgba(190, 206, 216, 0.1)',
       background: 'rgba(9, 13, 18, 0.8)',
-      whiteSpace: 'nowrap', willChange: 'transform',
+      whiteSpace: 'normal', overflowWrap: 'anywhere', boxSizing: 'border-box',
+      maxWidth: 'min(360px, calc(100% - 16px))', willChange: 'transform',
     });
     container.append(this.svg, this.box);
   }
@@ -275,6 +284,23 @@ export class EventCallout {
     this.tick.setAttribute('fill', content.color);
   }
 
+  /** Update live readouts without cloning nodes, cross-fading, or losing placement. */
+  setLiveContent(content: CalloutContent): void {
+    const previous = this.content;
+    if (!previous || previous.lines[0] !== content.lines[0] ||
+        previous.color !== content.color || previous.tone !== content.tone ||
+        previous.feature !== content.feature || previous.lines.length !== content.lines.length) {
+      this.setContent(content);
+      return;
+    }
+    content.lines.slice(1, 3).forEach((line, i) => {
+      const row = this.box.children[i + 1];
+      if (row && row.textContent !== line) row.textContent = line;
+    });
+    this.content = content;
+    this.contentKey = JSON.stringify(content);
+  }
+
   /**
    * Place the callout for an anchor in CSS pixels, or hide it with `null`.
    * Returns the occupied box so labels can yield to it.
@@ -296,9 +322,8 @@ export class EventCallout {
     }
     this.box.style.display = 'block';
     this.svg.style.display = 'block';
-    if (!this.size || this.size.width === 0) {
-      this.size = { width: this.box.offsetWidth, height: this.box.offsetHeight };
-    }
+    // Measure after live text/viewport changes; preserve placement history.
+    this.size = { width: this.box.offsetWidth, height: this.box.offsetHeight };
     const placement = chooseCalloutPlacement(
       anchor.x, anchor.y, this.size.width, this.size.height, viewport, obstacles, this.previousKey,
     );
@@ -314,6 +339,12 @@ export class EventCallout {
       Math.min(0, viewport.height - EDGE_MARGIN - placement.box.y1));
     const x0 = Math.round(placement.box.x0 + dx);
     const y0 = Math.round(placement.box.y0 + dy);
+    const drawnBox = { x0, y0, x1: x0 + this.size.width, y1: y0 + this.size.height };
+    if ((obstacles.blockers ?? []).some(blocker => overlapArea(drawnBox, paddedBlocker(blocker)) > 0)) {
+      // When every placement is covered by host UI, the panel readout remains available.
+      this.hide();
+      return null;
+    }
     const transform = `translate(${x0}px, ${y0}px)`;
     if (transform !== this.lastTransform) {
       this.box.style.transform = transform;

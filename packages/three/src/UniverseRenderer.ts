@@ -12,6 +12,7 @@ import {
   type Universe,
   type Body,
   type GeometryEvent,
+  type SpatialRelationship,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
@@ -47,6 +48,7 @@ import type { RendererContext } from './plugins/RendererContext.js';
 import type { BodyVisualizer } from './plugins/BodyVisualizer.js';
 import type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
 import type { RendererEventMap } from './events/RendererEventMap.js';
+import { SpatialRelationshipLayer } from './SpatialRelationshipLayer.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -208,6 +210,9 @@ export class UniverseRenderer {
   readonly timeController: TimeController;
 
   private readonly universe: Universe;
+  private readonly spatialRelationships: SpatialRelationshipLayer;
+  private spatialCalloutRects: ScreenRect[] = [];
+  private eventCalloutRect: ScreenRect | null = null;
   readonly scaleFactor: number;
   private readonly minBodyPixels: number;
   private readonly bodyMeshes = new Map<string, BodyMesh>();
@@ -382,6 +387,11 @@ export class UniverseRenderer {
     this.labelContainer.style.overflow = 'hidden';
     canvas.parentElement?.appendChild(this.labelContainer);
     this._eventCallout = new EventCallout(this.labelContainer);
+    this.spatialRelationships = new SpatialRelationshipLayer(
+      universe, this.scaleFactor, this.camera, canvas, this.labelContainer,
+      () => this.spatialCalloutObstacles(),
+    );
+    this.spatialRelationships.attach(this.scene);
 
     // Forward universe events on the renderer event bus
     for (const event of ['time:change', 'body:added', 'body:removed', 'body:trajectoryChanged', 'body:rotationChanged', 'catalog:loaded'] as const) {
@@ -554,6 +564,11 @@ export class UniverseRenderer {
   absolutePositionOf = (bodyName: string, et: number): [number, number, number] => {
     return this.universe.absolutePositionOf(bodyName, et);
   };
+
+  /** Replace the persistent, semantic measurements and direction indicators. */
+  setSpatialRelationships(relationships: readonly SpatialRelationship[]): void {
+    this.spatialRelationships.setRelationships(relationships);
+  }
 
 
 
@@ -881,25 +896,6 @@ export class UniverseRenderer {
         { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
       );
     }
-    // Update labels
-    const bodyMeshArr = Array.from(this.bodyMeshes.values());
-    if (this.labelManager) {
-      this.labelManager.update(
-        bodyMeshArr,
-        this.camera,
-        { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
-      );
-
-      // Apply occlusion fade to sensor frustum labels
-      const camPos = this.camera.position;
-      for (const sf of this.sensorFrustums.values()) {
-        const dist = sf.position.distanceTo(camPos);
-        this.labelManager.applyOcclusionFade(
-          sf.labelSprite, sf.position, dist, bodyMeshArr, camPos,
-        );
-      }
-    }
-
     // Update sun light position + shadow camera frustum. The light shines from
     // the sun toward the (first) body flagged with castShadow; the shadow
     // camera is a tight ortho frustum around that body so the helicopter /
@@ -953,6 +949,27 @@ export class UniverseRenderer {
     // all three are current-frame values (camera is not in the scene graph, so
     // we must explicitly update its world matrix).
     this.camera.updateMatrixWorld();
+    this.spatialCalloutRects = this.spatialRelationships.update(et, this._lastOriginAbsPos);
+    this.labelManager?.setReservedRects([...this.spatialCalloutRects, ...(this.eventCalloutRect ? [this.eventCalloutRect] : [])]);
+    // Update labels
+    const bodyMeshArr = Array.from(this.bodyMeshes.values());
+    if (this.labelManager) {
+      this.labelManager.update(
+        bodyMeshArr,
+        this.camera,
+        { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
+      );
+
+      // Apply occlusion fade to sensor frustum labels
+      const camPos = this.camera.position;
+      for (const sf of this.sensorFrustums.values()) {
+        const dist = sf.position.distanceTo(camPos);
+        this.labelManager.applyOcclusionFade(
+          sf.labelSprite, sf.position, dist, bodyMeshArr, camPos,
+        );
+      }
+    }
+
     for (const bm of this.bodyMeshes.values()) {
       if (bm.hasTerrain || bm.hasSurfaceTiles) {
         bm.updateMatrixWorld(true);
@@ -1476,12 +1493,14 @@ export class UniverseRenderer {
       );
       // The active annotation outranks every label: ordinary labels under it
       // fade, pinned ones step aside (LabelManager collision pass).
-      this.labelManager?.setReservedRects(box ? [box] : []);
+      this.eventCalloutRect = box;
+      this.labelManager?.setReservedRects([...this.spatialCalloutRects, ...(box ? [box] : [])]);
       return;
     }
     if (candidates.length === 0) this._eventCallout.setContent(null);
     this._eventCallout.hide();
-    this.labelManager?.setReservedRects([]);
+    this.eventCalloutRect = null;
+    this.labelManager?.setReservedRects(this.spatialCalloutRects);
   }
 
   /** What a callout should avoid: drawn labels, the owning path, and body discs. */
@@ -1491,9 +1510,10 @@ export class UniverseRenderer {
     height: number,
     span: readonly THREE.Vector3[] = [],
   ): CalloutObstacles {
-    const rects = (this.labelManager?.getScreenRects() ?? [])
+    const rects: Array<ScreenRect & { weight?: number }> = (this.labelManager?.getScreenRects() ?? [])
       .map((rect) => ({ ...rect, weight: rect.pinned ? 3 : 1 }));
 
+    rects.push(...this.spatialCalloutRects.map(rect => ({ ...rect, weight: 3 })));
     const path: number[] = [];
     const point = new THREE.Vector3();
     // The annotated interval itself matters most; weight it by listing it twice.
@@ -1535,6 +1555,28 @@ export class UniverseRenderer {
       discs.push({ x: (point.x + 1) * width / 2, y: (1 - point.y) * height / 2, r });
     }
     return { rects, path, discs, blockers: this._screenOccluders?.() ?? [] };
+  }
+
+  /** Shared label/body/host obstacles for relationship callouts. */
+  private spatialCalloutObstacles(): CalloutObstacles {
+    const width = this.renderer.domElement.clientWidth;
+    const height = this.renderer.domElement.clientHeight;
+    const rects: Array<ScreenRect & { weight?: number }> = (this.labelManager?.getScreenRects() ?? [])
+      .map((rect) => ({ ...rect, weight: rect.pinned ? 3 : 1 }));
+    const discs: Array<{ x: number; y: number; r: number }> = [];
+    const point = new THREE.Vector3();
+    const focalLengthPx = height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
+    for (const bm of this.bodyMeshes.values()) {
+      if (!bm.visible || !(bm.mesh.visible || bm.isModelVisible || bm.hasSurfaceTiles)) continue;
+      const distance = bm.position.distanceTo(this.camera.position);
+      if (!(distance > 0)) continue;
+      const r = bm.displayRadius * this.scaleFactor * focalLengthPx / distance;
+      point.copy(bm.position).project(this.camera);
+      if (r >= 3 && point.z >= -1 && point.z <= 1) {
+        discs.push({ x: (point.x + 1) * width / 2, y: (1 - point.y) * height / 2, r });
+      }
+    }
+    return { rects, path: [], discs, blockers: this._screenOccluders?.() ?? [] };
   }
 
   /** Match the whole-glyph limb fade for annotation and picking. */
@@ -2474,6 +2516,7 @@ export class UniverseRenderer {
     for (const sf of this.sensorFrustums.values()) sf.dispose();
     for (const { markers } of this.eventMarkerGroups.values()) markers.dispose();
     this._eventCallout.dispose();
+    this.spatialRelationships.dispose();
     this.setOccultationGeometry(null);
     this.starField?.dispose();
     this.labelManager?.dispose();
