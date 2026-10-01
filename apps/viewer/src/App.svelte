@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import WelcomeScreen from './components/WelcomeScreen.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
@@ -19,7 +19,7 @@
   import { loadDemo, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import { loadCatalogSources, type CatalogSourceState } from './lib/catalog-sources';
   import { catalogSourceDeployment } from './lib/deployment';
-  import { cancelMeasurementPick, captureSurfaceEndpoint, measurements, resetMeasurementsForScene } from './lib/spatial-measurements.svelte';
+  import { cancelMeasurementPick, captureSurfaceEndpoint, measurements, resetMeasurementDraft } from './lib/spatial-measurements.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -81,10 +81,15 @@
    */
   const loading = $derived(vs.showLoading || !vs.assetsReady);
 
-  // Relationships belong to one catalog: reset drafts and measurements when
-  // the reactive body inventory changes rather than leaking stale references
-  // into a replacement renderer.
-  $effect(() => resetMeasurementsForScene(vs.bodies.map(body => body.name)));
+  // Every shell close discards the draft; minimization retains endpoints but cancels picking.
+  $effect(() => {
+    const open = shell.openTools.includes('measure');
+    const hidden = shell.panels.measure.minimized || (shell.layout === 'compact' && shell.activeSheet !== 'measure');
+    untrack(() => {
+      if (!open) resetMeasurementDraft();
+      else if (hidden) cancelMeasurementPick();
+    });
+  });
 
   // Right-click: track pointerdown + pointerup for drag detection.
   // macOS fires contextmenu synchronously with the button press, so we can't use
@@ -230,7 +235,7 @@
       // Tool shortcuts come from the shell's own table, so adding a tool does
       // not mean remembering to add a case above as well.
       const tool = TOOLS.find((t) => t.shortcut === e.key);
-      if (tool) toggleTool(tool.id);
+      if (tool && !e.repeat) toggleTool(tool.id);
     }
   }
 

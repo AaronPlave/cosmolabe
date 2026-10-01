@@ -10,28 +10,37 @@ type Slot = 'source' | 'target' | 'vertex';
 
 export const measurements = $state({
   items: [] as SpatialRelationship[],
+  draftKind: 'distance' as 'distance' | 'angle' | 'direction',
   pendingPickSlot: null as Slot | null,
   draft: { source: null, target: null, vertex: null } as Record<Slot, SpatialEndpoint | null>,
-  sceneKey: '',
+  nextColor: 0,
+  nextPoint: 1,
+  selectedId: null as string | null,
+  hoveredId: null as string | null,
 });
 
 export function syncMeasurements(): void {
-  getCurrentRenderer()?.setSpatialRelationships(measurements.items);
+  getCurrentRenderer()?.setSpatialRelationships(measurements.items.map(item => ({ ...item, emphasized: item.id === measurements.selectedId || item.id === measurements.hoveredId })));
 }
 
 export function addMeasurement(item: SpatialRelationship): void {
   measurements.items.push(item);
-  resetMeasurementDraft();
+  measurements.nextColor++;
+  measurements.selectedId = item.id;
+  resetMeasurementDraft(true);
   syncMeasurements();
 }
 
 export function removeMeasurement(id: string): void {
   const index = measurements.items.findIndex(item => item.id === id);
   if (index >= 0) measurements.items.splice(index, 1);
+  if (measurements.selectedId === id) measurements.selectedId = null;
+  if (measurements.hoveredId === id) measurements.hoveredId = null;
   syncMeasurements();
 }
 
-export function resetMeasurementDraft(): void {
+export function resetMeasurementDraft(preserveKind = false): void {
+  if (!preserveKind) measurements.draftKind = 'distance';
   measurements.pendingPickSlot = null;
   measurements.draft = { source: null, target: null, vertex: null };
 }
@@ -43,10 +52,11 @@ export function cancelMeasurementPick(): boolean {
 }
 
 /** Measurements are scene-owned: entity references must never leak into a replacement catalog. */
-export function resetMeasurementsForScene(bodyNames: readonly string[]): void {
-  const key = bodyNames.join('\0');
-  if (key === measurements.sceneKey) return;
-  measurements.sceneKey = key;
+export function resetMeasurementsForScene(): void {
+  measurements.nextColor = 0;
+  measurements.nextPoint = 1;
+  measurements.selectedId = null;
+  measurements.hoveredId = null;
   measurements.items = [];
   resetMeasurementDraft();
   syncMeasurements();
@@ -55,7 +65,7 @@ export function resetMeasurementsForScene(bodyNames: readonly string[]): void {
 export function captureSurfaceEndpoint(bodyName: string, positionKm: readonly [number, number, number]): boolean {
   const slot = measurements.pendingPickSlot;
   if (!slot) return false;
-  measurements.draft[slot] = { kind: 'body-fixed', bodyName, positionKm: [...positionKm] };
+  measurements.draft[slot] = { kind: 'body-fixed', bodyName, positionKm: [...positionKm], label: `${bodyName} point ${measurements.nextPoint++} (${positionKm.map(v => v.toFixed(2)).join(', ')} km)` };
   measurements.pendingPickSlot = null;
   return true;
 }

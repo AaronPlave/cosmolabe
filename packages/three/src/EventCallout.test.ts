@@ -32,6 +32,15 @@ describe('chooseCalloutPlacement', () => {
     expect(overlap).toBe(false);
   });
 
+  it('never trades host-panel visibility for avoiding another annotation', () => {
+    const panel = { x0: 600, y0: 0, x1: 800, y1: 450 };
+    const other = { x0: 0, y0: 180, x1: 400, y1: 420, weight: 20 };
+    const placement = chooseCalloutPlacement(400, 300, 360, 54, viewport, { ...empty, rects: [other], blockers: [panel] });
+    const overlap = Math.min(placement.box.x1, panel.x1) > Math.max(placement.box.x0, panel.x0) &&
+      Math.min(placement.box.y1, panel.y1) > Math.max(placement.box.y0, panel.y0);
+    expect(overlap).toBe(false);
+  });
+
   it('prefers the side of the trajectory with empty space', () => {
     // A path running up-right through the anchor occupies the NE quadrant.
     const path: number[] = [];

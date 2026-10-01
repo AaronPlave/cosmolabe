@@ -10,9 +10,9 @@ export type SpatialEndpoint =
   | { kind: 'coordinate'; positionKm: Vec3; frame?: string; label?: string };
 
 export type SpatialRelationship =
-  | { id: string; kind: 'distance'; source: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string }
-  | { id: string; kind: 'direction'; source: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string; showDistance?: boolean }
-  | { id: string; kind: 'angle'; source: SpatialEndpoint; vertex: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string };
+  | { id: string; kind: 'distance'; source: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string; emphasized?: boolean }
+  | { id: string; kind: 'direction'; source: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string; emphasized?: boolean; showDistance?: boolean }
+  | { id: string; kind: 'angle'; source: SpatialEndpoint; vertex: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string; emphasized?: boolean };
 
 export interface ResolvedSpatialRelationship {
   relationship: SpatialRelationship;
@@ -26,7 +26,7 @@ export interface ResolvedSpatialRelationship {
 export function endpointLabel(endpoint: SpatialEndpoint): string {
   if (endpoint.label) return endpoint.label;
   if (endpoint.kind === 'entity') return endpoint.bodyName;
-  if (endpoint.kind === 'body-fixed') return `${endpoint.bodyName} surface point`;
+  if (endpoint.kind === 'body-fixed') return `${endpoint.bodyName} point (${endpoint.positionKm.map(v => v.toFixed(2)).join(", ")} km)`;
   return endpoint.frame ? `${endpoint.frame} coordinate` : 'World coordinate';
 }
 

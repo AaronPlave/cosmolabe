@@ -12,7 +12,7 @@ describe('spatial relationships', () => {
   it('computes Euclidean distance and a three-endpoint angle', () => {
     const universe = new Universe();
     for (const [name, position] of [['A', [1, 0, 0]], ['V', [0, 0, 0]], ['B', [0, 1, 0]]] as const) {
-      universe.addBody(new Body({ name, trajectory: new FixedPointTrajectory(position) }));
+      universe.addBody(new Body({ name, trajectory: new FixedPointTrajectory([...position]) }));
     }
     const distance = resolveSpatialRelationship(universe, {
       id: 'd', kind: 'distance', source: { kind: 'entity', bodyName: 'A' }, target: { kind: 'entity', bodyName: 'B' },
@@ -47,6 +47,32 @@ describe('spatial relationships', () => {
     expect(resolveSpatialEndpoint(universe, { kind: 'entity', bodyName: 'Bad' }, 0)).toBeNull();
     expect(resolveSpatialEndpoint(universe, { kind: 'coordinate', frame: 'NOT_A_FRAME', positionKm: [1, 2, 3] }, 0)).toBeNull();
     expect(resolveSpatialEndpoint(universe, { kind: 'body-fixed', bodyName: 'No attitude', positionKm: [1, 0, 0] }, 0)).toBeNull();
+  });
+
+  it('transforms coordinates and body-fixed attitudes from a non-world source frame', () => {
+    const universe = new Universe();
+    universe.addBody(new Body({
+      name: 'Equatorial', trajectory: new FixedPointTrajectory([0, 0, 0]),
+      rotation: new FixedRotation([1, 0, 0, 0], 'EquatorJ2000'),
+    }));
+    const coordinate = resolveSpatialEndpoint(universe, { kind: 'coordinate', frame: 'EquatorJ2000', positionKm: [0, 1, 0] }, 0);
+    const surface = resolveSpatialEndpoint(universe, { kind: 'body-fixed', bodyName: 'Equatorial', positionKm: [0, 1, 0] }, 0);
+    expect(coordinate?.[1]).toBeCloseTo(0.917482, 5);
+    expect(coordinate?.[2]).toBeCloseTo(-0.397777, 5);
+    surface?.forEach((value, index) => expect(value).toBeCloseTo(coordinate![index]));
+  });
+
+  it('returns unavailable when ephemeris or rotation coverage throws', () => {
+    const universe = new Universe();
+    universe.addBody(new Body({
+      name: 'Missing attitude', trajectory: new FixedPointTrajectory([0, 0, 0]),
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => { throw new Error('No coverage'); } },
+    }));
+    universe.addBody(new Body({
+      name: 'Missing position', trajectory: { stateAt: () => { throw new Error('No coverage'); } },
+    }));
+    expect(resolveSpatialEndpoint(universe, { kind: 'body-fixed', bodyName: 'Missing attitude', positionKm: [1, 0, 0] }, 0)).toBeNull();
+    expect(resolveSpatialEndpoint(universe, { kind: 'entity', bodyName: 'Missing position' }, 0)).toBeNull();
   });
 
   it('reports a coincident angle leg as undefined', () => {

@@ -10,7 +10,7 @@ import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCal
 
 interface Visual {
   group: THREE.Group;
-  line: THREE.Line;
+  line: THREE.LineSegments;
   marks: THREE.Points;
   arrow?: THREE.ArrowHelper;
   callout: EventCallout;
@@ -79,7 +79,9 @@ export class SpatialRelationshipLayer {
           ? `3D chord · ${formatSpatialDistance(resolved.distanceKm!)}`
           : relationship.showDistance === false ? 'Direction' : formatSpatialDistance(resolved.distanceKm!);
       }
-      visual.callout.setContent({ lines: [title, detail], color: visual.color, tone: 'selected', feature: 'point' });
+      visual.callout.setLiveContent({ lines: [title, detail], color: visual.color, tone: relationship.emphasized ? 'selected' : 'preview', feature: 'point' });
+      (visual.line.material as THREE.LineBasicMaterial).opacity = relationship.emphasized ? 1 : 0.55;
+      (visual.marks.material as THREE.PointsMaterial).size = relationship.emphasized ? 6 : 4;
       const projected = anchor.clone().project(this.camera);
       const width = this.canvas.clientWidth, height = this.canvas.clientHeight;
       const screenAnchor = projected.z >= -1 && projected.z <= 1
@@ -91,13 +93,16 @@ export class SpatialRelationshipLayer {
       if (box) occupied.push(box);
 
       if (visual.arrow) {
+        for (const material of [visual.arrow.line.material, visual.arrow.cone.material]) {
+          const m = material as THREE.Material;
+          m.transparent = true;
+          m.opacity = relationship.emphasized ? 1 : 0.55;
+        }
         const direction = target.clone().sub(source);
         const length = direction.length();
         visual.arrow.position.copy(source);
         visual.arrow.setDirection(direction.normalize());
-        const worldPerPixel = 2 * source.distanceTo(this.camera.position) *
-          Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) / Math.max(1, height);
-        const headLength = Math.min(length * 0.3, worldPerPixel * 9);
+        const headLength = directionHeadLength(this.camera, target, length, height);
         visual.arrow.setLength(length, headLength, headLength * 0.45);
       }
     }
@@ -112,7 +117,7 @@ export class SpatialRelationshipLayer {
   private create(relationship: SpatialRelationship): Visual {
     const colorValue = relationship.color ?? '#82aabd';
     const color = new THREE.Color(colorValue);
-    const line = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.82, depthTest: false }));
+    const line = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.82, depthTest: false }));
     line.renderOrder = 100;
     const marks = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color, size: 5, sizeAttenuation: false, depthTest: false }));
     marks.renderOrder = 101;
@@ -149,19 +154,30 @@ export class SpatialRelationshipLayer {
   }
 }
 
-/** Two legs plus a short, scale-relative arc around the vertex. */
-function anglePoints(source: THREE.Vector3, vertex: THREE.Vector3, target: THREE.Vector3): THREE.Vector3[] {
+/** Finite line-segment pairs for two legs and a deterministic angle arc. */
+export function anglePoints(source: THREE.Vector3, vertex: THREE.Vector3, target: THREE.Vector3): THREE.Vector3[] {
   const a = source.clone().sub(vertex), b = target.clone().sub(vertex);
   const radius = Math.min(a.length(), b.length()) * 0.16;
   const aN = a.normalize(), bN = b.normalize();
-  const dot = THREE.MathUtils.clamp(aN.dot(bN), -1, 1);
-  const angle = Math.acos(dot);
-  const axis = aN.clone().cross(bN).normalize();
-  const arc: THREE.Vector3[] = [];
-  if (Number.isFinite(axis.x + axis.y + axis.z) && axis.lengthSq() > 0) {
-    for (let i = 0; i <= 18; i++) arc.push(aN.clone().applyAxisAngle(axis, angle * i / 18).multiplyScalar(radius).add(vertex));
+  const angle = Math.acos(THREE.MathUtils.clamp(aN.dot(bN), -1, 1));
+  const axis = aN.clone().cross(bN);
+  if (axis.lengthSq() < 1e-12) {
+    // Parallel legs still define a straight angle; choose a stable perpendicular.
+    const basis = Math.abs(aN.x) < 0.8 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+    axis.crossVectors(aN, basis);
   }
-  // NaN splits the line strip, keeping both legs and the arc independent.
-  const gap = new THREE.Vector3(NaN, NaN, NaN);
-  return [source, vertex, target, gap, ...arc];
+  axis.normalize();
+  const points = [source, vertex, vertex, target];
+  for (let i = 0; i < 18; i++) {
+    for (const step of [i, i + 1]) points.push(aN.clone().applyAxisAngle(axis, angle * step / 18).multiplyScalar(radius).add(vertex));
+  }
+  return points;
+}
+
+/** Pixel-sized head at target depth, capped to fit short segments; no head behind the near plane. */
+export function directionHeadLength(camera: THREE.PerspectiveCamera, target: THREE.Vector3, length: number, height: number): number {
+  const depth = -target.clone().applyMatrix4(camera.matrixWorldInverse).z;
+  if (depth <= camera.near || depth >= camera.far || length <= 0) return 0;
+  const worldPerPixel = 2 * depth * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV()) / 2) / Math.max(1, height);
+  return Math.min(length * 0.3, worldPerPixel * 9);
 }
