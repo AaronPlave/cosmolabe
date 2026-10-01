@@ -92,7 +92,7 @@ export const TOOLS: readonly ToolDef[] = [
   // E is camera roll-right in KeyboardControls; tool shortcuts must not steal
   // renderer controls while the canvas has focus.
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
-  { id: 'measure', label: 'Measure',  icon: Ruler,    presentation: 'panel',  dock: 'right', width: 330 },
+  { id: 'measure', label: 'Measurements', icon: Ruler, presentation: 'panel', dock: 'right', width: 344, shortcut: 'q' },
   { id: 'display', label: 'Display',  icon: Settings, presentation: 'panel',  dock: 'right', width: 240 },
   { id: 'debug',   label: 'Diagnostics', icon: Bug,   presentation: 'panel',  dock: 'right', width: 260 },
 ];

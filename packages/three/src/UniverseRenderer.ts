@@ -322,7 +322,6 @@ export class UniverseRenderer {
     this.universe = universe;
     this.options = options;
     this.scaleFactor = options.scaleFactor ?? 1e-6;
-    this.spatialRelationships = new SpatialRelationshipLayer(universe, this.scaleFactor);
     this.minBodyPixels = options.minBodyPixels ?? 4;
     this.cacheWorker = options.cacheWorker;
 
@@ -348,7 +347,6 @@ export class UniverseRenderer {
 
     // Scene
     this.scene = new THREE.Scene();
-    this.spatialRelationships.attach(this.scene);
     // Very dim ambient — just enough to see body silhouettes on the dark side.
     // In space the unlit hemisphere is essentially black; 0x080808 ≈ 3%.
     this.ambientLight = new THREE.AmbientLight(0x080808);
@@ -387,6 +385,11 @@ export class UniverseRenderer {
     this.labelContainer.style.overflow = 'hidden';
     canvas.parentElement?.appendChild(this.labelContainer);
     this._eventCallout = new EventCallout(this.labelContainer);
+    this.spatialRelationships = new SpatialRelationshipLayer(
+      universe, this.scaleFactor, this.camera, canvas, this.labelContainer,
+      () => this.spatialCalloutObstacles(),
+    );
+    this.spatialRelationships.attach(this.scene);
 
     // Forward universe events on the renderer event bus
     for (const event of ['time:change', 'body:added', 'body:removed', 'body:trajectoryChanged', 'body:rotationChanged', 'catalog:loaded'] as const) {
@@ -1546,6 +1549,28 @@ export class UniverseRenderer {
       discs.push({ x: (point.x + 1) * width / 2, y: (1 - point.y) * height / 2, r });
     }
     return { rects, path, discs, blockers: this._screenOccluders?.() ?? [] };
+  }
+
+  /** Shared label/body/host obstacles for relationship callouts. */
+  private spatialCalloutObstacles(): CalloutObstacles {
+    const width = this.renderer.domElement.clientWidth;
+    const height = this.renderer.domElement.clientHeight;
+    const rects = (this.labelManager?.getScreenRects() ?? [])
+      .map((rect) => ({ ...rect, weight: rect.pinned ? 3 : 1 }));
+    const discs: Array<{ x: number; y: number; r: number }> = [];
+    const point = new THREE.Vector3();
+    const focalLengthPx = height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
+    for (const bm of this.bodyMeshes.values()) {
+      if (!bm.visible || !(bm.mesh.visible || bm.isModelVisible || bm.hasSurfaceTiles)) continue;
+      const distance = bm.position.distanceTo(this.camera.position);
+      if (!(distance > 0)) continue;
+      const r = bm.displayRadius * this.scaleFactor * focalLengthPx / distance;
+      point.copy(bm.position).project(this.camera);
+      if (r >= 3 && point.z >= -1 && point.z <= 1) {
+        discs.push({ x: (point.x + 1) * width / 2, y: (1 - point.y) * height / 2, r });
+      }
+    }
+    return { rects, path: [], discs, blockers: this._screenOccluders?.() ?? [] };
   }
 
   /** Match the whole-glyph limb fade for annotation and picking. */

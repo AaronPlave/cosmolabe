@@ -19,7 +19,7 @@
   import { loadDemo, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import { loadCatalogSources, type CatalogSourceState } from './lib/catalog-sources';
   import { catalogSourceDeployment } from './lib/deployment';
-  import { captureSurfaceEndpoint, measurements } from './lib/spatial-measurements.svelte';
+  import { cancelMeasurementPick, captureSurfaceEndpoint, measurements, resetMeasurementsForScene } from './lib/spatial-measurements.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -80,6 +80,11 @@
    * models, textures and trajectories have not landed yet.
    */
   const loading = $derived(vs.showLoading || !vs.assetsReady);
+
+  // Relationships belong to one catalog: reset drafts and measurements when
+  // the reactive body inventory changes rather than leaking stale references
+  // into a replacement renderer.
+  $effect(() => resetMeasurementsForScene(vs.bodies.map(body => body.name)));
 
   // Right-click: track pointerdown + pointerup for drag detection.
   // macOS fires contextmenu synchronously with the button press, so we can't use
@@ -146,6 +151,7 @@
   }
 
   function togglePickMode() {
+    cancelMeasurementPick();
     pickModeActive = !pickModeActive;
     if (!pickModeActive) {
       pickResult = null;
@@ -207,8 +213,8 @@
           return;
         }
         case 'p': togglePickMode(); return;
-        case 'd': toggleTool('measure'); return;
         case 'Escape':
+          if (cancelMeasurementPick()) return;
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.

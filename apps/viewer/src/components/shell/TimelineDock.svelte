@@ -622,7 +622,7 @@
   {/if}
   {#if shell.shortcutsOpen}
     <div class="py-0.5 text-center text-[12px] text-text-muted">
-      Space: play &middot; &larr;/&rarr;: step &middot; &uarr;/&darr;: speed &middot; R: reverse &middot; F: fly to &middot; B: bodies &middot; E: events &middot; P: pick &middot; M: camera &middot; Cmd+K: search &middot; \: zen
+      Space: play &middot; &larr;/&rarr;: step &middot; &uarr;/&darr;: speed &middot; R: reverse &middot; F: fly to &middot; B: bodies &middot; Q: measurements &middot; P: pick &middot; M: camera &middot; Cmd+K: search &middot; \: zen
     </div>
   {/if}
 

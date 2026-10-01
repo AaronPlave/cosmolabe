@@ -32,28 +32,35 @@ export function endpointLabel(endpoint: SpatialEndpoint): string {
 
 /** Resolve every endpoint into Cosmolabe's world frame at `et`. */
 export function resolveSpatialEndpoint(universe: Universe, endpoint: SpatialEndpoint, et: number): Vec3 | null {
+  const finite = (position: Vec3): Vec3 | null => position.every(Number.isFinite) ? position : null;
   if (endpoint.kind === 'entity') {
-    return universe.getBody(endpoint.bodyName) ? universe.absolutePositionOf(endpoint.bodyName, et) : null;
+    if (!universe.getBody(endpoint.bodyName)) return null;
+    try { return finite(universe.absolutePositionOf(endpoint.bodyName, et)); } catch { return null; }
   }
   if (endpoint.kind === 'coordinate') {
     const frame = endpoint.frame ?? 'ECLIPJ2000';
     try {
       const matrix = universe.frames.rotation(frame, 'ECLIPJ2000', et);
-      return matrix ? [
+      if (!matrix) return null;
+      return finite([
         matrix[0] * endpoint.positionKm[0] + matrix[1] * endpoint.positionKm[1] + matrix[2] * endpoint.positionKm[2],
         matrix[3] * endpoint.positionKm[0] + matrix[4] * endpoint.positionKm[1] + matrix[5] * endpoint.positionKm[2],
         matrix[6] * endpoint.positionKm[0] + matrix[7] * endpoint.positionKm[1] + matrix[8] * endpoint.positionKm[2],
-      ] : endpoint.positionKm;
+      ]);
     } catch { return null; }
   }
   const body = universe.getBody(endpoint.bodyName);
   if (!body) return null;
-  const center = universe.absolutePositionOf(body.name, et);
-  const rotation = body.rotation;
-  if (!rotation) return [center[0] + endpoint.positionKm[0], center[1] + endpoint.positionKm[1], center[2] + endpoint.positionKm[2]];
-  const q = rotation.rotationAt(et);
-  const worldOffset = q ? bodyFixedVectorToWorld(endpoint.positionKm, q, rotation.sourceFrame, et, universe) : endpoint.positionKm;
-  return [center[0] + worldOffset[0], center[1] + worldOffset[1], center[2] + worldOffset[2]];
+  try {
+    const center = universe.absolutePositionOf(body.name, et);
+    const rotation = body.rotation;
+    // A body-fixed coordinate has no defined world position without attitude.
+    if (!rotation) return null;
+    const q = rotation.rotationAt(et);
+    if (!q || !q.every(Number.isFinite)) return null;
+    const worldOffset = bodyFixedVectorToWorld(endpoint.positionKm, q, rotation.sourceFrame, et, universe);
+    return finite([center[0] + worldOffset[0], center[1] + worldOffset[1], center[2] + worldOffset[2]]);
+  } catch { return null; }
 }
 
 function bodyFixedVectorToWorld(position: Vec3, q: Quaternion, sourceFrame: string, et: number, universe: Universe): Vec3 {
@@ -77,7 +84,7 @@ export function resolveSpatialRelationship(universe: Universe, relationship: Spa
   const a: Vec3 = [source[0] - vertex[0], source[1] - vertex[1], source[2] - vertex[2]];
   const b: Vec3 = [target[0] - vertex[0], target[1] - vertex[1], target[2] - vertex[2]];
   const denominator = Math.hypot(...a) * Math.hypot(...b);
-  const angleDeg = denominator === 0 ? 0 : Math.acos(Math.max(-1, Math.min(1, (a[0]*b[0]+a[1]*b[1]+a[2]*b[2]) / denominator))) * 180 / Math.PI;
+  const angleDeg = denominator === 0 ? undefined : Math.acos(Math.max(-1, Math.min(1, (a[0]*b[0]+a[1]*b[1]+a[2]*b[2]) / denominator))) * 180 / Math.PI;
   return { relationship, source, target, vertex, angleDeg };
 }
 

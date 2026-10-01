@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Body, FixedPointTrajectory, Universe, resolveSpatialEndpoint, resolveSpatialRelationship, formatSpatialDistance } from '../index.js';
+import { Body, FixedPointTrajectory, FixedRotation, Universe, resolveSpatialEndpoint, resolveSpatialRelationship, formatSpatialDistance } from '../index.js';
 
 describe('spatial relationships', () => {
   it('resolves entity endpoints through the absolute parent chain', () => {
@@ -27,5 +27,36 @@ describe('spatial relationships', () => {
   it('uses engineering units', () => {
     expect(formatSpatialDistance(0.25)).toBe('250 m');
     expect(formatSpatialDistance(149_597_870.7)).toBe('1.000 AU');
+  });
+
+  it('rotates exact body-fixed points into the world frame', () => {
+    const universe = new Universe();
+    universe.addBody(new Body({
+      name: 'Body', trajectory: new FixedPointTrajectory([10, 0, 0]),
+      rotation: new FixedRotation([Math.SQRT1_2, 0, 0, -Math.SQRT1_2], 'ECLIPJ2000'),
+    }));
+    const point = resolveSpatialEndpoint(universe, { kind: 'body-fixed', bodyName: 'Body', positionKm: [1, 0, 0] }, 0);
+    expect(point?.[0]).toBeCloseTo(10);
+    expect(point?.[1]).toBeCloseTo(1);
+  });
+
+  it('rejects unavailable ephemerides, frames, and attitudes', () => {
+    const universe = new Universe();
+    universe.addBody(new Body({ name: 'Bad', trajectory: new FixedPointTrajectory([NaN, 0, 0]) }));
+    universe.addBody(new Body({ name: 'No attitude', trajectory: new FixedPointTrajectory([0, 0, 0]) }));
+    expect(resolveSpatialEndpoint(universe, { kind: 'entity', bodyName: 'Bad' }, 0)).toBeNull();
+    expect(resolveSpatialEndpoint(universe, { kind: 'coordinate', frame: 'NOT_A_FRAME', positionKm: [1, 2, 3] }, 0)).toBeNull();
+    expect(resolveSpatialEndpoint(universe, { kind: 'body-fixed', bodyName: 'No attitude', positionKm: [1, 0, 0] }, 0)).toBeNull();
+  });
+
+  it('reports a coincident angle leg as undefined', () => {
+    const universe = new Universe();
+    universe.addBody(new Body({ name: 'V', trajectory: new FixedPointTrajectory([0, 0, 0]) }));
+    universe.addBody(new Body({ name: 'B', trajectory: new FixedPointTrajectory([0, 1, 0]) }));
+    const angle = resolveSpatialRelationship(universe, {
+      id: 'degenerate', kind: 'angle',
+      source: { kind: 'entity', bodyName: 'V' }, vertex: { kind: 'entity', bodyName: 'V' }, target: { kind: 'entity', bodyName: 'B' },
+    }, 0);
+    expect(angle?.angleDeg).toBeUndefined();
   });
 });

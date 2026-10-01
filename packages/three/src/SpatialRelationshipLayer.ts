@@ -6,8 +6,16 @@ import {
   type SpatialRelationship,
   type Universe,
 } from '@cosmolabe/core';
+import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 
-interface Visual { group: THREE.Group; line: THREE.Line; arrow?: THREE.ArrowHelper; label: THREE.Sprite }
+interface Visual {
+  group: THREE.Group;
+  line: THREE.Line;
+  marks: THREE.Points;
+  arrow?: THREE.ArrowHelper;
+  callout: EventCallout;
+  color: string;
+}
 
 /** Scene rendering for semantic spatial relationships owned by the core model. */
 export class SpatialRelationshipLayer {
@@ -15,9 +23,14 @@ export class SpatialRelationshipLayer {
   private readonly visuals = new Map<string, Visual>();
   private relationships: readonly SpatialRelationship[] = [];
 
-  constructor(private readonly universe: Universe, private readonly scaleFactor: number) {
-    this.root.layers.set(2);
-  }
+  constructor(
+    private readonly universe: Universe,
+    private readonly scaleFactor: number,
+    private readonly camera: THREE.PerspectiveCamera,
+    private readonly canvas: HTMLCanvasElement,
+    private readonly calloutContainer: HTMLElement,
+    private readonly obstacles: () => CalloutObstacles,
+  ) { this.root.layers.set(2); }
 
   attach(scene: THREE.Scene): void { scene.add(this.root); }
 
@@ -27,37 +40,68 @@ export class SpatialRelationshipLayer {
     for (const [id, visual] of this.visuals) if (!ids.has(id)) this.remove(id, visual);
   }
 
-  update(et: number, originKm: readonly [number, number, number]): void {
+  update(et: number, originKm: readonly [number, number, number]): ScreenRect[] {
+    const occupied: ScreenRect[] = [];
     for (const relationship of this.relationships) {
       let visual = this.visuals.get(relationship.id);
       if (!visual) visual = this.create(relationship);
+      this.updateColor(visual, relationship.color ?? '#82aabd');
       visual.group.visible = relationship.visible !== false;
-      if (!visual.group.visible) continue;
+      if (!visual.group.visible) { visual.callout.hide(); continue; }
       const resolved = resolveSpatialRelationship(this.universe, relationship, et);
-      if (!resolved) { visual.group.visible = false; continue; }
+      if (!resolved || (relationship.kind === 'angle' && resolved.angleDeg === undefined) ||
+          (relationship.kind === 'direction' && resolved.distanceKm === 0)) {
+        visual.group.visible = false;
+        visual.callout.hide();
+        continue;
+      }
       const point = (p: readonly number[]) => new THREE.Vector3(
         (p[0] - originKm[0]) * this.scaleFactor,
         (p[1] - originKm[1]) * this.scaleFactor,
         (p[2] - originKm[2]) * this.scaleFactor,
       );
       const source = point(resolved.source), target = point(resolved.target);
-      const points = relationship.kind === 'angle' && resolved.vertex
-        ? [source, point(resolved.vertex), target]
-        : [source, target];
-      visual.line.geometry.setFromPoints(points);
-      visual.label.position.copy(relationship.kind === 'angle' && resolved.vertex ? point(resolved.vertex) : source.clone().lerp(target, 0.5));
-      let text: string;
-      if (relationship.kind === 'angle') text = `${endpointLabel(relationship.source)} – ${endpointLabel(relationship.vertex)} – ${endpointLabel(relationship.target)}\n${resolved.angleDeg?.toFixed(2)}°`;
-      else text = `${endpointLabel(relationship.source)} → ${endpointLabel(relationship.target)}\n${relationship.kind === 'distance' ? '3D chord · ' : ''}${formatSpatialDistance(resolved.distanceKm ?? 0)}`;
-      updateLabel(visual.label, text, relationship.color ?? '#67d9ff');
+      const vertex = relationship.kind === 'angle' && resolved.vertex ? point(resolved.vertex) : undefined;
+      visual.line.geometry.setFromPoints(vertex ? anglePoints(source, vertex, target) : [source, target]);
+      visual.line.visible = relationship.kind !== 'direction';
+      visual.marks.geometry.setFromPoints(vertex ? [source, vertex, target] : [source, target]);
+
+      let anchor = source.clone().lerp(target, 0.5);
+      let title: string;
+      let detail: string;
+      if (relationship.kind === 'angle') {
+        anchor = vertex!;
+        title = `${endpointLabel(relationship.source)} – ${endpointLabel(relationship.vertex)} – ${endpointLabel(relationship.target)}`;
+        detail = `${resolved.angleDeg!.toFixed(2)}°`;
+      } else {
+        title = `${endpointLabel(relationship.source)} → ${endpointLabel(relationship.target)}`;
+        detail = relationship.kind === 'distance'
+          ? `3D chord · ${formatSpatialDistance(resolved.distanceKm!)}`
+          : relationship.showDistance === false ? 'Direction' : formatSpatialDistance(resolved.distanceKm!);
+      }
+      visual.callout.setContent({ lines: [title, detail], color: visual.color, tone: 'selected', feature: 'point' });
+      const projected = anchor.clone().project(this.camera);
+      const width = this.canvas.clientWidth, height = this.canvas.clientHeight;
+      const screenAnchor = projected.z >= -1 && projected.z <= 1
+        ? { x: (projected.x + 1) * width / 2, y: (1 - projected.y) * height / 2 } : null;
+      const base = this.obstacles();
+      const box = visual.callout.update(screenAnchor, { width, height }, {
+        ...base, rects: [...base.rects, ...occupied.map(rect => ({ ...rect, weight: 3 }))],
+      });
+      if (box) occupied.push(box);
+
       if (visual.arrow) {
         const direction = target.clone().sub(source);
         const length = direction.length();
         visual.arrow.position.copy(source);
-        if (length > 0) visual.arrow.setDirection(direction.normalize());
-        visual.arrow.setLength(length, Math.min(length * 0.16, 0.012), Math.min(length * 0.08, 0.006));
+        visual.arrow.setDirection(direction.normalize());
+        const worldPerPixel = 2 * source.distanceTo(this.camera.position) *
+          Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) / Math.max(1, height);
+        const headLength = Math.min(length * 0.3, worldPerPixel * 9);
+        visual.arrow.setLength(length, headLength, headLength * 0.45);
       }
     }
+    return occupied;
   }
 
   dispose(): void {
@@ -66,13 +110,13 @@ export class SpatialRelationshipLayer {
   }
 
   private create(relationship: SpatialRelationship): Visual {
-    const color = new THREE.Color(relationship.color ?? '#67d9ff');
+    const colorValue = relationship.color ?? '#82aabd';
+    const color = new THREE.Color(colorValue);
     const line = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.82, depthTest: false }));
     line.renderOrder = 100;
-    const label = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false }));
-    label.scale.set(0.08, 0.025, 1);
-    label.renderOrder = 101;
-    const group = new THREE.Group(); group.add(line, label);
+    const marks = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color, size: 5, sizeAttenuation: false, depthTest: false }));
+    marks.renderOrder = 101;
+    const group = new THREE.Group(); group.add(line, marks);
     const arrow = relationship.kind === 'direction' ? new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(), 1, color) : undefined;
     if (arrow) {
       (arrow.line.material as THREE.Material).depthTest = false;
@@ -80,31 +124,44 @@ export class SpatialRelationshipLayer {
       group.add(arrow);
     }
     this.root.add(group);
-    const visual = { group, line, arrow, label };
+    const visual = { group, line, marks, arrow, callout: new EventCallout(this.calloutContainer), color: colorValue };
     this.visuals.set(relationship.id, visual);
     return visual;
   }
 
+  private updateColor(visual: Visual, color: string): void {
+    if (visual.color === color) return;
+    visual.color = color;
+    (visual.line.material as THREE.LineBasicMaterial).color.set(color);
+    (visual.marks.material as THREE.PointsMaterial).color.set(color);
+    if (visual.arrow) {
+      (visual.arrow.line.material as THREE.LineBasicMaterial).color.set(color);
+      (visual.arrow.cone.material as THREE.MeshBasicMaterial).color.set(color);
+    }
+  }
+
   private remove(id: string, visual: Visual): void {
     visual.group.removeFromParent();
-    visual.line.geometry.dispose();
-    (visual.line.material as THREE.Material).dispose();
-    (visual.label.material as THREE.SpriteMaterial).map?.dispose();
-    visual.label.material.dispose();
-    visual.arrow?.dispose();
+    visual.line.geometry.dispose(); (visual.line.material as THREE.Material).dispose();
+    visual.marks.geometry.dispose(); (visual.marks.material as THREE.Material).dispose();
+    visual.arrow?.dispose(); visual.callout.dispose();
     this.visuals.delete(id);
   }
 }
 
-function updateLabel(sprite: THREE.Sprite, text: string, color: string): void {
-  const material = sprite.material as THREE.SpriteMaterial;
-  const previous = material.userData.text as string | undefined;
-  if (previous === text) return;
-  const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
-  const ctx = canvas.getContext('2d'); if (!ctx) return;
-  ctx.fillStyle = 'rgba(8, 13, 20, .88)'; ctx.roundRect(3, 3, 506, 122, 12); ctx.fill();
-  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
-  ctx.font = '28px ui-monospace, monospace'; ctx.fillStyle = '#f2f6fa';
-  text.split('\n').forEach((line, i) => ctx.fillText(line, 18, 43 + i * 40));
-  material.map?.dispose(); material.map = new THREE.CanvasTexture(canvas); material.needsUpdate = true; material.userData.text = text;
+/** Two legs plus a short, scale-relative arc around the vertex. */
+function anglePoints(source: THREE.Vector3, vertex: THREE.Vector3, target: THREE.Vector3): THREE.Vector3[] {
+  const a = source.clone().sub(vertex), b = target.clone().sub(vertex);
+  const radius = Math.min(a.length(), b.length()) * 0.16;
+  const aN = a.normalize(), bN = b.normalize();
+  const dot = THREE.MathUtils.clamp(aN.dot(bN), -1, 1);
+  const angle = Math.acos(dot);
+  const axis = aN.clone().cross(bN).normalize();
+  const arc: THREE.Vector3[] = [];
+  if (Number.isFinite(axis.x + axis.y + axis.z) && axis.lengthSq() > 0) {
+    for (let i = 0; i <= 18; i++) arc.push(aN.clone().applyAxisAngle(axis, angle * i / 18).multiplyScalar(radius).add(vertex));
+  }
+  // NaN splits the line strip, keeping both legs and the arc independent.
+  const gap = new THREE.Vector3(NaN, NaN, NaN);
+  return [source, vertex, target, gap, ...arc];
 }
