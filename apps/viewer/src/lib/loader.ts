@@ -749,6 +749,9 @@ function initScene(
           vpDef.longitude ?? 0,
           q,
           sourceFrame,
+          undefined,
+          layoutEt,
+          universe.frames,
         );
         pos = { x, y, z };
       } else {
@@ -1074,6 +1077,10 @@ async function furnishUserKernels(files: File[]): Promise<void> {
   }
 
   setKernelCount(s.totalLoaded());
+  // A dropped FK can define a frame the scene already asked SPICE about and
+  // was told it did not know; the registry caches that answer until told
+  // the kernel pool changed.
+  if (added.length > 0) universe?.frames.invalidate();
   await syncWorkersWithDroppedKernels(added);
 }
 
@@ -1214,6 +1221,11 @@ export function getCosmo(): ViewerControl {
 /** Get the current renderer instance */
 export function getCurrentRenderer(): UniverseRenderer | null {
   return renderer;
+}
+
+/** The scene's universe, or null before a catalog has loaded. */
+export function getUniverse(): Universe | null {
+  return universe;
 }
 
 /** Get the current SPICE instance */

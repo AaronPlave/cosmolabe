@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { Universe, CatalogLoader } from '@cosmolabe/core';
+import {
+  Universe,
+  CatalogLoader,
+  Body,
+  FixedPointTrajectory,
+  FixedRotation,
+  mat3Transpose,
+  mat3Vec,
+  quatToMat3,
+} from '@cosmolabe/core';
 import { exportToCzml } from '../CzmlExporter.js';
 
 describe('CzmlExporter', () => {
@@ -173,5 +182,31 @@ describe('CzmlExporter', () => {
     expect(clock.currentTime).toBeDefined();
     expect(typeof clock.interval).toBe('string');
     expect((clock.interval as string)).toContain('/');
+  });
+});
+
+describe('CzmlExporter orientation', () => {
+  it('samples body → Earth-fixed, composed from a non-ICRF source frame with a non-identity attitude', () => {
+    const universe = new Universe();
+    universe.addBody(new Body({ name: 'Probe', trajectory: new FixedPointTrajectory([7000, 0, 0]) }));
+    // 60° about +Z, stated in the ecliptic.
+    const a = Math.PI / 6;
+    const q: [number, number, number, number] = [Math.cos(a), 0, 0, Math.sin(a)];
+    universe.getBody('Probe')!.setRotation(new FixedRotation(q, 'ECLIPJ2000'));
+
+    const czml = exportToCzml(universe, { startEt: 0, endEt: 3600, sampleInterval: 1800 });
+    const samples = (czml.find((p) => p.name === 'Probe')!.orientation as { unitQuaternion: number[] }).unitQuaternion;
+
+    for (let i = 0; i < samples.length; i += 5) {
+      const et = samples[i]!;
+      const [x, y, z, w] = samples.slice(i + 1, i + 5) as [number, number, number, number];
+      for (const axis of [[1, 0, 0], [0, 1, 0], [0, 0, 1]] as [number, number, number][]) {
+        // Independent composition: body → ecliptic (inverse of q), then ecliptic → ITRF.
+        const inEcliptic = mat3Vec(mat3Transpose(quatToMat3(q)), axis);
+        const expected = mat3Vec(universe.frames.rotation('ECLIPJ2000', 'ITRF', et)!, inEcliptic);
+        const got = mat3Vec(quatToMat3([w, x, y, z]), axis);
+        for (let k = 0; k < 3; k++) expect(got[k]).toBeCloseTo(expected[k]!, 12);
+      }
+    }
   });
 });

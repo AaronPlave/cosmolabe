@@ -6,7 +6,7 @@ export type { UniverseRendererOptions, SurfacePickResult } from './UniverseRende
 export { BodyMesh } from './BodyMesh.js';
 export type { ModelResolver } from './BodyMesh.js';
 export { TrajectoryLine } from './TrajectoryLine.js';
-export type { TrajectoryLineOptions, PositionResolver, ColorSegment } from './TrajectoryLine.js';
+export type { TrajectoryLineOptions, PositionResolver, ColorSegment, DrawnTrail } from './TrajectoryLine.js';
 export { TrajectoryCache } from './TrajectoryCache.js';
 export type { TrajectoryCacheConfig } from './TrajectoryCache.js';
 export {
@@ -51,6 +51,7 @@ export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
 export { EventMarkers } from './EventMarkers.js';
 export type { EventMarker, EventMarkerType, EventMarkersOptions } from './EventMarkers.js';
+export type { ScreenRect } from './EventCallout.js';
 export { OccultationGeometry } from './OccultationGeometry.js';
 export type { OccultationGeometryParticipants } from './OccultationGeometry.js';
 export { GeometryReadout } from './GeometryReadout.js';

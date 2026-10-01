@@ -23,10 +23,13 @@ export interface TLETrajectoryOptions {
 /**
  * Trajectory from Two-Line Element set using SGP4/SDP4 propagation via satellite.js.
  *
- * Position/velocity are in TEME frame (km, km/s). TEME is close to J2000
- * for visualization; precise conversion requires SPICE pxform('TEME','J2000',et).
+ * Position/velocity are in the TEME frame (km, km/s), and the trajectory says
+ * so (`frame`): `Universe` rotates TEME into the scene frame through the frame
+ * registry (IAU-76/80 precession-nutation), which is ~20 arcminutes of
+ * precession by 2026 — tens of km at LEO — that treating TEME as J2000 drops.
  */
 export class TLETrajectory implements Trajectory {
+  readonly frame = 'TEME';
   private readonly satrec: SatRec;
   /** ET of the TLE epoch */
   readonly epochEt: number;

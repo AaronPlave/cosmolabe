@@ -27,6 +27,7 @@ import {
   eventStart,
   focusForEvent,
   resolveEventQuery,
+  SpiceTrajectory,
   type ConfiguredEventQuery,
   type EtInterval,
   type EventKind,
@@ -38,10 +39,12 @@ import {
 } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
 import { GeometrySearchCancelled, type GeometrySearchProgress } from '@cosmolabe/three';
-import { geometryScopeForWindow, getGeometryWorker, getSpice } from './loader';
+import { geometryScopeForWindow, getGeometryWorker, getSpice, getUniverse } from './loader';
 import {
   activeEventAtTime,
   buildQuery,
+  eventCalloutLines,
+  eventSceneAnnotationLines,
   formForKind,
   type EventQueryForm,
   type EventSortMode,
@@ -51,18 +54,69 @@ import {
   analysisContext,
   configuredItem,
   createConfiguredEventQuery,
+  removeConfiguredItem,
   resetAnalysis,
   setConfiguredItemVisible,
   setConfiguredItemEnabled,
   setEventResults,
   updateConfiguredEventQuery,
 } from './analysis.svelte';
-import { getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
+import { etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
 const registry = builtinEventKinds();
 
 export const EVENT_KINDS: EventKind<never>[] = registry.list();
+
+/**
+ * The name SPICE should be given for a catalog body.
+ *
+ * The finder's form, its results and the 3D highlight all speak catalog display
+ * names, but a display name is not a SPICE name: the Psyche frames kernel maps
+ * `PSYCHE` to the asteroid (2000016) while the catalog's "Psyche" is the
+ * spacecraft (-255), so passing the name through silently measured the wrong
+ * object. The catalog already says which SPICE object a body is — its `naifId`,
+ * or the target of its SPICE trajectory — and only a body that says neither
+ * falls back to its name.
+ */
+export function spiceNameForBody(
+  body: { naifId?: number; trajectory?: unknown } | undefined,
+  name: string,
+): string {
+  if (body?.naifId != null) return String(body.naifId);
+  if (body?.trajectory instanceof SpiceTrajectory) return body.trajectory.spiceTarget;
+  return name;
+}
+
+/** Display name → SPICE name for the scene that is up. */
+function sceneSpiceName(name: string): string {
+  return spiceNameForBody(getUniverse()?.getBody(name), name);
+}
+
+/**
+ * A provider that takes catalog display names and hands SPICE the bodies they
+ * mean. Only body arguments are translated; frames and shapes pass untouched.
+ */
+export function withSpiceNames(
+  provider: GeometryFinderProvider,
+  toSpice: (name: string) => string,
+): GeometryFinderProvider {
+  const range = provider.range;
+  return {
+    gfdist: (target, abcorr, observer, ...rest) =>
+      provider.gfdist(toSpice(target), abcorr, toSpice(observer), ...rest),
+    gfsep: (t1, s1, f1, t2, s2, f2, abcorr, observer, ...rest) =>
+      provider.gfsep(toSpice(t1), s1, f1, toSpice(t2), s2, f2, abcorr, toSpice(observer), ...rest),
+    gfoclt: (occtyp, front, fshape, fframe, back, bshape, bframe, abcorr, observer, ...rest) =>
+      provider.gfoclt(occtyp, toSpice(front), fshape, fframe, toSpice(back), bshape, bframe, abcorr, toSpice(observer), ...rest),
+    gfposc: (target, frame, abcorr, observer, ...rest) =>
+      provider.gfposc(toSpice(target), frame, abcorr, toSpice(observer), ...rest),
+    ...(range
+      ? { range: (target: string, abcorr: string, observer: string, et: number) =>
+          range(toSpice(target), abcorr, toSpice(observer), et) }
+      : {}),
+  };
+}
 
 /**
  * The viewer's SPICE instance as a GF provider.
@@ -197,6 +251,7 @@ export function coverageWindow(
   spice: Pick<HeritageSpice, 'bodn2c' | 'spkcov'>,
   bodies: EventParticipants,
   span: EtInterval,
+  toSpice: (name: string) => string = (name) => name,
 ): EtInterval {
   let { start, end } = span;
   let coverageStart = -Infinity;
@@ -206,7 +261,8 @@ export function coverageWindow(
   for (const name of Object.values(bodies)) {
     if (!name) continue;
     try {
-      const id = spice.bodn2c(name);
+      const spiceName = toSpice(name);
+      const id = /^-?\d+$/.test(spiceName) ? Number(spiceName) : spice.bodn2c(spiceName);
       if (id == null) continue;
       const windows = spice.spkcov(id);
       if (windows.length === 0) continue;
@@ -260,10 +316,20 @@ export const ef = $state({
   fault: null as EventSearchFault | null,
   /** True once a search has completed, so "no results" reads as an answer. */
   searched: false,
-  /** Id of the selected result, or null. */
+  /**
+   * The selected result, or null: an id and the query it belongs to. Result
+   * ids are unique only within a query, so the pair is the identity — and it
+   * is independent of which query the form is editing (`configuredId`), so
+   * opening another search to edit does not drop the selection.
+   */
   selectedId: null as string | null,
-  /** Id of the occultation currently represented at the live playhead. */
+  selectedQueryId: null as string | null,
+  /** Shared transient preview from scene, result list, or timeline. */
+  previewId: null as string | null,
+  previewQueryId: null as string | null,
+  /** Id and query of the occultation represented at the live playhead. */
   activeId: null as string | null,
+  activeQueryId: null as string | null,
   /**
    * Display order. Chronological by default, since that is how a mission reads;
    * `metric` answers "which was the closest?" instead. Held here rather than in
@@ -276,7 +342,11 @@ export const ef = $state({
   windowPinned: false,
   /** Set when the default window was trimmed to the bodies' kernel coverage. */
   windowTrimmed: false,
-  /** Stable configured-query identity shared with timeline and later analysis surfaces. */
+  /**
+   * The configured query the form is editing, or null for a draft. A draft is
+   * not a saved search yet: it becomes one (a durable `ConfiguredEventQuery`,
+   * with a timeline lane) when it is run. Zero searches is a valid state.
+   */
   configuredId: null as string | null,
 });
 
@@ -286,6 +356,50 @@ let inFlight = 0;
 let active: RunningSearch | null = null;
 /** Event currently represented by the renderer's single explanatory overlay. */
 let displayedOccultation: GeometryEvent | null = null;
+let unsubscribeSceneMarkerClick: (() => void) | null = null;
+let unsubscribeSceneMarkerHover: (() => void) | null = null;
+
+export function previewEvent(event: GeometryEvent | null, boundary?: 'start' | 'end'): void {
+  ef.previewId = event?.id ?? null;
+  ef.previewQueryId = event?.queryId ?? null;
+  if (!event) {
+    getRenderer()?.setEventPreview(null);
+    return;
+  }
+  const lines = eventCalloutLines(event, { boundary, utc: etToUtcString });
+  getRenderer()?.setEventPreview(event, lines.join('\n'), boundary);
+}
+
+/** Whether `event` is the selected result. */
+export function isSelectedEvent(event: Pick<GeometryEvent, 'id' | 'queryId'>): boolean {
+  return ef.selectedId === event.id && ef.selectedQueryId === event.queryId;
+}
+
+/** The selected result among `events`, if it is there. */
+export function selectedEventOf<T extends Pick<GeometryEvent, 'id' | 'queryId'>>(events: readonly T[]): T | undefined {
+  return ef.selectedId == null ? undefined : events.find(isSelectedEvent);
+}
+
+function setSelection(event: Pick<GeometryEvent, 'id' | 'queryId'> | null) {
+  ef.selectedId = event?.id ?? null;
+  ef.selectedQueryId = event?.queryId ?? null;
+}
+
+/** Drops the selection if it belongs to query `id`: its results are going. */
+function dropSelectionIn(id: string | null): boolean {
+  if (id == null || ef.selectedQueryId !== id) return false;
+  setSelection(null);
+  return true;
+}
+
+function syncEventResultsInScene(): void {
+  const renderer = getRenderer();
+  if (!renderer) return;
+  const selected = selectedEventOf(analysisContext().eventResults) ?? null;
+  // Brief: the global inspector carries the selection's full detail.
+  const annotation = selected ? eventSceneAnnotationLines(selected).join('\n') : '';
+  renderer.setEventResults(analysisContext().eventResults, selected, annotation);
+}
 
 function displayOccultation(event: GeometryEvent | null): void {
   const renderer = getRenderer();
@@ -321,10 +435,12 @@ export function syncOccultationGeometryAtTime(): GeometryEvent | undefined {
   const activeEvent = activeEventAtTime(
     analysisContext().eventResults.filter((event) => event.kind === 'occultation'),
     vs.et,
-    ef.selectedId,
+    ef.selectedId && ef.selectedQueryId ? { id: ef.selectedId, queryId: ef.selectedQueryId } : null,
   );
   const activeId = activeEvent?.id ?? null;
+  const activeQueryId = activeEvent?.queryId ?? null;
   if (ef.activeId !== activeId) ef.activeId = activeId;
+  if (ef.activeQueryId !== activeQueryId) ef.activeQueryId = activeQueryId;
   displayOccultation(activeEvent ?? null);
   return activeEvent;
 }
@@ -371,7 +487,7 @@ function defaultWindow(bodies: EventParticipants = {}): EtInterval {
   const spice = getSpice();
   if (!spice) return span;
 
-  const covered = coverageWindow(spice, bodies, span);
+  const covered = coverageWindow(spice, bodies, span, sceneSpiceName);
   ef.windowTrimmed = covered.start > span.start || covered.end < span.end;
   return covered;
 }
@@ -411,8 +527,14 @@ export function currentConfiguredQuery(): ConfiguredEventQuery | undefined {
   return item?.type === 'event-query' ? item : undefined;
 }
 
-/** Keep the editable form and the durable configured item on one identity. */
-function syncConfiguredQuery(): ConfiguredEventQuery | undefined {
+/**
+ * Keep the editable form and the durable configured item on one identity.
+ *
+ * Editing a configured search updates it in place. A draft stays a draft —
+ * only `persist` (running it) saves it as a search — so an open form
+ * never materialises a search, or a lane, on its own.
+ */
+function syncConfiguredQuery(persist = false): ConfiguredEventQuery | undefined {
   if (!ef.form) return undefined;
   const kind = currentKind();
   const concrete = buildQuery(kind, ef.form, ef.configuredId ?? 'draft');
@@ -427,7 +549,7 @@ function syncConfiguredQuery(): ConfiguredEventQuery | undefined {
       ef.windowPinned ? 'explicit' : 'automatic',
     )
     : undefined;
-  if (!item) {
+  if (!item && persist) {
     item = createConfiguredEventQuery(
       query,
       label,
@@ -447,21 +569,74 @@ export function setCurrentQueryVisible(visible: boolean) {
   if (ef.configuredId) setConfiguredItemVisible(ef.configuredId, visible);
 }
 
-/** Every durable event category, in creation order, for the shared timeline controls. */
+/** Every durable event search, in creation order, for the shared timeline controls. */
 export function configuredEventQueries(): ConfiguredEventQuery[] {
   return analysis.items.filter((item): item is ConfiguredEventQuery => item.type === 'event-query');
 }
 
+/**
+ * Enables or disables a search in the analysis. Disabling takes its results
+ * out of the analysis, so a preview or selection of one of them goes too —
+ * unlike hiding it from the timeline (`setConfiguredQueryVisible`), which
+ * leaves the selection valid.
+ */
 export function setConfiguredQueryEnabled(id: string, enabled: boolean) {
   setConfiguredItemEnabled(id, enabled);
+  if (!enabled && ef.previewQueryId === id) previewEvent(null);
+  if (!enabled && ef.selectedQueryId === id) {
+    clearSelection();
+    return;
+  }
+  syncEventResultsInScene();
 }
 
 export function setConfiguredQueryVisible(id: string, visible: boolean) {
   setConfiguredItemVisible(id, visible);
 }
 
-/** Start another independently cached event category without discarding this one. */
+/**
+ * Removes a configured event search and everything tied to it: its item
+ * and cached results (so its timeline lane goes too), a selection or preview
+ * of one of its results, and — if it was the search being edited — the
+ * form, which moves to an adjacent search or, with none left, stays as
+ * an unsaved draft: zero searches is a valid state.
+ */
+export function removeConfiguredQuery(id: string) {
+  const queries = configuredEventQueries();
+  const index = queries.findIndex((query) => query.id === id);
+  if (index < 0) return;
+  if (ef.previewQueryId === id) previewEvent(null);
+  if (dropSelectionIn(id)) highlightBodies([]);
+  const wasCurrent = ef.configuredId === id;
+  if (wasCurrent) {
+    active?.cancel();
+    inFlight++;
+    ef.configuredId = null;
+  }
+  removeConfiguredItem(id);
+  if (wasCurrent) {
+    const next = queries[index + 1] ?? queries[index - 1];
+    if (next) {
+      openConfiguredQuery(next.id);
+      return;
+    }
+    // The last one: zero searches, and the form keeps the removed query's
+    // settings as an unsaved draft rather than re-creating it.
+    ef.events = [];
+    ef.fault = null;
+    ef.hint = null;
+    ef.searched = false;
+  }
+  syncEventResultsInScene();
+  syncOccultationGeometryAtTime();
+}
+
+/**
+ * Start a draft for another event search, without discarding this one. It
+ * is saved when it runs. An existing selection stays.
+ */
 export function createNewSearch() {
+  previewEvent(null);
   active?.cancel();
   inFlight++;
   const previous = ef.form ?? undefined;
@@ -472,14 +647,13 @@ export function createNewSearch() {
   ef.fault = null;
   ef.hint = null;
   ef.searched = false;
-  ef.selectedId = null;
   syncWindowToBodies();
   syncConfiguredQuery();
-  highlightBodies([]);
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
-/** Reopen a configured category and its cached results for browsing or editing. */
+/** Reopen a configured search and its cached results for browsing or editing. */
 export function openConfiguredQuery(id: string) {
   const item = configuredItem(id);
   if (!item || item.type !== 'event-query') return;
@@ -505,13 +679,14 @@ export function openConfiguredQuery(id: string) {
   ef.searched = Object.prototype.hasOwnProperty.call(analysis.eventResults, id);
   ef.fault = null;
   ef.hint = null;
-  ef.selectedId = null;
+  // Opening a search to edit leaves the selection alone: it may belong to
+  // any query, and stays until it is cleared or replaced.
   // Old saved items have no provenance. Treat them as automatic: every
   // configured query stores a concrete window, so its mere presence cannot
   // mean the user explicitly pinned it.
   ef.windowPinned = item.windowMode === 'explicit';
   ef.windowTrimmed = false;
-  highlightBodies([]);
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
@@ -587,14 +762,16 @@ export function setStep(step: number) {
  * old answer to land afterwards, against a query nobody asked.
  */
 function clearResults() {
+  previewEvent(null);
   active?.cancel();
   inFlight++;
   ef.events = [];
   ef.fault = null;
   ef.hint = null;
   ef.searched = false;
-  ef.selectedId = null;
+  dropSelectionIn(ef.configuredId);
   if (ef.configuredId) setEventResults(ef.configuredId, []);
+  syncEventResultsInScene();
 }
 
 /** Runs the configured search, replacing the previous result. */
@@ -613,20 +790,22 @@ export async function runSearch() {
     return;
   }
 
-  const item = syncConfiguredQuery();
+  const item = syncConfiguredQuery(true);
   if (!item || !item.enabled) return;
+  previewEvent(null);
   // A search the user has replaced is work nobody wants done; stopping it also
   // frees the worker for the one they do want.
   active?.cancel();
 
   const running = beginSearch(spice, { start: ef.form.startEt, end: ef.form.endEt });
   active = running;
-  const search = new EventSearch({ registry, provider: running.provider });
+  const search = new EventSearch({ registry, provider: withSpiceNames(running.provider, sceneSpiceName) });
   const token = ++inFlight;
 
   ef.running = true;
   ef.progress = null;
-  ef.selectedId = null;
+  dropSelectionIn(item.id);
+  syncEventResultsInScene();
   try {
     // Resolution applies the shared context defaults but preserves this item's
     // explicit bodies/window, then enters the unchanged EventQuery boundary.
@@ -648,6 +827,7 @@ export async function runSearch() {
       ef.hint = null;
     }
     ef.searched = result.ok;
+    syncEventResultsInScene();
   } finally {
     // Ownership of the spinner follows `active`, not the token: a search
     // abandoned by an edit to the form has had its token retired, and checking
@@ -691,21 +871,27 @@ export function cancelSearch() {
  * panel's — every kind gets the same behavior, including the ones that do not
  * exist yet.
  */
-export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' = 'start') {
-  if (event.queryId !== ef.configuredId) openConfiguredQuery(event.queryId);
-  ef.selectedId = event.id;
-  applyEventFocus(focusForEvent(event, anchor), {
+export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' | number = 'start') {
+  // Selecting inspects a result; it does not change which search the form
+  // is editing. Editing is its own action (`openConfiguredQuery`, a lane
+  // label). The selection is shown wherever it is, by the global inspector.
+  setSelection(event);
+  const focus = focusForEvent(event, typeof anchor === 'number' ? 'start' : anchor);
+  if (typeof anchor === 'number') focus.et = Math.max(eventStart(event), Math.min(anchor, eventEnd(event)));
+  applyEventFocus(focus, {
     setTime,
     selectBody,
     highlightBodies,
   });
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
 /** Clears the selection and the highlight it applied. */
 export function clearSelection() {
-  ef.selectedId = null;
+  setSelection(null);
   highlightBodies([]);
+  syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }
 
@@ -719,6 +905,12 @@ export function clearSelection() {
  * the kind and the sort order are preferences rather than data, so they stay.
  */
 export function resetForScene() {
+  unsubscribeSceneMarkerClick?.();
+  unsubscribeSceneMarkerClick = null;
+  unsubscribeSceneMarkerHover?.();
+  unsubscribeSceneMarkerHover = null;
+  previewEvent(null);
+  setSelection(null);
   // `clearResults` abandons the search in flight, which matters more here than
   // anywhere: the kernels it was running against are being replaced under it.
   clearResults();
@@ -726,6 +918,7 @@ export function resetForScene() {
   displayOccultation(null);
   ef.form = null;
   ef.activeId = null;
+  ef.activeQueryId = null;
   ef.windowPinned = false;
   ef.windowTrimmed = false;
   ef.configuredId = null;
@@ -735,4 +928,14 @@ export function resetForScene() {
 // Scene loads are the only thing that replaces the kernels and the body list
 // underneath a result set. Subscribed at module scope rather than from the
 // panel: results have to be invalidated whether or not anyone has it open.
-onViewerEvent('load', () => resetForScene());
+onViewerEvent('load', () => {
+  resetForScene();
+  unsubscribeSceneMarkerClick = getRenderer()?.events.on('event:click', ({ id, queryId, et }) => {
+    const event = analysisContext().eventResults.find((item) => item.id === id && item.queryId === queryId);
+    if (event) selectEvent(event, et);
+  }) ?? null;
+  unsubscribeSceneMarkerHover = getRenderer()?.events.on('event:hover', (hit) => {
+    const event = hit ? analysisContext().eventResults.find((item) => item.id === hit.id && item.queryId === hit.queryId) : null;
+    previewEvent(event ?? null, hit?.boundary);
+  }) ?? null;
+});

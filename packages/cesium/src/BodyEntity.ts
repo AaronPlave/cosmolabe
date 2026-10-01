@@ -2,13 +2,16 @@
  * Maps a Cosmolabe Body to a Cesium Entity using SampledPositionProperty
  * in the INERTIAL reference frame.
  *
- * For equatorial-frame bodies (TLE), samples are stored in ICRF and Cesium
- * automatically handles the ICRF→Fixed transformation for rendering.
- * This produces correct circular orbits and smooth camera tracking.
+ * Samples are rotated into ICRF through core's frame registry — from the
+ * scene frame (ECLIPJ2000) when a `positionResolver` supplies absolute
+ * positions, from the body's own frame (TEME for a TLE) otherwise — and Cesium
+ * handles the ICRF→Fixed transformation for rendering. This produces correct
+ * circular orbits and smooth camera tracking. Only a body-fixed body sampled
+ * without a resolver is stored in the FIXED frame, as it stands.
  */
 
 import type { Body } from '@cosmolabe/core';
-import { etToDate as coreEtToDate } from '@cosmolabe/core';
+import { etToDate as coreEtToDate, DEFAULT_FRAMES, WORLD_FRAME } from '@cosmolabe/core';
 import type { EntityStyleOptions, ResolvedEntityStyle } from './EntityStyle.js';
 import { resolveEntityStyle } from './EntityStyle.js';
 
@@ -67,11 +70,9 @@ export class BodyEntity {
     this._sampleWindow = options?.sampleWindow ?? 5400;
     this._sampleStep = options?.sampleStep ?? 10;
 
-    // Use INERTIAL reference frame for equatorial/TLE bodies.
-    // Cesium handles ICRF→Fixed transformation automatically.
-    const refFrame = body.trajectoryFrame === 'equatorial'
-      ? Cesium.ReferenceFrame.INERTIAL
-      : Cesium.ReferenceFrame.FIXED;
+    const refFrame = this._isFixedFrame()
+      ? Cesium.ReferenceFrame.FIXED
+      : Cesium.ReferenceFrame.INERTIAL;
 
     this._positionProperty = new Cesium.SampledPositionProperty(refFrame);
     this._positionProperty.setInterpolationOptions({
@@ -174,9 +175,9 @@ export class BodyEntity {
     const startEt = centerEt - this._sampleWindow;
     const endEt = centerEt + this._sampleWindow;
 
-    const refFrame = this.body.trajectoryFrame === 'equatorial'
-      ? Cesium.ReferenceFrame.INERTIAL
-      : Cesium.ReferenceFrame.FIXED;
+    const refFrame = this._isFixedFrame()
+      ? Cesium.ReferenceFrame.FIXED
+      : Cesium.ReferenceFrame.INERTIAL;
 
     const newProp = new Cesium.SampledPositionProperty(refFrame);
     newProp.setInterpolationOptions({
@@ -188,9 +189,8 @@ export class BodyEntity {
       const pos = this._getPosition(et);
       if (!pos) continue;
 
-      // Positions are in the trajectory's native frame (km).
-      // For equatorial (TLE/TEME ≈ ICRF): store directly in INERTIAL frame.
-      // For ecliptic (SPICE): would need ecliptic→equatorial rotation.
+      // `_getPosition` has already rotated into ICRF (or left a body-fixed
+      // position as it is, for the FIXED property).
       const cartesian = new Cesium.Cartesian3(
         pos[0] * KM_TO_M,
         pos[1] * KM_TO_M,
@@ -208,15 +208,25 @@ export class BodyEntity {
     this._onResample?.(newProp);
   }
 
+  /** Body-fixed samples only arise without a resolver: a resolver returns
+   *  absolute scene-frame positions. */
+  private _isFixedFrame(): boolean {
+    return !this._positionResolver && this.body.trajectoryFrame === 'body-fixed';
+  }
+
+  /** Position in km: ICRF for the INERTIAL property, body-fixed for FIXED. */
   private _getPosition(et: number): [number, number, number] | undefined {
     if (this._positionResolver) {
-      return this._positionResolver(this.body, et);
+      const p = this._positionResolver(this.body, et);
+      return DEFAULT_FRAMES.transform(p, WORLD_FRAME, 'ICRF', et);
     }
     const trajectory = this.body.trajectory;
     if (!trajectory) return undefined;
     try {
       const state = trajectory.stateAt(et);
-      return [state.position[0], state.position[1], state.position[2]];
+      const p: [number, number, number] = [state.position[0], state.position[1], state.position[2]];
+      if (this._isFixedFrame()) return p;
+      return DEFAULT_FRAMES.transform(p, this.body.frameAt(et), 'ICRF', et);
     } catch {
       return undefined;
     }

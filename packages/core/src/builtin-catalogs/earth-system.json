@@ -9,13 +9,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Earth" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": 0.997269632262793,
-        "inclination": 0.0,
-        "ascendingNode": 0.0,
-        "meridianAngle": 280.147
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radius": 6378.1, "baseMap": "textures/earth-5k.jpg", "atmosphere": "Earth" },
       "label": { "color": [0.4, 0.6, 1.0] },
       "items": [

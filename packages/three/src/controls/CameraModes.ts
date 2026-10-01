@@ -110,7 +110,7 @@ export function bodyWorldOrientation(
   if (!rotation) return null;
   const q = bm.body.rotationAt(et);
   if (!q) return null;
-  const bw = composeBodyToWorldQuat(q, rotation.sourceFrame);
+  const bw = composeBodyToWorldQuat(q, rotation.sourceFrame, undefined, et, bm.frames);
   return out.set(bw[1], bw[2], bw[3], bw[0]);
 }
 

@@ -13,7 +13,7 @@ import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUnif
 import { BLOOM_LAYER } from './BloomEffect.js';
 import { isLine, isMesh, isSprite } from './internal/three-typeguards.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
-import { composeBodyToWorldQuat, type Body } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, type Body, type FrameRegistry } from '@cosmolabe/core';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
   star: 0xffdd44,
@@ -148,9 +148,15 @@ export class BodyMesh extends THREE.Object3D {
     });
   }
 
-  constructor(body: Body) {
+  /** The frame registry orientation is composed through: the universe's, so
+   *  a rotation in a declared or SPICE frame orients the mesh exactly as the
+   *  universe positions it. Falls back to the built-in frames when unset. */
+  readonly frames?: FrameRegistry;
+
+  constructor(body: Body, frames?: FrameRegistry) {
     super();
     this.body = body;
+    this.frames = frames;
     this.name = body.name;
 
     this.displayRadius = this.getDisplayRadius();
@@ -722,7 +728,7 @@ export class BodyMesh extends THREE.Object3D {
         // obliquity for EquatorJ2000-sourced rotations like Earth's; identity
         // for ECLIPJ2000 / SPICE-named frames). Returns [w,x,y,z]; THREE
         // stores [x,y,z,w].
-        const bw = composeBodyToWorldQuat(q, rotation.sourceFrame);
+        const bw = composeBodyToWorldQuat(q, rotation.sourceFrame, undefined, et, this.frames);
         const bodyToWorld = _tmpQ.set(bw[1], bw[2], bw[3], bw[0]);
         // Compose: (body → world) * (model → body) = model → world
         target.quaternion.multiplyQuaternions(bodyToWorld, this.meshRotationQ);

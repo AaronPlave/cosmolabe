@@ -51,7 +51,9 @@ export class OccultationGeometry extends THREE.Group {
     this.name = 'selected-occultation-geometry';
     this.participants = participants;
 
-    this.sightline = this.makeLine('occultation-observer-sightline', 0x7cc7e8, 0.78);
+    // Explanatory geometry sits below the selected event in the hierarchy:
+    // the event marker/span/callout say where and when; these say why.
+    this.sightline = this.makeLine('occultation-observer-sightline', 0x7cc7e8, 0.6);
     this.lightline = this.makeLine('occultation-light-axis', 0xf0c66a, 0.42);
 
     // Colors describe physical regions, not the selected event's
@@ -59,12 +61,12 @@ export class OccultationGeometry extends THREE.Group {
     // indistinguishable from the penumbra and made two real boundaries look
     // like duplicated geometry.
     const innerShadowColor = 0x8c72d8;
-    this.umbra = this.makeSegments('occultation-umbra', innerShadowColor, 0.82);
-    this.penumbra = this.makeSegments('occultation-penumbra', 0xe0a84c, 0.58);
-    this.viewCone = this.makeSegments('occultation-view-cone', innerShadowColor, 0.62);
-    this.umbraFill = this.makeSurface('occultation-umbra-fill', innerShadowColor, 0.105);
-    this.penumbraFill = this.makeSurface('occultation-penumbra-fill', 0xe0a84c, 0.035);
-    this.viewConeFill = this.makeSurface('occultation-view-cone-fill', innerShadowColor, 0.045);
+    this.umbra = this.makeSegments('occultation-umbra', innerShadowColor, 0.6);
+    this.penumbra = this.makeSegments('occultation-penumbra', 0xe0a84c, 0.42);
+    this.viewCone = this.makeSegments('occultation-view-cone', innerShadowColor, 0.48);
+    this.umbraFill = this.makeSurface('occultation-umbra-fill', innerShadowColor, 0.085);
+    this.penumbraFill = this.makeSurface('occultation-penumbra-fill', 0xe0a84c, 0.028);
+    this.viewConeFill = this.makeSurface('occultation-view-cone-fill', innerShadowColor, 0.038);
 
     for (const object of [this.penumbraFill, this.umbraFill, this.viewConeFill]) {
       object.renderOrder = object === this.penumbraFill ? 78 : 79;

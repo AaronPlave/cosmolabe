@@ -11,10 +11,11 @@ export type Quaternion = [number, number, number, number]; // [w, x, y, z]
  *  - Any SPICE frame name (`IAU_MOON`, `BGM1_LANDER`, ...) — declared by
  *    SpiceRotation / NadirRotation users.
  *
- *  `BodyMesh.updatePosition` reads this field and composes a frame-conversion
- *  rotation when the rotation's source doesn't match cosmolabe's native
- *  ECLIPJ2000. The string is preserved verbatim for non-canonical frames so
- *  SPICE-aware consumers can chain further. */
+ *  Any `FrameRegistry` name is valid here (`TEME` for a TLE-driven nadir
+ *  rotation, a catalog-declared frame, …). `BodyMesh.updatePosition` reads
+ *  this field and composes the frame-registry rotation into ECLIPJ2000 when
+ *  the rotation's source differs. The string is preserved verbatim for
+ *  non-canonical frames so SPICE-aware consumers can chain further. */
 export type InertialFrameName = string;
 
 /** A model that maps ET (seconds past J2000 TDB) to a body's orientation

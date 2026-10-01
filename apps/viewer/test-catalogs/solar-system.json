@@ -38,13 +38,7 @@
       "center": "SSB",
       "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": 25.379994924,
-        "inclination": 26.13,
-        "ascendingNode": 16.13,
-        "meridianAngle": 84.10
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radius": 695000, "baseMap": "textures/sun.jpg", "emissive": true },
       "label": { "color": [1.0, 0.9, 0.3] }
     },
@@ -54,13 +48,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Mercury" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "58.646225199061172d",
-        "inclination": 28.55,
-        "ascendingNode": 11.01,
-        "meridianAngle": 329.548
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radius": 2439, "baseMap": "textures/mercury.dds" },
       "label": { "color": [0.7, 0.7, 0.7] }
     },
@@ -70,13 +58,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Venus" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "243.018483985891967d",
-        "inclination": 157.16,
-        "ascendingNode": 182.76,
-        "meridianAngle": 160.20
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radius": 6051.8, "baseMap": "textures/venus.dds", "atmosphere": "Venus" },
       "label": { "color": [1.0, 0.85, 0.5] }
     },
@@ -86,13 +68,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Earth" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": 0.997269632262793,
-        "inclination": 0.0,
-        "ascendingNode": 0.0,
-        "meridianAngle": 280.147
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radius": 6378.1, "baseMap": "textures/earth-5k.jpg", "atmosphere": "Earth" },
       "label": { "color": [0.4, 0.6, 1.0] },
       "items": [
@@ -121,13 +97,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Mars" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "24.622962155909364h",
-        "inclination": 37.1135,
-        "ascendingNode": 47.68143,
-        "meridianAngle": 176.630
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radius": 3389, "baseMap": "textures/mars.dds", "atmosphere": "Mars" },
       "label": { "color": [1.0, 0.5, 0.3] },
       "items": [
@@ -136,13 +106,7 @@
           "class": "moon",
           "center": "Mars",
           "bodyFrame": "EquatorJ2000",
-          "rotationModel": {
-            "type": "Uniform",
-            "period": "7.653843686551413h",
-            "inclination": 37.10,
-            "ascendingNode": 47.68,
-            "meridianAngle": 35.06
-          },
+          "rotationModel": { "type": "Builtin" },
           "trajectory": {
             "type": "Keplerian",
             "semiMajorAxis": 9376,
@@ -161,13 +125,7 @@
           "class": "moon",
           "center": "Mars",
           "bodyFrame": "EquatorJ2000",
-          "rotationModel": {
-            "type": "Uniform",
-            "period": "30.298578074054543h",
-            "inclination": 36.48,
-            "ascendingNode": 46.65,
-            "meridianAngle": 79.41
-          },
+          "rotationModel": { "type": "Builtin" },
           "trajectory": {
             "type": "Keplerian",
             "semiMajorAxis": 23463,
@@ -207,13 +165,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Jupiter" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "9.924912500121965h",
-        "inclination": 25.57,
-        "ascendingNode": 358.05,
-        "meridianAngle": 284.95
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radii": [71492, 71492, 66854], "baseMap": "textures/jupiter.dds", "atmosphere": "Jupiter" },
       "label": { "color": [0.8, 0.7, 0.5] }
     },
@@ -223,13 +175,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Saturn" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "10.656222221732387h",
-        "inclination": 6.463,
-        "ascendingNode": 130.589,
-        "meridianAngle": 38.90
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radii": [60268, 60268, 54364], "baseMap": "textures/saturn.jpg", "atmosphere": "Saturn" },
       "label": { "color": [0.9, 0.8, 0.5] }
     },

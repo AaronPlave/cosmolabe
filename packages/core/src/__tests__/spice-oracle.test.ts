@@ -96,3 +96,45 @@ describe('SPICE oracle: saturn-soi', () => {
     });
   }
 });
+
+/**
+ * Rendered position: the number the GPU gets, not only the one core computes.
+ *
+ * The renderer places everything relative to a tracked origin body (floating
+ * origin), scales km to scene units, and the GPU holds the result in float32.
+ * This replays that step — (abs(body) − abs(origin)) × scale, rounded to
+ * float32 — and checks it against SPICE's own origin-relative position, so a
+ * regression anywhere between the frame registry and the vertex shows up here.
+ *
+ * The budget is float32 rounding (≤ √3·2⁻²⁴ ≈ 1.03e-7 of the distance) plus
+ * the 1 mm core bound above. That is the rendering-accuracy contract: bodies
+ * near the tracked origin are exact to the millimetre–metre level, and error
+ * grows with distance from it (Saturn from Cassini: tens of metres; the Sun:
+ * ~140 km, sub-pixel at that range).
+ */
+describe('SPICE oracle: rendered position (floating origin, float32)', () => {
+  let scene: BuiltScene;
+  const SCALE = 1e-6; // UniverseRenderer's default km → scene units
+  const ORIGIN = { name: 'Cassini', spice: 'CASSINI' };
+  const FLOAT32_REL = Math.sqrt(3) * 2 ** -24;
+
+  beforeAll(async () => {
+    scene = await buildScene('saturn-soi');
+  }, 60_000);
+
+  const bodies = [
+    ...SCENES['saturn-soi'].oracleBodies.map((b) => ({ name: b.name, spice: b.spiceName })),
+    { name: 'Sun', spice: 'SUN' },
+  ];
+  for (const b of bodies) {
+    it(`${b.name} relative to ${ORIGIN.name} lands within the float32 budget`, () => {
+      const { universe, spice, et } = scene;
+      const abs = universe.absolutePositionOf(b.name, et);
+      const origin = universe.absolutePositionOf(ORIGIN.name, et);
+      const rendered = [0, 1, 2].map((i) => Math.fround((abs[i]! - origin[i]!) * SCALE) / SCALE);
+      const truth = spice!.spkpos(b.spice, et, 'ECLIPJ2000', 'NONE', ORIGIN.spice).position;
+      const budget = POS_TOL_KM + FLOAT32_REL * norm(truth);
+      expect(norm(sub(rendered, truth))).toBeLessThanOrEqual(budget);
+    });
+  }
+});
