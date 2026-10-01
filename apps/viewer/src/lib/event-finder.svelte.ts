@@ -244,6 +244,17 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
 }
 
 /**
+ * What SPICE can say about one catalog body's ephemeris.
+ *
+ * - `unnamed`: SPICE cannot resolve the body to a NAIF id at all.
+ * - an interval list: the body's coverage across every furnished SPK, which is
+ *   empty when SPICE knows the name but no loaded SPK carries its states.
+ * - `unknown`: coverage could not be read, which is not evidence of no
+ *   coverage, so it refuses nothing.
+ */
+export type BodyEphemeris = 'unnamed' | 'unknown' | EtInterval[];
+
+/**
  * Why an event search cannot run in this scene, or null when it can.
  *
  * Every event kind is a composition of SPICE Geometry Finder calls, and GF sees
@@ -258,17 +269,22 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
  * catalogs: a profile is a display of a quantity, not a claim about when an
  * event happened.
  *
- * The same holds per body inside a SPICE scene: a body SPICE cannot even name is
- * one no kernel describes, so a search involving it is refused up front instead
- * of failing inside CSPICE.
+ * Kernels being loaded is not enough, because catalogs mix: Io in `io-volcanos`
+ * is a built-in analytic trajectory, while the only SPK its base catalog loads
+ * is de440s, which carries planets and the Moon but no Galilean satellites. So
+ * the check is per body and per window — each chosen body must have SPK
+ * coverage, and that coverage must reach the search window — rather than
+ * whether SPICE recognises the body's name.
  *
  * Pure, so the policy is tested directly: `kernelCount` is what the pool holds,
- * `bodies` the chosen roles, `spiceCanName` whether SPICE resolves a catalog body.
+ * `bodies` the chosen roles, `window` the search window (null before there is
+ * one), `ephemeris` what SPICE says about a catalog body.
  */
 export function eventSearchUnavailable(
   kernelCount: number,
   bodies: EventParticipants,
-  spiceCanName: (name: string) => boolean,
+  window: EtInterval | null,
+  ephemeris: (name: string) => BodyEphemeris,
 ): EventSearchFault | null {
   if (!(kernelCount > 0)) {
     return {
@@ -277,13 +293,37 @@ export function eventSearchUnavailable(
     };
   }
 
-  const unnamed = [...new Set(Object.values(bodies).filter((name): name is string => !!name))]
-    .filter((name) => !spiceCanName(name));
+  const unnamed: string[] = [];
+  const uncovered: string[] = [];
+  const outside: string[] = [];
+  for (const name of new Set(Object.values(bodies).filter((n): n is string => !!n))) {
+    const known = ephemeris(name);
+    if (known === 'unknown') continue;
+    if (known === 'unnamed') unnamed.push(name);
+    else if (known.length === 0) uncovered.push(name);
+    else if (window && !known.some((c) => c.end >= window.start && c.start <= window.end)) outside.push(name);
+  }
+
+  const list = (names: string[]) => names.join(' and ');
+  const them = (names: string[]) => (names.length === 1 ? 'it' : 'them');
+
   if (unnamed.length > 0) {
-    const list = unnamed.join(' and ');
     return {
       code: 'unavailable',
-      message: `SPICE has no ephemeris for ${list}: ${unnamed.length === 1 ? 'it moves' : 'they move'} on a model the furnished kernels do not describe, so events involving ${unnamed.length === 1 ? 'it' : 'them'} cannot be searched.`,
+      message: `SPICE cannot identify ${list(unnamed)}, so no loaded kernel describes ${them(unnamed)} and events involving ${them(unnamed)} cannot be searched.`,
+    };
+  }
+  if (uncovered.length > 0) {
+    const its = uncovered.length === 1 ? 'its position' : 'their positions';
+    return {
+      code: 'unavailable',
+      message: `No loaded SPK has ephemeris for ${list(uncovered)}, so ${its} in this scene ${uncovered.length === 1 ? 'does' : 'do'} not come from SPICE and events involving ${them(uncovered)} cannot be searched.`,
+    };
+  }
+  if (outside.length > 0) {
+    return {
+      code: 'unavailable',
+      message: `The loaded SPKs do not cover ${list(outside)} anywhere in this search window. Move the window inside ${outside.length === 1 ? 'its' : 'their'} coverage.`,
     };
   }
 
@@ -294,23 +334,48 @@ export function eventSearchUnavailable(
 export const NO_KERNELS_MESSAGE =
   'Event search needs SPICE kernels, and this catalog furnishes none: its bodies move on Keplerian, TLE or analytic models that SPICE\'s Geometry Finder cannot see. Open a catalog that declares kernels, or drop kernels onto the viewer.';
 
-/** Whether SPICE resolves a catalog body in the scene that is up. */
-function spiceCanName(name: string): boolean {
-  const spiceName = sceneSpiceName(name);
-  if (/^-?\d+$/.test(spiceName)) return true;
+/**
+ * {@link BodyEphemeris} for a catalog body, read from a SPICE instance.
+ *
+ * The id comes the same way the search's own does — the catalog's NAIF id or
+ * SPICE trajectory target first, the display name last — so the body checked
+ * is the body searched. Exported for the real-kernel test.
+ */
+export function spiceEphemeris(
+  spice: Pick<HeritageSpice, 'bodn2c' | 'spkcov'>,
+  spiceName: string,
+): BodyEphemeris {
+  let id: number | null;
   try {
-    return getSpice()?.bodn2c(spiceName) != null;
+    id = /^-?\d+$/.test(spiceName) ? Number(spiceName) : spice.bodn2c(spiceName);
   } catch {
-    return false;
+    return 'unnamed';
+  }
+  if (id == null) return 'unnamed';
+  // The solar system barycentre is the root every SPK chain ends at: it is a
+  // segment centre, never a segment target, so it has no coverage of its own.
+  if (id === 0) return [{ start: -Infinity, end: Infinity }];
+  try {
+    return spice.spkcov(id);
+  } catch {
+    return 'unknown';
   }
 }
 
 /**
  * {@link eventSearchUnavailable} for the scene and form that are up. Reactive on
- * the kernel count, so dropping kernels onto a kernel-free scene lifts it.
+ * the kernel count, the chosen bodies and the window, so dropping kernels onto a
+ * scene or moving the window re-evaluates it.
  */
 export function currentSearchUnavailable(): EventSearchFault | null {
-  return eventSearchUnavailable(vs.kernelCount, ef.form?.bodies ?? {}, spiceCanName);
+  const spice = getSpice();
+  const form = ef.form;
+  return eventSearchUnavailable(
+    vs.kernelCount,
+    form?.bodies ?? {},
+    form ? { start: form.startEt, end: form.endEt } : null,
+    (name) => (spice ? spiceEphemeris(spice, sceneSpiceName(name)) : 'unknown'),
+  );
 }
 
 /**

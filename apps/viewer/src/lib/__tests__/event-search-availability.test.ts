@@ -10,14 +10,15 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { loadCatalogFromUrl } from '@cosmolabe/core';
-import { NO_KERNELS_MESSAGE, eventSearchUnavailable } from '../event-finder.svelte';
+import { NO_KERNELS_MESSAGE, eventSearchUnavailable, type BodyEphemeris } from '../event-finder.svelte';
 import { faultMessage } from '../event-query';
 
-const everyName = () => true;
+const WINDOW = { start: 0, end: 100 };
+const covered = (): BodyEphemeris => [{ start: -1_000, end: 1_000 }];
 
 describe('event search availability', () => {
   it('is unavailable, with the reason, in a scene with no kernels', () => {
-    const fault = eventSearchUnavailable(0, { observer: 'Earth', target: 'Moon' }, everyName);
+    const fault = eventSearchUnavailable(0, { observer: 'Earth', target: 'Moon' }, WINDOW, covered);
     expect(fault).toEqual({ code: 'unavailable', message: NO_KERNELS_MESSAGE });
     // The panel shows the policy itself, not a SPICE error.
     expect(faultMessage(fault!)).toBe(NO_KERNELS_MESSAGE);
@@ -25,33 +26,57 @@ describe('event search availability', () => {
   });
 
   it('is unavailable before any body is chosen, since it is the catalog that decides', () => {
-    expect(eventSearchUnavailable(0, {}, everyName)?.code).toBe('unavailable');
+    expect(eventSearchUnavailable(0, {}, null, covered)?.code).toBe('unavailable');
   });
 
-  it('is available when kernels are furnished and SPICE names every chosen body', () => {
-    expect(eventSearchUnavailable(3, { observer: 'Europa Clipper', target: 'Europa' }, everyName)).toBeNull();
-    expect(eventSearchUnavailable(3, {}, everyName)).toBeNull();
+  it('is available when every chosen body has SPK coverage reaching the window', () => {
+    expect(eventSearchUnavailable(3, { observer: 'Europa Clipper', target: 'Europa' }, WINDOW, covered)).toBeNull();
+    expect(eventSearchUnavailable(3, {}, WINDOW, covered)).toBeNull();
+    // Partial overlap is enough to search; a gap inside it is a search fault.
+    expect(eventSearchUnavailable(3, { target: 'Europa' }, WINDOW, () => [{ start: 90, end: 500 }])).toBeNull();
   });
 
-  it('names the bodies SPICE cannot see in a scene that does have kernels', () => {
+  it('refuses a body SPICE knows by name but no loaded SPK carries', () => {
+    // The mixed-catalog case: kernels are loaded and SPICE resolves "Io", but
+    // the scene's Io is an analytic trajectory and no SPK has its states.
     const fault = eventSearchUnavailable(
       3,
-      { observer: 'Rover', target: 'Mars' },
-      (name) => name === 'Mars',
+      { observer: 'Jupiter', target: 'Io' },
+      WINDOW,
+      (name) => (name === 'Io' ? [] : covered()),
     );
     expect(fault?.code).toBe('unavailable');
-    expect(fault?.message).toMatch(/^SPICE has no ephemeris for Rover: it moves/);
+    expect(fault?.message).toMatch(/^No loaded SPK has ephemeris for Io, so its position in this scene does not come from SPICE/);
+  });
+
+  it('refuses a body SPICE cannot identify, without claiming more than that', () => {
+    const fault = eventSearchUnavailable(3, { observer: 'Rover', target: 'Mars' }, WINDOW,
+      (name) => (name === 'Rover' ? 'unnamed' : covered()));
+    expect(fault?.message).toMatch(/^SPICE cannot identify Rover,/);
+  });
+
+  it('refuses a window the bodies have no coverage in', () => {
+    const fault = eventSearchUnavailable(3, { observer: 'Cassini', target: 'Saturn' }, WINDOW,
+      () => [{ start: 500, end: 900 }]);
+    expect(fault?.message).toMatch(/do not cover Cassini and Saturn anywhere in this search window/);
+  });
+
+  it('refuses nothing on coverage it could not read', () => {
+    expect(eventSearchUnavailable(3, { target: 'Io' }, WINDOW, () => 'unknown')).toBeNull();
   });
 
   it('names a body once even when it fills two roles', () => {
-    const fault = eventSearchUnavailable(3, { observer: 'Probe', target: 'Probe' }, () => false);
-    expect(fault?.message).toMatch(/for Probe:/);
+    const fault = eventSearchUnavailable(3, { observer: 'Probe', target: 'Probe' }, WINDOW, () => 'unnamed');
+    expect(fault?.message).toMatch(/identify Probe,/);
   });
 });
 
-describe('which demo catalogs get event search', () => {
-  // Catalogs whose whole `require` graph declares no SPICE kernels. The finder
-  // tells these it cannot search; every other demo searches through GF.
+describe('which demo catalogs cannot search at all', () => {
+  // Catalogs whose whole `require` graph declares no SPICE kernels: the finder
+  // refuses every search there. This is the catalog-level half of the policy
+  // only — a catalog with kernels can still carry bodies no SPK describes (Io
+  // in io-volcanos), and those are refused per body; see the real-kernel test
+  // in closest-approach-altitude.integration.test.ts.
   const SPICE_FREE = [
     'earth-moon.json',
     'ingenuity-jezero.json',

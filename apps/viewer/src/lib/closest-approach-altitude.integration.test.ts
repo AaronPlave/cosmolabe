@@ -13,7 +13,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
 import { EventSearch, builtinEventKinds, type InstantEvent } from '@cosmolabe/core';
 import { spiceAltitude } from '@cosmolabe/three';
-import { spiceGeometryFinder } from './event-finder.svelte';
+import { eventSearchUnavailable, spiceEphemeris, spiceGeometryFinder } from './event-finder.svelte';
 
 const fixture = (name: string): ArrayBuffer => {
   const buf = readFileSync(fileURLToPath(new URL(`../../../../kernels/fixtures/${name}`, import.meta.url)));
@@ -95,5 +95,45 @@ describe('closest-approach altitude against real kernels', () => {
     // Same approach, seen the other way round: range only.
     expect(result.events).toHaveLength(1);
     expect(result.events[0].metrics?.map((m) => m.key)).toEqual(['range']);
+  });
+});
+
+describe('event search availability against real kernels', () => {
+  // A mixed scene: kernels are loaded, and SPICE resolves every one of these
+  // names, but only some of them have states in a furnished SPK. de440s carries
+  // planets and the Moon, cassini-soi carries Cassini and Saturn; nothing
+  // carries Io (501), which is exactly a catalog's built-in analytic Io.
+  let spice: HeritageSpice;
+  let soi: { start: number; end: number };
+  const check = (bodies: Record<string, string>, window: { start: number; end: number }) =>
+    eventSearchUnavailable(spice.totalLoaded(), bodies, window, (name) => spiceEphemeris(spice, name));
+
+  beforeAll(async () => {
+    spice = await createHeritageSpice();
+    for (const name of KERNELS) {
+      await spice.furnish({ type: 'buffer', data: fixture(name), filename: name });
+    }
+    soi = { start: spice.str2et('2004-06-30T12:00:00'), end: spice.str2et('2004-07-01T12:00:00') };
+  }, 120_000);
+
+  it('refuses a body SPICE can name when no loaded SPK carries it', () => {
+    expect(spice.bodn2c('IO')).toBe(501);
+    const fault = check({ observer: CASSINI, target: 'IO' }, soi);
+    expect(fault?.code).toBe('unavailable');
+    expect(fault?.message).toMatch(/^No loaded SPK has ephemeris for IO/);
+    // The same refusal by NAIF id, which is how the viewer hands bodies over.
+    expect(check({ observer: CASSINI, target: '501' }, soi)?.message).toMatch(/ephemeris for 501/);
+  });
+
+  it('allows bodies whose SPK coverage reaches the window', () => {
+    expect(check({ observer: CASSINI, target: SATURN }, soi)).toBeNull();
+    expect(check({ observer: 'EARTH', target: 'MOON' }, soi)).toBeNull();
+  });
+
+  it('refuses a window outside the bodies\' coverage', () => {
+    // cassini-soi.bsp ends on 2004-08-23.
+    const late = { start: spice.str2et('2004-10-01'), end: spice.str2et('2004-10-02') };
+    expect(check({ observer: CASSINI, target: SATURN }, late)?.message)
+      .toMatch(/do not cover -82 and 699 anywhere in this search window/);
   });
 });
