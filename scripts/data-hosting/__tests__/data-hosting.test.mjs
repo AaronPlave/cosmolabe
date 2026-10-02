@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { decodeQuantizedMesh } from '../../../packages/three/src/internal/quantized-mesh.ts';
 import { CATALOG_ROOT, ROOT, loadDatasets, remotePrefix } from '../lib/datasets.mjs';
@@ -152,8 +153,7 @@ describe('terrain publishing', () => {
     await publishTerrain({ storage: store, src });
     const again = await publishTerrain({ storage: store, src });
     expect(again).toMatchObject({ alreadyPublished: true, uploaded: 0 });
-    writeFileSync(join(src, '1', '0', '0.terrain'), Buffer.alloc(300, 9));
-    writeFileSync(join(src, 'terrain-product.json'), '{}');
+    writeFileSync(join(src, '1', '0', '0.terrain'), gzipSync(Buffer.alloc(300, 9)));
     await expect(publishTerrain({ storage: store, src })).rejects.toThrow(/different content/);
   });
 
