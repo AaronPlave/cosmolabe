@@ -268,6 +268,9 @@ export interface LevelStats { level: number; comparisons: number; stats: Differe
 
 export interface SeamReport {
   edges: number;
+  /** Edge sample positions, and how many of them either side could not answer. */
+  samples: number;
+  missing: number;
   overall: DifferenceStats;
   byLevel: LevelStats[];
   /** Worst edges by max |difference|, most severe first. */
@@ -292,7 +295,10 @@ export function seamReport(tiles: Iterable<KeyedTile>, options: { samples?: numb
     }
   }
   return aggregate(reports, options.worst ?? 10, (r) => r.stats, (byLevel, overall, worst) => ({
-    edges: reports.length, overall, byLevel, worst,
+    edges: reports.length,
+    samples: reports.reduce((a, r) => a + r.report.samples, 0),
+    missing: reports.reduce((a, r) => a + r.report.missing, 0),
+    overall, byLevel, worst,
   }));
 }
 
@@ -337,6 +343,8 @@ export function parentChildReport(parent: TerrainTile, child: TerrainTile, optio
 
 export interface PyramidReport {
   pairs: number;
+  samples: number;
+  missing: number;
   overall: DifferenceStats;
   /** Keyed by the child's level. */
   byLevel: LevelStats[];
@@ -354,7 +362,10 @@ export function pyramidReport(tiles: Iterable<KeyedTile>, options: { gridSize?: 
     if (parent) reports.push({ level: key.z, report: parentChildReport(parent.tile, tile, options) });
   }
   return aggregate(reports, options.worst ?? 10, (r) => r.stats, (byLevel, overall, worst) => ({
-    pairs: reports.length, overall, byLevel, worst,
+    pairs: reports.length,
+    samples: reports.reduce((a, r) => a + r.report.samples, 0),
+    missing: reports.reduce((a, r) => a + r.report.missing, 0),
+    overall, byLevel, worst,
   }));
 }
 
@@ -667,6 +678,12 @@ export interface QuantizedMeshTilesetOptions {
   /** The tileset's `referenceRadiusOffsetKm`, applied exactly as the viewer applies it. */
   heightOffsetKm?: number;
   source?: TerrainSourceMetadata;
+  /**
+   * Budget of unique tiles this tileset may fetch over its whole life — region,
+   * registration, boundary and control-point loads alike. A batch that would
+   * exceed it is refused before any of its requests start. Default 256.
+   */
+  maxTiles?: number;
 }
 
 /** Read-only access to a quantized-mesh-1.0 tileset for small-area validation. */
@@ -675,6 +692,9 @@ export class QuantizedMeshTileset {
   readonly source: TerrainSourceMetadata;
   private readonly cache = new Map<string, Promise<KeyedTile | null>>();
   private readonly loaded = new Map<string, KeyedTile>();
+  /** Tiles layer.json lists but the server did not return. */
+  private readonly missing = new Set<string>();
+  readonly maxTiles: number;
 
   constructor(private readonly options: QuantizedMeshTilesetOptions) {
     const { layer } = options;
@@ -686,6 +706,26 @@ export class QuantizedMeshTileset {
     }
     this.id = options.id;
     this.source = options.source ?? { id: options.id, kind: 'quantized-mesh' };
+    this.maxTiles = options.maxTiles ?? 256;
+  }
+
+  /** Unique tiles requested so far (fetched, in flight, or missing), counted against `maxTiles`. */
+  get requestedTiles(): number { return this.cache.size; }
+
+  /**
+   * Admit a batch against the shared budget before any of it is requested.
+   * Only available, not-yet-requested tiles count: an unavailable tile is
+   * never fetched, and a repeated one is served from the memo.
+   */
+  private reserve(keys: Iterable<TileKey>, what: string): void {
+    const fresh = new Set<string>();
+    for (const k of keys) {
+      const id = tileKeyId(k);
+      if (this.isAvailable(k) && !this.cache.has(id)) fresh.add(id);
+    }
+    if (this.cache.size + fresh.size > this.maxTiles) {
+      throw new Error(`${this.id}: ${what} needs ${fresh.size} more tiles on top of ${this.cache.size} already requested (limit ${this.maxTiles}); shrink the bounds, levels or point set, or raise the limit`);
+    }
   }
 
   get maxLevel(): number {
@@ -720,14 +760,15 @@ export class QuantizedMeshTileset {
       .replace('{version}', this.options.layer.version ?? '1.0.0');
   }
 
-  /** Load and decode one tile, memoized. Null when it is unavailable or missing. */
+  /** Load and decode one tile, memoized and counted against `maxTiles`. Null when it is unavailable or missing. */
   load(k: TileKey): Promise<KeyedTile | null> {
     const id = tileKeyId(k);
     let pending = this.cache.get(id);
     if (!pending) {
+      this.reserve([k], `tile ${id}`);
       pending = this.isAvailable(k)
         ? this.options.fetchTile(this.tilePath(k)).then((buffer) => {
-          if (!buffer) return null;
+          if (!buffer) { this.missing.add(id); return null; }
           const tile = toTerrainMeshTile(decodeQuantizedMesh(buffer), {
             id: `${this.id}:${id}`, ...geographicTileBounds(k), source: this.source,
           }, this.options.heightOffsetKm ?? 0);
@@ -744,12 +785,13 @@ export class QuantizedMeshTileset {
   /** Every tile decoded so far, in load order. */
   loadedTiles(): KeyedTile[] { return [...this.loaded.values()]; }
 
-  /** Load every available tile of `bounds` at each level, refusing an accidental large build. */
-  async loadRegion(bounds: GeoBounds, levels: readonly number[], maxTiles = 256): Promise<KeyedTile[]> {
+  /** Ids of tiles layer.json lists but the server did not return — data a report silently lacks. */
+  missingTiles(): string[] { return [...this.missing]; }
+
+  /** Load every available tile of `bounds` at each level, within the shared tile budget. */
+  async loadRegion(bounds: GeoBounds, levels: readonly number[]): Promise<KeyedTile[]> {
     const keys = levels.flatMap((z) => geographicTilesCovering(bounds, z)).filter((k) => this.isAvailable(k));
-    if (keys.length > maxTiles) {
-      throw new Error(`${this.id}: region needs ${keys.length} tiles (limit ${maxTiles}); shrink the bounds or levels`);
-    }
+    this.reserve(keys, 'region');
     const loaded = await Promise.all(keys.map((k) => this.load(k)));
     return loaded.filter((t): t is KeyedTile => t != null);
   }
@@ -765,6 +807,7 @@ export class QuantizedMeshTileset {
       const k = this.keyAt(p.latDeg, p.lonDeg, this.deepestLevelAt(p.latDeg, p.lonDeg, maxLevel));
       keys.set(tileKeyId(k), k);
     }
+    this.reserve(keys.values(), `layer "${layerId}"`);
     const tiles = (await Promise.all([...keys.values()].map((k) => this.load(k)))).filter((t): t is KeyedTile => t != null);
     const sampler = new TerrainSampler(UNIT_DATUM, this.source, Math.max(1, tiles.length));
     for (const t of tiles) sampler.addTile(t.tile);

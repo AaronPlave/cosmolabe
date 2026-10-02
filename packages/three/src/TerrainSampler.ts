@@ -141,6 +141,11 @@ export class TerrainSampler {
   private _lastSampleMicros = 0;
   private _timedSamples = 0;
   private _totalSampleMicros = 0;
+  /**
+   * Called with the id of each tile the cache drops to stay within `maxTiles`.
+   * Explicit `removeTile`/`clear` calls do not fire it — the caller already knows.
+   */
+  onEvict: ((id: string) => void) | null = null;
 
   constructor(readonly datum: TerrainDatum, readonly source: TerrainSourceMetadata, private readonly maxTiles = 256) {}
 
@@ -185,7 +190,11 @@ export class TerrainSampler {
 
     this.tiles.delete(tile.id);
     this.tiles.set(tile.id, cached);
-    while (this.tiles.size > this.maxTiles) this.tiles.delete(this.tiles.keys().next().value!);
+    while (this.tiles.size > this.maxTiles) {
+      const evicted = this.tiles.keys().next().value!;
+      this.tiles.delete(evicted);
+      this.onEvict?.(evicted);
+    }
   }
 
   removeTile(id: string): void { this.tiles.delete(id); }

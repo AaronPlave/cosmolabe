@@ -276,6 +276,8 @@ describe('real Mars Hub tiles at Jezero (z13 parent + z14 children)', () => {
     expect(tiles).toHaveLength(5);
     const seams = seamReport(tiles);
     expect(seams.edges).toBe(4);
+    expect(seams.samples).toBe(4 * 65);
+    expect(seams.missing).toBe(0);
     expect(seams.overall.count).toBeGreaterThan(200);
     // Regression anchor for this source: independent TINs leave metre-scale
     // cracks along shared edges, never zero and never tens of metres.
@@ -298,6 +300,34 @@ describe('real Mars Hub tiles at Jezero (z13 parent + z14 children)', () => {
     expect(v.elevationKm!).toBeLessThan(-1);
     expect(v.elevationKm!).toBeGreaterThan(-4);
     expect(tiles.length).toBe(4);
+  });
+
+  it('enforces one tile budget across region and point loads, before any request', async () => {
+    let fetches = 0;
+    const ts = new QuantizedMeshTileset({
+      id: 'mars_v14',
+      layer: { tiles: ['{z}/{x}/{y}.terrain?v={version}'], version: '2.0', projection: 'EPSG:4326', scheme: 'tms', maxzoom: 14 },
+      heightOffsetKm: 8.765,
+      maxTiles: 5,
+      fetchTile: async (path) => { fetches++; return files.has(path) ? fixture(files.get(path)!) : null; },
+    });
+    await ts.loadRegion(geographicTileBounds(PARENT), [13, 14]);
+    expect(ts.requestedTiles).toBe(5);
+    const b = geographicTileBounds(PARENT);
+    const inside = { latDeg: (b.southDeg + b.northDeg) / 2 + 1e-4, lonDeg: (b.westDeg + b.eastDeg) / 2 + 1e-4 };
+    // Served by a tile already requested: free.
+    await ts.layerForPoints('detail', [inside], 14);
+    // Needs a z12 tile: over budget, refused without fetching.
+    const before = fetches;
+    await expect(ts.layerForPoints('canonical', [inside], 12)).rejects.toThrow(/limit 5/);
+    expect(fetches).toBe(before);
+  });
+
+  it('records tiles layer.json lists but the server does not return', async () => {
+    const ts = tileset();
+    const tiles = await ts.loadRegion(geographicTileBounds(PARENT), [12, 13]);
+    expect(tiles).toHaveLength(1);
+    expect(ts.missingTiles()).toEqual([`12/${PARENT.x >> 1}/${PARENT.y >> 1}`]);
   });
 
   it('refuses an accidental large build instead of fetching it', async () => {

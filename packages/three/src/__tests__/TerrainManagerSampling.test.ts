@@ -196,6 +196,22 @@ describe('TerrainManager debug surface modes and metrics', () => {
     expect(tm.tileSeamError(idA)).toBeNull();
   });
 
+  it('forgets a seam when the sampler evicts a neighbour on its own, not only on renderer disposal', () => {
+    // Review repro: with a two-tile CPU cache, the parent's arrival evicts the
+    // oldest neighbour; the survivor must stop reporting the seam it shared.
+    const tm = makeManager({ samplerMaxTiles: 2 });
+    const [a, b, parent] = JEZERO;
+    const tileA = load(tm, ...a);
+    const tileB = load(tm, ...b);
+    const idA = `decoded:${tileA.content.uri}`, idB = `decoded:${tileB.content.uri}`;
+    expect(tm.tileSeamError(idB)).toBeGreaterThan(1e-4);
+
+    load(tm, ...parent);
+    expect(tm.sampler.getTile(idA)).toBeUndefined();
+    expect(tm.tileSeamError(idB)).toBeNull();
+    expect(tm.tileSeamError(idA)).toBeNull();
+  });
+
   it('colors CPU coverage from the sampler cache, not from rendered geometry', () => {
     const tm = makeManager();
     tm.setDebugMode('cpu-coverage');
@@ -233,21 +249,36 @@ describe('TerrainManager debug surface modes and metrics', () => {
     expect(() => tm.setDebugMode('bogus' as never)).toThrow(/Unknown terrain debug mode/);
   });
 
-  it('counts rendered geometry, and a texture shared by per-tile clones once', () => {
+  it('estimates memory over every loaded model, including set-aside originals in debug mode', () => {
     const tm = makeManager();
-    const map = new THREE.Texture({ width: 64, height: 32 });
+    const shared = new THREE.Texture({ width: 64, height: 32 });
+    const original = new THREE.Texture({ width: 16, height: 16 });
+    const plane = () => new THREE.PlaneGeometry(1, 1);
+    const scenes: THREE.Object3D[] = [];
     for (let i = 0; i < 3; i++) {
       // applyNormalMap clones one map per tile: distinct Textures, one Source.
-      const material = new THREE.MeshStandardMaterial({ normalMap: map.clone() });
-      tm.group.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material));
+      const scene = new THREE.Group();
+      scene.add(new THREE.Mesh(plane(), new THREE.MeshStandardMaterial({ normalMap: shared.clone() })));
+      scenes.push(scene);
     }
-    const geometryBytes = (() => {
-      const g = new THREE.PlaneGeometry(1, 1);
-      return Object.values(g.attributes).reduce((a, attr) => a + (attr as THREE.BufferAttribute).array.byteLength, 0) + g.index!.array.byteLength;
-    })();
+    // A tile in debug mode: the plugin's flat material is current and the real
+    // one sits under its private symbol.
+    const debugged = new THREE.Mesh(plane(), new THREE.MeshBasicMaterial());
+    (debugged as unknown as Record<symbol, THREE.Material>)[Symbol('ORIGINAL_MATERIAL')] =
+      new THREE.MeshStandardMaterial({ map: original });
+    const hidden = new THREE.Group();
+    hidden.add(debugged);
+    scenes.push(hidden);
+    // Only one scene is attached to the visible group; the rest are cached but out of view.
+    tm.group.add(scenes[0]);
+    (tm.tiles as unknown as { forEachLoadedModel(cb: (s: THREE.Object3D) => void): void })
+      .forEachLoadedModel = (cb) => scenes.forEach((sc) => cb(sc));
+
+    const g = plane();
+    const perGeometry = Object.values(g.attributes).reduce((a, attr) => a + (attr as THREE.BufferAttribute).array.byteLength, 0) + g.index!.array.byteLength;
     const m = tm.metrics;
-    expect(m.memory.geometryBytes).toBe(3 * geometryBytes);
-    expect(m.memory.textureBytes).toBe(64 * 32 * 4);
+    expect(m.memory.geometryBytes).toBe(4 * perGeometry);
+    expect(m.memory.textureBytes).toBe(64 * 32 * 4 + 16 * 16 * 4);
   });
 
   it('reports decode cost, CPU tiles and sample timing, and resets them', () => {

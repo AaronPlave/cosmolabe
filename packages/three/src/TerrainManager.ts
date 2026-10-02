@@ -240,6 +240,21 @@ class TimingStat {
 const _debugColor = /* @__PURE__ */ new THREE.Color();
 
 /**
+ * The material `DebugTilesPlugin` set aside when it swapped in a debug one. The
+ * plugin keys it by a module-private `Symbol('ORIGINAL_MATERIAL')`, so it is
+ * found by description; absent (undefined) when the plugin never touched the mesh.
+ */
+function originalDebugMaterial(mesh: THREE.Mesh): THREE.Material | undefined {
+  for (const sym of Object.getOwnPropertySymbols(mesh)) {
+    if (sym.description === 'ORIGINAL_MATERIAL') {
+      const m = (mesh as unknown as Record<symbol, THREE.Material | undefined>)[sym];
+      return m && m !== mesh.material ? m : undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
  * 1×1 transparent PNG returned by preprocessURL when a tile should be skipped.
  *
  * Returning `null` from preprocessURL causes the overlay to call `fetch(null)` → fetch("null")
@@ -504,6 +519,10 @@ export class TerrainManager {
       url: config.sourceMetadata?.url ?? config.url,
       uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
     }, config.samplerMaxTiles ?? 256);
+    // The sampler's own LRU drops tiles independently of the renderer's; the
+    // seam/datum debug indexes must forget them too or they report neighbours
+    // the sampler no longer holds.
+    this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
     this.isImageryOnly = config.type === 'imagery';
     this.hasOverlays = Array.isArray(config.imagery) && config.imagery.length > 1;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
@@ -1077,6 +1096,11 @@ export class TerrainManager {
 
   private forgetCpuTile(id: string): void {
     this.sampler.removeTile(id);
+    this.dropCpuIndexes(id);
+  }
+
+  /** Forget a tile the sampler no longer holds, and every memoized debug value it fed. */
+  private dropCpuIndexes(id: string): void {
     const key = this.cpuKeyById.get(id);
     this.cpuKeyById.delete(id);
     if (key && this.cpuIdByKey.get(tileKeyId(key)) === id) this.cpuIdByKey.delete(tileKeyId(key));
@@ -1276,27 +1300,34 @@ export class TerrainManager {
     // Keyed by Source, not Texture: per-tile clones of one map (applyNormalMap)
     // share a Source, and three.js uploads a shared Source to the GPU once.
     const seenTexture = new Set<unknown>();
-    this.group.traverse((obj) => {
-      const mesh = obj as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      const g = mesh.geometry;
-      if (g && !seenGeometry.has(g)) {
-        seenGeometry.add(g);
-        for (const attr of Object.values(g.attributes)) geometryBytes += (attr as THREE.BufferAttribute).array?.byteLength ?? 0;
-        geometryBytes += g.index?.array.byteLength ?? 0;
+    const countMaterial = (m: THREE.Material | undefined) => {
+      for (const value of Object.values(m ?? {})) {
+        const tex = value as THREE.Texture;
+        if (!tex?.isTexture) continue;
+        const source = tex.source ?? tex;
+        if (seenTexture.has(source)) continue;
+        seenTexture.add(source);
+        const img = tex.image as { width?: number; height?: number } | undefined;
+        if (img?.width && img?.height) textureBytes += img.width * img.height * 4;
       }
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (const m of materials) {
-        for (const value of Object.values(m ?? {})) {
-          const tex = value as THREE.Texture;
-          if (!tex?.isTexture) continue;
-          const source = tex.source ?? tex;
-          if (seenTexture.has(source)) continue;
-          seenTexture.add(source);
-          const img = tex.image as { width?: number; height?: number } | undefined;
-          if (img?.width && img?.height) textureBytes += img.width * img.height * 4;
+    };
+    // Every loaded model, not just `group`: the renderer detaches tiles that
+    // leave the view but keeps their buffers cached until LRU disposal.
+    this.tiles.forEachLoadedModel((scene: THREE.Object3D) => {
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const g = mesh.geometry;
+        if (g && !seenGeometry.has(g)) {
+          seenGeometry.add(g);
+          for (const attr of Object.values(g.attributes)) geometryBytes += (attr as THREE.BufferAttribute).array?.byteLength ?? 0;
+          geometryBytes += g.index?.array.byteLength ?? 0;
         }
-      }
+        for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) countMaterial(m);
+        // While a debug mode is on, the plugin holds the real material aside
+        // (restored on 'none'); its textures are still allocated.
+        countMaterial(originalDebugMaterial(mesh));
+      });
     });
     const d = this.sampler.diagnostics;
     return {

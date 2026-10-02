@@ -26,7 +26,10 @@
  * Any preset field can be overridden: --url, --offset-km, --bounds w,s,e,n,
  * --levels 13,14, --canonical-level 9, --boundary w,s,e,n|auto, --max-tiles N.
  * Thresholds (--max-edge-m, --max-parent-child-m, --max-control-delta-m) make
- * the exit status non-zero when exceeded, for use as a gate.
+ * the exit status non-zero when exceeded, for use as a gate. A gate also fails
+ * when its comparison is incomplete (missing tiles, unanswered samples, control
+ * points with no value) unless --allow-missing N tolerates up to N of them.
+ * --max-tiles bounds the unique tiles the whole run may fetch (default 256).
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -193,6 +196,13 @@ async function layerFor(tileset, id, maxLevel, run) {
   return tileset.layerForPoints(id, points, maxLevel);
 }
 
+/** Points with an expected elevation the detail layer could not answer. */
+function controlPointsMissing(report) {
+  return report.results
+    .filter((r) => r.point.expectedElevationKm != null && r.values.detail?.elevationKm == null)
+    .map((r) => r.point.id);
+}
+
 /** The layer.json availability rectangle at `level` containing `point`: the real regional source boundary. */
 function autoBoundary(layer, level, point) {
   const span = 180 / 2 ** level;
@@ -239,6 +249,8 @@ async function main() {
     layer: layerJson,
     heightOffsetKm: cfg.offsetKm,
     fetchTile: io.fetchPath,
+    // One budget for the whole run: region, registration, boundary and control points.
+    maxTiles: cfg.maxTiles,
     source: { id: cfg.url, kind: 'quantized-mesh', url: cfg.url },
   });
   const [w, s, e, n] = cfg.bounds;
@@ -246,7 +258,12 @@ async function main() {
   const t0 = performance.now();
 
   // Seams and pyramid over the small region.
-  const regionTiles = await tileset.loadRegion(bounds, cfg.levels, cfg.maxTiles);
+  const regionTiles = await tileset.loadRegion(bounds, cfg.levels);
+  const missingTiles = new Set(tileset.missingTiles());
+  const regionMissingTiles = cfg.levels
+    .flatMap((z) => V.geographicTilesCovering(bounds, z))
+    .map(V.tileKeyId)
+    .filter((id) => missingTiles.has(id));
   const seams = V.seamReport(regionTiles);
   const pyramid = V.pyramidReport(regionTiles);
 
@@ -289,7 +306,14 @@ async function main() {
     tileset: { url: cfg.url, heightOffsetKm: cfg.offsetKm, maxLevel: tileset.maxLevel, datum: cfg.datum },
     region: { bounds, levels: cfg.levels, tiles: regionTiles.length },
     seams, pyramid, registration, boundary, controlPoints, samplingCost,
-    io: { ...io.stats, elapsedS },
+    missing: {
+      regionTiles: regionMissingTiles,
+      allTiles: tileset.missingTiles(),
+      edgeSamples: seams.missing,
+      parentChildSamples: pyramid.missing,
+      controlPoints: cp.length ? controlPointsMissing(controlPoints) : [],
+    },
+    io: { ...io.stats, tilesRequested: tileset.requestedTiles, tileBudget: tileset.maxTiles, elapsedS },
   };
 
   if (args.out) writeFileSync(resolve(args.out), JSON.stringify(report, null, 2) + '\n');
@@ -339,18 +363,36 @@ async function main() {
     out.push('', '## CPU sampling cost', '');
     out.push(`${samplingCost.length} tiles of ${lo.vertices}–${hi.vertices} vertices: ${micros[0].toFixed(2)}–${micros[micros.length - 1].toFixed(2)} µs/sample, median ${median.toFixed(2)}. Bounded per tile by triangle binning; no rendered geometry is touched.`);
   }
+  const missingCp = cp.length ? controlPointsMissing(controlPoints) : [];
+  if (regionMissingTiles.length || seams.missing || pyramid.missing || missingCp.length) {
+    out.push('', '## Missing data', '');
+    out.push(`- Region tiles listed in layer.json but not served: ${regionMissingTiles.length}${regionMissingTiles.length ? ` (${regionMissingTiles.slice(0, 5).join(', ')}${regionMissingTiles.length > 5 ? ', …' : ''})` : ''}`);
+    out.push(`- Edge samples unanswered: ${seams.missing} of ${seams.samples}; parent/child: ${pyramid.missing} of ${pyramid.samples}`);
+    out.push(`- Control points with an expected value but no detail sample: ${missingCp.length}${missingCp.length ? ` (${missingCp.slice(0, 5).join(', ')}${missingCp.length > 5 ? ', …' : ''})` : ''}`);
+  }
   out.push('', `_${io.stats.requests} tile requests, ${io.stats.cacheHits} cache hits, ${io.stats.missing} missing; ${(io.stats.bytes / 1024).toFixed(0)} KiB decoded; ${elapsedS.toFixed(1)} s._`);
   console.log(out.join('\n'));
 
   // ---- optional gates ----
+  // A gate passes only on complete data: an error statistic over the samples
+  // that happened to be answered says nothing about the ones that were not.
+  // `--allow-missing N` tolerates up to N missing items per gated comparison.
   const failures = [];
-  const gate = (flag, value, label) => {
+  const allowMissing = Number(args['allow-missing'] ?? 0);
+  const gate = (flag, value, label, missing, missingWhat) => {
     if (args[flag] == null) return;
     if (!(value * 1000 <= Number(args[flag]))) failures.push(`${label} ${m(value)} m exceeds --${flag} ${args[flag]}`);
+    if (missing > allowMissing) failures.push(`${label}: ${missing} ${missingWhat} missing (--allow-missing ${allowMissing})`);
   };
-  gate('max-edge-m', seams.overall.maxAbsKm, 'same-LOD edge max');
-  gate('max-parent-child-m', pyramid.overall.maxAbsKm, 'parent/child max');
-  if (cp.length) gate('max-control-delta-m', controlPoints.byLayer.detail.delta.maxAbsKm, 'control-point detail max |Δ|');
+  gate('max-edge-m', seams.overall.maxAbsKm, 'same-LOD edge max',
+    seams.missing + regionMissingTiles.length, 'edge samples or region tiles');
+  gate('max-parent-child-m', pyramid.overall.maxAbsKm, 'parent/child max',
+    pyramid.missing + regionMissingTiles.length, 'parent/child samples or region tiles');
+  if (args['max-control-delta-m'] != null) {
+    if (!cp.length) failures.push('control-point gate requested but there are no control points');
+    else gate('max-control-delta-m', controlPoints.byLayer.detail.delta.maxAbsKm, 'control-point detail max |Δ|',
+      missingCp.length, 'control points');
+  }
   if (failures.length) {
     console.error(failures.map((f) => `FAIL: ${f}`).join('\n'));
     process.exitCode = 1;

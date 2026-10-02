@@ -22,8 +22,10 @@ node scripts/validate-terrain.mjs --preset moon-shackleton --out moon.json
 node scripts/validate-terrain.mjs --preset mars-jezero-local   # after scripts/build-mars-terrain
 ```
 
-A run fetches tens of tiles, not a pyramid (a region needing more than
-`--max-tiles`, default 256, is refused rather than fetched), caches them under
+A run fetches tens of tiles, not a pyramid. `--max-tiles` (default 256) is one
+budget of unique tiles for the whole run — region, registration, boundary and
+control-point loads alike — and a batch that would exceed it is refused before
+any of its requests start. Tiles are cached under
 the OS temp dir (`--cache-dir`), and prints a Markdown summary. `--out` writes
 the full JSON report, every control point included.
 
@@ -38,6 +40,12 @@ handled), `--offset-km`, `--bounds w,s,e,n`, `--levels 13,14`,
 `--canonical-level 9`, `--boundary w,s,e,n|auto`, `--control-points file.json`
 (an array of `ControlPoint`). `--max-edge-m`, `--max-parent-child-m` and
 `--max-control-delta-m` turn the run into a gate (exit status 1 when exceeded).
+A gate passes only on complete data: it also fails when its comparison is
+missing anything — region tiles `layer.json` lists but the server does not
+return, unanswered edge or parent/child samples, control points with an
+expected value but no sample — unless `--allow-missing N` tolerates up to N of
+them. The report's *Missing data* section (and `missing` in the JSON) lists
+what was absent either way.
 
 There is no Earth preset: no Earth quantized-mesh source is configured in this
 repo without a Cesium ion token. Earth is covered by the coordinate tests
@@ -105,8 +113,10 @@ section for the selected body (or the first body with streamed terrain):
 - `sample` — CPU query count and last/mean cost;
 - `tiles` — active, visible, LRU-cached and CPU-decoded tile counts;
 - `network` — requests issued, queued/downloading/parsing, failed;
-- `memory` — LRU cache bytes, and a geometry/texture estimate from the loaded
-  tiles' buffers (textures counted once per shared `Source`).
+- `memory` — LRU cache bytes, and a geometry/texture estimate from the
+  buffers of every loaded tile, including ones cached out of view, and the
+  real materials the debug plugin holds aside while a debug mode is on
+  (textures counted once per shared `Source`).
 
 `resetMetrics()` restarts the windows for a before/after comparison. In the
 browser, `performance.now()` is coarsened to ~0.1 ms without cross-origin
