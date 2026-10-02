@@ -64,6 +64,7 @@ const MAX_DIFF_FRAC = Number(process.env.VR_MAX_DIFF ?? 0.005);
 const STREAM_SETTLE_MS = Number(process.env.VR_STREAM_SETTLE_MS ?? 500);
 const ASSET_TIMEOUT_MS = Number(process.env.VR_ASSET_TIMEOUT_MS ?? 180000);
 const INK_LEVEL = Number(process.env.VR_INK_LEVEL ?? 24);
+const PROFILE = process.env.VR_PROFILE === '1';
 const VIEWPORT = { width: 1024, height: 768 };
 const PORT = 4173;
 
@@ -87,6 +88,9 @@ const PORT = 4173;
  * draws too little ink for any change to fail it.
  */
 const SCENES = [
+  { catalog: 'atmosphere-earth', viewpoints: ['Surface zenith', 'Surface horizon', 'Ascent 50 km', 'Orbit 400 km', 'Whole disc'] },
+  { catalog: 'atmosphere-earth-twilight', viewpoints: ['Sunward horizon', 'Terminator disc'] },
+  { catalog: 'atmosphere-mars', viewpoints: ['Surface zenith', 'Surface horizon', 'Orbit 400 km', 'Whole disc'] },
   { catalog: 'cassini-soi', viewpoints: ['SOI (2004-07-01)', 'Ring Plane View'] },
   // Earth + Moon is the SPICE-free scene: both bodies are Keplerian and no
   // kernel is furnished, so it is the visual counterpart to core's
@@ -112,6 +116,9 @@ const SCENES = [
   // Here that shows up as the cyan arc vanishing.
   { catalog: 'oem-ingest', viewpoints: [] },
 ];
+const selectedScenes = process.env.VR_SCENES
+  ? SCENES.filter((scene) => process.env.VR_SCENES.split(',').includes(scene.catalog))
+  : SCENES;
 
 async function loadPlaywright() {
   try {
@@ -308,7 +315,7 @@ async function main() {
     const pageErrors = [];
     page.on('pageerror', (err) => pageErrors.push(String(err)));
 
-    for (const scene of SCENES) {
+    for (const scene of selectedScenes) {
       console.log(`\n[scene] ${scene.catalog}`);
       httpFailures = [];
       pageErrors.length = 0;
@@ -429,7 +436,22 @@ async function main() {
         const label = `${scene.label ?? scene.catalog}${vp ? `--${vp}` : ''}`.replace(/[^\w.-]+/g, '_');
         let dataUrl;
         try {
-          dataUrl = await page.evaluate((name) => window.__cosmolabe.capture(name ?? undefined), vp);
+          const result = await page.evaluate(([name, profile]) => {
+            const times = [];
+            let png = '';
+            for (let i = 0; i < (profile ? 7 : 1); i++) {
+              const start = performance.now();
+              png = window.__cosmolabe.capture(name ?? undefined);
+              times.push(performance.now() - start);
+            }
+            return { png, times };
+          }, [vp, PROFILE]);
+          dataUrl = result.png;
+          if (PROFILE) {
+            const samples = result.times.slice(1).sort((a, b) => a - b);
+            const median = (samples[2] + samples[3]) / 2;
+            console.log(`  ${label}: capture + GPU readback median ${median.toFixed(1)} ms (6 warm frames)`);
+          }
         } catch (err) {
           // The capture hook throws on a viewpoint it cannot resolve. It used to
           // ignore the failure and photograph whatever the camera was already
