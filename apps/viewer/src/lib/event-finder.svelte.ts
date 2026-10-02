@@ -69,6 +69,9 @@ import {
   setEventResults,
   updateConfiguredEventQuery,
 } from './analysis.svelte';
+import { matchSharedEvent, validateEventLinkState, type EventLinkState, type SharedEventQuery } from './event-link-state';
+import { ViewStateError } from '@cosmolabe/control';
+import { faultMessage } from './event-query';
 import { etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
@@ -291,6 +294,8 @@ export const ef = $state({
   form: null as EventQueryForm | null,
   /** True while a search is in flight. */
   running: false,
+  /** A permalink is rebuilding query results; not an editable draft yet. */
+  restoring: false,
   /**
    * How far the running search's current geometry call has got, or null when
    * the path it is running on cannot say. See {@link SearchProgress}: it is the
@@ -340,6 +345,7 @@ export const ef = $state({
 
 /** Guards against an earlier search landing after a later one. */
 let inFlight = 0;
+let sharedRestoreGeneration = 0;
 /** The search currently running, so it can be stopped. */
 let active: RunningSearch | null = null;
 /** Event currently represented by the renderer's single explanatory overlay. */
@@ -531,6 +537,9 @@ function syncConfiguredQuery(persist = false): ConfiguredEventQuery | undefined 
   if (!ef.form) return undefined;
   const kind = currentKind();
   const concrete = buildQuery(kind, ef.form, ef.configuredId ?? 'draft');
+  const previous = currentConfiguredQuery();
+  if (previous?.query.abcorr !== undefined) concrete.abcorr = previous.query.abcorr;
+  if (previous?.query.label !== undefined) concrete.label = previous.query.label;
   const { id: _id, ...query } = concrete;
   const label = concrete.label ?? `${kind.label}: ${Object.values(concrete.bodies).join(' / ')}`;
 
@@ -884,6 +893,119 @@ export function clearSelection() {
   highlightBodies([]);
   syncEventResultsInScene();
   syncOccultationGeometryAtTime();
+}
+
+/** Capture definitions, the current draft, and a compact selected-event locator. */
+export function captureSharedEvents(): EventLinkState | undefined {
+  if (ef.running || ef.restoring) throw new ViewStateError('Wait for the event search to finish before sharing.');
+  const configured = configuredEventQueries();
+  if (configured.length === 0 && !ef.form) return undefined;
+  const context = analysisContext();
+  const queries: SharedEventQuery[] = configured.map((item, i) => {
+    const query = resolveEventQuery(item, context);
+    const kind = registry.get(query.kind)!;
+    return { query: { ...query, id: `shared-query-${i}`, step: query.step ?? kind.defaultStep, abcorr: query.abcorr ?? kind.defaultAbcorr ?? 'NONE' },
+      label: item.label, enabled: item.enabled, visible: item.visible, windowMode: item.windowMode ?? 'automatic',
+      searched: item.enabled && (item.id === ef.configuredId ? ef.searched : Object.prototype.hasOwnProperty.call(analysis.eventResults, item.id)) };
+  });
+  let current = ef.configuredId ? configured.findIndex(item => item.id === ef.configuredId) : -1;
+  if (ef.form) {
+    const kind = currentKind();
+    const query = buildQuery(kind, ef.form, queries[current]?.query.id ?? 'shared-draft');
+    query.abcorr = queries[current]?.query.abcorr ?? context.reference.abcorr ?? kind.defaultAbcorr ?? 'NONE';
+    if (current >= 0) {
+      if (queries[current].query.label !== undefined) query.label = queries[current].query.label;
+      queries[current].query = query;
+    }
+    else {
+      current = queries.length;
+      queries.push({ query, label: kind.label, enabled: true, visible: true,
+        windowMode: ef.windowPinned ? 'explicit' : 'automatic', searched: false, draft: true });
+    }
+  }
+  const selected = selectedEventOf(context.eventResults);
+  const queryIndex = selected ? configured.findIndex(item => item.id === selected.queryId) : -1;
+  return validateEventLinkState({ version: 1, queries, current: current < 0 ? null : current,
+    ...(selected && queryIndex >= 0 ? { selected: { query: queryIndex, temporality: selected.temporality,
+      start: eventStart(selected), end: eventEnd(selected), ...(selected.state ? { state: selected.state } : {}) } } : {}) });
+}
+
+/** Rebuild results through the existing search path, without changing the
+ * permalink's clock, camera or body selection when restoring event selection. */
+export async function restoreSharedEvents(input: EventLinkState | undefined, signal?: AbortSignal): Promise<void> {
+  const state = input ? validateEventLinkState(input) : undefined;
+  if (signal?.aborted) return;
+  // Validate scene references before replacing any current searches.
+  for (const entry of state?.queries ?? []) {
+    for (const body of Object.values(entry.query.bodies)) {
+      if (!getUniverse()?.getBody(body!)) throw new ViewStateError(`Event context: body "${body}" is unavailable in this catalog.`);
+    }
+  }
+  const generation = ++sharedRestoreGeneration;
+  ef.restoring = true;
+  const cancel = () => cancelSearch();
+  signal?.addEventListener('abort', cancel, { once: true });
+  try {
+    active?.cancel();
+    inFlight++;
+    previewEvent(null);
+    clearSelection();
+    for (const item of [...configuredEventQueries()]) removeConfiguredQuery(item.id);
+    ef.form = null;
+    ef.configuredId = null;
+    ef.events = [];
+    ef.fault = null;
+    ef.hint = null;
+    ef.searched = false;
+    ef.windowPinned = false;
+    if (!state) return;
+    const restored: (ConfiguredEventQuery | null)[] = [];
+    for (const entry of state.queries) {
+      if (signal?.aborted) return;
+      if (entry.draft) { restored.push(null); continue; }
+      const { id: _id, ...query } = entry.query;
+      const item = createConfiguredEventQuery(query, entry.label, entry.windowMode);
+      setConfiguredItemEnabled(item.id, entry.enabled);
+      setConfiguredItemVisible(item.id, entry.visible);
+      restored.push(item);
+      openConfiguredQuery(item.id);
+      if (entry.searched && entry.enabled) {
+        await runSearch();
+        if (signal?.aborted) return;
+        if (!ef.searched || ef.fault) throw new ViewStateError(`Event context: couldn't reproduce "${entry.label}": ${ef.fault ? faultMessage(ef.fault) : 'search did not complete'}.`);
+      }
+      updateConfiguredEventQuery(item.id, query, entry.label, entry.windowMode);
+    }
+    const current = state.current === null ? null : restored[state.current];
+    if (current) openConfiguredQuery(current.id);
+    else {
+      ef.configuredId = null;
+      ef.form = null;
+      ef.events = [];
+      ef.searched = false;
+      if (state.current !== null) {
+        const draft = state.queries[state.current];
+        const kind = registry.get(draft.query.kind)!;
+        ef.kind = kind.kind;
+        ef.form = formForKind(kind, draft.query.window);
+        ef.form.bodies = { ...draft.query.bodies };
+        ef.form.params = Object.fromEntries(Object.entries(draft.query.params ?? {}).map(([k, v]) => [k, String(v)]));
+        ef.form.step = draft.query.step!;
+        ef.windowPinned = draft.windowMode === 'explicit';
+      }
+    }
+    if (state.selected) {
+      const item = restored[state.selected.query]!;
+      const event = matchSharedEvent(analysis.eventResults[item.id] ?? [], state.selected);
+      setSelection(event);
+      highlightBodies(focusForEvent(event).bodies);
+    }
+    syncEventResultsInScene();
+    syncOccultationGeometryAtTime();
+  } finally {
+    signal?.removeEventListener('abort', cancel);
+    if (generation === sharedRestoreGeneration) ef.restoring = false;
+  }
 }
 
 /**

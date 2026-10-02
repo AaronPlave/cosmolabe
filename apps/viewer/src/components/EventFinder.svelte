@@ -39,7 +39,7 @@
   // The form is built from the catalog's own time span, which is not known
   // until a scene has loaded — so it is built on mount, not at module scope.
   $effect(() => {
-    if (!ef.form) resetForm();
+    if (!ef.form && !ef.restoring) resetForm();
   });
 
   let kind = $derived(currentKind());
@@ -55,7 +55,7 @@
   let configuredQueries = $derived(configuredEventQueries());
   /** Why this scene cannot search at all — a stated policy, not a failed search. */
   let unavailable = $derived(currentSearchUnavailable());
-  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable);
+  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable && !ef.restoring);
   let resultsListEl = $state<HTMLDivElement>();
 
   // Scene and timeline markers can select a result outside the list's current
@@ -336,6 +336,8 @@
         ></div>
       </div>
     {/if}
+
+    {#if ef.restoring}<p class="ui-helper mt-1.5" role="status">Restoring shared event searches…</p>{/if}
 
     {#if configured}
       <div class="mt-1.5 flex items-center gap-3 ui-helper">
