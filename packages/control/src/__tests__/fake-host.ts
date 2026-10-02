@@ -39,6 +39,9 @@ export class FakeViewer implements ViewerControl {
   playing = false;
   selected: string | null = null;
   tracked: string | null = null;
+  origin: string | null = null;
+  getCameraReference(): string | null { return this.origin; }
+  setCameraReference(name: string | null): boolean { this.origin = name; return true; }
   lookAt: string | null = null;
   frame: { mode: string; body?: string } = { mode: 'free-orbit' };
   camera: { position: ScriptVec3; target: ScriptVec3; up: ScriptVec3; fov: number } = {

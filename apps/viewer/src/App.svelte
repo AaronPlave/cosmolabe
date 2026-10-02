@@ -20,6 +20,8 @@
   import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import { startHero, stopHero } from './lib/hero';
+  import { restoreView } from './lib/view-link';
+  import { requestedView } from './lib/view-state-url';
   import type { CatalogEntry } from './lib/catalog-sources';
   import { catalogs, initCatalogSources, sourceSettled, syncSourceParams } from './lib/catalogs.svelte';
   import {
@@ -311,8 +313,10 @@
   /** Record the scene in the URL, as a new history entry, unless it already says so. */
   function pushLocation(loc: CatalogLocation | null) {
     const now = requestedCatalog(location.search);
-    if (JSON.stringify(now) === JSON.stringify(loc)) return;
-    history.pushState(null, '', `${location.pathname}${withCatalogLocation(location.search, loc)}${location.hash}`);
+    if (JSON.stringify(now) === JSON.stringify(loc) && !new URLSearchParams(location.search).has('view')) return;
+    const search = new URLSearchParams(withCatalogLocation(location.search, loc));
+    search.delete('view');
+    history.pushState(null, '', `${location.pathname}${search.size ? `?${search}` : ''}${location.hash}`);
   }
 
   /**
@@ -322,6 +326,8 @@
    * went, and drop the forward entry they came from.
    */
   let navGeneration = 0;
+  let loadGeneration = 0;
+  let viewRestore: AbortController | null = null;
   /** A load is in flight; set and cleared by `runLoad`. */
   let loadInFlight = $state(false);
   /** Back/Forward arrived during a load and is still owed a reconcile. */
@@ -345,18 +351,24 @@
    * alone.
    */
   async function runLoad(load: () => Promise<void>, after: (navigatedAway: boolean) => void) {
+    const loadToken = ++loadGeneration;
+    viewRestore?.abort();
     const generation = navGeneration;
+    const preservedEt = getCurrentRenderer()?.timeController.et;
     catalogs.loadError = null;
     loadInFlight = true;
     try {
       await load();
+      if (loadToken !== loadGeneration) return;
       after(generation !== navGeneration);
+      if (generation === navGeneration) await restoreFromUrl(generation, preservedEt);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      if (generation !== navGeneration || loadToken !== loadGeneration) return;
       catalogs.loadError = `Couldn't load ${vs.loadingCatalog || 'the catalog'}: ${message}`;
       console.error('[Cosmolabe] Catalog load failed:', err);
     } finally {
-      loadInFlight = false;
+      if (loadToken === loadGeneration) loadInFlight = false;
     }
   }
 
@@ -410,6 +422,7 @@
     // An entry from before a source was added lacks its `?source=`.
     syncSourceParams();
     navGeneration++;
+    viewRestore?.abort();
     if (loadInFlight || vs.showLoading) navPending = true;
     else reconcileWithUrl();
   }
@@ -421,12 +434,21 @@
    * from dropped files.
    */
   function reconcileWithUrl() {
-    const req = requestedCatalog(location.search);
-    if (!req) return;
-    if ('catalog' in req) {
-      if (demoCatalogUrl(req.catalog) !== catalogs.currentUrl) loadNamed(req.catalog);
-    } else {
-      openEntryParam(req.entry);
+    catalogs.loadError = null;
+    try {
+      const state = requestedView(location.search);
+      const req = state?.catalog ?? requestedCatalog(location.search);
+      if (!req) return;
+      if ('catalog' in req) {
+        // A state-less history entry means that catalog's default view. Reload
+        // it on Back rather than retaining the later checkpoint's camera/time.
+        if (demoCatalogUrl(req.catalog) !== catalogs.currentUrl || !state) loadNamed(req.catalog);
+        else void restoreFromUrl(navGeneration);
+      } else {
+        openEntryParam(req.entry);
+      }
+    } catch (err) {
+      catalogs.loadError = `Couldn't restore view: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
@@ -445,10 +467,33 @@
         catalogs.loadError = `No catalog "${param}" in this viewer's catalog sources.`;
         return;
       }
-      if (item.entry.catalogUrl === catalogs.currentUrl) return;
-      if (loadInFlight || vs.showLoading) navPending = true;
-      else loadEntry(item, false);
+      if (loadInFlight || vs.showLoading) { navPending = true; return; }
+      if (item.entry.catalogUrl === catalogs.currentUrl && new URLSearchParams(location.search).has('view')) {
+        void restoreFromUrl(generation);
+        return;
+      }
+      loadEntry(item, false);
     });
+  }
+
+  async function restoreFromUrl(generation: number, preservedEt?: number) {
+    try {
+      const state = requestedView(location.search);
+      if (!state) return;
+      const renderer = getCurrentRenderer();
+      if (!renderer) throw new Error('The requested catalog has no scene.');
+      await renderer.waitForInitialAssets();
+      if (generation !== navGeneration || renderer !== getCurrentRenderer()) return;
+      viewRestore?.abort();
+      const controller = new AbortController();
+      viewRestore = controller;
+      await restoreView(state.time.kind === 'preserve' && preservedEt !== undefined
+        ? { ...state, time: { kind: 'fixed', source: 'ET', et: preservedEt } } : state, controller.signal);
+    } catch (err) {
+      if (generation === navGeneration) {
+        catalogs.loadError = `Couldn't restore view: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }
   }
 
   onMount(() => {
@@ -458,14 +503,11 @@
     // scripts/visual-regression.mjs).
     // `?entry=<source>/<entry>` names a catalog in a configured source, so it
     // waits for that source — and only that one; `?catalog=` needs none.
-    const requested = requestedCatalog(location.search);
-    if (requested && 'catalog' in requested) loadNamed(requested.catalog);
     const sourcesDone = initCatalogSources();
-    if (requested && 'entry' in requested) openEntryParam(requested.entry);
+    reconcileWithUrl();
+    const requested = requestedCatalog(location.search);
     void sourcesDone.then((states) => {
       if (requested && 'catalog' in requested) {
-        // A deep-linked example is named by its path until the sources say
-        // what it is called.
         const url = demoCatalogUrl(requested.catalog);
         const listed = allEntries(states).find((e) => e.entry.catalogUrl === url);
         if (listed && vs.loadingCatalog === requested.catalog) vs.loadingCatalog = listed.entry.name;
@@ -478,6 +520,7 @@
     window.addEventListener('pointerdown', onWindowPointerDown, true);
     window.addEventListener('pointerup', onWindowPointerUp);
     return () => {
+      viewRestore?.abort();
       stopHero();
       stopLayoutWatch();
       window.removeEventListener('resize', onResize);

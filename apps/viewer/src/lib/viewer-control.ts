@@ -266,6 +266,15 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     getSelected: () => vs.selectedBodyName,
     getTracked: () => getRenderer()?.cameraController.trackedBody?.body.name ?? null,
     getCamera: camera,
+    getCameraReference: () => getRenderer()?.cameraController.originBody?.body.name ?? null,
+    setCameraReference: (name) => {
+      const r = getRenderer();
+      if (!r) return false;
+      const body = name === null ? null : r.getBodyMesh(name);
+      if (body === undefined) return false;
+      r.cameraController.setOriginBody(body);
+      return true;
+    },
     listObjects: () => bodyNames(),
     listViewpoints: () => getRenderer()?.cameraController.getViewpoints().map((v) => v.name) ?? [],
     snapshot: () => snapshotScript(snapshotState()),
