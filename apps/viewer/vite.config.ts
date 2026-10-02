@@ -12,7 +12,7 @@ function normalizeBase(raw: string | undefined): string {
   return b;
 }
 
-// CTB-produced quantized-mesh `.terrain` files are gzipped on disk. The clean
+// Self-built quantized-mesh `.terrain` files are gzipped on disk. The clean
 // solution is to serve them with `Content-Encoding: gzip` and let the browser
 // auto-decompress — but Vite's static handler's header sequencing trips up the
 // loader's fetch path in practice (the QuantizedMeshLoader ends up parsing the
@@ -22,20 +22,20 @@ function normalizeBase(raw: string | undefined): string {
 // and stream raw quantized-mesh bytes with no encoding header. Negligible CPU
 // per tile (tiles are 2-50 KB) and removes the browser-decompression variable
 // entirely.
-const TERRAIN_TILE_DIR = path.resolve(__dirname, 'test-catalogs/data/mars-terrain');
+const TERRAIN_DATA_DIR = path.resolve(__dirname, 'test-catalogs/data');
 const marsTerrainPlugin = {
   name: 'mars-terrain-serve-decompressed',
   configureServer(server: any) {
     server.middlewares.use((req: any, res: any, next: any) => {
       const url: string | undefined = req.url;
-      if (!url || !url.includes('/mars-terrain/') || !url.endsWith('.terrain')) {
+      if (!url || !url.includes('/mars-terrain-fused/') || !url.endsWith('.terrain')) {
         return next();
       }
       // Strip query string + base path to derive the on-disk path.
       const cleanUrl = url.split('?')[0];
-      const match = cleanUrl.match(/\/mars-terrain\/(.+\.terrain)$/);
+      const match = cleanUrl.match(/\/(mars-terrain-fused\/\d+\/\d+\/\d+\.terrain)$/);
       if (!match) return next();
-      const filePath = path.join(TERRAIN_TILE_DIR, match[1]);
+      const filePath = path.join(TERRAIN_DATA_DIR, match[1]);
       if (!existsSync(filePath)) {
         res.statusCode = 404;
         res.end();
@@ -81,6 +81,8 @@ export default defineConfig({
       // and stalls the dev server. The tiles are static; HMR isn't useful for
       // them. Same goes for the multi-GB source GeoTIFFs in scripts/.
       ignored: [
+        '**/test-catalogs/data/mars-terrain-fused/**',
+        // Retired pre-#50 pyramid; existing checkouts may still hold its ~700k files.
         '**/test-catalogs/data/mars-terrain/**',
         '**/scripts/build-mars-terrain/data/**',
       ],

@@ -19,7 +19,7 @@ npm run build                                     # the CLI imports packages/thr
 node scripts/validate-terrain.mjs --list
 node scripts/validate-terrain.mjs --preset mars-jezero
 node scripts/validate-terrain.mjs --preset moon-shackleton --out moon.json
-node scripts/validate-terrain.mjs --preset mars-jezero-local   # after scripts/build-mars-terrain
+node scripts/validate-terrain.mjs --preset mars-jezero-fused   # after scripts/build-mars-terrain/fused.sh
 ```
 
 A run fetches tens of tiles, not a pyramid. `--max-tiles` (default 256) is one
@@ -32,7 +32,7 @@ the full JSON report, every control point included.
 | Preset | Tileset | Region | Control points |
 |---|---|---|---|
 | `mars-jezero` | Mars Hub `mars_v14`, offset 8.765 km (as `msl-dingo-gap.json`) | ~2 km box on Wright Brothers Field, z13/14 | 73 Ingenuity landing sites (MMGIS `Elev_Geoid`) |
-| `mars-jezero-local` | the self-built `scripts/build-mars-terrain` pyramid (as `ingenuity-jezero.json`) | same | same |
+| `mars-jezero-fused` | the fused `scripts/build-mars-terrain/fused.sh` pyramid (as `ingenuity-jezero.json`) | same | same |
 | `moon-shackleton` | Mars Hub `moon_v14` (as `moonfall-shackleton.json`) | Shackleton rim, z8/9 (`moon_v14` stops at z9 there) | 36 MoonFall waypoints (LOLA LDEM 118 m) |
 
 Any field can be overridden: `--url` (http(s) or a local directory, gzip
@@ -151,9 +151,9 @@ vertical bias, not spatial drift: the 8.765 km constant was calibrated at Gale
 datum differs between the two places. Either way it is exactly the kind of
 correction #47 says must be explicit datum metadata rather than a renderer
 constant. (`ingenuity-jezero.json` uses the self-built pyramid, not mars_v14;
-validate it with `mars-jezero-local`.)
+validate it with `mars-jezero-fused`.)
 
-### `mars-jezero-local` (self-built pyramid, `ingenuity-jezero.json`)
+### Retired CTB pyramid (was `mars-jezero-local`, removed in #50)
 
 | | n | mean (m) | RMS (m) | p95 \|d\| (m) | max \|d\| (m) |
 |---|---|---|---|---|---|
@@ -168,6 +168,34 @@ Coverage-boundary curvature ratio at the z14 HiRISE availability edge: 1.04.
 all 73 Ingenuity sites** (mean +0.57 m, RMS 0.84 m); the z≤9 MOLA/HRSC
 canonical layer differs by up to 81 m. This is the pyramid the Ingenuity demo
 streams, and the reason its mission alignment holds where mars_v14's does not.
+
+### `mars-jezero-fused` (#50, `scripts/build-mars-terrain/fused.sh`)
+
+One pyramid from height = MOLA/HRSC(lon, lat) + tapered HiRISE residual,
+written by `scripts/terrain/dem.py`: Catmull-Rom base, RTIN mesh with every tile
+edge at full 65-vertex resolution and chord sag counted as error (so low-zoom
+tiles keep the globe round), and oct-encoded normals from the same field (no
+per-tile shading seams). Same Wright Brothers Field box as above:
+
+| | n | mean (m) | RMS (m) | p95 \|d\| (m) | max \|d\| (m) |
+|---|---|---|---|---|---|
+| Same-LOD edges (16), z13/14 | 1040 | 0.00 | 0.00 | 0.00 | 0.00 |
+| Parent/child (9), child z14 | 2601 | −0.02 | 0.61 | 1.83 | 2.84 |
+| Control points, detail layer (73) | 73 | 0.05 | 0.16 | 0.31 | 0.41 |
+
+Across the HiRISE coverage edge (box 77.235–77.257 E, 18.478–18.498 N), old →
+fused: same-LOD edges max 0.51 → 0.01 m, parent/child RMS 2.98 → 0.45 m (max
+19.4 → 2.1 m). At the raster level (`fusion.json` → `boundary`, 96 680 pixel
+pairs straddling the coverage edge) a hard source switch would step up to
+79 m (RMS 18.8 m); the fused field steps exactly as much as MOLA/HRSC itself
+does between neighbouring pixels (max 0.35 m).
+
+Registration (whole HiRISE footprint, 4.7 M samples): HiRISE − MOLA/HRSC
+mean −7.9 m, RMS 18.9 m; fitted plane offset −8.66 m, slopes +1.01 m/km east,
+−0.69 m/km north. The plane is **disclosed but not removed** (`--bias none`):
+removing it would move the surface 3.8–13.6 m off the Ingenuity airfield
+elevations, which live in the HiRISE frame. The 1 km taper carries the bias
+back to MOLA/HRSC instead.
 
 ### `moon-shackleton` (moon_v14)
 
@@ -218,7 +246,7 @@ vertices; 1.3–1.5 µs on Moon tiles of 19–284 vertices.
 
 ## Not yet covered
 
-- Base/residual/coverage-boundary debug views — with the fused products (#50, #48).
+- Base/residual/coverage-boundary debug views — the fused Mars product now ships `residual.tif`, `coverage.tif` and `weight.tif` (in `scripts/build-mars-terrain/data/fused/`); the views themselves are tracked in #135.
 - Renderer-level tests for LOD transitions, camera clamp, picking and
   imagery-overlay continuity need a GL-capable harness; the CPU-side pieces
   (sampling, coordinates, seams, pyramid, residual taper detection) are unit

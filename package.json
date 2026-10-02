@@ -39,7 +39,8 @@
     "lint": "eslint packages/ apps/",
     "lint:purity": "bash scripts/purity-lint.sh",
     "preprocess:displacement": "node scripts/preprocess-displacement.mjs",
-    "validate:terrain": "node scripts/validate-terrain.mjs"
+    "validate:terrain": "node scripts/validate-terrain.mjs",
+    "test:dem": "python3 scripts/terrain/dem.py selftest"
   },
   "engines": {
     "node": ">=20"
