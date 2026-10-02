@@ -140,7 +140,7 @@ export function serializeInventory(entries) {
  */
 export async function publishDirectory({
   storage, srcDir, prefix, recursive = true, deferred = [], concurrency = 16,
-  validate, buildManifest, dryRun = false, stateDir, stateName = 'build', log = console.log,
+  validate, buildManifest, dryRun = false, stateDir, stateName = 'build', log = console.log, retry = {},
 }) {
   log(`Inventorying ${srcDir} …`);
   const entries = await buildInventory(srcDir, { recursive, log });
@@ -189,7 +189,7 @@ export async function publishDirectory({
     const key = prefix + e.path;
     await withRetry(
       () => storage.put(key, { path: join(srcDir, ...e.path.split('/')), size: e.size }, objectMeta(e.path, e.gzip)),
-      { what: `upload ${key}` },
+      { ...retry, what: `upload ${key}` },
     );
     if (++done % 2000 === 0 || done === todo.length) {
       const rate = done / ((Date.now() - started) / 1000);
@@ -199,20 +199,20 @@ export async function publishDirectory({
 
   await withRetry(
     () => storage.put(`${prefix}inventory.jsonl.gz`, { body: inventoryGz }, { contentType: 'application/octet-stream', cacheControl: IMMUTABLE_CACHE }),
-    { what: 'upload inventory' },
+    { ...retry, what: 'upload inventory' },
   );
   for (const rel of deferred) {
     const e = entries.find((x) => x.path === rel);
     if (!e) continue;
     await withRetry(
       () => storage.put(prefix + rel, { path: join(srcDir, ...rel.split('/')), size: e.size }, objectMeta(rel, e.gzip)),
-      { what: `upload ${rel}` },
+      { ...retry, what: `upload ${rel}` },
     );
   }
   await withRetry(
     () => storage.put(`${prefix}manifest.json`, { body: Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`) },
       { contentType: 'application/json', cacheControl: 'public, max-age=300' }),
-    { what: 'upload manifest' },
+    { ...retry, what: 'upload manifest' },
   );
   return { manifest, uploaded: todo.length, skipped };
 }

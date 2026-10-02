@@ -30,7 +30,7 @@ async function publishTerrain({ storage, src, build = 'b1', failAfter, concurren
   };
   return publishDirectory({
     storage: flaky, srcDir: src, prefix: remotePrefix(dataset, build), deferred: ['layer.json'],
-    concurrency, log: quiet,
+    concurrency, log: quiet, retry: { tries: 1 },
     validate: validateTerrain,
     buildManifest: (entries, inventorySha256) => terrainManifest({ dataset, build, entries, inventorySha256, srcDir: src }),
   });
