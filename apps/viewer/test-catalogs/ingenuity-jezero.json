@@ -56,7 +56,7 @@
         "baseMap": "textures/mars.dds",
         "terrain": {
           "type": "quantized-mesh",
-          "url": "/test-catalogs/data/mars-terrain/",
+          "url": "/test-catalogs/data/mars-terrain-fused/",
           "referenceRadiusOffsetKm": 0,
           "errorTarget": 3,
           "fadeDurationMs": 0,
