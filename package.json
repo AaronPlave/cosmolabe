@@ -40,12 +40,14 @@
     "lint:purity": "bash scripts/purity-lint.sh",
     "preprocess:displacement": "node scripts/preprocess-displacement.mjs",
     "validate:terrain": "node scripts/validate-terrain.mjs",
-    "test:dem": "python3 scripts/terrain/dem.py selftest"
+    "test:dem": "python3 scripts/terrain/dem.py selftest",
+    "publish:data": "node scripts/publish-data.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1146.0",
     "@eslint/js": "^9.39.5",
     "delaunator": "^5.1.0",
     "eslint": "^9.39.5",

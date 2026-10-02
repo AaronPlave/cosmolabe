@@ -1,0 +1,87 @@
+{
+  "$comment": "Deployment data manifest (issue #137). Each entry is a large static product that is served from the data host instead of the Pages artifact. `build` is null until `node scripts/publish-data.mjs <kind>/<name> --build <id>` has published and verified it; the publisher then records the build id here, and that is what hosted catalogs pin. Remote layout: terrain/<name>/<build>/..., kernels/<name>-<build>/.... See docs/data-hosting.md.",
+  "version": 1,
+  "datasets": {
+    "terrain/mars-terrain-fused": {
+      "kind": "terrain",
+      "name": "mars-terrain-fused",
+      "localDir": "apps/viewer/test-catalogs/data/mars-terrain-fused",
+      "catalogPrefix": "data/mars-terrain-fused/",
+      "build": null
+    },
+    "kernels/generic": {
+      "kind": "kernels",
+      "name": "generic",
+      "localDir": "apps/viewer/test-catalogs/kernels",
+      "recursive": false,
+      "catalogPrefix": "kernels/",
+      "fetchScripts": [
+        "scripts/fetch-kernels.sh",
+        "scripts/fetch-msl-kernels.sh",
+        "scripts/fetch-psyche-kernels.sh",
+        "scripts/fetch-voyager-kernels.sh"
+      ],
+      "build": null
+    },
+    "kernels/cassini": {
+      "kind": "kernels",
+      "name": "cassini",
+      "localDir": "apps/viewer/test-catalogs/kernels/cassini",
+      "catalogPrefix": "kernels/cassini/",
+      "fetchScripts": [
+        "scripts/fetch-cassini-kernels.sh"
+      ],
+      "build": null
+    },
+    "kernels/europa-clipper": {
+      "kind": "kernels",
+      "name": "europa-clipper",
+      "localDir": "apps/viewer/test-catalogs/kernels/europa-clipper",
+      "catalogPrefix": "kernels/europa-clipper/",
+      "fetchScripts": [
+        "scripts/fetch-europa-clipper-kernels.sh"
+      ],
+      "build": null
+    },
+    "kernels/lro": {
+      "kind": "kernels",
+      "name": "lro",
+      "localDir": "apps/viewer/test-catalogs/kernels/lro",
+      "catalogPrefix": "kernels/lro/",
+      "fetchScripts": [
+        "scripts/fetch-lro-kernels.sh"
+      ],
+      "build": null
+    },
+    "kernels/msl": {
+      "kind": "kernels",
+      "name": "msl",
+      "localDir": "apps/viewer/test-catalogs/kernels/msl",
+      "catalogPrefix": "kernels/msl/",
+      "fetchScripts": [
+        "scripts/fetch-msl-kernels.sh"
+      ],
+      "build": null
+    },
+    "kernels/psyche": {
+      "kind": "kernels",
+      "name": "psyche",
+      "localDir": "apps/viewer/test-catalogs/kernels/psyche",
+      "catalogPrefix": "kernels/psyche/",
+      "fetchScripts": [
+        "scripts/fetch-psyche-kernels.sh"
+      ],
+      "build": null
+    },
+    "kernels/voyager": {
+      "kind": "kernels",
+      "name": "voyager",
+      "localDir": "apps/viewer/test-catalogs/kernels/voyager",
+      "catalogPrefix": "kernels/voyager/",
+      "fetchScripts": [
+        "scripts/fetch-voyager-kernels.sh"
+      ],
+      "build": null
+    }
+  }
+}
