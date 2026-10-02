@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",
+    "@aws-sdk/lib-storage": "^3.1146.0",
     "@eslint/js": "^9.39.5",
     "delaunator": "^5.1.0",
     "eslint": "^9.39.5",

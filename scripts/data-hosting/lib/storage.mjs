@@ -12,6 +12,9 @@ import { createReadStream } from 'node:fs';
 import { mkdir, readFile, readdir, rename, stat, writeFile, copyFile, rm } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 
+const MULTIPART_THRESHOLD = 8 * 1024 * 1024;
+const PART_SIZE = 16 * 1024 * 1024;
+
 export function createS3Storage({
   accountId = process.env.R2_ACCOUNT_ID,
   accessKeyId = process.env.R2_ACCESS_KEY_ID,
@@ -45,16 +48,29 @@ export function createS3Storage({
     name: `r2:${bucket}`,
     async put(key, source, meta) {
       const { m, client } = await sdk();
-      const body = source.body ?? createReadStream(source.path);
-      await client.send(new m.PutObjectCommand({
+      const params = {
         Bucket: bucket,
         Key: key,
-        Body: body,
-        ContentLength: source.body ? source.body.length : source.size,
         ContentType: meta.contentType,
         ContentEncoding: meta.contentEncoding,
         CacheControl: meta.cacheControl,
-      }));
+      };
+      // Small objects go up as one buffered PUT: a Buffer can be replayed on retry,
+      // a stream cannot. Large files use multipart, so a dropped connection costs
+      // one retried part, not the whole file.
+      if (source.body || source.size <= MULTIPART_THRESHOLD) {
+        const body = source.body ?? await readFile(source.path);
+        await client.send(new m.PutObjectCommand({ ...params, Body: body, ContentLength: body.length }));
+        return;
+      }
+      const { Upload } = await import('@aws-sdk/lib-storage');
+      await new Upload({
+        client,
+        params: { ...params, Body: createReadStream(source.path) },
+        partSize: PART_SIZE,
+        queueSize: 3,
+        leavePartsOnError: false,
+      }).done();
     },
     async head(key) {
       const { m, client } = await sdk();
