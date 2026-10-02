@@ -9,15 +9,16 @@
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { loadCatalogFromUrl } from '@cosmolabe/core';
+import { loadCatalogFromUrl, type EtInterval } from '@cosmolabe/core';
 import {
   GF_BOUNDARY_MARGIN,
   LIGHT_TIME_PAD,
   NO_KERNELS_MESSAGE,
+  coverageWindow,
   eventSearchUnavailable,
   lightTimeDirection,
   type BodyEphemeris,
-} from '../event-finder.svelte';
+} from '../event-availability';
 import { faultMessage } from '../event-query';
 
 const WINDOW = { start: 0, end: 100 };
@@ -167,6 +168,152 @@ describe('event search availability under light-time correction', () => {
       .toMatch(/before the search window opens, by the light time/);
     // Opening just before it might, or might not: not refused, and not promised.
     expect(eventSearchUnavailable(3, BODIES, W, saturnFrom(W.start - m), 'LT', unknown)).toBeNull();
+  });
+});
+
+describe('the default window agrees with the availability check', () => {
+  // An Earth-observed occultation whose front body's SPK opens partway into the
+  // catalog span — the case where a margin-only default is refused on sight
+  // under light-time correction.
+  const BODIES = { observer: 'Earth', front: 'Saturn', back: 'Sun' };
+  const SPAN = { start: 0, end: 200_000 };
+  const COVERAGE: Record<string, EtInterval[]> = {
+    Earth: [{ start: -1e9, end: 1e9 }],
+    Saturn: [{ start: 10_000, end: 150_000 }],
+    Sun: [{ start: -1e9, end: 1e9 }],
+  };
+  const IDS: Record<string, number> = { Earth: 399, Saturn: 699, Sun: 10 };
+  const fakeSpice = {
+    bodn2c: (name: string) => IDS[name] ?? null,
+    spkcov: (id: number) => COVERAGE[Object.keys(IDS).find((n) => IDS[n] === id)!] ?? [],
+  };
+  const ephemeris = (name: string): BodyEphemeris => COVERAGE[name] ?? 'unnamed';
+  // Slowly varying, as real light time is: well under a second per second.
+  const lightTime = (_t: string, _o: string, et: number): number | undefined => 4_500 + 1e-4 * (et - 10_000);
+  const def = (abcorr: string, lt = lightTime) => coverageWindow(fakeSpice, BODIES, SPAN, undefined, abcorr, lt);
+
+  it('is a window the check accepts, for every correction', () => {
+    for (const abcorr of ['NONE', 'LT', 'LT+S', 'CN', 'CN+S', 'XLT', 'XLT+S', 'XCN+S']) {
+      const window = def(abcorr);
+      expect(eventSearchUnavailable(3, BODIES, window, ephemeris, abcorr, lightTime), abcorr).toBeNull();
+    }
+  });
+
+  it('opens a light time after a reception target\'s SPK, and only the margin after it otherwise', () => {
+    expect(def('NONE').start).toBe(10_000 + GF_BOUNDARY_MARGIN);
+    const corrected = def('LT+S').start;
+    expect(corrected).toBeGreaterThan(10_000 + GF_BOUNDARY_MARGIN + 4_500);
+    expect(corrected).toBeLessThan(10_000 + GF_BOUNDARY_MARGIN + 4_500 * (1 + 2 * LIGHT_TIME_PAD));
+    // Reception reads earlier epochs only, so the end keeps the plain margin.
+    expect(def('LT+S').end).toBe(150_000 - GF_BOUNDARY_MARGIN);
+  });
+
+  it('closes a light time before a transmission target\'s SPK ends', () => {
+    const window = def('XLT');
+    expect(window.start).toBe(10_000 + GF_BOUNDARY_MARGIN);
+    expect(window.end).toBeLessThan(150_000 - GF_BOUNDARY_MARGIN - 4_500);
+  });
+
+  it('falls back to the plain margin when the light time cannot be measured', () => {
+    const window = def('LT', () => undefined);
+    expect(window).toEqual({ start: 10_000 + GF_BOUNDARY_MARGIN, end: 150_000 - GF_BOUNDARY_MARGIN });
+    expect(eventSearchUnavailable(3, BODIES, window, ephemeris, 'LT', () => undefined)).toBeNull();
+  });
+
+  it('does not narrow a span already clear of every edge', () => {
+    const inside = { start: 50_000, end: 60_000 };
+    expect(coverageWindow(fakeSpice, BODIES, inside, undefined, 'LT+S', lightTime)).toEqual(inside);
+  });
+
+  it('agrees with the check across many spans and coverages', () => {
+    for (let opens = 0; opens <= 100_000; opens += 12_345) {
+      for (const span of [{ start: 0, end: 300_000 }, { start: opens + 1, end: opens + 50_000 }]) {
+        COVERAGE.Saturn = [{ start: opens, end: opens + 120_000 }];
+        for (const abcorr of ['NONE', 'LT+S', 'XCN']) {
+          const window = coverageWindow(fakeSpice, BODIES, span, undefined, abcorr, lightTime);
+          if (window === span && eventSearchUnavailable(3, BODIES, span, ephemeris, abcorr, lightTime)) {
+            // No window fits inside the span: the span itself comes back, and
+            // being refused is then the honest answer, not a disagreement.
+            continue;
+          }
+          expect(eventSearchUnavailable(3, BODIES, window, ephemeris, abcorr, lightTime), `${opens} ${abcorr}`).toBeNull();
+        }
+      }
+    }
+    COVERAGE.Saturn = [{ start: 10_000, end: 150_000 }];
+  });
+});
+
+describe('the default window does not depend on role order', () => {
+  // The #130 review's reproduction: the observer's SPK opens later than the
+  // target's, and light time can only be measured where both have states.
+  // Visiting the target first used to measure at an epoch the observer had no
+  // state for, fall back to the plain margin, and never revisit it.
+  const coverage: Record<string, EtInterval[]> = {
+    Target: [{ start: 0, end: 1_000 }],
+    Observer: [{ start: 50, end: 1_000 }],
+  };
+  const ids: Record<string, number> = { Target: 1, Observer: 2 };
+  const spice = {
+    bodn2c: (name: string) => ids[name] ?? null,
+    spkcov: (id: number) => coverage[Object.keys(ids).find((n) => ids[n] === id)!] ?? [],
+  };
+  const ephemeris = (name: string): BodyEphemeris => coverage[name] ?? 'unnamed';
+  const inside = (name: string, et: number) => coverage[name].some((c) => et >= c.start && et <= c.end);
+  const lightTime = (target: string, observer: string, et: number) =>
+    (inside(target, et) && inside(observer, et) ? 100 : undefined);
+  const SPAN = { start: 0, end: 1_000 };
+  const targetFirst = { target: 'Target', observer: 'Observer' };
+  const observerFirst = { observer: 'Observer', target: 'Target' };
+  const window = (bodies: typeof targetFirst, abcorr: string) =>
+    coverageWindow(spice, bodies, SPAN, undefined, abcorr, lightTime);
+
+  it('settles a reception target the same in either insertion order', () => {
+    const a = window(targetFirst, 'LT+S');
+    const b = window(observerFirst, 'LT+S');
+    expect(a).toEqual(b);
+    // One light time past the target's own SPK start would be 103.1; the
+    // observer's coverage (opening at 50) does not change that.
+    expect(a.start).toBeCloseTo(GF_BOUNDARY_MARGIN + 100 * (1 + LIGHT_TIME_PAD), 3);
+    for (const bodies of [targetFirst, observerFirst]) {
+      expect(eventSearchUnavailable(3, bodies, a, ephemeris, 'LT+S', lightTime)).toBeNull();
+    }
+  });
+
+  it('settles a transmission target the same in either insertion order', () => {
+    coverage.Target = [{ start: 0, end: 1_000 }];
+    coverage.Observer = [{ start: 0, end: 950 }];
+    try {
+      const a = window(targetFirst, 'XLT');
+      const b = window(observerFirst, 'XLT');
+      expect(a).toEqual(b);
+      expect(a.end).toBeCloseTo(1_000 - GF_BOUNDARY_MARGIN - 100 * (1 + LIGHT_TIME_PAD), 3);
+      for (const bodies of [targetFirst, observerFirst]) {
+        expect(eventSearchUnavailable(3, bodies, a, ephemeris, 'XLT', lightTime)).toBeNull();
+      }
+    } finally {
+      coverage.Target = [{ start: 0, end: 1_000 }];
+      coverage.Observer = [{ start: 50, end: 1_000 }];
+    }
+  });
+
+  it('gives one window for every order of three roles', () => {
+    coverage.Back = [{ start: 20, end: 980 }];
+    ids.Back = 3;
+    try {
+      const roles = [['observer', 'Observer'], ['front', 'Target'], ['back', 'Back']] as const;
+      const orders = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+      for (const abcorr of ['NONE', 'LT+S', 'XCN']) {
+        const windows = orders.map((order) =>
+          coverageWindow(spice, Object.fromEntries(order.map((i) => roles[i])), SPAN, undefined, abcorr, lightTime));
+        for (const w of windows) expect(w, abcorr).toEqual(windows[0]);
+        const bodies = Object.fromEntries(roles);
+        expect(eventSearchUnavailable(3, bodies, windows[0], ephemeris, abcorr, lightTime), abcorr).toBeNull();
+      }
+    } finally {
+      delete coverage.Back;
+      delete ids.Back;
+    }
   });
 });
 

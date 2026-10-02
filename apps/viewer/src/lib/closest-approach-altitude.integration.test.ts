@@ -18,9 +18,9 @@ import {
   coverageWindow,
   eventSearchUnavailable,
   spiceEphemeris,
-  spiceGeometryFinder,
   spiceLightTime,
-} from './event-finder.svelte';
+} from './event-availability';
+import { spiceGeometryFinder } from './event-finder.svelte';
 
 const fixture = (name: string): ArrayBuffer => {
   const buf = readFileSync(fileURLToPath(new URL(`../../../../kernels/fixtures/${name}`, import.meta.url)));
@@ -208,6 +208,22 @@ describe('light-time-corrected availability against real kernels', () => {
     // And the refusal is SPICE's own verdict, not a stricter one of ours.
     const ran = await occultation(window, 'LT');
     expect(ran.ok).toBe(false);
+  });
+
+  it('defaults to a window that clears the light time, and GF searches it', async () => {
+    // A catalog span opening a day before Saturn's SPK: the margin-only
+    // default would start 3 s in and be refused under LT.
+    const span = { start: saturnOpens - 86_400, end: saturnOpens + 86_400 };
+    const geometric = coverageWindow(spice, BODIES, span, undefined, 'NONE');
+    expect(geometric.start).toBe(saturnOpens + GF_BOUNDARY_MARGIN);
+
+    const window = coverageWindow(
+      spice, BODIES, span, undefined, 'LT',
+      (target, observer, et) => spiceLightTime(spice, target, observer, et),
+    );
+    expect(window.start - saturnOpens).toBeGreaterThan(4_000);
+    expect(check(window, 'LT')).toBeNull();
+    expect((await occultation(window, 'LT')).ok).toBe(true);
   });
 
   it('allows the LT search once the window clears the light time, and SPICE agrees', async () => {

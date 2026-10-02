@@ -257,6 +257,14 @@ Earth-observed occultation by Saturn in 2004 needs Saturn's ephemeris about 75
 minutes before the window opens. Where a light time cannot be measured, only the
 side the correction makes necessary regardless is checked, and anything subtler
 is left to the provider's structured fault rather than promised.
+
+The default search window follows the same requirements, so it is always one
+the check accepts. `coverageWindow` trims the catalog span to each body's
+coverage by the GF margin and, for a light-time-corrected target, moves the
+edge on the corrected side in by the light time measured there: an LT search
+starting where Saturn's SPK opens defaults to a window opening about 75 minutes
+later, not 3 seconds. Both live in `apps/viewer/src/lib/event-availability.ts`,
+a pure module the Event Finder wires to the scene that is up.
 Continuous profiles on the timeline still sample every catalog — a profile
 displays a quantity over time; it makes no claim about when an event happened.
 
