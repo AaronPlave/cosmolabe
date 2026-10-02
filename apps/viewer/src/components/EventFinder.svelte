@@ -23,7 +23,7 @@
     selectEvent, previewEvent, removeConfiguredQuery, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
     currentConfiguredQuery, setCurrentQueryVisible,
     configuredEventQueries, createNewSearch, openConfiguredQuery,
-    setConfiguredQueryEnabled, setConfiguredQueryVisible, isSelectedEvent,
+    setConfiguredQueryEnabled, setConfiguredQueryVisible, isSelectedEvent, currentSearchUnavailable,
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, headlineMetric, missingRoles,
@@ -53,7 +53,9 @@
   let unfilledRoles = $derived(form ? missingRoles(kind, form) : []);
   let configured = $derived(currentConfiguredQuery());
   let configuredQueries = $derived(configuredEventQueries());
-  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running);
+  /** Why this scene cannot search at all — a stated policy, not a failed search. */
+  let unavailable = $derived(currentSearchUnavailable());
+  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable);
   let resultsListEl = $state<HTMLDivElement>();
 
   // Scene and timeline markers can select a result outside the list's current
@@ -132,6 +134,13 @@
 </script>
 
 <InstrumentPanel key="events" title="Event finder" width={toolDef('events').width} {onClose}>
+
+  {#if unavailable}
+    <!-- Said before the form, not after a click: in a catalog with no kernels
+         the answer is known up front, and it is a policy (events are SPICE's),
+         not a search that went wrong. -->
+    <p class="event-unavailable ui-helper mb-2" role="note">{unavailable.message}</p>
+  {/if}
 
   <!-- Event type -->
   <div class="flex items-center gap-2 mb-1.5">
@@ -415,7 +424,7 @@
   {/if}
 
   <!-- Results -->
-  {#if ef.fault}
+  {#if ef.fault && !(unavailable && ef.fault.code === 'unavailable')}
     <!-- A fault is "we could not look", which reads differently from a search
          that ran and matched nothing. -->
     <div class="ui-label mt-2 pt-2 border-t border-border text-warning">
@@ -657,6 +666,13 @@
   }
   .event-helper {
     color: var(--color-text-faint);
+  }
+  .event-unavailable {
+    padding: 5px 7px;
+    border-left: 2px solid var(--color-warning);
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
+    color: var(--color-text-secondary);
   }
   .event-helper .ctrl-link {
     font-size: inherit;
