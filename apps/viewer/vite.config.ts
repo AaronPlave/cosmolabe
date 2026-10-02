@@ -22,20 +22,21 @@ function normalizeBase(raw: string | undefined): string {
 // and stream raw quantized-mesh bytes with no encoding header. Negligible CPU
 // per tile (tiles are 2-50 KB) and removes the browser-decompression variable
 // entirely.
-const TERRAIN_TILE_DIR = path.resolve(__dirname, 'test-catalogs/data/mars-terrain');
+const TERRAIN_DATA_DIR = path.resolve(__dirname, 'test-catalogs/data');
 const marsTerrainPlugin = {
   name: 'mars-terrain-serve-decompressed',
   configureServer(server: any) {
     server.middlewares.use((req: any, res: any, next: any) => {
       const url: string | undefined = req.url;
-      if (!url || !url.includes('/mars-terrain/') || !url.endsWith('.terrain')) {
+      if (!url || !url.includes('/mars-terrain') || !url.endsWith('.terrain')) {
         return next();
       }
       // Strip query string + base path to derive the on-disk path.
       const cleanUrl = url.split('?')[0];
-      const match = cleanUrl.match(/\/mars-terrain\/(.+\.terrain)$/);
+      // mars-terrain/ (CTB pipeline) and mars-terrain-fused/ (dem.py, #50).
+      const match = cleanUrl.match(/\/(mars-terrain(?:-fused)?\/\d+\/\d+\/\d+\.terrain)$/);
       if (!match) return next();
-      const filePath = path.join(TERRAIN_TILE_DIR, match[1]);
+      const filePath = path.join(TERRAIN_DATA_DIR, match[1]);
       if (!existsSync(filePath)) {
         res.statusCode = 404;
         res.end();
@@ -82,6 +83,7 @@ export default defineConfig({
       // them. Same goes for the multi-GB source GeoTIFFs in scripts/.
       ignored: [
         '**/test-catalogs/data/mars-terrain/**',
+        '**/test-catalogs/data/mars-terrain-fused/**',
         '**/scripts/build-mars-terrain/data/**',
       ],
     },

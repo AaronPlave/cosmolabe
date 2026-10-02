@@ -5,6 +5,20 @@ products. Output is consumed by the existing `quantized-mesh` terrain path in
 `packages/three/src/TerrainManager.ts` (same code path used by
 `apps/viewer/test-catalogs/msl-dingo-gap.json`).
 
+## Fused pyramid (#50) — `./fused.sh`
+
+`./01-fetch-sources.sh && ./fused.sh` builds `apps/viewer/test-catalogs/data/mars-terrain-fused/` with
+`scripts/terrain/dem.py`: MOLA/HRSC everywhere plus the HiRISE residual
+(HiRISE − MOLA/HRSC) tapered to zero over 1 km inside the coverage edge, so
+there is no source boundary in the height field. One writer produces every
+level from that one field, so shared same-LOD edges are identical and no
+center-fix, parent-edge sync or tile deletion pass is needed. Outputs and the
+registration/boundary report (`fusion.json`, also copied next to `layer.json`)
+are described in `docs/terrain-validation.md`. Validate with
+`node scripts/validate-terrain.mjs --preset mars-jezero-fused`.
+
+The CTB pipeline below is kept until the catalog swaps to the fused pyramid.
+
 ## What this produces
 
 - A global MOLA-correct Mars terrain at 200 m/px (USGS MOLA-MEX HRSC blend),

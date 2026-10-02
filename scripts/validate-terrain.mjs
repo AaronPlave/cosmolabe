@@ -114,6 +114,18 @@ const PRESETS = {
     boundaryLevel: 14,
     controlPoints: ingenuityControlPoints,
   },
+  'mars-jezero-fused': {
+    description: 'The fused MOLA/HRSC + HiRISE-residual pyramid from scripts/build-mars-terrain/fused.sh (#50)',
+    url: join(ROOT, 'apps/viewer/test-catalogs/data/mars-terrain-fused/'),
+    offsetKm: 0,
+    datum: MARS_DATUM,
+    bounds: [77.44, 18.435, 77.462, 18.455],
+    levels: [13, 14],
+    canonicalLevel: 9,
+    boundary: 'auto',
+    boundaryLevel: 14,
+    controlPoints: ingenuityControlPoints,
+  },
   'moon-shackleton': {
     description: 'Mars Hub moon_v14 (as moonfall-shackleton.json configures it) on the Shackleton rim',
     url: 'https://marshub.s3.amazonaws.com/moon_v14/',

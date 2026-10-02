@@ -35,6 +35,7 @@ apps/viewer/test-catalogs/kernels/voyager/
 # Self-hosted Mars terrain — see scripts/build-mars-terrain/
 # Source GeoTIFFs (~11 GB) and generated quantized-mesh tiles (~1-3 GB).
 apps/viewer/test-catalogs/data/mars-terrain/
+apps/viewer/test-catalogs/data/mars-terrain-fused/
 scripts/build-mars-terrain/data/
 
 # Third-party Cosmographia catalog data — see scripts/fetch-cosmographia-data.sh
