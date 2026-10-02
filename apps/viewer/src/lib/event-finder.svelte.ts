@@ -562,9 +562,13 @@ export function spiceLightTime(
  * none), then the analysis context's reference (`resolveEventQuery`), then the
  * kind's default (`EventSearch`). In the viewer that is the context's `LT+S`
  * for every kind, which is why the availability check must not assume `NONE`.
+ *
+ * Reads `analysis.reference` directly rather than through `analysisContext()`:
+ * that builds the whole context, live playhead included, and the availability
+ * check deriving from it would then re-run its SPICE lookups on every tick.
  */
 export function searchAbcorr(kind: EventKind<never>): string {
-  return analysisContext().reference.abcorr ?? kind.defaultAbcorr ?? 'NONE';
+  return analysis.reference.abcorr ?? kind.defaultAbcorr ?? 'NONE';
 }
 
 /**
