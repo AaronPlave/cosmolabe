@@ -10,8 +10,9 @@
 a replacement: it fits and discloses a planar registration bias (removing it unless told to keep it),
 and tapers the remaining residual to zero across a blend band inside the detail
 coverage. `tile` writes ONE quantized-mesh-1.0 pyramid from
-height = base(lon, lat) + residual(lon, lat), sampling both with the same
-bilinear kernel at every level. Same-LOD shared edges therefore carry identical
+height = base(lon, lat) + residual(lon, lat), sampling the base with one
+Catmull-Rom kernel (in fuse and at every tile level alike) and the residual
+bilinearly. Same-LOD shared edges therefore carry identical
 vertices and heights by construction, and the coverage boundary is invisible in
 the height field because the residual is already zero there.
 
@@ -107,6 +108,36 @@ def bilinear(arr, gt, lon, lat, wrap_lon=False, outside=None):
     return v
 
 
+def cubic(arr, gt, lon, lat, wrap_lon=False):
+    """Catmull-Rom sample of a north-up pixel-is-area raster at (lon, lat).
+
+    The base kernel for both `fuse` and `tile`, so base + residual reproduces
+    fused heights exactly. Interpolating and C1: upsampling a 200 m base to
+    metre-scale tiles stays smooth instead of showing bilinear pixel facets."""
+    h, w = arr.shape
+    c = (lon - gt[0]) / gt[1] - 0.5
+    r = (lat - gt[3]) / gt[5] - 0.5
+    c0, r0 = np.floor(c), np.floor(r)
+    tc, tr = c - c0, r - r0
+    c0, r0 = c0.astype(np.int64), r0.astype(np.int64)
+
+    def weights(t):
+        t2, t3 = t * t, t * t * t
+        return ((-t3 + 2 * t2 - t) / 2, (3 * t3 - 5 * t2 + 2) / 2, (-3 * t3 + 4 * t2 + t) / 2, (t3 - t2) / 2)
+
+    wc, wr = weights(tc), weights(tr)
+    out = 0
+    for j in range(4):
+        rr = np.clip(r0 + j - 1, 0, h - 1)
+        row = 0
+        for i in range(4):
+            cc = c0 + i - 1
+            cc = cc % w if wrap_lon else np.clip(cc, 0, w - 1)
+            row = row + arr[rr, cc] * wc[i]
+        out = out + row * wr[j]
+    return out
+
+
 def open_base(path):
     """Full-resolution base raster as a read-only array plus its geotransform.
 
@@ -187,10 +218,10 @@ def cmd_fuse(args):
     lon = gt[0] + (np.arange(w) + 0.5) * gt[1]
     lat = gt[3] + (np.arange(h) + 0.5) * gt[5]
     base_on = np.empty((h, w), np.float32)
-    for r0 in range(0, h, 1024):
-        la = lat[r0:r0 + 1024, None]
-        base_on[r0:r0 + 1024] = bilinear(base, base_gt, np.broadcast_to(lon, (la.shape[0], w)),
-                                         np.broadcast_to(la, (la.shape[0], w)), wrap_lon=True)
+    for r0 in range(0, h, 256):  # small chunks: the cubic kernel holds 16 gathers
+        la = lat[r0:r0 + 256, None]
+        base_on[r0:r0 + 256] = cubic(base, base_gt, np.broadcast_to(lon, (la.shape[0], w)),
+                                     np.broadcast_to(la, (la.shape[0], w)), wrap_lon=True)
     if base_nd is not None:
         # A base nodata value anywhere in a kernel would poison the fit.
         assert not np.any(base_on <= base_nd + 1), 'base nodata inside detail extent'
@@ -272,7 +303,7 @@ def cmd_fuse(args):
         'detail': raster_info(args.detail),
         'grid': {'geotransform': list(gt), 'size': [w, h], 'crs': base_ds.GetSpatialRef().ExportToProj4()},
         'verticalDatum': args.vertical_datum,
-        'kernel': 'bilinear, pixel-is-area, base longitude wraps',
+        'kernel': 'base: Catmull-Rom, pixel-is-area, longitude wraps',
         'coverageFraction': float(covered.mean()),
         'registration': {
             'model': 'detail − base = offset + slopeEast·east + slopeNorth·north (least squares)',
@@ -346,7 +377,8 @@ def build_rtin(n=GRID):
                 child[i] = (len(nxt), len(nxt) + 1)
                 nxt += [(tc, ta, tm), (tb, tc, tm)]
         flat = lambda p: p[:, 1] * n + p[:, 0]
-        levels.append({'a': flat(a), 'b': flat(b), 'c': flat(c), 'm': flat(m), 'split': split, 'child': child})
+        levels.append({'a': flat(a), 'b': flat(b), 'c': flat(c), 'm': flat(m), 'split': split, 'child': child,
+                       'hyp': float(np.hypot(*(a[0] - b[0])))})
         nodes = nxt
     # Each midpoint is shared by at most two triangles of one level; split them
     # into two duplicate-free groups so error maxima need no ufunc.at.
@@ -364,15 +396,20 @@ def build_rtin(n=GRID):
 RTIN, EDGE = build_rtin()
 
 
-def rtin_errors(h):
+def rtin_errors(h, spacing_rad=0.0, radius=0.0):
     """Per-vertex error: the interpolation error a vertex removes, maxed with its
-    descendants'. Edge vertices are infinite, i.e. always kept."""
+    descendants'. Edge vertices are infinite, i.e. always kept.
+
+    Heights are above a curved datum, so a flat triangle also cuts below the
+    surface by the chord sag of its span, R·(1 − cos(θ/2)); without it, flat
+    low-zoom tiles collapse to a few huge triangles and the globe goes faceted."""
     err = np.where(EDGE, np.inf, 0.0)
     for li in range(len(RTIN) - 1, -1, -1):
         L = RTIN[li]
         if not L['split'].any():
             continue
         own = np.abs((h[L['a']] + h[L['b']]) * 0.5 - h[L['m']])
+        own = own + radius * (1 - math.cos(L['hyp'] * spacing_rad / 2))
         if li + 1 < len(RTIN):
             Ln = RTIN[li + 1]
             ch = L['child']
@@ -416,9 +453,21 @@ def ecef(lon_deg, lat_deg, h, a, c):
                      (n * (1 - e2) + h) * np.sin(lat)], -1)
 
 
-def encode_tile(heights, bounds, max_error, ellipsoid):
-    """heights: (GRID*GRID,) row-major, row 0 = south. Returns raw QM bytes."""
-    tri = rtin_triangles(rtin_errors(heights), max_error)
+def oct_encode(n):
+    """Unit vectors → quantized-mesh oct-encoded bytes (Cesium AttributeCompression)."""
+    p = n[:, :2] / np.abs(n).sum(1, keepdims=True)
+    sgn = np.where(p >= 0, 1.0, -1.0)
+    neg = n[:, 2] < 0
+    p[neg] = ((1 - np.abs(p[neg][:, ::-1])) * sgn[neg])
+    return np.round((np.clip(p, -1, 1) * 0.5 + 0.5) * 255).astype(np.uint8)
+
+
+def encode_tile(heights, bounds, max_error, ellipsoid, normals=None):
+    """heights: (GRID*GRID,) row-major, row 0 = south; normals: (GRID*GRID, 3)
+    body-fixed unit vectors or None. Returns raw QM bytes."""
+    a, c = ellipsoid
+    spacing_rad = math.radians((bounds[3] - bounds[1]) / (GRID - 1))
+    tri = rtin_triangles(rtin_errors(heights, spacing_rad, a), max_error)
     # High-water-mark order: renumber vertices by first appearance.
     flat = tri.ravel()
     used, first = np.unique(flat, return_index=True)
@@ -434,7 +483,6 @@ def encode_tile(heights, bounds, max_error, ellipsoid):
     q = np.zeros(len(hv), np.int32) if span == 0 else np.clip(np.round((hv - float(lo)) / span * 32767), 0, 32767).astype(np.int32)
 
     w, s, e, n = bounds
-    a, c = ellipsoid
     center = ecef(np.array((w + e) / 2), np.array((s + n) / 2), (float(lo) + float(hi)) / 2, a, c)
     pos = ecef(w + gx / (GRID - 1) * (e - w), s + gy / (GRID - 1) * (n - s), hv, a, c)
     radius = float(np.sqrt(((pos - center) ** 2).sum(1)).max())
@@ -460,6 +508,9 @@ def encode_tile(heights, bounds, max_error, ellipsoid):
     parts += [struct.pack('<I', len(tri)), hwm.astype(it).tobytes()]
     for ed in edges:
         parts += [struct.pack('<I', len(ed)), ed.astype(it).tobytes()]
+    if normals is not None:
+        oct_ = oct_encode(normals[order]).tobytes()
+        parts += [struct.pack('<BI', 1, len(oct_)), oct_]
     return b''.join(parts), len(order), len(tri)
 
 
@@ -504,17 +555,27 @@ def tile_job(job):
     bl = S['base'][pick_level(S['base'], spacing)]
     rl = S['residual'][pick_level(S['residual'], spacing)]
     rb = S['residual_bounds']
-    frac = np.linspace(0, 1, GRID)
+    # One extra vertex ring outside the tile, so normals at shared edges come
+    # from the same neighbours on both sides and shading has no tile seams.
+    frac = np.arange(-1, GRID + 1) / (GRID - 1)
+    a, c = S['ellipsoid']
     max_err = S['error_frac'] * spacing * math.pi / 180 * S['ellipsoid'][0]
     written = verts = 0
     for x in range(x0, x1):
         w, s, e, n = tile_bounds(z, x, y)
-        lon = np.broadcast_to(w + frac * (e - w), (GRID, GRID))
-        lat = np.broadcast_to((s + frac * (n - s))[:, None], (GRID, GRID))
-        hgt = bilinear(bl[0], bl[1], lon, lat, wrap_lon=True).astype(np.float64)
+        G = GRID + 2
+        lon = np.broadcast_to(w + frac * (e - w), (G, G))
+        lat = np.broadcast_to(np.clip(s + frac * (n - s), -90, 90)[:, None], (G, G))
+        hgt = cubic(bl[0], bl[1], lon, lat, wrap_lon=True).astype(np.float64)
         if w < rb[2] and e > rb[0] and s < rb[3] and n > rb[1]:
             hgt = hgt + bilinear(rl[0], rl[1], lon, lat, outside=0.0)
-        data, nv, _ = encode_tile(hgt.ravel(), (w, s, e, n), max_err, S['ellipsoid'])
+        P = ecef(lon, lat, hgt, a, c)
+        nrm = np.cross(P[1:-1, 2:] - P[1:-1, :-2], P[2:, 1:-1] - P[:-2, 1:-1]).reshape(-1, 3)
+        ln = np.linalg.norm(nrm, axis=1, keepdims=True)
+        la, lo = np.radians(lat[1:-1, 1:-1]).ravel(), np.radians(lon[1:-1, 1:-1]).ravel()
+        up = np.stack([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)], 1)
+        nrm = np.where(ln > 1e-9, nrm / np.maximum(ln, 1e-12), up)  # poles: degenerate lattice
+        data, nv, _ = encode_tile(hgt[1:-1, 1:-1].ravel(), (w, s, e, n), max_err, S['ellipsoid'], nrm)
         d = os.path.join(S['out'], str(z), str(x))
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, f'{y}.terrain'), 'wb') as f:
@@ -548,6 +609,12 @@ def cmd_tile(args):
               error_frac=args.error_frac, ellipsoid=tuple(args.ellipsoid))
     print(f'loaded sources ({time.time() - t0:.0f}s)')
 
+    # Regional levels cover the residual plus any extra area (e.g. where
+    # high-resolution imagery is draped: imagery detail follows terrain depth).
+    tb = rbounds
+    if args.regional_bounds:
+        rg = args.regional_bounds
+        tb = (min(tb[0], rg[0]), min(tb[1], rg[1]), max(tb[2], rg[2]), max(tb[3], rg[3]))
     available, jobs = [], []
     chunk = 64
     for z in range(args.max_zoom + 1):
@@ -556,8 +623,8 @@ def cmd_tile(args):
             xr, yr = (0, nx - 1), (0, ny - 1)
         else:
             dx, dy = 360 / nx, 180 / ny
-            xr = (int((rbounds[0] + 180) // dx), int(math.ceil((rbounds[2] + 180) / dx)) - 1)
-            yr = (int((rbounds[1] + 90) // dy), int(math.ceil((rbounds[3] + 90) / dy)) - 1)
+            xr = (int((tb[0] + 180) // dx), int(math.ceil((tb[2] + 180) / dx)) - 1)
+            yr = (int((tb[1] + 90) // dy), int(math.ceil((tb[3] + 90) / dy)) - 1)
         available.append([{'startX': xr[0], 'startY': yr[0], 'endX': xr[1], 'endY': yr[1]}])
         for y in range(yr[0], yr[1] + 1):
             for x0 in range(xr[0], xr[1] + 1, chunk):
@@ -588,6 +655,7 @@ def cmd_tile(args):
         'tiles': ['{z}/{x}/{y}.terrain'],
         'projection': 'EPSG:4326',
         'bounds': [-180, -90, 180, 90],
+        'extensions': ['octvertexnormals'],
         'available': available,
         'minzoom': 0,
         'maxzoom': args.max_zoom,
@@ -598,13 +666,14 @@ def cmd_tile(args):
     product = {
         'generator': 'scripts/terrain/dem.py tile',
         'created': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-        'heightField': 'base(lon,lat) + residual(lon,lat), bilinear, one field for every level',
+        'heightField': 'base(lon,lat) [Catmull-Rom] + residual(lon,lat) [bilinear], one field for every level',
+        'normals': 'octvertexnormals from central differences of the same field (one-vertex ring past each tile)',
         'verticalDatum': fusion['verticalDatum'],
         'tileCenterEllipsoidM': args.ellipsoid,
         'mesh': {'grid': GRID, 'simplification': 'RTIN, all edge vertices kept',
                  'maxErrorFractionOfSpacing': args.error_frac},
         'levels': {'global': [0, args.global_zoom], 'regional': [args.global_zoom + 1, args.max_zoom],
-                   'regionalBounds': list(rbounds)},
+                   'regionalBounds': list(tb), 'residualBounds': list(rbounds)},
         'sources': {'canonical': fusion['base'], 'detail': fusion['detail']},
         'registration': {k: reg[k] for k in ('model', 'centroid', 'offsetM', 'slopeEastMPerKm',
                                               'slopeNorthMPerKm', 'tiltDeg', 'raw', 'afterPlane', 'removed', 'note')},
@@ -640,6 +709,12 @@ def cmd_selftest(_):
     gt = (-180, 90, 0, 90, 0, -60)
     assert bilinear(arr, gt, np.array([-135.0]), np.array([60.0]))[0] == 0
     assert bilinear(arr, gt, np.array([180.0]), np.array([60.0]), wrap_lon=True)[0] == 1.5
+    # Catmull-Rom reproduces pixel centres; chord sag forces flat wide tiles to split
+    assert abs(cubic(arr, gt, np.array([-45.0]), np.array([0.0]))[0] - 5) < 1e-12
+    flat_ = np.zeros(GRID * GRID)
+    assert len(rtin_triangles(rtin_errors(flat_), 1.0)) < len(rtin_triangles(rtin_errors(flat_, math.radians(2.8), 3396190.0), 1.0))
+    n = np.array([[0, 0, 1.0], [0, 0, -1.0], [1.0, 0, 0], [0.6, -0.8, 0]])
+    assert oct_encode(n).shape == (4, 2)
     print(f'selftest ok: {nv} vertices, {nt} triangles from {GRID * GRID}')
 
 
@@ -657,6 +732,8 @@ def main():
     t = sp.add_parser('tile')
     t.add_argument('--base', required=True); t.add_argument('--fusion', required=True); t.add_argument('--out', required=True)
     t.add_argument('--global-zoom', type=int, default=9); t.add_argument('--max-zoom', type=int, default=15)
+    t.add_argument('--regional-bounds', type=lambda v: [float(x) for x in v.split(',')], metavar='W,S,E,N',
+                   help='extend the regional levels beyond the residual extent')
     t.add_argument('--only-zoom', type=lambda s: [int(v) for v in s.split(',')])
     t.add_argument('--error-frac', type=float, default=0.1, help='mesh max error as a fraction of vertex spacing')
     t.add_argument('--ellipsoid', type=float, nargs=2, required=True, metavar=('A_M', 'C_M'),

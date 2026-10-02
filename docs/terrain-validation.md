@@ -172,8 +172,10 @@ streams, and the reason its mission alignment holds where mars_v14's does not.
 ### `mars-jezero-fused` (#50, `scripts/build-mars-terrain/fused.sh`)
 
 One pyramid from height = MOLA/HRSC(lon, lat) + tapered HiRISE residual,
-written by `scripts/terrain/dem.py` (RTIN mesh, every tile edge at full 65-vertex
-resolution). Same Wright Brothers Field box as above:
+written by `scripts/terrain/dem.py`: Catmull-Rom base, RTIN mesh with every tile
+edge at full 65-vertex resolution and chord sag counted as error (so low-zoom
+tiles keep the globe round), and oct-encoded normals from the same field (no
+per-tile shading seams). Same Wright Brothers Field box as above:
 
 | | n | mean (m) | RMS (m) | p95 \|d\| (m) | max \|d\| (m) |
 |---|---|---|---|---|---|

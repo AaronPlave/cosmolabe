@@ -12,6 +12,9 @@
 # disclosed in fusion.json but NOT removed. Removing it would move the terrain
 # 4–14 m off the Ingenuity airfield elevations, which are in the HiRISE frame.
 # Pass --bias plane to make the fused surface follow MOLA/HRSC at broad scale.
+#
+# --regional-bounds is the JEZ CTX imagery footprint (ingenuity-jezero.json):
+# imagery resolution follows terrain tile depth, so z10-15 must reach it.
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -29,6 +32,7 @@ python3 ../terrain/dem.py tile \
   --base "${SRC}/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif" \
   --fusion data/fused --out "${OUT}" \
   --global-zoom 9 --max-zoom 15 --ellipsoid 3396190 3376200 \
+  --regional-bounds 77.16,18.21,77.70,18.72 \
   --name "Mars MOLA/HRSC + Jezero HiRISE residual" \
   --attribution "NASA/USGS MOLA, MEX HRSC, M2020 TRN HiRISE"
 
