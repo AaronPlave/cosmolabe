@@ -162,8 +162,18 @@ export async function publishDirectory({
     return { manifest, uploaded: 0, skipped: 0, dryRun: true };
   }
 
-  if (await storage.head(`${prefix}manifest.json`)) {
-    throw new Error(`${prefix}manifest.json already exists: that build is complete and immutable. Choose a new --build id.`);
+  // A completed build is immutable. If it holds exactly this content (same
+  // inventory), there is nothing to upload and the caller can go on to verify and
+  // pin it — the case after a verification failure that was then fixed.
+  const published = await storage.get(`${prefix}manifest.json`);
+  if (published) {
+    let sha;
+    try { sha = JSON.parse(published.toString()).inventory?.sha256; } catch { /* treated as a mismatch */ }
+    if (sha === inventorySha256) {
+      log(`${prefix} is already complete with identical content; skipping upload.`);
+      return { manifest: JSON.parse(published.toString()), uploaded: 0, skipped: entries.length, alreadyPublished: true };
+    }
+    throw new Error(`${prefix}manifest.json already exists with different content: that build is complete and immutable. Choose a new --build id.`);
   }
 
   const deferredSet = new Set(deferred);

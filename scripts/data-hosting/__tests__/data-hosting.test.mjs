@@ -146,11 +146,15 @@ describe('terrain publishing', () => {
     expect(await store.head('terrain/demo/b1/manifest.json')).not.toBeNull();
   }, 30000);
 
-  it('refuses to overwrite a completed build', async () => {
+  it('refuses to overwrite a completed build with different content, but accepts identical content for verify/pin', async () => {
     const src = tmp('src'); const store = createLocalStorage(tmp('store'));
     writePyramid(src, { maxZoom: 1 });
     await publishTerrain({ storage: store, src });
-    await expect(publishTerrain({ storage: store, src })).rejects.toThrow(/immutable/);
+    const again = await publishTerrain({ storage: store, src });
+    expect(again).toMatchObject({ alreadyPublished: true, uploaded: 0 });
+    writeFileSync(join(src, '1', '0', '0.terrain'), Buffer.alloc(300, 9));
+    writeFileSync(join(src, 'terrain-product.json'), '{}');
+    await expect(publishTerrain({ storage: store, src })).rejects.toThrow(/different content/);
   });
 
   it('rejects a pyramid with a missing tile before uploading anything', async () => {

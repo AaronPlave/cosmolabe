@@ -104,7 +104,7 @@ async function main() {
       : (entries, inventorySha256) => terrainManifest({ dataset, build, entries, inventorySha256, srcDir, gitCommit: commit }),
   });
   if (result.dryRun) return;
-  console.log(`Uploaded ${result.uploaded.toLocaleString()} objects (${result.skipped.toLocaleString()} already present).`);
+  if (!result.alreadyPublished) console.log(`Uploaded ${result.uploaded.toLocaleString()} objects (${result.skipped.toLocaleString()} already present).`);
 
   if (opt['no-verify']) {
     console.log('Skipping verification; build NOT pinned in datasets.json.');
