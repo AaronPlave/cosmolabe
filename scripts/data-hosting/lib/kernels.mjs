@@ -44,7 +44,8 @@ export async function validateKernelHeader(path) {
   const text = buf.toString('latin1');
   const binary = /\.(bsp|bc|bpc|bds|bes)$/i.test(name);
   if (binary) {
-    if (!/^(DAF|DAS)\//.test(text)) throw new Error(`${basename(path)}: expected a DAF/DAS header, found ${JSON.stringify(text.slice(0, 12))}`);
+    // Pre-1990s kernels (e.g. Cassini CKs) carry the legacy "NAIF/DAF" identifier word.
+    if (!/^(DAF|DAS)\//.test(text) && !/^NAIF\/DAF/.test(text)) throw new Error(`${basename(path)}: expected a DAF/DAS header, found ${JSON.stringify(text.slice(0, 12))}`);
     if (type !== 'UNKNOWN' && /^DAF\//.test(text)) {
       const kind = text.slice(4, 8).trim();
       const want = { SPK: 'SPK', CK: 'CK', PCK: 'PCK' }[type];

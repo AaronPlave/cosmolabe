@@ -225,6 +225,8 @@ describe('kernel publishing', () => {
     writeFileSync(join(dir, 'x.bsp'), '<html>404</html>');
     writeFileSync(join(dir, 'y.tf'), 'version https://git-lfs.github.com/spec/v1\n');
     writeFileSync(join(dir, 'z.bc'), 'DAF/SPK padding');
+    writeFileSync(join(dir, 'old.bc'), Buffer.concat([Buffer.from('NAIF/DAF'), Buffer.alloc(8)]));
+    await expect(validateKernelHeader(join(dir, 'old.bc'))).resolves.toBeUndefined();
     await expect(validateKernelHeader(join(dir, 'x.bsp'))).rejects.toThrow(/DAF/);
     await expect(validateKernelHeader(join(dir, 'y.tf'))).rejects.toThrow(/KPL/);
     await expect(validateKernelHeader(join(dir, 'z.bc'))).rejects.toThrow(/extension implies CK/);
