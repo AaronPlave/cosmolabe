@@ -38,7 +38,8 @@
     "test:watch": "vitest",
     "lint": "eslint packages/ apps/",
     "lint:purity": "bash scripts/purity-lint.sh",
-    "preprocess:displacement": "node scripts/preprocess-displacement.mjs"
+    "preprocess:displacement": "node scripts/preprocess-displacement.mjs",
+    "validate:terrain": "node scripts/validate-terrain.mjs"
   },
   "engines": {
     "node": ">=20"
