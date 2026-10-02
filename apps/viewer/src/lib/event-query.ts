@@ -142,6 +142,7 @@ export function faultMessage(fault: EventSearchFault): string {
   switch (fault.code) {
     case 'missing-body':
     case 'invalid-params':
+    case 'unavailable':
       return fault.message;
     case 'invalid-window':
       return 'Set a search window that ends after it starts.';
@@ -193,7 +194,8 @@ export function formatSeconds(seconds: number): string {
  *
  * `threshold` is the query's own input, the same on every row, and `duration`
  * already has its own column; neither says anything about this result. What is
- * left is the range at a closest approach, or the extreme range inside a
+ * left is the altitude (or, for a target with no known shape, the range) at a
+ * closest approach, or the extreme range inside a
  * distance window.
  */
 export function headlineMetric(event: GeometryEvent): EventMetric | undefined {
@@ -355,7 +357,7 @@ export function sortEvents(
 
 /**
  * What to call the value-sorted order in the UI, taken from the results
- * themselves — "Range" for closest approaches, "Min range" for distance
+ * themselves — "Altitude" for closest approaches, "Min range" for distance
  * windows — so the control never names a quantity this kind does not report.
  * Undefined when nothing in the list carries a headline metric.
  */

@@ -179,8 +179,8 @@ do not change with the selected event's partial/full/annular classification.
 
 ## The SPICE boundary
 
-`GeometryFinderProvider` exposes `gfdist`, `gfsep`, `gfoclt`, `gfposc`, and one
-optional non-GF member, `range`.
+`GeometryFinderProvider` exposes `gfdist`, `gfsep`, `gfoclt`, `gfposc`, and two
+optional non-GF members, `range` and `altitude`.
 Kinds compose these; they never reimplement the geometry. The signatures mirror
 CSPICE's `gf*_c` routines, so a synchronous `Spice` instance satisfies the
 interface structurally with no adapter. The worker-backed
@@ -202,6 +202,63 @@ events with it when present and omit the metric when absent, so a provider
 without it still searches. `cspiceWasmGeometryFinder` wires it up when the
 engine offers `spkpos`, and the viewer's adapter measures it with SPICE's own
 `vnorm`.
+
+`altitude` is the same exception for the surface: a flyby is quoted by how high
+above the target it passed ("640 km above Europa"), not by centre-to-centre
+range. It is SPICE's surface geometry rather than a projection done in
+TypeScript — `spiceAltitude` (`@cosmolabe/three`) asks `subpnt` for the
+`NEAR POINT/ELLIPSOID` on the target's `IAU_<NAME>` frame and reports the length
+of the observer→surface vector, so the triaxial ellipsoid is the one the
+furnished PCK's `RADII` define. A target with no `RADII` (a spacecraft, a
+barycentre) answers `NaN`: it has no shape, and its events carry range only. The
+viewer's main-thread adapter and the geometry worker both call `spiceAltitude`,
+so the two paths answer identically.
+
+### SPICE-free catalogs
+
+Event search is a SPICE feature, deliberately. Every kind is a composition of GF
+calls, and GF sees only what the furnished kernels describe; a catalog that
+declares no `spiceKernels` anywhere in its `require` graph moves its bodies on
+Keplerian, TLE or analytic models SPICE cannot see. Rather than fall back to a
+sampled search there — which would make the accuracy of "closest approach"
+depend silently on which catalog is open — the event finder says up front that
+it cannot search, with a fault of code `unavailable`, and disables the search.
+The measure tool's sampled close-approach detector, the one such fallback the
+viewer had, was removed with the Measure panel (#65); this is the decision that
+replaced it (#64).
+
+Among the shipped demos that is `earth-moon`, `ingenuity-jezero`,
+`inner-planets-keplerian`, `iss` and `moonfall-shackleton`; the test
+`event-search-availability.test.ts` pins the list, so a catalog gaining or
+losing kernels is a visible change.
+
+Kernels being loaded is not enough, because catalogs mix SPICE and non-SPICE
+bodies. `io-volcanos` loads `base/naif` (de440s), so it has kernels and SPICE
+resolves the name `Io`, but its Io is a `Builtin` analytic trajectory and de440s
+carries no Galilean satellites. So the check is also per body and per window:
+each chosen body must have coverage in a furnished SPK (`spkcov`) of the whole
+search window, plus the few seconds GF evaluates beyond each end — partial
+coverage fails inside GF as surely as none. Since `spkcov` reports merged
+intervals, that means one interval contains the window, so a gap inside the
+window is refused too. A body SPICE cannot identify, a body no SPK carries, and
+a window the bodies do not wholly cover are each refused before the search
+runs, each with its own message; recognising a name is never taken as evidence
+of ephemeris.
+
+That whole-window rule is exact where states are needed at the window's own
+epochs: the observer always, and every body when the search is not
+aberration-corrected. With light-time correction — and the viewer's analysis
+context runs every search with `LT+S` — GF needs a target's states at
+light-time-corrected epochs, earlier than the window for reception (`LT`, `CN`)
+and later for transmission (`XLT`, `XCN`). So for those bodies the required span
+is the window shifted by the one-way light time measured geometrically at each
+edge, padded by a thousandth of the light time on top of the GF margin. An
+Earth-observed occultation by Saturn in 2004 needs Saturn's ephemeris about 75
+minutes before the window opens. Where a light time cannot be measured, only the
+side the correction makes necessary regardless is checked, and anything subtler
+is left to the provider's structured fault rather than promised.
+Continuous profiles on the timeline still sample every catalog — a profile
+displays a quantity over time; it makes no claim about when an event happened.
 
 ## Where a search runs
 
@@ -247,7 +304,7 @@ search.cancel();  // stops the call running now, and everything after it
 The provider passes its arguments through untouched to the same heritage
 adapter over the same kernels, so the worker path's results are the main-thread
 path's results — the choice is about where the time is spent. Where there is no
-worker (test mode, kernel-free catalogs) the viewer falls back to the
+worker (test mode, kernels dropped onto a kernel-free catalog) the viewer falls back to the
 main-thread provider, which is the same code path it always was.
 
 `cancel()` is what makes a long search survivable rather than merely
@@ -333,11 +390,13 @@ Three kinds ship. Closest approach and distance/range use `gfdist` with
 
 | Kind | Yields | Params |
 | --- | --- | --- |
-| `closest-approach` | Instants — GF's own `LOCMIN`/`ABSMIN` distance extrema, refined by CSPICE rather than sampled in the UI. | `scope` (every local minimum, or the deepest), `maxRangeKm` (optional filter). |
+| `closest-approach` | Instants — GF's own `LOCMIN`/`ABSMIN` distance extrema, refined by CSPICE rather than sampled in the UI — with altitude and range. | `scope` (every local minimum, or the deepest), `maxRangeKm` (optional filter). |
 | `distance-range` | Intervals for `<`/`>`, instants for `=`. | `relation`, `distanceKm`. |
 | `occultation` | Classified partial, full, and annular intervals from `GFOCLT`; using the Sun as `back` gives eclipse/shadow windows. | `state` (all classified states, or one state). |
 
-A closest approach carries the range at the instant. A range window carries its
+A closest approach carries its altitude above the target's surface, when SPICE
+knows the target's shape, ahead of the centre-to-centre range; the max-range
+filter and the deepest-approach choice are both decided by range. A range window carries its
 threshold, its duration, and the extreme range *inside* it — the endpoints sit
 on the threshold by construction, so the interesting number is how close it got
 (or how far it went), found with one nested extremum search. All three distance

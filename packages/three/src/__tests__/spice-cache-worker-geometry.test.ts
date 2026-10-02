@@ -101,6 +101,21 @@ describe('SpiceCacheWorker geometry searches', () => {
     await expect(pending).resolves.toBe(384_400);
   });
 
+  it('measures altitude through the worker as a number', async () => {
+    const { fake, worker } = client();
+    const search = worker.geometrySearch();
+
+    const pending = search.provider.altitude!('502', 'NONE', '-159', 42);
+    await settle();
+
+    const sent = fake.last('geometry')!;
+    expect(sent.fn).toBe('altitude');
+    expect(sent.args).toEqual(['502', 'NONE', '-159', 42]);
+
+    fake.reply({ type: 'geometryResult', id: sent.id, value: 640 });
+    await expect(pending).resolves.toBe(640);
+  });
+
   it('rejects the call in flight when the search is cancelled', async () => {
     const { fake, worker } = client();
     const search = worker.geometrySearch();
@@ -223,6 +238,16 @@ describe('SpiceCacheWorker geometry searches', () => {
     const search = worker.geometrySearch({ onProgress: () => {} });
 
     dispatch(search.provider.range!('MOON', 'NONE', 'EARTH', 42));
+    await settle();
+
+    expect(fake.last('geometry')!.report).toBeUndefined();
+  });
+
+  it('sends no report on altitude, a single surface lookup', async () => {
+    const { fake, worker } = client();
+    const search = worker.geometrySearch({ onProgress: () => {} });
+
+    dispatch(search.provider.altitude!('502', 'NONE', '-159', 42));
     await settle();
 
     expect(fake.last('geometry')!.report).toBeUndefined();
