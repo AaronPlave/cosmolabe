@@ -100,7 +100,7 @@ export async function mapLimit(items, limit, fn) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
-export async function withRetry(fn, { tries = 4, baseMs = 500, what = 'operation' } = {}) {
+export async function withRetry(fn, { tries = 6, baseMs = 1000, what = 'operation' } = {}) {
   for (let attempt = 1; ; attempt++) {
     try {
       return await fn();

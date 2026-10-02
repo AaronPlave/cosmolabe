@@ -40,7 +40,7 @@ export function createS3Storage({
       // R2 rejects the SDK's default flexible-checksum trailers on streamed bodies.
       requestChecksumCalculation: 'WHEN_REQUIRED',
       responseChecksumValidation: 'WHEN_REQUIRED',
-      maxAttempts: 5,
+      maxAttempts: 8,
     }),
   })));
 
@@ -68,7 +68,7 @@ export function createS3Storage({
         client,
         params: { ...params, Body: createReadStream(source.path) },
         partSize: PART_SIZE,
-        queueSize: 3,
+        queueSize: 2,
         leavePartsOnError: false,
       }).done();
     },
