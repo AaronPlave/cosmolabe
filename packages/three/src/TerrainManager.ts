@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as TilesThree from '3d-tiles-renderer/three';
 import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -240,10 +241,28 @@ class TimingStat {
 const _debugColor = /* @__PURE__ */ new THREE.Color();
 
 /**
+ * Upstream's own texture sizing (format, mipmaps, array depth) — what its LRU
+ * cache counts. Exported at runtime; the package ships no typings for it.
+ */
+const MemoryUtils = (TilesThree as unknown as { MemoryUtils: { getTextureByteLength(tex: THREE.Texture): number } }).MemoryUtils;
+
+/**
  * The material `DebugTilesPlugin` set aside when it swapped in a debug one. The
  * plugin keys it by a module-private `Symbol('ORIGINAL_MATERIAL')`, so it is
  * found by description; absent (undefined) when the plugin never touched the mesh.
  */
+/** Imagery-overlay textures ImageOverlayPlugin keeps under its private `Symbol('OVERLAY_PARAMS')`. */
+function overlayLayerMaps(material: THREE.Material | undefined): Array<THREE.Texture | null> {
+  if (!material) return [];
+  for (const sym of Object.getOwnPropertySymbols(material)) {
+    if (sym.description === 'OVERLAY_PARAMS') {
+      const params = (material as unknown as Record<symbol, { layerMaps?: { value?: Array<THREE.Texture | null> } }>)[sym];
+      return params?.layerMaps?.value ?? [];
+    }
+  }
+  return [];
+}
+
 function originalDebugMaterial(mesh: THREE.Mesh): THREE.Material | undefined {
   for (const sym of Object.getOwnPropertySymbols(mesh)) {
     if (sym.description === 'ORIGINAL_MATERIAL') {
@@ -451,6 +470,7 @@ export class TerrainManager {
   private normalMap: THREE.CanvasTexture | null = null;
   private debugPlugin: DebugTilesPlugin | null = null;
   private debugMode: TerrainDebugMode = 'none';
+  private showBounds = false;
   /** Seam view: an edge mismatch at or above this (km) renders fully red. */
   seamErrorScaleKm = 0.005;
   /** CPU tile id by `z/x/y`, for neighbour lookups in the seam view. */
@@ -1181,10 +1201,12 @@ export class TerrainManager {
 
   /** Toggle debug tile bounds visualization. Lazily registers the plugin on first enable. */
   setDebug(show: boolean): void {
+    this.showBounds = show;
     if (!show && !this.debugPlugin) return;
     const plugin = this.ensureDebugPlugin();
     plugin.displayBoxBounds = show;
     plugin.displayRegionBounds = show;
+    this.releaseIdleDebugPlugin();
   }
 
   /** Current debug surface mode. */
@@ -1206,6 +1228,18 @@ export class TerrainManager {
       : C.CUSTOM_COLOR;
     // Unlit, so the night side and terminator don't hide the encoding.
     plugin.unlit = mode !== 'none';
+    this.releaseIdleDebugPlugin();
+  }
+
+  /**
+   * With no debug view and no bounds, drop the plugin entirely: registered, it
+   * walks every visible tile each frame (~1 ms at 1000 tiles, measured on
+   * MoonFall). Unregistering disposes it, which restores every material.
+   */
+  private releaseIdleDebugPlugin(): void {
+    if (!this.debugPlugin || this.debugMode !== 'none' || this.showBounds) return;
+    this.tiles.unregisterPlugin(this.debugPlugin);
+    this.debugPlugin = null;
   }
 
   private ensureDebugPlugin(): DebugTilesPlugin {
@@ -1300,16 +1334,18 @@ export class TerrainManager {
     // Keyed by Source, not Texture: per-tile clones of one map (applyNormalMap)
     // share a Source, and three.js uploads a shared Source to the GPU once.
     const seenTexture = new Set<unknown>();
+    const countTexture = (tex: THREE.Texture | null | undefined) => {
+      if (!tex?.isTexture) return;
+      const source = tex.source ?? tex;
+      if (seenTexture.has(source)) return;
+      seenTexture.add(source);
+      textureBytes += MemoryUtils.getTextureByteLength(tex);
+    };
     const countMaterial = (m: THREE.Material | undefined) => {
-      for (const value of Object.values(m ?? {})) {
-        const tex = value as THREE.Texture;
-        if (!tex?.isTexture) continue;
-        const source = tex.source ?? tex;
-        if (seenTexture.has(source)) continue;
-        seenTexture.add(source);
-        const img = tex.image as { width?: number; height?: number } | undefined;
-        if (img?.width && img?.height) textureBytes += img.width * img.height * 4;
-      }
+      for (const value of Object.values(m ?? {})) countTexture(value as THREE.Texture);
+      // ImageOverlayPlugin draws imagery from a uniform array it keeps on the
+      // material, not from a material map — usually the bulk of terrain texture memory.
+      for (const tex of overlayLayerMaps(m)) countTexture(tex);
     };
     // Every loaded model, not just `group`: the renderer detaches tiles that
     // leave the view but keeps their buffers cached until LRU disposal.

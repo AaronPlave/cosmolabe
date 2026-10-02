@@ -232,7 +232,7 @@ describe('TerrainManager debug surface modes and metrics', () => {
     expect(colorOf(tm, child).getHex()).toBe(colorOf(tm, decoded).getHex());
   });
 
-  it('maps modes onto the upstream debug plugin and restores materials on none', () => {
+  it('maps modes onto the upstream debug plugin, and unregisters it once nothing is on', () => {
     const tm = makeManager();
     const plugin = () => (tm as unknown as { debugPlugin: { colorMode: number; unlit: boolean } | null }).debugPlugin;
     tm.setDebugMode('none');
@@ -242,14 +242,20 @@ describe('TerrainManager debug surface modes and metrics', () => {
     expect(plugin()!.unlit).toBe(true);
     tm.setDebugMode('seam-error');
     expect(plugin()!.colorMode).toBe(9); // ColorModes.CUSTOM_COLOR
+    tm.setDebug(true);
     tm.setDebugMode('none');
+    // Bounds still on: the plugin stays, with real materials restored.
     expect(plugin()!.colorMode).toBe(0);
     expect(plugin()!.unlit).toBe(false);
     expect(tm.debugSurfaceMode).toBe('none');
+    // Nothing left on: the plugin is unregistered so it costs nothing per frame.
+    tm.setDebug(false);
+    expect(plugin()).toBeNull();
+    expect((tm.tiles as unknown as { plugins: unknown[] }).plugins.some((p) => p instanceof Object && (p as { name?: string }).name === 'DEBUG_TILES_PLUGIN')).toBe(false);
     expect(() => tm.setDebugMode('bogus' as never)).toThrow(/Unknown terrain debug mode/);
   });
 
-  it('estimates memory over every loaded model, including set-aside originals in debug mode', () => {
+  it('estimates memory over every loaded model, including overlays and set-aside originals in debug mode', () => {
     const tm = makeManager();
     const shared = new THREE.Texture({ width: 64, height: 32 });
     const original = new THREE.Texture({ width: 16, height: 16 });
@@ -269,6 +275,14 @@ describe('TerrainManager debug surface modes and metrics', () => {
     const hidden = new THREE.Group();
     hidden.add(debugged);
     scenes.push(hidden);
+    // Imagery overlays: textures in ImageOverlayPlugin's per-material uniform array.
+    const overlayTex = new THREE.Texture({ width: 128, height: 128 });
+    const overlaid = new THREE.Mesh(plane(), new THREE.MeshStandardMaterial());
+    (overlaid.material as unknown as Record<symbol, unknown>)[Symbol('OVERLAY_PARAMS')] =
+      { layerMaps: { value: [overlayTex, null] } };
+    const withOverlay = new THREE.Group();
+    withOverlay.add(overlaid);
+    scenes.push(withOverlay);
     // Only one scene is attached to the visible group; the rest are cached but out of view.
     tm.group.add(scenes[0]);
     (tm.tiles as unknown as { forEachLoadedModel(cb: (s: THREE.Object3D) => void): void })
@@ -277,8 +291,9 @@ describe('TerrainManager debug surface modes and metrics', () => {
     const g = plane();
     const perGeometry = Object.values(g.attributes).reduce((a, attr) => a + (attr as THREE.BufferAttribute).array.byteLength, 0) + g.index!.array.byteLength;
     const m = tm.metrics;
-    expect(m.memory.geometryBytes).toBe(4 * perGeometry);
-    expect(m.memory.textureBytes).toBe(64 * 32 * 4 + 16 * 16 * 4);
+    expect(m.memory.geometryBytes).toBe(5 * perGeometry);
+    // Sized as upstream sizes them (RGBA8 plus a full mip chain, ×4/3).
+    expect(m.memory.textureBytes).toBe((64 * 32 * 4 + 16 * 16 * 4 + 128 * 128 * 4) * 4 / 3);
   });
 
   it('reports decode cost, CPU tiles and sample timing, and resets them', () => {

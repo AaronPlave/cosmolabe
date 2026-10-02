@@ -114,9 +114,11 @@ section for the selected body (or the first body with streamed terrain):
 - `tiles` — active, visible, LRU-cached and CPU-decoded tile counts;
 - `network` — requests issued, queued/downloading/parsing, failed;
 - `memory` — LRU cache bytes, and a geometry/texture estimate from the
-  buffers of every loaded tile, including ones cached out of view, and the
-  real materials the debug plugin holds aside while a debug mode is on
-  (textures counted once per shared `Source`).
+  buffers of every loaded tile, including ones cached out of view, imagery
+  overlay textures, and the real materials the debug plugin holds aside while
+  a debug mode is on. Textures are counted once per shared `Source` and sized
+  with upstream's `MemoryUtils.getTextureByteLength` (format and mipmaps), so
+  geometry + textures tracks the LRU cache bytes.
 
 `resetMetrics()` restarts the windows for a before/after comparison. In the
 browser, `performance.now()` is coarsened to ~0.1 ms without cross-origin
@@ -151,6 +153,22 @@ correction #47 says must be explicit datum metadata rather than a renderer
 constant. (`ingenuity-jezero.json` uses the self-built pyramid, not mars_v14;
 validate it with `mars-jezero-local`.)
 
+### `mars-jezero-local` (self-built pyramid, `ingenuity-jezero.json`)
+
+| | n | mean (m) | RMS (m) | p95 \|d\| (m) | max \|d\| (m) |
+|---|---|---|---|---|---|
+| Same-LOD edges (16), z13/14 | 1040 | 0.03 | 0.17 | 1.21 | 1.39 |
+| Parent/child (9), child z14 | 2601 | −0.17 | 1.62 | 5.97 | 9.46 |
+| Registration z≤14 − z≤9, raw | 1089 | 2.57 | 6.37 | 14.03 | 25.84 |
+| Registration, after planar fit | 1089 | 0.00 | 5.34 | 11.57 | 19.33 |
+
+Fitted offset 2.6 m, slopes −6.4 m/km east and 0.1 m/km north (tilt 0.36°).
+Coverage-boundary curvature ratio at the z14 HiRISE availability edge: 1.04.
+**Control points: the detail layer is within 1.6 m of MMGIS `Elev_Geoid` at
+all 73 Ingenuity sites** (mean +0.57 m, RMS 0.84 m); the z≤9 MOLA/HRSC
+canonical layer differs by up to 81 m. This is the pyramid the Ingenuity demo
+streams, and the reason its mission alignment holds where mars_v14's does not.
+
 ### `moon-shackleton` (moon_v14)
 
 | | n | mean (m) | RMS (m) | p95 \|d\| (m) | max \|d\| (m) |
@@ -165,7 +183,28 @@ Against the 36 LOLA 118 m waypoint elevations the deepest moon_v14 tiles
 seams and level-to-level bias are the quantified version of the Shackleton
 discontinuities #48 has to remove.
 
-### Runtime (headless Chromium, SwiftShader)
+### Runtime (Chromium, Apple M4 Max, ANGLE Metal)
+
+Headless Chromium against the dev server, 30 s after load, default viewpoints:
+
+| Scene | FPS | visible / cached / CPU tiles | `tiles.update()` mean | parse / CPU decode per tile | LRU | geometry / textures |
+|---|---|---|---|---|---|---|
+| `ingenuity-jezero` | 120 | 77 / 102 / 102 | 0.27 ms | 0.24 / 0.09 ms | 30.8 MB | 3.8 / 27.0 MB |
+| `moonfall-shackleton`, streaming | 120 | 11 / ~900 / 256 | 1.5 ms | 0.20 / 0.09 ms | 74 MB | — |
+| `moonfall-shackleton`, settled (~60 s) | 72–84 | 1073 / 1430 / 256 | 3.2–3.8 ms | — | 371 MB | 3.7 / 368 MB |
+
+MoonFall's drop from 120 to ~80 FPS is the scene settling to 1073 visible
+tiles (~2160 draw calls), confirmed by a control run with no debug modes; it
+is the renderer-cleanup slice's number to beat. Debug modes cost nothing
+measurable on Jezero (118–120 FPS in every mode); returning to `none`
+recompiles every tile's shaders once (a sub-second dip on MoonFall), after
+which FPS and update time match the control because the plugin is
+unregistered whenever no view and no bounds are on.
+
+CPU query cost on the local Mars pyramid (Node 22, M4 Max): 0.14–0.42 µs on
+tiles of 6–1692 vertices.
+
+### Runtime (headless Chromium, SwiftShader — container)
 
 MoonFall, Shackleton Overview, ~45 s after load, no debug mode: 8–56 visible
 tiles, `tiles.update()` 1.8–30 ms mean per frame (SwiftShader; GPU-backed
