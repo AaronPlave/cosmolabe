@@ -82,6 +82,8 @@ export default defineConfig({
       // them. Same goes for the multi-GB source GeoTIFFs in scripts/.
       ignored: [
         '**/test-catalogs/data/mars-terrain-fused/**',
+        // Retired pre-#50 pyramid; existing checkouts may still hold its ~700k files.
+        '**/test-catalogs/data/mars-terrain/**',
         '**/scripts/build-mars-terrain/data/**',
       ],
     },

@@ -595,8 +595,9 @@ def cmd_tile(args):
     for i in range(b.GetOverviewCount()):
         o = b.GetOverview(i)
         levels.append((None, (base_gt[0], base_gt[1] * W / o.XSize, 0, base_gt[3], 0, base_gt[5] * H / o.YSize)))
-    # Only the overviews some global zoom actually samples are read into memory.
-    needed = {pick_level(levels, 180 / 2 ** z / (GRID - 1)) for z in range(args.global_zoom + 1)}
+    # Only the overviews some generated zoom actually samples are read into
+    # memory — regional zooms too: with a low --global-zoom they still pick overviews.
+    needed = {pick_level(levels, 180 / 2 ** z / (GRID - 1)) for z in range(args.max_zoom + 1)}
     for li in sorted(needed - {0}):
         levels[li] = (b.GetOverview(li - 1).ReadAsArray(), levels[li][1])  # native dtype: half the RAM of float32
         print(f'  base overview {li}: {levels[li][0].shape[1]}×{levels[li][0].shape[0]}')
