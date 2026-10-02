@@ -486,8 +486,8 @@ def encode_tile(heights, bounds, max_error, ellipsoid, normals=None):
     center = ecef(np.array((w + e) / 2), np.array((s + n) / 2), (float(lo) + float(hi)) / 2, a, c)
     pos = ecef(w + gx / (GRID - 1) * (e - w), s + gy / (GRID - 1) * (n - s), hv, a, c)
     radius = float(np.sqrt(((pos - center) ** 2).sum(1)).max())
-    # Horizon-occlusion point is left zero: the renderer derives culling from
-    # the layer's region bounds (see scripts/build-mars-terrain/05-fix-tile-centers.mjs).
+    # Horizon-occlusion point is left zero: 3d-tiles-renderer derives culling
+    # from the layer's region bounds and never reads it.
     header = struct.pack('<3d2f4d3d', *center, lo, hi, *center, radius, 0, 0, 0)
 
     seen = np.maximum.accumulate(np.concatenate([[0], idx[:-1] + 1]))  # highest+1 before each

@@ -12,7 +12,7 @@ function normalizeBase(raw: string | undefined): string {
   return b;
 }
 
-// CTB-produced quantized-mesh `.terrain` files are gzipped on disk. The clean
+// Self-built quantized-mesh `.terrain` files are gzipped on disk. The clean
 // solution is to serve them with `Content-Encoding: gzip` and let the browser
 // auto-decompress — but Vite's static handler's header sequencing trips up the
 // loader's fetch path in practice (the QuantizedMeshLoader ends up parsing the
@@ -28,13 +28,12 @@ const marsTerrainPlugin = {
   configureServer(server: any) {
     server.middlewares.use((req: any, res: any, next: any) => {
       const url: string | undefined = req.url;
-      if (!url || !url.includes('/mars-terrain') || !url.endsWith('.terrain')) {
+      if (!url || !url.includes('/mars-terrain-fused/') || !url.endsWith('.terrain')) {
         return next();
       }
       // Strip query string + base path to derive the on-disk path.
       const cleanUrl = url.split('?')[0];
-      // mars-terrain/ (CTB pipeline) and mars-terrain-fused/ (dem.py, #50).
-      const match = cleanUrl.match(/\/(mars-terrain(?:-fused)?\/\d+\/\d+\/\d+\.terrain)$/);
+      const match = cleanUrl.match(/\/(mars-terrain-fused\/\d+\/\d+\/\d+\.terrain)$/);
       if (!match) return next();
       const filePath = path.join(TERRAIN_DATA_DIR, match[1]);
       if (!existsSync(filePath)) {
@@ -82,7 +81,6 @@ export default defineConfig({
       // and stalls the dev server. The tiles are static; HMR isn't useful for
       // them. Same goes for the multi-GB source GeoTIFFs in scripts/.
       ignored: [
-        '**/test-catalogs/data/mars-terrain/**',
         '**/test-catalogs/data/mars-terrain-fused/**',
         '**/scripts/build-mars-terrain/data/**',
       ],

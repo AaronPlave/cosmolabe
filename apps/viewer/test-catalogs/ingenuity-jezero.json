@@ -58,6 +58,8 @@
           "type": "quantized-mesh",
           "url": "/test-catalogs/data/mars-terrain-fused/",
           "referenceRadiusOffsetKm": 0,
+          "datum": { "verticalDatum": "areoid", "heightConvention": "geodetic-normal" },
+          "sourceMetadata": { "id": "mars-molahrsc-200m+jezero-hirise-1m-residual (scripts/build-mars-terrain/fused.sh)" },
           "errorTarget": 3,
           "fadeDurationMs": 0,
           "skirtScale": 0.1,

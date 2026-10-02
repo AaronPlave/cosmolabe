@@ -21,7 +21,7 @@
  *   node scripts/validate-terrain.mjs --list
  *   node scripts/validate-terrain.mjs --preset mars-jezero
  *   node scripts/validate-terrain.mjs --preset moon-shackleton --out moon.json
- *   node scripts/validate-terrain.mjs --preset mars-jezero-local   # after scripts/build-mars-terrain
+ *   node scripts/validate-terrain.mjs --preset mars-jezero-fused   # after scripts/build-mars-terrain/fused.sh
  *
  * Any preset field can be overridden: --url, --offset-km, --bounds w,s,e,n,
  * --levels 13,14, --canonical-level 9, --boundary w,s,e,n|auto, --max-tiles N.
@@ -95,18 +95,6 @@ const PRESETS = {
     offsetKm: 8.765,
     datum: MARS_DATUM,
     // A ~2 km box on Wright Brothers Field: 5×5 tiles at z14, their parents at z13.
-    bounds: [77.44, 18.435, 77.462, 18.455],
-    levels: [13, 14],
-    canonicalLevel: 9,
-    boundary: 'auto',
-    boundaryLevel: 14,
-    controlPoints: ingenuityControlPoints,
-  },
-  'mars-jezero-local': {
-    description: 'The self-built pyramid from scripts/build-mars-terrain (ingenuity-jezero.json)',
-    url: join(ROOT, 'apps/viewer/test-catalogs/data/mars-terrain/'),
-    offsetKm: 0,
-    datum: MARS_DATUM,
     bounds: [77.44, 18.435, 77.462, 18.455],
     levels: [13, 14],
     canonicalLevel: 9,

@@ -19,7 +19,7 @@ npm run build                                     # the CLI imports packages/thr
 node scripts/validate-terrain.mjs --list
 node scripts/validate-terrain.mjs --preset mars-jezero
 node scripts/validate-terrain.mjs --preset moon-shackleton --out moon.json
-node scripts/validate-terrain.mjs --preset mars-jezero-local   # after scripts/build-mars-terrain
+node scripts/validate-terrain.mjs --preset mars-jezero-fused   # after scripts/build-mars-terrain/fused.sh
 ```
 
 A run fetches tens of tiles, not a pyramid. `--max-tiles` (default 256) is one
@@ -32,7 +32,7 @@ the full JSON report, every control point included.
 | Preset | Tileset | Region | Control points |
 |---|---|---|---|
 | `mars-jezero` | Mars Hub `mars_v14`, offset 8.765 km (as `msl-dingo-gap.json`) | ~2 km box on Wright Brothers Field, z13/14 | 73 Ingenuity landing sites (MMGIS `Elev_Geoid`) |
-| `mars-jezero-local` | the self-built `scripts/build-mars-terrain` pyramid (as `ingenuity-jezero.json`) | same | same |
+| `mars-jezero-fused` | the fused `scripts/build-mars-terrain/fused.sh` pyramid (as `ingenuity-jezero.json`) | same | same |
 | `moon-shackleton` | Mars Hub `moon_v14` (as `moonfall-shackleton.json`) | Shackleton rim, z8/9 (`moon_v14` stops at z9 there) | 36 MoonFall waypoints (LOLA LDEM 118 m) |
 
 Any field can be overridden: `--url` (http(s) or a local directory, gzip
@@ -151,9 +151,9 @@ vertical bias, not spatial drift: the 8.765 km constant was calibrated at Gale
 datum differs between the two places. Either way it is exactly the kind of
 correction #47 says must be explicit datum metadata rather than a renderer
 constant. (`ingenuity-jezero.json` uses the self-built pyramid, not mars_v14;
-validate it with `mars-jezero-local`.)
+validate it with `mars-jezero-fused`.)
 
-### `mars-jezero-local` (self-built pyramid, `ingenuity-jezero.json`)
+### Retired CTB pyramid (was `mars-jezero-local`, removed in #50)
 
 | | n | mean (m) | RMS (m) | p95 \|d\| (m) | max \|d\| (m) |
 |---|---|---|---|---|---|
@@ -246,7 +246,7 @@ vertices; 1.3–1.5 µs on Moon tiles of 19–284 vertices.
 
 ## Not yet covered
 
-- Base/residual/coverage-boundary debug views — the fused Mars product now ships `residual.tif`, `coverage.tif` and `weight.tif` (in `scripts/build-mars-terrain/data/fused/`); the views themselves are not wired yet.
+- Base/residual/coverage-boundary debug views — the fused Mars product now ships `residual.tif`, `coverage.tif` and `weight.tif` (in `scripts/build-mars-terrain/data/fused/`); the views themselves are tracked in #135.
 - Renderer-level tests for LOD transitions, camera clamp, picking and
   imagery-overlay continuity need a GL-capable harness; the CPU-side pieces
   (sampling, coordinates, seams, pyramid, residual taper detection) are unit
