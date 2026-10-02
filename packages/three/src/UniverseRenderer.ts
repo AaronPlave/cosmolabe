@@ -39,7 +39,7 @@ import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
 import { TimeController } from './controls/TimeController.js';
 import { applyNamedViewpoint, type ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
-import type { TerrainConfig } from './TerrainManager.js';
+import type { TerrainConfig, TerrainDebugMode } from './TerrainManager.js';
 import type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import { BloomEffect, type BloomConfig } from './BloomEffect.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
@@ -1615,6 +1615,17 @@ export class UniverseRenderer {
     } else {
       for (const bm of this.bodyMeshes.values()) {
         if (bm.hasTerrain) bm.setTerrainDebug(show);
+      }
+    }
+  }
+
+  /** Color terrain tiles by a diagnostic quantity for a body (or all terrain bodies). See `TerrainDebugMode`. */
+  setTerrainDebugMode(mode: TerrainDebugMode, bodyName?: string): void {
+    if (bodyName) {
+      this.bodyMeshes.get(bodyName)?.setTerrainDebugMode(mode);
+    } else {
+      for (const bm of this.bodyMeshes.values()) {
+        if (bm.hasTerrain) bm.setTerrainDebugMode(mode);
       }
     }
   }

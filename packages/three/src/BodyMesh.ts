@@ -5,7 +5,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
-import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
+import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
 import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import { injectShadowIntoShader, makeShadowUniforms, MAX_SHADOW_OCCLUDERS, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -927,6 +927,21 @@ export class BodyMesh extends THREE.Object3D {
   /** Toggle debug tile bounds on terrain */
   setTerrainDebug(show: boolean): void {
     this.terrainManager?.setDebug(show);
+  }
+
+  /** Color terrain tiles by a diagnostic quantity; `'none'` restores normal rendering. */
+  setTerrainDebugMode(mode: TerrainDebugMode): void {
+    this.terrainManager?.setDebugMode(mode);
+  }
+
+  /** Active terrain debug surface mode, or null when this body has no streamed terrain. */
+  get terrainDebugMode(): TerrainDebugMode | null {
+    return this.terrainManager?.debugSurfaceMode ?? null;
+  }
+
+  /** Terrain cost/load snapshot, or null when this body has no streamed terrain. */
+  get terrainMetrics(): TerrainPerformanceMetrics | null {
+    return this.terrainManager?.metrics ?? null;
   }
 
   /** Sample decoded CPU terrain. Null is the explicit unloaded-data fallback. */

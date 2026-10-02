@@ -115,6 +115,9 @@ answer physical-surface queries.
 
 ### Debugging, tests, and acceptance
 
+Tooling, debug views and the recorded baseline live in
+[`terrain-validation.md`](terrain-validation.md) (#52).
+
 - Add optional base/residual/source-boundary/coverage/tile-LOD/source/datum and
   seam debug views.
 - Test coordinate and ellipsoid round trips, polar ENU motion, interpolation,
