@@ -244,6 +244,79 @@ describe('the default window agrees with the availability check', () => {
   });
 });
 
+describe('the default window does not depend on role order', () => {
+  // The #130 review's reproduction: the observer's SPK opens later than the
+  // target's, and light time can only be measured where both have states.
+  // Visiting the target first used to measure at an epoch the observer had no
+  // state for, fall back to the plain margin, and never revisit it.
+  const coverage: Record<string, EtInterval[]> = {
+    Target: [{ start: 0, end: 1_000 }],
+    Observer: [{ start: 50, end: 1_000 }],
+  };
+  const ids: Record<string, number> = { Target: 1, Observer: 2 };
+  const spice = {
+    bodn2c: (name: string) => ids[name] ?? null,
+    spkcov: (id: number) => coverage[Object.keys(ids).find((n) => ids[n] === id)!] ?? [],
+  };
+  const ephemeris = (name: string): BodyEphemeris => coverage[name] ?? 'unnamed';
+  const inside = (name: string, et: number) => coverage[name].some((c) => et >= c.start && et <= c.end);
+  const lightTime = (target: string, observer: string, et: number) =>
+    (inside(target, et) && inside(observer, et) ? 100 : undefined);
+  const SPAN = { start: 0, end: 1_000 };
+  const targetFirst = { target: 'Target', observer: 'Observer' };
+  const observerFirst = { observer: 'Observer', target: 'Target' };
+  const window = (bodies: typeof targetFirst, abcorr: string) =>
+    coverageWindow(spice, bodies, SPAN, undefined, abcorr, lightTime);
+
+  it('settles a reception target the same in either insertion order', () => {
+    const a = window(targetFirst, 'LT+S');
+    const b = window(observerFirst, 'LT+S');
+    expect(a).toEqual(b);
+    // One light time past the target's own SPK start would be 103.1; the
+    // observer's coverage (opening at 50) does not change that.
+    expect(a.start).toBeCloseTo(GF_BOUNDARY_MARGIN + 100 * (1 + LIGHT_TIME_PAD), 3);
+    for (const bodies of [targetFirst, observerFirst]) {
+      expect(eventSearchUnavailable(3, bodies, a, ephemeris, 'LT+S', lightTime)).toBeNull();
+    }
+  });
+
+  it('settles a transmission target the same in either insertion order', () => {
+    coverage.Target = [{ start: 0, end: 1_000 }];
+    coverage.Observer = [{ start: 0, end: 950 }];
+    try {
+      const a = window(targetFirst, 'XLT');
+      const b = window(observerFirst, 'XLT');
+      expect(a).toEqual(b);
+      expect(a.end).toBeCloseTo(1_000 - GF_BOUNDARY_MARGIN - 100 * (1 + LIGHT_TIME_PAD), 3);
+      for (const bodies of [targetFirst, observerFirst]) {
+        expect(eventSearchUnavailable(3, bodies, a, ephemeris, 'XLT', lightTime)).toBeNull();
+      }
+    } finally {
+      coverage.Target = [{ start: 0, end: 1_000 }];
+      coverage.Observer = [{ start: 50, end: 1_000 }];
+    }
+  });
+
+  it('gives one window for every order of three roles', () => {
+    coverage.Back = [{ start: 20, end: 980 }];
+    ids.Back = 3;
+    try {
+      const roles = [['observer', 'Observer'], ['front', 'Target'], ['back', 'Back']] as const;
+      const orders = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+      for (const abcorr of ['NONE', 'LT+S', 'XCN']) {
+        const windows = orders.map((order) =>
+          coverageWindow(spice, Object.fromEntries(order.map((i) => roles[i])), SPAN, undefined, abcorr, lightTime));
+        for (const w of windows) expect(w, abcorr).toEqual(windows[0]);
+        const bodies = Object.fromEntries(roles);
+        expect(eventSearchUnavailable(3, bodies, windows[0], ephemeris, abcorr, lightTime), abcorr).toBeNull();
+      }
+    } finally {
+      delete coverage.Back;
+      delete ids.Back;
+    }
+  });
+});
+
 describe('which demo catalogs cannot search at all', () => {
   // Catalogs whose whole `require` graph declares no SPICE kernels: the finder
   // refuses every search there. This is the catalog-level half of the policy

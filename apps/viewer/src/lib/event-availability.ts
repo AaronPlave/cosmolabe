@@ -332,7 +332,9 @@ export function spiceLightTime(
  *   edge keeps the plain margin, which is conservative by at most one light
  *   time. Light time is re-measured at the moved edge until it stands, since
  *   moving the edge changes the distance; it changes far slower than one second
- *   per second, so this settles in a step or two.
+ *   per second, so this settles in a step or two. Light times are only measured
+ *   once every body's plain coverage has clipped the window, so the result is
+ *   the same whichever order the roles were chosen in.
  *
  * Where a light time cannot be measured the body falls back to the plain
  * margin, as the check does. Bodies SPICE cannot name, or that no SPK covers,
@@ -349,8 +351,15 @@ export function coverageWindow(
   lightTime: (target: string, observer: string, et: number) => number | undefined = () => undefined,
 ): EtInterval {
   const direction = lightTimeDirection(abcorr);
-  let { start, end } = span;
+  const observer = bodies.observer;
 
+  // Pass 1: every body's coverage, clipped by the plain margin. These shared
+  // bounds come first so that no light time is measured at an epoch some other
+  // body's coverage will later exclude: a lookup there can fail (the observer
+  // has no state yet) and would leave the target on its plain margin, which is
+  // how the result came to depend on the order the roles were chosen in.
+  const covered: { name: string; start: number; end: number }[] = [];
+  let { start, end } = span;
   for (const name of new Set(Object.values(bodies).filter((n): n is string => !!n))) {
     let windows: EtInterval[];
     try {
@@ -369,30 +378,40 @@ export function coverageWindow(
     // report when a search hits it, not a reason to narrow the default.
     const bodyStart = Math.min(...windows.map((w) => w.start));
     const bodyEnd = Math.max(...windows.map((w) => w.end));
-    let earliest = bodyStart + GF_BOUNDARY_MARGIN;
-    let latest = bodyEnd - GF_BOUNDARY_MARGIN;
+    covered.push({ name, start: bodyStart, end: bodyEnd });
+    start = Math.max(start, bodyStart + GF_BOUNDARY_MARGIN);
+    end = Math.min(end, bodyEnd - GF_BOUNDARY_MARGIN);
+  }
+  if (!(end > start)) return span;
 
-    const observer = bodies.observer;
-    if (name !== observer && direction !== 'none' && observer) {
+  // Pass 2: each light-time-corrected target's edge, settled from the shared
+  // bounds rather than from wherever earlier targets left it, and the tightest
+  // taken. Since t − lt(t) only increases with t, the edges a target accepts
+  // form a half-line, so the tightest settled edge satisfies every target and
+  // the result does not depend on the order they are visited in.
+  if (direction !== 'none' && observer) {
+    const geometricStart = start;
+    const geometricEnd = end;
+    for (const body of covered) {
+      if (body.name === observer) continue;
       const lt = (et: number) => {
-        const value = lightTime(name, observer, et);
+        const value = lightTime(body.name, observer, et);
         return value !== undefined && Number.isFinite(value) && value >= 0 ? value : undefined;
       };
       if (direction === 'reception') {
-        earliest = settleEdge(Math.max(start, earliest), +1, (et) => {
+        const edge = settleEdge(geometricStart, +1, (et) => {
           const value = lt(et);
-          return value === undefined ? undefined : bodyStart + GF_BOUNDARY_MARGIN + value * (1 + LIGHT_TIME_PAD);
-        }) ?? earliest;
+          return value === undefined ? undefined : body.start + GF_BOUNDARY_MARGIN + value * (1 + LIGHT_TIME_PAD);
+        });
+        if (edge !== undefined) start = Math.max(start, edge);
       } else {
-        latest = settleEdge(Math.min(end, latest), -1, (et) => {
+        const edge = settleEdge(geometricEnd, -1, (et) => {
           const value = lt(et);
-          return value === undefined ? undefined : bodyEnd - GF_BOUNDARY_MARGIN - value * (1 + LIGHT_TIME_PAD);
-        }) ?? latest;
+          return value === undefined ? undefined : body.end - GF_BOUNDARY_MARGIN - value * (1 + LIGHT_TIME_PAD);
+        });
+        if (edge !== undefined) end = Math.min(end, edge);
       }
     }
-
-    start = Math.max(start, earliest);
-    end = Math.min(end, latest);
   }
 
   return end > start ? { start, end } : span;
