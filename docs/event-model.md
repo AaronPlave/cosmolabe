@@ -236,11 +236,14 @@ Kernels being loaded is not enough, because catalogs mix SPICE and non-SPICE
 bodies. `io-volcanos` loads `base/naif` (de440s), so it has kernels and SPICE
 resolves the name `Io`, but its Io is a `Builtin` analytic trajectory and de440s
 carries no Galilean satellites. So the check is also per body and per window:
-each chosen body must have coverage in a furnished SPK (`spkcov`), and that
-coverage must reach the search window. A body SPICE cannot identify, a body no
-SPK carries, and a window outside the bodies' coverage are each refused before
-the search runs, each with its own message; recognising a name is never taken
-as evidence of ephemeris.
+each chosen body must have coverage in a furnished SPK (`spkcov`) of the whole
+search window, plus the few seconds GF evaluates beyond each end — partial
+coverage fails inside GF as surely as none. Since `spkcov` reports merged
+intervals, that means one interval contains the window, so a gap inside the
+window is refused too. A body SPICE cannot identify, a body no SPK carries, and
+a window the bodies do not wholly cover are each refused before the search
+runs, each with its own message; recognising a name is never taken as evidence
+of ephemeris.
 Continuous profiles on the timeline still sample every catalog — a profile
 displays a quantity over time; it makes no claim about when an event happened.
 

@@ -10,7 +10,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { loadCatalogFromUrl } from '@cosmolabe/core';
-import { NO_KERNELS_MESSAGE, eventSearchUnavailable, type BodyEphemeris } from '../event-finder.svelte';
+import { GF_BOUNDARY_MARGIN, NO_KERNELS_MESSAGE, eventSearchUnavailable, type BodyEphemeris } from '../event-finder.svelte';
 import { faultMessage } from '../event-query';
 
 const WINDOW = { start: 0, end: 100 };
@@ -32,8 +32,33 @@ describe('event search availability', () => {
   it('is available when every chosen body has SPK coverage reaching the window', () => {
     expect(eventSearchUnavailable(3, { observer: 'Europa Clipper', target: 'Europa' }, WINDOW, covered)).toBeNull();
     expect(eventSearchUnavailable(3, {}, WINDOW, covered)).toBeNull();
-    // Partial overlap is enough to search; a gap inside it is a search fault.
-    expect(eventSearchUnavailable(3, { target: 'Europa' }, WINDOW, () => [{ start: 90, end: 500 }])).toBeNull();
+    // Exactly the GF margin beyond each end is enough.
+    expect(eventSearchUnavailable(3, { target: 'Europa' }, WINDOW, () => [{ start: -3, end: 103 }])).toBeNull();
+    // As is the default window, built by insetting coverage edges by the margin.
+    const edge = 141_868_864.183_929_4;
+    const inset = { start: edge + GF_BOUNDARY_MARGIN, end: edge + 86_400 - GF_BOUNDARY_MARGIN };
+    expect(eventSearchUnavailable(3, { target: 'Europa' }, inset, () => [{ start: edge, end: edge + 86_400 }])).toBeNull();
+  });
+
+  it('refuses coverage that only partly covers the window', () => {
+    // GF evaluates states across the whole confinement window, so [0, 90) with
+    // no ephemeris fails as surely as no coverage at all.
+    const fault = eventSearchUnavailable(3, { target: 'Europa' }, WINDOW, () => [{ start: 90, end: 500 }]);
+    expect(fault?.message).toMatch(/do not cover Europa for the whole search window/);
+    expect(eventSearchUnavailable(3, { target: 'Europa' }, WINDOW, () => [{ start: -500, end: 10 }])?.code)
+      .toBe('unavailable');
+  });
+
+  it('refuses a window that ends exactly on an SPK edge, with no GF margin', () => {
+    expect(eventSearchUnavailable(3, { target: 'Europa' }, WINDOW, () => [{ start: 0, end: 100 }])?.code)
+      .toBe('unavailable');
+    expect(eventSearchUnavailable(3, { target: 'Europa' }, WINDOW, () => [{ start: -3, end: 102 }])?.code)
+      .toBe('unavailable');
+  });
+
+  it('refuses a window spanning a gap between coverage intervals', () => {
+    const gapped = (): BodyEphemeris => [{ start: -100, end: 40 }, { start: 60, end: 200 }];
+    expect(eventSearchUnavailable(3, { target: 'Europa' }, WINDOW, gapped)?.code).toBe('unavailable');
   });
 
   it('refuses a body SPICE knows by name but no loaded SPK carries', () => {
@@ -58,7 +83,7 @@ describe('event search availability', () => {
   it('refuses a window the bodies have no coverage in', () => {
     const fault = eventSearchUnavailable(3, { observer: 'Cassini', target: 'Saturn' }, WINDOW,
       () => [{ start: 500, end: 900 }]);
-    expect(fault?.message).toMatch(/do not cover Cassini and Saturn anywhere in this search window/);
+    expect(fault?.message).toMatch(/do not cover Cassini and Saturn for the whole search window/);
   });
 
   it('refuses nothing on coverage it could not read', () => {

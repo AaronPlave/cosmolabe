@@ -244,6 +244,32 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
 }
 
 /**
+ * Seconds of SPK coverage GF needs beyond each end of its confinement window.
+ *
+ * A direct state lookup is valid at an SPK endpoint, but gfdist may compute
+ * observer state as much as two seconds outside its confinement window. NAIF
+ * also requires callers to allow for round-off when assessing coverage, so an
+ * exact two-second margin is itself a boundary case; one extra second is
+ * reserved. Shared by the default window (which insets by it) and the
+ * availability check (which requires it).
+ */
+export const GF_BOUNDARY_MARGIN = 3;
+
+/**
+ * Whether one coverage interval contains `window` plus the GF margin.
+ *
+ * Measured as differences with a microsecond of slack, because the default
+ * window is built as `coverage.start + GF_BOUNDARY_MARGIN`, and floating-point
+ * subtraction does not always give the margin back exactly: without the slack
+ * the default window could be refused by its own inset.
+ */
+function coversWithMargin(coverage: EtInterval, window: EtInterval): boolean {
+  const slack = 1e-6;
+  return window.start - coverage.start >= GF_BOUNDARY_MARGIN - slack
+    && coverage.end - window.end >= GF_BOUNDARY_MARGIN - slack;
+}
+
+/**
  * What SPICE can say about one catalog body's ephemeris.
  *
  * - `unnamed`: SPICE cannot resolve the body to a NAIF id at all.
@@ -273,8 +299,14 @@ export type BodyEphemeris = 'unnamed' | 'unknown' | EtInterval[];
  * is a built-in analytic trajectory, while the only SPK its base catalog loads
  * is de440s, which carries planets and the Moon but no Galilean satellites. So
  * the check is per body and per window — each chosen body must have SPK
- * coverage, and that coverage must reach the search window — rather than
- * whether SPICE recognises the body's name.
+ * coverage of the whole search window — rather than whether SPICE recognises
+ * the body's name.
+ *
+ * "Whole" is what a confinement window needs: GF evaluates states across all
+ * of it, plus {@link GF_BOUNDARY_MARGIN} beyond each end, so coverage that only
+ * overlaps the window fails just as surely as none, only later. `spkcov`
+ * reports merged, ascending intervals, so the window is covered exactly when
+ * one interval contains it — which refuses an internal coverage gap too.
  *
  * Pure, so the policy is tested directly: `kernelCount` is what the pool holds,
  * `bodies` the chosen roles, `window` the search window (null before there is
@@ -301,7 +333,7 @@ export function eventSearchUnavailable(
     if (known === 'unknown') continue;
     if (known === 'unnamed') unnamed.push(name);
     else if (known.length === 0) uncovered.push(name);
-    else if (window && !known.some((c) => c.end >= window.start && c.start <= window.end)) outside.push(name);
+    else if (window && !known.some((c) => coversWithMargin(c, window))) outside.push(name);
   }
 
   const list = (names: string[]) => names.join(' and ');
@@ -323,7 +355,7 @@ export function eventSearchUnavailable(
   if (outside.length > 0) {
     return {
       code: 'unavailable',
-      message: `The loaded SPKs do not cover ${list(outside)} anywhere in this search window. Move the window inside ${outside.length === 1 ? 'its' : 'their'} coverage.`,
+      message: `The loaded SPKs do not cover ${list(outside)} for the whole search window, which GF needs (plus a few seconds beyond each end). Move the window inside ${outside.length === 1 ? 'its' : 'their'} coverage.`,
     };
   }
 
@@ -426,16 +458,12 @@ export function coverageWindow(
     }
   }
 
-  // A direct state lookup is valid at an SPK endpoint, but gfdist may compute
-  // observer state as much as two seconds outside its confinement window.
-  // NAIF also requires callers to allow for round-off when assessing coverage,
-  // so an exact two-second inset is itself a boundary case. Reserve one extra
-  // second, and only on an edge the automatic window actually touches. This is
-  // defensive coverage handling; the practical two-year default above is what
-  // prevents huge catalog-wide searches in normal use.
-  const gfBoundaryInset = 3;
-  if (hasCoverage && start === coverageStart) start += gfBoundaryInset;
-  if (hasCoverage && end === coverageEnd) end -= gfBoundaryInset;
+  // Inset by GF_BOUNDARY_MARGIN, and only on an edge the automatic window
+  // actually touches. This is defensive coverage handling; the practical
+  // two-year default above is what prevents huge catalog-wide searches in
+  // normal use.
+  if (hasCoverage && start === coverageStart) start += GF_BOUNDARY_MARGIN;
+  if (hasCoverage && end === coverageEnd) end -= GF_BOUNDARY_MARGIN;
 
   return end > start ? { start, end } : span;
 }

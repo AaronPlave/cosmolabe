@@ -13,7 +13,13 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
 import { EventSearch, builtinEventKinds, type InstantEvent } from '@cosmolabe/core';
 import { spiceAltitude } from '@cosmolabe/three';
-import { eventSearchUnavailable, spiceEphemeris, spiceGeometryFinder } from './event-finder.svelte';
+import {
+  GF_BOUNDARY_MARGIN,
+  coverageWindow,
+  eventSearchUnavailable,
+  spiceEphemeris,
+  spiceGeometryFinder,
+} from './event-finder.svelte';
 
 const fixture = (name: string): ArrayBuffer => {
   const buf = readFileSync(fileURLToPath(new URL(`../../../../kernels/fixtures/${name}`, import.meta.url)));
@@ -134,6 +140,26 @@ describe('event search availability against real kernels', () => {
     // cassini-soi.bsp ends on 2004-08-23.
     const late = { start: spice.str2et('2004-10-01'), end: spice.str2et('2004-10-02') };
     expect(check({ observer: CASSINI, target: SATURN }, late)?.message)
-      .toMatch(/do not cover -82 and 699 anywhere in this search window/);
+      .toMatch(/do not cover -82 and 699 for the whole search window/);
+  });
+
+  it('refuses a window that runs past the SPK edge, or sits exactly on it', () => {
+    // cassini-soi.bsp starts at 2004-06-21T15:00:00.
+    const [cassini] = spice.spkcov(-82);
+    const straddling = { start: cassini.start - 3_600, end: cassini.start + 86_400 };
+    expect(check({ observer: CASSINI, target: SATURN }, straddling)?.code).toBe('unavailable');
+    const onEdge = { start: cassini.start, end: cassini.start + 86_400 };
+    expect(check({ observer: CASSINI, target: SATURN }, onEdge)?.code).toBe('unavailable');
+  });
+
+  it('allows the default window coverageWindow derives at an SPK edge', () => {
+    // The default is inset by the GF margin on the edge it touches; the check
+    // requires that margin, so the two must agree exactly at the boundary.
+    const [cassini] = spice.spkcov(-82);
+    const span = { start: cassini.start - 86_400, end: cassini.start + 86_400 };
+    const bodies = { observer: CASSINI, target: SATURN };
+    const window = coverageWindow(spice, bodies, span);
+    expect(window.start).toBe(cassini.start + GF_BOUNDARY_MARGIN);
+    expect(check(bodies, window)).toBeNull();
   });
 });
