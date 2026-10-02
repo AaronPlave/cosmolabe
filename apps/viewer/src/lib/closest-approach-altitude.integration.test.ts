@@ -19,6 +19,7 @@ import {
   eventSearchUnavailable,
   spiceEphemeris,
   spiceGeometryFinder,
+  spiceLightTime,
 } from './event-finder.svelte';
 
 const fixture = (name: string): ArrayBuffer => {
@@ -161,5 +162,57 @@ describe('event search availability against real kernels', () => {
     const window = coverageWindow(spice, bodies, span);
     expect(window.start).toBe(cassini.start + GF_BOUNDARY_MARGIN);
     expect(check(bodies, window)).toBeNull();
+  });
+});
+
+describe('light-time-corrected availability against real kernels', () => {
+  // Earth watching Saturn occult the Sun, with LT: GF reads Saturn's states
+  // about 75 minutes before each instant searched. cassini-soi.bsp is the only
+  // SPK carrying Saturn (699), and it opens at 2004-06-21T15:00.
+  const BODIES = { observer: 'EARTH', front: 'SATURN', back: 'SUN' };
+  let spice: HeritageSpice;
+  let saturnOpens: number;
+  const check = (window: { start: number; end: number }, abcorr: string) =>
+    eventSearchUnavailable(
+      spice.totalLoaded(), BODIES, window, (name) => spiceEphemeris(spice, name), abcorr,
+      (target, observer, et) => spiceLightTime(spice, target, observer, et),
+    );
+  const occultation = (window: { start: number; end: number }, abcorr: string) =>
+    new EventSearch({ registry: builtinEventKinds(), provider: spiceGeometryFinder(spice) }).run({
+      id: 'occ', kind: 'occultation', bodies: BODIES, window, abcorr, step: 600,
+    });
+
+  beforeAll(async () => {
+    spice = await createHeritageSpice();
+    for (const name of KERNELS) {
+      await spice.furnish({ type: 'buffer', data: fixture(name), filename: name });
+    }
+    [{ start: saturnOpens }] = spice.spkcov(699);
+  }, 120_000);
+
+  it('measures an Earth–Saturn light time of over an hour in mid-2004', () => {
+    const lt = spiceLightTime(spice, 'SATURN', 'EARTH', saturnOpens + 3_600)!;
+    expect(lt).toBeGreaterThan(4_000);
+    expect(lt).toBeLessThan(5_500);
+  });
+
+  it('refuses the LT search SPICE would reject, and allows its NONE twin', async () => {
+    // Ten minutes into Saturn's coverage: enough for a geometric search, far
+    // too little for one that needs Saturn's states an hour earlier.
+    const window = { start: saturnOpens + 600, end: saturnOpens + 600 + 86_400 };
+
+    expect(check(window, 'NONE')).toBeNull();
+    expect((await occultation(window, 'NONE')).ok).toBe(true);
+
+    expect(check(window, 'LT')?.message).toMatch(/do not cover SATURN at the epochs this light-time-corrected search \(LT\) needs/);
+    // And the refusal is SPICE's own verdict, not a stricter one of ours.
+    const ran = await occultation(window, 'LT');
+    expect(ran.ok).toBe(false);
+  });
+
+  it('allows the LT search once the window clears the light time, and SPICE agrees', async () => {
+    const window = { start: saturnOpens + 2 * 3_600, end: saturnOpens + 2 * 3_600 + 86_400 };
+    expect(check(window, 'LT')).toBeNull();
+    expect((await occultation(window, 'LT')).ok).toBe(true);
   });
 });

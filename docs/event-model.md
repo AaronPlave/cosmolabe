@@ -244,6 +244,19 @@ window is refused too. A body SPICE cannot identify, a body no SPK carries, and
 a window the bodies do not wholly cover are each refused before the search
 runs, each with its own message; recognising a name is never taken as evidence
 of ephemeris.
+
+That whole-window rule is exact where states are needed at the window's own
+epochs: the observer always, and every body when the search is not
+aberration-corrected. With light-time correction — and the viewer's analysis
+context runs every search with `LT+S` — GF needs a target's states at
+light-time-corrected epochs, earlier than the window for reception (`LT`, `CN`)
+and later for transmission (`XLT`, `XCN`). So for those bodies the required span
+is the window shifted by the one-way light time measured geometrically at each
+edge, padded by a thousandth of the light time on top of the GF margin. An
+Earth-observed occultation by Saturn in 2004 needs Saturn's ephemeris about 75
+minutes before the window opens. Where a light time cannot be measured, only the
+side the correction makes necessary regardless is checked, and anything subtler
+is left to the provider's structured fault rather than promised.
 Continuous profiles on the timeline still sample every catalog — a profile
 displays a quantity over time; it makes no claim about when an event happened.
 

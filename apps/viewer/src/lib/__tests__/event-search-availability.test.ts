@@ -10,7 +10,14 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { loadCatalogFromUrl } from '@cosmolabe/core';
-import { GF_BOUNDARY_MARGIN, NO_KERNELS_MESSAGE, eventSearchUnavailable, type BodyEphemeris } from '../event-finder.svelte';
+import {
+  GF_BOUNDARY_MARGIN,
+  LIGHT_TIME_PAD,
+  NO_KERNELS_MESSAGE,
+  eventSearchUnavailable,
+  lightTimeDirection,
+  type BodyEphemeris,
+} from '../event-finder.svelte';
 import { faultMessage } from '../event-query';
 
 const WINDOW = { start: 0, end: 100 };
@@ -93,6 +100,73 @@ describe('event search availability', () => {
   it('names a body once even when it fills two roles', () => {
     const fault = eventSearchUnavailable(3, { observer: 'Probe', target: 'Probe' }, WINDOW, () => 'unnamed');
     expect(fault?.message).toMatch(/identify Probe,/);
+  });
+});
+
+describe('event search availability under light-time correction', () => {
+  // An occultation-shaped query: the observer's states are needed at the
+  // window's own epochs, the targets' at light-time-corrected ones.
+  const BODIES = { observer: 'Earth', front: 'Saturn', back: 'Sun' };
+  const W = { start: 10_000, end: 20_000 };
+  const LT = 4_500;
+  const lt = () => LT;
+  const m = GF_BOUNDARY_MARGIN;
+  /** Saturn's coverage is under test; Earth and the Sun are covered throughout. */
+  const saturnFrom = (start: number, end = 1e9) => (name: string): BodyEphemeris =>
+    name === 'Saturn' ? [{ start, end }] : [{ start: -1e9, end: 1e9 }];
+
+  it('reads the direction from the correction', () => {
+    expect(['NONE', 'LT', 'LT+S', 'CN', 'cn+s', 'XLT', 'XLT+S', 'XCN+S'].map(lightTimeDirection))
+      .toEqual(['none', 'reception', 'reception', 'reception', 'reception', 'transmission', 'transmission', 'transmission']);
+  });
+
+  it('refuses a target whose SPK opens just before the window, which only NONE can use', () => {
+    // The case the GF margin alone would pass: coverage opens 3 s early, but an
+    // LT search needs Saturn's states ~75 minutes before the window.
+    const ephemeris = saturnFrom(W.start - m);
+    expect(eventSearchUnavailable(3, BODIES, W, ephemeris, 'NONE', lt)).toBeNull();
+    const fault = eventSearchUnavailable(3, BODIES, W, ephemeris, 'LT', lt);
+    expect(fault?.code).toBe('unavailable');
+    expect(fault?.message).toMatch(/^The loaded SPKs do not cover Saturn at the epochs this light-time-corrected search \(LT\) needs: SPICE evaluates its states about 1\.3 hr before the search window/);
+  });
+
+  it('allows a target covered from the light-time-shifted start', () => {
+    const opens = W.start - LT * (1 + LIGHT_TIME_PAD) - m;
+    expect(eventSearchUnavailable(3, BODIES, W, saturnFrom(opens), 'LT+S', lt)).toBeNull();
+    expect(eventSearchUnavailable(3, BODIES, W, saturnFrom(opens + 1), 'LT+S', lt)?.code).toBe('unavailable');
+  });
+
+  it('does not demand reception coverage past the window end, which LT never reads', () => {
+    // Needed through end − lt, not end: coverage closing mid-window is fine.
+    const closes = W.end - LT * (1 - LIGHT_TIME_PAD) + m;
+    expect(eventSearchUnavailable(3, BODIES, W, saturnFrom(-1e9, closes), 'LT', lt)).toBeNull();
+    expect(eventSearchUnavailable(3, BODIES, W, saturnFrom(-1e9, closes - 1), 'LT', lt)?.code).toBe('unavailable');
+  });
+
+  it('mirrors for transmission corrections', () => {
+    const closes = W.end + LT * (1 + LIGHT_TIME_PAD) + m;
+    const ephemeris = (end: number) => (name: string): BodyEphemeris =>
+      name === 'Saturn' ? [{ start: -1e9, end }] : [{ start: -1e9, end: 1e9 }];
+    expect(eventSearchUnavailable(3, BODIES, W, ephemeris(closes), 'XLT', lt)).toBeNull();
+    expect(eventSearchUnavailable(3, BODIES, W, ephemeris(W.end + m), 'XLT', lt)?.message)
+      .toMatch(/about 1\.3 hr after the search window\. End the window sooner\./);
+  });
+
+  it('keeps the observer to the window itself under any correction', () => {
+    const observerFrom = (start: number) => (name: string): BodyEphemeris =>
+      name === 'Earth' ? [{ start, end: 1e9 }] : [{ start: -1e9, end: 1e9 }];
+    expect(eventSearchUnavailable(3, BODIES, W, observerFrom(W.start - m), 'LT+S', lt)).toBeNull();
+    expect(eventSearchUnavailable(3, BODIES, W, observerFrom(W.start + 1), 'LT+S', lt)?.message)
+      .toMatch(/do not cover Earth for the whole search window/);
+  });
+
+  it('checks only what the correction makes necessary when the light time is unknown', () => {
+    const unknown = () => undefined;
+    // Coverage opening after the window starts cannot serve an LT search.
+    expect(eventSearchUnavailable(3, BODIES, W, saturnFrom(W.start + 1), 'LT', unknown)?.message)
+      .toMatch(/before the search window opens, by the light time/);
+    // Opening just before it might, or might not: not refused, and not promised.
+    expect(eventSearchUnavailable(3, BODIES, W, saturnFrom(W.start - m), 'LT', unknown)).toBeNull();
   });
 });
 
