@@ -102,6 +102,26 @@ describe('dolly along the view ray', () => {
     expect(next.altKm).toBeCloseTo(0.8, 4);
   });
 
+  it('stops on rising terrain even when ellipsoid height climbs', () => {
+    // Level ray from the equator heading north; terrain climbs 0.2 km per km northward,
+    // faster than the ray gains height over the curve.
+    const level: SurfacePose = { latRad: 0, lonRad: 0, altKm: 0.05, headingRad: 0, pitchRad: 0 };
+    const uphill = (latRad: number) => 0.002 + Math.max(0, latRad * MOON.a) * 0.2;
+    const next = dollyAlongView(level, 0.5, MOON, uphill);
+    expect(next.altKm).toBeGreaterThan(level.altKm);
+    expect(next.altKm - uphill(next.latRad)).toBeGreaterThanOrEqual(-1e-6);
+    expect(next.altKm - uphill(next.latRad)).toBeLessThan(1e-3);
+  });
+
+  it('keeps a buried camera from moving to worse clearance, even while climbing', () => {
+    // Below a floor that rises northward faster than the ray climbs: going on loses clearance.
+    const buried: SurfacePose = { latRad: 0.001, lonRad: 0, altKm: 0.1, headingRad: 0, pitchRad: 0.05 };
+    const floor = (latRad: number) => 1 + latRad * MOON.a * 0.5;
+    expect(dollyAlongView(buried, 0.2, MOON, floor)).toEqual(buried);
+    // Backing out toward lower ground improves clearance and is allowed.
+    expect(dollyAlongView(buried, -0.2, MOON, floor).latRad).toBeLessThan(buried.latRad);
+  });
+
   it('lets a camera below the floor back out but not go deeper', () => {
     const buried = { ...pose, altKm: 0.5 };
     expect(dollyAlongView(buried, 0.1, MOON, () => 0.8)).toEqual(buried);

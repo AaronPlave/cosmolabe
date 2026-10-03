@@ -155,26 +155,30 @@ export type FloorFn = (latRad: number, lonRad: number) => number | null;
 
 /**
  * How far to travel along a body-fixed ray: `stepKm`, shortened if it would
- * end below `floorKm` while descending, so the move stops on the floor. A start
- * point already at or below the floor may not descend further (returns 0) but
- * may still move upward, so it can always back out.
+ * end below `floorKm`, so the move stops on the floor. What counts is terrain
+ * clearance (height above the floor), not ellipsoid height: a ray that climbs
+ * can still run into terrain that climbs faster. A start point already at or
+ * below the floor may only move where its clearance improves (otherwise 0),
+ * so it can always back out but never dig deeper.
  */
 export function clipRayToFloor(start: Vec3, dir: Vec3, stepKm: number, ell: Ellipsoid, floorKm?: FloorFn): number {
   if (stepKm === 0 || !floorKm) return stepKm;
-  const at = (t: number) => bodyFixedToGeodeticRad([start[0] + t * dir[0], start[1] + t * dir[1], start[2] + t * dir[2]], ell);
-  const g0 = at(0);
-  const g = at(stepKm);
-  const floor = floorKm(g.latRad, g.lonRad);
-  if (floor == null || g.altKm >= floor || g.altKm >= g0.altKm) return stepKm;
-  const startFloor = floorKm(g0.latRad, g0.lonRad) ?? floor;
-  // Already at/below the floor: refuse to go further down.
-  if (g0.altKm <= startFloor) return 0;
-  // Bisect for the point where the ray meets the (locally varying) floor.
+  const clearance = (t: number): number | null => {
+    const g = bodyFixedToGeodeticRad([start[0] + t * dir[0], start[1] + t * dir[1], start[2] + t * dir[2]], ell);
+    const floor = floorKm(g.latRad, g.lonRad);
+    return floor == null ? null : g.altKm - floor;
+  };
+  const end = clearance(stepKm);
+  if (end == null || end >= 0) return stepKm;
+  const c0 = clearance(0);
+  if (c0 != null && c0 <= 0) return end > c0 ? stepKm : 0;
+  // Bisect for the point where the clearance reaches zero (an unknown floor
+  // counts as clear, like the start point when it has none).
   let lo = 0, hi = stepKm;
   for (let i = 0; i < 24; i++) {
     const mid = 0.5 * (lo + hi);
-    const gm = at(mid);
-    if (gm.altKm >= (floorKm(gm.latRad, gm.lonRad) ?? floor)) lo = mid; else hi = mid;
+    const c = clearance(mid);
+    if (c == null || c >= 0) lo = mid; else hi = mid;
   }
   return lo;
 }
