@@ -39,5 +39,9 @@ apps/viewer/test-catalogs/data/mars-terrain-fused/
 apps/viewer/test-catalogs/data/mars-terrain/
 scripts/build-mars-terrain/data/
 
+# Self-hosted Moon terrain — see scripts/build-moon-terrain/ (~9 GB sources, generated pyramid).
+apps/viewer/test-catalogs/data/moon-terrain-fused/
+scripts/build-moon-terrain/data/
+
 # Third-party Cosmographia catalog data — see scripts/fetch-cosmographia-data.sh
 .cosmographia/

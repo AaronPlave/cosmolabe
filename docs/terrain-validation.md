@@ -20,6 +20,7 @@ node scripts/validate-terrain.mjs --list
 node scripts/validate-terrain.mjs --preset mars-jezero
 node scripts/validate-terrain.mjs --preset moon-shackleton --out moon.json
 node scripts/validate-terrain.mjs --preset mars-jezero-fused   # after scripts/build-mars-terrain/fused.sh
+node scripts/validate-terrain.mjs --preset moon-shackleton-fused  # after scripts/build-moon-terrain/fused.sh
 ```
 
 A run fetches tens of tiles, not a pyramid. `--max-tiles` (default 256) is one
@@ -33,7 +34,8 @@ the full JSON report, every control point included.
 |---|---|---|---|
 | `mars-jezero` | Mars Hub `mars_v14`, offset 8.765 km (as `msl-dingo-gap.json`) | ~2 km box on Wright Brothers Field, z13/14 | 73 Ingenuity landing sites (MMGIS `Elev_Geoid`) |
 | `mars-jezero-fused` | the fused `scripts/build-mars-terrain/fused.sh` pyramid (as `ingenuity-jezero.json`) | same | same |
-| `moon-shackleton` | Mars Hub `moon_v14` (as `moonfall-shackleton.json`) | Shackleton rim, z8/9 (`moon_v14` stops at z9 there) | 36 MoonFall waypoints (LOLA LDEM 118 m) |
+| `moon-shackleton` | Mars Hub `moon_v14` (as `moonfall-shackleton.json` configures it) | Shackleton rim, z8/9 (`moon_v14` stops at z9 there) | 36 MoonFall waypoints (LOLA LDEM 118 m) |
+| `moon-shackleton-fused` | the fused `scripts/build-moon-terrain/fused.sh` pyramid (local; no catalog streams it until it is hosted, #137) | Shackleton rim, 1° × 0.1°, z11/12 | same |
 
 Any field can be overridden: `--url` (http(s) or a local directory, gzip
 handled), `--offset-km`, `--bounds w,s,e,n`, `--levels 13,14`,
@@ -209,7 +211,86 @@ back to MOLA/HRSC instead.
 Against the 36 LOLA 118 m waypoint elevations the deepest moon_v14 tiles
 (z9 at the pole) differ by −48 to +67 m (RMS 22.5 m). Tens-of-metres polar
 seams and level-to-level bias are the quantified version of the Shackleton
-discontinuities #48 has to remove.
+discontinuities #48 removes (next section).
+
+### `moon-shackleton-fused` (#48, `scripts/build-moon-terrain/fused.sh`)
+
+One pyramid from LOLA LDEM 118 m plus the LOLA 87°S mosaic (Barker et al.
+2021, 10 m) as a residual tapered over 2 km, with the polar-stereographic
+residual path of `dem.py` (the surface is the mosaic wherever its weight is 1,
+and single-valued at the pole). Global z0–9, regional z10 over the mosaic,
+z11 south of 87°S, z12 south of 88.5°S. Shackleton rim box −45.5…−44.5 E,
+−89.6…−89.5 N:
+
+| | n | mean (m) | RMS (m) | p95 \|d\| (m) | max \|d\| (m) |
+|---|---|---|---|---|---|
+| Same-LOD edges (151), z11/12 | 9815 | −0.00 | 0.00 | 0.01 | 0.01 |
+| Parent/child (72), child z12 | 20808 | 0.01 | 0.87 | 4.52 | 6.25 |
+| Registration z≤12 − z≤9, raw | 1089 | 1.63 | 5.47 | 9.98 | 13.66 |
+| Registration, after planar fit | 1089 | 0.00 | 4.88 | 9.48 | 13.38 |
+| Control points, detail layer (36) | 36 | −0.03 | 6.95 | 16.82 | 17.51 |
+
+The registration tilt here (0.63°) is local relief — 10 m terrain against the
+118 m canonical layer over a 3 km box — not a source misregistration: over the
+whole mosaic (`fusion.json`, 5.0 M samples) polar − global is −0.24 m mean,
+3.6 m RMS, with a fitted plane of −0.24 m and slopes under 0.002 m/km.
+
+At the pole (0…3 E, −90…−89.95 N, z11/12): same-LOD edges max 0.02 m,
+parent/child RMS 1.79 m (max 6.84 m). Decoding every tile that touches the
+pole, the pole vertex is single-valued at every level — the spread across all
+2^(z+1) tiles of a row is below one height quantum (9 mm across 532 480 pole
+vertices at z12). Across the mosaic's taper band (40…44 E, −86.9…−86.4 N,
+z9/10): same-LOD edges max 0.07 m; parent/child RMS 4.4 m is the ordinary
+z9→z10 change over 118 m terrain. At the raster level a hard source switch
+would step up to 42 m across the coverage edge; the fused field steps exactly
+as much as LOLA 118 m itself does between neighbouring pixels (max 35 m on
+crater walls, RMS 1.9 m).
+
+The 36 MoonFall waypoint elevations (nearest-pixel LOLA 118 m) differ from the
+fused surface by RMS 6.95 m, max 17.5 m (moon_v14: RMS 22.5 m, max 67 m). The
+waypoints are authoritative and unchanged, so the finer surface moves some
+authored heights above ground: of the 1–5 m touchdown and perch points, the
+largest are Polaris-B's landing at (−89.30, 120) 12.9 m and Polaris-C's perch at
+(−89.73, 50) 10.8 m *below* the fused surface; the rest are within ±3 m or
+above it.
+
+`fusion.json` reports residual maxima of ~3.9 km: isolated ±8 km spike clusters
+in the LOLA 118 m source near the pole (a few hundred pixels, mostly 88–89°S).
+All lie in the mosaic's full-weight region, so none reach the pyramid.
+
+#### MoonFall in the viewer near 89°S (headless Chromium, SwiftShader — container)
+
+Surface Explorer stations at the Polaris-A base (−89.55, −45), the rim at
+30°E, 10 km above Shackleton's centre and 4.5 km from the pole, each run
+against the fused pyramid (MoonFall pointed at the local build) and against
+`moon_v14`:
+
+- **Picking.** On the fused pyramid every centre-screen pick hits the Moon and
+  equals the CPU sampler at the picked point (Δ 0 m; e.g. Shackleton's floor at
+  −2.75 km). On `moon_v14` none of the picks had a sampler answer, the camera
+  placed 300 m above the Polaris-A base ended up under the `moon_v14` surface
+  (the pick passed through the Moon, 1178 km away), and the crater floor
+  picked at +0.76 km.
+- **Sampler cache.** A view near the pole holds 400–3200 decoded sliver tiles,
+  so the default 256-tile CPU sampler cache evicted the tiles under the camera
+  before picking and dolly clearance could sample them. MoonFall sets
+  `samplerMaxTiles: 4096`.
+- **Pole crossing.** Holding W due south from (−89.9, 0) at 1.8 km crosses the
+  pole and comes out on the 180° meridian heading north at the same height: a
+  7.4 km path whose length equals its chord, cross-track < 1e-12 km, no
+  backward step. Identical on `moon_v14`: navigation does not depend on the
+  terrain.
+- **Hoppers.** The CPU sampler only answers where decoded tiles exist, so
+  hopper clearance is checked offline against the pyramid instead (control
+  points above).
+
+Not covered here: a visual pass at full detail. SwiftShader in the container
+renders ~1.2–1.4 fps (at the equator as at the pole) and the tile parse queue
+advances per frame, so no view finishes refining — frames show z1–z3 facets
+however long they settle. Imagery is also unreachable from the container
+(trek.nasa.gov) and the Sun is within ~1.5° of the horizon at the catalog
+epoch. The numbers above come from the CPU-side data the renderer consumes;
+the look of the refined Shackleton surface still needs a GPU run.
 
 ### Runtime (Chromium, Apple M4 Max, ANGLE Metal)
 
