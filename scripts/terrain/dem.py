@@ -19,6 +19,16 @@ the height field because the residual is already zero there.
 Tile-level validation (edges, parent/child, registration, control points) runs
 on the written pyramid with the viewer's own decoder: scripts/validate-terrain.mjs.
 
+The detail may also be polar stereographic (e.g. LOLA south-pole mosaics). Its
+residual then stays on its own x/y grid, and inside the detail coverage the tiled
+height is weight·base_xy + (1 − weight)·base(lon, lat) + residual, with base_xy
+the base resampled onto the detail grid: where the weight is 1 the surface is the
+detail exactly, and at the pole it is single-valued instead of inheriting the
+lon/lat base kernel's longitude-dependent value there.
+
+The base may be geographic or 0°/0° equirectangular, with GDAL band
+scale/offset honoured (the LOLA LDEM stores Int16 half-metres).
+
 Requires GDAL's Python bindings and numpy (`brew install gdal` provides both).
 Heights keep the sources' vertical datum; nothing is re-referenced here.
 """
@@ -80,6 +90,85 @@ def geographic_grid(ds):
     return (gt[0] * k, gt[1] * k, 0.0, gt[3] * k, 0.0, gt[5] * k)
 
 
+class Grid:
+    """A detail raster's sampling grid: geographic degrees (`kind` 'geo', any
+    raster `geographic_grid` accepts) or polar stereographic metres on a
+    sphere ('stere'). `project` maps lon/lat to the grid's native x/y, so the
+    same pixel-is-area `bilinear` samples either."""
+
+    def __init__(self, ds):
+        srs = ds.GetSpatialRef()
+        self.radius = srs.GetSemiMajor()
+        self.wkt = ds.GetProjection()
+        self.proj4 = srs.ExportToProj4()
+        self.size = (ds.RasterXSize, ds.RasterYSize)
+        p = dict(kv.split('=', 1) if '=' in kv else (kv, True) for kv in self.proj4.replace('+', '').split())
+        if p.get('proj') == 'stere':
+            lat0 = float(p.get('lat_0', 0))
+            if abs(abs(lat0) - 90) > 1e-9 or 'lat_ts' in p or float(p.get('x_0', 0)) or float(p.get('y_0', 0)):
+                raise SystemExit(f'stereographic detail must be polar (lat_0=±90, k form, no false origin), got {self.proj4}')
+            if abs(srs.GetSemiMinor() - self.radius) > 1e-3:
+                raise SystemExit('stereographic detail must be on a sphere')
+            self.kind = 'stere'
+            self.south = lat0 < 0
+            self.lon0 = math.radians(float(p.get('lon_0', 0)))
+            self.k0 = float(p.get('k', p.get('k_0', 1)))
+            self.gt = ds.GetGeoTransform()
+            self.unit_deg = 180 / (math.pi * self.radius)  # degrees per metre, at the pole
+        else:
+            self.kind = 'geo'
+            self.gt = geographic_grid(ds)
+            self.unit_deg = 1.0
+
+    def project(self, lon, lat):
+        if self.kind == 'geo':
+            return lon, lat
+        lam, phi = np.radians(lon) - self.lon0, np.radians(lat)
+        rho = 2 * self.radius * self.k0 * np.tan(math.pi / 4 + (phi if self.south else -phi) / 2)
+        return rho * np.sin(lam), (rho if self.south else -rho) * np.cos(lam)
+
+    def unproject(self, x, y):
+        if self.kind == 'geo':
+            return x, y
+        rho = np.hypot(x, y)
+        phi = 2 * np.arctan(rho / (2 * self.radius * self.k0)) - math.pi / 2
+        lam = np.arctan2(x, y if self.south else -y) + self.lon0
+        lon = (np.degrees(lam) + 180) % 360 - 180
+        return lon, (np.degrees(phi) if self.south else -np.degrees(phi))
+
+    def geo_bounds(self):
+        """Lon/lat box (W, S, E, N) containing the raster."""
+        gt, (w, h) = self.gt, self.size
+        if self.kind == 'geo':
+            return (gt[0], gt[3] + gt[5] * h, gt[0] + gt[1] * w, gt[3])
+        t = np.linspace(0, 1, 1025)
+        xs = np.concatenate([gt[0] + t * gt[1] * w, np.full_like(t, gt[0] + gt[1] * w), gt[0] + t * gt[1] * w, np.full_like(t, gt[0])])
+        ys = np.concatenate([np.full_like(t, gt[3]), gt[3] + t * gt[5] * h, np.full_like(t, gt[3] + gt[5] * h), gt[3] + t * gt[5] * h])
+        _, lat = self.unproject(xs, ys)
+        pole_inside = gt[0] <= 0 <= gt[0] + gt[1] * w and gt[3] + gt[5] * h <= 0 <= gt[3]
+        if not pole_inside:
+            raise SystemExit('stereographic detail must contain its pole')
+        return (-180.0, -90.0, 180.0, float(lat.max())) if self.south else (-180.0, float(lat.min()), 180.0, 90.0)
+
+    def pixel_m(self):
+        """Nominal ground pixel size (north-south) in metres."""
+        return abs(self.gt[5]) * (1 if self.kind == 'stere' else math.pi / 180 * self.radius)
+
+    def planar_km(self):
+        """Per-column and per-row planar coordinates (km) for the registration
+        fit: local east/north for geographic grids, the projection's own x/y
+        for stereographic ones (east/north are undefined at the pole)."""
+        gt, (w, h) = self.gt, self.size
+        cx = gt[0] + (np.arange(w) + 0.5) * gt[1]
+        cy = gt[3] + (np.arange(h) + 0.5) * gt[5]
+        if self.kind == 'stere':
+            return cx / 1000, cy / 1000, 'polar stereographic x/y (km)'
+        lon0, lat0 = float(cx[w // 2]), float(cy[h // 2])
+        m_per_deg = math.pi / 180 * self.radius
+        return ((cx - lon0) * m_per_deg * math.cos(math.radians(lat0)) / 1000,
+                (cy - lat0) * m_per_deg / 1000, 'local east/north (km)')
+
+
 def bilinear(arr, gt, lon, lat, wrap_lon=False, outside=None):
     """Bilinear sample of a north-up pixel-is-area raster at (lon, lat).
 
@@ -139,7 +228,8 @@ def cubic(arr, gt, lon, lat, wrap_lon=False):
 
 
 def open_base(path):
-    """Full-resolution base raster as a read-only array plus its geotransform.
+    """Full-resolution base raster as a read-only array, its geographic
+    geotransform, nodata, and the band's (scale, offset): height = raw·scale + offset.
 
     An uncompressed, contiguous single-band strip TIFF (the USGS global
     mosaics) is memory-mapped so forked workers share the OS page cache;
@@ -162,7 +252,7 @@ def open_base(path):
         assert np.array_equal(probe, arr[h // 2]), 'memmap layout check failed'
     else:
         arr = b.ReadAsArray()
-    return arr, ds.GetGeoTransform(), b.GetNoDataValue()
+    return arr, geographic_grid(ds), b.GetNoDataValue(), (b.GetScale() or 1.0, b.GetOffset() or 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -195,15 +285,14 @@ def cmd_fuse(args):
     t0 = time.time()
     os.makedirs(args.out, exist_ok=True)
     base_ds = gdal.Open(args.base)
-    if not base_ds.GetSpatialRef().IsGeographic():
-        raise SystemExit('base must be in a geographic CRS')
     radius = base_ds.GetSpatialRef().GetSemiMajor()
-    base, base_gt, base_nd = open_base(args.base)
+    base, base_gt, base_nd, (bscale, boff) = open_base(args.base)
 
     det_ds = gdal.Open(args.detail)
     if abs(det_ds.GetSpatialRef().GetSemiMajor() - radius) > 1e-3:
         raise SystemExit('base and detail must share the reference body/sphere')
-    gt = geographic_grid(det_ds)
+    grid = Grid(det_ds)
+    gt = grid.gt
     db = det_ds.GetRasterBand(1)
     detail = db.ReadAsArray().astype(np.float32)
     nd = db.GetNoDataValue()
@@ -215,21 +304,19 @@ def cmd_fuse(args):
     h, w = detail.shape
     print(f'detail {w}×{h}, coverage {covered.mean() * 100:.1f}% ({time.time() - t0:.0f}s)')
 
-    lon = gt[0] + (np.arange(w) + 0.5) * gt[1]
-    lat = gt[3] + (np.arange(h) + 0.5) * gt[5]
+    gx = gt[0] + (np.arange(w) + 0.5) * gt[1]
+    gy = gt[3] + (np.arange(h) + 0.5) * gt[5]
     base_on = np.empty((h, w), np.float32)
     for r0 in range(0, h, 256):  # small chunks: the cubic kernel holds 16 gathers
-        la = lat[r0:r0 + 256, None]
-        base_on[r0:r0 + 256] = cubic(base, base_gt, np.broadcast_to(lon, (la.shape[0], w)),
-                                     np.broadcast_to(la, (la.shape[0], w)), wrap_lon=True)
+        yy = gy[r0:r0 + 256, None]
+        lon, lat = grid.unproject(np.broadcast_to(gx, (yy.shape[0], w)), np.broadcast_to(yy, (yy.shape[0], w)))
+        base_on[r0:r0 + 256] = cubic(base, base_gt, lon, lat, wrap_lon=True) * bscale + boff
     if base_nd is not None:
         # A base nodata value anywhere in a kernel would poison the fit.
-        assert not np.any(base_on <= base_nd + 1), 'base nodata inside detail extent'
+        assert not np.any(base_on <= base_nd * bscale + boff + 1), 'base nodata inside detail extent'
 
-    lon0, lat0 = float(lon[w // 2]), float(lat[h // 2])
-    m_per_deg = math.pi / 180 * radius
-    east_km = (lon - lon0) * m_per_deg * math.cos(math.radians(lat0)) / 1000
-    north_km = (lat - lat0) * m_per_deg / 1000
+    lon0, lat0 = (float(v) for v in grid.unproject(np.array(gx[w // 2]), np.array(gy[h // 2])))
+    east_km, north_km, planar_axes = grid.planar_km()
 
     # Memory: detail, base_on and one distance/weight raster are the only
     # full-size arrays; the residual is formed in place in `detail`.
@@ -261,7 +348,7 @@ def cmd_fuse(args):
 
     # Distance from each covered pixel to the nearest uncovered one, with the
     # raster border counted as uncovered so the taper also reaches zero there.
-    blend_px = args.blend_m / (abs(gt[5]) * m_per_deg)
+    blend_px = args.blend_m / grid.pixel_m()
     mem = gdal.GetDriverByName('MEM')
     mask = mem.Create('', w + 2, h + 2, 1, gdal.GDT_Byte)
     mb = mask.GetRasterBand(1)
@@ -271,7 +358,8 @@ def cmd_fuse(args):
     gdal.ComputeProximity(mb, prox.GetRasterBand(1),
                           ['VALUES=1', 'DISTUNITS=PIXEL', f'MAXDIST={math.ceil(blend_px) + 1}', 'NODATA=-1'])
     mask = mb = None
-    # ponytail: distance in north-pixel units; east pixels are cos(lat) narrower (~5% at Jezero).
+    # ponytail: distance in north-pixel units; east pixels are cos(lat) narrower (~5% at Jezero);
+    # polar stereographic pixels are square, with scale ≤ 0.2% off true inside 85°.
     weight = prox.GetRasterBand(1).ReadAsArray(1, 1, w, h)
     prox = None
     for r0 in range(0, h, 1024):  # smoothstep in place: C1, zero slope at both ends
@@ -301,12 +389,18 @@ def cmd_fuse(args):
         'created': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         'base': raster_info(args.base),
         'detail': raster_info(args.detail),
-        'grid': {'geotransform': list(gt), 'size': [w, h], 'crs': base_ds.GetSpatialRef().ExportToProj4()},
+        'grid': {'kind': grid.kind, 'geotransform': list(gt), 'size': [w, h],
+                 'crs': base_ds.GetSpatialRef().ExportToProj4() if grid.kind == 'geo' else grid.proj4,
+                 'geoBounds': list(grid.geo_bounds())},
+        'baseScaleOffset': [bscale, boff],
         'verticalDatum': args.vertical_datum,
-        'kernel': 'base: Catmull-Rom, pixel-is-area, longitude wraps',
+        'kernel': 'base: Catmull-Rom, pixel-is-area, longitude wraps' + (
+            '; inside the detail coverage the base is the detail-grid resample (base.tif), blended by weight'
+            if grid.kind == 'stere' else ''),
         'coverageFraction': float(covered.mean()),
         'registration': {
             'model': 'detail − base = offset + slopeEast·east + slopeNorth·north (least squares)',
+            'axes': planar_axes,
             'centroid': {'lonDeg': lon0, 'latDeg': lat0},
             'fitStridePx': step,
             'offsetM': off, 'slopeEastMPerKm': se, 'slopeNorthMPerKm': sn,
@@ -326,10 +420,13 @@ def cmd_fuse(args):
                      'baseStepM': boundary['base']},
         'residual': {'all': stats(residual[::step, ::step][sub]),
                      'fullWeight': stats(residual[::step, ::step][full[::step, ::step]])},
-        'products': {'residual': 'residual.tif', 'coverage': 'coverage.tif', 'weight': 'weight.tif', 'fused': 'fused.tif'},
+        'products': {'residual': 'residual.tif', 'coverage': 'coverage.tif', 'weight': 'weight.tif', 'fused': 'fused.tif',
+                     **({'base': 'base.tif'} if grid.kind == 'stere' else {})},
     }
     del full, band
-    srs = base_ds.GetProjection()
+    srs = base_ds.GetProjection() if grid.kind == 'geo' else grid.wkt
+    if grid.kind == 'stere':
+        write_tif(os.path.join(args.out, 'base.tif'), base_on, gt, srs)
     write_tif(os.path.join(args.out, 'residual.tif'), residual, gt, srs)
     write_tif(os.path.join(args.out, 'coverage.tif'), covered.view(np.uint8), gt, srs, dtype=gdal.GDT_Byte)
     write_tif(os.path.join(args.out, 'weight.tif'), weight, gt, srs)
@@ -522,12 +619,13 @@ def tile_bounds(z, x, y):
     return (-180 + x * dx, -90 + y * dy, -180 + (x + 1) * dx, -90 + (y + 1) * dy)
 
 
-def pick_level(levels, spacing_deg):
+def pick_level(levels, spacing_deg, unit_deg=1.0):
     """Coarsest pyramid level whose pixels are still no larger than the vertex
-    spacing — enough detail without aliasing far finer data into a tile."""
+    spacing — enough detail without aliasing far finer data into a tile.
+    `unit_deg` converts the levels' native pixel units to degrees."""
     best = 0
     for i, (_, gt) in enumerate(levels):
-        if gt[1] <= spacing_deg * 1.0001:
+        if gt[1] * unit_deg <= spacing_deg * 1.0001:
             best = i
     return best
 
@@ -553,8 +651,11 @@ def tile_job(job):
     w, s, e, n = tile_bounds(z, x0, y)
     spacing = (n - s) / (GRID - 1)
     bl = S['base'][pick_level(S['base'], spacing)]
-    rl = S['residual'][pick_level(S['residual'], spacing)]
+    grid = S['grid']
+    rlev = pick_level(S['residual'], spacing, grid.unit_deg)
+    rl = S['residual'][rlev]
     rb = S['residual_bounds']
+    bscale, boff = S['base_scale_offset']
     # One extra vertex ring outside the tile, so normals at shared edges come
     # from the same neighbours on both sides and shading has no tile seams.
     frac = np.arange(-1, GRID + 1) / (GRID - 1)
@@ -566,9 +667,15 @@ def tile_job(job):
         G = GRID + 2
         lon = np.broadcast_to(w + frac * (e - w), (G, G))
         lat = np.broadcast_to(np.clip(s + frac * (n - s), -90, 90)[:, None], (G, G))
-        hgt = cubic(bl[0], bl[1], lon, lat, wrap_lon=True).astype(np.float64)
+        hgt = cubic(bl[0], bl[1], lon, lat, wrap_lon=True).astype(np.float64) * bscale + boff
         if w < rb[2] and e > rb[0] and s < rb[3] and n > rb[1]:
-            hgt = hgt + bilinear(rl[0], rl[1], lon, lat, outside=0.0)
+            gxy = grid.project(lon, lat)
+            res = bilinear(rl[0], rl[1], *gxy, outside=0.0)
+            if grid.kind == 'stere':
+                # Pole-safe: inside coverage, hand the base over to its detail-grid resample.
+                wt = bilinear(S['weight'][rlev][0], rl[1], *gxy, outside=0.0)
+                hgt = (1 - wt) * hgt + wt * bilinear(S['base_xy'][rlev][0], rl[1], *gxy, outside=0.0)
+            hgt = hgt + res
         P = ecef(lon, lat, hgt, a, c)
         nrm = np.cross(P[1:-1, 2:] - P[1:-1, :-2], P[2:, 1:-1] - P[:-2, 1:-1]).reshape(-1, 3)
         ln = np.linalg.norm(nrm, axis=1, keepdims=True)
@@ -587,7 +694,7 @@ def tile_job(job):
 def cmd_tile(args):
     t0 = time.time()
     fusion = json.load(open(os.path.join(args.fusion, 'fusion.json')))
-    base, base_gt, _ = open_base(args.base)
+    base, base_gt, _, base_so = open_base(args.base)
     ds = gdal.Open(args.base)
     b = ds.GetRasterBand(1)
     levels = [(base, base_gt)]
@@ -603,11 +710,23 @@ def cmd_tile(args):
         print(f'  base overview {li}: {levels[li][0].shape[1]}×{levels[li][0].shape[0]}')
 
     rds = gdal.Open(os.path.join(args.fusion, 'residual.tif'))
-    residual = rds.GetRasterBand(1).ReadAsArray()
-    rgt = rds.GetGeoTransform()
-    rbounds = (rgt[0], rgt[3] + rgt[5] * rds.RasterYSize, rgt[0] + rgt[1] * rds.RasterXSize, rgt[3])
-    _T.update(base=levels, residual=box_pyramid(residual, rgt), residual_bounds=rbounds, out=args.out,
-              error_frac=args.error_frac, ellipsoid=tuple(args.ellipsoid))
+    grid = Grid(rds)
+    rgt = grid.gt
+    rbounds = grid.geo_bounds()
+
+    def pyramid(name):
+        """Box pyramid of a fusion raster on the residual grid, keeping only the
+        levels some generated zoom samples (the rest would only cost RAM)."""
+        ds_ = gdal.Open(os.path.join(args.fusion, name))
+        p = box_pyramid(ds_.GetRasterBand(1).ReadAsArray(), rgt)
+        ds_ = None
+        keep = {pick_level(p, 180 / 2 ** z / (GRID - 1), grid.unit_deg) for z in range(args.max_zoom + 1)}
+        return [lv if i in keep else (None, lv[1]) for i, lv in enumerate(p)]
+
+    _T.update(base=levels, base_scale_offset=base_so, grid=grid, residual=pyramid('residual.tif'),
+              residual_bounds=rbounds, out=args.out, error_frac=args.error_frac, ellipsoid=tuple(args.ellipsoid))
+    if grid.kind == 'stere':
+        _T.update(weight=pyramid('weight.tif'), base_xy=pyramid('base.tif'))
     print(f'loaded sources ({time.time() - t0:.0f}s)')
 
     # Regional levels cover the residual plus any extra area (e.g. where
@@ -623,9 +742,10 @@ def cmd_tile(args):
         if z <= args.global_zoom:
             xr, yr = (0, nx - 1), (0, ny - 1)
         else:
+            zb = (args.zoom_bounds or {}).get(z, tb)
             dx, dy = 360 / nx, 180 / ny
-            xr = (int((tb[0] + 180) // dx), int(math.ceil((tb[2] + 180) / dx)) - 1)
-            yr = (int((tb[1] + 90) // dy), int(math.ceil((tb[3] + 90) / dy)) - 1)
+            xr = (int((zb[0] + 180) // dx), int(math.ceil((zb[2] + 180) / dx)) - 1)
+            yr = (int((zb[1] + 90) // dy), int(math.ceil((zb[3] + 90) / dy)) - 1)
         available.append([{'startX': xr[0], 'startY': yr[0], 'endX': xr[1], 'endY': yr[1]}])
         for y in range(yr[0], yr[1] + 1):
             for x0 in range(xr[0], xr[1] + 1, chunk):
@@ -674,7 +794,9 @@ def cmd_tile(args):
         'mesh': {'grid': GRID, 'simplification': 'RTIN, all edge vertices kept',
                  'maxErrorFractionOfSpacing': args.error_frac},
         'levels': {'global': [0, args.global_zoom], 'regional': [args.global_zoom + 1, args.max_zoom],
-                   'regionalBounds': list(tb), 'residualBounds': list(rbounds)},
+                   'regionalBounds': list(tb), 'residualBounds': list(rbounds),
+                   **({'zoomBounds': {str(k): v for k, v in args.zoom_bounds.items()}} if args.zoom_bounds else {})},
+        'residualGrid': {'kind': grid.kind, 'crs': grid.proj4},
         'sources': {'canonical': fusion['base'], 'detail': fusion['detail']},
         'registration': {k: reg[k] for k in ('model', 'centroid', 'offsetM', 'slopeEastMPerKm',
                                               'slopeNorthMPerKm', 'tiltDeg', 'raw', 'afterPlane', 'removed', 'note')},
@@ -716,7 +838,106 @@ def cmd_selftest(_):
     assert len(rtin_triangles(rtin_errors(flat_), 1.0)) < len(rtin_triangles(rtin_errors(flat_, math.radians(2.8), 3396190.0), 1.0))
     n = np.array([[0, 0, 1.0], [0, 0, -1.0], [1.0, 0, 0], [0.6, -0.8, 0]])
     assert oct_encode(n).shape == (4, 2)
+    selftest_polar()
     print(f'selftest ok: {nv} vertices, {nt} triangles from {GRID * GRID}')
+
+
+def selftest_polar():
+    """Polar stereographic detail over a scaled Int16 eqc base, end to end:
+    projection vs. OSR, fuse, and tiles at the pole."""
+    import shutil, tempfile
+    tmp = tempfile.mkdtemp(prefix='dem-selftest-')
+    try:
+        _selftest_polar(tmp)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _selftest_polar(tmp):
+    from osgeo import osr
+    R = 1737400.0
+    drv = gdal.GetDriverByName('GTiff')
+    # Base: 0.5°/px eqc lat_ts=0 Int16 half-metres, a tilted plane plus waves.
+    bw, bh, px = 720, 360, math.pi / 180 * R * 0.5
+    lon = -180 + (np.arange(bw) + 0.5) * 0.5
+    lat = 90 - (np.arange(bh) + 0.5) * 0.5
+    L, P = np.meshgrid(np.radians(lon), np.radians(lat))
+    X, Y, Z = np.cos(P) * np.cos(L), np.cos(P) * np.sin(L), np.sin(P)
+    base_m = 800 * X + 300 * Y + 50 * Z + 40 * np.sin(9 * L) * np.cos(P)  # smooth on the sphere
+    ds = drv.Create(os.path.join(tmp, 'base.tif'), bw, bh, 1, gdal.GDT_Int16)
+    ds.SetGeoTransform((-180 * math.pi / 180 * R, px, 0, 90 * math.pi / 180 * R, 0, -px))
+    ds.SetProjection(f'+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R={R} +units=m +no_defs')
+    b = ds.GetRasterBand(1)
+    b.SetScale(0.5); b.SetOffset(0.0); b.SetNoDataValue(-32768)
+    b.WriteArray(np.round(base_m / 0.5).astype(np.int16)); ds = None
+    # Detail: 2 km px polar stereographic, 300 km square at the south pole.
+    n, dpx = 150, 2000.0
+    srs = osr.SpatialReference(); srs.ImportFromProj4(f'+proj=stere +lat_0=-90 +lon_0=0 +k=1 +x_0=0 +y_0=0 +R={R} +units=m +no_defs')
+    ds = drv.Create(os.path.join(tmp, 'detail.tif'), n, n, 1, gdal.GDT_Float32)
+    ds.SetGeoTransform((-n / 2 * dpx, dpx, 0, n / 2 * dpx, 0, -dpx)); ds.SetProjection(srs.ExportToWkt())
+    ds = None
+    g = Grid(gdal.Open(os.path.join(tmp, 'detail.tif')))
+    geo = srs.CloneGeogCS()
+    for s_ in (srs, geo):
+        s_.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    ct = osr.CoordinateTransformation(geo, srs)
+    for lo, la in ((0, -89.9), (129.8, -89.67), (-45, -87), (179, -86.5)):
+        x, y = g.project(np.array(lo), np.array(la))
+        ox, oy, _ = ct.TransformPoint(lo, la)
+        assert abs(x - ox) < 1e-6 and abs(y - oy) < 1e-6, ((x, y), (ox, oy))
+        ulo, ula = g.unproject(x, y)
+        assert abs(ula - la) < 1e-9 and abs((ulo - lo + 180) % 360 - 180) < 1e-9
+    # Detail heights: base + a crater-ish bump + 25 m bias; NaN corners exercise coverage.
+    gx = g.gt[0] + (np.arange(n) + 0.5) * dpx
+    gy = g.gt[3] + (np.arange(n) + 0.5) * -dpx
+    XX, YY = np.meshgrid(gx, gy)
+    dlon, dlat = g.unproject(XX, YY)
+    Lr, Pr = np.radians(dlon), np.radians(dlat)
+    det = (800 * np.cos(Pr) * np.cos(Lr) + 300 * np.cos(Pr) * np.sin(Lr) + 50 * np.sin(Pr)
+           + 40 * np.sin(9 * Lr) * np.cos(Pr) + 25 - 400 * np.exp(-((XX - 20000) ** 2 + YY ** 2) / 30000 ** 2))
+    det[np.hypot(XX, YY) > 140000] = np.nan
+    ds = gdal.Open(os.path.join(tmp, 'detail.tif'), gdal.GA_Update)
+    ds.GetRasterBand(1).SetNoDataValue(float('nan')); ds.GetRasterBand(1).WriteArray(det.astype(np.float32)); ds = None
+    fused = os.path.join(tmp, 'fused')
+    cmd_fuse(argparse.Namespace(base=os.path.join(tmp, 'base.tif'), detail=os.path.join(tmp, 'detail.tif'), out=fused,
+                                blend_m=20000, fit_stride=1, bias='none', vertical_datum='test'))
+    rep = json.load(open(os.path.join(fused, 'fusion.json')))
+    assert abs(rep['registration']['offsetM'] - 25) < 30 and rep['grid']['kind'] == 'stere'
+    out = os.path.join(tmp, 'tiles')
+    cmd_tile(argparse.Namespace(base=os.path.join(tmp, 'base.tif'), fusion=fused, out=out, global_zoom=2, max_zoom=4,
+                                regional_bounds=None, only_zoom=None, zoom_bounds={4: [-180, -90, 180, -88]},
+                                error_frac=0.1, ellipsoid=[R, R], workers=1, name='t', attribution=''))
+
+    def heights(z, x, y):
+        raw = gzip.decompress(open(os.path.join(out, str(z), str(x), f'{y}.terrain'), 'rb').read())
+        lo_, hi_ = struct.unpack_from('<2f', raw, 24)
+        nv = struct.unpack_from('<I', raw, 88)[0]
+        dec = lambda k: np.cumsum(((lambda v: (v >> 1) ^ -(v & 1))(np.frombuffer(raw, '<u2', nv, 92 + 2 * k * nv).astype(np.int32))))
+        u, v, q = dec(0), dec(1), dec(2)
+        return u, v, lo_ + q / 32767 * (hi_ - lo_), (hi_ - lo_) / 32767
+
+    # Every tile touching the south pole reports the same pole height (quantization aside).
+    for z in (3, 4):
+        pole, tol = [], 0.0
+        for x in range(2 ** (z + 1)):
+            u, v, h_, qs = heights(z, x, 0)
+            pole += list(h_[v == 0])
+            tol = max(tol, qs)
+        assert np.ptp(pole) <= 2.5 * tol, (z, np.ptp(pole), tol)
+        # …and it is the fused detail there (weight 1 at the pole), at the pyramid level the tile samples.
+        fds = gdal.Open(os.path.join(fused, 'fused.tif'))
+        fp = box_pyramid(fds.GetRasterBand(1).ReadAsArray(), g.gt)
+        lvl = fp[pick_level(fp, 180 / 2 ** z / (GRID - 1), g.unit_deg)]
+        want = float(bilinear(lvl[0].astype(np.float64), lvl[1], np.array(0.0), np.array(0.0)))
+        assert abs(np.mean(pole) - want) < 3 * tol + 1e-3, (z, np.mean(pole), want, tol)
+    # Shared same-LOD edges carry identical heights.
+    for z, x in ((4, 5), (3, 7)):
+        ua, va, ha, qa = heights(z, x, 0)
+        ub, vb, hb, qb = heights(z, x + 1, 0)
+        ea = dict(zip(va[ua == 32767], ha[ua == 32767]))
+        eb = dict(zip(vb[ub == 0], hb[ub == 0]))
+        assert ea.keys() == eb.keys() and max(abs(ea[k] - eb[k]) for k in ea) <= 1.5 * (qa + qb)
+
 
 
 def main():
@@ -736,6 +957,9 @@ def main():
     t.add_argument('--regional-bounds', type=lambda v: [float(x) for x in v.split(',')], metavar='W,S,E,N',
                    help='extend the regional levels beyond the residual extent')
     t.add_argument('--only-zoom', type=lambda s: [int(v) for v in s.split(',')])
+    t.add_argument('--zoom-bounds', action='append', metavar='Z=W,S,E,N',
+                   type=lambda v: (int(v.split('=')[0]), [float(x) for x in v.split('=')[1].split(',')]),
+                   help='narrower W,S,E,N for one regional zoom (repeatable): polar geographic tiles are slivers')
     t.add_argument('--error-frac', type=float, default=0.1, help='mesh max error as a fraction of vertex spacing')
     t.add_argument('--ellipsoid', type=float, nargs=2, required=True, metavar=('A_M', 'C_M'),
                    help='renderer ellipsoid radii for tile centres and bounding spheres')
@@ -744,6 +968,8 @@ def main():
     t.add_argument('--name', default='Fused terrain'); t.add_argument('--attribution', default='')
     sp.add_parser('selftest')
     args = p.parse_args()
+    if getattr(args, 'zoom_bounds', None):
+        args.zoom_bounds = dict(args.zoom_bounds)
     {'inspect': cmd_inspect, 'fuse': cmd_fuse, 'tile': cmd_tile, 'selftest': cmd_selftest}[args.cmd](args)
 
 
