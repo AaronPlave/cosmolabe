@@ -5,7 +5,8 @@
 # 2 km band, tiled as ONE quantized-mesh pyramid by scripts/terrain/dem.py.
 #
 # Prerequisite: ./01-fetch-sources.sh. Needs GDAL Python bindings + numpy.
-# Peak RAM ≈ 7 GB (fuse, ~7 min on 4 cores) / ~4 GB + ~100 MB per worker (tile).
+# Peak RAM ≈ 7 GB (fuse, ~7 min on 4 cores) / ~4 GB + ~100 MB per worker (tile,
+# ~45 min on 4 cores, 1.18 M tiles, ~11 GB).
 #
 # The polar mosaic is polar stereographic: dem.py keeps its residual on that
 # grid and, inside its coverage, hands the base over to its detail-grid

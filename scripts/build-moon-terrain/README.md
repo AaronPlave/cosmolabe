@@ -7,13 +7,18 @@ in `packages/three/src/TerrainManager.ts` and streamed by
 
 ```bash
 ./01-fetch-sources.sh                  # ~9 GB of public USGS-hosted GeoTIFFs into data/source/
-./fused.sh                             # fuse ~7 min (peak RAM ≈ 7 GB), tile ~30 min on 4 cores
+./fused.sh                             # fuse ~7 min (peak RAM ≈ 7 GB), tile ~45 min on 4 cores
 node ../validate-terrain.mjs --preset moon-shackleton-fused
 ```
 
 Output: `apps/viewer/test-catalogs/data/moon-terrain-fused/` (`layer.json`,
-`z/x/y.terrain`, `terrain-product.json`, `fusion.json`; gitignored, not on the
+`z/x/y.terrain`, `terrain-product.json`, `fusion.json`; 1.18 M tiles, ~11 GB; gitignored, not on the
 deployed site yet — same hosting gap as Mars, #137).
+
+A catalog streaming this pyramid near the pole needs `samplerMaxTiles` well
+above the default 256 (MoonFall uses 4096): one polar view holds hundreds to
+thousands of sliver tiles, and the CPU sampler must keep the ones under the
+camera for picking and dolly clearance.
 
 ## Sources (public, no auth)
 
