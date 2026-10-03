@@ -150,48 +150,47 @@ export function moveAlongSurface(pose: SurfacePose, forwardKm: number, rightKm: 
   return { latRad: g.latRad, lonRad: g.lonRad, altKm: pose.altKm, headingRad, pitchRad: pose.pitchRad };
 }
 
+/** Terrain height plus clearance at a geodetic point, km above the ellipsoid; null where unknown. */
+export type FloorFn = (latRad: number, lonRad: number) => number | null;
+
 /**
- * Dolly `stepKm` along the camera's view ray (positive = forward), then enforce
- * `floorKm(lat, lon)` (terrain height plus clearance, km above the ellipsoid).
- * A step that would end below the floor while descending is shortened so it
- * stops on it; a camera already below the floor may still move upward, so it
- * can always back out.
+ * How far to travel along a body-fixed ray: `stepKm`, shortened if it would
+ * end below `floorKm` while descending, so the move stops on the floor. A start
+ * point already at or below the floor may not descend further (returns 0) but
+ * may still move upward, so it can always back out.
  */
-export function dollyAlongView(
-  pose: SurfacePose, stepKm: number, ell: Ellipsoid,
-  floorKm?: (latRad: number, lonRad: number) => number | null,
-): SurfacePose {
+export function clipRayToFloor(start: Vec3, dir: Vec3, stepKm: number, ell: Ellipsoid, floorKm?: FloorFn): number {
+  if (stepKm === 0 || !floorKm) return stepKm;
+  const at = (t: number) => bodyFixedToGeodeticRad([start[0] + t * dir[0], start[1] + t * dir[1], start[2] + t * dir[2]], ell);
+  const g0 = at(0);
+  const g = at(stepKm);
+  const floor = floorKm(g.latRad, g.lonRad);
+  if (floor == null || g.altKm >= floor || g.altKm >= g0.altKm) return stepKm;
+  const startFloor = floorKm(g0.latRad, g0.lonRad) ?? floor;
+  // Already at/below the floor: refuse to go further down.
+  if (g0.altKm <= startFloor) return 0;
+  // Bisect for the point where the ray meets the (locally varying) floor.
+  let lo = 0, hi = stepKm;
+  for (let i = 0; i < 24; i++) {
+    const mid = 0.5 * (lo + hi);
+    const gm = at(mid);
+    if (gm.altKm >= (floorKm(gm.latRad, gm.lonRad) ?? floor)) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Dolly `stepKm` along the camera's view ray (positive = forward), stopping on
+ * `floorKm` as described in {@link clipRayToFloor}.
+ */
+export function dollyAlongView(pose: SurfacePose, stepKm: number, ell: Ellipsoid, floorKm?: FloorFn): SurfacePose {
   if (stepKm === 0) return { ...pose };
   const frame = localFrame(pose.latRad, pose.lonRad);
   const look = viewDirection(frame, pose.headingRad, pose.pitchRad);
   const start = geodeticToBodyFixedKm(pose.latRad, pose.lonRad, pose.altKm, ell);
-
-  const at = (t: number) => {
-    const p: Vec3 = [start[0] + t * look[0], start[1] + t * look[1], start[2] + t * look[2]];
-    return bodyFixedToGeodeticRad(p, ell);
-  };
-
-  let t = stepKm;
-  let g = at(t);
-  const floor = floorKm?.(g.latRad, g.lonRad);
-  if (floor != null && g.altKm < floor && g.altKm < pose.altKm) {
-    const startFloor = floorKm?.(pose.latRad, pose.lonRad) ?? floor;
-    if (pose.altKm <= startFloor) {
-      // Already at/below the floor: refuse to go further down.
-      return { ...pose };
-    }
-    // Shorten the step by bisection so it ends on the (locally varying) floor.
-    let lo = 0, hi = t;
-    for (let i = 0; i < 24; i++) {
-      const mid = 0.5 * (lo + hi);
-      const gm = at(mid);
-      const fm = floorKm?.(gm.latRad, gm.lonRad) ?? floor;
-      if (gm.altKm >= fm) lo = mid; else hi = mid;
-    }
-    t = lo;
-    g = at(t);
-  }
-
+  const t = clipRayToFloor(start, look, stepKm, ell, floorKm);
+  if (t === 0) return { ...pose };
+  const g = bodyFixedToGeodeticRad([start[0] + t * look[0], start[1] + t * look[1], start[2] + t * look[2]], ell);
   const nextFrame = localFrame(g.latRad, g.lonRad);
   const { headingRad, pitchRad } = headingPitchOf(look, nextFrame, pose.headingRad);
   return { latRad: g.latRad, lonRad: g.lonRad, altKm: g.altKm, headingRad, pitchRad };

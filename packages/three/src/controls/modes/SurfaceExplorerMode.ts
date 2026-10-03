@@ -3,8 +3,8 @@ import { CameraModeName, type ICameraMode, type CameraModeContext, type CameraMo
 import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 import {
-  bodyFixedToGeodeticRad, dollyAlongView, headingPitchOf, localFrame, moveAlongSurface, viewDirection,
-  type Ellipsoid, type SurfacePose, type Vec3,
+  bodyFixedToGeodeticRad, clipRayToFloor, dollyAlongView, headingPitchOf, localFrame, moveAlongSurface, viewDirection,
+  type Ellipsoid, type FloorFn, type SurfacePose, type Vec3,
 } from '../surfaceNavigation.js';
 
 const _tmpV = /* @__PURE__ */ new THREE.Vector3();
@@ -41,7 +41,8 @@ function makeRotateAroundPoint(point: THREE.Vector3, quat: THREE.Quaternion, tar
  *
  * Camera altitude is above the reference ellipsoid (not terrain-following).
  * The renderer's clampCameraAboveSurfaces() handles terrain collision; wheel
- * and pinch dolly additionally stop at a small clearance above sampled terrain.
+ * and pinch dolly (including while orbiting) additionally stop at a small
+ * clearance above sampled terrain.
  *
  * All motion is a displacement in the local East/North/Up frame (or along the
  * view ray) in body-fixed space, converted back to geodetic coordinates — see
@@ -494,7 +495,18 @@ export class SurfaceExplorerMode implements ICameraMode {
   private dolly(stepKm: number, ctx: CameraModeContext): void {
     if (this.rightDragging && this.hasPivot) {
       ctx.camera.getWorldDirection(_tmpV);
-      ctx.camera.position.addScaledVector(_tmpV, stepKm * ctx.scaleFactor);
+      const bm = ctx.bodyMeshes.get(this.bodyName);
+      let t = stepKm;
+      if (bm) {
+        // Same terrain clearance as the geodetic dolly, on the camera's own ray.
+        const bodyQ = this.getBodyQuat(ctx, bm);
+        const invQ = bodyQ ? bodyQ.clone().invert() : null;
+        const startKm = ctx.camera.position.clone().sub(bm.position).divideScalar(ctx.scaleFactor);
+        const dirKm = _tmpV.clone();
+        if (invQ) { startKm.applyQuaternion(invQ); dirKm.applyQuaternion(invQ); }
+        t = clipRayToFloor(geometryToBodyFixed(startKm), geometryToBodyFixed(dirKm), stepKm, this.ellipsoid, this.terrainFloor(bm));
+      }
+      ctx.camera.position.addScaledVector(_tmpV, t * ctx.scaleFactor);
       return;
     }
     this.dollyGeodetic(stepKm, ctx);
@@ -507,16 +519,18 @@ export class SurfaceExplorerMode implements ICameraMode {
   private dollyGeodetic(stepKm: number, ctx: CameraModeContext): void {
     this.suppressGeodetic = false;
     const bm = ctx.bodyMeshes.get(this.bodyName);
-    const floorKm = bm
-      ? (latRad: number, lonRad: number) => {
-        const sample = bm.sampleTerrainElevation(latRad * 180 / Math.PI, lonRad * 180 / Math.PI);
-        return sample ? sample.elevationKm + DOLLY_TERRAIN_CLEARANCE_KM : null;
-      }
-      : undefined;
-    const next = dollyAlongView(this.pose, stepKm, this.ellipsoid, floorKm);
+    const next = dollyAlongView(this.pose, stepKm, this.ellipsoid, bm ? this.terrainFloor(bm) : undefined);
     next.altKm = Math.max(-20, Math.min(10000, next.altKm));
     next.pitchRad = Math.max(-1.5, Math.min(0.3, next.pitchRad));
     this.pose = next;
+  }
+
+  /** Sampled terrain height plus the dolly clearance, km above the ellipsoid. */
+  private terrainFloor(bm: BodyMesh): FloorFn {
+    return (latRad, lonRad) => {
+      const sample = bm.sampleTerrainElevation(latRad * 180 / Math.PI, lonRad * 180 / Math.PI);
+      return sample ? sample.elevationKm + DOLLY_TERRAIN_CLEARANCE_KM : null;
+    };
   }
 
   private initOrbitPivot(clientX: number, clientY: number, ctx: CameraModeContext): void {

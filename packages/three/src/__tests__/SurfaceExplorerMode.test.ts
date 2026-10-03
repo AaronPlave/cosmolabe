@@ -74,6 +74,7 @@ describe('SurfaceExplorerMode near the lunar south pole', () => {
     mode.activate(ctx, { bodyName: 'Moon', latDeg: -89.9, lonDeg: 0, altKm: 0.05 });
     const m = mode as unknown as {
       keys: Set<string>; latRad: number; lonRad: number; altKm: number; heading: number; pitch: number;
+      rightDragging: boolean; hasPivot: boolean;
       dolly(stepKm: number, ctx: CameraModeContext): void;
     };
     return { mode, ctx, m };
@@ -119,5 +120,25 @@ describe('SurfaceExplorerMode near the lunar south pole', () => {
     m.dolly(10, ctx);
     expect(m.altKm).toBeCloseTo(0.032, 5);
     expect(before.length()).toBeGreaterThan(0);
+  });
+
+  it('orbit-drag dolly moves the camera itself but also stops above sampled terrain', () => {
+    const { mode, ctx, m } = setup(0.03);
+    // Look steeply down at the ground from 50 m.
+    m.pitch = -1.2;
+    (m as unknown as { dirty: boolean }).dirty = true;
+    mode.update(ctx);
+    ctx.camera.updateMatrixWorld(true);
+    m.rightDragging = true;
+    m.hasPivot = true;
+    const before = ctx.camera.position.clone();
+    m.dolly(10, ctx);
+    const r = ctx.camera.position.length();
+    // Sphere: altitude is radius minus R. Stops at 30 m terrain + 2 m clearance.
+    expect(r - R).toBeCloseTo(0.032, 5);
+    expect(ctx.camera.position.distanceTo(before)).toBeGreaterThan(0.01);
+    // Pulling back out is unrestricted.
+    m.dolly(-1, ctx);
+    expect(ctx.camera.position.length() - R).toBeGreaterThan(0.032);
   });
 });
