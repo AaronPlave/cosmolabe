@@ -25,23 +25,24 @@ type AtmosphereModelInput = AtmosphereParams & {
 const DENSITY_CUTOFF = -Math.log(0.0005);
 
 export function normalizeAtmosphere(params: AtmosphereModelInput): AtmosphereModel {
+  const copyRGB = (rgb: RGB): RGB => [rgb[0], rgb[1], rgb[2]];
   const mie: RGB = typeof params.mieCoeff === 'number'
     ? [params.mieCoeff, params.mieCoeff, params.mieCoeff]
-    : [...params.mieCoeff];
+    : copyRGB(params.mieCoeff);
   const rayleighScaleHeightKm = params.rayleighScaleHeightKm ?? params.mieScaleHeight;
   const absorption = params.absorptionProfile ??
     { type: 'exponential' as const, scaleHeightKm: params.mieScaleHeight };
   return {
     heightKm: params.heightKm ?? Math.max(params.mieScaleHeight, rayleighScaleHeightKm) * DENSITY_CUTOFF,
-    rayleigh: { scattering: [...params.rayleighCoeff], scaleHeightKm: rayleighScaleHeightKm },
+    rayleigh: { scattering: copyRGB(params.rayleighCoeff), scaleHeightKm: rayleighScaleHeightKm },
     mie: {
       scattering: mie,
-      extinction: params.mieExtinctionCoeff ? [...params.mieExtinctionCoeff] : [...mie],
+      extinction: params.mieExtinctionCoeff ? copyRGB(params.mieExtinctionCoeff) : copyRGB(mie),
       scaleHeightKm: params.mieScaleHeight,
       g: params.miePhaseAsymmetry,
     },
-    absorption: { extinction: [...params.absorptionCoeff], profile: absorption },
-    groundAlbedo: params.groundAlbedo ? [...params.groundAlbedo] : [0.1, 0.1, 0.1],
+    absorption: { extinction: copyRGB(params.absorptionCoeff), profile: { ...absorption } },
+    groundAlbedo: params.groundAlbedo ? copyRGB(params.groundAlbedo) : [0.1, 0.1, 0.1],
     planetCapBias: params.planetCapBias ?? 0,
   };
 }

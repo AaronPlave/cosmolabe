@@ -88,8 +88,11 @@ const PORT = 4173;
  * draws too little ink for any change to fail it.
  */
 const SCENES = [
+  { catalog: 'atmosphere-earth-textured', viewpoints: ['Whole disc', 'Orbit 400 km'] },
+  { catalog: 'atmosphere-mars-textured', viewpoints: ['Whole disc', 'Orbit 400 km'] },
   { catalog: 'atmosphere-earth', viewpoints: ['Surface zenith', 'Surface horizon', 'Ascent 50 km', 'Orbit 400 km', 'Whole disc'] },
   { catalog: 'atmosphere-earth-twilight', viewpoints: ['Sunward horizon', 'Terminator disc'] },
+  { catalog: 'atmosphere-earth-dusk', viewpoints: ['Sunward horizon'] },
   { catalog: 'atmosphere-mars', viewpoints: ['Surface zenith', 'Surface horizon', 'Orbit 400 km', 'Whole disc'] },
   { catalog: 'cassini-soi', viewpoints: ['SOI (2004-07-01)', 'Ring Plane View'] },
   // Earth + Moon is the SPICE-free scene: both bodies are Keplerian and no
@@ -465,6 +468,14 @@ async function main() {
         const goldenPath = join(GOLDEN_DIR, `${label}.png`);
         const exists = existsSync(goldenPath);
 
+        if (actualInk <= MAX_DIFF_FRAC) {
+          failures.push(
+            `${label}: capture draws only ${(actualInk * 100).toFixed(2)}% ink, below the ` +
+              `${(MAX_DIFF_FRAC * 100).toFixed(2)}% diff budget. Refusing to compare or write a powerless image.`,
+          );
+          continue;
+        }
+
         if (!exists && !CREATE) {
           // Writing this file and exiting 0 is how a renamed scene or viewpoint
           // used to promote its new picture to the truth, with no diff and no
@@ -477,6 +488,14 @@ async function main() {
           continue;
         }
         if (UPDATE || !exists) {
+          if (UPDATE && exists) {
+            const previousInk = inkFrac(PNG.sync.read(readFileSync(goldenPath)));
+            if (actualInk < previousInk * 0.25) {
+              failures.push(`${label}: capture ink fell from ${(previousInk * 100).toFixed(2)}% to ` +
+                `${(actualInk * 100).toFixed(2)}%; refusing to replace a likely unloaded scene.`);
+              continue;
+            }
+          }
           writeFileSync(goldenPath, PNG.sync.write(actual));
           console.log(`  ${exists ? 'wrote' : 'created'} golden ${label}.png (${(actualInk * 100).toFixed(2)}% ink)`);
           continue;

@@ -38,10 +38,32 @@ describe('atmosphere geometry and normalization', () => {
     expect(profileDensity(model.absorption.profile, 40)).toBe(0);
     expect(extinctionAt(model, 25)[0]).toBeGreaterThan(model.absorption.extinction[0]);
   });
+
+  it('loads optional normalized fields from inline catalogs without changing legacy fields', () => {
+    const inline = resolveAtmosphereParams({
+      mieCoeff: [0.01, 0.008, 0.006], mieScaleHeight: 2,
+      rayleighCoeff: [0.002, 0.004, 0.008], absorptionCoeff: [0.001, 0.002, 0.003],
+      heightKm: 80, rayleighScaleHeightKm: 9,
+      mieExtinctionCoeff: [0.02, 0.016, 0.012],
+      absorptionProfile: { type: 'tent', peakKm: 20, halfWidthKm: 10 },
+      groundAlbedo: [0.1, 0.2, 0.3],
+    })!;
+    const model = normalizeAtmosphere(inline);
+    expect(model.heightKm).toBe(80);
+    expect(model.rayleigh.scaleHeightKm).toBe(9);
+    expect(model.mie.extinction).toEqual([0.02, 0.016, 0.012]);
+    expect(model.absorption.profile).toEqual({ type: 'tent', peakKm: 20, halfWidthKm: 10 });
+    expect(model.groundAlbedo).toEqual([0.1, 0.2, 0.3]);
+    inline.rayleighCoeff[0] = 1;
+    expect(model.rayleigh.scattering[0]).toBe(0.002);
+  });
 });
 
 describe('direct transmittance reference', () => {
-  const model = normalizeAtmosphere({ ...earth, heightKm: 100, rayleighScaleHeightKm: 8, mieScaleHeight: 1.2 });
+  const model = normalizeAtmosphere({
+    ...earth, heightKm: 100, rayleighScaleHeightKm: 8, mieScaleHeight: 1.2,
+    absorptionProfile: { type: 'exponential', scaleHeightKm: 1.2 },
+  });
   const radius = 6378.1;
 
   it('matches the independent vertical exponential integral', () => {
@@ -75,5 +97,12 @@ describe('direct transmittance reference', () => {
       expect(value).toBe(1);
       expect(Math.abs(under[i] - value)).toBeLessThan(0.0001);
     });
+  });
+
+  it('decreases exponential density with altitude', () => {
+    const rayleigh = model.rayleigh.scaleHeightKm;
+    const profile = { type: 'exponential' as const, scaleHeightKm: rayleigh };
+    expect(profileDensity(profile, 0)).toBeGreaterThan(profileDensity(profile, 2));
+    expect(profileDensity(profile, 2)).toBeGreaterThan(profileDensity(profile, 20));
   });
 });

@@ -1,11 +1,12 @@
-# Atmosphere validation baseline (issue #134)
+# Atmosphere validation (issue #134)
 
-The three `atmosphere-*` test catalogs fix the planet, Sun, clock, and camera.
-They need no SPICE kernels or network assets. The Earth and Mars catalogs use
+The `atmosphere-*` test catalogs fix the planet, Sun, clock, and camera.
+They need no SPICE kernels. The textured variants load the shipped Earth and Mars maps. The Earth and Mars catalogs use
 surface, horizon, ascent, orbit, and whole-disc viewpoints. The twilight
 catalog puts the Sun 3° above the local horizon and captures the sunward sky
-and terminator disc. These views are deliberately plain: visual changes come
-from the atmosphere and body materials rather than imagery.
+and terminator disc. The plain variants isolate atmosphere changes; the textured variants check that
+orbital scattering preserves land and surface detail. A separate dusk catalog
+places the Sun 3° below the local horizon.
 
 Run the focused comparison against a local viewer server:
 
@@ -39,12 +40,81 @@ On 2026-10-02, local Chromium SwiftShader at 1024×768, six warm frames:
 | Mars orbit 400 km | 147 ms |
 | Mars whole disc | 84 ms |
 
-The current proxy uses `SphereGeometry(1.15, 1024, 512)`: 525,825 vertices.
+The baseline proxy uses `SphereGeometry(1.15, 1024, 512)`: 525,825 vertices.
 Its vertex shader runs an eight-step view integral, or about 4.21 million
 view samples per atmosphere draw. The orbit path adds an eight-step fragment
 integral. These are workload counts, not GPU timings.
 
-The baseline images show a bright strip at the horizon, a sharp terminator,
+The images on baseline PR #138 show a bright strip at the horizon, a sharp terminator,
 and no orbital atmosphere over the body disc. They establish regression views,
 not approved target colors. Later phases should add low-Sun and terrain views
 once the shared transmittance path can render them usefully.
+
+## Shared transport implementation
+
+The shell, aerial perspective, and multiple-scattering LUT now use the same
+Rayleigh, Mie, and absorption density profiles. Earth uses an 8 km Rayleigh
+scale height, 1.2 km Mie scale height, a 100 km shell, and an ozone-like tent
+profile. Legacy inline catalogs retain their original coefficient fields and
+single scale height unless they opt into the new fields.
+
+A 256×64 RGB half-float transmittance LUT replaces the approximate Sun optical
+depth and hemisphere fade. Solid-planet Sun occlusion is evaluated geometrically.
+Scattering phases are normalized per steradian, and the multiple-scattering LUT
+stores direction-averaged radiance with an explicit ground-albedo contribution.
+Each view segment integrates its sampled extinction analytically, preventing
+long dense segments from creating energy through a linear source approximation.
+
+Aerial perspective clips the camera-to-surface ray to the shell and preserves
+RGB view transmittance. It stays active from ground to orbit. Globe paths use an
+analytic surface intersection and the same ellipsoid frame as the shell;
+terrain paths end at the actual terrain fragment. The shell uses the renderer's
+tone and display-color chunks instead of local Reinhard mapping.
+
+Run numerical GPU checks after building the packages:
+
+```sh
+npm run build
+CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/test-atmosphere-gpu.mjs
+```
+
+The check renders the actual shared GLSL and compares five RGB Sun paths to a
+4096-step CPU integral, integrates Rayleigh and Mie phases over the sphere,
+and checks transparent and optically thick segment integrals. The LUT comparison
+uses a 0.025 absolute transmittance tolerance for its finite texture resolution.
+This samples representative paths; it does not exhaustively validate every preset.
+
+Reproduce the textured solar-system review at the fixed 2024-07-04 epoch:
+
+```sh
+CL_VIEWER_URL=http://127.0.0.1:5174 ATMOSPHERE_CAPTURE_DIR=docs/images/issue-134 node scripts/capture-atmosphere-textures.mjs
+```
+
+Earth, Mars, Jupiter, and Saturn are captured from the sunward side at 2.3 body
+radii. All nine initial texture assets must load, and each image must draw more
+than 10% of its pixels. The saved images are embedded in the implementation PR.
+Jupiter and Saturn retain their ellipsoidal geometry and existing presets.
+
+## Remaining issue phases
+
+This implementation is the shared-transport slice of #134, stacked on baseline
+PR #138. The issue remains open for these subsequent efforts:
+
+| Phase | Work |
+| --- | --- |
+| 2 | Activate SkyViewLUT with a camera-relative basis and replace the 525k-vertex proxy; measure update and frame costs. |
+| 3 | Complete orbital RGB compositing and depth ordering, including translucent geometry and surface sunlight extinction. |
+| 4 | Validate terrain paths, short foreground paths, and continuity across altitude; justify any aerial-perspective volume with measurements. |
+| 5 | Calibrate presets and common exposure against references; remove the bright horizon strip and remaining ground-view artifacts. |
+
+RGB aerial perspective and shell display conversion are included early because
+textured orbital review exposed excessive whole-disc haze. Shell blending still
+uses scalar transmittance, and display conversion occurs per material; a fully
+linear final scene composite is subsequent work. The surface zenith, horizon,
+and dusk images are regression observations, not approved reference colors.
+The existing plain-globe horizon views also reveal mesh/shadow artifacts.
+
+Cassini SOI could not be reviewed locally because its spacecraft CK attitude is
+unavailable at the catalog epoch; the loader fails before capture. Earth–Moon
+and OEM Saturn captures cover the existing analytical catalog and ring/trajectory
+paths instead.
