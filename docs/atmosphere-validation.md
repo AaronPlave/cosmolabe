@@ -98,12 +98,11 @@ Saturn’s above-cloud loading is reduced as described below.
 
 ## Remaining issue phases
 
-This implementation is the shared-transport slice of #134, stacked on baseline
-PR #138. The issue remains open for these subsequent efforts:
+The baseline and shared-transport slices landed in PRs #138 and #141. GitHub
+closed #134 when they merged; these subsequent efforts remain documented:
 
 | Phase | Work |
 | --- | --- |
-| 2 | Activate SkyViewLUT with a camera-relative basis and replace the 525k-vertex proxy; measure update and frame costs. |
 | 3 | Complete orbital RGB compositing and depth ordering, including translucent geometry and surface sunlight extinction. |
 | 4 | Validate terrain paths, short foreground paths, and continuity across altitude; justify any aerial-perspective volume with measurements. |
 | 5 | Calibrate presets and common exposure against references; remove the bright horizon strip and remaining ground-view artifacts. |
@@ -114,6 +113,36 @@ uses scalar transmittance, and display conversion occurs per material; a fully
 linear final scene composite is subsequent work. The surface zenith, horizon,
 and dusk images are regression observations, not approved reference colors.
 The existing plain-globe horizon views also reveal mesh/shadow artifacts.
+
+## Sky-view lookup (phase 2)
+
+The renderer now updates a 192×108 sky-view lookup while the camera is inside
+an atmosphere. Its coordinates use camera-local up and the Sun's tangent
+direction; a full azimuth turn keeps asymmetric eclipse shadows distinct on
+either side of the Sun. Each texel integrates 16 view samples with the shared
+density, RGB extinction, direct-Sun, and multi-scatter equations. The shell
+samples the lookup and uses a 256×128 proxy (33,153 vertices, down from
+525,825). Orbital views retain the per-fragment limb path. Meshes constructed
+without a renderer retain their direct integration fallback.
+
+On 2026-10-03, the same local Chromium SwiftShader server and browser were
+profiled before and after this change. These are medians of six warm captures,
+including JavaScript, draw submission, and PNG readback; they are not isolated
+GPU pass timings.
+
+| Earth view | Prior path | Sky-view lookup |
+| --- | ---: | ---: |
+| Surface zenith | 150 ms | 15 ms |
+| Surface horizon | 158 ms | 34 ms |
+| Ascent 50 km | 151 ms | 30 ms |
+| Orbit 400 km | 230 ms | 82 ms |
+| Whole disc | 111 ms | 22 ms |
+
+The lookup draws 20,736 texels with 16 view samples each when the camera is
+inside the shell. Its cost is included in the capture figures. The ascent
+golden was refreshed after reviewing a thin horizon-edge shift caused by the
+smaller proxy; the remaining focused atmosphere images stayed within their
+existing comparison threshold.
 
 Cassini SOI could not be reviewed locally because its spacecraft CK attitude is
 unavailable at the catalog epoch; the loader fails before capture. Earth–Moon
