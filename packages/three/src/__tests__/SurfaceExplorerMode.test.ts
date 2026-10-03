@@ -50,3 +50,74 @@ describe('SurfaceExplorerMode orbit pivot', () => {
     testMode.disposePivotDot();
   });
 });
+
+describe('SurfaceExplorerMode near the lunar south pole', () => {
+  const R = 1737.4;
+  const DEG = Math.PI / 180;
+
+  function setup(terrainKm: number | null = 0) {
+    const body = {
+      position: new THREE.Vector3(),
+      mesh: { quaternion: new THREE.Quaternion() },
+      body: { radii: [R, R, R] },
+      sampleTerrainElevation: () => (terrainKm == null ? null : { elevationKm: terrainKm }),
+    } as unknown as BodyMesh;
+    const ctx = {
+      camera: new THREE.PerspectiveCamera(),
+      controls: { domElement: null },
+      bodyMeshes: new Map([['Moon', body]]),
+      scaleFactor: 1,
+      et: 0,
+      dt: 1 / 60,
+    } as unknown as CameraModeContext;
+    const mode = new SurfaceExplorerMode();
+    mode.activate(ctx, { bodyName: 'Moon', latDeg: -89.9, lonDeg: 0, altKm: 0.05 });
+    const m = mode as unknown as {
+      keys: Set<string>; latRad: number; lonRad: number; altKm: number; heading: number; pitch: number;
+      dolly(stepKm: number, ctx: CameraModeContext): void;
+    };
+    return { mode, ctx, m };
+  }
+
+  it('puts the camera at the requested geodetic point with geodetic up', () => {
+    const { ctx } = setup();
+    const p = ctx.camera.position;
+    // Geometry Y-up: body-fixed z → y.
+    expect(Math.asin(p.y / p.length()) / DEG).toBeCloseTo(-89.9, 9);
+    expect(p.length()).toBeCloseTo(R + 0.05, 9);
+    expect(ctx.camera.up.angleTo(p)).toBeLessThan(1e-9);
+  });
+
+  it('drives over the pole with W without jumps, and keeps going straight', () => {
+    const { mode, ctx, m } = setup();
+    m.heading = Math.PI; // due south, toward the pole ~3 km ahead
+    m.keys.add('KeyW');
+    let prev = ctx.camera.position.clone();
+    let maxStep = 0;
+    for (let i = 0; i < 3000; i++) {
+      mode.update(ctx);
+      const step = ctx.camera.position.distanceTo(prev);
+      maxStep = Math.max(maxStep, step);
+      prev = ctx.camera.position.clone();
+      expect(Number.isFinite(step)).toBe(true);
+    }
+    // ~0.15 km/s at 50 m for 50 s ≈ 7.5 km: well past the pole, ~2.5 m per frame, never a jump.
+    expect(maxStep).toBeLessThan(0.005);
+    // Crossed the pole: now on the far meridian heading north, same altitude.
+    expect(Math.abs(m.lonRad)).toBeCloseTo(Math.PI, 2);
+    expect(Math.cos(m.heading)).toBeGreaterThan(0.999);
+    expect(m.altKm).toBeCloseTo(0.05, 9);
+  });
+
+  it('wheel dolly follows the view ray and stops above sampled terrain', () => {
+    const { ctx, m } = setup(0.03);
+    const before = ctx.camera.position.clone();
+    m.pitch = -0.5;
+    m.dolly(10, ctx);
+    expect(m.altKm).toBeGreaterThanOrEqual(0.032 - 1e-9);
+    expect(m.altKm).toBeCloseTo(0.032, 5);
+    m.dolly(10, ctx);
+    expect(m.altKm).toBeCloseTo(0.032, 5);
+    expect(before.length()).toBeGreaterThan(0);
+  });
+});
