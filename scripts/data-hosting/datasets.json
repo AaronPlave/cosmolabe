@@ -21,7 +21,7 @@
         "scripts/fetch-psyche-kernels.sh",
         "scripts/fetch-voyager-kernels.sh"
       ],
-      "build": null
+      "build": "2026-10-02"
     },
     "kernels/cassini": {
       "kind": "kernels",
@@ -31,7 +31,7 @@
       "fetchScripts": [
         "scripts/fetch-cassini-kernels.sh"
       ],
-      "build": null
+      "build": "2026-10-02"
     },
     "kernels/europa-clipper": {
       "kind": "kernels",
@@ -41,7 +41,7 @@
       "fetchScripts": [
         "scripts/fetch-europa-clipper-kernels.sh"
       ],
-      "build": null
+      "build": "2026-10-02"
     },
     "kernels/lro": {
       "kind": "kernels",
@@ -51,7 +51,7 @@
       "fetchScripts": [
         "scripts/fetch-lro-kernels.sh"
       ],
-      "build": null
+      "build": "2026-10-02"
     },
     "kernels/msl": {
       "kind": "kernels",
@@ -61,7 +61,7 @@
       "fetchScripts": [
         "scripts/fetch-msl-kernels.sh"
       ],
-      "build": null
+      "build": "2026-10-02"
     },
     "kernels/psyche": {
       "kind": "kernels",
@@ -71,7 +71,7 @@
       "fetchScripts": [
         "scripts/fetch-psyche-kernels.sh"
       ],
-      "build": null
+      "build": "2026-10-02"
     },
     "kernels/voyager": {
       "kind": "kernels",
@@ -81,7 +81,7 @@
       "fetchScripts": [
         "scripts/fetch-voyager-kernels.sh"
       ],
-      "build": null
+      "build": "2026-10-02"
     }
   }
 }
