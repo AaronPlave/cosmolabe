@@ -118,3 +118,12 @@ Cassini SOI could not be reviewed locally because its spacecraft CK attitude is
 unavailable at the catalog epoch; the loader fails before capture. Earth–Moon
 and OEM Saturn captures cover the existing analytical catalog and ring/trajectory
 paths instead.
+
+The multiple-scattering convention follows [Hillaire's atmosphere paper](https://sebh.github.io/publications/egsr2020.pdf): the LUT contains angularly averaged radiance, while the transfer factor integrates the isotropic phase over the sphere.
+
+The full local test run also reaches an unrelated SPICE reporting test,
+`gf-reporting.test.ts`. Its intermediate-callback assertion assumes the first
+search pass lasts beyond the reporter's 100 ms throttle. On this machine that
+pass finished in 68–88 ms, so no intermediate callback was emitted. The focused
+atmosphere tests and GPU checks pass independently; repository CI remains the
+full-suite gate.
