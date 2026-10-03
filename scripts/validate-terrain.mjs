@@ -128,6 +128,21 @@ const PRESETS = {
     boundaryLevel: 9,
     controlPoints: moonfallControlPoints,
   },
+  'moon-shackleton-fused': {
+    description: 'The fused LOLA 118 m + south-pole LOLA 10 m pyramid from scripts/build-moon-terrain/fused.sh (#48)',
+    url: join(ROOT, 'apps/viewer/test-catalogs/data/moon-terrain-fused/'),
+    offsetKm: 0,
+    datum: MOON_DATUM,
+    // Same Shackleton-rim box as moon-shackleton, at the fused pyramid's
+    // deepest polar levels (z12 exists south of 88.5°S); slivers keep it narrow.
+    bounds: [-45.5, -89.6, -44.5, -89.5],
+    levels: [11, 12],
+    canonicalLevel: 9,
+    // The residual taper ends inside the polar mosaic, not on a tile-availability edge.
+    boundary: null,
+    boundaryLevel: 12,
+    controlPoints: moonfallControlPoints,
+  },
 };
 
 // ---------------------------------------------------------------------------
