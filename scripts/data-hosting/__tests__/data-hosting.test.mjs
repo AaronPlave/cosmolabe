@@ -9,6 +9,7 @@ import { CATALOG_ROOT, ROOT, loadDatasets, remotePrefix } from '../lib/datasets.
 import { buildHostedCatalogs, matchDataset, resolveLocalPath, rewriteCatalog } from '../lib/hosted-catalogs.mjs';
 import { kernelManifest, resolveUpstream, upstreamFromScript, validateKernelHeader } from '../lib/kernels.mjs';
 import { objectMeta, publishDirectory } from '../lib/publish.mjs';
+import { publicDirCopyFilter } from '../lib/public-dir-filter.mjs';
 import { createLocalStorage, createS3Storage } from '../lib/storage.mjs';
 import { terrainManifest, validateTerrain } from '../lib/terrain.mjs';
 import { verifyBuild } from '../lib/verify.mjs';
@@ -274,6 +275,23 @@ K=(
 curl -fSL "$BASE/$subdir/$filename" -o x
 `);
     expect(pairs.get('two.bsp')).toBe('https://example.org/v/spk/two.bsp');
+  });
+});
+
+describe('publicDir copy filter', () => {
+  it('skips published datasets (and only direct files of a non-recursive one), keeps the rest', () => {
+    const pub = tmp('pub');
+    for (const d of ['data/mars', 'data/other', 'kernels/cassini', 'kernels/unpub', 'textures']) mkdirSync(join(pub, d), { recursive: true });
+    writeFileSync(join(pub, 'kernels/de440s.bsp'), 'x');
+    const keep = publicDirCopyFilter({
+      a: { catalogPrefix: 'data/mars/', build: 'v1' },
+      b: { catalogPrefix: 'kernels/', recursive: false, build: 'v1' },
+      c: { catalogPrefix: 'kernels/cassini/', build: 'v1' },
+      d: { catalogPrefix: 'kernels/unpub/', build: null },
+    }, pub);
+    const k = (p) => keep(join(pub, p));
+    expect([k('data/mars'), k('data/mars/layer.json'), k('kernels/de440s.bsp'), k('kernels/cassini'), k('kernels/cassini/x.bsp')]).toEqual([false, false, false, false, false]);
+    expect([k('data/other'), k('kernels'), k('kernels/unpub'), k('textures'), k('index.json')]).toEqual([true, true, true, true, true]);
   });
 });
 

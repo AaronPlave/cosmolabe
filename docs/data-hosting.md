@@ -145,6 +145,15 @@ dataset, so a new mission directory can't be forgotten.
 
 ## Checking a deployment
 
+Locally, `apps/viewer/test-catalogs/` may hold gigabytes of terrain and kernels, and
+Vite copies its whole `publicDir` into `dist/`. Build with `HOSTED_DATA=1` to skip
+every dataset pinned in `datasets.json` during that copy (CI never has them, so it
+doesn't need the flag):
+
+```sh
+(cd apps/viewer && HOSTED_DATA=1 VITE_BASE=/ npx vite build)
+```
+
 ```sh
 node scripts/build-hosted-catalogs.mjs --dist apps/viewer/dist --base-url "$DATA_BASE_URL"
 node scripts/verify-hosted-data.mjs   --dist apps/viewer/dist --origin https://<owner>.github.io [--deep]
