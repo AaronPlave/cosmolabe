@@ -4,6 +4,7 @@
     dem.py inspect RASTER...
     dem.py fuse  --base GLOBAL.tif --detail REGIONAL.tif --out DIR [--blend-m 1000]
     dem.py tile  --base GLOBAL.tif --fusion DIR --out PYRAMID [--global-zoom 9 --max-zoom 15]
+    dem.py polar-tile --base GLOBAL.tif --fusion DIR --out TILESET [--max-level 7]
     dem.py selftest
 
 `fuse` treats the regional DEM as detail over the canonical global DEM, never as
@@ -645,19 +646,47 @@ def box_pyramid(arr, gt, min_size=16):
 _T = {}  # tiling state inherited by forked workers
 
 
+def field_heights(lon, lat, spacing_deg):
+    """The fused height field (m) at lon/lat, sampled at the source levels a
+    vertex spacing calls for. Every tiler writes from this one function, so the
+    geographic and polar pyramids describe the same surface."""
+    S = _T
+    bl = S['base'][pick_level(S['base'], spacing_deg)]
+    grid = S['grid']
+    rlev = pick_level(S['residual'], spacing_deg, grid.unit_deg)
+    rl = S['residual'][rlev]
+    rb = S['residual_bounds']
+    bscale, boff = S['base_scale_offset']
+    hgt = cubic(bl[0], bl[1], lon, lat, wrap_lon=True).astype(np.float64) * bscale + boff
+    if lon.min() < rb[2] and lon.max() > rb[0] and lat.min() < rb[3] and lat.max() > rb[1]:
+        gxy = grid.project(lon, lat)
+        res = bilinear(rl[0], rl[1], *gxy, outside=0.0)
+        if grid.kind == 'stere':
+            # Pole-safe: inside coverage, hand the base over to its detail-grid resample.
+            wt = bilinear(S['weight'][rlev][0], rl[1], *gxy, outside=0.0)
+            hgt = (1 - wt) * hgt + wt * bilinear(S['base_xy'][rlev][0], rl[1], *gxy, outside=0.0)
+        hgt = hgt + res
+    return hgt
+
+
+def ring_normals(P, lon, lat):
+    """Unit normals at the interior of a (G+2)² vertex lattice whose axis 1
+    runs east-ish and axis 0 north-ish: central differences over the one-vertex
+    ring outside a tile, so both sides of a shared edge use the same neighbours
+    and shading has no tile seams."""
+    nrm = np.cross(P[1:-1, 2:] - P[1:-1, :-2], P[2:, 1:-1] - P[:-2, 1:-1]).reshape(-1, 3)
+    ln = np.linalg.norm(nrm, axis=1, keepdims=True)
+    la, lo = np.radians(lat[1:-1, 1:-1]).ravel(), np.radians(lon[1:-1, 1:-1]).ravel()
+    up = np.stack([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)], 1)
+    return np.where(ln > 1e-9, nrm / np.maximum(ln, 1e-12), up)  # poles: degenerate lattice
+
+
 def tile_job(job):
     z, x0, x1, y = job
     S = _T
     w, s, e, n = tile_bounds(z, x0, y)
     spacing = (n - s) / (GRID - 1)
-    bl = S['base'][pick_level(S['base'], spacing)]
-    grid = S['grid']
-    rlev = pick_level(S['residual'], spacing, grid.unit_deg)
-    rl = S['residual'][rlev]
-    rb = S['residual_bounds']
-    bscale, boff = S['base_scale_offset']
-    # One extra vertex ring outside the tile, so normals at shared edges come
-    # from the same neighbours on both sides and shading has no tile seams.
+    # One extra vertex ring outside the tile, for ring_normals.
     frac = np.arange(-1, GRID + 1) / (GRID - 1)
     a, c = S['ellipsoid']
     max_err = S['error_frac'] * spacing * math.pi / 180 * S['ellipsoid'][0]
@@ -667,21 +696,8 @@ def tile_job(job):
         G = GRID + 2
         lon = np.broadcast_to(w + frac * (e - w), (G, G))
         lat = np.broadcast_to(np.clip(s + frac * (n - s), -90, 90)[:, None], (G, G))
-        hgt = cubic(bl[0], bl[1], lon, lat, wrap_lon=True).astype(np.float64) * bscale + boff
-        if w < rb[2] and e > rb[0] and s < rb[3] and n > rb[1]:
-            gxy = grid.project(lon, lat)
-            res = bilinear(rl[0], rl[1], *gxy, outside=0.0)
-            if grid.kind == 'stere':
-                # Pole-safe: inside coverage, hand the base over to its detail-grid resample.
-                wt = bilinear(S['weight'][rlev][0], rl[1], *gxy, outside=0.0)
-                hgt = (1 - wt) * hgt + wt * bilinear(S['base_xy'][rlev][0], rl[1], *gxy, outside=0.0)
-            hgt = hgt + res
-        P = ecef(lon, lat, hgt, a, c)
-        nrm = np.cross(P[1:-1, 2:] - P[1:-1, :-2], P[2:, 1:-1] - P[:-2, 1:-1]).reshape(-1, 3)
-        ln = np.linalg.norm(nrm, axis=1, keepdims=True)
-        la, lo = np.radians(lat[1:-1, 1:-1]).ravel(), np.radians(lon[1:-1, 1:-1]).ravel()
-        up = np.stack([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)], 1)
-        nrm = np.where(ln > 1e-9, nrm / np.maximum(ln, 1e-12), up)  # poles: degenerate lattice
+        hgt = field_heights(lon, lat, spacing)
+        nrm = ring_normals(ecef(lon, lat, hgt, a, c), lon, lat)
         data, nv, _ = encode_tile(hgt[1:-1, 1:-1].ravel(), (w, s, e, n), max_err, S['ellipsoid'], nrm)
         d = os.path.join(S['out'], str(z), str(x))
         os.makedirs(d, exist_ok=True)
@@ -691,42 +707,44 @@ def tile_job(job):
     return written, verts
 
 
-def cmd_tile(args):
-    t0 = time.time()
-    fusion = json.load(open(os.path.join(args.fusion, 'fusion.json')))
-    base, base_gt, _, base_so = open_base(args.base)
-    ds = gdal.Open(args.base)
+def load_field(base_path, fusion_dir, spacings_deg):
+    """Load what `field_heights` samples into `_T`: the base raster and its
+    overviews, and the fusion rasters' box pyramids. Only the levels some
+    spacing in `spacings_deg` picks are read into memory."""
+    base, base_gt, _, base_so = open_base(base_path)
+    ds = gdal.Open(base_path)
     b = ds.GetRasterBand(1)
     levels = [(base, base_gt)]
     W, H = ds.RasterXSize, ds.RasterYSize
     for i in range(b.GetOverviewCount()):
         o = b.GetOverview(i)
         levels.append((None, (base_gt[0], base_gt[1] * W / o.XSize, 0, base_gt[3], 0, base_gt[5] * H / o.YSize)))
-    # Only the overviews some generated zoom actually samples are read into
-    # memory — regional zooms too: with a low --global-zoom they still pick overviews.
-    needed = {pick_level(levels, 180 / 2 ** z / (GRID - 1)) for z in range(args.max_zoom + 1)}
-    for li in sorted(needed - {0}):
+    for li in sorted({pick_level(levels, sp) for sp in spacings_deg} - {0}):
         levels[li] = (b.GetOverview(li - 1).ReadAsArray(), levels[li][1])  # native dtype: half the RAM of float32
         print(f'  base overview {li}: {levels[li][0].shape[1]}×{levels[li][0].shape[0]}')
 
-    rds = gdal.Open(os.path.join(args.fusion, 'residual.tif'))
-    grid = Grid(rds)
-    rgt = grid.gt
-    rbounds = grid.geo_bounds()
+    grid = Grid(gdal.Open(os.path.join(fusion_dir, 'residual.tif')))
 
     def pyramid(name):
-        """Box pyramid of a fusion raster on the residual grid, keeping only the
-        levels some generated zoom samples (the rest would only cost RAM)."""
-        ds_ = gdal.Open(os.path.join(args.fusion, name))
-        p = box_pyramid(ds_.GetRasterBand(1).ReadAsArray(), rgt)
+        ds_ = gdal.Open(os.path.join(fusion_dir, name))
+        p = box_pyramid(ds_.GetRasterBand(1).ReadAsArray(), grid.gt)
         ds_ = None
-        keep = {pick_level(p, 180 / 2 ** z / (GRID - 1), grid.unit_deg) for z in range(args.max_zoom + 1)}
+        keep = {pick_level(p, sp, grid.unit_deg) for sp in spacings_deg}
         return [lv if i in keep else (None, lv[1]) for i, lv in enumerate(p)]
 
     _T.update(base=levels, base_scale_offset=base_so, grid=grid, residual=pyramid('residual.tif'),
-              residual_bounds=rbounds, out=args.out, error_frac=args.error_frac, ellipsoid=tuple(args.ellipsoid))
+              residual_bounds=grid.geo_bounds())
     if grid.kind == 'stere':
         _T.update(weight=pyramid('weight.tif'), base_xy=pyramid('base.tif'))
+    return grid
+
+
+def cmd_tile(args):
+    t0 = time.time()
+    fusion = json.load(open(os.path.join(args.fusion, 'fusion.json')))
+    grid = load_field(args.base, args.fusion, [180 / 2 ** z / (GRID - 1) for z in range(args.max_zoom + 1)])
+    rbounds = _T['residual_bounds']
+    _T.update(out=args.out, error_frac=args.error_frac, ellipsoid=tuple(args.ellipsoid))
     print(f'loaded sources ({time.time() - t0:.0f}s)')
 
     # Regional levels cover the residual plus any extra area (e.g. where
@@ -807,6 +825,193 @@ def cmd_tile(args):
     with open(os.path.join(args.out, 'terrain-product.json'), 'w') as f:
         json.dump(product, f, indent=2)
     print(f'wrote {total:,} tiles to {args.out} ({time.time() - t0:.0f}s)')
+
+
+# ---------------------------------------------------------------------------
+# polar-tile (issue #144): square tiles on the detail's polar stereographic grid
+#
+# Geographic tiles at a pole are slivers — at z12 a polar tile is ~12 m × 1.3 km
+# and one ground-level view needs thousands of them, too many for the imagery
+# overlay's per-tile texture. Here the cap is a quadtree on the polar
+# stereographic plane instead, so tiles stay square at every level. It samples
+# the same `field_heights`, and is written as 3D Tiles 1.1 with one .glb per
+# tile: a full GRID² lattice (no simplification, so no long thin triangles),
+# normals from `ring_normals`, and skirts that copy their edge's normals so they
+# shade like the surface instead of catching low sun as walls.
+
+def encode_glb(pos, nrm, idx, translation):
+    """One-mesh glTF 2.0 binary. Inputs are in the tileset's Z-up body-fixed
+    frame (positions relative to `translation`); glTF is Y-up, so axes are
+    rotated here and the renderer rotates them back."""
+    yup = lambda v: np.asarray(v, np.float64)[..., [0, 2, 1]] * np.array([1.0, 1.0, -1.0])
+    pos32 = yup(pos).astype(np.float32)
+    nrm32 = yup(nrm).astype(np.float32)
+    big = len(pos) > 65535
+    ind = idx.astype(np.uint32 if big else np.uint16).ravel()
+    pb, nb, ib = pos32.tobytes(), nrm32.tobytes(), ind.tobytes()
+    ib += b'\0' * (-len(ib) % 4)
+    gltf = {
+        'asset': {'version': '2.0', 'generator': 'scripts/terrain/dem.py polar-tile'},
+        'scene': 0, 'scenes': [{'nodes': [0]}],
+        'nodes': [{'mesh': 0, 'translation': [float(v) for v in yup(translation)]}],
+        'meshes': [{'primitives': [{'attributes': {'POSITION': 0, 'NORMAL': 1}, 'indices': 2, 'material': 0}]}],
+        'materials': [{'pbrMetallicRoughness': {'baseColorFactor': [1, 1, 1, 1], 'metallicFactor': 0, 'roughnessFactor': 1}}],
+        'buffers': [{'byteLength': len(pb) + len(nb) + len(ib)}],
+        'bufferViews': [{'buffer': 0, 'byteOffset': 0, 'byteLength': len(pb), 'target': 34962},
+                        {'buffer': 0, 'byteOffset': len(pb), 'byteLength': len(nb), 'target': 34962},
+                        {'buffer': 0, 'byteOffset': len(pb) + len(nb), 'byteLength': len(ind) * ind.itemsize, 'target': 34963}],
+        'accessors': [{'bufferView': 0, 'componentType': 5126, 'count': len(pos32), 'type': 'VEC3',
+                       'min': pos32.min(0).tolist(), 'max': pos32.max(0).tolist()},
+                      {'bufferView': 1, 'componentType': 5126, 'count': len(nrm32), 'type': 'VEC3'},
+                      {'bufferView': 2, 'componentType': 5125 if big else 5123, 'count': len(ind), 'type': 'SCALAR'}],
+    }
+    js = json.dumps(gltf, separators=(',', ':')).encode()
+    js += b' ' * (-len(js) % 4)
+    bin_ = pb + nb + ib
+    return b''.join([struct.pack('<4sII', b'glTF', 2, 12 + 8 + len(js) + 8 + len(bin_)),
+                     struct.pack('<II', len(js), 0x4E4F534A), js, struct.pack('<II', len(bin_), 0x004E4942), bin_])
+
+
+def lattice_indices(n=GRID):
+    """Triangles of an n² lattice (row = y, column = x), CCW seen from above,
+    plus the CCW boundary loop the skirts hang from."""
+    i, j = np.meshgrid(np.arange(n - 1), np.arange(n - 1))
+    v00 = (j * n + i).ravel()
+    tri = np.concatenate([np.stack([v00, v00 + 1, v00 + n + 1], 1), np.stack([v00, v00 + n + 1, v00 + n], 1)])
+    k = np.arange(n)
+    loops = [k, k * n + n - 1, (n - 1) * n + k[::-1], k[::-1] * n]  # S, E, N, W edges, interior on the left
+    return tri, loops
+
+
+LATTICE_TRI, LATTICE_EDGES = lattice_indices()
+
+
+def with_skirts(P, nrm, depth):
+    """Append a skirt below each lattice edge: copies of the edge vertices
+    moved `depth` m toward the body centre, keeping the edge normals."""
+    pos, nor, tri = [P], [nrm], [LATTICE_TRI]
+    nv = len(P)
+    for loop in LATTICE_EDGES:
+        down = P[loop] - P[loop] / np.linalg.norm(P[loop], axis=1, keepdims=True) * depth
+        b = nv + np.arange(len(loop))
+        t = loop
+        tri.append(np.concatenate([np.stack([t[:-1], b[:-1], t[1:]], 1), np.stack([t[1:], b[:-1], b[1:]], 1)]))
+        pos.append(down); nor.append(nrm[loop])
+        nv += len(loop)
+    return np.concatenate(pos), np.concatenate(nor), np.concatenate(tri)
+
+
+def polar_tile_square(L, ix, iy):
+    """(x0, y0, size) in projection metres: tile (ix, iy) of level L, row 0 at −y."""
+    H = _T['half_extent']
+    size = 2 * H / 2 ** L
+    return -H + ix * size, -H + iy * size, size
+
+
+def polar_tile_wanted(L, ix, iy):
+    """Level L may be narrowed to a disc around the pole (`--level-radius`)."""
+    r = _T['level_radius'].get(L)
+    if r is None:
+        return True
+    x0, y0, size = polar_tile_square(L, ix, iy)
+    return math.hypot(max(0.0, x0, -(x0 + size)), max(0.0, y0, -(y0 + size))) < r
+
+
+def polar_tile_job(job):
+    S = _T
+    a, c = S['ellipsoid']
+    grid = S['grid']
+    out = []
+    for L, ix, iy in job:
+        x0, y0, size = polar_tile_square(L, ix, iy)
+        cell = size / (GRID - 1)
+        k = np.arange(-1, GRID + 1) * cell
+        X, Y = np.meshgrid(x0 + k, y0 + k)  # axis 0 = y (north-ish), axis 1 = x (east-ish)
+        lon, lat = grid.unproject(X, Y)
+        hgt = field_heights(lon, lat, cell * grid.unit_deg)
+        P = ecef(lon, lat, hgt, a, c)
+        nrm = ring_normals(P, lon, lat)
+        surf = P[1:-1, 1:-1].reshape(-1, 3)
+        pos, nor, tri = with_skirts(surf, nrm, S['skirt_cells'] * cell)
+        lo, hi = pos.min(0), pos.max(0)
+        center = (lo + hi) / 2
+        d = os.path.join(S['out'], str(L), str(ix))
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, f'{iy}.glb'), 'wb') as f:
+            f.write(encode_glb(pos - center, nor, tri, center))
+        half = (hi - lo) / 2
+        out.append((L, ix, iy, [*center.tolist(), half[0], 0, 0, 0, half[1], 0, 0, 0, half[2]],
+                    float(hgt.min()), float(hgt.max())))
+    return out
+
+
+def cmd_polar_tile(args):
+    t0 = time.time()
+    fusion = json.load(open(os.path.join(args.fusion, 'fusion.json')))
+    rds = gdal.Open(os.path.join(args.fusion, 'residual.tif'))
+    gt, w, h = rds.GetGeoTransform(), rds.RasterXSize, rds.RasterYSize
+    H = gt[1] * w / 2
+    if Grid(rds).kind != 'stere' or abs(gt[0] + H) > 1e-6 or abs(gt[3] - H) > 1e-6 or w != h:
+        raise SystemExit('polar-tile needs a square polar stereographic detail grid centred on its pole')
+    rds = None
+    cells = [2 * H / 2 ** L / (GRID - 1) for L in range(args.max_level + 1)]
+    grid = load_field(args.base, args.fusion, [cl * 180 / (math.pi * args.ellipsoid[0]) for cl in cells])
+    _T.update(out=args.out, ellipsoid=tuple(args.ellipsoid), half_extent=H, skirt_cells=args.skirt_cells,
+              level_radius=args.level_radius or {})
+    print(f'loaded sources ({time.time() - t0:.0f}s)')
+
+    keys = [(0, 0, 0)]
+    for L in range(1, args.max_level + 1):
+        keys += [(L, 2 * px + dx, 2 * py + dy) for (pl, px, py) in keys if pl == L - 1
+                 for dx in (0, 1) for dy in (0, 1) if polar_tile_wanted(L, 2 * px + dx, 2 * py + dy)]
+    jobs = [keys[i:i + 16] for i in range(0, len(keys), 16)]
+    print(f'{len(keys):,} tiles in {len(jobs):,} jobs on {args.workers} workers')
+    tiles = {}
+    with mp.get_context('fork').Pool(args.workers) as pool:
+        for k, rows in enumerate(pool.imap_unordered(polar_tile_job, jobs)):
+            for L, ix, iy, box, hmin, hmax in rows:
+                tiles[(L, ix, iy)] = (box, hmin, hmax)
+            if k % 200 == 0:
+                print(f'  {len(tiles):,}/{len(keys):,} tiles ({time.time() - t0:.0f}s)', flush=True)
+
+    # Geometric error tracks vertex spacing the way quantized-mesh levels do
+    # (3d-tiles-renderer: ≈ 0.246 × latitudinal spacing), so one errorTarget
+    # refines both pyramids to comparable on-screen detail.
+    def node(L, ix, iy):
+        kids = [node(L + 1, 2 * ix + dx, 2 * iy + dy) for dy in (0, 1) for dx in (0, 1)
+                if (L + 1, 2 * ix + dx, 2 * iy + dy) in tiles]
+        n = {'boundingVolume': {'box': tiles[(L, ix, iy)][0]},
+             'geometricError': 0.25 * cells[L] if kids else 0,
+             'content': {'uri': f'{L}/{ix}/{iy}.glb'}}
+        if kids:
+            n['children'] = kids
+        return n
+
+    root = node(0, 0, 0)
+    root['refine'] = 'REPLACE'
+    tileset = {'asset': {'version': '1.1', 'generator': 'scripts/terrain/dem.py polar-tile'},
+               'geometricError': 2 * root['geometricError'], 'root': root}
+    with open(os.path.join(args.out, 'tileset.json'), 'w') as f:
+        json.dump(tileset, f, separators=(',', ':'))
+    per_level = {}
+    for (L, _, _) in tiles:
+        per_level[L] = per_level.get(L, 0) + 1
+    product = {
+        'generator': 'scripts/terrain/dem.py polar-tile',
+        'created': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        'heightField': 'dem.py field_heights — the same fused field the quantized-mesh pyramid samples',
+        'tiling': {'crs': grid.proj4, 'halfExtentM': H, 'levels': args.max_level + 1,
+                   'levelRadiusM': {str(k): v for k, v in (args.level_radius or {}).items()},
+                   'vertexSpacingM': cells, 'tilesPerLevel': per_level},
+        'mesh': {'grid': GRID, 'simplification': 'none (full lattice)', 'skirtDepth': f'{args.skirt_cells} × vertex spacing',
+                 'normals': 'central differences of the field over a one-vertex ring past each tile; skirts copy edge normals'},
+        'verticalDatum': fusion['verticalDatum'],
+        'ellipsoidM': args.ellipsoid,
+        'tileCount': len(tiles),
+    }
+    with open(os.path.join(args.out, 'terrain-product.json'), 'w') as f:
+        json.dump(product, f, indent=2)
+    print(f'wrote {len(tiles):,} tiles to {args.out} ({time.time() - t0:.0f}s)')
 
 
 # ---------------------------------------------------------------------------
@@ -938,6 +1143,33 @@ def _selftest_polar(tmp):
         eb = dict(zip(vb[ub == 0], hb[ub == 0]))
         assert ea.keys() == eb.keys() and max(abs(ea[k] - eb[k]) for k in ea) <= 1.5 * (qa + qb)
 
+    # polar-tile: square glb tiles of the same field, pruned to a disc at level 2.
+    cap = os.path.join(tmp, 'cap')
+    cmd_polar_tile(argparse.Namespace(base=os.path.join(tmp, 'base.tif'), fusion=fused, out=cap, max_level=2,
+                                      level_radius={2: 60000.0}, skirt_cells=1.0, ellipsoid=[R, R], workers=1))
+
+    def glb(L, ix, iy):
+        raw = open(os.path.join(cap, str(L), str(ix), f'{iy}.glb'), 'rb').read()
+        jl = struct.unpack_from('<I', raw, 12)[0]
+        js, b0 = json.loads(raw[20:20 + jl]), 20 + jl + 8
+        acc, bv = js['accessors'], js['bufferViews']
+        f32 = lambda a: np.frombuffer(raw, '<f4', acc[a]['count'] * 3, b0 + bv[a]['byteOffset']).reshape(-1, 3)
+        back = lambda v: v[:, [0, 2, 1]] * np.array([1.0, -1.0, 1.0])  # glTF Y-up -> body-fixed Z-up
+        t = np.array(js['nodes'][0]['translation'])
+        return back(f32(0) + t)[:GRID * GRID].reshape(GRID, GRID, 3), back(f32(1).astype(np.float64))[:GRID * GRID]
+
+    ts = json.load(open(os.path.join(cap, 'tileset.json')))
+    assert len(ts['root']['children']) == 4 and sum(len(k.get('children', [])) for k in ts['root']['children']) < 16
+    q = {(ix, iy): glb(1, ix, iy) for ix in (0, 1) for iy in (0, 1)}
+    for P_, n_ in q.values():
+        up_ = P_.reshape(-1, 3) / np.linalg.norm(P_.reshape(-1, 3), axis=1, keepdims=True)
+        assert ((n_ * up_).sum(1) > 0.9).all(), 'normals must point outward'
+    # Shared edges coincide (float32 offsets from the tile centre aside), and the pole is one vertex.
+    assert np.abs(q[(0, 0)][0][:, -1] - q[(1, 0)][0][:, 0]).max() < 0.05
+    assert np.abs(q[(0, 0)][0][-1, :] - q[(0, 1)][0][0, :]).max() < 0.05
+    corners = np.array([q[(0, 0)][0][-1, -1], q[(1, 0)][0][-1, 0], q[(0, 1)][0][0, -1], q[(1, 1)][0][0, 0]])
+    assert np.ptp(corners, 0).max() < 0.05 and abs(corners[0][2] + np.linalg.norm(corners[0])) < 1e-6 * R
+
 
 
 def main():
@@ -966,11 +1198,23 @@ def main():
     t.add_argument('--workers', type=int, default=min(8, os.cpu_count()),
                    help='forked workers; sources are shared copy-on-write, each worker adds ~100 MB')
     t.add_argument('--name', default='Fused terrain'); t.add_argument('--attribution', default='')
+    pt = sp.add_parser('polar-tile', help='square 3D Tiles cap on a polar stereographic detail grid (#144)')
+    pt.add_argument('--base', required=True); pt.add_argument('--fusion', required=True); pt.add_argument('--out', required=True)
+    pt.add_argument('--max-level', type=int, default=7, help='deepest quadtree level (level 0 = the whole detail square)')
+    pt.add_argument('--level-radius', action='append', metavar='L=METRES',
+                    type=lambda v: (int(v.split('=')[0]), float(v.split('=')[1])),
+                    help='only tile level L within this distance of the pole (repeatable)')
+    pt.add_argument('--skirt-cells', type=float, default=1.0, help='skirt depth in vertex spacings')
+    pt.add_argument('--ellipsoid', type=float, nargs=2, required=True, metavar=('A_M', 'C_M'))
+    pt.add_argument('--workers', type=int, default=min(8, os.cpu_count()))
     sp.add_parser('selftest')
     args = p.parse_args()
     if getattr(args, 'zoom_bounds', None):
         args.zoom_bounds = dict(args.zoom_bounds)
-    {'inspect': cmd_inspect, 'fuse': cmd_fuse, 'tile': cmd_tile, 'selftest': cmd_selftest}[args.cmd](args)
+    if getattr(args, 'level_radius', None):
+        args.level_radius = dict(args.level_radius)
+    {'inspect': cmd_inspect, 'fuse': cmd_fuse, 'tile': cmd_tile, 'polar-tile': cmd_polar_tile,
+     'selftest': cmd_selftest}[args.cmd](args)
 
 
 if __name__ == '__main__':

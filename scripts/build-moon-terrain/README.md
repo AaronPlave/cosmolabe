@@ -42,6 +42,19 @@ site root under the deployment base path, and the pyramid is not in it anyway.
 For a local check, point the catalog at `/test-catalogs/data/moon-terrain-fused/`
 and run `npm --prefix apps/viewer run dev`.
 
+## Square-tile polar cap (prototype, #144)
+
+`./polar.sh` tiles the same fused field as a quadtree on the mosaic's polar
+stereographic grid instead of geographic slivers, as 3D Tiles 1.1
+(`apps/viewer/test-catalogs/data/moon-terrain-polar/tileset.json`, one `.glb`
+per tile, 27 k tiles, ~4.2 GB, ~20 s). Every tile is a square 65² lattice with
+no simplification, normals from the same one-ring differences, and skirts that
+copy their edge normals. It covers only the 200 km mosaic square, so it loads
+as `type: '3dtiles'` with `errorTarget: 2` (the quantized-mesh plugin's
+recommended value, so both pyramids refine to the same on-screen error). It
+has no CPU sampler support yet and is not joined to the global pyramid; see
+#144 for the GPU comparison.
+
 ## Sources (public, no auth)
 
 - **Canonical global:** LRO LOLA LDEM 118 m (Mar 2014), USGS Astrogeology
