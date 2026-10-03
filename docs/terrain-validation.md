@@ -34,8 +34,8 @@ the full JSON report, every control point included.
 |---|---|---|---|
 | `mars-jezero` | Mars Hub `mars_v14`, offset 8.765 km (as `msl-dingo-gap.json`) | ~2 km box on Wright Brothers Field, z13/14 | 73 Ingenuity landing sites (MMGIS `Elev_Geoid`) |
 | `mars-jezero-fused` | the fused `scripts/build-mars-terrain/fused.sh` pyramid (as `ingenuity-jezero.json`) | same | same |
-| `moon-shackleton` | Mars Hub `moon_v14` (as `moonfall-shackleton.json` did before #48) | Shackleton rim, z8/9 (`moon_v14` stops at z9 there) | 36 MoonFall waypoints (LOLA LDEM 118 m) |
-| `moon-shackleton-fused` | the fused `scripts/build-moon-terrain/fused.sh` pyramid (as `moonfall-shackleton.json`) | Shackleton rim, 1° × 0.1°, z11/12 | same |
+| `moon-shackleton` | Mars Hub `moon_v14` (as `moonfall-shackleton.json` configures it) | Shackleton rim, z8/9 (`moon_v14` stops at z9 there) | 36 MoonFall waypoints (LOLA LDEM 118 m) |
+| `moon-shackleton-fused` | the fused `scripts/build-moon-terrain/fused.sh` pyramid (local; no catalog streams it until it is hosted, #137) | Shackleton rim, 1° × 0.1°, z11/12 | same |
 
 Any field can be overridden: `--url` (http(s) or a local directory, gzip
 handled), `--offset-km`, `--bounds w,s,e,n`, `--levels 13,14`,
@@ -262,7 +262,8 @@ All lie in the mosaic's full-weight region, so none reach the pyramid.
 
 Surface Explorer stations at the Polaris-A base (−89.55, −45), the rim at
 30°E, 10 km above Shackleton's centre and 4.5 km from the pole, each run
-against the fused pyramid and against `moon_v14`:
+against the fused pyramid (MoonFall pointed at the local build) and against
+`moon_v14`:
 
 - **Picking.** On the fused pyramid every centre-screen pick hits the Moon and
   equals the CPU sampler at the picked point (Δ 0 m; e.g. Shackleton's floor at

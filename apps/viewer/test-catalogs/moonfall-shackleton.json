@@ -95,15 +95,7 @@
         "displacementBias": -9,
         "terrain": {
           "type": "quantized-mesh",
-          "url": "/test-catalogs/data/moon-terrain-fused/",
-          "referenceRadiusOffsetKm": 0,
-          "datum": {
-            "verticalDatum": "reference-sphere",
-            "heightConvention": "radial"
-          },
-          "sourceMetadata": {
-            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/fused.sh)"
-          },
+          "url": "https://marshub.s3.amazonaws.com/moon_v14/",
           "samplerMaxTiles": 4096,
           "imagery": {
             "url": "https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",

@@ -517,15 +517,12 @@ const catalog = {
         displacementMap: 'textures/moon-displacement-2k.jpg',
         displacementScale: 20,
         displacementBias: -9,
-        // Fused LOLA 118 m + south-pole LOLA 10 m residual (#48), built by
-        // scripts/build-moon-terrain/. The canonical source is the same LOLA
-        // 118 m DEM the waypoint elevations come from.
+        // Hosted Mars Hub moon_v14 until the fused LOLA pyramid built by
+        // scripts/build-moon-terrain/ (#48) is hosted (#137); its README has the
+        // terrain block to swap in.
         terrain: {
           type: 'quantized-mesh',
-          url: '/test-catalogs/data/moon-terrain-fused/',
-          referenceRadiusOffsetKm: 0,
-          datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' },
-          sourceMetadata: { id: 'moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/fused.sh)' },
+          url: 'https://marshub.s3.amazonaws.com/moon_v14/',
           // Geographic tiles are slivers at the pole: one Shackleton view holds
           // ~1000 of them, so the default 256-tile CPU sampler cache would evict
           // the tiles under the camera that picking and dolly clearance sample.
