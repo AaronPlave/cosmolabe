@@ -4,6 +4,7 @@
     dem.py inspect RASTER...
     dem.py fuse  --base GLOBAL.tif --detail REGIONAL.tif --out DIR [--blend-m 1000]
     dem.py tile  --base GLOBAL.tif --fusion DIR --out PYRAMID [--global-zoom 9 --max-zoom 15]
+    dem.py fields --base GLOBAL.tif --fusion DIR --out PYRAMID [--max-px 1024]
     dem.py selftest
 
 `fuse` treats the regional DEM as detail over the canonical global DEM, never as
@@ -15,6 +16,12 @@ Catmull-Rom kernel (in fuse and at every tile level alike) and the residual
 bilinearly. Same-LOD shared edges therefore carry identical
 vertices and heights by construction, and the coverage boundary is invisible in
 the height field because the residual is already zero there.
+
+`tile` (or `fields` alone, on an existing pyramid) also writes
+`fusion-fields.bin`: base height, residual, taper weight and detail coverage on
+one coarse grid over the residual extent, described in terrain-product.json
+under `debugFields`. The viewer's fusion debug views read it (#135); heights
+never do.
 
 Tile-level validation (edges, parent/child, registration, control points) runs
 on the written pyramid with the viewer's own decoder: scripts/validate-terrain.mjs.
@@ -587,14 +594,7 @@ def tile_job(job):
 def cmd_tile(args):
     t0 = time.time()
     fusion = json.load(open(os.path.join(args.fusion, 'fusion.json')))
-    base, base_gt, _ = open_base(args.base)
-    ds = gdal.Open(args.base)
-    b = ds.GetRasterBand(1)
-    levels = [(base, base_gt)]
-    W, H = ds.RasterXSize, ds.RasterYSize
-    for i in range(b.GetOverviewCount()):
-        o = b.GetOverview(i)
-        levels.append((None, (base_gt[0], base_gt[1] * W / o.XSize, 0, base_gt[3], 0, base_gt[5] * H / o.YSize)))
+    levels, ds, b = load_base_levels(args.base)
     # Only the overviews some generated zoom actually samples are read into
     # memory — regional zooms too: with a low --global-zoom they still pick overviews.
     needed = {pick_level(levels, 180 / 2 ** z / (GRID - 1)) for z in range(args.max_zoom + 1)}
@@ -682,9 +682,122 @@ def cmd_tile(args):
         'residual': fusion['residual'],
         'tileCount': total,
     }
+    if args.debug_fields_max_px > 0:
+        arrays, grid = debug_fields(args.fusion, levels, b, args.debug_fields_max_px)
+        product['debugFields'] = write_debug_fields(args.out, arrays, grid)
     with open(os.path.join(args.out, 'terrain-product.json'), 'w') as f:
         json.dump(product, f, indent=2)
     print(f'wrote {total:,} tiles to {args.out} ({time.time() - t0:.0f}s)')
+
+
+# ---------------------------------------------------------------------------
+# debug fields (#135)
+
+FIELDS_FILE = 'fusion-fields.bin'
+
+
+def field_grid(ds, max_px):
+    """Output size for a raster read down to at most max_px on its long side,
+    keeping its extent: cells cover the same bounds, just coarser."""
+    w, h = ds.RasterXSize, ds.RasterYSize
+    k = max(1.0, max(w, h) / max_px)
+    return max(1, round(w / k)), max(1, round(h / k))
+
+
+def read_average(path, size):
+    """Box-average a single-band raster to `size`, streamed by the warper so
+    the full-resolution product is never held in memory. Warp rather than a
+    decimating read: RasterIO averages a Byte band in Byte and rounds the
+    coverage fraction to 0/1, losing exactly the boundary cells."""
+    ds = gdal.Warp('', path, format='MEM', width=size[0], height=size[1],
+                   resampleAlg='average', outputType=gdal.GDT_Float32)
+    return ds.GetRasterBand(1).ReadAsArray()
+
+
+def debug_fields(fusion_dir, base_levels, base_band, max_px):
+    """Base, residual, weight and coverage on one grid over the residual extent.
+
+    Residual, weight and coverage are box averages of the fuse products, so a
+    cell straddling the coverage edge holds the covered *fraction* — a value
+    strictly between 0 and 1 marks the boundary. Base is the same Catmull-Rom
+    base the tiles use, sampled at cell centres from the pyramid level that
+    matches the cell size. Returns (arrays, grid) where grid describes the layout.
+    """
+    rds = gdal.Open(os.path.join(fusion_dir, 'residual.tif'))
+    gt = rds.GetGeoTransform()
+    W, H = field_grid(rds, max_px)
+    bounds = (gt[0], gt[3] + gt[5] * rds.RasterYSize, gt[0] + gt[1] * rds.RasterXSize, gt[3])
+    cell_lon, cell_lat = (bounds[2] - bounds[0]) / W, (bounds[3] - bounds[1]) / H
+    residual = read_average(os.path.join(fusion_dir, 'residual.tif'), (W, H))
+    weight = read_average(os.path.join(fusion_dir, 'weight.tif'), (W, H))
+    coverage = read_average(os.path.join(fusion_dir, 'coverage.tif'), (W, H))
+
+    li = pick_level(base_levels, cell_lat)
+    arr, bgt = base_levels[li]
+    if arr is None:  # an overview no generated zoom needed
+        arr = base_band.GetOverview(li - 1).ReadAsArray()
+    lon = bounds[0] + (np.arange(W) + 0.5) * cell_lon
+    lat = bounds[3] - (np.arange(H) + 0.5) * cell_lat
+    base = cubic(arr, bgt, *np.meshgrid(lon, lat), wrap_lon=True).astype(np.float32)
+    grid = {'bounds': [float(v) for v in bounds], 'width': W, 'height': H,
+            'rowOrder': 'north-to-south', 'registration': 'pixel-is-area',
+            'cellDeg': [cell_lon, cell_lat], 'baseLevel': li}
+    return {'baseM': base, 'residualM': residual, 'weight': weight, 'coverage': coverage}, grid
+
+
+def write_debug_fields(out, arrays, grid):
+    """fusion-fields.bin: float32 base and residual, then uint8 weight and
+    coverage (value / 255), each a full row-major grid, little-endian. Returns
+    the `debugFields` description that goes in terrain-product.json."""
+    layout, offset, chunks = [], 0, []
+    specs = [('baseM', 'float32', 'm', 'canonical base height, same datum as the tiles'),
+             ('residualM', 'float32', 'm', 'tapered detail residual added to the base (box average)'),
+             ('weight', 'uint8', None, 'taper weight 0..1: 1 = full detail, 0 = base only (box average)'),
+             ('coverage', 'uint8', None, 'fraction of the cell where the detail DEM has data; 0 < c < 1 is the coverage boundary')]
+    for name, kind, units, desc in specs:
+        a = arrays[name]
+        if kind == 'float32':
+            data = np.ascontiguousarray(a, dtype='<f4')
+            entry = {'name': name, 'type': kind, 'offset': offset, 'units': units, 'description': desc}
+        else:
+            data = np.ascontiguousarray(np.clip(np.rint(a * 255), 0, 255), dtype=np.uint8)
+            entry = {'name': name, 'type': kind, 'offset': offset, 'scale': 1 / 255, 'description': desc}
+        layout.append(entry)
+        chunks.append(data.tobytes())
+        offset += data.nbytes
+    with open(os.path.join(out, FIELDS_FILE), 'wb') as f:
+        for c in chunks:
+            f.write(c)
+    return {'path': FIELDS_FILE, 'byteLength': offset, 'byteOrder': 'little-endian', 'grid': grid,
+            'fields': layout,
+            'note': 'diagnostic only (fusion debug views, #135); the height field is the tiles'}
+
+
+def load_base_levels(path):
+    """Base level 0 plus overview geotransforms; overview arrays stay unread (None)."""
+    base, base_gt, _ = open_base(path)
+    ds = gdal.Open(path)
+    b = ds.GetRasterBand(1)
+    levels = [(base, base_gt)]
+    W, H = ds.RasterXSize, ds.RasterYSize
+    for i in range(b.GetOverviewCount()):
+        o = b.GetOverview(i)
+        levels.append((None, (base_gt[0], base_gt[1] * W / o.XSize, 0, base_gt[3], 0, base_gt[5] * H / o.YSize)))
+    return levels, ds, b
+
+
+def cmd_fields(args):
+    """(Re)write fusion-fields.bin for an existing pyramid and record it in terrain-product.json."""
+    product_path = os.path.join(args.out, 'terrain-product.json')
+    if not os.path.exists(product_path):
+        raise SystemExit(f'{product_path} not found: run `dem.py tile` first')
+    levels, _ds, band = load_base_levels(args.base)
+    arrays, grid = debug_fields(args.fusion, levels, band, args.max_px)
+    product = json.load(open(product_path))
+    product['debugFields'] = write_debug_fields(args.out, arrays, grid)
+    with open(product_path, 'w') as f:
+        json.dump(product, f, indent=2)
+    print(f"wrote {FIELDS_FILE}: {grid['width']}×{grid['height']} cells over {grid['bounds']}")
 
 
 # ---------------------------------------------------------------------------
@@ -716,7 +829,42 @@ def cmd_selftest(_):
     assert len(rtin_triangles(rtin_errors(flat_), 1.0)) < len(rtin_triangles(rtin_errors(flat_, math.radians(2.8), 3396190.0), 1.0))
     n = np.array([[0, 0, 1.0], [0, 0, -1.0], [1.0, 0, 0], [0.6, -0.8, 0]])
     assert oct_encode(n).shape == (4, 2)
-    print(f'selftest ok: {nv} vertices, {nt} triangles from {GRID * GRID}')
+    selftest_fields()
+    print(f'selftest ok: {nv} vertices, {nt} triangles from {GRID * GRID}; debug fields ok')
+
+
+def selftest_fields():
+    """fusion-fields.bin round trip on a synthetic fuse product: layout, box
+    averages, the fractional coverage edge and the base kernel."""
+    import tempfile
+    srs = 'GEOGCS["Mars 2000",DATUM["D_Mars_2000",SPHEROID["Mars_2000_IAU_IAG",3396190,0]],PRIMEM["Greenwich",0],UNIT["Degree",0.0174532925199433]]'
+    with tempfile.TemporaryDirectory() as d:
+        gt = (77.0, 0.01, 0, 18.4, 0, -0.01)  # 40×20 px detail grid
+        covered = np.zeros((20, 40), np.uint8)
+        covered[:, :28] = 1                    # detail ends 3 px into cell 5
+        residual = np.where(covered, 4.0, 0.0).astype(np.float32)
+        weight = covered.astype(np.float32)
+        write_tif(os.path.join(d, 'residual.tif'), residual, gt, srs)
+        write_tif(os.path.join(d, 'weight.tif'), weight, gt, srs)
+        write_tif(os.path.join(d, 'coverage.tif'), covered, gt, srs, dtype=gdal.GDT_Byte)
+        base = np.add.outer(np.linspace(1000, -1000, 180), np.zeros(360)).astype(np.float32)  # north high
+        levels = [(base, (-180, 1, 0, 90, 0, -1))]
+        arrays, grid = debug_fields(d, levels, None, 8)  # 40×20 → 8×4: 5×5 px per cell
+        assert (grid['width'], grid['height']) == (8, 4), grid
+        assert np.allclose(grid['bounds'], (77.0, 18.2, 77.4, 18.4))
+        cov = arrays['coverage'][0]
+        assert np.allclose(cov, [1, 1, 1, 1, 1, 0.6, 0, 0]), cov  # the boundary cell keeps its fraction
+        assert np.allclose(arrays['residualM'][0], [4, 4, 4, 4, 4, 2.4, 0, 0])
+        expect = cubic(base, levels[0][1], np.array([77.025]), np.array([18.375]), wrap_lon=True)[0]
+        assert abs(arrays['baseM'][0, 0] - expect) < 1e-3
+        meta = write_debug_fields(d, arrays, grid)
+        raw = open(os.path.join(d, FIELDS_FILE), 'rb').read()
+        assert len(raw) == meta['byteLength'] == 32 * (4 + 4 + 1 + 1)
+        by = {f['name']: f for f in meta['fields']}
+        assert all(f['offset'] % 4 == 0 for f in meta['fields'] if f['type'] == 'float32')
+        r = np.frombuffer(raw, '<f4', 32, by['residualM']['offset']).reshape(4, 8)
+        c = np.frombuffer(raw, np.uint8, 32, by['coverage']['offset']).reshape(4, 8)
+        assert np.allclose(r, arrays['residualM']) and c[0, 5] == 153 and c[0, 0] == 255 and c[0, 7] == 0
 
 
 def main():
@@ -742,9 +890,14 @@ def main():
     t.add_argument('--workers', type=int, default=min(8, os.cpu_count()),
                    help='forked workers; sources are shared copy-on-write, each worker adds ~100 MB')
     t.add_argument('--name', default='Fused terrain'); t.add_argument('--attribution', default='')
+    t.add_argument('--debug-fields-max-px', type=int, default=1024,
+                   help='long side of fusion-fields.bin for the fusion debug views; 0 skips it')
+    d = sp.add_parser('fields', help='(re)write fusion-fields.bin for an existing pyramid')
+    d.add_argument('--base', required=True); d.add_argument('--fusion', required=True); d.add_argument('--out', required=True)
+    d.add_argument('--max-px', type=int, default=1024)
     sp.add_parser('selftest')
     args = p.parse_args()
-    {'inspect': cmd_inspect, 'fuse': cmd_fuse, 'tile': cmd_tile, 'selftest': cmd_selftest}[args.cmd](args)
+    {'inspect': cmd_inspect, 'fuse': cmd_fuse, 'tile': cmd_tile, 'fields': cmd_fields, 'selftest': cmd_selftest}[args.cmd](args)
 
 
 if __name__ == '__main__':

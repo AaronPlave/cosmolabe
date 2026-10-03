@@ -7,6 +7,7 @@ import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
 import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSourceMetadata } from './TerrainSampler.js';
 import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
+import { FusionFields, type DebugFieldsDescription } from './FusionFields.js';
 import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './TerrainValidation.js';
 
 export interface TerrainImageryConfig {
@@ -177,11 +178,19 @@ export interface TerrainConfig {
  *   when no neighbour is cached. The same numbers `scripts/validate-terrain.mjs`
  *   reports offline.
  *
- * Base/residual/coverage-boundary views need the fused products' coverage
- * metadata (#50, #48) and are added with them.
+ *
+ * Fused-product views (#135) read `fusion-fields.bin` beside the tileset's
+ * `layer.json` (see `FusionFields`); each tile is colored by the mean of the
+ * field over its footprint, grey until the fields load or when the pyramid has none.
+ *
+ * - `residual` — mean detail residual (HiRISE − base): blue negative · white 0 ·
+ *   red positive, scaled to the largest |residual| on the grid.
+ * - `coverage` — mean taper weight: dark (base only) → bright (full detail).
+ * - `source-boundary` — red: tile touches the detail coverage edge · amber: in the
+ *   blend band · green: fully detail · dark grey: base only.
  */
-export type TerrainDebugMode = 'none' | 'lod' | 'geometric-error' | 'screen-error' | 'cpu-coverage' | 'datum-height' | 'seam-error';
-export const TERRAIN_DEBUG_MODES: readonly TerrainDebugMode[] = ['none', 'lod', 'geometric-error', 'screen-error', 'cpu-coverage', 'datum-height', 'seam-error'];
+export type TerrainDebugMode = 'none' | 'lod' | 'geometric-error' | 'screen-error' | 'cpu-coverage' | 'datum-height' | 'seam-error' | 'residual' | 'coverage' | 'source-boundary';
+export const TERRAIN_DEBUG_MODES: readonly TerrainDebugMode[] = ['none', 'lod', 'geometric-error', 'screen-error', 'cpu-coverage', 'datum-height', 'seam-error', 'residual', 'coverage', 'source-boundary'];
 
 export interface TerrainTiming {
   count: number;
@@ -479,6 +488,9 @@ export class TerrainManager {
   /** Memoized per-tile debug values, invalidated when a tile or its neighbour changes. */
   private readonly seamErrorKm = new Map<string, number | null>();
   private readonly meanElevationKm = new Map<string, number>();
+  /** Fusion debug fields: undefined = not requested, null = unavailable, Promise = loading. */
+  private fusionFields: FusionFields | null | undefined | Promise<void>;
+  private readonly tilesetUrl: string | undefined;
   private readonly updateTiming = new TimingStat(120);
   private readonly parseTiming = new TimingStat();
   private readonly decodeTiming = new TimingStat();
@@ -543,6 +555,7 @@ export class TerrainManager {
     // seam/datum debug indexes must forget them too or they report neighbours
     // the sampler no longer holds.
     this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
+    this.tilesetUrl = config.url;
     this.isImageryOnly = config.type === 'imagery';
     this.hasOverlays = Array.isArray(config.imagery) && config.imagery.length > 1;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
@@ -1217,6 +1230,7 @@ export class TerrainManager {
     if (!TERRAIN_DEBUG_MODES.includes(mode)) throw new Error(`Unknown terrain debug mode "${mode}"`);
     if (mode === this.debugMode) return;
     this.debugMode = mode;
+    if (mode === 'residual' || mode === 'coverage' || mode === 'source-boundary') this.loadFusionFields();
     if (mode === 'none' && !this.debugPlugin) return;
     const plugin = this.ensureDebugPlugin();
     // `ColorModes` exists at runtime but the upstream typings omit the static.
@@ -1288,9 +1302,54 @@ export class TerrainManager {
         target.copy(_debugColor.setHSL((1 - f) * 0.33, 0.85, 0.5));
         return;
       }
+      case 'residual':
+      case 'coverage':
+      case 'source-boundary': {
+        const fields = this.fusionFields instanceof FusionFields ? this.fusionFields : null;
+        const id = ownId ?? this.cpuTileId(tile);
+        const key = id ? parseTileKey(id) : null;
+        if (!fields || !key) { target.setRGB(0.35, 0.35, 0.35); return; }
+        // Outside the grid is base-only terrain: zero residual, zero weight.
+        const st = fields.tileStats(key);
+        if (this.debugMode === 'residual') {
+          const f = st ? Math.max(-1, Math.min(1, st.meanResidualM / Math.max(fields.maxAbsResidualM, 1e-6))) : 0;
+          target.setHSL(f < 0 ? 0.6 : 0.0, 0.8, 1 - 0.5 * Math.abs(f));
+        } else if (this.debugMode === 'coverage') {
+          const w = st?.meanWeight ?? 0;
+          target.setRGB(0.08 + 0.92 * w, 0.08 + 0.92 * w, 0.12 + 0.88 * w);
+        } else if (!st) target.set(0x2b2b2b);
+        else if (st.touchesCoverageEdge) target.set(0xe5383b);
+        else if (st.touchesBlend) target.set(0xf2a33a);
+        else if (st.allDetail) target.set(0x2fbf71);
+        else target.set(0x2b2b2b);
+        return;
+      }
       default:
         target.setRGB(1, 1, 1);
     }
+  }
+
+  /** Fetch `fusion-fields.bin` (described by the sibling `terrain-product.json`) once, on first use of a fusion view. */
+  private loadFusionFields(): void {
+    if (this.fusionFields !== undefined) return;
+    const base = this.tilesetUrl;
+    if (!base) { this.fusionFields = null; return; }
+    this.fusionFields = (async () => {
+      try {
+        const root = typeof location !== 'undefined' ? location.href : undefined;
+        const productUrl = new URL('terrain-product.json', new URL(base, root)).href;
+        const res = await fetch(productUrl);
+        if (!res.ok) throw new Error(`${res.status} ${productUrl}`);
+        const desc = (await res.json() as { debugFields?: DebugFieldsDescription }).debugFields;
+        if (!desc) throw new Error('terrain-product.json has no debugFields (re-run `dem.py fields`)');
+        const bin = await fetch(new URL(desc.path, productUrl).href);
+        if (!bin.ok) throw new Error(`${bin.status} ${desc.path}`);
+        this.fusionFields = FusionFields.parse(desc, await bin.arrayBuffer());
+      } catch (err) {
+        this.fusionFields = null;
+        this.warnOnce('fusion-fields', 'Terrain: fusion debug fields unavailable', err);
+      }
+    })();
   }
 
   private meanElevation(id: string): number | null {

@@ -96,10 +96,17 @@ still toggles the bounding volumes independently.
 | `cpu-coverage` | green: the CPU sampler holds this tile's own heights · amber: synthesized by splitting a parent (CPU queries answer from the parent, one level coarser) |
 | `datum-height` | mean tile height vs the terrain datum, blue below · red above (below-reference terrain such as Jezero is explicit) |
 | `seam-error` | max shared-edge mismatch with cached same-level neighbours, green 0 → red ≥ `seamErrorScaleKm` (5 m) · grey: no neighbour cached. The same computation as the offline seam report |
+| `residual` | mean detail residual (HiRISE − base) over the tile footprint: blue negative · white 0 · red positive, scaled to the largest \|residual\| |
+| `coverage` | mean taper weight: dark base only → bright full detail |
+| `source-boundary` | red: tile touches the detail coverage edge · amber: in the 1 km blend band · green: fully detail · dark: base only |
 
-Base terrain, regional residual and source/coverage-boundary views need the
-coverage mask and residual metadata the fused products will emit (#50, #48);
-they are added with those products rather than faked from today's data.
+The three fused-product views read `fusion-fields.bin` next to `layer.json`
+(written by `dem.py tile`, or `dem.py fields` on an existing pyramid; described
+by `debugFields` in `terrain-product.json`): one coarse grid (≤ 1024 px) of
+base, residual, weight and coverage over the residual extent. Tiles are
+coloured by the field mean over their footprint, grey until it loads or when
+the pyramid has none. The file is fetched only when a fusion view is first
+selected, so a view that is off costs nothing per frame.
 
 ## Performance metrics
 

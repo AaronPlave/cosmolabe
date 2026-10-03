@@ -31,6 +31,9 @@
     'cpu-coverage': 'Green: CPU heights decoded · amber: split from parent',
     'datum-height': 'Mean height vs datum: blue below · red above',
     'seam-error': 'Edge mismatch vs neighbours: green 0 → red ≥ 5 m · grey: none cached',
+    'residual': 'Detail − base: blue negative · white 0 · red positive · grey: fields not loaded',
+    'coverage': 'Detail taper weight: dark base only → bright full detail',
+    'source-boundary': 'Red: coverage edge · amber: blend band · green: detail · dark: base only',
   };
 
   /**

@@ -72,6 +72,8 @@ export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice 
 
 // Terrain
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
+export { FusionFields } from './FusionFields.js';
+export type { FusionTileStats } from './FusionFields.js';
 export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming } from './TerrainManager.js';
 export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';
 export {
