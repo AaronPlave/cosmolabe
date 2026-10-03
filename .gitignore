@@ -39,5 +39,8 @@ apps/viewer/test-catalogs/data/mars-terrain-fused/
 apps/viewer/test-catalogs/data/mars-terrain/
 scripts/build-mars-terrain/data/
 
+# Local inventories written by scripts/publish-data.mjs (issue #137)
+.data-hosting/
+
 # Third-party Cosmographia catalog data — see scripts/fetch-cosmographia-data.sh
 .cosmographia/

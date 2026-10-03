@@ -13,11 +13,20 @@
 # 4–14 m off the Ingenuity airfield elevations, which are in the HiRISE frame.
 # Pass --bias plane to make the fused surface follow MOLA/HRSC at broad scale.
 #
+# --publish <build-id>: after tiling, upload the pyramid to the data host and pin
+# that build for the deployed catalogs (issue #137; docs/data-hosting.md). Needs
+# the R2_* credentials and DATA_BASE_URL in the environment.
+#
 # --regional-bounds is the JEZ CTX imagery footprint (ingenuity-jezero.json):
 # imagery resolution follows terrain tile depth, so z10-15 must reach it.
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
+
+PUBLISH_BUILD=""
+if [[ "${1:-}" == "--publish" ]]; then
+  PUBLISH_BUILD="${2:?usage: fused.sh [--publish <build-id>]}"
+fi
 SRC=data/source
 OUT=../../apps/viewer/test-catalogs/data/mars-terrain-fused
 
@@ -38,3 +47,7 @@ python3 ../terrain/dem.py tile \
 
 cp data/fused/fusion.json "${OUT}/fusion.json"
 echo "Validate: node ../validate-terrain.mjs --preset mars-jezero-fused"
+
+if [[ -n "${PUBLISH_BUILD}" ]]; then
+  node ../publish-data.mjs terrain/mars-terrain-fused --build "${PUBLISH_BUILD}"
+fi
