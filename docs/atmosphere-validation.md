@@ -93,7 +93,8 @@ CL_VIEWER_URL=http://127.0.0.1:5174 ATMOSPHERE_CAPTURE_DIR=docs/images/issue-134
 Earth, Mars, Jupiter, and Saturn are captured from the sunward side at 2.3 body
 radii. All nine initial texture assets must load, and each image must draw more
 than 10% of its pixels. The saved images are embedded in the implementation PR.
-Jupiter and Saturn retain their ellipsoidal geometry and existing presets.
+Jupiter and Saturn retain their ellipsoidal geometry. Jupiter’s preset is unchanged;
+Saturn’s above-cloud loading is reduced as described below.
 
 ## Remaining issue phases
 
@@ -127,3 +128,49 @@ search pass lasts beyond the reporter's 100 ms throttle. On this machine that
 pass finished in 68–88 ms, so no intermediate callback was emitted. The focused
 atmosphere tests and GPU checks pass independently; repository CI remains the
 full-suite gate.
+
+
+## PR review: orbital shadows and Saturn cloud deck
+
+Aerial perspective shares the body's live eclipse and ring inputs. Each view
+sample is mapped from the ellipsoid frame back to scene space before evaluating
+sample-to-Sun visibility. Both direct scattering and the ambient LUT source use
+that visibility; view extinction is unaffected. Local visibility for the ambient
+LUT is an approximation, not a spatial multiple-scattering solution. The shell's
+eclipse samples now use its full model matrix too, so rotation and oblateness
+cannot move the shadow into a different frame. Ring visibility is applied to AP;
+ring occlusion of sky/limb multiple scattering remains follow-up work.
+
+The optional-renderer API remains supported. Without a transmittance LUT, the
+shared shader integrates the direct Sun path with 32 midpoint samples. The GPU
+check compares both LUT and fallback rays to the numerical reference and renders
+a complete mesh constructed without the renderer argument. It also checks full
+umbra, a shadowed endpoint with lit atmospheric samples, and an opaque ring:
+source radiance changes while view transmittance stays identical.
+
+Saturn's texture is the visible cloud deck. Same-camera captures keep epoch,
+exposure, shell, texture, and geometry fixed while decomposing AP. Extinction
+accounts for most of the cooling/dimming; inscatter adds a smaller veil. Compare
+inherited coefficients, 0.5×, and 0.25× with both LUTs rebuilt for every bracket:
+
+![Saturn transport decomposition](images/issue-134/saturn-transport-diagnostics.png)
+
+The selected preset uses 0.25× of the inherited Rayleigh, Mie, and absorption
+coefficients, retaining the 60 km profile. Approximate vertical RGB optical depth
+changes from `[0.408, 0.354, 0.252]` to `[0.102, 0.0885, 0.063]`; overhead
+transmittance changes from `[0.665, 0.702, 0.777]` to `[0.903, 0.915, 0.939]`.
+This is a visual above-cloud calibration for this slice, not a measured Saturn
+atmospheric model. Full orbital AP remains enabled, with no exposure or saturation
+adjustment. Cloud bands and warmer texture colors are retained with a thin limb.
+
+![Saturn cloud bands, ring shadow, and moon shadow](images/issue-134/saturn-clouds-shadows.png)
+
+`atmosphere-saturn-shadow` uses fixed analytic positions, an oblate textured globe,
+rings, and a synthetic moon shadow. `atmosphere-earth-eclipse` covers a textured
+orbital disc in partial eclipse. These add two deterministic goldens. Jupiter's
+textured solar-system capture is unchanged after the fixes.
+
+```sh
+CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/capture-atmosphere-diagnostics.mjs
+CL_VIEWER_URL=http://127.0.0.1:5174 VR_SKIP_BUILD=1 VR_SCENES=atmosphere-saturn-shadow,atmosphere-earth-eclipse node scripts/visual-regression.mjs
+```

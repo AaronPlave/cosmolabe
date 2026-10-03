@@ -92,11 +92,13 @@ const ATMOSPHERE_PRESETS: Record<string, AtmosphereParams> = {
     absorptionCoeff: [0.0010, 0.0008, 0.0003],
   },
   Saturn: {
-    mieCoeff: 0.0025,
+    // Haze above the visible cloud-deck texture. The inherited full-column
+    // loading washed out orbital bands; retain 1/4 after same-camera brackets.
+    mieCoeff: 0.000625,
     mieScaleHeight: 60.0,
     miePhaseAsymmetry: -0.5,
-    rayleighCoeff: [0.0035, 0.0028, 0.0015],
-    absorptionCoeff: [0.0008, 0.0006, 0.0002],
+    rayleighCoeff: [0.000875, 0.0007, 0.000375],
+    absorptionCoeff: [0.0002, 0.00015, 0.00005],
   },
   Uranus: {
     mieCoeff: 0.0015,
@@ -154,6 +156,7 @@ uniform float uShadowOccluderRadius[${MAX_SHADOW_OCCLUDERS}];
 uniform float uShadowOccluderCount;
 uniform vec3  uPlanetWorldPos;
 uniform float uShellSceneScale;
+uniform mat4 uAtmModelToWorld;
 ${ATMOSPHERE_PROFILES_GLSL}
 
 varying vec3  vColor;       // linear scattered radiance
@@ -165,7 +168,7 @@ varying vec3  vObjPos;      // proxy-sphere position; needed by the per-fragment
 #define NUM_SAMPLES 8
 
 float computeAtmEclipseShadow(vec3 samplePos) {
-  vec3 worldPos = uPlanetWorldPos + samplePos * uShellSceneScale;
+  vec3 worldPos = (uAtmModelToWorld * vec4(samplePos, 1.0)).xyz;
   vec3 toSun = uSunWorldPos - worldPos;
   float distToSun = length(toSun);
   if (distToSun < 1e-20) return 1.0;
@@ -302,6 +305,7 @@ uniform float uShadowOccluderRadius[${MAX_SHADOW_OCCLUDERS}];
 uniform float uShadowOccluderCount;
 uniform vec3  uPlanetWorldPos;
 uniform float uShellSceneScale;
+uniform mat4 uAtmModelToWorld;
 ${ATMOSPHERE_PROFILES_GLSL}
 
 /** 1.0 when camera is inside the atm shell (use cheap per-vertex), 0.0 when
@@ -320,7 +324,7 @@ varying vec3  vObjPos;
 #define NUM_SAMPLES 8
 
 float computeAtmEclipseShadow(vec3 samplePos) {
-  vec3 worldPos = uPlanetWorldPos + samplePos * uShellSceneScale;
+  vec3 worldPos = (uAtmModelToWorld * vec4(samplePos, 1.0)).xyz;
   vec3 toSun = uSunWorldPos - worldPos;
   float distToSun = length(toSun);
   if (distToSun < 1e-20) return 1.0;
@@ -500,6 +504,7 @@ export class AtmosphereMesh extends THREE.Mesh {
         uShadowOccluderCount:  { value: 0.0 },
         uPlanetWorldPos:       { value: new THREE.Vector3() },
         uShellSceneScale:      { value: 1.0 },
+        uAtmModelToWorld:      { value: new THREE.Matrix4() },
       },
       vertexShader: atmosphereVertexShader,
       fragmentShader: atmosphereFragmentShader,
@@ -547,6 +552,7 @@ export class AtmosphereMesh extends THREE.Mesh {
     if (renderer) {
       this._transmittanceTarget = buildTransmittanceLUT(renderer, model, planetRadius);
       (this.material as THREE.ShaderMaterial).uniforms.uAtmTransmittanceLUT.value = this._transmittanceTarget.texture;
+      (this.material as THREE.ShaderMaterial).uniforms.uAtmHasTransmittanceLUT.value = true;
       this._lutTexture = buildMultiScatterLUT(renderer, model, planetRadius, shellRadius, this._transmittanceTarget.texture);
       (this.material as THREE.ShaderMaterial).uniforms.uMultiScatterLUT.value = this._lutTexture;
     }
@@ -573,6 +579,7 @@ export class AtmosphereMesh extends THREE.Mesh {
   ): void {
     const u = (this.material as THREE.ShaderMaterial).uniforms;
 
+    u.uAtmModelToWorld.value.copy(this.matrixWorld);
     this._invModelMatrix.copy(this.matrixWorld).invert();
     u.invModelMat.value.copy(this._invModelMatrix);
 

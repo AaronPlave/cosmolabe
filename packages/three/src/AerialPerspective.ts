@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { ECLIPSE_VISIBILITY_GLSL, makeShadowUniforms, type ShadowUniforms } from './EclipseShadow.js';
+import { RING_VISIBILITY_GLSL, makeRingShadowUniforms, type RingShadowUniforms } from './RingShadow.js';
 import type { AtmosphereModel } from './AtmosphereModel.js';
 import { ATMOSPHERE_PROFILES_GLSL, makeAtmosphereProfileUniforms, type AtmosphereProfileUniforms } from './AtmosphereProfiles.js';
 
@@ -16,6 +18,7 @@ import { ATMOSPHERE_PROFILES_GLSL, makeAtmosphereProfileUniforms, type Atmospher
 export const AERIAL_PERSPECTIVE_FRAG_PARS = /* glsl */`
 varying vec3 vAPWorldPos;
 uniform mat4 uAPWorldToPlanet;
+uniform mat4 uAPPlanetToWorld;
 uniform float uAPModelUnitScale;
 uniform vec3  uAPCameraWorldPos;
 uniform vec3  uAPSunWorldPos;
@@ -26,6 +29,8 @@ uniform float uAPMieK;               // Schlick phase parameter
 uniform vec3  uAPLightColor;
 uniform float uAPStrength;           // 0..1; 0 disables aerial perspective
 uniform sampler2D uAPMultiScatterLUT; // shared with the parent AtmosphereMesh
+${ECLIPSE_VISIBILITY_GLSL}
+${RING_VISIBILITY_GLSL}
 ${ATMOSPHERE_PROFILES_GLSL}
 
 // View-ray samples for the camera→fragment integral. Lower than typical
@@ -111,7 +116,12 @@ AerialPerspectiveResult computeAerialPerspective(vec3 fragWorldPos) {
     vec3 psi = texture2D(uAPMultiScatterLUT, lutUV).rgb;
     vec3 msContrib = T_view * psi * atmScatteringSum(density) * weight;
 
-    inscatter += ssContrib + msContrib;
+    // Visibility belongs to each atmospheric sample, not the surface fragment.
+    // Keep extinction in the umbra; the ambient LUT uses local visibility as
+    // an approximation until spatial multiple scattering is available.
+    vec3 sampleWorld = (uAPPlanetToWorld * vec4(sP / uAPModelUnitScale, 1.0)).xyz;
+    float visibility = computeEclipseVisibility(sampleWorld) * computeRingVisibility(sampleWorld);
+    inscatter += (ssContrib + msContrib) * visibility;
     opticalDepth += extinction * stepLen;
   }
 
@@ -131,7 +141,7 @@ AerialPerspectiveResult computeAerialPerspective(vec3 fragWorldPos) {
 }
 `;
 
-export type AerialPerspectiveUniforms = AtmosphereProfileUniforms & {
+export type AerialPerspectiveUniforms = AtmosphereProfileUniforms & ShadowUniforms & RingShadowUniforms & {
   uAPCameraWorldPos:    { value: THREE.Vector3 };
   uAPSunWorldPos:       { value: THREE.Vector3 };
   uAPPlanetWorldPos:    { value: THREE.Vector3 };
@@ -142,6 +152,7 @@ export type AerialPerspectiveUniforms = AtmosphereProfileUniforms & {
   uAPStrength:          { value: number };
   uAPMultiScatterLUT:   { value: THREE.Texture | null };
   uAPWorldToPlanet:      { value: THREE.Matrix4 };
+  uAPPlanetToWorld:      { value: THREE.Matrix4 };
   uAPModelUnitScale:    { value: number };
 };
 
@@ -152,6 +163,8 @@ export function makeAerialPerspectiveUniforms(
   transmittanceLUT: THREE.Texture | null,
 ): AerialPerspectiveUniforms {
   return {
+    ...makeShadowUniforms(),
+    ...makeRingShadowUniforms(),
     ...makeAtmosphereProfileUniforms(
       model, 1 / sceneScale, planetRadiusKm * sceneScale,
       (planetRadiusKm + model.heightKm) * sceneScale, transmittanceLUT,
@@ -166,6 +179,7 @@ export function makeAerialPerspectiveUniforms(
     uAPStrength:        { value: 0 },
     uAPMultiScatterLUT: { value: null },
     uAPWorldToPlanet:    { value: new THREE.Matrix4() },
+    uAPPlanetToWorld:    { value: new THREE.Matrix4() },
     uAPModelUnitScale:  { value: sceneScale },
   };
 }

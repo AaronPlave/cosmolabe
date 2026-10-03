@@ -2,6 +2,7 @@
 // Validate the actual WebGL profile/LUT equations against independent integrals.
 // Requires a local Vite viewer; build packages before running.
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { normalizeAtmosphere, transmittanceToSpace } from '../packages/three/dist/AtmosphereModel.js';
 import { getAtmospherePreset } from '../packages/three/dist/AtmosphereMesh.js';
@@ -11,7 +12,7 @@ try {
   const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5174';
   await page.goto(`${base}/?catalog=atmosphere-earth&test=1`);
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady, { timeout: 120000 });
-  const results = await page.evaluate(async () => {
+  const results = await page.evaluate(async repo => {
     const THREE = await import('/node_modules/.vite/deps/three.js');
     // Probe the shared equations from the actual viewer material.
     const shader = window.renderer.atmosphereMeshes.get('Earth').atm.material.vertexShader;
@@ -56,13 +57,89 @@ try {
       material.uniforms.mode.value = 1;
       const phaseIntegral = read();
       material.uniforms.mode.value = 2;
-      return { samples, phaseIntegral, segmentWeight: read() };
+      const segmentWeight = read();
+      // Exercise the missing-LUT direct-Sun branch with the same numerical oracle.
+      material.uniforms.mode.value = 0;
+      material.uniforms.uAtmHasTransmittanceLUT = { value: false };
+      const fallbackSamples = samples.map(({ h, mu }) => {
+        material.uniforms.probePoint.value.set((6378.1 + h) / atm.shellRadius, 0, 0);
+        material.uniforms.probeDir.value.set(mu, Math.sqrt(1 - mu * mu), 0);
+        return { h, mu, rgb: read() };
+      });
+      const { AERIAL_PERSPECTIVE_FRAG_PARS, makeAerialPerspectiveUniforms } =
+        await import(`/@fs${repo}packages/three/dist/AerialPerspective.js`);
+      const apu = makeAerialPerspectiveUniforms(atm.model, 6378.1, 1, atm.transmittanceLUT);
+      apu.uAPCameraWorldPos.value.set(6778.1, 0, 0);
+      apu.uAPSunWorldPos.value.set(100000000, 0, 0);
+      apu.uSunWorldPos.value.copy(apu.uAPSunWorldPos.value);
+      apu.uSunRadius.value = 695000;
+      apu.uAPPlanetRadius.value = 6378.1; apu.uAPShellRadius.value = atm.shellRadius;
+      apu.uAPStrength.value = 1; apu.uAPMieK.value = -0.9;
+      apu.uAPMultiScatterLUT.value = atm.multiScatterLUT;
+      const apMaterial = new THREE.ShaderMaterial({ uniforms: apu,
+        vertexShader: material.vertexShader,
+        fragmentShader: `${AERIAL_PERSPECTIVE_FRAG_PARS}
+          void main(){ AerialPerspectiveResult ap=computeAerialPerspective(vec3(6378.1,0.0,0.0));
+            gl_FragColor=vec4(ap.inscatter,ap.transmittance.r); }` });
+      scene.children[0].material = apMaterial;
+      const readAP = () => {
+        r.setRenderTarget(target); r.render(scene,camera);
+        const data=new Float32Array(4); r.readRenderTargetPixels(target,0,0,1,1,data);
+        return Array.from(data);
+      };
+      const clearAP=readAP();
+      apu.uShadowOccluderCount.value=1;
+      apu.uShadowOccluderPos.value[0].set(40000,0,0);
+      apu.uShadowOccluderRadius.value[0]=1800;
+      const eclipsedAP=readAP();
+      // The endpoint is shadowed, but samples above this small nearby occluder are lit.
+      apu.uShadowOccluderPos.value[0].set(6400,0,0);
+      apu.uShadowOccluderRadius.value[0]=5;
+      const partialAP=readAP();
+      apu.uShadowOccluderCount.value=0;
+      const opaque=new THREE.DataTexture(new Uint8Array([255,255,255,255]),1,1);
+      opaque.needsUpdate=true;
+      apu.uRingMap.value=opaque; apu.uRingOuterRadius.value=10000;
+      apu.uRingCenterWorld.value.set(40000,1000,0); apu.uRingNormalWorld.value.set(1,0,0);
+      const ringAP=readAP();
+      // A translated, rotated, oblate body must put eclipse samples in scene space.
+      apu.uRingOuterRadius.value = 0;
+      const frame = new THREE.Matrix4().compose(new THREE.Vector3(12345, -6789, 4321),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), Math.PI / 2),
+        new THREE.Vector3(1,0.9,1));
+      apu.uAPPlanetToWorld.value.copy(frame); apu.uAPWorldToPlanet.value.copy(frame).invert();
+      apu.uAPCameraWorldPos.value.set(6778.1,0,0).applyMatrix4(frame);
+      apu.uAPSunWorldPos.value.set(100000000,0,0).applyMatrix4(frame);
+      apu.uSunWorldPos.value.copy(apu.uAPSunWorldPos.value);
+      apu.uShadowOccluderCount.value = 1;
+      apu.uShadowOccluderPos.value[0].set(40000,0,0).applyMatrix4(frame);
+      apu.uShadowOccluderRadius.value[0] = 1800;
+      apMaterial.fragmentShader = apMaterial.fragmentShader.replace(
+        'computeAerialPerspective(vec3(6378.1,0.0,0.0))',
+        'computeAerialPerspective((uAPPlanetToWorld * vec4(6378.1,0.0,0.0,1.0)).xyz)');
+      apMaterial.needsUpdate = true;
+      const transformedAP = readAP();
+      apMaterial.dispose(); opaque.dispose();
+      // Render a complete shell built without the optional renderer argument.
+      const { AtmosphereMesh, getAtmospherePreset } = await import(`/@fs${repo}packages/three/dist/AtmosphereMesh.js`);
+      const fallback = new AtmosphereMesh(6378.1,getAtmospherePreset('Earth'));
+      fallback.scale.setScalar(fallback.shellRadius); fallback.updateMatrixWorld(true);
+      const shellCamera=new THREE.PerspectiveCamera(40,1,1,100000);
+      shellCamera.position.set(18000,0,0); shellCamera.lookAt(0,0,0); shellCamera.updateMatrixWorld(true);
+      fallback.update(shellCamera.position,new THREE.Vector3(100000000,0,0));
+      const shellScene=new THREE.Scene(); shellScene.add(fallback);
+      const shellTarget=new THREE.WebGLRenderTarget(128,128,{type:THREE.FloatType});
+      r.setRenderTarget(shellTarget); r.render(shellScene,shellCamera);
+      const pixels=new Float32Array(128*128*4); r.readRenderTargetPixels(shellTarget,0,0,128,128,pixels);
+      let litPixels=0; for(let i=0;i<pixels.length;i+=4) if(Math.max(pixels[i],pixels[i+1],pixels[i+2])>0.0001) litPixels++;
+      fallback.dispose(); shellTarget.dispose();
+      return { samples, fallbackSamples, phaseIntegral, segmentWeight, clearAP, eclipsedAP, partialAP, ringAP, transformedAP, litPixels };
     } finally {
       r.setRenderTarget(previous); target.dispose(); material.dispose(); geometry.dispose();
     }
-  });
+  }, fileURLToPath(new URL('../', import.meta.url)));
   const model = normalizeAtmosphere(getAtmospherePreset('Earth'));
-  for (const { h, mu, rgb } of results.samples) {
+  for (const { h, mu, rgb } of [...results.samples, ...results.fallbackSamples]) {
     const reference = transmittanceToSpace(model, 6378.1, [6378.1 + h, 0, 0], [mu, Math.sqrt(1 - mu * mu), 0], 4096);
     rgb.forEach((value, i) => assert.ok(Number.isFinite(value) && Math.abs(value - reference[i]) < 0.025,
       `LUT at h=${h}, mu=${mu}, channel=${i}: ${value}, reference ${reference[i]}`));
@@ -70,5 +147,16 @@ try {
   results.phaseIntegral.forEach(value => assert.ok(Math.abs(value - 1) < 0.001, `phase integral ${value}`));
   [2, (1 - Math.exp(-0.2)) / 0.1, (1 - Math.exp(-20)) / 10].forEach((value, i) =>
     assert.ok(Math.abs(results.segmentWeight[i] - value) < 0.00001, `segment integral channel ${i}`));
-  console.log('GPU segment integration passes. GPU transmittance: 5 RGB rays match the numerical reference; Rayleigh and Mie phases integrate to 1.');
+  assert.ok(results.litPixels > 20, `Renderer-optional shell is dark: ${results.litPixels} lit pixels`);
+  for (let i=0;i<3;i++) {
+    assert.ok(results.clearAP[i]>0.00001);
+    assert.ok(results.eclipsedAP[i]<0.000001, `Umbra has daytime radiance: ${results.eclipsedAP}`);
+    assert.ok(results.transformedAP[i]<0.000001, `Transformed umbra has daytime radiance: ${results.transformedAP}`);
+    assert.ok(results.ringAP[i]<0.000001, `Opaque ring has daytime radiance: ${results.ringAP}`);
+    assert.ok(results.partialAP[i]>0 && results.partialAP[i]<results.clearAP[i], `Sample visibility not preserved: ${results.partialAP}`);
+  }
+  for (const result of [results.eclipsedAP,results.partialAP,results.ringAP,results.transformedAP])
+    assert.ok(Math.abs(result[3]-results.clearAP[3])<0.00001, 'Occlusion changed view extinction');
+  console.log('Renderer-optional shell and per-sample moon/ring visibility pass; shadowed extinction is unchanged.');
+  console.log('GPU segment integration passes. GPU transmittance: LUT and fallback each match 5 RGB rays against the numerical reference; Rayleigh and Mie phases integrate to 1.');
 } finally { await browser.close(); }

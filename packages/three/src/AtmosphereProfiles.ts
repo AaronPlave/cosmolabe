@@ -16,6 +16,7 @@ uniform float uAtmAbsorptionType;
 uniform float uAtmAbsorptionPeak;
 uniform float uAtmAbsorptionHalfWidth;
 uniform sampler2D uAtmTransmittanceLUT;
+uniform bool uAtmHasTransmittanceLUT;
 
 vec3 atmDensities(float altitude) {
   float h = max(0.0, altitude);
@@ -59,6 +60,18 @@ bool atmSunBlocked(vec3 point, vec3 sunDir) {
 
 vec3 atmSunTransmittance(vec3 point, vec3 sunDir) {
   if (atmSunBlocked(point, sunDir)) return vec3(0.0);
+  if (!uAtmHasTransmittanceLUT) {
+    // Renderer-optional meshes integrate direct sunlight numerically.
+    float b = dot(point, sunDir);
+    float c = dot(point, point) - uAtmShellR * uAtmShellR;
+    float distance = max(0.0, -b + sqrt(max(0.0, b * b - c)));
+    vec3 depth = vec3(0.0);
+    for (int i = 0; i < 32; i++) {
+      float h = length(point + sunDir * distance * (float(i) + 0.5) / 32.0) - uAtmPlanetR;
+      depth += atmExtinction(atmDensities(h)) * (distance / 32.0);
+    }
+    return exp(-depth);
+  }
   float altitude = clamp((length(point) - uAtmPlanetR) /
     max(1e-6, uAtmShellR - uAtmPlanetR), 0.0, 1.0);
   float mu = dot(normalize(point), sunDir);
@@ -90,6 +103,7 @@ export function makeAtmosphereProfileUniforms(
     uAtmAbsorptionPeak: { value: profile.type === 'tent' ? profile.peakKm / kmPerUnit : 0 },
     uAtmAbsorptionHalfWidth: { value: profile.type === 'tent' ? profile.halfWidthKm / kmPerUnit : 1 },
     uAtmTransmittanceLUT: { value: transmittanceLUT },
+    uAtmHasTransmittanceLUT: { value: transmittanceLUT !== null },
   };
 }
 

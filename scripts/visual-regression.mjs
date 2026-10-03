@@ -88,6 +88,8 @@ const PORT = 4173;
  * draws too little ink for any change to fail it.
  */
 const SCENES = [
+  { catalog: 'atmosphere-saturn-shadow', viewpoints: ['Clouds and shadows'] },
+  { catalog: 'atmosphere-earth-eclipse', viewpoints: ['Whole disc'] },
   { catalog: 'atmosphere-earth-textured', viewpoints: ['Whole disc', 'Orbit 400 km'] },
   { catalog: 'atmosphere-mars-textured', viewpoints: ['Whole disc', 'Orbit 400 km'] },
   { catalog: 'atmosphere-earth', viewpoints: ['Surface zenith', 'Surface horizon', 'Ascent 50 km', 'Orbit 400 km', 'Whole disc'] },

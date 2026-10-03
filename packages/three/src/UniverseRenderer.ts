@@ -722,6 +722,7 @@ export class UniverseRenderer {
             apu.uAPPlanetWorldPos.value.copy(parentBm.position);
             parentBm.mesh.updateMatrixWorld(true);
             apu.uAPWorldToPlanet.value.copy(parentBm.mesh.matrixWorld).invert();
+            apu.uAPPlanetToWorld.value.copy(parentBm.mesh.matrixWorld);
             apu.uAPPlanetRadius.value = atm.planetRadius * sf;
             apu.uAPShellRadius.value = atm.shellRadius * sf;
             // Schlick g→k (matches AtmosphereMesh).

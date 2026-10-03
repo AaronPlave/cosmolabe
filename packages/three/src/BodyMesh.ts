@@ -418,6 +418,8 @@ export class BodyMesh extends THREE.Object3D {
     if (this.body.classification === 'star' || this.body.geometryData?.emissive === true) return;
     this.aerialPerspectiveEnabled = true;
     this.aerialPerspectiveUniforms = uniforms;
+    // Share live scene-space eclipse and ring inputs with AP sample visibility.
+    Object.assign(uniforms, this.shadowUniforms, this.ringShadowUniforms);
 
     const mat = this.mesh.material as THREE.Material & {
       onBeforeCompile?: (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }, renderer: unknown) => void;
@@ -435,7 +437,7 @@ export class BodyMesh extends THREE.Object3D {
     };
     // Bump cache key so the program is recompiled with both injections combined.
     const prevKey = (mat.customProgramCacheKey ?? (() => ''))();
-    mat.customProgramCacheKey = () => prevKey + '_ap_v2';
+    mat.customProgramCacheKey = () => prevKey + '_ap_v3';
     mat.needsUpdate = true;
 
     // Forward to terrain tiles if already initialized (or queued for future tiles).
