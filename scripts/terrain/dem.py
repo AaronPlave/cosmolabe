@@ -964,7 +964,12 @@ def cmd_polar_tile(args):
     # refines into a complete set of four or not at all: it refines when any
     # child is wanted (`--level-radius`), and its unwanted siblings are written
     # as leaves. Only wanted tiles refine further.
-    keys, refining = [(0, 0, 0)], [(0, 0)]
+    # Level 0 is the whole square, which straddles the antimeridian (the −y
+    # half-axis). The imagery overlay derives UVs from each vertex's longitude,
+    # so triangles crossing ±180° would interpolate across the whole texture.
+    # The root therefore carries no content: rendering starts at the four
+    # level-1 quadrants, whose shared edges lie on the antimeridian and on lon 0/±90.
+    keys, refining = [], [(0, 0)]
     for L in range(1, args.max_level + 1):
         nxt = []
         for px, py in refining:
@@ -998,19 +1003,21 @@ def cmd_polar_tile(args):
     def node(L, ix, iy):
         kids = [node(L + 1, 2 * ix + dx, 2 * iy + dy) for dy in (0, 1) for dx in (0, 1)
                 if (L + 1, 2 * ix + dx, 2 * iy + dy) in tiles]
-        own = tiles[(L, ix, iy)][0]
+        own = tiles[(L, ix, iy)][0] if L else kids[0]['boundingVolume']['box']
         box = own
         for k in kids:
             box = union(box, k['boundingVolume']['box'])
-        n = {'boundingVolume': {'box': box},
-             'geometricError': 0.25 * cells[L] if kids else 0,
-             'content': {'uri': f'{L}/{ix}/{iy}.glb', 'boundingVolume': {'box': own}}}
+        n = {'boundingVolume': {'box': box}, 'geometricError': 0.25 * cells[L] if kids else 0}
+        if L:
+            n['content'] = {'uri': f'{L}/{ix}/{iy}.glb', 'boundingVolume': {'box': own}}
         if kids:
             n['children'] = kids
         return n
 
     root = node(0, 0, 0)
     root['refine'] = 'REPLACE'
+    # The content-less root must always refine, or a distant view draws nothing.
+    root['geometricError'] = 1e9
     tileset = {'asset': {'version': '1.1', 'generator': 'scripts/terrain/dem.py polar-tile'},
                'geometricError': 2 * root['geometricError'], 'root': root}
     with open(os.path.join(args.out, 'tileset.json'), 'w') as f:
@@ -1192,9 +1199,14 @@ def _selftest_polar(tmp):
     levels = {}
 
     def walk(n, ancestors):
+        kids = n.get('children', [])
+        if not ancestors:  # the root straddles the antimeridian, so it has no content and always refines
+            assert 'content' not in n and len(kids) == 4 and n['geometricError'] >= 1e9
+            for k in kids:
+                walk(k, [n['boundingVolume']['box']])
+            return
         L, ix, iy = (int(v) for v in n['content']['uri'][:-4].split('/'))
         levels[L] = levels.get(L, 0) + 1
-        kids = n.get('children', [])
         assert len(kids) in (0, 4), (n['content']['uri'], len(kids))
         P_, _ = glb(L, ix, iy)
         for box in [n['content']['boundingVolume']['box'], n['boundingVolume']['box'], *ancestors]:
@@ -1203,7 +1215,7 @@ def _selftest_polar(tmp):
             walk(k, ancestors + [n['boundingVolume']['box']])
 
     walk(json.load(open(os.path.join(cap, 'tileset.json')))['root'], [])
-    assert levels == {0: 1, 1: 4, 2: 16, 3: 16}, levels
+    assert levels == {1: 4, 2: 16, 3: 16}, levels
     q = {(ix, iy): glb(1, ix, iy) for ix in (0, 1) for iy in (0, 1)}
     for P_, n_ in q.values():
         up_ = P_.reshape(-1, 3) / np.linalg.norm(P_.reshape(-1, 3), axis=1, keepdims=True)
