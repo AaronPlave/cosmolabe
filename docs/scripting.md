@@ -287,9 +287,11 @@ close the panel from there.
 
 ### The Earth–Moon Scripted Tour
 
-The **Earth–Moon Scripted Tour** on the home screen loads the kernel-free Earth +
-Moon scene and runs an adaptation of Cosmographia's Earth–Moon scripting example
-in the console, block by block with the original's notes and pacing. Camera
+The **Earth–Moon Scripted Tour** on the home screen loads its own kernel-free
+scene (`test-catalogs/earth-moon-tour.json`: textured Earth and Moon with IAU
+rotation, so the body-fixed views land on real geography) and runs an adaptation
+of Cosmographia's Earth–Moon scripting example in the console, block by block
+with the original's notes and pacing. Camera
 moves Cosmolabe cannot animate yet (`moveToPov`, the `circleCenter*` moves,
 `craneUp`) become instant `setCamera` poses at the positions the original ends
 on. Calls with no equivalent are left as "No equivalent yet" comments; the
