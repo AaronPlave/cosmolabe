@@ -14,9 +14,9 @@ try {
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady, { timeout: 120000 });
   const results = await page.evaluate(async repo => {
     const THREE = await import('/node_modules/.vite/deps/three.js');
-    // Probe the shared equations from the actual viewer material.
-    const shader = window.renderer.atmosphereMeshes.get('Earth').atm.material.vertexShader;
-    const ATMOSPHERE_PROFILES_GLSL = shader.slice(shader.indexOf('uniform float uAtmPlanetR;'), shader.indexOf('varying vec3  vColor;'));
+    // Probe the shared equations directly; the lookup path uses a minimal shell vertex shader.
+    const { ATMOSPHERE_PROFILES_GLSL } =
+      await import(`/@fs${repo}packages/three/dist/AtmosphereProfiles.js`);
     const r = window.renderer.renderer;
     const atm = window.renderer.atmosphereMeshes.get('Earth').atm;
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.FloatType, depthBuffer: false });
