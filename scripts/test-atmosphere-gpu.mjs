@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { normalizeAtmosphere, transmittanceToSpace } from '../packages/three/dist/AtmosphereModel.js';
+import { extinctionAt, normalizeAtmosphere, transmittanceToSpace } from '../packages/three/dist/AtmosphereModel.js';
 import { getAtmospherePreset } from '../packages/three/dist/AtmosphereMesh.js';
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
@@ -17,6 +17,8 @@ try {
     // Probe the shared equations directly; the lookup path uses a minimal shell vertex shader.
     const { ATMOSPHERE_PROFILES_GLSL } =
       await import(`/@fs${repo}packages/three/dist/AtmosphereProfiles.js`);
+    const { SKY_VIEW_BASIS_GLSL } =
+      await import(`/@fs${repo}packages/three/dist/SkyViewLUT.js`);
     const r = window.renderer.renderer;
     const atm = window.renderer.atmosphereMeshes.get('Earth').atm;
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.FloatType, depthBuffer: false });
@@ -133,12 +135,60 @@ try {
       const pixels=new Float32Array(128*128*4); r.readRenderTargetPixels(shellTarget,0,0,128,128,pixels);
       let litPixels=0; for(let i=0;i<pixels.length;i+=4) if(Math.max(pixels[i],pixels[i+1],pixels[i+2])>0.0001) litPixels++;
       fallback.dispose(); shellTarget.dispose();
-      return { samples, fallbackSamples, phaseIntegral, segmentWeight, clearAP, eclipsedAP, partialAP, ringAP, transformedAP, litPixels };
+      // Read the actual filtered half-float sky lookup through the reader's
+      // elevation mapping, including rays on both sides of the cap tangent.
+      const skyShell=new AtmosphereMesh(6378.1,getAtmospherePreset('Earth'),r);
+      skyShell.scale.setScalar(skyShell.shellRadius); skyShell.updateMatrixWorld(true);
+      const skyMaterial=new THREE.ShaderMaterial({
+        uniforms:{lut:{value:skyShell.material.uniforms.uSkyViewLUT.value},
+          eye:{value:new THREE.Vector3()},capR:{value:skyShell.material.uniforms.planetR.value-skyShell.material.uniforms.planetCapBias.value},
+          theta:{value:0}},
+        vertexShader:material.vertexShader,
+        fragmentShader:`uniform sampler2D lut; uniform vec3 eye; uniform float capR; uniform float theta;
+          ${SKY_VIEW_BASIS_GLSL}
+          void main(){float v=skyVFromTheta(theta,skyHorizonTheta(eye,capR));
+            gl_FragColor=vec4(texture2D(lut,vec2(0.5,v)).aaa,1.0);}`,
+      });
+      scene.children[0].material=skyMaterial;
+      const skySamples=[];
+      for(const h of [50,99.99]){
+        skyShell.update(new THREE.Vector3(6378.1+h,0,0),new THREE.Vector3(1e8,0,0));
+        skyMaterial.uniforms.eye.value.set((6378.1+h)/skyShell.shellRadius,0,0);
+        const capKm=6378.1-skyShell.model.planetCapBias*skyShell.shellRadius;
+        const tangent=Math.PI-Math.asin(capKm/(6378.1+h));
+        for(const offset of [-0.05,0.05]){
+          const theta=tangent+offset*Math.PI/180;
+          skyMaterial.uniforms.theta.value=theta;
+          skySamples.push({h,theta,alpha:read()[0]});
+        }
+      }
+      skyMaterial.dispose(); skyShell.dispose();
+      return { samples, fallbackSamples, phaseIntegral, segmentWeight, clearAP, eclipsedAP, partialAP, ringAP, transformedAP, litPixels, skySamples };
     } finally {
       r.setRenderTarget(previous); target.dispose(); material.dispose(); geometry.dispose();
     }
   }, fileURLToPath(new URL('../', import.meta.url)));
   const model = normalizeAtmosphere(getAtmospherePreset('Earth'));
+  const skyRadius=6378.1+model.heightKm;
+  const capRadius=6378.1-model.planetCapBias*skyRadius;
+  for(const {h,theta,alpha} of results.skySamples){
+    const eye=6378.1+h,mu=Math.cos(theta);
+    const exit=-eye*mu+Math.sqrt((eye*mu)**2-(eye**2-skyRadius**2));
+    const capDisc=(eye*mu)**2-(eye**2-capRadius**2);
+    const capHit=capDisc>0?-eye*mu-Math.sqrt(capDisc):Infinity;
+    const end=capHit>0?Math.min(exit,capHit):exit;
+    const step=end/16;
+    const depth=[0,0,0];
+    for(let j=0;j<16;j++){
+      const distance=(j+0.5)*step;
+      const altitude=Math.max(0,Math.sqrt(eye**2+distance**2+2*eye*mu*distance)-6378.1);
+      const extinction=extinctionAt(model,altitude);
+      for(let i=0;i<3;i++)depth[i]+=extinction[i]*step;
+    }
+    const reference=depth.reduce((sum,value)=>sum+Math.exp(-value)/3,0);
+    assert.ok(Math.abs(alpha-reference)<0.025,
+      `Filtered sky LUT at ${h} km, theta=${theta}: ${alpha}, direct=${reference}`);
+  }
   for (const { h, mu, rgb } of [...results.samples, ...results.fallbackSamples]) {
     const reference = transmittanceToSpace(model, 6378.1, [6378.1 + h, 0, 0], [mu, Math.sqrt(1 - mu * mu), 0], 4096);
     rgb.forEach((value, i) => assert.ok(Number.isFinite(value) && Math.abs(value - reference[i]) < 0.025,
@@ -159,4 +209,5 @@ try {
     assert.ok(Math.abs(result[3]-results.clearAP[3])<0.00001, 'Occlusion changed view extinction');
   console.log('Renderer-optional shell and per-sample moon/ring visibility pass; shadowed extinction is unchanged.');
   console.log('GPU segment integration passes. GPU transmittance: LUT and fallback each match 5 RGB rays against the numerical reference; Rayleigh and Mie phases integrate to 1.');
+  console.log('Filtered sky-view LUT matches direct extinction near the horizon at 50 km and 99.99 km.');
 } finally { await browser.close(); }

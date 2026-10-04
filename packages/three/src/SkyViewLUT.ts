@@ -16,6 +16,29 @@ void skyBasis(vec3 eye, vec3 sun, out vec3 up, out vec3 towardSun, out vec3 side
   towardSun = normalize(towardSun);
   side = normalize(cross(up, towardSun));
 }
+// Put the analytic planet-cap tangent at the boundary between two texel rows.
+// Squared elevation offsets spend most rows near the limb, where optical depth
+// changes fastest. Clamp reads to their own half so filtering never crosses it.
+float skyHorizonTheta(vec3 eye, float capR) {
+  return 3.14159265358979 - asin(clamp(capR / max(length(eye), 1e-6), 0.0, 1.0));
+}
+float skyThetaFromV(float v, float horizon) {
+  if (v < 0.5) {
+    float offset = 1.0 - 2.0 * v;
+    return horizon * (1.0 - offset * offset);
+  }
+  float offset = 2.0 * v - 1.0;
+  return horizon + (3.14159265358979 - horizon) * offset * offset;
+}
+float skyVFromTheta(float theta, float horizon) {
+  if (theta < horizon) {
+    float v = 0.5 * (1.0 - sqrt(max(0.0, 1.0 - theta / horizon)));
+    return clamp(v, 0.5 / ${HEIGHT}.0, 0.5 - 0.5 / ${HEIGHT}.0);
+  }
+  float v = 0.5 + 0.5 * sqrt(max(0.0,
+    (theta - horizon) / (3.14159265358979 - horizon)));
+  return clamp(v, 0.5 + 0.5 / ${HEIGHT}.0, 1.0 - 0.5 / ${HEIGHT}.0);
+}
 `;
 
 /** Rebuilds a view radiance/transmittance table while the camera is in the shell. */
@@ -88,7 +111,8 @@ export class SkyViewLUT {
         void main() {
           vec3 up, towardSun, side;
           skyBasis(uSkyEye, lightDir, up, towardSun, side);
-          float theta = vUv.y * 3.14159265358979;
+          float capR = max(0.0, planetR - planetCapBias);
+          float theta = skyThetaFromV(vUv.y, skyHorizonTheta(uSkyEye, capR));
           float azimuth = (vUv.x * 2.0 - 1.0) * 3.14159265358979;
           vec3 viewDir = up * cos(theta) +
             sin(theta) * (towardSun * cos(azimuth) + side * sin(azimuth));
@@ -99,7 +123,6 @@ export class SkyViewLUT {
           if (disc < 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
           float enter = max(0.0, -b - sqrt(disc));
           float end = -b + sqrt(disc);
-          float capR = max(0.0, planetR - planetCapBias);
           float planetDisc = b * b - (dot(uSkyEye, uSkyEye) - capR * capR);
           if (planetDisc > 0.0) {
             float hit = -b - sqrt(planetDisc);

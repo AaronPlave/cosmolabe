@@ -383,9 +383,10 @@ void main() {
       vec3 horizontal = viewDir - up * dot(viewDir, up);
       float azimuth = length(horizontal) < 1e-6 ? 0.0 :
         atan(dot(horizontal, side), dot(horizontal, towardSun));
+      float capR = max(0.0, planetR - planetCapBias);
       gl_FragColor = texture2D(uSkyViewLUT, vec2(
         (azimuth + 3.14159265358979) / (2.0 * 3.14159265358979),
-        theta / 3.14159265358979));
+        skyVFromTheta(theta, skyHorizonTheta(eye, capR))));
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
       return;

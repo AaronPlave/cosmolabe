@@ -125,6 +125,14 @@ samples the lookup and uses a 256×128 proxy (33,153 vertices, down from
 525,825). Orbital views retain the per-fragment limb path. Meshes constructed
 without a renderer retain their direct integration fallback.
 
+Elevation rows now cluster around the camera-dependent tangent to the inset
+planet cap. The tangent separates sky and ground rows, and the shell clamps
+filtered reads to the appropriate side. Numerical checks compare filtered
+lookup transmission with direct integration just above and below the tangent
+at 0, 50, and 99.99 km, and compare the inside and orbital paths across the
+100 km shell boundary. The GPU check also reads the filtered half-float lookup
+at 50 and 99.99 km.
+
 On 2026-10-03, the same local Chromium SwiftShader server and browser were
 profiled before and after this change. These are medians of six warm captures,
 including JavaScript, draw submission, and PNG readback; they are not isolated
