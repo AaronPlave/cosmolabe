@@ -70,7 +70,9 @@ const hostedPublicDirPlugin = {
     const { loadDatasets } = await import('../../scripts/data-hosting/lib/datasets.mjs');
     const { publicDirCopyFilter } = await import('../../scripts/data-hosting/lib/public-dir-filter.mjs');
     const outDir = options.dir ?? path.resolve(__dirname, 'dist');
-    const keep = publicDirCopyFilter(loadDatasets().datasets, PUBLIC_DIR);
+    // HOSTED_DATA_SKIP=id,id also skips datasets that are not pinned yet.
+    const alsoSkip = (process.env.HOSTED_DATA_SKIP ?? '').split(',').filter(Boolean);
+    const keep = publicDirCopyFilter(loadDatasets().datasets, PUBLIC_DIR, alsoSkip);
     for (const name of readdirSync(PUBLIC_DIR)) {
       const src = path.join(PUBLIC_DIR, name);
       if (keep(src)) cpSync(src, path.join(outDir, name), { recursive: true, filter: keep });

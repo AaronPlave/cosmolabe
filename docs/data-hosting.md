@@ -148,10 +148,11 @@ dataset, so a new mission directory can't be forgotten.
 Locally, `apps/viewer/test-catalogs/` may hold gigabytes of terrain and kernels, and
 Vite copies its whole `publicDir` into `dist/`. Build with `HOSTED_DATA=1` to skip
 every dataset pinned in `datasets.json` during that copy (CI never has them, so it
-doesn't need the flag):
+doesn't need the flag). `HOSTED_DATA_SKIP=<dataset-id>,…` also skips datasets that
+aren't pinned yet, e.g. one that is still uploading:
 
 ```sh
-(cd apps/viewer && HOSTED_DATA=1 VITE_BASE=/ npx vite build)
+(cd apps/viewer && HOSTED_DATA=1 HOSTED_DATA_SKIP=terrain/mars-terrain-fused VITE_BASE=/ npx vite build)
 ```
 
 ```sh

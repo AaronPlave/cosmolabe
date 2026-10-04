@@ -291,6 +291,8 @@ describe('publicDir copy filter', () => {
     }, pub);
     const k = (p) => keep(join(pub, p));
     expect([k('data/mars'), k('data/mars/layer.json'), k('kernels/de440s.bsp'), k('kernels/cassini'), k('kernels/cassini/x.bsp')]).toEqual([false, false, false, false, false]);
+    const keepMore = publicDirCopyFilter({ d: { catalogPrefix: 'kernels/unpub/', build: null } }, pub, ['d']);
+    expect(keepMore(join(pub, 'kernels/unpub'))).toBe(false);
     expect([k('data/other'), k('kernels'), k('kernels/unpub'), k('textures'), k('index.json')]).toEqual([true, true, true, true, true]);
   });
 });

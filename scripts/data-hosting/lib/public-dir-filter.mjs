@@ -6,8 +6,9 @@ import { statSync } from 'node:fs';
 import { posix, relative, sep } from 'node:path';
 
 /** Returns (absolutePath) => boolean: true to copy, false to skip. */
-export function publicDirCopyFilter(datasets, publicDir) {
-  const hosted = Object.values(datasets).filter((d) => d.build);
+export function publicDirCopyFilter(datasets, publicDir, alsoSkip = []) {
+  // Pinned datasets, plus any named in `alsoSkip` (e.g. one still being uploaded).
+  const hosted = Object.entries(datasets).filter(([id, d]) => d.build || alsoSkip.includes(id)).map(([, d]) => d);
   return (abs) => {
     const rel = relative(publicDir, abs).split(sep).join('/');
     if (!rel || rel.startsWith('..')) return true;
