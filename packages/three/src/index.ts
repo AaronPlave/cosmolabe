@@ -125,3 +125,15 @@ export type { AsteroidSwarmPluginOptions } from './plugins/AsteroidSwarmPlugin.j
 // Capture
 export { captureFrameDataUrl, captureFilename, downloadDataUrl } from './scripting/captureFrame.js';
 export type { CaptureHost } from './scripting/captureFrame.js';
+
+// Opt-in CPU physical-surface proof (see docs/design/physical-surface-adr.md).
+export { CpuMeshSurface } from './surface/CpuMeshSurface.js';
+export type { CpuSurfaceMesh } from './surface/CpuMeshSurface.js';
+export { GlobeTileSurface } from './surface/GlobeTileSurface.js';
+export { requestSurfaceIntersection } from './surface/PhysicalSurface.js';
+export type {
+  PhysicalSurface, PhysicalSurfaceMetadata, SurfaceRay, SurfaceVector, SurfaceQueryOptions,
+  SurfaceAccuracy, SurfaceHit, SurfaceIntersection, SurfaceQueryLoader,
+} from './surface/PhysicalSurface.js';
+export { pickPhysicalSurface, cameraPositionFromSurfacePick, surfaceRayBetween } from './surface/SurfaceConsumers.js';
+export type { MapImageLayer, ObservationImageProjection, ObservationRayResolver } from './surface/SurfaceImagery.js';

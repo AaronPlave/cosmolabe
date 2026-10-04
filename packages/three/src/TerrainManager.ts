@@ -538,6 +538,7 @@ export class TerrainManager {
       kind: config.sourceMetadata?.kind ?? (config.type === 'quantized-mesh' ? 'quantized-mesh' : config.type === 'imagery' ? 'imagery' : 'unknown'),
       url: config.sourceMetadata?.url ?? config.url,
       uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
+      version: config.sourceMetadata?.version,
     }, config.samplerMaxTiles ?? 256);
     // The sampler's own LRU drops tiles independently of the renderer's; the
     // seam/datum debug indexes must forget them too or they report neighbours

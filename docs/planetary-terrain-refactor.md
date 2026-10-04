@@ -24,6 +24,13 @@ Terrain rendering consumes terrain data. It does not interpret source datums,
 hide source-registration errors, fuse DEMs, or scan its rendered meshes to
 answer physical-surface queries.
 
+The additive [physical-surface ADR](design/physical-surface-adr.md) (#148)
+defines the shared body-fixed CPU ray-query port and separate map/observation
+imagery contracts. Its bounded globe/concave-mesh proof does not replace the
+sampler or select a permanent global/polar layout. Production migration requires
+source-owned coverage, measured sample/mesh/render agreement and bounded loading;
+all datum, fusion, continuity and validation requirements below remain in force.
+
 ## Complete requirement index
 
 ### Audit and preservation
