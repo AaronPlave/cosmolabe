@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { CameraModeName, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
 import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
+import {
+  bodyFixedToGeodeticRad, clipRayToFloor, dollyAlongView, headingPitchOf, localFrame, moveAlongSurface, viewDirection,
+  type Ellipsoid, type FloorFn, type SurfacePose, type Vec3,
+} from '../surfaceNavigation.js';
 
 const _tmpV = /* @__PURE__ */ new THREE.Vector3();
 const _lookTarget = /* @__PURE__ */ new THREE.Vector3();
@@ -9,6 +13,19 @@ const _rotMat = /* @__PURE__ */ new THREE.Matrix4();
 const _tmpMat = /* @__PURE__ */ new THREE.Matrix4();
 const _tmpQ = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpScale = /* @__PURE__ */ new THREE.Vector3();
+
+/** Minimum camera height above sampled terrain enforced by wheel/pinch dolly, km. */
+const DOLLY_TERRAIN_CLEARANCE_KM = 0.002;
+
+/** Conventional Z-up body-fixed vector → body geometry Y-up (x, z, -y). */
+function bodyFixedToGeometry(v: Vec3, out: THREE.Vector3): THREE.Vector3 {
+  return out.set(v[0], v[2], -v[1]);
+}
+
+/** Body geometry Y-up → conventional Z-up body-fixed. */
+function geometryToBodyFixed(v: THREE.Vector3): Vec3 {
+  return [v.x, -v.z, v.y];
+}
 
 /** Construct a matrix that rotates around a world-space point by a quaternion. */
 function makeRotateAroundPoint(point: THREE.Vector3, quat: THREE.Quaternion, target: THREE.Matrix4): void {
@@ -23,7 +40,14 @@ function makeRotateAroundPoint(point: THREE.Vector3, quat: THREE.Quaternion, tar
  * Surface Explorer Camera — ground-level navigation over planetary terrain.
  *
  * Camera altitude is above the reference ellipsoid (not terrain-following).
- * The renderer's clampCameraAboveSurfaces() handles terrain collision.
+ * The renderer's clampCameraAboveSurfaces() handles terrain collision; wheel
+ * and pinch dolly (including while orbiting) additionally stop at a small
+ * clearance above sampled terrain.
+ *
+ * All motion is a displacement in the local East/North/Up frame (or along the
+ * view ray) in body-fixed space, converted back to geodetic coordinates — see
+ * `surfaceNavigation.ts`. "Up" is the geodetic ellipsoid normal. Nothing
+ * divides by cos(latitude), so navigation is continuous at and over the poles.
  *
  * Controls:
  * - Left-click drag: pan (terrain follows the drag, like grabbing a map)
@@ -58,6 +82,24 @@ export class SurfaceExplorerMode implements ICameraMode {
   // --- Body geometry cache ---
   private re = 1;
   private e2 = 0;
+
+  private get ellipsoid(): Ellipsoid {
+    return { a: this.re, e2: this.e2 };
+  }
+
+  /** Geodetic state as one value for the pure navigation helpers. Setting it marks the camera dirty. */
+  private get pose(): SurfacePose {
+    return { latRad: this.latRad, lonRad: this.lonRad, altKm: this.altKm, headingRad: this.heading, pitchRad: this.pitch };
+  }
+
+  private set pose(p: SurfacePose) {
+    this.latRad = p.latRad;
+    this.lonRad = p.lonRad;
+    this.altKm = p.altKm;
+    this.heading = p.headingRad;
+    this.pitch = p.pitchRad;
+    this.dirty = true;
+  }
 
   // --- Timing ---
   private frameCount = 0;
@@ -121,21 +163,13 @@ export class SurfaceExplorerMode implements ICameraMode {
       const bodyQ = this.getBodyQuat(ctx, bm);
       const km = ctx.camera.position.clone().sub(bm.position).divideScalar(ctx.scaleFactor);
       if (bodyQ) km.applyQuaternion(bodyQ.clone().invert());
-      const ecefX = km.x, ecefY = -km.z, ecefZ = km.y;
-      const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
-      if (r > 1e-10) {
-        const geocLat = Math.asin(Math.max(-1, Math.min(1, ecefZ / r)));
-        this.latRad = Math.atan(Math.tan(geocLat) / (1 - this.e2));
-        this.lonRad = Math.atan2(ecefY, ecefX);
-        // Derive altitude from camera distance
-        const sinLat = Math.sin(this.latRad);
-        const cosLat = Math.cos(this.latRad);
-        const N = this.re / Math.sqrt(1 - this.e2 * sinLat * sinLat);
+      if (km.lengthSq() > 1e-20) {
+        const g = bodyFixedToGeodeticRad(geometryToBodyFixed(km), this.ellipsoid);
+        this.latRad = g.latRad;
+        this.lonRad = g.lonRad;
         // Allow negative altKm for below-ellipsoid terrain (e.g., Gale Crater).
-        // Floor at -20 km matches the wheel scroll handler's clamp.
-        this.altKm = Math.max(-20, (cosLat > 0.01)
-          ? Math.sqrt(ecefX * ecefX + ecefY * ecefY) / cosLat - N
-          : Math.abs(ecefZ) / Math.abs(sinLat) - N * (1 - this.e2));
+        // Floor at -20 km matches the dolly clamp.
+        this.altKm = Math.max(-20, g.altKm);
       }
     } else {
       this.latRad = (params.latDeg ?? 0) * Math.PI / 180;
@@ -265,15 +299,10 @@ export class SurfaceExplorerMode implements ICameraMode {
     if (this.leftDragging && (this.dragDx !== 0 || this.dragDy !== 0)) {
       this.suppressGeodetic = false;
       // Speed based on distance to terrain. Min floor ensures movement even on the ground.
-      const angPerPx = (Math.max(this.altAboveTerrainKm, 0.005) / this.re) * 0.003;
-      const cosLat = Math.cos(this.latRad);
-      const safeCos = cosLat > 0.01 ? 1 / cosLat : 100;
-      const cosH = Math.cos(this.heading);
-      const sinH = Math.sin(this.heading);
-
-      this.latRad += (this.dragDy * cosH + this.dragDx * sinH) * angPerPx;
-      this.lonRad += (this.dragDy * sinH - this.dragDx * cosH) * angPerPx * safeCos;
-      this.latRad = Math.max(-Math.PI / 2 + 0.001, Math.min(Math.PI / 2 - 0.001, this.latRad));
+      // Dragging down pulls the terrain toward you (move forward); dragging right
+      // pulls it right (move left), like grabbing a map.
+      const kmPerPx = Math.max(this.altAboveTerrainKm, 0.005) * 0.003;
+      this.pose = moveAlongSurface(this.pose, this.dragDy * kmPerPx, -this.dragDx * kmPerPx, this.ellipsoid);
 
       this.dragDx = 0;
       this.dragDy = 0;
@@ -323,11 +352,7 @@ export class SurfaceExplorerMode implements ICameraMode {
     // --- WASD ---
     if (this.keys.size > 0) {
       const speedMod = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')) ? 5 : 1;
-      const angSpeed = (Math.max(this.altAboveTerrainKm, 0.005) / this.re) * 3.0 * speedMod;
-      const cosLat = Math.cos(this.latRad);
-      const safeCos = cosLat > 0.01 ? 1 / cosLat : 100;
-      const cosH = Math.cos(this.heading);
-      const sinH = Math.sin(this.heading);
+      const kmPerSec = Math.max(this.altAboveTerrainKm, 0.005) * 3.0 * speedMod;
 
       let fwd = 0, rgt = 0;
       if (this.keys.has('KeyW')) fwd += 1;
@@ -337,9 +362,8 @@ export class SurfaceExplorerMode implements ICameraMode {
 
       if (fwd !== 0 || rgt !== 0) {
         this.suppressGeodetic = false;
-        this.latRad += (fwd * cosH - rgt * sinH) * angSpeed * ctx.dt;
-        this.lonRad += (fwd * sinH + rgt * cosH) * angSpeed * ctx.dt * safeCos;
-        this.latRad = Math.max(-Math.PI / 2 + 0.001, Math.min(Math.PI / 2 - 0.001, this.latRad));
+        const step = kmPerSec * ctx.dt;
+        this.pose = moveAlongSurface(this.pose, fwd * step, rgt * step, this.ellipsoid);
         this.dirty = true;
       }
     }
@@ -381,43 +405,31 @@ export class SurfaceExplorerMode implements ICameraMode {
   /** Compute camera world position + orientation from geodetic state. */
   private applyCameraFromGeodetic(ctx: CameraModeContext, bm: BodyMesh): void {
     const sf = ctx.scaleFactor;
+    const bodyQ = this.getBodyQuat(ctx, bm);
+    const toWorldDir = (v: Vec3) => {
+      const w = bodyFixedToGeometry(v, new THREE.Vector3());
+      if (bodyQ) w.applyQuaternion(bodyQ);
+      return w;
+    };
+
+    const { a, e2 } = this.ellipsoid;
     const sinLat = Math.sin(this.latRad);
     const cosLat = Math.cos(this.latRad);
-    const cosLon = Math.cos(this.lonRad);
-    const sinLon = Math.sin(this.lonRad);
-    const N = this.re / Math.sqrt(1 - this.e2 * sinLat * sinLat);
+    const N = a / Math.sqrt(1 - e2 * sinLat * sinLat);
+    const posBf: Vec3 = [
+      (N + this.altKm) * cosLat * Math.cos(this.lonRad),
+      (N + this.altKm) * cosLat * Math.sin(this.lonRad),
+      (N * (1 - e2) + this.altKm) * sinLat,
+    ];
+    ctx.camera.position.copy(bm.position).addScaledVector(toWorldDir(posBf), sf);
 
-    const ecefX = (N + this.altKm) * cosLat * cosLon;
-    const ecefY = (N + this.altKm) * cosLat * sinLon;
-    const ecefZ = (N * (1 - this.e2) + this.altKm) * sinLat;
-    _tmpV.set(ecefX, ecefZ, -ecefY);
+    // Orientation from the geodetic (ellipsoid-normal) local frame.
+    const frame = localFrame(this.latRad, this.lonRad);
+    const upW = toWorldDir(frame.up).normalize();
+    const lookW = toWorldDir(viewDirection(frame, this.heading, this.pitch)).normalize();
 
-    const bodyQ = this.getBodyQuat(ctx, bm);
-    if (bodyQ) _tmpV.applyQuaternion(bodyQ);
-    ctx.camera.position.copy(bm.position).addScaledVector(_tmpV, sf);
-
-    // Orientation
-    const normalW = new THREE.Vector3().copy(ctx.camera.position).sub(bm.position).normalize();
-
-    const northGeo = new THREE.Vector3(-sinLat * cosLon, cosLat, sinLat * sinLon);
-    if (bodyQ) northGeo.applyQuaternion(bodyQ);
-    northGeo.addScaledVector(normalW, -northGeo.dot(normalW));
-    if (northGeo.lengthSq() < 1e-10) {
-      northGeo.set(1, 0, 0);
-      if (bodyQ) northGeo.applyQuaternion(bodyQ);
-      northGeo.addScaledVector(normalW, -northGeo.dot(normalW));
-    }
-    northGeo.normalize();
-
-    const headingQ = new THREE.Quaternion().setFromAxisAngle(normalW, -this.heading);
-    const forward = northGeo.clone().applyQuaternion(headingQ);
-    const right = new THREE.Vector3().crossVectors(forward, normalW).normalize();
-
-    const pitchQ = new THREE.Quaternion().setFromAxisAngle(right, this.pitch);
-    const lookDir = forward.clone().applyQuaternion(pitchQ);
-
-    ctx.camera.up.copy(normalW);
-    _lookTarget.copy(ctx.camera.position).addScaledVector(lookDir, 0.001);
+    ctx.camera.up.copy(upW);
+    _lookTarget.copy(ctx.camera.position).addScaledVector(lookW, 0.001);
     ctx.camera.lookAt(_lookTarget);
   }
 
@@ -483,30 +495,42 @@ export class SurfaceExplorerMode implements ICameraMode {
   private dolly(stepKm: number, ctx: CameraModeContext): void {
     if (this.rightDragging && this.hasPivot) {
       ctx.camera.getWorldDirection(_tmpV);
-      ctx.camera.position.addScaledVector(_tmpV, stepKm * ctx.scaleFactor);
+      const bm = ctx.bodyMeshes.get(this.bodyName);
+      let t = stepKm;
+      if (bm) {
+        // Same terrain clearance as the geodetic dolly, on the camera's own ray.
+        const bodyQ = this.getBodyQuat(ctx, bm);
+        const invQ = bodyQ ? bodyQ.clone().invert() : null;
+        const startKm = ctx.camera.position.clone().sub(bm.position).divideScalar(ctx.scaleFactor);
+        const dirKm = _tmpV.clone();
+        if (invQ) { startKm.applyQuaternion(invQ); dirKm.applyQuaternion(invQ); }
+        t = clipRayToFloor(geometryToBodyFixed(startKm), geometryToBodyFixed(dirKm), stepKm, this.ellipsoid, this.terrainFloor(bm));
+      }
+      ctx.camera.position.addScaledVector(_tmpV, t * ctx.scaleFactor);
       return;
     }
-    this.dollyGeodetic(stepKm);
+    this.dollyGeodetic(stepKm, ctx);
   }
 
-  /** Dolly by moving the geodetic state along heading + pitch. */
-  private dollyGeodetic(step: number): void {
+  /**
+   * Dolly along the view ray in body-fixed space, stopping at a small clearance
+   * above sampled terrain (a camera already below it can still back out).
+   */
+  private dollyGeodetic(stepKm: number, ctx: CameraModeContext): void {
     this.suppressGeodetic = false;
-    const cosPitch = Math.cos(this.pitch);
-    const sinPitch = Math.sin(this.pitch);
+    const bm = ctx.bodyMeshes.get(this.bodyName);
+    const next = dollyAlongView(this.pose, stepKm, this.ellipsoid, bm ? this.terrainFloor(bm) : undefined);
+    next.altKm = Math.max(-20, Math.min(10000, next.altKm));
+    next.pitchRad = Math.max(-1.5, Math.min(0.3, next.pitchRad));
+    this.pose = next;
+  }
 
-    // Horizontal: forward/back along heading
-    const angStep = (step * cosPitch) / this.re;
-    const cosH = Math.cos(this.heading);
-    const sinH = Math.sin(this.heading);
-    const cosLat = Math.cos(this.latRad);
-    const safeCos = cosLat > 0.01 ? 1 / cosLat : 100;
-    this.latRad += cosH * angStep;
-    this.lonRad += sinH * angStep * safeCos;
-
-    // Vertical: along pitch direction
-    this.altKm = Math.max(-20, Math.min(10000, this.altKm + step * sinPitch));
-    this.dirty = true;
+  /** Sampled terrain height plus the dolly clearance, km above the ellipsoid. */
+  private terrainFloor(bm: BodyMesh): FloorFn {
+    return (latRad, lonRad) => {
+      const sample = bm.sampleTerrainElevation(latRad * 180 / Math.PI, lonRad * 180 / Math.PI);
+      return sample ? sample.elevationKm + DOLLY_TERRAIN_CLEARANCE_KM : null;
+    };
   }
 
   private initOrbitPivot(clientX: number, clientY: number, ctx: CameraModeContext): void {
@@ -557,7 +581,11 @@ export class SurfaceExplorerMode implements ICameraMode {
 
     ctx.camera.updateMatrixWorld(true);
 
-    const pivotUp = pivotWorld.clone().sub(bm.position).normalize();
+    // Yaw/tilt about the geodetic normal at the pivot, not the radial direction.
+    const pivotGeo = bodyFixedToGeodeticRad(geometryToBodyFixed(this.pivotBodyFixed), this.ellipsoid);
+    const pivotUp = bodyFixedToGeometry(localFrame(pivotGeo.latRad, pivotGeo.lonRad).up, new THREE.Vector3());
+    if (bodyQ) pivotUp.applyQuaternion(bodyQ);
+    pivotUp.normalize();
     const domHeight = (ctx.controls.domElement as HTMLElement).clientHeight;
 
     // Horizontal: yaw around surface normal at pivot
@@ -603,67 +631,28 @@ export class SurfaceExplorerMode implements ICameraMode {
   private updateGeodeticFromCamera(ctx: CameraModeContext, bm: BodyMesh): void {
     const sf = ctx.scaleFactor;
     const bodyQ = this.getBodyQuat(ctx, bm);
+    const invQ = bodyQ ? bodyQ.clone().invert() : null;
 
     const km = ctx.camera.position.clone().sub(bm.position).divideScalar(sf);
-    if (bodyQ) km.applyQuaternion(bodyQ.clone().invert());
+    if (invQ) km.applyQuaternion(invQ);
+    if (km.lengthSq() < 1e-20) return;
 
-    const ecefX = km.x;
-    const ecefY = -km.z;
-    const ecefZ = km.y;
-    const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
-    if (r < 1e-10) return;
-
-    // Bowring's closed-form geocentric→geodetic conversion: exact at any altitude.
-    // The naïve formula `atan(tan(geocLat) / (1 - e²))` is only valid on the ellipsoid
-    // surface; off-surface it produces small lateral position drift on round-trip.
-    const a = this.re;
-    const b = a * Math.sqrt(1 - this.e2);
-    const ePrime2 = this.e2 / (1 - this.e2);
-    const p = Math.sqrt(ecefX * ecefX + ecefY * ecefY);
-    const u = Math.atan2(ecefZ * a, p * b);
-    const sinU = Math.sin(u);
-    const cosU = Math.cos(u);
-    this.latRad = Math.atan2(
-      ecefZ + ePrime2 * b * sinU * sinU * sinU,
-      p - this.e2 * a * cosU * cosU * cosU,
-    );
-    this.lonRad = Math.atan2(ecefY, ecefX);
-    this.latRad = Math.max(-Math.PI / 2 + 0.001, Math.min(Math.PI / 2 - 0.001, this.latRad));
-
-    // Ellipsoidal altitude (consistent with applyCameraFromGeodetic).
+    // No latitude clamp: the pose is well-defined on the polar axis, and a clamp
+    // would teleport the camera ~1.7 km on the Moon near the south pole.
+    const g = bodyFixedToGeodeticRad(geometryToBodyFixed(km), this.ellipsoid);
+    this.latRad = g.latRad;
+    this.lonRad = g.lonRad;
     // Allow negative altKm: surface terrain on Mars (e.g., Gale Crater at ~-5 km)
     // sits below the IAU reference ellipsoid. Floor at -20 km to bracket the deepest
-    // Mars basins (Hellas ~-8 km) with margin; matches wheel scroll handler's clamp.
-    const sinLat = Math.sin(this.latRad);
-    const cosLat = Math.cos(this.latRad);
-    const N = a / Math.sqrt(1 - this.e2 * sinLat * sinLat);
-    this.altKm = Math.max(-20, (cosLat > 0.01)
-      ? p / cosLat - N
-      : Math.abs(ecefZ) / Math.abs(sinLat) - N * (1 - this.e2));
+    // Mars basins (Hellas ~-8 km) with margin; matches the dolly clamp.
+    this.altKm = Math.max(-20, g.altKm);
 
-    // Derive heading/pitch from look direction
-    const normalW = ctx.camera.position.clone().sub(bm.position).normalize();
-    const lookDir = new THREE.Vector3(0, 0, -1).transformDirection(ctx.camera.matrixWorld);
-
-    const northGeo = new THREE.Vector3(-sinLat * Math.cos(this.lonRad), cosLat, sinLat * Math.sin(this.lonRad));
-    if (bodyQ) northGeo.applyQuaternion(bodyQ);
-    northGeo.addScaledVector(normalW, -northGeo.dot(normalW));
-    if (northGeo.lengthSq() < 1e-10) {
-      northGeo.set(1, 0, 0);
-      if (bodyQ) northGeo.applyQuaternion(bodyQ);
-      northGeo.addScaledVector(normalW, -northGeo.dot(normalW));
-    }
-    northGeo.normalize();
-
-    const eastW = new THREE.Vector3().crossVectors(northGeo, normalW).normalize();
-    const lookHoriz = lookDir.clone().addScaledVector(normalW, -lookDir.dot(normalW));
-    const horizLen = lookHoriz.length();
-    if (horizLen > 1e-10) {
-      lookHoriz.normalize();
-      this.heading = Math.atan2(lookHoriz.dot(eastW), lookHoriz.dot(northGeo));
-    }
-    this.pitch = Math.atan2(lookDir.dot(normalW), horizLen);
-    this.pitch = Math.max(-1.5, Math.min(0.3, this.pitch));
+    // Heading/pitch of the look direction in the geodetic local frame.
+    const look = new THREE.Vector3(0, 0, -1).transformDirection(ctx.camera.matrixWorld);
+    if (invQ) look.applyQuaternion(invQ);
+    const hp = headingPitchOf(geometryToBodyFixed(look), localFrame(g.latRad, g.lonRad), this.heading);
+    this.heading = hp.headingRad;
+    this.pitch = Math.max(-1.5, Math.min(0.3, hp.pitchRad));
   }
 
   // ─── Coordinate conversions ──────────────────────────────────────────
@@ -671,24 +660,6 @@ export class SurfaceExplorerMode implements ICameraMode {
   /** Convert body-fixed pivot position to world space. No geodetic conversion = no mismatch. */
   private pivotToWorld(sf: number, bodyPos: THREE.Vector3, bodyQ: THREE.Quaternion | null): THREE.Vector3 {
     const v = this.pivotBodyFixed.clone();
-    if (bodyQ) v.applyQuaternion(bodyQ);
-    return v.multiplyScalar(sf).add(bodyPos);
-  }
-
-  private geodeticToWorld(
-    latRad: number, lonRad: number, altKm: number,
-    sf: number, bodyPos: THREE.Vector3, bodyQ: THREE.Quaternion | null,
-  ): THREE.Vector3 {
-    const sinLat = Math.sin(latRad);
-    const cosLat = Math.cos(latRad);
-    const cosLon = Math.cos(lonRad);
-    const sinLon = Math.sin(lonRad);
-    const N = this.re / Math.sqrt(1 - this.e2 * sinLat * sinLat);
-    const v = new THREE.Vector3(
-      (N + altKm) * cosLat * cosLon,
-      (N * (1 - this.e2) + altKm) * sinLat,
-      -(N + altKm) * cosLat * sinLon,
-    );
     if (bodyQ) v.applyQuaternion(bodyQ);
     return v.multiplyScalar(sf).add(bodyPos);
   }

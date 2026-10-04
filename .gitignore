@@ -42,5 +42,10 @@ scripts/build-mars-terrain/data/
 # Local inventories written by scripts/publish-data.mjs (issue #137)
 .data-hosting/
 
+# Self-hosted Moon terrain — see scripts/build-moon-terrain/ (~9 GB sources, generated pyramid).
+apps/viewer/test-catalogs/data/moon-terrain-fused/
+apps/viewer/test-catalogs/data/moon-terrain-polar/
+scripts/build-moon-terrain/data/
+
 # Third-party Cosmographia catalog data — see scripts/fetch-cosmographia-data.sh
 .cosmographia/

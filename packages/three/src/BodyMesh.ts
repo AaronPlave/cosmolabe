@@ -418,6 +418,8 @@ export class BodyMesh extends THREE.Object3D {
     if (this.body.classification === 'star' || this.body.geometryData?.emissive === true) return;
     this.aerialPerspectiveEnabled = true;
     this.aerialPerspectiveUniforms = uniforms;
+    // Share live scene-space eclipse and ring inputs with AP sample visibility.
+    Object.assign(uniforms, this.shadowUniforms, this.ringShadowUniforms);
 
     const mat = this.mesh.material as THREE.Material & {
       onBeforeCompile?: (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }, renderer: unknown) => void;
@@ -428,11 +430,14 @@ export class BodyMesh extends THREE.Object3D {
     const prevOBC = mat.onBeforeCompile?.bind(mat);
     mat.onBeforeCompile = (shader, renderer) => {
       prevOBC?.(shader, renderer);
-      injectAerialPerspectiveIntoShader(shader, uniforms as unknown as Record<string, { value: unknown }>);
+      injectAerialPerspectiveIntoShader(
+        shader, uniforms as unknown as Record<string, { value: unknown }>,
+        !this.body.geometryData?.displacementMap,
+      );
     };
     // Bump cache key so the program is recompiled with both injections combined.
     const prevKey = (mat.customProgramCacheKey ?? (() => ''))();
-    mat.customProgramCacheKey = () => prevKey + '_ap_v1';
+    mat.customProgramCacheKey = () => prevKey + '_ap_v3';
     mat.needsUpdate = true;
 
     // Forward to terrain tiles if already initialized (or queued for future tiles).
@@ -488,8 +493,7 @@ export class BodyMesh extends THREE.Object3D {
    *
    * @param opts.shadow Inject eclipse-shadow occlusion. Default true.
    * @param opts.aerialPerspective Inject atmospheric scattering / extinction
-   *        (only meaningful for low-altitude surface viewing — cosmolabe
-   *        zeros the strength at orbital distance). Default true.
+   *        (integrated over the atmospheric portion of the view ray). Default true.
    *
    * Skips silently when this body has neither effect active (stars, emissive
    * bodies, bodies with no atmosphere). Safe to call once per material.

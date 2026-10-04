@@ -720,37 +720,15 @@ export class UniverseRenderer {
             apu.uAPCameraWorldPos.value.copy(this.camera.position);
             apu.uAPSunWorldPos.value.copy(sunPos);
             apu.uAPPlanetWorldPos.value.copy(parentBm.position);
+            parentBm.mesh.updateMatrixWorld(true);
+            apu.uAPWorldToPlanet.value.copy(parentBm.mesh.matrixWorld).invert();
+            apu.uAPPlanetToWorld.value.copy(parentBm.mesh.matrixWorld);
             apu.uAPPlanetRadius.value = atm.planetRadius * sf;
             apu.uAPShellRadius.value = atm.shellRadius * sf;
-            const p = atm.params;
-            apu.uAPRayleighCoeff.value.set(
-              p.rayleighCoeff[0] / sf,
-              p.rayleighCoeff[1] / sf,
-              p.rayleighCoeff[2] / sf,
-            );
-            const mieRGB: [number, number, number] = typeof p.mieCoeff === 'number'
-              ? [p.mieCoeff, p.mieCoeff, p.mieCoeff]
-              : p.mieCoeff;
-            apu.uAPMieCoeff.value.set(mieRGB[0] / sf, mieRGB[1] / sf, mieRGB[2] / sf);
-            apu.uAPExtinctionCoeff.value.set(
-              (p.rayleighCoeff[0] + p.absorptionCoeff[0] + mieRGB[0]) / sf,
-              (p.rayleighCoeff[1] + p.absorptionCoeff[1] + mieRGB[1]) / sf,
-              (p.rayleighCoeff[2] + p.absorptionCoeff[2] + mieRGB[2]) / sf,
-            );
             // Schlick g→k (matches AtmosphereMesh).
-            const g = p.miePhaseAsymmetry;
+            const g = atm.model.mie.g;
             apu.uAPMieK.value = 1.55 * g - 0.55 * g * g * g;
-            apu.uAPInvScaleH.value = 1 / (p.mieScaleHeight * sf);
-            // Strength fades out fast with altitude. AP and AtmosphereMesh both
-            // scatter along view rays — past the surface boundary layer (single
-            // scale-height worth of altitude) AP would only double-count what
-            // the shell shader already does and at long horizon-grazing paths
-            // would over-fog distant terrain. Earth: ~0 above ~10km AGL.
-            const camToPlanet = this.camera.position.distanceTo(parentBm.position);
-            const altScene = camToPlanet - atm.planetRadius * sf;
-            const scaleHeightScene = p.mieScaleHeight * sf;
-            const tt = altScene / Math.max(1e-6, scaleHeightScene);
-            apu.uAPStrength.value = Math.max(0, Math.min(1, 1 - tt));
+            apu.uAPStrength.value = 1;
           }
         }
       }
@@ -2715,7 +2693,7 @@ export class UniverseRenderer {
           // terrain fades toward sky color. Static uniforms (coefficients, radii)
           // are set once here; camera/sun positions are refreshed per-frame.
           // Share the parent atmosphere's LUT so MS lookups stay consistent.
-          const apu = makeAerialPerspectiveUniforms();
+          const apu = makeAerialPerspectiveUniforms(atm.model, radius, this.scaleFactor, atm.transmittanceLUT);
           apu.uAPMultiScatterLUT.value = atm.multiScatterLUT;
           this.aerialPerspectiveUniforms.set(body.name, apu);
           bm.enableAerialPerspective(apu);
