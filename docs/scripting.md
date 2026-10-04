@@ -407,9 +407,9 @@ ceiling. Three rules:
 | `trackObject(name)` | `pointAtObject <object>` | Cosmographia's `trackObject` locks the camera's aim on an object while the camera stays where it is centred. That is our `pointAtObject`. Our `track` is different: it re-centres the orbit on the object. |
 | `gotoObject(name, s)` | `gotoObject <object> [seconds]` | |
 | `setCameraToInertialFrame()` | `setFrame free-orbit` | Free orbit is the camera in the inertial scene frame. |
-| `showBodyFixedFrame(name)` / `showLatLongGrid(name)` | `setLayer axes on` / `setLayer grid on` | Scene-wide here, per body there (follow-up). |
+| `showBodyFixedFrame(name)` / `showLatLongGrid(name)` | `setLayer axes on` / `setLayer grid on` | Scene-wide here, per body there ([#153](https://github.com/AaronPlave/cosmolabe/issues/153)). |
 | `setFov(deg)` | `setFov <degrees>` | |
-| `moveToPov(name, pos, dir, up, s)` | `setFrame body-fixed <name>` + `setCamera <position> [target] [up]` | Instant, not animated. `setCamera` takes the viewer's **Y-up scene axes**, so a body-fixed vector `[x, y, z]` is written `[x, z, -y]` (follow-up: take body-fixed axes directly). |
+| `moveToPov(name, pos, dir, up, s)` | `setFrame body-fixed <name>` + `setCamera <position> [target] [up]` | Instant, not animated. `setCamera` takes the viewer's **Y-up scene axes**, so a body-fixed vector `[x, y, z]` is written `[x, z, -y]` ([#152](https://github.com/AaronPlave/cosmolabe/issues/152): take the frame's own axes). |
 | `showTrajectory(name, on)` | `showTrajectory <object> on\|off` | Per-object, their shape. Our global `setLayer trajectories off` stays beside it as the coarse verb. |
 | `saveScreenShot()` | `screenshot [label]` | |
 | `recordVideo(...)` | `record on\|off` | |
@@ -424,19 +424,20 @@ ceiling. Three rules:
 ### Not yet in Cosmolabe
 
 Found by adapting Cosmographia's Earth–Moon scripting example (the home
-screen's Earth–Moon Scripted Tour), and tracked as follow-ups. The tour marks
-each one with a "No equivalent yet" comment where it occurs.
+screen's Earth–Moon Scripted Tour). [#153](https://github.com/AaronPlave/cosmolabe/issues/153) tracks them, except the `setCamera`
+axes, which are [#152](https://github.com/AaronPlave/cosmolabe/issues/152). The tour marks each one with a "No equivalent yet"
+comment where it occurs.
 
-| Cosmographia | What is missing | Closest today |
-|---|---|---|
-| `gotoHome(s)` | An animated "home" view. | `viewpoint <name>` (instant) |
-| `moveAwayFromCenter(km, s)`, `craneUp(km, s)` | Dolly and crane moves (also on #15's list). | `setCamera` at the end pose |
-| `circleCenterRight/Left/Up/Down(deg, s)` | Orbiting the centre by an angle. | `setCamera` at the end pose |
-| Durations on camera moves | `moveToPov`, `pointAtObject` and the moves above animate over *s* seconds; only `gotoObject` does here. | Instant verbs plus `wait` |
-| `moveToPov` axes | `setCamera` takes Y-up scene axes, not the body-fixed Z-up frame SPICE and Cosmographia use. | Write `[x, z, -y]` |
-| `showBodyFixedFrame(name)`, `showLatLongGrid(name)` | Per-body axes and grid. | `setLayer axes/grid` (scene-wide) |
-| `showDirectionVector(from, to)` | Direction vectors between bodies. | none |
-| `hideToolBar`, `hideStatusMessages`, `hideInfoText`, `showFullScreen` (and their inverses) | Scripted control of viewer chrome. The app's zen mode (`\`) also unmounts the console, which stops the script, so this needs its own design. Browsers only enter full screen from a user gesture. | none |
+| Cosmographia | What is missing | Closest today | Tracked |
+|---|---|---|---|
+| `gotoHome(s)` | An animated "home" view. | `viewpoint <name>` (instant) | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#114](https://github.com/AaronPlave/cosmolabe/issues/114), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
+| `moveAwayFromCenter(km, s)`, `craneUp(km, s)` | Dolly and crane moves. | `setCamera` at the end pose | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#15](https://github.com/AaronPlave/cosmolabe/issues/15) |
+| `circleCenterRight/Left/Up/Down(deg, s)` | Orbiting the centre by an angle. | `setCamera` at the end pose | [#153](https://github.com/AaronPlave/cosmolabe/issues/153) |
+| Durations on camera moves | `moveToPov`, `pointAtObject` and the moves above animate over *s* seconds; only `gotoObject` does here. | Instant verbs plus `wait` | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
+| `moveToPov` axes | `setCamera` takes Y-up scene axes, not the body-fixed Z-up frame SPICE and Cosmographia use. | Write `[x, z, -y]` | [#152](https://github.com/AaronPlave/cosmolabe/issues/152) |
+| `showBodyFixedFrame(name)`, `showLatLongGrid(name)` | Per-body axes and grid. | `setLayer axes/grid` (scene-wide) | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#113](https://github.com/AaronPlave/cosmolabe/issues/113) |
+| `showDirectionVector(from, to)` | Direction vectors between bodies. | none | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#57](https://github.com/AaronPlave/cosmolabe/issues/57) |
+| `hideToolBar`, `hideStatusMessages`, `hideInfoText`, `showFullScreen` (and their inverses) | Scripted control of viewer chrome. The app's zen mode (`\`) also unmounts the console, which stops the script, so this needs its own design. Browsers only enter full screen from a user gesture. | none | [#153](https://github.com/AaronPlave/cosmolabe/issues/153) |
 
 **Running real Cosmographia `.py` is out of scope.** It needs Pyodide or a
 translator. This table is what keeps that a mapping problem rather than a

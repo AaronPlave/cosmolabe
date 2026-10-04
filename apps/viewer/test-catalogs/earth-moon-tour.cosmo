@@ -5,10 +5,11 @@
 # Each block follows one block of the original, with its displayNote/wait
 # pacing. Where Cosmolabe has no equivalent, a "No equivalent yet" comment
 # names the Cosmographia call; where the equivalent is approximate, a comment
-# says how.
+# says how. The gaps are tracked in Cosmolabe issue #153.
 #
 # Camera poses: setCamera takes the viewer's scene axes, which are Y-up.
-# A body-fixed vector [x, y, z] from the original is written [x, z, -y].
+# A body-fixed vector [x, y, z] from the original is written [x, z, -y]
+# (issue #152).
 # Cosmographia animates its camera moves; setCamera and pointAtObject are
 # instant, so the waits the original spent animating are pauses here.
 
