@@ -5,7 +5,7 @@
 # instead of geographic slivers, written as 3D Tiles 1.1 (.glb per tile).
 #
 # Prerequisite: ./01-fetch-sources.sh and the fuse step of ./fused.sh
-# (data/fused/). ~20 s on 12 cores, 27 k tiles, ~4.2 GB.
+# (data/fused/). ~25 s on 12 cores, 27.7 k tiles, ~4.2 GB.
 #
 # Levels: 0 is the whole 200 km mosaic square (3.1 km vertex spacing); each
 # level halves it. 0–6 cover the square, 7 (24 m) the disc within 91 km of the

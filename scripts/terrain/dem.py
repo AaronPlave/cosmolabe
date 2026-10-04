@@ -960,10 +960,19 @@ def cmd_polar_tile(args):
               level_radius=args.level_radius or {})
     print(f'loaded sources ({time.time() - t0:.0f}s)')
 
-    keys = [(0, 0, 0)]
+    # REPLACE refinement swaps a parent for all of its children, so a parent
+    # refines into a complete set of four or not at all: it refines when any
+    # child is wanted (`--level-radius`), and its unwanted siblings are written
+    # as leaves. Only wanted tiles refine further.
+    keys, refining = [(0, 0, 0)], [(0, 0)]
     for L in range(1, args.max_level + 1):
-        keys += [(L, 2 * px + dx, 2 * py + dy) for (pl, px, py) in keys if pl == L - 1
-                 for dx in (0, 1) for dy in (0, 1) if polar_tile_wanted(L, 2 * px + dx, 2 * py + dy)]
+        nxt = []
+        for px, py in refining:
+            kids = [(2 * px + dx, 2 * py + dy) for dy in (0, 1) for dx in (0, 1)]
+            if any(polar_tile_wanted(L, x, y) for x, y in kids):
+                keys += [(L, x, y) for x, y in kids]
+                nxt += [(x, y) for x, y in kids if polar_tile_wanted(L, x, y)]
+        refining = nxt
     jobs = [keys[i:i + 16] for i in range(0, len(keys), 16)]
     print(f'{len(keys):,} tiles in {len(jobs):,} jobs on {args.workers} workers')
     tiles = {}
@@ -977,12 +986,25 @@ def cmd_polar_tile(args):
     # Geometric error tracks vertex spacing the way quantized-mesh levels do
     # (3d-tiles-renderer: ≈ 0.246 × latitudinal spacing), so one errorTarget
     # refines both pyramids to comparable on-screen detail.
+    # A tile's bounding volume must hold its whole subtree: finer levels resolve
+    # relief the coarse mesh smooths away, and the renderer culls a subtree by
+    # its root's volume. The content keeps its own tight box.
+    def union(a, b):
+        lo = np.minimum(np.array(a[:3]) - [a[3], a[7], a[11]], np.array(b[:3]) - [b[3], b[7], b[11]])
+        hi = np.maximum(np.array(a[:3]) + [a[3], a[7], a[11]], np.array(b[:3]) + [b[3], b[7], b[11]])
+        c, h = (lo + hi) / 2, (hi - lo) / 2
+        return [*c.tolist(), h[0], 0, 0, 0, h[1], 0, 0, 0, h[2]]
+
     def node(L, ix, iy):
         kids = [node(L + 1, 2 * ix + dx, 2 * iy + dy) for dy in (0, 1) for dx in (0, 1)
                 if (L + 1, 2 * ix + dx, 2 * iy + dy) in tiles]
-        n = {'boundingVolume': {'box': tiles[(L, ix, iy)][0]},
+        own = tiles[(L, ix, iy)][0]
+        box = own
+        for k in kids:
+            box = union(box, k['boundingVolume']['box'])
+        n = {'boundingVolume': {'box': box},
              'geometricError': 0.25 * cells[L] if kids else 0,
-             'content': {'uri': f'{L}/{ix}/{iy}.glb'}}
+             'content': {'uri': f'{L}/{ix}/{iy}.glb', 'boundingVolume': {'box': own}}}
         if kids:
             n['children'] = kids
         return n
@@ -1099,7 +1121,8 @@ def _selftest_polar(tmp):
     dlon, dlat = g.unproject(XX, YY)
     Lr, Pr = np.radians(dlon), np.radians(dlat)
     det = (800 * np.cos(Pr) * np.cos(Lr) + 300 * np.cos(Pr) * np.sin(Lr) + 50 * np.sin(Pr)
-           + 40 * np.sin(9 * Lr) * np.cos(Pr) + 25 - 400 * np.exp(-((XX - 20000) ** 2 + YY ** 2) / 30000 ** 2))
+           + 40 * np.sin(9 * Lr) * np.cos(Pr) + 25 - 400 * np.exp(-((XX - 20000) ** 2 + YY ** 2) / 30000 ** 2)
+           + 300 * np.exp(-((XX + 40000) ** 2 + (YY - 30000) ** 2) / 2500 ** 2))  # narrow peak: only fine levels resolve it
     det[np.hypot(XX, YY) > 140000] = np.nan
     ds = gdal.Open(os.path.join(tmp, 'detail.tif'), gdal.GA_Update)
     ds.GetRasterBand(1).SetNoDataValue(float('nan')); ds.GetRasterBand(1).WriteArray(det.astype(np.float32)); ds = None
@@ -1143,10 +1166,11 @@ def _selftest_polar(tmp):
         eb = dict(zip(vb[ub == 0], hb[ub == 0]))
         assert ea.keys() == eb.keys() and max(abs(ea[k] - eb[k]) for k in ea) <= 1.5 * (qa + qb)
 
-    # polar-tile: square glb tiles of the same field, pruned to a disc at level 2.
+    # polar-tile: square glb tiles of the same field. Level 3 is pruned to a
+    # disc, so only the four pole-touching level-2 tiles refine.
     cap = os.path.join(tmp, 'cap')
-    cmd_polar_tile(argparse.Namespace(base=os.path.join(tmp, 'base.tif'), fusion=fused, out=cap, max_level=2,
-                                      level_radius={2: 60000.0}, skirt_cells=1.0, ellipsoid=[R, R], workers=1))
+    cmd_polar_tile(argparse.Namespace(base=os.path.join(tmp, 'base.tif'), fusion=fused, out=cap, max_level=3,
+                                      level_radius={3: 40000.0}, skirt_cells=1.0, ellipsoid=[R, R], workers=1))
 
     def glb(L, ix, iy):
         raw = open(os.path.join(cap, str(L), str(ix), f'{iy}.glb'), 'rb').read()
@@ -1158,8 +1182,28 @@ def _selftest_polar(tmp):
         t = np.array(js['nodes'][0]['translation'])
         return back(f32(0) + t)[:GRID * GRID].reshape(GRID, GRID, 3), back(f32(1).astype(np.float64))[:GRID * GRID]
 
-    ts = json.load(open(os.path.join(cap, 'tileset.json')))
-    assert len(ts['root']['children']) == 4 and sum(len(k.get('children', [])) for k in ts['root']['children']) < 16
+    def inside(P_, box, tol=0.05):
+        c_, h_ = np.array(box[:3]), np.array([box[3], box[7], box[11]])
+        return bool((np.abs(P_.reshape(-1, 3) - c_) <= h_ + tol).all())
+
+    # Every refining tile is replaced by all four children (REPLACE leaves no
+    # holes), and every tile's surface lies inside its own and every ancestor's
+    # bounding volume, including the narrow peak only the finer levels resolve.
+    levels = {}
+
+    def walk(n, ancestors):
+        L, ix, iy = (int(v) for v in n['content']['uri'][:-4].split('/'))
+        levels[L] = levels.get(L, 0) + 1
+        kids = n.get('children', [])
+        assert len(kids) in (0, 4), (n['content']['uri'], len(kids))
+        P_, _ = glb(L, ix, iy)
+        for box in [n['content']['boundingVolume']['box'], n['boundingVolume']['box'], *ancestors]:
+            assert inside(P_, box), (n['content']['uri'], 'escapes a bounding volume')
+        for k in kids:
+            walk(k, ancestors + [n['boundingVolume']['box']])
+
+    walk(json.load(open(os.path.join(cap, 'tileset.json')))['root'], [])
+    assert levels == {0: 1, 1: 4, 2: 16, 3: 16}, levels
     q = {(ix, iy): glb(1, ix, iy) for ix in (0, 1) for iy in (0, 1)}
     for P_, n_ in q.values():
         up_ = P_.reshape(-1, 3) / np.linalg.norm(P_.reshape(-1, 3), axis=1, keepdims=True)
@@ -1169,7 +1213,6 @@ def _selftest_polar(tmp):
     assert np.abs(q[(0, 0)][0][-1, :] - q[(0, 1)][0][0, :]).max() < 0.05
     corners = np.array([q[(0, 0)][0][-1, -1], q[(1, 0)][0][-1, 0], q[(0, 1)][0][0, -1], q[(1, 1)][0][0, 0]])
     assert np.ptp(corners, 0).max() < 0.05 and abs(corners[0][2] + np.linalg.norm(corners[0])) < 1e-6 * R
-
 
 
 def main():
