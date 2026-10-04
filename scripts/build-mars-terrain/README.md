@@ -12,7 +12,8 @@ node ../validate-terrain.mjs --preset mars-jezero-fused
 
 Output: `apps/viewer/test-catalogs/data/mars-terrain-fused/` (`layer.json`,
 `z/x/y.terrain`, `terrain-product.json`, `fusion.json`; ~6 GB, gitignored, not on the
-deployed site yet — see #137).
+deployed site until it is published: `./fused.sh --publish <build-id>`, see
+[`docs/data-hosting.md`](../../docs/data-hosting.md)).
 
 ## Sources (public, no auth)
 

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, cpSync, readdirSync } from 'fs';
 import { gunzipSync } from 'zlib';
 
 function normalizeBase(raw: string | undefined): string {
@@ -56,10 +56,34 @@ const fusedTerrainPlugin = {
   },
 };
 
+// HOSTED_DATA=1: the datasets pinned in scripts/data-hosting/datasets.json are served
+// from the data host (docs/data-hosting.md), so don't copy them from publicDir into
+// dist/ — locally that is gigabytes. Vite's own publicDir copy has no filter, so
+// turn it off and copy everything else here. Run scripts/build-hosted-catalogs.mjs
+// on the result as usual. Unset, the build is unchanged.
+const hostedData = process.env.HOSTED_DATA === '1';
+const PUBLIC_DIR = path.resolve(__dirname, 'test-catalogs');
+const hostedPublicDirPlugin = {
+  name: 'hosted-data-public-dir',
+  apply: 'build' as const,
+  async writeBundle(options: any) {
+    const { loadDatasets } = await import('../../scripts/data-hosting/lib/datasets.mjs');
+    const { publicDirCopyFilter } = await import('../../scripts/data-hosting/lib/public-dir-filter.mjs');
+    const outDir = options.dir ?? path.resolve(__dirname, 'dist');
+    // HOSTED_DATA_SKIP=id,id also skips datasets that are not pinned yet.
+    const alsoSkip = (process.env.HOSTED_DATA_SKIP ?? '').split(',').filter(Boolean);
+    const keep = publicDirCopyFilter(loadDatasets().datasets, PUBLIC_DIR, alsoSkip);
+    for (const name of readdirSync(PUBLIC_DIR)) {
+      const src = path.join(PUBLIC_DIR, name);
+      if (keep(src)) cpSync(src, path.join(outDir, name), { recursive: true, filter: keep });
+    }
+  },
+};
+
 export default defineConfig({
   base: normalizeBase(process.env.VITE_BASE),
-  plugins: [svelte(), tailwindcss(), fusedTerrainPlugin],
-  publicDir: 'test-catalogs',
+  plugins: [svelte(), tailwindcss(), fusedTerrainPlugin, ...(hostedData ? [hostedPublicDirPlugin] : [])],
+  publicDir: hostedData ? false : 'test-catalogs',
   // The spice-cache relay worker pulls in further chunks (TimeCraftJS asm),
   // so it can't use the default IIFE format which forbids code-splitting.
   worker: { format: 'es' },
