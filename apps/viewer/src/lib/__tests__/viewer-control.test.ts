@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST } from '@cosmolabe/control';
 import type { Universe } from '@cosmolabe/core';
 import { CameraModeName, type UniverseRenderer } from '@cosmolabe/three';
+import * as THREE from 'three';
 import { createViewerControl } from '../viewer-control';
 import {
   DISPLAY_OPTIONS,
@@ -145,6 +146,8 @@ function makeFakeRenderer(objects: string[]) {
     cameraController: {
       controls: { target: vec() },
       camera,
+      /** The body a body-fixed frame rides on; tests that need one set it. */
+      originBody: null as unknown,
       get mode() {
         return mode;
       },
@@ -405,6 +408,50 @@ describe('setCamera', () => {
     control.setCamera([1, 2, 3], [0, 0, 0]);
     expect(control.getTracked()).toBe('Titan');
     expect(vs.lookAtBodyName).toBe('Enceladus');
+  });
+});
+
+describe('setCamera in a body-fixed frame', () => {
+  /** A body at the origin whose prime meridian (+X) points along world +Y. */
+  function enterBodyFixed() {
+    const control = createViewerControl();
+    const cc = renderer.cameraController as unknown as {
+      originBody: unknown;
+      camera: { position: THREE.Vector3; up: THREE.Vector3 };
+      controls: { target: THREE.Vector3 };
+    };
+    // Real vectors: the body-frame transform rotates them.
+    cc.camera.position = new THREE.Vector3();
+    cc.camera.up = new THREE.Vector3(0, 1, 0);
+    cc.controls.target = new THREE.Vector3();
+    const toWorld = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+    cc.originBody = {
+      position: new THREE.Vector3(),
+      bodyToWorldQuaternion: (out: THREE.Quaternion) => out.copy(toWorld),
+    };
+    expect(control.setFrame('body-fixed', 'Titan')).toBe(true);
+    return { control, cc };
+  }
+
+  // Cosmographia's moveToPov takes body-fixed vectors (#152). A pose over the
+  // prime meridian has to land over the prime meridian however the body has
+  // turned, not at a fixed world direction.
+  it("takes the body's own axes", () => {
+    const { control, cc } = enterBodyFixed();
+    control.setCamera([1000, 0, 0], [0, 0, 0], [0, 0, 1]);
+    const sf = renderer.scaleFactor;
+    expect(cc.camera.position.x).toBeCloseTo(0, 9);
+    expect(cc.camera.position.y).toBeCloseTo(1000 * sf, 9);
+    expect(cc.camera.up.z).toBeCloseTo(1, 9);
+  });
+
+  it('reads the pose back in the same axes, so a snapshot replays it', () => {
+    const { control } = enterBodyFixed();
+    control.setCamera([1000, -200, 300], [0, 0, 50], [0, 0, 1]);
+    const cam = control.getCamera();
+    expect(cam.position.map((v) => Math.round(v))).toEqual([1000, -200, 300]);
+    expect(cam.target.map((v) => Math.round(v))).toEqual([0, 0, 50]);
+    expect(cam.up.map((v) => Math.round(v * 1e6) / 1e6)).toEqual([0, 0, 1]);
   });
 });
 

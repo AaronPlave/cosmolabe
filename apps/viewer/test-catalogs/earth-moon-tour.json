@@ -26,8 +26,19 @@
           "name": "Moon",
           "class": "moon",
           "center": "Earth",
-          "trajectory": { "type": "Builtin", "name": "Moon" },
-          "rotationModel": { "type": "Builtin", "name": "IAU Moon" },
+          "trajectory": {
+            "type": "Keplerian",
+            "semiMajorAxis": 384400, "eccentricity": 0.0549, "inclination": 5.145,
+            "ascendingNode": 125.08, "argumentOfPeriapsis": 318.15, "meanAnomaly": 135.27,
+            "epoch": "2000-01-01T12:00:00Z"
+          },
+          "rotationModel": {
+            "type": "Uniform",
+            "ascension": 269.9949, "declination": 66.5392,
+            "period": "2371843.6s",
+            "meridianAngle": 270.065,
+            "epoch": "2015-10-31T23:50:00Z"
+          },
           "geometry": { "type": "Globe", "radius": 1737.4, "baseMap": "textures/moon-4k.jpg" },
           "label": { "color": [0.7, 0.7, 0.7] }
         }

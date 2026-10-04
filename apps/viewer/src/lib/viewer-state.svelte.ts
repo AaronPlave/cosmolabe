@@ -8,6 +8,7 @@
 import { etToDate, type Universe } from '@cosmolabe/core';
 import type { InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
+import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
@@ -768,6 +769,25 @@ export function setFov(deg: number, opts: { persist?: boolean } = {}) {
  * renderer's scale factor, so the conversion happens here — the same one
  * `camera-view-io.ts` does on the way in and out of its JSON.
  */
+/**
+ * The frame a scripted camera pose is written in, as a body's origin and its
+ * body-to-world rotation — or null for the inertial frame, where pose vectors
+ * are world vectors as they always were.
+ *
+ * In a body-fixed or spacecraft-fixed camera frame, a pose is in that body's
+ * own axes (SPICE convention: Z the pole, X the prime meridian), the way
+ * Cosmographia's `moveToPov` takes it (#152). These are the two orbit modes
+ * whose camera rides on a body; the others place the camera themselves.
+ */
+function poseFrame(): { origin: THREE.Vector3; toWorld: THREE.Quaternion } | null {
+  const cc = _renderer?.cameraController;
+  if (!cc) return null;
+  if (cc.mode !== CameraModeName.BODY_FIXED && cc.mode !== CameraModeName.SC_FIXED) return null;
+  const body = cc.originBody;
+  if (!body) return null;
+  return { origin: body.position.clone(), toWorld: body.bodyToWorldQuaternion(new THREE.Quaternion()) };
+}
+
 export function setCameraPose(
   position: readonly [number, number, number],
   target?: readonly [number, number, number],
@@ -776,16 +796,50 @@ export function setCameraPose(
   if (!_renderer) return false;
   const cc = _renderer.cameraController;
   const sf = _renderer.scaleFactor;
+  const frame = poseFrame();
+  /** A point in the pose's frame, in km, to world (scene) units. */
+  const point = (v: readonly [number, number, number], out: THREE.Vector3) => {
+    out.set(v[0] * sf, v[1] * sf, v[2] * sf);
+    if (frame) out.applyQuaternion(frame.toWorld).add(frame.origin);
+    return out;
+  };
   cc.cancelAnimation();
-  cc.camera.position.set(position[0] * sf, position[1] * sf, position[2] * sf);
+  point(position, cc.camera.position);
   // The orbit target is where the camera *looks*; without it a pose says where
   // the camera stands and nothing about what it sees. Defaulting to the origin
   // keeps the two-argument form meaning what it used to: the origin is the
   // tracked body when one is tracked, and the world origin otherwise.
-  if (target) cc.controls.target.set(target[0] * sf, target[1] * sf, target[2] * sf);
-  else cc.controls.target.set(0, 0, 0);
-  if (up) cc.camera.up.set(up[0], up[1], up[2]).normalize();
+  point(target ?? [0, 0, 0], cc.controls.target);
+  if (up) {
+    cc.camera.up.set(up[0], up[1], up[2]).normalize();
+    if (frame) cc.camera.up.applyQuaternion(frame.toWorld);
+  }
   return true;
+}
+
+/**
+ * The camera's pose in the frame `setCameraPose` takes it in, in km — so a
+ * pose read back and written again lands in the same place, which is what
+ * `snapshot()` relies on.
+ */
+export function getCameraPose(): {
+  position: [number, number, number];
+  target: [number, number, number];
+  up: [number, number, number];
+} | null {
+  if (!_renderer) return null;
+  const cc = _renderer.cameraController;
+  const inv = 1 / _renderer.scaleFactor;
+  const frame = poseFrame();
+  const fromWorld = frame ? frame.toWorld.clone().invert() : null;
+  const point = (w: THREE.Vector3): [number, number, number] => {
+    const v = w.clone();
+    if (frame) v.sub(frame.origin).applyQuaternion(fromWorld!);
+    return [v.x * inv, v.y * inv, v.z * inv];
+  };
+  const up = cc.camera.up.clone();
+  if (fromWorld) up.applyQuaternion(fromWorld);
+  return { position: point(cc.camera.position), target: point(cc.controls.target), up: [up.x, up.y, up.z] };
 }
 
 /** Show or hide one object's trajectory line. False if there is no such object. */

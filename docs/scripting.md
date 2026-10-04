@@ -152,11 +152,19 @@ renders one frame and photographs it gets the camera mid-flight.
 | `clearLookAt` | Stop aiming at an object. |
 | `viewpoint <name>` | Apply a named catalog viewpoint, seeking the clock if it declares an epoch. |
 | `setFrame <mode> [object]` | Switch camera frame, optionally onto an object. |
-| `setCamera <position> [target] [up]` | Place the camera: eye, the point it looks at, and up — all in km. |
+| `setCamera <position> [target] [up]` | Place the camera: eye, the point it looks at, and up — all in km, in the camera frame's axes (below). |
 | `setFov <degrees>` | Vertical field of view. |
 
 `setCamera` takes eye, target and up in that order — the same order catalog
-`Viewpoint` JSON and `camera-view-io.ts` already use. `target` is not optional
+`Viewpoint` JSON and `camera-view-io.ts` already use.
+
+**Which axes.** In a `body-fixed` or `sc-fixed` frame the vectors are in that
+body's own frame, relative to its centre: Z is the pole and X the prime meridian,
+the SPICE convention and the one Cosmographia's `moveToPov` uses. So
+`setFrame body-fixed Earth` then `setCamera [0, -14000, 11500] [0, 0, 0] [0, 0, 1]`
+looks down on North America (39.4°N, 90°W) whatever time it is. In every other
+frame they are world (ecliptic J2000) vectors. `getCamera()` and `snapshot()`
+report the pose in the same axes, so a snapshot replays to the same view. `target` is not optional
 decoration: position and up alone say where the camera stands and nothing about
 what it sees.
 
@@ -288,8 +296,9 @@ close the panel from there.
 ### The Earth–Moon Scripted Tour
 
 The **Earth–Moon Scripted Tour** on the home screen loads its own kernel-free
-scene (`test-catalogs/earth-moon-tour.json`: textured Earth and Moon with IAU
-rotation, so the body-fixed views land on real geography) and runs an adaptation
+scene (`test-catalogs/earth-moon-tour.json`: textured Earth with its IAU
+rotation, and a Moon whose rotation is locked to its Keplerian orbit so the near
+side faces Earth, so the body-fixed views land on real geography) and runs an adaptation
 of Cosmographia's Earth–Moon scripting example in the console, block by block
 with the original's notes and pacing. Camera
 moves Cosmolabe cannot animate yet (`moveToPov`, the `circleCenter*` moves,
@@ -411,7 +420,7 @@ ceiling. Three rules:
 | `setCameraToInertialFrame()` | `setFrame free-orbit` | Free orbit is the camera in the inertial scene frame. |
 | `showBodyFixedFrame(name)` / `showLatLongGrid(name)` | `setLayer axes on` / `setLayer grid on` | Scene-wide here, per body there ([#153](https://github.com/AaronPlave/cosmolabe/issues/153)). |
 | `setFov(deg)` | `setFov <degrees>` | |
-| `moveToPov(name, pos, dir, up, s)` | `setFrame body-fixed <name>` + `setCamera <position> [target] [up]` | Instant, not animated. `setCamera` takes the viewer's **Y-up scene axes**, so a body-fixed vector `[x, y, z]` is written `[x, z, -y]` ([#152](https://github.com/AaronPlave/cosmolabe/issues/152): take the frame's own axes). |
+| `moveToPov(name, pos, dir, up, s)` | `setFrame body-fixed <name>` + `setCamera <position> [target] [up]` | Instant, not animated. In a body-fixed frame `setCamera` takes the body's own axes, so the vectors carry over unchanged; `direction` becomes the `target` point. |
 | `showTrajectory(name, on)` | `showTrajectory <object> on\|off` | Per-object, their shape. Our global `setLayer trajectories off` stays beside it as the coarse verb. |
 | `saveScreenShot()` | `screenshot [label]` | |
 | `recordVideo(...)` | `record on\|off` | |
@@ -426,9 +435,8 @@ ceiling. Three rules:
 ### Not yet in Cosmolabe
 
 Found by adapting Cosmographia's Earth–Moon scripting example (the home
-screen's Earth–Moon Scripted Tour). [#153](https://github.com/AaronPlave/cosmolabe/issues/153) tracks them, except the `setCamera`
-axes, which are [#152](https://github.com/AaronPlave/cosmolabe/issues/152). The tour marks each one with a "No equivalent yet"
-comment where it occurs.
+screen's Earth–Moon Scripted Tour). [#153](https://github.com/AaronPlave/cosmolabe/issues/153) tracks them. The tour marks
+each one with a "No equivalent yet" comment where it occurs.
 
 | Cosmographia | What is missing | Closest today | Tracked |
 |---|---|---|---|
@@ -436,7 +444,6 @@ comment where it occurs.
 | `moveAwayFromCenter(km, s)`, `craneUp(km, s)` | Dolly and crane moves. | `setCamera` at the end pose | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#15](https://github.com/AaronPlave/cosmolabe/issues/15) |
 | `circleCenterRight/Left/Up/Down(deg, s)` | Orbiting the centre by an angle. | `setCamera` at the end pose | [#153](https://github.com/AaronPlave/cosmolabe/issues/153) |
 | Durations on camera moves | `moveToPov`, `pointAtObject` and the moves above animate over *s* seconds; only `gotoObject` does here. | Instant verbs plus `wait` | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
-| `moveToPov` axes | `setCamera` takes Y-up scene axes, not the body-fixed Z-up frame SPICE and Cosmographia use. | Write `[x, z, -y]` | [#152](https://github.com/AaronPlave/cosmolabe/issues/152) |
 | `showBodyFixedFrame(name)`, `showLatLongGrid(name)` | Per-body axes and grid. | `setLayer axes/grid` (scene-wide) | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#113](https://github.com/AaronPlave/cosmolabe/issues/113) |
 | `showDirectionVector(from, to)` | Direction vectors between bodies. | none | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#57](https://github.com/AaronPlave/cosmolabe/issues/57) |
 | `hideToolBar`, `hideStatusMessages`, `hideInfoText`, `showFullScreen` (and their inverses) | Scripted control of viewer chrome. The app's zen mode (`\`) also unmounts the console, which stops the script, so this needs its own design. Browsers only enter full screen from a user gesture. | none | [#153](https://github.com/AaronPlave/cosmolabe/issues/153) |
