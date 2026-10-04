@@ -86,6 +86,7 @@ export default defineConfig({
         '**/test-catalogs/data/mars-terrain/**',
         '**/scripts/build-mars-terrain/data/**',
         '**/test-catalogs/data/moon-terrain-fused/**',
+        '**/test-catalogs/data/moon-terrain-polar/**',
         '**/scripts/build-moon-terrain/data/**',
       ],
     },
