@@ -110,9 +110,13 @@ jobs:
         # deployed catalogs depend on, from the Pages origin's point of view.
         # A missing object, a size mismatch or missing CORS fails the build.
         if: ${{ vars.DATA_BASE_URL != '' }}
+        env:
+          PAGES_ORIGIN: ${{ steps.pages.outputs.origin }}
+        # configure-pages reports the origin as http:// for a custom domain, but
+        # browsers load the site over https and send that as the Origin header.
         run: >
           node scripts/verify-hosted-data.mjs --dist apps/viewer/dist
-          --origin "${{ steps.pages.outputs.origin }}"
+          --origin "${PAGES_ORIGIN/http:/https:}"
           --origin http://localhost:5173
 
       - name: Upload artifact
