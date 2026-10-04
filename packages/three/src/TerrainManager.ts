@@ -1,11 +1,13 @@
 import * as THREE from 'three';
+import * as TilesThree from '3d-tiles-renderer/three';
 import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
 import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSourceMetadata } from './TerrainSampler.js';
-import { decodeQuantizedMesh } from './internal/quantized-mesh.js';
+import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
+import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './TerrainValidation.js';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
@@ -156,6 +158,119 @@ export interface TerrainConfig {
    *  resolution gain when terrain is moving — tiles arrive stale-looking
    *  during pan/zoom. Try modest steps (e.g. 512) before reaching for 1024+. */
   overlayResolution?: number;
+}
+
+/**
+ * Opt-in debug surface coloring (issue #52). Every mode is diagnostic only: it
+ * swaps tile materials for flat unlit colors and restores them on `'none'`.
+ *
+ * - `lod` — tile depth in the pyramid.
+ * - `geometric-error` / `screen-error` — the tileset's declared error, and the
+ *   error the renderer computed for the current view; what drives refinement.
+ * - `cpu-coverage` — green where the CPU sampler holds this tile's own decoded
+ *   heights, amber where the renderer synthesized it by splitting a parent (CPU
+ *   queries there answer from the parent, one level coarser).
+ * - `datum-height` — mean tile elevation relative to the terrain datum, blue
+ *   below and red above, so below-reference terrain (Jezero) is explicit.
+ * - `seam-error` — largest height mismatch along this tile's shared edges with
+ *   cached same-level neighbours, green (0) to red (≥ `seamErrorScaleKm`); grey
+ *   when no neighbour is cached. The same numbers `scripts/validate-terrain.mjs`
+ *   reports offline.
+ *
+ * Base/residual/coverage-boundary views need the fused products' coverage
+ * metadata (#50, #48) and are added with them.
+ */
+export type TerrainDebugMode = 'none' | 'lod' | 'geometric-error' | 'screen-error' | 'cpu-coverage' | 'datum-height' | 'seam-error';
+export const TERRAIN_DEBUG_MODES: readonly TerrainDebugMode[] = ['none', 'lod', 'geometric-error', 'screen-error', 'cpu-coverage', 'datum-height', 'seam-error'];
+
+export interface TerrainTiming {
+  count: number;
+  lastMs: number;
+  meanMs: number;
+  maxMs: number;
+}
+
+/**
+ * Terrain cost and load, cheap enough to read every UI tick. Timings are
+ * main-thread wall time. Memory is an estimate from the loaded tiles' buffers
+ * (geometry attributes, and texture dimensions × 4 bytes), not a GPU query.
+ */
+export interface TerrainPerformanceMetrics {
+  /** `tiles.update()` per frame, over the last 120 frames. */
+  update: TerrainTiming;
+  /** Renderer mesh construction (`parseToMesh`), per tile, since start. */
+  parse: TerrainTiming;
+  /** CPU-sampler decode + triangle binning, per tile, since start. */
+  cpuDecode: TerrainTiming;
+  /** CPU height queries. Independent of rendered vertex count by construction. */
+  sample: { count: number; lastMicros: number; meanMicros: number };
+  tiles: { active: number; visible: number; inCache: number; cpu: number };
+  network: { requests: number; queued: number; downloading: number; parsing: number; failed: number };
+  memory: { cacheBytes: number; maxCacheBytes: number; geometryBytes: number; textureBytes: number };
+}
+
+/** Accumulates per-event wall time; `window` > 0 keeps only the most recent samples. */
+class TimingStat {
+  private readonly ring: Float64Array | null;
+  private idx = 0;
+  count = 0;
+  private total = 0;
+  private last = 0;
+  private max = 0;
+  constructor(window = 0) { this.ring = window > 0 ? new Float64Array(window) : null; }
+  add(ms: number): void {
+    this.last = ms;
+    this.count++;
+    if (this.ring) {
+      this.total += ms - this.ring[this.idx];
+      this.ring[this.idx] = ms;
+      this.idx = (this.idx + 1) % this.ring.length;
+    } else {
+      this.total += ms;
+      this.max = Math.max(this.max, ms);
+    }
+  }
+  reset(): void { this.count = 0; this.total = 0; this.last = 0; this.max = 0; this.idx = 0; this.ring?.fill(0); }
+  get value(): TerrainTiming {
+    const n = this.ring ? Math.min(this.count, this.ring.length) : this.count;
+    const max = this.ring ? this.ring.reduce((a, v) => Math.max(a, v), 0) : this.max;
+    return { count: this.count, lastMs: this.last, meanMs: n ? this.total / n : 0, maxMs: max };
+  }
+}
+
+const _debugColor = /* @__PURE__ */ new THREE.Color();
+
+/**
+ * Upstream's own texture sizing (format, mipmaps, array depth) — what its LRU
+ * cache counts. Exported at runtime; the package ships no typings for it.
+ */
+const MemoryUtils = (TilesThree as unknown as { MemoryUtils: { getTextureByteLength(tex: THREE.Texture): number } }).MemoryUtils;
+
+/**
+ * The material `DebugTilesPlugin` set aside when it swapped in a debug one. The
+ * plugin keys it by a module-private `Symbol('ORIGINAL_MATERIAL')`, so it is
+ * found by description; absent (undefined) when the plugin never touched the mesh.
+ */
+/** Imagery-overlay textures ImageOverlayPlugin keeps under its private `Symbol('OVERLAY_PARAMS')`. */
+function overlayLayerMaps(material: THREE.Material | undefined): Array<THREE.Texture | null> {
+  if (!material) return [];
+  for (const sym of Object.getOwnPropertySymbols(material)) {
+    if (sym.description === 'OVERLAY_PARAMS') {
+      const params = (material as unknown as Record<symbol, { layerMaps?: { value?: Array<THREE.Texture | null> } }>)[sym];
+      return params?.layerMaps?.value ?? [];
+    }
+  }
+  return [];
+}
+
+function originalDebugMaterial(mesh: THREE.Mesh): THREE.Material | undefined {
+  for (const sym of Object.getOwnPropertySymbols(mesh)) {
+    if (sym.description === 'ORIGINAL_MATERIAL') {
+      const m = (mesh as unknown as Record<symbol, THREE.Material | undefined>)[sym];
+      return m && m !== mesh.material ? m : undefined;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -354,6 +469,20 @@ export class TerrainManager {
   /** Global equirectangular normal map derived from heightmap. Applied per-tile with UV transforms. */
   private normalMap: THREE.CanvasTexture | null = null;
   private debugPlugin: DebugTilesPlugin | null = null;
+  private debugMode: TerrainDebugMode = 'none';
+  private showBounds = false;
+  /** Seam view: an edge mismatch at or above this (km) renders fully red. */
+  seamErrorScaleKm = 0.005;
+  /** CPU tile id by `z/x/y`, for neighbour lookups in the seam view. */
+  private readonly cpuIdByKey = new Map<string, string>();
+  private readonly cpuKeyById = new Map<string, TileKey>();
+  /** Memoized per-tile debug values, invalidated when a tile or its neighbour changes. */
+  private readonly seamErrorKm = new Map<string, number | null>();
+  private readonly meanElevationKm = new Map<string, number>();
+  private readonly updateTiming = new TimingStat(120);
+  private readonly parseTiming = new TimingStat();
+  private readonly decodeTiming = new TimingStat();
+  private requestCount = 0;
   /** Coverage camera: ensures tiles load for the body's visible hemisphere
    *  even when the main camera's frustum doesn't include the body. */
   private coverageCam: THREE.PerspectiveCamera | null = null;
@@ -410,6 +539,10 @@ export class TerrainManager {
       url: config.sourceMetadata?.url ?? config.url,
       uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
     }, config.samplerMaxTiles ?? 256);
+    // The sampler's own LRU drops tiles independently of the renderer's; the
+    // seam/datum debug indexes must forget them too or they report neighbours
+    // the sampler no longer holds.
+    this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
     this.isImageryOnly = config.type === 'imagery';
     this.hasOverlays = Array.isArray(config.imagery) && config.imagery.length > 1;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
@@ -576,7 +709,15 @@ export class TerrainManager {
         const parseToMesh = qmPlugin.parseToMesh.bind(qmPlugin);
         qmPlugin.parseToMesh = (buffer, tile, extension, uri) => {
           if (extension === 'terrain') this.captureDecodedQuantizedMesh(buffer, tile, uri);
-          return parseToMesh(buffer, tile, extension, uri);
+          const start = performance.now();
+          const result = parseToMesh(buffer, tile, extension, uri);
+          const done = () => this.parseTiming.add(performance.now() - start);
+          if (result && typeof (result as Promise<unknown>).then === 'function') {
+            (result as Promise<unknown>).then(done, () => {});
+          } else {
+            done();
+          }
+          return result;
         };
         if (config.skirtLength == null && config.skirtScale != null) {
           const skirtScale = config.skirtScale;
@@ -666,8 +807,9 @@ export class TerrainManager {
     });
     this.tiles.addEventListener('dispose-model', (event: { tile: any }) => {
       const id = this.cpuTileId(event.tile);
-      if (id) this.sampler.removeTile(id);
+      if (id) this.forgetCpuTile(id);
     });
+    this.tiles.addEventListener('tile-download-start', () => { this.requestCount++; });
 
     // Log tile load errors — rate-limited to avoid flooding the console.
     // Sparse terrain datasets (e.g. Mars Hub at level 12+) may return 404 for valid-looking
@@ -740,7 +882,7 @@ export class TerrainManager {
     const origCallbacks = cache.callbacks;
     const noopCb = () => {};
     cache.callbacks = new Proxy(origCallbacks, {
-      get(target: Map<any, Function>, prop: string | symbol, receiver: any) {
+      get(target: Map<any, (tile: unknown) => unknown>, prop: string | symbol, receiver: any) {
         if (prop === 'get') {
           return (key: any) => {
             const cb = target.get(key);
@@ -894,8 +1036,10 @@ export class TerrainManager {
     }
 
     if (!this._pluginReady) return;
+    const updateStart = performance.now();
     try {
       this.tiles.update();
+      this.updateTiming.add(performance.now() - updateStart);
     } catch (e) {
       console.error('[Cosmolabe] tiles.update() crashed:', e);
     }
@@ -930,6 +1074,7 @@ export class TerrainManager {
     if (!id) return;
     const region = tile?.boundingVolume?.region;
     if (!region) return;
+    const decodeStart = performance.now();
     let parsed;
     try {
       parsed = decodeQuantizedMesh(buffer);
@@ -944,28 +1089,63 @@ export class TerrainManager {
     // compensates for a non-standard one by shrinking the decode ellipsoid
     // (see TerrainConfig.referenceRadiusOffsetKm), so the same correction has to
     // be applied here or CPU samples sit `offset` km above the rendered surface.
-    const offsetKm = this.terrainHeightOffsetKm;
-    const elevationsKm = new Float32Array(parsed.heightMeters.length);
-    for (let i = 0; i < elevationsKm.length; i++) {
-      elevationsKm[i] = parsed.heightMeters[i] / 1000 - offsetKm;
-    }
     try {
-      this.sampler.addTile({
+      this.sampler.addTile(toTerrainMeshTile(parsed, {
         id,
-        kind: 'mesh',
         westDeg: westRad * 180 / Math.PI,
         eastDeg: eastRad * 180 / Math.PI,
         southDeg: southRad * 180 / Math.PI,
         northDeg: northRad * 180 / Math.PI,
-        u: parsed.u,
-        v: parsed.v,
-        elevationsKm,
-        indices: parsed.indices,
         source: this.sampler.source,
-      });
+      }, this.terrainHeightOffsetKm));
+      this.decodeTiming.add(performance.now() - decodeStart);
+      this.indexCpuTile(id);
     } catch (err) {
       this.warnOnce('qm-tile', `Terrain: rejected decoded tile ${uri}`, err);
     }
+  }
+
+  /** Record a captured tile's `z/x/y` and drop memoized debug values it may change. */
+  private indexCpuTile(id: string): void {
+    const key = parseTileKey(id);
+    if (!key) return;
+    this.cpuIdByKey.set(tileKeyId(key), id);
+    this.cpuKeyById.set(id, key);
+    this.invalidateDebugValues(id, key);
+  }
+
+  private forgetCpuTile(id: string): void {
+    this.sampler.removeTile(id);
+    this.dropCpuIndexes(id);
+  }
+
+  /** Forget a tile the sampler no longer holds, and every memoized debug value it fed. */
+  private dropCpuIndexes(id: string): void {
+    const key = this.cpuKeyById.get(id);
+    this.cpuKeyById.delete(id);
+    if (key && this.cpuIdByKey.get(tileKeyId(key)) === id) this.cpuIdByKey.delete(tileKeyId(key));
+    this.invalidateDebugValues(id, key);
+  }
+
+  private invalidateDebugValues(id: string, key: TileKey | undefined): void {
+    this.seamErrorKm.delete(id);
+    this.meanElevationKm.delete(id);
+    if (!key) return;
+    for (const n of this.sameLevelNeighbours(key)) {
+      const nid = this.cpuIdByKey.get(tileKeyId(n));
+      if (nid) this.seamErrorKm.delete(nid);
+    }
+  }
+
+  private sameLevelNeighbours(k: TileKey): TileKey[] {
+    const nx = 2 ** (k.z + 1), ny = 2 ** k.z;
+    const out: TileKey[] = [
+      { z: k.z, x: (k.x + 1) % nx, y: k.y },
+      { z: k.z, x: (k.x - 1 + nx) % nx, y: k.y },
+    ];
+    if (k.y + 1 < ny) out.push({ z: k.z, x: k.x, y: k.y + 1 });
+    if (k.y > 0) out.push({ z: k.z, x: k.x, y: k.y - 1 });
+    return out;
   }
 
   /** Rate-limited warning so a systematically broken tileset logs once, not per tile. */
@@ -1021,13 +1201,195 @@ export class TerrainManager {
 
   /** Toggle debug tile bounds visualization. Lazily registers the plugin on first enable. */
   setDebug(show: boolean): void {
-    if (show && !this.debugPlugin) {
-      this.debugPlugin = new DebugTilesPlugin({ displayBoxBounds: true, displayRegionBounds: true });
+    this.showBounds = show;
+    if (!show && !this.debugPlugin) return;
+    const plugin = this.ensureDebugPlugin();
+    plugin.displayBoxBounds = show;
+    plugin.displayRegionBounds = show;
+    this.releaseIdleDebugPlugin();
+  }
+
+  /** Current debug surface mode. */
+  get debugSurfaceMode(): TerrainDebugMode { return this.debugMode; }
+
+  /** Color tiles by a diagnostic quantity; `'none'` restores the real materials. See {@link TerrainDebugMode}. */
+  setDebugMode(mode: TerrainDebugMode): void {
+    if (!TERRAIN_DEBUG_MODES.includes(mode)) throw new Error(`Unknown terrain debug mode "${mode}"`);
+    if (mode === this.debugMode) return;
+    this.debugMode = mode;
+    if (mode === 'none' && !this.debugPlugin) return;
+    const plugin = this.ensureDebugPlugin();
+    // `ColorModes` exists at runtime but the upstream typings omit the static.
+    const C = (DebugTilesPlugin as unknown as { ColorModes: Record<'NONE' | 'DEPTH' | 'GEOMETRIC_ERROR' | 'SCREEN_ERROR' | 'CUSTOM_COLOR', number> }).ColorModes;
+    (plugin as unknown as { colorMode: number }).colorMode = mode === 'none' ? C.NONE
+      : mode === 'lod' ? C.DEPTH
+      : mode === 'geometric-error' ? C.GEOMETRIC_ERROR
+      : mode === 'screen-error' ? C.SCREEN_ERROR
+      : C.CUSTOM_COLOR;
+    // Unlit, so the night side and terminator don't hide the encoding.
+    plugin.unlit = mode !== 'none';
+    this.releaseIdleDebugPlugin();
+  }
+
+  /**
+   * With no debug view and no bounds, drop the plugin entirely: registered, it
+   * walks every visible tile each frame (~1 ms at 1000 tiles, measured on
+   * MoonFall). Unregistering disposes it, which restores every material.
+   */
+  private releaseIdleDebugPlugin(): void {
+    if (!this.debugPlugin || this.debugMode !== 'none' || this.showBounds) return;
+    this.tiles.unregisterPlugin(this.debugPlugin);
+    this.debugPlugin = null;
+  }
+
+  private ensureDebugPlugin(): DebugTilesPlugin {
+    if (!this.debugPlugin) {
+      this.debugPlugin = new DebugTilesPlugin({
+        displayBoxBounds: false,
+        displayRegionBounds: false,
+        customColorCallback: (tile: any, object: THREE.Object3D) => {
+          const material = (object as THREE.Mesh).material as THREE.MeshBasicMaterial;
+          if (material?.color) this.debugColorFor(tile, material.color);
+        },
+      });
       this.tiles.registerPlugin(this.debugPlugin);
-    } else if (this.debugPlugin) {
-      this.debugPlugin.displayBoxBounds = show;
-      this.debugPlugin.displayRegionBounds = show;
     }
+    return this.debugPlugin;
+  }
+
+  /** The custom-mode color for one rendered tile. Runs per visible tile per frame, so values are memoized. */
+  private debugColorFor(tile: any, target: THREE.Color): void {
+    const ownId = this.cpuTileId(tile);
+    const hasOwn = !!ownId && !!this.sampler.getTile(ownId);
+    switch (this.debugMode) {
+      case 'cpu-coverage':
+        target.set(hasOwn ? 0x2fbf71 : 0xf2a33a);
+        return;
+      case 'datum-height': {
+        // Synthesized split tiles answer CPU queries from an ancestor; color them the same way.
+        let t = tile, id: string | null = null;
+        while (t) {
+          const tid = this.cpuTileId(t);
+          if (tid && this.sampler.getTile(tid)) { id = tid; break; }
+          t = t.parent;
+        }
+        const mean = id ? this.meanElevation(id) : null;
+        if (mean == null) { target.setRGB(0.35, 0.35, 0.35); return; }
+        let scale = 0.1;
+        for (const v of this.meanElevationKm.values()) scale = Math.max(scale, Math.abs(v));
+        const f = Math.max(-1, Math.min(1, mean / scale));
+        target.setHSL(f < 0 ? 0.6 : 0.0, 0.8, 0.92 - 0.47 * Math.abs(f));
+        return;
+      }
+      case 'seam-error': {
+        const err = hasOwn ? this.tileSeamError(ownId!) : null;
+        if (err == null) { target.setRGB(0.35, 0.35, 0.35); return; }
+        const f = Math.max(0, Math.min(1, err / this.seamErrorScaleKm));
+        target.copy(_debugColor.setHSL((1 - f) * 0.33, 0.85, 0.5));
+        return;
+      }
+      default:
+        target.setRGB(1, 1, 1);
+    }
+  }
+
+  private meanElevation(id: string): number | null {
+    const cached = this.meanElevationKm.get(id);
+    if (cached != null) return cached;
+    const tile = this.sampler.getTile(id);
+    if (!tile || !tile.elevationsKm.length) return null;
+    let sum = 0;
+    for (let i = 0; i < tile.elevationsKm.length; i++) sum += tile.elevationsKm[i];
+    const mean = sum / tile.elevationsKm.length;
+    this.meanElevationKm.set(id, mean);
+    return mean;
+  }
+
+  /** Largest shared-edge mismatch (km) between a cached tile and its cached same-level neighbours. */
+  tileSeamError(id: string): number | null {
+    if (this.seamErrorKm.has(id)) return this.seamErrorKm.get(id)!;
+    const key = this.cpuKeyById.get(id);
+    const tile = this.sampler.getTile(id);
+    let worst: number | null = null;
+    if (key && tile) {
+      for (const n of this.sameLevelNeighbours(key)) {
+        const nid = this.cpuIdByKey.get(tileKeyId(n));
+        const neighbour = nid ? this.sampler.getTile(nid) : undefined;
+        if (!neighbour) continue;
+        const report = sharedEdgeReport(tile, neighbour, { samples: 33 });
+        if (report && report.stats.count) worst = Math.max(worst ?? 0, report.stats.maxAbsKm);
+      }
+    }
+    this.seamErrorKm.set(id, worst);
+    return worst;
+  }
+
+  /** Terrain cost/load snapshot. See {@link TerrainPerformanceMetrics}. */
+  get metrics(): TerrainPerformanceMetrics {
+    const t = this.tiles as any;
+    const stats = t.stats ?? {};
+    const cache = t.lruCache ?? {};
+    let geometryBytes = 0, textureBytes = 0;
+    const seenGeometry = new Set<THREE.BufferGeometry>();
+    // Keyed by Source, not Texture: per-tile clones of one map (applyNormalMap)
+    // share a Source, and three.js uploads a shared Source to the GPU once.
+    const seenTexture = new Set<unknown>();
+    const countTexture = (tex: THREE.Texture | null | undefined) => {
+      if (!tex?.isTexture) return;
+      const source = tex.source ?? tex;
+      if (seenTexture.has(source)) return;
+      seenTexture.add(source);
+      textureBytes += MemoryUtils.getTextureByteLength(tex);
+    };
+    const countMaterial = (m: THREE.Material | undefined) => {
+      for (const value of Object.values(m ?? {})) countTexture(value as THREE.Texture);
+      // ImageOverlayPlugin draws imagery from a uniform array it keeps on the
+      // material, not from a material map — usually the bulk of terrain texture memory.
+      for (const tex of overlayLayerMaps(m)) countTexture(tex);
+    };
+    // Every loaded model, not just `group`: the renderer detaches tiles that
+    // leave the view but keeps their buffers cached until LRU disposal.
+    this.tiles.forEachLoadedModel((scene: THREE.Object3D) => {
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const g = mesh.geometry;
+        if (g && !seenGeometry.has(g)) {
+          seenGeometry.add(g);
+          for (const attr of Object.values(g.attributes)) geometryBytes += (attr as THREE.BufferAttribute).array?.byteLength ?? 0;
+          geometryBytes += g.index?.array.byteLength ?? 0;
+        }
+        for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) countMaterial(m);
+        // While a debug mode is on, the plugin holds the real material aside
+        // (restored on 'none'); its textures are still allocated.
+        countMaterial(originalDebugMaterial(mesh));
+      });
+    });
+    const d = this.sampler.diagnostics;
+    return {
+      update: this.updateTiming.value,
+      parse: this.parseTiming.value,
+      cpuDecode: this.decodeTiming.value,
+      sample: { count: d.sampleCount, lastMicros: d.lastSampleMicros, meanMicros: d.meanSampleMicros },
+      tiles: { active: stats.active ?? 0, visible: stats.visible ?? 0, inCache: stats.inCache ?? 0, cpu: d.tileCount },
+      network: {
+        requests: this.requestCount,
+        queued: stats.queued ?? 0,
+        downloading: stats.downloading ?? 0,
+        parsing: stats.parsing ?? 0,
+        failed: stats.failed ?? 0,
+      },
+      memory: { cacheBytes: cache.cachedBytes ?? 0, maxCacheBytes: cache.maxBytesSize ?? 0, geometryBytes, textureBytes },
+    };
+  }
+
+  /** Restart timing windows and the request counter, for a before/after measurement. */
+  resetMetrics(): void {
+    this.updateTiming.reset();
+    this.parseTiming.reset();
+    this.decodeTiming.reset();
+    this.sampler.resetTiming();
+    this.requestCount = 0;
   }
 
   dispose(): void {

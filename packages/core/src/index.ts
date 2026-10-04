@@ -1,5 +1,5 @@
 export { Body } from './Body.js';
-export type { BodyProperties, TrajectoryPlotConfig, BodyChangeField, BodyChangeCallback } from './Body.js';
+export type { BodyProperties, TrajectoryPlotConfig, BodyChangeField, BodyChangeCallback, LegacyTrajectoryFrame } from './Body.js';
 export { Universe } from './Universe.js';
 export type { UniverseOptions } from './Universe.js';
 export { CatalogLoader, collectKernelRefs } from './catalog/CatalogLoader.js';
@@ -29,6 +29,8 @@ export {
   oemToStateRecords,
   oemEpochToEt,
   oemRefFrameToInertial,
+  oemFrameName,
+  refineOemFrame,
   checkOemFrame,
   type OemFrameCheck,
 } from './trajectories/OemAdapter.js';
@@ -97,7 +99,36 @@ export type {
   Vec3,
 } from './spice-injection.js';
 
-// Frames
+// Frames — the named-frame registry (#101). `Universe.frames` is the instance
+// wired to a universe's SPICE and bodies; `DEFAULT_FRAMES` holds the built-in
+// frames only.
+export {
+  FrameRegistry,
+  DEFAULT_FRAMES,
+  BUILTIN_FRAMES,
+  BODY_FIXED,
+  WORLD_FRAME,
+  bodyFixedFrameName,
+  normalizeFrameKey,
+  isStateDependentFrameName,
+  type FrameDefinition,
+  type FrameKind,
+  type FixedFrameSpec,
+  type FrameRegistryOptions,
+} from './frames/FrameRegistry.js';
+export {
+  precessionMatrix,
+  nutationMatrix,
+  nutationAngles,
+  meanObliquity,
+  equationOfEquinoxes,
+  gmst,
+  j2000ToMod,
+  j2000ToTod,
+  j2000ToTeme,
+  j2000ToEarthFixed,
+} from './frames/earthOrientation.js';
+export { mat3Mul, mat3Transpose, mat3Vec, mat3ToQuat, quatToMat3 } from './frames/mat3.js';
 export type { Frame } from './frames/Frame.js';
 export { transformVector } from './frames/Frame.js';
 export { InertialFrame, EclipticJ2000, ICRF, EquatorJ2000 } from './frames/InertialFrame.js';

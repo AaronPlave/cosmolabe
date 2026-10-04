@@ -1,6 +1,7 @@
 import type { Body } from './Body.js';
 import type { InertialFrameName, Quaternion, RotationModel } from './rotations/RotationModel.js';
-import { OBLIQUITY_J2000_RAD } from './constants.js';
+import { DEFAULT_FRAMES, type FrameRegistry } from './frames/FrameRegistry.js';
+import { mat3ToQuat, mat3Vec } from './frames/mat3.js';
 
 /**
  * Frame-aware kinematics: the low-level primitives (frame alignment,
@@ -10,104 +11,70 @@ import { OBLIQUITY_J2000_RAD } from './constants.js';
  * they take that lookup as an argument instead, so the geometry is reachable
  * without a universe and new helpers land here rather than on the model.
  *
- * Today only the EclipticJ2000 ↔ EquatorJ2000 (J2000 obliquity) and
- * trivial body-fixed pass-through cases are handled — covers every stock
- * cosmolabe body. SPICE-named frames (`IAU_MOON`, `MOON_ME`, etc.) flow
- * through unchanged: the position is assumed to already be in the
- * rotation's source frame, which is the common case for SPICE-driven
- * bodies whose trajectory shares the rotation's inertialFrame.
+ * Frame conversions go through the frame registry (`frames/FrameRegistry.ts`).
+ * The stateless helpers here use `DEFAULT_FRAMES` — the built-in inertial and
+ * Earth frames, no SPICE, no bodies — so SPICE-named and body-fixed frames
+ * (`IAU_MOON`, `MOON_ME`, etc.) flow through unchanged: the position is assumed
+ * to already be in the rotation's source frame, which is the common case for
+ * SPICE-driven bodies whose trajectory shares the rotation's inertialFrame.
+ * `Universe.frames` resolves those too.
  */
 
 // The one Vec3 of the tree, from the SPICE interface core is written against.
 export type { Vec3 } from './spice-injection.js';
-import type { Vec3 } from './spice-injection.js';
+import type { RotationMatrix, Vec3 } from './spice-injection.js';
 
-const OBLIQUITY_COS = Math.cos(OBLIQUITY_J2000_RAD);
-const OBLIQUITY_SIN = Math.sin(OBLIQUITY_J2000_RAD);
-// Half-angle terms for the equivalent quaternion form (see frameAlignmentQuat).
-const OBLIQUITY_HALF_COS = Math.cos(OBLIQUITY_J2000_RAD / 2);
-const OBLIQUITY_HALF_SIN = Math.sin(OBLIQUITY_J2000_RAD / 2);
-
-/** Synonym set for the J2000-equatorial frame as it appears across
- *  cosmolabe call sites (Cosmographia / IAU / SPICE / app-config name
- *  variations). */
-function isEquatorJ2000(frame: InertialFrameName): boolean {
-  return (
-    frame === 'EquatorJ2000' ||
-    frame === 'J2000' ||
-    frame === 'EME2000' ||
-    frame === 'ICRF'
-  );
-}
-
-function isEclipticJ2000(frame: InertialFrameName): boolean {
-  return frame === 'EclipticJ2000' || frame === 'ECLIPJ2000';
-}
-
-/** Rotate a vector from one named inertial frame to another. Currently
- *  handles the EquatorJ2000 ↔ EclipticJ2000 obliquity rotation (the
- *  common cosmolabe case driven by UniformRotation's J2000-anchored pole
- *  conventions vs SpiceRotation's ecliptic default). All other
- *  frame-pair combinations fall through unchanged — the caller is
- *  assumed to have constructed its inputs in the right frame, or the
- *  frames don't have a registered analytical conversion (SPICE-driven
- *  frame composition lives elsewhere).
+/** Rotate a vector from one named frame to another, through the built-in
+ *  frame registry (`DEFAULT_FRAMES`): every inertial frame it defines —
+ *  EclipticJ2000 / ECLIPJ2000, EquatorJ2000 / J2000 / EME2000 / ICRF, B1950,
+ *  GALACTIC — and, when `et` is given, the time-dependent Earth frames (TEME,
+ *  MOD, TOD, ITRF).
  *
- *  Pass-through behavior is intentional: it lets callers thread the
- *  function unconditionally without per-frame dispatch logic. */
+ *  Frames it cannot resolve pass through unchanged: SPICE-named, declared and
+ *  body-fixed frames need the registry that knows them — pass
+ *  `universe.frames` as `frames` — and a time-dependent frame needs `et`. That lets
+ *  callers thread the function unconditionally without per-frame dispatch. */
 export function alignPositionToFrame(
   pos: Vec3,
   sourceFrame: InertialFrameName,
   targetFrame: InertialFrameName,
+  et?: number,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): Vec3 {
-  if (sourceFrame === targetFrame) return pos;
-  if (isEquatorJ2000(sourceFrame) && isEclipticJ2000(targetFrame)) {
-    // R_x(-ε): EquatorJ2000 → EclipticJ2000.
-    const [x, y, z] = pos;
-    return [
-      x,
-      OBLIQUITY_COS * y + OBLIQUITY_SIN * z,
-      -OBLIQUITY_SIN * y + OBLIQUITY_COS * z,
-    ];
-  }
-  if (isEclipticJ2000(sourceFrame) && isEquatorJ2000(targetFrame)) {
-    // R_x(+ε): EclipticJ2000 → EquatorJ2000 (inverse of the above).
-    const [x, y, z] = pos;
-    return [
-      x,
-      OBLIQUITY_COS * y - OBLIQUITY_SIN * z,
-      OBLIQUITY_SIN * y + OBLIQUITY_COS * z,
-    ];
-  }
-  // Synonymous aliases collapse: both are EquatorJ2000-family or both are
-  // EclipticJ2000-family but spelled differently.
-  if (isEquatorJ2000(sourceFrame) && isEquatorJ2000(targetFrame)) return pos;
-  if (isEclipticJ2000(sourceFrame) && isEclipticJ2000(targetFrame)) return pos;
-  // No known conversion — pass through.
-  return pos;
+  const m = staticOrTimedRotation(sourceFrame, targetFrame, et, frames);
+  return m ? mat3Vec(m, pos) : pos;
 }
 
-/** Inertial frame the body's `stateAt(et).position` lives in. Maps the
- *  3-bucket `Body.trajectoryFrame` ('ecliptic' | 'equatorial' | 'body-fixed')
- *  to a named inertial frame string compatible with
- *  `RotationModel.sourceFrame`.
- *
- *  Returns `undefined` for `'body-fixed'` — body-fixed positions are NOT
- *  in an inertial frame; they're in the parent body's rotating frame.
- *  Callers that need an inertial frame for a body-fixed child must first
- *  apply the parent's rotation conjugate (lifting body-fixed → inertial)
- *  and then use the parent's `rotation.sourceFrame`. See
- *  `bodyPositionFrame()` for a helper that bundles this. */
-export function bodyTrajectoryFrameName(body: Body): InertialFrameName | undefined {
-  switch (body.trajectoryFrame) {
-    case 'equatorial':
-      return 'EquatorJ2000';
-    case 'ecliptic':
-    case undefined:
-      return 'EclipticJ2000';
-    case 'body-fixed':
+/** The registry rotation between two frames, restricted to what a stateless
+ *  caller can ask for: static frames always, time-dependent ones only with an
+ *  epoch. */
+function staticOrTimedRotation(
+  sourceFrame: InertialFrameName,
+  targetFrame: InertialFrameName,
+  et: number | undefined,
+  frames: FrameRegistry,
+): RotationMatrix | undefined {
+  if (sourceFrame === targetFrame || frames.sameFrame(sourceFrame, targetFrame)) return undefined;
+  if (et === undefined) {
+    if (!frames.get(sourceFrame)?.isStatic || !frames.get(targetFrame)?.isStatic) {
       return undefined;
+    }
   }
+  return frames.rotation(sourceFrame, targetFrame, et ?? 0);
+}
+
+/** Inertial frame the body's `stateAt(et).position` lives in, by name
+ *  (`Body.frame`: `ECLIPJ2000`, `EME2000`, `TEME`, …).
+ *
+ *  Returns `undefined` for body-fixed bodies — their positions are NOT in an
+ *  inertial frame; they're in the parent body's rotating frame. Callers that
+ *  need an inertial frame for a body-fixed child must first apply the parent's
+ *  rotation conjugate (lifting body-fixed → inertial) and then use the
+ *  parent's `rotation.sourceFrame`, or use `Universe.frames`, which does both.
+ *  See `bodyPositionFrame()` for a helper that bundles this. */
+export function bodyTrajectoryFrameName(body: Body): InertialFrameName | undefined {
+  if (body.trajectoryFrame === 'body-fixed') return undefined;
+  return body.frame;
 }
 
 /** Inertial frame the body's POSITION effectively lives in, accounting for
@@ -160,27 +127,19 @@ export function multiplyQuat(a: Quaternion, b: Quaternion): Quaternion {
  *  the quaternion analogue of `alignPositionToFrame` — the two MUST encode the
  *  same rotation (pinned by the obliquity-consistency test), since one drives
  *  body orientation (BodyMesh) and the other drives body position (Universe).
+ *  Both read the same registry matrix, so they cannot drift apart.
  *
- *  Returns identity for same-frame, same-family-different-spelling, and
- *  unhandled (SPICE-named) frames — matching `alignPositionToFrame`'s
- *  pass-through semantics. Only the EquatorJ2000 ↔ EclipticJ2000 obliquity
- *  rotation is composed analytically. */
+ *  Returns identity for same-frame, same-frame-different-spelling, and
+ *  unresolvable frames — matching `alignPositionToFrame`'s pass-through
+ *  semantics. Time-dependent frames (TEME, …) need `et`. */
 export function frameAlignmentQuat(
   sourceFrame: InertialFrameName,
   worldFrame: InertialFrameName = 'EclipticJ2000',
+  et?: number,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): Quaternion {
-  if (sourceFrame === worldFrame) return [1, 0, 0, 0];
-  if (isEquatorJ2000(sourceFrame) && isEclipticJ2000(worldFrame)) {
-    // R_x(-ε): EquatorJ2000 → EclipticJ2000. Quaternion of a rotation by -ε
-    // about +X is [cos(ε/2), -sin(ε/2), 0, 0].
-    return [OBLIQUITY_HALF_COS, -OBLIQUITY_HALF_SIN, 0, 0];
-  }
-  if (isEclipticJ2000(sourceFrame) && isEquatorJ2000(worldFrame)) {
-    // R_x(+ε): EclipticJ2000 → EquatorJ2000 (inverse of the above).
-    return [OBLIQUITY_HALF_COS, OBLIQUITY_HALF_SIN, 0, 0];
-  }
-  // Synonymous aliases or no known conversion — identity (pass-through).
-  return [1, 0, 0, 0];
+  const m = staticOrTimedRotation(sourceFrame, worldFrame, et, frames);
+  return m ? mat3ToQuat(m) : [1, 0, 0, 0];
 }
 
 /** Compose a body's full body→world orientation quaternion `[w, x, y, z]`.
@@ -198,6 +157,8 @@ export function composeBodyToWorldQuat(
   rotationQuat: Quaternion,
   sourceFrame: InertialFrameName,
   worldFrame: InertialFrameName = 'EclipticJ2000',
+  et?: number,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): Quaternion {
   // rotationAt returns source→body; conjugate [w,-x,-y,-z] gives body→source.
   const bodyToSource: Quaternion = [
@@ -206,7 +167,7 @@ export function composeBodyToWorldQuat(
     -rotationQuat[2],
     -rotationQuat[3],
   ];
-  const frameAlign = frameAlignmentQuat(sourceFrame, worldFrame);
+  const frameAlign = frameAlignmentQuat(sourceFrame, worldFrame, et, frames);
   return multiplyQuat(frameAlign, bodyToSource);
 }
 
@@ -234,6 +195,8 @@ export function bodyFixedOffsetToWorld(
   rotationQuat: Quaternion,
   sourceFrame: InertialFrameName,
   worldFrame: InertialFrameName = 'EclipticJ2000',
+  et?: number,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): Vec3 {
   const lat = (latitudeDeg * Math.PI) / 180;
   const lon = (longitudeDeg * Math.PI) / 180;
@@ -242,7 +205,7 @@ export function bodyFixedOffsetToWorld(
     distance * Math.cos(lat) * Math.sin(lon),
     distance * Math.sin(lat),
   ];
-  return rotateVecByQuat(bodyFixed, composeBodyToWorldQuat(rotationQuat, sourceFrame, worldFrame));
+  return rotateVecByQuat(bodyFixed, composeBodyToWorldQuat(rotationQuat, sourceFrame, worldFrame, et, frames));
 }
 
 /** Resolve a body by name. `Universe.getBody` satisfies this, and it is the
@@ -286,6 +249,7 @@ export function subPointOf(
   lookup: BodyLookup,
   bodyName: string,
   et: number,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): { lat: number; lon: number; altKm: number } | null {
   const pair = activeParentPair(lookup, bodyName, et);
   if (!pair) return null;
@@ -308,6 +272,8 @@ export function subPointOf(
     state.position,
     bodyFrame,
     parentRotation.sourceFrame,
+    et,
+    frames,
   );
   const bf = rotateVecByQuat(aligned, q);
   const r = Math.sqrt(bf[0] * bf[0] + bf[1] * bf[1] + bf[2] * bf[2]);
@@ -333,6 +299,7 @@ export function bodyFixedVelocityMagnitudeOf(
   bodyName: string,
   et: number,
   dt: number = 1,
+  frames: FrameRegistry = DEFAULT_FRAMES,
 ): number | null {
   const pair = activeParentPair(lookup, bodyName, et);
   if (!pair) return null;
@@ -348,8 +315,8 @@ export function bodyFixedVelocityMagnitudeOf(
     const qA = parent.rotationAt(et - dt);
     const qB = parent.rotationAt(et + dt);
     if (!sA || !sB || !qA || !qB) return null;
-    const pA = alignPositionToFrame(sA.position, scFrame, parentFrame);
-    const pB = alignPositionToFrame(sB.position, scFrame, parentFrame);
+    const pA = alignPositionToFrame(sA.position, scFrame, parentFrame, et - dt, frames);
+    const pB = alignPositionToFrame(sB.position, scFrame, parentFrame, et + dt, frames);
     const bfA = rotateVecByQuat(pA, qA);
     const bfB = rotateVecByQuat(pB, qB);
     const dvx = (bfB[0] - bfA[0]) / (2 * dt);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EmphasisClock, stepEmphasis } from './emphasisFade.js';
 import type { Body } from '@cosmolabe/core';
 import type { BodyMesh } from './BodyMesh.js';
 
@@ -28,6 +29,22 @@ export interface LabelManagerOptions {
    * Linear fade between `selfSizeFadeStartPx` and this value. Default 200.
    */
   selfSizeFadeEndPx?: number;
+}
+
+/**
+ * Where a label sits relative to its body. `right` is the default; pinned
+ * labels move to another slot rather than draw on top of a higher-priority
+ * label or a reserved annotation.
+ */
+type LabelSlot = 'right' | 'below' | 'above' | 'left';
+const ALTERNATE_SLOTS: readonly LabelSlot[] = ['below', 'above', 'left'];
+
+/** A screen rectangle in CSS pixels. */
+export interface LabelScreenRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
 }
 
 interface LabelEntry {
@@ -64,8 +81,19 @@ interface LabelEntry {
   // Hover emphasis multiplier on final opacity. Every label sits at a slightly
   // reduced baseline (`_baseLabelOpacity`) so the hovered one — bumped to 1 —
   // stands out by getting brighter rather than by dimming everything else.
-  // Opacity-only: label size and weight never change on hover.
+  // Opacity-only: label size and weight never change on hover. Eases toward
+  // `emphasisTarget` each frame.
   emphasisOpacity: number;
+  emphasisTarget: number;
+  // Screen-space offset from the body center to the default slot, and the
+  // world size of one pixel at the body's depth — enough to move the label
+  // to another slot in the collision pass without reprojecting.
+  offsetPx: number;
+  worldPerPx: number;
+  slot: LabelSlot;
+  // Drawn box after slot placement: left edge and vertical center.
+  boxX0: number;
+  boxCY: number;
 }
 
 /** Priority for keeping a label visible when bboxes overlap. Higher wins. */
@@ -104,8 +132,10 @@ export class LabelManager {
   // tracks whether *we* pinned it (so un-highlight only unpins if a host's
   // selection didn't also pin the same label).
   private _highlightedName: string | null = null;
+  private readonly _emphasisClock = new EmphasisClock();
   private _hoverPinned: string | null = null;
   private _globalVisible = true;
+  private _reserved: LabelScreenRect[] = [];
 
   constructor(_container: HTMLElement, options: LabelManagerOptions = {}) {
     this.fontSize = options.fontSize ?? 12;
@@ -159,6 +189,12 @@ export class LabelManager {
       selfSizeFade: 1,
       opacityMultiplier: 1,
       emphasisOpacity: LabelManager._baseLabelOpacity,
+      emphasisTarget: LabelManager._baseLabelOpacity,
+      offsetPx: 0,
+      worldPerPx: 0,
+      slot: 'right',
+      boxX0: 0,
+      boxCY: 0,
     });
   }
 
@@ -198,6 +234,35 @@ export class LabelManager {
     else this._pinnedNames.delete(name);
   }
 
+  /**
+   * Screen areas owned by a higher-priority annotation (an event callout, for
+   * example). Labels yield to them exactly as to a higher-priority label: an
+   * ordinary label fades, a pinned one moves to another slot. CSS pixels.
+   */
+  setReservedRects(rects: readonly LabelScreenRect[]): void {
+    this._reserved = rects.map((rect) => ({ ...rect }));
+  }
+
+  /** Boxes of the labels currently drawn, for placing other annotations around them. */
+  getScreenRects(): Array<LabelScreenRect & { name: string; pinned: boolean }> {
+    const rects: Array<LabelScreenRect & { name: string; pinned: boolean }> = [];
+    for (const [name, entry] of this.labels) {
+      if (!entry.sprite.visible || !entry.sprite.parent) continue;
+      if (entry.widthPx <= 0 || entry.heightPx <= 0) continue;
+      if ((entry.sprite.material as THREE.SpriteMaterial).opacity < 0.05) continue;
+      const halfH = entry.heightPx * 0.5;
+      rects.push({
+        name,
+        pinned: this._pinnedNames.has(name),
+        x0: entry.boxX0,
+        x1: entry.boxX0 + entry.widthPx,
+        y0: entry.boxCY - halfH,
+        y1: entry.boxCY + halfH,
+      });
+    }
+    return rects;
+  }
+
   /** Clear all pinned labels (e.g. on selection clear). */
   clearPinnedLabels(): void {
     this._pinnedNames.clear();
@@ -231,7 +296,7 @@ export class LabelManager {
 
     // Hovered label → full opacity; everything else → baseline.
     for (const [n, e] of this.labels) {
-      e.emphasisOpacity =
+      e.emphasisTarget =
         n === this._highlightedName ? 1 : LabelManager._baseLabelOpacity;
     }
 
@@ -279,6 +344,12 @@ export class LabelManager {
 
   update(bodyMeshes: BodyMesh[], camera: THREE.Camera, rendererSize: { width: number; height: number }): void {
     if (!this._globalVisible) return;
+
+    const emphasisDt = this._emphasisClock.tick();
+    const emphasisSpan = 1 - LabelManager._baseLabelOpacity;
+    for (const entry of this.labels.values()) {
+      entry.emphasisOpacity = stepEmphasis(entry.emphasisOpacity, entry.emphasisTarget, emphasisDt, emphasisSpan);
+    }
 
     this.right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
     this.up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
@@ -381,6 +452,9 @@ export class LabelManager {
       const offsetPx = silhouettePx + this.minLabelOffsetPx;
       const offsetWorld = offsetPx * worldPerPx;
 
+      entry.offsetPx = offsetPx;
+      entry.worldPerPx = worldPerPx;
+      sprite.center.set(0, 0.5);
       sprite.position.copy(bm.position);
       sprite.position.addScaledVector(this.right, offsetWorld);
       // Constant 2px nudge down so the left-center-anchored sprite sits
@@ -423,6 +497,8 @@ export class LabelManager {
       const behind = this._projected.z > 1;
       entry.screenX = (this._projected.x * 0.5 + 0.5) * rendererSize.width;
       entry.screenY = (-this._projected.y * 0.5 + 0.5) * rendererSize.height;
+      entry.boxX0 = entry.screenX;
+      entry.boxCY = entry.screenY;
       // Collision bbox tracks the full sprite envelope on screen (text +
       // glow padding), so labels that look like they touch are flagged as
       // overlapping. Sprite is `fontSize * paddingFactor` px tall; width
@@ -461,9 +537,15 @@ export class LabelManager {
    * opacity in-place each frame which produced a ~0.2 ghosted equilibrium for
    * colliding labels instead of full hide.
    *
-   * Labels already faded near-zero by occlusion are skipped entirely — they
-   * don't block other labels (so a back-of-Earth ground station doesn't
-   * suppress a front-of-Earth spacecraft label sitting at the same XY).
+   * Labels already faded near-zero by occlusion or the self-size fade are
+   * skipped entirely — they don't block other labels (so a back-of-Earth
+   * ground station doesn't suppress a front-of-Earth spacecraft label sitting
+   * at the same XY).
+   *
+   * Priority, highest first: reserved annotation rects (event callouts), then
+   * pinned labels (selected / event-involved bodies), then classification.
+   * Pinned labels are never hidden; a pinned label whose default slot is
+   * taken moves beside it (below, above, or left) instead of overprinting.
    */
   private static readonly _collisionPaddingPx = 4;
   private static readonly _fadeRate = 0.18;
@@ -473,8 +555,8 @@ export class LabelManager {
     for (const entry of this.labels.values()) {
       if (!entry.sprite.visible) continue;
       if (entry.widthPx <= 0 || entry.heightPx <= 0) continue;
-      // Already-occluded labels are non-blocking and non-blocked.
-      if (entry.occlusionOpacity < 0.05) {
+      // Already-invisible labels are non-blocking and non-blocked.
+      if (entry.occlusionOpacity * entry.selfSizeFade < 0.05) {
         // Decay collisionFade toward 1 while invisible so reappearing from
         // behind a body doesn't pop bright before re-running the collision
         // logic against current bbox neighbors.
@@ -495,28 +577,28 @@ export class LabelManager {
 
     const pad = LabelManager._collisionPaddingPx;
     const rate = LabelManager._fadeRate;
-    const placed: Array<{ x0: number; y0: number; x1: number; y1: number }> = [];
+    // Reserved annotation areas outrank every label, pinned or not.
+    const placed: LabelScreenRect[] = this._reserved.map((r) => ({ ...r }));
+    const overlaps = (r: LabelScreenRect) =>
+      placed.some((p) => r.x0 < p.x1 && r.x1 > p.x0 && r.y0 < p.y1 && r.y1 > p.y0);
     for (const entry of entries) {
-      const halfH = entry.heightPx * 0.5;
-      // Sprite anchored at left-center, so bbox extends right from screenX.
-      // Pad on all sides so labels that are merely *adjacent* (within a few
-      // px) also collide — looks cleaner than rows of touching text.
-      const x0 = entry.screenX - pad;
-      const x1 = entry.screenX + entry.widthPx + pad;
-      const y0 = entry.screenY - halfH - pad;
-      const y1 = entry.screenY + halfH + pad;
-
-      // Pinned labels never collide — they always survive. Still added to
-      // `placed` below so they block lower-priority labels from overlapping.
-      let collides = false;
-      if (!entry._pinned) {
-        for (const p of placed) {
-          if (x0 < p.x1 && x1 > p.x0 && y0 < p.y1 && y1 > p.y0) {
-            collides = true;
-            break;
-          }
-        }
+      // Pinned labels (selected / event-involved bodies) are never hidden by
+      // collision; when their default slot is taken they move to the first
+      // free alternate slot instead of drawing over the other label. Try the
+      // default first so a label returns home as soon as it is clear.
+      let slot: LabelSlot = 'right';
+      let collides = overlaps(this.slotRect(entry, 'right', pad));
+      if (collides && entry._pinned) {
+        const candidates = entry.slot !== 'right'
+          ? [entry.slot, ...ALTERNATE_SLOTS.filter((s) => s !== entry.slot)]
+          : ALTERNATE_SLOTS;
+        // Alternate slots are tested without padding: they exist to sit
+        // directly beside another label, not a full gap away from it.
+        const free = candidates.find((candidate) => !overlaps(this.slotRect(entry, candidate, 0)));
+        if (free) slot = free;
+        collides = false;
       }
+      this.applySlot(entry, slot);
 
       const target = collides ? 0 : 1;
       entry.collisionFade += (target - entry.collisionFade) * rate;
@@ -531,8 +613,43 @@ export class LabelManager {
         entry.collisionFade *
         entry.opacityMultiplier *
         entry.emphasisOpacity;
-      if (!collides) placed.push({ x0, y0, x1, y1 });
+      if (!collides) placed.push(this.slotRect(entry, slot, pad));
     }
+  }
+
+  /** Screen box a label would occupy in `slot`, padded by `pad` on all sides. */
+  private slotRect(entry: LabelEntry, slot: LabelSlot, pad: number): LabelScreenRect {
+    const { x0, cy } = this.slotOrigin(entry, slot);
+    const halfH = entry.heightPx * 0.5;
+    return { x0: x0 - pad, x1: x0 + entry.widthPx + pad, y0: cy - halfH - pad, y1: cy + halfH + pad };
+  }
+
+  /** Left edge and vertical center of a label's box in `slot`. */
+  private slotOrigin(entry: LabelEntry, slot: LabelSlot): { x0: number; cy: number } {
+    // screenX/Y describe the default slot: offsetPx right of the body center.
+    const bodyX = entry.screenX - entry.offsetPx;
+    switch (slot) {
+      case 'right': return { x0: entry.screenX, cy: entry.screenY };
+      case 'below': return { x0: entry.screenX, cy: entry.screenY + entry.heightPx };
+      case 'above': return { x0: entry.screenX, cy: entry.screenY - entry.heightPx };
+      case 'left': return { x0: bodyX - entry.offsetPx - entry.widthPx, cy: entry.screenY };
+    }
+  }
+
+  /** Move the sprite to `slot`; screen-aligned offsets keep it camera-facing. */
+  private applySlot(entry: LabelEntry, slot: LabelSlot): void {
+    const { x0, cy } = this.slotOrigin(entry, slot);
+    entry.slot = slot;
+    entry.boxX0 = x0;
+    entry.boxCY = cy;
+    if (slot === 'right') return;
+    const sprite = entry.sprite;
+    const dx = slot === 'left' ? -entry.offsetPx : entry.offsetPx;
+    const dy = cy - (entry.screenY - 2); // screen y grows downward; +2 px nudge is already in screenY
+    sprite.center.set(slot === 'left' ? 1 : 0, 0.5);
+    sprite.position.copy(entry.bodyMesh.position);
+    sprite.position.addScaledVector(this.right, dx * entry.worldPerPx);
+    sprite.position.addScaledVector(this.up, -dy * entry.worldPerPx);
   }
 
   /**
@@ -688,10 +805,10 @@ export class LabelManager {
       // with a stale, zoom-dependent constant. The sprite is anchored left-center,
       // so the box runs right from screenX (its full text+glow width covers long
       // names like "Europa Clipper") and is vertically centered on screenY.
-      const x0 = entry.screenX - padX;
-      const x1 = entry.screenX + entry.widthPx + padX;
-      const y0 = entry.screenY - halfTextH - padY;
-      const y1 = entry.screenY + halfTextH + padY;
+      const x0 = entry.boxX0 - padX;
+      const x1 = entry.boxX0 + entry.widthPx + padX;
+      const y0 = entry.boxCY - halfTextH - padY;
+      const y1 = entry.boxCY + halfTextH + padY;
 
       const dx = screenX < x0 ? x0 - screenX : screenX > x1 ? screenX - x1 : 0;
       const dy = screenY < y0 ? y0 - screenY : screenY > y1 ? screenY - y1 : 0;

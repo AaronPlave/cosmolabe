@@ -189,7 +189,6 @@ export class GeometryCalculator {
         const orbitNormal = this.spice.vhat(this.spice.vcrss(pos, vel));
 
         const bodyToSun = this.spice.spkpos('SUN', et, 'J2000', abcorr, config.bodyName);
-        const sunDir = this.spice.vscl(-1, bodyToSun.position); // direction from sun to body doesn't matter for angle with normal
         // Beta = 90° - angle(orbitNormal, sunDirection)
         result.betaAngle = this.spice.vsep(orbitNormal, bodyToSun.position) * DEG - 90;
       } catch { /* beta angle may not be computable */ }

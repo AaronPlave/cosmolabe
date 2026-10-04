@@ -14,7 +14,7 @@
    * A shell panel rather than a dialog: a dialog's scrim and focus trap would
    * hide the scene the script is driving.
    */
-  import { onMount, onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { Play, Pause, Square, SkipForward, Camera, ChevronDown, Trash2, Check, X, Loader2 } from 'lucide-svelte';
   import { VERB_LIST, verbUsage, type VerbSpec } from '@cosmolabe/control';
   import * as Popover from '$lib/components/ui/popover';
@@ -27,7 +27,7 @@
   import {
     readLibrary, saveToLibrary, deleteFromLibrary, type ProgramLibrary, type ScriptStoreFailure,
   } from '../lib/script-store';
-  import { takePendingScript } from '../lib/script-demo.svelte';
+  import { pendingScript, takePendingScript } from '../lib/script-demo.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   interface Props {
@@ -90,14 +90,18 @@
 
   // ── Editor ──
 
-  onMount(() => {
-    // A scripted demo from the welcome screen queued its script before the
-    // scene loaded; the console mounts once it has, which is when it runs.
-    const pending = takePendingScript();
+  // A scripted catalog entry queues its script once its scene has loaded. The
+  // console usually mounts after that (panels unmount during a load), but may
+  // already be up; an effect rather than `onMount` takes it either way.
+  $effect(() => {
+    if (pendingScript.source == null) return;
+    const pending = untrack(takePendingScript);
     if (!pending) return;
-    source = pending.source;
-    editor?.setDoc(source);
-    if (pending.autorun) void start();
+    untrack(() => {
+      source = pending.source;
+      editor?.setDoc(source);
+      if (pending.autorun) void start();
+    });
   });
 
   /**
@@ -255,7 +259,6 @@
         <ChevronDown size={11} class="shrink-0" />
       </Popover.Trigger>
       <Popover.Portal>
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <Popover.Content align="end" sideOffset={6} class="w-64 p-2" onkeydown={(e: KeyboardEvent) => { if (e.key !== 'Escape') e.stopPropagation(); }}>
           {#if library.readProblem}
             <p class="ui-helper mb-1.5 text-warning">{READ_MESSAGES[library.readProblem]}</p>

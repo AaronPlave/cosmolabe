@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Ruler, Settings, Bug, Terminal } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug, Terminal } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 
 /**
@@ -32,8 +32,16 @@ import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
  */
 export type IconComponent = typeof Globe;
 
-/** The contextual tool surfaces the rail can open. */
-export const TOOL_IDS = ['catalog', 'events', 'measure', 'script', 'display', 'debug'] as const;
+/**
+ * The contextual tool surfaces the rail can open.
+ *
+ * There is no `measure` tool any more: its time-series charts are timeline
+ * profile rows (#65), its close-approach list is the event finder's, and the
+ * live two-body readout is each profile row's value at the playhead. #57's
+ * interactive measurement returns as its own tool rather than as a second
+ * analysis entry point beside the timeline.
+ */
+export const TOOL_IDS = ['catalog', 'events', 'script', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -84,7 +92,6 @@ export const TOOLS: readonly ToolDef[] = [
   // E is camera roll-right in KeyboardControls; tool shortcuts must not steal
   // renderer controls while the canvas has focus.
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
-  { id: 'measure', label: 'Measure',  icon: Ruler,    presentation: 'panel',  dock: 'left',  width: 400 },
   // Backtick: the universal console idiom, unclaimed, and not a letter, so it
   // cannot collide with a renderer control or #15's keymap. The app's input
   // guard runs first, so a backtick typed into a text field stays a backtick.
@@ -177,9 +184,17 @@ export const shell = $state({
   shortcutsOpen: false,
 
   /**
+   * The catalog browser overlay (issue #94). A flag here rather than local to
+   * any one surface, since the home screen's Browse, the rail's folder
+   * button, the command palette and the `O` shortcut all open it.
+   */
+  catalogBrowserOpen: false,
+
+  /**
    * Progressive analysis depth on the timeline. `transport` is the minimal time
-   * strip; `expanded` adds the secondary transport and the region event lanes
-   * (#67) and continuous profiles (#65) will draw into.
+   * strip, event marks on its track included; `expanded` adds the secondary
+   * transport, a lane per event query, and the continuous-profile rows (#65),
+   * all on the same axis.
    */
   timelineDepth: 'transport' as 'transport' | 'expanded',
 

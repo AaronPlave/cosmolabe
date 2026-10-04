@@ -49,21 +49,17 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Mars" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "24.622962155909364h",
-        "inclination": 37.1135,
-        "ascendingNode": 47.68143,
-        "meridianAngle": 176.630
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": {
         "type": "Globe",
         "radii": [3396.19, 3396.19, 3376.2],
         "baseMap": "textures/mars.dds",
         "terrain": {
           "type": "quantized-mesh",
-          "url": "/test-catalogs/data/mars-terrain/",
+          "url": "/test-catalogs/data/mars-terrain-fused/",
           "referenceRadiusOffsetKm": 0,
+          "datum": { "verticalDatum": "areoid", "heightConvention": "geodetic-normal" },
+          "sourceMetadata": { "id": "mars-molahrsc-200m+jezero-hirise-1m-residual (scripts/build-mars-terrain/fused.sh)" },
           "errorTarget": 3,
           "fadeDurationMs": 0,
           "skirtScale": 0.1,
@@ -71,6 +67,12 @@
             {
               "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
               "levels": 8
+            },
+            {
+              "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}",
+              "levels": 14,
+              "dimension": 512,
+              "minZoom": 5
             },
             {
               "url": "https://trek.nasa.gov/tiles/Mars/EQ/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0/1.0.0/default/default028mm/{z}/{y}/{x}.png",

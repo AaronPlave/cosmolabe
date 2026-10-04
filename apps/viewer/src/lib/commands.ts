@@ -3,12 +3,12 @@
  * Combines built-in commands with plugin-contributed commands.
  */
 import type { UniverseRenderer } from '@cosmolabe/three';
-import type { PluginCommand } from '@cosmolabe/three';
 import {
   vs, togglePlay, reverse, faster, slower, stepForward, stepBackward,
   setDisplayOption, cycleCamera, flyToTracked, resetCamera, getRenderer,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
+import { shell } from './shell.svelte';
 
 export interface Command {
   id: string;
@@ -21,6 +21,9 @@ export interface Command {
 /** Built-in commands */
 function getBuiltinCommands(): Command[] {
   return [
+    // Catalog
+    { id: 'catalog:open', label: 'Open catalog…', shortcut: 'O', category: 'Catalog', execute: () => { shell.catalogBrowserOpen = true; } },
+
     // Time
     { id: 'time:play', label: vs.playing ? 'Pause' : 'Play', shortcut: 'Space', category: 'Time', execute: () => togglePlay() },
     { id: 'time:reverse', label: 'Reverse', shortcut: 'R', category: 'Time', execute: () => reverse() },

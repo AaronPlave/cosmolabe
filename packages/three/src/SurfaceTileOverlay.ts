@@ -117,7 +117,7 @@ export class SurfaceTileOverlay {
     const origCallbacks = cache.callbacks;
     const noopCb = () => {};
     cache.callbacks = new Proxy(origCallbacks, {
-      get(target: Map<any, Function>, prop: string | symbol, receiver: any) {
+      get(target: Map<any, (tile: unknown) => unknown>, prop: string | symbol, receiver: any) {
         if (prop === 'get') {
           return (key: any) => {
             const cb = target.get(key);

@@ -287,7 +287,7 @@ close the panel from there.
 
 ### The Earth–Moon Scripted Tour
 
-The welcome screen's **Earth–Moon Scripted Tour** loads the kernel-free Earth +
+The **Earth–Moon Scripted Tour** on the home screen loads the kernel-free Earth +
 Moon scene and runs an adaptation of Cosmographia's Earth–Moon scripting example
 in the console, block by block with the original's notes and pacing. Camera
 moves Cosmolabe cannot animate yet (`moveToPov`, the `circleCenter*` moves,
@@ -295,9 +295,11 @@ moves Cosmolabe cannot animate yet (`moveToPov`, the `circleCenter*` moves,
 on. Calls with no equivalent are left as "No equivalent yet" comments; the
 table under [Not yet in Cosmolabe](#not-yet-in-cosmolabe) lists them.
 Cosmolabe scripts are conceptually similar to Cosmographia's but are not
-source-compatible with its `cosmoscripting` Python API. The demo scripts live in
-`apps/viewer/src/lib/script-demo.svelte.ts`, and a unit test parses every one
-against the verb table.
+source-compatible with its `cosmoscripting` Python API. The script is
+`apps/viewer/test-catalogs/earth-moon-tour.cosmo`, attached to its catalog by the
+`script` field of an index entry (see [catalog-sources.md](catalog-sources.md)),
+so a deployment offers scripted tours the same way it offers catalogs. A unit
+test parses every script the Examples index names against the verb table.
 
 ## The read side
 
@@ -421,7 +423,7 @@ ceiling. Three rules:
 
 ### Not yet in Cosmolabe
 
-Found by adapting Cosmographia's Earth–Moon scripting example (the welcome
+Found by adapting Cosmographia's Earth–Moon scripting example (the home
 screen's Earth–Moon Scripted Tour), and tracked as follow-ups. The tour marks
 each one with a "No equivalent yet" comment where it occurs.
 

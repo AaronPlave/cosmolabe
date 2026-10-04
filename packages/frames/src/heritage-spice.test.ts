@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createSpiceBindings, SpiceError, type SpiceBindings } from 'cspice-wasm';
-import { createHeritageSpice, SpiceSearchCancelled, type HeritageSpice } from './index.js';
+import { createHeritageSpice, kernelNameFromUrl, SpiceSearchCancelled, type HeritageSpice } from './index.js';
 
 const fixtureBytes = (name: string) =>
   new Uint8Array(
@@ -351,5 +351,36 @@ describe('@cosmolabe/frames heritage adapter', () => {
       expect(fov.boresight).toEqual([ref.boresight.x, ref.boresight.y, ref.boresight.z]);
       expect(fov.bounds.length).toBe(ref.bounds.length);
     });
+  });
+});
+
+/**
+ * The name a URL-furnished kernel gets.
+ *
+ * Exported because three layers have to agree on it -- this adapter, the
+ * viewer's registry of what is furnished, and the cache worker -- and a
+ * disagreement shows up only as an unload that unloads nothing, or a worker
+ * holding a kernel its host cannot name.
+ */
+describe('kernelNameFromUrl', () => {
+  it('is the basename', () => {
+    expect(kernelNameFromUrl('https://example.test/kernels/de440s.bsp')).toBe('de440s.bsp');
+  });
+
+  it('drops .gz, which CSPICE would not recognise a kernel type through', () => {
+    expect(kernelNameFromUrl('https://example.test/de440s.bsp.gz')).toBe('de440s.bsp');
+  });
+
+  it('drops a query string and fragment', () => {
+    // A signed URL is the same kernel as the bare one. Furnishing it under a
+    // name carrying the token would make the name neither stable across a
+    // re-signing nor the one anything else would think to unload.
+    expect(kernelNameFromUrl('https://example.test/de440s.bsp?X-Amz-Signature=abc')).toBe('de440s.bsp');
+    expect(kernelNameFromUrl('https://example.test/de440s.bsp.gz?v=2#part')).toBe('de440s.bsp');
+  });
+
+  it('handles a relative path, which a catalog may well give', () => {
+    expect(kernelNameFromUrl('./kernels/naif0012.tls')).toBe('naif0012.tls');
+    expect(kernelNameFromUrl('naif0012.tls')).toBe('naif0012.tls');
   });
 });

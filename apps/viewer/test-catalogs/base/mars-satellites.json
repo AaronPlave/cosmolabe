@@ -16,7 +16,7 @@
         "ascendingNode": 47.68,
         "meridianAngle": 35.06
       },
-      "geometry": { "type": "Mesh", "source": "models/phobos.cmod" },
+      "geometry": { "type": "Mesh", "source": "../models/phobos.cmod" },
       "label": { "color": [0.6, 0.5, 0.4] }
     },
     {
@@ -32,7 +32,7 @@
         "ascendingNode": 46.65,
         "meridianAngle": 79.41
       },
-      "geometry": { "type": "Mesh", "source": "models/deimos.cmod" },
+      "geometry": { "type": "Mesh", "source": "../models/deimos.cmod" },
       "label": { "color": [0.6, 0.5, 0.4] }
     }
   ]

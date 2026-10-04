@@ -26,8 +26,9 @@
  * through as locateFile.
  */
 
-import { createHeritageSpice, SpiceSearchCancelled, type HeritageSpice, type HGfReport } from '@cosmolabe/frames';
+import { createHeritageSpice, kernelNameFromUrl, SpiceSearchCancelled, type HeritageSpice, type HGfReport } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
+import { spiceAltitude } from '../spice-altitude.js';
 import { TrajectoryCache, type TrajectoryCacheConfig, type CoverageWindow } from '../TrajectoryCache.js';
 
 let spice: HeritageSpice | null = null;
@@ -54,9 +55,9 @@ const cancelled = new Set<string>();
 const MAX_REMEMBERED_CANCELLATIONS = 64;
 
 /** The geometry calls a `geometry` message may name. */
-type GeometryCall = 'gfdist' | 'gfsep' | 'gfoclt' | 'gfposc' | 'range';
+type GeometryCall = 'gfdist' | 'gfsep' | 'gfoclt' | 'gfposc' | 'range' | 'altitude';
 
-const GEOMETRY_CALLS: readonly GeometryCall[] = ['gfdist', 'gfsep', 'gfoclt', 'gfposc', 'range'];
+const GEOMETRY_CALLS: readonly GeometryCall[] = ['gfdist', 'gfsep', 'gfoclt', 'gfposc', 'range', 'altitude'];
 
 /** The adapter's own aberration-correction type, without importing cspice-wasm. */
 type Abcorr = Parameters<HeritageSpice['spkpos']>[3];
@@ -89,6 +90,9 @@ interface GeometryReportRequest {
  * every kernel set can chain to — a vector's magnitude does not depend on the
  * frame it is expressed in. It is also the one call that takes no report: a
  * single position lookup has no progress to report and nothing to interrupt.
+ * `altitude` is its surface counterpart, `subpnt` against the target's
+ * ellipsoid through the same `spiceAltitude` the main thread uses, and likewise
+ * takes no report.
  */
 function runGeometryCall(
   s: HeritageSpice,
@@ -111,6 +115,10 @@ function runGeometryCall(
     case 'range': {
       const [target, abcorr, observer, et] = args as [string, string, string, number];
       return s.vnorm(s.spkpos(target, et, 'J2000', abcorr as Abcorr, observer).position);
+    }
+    case 'altitude': {
+      const [target, abcorr, observer, et] = args as [string, string, string, number];
+      return spiceAltitude(s, target, abcorr, observer, et);
     }
   }
 }
@@ -158,10 +166,13 @@ self.onmessage = async (event: MessageEvent) => {
           buffer = await decompressGzip(buffer);
         }
 
-        // Strip .gz from filename so CSPICE can identify the kernel type from
-        // the extension (.bsp, .tls, .tpc). Without this, kernels get a .gz
-        // extension in the Emscripten FS and CSPICE silently ignores them.
-        const filename = (name ?? url!).replace(/\.gz$/i, '');
+        // The same name the host furnished this kernel under, which is what
+        // makes the two kernel sets comparable at all: `kernelNameFromUrl`
+        // strips the query string a signed URL carries and the `.gz` CSPICE
+        // would otherwise fail to recognise a kernel type from. Bytes that came
+        // with a name (a file the user dropped) keep it -- there is no URL, and
+        // the host furnished it under that name too.
+        const filename = name !== undefined ? name.replace(/\.gz$/i, '') : kernelNameFromUrl(url!);
         await spice.furnish({
           type: 'buffer',
           data: buffer,

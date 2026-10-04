@@ -96,6 +96,10 @@ answer physical-surface queries.
   merge base: retain useful data/build findings but resolve its first-pass
   calibration, mesh-based sampler, fallback behavior, and seam machinery.
 
+Built in #48: [`scripts/build-moon-terrain/`](../scripts/build-moon-terrain/README.md)
+(source choice and known source defects) and the `moon-shackleton-fused`
+results in [`terrain-validation.md`](terrain-validation.md).
+
 ### Navigation, cameras, rendering, and imagery
 
 - Keep imagery independent of terrain correctness; imagery and terrain have
@@ -107,6 +111,8 @@ answer physical-surface queries.
   not universally radial.
 - Wheel/dolly motion follows the camera view ray, samples terrain, and enforces
   clearance rather than independently altering latitude/longitude/altitude.
+  Done for Surface Explorer in #48 — ENU motion, geodetic up, view-ray dolly
+  with terrain clearance (`packages/three/src/controls/surfaceNavigation.ts`).
 - Simplify streaming to an authoritative main terrain camera plus optional
   bounded preload camera. Benchmark rather than retain the 178-degree coverage
   camera by habit.
@@ -114,6 +120,9 @@ answer physical-surface queries.
   policy, not physical accuracy.
 
 ### Debugging, tests, and acceptance
+
+Tooling, debug views and the recorded baseline live in
+[`terrain-validation.md`](terrain-validation.md) (#52).
 
 - Add optional base/residual/source-boundary/coverage/tile-LOD/source/datum and
   seam debug views.

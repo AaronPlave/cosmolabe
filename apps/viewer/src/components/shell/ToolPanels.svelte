@@ -13,7 +13,6 @@
   import BodyDrawer from '../BodyDrawer.svelte';
   import DisplaySettings from '../DisplaySettings.svelte';
   import EventFinder from '../EventFinder.svelte';
-  import MeasureTool from '../MeasureTool.svelte';
   import DebugPanel from '../DebugPanel.svelte';
   import ScriptConsole from '../ScriptConsole.svelte';
 
@@ -44,8 +43,6 @@
     <BodyDrawer onClose={() => closeTool('catalog')} />
   {:else if tool.id === 'events'}
     <EventFinder onClose={() => closeTool('events')} />
-  {:else if tool.id === 'measure'}
-    <MeasureTool onClose={() => closeTool('measure')} />
   {:else if tool.id === 'script'}
     <ScriptConsole onClose={() => closeTool('script')} />
   {:else if tool.id === 'debug'}

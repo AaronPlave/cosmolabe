@@ -62,7 +62,6 @@ export class SurfacePoints {
     const groupColors = options?.groupColors ?? {};
     const pointSize = options?.pointSize ?? 8;
     const showLabels = options?.showLabels ?? true;
-    const labelFont = options?.labelFont ?? '14px sans-serif';
 
     for (const body of bodies) {
       const data = extractSurfaceData(body);

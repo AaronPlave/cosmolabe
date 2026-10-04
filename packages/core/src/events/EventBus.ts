@@ -4,7 +4,7 @@ export type EventHandler<T> = (data: T) => void;
  * Typed event bus for cross-component communication.
  * Core events are typed via TMap; plugins can use onCustom/emitCustom for untyped events.
  */
-export class EventBus<TMap extends {}> {
+export class EventBus<TMap extends object> {
   private handlers = new Map<string, Set<EventHandler<any>>>();
 
   /** Subscribe to a typed event. Returns unsubscribe function. */

@@ -249,10 +249,24 @@ export class SpiceCacheWorker {
    * A source may instead carry the bytes directly, for a kernel that has no URL
    * to fetch — one the user dropped into the viewer. Order is the caller's:
    * furnish order decides kernel precedence, so the list is loaded as given.
+   *
+   * Calling this again *appends*, after everything an earlier call is still
+   * loading. That is what a kernel dropped onto a scene already up needs: the
+   * host furnishes it into its own SPICE and hands it here, and the two sets
+   * stay the same kernels in the same order (#68) without rebuilding a worker
+   * that is holding the scene's trajectory caches. Chained rather than merely
+   * reassigned, because `buildCache` waits on the latest promise, and a bare
+   * reassignment would let it run while the earlier load was still going.
    */
   async loadKernels(sources: KernelSource[]): Promise<void> {
+    const loaded = this.kernelsLoadedPromise;
     // Store the loading promise so buildCache() can await it
-    this.kernelsLoadedPromise = this._loadKernelsSequential(sources);
+    this.kernelsLoadedPromise = (async () => {
+      // Its rejection belongs to whoever asked for that load, not to this one;
+      // what matters here is only that its furnishes finished first.
+      await loaded.catch(() => {});
+      await this._loadKernelsSequential(sources);
+    })();
     return this.kernelsLoadedPromise;
   }
 
@@ -332,11 +346,11 @@ export class SpiceCacheWorker {
 
       const id = `geom_${this.nextId++}`;
       ids.add(id);
-      // `range` is a single position lookup: nothing to report. Without a
+      // `range` and `altitude` are single lookups: nothing to report. Without a
       // progress callback there is nothing to ask for either, and the search
       // stays on CSPICE's simplified wrappers, exactly where it was before any
       // of this.
-      const reported = fn !== 'range' && !!options?.onProgress;
+      const reported = fn !== 'range' && fn !== 'altitude' && !!options?.onProgress;
       if (reported) {
         this.geometryProgress.set(id, (p) => {
           progress = p;
@@ -396,6 +410,9 @@ export class SpiceCacheWorker {
 
         range: async (target: string, abcorr: string, observer: string, et: EtSeconds) =>
           (await call('range', [target, abcorr, observer, et])) as number,
+
+        altitude: async (target: string, abcorr: string, observer: string, et: EtSeconds) =>
+          (await call('altitude', [target, abcorr, observer, et])) as number,
       },
     };
   }

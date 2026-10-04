@@ -185,6 +185,28 @@ function mergeWindows(raw: [number, number][]): HTimeWindow[] {
  */
 export type HCkCoverageOptions = CkCoverageOptions;
 
+/**
+ * The name a kernel fetched from `url` is furnished under.
+ *
+ * The one place that answer is computed, because several layers have to agree
+ * on it and they disagree in ways nothing reports. It is what CSPICE knows the
+ * file by, so it is what `unload` takes and what a coverage query is asked
+ * about; a worker furnishing the same URL under a different spelling holds a
+ * kernel its host cannot name, and a host that unloads the wrong spelling
+ * unloads nothing.
+ *
+ * Query and fragment go first -- a signed or cache-busted URL
+ * (`de440s.bsp?token=...`) is the same kernel as the bare one, and a name
+ * carrying the token would be neither stable nor recognisable. Then the
+ * basename, then `.gz`: the bytes are decompressed on the way in, and CSPICE
+ * identifies a kernel's type from its extension, so a `.gz` left on the name
+ * is a kernel it silently ignores.
+ */
+export function kernelNameFromUrl(url: string): string {
+  const path = url.split(/[?#]/)[0] ?? url;
+  return (path.split('/').pop() || path).replace(/\.gz$/i, '');
+}
+
 /** The SpiceInstance-compatible surface plus the seam beneath it. */
 export interface HeritageSpice {
   /** The frames tier under the adapter, for provenance (the kernel set hash). */
@@ -431,10 +453,7 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
       if (source.type === 'url') {
         const res = await fetch(source.url);
         if (!res.ok) throw new SpiceError(`furnish: fetch of ${source.url} failed (${res.status})`);
-        frames.furnish(
-          source.url.split('/').pop()!.replace(/\.gz$/, ''),
-          new Uint8Array(await res.arrayBuffer()),
-        );
+        frames.furnish(kernelNameFromUrl(source.url), new Uint8Array(await res.arrayBuffer()));
         return;
       }
       throw new SpiceError(

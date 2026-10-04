@@ -863,7 +863,7 @@ function computeL1Elements(satIndex: number, t: number): [number, number, number
 
 function ellipticalToCartesianPosition(
   elements: [number, number, number, number, number, number],
-  mu: number,
+  _mu: number,
 ): [number, number, number] {
   const k = elements[2]; // Re(z) = e * cos(w)
   const h = elements[3]; // Im(z) = e * sin(w)
@@ -887,7 +887,6 @@ function ellipticalToCartesianPosition(
   const cE = Math.cos(E);
   const sE = Math.sin(E);
   const dle = h * cE - k * sE;
-  const rsam1 = -k * cE - h * sE;
 
   const phi = Math.sqrt(1.0 - k * k - h * h);
   const psi = 1.0 / (1.0 + phi);

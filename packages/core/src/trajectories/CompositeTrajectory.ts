@@ -6,6 +6,9 @@ export interface TrajectoryArc {
   endTime: number;
   /** Center body name for this arc (positions are relative to this body) */
   centerName?: string;
+  /** Frame this arc's states are expressed in (a `FrameRegistry` name). Falls
+   *  back to the arc trajectory's own `frame`, then the body's. */
+  frame?: string;
   /** Suppress the trajectory line for this arc while still using its
    *  samples for body positioning. Useful for landed / surface-locked
    *  arcs where the inertial-frame samples trace a body-rotation circle

@@ -58,7 +58,7 @@ describe('narrowing the kernel set against real kernels', () => {
   }, 120_000);
 
   const narrow = (window: KernelWindow): string[] =>
-    kernelsForWindow(KERNELS, (n) => n, coverage, window);
+    kernelsForWindow(KERNELS, coverage, window);
 
   it('reads each file\'s real coverage', () => {
     // Establishes that spkFileCoverage answers at all, and that the two SPKs

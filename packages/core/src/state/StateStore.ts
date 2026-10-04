@@ -4,7 +4,7 @@ export type StateListener<T> = (value: T, prev: T) => void;
  * Shared reactive state for cross-plugin coordination.
  * get/set/watch pattern with change deduplication.
  */
-export class StateStore<S extends {}> {
+export class StateStore<S extends object> {
   private state: S;
   private listeners = new Map<string, Set<StateListener<any>>>();
 

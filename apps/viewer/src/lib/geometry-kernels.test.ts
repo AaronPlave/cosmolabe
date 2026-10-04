@@ -36,9 +36,7 @@ const phase = (n: number): Kernel => ({
 });
 
 const narrow = (kernels: Kernel[], window: KernelWindow, pad?: number): string[] =>
-  kernelsForWindow(kernels, (k) => k.name, (name) =>
-    kernels.find((k) => k.name === name)?.coverage ?? null, window, pad)
-    .map((k) => k.name);
+  kernelsForWindow(kernels, (k) => k.coverage, window, pad).map((k) => k.name);
 
 describe('kernelsForWindow', () => {
   const set = [lsk, pck, phase(0), phase(1), phase(2), phase(3)];

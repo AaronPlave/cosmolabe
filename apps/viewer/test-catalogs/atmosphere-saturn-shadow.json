@@ -1,0 +1,93 @@
+{
+  "name": "Atmosphere validation: Saturn cloud deck and shadows",
+  "defaultTime": "2024-07-04T12:00:00Z",
+  "defaultViewpoint": "Clouds and shadows",
+  "items": [
+    {
+      "name": "Clouds and shadows",
+      "type": "Viewpoint",
+      "eye": [
+        135000,
+        15000,
+        65000
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          100000000,
+          35000000,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Saturn",
+      "class": "planet",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [
+          60268,
+          60268,
+          54364
+        ],
+        "baseMap": "textures/saturn.jpg",
+        "atmosphere": "Saturn"
+      },
+      "items": [
+        {
+          "name": "Saturn Rings",
+          "class": "other",
+          "center": "Saturn",
+          "geometry": {
+            "type": "Rings",
+            "innerRadius": 74660,
+            "outerRadius": 140220,
+            "texture": "textures/saturn-rings.png"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Shadow moon",
+      "class": "moon",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          165000,
+          40000,
+          -12000
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 3500
+      }
+    }
+  ]
+}

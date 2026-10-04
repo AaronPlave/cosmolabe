@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { TERRAIN_DEBUG_MODES, type TerrainDebugMode, type TerrainPerformanceMetrics } from '@cosmolabe/three';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
@@ -19,6 +20,52 @@
   let currentFps = $state(0);
   let currentHeapMB = $state<number | null>(null);
   let terrainDebug = $state(false);
+  let terrainDebugMode = $state<TerrainDebugMode>('none');
+
+  /** One legend line per debug surface mode; the encoding lives in TerrainManager. */
+  const DEBUG_MODE_LEGEND: Record<TerrainDebugMode, string> = {
+    'none': 'Normal rendering',
+    'lod': 'Tile depth: shallow dark → deep bright',
+    'geometric-error': 'Declared tile error: low dark → high bright',
+    'screen-error': 'Screen-space error this frame: low dark → high bright',
+    'cpu-coverage': 'Green: CPU heights decoded · amber: split from parent',
+    'datum-height': 'Mean height vs datum: blue below · red above',
+    'seam-error': 'Edge mismatch vs neighbours: green 0 → red ≥ 5 m · grey: none cached',
+  };
+
+  /**
+   * Terrain numbers for the selected body, or the first body with streamed
+   * terrain when the selection has none (selecting a rover should not blank
+   * the planet's terrain diagnostics). Polled with FPS rather than derived
+   * per frame: the memory estimate walks the loaded tiles.
+   */
+  interface TerrainSnapshot { body: string; metrics: TerrainPerformanceMetrics; source: string | null; state: string; debugMode: TerrainDebugMode; }
+  let terrain = $state<TerrainSnapshot | null>(null);
+
+  function pollTerrain(): void {
+    const r = getRenderer();
+    if (!r) { terrain = null; return; }
+    const names = [vs.selectedBodyName, ...vs.bodies.map((b) => b.name)].filter((n): n is string => !!n);
+    for (const name of names) {
+      const bm = r.getBodyMesh(name);
+      const metrics = bm?.terrainMetrics;
+      if (bm && metrics) {
+        terrain = {
+          body: name, metrics, source: bm.terrainSourceId,
+          state: bm.terrainDiagnostics?.state ?? 'unloaded',
+          debugMode: bm.terrainDebugMode ?? 'none',
+        };
+        // The renderer owns the mode; the panel only mirrors it, so reopening
+        // the panel or reloading a catalog never shows a stale selection.
+        terrainDebugMode = terrain.debugMode;
+        return;
+      }
+    }
+    terrain = null;
+  }
+
+  const mb = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const fixed = (v: number) => v.toFixed(v < 10 ? 2 : 1);
 
   onMount(() => {
     let running = true;
@@ -37,6 +84,7 @@
         lastSample = now;
 
         fpsHistory = [...fpsHistory.slice(-(HISTORY_LEN - 1)), currentFps];
+        pollTerrain();
 
         const perf = performance as any;
         if (perf.memory) {
@@ -62,13 +110,6 @@
     const cam = r.camera;
     const cc = r.cameraController;
     const camDistKm = cam.position.distanceTo(cc.controls.target) / r.scaleFactor;
-    const selectedTerrain = vs.selectedBodyName
-      ? r.getBodyMesh(vs.selectedBodyName)?.terrainDiagnostics
-      : null;
-    const selectedTerrainSource = vs.selectedBodyName
-      ? r.getBodyMesh(vs.selectedBodyName)?.terrainSourceId
-      : null;
-
     return {
       kernels: vs.kernelCount,
       bodies: vs.bodies.length,
@@ -82,8 +123,6 @@
       mode: cc.mode,
       tracked: cc.trackedBody?.body.name ?? '—',
       et: vs.et,
-      terrain: selectedTerrain,
-      terrainSource: selectedTerrainSource,
     };
   });
 
@@ -178,12 +217,18 @@
       <div class="row"><span class="label">ET</span><span class="val">{info.et.toFixed(1)}</span></div>
       <div class="row"><span class="label">Rate</span><span class="val">{vs.rateText}</span></div>
 
-      <div class="ui-section-label mt-3">Terrain</div>
-      {#if info.terrain}
-        <div class="row"><span class="label">Sampler</span><span class="val">{info.terrain.state}</span></div>
-        <div class="row"><span class="label">CPU tiles</span><span class="val">{info.terrain.tileCount}</span></div>
-        <div class="row"><span class="label">Last sample</span><span class="val">{info.terrain.lastSampleMicros.toFixed(1)} us</span></div>
-        <div class="row"><span class="label">Source</span><span class="val max-w-32 truncate" title={info.terrainSource ?? undefined}>{info.terrainSource ?? '—'}</span></div>
+      <div class="ui-section-label mt-3">Terrain{#if terrain}&nbsp;&middot; {terrain.body}{/if}</div>
+      {#if terrain}
+        {@const t = terrain.metrics}
+        <div class="row"><span class="label">Sampler</span><span class="val">{terrain.state}</span></div>
+        <div class="row"><span class="label">Source</span><span class="val max-w-32 truncate" title={terrain.source ?? undefined}>{terrain.source ?? '—'}</span></div>
+        <div class="row" title="active / visible / decoded in the CPU sampler"><span class="label">Tiles</span><span class="val">{t.tiles.active} / {t.tiles.visible} / {t.tiles.cpu}</span></div>
+        <div class="row" title="CPU height query, last / mean. Browser timers are coarse (~0.1 ms) without cross-origin isolation."><span class="label">Sample</span><span class="val">{t.sample.lastMicros.toFixed(1)} / {t.sample.meanMicros.toFixed(1)} us</span></div>
+        <div class="row" title="tiles.update() per frame, mean / max over 120 frames"><span class="label">Update</span><span class="val">{fixed(t.update.meanMs)} / {fixed(t.update.maxMs)} ms</span></div>
+        <div class="row" title="per tile: renderer mesh build / CPU sampler decode"><span class="label">Parse</span><span class="val">{fixed(t.parse.meanMs)} / {fixed(t.cpuDecode.meanMs)} ms</span></div>
+        <div class="row" title="requests issued · queued + downloading + parsing"><span class="label">Requests</span><span class="val">{t.network.requests} &middot; {t.network.queued + t.network.downloading + t.network.parsing} open{#if t.network.failed}&nbsp;&middot; {t.network.failed} failed{/if}</span></div>
+        <div class="row" title="tile LRU cache / its limit"><span class="label">Cache</span><span class="val">{mb(t.memory.cacheBytes)} / {mb(t.memory.maxCacheBytes)}</span></div>
+        <div class="row" title="estimated from loaded tiles: geometry / textures"><span class="label">GPU est.</span><span class="val">{mb(t.memory.geometryBytes)} / {mb(t.memory.textureBytes)}</span></div>
       {:else}
         <div class="row"><span class="label">Sampler</span><span class="val">none</span></div>
       {/if}
@@ -199,6 +244,24 @@
           }}
         />
       </label>
+      <label class="row">
+        <span class="label">Debug view</span>
+        <select
+          class="val m-0 bg-transparent"
+          value={terrainDebugMode}
+          onchange={(e) => {
+            terrainDebugMode = (e.target as HTMLSelectElement).value as TerrainDebugMode;
+            getRenderer()?.setTerrainDebugMode(terrainDebugMode);
+          }}
+        >
+          {#each TERRAIN_DEBUG_MODES as mode}
+            <option value={mode}>{mode}</option>
+          {/each}
+        </select>
+      </label>
+      {#if terrainDebugMode !== 'none'}
+        <div class="label legend">{DEBUG_MODE_LEGEND[terrainDebugMode]}</div>
+      {/if}
     </div>
     </div>
   </InstrumentPanel>
@@ -232,5 +295,10 @@
 
   svg {
     background: transparent;
+  }
+
+  .legend {
+    line-height: 1.35;
+    margin-top: 2px;
   }
 </style>

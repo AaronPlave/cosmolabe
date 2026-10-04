@@ -18,7 +18,7 @@
         "meanAnomaly": 91.96,
         "epoch": "2000-01-01T12:00:00Z"
       },
-      "geometry": { "type": "Mesh", "source": "models/churyumov.obj" },
+      "geometry": { "type": "Mesh", "source": "../models/churyumov.obj" },
       "label": { "color": [0.7, 0.85, 0.95] },
       "trajectoryPlot": { "color": "#88ccdd", "duration": "6.45y", "fade": 0.4, "visible": true }
     }

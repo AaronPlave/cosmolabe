@@ -468,7 +468,7 @@ function ellipticToRectangular(
   dt: number,
 ): number[] {
   const TWO_PI = 2.0 * Math.PI;
-  let L = (elem[1] + n * dt) % TWO_PI;
+  const L = (elem[1] + n * dt) % TWO_PI;
 
   // Solve Kepler's equation by Newton's method:
   //   f(Le) = Le - L - elem[2]*sin(Le) + elem[3]*cos(Le) = 0

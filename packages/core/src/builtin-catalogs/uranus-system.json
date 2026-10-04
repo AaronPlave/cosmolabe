@@ -9,13 +9,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Uranus" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "17.24h",
-        "inclination": 97.77,
-        "ascendingNode": 167.95,
-        "meridianAngle": 203.81
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radii": [25559, 25559, 24973], "baseMap": "textures/uranus.jpg" },
       "label": { "color": [0.6, 0.85, 0.95] },
       "items": [

@@ -10,6 +10,7 @@ import type { InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
+import { windowFollowing } from './scrubber-math';
 
 // ── Exported types ──
 
@@ -109,6 +110,11 @@ export const vs = $state({
   loadingLabel: '',
   loadingDetail: '',
   showLoading: false,
+  /** The catalog the load in flight is for — what the loading screen names. */
+  loadingCatalog: '',
+  /** The catalog whose scene is up, or null with no scene. Committed when the
+   *  scene binds, so a load that fails part-way leaves the previous name. */
+  catalogName: null as string | null,
 
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
@@ -196,7 +202,8 @@ export function highlightBodies(names: readonly string[]) {
   vs.highlightedBodies = next;
 }
 
-export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean }) {
+export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean; catalog?: string }) {
+  if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
   if (opts.progress !== undefined) vs.loadingProgress = opts.progress;
@@ -246,9 +253,14 @@ function emit<K extends keyof ViewerEventMap>(event: K, data: ViewerEventMap[K])
 
 const loadProgress = new LoadProgress();
 
-/** Start a load: shows the bar at zero and fixes the phase weights for it. */
-export function beginLoad(label: string, opts: { kernelBytes?: number } = {}) {
+/**
+ * Start a load: shows the bar at zero and fixes the phase weights for it.
+ * `catalog` names what is being loaded; leaving it out keeps the name the load
+ * already had, for the second call once the kernel byte total is known.
+ */
+export function beginLoad(label: string, opts: { kernelBytes?: number; catalog?: string } = {}) {
   loadProgress.begin(opts);
+  if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   vs.loadingProgress = loadProgress.value;
   vs.loadingLabel = label;
   vs.loadingDetail = '';
@@ -320,10 +332,39 @@ function syncCameraState() {
 
 // ── Renderer binding ──
 
+/**
+ * Canvas-relative boxes of the shell chrome marked `data-scene-occluder`
+ * (floating panels, rail, timeline, view context), so scene annotations are
+ * placed where they can be seen. Cached briefly: it is read every frame while
+ * a callout is up, and chrome moves only on drag or resize.
+ */
+function sceneOccluderRects(canvas: () => HTMLCanvasElement): () => Array<{ x0: number; y0: number; x1: number; y1: number }> {
+  let cached: Array<{ x0: number; y0: number; x1: number; y1: number }> = [];
+  let cachedAt = -Infinity;
+  return () => {
+    const now = performance.now();
+    if (now - cachedAt < 250) return cached;
+    cachedAt = now;
+    const origin = canvas().getBoundingClientRect();
+    cached = [...document.querySelectorAll<HTMLElement>('[data-scene-occluder]')]
+      .map((element) => element.getBoundingClientRect())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+      .map((rect) => ({
+        x0: rect.left - origin.left,
+        y0: rect.top - origin.top,
+        x1: rect.right - origin.left,
+        y1: rect.bottom - origin.top,
+      }));
+    return cached;
+  };
+}
+
 export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   unbindRenderer();
   _renderer = renderer;
   _universe = universe;
+  vs.catalogName = vs.loadingCatalog || null;
+  renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
 
   // Restore persisted display preferences
   const prefs = loadPrefs();
@@ -415,6 +456,13 @@ export function unbindRenderer() {
   // the *next* scene that this one never highlighted.
   _highlightedBodies = [];
   vs.highlightedBodies = [];
+  // With the renderer gone there is no scene, whatever the last one reached —
+  // a load that tears the old scene down and then fails must not hand the
+  // viewer chrome an empty canvas as though it were a finished scene.
+  vs.catalogName = null;
+  vs.sceneLoaded = false;
+  vs.assetsReady = false;
+  vs.assetSummary = null;
 }
 
 export function getRenderer(): UniverseRenderer | null {
@@ -456,10 +504,25 @@ export function slower() {
   syncTimeState();
 }
 
+/**
+ * Jump the playhead to `newEt`. The timeline keeps its zoom — it slides to
+ * bring the new time into view if needed — and is rebuilt only when the new
+ * time falls outside its range altogether.
+ */
 export function setTime(newEt: number) {
   if (!_renderer) return;
   _renderer.timeController.setTime(newEt);
-  initScrubberRange();
+  const next = windowFollowing(
+    newEt,
+    { min: vs.scrubMin, max: vs.scrubMax },
+    { min: vs.scrubBaseMin, max: vs.scrubBaseMax },
+  );
+  if (!next) {
+    initScrubberRange();
+    return;
+  }
+  vs.scrubMin = next.min;
+  vs.scrubMax = next.max;
 }
 
 /**
@@ -501,13 +564,17 @@ export function scrubTo(fraction: number) {
   _renderer.timeController.setTime(newEt);
 }
 
-export function zoomScrubber(zoomIn: boolean) {
+/**
+ * Zoom the timeline window by one step about `anchorEt` — the pointer, when
+ * the gesture has one — or the playhead.
+ */
+export function zoomScrubber(zoomIn: boolean, anchorEt: number = vs.et) {
   const ZOOM_FACTOR = 0.8;
   const MIN_RANGE = 10; // seconds
   const factor = zoomIn ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
 
   // Clamp anchor to the current view so playback drift doesn't blow up the range
-  const anchor = Math.max(vs.scrubMin, Math.min(vs.scrubMax, vs.et));
+  const anchor = Math.max(vs.scrubMin, Math.min(vs.scrubMax, anchorEt));
   let newMin = anchor - (anchor - vs.scrubMin) * factor;
   let newMax = anchor + (vs.scrubMax - anchor) * factor;
 
@@ -539,6 +606,34 @@ export function panScrubber(centerFraction: number) {
 
   vs.scrubMin = newMin;
   vs.scrubMax = newMax;
+}
+
+/**
+ * Show exactly `[min, max]` on the timeline, as far as the base range and the
+ * minimum span allow — the framing presets (fit results, fit an event).
+ */
+export function setScrubberWindow(min: number, max: number) {
+  const MIN_RANGE = 10; // seconds, as zoomScrubber
+  const base = vs.scrubBaseMax - vs.scrubBaseMin;
+  if (!(base > 0) || !Number.isFinite(min) || !Number.isFinite(max)) return;
+  const span = Math.min(base, Math.max(MIN_RANGE, max - min));
+  const center = (min + max) / 2;
+  let lo = center - span / 2;
+  lo = Math.max(vs.scrubBaseMin, Math.min(lo, vs.scrubBaseMax - span));
+  vs.scrubMin = lo;
+  vs.scrubMax = lo + span;
+}
+
+/**
+ * Slide the timeline window by `seconds` (positive = later) without changing
+ * its span, stopping at the base range's edges.
+ */
+export function panScrubberBy(seconds: number) {
+  const span = vs.scrubMax - vs.scrubMin;
+  if (!(span > 0) || !Number.isFinite(seconds)) return;
+  const newMin = Math.max(vs.scrubBaseMin, Math.min(vs.scrubMin + seconds, vs.scrubBaseMax - span));
+  vs.scrubMin = newMin;
+  vs.scrubMax = newMin + span;
 }
 
 /** Set the scrubber to a specific duration (in seconds) centered on current time */

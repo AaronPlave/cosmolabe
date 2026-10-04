@@ -12,7 +12,7 @@ function normalizeBase(raw: string | undefined): string {
   return b;
 }
 
-// CTB-produced quantized-mesh `.terrain` files are gzipped on disk. The clean
+// Self-built quantized-mesh `.terrain` files are gzipped on disk. The clean
 // solution is to serve them with `Content-Encoding: gzip` and let the browser
 // auto-decompress — but Vite's static handler's header sequencing trips up the
 // loader's fetch path in practice (the QuantizedMeshLoader ends up parsing the
@@ -22,20 +22,20 @@ function normalizeBase(raw: string | undefined): string {
 // and stream raw quantized-mesh bytes with no encoding header. Negligible CPU
 // per tile (tiles are 2-50 KB) and removes the browser-decompression variable
 // entirely.
-const TERRAIN_TILE_DIR = path.resolve(__dirname, 'test-catalogs/data/mars-terrain');
-const marsTerrainPlugin = {
-  name: 'mars-terrain-serve-decompressed',
+const TERRAIN_DATA_DIR = path.resolve(__dirname, 'test-catalogs/data');
+const fusedTerrainPlugin = {
+  name: 'fused-terrain-serve-decompressed',
   configureServer(server: any) {
     server.middlewares.use((req: any, res: any, next: any) => {
       const url: string | undefined = req.url;
-      if (!url || !url.includes('/mars-terrain/') || !url.endsWith('.terrain')) {
+      if (!url || !url.includes('-terrain-fused/') || !url.endsWith('.terrain')) {
         return next();
       }
       // Strip query string + base path to derive the on-disk path.
       const cleanUrl = url.split('?')[0];
-      const match = cleanUrl.match(/\/mars-terrain\/(.+\.terrain)$/);
+      const match = cleanUrl.match(/\/((?:mars|moon)-terrain-fused\/\d+\/\d+\/\d+\.terrain)$/);
       if (!match) return next();
-      const filePath = path.join(TERRAIN_TILE_DIR, match[1]);
+      const filePath = path.join(TERRAIN_DATA_DIR, match[1]);
       if (!existsSync(filePath)) {
         res.statusCode = 404;
         res.end();
@@ -58,7 +58,7 @@ const marsTerrainPlugin = {
 
 export default defineConfig({
   base: normalizeBase(process.env.VITE_BASE),
-  plugins: [svelte(), tailwindcss(), marsTerrainPlugin],
+  plugins: [svelte(), tailwindcss(), fusedTerrainPlugin],
   publicDir: 'test-catalogs',
   // The spice-cache relay worker pulls in further chunks (TimeCraftJS asm),
   // so it can't use the default IIFE format which forbids code-splitting.
@@ -76,13 +76,18 @@ export default defineConfig({
     watch: {
       // Follow symlinks so chokidar watches the real package source files
       followSymlinks: true,
-      // Self-hosted Mars terrain has ~700k tile files; watching every one of
+      // Self-hosted Mars and Moon terrain have ~700k–1.2M tile files each; watching every one of
       // them blows past fsevents' per-process file descriptor limit on macOS
       // and stalls the dev server. The tiles are static; HMR isn't useful for
       // them. Same goes for the multi-GB source GeoTIFFs in scripts/.
       ignored: [
+        '**/test-catalogs/data/mars-terrain-fused/**',
+        // Retired pre-#50 pyramid; existing checkouts may still hold its ~700k files.
         '**/test-catalogs/data/mars-terrain/**',
         '**/scripts/build-mars-terrain/data/**',
+        '**/test-catalogs/data/moon-terrain-fused/**',
+        '**/test-catalogs/data/moon-terrain-polar/**',
+        '**/scripts/build-moon-terrain/data/**',
       ],
     },
   },

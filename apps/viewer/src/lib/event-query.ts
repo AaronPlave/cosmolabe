@@ -142,6 +142,7 @@ export function faultMessage(fault: EventSearchFault): string {
   switch (fault.code) {
     case 'missing-body':
     case 'invalid-params':
+    case 'unavailable':
       return fault.message;
     case 'invalid-window':
       return 'Set a search window that ends after it starts.';
@@ -168,7 +169,7 @@ export function formatMetric(metric: EventMetric): string {
   return metric.unit ? `${metric.value.toFixed(digits)} ${metric.unit}` : metric.value.toFixed(digits);
 }
 
-/** Adaptive distance, matching the measure tool's vocabulary. */
+/** Adaptive distance, shared by event metrics and timeline profiles. */
 export function formatKm(km: number): string {
   const abs = Math.abs(km);
   if (abs < 1) return `${(km * 1000).toFixed(1)} m`;
@@ -193,7 +194,8 @@ export function formatSeconds(seconds: number): string {
  *
  * `threshold` is the query's own input, the same on every row, and `duration`
  * already has its own column; neither says anything about this result. What is
- * left is the range at a closest approach, or the extreme range inside a
+ * left is the altitude (or, for a target with no known shape, the range) at a
+ * closest approach, or the extreme range inside a
  * distance window.
  */
 export function headlineMetric(event: GeometryEvent): EventMetric | undefined {
@@ -206,6 +208,120 @@ export function eventSummary(event: GeometryEvent): string {
   if (headline) return `${headline.label} ${formatMetric(headline)}`;
   if (isIntervalEvent(event)) return `Duration ${formatSeconds(eventDuration(event))}`;
   return event.label;
+}
+
+/** Which feature of an event a scene callout annotates. */
+export interface EventCalloutOptions {
+  /** An interval cap, rather than the event as a whole. */
+  boundary?: 'start' | 'end';
+  /** Selected callouts may carry one extra context line. */
+  selected?: boolean;
+  /** `YYYY-MM-DD HH:MM:SS UTC` for an ET; injected so this stays pure. */
+  utc: (et: number) => string;
+}
+
+const STATE_TITLE: Record<string, string> = { full: 'Full', partial: 'Partial', annular: 'Annular' };
+
+/**
+ * The noun phrase a callout leads with — what happened, and to which body.
+ * The observer is usually implied by the active search, so it is left to the
+ * selected callout's context line.
+ */
+export function eventCalloutTitle(event: GeometryEvent): string {
+  const { observer, target, back } = event.bodies;
+  switch (event.kind) {
+    case 'closest-approach':
+      return target ? `Closest approach · ${target}` : 'Closest approach';
+    case 'occultation': {
+      const phenomenon = back?.toUpperCase() === 'SUN' ? 'eclipse' : 'occultation';
+      const state = event.state ? STATE_TITLE[event.state] ?? event.state : '';
+      const title = state ? `${state} ${phenomenon}` : phenomenon;
+      return title.charAt(0).toUpperCase() + title.slice(1);
+    }
+    case 'distance-range': {
+      // The kind's label is "<target> <relation> <distance> of <observer>";
+      // lift the relation phrase out rather than re-deriving the threshold.
+      const prefix = `${target} `;
+      const suffix = ` of ${observer}`;
+      if (target && observer && event.label.startsWith(prefix) && event.label.endsWith(suffix)) {
+        const relation = event.label.slice(prefix.length, event.label.length - suffix.length);
+        return `${relation.charAt(0).toUpperCase()}${relation.slice(1)} · ${target}`;
+      }
+      return event.label;
+    }
+    default:
+      return event.label;
+  }
+}
+
+/**
+ * Callout copy as lines: a short title, then at most two structured detail
+ * lines — an instrument annotation, not a sentence. Detail beyond this lives
+ * in the Event Finder panel.
+ *
+ *   Closest approach · Europa          Full eclipse begins
+ *   303.3K km · 2030-10-29 15:28 UTC   2031-05-27 12:57:36 UTC
+ */
+export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOptions): string[] {
+  const title = eventCalloutTitle(event);
+  const { front, back } = event.bodies;
+  // Instants read to the minute (the row has the second); interval
+  // boundaries keep seconds because short spans are defined by them.
+  const minute = (et: number) => options.utc(et).replace(/:\d\d UTC$/, ' UTC');
+
+  if (options.boundary && isIntervalEvent(event)) {
+    const et = options.boundary === 'start' ? eventStart(event) : eventEnd(event);
+    return [`${title} ${options.boundary === 'start' ? 'begins' : 'ends'}`, options.utc(et)];
+  }
+
+  const headline = headlineMetric(event);
+  // The marker already sits on the observer's trajectory, so naming the
+  // observer again is noise; hover stays two lines, and selection adds a
+  // third only when it says something the scene does not.
+  if (!isIntervalEvent(event)) {
+    return [title, headline ? `${formatMetric(headline)} · ${minute(eventStart(event))}` : minute(eventStart(event))];
+  }
+
+  const duration = `Duration ${formatSeconds(eventDuration(event))}`;
+  const lines = [title, headline ? `${headline.label} ${formatMetric(headline)} · ${duration}` : duration];
+  if (options.selected) {
+    if (event.kind === 'occultation' && front && back) lines.push(`${front} occults ${back}`);
+    else lines.push(utcSpan(eventStart(event), eventEnd(event), options.utc));
+  }
+  return lines;
+}
+
+/**
+ * The selected event's annotation in the 3D scene: what the geometry there
+ * is, and at most one key fact — the headline metric, or an interval's
+ * duration. Deliberately brief: the scene card's job is to say *where* the
+ * event is; time, roles and the rest are the selected-event inspector's,
+ * which is always on screen while something is selected.
+ */
+export function eventSceneAnnotationLines(event: GeometryEvent): string[] {
+  const title = eventCalloutTitle(event);
+  const headline = headlineMetric(event);
+  if (headline) return [title, formatMetric(headline)];
+  if (isIntervalEvent(event)) return [title, formatSeconds(eventDuration(event))];
+  return [title];
+}
+
+/**
+ * "2026-05-13 04:00 → 05-18 08:00 UTC": the end drops whatever it shares with
+ * the start. Spans under ten minutes keep seconds.
+ */
+export function utcSpan(start: number, end: number, utc: (et: number) => string): string {
+  const seconds = end - start < 600;
+  const trim = (text: string) => {
+    const bare = text.replace(/ UTC$/, '');
+    return seconds ? bare : bare.replace(/:\d\d$/, '');
+  };
+  const a = trim(utc(start));
+  let b = trim(utc(end));
+  const [aDate, bDate] = [a.slice(0, 10), b.slice(0, 10)];
+  if (aDate === bDate) b = b.slice(11);
+  else if (aDate.slice(0, 4) === bDate.slice(0, 4)) b = b.slice(5);
+  return `${a} → ${b} UTC`;
 }
 
 /** How a results list is ordered. */
@@ -241,7 +357,7 @@ export function sortEvents(
 
 /**
  * What to call the value-sorted order in the UI, taken from the results
- * themselves — "Range" for closest approaches, "Min range" for distance
+ * themselves — "Altitude" for closest approaches, "Min range" for distance
  * windows — so the control never names a quantity this kind does not report.
  * Undefined when nothing in the list carries a headline metric.
  */
@@ -283,7 +399,18 @@ export function eventContainsTime(event: GeometryEvent, et: number): boolean {
 }
 
 /**
- * The event the playhead is currently traversing.
+ * Every event the playhead is inside. Simultaneous events are normal — two
+ * occultations, an eclipse during a close approach — and each is active in
+ * its own right; none suppresses another for having been found first.
+ */
+export function activeEventsAtTime(events: readonly GeometryEvent[], et: number): GeometryEvent[] {
+  return events.filter((event) => eventContainsTime(event, et));
+}
+
+/**
+ * The one active event to name where only one fits — a one-line readout, or
+ * the scene's single explanatory overlay. Not "the" active event: all of
+ * `activeEventsAtTime` are.
  *
  * An explicit selection wins only when it is one of the active intervals. If
  * several unselected intervals overlap, the shortest is the most specific
@@ -293,14 +420,16 @@ export function eventContainsTime(event: GeometryEvent, et: number): boolean {
 export function activeEventAtTime(
   events: readonly GeometryEvent[],
   et: number,
-  preferredId?: string | null,
+  preferred?: Pick<GeometryEvent, 'id' | 'queryId'> | null,
 ): GeometryEvent | undefined {
-  const active = events.filter((event) => eventContainsTime(event, et));
-  const preferred = active.find((event) => event.id === preferredId);
-  if (preferred) return preferred;
+  const active = activeEventsAtTime(events, et);
+  // Result ids recur across searches: a selection is its id *and* query.
+  const match = preferred && active.find((event) => event.id === preferred.id && event.queryId === preferred.queryId);
+  if (match) return match;
   return active.sort((a, b) =>
     eventDuration(a) - eventDuration(b)
     || compareEvents(a, b)
     || a.id.localeCompare(b.id)
+    || a.queryId.localeCompare(b.queryId)
   )[0];
 }

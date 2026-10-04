@@ -2,3 +2,6 @@
 # Goldens (__goldens__/) and README.md are committed; these are not.
 *-actual.png
 *-diff.png
+
+# Generated transport decomposition captures; reviewed figure lives in docs.
+atmosphere-diagnostics/

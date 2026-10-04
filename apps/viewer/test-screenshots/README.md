@@ -100,6 +100,21 @@ ensure `git lfs pull` has run.
 
 ## Run the check
 
+For the ring-shadow annulus edges alone, a smaller GPU check needs no viewer
+build, textures or SPICE kernels:
+
+```sh
+npm run build
+node scripts/ring-shadow-regression.mjs
+```
+
+It compares the shader against an 8x supersampled binary annulus at three
+projected sizes, pixel ratios 1 and 2, and three Sun angles. It also checks that
+subpixel camera shifts keep the edges close to that reference,
+texture-defined gaps and translucent bands remain unchanged away from the
+annulus edges and that rejected ray intersections stay fully lit. This uses
+the same Playwright Chromium setup above and runs separately from `vitest`.
+
 ```sh
 npm --prefix apps/viewer run test:visual
 ```

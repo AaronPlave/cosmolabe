@@ -5,7 +5,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
-import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
+import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
 import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import { injectShadowIntoShader, makeShadowUniforms, MAX_SHADOW_OCCLUDERS, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -13,7 +13,7 @@ import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUnif
 import { BLOOM_LAYER } from './BloomEffect.js';
 import { isLine, isMesh, isSprite } from './internal/three-typeguards.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
-import { composeBodyToWorldQuat, type Body } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, type Body, type FrameRegistry } from '@cosmolabe/core';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
   star: 0xffdd44,
@@ -148,9 +148,15 @@ export class BodyMesh extends THREE.Object3D {
     });
   }
 
-  constructor(body: Body) {
+  /** The frame registry orientation is composed through: the universe's, so
+   *  a rotation in a declared or SPICE frame orients the mesh exactly as the
+   *  universe positions it. Falls back to the built-in frames when unset. */
+  readonly frames?: FrameRegistry;
+
+  constructor(body: Body, frames?: FrameRegistry) {
     super();
     this.body = body;
+    this.frames = frames;
     this.name = body.name;
 
     this.displayRadius = this.getDisplayRadius();
@@ -412,6 +418,8 @@ export class BodyMesh extends THREE.Object3D {
     if (this.body.classification === 'star' || this.body.geometryData?.emissive === true) return;
     this.aerialPerspectiveEnabled = true;
     this.aerialPerspectiveUniforms = uniforms;
+    // Share live scene-space eclipse and ring inputs with AP sample visibility.
+    Object.assign(uniforms, this.shadowUniforms, this.ringShadowUniforms);
 
     const mat = this.mesh.material as THREE.Material & {
       onBeforeCompile?: (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }, renderer: unknown) => void;
@@ -422,11 +430,14 @@ export class BodyMesh extends THREE.Object3D {
     const prevOBC = mat.onBeforeCompile?.bind(mat);
     mat.onBeforeCompile = (shader, renderer) => {
       prevOBC?.(shader, renderer);
-      injectAerialPerspectiveIntoShader(shader, uniforms as unknown as Record<string, { value: unknown }>);
+      injectAerialPerspectiveIntoShader(
+        shader, uniforms as unknown as Record<string, { value: unknown }>,
+        !this.body.geometryData?.displacementMap,
+      );
     };
     // Bump cache key so the program is recompiled with both injections combined.
     const prevKey = (mat.customProgramCacheKey ?? (() => ''))();
-    mat.customProgramCacheKey = () => prevKey + '_ap_v1';
+    mat.customProgramCacheKey = () => prevKey + '_ap_v3';
     mat.needsUpdate = true;
 
     // Forward to terrain tiles if already initialized (or queued for future tiles).
@@ -482,8 +493,7 @@ export class BodyMesh extends THREE.Object3D {
    *
    * @param opts.shadow Inject eclipse-shadow occlusion. Default true.
    * @param opts.aerialPerspective Inject atmospheric scattering / extinction
-   *        (only meaningful for low-altitude surface viewing — cosmolabe
-   *        zeros the strength at orbital distance). Default true.
+   *        (integrated over the atmospheric portion of the view ray). Default true.
    *
    * Skips silently when this body has neither effect active (stars, emissive
    * bodies, bodies with no atmosphere). Safe to call once per material.
@@ -722,7 +732,7 @@ export class BodyMesh extends THREE.Object3D {
         // obliquity for EquatorJ2000-sourced rotations like Earth's; identity
         // for ECLIPJ2000 / SPICE-named frames). Returns [w,x,y,z]; THREE
         // stores [x,y,z,w].
-        const bw = composeBodyToWorldQuat(q, rotation.sourceFrame);
+        const bw = composeBodyToWorldQuat(q, rotation.sourceFrame, undefined, et, this.frames);
         const bodyToWorld = _tmpQ.set(bw[1], bw[2], bw[3], bw[0]);
         // Compose: (body → world) * (model → body) = model → world
         target.quaternion.multiplyQuaternions(bodyToWorld, this.meshRotationQ);
@@ -816,7 +826,9 @@ export class BodyMesh extends THREE.Object3D {
     // Log meshes sorted by vertex count
     // console.log(`[Cosmolabe] Model meshes (${meshInfos.length} total, ${allVertices.length} verts):`);
     for (const m of meshInfos.sort((a, b) => b.vertexCount - a.vertexCount).slice(0, 15)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- read by the commented-out diagnostic log
       const c = m.center;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- read by the commented-out diagnostic log
       const n = m.avgNormal;
       // console.log(`  "${m.name}": ${m.vertexCount} verts, center=(${c.x.toFixed(2)},${c.y.toFixed(2)},${c.z.toFixed(2)}), normal=(${n.x.toFixed(3)},${n.y.toFixed(3)},${n.z.toFixed(3)}), coherence=${m.coherence.toFixed(3)}`);
     }
@@ -879,6 +891,7 @@ export class BodyMesh extends THREE.Object3D {
       const bodyFrame = new THREE.Matrix4().makeBasis(bA, bB, bC);
       const rotation = bodyFrame.clone().multiply(modelFrame.clone().invert());
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- read by the commented-out diagnostic log
       const q = new THREE.Quaternion().setFromRotationMatrix(rotation);
       // console.log(`[Cosmolabe] Computed meshRotation [w,x,y,z]: [${q.w.toFixed(4)}, ${q.x.toFixed(4)}, ${q.y.toFixed(4)}, ${q.z.toFixed(4)}]`);
     } else {
@@ -918,6 +931,21 @@ export class BodyMesh extends THREE.Object3D {
   /** Toggle debug tile bounds on terrain */
   setTerrainDebug(show: boolean): void {
     this.terrainManager?.setDebug(show);
+  }
+
+  /** Color terrain tiles by a diagnostic quantity; `'none'` restores normal rendering. */
+  setTerrainDebugMode(mode: TerrainDebugMode): void {
+    this.terrainManager?.setDebugMode(mode);
+  }
+
+  /** Active terrain debug surface mode, or null when this body has no streamed terrain. */
+  get terrainDebugMode(): TerrainDebugMode | null {
+    return this.terrainManager?.debugSurfaceMode ?? null;
+  }
+
+  /** Terrain cost/load snapshot, or null when this body has no streamed terrain. */
+  get terrainMetrics(): TerrainPerformanceMetrics | null {
+    return this.terrainManager?.metrics ?? null;
   }
 
   /** Sample decoded CPU terrain. Null is the explicit unloaded-data fallback. */
