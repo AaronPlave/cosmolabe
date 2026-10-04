@@ -9,7 +9,8 @@
  * dataset with a published `build` are rewritten; NASA imagery and other
  * external URLs are untouched. Without --base-url it uses $DATA_BASE_URL.
  * Fails if a catalog references a dataset with no published build, unless
- * --allow-unpublished (those references then stay local and will 404 when deployed).
+ * --allow-unpublished <dataset-id> (repeatable, or `all`): those references then stay
+ * local and will 404 when deployed.
  * Writes <dist>/hosted-data.json, which scripts/verify-hosted-data.mjs reads.
  */
 import { resolve } from 'node:path';
@@ -21,7 +22,7 @@ const { values: opt } = parseArgs({
   options: {
     dist: { type: 'string', default: 'apps/viewer/dist' },
     'base-url': { type: 'string' },
-    'allow-unpublished': { type: 'boolean', default: false },
+    'allow-unpublished': { type: 'string', multiple: true },
   },
 });
 
@@ -35,7 +36,9 @@ try {
     dist: resolve(ROOT, opt.dist),
     baseUrl,
     datasets: loadDatasets().datasets,
-    strict: !opt['allow-unpublished'],
+    // `--allow-unpublished all` waives the check entirely; otherwise name dataset ids.
+    strict: !opt['allow-unpublished']?.includes('all'),
+    allow: opt['allow-unpublished'] ?? [],
   });
   console.log(`Hosted data base: ${record.baseUrl}`);
   for (const [id, d] of Object.entries(record.datasets)) console.log(`  ${id} → ${d.prefix}`);

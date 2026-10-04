@@ -78,9 +78,10 @@ async function* jsonFiles(dir, rel = '') {
 /**
  * Rewrite every catalog under `dist`, prune managed data from it, and write
  * `hosted-data.json` describing what the deployment depends on.
- * With `strict`, any reference to an unpublished managed dataset is an error.
+ * With `strict`, any reference to an unpublished managed dataset is an error, except
+ * for dataset ids listed in `allow` (their references stay local).
  */
-export async function buildHostedCatalogs({ dist, baseUrl, datasets, strict = true, log = console.log }) {
+export async function buildHostedCatalogs({ dist, baseUrl, datasets, strict = true, allow = [], log = console.log }) {
   if (!/^https?:\/\//.test(baseUrl)) throw new Error(`data base URL must be absolute http(s), got ${JSON.stringify(baseUrl)}`);
   const unpublished = new Set();
   const used = new Set();
@@ -97,8 +98,9 @@ export async function buildHostedCatalogs({ dist, baseUrl, datasets, strict = tr
     if (r.changed) pending.push({ file: rel, abs, json: r.json, references: r.changed });
   }
   // Decide before touching dist, so a refused run leaves it as it found it.
-  if (strict && unpublished.size) {
-    throw new Error(`catalogs reference datasets with no published build: ${[...unpublished].join(', ')}. Publish them (scripts/publish-data.mjs) or pass --allow-unpublished.`);
+  const blocking = [...unpublished].filter((id) => !allow.includes(id));
+  if (strict && blocking.length) {
+    throw new Error(`catalogs reference datasets with no published build: ${blocking.join(', ')}. Publish them (scripts/publish-data.mjs) or pass --allow-unpublished <dataset-id>.`);
   }
   const rewritten = [];
   for (const p of pending) {

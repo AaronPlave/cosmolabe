@@ -363,7 +363,8 @@ describe('hosted catalog rewriting', () => {
     const before = readFileSync(join(dist, 'p.json'), 'utf8');
     await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: hosted, strict: true, log: quiet })).rejects.toThrow(/kernels\/psyche/);
     expect(readFileSync(join(dist, 'p.json'), 'utf8')).toBe(before);
-    await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: hosted, strict: false, log: quiet })).resolves.toBeTruthy();
+    await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: hosted, strict: true, allow: ['kernels/other'], log: quiet })).rejects.toThrow(/kernels\/psyche/);
+    await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: hosted, strict: true, allow: ['kernels/psyche'], log: quiet })).resolves.toBeTruthy();
   });
 });
 

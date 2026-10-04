@@ -95,11 +95,15 @@ jobs:
       - name: Point catalogs at the data host
         # Rewrites only the datasets pinned in scripts/data-hosting/datasets.json
         # and removes them from dist/. Fails if a catalog still references a
-        # dataset that has no published build.
+        # dataset that has no published build — except the Mars terrain, which
+        # is not published yet (its catalog path stays local, as before this
+        # change). Delete the --allow-unpublished flag once it is pinned.
         if: ${{ vars.DATA_BASE_URL != '' }}
         env:
           DATA_BASE_URL: ${{ vars.DATA_BASE_URL }}
-        run: node scripts/build-hosted-catalogs.mjs --dist apps/viewer/dist
+        run: >
+          node scripts/build-hosted-catalogs.mjs --dist apps/viewer/dist
+          --allow-unpublished terrain/mars-terrain-fused
 
       - name: Verify hosted data
         # Fetches the manifests, sample terrain tiles and every kernel the
