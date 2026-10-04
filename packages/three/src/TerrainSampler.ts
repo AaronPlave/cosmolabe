@@ -11,7 +11,9 @@ export interface TerrainDatum {
 
 export interface TerrainSourceMetadata {
   id: string;
-  kind: 'quantized-mesh' | 'height-grid' | 'imagery' | 'unknown';
+  kind: 'quantized-mesh' | 'height-grid' | 'triangle-mesh' | 'imagery' | 'unknown';
+  /** Immutable product revision/checksum; absence means version is unknown. */
+  version?: string;
   url?: string;
   uncertaintyKm?: number;
 }
