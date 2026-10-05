@@ -14,6 +14,7 @@
   import DisplaySettings from '../DisplaySettings.svelte';
   import EventFinder from '../EventFinder.svelte';
   import DebugPanel from '../DebugPanel.svelte';
+  import ScriptConsole from '../ScriptConsole.svelte';
 
   interface Props {
     /** `all` is the compact case, where the shell picks one sheet instead. */
@@ -42,6 +43,8 @@
     <BodyDrawer onClose={() => closeTool('catalog')} />
   {:else if tool.id === 'events'}
     <EventFinder onClose={() => closeTool('events')} />
+  {:else if tool.id === 'script'}
+    <ScriptConsole onClose={() => closeTool('script')} />
   {:else if tool.id === 'debug'}
     <DebugPanel onClose={() => closeTool('debug')} />
   {:else if tool.id === 'display'}

@@ -275,9 +275,38 @@ export interface ParseOptions {
   readonly forbid?: readonly string[];
 }
 
+/** The part of `AbortSignal` that `execute` uses. */
+export interface ScriptCancelSignal {
+  readonly aborted: boolean;
+  addEventListener(type: 'abort', listener: () => void): void;
+  removeEventListener(type: 'abort', listener: () => void): void;
+}
+
 export interface ExecuteOptions {
+  /**
+   * Awaited before each statement, after the cancellation check and before
+   * `onStatement`: a gate. Resolving lets the statement run; a promise that
+   * has not resolved yet holds the run between statements. That is what a
+   * console's Pause and Step are, and it is why pausing means "after the
+   * current statement" — nothing in flight is frozen.
+   *
+   * Aborting `signal` while the gate is held ends the run at once, so Stop
+   * works on a paused script.
+   */
+  beforeStatement?(statement: Statement): void | Promise<void>;
   /** Called before each statement runs — the console's streaming transcript. */
   onStatement?(statement: Statement): void;
+  /**
+   * Cancels the run. Checked before each statement, and it also interrupts
+   * the statement in flight: `execute` stops awaiting it the moment the signal
+   * fires, so a `wait 3600` does not hold a cancelled run — and a recording it
+   * started — open for an hour. The host's call is abandoned rather than
+   * undone; for `wait`, that is a timer nobody is listening to any more.
+   *
+   * Structural rather than `AbortSignal` so this package keeps no DOM types —
+   * an `AbortSignal` satisfies it.
+   */
+  signal?: ScriptCancelSignal;
 }
 
 export interface ExecutionReport {

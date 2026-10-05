@@ -44,6 +44,11 @@ export interface CatalogEntry {
   group?: string;
   /** Listed on the home screen's short "start with" list. */
   featured?: boolean;
+  /**
+   * Absolute URL of a viewer script (#14) the console runs once the catalog
+   * has loaded — a scripted tour. Resolved against the index URL like `catalog`.
+   */
+  scriptUrl?: string;
 }
 
 /** A validated index. */
@@ -155,6 +160,15 @@ export function parseCatalogIndex(json: unknown, indexUrl: string): { index: Cat
     if (isNonEmptyString(e.description)) entry.description = e.description;
     if (isNonEmptyString(e.group)) entry.group = e.group;
     if (e.featured === true) entry.featured = true;
+    if (e.script !== undefined) {
+      // A bad script URL costs the tour, not the catalog it tours.
+      try {
+        if (!isNonEmptyString(e.script)) throw new Error();
+        entry.scriptUrl = new URL(e.script, indexUrl).href;
+      } catch {
+        warnings.push(`Entry "${e.id}" has an invalid script URL; listed without its script`);
+      }
+    }
     catalogs.push(entry);
   });
 

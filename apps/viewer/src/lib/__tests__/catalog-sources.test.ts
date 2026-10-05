@@ -88,6 +88,26 @@ describe('parseCatalogIndex', () => {
     expect(index.catalogs.map((e) => e.featured)).toEqual([true, undefined, undefined]);
   });
 
+  it('resolves a script URL against the index URL, and drops only the script when it is bad', () => {
+    const { index, warnings } = parseCatalogIndex(
+      {
+        version: 1,
+        catalogs: [
+          { id: 'tour', catalog: 'a.json', script: './tour.cosmo' },
+          { id: 'bad', catalog: 'b.json', script: 42 },
+          { id: 'plain', catalog: 'c.json' },
+        ],
+      },
+      indexUrl,
+    );
+    expect(index.catalogs.map((e) => [e.id, e.scriptUrl])).toEqual([
+      ['tour', 'https://data.example/mission/catalogs/tour.cosmo'],
+      ['bad', undefined],
+      ['plain', undefined],
+    ]);
+    expect(warnings).toEqual(['Entry "bad" has an invalid script URL; listed without its script']);
+  });
+
   it('resolves catalog URLs against the index URL', () => {
     const { index, warnings } = parseCatalogIndex(
       {

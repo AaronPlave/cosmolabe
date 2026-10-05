@@ -134,6 +134,7 @@
           sources={catalogs.sources}
           configErrors={catalogs.configErrors}
           currentUrl={currentName ? catalogs.currentUrl : null}
+          currentScriptUrl={catalogs.currentScriptUrl}
           onSelect={select}
         />
       </div>

@@ -11,6 +11,7 @@
    * marked quietly, because the browser's header already names it.
    */
   import { groupEntries, type CatalogEntry, type CatalogSourceState } from '../lib/catalog-sources';
+  import { isCurrentEntry } from '../lib/catalog-nav';
 
   interface Props {
     sources: CatalogSourceState[];
@@ -18,9 +19,11 @@
     onSelect: (sourceId: string, entry: CatalogEntry) => void;
     /** Catalog URL of the scene that is up, marked rather than hidden. */
     currentUrl?: string | null;
+    /** Script URL of the scripted entry that is up, if it was one. */
+    currentScriptUrl?: string | null;
   }
 
-  let { sources, configErrors = [], onSelect, currentUrl = null }: Props = $props();
+  let { sources, configErrors = [], onSelect, currentUrl = null, currentScriptUrl = null }: Props = $props();
 
   // A single source is the whole list, so its name would only restate the
   // browser's header; with several, each one's catalogs sit under its name.
@@ -58,7 +61,7 @@
                   <li>
                     <button
                       class="row"
-                      aria-current={entry.catalogUrl === currentUrl ? 'true' : undefined}
+                      aria-current={isCurrentEntry(entry, currentUrl, currentScriptUrl) ? 'true' : undefined}
                       onclick={() => onSelect(state.source.id, entry)}
                     >
                       <span class="row-name">{entry.name}</span>

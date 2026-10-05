@@ -113,6 +113,19 @@ export class BodyMesh extends THREE.Object3D {
    */
   readonly ellipsoidRatios: [number, number, number] = [1, 1, 1];
 
+  /**
+   * The body-fixed frame as rendered: the rotation taking body-fixed axes
+   * (SPICE convention — Z the pole, X the prime meridian) to world axes.
+   *
+   * Read from the mesh rather than recomputed from the rotation model, so it is
+   * right in both cases a camera can meet: a body with a rotation model, and
+   * one without, whose globe keeps the geometry's own pole (world +Y).
+   */
+  bodyToWorldQuaternion(out: THREE.Quaternion): THREE.Quaternion {
+    const rendered = (this.modelContainer ?? this.mesh).quaternion;
+    return out.copy(this.meshRotationQ).invert().premultiply(rendered);
+  }
+
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
   get hasShadowReceiving(): boolean { return this.shadowEnabled; }

@@ -20,10 +20,11 @@
   import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import { startHero, stopHero } from './lib/hero';
+  import { queueScript, fetchScript } from './lib/script-demo.svelte';
   import type { CatalogEntry } from './lib/catalog-sources';
   import { catalogs, initCatalogSources, sourceSettled, syncSourceParams } from './lib/catalogs.svelte';
   import {
-    catalogLocation, findEntry, requestedCatalog, withCatalogLocation, allEntries,
+    catalogLocation, findEntry, isCurrentEntry, requestedCatalog, withCatalogLocation, allEntries,
     type CatalogLocation, type SourcedEntry,
   } from './lib/catalog-nav';
 
@@ -47,8 +48,9 @@
   // — at startup, or when a source is added later — and then by its entry.
   $effect(() => {
     const url = catalogs.currentUrl;
+    const script = catalogs.currentScriptUrl;
     if (!url || !vs.catalogName) return;
-    const listed = allEntries(catalogs.sources).find((e) => e.entry.catalogUrl === url);
+    const listed = allEntries(catalogs.sources).find((e) => isCurrentEntry(e.entry, url, script));
     if (listed && listed.entry.name !== vs.catalogName) vs.catalogName = listed.entry.name;
   });
 
@@ -216,7 +218,13 @@
     // marks it handled, so the Escape does not go on to dismiss a panel too.
     if (shell.catalogBrowserOpen || e.defaultPrevented) return;
 
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    // Text entry of any kind, contenteditable included — the script editor is
+    // one, and a bare `t` typed into it must not toggle trajectories.
+    if (
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement ||
+      (e.target instanceof HTMLElement && e.target.isContentEditable)
+    ) return;
 
     // An open popover or menu handles its own Escape (it closes); that same
     // press must not also clear a selection or dismiss a panel behind it.
@@ -361,11 +369,22 @@
   }
 
   function loadEntry(item: SourcedEntry, push = true) {
+    const { scriptUrl } = item.entry;
+    // A scripted entry's script is fetched first — it is a few kilobytes — so
+    // one that cannot be had fails the load before the scene is touched, and
+    // is queued only once the scene it drives is up, never for whatever loads
+    // next. The console picks it up when it mounts over the new scene.
+    let script: string | null = null;
     void runLoad(
-      () => loadCatalogUrl(canvas, item.entry.catalogUrl, item.entry.name),
+      async () => {
+        if (scriptUrl) script = await fetchScript(scriptUrl);
+        await loadCatalogUrl(canvas, item.entry.catalogUrl, item.entry.name);
+      },
       (navigatedAway) => {
         catalogs.currentUrl = item.entry.catalogUrl;
+        catalogs.currentScriptUrl = scriptUrl ?? null;
         if (push && !navigatedAway) pushLocation(catalogLocation(item, location.href));
+        if (script != null && !navigatedAway) queueScript(script);
       },
     );
   }
@@ -381,9 +400,10 @@
    */
   function loadNamed(name: string) {
     const url = demoCatalogUrl(name);
-    const listed = allEntries(catalogs.sources).find((e) => e.entry.catalogUrl === url);
+    const listed = allEntries(catalogs.sources).find((e) => isCurrentEntry(e.entry, url, null));
     void runLoad(() => loadDemo(canvas, name, listed?.entry.name ?? name), () => {
       catalogs.currentUrl = url;
+      catalogs.currentScriptUrl = null;
     });
   }
 
@@ -398,6 +418,7 @@
     void runLoad(load, (navigatedAway) => {
       if (getCurrentRenderer() === before) return;
       catalogs.currentUrl = null;
+      catalogs.currentScriptUrl = null;
       if (!navigatedAway) pushLocation(null);
     });
   }
@@ -424,7 +445,8 @@
     const req = requestedCatalog(location.search);
     if (!req) return;
     if ('catalog' in req) {
-      if (demoCatalogUrl(req.catalog) !== catalogs.currentUrl) loadNamed(req.catalog);
+      const url = demoCatalogUrl(req.catalog);
+      if (!isCurrentEntry({ catalogUrl: url }, catalogs.currentUrl, catalogs.currentScriptUrl)) loadNamed(req.catalog);
     } else {
       openEntryParam(req.entry);
     }
@@ -445,7 +467,7 @@
         catalogs.loadError = `No catalog "${param}" in this viewer's catalog sources.`;
         return;
       }
-      if (item.entry.catalogUrl === catalogs.currentUrl) return;
+      if (isCurrentEntry(item.entry, catalogs.currentUrl, catalogs.currentScriptUrl)) return;
       if (loadInFlight || vs.showLoading) navPending = true;
       else loadEntry(item, false);
     });

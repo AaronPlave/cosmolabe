@@ -50,6 +50,7 @@ textures and kernels resolve against the catalog file itself, not the index
 | `catalogs[].description` | no | One-line description shown under the name. |
 | `catalogs[].group` | no | Heading to list the entry under. Groups appear in the order they first occur. |
 | `catalogs[].featured` | no | `true` lists the entry in the home screen's short "start with" list. With no featured entries in any source, the home screen lists the first few entries instead. |
+| `catalogs[].script` | no | URL of a [viewer script](scripting.md) the script console opens and runs once the catalog has loaded — a scripted tour. Resolves like `catalog`. An invalid URL drops the script, not the entry. |
 
 If the index as a whole is invalid (not an object, missing or unsupported
 `version`, no `catalogs` array), that source reports an error. A single bad
