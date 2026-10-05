@@ -36,8 +36,8 @@ export function buildTransmittanceLUT(
       ${ATMOSPHERE_PROFILES_GLSL}
 
       void main() {
-        float mu = vUv.x * 2.0 - 1.0;
-        float radius = mix(uAtmPlanetR, uAtmShellR, vUv.y);
+        float radius = mix(uAtmPlanetR, uAtmShellR, vUv.y * vUv.y);
+        float mu = atmSunMuFromU(vUv.x, radius);
         vec3 point = vec3(0.0, radius, 0.0);
         vec3 sunDir = vec3(sqrt(max(0.0, 1.0 - mu * mu)), mu, 0.0);
         if (atmSunBlocked(point, sunDir)) {

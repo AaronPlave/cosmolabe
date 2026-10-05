@@ -4,6 +4,7 @@ import { MAX_SHADOW_OCCLUDERS } from './EclipseShadow.js';
 import { normalizeAtmosphere, type AtmosphereModel } from './AtmosphereModel.js';
 import { ATMOSPHERE_PROFILES_GLSL, makeAtmosphereProfileUniforms } from './AtmosphereProfiles.js';
 import { buildTransmittanceLUT } from './TransmittanceLUT.js';
+import { SkyViewLUT, SKY_VIEW_BASIS_GLSL } from './SkyViewLUT.js';
 
 /**
  * Atmosphere scattering parameters for a body.
@@ -285,6 +286,27 @@ void main() {
 }
 `;
 
+// With a SkyView LUT, vertices only supply proxy positions. The view integral
+// runs once per LUT texel rather than once per vertex on every shell draw.
+const skyViewVertexShader = /* glsl */ `
+#include <common>
+#include <logdepthbuf_pars_vertex>
+varying vec3 vColor;
+varying float vAlpha;
+varying float vCosTheta;
+varying float vDiscAtm;
+varying vec3 vObjPos;
+void main() {
+  vObjPos = position;
+  vColor = vec3(0.0);
+  vAlpha = 1.0;
+  vCosTheta = 0.0;
+  vDiscAtm = 0.0;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  #include <logdepthbuf_vertex>
+}
+`;
+
 const atmosphereFragmentShader = /* glsl */ `
 precision highp float;
 #include <logdepthbuf_pars_fragment>
@@ -297,6 +319,8 @@ uniform mat4 invModelMat;
 uniform vec3 lightDir;
 uniform vec3 lightColor;
 uniform sampler2D uMultiScatterLUT;
+uniform sampler2D uSkyViewLUT;
+uniform bool uHasSkyViewLUT;
 
 uniform vec3  uSunWorldPos;
 uniform float uSunRadius;
@@ -307,6 +331,7 @@ uniform vec3  uPlanetWorldPos;
 uniform float uShellSceneScale;
 uniform mat4 uAtmModelToWorld;
 ${ATMOSPHERE_PROFILES_GLSL}
+${SKY_VIEW_BASIS_GLSL}
 
 /** 1.0 when camera is inside the atm shell (use cheap per-vertex), 0.0 when
  *  outside (do per-fragment ray-march so the silhouette is crisp). Per-vertex
@@ -349,6 +374,23 @@ void main() {
 
   // Cheap path: camera inside the shell. Use the per-vertex result.
   if (uCameraInsideShell > 0.5) {
+    if (uHasSkyViewLUT) {
+      vec3 eye = (invModelMat * vec4(cameraPosition, 1.0)).xyz;
+      vec3 viewDir = normalize(normalize(vObjPos) * 1.15 - eye);
+      vec3 up, towardSun, side;
+      skyBasis(eye, lightDir, up, towardSun, side);
+      float theta = acos(clamp(dot(viewDir, up), -1.0, 1.0));
+      vec3 horizontal = viewDir - up * dot(viewDir, up);
+      float azimuth = length(horizontal) < 1e-6 ? 0.0 :
+        atan(dot(horizontal, side), dot(horizontal, towardSun));
+      float capR = max(0.0, planetR - planetCapBias);
+      gl_FragColor = texture2D(uSkyViewLUT, vec2(
+        (azimuth + 3.14159265358979) / (2.0 * 3.14159265358979),
+        skyVFromTheta(theta, skyHorizonTheta(eye, capR))));
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+      return;
+    }
     if (vDiscAtm < 0.0) {
       gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
       return;
@@ -472,20 +514,14 @@ export class AtmosphereMesh extends THREE.Mesh {
   private readonly _invModelMatrix = new THREE.Matrix4();
   private readonly _lightLocal = new THREE.Vector3();
   private readonly _camLocal = new THREE.Vector3();
+  private readonly _renderer: THREE.WebGLRenderer | undefined;
+  private _skyView: SkyViewLUT | null = null;
 
   constructor(planetRadius: number, params: AtmosphereParams, renderer?: THREE.WebGLRenderer) {
     const model = normalizeAtmosphere(params);
     const shellRadius = planetRadius + model.heightKm;
 
-    // High tessellation: per-vertex inscatter is interpolated across triangle
-    // edges; the inscatter function is highly non-linear in view direction
-    // (especially near the planet silhouette where path length jumps), so we
-    // need many segments to keep interpolation triangles below the human-
-    // visible angular threshold. 1024×512 gives ~0.35°/segment at the equator.
-    // Total vertices ~525K — vertex-shader cost ~4M ray-march iterations per
-    // frame, still well below the per-fragment cost over a screen-covering
-    // proxy (which would be ~16M for a 2M-pixel proxy at 8 samples).
-    const geometry = new THREE.SphereGeometry(1.15, 1024, 512);
+    const geometry = new THREE.SphereGeometry(1.15, renderer ? 256 : 1024, renderer ? 128 : 512);
     const material = new THREE.ShaderMaterial({
       uniforms: {
         ...makeAtmosphereProfileUniforms(model, shellRadius, planetRadius / shellRadius, 1, null),
@@ -496,6 +532,8 @@ export class AtmosphereMesh extends THREE.Mesh {
         lightDir:       { value: new THREE.Vector3(1, 0, 0) },
         lightColor:     { value: new THREE.Vector3(1, 1, 1) },
         uMultiScatterLUT: { value: null as THREE.Texture | null },
+        uSkyViewLUT: { value: null as THREE.Texture | null },
+        uHasSkyViewLUT: { value: false },
         uCameraInsideShell:    { value: 0.0 },
         uSunWorldPos:          { value: new THREE.Vector3() },
         uSunRadius:            { value: 0 },
@@ -506,7 +544,7 @@ export class AtmosphereMesh extends THREE.Mesh {
         uShellSceneScale:      { value: 1.0 },
         uAtmModelToWorld:      { value: new THREE.Matrix4() },
       },
-      vertexShader: atmosphereVertexShader,
+      vertexShader: renderer ? skyViewVertexShader : atmosphereVertexShader,
       fragmentShader: atmosphereFragmentShader,
       transparent: true,
       depthWrite: false,
@@ -526,6 +564,7 @@ export class AtmosphereMesh extends THREE.Mesh {
     this.shellRadius = shellRadius;
     this.params = params;
     this.model = model;
+    this._renderer = renderer;
     this.frustumCulled = false;
     // Render BEFORE trajectory lines (renderOrder -1) so trajectories paint
     // on top of the limb glow. The custom blend equation here is
@@ -555,6 +594,9 @@ export class AtmosphereMesh extends THREE.Mesh {
       (this.material as THREE.ShaderMaterial).uniforms.uAtmHasTransmittanceLUT.value = true;
       this._lutTexture = buildMultiScatterLUT(renderer, model, planetRadius, shellRadius, this._transmittanceTarget.texture);
       (this.material as THREE.ShaderMaterial).uniforms.uMultiScatterLUT.value = this._lutTexture;
+      this._skyView = new SkyViewLUT((this.material as THREE.ShaderMaterial).uniforms);
+      (this.material as THREE.ShaderMaterial).uniforms.uSkyViewLUT.value = this._skyView.target.texture;
+      (this.material as THREE.ShaderMaterial).uniforms.uHasSkyViewLUT.value = true;
     }
   }
 
@@ -617,6 +659,9 @@ export class AtmosphereMesh extends THREE.Mesh {
     } else {
       u.uShadowOccluderCount.value = 0;
     }
+    if (camObjR < 1.0 && this._renderer && this._skyView) {
+      this._skyView.update(this._renderer, this._camLocal);
+    }
   }
 
   /**
@@ -658,6 +703,7 @@ export class AtmosphereMesh extends THREE.Mesh {
     (this.material as THREE.Material).dispose();
     this._lutTexture?.dispose();
     this._transmittanceTarget?.dispose();
+    this._skyView?.dispose();
   }
 
   private setAtmosphereUniforms(planetRadius: number, shellRadius: number): void {
