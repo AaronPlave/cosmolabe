@@ -78,13 +78,7 @@
       "center": "Sun",
       "trajectoryFrame": "J2000",
       "trajectory": { "type": "Builtin", "name": "Jupiter" },
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "9.925h",
-        "inclination": 3.13,
-        "ascendingNode": 99.36,
-        "meridianAngle": 284.95
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": {
         "type": "Globe",
         "radii": [71492, 71492, 66854],
@@ -99,13 +93,7 @@
           "center": "Jupiter",
           "trajectoryFrame": "J2000",
           "trajectory": { "type": "Builtin", "name": "Io" },
-          "rotationModel": {
-            "type": "Uniform",
-            "period": "1.769d",
-            "inclination": 0.04,
-            "ascendingNode": 0.0,
-            "meridianAngle": 200.39
-          },
+          "rotationModel": { "type": "Builtin" },
           "geometry": { "type": "Globe", "radius": 1821.6, "baseMap": "textures/io.dds" },
           "label": { "color": [0.95, 0.85, 0.4] }
         },
@@ -115,13 +103,7 @@
           "center": "Jupiter",
           "trajectoryFrame": "J2000",
           "trajectory": { "type": "Builtin", "name": "Europa" },
-          "rotationModel": {
-            "type": "Uniform",
-            "period": "3.551d",
-            "inclination": 0.47,
-            "ascendingNode": 0.0,
-            "meridianAngle": 36.022
-          },
+          "rotationModel": { "type": "Builtin" },
           "geometry": { "type": "Globe", "radius": 1560.8, "baseMap": "textures/europa.dds" },
           "label": { "color": [0.85, 0.88, 1.0] }
         },
@@ -131,13 +113,7 @@
           "center": "Jupiter",
           "trajectoryFrame": "J2000",
           "trajectory": { "type": "Builtin", "name": "Ganymede" },
-          "rotationModel": {
-            "type": "Uniform",
-            "period": "7.155d",
-            "inclination": 0.20,
-            "ascendingNode": 0.0,
-            "meridianAngle": 44.064
-          },
+          "rotationModel": { "type": "Builtin" },
           "geometry": { "type": "Globe", "radius": 2631.2, "baseMap": "textures/ganymede.dds" },
           "label": { "color": [0.75, 0.72, 0.65] }
         },
@@ -147,13 +123,7 @@
           "center": "Jupiter",
           "trajectoryFrame": "J2000",
           "trajectory": { "type": "Builtin", "name": "Callisto" },
-          "rotationModel": {
-            "type": "Uniform",
-            "period": "16.689d",
-            "inclination": 0.19,
-            "ascendingNode": 0.0,
-            "meridianAngle": 259.51
-          },
+          "rotationModel": { "type": "Builtin" },
           "geometry": { "type": "Globe", "radius": 2410.3, "baseMap": "textures/callisto.dds" },
           "label": { "color": [0.55, 0.50, 0.45] }
         },

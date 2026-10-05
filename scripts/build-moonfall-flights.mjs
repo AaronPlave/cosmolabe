@@ -517,9 +517,16 @@ const catalog = {
         displacementMap: 'textures/moon-displacement-2k.jpg',
         displacementScale: 20,
         displacementBias: -9,
+        // Hosted Mars Hub moon_v14 until the fused LOLA pyramid built by
+        // scripts/build-moon-terrain/ (#48) is hosted (#137); its README has the
+        // terrain block to swap in.
         terrain: {
           type: 'quantized-mesh',
           url: 'https://marshub.s3.amazonaws.com/moon_v14/',
+          // Geographic tiles are slivers at the pole: one Shackleton view holds
+          // ~1000 of them, so the default 256-tile CPU sampler cache would evict
+          // the tiles under the camera that picking and dolly clearance sample.
+          samplerMaxTiles: 4096,
           imagery: {
             url: 'https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg',
             levels: 8,

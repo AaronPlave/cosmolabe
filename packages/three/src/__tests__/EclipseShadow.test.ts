@@ -11,6 +11,8 @@ import {
 import { injectAerialPerspectiveIntoShader, makeAerialPerspectiveUniforms } from '../AerialPerspective.js';
 import { injectRingShadowIntoShader, makeRingShadowUniforms } from '../RingShadow.js';
 import { RingMesh } from '../RingMesh.js';
+import { normalizeAtmosphere } from '../AtmosphereModel.js';
+import { getAtmospherePreset } from '../AtmosphereMesh.js';
 
 // Scene units: kilometres × scaleFactor, matching UniverseRenderer's default.
 const S = 1e-6;
@@ -249,7 +251,10 @@ describe('injectShadowIntoShader', () => {
   it('survives composition with aerial perspective and ring shadow', () => {
     const shader = fakeShader();
     injectShadowIntoShader(shader, makeShadowUniforms() as unknown as Record<string, { value: unknown }>);
-    injectAerialPerspectiveIntoShader(shader, makeAerialPerspectiveUniforms() as unknown as Record<string, { value: unknown }>);
+    const apUniforms = makeAerialPerspectiveUniforms(
+      normalizeAtmosphere(getAtmospherePreset('Earth')!), 6378.1, 1, null,
+    );
+    injectAerialPerspectiveIntoShader(shader, apUniforms as unknown as Record<string, { value: unknown }>);
     injectRingShadowIntoShader(shader, makeRingShadowUniforms() as unknown as Record<string, { value: unknown }>);
 
     expect(shader.fragmentShader).toContain('float computeEclipseShadow()');

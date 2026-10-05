@@ -294,6 +294,39 @@ export class CameraController {
     anim.followDir = dir;
   }
 
+  /**
+   * The zoom floor for orbiting `body`: its surface, or effectively none when
+   * the renderer's terrain clamp owns the ground, or when nothing is orbited.
+   *
+   * Recomputed every frame in every orbit-controlled mode. It used to run only
+   * on the free-orbit path, so a body-fixed or SC-fixed camera kept the floor
+   * of whatever free orbit last tracked — Earth's radius, say, while placed
+   * 5000 km from the Moon's centre.
+   */
+  private _updateMinDistance(body: BodyMesh | null): void {
+    if (body) {
+      const sf = body.scaleFactor;
+      if (body.hasTerrain) {
+        // With terrain configured, the renderer's per-frame
+        // `clampCameraAboveSurfaces` owns the actual ground floor: it samples
+        // real terrain at the camera's lat/lon and only pushes the camera up
+        // when it would clip the rendered mesh. Importantly that clamp is
+        // already body-agnostic — it works with the same logic for Jezero
+        // (below the IAU mean), Olympus Mons (above), Hellas, the lunar South
+        // Pole-Aitken basin, etc. Drop the trackball minDistance to effectively
+        // zero so the controls don't gate zoom-in before the terrain clamp can
+        // run. No body-specific magic numbers.
+        this.controls.minDistance = 1e-10;
+      } else {
+        // No terrain data — the reference ellipsoid IS the ground. Use the
+        // existing displayRadius floor.
+        this.controls.minDistance = body.displayRadius * sf * 1.0001;
+      }
+    } else {
+      this.controls.minDistance = 1e-10;
+    }
+  }
+
   /** Animate camera to a saved viewpoint by name */
   goToViewpoint(name: string, duration = 1.0): boolean {
     const vp = this._viewpoints.get(name);
@@ -786,6 +819,9 @@ export class CameraController {
 
       // Orbit controls (before mode update so mode sees user-adjusted position)
       if (this._activeMode.allowsOrbitControls) {
+        // The mode's body is what these controls orbit — the origin body
+        // `setMode` put it at — not whatever free orbit last tracked.
+        this._updateMinDistance(this._originBody ?? this._trackTarget);
         this._applyTouchPan();
         this.controls.update();
       } else {
@@ -805,6 +841,14 @@ export class CameraController {
       // so getWorldDirection() returns proper screen-space directions.
       if (this._activeMode.allowsKeyboard) {
         this.keyboard.update(this.camera, this.controls.target, dt);
+      }
+
+      // A look-at target overrides orientation here too, as it does in free
+      // orbit below — but only in modes the user can orient. Instrument,
+      // chase, LVLH and surface modes own the view direction; aiming them
+      // elsewhere would break what the mode is for.
+      if (this._lookAtTarget && this._activeMode.allowsOrbitControls) {
+        this.camera.lookAt(this._lookAtTarget.position);
       }
       return;
     }
@@ -853,27 +897,7 @@ export class CameraController {
     //   to body-radius would lock zoom-in long before the camera reached the
     //   surface. Leave minDistance unconstrained and rely on the body-center
     //   guard at the end of update() to keep the camera from entering the body.
-    if (this._trackTarget) {
-      const sf = this._trackTarget.scaleFactor;
-      if (this._trackTarget.hasTerrain) {
-        // With terrain configured, the renderer's per-frame
-        // `clampCameraAboveSurfaces` owns the actual ground floor: it samples
-        // real terrain at the camera's lat/lon and only pushes the camera up
-        // when it would clip the rendered mesh. Importantly that clamp is
-        // already body-agnostic — it works with the same logic for Jezero
-        // (below the IAU mean), Olympus Mons (above), Hellas, the lunar South
-        // Pole-Aitken basin, etc. Drop the trackball minDistance to effectively
-        // zero so the controls don't gate zoom-in before the terrain clamp can
-        // run. No body-specific magic numbers.
-        this.controls.minDistance = 1e-10;
-      } else {
-        // No terrain data — the reference ellipsoid IS the ground. Use the
-        // existing displayRadius floor.
-        this.controls.minDistance = this._trackTarget.displayRadius * sf * 1.0001;
-      }
-    } else {
-      this.controls.minDistance = 1e-10;
-    }
+    this._updateMinDistance(this._trackTarget);
     const clampBody = this._trackTarget ?? this._originBody;
 
     // Mouse left-drag orbit + scroll zoom; one-finger orbit + pinch zoom

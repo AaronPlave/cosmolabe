@@ -1,0 +1,10 @@
+{
+  "name": "Earth–Moon Scripted Tour",
+  "version": "1.0",
+  "require": ["base/earth-system.json"],
+  "defaultTime": "2015-10-31T23:50:00Z",
+  "defaultViewpoint": "Lunar Orbit",
+  "items": [
+    { "name": "Lunar Orbit", "type": "Viewpoint", "center": "Earth", "distance": 900000, "latitude": 35, "longitude": 0 }
+  ]
+}

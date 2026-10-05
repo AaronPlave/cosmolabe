@@ -6,7 +6,7 @@ export type { UniverseRendererOptions, SurfacePickResult } from './UniverseRende
 export { BodyMesh } from './BodyMesh.js';
 export type { ModelResolver } from './BodyMesh.js';
 export { TrajectoryLine } from './TrajectoryLine.js';
-export type { TrajectoryLineOptions, PositionResolver, ColorSegment } from './TrajectoryLine.js';
+export type { TrajectoryLineOptions, PositionResolver, ColorSegment, DrawnTrail } from './TrajectoryLine.js';
 export { TrajectoryCache } from './TrajectoryCache.js';
 export type { TrajectoryCacheConfig } from './TrajectoryCache.js';
 export {
@@ -19,6 +19,7 @@ export {
   type GeometrySearchScope,
   type GeometrySearchWorkerOptions,
 } from './GeometrySearchWorker.js';
+export { spiceAltitude, type SpiceAltitudeSource } from './spice-altitude.js';
 export type {
   CacheBuildRequest,
   GeometrySearchOptions,
@@ -51,6 +52,7 @@ export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
 export { EventMarkers } from './EventMarkers.js';
 export type { EventMarker, EventMarkerType, EventMarkersOptions } from './EventMarkers.js';
+export type { ScreenRect } from './EventCallout.js';
 export { OccultationGeometry } from './OccultationGeometry.js';
 export type { OccultationGeometryParticipants } from './OccultationGeometry.js';
 export { GeometryReadout } from './GeometryReadout.js';
@@ -69,9 +71,20 @@ export { CameraModeName } from './controls/CameraModes.js';
 export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice } from './controls/CameraModes.js';
 
 // Terrain
-export { TerrainManager } from './TerrainManager.js';
-export type { TerrainConfig, TerrainImageryConfig } from './TerrainManager.js';
-export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic } from './TerrainSampler.js';
+export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
+export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming } from './TerrainManager.js';
+export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';
+export {
+  summarizeDifferences, fitPlane, tileKeyId, parseTileKey, geographicTileBounds, geographicTilesCovering,
+  tileParent, tileChildren, tileNeighbor, singleTileLayer, samplerLayer, sharedEdgeReport, seamReport,
+  parentChildReport, pyramidReport, registrationReport, boundaryContinuityReport, controlPointReport,
+  samplingCostReport, QuantizedMeshTileset,
+} from './TerrainValidation.js';
+export type {
+  DifferenceStats, PlanarFit, TileKey, GeoBounds, TerrainLayer, EdgeReport, KeyedTile, LevelStats, SeamReport,
+  ParentChildReport, PyramidReport, RegistrationReport, BoundaryContinuityReport, ControlPoint,
+  ControlPointLayerValue, ControlPointReport, SamplingCostRow, QuantizedMeshLayerJson, QuantizedMeshTilesetOptions,
+} from './TerrainValidation.js';
 export type { TerrainDatum, TerrainSourceMetadata, TerrainSample, TerrainHeightTile, TerrainMeshTile, TerrainTile, BodyFixedPosition, BodyFixedCartesian } from './TerrainSampler.js';
 export { SurfaceTileOverlay, SURFACE_TILE_LAYER } from './SurfaceTileOverlay.js';
 export type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
@@ -112,3 +125,15 @@ export type { AsteroidSwarmPluginOptions } from './plugins/AsteroidSwarmPlugin.j
 // Capture
 export { captureFrameDataUrl, captureFilename, downloadDataUrl } from './scripting/captureFrame.js';
 export type { CaptureHost } from './scripting/captureFrame.js';
+
+// Opt-in CPU physical-surface proof (see docs/design/physical-surface-adr.md).
+export { CpuMeshSurface } from './surface/CpuMeshSurface.js';
+export type { CpuSurfaceMesh } from './surface/CpuMeshSurface.js';
+export { GlobeTileSurface } from './surface/GlobeTileSurface.js';
+export { requestSurfaceIntersection } from './surface/PhysicalSurface.js';
+export type {
+  PhysicalSurface, PhysicalSurfaceMetadata, SurfaceRay, SurfaceVector, SurfaceQueryOptions,
+  SurfaceAccuracy, SurfaceHit, SurfaceIntersection, SurfaceQueryLoader,
+} from './surface/PhysicalSurface.js';
+export { pickPhysicalSurface, cameraPositionFromSurfacePick, surfaceRayBetween } from './surface/SurfaceConsumers.js';
+export type { MapImageLayer, ObservationImageProjection, ObservationRayResolver } from './surface/SurfaceImagery.js';

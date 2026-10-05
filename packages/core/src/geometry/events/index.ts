@@ -44,6 +44,7 @@ export type {
 } from './kinds/index.js';
 export {
   BUILTIN_EVENT_KINDS,
+  altitudeAt,
   builtinEventKinds,
   closestApproachKind,
   distanceRangeKind,

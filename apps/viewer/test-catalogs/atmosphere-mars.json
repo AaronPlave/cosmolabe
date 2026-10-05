@@ -1,0 +1,13 @@
+{
+  "name": "Atmosphere validation: Mars",
+  "defaultTime": "2024-07-04T12:00:00Z",
+  "defaultViewpoint": "Surface zenith",
+  "items": [
+    { "name": "Surface zenith", "type": "Viewpoint", "eye": [3391, 0, 0], "target": [4391, 0, 0], "up": [0, 0, 1] },
+    { "name": "Surface horizon", "type": "Viewpoint", "eye": [3391, 0, 0], "target": [3391, 0, 1000], "up": [1, 0, 0] },
+    { "name": "Orbit 400 km", "type": "Viewpoint", "eye": [3789, 0, 0], "target": [0, 0, 0], "up": [0, 0, 1] },
+    { "name": "Whole disc", "type": "Viewpoint", "eye": [16000, 0, 0], "target": [0, 0, 0], "up": [0, 0, 1] },
+    { "name": "Sun", "class": "star", "trajectory": { "type": "FixedPoint", "position": [100000000, 0, 0] }, "geometry": { "type": "Globe", "radius": 695000 } },
+    { "name": "Mars", "class": "planet", "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] }, "geometry": { "type": "Globe", "radius": 3389, "atmosphere": "Mars" } }
+  ]
+}

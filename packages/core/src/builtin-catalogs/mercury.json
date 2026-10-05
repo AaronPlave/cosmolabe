@@ -9,13 +9,7 @@
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Mercury" },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "58.646225199061172d",
-        "inclination": 28.55,
-        "ascendingNode": 11.01,
-        "meridianAngle": 329.548
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radius": 2439, "baseMap": "textures/mercury.dds" },
       "label": { "color": [0.7, 0.7, 0.7] }
     }
