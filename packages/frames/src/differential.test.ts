@@ -23,11 +23,6 @@ import { createHeritageSpice, type HeritageSpice } from './index.js';
 
 const KERNEL_DIR = fileURLToPath(new URL('../../spice/test-kernels/', import.meta.url));
 
-/** The viewer's catalog kernels, for the MSL coverage case below. */
-const CATALOG_KERNEL_DIR = fileURLToPath(
-  new URL('../../../apps/viewer/test-catalogs/kernels/', import.meta.url),
-);
-
 /** Kernel bytes as a standalone ArrayBuffer. readFileSync can hand back a view
  *  into a larger pooled buffer, so slice to this file's own bytes. */
 function bytesAt(dir: string, rel: string): ArrayBuffer {
@@ -604,7 +599,7 @@ describe('cspice-wasm vs timecraftjs: CK coverage on a second mission', () => {
       await legacy.furnish({ type: 'buffer', data: data.slice(0), filename: rel });
     }
     for (const rel of MSL_KERNELS) {
-      const data = bytesAt(CATALOG_KERNEL_DIR, rel);
+      const data = kernelBytes(rel);
       const filename = rel.split('/').pop()!;
       await heritage.furnish({ type: 'buffer', data: data.slice(0), filename });
       await legacy.furnish({ type: 'buffer', data: data.slice(0), filename });

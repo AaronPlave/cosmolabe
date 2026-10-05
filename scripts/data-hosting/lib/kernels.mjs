@@ -163,7 +163,7 @@ export async function kernelManifest({
     .filter((e) => !['manifest.json', 'inventory.jsonl.gz'].includes(e.path))
     .map((e) => {
       const upstreamUrl = resolveUpstream(e.path, scripts.map((s) => s.text));
-      // Small kernels committed to the repository (often via LFS) have no fetch
+      // Small kernels committed to the repository have no fetch
       // line; their provenance is the repository path at the publishing commit.
       const repositoryPath = tracked.has(e.path) ? `${dataset.localDir}/${e.path}` : null;
       if (!upstreamUrl && !repositoryPath && strictProvenance) {
@@ -195,4 +195,3 @@ export async function kernelManifest({
     files,
   };
 }
-

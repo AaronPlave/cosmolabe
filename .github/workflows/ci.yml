@@ -27,45 +27,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc') }}
+          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/de425s.bsp', 'packages/spice/test-kernels/cassini/04183_04185ra.bc') }}
 
-      - name: Smudge test-kernel LFS files
-        # See deploy-pages.yml for why we install + fetch + checkout
-        # explicitly. Sparse fetch keeps the test job's LFS bandwidth tiny.
-        #
-        # Five paths are needed: packages/spice's suite reads test-kernels/,
-        # the cspice-wasm, frames and interop suites read the shared
-        # kernels/fixtures/ (*.bsp and *.bc are LFS-routed there too), core's
-        # oem-demo-fidelity suite reads the viewer's Cassini SOI SPK as its
-        # SPICE truth reference, and lro-validation furnishes de440s.bsp for
-        # the Moon's position relative to the solar-system barycentre.
-        #
-        # The viewer include stays scoped to cassini/ (4.8 MB) rather than the
-        # whole test-catalogs/kernels/ tree (~150 MB: mar099s, europa-clipper),
-        # which is the point of a sparse fetch. Add a sibling path here when a
-        # test starts needing one — the harness now fails with "is a git-lfs
-        # pointer, not a kernel" when that step is missed.
-        #
-        # Paths are given as `dir/**` globs, not `dir/`: git-lfs 3.4 accepts a
-        # bare directory silently and checks out nothing, which would leave
-        # pointers in place. SPICE ignores text outside \begindata, so furnish
-        # would otherwise accept the pointer and load nothing, failing much
-        # later with SPICE(NOLOADEDFILES).
-        #
-        # The fifth path is one file, not a directory: the frames differential
-        # harness checks CK coverage on a second mission (issue #39) and needs
-        # only the MSL rover telemetry CK (335 KB), not the rest of msl/, which
-        # is 70 MB of Mars ephemeris no test here touches.
-        #
-        # de440s.bsp is smudged rather than downloaded: it is already
-        # committed as an LFS object, so one glob entry costs 33 MB once and
-        # nothing after (the cache above covers it), where
-        # scripts/fetch-kernels.sh would pull 94 MB from NAIF — 62 MB of that
-        # an asteroid SPK no test touches.
+      - name: Smudge exceptional test-kernel LFS files
+        # The remaining large SPICE fixtures exercise broad planetary coverage
+        # and reconstructed Cassini attitude. All other test kernels are Git blobs.
         run: |
           git lfs install --local
-          git lfs fetch --include "packages/spice/test-kernels/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
-          git lfs checkout "packages/spice/test-kernels/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
+          git lfs fetch --include "packages/spice/test-kernels/de425s.bsp,packages/spice/test-kernels/cassini/04183_04185ra.bc"
+          git lfs checkout "packages/spice/test-kernels/de425s.bsp" "packages/spice/test-kernels/cassini/04183_04185ra.bc"
 
       - name: Check for stale git-lfs pointers
         # A .gitattributes narrowing does not re-stage blobs committed while the
@@ -128,23 +98,6 @@ jobs:
       # `--fail-on-warnings` keeps it that way.
       - name: Typecheck svelte components
         run: npm run typecheck:svelte
-
-      # lro-validation.test.ts reads an LRO reconstructed-orbit SPK that is not
-      # committed. deploy-pages.yml has fetched it from NAIF since April, so the
-      # download is already proven on the runner — this workflow simply never
-      # ran the step, which is why that test has failed every CI run.
-      #
-      # Fetching beats committing it: NAIF is plain HTTPS, so it costs no
-      # git-lfs bandwidth at all, which is the whole point of the sparse smudge
-      # above. Cached on the script's own hash so repeat runs cost no network.
-      - name: Cache mission kernels
-        uses: actions/cache@v4
-        with:
-          path: apps/viewer/test-catalogs/kernels/lro
-          key: lro-kernels-${{ hashFiles('scripts/fetch-lro-kernels.sh') }}
-
-      - name: Fetch LRO kernels
-        run: bash scripts/fetch-lro-kernels.sh
 
       # Two suites read Cosmographia's own catalog data as third-party
       # fixtures. Fetched, never vendored: that repo has no LICENSE file and no

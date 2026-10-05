@@ -164,12 +164,14 @@ CesiumJS rendering layer composing over `@cosmolabe/core` and `@cosmolabe/cesium
 
 ## Getting Started
 
-This repo uses [Git LFS](https://git-lfs.com/) to host demo SPICE kernels, 3D models, and large textures. Without LFS the placeholder pointer files won't resolve and demos will fail to load.
+Small SPICE test fixtures are in Git. Full local mission demos use
+`scripts/fetch-all.sh`; deployed demos use pinned Cloudflare R2 datasets.
+Large models, textures, and two oversized test kernels still use
+[Git LFS](https://git-lfs.com/).
 
 ```bash
 git clone https://github.com/AaronPlave/cosmolabe.git
 cd cosmolabe
-git lfs pull          # required — fetches kernels, models, textures
 npm install
 npm run build         # typecheck + build all packages
 npm test              # run vitest
@@ -184,6 +186,9 @@ cd apps/cesium-viewer && npm run dev   # Cesium viewer
 ```
 
 Open the viewer and choose a demo catalog, or drag in your own [catalog JSON](docs/catalog-format.md) (plus any SPICE kernels it references). A deployment chooses which catalogs the home screen and the catalog browser list through [catalog sources](docs/catalog-sources.md).
+Run `./scripts/fetch-all.sh` before using the bundled mission demos locally.
+Use `git lfs pull` for large models, textures, or tests using the two oversized
+SPICE fixtures.
 
 ### Running Tests
 
@@ -193,7 +198,9 @@ npx vitest run packages/core                    # one package
 npx vitest run --reporter=verbose <test-name>   # debug single test
 ```
 
-274+ tests across 30 files covering SPICE wrappers, trajectory math, catalog parsing, geometry calculations, CZML export, and coordinate transforms. Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` and `apps/viewer/test-catalogs/kernels/` — both are LFS-tracked.
+Tests that depend on SPICE fixtures use `kernels/fixtures/` and
+`packages/spice/test-kernels/`. Most fixtures are ordinary Git blobs; only
+`de425s.bsp` and `cassini/04183_04185ra.bc` remain in LFS.
 
 ## Architecture
 

@@ -235,6 +235,16 @@ describe('kernel publishing', () => {
 });
 
 describe('upstream resolution from the real fetch scripts', () => {
+  it('includes every hosted kernel fetch script in fetch-all', () => {
+    const datasets = loadDatasets().datasets;
+    const fetchAll = readFileSync(join(ROOT, 'scripts/fetch-all.sh'), 'utf8');
+    for (const dataset of Object.values(datasets).filter((d) => d.kind === 'kernels')) {
+      for (const script of dataset.fetchScripts) {
+        expect(fetchAll, `fetch-all.sh must run ${script}`).toContain(`$HERE/${script.split('/').pop()}`);
+      }
+    }
+  });
+
   it('resolves each fetched kernel a catalog references, and the rest are tracked in git', () => {
     const datasets = loadDatasets().datasets;
     const tracked = new Set(execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' }).split('\n'));

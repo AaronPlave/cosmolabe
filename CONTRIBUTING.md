@@ -16,7 +16,6 @@ This is an npm workspaces monorepo. Node 20+ required.
 ```bash
 git clone https://github.com/AaronPlave/cosmolabe.git
 cd cosmolabe
-git lfs pull          # required to fetch demo kernels, models, textures
 npm install
 npm run build         # typecheck + build all packages
 npm test              # run vitest
@@ -26,8 +25,15 @@ npm run lint          # eslint
 To run the viewer:
 
 ```bash
+./scripts/fetch-all.sh   # populate complete local mission kernel demos
 cd apps/viewer && npm run dev
 ```
+
+Small SPICE test fixtures are committed as regular Git files. Full local mission
+demos use `scripts/fetch-all.sh`;
+deployed demos use the R2 builds pinned in `scripts/data-hosting/datasets.json`.
+Git LFS remains for large models, textures, and two oversized SPICE test kernels.
+Run `git lfs pull` when working with those assets or their integration tests.
 
 ## Project layout
 
@@ -65,7 +71,9 @@ npx vitest run packages/core                    # one package
 npx vitest run --reporter=verbose <test-name>   # debug single test
 ```
 
-Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LFS-tracked) and `apps/viewer/test-catalogs/kernels/` (LFS-tracked). If you skip `git lfs pull`, those tests will fail with "no such file or directory".
+Most SPICE tests use committed fixtures under `kernels/fixtures/` and
+`packages/spice/test-kernels/`. Tests using the two explicitly LFS-tracked
+oversized fixtures (`de425s.bsp` and `04183_04185ra.bc`) require `git lfs pull`.
 
 ## Adding a feature
 

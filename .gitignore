@@ -19,9 +19,12 @@ vendor/
 # Vite cache
 .vite/
 
-# SPICE kernels — see scripts/fetch-*.sh for downloads.
-# Tier rule: anything > ~5 MB lives behind a fetch script, not in the repo.
+# Viewer demo binary kernels are fetched, not committed. Small test fixtures
+# under kernels/fixtures and packages/spice/test-kernels remain tracked.
 *.gz
+apps/viewer/test-catalogs/kernels/**/*.bsp
+apps/viewer/test-catalogs/kernels/**/*.bc
+apps/viewer/test-catalogs/kernels/**/*.bpc
 apps/viewer/test-catalogs/kernels/de440s.bsp
 apps/viewer/test-catalogs/kernels/codes_300ast_20100725.bsp
 apps/viewer/test-catalogs/kernels/mar099s.bsp
