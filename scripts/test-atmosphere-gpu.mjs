@@ -56,6 +56,15 @@ try {
         material.uniforms.probeDir.value.set(mu, Math.sqrt(1 - mu * mu), 0);
         return { h, mu, rgb: read() };
       });
+      const horizonSamples = [2, 10, 50, 90].flatMap(h => {
+        const tangentMu = -Math.sqrt(1 - (6378.1 / (6378.1 + h)) ** 2);
+        return [0.0001, 0.001, 0.005].map(offset => {
+          const mu = tangentMu + offset;
+          material.uniforms.probePoint.value.set((6378.1 + h) / atm.shellRadius, 0, 0);
+          material.uniforms.probeDir.value.set(mu, Math.sqrt(1 - mu * mu), 0);
+          return { h, mu, rgb: read() };
+        });
+      });
       material.uniforms.mode.value = 1;
       const phaseIntegral = read();
       material.uniforms.mode.value = 2;
@@ -163,7 +172,7 @@ try {
         }
       }
       skyMaterial.dispose(); skyShell.dispose();
-      return { samples, fallbackSamples, phaseIntegral, segmentWeight, clearAP, eclipsedAP, partialAP, ringAP, transformedAP, litPixels, skySamples };
+      return { samples, horizonSamples, fallbackSamples, phaseIntegral, segmentWeight, clearAP, eclipsedAP, partialAP, ringAP, transformedAP, litPixels, skySamples };
     } finally {
       r.setRenderTarget(previous); target.dispose(); material.dispose(); geometry.dispose();
     }
@@ -194,6 +203,12 @@ try {
     rgb.forEach((value, i) => assert.ok(Number.isFinite(value) && Math.abs(value - reference[i]) < 0.025,
       `LUT at h=${h}, mu=${mu}, channel=${i}: ${value}, reference ${reference[i]}`));
   }
+  for (const { h, mu, rgb } of results.horizonSamples) {
+    const reference = transmittanceToSpace(model, 6378.1,
+      [6378.1 + h, 0, 0], [mu, Math.sqrt(1 - mu * mu), 0], 4096);
+    rgb.forEach((value, i) => assert.ok(Math.abs(value - reference[i]) < 0.005,
+      `Grazing Sun path at h=${h}, mu=${mu}, channel=${i}: ${value}, reference ${reference[i]}`));
+  }
   results.phaseIntegral.forEach(value => assert.ok(Math.abs(value - 1) < 0.001, `phase integral ${value}`));
   [2, (1 - Math.exp(-0.2)) / 0.1, (1 - Math.exp(-20)) / 10].forEach((value, i) =>
     assert.ok(Math.abs(results.segmentWeight[i] - value) < 0.00001, `segment integral channel ${i}`));
@@ -209,5 +224,6 @@ try {
     assert.ok(Math.abs(result[3]-results.clearAP[3])<0.00001, 'Occlusion changed view extinction');
   console.log('Renderer-optional shell and per-sample moon/ring visibility pass; shadowed extinction is unchanged.');
   console.log('GPU segment integration passes. GPU transmittance: LUT and fallback each match 5 RGB rays against the numerical reference; Rayleigh and Mie phases integrate to 1.');
+  console.log('GPU transmittance matches 12 grazing Sun rays within 0.005 RGB of direct integration.');
   console.log('Filtered sky-view LUT matches direct extinction near the horizon at 50 km and 99.99 km.');
 } finally { await browser.close(); }

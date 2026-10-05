@@ -58,6 +58,22 @@ bool atmSunBlocked(vec3 point, vec3 sunDir) {
   return b < 0.0 && b * b > c;
 }
 
+// Parameterize the lit side relative to its altitude-dependent planet horizon.
+// Squaring U gives grazing rays the resolution needed for twilight, while
+// squaring V resolves the dense lower atmosphere without enlarging the texture.
+float atmSunHorizonMu(float radius) {
+  float ratio = clamp(uAtmPlanetR / max(radius, 1e-6), 0.0, 1.0);
+  return -sqrt(max(0.0, 1.0 - ratio * ratio));
+}
+float atmSunMuFromU(float u, float radius) {
+  float horizon = atmSunHorizonMu(radius);
+  return horizon + (1.0 - horizon) * u * u;
+}
+float atmSunUFromMu(float mu, float radius) {
+  float horizon = atmSunHorizonMu(radius);
+  return sqrt(clamp((mu - horizon) / (1.0 - horizon), 0.0, 1.0));
+}
+
 vec3 atmSunTransmittance(vec3 point, vec3 sunDir) {
   if (atmSunBlocked(point, sunDir)) return vec3(0.0);
   if (!uAtmHasTransmittanceLUT) {
@@ -72,10 +88,12 @@ vec3 atmSunTransmittance(vec3 point, vec3 sunDir) {
     }
     return exp(-depth);
   }
-  float altitude = clamp((length(point) - uAtmPlanetR) /
+  float radius = length(point);
+  float altitude = clamp((radius - uAtmPlanetR) /
     max(1e-6, uAtmShellR - uAtmPlanetR), 0.0, 1.0);
   float mu = dot(normalize(point), sunDir);
-  return texture2D(uAtmTransmittanceLUT, vec2(mu * 0.5 + 0.5, altitude)).rgb;
+  return texture2D(uAtmTransmittanceLUT, vec2(
+    atmSunUFromMu(mu, radius), sqrt(altitude))).rgb;
 }
 `;
 
