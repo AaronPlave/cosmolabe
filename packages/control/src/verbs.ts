@@ -22,7 +22,7 @@
  *
  * The mapping table lives in `docs/scripting.md`.
  */
-import type { ScriptTime, ScriptVec3, VerbValue, ViewerControl } from './contracts.js';
+import type { CircleDirection, ScriptTime, ScriptVec3, VerbValue, ViewerControl } from './contracts.js';
 
 /**
  * The camera frames `setFrame` accepts.
@@ -137,6 +137,13 @@ const LAYER_PRESETS: readonly VerbPreset[] = LAYERS.flatMap((l) => [
   { id: `layer.${l.id}.off`, label: `Hide ${l.label}`, args: `${l.id} off` },
 ]);
 
+const CIRCLE_DIRECTIONS: readonly (readonly [string, CircleDirection])[] = [
+  ['Right', 'right'],
+  ['Left', 'left'],
+  ['Up', 'up'],
+  ['Down', 'down'],
+];
+
 export const VERB_LIST: readonly VerbSpec[] = [
   // ── Scene ──
   {
@@ -239,6 +246,45 @@ export const VERB_LIST: readonly VerbSpec[] = [
     method: 'setCamera',
     help: 'Place the camera: eye position, the point it looks at, and up — all in km.',
     invoke: (host, a) => host.setCamera(vec(a[0]), optVec(a[1]), optVec(a[2])),
+  },
+  // Cosmographia's four names rather than one `circleCenter <direction>`: a
+  // ported script is then a respelling, `circleCenterRight(360, 5)` →
+  // `circleCenterRight 360 5`, with nothing to rearrange.
+  ...CIRCLE_DIRECTIONS.map(
+    ([suffix, direction]): VerbSpec => ({
+      name: `circleCenter${suffix}`,
+      params: [
+        { name: 'degrees', type: 'number' },
+        { name: 'seconds', type: 'number', optional: true },
+      ],
+      category: 'Camera',
+      method: 'circleCenter',
+      help: `Swing the camera ${direction} around what it orbits by an angle. Instant by default; give seconds to animate.`,
+      invoke: (host, a) =>
+        host.circleCenter(direction, num(a[0]), a[1] === undefined ? undefined : { seconds: num(a[1]) }),
+    }),
+  ),
+  {
+    name: 'dolly',
+    params: [
+      { name: 'km', type: 'number' },
+      { name: 'seconds', type: 'number', optional: true },
+    ],
+    category: 'Camera',
+    method: 'dolly',
+    help: 'Move the camera away from what it orbits by this many km (toward it if negative). Instant unless given seconds.',
+    invoke: (host, a) => host.dolly(num(a[0]), a[1] === undefined ? undefined : { seconds: num(a[1]) }),
+  },
+  {
+    name: 'crane',
+    params: [
+      { name: 'km', type: 'number' },
+      { name: 'seconds', type: 'number', optional: true },
+    ],
+    category: 'Camera',
+    method: 'crane',
+    help: 'Raise the camera and its view by this many km along the view up (lower if negative). Instant unless given seconds.',
+    invoke: (host, a) => host.crane(num(a[0]), a[1] === undefined ? undefined : { seconds: num(a[1]) }),
   },
   {
     name: 'setFov',
