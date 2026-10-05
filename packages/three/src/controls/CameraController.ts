@@ -621,6 +621,18 @@ export class CameraController {
   }
 
   /**
+   * Re-derive the active mode's state from the camera as it stands, at scene
+   * time `et` — for a caller that has just placed the camera itself, between
+   * frames. `et` is passed in because the mode context's is the last frame's,
+   * and the clock may have moved since.
+   */
+  syncModeFromCamera(et: number): void {
+    if (!this._modeCtx) return;
+    this._modeCtx.et = et;
+    this._activeMode.syncFromCamera?.(this._modeCtx);
+  }
+
+  /**
    * Smoothly slew (rotate) the camera to face a world-space position.
    * @param target World position to rotate toward
    * @param rate Angular rate in radians/second (default: 0.5)

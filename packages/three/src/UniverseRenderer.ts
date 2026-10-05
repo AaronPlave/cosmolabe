@@ -555,6 +555,34 @@ export class UniverseRenderer {
     return this.universe.absolutePositionOf(bodyName, et);
   };
 
+  /**
+   * Bring one body's scene position and orientation up to date for the current
+   * clock and origin, ahead of the next frame, and say whether that worked.
+   *
+   * Both are otherwise only updated by `renderFrame`, so between frames they
+   * describe the frame already drawn. That is stale right after the clock
+   * seeks, or after `trackBody` moves the origin (which already puts the camera
+   * and orbit target in the new origin's coordinates). A caller converting
+   * into a body's own axes in that window — a script that sets the time,
+   * tracks a body and places the camera in one go, as a `snapshot()` replay
+   * does — needs the body where the next frame will put it.
+   *
+   * This is the same computation the next `renderFrame` makes, so it changes
+   * nothing a frame would not. Returns false when the body or the origin has no
+   * coverage at this time, leaving the body as last drawn.
+   */
+  refreshBodyPose(name: string): boolean {
+    const bm = this.bodyMeshes.get(name);
+    if (!bm) return false;
+    const et = this.timeController.et;
+    const originName = this.cameraController.originBody?.body.name;
+    const origin = originName ? this.absolutePositionOf(originName, et) : [0, 0, 0];
+    const abs = this.absolutePositionOf(name, et);
+    if (isNaN(abs[0]) || isNaN(origin[0])) return false;
+    bm.updatePosition([abs[0] - origin[0], abs[1] - origin[1], abs[2] - origin[2]], et, this.scaleFactor);
+    return true;
+  }
+
 
 
 

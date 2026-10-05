@@ -785,6 +785,12 @@ function poseFrame(): { origin: THREE.Vector3; toWorld: THREE.Quaternion } | nul
   if (cc.mode !== CameraModeName.BODY_FIXED && cc.mode !== CameraModeName.SC_FIXED) return null;
   const body = cc.originBody;
   if (!body) return null;
+  // Its position and orientation as of now, not as of the last frame drawn: a
+  // script that seeks the clock or switches body and then places the camera in
+  // the same breath — every `snapshot()` replay does — would otherwise convert
+  // against where the body was, which after a switch is the old origin's
+  // coordinates and hundreds of thousands of km off.
+  _renderer!.refreshBodyPose(body.body.name);
   return { origin: body.position.clone(), toWorld: body.bodyToWorldQuaternion(new THREE.Quaternion()) };
 }
 
@@ -814,6 +820,10 @@ export function setCameraPose(
     cc.camera.up.set(up[0], up[1], up[2]).normalize();
     if (frame) cc.camera.up.applyQuaternion(frame.toWorld);
   }
+  // The pose was converted against the body's orientation now. A co-rotating
+  // frame otherwise turns the camera on the next frame by the rotation since
+  // the last one drawn — after a seek in the same script, hours of it.
+  if (frame) cc.syncModeFromCamera(_renderer.timeController.et);
   return true;
 }
 

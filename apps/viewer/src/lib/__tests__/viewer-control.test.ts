@@ -178,6 +178,7 @@ function makeFakeRenderer(objects: string[]) {
       },
       flyTo: (bm: FakeBodyMesh) => log(`flyTo(${bm.body.name})`),
       cancelAnimation: () => log('cancelAnimation'),
+      syncModeFromCamera: (t: number) => log(`syncModeFromCamera(${t})`),
       orbitTarget: (axis: 'up' | 'right', radians: number, duration?: number) => {
         log(`orbitTarget(${axis}, ${radians.toFixed(4)}, ${duration})`);
         return mode !== CameraModeName.LVLH;
@@ -199,6 +200,8 @@ function makeFakeRenderer(objects: string[]) {
       return true;
     },
     getBodyMesh: (name: string) => meshes.get(name),
+    /** What the next frame would do to a body; tests that need it replace this. */
+    refreshBodyPose: (_name: string) => true,
     getBodyNames: () => [...meshes.keys()],
     setBodyVisible: (name: string, v: boolean) => log(`setBodyVisible(${name}, ${v})`),
     setTrajectoryVisible: (name: string, v: boolean) => log(`setTrajectoryVisible(${name}, ${v})`),
@@ -470,6 +473,7 @@ describe('setCamera in a body-fixed frame', () => {
     cc.controls.target = new THREE.Vector3();
     const toWorld = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
     cc.originBody = {
+      body: { name: 'Titan' },
       position: new THREE.Vector3(),
       bodyToWorldQuaternion: (out: THREE.Quaternion) => out.copy(toWorld),
     };
@@ -487,6 +491,29 @@ describe('setCamera in a body-fixed frame', () => {
     expect(cc.camera.position.x).toBeCloseTo(0, 9);
     expect(cc.camera.position.y).toBeCloseTo(1000 * sf, 9);
     expect(cc.camera.up.z).toBeCloseTo(1, 9);
+  });
+
+  // Between frames the body's pose describes the frame already drawn. Right
+  // after the origin moves to it — `gotoObject` then `setCamera` in one script,
+  // which is what every snapshot replay is — its position is still in the old
+  // origin's coordinates. The conversion has to use where the next frame will
+  // put it.
+  it('converts against the body as the next frame will have it, not the last', () => {
+    const { control, cc } = enterBodyFixed();
+    const origin = cc.originBody as { position: THREE.Vector3 };
+    origin.position.set(-384400 * renderer.scaleFactor, 0, 0); // stale: the old origin's coordinates
+    const refreshed: string[] = [];
+    renderer.refreshBodyPose = (name: string) => {
+      refreshed.push(name);
+      origin.position.set(0, 0, 0);
+      return true;
+    };
+    control.setCamera([1000, 0, 0], [0, 0, 0], [0, 0, 1]);
+    expect(refreshed).toContain('Titan');
+    // And the co-rotating mode re-baselines on that orientation, at the clock's time.
+    expect(renderer.calls).toContain(`syncModeFromCamera(${renderer.timeController.et})`);
+    expect(cc.camera.position.x).toBeCloseTo(0, 9);
+    expect(cc.camera.position.y).toBeCloseTo(1000 * renderer.scaleFactor, 9);
   });
 
   it('reads the pose back in the same axes, so a snapshot replays it', () => {
