@@ -137,3 +137,5 @@ export type {
 } from './surface/PhysicalSurface.js';
 export { pickPhysicalSurface, cameraPositionFromSurfacePick, surfaceRayBetween } from './surface/SurfaceConsumers.js';
 export type { MapImageLayer, ObservationImageProjection, ObservationRayResolver } from './surface/SurfaceImagery.js';
+export { CubeSphereSampler, cubeFaceToDirection, directionToCubeFace, cubeTileAt, cubeTileId } from './surface/CubeSphere.js';
+export type { CubeFace, CubeFaceCoordinate, CubeTileAddress, CubeHeightTile } from './surface/CubeSphere.js';

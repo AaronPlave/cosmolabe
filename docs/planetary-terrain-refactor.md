@@ -1,5 +1,9 @@
 # Planetary Surface / Terrain Refactor — implementation record
 
+The cube-sphere addressing foundation and deferred layout decision are documented
+in [the cube-sphere experiment ADR](design/cube-sphere-experiment.md); the measured
+evaluation remains open.
+
 ## Status
 
 This document is the durable implementation checklist for the planetary-terrain
