@@ -8,7 +8,7 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
-  import { moveConfiguredEventQuery } from '../lib/analysis.svelte';
+  import { analysis, moveConfiguredEventQuery } from '../lib/analysis.svelte';
   import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X } from 'lucide-svelte';
   import { tick, untrack } from 'svelte';
   import * as Select from '$lib/components/ui/select/index.js';
@@ -48,6 +48,7 @@
   // are caught when it reopens; the check itself lives with the state.
   $effect(() => {
     void vs.kernelCount;
+    void analysis.reference.abcorr;
     untrack(ensureCoverageCurrent);
   });
 

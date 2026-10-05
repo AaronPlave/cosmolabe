@@ -22,7 +22,7 @@ import {
   type EtInterval,
   type EventQuery,
 } from '@cosmolabe/core';
-import { spiceCoverageSource, spiceGeometryFinder } from './event-finder.svelte';
+import { searchAbcorr, spiceCoverageSource, spiceGeometryFinder } from './event-finder.svelte';
 
 const fixture = (name: string): ArrayBuffer => {
   const buf = readFileSync(fileURLToPath(new URL(`../../../../kernels/fixtures/${name}`, import.meta.url)));
@@ -175,4 +175,37 @@ describe('usable range against real SPICE', () => {
     // Starting at the geometric edge reads Earth before its coverage begins.
     expect((await search(spice, query({ start: geometric.start, end: geometric.start + DAY }, 'LT'))).ok).toBe(false);
   });
+});
+
+describe('Solar System demo boundary', () => {
+  it('keeps the Mercury–Venus suggestion inside the light-time-corrected range', async () => {
+    const spice = await createHeritageSpice();
+    for (const name of ['naif0012.tls', 'pck00011.tpc', 'de440s.bsp']) {
+      const buf = readFileSync(fileURLToPath(new URL(`../../test-catalogs/kernels/${name}`, import.meta.url)));
+      await spice.furnish({
+        type: 'buffer',
+        data: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer,
+        filename: name,
+      });
+    }
+    const kind = registry.get('closest-approach')!;
+    const q: EventQuery = {
+      id: 'mercury-venus', kind: 'closest-approach',
+      bodies: { observer: 'MERCURY', target: 'VENUS' },
+      window: { start: 0, end: 1 }, step: 3600, abcorr: searchAbcorr(kind),
+    };
+    expect(q.abcorr).toBe('LT+S');
+    const geometry = eventGeometry(q, kind)!;
+    const available = assessEventCoverage(geometry, spiceCoverageSource(spice));
+    expect(available.status).toBe('available');
+    const venusSpkStart = spice.spkcov(299)[0]!.start;
+    const start = available.windows[0]!.start;
+    // Three seconds inside the raw SPK edge is what the old suggestion offered.
+    // Reception reads Venus several minutes before the observer epoch there.
+    expect(start - venusSpkStart).toBeGreaterThan(200);
+    const tooEarly = await search(spice, { ...q, window: { start: venusSpkStart + 3, end: venusSpkStart + DAY } });
+    expect(tooEarly.ok).toBe(false);
+    const result = await search(spice, { ...q, window: { start, end: start + DAY } });
+    expect(result.ok).toBe(true);
+  }, 120_000);
 });

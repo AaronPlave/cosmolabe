@@ -264,6 +264,20 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
 export function currentSearchUnavailable(): EventSearchFault | null {
   const spice = getSpice();
   const form = ef.form;
+  ensureCoverageCurrent();
+  const coverage = ef.coverage;
+  if (spice && vs.kernelCount > 0 && form && coverage?.exact && coverage.status !== 'unknown') {
+    const outside = windowOutsideCoverage(
+      { start: form.startEt, end: form.endEt }, coverage.windows,
+    );
+    if (coverage.status === 'available' && outside.length === 0) return null;
+    return {
+      code: 'unavailable',
+      message: coverage.status === 'none'
+        ? 'The loaded kernels have no usable range for this event search.'
+        : 'The search window extends beyond the available range for this event. Choose a window inside one available range.',
+    };
+  }
   return eventSearchUnavailable(
     vs.kernelCount,
     form?.bodies ?? {},
@@ -367,7 +381,8 @@ export function refreshCoverage(): void {
  * mounts again (and before any search runs).
  */
 export function ensureCoverageCurrent(): void {
-  if (ef.form && ef.coverageKernelCount !== vs.kernelCount) syncCoverage();
+  if (ef.form && (ef.coverageKernelCount !== vs.kernelCount
+    || ef.coverageAbcorr !== searchAbcorr(currentKind()))) syncCoverage();
 }
 
 export const ef = $state({
@@ -430,6 +445,8 @@ export const ef = $state({
   coverage: null as CoverageAssessment | null,
   /** `vs.kernelCount` when {@link coverage} was computed; see `ensureCoverageCurrent`. */
   coverageKernelCount: null as number | null,
+  /** The search correction used for the current coverage assessment. */
+  coverageAbcorr: null as string | null,
 });
 
 /** Guards against an earlier search landing after a later one. */
@@ -601,6 +618,7 @@ function assessFor(kind: EventKind<never>, bodies: EventParticipants): CoverageA
 function syncCoverage(): void {
   ef.coverage = ef.form ? assessFor(currentKind(), ef.form.bodies) : null;
   ef.coverageKernelCount = vs.kernelCount;
+  ef.coverageAbcorr = searchAbcorr(currentKind());
 }
 
 /**
@@ -671,6 +689,7 @@ export function windowOutsideUsable(): EtInterval[] {
  * window counts as the user's: they chose it.
  */
 export function useAvailableWindow(index: number) {
+  ensureCoverageCurrent();
   const w = ef.coverage?.windows[index];
   if (!w) return;
   setWindow(w.start, w.end);
@@ -1111,6 +1130,7 @@ export function resetForScene() {
   ef.configuredId = null;
   ef.coverage = null;
   ef.coverageKernelCount = null;
+  ef.coverageAbcorr = null;
   resetAnalysis();
 }
 

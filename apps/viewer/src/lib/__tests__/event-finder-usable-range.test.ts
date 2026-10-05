@@ -19,14 +19,18 @@ const BASE_SEGMENTS = [
 ];
 let segments = [...BASE_SEGMENTS];
 let loaded = 1;
+let lightTimeSeconds = 0;
+let reportSpkCoverage = false;
 
 const fakeSpice = {
   bodn2c: (name: string) => IDS[name.toUpperCase()] ?? null,
   bodc2n: (code: number) => NAMES[code] ?? null,
   spkSegments: () => segments,
   totalLoaded: () => loaded,
-  spkcov: () => [],
-  spkpos: () => ({ position: [1, 0, 0], lightTime: 0 }),
+  spkcov: (id: number) => reportSpkCoverage
+    ? segments.filter((segment) => segment.body === id).map(({ start, end }) => ({ start, end }))
+    : [],
+  spkpos: () => ({ position: [1, 0, 0], lightTime: lightTimeSeconds }),
   pxform: () => [1, 0, 0, 0, 1, 0, 0, 0, 1],
   bodvrd: () => [1, 1, 1],
 };
@@ -39,13 +43,17 @@ vi.mock('../loader', async (importOriginal) => ({
 
 const finder = await import('../event-finder.svelte');
 const {
-  ef, resetForScene, resetForm, setKind, setRole, setWindow, useAvailableWindow, windowOutsideUsable,
+  ef, currentSearchUnavailable, resetForScene, resetForm, setKind, setRole, setWindow, useAvailableWindow, windowOutsideUsable,
   refreshCoverage, ensureCoverageCurrent, runSearch,
 } = finder;
 const { vs } = await import('../viewer-state.svelte');
+const { analysis } = await import('../analysis.svelte');
 
 beforeEach(() => {
   segments = [...BASE_SEGMENTS];
+  lightTimeSeconds = 0;
+  reportSpkCoverage = false;
+  analysis.reference.abcorr = 'LT+S';
   vs.et = 2_000;
   vs.scrubBaseMin = 0;
   vs.scrubBaseMax = 10_000;
@@ -58,6 +66,7 @@ beforeEach(() => {
 afterEach(() => {
   resetForScene();
   loaded = 1;
+  vs.kernelCount = 0;
 });
 
 describe('event finder usable range', () => {
@@ -100,6 +109,23 @@ describe('event finder usable range', () => {
     expect(ef.running).toBe(false);
     expect(ef.searched).toBe(false);
     expect(windowOutsideUsable()).toEqual([]);
+  });
+
+  it('refreshes the offered range with the correction used by the search', () => {
+    vs.kernelCount = 1;
+    analysis.reference.abcorr = 'NONE';
+    refreshCoverage();
+    setRole('observer', 'EARTH');
+    setRole('target', 'MARS');
+    expect(ef.coverage?.windows[0]?.start).toBe(1_003);
+
+    lightTimeSeconds = 240;
+    reportSpkCoverage = true;
+    analysis.reference.abcorr = 'LT+S';
+    useAvailableWindow(0);
+    expect(ef.form?.startEt).toBeGreaterThan(1_240);
+    expect(ef.form?.startEt).toBe(ef.coverage?.windows[0]?.start);
+    expect(currentSearchUnavailable()).toBeNull();
   });
 
   it('says plainly when nothing is usable', () => {
