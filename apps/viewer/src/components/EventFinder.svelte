@@ -295,7 +295,9 @@
         class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
         value={windowSelection}
         onchange={(e) => chooseWindow((e.target as HTMLSelectElement).value)}
-        title={`${utc(form.startEt)} – ${utc(form.endEt)}`}
+        title={windowSelection === 'suggested'
+          ? `Suggested: centered on the current scene time, limited to ${ef.kind === 'occultation' ? '90 days' : '2 years'}, and clipped to usable coverage when known. ${utc(form.startEt)} – ${utc(form.endEt)}`
+          : `${utc(form.startEt)} – ${utc(form.endEt)}`}
       >
         <option value="suggested">{windowSelection === 'suggested' ? `${coverage?.status === 'available' && outside.length === 0 ? 'Available' : 'Suggested'} · ${compactRange(form.startEt, form.endEt)}` : 'Suggested window'}</option>
         {#each coverage?.windows ?? [] as w, index (w.start)}
@@ -330,7 +332,7 @@
         />
       </div>
     {/if}
-    {#if coverage?.status === 'available' && outside.length > 0}
+    {#if coverage?.status === 'available' && outside.length > 0 && (coverage.exact || unavailable)}
       <p class="event-range invalid mb-2 ml-22" role="status">
         <span class="event-range-heading">Outside available range.</span>
         Choose an available window above.

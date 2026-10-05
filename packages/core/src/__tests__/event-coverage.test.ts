@@ -223,6 +223,24 @@ describe('assessEventCoverage', () => {
     expect(result.caveats.join(' ')).toMatch(/sampled light time/);
   });
 
+  it('keeps the valid interior when a sampled edge fails its SPICE probe', () => {
+    const result = assessEventCoverage(
+      { vectors: [{ target: 'MOON', observer: 'SC', abcorr: 'LT' }] },
+      source([seg('MOON', 'SSB', 0, 1000), seg('SC', 'SSB', 0, 1000)], {
+        lightTime: () => 5,
+        probe: (_deps, et) => {
+          if (et < 20) throw new Error('SPICE(SPKINSUFFDATA)');
+        },
+      }),
+    );
+    expect(result.status).toBe('available');
+    expect(result.exact).toBe(false);
+    expect(result.windows).toHaveLength(1);
+    expect(result.windows[0]!.start).toBeGreaterThan(20);
+    expect(result.windows[0]!.start).toBeLessThan(30);
+    expect(result.windows[0]!.end).toBeGreaterThan(900);
+  });
+
   it('drops a window the search calculation refuses, and says why', () => {
     const result = assessEventCoverage(geometric('SC', 'EARTH'), source(
       [seg('EARTH', 'SSB', 0, 10_000), seg('SC', 'EARTH', 100, 200), seg('SC', 'EARTH', 500, 900)],

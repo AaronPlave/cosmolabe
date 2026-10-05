@@ -465,17 +465,50 @@ export function assessEventCoverage(
     const verified: EtInterval[] = [];
     for (const w of windows) {
       const epochs = [w.start, (w.start + w.end) / 2, w.end];
-      let failure: unknown;
-      for (const et of epochs) {
+      const failures = epochs.map((et) => {
         try {
-          source.probe(dependencies, et);
+          source.probe!(dependencies, et);
+          return null;
         } catch (cause) {
-          failure = cause;
-          problems.push(`SPICE could not evaluate this geometry at ${formatEt(et)}: ${message(cause)}`);
-          break;
+          return cause;
+        }
+      });
+      if (failures.every((failure) => failure === null)) {
+        verified.push(w);
+        continue;
+      }
+
+      // A sampled light-time bound may start just before (or end just after)
+      // the true usable window. Keep the valid interior instead of discarding
+      // a whole mission-length interval for one bad edge. This remains an
+      // estimate; a few probes cannot prove every epoch between them.
+      if (caveats.length > 0 && failures[1] === null) {
+        const validAfter = (bad: number, good: number): number => {
+          for (let i = 0; i < 32 && good - bad > 0.25; i++) {
+            const mid = (bad + good) / 2;
+            try { source.probe!(dependencies, mid); good = mid; }
+            catch { bad = mid; }
+          }
+          return good + edgeMargin;
+        };
+        const validBefore = (good: number, bad: number): number => {
+          for (let i = 0; i < 32 && bad - good > 0.25; i++) {
+            const mid = (good + bad) / 2;
+            try { source.probe!(dependencies, mid); good = mid; }
+            catch { bad = mid; }
+          }
+          return good - edgeMargin;
+        };
+        const start = failures[0] === null ? w.start : validAfter(epochs[0]!, epochs[1]!);
+        const end = failures[2] === null ? w.end : validBefore(epochs[1]!, epochs[2]!);
+        if (end > start) {
+          verified.push({ start, end });
+          caveats.push('A sampled range edge was narrowed to epochs SPICE could evaluate.');
+          continue;
         }
       }
-      if (failure === undefined) verified.push(w);
+      const failedAt = failures.findIndex((failure) => failure !== null);
+      problems.push(`SPICE could not evaluate this geometry at ${formatEt(epochs[failedAt]!)}: ${message(failures[failedAt])}`);
     }
     windows = verified;
   } else if (!source.probe && windows.length > 0) {
