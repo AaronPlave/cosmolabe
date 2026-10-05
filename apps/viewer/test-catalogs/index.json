@@ -5,7 +5,6 @@
   "catalogs": [
     { "id": "earth-moon", "name": "Earth + Moon", "catalog": "./earth-moon.json", "description": "Keplerian orbits, no kernels", "group": "No SPICE — loads instantly" , "featured": true },
     { "id": "inner-planets-keplerian", "name": "Inner Planets", "catalog": "./inner-planets-keplerian.json", "description": "Sun → Mars via Keplerian fallback", "group": "No SPICE — loads instantly" },
-    { "id": "earth-moon-tour", "name": "Earth–Moon Scripted Tour", "catalog": "./earth-moon-tour.json", "script": "./earth-moon-tour.cosmo", "description": "Adapted from the Cosmographia scripting example; demonstrates the equivalent Cosmolabe viewer-control workflow", "group": "No SPICE — loads instantly", "featured": true },
     { "id": "iss", "name": "ISS (TLE)", "catalog": "./iss.json", "description": "Two-line element propagation around Earth", "group": "No SPICE — loads instantly" },
 
     { "id": "base/solarsys", "name": "Solar System", "catalog": "./base/solarsys.json", "description": "All planets via require composition", "group": "Base library" , "featured": true },
@@ -16,6 +15,7 @@
     { "id": "base/small-bodies", "name": "Small Bodies", "catalog": "./base/small-bodies.json", "description": "Dwarf planets, main belt, NEAs, comet 67P", "group": "Base library" },
     { "id": "base/main-belt-300", "name": "Main Belt × 300", "catalog": "./base/main-belt-300.json", "description": "Bulk SPK import: 300 numbered asteroids (no trails — pending swarm plugin)", "group": "Base library" },
 
+    { "id": "earth-moon-tour", "name": "Earth–Moon Scripted Tour", "catalog": "./earth-moon-tour.json", "script": "./earth-moon-tour.cosmo", "description": "Adapted from the Cosmographia scripting example; demonstrates the equivalent Cosmolabe viewer-control workflow", "group": "Extended scenes", "featured": true },
     { "id": "solar-system", "name": "Solar System Tour", "catalog": "./solar-system.json", "description": "Planets + Ceres + sample spacecraft arc", "group": "Extended scenes" },
     { "id": "sensor-demo", "name": "Sensor Frustums", "catalog": "./sensor-demo.json", "description": "FOV cones from spacecraft instruments", "group": "Extended scenes" },
     { "id": "oem-ingest", "name": "CCSDS OEM Ingest", "catalog": "./oem-ingest.json", "description": "Cassini at Saturn flown from a text ephemeris — no spacecraft SPK", "group": "Extended scenes" },
