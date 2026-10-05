@@ -84,6 +84,27 @@ describe('assessEventCoverage', () => {
     expect(result.windows).toEqual([{ start: 103, end: 297 }]);
   });
 
+  it('keeps a sub-millisecond SPK gap separate, with safety margins on both sides', () => {
+    // Cassini mission segments can miss each other by just 13 microseconds.
+    // SPICE still refuses states inside that seam, even though date labels
+    // make the resulting search intervals look like they touch.
+    const end = 200 - 0.000013;
+    const result = assessEventCoverage(geometric('SC', 'EARTH'), source([
+      seg('EARTH', 'SSB', 0, 1000),
+      seg('SC', 'EARTH', 100, end),
+      seg('SC', 'EARTH', 200, 300),
+    ], {
+      probe: (_dependencies, et) => {
+        if (et > end && et < 200) throw new Error('SPICE(SPKINSUFFDATA)');
+      },
+    }));
+    expect(result.windows).toEqual([
+      { start: 103, end: end - 3 },
+      { start: 203, end: 297 },
+    ]);
+    expect(result.exact).toBe(true);
+  });
+
   it('follows the segment SPICE would select, not any covering one', () => {
     // A later-loaded SC segment relative to MARS overrides the EARTH-relative
     // one in [400, 600]; MARS has no chain, so that stretch is not usable.

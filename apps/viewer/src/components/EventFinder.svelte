@@ -299,7 +299,7 @@
           <Popover.Portal>
             <Popover.Content side="bottom" align="start" sideOffset={6} class="w-64 max-w-[calc(100vw-24px)] p-3 ui-helper">
               <p>Suggested starts near the current scene time: up to {ef.kind === 'occultation' ? '90 days' : '2 years'}, clipped to usable coverage when known.</p>
-              <p class="mt-2">Available chooses one full kernel interval. Separate intervals are separate choices. Custom lets you enter dates.</p>
+              <p class="mt-2">Available chooses one full searchable interval. Separate intervals exclude gaps in kernel coverage, with a small buffer at each edge. Custom lets you enter dates.</p>
               <p class="mt-2 font-mono">{utc(form.startEt)} – {utc(form.endEt)} UTC</p>
             </Popover.Content>
           </Popover.Portal>
@@ -314,9 +314,9 @@
           ? `Suggested: centered on the current scene time, limited to ${ef.kind === 'occultation' ? '90 days' : '2 years'}, and clipped to usable coverage when known. ${utc(form.startEt)} – ${utc(form.endEt)}`
           : `${utc(form.startEt)} – ${utc(form.endEt)}`}
       >
-        <option value="suggested">{windowSelection === 'suggested' ? `${coverage?.status === 'available' && outside.length === 0 ? 'Available' : 'Suggested'} · ${compactRange(form.startEt, form.endEt)}` : 'Suggested window'}</option>
+        <option value="suggested">{windowSelection === 'suggested' ? `Suggested · ${compactRange(form.startEt, form.endEt)}` : 'Suggested window'}</option>
         {#each coverage?.windows ?? [] as w, index (w.start)}
-          <option value={`available:${index}`}>Available · {compactRange(w.start, w.end)}</option>
+          <option value={`available:${index}`}>Available · {compactRange(w.start, w.end)}{index > 0 ? ` (${formatSeconds(w.start - coverage!.windows[index - 1]!.end)} gap)` : ''}</option>
         {/each}
         <option value="visible">Visible timeline · {windowSelection === 'visible' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubMin, vs.scrubMax)}</option>
         <option value="catalog">Catalog span · {windowSelection === 'catalog' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubBaseMin, vs.scrubBaseMax)}</option>
