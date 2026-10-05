@@ -673,10 +673,19 @@ export class CameraController {
     this._originBody = body;
     this._trackTarget = body;
     this._prevTargetPos.copy(bodyPos);
-    if (!wasAlreadyOrigin) {
+    // The target moves into the new coordinates with the camera. `bodyPos` is
+    // still the body's position in the OLD origin's coordinates (the renderer
+    // recomputes positions after this), so copying it would leave the target
+    // there: free-orbit tracking repairs that later in the frame, but a
+    // scripted move queued behind the fly-to steps before it does, and the
+    // co-rotating modes never repair it at all. Under the new origin the body
+    // sits at the origin, which is where `trackBody` puts the target too.
+    if (wasAlreadyOrigin) {
+      this.controls.target.copy(bodyPos);
+    } else {
       this.camera.position.sub(bodyPos);
+      this.controls.target.set(0, 0, 0);
     }
-    this.controls.target.copy(bodyPos);
 
     // Defer mode-state resync to after body positions are recomputed under
     // the new origin — syncing now would use stale body positions and produce

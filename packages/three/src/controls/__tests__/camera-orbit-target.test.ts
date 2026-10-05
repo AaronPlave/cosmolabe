@@ -277,3 +277,59 @@ describe('crane queued behind a fly-to', () => {
     close(cc.controls.target, 0, 2000, 0);
   });
 });
+
+// The fly-to's deferred origin switch moves the camera into the new origin's
+// coordinates. It used to leave the orbit target at the body's position in the
+// OLD coordinates, which free-orbit tracking only repaired later in the frame —
+// after a queued move had already pivoted around it, or dollied along it.
+describe('moves queued behind a fly-to from another origin', () => {
+  /**
+   * Earth off to one side, the camera flying to it, frames in the renderer's
+   * order. Off-axis on purpose: with the body dead ahead, a stale target sits
+   * on the same line of sight and a dolly along it would pass by accident.
+   */
+  function flyToEarth() {
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const s = setup();
+    s.earth.position.set(30000, 0, -40000);
+    const frame = (seconds: number) => {
+      now += seconds * 1000;
+      s.cc.applyPendingOriginSwitch();
+      if (s.cc.originBody === s.earth) s.earth.position.set(0, 0, 0);
+      s.cc.update();
+    };
+    s.cc.flyTo(s.earth, { duration: 1, scaleFactor: 1 });
+    // flyTo approaches along the line from the body to where the camera was,
+    // and stops at three radii.
+    const approach = new THREE.Vector3(0, 0, 10000).sub(new THREE.Vector3(30000, 0, -40000)).normalize();
+    return { ...s, frame, approach };
+  }
+  const VIEW = 6378 * 3;
+
+  it('swing about the body itself: an instant quarter circle right', () => {
+    const { camera, cc, frame, approach } = flyToEarth();
+    cc.orbitTarget('up', Math.PI / 2);
+    for (let i = 0; i < 8; i++) frame(0.3);
+    expect(cc.moving).toBe(false);
+    close(cc.controls.target, 0, 0, 0);
+    // A quarter turn right about +Y takes (x, z) to (z, -x).
+    close(camera.position, VIEW * approach.z, 0, -VIEW * approach.x);
+  });
+
+  it('and a timed one, landing at the right place and distance', () => {
+    const { camera, cc, frame, approach } = flyToEarth();
+    cc.orbitTarget('up', Math.PI / 2, 1);
+    for (let i = 0; i < 12; i++) frame(0.3);
+    expect(cc.moving).toBe(false);
+    close(camera.position, VIEW * approach.z, 0, -VIEW * approach.x);
+  });
+
+  it('dolly along the line to the body, not to where it used to be', () => {
+    const { camera, cc, frame, approach } = flyToEarth();
+    cc.dolly(10000);
+    for (let i = 0; i < 8; i++) frame(0.3);
+    const d = VIEW + 10000;
+    close(camera.position, d * approach.x, 0, d * approach.z);
+  });
+});
