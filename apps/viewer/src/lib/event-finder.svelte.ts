@@ -278,6 +278,28 @@ export function currentSearchUnavailable(): EventSearchFault | null {
         : 'The search window extends beyond the available range for this event. Choose a window inside one available range.',
     };
   }
+  // An estimated interval was checked using the corrected search geometry.
+  // The legacy per-body check uses geometric light time, which can disagree
+  // near a spacecraft coverage edge. Recheck the actual calculation at this
+  // window's edges (including GF's derivative margin) before applying it.
+  if (spice && vs.kernelCount > 0 && form && coverage?.status === 'available'
+    && windowOutsideCoverage({ start: form.startEt, end: form.endEt }, coverage.windows).length === 0) {
+    const dependencies = geometryForBodies(currentKind(), form.bodies);
+    if (dependencies) {
+      try {
+        const source = spiceCoverageSource(spice);
+        for (const et of [form.startEt - 2, form.startEt, (form.startEt + form.endEt) / 2, form.endEt, form.endEt + 2]) {
+          source.probe!(dependencies, et);
+        }
+        return null;
+      } catch (cause) {
+        return {
+          code: 'unavailable',
+          message: `SPICE could not evaluate this search window: ${cause instanceof Error ? cause.message : String(cause)} Choose another interval or a custom window.`,
+        };
+      }
+    }
+  }
   return eventSearchUnavailable(
     vs.kernelCount,
     form?.bodies ?? {},
@@ -589,24 +611,30 @@ function catalogWindow(): EtInterval {
  * on them, and the ones that will (an instrument, a frame) are a matter for
  * the kind's own `geometry`.
  */
-function assessFor(kind: EventKind<never>, bodies: EventParticipants): CoverageAssessment | null {
-  const spice = getSpice();
-  if (!spice) return null;
+function geometryForBodies(kind: EventKind<never>, bodies: EventParticipants) {
   const geometry = eventGeometry(
     { id: 'coverage', kind: kind.kind, bodies, abcorr: searchAbcorr(kind), window: { start: 0, end: 1 } },
     kind,
   );
   if (!geometry) return null;
+  return {
+    ...geometry,
+    vectors: geometry.vectors.map((vector) => ({
+      ...vector,
+      target: sceneSpiceName(vector.target),
+      observer: sceneSpiceName(vector.observer),
+    })),
+    radii: geometry.radii?.map(sceneSpiceName),
+  };
+}
+
+function assessFor(kind: EventKind<never>, bodies: EventParticipants): CoverageAssessment | null {
+  const spice = getSpice();
+  if (!spice) return null;
+  const geometry = geometryForBodies(kind, bodies);
+  if (!geometry) return null;
   try {
-    return assessEventCoverage({
-      ...geometry,
-      vectors: geometry.vectors.map((vector) => ({
-        ...vector,
-        target: sceneSpiceName(vector.target),
-        observer: sceneSpiceName(vector.observer),
-      })),
-      radii: geometry.radii?.map(sceneSpiceName),
-    }, spiceCoverageSource(spice), {
+    return assessEventCoverage(geometry, spiceCoverageSource(spice), {
       formatEt: (et) => etToUtcString(et),
     });
   } catch {

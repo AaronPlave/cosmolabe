@@ -131,6 +131,32 @@ describe('event finder usable range', () => {
     expect(currentSearchUnavailable()).toBeNull();
   });
 
+  it('checks estimated selections with the actual geometry rather than geometric light-time margins', () => {
+    vs.kernelCount = 1;
+    reportSpkCoverage = true;
+    lightTimeSeconds = 240;
+    setRole('observer', 'EARTH');
+    setRole('target', 'MARS');
+    refreshCoverage();
+    ef.coverage = {
+      status: 'available', exact: false,
+      windows: [{ start: 1_003, end: 2_997 }], problems: [], caveats: ['Estimated edges'],
+    };
+    useAvailableWindow(0);
+    // The geometric margin would reject the start; the actual corrected
+    // calculation succeeds, including the derivative evaluations at ±2 s.
+    expect(currentSearchUnavailable()).toBeNull();
+
+    const probe = vi.spyOn(fakeSpice, 'spkpos').mockImplementation(() => {
+      throw new Error('SPICE(SPKINSUFFDATA)');
+    });
+    try {
+      expect(currentSearchUnavailable()?.message).toMatch(/could not evaluate.*SPKINSUFFDATA/);
+    } finally {
+      probe.mockRestore();
+    }
+  });
+
   it('says plainly when nothing is usable', () => {
     segments = segments.filter((s) => s.body !== 4);
     loaded++;

@@ -9,9 +9,10 @@
    * concrete, and only that an event has a time, a label and metrics.
    */
   import { analysis, moveConfiguredEventQuery } from '../lib/analysis.svelte';
-  import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X } from 'lucide-svelte';
+  import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X, CircleHelp } from 'lucide-svelte';
   import { tick, untrack } from 'svelte';
   import * as Select from '$lib/components/ui/select/index.js';
+  import * as Popover from '$lib/components/ui/popover';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
   import { vs, etToUtcString } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
@@ -289,7 +290,21 @@
 
     <!-- One window choice; only Custom exposes the editable timestamps. -->
     <div class="flex items-center gap-2 mb-1.5">
-      <label for="event-window" class="ui-label w-20 shrink-0">Window</label>
+      <div class="w-20 shrink-0 flex items-center gap-1">
+        <label for="event-window" class="ui-label">Window</label>
+        <Popover.Root>
+          <Popover.Trigger class="text-text-muted hover:text-text-primary cursor-pointer" aria-label="How search windows are chosen">
+            <CircleHelp size={12} />
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content side="bottom" align="start" sideOffset={6} class="w-64 max-w-[calc(100vw-24px)] p-3 ui-helper">
+              <p>Suggested starts near the current scene time: up to {ef.kind === 'occultation' ? '90 days' : '2 years'}, clipped to usable coverage when known.</p>
+              <p class="mt-2">Available chooses one full kernel interval. Separate intervals are separate choices. Custom lets you enter dates.</p>
+              <p class="mt-2 font-mono">{utc(form.startEt)} – {utc(form.endEt)} UTC</p>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+      </div>
       <select
         id="event-window"
         class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
