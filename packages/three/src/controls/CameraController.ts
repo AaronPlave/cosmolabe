@@ -38,6 +38,9 @@ export interface CameraViewpoint {
   epoch?: number;
 }
 
+/** The scripted camera moves `orbitTarget`, `dolly` and `crane` start. */
+type CameraMoveKind = 'orbit-up' | 'orbit-right' | 'dolly' | 'crane';
+
 export interface FlyToOptions {
   /** Animation duration in seconds (default: 1.0) */
   duration?: number;
@@ -698,14 +701,18 @@ export class CameraController {
   /** Whether a fly-to/viewpoint animation is currently playing */
   get animating(): boolean { return this._anim !== null; }
 
-  /** Cancel any in-progress camera animation, an `orbitTarget` swing included */
+  /** Cancel any in-progress camera animation, a scripted camera move included */
   cancelAnimation(): void {
     this._anim = null;
-    this._orbit = null;
+    this._move = null;
   }
 
-  /** An `orbitTarget` swing still playing: the angle left, its rate in rad/s, and when it last stepped. */
-  private _orbit: { axis: 'up' | 'right'; remaining: number; rate: number; lastMs: number } | null = null;
+  /**
+   * A scripted camera move still playing: what it does, how much of it is
+   * left (radians for a swing, scene units for a dolly or crane), its rate per
+   * second, and when it last stepped.
+   */
+  private _move: { kind: CameraMoveKind; remaining: number; rate: number; lastMs: number } | null = null;
 
   /**
    * Swing the camera around its orbit target by `radians`, keeping its distance
@@ -718,45 +725,102 @@ export class CameraController {
    * With a `duration` the swing plays at a constant rate over that many seconds.
    * It is a rotation and not a pose interpolation on purpose: a full circle
    * starts and ends at the same pose, so interpolating between the two would
-   * not move the camera at all. A fly-to in progress holds the swing until it
-   * lands, and `cancelAnimation` stops it.
+   * not move the camera at all.
    *
    * Returns false, and does nothing, in a mode that owns the camera's
    * orientation (LVLH, chase, surface, instrument): there is no orbit to swing.
    */
   orbitTarget(axis: 'up' | 'right', radians: number, duration = 0): boolean {
+    return this._startMove(axis === 'up' ? 'orbit-up' : 'orbit-right', radians, duration);
+  }
+
+  /**
+   * Move the camera straight away from its orbit target by `distance` scene
+   * units — toward it when negative — keeping its aim: Cosmographia's
+   * `moveAwayFromCenter`. The mouse wheel's zoom, by an exact amount.
+   *
+   * It never passes through the target: a dolly in that would reach it stops
+   * just short, and the zoom floor (a body's surface) still applies on the next
+   * frame. Timing, refusal and cancellation are `orbitTarget`'s.
+   */
+  dolly(distance: number, duration = 0): boolean {
+    return this._startMove('dolly', distance, duration);
+  }
+
+  /**
+   * Raise the camera and the point it looks at together by `distance` scene
+   * units along the view's up — lower them when negative — so the same view
+   * slides up the screen: Cosmographia's `craneUp`. The Z / C keys' move, by
+   * an exact amount.
+   *
+   * Free orbit pins the orbit target to a tracked object every frame, which
+   * would turn a crane into a tilt; so, as Z / C do, a crane there releases
+   * the tracked object first. The co-rotating frames keep it.
+   */
+  crane(distance: number, duration = 0): boolean {
     if (!this._activeMode.allowsOrbitControls) return false;
-    this._orbit = null;
+    if (this._activeMode.name === CameraModeName.FREE_ORBIT) this._trackTarget = null;
+    return this._startMove('crane', distance, duration);
+  }
+
+  /** Whether a scripted camera move (swing, dolly or crane) is still playing. */
+  get moving(): boolean { return this._move !== null; }
+
+  /**
+   * Start a scripted move, replacing any still playing. Instant without a
+   * duration; otherwise played at a constant rate, held behind a fly-to in
+   * progress, and stopped by `cancelAnimation`.
+   */
+  private _startMove(kind: CameraMoveKind, amount: number, duration: number): boolean {
+    if (!this._activeMode.allowsOrbitControls) return false;
+    this._move = null;
     if (duration > 0) {
-      this._orbit = { axis, remaining: radians, rate: radians / duration, lastMs: performance.now() };
+      this._move = { kind, remaining: amount, rate: amount / duration, lastMs: performance.now() };
     } else {
-      this._rotateAboutTarget(axis, radians);
+      this._applyMove(kind, amount);
     }
     return true;
   }
 
-  /** Whether an `orbitTarget` swing is still playing. */
-  get orbiting(): boolean { return this._orbit !== null; }
-
   /**
-   * Advance an `orbitTarget` swing by the wall-clock time since its last step.
+   * Advance a scripted move by the wall-clock time since its last step.
    * Not the frame `dt`, which is capped: on a slow frame rate that would
-   * stretch a 5-second swing past the `wait` a script gave it. The last step
+   * stretch a 5-second move past the `wait` a script gave it. The last step
    * lands exactly.
    */
-  private _stepOrbit(now: number): void {
-    const orbit = this._orbit;
-    if (!orbit) return;
-    const elapsed = Math.max(now - orbit.lastMs, 0) / 1000;
-    orbit.lastMs = now;
-    let step = orbit.rate * elapsed;
-    if (Math.abs(step) >= Math.abs(orbit.remaining)) {
-      step = orbit.remaining;
-      this._orbit = null;
+  private _stepMove(now: number): void {
+    const move = this._move;
+    if (!move) return;
+    const elapsed = Math.max(now - move.lastMs, 0) / 1000;
+    move.lastMs = now;
+    let step = move.rate * elapsed;
+    if (Math.abs(step) >= Math.abs(move.remaining)) {
+      step = move.remaining;
+      this._move = null;
     } else {
-      orbit.remaining -= step;
+      move.remaining -= step;
     }
-    this._rotateAboutTarget(orbit.axis, step);
+    // A dolly that reached the target has nowhere further to go.
+    if (!this._applyMove(move.kind, step)) this._move = null;
+  }
+
+  /** Apply one step of a move. False when a dolly ran out of room. */
+  private _applyMove(kind: CameraMoveKind, amount: number): boolean {
+    switch (kind) {
+      case 'orbit-up':
+      case 'orbit-right':
+        this._rotateAboutTarget(kind === 'orbit-up' ? 'up' : 'right', amount);
+        return true;
+      case 'dolly':
+        return this._dollyBy(amount);
+      case 'crane':
+        this._craneBy(amount);
+        return true;
+      default: {
+        const unreachable: never = kind;
+        throw new Error(`unknown camera move ${String(unreachable)}`);
+      }
+    }
   }
 
   private _rotateAboutTarget(axis: 'up' | 'right', radians: number): void {
@@ -769,13 +833,7 @@ export class CameraController {
       pivot = up;
       angle = radians;
     } else {
-      // The view's right axis, from where the camera actually looks. Looking
-      // straight along `up` leaves that undefined; the camera's own x axis is
-      // the right axis of whatever it last rendered.
-      const forward = offset.clone().negate();
-      pivot = new THREE.Vector3().crossVectors(forward, up);
-      if (pivot.lengthSq() < 1e-20) pivot.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
-      pivot.normalize();
+      pivot = this._viewRight(offset.clone().negate(), up);
       // Right-handed about the right axis tips the offset *down*; up is positive.
       angle = -radians;
     }
@@ -783,6 +841,41 @@ export class CameraController {
     this.camera.position.copy(target).add(offset.applyQuaternion(q));
     if (axis === 'right') this.camera.up.applyQuaternion(q).normalize();
     this.camera.lookAt(target);
+  }
+
+  private _dollyBy(distance: number): boolean {
+    const target = this.controls.target;
+    const offset = this.camera.position.clone().sub(target);
+    const current = offset.length();
+    if (current < 1e-20) return false;
+    // Stop short of the target rather than passing through it and flipping
+    // the view round.
+    const floor = current * 1e-6;
+    const next = Math.max(current + distance, floor);
+    this.camera.position.copy(target).addScaledVector(offset, next / current);
+    return next > floor;
+  }
+
+  private _craneBy(distance: number): void {
+    const target = this.controls.target;
+    const forward = target.clone().sub(this.camera.position);
+    const right = this._viewRight(forward, this.camera.up.clone().normalize());
+    // The screen's up: square to the view direction, unlike `camera.up`,
+    // which only has to be roughly upward.
+    const screenUp = new THREE.Vector3().crossVectors(right, forward).normalize();
+    this.camera.position.addScaledVector(screenUp, distance);
+    target.addScaledVector(screenUp, distance);
+  }
+
+  /**
+   * The view's right axis, from where the camera actually looks. Looking
+   * straight along `up` leaves that undefined; the camera's own x axis is the
+   * right axis of whatever it last rendered.
+   */
+  private _viewRight(forward: THREE.Vector3, up: THREE.Vector3): THREE.Vector3 {
+    const right = new THREE.Vector3().crossVectors(forward, up);
+    if (right.lengthSq() < 1e-20) right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    return right.normalize();
   }
 
   /**
@@ -901,16 +994,17 @@ export class CameraController {
         (this.controls as any)._zoomStart?.copy((this.controls as any)._zoomEnd);
         onComplete?.();
       }
-      // A swing held behind the fly-to starts its clock when the fly-to lands.
-      if (this._orbit) this._orbit.lastMs = now;
+      // A move held behind the fly-to starts its clock when the fly-to lands.
+      if (this._move) this._move.lastMs = now;
       return; // Animation takes priority over mode updates
     }
 
-    // An `orbitTarget` swing, ahead of the mode update: in body-fixed and
-    // SC-fixed frames the mode then carries the swung camera with the body.
-    if (this._orbit) {
-      if (this._activeMode.allowsOrbitControls) this._stepOrbit(now);
-      else this._orbit = null;
+    // A scripted move (swing, dolly, crane), ahead of the mode update: in
+    // body-fixed and SC-fixed frames the mode then carries the moved camera
+    // with the body.
+    if (this._move) {
+      if (this._activeMode.allowsOrbitControls) this._stepMove(now);
+      else this._move = null;
     }
 
     // --- Non-FreeOrbit modes: delegate to active mode ---

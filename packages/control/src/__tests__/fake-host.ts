@@ -180,6 +180,16 @@ export class FakeViewer implements ViewerControl {
     return this.ok(true);
   }
 
+  dolly(km: number, opts?: { seconds?: number }): boolean {
+    this.log('dolly', km, opts?.seconds);
+    return this.ok(true);
+  }
+
+  crane(km: number, opts?: { seconds?: number }): boolean {
+    this.log('crane', km, opts?.seconds);
+    return this.ok(true);
+  }
+
   setTime(when: ScriptTime): boolean {
     this.log('setTime', when);
     if (when.kind === 'et') {

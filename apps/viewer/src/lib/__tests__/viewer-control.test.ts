@@ -179,6 +179,16 @@ function makeFakeRenderer(objects: string[]) {
       flyTo: (bm: FakeBodyMesh) => log(`flyTo(${bm.body.name})`),
       cancelAnimation: () => log('cancelAnimation'),
       syncModeFromCamera: (t: number) => log(`syncModeFromCamera(${t})`),
+      dolly: (distance: number, duration?: number) => {
+        log(`dolly(${distance}, ${duration})`);
+        return mode !== CameraModeName.LVLH;
+      },
+      crane: (distance: number, duration?: number) => {
+        log(`crane(${distance}, ${duration})`);
+        // As the real controller does in free orbit: let go of the tracked object.
+        if (mode === CameraModeName.FREE_ORBIT) tracked = null;
+        return mode !== CameraModeName.LVLH;
+      },
       orbitTarget: (axis: 'up' | 'right', radians: number, duration?: number) => {
         log(`orbitTarget(${axis}, ${radians.toFixed(4)}, ${duration})`);
         return mode !== CameraModeName.LVLH;
@@ -320,6 +330,41 @@ describe('circleCenter', () => {
     renderer.calls.length = 0;
     await execute(parse('circleCenterRight 360 5\ncircleCenterDown 30'), control);
     expect(renderer.calls).toEqual(['orbitTarget(up, 6.2832, 5)', 'orbitTarget(right, -0.5236, undefined)']);
+  });
+});
+
+describe('dolly and crane', () => {
+  it('pass km through the scale factor, with the duration as given', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.dolly(10000, { seconds: 3 })).toBe(true);
+    expect(control.crane(-2000)).toBe(true);
+    expect(renderer.calls).toEqual(['dolly(0.01, 3)', 'crane(-0.002, undefined)']);
+  });
+
+  it('refuse a non-finite distance without moving anything', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.dolly(Number.POSITIVE_INFINITY)).toBe(false);
+    expect(control.crane(10, { seconds: Number.NaN })).toBe(false);
+    expect(renderer.calls).toEqual([]);
+  });
+
+  // A free-orbit crane lets go of the tracked object; the read side and the
+  // HUD must hear it, or a snapshot would re-track and undo the crane.
+  it('report the tracking a free-orbit crane released', () => {
+    const control = createViewerControl();
+    control.gotoObject('Titan');
+    control.crane(500);
+    expect(control.getTracked()).toBeNull();
+    expect(vs.trackedBodyName).toBeNull();
+  });
+
+  it('run as text', async () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    await execute(parse('dolly 10000 3\ncrane 2000 2'), control);
+    expect(renderer.calls).toEqual(['dolly(0.01, 3)', 'crane(0.002, 2)']);
   });
 });
 

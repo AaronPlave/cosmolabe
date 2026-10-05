@@ -124,7 +124,7 @@ describe('orbitTarget, over a duration', () => {
     const tick = clock();
     const { camera, cc } = setup();
     cc.orbitTarget('up', Math.PI, 2);
-    expect(cc.orbiting).toBe(true);
+    expect(cc.moving).toBe(true);
     // Nothing moves until a frame runs.
     close(camera.position, 0, 0, 10000);
 
@@ -145,7 +145,7 @@ describe('orbitTarget, over a duration', () => {
       tick(0.05);
       cc.update();
     }
-    expect(cc.orbiting).toBe(false);
+    expect(cc.moving).toBe(false);
     expect(camera.position.x).toBeCloseTo(0, 2);
     expect(camera.position.z).toBeCloseTo(-10000, 2);
   });
@@ -157,7 +157,70 @@ describe('orbitTarget, over a duration', () => {
     cc.cancelAnimation();
     tick(0.05);
     cc.update();
-    expect(cc.orbiting).toBe(false);
+    expect(cc.moving).toBe(false);
     close(camera.position, 0, 0, 10000);
+  });
+});
+
+describe('dolly', () => {
+  it('moves straight away from the target, keeping the aim', () => {
+    const { camera, cc } = setup();
+    expect(cc.dolly(5000)).toBe(true);
+    close(camera.position, 0, 0, 15000);
+    expect(cc.dolly(-12000)).toBe(true);
+    close(camera.position, 0, 0, 3000);
+    close(camera.getWorldDirection(new THREE.Vector3()), 0, 0, -1);
+  });
+
+  it('stops short of the target instead of passing through it', () => {
+    const { camera, cc } = setup();
+    cc.dolly(-50000);
+    expect(camera.position.z).toBeGreaterThan(0);
+    expect(camera.position.z).toBeLessThan(1);
+    close(camera.getWorldDirection(new THREE.Vector3()), 0, 0, -1);
+  });
+
+  it('plays over a duration and lands on the exact distance', () => {
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const { camera, cc } = setup();
+    cc.dolly(10000, 2);
+    now += 1000;
+    cc.update();
+    expect(camera.position.z).toBeCloseTo(15000, 0);
+    now += 5000;
+    cc.update();
+    expect(cc.moving).toBe(false);
+    expect(camera.position.z).toBeCloseTo(20000, 0);
+  });
+});
+
+describe('crane', () => {
+  it('raises the camera and the target together along the view up', () => {
+    const { camera, cc } = setup();
+    expect(cc.crane(2000)).toBe(true);
+    close(camera.position, 0, 2000, 10000);
+    close(cc.controls.target, 0, 2000, 0);
+  });
+
+  // Free orbit pins the orbit target to a tracked object every frame, which
+  // would turn the crane into a tilt — so, as the Z / C keys do, it lets go.
+  it('releases a tracked object in free orbit, so the next frame does not undo it', () => {
+    const { camera, cc, earth } = setup();
+    cc.track(earth);
+    camera.position.set(0, 0, 10000);
+    cc.controls.target.set(0, 0, 0);
+    cc.crane(2000);
+    expect(cc.trackedBody).toBeNull();
+    cc.update();
+    expect(cc.controls.target.y).toBeCloseTo(2000, 3);
+  });
+
+  it('refuses in a mode that owns the view', () => {
+    const { cc, earth } = setup();
+    cc.trackBody(earth, 1);
+    cc.setMode(CameraModeName.CHASE, { bodyName: 'Earth' });
+    expect(cc.crane(10)).toBe(false);
+    expect(cc.dolly(10)).toBe(false);
   });
 });

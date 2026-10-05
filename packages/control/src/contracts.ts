@@ -159,6 +159,26 @@ export interface ViewerControl {
    * surface, instrument), where there is no orbit to swing.
    */
   circleCenter(direction: CircleDirection, degrees: number, opts?: { seconds?: number }): boolean;
+  /**
+   * Move the camera straight away from the point it orbits by `km`, toward it
+   * when negative, keeping its aim — Cosmographia's `moveAwayFromCenter`. It
+   * stops short of the point rather than passing through it, and a body's
+   * surface still stops it.
+   *
+   * Timing and refusal are `circleCenter`'s.
+   */
+  dolly(km: number, opts?: { seconds?: number }): boolean;
+  /**
+   * Raise the camera and the point it looks at together by `km` along the
+   * view's up, lower them when negative, so the same view slides up the
+   * screen — Cosmographia's `craneUp`.
+   *
+   * In free orbit this releases a tracked object first, as the Z / C keys do:
+   * tracking pins the orbit centre to the object every frame, which would turn
+   * the crane into a tilt. Body-fixed and spacecraft-fixed frames keep it.
+   * Timing and refusal are `circleCenter`'s.
+   */
+  crane(km: number, opts?: { seconds?: number }): boolean;
 
   // ── Write: time ──
 

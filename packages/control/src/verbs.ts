@@ -265,6 +265,28 @@ export const VERB_LIST: readonly VerbSpec[] = [
     }),
   ),
   {
+    name: 'dolly',
+    params: [
+      { name: 'km', type: 'number' },
+      { name: 'seconds', type: 'number', optional: true },
+    ],
+    category: 'Camera',
+    method: 'dolly',
+    help: 'Move the camera away from what it orbits by this many km (toward it if negative). Instant unless given seconds.',
+    invoke: (host, a) => host.dolly(num(a[0]), a[1] === undefined ? undefined : { seconds: num(a[1]) }),
+  },
+  {
+    name: 'crane',
+    params: [
+      { name: 'km', type: 'number' },
+      { name: 'seconds', type: 'number', optional: true },
+    ],
+    category: 'Camera',
+    method: 'crane',
+    help: 'Raise the camera and its view by this many km along the view up (lower if negative). Instant unless given seconds.',
+    invoke: (host, a) => host.crane(num(a[0]), a[1] === undefined ? undefined : { seconds: num(a[1]) }),
+  },
+  {
     name: 'setFov',
     params: [{ name: 'degrees', type: 'number' }],
     category: 'Camera',

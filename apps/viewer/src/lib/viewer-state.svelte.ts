@@ -863,11 +863,35 @@ export function circleCenter(
   seconds?: number,
 ): boolean {
   if (!_renderer) return false;
-  if (!Number.isFinite(degrees)) return false;
-  if (seconds !== undefined && !(Number.isFinite(seconds) && seconds >= 0)) return false;
+  if (!Number.isFinite(degrees) || !validMoveSeconds(seconds)) return false;
   const axis = direction === 'right' || direction === 'left' ? 'up' : 'right';
   const sign = direction === 'right' || direction === 'up' ? 1 : -1;
   return _renderer.cameraController.orbitTarget(axis, sign * THREE.MathUtils.degToRad(degrees), seconds);
+}
+
+/**
+ * Move the camera away from what it orbits by `km` (toward it when negative).
+ * Instant unless `seconds` is given. False where `circleCenter` is.
+ */
+export function dolly(km: number, seconds?: number): boolean {
+  if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;
+  return _renderer.cameraController.dolly(km * _renderer.scaleFactor, seconds);
+}
+
+/**
+ * Raise the camera and what it looks at by `km` along the view's up (lower
+ * when negative). In free orbit that releases the tracked object, which the
+ * HUD has to hear about. False where `circleCenter` is.
+ */
+export function crane(km: number, seconds?: number): boolean {
+  if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;
+  const ok = _renderer.cameraController.crane(km * _renderer.scaleFactor, seconds);
+  if (ok) syncCameraState();
+  return ok;
+}
+
+function validMoveSeconds(seconds: number | undefined): boolean {
+  return seconds === undefined || (Number.isFinite(seconds) && seconds >= 0);
 }
 
 /** Show or hide one object's trajectory line. False if there is no such object. */

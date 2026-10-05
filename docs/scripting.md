@@ -154,6 +154,8 @@ renders one frame and photographs it gets the camera mid-flight.
 | `setFrame <mode> [object]` | Switch camera frame, optionally onto an object. |
 | `setCamera <position> [target] [up]` | Place the camera: eye, the point it looks at, and up — all in km, in the camera frame's axes (below). |
 | `setFov <degrees>` | Vertical field of view. |
+| `dolly <km> [seconds]` | Move the camera straight away from what it orbits (toward it if negative), keeping its aim. Stops short of the centre, and a body's surface still stops it. |
+| `crane <km> [seconds]` | Raise the camera and the point it looks at together along the view's up (lower if negative), so the same view slides up the screen. |
 | `circleCenterRight <degrees> [seconds]` | Swing the camera around what it orbits, keeping its distance and aim. Also `circleCenterLeft`, `circleCenterUp`, `circleCenterDown`. Instant by default; give seconds to animate. |
 
 `setCamera` takes eye, target and up in that order — the same order catalog
@@ -174,6 +176,13 @@ or what is being pointed at, and both keep acting on the camera afterwards:
 while an object is tracked the pose is relative to it, and while `pointAtObject`
 is in effect the aim follows that object and overrides `target` on the next
 frame. Call `untrack` / `clearLookAt` first if the pose should stand alone.
+
+`dolly` and `crane` are exact versions of moves the viewer already has: the
+mouse wheel's zoom, and the Z / C keys. Like Z / C, a `crane` in free orbit
+releases the tracked object first: tracking pins the orbit centre to the
+object every frame, which would turn the crane into a tilt. Body-fixed and
+spacecraft-fixed frames keep tracking. Timing and refusal are the same as the
+`circleCenter*` moves below.
 
 The `circleCenter*` moves are named for the way the camera moves on screen.
 Right and left swing it about the view's up vector; up and down swing it about
@@ -314,9 +323,10 @@ Earth system on the real kernels (`test-catalogs/earth-moon-tour.json` requires
 the geography the original script aims at, and runs an adaptation
 of Cosmographia's Earth–Moon scripting example in the console, block by block
 with the original's notes and pacing. The
-`circleCenter*` moves carry over unchanged. Camera moves Cosmolabe cannot
-animate yet (`moveToPov`, `craneUp`) become instant `setCamera` poses at the
-positions the original ends on. Calls with no equivalent are left as "No equivalent yet" comments; the
+`circleCenter*`, `moveAwayFromCenter` and `craneUp` moves carry over as
+`circleCenter*`, `dolly` and `crane`. `moveToPov`, which Cosmolabe cannot
+animate yet, becomes an instant `setCamera` pose at the position the original
+ends on. Calls with no equivalent are left as "No equivalent yet" comments; the
 table under [Not yet in Cosmolabe](#not-yet-in-cosmolabe) lists them.
 Cosmolabe scripts are conceptually similar to Cosmographia's but are not
 source-compatible with its `cosmoscripting` Python API. The script is
@@ -433,6 +443,8 @@ ceiling. Three rules:
 | `setCameraToInertialFrame()` | `setFrame free-orbit` | Free orbit is the camera in the inertial scene frame. |
 | `showBodyFixedFrame(name)` / `showLatLongGrid(name)` | `setLayer axes on` / `setLayer grid on` | Scene-wide here, per body there ([#153](https://github.com/AaronPlave/cosmolabe/issues/153)). |
 | `setFov(deg)` | `setFov <degrees>` | |
+| `moveAwayFromCenter(km, s)` | `dolly <km> [seconds]` | Positive moves away, as theirs does; negative moves toward the centre. |
+| `craneUp(km, s)` | `crane <km> [seconds]` | Negative cranes down. |
 | `circleCenterRight/Left/Up/Down(deg, s)` | `circleCenterRight/Left/Up/Down <degrees> [seconds]` | Same names and arguments. The duration is optional here; without it the move is instant. |
 | `moveToPov(name, pos, dir, up, s)` | `setFrame body-fixed <name>` + `setCamera <position> [target] [up]` | Instant, not animated. In a body-fixed frame `setCamera` takes the body's own axes, so the vectors carry over unchanged; `direction` becomes the `target` point. |
 | `showTrajectory(name, on)` | `showTrajectory <object> on\|off` | Per-object, their shape. Our global `setLayer trajectories off` stays beside it as the coarse verb. |
@@ -455,8 +467,7 @@ each one with a "No equivalent yet" comment where it occurs.
 | Cosmographia | What is missing | Closest today | Tracked |
 |---|---|---|---|
 | `gotoHome(s)` | An animated "home" view. | `viewpoint <name>` (instant) | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#114](https://github.com/AaronPlave/cosmolabe/issues/114), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
-| `moveAwayFromCenter(km, s)`, `craneUp(km, s)` | Dolly and crane moves. | `setCamera` at the end pose | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#15](https://github.com/AaronPlave/cosmolabe/issues/15) |
-| Durations on camera moves | `moveToPov`, `pointAtObject` and the moves above animate over *s* seconds; only `gotoObject` and the `circleCenter*` moves do here. | Instant verbs plus `wait` | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
+| Durations on camera moves | `moveToPov`, `pointAtObject` and the moves above animate over *s* seconds; only `gotoObject`, `dolly`, `crane` and the `circleCenter*` moves do here. | Instant verbs plus `wait` | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
 | `showBodyFixedFrame(name)`, `showLatLongGrid(name)` | Per-body axes and grid. | `setLayer axes/grid` (scene-wide) | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#113](https://github.com/AaronPlave/cosmolabe/issues/113) |
 | `showDirectionVector(from, to)` | Direction vectors between bodies. | none | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#57](https://github.com/AaronPlave/cosmolabe/issues/57) |
 | `hideToolBar`, `hideStatusMessages`, `hideInfoText`, `showFullScreen` (and their inverses) | Scripted control of viewer chrome. The app's zen mode (`\`) also unmounts the console, which stops the script, so this needs its own design. Browsers only enter full screen from a user gesture. | none | [#153](https://github.com/AaronPlave/cosmolabe/issues/153) |
