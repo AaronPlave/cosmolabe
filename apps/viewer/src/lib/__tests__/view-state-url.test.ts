@@ -19,6 +19,8 @@ describe('view URLs', () => {
     expect(url.searchParams.get('catalog')).toBe('earth-moon');
     expect(url.searchParams.get('source')).toBe('https://data.example/index.json');
     expect(url.searchParams.get('test')).toBeNull();
+    const noisy = new URL(viewLink(state, `${page}?source=a&source=b&debug=1&embed=true&token=x`));
+    expect([...noisy.searchParams.keys()].sort()).toEqual(['catalog', 'source', 'source', 'view']);
     expect(requestedView(url.search)).toEqual(state);
   });
 

@@ -507,6 +507,7 @@ function syncWindowToBodies() {
 
 /** Builds the form for the current kind, carrying over what still applies. */
 export function resetForm() {
+  if (ef.restoring) return;
   const previous = ef.form ?? undefined;
   // A user-chosen time range is independent of event type. Preserve it when
   // switching kinds; automatic windows are re-derived so kind-specific limits
@@ -568,6 +569,7 @@ function syncConfiguredQuery(persist = false): ConfiguredEventQuery | undefined 
 }
 
 export function setCurrentQueryVisible(visible: boolean) {
+  if (ef.restoring) return;
   if (ef.configuredId) setConfiguredItemVisible(ef.configuredId, visible);
 }
 
@@ -583,6 +585,7 @@ export function configuredEventQueries(): ConfiguredEventQuery[] {
  * leaves the selection valid.
  */
 export function setConfiguredQueryEnabled(id: string, enabled: boolean) {
+  if (ef.restoring) return;
   setConfiguredItemEnabled(id, enabled);
   if (!enabled && ef.previewQueryId === id) previewEvent(null);
   if (!enabled && ef.selectedQueryId === id) {
@@ -593,6 +596,7 @@ export function setConfiguredQueryEnabled(id: string, enabled: boolean) {
 }
 
 export function setConfiguredQueryVisible(id: string, visible: boolean) {
+  if (ef.restoring) return;
   setConfiguredItemVisible(id, visible);
 }
 
@@ -603,7 +607,7 @@ export function setConfiguredQueryVisible(id: string, visible: boolean) {
  * form, which moves to an adjacent search or, with none left, stays as
  * an unsaved draft: zero searches is a valid state.
  */
-export function removeConfiguredQuery(id: string) {
+function removeQuery(id: string) {
   const queries = configuredEventQueries();
   const index = queries.findIndex((query) => query.id === id);
   if (index < 0) return;
@@ -619,7 +623,7 @@ export function removeConfiguredQuery(id: string) {
   if (wasCurrent) {
     const next = queries[index + 1] ?? queries[index - 1];
     if (next) {
-      openConfiguredQuery(next.id);
+      openQuery(next.id);
       return;
     }
     // The last one: zero searches, and the form keeps the removed query's
@@ -633,11 +637,18 @@ export function removeConfiguredQuery(id: string) {
   syncOccultationGeometryAtTime();
 }
 
+// Restoring a shared link rebuilds these across awaits, so user edits (Event
+// Finder, timeline lanes) are refused until it ends; the restore itself uses
+// the unguarded `removeQuery` / `openQuery`.
+export function removeConfiguredQuery(id: string) { if (!ef.restoring) removeQuery(id); }
+export function openConfiguredQuery(id: string) { if (!ef.restoring) openQuery(id); }
+
 /**
  * Start a draft for another event search, without discarding this one. It
  * is saved when it runs. An existing selection stays.
  */
 export function createNewSearch() {
+  if (ef.restoring) return;
   previewEvent(null);
   active?.cancel();
   inFlight++;
@@ -656,7 +667,7 @@ export function createNewSearch() {
 }
 
 /** Reopen a configured search and its cached results for browsing or editing. */
-export function openConfiguredQuery(id: string) {
+function openQuery(id: string) {
   const item = configuredItem(id);
   if (!item || item.type !== 'event-query') return;
   const kind = registry.get(item.query.kind);
@@ -694,6 +705,7 @@ export function openConfiguredQuery(id: string) {
 
 /** Switches kind, keeping shared roles and params filled in. */
 export function setKind(kind: string) {
+  if (ef.restoring) return;
   if (!registry.has(kind)) return;
   ef.kind = kind;
   resetForm();
@@ -708,6 +720,7 @@ export function setKind(kind: string) {
 }
 
 export function setRole(role: string, body: string) {
+  if (ef.restoring) return;
   if (!ef.form) return;
   if (body) ef.form.bodies[role as keyof typeof ef.form.bodies] = body;
   else delete ef.form.bodies[role as keyof typeof ef.form.bodies];
@@ -717,6 +730,7 @@ export function setRole(role: string, body: string) {
 }
 
 export function setParam(key: string, value: string) {
+  if (ef.restoring) return;
   if (!ef.form) return;
   ef.form.params[key] = value;
   syncConfiguredQuery();
@@ -724,6 +738,7 @@ export function setParam(key: string, value: string) {
 }
 
 export function setWindow(startEt: number, endEt: number) {
+  if (ef.restoring) return;
   if (!ef.form) return;
   ef.form.startEt = startEt;
   ef.form.endEt = endEt;
@@ -736,6 +751,7 @@ export function setWindow(startEt: number, endEt: number) {
 
 /** Drops a hand-set window and goes back to the coverage-trimmed default. */
 export function resetWindow() {
+  if (ef.restoring) return;
   ef.windowPinned = false;
   syncWindowToBodies();
   syncConfiguredQuery();
@@ -747,6 +763,7 @@ export function setSort(mode: EventSortMode) {
 }
 
 export function setStep(step: number) {
+  if (ef.restoring) return;
   if (!ef.form) return;
   ef.form.step = step;
   syncConfiguredQuery();
@@ -950,7 +967,7 @@ export async function restoreSharedEvents(input: EventLinkState | undefined, sig
     inFlight++;
     previewEvent(null);
     clearSelection();
-    for (const item of [...configuredEventQueries()]) removeConfiguredQuery(item.id);
+    for (const item of [...configuredEventQueries()]) removeQuery(item.id);
     ef.form = null;
     ef.configuredId = null;
     ef.events = [];
@@ -968,7 +985,7 @@ export async function restoreSharedEvents(input: EventLinkState | undefined, sig
       setConfiguredItemEnabled(item.id, entry.enabled);
       setConfiguredItemVisible(item.id, entry.visible);
       restored.push(item);
-      openConfiguredQuery(item.id);
+      openQuery(item.id);
       if (entry.searched && entry.enabled) {
         await runSearch();
         if (signal?.aborted) return;
@@ -977,7 +994,7 @@ export async function restoreSharedEvents(input: EventLinkState | undefined, sig
       updateConfiguredEventQuery(item.id, query, entry.label, entry.windowMode);
     }
     const current = state.current === null ? null : restored[state.current];
-    if (current) openConfiguredQuery(current.id);
+    if (current) openQuery(current.id);
     else {
       ef.configuredId = null;
       ef.form = null;

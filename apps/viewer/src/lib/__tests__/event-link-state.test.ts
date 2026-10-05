@@ -10,7 +10,7 @@ vi.mock('../loader', () => ({
   geometryScopeForWindow: () => ({}),
 }));
 
-import { captureSharedEvents, restoreSharedEvents, resetForScene, ef, selectedEventOf } from '../event-finder.svelte';
+import { captureSharedEvents, restoreSharedEvents, resetForScene, ef, selectedEventOf, removeConfiguredQuery, createNewSearch } from '../event-finder.svelte';
 import { analysis, analysisContext } from '../analysis.svelte';
 import { vs } from '../viewer-state.svelte';
 
@@ -21,9 +21,10 @@ const context = (): EventLinkState => ({ version: 1, current: 0, queries: [{
 }], selected: { query: 0, temporality: 'instant', start: 15, end: 15 } });
 
 function spice(gfdist = vi.fn(() => [{ start: 15, end: 15 }])) {
-  return { gfdist, spkpos: () => ({ position: [1000, 0, 0] }), vnorm: () => 1000 };
+  return { gfdist, bodn2c: () => 399, spkcov: () => [{ start: -1e9, end: 1e9 }], spkpos: () => ({ position: [1000, 0, 0] }), vnorm: () => 1000 };
 }
-afterEach(() => { resetForScene(); runtime.spice = null; runtime.missing = false; });
+vs.kernelCount = 1;
+afterEach(() => { vs.kernelCount = 1; resetForScene(); runtime.spice = null; runtime.missing = false; });
 
 describe('event link schema', () => {
   it('validates shared model definitions and strips scripts/results/unrecognized params', () => {
@@ -112,7 +113,7 @@ describe('event link restoration through Event Finder', () => {
     runtime.missing = true;
     await expect(restoreSharedEvents(context())).rejects.toThrow(/body.*unavailable/);
     runtime.missing = false;
-    await expect(restoreSharedEvents(context())).rejects.toThrow(/no kernels/);
+    await expect(restoreSharedEvents(context())).rejects.toThrow(/needs SPICE kernels/);
     runtime.spice = spice(vi.fn(() => [{ start: 20, end: 20 }]));
     await expect(restoreSharedEvents(context())).rejects.toThrow(/not uniquely reproduced/);
     expect(ef.restoring).toBe(false);
@@ -126,6 +127,29 @@ describe('event link restoration through Event Finder', () => {
     complete([{ start: 15, end: 15 }]);
     await pending;
     expect(ef.selectedId).toBeNull();
+    expect(ef.restoring).toBe(false);
+  });
+
+  it('refuses links whose automatic reruns exceed the work budget, unless not rerun', () => {
+    const q = context().queries[0];
+    const huge = (over: object) => ({ ...context(), queries: [{ ...q, ...over, query: { ...q.query, window: { start: 0, end: 1e9 }, step: 1 } }] });
+    expect(() => validateEventLinkState(huge({}))).toThrow(/too large to rerun/);
+    expect(() => validateEventLinkState({ ...huge({ enabled: false }), selected: undefined })).not.toThrow();
+    const dup = (id: string) => ({ ...q, query: { ...q.query, id, window: { start: 0, end: 4e6 }, step: 1 } });
+    expect(() => validateEventLinkState({ ...context(), queries: [dup('a'), dup('b'), dup('c'), dup('d'), dup('e'), dup('f')], current: 0 })).toThrow(/too large to rerun/);
+  });
+
+  it('refuses Event Finder edits while a shared restore is running', async () => {
+    let complete!: (result: { start: number; end: number }[]) => void;
+    runtime.spice = spice(vi.fn(() => new Promise(resolve => { complete = resolve; })) as unknown as ReturnType<typeof spice>['gfdist']);
+    const pending = restoreSharedEvents(context());
+    const before = ef.configuredId;
+    expect(ef.restoring).toBe(true);
+    removeConfiguredQuery(before!);
+    createNewSearch();
+    expect(ef.configuredId).toBe(before);
+    complete([{ start: 15, end: 15 }]);
+    await pending;
     expect(ef.restoring).toBe(false);
   });
 });

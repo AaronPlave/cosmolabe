@@ -25,6 +25,11 @@ export interface EventLinkState {
   selected?: SharedEventSelection;
 }
 
+/** Opening a link reruns its searches automatically, so cap that work: GF cost
+ * scales with window / step. The cap is per query and across the whole link. */
+const MAX_STEPS_PER_QUERY = 5e6;
+const MAX_STEPS_TOTAL = 2e7;
+
 const kinds = builtinEventKinds();
 function check(ok: unknown, message: string): asserts ok {
   if (!ok) throw new ViewStateError(`Event context: ${message}`);
@@ -43,6 +48,7 @@ export function validateEventLinkState(value: unknown): EventLinkState {
   const s = object(value);
   check(s.version === 1, 'unsupported version.');
   check(Array.isArray(s.queries) && s.queries.length <= 16, 'share at most 16 searches.');
+  let totalSteps = 0;
   const queries: SharedEventQuery[] = s.queries.map((raw) => {
     const entry = object(raw), q = object(entry.query), w = object(q.window);
     const kind = typeof q.kind === 'string' ? kinds.get(q.kind) : undefined;
@@ -54,6 +60,12 @@ export function validateEventLinkState(value: unknown): EventLinkState {
     check(!entry.draft || !entry.searched, 'a draft cannot contain searched results.');
     check(et(w.start) && et(w.end) && w.end > w.start, 'invalid search window.');
     check(typeof q.step === 'number' && Number.isFinite(q.step) && q.step > 0, 'invalid search step.');
+    if (entry.searched && entry.enabled) {
+      const steps = (w.end - w.start) / q.step;
+      totalSteps += steps;
+      check(steps <= MAX_STEPS_PER_QUERY && totalSteps <= MAX_STEPS_TOTAL,
+        `"${entry.label}" is too large to rerun from a link; use a coarser step or shorter window.`);
+    }
     check(typeof q.abcorr === 'string' && ['NONE', 'LT', 'LT+S', 'CN', 'CN+S', 'XLT', 'XLT+S', 'XCN', 'XCN+S'].includes(q.abcorr), 'invalid aberration correction.');
     const rawBodies = object(q.bodies), bodies: EventQuery['bodies'] = {};
     for (const spec of kind.roles) {
