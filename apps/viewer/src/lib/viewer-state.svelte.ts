@@ -438,6 +438,12 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   let rafId = 0;
   const tick = () => {
     vs.frameTick++;
+    // The controller lets go of a tracked object on its own between calls —
+    // a crane queued behind a fly-to, the Z / C keys — and says nothing. Once
+    // nothing is tracked and nothing is in flight toward a body (which
+    // `gotoObject` reports ahead of time), the HUD should stop naming one.
+    const cc = renderer.cameraController;
+    if (vs.trackedBodyName !== null && cc.focusBody === null) vs.trackedBodyName = null;
     rafId = requestAnimationFrame(tick);
   };
   rafId = requestAnimationFrame(tick);
@@ -880,8 +886,9 @@ export function dolly(km: number, seconds?: number): boolean {
 
 /**
  * Raise the camera and what it looks at by `km` along the view's up (lower
- * when negative). In free orbit that releases the tracked object, which the
- * HUD has to hear about. False where `circleCenter` is.
+ * when negative). In free orbit that releases the tracked object when the
+ * crane starts — at once for an instant crane, which is synced here, or once
+ * a fly-to lands, which the frame tick picks up. False where `circleCenter` is.
  */
 export function crane(km: number, seconds?: number): boolean {
   if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;

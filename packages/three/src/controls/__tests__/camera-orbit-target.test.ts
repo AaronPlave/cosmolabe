@@ -224,3 +224,56 @@ describe('crane', () => {
     expect(cc.dolly(10)).toBe(false);
   });
 });
+
+// A crane queued behind a fly-to used to release tracking when it was asked
+// for. The fly-to's landing then tracked the body again through the deferred
+// origin switch, and free orbit re-pinned the target to the body every frame:
+// the crane became a tilt. The frames below run in the renderer's order —
+// origin switch, body positions under the new origin, then `update()`.
+describe('crane queued behind a fly-to', () => {
+  it('releases tracking when it starts, after the origin switch, and keeps its translation', () => {
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const { camera, cc, earth } = setup();
+    // Start somewhere else entirely, so the origin switch moves things.
+    earth.position.set(0, 0, -50000);
+    const frame = (seconds: number) => {
+      now += seconds * 1000;
+      cc.applyPendingOriginSwitch();
+      // Body positions, as the renderer recomputes them under the origin.
+      if (cc.originBody === earth) earth.position.set(0, 0, 0);
+      cc.update();
+    };
+
+    cc.flyTo(earth, { duration: 1, scaleFactor: 1 });
+    expect(cc.crane(2000, 2)).toBe(true);
+    for (let i = 0; i < 5; i++) frame(0.3); // the flight, then its landing a frame later
+    expect(cc.originBody).toBe(earth);
+
+    for (let i = 0; i < 20; i++) frame(0.2); // the crane, and well past it
+    expect(cc.moving).toBe(false);
+    expect(cc.trackedBody).toBeNull();
+    // The target rose 2000 above the body, and stayed: tracking did not pull it
+    // back. The camera kept its distance from the target, so the same view.
+    close(cc.controls.target, 0, 2000, 0);
+    expect(camera.position.distanceTo(cc.controls.target)).toBeCloseTo(6378 * 3, 0);
+  });
+
+  it('holds an instant move until the fly-to has landed, instead of losing it to the flight', () => {
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const { cc, earth } = setup();
+    earth.position.set(0, 0, -50000);
+    cc.flyTo(earth, { duration: 1, scaleFactor: 1 });
+    cc.crane(2000);
+    expect(cc.moving).toBe(true);
+    for (let i = 0; i < 6; i++) {
+      now += 300;
+      cc.applyPendingOriginSwitch();
+      if (cc.originBody === earth) earth.position.set(0, 0, 0);
+      cc.update();
+    }
+    expect(cc.moving).toBe(false);
+    close(cc.controls.target, 0, 2000, 0);
+  });
+});

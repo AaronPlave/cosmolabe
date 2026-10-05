@@ -712,7 +712,13 @@ export class CameraController {
    * left (radians for a swing, scene units for a dolly or crane), its rate per
    * second, and when it last stepped.
    */
-  private _move: { kind: CameraMoveKind; remaining: number; rate: number; lastMs: number } | null = null;
+  private _move: {
+    kind: CameraMoveKind;
+    remaining: number;
+    /** Per second; `null` for an instant move held until a fly-to lands. */
+    rate: number | null;
+    lastMs: number;
+  } | null = null;
 
   /**
    * Swing the camera around its orbit target by `radians`, keeping its distance
@@ -755,11 +761,12 @@ export class CameraController {
    *
    * Free orbit pins the orbit target to a tracked object every frame, which
    * would turn a crane into a tilt; so, as Z / C do, a crane there releases
-   * the tracked object first. The co-rotating frames keep it.
+   * the tracked object — when it starts moving, not when it is asked for. A
+   * crane queued behind a fly-to would otherwise see the fly-to's landing
+   * track the body again, and every step after be undone. The co-rotating
+   * frames keep tracking.
    */
   crane(distance: number, duration = 0): boolean {
-    if (!this._activeMode.allowsOrbitControls) return false;
-    if (this._activeMode.name === CameraModeName.FREE_ORBIT) this._trackTarget = null;
     return this._startMove('crane', distance, duration);
   }
 
@@ -768,18 +775,26 @@ export class CameraController {
 
   /**
    * Start a scripted move, replacing any still playing. Instant without a
-   * duration; otherwise played at a constant rate, held behind a fly-to in
-   * progress, and stopped by `cancelAnimation`.
+   * duration; otherwise played at a constant rate. Either kind waits for a
+   * fly-to in progress — its animation and the origin switch it lands with —
+   * since the fly-to overwrites the camera every frame until then. Stopped by
+   * `cancelAnimation`.
    */
   private _startMove(kind: CameraMoveKind, amount: number, duration: number): boolean {
     if (!this._activeMode.allowsOrbitControls) return false;
     this._move = null;
-    if (duration > 0) {
-      this._move = { kind, remaining: amount, rate: amount / duration, lastMs: performance.now() };
-    } else {
+    const rate = duration > 0 ? amount / duration : null;
+    if (rate === null && !this._flying) {
       this._applyMove(kind, amount);
+    } else {
+      this._move = { kind, remaining: amount, rate, lastMs: performance.now() };
     }
     return true;
+  }
+
+  /** A fly-to is still moving the camera, or has yet to land its origin switch. */
+  private get _flying(): boolean {
+    return this._anim !== null || this._pendingOriginSwitch !== null;
   }
 
   /**
@@ -793,7 +808,7 @@ export class CameraController {
     if (!move) return;
     const elapsed = Math.max(now - move.lastMs, 0) / 1000;
     move.lastMs = now;
-    let step = move.rate * elapsed;
+    let step = move.rate === null ? move.remaining : move.rate * elapsed;
     if (Math.abs(step) >= Math.abs(move.remaining)) {
       step = move.remaining;
       this._move = null;
@@ -814,6 +829,14 @@ export class CameraController {
       case 'dolly':
         return this._dollyBy(amount);
       case 'crane':
+        if (this._activeMode.name === CameraModeName.FREE_ORBIT && this._trackTarget) {
+          // Pin the target where tracking would have this frame before letting
+          // go. Right after a fly-to lands it still holds the body's position
+          // in the old origin's coordinates; tracking corrects that each frame,
+          // and nothing will once it is released.
+          this.controls.target.copy(this._trackTarget.position);
+          this._trackTarget = null;
+        }
         this._craneBy(amount);
         return true;
       default: {
@@ -1002,9 +1025,13 @@ export class CameraController {
     // A scripted move (swing, dolly, crane), ahead of the mode update: in
     // body-fixed and SC-fixed frames the mode then carries the moved camera
     // with the body.
+    // A fly-to's origin switch lands at the start of the renderer's next frame;
+    // until it has, the move keeps holding, or the switch would re-track the
+    // body and shift the camera under a move already applied.
     if (this._move) {
-      if (this._activeMode.allowsOrbitControls) this._stepMove(now);
-      else this._move = null;
+      if (!this._activeMode.allowsOrbitControls) this._move = null;
+      else if (this._pendingOriginSwitch) this._move.lastMs = now;
+      else this._stepMove(now);
     }
 
     // --- Non-FreeOrbit modes: delegate to active mode ---
