@@ -79,6 +79,7 @@ describe('event finder usable range', () => {
     // The automatic default is one of them — the one holding the current
     // time — never the envelope across the gap.
     expect(ef.form).toMatchObject({ startEt: 1_003, endEt: 2_997 });
+    expect(ef.windowSource).toBe('suggested');
   });
 
   it('follows the selected bodies and the event type', () => {
@@ -97,6 +98,7 @@ describe('event finder usable range', () => {
   it('fills From/To without searching, and only when asked', () => {
     setWindow(100, 9_000);
     expect(ef.windowPinned).toBe(true);
+    expect(ef.windowSource).toBe('custom');
     expect(windowOutsideUsable().length).toBeGreaterThan(0);
 
     // A body change keeps the user's window.
@@ -106,6 +108,7 @@ describe('event finder usable range', () => {
     setRole('target', 'EARTH');
     useAvailableWindow(1);
     expect(ef.form).toMatchObject({ startEt: 5_003, endEt: 7_997 });
+    expect(ef.windowSource).toBe('available');
     expect(ef.running).toBe(false);
     expect(ef.searched).toBe(false);
     expect(windowOutsideUsable()).toEqual([]);

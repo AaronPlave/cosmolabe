@@ -77,18 +77,12 @@
   );
   /** Parts of the current window no usable range covers; empty when it is fine. */
   let outside = $derived(form && coverage ? windowOutsideUsable() : []);
-  /** Keep the selected range and one alternative visible when there are many. */
-  const COVERAGE_SHOWN = 2;
-  let showAllCoverage = $state(false);
-  let shownCoverage = $derived.by(() => {
-    const windows = coverage?.windows ?? [];
-    if (showAllCoverage || windows.length <= COVERAGE_SHOWN) {
-      return windows.map((window, index) => ({ window, index }));
-    }
-    const current = windows.findIndex(isCurrentWindow);
-    const indexes = current < 0 ? [0, 1] : [current, current === 0 ? 1 : 0];
-    return indexes.sort((a, b) => a - b).map((index) => ({ window: windows[index]!, index }));
-  });
+  let availableIndex = $derived(coverage?.windows.findIndex(isCurrentWindow) ?? -1);
+  let windowSelection = $derived(
+    ef.windowSource === 'available'
+      ? availableIndex >= 0 ? `available:${availableIndex}` : 'custom'
+      : ef.windowSource,
+  );
 
   function titleCase(name: string): string {
     return name === name.toUpperCase() ? name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : name;
@@ -96,6 +90,14 @@
 
   function utc(et: number): string {
     return etToUtcString(et).replace(' UTC', '');
+  }
+
+  function compactRange(start: number, end: number): string {
+    const from = utc(start);
+    const to = utc(end);
+    if (from.slice(0, 10) !== to.slice(0, 10)) return `${from.slice(0, 10)} → ${to.slice(0, 10)}`;
+    if (from.slice(0, 16) === to.slice(0, 16)) return `${from.slice(0, 19)} → ${to.slice(11, 19)}`;
+    return `${from.slice(0, 16)} → ${to.slice(11, 16)}`;
   }
 
   function isCurrentWindow(w: { start: number; end: number }): boolean {
@@ -162,11 +164,22 @@
     if (et !== null && form) setWindow(form.startEt, et);
   }
 
-  /** Snap the window to the whole catalog, or to what the scrubber shows. */
-  function useRange(start: number, end: number) {
+  function chooseWindow(value: string) {
     startBad = false;
     endBad = false;
-    setWindow(start, end);
+    if (value.startsWith('available:')) {
+      useAvailableWindow(Number(value.slice('available:'.length)));
+    } else if (value === 'visible') {
+      setWindow(vs.scrubMin, vs.scrubMax);
+      ef.windowSource = 'visible';
+    } else if (value === 'catalog') {
+      setWindow(vs.scrubBaseMin, vs.scrubBaseMax);
+      ef.windowSource = 'catalog';
+    } else if (value === 'suggested') {
+      resetWindow();
+    } else if (value === 'custom') {
+      ef.windowSource = 'custom';
+    }
   }
 
   const STEP_PRESETS = [
@@ -274,62 +287,54 @@
       </div>
     {/each}
 
-    <!-- Search window -->
+    <!-- One window choice; only Custom exposes the editable timestamps. -->
     <div class="flex items-center gap-2 mb-1.5">
-      <span class="ui-label w-20 shrink-0">From</span>
-      <input
-        class="ui-control flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
-               {startBad ? 'border-warning' : 'border-border'}"
-        bind:value={startText}
-        onblur={commitStart}
-        onkeydown={(e) => { if (e.key === 'Enter') commitStart(); }}
-      />
+      <label for="event-window" class="ui-label w-20 shrink-0">Window</label>
+      <select
+        id="event-window"
+        class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
+        value={windowSelection}
+        onchange={(e) => chooseWindow((e.target as HTMLSelectElement).value)}
+        title={`${utc(form.startEt)} – ${utc(form.endEt)}`}
+      >
+        <option value="suggested">{windowSelection === 'suggested' ? `${coverage?.status === 'available' && outside.length === 0 ? 'Available' : 'Suggested'} · ${compactRange(form.startEt, form.endEt)}` : 'Suggested window'}</option>
+        {#each coverage?.windows ?? [] as w, index (w.start)}
+          <option value={`available:${index}`}>Available · {compactRange(w.start, w.end)}</option>
+        {/each}
+        <option value="visible">Visible timeline · {windowSelection === 'visible' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubMin, vs.scrubMax)}</option>
+        <option value="catalog">Catalog span · {windowSelection === 'catalog' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubBaseMin, vs.scrubBaseMax)}</option>
+        <option value="custom">Custom…</option>
+      </select>
     </div>
-    <div class="flex items-center gap-2 mb-1.5">
-      <span class="ui-label w-20 shrink-0">To</span>
-      <input
-        class="ui-control flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
-               {endBad ? 'border-warning' : 'border-border'}"
-        bind:value={endText}
-        onblur={commitEnd}
-        onkeydown={(e) => { if (e.key === 'Enter') commitEnd(); }}
-      />
-    </div>
-    {#if coverage && coverage.status === 'available'}
-      {#if outside.length > 0 || coverage.windows.length > 1 || !isCurrentWindow(coverage.windows[0])}
-        <div class="event-range mb-2 ml-22" class:invalid={outside.length > 0}>
-          <p class="event-range-heading">
-            {outside.length > 0 ? 'Outside available range' : 'Available'}{!coverage.exact ? ' (approximate)' : ''}
-          </p>
-          <ul class="event-range-list">
-            {#each shownCoverage as { window: w, index } (w.start)}
-              <li class="event-range-row">
-                <span class="event-range-dates">{utc(w.start)} – {utc(w.end)}</span>
-                {#if isCurrentWindow(w)}
-                  <span class="event-range-in-use">In use</span>
-                {:else}
-                  <button class="event-range-action" onclick={() => { startBad = false; endBad = false; useAvailableWindow(index); }}>
-                    Use
-                  </button>
-                {/if}
-              </li>
-            {/each}
-          </ul>
-          {#if coverage.windows.length > COVERAGE_SHOWN}
-            <button class="ctrl-link" onclick={() => (showAllCoverage = !showAllCoverage)}>
-              {showAllCoverage ? 'Show fewer' : `Show ${coverage.windows.length - COVERAGE_SHOWN} more`}
-            </button>
-          {/if}
-          {#if !coverage.exact && coverage.caveats.length}
-            <details class="event-range-details">
-              <summary>Why approximate?</summary>
-              <ul class="list-disc pl-4">
-                {#each coverage.caveats as caveat}<li>{caveat}</li>{/each}
-              </ul>
-            </details>
-          {/if}
-        </div>
-      {/if}
+    {#if windowSelection === 'custom'}
+      <div class="flex items-center gap-2 mb-1.5">
+        <label for="event-from" class="ui-label w-20 shrink-0">From</label>
+        <input
+          id="event-from"
+          class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
+                 {startBad ? 'border-warning' : 'border-border'}"
+          bind:value={startText}
+          onblur={commitStart}
+          onkeydown={(e) => { if (e.key === 'Enter') commitStart(); }}
+        />
+      </div>
+      <div class="flex items-center gap-2 mb-1.5">
+        <label for="event-to" class="ui-label w-20 shrink-0">To</label>
+        <input
+          id="event-to"
+          class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
+                 {endBad ? 'border-warning' : 'border-border'}"
+          bind:value={endText}
+          onblur={commitEnd}
+          onkeydown={(e) => { if (e.key === 'Enter') commitEnd(); }}
+        />
+      </div>
+    {/if}
+    {#if coverage?.status === 'available' && outside.length > 0}
+      <p class="event-range invalid mb-2 ml-22" role="status">
+        <span class="event-range-heading">Outside available range.</span>
+        Choose an available window above.
+      </p>
     {:else if coverage && coverage.status === 'none'}
       <div class="event-range invalid mb-2 ml-22" role="status">
         <p class="event-range-heading">No usable range for {coverageSubject}</p>
@@ -344,14 +349,14 @@
           </details>
         {/if}
       </div>
-    {:else if ef.windowTrimmed}
-      <p class="ui-helper event-helper mb-2 ml-22">
-        Trimmed to the kernel coverage of the chosen bodies.
-      </p>
-    {:else if ef.windowPinned}
-      <p class="ui-helper event-helper mb-2 ml-22">
-        Using your window. <button class="ctrl-link underline" onclick={resetWindow}>Reset to default window</button>
-      </p>
+    {/if}
+    {#if coverage?.status === 'available' && !coverage.exact && coverage.caveats.length}
+      <details class="event-range-details mb-2 ml-22">
+        <summary>Available range is approximate</summary>
+        <ul class="list-disc pl-4">
+          {#each coverage.caveats as caveat}<li>{caveat}</li>{/each}
+        </ul>
+      </details>
     {/if}
 
     <div class="flex items-center gap-2 mb-2">
@@ -369,8 +374,6 @@
           <option value={String(form.step)}>{formatSeconds(form.step)}</option>
         {/if}
       </select>
-      <button class="ctrl-link shrink-0" onclick={() => useRange(vs.scrubBaseMin, vs.scrubBaseMax)}>all</button>
-      <button class="ctrl-link shrink-0" onclick={() => useRange(vs.scrubMin, vs.scrubMax)}>visible</button>
     </div>
 
     <!-- Run. A long search is survivable now that it runs off the main thread,
@@ -775,9 +778,6 @@
     font-weight: 500;
     color: var(--color-text-secondary);
   }
-  .event-helper {
-    color: var(--color-text-faint);
-  }
   .event-unavailable {
     padding: 5px 7px;
     border-left: 2px solid var(--color-warning);
@@ -795,37 +795,6 @@
   .event-range.invalid .event-range-heading {
     color: var(--color-warning);
   }
-  .event-range-list {
-    margin-top: 2px;
-  }
-  .event-range-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 2px 8px;
-    padding: 1px 0;
-  }
-  .event-range-dates {
-    flex: 1;
-    min-width: 0;
-    font-family: var(--font-mono);
-    font-size: var(--text-helper);
-    overflow-wrap: anywhere;
-  }
-  .event-range-in-use {
-    color: var(--color-text-muted);
-  }
-  .event-range-action {
-    flex: none;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--color-text-secondary);
-    text-decoration: underline;
-    cursor: pointer;
-  }
-  .event-range-action:hover {
-    color: var(--color-text-primary);
-  }
   .event-range-reason {
     margin-top: 2px;
     color: var(--color-text-secondary);
@@ -836,9 +805,6 @@
   }
   .event-range-details summary {
     cursor: pointer;
-  }
-  .event-helper .ctrl-link {
-    font-size: inherit;
   }
   .event-marker-legend {
     display: flex;

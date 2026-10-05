@@ -429,6 +429,8 @@ export const ef = $state({
   hint: null as string | null,
   /** True once the user has set the window themselves; stops it being re-derived. */
   windowPinned: false,
+  /** How the window is presented in the Events panel. */
+  windowSource: 'suggested' as 'suggested' | 'available' | 'visible' | 'catalog' | 'custom',
   /** Set when the default window was trimmed to the bodies' kernel coverage. */
   windowTrimmed: false,
   /**
@@ -693,6 +695,7 @@ export function useAvailableWindow(index: number) {
   const w = ef.coverage?.windows[index];
   if (!w) return;
   setWindow(w.start, w.end);
+  ef.windowSource = 'available';
 }
 
 /**
@@ -719,6 +722,7 @@ export function resetForm() {
     ? { start: previous.startEt, end: previous.endEt }
     : defaultWindow(previous?.bodies);
   ef.form = formForKind(currentKind(), window, previous);
+  if (!ef.windowPinned) ef.windowSource = 'suggested';
   syncWindowToBodies();
   syncConfiguredQuery();
   syncCoverage();
@@ -846,6 +850,7 @@ export function createNewSearch() {
   const previous = ef.form ?? undefined;
   ef.configuredId = null;
   ef.windowPinned = false;
+  ef.windowSource = 'suggested';
   ef.form = formForKind(currentKind(), defaultWindow(previous?.bodies), previous);
   ef.events = [];
   ef.fault = null;
@@ -890,6 +895,7 @@ export function openConfiguredQuery(id: string) {
   // configured query stores a concrete window, so its mere presence cannot
   // mean the user explicitly pinned it.
   ef.windowPinned = item.windowMode === 'explicit';
+  ef.windowSource = ef.windowPinned ? 'custom' : 'suggested';
   ef.windowTrimmed = false;
   syncCoverage();
   syncEventResultsInScene();
@@ -934,6 +940,7 @@ export function setWindow(startEt: number, endEt: number) {
   ef.form.endEt = endEt;
   // The user has now said what they want searched; stop second-guessing it.
   ef.windowPinned = true;
+  ef.windowSource = 'custom';
   ef.windowTrimmed = false;
   syncConfiguredQuery();
   clearResults();
@@ -942,6 +949,7 @@ export function setWindow(startEt: number, endEt: number) {
 /** Drops a hand-set window and goes back to the default for the loaded coverage. */
 export function resetWindow() {
   ef.windowPinned = false;
+  ef.windowSource = 'suggested';
   syncWindowToBodies();
   syncConfiguredQuery();
   clearResults();
@@ -1126,6 +1134,7 @@ export function resetForScene() {
   ef.activeId = null;
   ef.activeQueryId = null;
   ef.windowPinned = false;
+  ef.windowSource = 'suggested';
   ef.windowTrimmed = false;
   ef.configuredId = null;
   ef.coverage = null;
