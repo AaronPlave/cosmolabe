@@ -36,6 +36,7 @@ import {
   vs,
   applyViewpoint,
   bodyNames,
+  circleCenter,
   clearLookAt,
   displayNote,
   getRenderer,
@@ -202,6 +203,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     },
 
     setCamera: (position, target, up) => setCameraPose(position, target, up),
+
+    circleCenter: (direction, degrees, opts) => circleCenter(direction, degrees, opts?.seconds),
 
     // ── Write: time ──
     setTime: (when) => {

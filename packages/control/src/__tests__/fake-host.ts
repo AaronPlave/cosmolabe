@@ -11,6 +11,7 @@
  */
 import { snapshotScript } from '../snapshot.js';
 import type {
+  CircleDirection,
   ScriptCamera,
   ScriptEventMap,
   ScriptEventName,
@@ -171,6 +172,11 @@ export class FakeViewer implements ViewerControl {
       target: target ?? [0, 0, 0],
       up: up ?? this.camera.up,
     };
+    return this.ok(true);
+  }
+
+  circleCenter(direction: CircleDirection, degrees: number, opts?: { seconds?: number }): boolean {
+    this.log('circleCenter', direction, degrees, opts?.seconds);
     return this.ok(true);
   }
 

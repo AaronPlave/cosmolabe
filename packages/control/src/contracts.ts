@@ -38,6 +38,9 @@ export type ScriptTime =
   /** A calendar string, exactly as written in the script. */
   | { readonly kind: 'calendar'; readonly text: string };
 
+/** Which way `circleCenter` moves the camera on screen. */
+export type CircleDirection = 'right' | 'left' | 'up' | 'down';
+
 /** A frame captured by the `screenshot` verb. */
 export interface ScriptImage {
   /** PNG data URL of the captured frame. */
@@ -143,6 +146,19 @@ export interface ViewerControl {
    * one, the world origin otherwise.
    */
   setCamera(position: ScriptVec3, target?: ScriptVec3, up?: ScriptVec3): boolean;
+  /**
+   * Swing the camera around the point it orbits by `degrees`, keeping its
+   * distance and its aim — Cosmographia's `circleCenterRight/Left/Up/Down`.
+   *
+   * `direction` is the way the camera moves on screen: `right` and `left` swing
+   * it about the view's up vector, `up` and `down` about the view's right axis.
+   * Instant by default; pass `seconds` to swing at a constant rate over that
+   * long. Like a timed `gotoObject` it returns at once — sequence with `wait`.
+   *
+   * False in a camera frame that owns the view's orientation (LVLH, chase,
+   * surface, instrument), where there is no orbit to swing.
+   */
+  circleCenter(direction: CircleDirection, degrees: number, opts?: { seconds?: number }): boolean;
 
   // ── Write: time ──
 

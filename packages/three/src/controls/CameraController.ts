@@ -686,9 +686,91 @@ export class CameraController {
   /** Whether a fly-to/viewpoint animation is currently playing */
   get animating(): boolean { return this._anim !== null; }
 
-  /** Cancel any in-progress camera animation */
+  /** Cancel any in-progress camera animation, an `orbitTarget` swing included */
   cancelAnimation(): void {
     this._anim = null;
+    this._orbit = null;
+  }
+
+  /** An `orbitTarget` swing still playing: the angle left, its rate in rad/s, and when it last stepped. */
+  private _orbit: { axis: 'up' | 'right'; remaining: number; rate: number; lastMs: number } | null = null;
+
+  /**
+   * Swing the camera around its orbit target by `radians`, keeping its distance
+   * from the target and its aim at it — Cosmographia's `circleCenter*` moves.
+   *
+   * `'up'` swings about the view's up vector, positive moving the camera to the
+   * right; `'right'` swings about the view's right axis, positive moving it up,
+   * and carries the up vector with it so the view does not roll.
+   *
+   * With a `duration` the swing plays at a constant rate over that many seconds.
+   * It is a rotation and not a pose interpolation on purpose: a full circle
+   * starts and ends at the same pose, so interpolating between the two would
+   * not move the camera at all. A fly-to in progress holds the swing until it
+   * lands, and `cancelAnimation` stops it.
+   *
+   * Returns false, and does nothing, in a mode that owns the camera's
+   * orientation (LVLH, chase, surface, instrument): there is no orbit to swing.
+   */
+  orbitTarget(axis: 'up' | 'right', radians: number, duration = 0): boolean {
+    if (!this._activeMode.allowsOrbitControls) return false;
+    this._orbit = null;
+    if (duration > 0) {
+      this._orbit = { axis, remaining: radians, rate: radians / duration, lastMs: performance.now() };
+    } else {
+      this._rotateAboutTarget(axis, radians);
+    }
+    return true;
+  }
+
+  /** Whether an `orbitTarget` swing is still playing. */
+  get orbiting(): boolean { return this._orbit !== null; }
+
+  /**
+   * Advance an `orbitTarget` swing by the wall-clock time since its last step.
+   * Not the frame `dt`, which is capped: on a slow frame rate that would
+   * stretch a 5-second swing past the `wait` a script gave it. The last step
+   * lands exactly.
+   */
+  private _stepOrbit(now: number): void {
+    const orbit = this._orbit;
+    if (!orbit) return;
+    const elapsed = Math.max(now - orbit.lastMs, 0) / 1000;
+    orbit.lastMs = now;
+    let step = orbit.rate * elapsed;
+    if (Math.abs(step) >= Math.abs(orbit.remaining)) {
+      step = orbit.remaining;
+      this._orbit = null;
+    } else {
+      orbit.remaining -= step;
+    }
+    this._rotateAboutTarget(orbit.axis, step);
+  }
+
+  private _rotateAboutTarget(axis: 'up' | 'right', radians: number): void {
+    const target = this.controls.target;
+    const offset = this.camera.position.clone().sub(target);
+    const up = this.camera.up.clone().normalize();
+    let pivot: THREE.Vector3;
+    let angle: number;
+    if (axis === 'up') {
+      pivot = up;
+      angle = radians;
+    } else {
+      // The view's right axis, from where the camera actually looks. Looking
+      // straight along `up` leaves that undefined; the camera's own x axis is
+      // the right axis of whatever it last rendered.
+      const forward = offset.clone().negate();
+      pivot = new THREE.Vector3().crossVectors(forward, up);
+      if (pivot.lengthSq() < 1e-20) pivot.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+      pivot.normalize();
+      // Right-handed about the right axis tips the offset *down*; up is positive.
+      angle = -radians;
+    }
+    const q = new THREE.Quaternion().setFromAxisAngle(pivot, angle);
+    this.camera.position.copy(target).add(offset.applyQuaternion(q));
+    if (axis === 'right') this.camera.up.applyQuaternion(q).normalize();
+    this.camera.lookAt(target);
   }
 
   /**
@@ -807,7 +889,16 @@ export class CameraController {
         (this.controls as any)._zoomStart?.copy((this.controls as any)._zoomEnd);
         onComplete?.();
       }
+      // A swing held behind the fly-to starts its clock when the fly-to lands.
+      if (this._orbit) this._orbit.lastMs = now;
       return; // Animation takes priority over mode updates
+    }
+
+    // An `orbitTarget` swing, ahead of the mode update: in body-fixed and
+    // SC-fixed frames the mode then carries the swung camera with the body.
+    if (this._orbit) {
+      if (this._activeMode.allowsOrbitControls) this._stepOrbit(now);
+      else this._orbit = null;
     }
 
     // --- Non-FreeOrbit modes: delegate to active mode ---

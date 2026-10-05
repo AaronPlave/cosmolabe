@@ -10,8 +10,9 @@
 # Camera poses: in a body-fixed frame, setCamera takes the body's own axes
 # (Z the pole, X the prime meridian), so the original's moveToPov vectors are
 # used as they are.
-# Cosmographia animates its camera moves; setCamera and pointAtObject are
-# instant, so the waits the original spent animating are pauses here.
+# Cosmographia animates its camera moves. The circleCenter moves animate here
+# too; setCamera and pointAtObject are instant, so the waits the original
+# spent animating those are pauses here.
 
 displayNote "Welcome to the Cosmolabe scripting example!" 3
 wait 4
@@ -41,11 +42,13 @@ wait 1
 gotoObject Earth 5
 wait 6
 
-# moveAwayFromCenter(10000, 3) / circleCenterRight(360, 5)
-# No equivalent yet: no dolly or orbit moves. (A full 360-degree circle ends
-# where it started, so the view after this block matches the original.)
+# moveAwayFromCenter(10000, 3)
+# No equivalent yet: no dolly move, so the circle runs at the distance
+# gotoObject left the camera.
 displayNote "Back up a bit and fly around Earth" 3
-wait 10
+wait 4
+circleCenterRight 360 5
+wait 6
 
 # moveToPov("Earth", [0,-14000,11500], [0,1.4,-1.15], [0,0,1], 5):
 # the same pose in Earth's body-fixed frame, looking at the centre.
@@ -88,23 +91,27 @@ wait 1
 displayNote "Show directions to Sun and Earth" 2
 wait 3
 
-# circleCenterUp(90, 2.5) -> the pose it ends on: over the north pole.
+# From [5000, 0, 0] with the pole up, a quarter circle up ends over the
+# north pole, at [0, 0, 5000].
 displayNote "Look at the Moon's North pole" 3
 wait 1
-setCamera [0, 0, 5000] [0, 0, 0] [-1, 0, 0]
+circleCenterUp 90 2.5
 wait 3.5
 
-# circleCenterDown(180, 5) -> over the south pole.
+# Half a circle down ends over the south pole, at [0, 0, -5000].
 displayNote "Look at the Moon's South pole" 3
 wait 1
-setCamera [0, 0, -5000] [0, 0, 0] [1, 0, 0]
+circleCenterDown 180 5
 wait 6
 
-# circleCenterUp(90, 2.5) + circleCenterRight(180, 5) -> over the far side.
+# Back up to the equator on the near side, then half way round: the far side,
+# at [-5000, 0, 0].
 displayNote "Look at the Moon's far side" 3
 wait 1
-setCamera [-5000, 0, 0] [0, 0, 0] [0, 0, 1]
-wait 8.5
+circleCenterUp 90 2.5
+wait 2.5
+circleCenterRight 180 5
+wait 6
 
 # craneUp(2000, 2) -> the same view raised 2000 km along the camera's up.
 displayNote "Look over the Moon's shoulder at the Earth" 3

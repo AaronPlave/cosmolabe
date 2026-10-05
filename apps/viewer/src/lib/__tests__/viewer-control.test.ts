@@ -178,6 +178,10 @@ function makeFakeRenderer(objects: string[]) {
       },
       flyTo: (bm: FakeBodyMesh) => log(`flyTo(${bm.body.name})`),
       cancelAnimation: () => log('cancelAnimation'),
+      orbitTarget: (axis: 'up' | 'right', radians: number, duration?: number) => {
+        log(`orbitTarget(${axis}, ${radians.toFixed(4)}, ${duration})`);
+        return mode !== CameraModeName.LVLH;
+      },
       setModeForBody: (m: CameraModeName, bm: FakeBodyMesh | null) => {
         log(`setModeForBody(${m}, ${bm?.body.name ?? 'null'})`);
         mode = m;
@@ -273,6 +277,46 @@ describe('every verb is wired', () => {
     for (const spec of VERB_LIST) {
       expect(typeof control[spec.method], `${spec.name} → ${String(spec.method)}`).toBe('function');
     }
+  });
+});
+
+describe('circleCenter', () => {
+  // Right and left swing about the view's up vector, up and down about its
+  // right axis; the sign is the way the camera moves on screen.
+  it('maps each direction onto an axis and a signed angle in radians', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.circleCenter('right', 90)).toBe(true);
+    expect(control.circleCenter('left', 90)).toBe(true);
+    expect(control.circleCenter('up', 180, { seconds: 5 })).toBe(true);
+    expect(control.circleCenter('down', 180, { seconds: 5 })).toBe(true);
+    expect(renderer.calls).toEqual([
+      'orbitTarget(up, 1.5708, undefined)',
+      'orbitTarget(up, -1.5708, undefined)',
+      'orbitTarget(right, 3.1416, 5)',
+      'orbitTarget(right, -3.1416, 5)',
+    ]);
+  });
+
+  it('refuses a non-finite angle or a negative duration without moving anything', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.circleCenter('right', Number.NaN)).toBe(false);
+    expect(control.circleCenter('right', 90, { seconds: -1 })).toBe(false);
+    expect(renderer.calls).toEqual([]);
+  });
+
+  it('passes on the refusal of a frame that owns the view', () => {
+    const control = createViewerControl();
+    control.setFrame('lvlh', 'Cassini');
+    expect(control.circleCenter('right', 90)).toBe(false);
+  });
+
+  it('runs as text under Cosmographia\'s names', async () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    await execute(parse('circleCenterRight 360 5\ncircleCenterDown 30'), control);
+    expect(renderer.calls).toEqual(['orbitTarget(up, 6.2832, 5)', 'orbitTarget(right, -0.5236, undefined)']);
   });
 });
 

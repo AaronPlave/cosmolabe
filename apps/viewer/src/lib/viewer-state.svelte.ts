@@ -842,6 +842,24 @@ export function getCameraPose(): {
   return { position: point(cc.camera.position), target: point(cc.controls.target), up: [up.x, up.y, up.z] };
 }
 
+/**
+ * Swing the camera around what it orbits by `degrees`, the way it would move
+ * on screen. Instant unless `seconds` is given. False in a camera frame that
+ * owns the view's orientation, or for a non-finite angle or duration.
+ */
+export function circleCenter(
+  direction: 'right' | 'left' | 'up' | 'down',
+  degrees: number,
+  seconds?: number,
+): boolean {
+  if (!_renderer) return false;
+  if (!Number.isFinite(degrees)) return false;
+  if (seconds !== undefined && !(Number.isFinite(seconds) && seconds >= 0)) return false;
+  const axis = direction === 'right' || direction === 'left' ? 'up' : 'right';
+  const sign = direction === 'right' || direction === 'up' ? 1 : -1;
+  return _renderer.cameraController.orbitTarget(axis, sign * THREE.MathUtils.degToRad(degrees), seconds);
+}
+
 /** Show or hide one object's trajectory line. False if there is no such object. */
 export function setTrajectoryVisible(name: string, visible: boolean): boolean {
   if (!_renderer || !_renderer.getBodyMesh(name)) return false;

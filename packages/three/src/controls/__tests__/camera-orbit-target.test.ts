@@ -1,0 +1,163 @@
+/**
+ * `orbitTarget` — Cosmographia's `circleCenter*` moves.
+ *
+ * The geometry is checked on a real `CameraController` rather than a fake,
+ * because the sign conventions are the part most likely to be wrong: "right"
+ * has to move the camera toward the right edge of what it currently shows, and
+ * "up" toward the top, whichever way the camera happens to face.
+ */
+import { afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
+import * as THREE from 'three';
+import { CameraController } from '../CameraController.js';
+import { CameraModeName } from '../CameraModes.js';
+import type { BodyMesh } from '../../BodyMesh.js';
+
+/** Just enough of an element for TrackballControls to attach to. */
+function fakeElement(): HTMLElement {
+  const listeners = { addEventListener() {}, removeEventListener() {} };
+  return {
+    ...listeners,
+    style: {},
+    ownerDocument: { ...listeners, defaultView: listeners, documentElement: { clientLeft: 0, clientTop: 0 } },
+    clientWidth: 800,
+    clientHeight: 600,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0 }),
+    setPointerCapture() {},
+    releasePointerCapture() {},
+  } as unknown as HTMLElement;
+}
+
+function fakeBody(name: string, radius: number, position: THREE.Vector3): BodyMesh {
+  return {
+    position,
+    displayRadius: radius,
+    scaleFactor: 1,
+    hasTerrain: false,
+    body: { name, rotation: undefined, rotationAt: () => undefined },
+  } as unknown as BodyMesh;
+}
+
+beforeAll(() => {
+  vi.stubGlobal('window', { addEventListener() {}, removeEventListener() {} });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+/** A camera 10 000 km out on +Z looking at the origin, +Y up: right is +X. */
+function setup() {
+  const camera = new THREE.PerspectiveCamera(60, 800 / 600, 1, 1e9);
+  const cc = new CameraController(camera, fakeElement());
+  const earth = fakeBody('Earth', 6378, new THREE.Vector3(0, 0, 0));
+  cc.setModeContext(null, 0, 1, new Map([['Earth', earth]]));
+  camera.position.set(0, 0, 10000);
+  camera.up.set(0, 1, 0);
+  cc.controls.target.set(0, 0, 0);
+  camera.lookAt(cc.controls.target);
+  return { camera, cc, earth };
+}
+
+const close = (v: THREE.Vector3, x: number, y: number, z: number) => {
+  expect(v.x).toBeCloseTo(x, 3);
+  expect(v.y).toBeCloseTo(y, 3);
+  expect(v.z).toBeCloseTo(z, 3);
+};
+
+describe('orbitTarget, instant', () => {
+  it('swings right about the view up, keeping distance, aim and up', () => {
+    const { camera, cc } = setup();
+    expect(cc.orbitTarget('up', Math.PI / 2)).toBe(true);
+    close(camera.position, 10000, 0, 0);
+    close(camera.up, 0, 1, 0);
+    const forward = camera.getWorldDirection(new THREE.Vector3());
+    close(forward, -1, 0, 0);
+  });
+
+  it('swings up about the view right, carrying the up vector so nothing rolls', () => {
+    const { camera, cc } = setup();
+    expect(cc.orbitTarget('right', Math.PI / 2)).toBe(true);
+    // Now above the target, looking down, with up pointing the way the camera
+    // was looking before: the top of the screen is still "away".
+    close(camera.position, 0, 10000, 0);
+    close(camera.up, 0, 0, -1);
+  });
+
+  it('comes back to the start after a full circle', () => {
+    const { camera, cc } = setup();
+    cc.orbitTarget('up', 2 * Math.PI);
+    close(camera.position, 0, 0, 10000);
+    cc.orbitTarget('right', -2 * Math.PI);
+    close(camera.position, 0, 0, 10000);
+    close(camera.up, 0, 1, 0);
+  });
+
+  it('pivots on the orbit target, not the world origin', () => {
+    const { camera, cc } = setup();
+    cc.controls.target.set(100, 0, 0);
+    camera.position.set(100, 0, 500);
+    cc.orbitTarget('up', Math.PI);
+    close(camera.position, 100, 0, -500);
+  });
+
+  it('refuses in a mode that owns the view, and leaves the camera alone', () => {
+    const { camera, cc, earth } = setup();
+    cc.trackBody(earth, 1);
+    expect(cc.setMode(CameraModeName.CHASE, { bodyName: 'Earth' })).toBe(true);
+    const before = camera.position.clone();
+    expect(cc.orbitTarget('up', 1)).toBe(false);
+    expect(camera.position.equals(before)).toBe(true);
+  });
+});
+
+describe('orbitTarget, over a duration', () => {
+  /** Drive `update()` on a clock the test owns. */
+  function clock() {
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    return (seconds: number) => {
+      now += seconds * 1000;
+    };
+  }
+
+  it('turns at a constant rate and lands exactly on the angle asked for', () => {
+    const tick = clock();
+    const { camera, cc } = setup();
+    cc.orbitTarget('up', Math.PI, 2);
+    expect(cc.orbiting).toBe(true);
+    // Nothing moves until a frame runs.
+    close(camera.position, 0, 0, 10000);
+
+    tick(0.05);
+    cc.update();
+    const angle = Math.atan2(camera.position.x, camera.position.z);
+    expect(angle).toBeCloseTo((Math.PI / 2) * 0.05, 4);
+
+    // One long frame — slower than the controller's 0.1 s frame cap — still
+    // advances by the time that really passed, so a slow frame rate does not
+    // stretch the swing past the `wait` a script gave it.
+    tick(0.5);
+    cc.update();
+    expect(Math.atan2(camera.position.x, camera.position.z)).toBeCloseTo((Math.PI / 2) * 0.55, 4);
+
+    // Plenty of frames past the end: the last step is clipped, not overshot.
+    for (let i = 0; i < 60; i++) {
+      tick(0.05);
+      cc.update();
+    }
+    expect(cc.orbiting).toBe(false);
+    expect(camera.position.x).toBeCloseTo(0, 2);
+    expect(camera.position.z).toBeCloseTo(-10000, 2);
+  });
+
+  it('stops on cancelAnimation, where a scripted setCamera calls it', () => {
+    const tick = clock();
+    const { camera, cc } = setup();
+    cc.orbitTarget('up', Math.PI, 2);
+    cc.cancelAnimation();
+    tick(0.05);
+    cc.update();
+    expect(cc.orbiting).toBe(false);
+    close(camera.position, 0, 0, 10000);
+  });
+});
