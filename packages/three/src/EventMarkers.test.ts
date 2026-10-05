@@ -4,7 +4,7 @@ import type { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { Body } from '@cosmolabe/core';
 import { EventMarkers, eventAnchorOpacityAtSphere, pickEventMarkerGroups, type EventMarker } from './EventMarkers.js';
 import { TrajectoryLine } from './TrajectoryLine.js';
-import { eventLeadRequest, eventPiecesOnLines, selectEventTrajectoryBody, trajectoryLineResolver } from './UniverseRenderer.js';
+import { EVENT_LEAD_POLICY, UniverseRenderer, eventLeadRequest, eventPiecesOnLines, selectEventTrajectoryBody, trajectoryLineResolver } from './UniverseRenderer.js';
 import {
   BODY_FIXED, Body as CoreBody, FixedPointTrajectory, UniformRotation, Universe, type GeometryEvent,
 } from '@cosmolabe/core';
@@ -746,6 +746,94 @@ describe('trajectory-line event placement', () => {
 });
 
 describe('events on the future lead (#105)', () => {
+  it('requests a current-arc stub and a distant event excerpt without exposing intervening composite arcs', () => {
+    const day = 86400;
+    const universe = new Universe();
+    const spacecraft = new CoreBody({ name: 'Craft', classification: 'spacecraft', trajectory: new FixedPointTrajectory([0, 0, 0]) });
+    universe.addBody(spacecraft);
+    const lines = [0, 1, 2].map((arc) => new TrajectoryLine(spacecraft, {
+      minTime: arc * day, maxTime: (arc + 1) * day,
+      fixedResolver: (_name, t) => [t, 0, 0],
+    }));
+    // Exercise the renderer's public event API without constructing WebGL.
+    const renderer = Object.create(UniverseRenderer.prototype) as UniverseRenderer;
+    Object.assign(renderer, {
+      universe, scene: new THREE.Scene(), _markerScene: new THREE.Scene(),
+      trajectoryLines: new Map(lines.map((line, arc) => [`Craft__arc${arc}`, line])),
+      eventMarkerGroups: new Map(), bodyMeshes: new Map(), _eventPreview: null,
+    });
+    const event: GeometryEvent = {
+      id: 'future', queryId: 'q', kind: 'distance-range', temporality: 'interval',
+      start: 2 * day + 7200, end: 2 * day + 10800, bodies: { observer: 'Craft' }, label: '',
+    };
+    renderer.setEventResults([event], event);
+    for (const line of lines) line.update(day / 2, 1);
+    expect(lines[0].leadWindows()).toEqual([{ start: day / 2, end: day / 2 + 1800, kind: 'continuous' }]);
+    expect(lines[1].leadWindows()).toEqual([]);
+    expect(lines[2].leadWindows()).toEqual([{ start: 2 * day + 5400, end: 2 * day + 12600, kind: 'context' }]);
+    // Removing the event-owned requests preserves an independent catalog lead.
+    lines[0].setLeadRequest('catalog', { duration: 3600 });
+    renderer.setEventResults([event]);
+    for (const line of lines) line.update(day / 2, 1);
+    expect(lines[0].leadWindows()).toEqual([{ start: day / 2, end: day / 2 + 3600, kind: 'continuous' }]);
+    expect(lines[1].leadWindows()).toEqual([]);
+    expect(lines[2].leadWindows()).toEqual([]);
+    renderer.setEventResults([]);
+    for (const line of lines) line.dispose();
+  });
+
+  it('reveals only active future events and retains ordinary historical markers', () => {
+    const group = new EventMarkers(body);
+    group.setMarkers([
+      marker({ id: 'history', startEt: 5, endEt: 5 }),
+      marker({ id: 'selected', startEt: 20, endEt: 20, selected: true }),
+      marker({ id: 'other', startEt: 25, endEt: 25 }),
+      marker({ id: 'preview', startEt: 30, endEt: 30 }),
+    ]);
+    const update = () => group.update(1, [0, 0, 0], (_name, t) => [t, 0, 0], [0, 10], () => 0.8,
+      undefined, 1, undefined, { range: [0, 40], alphaAt: () => 1 });
+    const sprites = () => group.children.map((child) => child as THREE.Sprite);
+    update();
+    expect(sprites().map((sprite) => sprite.visible)).toEqual([true, true, false, false]);
+    group.setContextActive(true);
+    group.setPreview({ id: 'preview', queryId: 'q1' });
+    update();
+    expect(sprites().map((sprite) => sprite.visible)).toEqual([true, true, false, true]);
+    expect(sprites()[0].material.opacity).toBeCloseTo(0.8 * 0.35);
+    expect(sprites()[1].material.opacity).toBe(1);
+    group.setPreview(null);
+    update();
+    expect(sprites()[3].visible).toBe(false);
+    expect(group.anchorFor('other', 'q1')).toBeNull();
+    group.dispose();
+  });
+
+  it('does not show an active future glyph inside the gap between lead excerpts', () => {
+    const group = new EventMarkers(body);
+    group.setMarkers([marker({ startEt: 20, endEt: 20, selected: true })]);
+    group.update(1, [0, 0, 0], (_name, t) => [t, 0, 0], [0, 10], () => 1,
+      undefined, 1, undefined, { range: [0, 40], alphaAt: (t) => t > 30 ? 1 : 0 });
+    expect(group.children[0].visible).toBe(false);
+    expect(group.anchorFor('e1', 'q1')).toBeNull();
+    group.dispose();
+  });
+
+  it('clips an ordinary interval\'s span picking and anchors to history even when a future lead is drawn', () => {
+    const times = Float64Array.from([0, 5, 10, 15, 20]);
+    const group = new EventMarkers(body, { path: () => [{ times, positions: Float32Array.from(Array.from(times).flatMap((t) => [t, 0, 0])), count: 5 }] });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 5, endEt: 20 })]);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.position.set(0, 0, 100);
+    camera.updateMatrixWorld();
+    group.update(1, [0, 0, 0], (_name, t) => [t, 0, 0], [0, 10], () => 1,
+      camera, 1, { width: 1000, height: 1000 }, { range: [0, 20], alphaAt: () => 1 });
+    expect(group.anchorAt('e1', 'q1', 8)?.x).toBeCloseTo(8);
+    expect(group.anchorAt('e1', 'q1', 18)).toBeNull();
+    const at = new THREE.Vector3(18, 0, 0).project(camera);
+    expect(group.pick(camera, (at.x + 1) * 500, (1 - at.y) * 500, 1000, 1000)).toBeNull();
+    group.dispose();
+  });
+
   it('traces a span across trail and lead runs without bridging a gap between them', () => {
     // Trail to the playhead at 14, the lead from there to 18, then a lead
     // excerpt around a later stretch: a gap from 18 to 30.
@@ -781,7 +869,9 @@ describe('events on the future lead (#105)', () => {
     ] as unknown as GeometryEvent[];
     expect(eventLeadRequest(events, null)).toBeNull();
     expect(eventLeadRequest(events, { id: 'a', queryId: 'other' })).toBeNull();
-    expect(eventLeadRequest(events, { id: 'a', queryId: 'q' })).toEqual({ target: { start: 50, end: 50 } });
-    expect(eventLeadRequest(events, { id: 'b', queryId: 'q' })).toEqual({ target: { start: 60, end: 90 } });
+    expect(eventLeadRequest(events, { id: 'a', queryId: 'q' })).toEqual({ target: { start: 50, end: 50 }, policy: EVENT_LEAD_POLICY });
+    expect(eventLeadRequest(events, { id: 'b', queryId: 'q' })).toEqual({ target: { start: 60, end: 90 }, policy: EVENT_LEAD_POLICY });
+    expect(eventLeadRequest(events, { id: 'b', queryId: 'q' }, [70, 80])).toEqual({ target: { start: 70, end: 80 }, policy: EVENT_LEAD_POLICY });
+    expect(eventLeadRequest(events, { id: 'b', queryId: 'q' }, [100, 120])).toBeNull();
   });
 });

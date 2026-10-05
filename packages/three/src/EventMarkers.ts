@@ -74,6 +74,12 @@ export interface EventMarkersOptions {
   path?: () => readonly DrawnTrail[];
 }
 
+/** Future geometry is available only to the selected or previewed event. */
+export interface EventLeadVisibility {
+  range: readonly [number, number] | null;
+  alphaAt: (et: number) => number;
+}
+
 const SPAN_INITIAL_CAPACITY = 256;
 
 /** Emitted between polyline runs so a stroke never bridges a gap. */
@@ -457,6 +463,7 @@ export class EventMarkers extends THREE.Object3D {
   private visuals: MarkerVisual[] = [];
   private readonly options: EventMarkersOptions;
   private preview: { id: string; queryId: string } | null = null;
+  private contextActive = false;
   private readonly selectedStroke: SpanStroke;
   private readonly previewStroke: SpanStroke;
   private readonly emphasisClock = new EmphasisClock();
@@ -482,6 +489,11 @@ export class EventMarkers extends THREE.Object3D {
   setPreview(preview: { id: string; queryId: string } | null): void {
     this.preview = preview;
     for (const visual of this.visuals) this.styleVisual(visual);
+  }
+
+  /** Recede ordinary markers while an event is the subject of the scene. */
+  setContextActive(active: boolean): void {
+    this.contextActive = active;
   }
 
   /**
@@ -545,6 +557,7 @@ export class EventMarkers extends THREE.Object3D {
     camera?: THREE.Camera,
     pixelRatio = 1,
     viewport?: EventMarkersViewport,
+    leadVisibility?: EventLeadVisibility,
   ): void {
     // Glyphs are sized in CSS pixels, independent of window height and FOV.
     // Without a viewport (tests, offscreen callers) the options' markerSize applies.
@@ -555,10 +568,13 @@ export class EventMarkers extends THREE.Object3D {
     const projected = new THREE.Vector3();
     for (const visual of this.visuals) {
       const { marker } = visual;
-      visual.visibleRange = visibleRange;
-      const inTrail = visibleRange !== null &&
-        visual.pieceStart <= visibleRange[1] && visual.pieceEnd >= visibleRange[0];
-      if (!inTrail) {
+      const emphasized = !!marker.selected || this.isPreview(marker);
+      const range = emphasized && leadVisibility ? leadVisibility.range : visibleRange;
+      visual.visibleRange = range;
+      const inRange = range !== null &&
+        visual.pieceStart <= range[1] && visual.pieceEnd >= range[0];
+      if (!inRange) {
+        visual.visibleRange = null;
         for (let i = 0; i < visual.sprites.length; i++) {
           visual.spriteBaseOpacity[i] = 0;
           visual.sprites[i].visible = false;
@@ -585,8 +601,8 @@ export class EventMarkers extends THREE.Object3D {
       }
 
       const positions = visual.framePositions;
-      const clipStart = visibleRange![0];
-      const clipEnd = visibleRange![1];
+      const clipStart = range![0];
+      const clipEnd = range![1];
       if (visual.points.length !== positions.length) {
         visual.points = positions.map(() => new THREE.Vector3());
       }
@@ -610,7 +626,11 @@ export class EventMarkers extends THREE.Object3D {
           visual.sprites[i].scale.set(scale, scale, 1);
         }
         glyphUniforms(visual.sprites[i].material as THREE.SpriteMaterial).eventGlyphDpr.value = pixelRatio;
-        const alpha = marker.selected || this.isPreview(marker) ? 1 : trailAlphaAt(visual.times[sampleIndex]);
+        const t = visual.times[sampleIndex];
+        const historical = visibleRange !== null && t >= visibleRange[0] && t <= visibleRange[1];
+        const alpha = emphasized
+          ? !leadVisibility || historical || leadVisibility.alphaAt(t) > 0 ? 1 : 0
+          : trailAlphaAt(t) * (this.contextActive ? 0.35 : 1);
         const inRange = visual.times[sampleIndex] >= clipStart && visual.times[sampleIndex] <= clipEnd;
         visual.spriteBaseOpacity[i] = inRange && visual.present[i] ? alpha : 0;
         // A collapsed interval keeps the anchor opacity of its hidden glyphs
@@ -676,20 +696,22 @@ export class EventMarkers extends THREE.Object3D {
    * screen; otherwise the interval's samples, cut at the visible range.
    */
   private drawnSpans(visual: MarkerVisual): Array<{ line: Polyline; start: number; end: number }> {
+    const range = visual.visibleRange ?? [Infinity, -Infinity];
+    const start = Math.max(visual.pieceStart, range[0]);
+    const end = Math.min(visual.pieceEnd, range[1]);
     const path = this.options.path?.();
     if (path) {
       // One entry per drawn run the piece overlaps: the trail, the lead from
       // the playhead, a lead excerpt. Gaps between runs stay gaps.
       return path
         .filter((run) => run.count > 1 &&
-          run.times[0] <= visual.pieceEnd && run.times[run.count - 1] >= visual.pieceStart)
-        .map((run) => ({ line: trailPolyline(run), start: visual.pieceStart, end: visual.pieceEnd }));
+          run.times[0] < end && run.times[run.count - 1] > start)
+        .map((run) => ({ line: trailPolyline(run), start, end }));
     }
-    const range = visual.visibleRange ?? [Infinity, -Infinity];
     return [{
       line: { count: visual.points.length, time: (i) => visual.times[i], at: (i, out) => out.copy(visual.points[i]) },
-      start: Math.max(visual.pieceStart, range[0]),
-      end: Math.min(visual.pieceEnd, range[1]),
+      start,
+      end,
     }];
   }
 

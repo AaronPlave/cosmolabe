@@ -40,6 +40,8 @@ export interface LeadRequest {
    * event on the lead reads as the part of the path it is about.
    */
   target?: LeadSpan;
+  /** Consumer-specific context limits, independent of the catalog's lead. */
+  policy?: LeadPolicy;
 }
 
 /** How requests become windows. Exact values are tunable per line. */
@@ -52,6 +54,12 @@ export interface LeadPolicy {
   maxContinuous: number;
   /** Context drawn either side of a target, seconds. */
   contextPad: number;
+  /** Short path at the current position when the target needs an excerpt. */
+  stubDuration?: number;
+  /** Maximum bridge length in viewport heights before using an excerpt. */
+  maxScreenLength?: number;
+  /** Maximum accumulated change in bridge direction, radians. */
+  maxTurn?: number;
 }
 
 export type LeadWindowKind = "continuous" | "context";
@@ -82,11 +90,12 @@ export function resolveLeadWindows(
   const ceil = coverage.end;
   if (!(ceil > floor)) return [];
 
-  const reach = Math.max(0, policy.maxContinuous);
   let continuousEnd = et;
   const context: LeadSpan[] = [];
 
   for (const req of requests) {
+    const limits = req.policy ?? policy;
+    const reach = Math.max(0, limits.maxContinuous);
     if (req.duration != null && req.duration > 0) {
       continuousEnd = Math.max(continuousEnd, et + req.duration);
     }
@@ -95,11 +104,18 @@ export function resolveLeadWindows(
     // Already on the trail: nothing ahead to show.
     if (target.end <= et) continue;
 
-    const pad = Math.max(policy.contextPad, 0.25 * (target.end - target.start));
+    const pad = req.policy
+      ? Math.max(0, limits.contextPad)
+      : Math.max(limits.contextPad, 0.25 * (target.end - target.start));
     const want = target.end + pad;
     if (want - et <= reach) {
       // Near: draw the path from here all the way through it.
       continuousEnd = Math.max(continuousEnd, want);
+    } else if (req.policy) {
+      // Event context preserves the actual interval, with a small fixed pad.
+      // It never truncates a long interval at an unrelated connection limit.
+      continuousEnd = Math.max(continuousEnd, et + (limits.stubDuration ?? 0));
+      context.push({ start: target.start - pad, end: want });
     } else if (target.start - et <= reach) {
       // It starts within reach but runs long: reach as far as the policy
       // allows rather than drawing an arbitrarily long lead.
@@ -135,19 +151,6 @@ export function resolveLeadWindows(
 }
 
 /**
- * Time-anchored dash period for a window of this length, in seconds.
- *
- * Dashes are equal *time* steps rather than equal lengths: they stay put on
- * the path as the playhead moves (no crawling), and they stretch where the
- * body moves fast, so the lead doubles as a speed cue. The period is snapped
- * to a power of two so it does not change continuously as a window grows.
- */
-export function leadDashPeriod(windowSeconds: number, dashes = 48): number {
-  if (!(windowSeconds > 0)) return 1;
-  return Math.pow(2, Math.round(Math.log2(windowSeconds / dashes)));
-}
-
-/**
  * Brightness of a lead vertex, 0–1, before emphasis and color segments.
  *
  * A continuous lead dims away from the playhead, so the near future reads
@@ -166,7 +169,7 @@ export function leadFade(
   const span = window.end - window.start;
   if (!(span > 0)) return 1;
   const u = Math.min(1, Math.max(0, (t - window.start) / span));
-  if (window.kind === "continuous") return 1 - 0.7 * u;
+  if (window.kind === "continuous") return 1 - u;
   const TAPER = 0.2;
   return Math.min(1, u / TAPER, (1 - u) / TAPER);
 }
@@ -213,6 +216,8 @@ export interface LeadFrame {
   colorSegments: ReadonlyArray<{ startEt: number; endEt: number; color: THREE.Color }>;
   /** Live-sampled vertices per window; cheap resolvers can afford more. */
   liveSamples: number;
+  /** Current scene camera, used only to budget a requested connection. */
+  camera?: THREE.Camera;
 }
 
 interface SampledWindow extends LeadSpan {
@@ -231,7 +236,6 @@ export class TrajectoryLead {
   readonly object: THREE.LineSegments;
   private positions: Float32Array;
   private colors: Float32Array;
-  private distances: Float32Array;
   private times: Float64Array;
   private capacity = 0;
   private count = 0;
@@ -246,7 +250,7 @@ export class TrajectoryLead {
   private sampled: SampledWindow[] = [];
   private dirty = true;
 
-  private readonly material: THREE.LineDashedMaterial;
+  private readonly material: THREE.LineBasicMaterial;
   private baseOpacity: number;
 
   constructor(policy: LeadPolicy, opacity: number) {
@@ -254,10 +258,9 @@ export class TrajectoryLead {
     this.baseOpacity = opacity;
     this.positions = new Float32Array(0);
     this.colors = new Float32Array(0);
-    this.distances = new Float32Array(0);
     this.times = new Float64Array(0);
     const geometry = new THREE.BufferGeometry();
-    this.material = new THREE.LineDashedMaterial({
+    this.material = new THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
       opacity,
@@ -265,10 +268,6 @@ export class TrajectoryLead {
       // Same blending as the trail, so the two read as one path whose future
       // half changes treatment, not hue.
       blending: THREE.AdditiveBlending,
-      // `lineDistance` is written in dash periods (see `leadDashPeriod`).
-      dashSize: 0.55,
-      gapSize: 0.45,
-      scale: 1,
     });
     this.object = new THREE.LineSegments(geometry, this.material);
     this.object.name = "lead";
@@ -280,7 +279,11 @@ export class TrajectoryLead {
 
   /** Add, replace, or (with null) remove one consumer's request. */
   setRequest(key: string, request: LeadRequest | null): void {
-    if (request) this.requests.set(key, { ...request });
+    if (request) this.requests.set(key, {
+      ...request,
+      target: request.target && { ...request.target },
+      policy: request.policy && { ...request.policy },
+    });
     else if (!this.requests.delete(key)) return;
     this.dirty = true;
   }
@@ -322,6 +325,7 @@ export class TrajectoryLead {
   }
 
   hide(): void {
+    this.windows = [];
     this.object.visible = false;
     this.count = 0;
     this.runs = [];
@@ -381,6 +385,17 @@ export class TrajectoryLead {
 
     this.ensureSamples(frame);
 
+    // A nearby epoch can still require a tangled or very long connection.
+    // Inspect the owning renderer's samples, then replace only that consumer's
+    // bridge with a stub and a local excerpt. Explicit duration requests retain
+    // their windows, and the event interval itself is never clipped by this LOD.
+    const requests = [...this.requests.values()].map((request) => {
+      if (!request.target || !request.policy || this.connectionFits(frame, request)) return request;
+      return { ...request, policy: { ...request.policy, maxContinuous: 0 } };
+    });
+    this.windows = resolveLeadWindows(frame.et, requests, frame.coverage, this.policy);
+    this.ensureSamples(frame);
+
     const targets: LeadSpan[] = [];
     for (const r of this.requests.values()) if (r.target) targets.push(r.target);
 
@@ -395,9 +410,6 @@ export class TrajectoryLead {
         (sw) => sw.start <= w.start + EPS && sw.end >= w.end - EPS,
       );
       if (!src) continue;
-      const period = leadDashPeriod(w.end - w.start);
-      // Anchor the dash phase to a fixed grid so dashes stay put on the path.
-      const anchor = Math.floor(w.start / (2 * period)) * 2 * period;
 
       // Walk the window's vertices: start, interior samples, end. The start
       // of a continuous window is the trail's own head, so the two meet.
@@ -414,8 +426,8 @@ export class TrajectoryLead {
         }
         if (!isNaN(prevT) && t > prevT) {
           this.ensureCapacity(n + 2);
-          this.writeVertex(n++, prevT, px, py, pz, frame, w, targets, period, anchor, s);
-          this.writeVertex(n++, t, x, y, z, frame, w, targets, period, anchor, s);
+          this.writeVertex(n++, prevT, px, py, pz, frame, w, targets, s);
+          this.writeVertex(n++, t, x, y, z, frame, w, targets, s);
           if (!runOpen) {
             runStarts.push(rn);
             this.copyRunVertex(rn++, n - 2);
@@ -463,7 +475,6 @@ export class TrajectoryLead {
     geometry.setDrawRange(0, n);
     geometry.attributes.position.needsUpdate = true;
     geometry.attributes.color.needsUpdate = true;
-    geometry.attributes.lineDistance.needsUpdate = true;
     this.object.visible = n > 0;
   }
 
@@ -483,8 +494,6 @@ export class TrajectoryLead {
     frame: LeadFrame,
     w: LeadWindow,
     targets: readonly LeadSpan[],
-    period: number,
-    anchor: number,
     s: number,
   ): void {
     const [ox, oy, oz] = frame.offset;
@@ -492,7 +501,6 @@ export class TrajectoryLead {
     this.positions[i * 3 + 1] = (y + oy) * s;
     this.positions[i * 3 + 2] = (z + oz) * s;
     this.times[i] = t;
-    this.distances[i] = (t - anchor) / period;
     let c = frame.color;
     for (const seg of frame.colorSegments) {
       if (t >= seg.startEt && t <= seg.endEt) {
@@ -504,6 +512,61 @@ export class TrajectoryLead {
     this.colors[i * 3] = c.r * f;
     this.colors[i * 3 + 1] = c.g * f;
     this.colors[i * 3 + 2] = c.b * f;
+  }
+
+  /** Budget the bridge using sampled curvature and the current projection. */
+  private connectionFits(frame: LeadFrame, request: LeadRequest): boolean {
+    const { target, policy } = request;
+    if (!target || !policy) return true;
+    const end = target.end + policy.contextPad;
+    if (end <= frame.et || end - frame.et > policy.maxContinuous) return true;
+    const start = Math.max(frame.et, frame.coverage.start);
+    const stop = Math.min(end, frame.coverage.end);
+    const src = this.sampled.find((sample) => sample.start <= start + EPS && sample.end >= stop - EPS);
+    if (!src) return false;
+    const camera = frame.camera;
+    const aspect = camera ? Math.abs(camera.projectionMatrix.elements[5] / camera.projectionMatrix.elements[0]) : 1;
+    const previous = new THREE.Vector3();
+    const point = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const previousDirection = new THREE.Vector3();
+    const screen = new THREE.Vector3();
+    const previousScreen = new THREE.Vector3();
+    const offset = new THREE.Vector3(...frame.offset);
+    let havePrevious = false;
+    let haveDirection = false;
+    let length = 0;
+    let turn = 0;
+    const visit = (t: number): boolean => {
+      const p = interpolate(src, t);
+      if (!p.every(Number.isFinite)) return false;
+      point.set(p[0], p[1], p[2]);
+      if (camera) {
+        screen.copy(point).add(offset).multiplyScalar(frame.scaleFactor).project(camera);
+        // Connections through the camera plane are not useful scene context.
+        if (!Number.isFinite(screen.x + screen.y + screen.z) || screen.z < -1 || screen.z > 1) return false;
+      }
+      if (havePrevious) {
+        direction.subVectors(point, previous);
+        if (direction.lengthSq() > 0) {
+          direction.normalize();
+          if (haveDirection) turn += Math.acos(THREE.MathUtils.clamp(direction.dot(previousDirection), -1, 1));
+          previousDirection.copy(direction);
+          haveDirection = true;
+        }
+        if (camera) length += Math.hypot((screen.x - previousScreen.x) * aspect / 2, (screen.y - previousScreen.y) / 2);
+        if (turn > (policy.maxTurn ?? Infinity) || length > (policy.maxScreenLength ?? Infinity)) return false;
+      }
+      previous.copy(point);
+      previousScreen.copy(screen);
+      havePrevious = true;
+      return true;
+    };
+    if (!visit(start)) return false;
+    for (let i = lowerBoundArr(src.times, start + EPS); i < src.times.length && src.times[i] < stop - EPS; i++) {
+      if (!visit(src.times[i])) return false;
+    }
+    return visit(stop);
   }
 
   /** (Re)sample any window not already covered by a sampled one. */
@@ -579,11 +642,9 @@ export class TrajectoryLead {
     const cap = Math.max(vertices, this.capacity * 2);
     const positions = new Float32Array(cap * 3);
     const colors = new Float32Array(cap * 3);
-    const distances = new Float32Array(cap);
     const times = new Float64Array(cap);
     positions.set(this.positions);
     colors.set(this.colors);
-    distances.set(this.distances);
     times.set(this.times);
     // Runs never hold more vertices than segments do.
     const runPositions = new Float32Array(cap * 3);
@@ -594,7 +655,6 @@ export class TrajectoryLead {
     this.runTimes = runTimes;
     this.positions = positions;
     this.colors = colors;
-    this.distances = distances;
     this.times = times;
     this.capacity = cap;
     // A new geometry rather than new attributes on the old one: three.js keys
@@ -604,7 +664,6 @@ export class TrajectoryLead {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    geometry.setAttribute("lineDistance", new THREE.BufferAttribute(distances, 1));
     geometry.setDrawRange(0, 0);
     this.object.geometry = geometry;
     old.dispose();

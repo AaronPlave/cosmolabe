@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { Body, type Trajectory } from '@cosmolabe/core';
 import { TrajectoryLine } from './TrajectoryLine.js';
-import { leadDashPeriod, leadFade, resolveLeadWindows, type LeadPolicy } from './TrajectoryLead.js';
+import { leadFade, resolveLeadWindows, type LeadPolicy } from './TrajectoryLead.js';
+import { EVENT_LEAD_POLICY } from './UniverseRenderer.js';
 
 const DAY = 86400;
 const POLICY: LeadPolicy = { maxContinuous: 10 * DAY, contextPad: 3600 };
@@ -67,19 +68,40 @@ describe('resolveLeadWindows', () => {
     ], OPEN, POLICY);
     expect(windows).toEqual([{ start: t - 3600, end: t + 1800 + 3600, kind: 'context' }]);
   });
+
+  it('gives events local context independent of a year-long historical trail', () => {
+    expect(resolveLeadWindows(0, [{ target: { start: 30 * DAY, end: 30 * DAY }, policy: EVENT_LEAD_POLICY }], OPEN,
+      { maxContinuous: 365 * DAY, contextPad: 2 * DAY })).toEqual([
+      { start: 0, end: 1800, kind: 'continuous' },
+      { start: 30 * DAY - 1800, end: 30 * DAY + 1800, kind: 'context' },
+    ]);
+  });
+
+  it('preserves an entire multi-day selected interval with only short ingress and egress context', () => {
+    expect(resolveLeadWindows(0, [{ target: { start: 30 * DAY, end: 33 * DAY }, policy: EVENT_LEAD_POLICY }], OPEN, POLICY)).toEqual([
+      { start: 0, end: 1800, kind: 'continuous' },
+      { start: 30 * DAY - 1800, end: 33 * DAY + 1800, kind: 'context' },
+    ]);
+    // Selection at the start keeps the full interval, too.
+    expect(resolveLeadWindows(30 * DAY, [{ target: { start: 30 * DAY, end: 33 * DAY }, policy: EVENT_LEAD_POLICY }], OPEN, POLICY))
+      .toEqual([{ start: 30 * DAY, end: 33 * DAY + 1800, kind: 'continuous' }]);
+  });
+
+  it('keeps an explicit analysis lead independent of conservative event requests', () => {
+    const windows = resolveLeadWindows(0, [
+      { duration: 5 * DAY },
+      { target: { start: 30 * DAY, end: 30 * DAY }, policy: EVENT_LEAD_POLICY },
+    ], OPEN, POLICY);
+    expect(windows[0]).toEqual({ start: 0, end: 5 * DAY, kind: 'continuous' });
+    expect(windows[1]).toEqual({ start: 30 * DAY - 1800, end: 30 * DAY + 1800, kind: 'context' });
+  });
 });
 
 describe('lead styling', () => {
-  it('snaps the dash period to a power of two', () => {
-    const p = leadDashPeriod(DAY);
-    expect(Math.log2(p) % 1).toBe(0);
-    expect(leadDashPeriod(DAY * 1.1)).toBe(p);
-  });
-
   it('dims a continuous lead away from the playhead, tapers context, and keeps targets full', () => {
     const cont = { start: 0, end: 100, kind: 'continuous' as const };
     expect(leadFade(0, cont, [])).toBe(1);
-    expect(leadFade(100, cont, [])).toBeCloseTo(0.3);
+    expect(leadFade(100, cont, [])).toBe(0);
     expect(leadFade(90, cont, [{ start: 80, end: 95 }])).toBe(1);
     const ctx = { start: 0, end: 100, kind: 'context' as const };
     expect(leadFade(0, ctx, [])).toBe(0);
@@ -119,7 +141,7 @@ describe('TrajectoryLine lead', () => {
     expect(trailTimes(line)).toBeGreaterThan(0);
   });
 
-  it('draws the persistent leadDuration as dashed segments starting at the trail head', () => {
+  it('draws a faint solid lead starting at the trail head', () => {
     const et = 2 * DAY;
     const line = lineFor(circular(), { leadDuration: DAY / 4 });
     line.update(et, 1);
@@ -134,7 +156,9 @@ describe('TrajectoryLine lead', () => {
     expect(lead.positions[0]).toBeCloseTo(1000 * Math.cos(a), 3);
     expect(lead.positions[1]).toBeCloseTo(1000 * Math.sin(a), 3);
     const material = (line.children.find((c) => c.name === 'lead') as THREE.LineSegments).material;
-    expect(material).toBeInstanceOf(THREE.LineDashedMaterial);
+    expect(material).toBeInstanceOf(THREE.LineBasicMaterial);
+    expect(material).not.toBeInstanceOf(THREE.LineDashedMaterial);
+    expect((material as THREE.LineBasicMaterial).opacity).toBeLessThan(0.2);
   });
 
   it('keeps the trail historical: nothing on it is ahead of the playhead', () => {
@@ -173,6 +197,8 @@ describe('TrajectoryLine lead', () => {
     line.setLeadRequest('selection', null);
     line.update(DAY, 1);
     expect(line.drawnLead().count).toBe(0);
+    expect(line.leadWindows()).toEqual([]);
+    expect(line.drawnTimeRange(DAY)).toEqual(line.visibleTimeRange(DAY));
   });
 
   it('ends cleanly at the end of coverage', () => {
@@ -197,6 +223,77 @@ describe('TrajectoryLine lead', () => {
     expect(trailTimes(line)).toBeGreaterThanOrEqual(0);
     const trail = line.children.find((c) => c.name !== 'lead')!;
     expect(trail.visible).toBe(false);
+  });
+
+  it('switches a looping nearby connection to an event excerpt', () => {
+    const orbit = circular();
+    const fast = { ...orbit, stateAt: (t: number) => orbit.stateAt(t * 24) } as Trajectory;
+    const line = lineFor(fast, { trailDuration: 365 * DAY });
+    line.setLeadRequest('event', { target: { start: DAY + 7200, end: DAY + 7200 }, policy: EVENT_LEAD_POLICY });
+    line.update(DAY, 1);
+    expect(line.leadWindows()).toEqual([
+      { start: DAY, end: DAY + 1800, kind: 'continuous' },
+      { start: DAY + 5400, end: DAY + 9000, kind: 'context' },
+    ]);
+    line.dispose();
+  });
+
+  it('adapts the same nearby event connection to the camera screen-length budget', () => {
+    const linear = { ...circular(), stateAt: (t: number) => ({ position: [(t - DAY) / 3.6, 0, 0], velocity: [0, 0, 0] }) } as Trajectory;
+    const line = lineFor(linear);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1e6);
+    line.setLeadRequest('event', { target: { start: DAY + 7200, end: DAY + 7200 }, policy: EVENT_LEAD_POLICY });
+    camera.position.z = 100000;
+    camera.updateMatrixWorld();
+    line.update(DAY, 1, undefined, camera);
+    expect(line.leadWindows()).toEqual([{ start: DAY, end: DAY + 9000, kind: 'continuous' }]);
+    camera.position.z = 1000;
+    camera.updateMatrixWorld();
+    line.update(DAY, 1, undefined, camera);
+    expect(line.leadWindows()).toEqual([
+      { start: DAY, end: DAY + 1800, kind: 'continuous' },
+      { start: DAY + 5400, end: DAY + 9000, kind: 'context' },
+    ]);
+    // Zooming out can restore the continuous connection without a new request.
+    camera.position.z = 100000;
+    camera.updateMatrixWorld();
+    line.update(DAY, 1, undefined, camera);
+    expect(line.leadWindows()).toHaveLength(1);
+    line.dispose();
+  });
+
+  it('keeps ordinary event colors off the lead while active event colors can emphasize it', () => {
+    const et = 2 * DAY;
+    const line = lineFor(circular(), { color: 0xffffff, leadDuration: 3600 });
+    const color = () => {
+      const lead = line.children.find((child) => child.name === 'lead') as THREE.LineSegments;
+      const colors = lead.geometry.getAttribute('color');
+      return [colors.getX(0), colors.getY(0), colors.getZ(0)];
+    };
+    line.setColorSegments([{ startEt: et - DAY, endEt: et + DAY, color: 0xff0000, future: false }]);
+    line.update(et, 1);
+    expect(color()).toEqual([1, 1, 1]);
+    line.setColorSegments([{ startEt: et - DAY, endEt: et + DAY, color: 0xff0000, future: true }]);
+    line.update(et, 1);
+    expect(color()).toEqual([1, 0, 0]);
+    line.dispose();
+  });
+
+  it('recedes historical context during selection and restores it when selection clears', () => {
+    const line = lineFor(circular(), { leadDuration: 3600 });
+    const trail = line.children.find((child) => child.name !== 'lead') as THREE.Line;
+    const lead = line.children.find((child) => child.name === 'lead') as THREE.Line;
+    const opacity = () => (trail.material as THREE.LineBasicMaterial).opacity;
+    line.update(DAY, 1);
+    const rest = opacity();
+    line.setEventContext(true);
+    line.update(DAY, 1);
+    expect(opacity()).toBeCloseTo(rest * 0.35);
+    expect((lead.material as THREE.LineBasicMaterial).opacity).toBeLessThan(0.2);
+    line.setEventContext(false);
+    line.update(DAY, 1);
+    expect(opacity()).toBe(rest);
+    line.dispose();
   });
 });
 

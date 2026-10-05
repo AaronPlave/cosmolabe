@@ -22,7 +22,7 @@ import {
   type InitialAssetsSummary,
 } from './AssetLoadTracker.js';
 import { TrajectoryLine, type PositionResolver, type TrajectoryLineOptions } from './TrajectoryLine.js';
-import type { LeadRequest } from './TrajectoryLead.js';
+import type { LeadPolicy, LeadRequest } from './TrajectoryLead.js';
 import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
 import { SensorFrustum } from './SensorFrustum.js';
@@ -201,17 +201,27 @@ export function eventPiecesOnLines<K>(
   return pieces;
 }
 
-/**
- * The future lead a line should draw for one of its events — the one `ref`
- * names, if it is among `events` — so the event sits on visible path: reach
- * its span, or show context around it when it is far ahead.
- */
+/** Event context has a small independent connection and visual budget. */
+export const EVENT_LEAD_POLICY: Readonly<LeadPolicy> = {
+  maxContinuous: 6 * 3600,
+  contextPad: 1800,
+  stubDuration: 1800,
+  maxScreenLength: 1.5,
+  maxTurn: Math.PI,
+};
+
 export function eventLeadRequest(
   events: readonly GeometryEvent[],
   ref: Pick<GeometryEvent, 'id' | 'queryId'> | null,
+  bounds: readonly [number, number] = [-Infinity, Infinity],
 ): LeadRequest | null {
   const event = ref && events.find((e) => e.id === ref.id && e.queryId === ref.queryId);
-  return event ? { target: { start: eventStart(event), end: eventEnd(event) } } : null;
+  if (!event) return null;
+  const target = { start: Math.max(eventStart(event), bounds[0]), end: Math.min(eventEnd(event), bounds[1]) };
+  return target.end >= target.start ? {
+    target,
+    policy: { ...EVENT_LEAD_POLICY },
+  } : null;
 }
 
 export class UniverseRenderer {
@@ -829,9 +839,9 @@ export class UniverseRenderer {
           // exactly as the marker does. Event annotations sample through the
           // same `trajectoryLineResolver`, so they cannot drift off the trail.
           const relativeResolver = trajectoryLineResolver(this.universe, tl);
-          tl.update(et, this.scaleFactor, relativeResolver, undefined, undefined, vertOff);
+          tl.update(et, this.scaleFactor, relativeResolver, this.camera, undefined, vertOff);
         } else {
-          tl.update(et, this.scaleFactor, undefined, undefined, undefined, vertOff);
+          tl.update(et, this.scaleFactor, undefined, this.camera, undefined, vertOff);
         }
       } else {
         // Absolute positions — offset by origin
@@ -840,7 +850,7 @@ export class UniverseRenderer {
           -originAbsPos[1],
           -originAbsPos[2],
         ];
-        tl.update(et, this.scaleFactor, this.absolutePositionOf, undefined, undefined, vertOff);
+        tl.update(et, this.scaleFactor, this.absolutePositionOf, this.camera, undefined, vertOff);
       }
       } catch (err) {
         console.error(`[Cosmolabe] Trail update error for ${tl.body.name}:`, err);
@@ -894,12 +904,14 @@ export class UniverseRenderer {
         this.scaleFactor,
         vertexOffset,
         (name, t) => line.positionAt(t, fallbackResolver),
-        // Trail and lead: an event ahead of the playhead sits on the lead.
-        line.drawnTimeRange(et),
-        (t) => line.pathAlphaAt(t, et),
+        // Ordinary results retain trail visibility. Only the active event
+        // may use the future path revealed for its context.
+        line.visibleTimeRange(et),
+        (t) => line.trailAlphaAt(t, et),
         this.camera,
         this.renderer.getPixelRatio(),
         { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
+        { range: line.drawnTimeRange(et), alphaAt: (t) => line.pathAlphaAt(t, et) },
       );
     }
     // Update labels
@@ -1397,11 +1409,27 @@ export class UniverseRenderer {
    * puts the lead on exactly the line the event's markers are drawn on.
    */
   private refreshEventLineColors(): void {
-    for (const { line, events } of this.eventMarkerGroups.values()) {
-      line.setLeadRequest(UniverseRenderer.EVENT_PREVIEW_LEAD, eventLeadRequest(events, this._eventPreview));
-      line.setLeadRequest(UniverseRenderer.EVENT_SELECTION_LEAD, eventLeadRequest(events, this._selectedEvent));
+    const contextActive = this._eventPreview !== null || this._selectedEvent !== null;
+    const groups = [...this.eventMarkerGroups.values()];
+    const requestFor = (line: TrajectoryLine, ref: Pick<GeometryEvent, 'id' | 'queryId'> | null): LeadRequest | null => {
+      if (!ref) return null;
+      const own = groups.find((group) => group.line === line);
+      const request = eventLeadRequest(own?.events ?? [], ref, line.timeBounds());
+      if (request) return request;
+      // A distant event can be on another composite arc. Give the current
+      // arc of that same body a short stub without drawing intervening arcs.
+      const owner = groups.find((group) =>
+        group.line.body.name === line.body.name && group.events.some((event) => event.id === ref.id && event.queryId === ref.queryId));
+      const context = eventLeadRequest(owner?.events ?? [], ref);
+      return context ? { ...context, policy: { ...EVENT_LEAD_POLICY, maxContinuous: 0 } } : null;
+    };
+    for (const line of this.trajectoryLines.values()) {
+      line.setEventContext(contextActive);
+      line.setLeadRequest(UniverseRenderer.EVENT_PREVIEW_LEAD, requestFor(line, this._eventPreview));
+      line.setLeadRequest(UniverseRenderer.EVENT_SELECTION_LEAD, requestFor(line, this._selectedEvent));
     }
-    for (const { line, events } of this.eventMarkerGroups.values()) {
+    for (const { line, markers, events } of this.eventMarkerGroups.values()) {
+      markers.setContextActive(contextActive);
       const intervals = events.filter((event) => event.temporality === 'interval');
       intervals.sort((a, b) => {
         const rank = (event: GeometryEvent) =>
@@ -1423,6 +1451,7 @@ export class UniverseRenderer {
             : preview ? new THREE.Color(eventMarkerColor(event.kind, event.state)).lerp(new THREE.Color(0xffffff), 0.28)
               : eventMarkerColor(event.kind, event.state),
           intensity: selected ? 1.45 : preview ? 1.2 : 1,
+          future: selected || preview,
         };
       }));
     }

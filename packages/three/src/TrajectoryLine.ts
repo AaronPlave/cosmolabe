@@ -32,6 +32,8 @@ export interface ColorSegment {
    * trail's rest opacity without changing line width. Default 1.
    */
   intensity?: number;
+  /** Whether this override also colors the future lead. Default true. */
+  future?: boolean;
 }
 
 export interface TrajectoryLineOptions {
@@ -43,7 +45,7 @@ export interface TrajectoryLineOptions {
    */
   trailDuration?: number;
   /**
-   * Persistent future lead ahead of current time (seconds), drawn dashed by
+   * Persistent future lead ahead of current time (seconds), drawn faintly by
    * the line's {@link TrajectoryLead}. Default 0: no future path unless a
    * consumer requests one (see {@link TrajectoryLine.setLeadRequest}).
    */
@@ -133,6 +135,7 @@ export class TrajectoryLine extends THREE.Object3D {
   // "rest" state sits slightly below them and "highlight" bumps bright.
   private _baseTrailOpacity = 0.8;
   private _baseOrbitOpacity = 0.35;
+  private _eventContextActive = false;
   /** Opacity all lines rest at, so a hovered one stands out by brightening
    *  (mirrors the label baseline). */
   private static readonly REST_OPACITY_SCALE = 0.85;
@@ -166,6 +169,7 @@ export class TrajectoryLine extends THREE.Object3D {
     startEt: number;
     endEt: number;
     color: THREE.Color;
+    future: boolean;
   }> = [];
 
   // Pre-computed trajectory cache (null = live sampling)
@@ -299,8 +303,8 @@ export class TrajectoryLine extends THREE.Object3D {
         options.leadContextPad ??
         Math.min(Math.max(this.trailDuration * 0.05, 600), 2 * 86400),
     };
-    // A shade under the trail: the future is context, the past is motion.
-    this.lead = new TrajectoryLead(lead, this._baseTrailOpacity * 0.8);
+    // A thin, quiet reference path. Event emphasis is a separate solid stroke.
+    this.lead = new TrajectoryLead(lead, this._baseTrailOpacity * 0.22);
     if (this.leadDuration > 0) {
       this.lead.setRequest(TrajectoryLine.BASE_LEAD, { duration: this.leadDuration });
     }
@@ -487,11 +491,14 @@ export class TrajectoryLine extends THREE.Object3D {
     et: number,
     scaleFactor: number,
     resolvePos?: PositionResolver,
-    _camera?: THREE.Camera,
+    camera?: THREE.Camera,
     _canvasHeight?: number,
     vertexOffset?: [number, number, number],
   ): void {
-    if (!this.userVisible) return;
+    if (!this.userVisible) {
+      this.lead.hide();
+      return;
+    }
 
     this._currentEt = et;
     const resolver = this.fixedResolver ?? resolvePos;
@@ -506,12 +513,14 @@ export class TrajectoryLine extends THREE.Object3D {
     if (this.orbitLine) this.orbitLine.visible = trailActive;
     if (!trailActive) {
       if (!this.lead.hasRequests) {
+        this.lead.hide();
         this.visible = false;
         return;
       }
       this.visible = true;
       this._tailSample = null;
-      this.updateLead(et, scaleFactor, resolver, vertexOffset);
+      this.stepEmphasis();
+      this.updateLead(et, scaleFactor, resolver, vertexOffset, camera);
       return;
     }
     this.visible = true;
@@ -578,7 +587,7 @@ export class TrajectoryLine extends THREE.Object3D {
 
     // Phase 2: Apply offset and write to Float32 buffers
     this.applyOffset(scaleFactor, vertexOffset);
-    this.updateLead(et, scaleFactor, resolver, vertexOffset);
+    this.updateLead(et, scaleFactor, resolver, vertexOffset, camera);
   }
 
   /** Draw the future lead from the same resolver, cache and offset as the trail. */
@@ -587,6 +596,7 @@ export class TrajectoryLine extends THREE.Object3D {
     scaleFactor: number,
     resolver: PositionResolver | undefined,
     vertexOffset?: [number, number, number],
+    camera?: THREE.Camera,
   ): void {
     if (!this.lead.hasRequests) {
       this.lead.hide();
@@ -602,9 +612,10 @@ export class TrajectoryLine extends THREE.Object3D {
       head: tail && tail.t === et ? tail : null,
       coverage: this.coverage(),
       color: this._activeColor,
-      colorSegments: this._colorSegments,
+      colorSegments: this._colorSegments.filter((segment) => segment.future),
       // Same budget split as the trail: a pre-baked resolver is cheap.
       liveSamples: this.fixedResolver ? 2000 : 300,
+      camera,
     });
   }
 
@@ -1050,6 +1061,7 @@ export class TrajectoryLine extends THREE.Object3D {
       startEt: s.startEt,
       endEt: s.endEt,
       color: new THREE.Color(s.color).multiplyScalar(s.intensity ?? 1),
+      future: s.future !== false,
     }));
     this._bufferDirty = true;
   }
@@ -1072,6 +1084,13 @@ export class TrajectoryLine extends THREE.Object3D {
     this._emphasisTarget = state === 'highlight' ? 1 : 0;
   }
 
+  /** Keep historical context beneath the active event's separate stroke. */
+  setEventContext(active: boolean): void {
+    if (active === this._eventContextActive) return;
+    this._eventContextActive = active;
+    this.applyEmphasis(this._emphasis);
+  }
+
   /** Advance the hover ease one frame; recolors only while it moves. */
   private stepEmphasis(): void {
     // The first frame, and any after a gap (a hidden line), snap.
@@ -1092,14 +1111,15 @@ export class TrajectoryLine extends THREE.Object3D {
     }
 
     const rest = TrajectoryLine.REST_OPACITY_SCALE;
+    const context = this._eventContextActive ? 0.35 : 1;
     const trailMat = this.trailLine.material as THREE.LineBasicMaterial;
     trailMat.opacity = THREE.MathUtils.lerp(
-      this._baseTrailOpacity * rest, Math.min(1, this._baseTrailOpacity * 1.4), amount);
-    this.lead.setOpacityScale(THREE.MathUtils.lerp(rest, 1.4, amount));
+      this._baseTrailOpacity * rest, Math.min(1, this._baseTrailOpacity * 1.4), amount) * context;
+    this.lead.setOpacityScale(rest);
     if (this.orbitLine) {
       const orbitMat = this.orbitLine.material as THREE.LineBasicMaterial;
       orbitMat.opacity = THREE.MathUtils.lerp(
-        this._baseOrbitOpacity * rest, Math.min(1, this._baseOrbitOpacity * 2.5), amount);
+        this._baseOrbitOpacity * rest, Math.min(1, this._baseOrbitOpacity * 2.5), amount) * context;
       orbitMat.color.copy(this._activeColor);
     }
   }
