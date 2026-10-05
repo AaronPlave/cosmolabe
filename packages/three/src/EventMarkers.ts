@@ -507,10 +507,12 @@ export class EventMarkers extends THREE.Object3D {
       if (!fallback || !visual.visibleRange) return null;
       const cap = [1, 2].find((i) => visual.present[i] && visual.sprites[i].visible);
       if (cap !== undefined) return visual.sprites[cap].position.clone();
-      const { line, start, end } = this.drawnSpan(visual);
-      const from = Math.max(start, visual.visibleRange[0]);
-      const to = Math.min(end, visual.visibleRange[1]);
-      return from <= to ? polylineAt(line, (from + to) / 2, new THREE.Vector3()) : null;
+      for (const { line, start, end } of this.drawnSpans(visual)) {
+        const from = Math.max(start, visual.visibleRange[0], line.time(0));
+        const to = Math.min(end, visual.visibleRange[1], line.time(line.count - 1));
+        if (from <= to) return polylineAt(line, (from + to) / 2, new THREE.Vector3());
+      }
+      return null;
     }
     if (visual.sprites[0]?.visible || visual.spriteBaseOpacity[0] > 0) return visual.sprites[0].position.clone();
     return visual.sprites.find((sprite) => sprite.visible)?.position.clone() ?? null;

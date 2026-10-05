@@ -522,6 +522,26 @@ describe('interval pieces and span hits', () => {
     second.dispose();
   });
 
+  it('anchors a split interval on a drawn lead run without crossing a gap', () => {
+    const run = (times: number[]) => ({
+      times: Float64Array.from(times),
+      positions: Float32Array.from(times.flatMap((t) => [t - 10, 0, 0])),
+      count: times.length,
+    });
+    let path = [run([3, 5]), run([7, 8])];
+    const group = new EventMarkers(body, { path: () => path });
+    group.setMarkers([marker({
+      temporality: 'interval', startEt: 0, endEt: 20,
+      pieceStartEt: 0, pieceEndEt: 8, selected: true,
+    })]);
+    const resolve = (_name: string, et: number): [number, number, number] => [et - 10, 0, 0];
+    group.update(1, [0, 0, 0], resolve, [3, 8]);
+    expect(group.anchorFor('e1', 'q1', undefined, true)?.x).toBeCloseTo(-6);
+    path = [run([7, 8])];
+    expect(group.anchorFor('e1', 'q1', undefined, true)?.x).toBeCloseTo(-2.5);
+    group.dispose();
+  });
+
   it('anchors a span hit where the pointer is, and picks the stretch up to the trail head', () => {
     // Trail vertices every 4 s, head sample at 13.9: the last coarse interval
     // sample (12.5) is behind the head, but the drawn span reaches it.
@@ -602,7 +622,7 @@ describe('trajectory-line event placement', () => {
     const offset: [number, number, number] = [earth[0] - origin[0], earth[1] - origin[1], earth[2] - origin[2]];
     line.update(et, 1, resolver, undefined, undefined, offset);
 
-    const markers = new EventMarkers(station, { trail: () => line.drawnTrail() });
+    const markers = new EventMarkers(station, { path: () => line.drawnPath() });
     const earlier = et - 10800;
     markers.setMarkers([
       marker({ id: 'now', startEt: et, endEt: et }),
