@@ -2,6 +2,7 @@
 export type {
   ViewerControl,
   ViewerSnapshotState,
+  CircleDirection,
   ScriptCamera,
   ScriptEventMap,
   ScriptEventName,

@@ -438,6 +438,12 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   let rafId = 0;
   const tick = () => {
     vs.frameTick++;
+    // The controller lets go of a tracked object on its own between calls —
+    // a crane queued behind a fly-to, the Z / C keys — and says nothing. Once
+    // nothing is tracked and nothing is in flight toward a body (which
+    // `gotoObject` reports ahead of time), the HUD should stop naming one.
+    const cc = renderer.cameraController;
+    if (vs.trackedBodyName !== null && cc.focusBody === null) vs.trackedBodyName = null;
     rafId = requestAnimationFrame(tick);
   };
   rafId = requestAnimationFrame(tick);
@@ -785,6 +791,12 @@ function poseFrame(): { origin: THREE.Vector3; toWorld: THREE.Quaternion } | nul
   if (cc.mode !== CameraModeName.BODY_FIXED && cc.mode !== CameraModeName.SC_FIXED) return null;
   const body = cc.originBody;
   if (!body) return null;
+  // Its position and orientation as of now, not as of the last frame drawn: a
+  // script that seeks the clock or switches body and then places the camera in
+  // the same breath — every `snapshot()` replay does — would otherwise convert
+  // against where the body was, which after a switch is the old origin's
+  // coordinates and hundreds of thousands of km off.
+  _renderer!.refreshBodyPose(body.body.name);
   return { origin: body.position.clone(), toWorld: body.bodyToWorldQuaternion(new THREE.Quaternion()) };
 }
 
@@ -814,6 +826,10 @@ export function setCameraPose(
     cc.camera.up.set(up[0], up[1], up[2]).normalize();
     if (frame) cc.camera.up.applyQuaternion(frame.toWorld);
   }
+  // The pose was converted against the body's orientation now. A co-rotating
+  // frame otherwise turns the camera on the next frame by the rotation since
+  // the last one drawn — after a seek in the same script, hours of it.
+  if (frame) cc.syncModeFromCamera(_renderer.timeController.et);
   return true;
 }
 
@@ -840,6 +856,49 @@ export function getCameraPose(): {
   const up = cc.camera.up.clone();
   if (fromWorld) up.applyQuaternion(fromWorld);
   return { position: point(cc.camera.position), target: point(cc.controls.target), up: [up.x, up.y, up.z] };
+}
+
+/**
+ * Swing the camera around what it orbits by `degrees`, the way it would move
+ * on screen. Instant unless `seconds` is given. False in a camera frame that
+ * owns the view's orientation, or for a non-finite angle or duration.
+ */
+export function circleCenter(
+  direction: 'right' | 'left' | 'up' | 'down',
+  degrees: number,
+  seconds?: number,
+): boolean {
+  if (!_renderer) return false;
+  if (!Number.isFinite(degrees) || !validMoveSeconds(seconds)) return false;
+  const axis = direction === 'right' || direction === 'left' ? 'up' : 'right';
+  const sign = direction === 'right' || direction === 'up' ? 1 : -1;
+  return _renderer.cameraController.orbitTarget(axis, sign * THREE.MathUtils.degToRad(degrees), seconds);
+}
+
+/**
+ * Move the camera away from what it orbits by `km` (toward it when negative).
+ * Instant unless `seconds` is given. False where `circleCenter` is.
+ */
+export function dolly(km: number, seconds?: number): boolean {
+  if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;
+  return _renderer.cameraController.dolly(km * _renderer.scaleFactor, seconds);
+}
+
+/**
+ * Raise the camera and what it looks at by `km` along the view's up (lower
+ * when negative). In free orbit that releases the tracked object when the
+ * crane starts — at once for an instant crane, which is synced here, or once
+ * a fly-to lands, which the frame tick picks up. False where `circleCenter` is.
+ */
+export function crane(km: number, seconds?: number): boolean {
+  if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;
+  const ok = _renderer.cameraController.crane(km * _renderer.scaleFactor, seconds);
+  if (ok) syncCameraState();
+  return ok;
+}
+
+function validMoveSeconds(seconds: number | undefined): boolean {
+  return seconds === undefined || (Number.isFinite(seconds) && seconds >= 0);
 }
 
 /** Show or hide one object's trajectory line. False if there is no such object. */

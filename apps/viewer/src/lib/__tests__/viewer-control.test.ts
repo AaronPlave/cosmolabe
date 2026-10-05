@@ -178,6 +178,21 @@ function makeFakeRenderer(objects: string[]) {
       },
       flyTo: (bm: FakeBodyMesh) => log(`flyTo(${bm.body.name})`),
       cancelAnimation: () => log('cancelAnimation'),
+      syncModeFromCamera: (t: number) => log(`syncModeFromCamera(${t})`),
+      dolly: (distance: number, duration?: number) => {
+        log(`dolly(${distance}, ${duration})`);
+        return mode !== CameraModeName.LVLH;
+      },
+      crane: (distance: number, duration?: number) => {
+        log(`crane(${distance}, ${duration})`);
+        // As the real controller does in free orbit: let go of the tracked object.
+        if (mode === CameraModeName.FREE_ORBIT) tracked = null;
+        return mode !== CameraModeName.LVLH;
+      },
+      orbitTarget: (axis: 'up' | 'right', radians: number, duration?: number) => {
+        log(`orbitTarget(${axis}, ${radians.toFixed(4)}, ${duration})`);
+        return mode !== CameraModeName.LVLH;
+      },
       setModeForBody: (m: CameraModeName, bm: FakeBodyMesh | null) => {
         log(`setModeForBody(${m}, ${bm?.body.name ?? 'null'})`);
         mode = m;
@@ -195,6 +210,8 @@ function makeFakeRenderer(objects: string[]) {
       return true;
     },
     getBodyMesh: (name: string) => meshes.get(name),
+    /** What the next frame would do to a body; tests that need it replace this. */
+    refreshBodyPose: (_name: string) => true,
     getBodyNames: () => [...meshes.keys()],
     setBodyVisible: (name: string, v: boolean) => log(`setBodyVisible(${name}, ${v})`),
     setTrajectoryVisible: (name: string, v: boolean) => log(`setTrajectoryVisible(${name}, ${v})`),
@@ -273,6 +290,81 @@ describe('every verb is wired', () => {
     for (const spec of VERB_LIST) {
       expect(typeof control[spec.method], `${spec.name} → ${String(spec.method)}`).toBe('function');
     }
+  });
+});
+
+describe('circleCenter', () => {
+  // Right and left swing about the view's up vector, up and down about its
+  // right axis; the sign is the way the camera moves on screen.
+  it('maps each direction onto an axis and a signed angle in radians', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.circleCenter('right', 90)).toBe(true);
+    expect(control.circleCenter('left', 90)).toBe(true);
+    expect(control.circleCenter('up', 180, { seconds: 5 })).toBe(true);
+    expect(control.circleCenter('down', 180, { seconds: 5 })).toBe(true);
+    expect(renderer.calls).toEqual([
+      'orbitTarget(up, 1.5708, undefined)',
+      'orbitTarget(up, -1.5708, undefined)',
+      'orbitTarget(right, 3.1416, 5)',
+      'orbitTarget(right, -3.1416, 5)',
+    ]);
+  });
+
+  it('refuses a non-finite angle or a negative duration without moving anything', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.circleCenter('right', Number.NaN)).toBe(false);
+    expect(control.circleCenter('right', 90, { seconds: -1 })).toBe(false);
+    expect(renderer.calls).toEqual([]);
+  });
+
+  it('passes on the refusal of a frame that owns the view', () => {
+    const control = createViewerControl();
+    control.setFrame('lvlh', 'Cassini');
+    expect(control.circleCenter('right', 90)).toBe(false);
+  });
+
+  it('runs as text under Cosmographia\'s names', async () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    await execute(parse('circleCenterRight 360 5\ncircleCenterDown 30'), control);
+    expect(renderer.calls).toEqual(['orbitTarget(up, 6.2832, 5)', 'orbitTarget(right, -0.5236, undefined)']);
+  });
+});
+
+describe('dolly and crane', () => {
+  it('pass km through the scale factor, with the duration as given', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.dolly(10000, { seconds: 3 })).toBe(true);
+    expect(control.crane(-2000)).toBe(true);
+    expect(renderer.calls).toEqual(['dolly(0.01, 3)', 'crane(-0.002, undefined)']);
+  });
+
+  it('refuse a non-finite distance without moving anything', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.dolly(Number.POSITIVE_INFINITY)).toBe(false);
+    expect(control.crane(10, { seconds: Number.NaN })).toBe(false);
+    expect(renderer.calls).toEqual([]);
+  });
+
+  // A free-orbit crane lets go of the tracked object; the read side and the
+  // HUD must hear it, or a snapshot would re-track and undo the crane.
+  it('report the tracking a free-orbit crane released', () => {
+    const control = createViewerControl();
+    control.gotoObject('Titan');
+    control.crane(500);
+    expect(control.getTracked()).toBeNull();
+    expect(vs.trackedBodyName).toBeNull();
+  });
+
+  it('run as text', async () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    await execute(parse('dolly 10000 3\ncrane 2000 2'), control);
+    expect(renderer.calls).toEqual(['dolly(0.01, 3)', 'crane(0.002, 2)']);
   });
 });
 
@@ -426,6 +518,7 @@ describe('setCamera in a body-fixed frame', () => {
     cc.controls.target = new THREE.Vector3();
     const toWorld = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
     cc.originBody = {
+      body: { name: 'Titan' },
       position: new THREE.Vector3(),
       bodyToWorldQuaternion: (out: THREE.Quaternion) => out.copy(toWorld),
     };
@@ -443,6 +536,29 @@ describe('setCamera in a body-fixed frame', () => {
     expect(cc.camera.position.x).toBeCloseTo(0, 9);
     expect(cc.camera.position.y).toBeCloseTo(1000 * sf, 9);
     expect(cc.camera.up.z).toBeCloseTo(1, 9);
+  });
+
+  // Between frames the body's pose describes the frame already drawn. Right
+  // after the origin moves to it — `gotoObject` then `setCamera` in one script,
+  // which is what every snapshot replay is — its position is still in the old
+  // origin's coordinates. The conversion has to use where the next frame will
+  // put it.
+  it('converts against the body as the next frame will have it, not the last', () => {
+    const { control, cc } = enterBodyFixed();
+    const origin = cc.originBody as { position: THREE.Vector3 };
+    origin.position.set(-384400 * renderer.scaleFactor, 0, 0); // stale: the old origin's coordinates
+    const refreshed: string[] = [];
+    renderer.refreshBodyPose = (name: string) => {
+      refreshed.push(name);
+      origin.position.set(0, 0, 0);
+      return true;
+    };
+    control.setCamera([1000, 0, 0], [0, 0, 0], [0, 0, 1]);
+    expect(refreshed).toContain('Titan');
+    // And the co-rotating mode re-baselines on that orientation, at the clock's time.
+    expect(renderer.calls).toContain(`syncModeFromCamera(${renderer.timeController.et})`);
+    expect(cc.camera.position.x).toBeCloseTo(0, 9);
+    expect(cc.camera.position.y).toBeCloseTo(1000 * renderer.scaleFactor, 9);
   });
 
   it('reads the pose back in the same axes, so a snapshot replays it', () => {

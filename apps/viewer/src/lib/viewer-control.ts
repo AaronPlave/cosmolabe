@@ -36,7 +36,10 @@ import {
   vs,
   applyViewpoint,
   bodyNames,
+  circleCenter,
   clearLookAt,
+  crane,
+  dolly,
   displayNote,
   getRenderer,
   noteIsTimed,
@@ -202,6 +205,12 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     },
 
     setCamera: (position, target, up) => setCameraPose(position, target, up),
+
+    circleCenter: (direction, degrees, opts) => circleCenter(direction, degrees, opts?.seconds),
+
+    dolly: (km, opts) => dolly(km, opts?.seconds),
+
+    crane: (km, opts) => crane(km, opts?.seconds),
 
     // ── Write: time ──
     setTime: (when) => {
