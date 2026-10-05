@@ -77,12 +77,18 @@
   );
   /** Parts of the current window no usable range covers; empty when it is fine. */
   let outside = $derived(form && coverage ? windowOutsideUsable() : []);
-  /** More than a handful of disjoint windows is a list to open, not to read. */
-  const COVERAGE_SHOWN = 4;
+  /** Keep the selected range and one alternative visible when there are many. */
+  const COVERAGE_SHOWN = 2;
   let showAllCoverage = $state(false);
-  let shownCoverage = $derived(
-    coverage ? (showAllCoverage ? coverage.windows : coverage.windows.slice(0, COVERAGE_SHOWN)) : [],
-  );
+  let shownCoverage = $derived.by(() => {
+    const windows = coverage?.windows ?? [];
+    if (showAllCoverage || windows.length <= COVERAGE_SHOWN) {
+      return windows.map((window, index) => ({ window, index }));
+    }
+    const current = windows.findIndex(isCurrentWindow);
+    const indexes = current < 0 ? [0, 1] : [current, current === 0 ? 1 : 0];
+    return indexes.sort((a, b) => a - b).map((index) => ({ window: windows[index]!, index }));
+  });
 
   function titleCase(name: string): string {
     return name === name.toUpperCase() ? name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : name;
@@ -178,10 +184,7 @@
 
 <InstrumentPanel key="events" title="Event finder" width={toolDef('events').width} {onClose}>
 
-  {#if unavailable}
-    <!-- Said before the form, not after a click: in a catalog with no kernels
-         the answer is known up front, and it is a policy (events are SPICE's),
-         not a search that went wrong. -->
+  {#if unavailable && (!coverage || coverage.status === 'unknown' || (coverage.status === 'available' && outside.length === 0))}
     <p class="event-unavailable ui-helper mb-2" role="note">{unavailable.message}</p>
   {/if}
 
@@ -292,6 +295,65 @@
         onkeydown={(e) => { if (e.key === 'Enter') commitEnd(); }}
       />
     </div>
+    {#if coverage && coverage.status === 'available'}
+      {#if outside.length > 0 || coverage.windows.length > 1 || !isCurrentWindow(coverage.windows[0])}
+        <div class="event-range mb-2 ml-22" class:invalid={outside.length > 0}>
+          <p class="event-range-heading">
+            {outside.length > 0 ? 'Outside available range' : 'Available'}{!coverage.exact ? ' (approximate)' : ''}
+          </p>
+          <ul class="event-range-list">
+            {#each shownCoverage as { window: w, index } (w.start)}
+              <li class="event-range-row">
+                <span class="event-range-dates">{utc(w.start)} – {utc(w.end)}</span>
+                {#if isCurrentWindow(w)}
+                  <span class="event-range-in-use">In use</span>
+                {:else}
+                  <button class="event-range-action" onclick={() => { startBad = false; endBad = false; useAvailableWindow(index); }}>
+                    Use
+                  </button>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+          {#if coverage.windows.length > COVERAGE_SHOWN}
+            <button class="ctrl-link" onclick={() => (showAllCoverage = !showAllCoverage)}>
+              {showAllCoverage ? 'Show fewer' : `Show ${coverage.windows.length - COVERAGE_SHOWN} more`}
+            </button>
+          {/if}
+          {#if !coverage.exact && coverage.caveats.length}
+            <details class="event-range-details">
+              <summary>Why approximate?</summary>
+              <ul class="list-disc pl-4">
+                {#each coverage.caveats as caveat}<li>{caveat}</li>{/each}
+              </ul>
+            </details>
+          {/if}
+        </div>
+      {/if}
+    {:else if coverage && coverage.status === 'none'}
+      <div class="event-range invalid mb-2 ml-22" role="status">
+        <p class="event-range-heading">No usable range for {coverageSubject}</p>
+        {#if coverage.problems.length === 1}
+          <p class="event-range-reason">{coverage.problems[0]}</p>
+        {:else if coverage.problems.length > 1}
+          <details class="event-range-reason">
+            <summary>{coverage.problems.length} missing requirements</summary>
+            <ul class="list-disc pl-4">
+              {#each coverage.problems as problem}<li>{problem}</li>{/each}
+            </ul>
+          </details>
+        {/if}
+      </div>
+    {:else if ef.windowTrimmed}
+      <p class="ui-helper event-helper mb-2 ml-22">
+        Trimmed to the kernel coverage of the chosen bodies.
+      </p>
+    {:else if ef.windowPinned}
+      <p class="ui-helper event-helper mb-2 ml-22">
+        Using your window. <button class="ctrl-link underline" onclick={resetWindow}>Reset to default window</button>
+      </p>
+    {/if}
+
     <div class="flex items-center gap-2 mb-2">
       <span class="ui-label w-20 shrink-0">Step</span>
       <select
@@ -310,68 +372,6 @@
       <button class="ctrl-link shrink-0" onclick={() => useRange(vs.scrubBaseMin, vs.scrubBaseMax)}>all</button>
       <button class="ctrl-link shrink-0" onclick={() => useRange(vs.scrubMin, vs.scrubMax)}>visible</button>
     </div>
-
-    <!-- Say when the window is not simply the catalog's span, so a default that
-         differs from the scrubber is explained rather than merely odd. -->
-    {#if coverage && coverage.status === 'available'}
-      <!-- Where this query can actually be computed with the loaded kernels:
-           every center its states are chained through, not just the two
-           bodies' own segments. Disjoint windows stay separate choices. -->
-      <div class="ui-helper event-helper event-coverage mb-2 ml-22">
-        <p>
-          Available for {coverageSubject}{coverage.exact ? '' : ' (estimate)'}{coverage.windows.length > 1 ? ` — ${coverage.windows.length} separate ranges` : ''}:
-        </p>
-        <ul class="mt-0.5">
-          {#each shownCoverage as w, i (w.start)}
-            <li class="flex flex-wrap items-baseline gap-x-2">
-              <span class="font-mono">{utc(w.start)} – {utc(w.end)}</span>
-              {#if isCurrentWindow(w)}
-                <span class="text-text-muted">in use</span>
-              {:else}
-                <button class="ctrl-link underline" onclick={() => { startBad = false; endBad = false; useAvailableWindow(i); }}>
-                  Use available range
-                </button>
-              {/if}
-            </li>
-          {/each}
-        </ul>
-        {#if coverage.windows.length > COVERAGE_SHOWN}
-          <button class="ctrl-link underline" onclick={() => (showAllCoverage = !showAllCoverage)}>
-            {showAllCoverage ? 'Show fewer' : `Show all ${coverage.windows.length}`}
-          </button>
-        {/if}
-        {#if !coverage.exact && coverage.caveats.length}
-          <p class="mt-0.5" title={coverage.caveats.join('\n')}>Estimate: {coverage.caveats[0]}</p>
-        {/if}
-        {#if outside.length > 0}
-          <p class="mt-0.5 text-warning">
-            This window reaches outside the available range
-            ({utc(outside[0].start)} – {utc(outside[0].end)}{outside.length > 1 ? ` and ${outside.length - 1} more` : ''}),
-            so the search may fail there.
-          </p>
-        {/if}
-      </div>
-    {:else if coverage && coverage.status === 'none'}
-      <div class="ui-helper event-helper event-coverage mb-2 ml-22">
-        <p class="text-warning">No usable range for {coverageSubject} with the loaded kernels.</p>
-        <button class="ctrl-link underline" disabled>Use available range</button>
-        {#if coverage.problems.length}
-          <ul class="mt-0.5 list-disc pl-3">
-            {#each coverage.problems as problem}
-              <li>{problem}</li>
-            {/each}
-          </ul>
-        {/if}
-      </div>
-    {:else if ef.windowTrimmed}
-      <p class="ui-helper event-helper mb-2 ml-22">
-        Trimmed to the kernel coverage of the chosen bodies.
-      </p>
-    {:else if ef.windowPinned}
-      <p class="ui-helper event-helper mb-2 ml-22">
-        Using your window. <button class="ctrl-link underline" onclick={resetWindow}>Reset to default window</button>
-      </p>
-    {/if}
 
     <!-- Run. A long search is survivable now that it runs off the main thread,
          so it is also worth being able to give up on. -->
@@ -785,12 +785,60 @@
     background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
     color: var(--color-text-secondary);
   }
+  .event-range {
+    color: var(--color-text-secondary);
+    font-size: var(--text-helper);
+  }
+  .event-range-heading {
+    color: var(--color-text-secondary);
+  }
+  .event-range.invalid .event-range-heading {
+    color: var(--color-warning);
+  }
+  .event-range-list {
+    margin-top: 2px;
+  }
+  .event-range-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 2px 8px;
+    padding: 1px 0;
+  }
+  .event-range-dates {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-helper);
+    overflow-wrap: anywhere;
+  }
+  .event-range-in-use {
+    color: var(--color-text-muted);
+  }
+  .event-range-action {
+    flex: none;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-text-secondary);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .event-range-action:hover {
+    color: var(--color-text-primary);
+  }
+  .event-range-reason {
+    margin-top: 2px;
+    color: var(--color-text-secondary);
+  }
+  .event-range-details {
+    margin-top: 3px;
+    color: var(--color-text-muted);
+  }
+  .event-range-details summary {
+    cursor: pointer;
+  }
   .event-helper .ctrl-link {
     font-size: inherit;
-  }
-  .event-helper .ctrl-link:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
   }
   .event-marker-legend {
     display: flex;

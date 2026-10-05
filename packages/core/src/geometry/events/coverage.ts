@@ -397,9 +397,10 @@ export function assessEventCoverage(
       if (observerReach.length === 0) explainChain(observer, true);
       if (targetReach.length === 0) explainChain(target, true);
 
-      const both = intersect(observerReach, targetReach);
       let shifted: EtInterval[];
-      const exactShift = both.length > 0 ? mapTargetWindows(vector, direction as -1 | 1, targetReach, observerReach, source) : [];
+      // The target is read at t +/- light time, so these two spans need not
+      // overlap at the same epoch. Map the target span to observer epochs first.
+      const exactShift = mapTargetWindows(vector, direction as -1 | 1, targetReach, observerReach, source);
       if (exactShift !== undefined) {
         shifted = exactShift;
       } else {
@@ -408,23 +409,31 @@ export function assessEventCoverage(
         caveats.push(
           `Window edges under ${vector.abcorr} were sized from sampled light time, not solved, so they may be optimistic.`,
         );
+        let ltMin = Infinity;
         let ltMax = 0;
         if (source.lightTime) {
-          for (const w of both) {
+          for (const w of observerReach) {
             for (let k = 0; k <= LIGHT_TIME_SAMPLES; k++) {
               const t = w.start + ((w.end - w.start) * k) / LIGHT_TIME_SAMPLES;
               try {
-                ltMax = Math.max(ltMax, source.lightTime(vector.target, vector.observer, t));
+                const lt = source.lightTime(vector.target, vector.observer, t);
+                if (Number.isFinite(lt) && lt >= 0) {
+                  ltMin = Math.min(ltMin, lt);
+                  ltMax = Math.max(ltMax, lt);
+                }
               } catch {
                 // An epoch SPICE refuses is caught by the probe below; here it
                 // only cannot size a margin.
               }
             }
           }
-          ltMax = ltMax * 1.01 + 1;
         }
+        const lower = Number.isFinite(ltMin) ? Math.max(0, ltMin * 0.99 - 1) : 0;
+        const upper = ltMax * 1.01 + (Number.isFinite(ltMin) ? 1 : 0);
         shifted = targetReach.map((w) =>
-          direction < 0 ? { start: w.start + ltMax, end: w.end } : { start: w.start, end: w.end - ltMax })
+          direction < 0
+            ? { start: w.start + upper, end: w.end + lower }
+            : { start: w.start - lower, end: w.end - upper })
           .filter((w) => w.end > w.start);
       }
       windows = intersect(observerReach, shifted);
@@ -512,12 +521,10 @@ function mapTargetWindows(
   observerReach: readonly EtInterval[],
   source: CoverageSource,
 ): EtInterval[] | undefined {
-  // An edge only needs solving if some observer epoch could read past it.
-  // Reception reads the target earlier than t, so a target window ending
-  // after every observer epoch never constrains its end; transmission reads
-  // it later, so one starting before every observer epoch never constrains
-  // its start. Skipping those keeps an unsolvable-but-irrelevant edge (the
-  // observer is uncovered at its arrival time) from forcing an estimate.
+  // An edge only needs solving if an observer epoch could read past it.
+  // Check the observer's own coverage endpoints before solving: the mapped
+  // epoch of an irrelevant target edge can lie outside observer coverage.
+  if (observerReach.length === 0 || targetReach.length === 0) return [];
   const observerStart = observerReach[0]?.start ?? Infinity;
   const observerEnd = observerReach[observerReach.length - 1]?.end ?? -Infinity;
   const solve = source.observerEpochFor;
@@ -544,15 +551,17 @@ function mapTargetWindows(
 
   const out: EtInterval[] = [];
   for (const w of targetReach) {
-    let start = direction > 0 && w.start <= observerStart ? -Infinity : w.start;
-    let end = direction < 0 && w.end >= observerEnd ? Infinity : w.end;
+    const firstRead = Number.isFinite(observerStart) ? read(observerStart) : undefined;
+    const lastRead = Number.isFinite(observerEnd) ? read(observerEnd) : undefined;
+    let start = firstRead !== undefined && firstRead >= w.start ? -Infinity : w.start;
+    let end = lastRead !== undefined && lastRead <= w.end ? Infinity : w.end;
     try {
-      if (Number.isFinite(w.start) && !(direction > 0 && w.start <= observerStart)) {
+      if (Number.isFinite(w.start) && start !== -Infinity) {
         const s = settle(solve(vector, w.start), w.start, 1);
         if (s === undefined) return undefined;
         start = s;
       }
-      if (Number.isFinite(w.end) && !(direction < 0 && w.end >= observerEnd)) {
+      if (Number.isFinite(w.end) && end !== Infinity) {
         const e = settle(solve(vector, w.end), w.end, -1);
         if (e === undefined) return undefined;
         end = e;

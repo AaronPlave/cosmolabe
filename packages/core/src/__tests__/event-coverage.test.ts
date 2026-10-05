@@ -125,6 +125,61 @@ describe('assessEventCoverage', () => {
     expect(result.windows[0]!.end).toBe(997);
   });
 
+  it('finds a corrected window even when the two SPK spans do not overlap at one epoch', () => {
+    const segments = [seg('MOON', 'SSB', 0, 100), seg('SC', 'SSB', 101, 200)];
+    const vector = { target: 'MOON', observer: 'SC', abcorr: 'LT' };
+    const valid = (t: number) => t >= 101 && t <= 200 && t - 10 >= 0 && t - 10 <= 100;
+    const result = assessEventCoverage({ vectors: [vector] }, source(segments, {
+      correctedLightTime: (_v, t) => {
+        if (!valid(t)) throw new Error('SPICE(SPKINSUFFDATA)');
+        return 10;
+      },
+      observerEpochFor: (_v, tau) => tau + 10,
+      probe: (_deps, t) => {
+        if (!valid(t)) throw new Error('SPICE(SPKINSUFFDATA)');
+      },
+    }));
+
+    expect(result.windows).toEqual([{ start: 104, end: 107 }]);
+    expect(result.exact).toBe(true);
+  });
+
+  it('keeps a shifted overlap in the sampled estimate fallback', () => {
+    const result = assessEventCoverage(
+      { vectors: [{ target: 'MOON', observer: 'SC', abcorr: 'LT' }] },
+      source([seg('MOON', 'SSB', 0, 100), seg('SC', 'SSB', 101, 200)], {
+        lightTime: () => 10,
+        probe: (_deps, t) => {
+          if (t < 101 || t > 110) throw new Error('SPICE(SPKINSUFFDATA)');
+        },
+      }),
+    );
+
+    expect(result.status).toBe('available');
+    expect(result.windows[0]!.start).toBe(104);
+    expect(result.windows[0]!.end).toBeGreaterThan(104);
+    expect(result.exact).toBe(false);
+  });
+
+  it('finds the shifted overlap for transmission corrections too', () => {
+    const segments = [seg('MOON', 'SSB', 100, 200), seg('SC', 'SSB', 0, 99)];
+    const vector = { target: 'MOON', observer: 'SC', abcorr: 'XLT' };
+    const valid = (t: number) => t >= 0 && t <= 99 && t + 10 >= 100 && t + 10 <= 200;
+    const result = assessEventCoverage({ vectors: [vector] }, source(segments, {
+      correctedLightTime: (_v, t) => {
+        if (!valid(t)) throw new Error('SPICE(SPKINSUFFDATA)');
+        return 10;
+      },
+      observerEpochFor: (_v, tau) => tau - 10,
+      probe: (_deps, t) => {
+        if (!valid(t)) throw new Error('SPICE(SPKINSUFFDATA)');
+      },
+    }));
+
+    expect(result.windows).toEqual([{ start: 93, end: 96 }]);
+    expect(result.exact).toBe(true);
+  });
+
   it('solves light-time edges exactly where sampling would underestimate them', () => {
     // Light time with a narrow bump near the target's coverage start: 64
     // samples across the window step clean over it, so a sampled margin comes
