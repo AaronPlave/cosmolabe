@@ -1,5 +1,8 @@
 # Planetary Surface / Terrain Refactor — implementation record
 
+The bounded cube-sphere layout evaluation and its current **revise** decision are
+documented in [the cube-sphere experiment ADR](design/cube-sphere-experiment.md).
+
 ## Status
 
 This document is the durable implementation checklist for the planetary-terrain
