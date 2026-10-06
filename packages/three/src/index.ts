@@ -7,6 +7,8 @@ export { BodyMesh } from './BodyMesh.js';
 export type { ModelResolver } from './BodyMesh.js';
 export { TrajectoryLine } from './TrajectoryLine.js';
 export type { TrajectoryLineOptions, PositionResolver, ColorSegment, DrawnTrail } from './TrajectoryLine.js';
+export { TrajectoryLead, resolveLeadWindows, leadFade } from './TrajectoryLead.js';
+export type { LeadRequest, LeadPolicy, LeadSpan, LeadWindow, LeadWindowKind, DrawnLead } from './TrajectoryLead.js';
 export { TrajectoryCache } from './TrajectoryCache.js';
 export type { TrajectoryCacheConfig } from './TrajectoryCache.js';
 export {
@@ -51,7 +53,7 @@ export type { StarFieldOptions } from './StarField.js';
 export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
 export { EventMarkers } from './EventMarkers.js';
-export type { EventMarker, EventMarkerType, EventMarkersOptions } from './EventMarkers.js';
+export type { EventMarker, EventMarkerType, EventMarkersOptions, EventLeadVisibility } from './EventMarkers.js';
 export type { ScreenRect } from './EventCallout.js';
 export { OccultationGeometry } from './OccultationGeometry.js';
 export type { OccultationGeometryParticipants } from './OccultationGeometry.js';
