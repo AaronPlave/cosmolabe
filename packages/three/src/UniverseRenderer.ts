@@ -1710,7 +1710,7 @@ export class UniverseRenderer {
   }
 
   private syncBodyGrids(): void {
-    const tracked = this.cameraController.trackedBody?.body.name ?? null;
+    const tracked = (this.cameraController.trackedBody ?? this.cameraController.originBody)?.body.name ?? null;
     for (const [name, bm] of this.bodyMeshes) {
       const state = gridBodyState(this._gridSettings, this._gridVisible, name, tracked);
       bm.showGrid(state.visible, state.labels, this._gridSettings);

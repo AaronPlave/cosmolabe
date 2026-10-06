@@ -13,7 +13,8 @@ export function chooseGridStep(pixelsPerDegree: number, previous = 30, targetPx 
   if (spacing >= targetPx * 0.6 && spacing <= targetPx * 1.8) return previous;
   return GRID_STEPS.reduce((best, step) => Math.abs(Math.log(step * pixelsPerDegree / targetPx)) < Math.abs(Math.log(best * pixelsPerDegree / targetPx)) ? step : best, 30 as number);
 }
-interface Anchor { id: string; axis: 'latitude' | 'longitude'; angle: number; lat: number; lon: number; score: number; }
+type Edge = 'left' | 'right' | 'bottom' | 'top';
+interface Anchor { id: string; axis: 'latitude' | 'longitude'; angle: number; lat: number; lon: number; score: number; edge?: Edge; }
 interface Label { sprite: THREE.Sprite; anchor: Anchor; text: string; width: number; }
 interface SurfaceHit { point: THREE.Vector3 | null; projectedAnchor: THREE.Vector3; time: number; }
 const MAX_LABELS = 24;
@@ -33,6 +34,7 @@ export class AdaptiveGraticule {
   private lastPlan = -Infinity;
   private lastFrame = 0;
   private candidates: Anchor[] = [];
+  private layout: 'globe' | 'regional' = 'globe';
   private dpr = 0;
   private readonly cachedHits = new Map<string, SurfaceHit>();
   private visible = false;
@@ -73,12 +75,13 @@ export class AdaptiveGraticule {
     return new THREE.Vector3(p.xKm, p.yKm, p.zKm).applyMatrix4(this.toWorld);
   }
   /** Ray/reference-ellipsoid intersection in physical body-fixed coordinates. */
-  private referenceHit(x: number, y: number, camera: THREE.PerspectiveCamera): { latDeg: number; lonDeg: number } | null {
+  private referenceHit(x: number, y: number, camera: THREE.PerspectiveCamera, heightKm = 0): { latDeg: number; lonDeg: number; heightKm: number } | null {
     this.raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
     const origin = this.raycaster.ray.origin.clone().applyMatrix4(this.bodyFromWorld);
     const direction = this.raycaster.ray.direction.clone().transformDirection(this.bodyFromWorld);
     const shape = this.coordinates.datum.referenceShape;
-    const radii = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
+    const radii = (shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm).map(r => r + heightKm);
+    if (radii.some(r => r <= 0)) return null;
     const o = origin.clone().divide(new THREE.Vector3(...radii));
     const d = direction.clone().divide(new THREE.Vector3(...radii));
     const a = d.dot(d), b = o.dot(d), c = o.dot(o) - 1;
@@ -87,26 +90,44 @@ export class AdaptiveGraticule {
     const t = (-b - Math.sqrt(disc)) / a;
     if (t <= 0) return null;
     origin.addScaledVector(direction, t);
-    return bodyFixedToSurfacePosition({ xKm: origin.x, yKm: origin.y, zKm: origin.z }, this.coordinates);
+    const hit = bodyFixedToSurfacePosition({ xKm: origin.x, yKm: origin.y, zKm: origin.z }, this.coordinates);
+    return { ...hit, heightKm: hit.heightKm ?? 0 };
+  }
+  /** Intersect the nearby resident height surface; never take a far-side exit. */
+  private planningHit(x: number, y: number, camera: THREE.PerspectiveCamera, seed: number | null) {
+    const reference = this.referenceHit(x, y, camera);
+    let height = reference ? this.bm.sampleTerrain(reference.latDeg, reference.lonDeg)?.elevationKm ?? seed : seed;
+    if (height === null) return reference;
+    for (let i = 0; i < 6; i++) {
+      const hit = this.referenceHit(x, y, camera, height);
+      if (!hit) return null;
+      const sample = this.bm.sampleTerrain(hit.latDeg, hit.lonDeg);
+      if (!sample) return reference;
+      const error = sample.elevationKm - hit.heightKm;
+      if (Math.abs(error) < 1e-6) return { ...hit, heightKm: sample.elevationKm };
+      height += error;
+    }
+    return null;
   }
   private plan(camera: THREE.PerspectiveCamera, width: number, height: number): void {
-    const samples: Array<{ latDeg: number; lonDeg: number; score: number }> = [];
+    const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
+    const foot = bodyFixedToSurfacePosition({ xKm: cameraFixed.x, yKm: cameraFixed.y, zKm: cameraFixed.z }, this.coordinates);
+    const seed = this.bm.sampleTerrain(foot.latDeg, foot.lonDeg)?.elevationKm ?? null;
+    const samples: Array<{ latDeg: number; lonDeg: number; heightKm: number }> = [];
     const latScale: number[] = [], lonScale: number[] = [];
-    // A fixed screen lattice also samples a regional view when the body fills the viewport.
-    // Include the projected centre for tiny/distant discs missed by the lattice.
     const center = this.bm.position.clone().project(camera);
     const probes: [number, number][] = [[center.x, center.y]];
     for (let y = -0.8; y <= 0.801; y += 0.2666667) for (let x = -0.8; x <= 0.801; x += 0.2666667) probes.push([x, y]);
     for (const [x, y] of probes) {
       if (Math.abs(x) > 1 || Math.abs(y) > 1) continue;
-      const hit = this.referenceHit(x, y, camera);
+      const hit = this.planningHit(x, y, camera, seed);
       if (!hit) continue;
-      samples.push({ ...hit, score: x * x + y * y });
-      const p = this.point(hit.latDeg, hit.lonDeg).project(camera);
-      // Small local angular derivatives account for latitude and foreshortening independently.
+      samples.push(hit);
+      const p = this.point(hit.latDeg, hit.lonDeg, hit.heightKm).project(camera);
       const delta = 0.0001;
-      const a = this.point(Math.min(89.9999, hit.latDeg + delta), hit.lonDeg).project(camera);
-      const b = this.point(hit.latDeg, hit.lonDeg + delta).project(camera);
+      const latitude = Math.min(89.9999, hit.latDeg + delta);
+      const a = this.point(latitude, hit.lonDeg, this.bm.sampleTerrain(latitude, hit.lonDeg)?.elevationKm ?? hit.heightKm).project(camera);
+      const b = this.point(hit.latDeg, hit.lonDeg + delta, this.bm.sampleTerrain(hit.latDeg, hit.lonDeg + delta)?.elevationKm ?? hit.heightKm).project(camera);
       latScale.push(Math.hypot((a.x - p.x) * width / 2, (a.y - p.y) * height / 2) / delta);
       lonScale.push(Math.hypot((b.x - p.x) * width / 2, (b.y - p.y) * height / 2) / delta);
     }
@@ -119,22 +140,78 @@ export class AdaptiveGraticule {
       previous.set(latStep, lonStep);
       this.transition = 0;
     }
+    const shape = this.coordinates.datum.referenceShape;
+    const radius = shape.kind === 'sphere' ? shape.radiusKm : Math.max(...shape.radiiKm);
+    const distance = cameraFixed.length();
+    const disc = radius / Math.sqrt(Math.max(0, distance * distance - radius * radius)) / Math.tan(camera.fov * DEG / 2);
+    this.layout = distance > radius && Math.abs(center.x) + disc / camera.aspect < 0.94 && Math.abs(center.y) + disc < 0.92 ? 'globe' : 'regional';
     const candidates: Anchor[] = [];
-    samples.sort((a, b) => a.score - b.score);
-    for (const sample of samples) {
+    const add = (axis: Anchor['axis'], angle: number, lat: number, lon: number, edge?: Edge) => {
+      angle = axis === 'longitude' ? wrapLongitude(angle) : angle;
+      if (Math.abs(lat) >= 89 || (axis === 'longitude' && Math.abs(lat) > 80)) return;
+      const id = `${axis}:${angle.toFixed(6)}`;
+      if (candidates.some(a => a.id === id)) return;
+      const centerAngle = axis === 'latitude' ? foot.latDeg : foot.lonDeg;
+      const difference = axis === 'latitude' ? angle - centerAngle : wrapLongitude(angle - centerAngle);
+      candidates.push({ id, axis, angle, lat, lon: wrapLongitude(lon), edge,
+        score: angle === 0 ? -1 : Math.abs(difference) / (axis === 'latitude' ? latStep : lonStep) });
+    };
+    const angles = (lo: number, hi: number, step: number) => {
+      const start = Math.ceil(lo / step), end = Math.floor(hi / step);
+      const stride = Math.max(1, Math.ceil((end - start + 1) / 32));
+      const result: number[] = [];
+      for (let i = start; i <= end; i += stride) result.push(i * step);
+      if (lo <= 0 && hi >= 0 && !result.includes(0)) result.push(0);
+      return result;
+    };
+    if (this.layout === 'globe') {
+      // One meridian and one latitude band, including polar views. Collisions
+      // remove annotations; they never scatter them onto another part of a line.
+      const band = Math.max(-50, Math.min(50, foot.latDeg - 10));
+      for (const angle of angles(-89, 89, latStep)) add('latitude', angle, angle, foot.lonDeg);
+      for (const angle of angles(-180, 180, lonStep)) add('longitude', angle, band, angle);
+    } else if (samples.length) {
+      const edges: Edge[] = ['left', 'right', 'bottom', 'top'];
+      const position = (edge: Edge, t: number): [number, number] => edge === 'left' ? [-0.82, t]
+        : edge === 'right' ? [0.82, t] : edge === 'bottom' ? [t, -0.82] : [t, 0.82];
+      const border = edges.map(edge => ({ edge, samples: Array.from({ length: 17 }, (_, i) => {
+        const [x, y] = position(edge, -0.82 + i * 1.64 / 16);
+        return { x, y, hit: this.planningHit(x, y, camera, seed) };
+      }) }));
       for (const axis of ['latitude', 'longitude'] as const) {
+        const scalar = (hit: { latDeg: number; lonDeg: number }) => axis === 'latitude' ? hit.latDeg : hit.lonDeg;
         const step = axis === 'latitude' ? latStep : lonStep;
-        const angle = axis === 'latitude' ? Math.round(sample.latDeg / step) * step : wrapLongitude(Math.round(sample.lonDeg / step) * step);
-        if ((axis === 'latitude' && Math.abs(angle) >= 90) || (axis === 'longitude' && Math.abs(sample.latDeg) > 88)) continue;
-        candidates.push({ id: `${axis}:${angle.toFixed(6)}`, axis, angle,
-          lat: axis === 'latitude' ? angle : sample.latDeg,
-          lon: axis === 'longitude' ? angle : sample.lonDeg, score: sample.score });
+        const span = (edge: typeof border[number]) => edge.samples.slice(1).reduce((sum, b, i) => {
+          const a = edge.samples[i];
+          return sum + (a.hit && b.hit ? Math.abs(axis === 'latitude' ? scalar(b.hit) - scalar(a.hit) : wrapLongitude(scalar(b.hit) - scalar(a.hit))) : 0);
+        }, 0);
+        const preferred = border[axis === 'latitude' ? 0 : 2];
+        const best = border.reduce((a, b) => span(b) > span(a) ? b : a, preferred);
+        const selected = span(preferred) >= span(best) * 0.75 ? preferred : best;
+        for (let i = 1; i < selected.samples.length && candidates.filter(a => a.axis === axis).length < 32; i++) {
+          const a = selected.samples[i - 1], b = selected.samples[i];
+          if (!a.hit || !b.hit) continue;
+          const start = scalar(a.hit);
+          const end = start + (axis === 'latitude' ? scalar(b.hit) - start : wrapLongitude(scalar(b.hit) - start));
+          for (const angle of angles(Math.min(start, end), Math.max(start, end), step)) {
+            let lo = a, hi = b;
+            for (let j = 0; j < 7; j++) {
+              const x = (lo.x + hi.x) / 2, y = (lo.y + hi.y) / 2;
+              const hit = this.planningHit(x, y, camera, seed);
+              if (!hit) break;
+              const value = axis === 'latitude' ? hit.latDeg : start + wrapLongitude(hit.lonDeg - start);
+              const mid = { x, y, hit };
+              if ((value < angle) === (start < end)) lo = mid; else hi = mid;
+            }
+            const hit = this.planningHit((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, camera, seed);
+            if (hit) add(axis, angle, axis === 'latitude' ? angle : hit.latDeg, axis === 'longitude' ? angle : hit.lonDeg, selected.edge);
+          }
+        }
       }
     }
-    // Stable anchors are preferred whenever still visible; seam identities use canonical longitude.
-    this.candidates = [...this.labels.values()].map(l => l.anchor)
-      .filter(a => Math.abs(a.angle / (a.axis === 'latitude' ? latStep : lonStep) - Math.round(a.angle / (a.axis === 'latitude' ? latStep : lonStep))) < 1e-5)
-      .concat(candidates).slice(0, MAX_CANDIDATES);
+    // Candidate generation depends on the current pose and spacing, not retained
+    // anchors from the route taken to reach it. A settled pose has one layout.
+    this.candidates = candidates.sort((a, b) => a.score - b.score || a.id.localeCompare(b.id)).slice(0, MAX_CANDIDATES);
   }
   update(camera: THREE.PerspectiveCamera, viewport: { width: number; height: number }, manager: LabelManager | null, occluders: readonly BodyMesh[] = [this.bm]): void {
     const now = performance.now();
@@ -194,7 +271,7 @@ export class AdaptiveGraticule {
       const p = fixedAnchor.applyMatrix4(this.toWorld);
       const view = p.clone().project(camera);
       if (view.z < -1 || view.z > 1 || Math.abs(view.x) > 0.94 || Math.abs(view.y) > 0.92) continue;
-      const key = `${candidate.id}:${candidate.lat.toFixed(6)}:${candidate.lon.toFixed(6)}`;
+      const key = `${candidate.id}:${candidate.edge ?? this.layout}`;
       if (!prepared.some(anchor => anchor.key === key)) prepared.push({ candidate, key, p, view });
     }
     const screenShift = (cached: SurfaceHit, view: THREE.Vector3) => Math.hypot(
@@ -205,18 +282,14 @@ export class AdaptiveGraticule {
       // Refresh existing annotations first, oldest check first. A 32 ms minimum
       // refresh interval also leaves budget for discovering new anchors while
       // navigating. Deferred results expire after 150 ms or an 8 CSS-pixel move.
-      const pending = prepared.filter(({ candidate, key, view }) => {
-        const label = this.labels.get(candidate.id);
-        // Alternative positions on an already annotated line need no queries
-        // while its preferred anchor remains visible.
-        if (label?.sprite.visible && (label.anchor.lat !== candidate.lat || label.anchor.lon !== candidate.lon)) return false;
+      const pending = prepared.filter(({ key, view }) => {
         const cached = this.cachedHits.get(key);
         return !cached || now - cached.time >= 150 || screenShift(cached, view) > 8
           || (now - cached.time >= 32 && !cached.projectedAnchor.equals(view));
       }).sort((a, b) => {
         const visible = (anchor: Anchor) => {
           const label = this.labels.get(anchor.id);
-          return label?.sprite.visible && label.anchor.lat === anchor.lat && label.anchor.lon === anchor.lon ? 1 : 0;
+          return label?.sprite.visible && label.anchor.edge === anchor.edge ? 1 : 0;
         };
         return visible(b.candidate) - visible(a.candidate)
           || (this.cachedHits.get(a.key)?.time ?? -1) - (this.cachedHits.get(b.key)?.time ?? -1);
@@ -267,9 +340,11 @@ export class AdaptiveGraticule {
       const step = candidate.axis === 'latitude' ? this.uniforms.uGridStep.value.x : this.uniforms.uGridStep.value.y;
       // Reject far-side and tangent hits: the annotation must remain associated with its line.
       if (difference > step * 0.015) continue;
-      const text = formatSurfaceAngle(candidate.angle, candidate.axis, step);
+      const text = candidate.angle === 0 ? (candidate.axis === 'latitude' ? 'Equator 0°' : 'Prime 0°') : formatSurfaceAngle(candidate.angle, candidate.axis, step);
       const labelWidth = text.length * 7 + 8;
-      const x = (view.x + 1) * width / 2, y = (1 - view.y) * height / 2;
+      const offsetX = candidate.edge === 'left' ? 8 : candidate.edge === 'right' ? -8 : 0;
+      const offsetY = candidate.edge === 'top' ? 8 : candidate.edge === 'bottom' ? -8 : 0;
+      const x = (view.x + 1) * width / 2 + offsetX, y = (1 - view.y) * height / 2 + offsetY;
       const rect = { x0: x - labelWidth / 2 - 3, x1: x + labelWidth / 2 + 3, y0: y - 10, y1: y + 10 };
       if (!manager.reserveContextRect(rect)) continue;
       let label = this.labels.get(candidate.id);
@@ -284,6 +359,7 @@ export class AdaptiveGraticule {
       }
       label.anchor = candidate;
       label.sprite.position.copy(fixed);
+      label.sprite.center.set(0.5 - offsetX / labelWidth, 0.5 + offsetY / 20);
       // Non-attenuated sprites are sized in camera plane units; parent km scaling is compensated.
       const unitsPerPixel = 2 * Math.tan(camera.fov * DEG / 2) / height / this.bm.scaleFactor;
       label.sprite.scale.set(labelWidth * unitsPerPixel, 20 * unitsPerPixel, 1);
@@ -309,9 +385,12 @@ export class AdaptiveGraticule {
     this.group.add(sprite);
     return { sprite, anchor, text, width };
   }
-  get metrics(): { candidates: number; labels: number; latitudeStep: number; longitudeStep: number } {
+  get metrics(): { candidates: number; labels: number; latitudeStep: number; longitudeStep: number; layout: 'globe' | 'regional';
+    annotations: Array<{ axis: Anchor['axis']; latDeg: number; lonDeg: number; text: string; edge?: Edge }> } {
     return { candidates: this.candidates.length, labels: [...this.labels.values()].filter(l => l.sprite.visible).length,
-      latitudeStep: this.uniforms.uGridStep.value.x, longitudeStep: this.uniforms.uGridStep.value.y };
+      latitudeStep: this.uniforms.uGridStep.value.x, longitudeStep: this.uniforms.uGridStep.value.y, layout: this.layout,
+      annotations: [...this.labels.values()].filter(l => l.sprite.visible).map(l => ({ axis: l.anchor.axis,
+        latDeg: l.anchor.lat, lonDeg: l.anchor.lon, text: l.text, edge: l.anchor.edge })) };
   }
   private disposeLabel(label: Label): void { label.sprite.removeFromParent(); label.sprite.material.map?.dispose(); label.sprite.material.dispose(); }
   private clearLabels(): void { for (const l of this.labels.values()) this.disposeLabel(l); this.labels.clear(); }

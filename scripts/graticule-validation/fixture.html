@@ -6,11 +6,14 @@ import {BodyMesh as BeforeMesh} from '../../packages/three/src/BodyMeshBefore.ts
 import {LabelManager} from '../../packages/three/src/LabelManager.ts';
 import {TerrainSampler} from '../../packages/three/src/TerrainSampler.ts';
 import {normalizeGridSettings} from '@cosmolabe/control';
+import {CameraController} from '../../packages/three/src/controls/CameraController.ts';
+import {UniverseRenderer} from '../../packages/three/src/UniverseRenderer.ts';
 const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true,logarithmicDepthBuffer:true});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(devicePixelRatio);document.body.append(renderer.domElement);
 const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.01,100000);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#050811');scene.add(new THREE.AmbientLight(0xffffff,1.8));
 const labels=new LabelManager(document.createElement('div'));
 let bm;let prototype=null;let prototypeInfo=null;
+window.pose=(options={})=>{camera.up.set(...(options.up??[0,0,1]));camera.position.set(...(options.eye??[6000,0,0]));camera.lookAt(new THREE.Vector3(...(options.target??[0,0,0])));camera.updateMatrixWorld(true);scene.updateMatrixWorld(true)};
 window.setup=(options={})=>{
  if(bm){bm.dispose();scene.remove(bm)}
  if(prototype){prototype.geometry.dispose();prototype.material.dispose();scene.remove(prototype);prototype=null;prototypeInfo=null;}
@@ -19,11 +22,17 @@ window.setup=(options={})=>{
  bm=new (options.before?BeforeMesh:BodyMesh)(body);scene.add(bm);bm.updatePosition([0,0,0],0,1);bm.applyMeshScale(1);bm.mesh.material.color.set(options.color??'#63717d');
 
  const coordinates=bodySurfaceCoordinates(body);
- const elevation=(lat,lon)=>1.5*(1+Math.sin(lat*Math.PI/12)*Math.cos(lon*Math.PI/9));
+ const elevation=(lat,lon)=>options.depression ? -1 : 1.5*(1+Math.sin(lat*Math.PI/12)*Math.cos(lon*Math.PI/9));
  const toFixed=(lat,lon,h=0)=>{const p=surfacePositionToBodyFixed({latDeg:lat,lonDeg:lon,heightKm:h},coordinates);return new THREE.Vector3(p.xKm,p.yKm,p.zKm)};
  let sampler;
  if(options.terrain){
    body.geometryData.displacementMap='synthetic';
+   if(options.depression){
+     const vertices=[],indices=[],n=128;
+     for(let y=0;y<=n;y++)for(let x=0;x<=n;x++){const p=toFixed(-2+y*4/n,-2+x*4/n);vertices.push(p.x/r[0],p.z/r[0],-p.y/r[0])}
+     for(let y=0;y<n;y++)for(let x=0;x<n;x++){const a=y*(n+1)+x,b=a+1,c=a+n+1,d=c+1;indices.push(a,b,c,b,d,c)}
+     bm.mesh.geometry.dispose();bm.mesh.geometry=new THREE.BufferGeometry();bm.mesh.geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));bm.mesh.geometry.setIndex(indices);
+   }
    const positions=bm.mesh.geometry.attributes.position;
    for(let i=0;i<positions.count;i++){
      const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
@@ -39,7 +48,7 @@ window.setup=(options={})=>{
    bm.sampleTerrain=(lat,lon)=>sampler.sample(lat,lon);
    bm.applyMeshScale(1);
  }
- camera.up.set(...(options.up??[0,0,1]));camera.position.set(...(options.eye??[6000,0,0]));camera.lookAt(new THREE.Vector3(...(options.target??[0,0,0])));camera.updateMatrixWorld(true);scene.updateMatrixWorld(true);
+ window.pose(options);
  bm.showGrid(true,options.labels !== false,normalizeGridSettings(options.manual ? { density: 'manual', spacingDeg: options.step ?? 1 } : {}));
  if(options.before){bm.updatePosition([0,0,0],0,1);bm.applyMeshScale(1)}
  if(options.draped){
@@ -64,6 +73,13 @@ window.setup=(options={})=>{
    prototypeInfo={segments:vertices.length/6,samples,maximumDepth,buildMs:performance.now()-start,bytes:vertices.length*4};
  }
 
+};
+window.freeLook=(dx,dy)=>{
+ const controller=new CameraController(camera,renderer.domElement);controller.track(bm);
+ const host=Object.assign(Object.create(UniverseRenderer.prototype),{cameraController:controller,bodyMeshes:new Map([[bm.body.name,bm]]),_gridSettings:normalizeGridSettings(),_gridVisible:false,_markerScene:scene});host.showBodyGrid(true);
+ const pointer=(type,x,y)=>new PointerEvent(type,{pointerType:'mouse',pointerId:1,button:2,buttons:2,clientX:x,clientY:y,bubbles:true});
+ renderer.domElement.dispatchEvent(pointer('pointerdown',100,100));window.dispatchEvent(pointer('pointermove',100+dx,100+dy));controller.update();window.dispatchEvent(pointer('pointerup',100+dx,100+dy));host.showBodyGrid(true);
+ const result={tracked:controller.trackedBody?.body.name??null,origin:controller.originBody?.body.name};controller.dispose();return result;
 };
 window.frame=()=>{const begin=performance.now();labels.beginContextAnnotations();if(bm.updateGrid)bm.updateGrid(camera,{width:innerWidth,height:innerHeight},labels);const updateMs=performance.now()-begin;renderer.render(scene,camera);renderer.getContext().finish();return {prototype:prototypeInfo,updateMs,frameMs:performance.now()-begin,metrics:bm.gridMetrics??null,draw:{...renderer.info.render},memory:{...renderer.info.memory}}};
 window.capture=()=>{window.frame();return renderer.domElement.toDataURL()};

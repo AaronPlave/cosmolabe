@@ -23,8 +23,14 @@ the longitude seam by differentiating its unit vector. Equator and prime meridia
 have stronger contrast. Minor lines are optional.
 
 Coordinate labels stay 12 CSS px, with DPR-aware rasterization. Candidates come
-from sampled visible line positions, prefer prior anchors, and are bounded at
-96 per body and 24 pooled sprites. Labels use the existing LabelManager
+from a pose-dependent layout and are bounded at 96 per body and 24 pooled sprites.
+Whole-globe latitude labels share one meridian; longitude labels share a visible
+latitude band capped at ±50° to avoid polar congestion. Regional curves are
+labelled along one viewport edge per axis, preferring left/bottom when those
+edges cross the curves. Labels have a consistent 8 CSS-pixel inward offset.
+Collisions suppress lower-priority annotations within that layout. Equator and
+prime meridian annotations read `Equator 0°` and `Prime 0°`.
+Labels use the existing LabelManager
 reservations and yield to body labels, event callouts, and host measurement/probe
 reservations. Point Probe reserves its visible panel. Surface normals and
 reference intersections suppress the far side/horizon; terrain intersections
@@ -41,6 +47,11 @@ per-body visibility/labels, Auto/manual density, labels and minor lines. `G`
 remains the master switch; tracked-body scope is the default. Explicit targets
 are independent of selection. The optional-body renderer visibility path remains
 available and stores configuration before a body mesh is loaded.
+Free-look retains the scene-origin body's grid until another body becomes the
+focus. Density planning uses nearby resident elevations when available, including
+depressions below the reference ellipsoid. It solves a nearby entry intersection
+with at most six elevation refinements, without taking a far reference-surface
+exit, tracing terrain triangles or requesting data.
 
 ## Rendering comparison
 
@@ -109,6 +120,38 @@ draw calls, geometry/texture counts, candidate/label counts, chosen spacing,
 CPU update and frame timings, plus draped-prototype memory/refinement statistics.
 Timings use headless Chromium SwiftShader and `gl.finish`, and are development
 fixture measurements, not hardware GPU or live terrain streaming claims.
+
+## Layout and navigation review
+
+With the same local Vite server, run:
+
+```sh
+node scripts/graticule-layout-validation.mjs
+```
+
+[Layout review captures and metrics](layout-review/metrics.json) cover an oblique
+polar globe, a south-pole view, regional Mars, a globe-to-regional transition,
+free-look through actual pointer input and camera/grid synchronization, and the
+same final pose reached through two different camera paths at fixed spacing.
+The final annotations in those two paths are identical. Longitude labels share
+one band on globe views; regional annotations use consistent viewport edges.
+
+The synthetic resident depression has a 100 km reference radius and terrain at
+99 km. A camera at 99.5 km produces 22 candidates, 16 visible labels and 0.02°
+latitude/longitude spacing. Its terrain patch and CPU elevations agree; the
+capture verifies nearby surface planning and rendered anchor registration.
+
+| Oblique polar globe | Below-datum regional view |
+| --- | --- |
+| ![Organized globe labels](layout-review/oblique-polar.png) | ![Resident depression](layout-review/depression-ground.png) |
+
+The review run has eight captures, zero browser/shader errors and zero
+grid-triggered requests. Regression tests cover free-look target lifetime,
+resident below-datum planning, globe/polar bands, regional edges, distinct zero
+annotations, camera-path independence and the earlier visibility/material
+lifecycle findings. All 141 suites / 1,563 tests pass, as do typecheck, lint
+and purity checks. These remain synthetic fixtures; the generated streamed
+terrain products listed below are still required for live acceptance.
 
 ## Coverage and limits
 

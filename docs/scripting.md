@@ -507,7 +507,8 @@ order for reasons the harness's own comments record:
 
 ### Surface graticule
 
-`G` and `setLayer grid on|off` toggle the master grid switch. The default target
+`G` and `setLayer grid on|off` toggle the master grid switch. Free-look retains the
+scene-origin body's grid until another body becomes the focus. The default target
 is the tracked body. Pinned targets remain pinned when tracking or selection
 changes. These operations share Display settings and are included in snapshots;
 scripts do not overwrite local display preferences.

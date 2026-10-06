@@ -1,0 +1,928 @@
+{
+  "renderer": "Chromium SwiftShader; synthetic resident terrain",
+  "pass": true,
+  "poseIndependent": true,
+  "results": [
+    {
+      "name": "oblique-polar",
+      "gridRequests": 0,
+      "controller": null,
+      "prototype": null,
+      "updateMs": 0.19999999552965164,
+      "frameMs": 1.2999999970197678,
+      "metrics": {
+        "candidates": 17,
+        "labels": 12,
+        "latitudeStep": 30,
+        "longitudeStep": 30,
+        "layout": "globe",
+        "annotations": [
+          {
+            "axis": "latitude",
+            "latDeg": 0,
+            "lonDeg": -57.17145820858747,
+            "text": "Equator 0°"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 45.65988214711891,
+            "lonDeg": 0,
+            "text": "Prime 0°"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 45.65988214711891,
+            "lonDeg": -60,
+            "text": "60°W"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 60,
+            "lonDeg": -57.17145820858747,
+            "text": "60°N"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 30,
+            "lonDeg": -57.17145820858747,
+            "text": "30°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 45.65988214711891,
+            "lonDeg": -30,
+            "text": "30°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 45.65988214711891,
+            "lonDeg": -90,
+            "text": "90°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 45.65988214711891,
+            "lonDeg": -120,
+            "text": "120°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 45.65988214711891,
+            "lonDeg": 30,
+            "text": "30°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 45.65988214711891,
+            "lonDeg": -150,
+            "text": "150°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 45.65988214711891,
+            "lonDeg": 60,
+            "text": "60°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 45.65988214711891,
+            "lonDeg": -180,
+            "text": "180°W"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 19,
+        "calls": 13,
+        "triangles": 24344,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 13
+      }
+    },
+    {
+      "name": "south-pole",
+      "gridRequests": 0,
+      "controller": null,
+      "prototype": null,
+      "updateMs": 0.3999999985098839,
+      "frameMs": 0.6999999955296516,
+      "metrics": {
+        "candidates": 17,
+        "labels": 14,
+        "latitudeStep": 30,
+        "longitudeStep": 30,
+        "layout": "globe",
+        "annotations": [
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": 0,
+            "text": "Prime 0°"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -60,
+            "lonDeg": 0,
+            "text": "60°S"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": -30,
+            "text": "30°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": 30,
+            "text": "30°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -30,
+            "lonDeg": 0,
+            "text": "30°S"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": -60,
+            "text": "60°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": 60,
+            "text": "60°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": -90,
+            "text": "90°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": 90,
+            "text": "90°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": -120,
+            "text": "120°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": 120,
+            "text": "120°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": -150,
+            "text": "150°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": 150,
+            "text": "150°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -50,
+            "lonDeg": -180,
+            "text": "180°W"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 39,
+        "calls": 15,
+        "triangles": 24348,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 15
+      }
+    },
+    {
+      "name": "regional-mars",
+      "gridRequests": 0,
+      "controller": null,
+      "prototype": null,
+      "updateMs": 0.19999999552965164,
+      "frameMs": 0.3999999985098839,
+      "metrics": {
+        "candidates": 11,
+        "labels": 11,
+        "latitudeStep": 0.2,
+        "longitudeStep": 0.2,
+        "layout": "regional",
+        "annotations": [
+          {
+            "axis": "latitude",
+            "latDeg": 18.400000000000002,
+            "lonDeg": 76.80464301495272,
+            "text": "18.4°N",
+            "edge": "left"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 17.976281931864158,
+            "lonDeg": 77.39999999999998,
+            "text": "77.4°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 17.976174762794102,
+            "lonDeg": 77.60000000000002,
+            "text": "77.6°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 18.6,
+            "lonDeg": 76.80379559398102,
+            "text": "18.6°N",
+            "edge": "left"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 18.2,
+            "lonDeg": 76.80515012786827,
+            "text": "18.2°N",
+            "edge": "left"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 17.97596027336922,
+            "lonDeg": 77.20000000000005,
+            "text": "77.2°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 17.975638160320024,
+            "lonDeg": 77.79999999999995,
+            "text": "77.8°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 18.8,
+            "lonDeg": 76.80260796139305,
+            "text": "18.8°N",
+            "edge": "left"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 18,
+            "lonDeg": 76.80531778555019,
+            "text": "18.0°N",
+            "edge": "left"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 17.97520796709221,
+            "lonDeg": 77,
+            "text": "77.0°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 17.97466908177781,
+            "lonDeg": 78,
+            "text": "78.0°E",
+            "edge": "bottom"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 59,
+        "calls": 12,
+        "triangles": 24342,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 12
+      }
+    },
+    {
+      "name": "depression-ground",
+      "gridRequests": 0,
+      "controller": null,
+      "prototype": null,
+      "updateMs": 73.70000000298023,
+      "frameMs": 74.10000000149012,
+      "metrics": {
+        "candidates": 22,
+        "labels": 16,
+        "latitudeStep": 0.02,
+        "longitudeStep": 0.02,
+        "layout": "regional",
+        "annotations": [
+          {
+            "axis": "latitude",
+            "latDeg": 0,
+            "lonDeg": -0.13111724875659547,
+            "text": "Equator 0°",
+            "edge": "left"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.09831559222323315,
+            "lonDeg": 0,
+            "text": "Prime 0°",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.09831678263366479,
+            "lonDeg": -0.01999999999998181,
+            "text": "0.02°W",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.09831678263366479,
+            "lonDeg": 0.01999999999998181,
+            "text": "0.02°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -0.02,
+            "lonDeg": -0.1311188428924197,
+            "text": "0.02°S",
+            "edge": "left"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 0.02,
+            "lonDeg": -0.1311188428924197,
+            "text": "0.02°N",
+            "edge": "left"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.09832033904437995,
+            "lonDeg": -0.03999999999996362,
+            "text": "0.04°W",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.09832033904437995,
+            "lonDeg": 0.03999999999996362,
+            "text": "0.04°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -0.04,
+            "lonDeg": -0.1311236105068474,
+            "text": "0.04°S",
+            "edge": "left"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 0.04,
+            "lonDeg": -0.1311236105068474,
+            "text": "0.04°N",
+            "edge": "left"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.0983345546666016,
+            "lonDeg": -0.08000000000004093,
+            "text": "0.08°W",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.0983345546666016,
+            "lonDeg": 0.08000000000004093,
+            "text": "0.08°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.09834521799297914,
+            "lonDeg": -0.10000000000002274,
+            "text": "0.10°W",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.09834521799297914,
+            "lonDeg": 0.10000000000002274,
+            "text": "0.10°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.09835825555311178,
+            "lonDeg": -0.12000000000000455,
+            "text": "0.12°W",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.09835825555311178,
+            "lonDeg": 0.12000000000000455,
+            "text": "0.12°E",
+            "edge": "bottom"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 79,
+        "calls": 17,
+        "triangles": 32800,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 23
+      }
+    },
+    {
+      "name": "transition-regional",
+      "gridRequests": 0,
+      "controller": null,
+      "prototype": null,
+      "updateMs": 0.09999999403953552,
+      "frameMs": 0.29999999701976776,
+      "metrics": {
+        "candidates": 12,
+        "labels": 12,
+        "latitudeStep": 0.01,
+        "longitudeStep": 0.01,
+        "layout": "regional",
+        "annotations": [
+          {
+            "axis": "latitude",
+            "latDeg": 0,
+            "lonDeg": -0.03883647128282064,
+            "text": "Equator 0°",
+            "edge": "left"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.029125396264598164,
+            "lonDeg": 0,
+            "text": "Prime 0°",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.02912569230457326,
+            "lonDeg": -0.009999999999990905,
+            "text": "0.01°W",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.02912569230457326,
+            "lonDeg": 0.009999999999990905,
+            "text": "0.01°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -0.01,
+            "lonDeg": -0.03883686707558809,
+            "text": "0.01°S",
+            "edge": "left"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 0.01,
+            "lonDeg": -0.03883686707558809,
+            "text": "0.01°N",
+            "edge": "left"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.029126582748323096,
+            "lonDeg": -0.01999999999998181,
+            "text": "0.02°W",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.029126582748323096,
+            "lonDeg": 0.01999999999998181,
+            "text": "0.02°E",
+            "edge": "bottom"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -0.02,
+            "lonDeg": -0.038838056806184795,
+            "text": "0.02°S",
+            "edge": "left"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 0.02,
+            "lonDeg": -0.038838056806184795,
+            "text": "0.02°N",
+            "edge": "left"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.029128061066474427,
+            "lonDeg": -0.029999999999972715,
+            "text": "0.03°W",
+            "edge": "bottom"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -0.029128061066474427,
+            "lonDeg": 0.029999999999972715,
+            "text": "0.03°E",
+            "edge": "bottom"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 117,
+        "calls": 13,
+        "triangles": 24344,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 21
+      }
+    },
+    {
+      "name": "same-pose-path-a",
+      "gridRequests": 0,
+      "controller": null,
+      "prototype": null,
+      "updateMs": 0.29999999701976776,
+      "frameMs": 0.3999999985098839,
+      "metrics": {
+        "candidates": 35,
+        "labels": 17,
+        "latitudeStep": 15,
+        "longitudeStep": 15,
+        "layout": "globe",
+        "annotations": [
+          {
+            "axis": "latitude",
+            "latDeg": 0,
+            "lonDeg": 33.69006752597977,
+            "text": "Equator 0°"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 0,
+            "text": "Prime 0°"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -15,
+            "lonDeg": 33.69006752597977,
+            "text": "15°S"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": -15,
+            "text": "15°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 15,
+            "text": "15°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -30,
+            "lonDeg": 33.69006752597977,
+            "text": "30°S"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 30,
+            "lonDeg": 33.69006752597977,
+            "text": "30°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": -30,
+            "text": "30°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 30,
+            "text": "30°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 45,
+            "lonDeg": 33.69006752597977,
+            "text": "45°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 45,
+            "text": "45°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 60,
+            "lonDeg": 33.69006752597977,
+            "text": "60°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 60,
+            "text": "60°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 75,
+            "lonDeg": 33.69006752597977,
+            "text": "75°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 75,
+            "text": "75°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 90,
+            "text": "90°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 105,
+            "text": "105°E"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 173,
+        "calls": 18,
+        "triangles": 24354,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 23
+      }
+    },
+    {
+      "name": "same-pose-path-b",
+      "gridRequests": 0,
+      "controller": null,
+      "prototype": null,
+      "updateMs": 0.20000000298023224,
+      "frameMs": 0.3999999985098839,
+      "metrics": {
+        "candidates": 35,
+        "labels": 17,
+        "latitudeStep": 15,
+        "longitudeStep": 15,
+        "layout": "globe",
+        "annotations": [
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 30,
+            "text": "30°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 45,
+            "text": "45°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 30,
+            "lonDeg": 33.69006752597977,
+            "text": "30°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 60,
+            "text": "60°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 75,
+            "text": "75°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 90,
+            "text": "90°E"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 105,
+            "text": "105°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 0,
+            "lonDeg": 33.69006752597977,
+            "text": "Equator 0°"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 0,
+            "text": "Prime 0°"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 75,
+            "lonDeg": 33.69006752597977,
+            "text": "75°N"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 45,
+            "lonDeg": 33.69006752597977,
+            "text": "45°N"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -15,
+            "lonDeg": 33.69006752597977,
+            "text": "15°S"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -30,
+            "lonDeg": 33.69006752597977,
+            "text": "30°S"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": 15,
+            "text": "15°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 60,
+            "lonDeg": 33.69006752597977,
+            "text": "60°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": -15,
+            "text": "15°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": 14.8087480538268,
+            "lonDeg": -30,
+            "text": "30°W"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 229,
+        "calls": 18,
+        "triangles": 24354,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 25
+      }
+    },
+    {
+      "name": "free-look",
+      "gridRequests": 0,
+      "controller": {
+        "tracked": null,
+        "origin": "Moon"
+      },
+      "prototype": null,
+      "updateMs": 0.10000000149011612,
+      "frameMs": 0.30000000447034836,
+      "metrics": {
+        "candidates": 17,
+        "labels": 10,
+        "latitudeStep": 30,
+        "longitudeStep": 30,
+        "layout": "globe",
+        "annotations": [
+          {
+            "axis": "latitude",
+            "latDeg": 0,
+            "lonDeg": 0,
+            "text": "Equator 0°"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 0,
+            "text": "Prime 0°"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -30,
+            "lonDeg": 0,
+            "text": "30°S"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 30,
+            "lonDeg": 0,
+            "text": "30°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -30,
+            "text": "30°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 30,
+            "text": "30°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -60,
+            "lonDeg": 0,
+            "text": "60°S"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 60,
+            "lonDeg": 0,
+            "text": "60°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -60,
+            "text": "60°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 60,
+            "text": "60°E"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 267,
+        "calls": 11,
+        "triangles": 24340,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 11
+      }
+    }
+  ],
+  "errors": []
+}
