@@ -6,7 +6,7 @@ import { writeFileSync, readFileSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 const root = fileURLToPath(new URL('..', import.meta.url));
-const out = resolve(root, process.env.GRID_CAPTURE_DIR ?? 'docs/validation/graticule/layout-review');
+const out = resolve(root, process.env.GRID_CAPTURE_DIR ?? 'docs/validation/graticule/fixed-anchors/layout');
 const fixture = resolve(root, 'apps/viewer/graticule-validation.html');
 const baseline = resolve(root, 'packages/three/src/BodyMeshBefore.ts');
 mkdirSync(out, { recursive: true });
@@ -55,15 +55,15 @@ try {
     writeFileSync(resolve(out, `${scene.name}.png`), Buffer.from(image.split(',')[1], 'base64'));
     results.push({ name: scene.name, gridRequests: requests - startRequests, controller, ...metric });
   }
-  const annotations = name => results.find(r => r.name === name).metrics.annotations.toSorted((a, b) => a.text.localeCompare(b.text));
-  const poseIndependent = JSON.stringify(annotations('same-pose-path-a')) === JSON.stringify(annotations('same-pose-path-b'));
+  const annotations = name => results.find(r => r.name === name).metrics.anchors.filter(a => a.tier === '15:15').toSorted((a, b) => a.id.localeCompare(b.id));
+  const eligibleAnchorsIndependent = JSON.stringify(annotations('same-pose-path-a')) === JSON.stringify(annotations('same-pose-path-b'));
   const depression = results.find(r => r.name === 'depression-ground').metrics;
   const freeLook = results.find(r => r.name === 'free-look');
-  const pass = errors.length === 0 && results.every(r => r.gridRequests === 0) && poseIndependent
+  const pass = errors.length === 0 && results.every(r => r.gridRequests === 0) && eligibleAnchorsIndependent
     && depression.candidates > 0 && depression.labels > 0 && depression.latitudeStep < 0.1 && depression.longitudeStep < 0.1
     && freeLook.controller.tracked === null && freeLook.controller.origin === 'Moon' && freeLook.metrics.labels > 0;
-  writeFileSync(resolve(out, 'metrics.json'), JSON.stringify({ renderer: 'Chromium SwiftShader; synthetic resident terrain', pass, poseIndependent, results, errors }, null, 2) + '\n');
-  console.log(JSON.stringify({ output: out, pass, poseIndependent, depression: {
+  writeFileSync(resolve(out, 'metrics.json'), JSON.stringify({ renderer: 'Chromium SwiftShader; synthetic resident terrain', pass, eligibleAnchorsIndependent, results, errors }, null, 2) + '\n');
+  console.log(JSON.stringify({ output: out, pass, eligibleAnchorsIndependent, depression: {
     candidates: depression.candidates, labels: depression.labels, latitudeStep: depression.latitudeStep, longitudeStep: depression.longitudeStep,
   }, freeLook: freeLook.controller, errors }, null, 2));
   if (!pass) process.exitCode = 1;

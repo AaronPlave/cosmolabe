@@ -37,7 +37,7 @@ window.setup=(options={})=>{
  }
 
  const coordinates=bodySurfaceCoordinates(body);
- const elevation=(lat,lon)=>options.depression ? -1 : 1.5*(1+Math.sin(lat*Math.PI/12)*Math.cos(lon*Math.PI/9));
+ const elevation=(lat,lon)=>options.depression ? -1 : options.relief ? 0.05*(1+Math.sin(lat*Math.PI/3)*Math.cos(lon*Math.PI/3)) : 1.5*(1+Math.sin(lat*Math.PI/12)*Math.cos(lon*Math.PI/9));
  const toFixed=(lat,lon,h=0)=>{const p=surfacePositionToBodyFixed({latDeg:lat,lonDeg:lon,heightKm:h},coordinates);return new THREE.Vector3(p.xKm,p.yKm,p.zKm)};
  let sampler;
  if(options.terrain){
@@ -97,7 +97,8 @@ window.freeLook=(dx,dy)=>{
  const result={tracked:controller.trackedBody?.body.name??null,origin:controller.originBody?.body.name};controller.dispose();return result;
 };
 window.frame=()=>{const begin=nativeNow();labels.beginContextAnnotations();if(bm.updateGrid)bm.updateGrid(camera,{width:innerWidth,height:innerHeight},labels);const updateMs=nativeNow()-begin;renderer.render(scene,camera);renderer.getContext().finish();return {prototype:prototypeInfo,updateMs,frameMs:nativeNow()-begin,metrics:bm.gridMetrics??null,draw:{...renderer.info.render},memory:{...renderer.info.memory}}};
-window.diagnostics=()=>{const points=[];bm.traverse(object=>{if(object instanceof THREE.Sprite && object.visible){const p=object.position;const coordinate=bodyFixedToSurfacePosition({xKm:p.x,yKm:p.y,zKm:p.z},bodySurfaceCoordinates(bm.body));const screen=p.clone().project(camera);points.push({id:object.userData.gridLineId,lat:coordinate.latDeg,lon:coordinate.lonDeg,x:(screen.x+1)*innerWidth/2,y:(1-screen.y)*innerHeight/2,opacity:object.material.opacity,rect:{x0:(screen.x+1)*innerWidth/2+(0.5-object.center.x)*object.userData.gridLabelWidth-object.userData.gridLabelWidth/2-3,x1:(screen.x+1)*innerWidth/2+(0.5-object.center.x)*object.userData.gridLabelWidth+object.userData.gridLabelWidth/2+3,y0:(1-screen.y)*innerHeight/2+(object.center.y-0.5)*20-10,y1:(1-screen.y)*innerHeight/2+(object.center.y-0.5)*20+10}})}});return points};
+window.loadImagery=async(url)=>{const texture=await new THREE.TextureLoader().loadAsync(url);texture.colorSpace=THREE.SRGBColorSpace;bm.mesh.material.map?.dispose();bm.mesh.material.map=texture;bm.mesh.material.needsUpdate=true};
+window.diagnostics=()=>{const points=[];bm.traverse(object=>{if(object instanceof THREE.Sprite && object.visible){const p=object.position;const coordinate=bodyFixedToSurfacePosition({xKm:p.x,yKm:p.y,zKm:p.z},bodySurfaceCoordinates(bm.body));const screen=p.clone().project(camera);points.push({id:object.userData.gridLineId,lat:coordinate.latDeg,lon:coordinate.lonDeg,heightKm:coordinate.heightKm,x:(screen.x+1)*innerWidth/2,y:(1-screen.y)*innerHeight/2,opacity:object.material.opacity,rect:{x0:(screen.x+1)*innerWidth/2+(0.5-object.center.x)*object.userData.gridLabelWidth-object.userData.gridLabelWidth/2-3,x1:(screen.x+1)*innerWidth/2+(0.5-object.center.x)*object.userData.gridLabelWidth+object.userData.gridLabelWidth/2+3,y0:(1-screen.y)*innerHeight/2+(object.center.y-0.5)*20-10,y1:(1-screen.y)*innerHeight/2+(object.center.y-0.5)*20+10}})}});return points};
 window.capture=()=>{window.frame();return renderer.domElement.toDataURL()};
 window.ready=true;
 </script></body></html>

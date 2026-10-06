@@ -1,259 +1,162 @@
-# Issue 157: graticule implementation and validation
+# Issue 157: adaptive surface grid and geographic annotations
 
-The production path is a procedural graticule in surface materials. Coordinates
-come from physical body-fixed position and the declared reference shape, using
-the same core conversions as terrain sampling, Point Probe and surface navigation.
-The grid never uses display-radius fallbacks or a radius-inflated shell.
+The production grid is a procedural overlay in surface materials. Shared core
+body-fixed conversions keep it consistent with Point Probe, resident terrain
+sampling and surface navigation. Spheres/rotational ellipsoids use geodetic
+latitude; triaxial references use planetocentric latitude. Longitude is east-positive
+and canonical in [−180°, 180°). The rotation model's declared frame is used when
+available, otherwise `BODY_FIXED:<name>`. Model mesh pre-rotation does not change
+these coordinates. Placeholder bodies, stars, spacecraft, barycenters, exaggerated
+minimum-pixel bodies and general mesh bodies have no grid.
 
-Spheres and rotational ellipsoids use geodetic latitude; triaxial globe reference
-ellipsoids use planetocentric latitude. Longitude is east-positive and wrapped to
-[−180°, 180°). Labels include E/W. The frame is the rotation model’s declared target frame when supplied (including
-SPICE rotations), otherwise `BODY_FIXED:<name>`; this does not invent an IAU
-frame for a catalog without one. Grid transforms use
-`BodyMesh.bodyToWorldQuaternion`, including the no-rotation case, and do not
-inherit model mesh pre-rotation. Placeholder bodies, stars, spacecraft,
-barycenters, exaggerated minimum-pixel bodies and mesh bodies have no grid.
+## Fixed geographic attachment
 
-Density uses a fixed screen sampling lattice and local latitude/longitude
-projection derivatives, rather than the whole-body diameter. Independent nice
-steps range from 30° to 0.001°, with a 60–180 px hysteresis band around a tunable
-100 px target. Level changes crossfade over 180 ms. Fragment derivatives provide
-antialiasing, suppress subpixel lattices and congested polar meridians, and handle
-the longitude seam by differentiating its unit vector. Equator and prime meridian
-use restrained accent colors. Major/minor/reference strengths are 22% / 7% /
-35% before lighting, density and horizon modulation. Widths remain in CSS pixels;
-night-side intensity is reduced without treating dark daytime albedo as night.
-Minor lines are optional.
+Each annotation has an immutable identity containing body, latitude/longitude
+tier, axis/value and anchor latitude/longitude. Orbit, pan, roll and zoom never
+rewrite those coordinates. Reprojection/body rotation move the anchor on screen;
+only the glyph billboards towards the camera. Terrain registration can update its
+height to the rendered surface without moving its latitude/longitude.
 
-Coordinate labels stay 12 CSS px, with DPR-aware rasterization. Candidates come
-from a pose-dependent layout and are bounded at 96 per body and 24 pooled sprites.
-Whole-globe latitude labels share a fixed meridian; longitude labels share a
-fixed latitude band capped at ±50° to avoid polar congestion. Bands change in
-coarse angular sectors with fades rather than following every camera movement.
-Regional curves are labelled along one usable viewport edge per axis, preferring
-left/bottom when those edges cross the curves. Density and line discovery run at
-150 ms intervals; current line/edge intersections update every frame.
-Placement blends along the coordinate line over altitudes of 0.65 to 0.15 reference
-radii above the surface. A clipped globe alone does not trigger edge placement.
-Edge hysteresis persists during motion; after 250 ms without camera motion,
-canonical edge selection converges to the settled pose. Relocations fade before
-changing anchors, and density retirements fade when visibility remains safe. Labels have a consistent 8 CSS-pixel inward offset.
-Collisions suppress lower-priority annotations within that layout. Equator and
-prime meridian annotations read `Equator 0°` and `Prime 0°`.
-Labels use the existing LabelManager
-reservations and yield to body labels, event callouts, and host measurement/probe
-reservations. The viewer's measured rail, timeline, panel and HUD rectangles
-reserve annotation space; edge margins also inset around the rail and timeline.
-Point Probe reserves its visible panel. Surface normals and
-reference intersections suppress the far side/horizon; terrain intersections
-check the actual surface anchor and its association with the labelled line.
-Billboard glyphs use the body-label overlay convention after CPU anchor occlusion;
-surface/grid depth testing remains enabled. Terrain/other-body triangle queries
-are limited to eight per body per frame. Current visible anchors receive fair,
-oldest-first rechecks; deferred hits remain usable for at most 150 ms and an
-8 CSS-pixel projected move. Horizon/viewport checks run every frame, and surface
-load/disposal invalidates the cache. Hits stay in physical body coordinates.
-Cached triangle hits provide visibility evidence, never a stale moving sprite
-position: current coordinates plus resident height (or cached overlay height)
-keep annotations on their labelled lines each frame.
+The pattern is geographic, independent of camera position:
 
-Display preferences, camera JSON and script snapshots carry scope, pinned bodies,
-per-body visibility/labels, Auto/manual density, labels and minor lines. `G`
-remains the master switch; tracked-body scope is the default. Explicit targets
-are independent of selection. The optional-body renderer visibility path remains
-available and stores configuration before a body mesh is loaded.
-Free-look retains the scene-origin body's grid until another body becomes the
-focus. Density planning uses nearby resident elevations when available, including
-depressions below the reference ellipsoid. It solves a nearby entry intersection
-with at most six elevation refinements, without taking a far reference-surface
-exit, tracing terrain triangles or requesting data.
+- Latitude annotations use their fixed latitude lines and longitude bands spaced
+  at four longitude steps, capped at 60°.
+- Longitude annotations use their fixed meridians and latitude bands spaced at
+  four latitude steps, capped at 60°, with a half-latitude-step offset. The two
+  axes therefore do not share an anchor.
+- Longitude labels above ±70° and all anchors above ±85° are suppressed. Text
+  has a consistent small offset per axis and stays 12 CSS pixels, with DPR-aware
+  rasterization. `Equator 0°` and `Prime 0°` remain distinguishable.
 
-## Rendering comparison
+The camera only defines a search region for eligible fixed anchors. A nearby
+resident-height sampling lattice supports cameras below the reference datum;
+nearby entry refinement is bounded at six iterations and never chooses a far-side
+exit. Enumeration is bounded at 12 × 8 anchors per axis before keeping at most
+96 candidates. Tiny manual steps cannot allocate a planet-wide intersection grid.
+Longitude/latitude values are canonicalized before constructing identities, so
+searching across the seam produces the same anchor coordinates.
 
-The asset-free harness compares the original implementation at
-`8d685f73f94cab63bca54d4d16c6eee909a2a89a` with the new path. It also builds a
-bounded CPU-sampled draped-line prototype over a synthetic resident height grid:
-0.5 px projected chord-error refinement, depth ≤10, ≤4096 segments, and no fetches.
-The same synthetic rendered mesh is used for the shader and line captures.
+Suitable visible annotations remain in the candidate subset and win collisions.
+A 100 ms entry dwell, separate entry/exit limb and viewport thresholds, and larger
+entry collision clearance suppress flicker from small residual camera motion.
+Annotations fade at their original locations. Collisions with body/event labels,
+rail, timeline, panels, HUD and probe reservations hide annotations; they never
+slide them onto another location. Sparse or empty regions are acceptable.
 
-Draped geometry needs resident elevation data, rebuilding/cache invalidation,
-refinement budgets, and clearance between its sampled surface and rendered LOD.
-The prototype remains naturally depth-tested and demonstrates gaps where CPU
-samples differ from the rendered triangulation. The shader follows every
-rendered fragment without extra line buffers, terrain queries for lines, or
-additional tile requests. It composes with existing imagery, shadow and
-atmosphere shader hooks. Tile materials retain their identity for upstream fade
-tracking and eviction. A camera-to-body uniform combines with Three.js's
-per-object model-view matrix, including objects sharing a material;
-local overlays preserve body-fixed semantics in the camera-relative pass. Labels
-render in the final annotation scene after terrain/local overlays; density and
-visibility update after the current camera and terrain updates.
-Oblate latitude conversion has a bounded eight-iteration cost; spheres bypass
-that conversion. Skirts and transitions inherit the rendered mesh's physical
-coordinates. CPU elevations remain a separate analytical authority.
+Tier changes introduce different fixed IDs. Matching coarse anchors can remain
+through refinement; finer anchors retire when coarsening. Because nice steps are
+not all nested, line membership is checked against both actual shader levels and
+their crossfade weights. An unsupported coordinate label cannot remain visible
+once its old line has faded. Labels can be much sparser than grid lines.
 
-The shader is therefore the chosen production path. Reference-globe and
-rendered-terrain semantics are explicit; no terrain conformity is claimed for
-an unloaded reference globe or an irregular mesh. DSK draping and general
-triaxial geodetic coordinates remain unavailable.
+## Registration and visibility budgets
 
-The final matched 0.5° synthetic line-only comparison has no labels in either
-path. The shader uses one surface draw and zero extra grid geometry; the draped
-prototype adds a draw, 192 segments / 4,608 bytes, and 1,080 resident CPU samples,
-with 0.5 px refinement and maximum depth 4. Its one-time construction took
-43.7 ms in this run; both steady frame medians were about 0.2 ms. This supports
-the registration/memory decision, not a claim that every shader frame is faster.
+There are at most 24 allocated label sprites. Reference-globe visibility uses
+current analytic intersections and surface normals. When geometry participates
+in occlusion, every displayed annotation needs a current-frame geometry result;
+a cached positive never permits drawing through terrain.
 
-| Fixture | Before calls | After calls | After step | After candidates / labels | After median update / frame |
-| --- | ---: | ---: | --- | --- | --- |
-| Whole Moon | 35 | 9 | 30° / 30° | 44 / 8 | 0.1 / 0.3 ms |
-| Regional Mars | 22 | 13 | 0.2° / 0.2° | 96 / 12 | 0.2 / 0.5 ms |
-| Synthetic terrain with labels | 22 | 15 | 0.5° / 0.5° | 96 / 14 | 0.2 / 0.4 ms |
+For terrain/overlays, one ray along the fixed coordinate's surface normal/radial
+line registers the anchor on actual rendered geometry. A second ray from the
+camera checks current occlusion against bodies, terrain and overlays. The same
+local-overlay precedence as Point Probe is retained. Both latitude and longitude
+must match the anchor. This rejects foreground ridges that happen to be on the
+same latitude line. The height is reconstructed at the original coordinate,
+independently of camera position.
 
-All captures report zero grid-triggered requests. The raw metrics are the
-source of truth for timings, geometry/texture counts and other views. The 24
-PNGs include 11 comparable before/after pairs and two matched terrain prototypes.
+Terrain views show at most three labels: six geometry queries validate them,
+leaving two queries to discover another candidate. Reference views with other
+occluders show at most six labels. The hard budget remains eight triangle queries
+per body per frame, including discovery. Actual occlusion, unavailable current
+results and UI overlap hide immediately; fades and visibility hysteresis never
+override them. New terrain data/disposal invalidates the cache. GPU-only vertex displacement
+is not represented by Three's triangle picker; those fallback globes keep the
+surface shader but suppress labels instead of certifying undisplaced triangles
+as visible terrain.
 
-## Reproduce
+## Grid rendering and state
 
-Run the viewer Vite server in one terminal:
+Density uses local latitude/longitude projection derivatives sampled every
+150 ms, rather than whole-body diameter. Independent nice steps range from 30°
+to 0.001°, with a 60–180 pixel hysteresis band around a 100 pixel target. Levels
+crossfade over 180 ms, starting with the previous grid on the transition frame.
+Fragment derivatives handle antialiasing, longitude seams and congestion. Major,
+minor and equator/prime strengths are 22%, 7% and 35% before lighting/density/horizon
+modulation. Widths are in CSS pixels and colors are restrained. Lighting is
+normalized by albedo so dark daytime imagery remains useful while the night grid
+stays subdued.
+
+The shader follows rendered fragments without extra grid geometry or data
+requests. Existing imagery, shadow and atmosphere hooks compose with it. Tile
+materials retain identity for upstream fade tracking and eviction; shared
+materials use per-object model-view matrices and a camera-to-body uniform.
+Local overlays preserve physical coordinates in the camera-relative pass.
+
+Scope, pinned bodies, per-body visibility/labels, Auto/manual density and minor
+lines persist through preferences, scripts, snapshots and camera JSON. `G` is the
+master switch. Default tracked-body scope retains the origin body's grid during
+free-look and follows the next focus. Exact coordinates remain available through
+the existing explicitly activated Point Probe. Hover probing is a separate
+follow-up, not part of this change.
+
+## Reproduce and inspect
+
+Start the viewer Vite server:
 
 ```sh
 npm --prefix apps/viewer run dev -- --host 0.0.0.0
 ```
 
-Then run:
-
-```sh
-node scripts/graticule-validation.mjs
-```
-
-`CHROMIUM_PATH`, `GRID_VIEWER_URL`, `GRID_BASELINE_REF` and `GRID_CAPTURE_DIR`
-can override defaults. The harness generates and removes a temporary baseline
-module/HTML page. PNGs are comparable before/after views; `metrics.json` contains
-draw calls, geometry/texture counts, candidate/label counts, chosen spacing,
-CPU update and frame timings, plus draped-prototype memory/refinement statistics.
-Timings use headless Chromium SwiftShader and `gl.finish`, and are development
-fixture measurements, not hardware GPU or live terrain streaming claims.
-
-## Layout and navigation review
-
-With the same local Vite server, run:
-
-```sh
-node scripts/graticule-layout-validation.mjs
-```
-
-[Layout review captures and metrics](layout-review/metrics.json) cover an oblique
-polar globe, a south-pole view, regional Mars, a globe-to-regional transition,
-free-look through actual pointer input and camera/grid synchronization, and the
-same final pose reached through two different camera paths at fixed spacing.
-The final annotations in those two paths are identical. Longitude labels share
-one band on globe views; regional annotations use consistent viewport edges.
-
-The synthetic resident depression has a 100 km reference radius and terrain at
-99 km. A camera at 99.5 km produces 22 candidates, 16 visible labels and 0.02°
-latitude/longitude spacing. Its terrain patch and CPU elevations agree; the
-capture verifies nearby surface planning and rendered anchor registration.
-
-| Oblique polar globe | Below-datum regional view |
-| --- | --- |
-| ![Organized globe labels](layout-review/oblique-polar.png) | ![Resident depression](layout-review/depression-ground.png) |
-
-The review run has eight captures, zero browser/shader errors and zero
-grid-triggered requests. Regression tests cover free-look target lifetime,
-resident below-datum planning, globe/polar bands, regional edges, distinct zero
-annotations, camera-path independence and the earlier visibility/material
-lifecycle findings. All 141 suites / 1,563 tests pass, as do typecheck, lint
-and purity checks. These remain synthetic fixtures; the generated streamed
-terrain products listed below are still required for live acceptance.
-
-## Continuous motion review
-
-With the same Vite server, Chromium and FFmpeg installed, run:
+With Chromium and FFmpeg installed, run these harnesses sequentially (they share
+a temporary fixture page and baseline module):
 
 ```sh
 node scripts/graticule-motion-validation.mjs
+node scripts/graticule-layout-validation.mjs
 ```
 
-[Orbit → zoom → pan → tangent recording](motion-review/orbit-zoom-pan-tangent.mp4)
-uses a fixed 30 Hz application clock and encodes every rendered frame. This
-preserves intermediate frames between the 150 ms discovery plans even when
-SwiftShader renders slower than playback. It is an offline motion validation,
-not a real-time performance claim. The camera moves continuously over 15 seconds;
-[frame diagnostics](motion-review/frames.json) retain physical coordinates,
-projected positions, opacity and label rectangles throughout the sequence.
-The rendered sequence contains 451 frames, including 90 pan frames; every
-pan-frame equator intersection changes while line error stays below 10⁻¹²°.
-There are zero control overlaps, browser/shader errors or grid requests.
+`CHROMIUM_PATH`, `GRID_VIEWER_URL` and `GRID_CAPTURE_DIR` override defaults.
+Harnesses remove their temporary page/module. The motion harness uses repository
+lunar imagery plus synthetic resident relief, with a fixed 30 Hz application
+clock and every rendered frame encoded. It validates attachment between discovery
+plans despite slower software rendering; it is not a real-time performance claim.
 
-The acceptance check requires line error below 0.000001°, continuously changing
-regional equator intersections during pan, no rectangle overlaps with measured
-mock rail/timeline controls, and the existing 24-label / 96-candidate bounds.
-[Motion metrics](motion-review/metrics.json) report the results and actual CPU
-update timings. Separate captures exercise a directional-light day/night split
-and synthetic bright/dark surface imagery.
+[Continuous attachment recording](fixed-anchors/orbit-zoom-pan-tangent.mp4)
+contains a rolled orbit, whole-globe/regional zoom, sustained pan, near-ground
+zoom, nearly stationary residual damping and tangent view. [Frame diagnostics](fixed-anchors/frames.json)
+retain anchor IDs, geographic coordinates, opacity, projected positions and label
+rectangles. [Motion metrics](fixed-anchors/metrics.json) check that repeated IDs
+never change latitude/longitude, held-camera visibility does not toggle, labels
+avoid controls, and query/candidate/pool limits hold. The displayed lunar craters
+provide nearby surface features for checking attachment visually.
 
-| Day/night surface | Bright imagery | Dark imagery |
-| --- | --- | --- |
-| ![Day/night grid](motion-review/day-night.png) | ![Bright synthetic imagery](motion-review/bright-imagery.png) | ![Dark synthetic imagery](motion-review/dark-imagery.png) |
+[Layout fixtures](fixed-anchors/layout/metrics.json) cover polar/seam orientation,
+regional Mars, a resident depression, actual free-look input and the same final
+pose reached through different paths. Eligible fixed candidates at the same
+tier/pose are deterministic; visible subsets may reflect short-lived hysteresis.
 
-The latest full suite passes all 141 suites / 1,565 tests. Added regressions
-check placement on consecutive 16 ms frames, a clipped globe retaining fixed
-bands, regional intersections inset around actual control rectangles, edge
-hysteresis during camera roll, convergence after settling through different
-paths, and density blending starting from the previous level without a flash.
-These captures remain synthetic; streamed terrain acceptance is still pending.
+Code regressions cover persistent IDs/coordinates across navigation, nested and
+non-nested tier changes, residual-motion stability, UI collisions without
+relocation, seam canonicalization, bounded tiny-step enumeration, current-frame
+ridge/terrain disappearance occlusion, the eight-query budget and upstream
+material fade/eviction. Earlier before/after images, draped-line comparisons and
+motion/layout reports remain archived in this directory; their former camera-band
+and edge-placement model is superseded by the fixed geographic pattern.
 
-## Coverage and limits
+The latest validation passes all 141 suites / 1,568 tests, full typechecking,
+lint and purity checks. The 601-frame, 20-second recording contains 1,540
+repeated anchor observations with zero latitude/longitude changes. Its 67 settled
+residual-damping frames have zero visibility toggles. Browser/shader errors,
+control overlaps and grid-triggered requests are zero. The below-datum fixture
+produces 62 candidates, three visible terrain labels and 0.02° spacing on both
+axes; actual free-look retains the origin body's grid.
 
-Captured: whole Moon/Earth, oblique hemisphere, away from prime meridian/equator,
-south pole, antimeridian, Jezero-coordinate regional Mars, bright/dark surfaces,
-a 390×844 DPR2 viewport, and synthetic rendered-terrain shader/draped comparison.
-The harness finishes with no browser/shader errors.
+## Remaining live acceptance
 
-Automated fixtures cover sphere/oblate/triaxial coordinate round trips,
-east/west conversion, wrapping/formatting, frame/model rotation, density
-hysteresis/bounds, regional refinement, per-body/master visibility and complete
-saved-state script replay. Typecheck, lint and purity checks pass.
-
-Review regressions additionally exercise continuous 0.001 km camera movement
-over a triangle-backed terrain fixture, the eight-ray budget, large view changes
-and cached-hit expiry. Integration fixtures use the actual upstream
-`TilesFadePlugin` material manager and `TilesRenderer.disposeTile` to verify
-fade completion and material disposal when enabling the grid on resident tiles
-and when loading tiles with the grid already enabled.
-
-After the review fixes, `npm test -- --maxWorkers=2` passes all 140 suites /
-1,560 tests; typechecking, lint and purity checks also pass. The browser harness
-was rerun for all 24 captures with zero browser/shader errors and zero
-grid-triggered requests. [Review metrics](review-metrics.json) record that run;
-[the updated synthetic-terrain capture](review-synthetic-terrain-after.png)
-shows the shader using preserved tile material identities. The initial
-comparison metrics and captures above remain available for reference.
-
-The initial full run failed because SPICE kernels were LFS pointers. Restoring
-the existing cached objects resolved those failures:
-
-```sh
-git lfs pull --include='kernels/fixtures/**,packages/spice/test-kernels/**' --exclude=''
-git lfs pull --include='apps/viewer/test-catalogs/kernels/**' --exclude=''
-```
-
-The changed renderer/control/viewer paths and core coordinate fixtures pass 713
-tests. A main-viewer smoke capture with textured Earth and atmosphere also
-confirms material composition and matching Point Probe coordinate metadata
-(`viewer-earth-textured.png`). The browser's only resource error was a missing
-favicon, with no shader or application errors.
-
-The high-concurrency full run passed 1,555 tests and exposed one existing
-100 ms progress-throttle timing assertion in `gf-reporting.test.ts`; its 24-test
-suite passes in isolation. `npm test -- --maxWorkers=2` passes all 139 suites / 1,556 tests.
-
-Actual streamed lunar/Mars terrain, Shackleton imagery, natural/flood-light
-terrain, streamed mixed-LOD transitions, ground/tangent views and
-selected-event/measurement collision screenshots still require the generated
-terrain products (`moon-terrain-fused`, `mars-terrain-fused`, etc.), which are
-absent from this workspace. The synthetic captures do not substitute for those
-remaining acceptance checks. General mesh-body reference grids are explicitly
-unavailable.
+The imagery in the new recording is real, but the relief is synthetic. Generated
+streamed terrain products (`moon-terrain-fused`, `mars-terrain-fused`, etc.) are
+absent here. Live Shackleton/natural/flood-light terrain, mixed-LOD transitions,
+real ground/tangent views and event/measurement collision captures remain pending.
+The PR stays draft for those checks. Synthetic relief does not substitute for
+streamed terrain acceptance. General mesh-body reference grids and DSK draping
+remain unavailable.
