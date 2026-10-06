@@ -3,7 +3,7 @@ import { bodyFixedToSurfacePosition, surfacePositionToBodyFixed, formatSurfaceAn
 import { ANGULAR_GRID_STEPS, type GridSettings } from '@cosmolabe/control';
 import type { BodyMesh } from './BodyMesh.js';
 import type { LabelManager } from './LabelManager.js';
-import { applyGraticuleMaterial, applyGraticuleToScene, makeGraticuleUniforms } from './GraticuleShader.js';
+import { applyGraticuleMaterial, applyGraticuleToScene, makeGraticuleUniforms, GRID_PRESENTATION, gridSmoothstep, gridLightingStrength } from './GraticuleShader.js';
 
 export const GRID_STEPS = ANGULAR_GRID_STEPS;
 /** Screen separation is measured locally; global diameter is never the density input. */
@@ -28,6 +28,18 @@ const MAX_QUERY_LABELS = 6;
 const MAX_TERRAIN_LABELS = 3;
 const ENTRY_DWELL_MS = 100;
 const DEG = Math.PI / 180;
+const lineId = (anchor: Anchor) => `${anchor.axis}:${anchor.angle.toFixed(6)}`;
+/** Preserve priority within each axis, borrowing spare capacity from either. */
+function interleaveAxes<T extends { anchor: Anchor }>(items: T[], first: Anchor['axis'] = 'latitude'): T[] {
+  const latitude = items.filter(p => p.anchor.axis === 'latitude');
+  const longitude = items.filter(p => p.anchor.axis === 'longitude');
+  const result: T[] = [];
+  const queues = first === 'latitude' ? [latitude, longitude] : [longitude, latitude];
+  for (let i = 0; i < Math.max(latitude.length, longitude.length); i++) {
+    for (const queue of queues) if (queue[i]) result.push(queue[i]);
+  }
+  return result;
+}
 
 /** Constant-cost surface shader plus a bounded pool of line-associated annotations. */
 export class AdaptiveGraticule {
@@ -45,6 +57,7 @@ export class AdaptiveGraticule {
   private readonly eligibility = new Map<string, number>();
   private dpr = 0;
   private readonly cachedHits = new Map<string, SurfaceHit>();
+  private discoveryAxis: Anchor['axis'] = 'latitude';
   private visible = false;
   private labelVisible = true;
   private transition = 1;
@@ -192,10 +205,13 @@ export class AdaptiveGraticule {
     for (const label of this.labels.values()) if (label.sprite.visible) discovered.set(label.anchor.id, label.anchor);
     const distance = (anchor: Anchor) => Math.min(...samples.map(p =>
       Math.hypot((anchor.lat - p.latDeg) / latStep, wrapLongitude(anchor.lon - p.lonDeg) / lonStep)), Infinity);
-    this.candidates = [...discovered.values()].sort((a, b) => {
+    const ordered = [...discovered.values()].sort((a, b) => {
       const visible = (anchor: Anchor) => this.labels.get(anchor.id)?.sprite.visible ? 1 : 0;
       return visible(b) - visible(a) || distance(a) - distance(b) || a.id.localeCompare(b.id);
-    }).slice(0, MAX_CANDIDATES);
+    });
+    const incumbents = ordered.filter(a => this.labels.get(a.id)?.sprite.visible);
+    const nearby = ordered.filter(a => !this.labels.get(a.id)?.sprite.visible);
+    this.candidates = [...incumbents, ...interleaveAxes(nearby.map(anchor => ({ anchor }))).map(p => p.anchor)].slice(0, MAX_CANDIDATES);
   }
   private lineWeight(anchor: Anchor): number {
     const current = anchor.axis === 'latitude' ? this.uniforms.uGridStep.value.x : this.uniforms.uGridStep.value.y;
@@ -256,8 +272,27 @@ export class AdaptiveGraticule {
         targets.push(overlay.group); overlayTargets.add(overlay.group); if (body === this.bm) ownTargets.push(overlay.group);
       }
     }
+    const lightingFor = (object: THREE.Object3D) => {
+      let root = object; while (root.parent) root = root.parent;
+      const lights = root instanceof THREE.Scene ? root.children.filter((child): child is THREE.Light => child instanceof THREE.Light && child.visible) : [];
+      return (normal: THREE.Vector3) => {
+        if (!(root instanceof THREE.Scene)) return 1; // Detached fixtures have no rendering scene.
+        let illumination = 0;
+        for (const light of lights) {
+          const luminance = light.color.r * 0.2126 + light.color.g * 0.7152 + light.color.b * 0.0722;
+          if (light instanceof THREE.AmbientLight) illumination += luminance * light.intensity / Math.PI;
+          if (light instanceof THREE.DirectionalLight) {
+            const direction = light.getWorldPosition(new THREE.Vector3()).sub(light.target.getWorldPosition(new THREE.Vector3())).normalize();
+            illumination += luminance * light.intensity * Math.max(0, normal.dot(direction)) / Math.PI;
+          }
+        }
+        return gridLightingStrength(illumination);
+      };
+    };
+    const surfaceLighting = lightingFor(this.bm);
+    const overlayLighting = this.bm.getSurfaceOverlays().filter(o => o.group.visible).map(o => lightingFor(o.group));
     const registeredTerrain = !this.bm.mesh.visible || !!this.bm.body.geometryData?.displacementMap || this.bm.getSurfaceOverlays().some(o => o.group.visible);
-    const prepared: Array<{ anchor: Anchor; p: THREE.Vector3; view: THREE.Vector3; incidence: number; lineWeight: number }> = [];
+    const prepared: Array<{ anchor: Anchor; p: THREE.Vector3; view: THREE.Vector3; incidence: number; strength: number; overlayStrength: number }> = [];
     const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
     const shape = this.coordinates.datum.referenceShape;
     const radii = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
@@ -270,6 +305,9 @@ export class AdaptiveGraticule {
       const normal = this.coordinates.latitudeType === 'geodetic'
         ? new THREE.Vector3(Math.cos(anchor.lat * DEG) * Math.cos(anchor.lon * DEG), Math.cos(anchor.lat * DEG) * Math.sin(anchor.lon * DEG), Math.sin(anchor.lat * DEG))
         : new THREE.Vector3(fixed.x / radii[0] ** 2, fixed.y / radii[1] ** 2, fixed.z / radii[2] ** 2).normalize();
+      const worldNormal = normal.clone().transformDirection(this.toWorld);
+      const lighting = surfaceLighting(worldNormal);
+      const overlayLight = overlayLighting.length ? Math.max(...overlayLighting.map(l => l(worldNormal))) : lighting;
       const incidence = cameraFixed.clone().sub(fixed).normalize().dot(normal);
       if (incidence < 0.08) continue;
       const p = fixed.applyMatrix4(this.toWorld), view = p.clone().project(camera);
@@ -278,11 +316,22 @@ export class AdaptiveGraticule {
       // every rendered line, and cannot float over a subpixel suppressed lattice.
       const step = anchor.axis === 'latitude' ? this.uniforms.uGridStep.value.x : this.uniforms.uGridStep.value.y;
       const delta = 0.0001;
-      const adjacent = this.point(anchor.lat + (anchor.axis === 'latitude' ? delta : 0),
-        anchor.lon + (anchor.axis === 'longitude' ? delta : 0), heightKm).project(camera);
-      const separation = Math.hypot((adjacent.x - view.x) * width / 2, (adjacent.y - view.y) * height / 2) / delta * step;
-      if (separation < 8 && !(anchor.axis === 'latitude' && anchor.angle === 0)) continue;
-      prepared.push({ anchor, p, view, incidence, lineWeight });
+      const latitude = this.point(anchor.lat + delta, anchor.lon, heightKm).project(camera);
+      const longitude = this.point(anchor.lat, anchor.lon + delta, heightKm).project(camera);
+      const ax = (latitude.x - view.x) * width / 2 / delta, ay = (latitude.y - view.y) * height / 2 / delta;
+      const bx = (longitude.x - view.x) * width / 2 / delta, by = (longitude.y - view.y) * height / 2 / delta;
+      // Invert the local screen Jacobian to approximate the shader's fwidth of
+      // this coordinate, including skew in rolled/oblique regional views.
+      const determinant = Math.abs(ax * by - ay * bx);
+      const gradient = anchor.axis === 'latitude' ? Math.abs(bx) + Math.abs(by) : Math.abs(ax) + Math.abs(ay);
+      const separation = gradient > 0 ? step * determinant / gradient : 0;
+      const congestion = anchor.axis === 'latitude' && anchor.angle === 0 ? 1 : gridSmoothstep(GRID_PRESENTATION.congestion, separation);
+      // The shader applies lighting to both line color and blend strength.
+      const presentation = lineWeight * gridSmoothstep(GRID_PRESENTATION.horizon, incidence) * congestion;
+      const strength = presentation * lighting * lighting;
+      const overlayStrength = presentation * overlayLight * overlayLight;
+      if (Math.max(strength, overlayStrength) < 0.012) continue;
+      prepared.push({ anchor, p, view, incidence, strength, overlayStrength });
     }
     // Existing suitable labels win collisions and stay within the discovery
     // subset. Neither scoring nor visibility may rewrite an anchor's location.
@@ -294,16 +343,26 @@ export class AdaptiveGraticule {
         || Number(b.anchor.angle === 0) - Number(a.anchor.angle === 0)
         || b.anchor.step - a.anchor.step || a.anchor.id.localeCompare(b.anchor.id);
     });
-    const keys = new Set(prepared.map(p => p.anchor.id));
+    const incumbents = new Map<string, string>();
+    for (const label of this.labels.values()) if (label.sprite.visible) incumbents.set(lineId(label.anchor), label.anchor.id);
+    // A failing incumbent retires this frame. Its alternatives start their entry
+    // dwell on a later frame, rather than switching geographic location at once.
+    const available = prepared.filter(p => !incumbents.has(lineId(p.anchor)) || incumbents.get(lineId(p.anchor)) === p.anchor.id);
+    const keys = new Set(available.map(p => p.anchor.id));
     for (const key of this.cachedHits.keys()) if (!keys.has(key)) this.cachedHits.delete(key);
     for (const key of this.eligibility.keys()) if (!keys.has(key)) this.eligibility.delete(key);
     if (targets.length) {
-      const pending = [...prepared].sort((a, b) => {
+      const ordered = [...available].sort((a, b) => {
         const visible = (anchor: Anchor) => this.labels.get(anchor.id)?.sprite.visible ? 1 : 0;
         return visible(b.anchor) - visible(a.anchor)
           || Number(this.eligibility.has(b.anchor.id)) - Number(this.eligibility.has(a.anchor.id))
           || (this.cachedHits.get(a.anchor.id)?.time ?? -1) - (this.cachedHits.get(b.anchor.id)?.time ?? -1);
       });
+      const visible = ordered.filter(p => this.labels.get(p.anchor.id)?.sprite.visible);
+      const discovery = ordered.filter(p => !this.labels.get(p.anchor.id)?.sprite.visible);
+      const pending = [...visible, ...interleaveAxes(discovery, this.discoveryAxis)];
+      this.discoveryAxis = this.discoveryAxis === 'latitude' ? 'longitude' : 'latitude';
+      const queriedLines = new Set<string>();
       let queries = 0;
       const preferredHit = (intersections: THREE.Intersection[]) => {
         const overlay = intersections.find(hit => {
@@ -314,6 +373,8 @@ export class AdaptiveGraticule {
         return { intersection: overlay ?? intersections[0], overlay: !!overlay };
       };
       for (const { anchor, view } of pending) {
+        if (queriedLines.has(lineId(anchor))) continue;
+        queriedLines.add(lineId(anchor));
         const cost = registeredTerrain ? 2 : 1;
         if (queries + cost > 8) break;
         let surface: THREE.Vector3 | null = null;
@@ -349,10 +410,12 @@ export class AdaptiveGraticule {
       }
     }
     const active = new Set<string>();
+    const ready: Array<{ anchor: Anchor; fixed: THREE.Vector3; text: string; labelWidth: number; offsetX: number; offsetY: number;
+      rect: { x0: number; x1: number; y0: number; y1: number }; eligible: boolean; strength: number }> = [];
     const limit = registeredTerrain ? MAX_TERRAIN_LABELS : targets.length ? MAX_QUERY_LABELS : MAX_LABELS;
-    for (const { anchor, p, view, incidence, lineWeight } of prepared) {
-      if (active.size >= limit) break;
-      let label = this.labels.get(anchor.id);
+    for (const { anchor, p, view, incidence, strength: surfaceStrength, overlayStrength } of available) {
+      const strength = this.cachedHits.get(anchor.id)?.overlay ? overlayStrength : surfaceStrength;
+      const label = this.labels.get(anchor.id);
       const reject = () => { hide(label); this.eligibility.delete(anchor.id); };
       let hit: THREE.Vector3 | null = null;
       if (targets.length) {
@@ -384,17 +447,36 @@ export class AdaptiveGraticule {
       const x = (projected.x + 1) * width / 2 + offsetX, y = (1 - projected.y) * height / 2 + offsetY;
       const padding = label?.sprite.visible ? 3 : 6;
       const rect = { x0: x - labelWidth / 2 - padding, x1: x + labelWidth / 2 + padding, y0: y - 10 - padding, y1: y + 10 + padding };
-      if (projected.z < -1 || projected.z > 1 || rect.x0 < 4 || rect.x1 > width - 4 || rect.y0 < 4 || rect.y1 > height - 4
+      if (strength < 0.012 || projected.z < -1 || projected.z > 1 || rect.x0 < 4 || rect.x1 > width - 4 || rect.y0 < 4 || rect.y1 > height - 4
         || manager.canReserveContextRect?.(rect) === false) { reject(); continue; }
       const axisStep = anchor.axis === 'latitude' ? this.uniforms.uGridStep.value.x : this.uniforms.uGridStep.value.y;
       const tierUseful = anchor.step >= axisStep;
-      const eligible = tierUseful && incidence >= (label?.sprite.visible ? 0.18 : 0.28)
+      const eligible = tierUseful && strength >= (label?.sprite.visible ? 0.02 : 0.04) && incidence >= (label?.sprite.visible ? 0.18 : 0.28)
         && Math.abs(projected.x) <= (label?.sprite.visible ? 0.96 : 0.9) && Math.abs(projected.y) <= (label?.sprite.visible ? 0.94 : 0.88);
       if (eligible) {
         if (!this.eligibility.has(anchor.id)) this.eligibility.set(anchor.id, now);
       } else this.eligibility.delete(anchor.id);
       if (!label?.sprite.visible && (!eligible || now - this.eligibility.get(anchor.id)! < ENTRY_DWELL_MS)) continue;
-      if (!manager.reserveContextRect(rect)) { reject(); continue; }
+      ready.push({ anchor, fixed, text, labelWidth, offsetX, offsetY, rect, eligible, strength });
+    }
+    const selectedLines = new Set<string>();
+    const counts = { latitude: 0, longitude: 0 };
+    const hasBothAxes = ready.some(p => p.anchor.axis === 'latitude') && ready.some(p => p.anchor.axis === 'longitude');
+    const quota = hasBothAxes ? { latitude: Math.ceil(limit / 2), longitude: Math.floor(limit / 2) } : { latitude: limit, longitude: limit };
+    const byLine = new Map<string, typeof ready[number]>();
+    for (const candidate of ready) if (!byLine.has(lineId(candidate.anchor))) byLine.set(lineId(candidate.anchor), candidate);
+    const unique = [...byLine.values()];
+    const ordered = [...interleaveAxes(unique.filter(p => this.labels.get(p.anchor.id)?.sprite.visible)),
+      ...interleaveAxes(unique.filter(p => !this.labels.get(p.anchor.id)?.sprite.visible))];
+    // First reserve capacity for both axes. The second pass lends unused slots
+    // after invalid/colliding candidates have been rejected, never forcing them.
+    for (const { candidate, borrow } of [false, true].flatMap(borrow => ordered.map(candidate => ({ candidate, borrow })))) {
+      const { anchor, fixed, text, labelWidth, offsetX, offsetY, rect, eligible, strength } = candidate;
+      if (active.size >= limit) break;
+      const line = lineId(anchor);
+      if (selectedLines.has(line) || (!borrow && counts[anchor.axis] >= quota[anchor.axis])) continue;
+      let label = this.labels.get(anchor.id);
+      if (!manager.reserveContextRect(rect)) { hide(label); this.eligibility.delete(anchor.id); continue; }
       if (!label) {
         if (this.labels.size >= MAX_LABELS) {
           const old = [...this.labels.values()].find(l => !l.sprite.visible);
@@ -408,10 +490,10 @@ export class AdaptiveGraticule {
       label.sprite.center.set(0.5 - offsetX / labelWidth, 0.5 + offsetY / 20);
       const unitsPerPixel = 2 * Math.tan(camera.fov * DEG / 2) / height / this.bm.scaleFactor;
       label.sprite.scale.set(labelWidth * unitsPerPixel, 20 * unitsPerPixel, 1);
-      label.sprite.material.opacity = Math.min(0.85 * lineWeight, Math.max(0,
+      label.sprite.material.opacity = Math.min(0.85 * strength, Math.max(0,
         label.sprite.material.opacity + (eligible ? dt * 5 : -dt * 4)));
       label.sprite.visible = label.sprite.material.opacity > 0;
-      if (label.sprite.visible) active.add(anchor.id);
+      if (label.sprite.visible) { active.add(anchor.id); selectedLines.add(line); counts[anchor.axis]++; }
     }
     for (const [id, label] of this.labels) if (!active.has(id)) hide(label);
   }

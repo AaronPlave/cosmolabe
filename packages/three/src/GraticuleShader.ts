@@ -1,6 +1,20 @@
 import * as THREE from 'three';
 import type { SurfaceCoordinates } from '@cosmolabe/core';
 
+// Shared presentation thresholds. Labels approximate irradiance at their fixed
+// anchor; the surface shader measures the actual lit/albedo ratio per fragment.
+export const GRID_PRESENTATION = {
+  lighting: [0.02, 0.5], horizon: [0.08, 0.35], congestion: [6, 18], nightFloor: 0.08,
+} as const;
+export function gridSmoothstep(edges: readonly [number, number], value: number): number {
+  const t = THREE.MathUtils.clamp((value - edges[0]) / (edges[1] - edges[0]), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+export function gridLightingStrength(illumination: number): number {
+  return GRID_PRESENTATION.nightFloor + (1 - GRID_PRESENTATION.nightFloor)
+    * gridSmoothstep(GRID_PRESENTATION.lighting, illumination);
+}
+
 export function makeGraticuleUniforms(coordinates: SurfaceCoordinates) {
   const shape = coordinates.datum.referenceShape;
   const [a,, c] = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
@@ -35,7 +49,7 @@ float gridLine(float angle, float stepSize, float derivative) {
   float widthDeg = max(derivative, 0.0000001);
   // Fade subpixel lattices and heavily foreshortened fragments.
   return (1.0 - smoothstep(widthDeg * 0.25, widthDeg * 0.85, distanceDeg))
-    * smoothstep(6.0, 18.0, stepSize / widthDeg);
+    * smoothstep(${GRID_PRESENTATION.congestion[0].toFixed(1)}, ${GRID_PRESENTATION.congestion[1].toFixed(1)}, stepSize / widthDeg);
 }
 vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize) {
   float latLine = gridLine(angles.x, stepSize.x, deriv.x);
@@ -76,10 +90,10 @@ if (uGridVisible > 0.0) {
   float luminance = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
   // Normalize by albedo so dark daytime imagery still has a useful grid.
   float illumination = luminance / max(dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)), 0.001);
-  float lighting = mix(0.08, 1.0, smoothstep(0.02, 0.5, illumination));
+  float lighting = mix(${GRID_PRESENTATION.nightFloor}, 1.0, smoothstep(${GRID_PRESENTATION.lighting[0]}, ${GRID_PRESENTATION.lighting[1]}, illumination));
   vec3 bodyNormal = normalize(p / vec3(uGridShape.x * uGridShape.x, uGridShape.x * uGridShape.x, uGridShape.y * uGridShape.y));
   vec3 eye = (uGridViewToBody * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-  float horizon = smoothstep(0.08, 0.35, dot(bodyNormal, normalize(eye - p)));
+  float horizon = smoothstep(${GRID_PRESENTATION.horizon[0]}, ${GRID_PRESENTATION.horizon[1]}, dot(bodyNormal, normalize(eye - p)));
   outgoingLight = mix(outgoingLight, grid.rgb * lighting, grid.a * lighting * horizon * uGridVisible);
 }
 #include <opaque_fragment>`);

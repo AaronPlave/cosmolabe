@@ -10,6 +10,119 @@ import { TerrainSampler } from '../TerrainSampler.js';
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('adaptive graticule', () => {
+  it('deduplicates coordinate lines across anchors and retained tiers, while showing both axes', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Selection', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.up.set(0, 0, 1); camera.position.set(300, 0, 0); camera.lookAt(0, 0, 0);
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    const frame = () => {
+      now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager);
+      const annotations = bm.gridMetrics!.annotations;
+      expect(new Set(annotations.map(a => `${a.axis}:${a.angle}`)).size).toBe(annotations.length);
+      return annotations;
+    };
+    const settle = () => { for (let i = 0; i < 60; i++) frame(); return frame(); };
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 15 }));
+    const original = settle();
+    expect(original.filter(a => a.angle === 0)).toHaveLength(2);
+    expect(new Set(original.map(a => a.axis)).size).toBe(2);
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 10 }));
+    const refined = settle();
+    for (const a of original.filter(a => a.angle === 0)) expect(refined.find(b => b.axis === a.axis && b.angle === 0)?.id).toBe(a.id);
+    camera.position.set(101, 0, 0); camera.lookAt(100, 0, 0);
+    bm.showGrid(true, true, normalizeGridSettings());
+    const regional = settle();
+    expect(regional.length).toBeGreaterThan(0);
+    expect(new Set(regional.map(a => a.axis)).size).toBe(2);
+    bm.dispose();
+  });
+
+  it('retires an unsuitable incumbent before admitting another fixed anchor on the same line', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Replacement', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.position.set(300, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0);
+    const manager = new LabelManager({} as HTMLElement);
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 10 }));
+    const frame = () => { now += 16; manager.beginContextAnnotations(); bm.updateGrid(camera, { width: 800, height: 800 }, manager); return bm.gridMetrics!; };
+    for (let i = 0; i < 40; i++) frame();
+    const original = frame().annotations.find(a => a.axis === 'latitude' && a.angle === 0)!;
+    expect(original).toBeDefined();
+    const fixed = surfacePositionToBodyFixed({ latDeg: original.latDeg, lonDeg: original.lonDeg }, bodySurfaceCoordinates(body)!);
+    const screen = new THREE.Vector3(fixed.xKm, fixed.yKm, fixed.zKm).project(camera);
+    const x = (screen.x + 1) * 400 + 8, y = (1 - screen.y) * 400;
+    manager.setReservedRects([{ x0: x - 45, x1: x + 45, y0: y - 14, y1: y + 14 }], 'controls');
+    expect(frame().annotations.some(a => a.axis === 'latitude' && a.angle === 0)).toBe(false);
+    for (let i = 0; i < 6; i++) expect(frame().annotations.some(a => a.axis === 'latitude' && a.angle === 0)).toBe(false);
+    for (let i = 0; i < 40; i++) frame();
+    const replacement = frame().annotations.find(a => a.axis === 'latitude' && a.angle === 0)!;
+    expect(replacement).toBeDefined(); expect(replacement.id).not.toBe(original.id);
+    manager.setReservedRects([], 'controls');
+    for (let i = 0; i < 30; i++) expect(frame().annotations.find(a => a.axis === 'latitude' && a.angle === 0)?.id).toBe(replacement.id);
+    expect(frame().anchors.find(a => a.id === original.id)).toMatchObject({ lat: original.latDeg, lon: original.lonDeg });
+    bm.dispose();
+  });
+
+  it('dims night-side labels with the lit grid without penalizing dark daytime albedo', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Lighting', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const scene = new THREE.Scene(); const ambient = new THREE.AmbientLight(0xffffff, 0.015);
+    const sun = new THREE.DirectionalLight(0xffffff, 2); sun.position.set(5000, 0, 0); scene.add(bm, ambient, sun);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.position.set(300, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0);
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 15 }));
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    const frame = () => { now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); return bm.gridMetrics!; };
+    for (let i = 0; i < 40; i++) frame();
+    const day = frame().annotations.find(a => a.axis === 'latitude' && a.angle === 0)!;
+    expect(day.opacity).toBeGreaterThan(0.5);
+    (bm.mesh.material as THREE.MeshStandardMaterial).color.set('#080808');
+    for (let i = 0; i < 40; i++) frame();
+    expect(frame().annotations.find(a => a.id === day.id)?.opacity).toBeCloseTo(day.opacity);
+    sun.position.set(-5000, 0, 0);
+    expect(frame().labels).toBe(0); expect(bm.gridMetrics!.densityBlend).toBe(1);
+    ambient.intensity = 1.8;
+    for (let i = 0; i < 40; i++) frame();
+    expect(frame().annotations.find(a => a.id === day.id)?.opacity).toBeGreaterThan(0.5);
+    bm.dispose();
+  });
+
+  it('uses the hit overlay scene lighting without brightening uncovered night terrain', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Overlay lighting', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const scene = new THREE.Scene(); const ambient = new THREE.AmbientLight(0xffffff, 0.015); scene.add(bm, ambient);
+    const overlayScene = new THREE.Scene(), group = new THREE.Group();
+    const overlay = new THREE.Mesh(new THREE.SphereGeometry(100, 128, 64), new THREE.MeshStandardMaterial()); group.add(overlay);
+    const overlayAmbient = new THREE.AmbientLight(0xffffff, 1); overlayScene.add(group, overlayAmbient); overlayScene.updateMatrixWorld(true);
+    vi.spyOn(bm, 'getSurfaceOverlays').mockReturnValue([{ group, tiles: { addEventListener() {} } }] as unknown as ReturnType<BodyMesh['getSurfaceOverlays']>);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.position.set(300, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0);
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 15 }));
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    const frame = () => { now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); return bm.gridMetrics!; };
+    for (let i = 0; i < 40; i++) frame();
+    const lit = frame().annotations.find(a => a.axis === 'latitude' && a.angle === 0)!;
+    expect(lit.opacity).toBeGreaterThan(0.2);
+    ambient.intensity = 1.8;
+    for (let i = 0; i < 40; i++) frame();
+    expect(frame().annotations.find(a => a.id === lit.id)?.opacity).toBeCloseTo(lit.opacity);
+    overlayAmbient.intensity = 0;
+    expect(frame().labels).toBe(0); // Main-scene flood lighting does not light this overlay.
+    ambient.intensity = 0.015; group.visible = false; overlayAmbient.intensity = 1;
+    for (let i = 0; i < 40; i++) frame();
+    expect(frame().labels).toBe(0); // The bright overlay scene does not light uncovered terrain.
+    bm.dispose(); overlay.geometry.dispose(); overlay.material.dispose();
+  });
+
   it('plans the nearby resident depression while the camera is inside the reference sphere', () => {
     const body = new Body({ name: 'Depression', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe' });
     const bm = new BodyMesh(body);
@@ -143,10 +256,13 @@ describe('adaptive graticule', () => {
       now += 16; rays.mockClear();
       bm.updateGrid(camera, { width: 800, height: 800 }, labels);
       expect(rays.mock.calls.length).toBeLessThanOrEqual(8);
+      const annotations = bm.gridMetrics!.annotations;
+      expect(new Set(annotations.map(a => `${a.axis}:${a.angle}`)).size).toBe(annotations.length);
       return bm.gridMetrics!.labels;
     };
     for (let i = 0; i < 20; i++) frame();
     const settled = bm.gridMetrics!.labels;
+    expect(new Set(bm.gridMetrics!.annotations.map(a => a.axis)).size).toBe(2);
     expect(settled).toBeGreaterThan(0);
     expect(settled).toBeLessThanOrEqual(6);
     let stationaryQueries = 0;

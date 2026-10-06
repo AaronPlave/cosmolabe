@@ -36,7 +36,20 @@ exit. Enumeration is bounded at 12 × 8 anchors per axis before keeping at most
 Longitude/latitude values are canonicalized before constructing identities, so
 searching across the seam produces the same anchor coordinates.
 
-Suitable visible annotations remain in the candidate subset and win collisions.
+Candidate locations are grouped by body and canonical axis/value, across all
+current/retained tiers. Only one annotation explains a given coordinate line.
+Suitable incumbents keep their fixed anchor; an unsuitable incumbent retires
+before any alternative starts its 100 ms admission dwell. A surviving coarse
+line retains its original annotation rather than spending another slot on an
+equivalent new-tier candidate. Equator/prime captions therefore appear at most
+once each.
+
+Nearby discovery interleaves axes before truncation. Geometry scheduling validates
+incumbents first and alternates the first discovery axis each frame, querying at
+most one candidate per line. Final allocation reserves half the slots for each
+axis when both have suitable candidates, then lends unused capacity after
+collision rejection. Invalid or congested candidates are never forced to fill a
+quota. Suitable visible annotations remain in the subset and win collisions.
 A 100 ms entry dwell, separate entry/exit limb and viewport thresholds, and larger
 entry collision clearance suppress flicker from small residual camera motion.
 Annotations fade at their original locations. Collisions with body/event labels,
@@ -84,7 +97,19 @@ Fragment derivatives handle antialiasing, longitude seams and congestion. Major,
 minor and equator/prime strengths are 22%, 7% and 35% before lighting/density/horizon
 modulation. Widths are in CSS pixels and colors are restrained. Lighting is
 normalized by albedo so dark daytime imagery remains useful while the night grid
-stays subdued.
+stays subdued. Labels share the shader's illumination, horizon and congestion
+thresholds. Their opacity follows line crossfade weight, squared lighting strength
+(the grid modulates both color and blend strength), limb attenuation and local
+coordinate congestion. The inverse screen Jacobian approximates the shader's
+coordinate `fwidth`, including rolled/skewed views. Entry/exit strength thresholds
+avoid drawing bright text over an effectively suppressed line.
+
+CPU annotation lighting approximates normalized diffuse irradiance from the
+surface scene's ambient/directional lights, independent of imagery albedo. Local
+overlays use their own scene lighting when the current geometry hit is an overlay;
+a bright overlay scene does not brighten labels on uncovered night terrain.
+This approximation does not sample GPU shadow/normal maps or read back pixels;
+real shadowed/mixed-LOD terrain acceptance remains pending.
 
 The shader follows rendered fragments without extra grid geometry or data
 requests. Existing imagery, shadow and atmosphere hooks compose with it. Tile
@@ -121,21 +146,21 @@ lunar imagery plus synthetic resident relief, with a fixed 30 Hz application
 clock and every rendered frame encoded. It validates attachment between discovery
 plans despite slower software rendering; it is not a real-time performance claim.
 
-[Continuous attachment recording](fixed-anchors/orbit-zoom-pan-tangent.mp4)
+[Continuous attachment recording](selection-contrast/orbit-zoom-pan-tangent.mp4)
 contains a rolled orbit, whole-globe/regional zoom, sustained pan, near-ground
-zoom, nearly stationary residual damping and tangent view. [Frame diagnostics](fixed-anchors/frames.json)
+zoom, nearly stationary residual damping and tangent view. [Frame diagnostics](selection-contrast/frames.json)
 retain anchor IDs, geographic coordinates, opacity, projected positions and label
-rectangles. [Motion metrics](fixed-anchors/metrics.json) check that repeated IDs
+rectangles. [Motion metrics](selection-contrast/metrics.json) check that repeated IDs
 never change latitude/longitude, held-camera visibility does not toggle, labels
 avoid controls, and query/candidate/pool limits hold. The displayed lunar craters
 provide nearby surface features for checking attachment visually.
 
-[Layout fixtures](fixed-anchors/layout/metrics.json) cover polar/seam orientation,
-regional Mars, a resident depression, actual free-look input and the same final
+[Layout fixtures](selection-contrast/layout/metrics.json) cover polar/seam orientation,
+regional Mars, explicit small-globe/night-side and repeated-latitude cases, a resident depression, actual free-look input and the same final
 pose reached through different paths. Eligible fixed candidates at the same
 tier/pose are deterministic; visible subsets may reflect short-lived hysteresis.
 
-Code regressions cover persistent IDs/coordinates across navigation, nested and
+Code regressions cover per-line/tier deduplication, balanced terrain query/selection, incumbent retirement/admission, albedo-independent day/night contrast, persistent IDs/coordinates across navigation, nested and
 non-nested tier changes, residual-motion stability, UI collisions without
 relocation, seam canonicalization, bounded tiny-step enumeration, current-frame
 ridge/terrain disappearance occlusion, the eight-query budget and upstream
@@ -143,13 +168,15 @@ material fade/eviction. Earlier before/after images, draped-line comparisons and
 motion/layout reports remain archived in this directory; their former camera-band
 and edge-placement model is superseded by the fixed geographic pattern.
 
-The latest validation passes all 141 suites / 1,568 tests, full typechecking,
-lint and purity checks. The 601-frame, 20-second recording contains 1,540
-repeated anchor observations with zero latitude/longitude changes. Its 67 settled
-residual-damping frames have zero visibility toggles. Browser/shader errors,
-control overlaps and grid-triggered requests are zero. The below-datum fixture
-produces 62 candidates, three visible terrain labels and 0.02° spacing on both
-axes; actual free-look retains the origin body's grid.
+The latest validation passes all 141 suites / 1,572 tests, full typechecking,
+lint and purity checks. The motion/layout reports below record attachment,
+deduplication, axis coverage, held-camera visibility, control overlap and request
+counts. The below-datum fixture still produces 62 candidates, three visible
+terrain labels and 0.02° spacing on both axes; actual free-look retains the origin
+body's grid. The 601-frame recording has 1,516 repeated anchor
+observations with zero coordinate changes, zero duplicate lines and zero visibility
+toggles over 67 settled damping frames. Regional motion includes both axes;
+control overlaps, shader/browser errors and grid-triggered requests are zero.
 
 ## Remaining live acceptance
 

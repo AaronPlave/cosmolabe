@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 const root = fileURLToPath(new URL('..', import.meta.url));
-const out = resolve(root, process.env.GRID_CAPTURE_DIR ?? 'docs/validation/graticule/fixed-anchors');
+const out = resolve(root, process.env.GRID_CAPTURE_DIR ?? 'docs/validation/graticule/selection-contrast');
 const fixture = resolve(root, 'apps/viewer/graticule-validation.html');
 const baseline = resolve(root, 'packages/three/src/BodyMeshBefore.ts');
 mkdirSync(out, { recursive: true });
@@ -88,11 +88,16 @@ try {
   const controlOverlaps = frames.flatMap(f => f.points).filter(p => controls.some(c => p.rect.x0 < c.x1
     && p.rect.x1 > c.x0 && p.rect.y0 < c.y1 && p.rect.y1 > c.y0)).length;
   const maxLineErrorDeg = Math.max(0, ...lineErrors);
-  const pass = frames.length === 601 && survivingFramePairs > 100 && held.every(f => f.points.length > 0)
+  const duplicateLines = [...frames.map(f => f.metrics), ...captures.map(c => c.metrics)].reduce((count, metric) => {
+    const lines = metric.annotations.map(a => `${a.axis}:${a.angle}`);
+    return count + lines.length - new Set(lines).size;
+  }, 0);
+  const regionalAxes = [...new Set(frames.filter(f => f.stage === 'pan' || f.stage === 'near-ground').flatMap(f => f.metrics.annotations.map(a => a.axis)))];
+  const pass = duplicateLines === 0 && regionalAxes.length === 2 && frames.length === 601 && survivingFramePairs > 100 && held.every(f => f.points.length > 0)
     && stationaryToggles === 0 && maxAttachmentErrorDeg < 1e-6 && controlOverlaps === 0 && errors.length === 0 && requests === 0
     && maxLineErrorDeg < 1e-6 && frames.every(f => f.metrics.labels <= 3 && f.metrics.candidates <= 96);
   const summary = { pass, renderer: 'Chromium SwiftShader; real lunar imagery, synthetic resident relief; fixed 30 Hz clock', durationSeconds: frames.at(-1).time,
-    frames: frames.length, maxLineErrorDeg, maxAttachmentErrorDeg, survivingFramePairs, stationaryToggles, heldFrames: held.length,
+    frames: frames.length, duplicateLines, regionalAxes, maxLineErrorDeg, maxAttachmentErrorDeg, survivingFramePairs, stationaryToggles, heldFrames: held.length,
     gridRequests: requests, controlOverlaps, maxUpdateMs: Math.max(...frames.map(f => f.updateMs)), errors, captures };
   writeFileSync(resolve(out, 'metrics.json'), JSON.stringify(summary, null, 2) + '\n');
   writeFileSync(resolve(out, 'frames.json'), JSON.stringify(frames) + '\n');
