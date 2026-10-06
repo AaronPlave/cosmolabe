@@ -82,6 +82,40 @@ export interface EventLeadVisibility {
 
 const SPAN_INITIAL_CAPACITY = 256;
 
+/**
+ * A plane in front of the camera that span strokes are clipped to before
+ * upload: `origin` is the camera position, `forward` its unit view direction,
+ * and nothing is drawn nearer than `minDepth` along it.
+ */
+export interface StrokeClipPlane {
+  origin: THREE.Vector3;
+  forward: THREE.Vector3;
+  minDepth: number;
+}
+
+/**
+ * Clip segment a→b to the half-space at least `plane.minDepth` in front of
+ * the camera, in double precision. Returns false when nothing of it is left;
+ * otherwise `a` and `b` are moved onto the plane where they crossed it.
+ *
+ * Why this is not left to `LineMaterial`: its shader trims a segment that
+ * ends behind the camera to the near plane in float32. The renderer's near
+ * plane sits ~1e-8 of the camera distance away (millimetres when tracking a
+ * spacecraft from a few km), far finer than the rounding of a trim computed
+ * from endpoints tens of km away — so the trimmed end landed in front of,
+ * on, or behind the camera at random, and the stroke flickered whenever its
+ * span ran back past the camera.
+ */
+export function clipSegmentInFront(a: THREE.Vector3, b: THREE.Vector3, plane: StrokeClipPlane): boolean {
+  const { origin, forward, minDepth } = plane;
+  const da = (a.x - origin.x) * forward.x + (a.y - origin.y) * forward.y + (a.z - origin.z) * forward.z - minDepth;
+  const db = (b.x - origin.x) * forward.x + (b.y - origin.y) * forward.y + (b.z - origin.z) * forward.z - minDepth;
+  if (da < 0 && db < 0) return false;
+  if (da < 0) a.lerp(b, da / (da - db));
+  else if (db < 0) b.lerp(a, db / (db - da));
+  return true;
+}
+
 /** Emitted between polyline runs so a stroke never bridges a gap. */
 const BREAK = /* @__PURE__ */ new THREE.Vector3(NaN, NaN, NaN);
 
@@ -375,6 +409,11 @@ class SpanStroke {
    * this frame. A new event starts from transparent rather than inheriting
    * the previous one's opacity.
    */
+  /** The event this stroke traces now (null when idle). */
+  get currentKey(): string | null {
+    return this.key;
+  }
+
   follow(target: string | null, dt: number): string | null {
     if (target !== null && target !== this.key) {
       this.key = target;
@@ -399,21 +438,32 @@ class SpanStroke {
   /**
    * Rewrite the stroke from `trace`, which emits the polyline's points in
    * order (a NaN point breaks the stroke); `maxPoints` bounds how many it can
-   * emit.
+   * emit. With `clip`, each segment is first clipped to the space in front of
+   * the camera (see {@link clipSegmentInFront}).
    */
-  write(maxPoints: number, trace: (emit: (point: THREE.Vector3) => void) => void): number {
+  write(
+    maxPoints: number,
+    trace: (emit: (point: THREE.Vector3) => void) => void,
+    clip?: StrokeClipPlane,
+  ): number {
     const array = this.reserve(Math.max(1, maxPoints - 1));
     let segments = 0;
     let px = NaN, py = NaN, pz = NaN;
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
     trace((point) => {
       if (Number.isNaN(point.x)) {
         px = NaN;
         return;
       }
       if (!Number.isNaN(px)) {
-        const o = segments++ * 6;
-        array[o] = px; array[o + 1] = py; array[o + 2] = pz;
-        array[o + 3] = point.x; array[o + 4] = point.y; array[o + 5] = point.z;
+        a.set(px, py, pz);
+        b.copy(point);
+        if (!clip || clipSegmentInFront(a, b, clip)) {
+          const o = segments++ * 6;
+          array[o] = a.x; array[o + 1] = a.y; array[o + 2] = a.z;
+          array[o + 3] = b.x; array[o + 4] = b.y; array[o + 5] = b.z;
+        }
       }
       px = point.x; py = point.y; pz = point.z;
     });
@@ -467,6 +517,8 @@ export class EventMarkers extends THREE.Object3D {
   private readonly selectedStroke: SpanStroke;
   private readonly previewStroke: SpanStroke;
   private readonly emphasisClock = new EmphasisClock();
+  /** Where strokes are clipped this frame; null draws them unclipped. */
+  private strokeClip: StrokeClipPlane | null = null;
 
   constructor(body: Body, options: EventMarkersOptions = {}) {
     super();
@@ -669,8 +721,26 @@ export class EventMarkers extends THREE.Object3D {
     this.drawStroke(this.previewStroke, preview, dt);
   }
 
+  /**
+   * Re-clip both strokes for the camera this frame renders with. The host
+   * calls this after the camera has moved and its near plane is set, so the
+   * clip plane is the one the stroke is actually drawn against.
+   */
+  clipStrokesToCamera(camera: THREE.Camera, minDepth: number): void {
+    camera.updateMatrixWorld();
+    const origin = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
+    const forward = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2).negate().normalize();
+    this.strokeClip = { origin, forward, minDepth };
+    this.writeStroke(this.selectedStroke, this.selectedStroke.currentKey);
+    this.writeStroke(this.previewStroke, this.previewStroke.currentKey);
+  }
+
   private drawStroke(stroke: SpanStroke, target: MarkerVisual | undefined, dt: number): void {
     const key = stroke.follow(target ? markerKey(target.marker) : null, dt);
+    this.writeStroke(stroke, key);
+  }
+
+  private writeStroke(stroke: SpanStroke, key: string | null): void {
     const visual = key === null ? undefined : this.visuals.find((item) =>
       markerKey(item.marker) === key && item.visibleRange !== null && item.layout !== 'point');
     let segments = 0;
@@ -683,7 +753,7 @@ export class EventMarkers extends THREE.Object3D {
           traceRange(line, start, end, emit);
           emit(BREAK);
         }
-      });
+      }, this.strokeClip ?? undefined);
     }
     stroke.show(this.visible && segments > 0, segments);
   }

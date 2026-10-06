@@ -986,6 +986,17 @@ export class UniverseRenderer {
     // all three are current-frame values (camera is not in the scene graph, so
     // we must explicitly update its world matrix).
     this.camera.updateMatrixWorld();
+
+    // Event span strokes are fat lines whose shader trims segments behind the
+    // camera to this (very close) near plane in float32, unstably. Clip them
+    // here, in double precision and against this frame's final camera, at a
+    // depth float32 can represent: 1e-5 of the camera distance (metres when
+    // a few km from a spacecraft), comfortably beyond the near plane.
+    const strokeMinDepth = Math.max(this.camera.near * 1e3, camDist * 1e-5);
+    for (const { markers } of this.eventMarkerGroups.values()) {
+      markers.clipStrokesToCamera(this.camera, strokeMinDepth);
+    }
+
     for (const bm of this.bodyMeshes.values()) {
       if (bm.hasTerrain || bm.hasSurfaceTiles) {
         bm.updateMatrixWorld(true);

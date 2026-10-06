@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { Body } from '@cosmolabe/core';
-import { EventMarkers, eventAnchorOpacityAtSphere, pickEventMarkerGroups, type EventMarker } from './EventMarkers.js';
+import { EventMarkers, clipSegmentInFront, eventAnchorOpacityAtSphere, pickEventMarkerGroups, type EventMarker } from './EventMarkers.js';
 import { TrajectoryLine } from './TrajectoryLine.js';
 import { EVENT_LEAD_POLICY, UniverseRenderer, eventLeadRequest, eventPiecesOnLines, selectEventTrajectoryBody, trajectoryLineResolver } from './UniverseRenderer.js';
 import {
@@ -873,5 +873,52 @@ describe('events on the future lead (#105)', () => {
     expect(eventLeadRequest(events, { id: 'b', queryId: 'q' })).toEqual({ target: { start: 60, end: 90 }, policy: EVENT_LEAD_POLICY });
     expect(eventLeadRequest(events, { id: 'b', queryId: 'q' }, [70, 80])).toEqual({ target: { start: 70, end: 80 }, policy: EVENT_LEAD_POLICY });
     expect(eventLeadRequest(events, { id: 'b', queryId: 'q' }, [100, 120])).toBeNull();
+  });
+});
+
+describe('span strokes that run past the camera', () => {
+  // Camera at the origin looking down -z: depth in front of it is -z.
+  const plane = { origin: new THREE.Vector3(0, 0, 0), forward: new THREE.Vector3(0, 0, -1), minDepth: 0.5 };
+
+  it('clips a segment to the space in front of the camera, in double precision', () => {
+    const a = new THREE.Vector3(1, 0, -10);
+    const b = new THREE.Vector3(1, 0, 10);
+    expect(clipSegmentInFront(a, b, plane)).toBe(true);
+    expect(a.z).toBe(-10);
+    expect(b.z).toBeCloseTo(-0.5, 12);
+    // Wholly behind (or nearer than minDepth): nothing to draw.
+    expect(clipSegmentInFront(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -0.2), plane)).toBe(false);
+    // Wholly in front: untouched.
+    const c = new THREE.Vector3(0, 0, -2), d = new THREE.Vector3(0, 0, -3);
+    expect(clipSegmentInFront(c, d, plane)).toBe(true);
+    expect([c.z, d.z]).toEqual([-2, -3]);
+  });
+
+  it('never hands the GPU a stroke vertex behind the camera', () => {
+    // A selected interval whose drawn path runs from in front of the camera,
+    // past it, and on behind it — the trail of a spacecraft tracked from
+    // just behind.
+    const times = Array.from({ length: 21 }, (_, i) => i);
+    const run = {
+      times: Float64Array.from(times),
+      positions: Float32Array.from(times.flatMap((t) => [0.3, 0, -10 + t])),
+      count: times.length,
+    };
+    const group = new EventMarkers(body, { intervalSamples: 5, path: () => [run] });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 0, endEt: 20, selected: true })]);
+    const resolve = (_name: string, et: number): [number, number, number] => [0.3, 0, -10 + et];
+    group.update(1, [0, 0, 0], resolve, [0, 20]);
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 0, 0);
+    camera.lookAt(0, 0, -1);
+    group.clipStrokesToCamera(camera, 0.5);
+    const g = group.spanEmphasis.geometry;
+    const arr = (g.attributes.instanceStart as THREE.InterleavedBufferAttribute).data.array;
+    expect(g.instanceCount).toBeGreaterThan(0);
+    for (let i = 0; i < g.instanceCount; i++) {
+      expect(arr[i * 6 + 2]).toBeLessThanOrEqual(-0.5 + 1e-6);
+      expect(arr[i * 6 + 5]).toBeLessThanOrEqual(-0.5 + 1e-6);
+    }
+    group.dispose();
   });
 });
