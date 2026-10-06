@@ -330,3 +330,30 @@ describe('TrajectoryLine drawn path (trail + lead)', () => {
     expect(line.pathAlphaAt(far, et)).toBe(1);
   });
 });
+
+describe('TrajectoryLine floating-origin precision', () => {
+  const SCALE = 1e-6; // the renderer's default: 1 scene unit = 1e6 km
+  const firstVertexX = (line: TrajectoryLine) => line.drawnTrail().positions[0];
+
+  it('keeps cached vertices current when the camera is close, however small the drift', () => {
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 0, 10 * SCALE); // 10 km from the tracked body
+    const line = lineFor(circular());
+    line.update(DAY, SCALE, undefined, camera, undefined, [0, 0, 0]);
+    const before = firstVertexX(line);
+    // 50 m of drift: under the old fixed 100 m skip threshold, several
+    // pixels from 10 km away.
+    line.update(DAY, SCALE, undefined, camera, undefined, [0.05, 0, 0]);
+    expect((firstVertexX(line) - before) / SCALE).toBeCloseTo(0.05, 3);
+  });
+
+  it('still skips sub-pixel rewrites when the camera is far away', () => {
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 0, 10); // 10 million km away
+    const line = lineFor(circular());
+    line.update(DAY, SCALE, undefined, camera, undefined, [0, 0, 0]);
+    const before = firstVertexX(line);
+    line.update(DAY, SCALE, undefined, camera, undefined, [0.05, 0, 0]);
+    expect(firstVertexX(line)).toBe(before);
+  });
+});

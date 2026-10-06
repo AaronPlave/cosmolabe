@@ -314,6 +314,14 @@ export class TrajectoryLine extends THREE.Object3D {
     this.applyEmphasis(0);
   }
 
+  /** Largest offset drift (scene units) left unwritten, however far the camera. */
+  static readonly OFFSET_TOLERANCE = 1e-7;
+  /**
+   * Offset drift tolerance per scene unit of camera distance: 1e-4 rad,
+   * about a tenth of a pixel at a typical field of view and canvas height.
+   */
+  static readonly OFFSET_TOLERANCE_PER_DISTANCE = 1e-4;
+
   /** Request key for the persistent `leadDuration` option. */
   static readonly BASE_LEAD = "base";
 
@@ -586,7 +594,7 @@ export class TrajectoryLine extends THREE.Object3D {
     }
 
     // Phase 2: Apply offset and write to Float32 buffers
-    this.applyOffset(scaleFactor, vertexOffset);
+    this.applyOffset(scaleFactor, vertexOffset, camera);
     this.updateLead(et, scaleFactor, resolver, vertexOffset, camera);
   }
 
@@ -822,6 +830,7 @@ export class TrajectoryLine extends THREE.Object3D {
   private applyOffset(
     scaleFactor: number,
     vertexOffset?: [number, number, number],
+    camera?: THREE.Camera,
   ): void {
     const offX = vertexOffset?.[0] ?? 0,
       offY = vertexOffset?.[1] ?? 0,
@@ -832,14 +841,24 @@ export class TrajectoryLine extends THREE.Object3D {
       return;
     }
 
-    // Detect whether offset changed enough to affect Float32 vertex positions.
-    // Positions relative to parent are ~1-10 scene units; the offset moves ~1e-6
-    // scene units per frame at typical time rates. Skip full buffer writes when
-    // nothing visually changed — turns a 100K-write loop into a no-op.
+    // Skip full buffer writes while the offset has not moved enough to show —
+    // turns a 100K-write loop into a no-op. "Enough to show" depends on how
+    // close the camera is: every skipped frame leaves the cached vertices
+    // behind by the accumulated drift, while the head sample is rewritten
+    // each frame. A fixed 1e-7 scene units (100 m at the default scale) was
+    // invisible from afar but, with the camera a few km from a tracked
+    // spacecraft at slow playback, let the drawn path lag tens of metres and
+    // snap back every few frames: a visible flicker, worst on the selected
+    // event span that retraces these vertices. Scale the tolerance with the
+    // camera's distance to the scene origin (the tracked body) so the lag
+    // stays a fraction of a pixel; 1e-7 remains the ceiling.
     const offDx = Math.abs(offX - this._lastOffX);
     const offDy = Math.abs(offY - this._lastOffY);
     const offDz = Math.abs(offZ - this._lastOffZ);
-    const offsetChanged = (offDx + offDy + offDz) * scaleFactor > 1e-7;
+    const tolerance = camera
+      ? Math.min(TrajectoryLine.OFFSET_TOLERANCE, camera.position.length() * TrajectoryLine.OFFSET_TOLERANCE_PER_DISTANCE)
+      : TrajectoryLine.OFFSET_TOLERANCE;
+    const offsetChanged = (offDx + offDy + offDz) * scaleFactor > tolerance;
     const needsFullWrite = this._bufferDirty || offsetChanged;
 
     if (needsFullWrite) {
