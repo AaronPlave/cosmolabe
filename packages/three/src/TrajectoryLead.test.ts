@@ -339,12 +339,28 @@ describe('TrajectoryLine floating-origin precision', () => {
     const camera = new THREE.PerspectiveCamera();
     camera.position.set(0, 0, 10 * SCALE); // 10 km from the tracked body
     const line = lineFor(circular());
-    line.update(DAY, SCALE, undefined, camera, undefined, [0, 0, 0]);
+    // Tracking: the floating origin is the body, at (1000, 0, 0) km at DAY.
+    line.update(DAY, SCALE, undefined, camera, undefined, [-1000, 0, 0]);
     const before = firstVertexX(line);
     // 50 m of drift: under the old fixed 100 m skip threshold, several
     // pixels from 10 km away.
-    line.update(DAY, SCALE, undefined, camera, undefined, [0.05, 0, 0]);
+    line.update(DAY, SCALE, undefined, camera, undefined, [-999.95, 0, 0]);
     expect((firstVertexX(line) - before) / SCALE).toBeCloseTo(0.05, 3);
+  });
+
+  it('measures closeness to the path, not to a distant retained scene origin', () => {
+    // The origin stays on a body 50,000 km away (untracked, or a restored
+    // view); the camera sits 5 km beside the oldest trail vertex.
+    const off = 50_000;
+    const line = lineFor(circular());
+    const camera = new THREE.PerspectiveCamera();
+    line.update(DAY, SCALE, undefined, camera, undefined, [off, 0, 0]);
+    const [x, y, z] = line.drawnTrail().positions;
+    camera.position.set(x, y, z + 5 * SCALE);
+    line.update(DAY, SCALE, undefined, camera, undefined, [off, 0, 0]);
+    const before = firstVertexX(line);
+    line.update(DAY, SCALE, undefined, camera, undefined, [off + 0.05, 0, 0]);
+    expect((firstVertexX(line) - before) / SCALE).toBeCloseTo(0.05, 2);
   });
 
   it('still skips sub-pixel rewrites when the camera is far away', () => {

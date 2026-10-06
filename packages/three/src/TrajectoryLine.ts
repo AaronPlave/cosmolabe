@@ -164,6 +164,10 @@ export class TrajectoryLine extends THREE.Object3D {
   private _lastOffX = NaN;
   private _lastOffY = NaN;
   private _lastOffZ = NaN;
+  // Camera distance to the nearest cached vertex at the last full write, and
+  // the camera position it was measured from (see applyOffset).
+  private _nearestVertexDist = 0;
+  private readonly _nearestFrom = new THREE.Vector3();
   // Color segments: override base color for time ranges
   private _colorSegments: Array<{
     startEt: number;
@@ -826,6 +830,30 @@ export class TrajectoryLine extends THREE.Object3D {
 
   private _orbitSamples?: Sample[];
 
+  /**
+   * Note the camera's distance to the nearest of the first `count` freshly
+   * written trail vertices, for the offset-skip tolerance in applyOffset.
+   * Without a camera there is nothing to scale by; 0 keeps a later
+   * camera-aware frame conservative.
+   */
+  private recordNearestVertex(count: number, camera?: THREE.Camera): void {
+    if (!camera) {
+      this._nearestVertexDist = 0;
+      return;
+    }
+    const { x, y, z } = camera.position;
+    const p = this.trailPositions;
+    let nearestSq = Infinity;
+    for (let i = 0; i < count; i++) {
+      const dx = p[i * 3] - x, dy = p[i * 3 + 1] - y, dz = p[i * 3 + 2] - z;
+      const d = dx * dx + dy * dy + dz * dz;
+      if (d < nearestSq) nearestSq = d;
+    }
+    // Nothing measurable (no vertices, a NaN camera): 0 rewrites next frame.
+    this._nearestVertexDist = Number.isFinite(nearestSq) ? Math.sqrt(nearestSq) : 0;
+    this._nearestFrom.copy(camera.position);
+  }
+
   /** Apply vertex offset and write to Float32 buffers — called every frame */
   private applyOffset(
     scaleFactor: number,
@@ -843,21 +871,42 @@ export class TrajectoryLine extends THREE.Object3D {
 
     // Skip full buffer writes while the offset has not moved enough to show —
     // turns a 100K-write loop into a no-op. "Enough to show" depends on how
-    // close the camera is: every skipped frame leaves the cached vertices
-    // behind by the accumulated drift, while the head sample is rewritten
-    // each frame. A fixed 1e-7 scene units (100 m at the default scale) was
-    // invisible from afar but, with the camera a few km from a tracked
-    // spacecraft at slow playback, let the drawn path lag tens of metres and
-    // snap back every few frames: a visible flicker, worst on the selected
-    // event span that retraces these vertices. Scale the tolerance with the
-    // camera's distance to the scene origin (the tracked body) so the lag
-    // stays a fraction of a pixel; 1e-7 remains the ceiling.
+    // close the camera is to the path: every skipped frame leaves the cached
+    // vertices behind by the accumulated drift, while the head sample is
+    // rewritten each frame. A fixed 1e-7 scene units (100 m at the default
+    // scale) was invisible from afar but, with the camera a few km from a
+    // tracked spacecraft at slow playback, let the drawn path lag tens of
+    // metres and snap back every few frames: a visible flicker, worst on the
+    // selected event span that retraces these vertices. Scale the tolerance
+    // with the camera's distance to the path itself, not to the scene origin:
+    // the origin can stay on a body far from the path being viewed (after
+    // untracking, or a restored view). The bound is the nearest cached vertex
+    // at the last full write less how far the camera has moved since, and
+    // the live head; 1e-7 remains the ceiling.
     const offDx = Math.abs(offX - this._lastOffX);
     const offDy = Math.abs(offY - this._lastOffY);
     const offDz = Math.abs(offZ - this._lastOffZ);
-    const tolerance = camera
-      ? Math.min(TrajectoryLine.OFFSET_TOLERANCE, camera.position.length() * TrajectoryLine.OFFSET_TOLERANCE_PER_DISTANCE)
-      : TrajectoryLine.OFFSET_TOLERANCE;
+    let tolerance = TrajectoryLine.OFFSET_TOLERANCE;
+    if (camera) {
+      const cam = camera.position;
+      let pathDist = Math.max(0, this._nearestVertexDist - cam.distanceTo(this._nearestFrom));
+      const head = this._tailSample;
+      if (head) {
+        pathDist = Math.min(
+          pathDist,
+          Math.hypot(
+            (head.x + offX) * scaleFactor - cam.x,
+            (head.y + offY) * scaleFactor - cam.y,
+            (head.z + offZ) * scaleFactor - cam.z,
+          ),
+        );
+      }
+      // An unusable bound (NaN camera, nothing measured) must force a write,
+      // which measures afresh, rather than stick at the ceiling.
+      tolerance = pathDist >= 0
+        ? Math.min(tolerance, pathDist * TrajectoryLine.OFFSET_TOLERANCE_PER_DISTANCE)
+        : 0;
+    }
     const offsetChanged = (offDx + offDy + offDz) * scaleFactor > tolerance;
     const needsFullWrite = this._bufferDirty || offsetChanged;
 
@@ -920,6 +969,7 @@ export class TrajectoryLine extends THREE.Object3D {
           this.trailColors[i * 3 + 1] = cg * fade;
           this.trailColors[i * 3 + 2] = cb * fade;
         }
+        this.recordNearestVertex(count, camera);
       }
 
       // Append bridge samples + tail — fills the gap to current time with
@@ -1013,6 +1063,7 @@ export class TrajectoryLine extends THREE.Object3D {
         this.trailColors[i * 3 + 1] = cg * fade;
         this.trailColors[i * 3 + 2] = cb * fade;
       }
+      this.recordNearestVertex(visibleSampleCount, camera);
     }
 
     // Append live tail sample — always updated (6 writes, trivial)
