@@ -1,6 +1,6 @@
 # git-lfs tiering.
 #
-# Extensions below are reliably large in this repo (kernels, GPU textures,
+# Extensions below are reliably large in this repo (GPU textures,
 # spacecraft .glb meshes), so route them through LFS. Mixed-size formats
 # (.png/.jpg/.obj/.cmod/.gltf) are NOT LFS-routed by default — most files in
 # those formats are small enough that LFS is overhead. Specific large files
@@ -11,12 +11,14 @@
 #   - If the format is variable-size, leave it as a regular blob and add a
 #     path rule only if the specific file is multi-MB.
 
-# Always-large data formats
-*.bsp filter=lfs diff=lfs merge=lfs -text
-*.bc filter=lfs diff=lfs merge=lfs -text
-*.bpc filter=lfs diff=lfs merge=lfs -text
+# Large formats and exceptional SPICE test fixtures. Mission kernels are fetched,
+# while small deterministic fixtures are ordinary Git blobs. The two explicit
+# SPICE exceptions retain broad planetary coverage and real Cassini CK attitude
+# needed by integration tests; shrinking either would change those oracles.
 *.tif filter=lfs diff=lfs merge=lfs -text
 *.gz filter=lfs diff=lfs merge=lfs -text
+packages/spice/test-kernels/de425s.bsp filter=lfs diff=lfs merge=lfs -text
+packages/spice/test-kernels/cassini/04183_04185ra.bc filter=lfs diff=lfs merge=lfs -text
 
 # NOT LFS: *.wasm. WebAssembly modules are build-critical runtime artifacts,
 # not bulk assets — packages/cspice-wasm/wasm/cspice.wasm (1.4 MB) IS the SPICE

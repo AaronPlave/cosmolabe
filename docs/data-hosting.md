@@ -6,10 +6,12 @@ SPICE kernels are ~1.1 GB. These live in an object store instead — Cloudflare 
 behind a custom domain — and the deployed catalogs point there. Nothing large
 goes in git or in the Pages artifact.
 
-Local development is unchanged: catalogs keep their local paths
+Local catalogs keep their local paths
 (`kernels/…`, `/test-catalogs/data/…`), `npm run dev` serves them from
 `apps/viewer/test-catalogs/`, and the Vite middleware still gunzips `.terrain`
-files on the fly.
+files on the fly. Run `scripts/fetch-all.sh` to populate the full local mission
+kernel set. Small deterministic test kernels are committed in Git; only two
+oversized test fixtures remain in LFS.
 
 ## How the pieces fit
 

@@ -486,7 +486,7 @@ otherwise has to be pushed into catalog JSON to be reachable at all.
 Adding one is a **hand procedure**, not a code change, and the steps are in this
 order for reasons the harness's own comments record:
 
-1. `git lfs pull` (the scene's kernels), `bash scripts/check-lfs-pointers.sh`,
+1. `scripts/fetch-all.sh` (the scene's kernels), `bash scripts/check-lfs-pointers.sh`,
    `npx playwright install chromium`.
 2. Add the scene with its `script`, and run `node scripts/visual-regression.mjs`
    **without any golden flag**. Two things must happen: every existing scene

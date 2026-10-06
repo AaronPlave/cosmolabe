@@ -11,7 +11,7 @@
  * scaling, texture/material orientation.
  *
  * NOT run in CI (`.github/workflows/ci.yml`), deliberately: it needs a browser,
- * a full package + viewer build, and the scenes' LFS-backed SPICE kernels. So
+ * a full package + viewer build, and the locally fetched scene kernels. So
  * this gate has exactly the authority of whoever last ran it by hand. If that
  * changes, delete this paragraph.
  *

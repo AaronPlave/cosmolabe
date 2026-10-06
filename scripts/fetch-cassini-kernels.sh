@@ -52,6 +52,23 @@ for url in "${SMALL_KERNELS[@]}"; do
   curl -fSL --progress-bar "$url" -o "$dest_file"
 done
 
+# Legacy SOI kernels still used by the catalog and OEM demo generator. Keep
+# these uncompressed because their existing local catalog paths end in .bc/.bsp.
+SOI_KERNELS=(
+  "$NAIF/spk/040629AP_SCPSE_04179_04185.bsp"
+  "$NAIF/ck/04183_04185ra.bc"
+)
+for url in "${SOI_KERNELS[@]}"; do
+  filename=$(basename "$url")
+  dest_file="$DEST/$filename"
+  if [ -f "$dest_file" ]; then
+    echo "  [skip] $filename (already exists)"
+    continue
+  fi
+  echo "  [fetch] $filename ..."
+  curl -fSL --progress-bar "$url" -o "$dest_file"
+done
+
 # ── Large binary kernels (SPK, CK) — gzipped for web delivery ───────
 
 LARGE_KERNELS=(
