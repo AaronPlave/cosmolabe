@@ -450,7 +450,7 @@ export class BodyMesh extends THREE.Object3D {
     };
     // Bump cache key so the program is recompiled with both injections combined.
     const prevKey = (mat.customProgramCacheKey ?? (() => ''))();
-    mat.customProgramCacheKey = () => prevKey + '_ap_v3';
+    mat.customProgramCacheKey = () => prevKey + '_ap_v4';
     mat.needsUpdate = true;
 
     // Forward to terrain tiles if already initialized (or queued for future tiles).
@@ -540,7 +540,7 @@ export class BodyMesh extends THREE.Object3D {
       if (su) injectShadowIntoShader(shader, su);
       if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
     };
-    const suffix = (su ? '_shadow_v1' : '') + (apu ? '_ap_v1' : '') + '_child';
+    const suffix = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_child';
     mat.customProgramCacheKey = () => suffix;
   }
 

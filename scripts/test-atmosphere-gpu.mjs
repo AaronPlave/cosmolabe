@@ -51,7 +51,8 @@ try {
       return Array.from(data).slice(0, 3);
     };
     try {
-      const samples = [[2, 1], [2, 0], [25, 0.3], [90, 1], [2, -0.1]].map(([h, mu]) => {
+      const samples = [[2, 1], [2, 0], [25, 0.3], [90, 1], [2, -0.1],
+        [0, 1], [0, 0.05], [400, 1], [400, -0.32], [400, -0.5]].map(([h, mu]) => {
         material.uniforms.probePoint.value.set((6378.1 + h) / atm.shellRadius, 0, 0);
         material.uniforms.probeDir.value.set(mu, Math.sqrt(1 - mu * mu), 0);
         return { h, mu, rgb: read() };
@@ -223,7 +224,7 @@ try {
   for (const result of [results.eclipsedAP,results.partialAP,results.ringAP,results.transformedAP])
     assert.ok(Math.abs(result[3]-results.clearAP[3])<0.00001, 'Occlusion changed view extinction');
   console.log('Renderer-optional shell and per-sample moon/ring visibility pass; shadowed extinction is unchanged.');
-  console.log('GPU segment integration passes. GPU transmittance: LUT and fallback each match 5 RGB rays against the numerical reference; Rayleigh and Mie phases integrate to 1.');
+  console.log(`GPU segment integration passes. GPU transmittance: LUT and fallback each match ${results.samples.length} RGB rays against the numerical reference; Rayleigh and Mie phases integrate to 1.`);
   console.log('GPU transmittance matches 12 grazing Sun rays within 0.005 RGB of direct integration.');
   console.log('Filtered sky-view LUT matches direct extinction near the horizon at 50 km and 99.99 km.');
 } finally { await browser.close(); }

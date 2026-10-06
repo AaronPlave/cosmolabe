@@ -211,3 +211,60 @@ textured solar-system capture is unchanged after the fixes.
 CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/capture-atmosphere-diagnostics.mjs
 CL_VIEWER_URL=http://127.0.0.1:5174 VR_SKIP_BUILD=1 VR_SCENES=atmosphere-saturn-shadow,atmosphere-earth-eclipse node scripts/visual-regression.mjs
 ```
+
+## Incident solar extinction (phase 3, first slice)
+
+Body, terrain, and atmospheric child materials now attenuate incoming solar
+radiance with the shared RGB transmittance model before evaluating their BRDF.
+This includes specular and clearcoat response. In the stock renderer the Sun
+is the directional light; point/spot lights, ambient/environment lighting,
+emission, and unlit imagery keep their existing source radiance. Camera-to-surface
+transport still applies afterward, so the direct surface term is now
+`BRDF(sun * T_sun_rgb) * T_view_rgb + L_scatter_rgb` before display conversion.
+The existing eclipse/ring shadow and view-sample visibility paths still apply.
+
+Incident and view paths share the analytic globe endpoint in the atmosphere's
+ellipsoid frame. Terrain retains its actual altitude, with below-reference
+endpoints clamped to the reference surface. Child geometry above the shell
+clips its solar ray to the shell entry; rays missing the shell remain transparent.
+No atmospheric preset or exposure values changed in this slice.
+
+```sh
+npm run build
+CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/test-atmosphere-surface-gpu.mjs
+CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/test-atmosphere-gpu.mjs
+CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/capture-atmosphere-surface.mjs
+```
+
+The material GPU check renders Phong, Standard, Physical (with clearcoat), and
+Basic materials into a linear float target. Eighty probes cover overhead/grazing
+sunlight, 0/2/20/100/400 km endpoints, globe chord correction, transformed oblate
+bodies, and isolation of ambient/local/emissive terms. Lit RGB attenuation ratios
+are compared with a 4096-step CPU integral (0.025 absolute tolerance). The shared
+GLSL check additionally covers above-shell rays that miss the atmosphere, graze
+through it, or intersect the solid planet, in both LUT and renderer-free modes.
+
+The capture script compares identical Earth, Mars, and Saturn cameras with only
+incident solar extinction disabled/enabled; view extinction and scattering stay
+active in both images. Review the images before changing regression goldens.
+Phase 3 still needs the shell/background RGB composite and translucent/depth
+ordering work; this slice does not replace scalar shell blending or the per-material
+display conversion.
+
+![Incident sunlight before/after: Earth disc, Earth terminator, Mars disc, Saturn shadows](images/issue-134/surface-solar-extinction.png)
+
+Earth's terminator with the Sun 3° above the local horizon, cropped to the same
+256×144 source pixels and enlarged 3× without exposure or color adjustments:
+
+![Earth terminator: prior sunlight left, RGB solar extinction right](images/issue-134/earth-terminator-crops.png)
+
+The right-hand surface illumination dims more strongly toward the terminator.
+The capture script also writes this enlarged comparison when the twilight scene
+is included.
+
+The comparison retains surface detail and Saturn's ring/moon shadows. Whole-disc
+changes are modest in these presets; this is transport validation, not a final
+color calibration or a solution to the existing ground-horizon artifacts.
+Local build, lint, test typechecking, 270 renderer unit tests, and both GPU
+checks pass. The full repository suite reports 1346 passes and 114 failures
+with missing/unreadable SPICE kernel fixtures, including unexpanded LFS pointers.
