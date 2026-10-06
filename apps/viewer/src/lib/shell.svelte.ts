@@ -55,7 +55,7 @@ export function isToolId(value: string): value is ToolId {
  * follows a click, so neither is a tool, but both are instruments the user
  * should be able to move and minimize like any other.
  */
-export const PANEL_KEYS = [...TOOL_IDS, 'info', 'pick'] as const;
+export const PANEL_KEYS = [...TOOL_IDS, 'info', 'probe'] as const;
 
 export type PanelKey = (typeof PANEL_KEYS)[number];
 

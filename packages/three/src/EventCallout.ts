@@ -47,8 +47,8 @@ export interface CalloutContent {
   color: string;
   /** Interaction state of the annotated feature. */
   tone: 'preview' | 'selected';
-  /** Which feature the callout points at. */
-  feature: 'point' | 'boundary';
+  /** Which feature the callout points at: an event point or boundary, or a probed surface point. */
+  feature: 'point' | 'boundary' | 'probe';
 }
 
 const EDGE_MARGIN = 6;
@@ -396,6 +396,19 @@ export class EventCallout {
       bar.setAttribute('stroke', content.color);
       bar.setAttribute('stroke-width', '1.5');
       svg.append(bar);
+      return svg;
+    }
+    if (content.feature === 'probe') {
+      // A ring, like the in-scene reticle; filled once the point is pinned.
+      const ring = document.createElementNS(SVG_NS, 'circle');
+      ring.setAttribute('cx', '4');
+      ring.setAttribute('cy', '4');
+      ring.setAttribute('r', '3');
+      ring.setAttribute('stroke', content.color);
+      ring.setAttribute('stroke-width', '1.2');
+      ring.setAttribute('fill', content.color);
+      ring.setAttribute('fill-opacity', content.tone === 'selected' ? '1' : '0');
+      svg.append(ring);
       return svg;
     }
     const diamond = document.createElementNS(SVG_NS, 'path');

@@ -30,7 +30,7 @@
     // scene a strip at the top.
     if (shell.layout === 'compact') {
       const active = shell.activeSheet;
-      if (active == null || active === 'info' || active === 'pick') return [];
+      if (active == null || active === 'info' || active === 'probe') return [];
       const def = toolDef(active);
       return def.presentation === 'panel' && shell.openTools.includes(active) ? [def] : [];
     }

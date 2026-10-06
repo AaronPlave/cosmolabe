@@ -6,6 +6,7 @@ import type { UniverseRenderer } from '@cosmolabe/three';
 import {
   vs, togglePlay, reverse, faster, slower, stepForward, stepBackward,
   setDisplayOption, cycleCamera, flyToTracked, resetCamera, getRenderer,
+  toggleProbe, clearProbePin,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
 import { shell } from './shell.svelte';
@@ -44,6 +45,10 @@ function getBuiltinCommands(): Command[] {
     { id: 'disp:labels', label: vs.showLabels ? 'Hide labels' : 'Show labels', shortcut: 'L', category: 'Display', execute: () => setDisplayOption('labels', !vs.showLabels) },
     { id: 'disp:grid', label: vs.showGrid ? 'Hide grid' : 'Show grid', shortcut: 'G', category: 'Display', execute: () => setDisplayOption('grid', !vs.showGrid) },
     { id: 'disp:axes', label: vs.showAxes ? 'Hide axes' : 'Show axes', shortcut: 'X', category: 'Display', execute: () => setDisplayOption('axes', !vs.showAxes) },
+
+    // Inspect
+    { id: 'probe:toggle', label: vs.probeActive ? 'Stop probing' : 'Probe point', shortcut: 'P', category: 'Inspect', execute: () => toggleProbe() },
+    ...(vs.probePin ? [{ id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() }] : []),
 
     // Instrument
     { id: 'instr:cycle', label: 'Cycle instrument PiP', shortcut: 'I', category: 'Display', execute: (r) => {
