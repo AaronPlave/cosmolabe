@@ -439,7 +439,12 @@ class SpanStroke {
    * Rewrite the stroke from `trace`, which emits the polyline's points in
    * order (a NaN point breaks the stroke); `maxPoints` bounds how many it can
    * emit. With `clip`, each segment is first clipped to the space in front of
-   * the camera (see {@link clipSegmentInFront}).
+   * the camera (see {@link clipSegmentInFront}), and the stroke is written
+   * relative to the camera: vertices are offset by `clip.origin` in double
+   * precision and the line is placed at it, so three.js cancels the two in its
+   * float64 model-view product. World-space float32 vertices hundreds of
+   * thousands of km from the scene origin are only good to tens of km, which
+   * near the camera is the difference between a line and a smear.
    */
   write(
     maxPoints: number,
@@ -451,6 +456,11 @@ class SpanStroke {
     let px = NaN, py = NaN, pz = NaN;
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
+    const ox = clip?.origin.x ?? 0, oy = clip?.origin.y ?? 0, oz = clip?.origin.z ?? 0;
+    if (this.line.position.x !== ox || this.line.position.y !== oy || this.line.position.z !== oz) {
+      this.line.position.set(ox, oy, oz);
+      this.line.updateMatrixWorld();
+    }
     trace((point) => {
       if (Number.isNaN(point.x)) {
         px = NaN;
@@ -461,8 +471,8 @@ class SpanStroke {
         b.copy(point);
         if (!clip || clipSegmentInFront(a, b, clip)) {
           const o = segments++ * 6;
-          array[o] = a.x; array[o + 1] = a.y; array[o + 2] = a.z;
-          array[o + 3] = b.x; array[o + 4] = b.y; array[o + 5] = b.z;
+          array[o] = a.x - ox; array[o + 1] = a.y - oy; array[o + 2] = a.z - oz;
+          array[o + 3] = b.x - ox; array[o + 4] = b.y - oy; array[o + 5] = b.z - oz;
         }
       }
       px = point.x; py = point.y; pz = point.z;

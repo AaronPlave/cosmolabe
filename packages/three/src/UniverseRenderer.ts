@@ -989,10 +989,11 @@ export class UniverseRenderer {
 
     // Event span strokes are fat lines whose shader trims segments behind the
     // camera to this (very close) near plane in float32, unstably. Clip them
-    // here, in double precision and against this frame's final camera, at a
-    // depth float32 can represent: 1e-5 of the camera distance (metres when
-    // a few km from a spacecraft), comfortably beyond the near plane.
-    const strokeMinDepth = Math.max(this.camera.near * 1e3, camDist * 1e-5);
+    // here, in double precision and against this frame's final camera, just
+    // beyond the near plane. The strokes are written camera-relative, so a
+    // depth this small stays exact even when the camera is far from the scene
+    // origin and the path runs right past it.
+    const strokeMinDepth = this.camera.near * 10;
     for (const { markers } of this.eventMarkerGroups.values()) {
       markers.clipStrokesToCamera(this.camera, strokeMinDepth);
     }

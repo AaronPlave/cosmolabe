@@ -922,3 +922,42 @@ describe('span strokes that run past the camera', () => {
     group.dispose();
   });
 });
+
+describe('camera-relative span strokes', () => {
+  it('writes vertices relative to a camera far from the origin, keeping near-camera geometry exact', () => {
+    // The scene origin is the tracked body; the camera sits 0.6 scene units
+    // (600,000 km) away, and the selected path runs right past it.
+    const C = new THREE.Vector3(0.6, 0, 0);
+    const times = Array.from({ length: 11 }, (_, i) => i);
+    // A path passing 1e-6 (1 km) beside the camera, from in front to behind.
+    const xyz = (t: number): [number, number, number] => [0.6 + 1e-6, 0, -5e-5 + t * 1e-5];
+    const run = { times: Float64Array.from(times), positions: Float32Array.from(times.flatMap(xyz)), count: times.length };
+    const group = new EventMarkers(body, { intervalSamples: 5, path: () => [run] });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 0, endEt: 10, selected: true })]);
+    group.update(1, [0, 0, 0], (_name, et) => xyz(et), [0, 10]);
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.copy(C);
+    camera.lookAt(C.x, C.y, C.z - 1);
+    const minDepth = 1e-9; // 1 m
+    group.clipStrokesToCamera(camera, minDepth);
+    const stroke = group.spanEmphasis;
+    expect(stroke.position.toArray()).toEqual(C.toArray());
+    const g = stroke.geometry;
+    const arr = (g.attributes.instanceStart as THREE.InterleavedBufferAttribute).data.array;
+    expect(g.instanceCount).toBeGreaterThan(0);
+    let nearest = Infinity;
+    for (let i = 0; i < g.instanceCount; i++) {
+      for (const k of [0, 3]) {
+        // Camera-relative and small: float32 keeps them to well under a metre.
+        expect(Math.abs(arr[i * 6 + k])).toBeLessThan(1e-4);
+        const depth = -arr[i * 6 + k + 2];
+        expect(depth).toBeGreaterThanOrEqual(minDepth * (1 - 1e-3));
+        nearest = Math.min(nearest, depth);
+      }
+    }
+    // The stroke reaches the clip plane right in front of the camera, rather
+    // than stopping kilometres short of it.
+    expect(nearest).toBeLessThan(2e-9);
+    group.dispose();
+  });
+});
