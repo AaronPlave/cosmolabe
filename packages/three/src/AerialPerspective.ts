@@ -228,14 +228,18 @@ export function injectAerialPerspectiveIntoShader(
   // spectral extinction to its incident radiance before the BRDF, including
   // specular/clearcoat, while leaving local point lights and indirect/emissive
   // terms alone. Unlit materials have no lights_fragment_begin hook.
-  shader.fragmentShader = shader.fragmentShader.replace(
-    '#include <lights_fragment_begin>',
-    THREE.ShaderChunk.lights_fragment_begin.replace(
-      'getDirectionalLightInfo( directionalLight, directLight );',
-      'getDirectionalLightInfo( directionalLight, directLight );\n' +
-      'directLight.color *= computeSurfaceSunTransmittance(vAPWorldPos);',
-    ),
-  );
+  if (shader.fragmentShader.includes('#include <lights_fragment_begin>')) {
+    const solarHook = 'getDirectionalLightInfo( directionalLight, directLight );';
+    const lights = THREE.ShaderChunk.lights_fragment_begin;
+    if (!lights.includes(solarHook)) {
+      throw new Error('Atmosphere solar extinction: Three.js directional-light shader hook changed.');
+    }
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <lights_fragment_begin>',
+      lights.replace(solarHook, solarHook + '\n' +
+        'directLight.color *= computeSurfaceSunTransmittance(vAPWorldPos);'),
+    );
+  }
   // Fragment: prepend AP function, composite outgoingLight before opaque output.
   // Same `<opaque_fragment>` hook as EclipseShadow — when both are injected,
   // EclipseShadow first scales outgoingLight by shadow factor; AP then folds in

@@ -268,3 +268,59 @@ color calibration or a solution to the existing ground-horizon artifacts.
 Local build, lint, test typechecking, 270 renderer unit tests, and both GPU
 checks pass. The full repository suite reports 1346 passes and 114 failures
 with missing/unreadable SPICE kernel fixtures, including unexpanded LFS pointers.
+
+### Solar injection regression and plugin lighting contract
+
+The normal Vitest suite now exercises incident extinction in Three.js's actual
+Phong, Standard, and Physical shader sources, and the eclipse/ring/AP composition
+fixture includes the light chunk. It checks that solar attenuation occurs after
+directional-light setup and before BRDF evaluation. Basic materials retain view
+transport without incident-light injection. A changed upstream directional-light
+hook raises an explicit error instead of silently omitting solar extinction.
+
+Directional lights in `RendererContext.scene` are reserved for the renderer's
+Sun. Atmospheric body/terrain materials treat every directional light as solar
+illumination. The context API and renderer README document that plugins must use
+point or spot lights for local lighting; additional directional lights are not
+supported by this atmosphere path.
+
+For a paired high-fill performance sanity check:
+
+```sh
+npm run build
+CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/profile-atmosphere-surface.mjs
+```
+
+The check fixes the textured Earth camera at 400 km and pauses playback. Only the
+incident solar attenuation call is disabled/enabled; view transport is identical.
+At 512×384 it measures complete `renderFrame()` calls followed by a one-pixel
+readback to force GPU completion, excluding PNG encoding and full-image readback.
+Four paired blocks alternate mode order, discard four
+warm frames after each switch, and measure eight frames per block (32 per mode).
+The script verifies that more than 90% of the viewport is lit and emits each
+block's median as well as overall medians. These are synchronized CPU/submission/
+GPU-completion timings including the tiny readback, not isolated GPU pass timings.
+`gl.finish()` alone did not force completion in the tested Chromium/SwiftShader
+configuration. Run without another
+WebGL test or workload competing for the same machine.
+
+On 2026-10-06, Chromium/ANGLE Vulkan SwiftShader, textured Earth at 400 km,
+512×384, 100% lit viewport, 32 measured frames per mode:
+
+| Incident solar extinction | Median synchronized frame |
+| --- | ---: |
+| Disabled | 524.1 ms |
+| Enabled | 551.7 ms |
+| Difference | +27.6 ms (+5.3%) |
+
+Every paired block was slower with solar extinction (approximately +2.9% to
++5.5%). This is a measurable software-rendering cost for a high-fill view,
+not evidence of zero overhead or a hardware GPU performance guarantee. The
+extinction lookup and extra endpoint work remain candidates for optimization
+if hardware/terrain profiling warrants it. The raw measurements, including
+block medians and renderer identity, are in
+[`atmosphere-surface-profile.json`](atmosphere-surface-profile.json).
+
+After the review changes, build, lint, test typechecking, all 275 renderer unit
+tests, and both numerical GPU checks pass. The full SPICE-dependent suite was
+not rerun; the earlier fixture-related failures above remain the local limit.
