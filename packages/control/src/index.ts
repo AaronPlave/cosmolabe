@@ -41,3 +41,5 @@ export { suggest } from './suggest.js';
 // Editor support
 export { cursorContext, completionsAt, signatureAt } from './complete.js';
 export type { CursorContext, ScriptCompletion, CompletionNames, ScriptSignature } from './complete.js';
+export { applyViewState, decodeViewState, encodeViewState, validateViewState, viewStateAtEpoch, ViewStateError, MAX_VIEW_STATE_LENGTH, PORTABLE_POSE_MODES } from './view-state.js';
+export type { ViewStateV1, ViewCatalog, ViewTime } from './view-state.js';

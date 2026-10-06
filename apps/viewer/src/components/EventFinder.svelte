@@ -8,7 +8,7 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
-  import { analysis, moveConfiguredEventQuery } from '../lib/analysis.svelte';
+  import { analysis } from '../lib/analysis.svelte';
   import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X, CircleHelp } from 'lucide-svelte';
   import { tick, untrack } from 'svelte';
   import * as Select from '$lib/components/ui/select/index.js';
@@ -23,7 +23,7 @@
     EVENT_KINDS, cancelSearch, ef, clearSelection, currentKind, resetForm, runSearch,
     selectEvent, previewEvent, removeConfiguredQuery, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
     currentConfiguredQuery, setCurrentQueryVisible,
-    configuredEventQueries, createNewSearch, openConfiguredQuery,
+    configuredEventQueries, createNewSearch, openConfiguredQuery, moveEventQuery,
     setConfiguredQueryEnabled, setConfiguredQueryVisible, isSelectedEvent, currentSearchUnavailable,
     useAvailableWindow, windowOutsideUsable, ensureCoverageCurrent,
   } from '../lib/event-finder.svelte';
@@ -41,7 +41,7 @@
   // The form is built from the catalog's own time span, which is not known
   // until a scene has loaded — so it is built on mount, not at module scope.
   $effect(() => {
-    if (!ef.form) resetForm();
+    if (!ef.form && !ef.restoring) resetForm();
   });
 
   // Kernels dropped into the running scene change what can be computed. The
@@ -66,7 +66,7 @@
   let configuredQueries = $derived(configuredEventQueries());
   /** Why this scene cannot search at all — a stated policy, not a failed search. */
   let unavailable = $derived(currentSearchUnavailable());
-  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable);
+  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable && !ef.restoring);
   let coverage = $derived(ef.coverage);
   /** The bodies the suggestion is about, in the kind's role order: "Mars ↔ Earth". */
   let coverageSubject = $derived(
@@ -450,6 +450,8 @@
       </div>
     {/if}
 
+    {#if ef.restoring}<p class="ui-helper mt-1.5" role="status">Restoring shared event searches…</p>{/if}
+
     {#if configured}
       <div class="mt-1.5 flex items-center gap-3 ui-helper">
         <label class="flex items-center gap-1 cursor-pointer" title="Include this search in analysis">
@@ -505,14 +507,14 @@
             <span class="query-move" role="group" aria-label="Move search">
               <button
                 class="query-action"
-                onclick={() => moveConfiguredEventQuery(query.id, -1)}
+                onclick={() => moveEventQuery(query.id, -1)}
                 disabled={qi === 0}
                 aria-label="Move {query.label} up"
                 title="Move up"
               ><ArrowUp size={11} /></button>
               <button
                 class="query-action"
-                onclick={() => moveConfiguredEventQuery(query.id, 1)}
+                onclick={() => moveEventQuery(query.id, 1)}
                 disabled={qi === configuredQueries.length - 1}
                 aria-label="Move {query.label} down"
                 title="Move down"
