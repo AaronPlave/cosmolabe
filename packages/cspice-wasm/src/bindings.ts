@@ -40,6 +40,24 @@ const GF_CNVTOL = 1e-6;
  * `ckcov_c` takes beyond the file and the id. Every one of them is CSPICE's
  * own: nothing here is reinterpreted on the way through.
  */
+/** One SPK segment descriptor, as {@link SpiceBindings.spkSegments} reads it. */
+export interface SpkSegmentSummary {
+  /** Kernel the segment was read from. */
+  file: string;
+  /** NAIF id of the body whose state the segment carries. */
+  body: number;
+  /** NAIF id of the body that state is relative to. */
+  center: number;
+  /** NAIF id of the reference frame the state is expressed in. */
+  frame: number;
+  /** SPK data type. */
+  type: number;
+  /** Coverage start, TDB seconds past J2000. */
+  start: number;
+  /** Coverage end, TDB seconds past J2000. */
+  end: number;
+}
+
 export interface CkCoverageOptions {
   /** `needav`: count only segments that carry angular velocity. Default false. */
   needAv?: boolean;
@@ -760,11 +778,19 @@ export class SpiceBindings {
     name: string,
     visit: (start: number, end: number, ic: readonly number[]) => void,
   ): void {
+    const path = `${KERNEL_DIR}/${name}`;
+    if (!this.mod.FS.analyzePath(path).exists) {
+      throw new SpiceError(`spk summary walk: no staged kernel named '${name}'`);
+    }
+    this.walkDafSummariesAt(path, visit);
+  }
+
+  /** {@link walkDafSummaries} over a path CSPICE already knows (kdata_c's). */
+  private walkDafSummariesAt(
+    path: string,
+    visit: (start: number, end: number, ic: readonly number[]) => void,
+  ): void {
     this.scope(() => {
-      const path = `${KERNEL_DIR}/${name}`;
-      if (!this.mod.FS.analyzePath(path).exists) {
-        throw new SpiceError(`spk summary walk: no staged kernel named '${name}'`);
-      }
       const handlePtr = this.scratch(4);
       this.call('dafopr_c', this.str(path), handlePtr);
       this.checkFailed();
@@ -827,6 +853,44 @@ export class SpiceBindings {
       if (ic[0] === body) raw.push([start, end]);
     });
     return SpiceBindings.mergeRanges(raw);
+  }
+
+  /**
+   * Every segment of a staged SPK, in file order, with what `spkcov` discards:
+   * the center each state is relative to and the frame it is expressed in.
+   *
+   * Coverage for one body id cannot say whether its state is computable, since
+   * SPICE resolves a state by walking segment centers until it reaches a node
+   * the other body's chain shares. This is the data that walk runs on, read
+   * from the descriptors SPICE itself selects segments by (NI=6: body, center,
+   * frame, type, then the two data addresses).
+   */
+  spkSegments(name: string): SpkSegmentSummary[] {
+    const out: SpkSegmentSummary[] = [];
+    this.walkDafSummaries(name, (start, end, ic) => {
+      out.push({ file: name, body: ic[0]!, center: ic[1]!, frame: ic[2]!, type: ic[3]!, start, end });
+    });
+    return out;
+  }
+
+  /**
+   * Every segment of every loaded SPK, lowest priority first.
+   *
+   * The order is SPICE's own: kdata_c lists SPKs in load order, and SPICE
+   * searches the last-loaded file first and, within a file, the last segment
+   * first. Reversing this list therefore gives the order in which SPICE would
+   * consider segments for an epoch, which is what deciding the segment it
+   * actually uses — and so the center it recurses to — requires.
+   */
+  loadedSpkSegments(): SpkSegmentSummary[] {
+    const out: SpkSegmentSummary[] = [];
+    for (const path of this.loadedKernelPaths('SPK')) {
+      const file = path.startsWith(`${KERNEL_DIR}/`) ? path.slice(KERNEL_DIR.length + 1) : path;
+      this.walkDafSummariesAt(path, (start, end, ic) => {
+        out.push({ file, body: ic[0]!, center: ic[1]!, frame: ic[2]!, type: ic[3]!, start, end });
+      });
+    }
+    return out;
   }
 
   /**

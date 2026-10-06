@@ -93,6 +93,13 @@ export class CameraController {
   private _originBody: BodyMesh | null = null;
   get originBody(): BodyMesh | null { return this._originBody; }
 
+  /** Restore an explicit coordinate origin, without changing navigation. */
+  setOriginBody(body: BodyMesh | null): void {
+    this.cancelAnimation();
+    this._pendingOriginSwitch = null;
+    this._originBody = body;
+  }
+
   private _lookAtTarget: BodyMesh | null = null;
   get lookAtBody(): BodyMesh | null { return this._lookAtTarget; }
   private readonly _prevTargetPos = new THREE.Vector3();
@@ -714,6 +721,21 @@ export class CameraController {
   cancelAnimation(): void {
     this._anim = null;
     this._move = null;
+    // A cut/restored pose must not inherit the previous gesture's inertia.
+    // TrackballControls exposes no public method to clear damping independently
+    // of resetting the camera, so use the same internals as animation completion.
+    const controls = this.controls as unknown as {
+      _lastAngle: number;
+      _movePrev: THREE.Vector2; _moveCurr: THREE.Vector2;
+      _zoomStart: THREE.Vector2; _zoomEnd: THREE.Vector2;
+      _panStart: THREE.Vector2; _panEnd: THREE.Vector2;
+    };
+    controls._lastAngle = 0;
+    controls._movePrev.copy(controls._moveCurr);
+    controls._zoomStart.copy(controls._zoomEnd);
+    controls._panStart.copy(controls._panEnd);
+    this._rightDragDx = this._rightDragDy = 0;
+    this._touchPanDx = this._touchPanDy = 0;
   }
 
   /**

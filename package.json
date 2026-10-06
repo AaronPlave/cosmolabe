@@ -35,6 +35,7 @@
     "typecheck:svelte": "npm --prefix apps/viewer run typecheck:svelte",
     "typecheck": "npm run build && npm run typecheck:tests && npm run typecheck:viewer && npm run typecheck:svelte",
     "test": "vitest run",
+    "test:permalinks": "node scripts/test-view-permalinks.mjs",
     "test:watch": "vitest",
     "lint": "eslint packages/ apps/",
     "lint:purity": "bash scripts/purity-lint.sh",

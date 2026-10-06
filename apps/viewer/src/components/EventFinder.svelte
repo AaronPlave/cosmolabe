@@ -8,10 +8,11 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
-  import { moveConfiguredEventQuery } from '../lib/analysis.svelte';
-  import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X } from 'lucide-svelte';
-  import { tick } from 'svelte';
+  import { analysis } from '../lib/analysis.svelte';
+  import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X, CircleHelp } from 'lucide-svelte';
+  import { tick, untrack } from 'svelte';
   import * as Select from '$lib/components/ui/select/index.js';
+  import * as Popover from '$lib/components/ui/popover';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
   import { vs, etToUtcString } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
@@ -22,8 +23,9 @@
     EVENT_KINDS, cancelSearch, ef, clearSelection, currentKind, resetForm, runSearch,
     selectEvent, previewEvent, removeConfiguredQuery, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
     currentConfiguredQuery, setCurrentQueryVisible,
-    configuredEventQueries, createNewSearch, openConfiguredQuery,
+    configuredEventQueries, createNewSearch, openConfiguredQuery, moveEventQuery,
     setConfiguredQueryEnabled, setConfiguredQueryVisible, isSelectedEvent, currentSearchUnavailable,
+    useAvailableWindow, windowOutsideUsable, ensureCoverageCurrent,
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, headlineMetric, missingRoles,
@@ -39,7 +41,16 @@
   // The form is built from the catalog's own time span, which is not known
   // until a scene has loaded — so it is built on mount, not at module scope.
   $effect(() => {
-    if (!ef.form) resetForm();
+    if (!ef.form && !ef.restoring) resetForm();
+  });
+
+  // Kernels dropped into the running scene change what can be computed. The
+  // effect runs on mount too, so kernels dropped while this panel was closed
+  // are caught when it reopens; the check itself lives with the state.
+  $effect(() => {
+    void vs.kernelCount;
+    void analysis.reference.abcorr;
+    untrack(ensureCoverageCurrent);
   });
 
   let kind = $derived(currentKind());
@@ -55,7 +66,44 @@
   let configuredQueries = $derived(configuredEventQueries());
   /** Why this scene cannot search at all — a stated policy, not a failed search. */
   let unavailable = $derived(currentSearchUnavailable());
-  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable);
+  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable && !ef.restoring);
+  let coverage = $derived(ef.coverage);
+  /** The bodies the suggestion is about, in the kind's role order: "Mars ↔ Earth". */
+  let coverageSubject = $derived(
+    form
+      ? [...new Set(kind.roles.map((r) => form.bodies[r.role]).filter((b): b is string => !!b))]
+          .map(titleCase)
+          .join(' ↔ ')
+      : '',
+  );
+  /** Parts of the current window no usable range covers; empty when it is fine. */
+  let outside = $derived(form && coverage ? windowOutsideUsable() : []);
+  let availableIndex = $derived(coverage?.windows.findIndex(isCurrentWindow) ?? -1);
+  let windowSelection = $derived(
+    ef.windowSource === 'available'
+      ? availableIndex >= 0 ? `available:${availableIndex}` : 'custom'
+      : ef.windowSource,
+  );
+
+  function titleCase(name: string): string {
+    return name === name.toUpperCase() ? name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : name;
+  }
+
+  function utc(et: number): string {
+    return etToUtcString(et).replace(' UTC', '');
+  }
+
+  function compactRange(start: number, end: number): string {
+    const from = utc(start);
+    const to = utc(end);
+    if (from.slice(0, 10) !== to.slice(0, 10)) return `${from.slice(0, 10)} → ${to.slice(0, 10)}`;
+    if (from.slice(0, 16) === to.slice(0, 16)) return `${from.slice(0, 19)} → ${to.slice(11, 19)}`;
+    return `${from.slice(0, 16)} → ${to.slice(11, 16)}`;
+  }
+
+  function isCurrentWindow(w: { start: number; end: number }): boolean {
+    return !!form && form.startEt === w.start && form.endEt === w.end;
+  }
   let resultsListEl = $state<HTMLDivElement>();
 
   // Scene and timeline markers can select a result outside the list's current
@@ -102,22 +150,37 @@
   }
 
   function commitStart() {
+    // Leaving the field untouched must not re-parse its truncated display text:
+    // that would pin the window and move it by the dropped fraction of a second.
+    if (form && startText === utc(form.startEt)) { startBad = false; return; }
     const et = parseUtc(startText);
     startBad = et === null;
     if (et !== null && form) setWindow(et, form.endEt);
   }
 
   function commitEnd() {
+    if (form && endText === utc(form.endEt)) { endBad = false; return; }
     const et = parseUtc(endText);
     endBad = et === null;
     if (et !== null && form) setWindow(form.startEt, et);
   }
 
-  /** Snap the window to the whole catalog, or to what the scrubber shows. */
-  function useRange(start: number, end: number) {
+  function chooseWindow(value: string) {
     startBad = false;
     endBad = false;
-    setWindow(start, end);
+    if (value.startsWith('available:')) {
+      useAvailableWindow(Number(value.slice('available:'.length)));
+    } else if (value === 'visible') {
+      setWindow(vs.scrubMin, vs.scrubMax);
+      ef.windowSource = 'visible';
+    } else if (value === 'catalog') {
+      setWindow(vs.scrubBaseMin, vs.scrubBaseMax);
+      ef.windowSource = 'catalog';
+    } else if (value === 'suggested') {
+      resetWindow();
+    } else if (value === 'custom') {
+      ef.windowSource = 'custom';
+    }
   }
 
   const STEP_PRESETS = [
@@ -135,10 +198,7 @@
 
 <InstrumentPanel key="events" title="Event finder" width={toolDef('events').width} {onClose}>
 
-  {#if unavailable}
-    <!-- Said before the form, not after a click: in a catalog with no kernels
-         the answer is known up front, and it is a policy (events are SPICE's),
-         not a search that went wrong. -->
+  {#if unavailable && (!coverage || coverage.status === 'unknown' || (coverage.status === 'available' && outside.length === 0))}
     <p class="event-unavailable ui-helper mb-2" role="note">{unavailable.message}</p>
   {/if}
 
@@ -228,27 +288,94 @@
       </div>
     {/each}
 
-    <!-- Search window -->
+    <!-- One window choice; only Custom exposes the editable timestamps. -->
     <div class="flex items-center gap-2 mb-1.5">
-      <span class="ui-label w-20 shrink-0">From</span>
-      <input
-        class="ui-control flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
-               {startBad ? 'border-warning' : 'border-border'}"
-        bind:value={startText}
-        onblur={commitStart}
-        onkeydown={(e) => { if (e.key === 'Enter') commitStart(); }}
-      />
+      <div class="w-20 shrink-0 flex items-center gap-1">
+        <label for="event-window" class="ui-label">Window</label>
+        <Popover.Root>
+          <Popover.Trigger class="text-text-muted hover:text-text-primary cursor-pointer" aria-label="How search windows are chosen">
+            <CircleHelp size={12} />
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content side="bottom" align="start" sideOffset={6} class="w-64 max-w-[calc(100vw-24px)] p-3 ui-helper">
+              <p>Suggested starts near the current scene time: up to {ef.kind === 'occultation' ? '90 days' : '2 years'}, clipped to usable coverage when known.</p>
+              <p class="mt-2">Available chooses one full searchable interval. Separate intervals exclude gaps in kernel coverage, with a small buffer at each edge. Custom lets you enter dates.</p>
+              <p class="mt-2 font-mono">{utc(form.startEt)} – {utc(form.endEt)} UTC</p>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+      </div>
+      <select
+        id="event-window"
+        class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
+        value={windowSelection}
+        onchange={(e) => chooseWindow((e.target as HTMLSelectElement).value)}
+        title={windowSelection === 'suggested'
+          ? `Suggested: centered on the current scene time, limited to ${ef.kind === 'occultation' ? '90 days' : '2 years'}, and clipped to usable coverage when known. ${utc(form.startEt)} – ${utc(form.endEt)}`
+          : `${utc(form.startEt)} – ${utc(form.endEt)}`}
+      >
+        <option value="suggested">{windowSelection === 'suggested' ? `Suggested · ${compactRange(form.startEt, form.endEt)}` : 'Suggested window'}</option>
+        {#each coverage?.windows ?? [] as w, index (w.start)}
+          <option value={`available:${index}`}>Available · {compactRange(w.start, w.end)}{index > 0 ? ` (${formatSeconds(w.start - coverage!.windows[index - 1]!.end)} gap)` : ''}</option>
+        {/each}
+        <option value="visible">Visible timeline · {windowSelection === 'visible' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubMin, vs.scrubMax)}</option>
+        <option value="catalog">Catalog span · {windowSelection === 'catalog' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubBaseMin, vs.scrubBaseMax)}</option>
+        <option value="custom">Custom…</option>
+      </select>
     </div>
-    <div class="flex items-center gap-2 mb-1.5">
-      <span class="ui-label w-20 shrink-0">To</span>
-      <input
-        class="ui-control flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
-               {endBad ? 'border-warning' : 'border-border'}"
-        bind:value={endText}
-        onblur={commitEnd}
-        onkeydown={(e) => { if (e.key === 'Enter') commitEnd(); }}
-      />
-    </div>
+    {#if windowSelection === 'custom'}
+      <div class="flex items-center gap-2 mb-1.5">
+        <label for="event-from" class="ui-label w-20 shrink-0">From</label>
+        <input
+          id="event-from"
+          class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
+                 {startBad ? 'border-warning' : 'border-border'}"
+          bind:value={startText}
+          onblur={commitStart}
+          onkeydown={(e) => { if (e.key === 'Enter') commitStart(); }}
+        />
+      </div>
+      <div class="flex items-center gap-2 mb-1.5">
+        <label for="event-to" class="ui-label w-20 shrink-0">To</label>
+        <input
+          id="event-to"
+          class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
+                 {endBad ? 'border-warning' : 'border-border'}"
+          bind:value={endText}
+          onblur={commitEnd}
+          onkeydown={(e) => { if (e.key === 'Enter') commitEnd(); }}
+        />
+      </div>
+    {/if}
+    {#if coverage?.status === 'available' && outside.length > 0 && (coverage.exact || unavailable)}
+      <p class="event-range invalid mb-2 ml-22" role="status">
+        <span class="event-range-heading">Outside available range.</span>
+        Choose an available window above.
+      </p>
+    {:else if coverage && coverage.status === 'none'}
+      <div class="event-range invalid mb-2 ml-22" role="status">
+        <p class="event-range-heading">No usable range for {coverageSubject}</p>
+        {#if coverage.problems.length === 1}
+          <p class="event-range-reason">{coverage.problems[0]}</p>
+        {:else if coverage.problems.length > 1}
+          <details class="event-range-reason">
+            <summary>{coverage.problems.length} missing requirements</summary>
+            <ul class="list-disc pl-4">
+              {#each coverage.problems as problem}<li>{problem}</li>{/each}
+            </ul>
+          </details>
+        {/if}
+      </div>
+    {/if}
+    {#if coverage?.status === 'available' && !coverage.exact && coverage.caveats.length}
+      <details class="event-range-details mb-2 ml-22">
+        <summary>Available range is approximate</summary>
+        <ul class="list-disc pl-4">
+          {#each coverage.caveats as caveat}<li>{caveat}</li>{/each}
+        </ul>
+      </details>
+    {/if}
+
     <div class="flex items-center gap-2 mb-2">
       <span class="ui-label w-20 shrink-0">Step</span>
       <select
@@ -264,21 +391,7 @@
           <option value={String(form.step)}>{formatSeconds(form.step)}</option>
         {/if}
       </select>
-      <button class="ctrl-link shrink-0" onclick={() => useRange(vs.scrubBaseMin, vs.scrubBaseMax)}>all</button>
-      <button class="ctrl-link shrink-0" onclick={() => useRange(vs.scrubMin, vs.scrubMax)}>visible</button>
     </div>
-
-    <!-- Say when the window is not simply the catalog's span, so a default that
-         differs from the scrubber is explained rather than merely odd. -->
-    {#if ef.windowTrimmed}
-      <p class="ui-helper event-helper mb-2 ml-22">
-        Trimmed to the kernel coverage of the chosen bodies.
-      </p>
-    {:else if ef.windowPinned}
-      <p class="ui-helper event-helper mb-2 ml-22">
-        Using your window. <button class="ctrl-link underline" onclick={resetWindow}>Reset to kernel coverage</button>
-      </p>
-    {/if}
 
     <!-- Run. A long search is survivable now that it runs off the main thread,
          so it is also worth being able to give up on. -->
@@ -337,6 +450,8 @@
       </div>
     {/if}
 
+    {#if ef.restoring}<p class="ui-helper mt-1.5" role="status">Restoring shared event searches…</p>{/if}
+
     {#if configured}
       <div class="mt-1.5 flex items-center gap-3 ui-helper">
         <label class="flex items-center gap-1 cursor-pointer" title="Include this search in analysis">
@@ -392,14 +507,14 @@
             <span class="query-move" role="group" aria-label="Move search">
               <button
                 class="query-action"
-                onclick={() => moveConfiguredEventQuery(query.id, -1)}
+                onclick={() => moveEventQuery(query.id, -1)}
                 disabled={qi === 0}
                 aria-label="Move {query.label} up"
                 title="Move up"
               ><ArrowUp size={11} /></button>
               <button
                 class="query-action"
-                onclick={() => moveConfiguredEventQuery(query.id, 1)}
+                onclick={() => moveEventQuery(query.id, 1)}
                 disabled={qi === configuredQueries.length - 1}
                 aria-label="Move {query.label} down"
                 title="Move down"
@@ -428,7 +543,25 @@
     <!-- A fault is "we could not look", which reads differently from a search
          that ran and matched nothing. -->
     <div class="ui-label mt-2 pt-2 border-t border-border text-warning">
-      {faultMessage(ef.fault)}
+      {#if ef.fault.code === 'provider-error' && coverage?.status === 'available' && outside.length > 0}
+        <!-- Say what to do about it first; SPICE's own words stay one click away. -->
+        <p>
+          The search window reaches outside the range the loaded kernels support for {coverageSubject}.
+          Pick one of the available ranges above.
+        </p>
+        <details class="mt-1 text-text-secondary">
+          <summary class="cursor-pointer">SPICE error</summary>
+          <p class="mt-0.5 font-mono break-words">{ef.fault.message}</p>
+        </details>
+      {:else if ef.fault.code === 'provider-error' && coverage?.status === 'none'}
+        <p>The loaded kernels cannot compute this geometry; see the missing data above.</p>
+        <details class="mt-1 text-text-secondary">
+          <summary class="cursor-pointer">SPICE error</summary>
+          <p class="mt-0.5 font-mono break-words">{ef.fault.message}</p>
+        </details>
+      {:else}
+        {faultMessage(ef.fault)}
+      {/if}
     </div>
   {:else if ef.searched && ef.events.length === 0}
     <div class="ui-label mt-2 pt-2 border-t border-border">
@@ -664,9 +797,6 @@
     font-weight: 500;
     color: var(--color-text-secondary);
   }
-  .event-helper {
-    color: var(--color-text-faint);
-  }
   .event-unavailable {
     padding: 5px 7px;
     border-left: 2px solid var(--color-warning);
@@ -674,8 +804,26 @@
     background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
     color: var(--color-text-secondary);
   }
-  .event-helper .ctrl-link {
-    font-size: inherit;
+  .event-range {
+    color: var(--color-text-secondary);
+    font-size: var(--text-helper);
+  }
+  .event-range-heading {
+    color: var(--color-text-secondary);
+  }
+  .event-range.invalid .event-range-heading {
+    color: var(--color-warning);
+  }
+  .event-range-reason {
+    margin-top: 2px;
+    color: var(--color-text-secondary);
+  }
+  .event-range-details {
+    margin-top: 3px;
+    color: var(--color-text-muted);
+  }
+  .event-range-details summary {
+    cursor: pointer;
   }
   .event-marker-legend {
     display: flex;

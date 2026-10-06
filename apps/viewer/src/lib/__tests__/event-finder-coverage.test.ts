@@ -302,4 +302,3 @@ describe('draft and configured searches', () => {
     expect([ef.selectedId, ef.selectedQueryId]).toEqual([null, null]);
   });
 });
-
