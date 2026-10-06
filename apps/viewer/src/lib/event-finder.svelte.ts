@@ -68,6 +68,7 @@ import {
   analysisContext,
   configuredItem,
   createConfiguredEventQuery,
+  moveConfiguredEventQuery,
   removeConfiguredItem,
   resetAnalysis,
   setConfiguredItemVisible,
@@ -886,6 +887,7 @@ function removeQuery(id: string) {
 // the unguarded `removeQuery` / `openQuery`.
 export function removeConfiguredQuery(id: string) { if (!ef.restoring) removeQuery(id); }
 export function openConfiguredQuery(id: string) { if (!ef.restoring) openQuery(id); }
+export function moveEventQuery(id: string, delta: -1 | 1) { if (!ef.restoring) moveConfiguredEventQuery(id, delta); }
 
 /**
  * Start a draft for another event search, without discarding this one. It

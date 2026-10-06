@@ -27,8 +27,8 @@ export interface EventLinkState {
 
 /** Opening a link reruns its searches automatically, so cap that work: GF cost
  * scales with window / step. The cap is per query and across the whole link. */
-const MAX_STEPS_PER_QUERY = 5e6;
-const MAX_STEPS_TOTAL = 2e7;
+const MAX_STEPS_PER_QUERY = 1e6;
+const MAX_STEPS_TOTAL = 4e6;
 
 const kinds = builtinEventKinds();
 function check(ok: unknown, message: string): asserts ok {

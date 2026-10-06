@@ -10,7 +10,7 @@ vi.mock('../loader', () => ({
   geometryScopeForWindow: () => ({}),
 }));
 
-import { captureSharedEvents, restoreSharedEvents, resetForScene, ef, selectedEventOf, removeConfiguredQuery, createNewSearch } from '../event-finder.svelte';
+import { captureSharedEvents, restoreSharedEvents, resetForScene, ef, selectedEventOf, removeConfiguredQuery, createNewSearch, moveEventQuery } from '../event-finder.svelte';
 import { analysis, analysisContext } from '../analysis.svelte';
 import { vs } from '../viewer-state.svelte';
 
@@ -135,7 +135,7 @@ describe('event link restoration through Event Finder', () => {
     const huge = (over: object) => ({ ...context(), queries: [{ ...q, ...over, query: { ...q.query, window: { start: 0, end: 1e9 }, step: 1 } }] });
     expect(() => validateEventLinkState(huge({}))).toThrow(/too large to rerun/);
     expect(() => validateEventLinkState({ ...huge({ enabled: false }), selected: undefined })).not.toThrow();
-    const dup = (id: string) => ({ ...q, query: { ...q.query, id, window: { start: 0, end: 4e6 }, step: 1 } });
+    const dup = (id: string) => ({ ...q, query: { ...q.query, id, window: { start: 0, end: 8e5 }, step: 1 } });
     expect(() => validateEventLinkState({ ...context(), queries: [dup('a'), dup('b'), dup('c'), dup('d'), dup('e'), dup('f')], current: 0 })).toThrow(/too large to rerun/);
   });
 
@@ -147,6 +147,7 @@ describe('event link restoration through Event Finder', () => {
     expect(ef.restoring).toBe(true);
     removeConfiguredQuery(before!);
     createNewSearch();
+    moveEventQuery(before!, 1);
     expect(ef.configuredId).toBe(before);
     complete([{ start: 15, end: 15 }]);
     await pending;

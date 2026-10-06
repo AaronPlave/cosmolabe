@@ -176,7 +176,7 @@ try {
   assert.equal(shared.events.queries[0].windowMode, 'explicit');
   assert.equal(shared.events.queries[0].searched, true);
   assert.ok(!('results' in shared.events), 'results are recomputed rather than embedded');
-  assert.ok(await eventPage.getByText('Using your window.', { exact: false }).isVisible());
+  assert.ok(await eventPage.locator('option:checked', { hasText: 'Custom' }).count() > 0, 'a shared explicit window restores as Custom');
   const controls = await eventPage.locator('select').evaluateAll(elements => elements.map(e => e.value));
   for (const value of ['Earth', 'Moon', 'local', '3600']) assert.ok(controls.includes(value), `visible query field ${value}`);
   await eventPage.goto(eventUrl, { waitUntil: 'domcontentloaded' });
