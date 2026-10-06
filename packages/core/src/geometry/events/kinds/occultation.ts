@@ -79,6 +79,22 @@ export const occultationKind: EventKind<OccultationParams> = {
     return undefined;
   },
 
+  // GFOCLT reads both bodies' states from the observer, their body-fixed
+  // frames and their radii, exactly as `run` passes them.
+  geometry: (query) => {
+    const observer = query.bodies.observer!;
+    const front = query.bodies.front!;
+    const back = query.bodies.back!;
+    return {
+      vectors: [
+        { target: front, observer, abcorr: query.abcorr },
+        { target: back, observer, abcorr: query.abcorr },
+      ],
+      frames: [`IAU_${front}`, `IAU_${back}`],
+      radii: [front, back],
+    };
+  },
+
   run: async (query, ctx) => {
     const observer = query.bodies.observer!;
     const front = query.bodies.front!;
