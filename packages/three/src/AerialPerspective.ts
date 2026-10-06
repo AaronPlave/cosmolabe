@@ -39,28 +39,50 @@ ${ATMOSPHERE_PROFILES_GLSL}
 #define AP_SAMPLES 8
 
 struct AerialPerspectiveResult { vec3 inscatter; vec3 transmittance; };
+
+// Globe triangles lie inside the reference ellipsoid. Use the same analytic
+// endpoint for incident sunlight and view transport; terrain keeps its relief.
+vec3 apSurfacePoint(vec3 fragWorldPos) {
+  vec3 point = (uAPWorldToPlanet * vec4(fragWorldPos, 1.0)).xyz * uAPModelUnitScale;
+#ifdef AP_PROJECT_GLOBE
+  vec3 eye = (uAPWorldToPlanet * vec4(uAPCameraWorldPos, 1.0)).xyz * uAPModelUnitScale;
+  vec3 ray = point - eye;
+  if (length(ray) > 1e-6) {
+    vec3 dir = normalize(ray);
+    float b = dot(eye, dir);
+    float c = dot(eye, eye) - uAPPlanetRadius * uAPPlanetRadius;
+    float disc = b * b - c;
+    if (disc >= 0.0) {
+      float t = -b - sqrt(disc);
+      if (t > 0.0) point = eye + dir * t;
+    }
+  }
+#endif
+  // Negative terrain elevations and float roundoff must not start a solar
+  // ray inside the solid planet. Preserve the endpoint's radial direction.
+  float r = length(point);
+  if (r > 1e-6 && r < uAPPlanetRadius) point *= uAPPlanetRadius / r;
+  return point;
+}
+
+vec3 computeSurfaceSunTransmittance(vec3 fragWorldPos) {
+  if (uAPStrength <= 0.0) return vec3(1.0);
+  vec3 point = apSurfacePoint(fragWorldPos);
+  vec3 sun = (uAPWorldToPlanet * vec4(uAPSunWorldPos, 1.0)).xyz * uAPModelUnitScale;
+  return mix(vec3(1.0), atmSunTransmittance(point, normalize(sun - point)), uAPStrength);
+}
+
 AerialPerspectiveResult computeAerialPerspective(vec3 fragWorldPos) {
   if (uAPStrength <= 0.0) return AerialPerspectiveResult(vec3(0.0), vec3(1.0));
 
   // Move into a frame centered on the planet for radial altitude math.
   // Match the atmosphere shell frame, including the body’s oblateness.
   vec3 camP = (uAPWorldToPlanet * vec4(uAPCameraWorldPos, 1.0)).xyz * uAPModelUnitScale;
-  vec3 fragP = (uAPWorldToPlanet * vec4(fragWorldPos, 1.0)).xyz * uAPModelUnitScale;
+  vec3 fragP = apSurfacePoint(fragWorldPos);
   vec3 ray   = fragP - camP;
   float pathLen = length(ray);
   if (pathLen < 1e-6) return AerialPerspectiveResult(vec3(0.0), vec3(1.0));
   vec3 dir = ray / pathLen;
-#ifdef AP_PROJECT_GLOBE
-  // Intersect the pixel's view ray with the true globe, avoiding triangle
-  // chords without moving the ray onto a different pixel near the horizon.
-  float groundB = dot(camP, dir);
-  float groundC = dot(camP, camP) - uAPPlanetRadius * uAPPlanetRadius;
-  float groundDisc = groundB * groundB - groundC;
-  if (groundDisc >= 0.0) {
-    float groundT = -groundB - sqrt(groundDisc);
-    if (groundT > 0.0) pathLen = groundT;
-  }
-#endif
 
 
   float b = dot(camP, dir);
@@ -202,6 +224,22 @@ export function injectAerialPerspectiveIntoShader(
       '#include <project_vertex>',
       '#include <project_vertex>\nvAPWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
     );
+  // The stock renderer represents the Sun with a DirectionalLight. Apply
+  // spectral extinction to its incident radiance before the BRDF, including
+  // specular/clearcoat, while leaving local point lights and indirect/emissive
+  // terms alone. Unlit materials have no lights_fragment_begin hook.
+  if (shader.fragmentShader.includes('#include <lights_fragment_begin>')) {
+    const solarHook = 'getDirectionalLightInfo( directionalLight, directLight );';
+    const lights = THREE.ShaderChunk.lights_fragment_begin;
+    if (!lights.includes(solarHook)) {
+      throw new Error('Atmosphere solar extinction: Three.js directional-light shader hook changed.');
+    }
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <lights_fragment_begin>',
+      lights.replace(solarHook, solarHook + '\n' +
+        'directLight.color *= computeSurfaceSunTransmittance(vAPWorldPos);'),
+    );
+  }
   // Fragment: prepend AP function, composite outgoingLight before opaque output.
   // Same `<opaque_fragment>` hook as EclipseShadow — when both are injected,
   // EclipseShadow first scales outgoingLight by shadow factor; AP then folds in

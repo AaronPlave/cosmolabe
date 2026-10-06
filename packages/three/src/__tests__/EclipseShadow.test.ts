@@ -185,6 +185,7 @@ function fakeShader() {
     fragmentShader: [
       '#define STANDARD',
       'void main() {',
+      '  #include <lights_fragment_begin>',
       '  vec3 outgoingLight = totalDiffuse + totalSpecular;',
       '  #include <opaque_fragment>',
       '}',
@@ -260,6 +261,7 @@ describe('injectShadowIntoShader', () => {
     expect(shader.fragmentShader).toContain('float computeEclipseShadow()');
     expect(shader.fragmentShader).toContain('outgoingLight *= computeEclipseShadow() * computeRingShadow();');
     expect(shader.fragmentShader).toContain('computeAerialPerspective(vAPWorldPos)');
+    expect(shader.fragmentShader).toContain('directLight.color *= computeSurfaceSunTransmittance(vAPWorldPos);');
     // Ring shadow reads vShadowWorldPos / uSunWorldPos, so its function must be
     // declared after SHADOW_FRAG_PARS opens but before computeEclipseShadow.
     expect(shader.fragmentShader.indexOf('varying vec3 vShadowWorldPos;'))

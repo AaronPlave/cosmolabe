@@ -76,6 +76,15 @@ float atmSunUFromMu(float mu, float radius) {
 
 vec3 atmSunTransmittance(vec3 point, vec3 sunDir) {
   if (atmSunBlocked(point, sunDir)) return vec3(0.0);
+  // Elevated child geometry can lie outside the shell. Clip its solar ray
+  // to the atmosphere instead of clamping an outside point onto the LUT edge.
+  if (length(point) > uAtmShellR) {
+    float b = dot(point, sunDir);
+    float c = dot(point, point) - uAtmShellR * uAtmShellR;
+    float disc = b * b - c;
+    if (b >= 0.0 || disc <= 0.0) return vec3(1.0);
+    point += sunDir * max(0.0, -b - sqrt(disc));
+  }
   if (!uAtmHasTransmittanceLUT) {
     // Renderer-optional meshes integrate direct sunlight numerically.
     float b = dot(point, sunDir);

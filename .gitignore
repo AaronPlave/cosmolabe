@@ -18,6 +18,7 @@ vendor/
 
 # Vite cache
 .vite/
+apps/viewer/test-screenshots/atmosphere-surface/
 
 # SPICE kernels — see scripts/fetch-*.sh for downloads.
 # Tier rule: anything > ~5 MB lives behind a fetch script, not in the repo.

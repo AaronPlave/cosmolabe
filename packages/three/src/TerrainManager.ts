@@ -1544,7 +1544,7 @@ export class TerrainManager {
 
     const su = this.shadowUniforms;
     const apu = this.aerialPerspectiveUniforms;
-    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v1' : '');
+    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '');
 
     scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;

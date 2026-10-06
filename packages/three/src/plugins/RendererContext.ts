@@ -10,6 +10,12 @@ import type { RendererEventMap } from '../events/RendererEventMap.js';
  * Replaces the previous (scene: unknown, camera: unknown, universe) pattern.
  */
 export interface RendererContext {
+  /**
+   * Shared scene. Directional lights are reserved for solar illumination:
+   * atmospheric body/terrain materials attenuate every directional light with
+   * the Sun's atmospheric transmittance. Plugins must use PointLight or
+   * SpotLight for local illumination, rather than adding DirectionalLight.
+   */
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
   readonly webglRenderer: THREE.WebGLRenderer;
