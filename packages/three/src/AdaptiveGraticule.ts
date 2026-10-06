@@ -16,7 +16,7 @@ export function chooseGridStep(pixelsPerDegree: number, previous = 30, targetPx 
 type Edge = 'left' | 'right' | 'bottom' | 'top';
 interface Anchor { id: string; axis: 'latitude' | 'longitude'; angle: number; lat: number; lon: number; score: number; edge?: Edge; }
 interface Label { sprite: THREE.Sprite; anchor: Anchor; text: string; width: number; }
-interface SurfaceHit { point: THREE.Vector3 | null; projectedAnchor: THREE.Vector3; time: number; }
+interface SurfaceHit { overlay: boolean; point: THREE.Vector3 | null; projectedAnchor: THREE.Vector3; time: number; }
 const MAX_LABELS = 24;
 const MAX_CANDIDATES = 96;
 const DEG = Math.PI / 180;
@@ -33,8 +33,14 @@ export class AdaptiveGraticule {
   private readonly v = new THREE.Vector3();
   private lastPlan = -Infinity;
   private lastFrame = 0;
+  private lastMotion = -Infinity;
+  private readonly lastCameraPosition = new THREE.Vector3(Infinity, Infinity, Infinity);
+  private readonly lastCameraRotation = new THREE.Quaternion();
   private candidates: Anchor[] = [];
+  private readonly discoveredLines = new Set<string>();
   private layout: 'globe' | 'regional' = 'globe';
+  private readonly edges: Partial<Record<Anchor['axis'], Edge>> = {};
+  private bounds = { x0: -0.82, x1: 0.82, y0: -0.82, y1: 0.82 };
   private dpr = 0;
   private readonly cachedHits = new Map<string, SurfaceHit>();
   private visible = false;
@@ -109,20 +115,18 @@ export class AdaptiveGraticule {
     }
     return null;
   }
-  private plan(camera: THREE.PerspectiveCamera, width: number, height: number): void {
+  private plan(camera: THREE.PerspectiveCamera, width: number, height: number, density: boolean, settled: boolean): void {
     const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
     const foot = bodyFixedToSurfacePosition({ xKm: cameraFixed.x, yKm: cameraFixed.y, zKm: cameraFixed.z }, this.coordinates);
     const seed = this.bm.sampleTerrain(foot.latDeg, foot.lonDeg)?.elevationKm ?? null;
-    const samples: Array<{ latDeg: number; lonDeg: number; heightKm: number }> = [];
     const latScale: number[] = [], lonScale: number[] = [];
     const center = this.bm.position.clone().project(camera);
     const probes: [number, number][] = [[center.x, center.y]];
     for (let y = -0.8; y <= 0.801; y += 0.2666667) for (let x = -0.8; x <= 0.801; x += 0.2666667) probes.push([x, y]);
-    for (const [x, y] of probes) {
+    for (const [x, y] of density ? probes : []) {
       if (Math.abs(x) > 1 || Math.abs(y) > 1) continue;
       const hit = this.planningHit(x, y, camera, seed);
       if (!hit) continue;
-      samples.push(hit);
       const p = this.point(hit.latDeg, hit.lonDeg, hit.heightKm).project(camera);
       const delta = 0.0001;
       const latitude = Math.min(89.9999, hit.latDeg + delta);
@@ -133,8 +137,8 @@ export class AdaptiveGraticule {
     }
     const median = (v: number[]) => v.sort((a, b) => a - b)[Math.floor(v.length / 2)] ?? 0;
     const previous = this.uniforms.uGridStep.value;
-    const latStep = this.settings?.density === 'manual' ? this.settings.spacingDeg : chooseGridStep(median(latScale), previous.x);
-    const lonStep = this.settings?.density === 'manual' ? this.settings.spacingDeg : chooseGridStep(median(lonScale), previous.y);
+    const latStep = !density ? previous.x : this.settings?.density === 'manual' ? this.settings.spacingDeg : chooseGridStep(median(latScale), previous.x);
+    const lonStep = !density ? previous.y : this.settings?.density === 'manual' ? this.settings.spacingDeg : chooseGridStep(median(lonScale), previous.y);
     if (latStep !== previous.x || lonStep !== previous.y) {
       this.uniforms.uGridPreviousStep.value.copy(previous);
       previous.set(latStep, lonStep);
@@ -143,13 +147,19 @@ export class AdaptiveGraticule {
     const shape = this.coordinates.datum.referenceShape;
     const radius = shape.kind === 'sphere' ? shape.radiusKm : Math.max(...shape.radiiKm);
     const distance = cameraFixed.length();
-    const disc = radius / Math.sqrt(Math.max(0, distance * distance - radius * radius)) / Math.tan(camera.fov * DEG / 2);
-    this.layout = distance > radius && Math.abs(center.x) + disc / camera.aspect < 0.94 && Math.abs(center.y) + disc < 0.92 ? 'globe' : 'regional';
+    // A clipped disc is still a globe view. Move towards edge annotations only
+    // over a close-surface altitude range, continuously along each coordinate line.
+    const t = THREE.MathUtils.clamp((0.65 - (distance - radius) / radius) / 0.5, 0, 1);
+    const regional = t * t * (3 - 2 * t);
+    this.layout = regional > 0 ? 'regional' : 'globe';
+    const meridian = wrapLongitude(Math.round(foot.lonDeg / 30) * 30);
+    const band = Math.max(-50, Math.min(50, Math.round(foot.latDeg / 30) * 30 - 10));
     const candidates: Anchor[] = [];
     const add = (axis: Anchor['axis'], angle: number, lat: number, lon: number, edge?: Edge) => {
       angle = axis === 'longitude' ? wrapLongitude(angle) : angle;
       if (Math.abs(lat) >= 89 || (axis === 'longitude' && Math.abs(lat) > 80)) return;
       const id = `${axis}:${angle.toFixed(6)}`;
+      if (!density && !this.discoveredLines.has(id)) return;
       if (candidates.some(a => a.id === id)) return;
       const centerAngle = axis === 'latitude' ? foot.latDeg : foot.lonDeg;
       const difference = axis === 'latitude' ? angle - centerAngle : wrapLongitude(angle - centerAngle);
@@ -167,15 +177,15 @@ export class AdaptiveGraticule {
     if (this.layout === 'globe') {
       // One meridian and one latitude band, including polar views. Collisions
       // remove annotations; they never scatter them onto another part of a line.
-      const band = Math.max(-50, Math.min(50, foot.latDeg - 10));
-      for (const angle of angles(-89, 89, latStep)) add('latitude', angle, angle, foot.lonDeg);
+      for (const angle of angles(-89, 89, latStep)) add('latitude', angle, angle, meridian);
       for (const angle of angles(-180, 180, lonStep)) add('longitude', angle, band, angle);
-    } else if (samples.length) {
+    } else {
       const edges: Edge[] = ['left', 'right', 'bottom', 'top'];
-      const position = (edge: Edge, t: number): [number, number] => edge === 'left' ? [-0.82, t]
-        : edge === 'right' ? [0.82, t] : edge === 'bottom' ? [t, -0.82] : [t, 0.82];
+      const { x0, x1, y0, y1 } = this.bounds;
+      const position = (edge: Edge, t: number): [number, number] => edge === 'left' ? [x0, y0 + t * (y1 - y0)]
+        : edge === 'right' ? [x1, y0 + t * (y1 - y0)] : edge === 'bottom' ? [x0 + t * (x1 - x0), y0] : [x0 + t * (x1 - x0), y1];
       const border = edges.map(edge => ({ edge, samples: Array.from({ length: 17 }, (_, i) => {
-        const [x, y] = position(edge, -0.82 + i * 1.64 / 16);
+        const [x, y] = position(edge, i / 16);
         return { x, y, hit: this.planningHit(x, y, camera, seed) };
       }) }));
       for (const axis of ['latitude', 'longitude'] as const) {
@@ -187,13 +197,17 @@ export class AdaptiveGraticule {
         }, 0);
         const preferred = border[axis === 'latitude' ? 0 : 2];
         const best = border.reduce((a, b) => span(b) > span(a) ? b : a, preferred);
-        const selected = span(preferred) >= span(best) * 0.75 ? preferred : best;
+        const incumbent = border.find(b => b.edge === this.edges[axis]) ?? preferred;
+        const selected = span(preferred) >= span(best) * 0.9 ? preferred
+          : !settled && span(incumbent) >= span(best) * 0.65 ? incumbent : best;
+        this.edges[axis] = selected.edge;
         for (let i = 1; i < selected.samples.length && candidates.filter(a => a.axis === axis).length < 32; i++) {
           const a = selected.samples[i - 1], b = selected.samples[i];
           if (!a.hit || !b.hit) continue;
           const start = scalar(a.hit);
           const end = start + (axis === 'latitude' ? scalar(b.hit) - start : wrapLongitude(scalar(b.hit) - start));
-          for (const angle of angles(Math.min(start, end), Math.max(start, end), step)) {
+          for (const angle of angles(Math.min(start, end), Math.max(start, end), step).filter(angle => density
+            || this.discoveredLines.has(`${axis}:${(axis === 'longitude' ? wrapLongitude(angle) : angle).toFixed(6)}`))) {
             let lo = a, hi = b;
             for (let j = 0; j < 7; j++) {
               const x = (lo.x + hi.x) / 2, y = (lo.y + hi.y) / 2;
@@ -204,14 +218,16 @@ export class AdaptiveGraticule {
               if ((value < angle) === (start < end)) lo = mid; else hi = mid;
             }
             const hit = this.planningHit((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, camera, seed);
-            if (hit) add(axis, angle, axis === 'latitude' ? angle : hit.latDeg, axis === 'longitude' ? angle : hit.lonDeg, selected.edge);
+            if (hit) add(axis, angle, axis === 'latitude' ? angle : band + regional * (hit.latDeg - band),
+              axis === 'longitude' ? angle : meridian + regional * wrapLongitude(hit.lonDeg - meridian), selected.edge);
           }
         }
       }
     }
-    // Candidate generation depends on the current pose and spacing, not retained
-    // anchors from the route taken to reach it. A settled pose has one layout.
+    // Discover lines on the density cadence; place those identities every frame.
+    // Once settled, discovery and edge preference depend on the final pose.
     this.candidates = candidates.sort((a, b) => a.score - b.score || a.id.localeCompare(b.id)).slice(0, MAX_CANDIDATES);
+    if (density) { this.discoveredLines.clear(); for (const candidate of this.candidates) this.discoveredLines.add(candidate.id); }
   }
   update(camera: THREE.PerspectiveCamera, viewport: { width: number; height: number }, manager: LabelManager | null, occluders: readonly BodyMesh[] = [this.bm]): void {
     const now = performance.now();
@@ -238,7 +254,18 @@ export class AdaptiveGraticule {
     this.bm.updateMatrixWorld(true);
     const { width, height } = viewport;
     if (width <= 0 || height <= 0) return;
-    if (now - this.lastPlan >= 150) { this.plan(camera, width, height); this.lastPlan = now; }
+    const area = manager?.getContextViewport?.(width, height);
+    this.bounds = area ? { x0: area.x0 * 2 / width - 1, x1: area.x1 * 2 / width - 1,
+      y0: 1 - area.y1 * 2 / height, y1: 1 - area.y0 * 2 / height } : { x0: -0.82, x1: 0.82, y0: -0.82, y1: 0.82 };
+    const density = now - this.lastPlan >= 150;
+    if (camera.position.distanceToSquared(this.lastCameraPosition) > 1e-16 * this.bm.scaleFactor ** 2
+      || 1 - Math.abs(camera.quaternion.dot(this.lastCameraRotation)) > 1e-12) {
+      this.lastMotion = now;
+      this.lastCameraPosition.copy(camera.position); this.lastCameraRotation.copy(camera.quaternion);
+    }
+    this.plan(camera, width, height, density, now - this.lastMotion >= 250);
+    if (density) this.lastPlan = now;
+    this.uniforms.uGridBlend.value = this.transition;
     if (!this.labelVisible || !manager) return;
     const dpr = Math.max(1, globalThis.devicePixelRatio ?? 1);
     if (dpr !== this.dpr) { this.clearLabels(); this.dpr = dpr; }
@@ -267,7 +294,7 @@ export class AdaptiveGraticule {
         ? new THREE.Vector3(Math.cos(candidate.lat * DEG) * Math.cos(candidate.lon * DEG), Math.cos(candidate.lat * DEG) * Math.sin(candidate.lon * DEG), Math.sin(candidate.lat * DEG))
         : new THREE.Vector3(physical.xKm / radii[0] ** 2, physical.yKm / radii[1] ** 2, physical.zKm / radii[2] ** 2).normalize();
       const fixedAnchor = new THREE.Vector3(physical.xKm, physical.yKm, physical.zKm);
-      if (cameraFixed.clone().sub(fixedAnchor).normalize().dot(normal) < 0.08) continue;
+      if (cameraFixed.clone().sub(fixedAnchor).normalize().dot(normal) < 0.2) continue;
       const p = fixedAnchor.applyMatrix4(this.toWorld);
       const view = p.clone().project(camera);
       if (view.z < -1 || view.z > 1 || Math.abs(view.x) > 0.94 || Math.abs(view.y) > 0.92) continue;
@@ -298,12 +325,13 @@ export class AdaptiveGraticule {
         this.raycaster.setFromCamera(new THREE.Vector2(view.x, view.y), camera);
         const intersections = this.raycaster.intersectObjects(targets, true);
         // The local overlay pass clears depth, matching Point Probe precedence.
-        const intersection = intersections.find(hit => {
+        const overlayIntersection = intersections.find(hit => {
           let object: THREE.Object3D | null = hit.object;
           while (object) { if (overlayTargets.has(object)) return true; object = object.parent; }
           return false;
-        }) ?? intersections[0];
-        this.cachedHits.set(key, { point: intersection?.point.clone().applyMatrix4(this.bodyFromWorld) ?? null,
+        });
+        const intersection = overlayIntersection ?? intersections[0];
+        this.cachedHits.set(key, { overlay: !!overlayIntersection, point: intersection?.point.clone().applyMatrix4(this.bodyFromWorld) ?? null,
           projectedAnchor: view.clone(), time: now });
       }
     }
@@ -325,8 +353,13 @@ export class AdaptiveGraticule {
       let fixed: THREE.Vector3;
       let coordinate: { latDeg: number; lonDeg: number };
       if (registeredTerrain) {
-        fixed = hit!.point.clone().applyMatrix4(this.bodyFromWorld);
-        coordinate = bodyFixedToSurfacePosition({ xKm: fixed.x, yKm: fixed.y, zKm: fixed.z }, this.coordinates);
+        const surface = hit!.point.clone().applyMatrix4(this.bodyFromWorld);
+        coordinate = bodyFixedToSurfacePosition({ xKm: surface.x, yKm: surface.y, zKm: surface.z }, this.coordinates);
+        const renderedHeight = bodyFixedToSurfacePosition({ xKm: surface.x, yKm: surface.y, zKm: surface.z }, this.coordinates).heightKm ?? 0;
+        const residentHeight = this.cachedHits.get(key)?.overlay ? renderedHeight
+          : this.bm.sampleTerrain(candidate.lat, candidate.lon)?.elevationKm ?? renderedHeight;
+        const physical = surfacePositionToBodyFixed({ latDeg: candidate.lat, lonDeg: candidate.lon, heightKm: residentHeight }, this.coordinates);
+        fixed = new THREE.Vector3(physical.xKm, physical.yKm, physical.zKm);
         if (p.distanceTo(hit!.point) > this.bm.displayRadius * this.bm.scaleFactor * 0.05) continue;
       } else {
         // Analytic reference visibility avoids traversing thousands of sphere triangles per label.
@@ -346,8 +379,27 @@ export class AdaptiveGraticule {
       const offsetY = candidate.edge === 'top' ? 8 : candidate.edge === 'bottom' ? -8 : 0;
       const x = (view.x + 1) * width / 2 + offsetX, y = (1 - view.y) * height / 2 + offsetY;
       const rect = { x0: x - labelWidth / 2 - 3, x1: x + labelWidth / 2 + 3, y0: y - 10, y1: y + 10 };
-      if (!manager.reserveContextRect(rect)) continue;
       let label = this.labels.get(candidate.id);
+      // Changing bands or edge identity fades the old anchor before relocating.
+      // Continuous motion on the same regional edge is positioned every frame.
+      const movedBand = label && !candidate.edge && (Math.abs(label.anchor.lat - candidate.lat) > 1
+        || Math.abs(wrapLongitude(label.anchor.lon - candidate.lon)) > 1);
+      if (label?.sprite.visible && (label.anchor.edge !== candidate.edge || movedBand) && label.sprite.material.opacity > 0) {
+        label.sprite.material.opacity = Math.max(0, label.sprite.material.opacity - dt * 4);
+        if (label.sprite.material.opacity > 0) {
+          const oldView = label.sprite.position.clone().applyMatrix4(this.toWorld).project(camera);
+          const front = this.referenceHit(oldView.x, oldView.y, camera);
+          const safe = !registeredTerrain && front && Math.abs(front.latDeg - label.anchor.lat) < 0.001
+            && Math.abs(wrapLongitude(front.lonDeg - label.anchor.lon)) < 0.001 && Math.abs(oldView.x) < 0.9 && Math.abs(oldView.y) < 0.9;
+          const x = (oldView.x + 1) * width / 2 + (label.anchor.edge === 'left' ? 8 : label.anchor.edge === 'right' ? -8 : 0);
+          const y = (1 - oldView.y) * height / 2 + (label.anchor.edge === 'top' ? 8 : label.anchor.edge === 'bottom' ? -8 : 0);
+          if (safe && manager.reserveContextRect({ x0: x - label.width / 2 - 3, x1: x + label.width / 2 + 3, y0: y - 10, y1: y + 10 })) {
+            active.add(candidate.id); continue;
+          }
+          label.sprite.material.opacity = 0;
+        }
+      }
+      if (!manager.reserveContextRect(rect)) continue;
       if (label && label.text !== text) { this.disposeLabel(label); this.labels.delete(candidate.id); label = undefined; }
       if (!label) {
         if (this.labels.size >= MAX_LABELS) {
@@ -367,7 +419,21 @@ export class AdaptiveGraticule {
       label.sprite.material.opacity = Math.min(0.85, label.sprite.material.opacity + dt * 5);
       active.add(candidate.id);
     }
-    for (const [id, label] of this.labels) if (!active.has(id)) label.sprite.visible = false;
+    for (const [id, label] of this.labels) if (!active.has(id)) {
+      // Occlusion and control collisions are authoritative. Only a density
+      // retirement may fade at its still-visible, physically fixed anchor.
+      if (!targets.length && !this.candidates.some(a => a.id === id) && label.sprite.visible) {
+        const p = label.sprite.position.clone().applyMatrix4(this.toWorld).project(camera);
+        const front = this.referenceHit(p.x, p.y, camera);
+        const safe = front && Math.abs(front.latDeg - label.anchor.lat) < 0.001
+          && Math.abs(wrapLongitude(front.lonDeg - label.anchor.lon)) < 0.001 && Math.abs(p.x) < 0.9 && Math.abs(p.y) < 0.9;
+        label.sprite.material.opacity = Math.max(0, label.sprite.material.opacity - dt * 4);
+        const x = (p.x + 1) * width / 2 + (label.anchor.edge === 'left' ? 8 : label.anchor.edge === 'right' ? -8 : 0);
+        const y = (1 - p.y) * height / 2 + (label.anchor.edge === 'top' ? 8 : label.anchor.edge === 'bottom' ? -8 : 0);
+        label.sprite.visible = !!safe && label.sprite.material.opacity > 0
+          && manager.reserveContextRect({ x0: x - label.width / 2 - 3, x1: x + label.width / 2 + 3, y0: y - 10, y1: y + 10 });
+      } else { label.sprite.visible = false; label.sprite.material.opacity = 0; }
+    }
   }
   private createLabel(anchor: Anchor, text: string, width: number, dpr: number): Label {
     const canvas = document.createElement('canvas');
@@ -382,13 +448,15 @@ export class AdaptiveGraticule {
       // Like body labels, annotation rectangles use CPU anchor occlusion instead of
       // cutting the billboard's glyphs against the curved surface's depth buffer.
       depthTest: false, depthWrite: false, sizeAttenuation: false, opacity: 0 }));
+    sprite.userData.gridLineId = anchor.id;
+    sprite.userData.gridLabelWidth = width;
     this.group.add(sprite);
     return { sprite, anchor, text, width };
   }
-  get metrics(): { candidates: number; labels: number; latitudeStep: number; longitudeStep: number; layout: 'globe' | 'regional';
+  get metrics(): { candidates: number; labels: number; latitudeStep: number; longitudeStep: number; densityBlend: number; layout: 'globe' | 'regional';
     annotations: Array<{ axis: Anchor['axis']; latDeg: number; lonDeg: number; text: string; edge?: Edge }> } {
     return { candidates: this.candidates.length, labels: [...this.labels.values()].filter(l => l.sprite.visible).length,
-      latitudeStep: this.uniforms.uGridStep.value.x, longitudeStep: this.uniforms.uGridStep.value.y, layout: this.layout,
+      latitudeStep: this.uniforms.uGridStep.value.x, longitudeStep: this.uniforms.uGridStep.value.y, densityBlend: this.uniforms.uGridBlend.value, layout: this.layout,
       annotations: [...this.labels.values()].filter(l => l.sprite.visible).map(l => ({ axis: l.anchor.axis,
         latDeg: l.anchor.lat, lonDeg: l.anchor.lon, text: l.text, edge: l.anchor.edge })) };
   }

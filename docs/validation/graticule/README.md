@@ -20,19 +20,31 @@ steps range from 30° to 0.001°, with a 60–180 px hysteresis band around a tu
 100 px target. Level changes crossfade over 180 ms. Fragment derivatives provide
 antialiasing, suppress subpixel lattices and congested polar meridians, and handle
 the longitude seam by differentiating its unit vector. Equator and prime meridian
-have stronger contrast. Minor lines are optional.
+use restrained accent colors. Major/minor/reference strengths are 22% / 7% /
+35% before lighting, density and horizon modulation. Widths remain in CSS pixels;
+night-side intensity is reduced without treating dark daytime albedo as night.
+Minor lines are optional.
 
 Coordinate labels stay 12 CSS px, with DPR-aware rasterization. Candidates come
 from a pose-dependent layout and are bounded at 96 per body and 24 pooled sprites.
-Whole-globe latitude labels share one meridian; longitude labels share a visible
-latitude band capped at ±50° to avoid polar congestion. Regional curves are
-labelled along one viewport edge per axis, preferring left/bottom when those
-edges cross the curves. Labels have a consistent 8 CSS-pixel inward offset.
+Whole-globe latitude labels share a fixed meridian; longitude labels share a
+fixed latitude band capped at ±50° to avoid polar congestion. Bands change in
+coarse angular sectors with fades rather than following every camera movement.
+Regional curves are labelled along one usable viewport edge per axis, preferring
+left/bottom when those edges cross the curves. Density and line discovery run at
+150 ms intervals; current line/edge intersections update every frame.
+Placement blends along the coordinate line over altitudes of 0.65 to 0.15 reference
+radii above the surface. A clipped globe alone does not trigger edge placement.
+Edge hysteresis persists during motion; after 250 ms without camera motion,
+canonical edge selection converges to the settled pose. Relocations fade before
+changing anchors, and density retirements fade when visibility remains safe. Labels have a consistent 8 CSS-pixel inward offset.
 Collisions suppress lower-priority annotations within that layout. Equator and
 prime meridian annotations read `Equator 0°` and `Prime 0°`.
 Labels use the existing LabelManager
 reservations and yield to body labels, event callouts, and host measurement/probe
-reservations. Point Probe reserves its visible panel. Surface normals and
+reservations. The viewer's measured rail, timeline, panel and HUD rectangles
+reserve annotation space; edge margins also inset around the rail and timeline.
+Point Probe reserves its visible panel. Surface normals and
 reference intersections suppress the far side/horizon; terrain intersections
 check the actual surface anchor and its association with the labelled line.
 Billboard glyphs use the body-label overlay convention after CPU anchor occlusion;
@@ -41,6 +53,9 @@ are limited to eight per body per frame. Current visible anchors receive fair,
 oldest-first rechecks; deferred hits remain usable for at most 150 ms and an
 8 CSS-pixel projected move. Horizon/viewport checks run every frame, and surface
 load/disposal invalidates the cache. Hits stay in physical body coordinates.
+Cached triangle hits provide visibility evidence, never a stale moving sprite
+position: current coordinates plus resident height (or cached overlay height)
+keep annotations on their labelled lines each frame.
 
 Display preferences, camera JSON and script snapshots carry scope, pinned bodies,
 per-body visibility/labels, Auto/manual density, labels and minor lines. `G`
@@ -152,6 +167,43 @@ annotations, camera-path independence and the earlier visibility/material
 lifecycle findings. All 141 suites / 1,563 tests pass, as do typecheck, lint
 and purity checks. These remain synthetic fixtures; the generated streamed
 terrain products listed below are still required for live acceptance.
+
+## Continuous motion review
+
+With the same Vite server, Chromium and FFmpeg installed, run:
+
+```sh
+node scripts/graticule-motion-validation.mjs
+```
+
+[Orbit → zoom → pan → tangent recording](motion-review/orbit-zoom-pan-tangent.mp4)
+uses a fixed 30 Hz application clock and encodes every rendered frame. This
+preserves intermediate frames between the 150 ms discovery plans even when
+SwiftShader renders slower than playback. It is an offline motion validation,
+not a real-time performance claim. The camera moves continuously over 15 seconds;
+[frame diagnostics](motion-review/frames.json) retain physical coordinates,
+projected positions, opacity and label rectangles throughout the sequence.
+The rendered sequence contains 451 frames, including 90 pan frames; every
+pan-frame equator intersection changes while line error stays below 10⁻¹²°.
+There are zero control overlaps, browser/shader errors or grid requests.
+
+The acceptance check requires line error below 0.000001°, continuously changing
+regional equator intersections during pan, no rectangle overlaps with measured
+mock rail/timeline controls, and the existing 24-label / 96-candidate bounds.
+[Motion metrics](motion-review/metrics.json) report the results and actual CPU
+update timings. Separate captures exercise a directional-light day/night split
+and synthetic bright/dark surface imagery.
+
+| Day/night surface | Bright imagery | Dark imagery |
+| --- | --- | --- |
+| ![Day/night grid](motion-review/day-night.png) | ![Bright synthetic imagery](motion-review/bright-imagery.png) | ![Dark synthetic imagery](motion-review/dark-imagery.png) |
+
+The latest full suite passes all 141 suites / 1,565 tests. Added regressions
+check placement on consecutive 16 ms frames, a clipped globe retaining fixed
+bands, regional intersections inset around actual control rectangles, edge
+hysteresis during camera roll, convergence after settling through different
+paths, and density blending starting from the previous level without a flash.
+These captures remain synthetic; streamed terrain acceptance is still pending.
 
 ## Coverage and limits
 

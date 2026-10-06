@@ -26,6 +26,7 @@ export function injectGraticule(shader: Shader, uniforms: GraticuleUniforms): vo
   shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', 'vGridBody = (uGridViewToBody * modelViewMatrix * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>');
   shader.fragmentShader = `
 varying vec3 vGridBody;
+uniform mat4 uGridViewToBody;
 uniform vec3 uGridShape;
 uniform vec2 uGridStep, uGridPreviousStep;
 uniform float uGridBlend, uGridVisible, uGridMinor, uGridPixelRatio;
@@ -33,22 +34,22 @@ float gridLine(float angle, float stepSize, float derivative) {
   float distanceDeg = abs(mod(angle + stepSize * 0.5, stepSize) - stepSize * 0.5);
   float widthDeg = max(derivative, 0.0000001);
   // Fade subpixel lattices and heavily foreshortened fragments.
-  return (1.0 - smoothstep(widthDeg * 0.35, widthDeg * 1.35, distanceDeg))
-    * smoothstep(3.0, 12.0, stepSize / widthDeg);
+  return (1.0 - smoothstep(widthDeg * 0.25, widthDeg * 0.85, distanceDeg))
+    * smoothstep(6.0, 18.0, stepSize / widthDeg);
 }
 vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize) {
   float latLine = gridLine(angles.x, stepSize.x, deriv.x);
   float lonLine = gridLine(angles.y, stepSize.y, deriv.y);
   // Longitude has no meaning at the pole; independently suppress congested meridians.
-  lonLine *= smoothstep(0.5, 2.0, 90.0 - abs(angles.x));
+  lonLine *= smoothstep(2.0, 8.0, 90.0 - abs(angles.x));
   float major = max(latLine, lonLine);
   float minor = max(gridLine(angles.x, stepSize.x * 0.5, deriv.x), gridLine(angles.y, stepSize.y * 0.5, deriv.y)
-    * smoothstep(0.5, 2.0, 90.0 - abs(angles.x)));
-  float equator = 1.0 - smoothstep(deriv.x * 0.35, deriv.x * 1.35, abs(angles.x));
-  float prime = (1.0 - smoothstep(deriv.y * 0.35, deriv.y * 1.35, abs(angles.y))) * lonLine;
-  vec3 color = mix(vec3(0.40, 0.59, 0.82), vec3(0.92, 0.60, 0.23), equator);
-  color = mix(color, vec3(0.92, 0.32, 0.30), prime);
-  return vec4(color, max(max(major * 0.48, minor * uGridMinor * 0.18), max(equator, prime) * 0.65));
+    * smoothstep(2.0, 8.0, 90.0 - abs(angles.x)));
+  float equator = 1.0 - smoothstep(deriv.x * 0.25, deriv.x * 0.85, abs(angles.x));
+  float prime = (1.0 - smoothstep(deriv.y * 0.25, deriv.y * 0.85, abs(angles.y))) * lonLine;
+  vec3 color = mix(vec3(0.36, 0.46, 0.58), vec3(0.72, 0.52, 0.29), equator);
+  color = mix(color, vec3(0.68, 0.38, 0.35), prime);
+  return vec4(color, max(max(major * 0.22, minor * uGridMinor * 0.07), max(equator, prime) * 0.35));
 }
 ` + shader.fragmentShader;
   shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
@@ -71,7 +72,15 @@ if (uGridVisible > 0.0) {
   vec2 deriv = vec2(fwidth(angles.x), (length(dFdx(unitLon)) + length(dFdy(unitLon))) * 57.29577951308232);
   deriv = max(deriv * uGridPixelRatio, vec2(0.0000001));
   vec4 grid = mix(gridColor(angles, deriv, uGridPreviousStep), gridColor(angles, deriv, uGridStep), uGridBlend);
-  outgoingLight = mix(outgoingLight, grid.rgb, grid.a * uGridVisible);
+  // Modulate the overlay by the surface lighting instead of illuminating night.
+  float luminance = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
+  // Normalize by albedo so dark daytime imagery still has a useful grid.
+  float illumination = luminance / max(dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)), 0.001);
+  float lighting = mix(0.08, 1.0, smoothstep(0.02, 0.5, illumination));
+  vec3 bodyNormal = normalize(p / vec3(uGridShape.x * uGridShape.x, uGridShape.x * uGridShape.x, uGridShape.y * uGridShape.y));
+  vec3 eye = (uGridViewToBody * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  float horizon = smoothstep(0.08, 0.35, dot(bodyNormal, normalize(eye - p)));
+  outgoingLight = mix(outgoingLight, grid.rgb * lighting, grid.a * lighting * horizon * uGridVisible);
 }
 #include <opaque_fragment>`);
 }

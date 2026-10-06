@@ -4,7 +4,7 @@ import { Body, FixedPointTrajectory, bodySurfaceCoordinates, surfacePositionToBo
 import { BodyMesh } from '../BodyMesh.js';
 import { normalizeGridSettings } from '@cosmolabe/control';
 import { chooseGridStep, GRID_STEPS } from '../AdaptiveGraticule.js';
-import type { LabelManager } from '../LabelManager.js';
+import { LabelManager } from '../LabelManager.js';
 import { TerrainSampler } from '../TerrainSampler.js';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -41,7 +41,7 @@ describe('adaptive graticule', () => {
     const manager = { reserveContextRect: () => true } as unknown as LabelManager;
     const pose = (eye: [number, number, number], up: [number, number, number] = [0, 0, 1]) => {
       camera.position.set(...eye); camera.up.set(...up); camera.lookAt(0, 0, 0); now += 200;
-      bm.updateGrid(camera, { width: 800, height: 800 }, manager);
+      for (let i = 0; i < 20; i++) { now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); }
       return bm.gridMetrics!;
     };
     bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 20 }));
@@ -65,6 +65,74 @@ describe('adaptive graticule', () => {
     const final = pose([300, 0, 0]);
     const ordered = (m: typeof first) => m.annotations.slice().sort((a, b) => a.text.localeCompare(b.text));
     expect(ordered(final)).toEqual(ordered(first));
+    bm.dispose();
+  });
+  it('updates regional line intersections between density plans and keeps clipped globe bands fixed', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Motion', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.up.set(0, 0, 1);
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    const frame = (x: number, y: number) => {
+      now += 16; camera.position.set(x, y, 0); camera.lookAt(100, y, 0);
+      bm.updateGrid(camera, { width: 800, height: 800 }, manager); return bm.gridMetrics!;
+    };
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 0.1 }));
+    const a = frame(100.5, 0), b = frame(100.5, 0.005), c = frame(100.5, 0.01);
+    const zero = (m: typeof a) => m.annotations.find(a => a.axis === 'latitude' && a.latDeg === 0)!;
+    expect(zero(a)).toBeDefined(); expect(zero(b).lonDeg).not.toBe(zero(a).lonDeg);
+    expect(zero(c).lonDeg).not.toBe(zero(b).lonDeg);
+    expect(a.latitudeStep).toBe(c.latitudeStep);
+    expect(a.densityBlend).toBe(0);
+    expect(b.densityBlend).toBeGreaterThan(0); expect(b.densityBlend).toBeLessThan(1);
+    const roll = (degrees: number, frames = 1) => {
+      const angle = degrees * Math.PI / 180;
+      camera.position.set(100.5, 0, 0); camera.up.set(0, Math.sin(angle), Math.cos(angle)); camera.lookAt(100, 0, 0);
+      for (let i = 0; i < frames; i++) { now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); }
+      return bm.gridMetrics!;
+    };
+    roll(0, 40);
+    expect(roll(50).annotations.filter(a => a.axis === 'latitude').every(a => a.edge === 'left')).toBe(true);
+    const settledA = roll(50, 40);
+    expect(settledA.annotations.filter(a => a.axis === 'latitude').every(a => a.edge === 'bottom')).toBe(true);
+    roll(90, 40);
+    const settledB = roll(50, 40);
+    const sorted = (m: typeof a) => m.annotations.slice().sort((a, b) => a.text.localeCompare(b.text));
+    expect(sorted(settledB)).toEqual(sorted(settledA));
+    camera.up.set(0, 0, 1);
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 15 }));
+    camera.position.set(180, 0, 0); camera.lookAt(0, 0, 0); now += 400;
+    for (let i = 0; i < 20; i++) { now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); }
+    expect(bm.gridMetrics!.layout).toBe('globe'); // projected disc clips the viewport
+    const fixed = bm.gridMetrics!.annotations;
+    camera.position.y = 0.01; camera.lookAt(0, 0, 0); now += 16;
+    bm.updateGrid(camera, { width: 800, height: 800 }, manager);
+    expect(bm.gridMetrics!.annotations).toEqual(fixed);
+    bm.dispose();
+  });
+  it('reserves measured controls and moves regional anchors into the usable viewport', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    const manager = new LabelManager({} as HTMLElement);
+    manager.setReservedRects([{ x0: 8, x1: 56, y0: 80, y1: 550 }, { x0: 80, x1: 1016, y0: 686, y1: 760 }], 'controls');
+    expect(manager.getContextViewport(1024, 768)).toEqual({ x0: 104, x1: 960, y0: 36, y1: 662 });
+    const body = new Body({ name: 'Controls', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const camera = new THREE.PerspectiveCamera(45, 1024 / 768, 0.001, 1000);
+    camera.position.set(100.5, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(100, 0, 0);
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 0.1 }));
+    manager.beginContextAnnotations(); bm.updateGrid(camera, { width: 1024, height: 768 }, manager);
+    const annotations = bm.gridMetrics!.annotations;
+    expect(annotations.filter(a => a.axis === 'latitude').length).toBeGreaterThan(0);
+    expect(annotations.filter(a => a.axis === 'longitude').length).toBeGreaterThan(0);
+    for (const a of annotations) {
+      const p = surfacePositionToBodyFixed({ latDeg: a.latDeg, lonDeg: a.lonDeg }, bodySurfaceCoordinates(body)!);
+      const screen = new THREE.Vector3(p.xKm, p.yKm, p.zKm).project(camera);
+      if (a.edge === 'left') expect((screen.x + 1) * 512).toBeCloseTo(104, 0);
+      if (a.edge === 'bottom') expect((1 - screen.y) * 384).toBeCloseTo(662, 0);
+    }
     bm.dispose();
   });
   it('retains terrain annotations during continuous small camera moves within the ray budget', () => {

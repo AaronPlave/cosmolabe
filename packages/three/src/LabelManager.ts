@@ -246,6 +246,16 @@ export class LabelManager {
     this._reserved = [...this._reservationSources.values()].flat();
   }
 
+  /** Safe annotation edges account for measured rail/timeline bounds in CSS pixels. */
+  getContextViewport(width: number, height: number): LabelScreenRect {
+    const area = { x0: 64, y0: 36, x1: width - 64, y1: height - 36 };
+    for (const rect of this._reservationSources.get('controls') ?? []) {
+      if (rect.x1 - rect.x0 > width * 0.5 && rect.y1 > height * 0.8) area.y1 = Math.min(area.y1, rect.y0 - 24);
+      if (rect.y1 - rect.y0 > height * 0.3 && rect.x0 < width * 0.15) area.x0 = Math.max(area.x0, rect.x1 + 48);
+    }
+    return area;
+  }
+
   /** Contextual annotations yield to the same reservations and body-label boxes. */
   beginContextAnnotations(): void { this._contextRects = [...this._reserved, ...this.getScreenRects()]; }
   reserveContextRect(rect: LabelScreenRect): boolean {

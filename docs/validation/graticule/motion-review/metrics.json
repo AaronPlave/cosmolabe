@@ -1,0 +1,348 @@
+{
+  "pass": true,
+  "renderer": "Chromium SwiftShader; analytic sphere and measured mock rail/timeline; fixed 30 Hz application clock",
+  "durationSeconds": 15,
+  "frames": 451,
+  "maxLineErrorDeg": 1.0658141036401503e-14,
+  "continuousEdgeFraction": 1,
+  "zeroIntersections": 90,
+  "gridRequests": 0,
+  "controlOverlaps": 0,
+  "maxUpdateMs": 706.1000000014901,
+  "errors": [],
+  "captures": [
+    {
+      "name": "day-night",
+      "prototype": null,
+      "updateMs": 0.5,
+      "frameMs": 0.8000000044703484,
+      "metrics": {
+        "candidates": 35,
+        "labels": 14,
+        "latitudeStep": 15,
+        "longitudeStep": 15,
+        "densityBlend": 1,
+        "layout": "globe",
+        "annotations": [
+          {
+            "axis": "latitude",
+            "latDeg": 0,
+            "lonDeg": 0,
+            "text": "Equator 0°"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 0,
+            "text": "Prime 0°"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 15,
+            "lonDeg": 0,
+            "text": "15°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -15,
+            "text": "15°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 15,
+            "text": "15°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 30,
+            "lonDeg": 0,
+            "text": "30°N"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -15,
+            "lonDeg": 0,
+            "text": "15°S"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -30,
+            "text": "30°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 30,
+            "text": "30°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 45,
+            "lonDeg": 0,
+            "text": "45°N"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -30,
+            "lonDeg": 0,
+            "text": "30°S"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -45,
+            "text": "45°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 45,
+            "text": "45°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 60,
+            "lonDeg": 0,
+            "text": "60°N"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 473,
+        "calls": 15,
+        "triangles": 24348,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 15
+      }
+    },
+    {
+      "name": "bright-imagery",
+      "prototype": null,
+      "updateMs": 0.29999999701976776,
+      "frameMs": 0.6000000014901161,
+      "metrics": {
+        "candidates": 35,
+        "labels": 14,
+        "latitudeStep": 15,
+        "longitudeStep": 15,
+        "densityBlend": 1,
+        "layout": "globe",
+        "annotations": [
+          {
+            "axis": "latitude",
+            "latDeg": 0,
+            "lonDeg": 0,
+            "text": "Equator 0°"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 0,
+            "text": "Prime 0°"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 15,
+            "lonDeg": 0,
+            "text": "15°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -15,
+            "text": "15°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 15,
+            "text": "15°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 30,
+            "lonDeg": 0,
+            "text": "30°N"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -15,
+            "lonDeg": 0,
+            "text": "15°S"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -30,
+            "text": "30°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 30,
+            "text": "30°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 45,
+            "lonDeg": 0,
+            "text": "45°N"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -30,
+            "lonDeg": 0,
+            "text": "30°S"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -45,
+            "text": "45°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 45,
+            "text": "45°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 60,
+            "lonDeg": 0,
+            "text": "60°N"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 495,
+        "calls": 15,
+        "triangles": 24348,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 16
+      }
+    },
+    {
+      "name": "dark-imagery",
+      "prototype": null,
+      "updateMs": 0.6000000014901161,
+      "frameMs": 0.9000000059604645,
+      "metrics": {
+        "candidates": 35,
+        "labels": 14,
+        "latitudeStep": 15,
+        "longitudeStep": 15,
+        "densityBlend": 1,
+        "layout": "globe",
+        "annotations": [
+          {
+            "axis": "latitude",
+            "latDeg": 0,
+            "lonDeg": 0,
+            "text": "Equator 0°"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 0,
+            "text": "Prime 0°"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 15,
+            "lonDeg": 0,
+            "text": "15°N"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -15,
+            "text": "15°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 15,
+            "text": "15°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 30,
+            "lonDeg": 0,
+            "text": "30°N"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -15,
+            "lonDeg": 0,
+            "text": "15°S"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -30,
+            "text": "30°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 30,
+            "text": "30°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 45,
+            "lonDeg": 0,
+            "text": "45°N"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": -30,
+            "lonDeg": 0,
+            "text": "30°S"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": -45,
+            "text": "45°W"
+          },
+          {
+            "axis": "longitude",
+            "latDeg": -10,
+            "lonDeg": 45,
+            "text": "45°E"
+          },
+          {
+            "axis": "latitude",
+            "latDeg": 60,
+            "lonDeg": 0,
+            "text": "60°N"
+          }
+        ]
+      },
+      "draw": {
+        "frame": 517,
+        "calls": 15,
+        "triangles": 24348,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 17
+      }
+    }
+  ]
+}

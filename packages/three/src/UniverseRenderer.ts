@@ -976,6 +976,7 @@ export class UniverseRenderer {
     }
 
     this.syncBodyGrids();
+    this.labelManager?.setReservedRects(this._screenOccluders?.() ?? [], 'controls');
     this.labelManager?.beginContextAnnotations();
     const gridViewport = { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight };
     for (const bm of bodyMeshArr) bm.updateGrid(this.camera, gridViewport, this.labelManager, bodyMeshArr);
