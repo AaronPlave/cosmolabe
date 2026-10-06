@@ -345,6 +345,35 @@ export const VERB_LIST: readonly VerbSpec[] = [
     invoke: (host, a) => host.setLayer(str(a[0]), bool(a[1])),
   },
 
+  {
+    name: 'showBodyGrid', params: [{ name: 'object', type: 'object' }, { name: 'visible', type: 'boolean' }],
+    category: 'Display', method: 'showBodyGrid', resolvesName: 'object', help: 'Show or hide a body surface grid using shared viewer state.',
+    invoke: (host, a) => host.showBodyGrid?.(str(a[0]), bool(a[1])),
+  },
+  {
+    name: 'showBodyGridLabels', params: [{ name: 'object', type: 'object' }, { name: 'visible', type: 'boolean' }],
+    category: 'Display', method: 'showBodyGridLabels', resolvesName: 'object', help: 'Show or hide one body’s coordinate labels independently of lines.',
+    invoke: (host, a) => host.showBodyGridLabels?.(str(a[0]), bool(a[1])),
+  },
+  {
+    name: 'setGridScope', params: [{ name: 'scope', type: 'enum', values: ['tracked', 'bodies', 'all'] }, { name: 'bodies', type: 'text', optional: true }],
+    category: 'Display', method: 'setGridScope', help: 'Grid target: tracked body, comma-separated pinned bodies, or all eligible bodies.',
+    invoke: (host, a) => host.setGridScope?.(str(a[0]) as 'tracked' | 'bodies' | 'all', optStr(a[1])),
+  },
+  {
+    name: 'setGridDensity', params: [{ name: 'density', type: 'enum', values: ['auto', 'manual'] }, { name: 'degrees', type: 'number', optional: true }],
+    category: 'Display', method: 'setGridDensity', help: 'Auto density or manual angular spacing in degrees.',
+    invoke: (host, a) => host.setGridDensity?.(str(a[0]) as 'auto' | 'manual', optNum(a[1])),
+  },
+  {
+    name: 'setGridLabels', params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridLabels',
+    help: 'Show coordinate labels independently of grid lines.', invoke: (host, a) => host.setGridLabels?.(bool(a[0])),
+  },
+  {
+    name: 'setGridMinorLines', params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridMinorLines',
+    help: 'Show fainter intermediate surface grid lines.', invoke: (host, a) => host.setGridMinorLines?.(bool(a[0])),
+  },
+
   // ── Time ──
   {
     name: 'setTime',

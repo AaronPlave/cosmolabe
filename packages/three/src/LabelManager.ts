@@ -136,6 +136,8 @@ export class LabelManager {
   private _hoverPinned: string | null = null;
   private _globalVisible = true;
   private _reserved: LabelScreenRect[] = [];
+  private readonly _reservationSources = new Map<string, LabelScreenRect[]>();
+  private _contextRects: LabelScreenRect[] = [];
 
   constructor(_container: HTMLElement, options: LabelManagerOptions = {}) {
     this.fontSize = options.fontSize ?? 12;
@@ -239,8 +241,17 @@ export class LabelManager {
    * example). Labels yield to them exactly as to a higher-priority label: an
    * ordinary label fades, a pinned one moves to another slot. CSS pixels.
    */
-  setReservedRects(rects: readonly LabelScreenRect[]): void {
-    this._reserved = rects.map((rect) => ({ ...rect }));
+  setReservedRects(rects: readonly LabelScreenRect[], source = 'event'): void {
+    this._reservationSources.set(source, rects.map(rect => ({ ...rect })));
+    this._reserved = [...this._reservationSources.values()].flat();
+  }
+
+  /** Contextual annotations yield to the same reservations and body-label boxes. */
+  beginContextAnnotations(): void { this._contextRects = [...this._reserved, ...this.getScreenRects()]; }
+  reserveContextRect(rect: LabelScreenRect): boolean {
+    if (this._contextRects.some(p => rect.x0 < p.x1 && rect.x1 > p.x0 && rect.y0 < p.y1 && rect.y1 > p.y0)) return false;
+    this._contextRects.push(rect);
+    return true;
   }
 
   /** Boxes of the labels currently drawn, for placing other annotations around them. */

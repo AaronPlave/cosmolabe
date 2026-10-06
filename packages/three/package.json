@@ -54,7 +54,8 @@
     "@cosmolabe/core": "*",
     "@cosmolabe/frames": "*",
     "@types/three": "^0.183.1",
-    "cspice-wasm": "*"
+    "cspice-wasm": "*",
+    "@cosmolabe/control": "*"
   },
   "peerDependencies": {
     "three": "^0.183.2"

@@ -34,6 +34,8 @@ import {
 } from '@cosmolabe/control';
 import {
   vs,
+  setGridSettings,
+  setBodyGridOption,
   applyViewpoint,
   bodyNames,
   circleCenter,
@@ -136,6 +138,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
       lookAt: r?.cameraController.lookAtBody?.body.name ?? vs.lookAtBodyName,
       frame: { mode: vs.cameraMode, body: tracked ?? undefined },
       camera: camera(),
+      grid: vs.grid,
       layers: {
         trajectories: vs.showTrajectories,
         labels: vs.showLabels,
@@ -187,6 +190,27 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     showTrajectory: (name, visible) => setTrajectoryVisible(name, visible),
 
     showLabel: (name, visible) => setLabelVisible(name, visible),
+
+    showBodyGrid: (name, visible) => {
+      if (!hasBody(name)) return false;
+      setBodyGridOption(name, 'visible', visible, { persist: false }); return true;
+    },
+    showBodyGridLabels: (name, visible) => {
+      if (!hasBody(name)) return false;
+      setBodyGridOption(name, 'labels', visible, { persist: false }); return true;
+    },
+    setGridScope: (scope, names) => {
+      const bodies = (names ?? '').split(',').map(s => s.trim()).filter(Boolean);
+      if (!['tracked', 'bodies', 'all'].includes(scope) || (scope === 'bodies' && (!bodies.length || bodies.some(n => !hasBody(n))))) return false;
+      setGridSettings({ scope, bodies, perBody: {} }, { persist: false }); return true;
+    },
+    setGridDensity: (density, spacingDeg) => {
+      if (!['auto', 'manual'].includes(density) || (spacingDeg !== undefined && (!Number.isFinite(spacingDeg) || spacingDeg < 0.001 || spacingDeg > 30))) return false;
+      if (density === 'manual' && spacingDeg === undefined) return false;
+      setGridSettings({ density, ...(spacingDeg === undefined ? {} : { spacingDeg }) }, { persist: false }); return true;
+    },
+    setGridLabels: labels => { setGridSettings({ labels }, { persist: false }); return true; },
+    setGridMinorLines: minorLines => { setGridSettings({ minorLines }, { persist: false }); return true; },
 
     setLayer: (layer, on) => {
       if (!isDisplayOption(layer)) return false;

@@ -14,14 +14,14 @@ export class SpiceRotation implements RotationModel {
 
   constructor(
     private readonly spice: SpiceInstance,
-    private readonly bodyFixedFrame: string,
+    readonly targetFrame: string,
     private readonly inertialFrame: string = 'ECLIPJ2000',
   ) {
     this.sourceFrame = inertialFrame;
   }
 
   rotationAt(et: number): Quaternion {
-    const m = this.spice.pxform(this.inertialFrame, this.bodyFixedFrame, et);
+    const m = this.spice.pxform(this.inertialFrame, this.targetFrame, et);
     return rotationMatrixToQuaternion(m);
   }
 }

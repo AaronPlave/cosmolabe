@@ -182,3 +182,5 @@ export {
   etToDate,
   etFromDate,
 } from './time.js';
+
+export * from './surface-coordinates.js';

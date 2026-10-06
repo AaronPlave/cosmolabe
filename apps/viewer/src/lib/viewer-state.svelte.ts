@@ -1,3 +1,4 @@
+import { normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 /**
  * Reactive viewer state — bridges UniverseRenderer ↔ Svelte reactivity.
  *
@@ -83,6 +84,7 @@ export const vs = $state({
   showTrajectories: true,
   showLabels: true,
   showGrid: false,
+  grid: normalizeGridSettings(),
   showAxes: false,
   showSensors: true,
   showSensorLabels: true,
@@ -372,12 +374,14 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   vs.showTrajectories = prefs.showTrajectories;
   vs.showLabels = prefs.showLabels;
   vs.showGrid = prefs.showGrid;
+  vs.grid = prefs.grid;
   vs.showAxes = prefs.showAxes;
   vs.showSensors = prefs.showSensors;
   vs.showSensorLabels = prefs.showSensorLabels;
   vs.lightingMode = prefs.lightingMode;
   renderer.setTrajectoriesVisible(prefs.showTrajectories);
   renderer.setLabelsVisible(prefs.showLabels);
+  renderer.setGridSettings(prefs.grid);
   renderer.showBodyGrid(prefs.showGrid);
   renderer.showBodyAxes(prefs.showAxes);
   renderer.setSensorLabelsVisible(prefs.showSensorLabels);
@@ -1001,6 +1005,17 @@ export function lookAtBody(name: string) {
  * or an embed host driving the view should not silently rewrite what the person
  * chose in the Display panel and will see again on their next visit.
  */
+/** UI and scripts use the same state operation. Scripts opt out of local preferences. */
+export function setGridSettings(settings: Partial<GridSettings>, opts: { persist?: boolean } = {}): void {
+  vs.grid = normalizeGridSettings({ ...vs.grid, ...settings });
+  _renderer?.setGridSettings(vs.grid);
+  if (opts.persist !== false) savePrefs({ grid: vs.grid });
+}
+export function setBodyGridOption(name: string, key: 'visible' | 'labels', value: boolean, opts: { persist?: boolean } = {}): void {
+  setGridSettings({ perBody: { ...vs.grid.perBody, [name]: { ...vs.grid.perBody[name], [key]: value } } }, opts);
+  if (key === 'visible' && value) setDisplayOption('grid', true, opts);
+}
+
 export function setDisplayOption(
   option: DisplayOption,
   value: boolean,

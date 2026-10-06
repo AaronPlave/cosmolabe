@@ -1,0 +1,582 @@
+{
+  "baseline": "8d685f73f94cab63bca54d4d16c6eee909a2a89a",
+  "renderer": "Chromium SwiftShader; gl.finish frame timings; synthetic asset-free reference surfaces",
+  "results": [
+    {
+      "name": "whole-moon-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 0.20000000018626451,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 35,
+        "triangles": 24354,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 18
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.5999999998603016
+    },
+    {
+      "name": "whole-moon-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0.10000000009313226,
+      "frameMs": 0.30000000004656613,
+      "metrics": {
+        "candidates": 44,
+        "labels": 8,
+        "latitudeStep": 30,
+        "longitudeStep": 30
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 9,
+        "triangles": 24336,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 9
+      },
+      "medianUpdateMs": 0.10000000009313226,
+      "medianFrameMs": 0.30000000004656613
+    },
+    {
+      "name": "whole-earth-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 0.30000000004656613,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 35,
+        "triangles": 24354,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 18
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.5
+    },
+    {
+      "name": "whole-earth-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0.10000000009313226,
+      "frameMs": 0.30000000004656613,
+      "metrics": {
+        "candidates": 44,
+        "labels": 8,
+        "latitudeStep": 30,
+        "longitudeStep": 30
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 9,
+        "triangles": 24336,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 9
+      },
+      "medianUpdateMs": 0.19999999995343387,
+      "medianFrameMs": 0.5
+    },
+    {
+      "name": "oblique-moon-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0.09999999986030161,
+      "frameMs": 0.6999999999534339,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 35,
+        "triangles": 24354,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 18
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.5
+    },
+    {
+      "name": "oblique-moon-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 0.30000000004656613,
+      "metrics": {
+        "candidates": 45,
+        "labels": 9,
+        "latitudeStep": 30,
+        "longitudeStep": 30
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 10,
+        "triangles": 24338,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 10
+      },
+      "medianUpdateMs": 0.19999999995343387,
+      "medianFrameMs": 0.39999999990686774
+    },
+    {
+      "name": "away-from-prime-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 0.20000000018626451,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 35,
+        "triangles": 24354,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 18
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.7000000001862645
+    },
+    {
+      "name": "away-from-prime-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0.19999999995343387,
+      "frameMs": 0.30000000004656613,
+      "metrics": {
+        "candidates": 41,
+        "labels": 9,
+        "latitudeStep": 30,
+        "longitudeStep": 30
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 10,
+        "triangles": 24338,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 10
+      },
+      "medianUpdateMs": 0.19999999995343387,
+      "medianFrameMs": 0.4000000001396984
+    },
+    {
+      "name": "south-pole-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 1.1000000000931323,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 35,
+        "triangles": 24354,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 18
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.7999999998137355
+    },
+    {
+      "name": "south-pole-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0.19999999995343387,
+      "frameMs": 0.4000000001396984,
+      "metrics": {
+        "candidates": 46,
+        "labels": 14,
+        "latitudeStep": 30,
+        "longitudeStep": 30
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 15,
+        "triangles": 24348,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 15
+      },
+      "medianUpdateMs": 0.19999999995343387,
+      "medianFrameMs": 0.5
+    },
+    {
+      "name": "antimeridian-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 2.5,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 35,
+        "triangles": 24354,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 18
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.5999999998603016
+    },
+    {
+      "name": "antimeridian-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 0.5999999998603016,
+      "metrics": {
+        "candidates": 44,
+        "labels": 8,
+        "latitudeStep": 30,
+        "longitudeStep": 30
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 9,
+        "triangles": 24336,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 9
+      },
+      "medianUpdateMs": 0.10000000009313226,
+      "medianFrameMs": 0.39999999990686774
+    },
+    {
+      "name": "regional-mars-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 0.30000000004656613,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 22,
+        "triangles": 24328,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 5
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.4000000001396984
+    },
+    {
+      "name": "regional-mars-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0.09999999986030161,
+      "frameMs": 0.5,
+      "metrics": {
+        "candidates": 96,
+        "labels": 12,
+        "latitudeStep": 0.2,
+        "longitudeStep": 0.2
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 13,
+        "triangles": 24344,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 13
+      },
+      "medianUpdateMs": 0.19999999995343387,
+      "medianFrameMs": 0.5
+    },
+    {
+      "name": "bright-surface-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 2,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 35,
+        "triangles": 24354,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 18
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.5999999998603016
+    },
+    {
+      "name": "bright-surface-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0.20000000018626451,
+      "frameMs": 0.4000000001396984,
+      "metrics": {
+        "candidates": 44,
+        "labels": 8,
+        "latitudeStep": 30,
+        "longitudeStep": 30
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 9,
+        "triangles": 24336,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 9
+      },
+      "medianUpdateMs": 0.19999999995343387,
+      "medianFrameMs": 0.4000000001396984
+    },
+    {
+      "name": "dark-surface-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 0.30000000004656613,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 35,
+        "triangles": 24354,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 18
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.39999999990686774
+    },
+    {
+      "name": "dark-surface-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0.10000000009313226,
+      "frameMs": 0.30000000004656613,
+      "metrics": {
+        "candidates": 44,
+        "labels": 8,
+        "latitudeStep": 30,
+        "longitudeStep": 30
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 9,
+        "triangles": 24336,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 9
+      },
+      "medianUpdateMs": 0.19999999995343387,
+      "medianFrameMs": 0.39999999990686774
+    },
+    {
+      "name": "mobile-dpr2-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 0.5,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 29,
+        "triangles": 24342,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 12
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.6000000000931323
+    },
+    {
+      "name": "mobile-dpr2-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0.19999999995343387,
+      "frameMs": 0.4000000001396984,
+      "metrics": {
+        "candidates": 84,
+        "labels": 12,
+        "latitudeStep": 15,
+        "longitudeStep": 15
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 13,
+        "triangles": 24344,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 13
+      },
+      "medianUpdateMs": 0.20000000018626451,
+      "medianFrameMs": 0.6999999999534339
+    },
+    {
+      "name": "synthetic-terrain-shader-before",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 0.30000000004656613,
+      "metrics": null,
+      "draw": {
+        "frame": 32,
+        "calls": 22,
+        "triangles": 24328,
+        "points": 0,
+        "lines": 1224
+      },
+      "memory": {
+        "geometries": 19,
+        "textures": 5
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.4000000001396984
+    },
+    {
+      "name": "synthetic-terrain-shader-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0.19999999995343387,
+      "frameMs": 0.39999999990686774,
+      "metrics": {
+        "candidates": 96,
+        "labels": 14,
+        "latitudeStep": 0.5,
+        "longitudeStep": 0.5
+      },
+      "draw": {
+        "frame": 65,
+        "calls": 15,
+        "triangles": 24348,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 15
+      },
+      "medianUpdateMs": 0.19999999995343387,
+      "medianFrameMs": 0.4000000001396984
+    },
+    {
+      "name": "synthetic-terrain-shader-lines-after",
+      "gridRequests": 0,
+      "prototype": null,
+      "updateMs": 0,
+      "frameMs": 0.09999999986030161,
+      "metrics": {
+        "candidates": 96,
+        "labels": 0,
+        "latitudeStep": 0.5,
+        "longitudeStep": 0.5
+      },
+      "draw": {
+        "frame": 32,
+        "calls": 1,
+        "triangles": 24320,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 1,
+        "textures": 1
+      },
+      "medianUpdateMs": 0.09999999986030161,
+      "medianFrameMs": 0.19999999995343387
+    },
+    {
+      "name": "synthetic-terrain-draped-after",
+      "gridRequests": 0,
+      "prototype": {
+        "segments": 192,
+        "samples": 1080,
+        "maximumDepth": 4,
+        "buildMs": 43.699999999953434,
+        "bytes": 4608
+      },
+      "updateMs": 0,
+      "frameMs": 0.19999999995343387,
+      "metrics": {
+        "candidates": 0,
+        "labels": 0,
+        "latitudeStep": 30,
+        "longitudeStep": 30
+      },
+      "draw": {
+        "frame": 32,
+        "calls": 2,
+        "triangles": 24320,
+        "points": 0,
+        "lines": 192
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 1
+      },
+      "medianUpdateMs": 0,
+      "medianFrameMs": 0.19999999995343387
+    }
+  ],
+  "errors": []
+}
