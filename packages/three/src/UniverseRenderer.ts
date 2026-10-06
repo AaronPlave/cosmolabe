@@ -30,7 +30,7 @@ import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMarkerGroups } from './EventMarkers.js';
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 import { PointProbeOverlay } from './PointProbe.js';
-import { resolveSceneHit, type HitLayer, type PickIntent, type SceneHit, type SurfaceDatum, type SurfaceHitSource, type SurfacePoint } from './SceneHit.js';
+import { resolveSceneHit, resolveSurfaceAltitude, type HitLayer, type PickIntent, type SceneHit, type SurfaceDatum, type SurfaceHitSource, type SurfacePoint } from './SceneHit.js';
 import { OccultationGeometry } from './OccultationGeometry.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -276,6 +276,8 @@ export class UniverseRenderer {
   private _probeActive = false;
   /** Where the current primary press began, so a drag never pins a point. */
   private _probePress: { x: number; y: number } | null = null;
+  /** A hovering (mouse or pen) pointer is over the canvas: the probe re-picks under it. */
+  private _hoverPointerInside = false;
   /** Label boxes the event annotation and probe callouts reserve this frame. */
   private _eventReservedRects: ScreenRect[] = [];
   private _renderDebugFrame = 0;
@@ -1145,7 +1147,9 @@ export class UniverseRenderer {
     this.updateProbeOverlay();
 
     // Final pass: markers (pick marker, orbit pivot dot, etc.) — always on top.
-    if (this._markerScene.children.length > 0) {
+    // Only when something in it is drawn: the probe's markers live here
+    // hidden for users who never probe.
+    if (this._markerScene.children.some((child) => child.visible)) {
       this.renderer.render(this._markerScene, this.camera);
     }
 
@@ -1910,11 +1914,12 @@ export class UniverseRenderer {
 
   /**
    * Camera motion or a rotating body slides the surface under a resting
-   * pointer without any pointermove; re-probe at a modest rate so the preview
-   * keeps describing what is actually under it.
+   * pointer without any pointermove — onto a surface, off one, or across it;
+   * re-probe at a modest rate so the preview keeps describing what is
+   * actually under it, whether or not anything was under it before.
    */
   private revalidateProbeHover(): void {
-    if (!this._probeActive || !this._probe.hovered || this._hoverPickTimer) return;
+    if (!this._probeActive || !this._hoverPointerInside || this._hoverPickTimer) return;
     if (performance.now() - this._lastHoverPickMs < UniverseRenderer._hoverPickIntervalMs * 3) return;
     this._lastHoverPickMs = performance.now();
     this._probeHoverAt(this._lastPointer.x, this._lastPointer.y);
@@ -2039,12 +2044,30 @@ export class UniverseRenderer {
     const ndc = new THREE.Vector2(ndcX, ndcY);
     raycaster.setFromCamera(ndc, this.camera);
 
-    // Main scene: globe sphere meshes + terrain tile groups
+    // Broad phase. Terrain tiles and surface overlays can be hundreds of
+    // meshes, and this runs at hover rate while probing; a body whose
+    // true-scale surface the ray cannot reach skips them all. The globe mesh
+    // is one object (and may be enlarged to a minimum on-screen size), so it
+    // is always left to the raycaster's own bounding test.
+    const reachable = new Set<BodyMesh>();
+    const center = new THREE.Vector3();
+    const reach = new THREE.Sphere();
+    for (const bm of this.bodyMeshes.values()) {
+      if (!bm.visible || (!bm.terrainTileGroup && bm.getSurfaceOverlays().length === 0)) continue;
+      bm.getWorldPosition(center);
+      // Room for relief above the datum (Olympus Mons is ~22 km) and overlay offsets.
+      const radiusKm = bm.displayRadius * 1.01 + 30;
+      if (raycaster.ray.intersectsSphere(reach.set(center, radiusKm * this.scaleFactor))) reachable.add(bm);
+    }
+
+    // Main scene: globe sphere meshes + terrain tile groups. The raycaster
+    // ignores ancestor visibility, so a hidden body is skipped here.
     const mainTargets: THREE.Object3D[] = [];
     for (const bm of this.bodyMeshes.values()) {
+      if (!bm.visible) continue;
       if (bm.mesh.visible) mainTargets.push(bm.mesh);
       const tg = bm.terrainTileGroup;
-      if (tg && tg.visible) mainTargets.push(tg);
+      if (tg && tg.visible && reachable.has(bm)) mainTargets.push(tg);
     }
     const mainHits = raycaster.intersectObjects(mainTargets, true);
 
@@ -2057,6 +2080,7 @@ export class UniverseRenderer {
     const overlayBodyMap = new Map<THREE.Object3D, BodyMesh>();
     const savedGroupState: { overlay: any; pos: THREE.Vector3; quat: THREE.Quaternion; scale: THREE.Vector3 }[] = [];
     for (const bm of this.bodyMeshes.values()) {
+      if (!reachable.has(bm)) continue;
       for (const overlay of bm.getSurfaceOverlays()) {
         if (overlay.group.visible) {
           // Save current LOD transform
@@ -2149,17 +2173,20 @@ export class UniverseRenderer {
     const terrainPosition = bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const latDeg = terrainPosition?.latDeg ?? (Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI));
     const lonDeg = terrainPosition?.lonDeg ?? (Math.atan2(ecefY, ecefX) * (180 / Math.PI));
-    // Keep the rendered intersection as the visual hit, but prefer decoded CPU
-    // terrain for its physical altitude when coverage is available — and say
-    // which one the altitude is.
+    // The rendered intersection is the point. Decoded CPU terrain at the
+    // same place is its own record, and becomes the point's altitude only
+    // when the terrain is the surface that was hit (an overlay hit sits over
+    // the global terrain product, not on it).
     const terrainSample = bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
-    const renderedHeightKm = terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg));
+    const hitHeightKm = terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg));
     const cameraRangeKm = bestWorldPoint.distanceTo(this.camera.position) / this.scaleFactor;
-    const terrainDatum = terrainSample?.datum ?? bm.terrainDatum;
+    const terrainDatum = bm.terrainDatum;
     const radii = bm.body.radii;
     // Equal radii are a sphere, whatever field they came in.
     const oblate = !!radii && (radii[0] !== radii[1] || radii[0] !== radii[2]);
-    const datum: SurfaceDatum = terrainDatum
+    // The hit height is measured against the terrain datum when the body has
+    // one (terrainBodyFixedToGeodetic), else radially from the body's shape.
+    const hitDatum: SurfaceDatum = terrainPosition && terrainDatum
       ? { ...terrainDatum, origin: 'terrain' }
       : {
           referenceShape: radii && oblate
@@ -2169,6 +2196,13 @@ export class UniverseRenderer {
           heightConvention: 'radial',
           origin: 'body-shape',
         };
+    const hit = { heightKm: hitHeightKm, datum: hitDatum };
+    const sample = terrainSample ? {
+      elevationKm: terrainSample.elevationKm,
+      datum: { ...terrainSample.datum, origin: 'terrain' as const },
+      sourceId: terrainSample.source.id,
+      ...(terrainSample.tileId ? { tileId: terrainSample.tileId } : {}),
+    } : undefined;
 
     const point: SurfacePoint = {
       bodyName: bm.body.name,
@@ -2177,14 +2211,8 @@ export class UniverseRenderer {
       latDeg,
       lonDeg,
       latitudeKind: terrainPosition ? 'geodetic' : 'planetocentric',
-      altitude: {
-        km: terrainSample?.elevationKm ?? renderedHeightKm,
-        from: terrainSample ? 'sampled-terrain' : 'rendered-hit',
-        datum,
-      },
-      renderedHeightKm,
-      ...(terrainSample ? { terrainSourceId: terrainSample.source.id } : {}),
-      ...(terrainSample?.tileId ? { terrainTileId: terrainSample.tileId } : {}),
+      hit,
+      ...resolveSurfaceAltitude(source, hit, sample),
     };
     return { point, cameraRangeKm };
   }
@@ -3760,6 +3788,8 @@ export class UniverseRenderer {
    */
   private _onPointerMove = (event: PointerEvent): void => {
     if (event.pointerType === 'touch') this._trackTapCandidate(event);
+    // A touch has no hover to keep up; only a resting mouse or pen does.
+    this._hoverPointerInside = event.pointerType !== 'touch';
     const rect = this.renderer.domElement.getBoundingClientRect();
     this._lastPointer.x = event.clientX - rect.left;
     this._lastPointer.y = event.clientY - rect.top;
@@ -3824,6 +3854,7 @@ export class UniverseRenderer {
   }
 
   private _onPointerLeave = (): void => {
+    this._hoverPointerInside = false;
     this._sceneEventHit = null;
     if (this._hoverPickTimer) {
       clearTimeout(this._hoverPickTimer);

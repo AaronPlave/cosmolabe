@@ -42,10 +42,14 @@ export interface SurfaceDatum {
 /**
  * A point on a body's surface as a reusable spatial reference.
  *
- * The rendered intersection and the physical surface are kept apart: the
- * Cartesian position is exactly where the renderer's ray hit (it keeps a
- * marker on what the user clicked), while the altitude says whether it comes
- * from the CPU terrain sampler or only from that rendered hit.
+ * The surface that was hit and the physical terrain product are separate
+ * records. `bodyFixedPositionKm` and `hit` always describe the rendered
+ * surface the ray struck (they keep a marker on what the user clicked). A
+ * terrain sample at the same latitude/longitude is kept apart in
+ * `terrainSample`, with its own datum and provenance, because it may describe
+ * a different surface: a photogrammetry overlay hit sits over the global
+ * terrain product, not on it. `altitude` promotes the sample only when it
+ * describes the hit surface.
  */
 export interface SurfacePoint {
   bodyName: string;
@@ -58,20 +62,51 @@ export interface SurfacePoint {
   lonDeg: number;
   /** Geodetic from a terrain datum; planetocentric from the radial fallback. */
   latitudeKind: 'geodetic' | 'planetocentric';
+  /** The hit itself: the height of `bodyFixedPositionKm` above `datum`. */
+  hit: { heightKm: number; datum: SurfaceDatum };
+  /**
+   * The body's terrain product sampled at this latitude/longitude, when it has
+   * decoded coverage there. `describesHit` is true only when that product is
+   * the surface that was hit (`source === 'terrain'`); otherwise it is a
+   * different surface at the same place, never this point's elevation.
+   */
+  terrainSample?: {
+    elevationKm: number;
+    datum: SurfaceDatum;
+    sourceId: string;
+    tileId?: string;
+    describesHit: boolean;
+  };
+  /**
+   * The height to present for this point: the terrain sample when it
+   * describes the hit surface, otherwise the hit's own height.
+   */
   altitude: {
     km: number;
-    /**
-     * `sampled-terrain`: decoded CPU terrain at this location. `rendered-hit`:
-     * the rendered intersection's height above the datum (no terrain sample).
-     */
-    from: 'sampled-terrain' | 'rendered-hit';
+    from: 'terrain-sample' | 'rendered-hit';
     datum: SurfaceDatum;
   };
-  /** Height of the rendered hit above the datum, for comparison with a sample. */
-  renderedHeightKm: number;
-  /** Terrain product that answered the sample, when there was one. */
-  terrainSourceId?: string;
-  terrainTileId?: string;
+}
+
+/**
+ * Attach a terrain sample to a hit and choose the altitude to present. The
+ * sample describes the hit only when the terrain product is what was hit;
+ * over any other surface (an overlay, the reference globe) it stays a
+ * separate record and the hit keeps its own height.
+ */
+export function resolveSurfaceAltitude(
+  source: SurfaceHitSource,
+  hit: SurfacePoint['hit'],
+  sample?: Omit<NonNullable<SurfacePoint['terrainSample']>, 'describesHit'>,
+): Pick<SurfacePoint, 'altitude' | 'terrainSample'> {
+  if (!sample) return { altitude: { km: hit.heightKm, from: 'rendered-hit', datum: hit.datum } };
+  const terrainSample = { ...sample, describesHit: source === 'terrain' };
+  return {
+    terrainSample,
+    altitude: terrainSample.describesHit
+      ? { km: sample.elevationKm, from: 'terrain-sample', datum: sample.datum }
+      : { km: hit.heightKm, from: 'rendered-hit', datum: hit.datum },
+  };
 }
 
 export type SceneHit =

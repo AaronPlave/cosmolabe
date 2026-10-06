@@ -72,8 +72,8 @@
     <div class="row"><span class="k">Lat</span><span class="v">{formatLatitude(point.latDeg, 5)}</span></div>
     <div class="row"><span class="k">Lon</span><span class="v">{formatLongitude(point.lonDeg, 5)}</span></div>
     <div class="row">
-      <span class="k" title={point.altitude.from === 'sampled-terrain' ? 'Sampled from decoded terrain' : 'Height of the rendered surface; no terrain sample here'}>
-        {point.altitude.from === 'sampled-terrain' ? 'Elevation' : 'Height'}
+      <span class="k" title={point.altitude.from === 'terrain-sample' ? 'Sampled from the terrain product that was hit' : 'Height of the surface that was hit'}>
+        {point.altitude.from === 'terrain-sample' ? 'Elevation' : 'Height'}
       </span>
       <span class="v">{formatHeight(point.altitude.km)}</span>
     </div>
@@ -84,13 +84,20 @@
       <div class="mt-1">
         <div class="row"><span class="k">Surface</span><span class="v">{describeSource(point.source)}</span></div>
         <div class="row"><span class="k">Latitude</span><span class="v">{point.latitudeKind}</span></div>
-        <div class="row"><span class="k">Height from</span><span class="v">{point.altitude.from === 'sampled-terrain' ? 'terrain sample' : 'rendered hit'}</span></div>
-        {#if point.altitude.from === 'sampled-terrain'}
-          <div class="row"><span class="k">Rendered</span><span class="v">{formatHeight(point.renderedHeightKm)}</span></div>
-        {/if}
+        <div class="row"><span class="k">Height from</span><span class="v">{point.altitude.from === 'terrain-sample' ? 'terrain sample' : 'rendered hit'}</span></div>
+        <div class="row"><span class="k">Hit height</span><span class="v">{formatHeight(point.hit.heightKm)}</span></div>
         <div class="row"><span class="k">Reference</span><span class="v">{datumShape}</span></div>
-        {#if point.terrainSourceId}
-          <div class="row"><span class="k">Terrain</span><span class="v truncate" title={point.terrainTileId ?? point.terrainSourceId}>{point.terrainSourceId}</span></div>
+        {#if point.terrainSample}
+          <!-- A sample of a different surface at the same place (an overlay
+               over the global terrain) is shown as such, never as this point's
+               elevation. -->
+          <div class="row">
+            <span class="k" title={point.terrainSample.describesHit ? 'The terrain product that was hit' : 'Global terrain product under the surface that was hit — a different surface'}>
+              {point.terrainSample.describesHit ? 'Terrain' : 'Terrain below'}
+            </span>
+            <span class="v">{formatHeight(point.terrainSample.elevationKm)} · {describeDatum(point.terrainSample.datum)}</span>
+          </div>
+          <div class="row"><span class="k">Terrain source</span><span class="v truncate" title={point.terrainSample.tileId ?? point.terrainSample.sourceId}>{point.terrainSample.sourceId}</span></div>
         {/if}
         {#each ['X', 'Y', 'Z'] as axis, i (axis)}
           <div class="row"><span class="k">{axis} body-fixed</span><span class="v">{point.bodyFixedPositionKm[i].toFixed(4)} km</span></div>

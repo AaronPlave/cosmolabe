@@ -229,12 +229,13 @@
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
+          // An active mode is what Escape is for: the probe goes before any
+          // selection. The pinned point stays until a second Escape (or its
+          // panel's close) clears it.
+          else if (vs.probeActive) setProbeActive(false);
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.
           else if (ef.selectedId) clearSelection();
-          // Escape leaves the probe first; the pinned point stays until a
-          // second Escape (or its panel's close) clears it.
-          else if (vs.probeActive) setProbeActive(false);
           else if (dismissTopSurface()) return;
           else if (vs.selectedBodyName) selectBody(null);
           else resetCamera();

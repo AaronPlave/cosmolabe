@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
-  PICK_PRECEDENCE, describeDatum, formatHeight, formatLatitude, formatLongitude, resolveSceneHit,
+  PICK_PRECEDENCE, describeDatum, formatHeight, formatLatitude, formatLongitude, resolveSceneHit, resolveSurfaceAltitude,
   surfacePointToText, type HitLayer, type SceneHit, type SurfacePoint,
 } from './SceneHit.js';
 import { probeCalloutLines } from './PointProbe.js';
+
+const AREOID = {
+  referenceShape: { kind: 'sphere', radiusKm: 3396.19 },
+  verticalDatum: 'areoid',
+  heightConvention: 'radial',
+  origin: 'terrain',
+} as const;
 
 const point: SurfacePoint = {
   bodyName: 'Mars',
@@ -12,17 +19,9 @@ const point: SurfacePoint = {
   latDeg: 18.4446,
   lonDeg: 77.4509,
   latitudeKind: 'geodetic',
-  altitude: {
-    km: -2.4312,
-    from: 'sampled-terrain',
-    datum: {
-      referenceShape: { kind: 'sphere', radiusKm: 3396.19 },
-      verticalDatum: 'areoid',
-      heightConvention: 'radial',
-      origin: 'terrain',
-    },
-  },
-  renderedHeightKm: -2.43,
+  hit: { heightKm: -2.43, datum: AREOID },
+  terrainSample: { elevationKm: -2.4312, datum: AREOID, sourceId: 'mars-mola', describesHit: true },
+  altitude: { km: -2.4312, from: 'terrain-sample', datum: AREOID },
 };
 
 const hits: Record<HitLayer, SceneHit> = {
@@ -77,6 +76,41 @@ describe('resolveSceneHit', () => {
       expect(order.length).toBeGreaterThan(0);
       for (const layer of order) expect(Object.keys(hits)).toContain(layer);
     }
+  });
+});
+
+describe('resolveSurfaceAltitude', () => {
+  const ELLIPSOID = {
+    referenceShape: { kind: 'ellipsoid', radiiKm: [3396.19, 3396.19, 3376.2] },
+    verticalDatum: 'ellipsoid',
+    heightConvention: 'radial',
+    origin: 'body-shape',
+  } as const;
+  const hit = { heightKm: -4.1, datum: AREOID };
+  const sample = { elevationKm: -4.47, datum: AREOID, sourceId: 'mars_v14', tileId: '14/1/2' };
+
+  it('promotes the terrain sample when the terrain is what was hit', () => {
+    const r = resolveSurfaceAltitude('terrain', hit, sample);
+    expect(r.altitude).toEqual({ km: -4.47, from: 'terrain-sample', datum: AREOID });
+    expect(r.terrainSample?.describesHit).toBe(true);
+  });
+
+  it('keeps an overlay hit on its own height, with the global terrain as a separate record', () => {
+    const r = resolveSurfaceAltitude('surface-overlay', hit, sample);
+    expect(r.altitude).toEqual({ km: -4.1, from: 'rendered-hit', datum: AREOID });
+    expect(r.terrainSample).toMatchObject({ elevationKm: -4.47, sourceId: 'mars_v14', describesHit: false });
+  });
+
+  it('does not let a terrain sample stand in for the reference globe', () => {
+    const r = resolveSurfaceAltitude('ellipsoid', { heightKm: 0.2, datum: ELLIPSOID }, sample);
+    expect(r.altitude.from).toBe('rendered-hit');
+    expect(r.altitude.datum).toBe(ELLIPSOID);
+  });
+
+  it('uses the hit height when there is no terrain coverage', () => {
+    const r = resolveSurfaceAltitude('terrain', hit);
+    expect(r.altitude.from).toBe('rendered-hit');
+    expect(r.terrainSample).toBeUndefined();
   });
 });
 
