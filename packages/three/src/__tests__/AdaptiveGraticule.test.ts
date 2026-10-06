@@ -1,11 +1,63 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { Body, FixedPointTrajectory, bodySurfaceCoordinates, surfacePositionToBodyFixed } from '@cosmolabe/core';
 import { BodyMesh } from '../BodyMesh.js';
 import { normalizeGridSettings } from '@cosmolabe/control';
 import { chooseGridStep, GRID_STEPS } from '../AdaptiveGraticule.js';
+import type { LabelManager } from '../LabelManager.js';
+
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('adaptive graticule', () => {
+  it('retains terrain annotations during continuous small camera moves within the ray budget', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({
+      scale() {}, strokeText() {}, fillText() {},
+    }) }) });
+    let now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Moon', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe' });
+    const bm = new BodyMesh(body);
+    bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    bm.mesh.visible = false;
+    const terrain = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(100, 128, 64).rotateX(0.137).rotateZ(0.213), new THREE.MeshStandardMaterial());
+    terrain.add(mesh); terrain.updateMatrixWorld(true);
+    vi.spyOn(bm, 'terrainTileGroup', 'get').mockReturnValue(terrain);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+    camera.position.set(300, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0);
+    const labels = { reserveContextRect: () => true } as unknown as LabelManager;
+    const rays = vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects');
+    bm.showGrid(true, true, normalizeGridSettings());
+    const frame = () => {
+      now += 16; rays.mockClear();
+      bm.updateGrid(camera, { width: 800, height: 800 }, labels);
+      expect(rays.mock.calls.length).toBeLessThanOrEqual(8);
+      return bm.gridMetrics!.labels;
+    };
+    for (let i = 0; i < 20; i++) frame();
+    const settled = bm.gridMetrics!.labels;
+    expect(settled).toBeGreaterThan(8);
+    let stationaryQueries = 0;
+    for (let i = 0; i < 20; i++) {
+      expect(frame()).toBe(settled);
+      stationaryQueries += rays.mock.calls.length;
+    }
+    // Do not spend each frame's budget rechecking alternative anchors on
+    // lines that already have a visible annotation.
+    expect(stationaryQueries).toBeLessThan(60);
+    for (let i = 0; i < 40; i++) {
+      camera.position.y += 0.001;
+      expect(frame(), 'motion frame ' + i).toBe(settled);
+    }
+    // A large view change must not reuse old visibility results outside the
+    // controlled screen-space grace period, even if their time has not expired.
+    camera.position.y += 50;
+    expect(frame()).toBeLessThanOrEqual(8);
+    // Cached visible hits expire when the rendered terrain disappears.
+    terrain.remove(mesh); now += 151;
+    expect(frame()).toBe(0);
+    bm.dispose(); mesh.geometry.dispose(); mesh.material.dispose();
+  });
   it('keeps zoom noise inside hysteresis and bounds extreme regional density', () => {
     expect(chooseGridStep(10, 10)).toBe(10);
     expect(chooseGridStep(11, 10)).toBe(10);

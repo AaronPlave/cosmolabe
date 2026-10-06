@@ -15,6 +15,7 @@ export function chooseGridStep(pixelsPerDegree: number, previous = 30, targetPx 
 }
 interface Anchor { id: string; axis: 'latitude' | 'longitude'; angle: number; lat: number; lon: number; score: number; }
 interface Label { sprite: THREE.Sprite; anchor: Anchor; text: string; width: number; }
+interface SurfaceHit { point: THREE.Vector3 | null; projectedAnchor: THREE.Vector3; time: number; }
 const MAX_LABELS = 24;
 const MAX_CANDIDATES = 96;
 const DEG = Math.PI / 180;
@@ -33,8 +34,7 @@ export class AdaptiveGraticule {
   private lastFrame = 0;
   private candidates: Anchor[] = [];
   private dpr = 0;
-  private readonly queryView = new THREE.Matrix4();
-  private readonly cachedHits = new Map<string, { point: THREE.Vector3 | null; time: number }>();
+  private readonly cachedHits = new Map<string, SurfaceHit>();
   private visible = false;
   private labelVisible = true;
   private transition = 1;
@@ -176,15 +176,12 @@ export class AdaptiveGraticule {
         targets.push(overlay.group); overlayTargets.add(overlay.group);
       }
     }
-    // Terrain triangle queries are a separate, explicit per-frame budget. Exact
-    // view changes invalidate visibility; unchanged views reuse hits for 150 ms.
-    const queryView = camera.projectionMatrix.clone().multiply(camera.matrixWorldInverse).multiply(this.toWorld);
-    if (!queryView.equals(this.queryView)) { this.cachedHits.clear(); this.queryView.copy(queryView); }
-    let rayBudget = 8;
+    // Keep cheap horizon/viewport checks current even when a triangle recheck
+    // is deferred. Cache points in body coordinates so body motion cannot leave
+    // an annotation attached to an old world-space location.
+    const prepared: Array<{ candidate: Anchor; key: string; p: THREE.Vector3; view: THREE.Vector3 }> = [];
     const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
     for (const candidate of this.candidates) {
-      if (active.size >= MAX_LABELS) break;
-      if (active.has(candidate.id)) continue;
       const heightKm = this.bm.sampleTerrain(candidate.lat, candidate.lon)?.elevationKm ?? 0;
       const physical = surfacePositionToBodyFixed({ latDeg: candidate.lat, lonDeg: candidate.lon, heightKm }, this.coordinates);
       const shape = this.coordinates.datum.referenceShape;
@@ -197,28 +194,58 @@ export class AdaptiveGraticule {
       const p = fixedAnchor.applyMatrix4(this.toWorld);
       const view = p.clone().project(camera);
       if (view.z < -1 || view.z > 1 || Math.abs(view.x) > 0.94 || Math.abs(view.y) > 0.92) continue;
+      const key = `${candidate.id}:${candidate.lat.toFixed(6)}:${candidate.lon.toFixed(6)}`;
+      if (!prepared.some(anchor => anchor.key === key)) prepared.push({ candidate, key, p, view });
+    }
+    const screenShift = (cached: SurfaceHit, view: THREE.Vector3) => Math.hypot(
+      (cached.projectedAnchor.x - view.x) * width / 2, (cached.projectedAnchor.y - view.y) * height / 2);
+    if (targets.length) {
+      const eligibleKeys = new Set(prepared.map(anchor => anchor.key));
+      for (const key of this.cachedHits.keys()) if (!eligibleKeys.has(key)) this.cachedHits.delete(key);
+      // Refresh existing annotations first, oldest check first. A 32 ms minimum
+      // refresh interval also leaves budget for discovering new anchors while
+      // navigating. Deferred results expire after 150 ms or an 8 CSS-pixel move.
+      const pending = prepared.filter(({ candidate, key, view }) => {
+        const label = this.labels.get(candidate.id);
+        // Alternative positions on an already annotated line need no queries
+        // while its preferred anchor remains visible.
+        if (label?.sprite.visible && (label.anchor.lat !== candidate.lat || label.anchor.lon !== candidate.lon)) return false;
+        const cached = this.cachedHits.get(key);
+        return !cached || now - cached.time >= 150 || screenShift(cached, view) > 8
+          || (now - cached.time >= 32 && !cached.projectedAnchor.equals(view));
+      }).sort((a, b) => {
+        const visible = (anchor: Anchor) => {
+          const label = this.labels.get(anchor.id);
+          return label?.sprite.visible && label.anchor.lat === anchor.lat && label.anchor.lon === anchor.lon ? 1 : 0;
+        };
+        return visible(b.candidate) - visible(a.candidate)
+          || (this.cachedHits.get(a.key)?.time ?? -1) - (this.cachedHits.get(b.key)?.time ?? -1);
+      });
+      for (const { key, view } of pending.slice(0, 8)) {
+        this.raycaster.setFromCamera(new THREE.Vector2(view.x, view.y), camera);
+        const intersections = this.raycaster.intersectObjects(targets, true);
+        // The local overlay pass clears depth, matching Point Probe precedence.
+        const intersection = intersections.find(hit => {
+          let object: THREE.Object3D | null = hit.object;
+          while (object) { if (overlayTargets.has(object)) return true; object = object.parent; }
+          return false;
+        }) ?? intersections[0];
+        this.cachedHits.set(key, { point: intersection?.point.clone().applyMatrix4(this.bodyFromWorld) ?? null,
+          projectedAnchor: view.clone(), time: now });
+      }
+    }
+    for (const { candidate, key, p, view } of prepared) {
+      if (active.size >= MAX_LABELS) break;
+      if (active.has(candidate.id)) continue;
       // Surface-anchor visibility, using actual rendered geometry, including terrain ridges.
-      this.raycaster.setFromCamera(new THREE.Vector2(view.x, view.y), camera);
       let hit: { point: THREE.Vector3; distance: number } | undefined;
       if (targets.length) {
-        const key = `${candidate.id}:${candidate.lat.toFixed(6)}:${candidate.lon.toFixed(6)}`;
-        let cached = this.cachedHits.get(key);
-        if (!cached || now - cached.time >= 150) {
-          if (rayBudget <= 0) continue;
-          rayBudget--;
-          const intersections = this.raycaster.intersectObjects(targets, true);
-          // The local overlay pass clears depth, so its visible hit has the same
-          // precedence as Point Probe even when it lies just below global terrain.
-          const intersection = intersections.find(hit => {
-            let object: THREE.Object3D | null = hit.object;
-            while (object) { if (overlayTargets.has(object)) return true; object = object.parent; }
-            return false;
-          }) ?? intersections[0];
-          cached = { point: intersection?.point.clone() ?? null, time: now };
-          if (this.cachedHits.size >= MAX_CANDIDATES) this.cachedHits.delete(this.cachedHits.keys().next().value!);
-          this.cachedHits.set(key, cached);
+        const cached = this.cachedHits.get(key);
+        if (!cached || now - cached.time >= 150 || screenShift(cached, view) > 8) continue;
+        if (cached.point) {
+          const point = cached.point.clone().applyMatrix4(this.toWorld);
+          hit = { point, distance: camera.position.distanceTo(point) };
         }
-        if (cached.point) hit = { point: cached.point, distance: camera.position.distanceTo(cached.point) };
       }
       const registeredTerrain = !this.bm.mesh.visible || !!this.bm.body.geometryData?.displacementMap || this.bm.getSurfaceOverlays().some(o => o.group.visible);
       if (registeredTerrain && !hit) continue;

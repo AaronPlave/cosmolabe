@@ -5,7 +5,7 @@ export function makeGraticuleUniforms(coordinates: SurfaceCoordinates) {
   const shape = coordinates.datum.referenceShape;
   const [a,, c] = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
   return {
-    uGridModelToBody: { value: new THREE.Matrix4() },
+    uGridViewToBody: { value: new THREE.Matrix4() },
     uGridShape: { value: new THREE.Vector3(a, c, coordinates.latitudeType === 'geodetic' && a !== c ? 1 : 0) },
     uGridStep: { value: new THREE.Vector2(30, 30) },
     uGridPreviousStep: { value: new THREE.Vector2(30, 30) },
@@ -20,8 +20,10 @@ type Shader = { vertexShader: string; fragmentShader: string; uniforms: Record<s
 /** Rendered-mesh registration: no shell, no additional terrain residency. */
 export function injectGraticule(shader: Shader, uniforms: GraticuleUniforms): void {
   Object.assign(shader.uniforms, uniforms);
-  shader.vertexShader = `uniform mat4 uGridModelToBody;\nvarying vec3 vGridBody;\n` + shader.vertexShader;
-  shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', 'vGridBody = (uGridModelToBody * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>');
+  shader.vertexShader = `uniform mat4 uGridViewToBody;\nvarying vec3 vGridBody;\n` + shader.vertexShader;
+  // modelViewMatrix is uploaded by Three.js for every object, including objects
+  // sharing a material. Both transforms are composed on the CPU before upload.
+  shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', 'vGridBody = (uGridViewToBody * modelViewMatrix * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>');
   shader.fragmentShader = `
 varying vec3 vGridBody;
 uniform vec3 uGridShape;
@@ -73,38 +75,30 @@ if (uGridVisible > 0.0) {
 }
 #include <opaque_fragment>`);
 }
-/** One transform per material draw, computed on CPU to retain regional precision. */
+/** A camera-to-body transform shared by all objects using this surface material. */
 export function applyGraticuleMaterial(material: THREE.Material, uniforms: GraticuleUniforms, bodyFromWorld: THREE.Matrix4): void {
   if (material.userData.graticule) return;
   material.userData.graticule = true;
-  const localUniforms = { ...uniforms, uGridModelToBody: { value: new THREE.Matrix4() } };
+  const localUniforms = { ...uniforms, uGridViewToBody: { value: new THREE.Matrix4() } };
   const compile = material.onBeforeCompile.bind(material);
   const key = material.customProgramCacheKey();
   material.onBeforeCompile = (shader, renderer) => { compile(shader, renderer); injectGraticule(shader, localUniforms); };
-  material.customProgramCacheKey = () => key + '_graticule_v1';
+  material.customProgramCacheKey = () => key + '_graticule_v2';
   const render = material.onBeforeRender.bind(material);
   material.onBeforeRender = (renderer, scene, camera, geometry, object, group) => {
     render(renderer, scene, camera, geometry, object, group);
-    localUniforms.uGridModelToBody.value.multiplyMatrices(bodyFromWorld, object.matrixWorld);
+    localUniforms.uGridViewToBody.value.multiplyMatrices(bodyFromWorld, camera.matrixWorld);
   };
   material.needsUpdate = true;
 }
 
-/** Attach per-mesh materials so transform uniforms are not aliased between tiles. */
+/** Preserve material identity for tile eviction and fade-plugin registration. */
 export function applyGraticuleToScene(scene: THREE.Object3D, uniforms: GraticuleUniforms, transform: THREE.Matrix4): void {
   scene.traverse(child => {
     if (!(child instanceof THREE.Mesh)) return;
-    const materials = (Array.isArray(child.material) ? child.material : [child.material]).map((original: THREE.Material) => {
-      if (original.userData.graticule) return original;
-      // Preserve imagery/shadow hooks when cloning a shared upstream material.
-      const material = original.clone();
-      material.onBeforeCompile = original.onBeforeCompile.bind(original);
-      const key = original.customProgramCacheKey();
-      material.customProgramCacheKey = () => key;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of materials) {
       applyGraticuleMaterial(material, uniforms, transform);
-      original.dispose();
-      return material;
-    });
-    child.material = Array.isArray(child.material) ? materials : materials[0];
+    }
   });
 }

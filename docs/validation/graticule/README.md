@@ -31,8 +31,10 @@ reference intersections suppress the far side/horizon; terrain intersections
 check the actual surface anchor and its association with the labelled line.
 Billboard glyphs use the body-label overlay convention after CPU anchor occlusion;
 surface/grid depth testing remains enabled. Terrain/other-body triangle queries
-are limited to eight per body per frame; hits are cached at an unchanged view
-for at most 150 ms. Camera/body transform changes invalidate that cache.
+are limited to eight per body per frame. Current visible anchors receive fair,
+oldest-first rechecks; deferred hits remain usable for at most 150 ms and an
+8 CSS-pixel projected move. Horizon/viewport checks run every frame, and surface
+load/disposal invalidates the cache. Hits stay in physical body coordinates.
 
 Display preferences, camera JSON and script snapshots carry scope, pinned bodies,
 per-body visibility/labels, Auto/manual density, labels and minor lines. `G`
@@ -54,7 +56,9 @@ The prototype remains naturally depth-tested and demonstrates gaps where CPU
 samples differ from the rendered triangulation. The shader follows every
 rendered fragment without extra line buffers, terrain queries for lines, or
 additional tile requests. It composes with existing imagery, shadow and
-atmosphere shader hooks. Shared tile materials get per-mesh transform uniforms;
+atmosphere shader hooks. Tile materials retain their identity for upstream fade
+tracking and eviction. A camera-to-body uniform combines with Three.js's
+per-object model-view matrix, including objects sharing a material;
 local overlays preserve body-fixed semantics in the camera-relative pass. Labels
 render in the final annotation scene after terrain/local overlays; density and
 visibility update after the current camera and terrain updates.
@@ -117,6 +121,21 @@ Automated fixtures cover sphere/oblate/triaxial coordinate round trips,
 east/west conversion, wrapping/formatting, frame/model rotation, density
 hysteresis/bounds, regional refinement, per-body/master visibility and complete
 saved-state script replay. Typecheck, lint and purity checks pass.
+
+Review regressions additionally exercise continuous 0.001 km camera movement
+over a triangle-backed terrain fixture, the eight-ray budget, large view changes
+and cached-hit expiry. Integration fixtures use the actual upstream
+`TilesFadePlugin` material manager and `TilesRenderer.disposeTile` to verify
+fade completion and material disposal when enabling the grid on resident tiles
+and when loading tiles with the grid already enabled.
+
+After the review fixes, `npm test -- --maxWorkers=2` passes all 140 suites /
+1,560 tests; typechecking, lint and purity checks also pass. The browser harness
+was rerun for all 24 captures with zero browser/shader errors and zero
+grid-triggered requests. [Review metrics](review-metrics.json) record that run;
+[the updated synthetic-terrain capture](review-synthetic-terrain-after.png)
+shows the shader using preserved tile material identities. The initial
+comparison metrics and captures above remain available for reference.
 
 The initial full run failed because SPICE kernels were LFS pointers. Restoring
 the existing cached objects resolved those failures:
