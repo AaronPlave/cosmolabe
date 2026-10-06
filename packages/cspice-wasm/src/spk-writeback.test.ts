@@ -57,6 +57,15 @@ describe('cspice-wasm SPK write and read-back', () => {
     writer.writeSpkType13('writeback.bsp', BODY, 399, 'J2000', 'WRITEBACK', 7, epochs, states);
   });
 
+  it('lists the written segment with its center and frame, in load order', () => {
+    expect(writer.spkSegments('writeback.bsp')).toEqual([
+      { file: 'writeback.bsp', body: BODY, center: 399, frame: 1, type: 13, start: et0, end: et0 + 1200 },
+    ]);
+    expect(writer.loadedSpkSegments().filter((s) => s.body === BODY)).toEqual(
+      writer.spkSegments('writeback.bsp'),
+    );
+  });
+
   it('reads the staged kernel bytes back out', () => {
     const bytes = writer.readKernelBytes('writeback.bsp');
     expect(bytes.length).toBeGreaterThan(1024);
