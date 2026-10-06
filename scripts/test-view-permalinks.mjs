@@ -148,6 +148,17 @@ try {
   assert.ok(await page.getByRole('button', { name: 'Copy view link', exact: true }).isVisible());
   await page.screenshot({ path: '/tmp/cosmolabe-119-compact.png' });
   await page.close();
+  // Timeline profiles travel as definitions: order and flags survive a copy.
+  const profiles = { version: 1, profiles: [
+    { profile: { quantity: 'range', bodies: { observer: 'Earth', target: 'Moon' } }, label: 'Distance', enabled: true, visible: true },
+    { profile: { quantity: 'range-rate', bodies: { observer: 'Earth', target: 'Moon' } }, label: 'Range rate', enabled: false, visible: true },
+  ] };
+  const profileUrl = new URL(fixture.href);
+  profileUrl.searchParams.set('view', JSON.stringify({ ...expected, profiles }));
+  const profilePage = await open(context, profileUrl.href);
+  await ready(profilePage);
+  assert.deepEqual(JSON.parse(new URL(await copy(profilePage)).searchParams.get('view')).profiles, profiles);
+  await profilePage.close();
   const eventFixture = new URL(readFileSync(new URL('../apps/viewer/test-permalinks/earth-moon-events-v1.url', import.meta.url), 'utf8').trim(), base);
   const eventExpected = JSON.parse(eventFixture.searchParams.get('view'));
   eventFixture.searchParams.set('test', '1');
@@ -190,7 +201,7 @@ try {
   await copy(eventFresh);
   await eventFresh.screenshot({ path: '/tmp/cosmolabe-119-event-compact.png' });
   await eventContext.close();
-  console.log('Permalink integration passed: frozen named view, reload, copy, retained origin, fresh session, Back/Forward, history, errors, compact rail UI, event query reruns and selected-result restoration.');
+  console.log('Permalink integration passed: frozen named view, reload, copy, retained origin, fresh session, Back/Forward, history, errors, compact rail UI, event query reruns, selected-result restoration and timeline profiles.');
 } finally {
   await browser.close();
 }

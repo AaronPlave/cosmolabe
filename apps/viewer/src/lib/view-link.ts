@@ -5,6 +5,8 @@ import { getRenderer, vs } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
 import { getUniverse } from './loader';
 import { captureSharedEvents, restoreSharedEvents } from './event-finder.svelte';
+import { configuredProfiles, createConfiguredProfile, removeConfiguredItem, setConfiguredItemEnabled, setConfiguredItemVisible } from './analysis.svelte';
+import { sharedProfileOf, validateProfileLinkState, type ProfileLinkState } from './profile-link-state';
 import { viewLink, type ViewerViewState } from './view-state-url';
 
 export function captureViewState(pageUrl = location.href): ViewerViewState {
@@ -39,7 +41,26 @@ export function captureViewState(pageUrl = location.href): ViewerViewState {
       axes: vs.showAxes, sensors: vs.showSensors, sensorLabels: vs.showSensorLabels },
   });
   const events = captureSharedEvents();
-  return { ...state, ...(events ? { events } : {}) };
+  const profiles = configuredProfiles();
+  return { ...state, ...(events ? { events } : {}),
+    ...(profiles.length ? { profiles: validateProfileLinkState({ version: 1, profiles: profiles.map(sharedProfileOf) }) } : {}) };
+}
+
+/** Replace the timeline profiles with the shared ones (none when the link has none).
+ * Synchronous: profiles are sampled on demand, so there is nothing to rerun. */
+function restoreSharedProfiles(input: ProfileLinkState | undefined): void {
+  const state = input ? validateProfileLinkState(input) : undefined;
+  for (const entry of state?.profiles ?? []) {
+    for (const body of Object.values(entry.profile.bodies ?? {})) {
+      if (!getUniverse()?.getBody(body)) throw new ViewStateError(`Profile context: body "${body}" is unavailable in this catalog.`);
+    }
+  }
+  for (const item of configuredProfiles()) removeConfiguredItem(item.id);
+  for (const entry of state?.profiles ?? []) {
+    const item = createConfiguredProfile(entry.profile, entry.label);
+    setConfiguredItemEnabled(item.id, entry.enabled);
+    setConfiguredItemVisible(item.id, entry.visible);
+  }
 }
 
 /** Copy a portable snapshot without changing the current address or history. */
@@ -55,6 +76,7 @@ export async function restoreView(state: ViewerViewState, signal?: AbortSignal):
   // Searches may take time; keep the encoded epoch paused while rebuilding.
   applyViewState(createViewerControl(), { ...state, playback: { ...state.playback, playing: false } }, { afterSeek: () => r?.renderFrame() });
   try {
+    restoreSharedProfiles(state.profiles);
     await restoreSharedEvents(state.events, signal);
   } finally {
     if (!signal?.aborted && getRenderer() === r) {
