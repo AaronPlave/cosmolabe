@@ -218,6 +218,7 @@ function makeFakeRenderer(objects: string[]) {
     setLabelVisible: (name: string, v: boolean) => log(`setLabelVisible(${name}, ${v})`),
     setTrajectoriesVisible: (v: boolean) => log(`setTrajectoriesVisible(${v})`),
     setLabelsVisible: (v: boolean) => log(`setLabelsVisible(${v})`),
+    setGridSettings: () => {},
     showBodyGrid: (v: boolean) => log(`showBodyGrid(${v})`),
     showBodyAxes: (v: boolean) => log(`showBodyAxes(${v})`),
     setSensorsVisible: (v: boolean) => log(`setSensorsVisible(${v})`),

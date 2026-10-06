@@ -1,3 +1,4 @@
+import type { GridSettings } from './grid.js';
 /**
  * The `ViewerControl` port — the contract a Cosmolabe viewer offers a host.
  *
@@ -130,6 +131,13 @@ export interface ViewerControl {
   showLabel(name: string, visible: boolean): boolean;
   /** Show or hide a whole layer (every trajectory, every label, ...). */
   setLayer(layer: string, on: boolean): boolean;
+  /** Optional for older embed hosts. */
+  showBodyGrid?(name: string, visible: boolean): boolean;
+  showBodyGridLabels?(name: string, visible: boolean): boolean;
+  setGridScope?(scope: GridSettings['scope'], bodies?: string): boolean;
+  setGridDensity?(density: GridSettings['density'], spacingDeg?: number): boolean;
+  setGridLabels?(visible: boolean): boolean;
+  setGridMinorLines?(visible: boolean): boolean;
   /** Set the vertical field of view, in degrees. */
   setFov(deg: number): boolean;
   /**
@@ -267,6 +275,7 @@ export interface ViewerSnapshotState {
   readonly camera: ScriptCamera;
   /** Layer name → on. Keys are `LAYERS` entries. */
   readonly layers: Readonly<Record<string, boolean>>;
+  readonly grid?: GridSettings;
   /**
    * A caption that will stay up until something clears it.
    *

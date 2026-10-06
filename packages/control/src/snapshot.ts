@@ -79,6 +79,20 @@ export function snapshotScript(state: ViewerSnapshotState): string {
     lines.push(`setLayer ${layer.id} ${on ? 'on' : 'off'}`);
   }
 
+  if (state.grid) {
+    const grid = state.grid;
+    lines.push(`setGridScope ${grid.scope}${grid.scope === 'bodies' ? ` ${quote(grid.bodies.join(','))}` : ''}`);
+    lines.push(`setGridDensity ${grid.density} ${num(grid.spacingDeg)}`);
+    lines.push(`setGridLabels ${grid.labels ? 'on' : 'off'}`);
+    lines.push(`setGridMinorLines ${grid.minorLines ? 'on' : 'off'}`);
+    for (const [name, setting] of Object.entries(grid.perBody)) {
+      if (setting.visible !== undefined) lines.push(`showBodyGrid ${quote(name)} ${setting.visible ? 'on' : 'off'}`);
+      if (setting.labels !== undefined) lines.push(`showBodyGridLabels ${quote(name)} ${setting.labels ? 'on' : 'off'}`);
+    }
+    // Per-body enable may turn on the layer; restore the snapshot’s master switch last.
+    lines.push(`setLayer grid ${state.layers.grid ? 'on' : 'off'}`);
+  }
+
   lines.push(state.selected ? `select ${quote(state.selected)}` : 'deselect');
 
   // Persistent only: `ViewerSnapshotState.note` carries a caption that will stay

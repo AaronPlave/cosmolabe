@@ -504,3 +504,36 @@ order for reasons the harness's own comments record:
    flip and does not belong in the set.
 
 `wait` is rejected in a scene script, naming the line.
+
+### Surface graticule
+
+`G` and `setLayer grid on|off` toggle the master grid switch. The default target
+is the tracked body. Pinned targets remain pinned when tracking or selection
+changes. These operations share Display settings and are included in snapshots;
+scripts do not overwrite local display preferences.
+
+```text
+setGridScope bodies "Earth,Moon"
+setGridDensity auto
+setGridLabels on
+setGridMinorLines off
+setLayer grid on
+showBodyGrid Moon off
+showBodyGridLabels Earth off
+```
+
+Use `setGridScope tracked` or `setGridScope all` for the other scopes.
+`setGridDensity manual 0.1` selects a supported nice angular step between 30°
+and 0.001°; arbitrary values are snapped to the nearest supported step. A
+per-body `showBodyGrid ... on` enables the master layer; a later
+`setLayer grid off` hides every grid while preserving configuration.
+Setting a new scope clears per-body overrides.
+
+Grid/probe/surface-navigation coordinates use east-positive body-fixed longitude,
+with E/W labels and a canonical −180° inclusive to +180° exclusive domain.
+Spheres and rotational ellipsoids use geodetic latitude. Triaxial globe reference
+surfaces explicitly use planetocentric latitude; geodetic conversion on a
+triaxial ellipsoid is unavailable. Mesh-body grids are unavailable.
+Lines follow rendered geometry (including terrain and its current LOD); CPU
+terrain samples remain authoritative for analytical elevation. This is separate
+from the legacy `FixedSpherical` trajectory's declared radial position.

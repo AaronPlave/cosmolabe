@@ -1,3 +1,4 @@
+import { applyGraticuleToScene, type GraticuleUniforms } from './GraticuleShader.js';
 import * as THREE from 'three';
 import * as TilesThree from '3d-tiles-renderer/three';
 import { TilesRenderer } from '3d-tiles-renderer/three';
@@ -1502,6 +1503,21 @@ export class TerrainManager {
   /**
    * Set material properties on a loaded tile, blend normals toward sphere, and apply normal map.
    */
+  private graticuleUniforms: GraticuleUniforms | null = null;
+  private gridBodyFromWorld: THREE.Matrix4 | null = null;
+
+  enableGraticule(uniforms: GraticuleUniforms, bodyFromWorld: THREE.Matrix4): void {
+    this.graticuleUniforms = uniforms;
+    this.gridBodyFromWorld = bodyFromWorld;
+    this.applyGraticule(this.group);
+  }
+
+  private applyGraticule(scene: THREE.Object3D): void {
+    const uniforms = this.graticuleUniforms, transform = this.gridBodyFromWorld;
+    if (!uniforms || !transform) return;
+    applyGraticuleToScene(scene, uniforms, transform);
+  }
+
   /** Enable eclipse shadow receiving on all current and future terrain tiles. */
   enableShadowReceiving(uniforms: ShadowUniforms): void {
     this.shadowUniforms = uniforms;
@@ -1630,6 +1646,8 @@ export class TerrainManager {
         }
       }
     });
+
+    this.applyGraticule(scene);
 
     if (this.normalMap) {
       this.applyNormalMap(scene, tile);

@@ -41,3 +41,5 @@ export { suggest } from './suggest.js';
 // Editor support
 export { cursorContext, completionsAt, signatureAt } from './complete.js';
 export type { CursorContext, ScriptCompletion, CompletionNames, ScriptSignature } from './complete.js';
+export { ANGULAR_GRID_STEPS, DEFAULT_GRID_SETTINGS, normalizeGridSettings, gridBodyState } from './grid.js';
+export type { GridSettings } from './grid.js';

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatSurfaceAngle, type SurfaceCoordinates } from '@cosmolabe/core';
   import { onMount } from 'svelte';
   import HomeScreen from './components/HomeScreen.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
@@ -31,8 +32,24 @@
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
+  let probePanel = $state<HTMLElement | null>(null);
+  $effect(() => {
+    const panel = probePanel;
+    const r = getCurrentRenderer();
+    if (!panel || !pickResult || !r) return;
+    let frame = 0;
+    const reserve = () => {
+      const box = panel.getBoundingClientRect();
+      const canvasBox = canvas.getBoundingClientRect();
+      r.setAnnotationReservedRects(box.width && box.height ? [{ x0: box.left - canvasBox.left, y0: box.top - canvasBox.top,
+        x1: box.right - canvasBox.left, y1: box.bottom - canvasBox.top }] : [], 'probe');
+      frame = requestAnimationFrame(reserve);
+    };
+    reserve();
+    return () => { cancelAnimationFrame(frame); r.setAnnotationReservedRects([], 'probe'); };
+  });
   let pickModeActive = $state(false);
-  let pickResult = $state<{ bodyName: string; latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number; bodyFixedHitKm: readonly [number, number, number] } | null>(null);
+  let pickResult = $state<{ bodyName: string; coordinates?: SurfaceCoordinates; latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number; bodyFixedHitKm: readonly [number, number, number] } | null>(null);
   let uiHidden = $state(false);
   let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
 
@@ -631,9 +648,12 @@
   }
 </style>
 
-{#snippet pickRows(pick: { latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number })}
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lat</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.latDeg), 5)}&deg; {pick.latDeg >= 0 ? 'N' : 'S'}</span></div>
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lon</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.lonDeg), 5)}&deg; {pick.lonDeg >= 0 ? 'E' : 'W'}</span></div>
+{#snippet pickRows(pick: { coordinates?: SurfaceCoordinates; latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number })}
+  <div bind:this={probePanel}>
+  {#if pick.coordinates}<div class="ui-meta text-text-secondary">{pick.coordinates.latitudeType} · east-positive · {pick.coordinates.frame}</div>{/if}
+  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lat</span><span class="font-mono text-text-primary">{formatSurfaceAngle(pick.latDeg, 'latitude', 0.00001)}</span></div>
+  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lon</span><span class="font-mono text-text-primary">{formatSurfaceAngle(pick.lonDeg, 'longitude', 0.00001)}</span></div>
   <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Sampled alt</span><span class="font-mono text-text-primary">{pick.altKm >= 0 ? '+' : ''}{fmtCoord(pick.altKm * 1000, 1)} m</span></div>
   <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Dist</span><span class="font-mono text-text-primary">{pick.cameraDistanceKm < 1 ? `${fmtCoord(pick.cameraDistanceKm * 1000, 1)} m` : `${fmtCoord(pick.cameraDistanceKm, 3)} km`}</span></div>
+  </div>
 {/snippet}

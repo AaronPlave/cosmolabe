@@ -1,3 +1,4 @@
+import { normalizeGridSettings, type GridSettings } from '../grid.js';
 /**
  * A complete `ViewerControl` with no renderer behind it.
  *
@@ -56,6 +57,7 @@ export class FakeViewer implements ViewerControl {
     sensors: true,
     sensorLabels: true,
   };
+  grid: GridSettings | undefined = undefined;
   note: string | undefined = undefined;
   recording = false;
   shots = 0;
@@ -150,6 +152,25 @@ export class FakeViewer implements ViewerControl {
     this.log('showLabel', name, visible);
     return this.ok(this.known(name));
   }
+
+  showBodyGrid(name: string, visible: boolean): boolean {
+    if (!this.known(name)) return false;
+    this.grid = normalizeGridSettings({ ...this.grid, perBody: { ...this.grid?.perBody, [name]: { ...this.grid?.perBody[name], visible } } });
+    if (visible) this.layers.grid = true;
+    return true;
+  }
+  showBodyGridLabels(name: string, labels: boolean): boolean {
+    if (!this.known(name)) return false;
+    this.grid = normalizeGridSettings({ ...this.grid, perBody: { ...this.grid?.perBody, [name]: { ...this.grid?.perBody[name], labels } } }); return true;
+  }
+  setGridScope(scope: GridSettings['scope'], names?: string): boolean {
+    this.grid = normalizeGridSettings({ ...this.grid, scope, bodies: (names ?? '').split(',').filter(Boolean), perBody: {} }); return true;
+  }
+  setGridDensity(density: GridSettings['density'], spacingDeg?: number): boolean {
+    this.grid = normalizeGridSettings({ ...this.grid, density, spacingDeg }); return true;
+  }
+  setGridLabels(labels: boolean): boolean { this.grid = normalizeGridSettings({ ...this.grid, labels }); return true; }
+  setGridMinorLines(minorLines: boolean): boolean { this.grid = normalizeGridSettings({ ...this.grid, minorLines }); return true; }
 
   setLayer(layer: string, on: boolean): boolean {
     this.log('setLayer', layer, on);
@@ -282,6 +303,7 @@ export class FakeViewer implements ViewerControl {
       lookAt: this.lookAt,
       frame: this.frame,
       camera: this.camera,
+      ...(this.grid ? { grid: this.grid } : {}),
       layers: { ...this.layers },
       note: this.note,
     };

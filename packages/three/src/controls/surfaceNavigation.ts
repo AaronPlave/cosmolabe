@@ -1,3 +1,4 @@
+import { geodeticToBodyFixed, bodyFixedToGeodetic, type TerrainDatum } from '@cosmolabe/core';
 /**
  * Renderer-independent surface navigation math for the Surface Explorer camera.
  *
@@ -41,44 +42,17 @@ export interface LocalFrame {
 const dot = (u: Vec3, v: Vec3) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
 const len = (u: Vec3) => Math.sqrt(dot(u, u));
 
-export function geodeticToBodyFixedKm(latRad: number, lonRad: number, altKm: number, ell: Ellipsoid): Vec3 {
-  const sinLat = Math.sin(latRad), cosLat = Math.cos(latRad);
-  const n = ell.a / Math.sqrt(1 - ell.e2 * sinLat * sinLat);
-  return [
-    (n + altKm) * cosLat * Math.cos(lonRad),
-    (n + altKm) * cosLat * Math.sin(lonRad),
-    (n * (1 - ell.e2) + altKm) * sinLat,
-  ];
+function coordinateDatum(ell: Ellipsoid): TerrainDatum {
+  return { referenceShape: { kind: 'ellipsoid', radiiKm: [ell.a, ell.a, ell.a * Math.sqrt(1 - ell.e2)] }, verticalDatum: 'ellipsoid', heightConvention: 'geodetic-normal' };
 }
-
-/**
- * Body-fixed → geodetic (Bowring's closed form plus refinement). The height uses `p·cosφ + z·sinφ − a·√(1−e²sin²φ)`, which is
- * well-conditioned everywhere, including exactly on the polar axis.
- */
-export function bodyFixedToGeodeticRad(
-  point: Vec3, ell: Ellipsoid,
-): { latRad: number; lonRad: number; altKm: number } {
-  const [x, y, z] = point;
-  const { a, e2 } = ell;
-  const b = a * Math.sqrt(1 - e2);
-  const ePrime2 = e2 / (1 - e2);
-  const p = Math.hypot(x, y);
-  const u = Math.atan2(z * a, p * b);
-  const sinU = Math.sin(u), cosU = Math.cos(u);
-  let latRad = Math.atan2(z + ePrime2 * b * sinU ** 3, p - e2 * a * cosU ** 3);
-  // Bowring's single step is ~1e-9 rad off at orbital heights on Mars; two
-  // fixed-point refinements bring it to machine precision (pole-safe: p → 0
-  // just drives atan2 to ±π/2).
-  for (let i = 0; i < 2 && e2 > 0; i++) {
-    const s = Math.sin(latRad);
-    const n = a / Math.sqrt(1 - e2 * s * s);
-    latRad = Math.atan2(z + e2 * n * s, p);
-  }
-  // On the axis atan2(0, 0) = 0; any longitude is a valid answer there.
-  const lonRad = Math.atan2(y, x);
-  const sinLat = Math.sin(latRad), cosLat = Math.cos(latRad);
-  const altKm = p * cosLat + z * sinLat - a * Math.sqrt(1 - e2 * sinLat * sinLat);
-  return { latRad, lonRad, altKm };
+/** Coordinate entry and surface navigation use the same conversion as the grid/probe. */
+export function geodeticToBodyFixedKm(latRad: number, lonRad: number, altKm: number, ell: Ellipsoid): Vec3 {
+  const p = geodeticToBodyFixed({ latDeg: latRad * 180 / Math.PI, lonDeg: lonRad * 180 / Math.PI, heightKm: altKm }, coordinateDatum(ell));
+  return [p.xKm, p.yKm, p.zKm];
+}
+export function bodyFixedToGeodeticRad(point: Vec3, ell: Ellipsoid): { latRad: number; lonRad: number; altKm: number } {
+  const p = bodyFixedToGeodetic({ xKm: point[0], yKm: point[1], zKm: point[2] }, coordinateDatum(ell));
+  return { latRad: p.latDeg * Math.PI / 180, lonRad: p.lonDeg * Math.PI / 180, altKm: p.heightKm ?? 0 };
 }
 
 /**

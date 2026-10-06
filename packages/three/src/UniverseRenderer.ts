@@ -1,5 +1,8 @@
+import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
 import {
+  bodyFixedToSurfacePosition,
+  type SurfaceCoordinates,
   CompositeTrajectory,
   SpiceTrajectory,
   WaypointTrajectory,
@@ -57,11 +60,13 @@ const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
 export interface SurfacePickResult {
   /** Name of the body that was clicked */
   bodyName: string;
-  /** Geodetic latitude in degrees (positive north) */
+  /** Latitude in degrees north, using coordinates.latitudeType. */
   latDeg: number;
-  /** Geodetic longitude in degrees (positive east) */
+  /** Canonical east-positive longitude in [-180, 180). */
   lonDeg: number;
-  /** Altitude above the reference sphere in km */
+  /** Declared latitude/frame/datum; absent on legacy caller-created results. */
+  coordinates?: SurfaceCoordinates;
+  /** Altitude above the declared reference surface in km */
   altKm: number;
   /** Distance from camera to pick point in km */
   cameraDistanceKm: number;
@@ -970,6 +975,11 @@ export class UniverseRenderer {
       }
     }
 
+    this.syncBodyGrids();
+    this.labelManager?.beginContextAnnotations();
+    const gridViewport = { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight };
+    for (const bm of bodyMeshArr) bm.updateGrid(this.camera, gridViewport, this.labelManager, bodyMeshArr);
+
     // --- Multi-pass rendering ---
     this.renderer.autoClear = false;
     this.renderer.info.autoReset = false;
@@ -1033,9 +1043,12 @@ export class UniverseRenderer {
           }
         }
 
+        // Grid coordinates retain the same body-fixed meaning in the CRR pass.
+        for (const bm of this.bodyMeshes.values()) bm.setGridCameraRelativeOrigin(savedPos);
         // Render only the tile scene (separate from main scene) with cleared depth
         this.renderer.clearDepth();
         this.renderer.render(this.tileScene, this.camera);
+        for (const bm of this.bodyMeshes.values()) bm.setGridCameraRelativeOrigin(null);
 
         // Restore camera
         this.camera.position.copy(savedPos);
@@ -1671,19 +1684,43 @@ export class UniverseRenderer {
     }
   }
 
-  /** Toggle lat/lon grid lines on bodies (excludes spacecraft, instruments, barycenters).
-   *  Equator is highlighted in yellow, prime meridian in red.
-   *  Works with triaxial ellipsoids. */
+  private _gridVisible = false;
+  private _gridSettings: GridSettings = normalizeGridSettings(DEFAULT_GRID_SETTINGS);
+
+  get gridSettings(): GridSettings { return normalizeGridSettings(this._gridSettings); }
+  setGridSettings(settings: Partial<GridSettings>): void {
+    this._gridSettings = normalizeGridSettings({ ...this._gridSettings, ...settings });
+    this.syncBodyGrids();
+  }
+
+  /** Existing optional-body path is retained and stored before catalog loading. */
   showBodyGrid(show: boolean, bodyName?: string): void {
-    const excluded = new Set(['spacecraft', 'instrument', 'barycenter']);
     if (bodyName) {
-      const bm = this.bodyMeshes.get(bodyName);
-      if (bm && !excluded.has(bm.body.classification ?? '')) bm.showGrid(show);
-    } else {
-      for (const bm of this.bodyMeshes.values()) {
-        if (!excluded.has(bm.body.classification ?? '')) bm.showGrid(show);
-      }
+      this._gridSettings = normalizeGridSettings({ ...this._gridSettings, perBody: {
+        ...this._gridSettings.perBody, [bodyName]: { ...this._gridSettings.perBody[bodyName], visible: show },
+      } });
+      if (show) this._gridVisible = true;
+    } else this._gridVisible = show;
+    this.syncBodyGrids();
+  }
+
+  showBodyGridLabels(show: boolean, bodyName?: string): void {
+    this.setGridSettings(bodyName ? { perBody: { ...this._gridSettings.perBody,
+      [bodyName]: { ...this._gridSettings.perBody[bodyName], labels: show } } } : { labels: show });
+  }
+
+  private syncBodyGrids(): void {
+    const tracked = this.cameraController.trackedBody?.body.name ?? null;
+    for (const [name, bm] of this.bodyMeshes) {
+      const state = gridBodyState(this._gridSettings, this._gridVisible, name, tracked);
+      bm.showGrid(state.visible, state.labels, this._gridSettings);
+      bm.setGridAnnotationScene(this._markerScene);
     }
+  }
+
+  /** Host measurements/probe callouts share the renderer's annotation reservations. */
+  setAnnotationReservedRects(rects: readonly { x0: number; y0: number; x1: number; y1: number }[], source = 'host'): void {
+    this.labelManager?.setReservedRects(rects, source);
   }
 
   /**
@@ -1895,12 +1932,12 @@ export class UniverseRenderer {
 
     // ECEF Z-up → body-fixed geometry Y-up (inverse of pickSurface conversion)
     // geoX=ecefX, geoY=ecefZ(pole), geoZ=-ecefY
-    const geom = new THREE.Vector3(ecefX, ecefZ, -ecefY);
+    const geom = new THREE.Vector3(ecefX, ecefY, ecefZ);
 
     // Rotate body-fixed → inertial, scale to scene units, translate to world pos
     const bodyWorldPosition = new THREE.Vector3();
     bm.getWorldPosition(bodyWorldPosition);
-    geom.applyQuaternion(bm.mesh.quaternion)
+    geom.applyQuaternion(bm.bodyToWorldQuaternion(new THREE.Quaternion()))
         .multiplyScalar(this.scaleFactor)
       .add(bodyWorldPosition);
 
@@ -2008,30 +2045,21 @@ export class UniverseRenderer {
     // Vector from body center to hit, converted to km in the inertial Y-up frame
     const km = bestWorldPoint.clone().sub(bodyCenter).divideScalar(this.scaleFactor);
 
-    // Rotate inertial → body-fixed geometry space (Y-up).
-    // bm.mesh.quaternion = spiceQ * meshRotationQ (globe pre-rotation).
-    km.applyQuaternion(bm.mesh.quaternion.clone().invert());
-
-    // Body-fixed geometry Y-up → body-fixed ECEF Z-up:
-    //   geoX = bodyX, geoY = bodyZ (pole), geoZ = -bodyY
-    const ecefX = km.x;
-    const ecefY = -km.z;
-    const ecefZ = km.y;
-
-    const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
-    if (r < 1e-10) return null;
-
-    const terrainPosition = bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
-    const latDeg = terrainPosition?.latDeg ?? (Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI));
-    const lonDeg = terrainPosition?.lonDeg ?? (Math.atan2(ecefY, ecefX) * (180 / Math.PI));
-    // Keep the rendered intersection as the visual hit, but prefer decoded CPU
-    // terrain for its physical altitude when coverage is available.
+    // Physical Z-up axes are independent of model-native pre-rotation.
+    km.applyQuaternion(bm.bodyToWorldQuaternion(new THREE.Quaternion()).invert());
+    const ecefX = km.x, ecefY = km.y, ecefZ = km.z;
+    if (km.length() < 1e-10) return null;
+    const coordinates = bm.surfaceCoordinates;
+    if (!coordinates) return null;
+    const position = bodyFixedToSurfacePosition({ xKm: ecefX, yKm: ecefY, zKm: ecefZ }, coordinates);
+    const latDeg = position.latDeg, lonDeg = position.lonDeg;
     const terrainSample = bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
-    const altKm = terrainSample?.elevationKm ?? (terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg)));
+    const altKm = terrainSample?.elevationKm ?? position.heightKm ?? 0;
     const cameraDistanceKm = bestWorldPoint.distanceTo(this.camera.position) / this.scaleFactor;
 
     return {
       bodyName: bm.body.name,
+      coordinates,
       latDeg,
       lonDeg,
       altKm,

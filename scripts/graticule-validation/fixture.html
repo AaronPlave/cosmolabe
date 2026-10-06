@@ -1,0 +1,71 @@
+<!doctype html><html><head><link rel="icon" href="data:,"><style>body{margin:0;background:#050811}canvas{display:block}</style></head><body><script type="module">
+import * as THREE from 'three';
+import {Body,FixedPointTrajectory,bodySurfaceCoordinates,surfacePositionToBodyFixed} from '@cosmolabe/core';
+import {BodyMesh} from '../../packages/three/src/BodyMesh.ts';
+import {BodyMesh as BeforeMesh} from '../../packages/three/src/BodyMeshBefore.ts';
+import {LabelManager} from '../../packages/three/src/LabelManager.ts';
+import {TerrainSampler} from '../../packages/three/src/TerrainSampler.ts';
+import {normalizeGridSettings} from '@cosmolabe/control';
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true,logarithmicDepthBuffer:true});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(devicePixelRatio);document.body.append(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.01,100000);
+const scene=new THREE.Scene();scene.background=new THREE.Color('#050811');scene.add(new THREE.AmbientLight(0xffffff,1.8));
+const labels=new LabelManager(document.createElement('div'));
+let bm;let prototype=null;let prototypeInfo=null;
+window.setup=(options={})=>{
+ if(bm){bm.dispose();scene.remove(bm)}
+ if(prototype){prototype.geometry.dispose();prototype.material.dispose();scene.remove(prototype);prototype=null;prototypeInfo=null;}
+ const r=options.radii??[1737.4,1737.4,1737.4];
+ const body=new Body({name:options.name??'Moon',trajectory:new FixedPointTrajectory([0,0,0]),radii:r,geometryType:'Globe',classification:'moon',geometryData:{},rotation:{sourceFrame:'ECLIPJ2000',rotationAt:()=>[1,0,0,0]}});
+ bm=new (options.before?BeforeMesh:BodyMesh)(body);scene.add(bm);bm.updatePosition([0,0,0],0,1);bm.applyMeshScale(1);bm.mesh.material.color.set(options.color??'#63717d');
+
+ const coordinates=bodySurfaceCoordinates(body);
+ const elevation=(lat,lon)=>1.5*(1+Math.sin(lat*Math.PI/12)*Math.cos(lon*Math.PI/9));
+ const toFixed=(lat,lon,h=0)=>{const p=surfacePositionToBodyFixed({latDeg:lat,lonDeg:lon,heightKm:h},coordinates);return new THREE.Vector3(p.xKm,p.yKm,p.zKm)};
+ let sampler;
+ if(options.terrain){
+   body.geometryData.displacementMap='synthetic';
+   const positions=bm.mesh.geometry.attributes.position;
+   for(let i=0;i<positions.count;i++){
+     const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
+     const lat=Math.atan2(y,Math.hypot(x,z))*180/Math.PI,lon=Math.atan2(-z,x)*180/Math.PI;
+     const p=toFixed(lat,lon,elevation(lat,lon));positions.setXYZ(i,p.x,p.z,-p.y);
+   }
+   bm.ellipsoidRatios[0]=bm.ellipsoidRatios[1]=bm.ellipsoidRatios[2]=1;
+   bm.mesh.geometry.computeVertexNormals();
+   const elevations=new Float32Array(129*65);
+   for(let y=0;y<65;y++)for(let x=0;x<129;x++)elevations[y*129+x]=elevation(-90+y*180/64,-180+x*360/128);
+   sampler=new TerrainSampler(coordinates.datum,{id:'synthetic',kind:'height-grid'});
+   sampler.addTile({id:'resident',westDeg:-180,eastDeg:180,southDeg:-90,northDeg:90,width:129,height:65,elevationsKm:elevations});
+   bm.sampleTerrain=(lat,lon)=>sampler.sample(lat,lon);
+   bm.applyMeshScale(1);
+ }
+ camera.up.set(...(options.up??[0,0,1]));camera.position.set(...(options.eye??[6000,0,0]));camera.lookAt(new THREE.Vector3(...(options.target??[0,0,0])));camera.updateMatrixWorld(true);scene.updateMatrixWorld(true);
+ bm.showGrid(true,options.labels !== false,normalizeGridSettings(options.manual ? { density: 'manual', spacingDeg: options.step ?? 1 } : {}));
+ if(options.before){bm.updatePosition([0,0,0],0,1);bm.applyMeshScale(1)}
+ if(options.draped){
+   bm.showGrid(false);
+   const vertices=[];let samples=0;let maximumDepth=0;
+   const position=(lat,lon)=>{samples++;return toFixed(lat,lon,sampler?.sample(lat,lon)?.elevationKm??0)};
+   const tessellate=(lat0,lon0,lat1,lon1,depth=0)=>{
+     if(vertices.length>=4096*6)return;
+     const a=position(lat0,lon0),b=position(lat1,lon1),m=position((lat0+lat1)/2,(lon0+lon1)/2);
+     const pa=a.clone().project(camera),pb=b.clone().project(camera),pm=m.clone().project(camera);
+     const error=Math.hypot((pm.x-(pa.x+pb.x)/2)*innerWidth/2,(pm.y-(pa.y+pb.y)/2)*innerHeight/2);
+     maximumDepth=Math.max(depth,maximumDepth);
+     if(error>0.5&&depth<10){tessellate(lat0,lon0,(lat0+lat1)/2,(lon0+lon1)/2,depth+1);tessellate((lat0+lat1)/2,(lon0+lon1)/2,lat1,lon1,depth+1)}
+     else vertices.push(a.x,a.y,a.z,b.x,b.y,b.z);
+   };
+   const lat=options.lat??18.44,lon=options.lon??77.45,step=options.step??1,span=options.span??3;
+   const start=performance.now();
+   for(let l=Math.ceil((lat-span)/step)*step;l<=lat+span;l+=step)tessellate(l,lon-span,l,lon+span);
+   for(let l=Math.ceil((lon-span)/step)*step;l<=lon+span;l+=step)tessellate(lat-span,l,lat+span,l);
+   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+   prototype=new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color:0x88aaff,transparent:true,opacity:0.5,depthTest:true,depthWrite:false}));scene.add(prototype);
+   prototypeInfo={segments:vertices.length/6,samples,maximumDepth,buildMs:performance.now()-start,bytes:vertices.length*4};
+ }
+
+};
+window.frame=()=>{const begin=performance.now();labels.beginContextAnnotations();if(bm.updateGrid)bm.updateGrid(camera,{width:innerWidth,height:innerHeight},labels);const updateMs=performance.now()-begin;renderer.render(scene,camera);renderer.getContext().finish();return {prototype:prototypeInfo,updateMs,frameMs:performance.now()-begin,metrics:bm.gridMetrics??null,draw:{...renderer.info.render},memory:{...renderer.info.memory}}};
+window.capture=()=>{window.frame();return renderer.domElement.toDataURL()};
+window.ready=true;
+</script></body></html>
