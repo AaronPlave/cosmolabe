@@ -288,6 +288,8 @@ export class UniverseRenderer {
   private _probeHoverDirty = false;
   /** How long the last probe pick took, ms; a slow one spaces out the next. */
   private _probePickCostMs = 0;
+  /** Camera pose at the last probe hover pick. */
+  private readonly _probePickView = new THREE.Matrix4();
   private readonly _surfaceRaycaster = new THREE.Raycaster();
   private readonly _surfaceTileRaycaster = new THREE.Raycaster();
   /** Label boxes the event annotation and probe callouts reserve this frame. */
@@ -1940,6 +1942,9 @@ export class UniverseRenderer {
     if (!this._probeActive || !this._hoverPointerInside) return;
     const now = performance.now();
     const since = now - this._lastHoverPickMs;
+    // A moving camera slides the surface under a resting pointer: the reading
+    // follows every frame the budget allows, not only on the resting timer.
+    if (!this.camera.matrixWorld.equals(this._probePickView)) this._probeHoverDirty = true;
     if (!this._probeHoverDirty && since < UniverseRenderer._hoverPickIntervalMs * 3) return;
     // Budget: a cheap pick runs every frame; one that took long (dense
     // terrain, many overlay tiles) leaves at least four times its cost
@@ -1947,6 +1952,7 @@ export class UniverseRenderer {
     if (since < this._probePickCostMs * 4) return;
     this._probeHoverDirty = false;
     this._lastHoverPickMs = now;
+    this._probePickView.copy(this.camera.matrixWorld);
     this._probeHoverAt(this._lastPointer.x, this._lastPointer.y);
     this._probePickCostMs = performance.now() - now;
   }
@@ -1962,7 +1968,7 @@ export class UniverseRenderer {
       ];
       boxes = this._probe.update(this.camera, { width, height }, (point) => this.surfacePointWorld(point), {
         rects, path: [], discs: [], blockers: this._screenOccluders?.() ?? [],
-      });
+      }, this._hoverPointerInside ? this._lastPointer : null);
     } else {
       this._probe.update(this.camera, { width, height }, () => null, { rects: [], path: [], discs: [] });
     }
