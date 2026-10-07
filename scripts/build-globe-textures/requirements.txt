@@ -3,3 +3,4 @@
 # byte-identical to the committed files with these pins.
 pillow==12.3.0
 numpy==2.5.3
+tifffile==2026.9.20
