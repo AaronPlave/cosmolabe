@@ -13,6 +13,7 @@ import { joinUrl, remotePrefix } from './datasets.mjs';
 
 const MAX_JSON_BYTES = 10 * 1024 * 1024;
 const LOCAL_ABS_PREFIX = '/test-catalogs/';
+const DIST_CATALOG_PREFIX = 'test-catalogs/';
 
 /** Resolve a catalog string to a path relative to the catalog root, or null if it is not a local path. */
 export function resolveLocalPath(value, catalogRel) {
@@ -20,7 +21,12 @@ export function resolveLocalPath(value, catalogRel) {
   let rel;
   if (value.startsWith(LOCAL_ABS_PREFIX)) rel = value.slice(LOCAL_ABS_PREFIX.length);
   else if (value.startsWith('/')) return null;
-  else rel = posix.join(posix.dirname(catalogRel), value);
+  else {
+    const catalogRootRel = catalogRel.startsWith(DIST_CATALOG_PREFIX)
+      ? catalogRel.slice(DIST_CATALOG_PREFIX.length)
+      : catalogRel;
+    rel = posix.join(posix.dirname(catalogRootRel), value);
+  }
   rel = posix.normalize(rel);
   if (rel.startsWith('..')) return null;
   // posix.join/normalize keep a trailing slash, which prefix matching relies on.
@@ -113,7 +119,7 @@ export async function buildHostedCatalogs({ dist, baseUrl, datasets, strict = tr
   const pruned = [];
   for (const [id, ds] of Object.entries(datasets)) {
     if (!ds.build) continue;
-    const dir = join(dist, ds.catalogPrefix);
+    const dir = join(dist, DIST_CATALOG_PREFIX, ds.catalogPrefix);
     if (ds.recursive === false) {
       let names = [];
       try { names = await readdir(dir, { withFileTypes: true }); } catch { /* absent */ }

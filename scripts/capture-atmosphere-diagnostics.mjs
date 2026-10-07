@@ -13,7 +13,7 @@ try {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', msg => { if (msg.type() === 'error' && msg.text().includes('THREE.WebGLProgram')) errors.push(msg.text()); });
-  await page.goto(`${process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5185'}/?catalog=atmosphere-saturn-shadow&test=1`);
+  await page.goto(`${process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5185'}/?catalog=test-catalogs/atmosphere-saturn-shadow&test=1`);
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady, { timeout: 120000 });
   assert.equal((await page.evaluate(() => window.__cosmolabe.assetSummary)).failed, 0);
   await page.evaluate(() => window.__cosmolabe.runScript('setPlaying off\nsetTime 2024-07-04T12:00:00Z'));
