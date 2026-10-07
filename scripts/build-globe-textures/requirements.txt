@@ -1,0 +1,5 @@
+# Versions the committed maps were built with. Other versions work, but the
+# JPEG and BC1 (DXT1) encoders can emit different bytes, so a rebuild is only
+# byte-identical to the committed files with these pins.
+pillow==12.3.0
+numpy==2.5.3

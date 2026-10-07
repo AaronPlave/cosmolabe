@@ -51,7 +51,7 @@ was a 1.1 MiB download and 230 MiB on the GPU).
 | `saturn.jpg` | 1024×512 | JPG | 0.03 | 3 | Cosmographia `data/textures/saturn.jpg` | base/saturn, solar-system, cassini-soi, oem-ingest, atmosphere-saturn-shadow |
 | `sun.jpg` | 512×256 | JPG | 0.1 | 1 | Cosmographia `data/textures/sun.jpg` | base/sun, solar-system |
 | `tethys.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/tethys.dds` | base/saturn-major-moons, cassini-soi |
-| `titan.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/titan.dds`; replacement ready, see [below](#titandds-replacement-built-not-yet-committed) | base/saturn-major-moons, cassini-soi |
+| `titan.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | **USGS Cassini ISS global mosaic**, see [below](#titandds) | base/saturn-major-moons, cassini-soi |
 | `titania.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/titania.dds` | base/uranus-system |
 | `triton.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/triton.dds` | base/neptune-system |
 | `umbriel.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/umbriel.dds` | base/uranus-system |
@@ -73,7 +73,7 @@ commit (e7a583b) with no source note.
 `scripts/fetch-cosmographia-data.sh` declines to vendor Cosmographia data
 because that repository has no license, which makes redistributing it from
 this Apache-2.0 repo "a rights question we have no answer to". 37 of the
-committed maps (28 here, 9 under `../models/`) are exactly such copies. The
+committed maps (27 here, 9 under `../models/`) are exactly such copies. The
 underlying imagery is mostly NASA/JPL mission data, but the derived maps
 themselves carry no stated terms. Resolving that is the owner's call: obtain
 terms, fetch at build time like the kernels, or replace each one with a
@@ -82,7 +82,8 @@ derivative of a public-domain source using `scripts/build-globe-textures/`.
 ## Derived maps in this directory
 
 Rebuilt by `scripts/build-globe-textures/` (`fetch-sources.sh`, then
-`build.py`). The build is deterministic: a rebuild from fresh sources is
+`build.py`; setup in that directory's README). The build is deterministic:
+with the pinned `requirements.txt`, a rebuild from fresh sources is
 byte-identical.
 
 ### `ceres.jpg`
@@ -135,11 +136,7 @@ byte-identical.
   sub-Charon hemisphere. With the new map the heart is at 180°E. (The
   viewpoint lat/lon path, `bodyFixedOffsetToWorld`, is tested against SPICE.)
 
-### `titan.dds` (replacement built, not yet committed)
-
-`build.py titan` produces it; it is not in the tree yet because `.dds` is
-LFS-routed and the object has to be pushed from a checkout with LFS write
-access (`./fetch-sources.sh && python3 build.py titan`, then commit).
+### `titan.dds`
 
 
 - **Source:** *Titan ISS P19658 Mosaic Global 4km*, Cassini ISS 938 nm
@@ -148,7 +145,7 @@ access (`./fetch-sources.sh && python3 build.py titan`, then commit).
 - **Processing:** half-width roll (registers against the previous map at
   that roll, no mirror, although the label says PositiveWest), Lanczos to
   4096×2048, DXT1 with a full mip chain like the map it replaces.
-- **Replaces:** Cosmographia's `titan.dds`, an early-Cassini mosaic with
+- **Replaced:** Cosmographia's `titan.dds`, an early-Cassini mosaic with
   flat grey blocks where coverage was missing, most of the north among them.
   The new map fills almost all of them, including the north-polar lakes.
   Same size, same GPU cost.
@@ -179,8 +176,8 @@ each other, not as desktop-GPU frame costs.
 | `pluto.jpg` (new) | 4096×2048 | 1.3 | 42.7 | 16 | 132 | 88 |
 | `charon.jpg` (old) | 9520×4760 | 1.1 | 230.5\* | 15 | 720 | 490 |
 | `charon.jpg` (new) | 4096×2048 | 1.0 | 42.7 | 12 | 137 | 86 |
-| `titan.dds` (current) | 4096×2048 | 5.3 | 5.3 | 50 | 9 | 33 |
-| `titan.dds` (`build.py titan`) | 4096×2048 | 5.3 | 5.3 | 49 | 7 | 32 |
+| `titan.dds` (old) | 4096×2048 | 5.3 | 5.3 | 50 | 9 | 33 |
+| `titan.dds` (new) | 4096×2048 | 5.3 | 5.3 | 49 | 7 | 32 |
 | `moon-normal-16k.jpg` | 16384×8192 | 5.3 | 682.7\* | 49 | 2426 | 453 |
 | `moon-16k.jpg` | 16384×8192 | 40.6 | 682.7\* | 155 | 2750 | 485 |
 
