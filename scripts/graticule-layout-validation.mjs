@@ -6,7 +6,7 @@ import { writeFileSync, readFileSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 const root = fileURLToPath(new URL('..', import.meta.url));
-const out = resolve(root, process.env.GRID_CAPTURE_DIR ?? 'docs/validation/graticule/selection-contrast/layout');
+const out = resolve(root, process.env.GRID_CAPTURE_DIR ?? 'docs/validation/graticule/regular-pattern/layout');
 const fixture = resolve(root, 'apps/viewer/graticule-validation.html');
 const baseline = resolve(root, 'packages/three/src/BodyMeshBefore.ts');
 mkdirSync(out, { recursive: true });
@@ -24,6 +24,8 @@ mars.target = [n * Math.cos(lat) * Math.cos(lon), n * Math.cos(lat) * Math.sin(l
 mars.eye = mars.target.map((v, i) => v + 80 * [Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)][i]);
 mars.up = [-Math.sin(lat) * Math.cos(lon), -Math.sin(lat) * Math.sin(lon), Math.cos(lat)];
 const scenes = [
+  ...[300, 110, 102, 100.5, 100.1, 100.02].map((distance, index) => ({ name: `zoom-${index + 1}`, imagery: '/textures/moon-2k.jpg',
+    setup: { radii: [100, 100, 100], eye: [distance, 0, 0], target: [100, 0, 0], controls: true } })),
   { name: 'small-globe-night-side', setup: { eye: [8000, 0, 2000], lighting: true, sunPosition: [0, -5000, 1000], imagery: true, controls: true } },
   { name: 'regional-repeated-latitude', setup: { radii: [100, 100, 100], eye: [101, 0, 0], target: [100, 0, 0], controls: true } },
 
@@ -47,8 +49,9 @@ try {
     for (let i = 0; i < 18; i++) { await page.evaluate(() => window.frame()); await page.waitForTimeout(20); }
   };
   for (const scene of scenes) {
-    const startRequests = requests;
+    let startRequests = requests;
     await page.evaluate(options => window.setup(options), scene.setup);
+    if (scene.imagery) { await page.evaluate(url => window.loadImagery(url), scene.imagery); startRequests = requests; }
     await settle();
     for (const pose of scene.path ?? []) { await page.evaluate(options => window.pose(options), pose); await settle(); }
     const controller = scene.drag ? await page.evaluate(([x, y]) => window.freeLook(x, y), scene.drag) : null;
@@ -62,16 +65,16 @@ try {
   const eligibleAnchorsIndependent = JSON.stringify(annotations('same-pose-path-a')) === JSON.stringify(annotations('same-pose-path-b'));
   const depression = results.find(r => r.name === 'depression-ground').metrics;
   const freeLook = results.find(r => r.name === 'free-look');
-  const duplicateLines = results.flatMap(r => {
+  const duplicateSites = results.flatMap(r => {
     const seen = new Set();
-    return r.metrics.annotations.filter(a => { const key = `${a.axis}:${a.angle}`; const duplicate = seen.has(key); seen.add(key); return duplicate; });
+    return r.metrics.annotations.filter(a => { const key = `${a.axis}:${a.latDeg}:${a.lonDeg}`; const duplicate = seen.has(key); seen.add(key); return duplicate; });
   }).length;
   const regionalAxes = [...new Set(results.find(r => r.name === 'regional-repeated-latitude').metrics.annotations.map(a => a.axis))];
-  const pass = duplicateLines === 0 && regionalAxes.length === 2 && errors.length === 0 && results.every(r => r.gridRequests === 0) && eligibleAnchorsIndependent
-    && depression.candidates > 0 && depression.labels > 0 && depression.latitudeStep < 0.1 && depression.longitudeStep < 0.1
-    && freeLook.controller.tracked === null && freeLook.controller.origin === 'Moon' && freeLook.metrics.labels > 0;
-  writeFileSync(resolve(out, 'metrics.json'), JSON.stringify({ renderer: 'Chromium SwiftShader; synthetic resident terrain', pass, duplicateLines, regionalAxes, eligibleAnchorsIndependent, results, errors }, null, 2) + '\n');
-  console.log(JSON.stringify({ output: out, pass, duplicateLines, regionalAxes, eligibleAnchorsIndependent, depression: {
+  const pass = duplicateSites === 0 && errors.length === 0 && results.every(r => r.gridRequests === 0) && eligibleAnchorsIndependent
+    && depression.candidates > 0 && depression.latitudeStep < 0.1 && depression.longitudeStep < 0.1
+    && freeLook.controller.tracked === null && freeLook.controller.origin === 'Moon';
+  writeFileSync(resolve(out, 'metrics.json'), JSON.stringify({ renderer: 'Chromium SwiftShader; synthetic resident terrain', pass, duplicateSites, regionalAxes, eligibleAnchorsIndependent, results, errors }, null, 2) + '\n');
+  console.log(JSON.stringify({ output: out, pass, duplicateSites, regionalAxes, eligibleAnchorsIndependent, depression: {
     candidates: depression.candidates, labels: depression.labels, latitudeStep: depression.latitudeStep, longitudeStep: depression.longitudeStep,
   }, freeLook: freeLook.controller, errors }, null, 2));
   if (!pass) process.exitCode = 1;

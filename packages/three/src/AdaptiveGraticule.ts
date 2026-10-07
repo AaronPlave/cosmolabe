@@ -28,17 +28,15 @@ const MAX_QUERY_LABELS = 6;
 const MAX_TERRAIN_LABELS = 3;
 const ENTRY_DWELL_MS = 100;
 const DEG = Math.PI / 180;
-const lineId = (anchor: Anchor) => `${anchor.axis}:${anchor.angle.toFixed(6)}`;
-/** Preserve priority within each axis, borrowing spare capacity from either. */
-function interleaveAxes<T extends { anchor: Anchor }>(items: T[], first: Anchor['axis'] = 'latitude'): T[] {
-  const latitude = items.filter(p => p.anchor.axis === 'latitude');
-  const longitude = items.filter(p => p.anchor.axis === 'longitude');
-  const result: T[] = [];
-  const queues = first === 'latitude' ? [latitude, longitude] : [longitude, latitude];
-  for (let i = 0; i < Math.max(latitude.length, longitude.length); i++) {
-    for (const queue of queues) if (queue[i]) result.push(queue[i]);
-  }
-  return result;
+const siteId = (anchor: Anchor) => `${anchor.axis}:${anchor.lat.toFixed(6)}:${anchor.lon.toFixed(6)}`;
+/** Fixed geographic blocks, never derived from viewport bounds. */
+export function annotationPattern(latStep: number, lonStep: number) {
+  return { latitudeStride: Math.min(60, latStep * 4), longitudeStride: Math.min(60, lonStep * 4) };
+}
+function inPattern(anchor: Anchor, latStep: number, lonStep: number): boolean {
+  const pattern = annotationPattern(latStep, lonStep), phase = anchor.axis === 'latitude' ? 0 : 0.5;
+  const aligned = (value: number, stride: number) => Math.abs(value / stride - phase - Math.round(value / stride - phase)) < 1e-5;
+  return aligned(anchor.lat, pattern.latitudeStride) && aligned(anchor.lon, pattern.longitudeStride);
 }
 
 /** Constant-cost surface shader plus a bounded pool of line-associated annotations. */
@@ -57,7 +55,6 @@ export class AdaptiveGraticule {
   private readonly eligibility = new Map<string, number>();
   private dpr = 0;
   private readonly cachedHits = new Map<string, SurfaceHit>();
-  private discoveryAxis: Anchor['axis'] = 'latitude';
   private visible = false;
   private labelVisible = true;
   private transition = 1;
@@ -172,13 +169,15 @@ export class AdaptiveGraticule {
       const id = `${this.bm.body.name}:${tier}:${axis}:${angle.toFixed(6)}:${lat.toFixed(6)}:${lon.toFixed(6)}`;
       discovered.set(id, { id, tier, axis, angle, lat, lon, step });
     };
-    // Subsample integer indices anchored at geographic zero. Even a tiny manual
-    // step on a whole globe enumerates at most 12 x 8 anchors per axis.
-    const values = (lo: number, hi: number, step: number, offset: number, limit: number) => {
-      const start = Math.ceil(lo / step - offset), end = Math.floor(hi / step - offset);
-      const stride = Math.max(1, Math.ceil((end - start + 1) / limit));
+    const pattern = annotationPattern(latStep, lonStep);
+    // Enumerate a bounded contiguous subset of the prescribed block indices.
+    // Bounds may exclude sites, but never change the pattern stride or phase.
+    const values = (lo: number, hi: number, stride: number, phase: number, limit: number) => {
+      const first = Math.ceil(lo / stride - phase), end = Math.floor(hi / stride - phase);
+      const middle = Math.round((lo + hi) / (2 * stride) - phase);
+      const start = Math.max(first, Math.min(end - limit + 1, middle - Math.floor(limit / 2)));
       const result: number[] = [];
-      for (let i = Math.ceil(start / stride) * stride; i <= end; i += stride) result.push((i + offset) * step);
+      for (let i = start; i <= Math.min(end, start + limit - 1); i++) result.push((i + phase) * stride);
       return result;
     };
     if (samples.length) {
@@ -188,35 +187,36 @@ export class AdaptiveGraticule {
       const north = Math.min(84, Math.max(...latitudes) + latStep * 2);
       const west = Math.max(foot.lonDeg - 180, Math.min(...longitudes) - lonStep * 2);
       const east = Math.min(foot.lonDeg + 180, Math.max(...longitudes) + lonStep * 2);
-      for (const lat of values(south, north, latStep, 0, 12)) {
-        for (const lon of values(west, east, Math.min(60, lonStep * 4), 0, 8)) add('latitude', lat, lat, lon);
+      for (const lat of values(south, north, pattern.latitudeStride, 0, 12)) {
+        for (const lon of values(west, east, pattern.longitudeStride, 0, 8)) add('latitude', lat, lat, lon);
       }
-      // Longitude glyphs use half-step latitude bands, avoiding shared anchors
-      // with latitude glyphs. These bands never depend on a camera footpoint.
-      const band = Math.min(60, latStep * 4);
-      const offset = latStep * 0.5 / band;
-      for (const lon of values(west, east, lonStep, 0, 12)) {
-        for (const lat of values(south, north, band, offset, 8)) add('longitude', lon, lat, lon);
+      // Opposite half-block sites distinguish the two axes consistently.
+      for (const lon of values(west, east, pattern.longitudeStride, 0.5, 12)) {
+        for (const lat of values(south, north, pattern.latitudeStride, 0.5, 8)) add('longitude', lon, lat, lon);
       }
     }
-    // Visible old tiers retain their original objects and coordinates. A coarse
-    // anchor may survive refinement when its line remains in the current grid;
-    // finer/non-nested tiers retire at those same anchors during the crossfade.
-    for (const label of this.labels.values()) if (label.sprite.visible) discovered.set(label.anchor.id, label.anchor);
+    // Retain only shared active sites or sites still fading from the immediately
+    // previous pattern. A surviving line alone does not preserve an old site.
+    for (const label of this.labels.values()) if (label.sprite.visible && this.lineWeight(label.anchor) > 0) {
+      for (const [id, candidate] of discovered) if (siteId(candidate) === siteId(label.anchor)) discovered.delete(id);
+      discovered.set(label.anchor.id, label.anchor);
+    }
     const distance = (anchor: Anchor) => Math.min(...samples.map(p =>
       Math.hypot((anchor.lat - p.latDeg) / latStep, wrapLongitude(anchor.lon - p.lonDeg) / lonStep)), Infinity);
     const ordered = [...discovered.values()].sort((a, b) => {
       const visible = (anchor: Anchor) => this.labels.get(anchor.id)?.sprite.visible ? 1 : 0;
       return visible(b) - visible(a) || distance(a) - distance(b) || a.id.localeCompare(b.id);
     });
-    const incumbents = ordered.filter(a => this.labels.get(a.id)?.sprite.visible);
-    const nearby = ordered.filter(a => !this.labels.get(a.id)?.sprite.visible);
-    this.candidates = [...incumbents, ...interleaveAxes(nearby.map(anchor => ({ anchor }))).map(p => p.anchor)].slice(0, MAX_CANDIDATES);
+    this.candidates = ordered.slice(0, MAX_CANDIDATES);
   }
   private lineWeight(anchor: Anchor): number {
-    const current = anchor.axis === 'latitude' ? this.uniforms.uGridStep.value.x : this.uniforms.uGridStep.value.y;
-    const previous = anchor.axis === 'latitude' ? this.uniforms.uGridPreviousStep.value.x : this.uniforms.uGridPreviousStep.value.y;
-    const contains = (step: number) => Math.abs(anchor.angle / step - Math.round(anchor.angle / step)) < 1e-5;
+    const current = this.uniforms.uGridStep.value, previous = this.uniforms.uGridPreviousStep.value;
+    // Check the full geographic site and actual line membership. Nice steps are
+    // not all nested; old sites retire even when their coordinate line survives.
+    const contains = (steps: THREE.Vector2) => {
+      const step = anchor.axis === 'latitude' ? steps.x : steps.y;
+      return inPattern(anchor, steps.x, steps.y) && Math.abs(anchor.angle / step - Math.round(anchor.angle / step)) < 1e-5;
+    };
     return (contains(current) ? this.transition : 0) + (contains(previous) ? 1 - this.transition : 0);
   }
   update(camera: THREE.PerspectiveCamera, viewport: { width: number; height: number }, manager: LabelManager | null, occluders: readonly BodyMesh[] = [this.bm]): void {
@@ -343,11 +343,10 @@ export class AdaptiveGraticule {
         || Number(b.anchor.angle === 0) - Number(a.anchor.angle === 0)
         || b.anchor.step - a.anchor.step || a.anchor.id.localeCompare(b.anchor.id);
     });
-    const incumbents = new Map<string, string>();
-    for (const label of this.labels.values()) if (label.sprite.visible) incumbents.set(lineId(label.anchor), label.anchor.id);
-    // A failing incumbent retires this frame. Its alternatives start their entry
-    // dwell on a later frame, rather than switching geographic location at once.
-    const available = prepared.filter(p => !incumbents.has(lineId(p.anchor)) || incumbents.get(lineId(p.anchor)) === p.anchor.id);
+    // Deduplicate only the same prescribed geographic site across tiers.
+    // Repeated coordinate values at distinct regular sites remain independent.
+    const sites = new Set<string>();
+    const available = prepared.filter(p => { const site = siteId(p.anchor); if (sites.has(site)) return false; sites.add(site); return true; });
     const keys = new Set(available.map(p => p.anchor.id));
     for (const key of this.cachedHits.keys()) if (!keys.has(key)) this.cachedHits.delete(key);
     for (const key of this.eligibility.keys()) if (!keys.has(key)) this.eligibility.delete(key);
@@ -358,11 +357,7 @@ export class AdaptiveGraticule {
           || Number(this.eligibility.has(b.anchor.id)) - Number(this.eligibility.has(a.anchor.id))
           || (this.cachedHits.get(a.anchor.id)?.time ?? -1) - (this.cachedHits.get(b.anchor.id)?.time ?? -1);
       });
-      const visible = ordered.filter(p => this.labels.get(p.anchor.id)?.sprite.visible);
-      const discovery = ordered.filter(p => !this.labels.get(p.anchor.id)?.sprite.visible);
-      const pending = [...visible, ...interleaveAxes(discovery, this.discoveryAxis)];
-      this.discoveryAxis = this.discoveryAxis === 'latitude' ? 'longitude' : 'latitude';
-      const queriedLines = new Set<string>();
+      const pending = ordered;
       let queries = 0;
       const preferredHit = (intersections: THREE.Intersection[]) => {
         const overlay = intersections.find(hit => {
@@ -373,8 +368,6 @@ export class AdaptiveGraticule {
         return { intersection: overlay ?? intersections[0], overlay: !!overlay };
       };
       for (const { anchor, view } of pending) {
-        if (queriedLines.has(lineId(anchor))) continue;
-        queriedLines.add(lineId(anchor));
         const cost = registeredTerrain ? 2 : 1;
         if (queries + cost > 8) break;
         let surface: THREE.Vector3 | null = null;
@@ -449,8 +442,7 @@ export class AdaptiveGraticule {
       const rect = { x0: x - labelWidth / 2 - padding, x1: x + labelWidth / 2 + padding, y0: y - 10 - padding, y1: y + 10 + padding };
       if (strength < 0.012 || projected.z < -1 || projected.z > 1 || rect.x0 < 4 || rect.x1 > width - 4 || rect.y0 < 4 || rect.y1 > height - 4
         || manager.canReserveContextRect?.(rect) === false) { reject(); continue; }
-      const axisStep = anchor.axis === 'latitude' ? this.uniforms.uGridStep.value.x : this.uniforms.uGridStep.value.y;
-      const tierUseful = anchor.step >= axisStep;
+      const tierUseful = inPattern(anchor, this.uniforms.uGridStep.value.x, this.uniforms.uGridStep.value.y);
       const eligible = tierUseful && strength >= (label?.sprite.visible ? 0.02 : 0.04) && incidence >= (label?.sprite.visible ? 0.18 : 0.28)
         && Math.abs(projected.x) <= (label?.sprite.visible ? 0.96 : 0.9) && Math.abs(projected.y) <= (label?.sprite.visible ? 0.94 : 0.88);
       if (eligible) {
@@ -459,22 +451,9 @@ export class AdaptiveGraticule {
       if (!label?.sprite.visible && (!eligible || now - this.eligibility.get(anchor.id)! < ENTRY_DWELL_MS)) continue;
       ready.push({ anchor, fixed, text, labelWidth, offsetX, offsetY, rect, eligible, strength });
     }
-    const selectedLines = new Set<string>();
-    const counts = { latitude: 0, longitude: 0 };
-    const hasBothAxes = ready.some(p => p.anchor.axis === 'latitude') && ready.some(p => p.anchor.axis === 'longitude');
-    const quota = hasBothAxes ? { latitude: Math.ceil(limit / 2), longitude: Math.floor(limit / 2) } : { latitude: limit, longitude: limit };
-    const byLine = new Map<string, typeof ready[number]>();
-    for (const candidate of ready) if (!byLine.has(lineId(candidate.anchor))) byLine.set(lineId(candidate.anchor), candidate);
-    const unique = [...byLine.values()];
-    const ordered = [...interleaveAxes(unique.filter(p => this.labels.get(p.anchor.id)?.sprite.visible)),
-      ...interleaveAxes(unique.filter(p => !this.labels.get(p.anchor.id)?.sprite.visible))];
-    // First reserve capacity for both axes. The second pass lends unused slots
-    // after invalid/colliding candidates have been rejected, never forcing them.
-    for (const { candidate, borrow } of [false, true].flatMap(borrow => ordered.map(candidate => ({ candidate, borrow })))) {
-      const { anchor, fixed, text, labelWidth, offsetX, offsetY, rect, eligible, strength } = candidate;
+    // Resource limits only cap work/display; they are never coverage targets.
+    for (const { anchor, fixed, text, labelWidth, offsetX, offsetY, rect, eligible, strength } of ready) {
       if (active.size >= limit) break;
-      const line = lineId(anchor);
-      if (selectedLines.has(line) || (!borrow && counts[anchor.axis] >= quota[anchor.axis])) continue;
       let label = this.labels.get(anchor.id);
       if (!manager.reserveContextRect(rect)) { hide(label); this.eligibility.delete(anchor.id); continue; }
       if (!label) {
@@ -493,7 +472,7 @@ export class AdaptiveGraticule {
       label.sprite.material.opacity = Math.min(0.85 * strength, Math.max(0,
         label.sprite.material.opacity + (eligible ? dt * 5 : -dt * 4)));
       label.sprite.visible = label.sprite.material.opacity > 0;
-      if (label.sprite.visible) { active.add(anchor.id); selectedLines.add(line); counts[anchor.axis]++; }
+      if (label.sprite.visible) active.add(anchor.id);
     }
     for (const [id, label] of this.labels) if (!active.has(id)) hide(label);
   }

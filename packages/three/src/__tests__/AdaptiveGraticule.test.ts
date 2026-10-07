@@ -3,68 +3,69 @@ import * as THREE from 'three';
 import { Body, FixedPointTrajectory, bodySurfaceCoordinates, surfacePositionToBodyFixed } from '@cosmolabe/core';
 import { BodyMesh } from '../BodyMesh.js';
 import { normalizeGridSettings } from '@cosmolabe/control';
-import { chooseGridStep, GRID_STEPS } from '../AdaptiveGraticule.js';
+import { chooseGridStep, GRID_STEPS, annotationPattern } from '../AdaptiveGraticule.js';
 import { LabelManager } from '../LabelManager.js';
 import { TerrainSampler } from '../TerrainSampler.js';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('adaptive graticule', () => {
-  it('deduplicates coordinate lines across anchors and retained tiers, while showing both axes', () => {
+  it('keeps fixed stride/phase under different search bounds and permits intentional regional repeats', () => {
     vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
-    const body = new Body({ name: 'Selection', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+    const body = new Body({ name: 'Pattern', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
     const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.up.set(0, 0, 1); camera.position.set(300, 0, 0); camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.up.set(0, 0, 1);
     const manager = { reserveContextRect: () => true } as unknown as LabelManager;
-    const frame = () => {
-      now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager);
-      const annotations = bm.gridMetrics!.annotations;
-      expect(new Set(annotations.map(a => `${a.axis}:${a.angle}`)).size).toBe(annotations.length);
-      return annotations;
-    };
-    const settle = () => { for (let i = 0; i < 60; i++) frame(); return frame(); };
-    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 15 }));
-    const original = settle();
-    expect(original.filter(a => a.angle === 0)).toHaveLength(2);
-    expect(new Set(original.map(a => a.axis)).size).toBe(2);
-    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 10 }));
-    const refined = settle();
-    for (const a of original.filter(a => a.angle === 0)) expect(refined.find(b => b.axis === a.axis && b.angle === 0)?.id).toBe(a.id);
-    camera.position.set(101, 0, 0); camera.lookAt(100, 0, 0);
-    bm.showGrid(true, true, normalizeGridSettings());
-    const regional = settle();
-    expect(regional.length).toBeGreaterThan(0);
-    expect(new Set(regional.map(a => a.axis)).size).toBe(2);
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 0.1 }));
+    const sites = new Map<string, readonly [number, number]>();
+    for (const [distance, longitude] of [[300, 0], [110, 0], [101, 0], [101, 0.2], [101, -0.2]]) {
+      camera.position.set(distance * Math.cos(longitude), distance * Math.sin(longitude), 0); camera.lookAt(0, 0, 0);
+      for (let i = 0; i < 40; i++) {
+        now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager);
+        for (const a of bm.gridMetrics!.anchors) {
+          const pattern = annotationPattern(0.1, 0.1), phase = a.axis === 'latitude' ? 0 : 0.5;
+          for (const [value, stride] of [[a.lat, pattern.latitudeStride], [a.lon, pattern.longitudeStride]]) {
+            expect(value / stride - phase).toBeCloseTo(Math.round(value / stride - phase), 5);
+          }
+          if (sites.has(a.id)) expect([a.lat, a.lon]).toEqual(sites.get(a.id)); else sites.set(a.id, [a.lat, a.lon]);
+        }
+        const annotations = bm.gridMetrics!.annotations;
+        expect(new Set(annotations.map(a => `${a.axis}:${a.latDeg}:${a.lonDeg}`)).size).toBe(annotations.length);
+      }
+    }
+    const annotations = bm.gridMetrics!.annotations;
+    expect(annotations.length).toBeGreaterThan(0);
+    expect(new Set(annotations.map(a => `${a.axis}:${a.angle}`)).size).toBeLessThan(annotations.length);
     bm.dispose();
   });
 
-  it('retires an unsuitable incumbent before admitting another fixed anchor on the same line', () => {
+  it('hides prescribed sites for UI collisions without selecting same-line replacements or requiring axis coverage', () => {
     vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
-    const body = new Body({ name: 'Replacement', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+    const body = new Body({ name: 'Sparse pattern', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
     const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.position.set(300, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.position.set(101, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(100, 0, 0);
     const manager = new LabelManager({} as HTMLElement);
-    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 10 }));
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 1 }));
     const frame = () => { now += 16; manager.beginContextAnnotations(); bm.updateGrid(camera, { width: 800, height: 800 }, manager); return bm.gridMetrics!; };
     for (let i = 0; i < 40; i++) frame();
-    const original = frame().annotations.find(a => a.axis === 'latitude' && a.angle === 0)!;
-    expect(original).toBeDefined();
-    const fixed = surfacePositionToBodyFixed({ latDeg: original.latDeg, lonDeg: original.lonDeg }, bodySurfaceCoordinates(body)!);
-    const screen = new THREE.Vector3(fixed.xKm, fixed.yKm, fixed.zKm).project(camera);
-    const x = (screen.x + 1) * 400 + 8, y = (1 - screen.y) * 400;
-    manager.setReservedRects([{ x0: x - 45, x1: x + 45, y0: y - 14, y1: y + 14 }], 'controls');
-    expect(frame().annotations.some(a => a.axis === 'latitude' && a.angle === 0)).toBe(false);
-    for (let i = 0; i < 6; i++) expect(frame().annotations.some(a => a.axis === 'latitude' && a.angle === 0)).toBe(false);
-    for (let i = 0; i < 40; i++) frame();
-    const replacement = frame().annotations.find(a => a.axis === 'latitude' && a.angle === 0)!;
-    expect(replacement).toBeDefined(); expect(replacement.id).not.toBe(original.id);
+    const original = frame(); expect(original.annotations).toHaveLength(1);
+    expect(original.annotations[0].axis).toBe('latitude');
+    const anchor = original.annotations[0];
+    manager.setReservedRects([{ x0: 300, x1: 500, y0: 370, y1: 430 }], 'controls');
+    for (let i = 0; i < 50; i++) {
+      const hidden = frame(); expect(hidden.labels).toBe(0);
+      expect(hidden.anchors).toEqual(original.anchors);
+    }
     manager.setReservedRects([], 'controls');
-    for (let i = 0; i < 30; i++) expect(frame().annotations.find(a => a.axis === 'latitude' && a.angle === 0)?.id).toBe(replacement.id);
-    expect(frame().anchors.find(a => a.id === original.id)).toMatchObject({ lat: original.latDeg, lon: original.lonDeg });
+    for (let i = 0; i < 40; i++) frame();
+    expect(frame().annotations[0]).toMatchObject({ id: anchor.id, latDeg: anchor.latDeg, lonDeg: anchor.lonDeg });
+    camera.lookAt(101, 10, 0);
+    for (let i = 0; i < 40; i++) frame();
+    expect(frame().labels).toBe(0); // No coverage-filling fallback.
     bm.dispose();
   });
 
@@ -168,7 +169,6 @@ describe('adaptive graticule', () => {
     for (let i = 0; i < 30; i++) frame();
     const initial = frame(); expect(initial.annotations.length).toBeGreaterThan(0);
     expect(initial.annotations.map(a => a.text)).toContain('Equator 0°');
-    expect(initial.annotations.map(a => a.text)).toContain('Prime 0°');
     for (let i = 0; i < 80; i++) {
       const angle = i * 0.0005; camera.position.set(300 * Math.cos(angle), 300 * Math.sin(angle), i * 0.002);
       camera.up.set(0, Math.sin(angle), Math.cos(angle)); camera.lookAt(0, 0, 0); frame();
@@ -194,6 +194,7 @@ describe('adaptive graticule', () => {
     const settle = () => { for (let i = 0; i < 40; i++) frame(); return frame(); };
     bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 15 }));
     const before = settle();
+    expect(before.annotations.some(a => a.axis === 'longitude' && Math.abs(a.angle) === 30)).toBe(true);
     bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 10 }));
     expect(frame().densityBlend).toBe(0);
     const refined = settle();
@@ -201,11 +202,18 @@ describe('adaptive graticule', () => {
     expect(survivors.length).toBeGreaterThan(0);
     for (const a of survivors) expect(a).toMatchObject(before.annotations.find(b => b.id === a.id)!);
     expect(refined.anchors.some(a => a.tier === '10:10')).toBe(true);
-    for (const a of refined.annotations) expect(Math.abs(a.angle / 10 - Math.round(a.angle / 10))).toBeLessThan(1e-5);
+    for (const a of refined.annotations) {
+      expect(Math.abs(a.angle / 10 - Math.round(a.angle / 10))).toBeLessThan(1e-5);
+      const phase = a.axis === 'latitude' ? 0 : 0.5;
+      for (const value of [a.latDeg, a.lonDeg]) expect(value / 40 - phase).toBeCloseTo(Math.round(value / 40 - phase));
+    }
     bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 30 }));
     const coarse = settle();
     expect(coarse.annotations.length).toBeGreaterThan(0);
-    expect(coarse.annotations.every(a => a.step >= 30)).toBe(true);
+    for (const a of coarse.annotations) {
+      const phase = a.axis === 'latitude' ? 0 : 0.5;
+      for (const value of [a.latDeg, a.lonDeg]) expect(value / 60 - phase).toBeCloseTo(Math.round(value / 60 - phase));
+    }
     bm.dispose();
   });
 
@@ -257,12 +265,11 @@ describe('adaptive graticule', () => {
       bm.updateGrid(camera, { width: 800, height: 800 }, labels);
       expect(rays.mock.calls.length).toBeLessThanOrEqual(8);
       const annotations = bm.gridMetrics!.annotations;
-      expect(new Set(annotations.map(a => `${a.axis}:${a.angle}`)).size).toBe(annotations.length);
+      expect(new Set(annotations.map(a => `${a.axis}:${a.latDeg}:${a.lonDeg}`)).size).toBe(annotations.length);
       return bm.gridMetrics!.labels;
     };
     for (let i = 0; i < 20; i++) frame();
     const settled = bm.gridMetrics!.labels;
-    expect(new Set(bm.gridMetrics!.annotations.map(a => a.axis)).size).toBe(2);
     expect(settled).toBeGreaterThan(0);
     expect(settled).toBeLessThanOrEqual(6);
     let stationaryQueries = 0;
