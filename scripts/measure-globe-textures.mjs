@@ -30,7 +30,7 @@ import { chromium } from 'playwright';
 const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 const TEXTURES = 'apps/viewer/test-catalogs/textures';
 const DEFAULTS = [
-  'ceres.jpg', 'earth-8k.jpg', 'moon-4k.jpg', 'mars.dds', 'jupiter.jpg', 'saturn.jpg',
+  'ceres.jpg', 'earth-5k.jpg', 'moon-4k.jpg', 'mars.dds', 'jupiter.jpg', 'saturn.jpg',
   'pluto.jpg', 'charon.jpg', 'moon-normal-16k.jpg', 'moon-16k.jpg',
 ];
 const names = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULTS;

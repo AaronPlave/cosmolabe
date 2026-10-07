@@ -26,7 +26,7 @@ was a 1.1 MiB download and 230 MiB on the GPU).
 | `charon.jpg` | 4096×2048 | JPG (grey) | 1.0 | 43 | **USGS New Horizons global mosaic**, see [below](#charonjpg) | base/pluto-system |
 | `dione-1k.jpg` | 1024×512 | JPG | 0.2 | 3 | `dione.dds` at its 1024×512 mip (#94) | home-screen hero (`src/lib/hero.ts`) |
 | `dione.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/dione.dds` | base/saturn-major-moons, cassini-soi |
-| `earth-8k.jpg` | 8192×4096 | JPG | 4.7 | 171 | **NASA Blue Marble NG** July 2004 topo-bathy, see [below](#earth-8kjpg) | base/earth-system, solar-system, iss, lro-moon, moonfall-shackleton, atmosphere-earth-* |
+| `earth-5k.jpg` | 5400×2700 | JPG | 2.2 | 74 | NASA Blue Marble NG July 2004 topo-bathy, NASA's own 5400 release (byte-identical); to be replaced by `earth-8k.jpg`, see [below](#earth-8kjpg) | base/earth-system, solar-system, iss, lro-moon, moonfall-shackleton, atmosphere-earth-* |
 | `enceladus.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/enceladus.dds` | base/saturn-major-moons, cassini-soi |
 | `europa.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/europa.dds` | base/jupiter-galilean, europa-clipper |
 | `ganymede.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/ganymede.dds` | base/jupiter-galilean, europa-clipper |
@@ -205,10 +205,16 @@ byte-identical.
   `https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x21600x10800.jpg`.
   Credit: NASA Earth Observatory (Reto Stöckli); public domain in the US.
 - **Processing:** Lanczos to 8192×4096 as 8-bit RGB, JPEG quality 90.
-- **Replaced:** `earth-5k.jpg`, which is NASA's own 5400×2700 release of the
+- **Replaces:** `earth-5k.jpg`, which is NASA's own 5400×2700 release of the
   same month (byte-identical, MD5 `3c9658c2…`). Same picture, crisper
   coastlines and relief at close range, at a GPU cost that goes from 74 to
   171 MiB (see [Load cost](#load-cost)).
+- **Status:** the recipe is in place but the file is an LFS object not yet
+  committed, so the catalogs still point at `earth-5k.jpg`. Switching is
+  the same commit that adds `earth-8k.jpg`: replace `earth-5k.jpg` with
+  `earth-8k.jpg` in the catalogs that use it (the "Used by" column above,
+  plus `packages/core/src/builtin-catalogs/earth-system.json` and
+  `scripts/build-moonfall-flights.mjs`), then delete `earth-5k.jpg`.
 
 ### `jupiter.jpg`
 

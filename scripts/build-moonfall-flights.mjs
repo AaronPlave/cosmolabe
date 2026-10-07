@@ -498,7 +498,7 @@ const catalog = {
       geometry: {
         type: 'Globe',
         radius: 6378,
-        baseMap: 'textures/earth-8k.jpg',
+        baseMap: 'textures/earth-5k.jpg',
         atmosphere: 'Earth',
       },
       label: { color: [0.4, 0.6, 1.0] },
