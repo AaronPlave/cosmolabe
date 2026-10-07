@@ -47,6 +47,13 @@ export interface GeometryConfig {
   naifId: number;
   observerName: string;
   abcorr?: 'LT+S' | 'LT' | 'CN+S' | 'NONE';
+  /** How the sub-observer and sub-solar points are defined. `NEAR POINT`
+   *  (the default) is the surface point closest to the observer/Sun;
+   *  `INTERCEPT` is where the line from the body's centre to it pierces the
+   *  surface. They differ by up to the planetocentric/planetographic gap on an
+   *  oblate body — ~4° of latitude on Saturn. Planetary archives (PDS, OPUS)
+   *  tabulate the intercept, so compare against them with `INTERCEPT`. */
+  subPointMethod?: 'NEAR POINT/ELLIPSOID' | 'INTERCEPT/ELLIPSOID';
   computeSubPoints?: boolean;
   computeIllumination?: boolean;
   computeOrbitalElements?: boolean;
@@ -67,6 +74,7 @@ export class GeometryCalculator {
   compute(config: GeometryConfig, et: number): BodyGeometry {
     const result: BodyGeometry = {};
     const abcorr = config.abcorr ?? 'LT+S';
+    const subPointMethod = config.subPointMethod ?? 'NEAR POINT/ELLIPSOID';
 
     // --- Range, speed, range rate ---
     if (config.computeRange !== false) {
@@ -137,7 +145,7 @@ export class GeometryCalculator {
     if (config.computeSubPoints !== false) {
       try {
         const subSC = this.spice.subpnt(
-          'NEAR POINT/ELLIPSOID', config.bodyName, et,
+          subPointMethod, config.bodyName, et,
           config.bodyFrame, abcorr, config.observerName,
         );
         result.subSCLatitude = subSC.latitude * DEG;
@@ -154,7 +162,7 @@ export class GeometryCalculator {
 
       try {
         const subSolar = this.spice.subslr(
-          'NEAR POINT/ELLIPSOID', config.bodyName, et,
+          subPointMethod, config.bodyName, et,
           config.bodyFrame, abcorr, config.observerName,
         );
         result.subSolarLatitude = subSolar.latitude * DEG;
@@ -166,7 +174,7 @@ export class GeometryCalculator {
     if (config.computeIllumination !== false && result.subSCLatitude != null) {
       try {
         const subSC = this.spice.subpnt(
-          'NEAR POINT/ELLIPSOID', config.bodyName, et,
+          subPointMethod, config.bodyName, et,
           config.bodyFrame, abcorr, config.observerName,
         );
         const illum = this.spice.ilumin(
