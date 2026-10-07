@@ -6,7 +6,7 @@ import { writeFileSync, readFileSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 const root = fileURLToPath(new URL('..', import.meta.url));
-const out = resolve(root, process.env.GRID_CAPTURE_DIR ?? 'docs/validation/graticule/regular-pattern/layout');
+const out = resolve(root, process.env.GRID_CAPTURE_DIR ?? 'docs/validation/graticule/carrier-rulers/layout');
 const fixture = resolve(root, 'apps/viewer/graticule-validation.html');
 const baseline = resolve(root, 'packages/three/src/BodyMeshBefore.ts');
 mkdirSync(out, { recursive: true });
@@ -27,15 +27,15 @@ const scenes = [
   ...[300, 110, 102, 100.5, 100.1, 100.02].map((distance, index) => ({ name: `zoom-${index + 1}`, imagery: '/textures/moon-2k.jpg',
     setup: { radii: [100, 100, 100], eye: [distance, 0, 0], target: [100, 0, 0], controls: true } })),
   { name: 'small-globe-night-side', setup: { eye: [8000, 0, 2000], lighting: true, sunPosition: [0, -5000, 1000], imagery: true, controls: true } },
-  { name: 'regional-repeated-latitude', setup: { radii: [100, 100, 100], eye: [101, 0, 0], target: [100, 0, 0], controls: true } },
+  { name: 'regional-carriers', setup: { radii: [100, 100, 100], eye: [101, 0, 0], target: [100, 0, 0], controls: true } },
 
   { name: 'oblique-polar', setup: { eye: [2000, -3100, 5400] } },
   { name: 'south-pole', setup: { eye: [0, 0, -6000], up: [1, 0, 0] } },
   { name: 'regional-mars', setup: mars },
   { name: 'depression-ground', setup: { name: 'Depression', radii: [100, 100, 100], terrain: true, depression: true, eye: [99.5, 0, 0], target: [99, 0, 0] } },
   { name: 'transition-regional', setup: {}, path: [{ eye: [1740, 0, 0], target: [1737.4, 0, 0] }] },
-  { name: 'same-pose-path-a', setup: { manual: true, step: 20 }, path: [{ eye: [5500, 0, 2200] }, finalPose] },
-  { name: 'same-pose-path-b', setup: { manual: true, step: 20, eye: [1745, 0, 0] }, path: [{ eye: [0, 0, 6000], up: [1, 0, 0] }, finalPose] },
+  { name: 'same-pose-path-a', setup: { manual: true, step: 15 }, path: [{ eye: [5500, 0, 2200] }, finalPose] },
+  { name: 'same-pose-path-b', setup: { manual: true, step: 15, eye: [1745, 0, 0] }, path: [{ eye: [0, 0, 6000], up: [1, 0, 0] }, finalPose] },
   { name: 'free-look', setup: {}, drag: [25, 12] },
 ];
 try {
@@ -61,15 +61,18 @@ try {
     writeFileSync(resolve(out, `${scene.name}.png`), Buffer.from(image.split(',')[1], 'base64'));
     results.push({ name: scene.name, gridRequests: requests - startRequests, controller, ...metric });
   }
-  const annotations = name => results.find(r => r.name === name).metrics.anchors.filter(a => a.tier === '15:15').toSorted((a, b) => a.id.localeCompare(b.id));
-  const eligibleAnchorsIndependent = JSON.stringify(annotations('same-pose-path-a')) === JSON.stringify(annotations('same-pose-path-b'));
+  const annotations = name => {
+    const metric = results.find(r => r.name === name).metrics;
+    return metric.anchors.filter(a => a.tier === `${metric.latitudeStep}:${metric.longitudeStep}`).toSorted((a, b) => a.id.localeCompare(b.id));
+  };
+  const eligibleAnchorsIndependent = annotations('same-pose-path-a').length > 0 && JSON.stringify(annotations('same-pose-path-a')) === JSON.stringify(annotations('same-pose-path-b'));
   const depression = results.find(r => r.name === 'depression-ground').metrics;
   const freeLook = results.find(r => r.name === 'free-look');
   const duplicateSites = results.flatMap(r => {
     const seen = new Set();
     return r.metrics.annotations.filter(a => { const key = `${a.axis}:${a.latDeg}:${a.lonDeg}`; const duplicate = seen.has(key); seen.add(key); return duplicate; });
   }).length;
-  const regionalAxes = [...new Set(results.find(r => r.name === 'regional-repeated-latitude').metrics.annotations.map(a => a.axis))];
+  const regionalAxes = [...new Set(results.find(r => r.name === 'regional-carriers').metrics.annotations.map(a => a.axis))];
   const pass = duplicateSites === 0 && errors.length === 0 && results.every(r => r.gridRequests === 0) && eligibleAnchorsIndependent
     && depression.candidates > 0 && depression.latitudeStep < 0.1 && depression.longitudeStep < 0.1
     && freeLook.controller.tracked === null && freeLook.controller.origin === 'Moon';

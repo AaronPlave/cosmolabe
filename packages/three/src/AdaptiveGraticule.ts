@@ -3,15 +3,16 @@ import { bodyFixedToSurfacePosition, surfacePositionToBodyFixed, formatSurfaceAn
 import { ANGULAR_GRID_STEPS, type GridSettings } from '@cosmolabe/control';
 import type { BodyMesh } from './BodyMesh.js';
 import type { LabelManager } from './LabelManager.js';
-import { applyGraticuleMaterial, applyGraticuleToScene, makeGraticuleUniforms, GRID_PRESENTATION, gridSmoothstep, gridLightingStrength } from './GraticuleShader.js';
+import { applyGraticuleMaterial, applyGraticuleToScene, makeGraticuleUniforms, GRID_PRESENTATION, gridSmoothstep, gridLightingStrength, GRID_AUTO_STEPS } from './GraticuleShader.js';
 
 export const GRID_STEPS = ANGULAR_GRID_STEPS;
+export const AUTO_GRID_STEPS = GRID_AUTO_STEPS;
 /** Screen separation is measured locally; global diameter is never the density input. */
 export function chooseGridStep(pixelsPerDegree: number, previous = 30, targetPx = 100): number {
   if (!Number.isFinite(pixelsPerDegree) || pixelsPerDegree <= 0) return 30;
   const spacing = pixelsPerDegree * previous;
-  if (spacing >= targetPx * 0.6 && spacing <= targetPx * 1.8) return previous;
-  return GRID_STEPS.reduce((best, step) => Math.abs(Math.log(step * pixelsPerDegree / targetPx)) < Math.abs(Math.log(best * pixelsPerDegree / targetPx)) ? step : best, 30 as number);
+  if ((AUTO_GRID_STEPS as readonly number[]).includes(previous) && spacing >= targetPx * 0.6 && spacing <= targetPx * 1.8) return previous;
+  return AUTO_GRID_STEPS.reduce((best, step) => Math.abs(Math.log(step * pixelsPerDegree / targetPx)) < Math.abs(Math.log(best * pixelsPerDegree / targetPx)) ? step : best, 30 as number);
 }
 export interface GeographicGridAnchor {
   readonly id: string; readonly tier: string; readonly axis: 'latitude' | 'longitude';
@@ -29,14 +30,18 @@ const MAX_TERRAIN_LABELS = 3;
 const ENTRY_DWELL_MS = 100;
 const DEG = Math.PI / 180;
 const siteId = (anchor: Anchor) => `${anchor.axis}:${anchor.lat.toFixed(6)}:${anchor.lon.toFixed(6)}`;
-/** Fixed geographic blocks, never derived from viewport bounds. */
+/** Body-fixed ruler carriers. Globe offsets follow the old 5° / 3° arrangement. */
 export function annotationPattern(latStep: number, lonStep: number) {
-  return { latitudeStride: Math.min(60, latStep * 4), longitudeStride: Math.min(60, lonStep * 4) };
+  const carrier = (step: number) => step === 30 ? 360 : Math.min(360, step * 6);
+  return { latitudeStride: latStep, longitudeStride: lonStep,
+    meridianStride: carrier(lonStep), parallelStride: carrier(latStep), meridianOffset: 5, parallelOffset: 3 };
 }
 function inPattern(anchor: Anchor, latStep: number, lonStep: number): boolean {
-  const pattern = annotationPattern(latStep, lonStep), phase = anchor.axis === 'latitude' ? 0 : 0.5;
-  const aligned = (value: number, stride: number) => Math.abs(value / stride - phase - Math.round(value / stride - phase)) < 1e-5;
-  return aligned(anchor.lat, pattern.latitudeStride) && aligned(anchor.lon, pattern.longitudeStride);
+  const pattern = annotationPattern(latStep, lonStep);
+  const aligned = (value: number, stride: number, offset = 0) => Math.abs((value - offset) / stride - Math.round((value - offset) / stride)) < 1e-5;
+  return anchor.axis === 'latitude'
+    ? aligned(anchor.lat, pattern.latitudeStride) && aligned(anchor.lon, pattern.meridianStride, pattern.meridianOffset)
+    : aligned(anchor.lon, pattern.longitudeStride) && aligned(anchor.lat, pattern.parallelStride, pattern.parallelOffset);
 }
 
 /** Constant-cost surface shader plus a bounded pool of line-associated annotations. */
@@ -58,6 +63,7 @@ export class AdaptiveGraticule {
   private visible = false;
   private labelVisible = true;
   private transition = 1;
+  private globeScale = true;
   private settings: GridSettings | null = null;
   constructor(private readonly bm: BodyMesh, public coordinates: SurfaceCoordinates) {
     this.uniforms = makeGraticuleUniforms(coordinates);
@@ -151,11 +157,27 @@ export class AdaptiveGraticule {
     }
     const median = (v: number[]) => v.sort((a, b) => a - b)[Math.floor(v.length / 2)] ?? 0;
     const previous = this.uniforms.uGridStep.value;
-    const latStep = this.settings?.density === 'manual' ? this.settings.spacingDeg : latScale.length ? chooseGridStep(median(latScale), previous.x) : previous.x;
-    const lonStep = this.settings?.density === 'manual' ? this.settings.spacingDeg : lonScale.length ? chooseGridStep(median(lonScale), previous.y) : previous.y;
-    if (latStep !== previous.x || lonStep !== previous.y) {
+    const shape = this.coordinates.datum.referenceShape;
+    const radius = shape.kind === 'sphere' ? shape.radiusKm : Math.max(...shape.radiiKm);
+    // Keep the old globe ruler stable across small camera-height oscillations.
+    this.globeScale = (foot.heightKm ?? 0) >= radius * (this.globeScale ? 0.45 : 0.6);
+    const globeScale = this.globeScale;
+    const automatic = this.settings?.density !== 'manual';
+    const latStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : latScale.length ? chooseGridStep(median(latScale), previous.x) : previous.x;
+    const lonStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : lonScale.length ? chooseGridStep(median(lonScale), previous.y) : previous.y;
+    const detail = (step: number) => {
+      const index = (AUTO_GRID_STEPS as readonly number[]).indexOf(step);
+      return automatic && !globeScale && index >= 0 ? AUTO_GRID_STEPS[Math.min(index + 1, AUTO_GRID_STEPS.length - 1)] : step;
+    };
+    const detailLat = detail(latStep), detailLon = detail(lonStep), hierarchy = automatic ? 1 : 0;
+    if (latStep !== previous.x || lonStep !== previous.y || detailLat !== this.uniforms.uGridDetailStep.value.x
+      || detailLon !== this.uniforms.uGridDetailStep.value.y || hierarchy !== this.uniforms.uGridHierarchy.value) {
       this.uniforms.uGridPreviousStep.value.copy(previous);
+      this.uniforms.uGridPreviousDetailStep.value.copy(this.uniforms.uGridDetailStep.value);
+      this.uniforms.uGridPreviousHierarchy.value = this.uniforms.uGridHierarchy.value;
       previous.set(latStep, lonStep);
+      this.uniforms.uGridDetailStep.value.set(detailLat, detailLon);
+      this.uniforms.uGridHierarchy.value = hierarchy;
       this.transition = 0;
     }
     const tier = `${latStep}:${lonStep}`;
@@ -188,11 +210,12 @@ export class AdaptiveGraticule {
       const west = Math.max(foot.lonDeg - 180, Math.min(...longitudes) - lonStep * 2);
       const east = Math.min(foot.lonDeg + 180, Math.max(...longitudes) + lonStep * 2);
       for (const lat of values(south, north, pattern.latitudeStride, 0, 12)) {
-        for (const lon of values(west, east, pattern.longitudeStride, 0, 8)) add('latitude', lat, lat, lon);
+        for (const lon of values(west, east, pattern.meridianStride, pattern.meridianOffset / pattern.meridianStride, 8)) add('latitude', lat, lat, lon);
       }
-      // Opposite half-block sites distinguish the two axes consistently.
-      for (const lon of values(west, east, pattern.longitudeStride, 0.5, 12)) {
-        for (const lat of values(south, north, pattern.latitudeStride, 0.5, 8)) add('longitude', lon, lat, lon);
+      // Consecutive longitude values along prescribed parallels; latitude
+      // sequences follow separate prescribed meridians.
+      for (const lon of values(west, east, pattern.longitudeStride, 0, 12)) {
+        for (const lat of values(south, north, pattern.parallelStride, pattern.parallelOffset / pattern.parallelStride, 8)) add('longitude', lon, lat, lon);
       }
     }
     // Retain only shared active sites or sites still fading from the immediately
@@ -325,7 +348,7 @@ export class AdaptiveGraticule {
       const determinant = Math.abs(ax * by - ay * bx);
       const gradient = anchor.axis === 'latitude' ? Math.abs(bx) + Math.abs(by) : Math.abs(ax) + Math.abs(ay);
       const separation = gradient > 0 ? step * determinant / gradient : 0;
-      const congestion = anchor.axis === 'latitude' && anchor.angle === 0 ? 1 : gridSmoothstep(GRID_PRESENTATION.congestion, separation);
+      const congestion = anchor.angle === 0 ? 1 : gridSmoothstep(GRID_PRESENTATION.congestion, separation);
       // The shader applies lighting to both line color and blend strength.
       const presentation = lineWeight * gridSmoothstep(GRID_PRESENTATION.horizon, incidence) * congestion;
       const strength = presentation * lighting * lighting;
@@ -469,7 +492,7 @@ export class AdaptiveGraticule {
       label.sprite.center.set(0.5 - offsetX / labelWidth, 0.5 + offsetY / 20);
       const unitsPerPixel = 2 * Math.tan(camera.fov * DEG / 2) / height / this.bm.scaleFactor;
       label.sprite.scale.set(labelWidth * unitsPerPixel, 20 * unitsPerPixel, 1);
-      label.sprite.material.opacity = Math.min(0.85 * strength, Math.max(0,
+      label.sprite.material.opacity = Math.min((anchor.angle === 0 ? 0.8 : 0.72) * strength, Math.max(0,
         label.sprite.material.opacity + (eligible ? dt * 5 : -dt * 4)));
       label.sprite.visible = label.sprite.material.opacity > 0;
       if (label.sprite.visible) active.add(anchor.id);

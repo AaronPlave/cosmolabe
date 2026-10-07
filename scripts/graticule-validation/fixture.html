@@ -100,5 +100,6 @@ window.frame=()=>{const begin=nativeNow();labels.beginContextAnnotations();if(bm
 window.loadImagery=async(url)=>{const texture=await new THREE.TextureLoader().loadAsync(url);texture.colorSpace=THREE.SRGBColorSpace;bm.mesh.material.map?.dispose();bm.mesh.material.map=texture;bm.mesh.material.needsUpdate=true};
 window.diagnostics=()=>{const points=[];bm.traverse(object=>{if(object instanceof THREE.Sprite && object.visible){const p=object.position;const coordinate=bodyFixedToSurfacePosition({xKm:p.x,yKm:p.y,zKm:p.z},bodySurfaceCoordinates(bm.body));const screen=p.clone().project(camera);points.push({id:object.userData.gridLineId,lat:coordinate.latDeg,lon:coordinate.lonDeg,heightKm:coordinate.heightKm,x:(screen.x+1)*innerWidth/2,y:(1-screen.y)*innerHeight/2,opacity:object.material.opacity,rect:{x0:(screen.x+1)*innerWidth/2+(0.5-object.center.x)*object.userData.gridLabelWidth-object.userData.gridLabelWidth/2-3,x1:(screen.x+1)*innerWidth/2+(0.5-object.center.x)*object.userData.gridLabelWidth+object.userData.gridLabelWidth/2+3,y0:(1-screen.y)*innerHeight/2+(object.center.y-0.5)*20-10,y1:(1-screen.y)*innerHeight/2+(object.center.y-0.5)*20+10}})}});return points};
 window.capture=()=>{window.frame();return renderer.domElement.toDataURL()};
+window.gridLines=visible=>bm.showGrid(visible,false,normalizeGridSettings());
 window.ready=true;
 </script></body></html>

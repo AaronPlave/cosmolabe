@@ -1,0 +1,14 @@
+{
+  "distantBand": {
+    "changed": 0,
+    "count": 68724,
+    "skyPixels": 396,
+    "fraction": 0
+  },
+  "foreground": {
+    "changed": 4865,
+    "count": 129600,
+    "skyPixels": 0,
+    "fraction": 0.03753858024691358
+  }
+}

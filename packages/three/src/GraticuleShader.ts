@@ -3,8 +3,9 @@ import type { SurfaceCoordinates } from '@cosmolabe/core';
 
 // Shared presentation thresholds. Labels approximate irradiance at their fixed
 // anchor; the surface shader measures the actual lit/albedo ratio per fragment.
+export const GRID_AUTO_STEPS = [30, 10, 5, 1, 0.2, 0.1, 0.02, 0.01, 0.002, 0.001] as const;
 export const GRID_PRESENTATION = {
-  lighting: [0.02, 0.5], horizon: [0.08, 0.35], congestion: [6, 18], nightFloor: 0.08,
+  lighting: [0.02, 0.5], horizon: [0.12, 0.45], congestion: [12, 36], detailCongestion: [24, 64], nightFloor: 0.08,
 } as const;
 export function gridSmoothstep(edges: readonly [number, number], value: number): number {
   const t = THREE.MathUtils.clamp((value - edges[0]) / (edges[1] - edges[0]), 0, 1);
@@ -23,6 +24,10 @@ export function makeGraticuleUniforms(coordinates: SurfaceCoordinates) {
     uGridShape: { value: new THREE.Vector3(a, c, coordinates.latitudeType === 'geodetic' && a !== c ? 1 : 0) },
     uGridStep: { value: new THREE.Vector2(30, 30) },
     uGridPreviousStep: { value: new THREE.Vector2(30, 30) },
+    uGridDetailStep: { value: new THREE.Vector2(30, 30) },
+    uGridPreviousDetailStep: { value: new THREE.Vector2(30, 30) },
+    uGridHierarchy: { value: 1 },
+    uGridPreviousHierarchy: { value: 1 },
     uGridBlend: { value: 1 },
     uGridVisible: { value: 0 },
     uGridMinor: { value: 0 },
@@ -42,29 +47,53 @@ export function injectGraticule(shader: Shader, uniforms: GraticuleUniforms): vo
 varying vec3 vGridBody;
 uniform mat4 uGridViewToBody;
 uniform vec3 uGridShape;
-uniform vec2 uGridStep, uGridPreviousStep;
+uniform vec2 uGridStep, uGridPreviousStep, uGridDetailStep, uGridPreviousDetailStep;
+uniform float uGridHierarchy, uGridPreviousHierarchy;
 uniform float uGridBlend, uGridVisible, uGridMinor, uGridPixelRatio;
-float gridLine(float angle, float stepSize, float derivative) {
+float gridLine(float angle, float stepSize, float derivative, vec2 congestion) {
   float distanceDeg = abs(mod(angle + stepSize * 0.5, stepSize) - stepSize * 0.5);
   float widthDeg = max(derivative, 0.0000001);
   // Fade subpixel lattices and heavily foreshortened fragments.
   return (1.0 - smoothstep(widthDeg * 0.25, widthDeg * 0.85, distanceDeg))
-    * smoothstep(${GRID_PRESENTATION.congestion[0].toFixed(1)}, ${GRID_PRESENTATION.congestion[1].toFixed(1)}, stepSize / widthDeg);
+    * smoothstep(congestion.x, congestion.y, stepSize / widthDeg);
 }
-vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize) {
-  float latLine = gridLine(angles.x, stepSize.x, deriv.x);
-  float lonLine = gridLine(angles.y, stepSize.y, deriv.y);
-  // Longitude has no meaning at the pole; independently suppress congested meridians.
-  lonLine *= smoothstep(2.0, 8.0, 90.0 - abs(angles.x));
-  float major = max(latLine, lonLine);
-  float minor = max(gridLine(angles.x, stepSize.x * 0.5, deriv.x), gridLine(angles.y, stepSize.y * 0.5, deriv.y)
-    * smoothstep(2.0, 8.0, 90.0 - abs(angles.x)));
+float hierarchyStep(int index) {
+  ${GRID_AUTO_STEPS.map((step, i) => `if (index == ${i}) return ${step.toFixed(3)};`).join('\n  ')}
+  return 0.001;
+}
+float axisLine(vec2 angles, vec2 deriv, vec2 steps, vec2 congestion) {
+  return max(gridLine(angles.x, steps.x, deriv.x, congestion),
+    gridLine(angles.y, steps.y, deriv.y, congestion) * smoothstep(2.0, 8.0, 90.0 - abs(angles.x)));
+}
+vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize, vec2 detailStep, float hierarchy) {
+  vec2 majorCongestion = vec2(${GRID_PRESENTATION.congestion.join(', ')});
+  vec2 detailCongestion = vec2(${GRID_PRESENTATION.detailCongestion.join(', ')});
+  float major = axisLine(angles, deriv, stepSize, majorCongestion);
+  float opacity = major * mix(0.22, 0.12, hierarchy);
+  if (hierarchy > 0.5) {
+    // Every ancestor is evaluated with its own local projected spacing. A
+    // compressed child never removes a still-resolvable coarse coordinate line.
+    for (int i = 0; i < ${GRID_AUTO_STEPS.length}; i++) {
+      float coarseStep = hierarchyStep(i);
+      if (coarseStep < min(stepSize.x, stepSize.y)) continue;
+      vec2 coarse = vec2(gridLine(angles.x, coarseStep, deriv.x, majorCongestion),
+        gridLine(angles.y, coarseStep, deriv.y, majorCongestion) * smoothstep(2.0, 8.0, 90.0 - abs(angles.x)));
+      coarse *= step(stepSize, vec2(coarseStep));
+      vec2 strength = i == 0 ? vec2(0.25) : mix(vec2(0.12), vec2(0.18), step(stepSize * 1.0001, vec2(coarseStep)));
+      opacity = max(opacity, max(coarse.x * strength.x, coarse.y * strength.y));
+    }
+    opacity = max(opacity, axisLine(angles, deriv, detailStep, detailCongestion) * 0.035);
+  }
+  float minor = axisLine(angles, deriv, stepSize * 0.5, detailCongestion);
+  opacity = max(opacity, minor * uGridMinor * mix(0.07, 0.018, hierarchy));
   float equator = 1.0 - smoothstep(deriv.x * 0.25, deriv.x * 0.85, abs(angles.x));
-  float prime = (1.0 - smoothstep(deriv.y * 0.25, deriv.y * 0.85, abs(angles.y))) * lonLine;
+  float prime = (1.0 - smoothstep(deriv.y * 0.25, deriv.y * 0.85, abs(angles.y)))
+    * smoothstep(2.0, 8.0, 90.0 - abs(angles.x));
   vec3 color = mix(vec3(0.36, 0.46, 0.58), vec3(0.72, 0.52, 0.29), equator);
   color = mix(color, vec3(0.68, 0.38, 0.35), prime);
-  return vec4(color, max(max(major * 0.22, minor * uGridMinor * 0.07), max(equator, prime) * 0.35));
+  return vec4(color, max(opacity, max(equator, prime) * 0.35));
 }
+
 ` + shader.fragmentShader;
   shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
 if (uGridVisible > 0.0) {
@@ -85,7 +114,7 @@ if (uGridVisible > 0.0) {
   vec2 unitLon = vec2(cos(lon), sin(lon));
   vec2 deriv = vec2(fwidth(angles.x), (length(dFdx(unitLon)) + length(dFdy(unitLon))) * 57.29577951308232);
   deriv = max(deriv * uGridPixelRatio, vec2(0.0000001));
-  vec4 grid = mix(gridColor(angles, deriv, uGridPreviousStep), gridColor(angles, deriv, uGridStep), uGridBlend);
+  vec4 grid = mix(gridColor(angles, deriv, uGridPreviousStep, uGridPreviousDetailStep, uGridPreviousHierarchy), gridColor(angles, deriv, uGridStep, uGridDetailStep, uGridHierarchy), uGridBlend);
   // Modulate the overlay by the surface lighting instead of illuminating night.
   float luminance = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
   // Normalize by albedo so dark daytime imagery still has a useful grid.
@@ -106,7 +135,7 @@ export function applyGraticuleMaterial(material: THREE.Material, uniforms: Grati
   const compile = material.onBeforeCompile.bind(material);
   const key = material.customProgramCacheKey();
   material.onBeforeCompile = (shader, renderer) => { compile(shader, renderer); injectGraticule(shader, localUniforms); };
-  material.customProgramCacheKey = () => key + '_graticule_v2';
+  material.customProgramCacheKey = () => key + '_graticule_v3';
   const render = material.onBeforeRender.bind(material);
   material.onBeforeRender = (renderer, scene, camera, geometry, object, group) => {
     render(renderer, scene, camera, geometry, object, group);

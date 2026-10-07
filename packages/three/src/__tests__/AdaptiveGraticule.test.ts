@@ -3,14 +3,14 @@ import * as THREE from 'three';
 import { Body, FixedPointTrajectory, bodySurfaceCoordinates, surfacePositionToBodyFixed } from '@cosmolabe/core';
 import { BodyMesh } from '../BodyMesh.js';
 import { normalizeGridSettings } from '@cosmolabe/control';
-import { chooseGridStep, GRID_STEPS, annotationPattern } from '../AdaptiveGraticule.js';
+import { chooseGridStep, GRID_STEPS, AUTO_GRID_STEPS, annotationPattern } from '../AdaptiveGraticule.js';
 import { LabelManager } from '../LabelManager.js';
 import { TerrainSampler } from '../TerrainSampler.js';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('adaptive graticule', () => {
-  it('keeps fixed stride/phase under different search bounds and permits intentional regional repeats', () => {
+  it('keeps fixed ruler stride/phase under changed search bounds and shows consecutive coordinates', () => {
     vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Pattern', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
@@ -25,10 +25,10 @@ describe('adaptive graticule', () => {
       for (let i = 0; i < 40; i++) {
         now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager);
         for (const a of bm.gridMetrics!.anchors) {
-          const pattern = annotationPattern(0.1, 0.1), phase = a.axis === 'latitude' ? 0 : 0.5;
-          for (const [value, stride] of [[a.lat, pattern.latitudeStride], [a.lon, pattern.longitudeStride]]) {
-            expect(value / stride - phase).toBeCloseTo(Math.round(value / stride - phase), 5);
-          }
+          const pattern = annotationPattern(0.1, 0.1);
+          const locations = a.axis === 'latitude' ? [[a.lat, 0.1, 0], [a.lon, pattern.meridianStride, 5]]
+            : [[a.lon, 0.1, 0], [a.lat, pattern.parallelStride, 3]];
+          for (const [value, stride, offset] of locations) expect((value - offset) / stride).toBeCloseTo(Math.round((value - offset) / stride), 5);
           if (sites.has(a.id)) expect([a.lat, a.lon]).toEqual(sites.get(a.id)); else sites.set(a.id, [a.lat, a.lon]);
         }
         const annotations = bm.gridMetrics!.annotations;
@@ -37,7 +37,9 @@ describe('adaptive graticule', () => {
     }
     const annotations = bm.gridMetrics!.annotations;
     expect(annotations.length).toBeGreaterThan(0);
-    expect(new Set(annotations.map(a => `${a.axis}:${a.angle}`)).size).toBeLessThan(annotations.length);
+    const values = annotations.filter(a => a.axis === annotations[0].axis).map(a => a.angle).sort((a, b) => a - b);
+    expect(values.length).toBeGreaterThan(1);
+    for (let i = 1; i < values.length; i++) expect(values[i] - values[i - 1]).toBeCloseTo(0.1, 5);
     bm.dispose();
   });
 
@@ -49,8 +51,12 @@ describe('adaptive graticule', () => {
     const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
     const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.position.set(101, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(100, 0, 0);
     const manager = new LabelManager({} as HTMLElement);
-    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 1 }));
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 10 }));
     const frame = () => { now += 16; manager.beginContextAnnotations(); bm.updateGrid(camera, { width: 800, height: 800 }, manager); return bm.gridMetrics!; };
+    for (let i = 0; i < 40; i++) frame();
+    expect(frame().annotations).toHaveLength(0);
+    camera.position.set(101 * Math.cos(5 * Math.PI / 180), 101 * Math.sin(5 * Math.PI / 180), 0);
+    camera.lookAt(100 * Math.cos(5 * Math.PI / 180), 100 * Math.sin(5 * Math.PI / 180), 0);
     for (let i = 0; i < 40; i++) frame();
     const original = frame(); expect(original.annotations).toHaveLength(1);
     expect(original.annotations[0].axis).toBe('latitude');
@@ -200,19 +206,22 @@ describe('adaptive graticule', () => {
     const refined = settle();
     const survivors = refined.annotations.filter(a => before.annotations.some(b => b.id === a.id));
     expect(survivors.length).toBeGreaterThan(0);
-    for (const a of survivors) expect(a).toMatchObject(before.annotations.find(b => b.id === a.id)!);
+    for (const a of survivors) {
+      const original = before.annotations.find(b => b.id === a.id)!;
+      expect([a.latDeg, a.lonDeg, a.text]).toEqual([original.latDeg, original.lonDeg, original.text]);
+    }
     expect(refined.anchors.some(a => a.tier === '10:10')).toBe(true);
     for (const a of refined.annotations) {
       expect(Math.abs(a.angle / 10 - Math.round(a.angle / 10))).toBeLessThan(1e-5);
-      const phase = a.axis === 'latitude' ? 0 : 0.5;
-      for (const value of [a.latDeg, a.lonDeg]) expect(value / 40 - phase).toBeCloseTo(Math.round(value / 40 - phase));
+      const sites = a.axis === 'latitude' ? [[a.latDeg, 10, 0], [a.lonDeg, 60, 5]] : [[a.lonDeg, 10, 0], [a.latDeg, 60, 3]];
+      for (const [value, stride, offset] of sites) expect((value - offset) / stride).toBeCloseTo(Math.round((value - offset) / stride));
     }
     bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 30 }));
     const coarse = settle();
     expect(coarse.annotations.length).toBeGreaterThan(0);
     for (const a of coarse.annotations) {
-      const phase = a.axis === 'latitude' ? 0 : 0.5;
-      for (const value of [a.latDeg, a.lonDeg]) expect(value / 60 - phase).toBeCloseTo(Math.round(value / 60 - phase));
+      expect(a.axis === 'latitude' ? a.lonDeg : a.latDeg).toBe(a.axis === 'latitude' ? 5 : 3);
+      expect(a.angle / 30).toBeCloseTo(Math.round(a.angle / 30));
     }
     bm.dispose();
   });
@@ -308,10 +317,11 @@ describe('adaptive graticule', () => {
     const frame = () => { now += 16; rays.mockClear(); bm.updateGrid(camera, { width: 800, height: 800 }, manager);
       expect(rays.mock.calls.length).toBeLessThanOrEqual(8); return bm.gridMetrics!; };
     for (let i = 0; i < 60; i++) frame();
-    const equator = frame().annotations.find(a => a.axis === 'latitude' && a.latDeg === 0 && a.lonDeg === 0)!;
+    const equator = frame().annotations.find(a => a.axis === 'latitude' && a.latDeg === 0 && a.lonDeg === 5)!;
     expect(equator).toBeDefined();
     const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshStandardMaterial());
-    ridge.position.set(104, 2, 0); terrain.add(ridge); terrain.updateMatrixWorld(true);
+    const anchorPoint = surfacePositionToBodyFixed({ latDeg: equator.latDeg, lonDeg: equator.lonDeg }, bodySurfaceCoordinates(body)!);
+    ridge.position.set(anchorPoint.xKm, anchorPoint.yKm, anchorPoint.zKm).lerp(camera.position, 0.02); terrain.add(ridge); terrain.updateMatrixWorld(true);
     expect(frame().annotations.some(a => a.id === equator.id)).toBe(false);
     terrain.remove(ridge);
     expect(frame().annotations.some(a => a.id === equator.id)).toBe(false);
@@ -319,6 +329,51 @@ describe('adaptive graticule', () => {
     expect(frame().anchors.find(a => a.id === equator.id)).toMatchObject({ lat: equator.latDeg, lon: equator.lonDeg });
     bm.dispose(); mesh.geometry.dispose(); mesh.material.dispose(); ridge.geometry.dispose(); ridge.material.dispose();
   });
+  it('retires obsolete carriers even when their coordinate line survives a manual non-nested transition', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Carriers', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.up.set(0, 0, 1); camera.position.set(0, 300, 0); camera.lookAt(0, 0, 0);
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    const settle = () => { for (let i = 0; i < 40; i++) { now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); } return bm.gridMetrics!; };
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 15 }));
+    const old = settle().annotations.find(a => a.axis === 'latitude' && a.angle === 0 && a.lonDeg === 95)!;
+    expect(old).toBeDefined();
+    bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 10 }));
+    expect(settle().annotations.some(a => a.id === old.id)).toBe(false);
+    bm.dispose();
+  });
+
+  it('uses a nested automatic hierarchy and returns to the old globe ruler arrangement on zoom out', () => {
+    for (let i = 1; i < AUTO_GRID_STEPS.length; i++) expect(AUTO_GRID_STEPS[i - 1] / AUTO_GRID_STEPS[i]).toBeCloseTo(Math.round(AUTO_GRID_STEPS[i - 1] / AUTO_GRID_STEPS[i]));
+    expect(chooseGridStep(10, 15)).not.toBe(15); // Manual-only nice steps do not persist in Auto.
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Hierarchy', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.up.set(0, 0, 1);
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    bm.showGrid(true, true, normalizeGridSettings());
+    const pose = (distance: number) => { camera.position.set(distance, 0, 0); camera.lookAt(100, 0, 0);
+      for (let i = 0; i < 40; i++) { now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); } return bm.gridMetrics!; };
+    const globe = pose(300);
+    expect([globe.latitudeStep, globe.longitudeStep]).toEqual([30, 30]);
+    expect(globe.annotations.filter(a => a.axis === 'latitude').map(a => a.angle).sort((a, b) => a - b)).toEqual([-30, 0, 30]);
+    for (const a of globe.annotations) expect(a.axis === 'latitude' ? a.lonDeg : a.latDeg).toBe(a.axis === 'latitude' ? 5 : 3);
+    expect(pose(146).latitudeStep).toBe(30);
+    expect(pose(144).latitudeStep).toBeLessThan(30);
+    expect(pose(151).latitudeStep).toBeLessThan(30);
+    expect(pose(161).latitudeStep).toBe(30);
+    expect(pose(101).latitudeStep).toBeLessThan(1);
+    const restored = pose(300);
+    expect([restored.latitudeStep, restored.longitudeStep]).toEqual([30, 30]);
+    expect(restored.annotations.map(a => [a.axis, a.angle, a.latDeg, a.lonDeg]).sort()).toEqual(globe.annotations.map(a => [a.axis, a.angle, a.latDeg, a.lonDeg]).sort());
+    bm.dispose();
+  });
+
   it('uses canonical fixed anchors through seam crossings and bounds polar/tiny-step enumeration', () => {
     const body = new Body({ name: 'Seam', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });

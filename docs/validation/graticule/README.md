@@ -19,25 +19,32 @@ height to the rendered surface without moving its latitude/longitude.
 
 The pattern is geographic, independent of camera position and search bounds:
 
-- Each tier defines latitude/longitude block strides as four corresponding major
-  grid steps, capped at 60°. Strides and phase are always anchored to geographic
-  zero; the cap is a tier rule, never a viewport adjustment.
-- Each block has a latitude annotation at its zero-phase corner and a longitude
-  annotation at its half-block latitude/longitude site. Axes have consistent
-  small glyph offsets and do not share a site within a tier.
-- Values intentionally repeat at those regular sites. There is no per-line winner,
+- At globe scale, consecutive 30° latitude values follow the fixed 5°E meridian;
+  consecutive longitude values follow the fixed 3°N parallel. These reproduce the
+  old grid's two geographic rulers, with canonical E/W formatting and explicit
+  equator/prime captions.
+- At finer tiers, consecutive annotated major values follow repeating fixed
+  meridian/parallel carriers. Meridian carriers have longitude `5° + k × 6 × longitudeStep`;
+  parallel carriers have latitude `3° + k × 6 × latitudeStep`. A 30° axis uses only
+  its original carrier (360° repeat); other carrier intervals are capped at 360°.
+  Axis offsets stagger the two sequences. Neither interval nor phase follows the
+  viewport, camera, visible hemisphere or search bounds.
+- The carrier interval was selected after rendering a manual 30° globe and 0.2°
+  regional prototype against the old grid at matching poses. The regional prototype
+  produced a readable sequence of ten captions. Auto includes the 0.2° major tier
+  with quieter 0.1° detail to retain that arrangement in the final comparison.
+- Values repeat only across prescribed carriers. There is no per-line winner,
   same-line replacement search, axis quota or requirement to fill the sprite pool.
-  A view can show one axis or no useful annotations. Point Probe supplies precise
-  coordinates when passive orientation labels are absent.
+  One-axis and empty views are valid; Point Probe supplies exact coordinates.
 - Longitude labels above ±70° and all sites above ±85° are suppressed. Text stays
   12 CSS pixels with DPR-aware rasterization.
 
-The camera only bounds the enumeration of nearby prescribed blocks. A contiguous
-subset of their canonical integer indices bounds work at 12 × 8 sites per axis,
-then at most 96 candidates. Enlarging/shrinking the search bounds never changes
-geographic stride or phase. Nearby resident-height sampling supports cameras below
-the reference datum, using at most six entry-refinement iterations and no far-side
-exit. Longitude is canonicalized before constructing identities.
+Camera-dependent discovery only enumerates nearby pieces of these prescribed
+carriers. Contiguous canonical integer indices bound work at 12 × 8 sites per
+axis, then at most 96 candidates. Search bounds never change stride or phase.
+Nearby resident-height sampling supports cameras below the reference datum,
+using at most six entry-refinement iterations and no far-side exit. Longitude is
+canonicalized before constructing identities.
 
 Existing visible sites receive priority for bounded queries and collisions;
 visibility does not redefine pattern locations. A 100 ms entry dwell, separate
@@ -82,20 +89,42 @@ as visible terrain.
 
 ## Grid rendering and state
 
-Density uses local latitude/longitude projection derivatives sampled every
-150 ms, rather than whole-body diameter. Independent nice steps range from 30°
-to 0.001°, with a 60–180 pixel hysteresis band around a 100 pixel target. Levels
-crossfade over 180 ms, starting with the previous grid on the transition frame.
-Fragment derivatives handle antialiasing, longitude seams and congestion. Major,
-minor and equator/prime strengths are 22%, 7% and 35% before lighting/density/horizon
-modulation. Widths are in CSS pixels and colors are restrained. Lighting is
-normalized by albedo so dark daytime imagery remains useful while the night grid
-stays subdued. Labels share the shader's illumination, horizon and congestion
-thresholds. Their opacity follows line crossfade weight, squared lighting strength
-(the grid modulates both color and blend strength), limb attenuation and local
-coordinate congestion. The inverse screen Jacobian approximates the shader's
-coordinate `fwidth`, including rolled/skewed views. Entry/exit strength thresholds
-avoid drawing bright text over an effectively suppressed line.
+Auto uses the deliberately nested hierarchy
+`30° → 10° → 5° → 1° → 0.2° → 0.1° → 0.02° → 0.01° → 0.002° → 0.001°`.
+Every finer interval subdivides its parent. All ancestors remain in the shader;
+coarser coordinates retain their weight across transitions. Manual spacing keeps
+all existing nice-step choices, including non-nested ones, and does not pretend
+those transitions are cumulative subdivision.
+
+At globe scale Auto keeps the old 30° rulers. Globe/regional height thresholds
+of 0.45/0.6 reference radii prevent repeated switching during small zoom changes.
+Within regional views, independent local latitude/longitude projection derivatives
+are sampled every 150 ms. A 60–180 CSS-pixel hysteresis band surrounds a 100 pixel
+target. Both complete hierarchies crossfade over 180 ms, starting with the previous
+grid on the transition frame.
+
+Reference equator/prime lines use distinct colors and 35% opacity; the 30° structure
+uses 25%, other coarser ancestors 18%, active majors 12%, and the next finer,
+unlabelled subdivisions 3.5%. These are maxima before modulation. Manual majors
+remain 22%, optional manual minors 7%; optional Auto half-step detail uses 1.8%.
+Weights combine by maximum rather than accumulating at coincident lines.
+
+Fragment derivatives antialias each axis and measure its own local projected
+spacing, including longitude seams and polar suppression. Major/ancestor lattices
+fade over 12–36 CSS pixels; detail fades earlier over 24–64 pixels. Each ancestor
+uses its own spacing, so compressed children cannot suppress a still-resolvable
+parent. Horizon attenuation spans incidence 0.12–0.45. This operates locally per
+fragment alongside the view's adaptive spacing, rather than drawing a uniformly
+dense lattice into the distance.
+
+Lighting is normalized by albedo so dark daytime imagery remains useful while
+night lines stay subdued. Labels share the shader's illumination, horizon and
+major-congestion thresholds, with an inverse screen Jacobian approximating
+coordinate `fwidth` in rolled/skewed views. Their opacity follows line crossfade
+weight, squared lighting strength (the shader modulates color and blend), limb
+attenuation and local congestion. Ordinary caption opacity is capped at 72%,
+reference text at 80%. Entry/exit strength thresholds suppress captions where
+their coordinate lines cannot be interpreted.
 
 CPU annotation lighting approximates normalized diffuse irradiance from the
 surface scene's ambient/directional lights, independent of imagery albedo. Local
@@ -129,8 +158,9 @@ With Chromium and FFmpeg installed, run these harnesses sequentially (they share
 a temporary fixture page and baseline module):
 
 ```sh
-node scripts/graticule-motion-validation.mjs
+node scripts/graticule-carrier-validation.mjs
 node scripts/graticule-layout-validation.mjs
+node scripts/graticule-motion-validation.mjs
 ```
 
 `CHROMIUM_PATH`, `GRID_VIEWER_URL` and `GRID_CAPTURE_DIR` override defaults.
@@ -139,35 +169,61 @@ lunar imagery plus synthetic resident relief, with a fixed 30 Hz application
 clock and every rendered frame encoded. It validates attachment between discovery
 plans despite slower software rendering; it is not a real-time performance claim.
 
-[Continuous attachment recording](regular-pattern/orbit-zoom-pan-tangent.mp4)
-contains a rolled orbit, whole-globe/regional zoom, sustained pan, near-ground
-zoom, nearly stationary residual damping and tangent view. [Frame diagnostics](regular-pattern/frames.json)
-retain anchor IDs, geographic coordinates, opacity, projected positions and label
-rectangles. [Motion metrics](regular-pattern/metrics.json) check that repeated IDs
-never change latitude/longitude, settled sites obey the prescribed stride/phase,
-equivalent sites are not duplicated, held-camera visibility does not toggle, labels
-avoid controls, and query/candidate/pool limits hold. The displayed lunar craters
-provide nearby surface features for checking attachment visually.
+[Matching-camera comparisons](carrier-rulers/comparison/metrics.json) include the
+old/new globe, old/new regional Mars, rolled regional and synthetic-resident-relief
+ground/tangent views. Compare [old globe](carrier-rulers/comparison/old-globe.png)
+with [new globe](carrier-rulers/comparison/new-globe.png), and
+[old regional](carrier-rulers/comparison/old-regional.png) with
+[new regional](carrier-rulers/comparison/new-regional.png).
+The [rolled region](carrier-rulers/comparison/new-oblique.png) follows the same
+fixed carriers. Caption-free [tangent grid](carrier-rulers/comparison/tangent-grid.png)
+and [surface-only](carrier-rulers/comparison/tangent-surface.png) captures permit
+inspection of the horizon without text. Their [coverage diagnostic](carrier-rulers/comparison/tangent-coverage.json)
+measures actual surface pixels in distant/foreground bands, excluding sky;
+it is diagnostic evidence, not a visual acceptance quota.
 
-[Layout fixtures](regular-pattern/layout/metrics.json) cover polar/seam orientation,
-six real-imagery zoom stages, regional Mars, small-globe/night-side and regular-repeat cases, a resident depression, actual free-look input and the same final
-pose reached through different paths. Eligible fixed candidates at the same
-tier/pose are deterministic; visible subsets may reflect short-lived hysteresis.
+[Continuous attachment recording](carrier-rulers/orbit-zoom-pan-tangent.mp4)
+contains a rolled orbit, continuous whole-globe/regional/near-ground zoom at a
+fixed geographic target, sustained pan, nearly stationary residual damping and a gradual
+tilt/roll into a physically oriented tangent view.
+[Frame diagnostics](carrier-rulers/frames.json) retain anchor IDs, coordinates,
+opacity, projected positions and label rectangles. [Motion metrics](carrier-rulers/metrics.json)
+check immutable coordinates, settled carrier stride/phase, duplicate sites,
+held-camera visibility, UI overlap and query/candidate/pool limits. Fixture
+UI checks reserve the control footprints rather than rendering live viewer panels.
+Lunar craters
+provide surface features for visually checking attachment. Bright/dark imagery
+and day/night captures accompany the recording.
 
-Code regressions cover viewport-independent stride/phase, intentional regular
-repeats, sparse/one-axis/empty views, collisions without replacement selection,
-shared-site preservation and retirement when an old line outlives its pattern
-site. Existing regressions retain geographic attachment, day/night and overlay
-lighting, non-nested tiers, residual-motion stability, canonical seams/poles,
-bounded tiny-step enumeration, current-frame ridge/terrain disappearance
-occlusion, the eight-query budget and upstream material fade/eviction.
+[Layout fixtures](carrier-rulers/layout/metrics.json) cover polar/seam orientation,
+six real-imagery zoom stages, regional Mars, small-globe/night-side, a resident
+depression, actual free-look input and the same final pose reached through
+multiple paths. Same-pose comparison requires a nonempty set of eligible anchors
+at the tested manual tier; visible subsets may reflect short-lived hysteresis.
 
-Earlier motion/layout reports are historical evidence. Camera-band/edge placement
-and per-line deduplication/axis-quota selection are superseded by the repeating
-geographic pattern. The latest code validation passes all 141 suites / 1,572 tests,
-full typechecking, lint and purity checks. Browser results are recorded in the
-linked reports; sparse visibility is permitted and is not a failed coverage quota.
-Sixteen browser fixtures pass, including the six-stage real-imagery zoom sequence, regular regional repeats, night-side, polar, below-datum, free-look and same-pose paths. The 601-frame recording passes with 1,254 repeated anchor observations and zero geographic changes, off-pattern settled sites, duplicate sites, control overlaps, browser/shader errors or grid-triggered requests. The 67 settled damping frames have zero visibility toggles (visible label counts: [2]). The fixed 30 Hz clock is offline validation, not a real-time performance claim.
+Code regressions cover consecutive ruler values, viewport-independent carriers,
+sparse/one-axis/empty views, collisions without replacements, shared-site retention,
+obsolete-carrier retirement even when a line survives, nested Auto versus manual
+nice steps, globe transition hysteresis, zoom-out restoration, geographic attachment,
+lighting, residual-motion stability, seams/poles, bounded enumeration, current-frame
+ridge/terrain occlusion, eight-query limits and upstream fade/eviction.
+
+Earlier reports are historical evidence. The block-corner/half-block arrangement
+in `regular-pattern/` is superseded by these ordered carriers. The latest code validation passes all 141 suites / 1,574 tests, full
+typechecking, lint and purity checks. All six matching-camera comparison captures
+pass without browser/shader errors. The globe/regional captures show seven/ten
+captions respectively. With captions disabled, the actual distant surface band
+has no grid contribution above the diagnostic pixel threshold; 3.75% of foreground
+pixels change. This is a local-suppression diagnostic, not a coverage quota.
+All sixteen layout fixtures pass, including nonempty same-pose eligible-anchor
+comparison, the six-stage real-imagery zoom, polar views, resident depression
+(72 candidates, 0.02° per axis), and actual free-look input.
+
+The 601-frame recording passes with 1,377 repeated anchor observations,
+zero coordinate changes, off-pattern settled sites, duplicate sites, reserved-control
+overlaps, browser/shader errors or grid-triggered requests. The 67 settled damping
+frames retain three captions with zero visibility toggles. The fixed 30 Hz clock
+is offline validation, not a real-time performance claim.
 
 ## Remaining live acceptance
 

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 const root = fileURLToPath(new URL('..', import.meta.url));
-const out = resolve(root, process.env.GRID_CAPTURE_DIR ?? 'docs/validation/graticule/regular-pattern');
+const out = resolve(root, process.env.GRID_CAPTURE_DIR ?? 'docs/validation/graticule/carrier-rulers');
 const fixture = resolve(root, 'apps/viewer/graticule-validation.html');
 const baseline = resolve(root, 'packages/three/src/BodyMeshBefore.ts');
 mkdirSync(out, { recursive: true });
@@ -44,12 +44,14 @@ try {
       const radial = [Math.cos(angle), Math.sin(angle), 0];
       if (time < 4) { stage = 'rolled-orbit'; const a = 0.5 * smooth(time / 4); eye = [300 * Math.cos(a), 300 * Math.sin(a), 50 * (1 - smooth(time / 4))]; target = [0, 0, 0]; }
       else if (time < 8) { stage = 'zoom'; const d = 300 * Math.pow(101 / 300, smooth((time - 4) / 4)); eye = radial.map(x => x * d); target = radial.map(x => x * 100); }
-      else if (time < 11) { stage = 'pan'; const a = angle + 0.04 * smooth((time - 8) / 3); eye = [101 * Math.cos(a), 101 * Math.sin(a), 0]; target = [100 * Math.cos(a), 100 * Math.sin(a), 0]; }
-      else if (time < 13) { stage = 'near-ground'; const a = angle + 0.04, d = 101 - 0.75 * smooth((time - 11) / 2); eye = [d * Math.cos(a), d * Math.sin(a), 0]; target = [100 * Math.cos(a), 100 * Math.sin(a), 0]; }
+      else if (time < 10) { stage = 'near-ground'; const d = 101 - 0.75 * smooth((time - 8) / 2); eye = radial.map(x => x * d); target = radial.map(x => x * 100); }
+      else if (time < 13) { stage = 'pan'; const a = angle + 0.04 * smooth((time - 10) / 3); eye = [100.25 * Math.cos(a), 100.25 * Math.sin(a), 0]; target = [100 * Math.cos(a), 100 * Math.sin(a), 0]; }
       else if (time < 16) { stage = 'residual-damping'; const a = angle + 0.04 + 1e-7 * Math.sin(time * 4) * Math.exp(-(time - 13)); eye = [100.25 * Math.cos(a), 100.25 * Math.sin(a), 0]; target = [100 * Math.cos(a), 100 * Math.sin(a), 0]; }
       else { stage = 'tangent'; const a = angle + 0.04, t = smooth((time - 16) / 4); const r = [Math.cos(a), Math.sin(a), 0], side = [-Math.sin(a), Math.cos(a), 0]; eye = r.map(x => x * 100.25); target = r.map((x, i) => eye[i] - x * (1 - 0.97 * t) + side[i] * 0.97 * t); }
       const roll = time < 4 ? 0.12 * Math.sin(time) : 0.1;
-      const up = [-Math.sin(angle) * Math.sin(roll), Math.cos(angle) * Math.sin(roll), Math.cos(roll)];
+      let up = [-Math.sin(angle) * Math.sin(roll), Math.cos(angle) * Math.sin(roll), Math.cos(roll)];
+      if (time >= 16) { const t = smooth((time - 16) / 4), r = [Math.cos(angle + 0.04), Math.sin(angle + 0.04), 0];
+        up = up.map((v, i) => v * (1 - t) + r[i] * t); }
       window.pose({ eye, target, up }); const frame = window.frame();
       return { image: document.querySelector('canvas').toDataURL(), frame: { time, stage, distance: Math.hypot(...eye),
         updateMs: frame.updateMs, metrics: { ...frame.metrics, anchors: undefined }, points: window.diagnostics() } };
@@ -94,10 +96,12 @@ try {
   }, 0);
   const regionalAxes = [...new Set(frames.filter(f => f.stage === 'pan' || f.stage === 'near-ground').flatMap(f => f.metrics.annotations.map(a => a.axis)))];
   const patternErrors = frames.filter(f => f.metrics.densityBlend === 1).reduce((count, f) => {
-    const latStride = Math.min(60, f.metrics.latitudeStep * 4), lonStride = Math.min(60, f.metrics.longitudeStep * 4);
+    const meridianStride = f.metrics.longitudeStep === 30 ? 360 : f.metrics.longitudeStep * 6;
+    const parallelStride = f.metrics.latitudeStep === 30 ? 360 : f.metrics.latitudeStep * 6;
     return count + f.metrics.annotations.filter(a => {
-      const phase = a.axis === 'latitude' ? 0 : 0.5;
-      return [[a.latDeg, latStride], [a.lonDeg, lonStride]].some(([value, stride]) => Math.abs(value / stride - phase - Math.round(value / stride - phase)) > 1e-5);
+      const sites = a.axis === 'latitude' ? [[a.latDeg, f.metrics.latitudeStep, 0], [a.lonDeg, meridianStride, 5]]
+        : [[a.lonDeg, f.metrics.longitudeStep, 0], [a.latDeg, parallelStride, 3]];
+      return sites.some(([value, stride, offset]) => Math.abs((value - offset) / stride - Math.round((value - offset) / stride)) > 1e-5);
     }).length;
   }, 0);
   const pass = patternErrors === 0 && duplicateSites === 0 && frames.length === 601 && survivingFramePairs > 100
