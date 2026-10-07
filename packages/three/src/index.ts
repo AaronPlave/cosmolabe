@@ -2,11 +2,11 @@
 export { UniverseRenderer } from './UniverseRenderer.js';
 export type { UniverseRendererOptions, SurfacePickResult } from './UniverseRenderer.js';
 export {
-  PICK_PRECEDENCE, resolveSceneHit, resolveSurfaceAltitude, coordinateDecimals, formatLatitude, formatLongitude, formatHeight,
+  PICK_PRECEDENCE, resolveSceneHit, resolveSurfaceAltitude, coordinateDecimals, pointerResolution, formatLatitude, formatLongitude, formatHeight,
   describeDatum, describeSource, surfacePointToText,
 } from './SceneHit.js';
 export type {
-  SceneHit, SurfacePoint, SurfaceDatum, SurfaceHitSource, PickIntent, HitLayer,
+  SceneHit, SurfacePoint, SurfaceDatum, PointerResolution, SurfaceHitSource, PickIntent, HitLayer,
 } from './SceneHit.js';
 
 // Scene components

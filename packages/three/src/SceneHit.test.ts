@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  PICK_PRECEDENCE, coordinateDecimals, describeDatum, formatHeight, formatLatitude, formatLongitude, resolveSceneHit, resolveSurfaceAltitude,
+  PICK_PRECEDENCE, coordinateDecimals, pointerResolution, describeDatum, formatHeight, formatLatitude, formatLongitude, resolveSceneHit, resolveSurfaceAltitude,
   surfacePointToText, type HitLayer, type SceneHit, type SurfacePoint,
 } from './SceneHit.js';
 import { probeCalloutLines } from './PointProbe.js';
@@ -19,8 +19,8 @@ const point: SurfacePoint = {
   latDeg: 18.4446,
   lonDeg: 77.4509,
   latitudeKind: 'geodetic',
-  // About 1.9 m of ground per pixel: 1.9e-3 / (3317 km · π/180) ≈ 3.3e-5 ° → 5 decimals.
-  footprintKm: 0.0019,
+  // Looking straight down, about 1.9 m a pixel: ≈ 3.3e-5° of latitude → 5 decimals.
+  resolution: pointerResolution(0.0019, 1, 3317, 18.4446),
   hit: { heightKm: -2.43, datum: AREOID },
   terrainSample: { elevationKm: -2.4312, datum: AREOID, sourceId: 'mars-mola', describesHit: true },
   altitude: { km: -2.4312, from: 'terrain-sample', datum: AREOID },
@@ -144,16 +144,32 @@ describe('surface point presentation', () => {
     expect(pinned).toEqual(['Mars', '18.44460° N, 77.45090° E', '−2431.2 m · areoid']);
   });
 
-  it('shows coordinates to the resolution of one screen pixel at the point', () => {
-    const at = (footprintKm: number) => coordinateDecimals({ ...point, footprintKm });
-    expect(at(10)).toBe(2); // orbit: ~10 km a pixel, never fewer than 2
-    expect(at(0.0019)).toBe(5); // ~2 m a pixel
-    expect(at(0.00002)).toBe(7); // ~2 cm a pixel, close over terrain
-    expect(at(1e-9)).toBe(8); // capped
-    expect(at(0)).toBe(4); // unknown footprint
+  it('shows each coordinate to the resolution of one screen pixel at the point', () => {
+    const at = (spanKm: number, cos = 1, lat = 0) =>
+      coordinateDecimals({ resolution: pointerResolution(spanKm, cos, 3390, lat) });
+    expect(at(17)).toEqual({ lat: 1, lon: 1 }); // orbit: ~17 km a pixel
+    expect(at(0.0019)).toEqual({ lat: 5, lon: 5 }); // ~2 m a pixel, looking down
+    expect(at(0.00002)).toEqual({ lat: 7, lon: 7 }); // ~2 cm a pixel
+    expect(at(1e-9)).toEqual({ lat: 8, lon: 8 }); // capped
+    expect(at(1e9)).toEqual({ lat: 0, lon: 0 }); // never negative
+  });
+
+  it('resolves less where the view grazes the surface', () => {
+    const down = pointerResolution(0.002, 1, 3390, 0);
+    const grazing = pointerResolution(0.002, Math.cos(85 * Math.PI / 180), 3390, 0);
+    expect(grazing.surfaceKm / down.surfaceKm).toBeCloseTo(1 / Math.cos(85 * Math.PI / 180), 6);
+    expect(coordinateDecimals({ resolution: grazing }).lat).toBeLessThan(coordinateDecimals({ resolution: down }).lat);
+    // At the horizon the stretch is bounded, not infinite.
+    expect(Number.isFinite(pointerResolution(0.002, 0, 3390, 0).surfaceKm)).toBe(true);
+  });
+
+  it('resolves longitude more coarsely toward the poles', () => {
+    const r = pointerResolution(0.002, 1, 3390, 80);
+    expect(r.lonDeg / r.latDeg).toBeCloseTo(1 / Math.cos(80 * Math.PI / 180), 6);
+    expect(coordinateDecimals({ resolution: r })).toEqual({ lat: 5, lon: 4 });
   });
 
   it('copies at least six decimals, more when the point was probed finer', () => {
-    expect(surfacePointToText({ ...point, footprintKm: 0.00002 })).toMatch(/^Mars 18\.4446000, 77\.4509000 /);
+    expect(surfacePointToText({ ...point, resolution: pointerResolution(0.00002, 1, 3317, 18.4446) })).toMatch(/^Mars 18\.4446000, 77\.4509000 /);
   });
 });

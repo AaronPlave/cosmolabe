@@ -51,6 +51,20 @@ export interface SurfaceDatum {
  * terrain product, not on it. `altitude` promotes the sample only when it
  * describes the hit surface.
  */
+/**
+ * What one screen pixel can span at a hit: the worst direction along the
+ * surface, and that span in each coordinate. An upper bound, not a
+ * measurement of the pick's accuracy.
+ */
+export interface PointerResolution {
+  /** Km along the surface, corrected for the angle the view ray meets it at. */
+  surfaceKm: number;
+  /** Degrees of latitude that span covers. */
+  latDeg: number;
+  /** Degrees of longitude it covers; grows toward the poles as meridians converge. */
+  lonDeg: number;
+}
+
 export interface SurfacePoint {
   bodyName: string;
   /** Rendered hit, body-fixed right-handed Z-up (ECEF-style) km. */
@@ -63,12 +77,11 @@ export interface SurfacePoint {
   /** Geodetic from a terrain datum; planetocentric from the radial fallback. */
   latitudeKind: 'geodetic' | 'planetocentric';
   /**
-   * Ground size of one screen pixel at the hit, km: how finely the pointer
-   * could place this point. Coordinates are shown to this resolution
-   * (`coordinateDecimals`), so a point probed up close reads to centimetres
-   * and one probed from orbit does not pretend to.
+   * How finely the pointer could place this point, from a one-pixel step on
+   * screen at the hit (`pointerResolution`). Coordinates are shown to this
+   * resolution (`coordinateDecimals`) and never finer.
    */
-  footprintKm: number;
+  resolution: PointerResolution;
   /** The hit itself: the height of `bodyFixedPositionKm` above `datum`. */
   hit: { heightKm: number; datum: SurfaceDatum };
   /**
@@ -163,16 +176,44 @@ export function resolveSceneHit(
 
 // ── Presentation helpers (shared by the in-scene callout and host panels) ──
 
+/** Below this incidence cosine (about 89.9°) a pixel's span is treated as this stretched. */
+const MIN_INCIDENCE_COS = 1e-3;
+
 /**
- * Decimal places of a degree that resolve one screen pixel at the point:
- * enough that neighbouring pixels read differently, no more. Uses the
- * latitude scale (a degree of longitude is never longer), clamped to 2–8.
+ * What a one-pixel step on screen can cover at a hit. `pixelSpanKm` is the
+ * pixel's width across the view ray at the hit's range; `incidenceCos` is
+ * |cos| of the angle between the view ray and the surface normal there. A
+ * pixel's footprint stretches by 1/cos along the tilt, without bound toward
+ * the horizon, so a grazing view resolves little. Longitude degrees shrink
+ * with cos(latitude), so the same span is more degrees of longitude toward a
+ * pole.
  */
-export function coordinateDecimals(point: Pick<SurfacePoint, 'footprintKm' | 'bodyFixedPositionKm'>): number {
-  const radiusKm = Math.hypot(...point.bodyFixedPositionKm);
-  const degPerPixel = point.footprintKm / (radiusKm * Math.PI / 180);
-  if (!(degPerPixel > 0) || !Number.isFinite(degPerPixel)) return 4;
-  return Math.min(8, Math.max(2, Math.ceil(-Math.log10(degPerPixel))));
+export function pointerResolution(
+  pixelSpanKm: number, incidenceCos: number, radiusKm: number, latDeg: number,
+): PointerResolution {
+  const surfaceKm = pixelSpanKm / Math.max(MIN_INCIDENCE_COS, Math.abs(incidenceCos));
+  const kmPerDegree = radiusKm * Math.PI / 180;
+  const meridianScale = Math.max(1e-9, Math.cos(latDeg * Math.PI / 180));
+  return {
+    surfaceKm,
+    latDeg: surfaceKm / kmPerDegree,
+    lonDeg: surfaceKm / (kmPerDegree * meridianScale),
+  };
+}
+
+/** Decimal places that resolve `degPerPixel`, and no more; clamped to 0–8. */
+function decimalsFor(degPerPixel: number): number {
+  if (!(degPerPixel > 0) || !Number.isFinite(degPerPixel)) return 0;
+  return Math.min(8, Math.max(0, Math.ceil(-Math.log10(degPerPixel))));
+}
+
+/**
+ * Decimal places for each coordinate: enough that neighbouring pixels read
+ * differently, no more. Separate because longitude's resolution falls off
+ * toward the poles.
+ */
+export function coordinateDecimals(point: Pick<SurfacePoint, 'resolution'>): { lat: number; lon: number } {
+  return { lat: decimalsFor(point.resolution.latDeg), lon: decimalsFor(point.resolution.lonDeg) };
 }
 
 export function formatLatitude(latDeg: number, decimals = 4): string {
@@ -215,9 +256,10 @@ export function describeSource(source: SurfaceHitSource): string {
 
 /** One line suitable for the clipboard: body, coordinates, height and datum. */
 export function surfacePointToText(point: SurfacePoint): string {
-  const decimals = Math.max(6, coordinateDecimals(point));
-  const lat = point.latDeg.toFixed(decimals);
-  const lon = point.lonDeg.toFixed(decimals);
+  // A reference to paste elsewhere keeps at least six decimals.
+  const decimals = coordinateDecimals(point);
+  const lat = point.latDeg.toFixed(Math.max(6, decimals.lat));
+  const lon = point.lonDeg.toFixed(Math.max(6, decimals.lon));
   const h = (point.altitude.km * 1000).toFixed(1);
   const kind = point.latitudeKind === 'geodetic' ? 'geodetic' : 'planetocentric';
   return `${point.bodyName} ${lat}, ${lon} (${kind} °N, °E) ${h} m above ${describeDatum(point.altitude.datum)}`;

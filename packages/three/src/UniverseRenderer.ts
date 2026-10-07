@@ -30,7 +30,7 @@ import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMarkerGroups } from './EventMarkers.js';
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 import { PointProbeOverlay } from './PointProbe.js';
-import { resolveSceneHit, resolveSurfaceAltitude, type HitLayer, type PickIntent, type SceneHit, type SurfaceDatum, type SurfaceHitSource, type SurfacePoint } from './SceneHit.js';
+import { pointerResolution, resolveSceneHit, resolveSurfaceAltitude, type HitLayer, type PickIntent, type SceneHit, type SurfaceDatum, type SurfaceHitSource, type SurfacePoint } from './SceneHit.js';
 import { OccultationGeometry } from './OccultationGeometry.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -55,6 +55,12 @@ const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpVec2 = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
+
+/** World-space unit normal of the triangle a ray hit, or null when the hit has no face. */
+function faceNormalWorld(hit: THREE.Intersection): THREE.Vector3 | null {
+  if (!hit.face) return null;
+  return hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+}
 
 /** @deprecated Prefer `pickScene(x, y, 'probe')` and its `SurfacePoint`. */
 export interface SurfacePickResult {
@@ -280,6 +286,10 @@ export class UniverseRenderer {
   private _hoverPointerInside = false;
   /** The pointer moved since the last probe pick; the next frame re-picks. */
   private _probeHoverDirty = false;
+  /** How long the last probe pick took, ms; a slow one spaces out the next. */
+  private _probePickCostMs = 0;
+  private readonly _surfaceRaycaster = new THREE.Raycaster();
+  private readonly _surfaceTileRaycaster = new THREE.Raycaster();
   /** Label boxes the event annotation and probe callouts reserve this frame. */
   private _eventReservedRects: ScreenRect[] = [];
   private _renderDebugFrame = 0;
@@ -1929,10 +1939,16 @@ export class UniverseRenderer {
   private updateProbeHover(): void {
     if (!this._probeActive || !this._hoverPointerInside) return;
     const now = performance.now();
-    if (!this._probeHoverDirty && now - this._lastHoverPickMs < UniverseRenderer._hoverPickIntervalMs * 3) return;
+    const since = now - this._lastHoverPickMs;
+    if (!this._probeHoverDirty && since < UniverseRenderer._hoverPickIntervalMs * 3) return;
+    // Budget: a cheap pick runs every frame; one that took long (dense
+    // terrain, many overlay tiles) leaves at least four times its cost
+    // between picks, so it never takes more than a fifth of the frame time.
+    if (since < this._probePickCostMs * 4) return;
     this._probeHoverDirty = false;
     this._lastHoverPickMs = now;
     this._probeHoverAt(this._lastPointer.x, this._lastPointer.y);
+    this._probePickCostMs = performance.now() - now;
   }
 
   private updateProbeOverlay(): void {
@@ -2050,7 +2066,8 @@ export class UniverseRenderer {
    * overlays are all candidates; overlays win because they draw on top.
    */
   private _discoverSurface(ndcX: number, ndcY: number): { point: SurfacePoint; cameraRangeKm: number } | null {
-    const raycaster = new THREE.Raycaster();
+    // Reused: this runs every frame the pointer moves while probing.
+    const raycaster = this._surfaceRaycaster;
     const ndc = new THREE.Vector2(ndcX, ndcY);
     raycaster.setFromCamera(ndc, this.camera);
 
@@ -2083,7 +2100,7 @@ export class UniverseRenderer {
 
     // tileScene: surface tile overlays use camera-relative rendering (CRR).
     // Apply CRR transforms (camera at origin) before raycasting, then restore.
-    const tileRaycaster = new THREE.Raycaster();
+    const tileRaycaster = this._surfaceTileRaycaster;
     tileRaycaster.setFromCamera(ndc, this.camera);
     tileRaycaster.ray.origin.set(0, 0, 0);
     const tileTargets: THREE.Object3D[] = [];
@@ -2109,7 +2126,9 @@ export class UniverseRenderer {
         }
       }
     }
-    const tileHits = tileRaycaster.intersectObjects(tileTargets, true);
+    const tileHits = tileTargets.length > 0 ? tileRaycaster.intersectObjects(tileTargets, true) : [];
+    // The overlay's normal is only valid under the transform it was hit with.
+    const tileNormal = tileHits[0] ? faceNormalWorld(tileHits[0]) : null;
     // Restore LOD transforms
     for (const { overlay, pos, quat, scale } of savedGroupState) {
       overlay.group.position.copy(pos);
@@ -2123,12 +2142,14 @@ export class UniverseRenderer {
     let bestBm: BodyMesh | null = null;
     let bestDist = Infinity;
     let source: SurfaceHitSource = 'ellipsoid';
+    let bestNormal: THREE.Vector3 | null = null;
 
     if (mainHits.length > 0) {
       const hit = mainHits[0];
       if (hit.distance < bestDist) {
         bestDist = hit.distance;
         bestWorldPoint = hit.point.clone();
+        bestNormal = faceNormalWorld(hit);
         for (const bm of this.bodyMeshes.values()) {
           let obj: THREE.Object3D | null = hit.object;
           const terrain = bm.terrainTileGroup;
@@ -2149,6 +2170,7 @@ export class UniverseRenderer {
       bestWorldPoint = hit.point.clone().add(this.camera.position);
       bestBm = null;
       bestDist = hit.distance;
+      bestNormal = tileNormal;
       source = 'surface-overlay';
       let obj: THREE.Object3D | null = hit.object;
       while (obj) {
@@ -2190,9 +2212,12 @@ export class UniverseRenderer {
     const terrainSample = bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const hitHeightKm = terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg));
     const cameraRangeKm = bestWorldPoint.distanceTo(this.camera.position) / this.scaleFactor;
-    // One pixel's angular size at that range: the finest the pointer can place the point.
-    const footprintKm = cameraRangeKm * 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) /
+    // A pixel's width across the ray at that range, stretched by the angle the
+    // ray meets the hit triangle at (the radial direction if it has no face).
+    const pixelSpanKm = cameraRangeKm * 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) /
       Math.max(1, this.renderer.domElement.clientHeight);
+    const normal = bestNormal ?? bestWorldPoint.clone().sub(bodyCenter).normalize();
+    const resolution = pointerResolution(pixelSpanKm, normal.dot(raycaster.ray.direction), r, latDeg);
     const terrainDatum = bm.terrainDatum;
     const radii = bm.body.radii;
     // Equal radii are a sphere, whatever field they came in.
@@ -2224,7 +2249,7 @@ export class UniverseRenderer {
       latDeg,
       lonDeg,
       latitudeKind: terrainPosition ? 'geodetic' : 'planetocentric',
-      footprintKm,
+      resolution,
       hit,
       ...resolveSurfaceAltitude(source, hit, sample),
     };

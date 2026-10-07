@@ -18,8 +18,12 @@ import {
 /** Probe accent: distinct from event amber, quiet against terrain. */
 export const PROBE_COLOR = '#7cc8f0';
 
-/** A hover this close to the pin on screen is the pin. */
-const PIN_SLOP_PX = 10;
+/**
+ * A hover preview this close to the pin on screen previews the pin itself.
+ * Tight on purpose: one pixel off is a different point a click would move
+ * the pin to.
+ */
+const PIN_SLOP_PX = 2;
 
 /** Where a body-fixed surface point is in the scene this frame, and its body centre. */
 export type ProbeAnchorResolver = (point: SurfacePoint) => { world: THREE.Vector3; bodyCenter: THREE.Vector3 } | null;
@@ -60,12 +64,11 @@ function makeMarker(sizePx: number, texture: THREE.Texture | null, opacity: numb
 export function probeCalloutLines(point: SurfacePoint, detail: 'preview' | 'pinned'): string[] {
   // As fine as the pointer can place the point: a pixel's worth of ground.
   const decimals = coordinateDecimals(point);
-  if (detail === 'preview') {
-    return [`${point.bodyName} · ${formatLatitude(point.latDeg, decimals)}, ${formatLongitude(point.lonDeg, decimals)}`];
-  }
+  const coords = `${formatLatitude(point.latDeg, decimals.lat)}, ${formatLongitude(point.lonDeg, decimals.lon)}`;
+  if (detail === 'preview') return [`${point.bodyName} · ${coords}`];
   return [
     point.bodyName,
-    `${formatLatitude(point.latDeg, decimals)}, ${formatLongitude(point.lonDeg, decimals)}`,
+    coords,
     `${formatHeight(point.altitude.km)} · ${describeDatum(point.altitude.datum)}`,
   ];
 }
@@ -151,13 +154,13 @@ export class PointProbeOverlay {
     const pinBox = this.pinCallout.update(pinScreen, viewport, obstacles);
     if (pinBox) boxes.push(pinBox);
 
-    // A pointer still on the pinned point previews nothing new: the pin's
-    // own marker and card say it. Judged on screen, not by coordinates, since
-    // the re-probed point drifts a hair as the body turns.
+    // A pointer still on the pinned point needs no second card: the pin's
+    // card says it. Judged on screen, not by coordinates, since the
+    // re-probed point drifts a hair as the body turns. The reticle stays: it
+    // is where the pointer is, and so where a click would land.
     const hoverScreen = this.place(this.reticle, this.hover, camera, viewport, resolve);
     const onPin = !!hoverScreen && !!pinScreen &&
-      (hoverScreen.x - pinScreen.x) ** 2 + (hoverScreen.y - pinScreen.y) ** 2 < PIN_SLOP_PX ** 2;
-    if (onPin) this.reticle.visible = false;
+      (hoverScreen.x - pinScreen.x) ** 2 + (hoverScreen.y - pinScreen.y) ** 2 <= PIN_SLOP_PX ** 2;
     const hoverBox = onPin ? (this.hoverCallout.hide(), null) : this.hoverCallout.update(
       hoverScreen, viewport,
       pinBox ? { ...obstacles, rects: [...obstacles.rects, { ...pinBox, weight: 3 }] } : obstacles,
