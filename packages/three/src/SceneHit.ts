@@ -98,6 +98,11 @@ export interface SurfacePoint {
     describesHit: boolean;
   };
   /**
+   * Unit normal of the rendered surface at the hit, body-fixed (same frame as
+   * `bodyFixedPositionKm`). Absent when the hit had no face to take it from.
+   */
+  surfaceNormal?: readonly [number, number, number];
+  /**
    * The height to present for this point: the terrain sample when it
    * describes the hit surface, otherwise the hit's own height.
    */

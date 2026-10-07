@@ -246,16 +246,22 @@ export class EventCallout {
     container.append(this.svg, this.box);
   }
 
-  setContent(content: CalloutContent | null): void {
+  /**
+   * Replace what the callout says. A new subject cross-fades in; `inPlace`
+   * is the same subject restated (a refined reading), which swaps the text
+   * where it stands.
+   */
+  setContent(content: CalloutContent | null, options: { inPlace?: boolean } = {}): void {
     const key = content ? JSON.stringify(content) : '';
     if (key === this.contentKey) return;
-    this.fadeOut();
+    const inPlace = !!options.inPlace && !!content && !!this.content;
+    if (!inPlace) this.fadeOut();
     this.contentKey = key;
     this.content = content;
     this.size = null;
     // A pointer-following callout keeps its side while its text changes;
     // re-choosing from scratch every frame would make it hop.
-    if (this.motion === 'fade') this.previousKey = null;
+    if (this.motion === 'fade' && !inPlace) this.previousKey = null;
     this.box.replaceChildren();
     if (!content) return;
     const [title, ...details] = content.lines;

@@ -25,8 +25,22 @@ export const PROBE_COLOR = '#7cc8f0';
  */
 const PIN_SLOP_PX = 2;
 
-/** Where a body-fixed surface point is in the scene this frame, and its body centre. */
-export type ProbeAnchorResolver = (point: SurfacePoint) => { world: THREE.Vector3; bodyCenter: THREE.Vector3 } | null;
+/**
+ * Where a body-fixed surface point is in the scene this frame, its body
+ * centre, and the surface normal there in scene axes (when the point has one).
+ */
+export type ProbeAnchorResolver = (point: SurfacePoint) => {
+  world: THREE.Vector3;
+  bodyCenter: THREE.Vector3;
+  normal: THREE.Vector3 | null;
+} | null;
+
+/**
+ * Least |cos| between a marker's plane normal and the view: laid flat on
+ * the surface it foreshortens with the view, but never past 60° (half its
+ * height) so a grazing view still shows a ring, not a sliver.
+ */
+const MIN_FACING = 0.5;
 
 /** What the overlay needs from the scene each frame. */
 export interface ProbeSceneQuery {
@@ -53,24 +67,66 @@ function markerTexture(draw: (ctx: CanvasRenderingContext2D, size: number) => vo
   return new THREE.CanvasTexture(canvas);
 }
 
-function makeMarker(sizePx: number, texture: THREE.Texture | null, opacity: number): THREE.Points {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
-  const mat = new THREE.PointsMaterial({
-    size: sizePx,
-    sizeAttenuation: false,
+/**
+ * A marker laid on the surface: a unit square carrying the glyph, oriented
+ * and scaled each frame (`orient`) so it lies in the surface's tangent plane
+ * at a constant on-screen size. Drawn over everything; the renderer decides
+ * occlusion.
+ */
+function makeMarker(sizePx: number, texture: THREE.Texture | null, opacity: number): THREE.Mesh {
+  const mat = new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
     opacity,
     alphaTest: 0.05,
     depthTest: false,
     depthWrite: false,
+    side: THREE.DoubleSide,
   });
-  const points = new THREE.Points(geo, mat);
-  points.frustumCulled = false;
-  points.visible = false;
-  points.renderOrder = 10;
-  return points;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+  mesh.frustumCulled = false;
+  mesh.visible = false;
+  mesh.renderOrder = 10;
+  mesh.userData.sizePx = sizePx;
+  return mesh;
+}
+
+const _toEye = new THREE.Vector3();
+const _normal = new THREE.Vector3();
+const _tangent = new THREE.Vector3();
+const _planeNormal = new THREE.Vector3(0, 0, 1);
+
+/** Lay a marker at its position flat on the surface, `sizePx` across on screen. */
+function orient(
+  marker: THREE.Mesh,
+  normal: THREE.Vector3 | null,
+  bodyCenter: THREE.Vector3,
+  camera: THREE.PerspectiveCamera,
+  viewportHeight: number,
+): void {
+  _toEye.subVectors(camera.position, marker.position);
+  const range = _toEye.length();
+  if (range === 0) return;
+  _toEye.divideScalar(range);
+  // No surface normal: the radial direction is the best guess at "up".
+  _normal.copy(normal ?? _tangent.subVectors(marker.position, bodyCenter)).normalize();
+  let facing = _normal.dot(_toEye);
+  if (facing < 0) {
+    _normal.negate();
+    facing = -facing;
+  }
+  if (facing < MIN_FACING) {
+    // Tilt toward the eye just enough to keep a legible ellipse.
+    _tangent.copy(_normal).addScaledVector(_toEye, -facing);
+    if (_tangent.lengthSq() > 1e-12) {
+      _tangent.normalize();
+      _normal.copy(_toEye).multiplyScalar(MIN_FACING)
+        .addScaledVector(_tangent, Math.sqrt(1 - MIN_FACING * MIN_FACING));
+    }
+  }
+  marker.quaternion.setFromUnitVectors(_planeNormal, _normal);
+  const worldPerPx = range * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / Math.max(1, viewportHeight);
+  marker.scale.setScalar((marker.userData.sizePx as number) * worldPerPx);
 }
 
 /** Callout lines for a probed point: title, coordinates, height above datum. */
@@ -87,8 +143,8 @@ export function probeCalloutLines(point: SurfacePoint, detail: 'preview' | 'pinn
 }
 
 export class PointProbeOverlay {
-  private readonly reticle: THREE.Points;
-  private readonly pinMarker: THREE.Points;
+  private readonly reticle: THREE.Mesh;
+  private readonly pinMarker: THREE.Mesh;
   private readonly hoverCallout: EventCallout;
   private readonly pinCallout: EventCallout;
   private hover: SurfacePoint | null = null;
@@ -144,11 +200,12 @@ export class PointProbeOverlay {
     if (!point) this.hoverCallout.hide();
   }
 
-  setPin(point: SurfacePoint | null): void {
+  /** Pin a point, or clear it. `refined` restates the same pin (finer terrain), in place. */
+  setPin(point: SurfacePoint | null, refined = false): void {
     this.pin = point;
     this.pinCallout.setContent(point ? {
       lines: probeCalloutLines(point, 'pinned'), color: PROBE_COLOR, tone: 'selected', feature: 'probe',
-    } : null);
+    } : null, { inPlace: refined });
     if (!point) this.pinCallout.hide();
   }
 
@@ -197,6 +254,7 @@ export class PointProbeOverlay {
       return null;
     }
     marker.position.copy(anchor.world);
+    orient(marker, anchor.normal, anchor.bodyCenter, camera, viewport.height);
     marker.visible = true;
     const p = anchor.world.clone().project(camera);
     if (p.z < -1 || p.z > 1) return null;
@@ -229,6 +287,7 @@ export class PointProbeOverlay {
       p.y = 1 - (pointer.y / viewport.height) * 2;
     }
     marker.position.copy(p).unproject(camera);
+    orient(marker, anchor!.normal, anchor!.bodyCenter, camera, viewport.height);
     marker.visible = true;
     return { x: (p.x + 1) * viewport.width / 2, y: (1 - p.y) * viewport.height / 2 };
   }
@@ -236,7 +295,7 @@ export class PointProbeOverlay {
   dispose(): void {
     for (const marker of [this.reticle, this.pinMarker]) {
       this.markerScene.remove(marker);
-      const mat = marker.material as THREE.PointsMaterial;
+      const mat = marker.material as THREE.MeshBasicMaterial;
       mat.map?.dispose();
       mat.dispose();
       marker.geometry.dispose();
