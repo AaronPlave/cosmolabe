@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     vs,
-    trackBody,
+    selectAndFlyTo,
     lookAtBody,
     setBodyVisible,
     showAllBodies,
@@ -78,7 +78,7 @@
       setBodyVisible(name, true);
       soloMode = false;
     } else {
-      trackBody(name);
+      selectAndFlyTo(name);
     }
   }
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { vs, setDisplayOption, setFov, setLighting, setCameraMode } from '../lib/viewer-state.svelte';
+  import { vs, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked } from '../lib/viewer-state.svelte';
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { exportCameraView, importCameraViewFromFile } from '../lib/camera-view-io';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
@@ -123,11 +123,8 @@
             class="ui-control w-full bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
             bind:value={selectedViewpoint}
             onchange={() => {
-              if (!selectedViewpoint) return;
-              const r = getRenderer();
-              if (!r) return;
               // Also seeks the clock when the viewpoint declares a `time`.
-              r.applyNamedViewpoint(selectedViewpoint, { animate: true });
+              if (selectedViewpoint) applyViewpoint(selectedViewpoint, { animate: true });
             }}
           >
             <option value="">-- select --</option>
@@ -145,11 +142,7 @@
               selectedViewpoint = name;
             }
           }}><Save size={12} /></button>
-          <button class="ui-control flex items-center justify-center h-6 text-text-secondary bg-surface-3 border border-border rounded cursor-pointer hover:bg-border-active hover:text-text-primary transition-colors" title="Fly to tracked body" onclick={() => {
-            const r = getRenderer();
-            const tracked = r?.cameraController.trackedBody;
-            if (r && tracked) r.cameraController.flyTo(tracked, { scaleFactor: 1e-6 });
-          }}><Navigation size={12} /></button>
+          <button class="ui-control flex items-center justify-center h-6 text-text-secondary bg-surface-3 border border-border rounded cursor-pointer hover:bg-border-active hover:text-text-primary transition-colors" title="Fly to tracked body" onclick={() => flyToTracked()}><Navigation size={12} /></button>
           <button class="ui-control flex items-center justify-center h-6 text-text-secondary bg-surface-3 border border-border rounded cursor-pointer hover:bg-border-active hover:text-text-primary transition-colors" title="Download current view as JSON" onclick={() => {
             const r = getRenderer();
             if (r) exportCameraView(r);

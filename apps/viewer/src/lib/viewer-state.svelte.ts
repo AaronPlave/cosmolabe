@@ -6,7 +6,7 @@
  * whose properties are mutated. We use the latter.
  */
 import { etToDate, type Universe } from '@cosmolabe/core';
-import type { InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
+import type { BodyMesh, FlightPath, InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
@@ -74,6 +74,8 @@ export const vs = $state({
   cameraMode: CameraModeName.FREE_ORBIT as CameraModeName,
   trackedBodyName: null as string | null,
   lookAtBodyName: null as string | null,
+  /** The flight playing — its destination (null for a viewpoint) and path — or null. */
+  flight: null as { target: string | null; path: FlightPath } | null,
 
   // Scene
   bodies: [] as BodyEntry[],
@@ -327,8 +329,21 @@ function syncCameraState() {
   if (!_renderer) return;
   const cc = _renderer.cameraController;
   vs.cameraMode = cc.mode;
-  vs.trackedBodyName = cc.trackedBody?.body.name ?? null;
+  vs.trackedBodyName = cc.focusBody?.body.name ?? null;
   vs.lookAtBodyName = cc.lookAtBody?.body.name ?? null;
+  syncFlightState();
+}
+
+/** Mirror the controller's flight into `vs.flight`, writing only on a change. */
+function syncFlightState() {
+  const flight = _renderer?.cameraController.flight ?? null;
+  const target = flight ? flight.destination?.body.name ?? null : undefined;
+  const current = vs.flight;
+  if (!flight) {
+    if (current !== null) vs.flight = null;
+  } else if (current === null || current.target !== target || current.path !== flight.path) {
+    vs.flight = { target: target ?? null, path: flight.path };
+  }
 }
 
 // ── Renderer binding ──
@@ -438,12 +453,15 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   let rafId = 0;
   const tick = () => {
     vs.frameTick++;
-    // The controller lets go of a tracked object on its own between calls —
-    // a crane queued behind a fly-to, the Z / C keys — and says nothing. Once
-    // nothing is tracked and nothing is in flight toward a body (which
-    // `gotoObject` reports ahead of time), the HUD should stop naming one.
+    // The controller changes what it tracks on its own between calls — a
+    // crane queued behind a fly-to or the Z / C keys let go, a flight lands or
+    // is stopped by a drag — and says nothing. A flight names its destination
+    // from the start (`focusBody`), so the HUD does not read the previous body
+    // for the length of the flight.
     const cc = renderer.cameraController;
-    if (vs.trackedBodyName !== null && cc.focusBody === null) vs.trackedBodyName = null;
+    const focus = cc.focusBody?.body.name ?? null;
+    if (vs.trackedBodyName !== focus) vs.trackedBodyName = focus;
+    syncFlightState();
     rafId = requestAnimationFrame(tick);
   };
   rafId = requestAnimationFrame(tick);
@@ -691,42 +709,131 @@ export function hideAllBodies() {
   }
 }
 
+// ── Navigation verbs ──
+//
+// Select, Track (focus), Frame, Fly and Jump: the one implementation of each
+// that the body browser, the command palette, the context menu, the info
+// panel, event results, the keymap and `ViewerControl` all call. A surface
+// that wants two of them — "go to this body" selects it and flies there —
+// calls both; none of these implies another. Semantics: docs/navigation.md.
+
+/** The path a flight takes when the caller does not say. */
+export const DEFAULT_FLIGHT_PATH: FlightPath = 'overview';
+
+/**
+ * The mesh for `name`, with its position current in the camera's coordinates.
+ *
+ * Between frames a body's `position` is where the last frame drew it, relative
+ * to the origin as of then. A script that seeks the clock, or tracks one body
+ * and then another, in the same breath would otherwise navigate against a
+ * stale or foreign position — hundreds of thousands of km off after a switch.
+ */
+function navigableMesh(name: string): BodyMesh | undefined {
+  const bm = _renderer?.getBodyMesh(name);
+  if (!bm) return undefined;
+  _renderer!.refreshBodyPose(name);
+  return bm;
+}
+
+/**
+ * Track (focus): make `name` the camera's anchor without moving the camera.
+ * It stays where it is and turns to face the body.
+ */
 export function trackBody(name: string): boolean {
   if (!_renderer) return false;
-  const bm = _renderer.getBodyMesh(name);
+  const bm = navigableMesh(name);
   if (!bm) return false;
-  _renderer.cameraController.trackBody(bm, 1e-6);
+  _renderer.cameraController.focus(bm);
   syncCameraState();
-  // Update selected body so info panel follows tracking
-  if (vs.selectedBodyName) selectBody(name);
   return true;
 }
 
 /**
- * Track an object and frame it. Cuts by default.
+ * Frame: cut to a view that fits `name` — the tracked body when omitted — and
+ * track it. False with no such body, or no name and nothing tracked.
+ */
+export function frameBody(name?: string): boolean {
+  if (!_renderer) return false;
+  const target = name ?? _renderer.cameraController.focusBody?.body.name;
+  if (target === undefined) return false;
+  const bm = navigableMesh(target);
+  if (!bm) return false;
+  _renderer.cameraController.frame(bm, { scaleFactor: _renderer.scaleFactor });
+  syncCameraState();
+  return true;
+}
+
+/**
+ * Fly: animate to the view `frameBody` would cut to, then track the body.
+ * `path` defaults to `DEFAULT_FLIGHT_PATH`; `seconds` to the path's own
+ * duration. Manual navigation, or `stopFlight`, ends it where it is.
+ */
+export function flyToBody(name: string, opts: { path?: FlightPath; seconds?: number } = {}): boolean {
+  if (!_renderer) return false;
+  if (opts.seconds !== undefined && !(Number.isFinite(opts.seconds) && opts.seconds >= 0)) return false;
+  // A flight of no duration has nowhere to animate: it is a jump.
+  if (opts.seconds === 0) return jumpToBody(name);
+  const bm = navigableMesh(name);
+  if (!bm) return false;
+  _renderer.cameraController.flyTo(bm, {
+    scaleFactor: _renderer.scaleFactor,
+    path: opts.path ?? DEFAULT_FLIGHT_PATH,
+    duration: opts.seconds,
+  });
+  syncCameraState();
+  return true;
+}
+
+/**
+ * Jump: apply the view a flight to `name` would land on, at once.
  *
- * Not animating is the default because `flyTo` is a one-second rAF animation
- * that nulls the track target for its duration and only installs the new origin
- * body on completion: a caller that renders a frame and photographs it gets the
- * camera mid-flight. `trackBody` reaches the same end state synchronously.
+ * The pose is the frame's — Jump differs from Frame in what it is for (a
+ * destination, like a flight's, rather than a re-fit of what is in view), not
+ * in where an object's camera lands. A time jump is a separate `setTime`.
+ */
+export function jumpToBody(name: string): boolean {
+  return frameBody(name);
+}
+
+/** End a flight where it is, tracking what it was flying to. */
+export function stopFlight(): boolean {
+  if (!_renderer) return false;
+  const stopped = _renderer.cameraController.stopFlight();
+  syncCameraState();
+  return stopped;
+}
+
+/** Fly to the tracked body — the `F` key. */
+export function flyToTracked(): boolean {
+  const tracked = _renderer?.cameraController.focusBody?.body.name;
+  return tracked !== undefined && flyToBody(tracked);
+}
+
+/**
+ * "Go to this body", as the body browser, the palette and a double-click in
+ * the scene mean it: select it, and fly there.
+ */
+export function selectAndFlyTo(name: string): boolean {
+  if (!hasBody(name)) return false;
+  selectBody(name);
+  return flyToBody(name);
+}
+
+/**
+ * `gotoObject`, Cosmographia's verb: a jump by default, a direct flight when
+ * animated.
+ *
+ * Not animating is the default because a flight is a wall-clock animation
+ * that only installs the new origin body on landing: a caller that renders a
+ * frame and photographs it gets the camera mid-flight.
  */
 export function gotoObject(
   name: string,
   opts: { animate?: boolean; duration?: number } = {},
 ): boolean {
-  if (!_renderer) return false;
-  const bm = _renderer.getBodyMesh(name);
-  if (!bm) return false;
-  if (opts.animate) {
-    _renderer.cameraController.flyTo(bm, { scaleFactor: 1e-6, duration: opts.duration });
-    // flyTo defers the actual tracking to _pendingOriginSwitch; the UI needs to
-    // know now, or the HUD reads the previous body for the length of the flight.
-    vs.trackedBodyName = name;
-  } else {
-    _renderer.cameraController.trackBody(bm, 1e-6);
-    syncCameraState();
-  }
-  return true;
+  return opts.animate
+    ? flyToBody(name, { path: 'direct', seconds: opts.duration })
+    : jumpToBody(name);
 }
 
 /** Release the tracked object. The camera stays where it is. */
@@ -749,10 +856,14 @@ export function pointAtObject(name: string): boolean {
   return true;
 }
 
-/** Apply a named catalog viewpoint, seeking the clock if it declares an epoch. */
-export function applyViewpoint(name: string): boolean {
+/**
+ * Apply a named catalog viewpoint, seeking the clock if it declares an epoch:
+ * a jump by default, a flight with `animate` (a viewpoint that tracks a body
+ * is always placed at once).
+ */
+export function applyViewpoint(name: string, opts: { animate?: boolean } = {}): boolean {
   if (!_renderer) return false;
-  if (!_renderer.applyNamedViewpoint(name)) return false;
+  if (!_renderer.applyNamedViewpoint(name, opts)) return false;
   // A viewpoint can move the clock and change what is tracked, and neither
   // path notifies.
   syncTimeState();
@@ -969,12 +1080,6 @@ export function noteIsTimed(): boolean {
 
 let _noteTimer: ReturnType<typeof setTimeout> | undefined;
 
-export function flyToTracked() {
-  if (!_renderer) return;
-  const tracked = _renderer.cameraController.trackedBody;
-  if (tracked) _renderer.cameraController.flyTo(tracked, { scaleFactor: 1e-6 });
-}
-
 export function clearLookAt() {
   if (!_renderer) return;
   _renderer.cameraController.clearLookAt();
@@ -1065,7 +1170,7 @@ export function setCameraMode(mode: CameraModeName) {
 /**
  * Switch camera mode, optionally re-parameterizing it onto a named object.
  *
- * The object is tracked **before** the mode switch, and the order is not
+ * The object is framed (`frameBody`) **before** the mode switch, and the order is not
  * cosmetic: `setModeForBody` only re-parameterizes the mode, so asking for
  * body-fixed/Mars while still tracking Cassini gives a camera locked to Mars's
  * rotation but orbiting Cassini — a picture that looks plausible and is wrong.
@@ -1073,11 +1178,7 @@ export function setCameraMode(mode: CameraModeName) {
 export function setCameraModeForBody(mode: CameraModeName, bodyName?: string): boolean {
   if (!_renderer) return false;
   const cc = _renderer.cameraController;
-  if (bodyName !== undefined) {
-    const bm = _renderer.getBodyMesh(bodyName);
-    if (!bm) return false;
-    cc.trackBody(bm, 1e-6);
-  }
+  if (bodyName !== undefined && !frameBody(bodyName)) return false;
   const ok = cc.setModeForBody(mode, cc.trackedBody);
   syncCameraState();
   return ok;

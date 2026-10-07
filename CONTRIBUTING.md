@@ -73,6 +73,7 @@ Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LF
 - New rotation model? `packages/core/src/rotations/RotationModel.ts`.
 - New renderer plugin? `packages/three/src/plugins/RendererPlugin.ts` and the stock plugins in `packages/three/src/plugins/stock/`.
 - New script verb, or a new way to drive the viewer from a host? `packages/control/src/verbs.ts` is the one table the language, the port and the palette all read; see [docs/scripting.md](docs/scripting.md).
+- A new way to navigate the camera, or a new surface that does? Call the shared verbs — Select, Track, Frame, Fly, Jump — rather than the camera directly; see [docs/navigation.md](docs/navigation.md).
 - New mission catalog? Drop a [catalog JSON](docs/catalog-format.md) into `apps/viewer/test-catalogs/`. See existing catalogs (`iss.json`, `cassini-soi.json`) for examples.
 
 ## Opening a PR

@@ -22,7 +22,14 @@
  *
  * The mapping table lives in `docs/scripting.md`.
  */
-import type { CircleDirection, ScriptTime, ScriptVec3, VerbValue, ViewerControl } from './contracts.js';
+import type {
+  CircleDirection,
+  FlightPath,
+  ScriptTime,
+  ScriptVec3,
+  VerbValue,
+  ViewerControl,
+} from './contracts.js';
 
 /**
  * The camera frames `setFrame` accepts.
@@ -59,6 +66,9 @@ export const LAYERS = [
   { id: 'sensors', label: 'sensors' },
   { id: 'sensorLabels', label: 'sensor labels' },
 ] as const;
+
+/** The paths `flyTo` accepts. */
+export const FLIGHT_PATHS: readonly FlightPath[] = ['overview', 'direct'];
 
 const FRAME_MODE_IDS = FRAME_MODES.map((m) => m.id);
 const LAYER_IDS = LAYERS.map((l) => l.id);
@@ -155,7 +165,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
     category: 'Scene',
     method: 'gotoObject',
     resolvesName: 'object',
-    help: 'Track an object and frame it. Cuts by default; give seconds to fly there.',
+    help: 'Jump to an object; give seconds to fly there directly instead.',
     invoke: (host, a) =>
       host.gotoObject(str(a[0]), a[1] === undefined ? undefined : { seconds: num(a[1]) }),
   },
@@ -182,7 +192,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
     category: 'Camera',
     method: 'track',
     resolvesName: 'object',
-    help: 'Orbit-lock the camera to an object without moving it.',
+    help: 'Make an object the camera’s anchor without moving the camera.',
     invoke: (host, a) => host.track(str(a[0])),
   },
   {
@@ -192,6 +202,49 @@ export const VERB_LIST: readonly VerbSpec[] = [
     method: 'untrack',
     help: 'Release the tracked object. The camera stays where it is.',
     invoke: (host) => host.untrack(),
+  },
+  {
+    name: 'frameObject',
+    params: [{ name: 'object', type: 'object', optional: true }],
+    category: 'Camera',
+    method: 'frameObject',
+    resolvesName: 'object',
+    help: 'Cut to a view that fits an object (default: the tracked one), and track it.',
+    invoke: (host, a) => host.frameObject(optStr(a[0])),
+  },
+  {
+    name: 'flyTo',
+    params: [
+      { name: 'object', type: 'object' },
+      { name: 'path', type: 'enum', values: FLIGHT_PATHS, optional: true },
+      { name: 'seconds', type: 'number', optional: true },
+    ],
+    category: 'Camera',
+    method: 'flyTo',
+    resolvesName: 'object',
+    help: `Fly to an object and track it (${FLIGHT_PATHS.join(' or ')}). Returns at once; follow with wait.`,
+    invoke: (host, a) =>
+      host.flyTo(str(a[0]), {
+        ...(a[1] === undefined ? {} : { path: str(a[1]) as FlightPath }),
+        ...(a[2] === undefined ? {} : { seconds: num(a[2]) }),
+      }),
+  },
+  {
+    name: 'jumpTo',
+    params: [{ name: 'object', type: 'object' }],
+    category: 'Camera',
+    method: 'jumpTo',
+    resolvesName: 'object',
+    help: 'Cut to the view a flight to an object would land on, and track it.',
+    invoke: (host, a) => host.jumpTo(str(a[0])),
+  },
+  {
+    name: 'stopFlight',
+    params: [],
+    category: 'Camera',
+    method: 'stopFlight',
+    help: 'End a flight where it is, tracking what it was flying to.',
+    invoke: (host) => host.stopFlight(),
   },
   {
     name: 'pointAtObject',

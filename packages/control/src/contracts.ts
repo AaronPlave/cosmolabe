@@ -38,6 +38,21 @@ export type ScriptTime =
   /** A calendar string, exactly as written in the script. */
   | { readonly kind: 'calendar'; readonly text: string };
 
+/**
+ * How `flyTo` travels: straight at the destination, or by pulling back first
+ * to show where the camera is looking and the destination together, then
+ * approaching. An overview flight from a camera already that far back is a
+ * direct one. See `docs/navigation.md`.
+ */
+export type FlightPath = 'direct' | 'overview';
+
+/** A camera flight in progress, as `getFlight` reports it. */
+export interface ScriptFlight {
+  /** The object the flight lands on; null for a flight to a viewpoint. */
+  readonly target: string | null;
+  readonly path: FlightPath;
+}
+
 /** Which way `circleCenter` moves the camera on screen. */
 export type CircleDirection = 'right' | 'left' | 'up' | 'down';
 
@@ -93,24 +108,54 @@ export type ScriptEventName = keyof ScriptEventMap;
  */
 export interface ViewerControl {
   // ── Write: scene setup ──
+  //
+  // Select, Track (focus), Frame, Fly and Jump are the navigation vocabulary
+  // every surface shares; `docs/navigation.md` defines each. None implies
+  // another: selecting never moves the camera, and moving it never selects.
 
   /**
-   * Track `name` and frame it. Cuts to the object by default; pass
-   * `seconds` to fly there over that many seconds instead.
+   * Cosmographia's name for `jumpTo`, or, given `seconds`, for a `direct`
+   * `flyTo` over that many seconds.
    *
    * Cutting is the default because a fly-to is a wall-clock animation: a
    * caller that renders one frame and photographs it gets the camera
    * mid-flight, aimed at nothing in particular.
    */
   gotoObject(name: string, opts?: { seconds?: number }): boolean;
-  /** Select `name` — what the info panel shows. */
+  /** Select `name` — what the info panel shows. Never moves the camera. */
   select(name: string): boolean;
   /** Clear the selection. */
   deselect(): void;
-  /** Orbit-lock the camera to `name` without moving it. */
+  /**
+   * Focus: make `name` the camera's anchor — what it orbits and follows —
+   * without moving the camera. It stays where it is and turns to face `name`.
+   */
   track(name: string): boolean;
   /** Release the tracked object. The camera stays where it is. */
   untrack(): void;
+  /**
+   * Frame: cut to a view that fits `name` — the tracked object when omitted —
+   * and track it. The camera keeps the side it sees the object from and moves
+   * along that line until the object comfortably fills the view.
+   * False with no name and nothing tracked.
+   */
+  frameObject(name?: string): boolean;
+  /**
+   * Fly: animate to the view `frameObject` would cut to, then track `name`.
+   * `path` defaults to the viewer's, `overview` in this one; `seconds` to the
+   * path's own duration. Returns at once — sequence with `wait`.
+   *
+   * The flight owns the camera until it lands. Navigation input from the
+   * person, or `stopFlight`, ends it where it is with `name` tracked.
+   */
+  flyTo(name: string, opts?: { seconds?: number; path?: FlightPath }): boolean;
+  /** Jump: apply the view a flight to `name` would land on, at once. */
+  jumpTo(name: string): boolean;
+  /**
+   * End a flight where it is. The camera keeps its pose, and the object it
+   * was flying to is tracked. Does nothing when nothing is flying.
+   */
+  stopFlight(): void;
   /**
    * Aim the camera at `name` while continuing to orbit whatever it tracks.
    * Idempotent: pointing at the same object twice still points at it.
@@ -224,6 +269,8 @@ export interface ViewerControl {
   isPlaying(): boolean;
   getSelected(): string | null;
   getTracked(): string | null;
+  /** The flight playing, or null when the camera is not being flown. */
+  getFlight(): ScriptFlight | null;
   getCamera(): ScriptCamera;
   /** Floating scene origin, independent of tracking (ECLIPJ2000 axes). */
   getCameraReference?(): string | null;

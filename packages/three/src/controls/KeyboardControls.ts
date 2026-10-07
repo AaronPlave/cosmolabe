@@ -89,8 +89,12 @@ export class KeyboardControls {
 
     this._onKeyDown = (e: KeyboardEvent) => {
       if (!this.enabled) return;
-      const tag = (e.target as HTMLElement)?.tagName;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      // A code editor (the script console's CodeMirror) is a contenteditable
+      // element, not a textarea: typing in it is not flying the camera.
+      if (target?.isContentEditable) return;
       if (ALL_CODES.has(e.code)) e.preventDefault();
       this._keys.add(e.code);
     };
@@ -116,6 +120,15 @@ export class KeyboardControls {
       for (const c of codes) {
         if (this._keys.has(c)) return true;
       }
+    }
+    return false;
+  }
+
+  /** Whether a movement or roll key is held — the person navigating, not a slew. */
+  get navigating(): boolean {
+    if (!this.enabled) return false;
+    for (const code of ALL_CODES) {
+      if (this._keys.has(code)) return true;
     }
     return false;
   }

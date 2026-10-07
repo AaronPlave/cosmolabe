@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as Command from '$lib/components/ui/command';
   import { getCommands, getBodyCommands } from '../lib/commands';
-  import { trackBody, getRenderer } from '../lib/viewer-state.svelte';
+  import { selectAndFlyTo, getRenderer } from '../lib/viewer-state.svelte';
   import { Orbit, Eye, Camera, Timer } from 'lucide-svelte';
 
   interface Props {
@@ -38,7 +38,7 @@
     if (!renderer) return;
 
     const bodyCmd = getBodyCommands().find(b => `body:${b.name}` === id);
-    if (bodyCmd) { trackBody(bodyCmd.name); onClose(); return; }
+    if (bodyCmd) { selectAndFlyTo(bodyCmd.name); onClose(); return; }
 
     const cmd = getCommands().find(c => c.id === id);
     if (cmd) { cmd.execute(renderer); onClose(); }

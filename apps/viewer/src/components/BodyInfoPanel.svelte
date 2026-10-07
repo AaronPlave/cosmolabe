@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { vs, selectBody, getRenderer } from '../lib/viewer-state.svelte';
+  import { vs, selectBody, getRenderer, flyToBody } from '../lib/viewer-state.svelte';
   import type { InfoRow } from '@cosmolabe/three';
   import { Navigation } from 'lucide-svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
@@ -180,10 +180,7 @@
   }
 
   function flyTo() {
-    const r = getRenderer();
-    if (!r || !vs.selectedBodyName) return;
-    const bm = r.getBodyMesh(vs.selectedBodyName);
-    if (bm) r.cameraController.flyTo(bm, { scaleFactor: r.scaleFactor });
+    if (vs.selectedBodyName) flyToBody(vs.selectedBodyName);
   }
 
   function classificationLabel(classification: string): string {
