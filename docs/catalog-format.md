@@ -67,28 +67,39 @@ Bodies can nest other bodies via their own `items` array, which is how you build
 | `trajectory` | object | How position evolves over time. See [Trajectories](#trajectories). |
 | `rotationModel` | object | How orientation evolves over time. See [Rotation models](#rotation-models). |
 | `geometry` | object | What gets drawn at the body's position. See [Geometry](#geometry). |
-| `trajectoryFrame` | string | Frame the trajectory is expressed in, by name (e.g. `"J2000"`, `"EclipticJ2000"`, `"ICRF"`, `"TEME"`, `"IAU_MARS"`, `"BodyFixed"`). See [Frames](#frames). Defaults to `EclipticJ2000`. Also accepted on each `arcs[]` entry. |
-| `bodyFrame` | string | Reference frame of the body's orientation. |
-| `label` | object | `{ "color": [r, g, b], "text": "..." }` for the on-screen label |
-| `trajectoryPlot` | object | Orbit-trail config: `{ "color", "fade", "duration", "visible" }` |
+| `trajectoryFrame` | string | Frame the trajectory is expressed in, by name (e.g. `"J2000"`, `"EclipticJ2000"`, `"ICRF"`, `"TEME"`, `"IAU_MARS"`, `"BodyFixed"`). See [Frames](#frames). Defaults to `EclipticJ2000`. Also accepted on each `arcs[]` entry. A `Spice` trajectory is queried in this frame too; there is no `frame` inside the trajectory. |
+| `bodyFrame` | string | The inertial frame a `Uniform`, `Fixed` or `FixedEuler` rotation is stated in, when the rotation model does not name one with `inertialFrame`. Other rotation types are oriented by their own frame and do not read it. |
+| `label` | object | `{ "color": [r, g, b], "visible": false }` for the on-screen label |
+| `trajectoryPlot` | object | Orbit-trail config: `{ "color", "fade", "duration", "lead", "opacity", "visible", "sampleCount", "lineWidth" }`. `visible` belongs here, not inside `trajectory`. |
+| `naifId` | number | NAIF ID, for SPICE radius lookup |
+| `mass` | number or string | kg, or with a unit suffix (see [Values and units](#values-and-units)) |
+| `radii` | array | `[a, b, c]` triaxial radii in km (overrides SPICE and `geometry`) |
+| `arcs` | array | Mission phases, each `{ "startTime", "endTime", "center", "trajectoryFrame", "trajectory", "showLine", "numKeySamples" }`; the same as a `Composite` trajectory |
+| `startTime` / `endTime` | string | Bounds of the first and last `arcs` entry when they leave them out. On an item without `arcs` they are accepted (Cosmographia writes them) but do not yet limit when the body is shown. |
+| `spiceKernels` | array | Kernels this item needs, added to the catalog's list |
 | `items` | array | Children — bodies whose `center` is implicitly this one |
 
 ## Trajectories
 
-Ten types, picked by `trajectory.type`:
+Picked by `trajectory.type`:
 
 | Type | When to use | Key fields |
 |---|---|---|
 | `FixedPoint` | A body that doesn't move | `position: [x, y, z]` (km) |
 | `FixedSpherical` | Surface point given as lat/lon | `latitude`, `longitude`, `radius` |
-| `Keplerian` | Closed-form analytic orbit | `semiMajorAxis`, `eccentricity`, `inclination`, `ascendingNode`, `argOfPeriapsis`, `meanAnomaly`, `epoch`, optional `period` |
+| `Keplerian` | Closed-form analytic orbit | `semiMajorAxis`, `eccentricity`, `inclination`, `ascendingNode`, `argOfPeriapsis` (or `argumentOfPeriapsis`), `meanAnomaly`, `epoch`, optional `period` |
 | `Builtin` | JPL DE ephemeris for solar-system bodies | `name` (e.g. `"Earth"`, `"Mars"`) |
-| `Spice` | High-precision SPK kernel ephemeris | `target`, `center`, `frame` |
-| `InterpolatedStates` | Tabulated state vectors (e.g. sim output) | `source` (`.xyzv` URL) **or** inline `samples` array |
-| `ChebyshevPoly` | Pre-fit Chebyshev coefficients | `coefficients`, `interval` |
-| `TLE` | NORAD two-line elements (SGP4/SDP4) | `line1`, `line2` |
-| `LinearCombination` | Weighted sum of other trajectories | `terms: [{ trajectory, weight }]` |
-| `Composite` | Time-switched arcs of different sources | `arcs: [{ startEt, endEt, trajectory }]` |
+| `Spice` | High-precision SPK kernel ephemeris | `target`, `center`; the frame is the item's `trajectoryFrame` |
+| `InterpolatedStates` | Tabulated state vectors (e.g. sim output) | `source` (`.xyzv` URL) **or** inline `samples: [{ et, position, velocity }]` |
+| `OEM` | A CCSDS Orbit Ephemeris Message (needs an LSK) | `source` (the OEM file) |
+| `ChebyshevPoly` | Pre-fit Chebyshev coefficients | `source` (a `.cheb` file), optional `period` |
+| `TLE` | NORAD two-line elements (SGP4/SDP4) | `line1`, `line2`, optional `windowDays` |
+| `LinearCombination` | Weighted sum of two trajectories | `trajectories: [a, b]`, `weights: [wa, wb]`, optional `period` |
+| `Composite` | Time-switched arcs of different sources | `arcs: [{ startTime, endTime, center, trajectoryFrame, trajectory }]` (`segments` is accepted for `arcs`) |
+| `Waypoints` | A surface track through timed lat/lon/alt points | `referenceRadius`, `epoch`, `waypoints: [{ t, lat, lon, alt }]`, optional `useAbsoluteAlt` |
+| `TASS17`, `L1`, `Gust86`, `MarsSat` | Analytic theories for the moons of Saturn, Jupiter, Uranus and Mars | `satellite` (defaults to `name`, then the item's name) |
+
+A Keplerian orbit propagates with the center's GM, from a built-in table of the Sun and planets. A `period` (days, or with a unit suffix such as `"11.97h"`) overrides it, and is required for a center the table does not list.
 
 Some trajectory types know their own frame, and that frame is used whatever `trajectoryFrame` says: **TLE** output is TEME, **FixedSpherical** and **Waypoints** are body-fixed to the item's `center`, an **OEM** file's `REF_FRAME` is its frame, and a **Spice** trajectory is in the frame it is queried in. TLE items no longer need `trajectoryFrame: "J2000"` (it is ignored), and TEME is now rotated into J2000 with precession and nutation instead of being treated as J2000. That rotation is about 20 arcminutes by 2026, or tens of km at LEO.
 
@@ -100,11 +111,14 @@ Picked by `rotationModel.type`:
 |---|---|
 | `Builtin` | A solar-system body's IAU body-fixed frame. Optional `name` (default `IAU_<BODY>`). See [Planets and moons](#planets-and-moons). |
 | `Uniform` | Constant rotation rate. Fields: `period`, `inclination`, `ascendingNode`, `meridianAngle` |
-| `Fixed` | A constant orientation. Fields: `quaternion: [x, y, z, w]` |
-| `FixedEuler` | A constant orientation given as Euler angles. Fields: `axes: "XYZ"`, `angles: [a, b, c]` |
-| `Interpolated` | Tabulated quaternion samples, SLERP-interpolated. Fields: `samples: [[et, x, y, z, w], …]` |
+| `Fixed` | A constant orientation. Fields: `quaternion: [w, x, y, z]`, or `inclination`, `ascendingNode`, `meridianAngle`; optional `inertialFrame` |
+| `FixedEuler` | A constant orientation given as Euler angles. Fields: `sequence: "XYZ"`, `angles: [a, b, c]` (degrees); optional `inertialFrame` |
+| `Interpolated` | Tabulated quaternions, SLERP-interpolated. Fields: `source` (a `.q` file) or inline `records: [{ "et": …, "q": [w, x, y, z] }, …]`; optional `inertialFrame` |
 | `Spice` | Any SPICE frame (CK, PCK or frame kernel). Fields: `bodyFrame` (default `IAU_<BODY>`), `inertialFrame` (default: the item's `trajectoryFrame`) |
-| `Nadir` | Spacecraft pointed at a target body's nadir vector. Fields: `target`, `center` |
+| `Nadir` | Spacecraft pointed at a target body's nadir vector. Fields: `target`, `center`, optional `inertialFrame` |
+| `SurfaceUp` | A surface vehicle whose +X axis follows local up on its parent. No fields |
+
+`Uniform` also takes `epoch`, and `ascension`/`declination` (the pole's RA/Dec directly) in place of `inclination`/`ascendingNode`.
 
 ### Planets and moons
 
@@ -118,14 +132,14 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 
 | Type | What it draws | Key fields |
 |---|---|---|
-| `Globe` | Textured sphere; optionally with streaming terrain | `radius`, `baseMap`, `normalMap`, `nightMap`, `atmosphere`, `terrain` |
-| `Mesh` | A 3D model (GLTF, OBJ, CMOD) | `source`, `size`, `meshRotation` |
-| `Sensor` | Instrument FOV cone | `target`, `shape` (`circular` / `elliptical` / `rectangular`), `horizontalFov`, `verticalFov`, `frustumColor`, `frustumOpacity` |
+| `Globe` | Textured sphere; optionally with streaming terrain | `radius` or `radii`, `baseMap`, `normalMap`, `displacementMap` (+ `displacementScale`, `displacementBias`), `bumpMap` (+ `bumpScale`), `atmosphere`, `terrain`, `surfaceTiles` |
+| `Mesh` | A 3D model (GLTF, OBJ, CMOD) | `source`, `size` (or `scale`), `meshRotation` (`[w, x, y, z]`), `meshOffset` |
+| `Sensor` | Instrument FOV cone | `target`, `spiceId`, `shape` (`rectangular` / `elliptical`), `horizontalFov`, `verticalFov`, `range`, `orientation`, `frustumColor`, `frustumOpacity` |
 | `Rings` | Planetary rings | `innerRadius`, `outerRadius`, `texture` |
-| `Axes` | Reference frame axes | `length` |
-| `KeplerianSwarm` | Many bodies sharing a parent (asteroid belt, debris cloud) | `bodies: []` |
-| `ParticleSystem` | Plumes, exhaust, dust | (renderer-specific) |
-| `TimeSwitched` | Different geometry at different times | `arcs: [{ startEt, endEt, geometry }]` |
+
+Any geometry also takes `emissive: true` (self-lit, e.g. the Sun), `castShadow: true`, and `surfaceLock` (keep a surface body on the terrain: `true`, `"aboveTerrain"` or `{ "mode": "aboveTerrain" }`).
+
+Sensor fields sit directly on the geometry, not in a nested `sensor` object. Cosmographia's `Axes`, `KeplerianSwarm`, `ParticleSystem` and `TimeSwitched` geometry types load, but no renderer draws them yet: the body gets the default placeholder.
 
 ### Asset paths
 
@@ -136,10 +150,13 @@ Relative paths in `Mesh.source`, a Globe's `baseMap`, `normalMap`, `displacement
 Streaming terrain over the basemap. Supports three sources:
 
 ```json
-"terrain": { "type": "tiles", "url": "...", "tileFormat": "qm" }
-"terrain": { "type": "ion", "assetId": 1, "accessToken": "..." }
+"terrain": { "type": "quantized-mesh", "url": "..." }
+"terrain": { "type": "cesium-ion", "cesiumIonAssetId": 1, "cesiumIonToken": "..." }
+"terrain": { "type": "3dtiles", "url": "..." }
 "terrain": { "type": "imagery", "imagery": { "url": "...{z}/{y}/{x}.jpeg", "levels": 8 } }
 ```
+
+`imagery` may be one layer or an array of them, draped over the terrain. The tuning keys (`errorTarget`, `maxCacheBytes`, `referenceRadiusOffsetKm`, `skirtScale`, `fadeDurationMs`, …) are listed with the rest of the accepted keys in `packages/core/src/catalog/CatalogSchema.ts`.
 
 ## Frames
 
@@ -265,6 +282,16 @@ Two things to know:
 
 Epochs before 1972 use the SPICE-free table's clamp and are off by about a
 second; furnish an LSK if a pre-1972 epoch has to be exact.
+
+## Unknown keys
+
+JSON accepts any key, so a misspelled or misplaced one used to be dropped without a word, and the scene still rendered, just without what the key asked for. The loader now checks every node against the keys the code actually reads for that node type, and prints a console warning for each key that isn't one. The warning names the key, the node that owns it, its JSON path, and the most likely fix:
+
+```
+[Cosmolabe] catalog "MoonFall": unknown key "visible" on Builtin trajectory of "Earth" ($.items[4].trajectory) is not read and has no effect. Did you mean "visible" in trajectoryPlot?
+```
+
+An unknown trajectory or rotation `type` is reported the same way, unless a custom factory handles it. Its fields are not checked, and neither are the fields of a geometry type that no renderer here knows, since they belong to code the loader cannot see. `validateCatalog(json)` returns the same diagnostics without printing them, for an editor or a CI check. The shipped catalogs are tested to produce none.
 
 ## More examples
 
