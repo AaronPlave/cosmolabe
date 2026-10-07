@@ -152,7 +152,7 @@ export class BloomEffect {
     // Avoid the offscreen scene and blur pyramid when no visible object opted in.
     let hasSource = false;
     this.scene.traverseVisible(obj => {
-      if ((isMesh(obj) || isPoints(obj) || isSprite(obj)) && obj.layers.test(_bloomTestLayers)) hasSource = true;
+      if ((isMesh(obj) || isLine(obj) || isPoints(obj) || isSprite(obj)) && obj.layers.test(_bloomTestLayers)) hasSource = true;
     });
     if (!hasSource) return;
 
