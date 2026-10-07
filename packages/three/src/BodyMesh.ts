@@ -35,6 +35,21 @@ function isDDSMagic(buffer: ArrayBuffer): boolean {
   return h[0] === 0x44 && h[1] === 0x44 && h[2] === 0x53 && h[3] === 0x20;
 }
 
+/**
+ * Make a DDS globe map sample north-up. A DDS stores its top (north) row
+ * first and is uploaded as-is, because `CompressedTexture` ignores `flipY`,
+ * so on the sphere (v = 0 at the south pole) it would show upside-down where
+ * the same map as a JPG/PNG is correct. Flipping v in the texture transform
+ * costs nothing and leaves the compressed mip chain untouched.
+ *
+ * Globe maps only: .cmod mesh models load their DDS through CmodLoader with
+ * UVs authored for the unflipped texture.
+ */
+function flipGlobeDDS(texture: THREE.CompressedTexture): void {
+  texture.repeat.y = -1;
+  texture.offset.y = 1;
+}
+
 const _tmpQ = new THREE.Quaternion();
 
 export class BodyMesh extends THREE.Object3D {
@@ -1371,6 +1386,8 @@ export class BodyMesh extends THREE.Object3D {
         );
         tex.minFilter = texData.mipmaps.length === 1 ? THREE.LinearFilter : THREE.LinearMipmapLinearFilter;
         tex.magFilter = THREE.LinearFilter;
+        // North-up, so the stitched render target below is too.
+        flipGlobeDDS(tex);
         tex.needsUpdate = true;
         return tex;
       };
@@ -1489,6 +1506,7 @@ export class BodyMesh extends THREE.Object3D {
     return this.parseDDSBuffer(buffer);
   }
 
+  /** Parse a DDS globe map (base/normal/displacement/bump), oriented north-up. */
   private parseDDSBuffer(buffer: ArrayBuffer): THREE.CompressedTexture {
     const loader = new DDSLoader();
     const texData = loader.parse(buffer, false);
@@ -1502,6 +1520,7 @@ export class BodyMesh extends THREE.Object3D {
       ? THREE.LinearFilter
       : THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
+    flipGlobeDDS(texture);
     texture.needsUpdate = true;
     return texture;
   }
