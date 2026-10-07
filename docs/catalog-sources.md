@@ -107,7 +107,7 @@ files a build **serves**. Viewer-owned static assets live in
 `apps/viewer/public/`; repository examples stay separate in
 `apps/viewer/test-catalogs/` and are served under `/test-catalogs/` during
 development. A production build includes examples only when
-`VITE_BUNDLE_TEST_CATALOGS=1` is set. The public Pages build opts in; mission
+`BUNDLE_TEST_CATALOGS=1` is set. The public Pages build opts in; mission
 and bare-viewer builds do not implicitly ship repository examples. This is
 independent of `VITE_CATALOG_SOURCES`, which controls only what the UI lists.
 

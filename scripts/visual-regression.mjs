@@ -171,7 +171,7 @@ function buildEverything() {
   run('build packages', 'npm', ['run', 'build'], {});
   run('build viewer', 'npm', ['--prefix', 'apps/viewer', 'run', 'build'], {
     VITE_BASE: '',
-    VITE_BUNDLE_TEST_CATALOGS: '1',
+    BUNDLE_TEST_CATALOGS: '1',
   });
 }
 

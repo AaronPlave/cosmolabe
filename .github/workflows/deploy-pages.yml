@@ -88,7 +88,7 @@ jobs:
           HOSTED_DATA: ${{ vars.DATA_BASE_URL != '' && '1' || '0' }}
           # The public site opts into shipping the repository examples and
           # exposes them through the catalog-source mechanism (issue #93).
-          VITE_BUNDLE_TEST_CATALOGS: '1'
+          BUNDLE_TEST_CATALOGS: '1'
           VITE_CATALOG_SOURCES: '[{"id":"examples","name":"Examples","indexUrl":"test-catalogs/index.json"}]'
         working-directory: apps/viewer
         run: npx vite build

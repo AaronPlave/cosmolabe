@@ -40,7 +40,7 @@ Use an absolute hosted URL for production. Local catalogs can point at
 `data/moon-terrain-fused/` relative to its catalog and run with
 `npm --prefix apps/viewer run dev`; the development server exposes the repository
 examples in that namespace. Production only contains examples when
-`VITE_BUNDLE_TEST_CATALOGS=1` is set, and hosted builds rewrite published terrain
+`BUNDLE_TEST_CATALOGS=1` is set, and hosted builds rewrite published terrain
 references to the data host.
 
 ## Square-tile polar cap (prototype, #144)

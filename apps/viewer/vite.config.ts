@@ -120,7 +120,7 @@ const testCatalogsPlugin = {
 // Examples are development conveniences by default. A deployment that offers
 // them opts in explicitly; hosted datasets are filtered from that optional copy.
 const hostedData = process.env.HOSTED_DATA === '1';
-const bundleTestCatalogs = process.env.VITE_BUNDLE_TEST_CATALOGS === '1';
+const bundleTestCatalogs = process.env.BUNDLE_TEST_CATALOGS === '1';
 const bundleTestCatalogsPlugin = {
   name: 'bundle-test-catalogs',
   apply: 'build' as const,

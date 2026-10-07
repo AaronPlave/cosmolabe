@@ -147,7 +147,7 @@ dataset, so a new mission directory can't be forgotten.
 ## Checking a deployment
 
 Repository examples are not included in ordinary builds. Set
-`VITE_BUNDLE_TEST_CATALOGS=1` to copy them under `dist/test-catalogs/` (the Pages
+`BUNDLE_TEST_CATALOGS=1` to copy them under `dist/test-catalogs/` (the Pages
 build does this because it offers the Examples source). Locally, the directory
 may hold gigabytes of terrain and kernels; combine the opt-in with
 `HOSTED_DATA=1` to skip every dataset pinned in `datasets.json` during the copy.
@@ -155,7 +155,7 @@ may hold gigabytes of terrain and kernels; combine the opt-in with
 e.g. one that is still uploading:
 
 ```sh
-(cd apps/viewer && VITE_BUNDLE_TEST_CATALOGS=1 HOSTED_DATA=1 HOSTED_DATA_SKIP=terrain/mars-terrain-fused VITE_BASE=/ npx vite build)
+(cd apps/viewer && BUNDLE_TEST_CATALOGS=1 HOSTED_DATA=1 HOSTED_DATA_SKIP=terrain/mars-terrain-fused VITE_BASE=/ npx vite build)
 ```
 
 ```sh
