@@ -24,8 +24,9 @@ export interface ViewStateV1 {
 }
 
 export const MAX_VIEW_STATE_LENGTH = 8192;
-// Other modes have private surface/sensor/chase parameters. Until #114 exposes
-// those relationships, reject them rather than claim a reproducible raw pose.
+// Other modes have private surface/sensor/chase parameters that neither a pose
+// nor a catalog viewpoint captures yet; reject them rather than claim a
+// reproducible raw pose.
 export const PORTABLE_POSE_MODES = ['free-orbit', 'body-fixed', 'sc-fixed'] as const;
 
 export class ViewStateError extends Error {
@@ -130,11 +131,18 @@ export function applyViewState(host: ViewerControl, input: ViewStateV1, options:
   host.clearLookAt();
   host.untrack();
   require(host.setFrame('free-orbit'), 'camera frame unavailable');
-  // Named views may carry an epoch. Explicit ViewState time wins afterwards.
-  if (s.view.kind === 'named') require(host.viewpoint(s.view.name), 'viewpoint unavailable');
-  const namedCamera = s.view.kind === 'named' ? host.getCamera() : null;
-  require(host.setTime(s.time.kind === 'fixed' ? { kind: 'et', et: s.time.et } : s.time.kind === 'system'
-    ? { kind: 'calendar', text: options.systemTime ?? new Date().toISOString() } : { kind: 'et', et: previousTime }), 'epoch unavailable');
+  const time = s.time.kind === 'fixed' ? { kind: 'et' as const, et: s.time.et } : s.time.kind === 'system'
+    ? { kind: 'calendar' as const, text: options.systemTime ?? new Date().toISOString() } : { kind: 'et' as const, et: previousTime };
+  // A named view without an epoch resolves at the current time (it follows
+  // the clock), so it is applied at the link's time, which is where copying
+  // matched it. One that carries an epoch seeks there; ViewState time wins.
+  require(host.setTime(time), 'epoch unavailable');
+  let namedCamera: ScriptCamera | null = null;
+  if (s.view.kind === 'named') {
+    require(host.viewpoint(s.view.name), 'viewpoint unavailable');
+    namedCamera = host.getCamera();
+    require(host.setTime(time), 'epoch unavailable');
+  }
   // Renderer hosts refresh mode context at this epoch before activating a
   // rotating camera frame; otherwise its first update rotates an old-ET pose.
   options.afterSeek?.();
