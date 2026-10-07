@@ -105,7 +105,7 @@ export class SunVisual {
             // Local fixed exposure until the renderer has a scene-wide HDR path.
             // The disk is drawn after the shell with the original opaque depth,
             // so atmosphere transmission is applied once, before this response.
-            gl_FragColor = vec4((1.0 - exp(-radiance)) * resolvedWeight, 1.0);
+            gl_FragColor = vec4((1.1 * (1.0 - exp(-radiance * 0.6))) * resolvedWeight, 1.0);
             #include <colorspace_fragment>
           }
         }

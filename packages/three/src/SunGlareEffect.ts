@@ -2,13 +2,17 @@ import * as THREE from 'three';
 import type { SunVisual } from './SunVisual.js';
 import { isMesh, isLine, isPoints, isSprite } from './internal/three-typeguards.js';
 
-/** One solar-only HDR/depth pass and a bounded analytic two-scale optical halo.
+/** One solar-only HDR/depth pass and a bounded two-scale optical halo.
  * Source sampling happens after opaque occlusion and atmospheric transmission.
  * No scene overlay, star point, or generic emissive object can enter this pass.
  */
 export class SunGlareEffect {
   private readonly target: THREE.WebGLRenderTarget;
   private readonly signalTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
+  private readonly blurTargets = Array.from({ length: 3 }, () =>
+    new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false }));
+  private readonly blurScene = new THREE.Scene();
+  private readonly blurQuad: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   private readonly dark = new THREE.MeshBasicMaterial({ color: 0 });
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -18,15 +22,37 @@ export class SunGlareEffect {
 
   constructor(private readonly renderer: THREE.WebGLRenderer) {
     this.target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+    this.blurQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+      uniforms: { source: { value: this.target.texture }, stepUV: { value: new THREE.Vector2() } },
+      vertexShader: `varying vec2 uvScreen;
+        void main() { uvScreen = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+      fragmentShader: `uniform sampler2D source; uniform vec2 stepUV; varying vec2 uvScreen;
+        void main() {
+          vec3 signal = vec3(0.0); float total = 0.0;
+          for (int i = -4; i <= 4; i++) {
+            float offset = float(i) * 0.5;
+            float weight = exp(-0.5 * offset * offset);
+            vec2 sampleUV = uvScreen + stepUV * offset;
+            if (all(greaterThanEqual(sampleUV, vec2(0.0))) && all(lessThanEqual(sampleUV, vec2(1.0))))
+              signal += texture2D(source, sampleUV).rgb * weight;
+            total += weight;
+          }
+          gl_FragColor = vec4(signal / total, 1.0);
+        }`,
+      depthTest: false, depthWrite: false, toneMapped: false,
+    }));
+    this.blurQuad.frustumCulled = false;
+    this.blurScene.add(this.blurQuad);
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
       uniforms: {
         source: { value: this.target.texture },
         resolveSignal: { value: false },
+        pointSignal: { value: this.signalTarget.texture },
+        compactTex: { value: this.blurTargets[1].texture },
+        tailTex: { value: this.blurTargets[2].texture },
         sourceCenter: { value: new THREE.Vector2() },
         sourceRadius: { value: new THREE.Vector2() },
-        diskRadius: { value: 1 },
         haloRadius: { value: 1 },
-        compactSigma: { value: 2 },
         unresolved: { value: 0 },
         strength: { value: 1 },
         quadCenter: { value: new THREE.Vector2() },
@@ -43,10 +69,11 @@ export class SunGlareEffect {
         }
       `,
       fragmentShader: /* glsl */ `
-        uniform sampler2D source;
+        uniform sampler2D source, pointSignal, compactTex, tailTex;
         uniform bool resolveSignal;
+        uniform vec2 quadSize;
         uniform vec2 sourceCenter, sourceRadius;
-        uniform float diskRadius, haloRadius, compactSigma, unresolved, strength;
+        uniform float haloRadius, unresolved, strength;
         varying vec2 p;
         void main() {
           // A deterministic equal-area disk quadrature. Hidden portions of the
@@ -63,17 +90,16 @@ export class SunGlareEffect {
             gl_FragColor = vec4(signal, 1.0);
             return;
           }
-          // The disk reduction is performed once per Sun into a 1x1 HDR target,
-          // rather than repeating 32 source samples at every halo fragment.
-          signal = texture2D(source, vec2(0.5)).rgb;
+          // Preserve the spatial occultation/transmission mask in both scales.
+          // Averaging a half-visible disk into one scalar creates a false full ring.
+          vec2 screenUV = sourceCenter + p * quadSize * 0.5;
+          vec3 raw = texture2D(source, screenUV).rgb;
+          float outsideSource = 1.0 - smoothstep(0.001, 0.1, max(raw.r, max(raw.g, raw.b)));
+          vec3 glare = (0.07 * texture2D(compactTex, screenUV).rgb +
+            0.007 * texture2D(tailTex, screenUV).rgb) * outsideSource * strength;
           float radius = length(p) * haloRadius;
-          float outside = max(0.0, radius - diskRadius);
-          float compact = exp(-0.5 * pow(outside / compactSigma, 2.0));
-          float tail = exp(-0.5 * pow(outside / (compactSigma * 3.0), 2.0));
-          float exterior = smoothstep(max(0.0, diskRadius - 1.0), diskRadius + 1.0, radius);
-          float point = unresolved * exp(-0.5 * radius * radius / 1.0);
-          vec3 glare = signal * (0.085 * compact + 0.008 * tail) * exterior * strength;
-          glare += signal * point;
+          float point = unresolved * exp(-0.5 * radius * radius);
+          glare += texture2D(pointSignal, vec2(0.5)).rgb * point;
           gl_FragColor = vec4(glare, 1.0);
           #include <colorspace_fragment>
         }
@@ -100,6 +126,10 @@ export class SunGlareEffect {
     if (visible.length === 0) return;
     if (this.target.width !== this.size.x || this.target.height !== this.size.y)
       this.target.setSize(this.size.x, this.size.y);
+    for (const target of this.blurTargets) {
+      const width = Math.ceil(this.size.x / 2), height = Math.ceil(this.size.y / 2);
+      if (target.width !== width || target.height !== height) target.setSize(width, height);
+    }
     const savedTarget = this.renderer.getRenderTarget();
     const savedClear = this.renderer.getClearColor(new THREE.Color());
     const savedAlpha = this.renderer.getClearAlpha();
@@ -193,18 +223,49 @@ export class SunGlareEffect {
         u.sourceRadius.value.set(sourceRadius / this.size.x, sourceRadius / this.size.y);
         u.quadCenter.value.set(this.projected.x, this.projected.y);
         u.quadSize.value.set(halo * 2 / this.size.x, halo * 2 / this.size.y);
-        u.diskRadius.value = disk;
         u.haloRadius.value = halo;
-        u.compactSigma.value = sigma;
         u.unresolved.value = 1 - visual.uniforms.resolvedWeight.value;
-        u.resolveSignal.value = true;
-        u.source.value = this.target.texture;
         this.renderer.setClearColor(0, 0);
-        this.renderer.setRenderTarget(this.signalTarget);
-        this.renderer.clear();
-        this.renderer.render(this.scene, this.camera);
-        u.resolveSignal.value = false;
-        u.source.value = this.signalTarget.texture;
+        const blur = this.blurQuad.material.uniforms;
+        const drawBlur = (target: THREE.WebGLRenderTarget) => {
+          // Clear old source positions, but shade only the Sun + its halo bounds.
+          // A small Sun should not run four filters across the entire viewport.
+          target.scissorTest = false;
+          this.renderer.setRenderTarget(target);
+          this.renderer.clear();
+          const x = u.sourceCenter.value.x * target.width;
+          const y = u.sourceCenter.value.y * target.height;
+          const padX = halo * target.width / this.size.x;
+          const padY = halo * target.height / this.size.y;
+          const left = THREE.MathUtils.clamp(Math.floor(x - padX), 0, target.width);
+          const bottom = THREE.MathUtils.clamp(Math.floor(y - padY), 0, target.height);
+          const right = THREE.MathUtils.clamp(Math.ceil(x + padX), 0, target.width);
+          const top = THREE.MathUtils.clamp(Math.ceil(y + padY), 0, target.height);
+          target.scissor.set(left, bottom, right - left, top - bottom);
+          target.scissorTest = true;
+          this.renderer.setRenderTarget(target);
+          this.renderer.render(this.blurScene, this.camera);
+        };
+        for (const [width, target] of [[sigma, this.blurTargets[1]], [sigma * 3, this.blurTargets[2]]] as const) {
+          blur.source.value = this.target.texture;
+          blur.stepUV.value.set(width / this.size.x, 0);
+          drawBlur(this.blurTargets[0]);
+          blur.source.value = this.blurTargets[0].texture;
+          blur.stepUV.value.set(0, width / this.size.y);
+          drawBlur(target);
+        }
+        // Only the unresolved point needs total flux, rather than a spatial image.
+        if (u.unresolved.value > 0) {
+          u.resolveSignal.value = true;
+          u.source.value = this.target.texture;
+          u.pointSignal.value = this.target.texture;
+          this.renderer.setRenderTarget(this.signalTarget);
+          this.renderer.clear();
+          this.renderer.render(this.scene, this.camera);
+          u.resolveSignal.value = false;
+          u.pointSignal.value = this.signalTarget.texture;
+        }
+        u.source.value = this.target.texture;
         this.renderer.setRenderTarget(savedTarget);
         this.renderer.setClearColor(savedClear, savedAlpha);
         this.renderer.render(this.scene, this.camera);
@@ -220,6 +281,9 @@ export class SunGlareEffect {
   dispose(): void {
     this.target.dispose();
     this.signalTarget.dispose();
+    for (const target of this.blurTargets) target.dispose();
+    this.blurQuad.geometry.dispose();
+    this.blurQuad.material.dispose();
     this.dark.dispose();
     this.quad.geometry.dispose();
     this.quad.material.dispose();

@@ -7,8 +7,8 @@ its catalog radius even when `minBodyPixels` is nonzero.
 The disk uses a broadband linear limb-darkening profile, `0.4 + 0.6 * mu`, and
 warm-white linear HDR radiance `(3.2, 3.08, 2.88)`. `mu` is the normal/view cosine
 at the actual sphere surface, including perspective at close range. A fixed local
-response, `1 - exp(-radiance)`, displays that signal without changing scene-wide
-exposure or tone mapping.
+response, `1.1 * (1 - exp(-0.6 * radiance))`, displays that signal without changing
+scene-wide exposure or tone mapping.
 
 `SOLAR_LAYER` draws the disk after atmosphere shells while retaining the opaque
 body depth buffer. The nearest intersected atmosphere supplies its existing RGB
@@ -19,10 +19,13 @@ numerical profile integration remains available when no LUT exists.
 `SunGlareEffect` renders only solar radiance into a half-float source target.
 Opaque meshes contribute depth and black color; transparent shells, overlays,
 lines, sprites, stars and other emissive content contribute no light. A bounded
-quad uses a 1x1 HDR reduction of 32 equal-area photosphere samples to generate a
-compact halo plus a much fainter tail. Their width is capped, so close-up solar
-views do not grow a huge halo. Partial occultation reduces the source signal;
-total occultation removes it.
+quad composites two spatial Gaussian blurs of the source at half resolution: a
+compact halo and a much fainter tail. Both retain the original occultation and
+atmospheric transmission mask, so a rising Sun cannot produce a circular halo
+around its hidden lower half. Their width is capped, so close-up solar views do
+not grow a huge halo. The response suppresses glare over the luminous disk to
+preserve its photospheric gradient. Only the unresolved point uses a 1x1 HDR
+reduction of 32 equal-area samples to estimate total visible flux.
 
 Between two and one physical pixels, the display disk smoothly transfers into a
 point spread. An expanded *offscreen optical source* preserves subpixel energy,
@@ -40,7 +43,8 @@ This is a fixed-exposure approximation, not calibrated photometry. It uses the
 first atmosphere crossed on the viewing ray; simultaneous transmission through
 multiple planetary atmospheres and eclipse corona are outside this first pass.
 The 32-sample quadrature approximates partial-disk optical flux rather than
-simulating a full camera PSF.
+simulating a full camera PSF. The two separable blurs use nine taps per axis,
+scissored to the Sun and halo bounds to keep small-source views inexpensive.
 
 ## GPU verification
 
@@ -52,7 +56,8 @@ CHROMIUM_PATH=/usr/bin/chromium node scripts/test-sun-gpu.mjs
 ```
 
 The check needs Chromium but no viewer assets or SPICE kernels. It tests limb
-darkening, neutral color, HDR values, compact glare, resolved and subpixel total
+darkening in both distant and close views, neutral color, HDR values, compact
+glare, spatial masking of partial occultation and sunrise, resolved and subpixel total
 occultation, atmospheric dimming/reddening of the disk and glare, agreement
 between LUT and numerical transmission, unresolved visibility, exclusion of
 other content, physical radius, and restoration of scene/renderer state.
@@ -73,3 +78,7 @@ large disk to expose transmission gradients and ground masking.
 ### Partial occultation
 
 ![Foreground sphere masks the disk and reduces its optical glare](images/sun-partial-eclipse.png)
+
+### Close resolved disk
+
+![Visible center-to-limb photospheric brightness gradient](images/sun-close.png)

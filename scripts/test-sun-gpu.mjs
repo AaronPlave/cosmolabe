@@ -14,7 +14,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 768, height: 512 } });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('console', m => { if (m.type() === 'error' || /GL_INVALID_OPERATION|Feedback loop/i.test(m.text())) errors.push(m.text()); });
   await page.route('http://sun.test/**', route => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/') return route.fulfill({ contentType: 'text/html', body:
@@ -82,6 +82,7 @@ try {
     blocker.position.x = 0.8;
     draw();
     const partialHalo = pixel(Math.round(384 + radius + 3), 256);
+    const partialVisibleHalo = pixel(Math.round(384 - radius - 3), 256);
     blocker.position.x = 0;
     blocker.visible = false;
     const sourceTarget = new THREE.WebGLRenderTarget(768, 512, { type: THREE.HalfFloatType });
@@ -107,6 +108,8 @@ try {
     draw();
     const horizonDisk = pixel(384, 256);
     const horizonHalo = pixel(Math.round(384 + radius + 3), 256);
+    const horizonHiddenHalo = pixel(384, Math.round(256 - radius - 3));
+    const horizonVisibleHalo = pixel(384, Math.round(256 + radius + 3));
     const lutAtm = new AtmosphereMesh(6371, getAtmospherePreset('Earth'), renderer);
     lutAtm.scale.copy(atm.scale);
     lutAtm.position.copy(atm.position);
@@ -114,6 +117,11 @@ try {
     solar.setAtmosphere(lutAtm);
     const horizonLUT = sourcePixel();
     solar.setAtmosphere(null);
+    camera.position.z = 3.5;
+    camera.updateMatrixWorld();
+    draw();
+    const closeRadius = solar.diameterPixels / 2;
+    const closeProfile = [0, 0.5, 0.9, 0.98].map(r => pixel(Math.round(384 + closeRadius * r), 256)[0]);
     // Move farther away, crossing the 1–2px transition without resizing the sun.
     const transition = [];
     for (const diameter of [2.1, 2, 1.8, 1.5, 1.2, 1, 0.8, 0.4]) {
@@ -136,7 +144,7 @@ try {
     camera.updateMatrixWorld();
     draw();
     window.solarTest = { camera, solar, sun, glare, scene, renderer, draw, blocker, atm, overlay };
-    return { center, limb, halo, tail, occulted, occultedDisk, partialHalo, unresolvedOcculted, hdr, horizonHDR, horizonLUT, horizonDisk, horizonHalo, transition, noSun, stateRestored, physicalScale: sun.scale.toArray() };
+    return { center, limb, halo, tail, occulted, occultedDisk, partialHalo, partialVisibleHalo, closeProfile, unresolvedOcculted, hdr, horizonHDR, horizonLUT, horizonDisk, horizonHalo, horizonHiddenHalo, horizonVisibleHalo, transition, noSun, stateRestored, physicalScale: sun.scale.toArray() };
   });
   console.log(JSON.stringify(result, null, 2));
   assert.equal(errors.length, 0, errors.join('\n'));
@@ -145,7 +153,12 @@ try {
   assert.ok(result.hdr.every(c => c > 2), 'optical source must retain HDR radiance');
   assert.ok(result.halo[0] > 0 && result.tail[0] < result.halo[0] * 0.2, 'compact halo with restrained tail');
   assert.deepEqual(result.occultedDisk, [0, 0, 0], 'opaque foreground body must hide the disk');
-  assert.ok(result.partialHalo[0] > 0 && result.partialHalo[0] < result.halo[0], 'partial occultation reduces glare');
+  assert.ok(result.partialVisibleHalo[0] > 0, 'exposed crescent must retain local glare');
+  assert.deepEqual(result.partialHalo, [0, 0, 0], 'hidden crescent must not retain a circular halo');
+  assert.deepEqual(result.horizonHiddenHalo, [0, 0, 0], 'sunrise must not glow around the fully hidden lower limb');
+  assert.ok(result.horizonVisibleHalo[0] > 0, 'sunrise must retain glare at the exposed upper limb');
+  assert.ok(result.closeProfile[0] - result.closeProfile[3] > 30, 'close solar disk must show a visible center-to-limb gradient');
+  assert.ok(result.closeProfile.every((v, i, a) => i === 0 || v <= a[i - 1]), 'close solar gradient must be monotonic');
   assert.deepEqual(result.unresolvedOcculted, [0, 0, 0], 'subpixel occultation must mask the optical footprint');
   assert.deepEqual(result.occulted, [0, 0, 0], 'complete occultation must hide all glare');
   assert.ok(result.horizonHDR[0] < result.hdr[0] * 0.6, 'grazing atmosphere must dim source');
@@ -164,6 +177,8 @@ try {
   await page.screenshot({ path: 'work/sun-rendering/partial-eclipse.png' });
   await page.evaluate(() => { const t = window.solarTest; t.blocker.visible = false; t.solar.setAtmosphere(t.atm); t.draw(); });
   await page.screenshot({ path: 'work/sun-rendering/horizon.png' });
+  await page.evaluate(() => { const t = window.solarTest; t.solar.setAtmosphere(null); t.camera.position.z = 3.5; t.camera.updateMatrixWorld(); t.draw(); });
+  await page.screenshot({ path: 'work/sun-rendering/close.png' });
   console.log('Solar GPU regression passed; captures in work/sun-rendering.');
 } finally {
   await browser.close();
