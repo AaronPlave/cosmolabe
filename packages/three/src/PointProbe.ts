@@ -25,15 +25,21 @@ export const PROBE_COLOR = '#7cc8f0';
  */
 const PIN_SLOP_PX = 2;
 
-/**
- * Depth below the lower of a point and the eye that terrain may still be
- * missing from, as a fraction of the point's radius: 0.5% is 17 km on Mars,
- * deeper than Hellas below the areoid.
- */
-const RELIEF_MARGIN = 0.005;
-
 /** Where a body-fixed surface point is in the scene this frame, and its body centre. */
 export type ProbeAnchorResolver = (point: SurfacePoint) => { world: THREE.Vector3; bodyCenter: THREE.Vector3 } | null;
+
+/** What the overlay needs from the scene each frame. */
+export interface ProbeSceneQuery {
+  resolve: ProbeAnchorResolver;
+  /**
+   * Whether rendered geometry stands between the camera and the pinned point
+   * at `world`. The markers draw over everything, so this alone decides
+   * whether the pin shows.
+   */
+  pinOccluded: (point: SurfacePoint, world: THREE.Vector3) => boolean;
+  /** Where the hovered point was picked from, while the pointer is over the canvas. */
+  pointer: { x: number; y: number } | null;
+}
 
 function markerTexture(draw: (ctx: CanvasRenderingContext2D, size: number) => void): THREE.CanvasTexture | null {
   if (typeof document === 'undefined') return null;
@@ -78,24 +84,6 @@ export function probeCalloutLines(point: SurfacePoint, detail: 'preview' | 'pinn
     coords,
     `${formatHeight(point.altitude.km)} · ${describeDatum(point.altitude.datum)}`,
   ];
-}
-
-/**
- * Whether a body hides a point on its surface from the eye. The body is
- * modelled as a sphere sunk below both the point and the eye by a relief
- * margin: the segment between them passing inside it means the body is in the
- * way. Testing against the point's own radius would hide every point past the
- * geometric horizon, but a mountain beyond it rises into view from a camera
- * down on the surface.
- */
-export function behindBody(point: THREE.Vector3, bodyCenter: THREE.Vector3, eye: THREE.Vector3): boolean {
-  const pointRadius = point.distanceTo(bodyCenter);
-  const occluder = Math.min(pointRadius, eye.distanceTo(bodyCenter)) - pointRadius * RELIEF_MARGIN;
-  if (!(occluder > 0)) return false;
-  const d = new THREE.Vector3().subVectors(point, eye);
-  const f = new THREE.Vector3().subVectors(eye, bodyCenter);
-  const t = Math.min(1, Math.max(0, -f.dot(d) / d.lengthSq()));
-  return f.addScaledVector(d, t).length() < occluder;
 }
 
 export class PointProbeOverlay {
@@ -166,18 +154,16 @@ export class PointProbeOverlay {
 
   /**
    * Re-anchor markers and place callouts. Returns the boxes the callouts
-   * occupy so labels can yield to them. `pointer` is where the hovered point
-   * was picked from, when the pointer is still over the canvas.
+   * occupy so labels can yield to them.
    */
   update(
     camera: THREE.PerspectiveCamera,
     viewport: { width: number; height: number },
-    resolve: ProbeAnchorResolver,
+    scene: ProbeSceneQuery,
     obstacles: CalloutObstacles,
-    pointer?: { x: number; y: number } | null,
   ): ScreenRect[] {
     const boxes: ScreenRect[] = [];
-    const pinScreen = this.placePin(camera, viewport, resolve);
+    const pinScreen = this.placePin(camera, viewport, scene);
     const pinBox = this.pinCallout.update(pinScreen, viewport, obstacles);
     if (pinBox) boxes.push(pinBox);
 
@@ -185,7 +171,7 @@ export class PointProbeOverlay {
     // card says it. Judged on screen, not by coordinates, since the
     // re-probed point drifts a hair as the body turns. The reticle stays: it
     // is where the pointer is, and so where a click would land.
-    const hoverScreen = this.placeReticle(camera, viewport, resolve, pointer ?? null);
+    const hoverScreen = this.placeReticle(camera, viewport, scene.resolve, scene.pointer);
     const onPin = !!hoverScreen && !!pinScreen &&
       (hoverScreen.x - pinScreen.x) ** 2 + (hoverScreen.y - pinScreen.y) ** 2 <= PIN_SLOP_PX ** 2;
     const hoverBox = onPin ? (this.hoverCallout.hide(), null) : this.hoverCallout.update(
@@ -200,13 +186,13 @@ export class PointProbeOverlay {
   private placePin(
     camera: THREE.PerspectiveCamera,
     viewport: { width: number; height: number },
-    resolve: ProbeAnchorResolver,
+    scene: ProbeSceneQuery,
   ): { x: number; y: number } | null {
     const marker = this.pinMarker;
-    const anchor = this.pin ? resolve(this.pin) : null;
-    // Behind its body, the pin (drawn without depth test) and its callout
-    // should not show through.
-    if (!anchor || behindBody(anchor.world, anchor.bodyCenter, camera.position)) {
+    const anchor = this.pin ? scene.resolve(this.pin) : null;
+    // Behind terrain or its body, the pin (drawn without depth test) and its
+    // callout should not show through.
+    if (!anchor || scene.pinOccluded(this.pin!, anchor.world)) {
       marker.visible = false;
       return null;
     }

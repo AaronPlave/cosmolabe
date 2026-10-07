@@ -3,8 +3,7 @@ import {
   PICK_PRECEDENCE, coordinateDecimals, pointerResolution, describeDatum, formatHeight, formatLatitude, formatLongitude, resolveSceneHit, resolveSurfaceAltitude,
   surfacePointToText, type HitLayer, type SceneHit, type SurfacePoint,
 } from './SceneHit.js';
-import * as THREE from 'three';
-import { behindBody, probeCalloutLines } from './PointProbe.js';
+import { probeCalloutLines } from './PointProbe.js';
 
 const AREOID = {
   referenceShape: { kind: 'sphere', radiusKm: 3396.19 },
@@ -172,28 +171,5 @@ describe('surface point presentation', () => {
 
   it('copies at least six decimals, more when the point was probed finer', () => {
     expect(surfacePointToText({ ...point, resolution: pointerResolution(0.00002, 1, 3317, 18.4446) })).toMatch(/^Mars 18\.4446000, 77\.4509000 /);
-  });
-});
-
-describe('behindBody', () => {
-  const R = 3396;
-  const center = new THREE.Vector3();
-  const onSurface = (deg: number, heightKm = 0) =>
-    new THREE.Vector3(Math.cos(deg * Math.PI / 180), Math.sin(deg * Math.PI / 180), 0).multiplyScalar(R + heightKm);
-
-  it('hides the far side and shows the near side from orbit', () => {
-    const eye = new THREE.Vector3(R + 1000, 0, 0);
-    expect(behindBody(onSurface(0), center, eye)).toBe(false);
-    expect(behindBody(onSurface(180), center, eye)).toBe(true);
-    expect(behindBody(onSurface(90), center, eye)).toBe(true);
-  });
-
-  it('shows a ridge past the geometric horizon from a camera down in a crater', () => {
-    // Camera 4 km below the datum, a 1 km ridge 60 km away: past the
-    // sphere's horizon, but in plain view up the slope.
-    const eye = onSurface(0, -4);
-    const ridge = onSurface(60 / R * 180 / Math.PI, 1);
-    expect(ridge.clone().sub(center).dot(eye.clone().sub(ridge))).toBeLessThan(0);
-    expect(behindBody(ridge, center, eye)).toBe(false);
   });
 });

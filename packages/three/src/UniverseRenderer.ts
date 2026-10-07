@@ -288,6 +288,17 @@ export class UniverseRenderer {
   private _probeHoverDirty = false;
   /** How long the last probe pick took, ms; a slow one spaces out the next. */
   private _probePickCostMs = 0;
+  /** The last pin occlusion cast (`_pinOccluded`) and what it was cast for. */
+  private readonly _pinOcclusion = {
+    point: null as SurfacePoint | null,
+    view: new THREE.Matrix4(),
+    world: new THREE.Vector3(),
+    hidden: false,
+    atMs: 0,
+    costMs: 0,
+  };
+  /** A surface this close to the pin, as a fraction of its range, is the pin's own. */
+  private static readonly _pinSurfaceTolerance = 0.02;
   /** Camera pose at the last probe hover pick. */
   private readonly _probePickView = new THREE.Matrix4();
   private readonly _surfaceRaycaster = new THREE.Raycaster();
@@ -1966,15 +1977,62 @@ export class UniverseRenderer {
         ...(this.labelManager?.getScreenRects() ?? []).map((rect) => ({ ...rect, weight: rect.pinned ? 3 : 1 })),
         ...this._eventReservedRects.map((rect) => ({ ...rect, weight: 4 })),
       ];
-      boxes = this._probe.update(this.camera, { width, height }, (point) => this.surfacePointWorld(point), {
-        rects, path: [], discs: [], blockers: this._screenOccluders?.() ?? [],
-      }, this._hoverPointerInside ? this._lastPointer : null);
+      boxes = this._probe.update(this.camera, { width, height }, {
+        resolve: (point) => this.surfacePointWorld(point),
+        pinOccluded: (point, world) => this._pinOccluded(point, world),
+        pointer: this._hoverPointerInside ? this._lastPointer : null,
+      }, { rects, path: [], discs: [], blockers: this._screenOccluders?.() ?? [] });
     } else {
-      this._probe.update(this.camera, { width, height }, () => null, { rects: [], path: [], discs: [] });
+      this._probe.update(this.camera, { width, height }, {
+        resolve: () => null, pinOccluded: () => true, pointer: null,
+      }, { rects: [], path: [], discs: [] });
     }
     // The active annotations outrank every label: ordinary labels under them
     // fade, pinned ones step aside (LabelManager collision pass).
     this.labelManager?.setReservedRects([...this._eventReservedRects, ...boxes]);
+  }
+
+  /**
+   * Whether rendered surface lies between the camera and the pinned point:
+   * a ray from the camera to the pin, against the same globes, terrain and
+   * overlays the probe picks from, so a ridge hides it and terrain rising
+   * into view past the horizon does not. Overlays draw over the main scene,
+   * so where the ray meets one, the overlay alone decides. A hit within a
+   * small tolerance of the pin is the pin's own surface (re-tessellated since
+   * it was picked, as terrain LOD refines).
+   *
+   * Recast only when the camera or the pin moved, and spaced by the cost of
+   * the last cast like the hover pick; in between, the last answer stands.
+   */
+  private _pinOccluded(point: SurfacePoint, world: THREE.Vector3): boolean {
+    const cache = this._pinOcclusion;
+    const now = performance.now();
+    if (cache.point === point && this.camera.matrixWorld.equals(cache.view) && world.equals(cache.world)) {
+      return cache.hidden;
+    }
+    if (cache.point === point && now - cache.atMs < cache.costMs * 4) return cache.hidden;
+
+    const toPin = world.clone().sub(this.camera.position);
+    const dist = toPin.length();
+    let hidden = false;
+    if (dist > 0) {
+      const tolerance = dist * UniverseRenderer._pinSurfaceTolerance;
+      const raycaster = this._surfaceRaycaster;
+      raycaster.set(this.camera.position, toPin.divideScalar(dist));
+      // Past the pin by the tolerance: the pin's own overlay may sit a hair beyond it.
+      raycaster.far = dist + tolerance;
+      const { mainHits, tileHits } = this._castSurfaces();
+      raycaster.far = Infinity;
+      const nearest = tileHits[0] ?? mainHits[0];
+      hidden = !!nearest && nearest.distance < dist - tolerance;
+    }
+    cache.point = point;
+    cache.view.copy(this.camera.matrixWorld);
+    cache.world.copy(world);
+    cache.hidden = hidden;
+    cache.atMs = now;
+    cache.costMs = performance.now() - now;
+    return hidden;
   }
 
   /**
@@ -2067,15 +2125,18 @@ export class UniverseRenderer {
   }
 
   /**
-   * Surface discovery: the rendered surface under an NDC position, as a
-   * `SurfacePoint`. Globe meshes, terrain tiles and camera-relative surface
-   * overlays are all candidates; overlays win because they draw on top.
+   * Cast `_surfaceRaycaster`'s ray (from the camera) against every rendered
+   * surface: globe meshes and terrain tiles in the main scene, and the
+   * camera-relative surface overlays. Tile hits are camera-relative (the
+   * camera at the origin); their distances compare with main-scene ones.
    */
-  private _discoverSurface(ndcX: number, ndcY: number): { point: SurfacePoint; cameraRangeKm: number } | null {
-    // Reused: this runs every frame the pointer moves while probing.
+  private _castSurfaces(): {
+    mainHits: THREE.Intersection[];
+    tileHits: THREE.Intersection[];
+    tileNormal: THREE.Vector3 | null;
+    overlayBodyMap: Map<THREE.Object3D, BodyMesh>;
+  } {
     const raycaster = this._surfaceRaycaster;
-    const ndc = new THREE.Vector2(ndcX, ndcY);
-    raycaster.setFromCamera(ndc, this.camera);
 
     // Broad phase. Terrain tiles and surface overlays can be hundreds of
     // meshes, and this runs at hover rate while probing; a body whose
@@ -2107,8 +2168,9 @@ export class UniverseRenderer {
     // tileScene: surface tile overlays use camera-relative rendering (CRR).
     // Apply CRR transforms (camera at origin) before raycasting, then restore.
     const tileRaycaster = this._surfaceTileRaycaster;
-    tileRaycaster.setFromCamera(ndc, this.camera);
     tileRaycaster.ray.origin.set(0, 0, 0);
+    tileRaycaster.ray.direction.copy(raycaster.ray.direction);
+    tileRaycaster.far = raycaster.far;
     const tileTargets: THREE.Object3D[] = [];
     const overlayBodyMap = new Map<THREE.Object3D, BodyMesh>();
     const savedGroupState: { overlay: any; pos: THREE.Vector3; quat: THREE.Quaternion; scale: THREE.Vector3 }[] = [];
@@ -2142,6 +2204,22 @@ export class UniverseRenderer {
       overlay.group.scale.copy(scale);
       overlay.group.updateMatrixWorld(true);
     }
+
+
+    return { mainHits, tileHits, tileNormal, overlayBodyMap };
+  }
+
+  /**
+   * Surface discovery: the rendered surface under an NDC position, as a
+   * `SurfacePoint`. Globe meshes, terrain tiles and camera-relative surface
+   * overlays are all candidates; overlays win because they draw on top.
+   */
+  private _discoverSurface(ndcX: number, ndcY: number): { point: SurfacePoint; cameraRangeKm: number } | null {
+    // Reused: this runs every frame the pointer moves while probing.
+    const raycaster = this._surfaceRaycaster;
+    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+    raycaster.far = Infinity;
+    const { mainHits, tileHits, tileNormal, overlayBodyMap } = this._castSurfaces();
 
     // Pick the closest hit
     let bestWorldPoint: THREE.Vector3 | null = null;
