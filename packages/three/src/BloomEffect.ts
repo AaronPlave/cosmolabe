@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { isLine, isMesh, isPoints, isSprite } from './internal/three-typeguards.js';
 
 /**
- * Layer reserved for bloom-eligible objects (Sun, engine plumes, glowing instruments).
+ * Layer reserved for bloom-eligible objects (engine plumes, glowing instruments).
  * Objects on this layer are rendered into the bloom offscreen target and produce a
  * glow that is additively composited over the main canvas.
  *
@@ -22,7 +22,7 @@ export interface BloomConfig {
   /** Bloom blur radius. Default 0.4. */
   radius?: number;
   /** Luminance threshold below which fragments don't bloom. Default 0.5 — only the brightest
-   *  parts of emissive bodies (Sun core) glow, leaving the disk gradient visible. */
+   *  parts of emissive objects glow, leaving the disk gradient visible. */
   threshold?: number;
 }
 
@@ -148,6 +148,13 @@ export class BloomEffect {
    */
   render(): void {
     if (!this.enabled) return;
+
+    // Avoid the offscreen scene and blur pyramid when no visible object opted in.
+    let hasSource = false;
+    this.scene.traverseVisible(obj => {
+      if ((isMesh(obj) || isPoints(obj) || isSprite(obj)) && obj.layers.test(_bloomTestLayers)) hasSource = true;
+    });
+    if (!hasSource) return;
 
     this.darkenNonBloom();
 

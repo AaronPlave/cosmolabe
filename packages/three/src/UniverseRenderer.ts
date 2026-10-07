@@ -14,6 +14,8 @@ import {
   type GeometryEvent,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
+import { SunGlareEffect } from './SunGlareEffect.js';
+import { SOLAR_LAYER, type SunVisual } from './SunVisual.js';
 import { RingMesh } from './RingMesh.js';
 import { selectShadowOccluders } from './EclipseShadow.js';
 import {
@@ -104,8 +106,8 @@ export interface UniverseRendererOptions {
    *  When provided, spacecraft caches are built off the main thread and
    *  hot-swapped onto trajectory lines when ready. */
   cacheWorker?: SpiceCacheWorker;
-  /** Selective bloom / Sun glare. Pass `{ enabled: true }` to opt in;
-   *  bodies marked emissive (Sun, stars) are auto-routed to the bloom layer.
+  /** Optical glare + selective bloom. Pass `{ enabled: true }` to opt in;
+   *  solar photospheres use a dedicated HDR source; other emissive bodies bloom.
    *  Default: disabled. */
   bloom?: BloomConfig;
   /** Deadline in ms for the initial asset set (the models and textures the
@@ -304,6 +306,8 @@ export class UniverseRenderer {
   private _lightingMode: 'natural' | 'shadow' | 'flood' = 'natural';
   /** Selective bloom / Sun glare overlay (null when disabled). */
   private bloomEffect: BloomEffect | null = null;
+  private sunGlareEffect: SunGlareEffect | null = null;
+  private readonly solarSources = new Map<THREE.Mesh, SunVisual>();
   /** Current global show-sensors state — applied to every sensor frustum. */
   private _sensorsVisible = true;
   /** Current global sensor-label state — applied to each frustum's label sprite. */
@@ -693,7 +697,7 @@ export class UniverseRenderer {
       // Placeholder sphere: clamp to minBodyPixels so it's always a visible dot.
       // applyMeshScale(factor) sets rendered radius = displayRadius * factor,
       // so we need factor = minSceneRadius / displayRadius (not / realSceneRadius).
-      if (bm.mesh.visible && this.minBodyPixels > 0 && screenPixels < this.minBodyPixels) {
+      if (bm.mesh.visible && !bm.sunVisual && this.minBodyPixels > 0 && screenPixels < this.minBodyPixels) {
         const minSceneRadius = this.minBodyPixels * dist * 2 * halfFovTan / canvasHeight;
         bm.applyMeshScale(minSceneRadius / bm.displayRadius);
       } else if (bm.mesh.visible) {
@@ -987,6 +991,18 @@ export class UniverseRenderer {
     // we must explicitly update its world matrix).
     this.camera.updateMatrixWorld();
 
+    // Solar optics use the final camera, physical body radius, and the same
+    // transmittance LUT/profile as the visible atmosphere shell.
+    const bufferHeight = this.renderer.getDrawingBufferSize(new THREE.Vector2()).y;
+    const atmospheres = [...this.atmosphereMeshes.values()].map(entry => entry.atm);
+    for (const [mesh, solar] of this.solarSources) {
+      const center = mesh.getWorldPosition(new THREE.Vector3());
+      const owner = mesh.parent as BodyMesh;
+      solar.update(this.camera, center, owner.displayRadius * this.scaleFactor, bufferHeight);
+      solar.selectAtmosphere(this.camera, center, atmospheres);
+      if (!this.bloomEffect?.enabled) solar.uniforms.resolvedWeight.value = 1;
+    }
+
     // Event span strokes are fat lines whose shader trims segments behind the
     // camera to this (very close) near plane in float32, unstably. Clip them
     // here, in double precision and against this frame's final camera, just
@@ -1021,6 +1037,13 @@ export class UniverseRenderer {
     this.camera.layers.enable(OVERLAY_LAYER);
     this.renderer.clear(true, true, true);
     this.renderer.render(this.scene, this.camera);
+
+    // Solar disks apply transmission before exposure, after atmosphere shells.
+    // Keep Pass 1's opaque depth so foreground planets still mask the disk.
+    if (this.solarSources.size > 0) {
+      this.camera.layers.set(SOLAR_LAYER);
+      this.renderer.render(this.scene, this.camera);
+    }
 
     // Pass 1.5: Surface tiles — camera-relative rendering in separate scene.
     // Surface tiles live in tileScene (not the main scene) to avoid layer/z-fighting
@@ -1182,6 +1205,10 @@ export class UniverseRenderer {
     // Skip when an instrument PiP fully covers the canvas.
     if (this.bloomEffect && !(this.instrumentView?.active && this.instrumentView.fullScreen)) {
       this.bloomEffect.render();
+      if (this.bloomEffect.enabled) {
+        this.sunGlareEffect ??= new SunGlareEffect(this.renderer);
+        this.sunGlareEffect.render(this.scene, this.camera, this.solarSources, this.bloomEffect.strength / 0.8);
+      }
     }
 
     // Plugins — after render
@@ -2618,6 +2645,9 @@ export class UniverseRenderer {
       this.scene.remove(av.object);
     }
     this._attachedVisuals.length = 0;
+    this.sunGlareEffect?.dispose();
+    this.sunGlareEffect = null;
+    this.solarSources.clear();
     this.bloomEffect?.dispose();
     this.bloomEffect = null;
     this.renderer.dispose();
@@ -2729,6 +2759,7 @@ export class UniverseRenderer {
       // textures with the tracker as it starts them.
       bm.assets = this.assets;
       this.bodyMeshes.set(body.name, bm);
+      if (bm.sunVisual) this.solarSources.set(bm.mesh, bm.sunVisual);
       this.scene.add(bm);
       bm.enableShadowReceiving();
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SunVisual, SOLAR_LAYER } from './SunVisual.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
@@ -40,6 +41,8 @@ const _tmpQ = new THREE.Quaternion();
 export class BodyMesh extends THREE.Object3D {
   readonly body: Body;
   readonly mesh: THREE.Mesh;
+  /** Analytic photosphere/optical source for stars, otherwise generic body material. */
+  readonly sunVisual: SunVisual | null;
   /** Display radius in km (before scale factor). Updated when a model with known size loads. */
   displayRadius: number;
   /**
@@ -196,10 +199,15 @@ export class BodyMesh extends THREE.Object3D {
       material.emissiveIntensity = 0.8;
     }
 
-    this.mesh = new THREE.Mesh(geometry, material);
-    // Route emissive bodies onto the bloom layer in addition to their normal layer.
+    this.sunVisual = body.classification === 'star' || body.name === 'Sun' ? new SunVisual() : null;
+    this.mesh = new THREE.Mesh(geometry, this.sunVisual?.material ?? material);
+    if (this.sunVisual) {
+      material.dispose();
+      this.mesh.layers.set(SOLAR_LAYER);
+    }
+    // Generic emissive objects bloom; stellar photospheres own their optical path.
     // No effect when bloom is disabled; BloomEffect renders this layer offscreen.
-    if (isEmissive) this.mesh.layers.enable(BLOOM_LAYER);
+    if (isEmissive && !this.sunVisual) this.mesh.layers.enable(BLOOM_LAYER);
     this.add(this.mesh);
 
     // Globe bodies: pre-rotate geometry so Three.js Y-pole aligns with body-fixed Z-pole.
@@ -1245,6 +1253,7 @@ export class BodyMesh extends THREE.Object3D {
     bumpScale?: number,
     renderer?: THREE.WebGLRenderer,
   ): Promise<void> {
+    if (this.sunVisual) return;
     const material = this.mesh.material as THREE.MeshPhongMaterial | THREE.MeshStandardMaterial;
 
     if (baseMapUrl) {
@@ -1346,6 +1355,7 @@ export class BodyMesh extends THREE.Object3D {
   /** Stitch + apply the level-0 tiles. Rejects on failure so the caller can both
    *  warn and report the failure to the asset tracker. */
   private async fetchTiledBaseMap(tileUrls: [string, string], renderer: THREE.WebGLRenderer): Promise<void> {
+    if (this.sunVisual) return;
     const material = this.mesh.material as THREE.MeshPhongMaterial | THREE.MeshStandardMaterial;
 
     // Detect format: extension for regular URLs, magic bytes for blob URLs
