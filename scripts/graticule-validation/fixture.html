@@ -14,8 +14,9 @@ const scene=new THREE.Scene();scene.background=new THREE.Color('#050811');const 
 const nativeNow=performance.now.bind(performance);
 const labels=new LabelManager(document.createElement('div'));
 let bm;let prototype=null;let prototypeInfo=null;
-window.pose=(options={})=>{camera.up.set(...(options.up??[0,0,1]));camera.position.set(...(options.eye??[6000,0,0]));camera.lookAt(new THREE.Vector3(...(options.target??[0,0,0])));camera.updateMatrixWorld(true);scene.updateMatrixWorld(true)};
+window.pose=(options={})=>{if(options.fov!==undefined){camera.fov=options.fov;camera.updateProjectionMatrix()}camera.up.set(...(options.up??[0,0,1]));camera.position.set(...(options.eye??[6000,0,0]));camera.lookAt(new THREE.Vector3(...(options.target??[0,0,0])));camera.updateMatrixWorld(true);scene.updateMatrixWorld(true)};
 window.setup=(options={})=>{
+ camera.fov=options.fov??45;camera.updateProjectionMatrix();
  if(bm){bm.dispose();scene.remove(bm)}
  if(prototype){prototype.geometry.dispose();prototype.material.dispose();scene.remove(prototype);prototype=null;prototypeInfo=null;}
  ambient.intensity=options.lighting ? 0.015 : 1.8;sun.intensity=options.lighting ? 2 : 0;sun.position.set(...(options.sunPosition??[5000,-2000,2500]));

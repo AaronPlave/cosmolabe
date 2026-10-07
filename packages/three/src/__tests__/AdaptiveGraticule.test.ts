@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Body, FixedPointTrajectory, bodySurfaceCoordinates, surfacePositionToBodyFixed } from '@cosmolabe/core';
 import { BodyMesh } from '../BodyMesh.js';
 import { normalizeGridSettings } from '@cosmolabe/control';
-import { chooseGridStep, GRID_STEPS, AUTO_GRID_STEPS, annotationPattern } from '../AdaptiveGraticule.js';
+import { chooseGridStep, GRID_STEPS, AUTO_GRID_STEPS, annotationPattern, type AdaptiveGraticule } from '../AdaptiveGraticule.js';
 import { LabelManager } from '../LabelManager.js';
 import { TerrainSampler } from '../TerrainSampler.js';
 
@@ -371,6 +371,42 @@ describe('adaptive graticule', () => {
     const restored = pose(300);
     expect([restored.latitudeStep, restored.longitudeStep]).toEqual([30, 30]);
     expect(restored.annotations.map(a => [a.axis, a.angle, a.latDeg, a.lonDeg]).sort()).toEqual(globe.annotations.map(a => [a.axis, a.angle, a.latDeg, a.lonDeg]).sort());
+    bm.dispose();
+  });
+
+  it('refines both axes and unlabelled detail during fixed-altitude FOV zoom, then restores the globe rulers', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Optical', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.001, 1000); camera.up.set(0, 0, 1);
+    camera.position.set(300, 0, 0); camera.lookAt(100, 0, 0);
+    bm.showGrid(true, true, normalizeGridSettings());
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    const zoom = (fov: number) => { camera.fov = fov; camera.updateProjectionMatrix();
+      for (let i = 0; i < 40; i++) { now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); } return bm.gridMetrics!; };
+    const globe = zoom(60);
+    const originalSites = globe.annotations.map(a => [a.axis, a.angle, a.latDeg, a.lonDeg]).sort();
+    expect(originalSites.length).toBeGreaterThan(0);
+    expect([globe.latitudeStep, globe.longitudeStep]).toEqual([30, 30]);
+    const region = zoom(10);
+    expect(region.latitudeStep).toBeLessThan(30); expect(region.longitudeStep).toBeLessThan(30);
+    const close = zoom(1);
+    expect(close.latitudeStep).toBeLessThan(1); expect(close.longitudeStep).toBeLessThan(1);
+    const grid = (bm as unknown as { graticule: AdaptiveGraticule }).graticule;
+    expect(grid.uniforms.uGridDetailStep.value.x).toBeLessThan(close.latitudeStep);
+    expect(grid.uniforms.uGridDetailStep.value.y).toBeLessThan(close.longitudeStep);
+    expect(grid.uniforms.uGridHierarchy.value).toBe(1);
+    expect(camera.position.toArray()).toEqual([300, 0, 0]);
+    // At this altitude the exit/entry diameters correspond to about 17.5°/20.6°.
+    zoom(60); expect(zoom(18).latitudeStep).toBe(30);
+    expect(zoom(17).latitudeStep).toBeLessThan(30);
+    expect(zoom(19).latitudeStep).toBeLessThan(30);
+    expect(zoom(21).latitudeStep).toBe(30);
+    const restored = zoom(60);
+    expect([restored.latitudeStep, restored.longitudeStep]).toEqual([30, 30]);
+    expect(restored.annotations.map(a => [a.axis, a.angle, a.latDeg, a.lonDeg]).sort()).toEqual(originalSites);
     bm.dispose();
   });
 

@@ -159,8 +159,14 @@ export class AdaptiveGraticule {
     const previous = this.uniforms.uGridStep.value;
     const shape = this.coordinates.datum.referenceShape;
     const radius = shape.kind === 'sphere' ? shape.radiusKm : Math.max(...shape.radiiKm);
-    // Keep the old globe ruler stable across small camera-height oscillations.
-    this.globeScale = (foot.heightKm ?? 0) >= radius * (this.globeScale ? 0.45 : 0.6);
+    // Project the reference silhouette into the viewport. Optical zoom must
+    // refine just like approaching the surface; height alone cannot veto it.
+    // Separate entry/exit sizes keep the old rulers stable near the boundary.
+    const cameraDistance = cameraFixed.length();
+    const diameter = cameraDistance > radius ? radius / Math.sqrt(cameraDistance * cameraDistance - radius * radius)
+      * camera.projectionMatrix.elements[5] * height : Infinity;
+    const viewportDiameters = diameter / Math.min(width, height);
+    this.globeScale = viewportDiameters <= (this.globeScale ? 2.3 : 1.95);
     const globeScale = this.globeScale;
     const automatic = this.settings?.density !== 'manual';
     const latStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : latScale.length ? chooseGridStep(median(latScale), previous.x) : previous.x;

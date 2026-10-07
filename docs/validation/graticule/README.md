@@ -96,8 +96,12 @@ coarser coordinates retain their weight across transitions. Manual spacing keeps
 all existing nice-step choices, including non-nested ones, and does not pretend
 those transitions are cumulative subdivision.
 
-At globe scale Auto keeps the old 30° rulers. Globe/regional height thresholds
-of 0.45/0.6 reference radii prevent repeated switching during small zoom changes.
+At globe scale Auto keeps the old 30° rulers. Globe/regional hysteresis uses the
+projected reference silhouette diameter relative to the viewport's shorter side:
+exit globe mode above 2.3 viewport diameters, re-enter at or below 1.95. Projection
+matrix magnification includes field of view and lens zoom; altitude is not a veto.
+Inside the reference bounding sphere the view is regional. Coarse lines remain
+in the shader when optical zoom introduces finer tiers and fixed carriers.
 Within regional views, independent local latitude/longitude projection derivatives
 are sampled every 150 ms. A 60–180 CSS-pixel hysteresis band surrounds a 100 pixel
 target. Both complete hierarchies crossfade over 180 ms, starting with the previous
@@ -158,6 +162,7 @@ With Chromium and FFmpeg installed, run these harnesses sequentially (they share
 a temporary fixture page and baseline module):
 
 ```sh
+node scripts/graticule-optical-validation.mjs
 node scripts/graticule-carrier-validation.mjs
 node scripts/graticule-layout-validation.mjs
 node scripts/graticule-motion-validation.mjs
@@ -168,6 +173,21 @@ Harnesses remove their temporary page/module. The motion harness uses repository
 lunar imagery plus synthetic resident relief, with a fixed 30 Hz application
 clock and every rendered frame encoded. It validates attachment between discovery
 plans despite slower software rendering; it is not a real-time performance claim.
+
+[Fixed-altitude optical zoom](optical-zoom/metrics.json) reproduces the review:
+a radius-100 reference sphere, camera at `[300, 0, 0]`, target `[100, 0, 0]`,
+and an 800 × 800 viewport. [60° FOV](optical-zoom/wide-60.png),
+[10° FOV](optical-zoom/region-10.png), [1° FOV](optical-zoom/close-1.png),
+then [10°](optical-zoom/return-10.png) and [60°](optical-zoom/restored-60.png)
+use the same body and camera position throughout. The narrowest view refines
+both axes below one degree; widening restores the same nonempty eligible ruler
+sites. Visible subsets may reflect the existing collision entry/exit hysteresis.
+The regression also checks finer detail uniforms and FOV boundary hysteresis.
+All five optical captures pass with zero browser/shader errors or grid-triggered
+requests. Both axes use 30° → 5° → 0.2° → 5° → 30° as FOV narrows and widens.
+
+The following carrier, layout and motion captures were recorded at `098434b`;
+the optical sequence above is the additional validation for this FOV fix.
 
 [Matching-camera comparisons](carrier-rulers/comparison/metrics.json) include the
 old/new globe, old/new regional Mars, rolled regional and synthetic-resident-relief
@@ -209,7 +229,7 @@ lighting, residual-motion stability, seams/poles, bounded enumeration, current-f
 ridge/terrain occlusion, eight-query limits and upstream fade/eviction.
 
 Earlier reports are historical evidence. The block-corner/half-block arrangement
-in `regular-pattern/` is superseded by these ordered carriers. The latest code validation passes all 141 suites / 1,574 tests, full
+in `regular-pattern/` is superseded by these ordered carriers. The latest code validation passes all 141 suites / 1,575 tests, full
 typechecking, lint and purity checks. All six matching-camera comparison captures
 pass without browser/shader errors. The globe/regional captures show seven/ten
 captions respectively. With captions disabled, the actual distant surface band

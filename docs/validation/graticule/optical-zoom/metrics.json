@@ -1,0 +1,1625 @@
+{
+  "pass": true,
+  "renderer": "Chromium SwiftShader; real lunar imagery, reference sphere",
+  "restoresRulers": true,
+  "gridRequests": 0,
+  "results": [
+    {
+      "name": "wide-60",
+      "fov": 60,
+      "pose": {
+        "eye": [
+          300,
+          0,
+          0
+        ],
+        "target": [
+          100,
+          0,
+          0
+        ]
+      },
+      "prototype": null,
+      "updateMs": 2.9000000059604645,
+      "frameMs": 3.0999999940395355,
+      "metrics": {
+        "candidates": 12,
+        "labels": 5,
+        "latitudeStep": 30,
+        "longitudeStep": 30,
+        "densityBlend": 1,
+        "layout": "geographic",
+        "anchors": [
+          {
+            "id": "Moon:30:30:latitude:0.000000:0.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": 0,
+            "lat": 0,
+            "lon": 5,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:30.000000:3.000000:30.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": 30,
+            "lat": 3,
+            "lon": 30,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:-30.000000:3.000000:-30.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": -30,
+            "lat": 3,
+            "lon": -30,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:latitude:30.000000:30.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": 30,
+            "lat": 30,
+            "lon": 5,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:latitude:-30.000000:-30.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": -30,
+            "lat": -30,
+            "lon": 5,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:0.000000:3.000000:0.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": 0,
+            "lat": 3,
+            "lon": 0,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:60.000000:3.000000:60.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": 60,
+            "lat": 3,
+            "lon": 60,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:-60.000000:3.000000:-60.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": -60,
+            "lat": 3,
+            "lon": -60,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:latitude:60.000000:60.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": 60,
+            "lat": 60,
+            "lon": 5,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:latitude:-60.000000:-60.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": -60,
+            "lat": -60,
+            "lon": 5,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:90.000000:3.000000:90.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": 90,
+            "lat": 3,
+            "lon": 90,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:-90.000000:3.000000:-90.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": -90,
+            "lat": 3,
+            "lon": -90,
+            "step": 30
+          }
+        ],
+        "annotations": [
+          {
+            "id": "Moon:30:30:latitude:0.000000:0.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": 0,
+            "step": 30,
+            "latDeg": 0,
+            "lonDeg": 5,
+            "text": "Equator 0°",
+            "opacity": 0.8
+          },
+          {
+            "id": "Moon:30:30:latitude:-30.000000:-30.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": -30,
+            "step": 30,
+            "latDeg": -30,
+            "lonDeg": 5,
+            "text": "30°S",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:30:30:latitude:30.000000:30.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": 30,
+            "step": 30,
+            "latDeg": 30,
+            "lonDeg": 5,
+            "text": "30°N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:30:30:longitude:-30.000000:3.000000:-30.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": -30,
+            "step": 30,
+            "latDeg": 3,
+            "lonDeg": -30,
+            "text": "30°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:30:30:longitude:30.000000:3.000000:30.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": 30,
+            "step": 30,
+            "latDeg": 3,
+            "lonDeg": 30,
+            "text": "30°E",
+            "opacity": 0.72
+          }
+        ]
+      },
+      "draw": {
+        "frame": 31,
+        "calls": 6,
+        "triangles": 24330,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 7
+      }
+    },
+    {
+      "name": "region-10",
+      "fov": 10,
+      "pose": {
+        "eye": [
+          300,
+          0,
+          0
+        ],
+        "target": [
+          100,
+          0,
+          0
+        ]
+      },
+      "prototype": null,
+      "updateMs": 6.5999999940395355,
+      "frameMs": 7,
+      "metrics": {
+        "candidates": 14,
+        "labels": 6,
+        "latitudeStep": 5,
+        "longitudeStep": 5,
+        "densityBlend": 1,
+        "layout": "geographic",
+        "anchors": [
+          {
+            "id": "Moon:5:5:longitude:0.000000:3.000000:0.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 0,
+            "lat": 3,
+            "lon": 0,
+            "step": 5
+          },
+          {
+            "id": "Moon:30:30:latitude:0.000000:0.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": 0,
+            "lat": 0,
+            "lon": 5,
+            "step": 30
+          },
+          {
+            "id": "Moon:5:5:longitude:-5.000000:3.000000:-5.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": -5,
+            "lat": 3,
+            "lon": -5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:5.000000:3.000000:5.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 5,
+            "lat": 3,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:-5.000000:-5.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": -5,
+            "lat": -5,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:5.000000:5.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 5,
+            "lat": 5,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:10.000000:3.000000:10.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 10,
+            "lat": 3,
+            "lon": 10,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:-10.000000:3.000000:-10.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": -10,
+            "lat": 3,
+            "lon": -10,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:10.000000:10.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 10,
+            "lat": 10,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:-10.000000:-10.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": -10,
+            "lat": -10,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:15.000000:3.000000:15.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 15,
+            "lat": 3,
+            "lon": 15,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:-15.000000:3.000000:-15.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": -15,
+            "lat": 3,
+            "lon": -15,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:15.000000:15.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 15,
+            "lat": 15,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:-15.000000:-15.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": -15,
+            "lat": -15,
+            "lon": 5,
+            "step": 5
+          }
+        ],
+        "annotations": [
+          {
+            "id": "Moon:30:30:latitude:0.000000:0.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": 0,
+            "step": 30,
+            "latDeg": 0,
+            "lonDeg": 5,
+            "text": "Equator 0°",
+            "opacity": 0.8
+          },
+          {
+            "id": "Moon:5:5:longitude:0.000000:3.000000:0.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 0,
+            "step": 5,
+            "latDeg": 3,
+            "lonDeg": 0,
+            "text": "Prime 0°",
+            "opacity": 0.8
+          },
+          {
+            "id": "Moon:5:5:latitude:-5.000000:-5.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": -5,
+            "step": 5,
+            "latDeg": -5,
+            "lonDeg": 5,
+            "text": "5°S",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:5:5:latitude:5.000000:5.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 5,
+            "step": 5,
+            "latDeg": 5,
+            "lonDeg": 5,
+            "text": "5°N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:5:5:longitude:-5.000000:3.000000:-5.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": -5,
+            "step": 5,
+            "latDeg": 3,
+            "lonDeg": -5,
+            "text": "5°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:5:5:longitude:5.000000:3.000000:5.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 5,
+            "step": 5,
+            "latDeg": 3,
+            "lonDeg": 5,
+            "text": "5°E",
+            "opacity": 0.72
+          }
+        ]
+      },
+      "draw": {
+        "frame": 63,
+        "calls": 7,
+        "triangles": 24332,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 12
+      }
+    },
+    {
+      "name": "close-1",
+      "fov": 1,
+      "pose": {
+        "eye": [
+          300,
+          0,
+          0
+        ],
+        "target": [
+          100,
+          0,
+          0
+        ]
+      },
+      "prototype": null,
+      "updateMs": 0.29999999701976776,
+      "frameMs": 1.7999999970197678,
+      "metrics": {
+        "candidates": 48,
+        "labels": 23,
+        "latitudeStep": 0.2,
+        "longitudeStep": 0.2,
+        "densityBlend": 1,
+        "layout": "geographic",
+        "anchors": [
+          {
+            "id": "Moon:0.2:0.2:longitude:0.800000:0.600000:0.800000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.8,
+            "lat": 0.6,
+            "lon": 0.8,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.800000:-0.600000:-0.800000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.8,
+            "lat": -0.6,
+            "lon": -0.8,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.800000:-0.600000:0.800000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.8,
+            "lat": -0.6,
+            "lon": 0.8,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.000000:0.600000:0.000000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0,
+            "lat": 0.6,
+            "lon": 0,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.000000:-0.600000:0.000000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0,
+            "lat": -0.6,
+            "lon": 0,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.000000:0.000000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0,
+            "lat": 0,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.800000:0.800000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.8,
+            "lat": 0.8,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.600000:0.600000:0.600000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.6,
+            "lat": 0.6,
+            "lon": 0.6,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.600000:0.600000:-0.600000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.6,
+            "lat": 0.6,
+            "lon": -0.6,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.600000:-0.600000:0.600000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.6,
+            "lat": -0.6,
+            "lon": 0.6,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.600000:-0.600000:-0.600000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.6,
+            "lat": -0.6,
+            "lon": -0.6,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.200000:0.600000:-0.200000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.2,
+            "lat": 0.6,
+            "lon": -0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.200000:-0.600000:-0.200000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.2,
+            "lat": -0.6,
+            "lon": -0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.600000:0.600000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.6,
+            "lat": 0.6,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.600000:-0.600000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.6,
+            "lat": -0.6,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.200000:-0.200000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.2,
+            "lat": -0.2,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.200000:0.200000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.2,
+            "lat": 0.2,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.400000:0.600000:0.400000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.4,
+            "lat": 0.6,
+            "lon": 0.4,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.400000:-0.600000:0.400000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.4,
+            "lat": -0.6,
+            "lon": 0.4,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.400000:0.600000:-0.400000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.4,
+            "lat": 0.6,
+            "lon": -0.4,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.400000:-0.600000:-0.400000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.4,
+            "lat": -0.6,
+            "lon": -0.4,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.400000:0.400000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.4,
+            "lat": 0.4,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.400000:-0.400000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.4,
+            "lat": -0.4,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.800000:0.600000:-0.800000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.8,
+            "lat": 0.6,
+            "lon": -0.8,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.800000:-0.800000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.8,
+            "lat": -0.8,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.200000:0.600000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.2,
+            "lat": 0.6,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.200000:-0.600000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.2,
+            "lat": -0.6,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.800000:-0.800000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.8,
+            "lat": -0.8,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.800000:0.800000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.8,
+            "lat": 0.8,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.000000:0.000000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0,
+            "lat": 0,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:1.000000:0.600000:1.000000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 1,
+            "lat": 0.6,
+            "lon": 1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:1.000000:-0.600000:1.000000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 1,
+            "lat": -0.6,
+            "lon": 1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.600000:0.600000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.6,
+            "lat": 0.6,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-1.000000:0.600000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -1,
+            "lat": 0.6,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.600000:-0.600000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.6,
+            "lat": -0.6,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-1.000000:-0.600000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -1,
+            "lat": -0.6,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.200000:-0.200000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.2,
+            "lat": -0.2,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.200000:0.200000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.2,
+            "lat": 0.2,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:1.000000:1.000000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 1,
+            "lat": 1,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-1.000000:-1.000000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -1,
+            "lat": -1,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.400000:0.400000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.4,
+            "lat": 0.4,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.400000:-0.400000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.4,
+            "lat": -0.4,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:1.000000:1.000000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 1,
+            "lat": 1,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-1.000000:-1.000000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -1,
+            "lat": -1,
+            "lon": -1,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-1.200000:0.600000:-1.200000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -1.2,
+            "lat": 0.6,
+            "lon": -1.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-1.200000:-0.600000:-1.200000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -1.2,
+            "lat": -0.6,
+            "lon": -1.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-1.200000:-1.200000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -1.2,
+            "lat": -1.2,
+            "lon": 0.2,
+            "step": 0.2
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-1.200000:-1.200000:-1.000000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -1.2,
+            "lat": -1.2,
+            "lon": -1,
+            "step": 0.2
+          }
+        ],
+        "annotations": [
+          {
+            "id": "Moon:0.2:0.2:latitude:0.000000:0.000000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0,
+            "step": 0.2,
+            "latDeg": 0,
+            "lonDeg": 0.2,
+            "text": "Equator 0°",
+            "opacity": 0.8
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.000000:-0.600000:0.000000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0,
+            "step": 0.2,
+            "latDeg": -0.6,
+            "lonDeg": 0,
+            "text": "Prime 0°",
+            "opacity": 0.8
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.000000:0.600000:0.000000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0,
+            "step": 0.2,
+            "latDeg": 0.6,
+            "lonDeg": 0,
+            "text": "Prime 0°",
+            "opacity": 0.8
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.200000:-0.200000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.2,
+            "step": 0.2,
+            "latDeg": -0.2,
+            "lonDeg": 0.2,
+            "text": "0.2°S",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.400000:-0.400000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.4,
+            "step": 0.2,
+            "latDeg": -0.4,
+            "lonDeg": 0.2,
+            "text": "0.4°S",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:-0.600000:-0.600000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": -0.6,
+            "step": 0.2,
+            "latDeg": -0.6,
+            "lonDeg": 0.2,
+            "text": "0.6°S",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.200000:0.200000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.2,
+            "step": 0.2,
+            "latDeg": 0.2,
+            "lonDeg": 0.2,
+            "text": "0.2°N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.400000:0.400000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.4,
+            "step": 0.2,
+            "latDeg": 0.4,
+            "lonDeg": 0.2,
+            "text": "0.4°N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.600000:0.600000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.6,
+            "step": 0.2,
+            "latDeg": 0.6,
+            "lonDeg": 0.2,
+            "text": "0.6°N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:latitude:0.800000:0.800000:0.200000",
+            "tier": "0.2:0.2",
+            "axis": "latitude",
+            "angle": 0.8,
+            "step": 0.2,
+            "latDeg": 0.8,
+            "lonDeg": 0.2,
+            "text": "0.8°N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.200000:-0.600000:-0.200000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.2,
+            "step": 0.2,
+            "latDeg": -0.6,
+            "lonDeg": -0.2,
+            "text": "0.2°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.200000:0.600000:-0.200000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.2,
+            "step": 0.2,
+            "latDeg": 0.6,
+            "lonDeg": -0.2,
+            "text": "0.2°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.400000:-0.600000:-0.400000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.4,
+            "step": 0.2,
+            "latDeg": -0.6,
+            "lonDeg": -0.4,
+            "text": "0.4°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.400000:0.600000:-0.400000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.4,
+            "step": 0.2,
+            "latDeg": 0.6,
+            "lonDeg": -0.4,
+            "text": "0.4°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.600000:-0.600000:-0.600000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.6,
+            "step": 0.2,
+            "latDeg": -0.6,
+            "lonDeg": -0.6,
+            "text": "0.6°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.600000:0.600000:-0.600000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.6,
+            "step": 0.2,
+            "latDeg": 0.6,
+            "lonDeg": -0.6,
+            "text": "0.6°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:-0.800000:-0.600000:-0.800000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": -0.8,
+            "step": 0.2,
+            "latDeg": -0.6,
+            "lonDeg": -0.8,
+            "text": "0.8°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.400000:-0.600000:0.400000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.4,
+            "step": 0.2,
+            "latDeg": -0.6,
+            "lonDeg": 0.4,
+            "text": "0.4°E",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.400000:0.600000:0.400000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.4,
+            "step": 0.2,
+            "latDeg": 0.6,
+            "lonDeg": 0.4,
+            "text": "0.4°E",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.600000:-0.600000:0.600000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.6,
+            "step": 0.2,
+            "latDeg": -0.6,
+            "lonDeg": 0.6,
+            "text": "0.6°E",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.600000:0.600000:0.600000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.6,
+            "step": 0.2,
+            "latDeg": 0.6,
+            "lonDeg": 0.6,
+            "text": "0.6°E",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.800000:-0.600000:0.800000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.8,
+            "step": 0.2,
+            "latDeg": -0.6,
+            "lonDeg": 0.8,
+            "text": "0.8°E",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:0.2:longitude:0.800000:0.600000:0.800000",
+            "tier": "0.2:0.2",
+            "axis": "longitude",
+            "angle": 0.8,
+            "step": 0.2,
+            "latDeg": 0.6,
+            "lonDeg": 0.8,
+            "text": "0.8°E",
+            "opacity": 0.72
+          }
+        ]
+      },
+      "draw": {
+        "frame": 95,
+        "calls": 24,
+        "triangles": 24366,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 26
+      }
+    },
+    {
+      "name": "return-10",
+      "fov": 10,
+      "pose": {
+        "eye": [
+          300,
+          0,
+          0
+        ],
+        "target": [
+          100,
+          0,
+          0
+        ]
+      },
+      "prototype": null,
+      "updateMs": 0.20000000298023224,
+      "frameMs": 0.3999999910593033,
+      "metrics": {
+        "candidates": 14,
+        "labels": 6,
+        "latitudeStep": 5,
+        "longitudeStep": 5,
+        "densityBlend": 1,
+        "layout": "geographic",
+        "anchors": [
+          {
+            "id": "Moon:5:5:longitude:0.000000:3.000000:0.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 0,
+            "lat": 3,
+            "lon": 0,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:0.000000:0.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 0,
+            "lat": 0,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:-5.000000:3.000000:-5.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": -5,
+            "lat": 3,
+            "lon": -5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:5.000000:3.000000:5.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 5,
+            "lat": 3,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:-5.000000:-5.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": -5,
+            "lat": -5,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:5.000000:5.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 5,
+            "lat": 5,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:10.000000:3.000000:10.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 10,
+            "lat": 3,
+            "lon": 10,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:-10.000000:3.000000:-10.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": -10,
+            "lat": 3,
+            "lon": -10,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:10.000000:10.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 10,
+            "lat": 10,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:-10.000000:-10.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": -10,
+            "lat": -10,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:15.000000:3.000000:15.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 15,
+            "lat": 3,
+            "lon": 15,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:longitude:-15.000000:3.000000:-15.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": -15,
+            "lat": 3,
+            "lon": -15,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:15.000000:15.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 15,
+            "lat": 15,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:-15.000000:-15.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": -15,
+            "lat": -15,
+            "lon": 5,
+            "step": 5
+          }
+        ],
+        "annotations": [
+          {
+            "id": "Moon:5:5:latitude:0.000000:0.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 0,
+            "step": 5,
+            "latDeg": 0,
+            "lonDeg": 5,
+            "text": "Equator 0°",
+            "opacity": 0.8
+          },
+          {
+            "id": "Moon:5:5:longitude:0.000000:3.000000:0.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 0,
+            "step": 5,
+            "latDeg": 3,
+            "lonDeg": 0,
+            "text": "Prime 0°",
+            "opacity": 0.8
+          },
+          {
+            "id": "Moon:5:5:latitude:-5.000000:-5.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": -5,
+            "step": 5,
+            "latDeg": -5,
+            "lonDeg": 5,
+            "text": "5°S",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:5:5:latitude:5.000000:5.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 5,
+            "step": 5,
+            "latDeg": 5,
+            "lonDeg": 5,
+            "text": "5°N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:5:5:longitude:-5.000000:3.000000:-5.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": -5,
+            "step": 5,
+            "latDeg": 3,
+            "lonDeg": -5,
+            "text": "5°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:5:5:longitude:5.000000:3.000000:5.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 5,
+            "step": 5,
+            "latDeg": 3,
+            "lonDeg": 5,
+            "text": "5°E",
+            "opacity": 0.72
+          }
+        ]
+      },
+      "draw": {
+        "frame": 127,
+        "calls": 7,
+        "triangles": 24332,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 26
+      }
+    },
+    {
+      "name": "restored-60",
+      "fov": 60,
+      "pose": {
+        "eye": [
+          300,
+          0,
+          0
+        ],
+        "target": [
+          100,
+          0,
+          0
+        ]
+      },
+      "prototype": null,
+      "updateMs": 0.29999999701976776,
+      "frameMs": 0.7999999970197678,
+      "metrics": {
+        "candidates": 12,
+        "labels": 6,
+        "latitudeStep": 30,
+        "longitudeStep": 30,
+        "densityBlend": 1,
+        "layout": "geographic",
+        "anchors": [
+          {
+            "id": "Moon:5:5:longitude:0.000000:3.000000:0.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 0,
+            "lat": 3,
+            "lon": 0,
+            "step": 5
+          },
+          {
+            "id": "Moon:5:5:latitude:0.000000:0.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 0,
+            "lat": 0,
+            "lon": 5,
+            "step": 5
+          },
+          {
+            "id": "Moon:30:30:longitude:30.000000:3.000000:30.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": 30,
+            "lat": 3,
+            "lon": 30,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:-30.000000:3.000000:-30.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": -30,
+            "lat": 3,
+            "lon": -30,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:latitude:30.000000:30.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": 30,
+            "lat": 30,
+            "lon": 5,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:latitude:-30.000000:-30.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": -30,
+            "lat": -30,
+            "lon": 5,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:60.000000:3.000000:60.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": 60,
+            "lat": 3,
+            "lon": 60,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:-60.000000:3.000000:-60.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": -60,
+            "lat": 3,
+            "lon": -60,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:latitude:60.000000:60.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": 60,
+            "lat": 60,
+            "lon": 5,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:latitude:-60.000000:-60.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": -60,
+            "lat": -60,
+            "lon": 5,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:90.000000:3.000000:90.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": 90,
+            "lat": 3,
+            "lon": 90,
+            "step": 30
+          },
+          {
+            "id": "Moon:30:30:longitude:-90.000000:3.000000:-90.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": -90,
+            "lat": 3,
+            "lon": -90,
+            "step": 30
+          }
+        ],
+        "annotations": [
+          {
+            "id": "Moon:5:5:latitude:0.000000:0.000000:5.000000",
+            "tier": "5:5",
+            "axis": "latitude",
+            "angle": 0,
+            "step": 5,
+            "latDeg": 0,
+            "lonDeg": 5,
+            "text": "Equator 0°",
+            "opacity": 0.8
+          },
+          {
+            "id": "Moon:5:5:longitude:0.000000:3.000000:0.000000",
+            "tier": "5:5",
+            "axis": "longitude",
+            "angle": 0,
+            "step": 5,
+            "latDeg": 3,
+            "lonDeg": 0,
+            "text": "Prime 0°",
+            "opacity": 0.8
+          },
+          {
+            "id": "Moon:30:30:latitude:-30.000000:-30.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": -30,
+            "step": 30,
+            "latDeg": -30,
+            "lonDeg": 5,
+            "text": "30°S",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:30:30:latitude:30.000000:30.000000:5.000000",
+            "tier": "30:30",
+            "axis": "latitude",
+            "angle": 30,
+            "step": 30,
+            "latDeg": 30,
+            "lonDeg": 5,
+            "text": "30°N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:30:30:longitude:-30.000000:3.000000:-30.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": -30,
+            "step": 30,
+            "latDeg": 3,
+            "lonDeg": -30,
+            "text": "30°W",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:30:30:longitude:30.000000:3.000000:30.000000",
+            "tier": "30:30",
+            "axis": "longitude",
+            "angle": 30,
+            "step": 30,
+            "latDeg": 3,
+            "lonDeg": 30,
+            "text": "30°E",
+            "opacity": 0.72
+          }
+        ]
+      },
+      "draw": {
+        "frame": 159,
+        "calls": 7,
+        "triangles": 24332,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 2,
+        "textures": 26
+      }
+    }
+  ],
+  "errors": []
+}
