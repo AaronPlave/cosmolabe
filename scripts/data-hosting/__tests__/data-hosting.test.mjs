@@ -309,6 +309,8 @@ describe('hosted catalog rewriting', () => {
   it('resolves paths the way the viewer does', () => {
     expect(resolveLocalPath('kernels/a.bsp', 'x.json')).toBe('kernels/a.bsp');
     expect(resolveLocalPath('../kernels/a.bsp', 'base/x.json')).toBe('kernels/a.bsp');
+    expect(resolveLocalPath('../kernels/a.bsp', 'test-catalogs/base/x.json')).toBe('kernels/a.bsp');
+    expect(resolveLocalPath('data/mars/', 'test-catalogs/c.json')).toBe('data/mars/');
     expect(resolveLocalPath('/test-catalogs/data/mars/', 'x.json')).toBe('data/mars/');
     expect(resolveLocalPath('https://trek.nasa.gov/k/x.jpg', 'x.json')).toBeNull();
     expect(resolveLocalPath('A sentence about kernels/x', 'x.json')).toBeNull();
@@ -342,29 +344,29 @@ describe('hosted catalog rewriting', () => {
 
   it('rewrites a built dist, prunes hosted data, records dependencies, and is strict about unpublished sets', async () => {
     const dist = tmp('dist');
-    mkdirSync(join(dist, 'kernels/cassini'), { recursive: true });
-    mkdirSync(join(dist, 'data/mars'), { recursive: true });
-    mkdirSync(join(dist, 'base'), { recursive: true });
-    writeFileSync(join(dist, 'kernels/de440s.bsp'), 'x');
-    writeFileSync(join(dist, 'kernels/cassini/x.bsp.gz'), 'x');
-    writeFileSync(join(dist, 'data/mars/layer.json'), '{}');
-    writeFileSync(join(dist, 'c.json'), JSON.stringify({ k: ['kernels/de440s.bsp'], t: '/test-catalogs/data/mars/' }));
-    writeFileSync(join(dist, 'base/b.json'), JSON.stringify({ k: ['../kernels/cassini/x.bsp.gz'] }));
-    writeFileSync(join(dist, 'index.json'), JSON.stringify({ catalogs: [{ catalog: './c.json' }] }));
+    mkdirSync(join(dist, 'test-catalogs/kernels/cassini'), { recursive: true });
+    mkdirSync(join(dist, 'test-catalogs/data/mars'), { recursive: true });
+    mkdirSync(join(dist, 'test-catalogs/base'), { recursive: true });
+    writeFileSync(join(dist, 'test-catalogs/kernels/de440s.bsp'), 'x');
+    writeFileSync(join(dist, 'test-catalogs/kernels/cassini/x.bsp.gz'), 'x');
+    writeFileSync(join(dist, 'test-catalogs/data/mars/layer.json'), '{}');
+    writeFileSync(join(dist, 'test-catalogs/c.json'), JSON.stringify({ k: ['kernels/de440s.bsp'], t: '/test-catalogs/data/mars/' }));
+    writeFileSync(join(dist, 'test-catalogs/base/b.json'), JSON.stringify({ k: ['../kernels/cassini/x.bsp.gz'] }));
+    writeFileSync(join(dist, 'test-catalogs/index.json'), JSON.stringify({ catalogs: [{ catalog: './c.json' }] }));
     const hosted = { ...datasets, 'kernels/psyche': { ...datasets['kernels/psyche'], build: null } };
     const rec = await buildHostedCatalogs({ dist, baseUrl: `${base}/`, datasets: hosted, strict: true, log: quiet });
-    expect(rec.rewritten.map((r) => r.file).sort()).toEqual(['base/b.json', 'c.json']);
-    expect(JSON.parse(readFileSync(join(dist, 'base/b.json'), 'utf8')).k[0]).toBe(`${base}/kernels/cassini-2026-10-02/x.bsp.gz`);
-    expect(existsSync(join(dist, 'kernels/de440s.bsp'))).toBe(false);
-    expect(existsSync(join(dist, 'kernels/cassini'))).toBe(false);
-    expect(existsSync(join(dist, 'data/mars'))).toBe(false);
+    expect(rec.rewritten.map((r) => r.file).sort()).toEqual(['test-catalogs/base/b.json', 'test-catalogs/c.json']);
+    expect(JSON.parse(readFileSync(join(dist, 'test-catalogs/base/b.json'), 'utf8')).k[0]).toBe(`${base}/kernels/cassini-2026-10-02/x.bsp.gz`);
+    expect(existsSync(join(dist, 'test-catalogs/kernels/de440s.bsp'))).toBe(false);
+    expect(existsSync(join(dist, 'test-catalogs/kernels/cassini'))).toBe(false);
+    expect(existsSync(join(dist, 'test-catalogs/data/mars'))).toBe(false);
     expect(Object.keys(rec.datasets).sort()).toEqual(['kernels/cassini', 'kernels/generic', 'terrain/mars']);
     expect(JSON.parse(readFileSync(join(dist, 'hosted-data.json'), 'utf8')).baseUrl).toBe(base);
 
-    writeFileSync(join(dist, 'p.json'), JSON.stringify({ k: ['kernels/psyche/p.bsp', 'kernels/cassini/y.bsp'] }));
-    const before = readFileSync(join(dist, 'p.json'), 'utf8');
+    writeFileSync(join(dist, 'test-catalogs/p.json'), JSON.stringify({ k: ['kernels/psyche/p.bsp', 'kernels/cassini/y.bsp'] }));
+    const before = readFileSync(join(dist, 'test-catalogs/p.json'), 'utf8');
     await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: hosted, strict: true, log: quiet })).rejects.toThrow(/kernels\/psyche/);
-    expect(readFileSync(join(dist, 'p.json'), 'utf8')).toBe(before);
+    expect(readFileSync(join(dist, 'test-catalogs/p.json'), 'utf8')).toBe(before);
     await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: hosted, strict: true, allow: ['kernels/other'], log: quiet })).rejects.toThrow(/kernels\/psyche/);
     await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: hosted, strict: true, allow: ['kernels/psyche'], log: quiet })).resolves.toBeTruthy();
   });

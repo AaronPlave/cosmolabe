@@ -249,7 +249,7 @@ describe('deployment configuration', () => {
       readSources('../../../../../.github/workflows/deploy-pages.yml', /VITE_CATALOG_SOURCES: '(.*)'$/m),
     ]) {
       expect(d.errors).toEqual([]);
-      expect(d.sources).toEqual([{ id: 'examples', name: 'Examples', indexUrl: 'index.json' }]);
+      expect(d.sources).toEqual([{ id: 'examples', name: 'Examples', indexUrl: 'test-catalogs/index.json' }]);
     }
   });
 
@@ -316,7 +316,7 @@ describe('the repository Examples index', () => {
 
 describe('runtime-added sources survive a reload', () => {
   const env = {
-    VITE_CATALOG_SOURCES: '[{"id":"examples","name":"Examples","indexUrl":"index.json"}]',
+    VITE_CATALOG_SOURCES: '[{"id":"examples","name":"Examples","indexUrl":"test-catalogs/index.json"}]',
     VITE_ALLOW_CATALOG_SOURCE_PARAM: 'true',
   };
   /** What a reload of `search` assigns, for the param sources only. */

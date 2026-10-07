@@ -10,7 +10,7 @@ const browser = await chromium.launch({ headless: true, args: ['--use-angle=swif
 try {
   const page = await browser.newPage();
   const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5174';
-  await page.goto(`${base}/?catalog=atmosphere-earth&test=1`);
+  await page.goto(`${base}/?catalog=test-catalogs/atmosphere-earth&test=1`);
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady, { timeout: 120000 });
   const results = await page.evaluate(async repo => {
     const THREE = await import('/node_modules/.vite/deps/three.js');

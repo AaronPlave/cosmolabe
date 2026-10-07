@@ -24,7 +24,7 @@ try {
     ['atmosphere-saturn-shadow', 'Saturn', 'Clouds and shadows'],
   ]) {
     if (process.env.ATMOSPHERE_CAPTURE_SCENES && !process.env.ATMOSPHERE_CAPTURE_SCENES.split(',').includes(catalog)) continue;
-    await page.goto(`${process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5174'}/?catalog=${catalog}&test=1`);
+    await page.goto(`${process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5174'}/?catalog=test-catalogs/${catalog}&test=1`);
     await page.waitForFunction(() => window.__cosmolabe?.assetsReady, { timeout: 120000 });
     assert.equal((await page.evaluate(() => window.__cosmolabe.assetSummary)).failed, 0, `${catalog}: missing assets`);
     await page.evaluate(() => window.renderer.setLabelsVisible(false));

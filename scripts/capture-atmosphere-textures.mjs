@@ -13,7 +13,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`${base}/?catalog=solar-system&test=1`);
+  await page.goto(`${base}/?catalog=test-catalogs/solar-system&test=1`);
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady, { timeout: 180000 });
   const assets = await page.evaluate(() => window.__cosmolabe.assetSummary);
   assert.equal(assets.failed, 0, JSON.stringify(assets));
