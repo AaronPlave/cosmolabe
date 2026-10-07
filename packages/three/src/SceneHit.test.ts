@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  PICK_PRECEDENCE, describeDatum, formatHeight, formatLatitude, formatLongitude, resolveSceneHit, resolveSurfaceAltitude,
+  PICK_PRECEDENCE, coordinateDecimals, describeDatum, formatHeight, formatLatitude, formatLongitude, resolveSceneHit, resolveSurfaceAltitude,
   surfacePointToText, type HitLayer, type SceneHit, type SurfacePoint,
 } from './SceneHit.js';
 import { probeCalloutLines } from './PointProbe.js';
@@ -19,6 +19,8 @@ const point: SurfacePoint = {
   latDeg: 18.4446,
   lonDeg: 77.4509,
   latitudeKind: 'geodetic',
+  // About 1.9 m of ground per pixel: 1.9e-3 / (3317 km · π/180) ≈ 3.3e-5 ° → 5 decimals.
+  footprintKm: 0.0019,
   hit: { heightKm: -2.43, datum: AREOID },
   terrainSample: { elevationKm: -2.4312, datum: AREOID, sourceId: 'mars-mola', describesHit: true },
   altitude: { km: -2.4312, from: 'terrain-sample', datum: AREOID },
@@ -137,8 +139,21 @@ describe('surface point presentation', () => {
   });
 
   it('previews in one line and pins with coordinates and height, without camera distance', () => {
-    expect(probeCalloutLines(point, 'preview')).toEqual(['Mars · 18.44° N, 77.45° E']);
+    expect(probeCalloutLines(point, 'preview')).toEqual(['Mars · 18.44460° N, 77.45090° E']);
     const pinned = probeCalloutLines(point, 'pinned');
-    expect(pinned).toEqual(['Mars', '18.4446° N, 77.4509° E', '−2431.2 m · areoid']);
+    expect(pinned).toEqual(['Mars', '18.44460° N, 77.45090° E', '−2431.2 m · areoid']);
+  });
+
+  it('shows coordinates to the resolution of one screen pixel at the point', () => {
+    const at = (footprintKm: number) => coordinateDecimals({ ...point, footprintKm });
+    expect(at(10)).toBe(2); // orbit: ~10 km a pixel, never fewer than 2
+    expect(at(0.0019)).toBe(5); // ~2 m a pixel
+    expect(at(0.00002)).toBe(7); // ~2 cm a pixel, close over terrain
+    expect(at(1e-9)).toBe(8); // capped
+    expect(at(0)).toBe(4); // unknown footprint
+  });
+
+  it('copies at least six decimals, more when the point was probed finer', () => {
+    expect(surfacePointToText({ ...point, footprintKm: 0.00002 })).toMatch(/^Mars 18\.4446000, 77\.4509000 /);
   });
 });

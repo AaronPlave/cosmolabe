@@ -5,7 +5,7 @@
    * numbers are measured from.
    */
   import {
-    describeDatum, describeSource, formatHeight, formatLatitude, formatLongitude, surfacePointToText,
+    coordinateDecimals, describeDatum, describeSource, formatHeight, formatLatitude, formatLongitude, surfacePointToText,
   } from '@cosmolabe/three';
   import { Copy, Check } from 'lucide-svelte';
   import { vs, getRenderer, clearProbePin } from '../lib/viewer-state.svelte';
@@ -17,6 +17,8 @@
   let { width }: Props = $props();
 
   const point = $derived(vs.probePin);
+  // To the pixel the point was probed at: one more digit up close, fewer from orbit.
+  const decimals = $derived(point ? coordinateDecimals(point) : 4);
   let copied = $state(false);
   let copiedTimer = 0;
 
@@ -51,6 +53,7 @@
   }
 
   function fmtRange(km: number) {
+    if (km < 0.001) return `${(km * 1e5).toFixed(1)} cm`;
     return km < 1 ? `${(km * 1000).toFixed(1)} m` : `${km.toFixed(3)} km`;
   }
 </script>
@@ -69,8 +72,8 @@
     {/snippet}
 
     <div class="font-semibold text-text-primary mb-1.5">{point.bodyName}</div>
-    <div class="row"><span class="k">Lat</span><span class="v">{formatLatitude(point.latDeg, 5)}</span></div>
-    <div class="row"><span class="k">Lon</span><span class="v">{formatLongitude(point.lonDeg, 5)}</span></div>
+    <div class="row"><span class="k">Lat</span><span class="v">{formatLatitude(point.latDeg, decimals)}</span></div>
+    <div class="row"><span class="k">Lon</span><span class="v">{formatLongitude(point.lonDeg, decimals)}</span></div>
     <div class="row">
       <span class="k" title={point.altitude.from === 'terrain-sample' ? 'Sampled from the terrain product that was hit' : 'Height of the surface that was hit'}>
         {point.altitude.from === 'terrain-sample' ? 'Elevation' : 'Height'}
@@ -84,6 +87,7 @@
       <div class="mt-1">
         <div class="row"><span class="k">Surface</span><span class="v">{describeSource(point.source)}</span></div>
         <div class="row"><span class="k">Latitude</span><span class="v">{point.latitudeKind}</span></div>
+        <div class="row"><span class="k" title="Ground covered by one screen pixel when the point was probed">Pixel footprint</span><span class="v">{fmtRange(point.footprintKm)}</span></div>
         <div class="row"><span class="k">Height from</span><span class="v">{point.altitude.from === 'terrain-sample' ? 'terrain sample' : 'rendered hit'}</span></div>
         <div class="row"><span class="k">Hit height</span><span class="v">{formatHeight(point.hit.heightKm)}</span></div>
         <div class="row"><span class="k">Reference</span><span class="v">{datumShape}</span></div>

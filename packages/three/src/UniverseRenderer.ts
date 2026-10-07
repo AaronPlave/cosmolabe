@@ -278,6 +278,8 @@ export class UniverseRenderer {
   private _probePress: { x: number; y: number } | null = null;
   /** A hovering (mouse or pen) pointer is over the canvas: the probe re-picks under it. */
   private _hoverPointerInside = false;
+  /** The pointer moved since the last probe pick; the next frame re-picks. */
+  private _probeHoverDirty = false;
   /** Label boxes the event annotation and probe callouts reserve this frame. */
   private _eventReservedRects: ScreenRect[] = [];
   private _renderDebugFrame = 0;
@@ -1143,7 +1145,7 @@ export class UniverseRenderer {
     }
     this.revalidateSceneEventHover();
     this.updateEventAnnotation();
-    this.revalidateProbeHover();
+    this.updateProbeHover();
     this.updateProbeOverlay();
 
     // Final pass: markers (pick marker, orbit pivot dot, etc.) — always on top.
@@ -1868,6 +1870,7 @@ export class UniverseRenderer {
     this._probeActive = active;
     this._probePress = null;
     if (active) {
+      this._probeHoverDirty = true;
       // Selection hover would compete with the probe for the same pointer.
       if (this._hoveredBody) this._applyHover(null);
       if (this._hoveredSceneEvent) {
@@ -1906,22 +1909,29 @@ export class UniverseRenderer {
   }
 
   /** Probe hover at the last pointer position; the cursor says whether it is probeable. */
+  /**
+   * Probe hover, picked in the frame itself rather than on a timer: the
+   * reticle is drawn where the pointer is in the frame it appears in, so it
+   * stays under the cursor instead of trailing it. Over a surface the reticle
+   * is the cursor (the system cursor hides); off one, the normal cursor shows.
+   */
   private _probeHoverAt(screenX: number, screenY: number): void {
     const hit = this.pickScene(screenX, screenY, 'probe');
     this._setProbeHover(hit?.kind === 'surface' ? hit.point : null);
-    this.renderer.domElement.style.cursor = hit ? 'crosshair' : 'default';
+    this.renderer.domElement.style.cursor = hit ? 'none' : '';
   }
 
   /**
-   * Camera motion or a rotating body slides the surface under a resting
-   * pointer without any pointermove — onto a surface, off one, or across it;
-   * re-probe at a modest rate so the preview keeps describing what is
-   * actually under it, whether or not anything was under it before.
+   * Re-pick every frame the pointer moved. A resting pointer is re-picked at a
+   * modest rate too: camera motion or a rotating body slides the surface under
+   * it without any pointermove — onto a surface, off one, or across it.
    */
-  private revalidateProbeHover(): void {
-    if (!this._probeActive || !this._hoverPointerInside || this._hoverPickTimer) return;
-    if (performance.now() - this._lastHoverPickMs < UniverseRenderer._hoverPickIntervalMs * 3) return;
-    this._lastHoverPickMs = performance.now();
+  private updateProbeHover(): void {
+    if (!this._probeActive || !this._hoverPointerInside) return;
+    const now = performance.now();
+    if (!this._probeHoverDirty && now - this._lastHoverPickMs < UniverseRenderer._hoverPickIntervalMs * 3) return;
+    this._probeHoverDirty = false;
+    this._lastHoverPickMs = now;
     this._probeHoverAt(this._lastPointer.x, this._lastPointer.y);
   }
 
@@ -2180,6 +2190,9 @@ export class UniverseRenderer {
     const terrainSample = bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const hitHeightKm = terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg));
     const cameraRangeKm = bestWorldPoint.distanceTo(this.camera.position) / this.scaleFactor;
+    // One pixel's angular size at that range: the finest the pointer can place the point.
+    const footprintKm = cameraRangeKm * 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) /
+      Math.max(1, this.renderer.domElement.clientHeight);
     const terrainDatum = bm.terrainDatum;
     const radii = bm.body.radii;
     // Equal radii are a sphere, whatever field they came in.
@@ -2211,6 +2224,7 @@ export class UniverseRenderer {
       latDeg,
       lonDeg,
       latitudeKind: terrainPosition ? 'geodetic' : 'planetocentric',
+      footprintKm,
       hit,
       ...resolveSurfaceAltitude(source, hit, sample),
     };
@@ -3793,6 +3807,11 @@ export class UniverseRenderer {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this._lastPointer.x = event.clientX - rect.left;
     this._lastPointer.y = event.clientY - rect.top;
+    // The probe picks in the next frame (updateProbeHover), not on the timer.
+    if (this._probeActive) {
+      this._probeHoverDirty = true;
+      return;
+    }
     if (this._hoverPickTimer) return; // a pick is already scheduled
     const wait = Math.max(
       0,
@@ -3801,10 +3820,8 @@ export class UniverseRenderer {
     this._hoverPickTimer = window.setTimeout(() => {
       this._hoverPickTimer = 0;
       this._lastHoverPickMs = performance.now();
-      if (this._probeActive) {
-        this._probeHoverAt(this._lastPointer.x, this._lastPointer.y);
-        return;
-      }
+      // Probe mode may have started while this pick was queued.
+      if (this._probeActive) return;
       // Label-only pick (cheap; runs while mousing) with a tight slop so the
       // hover hitbox hugs the label text rather than a loose 20px halo.
       const eventHit = this.pickSceneEvent(this._lastPointer.x, this._lastPointer.y, 11);

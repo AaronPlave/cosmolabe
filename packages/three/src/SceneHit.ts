@@ -62,6 +62,13 @@ export interface SurfacePoint {
   lonDeg: number;
   /** Geodetic from a terrain datum; planetocentric from the radial fallback. */
   latitudeKind: 'geodetic' | 'planetocentric';
+  /**
+   * Ground size of one screen pixel at the hit, km: how finely the pointer
+   * could place this point. Coordinates are shown to this resolution
+   * (`coordinateDecimals`), so a point probed up close reads to centimetres
+   * and one probed from orbit does not pretend to.
+   */
+  footprintKm: number;
   /** The hit itself: the height of `bodyFixedPositionKm` above `datum`. */
   hit: { heightKm: number; datum: SurfaceDatum };
   /**
@@ -156,6 +163,18 @@ export function resolveSceneHit(
 
 // ── Presentation helpers (shared by the in-scene callout and host panels) ──
 
+/**
+ * Decimal places of a degree that resolve one screen pixel at the point:
+ * enough that neighbouring pixels read differently, no more. Uses the
+ * latitude scale (a degree of longitude is never longer), clamped to 2–8.
+ */
+export function coordinateDecimals(point: Pick<SurfacePoint, 'footprintKm' | 'bodyFixedPositionKm'>): number {
+  const radiusKm = Math.hypot(...point.bodyFixedPositionKm);
+  const degPerPixel = point.footprintKm / (radiusKm * Math.PI / 180);
+  if (!(degPerPixel > 0) || !Number.isFinite(degPerPixel)) return 4;
+  return Math.min(8, Math.max(2, Math.ceil(-Math.log10(degPerPixel))));
+}
+
 export function formatLatitude(latDeg: number, decimals = 4): string {
   return `${Math.abs(latDeg).toFixed(decimals)}° ${latDeg >= 0 ? 'N' : 'S'}`;
 }
@@ -196,8 +215,9 @@ export function describeSource(source: SurfaceHitSource): string {
 
 /** One line suitable for the clipboard: body, coordinates, height and datum. */
 export function surfacePointToText(point: SurfacePoint): string {
-  const lat = point.latDeg.toFixed(6);
-  const lon = point.lonDeg.toFixed(6);
+  const decimals = Math.max(6, coordinateDecimals(point));
+  const lat = point.latDeg.toFixed(decimals);
+  const lon = point.lonDeg.toFixed(decimals);
   const h = (point.altitude.km * 1000).toFixed(1);
   const kind = point.latitudeKind === 'geodetic' ? 'geodetic' : 'planetocentric';
   return `${point.bodyName} ${lat}, ${lon} (${kind} °N, °E) ${h} m above ${describeDatum(point.altitude.datum)}`;

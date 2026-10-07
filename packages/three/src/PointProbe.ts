@@ -12,11 +12,14 @@
 import * as THREE from 'three';
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 import {
-  describeDatum, formatHeight, formatLatitude, formatLongitude, type SurfacePoint,
+  coordinateDecimals, describeDatum, formatHeight, formatLatitude, formatLongitude, type SurfacePoint,
 } from './SceneHit.js';
 
 /** Probe accent: distinct from event amber, quiet against terrain. */
 export const PROBE_COLOR = '#7cc8f0';
+
+/** A hover this close to the pin on screen is the pin. */
+const PIN_SLOP_PX = 10;
 
 /** Where a body-fixed surface point is in the scene this frame, and its body centre. */
 export type ProbeAnchorResolver = (point: SurfacePoint) => { world: THREE.Vector3; bodyCenter: THREE.Vector3 } | null;
@@ -55,12 +58,14 @@ function makeMarker(sizePx: number, texture: THREE.Texture | null, opacity: numb
 
 /** Callout lines for a probed point: title, coordinates, height above datum. */
 export function probeCalloutLines(point: SurfacePoint, detail: 'preview' | 'pinned'): string[] {
+  // As fine as the pointer can place the point: a pixel's worth of ground.
+  const decimals = coordinateDecimals(point);
   if (detail === 'preview') {
-    return [`${point.bodyName} · ${formatLatitude(point.latDeg, 2)}, ${formatLongitude(point.lonDeg, 2)}`];
+    return [`${point.bodyName} · ${formatLatitude(point.latDeg, decimals)}, ${formatLongitude(point.lonDeg, decimals)}`];
   }
   return [
     point.bodyName,
-    `${formatLatitude(point.latDeg, 4)}, ${formatLongitude(point.lonDeg, 4)}`,
+    `${formatLatitude(point.latDeg, decimals)}, ${formatLongitude(point.lonDeg, decimals)}`,
     `${formatHeight(point.altitude.km)} · ${describeDatum(point.altitude.datum)}`,
   ];
 }
@@ -107,7 +112,8 @@ export class PointProbeOverlay {
     this.reticle = makeMarker(20, ring, 0.85);
     this.pinMarker = makeMarker(18, dot, 1);
     markerScene.add(this.reticle, this.pinMarker);
-    this.hoverCallout = new EventCallout(labelContainer);
+    // The preview follows the pointer: it swaps in place, never cross-fades.
+    this.hoverCallout = new EventCallout(labelContainer, 'instant');
     this.pinCallout = new EventCallout(labelContainer);
   }
 
@@ -145,11 +151,14 @@ export class PointProbeOverlay {
     const pinBox = this.pinCallout.update(pinScreen, viewport, obstacles);
     if (pinBox) boxes.push(pinBox);
 
-    // The preview of the point already pinned says nothing new.
-    const samePoint = this.hover && this.pin && this.hover.bodyName === this.pin.bodyName &&
-      this.hover.bodyFixedPositionKm.every((v, i) => Math.abs(v - this.pin!.bodyFixedPositionKm[i]) < 1e-6);
+    // A pointer still on the pinned point previews nothing new: the pin's
+    // own marker and card say it. Judged on screen, not by coordinates, since
+    // the re-probed point drifts a hair as the body turns.
     const hoverScreen = this.place(this.reticle, this.hover, camera, viewport, resolve);
-    const hoverBox = samePoint ? (this.hoverCallout.hide(), null) : this.hoverCallout.update(
+    const onPin = !!hoverScreen && !!pinScreen &&
+      (hoverScreen.x - pinScreen.x) ** 2 + (hoverScreen.y - pinScreen.y) ** 2 < PIN_SLOP_PX ** 2;
+    if (onPin) this.reticle.visible = false;
+    const hoverBox = onPin ? (this.hoverCallout.hide(), null) : this.hoverCallout.update(
       hoverScreen, viewport,
       pinBox ? { ...obstacles, rects: [...obstacles.rects, { ...pinBox, weight: 3 }] } : obstacles,
     );

@@ -212,7 +212,12 @@ export class EventCallout {
   private shown = false;
   private direction: CalloutDirection | null = null;
 
-  constructor(container: HTMLElement) {
+  /**
+   * `fade` cross-fades content swaps and side flips (an annotation the eye is
+   * resting on). `instant` swaps in place with no fading copy, for a callout
+   * that follows the pointer and changes every frame.
+   */
+  constructor(container: HTMLElement, private readonly motion: 'fade' | 'instant' = 'fade') {
     this.svg = document.createElementNS(SVG_NS, 'svg');
     Object.assign(this.svg.style, {
       position: 'absolute', inset: '0', width: '100%', height: '100%',
@@ -248,7 +253,9 @@ export class EventCallout {
     this.contentKey = key;
     this.content = content;
     this.size = null;
-    this.previousKey = null;
+    // A pointer-following callout keeps its side while its text changes;
+    // re-choosing from scratch every frame would make it hop.
+    if (this.motion === 'fade') this.previousKey = null;
     this.box.replaceChildren();
     if (!content) return;
     const [title, ...details] = content.lines;
@@ -351,6 +358,7 @@ export class EventCallout {
     if (!this.shown) return;
     this.shown = false;
     this.direction = null;
+    if (this.motion === 'instant') return;
     const parent = this.box.parentElement;
     if (!parent) return;
     for (const node of [this.svg, this.box]) {
@@ -366,6 +374,13 @@ export class EventCallout {
   }
 
   private fadeIn(): void {
+    if (this.motion === 'instant') {
+      for (const node of [this.svg, this.box]) {
+        node.style.transition = 'none';
+        node.style.opacity = '1';
+      }
+      return;
+    }
     for (const node of [this.svg, this.box]) {
       node.style.transition = 'none';
       node.style.opacity = '0';
