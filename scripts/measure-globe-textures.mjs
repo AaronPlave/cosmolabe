@@ -78,15 +78,17 @@ window.measure = async (url) => {
 window.ready = true;
 </script>`;
 
-/** Sum RSS (MiB) of every process in the browser's process tree. */
-function chromiumRssMiB(rootPid) {
+/** Sum RSS (MiB) of every process below this one: Playwright's Chromium and
+ *  its renderer/GPU children all descend from this Node process. */
+function chromiumRssMiB() {
   const ps = execFileSync('ps', ['-eo', 'pid=,ppid=,rss='], { encoding: 'utf8' });
   const rows = ps.trim().split('\n').map((l) => l.trim().split(/\s+/).map(Number));
-  const tree = new Set([rootPid]);
+  const tree = new Set([process.pid]);
   for (let grew = true; grew;) {
     grew = false;
     for (const [pid, ppid] of rows) if (tree.has(ppid) && !tree.has(pid)) { tree.add(pid); grew = true; }
   }
+  tree.delete(process.pid);
   return rows.filter(([pid]) => tree.has(pid)).reduce((s, [, , rss]) => s + rss, 0) / 1024;
 }
 
@@ -96,8 +98,6 @@ const browser = await chromium.launch({
   args: ['--use-gl=swiftshader', '--ignore-gpu-blocklist'],
   executablePath: process.env.CHROMIUM_PATH || undefined,
 });
-const rootPid = browser.process?.()?.pid
-  ?? Number(execFileSync('pgrep', ['-o', '-f', 'chrom.*--use-gl=swiftshader'], { encoding: 'utf8' }));
 
 console.log('| texture | dims | file MiB | GPU MiB | load ms | upload ms | RSS Δ MiB |');
 console.log('|---|---|--:|--:|--:|--:|--:|');
@@ -109,9 +109,9 @@ for (const name of names) {
   await page.goto(base + '/');
   await page.waitForFunction(() => window.ready);
   maxTex ??= await page.evaluate(() => window.maxTextureSize);
-  const before = chromiumRssMiB(rootPid);
+  const before = chromiumRssMiB();
   const r = await page.evaluate((u) => window.measure(u), `/${TEXTURES}/${name}`);
-  const after = chromiumRssMiB(rootPid);
+  const after = chromiumRssMiB();
   await page.close();
   // RGBA8 + mips for images; DDS payload (minus the 128-byte header) for DXT.
   const gpu = name.endsWith('.dds') ? bytes - 128 : (r.w * r.h * 4 * 4) / 3;
