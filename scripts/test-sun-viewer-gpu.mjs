@@ -12,6 +12,8 @@ const bundle = await build({ stdin: { contents: `
   export * as THREE from 'three';
   export { Universe } from './packages/core/dist/Universe.js';
   export { UniverseRenderer } from './packages/three/dist/UniverseRenderer.js';
+  export { TrajectoryLine } from './packages/three/dist/TrajectoryLine.js';
+  export { SensorFrustum } from './packages/three/dist/SensorFrustum.js';
 `, resolveDir: process.cwd(), loader: 'js' }, bundle: true, write: false, format: 'esm', platform: 'browser',
   external: ['@mapbox/vector-tile', 'pbf', 'pmtiles'] // Optional raster-format loaders, unused by GLTF fixtures.
 });
@@ -119,7 +121,7 @@ try {
     const frameTimes = [];
     for (let i = 0; i < 8; i++) { pose(); const start = performance.now(); viewer.renderFrame(); gl.finish(); frameTimes.push(performance.now()-start); }
     const average = values => values.reduce((a,b)=>a+b,0)/values.length;
-    const info = { passes: passes.slice(0,3), tileMeshes, modelMeshes, greenPixels: green, atmospherePixels: blue,
+    const info = { passes: passes.slice(0,4), tileMeshes, modelMeshes, greenPixels: green, atmospherePixels: blue,
       sourceMeshes, sourceScissor, sourceAreaFraction: sourceArea/(768*512),
       softwareFrameMs: average(frameTimes.slice(2)), softwareSolarMs: average(sourceTimes.slice(2)),
       solarDiameter: viewer.getBodyMesh('Sun').sunVisual.diameterPixels };
@@ -132,10 +134,63 @@ try {
   assert.ok(result.greenPixels > 100, 'surface tile must contribute green pixels with the Sun present');
   assert.ok(result.atmospherePixels > 100, 'real atmosphere shell must contribute sky pixels');
   assert.ok(result.passes.some(p => p.scene === 'main' && p.mask === 16), 'solar display pass must run');
+  assert.deepEqual(result.passes.map(p => p.mask), [1,16,4,1], 'bodies, Sun, overlays, then tiles must preserve depth and restore layers');
   assert.ok(result.passes.find(p => p.scene === 'tiles').mask & 1, 'solar pass must restore layer 0 before surface tiles');
   assert.ok(result.sourceMeshes <= 3, 'model-heavy scene must use a small explicit solar occluder set');
   assert.ok(result.sourceAreaFraction < 0.1, 'small solar source pass must be scissored');
   mkdirSync('work/sun-rendering', { recursive: true });
   await page.screenshot({ path: 'work/sun-rendering/viewer-atmosphere-tiles.png' });
+  const overlays = await page.evaluate(async () => {
+    const { THREE, TrajectoryLine, SensorFrustum } = await import('/bundle.js');
+    const v = window.solarViewer, sun = v.getBodyMesh('Sun'), c = v.camera;
+    const z = sun.position.z, radius = sun.displayRadius * 0.001;
+    const distance = Math.sqrt(radius**2 + (radius*512/(150*Math.tan(c.fov*Math.PI/360)))**2);
+    c.position.set(0,0,z-distance); c.up.set(0,1,0);
+    v.cameraController.controls.target.set(0,0,z); c.lookAt(0,0,z); c.updateMatrixWorld(true);
+    const gl = v.renderer.getContext();
+    const read = () => { v.renderFrame(); const p = new Uint8Array(768*512*4); gl.readPixels(0,0,768,512,gl.RGBA,gl.UNSIGNED_BYTE,p); return p; };
+    const baseline = read();
+    const trajectory = new TrajectoryLine(sun.body, { maxPoints: 4, color: 0x0000ff, opacity: 1 });
+    const line = trajectory.children.find(o => o.isLine);
+    line.geometry.setAttribute('position', new THREE.Float32BufferAttribute([
+      -radius*1.4,0,z-radius-1000, 0,0,z-radius-1000,
+      0,0,z+radius+1000, radius*1.4,0,z+radius+1000],3));
+    line.geometry.setAttribute('color', new THREE.Float32BufferAttribute([0,0,1, 0,0,1, 0,0,1, 0,0,1],3));
+    line.geometry.setDrawRange(0,4);
+    trajectory.traverse(o => o.layers.set(2)); v.scene.add(trajectory);
+    const withLine = read();
+    const changed = (image, left, right, bottom, top) => {
+      let count = 0;
+      for (let y=bottom;y<top;y++) for(let x=left;x<right;x++) {
+        const i=(y*768+x)*4;
+        if (image[i+2]-baseline[i+2] > 8) count++;
+      }
+      return count;
+    };
+    // Looking along +Z makes negative world X appear on the right of the canvas.
+    const frontLine = changed(withLine,395,438,253,260), behindLine = changed(withLine,330,375,253,260);
+    trajectory.visible = false;
+    const cone = new SensorFrustum(sun.body, { color: 0x0000ff, opacity: 0.8 });
+    cone.labelSprite.visible = false;
+    const mesh = cone.children.find(o => o.isMesh);
+    mesh.scale.set(250,400,250);
+    cone.children.filter(o=>o.isLine).forEach(o=>o.visible=false);
+    cone.rotation.x = -Math.PI/2; cone.position.set(0,300,z-radius-1000);
+    cone.traverse(o=>o.layers.set(2)); v.scene.add(cone);
+    const frontCone = changed(read(),345,423,265,310);
+    cone.position.z = z+radius+1000;
+    const behindCone = changed(read(),345,423,265,310);
+    cone.position.z = z-radius-1000;
+    trajectory.visible = true;
+    read();
+    return { frontLine, behindLine, frontCone, behindCone };
+  });
+  console.log('Overlay depth regression:', overlays);
+  assert.ok(overlays.frontLine > 15, 'foreground trajectory must remain visible across the solar disk');
+  assert.equal(overlays.behindLine, 0, 'trajectory behind the Sun must remain occluded');
+  assert.ok(overlays.frontCone > 100, 'foreground sensor cone must remain visible across the solar disk');
+  assert.equal(overlays.behindCone, 0, 'sensor cone behind the Sun must remain occluded');
+  await page.screenshot({path:'work/sun-rendering/viewer-overlays.png'});
+  assert.equal(errors.length, 0, errors.join('\n'));
   console.log('Production solar/atmosphere/surface-tile GPU integration passed.');
 } finally { await browser.close(); }

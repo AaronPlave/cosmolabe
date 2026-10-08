@@ -1031,10 +1031,10 @@ export class UniverseRenderer {
     this.renderer.info.reset();
     this._renderDebugFrame++;
 
-    // Pass 1: Scene without models (layers 0 + 2) — log depth for cosmic scale
-    // Layer 0 = bodies/globes/stars/atmosphere, Layer 2 = overlays (trajectories, frustums)
+    // Pass 1: Bodies and atmosphere (layer 0) — log depth for cosmic scale.
+    // Overlays draw after the Sun because their transparent materials do not
+    // write depth and would otherwise be painted over by the solar disk.
     this.camera.layers.set(0);
-    this.camera.layers.enable(OVERLAY_LAYER);
     this.renderer.clear(true, true, true);
     this.renderer.render(this.scene, this.camera);
 
@@ -1048,6 +1048,16 @@ export class UniverseRenderer {
       } finally {
         this.camera.layers.mask = savedMask;
       }
+    }
+
+    // Preserve body/solar depth: analysis overlays in front remain visible,
+    // while trajectories and sensor frustums behind the Sun remain occluded.
+    const overlayMask = this.camera.layers.mask;
+    try {
+      this.camera.layers.set(OVERLAY_LAYER);
+      this.renderer.render(this.scene, this.camera);
+    } finally {
+      this.camera.layers.mask = overlayMask;
     }
 
     // Pass 1.5: Surface tiles — camera-relative rendering in separate scene.

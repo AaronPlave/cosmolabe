@@ -19,6 +19,11 @@ body depth buffer. The nearest intersected atmosphere supplies its existing RGB
 transmittance LUT and density profiles; transmission is applied before both the
 disk response and optical glare. This avoids attenuating the disk twice. The
 numerical profile integration remains available when no LUT exists.
+The main scene draws bodies/atmosphere, then the solar disk, then layer-2
+trajectory and sensor overlays without clearing depth between those passes.
+Foreground overlays retain their final presentation; overlays behind the Sun
+fail the solar depth test. Each dedicated pass restores the camera layer mask
+before the existing surface-tile and model passes.
 
 `SunGlareEffect` renders only solar radiance into a half-float source target.
 A separate proxy scene contains the Sun and intersecting opaque body bounds;
@@ -78,11 +83,14 @@ The viewer integration check runs the actual `UniverseRenderer` with Earth's
 atmosphere, a streamed GLTF surface tile, and a 256-mesh GLTF model. It checks
 visible tile and atmosphere pixels, solar-to-tile camera layer restoration, and
 the size of the explicit solar occluder set and scissored source region. It also
+uses the production `TrajectoryLine` and `SensorFrustum` materials to check
+foreground content crossing the solar disk and occlusion behind it, comparing
+rendered pixels against an overlay-free frame. It
 reports warm-frame and glare timings with synchronous software WebGL; these
 are fixture measurements, not hardware GPU performance estimates.
 In the 768×512 reference run, the 256-mesh fixture used one solar source proxy,
-a 126×126 source region (4.04% of the target), and averaged 3.0 ms for glare
-within a 4.3 ms frame over six warm, synchronously completed software frames.
+a 126×126 source region (4.04% of the target), and averaged 1.7 ms for glare
+within a 4.8 ms frame over six warm, synchronously completed software frames.
 
 These images are synthetic GPU scenes using the production shaders, not
 mission-epoch or solar-surface imagery. The horizon example deliberately uses a
@@ -111,3 +119,46 @@ large disk to expose transmission gradients and ground masking.
 ### Viewer atmosphere and surface tiles
 
 ![Real viewer atmosphere and streamed green tile with the Sun present](images/sun-viewer-atmosphere-tiles.png)
+
+### Trajectory and sensor overlay depth
+
+![Foreground blue trajectory and sensor cone cross the Sun; the rear trajectory is hidden](images/sun-viewer-overlays.png)
+
+## Running viewer reference captures
+
+These four images come from the running Svelte viewer app with its UI, bloom
+enabled, and the production renderer. The self-contained fixed-point catalog
+preserves the physical Earth/Sun radii and places the Sun at Earth's spherical
+horizon for the final view. Space apparent sizes are set by camera distance.
+This is a reproducible visual reference rather than an epoch-specific SPICE
+scene or a golden-image test. The photosphere/granulation mapping is unchanged.
+
+```sh
+npm --prefix apps/viewer run dev
+# In a second terminal, after the server is ready:
+CHROMIUM_PATH=/usr/bin/chromium node scripts/capture-sun-viewer.mjs
+```
+
+The script writes screenshots and camera poses to `work/sun-rendering/`.
+The committed [reference poses](images/sun-app-reference-poses.json) record the
+actual apparent sizes, camera positions/targets in km, FOV, and drawing buffer.
+The sunrise camera is 10 km above Earth's surface at an 8° FOV. Its globe uses
+1024×512 tessellation to avoid coarse polygon facets dominating the horizon;
+the physical radius and atmosphere are unchanged. Fixed exposure makes the
+grazing, strongly attenuated Sun faint. This capture documents that behavior.
+
+### 150 px Sun in space
+
+![150 pixel Sun in the running viewer](images/sun-app-space-150px.png)
+
+### 35 px Sun in space
+
+![35 pixel Sun in the running viewer](images/sun-app-space-35px.png)
+
+### 5 px optical transition
+
+![5 pixel physical Sun with optical glare in the running viewer](images/sun-app-space-5px.png)
+
+### Near-surface sunrise
+
+![Earth atmosphere and a partially hidden Sun at the physical horizon](images/sun-app-sunrise.png)
