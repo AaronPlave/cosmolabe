@@ -22,7 +22,7 @@ was a 1.1 MiB download and 230 MiB on the GPU).
 |---|---|---|--:|--:|---|---|
 | `ariel.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/ariel.dds`, rotated 180° ([Orientation](#orientation)) | base/uranus-system |
 | `callisto.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/callisto.dds` | base/jupiter-galilean, europa-clipper |
-| `ceres.jpg` | 4096×2048 | JPG (grey) | 2.5 | 43 | **USGS / DLR Dawn FC global mosaic**, see [below](#ceresjpg) | base/dwarf-planets, base/main-belt-named, solar-system |
+| `ceres.jpg` | 2048×1024 | JPG (grey) | 0.9 | 11 | **USGS / DLR Dawn FC HAMO global mosaic**, see [below](#ceresjpg) | base/dwarf-planets, base/main-belt-named, solar-system |
 | `charon.jpg` | 4096×2048 | JPG (grey) | 1.0 | 43 | **USGS New Horizons global mosaic**, see [below](#charonjpg) | base/pluto-system |
 | `dione-1k.jpg` | 1024×512 | JPG | 0.2 | 3 | `dione.dds` at its 1024×512 mip (#94) | home-screen hero (`src/lib/hero.ts`) |
 | `dione.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/dione.dds` | base/saturn-major-moons, cassini-soi |
@@ -89,16 +89,30 @@ byte-identical.
 
 ### `ceres.jpg`
 
-- **Source:** *Ceres Dawn FC DLR global 20ppd Oct2015*, Dawn Framing Camera
-  global mosaic by DLR (Roatsch et al.), distributed by USGS Astrogeology:
-  `https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Ceres_Dawn_FC_DLR_global_20ppd_Oct2015.tif`
-  (7383×3691, 8-bit, 400 m/px). NASA/DLR mission data; public domain in the
-  US. Credit: NASA/JPL-Caltech/UCLA/MPS/DLR/IDA.
-- **Processing:** roll by half the width (the mosaic runs 0–360° E from
-  its left edge); Lanczos to 4096×2048; fill the south-polar no-data gap by
-  extrapolation of the surrounding data (`gap_fill`: σ = 32 px near the
-  edge, 256 px further out, the global mean beyond that) behind a 6 px
-  feathered mask; grey JPEG, quality 90.
+- **Source:** *Ceres Dawn FC DLR global 59ppd Feb2016*, the Dawn Framing
+  Camera HAMO (High Altitude Mapping Orbit) controlled global mosaic by DLR
+  (Roatsch et al.), distributed by USGS Astrogeology as an ISIS cube:
+  `https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Ceres_Dawn_FC_DLR_global_59ppd_Feb2016.cub`
+  (21093×10546, 8-bit, 140 m/px, centred on 0°E). NASA/DLR mission data;
+  public domain in the US. Credit: NASA/JPL-Caltech/UCLA/MPS/DLR/IDA.
+- **Processing:** Lanczos to 2048×1024; grey JPEG, quality 90. No fill: the
+  mosaic has data to both poles.
+- **Orientation:** the label says `CenterLongitude = 0`, `PositiveEast`, so
+  no roll. Checked at Occator (19.8°N 239.3°E = 120.7°W): its bright faculae
+  sit at the centre of a crop taken at those coordinates.
+- **Why this source:** compared at fallback size against the 400 m Survey
+  mosaic (`Ceres_Dawn_FC_DLR_global_20ppd_Oct2015`, which this map used
+  first): the two register at zero shift, but HAMO is sharper (Occator's
+  faculae, crater rims) and complete, where Survey leaves a south-polar gap
+  (about 4% of the map) that had to be extrapolated. HAMO's lower sun bakes
+  stronger shading into the high latitudes. The 35 m LAMO mosaics (PDS SBN)
+  would only matter for streamed close-up imagery.
+- **Why 2048, not 4096:** Ceres only appears at a distance in the example
+  catalogs (`solar-system`, the dwarf-planet and main-belt bases), where
+  2048 (1.4 km/px) is already finer than the screen. 4096 cost 43 MiB of GPU
+  memory and an extra eager upload in every catalog that includes Ceres; 2048
+  costs 11 MiB. See [Load cost](#load-cost) for per-texture and
+  catalog-level numbers.
 - **Replaced:** a 512×256 PNG (a pre-Dawn reconstruction from Cosmographia)
   with no recognisable surface detail.
 
@@ -120,8 +134,14 @@ byte-identical.
 - **Source:** *Pluto New Horizons Global Mosaic 300m Jul2017 8bit*, USGS
   Astrogeology (`…/mosaic/Pluto_NewHorizons_Global_Mosaic_300m_Jul2017_8bit.tif`,
   24888×12444, 0–360°E). Credit: NASA/JHUAPL/SwRI; public domain in the US.
+- **Colour source is provisional.** The chroma still comes from the
+  previous, unprovenanced `pluto.jpg` (pinned by commit and sha256 in
+  `sources.sha256`). It is to be replaced by the authoritative New Horizons
+  MVIC global colour map (PDS SBN, `nh_derived:plutosystem_composition`,
+  doi:10.26007/mc7j-ef52) once that host is reachable from the build
+  environment; the same collection has a Charon colour map to evaluate.
 - **Processing:** luminance from the mosaic (half-width roll, Lanczos to
-  4096×2048, `gap_fill` for the unimaged south). Colour is the *chroma* of
+  4096×2048 in 8 bits, `gap_fill` for the unimaged south). Colour is the *chroma* of
   the previous map (MVIC enhanced colour over the encounter hemisphere),
   rolled by half a turn (below), blurred, and scaled by the luminance ratio
   so saturation tracks the new brightness. Outside that coverage the chroma
@@ -139,13 +159,27 @@ byte-identical.
 
 ### `titan.dds`
 
-
 - **Source:** *Titan ISS P19658 Mosaic Global 4km*, Cassini ISS 938 nm
   global mosaic, USGS Astrogeology (`…/mosaic/Titan_ISS_P19658_Mosaic_Global_4km.tif`,
-  4040×2020, 0–360°). Credit: NASA/JPL-Caltech/SSI; public domain in the US.
-- **Processing:** half-width roll (registers against the previous map at
-  that roll, no mirror, although the label says PositiveWest), Lanczos to
-  4096×2048, DXT1 with a full mip chain like the map it replaces.
+  4040×2020). Credit: NASA/JPL-Caltech/SSI; public domain in the US.
+  **To be replaced** by the 2025 USGS photogrammetrically controlled
+  full-mission mosaic (Weller et al., doi:10.5066/P14FAEKS, 702 m/px, tied to
+  Titan's SAR-based geodetic frame) once its host, ScienceBase, is reachable
+  from the build environment.
+- **Orientation, from the label:** `CenterLongitude = 180`,
+  `LongitudeDirection = PositiveWest`, `MinimumLongitude = 0`,
+  `MaximumLongitude = 360`, upper-left x = −πR. ISIS projections compute map
+  x from the eastward angle, so its maps are always drawn east to the right;
+  `PositiveWest` only says the longitude *numbers* count westward. The left
+  edge is therefore 360°W = 0°E and the map runs 0–360°E: a half-width roll,
+  no mirror.
+- **Orientation, checked against named features** (IAU coordinates, after
+  the roll): Xanadu, the large bright region centred near 10°S 100°W, has a
+  mean brightness of 173 there against a global mean of 128 (42 at the
+  mirrored position, 100°E); the Belet dune field near 7°S 255°W is dark,
+  36 (172 mirrored). That fixes both the longitude sense and the origin.
+- **Processing:** half-width roll, Lanczos to 4096×2048, DXT1 with a full
+  mip chain like the map it replaces.
 - **Replaced:** Cosmographia's `titan.dds`, an early-Cassini mosaic with
   flat grey blocks where coverage was missing, most of the north among them.
   The new map fills almost all of them, including the north-polar lakes.
@@ -286,43 +320,73 @@ USGS mosaic, or point a body-fixed viewpoint at a known feature in the viewer.
 
 ## Load cost
 
-Measured with `node scripts/measure-globe-textures.mjs` (fresh page per map,
-second of two runs; the first, cold run is noisier). The `load` column is
-fetch plus decode; `upload` is the synchronous `renderer.initTexture` that
-`BodyMesh.loadGlobeTextures` takes eagerly, plus `gl.finish()`. Chromium
-decodes an `<img>` lazily, so a JPG's decode lands in `upload`. *RSS Δ* is the
-growth of all Chromium processes over load and upload.
+Measured with `node scripts/measure-globe-textures.mjs`: each sample in a
+fresh headless Chromium process (so allocator and cache state can't carry
+over between maps), median of 3 samples. Columns:
 
-Like `scripts/visual-regression.mjs`, this runs on SwiftShader (software GL,
-4 cores), so upload times are CPU-bound upper bounds. Read them relative to
-each other, not as desktop-GPU frame costs.
+- *load*: fetch plus decode.
+- *initTexture*: the synchronous `renderer.initTexture` call alone, which
+  is the main-thread time `BodyMesh.loadGlobeTextures` spends per map when it
+  uploads eagerly. Chromium decodes an `<img>` lazily, so a JPG's decode
+  lands here.
+- *GPU finish*: a following `gl.finish()`, i.e. GPU completion, which the app
+  does not wait for. It is reported separately so it isn't mistaken for a
+  stall; in SwiftShader it is ~0 because the upload is already synchronous.
+- *RSS Δ*: growth of that browser's processes across load and upload.
 
-| Map | Pixels | File MiB | GPU MiB | load ms | upload ms | RSS Δ MiB |
-|---|---|--:|--:|--:|--:|--:|
-| `ceres.png` (old) | 512×256 | 0.1 | 0.7 | 6 | 7 | 7 |
-| `ceres.jpg` (new) | 4096×2048 | 2.5 | 42.7 | 20 | 145 | 79 |
-| `moon-4k.jpg` | 4096×2048 | 2.0 | 42.7 | 18 | 158 | 101 |
-| `earth-5k.jpg` (old) | 5400×2700 | 2.2 | 74.2 | 23 | 266 | 106 |
-| `earth-8k.jpg` (new) | 8192×4096 | 4.7 | 170.7 | 49 | 566 | 191 |
-| `mars.dds` (old and new) | 4096×2048 | 5.3 | 5.3 | 53 | 8 | 32 |
-| `jupiter.dds` (old) | 4096×2048 | 5.3 | 5.3 | 53 | 8 | 32 |
-| `jupiter.jpg` (new) | 4096×2048 | 0.9 | 42.7 | 14 | 137 | 95 |
-| `saturn.jpg` | 1024×512 | 0.03 | 2.7 | 5 | 11 | 8 |
-| `pluto.jpg` (old) | 5999×3000 | 1.0 | 91.5 | 12 | 297 | 117 |
-| `pluto.jpg` (new) | 4096×2048 | 1.3 | 42.7 | 16 | 132 | 88 |
-| `charon.jpg` (old) | 9520×4760 | 1.1 | 230.5\* | 15 | 720 | 490 |
-| `charon.jpg` (new) | 4096×2048 | 1.0 | 42.7 | 12 | 137 | 86 |
-| `titan.dds` (old) | 4096×2048 | 5.3 | 5.3 | 50 | 9 | 33 |
-| `titan.dds` (new) | 4096×2048 | 5.3 | 5.3 | 49 | 7 | 32 |
-| `moon-normal-16k.jpg` | 16384×8192 | 5.3 | 682.7\* | 49 | 2426 | 453 |
-| `moon-16k.jpg` | 16384×8192 | 40.6 | 682.7\* | 155 | 2750 | 485 |
+This runs on SwiftShader (software GL, 4 cores), like
+`scripts/visual-regression.mjs`, so times are CPU-bound upper bounds: read
+them relative to each other, not as desktop- or mobile-GPU frame costs.
+Real-hardware numbers, especially on a constrained GPU, are still to be
+taken (see below).
+
+| Map | Pixels | File MiB | GPU MiB | load ms | initTexture ms | GPU finish ms | RSS Δ MiB |
+|---|---|--:|--:|--:|--:|--:|--:|
+| `ceres.png` (old) | 512×256 | 0.1 | 0.7 | 12 | 8 | 0 | 8 |
+| `ceres.jpg` (new) | 2048×1024 | 0.9 | 10.7 | 13 | 38 | 0 | 32 |
+| `moon-4k.jpg` | 4096×2048 | 2.0 | 42.7 | 14 | 172 | 0 | 93 |
+| `earth-5k.jpg` (current) | 5400×2700 | 2.2 | 74.2 | 24 | 232 | 0 | 103 |
+| `earth-8k.jpg` (built, not yet committed) | 8192×4096 | 4.7 | 170.7 | 30 | 574 | 0 | 189 |
+| `mars.dds` (old and new) | 4096×2048 | 5.3 | 5.3 | 39 | 8 | 0 | 33 |
+| `jupiter.dds` (old) | 4096×2048 | 5.3 | 5.3 | 80 | 8 | 0 | 33 |
+| `jupiter.jpg` (new) | 4096×2048 | 0.9 | 42.7 | 9 | 152 | 0 | 88 |
+| `saturn.jpg` | 1024×512 | 0.03 | 2.7 | 6 | 12 | 0 | 12 |
+| `pluto.jpg` (old) | 5999×3000 | 1.0 | 91.5 | 11 | 280 | 0 | 126 |
+| `pluto.jpg` (new) | 4096×2048 | 1.3 | 42.7 | 13 | 144 | 0 | 88 |
+| `charon.jpg` (old) | 9520×4760 | 1.1 | 230.5\* | 11 | 1338 | 0 | 495 |
+| `charon.jpg` (new) | 4096×2048 | 1.0 | 42.7 | 14 | 134 | 0 | 86 |
+| `titan.dds` (old) | 4096×2048 | 5.3 | 5.3 | 48 | 6 | 0 | 32 |
+| `titan.dds` (new) | 4096×2048 | 5.3 | 5.3 | 46 | 10 | 0 | 32 |
+| `moon-normal-16k.jpg` | 16384×8192 | 5.3 | 682.7\* | 37 | 678 | 0 | 447 |
+| `moon-16k.jpg` | 16384×8192 | 40.6 | 682.7\* | 217 | 1030 | 0 | 487 |
 
 \* On a GPU whose `MAX_TEXTURE_SIZE` covers the image. SwiftShader reports
 8192, so three.js (`WebGLTextures.resizeImage`) first downsizes these on a
-2D canvas on the main thread. That is part of the upload time above, and the
-GPU then holds ≈171 MiB (8192×4096) instead of 683. Many mobile GPUs report
-8192 or less. On them the 16k maps cost the full download,
-decode and a canvas resize, and still display at 8k.
+2D canvas on the main thread. That is part of the initTexture time above,
+and the GPU then holds ≈171 MiB (8192×4096) instead of 683. Many mobile GPUs
+report 8192 or less. On them the 16k maps cost the full download, decode and
+a canvas resize, and still display at 8k.
+
+### Catalog level: Ceres in `solar-system`
+
+Globe maps load as part of the catalog's initial assets and each is
+uploaded eagerly, so per-texture costs add up. Measured on the built viewer
+(`?catalog=solar-system&test=1`, headless SwiftShader, 1024×768), varying
+only Ceres' map: median of 5 page loads, each in a fresh browser.
+
+| Ceres map | Time to all initial assets ready | Main-thread long tasks, total | Longest task |
+|---|--:|--:|--:|
+| 512×256 PNG (old) | 7.25 s | 5.37 s | 1.73 s |
+| 2048×1024 JPG (new) | 7.25 s | 5.60 s | 1.75 s |
+| 4096×2048 JPG (first version of this change) | 7.63 s | 6.01 s | 1.67 s |
+
+At 2048 the map adds about 0.2 s of main-thread work across the load and
+nothing measurable to time-to-ready; 4096 added about 0.6 s and 0.4 s. The
+longest task is something else in the catalog either way. These are
+software-GL figures: the same comparison on a desktop GPU and on a
+constrained mobile GPU is still to be done, and it matters most for the
+JPG maps (Earth, Moon, Jupiter, Pluto, Charon, Ceres), whose decode and
+RGBA upload dominate.
 
 What this means:
 
@@ -345,21 +409,20 @@ What this means:
   Android GPUs), and three.js then logs "unsupported compressed texture
   format" and the globe renders untextured. KTX2/Basis (transcodes to
   whatever the GPU supports) would keep the memory win without that hole.
-- **Upload times vary run to run** by up to 2–3× in SwiftShader (e.g.
-  `charon.jpg` old: 2546 ms in the first table run, 720 ms in a later one).
-  Compare rows from the same run.
+- **Times vary run to run** in SwiftShader, which is why each row is a
+  median of fresh-browser samples. Compare rows, not absolute values.
 - **Earth 8k doubles Earth's cost**: 74 → 171 MiB of GPU memory and about
-  270 → 570 ms of upload in SwiftShader, in every catalog that shows Earth.
+  230 → 570 ms of initTexture in SwiftShader, in every catalog that shows Earth.
   The gain is crisper coastlines and relief at close range. If the hitch
   matters more (mobile, the featured Solar System tour), a 4096 or 5400
   resize of the same source is a one-line change to the `earth` recipe.
 - **Jupiter** moves from DXT1 to JPG to lose DXT1's banding: 5 → 43 MiB and
-  about 8 → 140 ms. Mercury, Mars, Venus and Mimas stay DXT1 at the same
+  about 8 → 150 ms. Mercury, Mars, Venus and Mimas stay DXT1 at the same
   size and cost as before; the 4096-sample ring texture is negligible.
-- **Ceres** goes from about 0.7 to 43 MiB GPU and about 7 to
-  145 ms upload in SwiftShader. That is the same cost as `moon-4k.jpg`, which
-  the same demos already pay. It is a JPG rather than DDS so it works without
-  S3TC.
+- **Ceres** goes from 0.7 to 11 MiB of GPU memory and about 8 → 38 ms of
+  initTexture: a 2048 map rather than 4096 (which measured 43 MiB and about
+  145 ms), because these costs add up per catalog (below). It is a JPG
+  rather than DDS so it works without S3TC.
 
 ## Tried and not adopted
 
@@ -400,17 +463,41 @@ What this means:
 
 ## Static fallback vs streamed imagery
 
-| Body | Recommendation |
-|---|---|
-| Moon | **Stream.** Keep the static fallback at 4k colour + 4k normal. lro-moon and moonfall-shackleton already stream LRO WAC tiles from Trek, which take over at close range; the 16k maps sit under them at 1.37 GiB of GPU memory. |
-| Mars | **Stream** for surface demos (ingenuity-jezero and msl-dingo-gap already stream Viking MDIM / CTX / HiRISE from Trek); 4k DXT1 is right for the fallback. |
-| Earth | **Stream** for close range. The static map is now 8192×4096 (171 MiB as RGBA); past that, streaming is the only sensible step. |
-| Mercury, Ceres | **Stream** if a demo ever approaches; MESSENGER and Dawn global mosaics are hundreds of MB to GB at full resolution. 4k static is the ceiling. |
-| Jupiter, Saturn, Uranus, Neptune | **Static.** Banded / near-featureless global maps; tiling buys nothing. No better Saturn globe was found (see "Tried and not adopted"); Uranus and Neptune at 512–1024 px are enough for their faint banding. |
-| Galilean and Saturnian moons, Triton, Pluto, Charon | **Static**, 4k. Source mosaics are 0.3–1.4 km/px, so 4k (about 4–8 km/px) is where source detail stops being worth the memory for a flyby demo. |
-| Uranian moons, Miranda, Sun | **Static**, 1–2k. Voyager 2 imaged only the southern hemispheres; the Sun is a procedural/emissive surface. |
-| Vesta, Phobos, Deimos, other shape-model bodies | **Static, baked.** These are `.cmod` meshes, not globes (see below). |
-| Eris, Haumea, Makemake, 16 Psyche | **Untextured** (as now). No resolved imagery exists yet (Psyche until 2029). |
+The static map is a **fallback**: what a body shows at body scale (whole
+disc, system views, before any tiles arrive). It should not grow to serve
+close approaches. The policy for every body:
+
+- **Static fallback for distant / body-scale views**, sized so it is sharp
+  there: 4096×2048 by default, 2048 or less where the body is only ever seen
+  small or the source has nothing finer.
+- **Stream tiled imagery when the camera is close enough to need it and an
+  authoritative higher-resolution product exists.** That is the
+  imagery/terrain path the Moon and Mars surface demos already use.
+- **Don't enlarge the monolithic fallback to cover close flybys.** Its cost
+  (GPU memory, upload stall) is paid in every catalog that includes the
+  body, near or not. Earth's 8k map is the one deliberate exception
+  (see [Load cost](#load-cost)).
+
+What 4096 px around the equator means per body, and where finer data exists
+to stream:
+
+| Body | Fallback (equatorial scale) | Finer source worth streaming for close views |
+|---|---|---|
+| Moon | 4096 colour (2.7 km/px); 16k today in lro-moon / moonfall-shackleton, where LRO WAC tiles from Trek already take over close up | LRO WAC 100 m, LOLA, LROC NAC |
+| Mars | 4096 DXT1 (5.2 km/px) | MDIM 2.1 232 m, CTX, HiRISE (already streamed in ingenuity-jezero, msl-dingo-gap) |
+| Earth | 8192 (4.9 km/px) | any web-map imagery |
+| Mercury | 4096 DXT1 (3.7 km/px) | MDIS BDR / LOI 166 m |
+| Venus | 4096 DXT1 (9.3 km/px) | Magellan C3-MDIR 2 km, FMAP 75 m |
+| Ceres | 2048 (1.4 km/px) | Dawn HAMO 140 m, LAMO 35 m |
+| Io, Europa | 4096 (2.8, 2.4 km/px) | Galileo SSI regional mosaics (to tens of m on Europa) |
+| Ganymede, Callisto | 2048 (8.1, 7.4 km/px) | USGS Voyager–Galileo mosaics, 1–1.4 km |
+| Titan | 4096 (4.0 km/px) | controlled ISS 702 m; Cassini SAR swaths |
+| Mimas, Enceladus, Tethys, Dione, Rhea, Iapetus | 4096 (0.30–1.2 km/px) | Cassini global mosaics at 0.1–0.8 km (Enceladus 100 m) |
+| Triton, Pluto, Charon | 4096 (2.1, 1.8, 0.9 km/px) | encounter-hemisphere mosaics at 0.3–0.6 km (Pluto and Charon down to tens of m along the flyby track) |
+| Uranian moons | 1024–2048 | Voyager 2 southern hemispheres only; nothing finer to stream |
+| Jupiter, Saturn, Uranus, Neptune | 1024–4096 | none worth tiling: banded / near-featureless at any scale |
+| Vesta, Phobos, Deimos, other shape models | baked into the mesh's UV atlas (see below) | Dawn / Viking / HiRISE, via a bake or a projected overlay |
+| Eris, Haumea, Makemake, 16 Psyche | untextured | no resolved imagery yet (Psyche from 2029) |
 
 ## Bodies without an up-to-date map
 

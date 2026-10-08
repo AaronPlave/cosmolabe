@@ -1,0 +1,15 @@
+# sha256 of each build.py output, as committed in apps/viewer/test-catalogs/textures/.
+# `build.py --verify` checks the committed files against this list; every
+# build also reports OK / MISMATCH per output. Update an entry only together
+# with the recipe or sources.sha256 change that explains it.
+5ef74b50ff5715f6de3ab0bfe60897daaaaadc1a82ae6f15fabf3a1ba79d1918  ceres.jpg
+1c92d471e8564a6c0e4d68e8c660f12d37f0ac01c03b09c6cdd7b9f67899eda5  charon.jpg
+b13a63467851ac7fd2cb76e861a12f6e0a8370b895f1dc4662d7a73a241b0832  pluto.jpg
+52f9945be808e602a974379faf6460237b6d1d29cdd7572a15c3ee2287113b70  titan.dds
+7bdb70bf4a108b24ff80b512b8293e0ff0d1694504d82f9ae30359624facce6a  mercury.dds
+a789056763dd12647c3fad1e6b68e1cf304ed4d07794402ede1f1ca2a119a531  venus.dds
+ca08f6e2fcbef92eae44e8a6a8f64f9667cf24574a4ab5fc80bb5b345f5cc7d8  earth-8k.jpg
+d55704a5be414af0f6819fc98154429d4d91ad7fba805f1199631b213a1ec9ff  mars.dds
+74c389b2e7c0431109127cb779d79879406129a2dd0758bfe9fbee02b9c88334  jupiter.jpg
+a0453650410006255d30a2ddb15a734786b43b56b2768a8842f262809def6dc5  saturn-rings.png
+aad7ed6f33ce73c12d87f56257e0316f4c1e563bafaee22feea4882e0b3c6c02  mimas.dds

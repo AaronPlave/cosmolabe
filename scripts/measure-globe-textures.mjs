@@ -3,17 +3,24 @@
  * Measure load cost of demo globe textures the way BodyMesh loads them (#122).
  *
  *   node scripts/measure-globe-textures.mjs [texture ...]   # names under apps/viewer/test-catalogs/textures
+ *   SAMPLES=5 node scripts/measure-globe-textures.mjs ...     # samples per texture (default 3)
  *
- * For each texture, in a fresh headless Chromium page:
- *   - fetch+decode: JPG/PNG through THREE.TextureLoader (an HTMLImageElement,
- *     as BodyMesh.loadTexture does); DDS by fetch + DDSLoader.parse.
- *   - upload: renderer.initTexture(tex) followed by gl.finish(), i.e. the
- *     main-thread block BodyMesh.loadGlobeTextures takes eagerly. For an
- *     HTMLImageElement Chromium decodes lazily, so most of the image decode
- *     lands here, not in the load step.
+ * Each sample runs in a fresh headless Chromium process, so allocator and
+ * cache state from earlier textures can't leak into it; the table shows the
+ * median of the samples. Per sample:
+ *   - load: fetch+decode. JPG/PNG through THREE.TextureLoader (an
+ *     HTMLImageElement, as BodyMesh.loadTexture does); DDS by fetch +
+ *     DDSLoader.parse.
+ *   - initTexture: the synchronous renderer.initTexture(tex) call alone, i.e.
+ *     the main-thread time BodyMesh.loadGlobeTextures spends uploading each
+ *     map eagerly. Chromium decodes an HTMLImageElement lazily, so most of a
+ *     JPG's decode lands here, not in load.
+ *   - GPU finish: a following gl.finish(), i.e. how long until the GPU (here
+ *     SwiftShader) has actually consumed the upload. The app does not wait
+ *     for this; it is reported separately so it isn't mistaken for a stall.
  *   - GPU bytes: computed from format and dimensions (RGBA8 + full mip chain
  *     for images; the DDS payload for compressed textures).
- *   - RSS delta: growth of all Chromium processes across load + upload.
+ *   - RSS delta: growth of that browser's processes across load + upload.
  *
  * Chromium runs SwiftShader (software GL), as scripts/visual-regression.mjs
  * does, so absolute upload times are a CPU-bound upper bound rather than a
@@ -71,9 +78,10 @@ window.measure = async (url) => {
   tex.colorSpace = THREE.SRGBColorSpace;
   const t1 = performance.now();
   renderer.initTexture(tex);
-  gl.finish();
   const t2 = performance.now();
-  return { loadMs: t1 - t0, uploadMs: t2 - t1, w: tex.image.width, h: tex.image.height };
+  gl.finish();
+  const t3 = performance.now();
+  return { loadMs: t1 - t0, initMs: t2 - t1, finishMs: t3 - t2, w: tex.image.width, h: tex.image.height };
 };
 window.ready = true;
 </script>`;
@@ -93,30 +101,41 @@ function chromiumRssMiB() {
 }
 
 const MiB = (b) => (b / 2 ** 20).toFixed(1);
-// CHROMIUM_PATH overrides Playwright's bundled build (e.g. a preinstalled Chromium).
-const browser = await chromium.launch({
-  args: ['--use-gl=swiftshader', '--ignore-gpu-blocklist'],
-  executablePath: process.env.CHROMIUM_PATH || undefined,
-});
+const SAMPLES = Number(process.env.SAMPLES ?? 3);
+const median = (xs) => [...xs].sort((a, b) => a - b)[xs.length >> 1];
 
-console.log('| texture | dims | file MiB | GPU MiB | load ms | upload ms | RSS Δ MiB |');
-console.log('|---|---|--:|--:|--:|--:|--:|');
 let maxTex;
+async function sample(name) {
+  // CHROMIUM_PATH overrides Playwright's bundled build (e.g. a preinstalled Chromium).
+  const browser = await chromium.launch({
+    args: ['--use-gl=swiftshader', '--ignore-gpu-blocklist'],
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+  });
+  try {
+    const page = await browser.newPage();
+    await page.goto(base + '/');
+    await page.waitForFunction(() => window.ready);
+    maxTex ??= await page.evaluate(() => window.maxTextureSize);
+    const before = chromiumRssMiB();
+    const r = await page.evaluate((u) => window.measure(u), `/${TEXTURES}/${name}`);
+    return { ...r, rss: chromiumRssMiB() - before };
+  } finally {
+    await browser.close();
+  }
+}
+
+console.log(`median of ${SAMPLES} samples, each in a fresh browser`);
+console.log('| texture | dims | file MiB | GPU MiB | load ms | initTexture ms | GPU finish ms | RSS Δ MiB |');
+console.log('|---|---|--:|--:|--:|--:|--:|--:|');
 for (const name of names) {
-  const file = join(ROOT, TEXTURES, name);
-  const bytes = (await stat(file)).size;
-  const page = await browser.newPage();
-  await page.goto(base + '/');
-  await page.waitForFunction(() => window.ready);
-  maxTex ??= await page.evaluate(() => window.maxTextureSize);
-  const before = chromiumRssMiB();
-  const r = await page.evaluate((u) => window.measure(u), `/${TEXTURES}/${name}`);
-  const after = chromiumRssMiB();
-  await page.close();
+  const bytes = (await stat(join(ROOT, TEXTURES, name))).size;
+  const runs = [];
+  for (let i = 0; i < SAMPLES; i++) runs.push(await sample(name));
+  const m = (k) => median(runs.map((r) => r[k])).toFixed(0);
+  const { w, h } = runs[0];
   // RGBA8 + mips for images; DDS payload (minus the 128-byte header) for DXT.
-  const gpu = name.endsWith('.dds') ? bytes - 128 : (r.w * r.h * 4 * 4) / 3;
-  console.log(`| ${name} | ${r.w}×${r.h} | ${MiB(bytes)} | ${MiB(gpu)} | ${r.loadMs.toFixed(0)} | ${r.uploadMs.toFixed(0)} | ${(after - before).toFixed(0)} |`);
+  const gpu = name.endsWith('.dds') ? bytes - 128 : (w * h * 4 * 4) / 3;
+  console.log(`| ${name} | ${w}×${h} | ${MiB(bytes)} | ${MiB(gpu)} | ${m('loadMs')} | ${m('initMs')} | ${m('finishMs')} | ${m('rss')} |`);
 }
 console.log(`\nmaxTextureSize (SwiftShader): ${maxTex}`);
-await browser.close();
 server.close();

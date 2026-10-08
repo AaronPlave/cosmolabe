@@ -1,25 +1,34 @@
 #!/usr/bin/env python3
-"""Build the demo globe fallback maps that are derived from public USGS mosaics.
+"""Build the demo globe fallback maps that are derived from public sources.
 
 Reproduces the derived files in apps/viewer/test-catalogs/textures/ listed in
 RECIPES below. Run ./fetch-sources.sh first; see README.md for provenance and
 the reasoning behind each step.
 
+Every input is checked against sources.sha256 before use, and every output
+against outputs.sha256 after it is written (a mismatch is reported, not
+fatal: it is expected when a recipe is changed on purpose).
+
 Requires Python 3.10+ and the packages in requirements.txt.
 
     python3 build.py              # build every recipe
     python3 build.py ceres        # build one
+    python3 build.py --verify     # check the committed outputs against outputs.sha256
 """
 from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
+import http.client
 import io
 import math
+import os
 import struct
-import subprocess
 import sys
+import time
 import urllib.request
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -31,25 +40,74 @@ Image.MAX_IMAGE_PIXELS = None
 HERE = Path(__file__).resolve().parent
 SOURCES = HERE / 'data' / 'source'
 TEXTURES = HERE.parent.parent / 'apps' / 'viewer' / 'test-catalogs' / 'textures'
-USGS = 'https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic'
+SOURCE_MANIFEST = HERE / 'sources.sha256'
+OUTPUT_MANIFEST = HERE / 'outputs.sha256'
 
 
-def load_usgs(name: str, center_lon: float = 180) -> np.ndarray:
-    """Load a USGS mosaic as float32 (H, W, C), rolled to Cosmolabe's longitude origin.
+def _manifest() -> dict[str, tuple[str, str]]:
+    """sources.sha256: `<sha256>  <name>  <origin>` per line, `#` comments."""
+    entries = {}
+    for line in SOURCE_MANIFEST.read_text().splitlines():
+        if line.strip() and not line.startswith('#'):
+            digest, name, origin = line.split()
+            entries[name] = (digest, origin)
+    return entries
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 22), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+_verified: set[str] = set()
+
+
+def source(name: str) -> Path:
+    """Path of a fetched input, after checking it against sources.sha256."""
+    path = SOURCES / name
+    if name not in _verified:
+        expected = _manifest()[name][0]
+        if not path.exists():
+            sys.exit(f'missing source {name}; run ./fetch-sources.sh')
+        got = sha256_file(path)
+        if got != expected:
+            sys.exit(f'source {name} has sha256 {got}, expected {expected}; run ./fetch-sources.sh')
+        _verified.add(name)
+    return path
+
+
+def load_usgs(name: str, w: int, h: int, center_lon: float) -> tuple[np.ndarray, np.ndarray]:
+    """A local 8-bit USGS mosaic resampled to w x h in Cosmolabe's longitude
+    origin: (image, coverage), float32 (h, w, C) and (h, w, 1).
 
     Cosmolabe globe maps put longitude -180 at u=0 and the prime meridian at
-    the centre (simple cylindrical, east to the right). `center_lon` is the
-    .lbl's CenterLongitude: 180 (the map runs 0..360 E from its left edge) is
-    rolled by half the width, 0 is already in place. Every mosaic used here
-    is east-to-the-right whatever its LongitudeDirection label says; each
-    recipe's orientation was confirmed by correlating against an existing map
-    (see README).
-    """
-    a = np.asarray(Image.open(SOURCES / f'{name}.tif'), dtype=np.float32)
+    the centre, east to the right. `center_lon` is the label's
+    CenterLongitude: at 180 the map runs 0..360 E from its left edge and is
+    rolled by half its width; at 0 it is already in place. No mirroring is
+    ever needed: ISIS computes map x from the eastward angle, so its maps are
+    always drawn east-to-the-right, and LongitudeDirection only says whether
+    the longitude *numbers* count east or west (a PositiveWest map with
+    CenterLongitude 180 has 360 W = 0 E at its left edge). Each recipe's
+    orientation is also checked against named features (see README).
+
+    Resampling stays in 8 bits (Pillow, per band) so a mosaic of a few
+    hundred megapixels never exists as float32. `coverage` is the
+    area-averaged fraction of non-zero (non-no-data) source pixels."""
+    a = np.asarray(Image.open(source(f'{name}.tif')))
     if a.ndim == 2:
         a = a[:, :, None]
+    assert a.dtype == np.uint8, (name, a.dtype)
     assert center_lon in (0, 180), center_lon
-    return np.roll(a, a.shape[1] // 2, axis=1) if center_lon == 180 else a
+    if center_lon == 180:
+        a = np.roll(a, a.shape[1] // 2, axis=1)
+    bands = [np.asarray(Image.fromarray(a[:, :, c]).resize((w, h), Image.LANCZOS), dtype=np.float32)
+             for c in range(a.shape[2])]
+    valid = (a.max(axis=2) > 0).view(np.uint8) * np.uint8(255)
+    coverage = np.asarray(Image.fromarray(valid).resize((w, h), Image.BOX), dtype=np.float32) / 255
+    return np.stack(bands, axis=2), coverage[:, :, None]
 
 
 class _RangeReader(io.RawIOBase):
@@ -105,9 +163,10 @@ def _get(url: str, first: int, last: int, full: bool = False):
             data = resp.read()
             if len(data) == last - first + 1:
                 return data
-        except OSError:
+        except (OSError, http.client.HTTPException):  # IncompleteRead is not an OSError
             if attempt == 5:
                 raise
+        time.sleep(2 ** attempt)
     raise OSError(f'short read from {url}')
 
 
@@ -119,12 +178,17 @@ def usgs_remote(name: str, w: int) -> np.ndarray:
     row, already in Cosmolabe's convention (CenterLongitude 0, -180 at the
     left edge, east to the right). Rows are read in chunks that map to whole
     output rows, so the result does not depend on chunking or thread order.
-    Cached under data/source/decimated/; the whole file still streams through
-    once (see README for sizes)."""
-    cache = SOURCES / 'decimated' / f'{name}.{w}.npy'
+
+    Every pixel byte is streamed, so the data is verified as it goes: the
+    sha256 of the concatenated per-chunk sha256s, in chunk order, must match
+    the `stream:` entry in sources.sha256 or nothing is returned or cached.
+    The reduction is cached under data/source/decimated/, keyed by that
+    digest."""
+    expected, origin = _manifest()[name]
+    url = origin.removeprefix('stream:')
+    cache = SOURCES / 'decimated' / f'{name}.{w}.{expected[:16]}.npy'
     if cache.exists():
         return np.load(cache)
-    url = f'{USGS}/{name}.tif'
     tif = tifffile.TiffFile(_RangeReader(url))
     page = tif.pages[0]
     offsets = np.asarray(page.dataoffsets, dtype=np.int64)
@@ -141,7 +205,7 @@ def usgs_remote(name: str, w: int) -> np.ndarray:
     per = max(1, (32 << 20) // (row * src_rows))
     out = np.zeros((bands, h, w), np.float32)
 
-    def job(band: int, unit: int) -> None:
+    def job(band: int, unit: int) -> bytes:
         r0 = unit * src_rows
         r1 = min(H, r0 + per * src_rows)
         a = offsets[0] + (band * H + r0) * row
@@ -149,17 +213,47 @@ def usgs_remote(name: str, w: int) -> np.ndarray:
         block = np.frombuffer(data, dt).reshape(r1 - r0, W).astype(np.float32)
         o0, o1 = r0 // src_rows * out_rows, r1 // src_rows * out_rows
         out[band, o0:o1] = np.asarray(Image.fromarray(block, 'F').resize((w, o1 - o0), Image.BOX))
+        return hashlib.sha256(data).digest()
 
     jobs = [(b, u) for b in range(bands) for u in range(0, g, per)]
     print(f'  streaming {name} ({H}x{W}x{bands}, {page.dtype}) in {len(jobs)} requests', flush=True)
+    digests = []
     with concurrent.futures.ThreadPoolExecutor(6) as ex:
-        for i, _ in enumerate(ex.map(lambda j: job(*j), jobs)):
+        for i, d in enumerate(ex.map(lambda j: job(*j), jobs)):  # map keeps job order
+            digests.append(d)
             if (i + 1) % max(1, len(jobs) // 10) == 0:
                 print(f'    {100 * (i + 1) // len(jobs)}%', flush=True)
+    got = hashlib.sha256(b''.join(digests)).hexdigest()
+    if got != expected:
+        sys.exit(f'{name}: streamed content digest {got}, expected {expected} (upstream file changed?)')
     a = np.moveaxis(out, 0, -1)
     cache.parent.mkdir(parents=True, exist_ok=True)
-    np.save(cache, a)
+    tmp = cache.with_suffix('.part.npy')
+    np.save(tmp, a)
+    os.replace(tmp, cache)
     return a
+
+
+def load_isis_tiled(path: Path) -> np.ndarray:
+    """An 8-bit single-band ISIS cube in Tile format, as uint8 (lines, samples).
+
+    Only what the label states is supported: one band, UnsignedByte,
+    Base 0 / Multiplier 1. Tiles are stored row by row, each TileLines x
+    TileSamples, and the last tile row is padded past Lines."""
+    head = path.open('rb').read(65536).decode('latin-1')
+
+    def field(key: str) -> str:
+        line = next(l for l in head.splitlines() if l.strip().startswith(key + ' '))
+        return line.split('=', 1)[1].strip()
+    assert field('Format') == 'Tile' and field('Type') == 'UnsignedByte' and field('Bands') == '1', path
+    assert float(field('Base')) == 0 and float(field('Multiplier')) == 1, path
+    samples, lines = int(field('Samples')), int(field('Lines'))
+    ts, tl = int(field('TileSamples')), int(field('TileLines'))
+    start = int(field('StartByte')) - 1  # ISIS counts bytes from 1
+    nx, ny = -(-samples // ts), -(-lines // tl)
+    raw = np.fromfile(path, np.uint8, offset=start, count=nx * ny * ts * tl)
+    tiles = raw.reshape(ny, nx, tl, ts).transpose(0, 2, 1, 3).reshape(ny * tl, nx * ts)
+    return tiles[:lines, :samples]
 
 
 def load_tif(path: Path) -> np.ndarray:
@@ -169,21 +263,6 @@ def load_tif(path: Path) -> np.ndarray:
     if a.ndim == 3 and a.shape[0] in (3, 4) and a.shape[2] not in (3, 4):
         a = np.moveaxis(a, 0, -1)
     return (a[:, :, None] if a.ndim == 2 else a).astype(np.float32)
-
-
-def previous(path: str, rev: str) -> Path:
-    """A file as it was at `rev`, from git history (LFS pointers resolved),
-    cached under data/source/previous/: for recipes that reuse something
-    from the map they replace."""
-    out = SOURCES / 'previous' / f'{rev}-{Path(path).name}'
-    if not out.exists():
-        blob = subprocess.run(['git', 'show', f'{rev}:{path}'], cwd=HERE, check=True, capture_output=True).stdout
-        if blob.startswith(b'version https://git-lfs'):
-            blob = subprocess.run(['git', 'lfs', 'smudge'], cwd=HERE, input=blob, check=True,
-                                  capture_output=True).stdout
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(blob)
-    return out
 
 
 def resize(a: np.ndarray, w: int, h: int) -> np.ndarray:
@@ -207,10 +286,11 @@ def blur(a: np.ndarray, sigma: float) -> np.ndarray:
     return out[pad:pad + h].astype(np.float32)
 
 
-def valid_mask(src: np.ndarray, w: int, h: int, feather: float) -> np.ndarray:
-    """1 where the mosaic has data, 0 in its no-data (0-valued) gaps, feathered at the boundary."""
-    m = (src.max(axis=2) > 0).astype(np.float32)[:, :, None]
-    m = resize(m, w, h).clip(0, 1)
+def valid_mask(coverage: np.ndarray, feather: float) -> np.ndarray:
+    """1 where the mosaic has data, 0 in its no-data gaps, feathered at the
+    boundary. `coverage` is the fraction of valid source pixels per output
+    pixel (load_usgs), or any 0..1 map at output size."""
+    m = coverage.clip(0, 1)
     # Erode by the feather radius before blurring so the ramp sits inside the
     # data and the 0-valued edge never bleeds into the result.
     m = (blur(m, feather) > 0.999).astype(np.float32)
@@ -292,16 +372,20 @@ def write_dxt1(im: Image.Image, path: Path) -> None:
 # ── recipes ──────────────────────────────────────────────────────────────────
 
 def ceres() -> None:
-    """Dawn FC global mosaic (greyscale, as Ceres is) at 4096x2048. The
-    mosaic's south-polar no-data gap is filled by smooth extrapolation of the
-    surrounding data; nothing is taken from the previous map, a 512x256
-    pre-Dawn reconstruction with no usable detail."""
-    W, H = 4096, 2048
-    src = load_usgs('Ceres_Dawn_FC_DLR_global_20ppd_Oct2015')
-    m = valid_mask(src, W, H, feather=6)
-    a = resize(src, W, H)
-    out = a * m + gap_fill(a, m) * (1 - m)
-    write_jpg(to_image(out), TEXTURES / 'ceres.jpg')
+    """Dawn FC HAMO global mosaic (DLR, Feb 2016, 140 m/px, greyscale as
+    Ceres is) at 2048x1024.
+
+    2048 rather than 4096: Ceres is a distant body in every catalog that
+    shows it, 2048 is already 1.4 km/px, and it keeps the fallback at
+    11 MiB of GPU memory instead of 43 (see README). The HAMO mosaic is
+    controlled, sharper than the 400 m Survey mosaic and complete to both
+    poles, so nothing is extrapolated; it is already centred on 0 E. Nothing
+    is taken from the previous map, a 512x256 pre-Dawn reconstruction."""
+    W, H = 2048, 1024
+    src = load_isis_tiled(source('Ceres_Dawn_FC_DLR_global_59ppd_Feb2016.cub'))
+    assert src.min() > 0, 'HAMO mosaic was complete when this recipe was written'
+    a = np.asarray(Image.fromarray(src).resize((W, H), Image.LANCZOS), dtype=np.float32)
+    write_jpg(to_image(a[:, :, None]), TEXTURES / 'ceres.jpg')
 
 
 def charon() -> None:
@@ -311,9 +395,8 @@ def charon() -> None:
     unimaged south (polar night at encounter) was black and is now a smooth
     extrapolation of the surrounding terrain."""
     W, H = 4096, 2048
-    src = load_usgs('Charon_NewHorizons_Global_Mosaic_300m_Jul2017_8bit', center_lon=0)
-    m = valid_mask(src, W, H, feather=6)
-    a = resize(src, W, H)
+    a, coverage = load_usgs('Charon_NewHorizons_Global_Mosaic_300m_Jul2017_8bit', W, H, center_lon=0)
+    m = valid_mask(coverage, feather=6)
     out = a * m + gap_fill(a, m) * (1 - m)
     write_jpg(to_image(out), TEXTURES / 'charon.jpg')
 
@@ -329,14 +412,13 @@ def pluto() -> None:
     the mean of the covered area, so the rest of the globe is a neutral
     Pluto tint rather than grey. The unimaged south is filled as for Charon."""
     W, H = 4096, 2048
-    src = load_usgs('Pluto_NewHorizons_Global_Mosaic_300m_Jul2017_8bit', center_lon=180)
-    m = valid_mask(src, W, H, feather=6)
-    a = resize(src, W, H)
+    a, coverage = load_usgs('Pluto_NewHorizons_Global_Mosaic_300m_Jul2017_8bit', W, H, center_lon=180)
+    m = valid_mask(coverage, feather=6)
     y = a * m + gap_fill(a, m) * (1 - m)
 
-    old = np.asarray(Image.open(SOURCES / 'previous' / 'pluto.jpg').convert('RGB'), dtype=np.float32)
+    old = np.asarray(Image.open(source('previous/pluto.jpg')).convert('RGB'), dtype=np.float32)
     old = np.roll(resize(old, W, H), W // 2, axis=1)
-    cm = valid_mask(old, W, H, feather=24)
+    cm = valid_mask((old.max(axis=2, keepdims=True) > 0).astype(np.float32), feather=24)
     ycc = rgb_to_ycc(old)
     w = cm[:, :, 0] > 0.5
     mean_chroma = ycc[:, :, 1:][w].mean(axis=0)
@@ -354,8 +436,8 @@ def titan() -> None:
     replaces (an early-Cassini mosaic with flat grey blocks where coverage
     was missing). Complete coverage, so no fill."""
     W, H = 4096, 2048
-    src = load_usgs('Titan_ISS_P19658_Mosaic_Global_4km', center_lon=180)
-    write_dxt1(to_image(resize(src, W, H)), TEXTURES / 'titan.dds')
+    a, _ = load_usgs('Titan_ISS_P19658_Mosaic_Global_4km', W, H, center_lon=180)
+    write_dxt1(to_image(a), TEXTURES / 'titan.dds')
 
 
 def luminance(a: np.ndarray) -> np.ndarray:
@@ -382,10 +464,10 @@ def mercury() -> None:
     loi = usgs_remote('Mercury_MESSENGER_MDIS_Basemap_LOI_Mosaic_Global_166m', W)
     md3 = usgs_remote('Mercury_MESSENGER_MDIS_Basemap_MD3Color_Mosaic_Global_665m', W)
     b = stretch(bdr, np.ones(bdr.shape, bool))
-    lm = valid_mask(loi, W, H, feather=4)
+    lm = valid_mask((loi > 0).astype(np.float32), feather=4)
     l = stretch(loi, lm > 0.5)
     lum = 0.55 * (l * lm + b * (1 - lm)) + 0.45 * b
-    cm = valid_mask(md3, W, H, feather=4)
+    cm = valid_mask((md3.max(axis=2, keepdims=True) > 0).astype(np.float32), feather=4)
     tint = md3 / (md3.mean(axis=2, keepdims=True) + 1e-3)
     tint = 1 + 0.35 * (tint - 1) * cm
     rgb = lum * tint * np.array([1.04, 1.0, 0.94], np.float32)
@@ -413,7 +495,7 @@ def venus() -> None:
     """Magellan C3-MDIR colourised radar mosaic (USGS, natively 8192x4096,
     gaps already filled), 4096x2048 DXT1. The map it replaces was stored
     rotated 180 degrees."""
-    src = load_tif(SOURCES / 'Venus_Magellan_C3-MDIR_Colorized_Global_Mosaic_4641m.tif')
+    src = load_tif(source('Venus_Magellan_C3-MDIR_Colorized_Global_Mosaic_4641m.tif'))
     write_dxt1(to_image(resize(src, 4096, 2048)), TEXTURES / 'venus.dds')
 
 
@@ -422,7 +504,7 @@ def earth() -> None:
     the 21600x10800 original at 8192x4096. The 5400x2700 map it replaces is
     the same product's smallest size (byte-identical to NASA's file)."""
     # Resized as 8-bit RGB: the 233-Mpx original as float32 would need ~2.8 GB.
-    src = Image.open(SOURCES / 'world.topo.bathy.200407.3x21600x10800.jpg').convert('RGB')
+    src = Image.open(source('world.topo.bathy.200407.3x21600x10800.jpg')).convert('RGB')
     write_jpg(src.resize((8192, 4096), Image.LANCZOS), TEXTURES / 'earth-8k.jpg')
 
 
@@ -433,7 +515,7 @@ def jupiter() -> None:
     4x4 blocks band a smooth gas-giant map, so this one is a JPEG. The TIF
     is 3601x1801 at 0.1 deg with 0 deg E at its left edge and the 360 deg
     column repeated: drop that column, roll by half."""
-    src = np.asarray(Image.open(SOURCES / 'PIA07782.tif').convert('RGB'), dtype=np.float32)[:, :3600]
+    src = np.asarray(Image.open(source('PIA07782.tif')).convert('RGB'), dtype=np.float32)[:, :3600]
     src = np.roll(src, 1800, axis=1)
     write_jpg(to_image(resize(src, 4096, 2048)), TEXTURES / 'jupiter.jpg')
 
@@ -443,7 +525,9 @@ def mimas() -> None:
     5760x2880 greyscale, already -180..180 E: 4096x2048 DXT1. The map it
     replaces looks like an earlier DLR basemap with less late-mission
     coverage. Complete, so no fill."""
-    src = np.asarray(Image.open(SOURCES / 'Cassini_DLR' / 'MI_170630_DLR_basemap_degrees.tif'), dtype=np.float32)
+    with zipfile.ZipFile(source('Cassini_DLR_Mimas.zip')) as z:
+        src = np.asarray(Image.open(io.BytesIO(z.read('Cassini_DLR/MI_170630_DLR_basemap_degrees.tif'))),
+                         dtype=np.float32)
     write_dxt1(to_image(resize(src[:, :, None] if src.ndim == 2 else src, 4096, 2048)), TEXTURES / 'mimas.dds')
 
 
@@ -470,7 +554,7 @@ def saturn_rings() -> None:
     gap and raised where the new profile resolves ringlets in a gap the old
     alpha had closed. The F ring stays faint because the old alpha there is."""
     N = 4096
-    a = np.asarray(Image.open(SOURCES / 'PIA11142.tif').convert('RGB'), dtype=np.float64)
+    a = np.asarray(Image.open(source('PIA11142.tif')).convert('RGB'), dtype=np.float64)
     xs = np.arange(a.shape[1])
     ys = np.round(850 - (xs - 3140) * 0.0164).astype(int)
     prof = np.stack([a[ys + d, xs] for d in range(-3, 4)]).mean(axis=0)
@@ -480,8 +564,7 @@ def saturn_rings() -> None:
     k = max(1, round((RING_R1 - RING_R0) / N / 6.5))  # area-average down to the sample spacing
     if k > 1:
         col = np.stack([np.convolve(col[:, c], np.ones(k) / k, 'same') for c in range(3)], axis=1)
-    old = np.asarray(Image.open(previous('apps/viewer/test-catalogs/textures/saturn-rings.png', 'b593685'))
-                     .convert('RGBA'), dtype=np.float64)[0]
+    old = np.asarray(Image.open(source('previous/saturn-rings.png')).convert('RGBA'), dtype=np.float64)[0]
     old_alpha = np.interp(r, RING_R0 + (np.arange(len(old)) + 0.5) / len(old) * (RING_R1 - RING_R0), old[:, 3])
     lum = col.mean(axis=1)
     alpha = old_alpha * np.clip((lum - 4) / 12, 0, 1)
@@ -491,24 +574,48 @@ def saturn_rings() -> None:
     Image.fromarray(np.stack([rgba, rgba])).save(TEXTURES / 'saturn-rings.png', optimize=True)
 
 
+# recipe -> (function, output file in TEXTURES)
 RECIPES = {
-    'ceres': ceres, 'charon': charon, 'pluto': pluto, 'titan': titan,
-    'mercury': mercury, 'venus': venus, 'earth': earth, 'mars': mars,
-    'jupiter': jupiter, 'saturn_rings': saturn_rings, 'mimas': mimas,
+    'ceres': (ceres, 'ceres.jpg'), 'charon': (charon, 'charon.jpg'), 'pluto': (pluto, 'pluto.jpg'),
+    'titan': (titan, 'titan.dds'), 'mercury': (mercury, 'mercury.dds'), 'venus': (venus, 'venus.dds'),
+    'earth': (earth, 'earth-8k.jpg'), 'mars': (mars, 'mars.dds'), 'jupiter': (jupiter, 'jupiter.jpg'),
+    'saturn_rings': (saturn_rings, 'saturn-rings.png'), 'mimas': (mimas, 'mimas.dds'),
 }
+
+
+def check_output(filename: str) -> bool:
+    """Compare a file in TEXTURES with its outputs.sha256 entry; print the result."""
+    expected = {}
+    for line in OUTPUT_MANIFEST.read_text().splitlines():
+        if line.strip() and not line.startswith('#'):
+            digest, name = line.split()
+            expected[name] = digest
+    path = TEXTURES / filename
+    got = sha256_file(path) if path.exists() else 'missing'
+    ok = got == expected.get(filename)
+    print(f'  {"OK      " if ok else "MISMATCH"} {filename} {got}'
+          + ('' if ok else f' (expected {expected.get(filename, "no entry")})'), flush=True)
+    return ok
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('recipes', nargs='*', metavar='recipe', help=', '.join(RECIPES))
+    p.add_argument('--verify', action='store_true',
+                   help='check the outputs in the textures directory against outputs.sha256; build nothing')
     args = p.parse_args()
     unknown = set(args.recipes) - set(RECIPES)
     if unknown:
         p.error(f'unknown recipe(s): {", ".join(sorted(unknown))}')
-    for name in args.recipes or RECIPES:
-        print(f'building {name}…', flush=True)
-        RECIPES[name]()
-    return 0
+    names = args.recipes or list(RECIPES)
+    ok = True
+    for name in names:
+        fn, filename = RECIPES[name]
+        if not args.verify:
+            print(f'building {name}…', flush=True)
+            fn()
+        ok = check_output(filename) and ok
+    return 0 if ok or not args.verify else 1
 
 
 if __name__ == '__main__':
