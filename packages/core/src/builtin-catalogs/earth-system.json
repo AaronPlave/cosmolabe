@@ -10,7 +10,7 @@
       "trajectory": { "type": "Builtin", "name": "Earth" },
       "bodyFrame": "EquatorJ2000",
       "rotationModel": { "type": "Builtin" },
-      "geometry": { "type": "Globe", "radius": 6378.1, "baseMap": "textures/earth-5k.jpg", "atmosphere": "Earth" },
+      "geometry": { "type": "Globe", "radius": 6378.1, "baseMap": "textures/earth-8k.jpg", "atmosphere": "Earth" },
       "label": { "color": [0.4, 0.6, 1.0] },
       "items": [
         {

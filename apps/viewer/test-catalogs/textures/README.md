@@ -26,7 +26,7 @@ was a 1.1 MiB download and 230 MiB on the GPU).
 | `charon.jpg` | 4096×2048 | JPG (grey) | 1.0 | 43 | **USGS New Horizons global mosaic**, see [below](#charonjpg) | base/pluto-system |
 | `dione-1k.jpg` | 1024×512 | JPG | 0.2 | 3 | `dione.dds` at its 1024×512 mip (#94) | home-screen hero (`src/lib/hero.ts`) |
 | `dione.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/dione.dds` | base/saturn-major-moons, cassini-soi |
-| `earth-5k.jpg` | 5400×2700 | JPG | 2.2 | 74 | NASA Blue Marble NG July 2004 topo-bathy, NASA's own 5400 release (byte-identical); to be replaced by `earth-8k.jpg`, see [below](#earth-8kjpg) | base/earth-system, solar-system, iss, lro-moon, moonfall-shackleton, atmosphere-earth-* |
+| `earth-8k.jpg` | 8192×4096 | JPG | 4.7 | 171 | **NASA Blue Marble NG** July 2004 topo-bathy, see [below](#earth-8kjpg) | base/earth-system, solar-system, iss, lro-moon, moonfall-shackleton, atmosphere-earth-* |
 | `enceladus.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/enceladus.dds` | base/saturn-major-moons, cassini-soi |
 | `europa.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/europa.dds` | base/jupiter-galilean, europa-clipper |
 | `ganymede.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/ganymede.dds` | base/jupiter-galilean, europa-clipper |
@@ -239,17 +239,10 @@ byte-identical.
   `https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x21600x10800.jpg`.
   Credit: NASA Earth Observatory (Reto Stöckli); public domain in the US.
 - **Processing:** Lanczos to 8192×4096 as 8-bit RGB, JPEG quality 90.
-- **Replaces:** `earth-5k.jpg`, which is NASA's own 5400×2700 release of the
+- **Replaced:** `earth-5k.jpg` (removed), which was NASA's own 5400×2700 release of the
   same month (byte-identical, MD5 `3c9658c2…`). Same picture, crisper
   coastlines and relief at close range, at a GPU cost that goes from 74 to
   171 MiB (see [Load cost](#load-cost)).
-- **Status:** the recipe is in place but the file is an LFS object not yet
-  committed, so the catalogs still point at `earth-5k.jpg`. Switching is
-  the same commit that adds `earth-8k.jpg`: replace `earth-5k.jpg` with
-  `earth-8k.jpg` in the catalogs that use it (the "Used by" column above,
-  plus `packages/core/src/builtin-catalogs/earth-system.json` and
-  `scripts/build-moonfall-flights.mjs`), then delete `earth-5k.jpg`.
-
 ### `jupiter.jpg`
 
 - **Source:** Cassini ISS map of Jupiter, PIA07782 (December 2000), from the
@@ -355,8 +348,8 @@ taken (see below).
 | `ceres.png` (old) | 512×256 | 0.1 | 0.7 | 12 | 8 | 0 | 8 |
 | `ceres.jpg` (new) | 2048×1024 | 0.9 | 10.7 | 13 | 38 | 0 | 32 |
 | `moon-4k.jpg` | 4096×2048 | 2.0 | 42.7 | 14 | 172 | 0 | 93 |
-| `earth-5k.jpg` (current) | 5400×2700 | 2.2 | 74.2 | 24 | 232 | 0 | 103 |
-| `earth-8k.jpg` (built, not yet committed) | 8192×4096 | 4.7 | 170.7 | 30 | 574 | 0 | 189 |
+| `earth-5k.jpg` (old) | 5400×2700 | 2.2 | 74.2 | 24 | 232 | 0 | 103 |
+| `earth-8k.jpg` (new) | 8192×4096 | 4.7 | 170.7 | 30 | 574 | 0 | 189 |
 | `mars.dds` (old and new) | 4096×2048 | 5.3 | 5.3 | 39 | 8 | 0 | 33 |
 | `jupiter.dds` (old) | 4096×2048 | 5.3 | 5.3 | 80 | 8 | 0 | 33 |
 | `jupiter.jpg` (new) | 4096×2048 | 0.9 | 42.7 | 9 | 152 | 0 | 88 |
