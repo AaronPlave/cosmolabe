@@ -44,8 +44,8 @@ needs `git lfs` with write access to the repository.
 | Recipe | Output | Source |
 |---|---|---|
 | `ceres` | `ceres.jpg`, 2048×1024 grey JPEG | Ceres Dawn FC DLR HAMO global 59 ppd / 140 m (Feb 2016), 21093×10546 ISIS cube, 224 MB |
-| `charon` | `charon.jpg`, 4096×2048 grey JPEG | Charon New Horizons global mosaic 300 m (Jul 2017), 12693×6347, 81 MB |
-| `pluto` | `pluto.jpg`, 4096×2048 colour JPEG | Pluto New Horizons global mosaic 300 m (Jul 2017), 24888×12444, 310 MB; chroma, **for now**, from the previous `pluto.jpg` (git history), to be replaced by the PDS MVIC global colour map |
+| `charon` | `charon.jpg`, 4096×2048 colour JPEG | Charon New Horizons global mosaic 300 m (Jul 2017), 12693×6347, 81 MB; colour from the New Horizons MVIC global colour cube (PDS SBN), 3808×1904×4 float, 111 MB |
+| `pluto` | `pluto.jpg`, 4096×2048 colour JPEG | Pluto New Horizons global mosaic 300 m (Jul 2017), 24888×12444, 310 MB; colour from the New Horizons MVIC global colour cube (PDS SBN), 11487×5744×4 float, 1.06 GB |
 | `titan` | `titan.dds`, 4096×2048 DXT1 + mips | Titan Cassini ISS controlled global mosaic 702 m (USGS 2025), 23048×11524 PNG, 73 MB |
 | `mercury` | `mercury.dds`, 4096×2048 DXT1 + mips | MESSENGER MDIS LOI + BDR 166 m basemaps (4.2 GB each, streamed), MD3 colour 665 m (0.8 GB, streamed) |
 | `venus` | `venus.dds`, 4096×2048 DXT1 + mips | Magellan C3-MDIR colourised global mosaic, 8192×4096, 100 MB |

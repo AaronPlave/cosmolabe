@@ -322,20 +322,6 @@ def to_image(a: np.ndarray) -> Image.Image:
     return Image.fromarray(a[:, :, 0], 'L') if a.shape[2] == 1 else Image.fromarray(a, 'RGB')
 
 
-def rgb_to_ycc(a: np.ndarray) -> np.ndarray:
-    r, g, b = a[:, :, 0], a[:, :, 1], a[:, :, 2]
-    y = 0.299 * r + 0.587 * g + 0.114 * b
-    return np.stack([y, b - y, r - y], axis=2)
-
-
-def ycc_to_rgb(a: np.ndarray) -> np.ndarray:
-    y, cb, cr = a[:, :, 0], a[:, :, 1], a[:, :, 2]
-    r = cr + y
-    b = cb + y
-    g = (y - 0.299 * r - 0.114 * b) / 0.587
-    return np.stack([r, g, b], axis=2)
-
-
 def write_jpg(im: Image.Image, path: Path) -> None:
     im.save(path, 'JPEG', quality=90, optimize=True)
 
@@ -388,46 +374,80 @@ def ceres() -> None:
     write_jpg(to_image(a[:, :, None]), TEXTURES / 'ceres.jpg')
 
 
+def load_mvic_colour(name: str, lines: int, samples: int, w: int, h: int,
+                     center_lon: float) -> tuple[np.ndarray, np.ndarray]:
+    """A New Horizons MVIC global colour cube (PDS SBN, nh_derived:
+    plutosystem_composition, doi:10.26007/mc7j-ef52) as approximate natural
+    colour at w x h: (rgb, coverage), as load_usgs returns them.
+
+    The cube is 4 bands of float32 normal albedo, band-sequential, in the
+    order CH4 (895 nm), NIR (870), Red (625), Blue (475); unimaged pixels are
+    the PDS missing constant, a large negative number. Red and Blue are R
+    and B; G, at about 550 nm, is their mean. Longitude handling is as in
+    load_usgs (the label's longitude_of_central_meridian)."""
+    cube = np.memmap(source(f'{name}.img'), '<f4', mode='r', shape=(4, lines, samples))
+    assert center_lon in (0, 180), center_lon
+    valid = None
+    bands = {}
+    for band, label in ((2, 'red'), (3, 'blue')):
+        a = np.asarray(cube[band])
+        v = np.isfinite(a) & (a > 0)
+        valid = v if valid is None else valid & v
+        bands[label] = np.where(v, a, 0).astype(np.float32)
+    out = []
+    for a in (bands['red'], (bands['red'] + bands['blue']) / 2, bands['blue']):
+        a = np.where(valid, a, 0).astype(np.float32)
+        if center_lon == 180:
+            a = np.roll(a, a.shape[1] // 2, axis=1)
+        out.append(np.asarray(Image.fromarray(a, 'F').resize((w, h), Image.BOX), dtype=np.float32))
+    m = valid.view(np.uint8) * np.uint8(255)
+    if center_lon == 180:
+        m = np.roll(m, m.shape[1] // 2, axis=1)
+    coverage = np.asarray(Image.fromarray(m).resize((w, h), Image.BOX), dtype=np.float32) / 255
+    return np.stack(out, axis=2), coverage[:, :, None]
+
+
+def colourize(y: np.ndarray, rgb: np.ndarray, coverage: np.ndarray) -> np.ndarray:
+    """Luminance `y` (h, w, 1) tinted by the colour of `rgb` where it has
+    data: each pixel's rgb / luminance ratio, slightly blurred so a small
+    misregistration between the colour and luminance mosaics can't show as
+    fringes. The unimaged areas get the imaged area's mean ratio, a neutral
+    tint of the body's average colour, feathered in over a wide margin."""
+    cm = valid_mask(coverage, feather=24)
+    m = (coverage > 0.99).astype(np.float32)
+    rgb = normalized_fill(rgb, m, sigma=3)
+    tint = rgb / np.maximum(luminance(rgb), 1e-4)
+    mean_tint = tint[cm[:, :, 0] > 0.5].mean(axis=0)
+    tint = tint * cm + mean_tint * (1 - cm)
+    return y * tint
+
+
 def charon() -> None:
-    """New Horizons LORRI/MVIC global mosaic (Jul 2017), greyscale, at
-    4096x2048. The previous 9520x4760 map is the same product's content (it
-    registers at zero shift) at a size that costs 230 MiB of GPU memory; the
-    unimaged south (polar night at encounter) was black and is now a smooth
-    extrapolation of the surrounding terrain."""
+    """New Horizons LORRI/MVIC global mosaic (Jul 2017, USGS) for luminance,
+    MVIC global colour cube for colour, at 4096x2048. The previous 9520x4760
+    map was the grey mosaic's content (it registers at zero shift) at a size
+    that costs 230 MiB of GPU memory. The unimaged south (polar night at
+    encounter) was black and is now a smooth extrapolation of the
+    surrounding terrain, in Charon's mean colour."""
     W, H = 4096, 2048
     a, coverage = load_usgs('Charon_NewHorizons_Global_Mosaic_300m_Jul2017_8bit', W, H, center_lon=0)
     m = valid_mask(coverage, feather=6)
-    out = a * m + gap_fill(a, m) * (1 - m)
-    write_jpg(to_image(out), TEXTURES / 'charon.jpg')
+    y = a * m + gap_fill(a, m) * (1 - m)
+    rgb, cc = load_mvic_colour('nh_charon_color_mosaic', 1904, 3808, W, H, center_lon=0)
+    write_jpg(to_image(colourize(y, rgb, cc)), TEXTURES / 'charon.jpg')
 
 
 def pluto() -> None:
-    """New Horizons global mosaic (Jul 2017) for luminance, at 4096x2048.
-
-    Colour comes from the previous map, which is MVIC colour over the
-    encounter hemisphere only and was centred on 180 E (half a turn off
-    Cosmolabe's convention; see README), so it is rolled by half before use.
-    Chroma is low-frequency, so blurring it hides the two maps' small
-    misregistration. Outside the old colour coverage the chroma falls back to
-    the mean of the covered area, so the rest of the globe is a neutral
-    Pluto tint rather than grey. The unimaged south is filled as for Charon."""
+    """New Horizons global mosaic (Jul 2017, USGS) for luminance, MVIC
+    global colour cube for colour, at 4096x2048. The colour covers every
+    longitude north of about 20 S (the far side at approach resolution);
+    the unimaged south is filled as for Charon."""
     W, H = 4096, 2048
     a, coverage = load_usgs('Pluto_NewHorizons_Global_Mosaic_300m_Jul2017_8bit', W, H, center_lon=180)
     m = valid_mask(coverage, feather=6)
     y = a * m + gap_fill(a, m) * (1 - m)
-
-    old = np.asarray(Image.open(source('previous/pluto.jpg')).convert('RGB'), dtype=np.float32)
-    old = np.roll(resize(old, W, H), W // 2, axis=1)
-    cm = valid_mask((old.max(axis=2, keepdims=True) > 0).astype(np.float32), feather=24)
-    ycc = rgb_to_ycc(old)
-    w = cm[:, :, 0] > 0.5
-    mean_chroma = ycc[:, :, 1:][w].mean(axis=0)
-    chroma = normalized_fill(ycc[:, :, 1:], cm, sigma=8) * cm + mean_chroma * (1 - cm)
-    # Old colour is darker/brighter in places than the USGS luminance; scale
-    # chroma by the luminance ratio so saturation tracks the new brightness.
-    ratio = np.clip(y / np.maximum(blur(ycc[:, :, :1], 8), 8), 0.25, 4)
-    chroma = chroma * np.where(cm > 0.5, ratio, 1)
-    write_jpg(to_image(ycc_to_rgb(np.concatenate([y, chroma], axis=2))), TEXTURES / 'pluto.jpg')
+    rgb, cc = load_mvic_colour('nh_pluto_color_mosaic', 5744, 11487, W, H, center_lon=180)
+    write_jpg(to_image(colourize(y, rgb, cc)), TEXTURES / 'pluto.jpg')
 
 
 TITAN_702M = 'Titan_Controlled_GlobalEqui_V6NoArcEdgesClouds_702M_WeightedAverage_ComboIncV2Ema60_Sharpen31x31'

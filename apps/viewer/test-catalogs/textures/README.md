@@ -23,7 +23,7 @@ was a 1.1 MiB download and 230 MiB on the GPU).
 | `ariel.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/ariel.dds`, rotated 180° ([Orientation](#orientation)) | base/uranus-system |
 | `callisto.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/callisto.dds` | base/jupiter-galilean, europa-clipper |
 | `ceres.jpg` | 2048×1024 | JPG (grey) | 0.9 | 11 | **USGS / DLR Dawn FC HAMO global mosaic**, see [below](#ceresjpg) | base/dwarf-planets, base/main-belt-named, solar-system |
-| `charon.jpg` | 4096×2048 | JPG (grey) | 1.0 | 43 | **USGS New Horizons global mosaic**, see [below](#charonjpg) | base/pluto-system |
+| `charon.jpg` | 4096×2048 | JPG | 1.1 | 43 | **USGS New Horizons global mosaic** + **PDS MVIC colour**, see [below](#charonjpg) | base/pluto-system |
 | `dione-1k.jpg` | 1024×512 | JPG | 0.2 | 3 | `dione.dds` at its 1024×512 mip (#94) | home-screen hero (`src/lib/hero.ts`) |
 | `dione.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/dione.dds` | base/saturn-major-moons, cassini-soi |
 | `earth-8k.jpg` | 8192×4096 | JPG | 4.7 | 171 | **NASA Blue Marble NG** July 2004 topo-bathy, see [below](#earth-8kjpg) | base/earth-system, solar-system, iss, lro-moon, moonfall-shackleton, atmosphere-earth-* |
@@ -45,7 +45,7 @@ was a 1.1 MiB download and 230 MiB on the GPU).
 | `moon-normal-16k.jpg` | 16384×8192 | JPG | 5.3 | 683 | unknown | base/earth-system, lro-moon, moonfall-shackleton |
 | `neptune.jpg` | 1024×512 | JPG | 0.01 | 3 | Cosmographia `data/textures/neptune.jpg` | base/neptune-system, voyagers |
 | `oberon.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/oberon.dds`, rotated 180° ([Orientation](#orientation)) | base/uranus-system |
-| `pluto.jpg` | 4096×2048 | JPG | 1.3 | 43 | **USGS New Horizons global mosaic** + previous map's colour, see [below](#plutojpg) | base/pluto-system |
+| `pluto.jpg` | 4096×2048 | JPG | 1.4 | 43 | **USGS New Horizons global mosaic** + **PDS MVIC colour**, see [below](#plutojpg) | base/pluto-system |
 | `rhea.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/rhea.dds` | base/saturn-major-moons, cassini-soi |
 | `saturn-rings.png` | 4096×2 | PNG (RGBA) | 0.007 | 0.04 | **Cassini PIA11142** colour, **Cassini RSS** optical depth, see [below](#saturn-ringspng) | base/saturn, cassini-soi, oem-ingest, atmosphere-saturn-shadow, home-screen hero |
 | `saturn.jpg` | 1024×512 | JPG | 0.03 | 3 | Cosmographia `data/textures/saturn.jpg` | base/saturn, solar-system, cassini-soi, oem-ingest, atmosphere-saturn-shadow |
@@ -118,34 +118,48 @@ byte-identical.
 
 ### `charon.jpg`
 
-- **Source:** *Charon New Horizons Global Mosaic 300m Jul2017 8bit*, LORRI
+- **Luminance:** *Charon New Horizons Global Mosaic 300m Jul2017 8bit*, LORRI
   and MVIC, USGS Astrogeology (`…/mosaic/Charon_NewHorizons_Global_Mosaic_300m_Jul2017_8bit.tif`,
   12693×6347, already centred on 0°E). Credit: NASA/JHUAPL/SwRI; public
   domain in the US.
-- **Processing:** Lanczos to 4096×2048 (no roll); the unimaged south (in
-  polar night at the 2015 flyby) filled with `gap_fill` instead of black;
-  grey JPEG, quality 90.
+- **Colour:** *Global Color Map Mosaic of Charon from New Horizons MVIC
+  Observations*, PDS Small Bodies Node, `nh_derived:plutosystem_composition`
+  v1.0 (doi:10.26007/mc7j-ef52), `mosaic/nh_charon_color_mosaic.img`:
+  3808×1904, four float32 bands of normal albedo (CH4 895 nm, NIR 870, Red
+  625, Blue 475), MVIC scans photometrically normalised and registered to the
+  LORRI base map. `longitude_of_central_meridian = 0`, so no roll; it
+  registers against the USGS mosaic at zero shift, unmirrored.
+- **Processing:** luminance Lanczos to 4096×2048 (no roll), the unimaged
+  south (in polar night at the 2015 flyby) filled with `gap_fill`.
+  Approximate natural colour from the cube (R = Red, B = Blue, G = their
+  mean, for about 550 nm) gives a per-pixel colour ratio (rgb / luminance)
+  that multiplies the luminance; outside the colour coverage (57% of the
+  map) the ratio is the imaged area's mean. Colour JPEG, quality 90.
+- **Check:** Mordor Macula, the red north-polar cap, has R/B 1.32; Vulcan
+  Planitia and Oz Terra are neutral, 0.95–0.97.
 - **Replaced:** a 9520×4760 grey JPEG of the same content (it registers
   against this mosaic at zero shift) with a black south. At that size it cost
   230 MiB of GPU memory and, on an 8192-limit GPU, a main-thread canvas resize.
 
 ### `pluto.jpg`
 
-- **Source:** *Pluto New Horizons Global Mosaic 300m Jul2017 8bit*, USGS
+- **Luminance:** *Pluto New Horizons Global Mosaic 300m Jul2017 8bit*, USGS
   Astrogeology (`…/mosaic/Pluto_NewHorizons_Global_Mosaic_300m_Jul2017_8bit.tif`,
   24888×12444, 0–360°E). Credit: NASA/JHUAPL/SwRI; public domain in the US.
-- **Colour source is provisional.** The chroma still comes from the
-  previous, unprovenanced `pluto.jpg` (pinned by commit and sha256 in
-  `sources.sha256`). It is to be replaced by the authoritative New Horizons
-  MVIC global colour map (PDS SBN, `nh_derived:plutosystem_composition`,
-  doi:10.26007/mc7j-ef52) once that host is reachable from the build
-  environment; the same collection has a Charon colour map to evaluate.
-- **Processing:** luminance from the mosaic (half-width roll, Lanczos to
-  4096×2048 in 8 bits, `gap_fill` for the unimaged south). Colour is the *chroma* of
-  the previous map (MVIC enhanced colour over the encounter hemisphere),
-  rolled by half a turn (below), blurred, and scaled by the luminance ratio
-  so saturation tracks the new brightness. Outside that coverage the chroma
-  is the covered area's mean, a neutral Pluto tint. Colour JPEG, quality 90.
+- **Colour:** *Global Color Map Mosaic of Pluto from New Horizons MVIC
+  Observations*, PDS SBN, same collection (doi:10.26007/mc7j-ef52),
+  `mosaic/nh_pluto_color_mosaic.img`: 11487×5744, same four bands, 650 m/px.
+  `longitude_of_central_meridian = 180` and upper-left x = −πR, so 0–360°E
+  like the luminance mosaic: a half-width roll. With it, it registers against
+  the USGS mosaic at zero shift (correlation 0.79; 0.07 without the roll,
+  and the mirrored peak is an eighth of the true one). Colour covers every
+  longitude north of about 20°S, the far side at approach resolution.
+- **Processing:** luminance as for Charon (half-width roll, Lanczos to
+  4096×2048 in 8 bits, `gap_fill` for the unimaged south); colour as for
+  Charon. Colour JPEG, quality 90.
+- **Check:** Cthulhu Macula is the reddest region, R/B 1.73; Sputnik
+  Planitia (1.29) and Lowell Regio (1.26) are paler, as in published MVIC
+  colour.
 - **Replaced:** a 5999×3000 colour map covering only the encounter
   hemisphere (about two thirds of it was black) and **rotated 180°**. It
   centred Sputnik Planitia (about 175°E) on the map, where Cosmolabe puts
@@ -156,6 +170,9 @@ byte-identical.
   180°E, over Sputnik Planitia, saw a black globe, and the heart sat on the
   sub-Charon hemisphere. With the new map the heart is at 180°E. (The
   viewpoint lat/lon path, `bodyFixedOffsetToWorld`, is tested against SPICE.)
+  An interim build took its colour from that old map's chroma; the MVIC
+  cube replaces it, so nothing in `pluto.jpg` now comes from an
+  unprovenanced file.
 
 ### `titan.dds`
 
@@ -359,9 +376,9 @@ taken (see below).
 | `jupiter.jpg` (new) | 4096×2048 | 0.9 | 42.7 | 9 | 152 | 0 | 88 |
 | `saturn.jpg` | 1024×512 | 0.03 | 2.7 | 6 | 12 | 0 | 12 |
 | `pluto.jpg` (old) | 5999×3000 | 1.0 | 91.5 | 11 | 280 | 0 | 126 |
-| `pluto.jpg` (new) | 4096×2048 | 1.3 | 42.7 | 13 | 144 | 0 | 88 |
+| `pluto.jpg` (new)† | 4096×2048 | 1.4 | 42.7 | 14 | 187 | 0 | 83 |
 | `charon.jpg` (old) | 9520×4760 | 1.1 | 230.5\* | 11 | 1338 | 0 | 495 |
-| `charon.jpg` (new) | 4096×2048 | 1.0 | 42.7 | 14 | 134 | 0 | 86 |
+| `charon.jpg` (new)† | 4096×2048 | 1.1 | 42.7 | 14 | 173 | 0 | 83 |
 | `titan.dds` (old) | 4096×2048 | 5.3 | 5.3 | 48 | 6 | 0 | 32 |
 | `titan.dds` (new) | 4096×2048 | 5.3 | 5.3 | 46 | 10 | 0 | 32 |
 | `moon-normal-16k.jpg` | 16384×8192 | 5.3 | 682.7\* | 37 | 678 | 0 | 447 |
@@ -373,6 +390,11 @@ taken (see below).
 and the GPU then holds ≈171 MiB (8192×4096) instead of 683. Many mobile GPUs
 report 8192 or less. On them the 16k maps cost the full download, decode and
 a canvas resize, and still display at 8k.
+
+† Re-measured after their colour moved to the MVIC cubes, in a separate
+run with 9 samples. In that run `jupiter.jpg` and `moon-4k.jpg`, as
+controls, measured 174 and 184 ms initTexture (152 and 172 above): every
+4096×2048 JPG costs about the same, colour or grey.
 
 ### Catalog level: Ceres in `solar-system`
 

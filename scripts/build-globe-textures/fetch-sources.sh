@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch build.py's inputs into data/source/ (gitignored, ~780 MB), as listed
+# Fetch build.py's inputs into data/source/ (gitignored, ~2.1 GB), as listed
 # in sources.sha256, and verify each one. A file already present is kept only
 # if its sha256 matches; a download goes to <name>.part and is renamed only
 # once it matches. A mismatch stops the script: the upstream file changed (or

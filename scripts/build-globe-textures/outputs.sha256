@@ -3,8 +3,8 @@
 # build also reports OK / MISMATCH per output. Update an entry only together
 # with the recipe or sources.sha256 change that explains it.
 5ef74b50ff5715f6de3ab0bfe60897daaaaadc1a82ae6f15fabf3a1ba79d1918  ceres.jpg
-1c92d471e8564a6c0e4d68e8c660f12d37f0ac01c03b09c6cdd7b9f67899eda5  charon.jpg
-b13a63467851ac7fd2cb76e861a12f6e0a8370b895f1dc4662d7a73a241b0832  pluto.jpg
+03e06f2af21aace729b41234394a8a93ec9dadf6d0d04ab3747e97e7c95b1804  charon.jpg
+73a4a6ef42b9c851ff034ca95ccc2bc705915c8606d31d970e4f933086a0da22  pluto.jpg
 430022def06e5e9fde51bf2fc0ffa78f50bb55d7dbf8809efb630c4db8fe4166  titan.dds
 7bdb70bf4a108b24ff80b512b8293e0ff0d1694504d82f9ae30359624facce6a  mercury.dds
 a789056763dd12647c3fad1e6b68e1cf304ed4d07794402ede1f1ca2a119a531  venus.dds
