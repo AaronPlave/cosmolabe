@@ -52,7 +52,7 @@ needs `git lfs` with write access to the repository.
 | `earth` | `earth-8k.jpg`, 8192×4096 colour JPEG | Blue Marble NG July 2004 topo-bathy, 21600×10800, 27 MB |
 | `mars` | `mars.dds`, 4096×2048 DXT1 + mips | Viking colour mosaic 925 m (0.8 GB, streamed) × Viking MDIM 2.1 232 m detail (4.2 GB, streamed) |
 | `jupiter` | `jupiter.jpg`, 4096×2048 colour JPEG | Cassini PIA07782 TIF, 3601×1801, 19 MB |
-| `saturn_rings` | `saturn-rings.png`, 4096×2 RGBA | Cassini PIA11142 TIF, 12126×1439, 52 MB; alpha from the previous `saturn-rings.png` (git history; a measured optical-depth profile would be the provenanced replacement) |
+| `saturn_rings` | `saturn-rings.png`, 4096×2 RGBA | colour: Cassini PIA11142 TIF, 12126×1439, 52 MB; alpha: Cassini RSS Rev 7 X-band optical-depth profile (PDS Rings `CORSS_8001`), 50 MB ASCII |
 | `mimas` | `mimas.dds`, 4096×2048 DXT1 + mips | DLR Cassini Mimas basemap (Jun 2017), 5760×2880, in a 39 MB zip |
 
 `rotate-dds-180.py` is a one-off, not a recipe: it rotated the seven

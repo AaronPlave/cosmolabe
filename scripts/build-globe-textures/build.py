@@ -543,16 +543,22 @@ RING_R0, RING_R1 = 74660, 140220  # radial extent of saturn-rings.png, km (base/
 
 
 def saturn_rings() -> None:
-    """Saturn ring colour from Cassini PIA11142 "A Full Sweep of Saturn's
-    Rings" (natural colour, Nov 2008, about 6-7 km/px), 4096x2 RGBA.
+    """Saturn's rings, 4096x2 RGBA over RING_R0..RING_R1.
 
-    The rings curve across the mosaic; the profile is sampled along the
-    straight line through the arc apexes (y = 850 - 0.0164 (x - 3140)),
-    averaging 7 rows, and mapped to radius through RING_LANDMARKS. A lit-side
-    photograph doesn't give transparency, so alpha is the previous texture's
-    (1024 samples, interpolated), zeroed where the new profile shows a true
-    gap and raised where the new profile resolves ringlets in a gap the old
-    alpha had closed. The F ring stays faint because the old alpha there is."""
+    Colour: Cassini PIA11142 "A Full Sweep of Saturn's Rings" (natural
+    colour, Nov 2008, about 6-7 km/px). The rings curve across the mosaic;
+    the profile is sampled along the straight line through the arc apexes
+    (y = 850 - 0.0164 (x - 3140)), averaging 7 rows, and mapped to radius
+    through RING_LANDMARKS.
+
+    Alpha: measured, from the Cassini RSS X-band radio occultation of Rev 7
+    egress (PDS CORSS_8001, 2005-123, 1 km resolution, 0.25 km sampling):
+    the opacity seen face-on, 1 - exp(-tau), with tau the normal optical
+    depth. Samples at or above the profile's detection threshold (the
+    densest B ring) are opaque. Each texel is 1 minus the mean transmission
+    of the samples it covers, so narrow gaps and ringlets average correctly.
+    The narrow, eccentric F ring is not in it: this occultation shows no
+    F-ring core, and its mean radius sits on the texture's outer edge."""
     N = 4096
     a = np.asarray(Image.open(source('PIA11142.tif')).convert('RGB'), dtype=np.float64)
     xs = np.arange(a.shape[1])
@@ -564,11 +570,17 @@ def saturn_rings() -> None:
     k = max(1, round((RING_R1 - RING_R0) / N / 6.5))  # area-average down to the sample spacing
     if k > 1:
         col = np.stack([np.convolve(col[:, c], np.ones(k) / k, 'same') for c in range(3)], axis=1)
-    old = np.asarray(Image.open(source('previous/saturn-rings.png')).convert('RGBA'), dtype=np.float64)[0]
-    old_alpha = np.interp(r, RING_R0 + (np.arange(len(old)) + 0.5) / len(old) * (RING_R1 - RING_R0), old[:, 3])
-    lum = col.mean(axis=1)
-    alpha = old_alpha * np.clip((lum - 4) / 12, 0, 1)
-    alpha = np.maximum(alpha, np.clip(lum * 1.2, 0, 255) * (old_alpha < 40))
+
+    # RING RADIUS, NORMAL OPTICAL DEPTH, NORMAL OPTICAL DEPTH THRESHOLD (columns 1, 7, 9)
+    radius, tau, threshold = np.loadtxt(source('RSS_2005_123_X43_E_TAU_01KM.TAB'), delimiter=',',
+                                        usecols=(0, 6, 8)).T
+    transmission = np.where(tau >= threshold, 0.0, np.exp(-np.clip(tau, 0, None)))
+    texel = np.floor((radius - RING_R0) / (RING_R1 - RING_R0) * N).astype(int)
+    inside = (texel >= 0) & (texel < N)
+    count = np.bincount(texel[inside], minlength=N)
+    assert count.min() > 0, 'occultation profile does not cover the texture'
+    alpha = 255 * (1 - np.bincount(texel[inside], transmission[inside], minlength=N) / count)
+
     rgba = np.concatenate([np.clip(col, 0, 255), alpha[:, None]], axis=1)
     rgba = np.clip(rgba + 0.5, 0, 255).astype(np.uint8)
     Image.fromarray(np.stack([rgba, rgba])).save(TEXTURES / 'saturn-rings.png', optimize=True)

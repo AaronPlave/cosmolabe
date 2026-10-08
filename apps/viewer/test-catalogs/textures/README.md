@@ -47,7 +47,7 @@ was a 1.1 MiB download and 230 MiB on the GPU).
 | `oberon.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/oberon.dds`, rotated 180° ([Orientation](#orientation)) | base/uranus-system |
 | `pluto.jpg` | 4096×2048 | JPG | 1.3 | 43 | **USGS New Horizons global mosaic** + previous map's colour, see [below](#plutojpg) | base/pluto-system |
 | `rhea.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/rhea.dds` | base/saturn-major-moons, cassini-soi |
-| `saturn-rings.png` | 4096×2 | PNG (RGBA) | 0.007 | 0.04 | **Cassini PIA11142** colour, previous alpha, see [below](#saturn-ringspng) | base/saturn, cassini-soi, oem-ingest, atmosphere-saturn-shadow, home-screen hero |
+| `saturn-rings.png` | 4096×2 | PNG (RGBA) | 0.007 | 0.04 | **Cassini PIA11142** colour, **Cassini RSS** optical depth, see [below](#saturn-ringspng) | base/saturn, cassini-soi, oem-ingest, atmosphere-saturn-shadow, home-screen hero |
 | `saturn.jpg` | 1024×512 | JPG | 0.03 | 3 | Cosmographia `data/textures/saturn.jpg` | base/saturn, solar-system, cassini-soi, oem-ingest, atmosphere-saturn-shadow |
 | `sun.jpg` | 512×256 | JPG | 0.1 | 1 | Cosmographia `data/textures/sun.jpg` | base/sun, solar-system |
 | `tethys.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/tethys.dds` | base/saturn-major-moons, cassini-soi |
@@ -266,25 +266,35 @@ byte-identical.
 
 ### `saturn-rings.png`
 
-- **Source:** Cassini PIA11142, "A Full Sweep of Saturn's Rings" (natural
-  colour, November 2008, about 6–7 km/px):
+- **Colour source:** Cassini PIA11142, "A Full Sweep of Saturn's Rings"
+  (natural colour, November 2008, about 6–7 km/px):
   `https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia11/pia11142/PIA11142.tif`
   (12126×1439). Credit: NASA/JPL/Space Science Institute; public domain in
   the US.
-- **Processing:** the radial profile is sampled along the straight line
-  through the arcs' apexes, averaging 7 rows. The mosaic's scale drifts
+- **Opacity source:** the Cassini RSS X-band radio occultation of Rev 7
+  egress (3 May 2005), normal optical depth at 1 km resolution, PDS Ring-Moon
+  Systems Node `CORSS_8001` (Marouf et al.):
+  `https://pds-rings.seti.org/holdings/volumes/CORSS_8xxx/CORSS_8001/data/Rev007/Rev007E/Rev007E_RSS_2005_123_X43_E/RSS_2005_123_X43_E_TAU_01KM.TAB`.
+- **Processing, colour:** the radial profile is sampled along the straight
+  line through the arcs' apexes, averaging 7 rows. The mosaic's scale drifts
   (about 6–10 km/px), so pixel position is mapped to radius piecewise
   linearly between 11 identified features (C ring inner edge, Colombo and
   Maxwell gaps, B ring edges, Laplace gap, A ring inner edge, Encke and
   Keeler gaps, A ring outer edge, F ring) and resampled to 4096 samples
-  over 74,660–140,220 km. A lit-side photograph gives no transparency, so
-  **alpha is the previous texture's**, interpolated, zeroed where the new
-  profile shows a true gap and raised where it resolves ringlets in a gap
-  the old alpha had closed.
+  over 74,660–140,220 km.
+- **Processing, opacity:** alpha is the opacity seen face-on, 1 − e^(−τ),
+  per texel 1 minus the mean transmission of the 0.25 km samples it covers
+  (so narrow gaps and ringlets average correctly). Samples at or above the
+  profile's detection threshold, about 20% of the B ring, are opaque.
+  Region means against the alpha the first version of this map borrowed
+  from Cosmographia: C ring 0.17 (was 0.20), B ring 0.89 (0.93), Cassini
+  Division 0.19 (0.27), A ring 0.56 (0.67).
+- **Not represented:** the F ring. It is narrow and eccentric (its radius
+  varies by about ±350 km with longitude), this occultation shows no F-ring
+  core, and its mean radius sits on the texture's outer edge.
 - **Replaced:** Cosmographia's 1024-sample ring texture. The B ring is now
   tan instead of grey-white, the C and A rings darker, with about 8× the
-  radial detail and gaps that line up with the old ones. The F ring stays
-  as faint as before, because its alpha comes from the old texture.
+  radial detail. Both colour and opacity now come from measured data.
 
 ### `mimas.dds`
 
