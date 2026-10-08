@@ -1041,8 +1041,13 @@ export class UniverseRenderer {
     // Solar disks apply transmission before exposure, after atmosphere shells.
     // Keep Pass 1's opaque depth so foreground planets still mask the disk.
     if (this.solarSources.size > 0) {
-      this.camera.layers.set(SOLAR_LAYER);
-      this.renderer.render(this.scene, this.camera);
+      const savedMask = this.camera.layers.mask;
+      try {
+        this.camera.layers.set(SOLAR_LAYER);
+        this.renderer.render(this.scene, this.camera);
+      } finally {
+        this.camera.layers.mask = savedMask;
+      }
     }
 
     // Pass 1.5: Surface tiles — camera-relative rendering in separate scene.
@@ -1207,7 +1212,7 @@ export class UniverseRenderer {
       this.bloomEffect.render();
       if (this.bloomEffect.enabled) {
         this.sunGlareEffect ??= new SunGlareEffect(this.renderer);
-        this.sunGlareEffect.render(this.scene, this.camera, this.solarSources, this.bloomEffect.strength / 0.8);
+        this.sunGlareEffect.render(this.scene, this.camera, this.solarSources, this.bloomEffect.strength / 0.8, this.bodyMeshes.values());
       }
     }
 

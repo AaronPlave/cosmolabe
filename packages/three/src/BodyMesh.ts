@@ -199,7 +199,7 @@ export class BodyMesh extends THREE.Object3D {
       material.emissiveIntensity = 0.8;
     }
 
-    this.sunVisual = body.classification === 'star' || body.name === 'Sun' ? new SunVisual() : null;
+    this.sunVisual = body.name === 'Sun' ? new SunVisual() : null;
     this.mesh = new THREE.Mesh(geometry, this.sunVisual?.material ?? material);
     if (this.sunVisual) {
       material.dispose();

@@ -53,7 +53,7 @@ try {
     scene.add(overlay);
     function draw(useGlare = true) {
       sun.updateMatrixWorld(true);
-      solar.update(camera, new THREE.Vector3(), 1, 512);
+      solar.update(camera, sun.getWorldPosition(new THREE.Vector3()), 1, renderer.domElement.height);
       renderer.setRenderTarget(null);
       renderer.clear();
       camera.layers.set(0);
@@ -122,9 +122,9 @@ try {
     draw();
     const closeRadius = solar.diameterPixels / 2;
     const closeProfile = [0, 0.5, 0.9, 0.98].map(r => pixel(Math.round(384 + closeRadius * r), 256)[0]);
-    // Move farther away, crossing the 1–2px transition without resizing the sun.
+    // Cross the 4–16px display transition and the subpixel source footprint.
     const transition = [];
-    for (const diameter of [2.1, 2, 1.8, 1.5, 1.2, 1, 0.8, 0.4]) {
+    for (const diameter of [16, 15, 12, 8, 5, 4, 2.1, 2, 1.8, 1.5, 1.2, 1, 0.8, 0.4]) {
       camera.position.z = Math.sqrt(1 + (512 / (diameter * Math.tan(20 * Math.PI / 180))) ** 2);
       camera.updateMatrixWorld();
       draw();
@@ -157,7 +157,7 @@ try {
   assert.deepEqual(result.partialHalo, [0, 0, 0], 'hidden crescent must not retain a circular halo');
   assert.deepEqual(result.horizonHiddenHalo, [0, 0, 0], 'sunrise must not glow around the fully hidden lower limb');
   assert.ok(result.horizonVisibleHalo[0] > 0, 'sunrise must retain glare at the exposed upper limb');
-  assert.ok(result.closeProfile[0] - result.closeProfile[3] > 30, 'close solar disk must show a visible center-to-limb gradient');
+  assert.ok(result.closeProfile[0] - result.closeProfile[3] > 50, 'close solar disk must show a visible center-to-limb gradient');
   assert.ok(result.closeProfile.every((v, i, a) => i === 0 || v <= a[i - 1]), 'close solar gradient must be monotonic');
   assert.deepEqual(result.unresolvedOcculted, [0, 0, 0], 'subpixel occultation must mask the optical footprint');
   assert.deepEqual(result.occulted, [0, 0, 0], 'complete occultation must hide all glare');
@@ -179,6 +179,33 @@ try {
   await page.screenshot({ path: 'work/sun-rendering/horizon.png' });
   await page.evaluate(() => { const t = window.solarTest; t.solar.setAtmosphere(null); t.camera.position.z = 3.5; t.camera.updateMatrixWorld(); t.draw(); });
   await page.screenshot({ path: 'work/sun-rendering/close.png' });
+  await page.setViewportSize({ width: 1280, height: 1024 });
+  const large = await page.evaluate(() => {
+    const t = window.solarTest;
+    t.renderer.setSize(1280, 1024); t.camera.aspect = 1.25; t.camera.position.z = 2.6;
+    t.camera.updateProjectionMatrix(); t.camera.updateMatrixWorld(); t.draw();
+    const gl = t.renderer.getContext();
+    const before = new Uint8Array(96*96*4), after = new Uint8Array(before.length);
+    gl.readPixels(592,464,96,96,gl.RGBA,gl.UNSIGNED_BYTE,before);
+    const strength = t.solar.uniforms.granulationWeight.value;
+    t.solar.uniforms.granulationWeight.value = 0;
+    t.renderer.clear();
+    t.camera.layers.set(0); t.renderer.render(t.scene,t.camera);
+    t.camera.layers.set(4); t.renderer.render(t.scene,t.camera);
+    t.camera.layers.enableAll(); t.glare.render(t.scene,t.camera,new Map([[t.sun,t.solar]]));
+    gl.readPixels(592,464,96,96,gl.RGBA,gl.UNSIGNED_BYTE,after);
+    let difference = 0, maxDifference = 0;
+    for (let i=0; i<before.length; i+=4) {
+      const d = Math.abs(before[i]-after[i]); difference += d; maxDifference = Math.max(maxDifference,d);
+    }
+    t.draw();
+    return { diameter: t.solar.diameterPixels, strength, meanDifference: difference/(96*96), maxDifference };
+  });
+  console.log('Large-disk detail:', large);
+  assert.ok(large.strength > 0 && large.meanDifference > 0.02, 'fine photospheric detail must appear at large resolution');
+  assert.ok(large.maxDifference <= 4, 'photospheric detail must remain low contrast');
+  assert.equal(errors.length, 0, errors.join('\n'));
+  await page.screenshot({ path: 'work/sun-rendering/large-photosphere.png' });
   console.log('Solar GPU regression passed; captures in work/sun-rendering.');
 } finally {
   await browser.close();

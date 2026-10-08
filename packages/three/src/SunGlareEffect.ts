@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import type { BodyMesh } from './BodyMesh.js';
 import type { SunVisual } from './SunVisual.js';
-import { isMesh, isLine, isPoints, isSprite } from './internal/three-typeguards.js';
+import { isMesh } from './internal/three-typeguards.js';
 
 /** One solar-only HDR/depth pass and a bounded two-scale optical halo.
  * Source sampling happens after opaque occlusion and atmospheric transmission.
@@ -13,6 +14,9 @@ export class SunGlareEffect {
     new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false }));
   private readonly blurScene = new THREE.Scene();
   private readonly blurQuad: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  private readonly sourceScene = new THREE.Scene();
+  private readonly proxies = new Map<THREE.Mesh, THREE.Mesh>();
+  private readonly previousBounds = new Map<THREE.WebGLRenderTarget, THREE.Vector4>();
   private readonly dark = new THREE.MeshBasicMaterial({ color: 0 });
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -112,7 +116,7 @@ export class SunGlareEffect {
   }
 
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera,
-    sources: ReadonlyMap<THREE.Mesh, SunVisual>, strength = 1): void {
+    sources: ReadonlyMap<THREE.Mesh, SunVisual>, strength = 1, bodies?: Iterable<BodyMesh>): void {
     this.renderer.getDrawingBufferSize(this.size);
     const visible = [...sources].filter(([mesh, visual]) => {
       if (!mesh.visible || !mesh.parent?.visible) return false;
@@ -124,47 +128,61 @@ export class SunGlareEffect {
         Math.abs(this.projected.y) < 1 + 2 * halo / this.size.y;
     });
     if (visible.length === 0) return;
-    if (this.target.width !== this.size.x || this.target.height !== this.size.y)
+    if (this.target.width !== this.size.x || this.target.height !== this.size.y) {
       this.target.setSize(this.size.x, this.size.y);
+      this.previousBounds.delete(this.target);
+    }
     for (const target of this.blurTargets) {
       const width = Math.ceil(this.size.x / 2), height = Math.ceil(this.size.y / 2);
-      if (target.width !== width || target.height !== height) target.setSize(width, height);
+      if (target.width !== width || target.height !== height) {
+        target.setSize(width, height);
+        this.previousBounds.delete(target);
+      }
     }
     const savedTarget = this.renderer.getRenderTarget();
     const savedClear = this.renderer.getClearColor(new THREE.Color());
     const savedAlpha = this.renderer.getClearAlpha();
     const savedAutoClear = this.renderer.autoClear;
     const savedMask = camera.layers.mask;
-    const savedBackground = scene.background;
+    this.sourceScene.clear();
     const spheres: THREE.Mesh<THREE.SphereGeometry>[] = [];
-    const materials = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
-    const visibility = new Map<THREE.Object3D, boolean>();
+    const opaque: THREE.Mesh[] = [];
+    const addOpaque = (mesh: THREE.Mesh) => {
+      const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+      if (mat && !mat.transparent && mat.depthWrite) opaque.push(mesh);
+    };
+    // Production uses a small explicit set of body bounds, not terrain/overlay
+    // traversal. Only intersecting model bodies require inspecting their meshes.
+    if (bodies) {
+      for (const body of bodies) {
+        if (!body.visible || sources.has(body.mesh)) continue;
+        body.mesh.updateWorldMatrix(true, false);
+        if (!this.overlapsSource(body.mesh, visible, camera)) continue;
+        if (body.hasTerrain || body.hasSurfaceTiles || body.mesh.visible) addOpaque(body.mesh);
+        if (body.isModelVisible) body.modelContainer?.traverseVisible(obj => { if (isMesh(obj)) addOpaque(obj); });
+      }
+    } else {
+      scene.traverseVisible(obj => { if (isMesh(obj) && !sources.has(obj)) addOpaque(obj); });
+    }
+    for (const mesh of opaque) {
+      mesh.updateWorldMatrix(true, false);
+      if (!this.overlapsSource(mesh, visible, camera)) continue;
+      this.sourceScene.add(this.proxyFor(mesh, this.dark));
+      if (mesh.geometry instanceof THREE.SphereGeometry) spheres.push(mesh as THREE.Mesh<THREE.SphereGeometry>);
+    }
+    for (const [mesh] of visible) this.sourceScene.add(this.proxyFor(mesh, mesh.material));
+    const bounds = new THREE.Vector4(Infinity, Infinity, -Infinity, -Infinity);
+    for (const [mesh, solar] of visible) {
+      mesh.getWorldPosition(this.projected).project(camera);
+      const x = (this.projected.x + 1) * this.size.x / 2;
+      const y = (this.projected.y + 1) * this.size.y / 2;
+      const halo = solar.diameterPixels / 2 + 60;
+      bounds.x = Math.min(bounds.x, Math.max(0, Math.floor(x - halo)));
+      bounds.y = Math.min(bounds.y, Math.max(0, Math.floor(y - halo)));
+      bounds.z = Math.max(bounds.z, Math.min(this.size.x, Math.ceil(x + halo)));
+      bounds.w = Math.max(bounds.w, Math.min(this.size.y, Math.ceil(y + halo)));
+    }
     try {
-      scene.traverse(obj => {
-        if (isMesh(obj) && sources.has(obj)) return;
-        if (isMesh(obj)) {
-          const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
-          if (!mat.transparent && mat.depthWrite) {
-            if (obj.geometry instanceof THREE.SphereGeometry && (obj.visible ||
-                (obj.parent && 'hasTerrain' in obj.parent && obj.parent.hasTerrain))) {
-              obj.updateWorldMatrix(true, false);
-              spheres.push(obj as THREE.Mesh<THREE.SphereGeometry>);
-            }
-            materials.set(obj, obj.material);
-            obj.material = this.dark;
-            // A body sphere still occludes when its terrain owns the visible surface.
-            visibility.set(obj, obj.visible);
-            const owner = obj.parent;
-            if (owner && (('hasTerrain' in owner && owner.hasTerrain) ||
-                ('hasSurfaceTiles' in owner && owner.hasSurfaceTiles))) obj.visible = true;
-            return;
-          }
-        }
-        if (isMesh(obj) || isLine(obj) || isPoints(obj) || isSprite(obj)) {
-          visibility.set(obj, obj.visible);
-          obj.visible = false;
-        }
-      });
       for (const [source, visual] of visible) {
         visual.uniforms.sourcePass.value = true;
         visual.uniforms.occluderCount.value = 0;
@@ -190,17 +208,13 @@ export class SunGlareEffect {
           visual.uniforms.occluderRadius.value[i] = mesh.geometry.parameters.radius;
         });
       }
-      scene.background = null;
       camera.layers.enableAll();
-      this.renderer.autoClear = true;
-      this.renderer.setClearColor(0, 1);
-      this.renderer.setRenderTarget(this.target);
-      this.renderer.render(scene, camera);
+      this.renderer.autoClear = false;
+      this.renderer.setClearColor(0, 0);
+      this.prepareRegion(this.target, bounds);
+      this.renderer.render(this.sourceScene, camera);
     } finally {
       for (const [, visual] of sources) visual.uniforms.sourcePass.value = false;
-      for (const [mesh, material] of materials) mesh.material = material;
-      for (const [obj, value] of visibility) obj.visible = value;
-      scene.background = savedBackground;
       camera.layers.mask = savedMask;
       this.renderer.setRenderTarget(savedTarget);
       this.renderer.setClearColor(savedClear, savedAlpha);
@@ -228,11 +242,6 @@ export class SunGlareEffect {
         this.renderer.setClearColor(0, 0);
         const blur = this.blurQuad.material.uniforms;
         const drawBlur = (target: THREE.WebGLRenderTarget) => {
-          // Clear old source positions, but shade only the Sun + its halo bounds.
-          // A small Sun should not run four filters across the entire viewport.
-          target.scissorTest = false;
-          this.renderer.setRenderTarget(target);
-          this.renderer.clear();
           const x = u.sourceCenter.value.x * target.width;
           const y = u.sourceCenter.value.y * target.height;
           const padX = halo * target.width / this.size.x;
@@ -241,9 +250,7 @@ export class SunGlareEffect {
           const bottom = THREE.MathUtils.clamp(Math.floor(y - padY), 0, target.height);
           const right = THREE.MathUtils.clamp(Math.ceil(x + padX), 0, target.width);
           const top = THREE.MathUtils.clamp(Math.ceil(y + padY), 0, target.height);
-          target.scissor.set(left, bottom, right - left, top - bottom);
-          target.scissorTest = true;
-          this.renderer.setRenderTarget(target);
+          this.prepareRegion(target, new THREE.Vector4(left, bottom, right, top));
           this.renderer.render(this.blurScene, this.camera);
         };
         for (const [width, target] of [[sigma, this.blurTargets[1]], [sigma * 3, this.blurTargets[2]]] as const) {
@@ -278,7 +285,63 @@ export class SunGlareEffect {
     }
   }
 
+  private proxyFor(mesh: THREE.Mesh, material: THREE.Material | THREE.Material[]): THREE.Mesh {
+    let proxy = this.proxies.get(mesh);
+    if (!proxy) {
+      proxy = new THREE.Mesh(mesh.geometry, material);
+      proxy.matrixAutoUpdate = false;
+      proxy.matrixWorldAutoUpdate = false;
+      proxy.frustumCulled = false;
+      this.proxies.set(mesh, proxy);
+    }
+    proxy.geometry = mesh.geometry;
+    proxy.material = material;
+    proxy.matrix.copy(mesh.matrixWorld);
+    proxy.matrixWorld.copy(mesh.matrixWorld);
+    return proxy;
+  }
+
+  private overlapsSource(mesh: THREE.Mesh, sources: Array<[THREE.Mesh, SunVisual]>, camera: THREE.PerspectiveCamera): boolean {
+    if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+    const sphere = mesh.geometry.boundingSphere;
+    if (!sphere) return false;
+    const offset = sphere.center.clone().applyMatrix4(mesh.matrixWorld).sub(camera.position);
+    const radius = sphere.radius * mesh.matrixWorld.getMaxScaleOnAxis();
+    return sources.some(([source, visual]) => {
+      const direction = source.getWorldPosition(new THREE.Vector3()).sub(camera.position);
+      const distance = direction.length();
+      if (distance === 0) return false;
+      direction.divideScalar(distance);
+      const along = offset.dot(direction);
+      const cone = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) *
+        Math.max(2, visual.diameterPixels) / this.size.y;
+      const margin = radius + Math.max(0, along) * cone;
+      return along + radius > 0 && along - radius < distance &&
+        offset.lengthSq() - along * along < margin * margin;
+    });
+  }
+
+  private prepareRegion(target: THREE.WebGLRenderTarget, bounds: THREE.Vector4): void {
+    // Scissor both clearing and drawing. Clearing the previous footprint too
+    // prevents camera motion leaving stale source/blur texels behind.
+    const previous = this.previousBounds.get(target);
+    const left = Math.min(bounds.x, previous?.x ?? bounds.x);
+    const bottom = Math.min(bounds.y, previous?.y ?? bounds.y);
+    const right = Math.max(bounds.z, previous?.z ?? bounds.z);
+    const top = Math.max(bounds.w, previous?.w ?? bounds.w);
+    target.scissorTest = true;
+    target.scissor.set(left, bottom, right - left, top - bottom);
+    this.renderer.setRenderTarget(target);
+    this.renderer.clear();
+    target.scissor.set(bounds.x, bounds.y, bounds.z - bounds.x, bounds.w - bounds.y);
+    this.renderer.setRenderTarget(target);
+    this.previousBounds.set(target, bounds.clone());
+  }
+
   dispose(): void {
+    this.proxies.clear();
+    this.sourceScene.clear();
+    this.previousBounds.clear();
     this.target.dispose();
     this.signalTarget.dispose();
     for (const target of this.blurTargets) target.dispose();
