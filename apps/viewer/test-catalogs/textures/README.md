@@ -159,31 +159,35 @@ byte-identical.
 
 ### `titan.dds`
 
-- **Source:** *Titan ISS P19658 Mosaic Global 4km*, Cassini ISS 938 nm
-  global mosaic, USGS Astrogeology (`…/mosaic/Titan_ISS_P19658_Mosaic_Global_4km.tif`,
-  4040×2020). Credit: NASA/JPL-Caltech/SSI; public domain in the US.
-  **To be replaced** by the 2025 USGS photogrammetrically controlled
-  full-mission mosaic (Weller et al., doi:10.5066/P14FAEKS, 702 m/px, tied to
-  Titan's SAR-based geodetic frame) once its host, ScienceBase, is reachable
-  from the build environment.
+- **Source:** *Geodetically improved images and mosaics of Titan via rigorous
+  photogrammetric control of Cassini Imaging Science Subsystem data*,
+  Weller, Archinal, Redding, Karkoschka et al., USGS (2025),
+  doi:10.5066/P14FAEKS: the equirectangular global mosaic at 702 m/px
+  (23048×11524, 938 nm), 8-bit PNG release, from ScienceBase item
+  `68a5107ad4be02198e361c35`. 6,896 ISS images in a bundle-adjusted control
+  network tied to the Cassini RADAR geodetic frame (control points < 600 m
+  in latitude and longitude). CC0-1.0.
 - **Orientation, from the label:** `CenterLongitude = 180`,
-  `LongitudeDirection = PositiveWest`, `MinimumLongitude = 0`,
-  `MaximumLongitude = 360`, upper-left x = −πR. ISIS projections compute map
-  x from the eastward angle, so its maps are always drawn east to the right;
-  `PositiveWest` only says the longitude *numbers* count westward. The left
-  edge is therefore 360°W = 0°E and the map runs 0–360°E: a half-width roll,
-  no mirror.
+  `LongitudeDirection = PositiveEast`, upper-left x = −πR, so the left edge
+  is 0°E and the map runs 0–360°E: a half-width roll, no mirror. Registered
+  against the P19658 mosaic it replaced, the two agree to within one pixel
+  at 2048 wide (0.2°).
 - **Orientation, checked against named features** (IAU coordinates, after
-  the roll): Xanadu, the large bright region centred near 10°S 100°W, has a
-  mean brightness of 173 there against a global mean of 128 (42 at the
-  mirrored position, 100°E); the Belet dune field near 7°S 255°W is dark,
-  36 (172 mirrored). That fixes both the longitude sense and the origin.
-- **Processing:** half-width roll, Lanczos to 4096×2048, DXT1 with a full
-  mip chain like the map it replaces.
+  the roll; mean brightness against a global mean of 129): Xanadu near
+  10°S 100°W is bright, 175, as is Tui Regio at 24°S 125°W, 181; the Belet
+  dune field near 5°S 255°W is dark, 43; Kraken Mare (68°N 310°W) and
+  Ligeia Mare (79°N 248°W) read 97 and 111 against about 190 for their
+  latitude.
+- **Processing:** half-width roll, Lanczos to 4096×2048, the few no-data
+  pixels (0.06%: a wedge near 60°S 85°E, slivers at the south pole)
+  gap-filled, DXT1 with a full mip chain like the map it replaces.
 - **Replaced:** Cosmographia's `titan.dds`, an early-Cassini mosaic with
   flat grey blocks where coverage was missing, most of the north among them.
-  The new map fills almost all of them, including the north-polar lakes.
-  Same size, same GPU cost.
+  An interim build from the uncontrolled USGS P19658 4 km mosaic filled
+  those but showed its image patchwork; the controlled mosaic is
+  incidence-weighted and has no visible frame seams. The strong north-bright,
+  south-dark gradient is in the release itself (haze and season at 938 nm)
+  and is kept. Same size, same GPU cost.
 
 ### `mercury.dds`
 

@@ -79,7 +79,7 @@ def source(name: str) -> Path:
     return path
 
 
-def load_usgs(name: str, w: int, h: int, center_lon: float) -> tuple[np.ndarray, np.ndarray]:
+def load_usgs(name: str, w: int, h: int, center_lon: float, ext: str = 'tif') -> tuple[np.ndarray, np.ndarray]:
     """A local 8-bit USGS mosaic resampled to w x h in Cosmolabe's longitude
     origin: (image, coverage), float32 (h, w, C) and (h, w, 1).
 
@@ -96,7 +96,7 @@ def load_usgs(name: str, w: int, h: int, center_lon: float) -> tuple[np.ndarray,
     Resampling stays in 8 bits (Pillow, per band) so a mosaic of a few
     hundred megapixels never exists as float32. `coverage` is the
     area-averaged fraction of non-zero (non-no-data) source pixels."""
-    a = np.asarray(Image.open(source(f'{name}.tif')))
+    a = np.asarray(Image.open(source(f'{name}.{ext}')))
     if a.ndim == 2:
         a = a[:, :, None]
     assert a.dtype == np.uint8, (name, a.dtype)
@@ -430,14 +430,21 @@ def pluto() -> None:
     write_jpg(to_image(ycc_to_rgb(np.concatenate([y, chroma], axis=2))), TEXTURES / 'pluto.jpg')
 
 
+TITAN_702M = 'Titan_Controlled_GlobalEqui_V6NoArcEdgesClouds_702M_WeightedAverage_ComboIncV2Ema60_Sharpen31x31'
+
+
 def titan() -> None:
-    """Cassini ISS 938 nm global mosaic P19658 (USGS Astrogeology), greyscale,
-    resampled 4040x2020 -> 4096x2048, written as DXT1 like the map it
-    replaces (an early-Cassini mosaic with flat grey blocks where coverage
-    was missing). Complete coverage, so no fill."""
+    """Cassini ISS 938 nm controlled global mosaic at 702 m (USGS, 2025,
+    doi:10.5066/P14FAEKS), greyscale, 23048x11524 -> 4096x2048 DXT1. Its
+    images are tied by bundle adjustment to the Cassini RADAR geodetic frame,
+    and it replaces the uncontrolled P19658 4 km mosaic (visible frame
+    patches, a flat grey block at high northern latitudes). The 8-bit PNG
+    release is used, the same data as the 1 GB float cube. The few no-data
+    pixels (a wedge near 60 S, slivers at the south pole) are filled."""
     W, H = 4096, 2048
-    a, _ = load_usgs('Titan_ISS_P19658_Mosaic_Global_4km', W, H, center_lon=180)
-    write_dxt1(to_image(a), TEXTURES / 'titan.dds')
+    a, coverage = load_usgs(TITAN_702M, W, H, center_lon=180, ext='png')
+    m = valid_mask(coverage, feather=4)
+    write_dxt1(to_image(a * m + gap_fill(a, m) * (1 - m)), TEXTURES / 'titan.dds')
 
 
 def luminance(a: np.ndarray) -> np.ndarray:
