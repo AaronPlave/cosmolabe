@@ -1,4 +1,5 @@
 import { applyViewState, validateViewState, ViewStateError } from '@cosmolabe/control';
+import { resolveCameraViewpoint } from '@cosmolabe/three';
 import { catalogLocation, allEntries, requestedCatalog } from './catalog-nav';
 import { catalogs } from './catalogs.svelte';
 import { getRenderer, vs } from './viewer-state.svelte';
@@ -25,11 +26,20 @@ export function captureViewState(pageUrl = location.href): ViewerViewState {
   // Match only catalog-owned viewpoints, never session-only Saved views. A
   // remembered dropdown value becomes stale as soon as the camera is dragged.
   const matches = (a: readonly number[], b: readonly number[]) => a.every((x, i) => Math.abs(x - b[i]) <= 1e-9 * Math.max(1, Math.abs(x)));
+  // Catalog viewpoints are relationships, resolved where they are shown: at
+  // their own epoch, else now. That is also where restoring the link resolves
+  // them (`applyViewState` applies a named view after seeking to the link's
+  // time), so a match here reproduces the same pose there.
   const named = getUniverse()?.viewpoints.find(v => {
-    const vp = cc.getViewpoint(v.name);
-    return vp && (vp.trackBody ?? null) === (cc.originBody?.body.name ?? null) &&
-      matches(camera.position, vp.position.toArray().map(x => x / r.scaleFactor)) &&
-      matches(camera.target, vp.target.toArray().map(x => x / r.scaleFactor)) && matches(camera.up, vp.up.toArray());
+    const stored = cc.getViewpoint(v.name);
+    if (!stored) return false;
+    let vp;
+    try { vp = resolveCameraViewpoint(stored, stored.epoch ?? host.getTime()); } catch { return false; }
+    // A look-at view's orientation is the look-at body, not a stored target.
+    const aimed = vp.lookAtBody ? cc.lookAtBody?.body.name === vp.lookAtBody
+      : matches(camera.target, vp.target.toArray().map(x => x / r.scaleFactor));
+    return (vp.trackBody ?? null) === (cc.originBody?.body.name ?? null) && aimed &&
+      matches(camera.position, vp.position.toArray().map(x => x / r.scaleFactor)) && matches(camera.up, vp.up.toArray());
   });
   const state = validateViewState({ version: 1, catalog: ref,
     time: { kind: 'fixed', source: 'ET', et: host.getTime() },

@@ -187,7 +187,9 @@ LVLH, RIC/RSW, RTN, VNC and similar frames are **not** registry frames, and nami
 
 ## Viewpoints
 
-Named camera presets. Each is an item with `"type": "Viewpoint"`:
+Named views. Each is an item with `"type": "Viewpoint"`. A viewpoint
+describes the camera by what it is relative to and what it looks at, not as a
+stored world-space pose, and is resolved again every time it is applied:
 
 ```json
 {
@@ -201,28 +203,109 @@ Named camera presets. Each is an item with `"type": "Viewpoint"`:
 }
 ```
 
-`distance` is in kilometers from `center`, and `latitude`/`longitude` place the
-camera over that point on the centre body's surface.
+| Field | Meaning |
+|-------|---------|
+| `center` | Body the camera is placed relative to, and tracks. |
+| `distance`, `latitude`, `longitude` | The camera `distance` km from `center`, over that point of the centre body's surface (body-fixed; a body without a rotation model uses its parent's). |
+| `eye`, `target` | Explicit positions in km relative to `center`. `eye` overrides every other placement. |
+| `lookAt` | A body to look at. Overrides `target`, and the camera keeps facing it as time runs. Needs `center`. |
+| `from` | A direction from `center` to the camera, used with `distance`. Overrides `latitude`/`longitude`. Needs `center`. |
+| `up` | Up, as an `[x, y, z]` vector or a direction. |
+| `frame` | The frame `eye`, `target`, a vector `up`, the lat/lon offset and `axis`/`vector` directions are stated in. |
+| `fov` | Vertical field of view, degrees. |
+| `time` | The moment the viewpoint depicts (below). |
+
+### Directions
+
+`from` and `up` take a direction, resolved at the viewpoint's epoch:
+
+| Direction | Points |
+|-----------|--------|
+| `{"kind": "toward", "body": "Sun"}` | From `center` (or `"from": "<body>"`) toward the body. |
+| `{"kind": "velocity"}` | Along the velocity of `center` (or `"body"`) relative to its active parent (or `"relativeTo"`). |
+| `{"kind": "orbitNormal"}` | Along `r × v` for the same pair: the orbit's pole. |
+| `{"kind": "axis", "axis": "+Z", "frame": "IAU_SATURN"}` | Along an axis of a frame. |
+| `{"kind": "vector", "vector": [0, 0, 1], "frame": "J2000"}` | Along an explicit vector. |
+
+Add `"negate": true` to the first three to reverse them: `velocity` negated is
+"behind", `toward` the Sun negated is "anti-Sun". `axis` and `vector` use the
+viewpoint's `frame` when they name none.
+
+Put together, "Saturn beyond Cassini at orbit insertion" is a camera 30 m
+behind Cassini on the side away from Saturn, looking at Saturn, with Saturn's
+pole up so the rings lie level:
+
+```json
+{
+  "name": "SOI: Saturn beyond Cassini (2004-07-01)",
+  "type": "Viewpoint",
+  "center": "Cassini",
+  "lookAt": "Saturn",
+  "from": { "kind": "toward", "body": "Saturn", "negate": true },
+  "distance": 0.03,
+  "up": { "kind": "axis", "axis": "+Z", "frame": "IAU_SATURN" },
+  "time": "2004-07-01T02:48:00Z"
+}
+```
+
+The vector-derived presets are ordinary viewpoints too. `presetViewpoint` in
+`@cosmolabe/core` builds them:
+
+| Preset | `from` | `up` |
+|--------|--------|------|
+| `top` | `orbitNormal` | `velocity` |
+| `sun` | `toward` the Sun | ecliptic north |
+| `velocity` | `velocity`, negated | `orbitNormal` |
+
+### Frames and defaults
+
+Without `frame`, the fields keep their original meaning: the lat/lon offset is
+body-fixed, and `eye`, `target` and a vector `up` are in the scene frame
+(EclipticJ2000). A `frame` applies to all of them: `BodyFixed` is the
+centre's body-fixed frame, and any other name goes through the frame registry,
+so inertial, SPICE and catalog-declared frames all work. A frame that cannot
+be resolved at the epoch is an error, never silently treated as the scene
+frame.
+
+Without `up`, a viewpoint that uses `from` or `lookAt` is upright to ecliptic
+north. Others use +Y of the scene frame, as they always have. An `up` parallel
+to the line of sight is replaced by the scene axis furthest from it.
+
+### Time
 
 `time` is optional. When it is set, going to the viewpoint **also seeks the
-clock to that moment** — from the Viewpoint menu, from `defaultViewpoint` on
-load, and from the visual-regression capture hook alike. It is read like every
-other catalog date (see *Values and units* below), so it is UTC whether or not
-it carries a `Z`. The camera's `latitude`/`longitude` offset is oriented using
-the centre body's attitude *at that same epoch*, so a viewpoint named for a
-flyby months away from `defaultTime` still looks at the face it names.
+clock to that moment**. That happens from the Viewpoint menu, from
+`defaultViewpoint` on load, from the `viewpoint` script verb, and from the
+visual-regression capture hook alike. It is read like every other catalog date
+(see *Values and units* below), so it is UTC whether or not it carries a `Z`.
+Everything the viewpoint refers to is resolved at that same epoch, so a
+viewpoint named for a flyby months away from `defaultTime` still looks at the
+face it names.
 
-A viewpoint with no `time` leaves the clock exactly where it was — it is a
-camera preset and nothing more. This is the difference between "show me the
-rings from the side" and "show me the Huygens landing".
+A viewpoint with no `time` leaves the clock exactly where it was, and is
+resolved at the **current** time when it is applied. "Over Jezero" stays over
+Jezero after the clock has moved, and "Cassini from the Sun side" is on the Sun
+side whenever it is chosen. This is the difference between "show me the rings
+from the side" and "show me the Huygens landing".
 
 An unparseable `time` is reported on the console and then ignored, rather than
 being silently rounded to J2000: a viewpoint that quietly jumps to the year 2000
-looks like a working scene aimed at empty space.
+looks like a working scene aimed at empty space. Malformed fields are reported
+the same way and left out. A viewpoint that names a body the scene does not
+have is reported at load, and refused (the view does not change) when chosen.
 
 Reference one in `defaultViewpoint` to open on it. If that viewpoint declares a
-`time`, it wins over the catalog's `defaultTime` — the scene opens at the moment
-the viewpoint names.
+`time`, it wins over the catalog's `defaultTime`, and the scene opens at the
+moment the viewpoint names.
+
+### Portable form
+
+A viewpoint is also the camera part of a shareable view. `viewpointToJson`
+writes it as a `Viewpoint` item carrying the resolved `epoch` (ET seconds)
+instead of `time`, and `validateViewpoint` reads that back strictly from
+untrusted input. Neither includes catalog identity, selection, playback or UI
+state; those belong to the view state that composes it (see
+[view-state.md](view-state.md)).
 
 ## Values and units
 

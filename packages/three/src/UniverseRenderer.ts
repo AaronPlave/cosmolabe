@@ -40,6 +40,7 @@ import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
 import { TimeController } from './controls/TimeController.js';
 import { applyNamedViewpoint, type ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
+import { cameraViewpointFromDefinition } from './controls/catalogViewpoint.js';
 import type { TerrainConfig, TerrainDebugMode } from './TerrainManager.js';
 import type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import { BloomEffect, type BloomConfig } from './BloomEffect.js';
@@ -1306,6 +1307,20 @@ export class UniverseRenderer {
    */
   applyNamedViewpoint(name: string, opts: ApplyViewpointOptions = {}): boolean {
     return applyNamedViewpoint(this, name, opts);
+  }
+
+  /**
+   * Register the universe's catalog viewpoints with the camera controller.
+   * Each is re-resolved when applied — at its own epoch, or at the current
+   * time when it names none — so relationships such as "over Jezero" or
+   * "behind Rosetta, looking at Mars" hold whenever they are chosen.
+   */
+  addCatalogViewpoints(): void {
+    for (const def of this.universe.viewpoints) {
+      this.cameraController.addViewpoint(
+        cameraViewpointFromDefinition(this.universe, def, this.scaleFactor, this.universe.time),
+      );
+    }
   }
 
   getTrajectoryLine(name: string): TrajectoryLine | undefined {

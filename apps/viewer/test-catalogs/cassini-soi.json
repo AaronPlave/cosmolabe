@@ -112,6 +112,40 @@
       "time": "2005-07-14T19:55:00Z"
     },
     {
+      "name": "SOI: Saturn beyond Cassini (2004-07-01)",
+      "type": "Viewpoint",
+      "center": "Cassini",
+      "lookAt": "Saturn",
+      "from": { "kind": "toward", "body": "Saturn", "negate": true },
+      "distance": 0.03,
+      "up": { "kind": "axis", "axis": "+Z", "frame": "IAU_SATURN" },
+      "time": "2004-07-01T02:48:00Z"
+    },
+    {
+      "name": "Titan T-A: Titan beyond Cassini (2004-10-26)",
+      "type": "Viewpoint",
+      "center": "Cassini",
+      "lookAt": "Titan",
+      "from": { "kind": "toward", "body": "Titan", "negate": true },
+      "distance": 0.03,
+      "time": "2004-10-26T15:30:00Z"
+    },
+    {
+      "name": "Cassini from the Sun side",
+      "type": "Viewpoint",
+      "center": "Cassini",
+      "from": { "kind": "toward", "body": "Sun" },
+      "distance": 0.03
+    },
+    {
+      "name": "Chase Cassini",
+      "type": "Viewpoint",
+      "center": "Cassini",
+      "from": { "kind": "velocity", "relativeTo": "Saturn", "negate": true },
+      "up": { "kind": "orbitNormal", "relativeTo": "Saturn" },
+      "distance": 0.03
+    },
+    {
       "name": "Sun",
       "class": "star",
       "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
