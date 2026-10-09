@@ -158,6 +158,11 @@ export { resolveContinuousProfile, resolveEventQuery } from './geometry/analysis
 // timeline/3D integration selecting an event drives. See docs/event-model.md.
 export * from './geometry/events/index.js';
 
+// Observations (#28, Phase 2) — one model for Cosmographia observations,
+// sensor `active` windows and planetary-archive products, plus the sensor
+// footprint computation (a narrow FootprintGeometryProvider, not SpiceInstance).
+export * from './observations/index.js';
+
 // Plugins
 export type { CosmolabePlugin } from './plugins/Plugin.js';
 export type { ResourceLayer } from './plugins/ResourceLayer.js';
