@@ -104,7 +104,8 @@ try {
     let green = 0, blue = 0;
     for (let i = 0; i < pixels.length; i += 4) {
       if (pixels[i+1] > 180 && pixels[i] < 70 && pixels[i+2] < 70) green++;
-      if (pixels[i+2] > pixels[i] + 10 && pixels[i+2] > 20) blue++;
+      // Twilight sky need not be blue. Sample the unobstructed upper quarter.
+      if (i/4 >= 768*384 && pixels[i]+pixels[i+1]+pixels[i+2] > 15) blue++;
     }
     const effect = viewer.sunGlareEffect;
     const sourceMeshes = effect.sourceScene.children.length;
@@ -191,6 +192,47 @@ try {
   assert.ok(overlays.frontCone > 100, 'foreground sensor cone must remain visible across the solar disk');
   assert.equal(overlays.behindCone, 0, 'sensor cone behind the Sun must remain occluded');
   await page.screenshot({path:'work/sun-rendering/viewer-overlays.png'});
+  const horizon = await page.evaluate(async () => {
+    const { Universe, UniverseRenderer } = await import('/bundle.js');
+    window.solarViewer.dispose();
+    const u = new Universe();
+    u.loadCatalog({ name: 'horizon depth regression', items: [
+      { name: 'Earth', class: 'planet', trajectory: { type: 'FixedPoint', position: [0,0,0] },
+        geometry: { type: 'Globe', radius: 6371, atmosphere: { mieCoeff: 0, mieScaleHeight: 8,
+          miePhaseAsymmetry: 0, rayleighCoeff: [0,0,0], absorptionCoeff: [0,0,0], heightKm: 100 } } },
+      { name: 'Sun', class: 'star', trajectory: { type: 'FixedPoint', position: [0,0,149597870] },
+        geometry: { type: 'Globe', radius: 695000 } },
+    ] });
+    const v = new UniverseRenderer(document.querySelector('canvas'),u,{ scaleFactor: 0.001,
+      minBodyPixels: 0, showStars: false, showLabels: false, showTrajectories: false });
+    v.timeController.pause(); v.cameraController.controls.enableDamping=false;
+    const c=v.camera;
+    c.position.set(6.371001,0,0); c.up.set(1,0,0); c.fov=8; c.updateProjectionMatrix();
+    // Keep the actual coarse visible globe, including its facet horizon.
+    const a = [...v.atmosphereMeshes.values()][0].atm;
+    const gl=v.renderer.getContext();
+    let compared=0;
+    for (const pitch of [-0.002,0,0.002]) {
+      v.cameraController.controls.target.set(c.position.x+pitch,0,10);
+      c.lookAt(v.cameraController.controls.target); c.updateMatrixWorld(true);
+      const read = visible => {
+        a.visible=visible; v.renderFrame();
+        const p=new Uint8Array(768*512*4); gl.readPixels(0,0,768,512,gl.RGBA,gl.UNSIGNED_BYTE,p); return p;
+      };
+      const reference=read(false), extinction=read(true);
+      for (let y=220;y<292;y++) for(let x=360;x<408;x++) {
+        const i=(y*768+x)*4;
+        if (reference[i]>100) { compared++; if (Math.abs(reference[i]-extinction[i])>2)
+          throw new Error(`Reference atmosphere clipped a rendered solar ray at ${x},${y}`); }
+        else if (extinction[i]>100) throw new Error('Sun escaped the rendered planet depth');
+      }
+    }
+    window.solarViewer=v;
+    return { compared };
+  });
+  console.log('Rendered horizon regression:',horizon);
+  assert.ok(horizon.compared>300,'horizon regression must sample visible photosphere rays');
+  await page.screenshot({path:'work/sun-rendering/viewer-horizon-depth.png'});
   assert.equal(errors.length, 0, errors.join('\n'));
   console.log('Production solar/atmosphere/surface-tile GPU integration passed.');
 } finally { await browser.close(); }

@@ -7,9 +7,11 @@ its catalog radius even when `minBodyPixels` is nonzero.
 
 The disk uses a broadband linear limb-darkening profile, `0.4 + 0.6 * mu`, and
 warm-white linear HDR radiance `(3.2, 3.08, 2.88)`. `mu` is the normal/view cosine
-at the actual sphere surface, including perspective at close range. A fixed local
-linear display mapping, `radiance * (0.94 / 3.2)`, preserves that gradient without
-changing scene-wide exposure or tone mapping. Low-contrast procedural granulation
+at the actual sphere surface, including perspective at close range. Direct solar
+and scattered atmospheric radiance share the fixed display response
+`0.94 * (radiance / 3.2)^(1/3)`. The resolved disk applies its limb profile after
+that response to preserve visualization contrast; atmospheric attenuation uses
+the same response as sky light. Low-contrast procedural granulation
 fades in between 512 and 1400 physical pixels, with derivative filtering to avoid
 aliasing. It is illustrative surface detail, not an epoch-specific observation,
 and does not affect the HDR source used for glare.
@@ -19,6 +21,11 @@ body depth buffer. The nearest intersected atmosphere supplies its existing RGB
 transmittance LUT and density profiles; transmission is applied before both the
 disk response and optical glare. This avoids attenuating the disk twice. The
 numerical profile integration remains available when no LUT exists.
+Direct transmission is extinction only (`atmRayTransmittance`), with no
+reference-sphere shadow. The rendered body/depth buffer defines the resolved
+horizon. Rays below the transmittance LUT's reference horizon integrate density
+numerically rather than querying a binary analytic shadow. Scattering samples
+retain their physical planet shadow through `atmSunTransmittance`.
 The main scene draws bodies/atmosphere, then the solar disk, then layer-2
 trajectory and sensor overlays without clearing depth between those passes.
 Foreground overlays retain their final presentation; overlays behind the Sun
@@ -61,6 +68,26 @@ scissored to the Sun and halo bounds to keep small-source views inexpensive.
 Source rendering and clearing are also scissored; clearing includes the previous
 footprint to prevent stale texels after camera motion.
 
+## Relative radiance and preset audit
+
+`SolarRadiometry` supplies one photospheric center radiance and derives incident
+irradiance as `centerRadiance * 0.8 * pi * (solarRadius / distance)^2`. The 0.8 is
+the disk integral of the limb profile. Shell single/multiple scattering and
+terrain aerial-perspective inscatter use that irradiance instead of an unrelated
+unit light source. Both LUT and numerical shell paths apply the shared display
+response; the HDR optical source remains linear. This establishes a common
+direct-source/sky convention without introducing a low-altitude solar gain.
+It is a scoped relative-unit visualization, not a scene-wide HDR compositor or
+an absolute luminance calibration of every existing body material.
+
+Venus's former red-heavy Rayleigh/absorption coefficients were atmosphere-color
+tuning that produced an inverted direct filter. They now increase toward blue.
+Titan's molecular Rayleigh also increases toward blue; its retained blue
+absorption produces the warm tholin haze. Earth keeps its wavelength-dependent
+Rayleigh and ozone profiles. Mars retains colored dust scattering/extinction,
+which can physically favor blue direct sunlight. These remain approximate
+presets rather than measured wavelength-resolved atmosphere models.
+
 ## GPU verification
 
 ```sh
@@ -86,11 +113,15 @@ the size of the explicit solar occluder set and scissored source region. It also
 uses the production `TrajectoryLine` and `SensorFrustum` materials to check
 foreground content crossing the solar disk and occlusion behind it, comparing
 rendered pixels against an overlay-free frame. It
+also approaches the coarse Earth globe's horizon at three viewing angles, using
+a zero-extinction atmosphere to isolate geometric visibility. Every visible
+solar pixel must match the atmosphere-hidden reference depth boundary; this
+explicitly catches a second analytic horizon even when density is zero. It
 reports warm-frame and glare timings with synchronous software WebGL; these
 are fixture measurements, not hardware GPU performance estimates.
 In the 768×512 reference run, the 256-mesh fixture used one solar source proxy,
-a 126×126 source region (4.04% of the target), and averaged 1.7 ms for glare
-within a 4.8 ms frame over six warm, synchronously completed software frames.
+a 126×126 source region (4.04% of the target), and averaged 1.9 ms for glare
+within a 7.4 ms frame over six warm, synchronously completed software frames.
 
 These images are synthetic GPU scenes using the production shaders, not
 mission-epoch or solar-surface imagery. The horizon example deliberately uses a
@@ -144,8 +175,8 @@ The committed [reference poses](images/sun-app-reference-poses.json) record the
 actual apparent sizes, camera positions/targets in km, FOV, and drawing buffer.
 The sunrise camera is 10 km above Earth's surface at an 8° FOV. Its globe uses
 1024×512 tessellation to avoid coarse polygon facets dominating the horizon;
-the physical radius and atmosphere are unchanged. Fixed exposure makes the
-grazing, strongly attenuated Sun faint. This capture documents that behavior.
+the physical radius and atmosphere are unchanged. The direct disk remains
+brighter than neighboring sky under the shared radiance/display convention.
 
 ### 150 px Sun in space
 
@@ -162,3 +193,33 @@ grazing, strongly attenuated Sun faint. This capture documents that behavior.
 ### Near-surface sunrise
 
 ![Earth atmosphere and a partially hidden Sun at the physical horizon](images/sun-app-sunrise.png)
+
+### Venus, Mars and Titan checks
+
+```sh
+SOLAR_REFERENCE_PRESET=Venus CHROMIUM_PATH=/usr/bin/chromium node scripts/capture-sun-viewer.mjs
+SOLAR_REFERENCE_PRESET=Mars CHROMIUM_PATH=/usr/bin/chromium node scripts/capture-sun-viewer.mjs
+SOLAR_REFERENCE_PRESET=Titan CHROMIUM_PATH=/usr/bin/chromium node scripts/capture-sun-viewer.mjs
+```
+
+These reference views use the same physical Sun at approximately 1 AU, with
+cameras at 50 km (Venus), 10 km (Mars), and 200 km (Titan), where direct sunlight
+is visible through each model. Each script checks the displayed Sun's luminance
+against adjacent sky and the absence of inverted blue filtering for
+Earth/Venus/Titan. Mars's moderate blue direct filtering is retained.
+
+| Preset | Sun RGB | Adjacent sky RGB |
+| --- | --- | --- |
+| Earth | 152, 127, 67 | 24, 20, 13 |
+| Venus | 98, 54, 37 | 20, 11, 9 |
+| Mars | 75, 87, 92 | 16, 18, 18 |
+| Titan | 133, 104, 42 | 24, 18, 8 |
+
+These are sampled output pixels, not physical radiance measurements. The camera
+poses and sample coordinates are reproducible through the capture script.
+
+![Venus grazing direct sunlight](images/sun-app-venus-sunrise.png)
+
+![Mars dust-filtered direct sunlight](images/sun-app-mars-sunrise.png)
+
+![Titan tholin-filtered direct sunlight](images/sun-app-titan-sunrise.png)

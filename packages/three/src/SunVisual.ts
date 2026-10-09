@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { AtmosphereMesh } from './AtmosphereMesh.js';
 import { ATMOSPHERE_PROFILES_GLSL, makeAtmosphereProfileUniforms } from './AtmosphereProfiles.js';
 import { normalizeAtmosphere } from './AtmosphereModel.js';
+import { SOLAR_DISPLAY_GLSL, SOLAR_CENTER_RADIANCE } from './SolarRadiometry.js';
 
 /** Dedicated disk layer, drawn after atmosphere shells to apply extinction once. */
 export const SOLAR_LAYER = 4;
@@ -79,6 +80,7 @@ export class SunVisual {
         varying vec3 vSurfaceNormal;
         #include <logdepthbuf_pars_fragment>
         ${ATMOSPHERE_PROFILES_GLSL}
+        ${SOLAR_DISPLAY_GLSL}
         float cellHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
         float cells(vec3 p) {
           vec3 i = floor(p), f = fract(p);
@@ -92,11 +94,12 @@ export class SunVisual {
           #include <logdepthbuf_fragment>
           float mu = clamp(dot(normalize(vViewNormal), normalize(-vViewPosition)), 0.0, 1.0);
           // Broadband linear limb darkening: 40% of center radiance at the limb.
-          vec3 radiance = vec3(3.2, 3.08, 2.88) * (0.4 + 0.6 * mu);
+          float limb = 0.4 + 0.6 * mu;
+          vec3 radiance = vec3(${SOLAR_CENTER_RADIANCE.join(', ')}) * limb;
           if (hasAtmosphere) {
             vec3 eye = (worldToAtmosphere * vec4(cameraPosition, 1.0)).xyz;
             vec3 point = (worldToAtmosphere * vec4(vWorldPosition, 1.0)).xyz;
-            radiance *= atmSunTransmittance(eye, normalize(point - eye));
+            radiance *= atmRayTransmittance(eye, normalize(point - eye));
           }
           if (sourcePass && sourceScale > 1.0) {
             // Rasterizing the optical footprint must not widen the occultation
@@ -118,7 +121,9 @@ export class SunVisual {
           } else {
             // Visualization mapping preserves the linear limb profile instead of
             // compressing HDR photospheric structure into display saturation.
-            vec3 display = radiance * (0.94 / 3.2);
+            // Keep the resolved limb's visualization contrast, while applying
+            // the same radiance/exposure response as the atmospheric sky.
+            vec3 display = radianceToDisplay(radiance / limb) * limb;
             if (granulationWeight > 0.0) {
               vec3 p = normalize(vSurfaceNormal) * 420.0;
               float filterWeight = 1.0 - smoothstep(0.7, 1.5, length(fwidth(p)));

@@ -772,6 +772,7 @@ export class UniverseRenderer {
           // tracks the sun and camera. Coefficients are scaled to 1/scene-unit.
           const apu = this.aerialPerspectiveUniforms.get(parentName);
           if (apu) {
+            apu.uAPLightColor.value.copy((atm.material as THREE.ShaderMaterial).uniforms.lightColor.value);
             const sf = this.scaleFactor;
             apu.uAPCameraWorldPos.value.copy(this.camera.position);
             apu.uAPSunWorldPos.value.copy(sunPos);

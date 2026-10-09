@@ -1,6 +1,18 @@
 [
   {
     "size": 150,
+    "preset": "Earth",
+    "altitudeKm": 10,
+    "sunRGB": [
+      242,
+      241,
+      239
+    ],
+    "skyRGB": [
+      0,
+      0,
+      0
+    ],
     "diameterPixels": 149.99999999999974,
     "camera": {
       "position": [
@@ -27,6 +39,18 @@
   },
   {
     "size": 35,
+    "preset": "Earth",
+    "altitudeKm": 10,
+    "sunRGB": [
+      242,
+      240,
+      238
+    ],
+    "skyRGB": [
+      0,
+      0,
+      0
+    ],
     "diameterPixels": 35,
     "camera": {
       "position": [
@@ -53,6 +77,18 @@
   },
   {
     "size": 5,
+    "preset": "Earth",
+    "altitudeKm": 10,
+    "sunRGB": [
+      237,
+      233,
+      226
+    ],
+    "skyRGB": [
+      7,
+      7,
+      6
+    ],
     "diameterPixels": 5,
     "camera": {
       "position": [
@@ -79,6 +115,18 @@
   },
   {
     "size": "sunrise",
+    "preset": "Earth",
+    "altitudeKm": 10,
+    "sunRGB": [
+      152,
+      127,
+      67
+    ],
+    "skyRGB": [
+      24,
+      20,
+      13
+    ],
     "diameterPixels": 53.06756805600153,
     "camera": {
       "position": [

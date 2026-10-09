@@ -163,7 +163,10 @@ try {
   assert.deepEqual(result.occulted, [0, 0, 0], 'complete occultation must hide all glare');
   assert.ok(result.horizonHDR[0] < result.hdr[0] * 0.6, 'grazing atmosphere must dim source');
   assert.ok(result.horizonHDR[2] / result.horizonHDR[0] < result.hdr[2] / result.hdr[0] * 0.5, 'grazing atmosphere must redden source');
-  assert.ok(result.horizonDisk[0] > result.horizonDisk[2] * 2, 'display disk uses attenuated solar radiance');
+  assert.ok(result.horizonDisk[0] > result.horizonDisk[2], 'display disk retains atmospheric reddening');
+  const encode = v => 255 * (v <= 0.0031308 ? 12.92*v : 1.055*v**(1/2.4)-0.055);
+  result.horizonDisk.forEach((v,i) => assert.ok(Math.abs(v-encode(0.94*Math.cbrt(result.horizonHDR[i]/3.2))) < 3,
+    'direct display must use the shared radiance response, not a low-altitude gain'));
   assert.ok(result.horizonHalo[0] < result.halo[0] && result.horizonHalo[2] < result.horizonHalo[0], 'glare follows atmospheric dimming/reddening');
   assert.ok(result.horizonLUT.every((v, i) => Math.abs(v - result.horizonHDR[i]) < 0.1), 'LUT and numerical profile paths agree');
   assert.ok(result.transition.every(t => t.value > 0), 'unresolved Sun remains visible');
