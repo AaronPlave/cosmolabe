@@ -5,6 +5,7 @@ export {
   observationToCosmographia,
   observationSampleTimes,
   observationActiveAt,
+  catalogTimeParser,
   type Observation,
   type ObservationGroup,
   type ObservationCoverage,

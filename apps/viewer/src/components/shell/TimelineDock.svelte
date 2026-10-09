@@ -21,7 +21,7 @@
     vs, togglePlay, reverse, faster, slower,
     stepForward, stepBackward, scrubTo, setTime,
     resetScrubberZoom, setZoomDuration, etToShortDate, etToUtcString,
-    setScrubberWindow, panScrubberBy,
+    setScrubberWindow, panScrubberBy, getRenderer,
   } from '../../lib/viewer-state.svelte';
   import {
     timeline, timelineSurface, ghostEt, timelineFraction, clockLines,
@@ -31,6 +31,8 @@
   import { untrack } from 'svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
+  import PluginTrackLane from './PluginTrackLane.svelte';
+  import { resolvePluginTracks } from '../../lib/plugin-tracks';
   import AddProfile from './AddProfile.svelte';
   import SelectedEventInspector from './SelectedEventInspector.svelte';
   import RangeControl from '../RangeControl.svelte';
@@ -121,6 +123,14 @@
   // their eye toggle) so they can be shown again from here; disabled ones are
   // out of the analysis entirely and have nothing to draw.
   let eventLanes = $derived(configuredEventQueries().filter((item) => item.enabled));
+
+  // Plugin-contributed tracks (`ui.timelineTracks`), re-asked whenever the
+  // window or the scene changes — the slot's contract is "called when the
+  // timeline range changes".
+  let pluginTracks = $derived.by(() => {
+    if (!vs.sceneLoaded) return [];
+    return resolvePluginTracks(getRenderer(), vs.scrubMin, vs.scrubMax);
+  });
 
   // ── Transport overview ──
   //
@@ -768,10 +778,13 @@
       class="lane-region"
       style="--tl-gutter: {axis.left}px; --tl-axis: {axis.width}px; --tl-rail-end: {axis.railEnd}px;{regionSize}"
     >
+      {#each pluginTracks as resolved (resolved.track.id)}
+        <PluginTrackLane {resolved} wide={wideLanes} />
+      {/each}
       {#each eventLanes as item (item.id)}
         <EventLane {item} wide={wideLanes} />
       {/each}
-      <ProfileLanes axisWidth={axis.width} wide={wideLanes} ticks={profileTicks} afterLanes={eventLanes.length > 0} />
+      <ProfileLanes axisWidth={axis.width} wide={wideLanes} ticks={profileTicks} afterLanes={eventLanes.length + pluginTracks.length > 0} />
     </div>
 
     <!-- One ghost line and one playhead through every row, so they cannot

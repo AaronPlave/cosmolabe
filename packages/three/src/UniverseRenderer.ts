@@ -46,6 +46,7 @@ import { BloomEffect, type BloomConfig } from './BloomEffect.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
 import type { RendererContext } from './plugins/RendererContext.js';
 import type { BodyVisualizer } from './plugins/BodyVisualizer.js';
+import { ObservationsVisualizer } from './plugins/ObservationsVisualizer.js';
 import type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
 import type { RendererEventMap } from './events/RendererEventMap.js';
 
@@ -466,6 +467,9 @@ export class UniverseRenderer {
 
     // Register custom-geometry visualizers BEFORE buildScene so matching
     // bodies are routed to the visualizer instead of getting a default mesh.
+    // `Observations` is a Cosmographia geometry type, so it is built in; a
+    // host's own visualizer for it replaces this one.
+    this._visualizers.set('Observations', new ObservationsVisualizer());
     if (options.visualizers) {
       for (const vis of options.visualizers) {
         this._visualizers.set(vis.geometryType, vis);

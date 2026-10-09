@@ -25,6 +25,7 @@ import {
 import { createHeritageSpice, kernelNameFromUrl, type HeritageSpice } from '@cosmolabe/frames';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import { UniverseRenderer, SpiceCacheWorker, ScreenshotPlugin, VideoRecordPlugin, OrbitalInfoPlugin, captureFrameDataUrl } from '@cosmolabe/three';
+import { CassiniMissionPlugin, hasCassiniObservations } from './missions/CassiniMissionPlugin';
 import { GeometrySearchWorker, type GeometrySearchScope, type KernelSource } from '@cosmolabe/three';
 import { execute, parse, type ExecutionReport, type ViewerControl } from '@cosmolabe/control';
 import SpiceCacheRelayWorker from '../workers/spice-cache-relay.ts?worker';
@@ -698,6 +699,8 @@ function initScene(
   renderer.use(new ScreenshotPlugin());
   renderer.use(new VideoRecordPlugin());
   renderer.use(new OrbitalInfoPlugin());
+  // Mission adapters: registered only when the scene has something for them.
+  if (hasCassiniObservations(universe)) renderer.use(new CassiniMissionPlugin());
 
   // Double-click a body → fly to it + select it for the info panel.
   // Delegated to the same mutator the `gotoObject` verb drives, so the two

@@ -95,6 +95,7 @@ export type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 export type { RendererPlugin } from './plugins/RendererPlugin.js';
 export type { RendererContext } from './plugins/RendererContext.js';
 export type { BodyVisualizer } from './plugins/BodyVisualizer.js';
+export { ObservationsVisualizer } from './plugins/ObservationsVisualizer.js';
 export type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
 export type { RendererEventMap } from './events/RendererEventMap.js';
 

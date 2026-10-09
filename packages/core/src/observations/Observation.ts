@@ -21,6 +21,8 @@
  * *given* (ODE), or disk geometry that is given (OPUS).
  */
 
+import { etFromCalendarString } from '../time.js';
+
 /** `[longitude east, latitude]`, planetocentric degrees. */
 export type LonLat = readonly [number, number];
 
@@ -100,6 +102,24 @@ export class ObservationError extends Error {
  *  `spice.str2et`, both fit. */
 export type ParseTime = (value: string | number) => number;
 
+/**
+ * The `ParseTime` a catalog's own epochs get: strings through `str2et` when an
+ * engine is loaded (falling back to the SPICE-free calendar reader), numbers as
+ * ET seconds or Julian Date by magnitude — `CatalogLoader.parseEpochValue`'s
+ * rules, so an observation window reads the same as the item around it.
+ */
+export function catalogTimeParser(str2et?: (s: string) => number): ParseTime {
+  return (v) => {
+    if (typeof v === 'number') return Math.abs(v) >= 5e7 ? v : (v - 2451545.0) * 86400;
+    if (str2et) {
+      try {
+        return str2et(v);
+      } catch { /* fall through to the calendar reader */ }
+    }
+    return etFromCalendarString(v);
+  };
+}
+
 /** Cosmographia's `"Observations"` geometry, as a catalog carries it. */
 export interface CosmographiaObservationGeometry {
   type: 'Observations';
@@ -152,6 +172,12 @@ function parseGroups(
  * A Cosmographia `"Observations"` geometry → Observation. The target is the
  * observation item's `center` — the item is a body on the target, which is how
  * its footprints pin to the surface.
+ *
+ * One cosmolabe extension, so a *given* footprint (ODE) or disk (OPUS) renders
+ * through the same item and visualizer: a `coverage` object of kind
+ * `footprint` or `disk` in place of `sensor`. A file using it does not open in
+ * Cosmographia, which has no such thing; `observationToCosmographia` refuses
+ * to write one.
  */
 export function observationFromCosmographia(
   name: string,
@@ -162,14 +188,25 @@ export function observationFromCosmographia(
   const where = `observation "${name}"`;
   if (!target) throw new ObservationError(`${where}: no target (set the item's \`center\` to the observed body)`);
   const sensor = geometry.sensor;
-  if (typeof sensor !== 'string' || !sensor) throw new ObservationError(`${where}: \`sensor\` must name a Sensor body`);
+  const given = geometry.coverage as { kind?: unknown } | undefined;
+  let coverage: ObservationCoverage;
+  if (typeof sensor === 'string' && sensor) {
+    coverage = { kind: 'sensor', sensor };
+  } else if (given && (given.kind === 'footprint' || given.kind === 'disk')) {
+    coverage = parseGivenCoverage(given as Record<string, unknown>, where);
+  } else {
+    throw new ObservationError(`${where}: \`sensor\` must name a Sensor body (or \`coverage\` give a footprint or disk)`);
+  }
   const out: Record<string, unknown> = {
     name,
     target,
-    sensor,
-    coverage: { kind: 'sensor', sensor },
+    ...(coverage.kind === 'sensor' ? { sensor: coverage.sensor } : {}),
+    coverage,
     groups: parseGroups(geometry.groups, parseTime, where),
   };
+  for (const k of ['campaign', 'instrument', 'archive'] as const) {
+    if (typeof geometry[k] === 'string') out[k] = geometry[k];
+  }
   const color = geometry.footprintColor;
   if (color !== undefined) {
     if (!Array.isArray(color) || color.length < 3 || !color.slice(0, 3).every((c) => typeof c === 'number')) {
@@ -188,6 +225,29 @@ export function observationFromCosmographia(
     out[k] = geometry[k];
   }
   return out as unknown as Observation;
+}
+
+function isLonLat(v: unknown): v is LonLat {
+  return Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number';
+}
+
+function parseGivenCoverage(c: Record<string, unknown>, where: string): ObservationCoverage {
+  if (c.kind === 'footprint') {
+    const polys = c.polygonLonLat;
+    if (!Array.isArray(polys) || !polys.every((ring) => Array.isArray(ring) && ring.length >= 3 && ring.every(isLonLat))) {
+      throw new ObservationError(`${where}: coverage.polygonLonLat must be rings of [lon, lat] (at least 3 vertices each)`);
+    }
+    return { kind: 'footprint', polygonLonLat: polys.map((ring: LonLat[]) => ring.map((p) => [p[0], p[1]] as const)) };
+  }
+  if (!isLonLat(c.subObsLatLon) || typeof c.distanceKm !== 'number') {
+    throw new ObservationError(`${where}: disk coverage needs subObsLatLon [lat, lon] and distanceKm`);
+  }
+  return {
+    kind: 'disk',
+    subObsLatLon: [c.subObsLatLon[0], c.subObsLatLon[1]],
+    distanceKm: c.distanceKm,
+    ...(isLonLat(c.boresightRaDec) ? { boresightRaDec: [c.boresightRaDec[0], c.boresightRaDec[1]] as const } : {}),
+  };
 }
 
 /**

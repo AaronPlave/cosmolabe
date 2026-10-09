@@ -92,6 +92,20 @@ describe('Cosmographia observations', () => {
     expect(() => observationFromCosmographia('Obs', '', geometry, parseNumber)).toThrow(/`center`/);
   });
 
+  it('takes a given footprint through the same item (cosmolabe extension)', () => {
+    const ring = [[10, -88], [11, -88], [11, -89]];
+    const obs = observationFromCosmographia(
+      'M1', 'Moon',
+      { coverage: { kind: 'footprint', polygonLonLat: [ring] }, groups: [{ startTime: 1, endTime: 2 }], campaign: '61234' },
+      parseNumber,
+    );
+    expect(obs.coverage).toEqual({ kind: 'footprint', polygonLonLat: [ring] });
+    expect(obs.sensor).toBeUndefined();
+    expect(obs.campaign).toBe('61234');
+    expect(() => observationFromCosmographia('M1', 'Moon', { coverage: { kind: 'footprint', polygonLonLat: [[[1, 2]]] }, groups: [{ startTime: 1, endTime: 2 }] }, parseNumber))
+      .toThrow(/polygonLonLat/);
+  });
+
   it('refuses to write a given footprint as Cosmographia rather than drop it', () => {
     const obs = { name: 'p', target: 'Moon', groups: [], coverage: { kind: 'footprint', polygonLonLat: [] } } as const;
     expect(() => observationToCosmographia(obs, String)).toThrow(ObservationError);
@@ -366,5 +380,25 @@ describe('computeFootprint (Cassini ISS, SOI, IK + CK)', () => {
     expect(f.boresight).toBeNull();
     expect(f.illumination).toBeUndefined();
     expect(f.complete).toBe(false);
+  });
+});
+
+describe('the Cassini demo catalog (apps/viewer/test-catalogs/cassini-observations.json)', () => {
+  it('every item is a plain Cosmographia observation the generic model reads, in 22 campaigns', async () => {
+    const spice = await Spice.init();
+    await furnishKernels(spice, ['naif0012.tls']);
+    const catalog = JSON.parse(
+      readFileSync(join(__dirname, '../../../../apps/viewer/test-catalogs/cassini-observations.json'), 'utf8'),
+    ) as { require: string[]; items: { class: string; name: string; center: string; geometry: Record<string, unknown> }[] };
+    expect(catalog.require).toEqual(['cassini-soi.json']);
+    const parse = (v: string | number) => spice.str2et(String(v));
+    const observations = catalog.items.map((it) => {
+      expect(it.class).toBe('observation');
+      // Cosmographia's own form: a sensor, not the cosmolabe `coverage` extension.
+      expect(it.geometry.coverage).toBeUndefined();
+      return observationFromCosmographia(it.name, it.center, it.geometry, parse);
+    });
+    expect(observations.reduce((n, o) => n + o.groups.length, 0)).toBe(514);
+    expect(campaignSpans(observations)).toHaveLength(22);
   });
 });
