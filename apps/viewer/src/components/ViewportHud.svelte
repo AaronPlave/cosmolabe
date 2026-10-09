@@ -1,7 +1,7 @@
 <script lang="ts">
   import { CameraModeName } from '@cosmolabe/three';
   import type { PluginOverlay } from '@cosmolabe/three';
-  import { vs, clearLookAt, getRenderer } from '../lib/viewer-state.svelte';
+  import { vs, clearLookAt, getRenderer, stopFlight } from '../lib/viewer-state.svelte';
   import { ArrowRight, X } from 'lucide-svelte';
 
   const frameLabel = $derived.by(() => {
@@ -41,17 +41,26 @@
 </script>
 
 <!-- View context belongs to the viewport rather than either panel dock. Keeping
-     it top-centred gives tracking, look-at and reference frame one stable home
-     without competing with the rail or timeline. -->
-{#if vs.trackedBodyName || vs.lookAtBodyName || vs.cameraMode !== CameraModeName.FREE_ORBIT}
+     it top-centred gives tracking, look-at, a flight in progress and reference
+     frame one stable home without competing with the rail or timeline. -->
+{#if vs.flight || vs.trackedBodyName || vs.lookAtBodyName || vs.cameraMode !== CameraModeName.FREE_ORBIT}
   <div data-scene-occluder class="view-context pointer-events-auto absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-7rem)] -translate-x-1/2 items-center">
-    {#if vs.trackedBodyName || vs.lookAtBodyName}
+    {#if vs.flight}
+      <!-- The flight owns the camera until it lands; a drag, a zoom, a movement
+           key, Escape or this button stops it where it is. -->
+      <span class="context-label" aria-live="polite">Flying to</span>
+      <span class="context-value truncate">{vs.flight.target ?? 'viewpoint'}</span>
+      <button class="context-clear" aria-label="Stop flight" title="Stop flight (Esc)" onclick={stopFlight}>
+        <X size={12} />
+      </button>
+      <span class="context-divider" aria-hidden="true"></span>
+    {:else if vs.trackedBodyName || vs.lookAtBodyName}
       <span class="context-label">Tracking</span>
       <span class="context-value truncate">{vs.trackedBodyName ?? 'Free camera'}</span>
       {#if vs.lookAtBodyName}
         <ArrowRight class="context-arrow" size={13} aria-hidden="true" />
         <span class="context-value truncate">{vs.lookAtBodyName}</span>
-        <button class="clear-look-at" aria-label="Clear look-at target" title="Clear look-at target" onclick={clearLookAt}>
+        <button class="context-clear" aria-label="Clear look-at target" title="Clear look-at target" onclick={clearLookAt}>
           <X size={12} />
         </button>
       {/if}
@@ -159,7 +168,7 @@
     color: var(--color-text-secondary);
   }
 
-  .clear-look-at {
+  .context-clear {
     display: grid;
     width: 20px;
     height: 20px;
@@ -174,12 +183,12 @@
     cursor: pointer;
   }
 
-  .clear-look-at:hover {
+  .context-clear:hover {
     background: var(--color-control-hover);
     color: var(--color-text-primary);
   }
 
-  .clear-look-at:focus-visible {
+  .context-clear:focus-visible {
     outline: 1px solid var(--color-border-strong);
     outline-offset: 1px;
   }

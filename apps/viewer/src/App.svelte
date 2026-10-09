@@ -12,7 +12,7 @@
   import ToolPanels from './components/shell/ToolPanels.svelte';
   import TimelineDock from './components/shell/TimelineDock.svelte';
   import InstrumentPanel from './components/shell/InstrumentPanel.svelte';
-  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
+  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
@@ -262,6 +262,9 @@
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
+          // A flight is the most transient thing on screen: Escape stops it
+          // where it is before it dismisses anything.
+          else if (vs.flight) stopFlight();
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.
           else if (ef.selectedId) clearSelection();

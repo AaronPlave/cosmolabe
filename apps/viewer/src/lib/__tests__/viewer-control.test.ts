@@ -89,6 +89,8 @@ function makeFakeRenderer(objects: string[]) {
 
   let tracked: FakeBodyMesh | null = null;
   let lookAt: FakeBodyMesh | null = null;
+  /** A flight `flyTo` started; it lands only when a test calls `land`. */
+  let flight: { destination: FakeBodyMesh; path: string } | null = null;
   let mode: CameraModeName = CameraModeName.FREE_ORBIT;
   const viewpoints = new Map<string, { name: string; epoch?: number; trackBody?: string }>([
     ['SOI (2004-07-01)', { name: 'SOI (2004-07-01)', epoch: 141_000_000 }],
@@ -154,15 +156,39 @@ function makeFakeRenderer(objects: string[]) {
       get trackedBody() {
         return tracked;
       },
+      get focusBody() {
+        return flight?.destination ?? tracked;
+      },
+      get flight() {
+        return flight ? { ...flight, phase: 'approach' } : null;
+      },
+      /** Land the flight in progress, as the next frames would. */
+      land: () => {
+        if (flight) tracked = flight.destination;
+        flight = null;
+      },
       get lookAtBody() {
         return lookAt;
       },
       track: (bm: FakeBodyMesh | null) => {
         tracked = bm;
       },
-      trackBody: (bm: FakeBodyMesh) => {
-        log(`trackBody(${bm.body.name})`);
+      focus: (bm: FakeBodyMesh) => {
+        log(`focus(${bm.body.name})`);
+        flight = null;
         tracked = bm;
+      },
+      frame: (bm: FakeBodyMesh) => {
+        log(`frame(${bm.body.name})`);
+        flight = null;
+        tracked = bm;
+      },
+      stopFlight: () => {
+        log('stopFlight');
+        if (!flight) return false;
+        tracked = flight.destination;
+        flight = null;
+        return true;
       },
       stopTracking: () => {
         log('stopTracking');
@@ -176,7 +202,11 @@ function makeFakeRenderer(objects: string[]) {
       clearLookAt: () => {
         lookAt = null;
       },
-      flyTo: (bm: FakeBodyMesh) => log(`flyTo(${bm.body.name})`),
+      flyTo: (bm: FakeBodyMesh, opts: { path: string; duration?: number }) => {
+        log(`flyTo(${bm.body.name}, ${opts.path}, ${opts.duration})`);
+        tracked = null;
+        flight = { destination: bm, path: opts.path };
+      },
       cancelAnimation: () => log('cancelAnimation'),
       syncModeFromCamera: (t: number) => log(`syncModeFromCamera(${t})`),
       dolly: (distance: number, duration?: number) => {
@@ -211,7 +241,10 @@ function makeFakeRenderer(objects: string[]) {
     },
     getBodyMesh: (name: string) => meshes.get(name),
     /** What the next frame would do to a body; tests that need it replace this. */
-    refreshBodyPose: (_name: string) => true,
+    refreshBodyPose: (name: string) => {
+      log(`refreshBodyPose(${name})`);
+      return true;
+    },
     getBodyNames: () => [...meshes.keys()],
     setBodyVisible: (name: string, v: boolean) => log(`setBodyVisible(${name}, ${v})`),
     setTrajectoryVisible: (name: string, v: boolean) => log(`setTrajectoryVisible(${name}, ${v})`),
@@ -411,7 +444,7 @@ describe('setFrame', () => {
     control.gotoObject('Cassini');
     renderer.calls.length = 0;
     expect(control.setFrame('body-fixed', 'Titan')).toBe(true);
-    expect(renderer.calls).toEqual(['trackBody(Titan)', 'setModeForBody(body-fixed, Titan)']);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'frame(Titan)', 'setModeForBody(body-fixed, Titan)']);
   });
 
   it('refuses an unknown object without switching mode', () => {
@@ -432,20 +465,124 @@ describe('gotoObject', () => {
     const control = createViewerControl();
     renderer.calls.length = 0;
     control.gotoObject('Titan');
-    expect(renderer.calls).toEqual(['trackBody(Titan)']);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'frame(Titan)']);
   });
 
-  it('flies when given a duration', () => {
+  it('flies directly when given a duration', () => {
     const control = createViewerControl();
     renderer.calls.length = 0;
     control.gotoObject('Titan', { seconds: 2 });
-    expect(renderer.calls).toEqual(['flyTo(Titan)']);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'flyTo(Titan, direct, 2)']);
     // flyTo defers the real tracking; the HUD has to know now.
     expect(vs.trackedBodyName).toBe('Titan');
   });
 
   it('returns false for an object the scene does not have', () => {
     expect(createViewerControl().gotoObject('Titam')).toBe(false);
+  });
+});
+
+// ── The navigation vocabulary (docs/navigation.md) ──
+//
+// Each verb is one call on the controller, and none implies another: selecting
+// never moves the camera, and moving it never selects.
+
+/** The renderer calls that move or re-anchor the camera. */
+const cameraCalls = () =>
+  renderer.calls.filter((c) => /^(focus|frame|flyTo|stopFlight|stopTracking|setModeForBody)\(?/.test(c));
+
+describe('navigation verbs', () => {
+  it('select changes the selection and never the camera', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.select('Titan')).toBe(true);
+    expect(control.getSelected()).toBe('Titan');
+    expect(cameraCalls()).toEqual([]);
+    expect(control.getTracked()).toBeNull();
+  });
+
+  it('track focuses without framing, and does not select', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.track('Titan')).toBe(true);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'focus(Titan)']);
+    expect(control.getTracked()).toBe('Titan');
+    expect(vs.trackedBodyName).toBe('Titan');
+    expect(control.getSelected()).toBeNull();
+  });
+
+  it('frameObject frames what is tracked when not told what, and refuses with nothing tracked', () => {
+    const control = createViewerControl();
+    expect(control.frameObject()).toBe(false);
+    control.track('Titan');
+    renderer.calls.length = 0;
+    expect(control.frameObject()).toBe(true);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'frame(Titan)']);
+    expect(control.frameObject('Titam')).toBe(false);
+  });
+
+  it('jumpTo cuts to the pose a flight would land on', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.jumpTo('Enceladus')).toBe(true);
+    expect(cameraCalls()).toEqual(['frame(Enceladus)']);
+    expect(control.getFlight()).toBeNull();
+  });
+
+  it('flyTo takes the overview path unless told otherwise, and reports the flight', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.flyTo('Titan')).toBe(true);
+    expect(control.flyTo('Enceladus', { path: 'direct', seconds: 3 })).toBe(true);
+    expect(cameraCalls()).toEqual(['flyTo(Titan, overview, undefined)', 'flyTo(Enceladus, direct, 3)']);
+    expect(control.getFlight()).toEqual({ target: 'Enceladus', path: 'direct' });
+    expect(vs.flight).toEqual({ target: 'Enceladus', path: 'direct' });
+    // The HUD names the destination for the length of the flight.
+    expect(vs.trackedBodyName).toBe('Enceladus');
+    // Not tracked yet: that happens when it lands.
+    expect(control.getTracked()).toBeNull();
+  });
+
+  it('flyTo of no duration is a jump, and a negative one is refused', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.flyTo('Titan', { seconds: 0 })).toBe(true);
+    expect(cameraCalls()).toEqual(['frame(Titan)']);
+    expect(control.flyTo('Titan', { seconds: -1 })).toBe(false);
+  });
+
+  it('stopFlight ends the flight tracking its destination', () => {
+    const control = createViewerControl();
+    control.flyTo('Titan');
+    control.stopFlight();
+    expect(control.getFlight()).toBeNull();
+    expect(vs.flight).toBeNull();
+    expect(control.getTracked()).toBe('Titan');
+    // With nothing flying it does nothing.
+    renderer.calls.length = 0;
+    control.stopFlight();
+    expect(control.getTracked()).toBe('Titan');
+  });
+
+  it('reads a landing off the controller at once, not on the next animation frame', () => {
+    const control = createViewerControl();
+    control.flyTo('Titan');
+    (renderer.cameraController as unknown as { land(): void }).land();
+    expect(control.getFlight()).toBeNull();
+    expect(control.getTracked()).toBe('Titan');
+  });
+
+  it('runs as text', async () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    await execute(parse('track Titan\nframeObject\nflyTo Enceladus direct 2\nstopFlight\njumpTo Saturn'), control);
+    expect(cameraCalls()).toEqual([
+      'focus(Titan)',
+      'frame(Titan)',
+      'flyTo(Enceladus, direct, 2)',
+      'stopFlight',
+      'frame(Saturn)',
+    ]);
   });
 });
 

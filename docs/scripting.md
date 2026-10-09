@@ -134,20 +134,37 @@ insertion Cassini covers 29.8 km/s, so a 6 s settle drifts the scene ~180 km.
 
 | Verb | |
 |---|---|
-| `gotoObject <object> [seconds]` | Track an object and frame it. **Cuts by default**; give seconds to fly there. |
-| `select <object>` | Select an object — what the info panel shows. |
+| `gotoObject <object> [seconds]` | Cosmographia's name for `jumpTo`. **Cuts by default**; give seconds to fly there directly. |
+| `select <object>` | Select an object — what the info panel shows. Never moves the camera. |
 | `deselect` | Clear the selection. |
 
-`gotoObject` does not animate unless asked, because a fly-to is a one-second
+`gotoObject` does not animate unless asked, because a fly-to is a wall-clock
 animation that only installs the new origin body on completion: a caller that
 renders one frame and photographs it gets the camera mid-flight.
+
+### Navigation
+
+Select, Track, Frame, Fly and Jump are the one navigation vocabulary every
+surface of the viewer shares; [navigation.md](navigation.md) defines them. None
+implies another: `select` never moves the camera, and none of these selects.
+
+| Verb | |
+|---|---|
+| `track <object>` | Make an object the camera's anchor — what it orbits and follows — **without moving the camera**. It turns to face the object. |
+| `untrack` | Release it. The camera stays where it is. |
+| `frameObject [object]` | Cut to a view that fits an object (the tracked one when omitted), and track it. |
+| `flyTo <object> [path] [seconds]` | Fly to the view `frameObject` would cut to, and track the object. `<path>` is `overview` (the default: pull back to show both ends, then approach) or `direct`. Returns at once; follow with `wait`. |
+| `jumpTo <object>` | Cut to the view a flight would land on, and track the object. |
+| `stopFlight` | End a flight where it is, tracking what it was flying to. |
+
+The path comes before the duration, so `flyTo Titan 3` is an error (`3` is not
+a path); write `flyTo Titan overview 3`. Manual input — a drag, a wheel zoom, a
+movement key — also ends a flight where it is.
 
 ### Camera
 
 | Verb | |
 |---|---|
-| `track <object>` | Orbit-lock to an object without moving the camera. |
-| `untrack` | Release it. The camera stays where it is. |
 | `pointAtObject <object>` | Aim at an object while still orbiting what is tracked. Idempotent — it does not toggle. |
 | `clearLookAt` | Stop aiming at an object. |
 | `viewpoint <name>` | Apply a named catalog viewpoint, seeking the clock if it declares an epoch. |
@@ -198,7 +215,7 @@ same pose. Like a timed `gotoObject` it returns at once, so follow it with
 `<mode>` is one of `free-orbit`, `sc-fixed`, `body-fixed`, `lvlh`, `chase`,
 `surface`, `surface-explorer`, `instrument`.
 
-`setFrame` tracks the named object **before** switching mode. Asking for
+`setFrame` frames the named object (as `frameObject`) **before** switching mode. Asking for
 body-fixed/Mars while still tracking Cassini would otherwise give a camera
 locked to Mars's rotation but orbiting Cassini — a picture that looks plausible
 and is wrong.
@@ -343,6 +360,7 @@ cosmo.getRate();
 cosmo.isPlaying();
 cosmo.getSelected();      // string | null
 cosmo.getTracked();
+cosmo.getFlight();        // { target, path } while a flight plays, else null
 cosmo.getCamera();        // { position (km), up, fov }
 cosmo.listObjects();
 cosmo.listViewpoints();
@@ -438,8 +456,8 @@ ceiling. Three rules:
 | `pause()` / `unpause()` | `setPlaying off\|on` | One verb with an argument, so it is idempotent. A toggle run twice is a no-op. |
 | `wait(seconds)` | `wait <seconds>` | Rejected where a frame must be reproducible. |
 | `pointAtObject(name)` | `pointAtObject <object>` | |
-| `trackObject(name)` | `pointAtObject <object>` | Cosmographia's `trackObject` locks the camera's aim on an object while the camera stays where it is centred. That is our `pointAtObject`. Our `track` is different: it re-centres the orbit on the object. |
-| `gotoObject(name, s)` | `gotoObject <object> [seconds]` | |
+| `trackObject(name)` | `pointAtObject <object>` | Cosmographia's `trackObject` locks the camera's aim on an object while the camera stays where it is centred. That is our `pointAtObject`. Our `track` is different: it makes the object the orbit's anchor. |
+| `gotoObject(name, s)` | `gotoObject <object> [seconds]` | A `jumpTo`, or a direct `flyTo` given seconds. |
 | `setCameraToInertialFrame()` | `setFrame free-orbit` | Free orbit is the camera in the inertial scene frame. |
 | `showBodyFixedFrame(name)` / `showLatLongGrid(name)` | `setLayer axes on` / `setLayer grid on` | Scene-wide here, per body there ([#153](https://github.com/AaronPlave/cosmolabe/issues/153)). |
 | `setFov(deg)` | `setFov <degrees>` | |
@@ -453,6 +471,7 @@ ceiling. Three rules:
 | — | `setLayer <layer> on\|off` | Ours. |
 | — | `viewpoint <name>` | Ours: named catalog viewpoints, with epochs. |
 | — | `select` / `deselect` | Ours. |
+| — | `frameObject`, `flyTo`, `jumpTo`, `stopFlight` | Ours: the navigation vocabulary ([navigation.md](navigation.md)), with an overview flight path. |
 | — | `setFrame <mode> [object]` | Ours: eight camera frames including LVLH and chase. |
 | — | `clearLookAt` | Ours: the pair for `pointAtObject`, so a snapshot can clear an aim as well as set one. |
 | — | `runTo <seconds>` | Ours: the deterministic counterpart to `wait`. |
@@ -467,7 +486,7 @@ each one with a "No equivalent yet" comment where it occurs.
 | Cosmographia | What is missing | Closest today | Tracked |
 |---|---|---|---|
 | `gotoHome(s)` | An animated "home" view. | `viewpoint <name>` (instant) | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#114](https://github.com/AaronPlave/cosmolabe/issues/114), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
-| Durations on camera moves | `moveToPov`, `pointAtObject` and the moves above animate over *s* seconds; only `gotoObject`, `dolly`, `crane` and the `circleCenter*` moves do here. | Instant verbs plus `wait` | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
+| Durations on camera moves | `moveToPov`, `pointAtObject` and the moves above animate over *s* seconds; only `gotoObject`, `flyTo`, `dolly`, `crane` and the `circleCenter*` moves do here. | Instant verbs plus `wait` | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
 | `showBodyFixedFrame(name)`, `showLatLongGrid(name)` | Per-body axes and grid. | `setLayer axes/grid` (scene-wide) | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#113](https://github.com/AaronPlave/cosmolabe/issues/113) |
 | `showDirectionVector(from, to)` | Direction vectors between bodies. | none | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#57](https://github.com/AaronPlave/cosmolabe/issues/57) |
 | `hideToolBar`, `hideStatusMessages`, `hideInfoText`, `showFullScreen` (and their inverses) | Scripted control of viewer chrome. The app's zen mode (`\`) also unmounts the console, which stops the script, so this needs its own design. Browsers only enter full screen from a user gesture. | none | [#153](https://github.com/AaronPlave/cosmolabe/issues/153) |

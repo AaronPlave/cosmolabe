@@ -5,7 +5,7 @@
 import type { UniverseRenderer } from '@cosmolabe/three';
 import {
   vs, togglePlay, reverse, faster, slower, stepForward, stepBackward,
-  setDisplayOption, cycleCamera, flyToTracked, resetCamera, getRenderer,
+  setDisplayOption, cycleCamera, flyToTracked, frameBody, stopFlight, resetCamera, getRenderer,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
 import { shell } from './shell.svelte';
@@ -34,6 +34,8 @@ function getBuiltinCommands(): Command[] {
 
     // Camera
     { id: 'cam:fly-to', label: 'Fly to tracked body', shortcut: 'F', category: 'Camera', execute: () => flyToTracked() },
+    { id: 'cam:frame', label: 'Frame tracked body', category: 'Camera', execute: () => frameBody() },
+    ...(vs.flight ? [{ id: 'cam:stop-flight', label: 'Stop camera flight', shortcut: 'Esc', category: 'Camera', execute: () => stopFlight() }] : []),
     { id: 'cam:cycle', label: 'Cycle camera mode', shortcut: 'M', category: 'Camera', execute: () => cycleCamera() },
     { id: 'cam:reset', label: 'Reset to Free Orbit', shortcut: 'Esc', category: 'Camera', execute: () => resetCamera() },
     { id: 'cam:export', label: 'Export camera view (download JSON)', category: 'Camera', execute: (r) => exportCameraView(r) },

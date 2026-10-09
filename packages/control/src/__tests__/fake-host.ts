@@ -12,9 +12,11 @@
 import { snapshotScript } from '../snapshot.js';
 import type {
   CircleDirection,
+  FlightPath,
   ScriptCamera,
   ScriptEventMap,
   ScriptEventName,
+  ScriptFlight,
   ScriptImage,
   ScriptTime,
   ScriptVec3,
@@ -112,6 +114,41 @@ export class FakeViewer implements ViewerControl {
   untrack(): void {
     this.log('untrack');
     this.tracked = null;
+  }
+
+  /** The flight `flyTo` started; it lands only when `stopFlight` ends it. */
+  flight: ScriptFlight | null = null;
+
+  frameObject(name?: string): boolean {
+    this.log('frameObject', name);
+    const target = name ?? this.tracked;
+    if (target === null || !this.known(target)) return false;
+    this.tracked = target;
+    return this.ok(true);
+  }
+
+  flyTo(name: string, opts?: { seconds?: number; path?: FlightPath }): boolean {
+    this.log('flyTo', name, opts?.path, opts?.seconds);
+    if (!this.known(name)) return false;
+    this.flight = { target: name, path: opts?.path ?? 'overview' };
+    return this.ok(true);
+  }
+
+  jumpTo(name: string): boolean {
+    this.log('jumpTo', name);
+    if (!this.known(name)) return false;
+    this.tracked = name;
+    return this.ok(true);
+  }
+
+  stopFlight(): void {
+    this.log('stopFlight');
+    if (this.flight?.target) this.tracked = this.flight.target;
+    this.flight = null;
+  }
+
+  getFlight(): ScriptFlight | null {
+    return this.flight;
   }
 
   pointAtObject(name: string): boolean {

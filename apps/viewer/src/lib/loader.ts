@@ -40,7 +40,7 @@ import {
 import {
   bindRenderer,
   unbindRenderer,
-  gotoObject,
+  selectAndFlyTo,
   syncBodies,
   setSceneLoaded,
   setKernelCount,
@@ -48,7 +48,6 @@ import {
   beginLoad,
   setPhaseProgress,
   endLoad,
-  selectBody,
   formatBytes,
 } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
@@ -699,13 +698,12 @@ function initScene(
   renderer.use(new VideoRecordPlugin());
   renderer.use(new OrbitalInfoPlugin());
 
-  // Double-click a body → fly to it + select it for the info panel.
-  // Delegated to the same mutator the `gotoObject` verb drives, so the two
-  // cannot drift: the pointer and the script reach one implementation.
+  // Double-click a body → select it for the info panel and fly there: the
+  // same "go to this body" the body browser and the palette mean, through the
+  // navigation verbs every surface shares (docs/navigation.md).
   const r = renderer;
   r.events.on('body:dblclick', ({ bodyName }) => {
-    gotoObject(bodyName, { animate: true });
-    selectBody(bodyName);
+    selectAndFlyTo(bodyName);
   });
 
   // Bind reactive state

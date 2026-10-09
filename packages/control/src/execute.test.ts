@@ -244,3 +244,40 @@ describe('beforeStatement gate', () => {
     expect(announced).toEqual([1]);
   });
 });
+
+describe('navigation verbs', () => {
+  it('pass the path and duration a flight asked for, and nothing it did not', async () => {
+    const host = new FakeViewer();
+    await run(host, ['flyTo Titan', 'flyTo Titan direct', 'flyTo Titan overview 4'].join('\n'));
+    expect(host.calls).toEqual([
+      'flyTo("Titan", undefined, undefined)',
+      'flyTo("Titan", "direct", undefined)',
+      'flyTo("Titan", "overview", 4)',
+    ]);
+  });
+
+  // Path before seconds: `flyTo Titan 3` is a path that is not one.
+  it('reject a path that is not one', () => {
+    expect(() => parse('flyTo Titan 3')).toThrow('line 1: flyTo: <path> unknown path "3"');
+  });
+
+  it('frame what is tracked when not told what', async () => {
+    const host = new FakeViewer();
+    await run(host, ['track Enceladus', 'frameObject'].join('\n'));
+    expect(host.tracked).toBe('Enceladus');
+    const err = await failure(new FakeViewer(), 'frameObject');
+    expect(err.message).toBe('line 1: frameObject: the viewer refused');
+  });
+
+  it('stop a flight, tracking what it was flying to', async () => {
+    const host = new FakeViewer();
+    await run(host, ['flyTo Titan', 'stopFlight'].join('\n'));
+    expect(host.getFlight()).toBeNull();
+    expect(host.tracked).toBe('Titan');
+  });
+
+  it('suggest a real object for a misspelt destination', async () => {
+    const err = await failure(new FakeViewer(), 'jumpTo Enceladas');
+    expect(err.message).toBe('line 1: jumpTo: no object named "Enceladas" (did you mean "Enceladus"?)');
+  });
+});

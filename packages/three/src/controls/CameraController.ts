@@ -41,14 +41,55 @@ export interface CameraViewpoint {
 /** The scripted camera moves `orbitTarget`, `dolly` and `crane` start. */
 type CameraMoveKind = 'orbit-up' | 'orbit-right' | 'dolly' | 'crane';
 
+/**
+ * How `flyTo` travels to its destination.
+ *
+ * - `'direct'` closes on the destination along a straight line.
+ * - `'overview'` first pulls back far enough to show where the camera is
+ *   looking and the destination side by side, then approaches. Across an
+ *   astronomical change of scale a direct move shows nothing but a blur; the
+ *   pull-back is what says where the destination is. When the camera is
+ *   already that far back there is nothing to establish, and an overview
+ *   flight is a direct one.
+ */
+export type FlightPath = 'direct' | 'overview';
+
 export interface FlyToOptions {
-  /** Animation duration in seconds (default: 1.0) */
+  /**
+   * Animation duration in seconds: 1 for a direct flight, 2.5 in all for an
+   * overview flight's pull-back and approach together.
+   */
   duration?: number;
-  /** Distance multiplier relative to body display radius (default: 3) */
+  /**
+   * Land this many display radii from the body's centre, rather than at the
+   * distance that fits it in view (`framingDistance`).
+   */
   distanceMultiplier?: number;
   /** Scale factor for converting body radius to scene units */
   scaleFactor?: number;
+  /** Which way to travel (default: `'direct'`). */
+  path?: FlightPath;
 }
+
+/** A camera flight in progress, as `CameraController.flight` reports it. */
+export interface CameraFlight {
+  /** The body the flight lands on; null for a flight to a saved viewpoint. */
+  readonly destination: BodyMesh | null;
+  readonly path: FlightPath;
+  /** `'overview'` while an overview flight pulls back, `'approach'` after. */
+  readonly phase: 'overview' | 'approach';
+}
+
+/** Fraction of an overview flight's duration spent pulling back. */
+const OVERVIEW_PULLBACK_SHARE = 0.4;
+const DEFAULT_DIRECT_SECONDS = 1.0;
+const DEFAULT_OVERVIEW_SECONDS = 2.5;
+/**
+ * Pointer travel, in CSS pixels, that counts as navigating rather than a click.
+ * A click that lands while a flight plays (selecting a body, say) must not stop
+ * it; a drag must.
+ */
+const MANUAL_DRAG_THRESHOLD_PX = 3;
 
 export class CameraController {
   readonly controls: TrackballControls;
@@ -82,7 +123,18 @@ export class CameraController {
    *  the next frame's applyPendingOriginSwitch — without _pendingOriginSwitch
    *  here, the clamp would briefly engage and snap the camera out. */
   get focusBody(): BodyMesh | null {
-    return this._anim?.followBody ?? this._pendingOriginSwitch ?? this._trackTarget;
+    return this._anim?.destination ?? this._anim?.followBody ?? this._pendingOriginSwitch ?? this._trackTarget;
+  }
+
+  /**
+   * The flight playing, or null when the camera is not being flown: a fly-to,
+   * or an animated move to a saved viewpoint. A scripted swing, dolly or crane
+   * is not a flight.
+   */
+  get flight(): CameraFlight | null {
+    const anim = this._anim;
+    if (!anim) return null;
+    return { destination: anim.destination ?? null, path: anim.path ?? 'direct', phase: anim.phase ?? 'approach' };
   }
 
   /**
@@ -125,8 +177,21 @@ export class CameraController {
     followBody?: BodyMesh;
     followDist?: number;
     followDir?: THREE.Vector3;
+    /** The body this flight lands on, through every phase of it. */
+    destination?: BodyMesh;
+    path?: FlightPath;
+    phase?: 'overview' | 'approach';
   } | null = null;
   private _lastAnimMs = 0;
+
+  /**
+   * Navigation input from the person since the last `update()`: a drag past
+   * the click threshold, a wheel zoom, a pinch. Keyboard navigation is read off
+   * `keyboard` directly.
+   */
+  private _manualInput = false;
+  /** Pointer travel since the current press began, toward the drag threshold. */
+  private _pressTravelPx = 0;
 
   /** Frame timing for keyboard dt */
   private _lastFrameMs: number;
@@ -199,11 +264,13 @@ export class CameraController {
     this._detachPointerInput = attachPointerInput(domElement, {
       preventContextMenu: true,
       onButtonDown: (e) => {
+        this._pressTravelPx = 0;
         if (e.button !== 2) return;
         e.stopPropagation();
         this._rightDragging = true;
       },
       onButtonDrag: (dx, dy) => {
+        this._notePressTravel(dx, dy);
         if (!this._rightDragging) return;
         this._rightDragDx += dx;
         this._rightDragDy += dy;
@@ -217,15 +284,23 @@ export class CameraController {
       // `noPan` is what keeps a right-mouse drag from panning *and* free
       // looking at once. Panning here keeps those two independent.
       onPinch: (_scale, dx, dy) => {
+        this._manualInput = true;
         this._touchPanDx += dx;
         this._touchPanDy += dy;
       },
+      onDrag: (dx, dy) => this._notePressTravel(dx, dy),
+      onCountChange: () => { this._pressTravelPx = 0; },
     });
 
     // Shift + wheel adjusts FOV instead of zooming. Capture phase to intercept
     // before TrackballControls's wheel handler so it doesn't also dolly the camera.
     this._onWheel = (e: WheelEvent) => {
-      if (!e.shiftKey) return;
+      if (!e.shiftKey) {
+        // A plain wheel zooms — navigation. Shift+wheel changes the field of
+        // view, which no flight touches, so it does not interrupt one.
+        this._manualInput = true;
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       // Browsers (notably macOS) remap shift+vertical-wheel to horizontal scroll,
@@ -256,52 +331,230 @@ export class CameraController {
     this.controls.target.copy(bodyMesh.position);
   }
 
-  /** Focus and zoom to a body — positions camera at a good viewing distance.
-   *  With origin-shifting, the tracked body will be at (0,0,0) after the next frame. */
-  zoomTo(bodyMesh: BodyMesh, scaleFactor: number): void {
-    this.controls.target.set(0, 0, 0);
-    // Position camera at 3× the body's display radius
-    const viewDist = bodyMesh.displayRadius * scaleFactor * 3;
-    const dir = this.camera.position.clone();
-    if (dir.lengthSq() < 1e-20) dir.set(0, 0, 1);
-    dir.normalize();
-    this.camera.position.copy(dir).multiplyScalar(viewDist);
+  // ── Navigation: focus, frame, fly ──
+  //
+  // The camera-side half of the viewer's navigation vocabulary (docs/navigation.md).
+  // Each takes a body whose `position` is current in the camera's coordinates —
+  // relative to `originBody` at the present time — which is what a renderer's
+  // last frame gives, and what `UniverseRenderer.refreshBodyPose` restores
+  // between frames.
+
+  /**
+   * The distance from `bodyMesh`'s centre at which it comfortably fills the
+   * view: its bounding sphere, padded, inside the narrower of the two fields of
+   * view. At a 60° vertical field of view in a landscape viewport that is three
+   * radii, the distance every fly-to used before it was fitted to the view; a
+   * portrait viewport stands further back, so the body still fits across.
+   */
+  framingDistance(bodyMesh: BodyMesh, scaleFactor = 1e-6): number {
+    const radius = bodyMesh.displayRadius * scaleFactor;
+    const halfV = THREE.MathUtils.degToRad(this.camera.fov) / 2;
+    const halfH = Math.atan(Math.tan(halfV) * (this.camera.aspect || 1));
+    return (radius * CameraController.FRAME_PADDING) / Math.sin(Math.min(halfV, halfH));
   }
 
-  /** Animated fly-to: smoothly move camera to view a body.
-   *  Handles cross-body flight: animates toward the body's current scene position
-   *  (updating each frame as it moves), then switches origin on completion. */
+  /** Bounding-sphere padding `framingDistance` fits. */
+  static readonly FRAME_PADDING = 1.5;
+
+  /**
+   * Focus: make `bodyMesh` the camera's anchor — the body it orbits, and the
+   * origin the scene is drawn around — without relocating the camera. The
+   * camera stays where it is and turns to face the body.
+   *
+   * Ends any flight or scripted move, and any look-at. A camera frame other
+   * than free orbit is re-parameterized onto the body, as switching frames
+   * would.
+   */
+  focus(bodyMesh: BodyMesh): void {
+    const prevMode = this._activeMode.name;
+    this._beginNavigation();
+    const center = this._rebaseOnto(bodyMesh);
+    this._anchorOn(bodyMesh, center, prevMode);
+  }
+
+  /**
+   * Frame: cut to a view that fits `bodyMesh`, and focus it. The camera keeps
+   * the side it sees the body from and moves along that line to
+   * `framingDistance` (or `distanceMultiplier` display radii) — the pose a
+   * direct `flyTo` lands on, without the flight.
+   */
+  frame(bodyMesh: BodyMesh, opts: { scaleFactor?: number; distanceMultiplier?: number } = {}): void {
+    const prevMode = this._activeMode.name;
+    this._beginNavigation();
+    const dir = this._approachDirection(bodyMesh);
+    const dist = this._arrivalDistance(bodyMesh, opts);
+    const center = this._rebaseOnto(bodyMesh);
+    this.camera.position.copy(center).addScaledVector(dir, dist);
+    this._anchorOn(bodyMesh, center, prevMode);
+  }
+
+  /** @deprecated Use `frame`, which this is. */
+  zoomTo(bodyMesh: BodyMesh, scaleFactor: number): void {
+    this.frame(bodyMesh, { scaleFactor });
+  }
+
+  /**
+   * Fly: animate the camera to the pose `frame` would cut to, then focus the
+   * body. The endpoints follow the body while it moves, and the origin switches
+   * to it once the camera lands.
+   *
+   * With `path: 'overview'` the flight first pulls back to show the point the
+   * camera is looking at and the destination together, then approaches the
+   * destination from there; see `FlightPath`.
+   *
+   * The flight owns the camera until it lands. Navigation input from the
+   * person — a drag, a wheel zoom, a pinch, a movement key — stops it where it
+   * is, as `stopFlight` does, and the input then applies. Nothing else is
+   * waiting for the two to agree.
+   */
   flyTo(bodyMesh: BodyMesh, opts?: FlyToOptions): void {
-    const duration = opts?.duration ?? 1.0;
-    const distMult = opts?.distanceMultiplier ?? 3;
-    const sf = opts?.scaleFactor ?? 1e-6;
+    const path = opts?.path ?? 'direct';
+    const dist = this._arrivalDistance(bodyMesh, opts ?? {});
 
     // Disable tracking during animation so the orbit target can animate
-    // freely (tracking resets it to origin each frame)
+    // freely (tracking resets it to origin each frame). A landing still to be
+    // applied belongs to a flight this one replaces; applied later, it would
+    // move the camera's coordinates out from under this one.
     this._trackTarget = null;
+    this._pendingOriginSwitch = null;
+    // A look-at would override the view the flight lands on.
+    this.clearLookAt();
 
-    const viewDist = bodyMesh.displayRadius * sf * distMult;
+    if (path === 'overview') {
+      const overview = this._overviewPose(bodyMesh);
+      if (overview) {
+        const total = opts?.duration ?? DEFAULT_OVERVIEW_SECONDS;
+        const pullback = this._startAnimation(
+          overview.position, overview.target, this.camera.up.clone(), total * OVERVIEW_PULLBACK_SHARE,
+          () => this._startApproach(bodyMesh, dist, total * (1 - OVERVIEW_PULLBACK_SHARE), 'overview'),
+        );
+        pullback.destination = bodyMesh;
+        pullback.path = 'overview';
+        pullback.phase = 'overview';
+        return;
+      }
+    }
+    this._startApproach(bodyMesh, dist, opts?.duration ?? DEFAULT_DIRECT_SECONDS, path);
+  }
+
+  /**
+   * Stop the flight playing where it is. The camera keeps its pose, and a
+   * flight toward a body leaves that body focused, as though it had been
+   * focused from here: the flight's intent was that body, so the camera
+   * anchors on it rather than on nothing. Also drops any scripted move queued
+   * behind the flight. False when nothing was flying.
+   */
+  stopFlight(): boolean {
+    const anim = this._anim;
+    if (!anim) return false;
+    this.cancelAnimation();
+    if (anim.destination) this._pendingOriginSwitch = anim.destination;
+    return true;
+  }
+
+  private _startApproach(bodyMesh: BodyMesh, dist: number, duration: number, path: FlightPath): void {
+    // Approach from the camera's current side of the body.
+    const dir = this._approachDirection(bodyMesh);
     const bodyPos = bodyMesh.position;
-
-    // Approach from current camera direction relative to body
-    const dir = this.camera.position.clone().sub(bodyPos);
-    if (dir.lengthSq() < 1e-20) dir.set(0, 0.3, 1);
-    dir.normalize();
-
-    const endTarget = bodyPos.clone();
-    const endPos = bodyPos.clone().addScaledVector(dir, viewDist);
-
-    const anim = this._startAnimation(endPos, endTarget, this.camera.up.clone(), duration, () => {
-      // Defer origin switch to next frame — if we switch now, body positions
-      // (already computed this frame with the old origin) won't match the
-      // camera's new coordinates, causing a one-frame flash.
-      this._pendingOriginSwitch = bodyMesh;
-    });
-
+    const anim = this._startAnimation(
+      bodyPos.clone().addScaledVector(dir, dist), bodyPos.clone(), this.camera.up.clone(), duration,
+      () => {
+        // Defer origin switch to next frame — if we switch now, body positions
+        // (already computed this frame with the old origin) won't match the
+        // camera's new coordinates, causing a one-frame flash.
+        this._pendingOriginSwitch = bodyMesh;
+      },
+    );
     // Track the body each frame so endpoints follow its motion
     anim.followBody = bodyMesh;
-    anim.followDist = viewDist;
+    anim.followDist = dist;
     anim.followDir = dir;
+    anim.destination = bodyMesh;
+    anim.path = path;
+    anim.phase = 'approach';
+  }
+
+  /**
+   * Where an overview flight pulls back to: far enough out that the point the
+   * camera looks at and the destination both sit inside the narrower field of
+   * view, looking at the midpoint between them from the side, so neither hides
+   * behind the other. Null when the camera is already at least that far out —
+   * then there is nothing for a pull-back to establish.
+   */
+  private _overviewPose(bodyMesh: BodyMesh): { position: THREE.Vector3; target: THREE.Vector3 } | null {
+    const source = this.controls.target;
+    const dest = bodyMesh.position;
+    const axis = new THREE.Vector3().subVectors(dest, source);
+    const span = axis.length();
+    if (!(span > 0)) return null;
+    axis.divideScalar(span);
+
+    const halfV = THREE.MathUtils.degToRad(this.camera.fov) / 2;
+    const halfH = Math.atan(Math.tan(halfV) * (this.camera.aspect || 1));
+    const reach = ((span / 2) * CameraController.FRAME_PADDING) / Math.sin(Math.min(halfV, halfH));
+    const mid = new THREE.Vector3().addVectors(source, dest).multiplyScalar(0.5);
+    if (this.camera.position.distanceTo(mid) >= reach) return null;
+
+    // Keep the side the camera is on, minus any component along the line
+    // between the two; with nothing left, any direction square to it will do.
+    const back = new THREE.Vector3().subVectors(this.camera.position, source);
+    back.addScaledVector(axis, -back.dot(axis));
+    if (back.lengthSq() < 1e-12 * span * span) {
+      back.crossVectors(axis, this.camera.up);
+      if (back.lengthSq() < 1e-12) back.crossVectors(axis, new THREE.Vector3(1, 0, 0));
+      if (back.lengthSq() < 1e-12) back.crossVectors(axis, new THREE.Vector3(0, 1, 0));
+    }
+    back.normalize();
+    return { position: mid.clone().addScaledVector(back, reach), target: mid };
+  }
+
+  /** Unit vector from `bodyMesh` toward the camera: the side the camera sees it from. */
+  private _approachDirection(bodyMesh: BodyMesh): THREE.Vector3 {
+    const dir = this.camera.position.clone().sub(bodyMesh.position);
+    if (dir.lengthSq() < 1e-20) dir.set(0, 0.3, 1);
+    return dir.normalize();
+  }
+
+  private _arrivalDistance(bodyMesh: BodyMesh, opts: { scaleFactor?: number; distanceMultiplier?: number }): number {
+    const sf = opts.scaleFactor ?? 1e-6;
+    return opts.distanceMultiplier !== undefined
+      ? bodyMesh.displayRadius * sf * opts.distanceMultiplier
+      : this.framingDistance(bodyMesh, sf);
+  }
+
+  /** A cut navigation takes the camera over: nothing still in flight, no look-at. */
+  private _beginNavigation(): void {
+    this.cancelAnimation();
+    this._pendingOriginSwitch = null;
+    this.clearLookAt();
+  }
+
+  /**
+   * Move the scene origin to `bodyMesh`, carrying the camera and its target into
+   * the new coordinates so neither moves in space. Returns where the body sits
+   * under the new origin: the origin itself, unless it already was the origin —
+   * a surface-locked body is drawn off it — in which case nothing shifts.
+   */
+  private _rebaseOnto(bodyMesh: BodyMesh): THREE.Vector3 {
+    if (this._originBody === bodyMesh) return bodyMesh.position.clone();
+    const offset = bodyMesh.position.clone();
+    this.camera.position.sub(offset);
+    this.controls.target.sub(offset);
+    this._originBody = bodyMesh;
+    return new THREE.Vector3();
+  }
+
+  /** Orbit-lock to `bodyMesh` at `center`, re-parameterizing a non-free-orbit frame onto it. */
+  private _anchorOn(bodyMesh: BodyMesh, center: THREE.Vector3, prevMode: CameraModeName): void {
+    this._trackTarget = bodyMesh;
+    this.controls.target.copy(center);
+    this._prevTargetPos.copy(center);
+    this.camera.lookAt(center);
+    // Mode.activate() only reads body rotation (not position), so it is safe
+    // before the renderer's next frame recomputes positions under this origin.
+    if (prevMode !== CameraModeName.FREE_ORBIT) {
+      this.setModeForBody(prevMode, bodyMesh);
+    }
   }
 
   /**
@@ -515,31 +768,11 @@ export class CameraController {
   }
 
   /**
-   * Track a body and restore the current camera mode.
-   * Handles the zoom → track → mode-reactivation sequence.
-   *
-   * @param bodyMesh The body to track
-   * @param scaleFactor Scale factor for zoom distance
+   * Track a body and frame it, keeping the current camera mode.
+   * @deprecated Use `frame`, which this is; `focus` tracks without moving.
    */
   trackBody(bodyMesh: BodyMesh, scaleFactor: number): void {
-    const prevMode = this._activeMode.name;
-
-    this.clearLookAt();
-    this.zoomTo(bodyMesh, scaleFactor);
-    this.track(bodyMesh);
-
-    // track() calls focusOn() which sets controls.target to the body's current
-    // scene position — but that's in the OLD origin's coordinates. After the origin
-    // switch (next renderFrame), the body will be at (0,0,0). Set target there now
-    // so the mode doesn't start with a stale target vector.
-    this.controls.target.set(0, 0, 0);
-
-    // Re-activate the mode with the new body. Mode.activate() only reads body
-    // rotation (not position), so it's safe to call before the origin switch
-    // settles — the first update() will use the correct positions from renderFrame.
-    if (prevMode !== CameraModeName.FREE_ORBIT) {
-      this.setModeForBody(prevMode, bodyMesh);
-    }
+    this.frame(bodyMesh, { scaleFactor });
   }
 
   /**
@@ -712,6 +945,26 @@ export class CameraController {
     if (this._modeCtx) {
       this._activeMode.syncFromCamera?.(this._modeCtx);
     }
+  }
+
+  /** Pointer travel toward the drag threshold; past it, the press is navigation. */
+  private _notePressTravel(dx: number, dy: number): void {
+    this._pressTravelPx += Math.abs(dx) + Math.abs(dy);
+    if (this._pressTravelPx > MANUAL_DRAG_THRESHOLD_PX) this._manualInput = true;
+  }
+
+  /**
+   * Hand the camera back to the person: stop a flight as `stopFlight` does,
+   * and any scripted move. Unlike `cancelAnimation` it keeps the input the
+   * controls have gathered, which is the drag or zoom that asked for this.
+   */
+  private _yieldToManualInput(): void {
+    const destination = this._anim?.destination;
+    this._anim = null;
+    this._move = null;
+    // Inertia from before the flight is not the person's input now.
+    (this.controls as unknown as { _lastAngle: number })._lastAngle = 0;
+    if (destination) this._pendingOriginSwitch = destination;
   }
 
   /** Whether a fly-to/viewpoint animation is currently playing */
@@ -1017,6 +1270,13 @@ export class CameraController {
       this._modeCtx.dt = dt;
       this._modeCtx.originBody = this._originBody;
     }
+
+    // Manual navigation outranks automatic motion: a flight or a scripted move
+    // stops where it is and the person's input applies, this frame. Two
+    // controllers taking turns with the camera is the alternative.
+    const manual = this._manualInput || this.keyboard.navigating;
+    this._manualInput = false;
+    if (manual && (this._anim || this._move)) this._yieldToManualInput();
 
     // Advance fly-to animation if active (works in all modes)
     if (this._anim) {
