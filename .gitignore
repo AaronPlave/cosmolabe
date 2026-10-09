@@ -47,6 +47,8 @@ scripts/build-mars-terrain/data/
 apps/viewer/test-catalogs/data/moon-terrain-fused/
 apps/viewer/test-catalogs/data/moon-terrain-polar/
 scripts/build-moon-terrain/data/
+scripts/build-globe-textures/data/
+scripts/build-globe-textures/.venv/
 
 # Third-party Cosmographia catalog data — see scripts/fetch-cosmographia-data.sh
 .cosmographia/
