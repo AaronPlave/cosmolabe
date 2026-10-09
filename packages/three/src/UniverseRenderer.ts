@@ -284,6 +284,8 @@ export class UniverseRenderer {
   private _hoveredBody: string | null = null;
   private _hoverPickTimer = 0;
   private _lastHoverPickMs = 0;
+  private _pointerInside = false;
+  private _pickViewKey = '';
   private _lastPointer = { x: 0, y: 0 };
   /** In-flight touch contact, for tap detection (see `_onTouchPointerDown`). */
   private _tapCandidate: { id: number; x: number; y: number; t: number } | null = null;
@@ -1207,6 +1209,7 @@ export class UniverseRenderer {
         if (markers.visible) markers.thinCoincidentGlyphs(this.camera, eventViewport, occupiedGlyphs, emphasized);
       }
     }
+    this.revalidateMeasurementPreview();
     this.revalidateSceneEventHover();
     this.updateEventAnnotation();
 
@@ -3784,13 +3787,14 @@ export class UniverseRenderer {
    */
   private _onPointerMove = (event: PointerEvent): void => {
     if (event.pointerType === 'touch') this._trackTapCandidate(event);
+    this._pointerInside = true;
     const rect = this.renderer.domElement.getBoundingClientRect();
     this._lastPointer.x = event.clientX - rect.left;
     this._lastPointer.y = event.clientY - rect.top;
     if (this._hoverPickTimer) return; // a pick is already scheduled
     const wait = Math.max(
       0,
-      (this.spatialInteraction?.picking() ? 100 : UniverseRenderer._hoverPickIntervalMs) - (performance.now() - this._lastHoverPickMs),
+      (this.spatialInteraction?.picking() ? this.spatialInteraction.previewIntervalMs?.() ?? 75 : UniverseRenderer._hoverPickIntervalMs) - (performance.now() - this._lastHoverPickMs),
     );
     this._hoverPickTimer = window.setTimeout(() => {
       this._hoverPickTimer = 0;
@@ -3826,6 +3830,15 @@ export class UniverseRenderer {
    * pointer. Camera motion or playback can carry the marker away from a
    * resting pointer, which never fires pointermove; re-pick at the hover rate.
    */
+  private revalidateMeasurementPreview(): void {
+    if (!this._pointerInside || !this.spatialInteraction?.picking()) { this._pickViewKey = ''; return; }
+    const view = [...this.camera.matrixWorld.elements, ...this.camera.projectionMatrix.elements, this.timeController.et].join(',');
+    if (view === this._pickViewKey || this._hoverPickTimer) return;
+    if (performance.now() - this._lastHoverPickMs < (this.spatialInteraction.previewIntervalMs?.() ?? 75)) return;
+    this._pickViewKey = view; this._lastHoverPickMs = performance.now();
+    this.spatialInteraction.preview?.(this._lastPointer.x, this._lastPointer.y);
+  }
+
   private revalidateSceneEventHover(): void {
     if (!this._hoveredSceneEvent || this._hoverPickTimer) return;
     if (performance.now() - this._lastHoverPickMs < UniverseRenderer._hoverPickIntervalMs * 4) return;
@@ -3851,6 +3864,7 @@ export class UniverseRenderer {
   }
 
   private _onPointerLeave = (): void => {
+    this._pointerInside = false; this._pickViewKey = '';
     this.spatialInteraction?.onHover(null);
     this.spatialInteraction?.clearPreview?.();
     this._sceneEventHit = null;

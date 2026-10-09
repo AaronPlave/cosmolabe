@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
+import { angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
 
 describe('measurement geometry', () => {
   it('uses finite independent segments and draws the arc for a straight angle', () => {
     const vertex = new THREE.Vector3();
     const points = anglePoints(new THREE.Vector3(1, 0, 0), vertex, new THREE.Vector3(-1, 0, 0));
-    expect(points.length).toBe(40);
+    expect(points.length).toBe(100);
     expect(points.every(p => p.toArray().every(Number.isFinite))).toBe(true);
     expect(points.slice(4).some(p => Math.abs(p.z) > 0.1 || Math.abs(p.y) > 0.1)).toBe(true);
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -63,4 +63,18 @@ it('stops the direction shaft at the cone base for short and full connections', 
   }
   expect(directionShaftPoints(source, source, 0)).toEqual([]);
   expect(directionShaftPoints(source, source.clone().add(new THREE.Vector3(0, 1, 0)), 2)).toEqual([]);
+});
+
+it('bounds angle glyphs by vertex depth and short physical legs without changing the true plane', () => {
+  const camera=new THREE.PerspectiveCamera(60,1,0.01,1e12);camera.updateMatrixWorld();
+  for (const depth of [0.1, 10, 1e8]) {
+    const vertex=new THREE.Vector3(0,0,-depth);
+    const radius=angleDisplayRadius(camera,vertex,depth*100,600);
+    expect(radius/(2*depth*Math.tan(Math.PI/6)/600)).toBeCloseTo(50);
+    const points=anglePoints(vertex.clone().add(new THREE.Vector3(depth*100,0,0)),vertex,vertex.clone().add(new THREE.Vector3(0,depth*100,0)),radius);
+    expect(points.slice(4).every(p=>Math.abs(p.z+depth)<1e-6)).toBe(true);
+    expect(points[4].distanceTo(vertex)).toBeCloseTo(radius);
+  }
+  expect(angleDisplayRadius(camera,new THREE.Vector3(0,0,-10),0.001,600)).toBeCloseTo(0.00045, 10);
+  expect(angleDisplayRadius(camera,new THREE.Vector3(0,0,1),1000,600)).toBe(0);
 });

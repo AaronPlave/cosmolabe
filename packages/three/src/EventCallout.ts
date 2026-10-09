@@ -264,21 +264,28 @@ export class EventCallout {
   }
 
   /** Optional interaction for persistent measurements; event annotations stay passive. */
-  setInteraction(id: string, activate: (event: MouseEvent | KeyboardEvent) => void, hover: (active: boolean) => void): void {
-    this.leader.setAttribute('stroke-dasharray', '2 3');
-    this.leader.setAttribute('stroke-opacity', '0.4');
+  setInteraction(id: string, activate: (event: MouseEvent | KeyboardEvent) => void, hover: (active: boolean) => void, openEditor?: () => void): void {
     this.box.dataset.measurementId = id;
     this.box.style.pointerEvents = 'auto';
     this.box.style.cursor = 'pointer';
     this.box.tabIndex = 0;
-    this.box.setAttribute('role', 'button');
+    this.box.setAttribute('role', openEditor ? 'group' : 'button');
+    if (openEditor) {
+      this.editorAction = document.createElement('button');
+      this.editorAction.textContent = 'Open in Measurements';
+      Object.assign(this.editorAction.style, { display: 'block', margin: '4px 0 0 13px', color: '#c3d0d8', font: '500 10px/14px var(--font-sans, system-ui)', cursor: 'pointer', textDecoration: 'underline', background: 'none', border: 'none', padding: '0' });
+      this.editorAction.onclick = event => { event.stopPropagation(); openEditor(); };
+    }
     this.box.onclick = event => { event.stopPropagation(); activate(event); };
     this.box.onkeydown = event => {
+      if (event.target !== this.box) return;
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); activate(event); }
     };
     this.box.onmouseenter = () => hover(true);
     this.box.onmouseleave = () => hover(false);
   }
+
+  private editorAction: HTMLButtonElement | null = null;
 
   setContent(content: CalloutContent | null): void {
     const key = content ? JSON.stringify(content) : '';
@@ -310,7 +317,8 @@ export class EventCallout {
       row.textContent = line;
       this.box.append(row);
     });
-    this.leader.setAttribute('stroke', content.color);
+    if (this.editorAction) this.box.append(this.editorAction);
+    this.leader.setAttribute('stroke', this.editorAction ? '#8b99a3' : content.color);
     this.tick.setAttribute('fill', content.color);
   }
 

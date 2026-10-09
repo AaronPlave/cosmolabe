@@ -73,38 +73,34 @@ try {
   await page.getByLabel('Source entity', { exact: true }).selectOption('Earth');
   await page.getByLabel('Target entity', { exact: true }).selectOption('Moon');
   await page.getByRole('button', { name: 'Add distance', exact: true }).click();
-  await page.getByRole('button', { name: 'Save changes', exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Cancel', exact: true }).count(), 0);
   await page.evaluate(() => { window.firstId = window.m.measurements.items[0].id; window.renderer.stop(); window.__cosmolabe.capture('Lunar Orbit'); });
-
-  // Selection populates the editor. Valid/incomplete changes preview the same identity.
   await page.getByRole('button', { name: 'Sage measurement color', exact: true }).click();
-  const color = await page.evaluate(() => {
-    window.renderer.renderFrame();
-    const v = window.renderer.spatialRelationships.visuals.get(window.firstId);
-    return { saved: window.m.measurements.items[0].color, draft: window.m.measurements.draftColor, scene: v.stroke.material.color.getHexString() };
-  });
-  assert.equal(color.draft, '#9ab58d'); assert.equal(color.scene, '9ab58d'); assert.notEqual(color.saved, color.draft);
+  assert.equal(await page.evaluate(() => window.m.measurements.items[0].color), '#9ab58d');
   await page.getByLabel('Target entity', { exact: true }).selectOption('');
   await page.getByText('Incomplete endpoints', { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.visuals.has(window.firstId); }), false);
+  assert.equal(await page.evaluate(() => window.m.measurements.items[0].target), null);
   await page.getByLabel('Target entity', { exact: true }).selectOption('Moon');
   await page.getByRole('button', { name: 'direction', exact: true }).click();
-  assert.equal(await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.visuals.get(window.firstId).kind; }), 'direction');
   await page.getByLabel('Show distance', { exact: true }).check();
   await page.getByLabel('Full-length connection', { exact: true }).check();
-  const preview = await page.evaluate(() => window.m.renderedMeasurements()[0]);
-  assert.equal(preview.id, await page.evaluate(() => window.firstId)); assert(preview.showDistance && preview.fullLength);
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-  assert.equal(await page.evaluate(() => window.m.measurements.items[0].kind), 'distance');
-  await page.getByLabel('Source entity', { exact: true }).selectOption('Sun');
-  await page.getByRole('button', { name: 'Select distance measurement', exact: true }).click();
-  assert.equal(await page.getByLabel('Source entity', { exact: true }).inputValue(), 'Earth');
+  assert(await page.evaluate(() => { const item=window.m.measurements.items[0];return item.kind==='direction'&&item.showDistance&&item.fullLength; }));
   await page.getByRole('button', { name: 'New measurement', exact: true }).click();
+  await page.getByLabel('Source entity', { exact: true }).selectOption('Sun');
+  const row = page.getByRole('button', { name: 'Select direction measurement', exact: true });
+  const beforeHeight = (await row.boundingBox()).height;
+  await row.click();
+  assert.equal((await row.boundingBox()).height, beforeHeight);
+  assert.equal(await page.getByLabel('Source entity', { exact: true }).inputValue(), 'Earth');
+  await page.getByRole('button', { name: 'direction', exact: true }).focus();
+  await page.keyboard.press('Escape');
   assert.equal(await page.getByLabel('Source entity', { exact: true }).inputValue(), 'Sun');
-  await page.getByRole('button', { name: 'Select distance measurement', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.m.measurements.items[0].kind), 'direction');
+  await row.click();
+  await page.getByRole('button', { name: 'distance', exact: true }).click();
   await page.getByLabel('Custom measurement color', { exact: true }).evaluate(input => { input.value = '#aabbcc'; input.dispatchEvent(new Event('input', { bubbles: true })); });
-  assert.equal(await page.evaluate(() => window.m.measurements.draftColor), '#aabbcc');
-  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   assert.equal(await page.evaluate(() => window.m.measurements.items[0].color), '#aabbcc');
   await page.getByRole('button', { name: 'Hide distance', exact: true }).click();
   assert.equal(await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.visuals.get(window.firstId).group.visible; }), false);
@@ -112,13 +108,14 @@ try {
   await capture('editor-presets-actual.png');
   const swatch = await page.getByLabel('Custom measurement color', { exact: true }).boundingBox();
   assert(swatch.width >= 36 && swatch.height >= 24);
-  console.log('Selection, valid/incomplete previews, type changes, cancel/save, New, presets and custom color passed');
+  const preset = await page.getByRole('button', { name: 'Sage measurement color', exact: true }).boundingBox();
+  assert.equal(preset.width,24);assert.equal(preset.height,24);
+  console.log('Immediate fields, incomplete definitions, type/options, Escape, stable rows, New and square presets passed');
 
   // Shared portal closes on action/Escape, contains one menu, and returns focus.
   await page.getByRole('button', { name: 'Actions for distance', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Duplicate', exact: true }).click();
   await page.getByLabel('Target entity', { exact: true }).selectOption('Sun');
-  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   assert.equal(await page.evaluate(() => new Set(window.m.measurements.items.map(i => i.id)).size), 2);
   assert.deepEqual(await page.evaluate(() => window.m.measurements.items.map(i => i.target.bodyName)), ['Moon', 'Sun']);
   await page.getByRole('button', { name: 'Actions for distance', exact: true }).first().click();
@@ -134,7 +131,7 @@ try {
   await page.getByRole('button', { name: 'Pick source object', exact: true }).click();
   const earth = await earthPixel();
   await page.mouse.move(earth.x, earth.y); await page.waitForTimeout(180);
-  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint?.bodyName), 'Earth');
+  assert.equal(await page.evaluate(() => window.renderer._hoveredBody), 'Earth');
   await page.mouse.move(60, 900); await page.waitForTimeout(180);
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint), null);
   await page.mouse.move(earth.x, earth.y); await page.mouse.click(earth.x, earth.y);
@@ -144,11 +141,19 @@ try {
   await page.mouse.move(earth.x + 1, earth.y); await page.waitForTimeout(180);
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint?.kind), 'body-fixed');
   assert((await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.feedback.geometry.drawRange.count; })) > 0);
+  const stationary = await page.evaluate(() => {
+    const r=window.renderer, layer=r.spatialRelationships;
+    const before=JSON.stringify(layer.previewEndpoint);r._lastHoverPickMs=0;
+    r.camera.position.x+=0.001;r.cameraController.controls.target.x+=0.001;r.cameraController.controls.update();r.renderFrame();
+    return {before,after:JSON.stringify(layer.previewEndpoint)};
+  });
+  assert.notEqual(stationary.before,stationary.after);
   await capture('surface-pick-preview-actual.png');
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint), null);
   await page.getByRole('button', { name: 'Pick source surface point', exact: true }).click();
-  await page.mouse.click(earth.x, earth.y);
+  const surfaceEarth=await earthPixel();
+  await page.mouse.click(surfaceEarth.x, surfaceEarth.y);
   assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'body-fixed');
   assert.equal(await page.evaluate(() => window.sceneEvents), 0);
   assert.equal(await page.getByText('Surface pick', { exact: true }).count(), 0);
@@ -168,7 +173,7 @@ try {
 
   // Menus at the bottom of a scrolling panel, then floating and compact layouts.
   await page.evaluate(() => {
-    for (let i=0;i<16;i++) window.m.measurements.items.push({ id: `overflow-${i}`, kind:'distance', source:{kind:'entity',bodyName:'Earth'}, target:{kind:'entity',bodyName:'Moon'} });
+    for (let i=0;i<16;i++) window.m.measurements.items.push({ id: `overflow-${i}`, vertex:null, kind:'distance', source:{kind:'entity',bodyName:'Earth'}, target:{kind:'entity',bodyName:'Moon'} });
     window.m.syncMeasurements();
   });
   await page.getByRole('button', { name: 'Actions for distance', exact: true }).last().click();
@@ -204,6 +209,8 @@ try {
   await page.waitForTimeout(350);
   assert.equal(await page.locator('.cosmolabe-event-callout[data-measurement-id]:visible').count(), 0);
   assert((await page.locator('.cosmolabe-measurement-value:visible').count()) >= 2);
+  assert.equal(await page.locator('.cosmolabe-measurement-value[data-measurement-id=direction]').textContent(), 'To Moon');
+  assert.equal(await page.locator('.cosmolabe-measurement-value[data-measurement-id=direction] svg').count(), 1);
   await capture('compact-measurements-wide-actual.png');
   const compactLabel = page.locator('.cosmolabe-measurement-value[data-measurement-id="distance"]');
   await compactLabel.click();
@@ -211,6 +218,7 @@ try {
   await page.evaluate(() => window.renderer.renderFrame()); await page.waitForTimeout(350);
   assert.equal(await page.locator('.cosmolabe-event-callout[data-measurement-id]:visible').count(), 1);
   assert.equal(await page.locator('.cosmolabe-measurement-value[data-measurement-id="distance"]:visible').count(), 0);
+  assert((await page.evaluate(()=>window.renderer.spatialRelationships.visuals.get('direction').stroke.material.opacity))>=0.75);
   const playback = await page.evaluate(async () => {
     const r=window.renderer, m=window.m;
     const before=m.measurements.items.map(i=>m.measurementValue(i,r.timeController.et));
@@ -220,6 +228,21 @@ try {
     return { before, after:m.measurements.items.map(i=>m.measurementValue(i,r.timeController.et)), finite:[...r.spatialRelationships.visuals.values()].every(v=>v.hitSegments.every(p=>p.toArray().every(Number.isFinite))) };
   });
   assert(playback.finite);assert.notEqual(playback.before[0],playback.after[0]);assert.notEqual(playback.before[2],playback.after[2]);
+  const openEditor=page.getByRole('button',{name:'Open in Measurements',exact:true});
+  await page.getByRole('button',{name:'Close Measurements',exact:true}).click();
+  await openEditor.click();
+  assert.equal(await page.evaluate(()=>window.m.measurements.selectedId),'distance');
+  await page.getByLabel('Source entity',{exact:true}).waitFor();
+  await page.evaluate(()=>window.sh.minimizePanel('measure'));
+  await openEditor.click();
+  assert.equal(await page.evaluate(()=>window.sh.shell.panels.measure.minimized),false);
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>{window.sh.closeTool('measure');window.renderer.renderFrame();});
+  await openEditor.click();
+  assert.equal(await page.evaluate(()=>window.sh.shell.activeSheet),'measure');
+  assert.equal(await page.evaluate(()=>window.m.measurements.selectedId),'distance');
+  await capture('card-editor-compact-actual.png');
+  await page.setViewportSize({width:1440,height:1000});
   await capture('selected-measurements-wide-actual.png');
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.visuals.get('distance').marks.geometry.drawRange.count), 2);
   await page.getByRole('button', { name:'New measurement',exact:true }).click();
@@ -265,7 +288,7 @@ async function checkSpacecraftPass() {
   await page.evaluate(async()=>{
     await window.ld.loadDemo(document.querySelector('canvas'),'test-catalogs/cassini-soi');
     await window.__cosmolabe.whenAssetsReady();
-    const r=window.renderer;r.stop();window.sh.openTool('measure');
+    const r=window.renderer;r.stop();r.setSensorsVisible(false);r.setSensorLabelsVisible(false);window.sh.openTool('measure');
     const source={kind:'entity',bodyName:'Cassini'};
     window.m.addMeasurement({id:'cassini-direction',kind:'direction',source,target:{kind:'entity',bodyName:'Saturn'},color:'#9ab58d'});
     window.m.addMeasurement({id:'cassini-direction-2',kind:'direction',source,target:{kind:'entity',bodyName:'Titan'},color:'#c6a66b'});

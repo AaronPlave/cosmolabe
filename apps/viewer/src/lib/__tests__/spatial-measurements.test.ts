@@ -3,8 +3,8 @@ import type { SpatialEndpoint } from '@cosmolabe/core';
 import type { UniverseRenderer, SpatialInteraction } from '@cosmolabe/three';
 vi.mock('../loader', () => ({ getCurrentRenderer: () => null, getUniverse: () => null }));
 import {
-  addMeasurement, cancelMeasurementEdit, captureSurfaceEndpoint, configureMeasurementInput,
-  editMeasurement, measurements, removeMeasurement, resetMeasurementsForScene, saveMeasurement,
+  addMeasurement, captureSurfaceEndpoint, configureMeasurementInput,
+  duplicateMeasurement, measurements, removeMeasurement, resetMeasurementsForScene, createMeasurement, syncMeasurements,
   startMeasurementPick, renderedMeasurements, newMeasurement, selectMeasurement, measurementValue,
 } from '../spatial-measurements.svelte';
 
@@ -13,81 +13,58 @@ const original = () => ({ id: 'saved', kind: 'distance' as const,
   source: { kind: 'body-fixed' as const, bodyName: 'Earth', positionKm: [1, 2, 3] as [number, number, number] },
   target: { kind: 'entity' as const, bodyName: 'Moon' }, color: '#82aabd' });
 
-describe('measurement edits', () => {
-  it('keeps saved data unchanged until Save, preserves identity through kind changes, and restores an unrelated draft', () => {
+describe('immediate measurement editing', () => {
+  it('applies fields and kind changes to the existing identity and resumes the new draft', () => {
     addMeasurement(original()); newMeasurement();
     measurements.draft.source = { kind: 'entity', bodyName: 'Sun' };
     measurements.draftColor = '#abcdef';
-    editMeasurement('saved');
-    const editingSource = measurements.draft.source as SpatialEndpoint;
-    if (editingSource.kind !== 'body-fixed') throw new Error('Expected body-fixed edit');
-    editingSource.positionKm[0] = 99;
-    expect(measurements.items[0].source).toEqual(original().source);
+    selectMeasurement('saved');
+    const source = measurements.draft.source as SpatialEndpoint;
+    if (source.kind !== 'body-fixed') throw new Error('Expected surface endpoint');
+    source.positionKm[0] = 99;
     measurements.draftKind = 'direction'; measurements.draftFullLength = true;
-    expect(saveMeasurement()).toBe(true);
-    expect(measurements.items[0]).toMatchObject({ id: 'saved', kind: 'direction', fullLength: true, showDistance: false });
-    expect(measurements.editingId).toBe('saved');
+    syncMeasurements();
+    expect(measurements.items[0]).toMatchObject({ id: 'saved', kind: 'direction', fullLength: true, source: {positionKm:[99,2,3]} });
     newMeasurement();
     expect(measurements.draft.source).toEqual({ kind: 'entity', bodyName: 'Sun' });
     expect(measurements.draftColor).toBe('#abcdef');
+    expect(measurements.items[0].kind).toBe('direction');
   });
-  it('cancel discards edits, and duplication owns its coordinates and a new identity', () => {
-    addMeasurement(original()); newMeasurement();
-    editMeasurement('saved'); measurements.draft.target = { kind: 'entity', bodyName: 'Mars' };
-    cancelMeasurementEdit();
-    expect(measurements.items[0].target).toEqual(original().target);
-    editMeasurement('saved', true);
-    expect(measurements.editingId).not.toBe('saved');
-    expect(measurements.items).toHaveLength(1);
-    const draft = measurements.draft.source;
-    if (draft?.kind !== 'body-fixed') throw new Error('Expected body-fixed copy');
-    draft.positionKm[0] = 9;
-    saveMeasurement();
+  it('duplicates immediately with independent coordinates and no pending save', () => {
+    addMeasurement(original()); duplicateMeasurement('saved');
     expect(measurements.items).toHaveLength(2);
-    expect(measurements.items[1].id).not.toBe('saved');
+    expect(measurements.editingId).not.toBe('saved');
+    const source = measurements.draft.source;
+    if (source?.kind !== 'body-fixed') throw new Error('Expected surface copy');
+    source.positionKm[0] = 9; syncMeasurements(); newMeasurement();
     expect(measurements.items[0].source).toEqual(original().source);
-    draft.positionKm[0] = 15;
-    expect(measurements.items[1].source).toMatchObject({ positionKm: [9, 2, 3] });
+    expect(measurements.items[1].source).toMatchObject({positionKm:[9,2,3]});
   });
-  it('selection populates the editor, switching preserves buffers, and New resumes the unfinished definition', () => {
-    addMeasurement(original()); newMeasurement();
-    measurements.draft.target = { kind: 'entity', bodyName: 'Mars' };
-    selectMeasurement('saved');
-    expect(measurements.editingId).toBe('saved');
-    expect(measurements.draft.target).toMatchObject({ bodyName: 'Moon' });
-    measurements.draftColor = '#abcdef';
-    newMeasurement();
-    expect(measurements.draft.target).toMatchObject({ bodyName: 'Mars' });
-    selectMeasurement('saved');
-    expect(measurements.draftColor).toBe('#abcdef');
-    measurements.hoveredId = 'saved'; removeMeasurement('saved');
-    expect(measurements.selectedId).toBeNull(); expect(measurements.hoveredId).toBeNull();
-    expect(measurements.editingId).toBeNull();
-    resetMeasurementsForScene(); expect(measurements.draft.target).toBeNull();
-  });
-  it('valid edits replace the saved geometry in place, incomplete edits suppress it, and Cancel restores the original', () => {
+  it('selection switching and clearing keep applied edits, including incomplete endpoints', () => {
     addMeasurement(original());
-    measurements.draftKind = 'direction';
-    measurements.draftColor = '#abcdef';
-    expect(renderedMeasurements()).toMatchObject([{ id: 'saved', kind: 'direction', color: '#abcdef', selected: true, editing: true }]);
-    expect(measurements.items[0].kind).toBe('distance');
-    measurements.draft.target = null;
-    expect(renderedMeasurements()).toEqual([]);
-    expect(measurementValue(measurements.items[0], 0)).toBe('Incomplete endpoints');
-    cancelMeasurementEdit();
-    expect(renderedMeasurements()).toMatchObject([{ id: 'saved', kind: 'distance', color: '#82aabd' }]);
-  });
-  it('switching measurements retains both edit buffers without committing or overlapping previews', () => {
-    addMeasurement(original()); newMeasurement();
-    measurements.items.push({ ...original(), id: 'other' });
-    selectMeasurement('saved'); measurements.draftColor = '#abcdef';
+    measurements.items.push({ ...original(), id: 'other', vertex:null });
+    measurements.draftColor = '#abcdef'; measurements.draft.target = null;
     selectMeasurement('other'); measurements.draftColor = '#123456';
+    newMeasurement();
+    expect(measurements.items.map(item => item.color)).toEqual(['#abcdef', '#123456']);
+    expect(measurements.items[0].target).toBeNull();
+    expect(renderedMeasurements()).toMatchObject([{id:'other'}]);
+    expect(measurementValue(measurements.items[0],0)).toBe('Incomplete endpoints');
+    selectMeasurement('saved'); expect(measurements.draft.target).toBeNull();
+    measurements.draft.target = {kind:'entity',bodyName:'Moon'}; syncMeasurements();
     expect(renderedMeasurements()).toHaveLength(2);
-    expect(measurements.items.map(item => item.color)).toEqual(['#82aabd', '#82aabd']);
-    selectMeasurement('saved'); expect(measurements.draftColor).toBe('#abcdef');
-    selectMeasurement('other'); expect(measurements.draftColor).toBe('#123456');
   });
-
+  it('creates only complete new definitions, then selects them for immediate editing', () => {
+    expect(createMeasurement()).toBe(false);
+    measurements.draft.source={kind:'entity',bodyName:'Earth'};
+    measurements.draft.target={kind:'entity',bodyName:'Moon'};
+    expect(createMeasurement()).toBe(true);
+    expect(measurements.items).toHaveLength(1);
+    expect(measurements.selectedId).toBe(measurements.items[0].id);
+    expect(createMeasurement()).toBe(false);
+    removeMeasurement(measurements.items[0].id);
+    expect(measurements.items).toEqual([]);expect(measurements.selectedId).toBeNull();
+  });
 });
 
 describe('measurement picking', () => {
@@ -135,8 +112,11 @@ it('previews object and exact surface hits through a separate temporary channel,
     renderer: { domElement: { clientWidth: 800, clientHeight: 600 } }, setSpatialPickPreview, setHoveredBody, clearSpatialPickPreview };
   configureMeasurementInput(renderer as unknown as UniverseRenderer);
   startMeasurementPick('target', 'object'); hooks.preview?.(400, 300);
-  expect(setSpatialPickPreview).toHaveBeenLastCalledWith({ kind: 'entity', bodyName: 'Moon' });
+  expect(setHoveredBody).toHaveBeenLastCalledWith('Moon');
+  expect(setSpatialPickPreview).toHaveBeenLastCalledWith(null);
+  expect(hooks.previewIntervalMs?.()).toBe(16);
   startMeasurementPick('target', 'surface'); hooks.preview?.(400, 300);
+  expect(hooks.previewIntervalMs?.()).toBe(75);
   expect(setSpatialPickPreview).toHaveBeenLastCalledWith({ kind: 'body-fixed', bodyName: 'Earth', positionKm: [1, 2, 3] });
   pickSurface.mockReturnValue(null); hooks.preview?.(400, 300);
   expect(setSpatialPickPreview).toHaveBeenLastCalledWith(null);

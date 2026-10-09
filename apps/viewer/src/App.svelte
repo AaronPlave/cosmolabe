@@ -29,7 +29,7 @@
     catalogLocation, findEntry, isCurrentEntry, requestedCatalog, withCatalogLocation, allEntries,
     type CatalogLocation, type SourcedEntry,
   } from './lib/catalog-nav';
-  import { cancelMeasurementEdit, cancelMeasurementPick, measurements, selectMeasurement } from './lib/spatial-measurements.svelte';
+  import { cancelMeasurementPick, measurements, selectMeasurement } from './lib/spatial-measurements.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -272,7 +272,6 @@
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
           if (cancelMeasurementPick()) return;
-          if (cancelMeasurementEdit()) return;
           if (measurements.selectedId) { selectMeasurement(null); return; }
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
           // An event selection is the smallest thing on screen to dismiss:
