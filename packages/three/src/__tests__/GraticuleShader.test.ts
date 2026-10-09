@@ -41,6 +41,7 @@ describe('graticule surface materials', () => {
       expect(material.defines!.FEATURE_FADE).toBe(1);
       expect(shader.uniforms.fadeIn.value).toBe(0.25);
       expect(shader.vertexShader).toContain('uGridViewToBody * modelViewMatrix');
+      expect(shader.fragmentShader).toContain('mix(outgoingLight, grid.rgb, grid.a * horizon * uGridVisible)');
       plugin._fadeMaterialManager.setFade(scene, 1, 0);
       expect(shader.uniforms.fadeIn.value).toBe(1);
       expect(material.defines!.FEATURE_FADE).toBe(0);

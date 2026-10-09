@@ -13,17 +13,22 @@ const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.01,100000);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#050811');const ambient=new THREE.AmbientLight(0xffffff,1.8);scene.add(ambient);const sun=new THREE.DirectionalLight(0xffffff,2);sun.position.set(5000,-2000,2500);sun.intensity=0;scene.add(sun);
 const nativeNow=performance.now.bind(performance);
 const labels=new LabelManager(document.createElement('div'));
-let bm;let prototype=null;let prototypeInfo=null;
+let bm;let other;let prototype=null;let prototypeInfo=null;
 window.pose=(options={})=>{if(options.fov!==undefined){camera.fov=options.fov;camera.updateProjectionMatrix()}camera.up.set(...(options.up??[0,0,1]));camera.position.set(...(options.eye??[6000,0,0]));camera.lookAt(new THREE.Vector3(...(options.target??[0,0,0])));camera.updateMatrixWorld(true);scene.updateMatrixWorld(true)};
 window.setup=(options={})=>{
  camera.fov=options.fov??45;camera.updateProjectionMatrix();
  if(bm){bm.dispose();scene.remove(bm)}
+ if(other){other.dispose();scene.remove(other);other=null}
  if(prototype){prototype.geometry.dispose();prototype.material.dispose();scene.remove(prototype);prototype=null;prototypeInfo=null;}
  ambient.intensity=options.lighting ? 0.015 : 1.8;sun.intensity=options.lighting ? 2 : 0;sun.position.set(...(options.sunPosition??[5000,-2000,2500]));
  labels.setReservedRects(options.controls ? [{x0:8,y0:80,x1:56,y1:550},{x0:80,y0:686,x1:1016,y1:760}] : [], 'controls');
  const r=options.radii??[1737.4,1737.4,1737.4];
  const body=new Body({name:options.name??'Moon',trajectory:new FixedPointTrajectory([0,0,0]),radii:r,geometryType:'Globe',classification:'moon',geometryData:{},rotation:{sourceFrame:'ECLIPJ2000',rotationAt:()=>[1,0,0,0]}});
  bm=new (options.before?BeforeMesh:BodyMesh)(body);scene.add(bm);bm.updatePosition([0,0,0],0,1);bm.applyMeshScale(1);bm.mesh.material.color.set(options.color??'#63717d');
+ if(options.distantOccluder){
+   const distant=new Body({name:'Distant body',trajectory:new FixedPointTrajectory([0,0,0]),radii:[1,1,1],geometryType:'Globe'});
+   other=new BodyMesh(distant);other.updatePosition([0,10000,0],0,1);other.applyMeshScale(1);scene.add(other);
+ }
 
  if(options.imagery){
    const image=document.createElement('canvas');image.width=512;image.height=256;const context=image.getContext('2d');
@@ -97,7 +102,7 @@ window.freeLook=(dx,dy)=>{
  renderer.domElement.dispatchEvent(pointer('pointerdown',100,100));window.dispatchEvent(pointer('pointermove',100+dx,100+dy));controller.update();window.dispatchEvent(pointer('pointerup',100+dx,100+dy));host.showBodyGrid(true);
  const result={tracked:controller.trackedBody?.body.name??null,origin:controller.originBody?.body.name};controller.dispose();return result;
 };
-window.frame=()=>{const begin=nativeNow();labels.beginContextAnnotations();if(bm.updateGrid)bm.updateGrid(camera,{width:innerWidth,height:innerHeight},labels);const updateMs=nativeNow()-begin;renderer.render(scene,camera);renderer.getContext().finish();return {prototype:prototypeInfo,updateMs,frameMs:nativeNow()-begin,metrics:bm.gridMetrics??null,draw:{...renderer.info.render},memory:{...renderer.info.memory}}};
+window.frame=()=>{const begin=nativeNow();labels.beginContextAnnotations();if(bm.updateGrid)bm.updateGrid(camera,{width:innerWidth,height:innerHeight},labels,other?[bm,other]:[bm]);const updateMs=nativeNow()-begin;renderer.render(scene,camera);renderer.getContext().finish();let visibleGridSprites=0;scene.traverse(object=>{if(object instanceof THREE.Sprite&&object.visible&&object.userData.gridLineId)visibleGridSprites++});return {prototype:prototypeInfo,updateMs,frameMs:nativeNow()-begin,metrics:bm.gridMetrics??null,runtime:{graticuleInstances:bm.graticule?1:0,visibleGridSprites},draw:{...renderer.info.render},memory:{...renderer.info.memory}}};
 window.loadImagery=async(url)=>{const texture=await new THREE.TextureLoader().loadAsync(url);texture.colorSpace=THREE.SRGBColorSpace;bm.mesh.material.map?.dispose();bm.mesh.material.map=texture;bm.mesh.material.needsUpdate=true};
 window.diagnostics=()=>{const points=[];bm.traverse(object=>{if(object instanceof THREE.Sprite && object.visible){const p=object.position;const coordinate=bodyFixedToSurfacePosition({xKm:p.x,yKm:p.y,zKm:p.z},bodySurfaceCoordinates(bm.body));const screen=p.clone().project(camera);points.push({id:object.userData.gridLineId,lat:coordinate.latDeg,lon:coordinate.lonDeg,heightKm:coordinate.heightKm,x:(screen.x+1)*innerWidth/2,y:(1-screen.y)*innerHeight/2,opacity:object.material.opacity,rect:{x0:(screen.x+1)*innerWidth/2+(0.5-object.center.x)*object.userData.gridLabelWidth-object.userData.gridLabelWidth/2-3,x1:(screen.x+1)*innerWidth/2+(0.5-object.center.x)*object.userData.gridLabelWidth+object.userData.gridLabelWidth/2+3,y0:(1-screen.y)*innerHeight/2+(object.center.y-0.5)*20-10,y1:(1-screen.y)*innerHeight/2+(object.center.y-0.5)*20+10}})}});return points};
 window.capture=()=>{window.frame();return renderer.domElement.toDataURL()};

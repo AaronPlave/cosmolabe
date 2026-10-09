@@ -3,20 +3,20 @@ import { bodyFixedToSurfacePosition, surfacePositionToBodyFixed, formatSurfaceAn
 import { ANGULAR_GRID_STEPS, type GridSettings } from '@cosmolabe/control';
 import type { BodyMesh } from './BodyMesh.js';
 import type { LabelManager } from './LabelManager.js';
-import { applyGraticuleMaterial, applyGraticuleToScene, makeGraticuleUniforms, GRID_PRESENTATION, gridSmoothstep, gridLightingStrength, GRID_AUTO_STEPS } from './GraticuleShader.js';
+import { applyGraticuleMaterial, applyGraticuleToScene, makeGraticuleUniforms, GRID_PRESENTATION, gridSmoothstep, GRID_AUTO_STEPS } from './GraticuleShader.js';
 
 export const GRID_STEPS = ANGULAR_GRID_STEPS;
 export const AUTO_GRID_STEPS = GRID_AUTO_STEPS;
 /** Screen separation is measured locally; global diameter is never the density input. */
-export function chooseGridStep(pixelsPerDegree: number, previous = 30, targetPx = 100): number {
+export function chooseGridStep(pixelsPerDegree: number, previous = 30, targetPx = 180): number {
   if (!Number.isFinite(pixelsPerDegree) || pixelsPerDegree <= 0) return 30;
   const spacing = pixelsPerDegree * previous;
-  if ((AUTO_GRID_STEPS as readonly number[]).includes(previous) && spacing >= targetPx * 0.6 && spacing <= targetPx * 1.8) return previous;
+  if ((AUTO_GRID_STEPS as readonly number[]).includes(previous) && spacing >= targetPx * 0.7 && spacing <= targetPx * 1.5) return previous;
   return AUTO_GRID_STEPS.reduce((best, step) => Math.abs(Math.log(step * pixelsPerDegree / targetPx)) < Math.abs(Math.log(best * pixelsPerDegree / targetPx)) ? step : best, 30 as number);
 }
 export interface GeographicGridAnchor {
   readonly id: string; readonly tier: string; readonly axis: 'latitude' | 'longitude';
-  readonly angle: number; readonly lat: number; readonly lon: number; readonly step: number;
+  readonly lat: number; readonly lon: number;
 }
 type Anchor = GeographicGridAnchor;
 interface Label { sprite: THREE.Sprite; readonly anchor: Anchor; text: string; width: number; visibleSince: number; }
@@ -25,23 +25,30 @@ const MAX_LABELS = 24;
 const MAX_CANDIDATES = 96;
 // Current geometry must validate every displayed terrain/occluder label. Leave
 // two of the eight queries for discovery rather than rendering cached positives.
-const MAX_QUERY_LABELS = 6;
 const MAX_TERRAIN_LABELS = 3;
 const ENTRY_DWELL_MS = 100;
+const LABEL_HEIGHT = 24;
+const LABEL_FONT_SIZE = 14;
 const DEG = Math.PI / 180;
 const siteId = (anchor: Anchor) => `${anchor.axis}:${anchor.lat.toFixed(6)}:${anchor.lon.toFixed(6)}`;
-/** Body-fixed ruler carriers. Globe offsets follow the old 5° / 3° arrangement. */
+/** Fixed geographic ruler bands, with captions between crossings. */
 export function annotationPattern(latStep: number, lonStep: number) {
-  const carrier = (step: number) => step === 30 ? 360 : Math.min(360, step * 6);
+  const step = Math.max(latStep, lonStep);
   return { latitudeStride: latStep, longitudeStride: lonStep,
-    meridianStride: carrier(lonStep), parallelStride: carrier(latStep), meridianOffset: 5, parallelOffset: 3 };
+    labelStride: step <= 0.02 ? 3 : step <= 1 ? 2 : 1,
+    meridianStride: lonStep === 30 ? 360 : Math.min(360, lonStep * 8),
+    parallelStride: latStep === 30 ? 360 : Math.min(180, latStep * 8),
+    meridianOffset: lonStep === 30 ? 5 : lonStep * 0.5,
+    parallelOffset: latStep === 30 ? 3 : latStep * 0.5 };
 }
 function inPattern(anchor: Anchor, latStep: number, lonStep: number): boolean {
   const pattern = annotationPattern(latStep, lonStep);
-  const aligned = (value: number, stride: number, offset = 0) => Math.abs((value - offset) / stride - Math.round((value - offset) / stride)) < 1e-5;
-  return anchor.axis === 'latitude'
-    ? aligned(anchor.lat, pattern.latitudeStride) && aligned(anchor.lon, pattern.meridianStride, pattern.meridianOffset)
-    : aligned(anchor.lon, pattern.longitudeStride) && aligned(anchor.lat, pattern.parallelStride, pattern.parallelOffset);
+  const row = anchor.lat / (latStep * pattern.labelStride), column = anchor.lon / (lonStep * pattern.labelStride);
+  const onInteger = (value: number) => Math.abs(value - Math.round(value)) < 1e-5;
+  const onCarrier = (value: number, stride: number, offset: number) =>
+    Math.abs((value - offset) / stride - Math.round((value - offset) / stride)) < 1e-5;
+  return anchor.axis === 'latitude' ? onInteger(row) && onCarrier(anchor.lon, pattern.meridianStride, pattern.meridianOffset)
+    : onInteger(column) && onCarrier(anchor.lat, pattern.parallelStride, pattern.parallelOffset);
 }
 
 /** Constant-cost surface shader plus a bounded pool of line-associated annotations. */
@@ -64,6 +71,9 @@ export class AdaptiveGraticule {
   private labelVisible = true;
   private transition = 1;
   private globeScale = true;
+  private latitudeCarrier: number | null = null;
+  private longitudeCarrier: number | null = null;
+  private carrierTier = '';
   private settings: GridSettings | null = null;
   constructor(private readonly bm: BodyMesh, public coordinates: SurfaceCoordinates) {
     this.uniforms = makeGraticuleUniforms(coordinates);
@@ -91,7 +101,7 @@ export class AdaptiveGraticule {
     this.labelVisible = labels;
     if (settings !== this.settings) { this.settings = settings ?? null; this.lastPlan = -Infinity; }
     this.uniforms.uGridVisible.value = visible && !this.bm.hasModel ? 1 : 0;
-    this.uniforms.uGridMinor.value = settings?.minorLines ? 1 : 0;
+    this.uniforms.uGridMinor.value = settings?.density === 'manual' ? (settings.minorLines ? 1 : 0) : 1;
     if (!visible || !labels) for (const label of this.labels.values()) label.sprite.visible = false;
   }
   private point(lat: number, lon: number, heightKm = 0): THREE.Vector3 {
@@ -169,12 +179,15 @@ export class AdaptiveGraticule {
     this.globeScale = viewportDiameters <= (this.globeScale ? 2.3 : 1.95);
     const globeScale = this.globeScale;
     const automatic = this.settings?.density !== 'manual';
-    const latStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : latScale.length ? chooseGridStep(median(latScale), previous.x) : previous.x;
-    const lonStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : lonScale.length ? chooseGridStep(median(lonScale), previous.y) : previous.y;
-    const detail = (step: number) => {
-      const index = (AUTO_GRID_STEPS as readonly number[]).indexOf(step);
-      return automatic && !globeScale && index >= 0 ? AUTO_GRID_STEPS[Math.min(index + 1, AUTO_GRID_STEPS.length - 1)] : step;
-    };
+    // A grid that has just filled the viewport needs broad geographic cells.
+    // Relax toward the original fine spacing only at genuinely close scales.
+    const regionalTarget = Math.min(500, Math.min(width, height) * 0.5);
+    const closeBlend = THREE.MathUtils.clamp((viewportDiameters - 6) / 12, 0, 1);
+    const targetPx = THREE.MathUtils.lerp(regionalTarget, 180, closeBlend);
+    const regionalStep = (scales: number[], oldStep: number) => Math.min(10, scales.length ? chooseGridStep(median(scales), oldStep, targetPx) : oldStep);
+    const latStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : regionalStep(latScale, previous.x);
+    const lonStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : regionalStep(lonScale, previous.y);
+    const detail = (step: number) => step * 0.5;
     const detailLat = detail(latStep), detailLon = detail(lonStep), hierarchy = automatic ? 1 : 0;
     if (latStep !== previous.x || lonStep !== previous.y || detailLat !== this.uniforms.uGridDetailStep.value.x
       || detailLon !== this.uniforms.uGridDetailStep.value.y || hierarchy !== this.uniforms.uGridHierarchy.value) {
@@ -188,16 +201,25 @@ export class AdaptiveGraticule {
     }
     const tier = `${latStep}:${lonStep}`;
     const discovered = new Map<string, Anchor>();
-    const add = (axis: Anchor['axis'], angle: number, lat: number, lon: number) => {
+    const add = (axis: Anchor['axis'], lat: number, lon: number) => {
       lat = Number(lat.toFixed(6)) || 0;
       lon = Number(wrapLongitude(Number(lon.toFixed(6))).toFixed(6)) || 0;
-      angle = Number((axis === 'longitude' ? wrapLongitude(angle) : angle).toFixed(6)) || 0;
-      if (Math.abs(lat) >= 85 || (axis === 'longitude' && Math.abs(lat) > 70)) return;
-      const step = axis === 'latitude' ? latStep : lonStep;
-      const id = `${this.bm.body.name}:${tier}:${axis}:${angle.toFixed(6)}:${lat.toFixed(6)}:${lon.toFixed(6)}`;
-      discovered.set(id, { id, tier, axis, angle, lat, lon, step });
+      if (Math.abs(lat) >= 85) return;
+      const id = `${this.bm.body.name}:${tier}:${axis}:${lat.toFixed(6)}:${lon.toFixed(6)}`;
+      discovered.set(id, { id, tier, axis, lat, lon });
     };
     const pattern = annotationPattern(latStep, lonStep);
+    if (this.carrierTier !== tier) {
+      this.latitudeCarrier = null; this.longitudeCarrier = null; this.carrierTier = tier;
+    }
+    // Select a whole prescribed band. The incumbent survives small camera
+    // changes; switching bands retires its entire sequence in one step.
+    const carrier = (center: number, stride: number, offset: number, previous: number | null) => {
+      const nearest = (Math.round((center - offset) / stride) * stride + offset);
+      return previous !== null && Math.abs(center - previous) < stride * 0.75 ? previous : nearest;
+    };
+    this.latitudeCarrier = carrier(foot.lonDeg, pattern.meridianStride, pattern.meridianOffset, this.latitudeCarrier);
+    this.longitudeCarrier = carrier(foot.latDeg, pattern.parallelStride, pattern.parallelOffset, this.longitudeCarrier);
     // Enumerate a bounded contiguous subset of the prescribed block indices.
     // Bounds may exclude sites, but never change the pattern stride or phase.
     const values = (lo: number, hi: number, stride: number, phase: number, limit: number) => {
@@ -215,18 +237,16 @@ export class AdaptiveGraticule {
       const north = Math.min(84, Math.max(...latitudes) + latStep * 2);
       const west = Math.max(foot.lonDeg - 180, Math.min(...longitudes) - lonStep * 2);
       const east = Math.min(foot.lonDeg + 180, Math.max(...longitudes) + lonStep * 2);
-      for (const lat of values(south, north, pattern.latitudeStride, 0, 12)) {
-        for (const lon of values(west, east, pattern.meridianStride, pattern.meridianOffset / pattern.meridianStride, 8)) add('latitude', lat, lat, lon);
-      }
-      // Consecutive longitude values along prescribed parallels; latitude
-      // sequences follow separate prescribed meridians.
-      for (const lon of values(west, east, pattern.longitudeStride, 0, 12)) {
-        for (const lat of values(south, north, pattern.parallelStride, pattern.parallelOffset / pattern.parallelStride, 8)) add('longitude', lon, lat, lon);
-      }
+      for (const lat of values(south, north, pattern.latitudeStride * pattern.labelStride, 0, 24))
+        if (this.latitudeCarrier >= west && this.latitudeCarrier <= east) add('latitude', lat, this.latitudeCarrier);
+      for (const lon of values(west, east, pattern.longitudeStride * pattern.labelStride, 0, 24))
+        if (this.longitudeCarrier >= south && this.longitudeCarrier <= north) add('longitude', this.longitudeCarrier, lon);
     }
     // Retain only shared active sites or sites still fading from the immediately
     // previous pattern. A surviving line alone does not preserve an old site.
-    for (const label of this.labels.values()) if (label.sprite.visible && this.lineWeight(label.anchor) > 0) {
+    for (const label of this.labels.values()) if (label.sprite.visible && label.anchor.tier === tier
+      && (label.anchor.axis === 'latitude' ? Math.abs(wrapLongitude(label.anchor.lon - this.latitudeCarrier!)) < 1e-5
+        : Math.abs(label.anchor.lat - this.longitudeCarrier!) < 1e-5) && this.lineWeight(label.anchor) > 0) {
       for (const [id, candidate] of discovered) if (siteId(candidate) === siteId(label.anchor)) discovered.delete(id);
       discovered.set(label.anchor.id, label.anchor);
     }
@@ -240,12 +260,7 @@ export class AdaptiveGraticule {
   }
   private lineWeight(anchor: Anchor): number {
     const current = this.uniforms.uGridStep.value, previous = this.uniforms.uGridPreviousStep.value;
-    // Check the full geographic site and actual line membership. Nice steps are
-    // not all nested; old sites retire even when their coordinate line survives.
-    const contains = (steps: THREE.Vector2) => {
-      const step = anchor.axis === 'latitude' ? steps.x : steps.y;
-      return inPattern(anchor, steps.x, steps.y) && Math.abs(anchor.angle / step - Math.round(anchor.angle / step)) < 1e-5;
-    };
+    const contains = (steps: THREE.Vector2) => inPattern(anchor, steps.x, steps.y);
     return (contains(current) ? this.transition : 0) + (contains(previous) ? 1 - this.transition : 0);
   }
   update(camera: THREE.PerspectiveCamera, viewport: { width: number; height: number }, manager: LabelManager | null, occluders: readonly BodyMesh[] = [this.bm]): void {
@@ -291,37 +306,28 @@ export class AdaptiveGraticule {
     const targets: THREE.Object3D[] = [];
     const overlayTargets = new Set<THREE.Object3D>();
     const ownTargets: THREE.Object3D[] = [];
+    const foreignOccluders: Array<{ sphere: THREE.Sphere; targets: THREE.Object3D[] }> = [];
     for (const body of occluders) {
       if (!body.visible) continue;
+      const bodyTargets: THREE.Object3D[] = [];
       if (body.mesh.visible && (body !== this.bm || body.body.geometryData?.displacementMap)) {
-        targets.push(body.mesh); if (body === this.bm) ownTargets.push(body.mesh);
+        bodyTargets.push(body.mesh);
       }
-      if (body.terrainTileGroup?.visible) { targets.push(body.terrainTileGroup); if (body === this.bm) ownTargets.push(body.terrainTileGroup); }
+      if (body.terrainTileGroup?.visible) bodyTargets.push(body.terrainTileGroup);
       for (const overlay of body.getSurfaceOverlays()) if (overlay.group.visible) {
-        targets.push(overlay.group); overlayTargets.add(overlay.group); if (body === this.bm) ownTargets.push(overlay.group);
+        bodyTargets.push(overlay.group); overlayTargets.add(overlay.group);
       }
+      targets.push(...bodyTargets);
+      if (body === this.bm) ownTargets.push(...bodyTargets);
+      else if (bodyTargets.length) foreignOccluders.push({
+        // Only a ray that reaches this conservative bound can hit the body's
+        // geometry. Most unrelated bodies never require a triangle query.
+        sphere: new THREE.Sphere(body.getWorldPosition(new THREE.Vector3()), body.displayRadius * body.scaleFactor * 1.25),
+        targets: bodyTargets,
+      });
     }
-    const lightingFor = (object: THREE.Object3D) => {
-      let root = object; while (root.parent) root = root.parent;
-      const lights = root instanceof THREE.Scene ? root.children.filter((child): child is THREE.Light => child instanceof THREE.Light && child.visible) : [];
-      return (normal: THREE.Vector3) => {
-        if (!(root instanceof THREE.Scene)) return 1; // Detached fixtures have no rendering scene.
-        let illumination = 0;
-        for (const light of lights) {
-          const luminance = light.color.r * 0.2126 + light.color.g * 0.7152 + light.color.b * 0.0722;
-          if (light instanceof THREE.AmbientLight) illumination += luminance * light.intensity / Math.PI;
-          if (light instanceof THREE.DirectionalLight) {
-            const direction = light.getWorldPosition(new THREE.Vector3()).sub(light.target.getWorldPosition(new THREE.Vector3())).normalize();
-            illumination += luminance * light.intensity * Math.max(0, normal.dot(direction)) / Math.PI;
-          }
-        }
-        return gridLightingStrength(illumination);
-      };
-    };
-    const surfaceLighting = lightingFor(this.bm);
-    const overlayLighting = this.bm.getSurfaceOverlays().filter(o => o.group.visible).map(o => lightingFor(o.group));
     const registeredTerrain = !this.bm.mesh.visible || !!this.bm.body.geometryData?.displacementMap || this.bm.getSurfaceOverlays().some(o => o.group.visible);
-    const prepared: Array<{ anchor: Anchor; p: THREE.Vector3; view: THREE.Vector3; incidence: number; strength: number; overlayStrength: number }> = [];
+    const prepared: Array<{ anchor: Anchor; p: THREE.Vector3; view: THREE.Vector3; incidence: number; strength: number }> = [];
     const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
     const shape = this.coordinates.datum.referenceShape;
     const radii = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
@@ -334,16 +340,13 @@ export class AdaptiveGraticule {
       const normal = this.coordinates.latitudeType === 'geodetic'
         ? new THREE.Vector3(Math.cos(anchor.lat * DEG) * Math.cos(anchor.lon * DEG), Math.cos(anchor.lat * DEG) * Math.sin(anchor.lon * DEG), Math.sin(anchor.lat * DEG))
         : new THREE.Vector3(fixed.x / radii[0] ** 2, fixed.y / radii[1] ** 2, fixed.z / radii[2] ** 2).normalize();
-      const worldNormal = normal.clone().transformDirection(this.toWorld);
-      const lighting = surfaceLighting(worldNormal);
-      const overlayLight = overlayLighting.length ? Math.max(...overlayLighting.map(l => l(worldNormal))) : lighting;
       const incidence = cameraFixed.clone().sub(fixed).normalize().dot(normal);
       if (incidence < 0.08) continue;
       const p = fixed.applyMatrix4(this.toWorld), view = p.clone().project(camera);
       if (view.z < -1 || view.z > 1 || Math.abs(view.x) > 0.99 || Math.abs(view.y) > 0.99) continue;
       // Match the shader's congestion suppression; labels need not annotate
       // every rendered line, and cannot float over a subpixel suppressed lattice.
-      const step = anchor.axis === 'latitude' ? this.uniforms.uGridStep.value.x : this.uniforms.uGridStep.value.y;
+      const latStep = this.uniforms.uGridStep.value.x, lonStep = this.uniforms.uGridStep.value.y;
       const delta = 0.0001;
       const latitude = this.point(anchor.lat + delta, anchor.lon, heightKm).project(camera);
       const longitude = this.point(anchor.lat, anchor.lon + delta, heightKm).project(camera);
@@ -352,15 +355,13 @@ export class AdaptiveGraticule {
       // Invert the local screen Jacobian to approximate the shader's fwidth of
       // this coordinate, including skew in rolled/oblique regional views.
       const determinant = Math.abs(ax * by - ay * bx);
-      const gradient = anchor.axis === 'latitude' ? Math.abs(bx) + Math.abs(by) : Math.abs(ax) + Math.abs(ay);
-      const separation = gradient > 0 ? step * determinant / gradient : 0;
-      const congestion = anchor.angle === 0 ? 1 : gridSmoothstep(GRID_PRESENTATION.congestion, separation);
-      // The shader applies lighting to both line color and blend strength.
+      const latGradient = Math.abs(bx) + Math.abs(by), lonGradient = Math.abs(ax) + Math.abs(ay);
+      const latSeparation = latGradient > 0 ? latStep * determinant / latGradient : 0;
+      const lonSeparation = lonGradient > 0 ? lonStep * determinant / lonGradient : 0;
+      const congestion = gridSmoothstep(GRID_PRESENTATION.congestion, anchor.axis === 'latitude' ? latSeparation : lonSeparation);
       const presentation = lineWeight * gridSmoothstep(GRID_PRESENTATION.horizon, incidence) * congestion;
-      const strength = presentation * lighting * lighting;
-      const overlayStrength = presentation * overlayLight * overlayLight;
-      if (Math.max(strength, overlayStrength) < 0.012) continue;
-      prepared.push({ anchor, p, view, incidence, strength, overlayStrength });
+      if (presentation < 0.012) continue;
+      prepared.push({ anchor, p, view, incidence, strength: presentation });
     }
     // Existing suitable labels win collisions and stay within the discovery
     // subset. Neither scoring nor visibility may rewrite an anchor's location.
@@ -369,8 +370,8 @@ export class AdaptiveGraticule {
       const visible = (label: Label | undefined) => label?.sprite.visible ? 1 : 0;
       return visible(right) - visible(left)
         || (left?.sprite.visible && right?.sprite.visible ? left.visibleSince - right.visibleSince : 0)
-        || Number(b.anchor.angle === 0) - Number(a.anchor.angle === 0)
-        || b.anchor.step - a.anchor.step || a.anchor.id.localeCompare(b.anchor.id);
+        || Number(b.anchor.lat === 0 || b.anchor.lon === 0) - Number(a.anchor.lat === 0 || a.anchor.lon === 0)
+        || a.anchor.id.localeCompare(b.anchor.id);
     });
     // Deduplicate only the same prescribed geographic site across tiers.
     // Repeated coordinate values at distinct regular sites remain independent.
@@ -379,7 +380,7 @@ export class AdaptiveGraticule {
     const keys = new Set(available.map(p => p.anchor.id));
     for (const key of this.cachedHits.keys()) if (!keys.has(key)) this.cachedHits.delete(key);
     for (const key of this.eligibility.keys()) if (!keys.has(key)) this.eligibility.delete(key);
-    if (targets.length) {
+    if (registeredTerrain && targets.length) {
       const ordered = [...available].sort((a, b) => {
         const visible = (anchor: Anchor) => this.labels.get(anchor.id)?.sprite.visible ? 1 : 0;
         return visible(b.anchor) - visible(a.anchor)
@@ -397,36 +398,29 @@ export class AdaptiveGraticule {
         return { intersection: overlay ?? intersections[0], overlay: !!overlay };
       };
       for (const { anchor, view } of pending) {
-        const cost = registeredTerrain ? 2 : 1;
-        if (queries + cost > 8) break;
+        if (queries + 2 > 8) break;
         let surface: THREE.Vector3 | null = null;
         let overlay = false;
-        if (registeredTerrain) {
-          // Register the fixed latitude/longitude on the actual rendered surface,
-          // independently of the camera. A second ray checks current occlusion.
-          const base = surfacePositionToBodyFixed({ latDeg: anchor.lat, lonDeg: anchor.lon }, this.coordinates);
-          const normal = this.coordinates.latitudeType === 'geodetic'
-            ? new THREE.Vector3(Math.cos(anchor.lat * DEG) * Math.cos(anchor.lon * DEG), Math.cos(anchor.lat * DEG) * Math.sin(anchor.lon * DEG), Math.sin(anchor.lat * DEG))
-            : new THREE.Vector3(base.xKm, base.yKm, base.zKm).normalize();
-          const reach = Math.max(...radii) * 0.1;
-          const start = new THREE.Vector3(base.xKm, base.yKm, base.zKm).addScaledVector(normal, reach).applyMatrix4(this.toWorld);
-          this.raycaster.set(start, normal.clone().negate().transformDirection(this.toWorld));
-          this.raycaster.far = reach * 2 * this.bm.scaleFactor;
-          const radial = preferredHit(this.raycaster.intersectObjects(ownTargets, true)); queries++;
-          this.raycaster.far = Infinity;
-          overlay = radial.overlay;
-          if (radial.intersection) {
-            const target = radial.intersection.point;
-            this.raycaster.set(camera.position, target.clone().sub(camera.position).normalize());
-            const visible = preferredHit(this.raycaster.intersectObjects(targets, true)); queries++;
-            if (visible.intersection && visible.intersection.point.distanceTo(target) <= Math.max(...radii) * this.bm.scaleFactor * 1e-7) {
-              surface = target.clone().applyMatrix4(this.bodyFromWorld);
-            }
+        // Register the fixed latitude/longitude on the actual rendered surface,
+        // independently of the camera. A second ray checks current occlusion.
+        const base = surfacePositionToBodyFixed({ latDeg: anchor.lat, lonDeg: anchor.lon }, this.coordinates);
+        const normal = this.coordinates.latitudeType === 'geodetic'
+          ? new THREE.Vector3(Math.cos(anchor.lat * DEG) * Math.cos(anchor.lon * DEG), Math.cos(anchor.lat * DEG) * Math.sin(anchor.lon * DEG), Math.sin(anchor.lat * DEG))
+          : new THREE.Vector3(base.xKm, base.yKm, base.zKm).normalize();
+        const reach = Math.max(...radii) * 0.1;
+        const start = new THREE.Vector3(base.xKm, base.yKm, base.zKm).addScaledVector(normal, reach).applyMatrix4(this.toWorld);
+        this.raycaster.set(start, normal.clone().negate().transformDirection(this.toWorld));
+        this.raycaster.far = reach * 2 * this.bm.scaleFactor;
+        const radial = preferredHit(this.raycaster.intersectObjects(ownTargets, true)); queries++;
+        this.raycaster.far = Infinity;
+        overlay = radial.overlay;
+        if (radial.intersection) {
+          const target = radial.intersection.point;
+          this.raycaster.set(camera.position, target.clone().sub(camera.position).normalize());
+          const visible = preferredHit(this.raycaster.intersectObjects(targets, true)); queries++;
+          if (visible.intersection && visible.intersection.point.distanceTo(target) <= Math.max(...radii) * this.bm.scaleFactor * 1e-7) {
+            surface = target.clone().applyMatrix4(this.bodyFromWorld);
           }
-        } else {
-          this.raycaster.setFromCamera(new THREE.Vector2(view.x, view.y), camera);
-          const hit = preferredHit(this.raycaster.intersectObjects(targets, true)); queries++;
-          overlay = hit.overlay; surface = hit.intersection?.point.clone().applyMatrix4(this.bodyFromWorld) ?? null;
         }
         this.cachedHits.set(anchor.id, { overlay, point: surface, projectedAnchor: view.clone(), time: now });
       }
@@ -434,13 +428,12 @@ export class AdaptiveGraticule {
     const active = new Set<string>();
     const ready: Array<{ anchor: Anchor; fixed: THREE.Vector3; text: string; labelWidth: number; offsetX: number; offsetY: number;
       rect: { x0: number; x1: number; y0: number; y1: number }; eligible: boolean; strength: number }> = [];
-    const limit = registeredTerrain ? MAX_TERRAIN_LABELS : targets.length ? MAX_QUERY_LABELS : MAX_LABELS;
-    for (const { anchor, p, view, incidence, strength: surfaceStrength, overlayStrength } of available) {
-      const strength = this.cachedHits.get(anchor.id)?.overlay ? overlayStrength : surfaceStrength;
+    const limit = registeredTerrain ? MAX_TERRAIN_LABELS : MAX_LABELS;
+    for (const { anchor, p, view, incidence, strength } of available) {
       const label = this.labels.get(anchor.id);
       const reject = () => { hide(label); this.eligibility.delete(anchor.id); };
       let hit: THREE.Vector3 | null = null;
-      if (targets.length) {
+      if (registeredTerrain) {
         const cached = this.cachedHits.get(anchor.id);
         // A deferred positive is never permission to display through terrain.
         if (!cached || cached.time !== now) { hide(label); continue; }
@@ -460,15 +453,31 @@ export class AdaptiveGraticule {
       } else {
         const front = this.referenceHit(view.x, view.y, camera);
         if (!front || Math.abs(front.latDeg - anchor.lat) > 0.001 || Math.abs(wrapLongitude(front.lonDeg - anchor.lon)) > 0.001) { reject(); continue; }
-        if (hit && camera.position.distanceTo(hit.clone().applyMatrix4(this.toWorld)) < camera.position.distanceTo(p) - this.bm.scaleFactor * 0.001) { reject(); continue; }
+        const distance = camera.position.distanceTo(p);
+        const direction = p.clone().sub(camera.position).normalize();
+        const ray = new THREE.Ray(camera.position, direction);
+        let obscured = false;
+        for (const occluder of foreignOccluders) {
+          const bound = ray.intersectSphere(occluder.sphere, new THREE.Vector3());
+          if (!bound || camera.position.distanceTo(bound) >= distance - this.bm.scaleFactor * 0.001) continue;
+          this.raycaster.set(camera.position, direction);
+          this.raycaster.far = distance - this.bm.scaleFactor * 0.001;
+          obscured = this.raycaster.intersectObjects(occluder.targets, true).length > 0;
+          this.raycaster.far = Infinity;
+          if (obscured) break;
+        }
+        if (obscured) { reject(); continue; }
       }
       const projected = fixed.clone().applyMatrix4(this.toWorld).project(camera);
-      const text = anchor.angle === 0 ? (anchor.axis === 'latitude' ? 'Equator 0°' : 'Prime 0°') : formatSurfaceAngle(anchor.angle, anchor.axis, anchor.step);
-      const labelWidth = text.length * 7 + 8;
-      const offsetX = anchor.axis === 'latitude' ? 8 : 0, offsetY = anchor.axis === 'longitude' ? -8 : 0;
+      const text = anchor.axis === 'latitude'
+        ? anchor.lat === 0 ? '0°N' : formatSurfaceAngle(anchor.lat, 'latitude', this.uniforms.uGridStep.value.x * annotationPattern(this.uniforms.uGridStep.value.x, this.uniforms.uGridStep.value.y).labelStride)
+        : anchor.lon === 0 ? '0°E' : formatSurfaceAngle(anchor.lon, 'longitude', this.uniforms.uGridStep.value.y * annotationPattern(this.uniforms.uGridStep.value.x, this.uniforms.uGridStep.value.y).labelStride);
+      const labelWidth = text.length * 8.5 + 10;
+      const offsetX = 0, offsetY = -LABEL_HEIGHT / 2 - 6;
       const x = (projected.x + 1) * width / 2 + offsetX, y = (1 - projected.y) * height / 2 + offsetY;
       const padding = label?.sprite.visible ? 3 : 6;
-      const rect = { x0: x - labelWidth / 2 - padding, x1: x + labelWidth / 2 + padding, y0: y - 10 - padding, y1: y + 10 + padding };
+      const rect = { x0: x - labelWidth / 2 - padding, x1: x + labelWidth / 2 + padding,
+        y0: y - LABEL_HEIGHT / 2 - padding, y1: y + LABEL_HEIGHT / 2 + padding };
       if (strength < 0.012 || projected.z < -1 || projected.z > 1 || rect.x0 < 4 || rect.x1 > width - 4 || rect.y0 < 4 || rect.y1 > height - 4
         || manager.canReserveContextRect?.(rect) === false) { reject(); continue; }
       const tierUseful = inPattern(anchor, this.uniforms.uGridStep.value.x, this.uniforms.uGridStep.value.y);
@@ -495,10 +504,10 @@ export class AdaptiveGraticule {
       }
       if (!label.sprite.visible) label.visibleSince = now;
       label.sprite.position.copy(fixed);
-      label.sprite.center.set(0.5 - offsetX / labelWidth, 0.5 + offsetY / 20);
+      label.sprite.center.set(0.5 - offsetX / labelWidth, 0.5 + offsetY / LABEL_HEIGHT);
       const unitsPerPixel = 2 * Math.tan(camera.fov * DEG / 2) / height / this.bm.scaleFactor;
-      label.sprite.scale.set(labelWidth * unitsPerPixel, 20 * unitsPerPixel, 1);
-      label.sprite.material.opacity = Math.min((anchor.angle === 0 ? 0.8 : 0.72) * strength, Math.max(0,
+      label.sprite.scale.set(labelWidth * unitsPerPixel, LABEL_HEIGHT * unitsPerPixel, 1);
+      label.sprite.material.opacity = Math.min(0.72 * strength, Math.max(0,
         label.sprite.material.opacity + (eligible ? dt * 5 : -dt * 4)));
       label.sprite.visible = label.sprite.material.opacity > 0;
       if (label.sprite.visible) active.add(anchor.id);
@@ -507,13 +516,13 @@ export class AdaptiveGraticule {
   }
   private createLabel(anchor: Anchor, text: string, width: number, dpr: number): Label {
     const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(width * dpr * 2); canvas.height = Math.ceil(20 * dpr * 2);
+    canvas.width = Math.ceil(width * dpr * 2); canvas.height = Math.ceil(LABEL_HEIGHT * dpr * 2);
     const ctx = canvas.getContext('2d')!;
     ctx.scale(dpr * 2, dpr * 2);
-    ctx.font = '12px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineWidth = 3; ctx.strokeStyle = '#101725'; ctx.strokeText(text, width / 2, 10);
-    ctx.fillStyle = anchor.angle === 0 ? (anchor.axis === 'latitude' ? '#eeb76a' : '#ee8982') : '#aac5e8';
-    ctx.fillText(text, width / 2, 10);
+    ctx.font = `${LABEL_FONT_SIZE}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 2; ctx.strokeStyle = '#101725'; ctx.strokeText(text, width / 2, LABEL_HEIGHT / 2);
+    ctx.fillStyle = '#b8c8da';
+    ctx.fillText(text, width / 2, LABEL_HEIGHT / 2);
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true,
       // Like body labels, annotation rectangles use CPU anchor occlusion instead of
       // cutting the billboard's glyphs against the curved surface's depth buffer.
@@ -524,12 +533,12 @@ export class AdaptiveGraticule {
     return { sprite, anchor, text, width, visibleSince: Infinity };
   }
   get metrics(): { candidates: number; labels: number; latitudeStep: number; longitudeStep: number; densityBlend: number; layout: 'geographic';
-    anchors: readonly GeographicGridAnchor[]; annotations: Array<{ id: string; tier: string; axis: Anchor['axis']; angle: number; step: number; latDeg: number; lonDeg: number; text: string; opacity: number }> } {
+    anchors: readonly GeographicGridAnchor[]; annotations: Array<{ id: string; tier: string; axis: Anchor['axis']; latDeg: number; lonDeg: number; text: string; opacity: number }> } {
     return { candidates: this.candidates.length, labels: [...this.labels.values()].filter(l => l.sprite.visible).length,
       latitudeStep: this.uniforms.uGridStep.value.x, longitudeStep: this.uniforms.uGridStep.value.y,
       densityBlend: this.uniforms.uGridBlend.value, layout: 'geographic', anchors: this.candidates,
       annotations: [...this.labels.values()].filter(l => l.sprite.visible).map(l => ({ id: l.anchor.id, tier: l.anchor.tier,
-        axis: l.anchor.axis, angle: l.anchor.angle, step: l.anchor.step, latDeg: l.anchor.lat, lonDeg: l.anchor.lon,
+        axis: l.anchor.axis, latDeg: l.anchor.lat, lonDeg: l.anchor.lon,
         text: l.text, opacity: l.sprite.material.opacity })) };
   }
   private disposeLabel(label: Label): void { label.sprite.removeFromParent(); label.sprite.material.map?.dispose(); label.sprite.material.dispose(); }

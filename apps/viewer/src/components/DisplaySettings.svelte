@@ -101,10 +101,14 @@
           </select>
         </label>
       {/if}
-      <label class="ui-body flex items-center gap-2">
-        <Checkbox checked={vs.grid.minorLines} onCheckedChange={() => setGridSettings({ minorLines: !vs.grid.minorLines })} class="h-3.5 w-3.5" />
-        <span>Minor lines</span>
-      </label>
+      {#if vs.grid.density === 'manual'}
+        <label class="ui-body flex items-center gap-2">
+          <Checkbox checked={vs.grid.minorLines} onCheckedChange={() => setGridSettings({ minorLines: !vs.grid.minorLines })} class="h-3.5 w-3.5" />
+          <span>Minor lines</span>
+        </label>
+      {:else}
+        <p class="ui-meta text-text-secondary">Major lines carry labels; lighter lines divide each cell.</p>
+      {/if}
       <details class="ui-meta text-text-secondary"><summary>Coordinates and surface</summary>
         <p>East-positive longitude (E/W), geodetic latitude on spheres and rotational ellipsoids. Triaxial bodies use planetocentric latitude. Lines follow the rendered surface and its current level of detail. Triaxial globes use a planetocentric reference surface. Mesh-body grids and DSK draping are unavailable.</p>
       </details>

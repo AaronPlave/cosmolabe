@@ -32,16 +32,17 @@ try {
     results.push({ name, fov, pose, ...frame });
   }
   const [wide, region, close, , restored] = results.map(r => r.metrics);
-  const sites = m => m.anchors.map(a => [a.axis, a.angle, a.lat, a.lon]).sort();
+  const sites = m => m.anchors.map(a => [a.lat, a.lon]).sort();
   // Existing collision entry/exit hysteresis may change the visible subset.
-  // The prescribed eligible ruler sites themselves must return unchanged.
-  const restoresRulers = sites(wide).length > 0 && JSON.stringify(sites(wide)) === JSON.stringify(sites(restored));
-  const pass = errors.length === 0 && requests === 0 && restoresRulers && wide.latitudeStep === 30 && wide.longitudeStep === 30
-    && region.latitudeStep < 30 && region.longitudeStep < 30 && close.latitudeStep < 1 && close.longitudeStep < 1
-    && restored.latitudeStep === 30 && restored.longitudeStep === 30 && results.every(r => r.metrics.candidates <= 96);
-  const report = { pass, renderer: 'Chromium SwiftShader; real lunar imagery, reference sphere', restoresRulers, gridRequests: requests, results, errors };
+  // The prescribed geographic sites themselves must return unchanged.
+  const restoresLattice = sites(wide).length > 0 && JSON.stringify(sites(wide)) === JSON.stringify(sites(restored));
+  const pass = errors.length === 0 && requests === 0 && restoresLattice && wide.latitudeStep === 30 && wide.longitudeStep === 30
+    && region.latitudeStep < 30 && region.longitudeStep < 30 && close.latitudeStep <= 1 && close.longitudeStep <= 1
+    && restored.latitudeStep === 30 && restored.longitudeStep === 30 && results.every(r => r.metrics.candidates <= 96
+      && r.runtime.visibleGridSprites === r.metrics.labels && r.metrics.labels <= 24);
+  const report = { pass, renderer: 'Chromium SwiftShader; real lunar imagery, reference sphere', restoresLattice, gridRequests: requests, results, errors };
   writeFileSync(resolve(out, 'metrics.json'), JSON.stringify(report, null, 2) + '\n');
-  console.log(JSON.stringify({ output: out, pass, restoresRulers, gridRequests: requests,
+  console.log(JSON.stringify({ output: out, pass, restoresLattice, gridRequests: requests,
     steps: results.map(r => [r.fov, r.metrics.latitudeStep, r.metrics.longitudeStep]), errors }));
   if (!pass) process.exitCode = 1;
 } finally { await browser.close(); rmSync(fixture, { force: true }); rmSync(baseline, { force: true }); }

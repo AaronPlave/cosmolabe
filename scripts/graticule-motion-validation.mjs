@@ -77,7 +77,7 @@ try {
   for (const f of frames) for (const p of f.points) {
     const annotation = f.metrics.annotations.find(a => a.id === p.id);
     if (!annotation) throw new Error('Visible sprite has no annotation identity');
-    lineErrors.push(Math.abs(annotation.axis === 'latitude' ? p.lat - annotation.angle : wrap(p.lon - annotation.angle)));
+    lineErrors.push(Math.max(Math.abs(p.lat - annotation.latDeg), Math.abs(wrap(p.lon - annotation.lonDeg))));
     const original = identities.get(p.id);
     if (original) { attachmentErrors.push(Math.max(Math.abs(p.lat - original.lat), Math.abs(wrap(p.lon - original.lon)))); survivingFramePairs++; }
     else identities.set(p.id, p);
@@ -94,21 +94,27 @@ try {
     const lines = metric.annotations.map(a => `${a.axis}:${a.latDeg}:${a.lonDeg}`);
     return count + lines.length - new Set(lines).size;
   }, 0);
-  const regionalAxes = [...new Set(frames.filter(f => f.stage === 'pan' || f.stage === 'near-ground').flatMap(f => f.metrics.annotations.map(a => a.axis)))];
   const patternErrors = frames.filter(f => f.metrics.densityBlend === 1).reduce((count, f) => {
-    const meridianStride = f.metrics.longitudeStep === 30 ? 360 : f.metrics.longitudeStep * 6;
-    const parallelStride = f.metrics.latitudeStep === 30 ? 360 : f.metrics.latitudeStep * 6;
     return count + f.metrics.annotations.filter(a => {
-      const sites = a.axis === 'latitude' ? [[a.latDeg, f.metrics.latitudeStep, 0], [a.lonDeg, meridianStride, 5]]
-        : [[a.lonDeg, f.metrics.longitudeStep, 0], [a.latDeg, parallelStride, 3]];
-      return sites.some(([value, stride, offset]) => Math.abs((value - offset) / stride - Math.round((value - offset) / stride)) > 1e-5);
+      const row = a.latDeg / f.metrics.latitudeStep, column = a.lonDeg / f.metrics.longitudeStep;
+      const integer = value => Math.abs(value - Math.round(value)) < 1e-5;
+      const step = Math.max(f.metrics.latitudeStep, f.metrics.longitudeStep);
+      const stride = step <= 0.02 ? 3 : step <= 1 ? 2 : 1;
+      const meridianStride = step === 30 ? 360 : Math.min(360, f.metrics.longitudeStep * 8);
+      const parallelStride = step === 30 ? 360 : Math.min(180, f.metrics.latitudeStep * 8);
+      const meridianOffset = step === 30 ? 5 : f.metrics.longitudeStep * 0.5;
+      const parallelOffset = step === 30 ? 3 : f.metrics.latitudeStep * 0.5;
+      return a.axis === 'latitude' ? !integer(row / stride) || !integer((a.lonDeg - meridianOffset) / meridianStride)
+        : a.axis === 'longitude' ? !integer(column / stride) || !integer((a.latDeg - parallelOffset) / parallelStride) : true;
     }).length;
   }, 0);
   const pass = patternErrors === 0 && duplicateSites === 0 && frames.length === 601 && survivingFramePairs > 100
     && stationaryToggles === 0 && maxAttachmentErrorDeg < 1e-6 && controlOverlaps === 0 && errors.length === 0 && requests === 0
-    && maxLineErrorDeg < 1e-6 && frames.every(f => f.metrics.labels <= 3 && f.metrics.candidates <= 96);
+    && maxLineErrorDeg < 1e-6 && frames.every(f => f.metrics.labels <= 3 && f.metrics.candidates <= 96
+      && new Set(f.metrics.annotations.filter(a => a.axis === 'latitude').map(a => a.lonDeg)).size <= 1
+      && new Set(f.metrics.annotations.filter(a => a.axis === 'longitude').map(a => a.latDeg)).size <= 1);
   const summary = { pass, renderer: 'Chromium SwiftShader; real lunar imagery, synthetic resident relief; fixed 30 Hz clock', durationSeconds: frames.at(-1).time,
-    frames: frames.length, patternErrors, duplicateSites, regionalAxes, maxLineErrorDeg, maxAttachmentErrorDeg, survivingFramePairs, stationaryToggles, heldFrames: held.length,
+    frames: frames.length, patternErrors, duplicateSites, maxLineErrorDeg, maxAttachmentErrorDeg, survivingFramePairs, stationaryToggles, heldFrames: held.length,
     gridRequests: requests, controlOverlaps, maxUpdateMs: Math.max(...frames.map(f => f.updateMs)), errors, captures };
   writeFileSync(resolve(out, 'metrics.json'), JSON.stringify(summary, null, 2) + '\n');
   writeFileSync(resolve(out, 'frames.json'), JSON.stringify(frames) + '\n');

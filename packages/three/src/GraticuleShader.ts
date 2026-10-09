@@ -1,21 +1,15 @@
 import * as THREE from 'three';
 import type { SurfaceCoordinates } from '@cosmolabe/core';
 
-// Shared presentation thresholds. Labels approximate irradiance at their fixed
-// anchor; the surface shader measures the actual lit/albedo ratio per fragment.
-export const GRID_AUTO_STEPS = [30, 10, 5, 1, 0.2, 0.1, 0.02, 0.01, 0.002, 0.001] as const;
+// Shared presentation thresholds for surface lines and fixed-site labels.
+export const GRID_AUTO_STEPS = [30, 10, 5, 1, 0.2, 0.1, 0.02, 0.01, 0.005, 0.001] as const;
 export const GRID_PRESENTATION = {
-  lighting: [0.02, 0.5], horizon: [0.12, 0.45], congestion: [12, 36], detailCongestion: [24, 64], nightFloor: 0.08,
+  horizon: [0.12, 0.45], congestion: [12, 36], detailCongestion: [70, 140],
 } as const;
 export function gridSmoothstep(edges: readonly [number, number], value: number): number {
   const t = THREE.MathUtils.clamp((value - edges[0]) / (edges[1] - edges[0]), 0, 1);
   return t * t * (3 - 2 * t);
 }
-export function gridLightingStrength(illumination: number): number {
-  return GRID_PRESENTATION.nightFloor + (1 - GRID_PRESENTATION.nightFloor)
-    * gridSmoothstep(GRID_PRESENTATION.lighting, illumination);
-}
-
 export function makeGraticuleUniforms(coordinates: SurfaceCoordinates) {
   const shape = coordinates.datum.referenceShape;
   const [a,, c] = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
@@ -57,10 +51,6 @@ float gridLine(float angle, float stepSize, float derivative, vec2 congestion) {
   return (1.0 - smoothstep(widthDeg * 0.25, widthDeg * 0.85, distanceDeg))
     * smoothstep(congestion.x, congestion.y, stepSize / widthDeg);
 }
-float hierarchyStep(int index) {
-  ${GRID_AUTO_STEPS.map((step, i) => `if (index == ${i}) return ${step.toFixed(3)};`).join('\n  ')}
-  return 0.001;
-}
 float axisLine(vec2 angles, vec2 deriv, vec2 steps, vec2 congestion) {
   return max(gridLine(angles.x, steps.x, deriv.x, congestion),
     gridLine(angles.y, steps.y, deriv.y, congestion) * smoothstep(2.0, 8.0, 90.0 - abs(angles.x)));
@@ -69,23 +59,11 @@ vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize, vec2 detailStep, float hi
   vec2 majorCongestion = vec2(${GRID_PRESENTATION.congestion.join(', ')});
   vec2 detailCongestion = vec2(${GRID_PRESENTATION.detailCongestion.join(', ')});
   float major = axisLine(angles, deriv, stepSize, majorCongestion);
-  float opacity = major * mix(0.22, 0.12, hierarchy);
-  if (hierarchy > 0.5) {
-    // Every ancestor is evaluated with its own local projected spacing. A
-    // compressed child never removes a still-resolvable coarse coordinate line.
-    for (int i = 0; i < ${GRID_AUTO_STEPS.length}; i++) {
-      float coarseStep = hierarchyStep(i);
-      if (coarseStep < min(stepSize.x, stepSize.y)) continue;
-      vec2 coarse = vec2(gridLine(angles.x, coarseStep, deriv.x, majorCongestion),
-        gridLine(angles.y, coarseStep, deriv.y, majorCongestion) * smoothstep(2.0, 8.0, 90.0 - abs(angles.x)));
-      coarse *= step(stepSize, vec2(coarseStep));
-      vec2 strength = i == 0 ? vec2(0.25) : mix(vec2(0.12), vec2(0.18), step(stepSize * 1.0001, vec2(coarseStep)));
-      opacity = max(opacity, max(coarse.x * strength.x, coarse.y * strength.y));
-    }
-    opacity = max(opacity, axisLine(angles, deriv, detailStep, detailCongestion) * 0.035);
-  }
-  float minor = axisLine(angles, deriv, stepSize * 0.5, detailCongestion);
-  opacity = max(opacity, minor * uGridMinor * mix(0.07, 0.018, hierarchy));
+  float opacity = major * mix(0.22, 0.17, hierarchy);
+  // Half-step lines give every major cell the same quiet subdivision. They
+  // carry no coordinate labels; the major lines remain the readable ruler.
+  float minor = axisLine(angles, deriv, detailStep, detailCongestion);
+  opacity = max(opacity, minor * uGridMinor * mix(0.065, 0.04, hierarchy));
   float equator = 1.0 - smoothstep(deriv.x * 0.25, deriv.x * 0.85, abs(angles.x));
   float prime = (1.0 - smoothstep(deriv.y * 0.25, deriv.y * 0.85, abs(angles.y)))
     * smoothstep(2.0, 8.0, 90.0 - abs(angles.x));
@@ -115,15 +93,10 @@ if (uGridVisible > 0.0) {
   vec2 deriv = vec2(fwidth(angles.x), (length(dFdx(unitLon)) + length(dFdy(unitLon))) * 57.29577951308232);
   deriv = max(deriv * uGridPixelRatio, vec2(0.0000001));
   vec4 grid = mix(gridColor(angles, deriv, uGridPreviousStep, uGridPreviousDetailStep, uGridPreviousHierarchy), gridColor(angles, deriv, uGridStep, uGridDetailStep, uGridHierarchy), uGridBlend);
-  // Modulate the overlay by the surface lighting instead of illuminating night.
-  float luminance = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
-  // Normalize by albedo so dark daytime imagery still has a useful grid.
-  float illumination = luminance / max(dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)), 0.001);
-  float lighting = mix(${GRID_PRESENTATION.nightFloor}, 1.0, smoothstep(${GRID_PRESENTATION.lighting[0]}, ${GRID_PRESENTATION.lighting[1]}, illumination));
   vec3 bodyNormal = normalize(p / vec3(uGridShape.x * uGridShape.x, uGridShape.x * uGridShape.x, uGridShape.y * uGridShape.y));
   vec3 eye = (uGridViewToBody * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
   float horizon = smoothstep(${GRID_PRESENTATION.horizon[0]}, ${GRID_PRESENTATION.horizon[1]}, dot(bodyNormal, normalize(eye - p)));
-  outgoingLight = mix(outgoingLight, grid.rgb * lighting, grid.a * lighting * horizon * uGridVisible);
+  outgoingLight = mix(outgoingLight, grid.rgb, grid.a * horizon * uGridVisible);
 }
 #include <opaque_fragment>`);
 }
@@ -135,7 +108,7 @@ export function applyGraticuleMaterial(material: THREE.Material, uniforms: Grati
   const compile = material.onBeforeCompile.bind(material);
   const key = material.customProgramCacheKey();
   material.onBeforeCompile = (shader, renderer) => { compile(shader, renderer); injectGraticule(shader, localUniforms); };
-  material.customProgramCacheKey = () => key + '_graticule_v3';
+  material.customProgramCacheKey = () => key + '_graticule_v6';
   const render = material.onBeforeRender.bind(material);
   material.onBeforeRender = (renderer, scene, camera, geometry, object, group) => {
     render(renderer, scene, camera, geometry, object, group);

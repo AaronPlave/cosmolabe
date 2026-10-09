@@ -1,5 +1,24 @@
 # Issue 157: adaptive surface grid and geographic annotations
 
+## Current one-band review pass
+
+The latest [PR feedback](https://github.com/AaronPlave/cosmolabe/pull/163#issuecomment-6048743556)
+asks for one fixed latitude ruler and one fixed longitude ruler, large labelled
+cells, and at most one quiet subdivision level. The current implementation
+selects one predetermined geographic carrier per axis, decouples caption
+spacing from line spacing, and caps visible captions at 24. The selection
+target is 180 CSS pixels between active lines, with discrete-step hysteresis.
+
+The [final browser layout metrics](one-band/metrics.json) pass with one grid
+instance per fixture, matching visible sprite and diagnostic counts, no duplicate
+sites, and no browser errors or grid requests. Inspect the [small night-side
+globe](one-band/small-globe-night-side.png), [regional rulers](one-band/regional-coordinate-lattice.png),
+and [wide close view](one-band/wide-fine-line-labels.png). The
+[601-frame motion metrics](one-band/motion-metrics.json) and
+[fixed-altitude optical zoom metrics](one-band/optical-metrics.json) also pass.
+These fixtures use the real BodyMesh/render path but do not reproduce the full
+viewer UI or live streamed terrain; those remain visual acceptance work.
+
 The production grid is a procedural overlay in surface materials. Shared core
 body-fixed conversions keep it consistent with Point Probe, resident terrain
 sampling and surface navigation. Spheres/rotational ellipsoids use geodetic
@@ -21,26 +40,21 @@ The pattern is geographic, independent of camera position and search bounds:
 
 - At globe scale, consecutive 30° latitude values follow the fixed 5°E meridian;
   consecutive longitude values follow the fixed 3°N parallel. These reproduce the
-  old grid's two geographic rulers, with canonical E/W formatting and explicit
-  equator/prime captions.
-- At finer tiers, consecutive annotated major values follow repeating fixed
-  meridian/parallel carriers. Meridian carriers have longitude `5° + k × 6 × longitudeStep`;
-  parallel carriers have latitude `3° + k × 6 × latitudeStep`. A 30° axis uses only
-  its original carrier (360° repeat); other carrier intervals are capped at 360°.
-  Axis offsets stagger the two sequences. Neither interval nor phase follows the
-  viewport, camera, visible hemisphere or search bounds.
-- The carrier interval was selected after rendering a manual 30° globe and 0.2°
-  regional prototype against the old grid at matching poses. The regional prototype
-  produced a readable sequence of ten captions. Auto includes the 0.2° major tier
-  with quieter 0.1° detail to retain that arrangement in the final comparison.
-- Values repeat only across prescribed carriers. There is no per-line winner,
-  same-line replacement search, axis quota or requirement to fill the sprite pool.
-  One-axis and empty views are valid; Point Probe supplies exact coordinates.
-- Longitude labels above ±70° and all sites above ±85° are suppressed. Text stays
-  12 CSS pixels with DPR-aware rasterization.
+  old grid's two geographic rulers, with canonical E/W formatting and distinct
+  zero latitude and zero longitude values.
+- At finer tiers, predetermined meridian and parallel carriers repeat over the
+  body, but only one complete band per axis is displayed. The selected bands
+  stay fixed until the camera footpoint moves far enough to choose another
+  carrier. The old bands retire as a whole; individual captions never slide or
+  trigger same-line replacements. One-axis and empty views are valid.
+- Caption values use a separate stride from grid lines. Fine major lines can
+  therefore appear without a caption on every line. Point Probe supplies exact
+  coordinates.
+- Sites above ±85° are suppressed. Text is 14 CSS pixels with DPR-aware
+  rasterization.
 
 Camera-dependent discovery only enumerates nearby pieces of these prescribed
-carriers. Contiguous canonical integer indices bound work at 12 × 8 sites per
+carriers. Contiguous canonical integer indices bound work at 24 sites per
 axis, then at most 96 candidates. Search bounds never change stride or phase.
 Nearby resident-height sampling supports cameras below the reference datum,
 using at most six entry-refinement iterations and no far-side exit. Longitude is
@@ -54,13 +68,9 @@ foreshortening hide the affected site. Another independently prescribed site may
 naturally enter the view; no replacement is generated to preserve a coordinate
 value's coverage. Sparse and empty regions are accepted.
 
-Tier changes introduce/retire predetermined patterns over the grid's 180 ms
-crossfade. Shared sites preserve their original anchor IDs when both their site
-and coordinate line belong to the new pattern. Other old sites retire after the
-crossfade even if their coordinate line survives. Full pattern membership and
-actual line membership handle non-nested nice steps explicitly. Equivalent
-annotations at the same geographic site are deduplicated across tiers; repeats
-at different prescribed sites remain independent.
+Tier changes introduce and retire predetermined patterns over the grid's 180 ms
+crossfade. An outgoing band does not remain visible alongside the incoming
+band. Pattern membership handles non-nested nice steps explicitly.
 
 ## Registration and visibility budgets
 
@@ -78,64 +88,50 @@ same latitude line. The height is reconstructed at the original coordinate,
 independently of camera position.
 
 Terrain views show at most three labels: six geometry queries validate them,
-leaving two queries to discover another candidate. Reference views with other
-occluders show at most six labels. The hard budget remains eight triangle queries
-per body per frame, including discovery. Actual occlusion, unavailable current
-results and UI overlap hide immediately; fades and visibility hysteresis never
-override them. New terrain data/disposal invalidates the cache. GPU-only vertex displacement
+leaving two queries to discover another candidate. Reference views can use the
+analytic surface intersection and test foreign occluders whose bounds intersect
+the anchor ray. The hard budget for terrain registration remains eight triangle
+queries per body per frame, including discovery. Actual occlusion, unavailable
+current results and UI overlap hide immediately; fades and visibility hysteresis
+never override them. New terrain data/disposal invalidates the cache. GPU-only vertex displacement
 is not represented by Three's triangle picker; those fallback globes keep the
 surface shader but suppress labels instead of certifying undisplaced triangles
 as visible terrain.
 
 ## Grid rendering and state
 
-Auto uses the deliberately nested hierarchy
-`30° → 10° → 5° → 1° → 0.2° → 0.1° → 0.02° → 0.01° → 0.002° → 0.001°`.
-Every finer interval subdivides its parent. All ancestors remain in the shader;
-coarser coordinates retain their weight across transitions. Manual spacing keeps
-all existing nice-step choices, including non-nested ones, and does not pretend
-those transitions are cumulative subdivision.
+Auto chooses one major step from a nested set and renders at most one quieter
+minor subdivision. Equator and prime remain distinct reference lines. Manual
+spacing keeps the existing nice-step choices, including non-nested ones.
 
 At globe scale Auto keeps the old 30° rulers. Globe/regional hysteresis uses the
 projected reference silhouette diameter relative to the viewport's shorter side:
 exit globe mode above 2.3 viewport diameters, re-enter at or below 1.95. Projection
 matrix magnification includes field of view and lens zoom; altitude is not a veto.
-Inside the reference bounding sphere the view is regional. Coarse lines remain
-in the shader when optical zoom introduces finer tiers and fixed carriers.
+Inside the reference bounding sphere the view is regional. Optical zoom can
+introduce finer tiers and fixed carriers.
 Within regional views, independent local latitude/longitude projection derivatives
-are sampled every 150 ms. A 60–180 CSS-pixel hysteresis band surrounds a 100 pixel
-target. Both complete hierarchies crossfade over 180 ms, starting with the previous
-grid on the transition frame.
+are sampled every 150 ms. The selection target is 180 CSS pixels, with hysteresis.
+The outgoing and incoming configurations crossfade over 180 ms, starting with
+the previous grid on the transition frame.
 
-Reference equator/prime lines use distinct colors and 35% opacity; the 30° structure
-uses 25%, other coarser ancestors 18%, active majors 12%, and the next finer,
-unlabelled subdivisions 3.5%. These are maxima before modulation. Manual majors
-remain 22%, optional manual minors 7%; optional Auto half-step detail uses 1.8%.
-Weights combine by maximum rather than accumulating at coincident lines.
+Reference equator/prime lines use distinct restrained colors. Active major lines
+are stronger than the one optional minor subdivision. Coincident line weights
+combine by maximum rather than accumulating.
 
 Fragment derivatives antialias each axis and measure its own local projected
-spacing, including longitude seams and polar suppression. Major/ancestor lattices
-fade over 12–36 CSS pixels; detail fades earlier over 24–64 pixels. Each ancestor
-uses its own spacing, so compressed children cannot suppress a still-resolvable
-parent. Horizon attenuation spans incidence 0.12–0.45. This operates locally per
+spacing, including longitude seams and polar suppression. Minor detail fades
+before it becomes compressed near the horizon. Horizon attenuation spans
+incidence 0.12–0.45. This operates locally per
 fragment alongside the view's adaptive spacing, rather than drawing a uniformly
 dense lattice into the distance.
 
-Lighting is normalized by albedo so dark daytime imagery remains useful while
-night lines stay subdued. Labels share the shader's illumination, horizon and
-major-congestion thresholds, with an inverse screen Jacobian approximating
-coordinate `fwidth` in rolled/skewed views. Their opacity follows line crossfade
-weight, squared lighting strength (the shader modulates color and blend), limb
-attenuation and local congestion. Ordinary caption opacity is capped at 72%,
-reference text at 80%. Entry/exit strength thresholds suppress captions where
-their coordinate lines cannot be interpreted.
-
-CPU annotation lighting approximates normalized diffuse irradiance from the
-surface scene's ambient/directional lights, independent of imagery albedo. Local
-overlays use their own scene lighting when the current geometry hit is an overlay;
-a bright overlay scene does not brighten labels on uncovered night terrain.
-This approximation does not sample GPU shadow/normal maps or read back pixels;
-real shadowed/mixed-LOD terrain acceptance remains pending.
+The grid remains visible across the day/night boundary. Labels share its
+horizon and major-line congestion thresholds, with an inverse screen Jacobian
+approximating coordinate `fwidth` in rolled/skewed views. Their opacity follows
+line crossfade weight, limb attenuation and local congestion, capped at 72%.
+Entry/exit strength thresholds suppress captions where their coordinate lines
+cannot be interpreted. Real shadowed/mixed-LOD terrain acceptance remains pending.
 
 The shader follows rendered fragments without extra grid geometry or data
 requests. Existing imagery, shadow and atmosphere hooks compose with it. Tile
@@ -173,6 +169,10 @@ Harnesses remove their temporary page/module. The motion harness uses repository
 lunar imagery plus synthetic resident relief, with a fixed 30 Hz application
 clock and every rendered frame encoded. It validates attachment between discovery
 plans despite slower software rendering; it is not a real-time performance claim.
+
+The following captures document the earlier `098434b` presentation and are kept
+as historical comparisons. For this revision's results, use the one-band links
+at the top of this document.
 
 [Fixed-altitude optical zoom](optical-zoom/metrics.json) reproduces the review:
 a radius-100 reference sphere, camera at `[300, 0, 0]`, target `[100, 0, 0]`,
@@ -229,8 +229,9 @@ lighting, residual-motion stability, seams/poles, bounded enumeration, current-f
 ridge/terrain occlusion, eight-query limits and upstream fade/eviction.
 
 Earlier reports are historical evidence. The block-corner/half-block arrangement
-in `regular-pattern/` is superseded by these ordered carriers. The latest code validation passes all 141 suites / 1,575 tests, full
-typechecking, lint and purity checks. All six matching-camera comparison captures
+in `regular-pattern/` is superseded by these ordered carriers. At `098434b`, code
+validation passed all 141 suites / 1,575 tests, full typechecking, lint and purity
+checks. All six matching-camera comparison captures
 pass without browser/shader errors. The globe/regional captures show seven/ten
 captions respectively. With captions disabled, the actual distant surface band
 has no grid contribution above the diagnostic pixel threshold; 3.75% of foreground
