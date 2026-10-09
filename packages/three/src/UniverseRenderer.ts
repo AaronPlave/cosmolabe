@@ -13,6 +13,7 @@ import {
   type Body,
   type GeometryEvent,
   type SpatialRelationship,
+  type SpatialEndpoint,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { RingMesh } from './RingMesh.js';
@@ -235,6 +236,7 @@ export class UniverseRenderer {
 
   private readonly universe: Universe;
   private readonly spatialRelationships: SpatialRelationshipLayer;
+  private readonly spatialScene = new THREE.Scene();
   private spatialCalloutRects: ScreenRect[] = [];
   private eventCalloutRect: ScreenRect | null = null;
   private spatialInteraction: SpatialInteraction | null = null;
@@ -418,7 +420,7 @@ export class UniverseRenderer {
       universe, this.scaleFactor, this.camera, canvas, this.labelContainer,
       () => this.spatialCalloutObstacles(),
     );
-    this.spatialRelationships.attach(this.scene);
+    this.spatialRelationships.attach(this.spatialScene);
 
     // Forward universe events on the renderer event bus
     for (const event of ['time:change', 'body:added', 'body:removed', 'body:trajectoryChanged', 'body:rotationChanged', 'catalog:loaded'] as const) {
@@ -598,6 +600,10 @@ export class UniverseRenderer {
     const selected = relationships.some(item => item.selected && item.visible !== false);
     for (const line of this.trajectoryLines.values()) line.setMeasurementContext(selected);
   }
+
+  setSpatialPickPreview(endpoint: SpatialEndpoint | null): void { this.spatialRelationships.setPickPreview(endpoint); }
+  clearSpatialPickPreview(): void { this.spatialRelationships.setPickPreview(null); this.setHoveredBody(null); }
+  setSpatialDraftEndpoints(endpoints: readonly SpatialEndpoint[]): void { this.spatialRelationships.setDraftEndpoints(endpoints); }
 
   /** Host callbacks keep drafts and selection in one place, across mouse, touch and cards. */
   setSpatialInteraction(interaction: SpatialInteraction): void {
@@ -991,6 +997,7 @@ export class UniverseRenderer {
     // all three are current-frame values (camera is not in the scene graph, so
     // we must explicitly update its world matrix).
     this.camera.updateMatrixWorld();
+    this.spatialRelationships.setVisible(!(this.cameraController.mode === CameraModeName.INSTRUMENT && this.instrumentView?.active));
     this.spatialCalloutRects = this.spatialRelationships.update(et, this._lastOriginAbsPos);
     this.labelManager?.setReservedRects([...this.spatialCalloutRects, ...(this.eventCalloutRect ? [this.eventCalloutRect] : [])]);
     // Update labels
@@ -1147,6 +1154,11 @@ export class UniverseRenderer {
     }
 
     this.camera.layers.enableAll();
+    // Dedicated annotation pass after terrain and models. Measurements never draw
+    // in the main/model passes; instrument/PiP composition stays above this pass.
+    if (!(this.cameraController.mode === CameraModeName.INSTRUMENT && this.instrumentView?.active)) {
+      this.renderer.render(this.spatialScene, this.camera);
+    }
 
     // Instrument view — PiP or full-screen depending on camera mode
     const isInstrumentMode = this.cameraController.mode === CameraModeName.INSTRUMENT;
@@ -3778,13 +3790,18 @@ export class UniverseRenderer {
     if (this._hoverPickTimer) return; // a pick is already scheduled
     const wait = Math.max(
       0,
-      UniverseRenderer._hoverPickIntervalMs - (performance.now() - this._lastHoverPickMs),
+      (this.spatialInteraction?.picking() ? 100 : UniverseRenderer._hoverPickIntervalMs) - (performance.now() - this._lastHoverPickMs),
     );
     this._hoverPickTimer = window.setTimeout(() => {
       this._hoverPickTimer = 0;
       this._lastHoverPickMs = performance.now();
       // Label-only pick (cheap; runs while mousing) with a tight slop so the
       // hover hitbox hugs the label text rather than a loose 20px halo.
+      if (this.spatialInteraction?.picking()) {
+        this.spatialInteraction.preview?.(this._lastPointer.x, this._lastPointer.y);
+        this.renderer.domElement.style.cursor = 'crosshair';
+        return;
+      }
       const measurement = this.spatialInteraction?.picking() ? null : this.spatialRelationships.pick(this._lastPointer.x, this._lastPointer.y, 7);
       this.spatialInteraction?.onHover(measurement);
       const eventHit = measurement || this.spatialInteraction?.picking() ? null : this.pickSceneEvent(this._lastPointer.x, this._lastPointer.y, 11);
@@ -3835,6 +3852,7 @@ export class UniverseRenderer {
 
   private _onPointerLeave = (): void => {
     this.spatialInteraction?.onHover(null);
+    this.spatialInteraction?.clearPreview?.();
     this._sceneEventHit = null;
     if (this._hoverPickTimer) {
       clearTimeout(this._hoverPickTimer);

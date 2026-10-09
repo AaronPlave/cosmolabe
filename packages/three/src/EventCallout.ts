@@ -265,6 +265,8 @@ export class EventCallout {
 
   /** Optional interaction for persistent measurements; event annotations stay passive. */
   setInteraction(id: string, activate: (event: MouseEvent | KeyboardEvent) => void, hover: (active: boolean) => void): void {
+    this.leader.setAttribute('stroke-dasharray', '2 3');
+    this.leader.setAttribute('stroke-opacity', '0.4');
     this.box.dataset.measurementId = id;
     this.box.style.pointerEvents = 'auto';
     this.box.style.cursor = 'pointer';

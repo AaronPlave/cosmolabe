@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { anglePoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
+import { anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
 
 describe('measurement geometry', () => {
   it('uses finite independent segments and draws the arc for a straight angle', () => {
@@ -49,4 +49,18 @@ describe('measurement picking and display scale', () => {
     expect(nearestMeasurementHit([{ id: 'near', distance: 1 }, hits[1]], 'selected')).toBe('near');
     expect(nearestMeasurementHit([], null)).toBeNull();
   });
+});
+
+
+it('stops the direction shaft at the cone base for short and full connections', () => {
+  const source = new THREE.Vector3(1, 2, 3);
+  for (const length of [0.01, 88, 100000]) {
+    const tip = source.clone().add(new THREE.Vector3(0, length, 0));
+    const head = Math.min(length * 0.3, 13);
+    const shaft = directionShaftPoints(source, tip, head);
+    expect(shaft[1].distanceTo(source)).toBeCloseTo(length - head);
+    expect(shaft[1].distanceTo(tip)).toBeCloseTo(head);
+  }
+  expect(directionShaftPoints(source, source, 0)).toEqual([]);
+  expect(directionShaftPoints(source, source.clone().add(new THREE.Vector3(0, 1, 0)), 2)).toEqual([]);
 });

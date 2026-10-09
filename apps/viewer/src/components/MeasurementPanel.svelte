@@ -1,17 +1,20 @@
 <script lang="ts">
   import { Eye, EyeOff, MousePointer2, Scan, MoreHorizontal, X } from 'lucide-svelte';
   import { endpointLabel, type SpatialRelationship } from '@cosmolabe/core';
+  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { Button } from '$lib/components/ui/button';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import { vs } from '../lib/viewer-state.svelte';
   import {
-    cancelMeasurementEdit, editMeasurement, hoverMeasurement, measurementDescription, measurementValue,
-    measurements, removeMeasurement, resetMeasurementDraft, saveMeasurement, startMeasurementPick,
+    cancelMeasurementEdit, editMeasurement, hoverMeasurement, measurementColors, measurementDescription, measurementValue, newMeasurement, pickInstruction, renderedMeasurements, draftMeasurement,
+    measurements, removeMeasurement, cancelMeasurementPick, saveMeasurement, startMeasurementPick,
     syncMeasurements, toggleMeasurementSelection, type Slot,
   } from '../lib/spatial-measurements.svelte';
 
   interface Props { onClose: () => void; }
   let { onClose }: Props = $props();
+  let openMenuId = $state<string | null>(null);
+  $effect(() => { renderedMeasurements(); syncMeasurements(); });
   const kind = $derived(measurements.draftKind);
   const bodies = $derived(vs.bodies.map(body => body.name).sort());
   const canCreate = $derived(!!measurements.draft.source && !!measurements.draft.target &&
@@ -19,24 +22,28 @@
 
   function changeKind(next: typeof kind) {
     measurements.draftKind = next;
-    measurements.pendingPickSlot = null;
-    measurements.pickFeedback = '';
+    cancelMeasurementPick();
     if (next !== 'angle') measurements.draft.vertex = null;
   }
   function setEntity(slot: Slot, bodyName: string) {
     measurements.draft[slot] = bodyName ? { kind: 'entity', bodyName } : null;
-    if (measurements.pendingPickSlot === slot) measurements.pendingPickSlot = null;
+    if (measurements.pendingPickSlot === slot) cancelMeasurementPick();
   }
-  function close() { resetMeasurementDraft(); onClose(); }
-  function toggle(item: SpatialRelationship) { item.visible = item.visible === false; syncMeasurements(); }
-  function slotLabel(slot: Slot): string {
-    return kind === 'angle' ? slot === 'vertex' ? 'At' : 'Toward' : slot === 'source' ? 'Source' : 'Target';
+  function close() { cancelMeasurementPick(); openMenuId = null; onClose(); }
+  function toggle(item: SpatialRelationship) {
+    const saved = measurements.items.find(value => value.id === item.id);
+    if (saved) saved.visible = saved.visible === false;
+    syncMeasurements();
   }
 </script>
 
 <InstrumentPanel key="measure" title="Measurements" width={344} onClose={close}>
   <p class="ui-helper mb-3 text-text-secondary">Straight-line distance between endpoints. Surface points move with their body.</p>
-  {#if measurements.editingId}<p class="ui-label mb-2">{measurements.duplicating ? 'Duplicate measurement' : 'Edit measurement'}</p>{/if}
+  <div class="flex items-center justify-between gap-2 mb-2">
+    <span class="ui-label">{measurements.editingId ? measurements.duplicating ? 'Duplicate measurement' : 'Selected measurement' : 'New measurement'}</span>
+    <Button variant="outline" size="sm" class="ui-control" onclick={newMeasurement}>New measurement</Button>
+  </div>
+  {#if measurements.editingId}<p class="ui-helper text-text-muted mb-2">Changes preview immediately. Save commits; Cancel restores the original. Switching or closing retains unfinished work.</p>{/if}
   <div class="flex gap-1" aria-label="Measurement type">
     {#each ['distance','angle','direction'] as option}
       <Button variant={kind === option ? "secondary" : "outline"} size="sm" class="ui-control flex-1 capitalize" aria-pressed={kind === option} onclick={() => changeKind(option as typeof kind)}>{option}</Button>
@@ -46,14 +53,22 @@
   {@render endpointRow('source', kind === 'angle' ? 'Toward' : 'Source')}
   {@render endpointRow('target', kind === 'angle' ? 'Toward' : 'Target')}
   {#if measurements.pendingPickSlot}
-    <div class="ui-helper pick-instruction" role="status">Pick {slotLabel(measurements.pendingPickSlot).toLowerCase()} {measurements.pickMode === 'object' ? 'object' : 'point'} in the scene · Esc to cancel</div>
+    <div class="ui-helper pick-instruction" role="status">{pickInstruction()} · Esc to cancel</div>
     {#if measurements.pickFeedback}<p class="ui-helper mt-1" role="status">{measurements.pickFeedback}</p>{/if}
   {/if}
   {#if Object.values(measurements.draft).some(endpoint => endpoint?.kind === 'body-fixed')}
     <p class="ui-helper mt-2 text-text-muted">Surface measurements use straight lines, not distance along the surface.</p>
   {/if}
   <div class="settings">
-    <label class="ui-label flex items-center gap-2">Color <input type="color" class="swatch" bind:value={measurements.draftColor} aria-label="Measurement color" /></label>
+    <div class="colors" role="group" aria-label="Measurement color presets">
+      {#each measurementColors as preset}
+        <button class="preset" class:chosen={measurements.draftColor.toLowerCase() === preset.color} style:background={preset.color} aria-label={`${preset.name} measurement color`} aria-pressed={measurements.draftColor.toLowerCase() === preset.color} title={preset.name} onclick={() => measurements.draftColor = preset.color}></button>
+      {/each}
+      <label class="custom-color ui-label" title="Custom measurement color">
+        <input type="color" class="swatch" bind:value={measurements.draftColor} aria-label="Custom measurement color" />
+        <span>Custom…</span>
+      </label>
+    </div>
     {#if kind === 'direction'}
       <label class="ui-helper"><input type="checkbox" bind:checked={measurements.draftShowDistance} /> Show distance</label>
       <label class="ui-helper"><input type="checkbox" bind:checked={measurements.draftFullLength} /> Full-length connection</label>
@@ -65,25 +80,26 @@
   </div>
 
   {#if measurements.items.length}<div class="divider"></div>{/if}
-  {#each measurements.items as item (item.id)}
+  {#each measurements.items as saved (saved.id)}
+    {@const item = saved.id === measurements.editingId ? draftMeasurement(saved.id) ?? saved : saved}
     {@const value = measurementValue(item, vs.et)}
     {@const selected = measurements.selectedId === item.id}
-    <div class="item" role="group" aria-label={`${item.kind} measurement`} onmouseenter={() => hoverMeasurement(item.id)} onmouseleave={() => hoverMeasurement(null)} class:selected class:hovered={measurements.hoveredId === item.id} class:unavailable={value.includes('Unavailable') || value.includes('Undefined')}>
+    <div class="item" role="group" aria-label={`${item.kind} measurement`} onmouseenter={() => hoverMeasurement(item.id)} onmouseleave={() => hoverMeasurement(null)} class:selected class:hovered={measurements.hoveredId === item.id} class:unavailable={value.includes('Unavailable') || value.includes('Undefined') || value.includes('Incomplete')}>
       <span class="list-swatch" style:background={item.color ?? '#82aabd'}></span>
       <button class="readout min-w-0 flex-1 text-left" aria-label={`Select ${item.kind} measurement`} aria-pressed={selected} onclick={() => toggleMeasurementSelection(item.id)}>
         <span class="ui-label capitalize">{item.kind}</span>
-        {#if selected}<small>{measurementDescription(item)}</small>{/if}
+        {#if selected && !value.includes('Incomplete')}<small>{measurementDescription(item)}</small>{/if}
         <span class="value">{value}</span>
       </button>
       <Button variant="ghost" size="icon-sm" aria-label={item.visible === false ? `Show ${item.kind}` : `Hide ${item.kind}`} title={item.visible === false ? 'Show measurement' : 'Hide measurement'} onclick={() => toggle(item)}>{#if item.visible === false}<EyeOff size={14}/>{:else}<Eye size={14}/>{/if}</Button>
-      <details class="row-menu">
-        <summary aria-label={`Actions for ${item.kind}`} title="Measurement actions"><MoreHorizontal size={16}/></summary>
-        <div class="menu">
-          <button class="ui-control" onclick={(e) => { editMeasurement(item.id); e.currentTarget.closest('details')?.removeAttribute('open'); }}>Edit</button>
-          <button class="ui-control" onclick={(e) => { editMeasurement(item.id, true); e.currentTarget.closest('details')?.removeAttribute('open'); }}>Duplicate</button>
-          <button class="ui-control" onclick={() => removeMeasurement(item.id)}>Delete</button>
-        </div>
-      </details>
+      <DropdownMenu.Root open={openMenuId === item.id} onOpenChange={(open) => { if (open) openMenuId = item.id; else if (openMenuId === item.id) openMenuId = null; }}>
+        <DropdownMenu.Trigger class="rounded p-1.5 hover:bg-control-hover focus-visible:outline focus-visible:outline-chrome-active" aria-label={`Actions for ${item.kind}`} title="Measurement actions"><MoreHorizontal size={16}/></DropdownMenu.Trigger>
+        <DropdownMenu.Content>
+          <DropdownMenu.Item onSelect={() => editMeasurement(item.id)}>Select / edit</DropdownMenu.Item>
+          <DropdownMenu.Item onSelect={() => editMeasurement(item.id, true)}>Duplicate</DropdownMenu.Item>
+          <DropdownMenu.Item onSelect={() => removeMeasurement(item.id)}>Delete</DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
     </div>
   {/each}
 </InstrumentPanel>
@@ -120,17 +136,19 @@
   .item.hovered { background: var(--color-surface-2); }
   .item.selected { background: var(--color-surface-3); }
   .item.unavailable .value { color: var(--color-warning); }
-  .swatch { width: 22px; height: 22px; padding: 0; border: none; background: transparent; cursor: pointer; }
+  .colors { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .preset, .swatch { width: 36px; height: 24px; border: 1px solid var(--color-chrome-border); border-radius: 4px; cursor: pointer; }
+  .preset.chosen { outline: 2px solid var(--color-chrome-active); outline-offset: 2px; }
+  .preset:focus-visible, .swatch:focus-visible { outline: 2px solid var(--color-chrome-active); outline-offset: 2px; }
+  .swatch { padding: 2px; background: var(--color-surface-3); }
+  .swatch::-webkit-color-swatch-wrapper { padding: 0; }
+  .swatch::-webkit-color-swatch { border: 0; border-radius: 2px; }
+  .swatch::-moz-color-swatch { border: 0; border-radius: 2px; }
+  .custom-color { display: flex; align-items: center; gap: 5px; cursor: pointer; }
   .list-swatch { width: 3px; height: 24px; border-radius: 2px; flex-shrink: 0; }
   .readout { cursor: pointer; border-radius: 3px; }
-  .readout:focus-visible, summary:focus-visible, .menu button:focus-visible { outline: 1px solid var(--color-chrome-active); outline-offset: 2px; }
+  .readout:focus-visible { outline: 1px solid var(--color-chrome-active); outline-offset: 2px; }
   .item small, .value { display: block; }
   .item small { overflow-wrap: anywhere; color: var(--color-text-muted); }
   .value { font-family: var(--font-mono); font-size: var(--text-metadata); color: var(--color-text-secondary); overflow-wrap: anywhere; }
-  .row-menu { position: relative; }
-  summary { list-style: none; cursor: pointer; padding: 5px; border-radius: 4px; }
-  summary::-webkit-details-marker { display: none; }
-  summary:hover, .menu button:hover { background: var(--color-surface-3); }
-  .menu { position: absolute; z-index: 5; right: 0; top: 28px; min-width: 110px; padding: 3px; border: 1px solid var(--color-chrome-border); background: var(--color-panel); border-radius: 4px; }
-  .menu button { display: block; width: 100%; text-align: left; padding: 5px 8px; cursor: pointer; }
 </style>

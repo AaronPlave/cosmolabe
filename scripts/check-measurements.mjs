@@ -64,246 +64,233 @@ try {
   console.log('Live content checked', live);
   assert(live.responsive); assert(live.observerCached); assert.equal(live.layoutReads, 2); assert.equal(live.copies, 1); assert.equal(live.sameRow, true); assert.equal(live.text, '242 km'); assert(live.width <= 304);
 
+  await page.evaluate(async () => {
+    window.m = await import(window.measurementModules['spatial-measurements.svelte.ts']);
+    window.sh = await import(window.measurementModules['shell.svelte.ts']);
+    window.ld = await import(window.measurementModules['loader.ts']);
+  });
   await page.getByRole('button', { name: 'Measurements', exact: true }).click();
   await page.getByLabel('Source entity', { exact: true }).selectOption('Earth');
   await page.getByLabel('Target entity', { exact: true }).selectOption('Moon');
   await page.getByRole('button', { name: 'Add distance', exact: true }).click();
-  await page.evaluate(() => window.__cosmolabe.capture('Lunar Orbit'));
-  await page.waitForTimeout(600);
-  await page.screenshot({ timeout: 120000, path: new URL('distance-wide-actual.png', out).pathname });
+  await page.getByRole('button', { name: 'Save changes', exact: true }).waitFor();
+  await page.evaluate(() => { window.firstId = window.m.measurements.items[0].id; window.renderer.stop(); window.__cosmolabe.capture('Lunar Orbit'); });
 
-  // Observe actual playback, retaining the live detail node and watching for ghosts.
-  const playback = await page.evaluate(async () => {
-    const r = window.renderer;
-    const { measurements } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    const layer = r.spatialRelationships;
-    const visual = layer.visuals.get(measurements.items[0].id);
-    const box = visual.callout.box, row = box.children[1];
-    const before = row.textContent;
-    let maxCopies = 0;
-    const timer = setInterval(() => maxCopies = Math.max(maxCopies, document.querySelectorAll('.cosmolabe-event-callout').length), 16);
-    r.timeController.setRate(86400);
-    r.timeController.play();
-    for (let frame = 0; frame < 24; frame++) await new Promise(requestAnimationFrame);
-    r.timeController.pause(); clearInterval(timer);
-    return { before, after: row.textContent, sameRow: box.children[1] === row, maxCopies };
+  // Selection populates the editor. Valid/incomplete changes preview the same identity.
+  await page.getByRole('button', { name: 'Sage measurement color', exact: true }).click();
+  const color = await page.evaluate(() => {
+    window.renderer.renderFrame();
+    const v = window.renderer.spatialRelationships.visuals.get(window.firstId);
+    return { saved: window.m.measurements.items[0].color, draft: window.m.measurements.draftColor, scene: v.stroke.material.color.getHexString() };
   });
-  assert(playback.before !== playback.after, JSON.stringify(playback));
-  assert(playback.sameRow); assert(playback.maxCopies <= 4, JSON.stringify(playback)); // A placement-side transition may leave one fading copy.
-  console.log('Playback checked', playback);
-  await page.screenshot({ timeout: 120000, path: new URL('distance-playback-actual.png', out).pathname });
-
-  // Every actual close resets endpoints and pending picks; minimization preserves endpoints.
-  const lifecycle = await page.evaluate(async () => {
-    const { measurements } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    const { closeTool, openTool, minimizePanel, shell } = await import(window.measurementModules['shell.svelte.ts']);
-    const settle = () => new Promise(resolve => requestAnimationFrame(resolve));
-    measurements.draft.source = { kind: 'entity', bodyName: 'Earth' };
-    measurements.pendingPickSlot = 'target'; closeTool('measure'); await settle();
-    const closed = !measurements.pendingPickSlot && !measurements.draft.source;
-    openTool('measure'); await settle();
-    measurements.draftKind = 'angle';
-    measurements.draft.source = { kind: 'entity', bodyName: 'Earth' };
-    measurements.pendingPickSlot = 'target'; minimizePanel('measure'); await settle();
-    const minimized = !measurements.pendingPickSlot && !!measurements.draft.source && measurements.draftKind === 'angle';
-    shell.panels.measure.minimized = false; measurements.draftKind = 'distance'; await settle();
-    return { closed, minimized };
-  });
-  console.log('Lifecycle checked', lifecycle);
-  assert(lifecycle.closed); assert(lifecycle.minimized);
-  await page.getByRole('button', { name: 'Pick target surface point' }).click();
-  await page.keyboard.press('Escape');
-  assert.equal(await page.getByText('Pick target point in the scene · Esc to cancel').count(), 0);
-  await page.getByRole('button', { name: 'Measurements', exact: true }).click();
-  await page.getByRole('button', { name: 'Measurements', exact: true }).click();
-  assert(await page.getByRole('button', { name: 'Add distance' }).isDisabled());
-  const reload = await page.evaluate(async () => {
-    const { loadDemo } = await import(window.measurementModules['loader.ts']);
-    const { measurements } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    const old = window.renderer;
-    await loadDemo(document.querySelector('canvas'), 'test-catalogs/earth-moon');
-    return { changed: old !== window.renderer, items: measurements.items.length, pending: measurements.pendingPickSlot };
-  });
-  assert(reload.changed); assert.equal(reload.items, 0); assert.equal(reload.pending, null);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.evaluate(async () => { const { openTool } = await import(window.measurementModules['shell.svelte.ts']); openTool('measure'); });
-  await page.getByRole('button', { name: 'angle', exact: true }).click();
-  await page.getByRole('button', { name: 'Pick source surface point' }).click();
-  await page.getByRole('button', { name: 'Measurements', exact: true }).click();
-  const mobileMinimized = await page.evaluate(async () => {
-    const { measurements: m } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    return { kind: m.draftKind, pending: m.pendingPickSlot };
-  });
-  assert.equal(mobileMinimized.kind, 'angle'); assert.equal(mobileMinimized.pending, null);
-  await page.getByRole('button', { name: 'Measurements', exact: true }).click();
-  assert.equal(await page.getByRole('button', { name: 'angle', exact: true }).getAttribute('aria-pressed'), 'true');
-  await page.getByRole('button', { name: 'Pick vertex surface point' }).click();
-  await page.getByRole('button', { name: 'Catalog', exact: true }).click();
-  const mobileSwitched = await page.evaluate(async () => {
-    const { measurements: m } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    return { kind: m.draftKind, pending: m.pendingPickSlot };
-  });
-  assert.equal(mobileSwitched.kind, 'angle'); assert.equal(mobileSwitched.pending, null);
-  await page.getByRole('button', { name: 'Measurements', exact: true }).click();
-  await page.getByRole('button', { name: 'Close Measurements', exact: true }).click();
-  await page.getByRole('button', { name: 'Measurements', exact: true }).click();
-  assert.equal(await page.getByRole('button', { name: 'distance', exact: true }).getAttribute('aria-pressed'), 'true');
-  await page.keyboard.down('b'); await page.keyboard.down('b'); await page.keyboard.up('b');
-  const repeatSheet = await page.evaluate(async () => { const { shell } = await import(window.measurementModules['shell.svelte.ts']); return shell.activeSheet; });
-  assert.equal(repeatSheet, 'catalog');
-  await page.setViewportSize({ width: 1440, height: 1000 });
-
-  const surface = await page.evaluate(async () => {
-    const { loadDemo } = await import(window.measurementModules['loader.ts']);
-    const { measurements, captureSurfaceEndpoint, addMeasurement } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    const { openTool } = await import(window.measurementModules['shell.svelte.ts']);
-    await loadDemo(document.querySelector('canvas'), 'test-catalogs/inner-planets-keplerian');
-    await window.__cosmolabe.whenAssetsReady();
-    window.renderer.stop();
-    openTool('measure');
-    measurements.pendingPickSlot = 'source'; captureSurfaceEndpoint('Earth', [6378, 0, 0]);
-    measurements.pendingPickSlot = 'target'; captureSurfaceEndpoint('Earth', [0, 6378, 0]);
-    const source = measurements.draft.source, target = measurements.draft.target;
-    addMeasurement({ id: 'surface-distance', kind: 'distance', source, target, color: '#82aabd' });
-    addMeasurement({ id: 'surface-angle', kind: 'angle', source, target, vertex: { kind: 'entity', bodyName: 'Earth' }, color: '#c6a66b' });
-    addMeasurement({ id: 'surface-direction', kind: 'direction', source: target, target: source, color: '#9ab58d' });
-    await new Promise(requestAnimationFrame);
-    window.__cosmolabe.capture('Earth Closeup');
-    return { source: source.label, target: target.label };
-  });
-  assert(surface.source !== surface.target);
-  await page.waitForTimeout(600);
-  // The renderer caches host rectangles for 250ms. Re-project after UI layout settles.
-  await page.evaluate(() => window.__cosmolabe.capture());
-  await page.waitForTimeout(200);
-  await page.screenshot({ timeout: 120000, path: new URL('surface-close-actual.png', out).pathname });
-  const panelOverlaps = await page.evaluate(() => {
-    const blockers = [...document.querySelectorAll('[data-scene-occluder]')].map(n => n.getBoundingClientRect());
-    return [...document.querySelectorAll('.cosmolabe-event-callout')].filter(n => n.style.display !== 'none').some(n => {
-      const c = n.getBoundingClientRect();
-      return blockers.some(b => Math.min(c.right, b.right) > Math.max(c.left, b.left) && Math.min(c.bottom, b.bottom) > Math.max(c.top, b.top));
-    });
-  });
-  assert.equal(panelOverlaps, false, 'Visible callouts must avoid the host panels');
-  assert.deepEqual(errors, []);
-  await checkInteractions();
-  console.log(JSON.stringify({ live, playback, lifecycle, reload, mobileMinimized, mobileSwitched, repeatSheet, surface }, null, 2));
-} finally { await browser.close(); }
-
-async function checkInteractions() {
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.evaluate(async () => {
-    const m = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    const r = window.renderer;
-    r.stop();
-    m.resetMeasurementsForScene();
-    m.addMeasurement({ id: 'edit-test', kind: 'distance', source: { kind: 'entity', bodyName: 'Earth' }, target: { kind: 'entity', bodyName: 'Moon' } });
-    m.measurements.draft.source = { kind: 'entity', bodyName: 'Mars' };
-    window.__cosmolabe.capture('Earth Closeup');
-  });
-  await page.locator('summary[aria-label="Actions for distance"]').click();
-  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  assert.equal(color.draft, '#9ab58d'); assert.equal(color.scene, '9ab58d'); assert.notEqual(color.saved, color.draft);
+  await page.getByLabel('Target entity', { exact: true }).selectOption('');
+  await page.getByText('Incomplete endpoints', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.visuals.has(window.firstId); }), false);
+  await page.getByLabel('Target entity', { exact: true }).selectOption('Moon');
   await page.getByRole('button', { name: 'direction', exact: true }).click();
+  assert.equal(await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.visuals.get(window.firstId).kind; }), 'direction');
+  await page.getByLabel('Show distance', { exact: true }).check();
+  await page.getByLabel('Full-length connection', { exact: true }).check();
+  const preview = await page.evaluate(() => window.m.renderedMeasurements()[0]);
+  assert.equal(preview.id, await page.evaluate(() => window.firstId)); assert(preview.showDistance && preview.fullLength);
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-  const canceled = await page.evaluate(async () => {
-    const { measurements: m } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    return { kind: m.items[0].kind, draft: m.draft.source.bodyName };
-  });
-  assert.deepEqual(canceled, { kind: 'distance', draft: 'Mars' });
-  await page.locator('summary[aria-label="Actions for distance"]').click();
-  await page.getByRole('button', { name: 'Edit', exact: true }).click();
-  await page.getByRole('button', { name: 'direction', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.m.measurements.items[0].kind), 'distance');
+  await page.getByLabel('Source entity', { exact: true }).selectOption('Sun');
+  await page.getByRole('button', { name: 'Select distance measurement', exact: true }).click();
+  assert.equal(await page.getByLabel('Source entity', { exact: true }).inputValue(), 'Earth');
+  await page.getByRole('button', { name: 'New measurement', exact: true }).click();
+  assert.equal(await page.getByLabel('Source entity', { exact: true }).inputValue(), 'Sun');
+  await page.getByRole('button', { name: 'Select distance measurement', exact: true }).click();
+  await page.getByLabel('Custom measurement color', { exact: true }).evaluate(input => { input.value = '#aabbcc'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  assert.equal(await page.evaluate(() => window.m.measurements.draftColor), '#aabbcc');
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
-  await page.evaluate(() => window.__cosmolabe.capture());
-  const edited = await page.evaluate(async () => {
-    const { measurements: m } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    const v = window.renderer.spatialRelationships.visuals.get('edit-test');
-    return { id: m.items[0].id, kind: m.items[0].kind, visualKind: v.kind, arrow: !!v.arrow, showDistance: m.items[0].showDistance, draft: m.draft.source.bodyName };
-  });
-  assert.deepEqual(edited, { id: 'edit-test', kind: 'direction', visualKind: 'direction', arrow: true, showDistance: false, draft: 'Mars' });
-  await page.locator('summary[aria-label="Actions for direction"]').click();
-  await page.getByRole('button', { name: 'Duplicate', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.m.measurements.items[0].color), '#aabbcc');
+  await page.getByRole('button', { name: 'Hide distance', exact: true }).click();
+  assert.equal(await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.visuals.get(window.firstId).group.visible; }), false);
+  await page.getByRole('button', { name: 'Show distance', exact: true }).click();
+  await capture('editor-presets-actual.png');
+  const swatch = await page.getByLabel('Custom measurement color', { exact: true }).boundingBox();
+  assert(swatch.width >= 36 && swatch.height >= 24);
+  console.log('Selection, valid/incomplete previews, type changes, cancel/save, New, presets and custom color passed');
+
+  // Shared portal closes on action/Escape, contains one menu, and returns focus.
+  await page.getByRole('button', { name: 'Actions for distance', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Duplicate', exact: true }).click();
   await page.getByLabel('Target entity', { exact: true }).selectOption('Sun');
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
-  const duplicate = await page.evaluate(async () => {
-    const { measurements: m } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    return { ids: m.items.map(i => i.id), targets: m.items.map(i => i.target.bodyName), draft: m.draft.source.bodyName };
-  });
-  assert.equal(new Set(duplicate.ids).size, 2); assert.deepEqual(duplicate.targets, ['Moon', 'Sun']); assert.equal(duplicate.draft, 'Mars');
-
-  // Real mouse/touch input must be consumed before body/event handlers and App's Surface pick path.
-  const surfacePixel = await page.evaluate(async () => {
-    const m = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    m.startMeasurementPick('source', 'surface');
-    const r = window.renderer;
-    window.sceneEvents = 0;
-    r.events.on('body:click', () => window.sceneEvents++);
-    r.events.on('event:click', () => window.sceneEvents++);
-    const p = r.bodyMeshes.get('Earth').position.clone().project(r.camera);
-    return { x: (p.x + 1) * 720, y: (1 - p.y) * 500 };
-  });
-  await page.mouse.click(surfacePixel.x, surfacePixel.y);
-  const surfacePick = await page.evaluate(async () => {
-    const { measurements: m } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    return { kind: m.draft.source.kind, pending: m.pendingPickSlot, events: window.sceneEvents, panel: document.body.innerText.includes('Surface pick') };
-  });
-  assert.deepEqual(surfacePick, { kind: 'body-fixed', pending: null, events: 0, panel: false });
-  const labelPixel = await page.evaluate(async () => {
-    const m = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    m.startMeasurementPick('target', 'object');
-    const r = window.renderer;
-    r.renderFrame();
-    const label = r.labelManager.getScreenRects().find(rect => rect.name === 'Earth');
-    if (!label) throw new Error('Earth label not visible');
-    return { x: (label.x0 + label.x1) / 2, y: (label.y0 + label.y1) / 2 };
-  });
-  await page.touchscreen.tap(labelPixel.x, labelPixel.y);
-  const objectPick = await page.evaluate(async () => {
-    const { measurements: m } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    return { endpoint: m.draft.target, pending: m.pendingPickSlot, events: window.sceneEvents, panel: document.body.innerText.includes('Surface pick') };
-  });
-  assert.deepEqual(objectPick, { endpoint: { kind: 'entity', bodyName: 'Earth' }, pending: null, events: 0, panel: false });
-
-  // One shared selection, with no camera/time or draft changes. Cards precede strokes.
-  await page.evaluate(async () => {
-    const m = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    m.selectMeasurement(null);
-    window.renderer.renderFrame();
-  });
-  await page.waitForTimeout(300);
-  const card = page.locator('.cosmolabe-event-callout[data-measurement-id="edit-test"]');
-  await card.click();
-  const selected = await page.evaluate(async () => {
-    const { measurements: m } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    return { id: m.selectedId, draft: m.draft.source.kind };
-  });
-  assert.deepEqual(selected, { id: 'edit-test', draft: 'body-fixed' });
+  assert.equal(await page.evaluate(() => new Set(window.m.measurements.items.map(i => i.id)).size), 2);
+  assert.deepEqual(await page.evaluate(() => window.m.measurements.items.map(i => i.target.bodyName)), ['Moon', 'Sun']);
+  await page.getByRole('button', { name: 'Actions for distance', exact: true }).first().click();
+  assert.equal(await page.getByRole('menu').count(), 1);
   await page.keyboard.press('Escape');
-  assert.equal(await page.evaluate(async () => (await import(window.measurementModules['spatial-measurements.svelte.ts'])).measurements.selectedId), null);
-  const geometryPixel = await page.evaluate(() => {
-    const r = window.renderer, layer = r.spatialRelationships;
-    r.renderFrame();
-    window.selectionSnapshot = { camera: r.camera.position.toArray(), et: r.timeController.et };
-    const blockers = [...document.querySelectorAll('[data-scene-occluder], .cosmolabe-event-callout[data-measurement-id]')].filter(n => n.style.display !== 'none').map(n => n.getBoundingClientRect());
-    for (const visual of layer.visuals.values()) for (let i = 0; i < visual.hitSegments.length; i += 2) for (const t of [0.25, 0.5, 0.75]) {
-      const p = visual.hitSegments[i].clone().lerp(visual.hitSegments[i + 1], t).project(r.camera);
-      const x = (p.x + 1) * 720, y = (1 - p.y) * 500;
-      if (x < 40 || x > 1400 || y < 40 || y > 930 || blockers.some(b => x >= b.left && x <= b.right && y >= b.top && y <= b.bottom)) continue;
-      const id = layer.pick(x, y);
-      if (id) return { x, y, id };
-    }
-    throw new Error('No unobscured measurement geometry to test');
+  await page.getByRole('menu').waitFor({ state: 'hidden' });
+  assert.equal(await page.getByRole('menu').count(), 0);
+  assert(await page.getByRole('button', { name: 'Actions for distance', exact: true }).first().evaluate(node => node === document.activeElement));
+  await page.getByRole('button', { name: 'New measurement', exact: true }).click();
+
+  // Hover previews use real object and surface semantics, with no standalone pick marker.
+  await page.evaluate(() => { window.__cosmolabe.capture('Earth Close'); window.sceneEvents = 0; window.renderer.events.on('body:click', () => window.sceneEvents++); });
+  await page.getByRole('button', { name: 'Pick source object', exact: true }).click();
+  const earth = await earthPixel();
+  await page.mouse.move(earth.x, earth.y); await page.waitForTimeout(180);
+  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint?.bodyName), 'Earth');
+  await page.mouse.move(60, 900); await page.waitForTimeout(180);
+  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint), null);
+  await page.mouse.move(earth.x, earth.y); await page.mouse.click(earth.x, earth.y);
+  assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'entity');
+  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint), null);
+  await page.getByRole('button', { name: 'Pick source surface point', exact: true }).click();
+  await page.mouse.move(earth.x + 1, earth.y); await page.waitForTimeout(180);
+  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint?.kind), 'body-fixed');
+  assert((await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.feedback.geometry.drawRange.count; })) > 0);
+  await capture('surface-pick-preview-actual.png');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint), null);
+  await page.getByRole('button', { name: 'Pick source surface point', exact: true }).click();
+  await page.mouse.click(earth.x, earth.y);
+  assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'body-fixed');
+  assert.equal(await page.evaluate(() => window.sceneEvents), 0);
+  assert.equal(await page.getByText('Surface pick', { exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Pick target object', exact: true }).click();
+  const label = await page.evaluate(() => { window.renderer.renderFrame(); const r = window.renderer.labelManager.getScreenRects().find(r => r.name === 'Earth'); return { x: (r.x0 + r.x1)/2, y: (r.y0 + r.y1)/2 }; });
+  await page.touchscreen.tap(label.x, label.y);
+  assert.equal(await page.evaluate(() => window.m.measurements.draft.target.kind), 'entity');
+  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.draftEndpoints.length), 2);
+  console.log('Object/surface hover, misses, cancel, mouse picks and touch endpoint confirmation passed');
+
+  // Close/minimize/reopen retain unfinished definitions and cancel active picking.
+  await page.getByRole('button', { name: 'Pick target surface point', exact: true }).click();
+  await page.getByRole('button', { name: 'Close Measurements', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.m.measurements.pendingPickSlot), null);
+  await page.getByRole('button', { name: 'Measurements', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'body-fixed');
+
+  // Menus at the bottom of a scrolling panel, then floating and compact layouts.
+  await page.evaluate(() => {
+    for (let i=0;i<16;i++) window.m.measurements.items.push({ id: `overflow-${i}`, kind:'distance', source:{kind:'entity',bodyName:'Earth'}, target:{kind:'entity',bodyName:'Moon'} });
+    window.m.syncMeasurements();
   });
-  await page.mouse.move(geometryPixel.x, geometryPixel.y);
-  await page.waitForTimeout(200);
-  assert.equal(await page.evaluate(async () => (await import(window.measurementModules['spatial-measurements.svelte.ts'])).measurements.hoveredId), geometryPixel.id);
-  await page.mouse.click(geometryPixel.x, geometryPixel.y);
-  const geometrySelection = await page.evaluate(async () => {
-    const { measurements: m } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
-    return { id: m.selectedId, camera: window.renderer.camera.position.toArray(), et: window.renderer.timeController.et, before: window.selectionSnapshot, events: window.sceneEvents };
+  await page.getByRole('button', { name: 'Actions for distance', exact: true }).last().click();
+  await checkMenu(); await capture('menu-scroll-actual.png');
+  await page.mouse.click(500, 50); await page.getByRole('menu').waitFor({ state: 'hidden' }); assert.equal(await page.getByRole('menu').count(), 0);
+  await page.evaluate(() => window.sh.setFloat('measure', { x: 760, y: 100, w: 360, h: 450 }, { width: innerWidth, height: innerHeight }));
+  await page.getByRole('button', { name: 'Actions for distance', exact: true }).last().click();
+  await checkMenu(); await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.sh.openTool('measure'));
+  await page.getByRole('button', { name: 'Actions for distance', exact: true }).last().click();
+  await checkMenu(); await capture('menu-compact-actual.png'); await page.keyboard.press('Escape');
+  await page.evaluate(() => window.m.newMeasurement());
+  await page.getByRole('button', { name: 'angle', exact: true }).click();
+  await page.getByRole('button', { name: 'Pick vertex object', exact: true }).click();
+  await page.getByText('Choose the angle’s center · Esc to cancel', { exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByLabel('Custom measurement color', { exact: true }).scrollIntoViewIfNeeded();
+  await capture('presets-compact-actual.png');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.sh.dockPanel('measure'));
+  console.log('Portaled menus in scrolling/floating/compact panels, focus, and natural pick instructions passed');
+
+  // Compact labels for several relationships; only the selected one has details.
+  await page.evaluate(() => {
+    window.m.resetMeasurementsForScene(); window.renderer.stop(); window.__cosmolabe.capture('Lunar Orbit');
+    const source={kind:'entity',bodyName:'Earth'},target={kind:'entity',bodyName:'Moon'};
+    window.m.addMeasurement({ id:'distance',kind:'distance',source,target });
+    window.m.addMeasurement({ id:'direction',kind:'direction',source,target,color:'#9ab58d' });
+    window.m.addMeasurement({ id:'angle',kind:'angle',source:{kind:'entity',bodyName:'Sun'},vertex:source,target,color:'#c6a66b' });
+    window.m.newMeasurement(); window.renderer.renderFrame();
   });
-  assert.equal(geometrySelection.id, geometryPixel.id); assert.deepEqual(geometrySelection.camera, geometrySelection.before.camera); assert.equal(geometrySelection.et, geometrySelection.before.et); assert.equal(geometrySelection.events, 0);
-  await page.touchscreen.tap(geometryPixel.x, geometryPixel.y);
-  assert.equal(await page.evaluate(async () => (await import(window.measurementModules['spatial-measurements.svelte.ts'])).measurements.selectedId), null);
-  console.log('Editing, duplication, surface mouse picking, object-label touch picking, shared card/geometry selection and hover passed');
+  await page.waitForTimeout(350);
+  assert.equal(await page.locator('.cosmolabe-event-callout[data-measurement-id]:visible').count(), 0);
+  assert((await page.locator('.cosmolabe-measurement-value:visible').count()) >= 2);
+  await capture('compact-measurements-wide-actual.png');
+  const compactLabel = page.locator('.cosmolabe-measurement-value[data-measurement-id="distance"]');
+  await compactLabel.click();
+  assert.equal(await page.evaluate(() => window.m.measurements.editingId), 'distance');
+  await page.evaluate(() => window.renderer.renderFrame()); await page.waitForTimeout(350);
+  assert.equal(await page.locator('.cosmolabe-event-callout[data-measurement-id]:visible').count(), 1);
+  assert.equal(await page.locator('.cosmolabe-measurement-value[data-measurement-id="distance"]:visible').count(), 0);
+  const playback = await page.evaluate(async () => {
+    const r=window.renderer, m=window.m;
+    const before=m.measurements.items.map(i=>m.measurementValue(i,r.timeController.et));
+    r.timeController.setRate(86400);r.timeController.play();
+    for(let i=0;i<20;i++)await new Promise(requestAnimationFrame);
+    r.stop();r.renderFrame();
+    return { before, after:m.measurements.items.map(i=>m.measurementValue(i,r.timeController.et)), finite:[...r.spatialRelationships.visuals.values()].every(v=>v.hitSegments.every(p=>p.toArray().every(Number.isFinite))) };
+  });
+  assert(playback.finite);assert.notEqual(playback.before[0],playback.after[0]);assert.notEqual(playback.before[2],playback.after[2]);
+  await capture('selected-measurements-wide-actual.png');
+  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.visuals.get('distance').marks.geometry.drawRange.count), 2);
+  await page.getByRole('button', { name:'New measurement',exact:true }).click();
+  await page.evaluate(() => window.renderer.renderFrame());
+  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.visuals.get('distance').marks.geometry.drawRange.count), 0);
+  console.log('Compact labels, one selected detail, live playback and single distance endpoint treatments passed');
+
+  await checkSpacecraftPass();
+  assert.deepEqual(errors, []);
+  console.log('All browser measurement checks passed');
+} finally { await browser.close(); }
+
+async function capture(name) {
+  await page.evaluate(() => window.renderer.renderFrame());
+  await page.waitForTimeout(650);
+  await page.screenshot({ path: new URL(name, out).pathname, timeout: 120000 });
+}
+async function earthPixel() {
+  return page.evaluate(() => {
+    const r=window.renderer; r.renderFrame();
+    const p=r.bodyMeshes.get('Earth').position.clone().project(r.camera);
+    return { x:(p.x+1)*innerWidth/2, y:(1-p.y)*innerHeight/2 };
+  });
+}
+async function checkMenu() {
+  const menu=page.getByRole('menu');await menu.waitFor();
+  assert.equal(await menu.count(),1);
+  const bounds=await menu.boundingBox();const size=page.viewportSize();
+  assert(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=size.width&&bounds.y+bounds.height<=size.height);
+  assert.equal(await menu.evaluate(node=>node.closest('[data-scene-occluder]')!==null),false);
+}
+async function checkSpacecraftPass() {
+  // Local CK fixtures cover SOI, not the later dated mission viewpoints.
+  // Keep the actual catalog, bodies, model and covered viewpoints for this check.
+  await page.route('**/test-catalogs/cassini-soi.json', async route => {
+    const response = await route.fetch();
+    const catalog = await response.json();
+    catalog.spiceKernels = catalog.spiceKernels.filter(kernel => typeof kernel === 'string' && !kernel.endsWith('.gz'));
+    catalog.spiceKernels.push('kernels/cassini/040629AP_SCPSE_04179_04185.bsp');
+    catalog.items = catalog.items.filter(item => item.type !== 'Viewpoint' || !item.time || item.time.startsWith('2004-07-01'));
+    await route.fulfill({ response, json: catalog });
+  });
+  await page.evaluate(async()=>{
+    await window.ld.loadDemo(document.querySelector('canvas'),'test-catalogs/cassini-soi');
+    await window.__cosmolabe.whenAssetsReady();
+    const r=window.renderer;r.stop();window.sh.openTool('measure');
+    const source={kind:'entity',bodyName:'Cassini'};
+    window.m.addMeasurement({id:'cassini-direction',kind:'direction',source,target:{kind:'entity',bodyName:'Saturn'},color:'#9ab58d'});
+    window.m.addMeasurement({id:'cassini-direction-2',kind:'direction',source,target:{kind:'entity',bodyName:'Titan'},color:'#c6a66b'});
+    window.m.addMeasurement({id:'cassini-direction-3',kind:'direction',source,target:{kind:'entity',bodyName:'Sun'},color:'#b493ad'});
+    window.m.newMeasurement();window.__cosmolabe.capture('Track Cassini');
+    // Move close enough for the actual spacecraft mesh to occupy a substantial area.
+    const center=r.bodyMeshes.get('Cassini').position;
+    r.camera.position.sub(center).normalize().multiplyScalar(0.000000025).add(center);
+    r.cameraController.controls.target.copy(center);r.cameraController.controls.update();r.camera.updateMatrixWorld();
+  });
+  const passes=await page.evaluate(()=>{
+    const r=window.renderer, calls=[];
+    const render=r.renderer.render.bind(r.renderer);
+    r.renderer.render=(scene,camera)=>{ calls.push({scene:scene===r.spatialScene?'measurements':scene===r.scene?'main':'other',layers:camera.layers.mask});return render(scene,camera); };
+    r.renderFrame();r.renderer.render=render;
+    return { calls, modelVisible:r.bodyMeshes.get('Cassini').isModelVisible, mainContains:r.scene.getObjectById(r.spatialRelationships.root.id)!==undefined };
+  });
+  assert(passes.modelVisible);assert.equal(passes.mainContains,false);
+  assert(await page.evaluate(() => [...window.renderer.spatialRelationships.visuals.values()].every(v => v.group.visible)));
+  assert.equal(await page.getByText('Unavailable at current time', { exact: true }).count(), 0);
+  const modelIndex=passes.calls.findIndex(c=>c.scene==='main'&&c.layers===2);
+  const annotationIndex=passes.calls.findIndex(c=>c.scene==='measurements');
+  assert(modelIndex>=0&&annotationIndex>modelIndex);
+  await capture('cassini-compact-arrows-actual.png');
+  await page.getByRole('button',{name:'Select direction measurement',exact:true}).first().click();
+  await capture('cassini-selected-arrow-actual.png');
+  console.log('Actual close-up spacecraft model and dedicated measurement pass order passed',JSON.stringify(passes));
 }

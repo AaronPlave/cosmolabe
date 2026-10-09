@@ -29,7 +29,7 @@
     catalogLocation, findEntry, isCurrentEntry, requestedCatalog, withCatalogLocation, allEntries,
     type CatalogLocation, type SourcedEntry,
   } from './lib/catalog-nav';
-  import { cancelMeasurementEdit, cancelMeasurementPick, measurements, resetMeasurementDraft, selectMeasurement } from './lib/spatial-measurements.svelte';
+  import { cancelMeasurementEdit, cancelMeasurementPick, measurements, selectMeasurement } from './lib/spatial-measurements.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -105,13 +105,12 @@
    */
   const loading = $derived(vs.showLoading || !vs.assetsReady);
 
-  // Every shell close discards the draft; minimization retains endpoints but cancels picking.
+  // Closing/minimizing retains unfinished work and clears temporary picking feedback.
   $effect(() => {
     const open = shell.openTools.includes('measure');
     const hidden = shell.panels.measure.minimized || (shell.layout === 'compact' && shell.activeSheet !== 'measure');
     untrack(() => {
-      if (!open) resetMeasurementDraft();
-      else if (hidden) cancelMeasurementPick();
+      if (!open || hidden) cancelMeasurementPick();
     });
   });
 

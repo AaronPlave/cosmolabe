@@ -10,9 +10,9 @@ export type SpatialEndpoint =
   | { kind: 'coordinate'; positionKm: Vec3; frame?: string; label?: string };
 
 export type SpatialRelationship =
-  | { id: string; kind: 'distance'; source: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string; emphasized?: boolean; selected?: boolean; hovered?: boolean }
-  | { id: string; kind: 'direction'; source: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string; emphasized?: boolean; selected?: boolean; hovered?: boolean; showDistance?: boolean; fullLength?: boolean }
-  | { id: string; kind: 'angle'; source: SpatialEndpoint; vertex: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string; emphasized?: boolean; selected?: boolean; hovered?: boolean };
+  | { id: string; kind: 'distance'; source: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string; emphasized?: boolean; selected?: boolean; hovered?: boolean; editing?: boolean }
+  | { id: string; kind: 'direction'; source: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string; emphasized?: boolean; selected?: boolean; hovered?: boolean; editing?: boolean; showDistance?: boolean; fullLength?: boolean }
+  | { id: string; kind: 'angle'; source: SpatialEndpoint; vertex: SpatialEndpoint; target: SpatialEndpoint; visible?: boolean; color?: string; emphasized?: boolean; selected?: boolean; hovered?: boolean; editing?: boolean };
 
 export interface ResolvedSpatialRelationship {
   relationship: SpatialRelationship;
