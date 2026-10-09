@@ -49,7 +49,7 @@ import type { RendererContext } from './plugins/RendererContext.js';
 import type { BodyVisualizer } from './plugins/BodyVisualizer.js';
 import type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
 import type { RendererEventMap } from './events/RendererEventMap.js';
-import { SpatialRelationshipLayer } from './SpatialRelationshipLayer.js';
+import { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRelationshipLayer.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -237,6 +237,9 @@ export class UniverseRenderer {
   private readonly spatialRelationships: SpatialRelationshipLayer;
   private spatialCalloutRects: ScreenRect[] = [];
   private eventCalloutRect: ScreenRect | null = null;
+  private spatialInteraction: SpatialInteraction | null = null;
+  private lastSpatialPickMs = -Infinity;
+  private lastTapConsumed = false;
   readonly scaleFactor: number;
   private readonly minBodyPixels: number;
   private readonly bodyMeshes = new Map<string, BodyMesh>();
@@ -592,6 +595,14 @@ export class UniverseRenderer {
   /** Replace the persistent, semantic measurements and direction indicators. */
   setSpatialRelationships(relationships: readonly SpatialRelationship[]): void {
     this.spatialRelationships.setRelationships(relationships);
+    const selected = relationships.some(item => item.selected && item.visible !== false);
+    for (const line of this.trajectoryLines.values()) line.setMeasurementContext(selected);
+  }
+
+  /** Host callbacks keep drafts and selection in one place, across mouse, touch and cards. */
+  setSpatialInteraction(interaction: SpatialInteraction): void {
+    this.spatialInteraction = interaction;
+    this.spatialRelationships.setInteraction(interaction);
   }
 
   /**
@@ -3624,13 +3635,28 @@ export class UniverseRenderer {
   private _onClick = (event: MouseEvent): void => {
     // A tap we already handled also arrives here as a synthetic click; picking
     // twice would emit `body:click` twice for the one gesture.
-    if (performance.now() - this._lastTapMs < 700) return;
+    if (performance.now() - this._lastTapMs < 700) {
+      if (this.lastTapConsumed) { event.preventDefault(); event.stopImmediatePropagation(); }
+      return;
+    }
     const rect = this.renderer.domElement.getBoundingClientRect();
-    this._selectAt(event.clientX - rect.left, event.clientY - rect.top);
+    if (this._selectAt(event.clientX - rect.left, event.clientY - rect.top)) {
+      event.preventDefault(); event.stopImmediatePropagation();
+    }
   };
 
   /** Pick at canvas coordinates and emit `body:click`. Empty space selects nothing. */
-  private _selectAt(screenX: number, screenY: number, markerRadiusPx = 11): void {
+  private _selectAt(screenX: number, screenY: number, markerRadiusPx = 11): boolean {
+    if (this.spatialInteraction?.beforePick(screenX, screenY)) {
+      this.lastSpatialPickMs = performance.now();
+      return true;
+    }
+    const measurement = this.spatialRelationships.pick(screenX, screenY, markerRadiusPx);
+    if (measurement && this.spatialInteraction) {
+      this.spatialInteraction.onSelect(measurement);
+      this.lastSpatialPickMs = performance.now();
+      return true;
+    }
     const marker = this.pickSceneEvent(screenX, screenY, markerRadiusPx);
     if (marker) {
       this.events.emit('event:click', {
@@ -3638,13 +3664,14 @@ export class UniverseRenderer {
         queryId: marker.marker.queryId,
         et: marker.et,
       });
-      return;
+      return false;
     }
     const bodyName = this.pickBody(screenX, screenY);
-    if (!bodyName) return;
+    if (!bodyName) return false;
 
     const et = this.universe.time;
     this.events.emit('body:click', { bodyName, et, screenX, screenY });
+    return false;
   }
 
   private pickSceneEvent(screenX: number, screenY: number, radiusPx = 11): ReturnType<typeof pickEventMarkerGroups> {
@@ -3697,7 +3724,7 @@ export class UniverseRenderer {
     if (performance.now() - candidate.t > UniverseRenderer._tapMaxMs) return; // a press, not a tap
 
     const rect = this.renderer.domElement.getBoundingClientRect();
-    this._selectAt(event.clientX - rect.left, event.clientY - rect.top, 14);
+    this.lastTapConsumed = this._selectAt(event.clientX - rect.left, event.clientY - rect.top, 14);
     this._lastTapMs = performance.now();
   };
 
@@ -3711,6 +3738,9 @@ export class UniverseRenderer {
    * The consumer (viewer app) decides what to do — flyTo, show info, etc.
    */
   private _onDblClick = (event: MouseEvent): void => {
+    if (this.spatialInteraction?.picking() || performance.now() - this.lastSpatialPickMs < 800) {
+      event.preventDefault(); event.stopImmediatePropagation(); return;
+    }
     const rect = this.renderer.domElement.getBoundingClientRect();
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
@@ -3755,7 +3785,9 @@ export class UniverseRenderer {
       this._lastHoverPickMs = performance.now();
       // Label-only pick (cheap; runs while mousing) with a tight slop so the
       // hover hitbox hugs the label text rather than a loose 20px halo.
-      const eventHit = this.pickSceneEvent(this._lastPointer.x, this._lastPointer.y, 11);
+      const measurement = this.spatialInteraction?.picking() ? null : this.spatialRelationships.pick(this._lastPointer.x, this._lastPointer.y, 7);
+      this.spatialInteraction?.onHover(measurement);
+      const eventHit = measurement || this.spatialInteraction?.picking() ? null : this.pickSceneEvent(this._lastPointer.x, this._lastPointer.y, 11);
       this.recordSceneEventHit(eventHit);
       const eventKey = eventHit ? `${eventHit.marker.queryId}:${eventHit.marker.id}:${eventHit.boundary ?? ''}` : null;
       if (eventKey !== this._hoveredSceneEvent) {
@@ -3765,10 +3797,10 @@ export class UniverseRenderer {
           boundary: eventHit.boundary, et: eventHit.span ? eventHit.et : undefined,
         } : null);
       }
-      const next = eventHit ? null : this.pickBody(this._lastPointer.x, this._lastPointer.y, true, 3);
+      const next = eventHit || measurement || this.spatialInteraction?.picking() ? null : this.pickBody(this._lastPointer.x, this._lastPointer.y, true, 3);
       if (next !== this._hoveredBody) this._applyHover(next);
       this.renderer.domElement.style.cursor =
-        eventHit || next ? 'pointer' : '';
+        this.spatialInteraction?.picking() ? 'crosshair' : measurement || eventHit || next ? 'pointer' : '';
     }, wait);
   };
 
@@ -3802,6 +3834,7 @@ export class UniverseRenderer {
   }
 
   private _onPointerLeave = (): void => {
+    this.spatialInteraction?.onHover(null);
     this._sceneEventHit = null;
     if (this._hoverPickTimer) {
       clearTimeout(this._hoverPickTimer);

@@ -6,7 +6,7 @@
  * furnishes all referenced kernels (with `.tm` meta-kernels expanded), and
  * initializes the scene. There is no per-mission code path.
  */
-import { resetMeasurementsForScene } from './spatial-measurements.svelte';
+import { configureMeasurementInput, resetMeasurementsForScene } from './spatial-measurements.svelte';
 import * as THREE from 'three';
 import {
   Universe,
@@ -711,6 +711,7 @@ function initScene(
   });
 
   // Bind reactive state
+  configureMeasurementInput(renderer);
   bindRenderer(renderer, universe);
   syncBodies(universe);
   setKernelCount(spice?.totalLoaded() ?? 0);

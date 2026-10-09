@@ -29,7 +29,7 @@
     catalogLocation, findEntry, isCurrentEntry, requestedCatalog, withCatalogLocation, allEntries,
     type CatalogLocation, type SourcedEntry,
   } from './lib/catalog-nav';
-  import { cancelMeasurementPick, captureSurfaceEndpoint, measurements, resetMeasurementDraft } from './lib/spatial-measurements.svelte';
+  import { cancelMeasurementEdit, cancelMeasurementPick, measurements, resetMeasurementDraft, selectMeasurement } from './lib/spatial-measurements.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -158,7 +158,7 @@
   }
 
   function onCanvasClick(e: MouseEvent) {
-    if (!pickModeActive && !measurements.pendingPickSlot) return;
+    if (e.defaultPrevented || !pickModeActive || measurements.pendingPickSlot) return;
     const renderer = getCurrentRenderer();
     if (!renderer) return;
     e.stopPropagation();
@@ -167,10 +167,8 @@
     const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     const result = renderer.pickSurface(ndcX, ndcY);
     if (result) {
-      const captured = captureSurfaceEndpoint(result.bodyName, result.bodyFixedHitKm);
       pickResult = result;
       renderer.setPickMarker(result);
-      if (captured) pickModeActive = false;
     }
   }
 
@@ -275,6 +273,8 @@
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
           if (cancelMeasurementPick()) return;
+          if (cancelMeasurementEdit()) return;
+          if (measurements.selectedId) { selectMeasurement(null); return; }
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.

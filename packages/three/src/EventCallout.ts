@@ -214,6 +214,8 @@ export class EventCallout {
   private content: CalloutContent | null = null;
   private contentKey = '';
   private size: { width: number; height: number } | null = null;
+  private readonly resizeObserver: ResizeObserver | null;
+  private viewportWidth = -1;
   private previousKey: string | null = null;
   private lastTransform = '';
   private lastPoints = '';
@@ -248,6 +250,32 @@ export class EventCallout {
       maxWidth: 'min(360px, calc(100% - 16px))', willChange: 'transform',
     });
     container.append(this.svg, this.box);
+    this.resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(entries => {
+      const entry = entries[0];
+      const border = entry?.borderBoxSize?.[0];
+      if (border && border.inlineSize > 0 && border.blockSize > 0) {
+        this.size = { width: border.inlineSize, height: border.blockSize };
+      } else if (entry?.contentRect.width > 0) {
+        // Fixed padding and border from the box style above.
+        this.size = { width: entry.contentRect.width + 18, height: entry.contentRect.height + 11 };
+      }
+    });
+    this.resizeObserver?.observe(this.box);
+  }
+
+  /** Optional interaction for persistent measurements; event annotations stay passive. */
+  setInteraction(id: string, activate: (event: MouseEvent | KeyboardEvent) => void, hover: (active: boolean) => void): void {
+    this.box.dataset.measurementId = id;
+    this.box.style.pointerEvents = 'auto';
+    this.box.style.cursor = 'pointer';
+    this.box.tabIndex = 0;
+    this.box.setAttribute('role', 'button');
+    this.box.onclick = event => { event.stopPropagation(); activate(event); };
+    this.box.onkeydown = event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); activate(event); }
+    };
+    this.box.onmouseenter = () => hover(true);
+    this.box.onmouseleave = () => hover(false);
   }
 
   setContent(content: CalloutContent | null): void {
@@ -295,7 +323,12 @@ export class EventCallout {
     }
     content.lines.slice(1, 3).forEach((line, i) => {
       const row = this.box.children[i + 1];
-      if (row && row.textContent !== line) row.textContent = line;
+      if (row && row.textContent !== line) {
+        row.textContent = line;
+        // Browsers report actual dimension changes asynchronously. Numeric updates
+        // that fit the same box keep the cached size and placement intact.
+        if (!this.resizeObserver) this.size = null;
+      }
     });
     this.content = content;
     this.contentKey = JSON.stringify(content);
@@ -322,8 +355,12 @@ export class EventCallout {
     }
     this.box.style.display = 'block';
     this.svg.style.display = 'block';
-    // Measure after live text/viewport changes; preserve placement history.
-    this.size = { width: this.box.offsetWidth, height: this.box.offsetHeight };
+    if (viewport.width !== this.viewportWidth) {
+      this.viewportWidth = viewport.width;
+      this.size = null;
+    }
+    // One initial/content/width measurement; live updates use ResizeObserver's cache.
+    if (!this.size) this.size = { width: this.box.offsetWidth, height: this.box.offsetHeight };
     const placement = chooseCalloutPlacement(
       anchor.x, anchor.y, this.size.width, this.size.height, viewport, obstacles, this.previousKey,
     );
@@ -386,6 +423,11 @@ export class EventCallout {
     if (!parent) return;
     for (const node of [this.svg, this.box]) {
       const ghost = node.cloneNode(true) as HTMLElement | SVGSVGElement;
+      ghost.style.pointerEvents = 'none';
+      ghost.removeAttribute('data-measurement-id');
+      ghost.removeAttribute('tabindex');
+      ghost.removeAttribute('role');
+      ghost.setAttribute('aria-hidden', 'true');
       ghost.style.transition = 'none';
       ghost.style.opacity = node.style.opacity || '1';
       parent.insertBefore(ghost, this.svg);
@@ -407,6 +449,7 @@ export class EventCallout {
   }
 
   dispose(): void {
+    this.resizeObserver?.disconnect();
     this.box.remove();
     this.svg.remove();
   }
