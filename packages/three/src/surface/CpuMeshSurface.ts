@@ -1,4 +1,4 @@
-import type { PhysicalSurface, PhysicalSurfaceMetadata, SurfaceAccuracy, SurfaceIntersection, SurfaceQueryOptions, SurfaceRay, SurfaceVector } from './PhysicalSurface.js';
+import type { PhysicalSurface, PhysicalSurfaceMetadata, SurfaceAccuracy, SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './PhysicalSurface.js';
 import { normalizedRay } from './PhysicalSurface.js';
 
 export interface CpuSurfaceMesh {
@@ -6,9 +6,6 @@ export interface CpuSurfaceMesh {
   positionsKm: Float64Array;
   indices: Uint16Array | Uint32Array;
 }
-const sub = (a: SurfaceVector, b: SurfaceVector): SurfaceVector => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const dot = (a: SurfaceVector, b: SurfaceVector) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a: SurfaceVector, b: SurfaceVector): SurfaceVector => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
 /** Bounded proof intersector. Linear CPU triangle scan; large mission meshes require a source BVH. */
 export class CpuMeshSurface implements PhysicalSurface {
@@ -40,27 +37,36 @@ export class CpuMeshSurface implements PhysicalSurface {
     const metadata = this.metadata;
     if (!this.mesh) return { kind: 'unavailable', reason: 'budget', metadata };
     const { positionsKm, indices } = this.mesh;
-    const origin: SurfaceVector = [ray.origin.xKm, ray.origin.yKm, ray.origin.zKm];
-    const vertex = (i: number): SurfaceVector => [positionsKm[i * 3], positionsKm[i * 3 + 1], positionsKm[i * 3 + 2]];
+    const ox = ray.origin.xKm, oy = ray.origin.yKm, oz = ray.origin.zKm;
+    const dx = direction[0], dy = direction[1], dz = direction[2];
     let nearest = ray.farKm, triangleIndex = -1;
-    let normal: SurfaceVector = [0, 0, 0];
+    let nx = 0, ny = 0, nz = 0;
+    // Scalar Möller–Trumbore: no per-triangle allocation, so the scan stays
+    // cheap enough for renderer consumers that cast many rays per frame.
     for (let t = 0; t < indices.length; t += 3) {
-      const a = vertex(indices[t]);
-      const e1 = sub(vertex(indices[t + 1]), a), e2 = sub(vertex(indices[t + 2]), a);
-      const n = cross(e1, e2), nLength = Math.hypot(...n);
-      const p = cross(direction, e2), determinant = dot(e1, p);
+      const ia = indices[t] * 3, ib = indices[t + 1] * 3, ic = indices[t + 2] * 3;
+      const ax = positionsKm[ia], ay = positionsKm[ia + 1], az = positionsKm[ia + 2];
+      const e1x = positionsKm[ib] - ax, e1y = positionsKm[ib + 1] - ay, e1z = positionsKm[ib + 2] - az;
+      const e2x = positionsKm[ic] - ax, e2y = positionsKm[ic + 1] - ay, e2z = positionsKm[ic + 2] - az;
+      const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x;
+      const determinant = e1x * px + e1y * py + e1z * pz;
+      const cx = e1y * e2z - e1z * e2y, cy = e1z * e2x - e1x * e2z, cz = e1x * e2y - e1y * e2x;
+      const nLength = Math.sqrt(cx * cx + cy * cy + cz * cz);
       // Relative parallel tolerance works for both kilometre bodies and metre-scale detail.
       if (nLength === 0 || Math.abs(determinant) <= 1e-14 * nLength) continue;
-      const offset = sub(origin, a), q = cross(offset, e1);
-      const u = dot(offset, p) / determinant, v = dot(direction, q) / determinant;
-      if (u < -1e-12 || v < -1e-12 || u + v > 1 + 1e-12) continue;
-      const distance = dot(e2, q) / determinant;
+      const sx = ox - ax, sy = oy - ay, sz = oz - az;
+      const u = (sx * px + sy * py + sz * pz) / determinant;
+      if (u < -1e-12) continue;
+      const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x;
+      const v = (dx * qx + dy * qy + dz * qz) / determinant;
+      if (v < -1e-12 || u + v > 1 + 1e-12) continue;
+      const distance = (e2x * qx + e2y * qy + e2z * qz) / determinant;
       if (distance < ray.nearKm || distance > nearest) continue;
       // Keep the first triangle on shared edges for deterministic provenance.
       if (triangleIndex >= 0 && distance === nearest) continue;
       nearest = distance;
       triangleIndex = t / 3;
-      normal = n.map(value => value / nLength) as [number, number, number];
+      nx = cx / nLength; ny = cy / nLength; nz = cz / nLength;
     }
     const bound = this.accuracy.meshDeviationBoundKm;
     const detail = metadata.coverage === 'complete-product' && bound != null && bound <= options.maxMeshErrorKm ? 'sufficient' : 'coarse';
@@ -68,8 +74,8 @@ export class CpuMeshSurface implements PhysicalSurface {
       ? { kind: 'miss', metadata, accuracy: this.accuracy, detail }
       : { kind: 'unavailable', reason: 'partial-coverage', metadata };
     return {
-      kind: 'hit', position: { xKm: origin[0] + nearest * direction[0], yKm: origin[1] + nearest * direction[1], zKm: origin[2] + nearest * direction[2] },
-      normal, distanceKm: nearest, triangleIndex, metadata, accuracy: this.accuracy,
+      kind: 'hit', position: { xKm: ox + nearest * dx, yKm: oy + nearest * dy, zKm: oz + nearest * dz },
+      normal: [nx, ny, nz], distanceKm: nearest, triangleIndex, metadata, accuracy: this.accuracy,
       detail,
     };
   }

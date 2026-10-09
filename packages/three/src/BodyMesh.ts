@@ -6,7 +6,7 @@ import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
-import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
+import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSampler, TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import { injectShadowIntoShader, makeShadowUniforms, MAX_SHADOW_OCCLUDERS, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUniforms } from './RingShadow.js';
@@ -935,6 +935,9 @@ export class BodyMesh extends THREE.Object3D {
 
   /** Whether this body has streaming terrain active */
   get hasTerrain(): boolean { return this.terrainManager !== null; }
+
+  /** Decoded CPU terrain for physical-surface queries, or null without streamed terrain. */
+  get terrainSampler(): TerrainSampler | null { return this.terrainManager?.sampler ?? null; }
 
   /** Get the terrain tile group for raycasting (null if no terrain or not visible) */
   get terrainTileGroup(): THREE.Object3D | null {

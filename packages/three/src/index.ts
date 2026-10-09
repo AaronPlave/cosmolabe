@@ -30,7 +30,7 @@ export type {
   WorkerGeometrySearch,
 } from './SpiceCacheWorker.js';
 export { SensorFrustum } from './SensorFrustum.js';
-export type { SensorFrustumOptions } from './SensorFrustum.js';
+export type { SensorFrustumOptions, SensorFovClipper, SensorClipSummary } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';
 export type { InstrumentViewOptions, FovBoundary } from './InstrumentView.js';
 export { instrumentFovProviderOf } from './InstrumentFovProvider.js';
@@ -138,4 +138,12 @@ export type {
   SurfaceAccuracy, SurfaceHit, SurfaceIntersection, SurfaceQueryLoader,
 } from './surface/PhysicalSurface.js';
 export { pickPhysicalSurface, cameraPositionFromSurfacePick, surfaceRayBetween } from './surface/SurfaceConsumers.js';
+export { ReferenceEllipsoidSurface } from './surface/ReferenceEllipsoidSurface.js';
+export { ResidentTerrainSurface } from './surface/ResidentTerrainSurface.js';
+export {
+  clipFovPerimeter, resolveFovRay, fovBoundaryDirection, fovBaseParams, rectangularFov, surfaceSource,
+} from './surface/FovClipper.js';
+export type {
+  FovBoundaryShape, FovSurfaceCandidate, FovSurfaceSource, FovRayHit, FovPerimeterSample, FovClipOptions,
+} from './surface/FovClipper.js';
 export type { MapImageLayer, ObservationImageProjection, ObservationRayResolver } from './surface/SurfaceImagery.js';
