@@ -23,6 +23,7 @@ import {
   type InitialAssetsSummary,
 } from './AssetLoadTracker.js';
 import { TrajectoryLine, type PositionResolver, type TrajectoryLineOptions } from './TrajectoryLine.js';
+import type { LeadPolicy, LeadRequest } from './TrajectoryLead.js';
 import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
 import { SensorFrustum } from './SensorFrustum.js';
@@ -40,7 +41,7 @@ import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
 import { TimeController } from './controls/TimeController.js';
 import { applyNamedViewpoint, type ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
-import type { TerrainConfig } from './TerrainManager.js';
+import type { TerrainConfig, TerrainDebugMode } from './TerrainManager.js';
 import type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import { BloomEffect, type BloomConfig } from './BloomEffect.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
@@ -200,6 +201,29 @@ export function eventPiecesOnLines<K>(
     if (entry) pieces.push({ key: entry[0], line: entry[1], start, end });
   }
   return pieces;
+}
+
+/** Event context has a small independent connection and visual budget. */
+export const EVENT_LEAD_POLICY: Readonly<LeadPolicy> = {
+  maxContinuous: 6 * 3600,
+  contextPad: 1800,
+  stubDuration: 1800,
+  maxScreenLength: 1.5,
+  maxTurn: Math.PI,
+};
+
+export function eventLeadRequest(
+  events: readonly GeometryEvent[],
+  ref: Pick<GeometryEvent, 'id' | 'queryId'> | null,
+  bounds: readonly [number, number] = [-Infinity, Infinity],
+): LeadRequest | null {
+  const event = ref && events.find((e) => e.id === ref.id && e.queryId === ref.queryId);
+  if (!event) return null;
+  const target = { start: Math.max(eventStart(event), bounds[0]), end: Math.min(eventEnd(event), bounds[1]) };
+  return target.end >= target.start ? {
+    target,
+    policy: { ...EVENT_LEAD_POLICY },
+  } : null;
 }
 
 export class UniverseRenderer {
@@ -570,7 +594,33 @@ export class UniverseRenderer {
     this.spatialRelationships.setRelationships(relationships);
   }
 
-
+  /**
+   * Bring one body's scene position and orientation up to date for the current
+   * clock and origin, ahead of the next frame, and say whether that worked.
+   *
+   * Both are otherwise only updated by `renderFrame`, so between frames they
+   * describe the frame already drawn. That is stale right after the clock
+   * seeks, or after `trackBody` moves the origin (which already puts the camera
+   * and orbit target in the new origin's coordinates). A caller converting
+   * into a body's own axes in that window — a script that sets the time,
+   * tracks a body and places the camera in one go, as a `snapshot()` replay
+   * does — needs the body where the next frame will put it.
+   *
+   * This is the same computation the next `renderFrame` makes, so it changes
+   * nothing a frame would not. Returns false when the body or the origin has no
+   * coverage at this time, leaving the body as last drawn.
+   */
+  refreshBodyPose(name: string): boolean {
+    const bm = this.bodyMeshes.get(name);
+    if (!bm) return false;
+    const et = this.timeController.et;
+    const originName = this.cameraController.originBody?.body.name;
+    const origin = originName ? this.absolutePositionOf(originName, et) : [0, 0, 0];
+    const abs = this.absolutePositionOf(name, et);
+    if (isNaN(abs[0]) || isNaN(origin[0])) return false;
+    bm.updatePosition([abs[0] - origin[0], abs[1] - origin[1], abs[2] - origin[2]], et, this.scaleFactor);
+    return true;
+  }
 
 
   /** Render a single frame at current time */
@@ -735,37 +785,15 @@ export class UniverseRenderer {
             apu.uAPCameraWorldPos.value.copy(this.camera.position);
             apu.uAPSunWorldPos.value.copy(sunPos);
             apu.uAPPlanetWorldPos.value.copy(parentBm.position);
+            parentBm.mesh.updateMatrixWorld(true);
+            apu.uAPWorldToPlanet.value.copy(parentBm.mesh.matrixWorld).invert();
+            apu.uAPPlanetToWorld.value.copy(parentBm.mesh.matrixWorld);
             apu.uAPPlanetRadius.value = atm.planetRadius * sf;
             apu.uAPShellRadius.value = atm.shellRadius * sf;
-            const p = atm.params;
-            apu.uAPRayleighCoeff.value.set(
-              p.rayleighCoeff[0] / sf,
-              p.rayleighCoeff[1] / sf,
-              p.rayleighCoeff[2] / sf,
-            );
-            const mieRGB: [number, number, number] = typeof p.mieCoeff === 'number'
-              ? [p.mieCoeff, p.mieCoeff, p.mieCoeff]
-              : p.mieCoeff;
-            apu.uAPMieCoeff.value.set(mieRGB[0] / sf, mieRGB[1] / sf, mieRGB[2] / sf);
-            apu.uAPExtinctionCoeff.value.set(
-              (p.rayleighCoeff[0] + p.absorptionCoeff[0] + mieRGB[0]) / sf,
-              (p.rayleighCoeff[1] + p.absorptionCoeff[1] + mieRGB[1]) / sf,
-              (p.rayleighCoeff[2] + p.absorptionCoeff[2] + mieRGB[2]) / sf,
-            );
             // Schlick g→k (matches AtmosphereMesh).
-            const g = p.miePhaseAsymmetry;
+            const g = atm.model.mie.g;
             apu.uAPMieK.value = 1.55 * g - 0.55 * g * g * g;
-            apu.uAPInvScaleH.value = 1 / (p.mieScaleHeight * sf);
-            // Strength fades out fast with altitude. AP and AtmosphereMesh both
-            // scatter along view rays — past the surface boundary layer (single
-            // scale-height worth of altitude) AP would only double-count what
-            // the shell shader already does and at long horizon-grazing paths
-            // would over-fog distant terrain. Earth: ~0 above ~10km AGL.
-            const camToPlanet = this.camera.position.distanceTo(parentBm.position);
-            const altScene = camToPlanet - atm.planetRadius * sf;
-            const scaleHeightScene = p.mieScaleHeight * sf;
-            const tt = altScene / Math.max(1e-6, scaleHeightScene);
-            apu.uAPStrength.value = Math.max(0, Math.min(1, 1 - tt));
+            apu.uAPStrength.value = 1;
           }
         }
       }
@@ -824,9 +852,9 @@ export class UniverseRenderer {
           // exactly as the marker does. Event annotations sample through the
           // same `trajectoryLineResolver`, so they cannot drift off the trail.
           const relativeResolver = trajectoryLineResolver(this.universe, tl);
-          tl.update(et, this.scaleFactor, relativeResolver, undefined, undefined, vertOff);
+          tl.update(et, this.scaleFactor, relativeResolver, this.camera, undefined, vertOff);
         } else {
-          tl.update(et, this.scaleFactor, undefined, undefined, undefined, vertOff);
+          tl.update(et, this.scaleFactor, undefined, this.camera, undefined, vertOff);
         }
       } else {
         // Absolute positions — offset by origin
@@ -835,7 +863,7 @@ export class UniverseRenderer {
           -originAbsPos[1],
           -originAbsPos[2],
         ];
-        tl.update(et, this.scaleFactor, this.absolutePositionOf, undefined, undefined, vertOff);
+        tl.update(et, this.scaleFactor, this.absolutePositionOf, this.camera, undefined, vertOff);
       }
       } catch (err) {
         console.error(`[Cosmolabe] Trail update error for ${tl.body.name}:`, err);
@@ -889,11 +917,14 @@ export class UniverseRenderer {
         this.scaleFactor,
         vertexOffset,
         (name, t) => line.positionAt(t, fallbackResolver),
+        // Ordinary results retain trail visibility. Only the active event
+        // may use the future path revealed for its context.
         line.visibleTimeRange(et),
         (t) => line.trailAlphaAt(t, et),
         this.camera,
         this.renderer.getPixelRatio(),
         { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
+        { range: line.drawnTimeRange(et), alphaAt: (t) => line.pathAlphaAt(t, et) },
       );
     }
     // Update sun light position + shadow camera frustum. The light shines from
@@ -968,6 +999,17 @@ export class UniverseRenderer {
           sf.labelSprite, sf.position, dist, bodyMeshArr, camPos,
         );
       }
+    }
+
+    // Event span strokes are fat lines whose shader trims segments behind the
+    // camera to this (very close) near plane in float32, unstably. Clip them
+    // here, in double precision and against this frame's final camera, just
+    // beyond the near plane. The strokes are written camera-relative, so a
+    // depth this small stays exact even when the camera is far from the scene
+    // origin and the path runs right past it.
+    const strokeMinDepth = this.camera.near * 10;
+    for (const { markers } of this.eventMarkerGroups.values()) {
+      markers.clipStrokesToCamera(this.camera, strokeMinDepth);
     }
 
     for (const bm of this.bodyMeshes.values()) {
@@ -1301,7 +1343,11 @@ export class UniverseRenderer {
       markers.dispose();
     }
     this.eventMarkerGroups.clear();
-    for (const line of this.trajectoryLines.values()) line.clearColorSegments();
+    for (const line of this.trajectoryLines.values()) {
+      line.clearColorSegments();
+      line.setLeadRequest(UniverseRenderer.EVENT_PREVIEW_LEAD, null);
+      line.setLeadRequest(UniverseRenderer.EVENT_SELECTION_LEAD, null);
+    }
 
     const linesForBody = (name: string): Array<[string, TrajectoryLine]> =>
       [...this.trajectoryLines].filter(([key]) => key === name || key.startsWith(`${name}__arc`));
@@ -1326,9 +1372,10 @@ export class UniverseRenderer {
 
     for (const [lineKey, { body, line, pieces }] of grouped) {
       const lineEvents = pieces.map(({ event }) => event);
-      // The selected-span stroke retraces this line's drawn vertices, including
-      // its live head sample, so it reaches the body while the event is underway.
-      const markers = new EventMarkers(body, { trail: () => line.drawnTrail() });
+      // Span strokes retrace this line's drawn vertices — trail, live head
+      // sample, and future lead — so they reach the body while the event is
+      // underway and follow the lead when it is still ahead.
+      const markers = new EventMarkers(body, { path: () => line.drawnPath() });
       markers.setMarkers(pieces.map(({ event, start, end }) => ({
         id: event.id,
         queryId: event.queryId,
@@ -1376,8 +1423,39 @@ export class UniverseRenderer {
     }
   }
 
+  /** Lead request keys owned by event preview and selection. */
+  static readonly EVENT_PREVIEW_LEAD = 'event-preview';
+  static readonly EVENT_SELECTION_LEAD = 'event-selection';
+
+  /**
+   * Colors event spans on their lines, and asks those same lines for enough
+   * future path to place the previewed and selected events (#105). Doing it
+   * here, where preview and selection already land from every surface — the
+   * list, the timeline, 3D marker hover — keeps one interaction state, and
+   * puts the lead on exactly the line the event's markers are drawn on.
+   */
   private refreshEventLineColors(): void {
-    for (const { line, events } of this.eventMarkerGroups.values()) {
+    const contextActive = this._eventPreview !== null || this._selectedEvent !== null;
+    const groups = [...this.eventMarkerGroups.values()];
+    const requestFor = (line: TrajectoryLine, ref: Pick<GeometryEvent, 'id' | 'queryId'> | null): LeadRequest | null => {
+      if (!ref) return null;
+      const own = groups.find((group) => group.line === line);
+      const request = eventLeadRequest(own?.events ?? [], ref, line.timeBounds());
+      if (request) return request;
+      // A distant event can be on another composite arc. Give the current
+      // arc of that same body a short stub without drawing intervening arcs.
+      const owner = groups.find((group) =>
+        group.line.body.name === line.body.name && group.events.some((event) => event.id === ref.id && event.queryId === ref.queryId));
+      const context = eventLeadRequest(owner?.events ?? [], ref);
+      return context ? { ...context, policy: { ...EVENT_LEAD_POLICY, maxContinuous: 0 } } : null;
+    };
+    for (const line of this.trajectoryLines.values()) {
+      line.setEventContext(contextActive);
+      line.setLeadRequest(UniverseRenderer.EVENT_PREVIEW_LEAD, requestFor(line, this._eventPreview));
+      line.setLeadRequest(UniverseRenderer.EVENT_SELECTION_LEAD, requestFor(line, this._selectedEvent));
+    }
+    for (const { line, markers, events } of this.eventMarkerGroups.values()) {
+      markers.setContextActive(contextActive);
       const intervals = events.filter((event) => event.temporality === 'interval');
       intervals.sort((a, b) => {
         const rank = (event: GeometryEvent) =>
@@ -1399,6 +1477,7 @@ export class UniverseRenderer {
             : preview ? new THREE.Color(eventMarkerColor(event.kind, event.state)).lerp(new THREE.Color(0xffffff), 0.28)
               : eventMarkerColor(event.kind, event.state),
           intensity: selected ? 1.45 : preview ? 1.2 : 1,
+          future: selected || preview,
         };
       }));
     }
@@ -1528,18 +1607,22 @@ export class UniverseRenderer {
 
     // Adaptive trail sampling is densest where the path bends, so chords of a
     // strided walk can cut far from the drawn curve; keep it near full rate.
-    const { positions, count } = line.drawnTrail();
-    const stride = Math.max(1, Math.ceil(count / 12000));
     line.updateMatrixWorld();
-    for (let i = 0; i < count; i = Math.min(i + stride, i === count - 1 ? count : count - 1)) {
-      // Strided chords plus the newest vertex, which is where the craft is.
-      point.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
-        .applyMatrix4(line.matrixWorld).project(this.camera);
-      if (point.z < -1 || point.z > 1) {
-        path.push(NaN, NaN);
-        continue;
+    // The whole drawn path: the trail and any future lead.
+    for (const { positions, count } of line.drawnPath()) {
+      const stride = Math.max(1, Math.ceil(count / 12000));
+      for (let i = 0; i < count; i = Math.min(i + stride, i === count - 1 ? count : count - 1)) {
+        // Strided chords plus the newest vertex, which is where the craft is.
+        point.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
+          .applyMatrix4(line.matrixWorld).project(this.camera);
+        if (point.z < -1 || point.z > 1) {
+          path.push(NaN, NaN);
+          continue;
+        }
+        path.push((point.x + 1) * width / 2, (1 - point.y) * height / 2);
       }
-      path.push((point.x + 1) * width / 2, (1 - point.y) * height / 2);
+      // Runs are separate strokes; never join one's end to the next's start.
+      path.push(NaN, NaN);
     }
 
     const discs: Array<{ x: number; y: number; r: number }> = [];
@@ -1657,6 +1740,17 @@ export class UniverseRenderer {
     } else {
       for (const bm of this.bodyMeshes.values()) {
         if (bm.hasTerrain) bm.setTerrainDebug(show);
+      }
+    }
+  }
+
+  /** Color terrain tiles by a diagnostic quantity for a body (or all terrain bodies). See `TerrainDebugMode`. */
+  setTerrainDebugMode(mode: TerrainDebugMode, bodyName?: string): void {
+    if (bodyName) {
+      this.bodyMeshes.get(bodyName)?.setTerrainDebugMode(mode);
+    } else {
+      for (const bm of this.bodyMeshes.values()) {
+        if (bm.hasTerrain) bm.setTerrainDebugMode(mode);
       }
     }
   }
@@ -1796,6 +1890,34 @@ export class UniverseRenderer {
     // hiding only the first leaves most of the trail on screen.
     for (const [key, line] of this.trajectoryLines) {
       if (key.startsWith(`${name}__arc`)) line.setUserVisible(visible);
+    }
+  }
+
+  /**
+   * Ask for (or, with null, withdraw) future trajectory ahead of current
+   * simulation time on one object's line(s), composite arcs included.
+   *
+   * `key` names the consumer — an event hover preview, a selected event, a
+   * focus mode — so several can ask at once and each withdraws only its own.
+   * Each line windows the requests by its lead policy and clips them to its
+   * coverage, so an arc only draws the part of a request it actually covers.
+   * Silent when the object draws no trajectory.
+   */
+  setTrajectoryLead(name: string, key: string, request: LeadRequest | null): void {
+    for (const tl of this.trajectoryLinesOf(name)) tl.setLeadRequest(key, request);
+  }
+
+  /** Withdraw one consumer's lead request from every trajectory line. */
+  clearTrajectoryLead(key: string): void {
+    for (const tl of this.trajectoryLines.values()) tl.setLeadRequest(key, null);
+  }
+
+  /** The line(s) drawing one object's trajectory: itself, or its arcs. */
+  private *trajectoryLinesOf(name: string): Iterable<TrajectoryLine> {
+    const tl = this.trajectoryLines.get(name);
+    if (tl) yield tl;
+    for (const [key, line] of this.trajectoryLines) {
+      if (key.startsWith(`${name}__arc`)) yield line;
     }
   }
 
@@ -2747,7 +2869,7 @@ export class UniverseRenderer {
           // terrain fades toward sky color. Static uniforms (coefficients, radii)
           // are set once here; camera/sun positions are refreshed per-frame.
           // Share the parent atmosphere's LUT so MS lookups stay consistent.
-          const apu = makeAerialPerspectiveUniforms();
+          const apu = makeAerialPerspectiveUniforms(atm.model, radius, this.scaleFactor, atm.transmittanceLUT);
           apu.uAPMultiScatterLUT.value = atm.multiScatterLUT;
           this.aerialPerspectiveUniforms.set(body.name, apu);
           bm.enableAerialPerspective(apu);

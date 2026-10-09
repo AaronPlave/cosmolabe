@@ -5,7 +5,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
-import { TerrainManager, type TerrainConfig } from './TerrainManager.js';
+import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
 import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import { injectShadowIntoShader, makeShadowUniforms, MAX_SHADOW_OCCLUDERS, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -112,6 +112,19 @@ export class BodyMesh extends THREE.Object3D {
    * (geometry Y = body-fixed Z pole). Default [1,1,1] for spherical bodies.
    */
   readonly ellipsoidRatios: [number, number, number] = [1, 1, 1];
+
+  /**
+   * The body-fixed frame as rendered: the rotation taking body-fixed axes
+   * (SPICE convention — Z the pole, X the prime meridian) to world axes.
+   *
+   * Read from the mesh rather than recomputed from the rotation model, so it is
+   * right in both cases a camera can meet: a body with a rotation model, and
+   * one without, whose globe keeps the geometry's own pole (world +Y).
+   */
+  bodyToWorldQuaternion(out: THREE.Quaternion): THREE.Quaternion {
+    const rendered = (this.modelContainer ?? this.mesh).quaternion;
+    return out.copy(this.meshRotationQ).invert().premultiply(rendered);
+  }
 
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
@@ -418,6 +431,8 @@ export class BodyMesh extends THREE.Object3D {
     if (this.body.classification === 'star' || this.body.geometryData?.emissive === true) return;
     this.aerialPerspectiveEnabled = true;
     this.aerialPerspectiveUniforms = uniforms;
+    // Share live scene-space eclipse and ring inputs with AP sample visibility.
+    Object.assign(uniforms, this.shadowUniforms, this.ringShadowUniforms);
 
     const mat = this.mesh.material as THREE.Material & {
       onBeforeCompile?: (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }, renderer: unknown) => void;
@@ -428,11 +443,14 @@ export class BodyMesh extends THREE.Object3D {
     const prevOBC = mat.onBeforeCompile?.bind(mat);
     mat.onBeforeCompile = (shader, renderer) => {
       prevOBC?.(shader, renderer);
-      injectAerialPerspectiveIntoShader(shader, uniforms as unknown as Record<string, { value: unknown }>);
+      injectAerialPerspectiveIntoShader(
+        shader, uniforms as unknown as Record<string, { value: unknown }>,
+        !this.body.geometryData?.displacementMap,
+      );
     };
     // Bump cache key so the program is recompiled with both injections combined.
     const prevKey = (mat.customProgramCacheKey ?? (() => ''))();
-    mat.customProgramCacheKey = () => prevKey + '_ap_v1';
+    mat.customProgramCacheKey = () => prevKey + '_ap_v4';
     mat.needsUpdate = true;
 
     // Forward to terrain tiles if already initialized (or queued for future tiles).
@@ -488,8 +506,7 @@ export class BodyMesh extends THREE.Object3D {
    *
    * @param opts.shadow Inject eclipse-shadow occlusion. Default true.
    * @param opts.aerialPerspective Inject atmospheric scattering / extinction
-   *        (only meaningful for low-altitude surface viewing — cosmolabe
-   *        zeros the strength at orbital distance). Default true.
+   *        (integrated over the atmospheric portion of the view ray). Default true.
    *
    * Skips silently when this body has neither effect active (stars, emissive
    * bodies, bodies with no atmosphere). Safe to call once per material.
@@ -523,7 +540,7 @@ export class BodyMesh extends THREE.Object3D {
       if (su) injectShadowIntoShader(shader, su);
       if (apu) injectAerialPerspectiveIntoShader(shader, apu as unknown as Record<string, { value: unknown }>);
     };
-    const suffix = (su ? '_shadow_v1' : '') + (apu ? '_ap_v1' : '') + '_child';
+    const suffix = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '') + '_child';
     mat.customProgramCacheKey = () => suffix;
   }
 
@@ -927,6 +944,21 @@ export class BodyMesh extends THREE.Object3D {
   /** Toggle debug tile bounds on terrain */
   setTerrainDebug(show: boolean): void {
     this.terrainManager?.setDebug(show);
+  }
+
+  /** Color terrain tiles by a diagnostic quantity; `'none'` restores normal rendering. */
+  setTerrainDebugMode(mode: TerrainDebugMode): void {
+    this.terrainManager?.setDebugMode(mode);
+  }
+
+  /** Active terrain debug surface mode, or null when this body has no streamed terrain. */
+  get terrainDebugMode(): TerrainDebugMode | null {
+    return this.terrainManager?.debugSurfaceMode ?? null;
+  }
+
+  /** Terrain cost/load snapshot, or null when this body has no streamed terrain. */
+  get terrainMetrics(): TerrainPerformanceMetrics | null {
+    return this.terrainManager?.metrics ?? null;
   }
 
   /** Sample decoded CPU terrain. Null is the explicit unloaded-data fallback. */

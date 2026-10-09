@@ -1,12 +1,22 @@
 import * as THREE from 'three';
 import { buildMultiScatterLUT } from './MultiScatterLUT.js';
 import { MAX_SHADOW_OCCLUDERS } from './EclipseShadow.js';
+import { normalizeAtmosphere, type AtmosphereModel } from './AtmosphereModel.js';
+import { ATMOSPHERE_PROFILES_GLSL, makeAtmosphereProfileUniforms } from './AtmosphereProfiles.js';
+import { buildTransmittanceLUT } from './TransmittanceLUT.js';
+import { SkyViewLUT, SKY_VIEW_BASIS_GLSL } from './SkyViewLUT.js';
 
 /**
  * Atmosphere scattering parameters for a body.
  * Rayleigh + Mie atmospheric scattering parameters — all coefficients in 1/km.
  */
 export interface AtmosphereParams {
+  /** Explicit shell height in km. Legacy inline catalogs derive this from scale height. */
+  heightKm?: number;
+  rayleighScaleHeightKm?: number;
+  mieExtinctionCoeff?: [number, number, number];
+  absorptionProfile?: AtmosphereModel['absorption']['profile'];
+  groundAlbedo?: [number, number, number];
   /**
    * Mie scattering coefficient (1/km). Scalar for wavelength-independent haze
    * (Earth-style gray aerosols), or [R, G, B] for wavelength-dependent dust
@@ -36,51 +46,24 @@ export interface AtmosphereParams {
 const ATMOSPHERE_PRESETS: Record<string, AtmosphereParams> = {
   Earth: {
     mieCoeff: 0.0002,
-    mieScaleHeight: 8.5,
+    mieScaleHeight: 1.2,
+    rayleighScaleHeightKm: 8.0,
+    heightKm: 100,
+    absorptionProfile: { type: 'tent', peakKm: 25, halfWidthKm: 15 },
+    groundAlbedo: [0.1, 0.1, 0.1],
     miePhaseAsymmetry: -0.7,
     rayleighCoeff: [0.0054, 0.0081, 0.0167],
     absorptionCoeff: [0.0027, 0.0017, 0.0002],
     planetCapBias: 0.001,
   },
   Mars: {
-    // Mars's daytime sky color comes from suspended iron-oxide dust, not from
-    // molecular scattering of the thin CO₂ atmosphere. The Mie component here
-    // models that dust: ~5× the original mieCoeff for visible-band optical
-    // depth in line with MSL/Curiosity sol observations, mildly forward-peaked
-    // phase (the dust is not as tightly forward as a delta lobe), with
-    // absorption biased toward blue so the multiply-scattered light comes
-    // out salmon/butterscotch. The Rayleigh component is the (tiny) CO₂
-    // contribution — kept so the model degrades gracefully if dust is zero.
-    //
-    // Phase asymmetry sign convention: our Schlick approximation peaks at
-    // cosTheta = sign(k), and cosTheta = -1 corresponds to "looking at the
-    // sun", so forward-peaked scattering needs g < 0 (k < 0) — same sign
-    // as Earth's preset. Magnitude controls how narrow the peak is; we want
-    // a moderate peak so off-sun directions still pick up dust color.
-    // Mie: forward-peaked dust scattering, isotropic across RGB (a single
-    // scalar represents the gray "scattering opacity" component).
-    // rayleighCoeff: used here to add wavelength-dependent dust scattering on
-    // top of Mie — real Mars dust scatters longer wavelengths preferentially
-    // (R:G:B ≈ 1.0 : 0.78 : 0.62), and our scalar Mie can't capture that.
-    // Pumping these in R>G>B gives the salmon/butterscotch character.
-    // Absorption is strongly blue-biased (iron oxide) so long horizon paths
-    // get an additional red shift.
-    // Per-channel Mie models wavelength-dependent dust scattering directly —
-    // Mars iron-oxide dust scatters R:G:B in roughly 1.0:0.84:0.71 ratio
-    // (measured from Mars Pathfinder / MER imaging). Column OD ~0.5 matches
-    // typical clear-sol Curiosity observations. Phase is forward-peaked
-    // (g = -0.5) for the bright sun halo. Rayleigh is the tiny CO₂ component.
-    // Absorption is mildly blue-biased (iron oxide) for additional red shift
-    // on long horizon paths.
-    // Tuned for our 8-sample single-scatter + 1-bounce-LUT approximation.
-    // Mars's real column OD ~0.5 saturates T_view at sample 1 and dims the
-    // horizon (and the sun-path T_sun is over-attenuated by the same effect),
-    // so we run a lighter dust loading and lighter absorption — column OD
-    // lands around 0.2, which produces a recognizable salmon sky with our
-    // integration scheme. The R:G:B = 1.0:0.85:0.7 ratio for Mie matches
-    // measured dust scattering ratios.
+    // Dust dominates visible scattering; keep the existing loading until
+    // ground and orbit comparisons can guide a separate calibration pass.
     mieCoeff: [0.018, 0.015, 0.012],
     mieScaleHeight: 11.0,
+    rayleighScaleHeightKm: 11.0,
+    heightKm: 85,
+    groundAlbedo: [0.16, 0.12, 0.1],
     miePhaseAsymmetry: -0.5,
     rayleighCoeff: [0.00002, 0.00005, 0.00012],
     absorptionCoeff: [0.0002, 0.0010, 0.0030],
@@ -110,11 +93,13 @@ const ATMOSPHERE_PRESETS: Record<string, AtmosphereParams> = {
     absorptionCoeff: [0.0010, 0.0008, 0.0003],
   },
   Saturn: {
-    mieCoeff: 0.0025,
+    // Haze above the visible cloud-deck texture. The inherited full-column
+    // loading washed out orbital bands; retain 1/4 after same-camera brackets.
+    mieCoeff: 0.000625,
     mieScaleHeight: 60.0,
     miePhaseAsymmetry: -0.5,
-    rayleighCoeff: [0.0035, 0.0028, 0.0015],
-    absorptionCoeff: [0.0008, 0.0006, 0.0002],
+    rayleighCoeff: [0.000875, 0.0007, 0.000375],
+    absorptionCoeff: [0.0002, 0.00015, 0.00005],
   },
   Uranus: {
     mieCoeff: 0.0015,
@@ -148,30 +133,9 @@ const ATMOSPHERE_PRESETS: Record<string, AtmosphereParams> = {
   },
 };
 
-// ln(0.0005) ≈ -7.60 — atmosphere extends to where density = 0.05% of surface.
-// Wider than the typical 5% threshold for a more visible limb glow from orbital distance.
-const LOG_EXTINCTION_THRESHOLD = Math.log(0.0005);
-
-/** Normalize a scalar-or-vec3 mieCoeff to a [R, G, B] tuple. */
-function mieVec3(m: number | [number, number, number]): [number, number, number] {
-  return typeof m === 'number' ? [m, m, m] : m;
-}
-
 // ---- GLSL Shaders ----
-// Per-VERTEX single-scatter ray-march (Cesium-style sky atmosphere). The
-// proxy sphere is tessellated 128×64 → ~8K vertices; each vertex casts a ray
-// from the camera through itself, integrates Rayleigh + Mie inscatter + the
-// all-bounce multi-scatter ambient from the LUT (Hillaire 2020 §6.3), and
-// outputs the result as varyings. The fragment shader does a Reinhard
-// tone-map and outputs the interpolated values plus a per-pixel sun-glare
-// add-on for the sharp solar disk highlight that vertex interpolation can't
-// resolve.
-//
-// Cost vs. per-fragment ray-march: ~8K vertices × 8 samples = 64K iterations
-// per frame vs. millions of per-pixel iterations — typically 100-200× cheaper.
-// Tradeoff: the limb gradient is interpolated across triangle edges, so it
-// looks slightly softer than the per-pixel version. Acceptable for our
-// mission-vis fidelity bar; if too soft we can bump the tessellation.
+// The shell and terrain shaders share density profiles and direct-Sun transmittance.
+// Inside-shell views integrate at vertices; orbital limb views integrate per pixel.
 
 const atmosphereVertexShader = /* glsl */ `
 #include <common>
@@ -179,11 +143,7 @@ const atmosphereVertexShader = /* glsl */ `
 
 uniform float planetR;
 uniform float planetCapBias;
-uniform vec3  mieCoeff;
-uniform float invScaleH;
 uniform float mieK;
-uniform vec3  rayleighCoeff;
-uniform vec3  extinctionCoeff;
 
 uniform mat4 invModelMat;
 uniform vec3 lightDir;
@@ -197,8 +157,10 @@ uniform float uShadowOccluderRadius[${MAX_SHADOW_OCCLUDERS}];
 uniform float uShadowOccluderCount;
 uniform vec3  uPlanetWorldPos;
 uniform float uShellSceneScale;
+uniform mat4 uAtmModelToWorld;
+${ATMOSPHERE_PROFILES_GLSL}
 
-varying vec3  vColor;       // tone-mapped scattered color (linear → display via Reinhard in frag)
+varying vec3  vColor;       // linear scattered radiance
 varying float vAlpha;       // view-ray transmittance (atmosphere alpha for blend)
 varying float vCosTheta;    // dot(-viewDir, sunDir) for per-pixel sun glare
 varying float vDiscAtm;     // for discarding fragments outside the atmosphere shell
@@ -207,7 +169,7 @@ varying vec3  vObjPos;      // proxy-sphere position; needed by the per-fragment
 #define NUM_SAMPLES 8
 
 float computeAtmEclipseShadow(vec3 samplePos) {
-  vec3 worldPos = uPlanetWorldPos + samplePos * uShellSceneScale;
+  vec3 worldPos = (uAtmModelToWorld * vec4(samplePos, 1.0)).xyz;
   vec3 toSun = uSunWorldPos - worldPos;
   float distToSun = length(toSun);
   if (distToSun < 1e-20) return 1.0;
@@ -287,50 +249,61 @@ void main() {
   float phMie = (1.0 - mieK * mieK)
               / ((1.0 - mieK * vCosTheta) * (1.0 - mieK * vCosTheta));
   float phRayleigh = 0.75 * (1.0 + vCosTheta * vCosTheta);
-  vec3  scatteringPhase    = phRayleigh * rayleighCoeff + phMie * mieCoeff;
-  vec3  scatteringSumCoeff = rayleighCoeff + mieCoeff;
-
   vec3  totalInscatter = vec3(0.0);
-  float totalOptDepth  = 0.0;
+  vec3 totalOptDepth = vec3(0.0);
 
   for (int i = 0; i < NUM_SAMPLES; i++) {
     float t = tEnter + (float(i) + 0.5) * stepLen;
     vec3 samplePos = eyePos + t * viewDir;
     float r = length(samplePos);
     float altitude = max(0.0, r - planetR);
-    float density  = exp(-altitude * invScaleH);
-    totalOptDepth += density * stepLen;
+    vec3 density = atmDensities(altitude);
+    vec3 extinction = atmExtinction(density);
+    vec3 weight = atmSegmentWeight(extinction, stepLen);
 
     vec3  upLocal = (r > 1e-6) ? samplePos / r : vec3(0.0, 1.0, 0.0);
     float cosLit  = dot(upLocal, lightDir);
-    float hemiFade = smoothstep(-0.35, 0.15, cosLit);
-    float shadow   = min(hemiFade, computeAtmEclipseShadow(samplePos));
+    float shadow = computeAtmEclipseShadow(samplePos);
+    vec3 T_view = exp(-totalOptDepth);
+    vec3 T_sun = atmSunTransmittance(samplePos, lightDir);
 
-    float sRq = dot(samplePos, lightDir);
-    float sQq = dot(samplePos, samplePos) - 1.0;
-    float sD2 = sRq * sRq - sQq;
-    float sunDist = (sD2 > 0.0) ? max(0.0, -sRq + sqrt(sD2)) : 0.0;
-    vec3 T_view = exp(-extinctionCoeff * totalOptDepth);
-    vec3 T_sun  = exp(-extinctionCoeff * density * sunDist * 0.5);
-
-    vec3 ssContrib = T_view * T_sun * shadow * density * stepLen * scatteringPhase;
+    vec3 ssContrib = T_view * T_sun * shadow * weight * atmScattering(density, phRayleigh, phMie);
     vec2 lutUV = vec2(cosLit * 0.5 + 0.5, altitude / max(1e-6, 1.0 - planetR));
     vec3 psi   = texture2D(uMultiScatterLUT, lutUV).rgb;
-    vec3 msContrib = T_view * psi * scatteringSumCoeff * density * stepLen * shadow;
+    vec3 msContrib = T_view * psi * atmScatteringSum(density) * weight * shadow;
 
     totalInscatter += ssContrib + msContrib;
+    totalOptDepth += extinction * stepLen;
   }
 
   vec3 color = lightColor * totalInscatter;
-  // Reinhard tone mapping — keeps bright limb pixels from clipping to white
-  // when CustomBlending bypasses the renderer's tone-mapping pass.
-  color = color / (1.0 + color);
 
-  vec3 viewEx = exp(-extinctionCoeff * totalOptDepth);
+  vec3 viewEx = exp(-totalOptDepth);
   float alpha = dot(viewEx, vec3(0.3333));
 
   vColor = color;
   vAlpha = alpha;
+}
+`;
+
+// With a SkyView LUT, vertices only supply proxy positions. The view integral
+// runs once per LUT texel rather than once per vertex on every shell draw.
+const skyViewVertexShader = /* glsl */ `
+#include <common>
+#include <logdepthbuf_pars_vertex>
+varying vec3 vColor;
+varying float vAlpha;
+varying float vCosTheta;
+varying float vDiscAtm;
+varying vec3 vObjPos;
+void main() {
+  vObjPos = position;
+  vColor = vec3(0.0);
+  vAlpha = 1.0;
+  vCosTheta = 0.0;
+  vDiscAtm = 0.0;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  #include <logdepthbuf_vertex>
 }
 `;
 
@@ -340,16 +313,14 @@ precision highp float;
 
 uniform float planetR;
 uniform float planetCapBias;
-uniform vec3  mieCoeff;
-uniform float invScaleH;
 uniform float mieK;
-uniform vec3  rayleighCoeff;
-uniform vec3  extinctionCoeff;
 
 uniform mat4 invModelMat;
 uniform vec3 lightDir;
 uniform vec3 lightColor;
 uniform sampler2D uMultiScatterLUT;
+uniform sampler2D uSkyViewLUT;
+uniform bool uHasSkyViewLUT;
 
 uniform vec3  uSunWorldPos;
 uniform float uSunRadius;
@@ -358,6 +329,9 @@ uniform float uShadowOccluderRadius[${MAX_SHADOW_OCCLUDERS}];
 uniform float uShadowOccluderCount;
 uniform vec3  uPlanetWorldPos;
 uniform float uShellSceneScale;
+uniform mat4 uAtmModelToWorld;
+${ATMOSPHERE_PROFILES_GLSL}
+${SKY_VIEW_BASIS_GLSL}
 
 /** 1.0 when camera is inside the atm shell (use cheap per-vertex), 0.0 when
  *  outside (do per-fragment ray-march so the silhouette is crisp). Per-vertex
@@ -375,7 +349,7 @@ varying vec3  vObjPos;
 #define NUM_SAMPLES 8
 
 float computeAtmEclipseShadow(vec3 samplePos) {
-  vec3 worldPos = uPlanetWorldPos + samplePos * uShellSceneScale;
+  vec3 worldPos = (uAtmModelToWorld * vec4(samplePos, 1.0)).xyz;
   vec3 toSun = uSunWorldPos - worldPos;
   float distToSun = length(toSun);
   if (distToSun < 1e-20) return 1.0;
@@ -400,6 +374,23 @@ void main() {
 
   // Cheap path: camera inside the shell. Use the per-vertex result.
   if (uCameraInsideShell > 0.5) {
+    if (uHasSkyViewLUT) {
+      vec3 eye = (invModelMat * vec4(cameraPosition, 1.0)).xyz;
+      vec3 viewDir = normalize(normalize(vObjPos) * 1.15 - eye);
+      vec3 up, towardSun, side;
+      skyBasis(eye, lightDir, up, towardSun, side);
+      float theta = acos(clamp(dot(viewDir, up), -1.0, 1.0));
+      vec3 horizontal = viewDir - up * dot(viewDir, up);
+      float azimuth = length(horizontal) < 1e-6 ? 0.0 :
+        atan(dot(horizontal, side), dot(horizontal, towardSun));
+      float capR = max(0.0, planetR - planetCapBias);
+      gl_FragColor = texture2D(uSkyViewLUT, vec2(
+        (azimuth + 3.14159265358979) / (2.0 * 3.14159265358979),
+        skyVFromTheta(theta, skyHorizonTheta(eye, capR))));
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+      return;
+    }
     if (vDiscAtm < 0.0) {
       gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
       return;
@@ -412,6 +403,8 @@ void main() {
     float sunSpike = pow(sunCos, 256.0);
     color += lightColor * sunSpike * 0.15 * (1.0 - alpha);
     gl_FragColor = vec4(color, alpha);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
     return;
   }
 
@@ -452,44 +445,36 @@ void main() {
   float phMie = (1.0 - mieK * mieK)
               / ((1.0 - mieK * cosTheta) * (1.0 - mieK * cosTheta));
   float phRayleigh = 0.75 * (1.0 + cosTheta * cosTheta);
-  vec3  scatteringPhase    = phRayleigh * rayleighCoeff + phMie * mieCoeff;
-  vec3  scatteringSumCoeff = rayleighCoeff + mieCoeff;
-
   vec3  totalInscatter = vec3(0.0);
-  float totalOptDepth  = 0.0;
+  vec3 totalOptDepth = vec3(0.0);
 
   for (int i = 0; i < NUM_SAMPLES; i++) {
     float t = tEnter + (float(i) + 0.5) * stepLen;
     vec3 samplePos = eyePos + t * viewDir;
     float r = length(samplePos);
     float altitude = max(0.0, r - planetR);
-    float density  = exp(-altitude * invScaleH);
-    totalOptDepth += density * stepLen;
+    vec3 density = atmDensities(altitude);
+    vec3 extinction = atmExtinction(density);
+    vec3 weight = atmSegmentWeight(extinction, stepLen);
 
     vec3  upLocal = (r > 1e-6) ? samplePos / r : vec3(0.0, 1.0, 0.0);
     float cosLit  = dot(upLocal, lightDir);
-    float hemiFade = smoothstep(-0.35, 0.15, cosLit);
-    float shadow   = min(hemiFade, computeAtmEclipseShadow(samplePos));
+    float shadow = computeAtmEclipseShadow(samplePos);
+    vec3 T_view = exp(-totalOptDepth);
+    vec3 T_sun = atmSunTransmittance(samplePos, lightDir);
 
-    float sRq = dot(samplePos, lightDir);
-    float sQq = dot(samplePos, samplePos) - 1.0;
-    float sD2 = sRq * sRq - sQq;
-    float sunDist = (sD2 > 0.0) ? max(0.0, -sRq + sqrt(sD2)) : 0.0;
-    vec3 T_view = exp(-extinctionCoeff * totalOptDepth);
-    vec3 T_sun  = exp(-extinctionCoeff * density * sunDist * 0.5);
-
-    vec3 ssContrib = T_view * T_sun * shadow * density * stepLen * scatteringPhase;
+    vec3 ssContrib = T_view * T_sun * shadow * weight * atmScattering(density, phRayleigh, phMie);
     vec2 lutUV = vec2(cosLit * 0.5 + 0.5, altitude / max(1e-6, 1.0 - planetR));
     vec3 psi   = texture2D(uMultiScatterLUT, lutUV).rgb;
-    vec3 msContrib = T_view * psi * scatteringSumCoeff * density * stepLen * shadow;
+    vec3 msContrib = T_view * psi * atmScatteringSum(density) * weight * shadow;
 
     totalInscatter += ssContrib + msContrib;
+    totalOptDepth += extinction * stepLen;
   }
 
   vec3 color = lightColor * totalInscatter;
-  color = color / (1.0 + color);
 
-  vec3 viewEx = exp(-extinctionCoeff * totalOptDepth);
+  vec3 viewEx = exp(-totalOptDepth);
   float alpha = dot(viewEx, vec3(0.3333));
 
   // Smooth outer atmosphere boundary so the proxy-sphere silhouette doesn't
@@ -499,6 +484,8 @@ void main() {
   alpha  = mix(1.0, alpha, edgeFade);
 
   gl_FragColor = vec4(color, alpha);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
 }
 `;
 
@@ -516,6 +503,7 @@ export class AtmosphereMesh extends THREE.Mesh {
   readonly shellRadius: number;
   /** Atmosphere parameters used for cheap CPU brightness estimation and AP uniform setup. */
   readonly params: AtmosphereParams;
+  readonly model: AtmosphereModel;
   /** Most recent normalized camera altitude (0 surface, 1 at/above shell). */
   private _camAltitudeNorm = 1;
   /** Most recent local sun direction (object space). */
@@ -526,33 +514,26 @@ export class AtmosphereMesh extends THREE.Mesh {
   private readonly _invModelMatrix = new THREE.Matrix4();
   private readonly _lightLocal = new THREE.Vector3();
   private readonly _camLocal = new THREE.Vector3();
+  private readonly _renderer: THREE.WebGLRenderer | undefined;
+  private _skyView: SkyViewLUT | null = null;
 
   constructor(planetRadius: number, params: AtmosphereParams, renderer?: THREE.WebGLRenderer) {
-    const shellRadius = planetRadius + -params.mieScaleHeight * LOG_EXTINCTION_THRESHOLD;
+    const model = normalizeAtmosphere(params);
+    const shellRadius = planetRadius + model.heightKm;
 
-    // High tessellation: per-vertex inscatter is interpolated across triangle
-    // edges; the inscatter function is highly non-linear in view direction
-    // (especially near the planet silhouette where path length jumps), so we
-    // need many segments to keep interpolation triangles below the human-
-    // visible angular threshold. 1024×512 gives ~0.35°/segment at the equator.
-    // Total vertices ~525K — vertex-shader cost ~4M ray-march iterations per
-    // frame, still well below the per-fragment cost over a screen-covering
-    // proxy (which would be ~16M for a 2M-pixel proxy at 8 samples).
-    const geometry = new THREE.SphereGeometry(1.15, 1024, 512);
+    const geometry = new THREE.SphereGeometry(1.15, renderer ? 256 : 1024, renderer ? 128 : 512);
     const material = new THREE.ShaderMaterial({
       uniforms: {
+        ...makeAtmosphereProfileUniforms(model, shellRadius, planetRadius / shellRadius, 1, null),
         planetR:        { value: 0 },
         planetCapBias:  { value: 0 },
-        mieCoeff:       { value: new THREE.Vector3() },
-        invScaleH:      { value: 0 },
         mieK:           { value: 0 },
-        rayleighCoeff:  { value: new THREE.Vector3() },
-        scatterCoeffSum:{ value: new THREE.Vector3() },
-        extinctionCoeff:{ value: new THREE.Vector3() },
         invModelMat:    { value: new THREE.Matrix4() },
         lightDir:       { value: new THREE.Vector3(1, 0, 0) },
         lightColor:     { value: new THREE.Vector3(1, 1, 1) },
         uMultiScatterLUT: { value: null as THREE.Texture | null },
+        uSkyViewLUT: { value: null as THREE.Texture | null },
+        uHasSkyViewLUT: { value: false },
         uCameraInsideShell:    { value: 0.0 },
         uSunWorldPos:          { value: new THREE.Vector3() },
         uSunRadius:            { value: 0 },
@@ -561,8 +542,9 @@ export class AtmosphereMesh extends THREE.Mesh {
         uShadowOccluderCount:  { value: 0.0 },
         uPlanetWorldPos:       { value: new THREE.Vector3() },
         uShellSceneScale:      { value: 1.0 },
+        uAtmModelToWorld:      { value: new THREE.Matrix4() },
       },
-      vertexShader: atmosphereVertexShader,
+      vertexShader: renderer ? skyViewVertexShader : atmosphereVertexShader,
       fragmentShader: atmosphereFragmentShader,
       transparent: true,
       depthWrite: false,
@@ -573,21 +555,7 @@ export class AtmosphereMesh extends THREE.Mesh {
       blendSrc: THREE.OneFactor,
       blendDst: THREE.SrcAlphaFactor,
       blendEquation: THREE.AddEquation,
-      // BackSide only — visible at the limb (where the planet doesn't
-      // depth-occlude) but invisible across the disc. Combined with the
-      // altitude-fadeout on `uAPStrength` in UniverseRenderer, this leaves
-      // the planet's disc untinted by atmospheric scattering at orbital
-      // distance — the day/night terminator is a sharp Lambert cutoff with
-      // no warm Rayleigh-extinction band like real orbital photos show.
-      //
-      // TODO(disc-terminator-tint): switch to DoubleSide and branch the
-      // fragment shader on `gl_FrontFacing`. Front-face path ray-traces from
-      // camera toward planet surface, integrates inscatter along the
-      // in-atmosphere segment, discards on rays that miss the planet (leaves
-      // that area to the back-face limb pass). Adds warm color on the disc
-      // at orbital views without re-introducing the AP altitude fadeout —
-      // multi-body-safe, no hardcoded altitude constants. See
-      // ~/code/claude-plans/cosmolabe/atmosphere-disc-tint.md.
+      // The shell renders sky and limb; body materials composite surface paths.
       side: THREE.BackSide,
     });
 
@@ -595,6 +563,8 @@ export class AtmosphereMesh extends THREE.Mesh {
     this.planetRadius = planetRadius;
     this.shellRadius = shellRadius;
     this.params = params;
+    this.model = model;
+    this._renderer = renderer;
     this.frustumCulled = false;
     // Render BEFORE trajectory lines (renderOrder -1) so trajectories paint
     // on top of the limb glow. The custom blend equation here is
@@ -610,7 +580,7 @@ export class AtmosphereMesh extends THREE.Mesh {
     // (always brightens, never darkens) — deferred until needed.
     this.renderOrder = -3;
 
-    this.setAtmosphereUniforms(params, planetRadius, shellRadius);
+    this.setAtmosphereUniforms(planetRadius, shellRadius);
 
     // Build the multi-scattering LUT if a renderer was provided. This is a
     // one-time render-to-texture cost per AtmosphereMesh instance — the
@@ -619,15 +589,23 @@ export class AtmosphereMesh extends THREE.Mesh {
     // ray-march. Without it, the shader falls back to single-scatter only
     // (zenith goes black inside thick atmospheres).
     if (renderer) {
-      this._lutTexture = buildMultiScatterLUT(renderer, params, planetRadius, shellRadius);
+      this._transmittanceTarget = buildTransmittanceLUT(renderer, model, planetRadius);
+      (this.material as THREE.ShaderMaterial).uniforms.uAtmTransmittanceLUT.value = this._transmittanceTarget.texture;
+      (this.material as THREE.ShaderMaterial).uniforms.uAtmHasTransmittanceLUT.value = true;
+      this._lutTexture = buildMultiScatterLUT(renderer, model, planetRadius, shellRadius, this._transmittanceTarget.texture);
       (this.material as THREE.ShaderMaterial).uniforms.uMultiScatterLUT.value = this._lutTexture;
+      this._skyView = new SkyViewLUT((this.material as THREE.ShaderMaterial).uniforms);
+      (this.material as THREE.ShaderMaterial).uniforms.uSkyViewLUT.value = this._skyView.target.texture;
+      (this.material as THREE.ShaderMaterial).uniforms.uHasSkyViewLUT.value = true;
     }
   }
 
   /** Multi-scattering LUT texture (or null if no renderer was passed at construction). */
   private _lutTexture: THREE.Texture | null = null;
+  private _transmittanceTarget: THREE.WebGLRenderTarget | null = null;
   /** Expose the LUT so AerialPerspective uniforms on the same body share it. */
   get multiScatterLUT(): THREE.Texture | null { return this._lutTexture; }
+  get transmittanceLUT(): THREE.Texture | null { return this._transmittanceTarget?.texture ?? null; }
 
   /**
    * Update per-frame uniforms: camera position, light direction, and optional eclipse shadow.
@@ -643,6 +621,7 @@ export class AtmosphereMesh extends THREE.Mesh {
   ): void {
     const u = (this.material as THREE.ShaderMaterial).uniforms;
 
+    u.uAtmModelToWorld.value.copy(this.matrixWorld);
     this._invModelMatrix.copy(this.matrixWorld).invert();
     u.invModelMat.value.copy(this._invModelMatrix);
 
@@ -680,6 +659,9 @@ export class AtmosphereMesh extends THREE.Mesh {
     } else {
       u.uShadowOccluderCount.value = 0;
     }
+    if (camObjR < 1.0 && this._renderer && this._skyView) {
+      this._skyView.update(this._renderer, this._camLocal);
+    }
   }
 
   /**
@@ -699,13 +681,17 @@ export class AtmosphereMesh extends THREE.Mesh {
     // Atmosphere transmittance through one full thickness — luminous coupling.
     // This also encodes per-body color: a thick atmosphere (Earth) blocks more
     // stars at noon than a thin one (Mars), per its preset extinction.
-    const R = this.shellRadius;
-    const ext = this.params.rayleighCoeff[0] + this.params.absorptionCoeff[0]
-              + this.params.rayleighCoeff[1] + this.params.absorptionCoeff[1]
-              + this.params.rayleighCoeff[2] + this.params.absorptionCoeff[2];
-    const mieRGB = mieVec3(this.params.mieCoeff);
-    const mieAvg = (mieRGB[0] + mieRGB[1] + mieRGB[2]) / 3;
-    const totalExt = (ext / 3) * R + mieAvg * R;
+    const model = this.model;
+    const mean = (rgb: [number, number, number]) => (rgb[0] + rgb[1] + rgb[2]) / 3;
+    const absorptionColumn = model.absorption.profile.type === 'tent'
+      ? model.absorption.profile.halfWidthKm
+      : model.absorption.profile.scaleHeightKm *
+        (1 - Math.exp(-model.heightKm / model.absorption.profile.scaleHeightKm));
+    const totalExt = mean(model.rayleigh.scattering) * model.rayleigh.scaleHeightKm *
+      (1 - Math.exp(-model.heightKm / model.rayleigh.scaleHeightKm)) +
+      mean(model.mie.extinction) * model.mie.scaleHeightKm *
+      (1 - Math.exp(-model.heightKm / model.mie.scaleHeightKm)) +
+      mean(model.absorption.extinction) * absorptionColumn;
     const opacity = 1 - Math.exp(-totalExt);
     // Fade toward 0 as camera rises from surface to shell.
     const altFade = 1 - this._camAltitudeNorm;
@@ -716,59 +702,18 @@ export class AtmosphereMesh extends THREE.Mesh {
     this.geometry.dispose();
     (this.material as THREE.Material).dispose();
     this._lutTexture?.dispose();
+    this._transmittanceTarget?.dispose();
+    this._skyView?.dispose();
   }
 
-  private setAtmosphereUniforms(
-    atm: AtmosphereParams,
-    planetRadius: number,
-    shellRadius: number,
-  ): void {
+  private setAtmosphereUniforms(planetRadius: number, shellRadius: number): void {
     const u = (this.material as THREE.ShaderMaterial).uniforms;
-    const R = shellRadius;
-
-    // All coefficients scaled by shellRadius so shader math works in normalized space.
-    // mieCoeff is wavelength-dependent (vec3) — Mars-style iron-oxide dust scatters
-    // longer wavelengths more efficiently. For wavelength-independent haze (Earth),
-    // a scalar input expands to (m, m, m).
-    const mieRGB = mieVec3(atm.mieCoeff);
-    const tMie: [number, number, number] = [
-      mieRGB[0] * R,
-      mieRGB[1] * R,
-      mieRGB[2] * R,
-    ];
-    const tRay: [number, number, number] = [
-      atm.rayleighCoeff[0] * R,
-      atm.rayleighCoeff[1] * R,
-      atm.rayleighCoeff[2] * R,
-    ];
-    const tAbs: [number, number, number] = [
-      atm.absorptionCoeff[0] * R,
-      atm.absorptionCoeff[1] * R,
-      atm.absorptionCoeff[2] * R,
-    ];
-
-    u.planetR.value = planetRadius / R;
-    u.planetCapBias.value = atm.planetCapBias ?? 0;
-    u.mieCoeff.value.set(tMie[0], tMie[1], tMie[2]);
-    u.invScaleH.value = R / atm.mieScaleHeight;
+    u.planetR.value = planetRadius / shellRadius;
+    u.planetCapBias.value = this.model.planetCapBias;
 
     // Schlick approximation: k = 1.55g - 0.55g³
-    const g = atm.miePhaseAsymmetry;
+    const g = this.model.mie.g;
     u.mieK.value = 1.55 * g - 0.55 * g * g * g;
-
-    u.rayleighCoeff.value.set(tRay[0], tRay[1], tRay[2]);
-
-    const scatterSum: [number, number, number] = [
-      tRay[0] + tMie[0],
-      tRay[1] + tMie[1],
-      tRay[2] + tMie[2],
-    ];
-    u.scatterCoeffSum.value.set(scatterSum[0], scatterSum[1], scatterSum[2]);
-    u.extinctionCoeff.value.set(
-      scatterSum[0] + tAbs[0],
-      scatterSum[1] + tAbs[1],
-      scatterSum[2] + tAbs[2],
-    );
   }
 }
 
@@ -818,6 +763,15 @@ export function resolveAtmosphereParams(
   // Object: inline parameters
   if (typeof value === 'object' && value !== null) {
     const obj = value as Record<string, unknown>;
+    const positive = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0;
+    const rgb = (v: unknown): v is [number, number, number] =>
+      Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && Number.isFinite(n) && n >= 0);
+    const profile = obj.absorptionProfile as Record<string, unknown> | undefined;
+    const absorptionProfile = profile?.type === 'tent' && positive(profile.peakKm) && positive(profile.halfWidthKm)
+      ? { type: 'tent' as const, peakKm: profile.peakKm, halfWidthKm: profile.halfWidthKm }
+      : profile?.type === 'exponential' && positive(profile.scaleHeightKm)
+        ? { type: 'exponential' as const, scaleHeightKm: profile.scaleHeightKm }
+        : undefined;
     const mieValid = typeof obj.mieCoeff === 'number'
                   || (Array.isArray(obj.mieCoeff) && obj.mieCoeff.length === 3);
     if (
@@ -828,6 +782,11 @@ export function resolveAtmosphereParams(
       return {
         mieCoeff: obj.mieCoeff as number | [number, number, number],
         mieScaleHeight: obj.mieScaleHeight,
+        heightKm: positive(obj.heightKm) ? obj.heightKm : undefined,
+        rayleighScaleHeightKm: positive(obj.rayleighScaleHeightKm) ? obj.rayleighScaleHeightKm : undefined,
+        mieExtinctionCoeff: rgb(obj.mieExtinctionCoeff) ? obj.mieExtinctionCoeff : undefined,
+        absorptionProfile,
+        groundAlbedo: rgb(obj.groundAlbedo) ? obj.groundAlbedo : undefined,
         miePhaseAsymmetry: (obj.miePhaseAsymmetry as number) ?? -0.7,
         rayleighCoeff: obj.rayleighCoeff as [number, number, number],
         absorptionCoeff: (obj.absorptionCoeff as [number, number, number]) ?? [0, 0, 0],

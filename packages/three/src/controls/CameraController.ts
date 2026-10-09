@@ -38,6 +38,9 @@ export interface CameraViewpoint {
   epoch?: number;
 }
 
+/** The scripted camera moves `orbitTarget`, `dolly` and `crane` start. */
+type CameraMoveKind = 'orbit-up' | 'orbit-right' | 'dolly' | 'crane';
+
 export interface FlyToOptions {
   /** Animation duration in seconds (default: 1.0) */
   duration?: number;
@@ -89,6 +92,13 @@ export class CameraController {
    */
   private _originBody: BodyMesh | null = null;
   get originBody(): BodyMesh | null { return this._originBody; }
+
+  /** Restore an explicit coordinate origin, without changing navigation. */
+  setOriginBody(body: BodyMesh | null): void {
+    this.cancelAnimation();
+    this._pendingOriginSwitch = null;
+    this._originBody = body;
+  }
 
   private _lookAtTarget: BodyMesh | null = null;
   get lookAtBody(): BodyMesh | null { return this._lookAtTarget; }
@@ -292,6 +302,39 @@ export class CameraController {
     anim.followBody = bodyMesh;
     anim.followDist = viewDist;
     anim.followDir = dir;
+  }
+
+  /**
+   * The zoom floor for orbiting `body`: its surface, or effectively none when
+   * the renderer's terrain clamp owns the ground, or when nothing is orbited.
+   *
+   * Recomputed every frame in every orbit-controlled mode. It used to run only
+   * on the free-orbit path, so a body-fixed or SC-fixed camera kept the floor
+   * of whatever free orbit last tracked — Earth's radius, say, while placed
+   * 5000 km from the Moon's centre.
+   */
+  private _updateMinDistance(body: BodyMesh | null): void {
+    if (body) {
+      const sf = body.scaleFactor;
+      if (body.hasTerrain) {
+        // With terrain configured, the renderer's per-frame
+        // `clampCameraAboveSurfaces` owns the actual ground floor: it samples
+        // real terrain at the camera's lat/lon and only pushes the camera up
+        // when it would clip the rendered mesh. Importantly that clamp is
+        // already body-agnostic — it works with the same logic for Jezero
+        // (below the IAU mean), Olympus Mons (above), Hellas, the lunar South
+        // Pole-Aitken basin, etc. Drop the trackball minDistance to effectively
+        // zero so the controls don't gate zoom-in before the terrain clamp can
+        // run. No body-specific magic numbers.
+        this.controls.minDistance = 1e-10;
+      } else {
+        // No terrain data — the reference ellipsoid IS the ground. Use the
+        // existing displayRadius floor.
+        this.controls.minDistance = body.displayRadius * sf * 1.0001;
+      }
+    } else {
+      this.controls.minDistance = 1e-10;
+    }
   }
 
   /** Animate camera to a saved viewpoint by name */
@@ -588,6 +631,18 @@ export class CameraController {
   }
 
   /**
+   * Re-derive the active mode's state from the camera as it stands, at scene
+   * time `et` — for a caller that has just placed the camera itself, between
+   * frames. `et` is passed in because the mode context's is the last frame's,
+   * and the clock may have moved since.
+   */
+  syncModeFromCamera(et: number): void {
+    if (!this._modeCtx) return;
+    this._modeCtx.et = et;
+    this._activeMode.syncFromCamera?.(this._modeCtx);
+  }
+
+  /**
    * Smoothly slew (rotate) the camera to face a world-space position.
    * @param target World position to rotate toward
    * @param rate Angular rate in radians/second (default: 0.5)
@@ -625,10 +680,19 @@ export class CameraController {
     this._originBody = body;
     this._trackTarget = body;
     this._prevTargetPos.copy(bodyPos);
-    if (!wasAlreadyOrigin) {
+    // The target moves into the new coordinates with the camera. `bodyPos` is
+    // still the body's position in the OLD origin's coordinates (the renderer
+    // recomputes positions after this), so copying it would leave the target
+    // there: free-orbit tracking repairs that later in the frame, but a
+    // scripted move queued behind the fly-to steps before it does, and the
+    // co-rotating modes never repair it at all. Under the new origin the body
+    // sits at the origin, which is where `trackBody` puts the target too.
+    if (wasAlreadyOrigin) {
+      this.controls.target.copy(bodyPos);
+    } else {
       this.camera.position.sub(bodyPos);
+      this.controls.target.set(0, 0, 0);
     }
-    this.controls.target.copy(bodyPos);
 
     // Defer mode-state resync to after body positions are recomputed under
     // the new origin — syncing now would use stale body positions and produce
@@ -653,9 +717,219 @@ export class CameraController {
   /** Whether a fly-to/viewpoint animation is currently playing */
   get animating(): boolean { return this._anim !== null; }
 
-  /** Cancel any in-progress camera animation */
+  /** Cancel any in-progress camera animation, a scripted camera move included */
   cancelAnimation(): void {
     this._anim = null;
+    this._move = null;
+    // A cut/restored pose must not inherit the previous gesture's inertia.
+    // TrackballControls exposes no public method to clear damping independently
+    // of resetting the camera, so use the same internals as animation completion.
+    const controls = this.controls as unknown as {
+      _lastAngle: number;
+      _movePrev: THREE.Vector2; _moveCurr: THREE.Vector2;
+      _zoomStart: THREE.Vector2; _zoomEnd: THREE.Vector2;
+      _panStart: THREE.Vector2; _panEnd: THREE.Vector2;
+    };
+    controls._lastAngle = 0;
+    controls._movePrev.copy(controls._moveCurr);
+    controls._zoomStart.copy(controls._zoomEnd);
+    controls._panStart.copy(controls._panEnd);
+    this._rightDragDx = this._rightDragDy = 0;
+    this._touchPanDx = this._touchPanDy = 0;
+  }
+
+  /**
+   * A scripted camera move still playing: what it does, how much of it is
+   * left (radians for a swing, scene units for a dolly or crane), its rate per
+   * second, and when it last stepped.
+   */
+  private _move: {
+    kind: CameraMoveKind;
+    remaining: number;
+    /** Per second; `null` for an instant move held until a fly-to lands. */
+    rate: number | null;
+    lastMs: number;
+  } | null = null;
+
+  /**
+   * Swing the camera around its orbit target by `radians`, keeping its distance
+   * from the target and its aim at it — Cosmographia's `circleCenter*` moves.
+   *
+   * `'up'` swings about the view's up vector, positive moving the camera to the
+   * right; `'right'` swings about the view's right axis, positive moving it up,
+   * and carries the up vector with it so the view does not roll.
+   *
+   * With a `duration` the swing plays at a constant rate over that many seconds.
+   * It is a rotation and not a pose interpolation on purpose: a full circle
+   * starts and ends at the same pose, so interpolating between the two would
+   * not move the camera at all.
+   *
+   * Returns false, and does nothing, in a mode that owns the camera's
+   * orientation (LVLH, chase, surface, instrument): there is no orbit to swing.
+   */
+  orbitTarget(axis: 'up' | 'right', radians: number, duration = 0): boolean {
+    return this._startMove(axis === 'up' ? 'orbit-up' : 'orbit-right', radians, duration);
+  }
+
+  /**
+   * Move the camera straight away from its orbit target by `distance` scene
+   * units — toward it when negative — keeping its aim: Cosmographia's
+   * `moveAwayFromCenter`. The mouse wheel's zoom, by an exact amount.
+   *
+   * It never passes through the target: a dolly in that would reach it stops
+   * just short, and the zoom floor (a body's surface) still applies on the next
+   * frame. Timing, refusal and cancellation are `orbitTarget`'s.
+   */
+  dolly(distance: number, duration = 0): boolean {
+    return this._startMove('dolly', distance, duration);
+  }
+
+  /**
+   * Raise the camera and the point it looks at together by `distance` scene
+   * units along the view's up — lower them when negative — so the same view
+   * slides up the screen: Cosmographia's `craneUp`. The Z / C keys' move, by
+   * an exact amount.
+   *
+   * Free orbit pins the orbit target to a tracked object every frame, which
+   * would turn a crane into a tilt; so, as Z / C do, a crane there releases
+   * the tracked object — when it starts moving, not when it is asked for. A
+   * crane queued behind a fly-to would otherwise see the fly-to's landing
+   * track the body again, and every step after be undone. The co-rotating
+   * frames keep tracking.
+   */
+  crane(distance: number, duration = 0): boolean {
+    return this._startMove('crane', distance, duration);
+  }
+
+  /** Whether a scripted camera move (swing, dolly or crane) is still playing. */
+  get moving(): boolean { return this._move !== null; }
+
+  /**
+   * Start a scripted move, replacing any still playing. Instant without a
+   * duration; otherwise played at a constant rate. Either kind waits for a
+   * fly-to in progress — its animation and the origin switch it lands with —
+   * since the fly-to overwrites the camera every frame until then. Stopped by
+   * `cancelAnimation`.
+   */
+  private _startMove(kind: CameraMoveKind, amount: number, duration: number): boolean {
+    if (!this._activeMode.allowsOrbitControls) return false;
+    this._move = null;
+    const rate = duration > 0 ? amount / duration : null;
+    if (rate === null && !this._flying) {
+      this._applyMove(kind, amount);
+    } else {
+      this._move = { kind, remaining: amount, rate, lastMs: performance.now() };
+    }
+    return true;
+  }
+
+  /** A fly-to is still moving the camera, or has yet to land its origin switch. */
+  private get _flying(): boolean {
+    return this._anim !== null || this._pendingOriginSwitch !== null;
+  }
+
+  /**
+   * Advance a scripted move by the wall-clock time since its last step.
+   * Not the frame `dt`, which is capped: on a slow frame rate that would
+   * stretch a 5-second move past the `wait` a script gave it. The last step
+   * lands exactly.
+   */
+  private _stepMove(now: number): void {
+    const move = this._move;
+    if (!move) return;
+    const elapsed = Math.max(now - move.lastMs, 0) / 1000;
+    move.lastMs = now;
+    let step = move.rate === null ? move.remaining : move.rate * elapsed;
+    if (Math.abs(step) >= Math.abs(move.remaining)) {
+      step = move.remaining;
+      this._move = null;
+    } else {
+      move.remaining -= step;
+    }
+    // A dolly that reached the target has nowhere further to go.
+    if (!this._applyMove(move.kind, step)) this._move = null;
+  }
+
+  /** Apply one step of a move. False when a dolly ran out of room. */
+  private _applyMove(kind: CameraMoveKind, amount: number): boolean {
+    switch (kind) {
+      case 'orbit-up':
+      case 'orbit-right':
+        this._rotateAboutTarget(kind === 'orbit-up' ? 'up' : 'right', amount);
+        return true;
+      case 'dolly':
+        return this._dollyBy(amount);
+      case 'crane':
+        if (this._activeMode.name === CameraModeName.FREE_ORBIT && this._trackTarget) {
+          // Pin the target where tracking would have this frame before letting
+          // go. Right after a fly-to lands it still holds the body's position
+          // in the old origin's coordinates; tracking corrects that each frame,
+          // and nothing will once it is released.
+          this.controls.target.copy(this._trackTarget.position);
+          this._trackTarget = null;
+        }
+        this._craneBy(amount);
+        return true;
+      default: {
+        const unreachable: never = kind;
+        throw new Error(`unknown camera move ${String(unreachable)}`);
+      }
+    }
+  }
+
+  private _rotateAboutTarget(axis: 'up' | 'right', radians: number): void {
+    const target = this.controls.target;
+    const offset = this.camera.position.clone().sub(target);
+    const up = this.camera.up.clone().normalize();
+    let pivot: THREE.Vector3;
+    let angle: number;
+    if (axis === 'up') {
+      pivot = up;
+      angle = radians;
+    } else {
+      pivot = this._viewRight(offset.clone().negate(), up);
+      // Right-handed about the right axis tips the offset *down*; up is positive.
+      angle = -radians;
+    }
+    const q = new THREE.Quaternion().setFromAxisAngle(pivot, angle);
+    this.camera.position.copy(target).add(offset.applyQuaternion(q));
+    if (axis === 'right') this.camera.up.applyQuaternion(q).normalize();
+    this.camera.lookAt(target);
+  }
+
+  private _dollyBy(distance: number): boolean {
+    const target = this.controls.target;
+    const offset = this.camera.position.clone().sub(target);
+    const current = offset.length();
+    if (current < 1e-20) return false;
+    // Stop short of the target rather than passing through it and flipping
+    // the view round.
+    const floor = current * 1e-6;
+    const next = Math.max(current + distance, floor);
+    this.camera.position.copy(target).addScaledVector(offset, next / current);
+    return next > floor;
+  }
+
+  private _craneBy(distance: number): void {
+    const target = this.controls.target;
+    const forward = target.clone().sub(this.camera.position);
+    const right = this._viewRight(forward, this.camera.up.clone().normalize());
+    // The screen's up: square to the view direction, unlike `camera.up`,
+    // which only has to be roughly upward.
+    const screenUp = new THREE.Vector3().crossVectors(right, forward).normalize();
+    this.camera.position.addScaledVector(screenUp, distance);
+    target.addScaledVector(screenUp, distance);
+  }
+
+  /**
+   * The view's right axis, from where the camera actually looks. Looking
+   * straight along `up` leaves that undefined; the camera's own x axis is the
+   * right axis of whatever it last rendered.
+   */
+  private _viewRight(forward: THREE.Vector3, up: THREE.Vector3): THREE.Vector3 {
+    const right = new THREE.Vector3().crossVectors(forward, up);
+    if (right.lengthSq() < 1e-20) right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    return right.normalize();
   }
 
   /**
@@ -774,7 +1048,21 @@ export class CameraController {
         (this.controls as any)._zoomStart?.copy((this.controls as any)._zoomEnd);
         onComplete?.();
       }
+      // A move held behind the fly-to starts its clock when the fly-to lands.
+      if (this._move) this._move.lastMs = now;
       return; // Animation takes priority over mode updates
+    }
+
+    // A scripted move (swing, dolly, crane), ahead of the mode update: in
+    // body-fixed and SC-fixed frames the mode then carries the moved camera
+    // with the body.
+    // A fly-to's origin switch lands at the start of the renderer's next frame;
+    // until it has, the move keeps holding, or the switch would re-track the
+    // body and shift the camera under a move already applied.
+    if (this._move) {
+      if (!this._activeMode.allowsOrbitControls) this._move = null;
+      else if (this._pendingOriginSwitch) this._move.lastMs = now;
+      else this._stepMove(now);
     }
 
     // --- Non-FreeOrbit modes: delegate to active mode ---
@@ -786,6 +1074,9 @@ export class CameraController {
 
       // Orbit controls (before mode update so mode sees user-adjusted position)
       if (this._activeMode.allowsOrbitControls) {
+        // The mode's body is what these controls orbit — the origin body
+        // `setMode` put it at — not whatever free orbit last tracked.
+        this._updateMinDistance(this._originBody ?? this._trackTarget);
         this._applyTouchPan();
         this.controls.update();
       } else {
@@ -805,6 +1096,14 @@ export class CameraController {
       // so getWorldDirection() returns proper screen-space directions.
       if (this._activeMode.allowsKeyboard) {
         this.keyboard.update(this.camera, this.controls.target, dt);
+      }
+
+      // A look-at target overrides orientation here too, as it does in free
+      // orbit below — but only in modes the user can orient. Instrument,
+      // chase, LVLH and surface modes own the view direction; aiming them
+      // elsewhere would break what the mode is for.
+      if (this._lookAtTarget && this._activeMode.allowsOrbitControls) {
+        this.camera.lookAt(this._lookAtTarget.position);
       }
       return;
     }
@@ -853,27 +1152,7 @@ export class CameraController {
     //   to body-radius would lock zoom-in long before the camera reached the
     //   surface. Leave minDistance unconstrained and rely on the body-center
     //   guard at the end of update() to keep the camera from entering the body.
-    if (this._trackTarget) {
-      const sf = this._trackTarget.scaleFactor;
-      if (this._trackTarget.hasTerrain) {
-        // With terrain configured, the renderer's per-frame
-        // `clampCameraAboveSurfaces` owns the actual ground floor: it samples
-        // real terrain at the camera's lat/lon and only pushes the camera up
-        // when it would clip the rendered mesh. Importantly that clamp is
-        // already body-agnostic — it works with the same logic for Jezero
-        // (below the IAU mean), Olympus Mons (above), Hellas, the lunar South
-        // Pole-Aitken basin, etc. Drop the trackball minDistance to effectively
-        // zero so the controls don't gate zoom-in before the terrain clamp can
-        // run. No body-specific magic numbers.
-        this.controls.minDistance = 1e-10;
-      } else {
-        // No terrain data — the reference ellipsoid IS the ground. Use the
-        // existing displayRadius floor.
-        this.controls.minDistance = this._trackTarget.displayRadius * sf * 1.0001;
-      }
-    } else {
-      this.controls.minDistance = 1e-10;
-    }
+    this._updateMinDistance(this._trackTarget);
     const clampBody = this._trackTarget ?? this._originBody;
 
     // Mouse left-drag orbit + scroll zoom; one-finger orbit + pinch zoom

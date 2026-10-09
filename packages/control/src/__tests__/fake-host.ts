@@ -11,6 +11,7 @@
  */
 import { snapshotScript } from '../snapshot.js';
 import type {
+  CircleDirection,
   ScriptCamera,
   ScriptEventMap,
   ScriptEventName,
@@ -39,6 +40,9 @@ export class FakeViewer implements ViewerControl {
   playing = false;
   selected: string | null = null;
   tracked: string | null = null;
+  origin: string | null = null;
+  getCameraReference(): string | null { return this.origin; }
+  setCameraReference(name: string | null): boolean { this.origin = name; return true; }
   lookAt: string | null = null;
   frame: { mode: string; body?: string } = { mode: 'free-orbit' };
   camera: { position: ScriptVec3; target: ScriptVec3; up: ScriptVec3; fov: number } = {
@@ -171,6 +175,21 @@ export class FakeViewer implements ViewerControl {
       target: target ?? [0, 0, 0],
       up: up ?? this.camera.up,
     };
+    return this.ok(true);
+  }
+
+  circleCenter(direction: CircleDirection, degrees: number, opts?: { seconds?: number }): boolean {
+    this.log('circleCenter', direction, degrees, opts?.seconds);
+    return this.ok(true);
+  }
+
+  dolly(km: number, opts?: { seconds?: number }): boolean {
+    this.log('dolly', km, opts?.seconds);
+    return this.ok(true);
+  }
+
+  crane(km: number, opts?: { seconds?: number }): boolean {
+    this.log('crane', km, opts?.seconds);
     return this.ok(true);
   }
 

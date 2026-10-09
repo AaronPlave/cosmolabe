@@ -8,6 +8,7 @@
 import { etToDate, type Universe } from '@cosmolabe/core';
 import type { InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
+import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
@@ -110,6 +111,11 @@ export const vs = $state({
   loadingLabel: '',
   loadingDetail: '',
   showLoading: false,
+  /** The catalog the load in flight is for — what the loading screen names. */
+  loadingCatalog: '',
+  /** The catalog whose scene is up, or null with no scene. Committed when the
+   *  scene binds, so a load that fails part-way leaves the previous name. */
+  catalogName: null as string | null,
 
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
@@ -197,7 +203,8 @@ export function highlightBodies(names: readonly string[]) {
   vs.highlightedBodies = next;
 }
 
-export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean }) {
+export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean; catalog?: string }) {
+  if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
   if (opts.progress !== undefined) vs.loadingProgress = opts.progress;
@@ -247,9 +254,14 @@ function emit<K extends keyof ViewerEventMap>(event: K, data: ViewerEventMap[K])
 
 const loadProgress = new LoadProgress();
 
-/** Start a load: shows the bar at zero and fixes the phase weights for it. */
-export function beginLoad(label: string, opts: { kernelBytes?: number } = {}) {
+/**
+ * Start a load: shows the bar at zero and fixes the phase weights for it.
+ * `catalog` names what is being loaded; leaving it out keeps the name the load
+ * already had, for the second call once the kernel byte total is known.
+ */
+export function beginLoad(label: string, opts: { kernelBytes?: number; catalog?: string } = {}) {
   loadProgress.begin(opts);
+  if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   vs.loadingProgress = loadProgress.value;
   vs.loadingLabel = label;
   vs.loadingDetail = '';
@@ -352,6 +364,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   unbindRenderer();
   _renderer = renderer;
   _universe = universe;
+  vs.catalogName = vs.loadingCatalog || null;
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
 
   // Restore persisted display preferences
@@ -425,6 +438,12 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   let rafId = 0;
   const tick = () => {
     vs.frameTick++;
+    // The controller lets go of a tracked object on its own between calls —
+    // a crane queued behind a fly-to, the Z / C keys — and says nothing. Once
+    // nothing is tracked and nothing is in flight toward a body (which
+    // `gotoObject` reports ahead of time), the HUD should stop naming one.
+    const cc = renderer.cameraController;
+    if (vs.trackedBodyName !== null && cc.focusBody === null) vs.trackedBodyName = null;
     rafId = requestAnimationFrame(tick);
   };
   rafId = requestAnimationFrame(tick);
@@ -444,6 +463,13 @@ export function unbindRenderer() {
   // the *next* scene that this one never highlighted.
   _highlightedBodies = [];
   vs.highlightedBodies = [];
+  // With the renderer gone there is no scene, whatever the last one reached —
+  // a load that tears the old scene down and then fails must not hand the
+  // viewer chrome an empty canvas as though it were a finished scene.
+  vs.catalogName = null;
+  vs.sceneLoaded = false;
+  vs.assetsReady = false;
+  vs.assetSummary = null;
 }
 
 export function getRenderer(): UniverseRenderer | null {
@@ -749,6 +775,31 @@ export function setFov(deg: number, opts: { persist?: boolean } = {}) {
  * renderer's scale factor, so the conversion happens here — the same one
  * `camera-view-io.ts` does on the way in and out of its JSON.
  */
+/**
+ * The frame a scripted camera pose is written in, as a body's origin and its
+ * body-to-world rotation — or null for the inertial frame, where pose vectors
+ * are world vectors as they always were.
+ *
+ * In a body-fixed or spacecraft-fixed camera frame, a pose is in that body's
+ * own axes (SPICE convention: Z the pole, X the prime meridian), the way
+ * Cosmographia's `moveToPov` takes it (#152). These are the two orbit modes
+ * whose camera rides on a body; the others place the camera themselves.
+ */
+function poseFrame(): { origin: THREE.Vector3; toWorld: THREE.Quaternion } | null {
+  const cc = _renderer?.cameraController;
+  if (!cc) return null;
+  if (cc.mode !== CameraModeName.BODY_FIXED && cc.mode !== CameraModeName.SC_FIXED) return null;
+  const body = cc.originBody;
+  if (!body) return null;
+  // Its position and orientation as of now, not as of the last frame drawn: a
+  // script that seeks the clock or switches body and then places the camera in
+  // the same breath — every `snapshot()` replay does — would otherwise convert
+  // against where the body was, which after a switch is the old origin's
+  // coordinates and hundreds of thousands of km off.
+  _renderer!.refreshBodyPose(body.body.name);
+  return { origin: body.position.clone(), toWorld: body.bodyToWorldQuaternion(new THREE.Quaternion()) };
+}
+
 export function setCameraPose(
   position: readonly [number, number, number],
   target?: readonly [number, number, number],
@@ -757,16 +808,97 @@ export function setCameraPose(
   if (!_renderer) return false;
   const cc = _renderer.cameraController;
   const sf = _renderer.scaleFactor;
+  const frame = poseFrame();
+  /** A point in the pose's frame, in km, to world (scene) units. */
+  const point = (v: readonly [number, number, number], out: THREE.Vector3) => {
+    out.set(v[0] * sf, v[1] * sf, v[2] * sf);
+    if (frame) out.applyQuaternion(frame.toWorld).add(frame.origin);
+    return out;
+  };
   cc.cancelAnimation();
-  cc.camera.position.set(position[0] * sf, position[1] * sf, position[2] * sf);
+  point(position, cc.camera.position);
   // The orbit target is where the camera *looks*; without it a pose says where
   // the camera stands and nothing about what it sees. Defaulting to the origin
   // keeps the two-argument form meaning what it used to: the origin is the
   // tracked body when one is tracked, and the world origin otherwise.
-  if (target) cc.controls.target.set(target[0] * sf, target[1] * sf, target[2] * sf);
-  else cc.controls.target.set(0, 0, 0);
-  if (up) cc.camera.up.set(up[0], up[1], up[2]).normalize();
+  point(target ?? [0, 0, 0], cc.controls.target);
+  if (up) {
+    cc.camera.up.set(up[0], up[1], up[2]).normalize();
+    if (frame) cc.camera.up.applyQuaternion(frame.toWorld);
+  }
+  // The pose was converted against the body's orientation now. A co-rotating
+  // frame otherwise turns the camera on the next frame by the rotation since
+  // the last one drawn — after a seek in the same script, hours of it.
+  if (frame) cc.syncModeFromCamera(_renderer.timeController.et);
   return true;
+}
+
+/**
+ * The camera's pose in the frame `setCameraPose` takes it in, in km — so a
+ * pose read back and written again lands in the same place, which is what
+ * `snapshot()` relies on.
+ */
+export function getCameraPose(): {
+  position: [number, number, number];
+  target: [number, number, number];
+  up: [number, number, number];
+} | null {
+  if (!_renderer) return null;
+  const cc = _renderer.cameraController;
+  const inv = 1 / _renderer.scaleFactor;
+  const frame = poseFrame();
+  const fromWorld = frame ? frame.toWorld.clone().invert() : null;
+  const point = (w: THREE.Vector3): [number, number, number] => {
+    const v = w.clone();
+    if (frame) v.sub(frame.origin).applyQuaternion(fromWorld!);
+    return [v.x * inv, v.y * inv, v.z * inv];
+  };
+  const up = cc.camera.up.clone();
+  if (fromWorld) up.applyQuaternion(fromWorld);
+  return { position: point(cc.camera.position), target: point(cc.controls.target), up: [up.x, up.y, up.z] };
+}
+
+/**
+ * Swing the camera around what it orbits by `degrees`, the way it would move
+ * on screen. Instant unless `seconds` is given. False in a camera frame that
+ * owns the view's orientation, or for a non-finite angle or duration.
+ */
+export function circleCenter(
+  direction: 'right' | 'left' | 'up' | 'down',
+  degrees: number,
+  seconds?: number,
+): boolean {
+  if (!_renderer) return false;
+  if (!Number.isFinite(degrees) || !validMoveSeconds(seconds)) return false;
+  const axis = direction === 'right' || direction === 'left' ? 'up' : 'right';
+  const sign = direction === 'right' || direction === 'up' ? 1 : -1;
+  return _renderer.cameraController.orbitTarget(axis, sign * THREE.MathUtils.degToRad(degrees), seconds);
+}
+
+/**
+ * Move the camera away from what it orbits by `km` (toward it when negative).
+ * Instant unless `seconds` is given. False where `circleCenter` is.
+ */
+export function dolly(km: number, seconds?: number): boolean {
+  if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;
+  return _renderer.cameraController.dolly(km * _renderer.scaleFactor, seconds);
+}
+
+/**
+ * Raise the camera and what it looks at by `km` along the view's up (lower
+ * when negative). In free orbit that releases the tracked object when the
+ * crane starts — at once for an instant crane, which is synced here, or once
+ * a fly-to lands, which the frame tick picks up. False where `circleCenter` is.
+ */
+export function crane(km: number, seconds?: number): boolean {
+  if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;
+  const ok = _renderer.cameraController.crane(km * _renderer.scaleFactor, seconds);
+  if (ok) syncCameraState();
+  return ok;
+}
+
+function validMoveSeconds(seconds: number | undefined): boolean {
+  return seconds === undefined || (Number.isFinite(seconds) && seconds >= 0);
 }
 
 /** Show or hide one object's trajectory line. False if there is no such object. */

@@ -21,6 +21,13 @@ export default defineConfig({
           include: ['packages/*/src/**/*.test.ts'],
         },
       },
+      // Node tooling under scripts/ (data publishing, issue #137).
+      {
+        test: {
+          name: 'scripts',
+          include: ['scripts/**/*.test.mjs'],
+        },
+      },
       // The viewer brings its own config so the Svelte plugin is imported from
       // the workspace that actually declares it as a devDependency, rather than
       // from the root by way of the hoisted `node_modules` — the same resolution

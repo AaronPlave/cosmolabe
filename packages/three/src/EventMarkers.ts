@@ -64,15 +64,60 @@ export interface EventMarkersOptions {
   color?: THREE.ColorRepresentation;
   selectedColor?: THREE.ColorRepresentation;
   /**
-   * The owning TrajectoryLine's drawn polyline. When given, the selected-span
-   * stroke retraces those exact vertices, so it bends with the trail and ends
-   * at the trail's live head sample (the body's current position) instead of
-   * at the last coarse interval sample.
+   * The owning TrajectoryLine's drawn path: its trail, then each unbroken run
+   * of its future lead (`TrajectoryLine.drawnPath`). When given, span strokes,
+   * span picking and hit anchoring retrace those exact vertices, so they bend
+   * with what is on screen — behind the playhead and ahead of it — and meet
+   * the body at the trail's live head sample instead of the last coarse
+   * interval sample.
    */
-  trail?: () => DrawnTrail;
+  path?: () => readonly DrawnTrail[];
+}
+
+/** Future geometry is available only to the selected or previewed event. */
+export interface EventLeadVisibility {
+  range: readonly [number, number] | null;
+  alphaAt: (et: number) => number;
 }
 
 const SPAN_INITIAL_CAPACITY = 256;
+
+/**
+ * A plane in front of the camera that span strokes are clipped to before
+ * upload: `origin` is the camera position, `forward` its unit view direction,
+ * and nothing is drawn nearer than `minDepth` along it.
+ */
+export interface StrokeClipPlane {
+  origin: THREE.Vector3;
+  forward: THREE.Vector3;
+  minDepth: number;
+}
+
+/**
+ * Clip segment a→b to the half-space at least `plane.minDepth` in front of
+ * the camera, in double precision. Returns false when nothing of it is left;
+ * otherwise `a` and `b` are moved onto the plane where they crossed it.
+ *
+ * Why this is not left to `LineMaterial`: its shader trims a segment that
+ * ends behind the camera to the near plane in float32. The renderer's near
+ * plane sits ~1e-8 of the camera distance away (millimetres when tracking a
+ * spacecraft from a few km), far finer than the rounding of a trim computed
+ * from endpoints tens of km away — so the trimmed end landed in front of,
+ * on, or behind the camera at random, and the stroke flickered whenever its
+ * span ran back past the camera.
+ */
+export function clipSegmentInFront(a: THREE.Vector3, b: THREE.Vector3, plane: StrokeClipPlane): boolean {
+  const { origin, forward, minDepth } = plane;
+  const da = (a.x - origin.x) * forward.x + (a.y - origin.y) * forward.y + (a.z - origin.z) * forward.z - minDepth;
+  const db = (b.x - origin.x) * forward.x + (b.y - origin.y) * forward.y + (b.z - origin.z) * forward.z - minDepth;
+  if (da < 0 && db < 0) return false;
+  if (da < 0) a.lerp(b, da / (da - db));
+  else if (db < 0) b.lerp(a, db / (db - da));
+  return true;
+}
+
+/** Emitted between polyline runs so a stroke never bridges a gap. */
+const BREAK = /* @__PURE__ */ new THREE.Vector3(NaN, NaN, NaN);
 
 /**
  * How an interval is drawn at its current projected length. Caps and the
@@ -364,6 +409,11 @@ class SpanStroke {
    * this frame. A new event starts from transparent rather than inheriting
    * the previous one's opacity.
    */
+  /** The event this stroke traces now (null when idle). */
+  get currentKey(): string | null {
+    return this.key;
+  }
+
   follow(target: string | null, dt: number): string | null {
     if (target !== null && target !== this.key) {
       this.key = target;
@@ -387,17 +437,43 @@ class SpanStroke {
 
   /**
    * Rewrite the stroke from `trace`, which emits the polyline's points in
-   * order; `maxPoints` bounds how many it can emit.
+   * order (a NaN point breaks the stroke); `maxPoints` bounds how many it can
+   * emit. With `clip`, each segment is first clipped to the space in front of
+   * the camera (see {@link clipSegmentInFront}), and the stroke is written
+   * relative to the camera: vertices are offset by `clip.origin` in double
+   * precision and the line is placed at it, so three.js cancels the two in its
+   * float64 model-view product. World-space float32 vertices hundreds of
+   * thousands of km from the scene origin are only good to tens of km, which
+   * near the camera is the difference between a line and a smear.
    */
-  write(maxPoints: number, trace: (emit: (point: THREE.Vector3) => void) => void): number {
+  write(
+    maxPoints: number,
+    trace: (emit: (point: THREE.Vector3) => void) => void,
+    clip?: StrokeClipPlane,
+  ): number {
     const array = this.reserve(Math.max(1, maxPoints - 1));
     let segments = 0;
     let px = NaN, py = NaN, pz = NaN;
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const ox = clip?.origin.x ?? 0, oy = clip?.origin.y ?? 0, oz = clip?.origin.z ?? 0;
+    if (this.line.position.x !== ox || this.line.position.y !== oy || this.line.position.z !== oz) {
+      this.line.position.set(ox, oy, oz);
+      this.line.updateMatrixWorld();
+    }
     trace((point) => {
+      if (Number.isNaN(point.x)) {
+        px = NaN;
+        return;
+      }
       if (!Number.isNaN(px)) {
-        const o = segments++ * 6;
-        array[o] = px; array[o + 1] = py; array[o + 2] = pz;
-        array[o + 3] = point.x; array[o + 4] = point.y; array[o + 5] = point.z;
+        a.set(px, py, pz);
+        b.copy(point);
+        if (!clip || clipSegmentInFront(a, b, clip)) {
+          const o = segments++ * 6;
+          array[o] = a.x - ox; array[o + 1] = a.y - oy; array[o + 2] = a.z - oz;
+          array[o + 3] = b.x - ox; array[o + 4] = b.y - oy; array[o + 5] = b.z - oz;
+        }
       }
       px = point.x; py = point.y; pz = point.z;
     });
@@ -447,9 +523,12 @@ export class EventMarkers extends THREE.Object3D {
   private visuals: MarkerVisual[] = [];
   private readonly options: EventMarkersOptions;
   private preview: { id: string; queryId: string } | null = null;
+  private contextActive = false;
   private readonly selectedStroke: SpanStroke;
   private readonly previewStroke: SpanStroke;
   private readonly emphasisClock = new EmphasisClock();
+  /** Where strokes are clipped this frame; null draws them unclipped. */
+  private strokeClip: StrokeClipPlane | null = null;
 
   constructor(body: Body, options: EventMarkersOptions = {}) {
     super();
@@ -472,6 +551,11 @@ export class EventMarkers extends THREE.Object3D {
   setPreview(preview: { id: string; queryId: string } | null): void {
     this.preview = preview;
     for (const visual of this.visuals) this.styleVisual(visual);
+  }
+
+  /** Recede ordinary markers while an event is the subject of the scene. */
+  setContextActive(active: boolean): void {
+    this.contextActive = active;
   }
 
   /**
@@ -497,10 +581,12 @@ export class EventMarkers extends THREE.Object3D {
       if (!fallback || !visual.visibleRange) return null;
       const cap = [1, 2].find((i) => visual.present[i] && visual.sprites[i].visible);
       if (cap !== undefined) return visual.sprites[cap].position.clone();
-      const { line, start, end } = this.drawnSpan(visual);
-      const from = Math.max(start, visual.visibleRange[0]);
-      const to = Math.min(end, visual.visibleRange[1]);
-      return from <= to ? polylineAt(line, (from + to) / 2, new THREE.Vector3()) : null;
+      for (const { line, start, end } of this.drawnSpans(visual)) {
+        const from = Math.max(start, visual.visibleRange[0], line.time(0));
+        const to = Math.min(end, visual.visibleRange[1], line.time(line.count - 1));
+        if (from <= to) return polylineAt(line, (from + to) / 2, new THREE.Vector3());
+      }
+      return null;
     }
     if (visual.sprites[0]?.visible || visual.spriteBaseOpacity[0] > 0) return visual.sprites[0].position.clone();
     return visual.sprites.find((sprite) => sprite.visible)?.position.clone() ?? null;
@@ -533,6 +619,7 @@ export class EventMarkers extends THREE.Object3D {
     camera?: THREE.Camera,
     pixelRatio = 1,
     viewport?: EventMarkersViewport,
+    leadVisibility?: EventLeadVisibility,
   ): void {
     // Glyphs are sized in CSS pixels, independent of window height and FOV.
     // Without a viewport (tests, offscreen callers) the options' markerSize applies.
@@ -543,10 +630,13 @@ export class EventMarkers extends THREE.Object3D {
     const projected = new THREE.Vector3();
     for (const visual of this.visuals) {
       const { marker } = visual;
-      visual.visibleRange = visibleRange;
-      const inTrail = visibleRange !== null &&
-        visual.pieceStart <= visibleRange[1] && visual.pieceEnd >= visibleRange[0];
-      if (!inTrail) {
+      const emphasized = !!marker.selected || this.isPreview(marker);
+      const range = emphasized && leadVisibility ? leadVisibility.range : visibleRange;
+      visual.visibleRange = range;
+      const inRange = range !== null &&
+        visual.pieceStart <= range[1] && visual.pieceEnd >= range[0];
+      if (!inRange) {
+        visual.visibleRange = null;
         for (let i = 0; i < visual.sprites.length; i++) {
           visual.spriteBaseOpacity[i] = 0;
           visual.sprites[i].visible = false;
@@ -573,8 +663,8 @@ export class EventMarkers extends THREE.Object3D {
       }
 
       const positions = visual.framePositions;
-      const clipStart = visibleRange![0];
-      const clipEnd = visibleRange![1];
+      const clipStart = range![0];
+      const clipEnd = range![1];
       if (visual.points.length !== positions.length) {
         visual.points = positions.map(() => new THREE.Vector3());
       }
@@ -598,7 +688,11 @@ export class EventMarkers extends THREE.Object3D {
           visual.sprites[i].scale.set(scale, scale, 1);
         }
         glyphUniforms(visual.sprites[i].material as THREE.SpriteMaterial).eventGlyphDpr.value = pixelRatio;
-        const alpha = marker.selected || this.isPreview(marker) ? 1 : trailAlphaAt(visual.times[sampleIndex]);
+        const t = visual.times[sampleIndex];
+        const historical = visibleRange !== null && t >= visibleRange[0] && t <= visibleRange[1];
+        const alpha = emphasized
+          ? !leadVisibility || historical || leadVisibility.alphaAt(t) > 0 ? 1 : 0
+          : trailAlphaAt(t) * (this.contextActive ? 0.35 : 1);
         const inRange = visual.times[sampleIndex] >= clipStart && visual.times[sampleIndex] <= clipEnd;
         visual.spriteBaseOpacity[i] = inRange && visual.present[i] ? alpha : 0;
         // A collapsed interval keeps the anchor opacity of its hidden glyphs
@@ -637,35 +731,68 @@ export class EventMarkers extends THREE.Object3D {
     this.drawStroke(this.previewStroke, preview, dt);
   }
 
+  /**
+   * Re-clip both strokes for the camera this frame renders with. The host
+   * calls this after the camera has moved and its near plane is set, so the
+   * clip plane is the one the stroke is actually drawn against.
+   */
+  clipStrokesToCamera(camera: THREE.Camera, minDepth: number): void {
+    camera.updateMatrixWorld();
+    const origin = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
+    const forward = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2).negate().normalize();
+    this.strokeClip = { origin, forward, minDepth };
+    this.writeStroke(this.selectedStroke, this.selectedStroke.currentKey);
+    this.writeStroke(this.previewStroke, this.previewStroke.currentKey);
+  }
+
   private drawStroke(stroke: SpanStroke, target: MarkerVisual | undefined, dt: number): void {
     const key = stroke.follow(target ? markerKey(target.marker) : null, dt);
+    this.writeStroke(stroke, key);
+  }
+
+  private writeStroke(stroke: SpanStroke, key: string | null): void {
     const visual = key === null ? undefined : this.visuals.find((item) =>
       markerKey(item.marker) === key && item.visibleRange !== null && item.layout !== 'point');
     let segments = 0;
     if (visual) {
       if (stroke === this.previewStroke) stroke.setColor(visual.marker.color ?? this.options.color ?? DEFAULT_COLOR);
-      const { line, start, end } = this.drawnSpan(visual);
-      segments = stroke.write(line.count + 2, (emit) => traceRange(line, start, end, emit));
+      const spans = this.drawnSpans(visual);
+      const maxPoints = spans.reduce((sum, span) => sum + span.line.count + 3, 0);
+      segments = stroke.write(maxPoints, (emit) => {
+        for (const { line, start, end } of spans) {
+          traceRange(line, start, end, emit);
+          emit(BREAK);
+        }
+      }, this.strokeClip ?? undefined);
     }
     stroke.show(this.visible && segments > 0, segments);
   }
 
   /**
-   * The polyline an interval is drawn along and the epochs of it this visual
-   * covers. With a trail that is the trail's own vertices (cut at the piece
-   * bounds, reaching the live head sample), so the stroke, picking, and hit
-   * anchoring all agree with what is on screen; otherwise the interval's
-   * samples, cut at the trail's visible range.
+   * The polylines an interval is drawn along and the epochs of them this
+   * visual covers. With a path that is the owning line's drawn runs — trail
+   * and future lead — cut at the piece bounds (reaching the live head sample),
+   * so the stroke, picking, and hit anchoring all agree with what is on
+   * screen; otherwise the interval's samples, cut at the visible range.
    */
-  private drawnSpan(visual: MarkerVisual): { line: Polyline; start: number; end: number } {
-    const trail = this.options.trail?.();
-    if (trail) return { line: trailPolyline(trail), start: visual.pieceStart, end: visual.pieceEnd };
+  private drawnSpans(visual: MarkerVisual): Array<{ line: Polyline; start: number; end: number }> {
     const range = visual.visibleRange ?? [Infinity, -Infinity];
-    return {
+    const start = Math.max(visual.pieceStart, range[0]);
+    const end = Math.min(visual.pieceEnd, range[1]);
+    const path = this.options.path?.();
+    if (path) {
+      // One entry per drawn run the piece overlaps: the trail, the lead from
+      // the playhead, a lead excerpt. Gaps between runs stay gaps.
+      return path
+        .filter((run) => run.count > 1 &&
+          run.times[0] < end && run.times[run.count - 1] > start)
+        .map((run) => ({ line: trailPolyline(run), start, end }));
+    }
+    return [{
       line: { count: visual.points.length, time: (i) => visual.times[i], at: (i, out) => out.copy(visual.points[i]) },
-      start: Math.max(visual.pieceStart, range[0]),
-      end: Math.min(visual.pieceEnd, range[1]),
-    };
+      start,
+      end,
+    }];
   }
 
   /**
@@ -675,10 +802,11 @@ export class EventMarkers extends THREE.Object3D {
   anchorAt(id: string, queryId: string, et: number): THREE.Vector3 | null {
     for (const visual of this.visuals) {
       if (visual.marker.id !== id || visual.marker.queryId !== queryId || !visual.visibleRange) continue;
-      const { line, start, end } = this.drawnSpan(visual);
-      if (et < start || et > end) continue;
-      const point = polylineAt(line, et, new THREE.Vector3());
-      if (point) return point;
+      for (const { line, start, end } of this.drawnSpans(visual)) {
+        if (et < start || et > end) continue;
+        const point = polylineAt(line, et, new THREE.Vector3());
+        if (point) return point;
+      }
     }
     return null;
   }
@@ -789,38 +917,39 @@ export class EventMarkers extends THREE.Object3D {
     }
     // Spans only when no glyph is under the pointer.
     if (nearest) return nearest;
-    // Test the polyline actually drawn (the trail, cut at the piece bounds),
-    // so every visible bit of a span is pickable, including the stretch
-    // between the last coarse sample and the trail head.
+    // Test the polylines actually drawn (trail and lead, cut at the piece
+    // bounds), so every visible bit of a span is pickable, including the
+    // stretch between the last coarse sample and the trail head.
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
     for (const visual of this.visuals) {
       if (visual.marker.temporality !== 'interval' || !visual.visibleRange) continue;
       const renderOrder = visual.marker.selected || this.isPreview(visual.marker) ? 3 : 1;
-      const { line, start, end } = this.drawnSpan(visual);
-      let aEt = NaN;
-      let aIn = false;
-      traceRange(line, start, end, (point, bEt) => {
-        b.copy(point).project(camera);
-        const bIn = b.z >= -1 && b.z <= 1;
-        if (aIn && bIn) {
-          const ax = (a.x + 1) * width / 2;
-          const ay = (1 - a.y) * height / 2;
-          const dx = (b.x - a.x) * width / 2;
-          const dy = (a.y - b.y) * height / 2;
-          const fraction = Math.max(0, Math.min(1, ((screenX - ax) * dx + (screenY - ay) * dy) / (dx * dx + dy * dy || 1)));
-          const d2 = (ax + dx * fraction - screenX) ** 2 + (ay + dy * fraction - screenY) ** 2;
-          const et = aEt + (bEt - aEt) * fraction;
-          if (d2 <= radiusSq && (!nearest || d2 < nearest.distanceSq)) {
-            const worldPosition = polylineAt(line, et, new THREE.Vector3()) ?? point.clone();
-            const hit: EventMarkerHit = { marker: visual.marker, et, distanceSq: d2, renderOrder, worldPosition, span: true };
-            if (accept(worldPosition) && preferHit(hit, nearest)) nearest = hit;
+      for (const { line, start, end } of this.drawnSpans(visual)) {
+        let aEt = NaN;
+        let aIn = false;
+        traceRange(line, start, end, (point, bEt) => {
+          b.copy(point).project(camera);
+          const bIn = b.z >= -1 && b.z <= 1;
+          if (aIn && bIn) {
+            const ax = (a.x + 1) * width / 2;
+            const ay = (1 - a.y) * height / 2;
+            const dx = (b.x - a.x) * width / 2;
+            const dy = (a.y - b.y) * height / 2;
+            const fraction = Math.max(0, Math.min(1, ((screenX - ax) * dx + (screenY - ay) * dy) / (dx * dx + dy * dy || 1)));
+            const d2 = (ax + dx * fraction - screenX) ** 2 + (ay + dy * fraction - screenY) ** 2;
+            const et = aEt + (bEt - aEt) * fraction;
+            if (d2 <= radiusSq && (!nearest || d2 < nearest.distanceSq)) {
+              const worldPosition = polylineAt(line, et, new THREE.Vector3()) ?? point.clone();
+              const hit: EventMarkerHit = { marker: visual.marker, et, distanceSq: d2, renderOrder, worldPosition, span: true };
+              if (accept(worldPosition) && preferHit(hit, nearest)) nearest = hit;
+            }
           }
-        }
-        a.copy(b);
-        aEt = bEt;
-        aIn = bIn;
-      });
+          a.copy(b);
+          aEt = bEt;
+          aIn = bIn;
+        });
+      }
     }
     return nearest;
   }

@@ -38,6 +38,9 @@ export type ScriptTime =
   /** A calendar string, exactly as written in the script. */
   | { readonly kind: 'calendar'; readonly text: string };
 
+/** Which way `circleCenter` moves the camera on screen. */
+export type CircleDirection = 'right' | 'left' | 'up' | 'down';
+
 /** A frame captured by the `screenshot` verb. */
 export interface ScriptImage {
   /** PNG data URL of the captured frame. */
@@ -143,6 +146,39 @@ export interface ViewerControl {
    * one, the world origin otherwise.
    */
   setCamera(position: ScriptVec3, target?: ScriptVec3, up?: ScriptVec3): boolean;
+  /**
+   * Swing the camera around the point it orbits by `degrees`, keeping its
+   * distance and its aim — Cosmographia's `circleCenterRight/Left/Up/Down`.
+   *
+   * `direction` is the way the camera moves on screen: `right` and `left` swing
+   * it about the view's up vector, `up` and `down` about the view's right axis.
+   * Instant by default; pass `seconds` to swing at a constant rate over that
+   * long. Like a timed `gotoObject` it returns at once — sequence with `wait`.
+   *
+   * False in a camera frame that owns the view's orientation (LVLH, chase,
+   * surface, instrument), where there is no orbit to swing.
+   */
+  circleCenter(direction: CircleDirection, degrees: number, opts?: { seconds?: number }): boolean;
+  /**
+   * Move the camera straight away from the point it orbits by `km`, toward it
+   * when negative, keeping its aim — Cosmographia's `moveAwayFromCenter`. It
+   * stops short of the point rather than passing through it, and a body's
+   * surface still stops it.
+   *
+   * Timing and refusal are `circleCenter`'s.
+   */
+  dolly(km: number, opts?: { seconds?: number }): boolean;
+  /**
+   * Raise the camera and the point it looks at together by `km` along the
+   * view's up, lower them when negative, so the same view slides up the
+   * screen — Cosmographia's `craneUp`.
+   *
+   * In free orbit this releases a tracked object first, as the Z / C keys do:
+   * tracking pins the orbit centre to the object every frame, which would turn
+   * the crane into a tilt. Body-fixed and spacecraft-fixed frames keep it.
+   * Timing and refusal are `circleCenter`'s.
+   */
+  crane(km: number, opts?: { seconds?: number }): boolean;
 
   // ── Write: time ──
 
@@ -189,6 +225,10 @@ export interface ViewerControl {
   getSelected(): string | null;
   getTracked(): string | null;
   getCamera(): ScriptCamera;
+  /** Floating scene origin, independent of tracking (ECLIPJ2000 axes). */
+  getCameraReference?(): string | null;
+  /** Restore the floating origin without moving or tracking the camera. */
+  setCameraReference?(name: string | null): boolean;
   /**
    * Every object in the loaded scene, by name.
    *
@@ -275,9 +315,38 @@ export interface ParseOptions {
   readonly forbid?: readonly string[];
 }
 
+/** The part of `AbortSignal` that `execute` uses. */
+export interface ScriptCancelSignal {
+  readonly aborted: boolean;
+  addEventListener(type: 'abort', listener: () => void): void;
+  removeEventListener(type: 'abort', listener: () => void): void;
+}
+
 export interface ExecuteOptions {
+  /**
+   * Awaited before each statement, after the cancellation check and before
+   * `onStatement`: a gate. Resolving lets the statement run; a promise that
+   * has not resolved yet holds the run between statements. That is what a
+   * console's Pause and Step are, and it is why pausing means "after the
+   * current statement" — nothing in flight is frozen.
+   *
+   * Aborting `signal` while the gate is held ends the run at once, so Stop
+   * works on a paused script.
+   */
+  beforeStatement?(statement: Statement): void | Promise<void>;
   /** Called before each statement runs — the console's streaming transcript. */
   onStatement?(statement: Statement): void;
+  /**
+   * Cancels the run. Checked before each statement, and it also interrupts
+   * the statement in flight: `execute` stops awaiting it the moment the signal
+   * fires, so a `wait 3600` does not hold a cancelled run — and a recording it
+   * started — open for an hour. The host's call is abandoned rather than
+   * undone; for `wait`, that is a timer nobody is listening to any more.
+   *
+   * Structural rather than `AbortSignal` so this package keeps no DOM types —
+   * an `AbortSignal` satisfies it.
+   */
+  signal?: ScriptCancelSignal;
 }
 
 export interface ExecutionReport {

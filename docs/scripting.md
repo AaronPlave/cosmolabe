@@ -152,11 +152,22 @@ renders one frame and photographs it gets the camera mid-flight.
 | `clearLookAt` | Stop aiming at an object. |
 | `viewpoint <name>` | Apply a named catalog viewpoint, seeking the clock if it declares an epoch. |
 | `setFrame <mode> [object]` | Switch camera frame, optionally onto an object. |
-| `setCamera <position> [target] [up]` | Place the camera: eye, the point it looks at, and up — all in km. |
+| `setCamera <position> [target] [up]` | Place the camera: eye, the point it looks at, and up — all in km, in the camera frame's axes (below). |
 | `setFov <degrees>` | Vertical field of view. |
+| `dolly <km> [seconds]` | Move the camera straight away from what it orbits (toward it if negative), keeping its aim. Stops short of the centre, and a body's surface still stops it. |
+| `crane <km> [seconds]` | Raise the camera and the point it looks at together along the view's up (lower if negative), so the same view slides up the screen. |
+| `circleCenterRight <degrees> [seconds]` | Swing the camera around what it orbits, keeping its distance and aim. Also `circleCenterLeft`, `circleCenterUp`, `circleCenterDown`. Instant by default; give seconds to animate. |
 
 `setCamera` takes eye, target and up in that order — the same order catalog
-`Viewpoint` JSON and `camera-view-io.ts` already use. `target` is not optional
+`Viewpoint` JSON and `camera-view-io.ts` already use.
+
+**Which axes.** In a `body-fixed` or `sc-fixed` frame the vectors are in that
+body's own frame, relative to its centre: Z is the pole and X the prime meridian,
+the SPICE convention and the one Cosmographia's `moveToPov` uses. So
+`setFrame body-fixed Earth` then `setCamera [0, -14000, 11500] [0, 0, 0] [0, 0, 1]`
+looks down on North America (39.4°N, 90°W) whatever time it is. In every other
+frame they are world (ecliptic J2000) vectors. `getCamera()` and `snapshot()`
+report the pose in the same axes, so a snapshot replays to the same view. `target` is not optional
 decoration: position and up alone say where the camera stands and nothing about
 what it sees.
 
@@ -165,6 +176,24 @@ or what is being pointed at, and both keep acting on the camera afterwards:
 while an object is tracked the pose is relative to it, and while `pointAtObject`
 is in effect the aim follows that object and overrides `target` on the next
 frame. Call `untrack` / `clearLookAt` first if the pose should stand alone.
+
+`dolly` and `crane` are exact versions of moves the viewer already has: the
+mouse wheel's zoom, and the Z / C keys. Like Z / C, a `crane` in free orbit
+releases the tracked object first: tracking pins the orbit centre to the
+object every frame, which would turn the crane into a tilt. Body-fixed and
+spacecraft-fixed frames keep tracking. Timing and refusal are the same as the
+`circleCenter*` moves below.
+
+The `circleCenter*` moves are named for the way the camera moves on screen.
+Right and left swing it about the view's up vector; up and down swing it about
+the view's right axis and carry the up vector along, so the view never rolls.
+They pivot on the orbit target (the tracked object, or the point `setCamera`
+aimed at) and work in the orbit-controlled frames: `free-orbit`, `body-fixed`
+and `sc-fixed`. The other frames own the view's direction, so there the viewer
+refuses the move. A timed move is a rotation at a constant rate, not an
+interpolation between two poses, because a full circle starts and ends at the
+same pose. Like a timed `gotoObject` it returns at once, so follow it with
+`wait` to let it play. A later `setCamera` stops it.
 
 `<mode>` is one of `free-orbit`, `sc-fixed`, `body-fixed`, `lvlh`, `chase`,
 `surface`, `surface-explorer`, `instrument`.
@@ -205,6 +234,106 @@ the Display panel and will see again next visit.
 | `wait <seconds>` | Wall-clock settle. Not deterministic; see above. |
 | `screenshot [label]` | Capture the current frame. |
 | `record on\|off` | Start or stop video recording. Idempotent in both directions. |
+
+## The script console
+
+The viewer's **Script** tool (rail, or <kbd>`</kbd>) is a lightweight sequence
+runner for the text language, not an embedded IDE. It is a shell panel rather
+than a dialog, so the scene it drives stays visible while a script runs.
+
+### The editor is the execution view
+
+The editor (CodeMirror 6) shows line numbers, and during a run it marks the
+statement running with a thin rail. Finished lines step back, and a failed or
+stopped line is marked in the error or warning colour. A running `wait` shows
+its countdown at the end of its line. Below the editor there is only what the
+editor cannot show: a status line with real progress (`RUNNING · 5 / 17 ·
+wait 3 · 1.8s remaining`, counting statements, not lines), a thin progress bar,
+and any problems. Clicking a problem jumps to its line. The source is
+read-only while a script is running or paused, so the marks always refer to the
+program being executed; editing after a run clears them.
+
+Editing is language-aware, and all of it comes from `@cosmolabe/control`
+(`cursorContext`, `completionsAt`, `signatureAt`), so the editor cannot disagree
+with the interpreter:
+
+- **Completion.** Verbs at the start of a line; then each argument's values:
+  enum ids (`setFrame body-fixed`), `on`/`off`, and the loaded scene's own
+  object and viewpoint names, quoted when they need it.
+- **Signature help.** The current line's usage, with the parameter under the
+  cursor emphasised, plus the verb's one-line help.
+- **Lint.** `parse` runs as you type and underlines every problem it would
+  report, before you press Run.
+
+### Running
+
+| State | Controls | Status |
+|---|---|---|
+| Idle | **Run** (<kbd>Cmd/Ctrl</kbd>+<kbd>Enter</kbd>), Snapshot | |
+| Running | **Pause**, Stop | `RUNNING · 5 / 17 · wait 3 · 1.8s remaining` |
+| Paused | **Resume**, Step, Stop | `PAUSED · 5 / 17` |
+| Finished | **Run again**, Snapshot | `✓ Completed · 17 steps · 26.4s` |
+
+- **Pause** means *after the current statement*: the runner holds `execute`'s
+  `beforeStatement` gate, and the rail moves to the statement that runs next.
+  Nothing in flight is frozen; a camera fly-to cannot honestly be paused
+  mid-way. The exception is `wait`, which is the runner's own timer: a paused
+  `wait 60` stops counting at once and resumes with the time it had left.
+- **Step** runs exactly one statement (or finishes a held `wait`), then pauses
+  again.
+- **Stop** is immediate, even in the middle of a `wait`: the run stops awaiting
+  the statement in flight, and a recording the script started is stopped then
+  and there.
+- Pausing a script does not pause scene time. The timeline has its own
+  play/pause; the script controls are labelled "script" to keep the two apart.
+
+A run ends with the console. Closing the panel, or loading a catalog (which
+replaces the whole workspace), stops the script at once. Minimizing the panel
+does not.
+
+Hosts get the same control through `execute(program, host, { signal,
+beforeStatement })`. `signal` is an `AbortSignal` or anything with its `aborted`
+flag and `abort` listeners; the host call in flight is abandoned rather than
+undone, and a statement that already finished synchronously counts as run.
+`beforeStatement` is an awaited gate before each statement, which is all
+Pause and Step are.
+
+### Snapshot, programs and reference
+
+- **Snapshot** replaces the editor with `cosmo.snapshot()`, a script that
+  reproduces the current view.
+- **Programs** live in the panel header (`Untitled ▾`): save, save under a new
+  name, load, delete. They are kept in `localStorage` under
+  `cosmolabe-viewer-scripts`, separate from the display preferences. If what is
+  stored there cannot be read, saving is disabled rather than risk overwriting
+  it. A save the browser refuses (for example, storage is full) is reported and
+  stays on screen until a later write succeeds.
+- **Verb reference** is collapsed by default and derived from `VERB_LIST`.
+
+Keys pressed inside the console stay in it. Escape from the editor closes
+whatever the editor has open, and otherwise just leaves the editor; it does not
+close the panel from there.
+
+### The Earth–Moon Scripted Tour
+
+The **Earth–Moon Scripted Tour** on the home screen loads the base library's
+Earth system on the real kernels (`test-catalogs/earth-moon-tour.json` requires
+`base/earth-system.json`: de440s for where Earth and the Moon were on
+2015-10-31, pck00011 for how they were turned), so the body-fixed views land on
+the geography the original script aims at, and runs an adaptation
+of Cosmographia's Earth–Moon scripting example in the console, block by block
+with the original's notes and pacing. The
+`circleCenter*`, `moveAwayFromCenter` and `craneUp` moves carry over as
+`circleCenter*`, `dolly` and `crane`. `moveToPov`, which Cosmolabe cannot
+animate yet, becomes an instant `setCamera` pose at the position the original
+ends on. Calls with no equivalent are left as "No equivalent yet" comments; the
+table under [Not yet in Cosmolabe](#not-yet-in-cosmolabe) lists them.
+Cosmolabe scripts are conceptually similar to Cosmographia's but are not
+source-compatible with its `cosmoscripting` Python API. The script is
+`apps/viewer/test-catalogs/earth-moon-tour.cosmo`, attached to its catalog by the
+`script` field of an index entry (see [catalog-sources.md](catalog-sources.md)),
+so a deployment offers scripted tours the same way it offers catalogs. A unit
+test parses every script the Examples index names against the verb table.
 
 ## The read side
 
@@ -309,10 +438,15 @@ ceiling. Three rules:
 | `pause()` / `unpause()` | `setPlaying off\|on` | One verb with an argument, so it is idempotent. A toggle run twice is a no-op. |
 | `wait(seconds)` | `wait <seconds>` | Rejected where a frame must be reproducible. |
 | `pointAtObject(name)` | `pointAtObject <object>` | |
-| `trackObject(name)` | `track <object>` | |
-| `gotoObject(name)` | `gotoObject <object> [seconds]` | |
+| `trackObject(name)` | `pointAtObject <object>` | Cosmographia's `trackObject` locks the camera's aim on an object while the camera stays where it is centred. That is our `pointAtObject`. Our `track` is different: it re-centres the orbit on the object. |
+| `gotoObject(name, s)` | `gotoObject <object> [seconds]` | |
+| `setCameraToInertialFrame()` | `setFrame free-orbit` | Free orbit is the camera in the inertial scene frame. |
+| `showBodyFixedFrame(name)` / `showLatLongGrid(name)` | `setLayer axes on` / `setLayer grid on` | Scene-wide here, per body there ([#153](https://github.com/AaronPlave/cosmolabe/issues/153)). |
 | `setFov(deg)` | `setFov <degrees>` | |
-| `moveToPov(name, pos, …)` | `setCamera <position> [up]` | |
+| `moveAwayFromCenter(km, s)` | `dolly <km> [seconds]` | Positive moves away, as theirs does; negative moves toward the centre. |
+| `craneUp(km, s)` | `crane <km> [seconds]` | Negative cranes down. |
+| `circleCenterRight/Left/Up/Down(deg, s)` | `circleCenterRight/Left/Up/Down <degrees> [seconds]` | Same names and arguments. The duration is optional here; without it the move is instant. |
+| `moveToPov(name, pos, dir, up, s)` | `setFrame body-fixed <name>` + `setCamera <position> [target] [up]` | Instant, not animated. In a body-fixed frame `setCamera` takes the body's own axes, so the vectors carry over unchanged; `direction` becomes the `target` point. |
 | `showTrajectory(name, on)` | `showTrajectory <object> on\|off` | Per-object, their shape. Our global `setLayer trajectories off` stays beside it as the coarse verb. |
 | `saveScreenShot()` | `screenshot [label]` | |
 | `recordVideo(...)` | `record on\|off` | |
@@ -323,6 +457,20 @@ ceiling. Three rules:
 | — | `clearLookAt` | Ours: the pair for `pointAtObject`, so a snapshot can clear an aim as well as set one. |
 | — | `runTo <seconds>` | Ours: the deterministic counterpart to `wait`. |
 | — | `snapshot()` | Ours. |
+
+### Not yet in Cosmolabe
+
+Found by adapting Cosmographia's Earth–Moon scripting example (the home
+screen's Earth–Moon Scripted Tour). [#153](https://github.com/AaronPlave/cosmolabe/issues/153) tracks them. The tour marks
+each one with a "No equivalent yet" comment where it occurs.
+
+| Cosmographia | What is missing | Closest today | Tracked |
+|---|---|---|---|
+| `gotoHome(s)` | An animated "home" view. | `viewpoint <name>` (instant) | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#114](https://github.com/AaronPlave/cosmolabe/issues/114), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
+| Durations on camera moves | `moveToPov`, `pointAtObject` and the moves above animate over *s* seconds; only `gotoObject`, `dolly`, `crane` and the `circleCenter*` moves do here. | Instant verbs plus `wait` | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#115](https://github.com/AaronPlave/cosmolabe/issues/115) |
+| `showBodyFixedFrame(name)`, `showLatLongGrid(name)` | Per-body axes and grid. | `setLayer axes/grid` (scene-wide) | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#113](https://github.com/AaronPlave/cosmolabe/issues/113) |
+| `showDirectionVector(from, to)` | Direction vectors between bodies. | none | [#153](https://github.com/AaronPlave/cosmolabe/issues/153), [#57](https://github.com/AaronPlave/cosmolabe/issues/57) |
+| `hideToolBar`, `hideStatusMessages`, `hideInfoText`, `showFullScreen` (and their inverses) | Scripted control of viewer chrome. The app's zen mode (`\`) also unmounts the console, which stops the script, so this needs its own design. Browsers only enter full screen from a user gesture. | none | [#153](https://github.com/AaronPlave/cosmolabe/issues/153) |
 
 **Running real Cosmographia `.py` is out of scope.** It needs Pyodide or a
 translator. This table is what keeps that a mapping problem rather than a

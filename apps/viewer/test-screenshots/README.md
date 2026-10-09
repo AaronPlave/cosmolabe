@@ -17,7 +17,8 @@ the authority of whoever last ran it by hand — say so when citing it in a PR.
 
 `scripts/visual-regression.mjs` builds the packages and the viewer, then drives
 the build in headless Chromium (software WebGL via SwiftShader, for
-cross-machine determinism). It loads each scene with `?catalog=<name>&test=1`.
+cross-machine determinism). It bundles the examples and loads each scene with
+`?catalog=test-catalogs/<name>&test=1`.
 The `?test=1` flag (see `apps/viewer/src/lib/loader.ts`) strips GPU-variant
 noise — antialias, bloom, starfield — pauses the clock at the catalog's
 `defaultTime`, and installs `window.__cosmolabe`, whose `capture(viewpoint)`
@@ -99,6 +100,21 @@ The scenes fetch their SPICE kernels at load time (some large + LFS-backed) —
 ensure `git lfs pull` has run.
 
 ## Run the check
+
+For the ring-shadow annulus edges alone, a smaller GPU check needs no viewer
+build, textures or SPICE kernels:
+
+```sh
+npm run build
+node scripts/ring-shadow-regression.mjs
+```
+
+It compares the shader against an 8x supersampled binary annulus at three
+projected sizes, pixel ratios 1 and 2, and three Sun angles. It also checks that
+subpixel camera shifts keep the edges close to that reference,
+texture-defined gaps and translucent bands remain unchanged away from the
+annulus edges and that rejected ray intersections stay fully lit. This uses
+the same Playwright Chromium setup above and runs separately from `vitest`.
 
 ```sh
 npm --prefix apps/viewer run test:visual

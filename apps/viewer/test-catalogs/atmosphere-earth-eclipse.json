@@ -1,0 +1,76 @@
+{
+  "name": "Atmosphere validation: Earth orbital eclipse",
+  "defaultTime": "2024-07-04T12:00:00Z",
+  "defaultViewpoint": "Whole disc",
+  "items": [
+    {
+      "name": "Whole disc",
+      "type": "Viewpoint",
+      "eye": [
+        30000,
+        0,
+        0
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          100000000,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378.1,
+        "atmosphere": "Earth",
+        "baseMap": "textures/earth-5k.jpg"
+      }
+    },
+    {
+      "name": "Eclipse moon",
+      "class": "moon",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          40000,
+          2400,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 1800
+      }
+    }
+  ]
+}

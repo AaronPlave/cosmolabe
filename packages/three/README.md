@@ -49,6 +49,12 @@ renderer.start();
 
 ## Custom plugin
 
+Directional lights in the shared scene are reserved for the renderer's Sun.
+Atmospheric body and terrain materials apply solar RGB extinction to every
+directional light. Plugins should use `PointLight` or `SpotLight` for local
+illumination; an additional `DirectionalLight` is unsupported because it would
+inherit the Sun's atmospheric path. Ambient and environment lighting are unaffected.
+
 ```ts
 import type { RendererPlugin, RendererContext } from '@cosmolabe/three';
 

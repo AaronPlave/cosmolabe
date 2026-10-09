@@ -15,7 +15,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
 try {
-  await page.goto(`${base}/?catalog=earth-moon&test=1`, { waitUntil: "domcontentloaded", timeout: 120000 });
+  await page.goto(`${base}/?catalog=test-catalogs/earth-moon&test=1`, { waitUntil: "domcontentloaded", timeout: 120000 });
   await page.waitForFunction(() => window.__cosmolabe?.ready, { timeout: 120000 });
   console.log('Scene ready');
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, { timeout: 120000 });
@@ -109,7 +109,7 @@ try {
     const { loadDemo } = await import(window.measurementModules['loader.ts']);
     const { measurements } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
     const old = window.renderer;
-    await loadDemo(document.querySelector('canvas'), 'earth-moon');
+    await loadDemo(document.querySelector('canvas'), 'test-catalogs/earth-moon');
     return { changed: old !== window.renderer, items: measurements.items.length, pending: measurements.pendingPickSlot };
   });
   assert(reload.changed); assert.equal(reload.items, 0); assert.equal(reload.pending, null);
@@ -145,7 +145,7 @@ try {
     const { loadDemo } = await import(window.measurementModules['loader.ts']);
     const { measurements, captureSurfaceEndpoint, addMeasurement } = await import(window.measurementModules['spatial-measurements.svelte.ts']);
     const { openTool } = await import(window.measurementModules['shell.svelte.ts']);
-    await loadDemo(document.querySelector('canvas'), 'inner-planets-keplerian');
+    await loadDemo(document.querySelector('canvas'), 'test-catalogs/inner-planets-keplerian');
     await window.__cosmolabe.whenAssetsReady();
     window.renderer.stop();
     openTool('measure');

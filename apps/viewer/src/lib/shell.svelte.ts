@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Settings, Bug, Ruler } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug, Ruler, Terminal } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 
 /**
@@ -41,7 +41,7 @@ export type IconComponent = typeof Globe;
  * interactive measurement returns as its own tool rather than as a second
  * analysis entry point beside the timeline.
  */
-export const TOOL_IDS = ['catalog', 'events', 'measure', 'display', 'debug'] as const;
+export const TOOL_IDS = ['catalog', 'events', 'measure', 'script', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -93,6 +93,10 @@ export const TOOLS: readonly ToolDef[] = [
   // renderer controls while the canvas has focus.
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
   { id: 'measure', label: 'Measurements', icon: Ruler, presentation: 'panel', dock: 'right', width: 344 },
+  // Backtick: the universal console idiom, unclaimed, and not a letter, so it
+  // cannot collide with a renderer control or #15's keymap. The app's input
+  // guard runs first, so a backtick typed into a text field stays a backtick.
+  { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right', width: 380, shortcut: '`' },
   { id: 'display', label: 'Display',  icon: Settings, presentation: 'panel',  dock: 'right', width: 240 },
   { id: 'debug',   label: 'Diagnostics', icon: Bug,   presentation: 'panel',  dock: 'right', width: 260 },
 ];
@@ -179,6 +183,13 @@ export const shell = $state({
    * nowhere and stacks with nothing.
    */
   shortcutsOpen: false,
+
+  /**
+   * The catalog browser overlay (issue #94). A flag here rather than local to
+   * any one surface, since the home screen's Browse, the rail's folder
+   * button, the command palette and the `O` shortcut all open it.
+   */
+  catalogBrowserOpen: false,
 
   /**
    * Progressive analysis depth on the timeline. `transport` is the minimal time

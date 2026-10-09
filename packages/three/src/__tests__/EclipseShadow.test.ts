@@ -11,6 +11,8 @@ import {
 import { injectAerialPerspectiveIntoShader, makeAerialPerspectiveUniforms } from '../AerialPerspective.js';
 import { injectRingShadowIntoShader, makeRingShadowUniforms } from '../RingShadow.js';
 import { RingMesh } from '../RingMesh.js';
+import { normalizeAtmosphere } from '../AtmosphereModel.js';
+import { getAtmospherePreset } from '../AtmosphereMesh.js';
 
 // Scene units: kilometres × scaleFactor, matching UniverseRenderer's default.
 const S = 1e-6;
@@ -183,6 +185,7 @@ function fakeShader() {
     fragmentShader: [
       '#define STANDARD',
       'void main() {',
+      '  #include <lights_fragment_begin>',
       '  vec3 outgoingLight = totalDiffuse + totalSpecular;',
       '  #include <opaque_fragment>',
       '}',
@@ -249,12 +252,16 @@ describe('injectShadowIntoShader', () => {
   it('survives composition with aerial perspective and ring shadow', () => {
     const shader = fakeShader();
     injectShadowIntoShader(shader, makeShadowUniforms() as unknown as Record<string, { value: unknown }>);
-    injectAerialPerspectiveIntoShader(shader, makeAerialPerspectiveUniforms() as unknown as Record<string, { value: unknown }>);
+    const apUniforms = makeAerialPerspectiveUniforms(
+      normalizeAtmosphere(getAtmospherePreset('Earth')!), 6378.1, 1, null,
+    );
+    injectAerialPerspectiveIntoShader(shader, apUniforms as unknown as Record<string, { value: unknown }>);
     injectRingShadowIntoShader(shader, makeRingShadowUniforms() as unknown as Record<string, { value: unknown }>);
 
     expect(shader.fragmentShader).toContain('float computeEclipseShadow()');
     expect(shader.fragmentShader).toContain('outgoingLight *= computeEclipseShadow() * computeRingShadow();');
     expect(shader.fragmentShader).toContain('computeAerialPerspective(vAPWorldPos)');
+    expect(shader.fragmentShader).toContain('directLight.color *= computeSurfaceSunTransmittance(vAPWorldPos);');
     // Ring shadow reads vShadowWorldPos / uSunWorldPos, so its function must be
     // declared after SHADOW_FRAG_PARS opens but before computeEclipseShadow.
     expect(shader.fragmentShader.indexOf('varying vec3 vShadowWorldPos;'))
