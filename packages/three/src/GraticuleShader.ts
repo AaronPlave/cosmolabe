@@ -4,7 +4,7 @@ import type { SurfaceCoordinates } from '@cosmolabe/core';
 // Shared presentation thresholds for surface lines and fixed-site labels.
 export const GRID_AUTO_STEPS = [30, 10, 5, 1, 0.2, 0.1, 0.02, 0.01, 0.005, 0.001] as const;
 export const GRID_PRESENTATION = {
-  horizon: [0.12, 0.45], congestion: [12, 36], detailCongestion: [70, 140],
+  horizon: [0.12, 0.45], congestion: [12, 36], detailCongestion: [16, 40],
 } as const;
 export function gridSmoothstep(edges: readonly [number, number], value: number): number {
   const t = THREE.MathUtils.clamp((value - edges[0]) / (edges[1] - edges[0]), 0, 1);
@@ -44,26 +44,26 @@ uniform vec3 uGridShape;
 uniform vec2 uGridStep, uGridPreviousStep, uGridDetailStep, uGridPreviousDetailStep;
 uniform float uGridHierarchy, uGridPreviousHierarchy;
 uniform float uGridBlend, uGridVisible, uGridMinor, uGridPixelRatio;
-float gridLine(float angle, float stepSize, float derivative, vec2 congestion) {
+float gridLine(float angle, float stepSize, float derivative, vec2 congestion, float widthPx) {
   float distanceDeg = abs(mod(angle + stepSize * 0.5, stepSize) - stepSize * 0.5);
   float widthDeg = max(derivative, 0.0000001);
   // Fade subpixel lattices and heavily foreshortened fragments.
-  return (1.0 - smoothstep(widthDeg * 0.25, widthDeg * 0.85, distanceDeg))
+  return (1.0 - smoothstep(widthDeg * max(0.0, widthPx * 0.5 - 0.4), widthDeg * (widthPx * 0.5 + 0.4), distanceDeg))
     * smoothstep(congestion.x, congestion.y, stepSize / widthDeg);
 }
-float axisLine(vec2 angles, vec2 deriv, vec2 steps, vec2 congestion) {
-  return max(gridLine(angles.x, steps.x, deriv.x, congestion),
-    gridLine(angles.y, steps.y, deriv.y, congestion) * smoothstep(2.0, 8.0, 90.0 - abs(angles.x)));
+float axisLine(vec2 angles, vec2 deriv, vec2 steps, vec2 congestion, float widthPx) {
+  return max(gridLine(angles.x, steps.x, deriv.x, congestion, widthPx),
+    gridLine(angles.y, steps.y, deriv.y, congestion, widthPx) * smoothstep(2.0, 8.0, 90.0 - abs(angles.x)));
 }
 vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize, vec2 detailStep, float hierarchy) {
   vec2 majorCongestion = vec2(${GRID_PRESENTATION.congestion.join(', ')});
   vec2 detailCongestion = vec2(${GRID_PRESENTATION.detailCongestion.join(', ')});
-  float major = axisLine(angles, deriv, stepSize, majorCongestion);
+  float major = axisLine(angles, deriv, stepSize, majorCongestion, 1.2);
   float opacity = major * mix(0.22, 0.17, hierarchy);
-  // Half-step lines give every major cell the same quiet subdivision. They
+  // Fifth-step lines give every major cell the same quiet subdivision. They
   // carry no coordinate labels; the major lines remain the readable ruler.
-  float minor = axisLine(angles, deriv, detailStep, detailCongestion);
-  opacity = max(opacity, minor * uGridMinor * mix(0.065, 0.04, hierarchy));
+  float minor = axisLine(angles, deriv, detailStep, detailCongestion, 0.6);
+  opacity = max(opacity, minor * uGridMinor * mix(0.065, 0.055, hierarchy));
   float equator = 1.0 - smoothstep(deriv.x * 0.25, deriv.x * 0.85, abs(angles.x));
   float prime = (1.0 - smoothstep(deriv.y * 0.25, deriv.y * 0.85, abs(angles.y)))
     * smoothstep(2.0, 8.0, 90.0 - abs(angles.x));
@@ -108,7 +108,7 @@ export function applyGraticuleMaterial(material: THREE.Material, uniforms: Grati
   const compile = material.onBeforeCompile.bind(material);
   const key = material.customProgramCacheKey();
   material.onBeforeCompile = (shader, renderer) => { compile(shader, renderer); injectGraticule(shader, localUniforms); };
-  material.customProgramCacheKey = () => key + '_graticule_v6';
+  material.customProgramCacheKey = () => key + '_graticule_v7';
   const render = material.onBeforeRender.bind(material);
   material.onBeforeRender = (renderer, scene, camera, geometry, object, group) => {
     render(renderer, scene, camera, geometry, object, group);

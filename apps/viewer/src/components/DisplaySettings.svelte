@@ -109,6 +109,11 @@
       {:else}
         <p class="ui-meta text-text-secondary">Major lines carry labels; lighter lines divide each cell.</p>
       {/if}
+      <label class="ui-body flex items-center gap-2">
+        <Checkbox checked={vs.grid.coordinateFrame} onCheckedChange={() => setGridSettings({ coordinateFrame: !vs.grid.coordinateFrame })} class="h-3.5 w-3.5" />
+        <span>Regional coordinate frame</span>
+      </label>
+      <p class="ui-meta text-text-secondary">Border ticks label major lines in overhead views. Turn off for fixed surface labels.</p>
       <details class="ui-meta text-text-secondary"><summary>Coordinates and surface</summary>
         <p>East-positive longitude (E/W), geodetic latitude on spheres and rotational ellipsoids. Triaxial bodies use planetocentric latitude. Lines follow the rendered surface and its current level of detail. Triaxial globes use a planetocentric reference surface. Mesh-body grids and DSK draping are unavailable.</p>
       </details>

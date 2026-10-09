@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { bodyFixedToSurfacePosition, surfacePositionToBodyFixed, formatSurfaceAngle, wrapLongitude, type SurfaceCoordinates } from '@cosmolabe/core';
 import { ANGULAR_GRID_STEPS, type GridSettings } from '@cosmolabe/control';
 import type { BodyMesh } from './BodyMesh.js';
+import { GraticuleFrame } from './GraticuleFrame.js';
 import type { LabelManager } from './LabelManager.js';
 import { applyGraticuleMaterial, applyGraticuleToScene, makeGraticuleUniforms, GRID_PRESENTATION, gridSmoothstep, GRID_AUTO_STEPS } from './GraticuleShader.js';
 
@@ -75,6 +76,7 @@ export class AdaptiveGraticule {
   private longitudeCarrier: number | null = null;
   private carrierTier = '';
   private settings: GridSettings | null = null;
+  private frame: GraticuleFrame | null = null;
   constructor(private readonly bm: BodyMesh, public coordinates: SurfaceCoordinates) {
     this.uniforms = makeGraticuleUniforms(coordinates);
     bm.add(this.group);
@@ -85,7 +87,7 @@ export class AdaptiveGraticule {
     this.uniforms.uGridShape.value.copy(makeGraticuleUniforms(coordinates).uGridShape.value);
     this.lastPlan = -Infinity;
     this.cachedHits.clear();
-    this.clearLabels();
+    this.clearLabels(); this.frame?.hide();
   }
   setAnnotationScene(scene: THREE.Scene): void {
     if (this.group.parent !== scene) scene.add(this.group);
@@ -102,6 +104,7 @@ export class AdaptiveGraticule {
     if (settings !== this.settings) { this.settings = settings ?? null; this.lastPlan = -Infinity; }
     this.uniforms.uGridVisible.value = visible && !this.bm.hasModel ? 1 : 0;
     this.uniforms.uGridMinor.value = settings?.density === 'manual' ? (settings.minorLines ? 1 : 0) : 1;
+    if (!visible || !labels) this.frame?.hide();
     if (!visible || !labels) for (const label of this.labels.values()) label.sprite.visible = false;
   }
   private point(lat: number, lon: number, heightKm = 0): THREE.Vector3 {
@@ -187,7 +190,7 @@ export class AdaptiveGraticule {
     const regionalStep = (scales: number[], oldStep: number) => Math.min(10, scales.length ? chooseGridStep(median(scales), oldStep, targetPx) : oldStep);
     const latStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : regionalStep(latScale, previous.x);
     const lonStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : regionalStep(lonScale, previous.y);
-    const detail = (step: number) => step * 0.5;
+    const detail = (step: number) => step / 5;
     const detailLat = detail(latStep), detailLon = detail(lonStep), hierarchy = automatic ? 1 : 0;
     if (latStep !== previous.x || lonStep !== previous.y || detailLat !== this.uniforms.uGridDetailStep.value.x
       || detailLon !== this.uniforms.uGridDetailStep.value.y || hierarchy !== this.uniforms.uGridHierarchy.value) {
@@ -265,6 +268,7 @@ export class AdaptiveGraticule {
   }
   update(camera: THREE.PerspectiveCamera, viewport: { width: number; height: number }, manager: LabelManager | null, occluders: readonly BodyMesh[] = [this.bm]): void {
     const now = performance.now();
+    this.frame?.hide();
     const dt = Math.max(0, Math.min(0.1, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
     this.uniforms.uGridPixelRatio.value = Math.max(1, globalThis.devicePixelRatio ?? 1);
@@ -291,6 +295,50 @@ export class AdaptiveGraticule {
     if (now - this.lastPlan >= 150) { this.plan(camera, width, height); this.lastPlan = now; }
     this.uniforms.uGridBlend.value = this.transition;
     if (!this.labelVisible || !manager) return;
+    if (this.settings?.coordinateFrame && !this.globeScale) {
+      for (const label of this.labels.values()) hide(label);
+      this.frame ??= new GraticuleFrame(this.group);
+      const targets: THREE.Object3D[] = [], own = new Set<THREE.Object3D>();
+      for (const body of occluders.length ? occluders : [this.bm]) {
+        if (!body.visible) continue;
+        const meshes = [body.mesh.visible ? body.mesh : null, body.terrainTileGroup?.visible ? body.terrainTileGroup : null,
+          ...body.getSurfaceOverlays().filter(o => o.group.visible).map(o => o.group)].filter((o): o is THREE.Object3D => !!o);
+        for (const mesh of meshes) { targets.push(mesh); if (body === this.bm) own.add(mesh); }
+      }
+      const materials = Array.isArray(this.bm.mesh.material) ? this.bm.mesh.material : [this.bm.mesh.material];
+      if (this.bm.mesh.visible && materials.some(m => (m instanceof THREE.MeshStandardMaterial || m instanceof THREE.MeshPhongMaterial) && m.displacementMap && (m.displacementScale !== 0 || m.displacementBias !== 0))) return;
+      const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
+      const foot = bodyFixedToSurfacePosition({ xKm: cameraFixed.x, yKm: cameraFixed.y, zKm: cameraFixed.z }, this.coordinates);
+      const seed = this.bm.sampleTerrain(foot.latDeg, foot.lonDeg)?.elevationKm ?? null;
+      const sample = (x: number, y: number) => {
+        const h = this.planningHit(x / width * 2 - 1, 1 - y / height * 2, camera, seed);
+        if (!h) return null;
+        const point = this.point(h.latDeg, h.lonDeg, h.heightKm);
+        const normal = new THREE.Vector3(Math.cos(h.latDeg * DEG) * Math.cos(h.lonDeg * DEG), Math.cos(h.latDeg * DEG) * Math.sin(h.lonDeg * DEG), Math.sin(h.latDeg * DEG)).applyQuaternion(this.rotation);
+        return { ...h, incidence: camera.position.clone().sub(point).normalize().dot(normal) };
+      };
+      const steps = this.uniforms.uGridStep.value;
+      this.frame.update(width, height, [steps.x, steps.y], manager, sample, tick => {
+        this.raycaster.setFromCamera(new THREE.Vector2(tick.x / width * 2 - 1, 1 - tick.y / height * 2), camera);
+        const intersection = this.raycaster.intersectObjects(targets, true).find(hit => {
+          // Raycaster traverses invisible objects; only rendered ancestry can
+          // certify a coordinate, especially during terrain LOD replacement.
+          for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible) return false;
+          return true;
+        });
+        if (!intersection) return false;
+        let object: THREE.Object3D | null = intersection.object;
+        while (object && !own.has(object)) object = object.parent;
+        if (!object) return false;
+        const p = intersection.point.clone().applyMatrix4(this.bodyFromWorld);
+        const h = bodyFixedToSurfacePosition({ xKm: p.x, yKm: p.y, zKm: p.z }, this.coordinates);
+        return Math.abs(tick.axis === 'latitude' ? h.latDeg - tick.value : wrapLongitude(h.lonDeg - tick.value)) < (tick.axis === 'latitude' ? steps.x : steps.y) * 0.015;
+      });
+      this.frame.sprite.position.copy(new THREE.Vector3(0, 0, -Math.max(camera.near * 2, 1)).applyMatrix4(camera.matrixWorld).applyMatrix4(this.bodyFromWorld));
+      const pixel = 2 / camera.projectionMatrix.elements[5] / height / this.bm.scaleFactor;
+      this.frame.sprite.scale.set(width * pixel, height * pixel, 1);
+      return;
+    }
     const materials = Array.isArray(this.bm.mesh.material) ? this.bm.mesh.material : [this.bm.mesh.material];
     // Three's triangle picker cannot see vertex displacement performed only in
     // the shader. Keep the surface grid, but never certify those labels against
@@ -480,6 +528,10 @@ export class AdaptiveGraticule {
         y0: y - LABEL_HEIGHT / 2 - padding, y1: y + LABEL_HEIGHT / 2 + padding };
       if (strength < 0.012 || projected.z < -1 || projected.z > 1 || rect.x0 < 4 || rect.x1 > width - 4 || rect.y0 < 4 || rect.y1 > height - 4
         || manager.canReserveContextRect?.(rect) === false) { reject(); continue; }
+      // Billboard rectangles must fit the actual reference silhouette too.
+      // A front-facing anchor alone does not certify its offset text corners.
+      if (!registeredTerrain && [[rect.x0, rect.y0], [rect.x1, rect.y0], [rect.x0, rect.y1], [rect.x1, rect.y1]]
+        .some(([px, py]) => !this.referenceHit(px / width * 2 - 1, 1 - py / height * 2, camera))) { reject(); continue; }
       const tierUseful = inPattern(anchor, this.uniforms.uGridStep.value.x, this.uniforms.uGridStep.value.y);
       const eligible = tierUseful && strength >= (label?.sprite.visible ? 0.02 : 0.04) && incidence >= (label?.sprite.visible ? 0.18 : 0.28)
         && Math.abs(projected.x) <= (label?.sprite.visible ? 0.96 : 0.9) && Math.abs(projected.y) <= (label?.sprite.visible ? 0.94 : 0.88);
@@ -532,16 +584,16 @@ export class AdaptiveGraticule {
     this.group.add(sprite);
     return { sprite, anchor, text, width, visibleSince: Infinity };
   }
-  get metrics(): { candidates: number; labels: number; latitudeStep: number; longitudeStep: number; densityBlend: number; layout: 'geographic';
+  get metrics(): { candidates: number; labels: number; latitudeStep: number; longitudeStep: number; densityBlend: number; layout: 'geographic' | 'frame'; frameTicks: readonly import('./GraticuleFrame.js').FrameTick[];
     anchors: readonly GeographicGridAnchor[]; annotations: Array<{ id: string; tier: string; axis: Anchor['axis']; latDeg: number; lonDeg: number; text: string; opacity: number }> } {
     return { candidates: this.candidates.length, labels: [...this.labels.values()].filter(l => l.sprite.visible).length,
       latitudeStep: this.uniforms.uGridStep.value.x, longitudeStep: this.uniforms.uGridStep.value.y,
-      densityBlend: this.uniforms.uGridBlend.value, layout: 'geographic', anchors: this.candidates,
+      densityBlend: this.uniforms.uGridBlend.value, layout: this.frame?.sprite.visible ? 'frame' : 'geographic', frameTicks: this.frame?.ticks ?? [], anchors: this.candidates,
       annotations: [...this.labels.values()].filter(l => l.sprite.visible).map(l => ({ id: l.anchor.id, tier: l.anchor.tier,
         axis: l.anchor.axis, latDeg: l.anchor.lat, lonDeg: l.anchor.lon,
         text: l.text, opacity: l.sprite.material.opacity })) };
   }
   private disposeLabel(label: Label): void { label.sprite.removeFromParent(); label.sprite.material.map?.dispose(); label.sprite.material.dispose(); }
   private clearLabels(): void { this.eligibility.clear(); for (const l of this.labels.values()) this.disposeLabel(l); this.labels.clear(); }
-  dispose(): void { this.clearLabels(); this.group.removeFromParent(); }
+  dispose(): void { this.frame?.dispose(); this.clearLabels(); this.group.removeFromParent(); }
 }

@@ -1,8 +1,68 @@
 # Issue 157: adaptive surface grid and geographic annotations
 
-## Current one-band review pass
+## Optional regional coordinate frame
 
-The latest [PR feedback](https://github.com/AaronPlave/cosmolabe/pull/163#issuecomment-6048743556)
+The coordinate-frame toggle in Display Settings is off by default. Fixed surface
+rulers remain the globe/reference presentation. In regional mode, enabling the
+frame replaces surface captions with short ticks at actual major-line crossings
+of a 24 CSS-pixel inset viewport frame. Right/top edges have a consistent priority;
+rotation can put either coordinate axis on either edge. Values move continuously
+with their geographic line along the frame, with one caption per axis/value and
+consistent collision suppression. No caption searches for an interior patch.
+
+Only well-facing surface samples (incidence at least 0.45) participate. Every
+shown tick requires a current rendered-geometry ray result from its own body,
+including overlays and terrain; sky, foreign occluders, GPU-only displacement
+and grazing views cannot certify a coordinate. The maximum is eight triangle
+queries and eight captions per body/frame, including rejected discovery attempts.
+Frame mode suppresses surface captions, so their validation budget is not added.
+Disabling labels/grid hides the overlay immediately; disposal removes its texture,
+material and group. Point Probe continues to provide exact coordinate pairs.
+
+The option persists through preferences, camera JSON and script snapshots;
+`setGridCoordinateFrame on/off` supports script control. Ordinary surface caption
+rectangles now require all four corners to lie within the reference silhouette,
+in addition to existing anchor and current-terrain occlusion checks. This prevents
+a visible anchor from allowing offset billboard text to protrude into sky.
+
+Major lines have a nominal width of 1.2 CSS pixels, minor lines 0.6, with about
+one-third major contrast. Each major cell has five minor subdivisions. Independent
+local fragment derivatives fade compressed minors over 16–40 CSS pixels;
+reference colors and incidence suppression remain restrained. There is one active
+major tier and one minor tier, with only the immediate outgoing grid crossfade.
+
+[Same-path comparison report](coordinate-frame/metrics.json),
+[fixed surface recording](coordinate-frame/surface.mp4) and
+[optional coordinate-frame recording](coordinate-frame/frame.mp4) compare identical
+camera inputs: globe-to-region zoom, small pan and roll, then a tilt toward the
+horizon. The [overhead surface](coordinate-frame/surface-64.png) and
+[overhead frame](coordinate-frame/frame-64.png) captures show the coordinate-reading
+tradeoff. Bright/dark, DPR 1/2, small-globe and synthetic resident-terrain cases
+accompany them. The report includes source/compiled-file SHA-256 fingerprints,
+resolved module URLs, runtime instance/sprite counts and frame tick coordinates.
+These captures load the package entry under production module conditions, matching
+the compiled package selected by production builds. Vite development selects its
+source entry; it must not be mistaken for the compiled output.
+
+The comparison supports keeping fixed surface references as the default and
+offering the frame for overhead regional coordinate reading. Both axes are
+readable in the regional frame capture; at the horizon the frame suppresses
+ticks instead of inventing coordinates. The same major/minor shader is used in
+both prototypes. The 194 motion frames and 16 additional fixtures pass with one
+runtime graticule per body and matching scene/diagnostic surface-caption counts.
+Small-globe grid-on/grid-off pixel comparisons at DPR 1 and 2 find no changed
+pixels outside the body mask, allowing one physical pixel for silhouette
+antialiasing. This checks actual compiled shader/text output separately from
+caption layout. All 142 suites / 1,581 tests, full typechecking, lint and purity
+checks pass, including current-geometry, hidden-mesh and eight-query regressions.
+
+The original screenshot's loaded bundle and camera state cannot be recovered
+from the screenshot alone. This comparison tests the checked-out build; original
+user-pose/live-streamed-terrain reproduction remains separate acceptance work.
+
+## Previous one-band review pass
+
+The preceding [PR feedback](https://github.com/AaronPlave/cosmolabe/pull/163#issuecomment-6048743556)
 asks for one fixed latitude ruler and one fixed longitude ruler, large labelled
 cells, and at most one quiet subdivision level. The current implementation
 selects one predetermined geographic carrier per axis, decouples caption

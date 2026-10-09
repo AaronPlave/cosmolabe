@@ -429,6 +429,30 @@ describe('adaptive graticule', () => {
     bm.dispose();
   });
 
+  it('validates current geometry for frame ticks within eight queries and hides the overlay immediately', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ setTransform() {}, clearRect() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Frame', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe' });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.up.set(0, 0, 1); camera.position.set(101, 0, 0); camera.lookAt(100, 0, 0);
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    const queries = vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects');
+    bm.showGrid(true, true, normalizeGridSettings({ coordinateFrame: true }));
+    for (let i = 0; i < 20; i++) { queries.mockClear(); now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); expect(queries.mock.calls.length).toBeLessThanOrEqual(8); }
+    expect(new Set(bm.gridMetrics!.frameTicks.map(t => t.axis)).size).toBe(2);
+    expect(bm.gridMetrics!.labels).toBe(0);
+    const hidden = new THREE.Mesh(bm.mesh.geometry, bm.mesh.material); hidden.visible = false; bm.add(hidden);
+    const hits = queries.mock.results.flatMap(r => r.value ?? []).map(hit => ({ ...hit, object: hidden }));
+    queries.mockReturnValue(hits); now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager);
+    expect(bm.gridMetrics!.frameTicks).toEqual([]); hidden.removeFromParent();
+    queries.mockReturnValue([]); now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager);
+    expect(bm.gridMetrics!.frameTicks).toEqual([]);
+    queries.mockRestore(); now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager);
+    expect(bm.gridMetrics!.frameTicks.length).toBeGreaterThan(0);
+    bm.showGrid(false); expect(bm.gridMetrics!.frameTicks).toEqual([]);
+    bm.dispose(); expect(bm.children.some(c => c instanceof THREE.Group && c.children.some(s => s instanceof THREE.Sprite))).toBe(false);
+  });
+
   it('uses a nested automatic hierarchy and restores the globe lattice on zoom out', () => {
     for (let i = 1; i < AUTO_GRID_STEPS.length; i++) expect(AUTO_GRID_STEPS[i - 1] / AUTO_GRID_STEPS[i]).toBeCloseTo(Math.round(AUTO_GRID_STEPS[i - 1] / AUTO_GRID_STEPS[i]));
     expect(chooseGridStep(10, 15)).not.toBe(15); // Manual-only nice steps do not persist in Auto.
@@ -453,7 +477,7 @@ describe('adaptive graticule', () => {
     expect(pose(130).latitudeStep).toBe(10);
     expect(pose(115).latitudeStep).toBe(5);
     const grid = (bm as unknown as { graticule: AdaptiveGraticule }).graticule;
-    expect(grid.uniforms.uGridDetailStep.value.x).toBe(2.5);
+    expect(grid.uniforms.uGridDetailStep.value.x).toBe(1);
     expect(pose(151).latitudeStep).toBeLessThan(30);
     expect(pose(161).latitudeStep).toBe(30);
     expect(pose(101).latitudeStep).toBeLessThan(1);

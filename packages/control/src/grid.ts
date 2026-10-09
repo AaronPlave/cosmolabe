@@ -8,10 +8,11 @@ export interface GridSettings {
   density: 'auto' | 'manual';
   spacingDeg: number;
   minorLines: boolean;
+  coordinateFrame: boolean;
   perBody: Record<string, { visible?: boolean; labels?: boolean }>;
 }
 export const DEFAULT_GRID_SETTINGS: GridSettings = {
-  scope: 'tracked', bodies: [], labels: true, density: 'auto', spacingDeg: 30, minorLines: false, perBody: {},
+  scope: 'tracked', bodies: [], labels: true, density: 'auto', spacingDeg: 30, minorLines: false, coordinateFrame: false, perBody: {},
 };
 export function normalizeGridSettings(value: Partial<GridSettings> = {}): GridSettings {
   const perBody: GridSettings['perBody'] = {};
@@ -25,7 +26,7 @@ export function normalizeGridSettings(value: Partial<GridSettings> = {}): GridSe
     labels: typeof value.labels === 'boolean' ? value.labels : true,
     density: value.density === 'manual' ? 'manual' : 'auto',
     spacingDeg: Number.isFinite(value.spacingDeg) ? ANGULAR_GRID_STEPS.reduce((best, step) => Math.abs(step - value.spacingDeg!) < Math.abs(best - value.spacingDeg!) ? step : best, 30 as number) : 30,
-    minorLines: value.minorLines === true, perBody,
+    minorLines: value.minorLines === true, coordinateFrame: value.coordinateFrame === true, perBody,
   };
 }
 export function gridBodyState(settings: GridSettings, enabled: boolean, name: string, tracked: string | null): { visible: boolean; labels: boolean } {

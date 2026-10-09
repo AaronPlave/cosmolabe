@@ -1,13 +1,13 @@
 <!doctype html><html><head><link rel="icon" href="data:,"><style>body{margin:0;background:#050811}canvas{display:block}</style></head><body><script type="module">
 import * as THREE from 'three';
 import {Body,FixedPointTrajectory,bodySurfaceCoordinates,surfacePositionToBodyFixed,bodyFixedToSurfacePosition} from '@cosmolabe/core';
-import {BodyMesh} from '../../packages/three/src/BodyMesh.ts';
+import {BodyMesh} from '@cosmolabe/three';
 import {BodyMesh as BeforeMesh} from '../../packages/three/src/BodyMeshBefore.ts';
-import {LabelManager} from '../../packages/three/src/LabelManager.ts';
+import {LabelManager} from '@cosmolabe/three';
 import {TerrainSampler} from '../../packages/three/src/TerrainSampler.ts';
 import {normalizeGridSettings} from '@cosmolabe/control';
 import {CameraController} from '../../packages/three/src/controls/CameraController.ts';
-import {UniverseRenderer} from '../../packages/three/src/UniverseRenderer.ts';
+import {UniverseRenderer} from '@cosmolabe/three';
 const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true,logarithmicDepthBuffer:true});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(devicePixelRatio);document.body.append(renderer.domElement);
 const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.01,100000);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#050811');const ambient=new THREE.AmbientLight(0xffffff,1.8);scene.add(ambient);const sun=new THREE.DirectionalLight(0xffffff,2);sun.position.set(5000,-2000,2500);sun.intensity=0;scene.add(sun);
@@ -70,7 +70,7 @@ window.setup=(options={})=>{
    bm.applyMeshScale(1);
  }
  window.pose(options);
- bm.showGrid(true,options.labels !== false,normalizeGridSettings(options.manual ? { density: 'manual', spacingDeg: options.step ?? 1 } : {}));
+ bm.showGrid(true,options.labels !== false,normalizeGridSettings({coordinateFrame:options.coordinateFrame===true,...(options.manual ? { density: 'manual', spacingDeg: options.step ?? 1 } : {})}));
  if(options.before){bm.updatePosition([0,0,0],0,1);bm.applyMeshScale(1)}
  if(options.draped){
    bm.showGrid(false);

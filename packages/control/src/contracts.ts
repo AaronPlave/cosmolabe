@@ -138,6 +138,7 @@ export interface ViewerControl {
   setGridDensity?(density: GridSettings['density'], spacingDeg?: number): boolean;
   setGridLabels?(visible: boolean): boolean;
   setGridMinorLines?(visible: boolean): boolean;
+  setGridCoordinateFrame?(visible: boolean): boolean;
   /** Set the vertical field of view, in degrees. */
   setFov(deg: number): boolean;
   /**

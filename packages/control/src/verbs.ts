@@ -370,6 +370,10 @@ export const VERB_LIST: readonly VerbSpec[] = [
     help: 'Show coordinate labels independently of grid lines.', invoke: (host, a) => host.setGridLabels?.(bool(a[0])),
   },
   {
+    name: 'setGridCoordinateFrame', params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridCoordinateFrame',
+    help: 'Show regional coordinate-frame ticks at major-line intersections.', invoke: (host, a) => host.setGridCoordinateFrame?.(bool(a[0])),
+  },
+  {
     name: 'setGridMinorLines', params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridMinorLines',
     help: 'Show fainter intermediate surface grid lines.', invoke: (host, a) => host.setGridMinorLines?.(bool(a[0])),
   },

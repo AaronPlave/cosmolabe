@@ -171,6 +171,7 @@ export class FakeViewer implements ViewerControl {
   }
   setGridLabels(labels: boolean): boolean { this.grid = normalizeGridSettings({ ...this.grid, labels }); return true; }
   setGridMinorLines(minorLines: boolean): boolean { this.grid = normalizeGridSettings({ ...this.grid, minorLines }); return true; }
+  setGridCoordinateFrame(coordinateFrame: boolean): boolean { this.grid = normalizeGridSettings({ ...this.grid, coordinateFrame }); return true; }
 
   setLayer(layer: string, on: boolean): boolean {
     this.log('setLayer', layer, on);

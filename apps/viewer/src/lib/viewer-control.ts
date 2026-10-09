@@ -211,6 +211,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     },
     setGridLabels: labels => { setGridSettings({ labels }, { persist: false }); return true; },
     setGridMinorLines: minorLines => { setGridSettings({ minorLines }, { persist: false }); return true; },
+    setGridCoordinateFrame: coordinateFrame => { setGridSettings({ coordinateFrame }, { persist: false }); return true; },
 
     setLayer: (layer, on) => {
       if (!isDisplayOption(layer)) return false;

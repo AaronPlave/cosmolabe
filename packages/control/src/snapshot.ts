@@ -85,6 +85,7 @@ export function snapshotScript(state: ViewerSnapshotState): string {
     lines.push(`setGridDensity ${grid.density} ${num(grid.spacingDeg)}`);
     lines.push(`setGridLabels ${grid.labels ? 'on' : 'off'}`);
     lines.push(`setGridMinorLines ${grid.minorLines ? 'on' : 'off'}`);
+    lines.push(`setGridCoordinateFrame ${grid.coordinateFrame ? 'on' : 'off'}`);
     for (const [name, setting] of Object.entries(grid.perBody)) {
       if (setting.visible !== undefined) lines.push(`showBodyGrid ${quote(name)} ${setting.visible ? 'on' : 'off'}`);
       if (setting.labels !== undefined) lines.push(`showBodyGridLabels ${quote(name)} ${setting.labels ? 'on' : 'off'}`);
