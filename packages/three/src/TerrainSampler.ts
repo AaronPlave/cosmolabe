@@ -11,7 +11,8 @@ export interface TerrainDatum {
 
 export interface TerrainSourceMetadata {
   id: string;
-  kind: 'quantized-mesh' | 'height-grid' | 'triangle-mesh' | 'imagery' | 'unknown';
+  /** 'reference-shape' is an analytic datum (e.g. IAU ellipsoid), never measured terrain. */
+  kind: 'quantized-mesh' | 'height-grid' | 'triangle-mesh' | 'imagery' | 'reference-shape' | 'unknown';
   /** Immutable product revision/checksum; absence means version is unknown. */
   version?: string;
   url?: string;
@@ -148,6 +149,7 @@ export class TerrainSampler {
    * Explicit `removeTile`/`clear` calls do not fire it — the caller already knows.
    */
   onEvict: ((id: string) => void) | null = null;
+  private _revision = 0;
 
   constructor(readonly datum: TerrainDatum, readonly source: TerrainSourceMetadata, private readonly maxTiles = 256) {}
 
@@ -192,6 +194,7 @@ export class TerrainSampler {
 
     this.tiles.delete(tile.id);
     this.tiles.set(tile.id, cached);
+    this._revision++;
     while (this.tiles.size > this.maxTiles) {
       const evicted = this.tiles.keys().next().value!;
       this.tiles.delete(evicted);
@@ -199,12 +202,14 @@ export class TerrainSampler {
     }
   }
 
-  removeTile(id: string): void { this.tiles.delete(id); }
+  removeTile(id: string): void { if (this.tiles.delete(id)) this._revision++; }
+  /** Increments whenever the resident tile set or any tile's contents change. */
+  get revision(): number { return this._revision; }
   /** A decoded tile currently in the cache, or undefined. Read-only use: diagnostics and validation. */
   getTile(id: string): TerrainTile | undefined { return this.tiles.get(id)?.tile; }
   /** Ids of every decoded tile currently cached, oldest insert first. */
   tileIds(): string[] { return [...this.tiles.keys()]; }
-  clear(): void { this.tiles.clear(); }
+  clear(): void { this.tiles.clear(); this._revision++; }
 
   sample(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
     const start = performance.now();

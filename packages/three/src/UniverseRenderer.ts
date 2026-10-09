@@ -25,7 +25,9 @@ import { TrajectoryLine, type PositionResolver, type TrajectoryLineOptions } fro
 import type { LeadPolicy, LeadRequest } from './TrajectoryLead.js';
 import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
-import { SensorFrustum } from './SensorFrustum.js';
+import { SensorFrustum, type SensorClipSummary, type SensorFovClipper } from './SensorFrustum.js';
+import type { FovBoundaryShape } from './surface/FovClipper.js';
+import { SensorFovClipping } from './SensorFovClipping.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMarkerGroups } from './EventMarkers.js';
@@ -89,6 +91,11 @@ export interface UniverseRendererOptions {
   showSensors?: boolean;
   /** Show sensor frustum labels (default true). Has no visible effect when showSensors is false. */
   showSensorLabels?: boolean;
+  /**
+   * Terminate sensor FOV geometry at the first physical body surface each
+   * boundary ray hits (default true). Disable only to diagnose the raw FOV.
+   */
+  clipSensorsToSurfaces?: boolean;
   /** Antialias */
   antialias?: boolean;
   /** Bodies to show trajectories for (if not set, shows for spacecraft/comet/asteroid) */
@@ -308,6 +315,8 @@ export class UniverseRenderer {
   private _sensorsVisible = true;
   /** Current global sensor-label state — applied to each frustum's label sprite. */
   private _sensorLabelsVisible = true;
+  /** Physical-surface FOV clipping (issue #27); null when disabled. */
+  private _sensorClipping: SensorFovClipping | null = new SensorFovClipping();
 
   /** Renderer-level event bus. Forwards universe events and adds renderer-specific events. */
   readonly events = new EventBus<RendererEventMap>();
@@ -863,6 +872,9 @@ export class UniverseRenderer {
       return [abs[0] - originAbsPos[0], abs[1] - originAbsPos[1], abs[2] - originAbsPos[2]];
     };
     const spiceInst = this.universe.spiceInstance;
+    // Clip only sensors that are drawn; resolve body surfaces once per frame.
+    const clipping = this._sensorClipping;
+    let clippingReady = false;
     for (const sf of this.sensorFrustums.values()) {
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
       // Try SPICE-based orientation using cached FOV frame (from enrichSensorFromSpice).
@@ -875,7 +887,15 @@ export class UniverseRenderer {
           // CK data may not cover this time — fall back to target-pointing
         }
       }
-      sf.update(et, this.scaleFactor, targetBody, originRelResolver, spiceRot);
+      let clip: SensorFovClipper | undefined;
+      if (clipping && sf.visible) {
+        if (!clippingReady) {
+          clipping.begin(et, originAbsPos, this.bodyMeshes.values(), this.absolutePositionOf);
+          clippingReady = true;
+        }
+        clip = clipping.clipperFor(sf.body.name, spiceRot ? 'spice' : 'target');
+      }
+      sf.update(et, this.scaleFactor, targetBody, originRelResolver, spiceRot, clip);
     }
 
     // Event annotations use the owning TrajectoryLine's exact resolver and
@@ -1944,6 +1964,26 @@ export class UniverseRenderer {
     }
   }
 
+  /**
+   * Enable or disable terminating sensor FOVs at physical body surfaces.
+   * Clipping is the default; disabling it is a diagnostic view of the raw FOV.
+   */
+  setSensorClipping(enabled: boolean): void {
+    if (enabled && !this._sensorClipping) this._sensorClipping = new SensorFovClipping();
+    if (!enabled && this._sensorClipping) { this._sensorClipping.dispose(); this._sensorClipping = null; }
+  }
+
+  /** Whether sensor FOVs are clipped at physical surfaces. */
+  get sensorClipping(): boolean { return this._sensorClipping !== null; }
+
+  /**
+   * What a sensor's last drawn FOV hit: which bodies, and whether each answer
+   * came from a reference shape, terrain or a mesh, and if any was coarse.
+   */
+  getSensorClipSummary(sensorName: string): SensorClipSummary | null {
+    return this.sensorFrustums.get(sensorName)?.clipSummary ?? null;
+  }
+
   /** Current global sensors-visible state. */
   get sensorsVisible(): boolean { return this._sensorsVisible; }
   /** Current global sensor-labels-visible state. */
@@ -2597,6 +2637,7 @@ export class UniverseRenderer {
     for (const [, { atm }] of this.atmosphereMeshes) atm.dispose();
     for (const tl of this.trajectoryLines.values()) tl.dispose();
     for (const sf of this.sensorFrustums.values()) sf.dispose();
+    this._sensorClipping?.dispose();
     for (const { markers } of this.eventMarkerGroups.values()) markers.dispose();
     this._eventCallout.dispose();
     this.setOccultationGeometry(null);
@@ -2641,9 +2682,12 @@ export class UniverseRenderer {
       // Sensor bodies get a frustum in addition to a body mesh + trajectory
       if (body.geometryType === 'Sensor') {
         // If spiceId is present and SPICE is available, derive FOV params from the IK kernel
-        const fovFrame = this.enrichSensorFromSpice(body);
+        const spiceFov = this.enrichSensorFromSpice(body);
         const sf = new SensorFrustum(body);
-        if (fovFrame) sf.spiceFovFrame = fovFrame;
+        if (spiceFov) {
+          sf.spiceFovFrame = spiceFov.frame;
+          sf.spiceFovBoundary = spiceFov.boundary;
+        }
         // Fetch sensor orientation in the scene's world frame (ECLIPJ2000).
         // `Universe.absolutePositionOf` aligns every body's position into
         // EclipticJ2000, so the scene is uniformly ecliptic regardless of a
@@ -2979,15 +3023,18 @@ export class UniverseRenderer {
     // Sensor visibility (apply after frustums are built)
     if (this.options.showSensorLabels === false) this.setSensorLabelsVisible(false);
     if (this.options.showSensors === false) this.setSensorsVisible(false);
+    if (this.options.clipSensorsToSurfaces === false) this.setSensorClipping(false);
   }
 
   /**
    * If a Sensor body has a spiceId and SPICE is available, enrich its geometryData
    * with FOV parameters (shape, horizontalFov, verticalFov) derived from the IK kernel.
    * Catalog-specified values take precedence — SPICE only fills in what's missing.
-   * Returns the SPICE instrument frame name if available (for caching on SensorFrustum).
+   * Returns the SPICE instrument frame name if available (for caching on SensorFrustum),
+   * plus the instrument-frame polygon boundary for RECTANGLE/POLYGON FOVs so the
+   * drawn (and clipped) perimeter follows the IK bounds rather than a fitted box.
    */
-  private enrichSensorFromSpice(body: Body): string | undefined {
+  private enrichSensorFromSpice(body: Body): { frame: string; boundary?: FovBoundaryShape } | undefined {
     const geo = body.geometryData as Record<string, unknown> | undefined;
     if (!geo) return;
     const spiceId = geo.spiceId as number | undefined;
@@ -3063,7 +3110,10 @@ export class UniverseRenderer {
           }
         }
       }
-      return fovFrame;
+      const boundary: FovBoundaryShape | undefined = (fov.shape === 'RECTANGLE' || fov.shape === 'POLYGON') && fov.bounds.length >= 3
+        ? { kind: 'polygon', vertices: fov.bounds.map(b => [b[0], b[1], b[2]] as const) }
+        : undefined;
+      return { frame: fovFrame, boundary };
     } catch {
       // IK kernel not loaded or instrument ID not found — use catalog values
       return undefined;

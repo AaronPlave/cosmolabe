@@ -33,6 +33,7 @@ export interface SurfaceHit {
   /** Unit normal from triangle winding; not automatically flipped toward the observer. */
   normal: SurfaceVector;
   distanceKm: number;
+  /** Mesh triangle index; -1 for analytic surfaces with no triangles. */
   triangleIndex: number;
   tileId?: string;
   metadata: PhysicalSurfaceMetadata;

@@ -108,6 +108,15 @@ network loader is added in this proof.
   complete irregular-body navigation mode. Existing viewer picking and camera
   modes are unchanged until production gates pass.
 
+- Sensor FOV clipping (#27) is the first renderer consumer. `FovClipper` casts
+  the FOV perimeter rays through each solid body's surfaces in body-fixed km —
+  resident terrain (`ResidentTerrainSurface`, probing only the tiles under the
+  ray's datum crossing through `GlobeTileSurface`) before the analytic
+  `ReferenceEllipsoidSurface` — and refines hit/miss transitions adaptively.
+  Only `unavailable` falls through to the reference shape; a miss from a
+  complete mesh is authoritative. Hits keep their source (reference / terrain /
+  mesh) and `coarse` detail for diagnostics (`getSensorClipSummary`).
+
 Run `npx vitest run packages/three/src/__tests__/PhysicalSurface.test.ts`.
 The fixture is a closed torus with 1,024 triangles: the +x ray from the center
 hits both x=1 and x=3 at the same lat/lon, with the inner normal pointing into

@@ -120,7 +120,7 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 |---|---|---|
 | `Globe` | Textured sphere; optionally with streaming terrain | `radius`, `baseMap`, `normalMap`, `nightMap`, `atmosphere`, `terrain` |
 | `Mesh` | A 3D model (GLTF, OBJ, CMOD) | `source`, `size`, `meshRotation` |
-| `Sensor` | Instrument FOV cone | `target`, `shape` (`circular` / `elliptical` / `rectangular`), `horizontalFov`, `verticalFov`, `frustumColor`, `frustumOpacity` |
+| `Sensor` | Instrument FOV cone, terminated at the first solid body surface each boundary ray hits | `target`, `shape` (`circular` / `elliptical` / `rectangular`), `horizontalFov`, `verticalFov`, `range` (maximum visualization range; defaults to the target-center distance), `frustumColor`, `frustumOpacity` |
 | `Rings` | Planetary rings | `innerRadius`, `outerRadius`, `texture` |
 | `Axes` | Reference frame axes | `length` |
 | `KeplerianSwarm` | Many bodies sharing a parent (asteroid belt, debris cloud) | `bodies: []` |
