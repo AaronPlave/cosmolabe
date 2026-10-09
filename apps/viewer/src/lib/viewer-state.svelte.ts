@@ -6,7 +6,7 @@
  * whose properties are mutated. We use the latter.
  */
 import { etToDate, type Universe } from '@cosmolabe/core';
-import type { InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
+import type { InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
@@ -120,6 +120,11 @@ export const vs = $state({
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
 
+  /** Point Probe mode (#127): the pointer previews the surface, a click pins it. */
+  probeActive: false,
+  /** The pinned probe point. Outlives probe mode; cleared on its own. */
+  probePin: null as SurfacePoint | null,
+
   /** Caption over the viewport, from `displayNote`. Null when there is none. */
   note: null as string | null,
 
@@ -174,6 +179,22 @@ export function setKernelCount(v: number) { vs.kernelCount = v; }
 export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
   emit('select', name);
+}
+
+/** Enter or leave Point Probe mode. Leaving keeps the pinned point. */
+export function setProbeActive(active: boolean) {
+  vs.probeActive = active;
+  _renderer?.setPointProbeActive(active);
+}
+
+export function toggleProbe() {
+  setProbeActive(!vs.probeActive);
+}
+
+/** Clear the pinned probe point without leaving probe mode. */
+export function clearProbePin() {
+  vs.probePin = null;
+  _renderer?.setProbePin(null);
 }
 /**
  * Identify a set of bodies in the 3D view — the highlight channel event
@@ -366,6 +387,11 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   _universe = universe;
   vs.catalogName = vs.loadingCatalog || null;
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
+
+  // A pinned point belongs to the scene it was probed in; the mode carries over.
+  vs.probePin = null;
+  renderer.setPointProbeActive(vs.probeActive);
+  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
 
   // Restore persisted display preferences
   const prefs = loadPrefs();

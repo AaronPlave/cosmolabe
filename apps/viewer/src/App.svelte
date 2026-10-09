@@ -11,8 +11,8 @@
   import PanelDock from './components/shell/PanelDock.svelte';
   import ToolPanels from './components/shell/ToolPanels.svelte';
   import TimelineDock from './components/shell/TimelineDock.svelte';
-  import InstrumentPanel from './components/shell/InstrumentPanel.svelte';
-  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
+  import ProbePanel from './components/ProbePanel.svelte';
+  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
@@ -33,8 +33,6 @@
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
-  let pickModeActive = $state(false);
-  let pickResult = $state<{ bodyName: string; latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number; bodyFixedHitKm: readonly [number, number, number] } | null>(null);
   let uiHidden = $state(false);
   let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
 
@@ -82,14 +80,14 @@
    *
    * The selection-driven panels do not open through the rail, so they fall back
    * into the sheet rather than competing for it: whatever the user last did —
-   * opened a tool, picked a surface, selected a body — is what is on screen.
+   * opened a tool, probed a point, selected a body — is what is on screen.
    */
   const fallbackSheet = $derived.by(() => {
     if (shell.activeSheet != null) return null;
-    if (pickResult && !isMinimized('pick')) return 'pick';
+    if (vs.probePin && !isMinimized('probe')) return 'probe';
     if (vs.selectedBodyName && !isMinimized('info')) return 'info';
     return null;
-  });;
+  });
 
   /**
    * One condition for the whole load, so there is one loading screen rather than
@@ -147,21 +145,6 @@
     loadFiles(() => handleDrop(canvas, dt));
   }
 
-  function onCanvasClick(e: MouseEvent) {
-    if (!pickModeActive) return;
-    const renderer = getCurrentRenderer();
-    if (!renderer) return;
-    e.stopPropagation();
-    const rect = canvas.getBoundingClientRect();
-    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    const result = renderer.pickSurface(ndcX, ndcY);
-    if (result) {
-      pickResult = result;
-      renderer.setPickMarker(result);
-    }
-  }
-
   /** Capture-phase pointerdown on window — records right-click start before CameraController blocks it */
   function onWindowPointerDown(e: PointerEvent) {
     if (e.button === 2) {
@@ -186,20 +169,6 @@
     const bodyName = renderer.pickBody(screenX, screenY);
 
     contextMenu = { x: e.clientX, y: e.clientY, bodyName };
-  }
-
-  function togglePickMode() {
-    pickModeActive = !pickModeActive;
-    if (!pickModeActive) {
-      pickResult = null;
-      getCurrentRenderer()?.setPickMarker(null);
-    }
-  }
-
-  function closePickResult() {
-    pickResult = null;
-    pickModeActive = false;
-    getCurrentRenderer()?.setPickMarker(null);
   }
 
   /** Suppress native context menu on the canvas */
@@ -258,15 +227,18 @@
           renderer.setInstrumentView(next, { marginX: 16, marginY: 60 });
           return;
         }
-        case 'p': togglePickMode(); return;
+        case 'p': toggleProbe(); return;
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
+          // An active mode is what Escape is for: the probe goes before any
+          // selection. The pinned point stays until a second Escape (or its
+          // panel's close) clears it.
+          else if (vs.probeActive) setProbeActive(false);
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.
           else if (ef.selectedId) clearSelection();
           else if (dismissTopSurface()) return;
-          else if (pickModeActive) closePickResult();
           else if (vs.selectedBodyName) selectBody(null);
           else resetCamera();
           return;
@@ -304,12 +276,10 @@
     // The selection-driven panels have no open flag to clear: closing them is
     // undoing what put them there.
     if (isToolId(top)) closeTool(top);
-    else if (top === 'pick') closePickResult();
+    else if (top === 'probe') clearProbePin();
     else if (top === 'info') selectBody(null);
     return true;
   }
-
-  function fmtCoord(n: number, dec: number) { return n.toFixed(dec); }
 
   // ── Catalog navigation (#94) ──
   //
@@ -555,10 +525,10 @@
 <svelte:window onkeydown={onKeydown} />
 <svelte:document ondragover={onDocDragOver} ondrop={onDocDrop} />
 
-<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive} style={shellVars}>
+<div class="relative w-full h-full overflow-hidden" style={shellVars}>
   <!-- `touch-none`: the browser must not claim a drag as a scroll or a pinch as
        a page zoom before the camera controls see the gesture. -->
-  <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
+  <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" oncontextmenu={onCanvasContextMenu}></canvas>
 
   <!-- Gated on `loading`, not `sceneLoaded`: the scene graph exists well before
        its models and textures do, and handing over a sky of placeholder spheres
@@ -606,11 +576,8 @@
         {#if shell.activeSheet === 'info' || fallbackSheet === 'info'}
           <BodyInfoPanel />
         {/if}
-        {#if pickResult && (shell.activeSheet === 'pick' || fallbackSheet === 'pick')}
-          <InstrumentPanel key="pick" title="Surface pick" onClose={closePickResult}>
-            <div class="font-semibold text-text-primary mb-1.5">{pickResult.bodyName}</div>
-            {@render pickRows(pickResult)}
-          </InstrumentPanel>
+        {#if shell.activeSheet === 'probe' || fallbackSheet === 'probe'}
+          <ProbePanel />
         {/if}
       </PanelDock>
     {:else}
@@ -620,12 +587,7 @@
       <PanelDock side="right">
         <BodyInfoPanel />
         <ToolPanels dock="right" />
-        {#if pickResult}
-          <InstrumentPanel key="pick" title="Surface pick" width={224} onClose={closePickResult}>
-            <div class="font-semibold text-text-primary mb-1.5">{pickResult.bodyName}</div>
-            {@render pickRows(pickResult)}
-          </InstrumentPanel>
-        {/if}
+        <ProbePanel width={240} />
       </PanelDock>
     {/if}
 
@@ -640,15 +602,15 @@
         <div class="shell-divider mx-2 border-t"></div>
         <ToolRail
           inline
-          {pickModeActive}
-          onTogglePick={togglePickMode}
+          probeActive={vs.probeActive}
+          onToggleProbe={toggleProbe}
           onOpenSearch={() => commandPaletteOpen = true}
         />
       </div>
     {:else}
       <ToolRail
-        {pickModeActive}
-        onTogglePick={togglePickMode}
+        probeActive={vs.probeActive}
+        onToggleProbe={toggleProbe}
         onOpenSearch={() => commandPaletteOpen = true}
       />
       <TimelineDock />
@@ -672,10 +634,3 @@
     box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.24);
   }
 </style>
-
-{#snippet pickRows(pick: { latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number })}
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lat</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.latDeg), 5)}&deg; {pick.latDeg >= 0 ? 'N' : 'S'}</span></div>
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lon</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.lonDeg), 5)}&deg; {pick.lonDeg >= 0 ? 'E' : 'W'}</span></div>
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Sampled alt</span><span class="font-mono text-text-primary">{pick.altKm >= 0 ? '+' : ''}{fmtCoord(pick.altKm * 1000, 1)} m</span></div>
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Dist</span><span class="font-mono text-text-primary">{pick.cameraDistanceKm < 1 ? `${fmtCoord(pick.cameraDistanceKm * 1000, 1)} m` : `${fmtCoord(pick.cameraDistanceKm, 3)} km`}</span></div>
-{/snippet}
