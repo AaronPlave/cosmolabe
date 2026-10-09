@@ -26,7 +26,7 @@ was a 1.1 MiB download and 230 MiB on the GPU).
 | `charon.jpg` | 4096×2048 | JPG | 1.1 | 43 | **USGS New Horizons global mosaic** + **PDS MVIC colour**, see [below](#charonjpg) | base/pluto-system |
 | `dione-1k.jpg` | 1024×512 | JPG | 0.2 | 3 | `dione.dds` at its 1024×512 mip (#94) | home-screen hero (`src/lib/hero.ts`) |
 | `dione.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/dione.dds` | base/saturn-major-moons, cassini-soi |
-| `earth-8k.jpg` | 8192×4096 | JPG | 4.7 | 171 | **NASA Blue Marble NG** July 2004 topo-bathy, see [below](#earth-8kjpg) | base/earth-system, solar-system, iss, lro-moon, moonfall-shackleton, atmosphere-earth-* |
+| `earth-5k.jpg` | 5400×2700 | JPG | 2.2 | 74 | **NASA Blue Marble NG** July 2004 topo-bathy, NASA's own 5400 release, see [below](#earth-5kjpg) | base/earth-system, solar-system, iss, lro-moon, moonfall-shackleton, atmosphere-earth-* |
 | `enceladus.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/enceladus.dds` | base/saturn-major-moons, cassini-soi |
 | `europa.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/europa.dds` | base/jupiter-galilean, europa-clipper |
 | `ganymede.dds` | 2048×1024 | DXT1 + 12 mips | 1.3 | 1 | Cosmographia `data/textures/ganymede.dds` | base/jupiter-galilean, europa-clipper |
@@ -35,7 +35,7 @@ was a 1.1 MiB download and 230 MiB on the GPU).
 | `jupiter.jpg` | 4096×2048 | JPG | 0.9 | 43 | **Cassini PIA07782** lossless original, see [below](#jupiterjpg) | base/jupiter, europa-clipper, solar-system |
 | `mars.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | **USGS Viking colour × MDIM 2.1 detail**, see [below](#marsdds) | base/mars, solar-system, ingenuity-jezero, msl-dingo-gap, atmosphere-mars-textured |
 | `mercury.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | **USGS MESSENGER LOI + BDR, MD3 tint**, see [below](#mercurydds) | base/mercury, solar-system |
-| `mimas.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | **DLR Cassini basemap 2017** (licence unconfirmed), see [below](#mimasdds) | base/saturn-major-moons, cassini-soi |
+| `mimas.dds` | 4096×2048 | DXT1 + 13 mips | 5.3 | 5 | Cosmographia `data/textures/mimas.dds` (a newer DLR basemap was tried; see [Tried and not adopted](#tried-and-not-adopted)) | base/saturn-major-moons, cassini-soi |
 | `miranda.dds` | 1024×512 | DXT1 + 11 mips | 0.3 | 0.3 | Cosmographia `data/textures/miranda.dds`, rotated 180° ([Orientation](#orientation)) | base/uranus-system |
 | `moon-16k.jpg` | 16384×8192 | JPG | 40.6 | 683 | NASA SVS CGI Moon Kit (2019), from EXIF | lro-moon, moonfall-shackleton |
 | `moon-2k.jpg` | 2048×1024 | JPG | 0.5 | 11 | NASA SVS CGI Moon Kit (2019), from EXIF | solar-system |
@@ -253,17 +253,20 @@ byte-identical.
   yellow cast and softer craters and canyons. Mars surface demos stream
   Trek imagery on top at close range; this is the far-range fallback.
 
-### `earth-8k.jpg`
+### `earth-5k.jpg`
 
 - **Source:** NASA Blue Marble Next Generation, July 2004, topography +
-  bathymetry, 21600×10800:
-  `https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x21600x10800.jpg`.
+  bathymetry, NASA's own 5400×2700 release:
+  `https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/july/world.topo.bathy.200407.3x5400x2700.jpg`.
   Credit: NASA Earth Observatory (Reto Stöckli); public domain in the US.
-- **Processing:** Lanczos to 8192×4096 as 8-bit RGB, JPEG quality 90.
-- **Replaced:** `earth-5k.jpg` (removed), which was NASA's own 5400×2700 release of the
-  same month (byte-identical, MD5 `3c9658c2…`). Same picture, crisper
-  coastlines and relief at close range, at a GPU cost that goes from 74 to
-  171 MiB (see [Load cost](#load-cost)).
+- **Processing:** none. The committed file is byte-identical to NASA's
+  (sha256 `4f424067…`); the `earth` recipe copies the pinned download so
+  provenance is checked like every other output.
+- **Size:** an 8192×4096 build from the 21600×10800 original was tried and
+  backed out (see [Tried and not adopted](#tried-and-not-adopted)). Earth's
+  close-up detail is the job of streamed imagery (#123), not of a larger
+  fallback paid for in every catalog that shows Earth.
+
 ### `jupiter.jpg`
 
 - **Source:** Cassini ISS map of Jupiter, PIA07782 (December 2000), from the
@@ -310,23 +313,6 @@ byte-identical.
   tan instead of grey-white, the C and A rings darker, with about 8× the
   radial detail. Both colour and opacity now come from measured data.
 
-### `mimas.dds`
-
-- **Source:** DLR Cassini ISS basemap of Mimas (Roatsch et al., 30 June
-  2017), `Cassini_DLR/MI_170630_DLR_basemap_degrees.tif` from
-  `…/mosaic/Mimas/Cassini_DLR_Mimas.zip` on the USGS Astrogeology bucket
-  (5760×2880, grey, about 216 m/px, already −180…180°E). Credit:
-  NASA/JPL-Caltech/SSI/DLR.
-- **Licence: not confirmed.** The zip has no licence text and there is no
-  USGS record for it. Sibling USGS-hosted Cassini basemaps are public domain
-  and the map it replaces looks like an earlier version of the same DLR
-  product, so redistributing it does not change this directory's position,
-  but it is not documented either.
-- **Processing:** Lanczos to 4096×2048, DXT1 with mips.
-- **Replaced:** Cosmographia's map (registers at zero shift), which lacks
-  most of the late-mission high-resolution coverage over roughly 0–90°E and
-  the trailing hemisphere.
-
 ## Orientation
 
 `.dds` maps are uploaded as stored (`CompressedTexture` ignores `flipY`), so
@@ -369,8 +355,8 @@ taken (see below).
 | `ceres.png` (old) | 512×256 | 0.1 | 0.7 | 12 | 8 | 0 | 8 |
 | `ceres.jpg` (new) | 2048×1024 | 0.9 | 10.7 | 13 | 38 | 0 | 32 |
 | `moon-4k.jpg` | 4096×2048 | 2.0 | 42.7 | 14 | 172 | 0 | 93 |
-| `earth-5k.jpg` (old) | 5400×2700 | 2.2 | 74.2 | 24 | 232 | 0 | 103 |
-| `earth-8k.jpg` (new) | 8192×4096 | 4.7 | 170.7 | 30 | 574 | 0 | 189 |
+| `earth-5k.jpg` | 5400×2700 | 2.2 | 74.2 | 24 | 232 | 0 | 103 |
+| `earth-8k.jpg` (tried, not adopted) | 8192×4096 | 4.7 | 170.7 | 30 | 574 | 0 | 189 |
 | `mars.dds` (old and new) | 4096×2048 | 5.3 | 5.3 | 39 | 8 | 0 | 33 |
 | `jupiter.dds` (old) | 4096×2048 | 5.3 | 5.3 | 80 | 8 | 0 | 33 |
 | `jupiter.jpg` (new) | 4096×2048 | 0.9 | 42.7 | 9 | 152 | 0 | 88 |
@@ -440,13 +426,12 @@ What this means:
   whatever the GPU supports) would keep the memory win without that hole.
 - **Times vary run to run** in SwiftShader, which is why each row is a
   median of fresh-browser samples. Compare rows, not absolute values.
-- **Earth 8k doubles Earth's cost**: 74 → 171 MiB of GPU memory and about
-  230 → 570 ms of initTexture in SwiftShader, in every catalog that shows Earth.
-  The gain is crisper coastlines and relief at close range. If the hitch
-  matters more (mobile, the featured Solar System tour), a 4096 or 5400
-  resize of the same source is a one-line change to the `earth` recipe.
+- **Earth stays at 5400×2700**: an 8k build would take it from 74 to 171 MiB
+  of GPU memory and about 230 → 570 ms of initTexture in SwiftShader, in
+  every catalog that shows Earth, for detail that streamed imagery should
+  provide instead.
 - **Jupiter** moves from DXT1 to JPG to lose DXT1's banding: 5 → 43 MiB and
-  about 8 → 150 ms. Mercury, Mars, Venus and Mimas stay DXT1 at the same
+  about 8 → 150 ms. Mercury, Mars and Venus stay DXT1 at the same
   size and cost as before; the 4096-sample ring texture is negligible.
 - **Ceres** goes from 0.7 to 11 MiB of GPU memory and about 8 → 38 ms of
   initTexture: a 2048 map rather than 4096 (which measured 43 MiB and about
@@ -455,6 +440,21 @@ What this means:
 
 ## Tried and not adopted
 
+- **Earth at 8192×4096** from the 21600×10800 Blue Marble original. The same
+  picture with crisper coastlines and relief up close, at 171 MiB of GPU
+  memory instead of 74 and about 2.5× the initTexture time, in every catalog
+  with Earth. That is the static/streamed boundary above: close-up quality
+  should come from streamed imagery (#123), so the fallback stays NASA's
+  5400 release.
+- **Mimas from the DLR Cassini ISS basemap** (Roatsch et al., 30 June 2017,
+  `MI_170630_DLR_basemap_degrees.tif` in `…/mosaic/Mimas/Cassini_DLR_Mimas.zip`
+  on the USGS Astrogeology bucket, 5760×2880). It registers against the
+  current map at zero shift and adds the late-mission high-resolution
+  coverage over roughly 0–90°E and the trailing hemisphere. Not adopted
+  because its redistribution terms could not be confirmed: the zip has no
+  licence text, and neither ScienceBase nor the USGS product page states
+  any. Worth revisiting once a licensed release (USGS record, PDS volume or
+  DLR statement) is found.
 - **Ganymede / Callisto from USGS global mosaics** (Voyager–GalileoSSI colour
   1435 m and greyscale 1 km), 2k → 4k. They register against the current maps
   at the 512 px scale (half-width roll, no mirror), but drift 0–4 px locally at
@@ -514,7 +514,7 @@ to stream:
 |---|---|---|
 | Moon | 4096 colour (2.7 km/px); 16k today in lro-moon / moonfall-shackleton, where LRO WAC tiles from Trek already take over close up | LRO WAC 100 m, LOLA, LROC NAC |
 | Mars | 4096 DXT1 (5.2 km/px) | MDIM 2.1 232 m, CTX, HiRISE (already streamed in ingenuity-jezero, msl-dingo-gap) |
-| Earth | 8192 (4.9 km/px) | any web-map imagery |
+| Earth | 5400 (7.4 km/px) | any web-map imagery |
 | Mercury | 4096 DXT1 (3.7 km/px) | MDIS BDR / LOI 166 m |
 | Venus | 4096 DXT1 (9.3 km/px) | Magellan C3-MDIR 2 km, FMAP 75 m |
 | Ceres | 2048 (1.4 km/px) | Dawn HAMO 140 m, LAMO 35 m |

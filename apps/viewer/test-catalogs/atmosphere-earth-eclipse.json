@@ -53,7 +53,7 @@
         "type": "Globe",
         "radius": 6378.1,
         "atmosphere": "Earth",
-        "baseMap": "textures/earth-8k.jpg"
+        "baseMap": "textures/earth-5k.jpg"
       }
     },
     {

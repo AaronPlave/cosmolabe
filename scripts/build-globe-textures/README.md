@@ -38,7 +38,7 @@ versions work but may encode different bytes. When an upstream file is
 replaced on purpose, update its `sources.sha256` line and the affected
 `outputs.sha256` entries in the same commit as any recipe change it needs.
 
-`.dds` files and `earth-8k.jpg` are LFS-routed, so committing a rebuilt one
+`.dds` files are LFS-routed, so committing a rebuilt one
 needs `git lfs` with write access to the repository.
 
 | Recipe | Output | Source |
@@ -49,11 +49,10 @@ needs `git lfs` with write access to the repository.
 | `titan` | `titan.dds`, 4096×2048 DXT1 + mips | Titan Cassini ISS controlled global mosaic 702 m (USGS 2025), 23048×11524 PNG, 73 MB |
 | `mercury` | `mercury.dds`, 4096×2048 DXT1 + mips | MESSENGER MDIS LOI + BDR 166 m basemaps (4.2 GB each, streamed), MD3 colour 665 m (0.8 GB, streamed) |
 | `venus` | `venus.dds`, 4096×2048 DXT1 + mips | Magellan C3-MDIR colourised global mosaic, 8192×4096, 100 MB |
-| `earth` | `earth-8k.jpg`, 8192×4096 colour JPEG | Blue Marble NG July 2004 topo-bathy, 21600×10800, 27 MB |
+| `earth` | `earth-5k.jpg`, 5400×2700 colour JPEG, copied unchanged | Blue Marble NG July 2004 topo-bathy, NASA's 5400×2700 release, 2.3 MB |
 | `mars` | `mars.dds`, 4096×2048 DXT1 + mips | Viking colour mosaic 925 m (0.8 GB, streamed) × Viking MDIM 2.1 232 m detail (4.2 GB, streamed) |
 | `jupiter` | `jupiter.jpg`, 4096×2048 colour JPEG | Cassini PIA07782 TIF, 3601×1801, 19 MB |
 | `saturn_rings` | `saturn-rings.png`, 4096×2 RGBA | colour: Cassini PIA11142 TIF, 12126×1439, 52 MB; alpha: Cassini RSS Rev 7 X-band optical-depth profile (PDS Rings `CORSS_8001`), 50 MB ASCII |
-| `mimas` | `mimas.dds`, 4096×2048 DXT1 + mips | DLR Cassini Mimas basemap (Jun 2017), 5760×2880, in a 39 MB zip |
 
 `rotate-dds-180.py` is a one-off, not a recipe: it rotated the seven
 Cosmographia `.dds` maps that are stored upside-down and mirrored (see the
@@ -69,7 +68,7 @@ textures README, "Orientation").
   or west. So a `CenterLongitude = 180` map (0–360°E from its left edge,
   whichever way it numbers them: Ceres Survey, Pluto, Titan, PIA07782) needs
   a half-width roll, and a `CenterLongitude = 0` one (Charon, Ceres HAMO,
-  Mercury, Venus, Mars, Mimas) is already in place. Never mirror without a
+  Mercury, Venus, Mars) is already in place. Never mirror without a
   label that requires it.
 - **Verify against ground truth, not just the map you replace.** Check the
   result at named features with IAU coordinates (bright/dark regions, large

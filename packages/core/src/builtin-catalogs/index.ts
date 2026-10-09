@@ -12,7 +12,7 @@
  * `items` into a single composite. When using `loadCatalogFromUrl(...)` or
  * the catalog resolver, the require chain is followed automatically.
  *
- * Texture/model paths in these catalogs (e.g. "textures/earth-8k.jpg") are
+ * Texture/model paths in these catalogs (e.g. "textures/earth-5k.jpg") are
  * relative — consumers are responsible for providing the assets and
  * resolving paths via `textureResolver` / `modelResolver` on
  * `UniverseRendererOptions`.

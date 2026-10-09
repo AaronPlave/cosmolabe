@@ -24,11 +24,11 @@ import http.client
 import io
 import math
 import os
+import shutil
 import struct
 import sys
 import time
 import urllib.request
-import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -526,13 +526,16 @@ def venus() -> None:
     write_dxt1(to_image(resize(src, 4096, 2048)), TEXTURES / 'venus.dds')
 
 
+EARTH_5K = 'world.topo.bathy.200407.3x5400x2700.jpg'
+
+
 def earth() -> None:
-    """Blue Marble Next Generation, July 2004, topography + bathymetry, from
-    the 21600x10800 original at 8192x4096. The 5400x2700 map it replaces is
-    the same product's smallest size (byte-identical to NASA's file)."""
-    # Resized as 8-bit RGB: the 233-Mpx original as float32 would need ~2.8 GB.
-    src = Image.open(source('world.topo.bathy.200407.3x21600x10800.jpg')).convert('RGB')
-    write_jpg(src.resize((8192, 4096), Image.LANCZOS), TEXTURES / 'earth-8k.jpg')
+    """Blue Marble Next Generation, July 2004, topography + bathymetry:
+    NASA's own 5400x2700 release, copied unchanged. A larger fallback (8192
+    from the 21600 original) was tried and backed out: it costs 171 MiB of
+    GPU memory instead of 74 in every catalog with Earth, and close-up
+    detail belongs to streamed imagery (#123), not the fallback."""
+    shutil.copyfile(source(EARTH_5K), TEXTURES / 'earth-5k.jpg')
 
 
 def jupiter() -> None:
@@ -545,17 +548,6 @@ def jupiter() -> None:
     src = np.asarray(Image.open(source('PIA07782.tif')).convert('RGB'), dtype=np.float32)[:, :3600]
     src = np.roll(src, 1800, axis=1)
     write_jpg(to_image(resize(src, 4096, 2048)), TEXTURES / 'jupiter.jpg')
-
-
-def mimas() -> None:
-    """DLR Cassini ISS basemap of Mimas (Roatsch et al., 30 Jun 2017),
-    5760x2880 greyscale, already -180..180 E: 4096x2048 DXT1. The map it
-    replaces looks like an earlier DLR basemap with less late-mission
-    coverage. Complete, so no fill."""
-    with zipfile.ZipFile(source('Cassini_DLR_Mimas.zip')) as z:
-        src = np.asarray(Image.open(io.BytesIO(z.read('Cassini_DLR/MI_170630_DLR_basemap_degrees.tif'))),
-                         dtype=np.float32)
-    write_dxt1(to_image(resize(src[:, :, None] if src.ndim == 2 else src, 4096, 2048)), TEXTURES / 'mimas.dds')
 
 
 # Ring radii (km) of features identified along PIA11142's sample line, at
@@ -617,8 +609,8 @@ def saturn_rings() -> None:
 RECIPES = {
     'ceres': (ceres, 'ceres.jpg'), 'charon': (charon, 'charon.jpg'), 'pluto': (pluto, 'pluto.jpg'),
     'titan': (titan, 'titan.dds'), 'mercury': (mercury, 'mercury.dds'), 'venus': (venus, 'venus.dds'),
-    'earth': (earth, 'earth-8k.jpg'), 'mars': (mars, 'mars.dds'), 'jupiter': (jupiter, 'jupiter.jpg'),
-    'saturn_rings': (saturn_rings, 'saturn-rings.png'), 'mimas': (mimas, 'mimas.dds'),
+    'earth': (earth, 'earth-5k.jpg'), 'mars': (mars, 'mars.dds'), 'jupiter': (jupiter, 'jupiter.jpg'),
+    'saturn_rings': (saturn_rings, 'saturn-rings.png'),
 }
 
 
