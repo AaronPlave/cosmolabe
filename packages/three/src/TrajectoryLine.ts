@@ -136,6 +136,7 @@ export class TrajectoryLine extends THREE.Object3D {
   private _baseTrailOpacity = 0.8;
   private _baseOrbitOpacity = 0.35;
   private _eventContextActive = false;
+  private _measurementContextActive = false;
   /** Opacity all lines rest at, so a hovered one stands out by brightening
    *  (mirrors the label baseline). */
   private static readonly REST_OPACITY_SCALE = 0.85;
@@ -1161,6 +1162,13 @@ export class TrajectoryLine extends THREE.Object3D {
     this.applyEmphasis(this._emphasis);
   }
 
+  /** Keep trajectories as context beneath an explicitly selected measurement. */
+  setMeasurementContext(active: boolean): void {
+    if (active === this._measurementContextActive) return;
+    this._measurementContextActive = active;
+    this.applyEmphasis(this._emphasis);
+  }
+
   /** Advance the hover ease one frame; recolors only while it moves. */
   private stepEmphasis(): void {
     // The first frame, and any after a gap (a hidden line), snap.
@@ -1181,11 +1189,12 @@ export class TrajectoryLine extends THREE.Object3D {
     }
 
     const rest = TrajectoryLine.REST_OPACITY_SCALE;
-    const context = this._eventContextActive ? 0.35 : 1;
+    const measurement = this._measurementContextActive ? 0.65 : 1;
+    const context = (this._eventContextActive ? 0.35 : 1) * measurement;
     const trailMat = this.trailLine.material as THREE.LineBasicMaterial;
     trailMat.opacity = THREE.MathUtils.lerp(
       this._baseTrailOpacity * rest, Math.min(1, this._baseTrailOpacity * 1.4), amount) * context;
-    this.lead.setOpacityScale(rest);
+    this.lead.setOpacityScale(rest * measurement);
     if (this.orbitLine) {
       const orbitMat = this.orbitLine.material as THREE.LineBasicMaterial;
       orbitMat.opacity = THREE.MathUtils.lerp(

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import HomeScreen from './components/HomeScreen.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
   import CatalogBrowser from './components/CatalogBrowser.svelte';
@@ -29,7 +29,7 @@
     catalogLocation, findEntry, isCurrentEntry, requestedCatalog, withCatalogLocation, allEntries,
     type CatalogLocation, type SourcedEntry,
   } from './lib/catalog-nav';
-
+  import { cancelMeasurementPick, measurements, selectMeasurement } from './lib/spatial-measurements.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -105,6 +105,15 @@
    */
   const loading = $derived(vs.showLoading || !vs.assetsReady);
 
+  // Closing/minimizing retains unfinished work and clears temporary picking feedback.
+  $effect(() => {
+    const open = shell.openTools.includes('measure');
+    const hidden = shell.panels.measure.minimized || (shell.layout === 'compact' && shell.activeSheet !== 'measure');
+    untrack(() => {
+      if (!open || hidden) cancelMeasurementPick();
+    });
+  });
+
   /**
    * The home screen's backdrop: a presentation-only scene on the same canvas
    * (lib/hero.ts), up exactly while the home screen is and no scene holds the
@@ -148,7 +157,7 @@
   }
 
   function onCanvasClick(e: MouseEvent) {
-    if (!pickModeActive) return;
+    if (e.defaultPrevented || !pickModeActive || measurements.pendingPickSlot) return;
     const renderer = getCurrentRenderer();
     if (!renderer) return;
     e.stopPropagation();
@@ -189,6 +198,7 @@
   }
 
   function togglePickMode() {
+    cancelMeasurementPick();
     pickModeActive = !pickModeActive;
     if (!pickModeActive) {
       pickResult = null;
@@ -261,6 +271,8 @@
         case 'p': togglePickMode(); return;
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
+          if (cancelMeasurementPick()) return;
+          if (measurements.selectedId) { selectMeasurement(null); return; }
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.
@@ -276,7 +288,7 @@
       // Tool shortcuts come from the shell's own table, so adding a tool does
       // not mean remembering to add a case above as well.
       const tool = TOOLS.find((t) => t.shortcut === e.key);
-      if (tool) toggleTool(tool.id);
+      if (tool && !e.repeat) toggleTool(tool.id);
     }
   }
 
@@ -555,7 +567,7 @@
 <svelte:window onkeydown={onKeydown} />
 <svelte:document ondragover={onDocDragOver} ondrop={onDocDrop} />
 
-<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive} style={shellVars}>
+<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive || !!measurements.pendingPickSlot} style={shellVars}>
   <!-- `touch-none`: the browser must not claim a drag as a scroll or a pinch as
        a page zoom before the camera controls see the gesture. -->
   <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
@@ -640,14 +652,14 @@
         <div class="shell-divider mx-2 border-t"></div>
         <ToolRail
           inline
-          {pickModeActive}
+          pickModeActive={pickModeActive || !!measurements.pendingPickSlot}
           onTogglePick={togglePickMode}
           onOpenSearch={() => commandPaletteOpen = true}
         />
       </div>
     {:else}
       <ToolRail
-        {pickModeActive}
+        pickModeActive={pickModeActive || !!measurements.pendingPickSlot}
         onTogglePick={togglePickMode}
         onOpenSearch={() => commandPaletteOpen = true}
       />

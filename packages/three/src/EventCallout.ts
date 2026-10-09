@@ -68,6 +68,11 @@ function overlapArea(a: ScreenRect, b: ScreenRect): number {
   return w > 0 && h > 0 ? w * h : 0;
 }
 
+/** Leave breathing room for fractional CSS-pixel bounds and rounded card placement. */
+function paddedBlocker(rect: ScreenRect): ScreenRect {
+  return { x0: rect.x0 - 3, y0: rect.y0 - 3, x1: rect.x1 + 3, y1: rect.y1 + 3 };
+}
+
 /** Candidate box + leader for one direction and reach. */
 function candidate(
   ax: number,
@@ -129,15 +134,18 @@ function placementCost(
   viewport: { width: number; height: number },
   obstacles: CalloutObstacles,
 ): number {
-  const { box } = c;
+  // Score the same viewport-clamped box that update() actually draws.
+  const dx = Math.max(EDGE_MARGIN - c.box.x0, Math.min(0, viewport.width - EDGE_MARGIN - c.box.x1));
+  const dy = Math.max(EDGE_MARGIN - c.box.y0, Math.min(0, viewport.height - EDGE_MARGIN - c.box.y1));
+  const box = { x0: c.box.x0 + dx, y0: c.box.y0 + dy, x1: c.box.x1 + dx, y1: c.box.y1 + dy };
   let cost = 0;
   const overflow =
-    Math.max(0, EDGE_MARGIN - box.x0) + Math.max(0, box.x1 - (viewport.width - EDGE_MARGIN)) +
-    Math.max(0, EDGE_MARGIN - box.y0) + Math.max(0, box.y1 - (viewport.height - EDGE_MARGIN));
+    Math.max(0, EDGE_MARGIN - c.box.x0) + Math.max(0, c.box.x1 - (viewport.width - EDGE_MARGIN)) +
+    Math.max(0, EDGE_MARGIN - c.box.y0) + Math.max(0, c.box.y1 - (viewport.height - EDGE_MARGIN));
   if (overflow > 0) cost += 400 + overflow * 8;
   for (const blocker of obstacles.blockers ?? []) {
-    const area = overlapArea(box, blocker);
-    if (area > 0) cost += 400 + area * 0.5;
+    const area = overlapArea(box, paddedBlocker(blocker));
+    if (area > 0) cost += 1_000_000 + area;
   }
 
   // Labels: overlapping a pinned (selected / involved) label costs most.
@@ -206,6 +214,8 @@ export class EventCallout {
   private content: CalloutContent | null = null;
   private contentKey = '';
   private size: { width: number; height: number } | null = null;
+  private readonly resizeObserver: ResizeObserver | null;
+  private viewportWidth = -1;
   private previousKey: string | null = null;
   private lastTransform = '';
   private lastPoints = '';
@@ -236,10 +246,46 @@ export class EventCallout {
       // Neutral and quiet: the glyph and leader carry event color and state.
       border: '1px solid rgba(190, 206, 216, 0.1)',
       background: 'rgba(9, 13, 18, 0.8)',
-      whiteSpace: 'nowrap', willChange: 'transform',
+      whiteSpace: 'normal', overflowWrap: 'anywhere', boxSizing: 'border-box',
+      maxWidth: 'min(360px, calc(100% - 16px))', willChange: 'transform',
     });
     container.append(this.svg, this.box);
+    this.resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(entries => {
+      const entry = entries[0];
+      const border = entry?.borderBoxSize?.[0];
+      if (border && border.inlineSize > 0 && border.blockSize > 0) {
+        this.size = { width: border.inlineSize, height: border.blockSize };
+      } else if (entry?.contentRect.width > 0) {
+        // Fixed padding and border from the box style above.
+        this.size = { width: entry.contentRect.width + 18, height: entry.contentRect.height + 11 };
+      }
+    });
+    this.resizeObserver?.observe(this.box);
   }
+
+  /** Optional interaction for persistent measurements; event annotations stay passive. */
+  setInteraction(id: string, activate: (event: MouseEvent | KeyboardEvent) => void, hover: (active: boolean) => void, openEditor?: () => void): void {
+    this.box.dataset.measurementId = id;
+    this.box.style.pointerEvents = 'auto';
+    this.box.style.cursor = 'pointer';
+    this.box.tabIndex = 0;
+    this.box.setAttribute('role', openEditor ? 'group' : 'button');
+    if (openEditor) {
+      this.editorAction = document.createElement('button');
+      this.editorAction.textContent = 'Open in Measurements';
+      Object.assign(this.editorAction.style, { display: 'block', margin: '4px 0 0 13px', color: '#c3d0d8', font: '500 10px/14px var(--font-sans, system-ui)', cursor: 'pointer', textDecoration: 'underline', background: 'none', border: 'none', padding: '0' });
+      this.editorAction.onclick = event => { event.stopPropagation(); openEditor(); };
+    }
+    this.box.onclick = event => { event.stopPropagation(); activate(event); };
+    this.box.onkeydown = event => {
+      if (event.target !== this.box) return;
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); activate(event); }
+    };
+    this.box.onmouseenter = () => hover(true);
+    this.box.onmouseleave = () => hover(false);
+  }
+
+  private editorAction: HTMLButtonElement | null = null;
 
   setContent(content: CalloutContent | null): void {
     const key = content ? JSON.stringify(content) : '';
@@ -271,8 +317,31 @@ export class EventCallout {
       row.textContent = line;
       this.box.append(row);
     });
-    this.leader.setAttribute('stroke', content.color);
+    if (this.editorAction) this.box.append(this.editorAction);
+    this.leader.setAttribute('stroke', this.editorAction ? '#8b99a3' : content.color);
     this.tick.setAttribute('fill', content.color);
+  }
+
+  /** Update live readouts without cloning nodes, cross-fading, or losing placement. */
+  setLiveContent(content: CalloutContent): void {
+    const previous = this.content;
+    if (!previous || previous.lines[0] !== content.lines[0] ||
+        previous.color !== content.color || previous.tone !== content.tone ||
+        previous.feature !== content.feature || previous.lines.length !== content.lines.length) {
+      this.setContent(content);
+      return;
+    }
+    content.lines.slice(1, 3).forEach((line, i) => {
+      const row = this.box.children[i + 1];
+      if (row && row.textContent !== line) {
+        row.textContent = line;
+        // Browsers report actual dimension changes asynchronously. Numeric updates
+        // that fit the same box keep the cached size and placement intact.
+        if (!this.resizeObserver) this.size = null;
+      }
+    });
+    this.content = content;
+    this.contentKey = JSON.stringify(content);
   }
 
   /**
@@ -296,9 +365,12 @@ export class EventCallout {
     }
     this.box.style.display = 'block';
     this.svg.style.display = 'block';
-    if (!this.size || this.size.width === 0) {
-      this.size = { width: this.box.offsetWidth, height: this.box.offsetHeight };
+    if (viewport.width !== this.viewportWidth) {
+      this.viewportWidth = viewport.width;
+      this.size = null;
     }
+    // One initial/content/width measurement; live updates use ResizeObserver's cache.
+    if (!this.size) this.size = { width: this.box.offsetWidth, height: this.box.offsetHeight };
     const placement = chooseCalloutPlacement(
       anchor.x, anchor.y, this.size.width, this.size.height, viewport, obstacles, this.previousKey,
     );
@@ -314,6 +386,12 @@ export class EventCallout {
       Math.min(0, viewport.height - EDGE_MARGIN - placement.box.y1));
     const x0 = Math.round(placement.box.x0 + dx);
     const y0 = Math.round(placement.box.y0 + dy);
+    const drawnBox = { x0, y0, x1: x0 + this.size.width, y1: y0 + this.size.height };
+    if ((obstacles.blockers ?? []).some(blocker => overlapArea(drawnBox, paddedBlocker(blocker)) > 0)) {
+      // When every placement is covered by host UI, the panel readout remains available.
+      this.hide();
+      return null;
+    }
     const transform = `translate(${x0}px, ${y0}px)`;
     if (transform !== this.lastTransform) {
       this.box.style.transform = transform;
@@ -355,6 +433,11 @@ export class EventCallout {
     if (!parent) return;
     for (const node of [this.svg, this.box]) {
       const ghost = node.cloneNode(true) as HTMLElement | SVGSVGElement;
+      ghost.style.pointerEvents = 'none';
+      ghost.removeAttribute('data-measurement-id');
+      ghost.removeAttribute('tabindex');
+      ghost.removeAttribute('role');
+      ghost.setAttribute('aria-hidden', 'true');
       ghost.style.transition = 'none';
       ghost.style.opacity = node.style.opacity || '1';
       parent.insertBefore(ghost, this.svg);
@@ -376,6 +459,7 @@ export class EventCallout {
   }
 
   dispose(): void {
+    this.resizeObserver?.disconnect();
     this.box.remove();
     this.svg.remove();
   }

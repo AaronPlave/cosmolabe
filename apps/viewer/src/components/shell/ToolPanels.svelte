@@ -14,6 +14,7 @@
   import DisplaySettings from '../DisplaySettings.svelte';
   import EventFinder from '../EventFinder.svelte';
   import DebugPanel from '../DebugPanel.svelte';
+  import MeasurementPanel from '../MeasurementPanel.svelte';
   import ScriptConsole from '../ScriptConsole.svelte';
 
   interface Props {
@@ -47,6 +48,8 @@
     <ScriptConsole onClose={() => closeTool('script')} />
   {:else if tool.id === 'debug'}
     <DebugPanel onClose={() => closeTool('debug')} />
+  {:else if tool.id === 'measure'}
+    <MeasurementPanel onClose={() => closeTool('measure')} />
   {:else if tool.id === 'display'}
     <DisplaySettings
       onClose={() => closeTool('display')}
