@@ -75,18 +75,21 @@ export function raySphereInterval(origin: RGB, direction: RGB, radius: number): 
   return [Math.max(0, -b - root), -b + root];
 }
 
-/** Direct RGB transmittance from a point to the shell exit; a solid-planet hit is dark. */
+/** RGB extinction to the shell exit. Scattering shadows default to solid-body
+ * occultation; pass occludeSolid=false for the direct disk's depth-tested path.
+ */
 export function transmittanceToSpace(
   model: AtmosphereModel,
   planetRadiusKm: number,
   origin: RGB,
   direction: RGB,
   steps = 128,
+  occludeSolid = true,
 ): RGB {
   const shell = raySphereInterval(origin, direction, planetRadiusKm + model.heightKm);
   if (!shell) return [1, 1, 1];
   const solid = raySphereInterval(origin, direction, planetRadiusKm);
-  if (solid && solid[0] < shell[1] - 1e-7) return [0, 0, 0];
+  if (occludeSolid && solid && solid[0] < shell[1] - 1e-7) return [0, 0, 0];
   const stepKm = (shell[1] - shell[0]) / steps;
   const opticalDepth: RGB = [0, 0, 0];
   for (let j = 0; j < steps; j++) {

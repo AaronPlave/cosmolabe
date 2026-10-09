@@ -3,6 +3,7 @@ import { ECLIPSE_VISIBILITY_GLSL, makeShadowUniforms, type ShadowUniforms } from
 import { RING_VISIBILITY_GLSL, makeRingShadowUniforms, type RingShadowUniforms } from './RingShadow.js';
 import type { AtmosphereModel } from './AtmosphereModel.js';
 import { ATMOSPHERE_PROFILES_GLSL, makeAtmosphereProfileUniforms, type AtmosphereProfileUniforms } from './AtmosphereProfiles.js';
+import { SOLAR_DISPLAY_GLSL, solarIrradiance, SOLAR_REFERENCE_DISTANCE_KM, makeSolarDisplayUniforms } from './SolarRadiometry.js';
 
 // ---- Aerial perspective GLSL injection ----
 // Injected into body / terrain material shaders via onBeforeCompile.
@@ -32,6 +33,7 @@ uniform sampler2D uAPMultiScatterLUT; // shared with the parent AtmosphereMesh
 ${ECLIPSE_VISIBILITY_GLSL}
 ${RING_VISIBILITY_GLSL}
 ${ATMOSPHERE_PROFILES_GLSL}
+${SOLAR_DISPLAY_GLSL}
 
 // View-ray samples for the camera→fragment integral. Lower than typical
 // because the LUT covers the all-bounce ambient and the path is generally
@@ -147,7 +149,7 @@ AerialPerspectiveResult computeAerialPerspective(vec3 fragWorldPos) {
     opticalDepth += extinction * stepLen;
   }
 
-  vec3 color = uAPLightColor * inscatter;
+  vec3 color = radianceToDisplay(uAPLightColor * inscatter);
 
   // Physically correct view transmittance — no floor.
   vec3 viewT = exp(-opticalDepth);
@@ -164,6 +166,7 @@ AerialPerspectiveResult computeAerialPerspective(vec3 fragWorldPos) {
 `;
 
 export type AerialPerspectiveUniforms = AtmosphereProfileUniforms & ShadowUniforms & RingShadowUniforms & {
+  uSolarExposure: { value: number };
   uAPCameraWorldPos:    { value: THREE.Vector3 };
   uAPSunWorldPos:       { value: THREE.Vector3 };
   uAPPlanetWorldPos:    { value: THREE.Vector3 };
@@ -185,6 +188,7 @@ export function makeAerialPerspectiveUniforms(
   transmittanceLUT: THREE.Texture | null,
 ): AerialPerspectiveUniforms {
   return {
+    ...makeSolarDisplayUniforms(),
     ...makeShadowUniforms(),
     ...makeRingShadowUniforms(),
     ...makeAtmosphereProfileUniforms(
@@ -197,7 +201,7 @@ export function makeAerialPerspectiveUniforms(
     uAPPlanetRadius:    { value: 0 },
     uAPShellRadius:     { value: 0 },
     uAPMieK:            { value: 0 },
-    uAPLightColor:      { value: new THREE.Vector3(1, 1, 1) },
+    uAPLightColor:      { value: new THREE.Vector3(...solarIrradiance(SOLAR_REFERENCE_DISTANCE_KM)) },
     uAPStrength:        { value: 0 },
     uAPMultiScatterLUT: { value: null },
     uAPWorldToPlanet:    { value: new THREE.Matrix4() },

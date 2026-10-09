@@ -5,6 +5,7 @@ import { normalizeAtmosphere, type AtmosphereModel } from './AtmosphereModel.js'
 import { ATMOSPHERE_PROFILES_GLSL, makeAtmosphereProfileUniforms } from './AtmosphereProfiles.js';
 import { buildTransmittanceLUT } from './TransmittanceLUT.js';
 import { SkyViewLUT, SKY_VIEW_BASIS_GLSL } from './SkyViewLUT.js';
+import { SOLAR_DISPLAY_GLSL, solarIrradiance, SOLAR_REFERENCE_DISTANCE_KM, solarDisplayExposure, makeSolarDisplayUniforms } from './SolarRadiometry.js';
 
 /**
  * Atmosphere scattering parameters for a body.
@@ -73,7 +74,9 @@ const ATMOSPHERE_PRESETS: Record<string, AtmosphereParams> = {
     mieCoeff: 0.0040,
     mieScaleHeight: 50.0,
     miePhaseAsymmetry: -0.4,
-    // Titan's thick tholin haze: warm orange, almost no blue Rayleigh
+    // Legacy effective broad-angle tholin haze, not isolated molecular
+    // Rayleigh. Its total extinction (including blue absorption) already
+    // reddens direct sunlight; preserve its established orbital appearance.
     rayleighCoeff: [0.0035, 0.0015, 0.0004],
     // Heavy blue absorption from methane/tholins
     absorptionCoeff: [0.0005, 0.0015, 0.0050],
@@ -82,8 +85,10 @@ const ATMOSPHERE_PRESETS: Record<string, AtmosphereParams> = {
     mieCoeff: 0.0050,
     mieScaleHeight: 15.0,
     miePhaseAsymmetry: -0.6,
-    rayleighCoeff: [0.0080, 0.0060, 0.0030],
-    absorptionCoeff: [0.0040, 0.0030, 0.0010],
+    // Remove the legacy red-scattering visual tint. Molecular scattering and
+    // cloud absorption must also form a plausible direct-light spectral filter.
+    rayleighCoeff: [0.0030, 0.0060, 0.0080],
+    absorptionCoeff: [0.0010, 0.0030, 0.0040],
   },
   Jupiter: {
     mieCoeff: 0.0030,
@@ -159,6 +164,7 @@ uniform vec3  uPlanetWorldPos;
 uniform float uShellSceneScale;
 uniform mat4 uAtmModelToWorld;
 ${ATMOSPHERE_PROFILES_GLSL}
+${SOLAR_DISPLAY_GLSL}
 
 varying vec3  vColor;       // linear scattered radiance
 varying float vAlpha;       // view-ray transmittance (atmosphere alpha for blend)
@@ -331,6 +337,7 @@ uniform vec3  uPlanetWorldPos;
 uniform float uShellSceneScale;
 uniform mat4 uAtmModelToWorld;
 ${ATMOSPHERE_PROFILES_GLSL}
+${SOLAR_DISPLAY_GLSL}
 ${SKY_VIEW_BASIS_GLSL}
 
 /** 1.0 when camera is inside the atm shell (use cheap per-vertex), 0.0 when
@@ -387,7 +394,7 @@ void main() {
       gl_FragColor = texture2D(uSkyViewLUT, vec2(
         (azimuth + 3.14159265358979) / (2.0 * 3.14159265358979),
         skyVFromTheta(theta, skyHorizonTheta(eye, capR))));
-      #include <tonemapping_fragment>
+      gl_FragColor.rgb = radianceToDisplay(gl_FragColor.rgb);
       #include <colorspace_fragment>
       return;
     }
@@ -403,7 +410,7 @@ void main() {
     float sunSpike = pow(sunCos, 256.0);
     color += lightColor * sunSpike * 0.15 * (1.0 - alpha);
     gl_FragColor = vec4(color, alpha);
-    #include <tonemapping_fragment>
+    gl_FragColor.rgb = radianceToDisplay(gl_FragColor.rgb);
     #include <colorspace_fragment>
     return;
   }
@@ -484,7 +491,7 @@ void main() {
   alpha  = mix(1.0, alpha, edgeFade);
 
   gl_FragColor = vec4(color, alpha);
-  #include <tonemapping_fragment>
+  gl_FragColor.rgb = radianceToDisplay(gl_FragColor.rgb);
   #include <colorspace_fragment>
 }
 `;
@@ -524,13 +531,14 @@ export class AtmosphereMesh extends THREE.Mesh {
     const geometry = new THREE.SphereGeometry(1.15, renderer ? 256 : 1024, renderer ? 128 : 512);
     const material = new THREE.ShaderMaterial({
       uniforms: {
+        ...makeSolarDisplayUniforms(),
         ...makeAtmosphereProfileUniforms(model, shellRadius, planetRadius / shellRadius, 1, null),
         planetR:        { value: 0 },
         planetCapBias:  { value: 0 },
         mieK:           { value: 0 },
         invModelMat:    { value: new THREE.Matrix4() },
         lightDir:       { value: new THREE.Vector3(1, 0, 0) },
-        lightColor:     { value: new THREE.Vector3(1, 1, 1) },
+        lightColor:     { value: new THREE.Vector3(...solarIrradiance(SOLAR_REFERENCE_DISTANCE_KM)) },
         uMultiScatterLUT: { value: null as THREE.Texture | null },
         uSkyViewLUT: { value: null as THREE.Texture | null },
         uHasSkyViewLUT: { value: false },
@@ -547,6 +555,7 @@ export class AtmosphereMesh extends THREE.Mesh {
       vertexShader: renderer ? skyViewVertexShader : atmosphereVertexShader,
       fragmentShader: atmosphereFragmentShader,
       transparent: true,
+      toneMapped: false,
       depthWrite: false,
       depthTest: true,
       // Custom blend: finalColor = src * 1 + dst * srcAlpha
@@ -627,6 +636,13 @@ export class AtmosphereMesh extends THREE.Mesh {
 
     this._lightLocal.copy(sunWorldPos).applyMatrix4(this._invModelMatrix).normalize();
     u.lightDir.value.copy(this._lightLocal);
+    if (planetWorldPos && shellSceneScale && sunRadius && sunRadius > 0) {
+      const distanceKm = sunWorldPos.distanceTo(planetWorldPos) * this.shellRadius / shellSceneScale;
+      const radiusKm = sunRadius * this.shellRadius / shellSceneScale;
+      u.lightColor.value.set(...solarIrradiance(distanceKm, radiusKm));
+      const observerDistanceKm = sunWorldPos.distanceTo(cameraWorldPos) * this.shellRadius / shellSceneScale;
+      u.uSolarExposure.value = solarDisplayExposure(observerDistanceKm, radiusKm);
+    }
 
     // Cache camera altitude + local-space directions for getDaytimeSkyBrightness()
     // (CPU-side StarField fade) and AP strength gating (UniverseRenderer).
