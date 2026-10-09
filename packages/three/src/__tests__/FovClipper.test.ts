@@ -100,6 +100,59 @@ describe('FOV clipping against physical surfaces', () => {
     for (const s of a.filter(x => x.hit)) expect(dist(endpoint(origin, s), [0, 0, 0])).toBeGreaterThanOrEqual(R - 1e-6);
   });
 
+  it('finds a grazing body whose limb crosses only between two missing base samples (review #174)', () => {
+    // 10° circular FOV, 32 base samples. A sphere 10,000 km away with a 3°
+    // angular radius, centred 7.98° off boresight at azimuth 5.625° — halfway
+    // between the first two samples. Both neighbours are ~3.04° from its centre
+    // (miss) while the midpoint is ~2.98° (hit), on an interval far shorter
+    // than the body's angular radius.
+    const toWorld = pointing([0, 0, -1]);
+    const at = (offDeg: number, azDeg: number): Vec3 => {
+      const off = offDeg * Math.PI / 180, az = azDeg * Math.PI / 180;
+      return toWorld([Math.sin(off) * Math.cos(az), Math.sin(off) * Math.sin(az), Math.cos(off)]);
+    };
+    const place = (offDeg: number): FovSurfaceCandidate => {
+      const d = at(offDeg, 5.625);
+      return sphere('grazer', [d[0] * 10000, d[1] * 10000, d[2] * 10000], 10000 * Math.sin(3 * Math.PI / 180));
+    };
+    const grazer = place(7.98);
+    const samples = clip([0, 0, 0], [0, 0, -1], circular(10), [grazer], 20000);
+    expect(samples.filter(s => s.base).every(s => s.hit === null)).toBe(true);
+    const hits = samples.filter(s => s.hit?.candidateId === 'grazer');
+    expect(hits.length).toBeGreaterThan(0);
+    for (const s of hits) expect(dist(endpoint([0, 0, 0], s), grazer.centerKm)).toBeCloseTo(grazer.boundingRadiusKm, 2);
+    // Just out of reach (closest perimeter approach ~3.2°): one probe ray per
+    // overlapping interval at most, no runaway subdivision, no false hit.
+    const near = clip([0, 0, 0], [0, 0, -1], circular(10), [place(8.2)], 20000);
+    expect(near.every(s => s.hit === null)).toBe(true);
+    expect(near.length).toBeLessThanOrEqual(34);
+  });
+
+  it('probes exactly against a rotated reference ellipsoid, not its bounding sphere', () => {
+    // A flattened body whose bounding cone (3.44°) overlaps the 5° perimeter
+    // (closest approach 3.4°) while its short axis, aimed back at the
+    // boresight, keeps the real surface ~0.57° from the centre: nothing to hit,
+    // and nothing to subdivide.
+    const toWorld = pointing([0, 0, -1]);
+    const off = 8.4 * Math.PI / 180, az = 5.625 * Math.PI / 180;
+    const d = toWorld([Math.sin(off) * Math.cos(az), Math.sin(off) * Math.sin(az), Math.cos(off)]);
+    const bore: Vec3 = [0, 0, -1];
+    const k = bore[0] * d[0] + bore[1] * d[1] + bore[2] * d[2];
+    const u = normalize([bore[0] - k * d[0], bore[1] - k * d[1], bore[2] - k * d[2]]);
+    const y = cross(u, d);
+    // Columns are body X (line of sight), Y, Z (short axis, toward boresight) in world.
+    const bodyToWorld = [d[0], y[0], u[0], d[1], y[1], u[1], d[2], y[2], u[2]];
+    const flat = new ReferenceEllipsoidSurface('flat', 'F', [600, 600, 100]);
+    const candidate: FovSurfaceCandidate = { id: 'flat', centerKm: [d[0] * 10000, d[1] * 10000, d[2] * 10000], bodyToWorld, boundingRadiusKm: 600, surfaces: [flat] };
+    const samples = clip([0, 0, 0], [0, 0, -1], circular(10), [candidate], 20000);
+    expect(samples.every(s => s.hit === null)).toBe(true);
+    expect(samples).toHaveLength(32);
+    // Rotate the long axis toward the boresight instead and the probe finds it.
+    const longToward = [u[0], y[0], d[0], u[1], y[1], d[1], u[2], y[2], d[2]];
+    const hit = clip([0, 0, 0], [0, 0, -1], circular(10), [{ ...candidate, bodyToWorld: longToward }], 20000);
+    expect(hit.some(s => s.hit?.candidateId === 'flat')).toBe(true);
+  });
+
   it('detects a body crossing the middle of a rectangle edge while both corners miss', () => {
     // 20°×20° rectangle; a small body centred on the bottom edge's midpoint.
     const shape = rectangularFov(Math.tan(10 * Math.PI / 180), Math.tan(10 * Math.PI / 180));

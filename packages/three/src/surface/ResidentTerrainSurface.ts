@@ -21,6 +21,11 @@ export class ResidentTerrainSurface implements PhysicalSurface {
   readonly metadata: PhysicalSurfaceMetadata;
   private readonly datumShape: ReferenceEllipsoidSurface;
   private readonly tileSurfaces = new Map<string, GlobeTileSurface>();
+  /**
+   * Triangles handed to the per-tile linear intersector so far. Callers that
+   * run in the render loop reset and read it to bound per-frame cost.
+   */
+  trianglesTested = 0;
 
   constructor(
     readonly sampler: TerrainSampler,
@@ -55,6 +60,8 @@ export class ResidentTerrainSurface implements PhysicalSurface {
         if (seen.has(id)) continue;
         if (queried++ >= this.maxTilesPerRay) break;
         seen.add(id);
+        const tile = this.sampler.getTile(id);
+        if (tile) this.trianglesTested += tile.kind === 'mesh' ? tile.indices.length / 3 : (tile.width - 1) * (tile.height - 1) * 2;
         const result = this.tileSurface(id).intersectRay({ ...ray, direction }, options);
         if (result.kind !== 'hit') continue;
         if (!nearest || result.distanceKm < nearest.distanceKm) nearest = result;

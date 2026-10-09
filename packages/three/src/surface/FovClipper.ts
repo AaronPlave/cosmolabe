@@ -6,7 +6,7 @@
  * at the nearest eligible physical-surface hit, otherwise at the maximum
  * visualization range. The perimeter is sampled at fixed base parameters and
  * then refined adaptively where neighbouring samples disagree (hit vs miss, or
- * different bodies), where a small body could slip between two misses, and
+ * different bodies), where a body could cross between two misses, and
  * where a hit-hit chord sags visibly off the surface — instead of raising the
  * global segment count.
  *
@@ -78,7 +78,12 @@ export interface FovClipOptions {
   maxTransitionDepth?: number;
   /** Bisection cap for hit-hit chord smoothing. */
   maxSmoothDepth?: number;
-  /** Hit-hit chord sag tolerance as a fraction of the chord length (bounds curvature error). */
+  /**
+   * Hit-hit tolerance: how far the midpoint ray's range may differ from the
+   * average of its neighbours', as a fraction of the chord between them. This
+   * measures the surface bending away from the chord, not the FOV outline's own
+   * curvature, so a flat-on FOV is not subdivided at all.
+   */
   smoothTolerance?: number;
   /** Hard cap on perimeter samples, base included. */
   maxSamples?: number;
@@ -202,22 +207,64 @@ function angleToArc(p: Vec3, a: Vec3, b: Vec3): number {
   return Math.min(angleBetween(p, a), angleBetween(p, b));
 }
 
+const GOLDEN = (Math.sqrt(5) - 1) / 2;
+
 /**
- * Could a candidate small enough to fit between two missing perimeter samples
- * intersect the arc between them? Only true while the arc is wider than the
- * body's angular radius, so subdivision stops once a body cannot hide.
+ * Where, strictly inside (ta, tb), could a candidate's surface cross the
+ * perimeter even though both endpoints miss? Returns the parameter of closest
+ * approach for the first candidate whose shape that approach enters, or null.
+ *
+ * The test is made in the candidate's reference-ellipsoid space (body-fixed,
+ * divided by the radii), where the shape is a unit sphere: a ray hits it iff
+ * its angle to the scaled center is below asin(1 / |center|). The angle along
+ * one perimeter interval is unimodal, so its minimum (golden-section search)
+ * is the ray most likely to hit. That makes the probe exact for reference
+ * shapes regardless of how short the interval is, and costs one ray per
+ * interval per candidate. Terrain/mesh candidates use the same search with the
+ * shape inflated to their bounding radius, so a probe is only a best guess there.
  */
-function hiddenBetween(origin: Vec3, a: Vec3, b: Vec3, candidates: readonly FovSurfaceCandidate[], maxRangeKm: number): boolean {
-  const arc = angleBetween(a, b);
+function probeParam(
+  origin: Vec3, directionAt: (t: number) => Vec3, ta: number, tb: number, a: Vec3, b: Vec3,
+  candidates: readonly FovSurfaceCandidate[], maxRangeKm: number,
+): number | null {
   for (const c of candidates) {
     const rel: Vec3 = [c.centerKm[0] - origin[0], c.centerKm[1] - origin[1], c.centerKm[2] - origin[2]];
     const dist = Math.hypot(...rel);
     if (dist <= c.boundingRadiusKm || dist - c.boundingRadiusKm > maxRangeKm) continue;
-    const angularRadius = Math.asin(c.boundingRadiusKm / dist);
-    if (arc <= angularRadius) continue;
-    if (angleToArc(normalize(rel), a, b) < angularRadius) return true;
+    // Cheap conservative reject: bounding cone vs the chord arc, with slack for
+    // perimeters (ellipses) that bow slightly off the great circle between samples.
+    const slack = 0.05 * angleBetween(a, b);
+    if (angleToArc(normalize(rel), a, b) >= Math.asin(c.boundingRadiusKm / dist) + slack) continue;
+
+    const reference = c.surfaces.find((s): s is ReferenceEllipsoidSurface => s instanceof ReferenceEllipsoidSurface);
+    const radii = reference?.radiiKm ?? [c.boundingRadiusKm, c.boundingRadiusKm, c.boundingRadiusKm];
+    const inflate = reference ? c.boundingRadiusKm / reference.boundingRadiusKm : 1;
+    const m = c.bodyToWorld;
+    const scaled = (v: Vec3): Vec3 => {
+      const bf = toBodyFixed(m, v);
+      return [bf.xKm / radii[0], bf.yKm / radii[1], bf.zKm / radii[2]];
+    };
+    const center = scaled(rel);
+    const centerLen = Math.hypot(...center);
+    if (centerLen <= inflate) continue; // origin inside the (inflated) shape: nothing to probe
+    const threshold = Math.asin(inflate / centerLen);
+    const centerDir = normalize(center);
+    const angleAt = (t: number) => angleBetween(normalize(scaled(directionAt(((t % 1) + 1) % 1))), centerDir);
+
+    let lo = ta, hi = tb;
+    let x1 = hi - GOLDEN * (hi - lo), x2 = lo + GOLDEN * (hi - lo);
+    let f1 = angleAt(x1), f2 = angleAt(x2);
+    for (let i = 0; i < 48 && hi - lo > 1e-12; i++) {
+      if (f1 < f2) { hi = x2; x2 = x1; f2 = f1; x1 = hi - GOLDEN * (hi - lo); f1 = angleAt(x1); }
+      else { lo = x1; x1 = x2; f1 = f2; x2 = lo + GOLDEN * (hi - lo); f2 = angleAt(x2); }
+    }
+    const t = (lo + hi) / 2;
+    // A minimum at an endpoint means that (missing) endpoint was the best chance.
+    const edge = 1e-6 * (tb - ta);
+    if (t - ta <= edge || tb - t <= edge) continue;
+    if (angleAt(t) < threshold) return t;
   }
-  return false;
+  return null;
 }
 
 /**
@@ -250,15 +297,17 @@ export function clipFovPerimeter(
     if (budget <= 0) return;
     const transition = !sameState(a, b);
     const smooth = !transition && a.hit != null;
-    const probe = !transition && !smooth && candidates.length > 0 && hiddenBetween(originKm, a.direction, b.direction, candidates, maxRange);
-    if (!transition && !smooth && !probe) return;
+    const probe = !transition && !smooth && candidates.length > 0
+      ? probeParam(originKm, directionAt, ta, tb, a.direction, b.direction, candidates, maxRange)
+      : null;
+    if (!transition && !smooth && probe == null) return;
     if (depth >= (smooth ? o.maxSmoothDepth : o.maxTransitionDepth)) return;
-    const tm = (ta + tb) / 2;
+    const tm = probe ?? (ta + tb) / 2;
     const m = sample(tm, false);
     if (smooth && sameState(a, m)) {
-      const pa = endpoint(a), pb = endpoint(b), pm = endpoint(m);
-      const sag = Math.hypot(pm[0] - (pa[0] + pb[0]) / 2, pm[1] - (pa[1] + pb[1]) / 2, pm[2] - (pa[2] + pb[2]) / 2);
-      if (sag <= o.smoothTolerance * Math.hypot(pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2])) return;
+      const pa = endpoint(a), pb = endpoint(b);
+      const rangeError = Math.abs(m.distanceKm - (a.distanceKm + b.distanceKm) / 2);
+      if (rangeError <= o.smoothTolerance * Math.hypot(pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2])) return;
     }
     refine(a, ta, m, tm, depth + 1);
     out.push(m);
