@@ -38,8 +38,14 @@ export interface ObservationGroup {
 export type ObservationCoverage =
   /** Computed: the named sensor body's FOV intersected with the target. */
   | { readonly kind: 'sensor'; readonly sensor: string }
-  /** Given: footprint polygons (exterior rings), lon east / lat degrees. */
-  | { readonly kind: 'footprint'; readonly polygonLonLat: readonly (readonly LonLat[])[] }
+  /** Given: footprint polygons, lon east / lat degrees. `polygonLonLat[i]` is
+   *  polygon i's exterior ring and `holesLonLat?.[i]` its interior rings —
+   *  areas inside the outline the product does not cover. */
+  | {
+      readonly kind: 'footprint';
+      readonly polygonLonLat: readonly (readonly LonLat[])[];
+      readonly holesLonLat?: readonly (readonly (readonly LonLat[])[])[];
+    }
   /** Given: the archive's disk geometry for the target. */
   | {
       readonly kind: 'disk';
@@ -89,6 +95,10 @@ export interface Observation {
   readonly campaign?: string;
   /** Which archive, when it came from one. */
   readonly archive?: string;
+  /** sincpt/ilumin shape method for computed coverage (cosmolabe extension):
+   *  `ELLIPSOID`, or `DSK/UNPRIORITIZED` for an irregular body. Usually left
+   *  unset and resolved from the target (`resolveSurfaceMethod`). */
+  readonly surfaceMethod?: string;
 }
 
 export class ObservationError extends Error {
@@ -136,6 +146,15 @@ export interface CosmographiaObservationGeometry {
 
 const OPTIONAL_NUMBERS = ['footprintOpacity', 'alongTrackDivisions', 'sideDivisions', 'shadowVolumeScaleFactor'] as const;
 const OPTIONAL_BOOLEANS = ['showResWithColor', 'fillInObservations'] as const;
+/** Most samples one group is ever split into. A longer or denser group is
+ *  thinned to this many, evenly spaced, rather than allocated in full. */
+export const MAX_GROUP_SAMPLES = 10_000;
+
+/** Bounds on the division counts: each is a loop of CSPICE calls per frame. */
+const DIVISION_RANGE = {
+  alongTrackDivisions: [1, MAX_GROUP_SAMPLES - 1],
+  sideDivisions: [1, 256],
+} as const;
 
 function parseGroups(
   raw: unknown,
@@ -161,7 +180,7 @@ function parseGroups(
     const endEt = read(fields.end);
     if (endEt < startEt) throw new ObservationError(`${at} ends before it starts`);
     const obsRate = o.obsRate ?? 0;
-    if (typeof obsRate !== 'number' || !(obsRate >= 0)) {
+    if (typeof obsRate !== 'number' || !Number.isFinite(obsRate) || obsRate < 0) {
       throw new ObservationError(`${at}.obsRate must be a number of seconds ≥ 0, got ${JSON.stringify(o.obsRate)}`);
     }
     return { startEt, endEt, obsRate };
@@ -204,7 +223,7 @@ export function observationFromCosmographia(
     coverage,
     groups: parseGroups(geometry.groups, parseTime, where),
   };
-  for (const k of ['campaign', 'instrument', 'archive'] as const) {
+  for (const k of ['campaign', 'instrument', 'archive', 'surfaceMethod'] as const) {
     if (typeof geometry[k] === 'string') out[k] = geometry[k];
   }
   const color = geometry.footprintColor;
@@ -216,8 +235,13 @@ export function observationFromCosmographia(
   }
   for (const k of OPTIONAL_NUMBERS) {
     if (geometry[k] === undefined) continue;
-    if (typeof geometry[k] !== 'number') throw new ObservationError(`${where}: ${k} must be a number`);
-    out[k] = geometry[k];
+    const v = geometry[k];
+    if (typeof v !== 'number' || !Number.isFinite(v)) throw new ObservationError(`${where}: ${k} must be a finite number`);
+    const range = DIVISION_RANGE[k as keyof typeof DIVISION_RANGE];
+    if (range && !(Number.isInteger(v) && v >= range[0] && v <= range[1])) {
+      throw new ObservationError(`${where}: ${k} must be a whole number from ${range[0]} to ${range[1]}, got ${v}`);
+    }
+    out[k] = v;
   }
   for (const k of OPTIONAL_BOOLEANS) {
     if (geometry[k] === undefined) continue;
@@ -237,7 +261,19 @@ function parseGivenCoverage(c: Record<string, unknown>, where: string): Observat
     if (!Array.isArray(polys) || !polys.every((ring) => Array.isArray(ring) && ring.length >= 3 && ring.every(isLonLat))) {
       throw new ObservationError(`${where}: coverage.polygonLonLat must be rings of [lon, lat] (at least 3 vertices each)`);
     }
-    return { kind: 'footprint', polygonLonLat: polys.map((ring: LonLat[]) => ring.map((p) => [p[0], p[1]] as const)) };
+    const ring = (r: LonLat[]) => r.map((p) => [p[0], p[1]] as const);
+    const holes = c.holesLonLat;
+    if (holes !== undefined) {
+      const ok = Array.isArray(holes) && holes.length === polys.length && holes.every(
+        (hs) => Array.isArray(hs) && hs.every((h) => Array.isArray(h) && h.length >= 3 && h.every(isLonLat)),
+      );
+      if (!ok) throw new ObservationError(`${where}: coverage.holesLonLat must give one list of [lon, lat] rings per polygon`);
+    }
+    return {
+      kind: 'footprint',
+      polygonLonLat: polys.map(ring),
+      ...(holes ? { holesLonLat: (holes as LonLat[][][]).map((hs) => hs.map(ring)) } : {}),
+    };
   }
   if (!isLonLat(c.subObsLatLon) || typeof c.distanceKm !== 'number') {
     throw new ObservationError(`${where}: disk coverage needs subObsLatLon [lat, lon] and distanceKm`);
@@ -303,37 +339,82 @@ export function observationToCosmographia(
 }
 
 /**
- * The instants at which a group's footprints are drawn: every `obsRate`
- * seconds from the start (and the end), or — for `obsRate` 0, a continuous
- * swath — `alongTrackDivisions` equal steps. A zero-length group is one
- * instant. `until` truncates to the samples already reached, so a swath grows
- * as the clock advances; the instant `until` itself is included when it falls
- * inside a continuous group, so the swath's leading edge tracks the clock.
+ * The instants at which one group's footprints are drawn, as an O(1) index
+ * rather than an array: `count` samples, `at(i)` the i-th, and `reached(et)`
+ * how many the clock has passed. Nothing here allocates per sample, so a
+ * year-long group at `obsRate: 1` costs the same as a single frame.
+ *
+ *  - `obsRate > 0`: every `obsRate` seconds from the start, and the end.
+ *  - `obsRate` 0 (a continuous swath): `alongTrackDivisions` equal steps.
+ *  - A zero-length group: one instant.
+ *
+ * Past `maxSamples` the group is thinned to that many evenly spaced instants
+ * and `thinned` says so, so the caller can tell the viewer.
+ */
+export interface GroupSampling {
+  readonly count: number;
+  at(i: number): number;
+  /** Samples with `at(i) <= et`: indices `[0, reached(et))`. */
+  reached(et: number): number;
+  readonly thinned: boolean;
+}
+
+export function groupSampling(
+  group: ObservationGroup,
+  alongTrackDivisions = 100,
+  maxSamples = MAX_GROUP_SAMPLES,
+): GroupSampling {
+  const { startEt, endEt, obsRate } = group;
+  if (![startEt, endEt, obsRate].every(Number.isFinite) || endEt < startEt || obsRate < 0) {
+    throw new ObservationError(`group [${startEt}, ${endEt}] obsRate ${obsRate} is not a finite, ordered window`);
+  }
+  const max = Math.max(2, Math.floor(maxSamples));
+  const span = endEt - startEt;
+  if (span === 0) return { count: 1, at: () => startEt, reached: (et) => (et >= startEt ? 1 : 0), thinned: false };
+
+  // Natural sample count, computed rather than enumerated.
+  let natural: number;
+  if (obsRate > 0) {
+    const steps = Math.floor(span / obsRate);
+    natural = steps + 1 + (steps * obsRate < span ? 1 : 0);
+  } else {
+    const n = Number.isFinite(alongTrackDivisions) ? Math.max(1, Math.floor(alongTrackDivisions)) : 1;
+    natural = n + 1;
+  }
+
+  if (obsRate > 0 && natural <= max) {
+    const last = natural - 1;
+    return {
+      count: natural,
+      at: (i) => (i >= last ? endEt : startEt + i * obsRate),
+      reached: (et) => (et < startEt ? 0 : et >= endEt ? natural : Math.min(last, Math.floor((et - startEt) / obsRate) + 1)),
+      thinned: false,
+    };
+  }
+  const count = Math.min(natural, max);
+  const step = span / (count - 1);
+  return {
+    count,
+    at: (i) => (i >= count - 1 ? endEt : startEt + i * step),
+    reached: (et) => (et < startEt ? 0 : et >= endEt ? count : Math.min(count - 1, Math.floor((et - startEt) / step) + 1)),
+    thinned: natural > max,
+  };
+}
+
+/**
+ * Every sample instant of a group, up to `until`. A convenience over
+ * `groupSampling` for small groups and tests; bounded by `maxSamples`.
  */
 export function observationSampleTimes(
   group: ObservationGroup,
   alongTrackDivisions = 100,
   until = Infinity,
+  maxSamples = MAX_GROUP_SAMPLES,
 ): number[] {
-  const { startEt, endEt, obsRate } = group;
-  if (until < startEt) return [];
-  if (endEt === startEt) return [startEt];
+  const s = groupSampling(group, alongTrackDivisions, maxSamples);
+  const n = s.reached(until);
   const out: number[] = [];
-  if (obsRate > 0) {
-    for (let t = startEt; t < endEt && t <= until; t += obsRate) out.push(t);
-    if (endEt <= until) out.push(endEt);
-    return out;
-  }
-  const n = Math.max(1, Math.floor(alongTrackDivisions));
-  const step = (endEt - startEt) / n;
-  for (let i = 0; i <= n; i++) {
-    const t = i === n ? endEt : startEt + i * step;
-    if (t > until) {
-      out.push(until);
-      break;
-    }
-    out.push(t);
-  }
+  for (let i = 0; i < n; i++) out.push(s.at(i));
   return out;
 }
 

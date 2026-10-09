@@ -173,6 +173,26 @@ export function footprintFromFov(
   return out;
 }
 
+/**
+ * The sincpt/ilumin shape method for an observation's target, in order:
+ * the observation's own `surfaceMethod`; the target body's catalog
+ * `geometry.surfaceMethod`; `DSK/UNPRIORITIZED` when the target's catalog
+ * geometry names a DSK (`dsk`, or a `.bds` shape source); else `ELLIPSOID`.
+ * One rule for every target, so an irregular body is a catalog declaration,
+ * not a target-specific path.
+ */
+export function resolveSurfaceMethod(
+  observation: { surfaceMethod?: string },
+  targetGeometry: Record<string, unknown> | undefined,
+): string {
+  if (observation.surfaceMethod) return observation.surfaceMethod;
+  const g = targetGeometry ?? {};
+  if (typeof g.surfaceMethod === 'string' && g.surfaceMethod) return g.surfaceMethod;
+  const names = [g.dsk, g.source, g.shapeModel].filter((v): v is string => typeof v === 'string');
+  if (g.dsk !== undefined || names.some((n) => /\.bds$/i.test(n))) return 'DSK/UNPRIORITIZED';
+  return 'ELLIPSOID';
+}
+
 /** Planetocentric `[longitude east, latitude]` (degrees) of a body-fixed point. */
 export function bodyFixedToLonLat(p: Vec3): [number, number] {
   return [Math.atan2(p[1], p[0]) * DEG, Math.atan2(p[2], Math.hypot(p[0], p[1])) * DEG];

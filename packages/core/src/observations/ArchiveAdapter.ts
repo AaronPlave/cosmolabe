@@ -82,7 +82,14 @@ export function archiveToObservation(
 
   let coverage: ObservationCoverage;
   if (rec.footprint?.length) {
-    coverage = { kind: 'footprint', polygonLonLat: rec.footprint.map((poly) => poly[0]!) };
+    // Every ring is kept: an interior ring is an exclusion inside the outline,
+    // and filling it would claim coverage the product does not have.
+    const holes = rec.footprint.map((poly) => poly.slice(1));
+    coverage = {
+      kind: 'footprint',
+      polygonLonLat: rec.footprint.map((poly) => poly[0]!),
+      ...(holes.some((h) => h.length > 0) ? { holesLonLat: holes } : {}),
+    };
   } else if (rec.disk) {
     coverage = {
       kind: 'disk',

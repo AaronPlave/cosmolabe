@@ -8,6 +8,9 @@
 //    archive campaign key (OPUS `CASSINIobsname`), one interval per campaign,
 //    labels raw. The grouping is `campaignSpans`, which never decodes the key;
 //    decoding `ISS_000RI_SOISPTURN183_SP` into its parts would belong here.
+//    A campaign's interval is its envelope — first frame to last — not
+//    continuous imaging, so the lane says so and a second lane ticks the
+//    individual frames inside it.
 //  - an info section naming a selected observation's campaign and frames.
 //
 // Delete this file and its registration, and the footprints still render;
@@ -62,12 +65,28 @@ export class CassiniMissionPlugin implements RendererPlugin {
     timelineTracks: [
       {
         id: 'cassini-campaigns',
-        label: 'ISS campaigns',
+        label: 'ISS campaigns (span)',
         color: COLOR,
         getIntervals: (startEt: number, endEt: number, ctx: RendererContext) =>
           this.campaigns(ctx.universe)
             .filter((s) => s.endEt >= startEt && s.startEt <= endEt)
-            .map((s) => ({ startEt: s.startEt, endEt: s.endEt, label: s.campaign })),
+            .map((s) => {
+              const frames = s.observations.reduce((n, o) => n + o.groups.length, 0);
+              return { startEt: s.startEt, endEt: s.endEt, label: `${s.campaign} · ${frames} frame${frames === 1 ? '' : 's'}` };
+            }),
+      },
+      {
+        id: 'cassini-frames',
+        label: 'ISS frames',
+        color: COLOR,
+        getIntervals: (startEt: number, endEt: number, ctx: RendererContext) =>
+          this.campaigns(ctx.universe).flatMap((s) =>
+            s.observations.flatMap((o) =>
+              o.groups
+                .filter((g) => g.endEt >= startEt && g.startEt <= endEt)
+                .map((g) => ({ startEt: g.startEt, endEt: g.endEt, label: s.campaign })),
+            ),
+          ),
       },
     ],
     infoSections: [

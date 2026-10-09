@@ -23,6 +23,14 @@ export interface BodyVisualizer {
     ctx: RendererContext,
   ): void;
 
+  /**
+   * The parts of the visual a click should hit, for picking. Optional: a
+   * visualizer without it is not pickable (its body's hidden placeholder
+   * sphere is not raycast). Lines are best left out — a raycaster's line
+   * threshold is in world units and catches everything at scene scale.
+   */
+  pickTargets?(object: THREE.Object3D): THREE.Object3D[];
+
   /** Clean up GPU resources. */
   dispose?(object: THREE.Object3D): void;
 }

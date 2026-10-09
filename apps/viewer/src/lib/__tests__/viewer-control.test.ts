@@ -225,6 +225,11 @@ function makeFakeRenderer(objects: string[]) {
     setLightingMode: (m: string) => log(`setLightingMode(${m})`),
     getContext: () => ({ canvas: { toDataURL: () => 'data:image/png;base64,AAA' }, renderFrame: () => log('renderFrame') }),
     getPlugins: () => [],
+    getObservationsVisualizer: () => ({
+      setFocus: (names: Iterable<string>) => log(`setObservationFocus(${[...names].join(',')})`),
+      setShowAll: (on: boolean) => log(`setShowAllObservations(${on})`),
+      showingAll: false,
+    }),
   };
   return renderer;
 }

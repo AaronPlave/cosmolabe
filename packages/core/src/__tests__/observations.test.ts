@@ -22,6 +22,8 @@ import {
   observationFromSensorActive,
   observationToCosmographia,
   observationSampleTimes,
+  groupSampling,
+  MAX_GROUP_SAMPLES,
   observationActiveAt,
   ObservationError,
 } from '../observations/Observation.js';
@@ -34,6 +36,9 @@ import {
   type FootprintGeometryProvider,
 } from '../observations/computeFootprint.js';
 import { archiveToObservation, archiveTimeToEt, campaignSpans } from '../observations/ArchiveAdapter.js';
+import { resolveSurfaceMethod } from '../observations/computeFootprint.js';
+import { createSpiceEngine } from 'cspice-wasm';
+import { arrokothDskScene, CAMERA, ARROKOTH } from './_harness/arrokoth-dsk.js';
 import type { Vec3 } from '../spice-injection.js';
 
 const parseNumber = (v: string | number) => (typeof v === 'number' ? v : Number(v));
@@ -126,24 +131,50 @@ describe('sensor `active` windows', () => {
   });
 });
 
-describe('observationSampleTimes', () => {
-  it('obsRate > 0 gives discrete footprints every obsRate seconds', () => {
+describe('group sampling', () => {
+  it('obsRate > 0 gives discrete footprints every obsRate seconds, and the end', () => {
     expect(observationSampleTimes({ startEt: 0, endEt: 25, obsRate: 10 })).toEqual([0, 10, 20, 25]);
+    expect(observationSampleTimes({ startEt: 0, endEt: 20, obsRate: 10 })).toEqual([0, 10, 20]);
   });
 
   it('obsRate 0 gives a continuous swath of alongTrackDivisions steps', () => {
-    const t = observationSampleTimes({ startEt: 0, endEt: 100, obsRate: 0 }, 4);
-    expect(t).toEqual([0, 25, 50, 75, 100]);
+    expect(observationSampleTimes({ startEt: 0, endEt: 100, obsRate: 0 }, 4)).toEqual([0, 25, 50, 75, 100]);
   });
 
-  it('grows with the clock: discrete stamps only once reached, a swath up to the instant', () => {
-    expect(observationSampleTimes({ startEt: 0, endEt: 25, obsRate: 10 }, 4, 12)).toEqual([0, 10]);
-    expect(observationSampleTimes({ startEt: 0, endEt: 100, obsRate: 0 }, 4, 60)).toEqual([0, 25, 50, 60]);
-    expect(observationSampleTimes({ startEt: 0, endEt: 100, obsRate: 0 }, 4, -1)).toEqual([]);
+  it('reached() counts only the samples the clock has passed', () => {
+    const s = groupSampling({ startEt: 0, endEt: 25, obsRate: 10 });
+    expect([-1, 0, 9.9, 10, 22, 25, 99].map((t) => s.reached(t))).toEqual([0, 1, 1, 2, 3, 4, 4]);
+    const w = groupSampling({ startEt: 0, endEt: 100, obsRate: 0 }, 4);
+    expect([-1, 0, 60, 100].map((t) => w.reached(t))).toEqual([0, 1, 3, 5]);
   });
 
   it('a zero-length window is one instant', () => {
     expect(observationSampleTimes({ startEt: 7, endEt: 7, obsRate: 0 })).toEqual([7]);
+  });
+
+  it('stress: a year at obsRate 1 is O(1), thinned to MAX_GROUP_SAMPLES rather than allocated', () => {
+    const year = 365.25 * 86400;
+    const t0 = performance.now();
+    const s = groupSampling({ startEt: 0, endEt: year, obsRate: 1 });
+    expect(s.count).toBe(MAX_GROUP_SAMPLES);
+    expect(s.thinned).toBe(true);
+    expect(s.at(0)).toBe(0);
+    expect(s.at(s.count - 1)).toBe(year);
+    expect(s.reached(year / 2)).toBeCloseTo(MAX_GROUP_SAMPLES / 2, -1);
+    for (let i = 0; i < 1000; i++) s.reached(Math.random() * year);
+    expect(performance.now() - t0).toBeLessThan(50);
+  });
+
+  it('rejects non-finite and pathological windows, rates and division counts', () => {
+    expect(() => groupSampling({ startEt: 0, endEt: Infinity, obsRate: 1 })).toThrow(ObservationError);
+    expect(() => groupSampling({ startEt: 0, endEt: 1, obsRate: NaN })).toThrow(ObservationError);
+    const bad = (g: Record<string, unknown>) => () =>
+      observationFromCosmographia('Obs', 'Saturn', { sensor: 'S', groups: [{ startTime: 0, endTime: 1 }], ...g }, parseNumber);
+    expect(() => observationFromCosmographia('Obs', 'Saturn', { sensor: 'S', groups: [{ startTime: 0, endTime: 1, obsRate: Infinity }] }, parseNumber))
+      .toThrow(/obsRate/);
+    expect(bad({ alongTrackDivisions: 1e9 })).toThrow(/alongTrackDivisions must be a whole number/);
+    expect(bad({ sideDivisions: 2.5 })).toThrow(/sideDivisions/);
+    expect(bad({ sideDivisions: NaN })).toThrow(/sideDivisions must be a finite number/);
   });
 });
 
@@ -223,13 +254,19 @@ describe('archive ingest', () => {
     expect(obs).toMatchObject({ name: 'co-iss-n1467344155', target: 'Saturn', campaign: 'ISS_000RI_SOISPTURN183_SP', archive: 'OPUS' });
   });
 
-  it('prefers a given footprint, keeping exterior rings', () => {
-    const ring = [[10, -88], [11, -88], [11, -89], [10, -88]] as const;
+  it('prefers a given footprint, keeping its holes rather than filling them', () => {
+    const outer = [[10, -80], [20, -80], [20, -90], [10, -80]] as const;
+    const hole = [[14, -84], [16, -84], [16, -86], [14, -84]] as const;
     const obs = archiveToObservation(
-      { archive: 'ODE', id: 'M1', startTime: '2025-01-15T10:00:00', timeSystem: 'UTC', target: 'MOON', footprint: [[ring, ring]], disk: opusRow.disk },
+      { archive: 'ODE', id: 'M1', startTime: '2025-01-15T10:00:00', timeSystem: 'UTC', target: 'MOON', footprint: [[outer, hole], [outer]], disk: opusRow.disk },
       (s) => spice.str2et(s),
     );
-    expect(obs.coverage).toEqual({ kind: 'footprint', polygonLonLat: [ring] });
+    expect(obs.coverage).toEqual({ kind: 'footprint', polygonLonLat: [outer, outer], holesLonLat: [[hole], []] });
+    const plain = archiveToObservation(
+      { archive: 'ODE', id: 'M2', startTime: '2025-01-15T10:00:00', timeSystem: 'UTC', target: 'MOON', footprint: [[outer]] },
+      (s) => spice.str2et(s),
+    );
+    expect(plain.coverage).toEqual({ kind: 'footprint', polygonLonLat: [outer] });
   });
 
   it('warns loudly on a target mismatch and keeps the archive target', () => {
@@ -400,5 +437,97 @@ describe('the Cassini demo catalog (apps/viewer/test-catalogs/cassini-observatio
     });
     expect(observations.reduce((n, o) => n + o.groups.length, 0)).toBe(514);
     expect(campaignSpans(observations)).toHaveLength(22);
+  });
+});
+
+describe('resolveSurfaceMethod', () => {
+  it('observation, then target declaration, then a DSK-named shape, then the ellipsoid', () => {
+    expect(resolveSurfaceMethod({ surfaceMethod: 'DSK/UNPRIORITIZED' }, undefined)).toBe('DSK/UNPRIORITIZED');
+    expect(resolveSurfaceMethod({}, { surfaceMethod: 'DSK/UNPRIORITIZED' })).toBe('DSK/UNPRIORITIZED');
+    expect(resolveSurfaceMethod({}, { type: 'Mesh', dsk: 'shape.bds' })).toBe('DSK/UNPRIORITIZED');
+    expect(resolveSurfaceMethod({}, { type: 'Mesh', source: 'models/67P.BDS' })).toBe('DSK/UNPRIORITIZED');
+    expect(resolveSurfaceMethod({}, { type: 'Globe', radius: 2575 })).toBe('ELLIPSOID');
+    expect(resolveSurfaceMethod({}, undefined)).toBe('ELLIPSOID');
+  });
+});
+
+// ── an irregular DSK surface ────────────────────────────────────────────────
+
+describe('computeFootprint on a DSK (Arrokoth low-poly shape, runtime engine)', () => {
+  type V = [number, number, number];
+  let provider: FootprintGeometryProvider;
+  let et: number;
+  let verts: Float64Array | number[];
+  let plates: Int32Array | number[];
+
+  beforeAll(async () => {
+    const scene = await arrokothDskScene();
+    provider = footprintGeometryProviderOf(scene.spice)!;
+    et = scene.et;
+    const engine = await createSpiceEngine();
+    const shape = await engine.readDsk(
+      'mu69_lopoly.bds',
+      new Uint8Array(readFileSync(join(__dirname, '../../../../kernels/fixtures/mu69_lopoly.bds'))),
+    );
+    verts = shape.vertices;
+    plates = shape.plates;
+  });
+
+  const footprint = (method: string) =>
+    computeFootprint(provider, {
+      instrumentId: CAMERA,
+      target: String(ARROKOTH),
+      observer: 'DSK_TEST_CRAFT',
+      fixref: 'MU69_FIXED',
+      et,
+      abcorr: 'NONE',
+      sideDivisions: 3,
+      method,
+    });
+
+  /** Nearest hit of a ray on the plate model, by Möller–Trumbore over every
+   *  plate: an intersection computed without SPICE. */
+  function rayMesh(origin: V, dir: V): V | null {
+    let best = Infinity;
+    const v = (k: number): V => [verts[3 * k]!, verts[3 * k + 1]!, verts[3 * k + 2]!];
+    for (let p = 0; p < plates.length; p += 3) {
+      const a = v(plates[p]!), b = v(plates[p + 1]!), c = v(plates[p + 2]!);
+      const e1: V = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      const e2: V = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const h: V = [dir[1] * e2[2] - dir[2] * e2[1], dir[2] * e2[0] - dir[0] * e2[2], dir[0] * e2[1] - dir[1] * e2[0]];
+      const det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
+      if (Math.abs(det) < 1e-12) continue;
+      const s: V = [origin[0] - a[0], origin[1] - a[1], origin[2] - a[2]];
+      const u = (s[0] * h[0] + s[1] * h[1] + s[2] * h[2]) / det;
+      if (u < 0 || u > 1) continue;
+      const q: V = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]];
+      const w = (dir[0] * q[0] + dir[1] * q[1] + dir[2] * q[2]) / det;
+      if (w < 0 || u + w > 1) continue;
+      const t = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) / det;
+      if (t > 0 && t < best) best = t;
+    }
+    return best === Infinity ? null : [origin[0] + best * dir[0], origin[1] + best * dir[1], origin[2] + best * dir[2]];
+  }
+
+  it('every intercept is where the ray meets the DSK plates, computed independently', () => {
+    const f = footprint(resolveSurfaceMethod({}, { type: 'Mesh', dsk: 'mu69_lopoly.bds' }));
+    expect(f.complete).toBe(true);
+    const fov = provider.getfov(CAMERA);
+    const rays = [...fovBoundaryRays(fov, 3), fov.boresight];
+    const points = [...f.boundary, f.boresight];
+    const camera: V = [0, 0, -100]; // the scene's camera, in the (identity) body frame
+    for (let i = 0; i < rays.length; i++) {
+      const ours = points[i]!;
+      const truth = rayMesh(camera, rays[i]! as V)!;
+      expect(truth).not.toBeNull();
+      expect(Math.hypot(ours[0] - truth[0], ours[1] - truth[1], ours[2] - truth[2])).toBeLessThan(1e-6);
+    }
+    expect(f.illumination!.phaseDeg).toBeCloseTo(45, 4); // Sun at 45° from the camera, by construction
+  });
+
+  it('mutation guard: the ellipsoid method lands somewhere else on this body', () => {
+    const dsk = footprint('DSK/UNPRIORITIZED').boresight!;
+    const ell = footprint('ELLIPSOID').boresight!;
+    expect(Math.hypot(dsk[0] - ell[0], dsk[1] - ell[1], dsk[2] - ell[2])).toBeGreaterThan(1); // km
   });
 });
