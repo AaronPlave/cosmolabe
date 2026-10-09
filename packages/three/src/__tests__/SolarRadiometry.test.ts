@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { solarIrradiance, SOLAR_CENTER_RADIANCE, SOLAR_REFERENCE_DISTANCE_KM, SOLAR_RADIUS_KM } from '../SolarRadiometry.js';
+import { solarIrradiance, solarDisplayExposure, SOLAR_CENTER_RADIANCE, SOLAR_REFERENCE_DISTANCE_KM, SOLAR_RADIUS_KM } from '../SolarRadiometry.js';
 import { normalizeAtmosphere, transmittanceToSpace } from '../AtmosphereModel.js';
 import { getAtmospherePreset } from '../AtmosphereMesh.js';
 
@@ -20,6 +20,14 @@ it('extinction alone does not introduce a reference-sphere horizon', () => {
   const ray: [number,number,number] = [-0.01, Math.sqrt(1-0.01**2),0];
   expect(transmittanceToSpace(model,6371,origin,ray)).toEqual([0,0,0]);
   expect(transmittanceToSpace(model,6371,origin,ray,128,false)).toEqual([1,1,1]);
+});
+
+it('adapts shared display exposure to outer-system light without boosting HDR radiance', () => {
+  const earth = solarIrradiance(SOLAR_REFERENCE_DISTANCE_KM);
+  const titan = solarIrradiance(9.5*SOLAR_REFERENCE_DISTANCE_KM);
+  expect(earth[0]/titan[0]).toBeCloseTo(9.5**2,8);
+  earth.forEach((v,i) => expect(v*solarDisplayExposure(SOLAR_REFERENCE_DISTANCE_KM))
+    .toBeCloseTo(titan[i]*solarDisplayExposure(9.5*SOLAR_REFERENCE_DISTANCE_KM),8));
 });
 
 it.each(['Earth','Venus','Titan'])('%s does not turn a grazing direct solar source blue', name => {

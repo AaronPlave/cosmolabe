@@ -5,7 +5,7 @@ import { normalizeAtmosphere, type AtmosphereModel } from './AtmosphereModel.js'
 import { ATMOSPHERE_PROFILES_GLSL, makeAtmosphereProfileUniforms } from './AtmosphereProfiles.js';
 import { buildTransmittanceLUT } from './TransmittanceLUT.js';
 import { SkyViewLUT, SKY_VIEW_BASIS_GLSL } from './SkyViewLUT.js';
-import { SOLAR_DISPLAY_GLSL, solarIrradiance, SOLAR_REFERENCE_DISTANCE_KM } from './SolarRadiometry.js';
+import { SOLAR_DISPLAY_GLSL, solarIrradiance, SOLAR_REFERENCE_DISTANCE_KM, solarDisplayExposure, makeSolarDisplayUniforms } from './SolarRadiometry.js';
 
 /**
  * Atmosphere scattering parameters for a body.
@@ -74,8 +74,10 @@ const ATMOSPHERE_PRESETS: Record<string, AtmosphereParams> = {
     mieCoeff: 0.0040,
     mieScaleHeight: 50.0,
     miePhaseAsymmetry: -0.4,
-    // Molecular Rayleigh increases toward blue; tholin color is absorption.
-    rayleighCoeff: [0.0004, 0.0010, 0.0035],
+    // Legacy effective broad-angle tholin haze, not isolated molecular
+    // Rayleigh. Its total extinction (including blue absorption) already
+    // reddens direct sunlight; preserve its established orbital appearance.
+    rayleighCoeff: [0.0035, 0.0015, 0.0004],
     // Heavy blue absorption from methane/tholins
     absorptionCoeff: [0.0005, 0.0015, 0.0050],
   },
@@ -529,6 +531,7 @@ export class AtmosphereMesh extends THREE.Mesh {
     const geometry = new THREE.SphereGeometry(1.15, renderer ? 256 : 1024, renderer ? 128 : 512);
     const material = new THREE.ShaderMaterial({
       uniforms: {
+        ...makeSolarDisplayUniforms(),
         ...makeAtmosphereProfileUniforms(model, shellRadius, planetRadius / shellRadius, 1, null),
         planetR:        { value: 0 },
         planetCapBias:  { value: 0 },
@@ -637,6 +640,8 @@ export class AtmosphereMesh extends THREE.Mesh {
       const distanceKm = sunWorldPos.distanceTo(planetWorldPos) * this.shellRadius / shellSceneScale;
       const radiusKm = sunRadius * this.shellRadius / shellSceneScale;
       u.lightColor.value.set(...solarIrradiance(distanceKm, radiusKm));
+      const observerDistanceKm = sunWorldPos.distanceTo(cameraWorldPos) * this.shellRadius / shellSceneScale;
+      u.uSolarExposure.value = solarDisplayExposure(observerDistanceKm, radiusKm);
     }
 
     // Cache camera altitude + local-space directions for getDaytimeSkyBrightness()

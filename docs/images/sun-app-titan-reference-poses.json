@@ -1,0 +1,119 @@
+[
+  {
+    "size": "front",
+    "preset": "Titan",
+    "altitudeKm": 200,
+    "sunRGB": [
+      133,
+      137,
+      120
+    ],
+    "skyRGB": [
+      134,
+      138,
+      121
+    ],
+    "diameterPixels": 0.6776245507207581,
+    "camera": {
+      "position": [
+        -2879.555348720737,
+        0,
+        7168.248460652978
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fov": 60
+    },
+    "drawingBuffer": [
+      1280,
+      800
+    ],
+    "solarDistanceAU": 9.5
+  },
+  {
+    "size": "back",
+    "preset": "Titan",
+    "altitudeKm": 200,
+    "sunRGB": [
+      1,
+      1,
+      1
+    ],
+    "skyRGB": [
+      1,
+      1,
+      0
+    ],
+    "diameterPixels": 0.6776171841280277,
+    "camera": {
+      "position": [
+        2879.555348720737,
+        0,
+        -7168.248460652978
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fov": 60
+    },
+    "drawingBuffer": [
+      1280,
+      800
+    ],
+    "solarDistanceAU": 9.5
+  },
+  {
+    "size": "sunrise",
+    "preset": "Titan",
+    "altitudeKm": 200,
+    "sunRGB": [
+      58,
+      59,
+      57
+    ],
+    "skyRGB": [
+      0,
+      0,
+      0
+    ],
+    "diameterPixels": 5.594768223776264,
+    "camera": {
+      "position": [
+        2775.0000000423825,
+        0,
+        0
+      ],
+      "target": [
+        -529755704.22924703,
+        0,
+        1318752394.5495496
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ],
+      "fov": 8
+    },
+    "drawingBuffer": [
+      1280,
+      800
+    ],
+    "solarDistanceAU": 9.5
+  }
+]

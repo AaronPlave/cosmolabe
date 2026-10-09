@@ -233,6 +233,50 @@ try {
   console.log('Rendered horizon regression:',horizon);
   assert.ok(horizon.compared>300,'horizon regression must sample visible photosphere rays');
   await page.screenshot({path:'work/sun-rendering/viewer-horizon-depth.png'});
+  const titan = await page.evaluate(async () => {
+    const { Universe, UniverseRenderer } = await import('/bundle.js');
+    window.solarViewer.dispose();
+    const results=[];
+    for (const au of [1,9.5]) {
+      const u=new Universe();
+      u.loadCatalog({name:'Titan orbital haze',items:[
+        {name:'Titan',class:'planet',trajectory:{type:'FixedPoint',position:[0,0,0]},
+          geometry:{type:'Globe',radius:2575,atmosphere:'Titan'}},
+        {name:'Sun',class:'star',trajectory:{type:'FixedPoint',position:[0,0,149597870*au]},
+          geometry:{type:'Globe',radius:695000}},
+      ]});
+      const v=new UniverseRenderer(document.querySelector('canvas'),u,{scaleFactor:0.001,
+        minBodyPixels:0,showStars:false,showLabels:false,showTrajectories:false});
+      v.timeController.pause(); v.cameraController.controls.enableDamping=false;
+      // Black surface isolates scattered haze from normalized surface lighting.
+      v.getBodyMesh('Titan').mesh.material.color.set(0);
+      const c=v.camera, gl=v.renderer.getContext();
+      const views={};
+      for(const side of ['front','back']) {
+        c.position.set(0,0,7.725*(side==='front'?1:-1)); c.up.set(0,1,0);
+        v.cameraController.controls.target.set(0,0,0); c.lookAt(0,0,0); c.updateMatrixWorld(true); v.renderFrame();
+        const p=new Uint8Array(768*512*4); gl.readPixels(0,0,768,512,gl.RGBA,gl.UNSIGNED_BYTE,p);
+        const sum=[0,0,0]; let count=0;
+        for(let y=70;y<442;y++) for(let x=198;x<570;x++) {
+          const radius=Math.hypot(x-384,y-256);
+          if(side==='front' ? radius>70 : radius<156||radius>166) continue;
+          const i=(y*768+x)*4; sum.forEach((_,j)=>sum[j]+=p[i+j]); count++;
+        }
+        views[side]=sum.map(v=>v/count);
+      }
+      const a=[...v.atmosphereMeshes.values()][0].atm;
+      results.push({au,...views,irradiance:a.material.uniforms.lightColor.value.x,
+        exposure:a.material.uniforms.uSolarExposure.value});
+      v.dispose();
+    }
+    return results;
+  });
+  console.log('Titan orbital haze:',titan);
+  assert.ok(titan[1].front[0]>15,'Titan front haze must remain visible at Saturn distance');
+  assert.ok(titan[1].back[0]>8,'Titan backlit limb must remain visible at Saturn distance');
+  for(const view of ['front','back']) titan[0][view].forEach((v,i)=>
+    assert.ok(Math.abs(v-titan[1][view][i])<3,'shared exposure must preserve outer-system haze presentation'));
+  assert.ok(titan[0].irradiance/titan[1].irradiance>80,'physical irradiance must still dim with distance');
   assert.equal(errors.length, 0, errors.join('\n'));
   console.log('Production solar/atmosphere/surface-tile GPU integration passed.');
 } finally { await browser.close(); }

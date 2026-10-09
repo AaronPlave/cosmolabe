@@ -107,6 +107,7 @@ try {
     const horizonHDR = sourcePixel();
     draw();
     const horizonDisk = pixel(384, 256);
+    const horizonExposure = solar.uniforms.uSolarExposure.value;
     const horizonHalo = pixel(Math.round(384 + radius + 3), 256);
     const horizonHiddenHalo = pixel(384, Math.round(256 - radius - 3));
     const horizonVisibleHalo = pixel(384, Math.round(256 + radius + 3));
@@ -144,7 +145,7 @@ try {
     camera.updateMatrixWorld();
     draw();
     window.solarTest = { camera, solar, sun, glare, scene, renderer, draw, blocker, atm, overlay };
-    return { center, limb, halo, tail, occulted, occultedDisk, partialHalo, partialVisibleHalo, closeProfile, unresolvedOcculted, hdr, horizonHDR, horizonLUT, horizonDisk, horizonHalo, horizonHiddenHalo, horizonVisibleHalo, transition, noSun, stateRestored, physicalScale: sun.scale.toArray() };
+    return { center, limb, halo, tail, occulted, occultedDisk, partialHalo, partialVisibleHalo, closeProfile, unresolvedOcculted, hdr, horizonHDR, horizonLUT, horizonDisk, horizonExposure, horizonHalo, horizonHiddenHalo, horizonVisibleHalo, transition, noSun, stateRestored, physicalScale: sun.scale.toArray() };
   });
   console.log(JSON.stringify(result, null, 2));
   assert.equal(errors.length, 0, errors.join('\n'));
@@ -165,7 +166,7 @@ try {
   assert.ok(result.horizonHDR[2] / result.horizonHDR[0] < result.hdr[2] / result.hdr[0] * 0.5, 'grazing atmosphere must redden source');
   assert.ok(result.horizonDisk[0] > result.horizonDisk[2], 'display disk retains atmospheric reddening');
   const encode = v => 255 * (v <= 0.0031308 ? 12.92*v : 1.055*v**(1/2.4)-0.055);
-  result.horizonDisk.forEach((v,i) => assert.ok(Math.abs(v-encode(0.94*Math.cbrt(result.horizonHDR[i]/3.2))) < 3,
+  result.horizonDisk.forEach((v,i) => assert.ok(Math.abs(v-encode(0.94*result.horizonHDR[i]*result.horizonExposure/(1+result.horizonHDR[i]*result.horizonExposure))) < 3,
     'direct display must use the shared radiance response, not a low-altitude gain'));
   assert.ok(result.horizonHalo[0] < result.halo[0] && result.horizonHalo[2] < result.horizonHalo[0], 'glare follows atmospheric dimming/reddening');
   assert.ok(result.horizonLUT.every((v, i) => Math.abs(v - result.horizonHDR[i]) < 0.1), 'LUT and numerical profile paths agree');

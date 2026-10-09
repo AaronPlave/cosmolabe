@@ -8,8 +8,9 @@ its catalog radius even when `minBodyPixels` is nonzero.
 The disk uses a broadband linear limb-darkening profile, `0.4 + 0.6 * mu`, and
 warm-white linear HDR radiance `(3.2, 3.08, 2.88)`. `mu` is the normal/view cosine
 at the actual sphere surface, including perspective at close range. Direct solar
-and scattered atmospheric radiance share the fixed display response
-`0.94 * (radiance / 3.2)^(1/3)`. The resolved disk applies its limb profile after
+and scattered atmospheric radiance share the display response
+`0.94 * exposedRadiance / (1 + exposedRadiance)`, with one observer exposure
+for the disk, atmosphere shells, and terrain aerial perspective. The resolved disk applies its limb profile after
 that response to preserve visualization contrast; atmospheric attenuation uses
 the same response as sky light. Low-contrast procedural granulation
 fades in between 512 and 1400 physical pixels, with derivative filtering to avoid
@@ -59,7 +60,7 @@ scales its halo. Generic bloom still handles other emissive content and skips it
 scene/blur passes when that layer is empty. Solar glare skips its source pass
 when the Sun and halo are outside the viewport.
 
-This is a fixed-exposure approximation, not calibrated photometry. It uses the
+This is an adapted-exposure visualization, not calibrated photometry. It uses the
 first atmosphere crossed on the viewing ray; simultaneous transmission through
 multiple planetary atmospheres and eclipse corona are outside this first pass.
 The 32-sample quadrature approximates partial-disk optical flux rather than
@@ -77,13 +78,22 @@ terrain aerial-perspective inscatter use that irradiance instead of an unrelated
 unit light source. Both LUT and numerical shell paths apply the shared display
 response; the HDR optical source remains linear. This establishes a common
 direct-source/sky convention without introducing a low-altitude solar gain.
+Exposure is the inverse red-channel solar irradiance at the observer. This
+matches the viewer's normalized surface lighting: outer-system textures remain
+normally lit, so their atmospheres must not become disproportionately dark.
+Physical HDR irradiance still falls with distance squared; exposure affects only
+the shared display response. The same exposure applies to direct sunlight and
+scattered light, rather than adding a low-altitude Sun-only gain.
 It is a scoped relative-unit visualization, not a scene-wide HDR compositor or
 an absolute luminance calibration of every existing body material.
 
 Venus's former red-heavy Rayleigh/absorption coefficients were atmosphere-color
 tuning that produced an inverted direct filter. They now increase toward blue.
-Titan's molecular Rayleigh also increases toward blue; its retained blue
-absorption produces the warm tholin haze. Earth keeps its wavelength-dependent
+Titan retains its original effective broad-angle tholin scattering preset.
+These coefficients represent legacy haze tuning rather than isolated molecular
+Rayleigh; together with blue absorption, its total extinction already reddens
+direct sunlight. Replacing that tuning changed its orbital color and phase
+appearance unnecessarily. Earth keeps its wavelength-dependent
 Rayleigh and ozone profiles. Mars retains colored dust scattering/extinction,
 which can physically favor blue direct sunlight. These remain approximate
 presets rather than measured wavelength-resolved atmosphere models.
@@ -119,9 +129,15 @@ solar pixel must match the atmosphere-hidden reference depth boundary; this
 explicitly catches a second analytic horizon even when density is zero. It
 reports warm-frame and glare timings with synchronous software WebGL; these
 are fixture measurements, not hardware GPU performance estimates.
-In the 768×512 reference run, the 256-mesh fixture used one solar source proxy,
-a 126×126 source region (4.04% of the target), and averaged 1.9 ms for glare
-within a 7.4 ms frame over six warm, synchronously completed software frames.
+In the 768×512 reference run, the 256-mesh fixture uses one solar source proxy
+and a 126×126 source region (4.04% of the target).
+
+The same production check renders Titan from the front and back at both 1 AU
+and 9.5 AU. A black surface isolates scattered haze from surface lighting.
+Front-disk and back-limb output pixels must remain visible and match within
+three channel levels between distances, while HDR irradiance still decreases
+by more than 80×. This catches the outer-system exposure regression that a
+1 AU sunrise capture missed.
 
 These images are synthetic GPU scenes using the production shaders, not
 mission-epoch or solar-surface imagery. The horizon example deliberately uses a
@@ -159,7 +175,7 @@ large disk to expose transmission gradients and ground masking.
 
 These four images come from the running Svelte viewer app with its UI, bloom
 enabled, and the production renderer. The self-contained fixed-point catalog
-preserves the physical Earth/Sun radii and places the Sun at Earth's spherical
+preserves the physical Earth/Sun radii, uses 1 AU solar distance, and places the Sun at Earth's spherical
 horizon for the final view. Space apparent sizes are set by camera distance.
 This is a reproducible visual reference rather than an epoch-specific SPICE
 scene or a golden-image test. The photosphere/granulation mapping is unchanged.
@@ -199,21 +215,23 @@ brighter than neighboring sky under the shared radiance/display convention.
 ```sh
 SOLAR_REFERENCE_PRESET=Venus CHROMIUM_PATH=/usr/bin/chromium node scripts/capture-sun-viewer.mjs
 SOLAR_REFERENCE_PRESET=Mars CHROMIUM_PATH=/usr/bin/chromium node scripts/capture-sun-viewer.mjs
+git lfs pull -I apps/viewer/test-catalogs/textures/titan.dds
 SOLAR_REFERENCE_PRESET=Titan CHROMIUM_PATH=/usr/bin/chromium node scripts/capture-sun-viewer.mjs
 ```
 
-These reference views use the same physical Sun at approximately 1 AU, with
-cameras at 50 km (Venus), 10 km (Mars), and 200 km (Titan), where direct sunlight
-is visible through each model. Each script checks the displayed Sun's luminance
+These reference views use the physical Sun at 0.72 AU (Venus), 1.52 AU (Mars),
+and 9.5 AU (Titan), with cameras at 50 km, 10 km, and 200 km respectively, where
+direct sunlight is visible through each model. `SOLAR_REFERENCE_AU` overrides
+the solar distance for comparisons. Each script checks the displayed Sun's luminance
 against adjacent sky and the absence of inverted blue filtering for
 Earth/Venus/Titan. Mars's moderate blue direct filtering is retained.
 
 | Preset | Sun RGB | Adjacent sky RGB |
 | --- | --- | --- |
-| Earth | 152, 127, 67 | 24, 20, 13 |
-| Venus | 98, 54, 37 | 20, 11, 9 |
-| Mars | 75, 87, 92 | 16, 18, 18 |
-| Titan | 133, 104, 42 | 24, 18, 8 |
+| Earth | 241, 241, 222 | 32, 21, 5 |
+| Venus | 240, 177, 89 | 22, 3, 2 |
+| Mars | 236, 240, 241 | 10, 14, 14 |
+| Titan | 58, 59, 57 | 0, 0, 0 |
 
 These are sampled output pixels, not physical radiance measurements. The camera
 poses and sample coordinates are reproducible through the capture script.
@@ -223,3 +241,16 @@ poses and sample coordinates are reproducible through the capture script.
 ![Mars dust-filtered direct sunlight](images/sun-app-mars-sunrise.png)
 
 ![Titan tholin-filtered direct sunlight](images/sun-app-titan-sunrise.png)
+
+
+### Titan orbital atmosphere at Saturn's distance
+
+The front and back views use the catalog Titan DDS surface map and the restored
+haze preset at 9.5 AU. The front view preserves haze over the visible surface;
+the back view retains its atmospheric limb. These are fixed reference poses,
+not mission-epoch scenes. [Titan camera poses](images/sun-app-titan-reference-poses.json)
+record solar distance, camera geometry, and drawing buffer.
+
+![Titan front-lit orbital haze at 9.5 AU](images/sun-app-titan-front.png)
+
+![Titan back-lit atmospheric limb at 9.5 AU](images/sun-app-titan-back.png)

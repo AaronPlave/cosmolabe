@@ -773,6 +773,7 @@ export class UniverseRenderer {
           const apu = this.aerialPerspectiveUniforms.get(parentName);
           if (apu) {
             apu.uAPLightColor.value.copy((atm.material as THREE.ShaderMaterial).uniforms.lightColor.value);
+            apu.uSolarExposure.value = (atm.material as THREE.ShaderMaterial).uniforms.uSolarExposure.value;
             const sf = this.scaleFactor;
             apu.uAPCameraWorldPos.value.copy(this.camera.position);
             apu.uAPSunWorldPos.value.copy(sunPos);
@@ -999,7 +1000,7 @@ export class UniverseRenderer {
     for (const [mesh, solar] of this.solarSources) {
       const center = mesh.getWorldPosition(new THREE.Vector3());
       const owner = mesh.parent as BodyMesh;
-      solar.update(this.camera, center, owner.displayRadius * this.scaleFactor, bufferHeight);
+      solar.update(this.camera, center, owner.displayRadius * this.scaleFactor, bufferHeight, owner.displayRadius);
       solar.selectAtmosphere(this.camera, center, atmospheres);
       if (!this.bloomEffect?.enabled) solar.uniforms.resolvedWeight.value = 1;
     }

@@ -11,12 +11,24 @@ export function solarIrradiance(distanceKm: number, radiusKm = SOLAR_RADIUS_KM):
   return SOLAR_CENTER_RADIANCE.map(c => c * SOLAR_MEAN_LIMB * projectedSolidAngle) as [number, number, number];
 }
 
-/** A shared fixed exposure, power-law HDR display response for direct and
- * scattered solar radiance. This is a visualization convention, not photometry.
- * Leave zero exactly zero; encode to the output color space only afterwards.
+/** Body lighting is normalized rather than inverse-square dimmed. Adapt the
+ * solar/atmospheric display to the observer's incident irradiance as well,
+ * instead of leaving outer-system haze dark beside normally lit textures.
+ * Apply this one exposure to both direct and scattered light; HDR stays linear.
  */
+export function solarDisplayExposure(distanceKm: number, radiusKm = SOLAR_RADIUS_KM): number {
+  return 1 / solarIrradiance(Math.max(radiusKm, distanceKm), radiusKm)[0];
+}
+
+export function makeSolarDisplayUniforms() {
+  return { uSolarExposure: { value: solarDisplayExposure(SOLAR_REFERENCE_DISTANCE_KM) } };
+}
+
+/** Shared Reinhard display shoulder in normalized-light units. */
 export const SOLAR_DISPLAY_GLSL = /* glsl */ `
+uniform float uSolarExposure;
 vec3 radianceToDisplay(vec3 radiance) {
-  return 0.94 * pow(max(vec3(0.0), radiance) / ${SOLAR_CENTER_RADIANCE[0]}, vec3(1.0 / 3.0));
+  vec3 exposed = max(vec3(0.0), radiance) * uSolarExposure;
+  return 0.94 * exposed / (vec3(1.0) + exposed);
 }
 `;

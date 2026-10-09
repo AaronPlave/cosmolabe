@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { AtmosphereMesh } from './AtmosphereMesh.js';
 import { ATMOSPHERE_PROFILES_GLSL, makeAtmosphereProfileUniforms } from './AtmosphereProfiles.js';
 import { normalizeAtmosphere } from './AtmosphereModel.js';
-import { SOLAR_DISPLAY_GLSL, SOLAR_CENTER_RADIANCE } from './SolarRadiometry.js';
+import { SOLAR_DISPLAY_GLSL, SOLAR_CENTER_RADIANCE, SOLAR_RADIUS_KM, solarDisplayExposure, makeSolarDisplayUniforms } from './SolarRadiometry.js';
 
 /** Dedicated disk layer, drawn after atmosphere shells to apply extinction once. */
 export const SOLAR_LAYER = 4;
@@ -22,6 +22,7 @@ export class SunVisual {
     const vacuum = normalizeAtmosphere({ rayleighCoeff: [0, 0, 0], mieCoeff: 0,
       absorptionCoeff: [0, 0, 0], mieScaleHeight: 1, miePhaseAsymmetry: 0 });
     this.uniforms = {
+      ...makeSolarDisplayUniforms(),
       ...makeAtmosphereProfileUniforms(vacuum, 1, 1, 2, null),
       sourcePass: { value: false },
       occluderCount: { value: 0 },
@@ -138,8 +139,10 @@ export class SunVisual {
     });
   }
 
-  update(camera: THREE.PerspectiveCamera, center: THREE.Vector3, radius: number, height: number): void {
+  update(camera: THREE.PerspectiveCamera, center: THREE.Vector3, radius: number, height: number,
+    physicalRadiusKm = SOLAR_RADIUS_KM): void {
     const distance = camera.position.distanceTo(center);
+    this.uniforms.uSolarExposure.value = solarDisplayExposure(distance * physicalRadiusKm / Math.max(radius, 1e-20), physicalRadiusKm);
     const angularRadius = Math.asin(Math.min(1, radius / Math.max(radius, distance)));
     this.diameterPixels = 2 * Math.tan(angularRadius) * height /
       (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
