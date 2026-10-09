@@ -6,6 +6,18 @@
       "https://pds-rings.seti.org/holdings/metadata/COISS_2xxx/COISS_2004/COISS_2004_saturn_summary.tab",
       "https://pds-rings.seti.org/holdings/metadata/COISS_2xxx/COISS_2004/COISS_2004_moon_summary.tab"
     ],
+    "sha256": {
+      "COISS_2004_index.lbl": "05333f481315bafb1446bb00c32187779d050526278831e6928e47a6f393928b",
+      "COISS_2004_index.tab": "4644a6e964354b1fd86abff6298b57d87fc34c6aaa0d7ee717c49df1769191af",
+      "COISS_2004_moon_summary.lbl": "8fa074994d0533a302dba42c3bde64c028c8fe6684f6ba545f6f115f40916b01",
+      "COISS_2004_moon_summary.tab": "38c6658e9b94c82e0dce6b853ff9307448bb39ad749c015a7fedec2fa3e8aab9",
+      "COISS_2004_saturn_summary.lbl": "7313a4b514bdfe10cd0e1f0d114ca286829608b4ecc2cdbb2c044ce4ba37ceb9",
+      "COISS_2004_saturn_summary.tab": "6f30ec4078b30fee1939eff969d8b54b026b4fbe6e6617d2c5d37329feb4153e"
+    },
+    "spk": {
+      "path": "packages/spice/test-kernels/cassini/040909R_SCPSE_04183_04185_subset.bsp",
+      "sha256": "250e0e45e48972522ebad3b40a856cced7a4814e937525045ac6cf15327eb4dd"
+    },
     "columns": {
       "subObserverLatPc": "SUB_OBSERVER_PLANETOCENTRIC_LATITUDE",
       "subObserverLatPg": "SUB_OBSERVER_PLANETOGRAPHIC_LATITUDE",

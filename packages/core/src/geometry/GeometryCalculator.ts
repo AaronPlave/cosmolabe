@@ -52,7 +52,13 @@ export interface GeometryConfig {
    *  `INTERCEPT` is where the line from the body's centre to it pierces the
    *  surface. They differ by up to the planetocentric/planetographic gap on an
    *  oblate body — ~4° of latitude on Saturn. Planetary archives (PDS, OPUS)
-   *  tabulate the intercept, so compare against them with `INTERCEPT`. */
+   *  tabulate the intercept, so compare against them with `INTERCEPT`.
+   *
+   *  The default stays `NEAR POINT` for existing readouts, which means anything
+   *  archive-facing — an observation panel, a footprint label, a value shown
+   *  next to a PDS product — must pass `INTERCEPT` explicitly, or it will
+   *  disagree with the archive by degrees while pds-geometry-oracle.test.ts
+   *  (which only exercises `INTERCEPT`) stays green. */
   subPointMethod?: 'NEAR POINT/ELLIPSOID' | 'INTERCEPT/ELLIPSOID';
   computeSubPoints?: boolean;
   computeIllumination?: boolean;

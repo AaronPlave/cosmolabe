@@ -18,11 +18,16 @@
 //
 // Idempotent: rows are sorted, and the `generated` stamp is carried over from
 // the existing file when the rows have not changed. Exits nonzero if it
-// produced no rows. Not wired into CI — the committed fixture is the test
+// produced no rows or the per-target counts differ from EXPECTED_COUNTS — an
+// upstream change has to be looked at, not silently absorbed. The provenance
+// records the SHA-256 of every source table and of the SPK the rows are meant
+// to be checked against, so a fixture/kernel mismatch is detectable (the test
+// checks it). Not wired into CI — the committed fixture is the test
 // input, so the oracle stays hermetic and offline.
 //
 // Run: node scripts/generate-pds-geometry-fixture.mjs
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +41,7 @@ const BASE = `https://pds-rings.seti.org/holdings/metadata/COISS_2xxx/${VOLUME}/
 // Coverage of packages/spice/test-kernels/cassini/040909R_SCPSE_04183_04185_subset.bsp
 // (made by scripts/make-cassini-soi-recon-spk.mjs). PDS3 index times are
 // UTC day-of-year strings, so a lexical compare on the `YYYY-DDD` prefix works.
+const SPK = 'packages/spice/test-kernels/cassini/040909R_SCPSE_04183_04185_subset.bsp';
 const DAY_FIRST = '2004-183';
 const DAY_LAST = '2004-185';
 
@@ -59,10 +65,21 @@ const GEOMETRY_COLUMNS = {
 };
 const NULL_CONSTANT = -999;
 
+/** Rows per target the oracle test pins. Changing them is a deliberate edit. */
+const EXPECTED_COUNTS = {
+  SATURN: 299, TITAN: 197, IAPETUS: 9, ENCELADUS: 3, MIMAS: 2, RHEA: 2, DIONE: 1, TETHYS: 1,
+};
+
+const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
+/** Source file name → SHA-256 of the bytes actually read. */
+const sourceHashes = {};
+
 async function get(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-  return Buffer.from(await res.arrayBuffer()).toString('latin1');
+  const buf = Buffer.from(await res.arrayBuffer());
+  sourceHashes[url.slice(url.lastIndexOf('/') + 1)] = sha256(buf);
+  return buf.toString('latin1');
 }
 
 /** Column layout from a PDS3 label: NAME → { start (0-based), bytes, real }. */
@@ -131,10 +148,25 @@ for (const table of ['saturn_summary', 'moon_summary']) {
     rows.push(row);
   }
 }
-rows.sort((a, b) => (a.utcMid < b.utcMid ? -1 : a.utcMid > b.utcMid ? 1 : a.target < b.target ? -1 : 1));
+// A total order: an image can target more than one body, and (utcMid, target)
+// ties are broken by opusId rather than left to the engine's sort.
+const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+rows.sort((a, b) => cmp(a.utcMid, b.utcMid) || cmp(a.target, b.target) || cmp(a.opusId, b.opusId));
 
+const counts = {};
+for (const r of rows) counts[r.target] = (counts[r.target] ?? 0) + 1;
 if (rows.length === 0) {
   console.error(`generate-pds-geometry-fixture: no rows for ${VOLUME} ${DAY_FIRST}..${DAY_LAST}`);
+  process.exit(1);
+}
+const countKeys = new Set([...Object.keys(counts), ...Object.keys(EXPECTED_COUNTS)]);
+const countDiffs = [...countKeys].filter((t) => counts[t] !== EXPECTED_COUNTS[t]);
+if (countDiffs.length > 0) {
+  console.error(
+    'generate-pds-geometry-fixture: per-target counts changed — ' +
+      countDiffs.map((t) => `${t} ${EXPECTED_COUNTS[t] ?? 0} → ${counts[t] ?? 0}`).join(', ') +
+      '. Check the archive, then update EXPECTED_COUNTS and the test together.',
+  );
   process.exit(1);
 }
 
@@ -148,6 +180,8 @@ if (existsSync(OUT)) {
 const provenance = {
   source: 'PDS Ring-Moon Systems Node, Cassini ISS geometry metadata (the tables behind OPUS surface geometry)',
   urls: ['index', 'saturn_summary', 'moon_summary'].map((t) => `${BASE}_${t}.tab`),
+  sha256: Object.fromEntries(Object.entries(sourceHashes).sort(([a], [b]) => cmp(a, b))),
+  spk: { path: SPK, sha256: sha256(readFileSync(resolve(repoRoot, SPK))) },
   columns: Object.fromEntries(Object.entries(GEOMETRY_COLUMNS).map(([col, field]) => [field, col])),
   conventions:
     'Longitudes are IAU WEST (increase toward the west). Planetocentric latitude is that of the ' +
@@ -166,7 +200,4 @@ const body =
   serializedRows.map((r) => `    ${r}`).join(',\n') +
   '\n  ]\n}\n';
 writeFileSync(OUT, body);
-
-const counts = {};
-for (const r of rows) counts[r.target] = (counts[r.target] ?? 0) + 1;
 console.log(`Wrote ${OUT}: ${rows.length} rows ${JSON.stringify(counts)}`);
