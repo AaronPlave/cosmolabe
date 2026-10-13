@@ -83,23 +83,23 @@ try {
   assert.equal(await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.visuals.has(window.firstId); }), false);
   assert.equal(await page.evaluate(() => window.m.measurements.items[0].target), null);
   await page.getByLabel('Target entity', { exact: true }).selectOption('Moon');
-  await page.getByRole('button', { name: 'direction', exact: true }).click();
-  await page.getByLabel('Show distance', { exact: true }).check();
+  await page.getByRole('radio', { name: 'direction', exact: true }).click();
+  await page.getByRole('checkbox', { name:'Show distance', exact: true }).check();
   await page.getByLabel('Full-length connection', { exact: true }).check();
   assert(await page.evaluate(() => { const item=window.m.measurements.items[0];return item.kind==='direction'&&item.showDistance&&item.fullLength; }));
-  await page.getByRole('button', { name: 'New measurement', exact: true }).click();
+  await page.getByRole('button', { name: 'New', exact: true }).click();
   await page.getByLabel('Source entity', { exact: true }).selectOption('Sun');
   const row = page.getByRole('button', { name: 'Select direction measurement', exact: true });
   const beforeHeight = (await row.boundingBox()).height;
   await row.click();
   assert.equal((await row.boundingBox()).height, beforeHeight);
   assert.equal(await page.getByLabel('Source entity', { exact: true }).inputValue(), 'Earth');
-  await page.getByRole('button', { name: 'direction', exact: true }).focus();
+  await page.getByRole('radio', { name: 'direction', exact: true }).focus();
   await page.keyboard.press('Escape');
   assert.equal(await page.getByLabel('Source entity', { exact: true }).inputValue(), 'Sun');
   assert.equal(await page.evaluate(() => window.m.measurements.items[0].kind), 'direction');
   await row.click();
-  await page.getByRole('button', { name: 'distance', exact: true }).click();
+  await page.getByRole('radio', { name: 'distance', exact: true }).click();
   await page.getByLabel('Custom measurement color', { exact: true }).evaluate(input => { input.value = '#aabbcc'; input.dispatchEvent(new Event('input', { bubbles: true })); });
   assert.equal(await page.evaluate(() => window.m.measurements.items[0].color), '#aabbcc');
   await page.getByRole('button', { name: 'Hide distance', exact: true }).click();
@@ -107,9 +107,25 @@ try {
   await page.getByRole('button', { name: 'Show distance', exact: true }).click();
   await capture('editor-presets-actual.png');
   const swatch = await page.getByLabel('Custom measurement color', { exact: true }).boundingBox();
-  assert(swatch.width >= 36 && swatch.height >= 24);
+  assert.equal(swatch.width,36);assert.equal(swatch.height,24);
   const preset = await page.getByRole('button', { name: 'Sage measurement color', exact: true }).boundingBox();
   assert.equal(preset.width,24);assert.equal(preset.height,24);
+  assert.equal(await page.getByText('Selected measurement', { exact:true }).count(), 0);
+  assert.equal(await page.getByText('New measurement', { exact:true }).count(), 0);
+  assert.equal(await page.getByLabel('Custom measurement color', { exact:true }).evaluate(el=>getComputedStyle(el).padding), '0px');
+  assert.equal(await page.getByRole('button', {name:'Pick source object',exact:true}).evaluate(el=>getComputedStyle(el).cursor),'pointer');
+  await page.getByRole('radio',{name:'distance',exact:true}).click();
+  assert.equal(await page.getByRole('radio',{name:'distance',exact:true}).getAttribute('aria-checked'),'true');
+  await page.getByRole('radio',{name:'distance',exact:true}).focus();
+  await page.keyboard.press('ArrowRight');
+  assert(await page.getByRole('radio',{name:'angle',exact:true}).evaluate(el=>el===document.activeElement));
+  await page.keyboard.press('Space');
+  assert.equal(await page.evaluate(()=>window.m.measurements.items[0].kind),'angle');
+  await page.getByLabel('At entity',{exact:true}).selectOption('Sun');
+  await page.getByRole('radio',{name:'distance',exact:true}).click();
+  await page.getByRole('radio',{name:'angle',exact:true}).click();
+  assert.equal(await page.getByLabel('At entity',{exact:true}).inputValue(),'Sun');
+  await page.getByRole('radio',{name:'distance',exact:true}).click();
   console.log('Immediate fields, incomplete definitions, type/options, Escape, stable rows, New and square presets passed');
 
   // Shared portal closes on action/Escape, contains one menu, and returns focus.
@@ -124,7 +140,7 @@ try {
   await page.getByRole('menu').waitFor({ state: 'hidden' });
   assert.equal(await page.getByRole('menu').count(), 0);
   assert(await page.getByRole('button', { name: 'Actions for distance', exact: true }).first().evaluate(node => node === document.activeElement));
-  await page.getByRole('button', { name: 'New measurement', exact: true }).click();
+  await page.getByRole('button', { name: 'New', exact: true }).click();
 
   // Hover previews use real object and surface semantics, with no standalone pick marker.
   await page.evaluate(() => { window.__cosmolabe.capture('Earth Close'); window.sceneEvents = 0; window.renderer.events.on('body:click', () => window.sceneEvents++); });
@@ -187,7 +203,7 @@ try {
   await page.getByRole('button', { name: 'Actions for distance', exact: true }).last().click();
   await checkMenu(); await capture('menu-compact-actual.png'); await page.keyboard.press('Escape');
   await page.evaluate(() => window.m.newMeasurement());
-  await page.getByRole('button', { name: 'angle', exact: true }).click();
+  await page.getByRole('radio', { name: 'angle', exact: true }).click();
   await page.getByRole('button', { name: 'Pick vertex object', exact: true }).click();
   await page.getByText('Choose the angle’s center · Esc to cancel', { exact: true }).waitFor();
   await page.keyboard.press('Escape');
@@ -211,6 +227,40 @@ try {
   assert((await page.locator('.cosmolabe-measurement-value:visible').count()) >= 2);
   assert.equal(await page.locator('.cosmolabe-measurement-value[data-measurement-id=direction]').textContent(), 'To Moon');
   assert.equal(await page.locator('.cosmolabe-measurement-value[data-measurement-id=direction] svg').count(), 1);
+  for (const id of ['distance','angle','direction']) {
+    const label=page.locator(`.cosmolabe-measurement-value[data-measurement-id="${id}"]`);
+    const before=await label.evaluate(el=>({text:el.textContent,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height}));
+    await label.hover();await page.evaluate(()=>window.renderer.renderFrame());
+    assert.equal(await label.getAttribute('data-hovered'),'true');
+    assert.deepEqual(await label.evaluate(el=>({text:el.textContent,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height})),before);
+    await label.focus();await page.evaluate(()=>window.renderer.renderFrame());
+    assert.equal(await page.evaluate(()=>window.m.measurements.hoveredId),id);
+    const panelRow=page.locator(`[data-measurement-row="${id}"]`);
+    assert(await panelRow.evaluate(el=>el.parentElement.classList.contains('hovered')));
+    await panelRow.hover();await page.evaluate(()=>window.renderer.renderFrame());
+    assert.equal(await label.textContent(),before.text);
+  }
+  assert.equal(await page.locator('.cosmolabe-measurement-value[data-measurement-id=direction] svg.lucide-crosshair').count(),1);
+  console.log('All compact labels retain complete text and size across scene/list hover and focus');
+  const edgeLabel=await page.evaluate(async()=>{
+    const layer=window.renderer.spatialRelationships, visual=layer.visuals.get('distance');
+    let reads=0;
+    for(const key of ['offsetWidth','offsetHeight']) {
+      const getter=Object.getOwnPropertyDescriptor(HTMLElement.prototype,key).get;
+      Object.defineProperty(visual.label,key,{configurable:true,get(){reads++;return getter.call(this);}});
+    }
+    const text='149,597,870 km', obstacles={rects:[],path:[],discs:[]};
+    layer.placeCompactLabel(visual,{x:383,y:200},text,'#82aabd',obstacles,390,844,[],[]);
+    await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
+    for(let i=0;i<120;i++)layer.placeCompactLabel(visual,{x:383,y:200},text,'#82aabd',obstacles,390,844,[],[]);
+    const box=visual.label.getBoundingClientRect();
+    const result={text:visual.label.textContent,contained:box.left>=6&&box.right<=384,unclipped:visual.labelValue.scrollWidth<=visual.labelValue.clientWidth+1,reads};
+    for(const key of ['offsetWidth','offsetHeight'])delete visual.label[key];
+    window.renderer.renderFrame();return result;
+  });
+  assert.equal(edgeLabel.text,'149,597,870 km');assert(edgeLabel.contained&&edgeLabel.unclipped);assert.equal(edgeLabel.reads,0);
+  console.log('Viewport-edge numeric label retains its unit and cached dimensions without per-frame layout reads');
+
   await capture('compact-measurements-wide-actual.png');
   const compactLabel = page.locator('.cosmolabe-measurement-value[data-measurement-id="distance"]');
   await compactLabel.click();
@@ -245,9 +295,20 @@ try {
   await page.setViewportSize({width:1440,height:1000});
   await capture('selected-measurements-wide-actual.png');
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.visuals.get('distance').marks.geometry.drawRange.count), 2);
-  await page.getByRole('button', { name:'New measurement',exact:true }).click();
+  await page.getByRole('button', { name:'New',exact:true }).click();
   await page.evaluate(() => window.renderer.renderFrame());
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.visuals.get('distance').marks.geometry.drawRange.count), 0);
+  await page.evaluate(()=>{window.m.selectMeasurement('distance');window.renderer.renderFrame();});
+  await page.waitForTimeout(350);
+  const snapshot=await page.evaluate(()=>({time:window.renderer.timeController.et,position:window.renderer.camera.position.toArray(),count:window.m.measurements.items.length,color:window.m.measurements.items[0].color}));
+  const clear=page.getByRole('button',{name:'Clear measurement selection',exact:true});
+  await clear.focus();await page.keyboard.press('Enter');await page.evaluate(()=>window.renderer.renderFrame());
+  assert.equal(await page.evaluate(()=>window.m.measurements.selectedId),null);
+  assert.deepEqual(await page.evaluate(()=>({time:window.renderer.timeController.et,position:window.renderer.camera.position.toArray(),count:window.m.measurements.items.length,color:window.m.measurements.items[0].color})),snapshot);
+  assert.equal(await page.locator('.cosmolabe-event-callout[data-measurement-id]:visible').count(),0);
+  assert.equal(await compactLabel.isVisible(),true);
+  await page.waitForFunction(()=>document.activeElement.matches('.cosmolabe-measurement-value,[data-measurement-row]'),null,{timeout:5000});
+  await checkSharedMeasurements();
   console.log('Compact labels, one selected detail, live playback and single distance endpoint treatments passed');
 
   await checkSpacecraftPass();
@@ -316,4 +377,37 @@ async function checkSpacecraftPass() {
   await page.getByRole('button',{name:'Select direction measurement',exact:true}).first().click();
   await capture('cassini-selected-arrow-actual.png');
   console.log('Actual close-up spacecraft model and dedicated measurement pass order passed',JSON.stringify(passes));
+}
+
+async function checkSharedMeasurements() {
+  const shared=await page.evaluate(async()=>{
+    window.m.measurements.items[0].source={kind:'body-fixed',bodyName:'Earth',positionKm:[6378.137,0.123456789,0]};
+    window.m.measurements.items[0].visible=false;window.m.measurements.items[0].color='#abcdef';
+    window.m.selectMeasurement('direction');window.m.measurements.draftShowDistance=true;window.m.measurements.draftFullLength=true;window.m.syncMeasurements();
+    const resource=file=>performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname.endsWith('/'+file)).name;
+    const link=await import(resource('view-link.ts')), urls=await import(resource('view-state-url.ts'));
+    const state=link.captureViewState(), url=urls.viewLink(state,location.href);
+    return {url,measurements:state.measurements};
+  });
+  const restored=await browser.newPage({viewport:{width:1440,height:1000}});
+  try {
+    await restored.goto(shared.url,{waitUntil:'domcontentloaded',timeout:120000});
+    await restored.waitForFunction(()=>['viewer-state.svelte.ts','spatial-measurements.svelte.ts'].every(file=>performance.getEntriesByType('resource').some(e=>new URL(e.name).pathname.endsWith('/'+file))),null,{timeout:120000});
+    await restored.evaluate(async()=>{
+      const resource=file=>performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname.endsWith('/'+file)).name;
+      window.vstate=await import(resource('viewer-state.svelte.ts'));
+      window.m=await import(resource('spatial-measurements.svelte.ts'));
+    });
+    await restored.waitForFunction(()=>window.vstate.vs.assetsReady&&!window.vstate.vs.showLoading&&window.m.measurements.items.length===3&&window.m.measurements.selectedId==='direction',null,{timeout:120000});
+    assert.deepEqual(await restored.evaluate(async()=>{
+      const file=performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname.endsWith('/view-link.ts'));
+      const link=await import(file.name);return link.captureViewState().measurements;
+    }),shared.measurements);
+    await restored.getByRole('button',{name:'Measurements',exact:true}).click();
+    await restored.getByRole('checkbox', { name:'Show distance',exact:true}).waitFor();
+    assert.equal(await restored.getByRole('checkbox', { name:'Show distance',exact:true}).isChecked(),true);
+    assert.equal(await restored.getByLabel('Full-length connection',{exact:true}).isChecked(),true);
+    await restored.screenshot({path:new URL('shared-measurements-restored-actual.png',out).pathname,timeout:120000});
+  } finally {await restored.close();}
+  console.log('Shared URL survives a fresh catalog load with exact surfaces, colors, hidden items, direction options and selection');
 }

@@ -264,7 +264,7 @@ export class EventCallout {
   }
 
   /** Optional interaction for persistent measurements; event annotations stay passive. */
-  setInteraction(id: string, activate: (event: MouseEvent | KeyboardEvent) => void, hover: (active: boolean) => void, openEditor?: () => void): void {
+  setInteraction(id: string, activate: (event: MouseEvent | KeyboardEvent) => void, hover: (active: boolean) => void, openEditor?: () => void, clearSelection?: () => void): void {
     this.box.dataset.measurementId = id;
     this.box.style.pointerEvents = 'auto';
     this.box.style.cursor = 'pointer';
@@ -276,6 +276,24 @@ export class EventCallout {
       Object.assign(this.editorAction.style, { display: 'block', margin: '4px 0 0 13px', color: '#c3d0d8', font: '500 10px/14px var(--font-sans, system-ui)', cursor: 'pointer', textDecoration: 'underline', background: 'none', border: 'none', padding: '0' });
       this.editorAction.onclick = event => { event.stopPropagation(); openEditor(); };
     }
+    if (clearSelection) {
+      this.clearAction = document.createElement('button');
+      this.clearAction.textContent = '×';
+      this.clearAction.title = 'Clear measurement selection';
+      this.clearAction.setAttribute('aria-label', 'Clear measurement selection');
+      Object.assign(this.clearAction.style, { marginLeft: 'auto', flexShrink: '0', alignSelf: 'start', color: '#a9b8c1', font: '400 15px/15px var(--font-sans, system-ui)', cursor: 'pointer', background: 'none', border: 'none', padding: '0 2px' });
+      this.clearAction.onclick = event => {
+        event.stopPropagation();
+        const focused = this.box.contains(document.activeElement);
+        clearSelection();
+        // The card disappears. Return keyboard focus to its compact label or list row.
+        if (focused) requestAnimationFrame(() => {
+          const label = Array.from(this.box.parentElement?.querySelectorAll<HTMLButtonElement>('.cosmolabe-measurement-value') ?? []).find(el => el.dataset.measurementId === id && el.style.display !== 'none');
+          const row = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-measurement-row]')).find(el => el.dataset.measurementRow === id);
+          (label ?? row)?.focus({ preventScroll: true });
+        });
+      };
+    }
     this.box.onclick = event => { event.stopPropagation(); activate(event); };
     this.box.onkeydown = event => {
       if (event.target !== this.box) return;
@@ -286,6 +304,7 @@ export class EventCallout {
   }
 
   private editorAction: HTMLButtonElement | null = null;
+  private clearAction: HTMLButtonElement | null = null;
 
   setContent(content: CalloutContent | null): void {
     const key = content ? JSON.stringify(content) : '';
@@ -305,6 +324,7 @@ export class EventCallout {
       color: '#e4ebef', letterSpacing: '0.01em',
     });
     titleRow.append(this.glyph(content), document.createTextNode(title ?? ''));
+    if (this.clearAction) titleRow.append(this.clearAction);
     this.box.append(titleRow);
     details.slice(0, 2).forEach((line, i) => {
       const row = document.createElement('div');

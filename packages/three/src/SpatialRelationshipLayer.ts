@@ -13,6 +13,7 @@ export interface SpatialInteraction {
   onHover: (id: string | null) => void;
   picking: () => boolean;
   onOpenEditor?: (id: string) => void;
+  onClearSelection?: () => void;
   labelIcon?: (kind: SpatialRelationship['kind']) => SVGSVGElement;
   previewIntervalMs?: () => number;
   preview?: (x: number, y: number) => void;
@@ -135,6 +136,33 @@ export class SpatialRelationshipLayer {
       return result;
     };
     const base = this.obstacles();
+    const point = (p: readonly number[]) => new THREE.Vector3((p[0] - originKm[0]) * this.scaleFactor, (p[1] - originKm[1]) * this.scaleFactor, (p[2] - originKm[2]) * this.scaleFactor);
+    const resolvedItems = new Map(this.relationships.map(r => [r.id, r.visible === false ? null : resolveSpatialRelationship(this.universe, r, et)]));
+    const geometryPaths: number[][] = [];
+    const arrowheads: ScreenRect[] = [];
+    // Reserve the actual strokes/cones before placing any compact label, including
+    // geometry whose own label is later suppressed. This keeps priority predictable.
+    for (const r of this.relationships) {
+      const resolved = resolvedItems.get(r.id);
+      if (!resolved) continue;
+      const source = point(resolved.source), target = point(resolved.target);
+      let segments = [source, target];
+      if (r.kind === 'angle' && resolved.vertex && resolved.angleDeg !== undefined) {
+        const vertex = point(resolved.vertex);
+        segments = anglePoints(source, vertex, target, angleDisplayRadius(this.camera, vertex, Math.min(source.distanceTo(vertex), target.distanceTo(vertex)), height));
+      } else if (r.kind === 'direction') {
+        const vector = target.clone().sub(source), length = r.fullLength ? vector.length() : directionDisplayLength(this.camera, source, vector.length(), height);
+        const tip = source.clone().addScaledVector(vector.normalize(), length);
+        segments = [source, tip];
+        const projected = projectAnchor(tip, this.camera, width, height);
+        if (projected) arrowheads.push({ x0: projected.x - 10, y0: projected.y - 10, x1: projected.x + 10, y1: projected.y + 10 });
+      }
+      const clipped = clip(segments);
+      for (let i = 0; i < clipped.length; i += 2) {
+        const a = clipped[i].clone().project(this.camera), b = clipped[i + 1].clone().project(this.camera);
+        if ([a.x, a.y, b.x, b.y].every(Number.isFinite)) geometryPaths.push([(a.x + 1) * width / 2, (1 - a.y) * height / 2, (b.x + 1) * width / 2, (1 - b.y) * height / 2]);
+      }
+    }
     const selected = this.relationships.some(r => r.selected && r.visible !== false);
     for (const relationship of [...this.relationships].sort((a, b) => Number(!!b.selected) - Number(!!a.selected))) {
       let visual = this.visuals.get(relationship.id);
@@ -142,12 +170,11 @@ export class SpatialRelationshipLayer {
       visual.box = null;
       visual.label.style.display = 'none';
       visual.group.visible = relationship.visible !== false;
-      const resolved = visual.group.visible ? resolveSpatialRelationship(this.universe, relationship, et) : null;
+      const resolved = resolvedItems.get(relationship.id);
       if (!resolved || (relationship.kind === 'angle' && resolved.angleDeg === undefined) ||
           (relationship.kind === 'direction' && resolved.distanceKm === 0)) {
         visual.group.visible = false; visual.hitSegments = []; visual.callout.hide(); continue;
       }
-      const point = (p: readonly number[]) => new THREE.Vector3((p[0] - originKm[0]) * this.scaleFactor, (p[1] - originKm[1]) * this.scaleFactor, (p[2] - originKm[2]) * this.scaleFactor);
       const source = point(resolved.source), target = point(resolved.target);
       const vertex = relationship.kind === 'angle' && resolved.vertex ? point(resolved.vertex) : undefined;
       const active = relationship.selected || relationship.emphasized;
@@ -200,7 +227,7 @@ export class SpatialRelationshipLayer {
         segments = [source, target, ...(relationship.editing ? [] : distanceTicks(source, target, this.camera, height))];
         marks = relationship.editing ? [source, target] : [];
         title = highlighted ? `${endpointLabel(relationship.source)} ↔ ${endpointLabel(relationship.target)}` : 'Distance';
-        detail = `${highlighted ? 'Distance · ' : ''}${formatSpatialDistance(resolved.distanceKm!)}`;
+        detail = formatSpatialDistance(resolved.distanceKm!);
       }
       segments = clip(segments); arc = clip(arc);
       visual.stroke.write(segments, origin); visual.arc.write(arc, origin);
@@ -210,6 +237,7 @@ export class SpatialRelationshipLayer {
       let screenAnchor = projectAnchor(anchor, this.camera, width, height);
       if (!active) {
         visual.callout.hide();
+        visual.label.dataset.hovered = String(!!relationship.hovered);
         let labelAnchor = anchor;
         let text = detail;
         if (relationship.kind === 'direction') {
@@ -220,7 +248,7 @@ export class SpatialRelationshipLayer {
         }
         if (relationship.kind === 'angle' && !projectAnchor(labelAnchor, this.camera, width, height)) labelAnchor = vertex!;
         const projected = projectAnchor(labelAnchor, this.camera, width, height);
-        if (projected && this.placeCompactLabel(visual, projected, text, color, obstacles, width, height)) occupied.push(visual.box!);
+        if (projected && this.placeCompactLabel(visual, projected, text, color, obstacles, width, height, geometryPaths, arrowheads)) occupied.push(visual.box!);
         continue; // Crowding suppresses a compact label, never expands it into another card.
       }
       if (!screenAnchor) screenAnchor = [source, target, ...(vertex ? [vertex] : []), ...arc].map(p => projectAnchor(p, this.camera, width, height)).find(Boolean) ?? null;
@@ -229,7 +257,6 @@ export class SpatialRelationshipLayer {
       if (visual.box) occupied.push(visual.box);
     }
     // Preview and partial-draft handles are a separate temporary channel, never standalone inspection.
-    const point = (p: readonly number[]) => new THREE.Vector3((p[0] - originKm[0]) * this.scaleFactor, (p[1] - originKm[1]) * this.scaleFactor, (p[2] - originKm[2]) * this.scaleFactor);
     const handles = [...this.draftEndpoints, ...(this.previewEndpoint ? [this.previewEndpoint] : [])]
       .map(endpoint => resolveSpatialEndpoint(this.universe, endpoint, et)).filter(p => p !== null).map(point)
       .filter(p => projectAnchor(p, this.camera, width, height) !== null);
@@ -238,20 +265,24 @@ export class SpatialRelationshipLayer {
     this.feedback.visible = handles.length > 0;
     return occupied;
   }
-  private placeCompactLabel(v: Visual, anchor: { x: number; y: number }, text: string, color: string, obstacles: CalloutObstacles, width: number, height: number): boolean {
+  private placeCompactLabel(v: Visual, anchor: { x: number; y: number }, text: string, color: string, obstacles: CalloutObstacles, width: number, height: number, paths: readonly number[][], arrowheads: readonly ScreenRect[]): boolean {
+    v.label.style.maxWidth = `${Math.max(1, width - 12)}px`;
     if (v.labelText !== text) {
       v.labelValue.textContent = text; v.labelText = text;
-      v.labelSize.width = Math.min(180, text.length * 6.6 + 28);
+      v.labelSize.width = Math.min(width - 12, text.length * 6.6 + 28);
     }
     v.label.style.color = color;
     const { width: w, height: h } = v.labelSize;
     // Small alternatives around the geometry; selected detail reserves its box first.
-    for (const [dx, dy] of [[8, -h - 8], [8, 8], [-w - 8, -h - 8], [-w - 8, 8]]) {
-      const box = { x0: anchor.x + dx, y0: anchor.y + dy, x1: anchor.x + dx + w, y1: anchor.y + dy + h };
+    for (const [dx, dy] of [[14, -h - 14], [14, 14], [-w - 14, -h - 14], [-w - 14, 14]]) {
+      const x0 = Math.max(6, Math.min(anchor.x + dx, width - w - 6));
+      const y0 = Math.max(6, Math.min(anchor.y + dy, height - h - 6));
+      const box = { x0, y0, x1: x0 + w, y1: y0 + h };
       if (box.x0 < 6 || box.y0 < 6 || box.x1 > width - 6 || box.y1 > height - 6 ||
-        [...obstacles.rects, ...(obstacles.blockers ?? [])].some(b => overlaps(box, b))) continue;
+        [...obstacles.rects, ...(obstacles.blockers ?? []), ...arrowheads].some(b => overlaps(box, b)) ||
+        paths.some(path => strokeCrossesBox(path, box))) continue;
       v.label.style.display = 'flex'; v.label.style.transform = `translate(${box.x0}px, ${box.y0}px)`;
-      v.label.title = text; v.box = box;
+      v.label.title = text; v.label.setAttribute('aria-label', `Select ${v.kind} measurement: ${text}`); v.box = box;
       return true;
     }
     return false;
@@ -271,11 +302,11 @@ export class SpatialRelationshipLayer {
     label.className = 'cosmolabe-measurement-value'; label.dataset.measurementId = relationship.id;
     Object.assign(label.style, { position: 'absolute', left: '0', top: '0', display: 'none', pointerEvents: 'auto', cursor: 'pointer',
       border: '1px solid rgba(190,206,216,0.12)', borderRadius: '3px', background: 'rgba(9,13,18,0.82)', padding: '2px 5px',
-      alignItems: 'center', gap: '5px', maxWidth: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      alignItems: 'center', gap: '5px', width: 'max-content', boxSizing: 'border-box', whiteSpace: 'normal', overflowWrap: 'anywhere',
       font: '400 11px/15px var(--font-mono, monospace)', fontVariantNumeric: 'tabular-nums' });
     const icon = this.interaction?.labelIcon?.(relationship.kind);
     if (icon) { icon.style.flexShrink = '0'; label.append(icon); }
-    const labelValue = document.createElement('span'); labelValue.style.overflow = 'hidden'; labelValue.style.textOverflow = 'ellipsis'; label.append(labelValue);
+    const labelValue = document.createElement('span'); label.append(labelValue);
     label.setAttribute('aria-label', `Select ${relationship.kind} measurement`);
     const activate = (event: MouseEvent | KeyboardEvent) => {
       const rect = this.canvas.getBoundingClientRect();
@@ -285,9 +316,11 @@ export class SpatialRelationshipLayer {
     const hover = (active: boolean) => { if (!this.interaction?.picking()) this.interaction?.onHover(active ? relationship.id : null); };
     label.onclick = event => { event.stopPropagation(); activate(event); };
     label.onmouseenter = () => hover(true); label.onmouseleave = () => hover(false);
+    label.onfocus = () => hover(true); label.onblur = () => hover(false);
     this.calloutContainer.append(label);
     const callout = new EventCallout(this.calloutContainer);
-    callout.setInteraction(relationship.id, activate, hover, this.interaction?.onOpenEditor ? () => this.interaction?.onOpenEditor?.(relationship.id) : undefined);
+    callout.setInteraction(relationship.id, activate, hover, this.interaction?.onOpenEditor ? () => this.interaction?.onOpenEditor?.(relationship.id) : undefined,
+      this.interaction?.onClearSelection ? () => this.interaction?.onClearSelection?.() : undefined);
     const labelSize = { width: 66, height: 21 };
     const labelObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(entries => {
       const box = entries[0]?.borderBoxSize?.[0];
@@ -313,6 +346,18 @@ export class SpatialRelationshipLayer {
   }
 }
 function overlaps(a: ScreenRect, b: ScreenRect): boolean { return Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0); }
+/** Segment/rectangle clipping, padded for stroke width. No DOM layout reads. */
+function strokeCrossesBox([x, y, endX, endY]: readonly number[], box: ScreenRect): boolean {
+  const dx = endX - x, dy = endY - y;
+  let start = 0, end = 1;
+  for (const [p, q] of [[-dx, x - box.x0 + 3], [dx, box.x1 - x + 3], [-dy, y - box.y0 + 3], [dy, box.y1 - y + 3]]) {
+    if (p === 0) { if (q < 0) return false; continue; }
+    const t = q / p;
+    if (p < 0) start = Math.max(start, t); else end = Math.min(end, t);
+    if (start > end) return false;
+  }
+  return true;
+}
 function projectAnchor(p: THREE.Vector3, camera: THREE.PerspectiveCamera, width: number, height: number): { x: number; y: number } | null {
   const projected = p.clone().project(camera);
   if (projected.z < -1 || projected.z > 1 || Math.abs(projected.x) > 1 || Math.abs(projected.y) > 1) return null;

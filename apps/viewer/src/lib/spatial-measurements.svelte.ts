@@ -1,9 +1,12 @@
 import { endpointLabel, formatSpatialDistance, resolveSpatialRelationship, type SpatialEndpoint, type SpatialRelationship } from '@cosmolabe/core';
+import { ViewStateError } from '@cosmolabe/control';
 import { flushSync, mount, unmount } from 'svelte';
-import { Ruler, MoveUpRight, TriangleRight } from 'lucide-svelte';
+import { Ruler, Crosshair, TriangleRight } from 'lucide-svelte';
 import { openTool } from './shell.svelte';
 import type { UniverseRenderer } from '@cosmolabe/three';
 import { getCurrentRenderer, getUniverse } from './loader';
+import { validateMeasurementLinkState, validateMeasurementReferences, type MeasurementDefinition, type MeasurementLinkState } from './measurement-link-state';
+export type { MeasurementDefinition } from './measurement-link-state';
 
 export type Slot = 'source' | 'target' | 'vertex';
 type Kind = SpatialRelationship['kind'];
@@ -13,7 +16,6 @@ const emptyDraft = (): Draft => ({ source: null, target: null, vertex: null });
 export const measurementColors = [{ name: 'Blue', color: '#82aabd' }, { name: 'Sand', color: '#c6a66b' }, { name: 'Sage', color: '#9ab58d' }, { name: 'Mauve', color: '#b493ad' }];
 const colors = ['#82aabd', '#c6a66b', '#9ab58d', '#b493ad'];
 let suspendedDraft: DraftSnapshot | null = null;
-export interface MeasurementDefinition extends Draft { id: string; kind: Kind; color?: string; visible?: boolean; showDistance?: boolean; fullLength?: boolean; }
 
 export const measurements = $state({
   items: [] as MeasurementDefinition[],
@@ -59,7 +61,7 @@ export function applyMeasurementFields(): void {
   item.kind = measurements.draftKind; item.color = measurements.draftColor;
   item.showDistance = measurements.draftShowDistance; item.fullLength = measurements.draftFullLength;
   for (const slot of ['source', 'target', 'vertex'] as const) {
-    const endpoint = slot === 'vertex' && item.kind !== 'angle' ? null : measurements.draft[slot];
+    const endpoint = measurements.draft[slot];
     if (JSON.stringify(item[slot]) !== JSON.stringify(endpoint)) item[slot] = endpoint && cloneEndpoint(endpoint);
   }
 }
@@ -97,6 +99,30 @@ export function newMeasurement(): void {
   measurements.editingId = null; measurements.selectedId = null;
   cancelMeasurementPick();
   if (suspendedDraft) { restore(suspendedDraft); suspendedDraft = null; }
+  syncMeasurements();
+}
+/** Type changes retain latent angle endpoints and direction options. */
+export function changeMeasurementKind(kind: Kind): void {
+  measurements.draftKind = kind; cancelMeasurementPick(); syncMeasurements();
+}
+export function captureSharedMeasurements(): MeasurementLinkState | undefined {
+  applyMeasurementFields();
+  if (!measurements.items.length) return undefined;
+  return validateMeasurementLinkState({ version: 1, items: measurements.items,
+    ...(measurements.selectedId ? { selected: measurements.selectedId } : {}) });
+}
+export function restoreSharedMeasurements(input: MeasurementLinkState | undefined): void {
+  const state = input ? validateMeasurementLinkState(input) : undefined;
+  const universe = getUniverse();
+  if (state) {
+    if (!universe) throw new ViewStateError('Measurement context: the catalog has no scene.');
+    validateMeasurementReferences(state, universe, getCurrentRenderer()?.timeController.et ?? 0);
+  }
+  resetMeasurementsForScene();
+  if (!state) return;
+  measurements.items = state.items;
+  measurements.nextColor = state.items.length;
+  if (state.selected) selectMeasurement(state.selected);
   syncMeasurements();
 }
 export function openMeasurementEditor(id: string): void {
@@ -209,10 +235,11 @@ export function configureMeasurementInput(renderer: UniverseRenderer): void {
     clearPreview: () => renderer.clearSpatialPickPreview(),
     onSelect: selectMeasurement,
     onOpenEditor: openMeasurementEditor,
+    onClearSelection: () => selectMeasurement(null),
     previewIntervalMs: () => measurements.pickMode === 'surface' ? 75 : 16,
     labelIcon(kind) {
       const host = document.createElement('span');
-      const component = flushSync(() => mount({ distance: Ruler, direction: MoveUpRight, angle: TriangleRight }[kind], { target: host, props: { size: 12, 'aria-hidden': 'true' } }));
+      const component = flushSync(() => mount({ distance: Ruler, direction: Crosshair, angle: TriangleRight }[kind], { target: host, props: { size: 12, 'aria-hidden': 'true' } }));
       const svg = host.querySelector('svg')!.cloneNode(true) as SVGSVGElement;
       void unmount(component); return svg;
     },
@@ -223,6 +250,7 @@ export function configureMeasurementInput(renderer: UniverseRenderer): void {
 export function measurementDescription(item: MeasurementDefinition): string {
   if (!relationship(item)) return 'Incomplete endpoints';
   if (item.kind === 'angle') return `At ${endpointLabel(item.vertex!)} · between ${endpointLabel(item.source!)} and ${endpointLabel(item.target!)}`;
+  if (item.kind === 'direction') return `Direction to ${endpointLabel(item.target!)} · from ${endpointLabel(item.source!)}`;
   return `${endpointLabel(item.source!)} ${item.kind === 'distance' ? '↔' : '→'} ${endpointLabel(item.target!)}`;
 }
 export function measurementValue(item: MeasurementDefinition, et: number): string {

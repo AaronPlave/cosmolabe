@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SpatialEndpoint } from '@cosmolabe/core';
+import { Body, FixedPointTrajectory, FixedRotation, Universe, type SpatialEndpoint } from '@cosmolabe/core';
 import type { UniverseRenderer, SpatialInteraction } from '@cosmolabe/three';
-vi.mock('../loader', () => ({ getCurrentRenderer: () => null, getUniverse: () => null }));
+const scene = vi.hoisted(() => ({ universe: null as Universe | null }));
+vi.mock('../loader', () => ({ getCurrentRenderer: () => null, getUniverse: () => scene.universe }));
 import {
   addMeasurement, captureSurfaceEndpoint, configureMeasurementInput,
   duplicateMeasurement, measurements, removeMeasurement, resetMeasurementsForScene, createMeasurement, syncMeasurements,
-  startMeasurementPick, renderedMeasurements, newMeasurement, selectMeasurement, measurementValue,
+  startMeasurementPick, renderedMeasurements, newMeasurement, selectMeasurement, measurementValue, changeMeasurementKind,
+  captureSharedMeasurements, restoreSharedMeasurements,
 } from '../spatial-measurements.svelte';
 
-beforeEach(resetMeasurementsForScene);
+beforeEach(() => { scene.universe = null; resetMeasurementsForScene(); });
 const original = () => ({ id: 'saved', kind: 'distance' as const,
   source: { kind: 'body-fixed' as const, bodyName: 'Earth', positionKm: [1, 2, 3] as [number, number, number] },
   target: { kind: 'entity' as const, bodyName: 'Moon' }, color: '#82aabd' });
@@ -64,6 +66,48 @@ describe('immediate measurement editing', () => {
     expect(createMeasurement()).toBe(false);
     removeMeasurement(measurements.items[0].id);
     expect(measurements.items).toEqual([]);expect(measurements.selectedId).toBeNull();
+  });
+  it('retains endpoints and options when switching type away and back', () => {
+    addMeasurement(original());
+    measurements.draft.vertex = { kind: 'entity', bodyName: 'Sun' };
+    changeMeasurementKind('angle');
+    changeMeasurementKind('direction'); measurements.draftFullLength = true;
+    changeMeasurementKind('distance'); changeMeasurementKind('angle');
+    expect(measurements.items[0]).toMatchObject({ id: 'saved', kind: 'angle', vertex: { bodyName: 'Sun' }, fullLength: true });
+    newMeasurement(); selectMeasurement('saved');
+    expect(measurements.draft.vertex).toEqual({ kind: 'entity', bodyName: 'Sun' });
+  });
+});
+
+describe('measurement URL restoration', () => {
+  beforeEach(() => {
+    scene.universe = new Universe();
+    for (const name of ['Earth', 'Moon']) scene.universe.addBody(new Body({ name, trajectory: new FixedPointTrajectory([0, 0, 0]), rotation: new FixedRotation([1, 0, 0, 0]) }));
+  });
+  it('captures live edits without draft/pick/hover, restores after teardown and re-shares stable identities', () => {
+    addMeasurement(original()); measurements.draftColor = '#abcdef';
+    measurements.items[0].visible = false;
+    measurements.hoveredId = 'saved'; startMeasurementPick('target', 'surface');
+    const captured = captureSharedMeasurements()!;
+    expect(captured.items[0]).toMatchObject({ color: '#abcdef', visible: false });
+    resetMeasurementsForScene(); restoreSharedMeasurements(captured);
+    expect(captureSharedMeasurements()).toEqual(captured);
+    expect(measurements.selectedId).toBe('saved');
+    expect(measurements.pendingPickSlot).toBeNull(); expect(measurements.hoveredId).toBeNull();
+    expect(measurementValue(measurements.items[0], 0)).not.toContain('Unavailable');
+    restoreSharedMeasurements(undefined); expect(measurements.items).toEqual([]);
+  });
+  it('does not replace any measurements on invalid/unavailable definitions or catalog replacement', () => {
+    addMeasurement(original());
+    const previous = captureSharedMeasurements()!;
+    const invalid = { ...previous, items: [...previous.items, { ...previous.items[0], id: 'missing', target: { kind: 'entity' as const, bodyName: 'Absent' } }] };
+    expect(() => restoreSharedMeasurements(invalid)).toThrow(/Absent.*unavailable/);
+    expect(captureSharedMeasurements()).toEqual(previous);
+    expect(() => restoreSharedMeasurements({ ...previous, selected: 'invalid' })).toThrow(/selected/);
+    expect(captureSharedMeasurements()).toEqual(previous);
+    resetMeasurementsForScene(); scene.universe = new Universe();
+    expect(() => restoreSharedMeasurements(previous)).toThrow(/Earth.*unavailable/);
+    expect(measurements.items).toEqual([]);
   });
 });
 

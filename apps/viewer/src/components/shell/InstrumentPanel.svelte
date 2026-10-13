@@ -280,7 +280,7 @@
     line-height: var(--leading-interface);
   }
   .instrument-body :global(select),
-  .instrument-body :global(input:not([type='range']):not([type='checkbox'])) {
+  .instrument-body :global(input:not([type='range']):not([type='checkbox']):not([type='color'])) {
     min-height: var(--size-control);
     padding-inline: var(--space-ui-2);
     border-color: var(--color-border-default);
