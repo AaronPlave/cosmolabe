@@ -6,11 +6,9 @@
  * furnishes all referenced kernels (with `.tm` meta-kernels expanded), and
  * initializes the scene. There is no per-mission code path.
  */
-import * as THREE from 'three';
 import {
   Universe,
   loadCatalogFromUrl,
-  bodyFixedOffsetToWorld,
   etFromCalendarString,
   type ResolvedCatalogGraph,
 } from '@cosmolabe/core';
@@ -713,80 +711,9 @@ function initScene(
   syncBodies(universe);
   setKernelCount(spice?.totalLoaded() ?? 0);
 
-  // Load catalog viewpoints
-  const scaleFactor = 1e-6;
-  for (const vpDef of universe.viewpoints) {
-    let pos: { x: number; y: number; z: number };
-    if (vpDef.eye) {
-      pos = { x: vpDef.eye[0] * scaleFactor, y: vpDef.eye[1] * scaleFactor, z: vpDef.eye[2] * scaleFactor };
-    } else if (vpDef.distance != null) {
-      const dist = vpDef.distance * scaleFactor;
-      // Viewpoint distance + lat/lon are a body-fixed offset from the tracked
-      // body (e.g. "Jezero Overhead" should point at Jezero on Mars, not at
-      // inertial coords Mars no longer faces), so it is mapped to world coords
-      // through the tracked body's (or its parent's) orientation at the epoch
-      // the viewpoint is for. The convention and the composition both live in
-      // core's `bodyFixedOffsetToWorld` so they are tested against SPICE.
-      //
-      // That epoch is the viewpoint's own `time` when it names one, and
-      // `defaultTime` otherwise: "Titan T-A Flyby (2004-10-26)" is a lat/lon on
-      // Titan four months after defaultTime, and orienting it with Titan's
-      // defaultTime attitude would aim the camera at the wrong hemisphere even
-      // though the clock it seeks to is right.
-      const layoutEt = vpDef.epoch ?? universe.time;
-      const refBody = vpDef.center ? universe.getBody(vpDef.center) : undefined;
-      // For a body that itself spins (planet, moon), use the body's own rotation.
-      // For a child of a spinning body (e.g. Ingenuity → Mars), use the parent's rotation.
-      const spinBody = refBody?.rotation
-        ? refBody
-        : refBody?.parentName ? universe.getBody(refBody.parentName) : undefined;
-      const q = spinBody?.rotationAt(layoutEt);
-      const sourceFrame = spinBody?.rotation?.sourceFrame;
-      if (q && sourceFrame) {
-        const [x, y, z] = bodyFixedOffsetToWorld(
-          dist,
-          vpDef.latitude ?? 0,
-          vpDef.longitude ?? 0,
-          q,
-          sourceFrame,
-          undefined,
-          layoutEt,
-          universe.frames,
-        );
-        pos = { x, y, z };
-      } else {
-        // No rotation model to orient against: fall back to treating the
-        // offset as world-frame, which is what it degenerates to anyway.
-        const [x, y, z] = bodyFixedOffsetToWorld(
-          dist,
-          vpDef.latitude ?? 0,
-          vpDef.longitude ?? 0,
-          [1, 0, 0, 0],
-          'EclipticJ2000',
-        );
-        pos = { x, y, z };
-      }
-    } else {
-      pos = { x: 0, y: 300, z: 500 };
-    }
-
-    const tgt = vpDef.target
-      ? new THREE.Vector3(vpDef.target[0] * scaleFactor, vpDef.target[1] * scaleFactor, vpDef.target[2] * scaleFactor)
-      : new THREE.Vector3(0, 0, 0);
-    const up = vpDef.up ? new THREE.Vector3(vpDef.up[0], vpDef.up[1], vpDef.up[2]).normalize() : new THREE.Vector3(0, 1, 0);
-
-    renderer.cameraController.addViewpoint({
-      name: vpDef.name,
-      position: new THREE.Vector3(pos.x, pos.y, pos.z),
-      target: tgt,
-      up,
-      trackBody: vpDef.center,
-      // Resolved by CatalogLoader (SPICE str2et, else core's calendar parse),
-      // and undefined when the catalog named no time — which is what keeps a
-      // timeless viewpoint from moving the clock.
-      epoch: vpDef.epoch,
-    });
-  }
+  // Catalog viewpoints. Each is re-resolved whenever it is applied, at its
+  // own `time` or at the current time, through core's `resolveViewpoint`.
+  renderer.addCatalogViewpoints();
   renderer.cameraController.saveViewpoint('Default');
 
   // Apply default viewpoint. Also seeks the clock if that viewpoint declares a

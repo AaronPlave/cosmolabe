@@ -4,6 +4,7 @@ import { KeyboardControls } from './KeyboardControls.js';
 import { attachPointerInput } from './PointerInput.js';
 import type { KeyboardControlsConfig } from './KeyboardControls.js';
 import type { BodyMesh } from '../BodyMesh.js';
+import type { ViewpointDefinition } from '@cosmolabe/core';
 import {
   CameraModeName,
   type ICameraMode,
@@ -21,14 +22,22 @@ import { SurfaceMode } from './modes/SurfaceMode.js';
 import { InstrumentMode } from './modes/InstrumentMode.js';
 import { SurfaceExplorerMode } from './modes/SurfaceExplorerMode.js';
 
-/** A saved camera viewpoint (position + target in scene coordinates) */
-export interface CameraViewpoint {
-  name: string;
+/** A camera pose in scene coordinates. */
+export interface ViewpointPose {
   position: THREE.Vector3;
   target: THREE.Vector3;
   up: THREE.Vector3;
+}
+
+/** A saved camera viewpoint (position + target in scene coordinates) */
+export interface CameraViewpoint extends ViewpointPose {
+  name: string;
   /** If set, camera tracks this body name */
   trackBody?: string;
+  /** If set, the camera keeps facing this body while tracking `trackBody`. */
+  lookAtBody?: string;
+  /** Vertical field of view in degrees, when the viewpoint sets one. */
+  fov?: number;
   /**
    * If set, the moment this viewpoint depicts, in ephemeris seconds past J2000
    * (a catalog Viewpoint's `time`, already resolved). Applying the viewpoint
@@ -36,6 +45,12 @@ export interface CameraViewpoint {
    * clock where it is.
    */
   epoch?: number;
+  /** The semantic definition this viewpoint was built from (catalog
+   *  viewpoints), for consumers that serialize or inspect it. */
+  definition?: ViewpointDefinition;
+  /** Re-derive the pose at an epoch. Catalog viewpoints carry one; the stored
+   *  pose is then only the pose at the epoch the viewpoint was registered. */
+  resolve?: (et: number) => ViewpointPose;
 }
 
 /** The scripted camera moves `orbitTarget`, `dolly` and `crane` start. */
@@ -337,18 +352,23 @@ export class CameraController {
     }
   }
 
-  /** Animate camera to a saved viewpoint by name */
+  /** Animate camera to a saved viewpoint by name, at its stored pose */
   goToViewpoint(name: string, duration = 1.0): boolean {
     const vp = this._viewpoints.get(name);
     if (!vp) return false;
-    this._startAnimation(
-      vp.position.clone(), vp.target.clone(), vp.up.clone(), duration,
-    );
+    this.flyToViewpoint(vp, duration);
     return true;
   }
 
+  /** Animate camera to a viewpoint's pose */
+  flyToViewpoint(vp: ViewpointPose, duration = 1.0): void {
+    this._startAnimation(
+      vp.position.clone(), vp.target.clone(), vp.up.clone(), duration,
+    );
+  }
+
   /** Apply a viewpoint immediately (no animation) */
-  applyViewpoint(vp: CameraViewpoint): void {
+  applyViewpoint(vp: ViewpointPose): void {
     this.cancelAnimation();
     this.camera.position.copy(vp.position);
     this.controls.target.copy(vp.target);

@@ -122,10 +122,11 @@ export function applyCameraView(renderer: UniverseRenderer, view: ExportedView):
     const target = view.target
       ? new THREE.Vector3(view.target[0] * scale, view.target[1] * scale, view.target[2] * scale)
       : new THREE.Vector3(0, 0, 0);
-    const up = view.up
+    // A semantic `up` direction needs the catalog resolver; v1 takes a vector.
+    const up = Array.isArray(view.up)
       ? new THREE.Vector3(view.up[0], view.up[1], view.up[2]).normalize()
       : new THREE.Vector3(0, 1, 0);
-    cc.applyViewpoint({ name: view.name ?? 'Imported', position, target, up, trackBody: view.center });
+    cc.applyViewpoint({ position, target, up });
   }
 
   if (view.fov != null && Number.isFinite(view.fov)) {

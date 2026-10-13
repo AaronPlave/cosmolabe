@@ -10,6 +10,7 @@ import { parseOem } from '@cosmolabe/interop';
 import { oemToStateRecords, checkOemFrame, oemFrameName, refineOemFrame } from '../trajectories/OemAdapter.js';
 import { parseXyzv } from '../trajectories/XyzvParser.js';
 import { etFromCalendarString } from '../time.js';
+import { parseViewpoint as parseViewpointItem, type ViewpointDefinition } from '../viewpoint.js';
 import { TLETrajectory } from '../trajectories/TLETrajectory.js';
 import { ChebyshevPolyTrajectory } from '../trajectories/ChebyshevPolyTrajectory.js';
 import { LinearCombinationTrajectory } from '../trajectories/LinearCombinationTrajectory.js';
@@ -307,46 +308,9 @@ export interface LabelSpec {
   visible?: boolean;
 }
 
-/** A viewpoint definition parsed from a Cosmographia catalog Viewpoint item */
-export interface ViewpointDefinition {
-  name: string;
-  /** Body to center the view on */
-  center?: string;
-  /** Reference frame (default: EclipticJ2000) */
-  frame?: string;
-  /** Distance from center body in km */
-  distance?: number;
-  /** Longitude offset in degrees (azimuth around center) */
-  longitude?: number;
-  /** Latitude offset in degrees (elevation from equatorial plane) */
-  latitude?: number;
-  /** Explicit eye position [x, y, z] in km (overrides spherical coords) */
-  eye?: [number, number, number];
-  /** Explicit target position [x, y, z] in km */
-  target?: [number, number, number];
-  /** Up direction */
-  up?: [number, number, number];
-  /** Field of view in degrees */
-  fov?: number;
-  /**
-   * The moment this viewpoint depicts, verbatim from the catalog (UTC, or a
-   * Julian day number). Kept as authored so a consumer can round-trip it; use
-   * `epoch` for the resolved value.
-   */
-  time?: string | number;
-  /**
-   * `time` resolved to ephemeris seconds past J2000, via SPICE `str2et` when a
-   * leapseconds kernel is furnished and core's calendar parse otherwise —
-   * the same path every other catalog epoch takes.
-   *
-   * Undefined when the catalog declared no `time`, and also when it declared
-   * one that could not be parsed (which warns). Deliberately NOT zero on
-   * failure: a viewpoint that says nothing about time must leave the clock
-   * alone, and 0 is a legitimate epoch, so the two cases have to be
-   * distinguishable at the point of use.
-   */
-  epoch?: number;
-}
+/** A catalog `Viewpoint` item, parsed. Defined with the resolver in
+ *  `viewpoint.ts`; re-exported here where it has always been importable. */
+export type { ViewpointDefinition } from '../viewpoint.js';
 
 export interface LoadedCatalog {
   bodies: Body[];
@@ -844,26 +808,17 @@ export class CatalogLoader {
   }
 
   private parseViewpoint(item: CatalogItem): ViewpointDefinition {
-    const vp: ViewpointDefinition = { name: item.name };
-    vp.center = item.center;
-    // Parse viewpoint-specific fields from the generic CatalogItem
-    const raw = item as unknown as Record<string, unknown>;
-    if (raw.frame) vp.frame = String(raw.frame);
-    if (raw.distance != null) vp.distance = parseFloat(String(raw.distance));
-    if (raw.longitude != null) vp.longitude = parseFloat(String(raw.longitude));
-    if (raw.latitude != null) vp.latitude = parseFloat(String(raw.latitude));
-    if (Array.isArray(raw.eye)) vp.eye = raw.eye.map(Number) as [number, number, number];
-    if (Array.isArray(raw.target)) vp.target = raw.target.map(Number) as [number, number, number];
-    if (Array.isArray(raw.up)) vp.up = raw.up.map(Number) as [number, number, number];
-    if (raw.fov != null) vp.fov = parseFloat(String(raw.fov));
-    if (raw.time != null && (typeof raw.time === 'string' || typeof raw.time === 'number')) {
-      vp.time = raw.time;
-      const et = this.tryParseEpochValue(raw.time);
+    const vp = parseViewpointItem(item as unknown as Record<string, unknown>, (msg) => {
+      console.warn(`[Cosmolabe] Viewpoint "${item.name}": ${msg}`);
+    });
+    if (vp.time !== undefined) {
+      const et = this.tryParseEpochValue(vp.time);
       if (et === undefined) {
         // Warn rather than fall back to 0. A viewpoint named for an epoch that
         // silently resolves to J2000 is the exact failure this field was added
         // to remove — the scene still renders, just at the wrong moment.
-        console.warn(`[Cosmolabe] Viewpoint "${item.name}": could not parse time ${JSON.stringify(raw.time)}; leaving the clock alone`);
+        console.warn(`[Cosmolabe] Viewpoint "${item.name}": could not parse time ${JSON.stringify(vp.time)}; leaving the clock alone`);
+        delete vp.epoch;
       } else {
         vp.epoch = et;
       }

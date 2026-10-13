@@ -68,12 +68,15 @@ function stubHost(viewpoints: CameraViewpoint[]) {
     cameraController: {
       getViewpoint: (n) => byName.get(n),
       applyViewpoint: (vp) => { calls.push(`apply:${vp.name}`); },
-      goToViewpoint: (n) => { calls.push(`goTo:${n}`); return true; },
+      flyToViewpoint: (vp) => { calls.push(`goTo:${vp.name}`); },
       track: (bm) => { calls.push(`track:${bm ? 'body' : 'null'}`); },
+      lookAt: (bm) => { calls.push(`lookAt:${bm ? 'body' : 'null'}`); },
     },
     timeController: {
+      get et() { return et; },
       setTime: (t) => { calls.push(`setTime:${t}`); et = t; },
     },
+    camera: { fov: 50, updateProjectionMatrix: () => {} },
     getBodyMesh: () => ({} as BodyMesh),
   };
   return { host, calls, et: () => et };
