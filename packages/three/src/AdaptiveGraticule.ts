@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { bodyFixedToSurfacePosition, surfacePositionToBodyFixed, formatSurfaceAngle, wrapLongitude, type SurfaceCoordinates } from '@cosmolabe/core';
 import { ANGULAR_GRID_STEPS, type GridSettings } from '@cosmolabe/control';
 import type { BodyMesh } from './BodyMesh.js';
-import { GraticuleFrame } from './GraticuleFrame.js';
+import { GraticuleFrame, refineFrameTick, type FrameTick } from './GraticuleFrame.js';
 import type { LabelManager } from './LabelManager.js';
 import { applyGraticuleMaterial, applyGraticuleToScene, makeGraticuleUniforms, GRID_PRESENTATION, gridSmoothstep, GRID_AUTO_STEPS } from './GraticuleShader.js';
 
@@ -77,6 +77,9 @@ export class AdaptiveGraticule {
   private carrierTier = '';
   private settings: GridSettings | null = null;
   private frame: GraticuleFrame | null = null;
+  private readonly frameFacets = new Map<string, THREE.Triangle>();
+  private frameQueries = 0;
+  private readonly frameDeferred = new Map<string, number>();
   constructor(private readonly bm: BodyMesh, public coordinates: SurfaceCoordinates) {
     this.uniforms = makeGraticuleUniforms(coordinates);
     bm.add(this.group);
@@ -87,12 +90,12 @@ export class AdaptiveGraticule {
     this.uniforms.uGridShape.value.copy(makeGraticuleUniforms(coordinates).uGridShape.value);
     this.lastPlan = -Infinity;
     this.cachedHits.clear();
-    this.clearLabels(); this.frame?.hide();
+    this.clearLabels(); this.frame?.hide(); this.frameFacets.clear(); this.frameDeferred.clear();
   }
   setAnnotationScene(scene: THREE.Scene): void {
     if (this.group.parent !== scene) scene.add(this.group);
   }
-  invalidateSurface(): void { this.cachedHits.clear(); }
+  invalidateSurface(): void { this.cachedHits.clear(); this.frameFacets.clear(); this.frameDeferred.clear(); }
   attachSurfaceOverlay(group: THREE.Object3D): void { applyGraticuleToScene(group, this.uniforms, this.bodyFromWorld); }
   setCameraRelativeOrigin(origin: THREE.Vector3 | null): void {
     this.bodyFromWorld.copy(this.toWorld).invert();
@@ -268,7 +271,7 @@ export class AdaptiveGraticule {
   }
   update(camera: THREE.PerspectiveCamera, viewport: { width: number; height: number }, manager: LabelManager | null, occluders: readonly BodyMesh[] = [this.bm]): void {
     const now = performance.now();
-    this.frame?.hide();
+    this.frame?.hide(); this.frameQueries = 0;
     const dt = Math.max(0, Math.min(0.1, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
     this.uniforms.uGridPixelRatio.value = Math.max(1, globalThis.devicePixelRatio ?? 1);
@@ -318,25 +321,86 @@ export class AdaptiveGraticule {
         return { ...h, incidence: camera.position.clone().sub(point).normalize().dot(normal) };
       };
       const steps = this.uniforms.uGridStep.value;
-      this.frame.update(width, height, [steps.x, steps.y], manager, sample, tick => {
+      const coordinate = (p: THREE.Vector3) => {
+        const h = bodyFixedToSurfacePosition({ xKm: p.x, yKm: p.y, zKm: p.z }, this.coordinates);
+        const normal = new THREE.Vector3(Math.cos(h.latDeg * DEG) * Math.cos(h.lonDeg * DEG), Math.cos(h.latDeg * DEG) * Math.sin(h.lonDeg * DEG), Math.sin(h.latDeg * DEG));
+        return { ...h, incidence: cameraFixed.clone().sub(p).normalize().dot(normal) };
+      };
+      const query = (tick: FrameTick) => {
+        if (this.frameQueries >= 8) return null;
+        this.frameQueries++;
         this.raycaster.setFromCamera(new THREE.Vector2(tick.x / width * 2 - 1, 1 - tick.y / height * 2), camera);
         const intersection = this.raycaster.intersectObjects(targets, true).find(hit => {
-          // Raycaster traverses invisible objects; only rendered ancestry can
-          // certify a coordinate, especially during terrain LOD replacement.
           for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible) return false;
+          if (hit.object instanceof THREE.Mesh) {
+            const m = hit.object.material, material = Array.isArray(m) ? m[hit.face?.materialIndex ?? 0] : m;
+            if (!material?.visible) return false;
+          }
           return true;
         });
-        if (!intersection) return false;
+        if (!intersection) return null;
         let object: THREE.Object3D | null = intersection.object;
         while (object && !own.has(object)) object = object.parent;
-        if (!object) return false;
-        const p = intersection.point.clone().applyMatrix4(this.bodyFromWorld);
-        const h = bodyFixedToSurfacePosition({ xKm: p.x, yKm: p.y, zKm: p.z }, this.coordinates);
-        return Math.abs(tick.axis === 'latitude' ? h.latDeg - tick.value : wrapLongitude(h.lonDeg - tick.value)) < (tick.axis === 'latitude' ? steps.x : steps.y) * 0.015;
-      });
-      this.frame.sprite.position.copy(new THREE.Vector3(0, 0, -Math.max(camera.near * 2, 1)).applyMatrix4(camera.matrixWorld).applyMatrix4(this.bodyFromWorld));
-      const pixel = 2 / camera.projectionMatrix.elements[5] / height / this.bm.scaleFactor;
-      this.frame.sprite.scale.set(width * pixel, height * pixel, 1);
+        if (!object || !(intersection.object instanceof THREE.Mesh) || !intersection.face) return null;
+        const mesh = intersection.object, matrix = mesh.matrixWorld.clone();
+        if (mesh instanceof THREE.InstancedMesh && intersection.instanceId !== undefined) {
+          const instance = new THREE.Matrix4(); mesh.getMatrixAt(intersection.instanceId, instance); matrix.multiply(instance);
+        }
+        matrix.premultiply(this.bodyFromWorld);
+        const vertex = (index: number) => mesh.getVertexPosition(index, new THREE.Vector3()).applyMatrix4(matrix);
+        const face = intersection.face;
+        return { hit: coordinate(intersection.point.clone().applyMatrix4(this.bodyFromWorld)), facet: new THREE.Triangle(vertex(face.a), vertex(face.b), vertex(face.c)) };
+      };
+      const planeSample = (facet: THREE.Triangle) => {
+        const plane = facet.getPlane(new THREE.Plane()), ray = new THREE.Ray(), p = new THREE.Vector3();
+        return (x: number, y: number) => {
+          this.raycaster.setFromCamera(new THREE.Vector2(x / width * 2 - 1, 1 - y / height * 2), camera);
+          ray.copy(this.raycaster.ray).applyMatrix4(this.bodyFromWorld);
+          return ray.intersectPlane(plane, p) ? coordinate(p) : null;
+        };
+      };
+      this.frame.update(width, height, [steps.x, steps.y], manager, sample, proposed => {
+        if (this.frameQueries >= 8) return null;
+        const key = `${proposed.axis}:${proposed.value.toFixed(6)}:${proposed.edge}`;
+        if ((this.frameDeferred.get(key) ?? 0) > now) return null;
+        this.frameDeferred.delete(key);
+        const defer = () => {
+          this.frameDeferred.set(key, now + 150);
+          if (this.frameDeferred.size > 128) this.frameDeferred.delete(this.frameDeferred.keys().next().value!);
+          return null;
+        };
+        let facet = this.frameFacets.get(key), tick = proposed, attempts = 0;
+        const remember = (value: THREE.Triangle) => {
+          this.frameFacets.delete(key); this.frameFacets.set(key, value);
+          if (this.frameFacets.size > 64) this.frameFacets.delete(this.frameFacets.keys().next().value!);
+        };
+        for (let i = 0; i < 3 && this.frameQueries < 8; i++) {
+          attempts++;
+          if (!facet) { const first = query(tick); if (!first) return defer(); facet = first.facet; remember(facet); }
+          const onPlane = planeSample(facet), refined = refineFrameTick(tick, width, height, onPlane);
+          if (!refined) { facet = undefined; continue; }
+          if (this.frameQueries >= 8) return null;
+          const current = query(refined);
+          if (!current) { this.frameFacets.delete(key); return defer(); }
+          remember(current.facet);
+          const before = onPlane(refined.x, refined.y), after = onPlane(refined.x + (refined.edge >= 2 ? 1 : 0), refined.y + (refined.edge < 2 ? 1 : 0));
+          if (!before || !after) return null;
+          const error = proposed.axis === 'latitude' ? current.hit.latDeg - proposed.value : wrapLongitude(current.hit.lonDeg - proposed.value);
+          const derivative = proposed.axis === 'latitude' ? after.latDeg - before.latDeg : wrapLongitude(after.lonDeg - before.lonDeg);
+          const alignmentPx = Math.abs(error / derivative);
+          if (current.hit.incidence >= 0.45 && Number.isFinite(alignmentPx) && alignmentPx <= 0.2) return { ...refined, alignmentPx };
+          facet = current.facet; tick = refined;
+        }
+        return attempts === 3 ? defer() : null;
+      }, now);
+      const depth = Math.max(camera.near * 2, 1), pixel = 2 / camera.projectionMatrix.elements[5] / height / this.bm.scaleFactor;
+      for (const element of this.frame.elements) {
+        if (!element.sprite.visible) continue;
+        const direction = new THREE.Vector3(element.x / width * 2 - 1, 1 - element.y / height * 2, 0).unproject(camera).sub(camera.position).normalize();
+        const z = direction.clone().transformDirection(camera.matrixWorldInverse).z;
+        element.sprite.position.copy(camera.position).addScaledVector(direction, depth / -z).applyMatrix4(this.bodyFromWorld);
+        element.sprite.scale.set(element.width * pixel, element.height * pixel, 1);
+      }
       return;
     }
     const materials = Array.isArray(this.bm.mesh.material) ? this.bm.mesh.material : [this.bm.mesh.material];
@@ -556,9 +620,9 @@ export class AdaptiveGraticule {
       }
       if (!label.sprite.visible) label.visibleSince = now;
       label.sprite.position.copy(fixed);
-      label.sprite.center.set(0.5 - offsetX / labelWidth, 0.5 + offsetY / LABEL_HEIGHT);
+      label.sprite.center.set(0.5 - offsetX / labelWidth, 0.5 + (offsetY + 3) / (LABEL_HEIGHT + 6));
       const unitsPerPixel = 2 * Math.tan(camera.fov * DEG / 2) / height / this.bm.scaleFactor;
-      label.sprite.scale.set(labelWidth * unitsPerPixel, LABEL_HEIGHT * unitsPerPixel, 1);
+      label.sprite.scale.set(labelWidth * unitsPerPixel, (LABEL_HEIGHT + 6) * unitsPerPixel, 1);
       label.sprite.material.opacity = Math.min(0.72 * strength, Math.max(0,
         label.sprite.material.opacity + (eligible ? dt * 5 : -dt * 4)));
       label.sprite.visible = label.sprite.material.opacity > 0;
@@ -568,13 +632,15 @@ export class AdaptiveGraticule {
   }
   private createLabel(anchor: Anchor, text: string, width: number, dpr: number): Label {
     const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(width * dpr * 2); canvas.height = Math.ceil(LABEL_HEIGHT * dpr * 2);
+    canvas.width = Math.ceil(width * dpr * 2); canvas.height = Math.ceil((LABEL_HEIGHT + 6) * dpr * 2);
     const ctx = canvas.getContext('2d')!;
     ctx.scale(dpr * 2, dpr * 2);
     ctx.font = `${LABEL_FONT_SIZE}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 2; ctx.strokeStyle = '#101725'; ctx.strokeText(text, width / 2, LABEL_HEIGHT / 2);
     ctx.fillStyle = '#b8c8da';
     ctx.fillText(text, width / 2, LABEL_HEIGHT / 2);
+    ctx.strokeStyle = '#91a4b9'; ctx.lineWidth = 0.9; ctx.beginPath();
+    ctx.moveTo(width / 2, LABEL_HEIGHT - 3); ctx.lineTo(width / 2, LABEL_HEIGHT + 5.5); ctx.stroke();
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true,
       // Like body labels, annotation rectangles use CPU anchor occlusion instead of
       // cutting the billboard's glyphs against the curved surface's depth buffer.
@@ -584,11 +650,11 @@ export class AdaptiveGraticule {
     this.group.add(sprite);
     return { sprite, anchor, text, width, visibleSince: Infinity };
   }
-  get metrics(): { candidates: number; labels: number; latitudeStep: number; longitudeStep: number; densityBlend: number; layout: 'geographic' | 'frame'; frameTicks: readonly import('./GraticuleFrame.js').FrameTick[];
+  get metrics(): { candidates: number; labels: number; latitudeStep: number; longitudeStep: number; densityBlend: number; layout: 'geographic' | 'frame'; frameElements: number; frameTextureBytes: number; frameTextureUploads: number; frameQueries: number; frameDiscoverySamples: number; frameTicks: readonly import('./GraticuleFrame.js').FrameTick[];
     anchors: readonly GeographicGridAnchor[]; annotations: Array<{ id: string; tier: string; axis: Anchor['axis']; latDeg: number; lonDeg: number; text: string; opacity: number }> } {
     return { candidates: this.candidates.length, labels: [...this.labels.values()].filter(l => l.sprite.visible).length,
       latitudeStep: this.uniforms.uGridStep.value.x, longitudeStep: this.uniforms.uGridStep.value.y,
-      densityBlend: this.uniforms.uGridBlend.value, layout: this.frame?.sprite.visible ? 'frame' : 'geographic', frameTicks: this.frame?.ticks ?? [], anchors: this.candidates,
+      densityBlend: this.uniforms.uGridBlend.value, layout: this.frame?.visible ? 'frame' : 'geographic', frameElements: this.frame?.elements.filter(e => e.sprite.visible).length ?? 0, frameTextureBytes: this.frame?.textureBytes ?? 0, frameTextureUploads: this.frame?.textureUploads ?? 0, frameQueries: this.frameQueries, frameDiscoverySamples: this.frame?.discoverySamples ?? 0, frameTicks: this.frame?.ticks ?? [], anchors: this.candidates,
       annotations: [...this.labels.values()].filter(l => l.sprite.visible).map(l => ({ id: l.anchor.id, tier: l.anchor.tier,
         axis: l.anchor.axis, latDeg: l.anchor.lat, lonDeg: l.anchor.lon,
         text: l.text, opacity: l.sprite.material.opacity })) };

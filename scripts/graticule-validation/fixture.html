@@ -1,5 +1,6 @@
 <!doctype html><html><head><link rel="icon" href="data:,"><style>body{margin:0;background:#050811}canvas{display:block}</style></head><body><script type="module">
 import * as THREE from 'three';
+import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import {Body,FixedPointTrajectory,bodySurfaceCoordinates,surfacePositionToBodyFixed,bodyFixedToSurfacePosition} from '@cosmolabe/core';
 import {BodyMesh} from '@cosmolabe/three';
 import {BodyMesh as BeforeMesh} from '../../packages/three/src/BodyMeshBefore.ts';
@@ -43,21 +44,22 @@ window.setup=(options={})=>{
  }
 
  const coordinates=bodySurfaceCoordinates(body);
- const elevation=(lat,lon)=>options.depression ? -1 : options.relief ? 0.05*(1+Math.sin(lat*Math.PI/3)*Math.cos(lon*Math.PI/3)) : 1.5*(1+Math.sin(lat*Math.PI/12)*Math.cos(lon*Math.PI/9));
+ const elevation=(lat,lon)=>options.depression ? (options.depressionHeight??-1) : options.relief ? 0.05*(1+Math.sin(lat*Math.PI/3)*Math.cos(lon*Math.PI/3)) : 1.5*(1+Math.sin(lat*Math.PI/12)*Math.cos(lon*Math.PI/9));
  const toFixed=(lat,lon,h=0)=>{const p=surfacePositionToBodyFixed({latDeg:lat,lonDeg:lon,heightKm:h},coordinates);return new THREE.Vector3(p.xKm,p.yKm,p.zKm)};
  let sampler;
  if(options.terrain){
    body.geometryData.displacementMap='synthetic';
    if(options.depression){
      const vertices=[],indices=[],n=128;
-     for(let y=0;y<=n;y++)for(let x=0;x<=n;x++){const p=toFixed(-2+y*4/n,-2+x*4/n);vertices.push(p.x/r[0],p.z/r[0],-p.y/r[0])}
+     for(let y=0;y<=n;y++)for(let x=0;x<=n;x++){const p=toFixed((options.patchLat??0)-(options.patchSpan??4)/2+y*(options.patchSpan??4)/n,(options.patchLon??0)-(options.patchSpan??4)/2+x*(options.patchSpan??4)/n);vertices.push(p.x/r[0],p.z/r[0],-p.y/r[0])}
      for(let y=0;y<n;y++)for(let x=0;x<n;x++){const a=y*(n+1)+x,b=a+1,c=a+n+1,d=c+1;indices.push(a,b,c,b,d,c)}
      bm.mesh.geometry.dispose();bm.mesh.geometry=new THREE.BufferGeometry();bm.mesh.geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));bm.mesh.geometry.setIndex(indices);
    }
    const positions=bm.mesh.geometry.attributes.position;
    for(let i=0;i<positions.count;i++){
      const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
-     const lat=Math.atan2(y,Math.hypot(x,z))*180/Math.PI,lon=Math.atan2(-z,x)*180/Math.PI;
+     const reference=options.depression?bodyFixedToSurfacePosition({xKm:x*r[0],yKm:-z*r[0],zKm:y*r[0]},coordinates):null;
+     const lat=reference?.latDeg??Math.atan2(y,Math.hypot(x,z))*180/Math.PI,lon=reference?.lonDeg??Math.atan2(-z,x)*180/Math.PI;
      const p=toFixed(lat,lon,elevation(lat,lon));positions.setXYZ(i,p.x,p.z,-p.y);
    }
    bm.ellipsoidRatios[0]=bm.ellipsoidRatios[1]=bm.ellipsoidRatios[2]=1;
@@ -102,10 +104,16 @@ window.freeLook=(dx,dy)=>{
  renderer.domElement.dispatchEvent(pointer('pointerdown',100,100));window.dispatchEvent(pointer('pointermove',100+dx,100+dy));controller.update();window.dispatchEvent(pointer('pointerup',100+dx,100+dy));host.showBodyGrid(true);
  const result={tracked:controller.trackedBody?.body.name??null,origin:controller.originBody?.body.name};controller.dispose();return result;
 };
-window.frame=()=>{const begin=nativeNow();labels.beginContextAnnotations();if(bm.updateGrid)bm.updateGrid(camera,{width:innerWidth,height:innerHeight},labels,other?[bm,other]:[bm]);const updateMs=nativeNow()-begin;renderer.render(scene,camera);renderer.getContext().finish();let visibleGridSprites=0;scene.traverse(object=>{if(object instanceof THREE.Sprite&&object.visible&&object.userData.gridLineId)visibleGridSprites++});return {prototype:prototypeInfo,updateMs,frameMs:nativeNow()-begin,metrics:bm.gridMetrics??null,runtime:{graticuleInstances:bm.graticule?1:0,visibleGridSprites},draw:{...renderer.info.render},memory:{...renderer.info.memory}}};
-window.loadImagery=async(url)=>{const texture=await new THREE.TextureLoader().loadAsync(url);texture.colorSpace=THREE.SRGBColorSpace;bm.mesh.material.map?.dispose();bm.mesh.material.map=texture;bm.mesh.material.needsUpdate=true};
+window.frame=()=>{const begin=nativeNow();labels.beginContextAnnotations();if(bm.updateGrid)bm.updateGrid(camera,{width:innerWidth,height:innerHeight},labels,other?[bm,other]:[bm]);const updateMs=nativeNow()-begin;renderer.render(scene,camera);renderer.getContext().finish();let visibleGridSprites=0,visibleFrameElements=0;scene.traverse(object=>{if(object instanceof THREE.Sprite&&object.visible&&object.userData.gridLineId)visibleGridSprites++;if(object instanceof THREE.Sprite&&object.visible&&object.userData.gridFrameElement)visibleFrameElements++});return {prototype:prototypeInfo,updateMs,frameMs:nativeNow()-begin,metrics:bm.gridMetrics??null,runtime:{graticuleInstances:bm.graticule?1:0,visibleGridSprites,visibleFrameElements},draw:{...renderer.info.render},memory:{...renderer.info.memory}}};
+window.loadImagery=async(url)=>{const texture=await (url.endsWith('.dds')?new DDSLoader():new THREE.TextureLoader()).loadAsync(url);texture.colorSpace=THREE.SRGBColorSpace;bm.mesh.material.map?.dispose();bm.mesh.material.map=texture;bm.mesh.material.needsUpdate=true};
 window.diagnostics=()=>{const points=[];bm.traverse(object=>{if(object instanceof THREE.Sprite && object.visible){const p=object.position;const coordinate=bodyFixedToSurfacePosition({xKm:p.x,yKm:p.y,zKm:p.z},bodySurfaceCoordinates(bm.body));const screen=p.clone().project(camera);points.push({id:object.userData.gridLineId,lat:coordinate.latDeg,lon:coordinate.lonDeg,heightKm:coordinate.heightKm,x:(screen.x+1)*innerWidth/2,y:(1-screen.y)*innerHeight/2,opacity:object.material.opacity,rect:{x0:(screen.x+1)*innerWidth/2+(0.5-object.center.x)*object.userData.gridLabelWidth-object.userData.gridLabelWidth/2-3,x1:(screen.x+1)*innerWidth/2+(0.5-object.center.x)*object.userData.gridLabelWidth+object.userData.gridLabelWidth/2+3,y0:(1-screen.y)*innerHeight/2+(object.center.y-0.5)*20-10,y1:(1-screen.y)*innerHeight/2+(object.center.y-0.5)*20+10}})}});return points};
 window.capture=()=>{window.frame();return renderer.domElement.toDataURL()};
 window.gridLines=visible=>bm.showGrid(visible,false,normalizeGridSettings());
+window.tessellate=(segments=96)=>{const old=bm.mesh.geometry;bm.mesh.geometry=new THREE.SphereGeometry(bm.displayRadius,segments,segments/2);old.dispose();};
+window.alignmentChecks=()=>{
+ const ray=new THREE.Raycaster(),coords=bodySurfaceCoordinates(bm.body),m=bm.graticule.bodyFromWorld;
+ const hit=(x,y)=>{ray.setFromCamera(new THREE.Vector2(x/innerWidth*2-1,1-y/innerHeight*2),camera);const h=ray.intersectObject(bm.mesh,true)[0];if(!h)return null;const p=h.point.applyMatrix4(m);return bodyFixedToSurfacePosition({xKm:p.x,yKm:p.y,zKm:p.z},coords)};
+ return bm.gridMetrics.frameTicks.map(t=>{const h=hit(t.x,t.y),n=hit(t.x+(t.edge>=2?1:0),t.y+(t.edge<2?1:0));if(!h||!n)return {tick:t,alignmentPx:null};const wrap=v=>((v+180)%360+360)%360-180;const d=t.axis==='latitude'?n.latDeg-h.latDeg:wrap(n.lonDeg-h.lonDeg),e=t.axis==='latitude'?h.latDeg-t.value:wrap(h.lonDeg-t.value);return {tick:t,alignmentPx:Math.abs(e/d)};});
+};
 window.ready=true;
 </script></body></html>

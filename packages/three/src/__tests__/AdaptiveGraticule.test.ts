@@ -11,7 +11,7 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('adaptive graticule', () => {
   it('labels one fixed latitude and one fixed longitude ruler', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Regional rulers', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -68,7 +68,7 @@ describe('adaptive graticule', () => {
   });
 
   it('switches whole fixed ruler bands without drawing both carriers together', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Band switch', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -98,7 +98,7 @@ describe('adaptive graticule', () => {
   });
 
   it('keeps fixed lattice sites under changed search bounds', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Pattern', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -136,7 +136,7 @@ describe('adaptive graticule', () => {
   });
 
   it('hides a prescribed site for UI collisions without moving it', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Sparse pattern', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -163,7 +163,7 @@ describe('adaptive graticule', () => {
   });
 
   it('keeps labels visible when the surface enters night', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Lighting', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -190,7 +190,7 @@ describe('adaptive graticule', () => {
   });
 
   it('keeps labels independent of lighting in the surface overlay scene', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Overlay lighting', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -241,7 +241,7 @@ describe('adaptive graticule', () => {
   });
 
   it('keeps geographic identities and locations through orbit, pan, roll and nearly stationary motion', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Attachment', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -278,7 +278,7 @@ describe('adaptive graticule', () => {
   });
 
   it('introduces separate fixed tiers and retires old line stations', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Tiers', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -310,7 +310,7 @@ describe('adaptive graticule', () => {
   });
 
   it('yields to measured controls by hiding labels without changing their geographic pattern', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const manager = new LabelManager({} as HTMLElement);
     const body = new Body({ name: 'Controls', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
@@ -335,7 +335,7 @@ describe('adaptive graticule', () => {
   });
   it('retains terrain annotations during continuous small camera moves within the ray budget', () => {
     vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({
-      scale() {}, strokeText() {}, fillText() {},
+      scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
     }) }) });
     let now = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
@@ -386,7 +386,7 @@ describe('adaptive graticule', () => {
     bm.dispose(); mesh.geometry.dispose(); mesh.material.dispose();
   });
   it('rejects a newly occluding ridge on the same latitude without reusing a cached positive', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Ridge', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -413,7 +413,7 @@ describe('adaptive graticule', () => {
     bm.dispose(); mesh.geometry.dispose(); mesh.material.dispose(); ridge.geometry.dispose(); ridge.material.dispose();
   });
   it('retires obsolete lattice sites during a manual non-nested transition', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Carriers', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -456,7 +456,7 @@ describe('adaptive graticule', () => {
   it('uses a nested automatic hierarchy and restores the globe lattice on zoom out', () => {
     for (let i = 1; i < AUTO_GRID_STEPS.length; i++) expect(AUTO_GRID_STEPS[i - 1] / AUTO_GRID_STEPS[i]).toBeCloseTo(Math.round(AUTO_GRID_STEPS[i - 1] / AUTO_GRID_STEPS[i]));
     expect(chooseGridStep(10, 15)).not.toBe(15); // Manual-only nice steps do not persist in Auto.
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Hierarchy', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -488,7 +488,7 @@ describe('adaptive graticule', () => {
   });
 
   it('refines both axes and unlabelled detail during fixed-altitude FOV zoom, then restores the globe rulers', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Optical', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -544,7 +544,7 @@ describe('adaptive graticule', () => {
     bm.dispose();
   });
   it('does not validate GPU-only displaced labels against undisplaced reference triangles', () => {
-    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {} }) }) });
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'GPU displacement', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
@@ -606,4 +606,28 @@ describe('adaptive graticule', () => {
       bm.dispose();
     }
   });
+});
+
+it('keeps the rolled 28.65-degree regional view readable and aligned through tessellation changes', () => {
+  vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ setTransform() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
+  let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+  const body = new Body({ name: 'Review', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe', classification: 'moon', geometryData: {}, rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+  const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000), angle = 0.5;
+  const radial = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0);
+  camera.position.copy(radial).multiplyScalar(101); camera.up.set(-Math.sin(angle) * 0.1, Math.cos(angle) * 0.1, 1); camera.lookAt(radial.clone().multiplyScalar(100));
+  const manager = new LabelManager({} as HTMLElement);
+  const queries = vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects');
+  bm.showGrid(true, true, normalizeGridSettings({ coordinateFrame: true }));
+  const settle = () => { for (let i = 0; i < 30; i++) { queries.mockClear(); now += 16; manager.beginContextAnnotations(); bm.updateGrid(camera, { width: 800, height: 800 }, manager); expect(queries.mock.calls.length).toBeLessThanOrEqual(8); } };
+  settle();
+  expect(bm.gridMetrics!.frameTicks.filter(t => t.axis === 'latitude').length).toBeGreaterThanOrEqual(2);
+  expect(bm.gridMetrics!.frameTicks.filter(t => t.axis === 'longitude').length).toBeGreaterThanOrEqual(2);
+  expect(bm.gridMetrics!.frameTicks.every(t => t.alignmentPx! <= 0.2)).toBe(true);
+  const uploads = bm.gridMetrics!.frameTextureUploads;
+  settle(); expect(bm.gridMetrics!.frameTextureUploads).toBe(uploads);
+  const old = bm.mesh.geometry; bm.mesh.geometry = new THREE.SphereGeometry(bm.displayRadius, 64, 32); old.dispose();
+  settle(); expect(new Set(bm.gridMetrics!.frameTicks.map(t => t.axis)).size).toBe(2);
+  expect(bm.gridMetrics!.frameTicks.every(t => t.alignmentPx! <= 0.2)).toBe(true);
+  bm.dispose();
 });

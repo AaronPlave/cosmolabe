@@ -7,6 +7,8 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
+import { createSpiceEngine } from '../packages/cspice-wasm/dist/index.js';
+import { Body, FixedPointTrajectory, bodySurfaceCoordinates, bodyFixedToSurfacePosition } from '../packages/core/dist/index.js';
 const root = process.cwd(), out = resolve('docs/validation/graticule/coordinate-frame');
 const fixture = resolve('apps/viewer/graticule-validation.html'), baseline = resolve('packages/three/src/BodyMeshBefore.ts');
 mkdirSync(out, { recursive: true });
@@ -27,6 +29,23 @@ const pose = (i, count) => {
     up = up.map((v, j) => v * (1 - tilt) + r[j] * tilt); }
   return { eye, target, up };
 };
+const catalog = JSON.parse(readFileSync('apps/viewer/test-catalogs/msl-dingo-gap.json'));
+const spice = await createSpiceEngine();
+for (const path of ['naif0012.tls','msl/pck00008.tpc','msl/msl.tf','msl/msl_tp_ops120808_iau2000_v1.tf','msl/MSL_76_SCLKSCET.00012.tsc','msl/msl_surf_rover_tlm_0449_0583_v1.bc','msl/msl_ls_ops120808_iau2000_v1.bsp','msl/msl_surf_rover_loc_0000_2003_v1.bsp','msl/msl_surf_rover_tlm_0449_0583_v1.bsp']) await spice.furnsh(path.split('/').at(-1),new Uint8Array(readFileSync('apps/viewer/test-catalogs/kernels/'+path)));
+const et=await spice.str2et(catalog.defaultTime.replace(/Z$/,''));
+const rover=Object.values((await spice.spkpos('-76',et,'IAU_MARS','NONE','499')).position);
+const attitude=await spice.pxform('MSL_ROVER','IAU_MARS',et),world=await spice.pxform('ECLIPJ2000','IAU_MARS',et);
+const mul=(m,v)=>[0,1,2].map(i=>m[i*3]*v[0]+m[i*3+1]*v[1]+m[i*3+2]*v[2]);
+const up=mul(world,[0,1,0]);
+const mars=new Body({name:'Mars',trajectory:new FixedPointTrajectory([0,0,0]),radii:[3396.19,3396.19,3376.2],geometryType:'Globe'});
+const site=bodyFixedToSurfacePosition({xKm:rover[0],yKm:rover[1],zKm:rover[2]},bodySurfaceCoordinates(mars));
+const catalogPoses=catalog.items.filter(v=>['Dingo Gap Approach','Curiosity Surface','Curiosity Close-up'].includes(v.name)).map(v=>{
+ const lat=v.latitude*Math.PI/180,lon=v.longitude*Math.PI/180;
+ let offset=[Math.cos(lat)*Math.cos(lon),Math.cos(lat)*Math.sin(lon),Math.sin(lat)].map(x=>x*v.distance);
+ if(v.center==='Curiosity')offset=mul(attitude,offset);
+ const center=v.center==='Curiosity'?rover:[0,0,0];
+ return {catalogName:v.name,eye:offset.map((x,i)=>x+center[i]),target:center,up,...(v.center==='Curiosity'?{terrain:true,depression:true,depressionHeight:site.heightKm,patchLat:site.latDeg,patchLon:site.lonDeg,patchSpan:.04}:{})};
+});
 try {
   const page = await browser.newPage({ viewport: { width: 800, height: 800 } });
   page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
@@ -47,6 +66,43 @@ try {
     }
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '8', '-i', resolve(dir, 'frame-%04d.png'), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '24', resolve(out, `${mode}.mp4`)]);
     rmSync(dir, { recursive: true, force: true }); paths.push({ mode, frames });
+  }
+  const regionalChecks = [];
+  for (const latitude of [0, 17]) {
+    const view = i => {
+      const lon = .5 + i * .000015, lat = latitude * Math.PI / 180 + .00001 * Math.sin(i / 6);
+      const r = [Math.cos(lat)*Math.cos(lon), Math.cos(lat)*Math.sin(lon), Math.sin(lat)];
+      return { eye:r.map(v=>v*101),target:r.map(v=>v*100),up:[-.12*Math.sin(lon),.12*Math.cos(lon),1] };
+    };
+    await page.evaluate(o=>window.setup(o),{radii:[100,100,100],coordinateFrame:true,...view(0)});
+    await page.evaluate(()=>window.loadImagery('/textures/moon-2k.jpg'));
+    for(let i=0;i<20;i++)await page.evaluate(()=>{window.validationTime+=16;window.frame()});
+    const stationary=[];
+    for(let i=0;i<8;i++)stationary.push(await page.evaluate(()=>{window.validationTime+=16;return window.frame()}));
+    const frames=[];
+    for(let i=0;i<40;i++){
+      if(i===20)await page.evaluate(()=>window.tessellate(96));
+      const f=await page.evaluate(o=>{window.validationTime+=16;window.pose(o);return window.frame()},view(i));
+      const alignment=await page.evaluate(()=>window.alignmentChecks());
+      frames.push({index:i,...f,alignment});
+    }
+    const png=await page.evaluate(()=>window.capture());writeFileSync(resolve(out,`regional-${latitude}-rendered.png`),Buffer.from(png.split(',')[1],'base64'));
+    const covered=f=>['latitude','longitude'].every(axis=>f.metrics.frameTicks.filter(t=>t.axis===axis).length>=2);
+    const pass=frames.every(f=>f.metrics.frameQueries<=8&&f.runtime.visibleFrameElements===f.metrics.frameElements&&f.metrics.frameTextureBytes<524288&&f.alignment.every(a=>a.alignmentPx!==null&&a.alignmentPx<=.3))
+      &&frames.filter(f=>f.index<20||f.index>=23).every(covered)
+      &&stationary.every(f=>f.metrics.frameTextureUploads===stationary[0].metrics.frameTextureUploads);
+    regionalChecks.push({latitude,pass,stationary,frames});
+  }
+  const catalogChecks=[];
+  for(const options of catalogPoses){
+    for(const coordinateFrame of [false,true]){
+      await page.evaluate(o=>window.setup(o),{radii:[3396.19,3396.19,3376.2],name:'Mars',coordinateFrame,...options});
+      await page.evaluate(()=>window.loadImagery('/textures/mars.dds'));
+      for(let i=0;i<24;i++)await page.evaluate(()=>{window.validationTime+=16;window.frame()});
+      const frame=await page.evaluate(()=>window.frame());
+      const png=await page.evaluate(()=>window.capture());writeFileSync(resolve(out,`${coordinateFrame?'frame':'surface'}-${options.catalogName.replaceAll(' ','-').toLowerCase()}.png`),Buffer.from(png.split(',')[1],'base64'));
+      catalogChecks.push({coordinateFrame,options,...frame,alignment:await page.evaluate(()=>window.alignmentChecks())});
+    }
   }
   for (const coordinateFrame of [false, true]) for (const deviceScaleFactor of [1, 2]) {
     await page.setViewportSize({ width: 800, height: 800 });
@@ -80,10 +136,11 @@ try {
     await context.close();
   }
   const all = [...paths.flatMap(p => p.frames), ...results];
-  const pass = errors.length === 0 && [...loaded].some(v => v.endsWith('/GraticuleFrame.js') || v.endsWith('/GraticuleFrame.ts')) && [...loaded].some(v => v.endsWith('/BodyMesh.js') || v.endsWith('/BodyMesh.ts')) && all.every(f => f.runtime.graticuleInstances === 1 && f.runtime.visibleGridSprites === f.metrics.labels)
+  const pass = errors.length === 0 && [...loaded].some(v => v.endsWith('/GraticuleFrame.js') || v.endsWith('/GraticuleFrame.ts')) && [...loaded].some(v => v.endsWith('/BodyMesh.js') || v.endsWith('/BodyMesh.ts')) && all.every(f => f.runtime.graticuleInstances === 1 && f.runtime.visibleGridSprites === f.metrics.labels && f.runtime.visibleFrameElements === f.metrics.frameElements && f.metrics.frameQueries <= 8)
+    && regionalChecks.every(c=>c.pass) && catalogChecks.every(c=>c.metrics.frameQueries<=8&&c.alignment.every(a=>a.alignmentPx!==null&&a.alignmentPx<=.3))
     && paths[1].frames.some(f => new Set(f.metrics.frameTicks.map(t => t.axis)).size === 2) && results.every(f => f.metrics.frameTicks.length <= 8)
     && silhouetteChecks.every(c => c.changedPixels > 0 && c.outsideSilhouettePixels === 0);
-  const report = { pass, fingerprint, loadedModules: [...loaded].sort(), errors, paths, results, silhouetteChecks };
+  const report = { pass, fingerprint, loadedModules: [...loaded].sort(), errors, paths, results, silhouetteChecks, regionalChecks, catalogChecks, catalogTime:catalog.defaultTime, roverPosition:rover, site };
   writeFileSync(resolve(out, 'metrics.json'), JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify({ pass, loaded: [...loaded], errors, frames: paths.map(p => p.frames.length), frameAxes: [...new Set(paths[1].frames.flatMap(f => f.metrics.frameTicks.map(t => t.axis)))] }));
   if (!pass) process.exitCode = 1;

@@ -1,5 +1,54 @@
 # Issue 157: adaptive surface grid and geographic annotations
 
+## Rendered-surface crossing follow-up
+
+The October 13 [review](https://github.com/AaronPlave/cosmolabe/pull/163#issuecomment-6154597245)
+identified tessellation-dependent admission, rejected-candidate starvation and a
+viewport-sized texture upload. Crossings now refine on rendered triangle planes,
+then require a fresh nearest visible-geometry result. Admission checks alignment
+in CSS pixels (at most 0.2), rather than widening the geographic tolerance. Facet
+snapshots guide refinement only; they never certify current visibility.
+
+Previously accepted crossings retain their edge while valid and are rechecked
+first. Discovery opportunities cycle across edges and coordinate directions;
+failed discoveries wait 150 ms before retrying. A first facet can be remembered
+when the query allowance runs out, then certified on the next frame. Deduplication
+occurs after admission, preserving alternative crossings of rejected lines. The
+ceiling remains eight triangle queries and eight captions per body/update. There
+are no production axis quotas or required minimum counts.
+
+At most eight small caption/tick textures replace the full-screen canvas. Moving
+crossings update sprite transforms; text/edge/DPR changes redraw the corresponding
+small texture; a dimension change replaces the GPU texture, preventing stale
+glyphs from an earlier pool assignment. Empty output does not upload a cleared viewport. Discovery shares
+sample endpoints, uses four safeguarded secant iterations, and refreshes at most
+every 150 ms between size/interval changes. Surface captions now have a short
+consistent connector ending at their geographic anchor.
+
+The [updated report](coordinate-frame/metrics.json) records actual scene counts
+for both surface sprites and frame elements, query counts, texture bytes/uploads,
+and independent rendered-geometry alignment checks. Two 40-frame regional paths
+at latitude 0° and 17° require multiple divisions on both axes in suitable settled
+overhead views, including small motion and a mesh-resolution change; three warmup
+frames after that change are allowed. These fixture requirements are acceptance
+checks, not production label quotas. Stationary captures require unchanged texture
+upload counts. The large-viewport unit case uses 1920×1080 at DPR 2 and 120,000
+texture bytes, versus 33,177,600 bytes for a full-viewport RGBA image.
+
+Catalog captures replay Dingo Gap Approach, Curiosity Surface and Curiosity
+Close-up from `apps/viewer/test-catalogs/msl-dingo-gap.json`. Rover position and
+attitude are resolved from the catalog's SPICE kernels at its default epoch;
+body-fixed camera poses and the epoch are included in the report. Lunar/Mars
+imagery is loaded from the shipped assets. Curiosity captures use a synthetic
+resident patch at the SPICE-derived surface height, not streamed Gale terrain or
+the local 3D rover dataset. Low-angle or empty outputs remain valid in these
+captures. Live terrain, actual event/measurement collisions and full-viewer
+acceptance remain pending; default-strategy selection is still open.
+
+All 142 suites / 1,586 tests, typechecking, lint and purity checks pass. The focused
+regressions cover rendered tessellation, current visibility, the query ceiling,
+rejected-edge fallback, stable accepted edges and texture reuse.
+
 ## Optional regional coordinate frame
 
 The coordinate-frame toggle in Display Settings is off by default. Fixed surface
@@ -44,8 +93,8 @@ These captures load the package entry under production module conditions, matchi
 the compiled package selected by production builds. Vite development selects its
 source entry; it must not be mistaken for the compiled output.
 
-The comparison supports keeping fixed surface references as the default and
-offering the frame for overhead regional coordinate reading. Both axes are
+The default remains fixed surface references for compatibility; the optional
+frame remains an experiment pending visual acceptance. Both axes are
 readable in the regional frame capture; at the horizon the frame suppresses
 ticks instead of inventing coordinates. The same major/minor shader is used in
 both prototypes. The 194 motion frames and 16 additional fixtures pass with one
@@ -53,7 +102,7 @@ runtime graticule per body and matching scene/diagnostic surface-caption counts.
 Small-globe grid-on/grid-off pixel comparisons at DPR 1 and 2 find no changed
 pixels outside the body mask, allowing one physical pixel for silhouette
 antialiasing. This checks actual compiled shader/text output separately from
-caption layout. All 142 suites / 1,581 tests, full typechecking, lint and purity
+caption layout. The earlier 142 suites / 1,581 tests, full typechecking, lint and purity
 checks pass, including current-geometry, hidden-mesh and eight-query regressions.
 
 The original screenshot's loaded bundle and camera state cannot be recovered
