@@ -1,7 +1,8 @@
 # Planetary Surface / Terrain Refactor — implementation record
 
-The bounded cube-sphere layout evaluation and its current **revise** decision are
-documented in [the cube-sphere experiment ADR](design/cube-sphere-experiment.md).
+The cube-sphere addressing and CPU-sampler foundation for the #149 layout
+comparison, and the evidence still required before any layout decision, are
+recorded in [the cube-sphere experiment ADR](design/cube-sphere-experiment.md).
 
 ## Status
 

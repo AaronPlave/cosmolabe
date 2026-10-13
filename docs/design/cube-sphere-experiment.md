@@ -1,14 +1,16 @@
 # Cube-sphere terrain experiment (ADR)
 
-**Status:** revise; experimental, not a production layout
-**Issue:** #149
-**Decision date:** 2026-10-04
+**Status:** open; experimental foundation, not a production layout or a measured verdict
+**Issue:** #149 (remains open)
+**Recorded:** 2026-10-04
 
 ## Decision
 
 Keep the geographic and polar products as the production baselines. Continue a
 cube-sphere experiment using the gnomonic mapping below, but do not migrate or
-publish a global product yet. The experiment now has deterministic addressing,
+publish a global product yet. This record supplies the addressing and CPU
+sampler foundation for the #149 comparison; it is not the layout decision,
+which waits for the measured evidence listed at the end. The experiment now has deterministic addressing,
 a renderer-independent CPU height payload, complete six-face synthetic coverage,
 and a non-spherical ellipsoid fixture. It does **not** yet have the required lunar
 reprojection, 3D Tiles renderer integration, GPU captures, or comparable runtime
@@ -66,7 +68,20 @@ Cube coordinates describe a **geocentric direction**, not a longitude, geodetic
 normal, or position on a reference ellipsoid. For a geodetic query the sampler
 first constructs the zero-height Cartesian point on the declared datum, then
 addresses its geocentric direction. This distinction is visible on the flattened
-ellipsoid test fixture. Generated vertices must reconstruct the declared
+ellipsoid test fixture.
+
+The sampler accepts the same datums as the shared physical-surface proof
+(#148): a reference sphere, or a geodetic oblate ellipsoid (equal X/Y radii,
+`geodetic-normal` heights) with a `reference-sphere` or `ellipsoid` vertical
+datum. Anything else, including triaxial shapes, is rejected at construction
+rather than addressed through an oblate substitute while still reporting the
+original datum.
+
+Equivalent geographic coordinates must address the same tile at every level.
+Longitude is wrapped to the `[-180, 180)` sample convention, and the reference
+ray uses degree trigonometry that is exact at multiples of 90 degrees, so the
+poles and the 0/180 degree meridians land on exact child boundaries rather than
+on whichever side a ~1e-16 residual picks. Other angles are not snapped. Generated vertices must reconstruct the declared
 reference shape and add heights according to `heightConvention`; a radial lunar
 field and a geodetic-normal ellipsoid field are not interchangeable.
 
@@ -86,8 +101,10 @@ and material/overlay facilities before adding custom split logic.
 
 The unit fixture creates all six root faces from one analytic height function.
 It exercises poles, the longitude wrap, face edges/corners, deterministic tile
-ownership, finer resident geometry selection, unloaded behavior, provenance,
-and a strongly flattened oblate ellipsoid. Tests reconstruct a direction after
+ownership, finer resident geometry selection with parent fallback, unloaded
+behavior, provenance, equivalent longitudes and both poles at level 1, rejection
+of unsupported datums, and a strongly flattened oblate ellipsoid where the
+geodetic normal and geocentric ray select different faces. Tests reconstruct a direction after
 every forward/inverse operation because the same edge has valid coordinates on
 two faces.
 
