@@ -32,6 +32,7 @@ interface Visual {
   labelSize: { width: number; height: number };
   labelObserver: ResizeObserver | null;
   labelText: string;
+  labelCandidate?: number;
   labelValue: HTMLSpanElement;
   hitSegments: THREE.Vector3[];
   box: ScreenRect | null;
@@ -283,20 +284,16 @@ export class SpatialRelationshipLayer {
     }
     v.label.style.color = color;
     const { width: w, height: h } = v.labelSize;
-    // Small alternatives around the geometry; selected detail reserves its box first.
-    for (const [dx, dy] of [[14, -h - 14], [14, 14], [-w - 14, -h - 14], [-w - 14, 14]]) {
-      const x0 = Math.max(6, Math.min(anchor.x + dx, width - w - 6));
-      const y0 = Math.max(6, Math.min(anchor.y + dy, height - h - 6));
-      const box = { x0, y0, x1: x0 + w, y1: y0 + h };
-      if (box.x0 < 6 || box.y0 < 6 || box.x1 > width - 6 || box.y1 > height - 6 ||
-        [...obstacles.rects, ...(obstacles.blockers ?? []), ...arrowheads].some(b => overlaps(box, b)) ||
-        paths.some(path => strokeCrossesBox(path, box))) continue;
-      v.label.style.display = 'flex'; v.label.style.transform = `translate(${box.x0}px, ${box.y0}px)`;
-      v.label.title = text; v.label.setAttribute('aria-label', `Select ${v.kind} measurement: ${text}`); v.box = box;
-      return true;
-    }
-    return false;
+    const placement = compactLabelPlacement(anchor, { width: w, height: h }, { width, height },
+      [...obstacles.rects, ...(obstacles.blockers ?? []), ...arrowheads], paths, v.labelCandidate);
+    if (!placement) return false;
+    const { box, candidate } = placement;
+    v.labelCandidate = candidate;
+    v.label.style.display = 'flex'; v.label.style.transform = `translate(${box.x0}px, ${box.y0}px)`;
+    v.label.title = text; v.label.setAttribute('aria-label', `Select ${v.kind} measurement: ${text}`); v.box = box;
+    return true;
   }
+
   private create(relationship: SpatialRelationship): Visual {
     const stroke = new Stroke(relationship.kind === 'direction'), arc = new Stroke();
     const marks = new THREE.Points(pointGeometry(3), new THREE.PointsMaterial({ color: '#82aabd', map: this.ring, transparent: true, size: 6, sizeAttenuation: false, depthTest: false, depthWrite: false }));
@@ -458,4 +455,24 @@ function writePoints(geometry: THREE.BufferGeometry, points: readonly THREE.Vect
   for (let i = 0; i < points.length; i++) position.setXYZ(i, points[i].x - origin.x, points[i].y - origin.y, points[i].z - origin.z);
   position.needsUpdate = true;
   geometry.setDrawRange(0, points.length);
+}
+
+/** Prefer above the tip with a 14 CSS-pixel gap, then right/below/left.
+ * Keep a collision-free alternative until it actually needs to move; camera
+ * motion must not snap labels back merely because the first choice opens up. */
+export function compactLabelPlacement(anchor: { x: number; y: number }, size: { width: number; height: number },
+  viewport: { width: number; height: number }, blockers: readonly ScreenRect[], paths: readonly number[][],
+  previous?: number): { box: ScreenRect; candidate: number } | null {
+  const { width: w, height: h } = size;
+  const candidates = [[-w / 2, -h - 14], [14, -h / 2], [-w / 2, 14], [-w - 14, -h / 2]];
+  const order = previous !== undefined && previous >= 0 && previous < 4 ? [previous, ...[0, 1, 2, 3].filter(i => i !== previous)] : [0, 1, 2, 3];
+  for (const candidate of order) {
+    const [dx, dy] = candidates[candidate];
+    const x0 = anchor.x + dx, y0 = anchor.y + dy;
+    const box = { x0, y0, x1: x0 + w, y1: y0 + h };
+    if (x0 < 6 || y0 < 6 || box.x1 > viewport.width - 6 || box.y1 > viewport.height - 6 ||
+      blockers.some(b => overlaps(box, b)) || paths.some(path => strokeCrossesBox(path, box))) continue;
+    return { box, candidate };
+  }
+  return null;
 }

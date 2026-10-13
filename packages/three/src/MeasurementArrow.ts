@@ -11,14 +11,17 @@ export class MeasurementArrow extends THREE.Group {
     geometry.translate(0, -0.5, 0); // Tip at zero; base exactly one head length behind it.
     const material = new THREE.ShaderMaterial({
       uniforms: { color: { value: new THREE.Color('#82aabd') }, opacity: { value: 1 } },
-      vertexShader: `varying vec3 viewNormal;
+      vertexShader: `varying vec3 viewNormal; varying float baseFace;
         void main() {
           viewNormal = normalize(normalMatrix * normal);
+          baseFace = normal.y < -0.9 ? 1.0 : 0.0;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }`,
-      fragmentShader: `uniform vec3 color; uniform float opacity; varying vec3 viewNormal;
+      fragmentShader: `uniform vec3 color; uniform float opacity; varying vec3 viewNormal; varying float baseFace;
         void main() {
           float light = 0.72 + 0.28 * max(0.0, dot(normalize(viewNormal), normalize(vec3(-0.4, 0.6, 0.7))));
+          // A darker flat cap distinguishes the rear base from the curved sides.
+          light *= mix(1.0, 0.78, baseFace);
           gl_FragColor = vec4(color * light, opacity);
           #include <colorspace_fragment>
         }`,

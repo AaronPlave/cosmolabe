@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
+import { compactLabelPlacement, angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
 
 describe('measurement geometry', () => {
   it('uses finite independent segments and draws the arc for a straight angle', () => {
@@ -77,4 +77,30 @@ it('bounds angle glyphs by vertex depth and short physical legs without changing
   }
   expect(angleDisplayRadius(camera,new THREE.Vector3(0,0,-10),0.001,600)).toBeCloseTo(0.00045, 10);
   expect(angleDisplayRadius(camera,new THREE.Vector3(0,0,1),1000,600)).toBe(0);
+});
+
+describe('compact label placement', () => {
+  const size = { width: 80, height: 22 }, viewport = { width: 600, height: 400 };
+  it('uses the same tip gap and keeps an alternative when the preferred space reopens', () => {
+    const anchor = { x: 300, y: 200 };
+    const preferred = compactLabelPlacement(anchor, size, viewport, [], [])!;
+    expect(preferred.candidate).toBe(0);
+    expect(anchor.y - preferred.box.y1).toBe(14);
+    const fallback = compactLabelPlacement(anchor, size, viewport, [preferred.box], [])!;
+    expect(fallback.candidate).toBe(1);
+    expect(fallback.box.x0 - anchor.x).toBe(14);
+    for (let frame = 0; frame < 50; frame++) {
+      const next = compactLabelPlacement({ x: 300 + frame / 10, y: 200 }, size, viewport, [], [], fallback.candidate)!;
+      expect(next.candidate).toBe(1);
+      expect(next.box.x0 - (300 + frame / 10)).toBe(14);
+    }
+    expect(compactLabelPlacement(anchor, size, viewport, [fallback.box], [], fallback.candidate)!.candidate).toBe(0);
+  });
+  it('avoids strokes and viewport edges without clamping labels into the tip gap', () => {
+    const anchor = { x: 300, y: 20 };
+    const placement = compactLabelPlacement(anchor, size, viewport, [], [[300, 20, 450, 20]])!;
+    expect(placement.candidate).toBe(2);
+    expect(placement.box.y0 - anchor.y).toBe(14);
+    expect(compactLabelPlacement(anchor, size, viewport, [{ x0: 0, y0: 0, x1: 600, y1: 400 }], [])).toBeNull();
+  });
 });

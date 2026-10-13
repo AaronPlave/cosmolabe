@@ -132,13 +132,21 @@ async function checkOrbits() {
     for(const state of ['ordinary','hovered','selected']) {
       await page.evaluate(state=>{window.m.newMeasurement();window.m.hoverMeasurement(null);if(state==='selected')window.m.selectMeasurement('orbit');if(state==='hovered')window.m.hoverMeasurement('orbit');},state);
       const result=await page.evaluate(async({distance})=>{
-        const r=window.renderer,o=window.orbit;let worst=0,visible=0,maxStep=0,last=null;
+        const r=window.renderer,o=window.orbit;let worst=0,visible=0,maxStep=0,last=null,labelFrames=0,labelMoves=0,lastCandidate=null;
         for(let frame=0;frame<=72;frame++) {
           const angle=frame/72*Math.PI*2,center=r.bodyMeshes.get('Cassini').position;
           r.camera.position.copy(center).addScaledVector(o.direction,distance*Math.cos(angle)).addScaledVector(o.side,distance*Math.sin(angle));r.camera.up.copy(o.up);
           r.cameraController.controls.target.copy(center);r.cameraController.controls.update();r.renderFrame();
           const visual=r.spatialRelationships.visuals.get('orbit'),a=visual.arrow;
           if(visual.group.visible&&a.cone.visible)visible++;
+          if(visual.box && visual.label.style.display !== 'none') {
+            const tip=o.direction.clone().multiplyScalar(a.cone.position.y).add(a.position).add(visual.group.position).project(r.camera);
+            const x=(tip.x+1)*640,y=(1-tip.y)*450,b=visual.box;
+            const gap=Math.hypot(Math.max(b.x0-x,0,x-b.x1),Math.max(b.y0-y,0,y-b.y1));
+            if(Math.abs(gap-14)>0.01)throw new Error(`Inconsistent tip/label gap: ${gap}`);
+            if(lastCandidate!==null&&lastCandidate!==visual.labelCandidate)labelMoves++;
+            lastCandidate=visual.labelCandidate;labelFrames++;
+          }
           const axis=o.direction.clone().applyQuaternion(a.quaternion.clone().invert());
           worst=Math.max(worst,axis.distanceTo(axis.clone().set(0,1,0)));
           const ratio=a.cone.scale.x/a.cone.scale.y;
@@ -147,12 +155,18 @@ async function checkOrbits() {
           if(!visual.hitSegments.every(p=>p.toArray().every(Number.isFinite)))throw new Error('Nonfinite orbit geometry');
           await new Promise(resolve=>setTimeout(resolve,45));
         }
-        return {worst,visible,maxStep};
+        return {worst,visible,maxStep,labelFrames,labelMoves};
       },{distance});
       assert(result.worst<1e-7);assert.equal(result.visible,73);assert(result.maxStep<0.08);
       console.log('Continuous orbit',scale,state,result);
       await page.evaluate(distance=>{const r=window.renderer,o=window.orbit,c=r.bodyMeshes.get('Cassini').position;r.camera.position.copy(c).addScaledVector(o.side,distance);r.camera.up.copy(o.up);r.cameraController.controls.target.copy(c);r.cameraController.controls.update();r.renderFrame();},distance);
       await capture(`arrow-head-${scale}-${state}-actual.png`);
+      if(scale==='spacecraft' && state==='ordinary') {
+        for(const [view,angle] of [['rear',0.12],['front',Math.PI+0.12]]) {
+          await page.evaluate(({distance,angle})=>{const r=window.renderer,o=window.orbit,c=r.bodyMeshes.get('Cassini').position;r.camera.position.copy(c).addScaledVector(o.direction,distance*Math.cos(angle)).addScaledVector(o.side,distance*Math.sin(angle));r.cameraController.controls.target.copy(c);r.cameraController.controls.update();r.renderFrame();},{distance,angle});
+          await capture(`arrow-head-${view}-actual.png`);
+        }
+      }
     }
 
   }
