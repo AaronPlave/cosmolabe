@@ -61,6 +61,9 @@ export function browseLabel(states: readonly CatalogSourceState[]): string | nul
 export type CatalogLocation = { catalog: string } | { entry: string };
 
 export function catalogLocation(item: SourcedEntry, pageUrl: string): CatalogLocation {
+  // A scripted entry is more than its catalog: `?catalog=` would reload the
+  // scene without the script.
+  if (item.entry.scriptUrl) return { entry: `${item.sourceId}/${item.entry.id}` };
   const page = new URL(pageUrl);
   const target = new URL(item.entry.catalogUrl);
   if (target.origin === page.origin && target.pathname.endsWith('.json') && !target.search && !target.hash) {
@@ -69,6 +72,18 @@ export function catalogLocation(item: SourcedEntry, pageUrl: string): CatalogLoc
     if (new URL(`./${rel}.json`, page).href === target.href) return { catalog: rel };
   }
   return { entry: `${item.sourceId}/${item.entry.id}` };
+}
+
+/**
+ * Whether `entry` is the scene that is up: same catalog, and the same script
+ * or none — a scene and a scripted tour of it share a catalog URL.
+ */
+export function isCurrentEntry(
+  entry: Pick<CatalogEntry, 'catalogUrl' | 'scriptUrl'>,
+  currentUrl: string | null,
+  currentScriptUrl: string | null,
+): boolean {
+  return currentUrl != null && entry.catalogUrl === currentUrl && (entry.scriptUrl ?? null) === currentScriptUrl;
 }
 
 /** `to` relative to the directory of `from`, both absolute URL paths. */

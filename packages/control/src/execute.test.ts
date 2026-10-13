@@ -129,3 +129,118 @@ describe('the transcript hook', () => {
     expect(seen).toEqual([1, 4]);
   });
 });
+
+describe('cancellation', () => {
+  it('runs nothing after the signal aborts, and names the statement that did not run', async () => {
+    const host = new FakeViewer();
+    const controller = new AbortController();
+    const announced: number[] = [];
+    let caught: unknown;
+    try {
+      await execute(parse(['runTo 60', 'screenshot a', 'screenshot b'].join('\n')), host, {
+        signal: controller.signal,
+        onStatement: (s) => {
+          announced.push(s.line);
+          // Abort as line 1 starts; it is synchronous, so it completes, and
+          // the check before line 2 stops the run.
+          if (s.line === 1) controller.abort();
+        },
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ScriptRuntimeError);
+    const err = caught as ScriptRuntimeError;
+    expect(err.problems[0]).toMatchObject({ kind: 'cancelled', line: 2 });
+    // The unrun line is never announced, so a streamed transcript never shows it running.
+    expect(announced).toEqual([1]);
+    expect(host.calls.some((c) => c.startsWith('screenshot'))).toBe(false);
+  });
+
+  it('interrupts a wait that never ends, and stops the recording at once', async () => {
+    // `record on; wait 3600; record off`, closed during the wait. The wait is
+    // never released: the run must end, and the recording stop, without it.
+    const host = new FakeViewer();
+    host.wait = (seconds: number) => {
+      host.calls.push(`wait(${seconds})`);
+      return new Promise<void>(() => {});
+    };
+    const controller = new AbortController();
+    const running = execute(parse(['record on', 'wait 3600', 'record off'].join('\n')), host, {
+      signal: controller.signal,
+      onStatement: (s) => {
+        if (s.line === 2) queueMicrotask(() => controller.abort());
+      },
+    });
+
+    await expect(running).rejects.toMatchObject({
+      problems: [{ kind: 'cancelled', line: 2, message: 'cancelled while this statement was running' }],
+      ran: 1,
+    });
+    expect(host.recording).toBe(false);
+    expect(host.calls.filter((c) => c.startsWith('record'))).toEqual(['record(true)', 'record(false)']);
+  });
+
+  it('does not report an abandoned call that fails later', async () => {
+    let fail: (e: Error) => void = () => {};
+    const host = new FakeViewer();
+    host.wait = () => new Promise<void>((_, reject) => { fail = reject; });
+    const controller = new AbortController();
+    const running = execute(parse('wait 10'), host, {
+      signal: controller.signal,
+      onStatement: () => queueMicrotask(() => controller.abort()),
+    });
+    await expect(running).rejects.toMatchObject({ problems: [{ kind: 'cancelled' }] });
+    // Would surface as an unhandled rejection and fail the run if it leaked.
+    fail(new Error('timer torn down'));
+    await Promise.resolve();
+  });
+
+  it('runs nothing when the signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const host = new FakeViewer();
+    await expect(execute(parse('runTo 60'), host, { signal: controller.signal }))
+      .rejects.toMatchObject({ problems: [{ kind: 'cancelled', line: 1 }] });
+    expect(host.calls).toEqual([]);
+  });
+});
+
+describe('beforeStatement gate', () => {
+  it('holds the run between statements until the gate opens', async () => {
+    const host = new FakeViewer();
+    let open: () => void = () => {};
+    const gates: number[] = [];
+    const running = execute(parse(['runTo 1', 'runTo 2', 'runTo 3'].join('\n')), host, {
+      beforeStatement: (s) => {
+        gates.push(s.line);
+        // Hold before line 2 only — a pause after line 1.
+        if (s.line === 2) return new Promise<void>((r) => { open = r; });
+      },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(host.calls).toEqual(['runTo(1)']);
+    open();
+    await running;
+    expect(host.calls).toEqual(['runTo(1)', 'runTo(2)', 'runTo(3)']);
+    expect(gates).toEqual([1, 2, 3]);
+  });
+
+  it('ends a run held at the gate the moment it is cancelled', async () => {
+    const host = new FakeViewer();
+    const controller = new AbortController();
+    const announced: number[] = [];
+    const running = execute(parse(['runTo 1', 'runTo 2'].join('\n')), host, {
+      signal: controller.signal,
+      beforeStatement: (s) => (s.line === 2 ? new Promise<void>(() => {}) : undefined),
+      onStatement: (s) => announced.push(s.line),
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    controller.abort();
+    await expect(running).rejects.toMatchObject({
+      problems: [{ kind: 'cancelled', line: 2, message: 'cancelled before this statement ran' }],
+      ran: 1,
+    });
+    expect(announced).toEqual([1]);
+  });
+});

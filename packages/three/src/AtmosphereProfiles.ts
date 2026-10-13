@@ -58,9 +58,36 @@ bool atmSunBlocked(vec3 point, vec3 sunDir) {
   return b < 0.0 && b * b > c;
 }
 
-vec3 atmSunTransmittance(vec3 point, vec3 sunDir) {
-  if (atmSunBlocked(point, sunDir)) return vec3(0.0);
-  if (!uAtmHasTransmittanceLUT) {
+// Parameterize the lit side relative to its altitude-dependent planet horizon.
+// Squaring U gives grazing rays the resolution needed for twilight, while
+// squaring V resolves the dense lower atmosphere without enlarging the texture.
+float atmSunHorizonMu(float radius) {
+  float ratio = clamp(uAtmPlanetR / max(radius, 1e-6), 0.0, 1.0);
+  return -sqrt(max(0.0, 1.0 - ratio * ratio));
+}
+float atmSunMuFromU(float u, float radius) {
+  float horizon = atmSunHorizonMu(radius);
+  return horizon + (1.0 - horizon) * u * u;
+}
+float atmSunUFromMu(float mu, float radius) {
+  float horizon = atmSunHorizonMu(radius);
+  return sqrt(clamp((mu - horizon) / (1.0 - horizon), 0.0, 1.0));
+}
+
+// Extinction only. Direct solar visibility belongs to rendered body depth,
+// not this model's reference sphere. The LUT covers rays above its horizon;
+// integrate below-horizon rays rather than introducing a binary shadow.
+vec3 atmRayTransmittance(vec3 point, vec3 sunDir) {
+  // Elevated child geometry can lie outside the shell. Clip its solar ray
+  // to the atmosphere instead of clamping an outside point onto the LUT edge.
+  if (length(point) > uAtmShellR) {
+    float b = dot(point, sunDir);
+    float c = dot(point, point) - uAtmShellR * uAtmShellR;
+    float disc = b * b - c;
+    if (b >= 0.0 || disc <= 0.0) return vec3(1.0);
+    point += sunDir * max(0.0, -b - sqrt(disc));
+  }
+  if (!uAtmHasTransmittanceLUT || atmSunBlocked(point, sunDir)) {
     // Renderer-optional meshes integrate direct sunlight numerically.
     float b = dot(point, sunDir);
     float c = dot(point, point) - uAtmShellR * uAtmShellR;
@@ -72,10 +99,18 @@ vec3 atmSunTransmittance(vec3 point, vec3 sunDir) {
     }
     return exp(-depth);
   }
-  float altitude = clamp((length(point) - uAtmPlanetR) /
+  float radius = length(point);
+  float altitude = clamp((radius - uAtmPlanetR) /
     max(1e-6, uAtmShellR - uAtmPlanetR), 0.0, 1.0);
   float mu = dot(normalize(point), sunDir);
-  return texture2D(uAtmTransmittanceLUT, vec2(mu * 0.5 + 0.5, altitude)).rgb;
+  return texture2D(uAtmTransmittanceLUT, vec2(
+    atmSunUFromMu(mu, radius), sqrt(altitude))).rgb;
+}
+
+// Scattering samples still need the physical planet's solar shadow.
+vec3 atmSunTransmittance(vec3 point, vec3 sunDir) {
+  if (atmSunBlocked(point, sunDir)) return vec3(0.0);
+  return atmRayTransmittance(point, sunDir);
 }
 `;
 

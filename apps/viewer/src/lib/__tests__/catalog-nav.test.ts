@@ -5,6 +5,7 @@ import {
   catalogLocation,
   featuredEntries,
   findEntry,
+  isCurrentEntry,
   requestedCatalog,
   withCatalogLocation,
 } from '../catalog-nav';
@@ -73,13 +74,21 @@ describe('browseLabel', () => {
 
 describe('catalogLocation', () => {
   it('writes a same-origin catalog as the existing ?catalog= deep link', () => {
-    const item = { sourceId: 'examples', entry: entry('cassini', 'https://viewer.example/app/cassini-soi.json') };
-    expect(catalogLocation(item, PAGE)).toEqual({ catalog: 'cassini-soi' });
+    const item = { sourceId: 'examples', entry: entry('cassini', 'https://viewer.example/app/test-catalogs/cassini-soi.json') };
+    expect(catalogLocation(item, PAGE)).toEqual({ catalog: 'test-catalogs/cassini-soi' });
+  });
+
+  it('writes a scripted entry by its entry, since ?catalog= would drop the script', () => {
+    const tour = {
+      sourceId: 'examples',
+      entry: { ...entry('tour', 'https://viewer.example/app/test-catalogs/earth-moon.json'), scriptUrl: 'https://viewer.example/app/test-catalogs/earth-moon-tour.cosmo' },
+    };
+    expect(catalogLocation(tour, PAGE)).toEqual({ entry: 'examples/tour' });
   });
 
   it('keeps subdirectories and parent paths on the same origin', () => {
-    const nested = { sourceId: 'examples', entry: entry('base/solarsys', 'https://viewer.example/app/base/solarsys.json') };
-    expect(catalogLocation(nested, PAGE)).toEqual({ catalog: 'base/solarsys' });
+    const nested = { sourceId: 'examples', entry: entry('base/solarsys', 'https://viewer.example/app/test-catalogs/base/solarsys.json') };
+    expect(catalogLocation(nested, PAGE)).toEqual({ catalog: 'test-catalogs/base/solarsys' });
     const up = { sourceId: 'mission', entry: entry('baseline', 'https://viewer.example/catalogs/baseline.json') };
     const loc = catalogLocation(up, PAGE);
     expect(loc).toEqual({ catalog: '../catalogs/baseline' });
@@ -122,5 +131,21 @@ describe('URL parameters', () => {
     expect(withCatalogLocation('?test=1&catalog=old', { catalog: 'base/solarsys' })).toBe('?test=1&catalog=base/solarsys');
     expect(withCatalogLocation('?catalog=old&source=x', { entry: 'm/b' })).toBe('?source=x&entry=m/b');
     expect(withCatalogLocation('?catalog=old', null)).toBe('');
+  });
+});
+
+describe('isCurrentEntry', () => {
+  const scene = 'https://viewer.example/app/earth-moon.json';
+  const script = 'https://viewer.example/app/tour.cosmo';
+
+  it('tells a scene from a scripted tour of the same catalog', () => {
+    expect(isCurrentEntry({ catalogUrl: scene }, scene, null)).toBe(true);
+    expect(isCurrentEntry({ catalogUrl: scene, scriptUrl: script }, scene, null)).toBe(false);
+    expect(isCurrentEntry({ catalogUrl: scene, scriptUrl: script }, scene, script)).toBe(true);
+    expect(isCurrentEntry({ catalogUrl: scene }, scene, script)).toBe(false);
+  });
+
+  it('is never current with no scene up', () => {
+    expect(isCurrentEntry({ catalogUrl: scene }, null, null)).toBe(false);
   });
 });

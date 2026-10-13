@@ -28,11 +28,18 @@
   $effect(() => {
     const r = getRenderer();
     if (!r) return;
-    fov = r.camera.fov;
     viewpoints = r.cameraController.getViewpoints().map(v => ({ name: v.name }));
     sensors = r.getSensorNames();
     activeInstrument = r.activeInstrumentView ?? '';
     recording = isRecordingVideo(r);
+  });
+
+  // A permalink or host can change FOV while this panel is already open.
+  // Read the same live projection the renderer uses, including wheel gestures.
+  $effect(() => {
+    void vs.frameTick;
+    const r = getRenderer();
+    if (r) fov = r.camera.fov;
   });
 
   function onFovInput(e: Event) {

@@ -22,8 +22,11 @@
    * The first button opens the catalog browser (#94). It is not the Catalog
    * tool: that browses the bodies of the loaded scene, this replaces the scene.
    */
-  import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen } from 'lucide-svelte';
+  import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen, Link, Check } from 'lucide-svelte';
   import { TOOLS, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
+  import { onDestroy } from 'svelte';
+  import { copyViewLink } from '../../lib/view-link';
+  import { ef } from '../../lib/event-finder.svelte';
   import { vs, cycleCamera, selectBody } from '../../lib/viewer-state.svelte';
 
   interface Props {
@@ -36,6 +39,29 @@
 
   let { pickModeActive, onTogglePick, onOpenSearch, inline = false }: Props = $props();
 
+  let shareStatus = $state('');
+  let shareError = $state(false);
+  let shareBusy = $state(false);
+  let shareTimer: ReturnType<typeof setTimeout> | undefined;
+  onDestroy(() => clearTimeout(shareTimer));
+
+  async function copyLink() {
+    clearTimeout(shareTimer);
+    shareStatus = '';
+    shareBusy = true;
+    try {
+      await copyViewLink();
+      shareError = false;
+      shareStatus = 'View link copied';
+    } catch (err) {
+      shareError = true;
+      shareStatus = err instanceof Error ? err.message : String(err);
+    } finally {
+      shareBusy = false;
+      shareTimer = setTimeout(() => { shareStatus = ''; }, 6000);
+    }
+  }
+
   const compact = $derived(shell.layout === 'compact');
 
   function hint(tool: ToolDef): string {
@@ -47,7 +73,7 @@
    * open and showing, or open but put away. The third is the one worth marking
    * — it is what tells the user their search is still there.
    */
-  function state(tool: ToolDef): 'closed' | 'active' | 'stowed' {
+  function toolState(tool: ToolDef): 'closed' | 'active' | 'stowed' {
     if (!isToolOpen(tool.id)) return 'closed';
     if (isMinimized(tool.id)) return 'stowed';
     if (compact && tool.presentation === 'panel' && shell.activeSheet !== tool.id) return 'stowed';
@@ -92,7 +118,7 @@
 
   {#each TOOLS as tool (tool.id)}
     {@const Icon = tool.icon}
-    {@const s = state(tool)}
+    {@const s = toolState(tool)}
     <button
       class="rail-btn"
       class:stowed={s === 'stowed'}
@@ -129,6 +155,16 @@
     onclick={toggleInfo}
   >
     <Info size={16} />
+  </button>
+
+  <button
+    class="rail-btn"
+    aria-label="Copy view link"
+    title="Copy view link"
+    disabled={shareBusy || !vs.assetsReady || vs.showLoading || ef.running || ef.restoring}
+    onclick={copyLink}
+  >
+    {#if shareStatus && !shareError}<Check size={16} />{:else}<Link size={16} />{/if}
   </button>
 
   {#if !compact}
@@ -168,6 +204,13 @@
     {@render buttons()}
   {/if}
 </nav>
+
+{#if shareStatus}
+  <div class="shell-surface fixed left-1/2 top-3 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-start gap-3 rounded-md border px-3 py-2 text-[12px] text-text-secondary backdrop-blur-md" role={shareError ? 'alert' : 'status'}>
+    <span class="min-w-0 break-words">{shareStatus}</span>
+    <button aria-label="Dismiss link message" class="text-text-muted hover:text-text-primary" onclick={() => { shareStatus = ''; }}>&times;</button>
+  </div>
+{/if}
 
 <style>
   .rail {

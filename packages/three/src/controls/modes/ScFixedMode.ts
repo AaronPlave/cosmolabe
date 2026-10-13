@@ -67,6 +67,18 @@ export class ScFixedMode implements ICameraMode {
     this.hasPrevQuat = true;
   }
 
+  /**
+   * Re-baseline on the body's orientation now. A camera just placed against
+   * that orientation (a scripted `setCamera` after a clock seek) must not then
+   * be turned by the body's rotation since the last frame drawn.
+   */
+  syncFromCamera(ctx: CameraModeContext): void {
+    const q = this.getOrientationQuat(ctx);
+    if (!q) return;
+    this.prevQuat.copy(q);
+    this.hasPrevQuat = true;
+  }
+
   deactivate(_ctx: CameraModeContext): void {
     this.bodyName = '';
     this.hasPrevQuat = false;
