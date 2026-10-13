@@ -14,7 +14,10 @@ export class SpiceRotation implements RotationModel {
 
   constructor(
     private readonly spice: SpiceInstance,
-    private readonly bodyFixedFrame: string,
+    /** The SPICE body-fixed frame this model rotates into. Geometry meant to
+     *  sit on the body as it is drawn (observation footprints) is computed in
+     *  this frame, so the two cannot disagree. */
+    readonly bodyFixedFrame: string,
     private readonly inertialFrame: string = 'ECLIPJ2000',
   ) {
     this.sourceFrame = inertialFrame;

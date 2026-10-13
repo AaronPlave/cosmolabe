@@ -97,6 +97,46 @@ interface SnapCsvMeta {
   readonly frame?: string;
 }
 
+type SnapLonLat = readonly [number, number];
+type SnapWktPolygon = readonly (readonly SnapLonLat[])[];
+interface SnapArchiveDiskGeometry {
+  readonly subObsLatDeg: number;
+  readonly subObsLonDeg: number;
+  readonly distanceKm: number;
+  readonly boresightRaDecDeg?: readonly [number, number];
+}
+interface SnapArchiveIllumination {
+  readonly phaseDeg?: number;
+  readonly incidenceDeg?: number;
+  readonly emissionDeg?: number;
+}
+interface SnapArchiveObservation {
+  readonly archive: string;
+  readonly id: string;
+  readonly instrument?: string;
+  readonly target?: string;
+  readonly startTime: string;
+  readonly stopTime?: string;
+  readonly timeSystem: string;
+  readonly campaign?: string;
+  readonly footprint?: readonly SnapWktPolygon[];
+  readonly disk?: SnapArchiveDiskGeometry;
+  readonly illumination?: SnapArchiveIllumination;
+  readonly resolutionKm?: number;
+}
+
+type _LonLatExact = Assert<Exact<api.LonLat, SnapLonLat>>;
+type _WktPolygonExact = Assert<Exact<api.WktPolygon, SnapWktPolygon>>;
+type _ArchiveObservationExact = Assert<Exact<api.ArchiveObservation, SnapArchiveObservation>>;
+type _ArchiveDiskGeometryExact = Assert<Exact<api.ArchiveDiskGeometry, SnapArchiveDiskGeometry>>;
+type _ArchiveIlluminationExact = Assert<Exact<api.ArchiveIllumination, SnapArchiveIllumination>>;
+type _OpusQueryKeys = Assert<Exact<keyof api.OpusQuery, 'params' | 'campaignColumn' | 'disk' | 'limit' | 'startObs' | 'api'>>;
+type _OpusDiskColumnsKeys = Assert<
+  Exact<keyof api.OpusDiskColumns, 'subObsLat' | 'subObsLonWest' | 'centerDistance' | 'raMin' | 'raMax' | 'decMin' | 'decMax' | 'phase'>
+>;
+type _OdeQueryKeys = Assert<Exact<keyof api.OdeQuery, 'params' | 'limit' | 'offset' | 'api'>>;
+type _ObservationArchiveKeys = Assert<Exact<keyof api.ObservationArchive<unknown>, 'name' | 'url' | 'parse' | 'search'>>;
+
 type _OemExact = Assert<Exact<api.Oem, SnapOem>>;
 type _OemMetadataExact = Assert<Exact<api.OemMetadata, SnapOemMetadata>>;
 type _OemStateExact = Assert<Exact<api.OemState, SnapOemState>>;
@@ -127,15 +167,23 @@ describe('interop API surface (stability policy)', () => {
   it('exports exactly the committed runtime surface', () => {
     expect(Object.keys(api).sort()).toEqual([
       'AemError',
+      'ArchiveError',
       'CdmError',
+      'ODE_API',
+      'OPUS_API',
       'OemError',
+      'WktError',
       'csvMetaPreamble',
       'groundTrackToCzml',
       'intervalsToCsv',
       'intervalsToCzml',
+      'ode',
+      'opus',
+      'opusColumns',
       'parseAem',
       'parseCdm',
       'parseOem',
+      'parseWktPolygons',
       'seriesToCsv',
       'tableToCsv',
       'writeAem',

@@ -173,6 +173,9 @@ export function setAssetsReady(v: boolean, summary: InitialAssetsSummary | null 
 export function setKernelCount(v: number) { vs.kernelCount = v; }
 export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
+  // A selected observation stays drawn outside its own window (they are
+  // contextual otherwise); selecting anything else releases it.
+  _renderer?.getObservationsVisualizer().setFocus(name ? [name] : []);
   emit('select', name);
 }
 /**

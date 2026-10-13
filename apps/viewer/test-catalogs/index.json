@@ -21,6 +21,7 @@
     { "id": "oem-ingest", "name": "CCSDS OEM Ingest", "catalog": "./oem-ingest.json", "description": "Cassini at Saturn flown from a text ephemeris — no spacecraft SPK", "group": "Extended scenes" },
 
     { "id": "cassini-soi", "name": "Cassini Saturn Tour", "catalog": "./cassini-soi.json", "description": "2004 SOI through Enceladus E-2 (~150 MB)", "group": "Mission demos" , "featured": true },
+    { "id": "cassini-observations", "name": "Cassini ISS Observations", "catalog": "./cassini-observations.json", "description": "Real ISS footprints from the PDS archive during SOI (~150 MB)", "group": "Mission demos" },
     { "id": "lro-moon", "name": "LRO at the Moon", "catalog": "./lro-moon.json", "description": "Lunar Reconnaissance Orbiter, 2025", "group": "Mission demos" },
     { "id": "europa-clipper", "name": "Europa Clipper", "catalog": "./europa-clipper.json", "description": "Jupiter science phase, 2031", "group": "Mission demos" , "featured": true },
     { "id": "psyche", "name": "Psyche", "catalog": "./psyche.json", "description": "Launch → Mars flyby → asteroid arrival 2029 (~125 MB)", "group": "Mission demos" },

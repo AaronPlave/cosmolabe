@@ -970,6 +970,9 @@ export class CatalogLoader {
 
   private buildTrajectory(spec: TrajectorySpec | undefined, item: CatalogItem): Trajectory {
     if (!spec) {
+      // A Cosmographia observation item names no trajectory: it is a body on
+      // its target, at the target's centre, and SPICE has never heard of it.
+      if (item.geometry?.type === 'Observations') return new FixedPointTrajectory([0, 0, 0]);
       if (this.spice) {
         return new SpiceTrajectory(this.spice, item.name, item.center ?? 'SUN', this.spiceFrame(frameName(item.trajectoryFrame), item.center ?? 'SUN'));
       }
