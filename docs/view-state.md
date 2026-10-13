@@ -85,6 +85,34 @@ The extension accepts at most 16 query definitions and shares the existing
 8 KiB URL limit. Oversized contexts produce a copy error instead of truncating
 queries or results. No additional Event Finder-specific copy action is needed.
 
+## Spatial measurements
+
+The viewer-owned `measurements` extension uses `version: 1`, an ordered `items`
+array (at most 32 definitions), and an optional `selected` identity. Definitions
+include type and unique identity, nullable source/target/vertex endpoints, color,
+visibility, and direction distance/full-length flags. Null endpoints preserve a
+saved item being edited; unfinished creation drafts are excluded. Entity and
+body-fixed endpoints name the catalog body. Body-fixed coordinates are exact km
+triples. Coordinate endpoints explicitly name their frame (world coordinates
+normalize to ECLIPJ2000). These coordinates use the scene origin and the named
+frame orientation; they do not imply a body-centered origin. Body-fixed endpoints
+alone add the named body’s changing position. Coordinates must be finite and
+bounded to ±1e12 km.
+
+The validator allowlists definitions and excludes hover, active picking, edit
+handles, renderer geometry, and sampled values. All definitions and catalog
+body/frame references are checked before restoration changes the scene.
+Restoration runs after catalog loading and teardown; unavailable references
+produce an explanatory error. Values recompute at the restored epoch. Type
+switching retains latent angle endpoints and direction options, so sharing does
+not discard them. Old links without the extension restore no measurements.
+
+Measurements use the existing Copy view link action and share both 8192-character
+payload and final encoded URL limits with events/profiles. An oversized scene
+produces a clear error without omitting any items. Copying captures live edits;
+it does not change the current address or add history entries. No timeline
+profiles are generated from these spatial definitions.
+
 ## Event and observation hooks
 
 `viewStateAtEpoch(state, et, selected?)` composes an event/observation epoch and
