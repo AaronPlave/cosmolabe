@@ -197,7 +197,14 @@ export function resetMeasurementsForScene(): void {
 export function captureSurfaceEndpoint(bodyName: string, positionKm: readonly [number, number, number]): boolean {
   const slot = measurements.pendingPickSlot;
   if (!slot || measurements.pickMode !== 'surface') return false;
-  measurements.draft[slot] = { kind: 'body-fixed', bodyName, positionKm: [...positionKm], label: `${bodyName} point ${measurements.nextPoint++} (${positionKm.map(v => v.toFixed(2)).join(', ')} km)` };
+  const endpoints = [...measurements.items.flatMap(item => [item.source, item.target, item.vertex]), ...Object.values(measurements.draft),
+    ...Object.values(suspendedDraft?.draft ?? {})];
+  // Check candidate display names, rather than extracting counters from arbitrary
+  // labels. This also handles legacy shared labels, copies and manually named points.
+  let name: string;
+  do { name = `${bodyName} point ${measurements.nextPoint++}`; }
+  while (endpoints.some(e => e?.label === name || e?.label?.startsWith(`${name} (`)));
+  measurements.draft[slot] = { kind: 'body-fixed', bodyName, positionKm: [...positionKm], label: `${name} (${positionKm.map(v => v.toFixed(2)).join(', ')} km)` };
   cancelMeasurementPick(); syncMeasurements();
   return true;
 }

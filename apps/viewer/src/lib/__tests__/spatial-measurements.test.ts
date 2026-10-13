@@ -109,6 +109,24 @@ describe('measurement URL restoration', () => {
     expect(() => restoreSharedMeasurements(previous)).toThrow(/Earth.*unavailable/);
     expect(measurements.items).toEqual([]);
   });
+  it('allocates distinct surface names after restore, including copied and existing labels, then re-shares', () => {
+    addMeasurement({ ...original(), source: { ...original().source, label: 'Earth point 1 (1.00, 2.00, 3.00 km)' },
+      target: { kind: 'body-fixed', bodyName: 'Earth', positionKm: [4, 5, 6], label: 'Earth point 2' } });
+    duplicateMeasurement('saved'); newMeasurement();
+    const shared = captureSharedMeasurements()!;
+    resetMeasurementsForScene(); restoreSharedMeasurements(shared);
+    expect(measurements.nextPoint).toBe(1);
+    startMeasurementPick('source', 'surface'); captureSurfaceEndpoint('Earth', [7, 8, 9]);
+    expect(measurements.draft.source?.label).toBe('Earth point 3 (7.00, 8.00, 9.00 km)');
+    startMeasurementPick('target', 'surface'); captureSurfaceEndpoint('Earth', [10, 11, 12]);
+    expect(measurements.draft.target?.label).toBe('Earth point 4 (10.00, 11.00, 12.00 km)');
+    createMeasurement();
+    const reshared = captureSharedMeasurements()!;
+    restoreSharedMeasurements(reshared);
+    expect(captureSharedMeasurements()).toEqual(reshared);
+    newMeasurement(); startMeasurementPick('source', 'surface'); captureSurfaceEndpoint('Earth', [13, 14, 15]);
+    expect(measurements.draft.source?.label).toBe('Earth point 5 (13.00, 14.00, 15.00 km)');
+  });
 });
 
 describe('measurement picking', () => {

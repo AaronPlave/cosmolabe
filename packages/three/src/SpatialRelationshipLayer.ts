@@ -5,6 +5,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { endpointLabel, formatSpatialDistance, resolveSpatialEndpoint, resolveSpatialRelationship, type SpatialEndpoint, type SpatialRelationship, type Universe } from '@cosmolabe/core';
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 import { clipSegmentInFront } from './EventMarkers.js';
+import { MeasurementArrow } from './MeasurementArrow.js';
 
 export interface SpatialInteraction {
   /** Consume an endpoint-pick gesture, including a miss, before any scene selection. */
@@ -25,7 +26,7 @@ interface Visual {
   stroke: Stroke;
   arc: Stroke;
   marks: THREE.Points;
-  arrow?: THREE.ArrowHelper;
+  arrow?: MeasurementArrow;
   callout: EventCallout;
   label: HTMLButtonElement;
   labelSize: { width: number; height: number };
@@ -42,7 +43,8 @@ class Stroke {
   readonly material: LineMaterial;
   private readonly buffer: THREE.InstancedInterleavedBuffer;
   width = 1.5;
-  constructor() {
+  readonly halo?: LineSegments2;
+  constructor(contrast = false) {
     const geometry = new LineSegmentsGeometry().setPositions(new Float32Array(128 * 6));
     this.buffer = (geometry.getAttribute('instanceStart') as THREE.InterleavedBufferAttribute).data as THREE.InstancedInterleavedBuffer;
     this.material = new LineMaterial({ color: '#82aabd', linewidth: 1.5, transparent: true, depthTest: false, depthWrite: false, worldUnits: false });
@@ -53,6 +55,15 @@ class Stroke {
       renderer.getDrawingBufferSize(this.material.resolution);
       this.material.linewidth = this.width * renderer.getPixelRatio();
     };
+    if (contrast) {
+      const material = new LineMaterial({ color: '#06090c', transparent: true, opacity: 0.5, depthTest: false, depthWrite: false, worldUnits: false });
+      this.halo = new LineSegments2(geometry, material);
+      this.halo.frustumCulled = false; this.halo.renderOrder = 99;
+      this.halo.onBeforeRender = renderer => {
+        renderer.getDrawingBufferSize(material.resolution);
+        material.linewidth = (this.width + 1.3) * renderer.getPixelRatio();
+      };
+    }
   }
   write(points: readonly THREE.Vector3[], origin: THREE.Vector3): void {
     const data = this.buffer.array;
@@ -63,8 +74,9 @@ class Stroke {
     this.line.geometry.instanceCount = points.length / 2;
     this.buffer.needsUpdate = true;
     this.line.visible = points.length > 0;
+    if (this.halo) this.halo.visible = this.line.visible;
   }
-  dispose(): void { this.line.geometry.dispose(); this.material.dispose(); }
+  dispose(): void { this.line.geometry.dispose(); this.material.dispose(); this.halo?.material.dispose(); }
 }
 
 /** Scene rendering and forgiving screen-space picking for saved measurements. */
@@ -215,11 +227,9 @@ export class SpatialRelationshipLayer {
         marks = highlighted || relationship.editing ? [source] : []; // The arrowhead has no competing endpoint marker.
         visual.arrow!.position.copy(source).sub(origin);
         visual.arrow!.setDirection(vector);
-        visual.arrow!.setLength(length, head, head * 0.85);
-        visual.arrow!.line.visible = false; // One fat shaft.
-        visual.arrow!.cone.visible = head > 0;
-        const material = visual.arrow!.cone.material as THREE.MeshBasicMaterial;
-        material.color.set(color); material.opacity = opacity;
+        visual.arrow!.setLength(length, head, head * 0.65);
+        visual.arrow!.setStyle(color, opacity);
+        if (visual.stroke.halo) visual.stroke.halo.material.opacity = opacity * 0.5;
         anchor = source.clone();
         title = `Direction to ${endpointLabel(relationship.target)}`;
         detail = `From ${endpointLabel(relationship.source)}${relationship.showDistance ? ` · ${formatSpatialDistance(resolved.distanceKm!)}` : ''}`;
@@ -288,16 +298,13 @@ export class SpatialRelationshipLayer {
     return false;
   }
   private create(relationship: SpatialRelationship): Visual {
-    const stroke = new Stroke(), arc = new Stroke();
+    const stroke = new Stroke(relationship.kind === 'direction'), arc = new Stroke();
     const marks = new THREE.Points(pointGeometry(3), new THREE.PointsMaterial({ color: '#82aabd', map: this.ring, transparent: true, size: 6, sizeAttenuation: false, depthTest: false, depthWrite: false }));
     marks.frustumCulled = false; marks.renderOrder = 101;
     const group = new THREE.Group(); group.add(stroke.line, arc.line, marks);
-    const arrow = relationship.kind === 'direction' ? new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, '#82aabd') : undefined;
-    if (arrow) {
-      const material = arrow.cone.material as THREE.MeshBasicMaterial;
-      material.depthTest = false; material.depthWrite = false; material.transparent = true;
-      arrow.cone.renderOrder = 102; group.add(arrow);
-    }
+    if (stroke.halo) group.add(stroke.halo);
+    const arrow = relationship.kind === 'direction' ? new MeasurementArrow() : undefined;
+    if (arrow) group.add(arrow);
     const label = document.createElement('button');
     label.className = 'cosmolabe-measurement-value'; label.dataset.measurementId = relationship.id;
     Object.assign(label.style, { position: 'absolute', left: '0', top: '0', display: 'none', pointerEvents: 'auto', cursor: 'pointer',
