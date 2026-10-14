@@ -133,7 +133,7 @@
         "target": [
           0,
           0,
-          0
+          -65000
         ],
         "up": [
           0,
@@ -145,18 +145,69 @@
       "trajectory": "Cassini",
       "sensor": null,
       "panel": "events",
-      "search": {
-        "kind": "closest-approach",
-        "observer": "Cassini",
-        "target": "Saturn",
-        "start": 141912064.184,
-        "end": 141955264.184,
-        "step": 60
-      },
       "timeline": [
-        141918000,
-        141925200
-      ]
+        141912064.184,
+        141933664.184
+      ],
+      "searches": [
+        {
+          "kind": "closest-approach",
+          "observer": "Cassini",
+          "target": "Saturn",
+          "start": 141912064.184,
+          "end": 141955264.184,
+          "step": 60,
+          "label": "Closest approach"
+        },
+        {
+          "kind": "distance-range",
+          "label": "Within 100K km",
+          "observer": "Cassini",
+          "target": "Saturn",
+          "start": 141912064.184,
+          "end": 141955264.184,
+          "step": 60,
+          "params": {
+            "relation": "<",
+            "distanceKm": 100000
+          }
+        },
+        {
+          "kind": "distance-range",
+          "label": "Within 150K km",
+          "observer": "Cassini",
+          "target": "Saturn",
+          "start": 141912064.184,
+          "end": 141955264.184,
+          "step": 60,
+          "params": {
+            "relation": "<",
+            "distanceKm": 150000
+          }
+        }
+      ],
+      "profiles": [
+        {
+          "quantity": "range",
+          "label": "Cassini\u2013Saturn distance",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "abcorr": "NONE"
+        },
+        {
+          "quantity": "range-rate",
+          "label": "Closing / opening rate",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "abcorr": "NONE"
+        }
+      ],
+      "timelineHeight": 310,
+      "untrack": true
     },
     {
       "id": "measurements",

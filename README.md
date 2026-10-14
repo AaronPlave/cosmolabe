@@ -11,10 +11,11 @@ and simulation data from a JSON catalog.
 **[Open the hosted demo](https://aaronplave.com/cosmolabe/)** ·
 **[Catalog reference](docs/catalog-format.md)** · **[Get started](#getting-started)**
 
-![Cassini closest approach: Event Finder result, selected 3D marker and mission timeline](docs/img/mission-events.png)
+![Cassini closest approach: selected 3D event, distance windows, distance and range-rate plots](docs/img/mission-events.png)
 
-*Cassini at Saturn orbit insertion: a closest-approach search connects its result
-and altitude to a selected marker on the spacecraft trajectory and the timeline.*
+*Cassini at Saturn orbit insertion: the selected closest approach aligns with
+distance and range-rate plots. Two event lanes show when the spacecraft is within
+100,000 and 150,000 km of Saturn, on a six-hour timeline.*
 
 ## What you can do
 

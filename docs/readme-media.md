@@ -105,7 +105,7 @@ only the primary participants. Panels use their normal default dock positions.
 | `mission-lro.jpg` | `lro-moon` | 2025-01-15 00:21:00 | Track/select LRO above the lunar horizon; streamed terrain/imagery, no sensors or trails. |
 | `mission-cassini.jpg` | `cassini-soi` | 2004-07-01 02:48:00 | Track Saturn, select Cassini; one Cassini trail, sensors off; ring shadows use natural lighting. |
 | `mission-mars.jpg` | `ingenuity-jezero` | 2021-07-05 09:00:08 | Track Ingenuity with a close local-up camera over Jezero; experimental terrain/model positioning; no sensors or trails. |
-| `mission-events.png` | `cassini-soi` | 2004-07-01 02:38:22.467 | Cassini → Saturn closest approach, 00:00–12:00 UTC search, 60 s step, default `NONE` aberration correction. Select the sole result; Event Finder left dock; expanded timeline zoomed to approximately 01:38–03:38 UTC. |
+| `mission-events.png` | `cassini-soi` | 2004-07-01 02:38:22.467 | Cassini → Saturn closest approach, 00:00–12:00 UTC search, 60 s step, default `NONE` aberration correction. Select the sole closest-approach result; also search distance below 100,000 and 150,000 km over the same window. Event Finder left dock; expanded six-hour timeline (00:00–06:00 UTC) with distance and range-rate plots. |
 | `mission-measurements.png` | `cassini-soi` | 2004-07-01 02:38:22.467 | One entity-to-entity Cassini–Saturn distance; Measurements right dock and selected 3D readout. No body info panel. |
 | `mission-tour.png` | `earth-moon-tour` | 2015-10-31 23:50:00 | Script panel shows an executed stationary excerpt of the catalog tour; body-fixed pose from its source, with playback paused. |
 
@@ -114,7 +114,15 @@ reference ellipsoid and approximately **80,246 km center distance**; the measure
 rounds the center distance to **80,246 km**. They describe different quantities.
 The event search is recomputed from kernels, not inserted as a fake result. An
 instant closest approach appears as a timeline marker, rather than an eclipse
-interval. The selected marker is at the spacecraft on its trajectory.
+interval. The selected marker is at the spacecraft on its trajectory. Two additional
+`distance-range` searches produce interval lanes (approximately 1.6 and 3.5 hours)
+for center distance below 100,000 and 150,000 km. Expanded distance and range-rate
+profiles share the axis and event shading; their curves are sampled from the real
+universe states, not drawn into the screenshot. The 310 px analysis region fits
+all three lanes and both plots. The camera is untracked after event selection,
+retaining Saturn as its coordinate origin, so its downward-offset aim keeps the
+ring system clear of the timeline. Search definitions and recomputed results are
+also recorded in the capture sidecar.
 
 For the Mars recipe, a transient catalog variant omits only the optional
 `astro.arcgis.com` CTX imagery layer, which failed requests during the original
@@ -155,7 +163,7 @@ is a static fallback for the same subject.
 A future replacement should record **the entire browser viewport**, not the
 built-in WebGL-only VideoRecordPlugin. Reuse the `events` recipe, start with the
 clean Saturn composition, open the prepared Event Finder, select closest approach,
-scrub the two-hour timeline through the marker, then finish at the selected event.
+scrub the six-hour timeline through the distance windows and closest-approach marker, then finish at the selected event.
 Keep this to 12–15 seconds and retain `mission-events.png` as its poster. Encode
 H.264/yuv420p MP4 with `-movflags +faststart`, keep the heavy video outside git,
 and upload it to GitHub user attachments. Link the resulting CDN URL with a

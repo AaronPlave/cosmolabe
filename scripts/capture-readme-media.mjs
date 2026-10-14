@@ -79,25 +79,54 @@ try {
       for (const name of r.bodyMeshes.keys()) {
         c.showLabel(name, [scene.tracked, scene.selected, scene.trajectory, 'Europa', 'Jupiter'].includes(name));
       }
-      if (scene.search) {
+      const analysis = await import('/src/lib/analysis.svelte.ts');
+      if (scene.search || scene.searches) {
         const e = await import('/src/lib/event-finder.svelte.ts');
-        e.setKind(scene.search.kind);
-        e.setRole('observer', scene.search.observer); e.setRole('target', scene.search.target);
-        e.setWindow(scene.search.start, scene.search.end); e.setStep(scene.search.step);
-        await e.runSearch();
-        if (e.ef.fault || e.ef.events.length !== 1) throw new Error(`Unexpected search: ${JSON.stringify(e.ef.fault ?? e.ef.events)}`);
-        e.selectEvent(e.ef.events[0]);
+        const searches = scene.searches ?? [scene.search];
+        let selectedEvent = null, selectedQuery = null;
+        for (const [index, search] of searches.entries()) {
+          if (index) e.createNewSearch();
+          e.setKind(search.kind);
+          e.setRole('observer', search.observer); e.setRole('target', search.target);
+          for (const [key, value] of Object.entries(search.params ?? {})) e.setParam(key, String(value));
+          e.setWindow(search.start, search.end); e.setStep(search.step);
+          await e.runSearch();
+          if (e.ef.fault || e.ef.events.length !== 1) throw new Error(`Unexpected search: ${JSON.stringify(e.ef.fault ?? e.ef.events)}`);
+          const item = e.currentConfiguredQuery();
+          if (search.label) analysis.updateConfiguredEventQuery(item.id, { ...item.query, label: search.label }, search.label);
+          if (index === 0) { selectedEvent = e.ef.events[0]; selectedQuery = item.id; }
+        }
+        e.openConfiguredQuery(selectedQuery);
+        e.selectEvent(selectedEvent);
         if (Math.abs(c.getTime() - scene.et) > 0.001) throw new Error('Selected event changed epoch');
+      }
+      if (scene.profiles) {
+        const t = await import('/src/lib/timeline.svelte.ts');
+        for (const profile of scene.profiles) {
+          const { label, ...definition } = profile;
+          const item = analysis.createConfiguredProfile(definition, label);
+          t.timeline.expandedRows[item.id] = true;
+        }
       }
       if (scene.measurement) {
         const m = await import('/src/lib/spatial-measurements.svelte.ts');
         m.addMeasurement(scene.measurement);
       }
       if (scene.selected) c.select(scene.selected); else c.deselect();
+      // Event focus can recenter the camera; restore the recorded composition.
+      if (scene.searches && scene.camera) {
+        if (scene.untrack) c.untrack();
+        c.setCamera(scene.camera.position, scene.camera.target, scene.camera.up);
+        c.setFov(scene.camera.fov);
+      }
       if (scene.panel) shell.openTool(scene.panel);
       if (scene.timeline) {
         shell.setTimelineDepth('expanded');
         state.vs.scrubMin = scene.timeline[0]; state.vs.scrubMax = scene.timeline[1];
+        if (scene.timelineHeight) {
+          const t = await import('/src/lib/timeline.svelte.ts');
+          t.timeline.laneHeight = scene.timelineHeight;
+        }
       }
     }, scene);
     if (scene.panel === 'script') {
@@ -129,7 +158,19 @@ try {
     });
     assert.deepEqual(errors, [], `${scene.id}: browser/network errors`);
     if (scene.panel === 'events') await page.locator('.event-result.selected').waitFor();
-    const metadata = await page.evaluate(scene => ({
+    if (scene.profiles) {
+      const plots = await page.locator('[data-tl-plot] path.trace').evaluateAll(paths => paths.map(path => {
+        const rect = path.closest('[data-tl-plot]').getBoundingClientRect();
+        return { data: path.getAttribute('d'), top: rect.top, bottom: rect.bottom };
+      }));
+      assert.equal(plots.length, scene.profiles.length, 'Missing geometry plots');
+      for (const plot of plots) {
+        assert.ok(plot.data?.length > 20 && !/NaN|Infinity/.test(plot.data), 'Empty or invalid profile trace');
+        assert.ok(plot.top >= 0 && plot.bottom <= recipes.viewport.height, 'Profile clipped by viewport');
+      }
+    }
+    const metadata = await page.evaluate(async scene => ({
+      analysis: scene.searches ? (await import('/src/lib/analysis.svelte.ts')).analysis : null,
       et: cosmo.getTime(), camera: cosmo.getCamera(), snapshot: cosmo.snapshot(),
       initialAssets: renderer.initialAssetsSummary,
       terrain: scene.terrain ? renderer.getBodyMesh(scene.terrain).terrainManager.metrics : null,
