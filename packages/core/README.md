@@ -63,3 +63,6 @@ const { position, velocity } = universe.getBody('LRO')!.stateAt(et);
 ## License
 
 Apache-2.0. See [LICENSE](https://github.com/AaronPlave/cosmolabe/blob/main/LICENSE) and [NOTICE](https://github.com/AaronPlave/cosmolabe/blob/main/NOTICE).
+
+Plugin products distinguish adapter-issued host authority from exploratory viewer
+geometry and preserve provenance chains. See [plugin data contracts](../../docs/plugin-data.md).

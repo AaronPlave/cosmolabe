@@ -189,3 +189,6 @@ export {
   etToDate,
   etFromDate,
 } from './time.js';
+
+export * from './plugins/PluginData.js';
+export { hasLineOfSight } from './plugins/contact-geometry.js';
