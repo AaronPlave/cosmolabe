@@ -183,6 +183,13 @@ export interface TerrainConfig {
      * register the tiles meeting at each pole (both are face centres).
      */
     imagery?: CubeImageryConfig;
+    /**
+     * Draw the product's mixed-LOD skirts (default true). Each .glb lists its
+     * surface triangles first (glTF primitive extras `surfaceTriangles`); false
+     * draws, and ray-casts, only those, leaving cracks open for diagnosis. CPU
+     * queries read the grids, never meshes, so skirts never reach them.
+     */
+    skirts?: boolean;
   };
 }
 
@@ -509,6 +516,7 @@ export class TerrainManager {
   /** Experimental cube-sphere CPU grids and their #148 ray surface, once the manifest loads. */
   private cube: { source: CubeSphereGridSource; surface: CubeGridSurface } | null = null;
   private readonly cubeConfigured: boolean;
+  private cubeSkirts = true;
   /** Experimental cube-face map imagery, independent of geometry LOD (#149). */
   private readonly cubeImagery: CubeImageryLayer | null = null;
   private disposed = false;
@@ -593,6 +601,7 @@ export class TerrainManager {
     // the sampler no longer holds.
     this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
     this.cubeConfigured = !!config.cubeSphere;
+    this.cubeSkirts = config.cubeSphere?.skirts !== false;
     if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
     if (config.cubeSphere?.imagery) {
       this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery);
@@ -859,6 +868,7 @@ export class TerrainManager {
     // Customize tile materials as they load
     this.tiles.addEventListener('load-model', (event: { scene: THREE.Object3D; tile: any }) => {
       this.customizeTileMaterial(event.scene, event.tile);
+      if (this.cubeConfigured) this.applyCubeSkirts(event.scene);
       const address = this.cubeImagery ? cubeAddress(event.tile) : null;
       if (address) this.cubeImagery!.addTile(event.tile, event.scene, address);
     });
@@ -1115,6 +1125,22 @@ export class TerrainManager {
         this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
       }
     }
+  }
+
+  /** Show or hide cube-sphere skirts on every loaded and future tile; imagery blocks rebuild to match. */
+  setCubeSkirts(visible: boolean): void {
+    if (visible === this.cubeSkirts) return;
+    this.cubeSkirts = visible;
+    this.tiles.forEachLoadedModel((scene: THREE.Object3D) => this.applyCubeSkirts(scene));
+    this.cubeImagery?.invalidateBlocks();
+  }
+
+  private applyCubeSkirts(scene: THREE.Object3D): void {
+    scene.traverse((o) => {
+      const g = (o as THREE.Mesh).geometry;
+      const n = g?.userData?.surfaceTriangles;
+      if (typeof n === 'number') g.setDrawRange(0, this.cubeSkirts ? Infinity : 3 * n);
+    });
   }
 
   /** The experimental cube imagery layer, for diagnostics and live option changes; null when not configured. */

@@ -65,11 +65,13 @@ has no CPU sampler support yet and is not joined to the global pyramid; see
 `./cube.sh` tiles the same fused field on the gnomonic cube of
 `packages/three/src/surface/CubeSphere.ts` as 3D Tiles 1.1 (one `.glb` per tile)
 plus a CPU height grid per tile (`cpu-grids.json`, `heights/`), into
-`apps/viewer/test-catalogs/data/moon-terrain-cube/` (4,030 tiles, ~680 MB,
-~11 min on 4 cores; gitignored, not hosted). All six faces to level 3, then
-bounded detail: Shackleton to 13 m within 15 km, and one face corner and one
-face edge to 212 m. No skirts, so mixed-LOD cracks stay measurable; pass
-`--skirt-cells 1` to add them. It is an experiment beside the geographic and
+`apps/viewer/test-catalogs/data/moon-terrain-cube/` (4,030 tiles, ~720 MB,
+~12 min on 4 cores, 1 min 43 s on 14; gitignored, not hosted). All six faces to
+level 3, then bounded detail: Shackleton to 13 m within 15 km, and one face
+corner and one face edge to 212 m. Mixed-LOD cracks are covered by skirts sized
+per edge from the gaps measured against every other level across it;
+`--skirt-cells 0` builds without them, and the viewer can hide them at runtime
+(`cubeSphere.skirts: false`) for diagnosis. It is an experiment beside the geographic and
 polar products, not a replacement; see
 [the ADR](../../docs/design/cube-sphere-experiment.md).
 

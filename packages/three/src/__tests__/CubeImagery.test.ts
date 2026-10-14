@@ -233,6 +233,45 @@ describe('clipping a geometry tile into imagery blocks', () => {
     }
   });
 
+  it('keeps skirts, which lie in the tile-boundary planes, exactly once and textured like their edge', () => {
+    const tile = { face: 'nz' as CubeFace, level: 6, x: 31, y: 32 }, n = 9, depth = 40;
+    const { position, centre } = lattice(tile, n);
+    const { a: A, b: B, n: N } = tileProjectiveBasis(tile);
+    // Skirt quads below each edge loop, in float32 like a decoded .glb, uvw from those float32 positions.
+    const pos = Array.from(position), skirt: number[] = [];
+    const k = [...Array(n).keys()];
+    for (const loop of [k, k.map(i => i * n + n - 1), k.map(i => (n - 1) * n + n - 1 - i), k.map(i => (n - 1 - i) * n)]) {
+      const base = pos.length / 3;
+      for (const v of loop) {
+        const p = [0, 1, 2].map(c => position[3 * v + c] + centre[c]), r = Math.hypot(...p);
+        pos.push(...p.map((c, i) => c * (1 - depth / r) - centre[i]));
+      }
+      for (let i = 0; i + 1 < n; i++) skirt.push(loop[i], base + i, loop[i + 1], loop[i + 1], base + i, base + i + 1);
+    }
+    const p32 = Float32Array.from(pos);
+    const uvw = new Float32Array(p32.length);
+    for (let v = 0; v < p32.length / 3; v++) {
+      const p = [0, 1, 2].map(c => p32[3 * v + c] + centre[c]);
+      uvw.set([dot(p, A), dot(p, B), dot(p, N)], 3 * v);
+    }
+    const whole = area(p32, skirt);
+    let sum = 0;
+    for (let x = 0; x < 4; x++) for (let y = 0; y < 4; y++) {
+      const rect = blockRectInTile(tile, { face: tile.face, level: tile.level + 2, x: tile.x * 4 + x, y: tile.y * 4 + y });
+      const out = clipTrianglesToTileRect([{ array: p32, itemSize: 3 }, { array: uvw, itemSize: 3 }], 1, skirt, rect);
+      sum += area(out.attributes[0], out.index);
+      if (x > 0 && x < 3 && y > 0 && y < 3) expect(out.index.length).toBe(0); // interior blocks hold no skirt
+    }
+    expect(Math.abs(sum - whole) / whole).toBeLessThan(1e-5);
+    // A skirt vertex's projective coordinates are its edge vertex's: imagery runs straight down the wall.
+    for (let v = 0; v < 4 * n; v++) {
+      const top = [k, k.map(i => i * n + n - 1), k.map(i => (n - 1) * n + n - 1 - i), k.map(i => (n - 1 - i) * n)].flat()[v];
+      const b = n * n + v;
+      expect(Math.abs(uvw[3 * b] / uvw[3 * b + 2] - uvw[3 * top] / uvw[3 * top + 2])).toBeLessThan(1e-6);
+      expect(Math.abs(uvw[3 * b + 1] / uvw[3 * b + 2] - uvw[3 * top + 1] / uvw[3 * top + 2])).toBeLessThan(1e-6);
+    }
+  });
+
   it('keeps clipped vertices on the surface: interpolated uvw matches the clipped position', () => {
     const tile = { face: 'px' as CubeFace, level: 4, x: 15, y: 15 }; // the px/py/pz corner tile
     const { position, uvw, index, centre } = lattice(tile);

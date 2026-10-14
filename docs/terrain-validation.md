@@ -333,8 +333,9 @@ vertices; 1.3–1.5 µs on Moon tiles of 19–284 vertices.
 The cube product has its own whole-product validator, which reads every emitted
 `.glb` and CPU grid and gates coverage, REPLACE completeness, subtree bounds,
 shared edge/corner vertices and pole/antimeridian ownership, then measures
-mixed-LOD cracks (no skirts), CPU bilinear vs emitted triangles, parent/child
-heights, control points and #148 picking/clearance:
+mixed-LOD cracks (the surface triangles), gates that the skirts cover every
+mixed-level gap, CPU bilinear vs emitted triangles, parent/child heights, control
+points and #148 picking/clearance, including rays aimed at the worst boundaries:
 `node scripts/validate-cube-terrain.mjs`. Software-rendered (SwiftShader)
 captures from fixed body-fixed poses, for the cube and the #145 polar cap:
 `node scripts/capture-cube-terrain.mjs --product cube|polar`. Unlike the

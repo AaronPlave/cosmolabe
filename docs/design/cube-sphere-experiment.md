@@ -1,8 +1,8 @@
 # Cube-sphere terrain experiment (ADR)
 
-**Status:** open; experimental, not a production layout or a measured verdict
+**Status:** open; experimental, not a production layout. Geometry evidence recommends *revise* (see *Layout comparison*)
 **Issue:** #149 (remains open)
-**Recorded:** 2026-10-04 (foundation); 2026-10-13 (lunar builder and viewer demo); 2026-10-14 (independent imagery)
+**Recorded:** 2026-10-04 (foundation); 2026-10-13 (lunar builder and viewer demo); 2026-10-14 (independent imagery; mixed-LOD crack mitigation and the geometry-layout comparison)
 
 ## Decision
 
@@ -19,8 +19,11 @@ captures from the same camera poses as the #145 polar cap; then independent
 cube-face imagery: a face-aware runtime adapter that refines map imagery at its
 own levels over unchanged geometry, with a controlled fixture, rendered
 registration read-back and a bounded real lunar example (see *Independent
-imagery*). Mixed-LOD crack mitigation, a hardware-GPU performance comparison and
-the geographic(-plus-polar) side of the comparison remain; see *Remaining for #149*.
+imagery*); then mixed-LOD crack mitigation by skirts sized from the product's
+measured gaps, and a geometry-only layout comparison of cube, polar and
+geographic products on one hardware GPU (*Mixed-LOD crack mitigation*, *Layout
+comparison*). A matched-imagery comparison and GPUs other than an M4 Max remain;
+see *Remaining for #149*.
 
 ## Mappings compared
 
@@ -150,10 +153,9 @@ rather than a second copy.
   float32 offset rounding.
 - **Mixed levels.** A parent edge samples the field at its own spacing and
   source level, so a finer neighbour's edge vertices are T-junctions against
-  the parent's straight edge. The product ships **without skirts** so the cracks
-  can be measured and seen; `cube.sh --skirt-cells 1` adds the polar cap's
-  edge-normal skirts. A crack-free alternative (constraining child edge vertices
-  to the parent edge, or geomorphing) is not attempted here.
+  the parent's straight edge. The cracks are measured on the surface triangles
+  and covered by per-edge skirts sized from those measurements (*Mixed-LOD crack
+  mitigation*); `--skirt-cells 0` builds the #178 product without them.
 - **Ownership** is `CubeSphere.ts`'s: X > Y > Z on exact ties, and the upper
   child on an exact child boundary. It selects an address for a query only.
 
@@ -575,7 +577,8 @@ tiles and meshes with 0 new .glb, imagery reaching the same levels (L10/L10/L8/L
 in 4 s each. Terrain held at L2: imagery to L10 at Shackleton and the pole.
 Registration: median 0.41 texel in all five ground views (0.52 overview),
 p95 ≤ 0.94, 0 face/tile mismatches; worst pixel ≤ 1.29 texels everywhere except one
-2.77-texel pixel at Shackleton (p95 there 0.66 as in software; not traced). Markers:
+2.77-texel pixel at Shackleton (p95 there 0.66 as in software; traced below to
+filtering at grazing incidence). Markers:
 screen centroids ≤ 0.47 px, ground centroids 0.0–8.2 m. Failure: 72 failed
 requests, imagery held at L6, 0 untextured blocks, no retries in 5 s. Navigation
 under 64 MiB (in-flight requests now reserved): ≤ 180 textures, 63.8 MiB, 1,842
@@ -619,6 +622,33 @@ frame; no thermal soak. On weaker GPUs or with many more tiles the draw count is
 first thing to watch, and the mitigations under *What this proves* (shared vertex
 buffers with index-only blocks, or one composited texture per tile) cut exactly it.
 
+**The 2.77-texel registration outlier (follow-up from #184).** The Metal run
+reproduces it exactly, and the registration experiment now records its worst
+samples (`imagery-gpu-registration.json` → `worstSamples`): pixel (629, 204) of
+the Shackleton frame, imagery `nz/8` tile (127, 127) — the tile with the pole at
+its corner — decoded (R, G) = (75, 22) against an expected (74.75, 19.24), so
+the error is 2.76 texels along the tile's row axis. What it is not:
+
+- *Measurement against the wrong surface*: the four neighbouring pixels'
+  ray-cast distances agree within 5% (no silhouette or depth step), and the hit
+  is on surface triangles, not a skirt.
+- *Rasterization or mapping*: the dense 9×9 error map around it is 0.07–0.83
+  texels everywhere except three adjacent pixels of one screen row (1.51, 2.77,
+  3.25); a mapping or rasterization offset would not be confined to one row of
+  a smooth surface, and every other view stays ≤ 1.2 texels.
+
+What it is: **filtering at grazing incidence**. The ray meets the surface at
+cos 0.012 (89.3° from the normal); one screen row there spans ~8 texels of the
+ramp (G goes 244 → 22 → 30 across the 3×3 neighbourhood, the row above already
+in the next imagery tile). The hardware's anisotropic, mipmapped filter
+averages the ramp over that long, perspective-skewed footprint — reaching the
+tile's gutter — and the decoded value is the footprint mean, compared with the
+point value at the pixel centre. 2.76 texels is a third of that footprint,
+sub-pixel on screen; SwiftShader's filter gives ≤ 1.27 at the same pose. The
+measurement excludes pixels whose immediate neighbours change imagery tile, but
+not footprints this long; a stricter exclusion (screen-space derivative above a
+few texels per pixel) would drop it. **No change to registration.**
+
 ### What this proves, and what it does not
 
 Proven here, on software rendering and repeated on one hardware GPU:
@@ -656,6 +686,410 @@ Not established, and why it matters:
 - **Contract.** `MapImageLayer` needs a tiled-layout variant to describe this
   product rather than an affine raster.
 
+## Mixed-LOD crack mitigation (2026-10-14)
+
+The #178 product shipped without skirts so its cracks could be measured. The
+geometry is unchanged here (the CPU height grids hash identically before and
+after the rebuild); this slice chooses and implements how the rendered surface
+closes them.
+
+### Where the gaps come from
+
+A tile edge meets a coarser tile along a line on which its own ancestor at
+that level also has an edge, and same-level shared vertices are bit-identical
+across tiles, faces and corners (*Boundary policy*). The coarse neighbour's edge
+is therefore exactly the fine tile's ancestor's edge, on the same face or not.
+Two things differ along it: the T-junction vertices the coarse chord lacks, and
+the coincident vertices, which the coarse level sampled at its own spacing and
+source level (point-sampled LOLA at coarse levels, *Measured results*). Both are
+honest representation differences, not datum or source discontinuities: the
+fused field is continuous and every level samples it.
+
+Enumerated over the whole product (`cube_skirt_gaps`, independently re-derived
+by the validator): 18,180 mixed-level edge pairs, 2,328 across faces, at level
+differences 1 to 11 (8,044 / 4,000 / 1,932 at Δ1/2/3; 134 at Δ11 — level-12
+tiles beside the level-1 tiles across the face-centre lines through the pole).
+Radial gaps reach 3.6 km against levels 0–2 and 18 m at Δ1 between levels 11
+and 12. At runtime the renderer's visible sets were milder: Δ ≤ 2 in every
+captured view and in all 140 steps of the dynamic paths below, Δ2 present in
+most views (cross-face Δ2 at the px/nz edge).
+
+### Options compared
+
+| | Skirts | Constrained boundary vertices (stitching) | Geomorphing |
+| --- | --- | --- | --- |
+| What it needs | A wall under each edge, deep enough for any neighbour the product allows | Each frame, every visible tile's neighbour level per edge, then moving its edge vertices onto the coarser chord | A per-vertex morph target (the parent surface at that point) and a morph factor that agrees at shared vertices |
+| Neighbour levels | None at runtime. Depth from the product's own level pairs, computed offline | Runtime neighbour graph across faces and corners (orientation flips), and Δ > 1: classic stitching assumes a restricted (Δ ≤ 1) quadtree, which 3d-tiles-renderer does not enforce (Δ2 is common above) | Factors from distance agree only if LOD selection is per-vertex distance (CDLOD); 3d-tiles-renderer selects per tile by screen-space error on bounding volumes, so neighbours morph inconsistently |
+| Streaming / fallback | Any mix of product tiles is covered, including parent fallback, failures and eviction | Re-stitch whenever a neighbour loads, fails or is evicted; parent fallback changes the neighbour mid-frame | Morph state per tile across loads; a fallback parent has no morph target |
+| Rendered vs CPU surface | Surface vertices untouched; walls only where there is a gap | The rendered edge moves by up to the gap and depends on what is loaded: picks differ frame to frame | The rendered surface is time-varying between two levels: CPU samples agree with neither during a morph |
+| Extra geometry | 4·64·2 triangles, 4·65 vertices per tile (+6.25% / +6.2%) | None (CPU buffer rewrites or a vertex-shader path with per-edge state) | One extra height (or position) per vertex, +4–12 bytes |
+| Grazing angles | The visible part of a wall is bounded by the gap (below, the lower neighbour hides it; from the higher side, its own surface does) | None | Visible popping is reduced; cracks still need one of the others |
+| Upstream | Already the renderer's convention: the quantized-mesh plugin adds skirts to the geographic baseline and the polar cap has them | No support | No support |
+
+Prototyping limited to what decides: the neighbour-level census (above, and per
+capture) rules out Δ ≤ 1 stitching without new runtime machinery; per-tile
+screen-space error rules out consistent geomorphing; the product-wide gap
+enumeration shows skirt depths can be fixed offline for every combination.
+**Selected: skirts sized per edge from measured gaps.**
+
+### Implementation
+
+- **Builder** (`dem.py cube-tile`, now two passes): pass 1 samples heights,
+  normals and CPU grids as before; `cube_skirt_gaps` then walks every tile edge
+  against each coarser level (via `cube_tile_at`, so face edges and corners need
+  no special case, stopping where the edge becomes interior to the ancestor) and
+  measures the radial gap along each fine vertex ray against the coarse chord in
+  their common great-circle plane, charging positive gaps to the fine tile's
+  edge and negative ones to the coarse tile's edge on that line; pass 2 writes
+  each `.glb` with a skirt per edge of 1.25 × its largest gap + 0.1 vertex
+  spacing (the floor also covers rasterization at gap-free T-junctions), radial,
+  with the edge normals. Surface triangles come first and the primitive carries
+  `extras.surfaceTriangles` (8,192). `--skirt-cells 0` builds without skirts.
+  Mean depth falls from 8.0 km at level 0 to 11 m at level 12; the maximum at
+  level 12 is 1.38 km on the 134 Δ11 edges at the pole lines, which the renderer
+  has not been seen to produce but the product allows.
+- **Viewer**: `TerrainConfig.cubeSphere.skirts` (default true) and
+  `TerrainManager.setCubeSkirts(visible)` set each tile's draw range to all or
+  only the surface triangles: one product, and an unmitigated mode for diagnosis
+  that also stops ray casts hitting skirts (three.js honours draw ranges).
+- **Imagery**: gnomonic projective coordinates `(p·a, p·b, p·n)` are invariant
+  along a radial line, so a skirt carries exactly its edge's texels — imagery
+  runs straight down the wall. Two layer fixes were needed: blocks clip only the
+  triangles the tile draws (its draw range), and a block side lying on the tile's
+  own boundary is no longer clipped, because skirts lie exactly in that plane and
+  float32 rounding decided whether their triangles survived — the unit test
+  shows 23% of skirt area dropped without the fix, which would have reopened
+  cracks wherever imagery splits a tile. Texel distances use the surface
+  vertices' radius range, not the skirts'.
+- **Physical surface**: CPU grids and `CubeGridSurface` rebuild triangles from
+  the height grids, never from `.glb`, so skirts are excluded from samples,
+  readouts, clamping, ray queries and clearance by construction. Rendered
+  picking *can* hit a skirt — it is what the pixel shows through a gap — and
+  `pickSurface` now reports `renderedSkirt`; its `physical` answer is the CPU
+  surface as before. Mitigation does not touch surface vertices, so it cannot
+  hide a datum or source discontinuity: those would still show in the CPU grids,
+  the crack metrics and the shared-vertex gates.
+
+### Validation (`node scripts/validate-cube-terrain.mjs`)
+
+All previous gates pass on the rebuilt product with identical results (shared
+vertices, REPLACE completeness, ownership, control points RMS 6.85 m / max
+17.5 m, 120 picks matching the emitted triangles to < 1 mm, clearance). New:
+
+- **Skirt shape**: every skirt vertex radially below its edge vertex, one depth
+  per edge, edge normals; 8,192 surface triangles then 512 skirt triangles.
+- **Coverage**: at all 1,181,700 fine-edge samples of the 18,180 mixed-level
+  pairs, the higher side's skirt (read back from the `.glb`) reaches the lower
+  edge; 0 uncovered, minimum margin 1.4 m. Halving the read-back depths makes
+  the gate fail on 21,964 samples.
+- **Bounds**: every vertex, skirts included, inside its content box, node box
+  and all ancestors' boxes. Visible tile counts and levels at the #184 poses are
+  unchanged (110 / 75 / 177 / 219 tiles), so the deeper boxes did not alter
+  selection there.
+- **Boundary picks and clearance**: 144 rays (0–60° off nadir from 2 km) at the
+  worst-gap vertex of the 36 worst mixed-level edges (fine levels 7–12, same- and
+  cross-face, gaps 1.6–2.4 km): 69 would pass through the crack without skirts;
+  with skirts 73 hit a skirt, and those land within 5.2 m (p95 4.4 m) of the CPU
+  hit. A #148 camera placed 50 m along the CPU normal stays ≥ 36.4 m above the
+  rendered pair (fine tile + coarse neighbour) below it.
+
+### Rendered evidence (`capture-cube-imagery.mjs --experiments cracks,cracks-dynamic,skirt-cost --gpu`)
+
+Apple M4 Max, Chrome 148, ANGLE Metal, 1280×800, DPR 1, same epoch and
+settings as *Hardware GPU*. **Geometric holes are measured separately from
+shading and texture**: after each capture the visible terrain alone is drawn
+unlit white on black twice in one task — as displayed (skirts, imagery
+blocks) and as the same tiles' surface triangles only — and black pixels not
+connected to the image border are holes. Shading or texture seams cannot
+appear in that mask; a hole touching the horizon silhouette is counted as
+background (an undercount, conservative for the unmitigated column only).
+Montages show the unmitigated frame with its holes in magenta beside the
+mitigated one, with a 4× inset of the densest hole window under each
+(`cracks-*.jpg`; unlit — `cube-face` hues for terrain, raw texels for imagery —
+because some poses are in lunar night).
+
+| View (finished detail) | Visible tiles (levels) | Neighbour Δlevel samples 1 / 2 (cross-face) | Holes without skirts: px / regions | With skirts | Triangles +% |
+| --- | --- | --- | --- | --- | --- |
+| Shackleton oblique | 110 (L3–10) | 1,712 / 224 | 105 / 88 | 0 | 5.8 |
+| Shackleton grazing (rim, 0.4 km) | 134 (L3–12) | 2,224 / 224 | 79 / 71 | 0 | 5.9 |
+| Shackleton near ground (0.15 km) | 112 (L3–12) | 1,744 / 48 | 58 / 50 | 0 | 5.8 |
+| South pole | 75 (L3–8) | 1,296 / 32 | 52 / 37 | 0 | 5.7 |
+| Pole grazing (0.5 km, across the pole) | 119 (L3–11) | 1,936 / 160 | 38 / 21 | 0 | 5.7 |
+| px/nz face edge | 177 (L1–7) | 2,080 / 192 (448 Δ1) | 36 / 36 | 0 | 5.9 |
+| Edge grazing (1 km) | 113 (L0–8) | 1,664 / 192 (64 Δ2) | 0 / 0 | 0 | 5.7 |
+| px/py/nz face corner | 219 (L1–7) | 2,496 / 0 (288 Δ1) | 6 / 6 | 0 | 6.0 |
+| Corner grazing (1.5 km) | 177 (L1–8) | 2,096 / 352 (192 Δ1) | 1 / 1 | 0 | 5.9 |
+
+Terrain only; the grid fixture and the NAC mosaic give the same hole counts at
+the same poses (imagery does not change the geometry), and 0 holes with skirts
+— including through imagery blocks, the path the clipping fix repaired. At rest
+the unmitigated cracks are specks (≤ 105 pixels per frame at errorTarget 2),
+which is why they read as background flecks rather than lines.
+
+Picks on unmitigated hole pixels with skirts drawn hit a skirt in 419 of 422
+cases (all views and catalogs). Their physical answer differs from the rendered hit by the same amount
+as on surface pixels 3 px away (Shackleton median 6.8 vs 15.7 m; pole 283 vs
+346 m, max 2.64 vs 2.63 km on grazing rays): that offset is the coarse rendered
+level against the finest CPU grid, present with or without a crack.
+
+**While refining, coarsening and moving** (grid fixture, one page per scenario,
+35 steps: 3,000 km → Shackleton without waiting for detail, out to 600 km, then
+pole → face edge → face corner at 50 km; holes measured at each step):
+
+| Scenario | Steps with holes without skirts (max px) | With skirts | Notes |
+| --- | --- | --- | --- |
+| Normal | 25 (105) | 0 | 737 requests |
+| Child `.glb` (level ≥ 6) delayed 2.5 s | 22 (134) | 0 | 18 steps still loading, up to 161 queued: parent fallback throughout |
+| Child `.glb` (level ≥ 9) failing | 25 (85) | 0 | 52 failed loads; Shackleton held at level 8 |
+| Tile cache 24–40 MB (evicting) | 25 (105) | 0 | cache held at ~25 MB, 60 re-requests of evicted tiles |
+
+**Cost.** Same draws (skirts are in the tile's own buffers). Triangles
++5.7–6.0% per view (+4% in the overview, where level-0 tiles have proportionally
+fewer edge cells drawn). Geometry +9.3 KB per tile before imagery (260 vertices ×
+24 B + 512 triangles × 6 B), +3.1 KB with the imagery attribute; the product's
+`.glb` bytes +6.2% (611 → 648 MB). GPU time per frame, medians on one page,
+surface only → skirts (→ skirts again): −0.05 to +0.13 ms across twelve
+view/catalog pairs, within the repeat's own spread in several (full p95s in
+`crack-gpu-captures.json`); wall time +0 to +0.4 ms. Build: 1 min 43 s on 14
+workers vs 1 min 26 s for the #178 builder on the same host; the gap pass itself
+is 4.3 s. No runtime work beyond a draw-range assignment per loaded tile.
+
+**Seams that remain are not geometry.** With skirts, a wall shades with its
+edge normal and carries its edge's texels, so where a crack was the frame shows
+the edge colour stretched over at most the gap. Remaining visible lines in
+shaded frames are level transitions in shading (normals sampled at different
+spacings) and imagery-level boundaries; neither appears in the hole mask.
+
+## Layout comparison: geometry (2026-10-14)
+
+`node scripts/capture-cube-imagery.mjs --gpu --experiments compare` loads the
+three products — cube, the #145 polar cap and the #48 geographic quantized-mesh
+pyramid, all sampled from the same fused field (`dem.py field_heights`) — from
+identical IAU_MOON poses on a cold page each, waits for finished detail, then
+times 240 warm frames. Same viewer, viewport (1280×800, DPR 1), epoch,
+lighting, tile cache (512 MiB, the TerrainManager default for all three), fade
+off, Apple M4 Max as in *Hardware GPU*. Records: `comparison-gpu-captures.json`.
+
+**What is matched, and how.**
+
+- *Surface detail.* The products define geometric error differently per vertex
+  spacing: cube 0.25 (`dem.py`), geographic ≈ 0.25 (QuantizedMeshPlugin
+  `πR / (4·65·2^z)` against a `πR / (64·2^z)` latitude spacing), polar cap
+  0.125. Equal errorTarget therefore leaves the cap about one level coarser
+  (Shackleton: cube L9 106 m, cap L4 195 m at errorTarget 2). The comparison
+  runs the cap at errorTarget 1 and the others at 2, and records the level and
+  nominal vertex spacing of the tile under the screen centre. That matches
+  Shackleton, Shackleton-grazing and pole-grazing to within 10%; at the pole and
+  cap-nadir the cap is still about 2× finer at the centre, so the cube was also
+  run at errorTarget 1 (*bracket* rows). The geographic spacing given is along
+  the meridian; across it, polar tiles are slivers far finer than that.
+- *Far-field coverage.* The cube and geographic products are global, the cap a
+  200 km square. Each capture measures the fraction of the frame covered by
+  terrain (the hole-mask pass): on every near-ground, grazing and cap-nadir pose
+  the cap covers the same pixels as the global products (57–100%; the horizon is
+  within the cap), so those rows compare like with like; at Shackleton the cap
+  misses a 1% horizon sliver, and the overview (cap 0% vs 34%) is not a cap
+  comparison at all.
+- *Imagery.* None: no baseline has a matched imagery product yet, so these are
+  geometry-layout costs only. Cube imagery costs are in *Hardware GPU*.
+- *Encoding, not layout.* The cube and cap ship the full 65² lattice; the
+  geographic tiles are RTIN-simplified quantized meshes (error 0.1 × spacing).
+  Triangle counts therefore mix layout with encoding; tiles and draws do not.
+
+**Warm frames and memory at finished detail** (240 frames; wall time fenced by
+`readPixels`, GPU by `EXT_disjoint_timer_query_webgl2`; median / p95 ms):
+
+| View | Product | Centre level (spacing) | Terrain in frame | Visible tiles | Draws / triangles | Geometry MB | Wall | GPU |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Shackleton oblique | cube | L9 (106 m) | 82% | 110 | 115 / 1.02 M | 32 | 1.3 / 2.7 | 0.39 / 1.66 |
+|  | polar cap (eT 1) | L5 (98 m) | 81% | 142 | 147 / 1.30 M | 30 | 1.9 / 3.8 | 0.51 / 2.11 |
+|  | geographic | L9 (167 m) | 82% | 2,495 | 2,500 / 4.38 M | 174 | 25.8 / 30.0 | 5.58 / 9.01 |
+| Shackleton grazing | cube | L9 (106 m) | 57% | 134 | 139 / 1.23 M | 35 | 1.5 / 3.0 | 0.43 / 1.88 |
+|  | polar cap (eT 1) | L5 (98 m) | 57% | 163 | 168 / 1.48 M | 35 | 1.6 / 2.8 | 0.59 / 1.37 |
+|  | geographic | L9 (167 m) | 57% | 3,193 | 3,198 / 5.53 M | 220 | 32.1 / 36.4 | 6.00 / 9.82 |
+| South pole | cube | L8 (212 m) | 100% | 75 | 80 / 0.72 M | 23 | 1.0 / 2.0 | 0.30 / 1.14 |
+|  | polar cap (eT 1) | L5 (98 m) | 100% | 103 | 108 / 0.96 M | 22 | 1.2 / 3.1 | 0.40 / 1.73 |
+|  | geographic | L9 (167 m) | 100% | 3,244 | 3,249 / 5.51 M | 222 | 33.3 / 38.1 | 6.81 / 9.51 |
+| Pole grazing | cube | L11 (27 m) | 61% | 119 | 126 / 1.13 M | 31 | 1.3 / 2.9 | 0.39 / 1.69 |
+|  | polar cap (eT 1) | L7 (24 m) | 61% | 179 | 186 / 1.65 M | 38 | 1.8 / 3.3 | 0.59 / 1.46 |
+|  | geographic | L10 (83 m) | 61% | 5,446 | 5,453 / 8.87 M | 389 | 56.9 / 67.4 | 8.23 / 17.22 |
+| Cap nadir (40 km) | cube | L7 (424 m) | 100% | 117 | 122 / 1.08 M | 29 | 1.2 / 2.6 | 0.32 / 1.46 |
+|  | polar cap (eT 1) | L4 (195 m) | 100% | 52 | 57 / 0.52 M | 11 | 0.9 / 1.8 | 0.23 / 0.96 |
+|  | geographic | L7 (666 m) | 100% | 764 | 769 / 1.64 M | 60 | 6.4 / 9.2 | 1.08 / 3.71 |
+| px/py/nz corner | cube | L7 (424 m) | 100% | 219 | 224 / 1.97 M | 53 | 2.3 / 4.7 | 0.65 / 2.86 |
+|  | geographic | L7 (666 m) | 100% | 107 | 112 / 0.37 M | 16 | 1.6 / 1.9 | 0.61 / 0.62 |
+| Overview (3,000 km) | cube | L1 (27,147 m) | 34% | 15 | 20 / 0.20 M | 14 | 0.7 / 1.1 | 0.17 / 0.50 |
+|  | polar cap (eT 1) | — | 0% | 4 | 9 / 0.10 M | 1 | 0.6 / 0.7 | 0.20 / 0.21 |
+|  | geographic | L1 (42,642 m) | 33% | 14 | 19 / 0.10 M | 12 | 0.7 / 0.9 | 0.28 / 0.30 |
+
+Reading it:
+
+- **Pole and Shackleton: the cube against geographic.** Geographic tiles at the
+  pole are slivers (#144). At the four near-ground poses within 0.6° of the pole
+  the geographic pyramid draws 23–46× the cube's tiles and draws, 4.3–7.8× its
+  triangles and 5–13× its geometry memory; warm frames cost 20–44× the wall time
+  (25.8–56.9 ms median, below 30 Hz at pole-grazing) and 14–23× the GPU time. At
+  cap-nadir (40 km up, 0.5° from the pole) it is 6.5× the tiles, 5× the wall and
+  3.4× the GPU time. Its centre detail is similar or coarser along the meridian
+  (167 vs 106 m at Shackleton) and its triangles are already simplified, so this
+  is the layout, not the encoding.
+- **Pole region: the cube against the polar cap**, and **mid-latitudes**: a
+  single centre tile is too weak a detail match to decide these (the cap's
+  centre was 2× finer at the pole and cap-nadir); see the achieved-error sweep
+  below, which supersedes these rows for both comparisons.
+- **Overview.** All three are cheap (≤ 0.3 ms GPU); the cap shows almost nothing.
+
+**Cost at equal achieved surface error.** Matching by the tile under the
+centre is weak, so a second pass measures detail across the frame: a 32×20
+pixel grid is ray-cast onto each product's rendered meshes, and every hit is
+scored against the fused field itself — `dem.py field-error` evaluates
+`field_heights` at its finest source level along the hit's geocentric ray, the
+function all three builders sample, so the only difference left is level of
+detail. Signed errors centre on zero for all three products (medians within
+±2.3 m), so the absolute error is LOD spread, not a datum or registration
+bias. Each product was swept over errorTarget (cube and geographic 1, 2, 4; cap
+0.5, 1, 2), 120 warm frames each; record `comparison-gpu-sweep.json`.
+
+| View | Product, errorTarget | \|rendered − field\| median / p95 (m) | Visible tiles | Triangles (M) | Geometry MB | Wall median (ms) | GPU median (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Shackleton oblique | cube 1 | 0.63 / 4.7 | 194 | 1.75 | 48 | 2.3 | 0.65 |
+|  | cube 2 | 1.08 / 9.6 | 110 | 1.02 | 31 | 1.6 | 0.43 |
+|  | cube 4 | 2.04 / 18.8 | 68 | 0.66 | 24 | 0.9 | 0.24 |
+|  | polar 0.5 | 0.30 / 2.3 | 349 | 3.10 | 74 | 3.6 | 1.18 |
+|  | polar 1 | 0.69 / 4.5 | 142 | 1.30 | 30 | 1.8 | 0.51 |
+|  | polar 2 | 1.22 / 10.2 | 76 | 0.73 | 16 | 1.0 | 0.27 |
+|  | geographic 1 | 2.21 / 16.4 | 4,931 | 8.22 | 396 | 56.3 | 7.66 |
+|  | geographic 2 | 3.55 / 21.3 | 2,495 | 4.38 | 174 | 25.7 | 2.74 |
+|  | geographic 4 | 8.04 / 46.9 | 1,013 | 2.03 | 78 | 13.8 | 5.05 |
+| Shackleton grazing | cube 1 | 0.39 / 1.7 | 203 | 1.83 | 50 | 2.8 | 0.66 |
+|  | cube 2 | 0.63 / 2.6 | 134 | 1.23 | 35 | 1.4 | 0.43 |
+|  | cube 4 | 0.69 / 6.2 | 104 | 0.97 | 30 | 1.2 | 0.34 |
+|  | polar 0.5 | 0.21 / 1.1 | 328 | 2.92 | 70 | 3.8 | 1.21 |
+|  | polar 1 | 0.35 / 1.6 | 163 | 1.48 | 35 | 1.9 | 0.59 |
+|  | polar 2 | 0.55 / 2.4 | 88 | 0.83 | 19 | 1.1 | 0.33 |
+|  | geographic 1 | 2.02 / 11.3 | 4,891 | 8.23 | 398 | 63.4 | 6.45 |
+|  | geographic 2 | 2.48 / 14.1 | 3,193 | 5.53 | 220 | 36.2 | 3.21 |
+|  | geographic 4 | 4.95 / 24.7 | 1,804 | 3.29 | 129 | 16.9 | 3.05 |
+| South pole | cube 1 | 0.82 / 3.9 | 144 | 1.32 | 37 | 1.8 | 0.48 |
+|  | cube 2 | 1.53 / 7.5 | 75 | 0.72 | 23 | 1.0 | 0.26 |
+|  | cube 4 | 3.79 / 16.1 | 60 | 0.59 | 22 | 1.0 | 0.19 |
+|  | polar 0.5 | 0.40 / 2.0 | 271 | 2.42 | 58 | 2.6 | 0.96 |
+|  | polar 1 | 0.86 / 3.4 | 103 | 0.96 | 22 | 1.2 | 0.40 |
+|  | polar 2 | 1.50 / 7.4 | 43 | 0.44 | 9 | 0.9 | 0.20 |
+|  | geographic 1 | 3.33 / 19.2 | 4,777 | 7.92 | 393 | 65.4 | 8.15 |
+|  | geographic 2 | 3.62 / 16.3 | 3,244 | 5.51 | 222 | 37.3 | 4.29 |
+|  | geographic 4 | 8.11 / 28.5 | 1,504 | 2.82 | 112 | 16.5 | 3.97 |
+| Pole grazing | cube 1 | 0.13 / 0.7 | 193 | 1.77 | 47 | 2.2 | 0.62 |
+|  | cube 2 | 0.16 / 0.8 | 119 | 1.13 | 31 | 1.3 | 0.39 |
+|  | cube 4 | 0.18 / 1.5 | 101 | 0.97 | 27 | 1.1 | 0.32 |
+|  | polar 0.5 | 0.03 / 0.2 | 337 | 3.02 | 73 | 4.1 | 1.07 |
+|  | polar 1 | 0.04 / 0.5 | 179 | 1.65 | 38 | 1.8 | 0.60 |
+|  | polar 2 | 0.07 / 0.7 | 103 | 0.99 | 22 | 1.4 | 0.41 |
+|  | geographic 1 | 1.39 / 28.7 | 4,139 | 6.92 | 390 | 73.6 | 4.52 |
+|  | geographic 2 | 0.56 / 4.5 | 5,446 | 8.87 | 389 | 69.7 | 8.63 |
+|  | geographic 4 | 0.71 / 7.2 | 3,406 | 5.75 | 228 | 33.5 | 6.96 |
+| Cap nadir (40 km) | cube 1 | 2.05 / 11.4 | 306 | 2.73 | 67 | 3.2 | 0.80 |
+|  | cube 2 | 4.07 / 14.7 | 117 | 1.08 | 27 | 1.3 | 0.32 |
+|  | cube 4 | 11.82 / 47.2 | 81 | 0.77 | 21 | 1.0 | 0.22 |
+|  | polar 0.5 | 1.41 / 5.8 | 148 | 1.35 | 31 | 1.9 | 0.52 |
+|  | polar 1 | 3.56 / 13.2 | 52 | 0.52 | 11 | 0.8 | 0.22 |
+|  | polar 2 | 7.32 / 39.9 | 19 | 0.23 | 4 | 1.0 | 0.48 |
+|  | geographic 1 | 8.07 / 26.1 | 2,120 | 3.94 | 152 | 23.8 | 2.15 |
+|  | geographic 2 | 17.29 / 62.5 | 764 | 1.64 | 61 | 8.7 | 1.57 |
+|  | geographic 4 | 43.46 / 147.3 | 380 | 0.94 | 32 | 3.3 | 0.56 |
+| px/py/nz corner | cube 1 | 0.65 / 5.3 | 411 | 3.64 | 97 | 4.3 | 1.32 |
+|  | cube 2 | 1.82 / 12.1 | 219 | 1.97 | 57 | 2.9 | 0.65 |
+|  | cube 4 | 3.18 / 19.5 | 105 | 0.98 | 31 | 1.2 | 0.34 |
+|  | geographic 1 | 8.10 / 33.2 | 224 | 0.69 | 26 | 2.5 | 0.42 |
+|  | geographic 2 | 15.72 / 59.5 | 107 | 0.37 | 15 | 1.2 | 0.14 |
+|  | geographic 4 | 28.34 / 98.1 | 62 | 0.25 | 10 | 0.9 | 0.11 |
+
+- **Cube against geographic, at equal error: the cube wins everywhere.** Near
+  the pole, geographic at errorTarget 1 is still less accurate than the cube at
+  4 (Shackleton 2.21 vs 2.04 m median) and costs 73× the tiles, 12× the
+  triangles and 32× the GPU time (7.66 vs 0.24 ms); at pole-grazing geographic
+  needs 5,446 tiles and 8.6 ms GPU for 0.56 m against the cube's 119 tiles and
+  0.39 ms for 0.16 m. At the mid-latitude corner, geographic errorTarget 1
+  (8.1 m, 0.69 M triangles, 0.42 ms) is both less accurate and dearer than the
+  cube at 4 (3.2 m, 0.98 M, 0.34 ms); its apparent advantage in the first table
+  was 9× coarser surface. Simplified quantized mesh costs fewer triangles per
+  tile, but RTIN error at 0.1 × spacing plus the geographic layout leave its
+  surface error far above the cube's at every budget measured.
+- **Cube against the polar cap, inside the cap: the cap is cheaper.** At equal
+  median error the cap draws 25–50% fewer triangles and spends 15–40% less GPU
+  time: pole 0.86 m — cap (1) 0.96 M / 0.40 ms vs cube (1) 0.82 m 1.32 M /
+  0.48 ms; Shackleton ~1.1 m — cap (2) 0.73 M / 0.27 ms vs cube (2) 1.02 M /
+  0.43 ms; cap-nadir — cap (0.5) 1.41 m 1.35 M / 0.52 ms vs cube (1) 2.05 m
+  2.73 M / 0.80 ms; at the grazing poses the cap is also more accurate at
+  equal errorTarget-matched cost (pole-grazing 0.04 vs 0.13 m at 1.65 vs 1.77 M
+  triangles). Likely causes, not yet separated: the cube's geometric
+  error uses the face-centre spacing for every tile of a level, the cube tiles at
+  the Shackleton region carry a longer REPLACE chain (levels 0–12 against the cap's
+  0–8 for similar ground detail), and polar stereographic has near-unit scale over
+  the cap. The cap's advantage holds only inside its 200 km square; outside it a
+  geographic product is the only far field there is, at the costs above.
+
+
+**Cold loading** (fresh page per pose; tile traffic over an emulated 40 ms RTT,
+100 Mbit/s link; time from the pose to the start of a 2 s stable streak;
+requests and bytes since the pose, then including what the catalog's initial
+view had already loaded; the cube counts its CPU grids, loaded by query):
+
+| View | Product | To finished detail (s) | Requests / MB since pose | Total requests (CPU grids) / MB |
+| --- | --- | --- | --- | --- |
+| Shackleton oblique | cube | 2.8 | 139 / 21.1 | 336 (144) / 34.6 |
+|  | polar cap (eT 1) | 4.0 | 188 / 30.2 | 189 / 40.3 |
+|  | geographic | 27.7 | 3,294 / 47.0 | 3,351 / 48.3 |
+| Shackleton grazing | cube | 3.5 | 173 / 26.4 | 363 (145) / 38.8 |
+|  | polar cap (eT 1) | 4.5 | 216 / 34.8 | 217 / 44.8 |
+|  | geographic | 35.6 | 4,221 / 59.3 | 4,279 / 60.6 |
+| South pole | cube | 1.8 | 93 / 13.7 | 288 (144) / 26.8 |
+|  | polar cap (eT 1) | 2.9 | 136 / 21.9 | 137 / 31.9 |
+|  | geographic | 36.0 | 4,292 / 59.2 | 4,363 / 60.8 |
+| Pole grazing | cube | 2.9 | 141 / 21.4 | 338 (144) / 34.9 |
+|  | polar cap (eT 1) | 5.0 | 240 / 38.6 | 241 / 48.6 |
+|  | geographic | 77.0 | 9,026 / 115.7 | 9,084 / 117.0 |
+| Cap nadir (40 km) | cube | 1.8 | 90 / 13.9 | 317 (139) / 32.2 |
+|  | polar cap (eT 1) | 1.6 | 68 / 10.9 | 69 / 21.0 |
+|  | geographic | 8.6 | 992 / 17.4 | 1,019 / 17.9 |
+| px/py/nz corner | cube | 5.6 | 277 / 43.7 | 487 (141) / 59.3 |
+|  | geographic | 1.1 | 112 / 2.9 | 171 / 4.2 |
+| Overview (3,000 km) | cube | 0.5 | 22 / 3.4 | 229 (136) / 18.5 |
+|  | polar cap (eT 1) | 0.3 | 4 / 0.6 | 5 / 10.7 |
+|  | geographic | 0.2 | 12 / 0.3 | 65 / 1.5 |
+
+On localhost (no throttling) every cube and cap pose finished within 0.2–0.5 s
+of the pose, geographic in 0.2–34.9 s (the 9,050-request pole-grazing pose);
+those times measure the dev server, not a network.
+
+**Limits.** One high-end integrated GPU (the *Hardware GPU* caveats apply:
+`readPixels` fencing, 0.1 ms timer resolution, no thermal soak); an emulated
+network, not a CDN; one run per pose; single-tile-under-the-centre detail
+matching, not a field-wide error metric; no imagery on the baselines.
+
+### Recommendation from the geometry evidence: revise
+
+- **Against the geographic layout, the cube is the better global geometry
+  layout** on every measured axis near the pole — tiles, draws, triangles,
+  memory, cold requests and time, warm frames — by one to two orders of
+  magnitude at equal or better achieved error, and it stays ahead at equal
+  error at mid-latitudes. Nothing measured favours keeping geographic tiles as
+  the global geometry.
+- **Against the polar cap, the cube costs 25–50% more inside the cap** at equal
+  error, while needing no second product, no join and no far-field fallback. A
+  cap-plus-global design pays that join (and the global product's own cost at
+  the cap edge, 81.5°–87°S, where geographic slivers are already expensive) to
+  save it.
+- So the recommendation is **revise, not yet adopt**: keep the cube as the
+  candidate global layout and close the gap before deciding — (1) find why
+  gnomonic tiles cost more than the cap at equal error (per-tile geometric error
+  from measured representation error instead of the face-centre spacing; a
+  shallower REPLACE chain, e.g. coarser roots or more children per level), (2)
+  add mesh simplification so the encoding comparison is like for like, (3) run
+  the matched-imagery comparison and (4) a weaker GPU. **Reject** would need
+  the cube to stay behind the cap after (1)–(2) by more than the join costs;
+  **adopt** needs (1)–(4). #149 stays open.
+
 ## Reproducible checks delivered
 
 The unit fixture creates all six root faces from one analytic height function.
@@ -682,6 +1116,13 @@ descending below failed tiles, the texture budget with pinned levels, aborts and
 bounded requests under camera motion, and restoring the original mesh for other
 debug views.
 
+For crack mitigation, `CubeImagery.test.ts` also checks that skirts lying in a
+tile's boundary planes survive block clipping exactly once (23% of skirt area
+was lost before the fix) and carry their edge's projective coordinates;
+`CubeImageryLayer.test.ts` that blocks follow the tile's draw range and rebuild
+when it changes; `dem.py selftest` builds the synthetic product with skirts and
+checks their shape, extras and coverage at coincident vertices.
+
 These checks are intentionally small and source-independent. They establish the
 addressing and CPU contract, but are not substitutes for the authoritative fused
 lunar field or GPU evidence.
@@ -692,43 +1133,59 @@ lunar field or GPU evidence.
    Shackleton and edge/corner detail, GLB/3D Tiles, immutable datum/source metadata.
 2. ✅ (without skirts) REPLACE coverage, subtree bounds, edge/corner agreement,
    mixed-LOD cracks, control points, picking, camera clearance and absent CPU
-   data. Repeat with skirts only as a mitigation, after this record.
+   data; ✅ repeated with skirts as the mitigation (*Mixed-LOD crack
+   mitigation*): coverage gated, CPU grids unchanged, picks and clearance at
+   the worst boundaries.
 3. ✅ (map imagery; software rendering and one hardware GPU) Register an
    independently refined controlled imagery pyramid and demonstrate geometry/image
    LOD combinations along all selected paths: see *Independent imagery*.
 4. ◐ Compare cube, geographic, and geographic-plus-polar products with the same
-   physical source, viewport, lighting, cache budgets and camera paths. Done:
-   cube vs polar cap at Shackleton and the pole from one script and pose set.
+   physical source, viewport, lighting, cache budgets and camera paths. Done
+   for geometry (*Layout comparison*): all three products, same poses, cache,
+   lighting and epoch, coverage measured per frame, cost at equal achieved
+   error. Not done: imagery on the baselines; a geographic-plus-polar
+   composite (no join exists, by decision — the cap is compared inside its
+   footprint, where coverage is equal).
 5. ◐ Record requests/bytes, tiles, memory, generation time/product bytes,
-   CPU-grid/triangle discrepancy, seam error and control-point error (done), and
-   cold time to target surface error and warm frame-time distribution on a
-   hardware GPU with its driver and display recorded (not available here).
+   CPU-grid/triangle discrepancy, seam error and control-point error, cold
+   loading over an emulated network and warm frame-time distributions with the
+   GPU and driver recorded (done, Apple M4 Max / ANGLE Metal). Not done: a
+   weaker or discrete GPU, a real network.
 
 ### Remaining for #149
 
-- **Mixed-LOD cracks first.** Decide between skirts, constrained parent edges
-  and geomorphing using the crack table above; prefilter coarse base levels
-  first. Imagery now drapes across those cracks, so they are visible as
-  background slivers between differently refined tiles.
-- **Imagery cost at scale.** The block approach's extra draws and duplicated
-  block geometry cost little on an M4 Max (measured above) but are unmeasured on
-  weaker GPUs; if they matter there, share the tile's vertex buffer and index cell-aligned blocks
-  (clipping only sub-cell blocks), or composite blocks into one texture per draw.
-  A real global imagery source (e.g. LROC WAC) and a contract variant of
-  `MapImageLayer` for tiled layouts remain open; so does the same imagery on the
-  geographic and polar baselines, for a matched imagery comparison.
-- **Geographic side of the comparison.** Build `fused.sh` (~45 min, ~11 GB) and run
-  `capture-cube-terrain.mjs --product geographic` over the same poses; compare
-  against a geographic-plus-polar composite only once one exists (there is no
-  permanent join, by decision).
-- **Hardware GPU.** Re-run the captures on a GPU host with warm-cache frame-time
-  distributions, at matched far-field coverage (the polar cap needs a global
-  product underneath to compare horizon cost).
-- **Fair comparison.** Geographic/polar/cube at matched achieved surface detail,
-  imagery quality and far-field coverage, including hardware-GPU measurements.
+Exact checklist for the adopt/revise/reject decision (*Recommendation from the
+geometry evidence*):
 
-Neither the #178 product nor this imagery slice establishes a layout win.
-Revisit this ADR with those artifacts and choose adopt, revise, or reject. Until
-then there is no permanent polar/global join and no removal of either baseline.
+- [ ] **Cube vs cap cost gap.** Re-run the `compare` sweep after (a) per-tile
+  geometric error from each tile's measured representation error
+  (`cpu-grids.json` already carries it) instead of the face-centre spacing, and
+  (b) a variant with a shallower REPLACE chain at the Shackleton region; report
+  the cost at equal achieved error against the cap again.
+- [ ] **Encoding parity.** A simplified cube mesh (the RTIN path `dem.py tile`
+  uses, edge vertices kept) so triangle counts compare layouts, not encodings;
+  re-measure skirt gaps on the simplified edges and the CPU-grid/triangle
+  discrepancy.
+- [ ] **Matched imagery.** The NAC mosaic (and a global source, e.g. LROC WAC)
+  on the cap (#147 path) and on the geographic product through the upstream
+  overlay, at a matched texel target; then the same frame, memory and request
+  captures with imagery, kept apart from the geometry costs above.
+- [ ] **Weaker GPU and a real network.** The same `compare`, `skirt-cost` and
+  `frametime` runs on a non-Apple integrated or older discrete GPU, and cold
+  loads from hosted data instead of the emulated link.
+- [ ] **Prefiltered coarse levels.** `gdaladdo -r average` overviews for the
+  LOLA base (all products): smaller coarse-level gaps (the skirts now cover up
+  to 3.6 km) and coarse representation error.
+- Imagery-at-scale items from *Independent imagery* (shared vertex buffers for
+  blocks, a tiled-layout `MapImageLayer` variant) stay open.
+
+Commands: `bash scripts/build-moon-terrain/cube.sh --workers N`;
+`node scripts/validate-cube-terrain.mjs`;
+`node scripts/capture-cube-imagery.mjs --gpu --experiments cracks,cracks-dynamic,skirt-cost`;
+`node scripts/capture-cube-imagery.mjs --gpu --experiments compare [--products P] [--error-target N] [--throttle 40,100]`,
+then `python3 scripts/terrain/dem.py field-error RECORD.json --base … --fusion …`.
+
+No permanent polar/global join and no removal of either baseline until the
+decision.
 
 [qsc]: https://proj.org/en/stable/operations/projections/qsc.html

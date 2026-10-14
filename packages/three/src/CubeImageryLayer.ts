@@ -267,12 +267,20 @@ export class CubeImageryLayer {
       if (sceneParentInverse) _m.premultiply(sceneParentInverse);
       const position = mesh.geometry.getAttribute('position');
       const uvw = new Float32Array(position.count * 3);
+      // Skirts (after the surface triangles, on vertices after the surface's) hang far
+      // below the surface; texel distances use the surface's radius range only.
+      const surfaceTriangles = mesh.geometry.userData?.surfaceTriangles, index = mesh.geometry.index;
+      let surfaceVertices = position.count;
+      if (typeof surfaceTriangles === 'number' && index) {
+        surfaceVertices = 0;
+        for (let i = 0; i < 3 * surfaceTriangles; i++) surfaceVertices = Math.max(surfaceVertices, index.getX(i) + 1);
+      }
       let rMin = Infinity, rMax = -Infinity;
       for (let i = 0; i < position.count; i++) {
         _v.fromBufferAttribute(position, i).applyMatrix4(_m);
         const p: Vec3 = [_v.x, _v.y, _v.z];
         const r = Math.hypot(p[0], p[1], p[2]);
-        rMin = Math.min(rMin, r); rMax = Math.max(rMax, r);
+        if (i < surfaceVertices) { rMin = Math.min(rMin, r); rMax = Math.max(rMax, r); }
         uvw[3 * i] = p[0] * basis.a[0] + p[1] * basis.a[1] + p[2] * basis.a[2];
         uvw[3 * i + 1] = p[0] * basis.b[0] + p[1] * basis.b[1] + p[2] * basis.b[2];
         uvw[3 * i + 2] = p[0] * basis.n[0] + p[1] * basis.n[1] + p[2] * basis.n[2];
@@ -287,6 +295,11 @@ export class CubeImageryLayer {
       record.meshes.push({ mesh, material, uniforms, baseCompile, cacheKey, radiusRangeKm: [rMin / 1000, rMax / 1000], blocks: new Map() });
     });
     this.tiles.set(key, record);
+  }
+
+  /** Drop every block, e.g. after the tiles' draw ranges change; visible tiles rebuild theirs next update. */
+  invalidateBlocks(): void {
+    for (const record of this.tiles.values()) for (const m of record.meshes) for (const id of [...m.blocks.keys()]) this.disposeBlock(m, id);
   }
 
   /** Forget a tile the renderer disposed: its blocks' geometry and materials go with it. */
@@ -456,7 +469,9 @@ export class CubeImageryLayer {
     const g = m.mesh.geometry;
     const names = ['position', 'normal', 'cubeImageryUvw'].filter(n => g.getAttribute(n));
     const attributes = names.map(n => { const a = g.getAttribute(n) as THREE.BufferAttribute; return { array: a.array, itemSize: a.itemSize }; });
-    const clipped = clipTrianglesToTileRect(attributes, names.indexOf('cubeImageryUvw'), g.index?.array ?? null, blockRectInTile(record.address, leaf));
+    // Only what the tile draws: its draw range excludes skirts when they are hidden.
+    const index = g.index ? g.index.array.subarray(g.drawRange.start, Math.min(g.index.count, g.drawRange.start + g.drawRange.count)) : null;
+    const clipped = clipTrianglesToTileRect(attributes, names.indexOf('cubeImageryUvw'), index, blockRectInTile(record.address, leaf));
     const geometry = new THREE.BufferGeometry();
     names.forEach((n, i) => geometry.setAttribute(n, new THREE.BufferAttribute(clipped.attributes[i], attributes[i].itemSize)));
     geometry.setIndex(new THREE.BufferAttribute(clipped.index, 1));

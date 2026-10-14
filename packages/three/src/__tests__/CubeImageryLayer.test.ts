@@ -231,4 +231,27 @@ describe('CubeImageryLayer', () => {
     expect(layer.stats.tiles).toBe(0);
     layer.dispose();
   });
+
+  it('builds blocks from the triangles the tile draws, and rebuilds them when that changes', async () => {
+    const { layer, loader, mesh, scene, tick } = await setup();
+    for (let i = 0; i < 20; i++) { tick(camera(3_000)); await loader.settle(); }
+    const blockTriangles = () => scene.children.filter(c => c.name.startsWith('cube-imagery-block') && c.visible)
+      .reduce((s, c) => s + (c as THREE.Mesh).geometry.index!.count / 3, 0);
+    const all = blockTriangles();
+    expect(all).toBeGreaterThan(0);
+    // Hide the second half of the triangles, as TerrainManager hides skirts.
+    const half = mesh.geometry.index!.count / 2;
+    mesh.geometry.setDrawRange(0, half);
+    layer.invalidateBlocks();
+    expect(scene.children.filter(c => c.name.startsWith('cube-imagery-block'))).toHaveLength(0);
+    tick(camera(3_000));
+    const drawn = blockTriangles();
+    expect(drawn).toBeGreaterThan(0);
+    expect(drawn).toBeLessThan(all);
+    mesh.geometry.setDrawRange(0, Infinity);
+    layer.invalidateBlocks();
+    tick(camera(3_000));
+    expect(blockTriangles()).toBe(all);
+    layer.dispose();
+  });
 });

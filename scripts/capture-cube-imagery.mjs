@@ -34,6 +34,25 @@
  *                and imagery refined; FRAMES (--frames, 120) back-to-back renderFrame calls,
  *                each fenced by readPixels, plus GPU TIME_ELAPSED queries and draw counts.
  *                Meaningful with --gpu (hardware ANGLE backend); --catalog nac for real imagery.
+ *  cracks        Mixed-LOD crack mitigation at rest (finished detail): Shackleton, the pole,
+ *                the px/nz edge and the px/py/nz corner, oblique, near-ground and grazing,
+ *                terrain only, grid fixture and NAC. Per view: a hole mask (visible terrain
+ *                only, white on black, one synchronous pass) as displayed with skirts and
+ *                for the same tiles' surface triangles only; neighbour level differences
+ *                of the visible tiles; picks on unmitigated hole pixels; shaded frames
+ *                with skirts on/off; draws and triangles both ways.
+ *  cracks-dynamic  The same hole masks along camera paths without waiting for detail
+ *                (refining in, coarsening out, panning across pole/edge/corner), on a
+ *                normal network, with child .glb requests delayed or failing, and under
+ *                a small tile cache that evicts.
+ *  compare       (--throttle RTT_MS,MBPS for cold loads over an emulated network; --error-target N overrides)
+ *                The layout comparison, geometry only (no baseline has matched imagery yet):
+ *                cube, polar cap and geographic products from the same poses, cold page
+ *                each: time to finished detail, requests/bytes, tiles, achieved level and
+ *                vertex spacing under the screen centre, geometry/cache memory, terrain
+ *                pixel coverage (the polar cap has no horizon), then warm frame timing.
+ *  skirt-cost    Per view, warm, one page: frame timing with skirts on and off (terrain
+ *                only and grid imagery refined). Meaningful with --gpu.
  *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5173/), CHROMIUM_PATH.
  * Default is SwiftShader software WebGL (correctness, counts); --gpu uses the
@@ -85,6 +104,35 @@ const MARKERS = [
 const MARKER_COLOURS = { shackleton: [255, 40, 40], 'south-pole': [40, 255, 40], 'antimeridian-88s': [0, 255, 255], 'antimeridian-60s': [255, 0, 255],
   'antimeridian-equator': [255, 255, 0], 'edge-px-nz': [255, 140, 0], 'corner-px-py-nz': [160, 60, 255] };
 
+/**
+ * Grazing and near-ground poses resolved on the CPU surface (km above the sample
+ * below each point): eye and target given as [lat, lon, height above surface].
+ */
+/** Comparison poses with heights fixed from the cube CPU grids (same fused field), so every product gets identical poses. */
+const COMPARE_VIEWS = {
+  shackleton: VIEWS.shackleton, pole: VIEWS.pole, overview: VIEWS.overview, 'face-corner': VIEWS['face-corner'],
+  'shackleton-grazing': { eye: at(-89.33, 129.78, 0.9117 + 0.4), target: at(-89.67, -50.22, -1.1193 + 0.3), fov: 60 },
+  'pole-grazing': { eye: at(-89.7, -30, -0.6767 + 0.5), target: at(-89.4, 150, 0.6022 + 0.2), fov: 60 },
+  // Inside the polar cap's 200 km square from edge to edge of the frame: no horizon to account for.
+  'cap-nadir': { eye: at(-89.5, 60, 40), target: at(-89.55, 60, 0), fov: 60 },
+};
+const PRODUCTS = {
+  cube: { catalog: 'test-catalogs/experiments/moon-terrain-cube', data: '/moon-terrain-cube/', spacingM: (L) => 2 * R * 1000 / (64 * 2 ** L) },
+  // Geometric error per vertex spacing: cube 0.25 (dem.py), geographic ≈ 0.25 (QuantizedMeshPlugin:
+  // πR / (4·65·2^z) against πR / (64·2^z)), polar cap 0.125. Matched screen-space spacing therefore
+  // needs the cap at half the others' errorTarget; --equal-error-target keeps 2 everywhere.
+  polar: { catalog: 'test-catalogs/experiments/moon-terrain-polar', data: '/moon-terrain-polar/', spacingM: (L) => 200_000 / 2 ** L / 64, errorTarget: 1 },
+  geographic: { catalog: 'test-catalogs/experiments/moon-terrain-geographic', data: '/moon-terrain-fused/', spacingM: (L) => Math.PI * R * 1000 / 2 ** L / 64 },
+};
+
+const SURFACE_VIEWS = {
+  'shackleton-grazing': { eye: [-89.33, 129.78, 0.4], target: [-89.67, -50.22, 0.3], fov: 60 }, // rim, across the crater
+  'shackleton-near': { eye: [-89.55, 129.78, 0.15], target: [-89.67, 129.78, 0], fov: 60 },
+  'pole-grazing': { eye: [-89.7, -30, 0.5], target: [-89.4, 150, 0.2], fov: 60 }, // across the exact pole
+  'edge-grazing': { eye: [-45.3, -0.4, 1.0], target: [-44.4, 0.6, 0.2], fov: 60 }, // across the px/nz edge
+  'corner-grazing': { eye: [-35.6, 44.5, 1.5], target: [-34.8, 45.6, 0.3], fov: 60 }, // across the px/py/nz corner
+};
+
 // --gpu: the host's hardware GPU through ANGLE (`--angle metal|vulkan|d3d11|gl`, default metal on macOS,
 // vulkan elsewhere); otherwise SwiftShader software WebGL, which is correctness evidence only.
 const GPU = !!args.gpu;
@@ -108,6 +156,14 @@ async function openViewer(catalog, setup) {
   if (setup) await setup(page);
   await page.goto(new URL(`?catalog=${catalog}&test=1`, BASE).href, { waitUntil: 'domcontentloaded', timeout: 180_000 });
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, { timeout: 180_000 });
+  if (args.throttle) {
+    // --throttle RTT_MS,MBPS: tile traffic over a network instead of localhost, for cold-load
+    // timing; applied once the app (thousands of dev-server modules) has loaded.
+    const [rtt, mbps] = String(args.throttle).split(',').map(Number);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Network.enable');
+    await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: rtt, downloadThroughput: mbps * 125_000, uploadThroughput: mbps * 125_000 });
+  }
   await page.evaluate(async () => {
     const source = await (await fetch('/src/lib/commands.ts')).text();
     const stateURL = source.match(/from ["']([^"']*viewer-state\.svelte[^"']*)["']/)?.[1];
@@ -115,7 +171,7 @@ async function openViewer(catalog, setup) {
     window.ciMoon = () => window.ci.getRenderer().getBodyMesh('Moon');
     window.ciLayer = () => window.ciMoon().terrainManager?.cubeImageryLayer;
   });
-  if (!/moon-terrain-cube$/.test(catalog)) await page.waitForFunction(() => window.ciLayer()?.manifest != null, null, { timeout: 60_000 });
+  if (/imagery/.test(catalog)) await page.waitForFunction(() => window.ciLayer()?.manifest != null, null, { timeout: 60_000 });
   if (!env) {
     env = await page.evaluate(() => {
       const gl = document.createElement('canvas').getContext('webgl2');
@@ -216,8 +272,10 @@ const rayCast = (page, pixels) => page.evaluate(async (pixels) => {
     const p = best.point.clone().applyMatrix4(inv);
     // Ground footprint of this pixel ∝ distance² / |cos(incidence)|: weights an area centroid.
     const n = best.face.normal.clone().transformDirection(best.object.matrixWorld);
-    const weight = best.distance ** 2 / Math.max(0.05, Math.abs(n.dot(ray.ray.direction)));
-    return [p.x, p.y, p.z, weight];
+    const cosInc = Math.abs(n.dot(ray.ray.direction));
+    const weight = best.distance ** 2 / Math.max(0.05, cosInc);
+    const st = best.object.geometry.userData?.surfaceTriangles;
+    return [p.x, p.y, p.z, weight, best.distance, cosInc, typeof st === 'number' && best.faceIndex >= st ? 1 : 0];
   });
 }, pixels);
 /** Project body-fixed km points to screen pixels. */
@@ -274,6 +332,197 @@ const frameTiming = (page, frames) => page.evaluate(async (frames) => {
     return { n: s.length, median: s[s.length >> 1], p95: s[Math.floor(s.length * 0.95)], max: s.at(-1), mean: s.reduce((a, b) => a + b, 0) / s.length }; };
   return { wallMs: stat(wall), gpuMs: disjoint ? null : stat(gpu), gpuDisjoint: disjoint, draws };
 }, frames);
+
+/** A SURFACE_VIEWS pose in body-fixed km, heights from the CPU grids (waits for the finest grid at each point). */
+async function surfacePose(page, v) {
+  const h = await page.evaluate(async (pts) => {
+    const bm = window.ciMoon(), out = [];
+    for (const [lat, lon] of pts) {
+      let s = null;
+      for (let i = 0; i < 200; i++) {
+        s = bm.sampleTerrain(lat, lon);
+        if (s && bm.terrainCubeCoverage(lat, lon)?.state === 'finest') break;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      out.push(s?.elevationKm ?? 0);
+    }
+    return out;
+  }, [v.eye, v.target]);
+  return { eye: at(v.eye[0], v.eye[1], h[0] + v.eye[2]), target: at(v.target[0], v.target[1], h[1] + v.target[2]), fov: v.fov };
+}
+
+/**
+ * Geometric holes in the rendered terrain, free of shading: the visible terrain
+ * only, unlit white on black, rendered twice in one task (no tile update between):
+ * `mitigated` as displayed (skirts, imagery blocks), `unmitigated` the same tiles'
+ * original meshes drawing only their surface triangles. A black pixel not
+ * 4-connected to the image border is a hole. Masks are bottom-up, 1 byte per pixel.
+ */
+const holeMasks = (page, { masks = false } = {}) => page.evaluate(async (masks) => {
+  const r = window.ci.getRenderer(), tm = window.ciMoon().terrainManager;
+  const depUrl = performance.getEntriesByType('resource').map(e => e.name).find(n => /\/\.vite\/deps\/three\.js(\?|$)/.test(n));
+  const { MeshBasicMaterial, Color } = await import(depUrl);
+  const gl = r.renderer, cam = r.camera, scene = r.scene, LAYER = 31;
+  const originals = [], blocks = [];
+  tm.tiles.visibleTiles.forEach(t => t.engineData?.scene?.traverse(o => { if (o.isMesh) (o.name.startsWith('cube-imagery-block') ? blocks : originals).push(o); }));
+  const saved = { mask: cam.layers.mask, override: scene.overrideMaterial, background: scene.background, clear: gl.getClearColor(new Color()), alpha: gl.getClearAlpha(), target: gl.getRenderTarget() };
+  scene.overrideMaterial = new MeshBasicMaterial({ color: 0xffffff });
+  scene.background = null;
+  gl.setRenderTarget(null); gl.setClearColor(0x000000, 1);
+  cam.layers.set(LAYER);
+  const ctx = gl.getContext(), w = ctx.drawingBufferWidth, h = ctx.drawingBufferHeight;
+  const pass = () => {
+    gl.clear(); gl.render(scene, cam);
+    const px = new Uint8Array(w * h * 4);
+    ctx.readPixels(0, 0, w, h, ctx.RGBA, ctx.UNSIGNED_BYTE, px);
+    const m = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) m[i] = px[4 * i] > 127 ? 1 : 0;
+    return m;
+  };
+  const visibleNow = [...originals, ...blocks].filter(o => o.visible && o.parent?.visible !== false);
+  for (const o of visibleNow) o.layers.enable(LAYER);
+  const mitigated = pass();
+  for (const o of visibleNow) o.layers.disable(LAYER);
+  const restore = originals.map(o => ({ o, visible: o.visible, range: { ...o.geometry.drawRange } }));
+  for (const o of originals) {
+    const n = o.geometry.userData?.surfaceTriangles;
+    o.visible = true; o.layers.enable(LAYER);
+    if (typeof n === 'number') o.geometry.setDrawRange(0, 3 * n);
+  }
+  const unmitigated = pass();
+  for (const { o, visible, range } of restore) { o.visible = visible; o.layers.disable(LAYER); o.geometry.setDrawRange(range.start, range.count); }
+  cam.layers.mask = saved.mask; scene.overrideMaterial = saved.override; scene.background = saved.background;
+  gl.setClearColor(saved.clear, saved.alpha); gl.setRenderTarget(saved.target);
+  const holes = (m) => {
+    // Flood the background from the border; black pixels left over are holes.
+    const seen = new Uint8Array(w * h), stack = [];
+    const push = (i) => { if (!m[i] && !seen[i]) { seen[i] = 1; stack.push(i); } };
+    for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+    for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+    while (stack.length) {
+      const i = stack.pop(), x = i % w, y = (i / w) | 0;
+      if (x > 0) push(i - 1); if (x < w - 1) push(i + 1); if (y > 0) push(i - w); if (y < h - 1) push(i + w);
+    }
+    let pixels = 0, components = 0;
+    const comp = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) {
+      if (m[i] || seen[i]) continue;
+      pixels++;
+      if (comp[i]) continue;
+      components++;
+      const st = [i]; comp[i] = 1;
+      while (st.length) {
+        const j = st.pop(), x = j % w, y = (j / w) | 0;
+        for (const k of [x > 0 ? j - 1 : -1, x < w - 1 ? j + 1 : -1, y > 0 ? j - w : -1, y < h - 1 ? j + w : -1]) if (k >= 0 && !m[k] && !seen[k] && !comp[k]) { comp[k] = 1; st.push(k); }
+      }
+    }
+    // Hole mask: 1 where a hole is.
+    const out = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) out[i] = !m[i] && !seen[i] ? 1 : 0;
+    let terrain = 0; for (let i = 0; i < w * h; i++) terrain += m[i];
+    return { pixels, components, terrainPixels: terrain, out };
+  };
+  const a = holes(mitigated), b = holes(unmitigated);
+  const enc = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  // Pixels whose coverage differs between the passes: where skirts show (or, if any, where they hide surface).
+  let skirtVisible = 0; for (let i = 0; i < w * h; i++) skirtVisible += mitigated[i] !== unmitigated[i] ? 1 : 0;
+  return { width: w, height: h, visibleMeshes: visibleNow.length, blocks: visibleNow.filter(o => o.name.startsWith('cube-imagery-block')).length,
+    mitigated: { holePixels: a.pixels, holeComponents: a.components, terrainPixels: a.terrainPixels },
+    unmitigated: { holePixels: b.pixels, holeComponents: b.components, terrainPixels: b.terrainPixels },
+    coverageDifferencePixels: skirtVisible,
+    ...(masks ? { mitigatedHoles: enc(a.out), unmitigatedHoles: enc(b.out) } : {}) };
+}, masks);
+
+/**
+ * Level differences between visible geometry tiles that share an edge, sampled
+ * at 16 points just outside each edge (CubeSphere addressing, so across faces
+ * and corners too): what edge stitching would have to handle.
+ */
+function neighbourLevels(visibleUris) {
+  const vis = new Set(), tiles = [];
+  for (const uri of visibleUris) {
+    const m = /(px|nx|py|ny|pz|nz)\/(\d+)\/(\d+)\/(\d+)\.glb/.exec(uri);
+    if (!m) continue;
+    const t = { face: m[1], level: Number(m[2]), x: Number(m[3]), y: Number(m[4]) };
+    vis.add(`${t.face}/${t.level}/${t.x}/${t.y}`); tiles.push(t);
+  }
+  const BASES = { px: [[1, 0, 0], [0, 0, -1], [0, 1, 0]], nx: [[-1, 0, 0], [0, 0, 1], [0, 1, 0]], py: [[0, 1, 0], [1, 0, 0], [0, 0, -1]],
+    ny: [[0, -1, 0], [1, 0, 0], [0, 0, 1]], pz: [[0, 0, 1], [1, 0, 0], [0, 1, 0]], nz: [[0, 0, -1], [-1, 0, 0], [0, 1, 0]] };
+  const hist = {}, crossFace = {};
+  let maxDelta = 0, uncovered = 0;
+  for (const t of tiles) {
+    const N = 2 ** t.level, [n, a, b] = BASES[t.face];
+    for (let e = 0; e < 4; e++) for (let k = 0; k < 16; k++) {
+      const f = (k + 0.5) / 16, eps = 1e-9;
+      const u = e === 0 ? -1 + 2 * (t.x + f) / N : e === 1 ? -1 + 2 * (t.x + 1) / N + eps : e === 2 ? -1 + 2 * (t.x + f) / N : -1 + 2 * t.x / N - eps;
+      const v = e === 0 ? -1 + 2 * t.y / N - eps : e === 1 ? -1 + 2 * (t.y + f) / N : e === 2 ? -1 + 2 * (t.y + 1) / N + eps : -1 + 2 * (t.y + f) / N;
+      const d = [0, 1, 2].map(i => n[i] + u * a[i] + v * b[i]);
+      const c = directionToCubeFace(d);
+      let found = null;
+      for (let L = 30; L >= 0 && !found; L--) {
+        const M = 2 ** L, x = Math.min(M - 1, Math.floor((c.u + 1) / 2 * M)), y = Math.min(M - 1, Math.floor((c.v + 1) / 2 * M));
+        if (vis.has(`${c.face}/${L}/${x}/${y}`)) found = { level: L, face: c.face };
+      }
+      if (!found) { uncovered++; continue; }
+      const delta = t.level - found.level;
+      if (delta <= 0) continue; // count each pair once, from its finer side
+      hist[delta] = (hist[delta] ?? 0) + 1;
+      if (found.face !== t.face) crossFace[delta] = (crossFace[delta] ?? 0) + 1;
+      maxDelta = Math.max(maxDelta, delta);
+    }
+  }
+  return { samplesByDelta: hist, crossFaceSamplesByDelta: crossFace, maxDelta, samplesWithoutNeighbour: uncovered };
+}
+
+/** Draws and triangles of one frame. */
+const drawInfo = (page) => page.evaluate(() => {
+  const r = window.ci.getRenderer(), ctx = r.getContext(), info = r.renderer.info, auto = info.autoReset;
+  ctx.renderFrame();
+  info.autoReset = false; info.reset(); ctx.renderFrame();
+  const out = { calls: info.render.calls, triangles: info.render.triangles };
+  info.autoReset = auto;
+  return out;
+});
+const setSkirts = (page, on) => page.evaluate((on) => window.ciMoon().terrainManager.setCubeSkirts(on), on);
+
+/** Hole overlays: a frame with its hole mask painted magenta (masks are bottom-up). */
+async function overlay(page, maskB64, width, height) {
+  const png = Buffer.from((await page.evaluate(() => window.__cosmolabe.capture())).split(',')[1], 'base64');
+  const { data, info } = await sharp(png).raw().ensureAlpha().toBuffer({ resolveWithObject: true });
+  const mask = Buffer.from(maskB64, 'base64');
+  const sx = info.width / width, sy = info.height / height;
+  for (let y = 0; y < info.height; y++) for (let x = 0; x < info.width; x++) {
+    const mx = Math.min(width - 1, Math.floor(x / sx)), my = height - 1 - Math.min(height - 1, Math.floor(y / sy));
+    if (mask[my * width + mx]) { const i = (y * info.width + x) * 4; data[i] = 255; data[i + 1] = 0; data[i + 2] = 255; }
+  }
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).jpeg({ quality: 88 }).toBuffer();
+}
+/** The 160×100 px window holding the most hole pixels (top-down image coordinates), or null. */
+function densestWindow(maskB64, width, height, w = 160, h = 100) {
+  const m = Buffer.from(maskB64, 'base64');
+  let best = null, bestN = 0;
+  for (let y0 = 0; y0 + h <= height; y0 += 20) for (let x0 = 0; x0 + w <= width; x0 += 20) {
+    let n = 0;
+    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) n += m[(height - 1 - y) * width + x];
+    if (n > bestN) { bestN = n; best = { left: x0, top: y0, width: w, height: h }; }
+  }
+  return best;
+}
+/** Frames side by side; with a window, a 4× nearest-neighbour inset of it from each frame underneath. */
+async function montage(buffers, name, window = null) {
+  const metas = await Promise.all(buffers.map(b => sharp(b).metadata()));
+  const W = metas.reduce((s, m) => s + m.width, 0), H = Math.max(...metas.map(m => m.height));
+  let x = 0;
+  const parts = buffers.map((b, i) => { const p = { input: b, left: x, top: 0 }; x += metas[i].width; return p; });
+  let total = H;
+  if (window) {
+    const insets = await Promise.all(buffers.map(b => sharp(b).extract(window).resize(window.width * 4, window.height * 4, { kernel: 'nearest' }).toBuffer()));
+    insets.forEach((b, i) => parts.push({ input: b, left: i * metas[0].width + Math.max(0, (metas[0].width - window.width * 4) / 2), top: H }));
+    total = H + window.height * 4;
+  }
+  await sharp({ create: { width: W, height: total, channels: 3, background: '#000' } }).composite(parts).jpeg({ quality: 85 }).toFile(join(OUT, `${name}.jpg`));
+  return `${name}.jpg`;
+}
 
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const norm = (a) => { const l = Math.hypot(...a); return a.map(c => c / l); };
@@ -352,30 +601,61 @@ try {
       const grid = [];
       for (let y = 20; y < img.height - 20; y += 23) for (let x = 20; x < img.width - 20; x += 29) grid.push([x, y]);
       const hits = await rayCast(page, grid);
-      const errs = [], metres = [], faceMismatch = [];
+      const errs = [], metres = [], faceMismatch = [], samples = [];
       let skipped = 0, tileMismatch = 0;
-      grid.forEach(([x, y], i) => {
-        const hit = hits[i];
-        if (!hit) { skipped++; return; }
+      /** Decoded vs expected texel at a pixel, or why it is not measured. */
+      const decode = (x, y, hit) => {
+        if (!hit) return { skip: 'sky' };
         const [R8, G8, B8] = img.at(x, y);
         // Exclude texels whose filtering reaches a tile edge (clamped ramps, mixed B).
         const neighbours = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => img.at(x + dx, y + dy));
-        if (R8 <= 1 || R8 >= 254 || G8 <= 1 || G8 >= 254 || neighbours.some(n => n[2] !== B8)) { skipped++; return; }
+        if (R8 <= 1 || R8 >= 254 || G8 <= 1 || G8 >= 254 || neighbours.some(n => n[2] !== B8)) return { skip: 'edge' };
         const face = faces[B8 >> 5], level = B8 & 31;
         const c = directionToCubeFace(hit);
-        if (c.face !== face) { faceMismatch.push({ x, y, decoded: face, expected: c.face }); return; }
+        if (c.face !== face) return { skip: 'face', face, expectedFace: c.face };
         const n = 2 ** level;
         const fu = (c.u + 1) / 2 * n, fv = (c.v + 1) / 2 * n;
         const ex = (fu - Math.floor(fu)) * 256 - 0.5, ey = (fv - Math.floor(fv)) * 256 - 0.5;
-        let dx = R8 - ex, dy = G8 - ey;
-        if (Math.abs(dx) > 128 || Math.abs(dy) > 128) { tileMismatch++; return; }
-        const e = Math.hypot(dx, dy);
+        const dx = R8 - ex, dy = G8 - ey;
+        if (Math.abs(dx) > 128 || Math.abs(dy) > 128) return { skip: 'tile' };
+        return { e: Math.hypot(dx, dy), dx, dy, R8, G8, B8, face, level, c, fu, fv, ex, ey };
+      };
+      grid.forEach(([x, y], i) => {
+        const hit = hits[i];
+        const r = decode(x, y, hit);
+        if (r.skip === 'sky' || r.skip === 'edge') { skipped++; return; }
+        if (r.skip === 'face') { faceMismatch.push({ x, y, decoded: r.face, expected: r.expectedFace }); return; }
+        if (r.skip === 'tile') { tileMismatch++; return; }
+        const { R8, G8, B8, face, level, c, fu, fv, ex, ey } = r;
+        const e = r.e;
         errs.push(e);
+        samples.push({ x, y, errorTexels: e, face, level, tile: [Math.floor(fu), Math.floor(fv)], decoded: [R8, G8, B8], expected: [ex, ey],
+          neighbourhood: [-1, 0, 1].flatMap(oy => [-1, 0, 1].map(ox => img.at(x + ox, y + oy).slice(0, 3))),
+          distanceKm: hit[4], cosIncidence: hit[5], onSkirt: !!hit[6] });
         metres.push(e * texelGroundSizeKm(level, c.u, c.v, R, 256) * 1000);
       });
+      // The worst samples, with what tells measurement, filtering, rasterization and mapping apart:
+      // depth discontinuity (ray-cast distance of the four neighbours), incidence, skirt, 3×3 texels.
+      samples.sort((a, b) => b.errorTexels - a.errorTexels);
+      const worst = samples.slice(0, Number(args['worst-samples'] ?? 5));
+      if (worst.length) {
+        const around = await rayCast(page, worst.flatMap(w => [[w.x + 1, w.y], [w.x - 1, w.y], [w.x, w.y + 1], [w.x, w.y - 1]]));
+        worst.forEach((w, i) => {
+          const d = around.slice(4 * i, 4 * i + 4).map(h => h?.[4] ?? null);
+          w.neighbourDistanceKm = d;
+          w.maxNeighbourDistanceRatio = Math.max(...d.map(v => (v == null ? Infinity : Math.max(v / w.distanceKm, w.distanceKm / v))));
+        });
+        // A 9×9 error map around the worst pixel: one isolated pixel (silhouette, rasterization)
+        // or a local offset (mapping, filtering) look different.
+        const w = worst[0], cells = [];
+        for (let oy = -4; oy <= 4; oy++) for (let ox = -4; ox <= 4; ox++) cells.push([w.x + ox, w.y + oy]);
+        const local = await rayCast(page, cells);
+        w.localErrorTexels = cells.map(([x, y], i) => { const r = decode(x, y, local[i]); return r.e != null ? Number(r.e.toFixed(2)) : r.skip; });
+        w.localDistanceKm = local.map(h => (h ? Number(h[4].toFixed(4)) : null));
+      }
       const file = await shot(page, `registration-${name}-unlit`);
       const row = { view: name, file, samples: grid.length, measured: errs.length, skippedNearTileEdgesOrSky: skipped, faceMismatch: faceMismatch.length,
-        tileMismatch, errorTexels: summary(errs), errorMetres: summary(metres), displayedLevels: s.imagery.displayedLevels, faceMismatches: faceMismatch.slice(0, 10), errors };
+        tileMismatch, worstSamples: worst, errorTexels: summary(errs), errorMetres: summary(metres), displayedLevels: s.imagery.displayedLevels, faceMismatches: faceMismatch.slice(0, 10), errors };
       results.registration.push(row);
       console.log(`registration ${name}: ${errs.length} px, error texels median ${row.errorTexels?.median.toFixed(2)} p95 ${row.errorTexels?.p95.toFixed(2)} max ${row.errorTexels?.max.toFixed(2)}`
         + ` (max ${row.errorMetres?.max.toFixed(2)} m), face mismatches ${faceMismatch.length}, tile mismatches ${tileMismatch}`);
@@ -533,6 +813,205 @@ try {
       console.log(`frametime ${name}: wall median/p95 ms terrain ${f(row.terrainOnly.wallMs)}, whole ${f(row.imageryWhole.wallMs)}, refined ${f(row.imageryRefined.wallMs)}; `
         + `GPU ${f(row.terrainOnly.gpuMs)} / ${f(row.imageryWhole.gpuMs)} / ${f(row.imageryRefined.gpuMs)}; draws ${row.terrainOnly.draws.calls}/${row.imageryWhole.draws.calls}/${row.imageryRefined.draws.calls}; L${row.imageryRefined.maxLevel}`);
       await page.close();
+    }
+  }
+  // ---------------------------------------------------------------------------
+  if (EXPERIMENTS.includes('cracks')) {
+    results.cracks = [];
+    const catalogs = String(args.catalogs ?? 'terrain,grid,nac').split(',');
+    const VIEWS_BY = {
+      terrain: ['shackleton', 'pole', 'face-edge', 'face-corner', ...Object.keys(SURFACE_VIEWS)],
+      grid: ['shackleton', 'pole', 'face-edge', 'face-corner', ...Object.keys(SURFACE_VIEWS)],
+      nac: ['shackleton', 'pole', 'shackleton-grazing', 'shackleton-near', 'pole-grazing'],
+    };
+    for (const cat of catalogs) {
+      for (const name of views(VIEWS_BY[cat])) {
+        const { page, errors } = await openViewer(cat === 'terrain' ? 'test-catalogs/experiments/moon-terrain-cube' : CATALOG(cat));
+        const view = SURFACE_VIEWS[name] ? await surfacePose(page, SURFACE_VIEWS[name]) : VIEWS[name];
+        const s = await settle(page, view, 'shaded', { imagery: cat !== 'terrain' });
+        const h = await holeMasks(page, { masks: true });
+        const nb = neighbourLevels(s.visibleTiles);
+        // Picks on unmitigated hole pixels (skirts drawn): what a click in that spot returns.
+        const holePx = [];
+        const mask = Buffer.from(h.unmitigatedHoles, 'base64');
+        for (let i = 0, step = Math.max(1, Math.floor(h.unmitigated.holePixels / 24)), seen = 0; i < mask.length && holePx.length < 24; i++) {
+          if (mask[i] && seen++ % step === 0) holePx.push([i % h.width, i / h.width | 0]);
+        }
+        // Baseline: the nearest non-hole pixel 3 px away from each — the same LOD state, no crack.
+        const near = holePx.map(([x, y]) => [[x + 3, y], [x - 3, y], [x, y + 3], [x, y - 3]].find(([a, b]) => a >= 0 && b >= 0 && a < h.width && b < h.height && !mask[b * h.width + a]) ?? [x, y]);
+        const doPicks = (pts) => page.evaluate((px) => px.map(([x, yUp]) => {
+          const r = window.ci.getRenderer(), c = r.renderer.getContext();
+          const p = r.pickSurface((x + 0.5) / c.drawingBufferWidth * 2 - 1, (yUp + 0.5) / c.drawingBufferHeight * 2 - 1);
+          return p && { renderedSkirt: !!p.renderedSkirt, physical: p.physical?.kind ?? null, renderedOffsetM: p.physical?.renderedOffsetKm != null ? p.physical.renderedOffsetKm * 1000 : null };
+        }), pts);
+        const picks = await doPicks(holePx), nearPicks = await doPicks(near);
+        const on = await drawInfo(page);
+        // Frames unlit (some poses are in lunar night): tile level, or raw imagery texels.
+        const frameMode = cat === 'terrain' ? 'cube-face' : 'imagery-unlit';
+        await pose(page, view, frameMode); await page.waitForTimeout(800);
+        const files = { mitigated: await overlay(page, h.mitigatedHoles, h.width, h.height) };
+        await setSkirts(page, false);
+        const off = await settle(page, view, 'shaded', { imagery: cat !== 'terrain' });
+        const offDraws = await drawInfo(page);
+        await pose(page, view, frameMode); await page.waitForTimeout(800);
+        files.unmitigated = await overlay(page, h.unmitigatedHoles, h.width, h.height);
+        const file = await montage([files.unmitigated, files.mitigated], `cracks-${cat}-${name}`, densestWindow(h.unmitigatedHoles, h.width, h.height));
+        await setSkirts(page, true);
+        const row = { catalog: cat, view: name, pose: view, file, settled: s.finished, settleMs: s.settleMs, visibleTiles: s.visibleTiles.length, geometryLevels: s.geometryLevels,
+          sameTilesSkirtsOff: JSON.stringify(off.visibleTiles) === JSON.stringify(s.visibleTiles), holes: { mitigated: h.mitigated, unmitigated: h.unmitigated, coverageDifferencePixels: h.coverageDifferencePixels },
+          neighbours: nb, picksOnHoles: { n: picks.length, onSkirt: picks.filter(p => p?.renderedSkirt).length, physicalHits: picks.filter(p => p?.physical === 'hit').length,
+            renderedOffsetM: summary(picks.filter(p => p?.renderedOffsetM != null).map(p => p.renderedOffsetM)),
+            nearbySurfacePixelOffsetM: summary(nearPicks.filter(p => p?.renderedOffsetM != null).map(p => p.renderedOffsetM)) },
+          draws: { skirts: on, surfaceOnly: offDraws }, imagery: s.imagery && { maxDisplayedLevel: s.imagery.maxDisplayedLevel, blocks: s.imagery.blocks }, errors };
+        results.cracks.push(row);
+        console.log(`cracks ${cat} ${name}: ${s.visibleTiles.length} tiles L${Object.keys(s.geometryLevels).join(',')}, neighbour Δ ${JSON.stringify(nb.samplesByDelta)} (cross-face ${JSON.stringify(nb.crossFaceSamplesByDelta)}); `
+          + `holes ${h.unmitigated.holePixels} px / ${h.unmitigated.holeComponents} without skirts → ${h.mitigated.holePixels} px / ${h.mitigated.holeComponents} with; `
+          + `picks on holes ${row.picksOnHoles.onSkirt}/${picks.length} on a skirt, rendered−physical ${row.picksOnHoles.renderedOffsetM?.median?.toFixed(2)}/${row.picksOnHoles.renderedOffsetM?.max?.toFixed(2)} m (3 px away ${row.picksOnHoles.nearbySurfacePixelOffsetM?.median?.toFixed(2)}/${row.picksOnHoles.nearbySurfacePixelOffsetM?.max?.toFixed(2)}); triangles ${on.triangles} vs ${offDraws.triangles}`);
+        await page.close();
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  if (EXPERIMENTS.includes('cracks-dynamic')) {
+    results.cracksDynamic = [];
+    const lerp = (a, b, f) => a.map((c, i) => c + (b[i] - c) * f);
+    const path = [];
+    // Refine in: from 3,000 km to the Shackleton oblique pose, no waiting for detail.
+    const far = { eye: at(-80, 129.78, 3000), target: at(-89.67, 129.78, 0), fov: 60 };
+    for (let i = 0; i <= 12; i++) { const f = 1 - (1 - i / 12) ** 3; path.push({ phase: 'refine', view: { eye: lerp(far.eye, VIEWS.shackleton.eye, f), target: lerp(far.target, VIEWS.shackleton.target, f), fov: 60 } }); }
+    // Coarsen out to 600 km.
+    const out = { eye: at(-84, 129.78, 600), target: at(-89.67, 129.78, 0), fov: 60 };
+    for (let i = 1; i <= 8; i++) path.push({ phase: 'coarsen', view: { eye: lerp(VIEWS.shackleton.eye, out.eye, (i / 8) ** 2), target: VIEWS.shackleton.target, fov: 60 } });
+    // Pan pole → px/nz edge → px/py/nz corner at 40–60 km.
+    for (const [a, b] of [[VIEWS.pole, VIEWS['face-edge']], [VIEWS['face-edge'], VIEWS['face-corner']]]) {
+      for (let i = 0; i <= 6; i++) path.push({ phase: 'pan', view: { eye: lerp(a.eye, b.eye, i / 6).map((c, _, e) => c * (R + 50) / Math.hypot(...e)), target: lerp(a.target, b.target, i / 6), fov: 60 } });
+    }
+    const scenarios = String(args.scenarios ?? 'normal,delayed,failed,evicting').split(',');
+    for (const scenario of scenarios) {
+      const setup = async (page) => {
+        const level = (url) => Number(/\/moon-terrain-cube\/(?:px|nx|py|ny|pz|nz)\/(\d+)\//.exec(url)?.[1] ?? -1);
+        if (scenario === 'delayed') await page.route(/\/moon-terrain-cube\/.*\.glb$/, async (route) => { if (level(route.request().url()) >= 6) await new Promise(r => setTimeout(r, 2500)); await route.continue(); });
+        if (scenario === 'failed') await page.route(/\/moon-terrain-cube\/.*\.glb$/, (route) => (level(route.request().url()) >= 9 ? route.abort() : route.continue()));
+      };
+      const { page, errors } = await openViewer(CATALOG('grid'), setup);
+      if (scenario === 'evicting') await page.evaluate(() => { const c = window.ciMoon().terrainManager.tiles.lruCache; c.minBytesSize = 24 * 2 ** 20; c.maxBytesSize = 40 * 2 ** 20; });
+      const steps = [];
+      for (const [i, p] of path.entries()) {
+        await pose(page, p.view, 'shaded');
+        await page.waitForTimeout(scenario === 'delayed' ? 700 : 400);
+        await pose(page, p.view, 'shaded');
+        const s = await snapshot(page);
+        const h = await holeMasks(page);
+        const nb = neighbourLevels(s.visibleTiles);
+        const n = s.metrics.network;
+        steps.push({ i, phase: p.phase, visibleTiles: s.visibleTiles.length, geometryLevels: s.geometryLevels, loading: n.queued + n.downloading + n.parsing,
+          cacheBytes: s.metrics.memory?.cacheBytes, mitigatedHolePixels: h.mitigated.holePixels, unmitigatedHolePixels: h.unmitigated.holePixels,
+          coverageDifferencePixels: h.coverageDifferencePixels, maxNeighbourDelta: nb.maxDelta, neighbourSamplesByDelta: nb.samplesByDelta });
+      }
+      const failedReq = await page.evaluate(() => window.ciMoon().terrainMetrics.network);
+      const row = { scenario, steps, maxMitigatedHolePixels: Math.max(...steps.map(s => s.mitigatedHolePixels)), maxUnmitigatedHolePixels: Math.max(...steps.map(s => s.unmitigatedHolePixels)),
+        stepsWithUnmitigatedHoles: steps.filter(s => s.unmitigatedHolePixels > 0).length, stepsWithMitigatedHoles: steps.filter(s => s.mitigatedHolePixels > 0).length,
+        stepsLoading: steps.filter(s => s.loading > 0).length, maxNeighbourDelta: Math.max(...steps.map(s => s.maxNeighbourDelta)), network: failedReq, errors: errors.slice(0, 10) };
+      results.cracksDynamic.push(row);
+      console.log(`cracks-dynamic ${scenario}: ${steps.length} steps (${row.stepsLoading} still loading), holes without skirts in ${row.stepsWithUnmitigatedHoles} (max ${row.maxUnmitigatedHolePixels} px), `
+        + `with skirts in ${row.stepsWithMitigatedHoles} (max ${row.maxMitigatedHolePixels} px); max neighbour Δlevel ${row.maxNeighbourDelta}`);
+      await page.close();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  if (EXPERIMENTS.includes('compare')) {
+    results.compare = [];
+    for (const product of String(args.products ?? 'cube,polar,geographic').split(',')) {
+      const P = PRODUCTS[product];
+      for (const name of views(Object.keys(COMPARE_VIEWS))) {
+        if (product === 'polar' && name === 'face-corner') continue; // outside the cap
+        const view = COMPARE_VIEWS[name];
+        const { page, errors } = await openViewer(P.catalog);
+        const errorTarget = Number(args['error-target'] ?? (args['equal-error-target'] ? 2 : (P.errorTarget ?? 2)));
+        await page.evaluate((e) => { window.ciMoon().terrainManager.tiles.errorTarget = e; }, errorTarget);
+        // What the catalog's initial view already loaded: reported apart from what the pose costs.
+        const atPose = await page.evaluate((data) => { const r = performance.getEntriesByType('resource').filter(e => e.name.includes(data));
+          return { requests: r.length, bytes: r.reduce((s, e) => s + (e.encodedBodySize || e.transferSize || 0), 0) }; }, P.data);
+        await pose(page, view, 'shaded');
+        const t0 = Date.now();
+        // Finished detail: nothing queued/downloading/parsing (and no CPU grid in flight), visible set unchanged.
+        // 100 ms polls; finished = start of the final 2 s stable streak (local loads finish in seconds).
+        let stable = 0, last = '', m = null, streakStart = 0;
+        while (Date.now() - t0 < TIMEOUT_MS && stable < 20) {
+          await page.waitForTimeout(100);
+          await pose(page, view, 'shaded');
+          m = await page.evaluate(() => { const bm = window.ciMoon(); return { metrics: bm.terrainMetrics, cube: bm.terrainCubeStats }; });
+          const busy = m.metrics.network.queued + m.metrics.network.downloading + m.metrics.network.parsing + (m.cube?.inFlight ?? 0);
+          const key = String(m.metrics.tiles.visible);
+          const ok = busy === 0 && m.metrics.tiles.visible > 0 && key === last;
+          if (ok && stable === 0) streakStart = Date.now();
+          stable = ok ? stable + 1 : 0;
+          last = key;
+        }
+        const coldMs = streakStart - t0;
+        const detail = await page.evaluate(async (data) => {
+          const r = window.ci.getRenderer(), tm = window.ciMoon().terrainManager;
+          const depUrl = performance.getEntriesByType('resource').map(e => e.name).find(n => /\/\.vite\/deps\/three\.js(\?|$)/.test(n));
+          const { Raycaster, Vector2 } = await import(depUrl);
+          const owner = new Map(), levels = {};
+          tm.tiles.visibleTiles.forEach(t => {
+            const mm = /(?:^|\/)(?:(?:px|nx|py|ny|pz|nz)\/)?(\d+)\/\d+\/\d+\.(?:glb|terrain)/.exec(t.content?.uri ?? '');
+            if (!mm) return;
+            levels[mm[1]] = (levels[mm[1]] ?? 0) + 1;
+            t.engineData?.scene?.traverse(o => { if (o.isMesh) owner.set(o, Number(mm[1])); });
+          });
+          const ray = new Raycaster(); ray.setFromCamera(new Vector2(0, 0), r.camera);
+          const hit = ray.intersectObjects([...owner.keys()], false)[0];
+          const res = performance.getEntriesByType('resource').filter(e => e.name.includes(data));
+          return { levels, centreLevel: hit ? owner.get(hit.object) : null,
+            requests: res.length, bytes: res.reduce((s, e) => s + (e.encodedBodySize || e.transferSize || 0), 0), cpuGridRequests: res.filter(e => e.name.includes('/heights/')).length };
+        }, P.data);
+        const cover = await holeMasks(page);
+        // Achieved detail across the frame, not just under the centre: a 32×20 pixel grid ray-cast
+        // onto the rendered meshes (body-fixed metres); `dem.py field-error` scores them against
+        // the fused field itself.
+        const grid = [];
+        for (let j = 0; j < 20; j++) for (let i = 0; i < 32; i++) grid.push([Math.floor((i + 0.5) * VIEWPORT.width / 32), Math.floor((j + 0.5) * VIEWPORT.height / 20)]);
+        const surfaceHits = (await rayCast(page, grid)).map(h => (h ? h.slice(0, 3).map(v => Math.round(v * 1000) / 1000) : null));
+        const timing = await frameTiming(page, FRAMES);
+        const row = { product, view: name, errorTarget, throttle: args.throttle ?? null, finished: stable >= 20, coldToFinishedMs: coldMs, visibleTiles: m.metrics.tiles.visible, levels: detail.levels,
+          centreLevel: detail.centreLevel, centreVertexSpacingM: detail.centreLevel == null ? null : P.spacingM(detail.centreLevel),
+          requests: detail.requests, bytes: detail.bytes, sincePose: { requests: detail.requests - atPose.requests, bytes: detail.bytes - atPose.bytes }, cpuGridRequests: detail.cpuGridRequests, memory: m.metrics.memory, cubeGrids: m.cube,
+          terrainPixelFraction: cover.mitigated.terrainPixels / (cover.width * cover.height), holePixels: cover.mitigated.holePixels, surfaceHits,
+          frames: timing, errors };
+        results.compare.push(row);
+        const f = (x) => x ? `${x.median.toFixed(2)}/${x.p95.toFixed(2)}` : 'n/a';
+        console.log(`compare ${product} ${name}: ${row.finished ? '' : 'UNFINISHED '}${(coldMs / 1000).toFixed(1)} s cold, ${detail.requests} req / ${(detail.bytes / 1e6).toFixed(1)} MB, `
+          + `${row.visibleTiles} tiles, centre L${detail.centreLevel} (${row.centreVertexSpacingM?.toFixed(1)} m), terrain ${(100 * row.terrainPixelFraction).toFixed(1)}% of frame, `
+          + `geometry ${(m.metrics.memory.geometryBytes / 1e6).toFixed(1)} MB; warm wall ${f(timing.wallMs)} GPU ${f(timing.gpuMs)} ms, ${timing.draws.calls} draws / ${timing.draws.triangles} tris`);
+        await page.close();
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  if (EXPERIMENTS.includes('skirt-cost')) {
+    results.skirtCost = [];
+    for (const cat of ['terrain', 'grid']) {
+      for (const name of views(['shackleton', 'pole', 'face-edge', 'face-corner', 'overview', 'shackleton-grazing'])) {
+        const { page, errors } = await openViewer(cat === 'terrain' ? 'test-catalogs/experiments/moon-terrain-cube' : CATALOG(cat));
+        const view = SURFACE_VIEWS[name] ? await surfacePose(page, SURFACE_VIEWS[name]) : VIEWS[name];
+        const s = await settle(page, view, 'shaded', { imagery: cat !== 'terrain' });
+        const on = await frameTiming(page, FRAMES);
+        await setSkirts(page, false);
+        await settle(page, view, 'shaded', { imagery: cat !== 'terrain' });
+        const off = await frameTiming(page, FRAMES);
+        await setSkirts(page, true);
+        await settle(page, view, 'shaded', { imagery: cat !== 'terrain' });
+        const on2 = await frameTiming(page, FRAMES);
+        const row = { catalog: cat, view: name, visibleTiles: s.visibleTiles.length, skirts: on, surfaceOnly: off, skirtsRepeat: on2, geometryMB: s.metrics.memory?.geometryBytes / 1e6, errors };
+        results.skirtCost.push(row);
+        const f = (x) => x ? `${x.median.toFixed(2)}/${x.p95.toFixed(2)}` : 'n/a';
+        console.log(`skirt-cost ${cat} ${name}: triangles ${off.draws.triangles} → ${on.draws.triangles}; wall ${f(off.wallMs)} → ${f(on.wallMs)} (repeat ${f(on2.wallMs)}); GPU ${f(off.gpuMs)} → ${f(on.gpuMs)} (repeat ${f(on2.gpuMs)})`);
+        await page.close();
+      }
     }
   }
 } catch (err) {

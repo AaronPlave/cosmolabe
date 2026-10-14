@@ -285,6 +285,9 @@ export interface ClippedGeometry { attributes: Float32Array[]; index: Uint32Arra
  * lies on the original triangles: the rendered surface does not change.
  * Whole triangles keep their original vertices; edge points are computed
  * from the lower-indexed endpoint so neighbours split an edge identically.
+ * A side of the rectangle on the tile's own boundary is not clipped: nothing
+ * of the tile lies beyond it, and skirts lie exactly in that plane, where
+ * rounding would otherwise decide whether a skirt triangle survives.
  */
 export function clipTrianglesToTileRect(
   attributes: readonly ClipAttribute[], uvwIndex: number, index: ArrayLike<number> | null, rect: readonly [number, number, number, number],
@@ -294,6 +297,7 @@ export function clipTrianglesToTileRect(
   const triCount = index ? Math.floor(index.length / 3) : Math.floor(vertexCount / 3);
   const at = (i: number) => (index ? index[i] : i);
   const [s0, s1, t0, t1] = rect;
+  const planes = [0, 1, 2, 3].filter(k => (k === 0 ? s0 > 0 : k === 1 ? s1 < 1 : k === 2 ? t0 > 0 : t1 < 1));
   // Signed plane values per vertex: ≥ 0 inside each of the four half-spaces.
   const plane = (v: number, k: number) => {
     const a = uvw[3 * v], b = uvw[3 * v + 1], w = uvw[3 * v + 2];
@@ -324,7 +328,8 @@ export function clipTrianglesToTileRect(
   for (let t = 0; t < triCount; t++) {
     const tri = [at(3 * t), at(3 * t + 1), at(3 * t + 2)];
     let inside = true, outside = false;
-    for (let k = 0; k < 4 && !outside; k++) {
+    for (const k of planes) {
+      if (outside) break;
       const p0 = plane(tri[0], k), p1 = plane(tri[1], k), p2 = plane(tri[2], k);
       if (p0 < 0 && p1 < 0 && p2 < 0) outside = true;
       else if (p0 < 0 || p1 < 0 || p2 < 0) inside = false;
@@ -333,7 +338,8 @@ export function clipTrianglesToTileRect(
     if (inside) { for (const v of tri) outIndex.push(pushOriginal(v)); continue; }
     // Sutherland–Hodgman against the four planes, in 3D.
     let poly: PolyVertex[] = tri.map(v => ({ original: v, values: null }));
-    for (let k = 0; k < 4 && poly.length >= 3; k++) {
+    for (const k of planes) {
+      if (poly.length < 3) break;
       const value = (p: PolyVertex) => (p.values ? planeOf(p.values, k) : plane(p.original, k));
       const clipped: PolyVertex[] = [];
       for (let i = 0; i < poly.length; i++) {
