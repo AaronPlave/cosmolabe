@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   defaultLayerName, describeImageryLayers, overlapsBounds, layerStatus, nativeMetersPerPixel,
   reorderedLayers, resolveGlobeSurfaceConfig,
 } from '../ImageryLayers.js';
-import { TerrainManager, fallBackToParentTiles, type TerrainConfig } from '../TerrainManager.js';
+import { TerrainManager, fallBackToParentTiles, tileInMainView, type TerrainConfig } from '../TerrainManager.js';
 import { makeShadowUniforms } from '../EclipseShadow.js';
 
 const MARS_EQ_KM = 3396.19;
@@ -280,6 +280,69 @@ describe('TerrainManager imagery layer controls', () => {
     tm.dispose();
   });
 
+  it('forgets degraded source tiles when a layer is rebuilt, and when one loads on retry', async () => {
+    const tm = make();
+    await flush();
+    type Source = { fetchItem(t: number[], s?: AbortSignal): Promise<THREE.Texture> };
+    type Overlay = { calculateLevel(r: number[]): number; imageSource: Source };
+    const overlays = (tm as unknown as { activeOverlays: Map<string, Overlay> }).activeOverlays;
+    const degraded = (tm as unknown as { degradedTiles: Map<string, Set<string>> }).degradedTiles;
+    degraded.get('ctx')!.add('6/91/25');
+
+    // Source tile 6/91/25 fails once, then loads. Its parent always loads.
+    let failNext = true;
+    const proto = Object.getPrototypeOf(overlays.get('ctx')!.imageSource) as Source;
+    const fetchItem = vi.spyOn(proto, 'fetchItem').mockImplementation(async ([, , level]) => {
+      if (level === 6 && failNext) { failNext = false; throw new Error('undecodable'); }
+      return new THREE.Texture({ width: 512, height: 512, close() {} } as unknown as ImageBitmap);
+    });
+    const g = globalThis as unknown as { createImageBitmap: unknown };
+    const saved = g.createImageBitmap;
+    g.createImageBitmap = async () => ({ width: 256, height: 256, close() {} });
+    try {
+      tm.setImageryLayerVisible('ctx', false);
+      tm.setImageryLayerVisible('ctx', true);
+      await flush();
+      const ctx = overlays.get('ctx')!;
+      ctx.calculateLevel = () => 6;
+      const tile = {};
+      const lonX = (lon: number) => (lon + 180) / 360, latY = (lat: number) => (lat + 90) / 180;
+      (plugin(tm) as unknown as { overlayInfo: Map<unknown, { tileInfo: Map<object, unknown> }> }).overlayInfo.get(ctx)!
+        .tileInfo.set(tile, { range: [lonX(77.5), latY(18.6), lonX(78.5), latY(18.8)], failed: false });
+      (tm.tiles as unknown as { visibleTiles: Set<object> }).visibleTiles.add(tile);
+      const degradedInView = () => tm.imageryLayers.find((l) => l.id === 'ctx')!.view!.degradedTiles;
+
+      expect(degradedInView()).toBe(0);
+      await ctx.imageSource.fetchItem([91, 25, 6]);
+      expect(degradedInView()).toBe(1);
+      await ctx.imageSource.fetchItem([91, 25, 6]);
+      expect(degradedInView()).toBe(0);
+    } finally {
+      fetchItem.mockRestore();
+      g.createImageBitmap = saved;
+      tm.dispose();
+    }
+  });
+
+  it('counts a tile in the main view only when it is inside the frustum and faces the camera', () => {
+    // Camera 3 radii out on +z, looking at the origin with a 30° field of view.
+    const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 10);
+    cam.position.set(0, 0, 3);
+    cam.lookAt(0, 0, 0);
+    cam.updateMatrixWorld();
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    const box = (x: number, y: number, z: number) => ({
+      obb: { points: [-0.05, 0.05].flatMap((dx) => [-0.05, 0.05].flatMap((dy) => [-0.05, 0.05].map((dz) => new THREE.Vector3(x + dx, y + dy, z + dz)))) },
+    });
+    const sphere = (x: number, y: number, z: number) => ({ sphere: new THREE.Sphere(new THREE.Vector3(x, y, z), 0.05) });
+    const eye = cam.position;
+    expect(tileInMainView(box(0, 0, 1), frustum, eye)).toBe(true); // facing, centre of view
+    expect(tileInMainView(box(0, 0, -1), frustum, eye)).toBe(false); // in the frustum, behind the globe
+    expect(tileInMainView(box(1, 0, 0.1), frustum, eye)).toBe(false); // facing, off screen
+    expect(tileInMainView(sphere(0, 0, 1), frustum, eye)).toBe(true);
+    expect(tileInMainView(sphere(0, 0, -1), frustum, eye)).toBe(false);
+  });
+
   describe('coverage before the static→streamed swap', () => {
     // An imagery-only root: no content, two level-0 tiles that carry it.
     const tile = (loadingState: number, inFrustum = true) => ({ internal: { hasContent: true, loadingState }, traversal: { inFrustum }, children: [] });
@@ -379,7 +442,8 @@ describe('fallBackToParentTiles', () => {
     g.createImageBitmap = async (_img: unknown, sx: number, sy: number, sw: number) => { cuts.push([sx, sy]); return bitmap(sw); };
     try {
       let fallbacks = 0;
-      fallBackToParentTiles(source, () => { fallbacks++; });
+      const loaded: string[] = [];
+      fallBackToParentTiles(source, (t, fromParent) => { if (fromParent) fallbacks++; else loaded.push(t.join('/')); });
       // Tile x=5 (east half), y=2 (north half) of parent 2/1/2. Bitmaps are pre-flipped,
       // so the north half is the bottom of the parent image.
       const tex = await source.fetchItem([5, 2, 3]);
@@ -387,6 +451,9 @@ describe('fallBackToParentTiles', () => {
       expect(cuts).toEqual([[256, 256]]);
       expect((tex.image as { width: number }).width).toBe(256);
       expect(fallbacks).toBe(1);
+      // Only the tile asked for is reported, not the parent fetched for it.
+      await source.fetchItem([4, 2, 2]);
+      expect(loaded).toEqual(['4/2/2']);
       const ctrl = new AbortController();
       ctrl.abort();
       await expect(source.fetchItem([5, 2, 4], ctrl.signal)).rejects.toThrow('undecodable');

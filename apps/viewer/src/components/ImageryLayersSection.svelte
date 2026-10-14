@@ -17,7 +17,7 @@
    * the surface it sits on.
    */
   import { vs, getRenderer, flyToRegion } from '../lib/viewer-state.svelte';
-  import type { ImageryLayerInfo, SurfaceTransitionState } from '@cosmolabe/three';
+  import type { BodyMesh, ImageryLayerInfo, SurfaceTransitionState } from '@cosmolabe/three';
   import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Crosshair, Lock } from 'lucide-svelte';
 
   let open = $state(rememberedOpen);
@@ -85,11 +85,17 @@
     rev++;
   }
 
+  /** The body the hover footprint is drawn on, so it is cleared there even after the selection moves. */
+  let footprintOwner: BodyMesh | null = null;
+
   /** Outline a regional layer's footprint on the globe while its row is hovered. */
   function highlight(layer: ImageryLayerInfo | null) {
-    bodyMesh()?.showImageryFootprint(layer?.bounds ?? null);
+    footprintOwner?.showImageryFootprint(null);
+    footprintOwner = layer?.bounds ? bodyMesh() : null;
+    footprintOwner?.showImageryFootprint(layer!.bounds);
   }
-  $effect(() => () => highlight(null));
+  let surfaceBody = $derived(surface?.body);
+  $effect(() => { void surfaceBody; return () => highlight(null); });
 
   const STATE_LABEL: Record<SurfaceTransitionState, string> = {
     static: 'Static map',
@@ -157,7 +163,7 @@
       <span class="ui-meta normal-case tracking-normal font-normal">{enabledCount} of {surface.layers.length} enabled</span>
     </summary>
     <div class="ui-meta mt-1 mb-1">
-      {surface.imageryOnly ? 'On the ellipsoid' : 'Draped on terrain'}{#if surface.state}&nbsp;&middot; {STATE_LABEL[surface.state]}{/if}
+      {surface.imageryOnly ? 'Surface imagery' : 'Draped on terrain'}{#if surface.state}&nbsp;&middot; {STATE_LABEL[surface.state]}{/if}
     </div>
     <ul class="flex flex-col" aria-label="Imagery layers, top first">
       {#each topFirst as layer, i (layer.id)}
@@ -237,8 +243,11 @@
               {/if}
               <dl class="layer-facts">
                 <dt>Coverage</dt><dd>{layer.bounds ? formatBounds(layer.bounds) : 'Global'}</dd>
+                {#if layer.resolutionMeters != null}
+                  <dt>Source resolution</dt><dd>{formatResolution(layer.resolutionMeters)}</dd>
+                {/if}
                 {#if layer.metersPerPixel != null}
-                  <dt>Tiles</dt><dd>to ~{formatResolution(layer.metersPerPixel)} at zoom {layer.maxLevel}{#if layer.minZoom > 0}, from zoom {layer.minZoom}{/if}</dd>
+                  <dt>Available tile resolution</dt><dd>~{formatResolution(layer.metersPerPixel)} at zoom {layer.maxLevel}{#if layer.minZoom > 0}, from zoom {layer.minZoom}{/if}</dd>
                 {/if}
                 {#if layer.view?.zoomLevel != null}
                   <dt>In view</dt><dd>zoom {layer.view.zoomLevel}{#if layer.view.degradedTiles}, {plural(layer.view.degradedTiles, 'tile')} from coarser data{/if}{#if layer.view.missingTiles}, {plural(layer.view.missingTiles, 'tile')} missing{/if}</dd>
@@ -317,13 +326,15 @@
     grid-template-columns: auto 1fr;
     gap: 2px 8px;
     margin: 0;
+    padding-top: 6px;
+    border-top: 1px solid var(--color-border);
   }
   .layer-facts dt {
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
   }
   .layer-facts dd {
     margin: 0;
-    color: var(--color-text-secondary);
+    color: var(--color-text-primary);
   }
   .order-button {
     display: inline-flex;

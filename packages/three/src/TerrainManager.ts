@@ -417,6 +417,31 @@ type OverlayTiling = {
 type TileFetcher = { fetchItem(tokens: number[], signal?: AbortSignal): Promise<THREE.Texture> };
 
 /** Coarser levels tried in place of a source tile that fails. */
+/** The parts of a tile's bounding volume `tileInMainView` reads. */
+interface TileVolume {
+  sphere?: THREE.Sphere | null;
+  obb?: { points: THREE.Vector3[] } | null;
+  regionObb?: { points: THREE.Vector3[] } | null;
+}
+
+/**
+ * Whether a tile's bounding volume can show in a frustum, seen from `eye`, all
+ * in tile space (the body centre at the origin). Conservative: a box corner
+ * inside every plane's half-space, or facing the eye over a sphere horizon, keeps it.
+ */
+export function tileInMainView(bv: TileVolume, frustum: THREE.Frustum, eye: THREE.Vector3): boolean {
+  if (bv.sphere && !frustum.intersectsSphere(bv.sphere)) return false;
+  const points = (bv.obb ?? bv.regionObb)?.points;
+  if (points) {
+    if (!frustum.planes.every((p) => points.some((v) => p.distanceToPoint(v) >= 0))) return false;
+    return points.some((v) => _horizon.subVectors(eye, v).dot(v) >= 0);
+  }
+  if (!bv.sphere) return true;
+  const { center, radius } = bv.sphere;
+  return _horizon.subVectors(eye, center).dot(center) >= -radius * center.length();
+}
+const _horizon = /* @__PURE__ */ new THREE.Vector3();
+
 const PARENT_FALLBACK_LEVELS = 4;
 
 /**
@@ -427,16 +452,18 @@ const PARENT_FALLBACK_LEVELS = 4;
  * the layer from the whole terrain tile. ArcGIS's CTX mosaic serves
  * corrupt PNGs at some z11/z12 tiles around Jezero.
  */
-export function fallBackToParentTiles(source: TileFetcher, onFallback: (tile: number[]) => void): void {
+export function fallBackToParentTiles(source: TileFetcher, onLoad: (tile: number[], fromParent: boolean) => void): void {
   const fetchItem = source.fetchItem.bind(source);
   const fetchOrParent = async ([x, y, level]: number[], signal: AbortSignal | undefined, depth: number): Promise<THREE.Texture> => {
     try {
-      return await fetchItem([x, y, level], signal);
+      const tex = await fetchItem([x, y, level], signal);
+      if (depth === 0) onLoad([x, y, level], false);
+      return tex;
     } catch (err) {
       if (signal?.aborted || level === 0 || depth >= PARENT_FALLBACK_LEVELS) throw err;
       const parent = await fetchOrParent([x >> 1, y >> 1, level - 1], signal, depth + 1);
       const image = parent.image as ImageBitmap;
-      if (depth === 0) onFallback([x, y, level]);
+      if (depth === 0) onLoad([x, y, level], true);
       // A 1×1 skip tile (outside coverage) has no quarter to cut.
       if (image.width < 2) return parent;
       // Source bitmaps are pre-flipped (south row first); tile y counts from the north.
@@ -564,6 +591,7 @@ function createImageryOverlay(img: TerrainImageryConfig): ImageryOverlay {
  * and coordinate transforms for non-Earth bodies.
  */
 const _camPos = /* @__PURE__ */ new THREE.Vector3();
+const _viewMat = /* @__PURE__ */ new THREE.Matrix4();
 const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
 export class TerrainManager {
@@ -655,6 +683,8 @@ export class TerrainManager {
    *  The scene camera's near/far can have extreme ratios (1e-12/1e6) that
    *  produce degenerate frustum planes in the tiles renderer's SAT test. */
   private terrainCam: THREE.PerspectiveCamera | null = null;
+  /** The main camera's frustum and position in tile space, set each update. */
+  private mainView: { frustum: THREE.Frustum; eye: THREE.Vector3 } | null = null;
 
   /**
    * @param config Terrain source configuration
@@ -1128,6 +1158,18 @@ export class TerrainManager {
     this.tiles.setCamera(tc);
     this.tiles.setResolutionFromRenderer(tc, renderer);
 
+    // The main camera's own view in tile space, for overlayView: the streaming
+    // cameras above see wider than the screen. No far plane, so no SAT trouble.
+    const group = this.tiles.group;
+    group.updateMatrixWorld();
+    const mv = this.mainView ??= { frustum: new THREE.Frustum(), eye: new THREE.Vector3() };
+    const top = terrainNear * Math.tan(THREE.MathUtils.DEG2RAD * 0.5 * mainCam.fov);
+    _viewMat.makePerspective(-top * mainCam.aspect, top * mainCam.aspect, top, -top, terrainNear, terrainFar)
+      .multiply(tc.matrixWorldInverse).multiply(group.matrixWorld);
+    mv.frustum.setFromProjectionMatrix(_viewMat);
+    mv.frustum.planes[5].constant = Infinity;
+    mv.eye.copy(_camPos).applyMatrix4(_viewMat.copy(group.matrixWorld).invert());
+
     // Coverage cameras: ensure tiles load for the full visible hemisphere.
     // At close range (near surface), the terrain camera only sees ±45° from
     // the view direction, missing terrain at the sides and horizon. Two cameras
@@ -1342,6 +1384,8 @@ export class TerrainManager {
     const degradedInView = new Set<string>();
     const view: ImageryLayerView = { inCoverage: false, zoomLevel: null, missingTiles: 0, degradedTiles: 0 };
     for (const tile of (this.tiles as unknown as { visibleTiles: Set<unknown> }).visibleTiles) {
+      const bv = (tile as { engineData?: { boundingVolume?: TileVolume } }).engineData?.boundingVolume;
+      if (this.mainView && bv && !tileInMainView(bv, this.mainView.frustum, this.mainView.eye)) continue;
       const t = info.tileInfo.get(tile);
       if (!t?.range) continue;
       if (layer.bounds && !overlapsBounds(tiling.toCartographicRange(t.range), layer.bounds)) continue;
@@ -1566,11 +1610,17 @@ export class TerrainManager {
       // ponytail: XYZ only, where tile y counts from the north; TMS/WMTS/WMS keep upstream's all-or-nothing.
       const source = (overlay as unknown as { imageSource?: TileFetcher }).imageSource;
       if ((cfg.type ?? 'xyz') === 'xyz' && source) {
-        fallBackToParentTiles(source, ([x, y, level]) => {
-          layer.failedTiles++;
-          let keys = this.degradedTiles.get(id);
-          if (!keys) this.degradedTiles.set(id, keys = new Set());
-          keys.add(`${level}/${x}/${y}`);
+        // A fresh set per overlay: a rebuilt layer refetches everything, and a
+        // source tile that loads on retry is no longer degraded.
+        const degraded = new Set<string>();
+        this.degradedTiles.set(id, degraded);
+        fallBackToParentTiles(source, ([x, y, level], fromParent) => {
+          if (fromParent) {
+            layer.failedTiles++;
+            degraded.add(`${level}/${x}/${y}`);
+          } else {
+            degraded.delete(`${level}/${x}/${y}`);
+          }
         });
       }
       await o.init();
