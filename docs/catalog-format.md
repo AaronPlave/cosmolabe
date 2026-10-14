@@ -194,9 +194,29 @@ Streaming terrain over the basemap. Supports these sources:
 
 #### `overlayResolution`
 
-On terrain (and for overlays on an imagery-only Globe), each terrain tile gets one composited texture per shown layer, `overlayResolution` pixels square (default 256). It caps how sharp draped imagery can look within one tile. Memory grows with its square: each tile layer takes R² × 4 bytes (256 → 0.25 MB, 512 → 1 MB, 1024 → 4 MB). With 300 tiles loaded and three layers shown, 1024 needs about 3.6 GB, which no browser will give. Composite time also grows with the square, so tiles look stale for longer while the camera moves.
+On terrain (and for overlays on an imagery-only Globe), each terrain tile gets one composited texture per shown layer, `overlayResolution` pixels square (default 256). It caps how sharp draped imagery can look within one tile. Each tile layer takes R² × 4 bytes plus mipmaps: 256 → 0.33 MB, 512 → 1.3 MB, 1024 → 5.3 MB.
 
-The default stays at 256. For a showcase scene that needs it, raise it to 512 per catalog. Do not go to 1024 without measuring. The debug panel's *Composite* control switches 256/512/1024 live for one body. Its *GPU est.*, *Update* and *Imagery* rows show the memory, per-frame cost and request count to compare.
+Those textures count against the tile cache (`maxCacheBytes` in the `terrain` block, in bytes, default 512 MB). Memory is the limit, not frame time. When the composites fill the cache, the renderer stops refining and starts evicting tiles it still needs, so a higher resolution comes out blurrier, not sharper. Measured on an Apple M4 Max (Chrome, Metal), from a cold cache at each viewpoint:
+
+| Scene | R | Cache used | Tiles shown | Overlay requests | Settle |
+|---|---|---|---|---|---|
+| Apollo 15 landing site (1 overlay) | 256 | 216 MB | 130 | 184 | 2.5 s |
+| | 512 | 307 MB | 130 | 573 | 7 s |
+| | 1024 | 516 MB (full) | 37 | 2080 | 31 s |
+| Jezero crater (3 overlays) | 256 | 302 MB | 166 | 94 | 2.3 s |
+| | 512 | 516 MB (full) | 82 | 339 | 5 s |
+| | 1024 | 517 MB (full) | 19 | 884 | 5.5 s |
+
+At Jezero crater at 1024, HiRISE never loaded. Even with `maxCacheBytes` at 2 GB, the three-overlay stack at 1024 filled the cache. Frame cost stayed flat at every setting: 1–2 ms CPU and 1–5 ms GPU per frame, at a steady 120 fps. Compositing took under 20 ms of main-thread time per view in total. Going from 256 to 512 visibly sharpens the HiRISE close-up at Wright Brothers Field. Going from 512 to 1024 adds little, even with room in the cache.
+
+Policy:
+
+- Keep the default at 256.
+- Use 512 per catalog for a showcase scene with one or two overlays shown.
+- With three or more overlays at 512, raise `maxCacheBytes` to about 1 GB as well.
+- Do not use 1024.
+
+To check a scene, use the debug panel. The *Composite* control switches 256/512/1024 live for one body. When *Cache* reaches its limit, the setting is too high for that scene. *GPU est.* and *Imagery* show texture memory and request counts to compare.
 
 ## Frames
 

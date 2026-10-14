@@ -263,18 +263,6 @@ const MemoryUtils = (TilesThree as unknown as { MemoryUtils: { getTextureByteLen
  * plugin keys it by a module-private `Symbol('ORIGINAL_MATERIAL')`, so it is
  * found by description; absent (undefined) when the plugin never touched the mesh.
  */
-/** Imagery-overlay textures ImageOverlayPlugin keeps under its private `Symbol('OVERLAY_PARAMS')`. */
-function overlayLayerMaps(material: THREE.Material | undefined): Array<THREE.Texture | null> {
-  if (!material) return [];
-  for (const sym of Object.getOwnPropertySymbols(material)) {
-    if (sym.description === 'OVERLAY_PARAMS') {
-      const params = (material as unknown as Record<symbol, { layerMaps?: { value?: Array<THREE.Texture | null> } }>)[sym];
-      return params?.layerMaps?.value ?? [];
-    }
-  }
-  return [];
-}
-
 function originalDebugMaterial(mesh: THREE.Mesh): THREE.Material | undefined {
   for (const sym of Object.getOwnPropertySymbols(mesh)) {
     if (sym.description === 'ORIGINAL_MATERIAL') {
@@ -1602,10 +1590,11 @@ export class TerrainManager {
     };
     const countMaterial = (m: THREE.Material | undefined) => {
       for (const value of Object.values(m ?? {})) countTexture(value as THREE.Texture);
-      // ImageOverlayPlugin draws imagery from a uniform array it keeps on the
-      // material, not from a material map — usually the bulk of terrain texture memory.
-      for (const tex of overlayLayerMaps(m)) countTexture(tex);
     };
+    // ImageOverlayPlugin draws imagery from a uniform array, not a material map —
+    // usually the bulk of texture memory. It keys that array by mesh, so it is
+    // still found after customizeTileMaterial swaps the material out.
+    const overlayParams = (this.overlayPlugin as unknown as { meshParams?: WeakMap<THREE.Mesh, { layerMaps: { value: Array<THREE.Texture | null> } }> } | null)?.meshParams;
     // Every loaded model, not just `group`: the renderer detaches tiles that
     // leave the view but keeps their buffers cached until LRU disposal.
     this.tiles.forEachLoadedModel((scene: THREE.Object3D) => {
@@ -1622,6 +1611,7 @@ export class TerrainManager {
         // While a debug mode is on, the plugin holds the real material aside
         // (restored on 'none'); its textures are still allocated.
         countMaterial(originalDebugMaterial(mesh));
+        for (const tex of overlayParams?.get(mesh)?.layerMaps.value ?? []) countTexture(tex);
       });
     });
     const d = this.sampler.diagnostics;
