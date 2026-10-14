@@ -1379,7 +1379,7 @@ export class BodyMesh extends THREE.Object3D {
         const resp = await fetch(url);
         const buf = await resp.arrayBuffer();
         const loader = new DDSLoader();
-        const texData = loader.parse(buf, false);
+        const texData = loader.parse(buf, true);
         const tex = new THREE.CompressedTexture(
           texData.mipmaps, texData.width, texData.height,
           texData.format as THREE.CompressedPixelFormat,
@@ -1506,7 +1506,9 @@ export class BodyMesh extends THREE.Object3D {
 
   private parseDDSBuffer(buffer: ArrayBuffer): THREE.CompressedTexture {
     const loader = new DDSLoader();
-    const texData = loader.parse(buffer, false);
+    // Retain authored minification levels: base-level-only DDS sampling aliases
+    // detailed imagery into grain on distant bodies and narrow-FOV instruments.
+    const texData = loader.parse(buffer, true);
     const texture = new THREE.CompressedTexture(
       texData.mipmaps,
       texData.width,

@@ -22,6 +22,22 @@ atmosphere GPU pass. Use the same browser and machine for before/after timings.
 The images live in `apps/viewer/test-screenshots/__goldens__/` and should be
 reviewed before updating them.
 
+Camera-dependent atmosphere state is refreshed after tracking and surface
+clamping, using the current frame's eclipse occluders. Instrument views refresh
+surface transport and the sky lookup for their own observer, then restore the
+main observer. The Cassini regression exercises several-hour time jumps during
+a camera flight, the ISS NAC view, and a clamped observer inside Earth's shell:
+
+```sh
+CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/test-atmosphere-views.mjs
+```
+
+This also captures distant Enceladus with and without its authored DDS mipmaps
+at identical framing. Globe, tiled-base-map, and ring DDS loading retain these
+levels to avoid noisy minification. Captures are written to
+`apps/viewer/test-screenshots/atmosphere-views/` (override with
+`RENDER_CAPTURE_DIR`). The browser requires the local Cassini example assets.
+
 ## Starting measurements
 
 On 2026-10-02, local Chromium SwiftShader at 1024×768, six warm frames:
