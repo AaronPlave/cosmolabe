@@ -16,6 +16,7 @@ import {
   type SpatialEndpoint,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
+import { patchLogDepthPrecision } from './LogDepth.js';
 import { SunGlareEffect } from './SunGlareEffect.js';
 import { SOLAR_LAYER, type SunVisual } from './SunVisual.js';
 import { RingMesh } from './RingMesh.js';
@@ -428,6 +429,7 @@ export class UniverseRenderer {
     this.cacheWorker = options.cacheWorker;
 
     // Renderer
+    patchLogDepthPrecision();
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: options.antialias ?? true,
