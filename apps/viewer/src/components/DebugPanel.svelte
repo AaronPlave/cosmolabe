@@ -31,6 +31,9 @@
     'cpu-coverage': 'Green: CPU heights decoded · amber: split from parent',
     'datum-height': 'Mean height vs datum: blue below · red above',
     'seam-error': 'Edge mismatch vs neighbours: green 0 → red ≥ 5 m · grey: none cached',
+    'cube-face': 'Cube-sphere face hue, brighter with depth (#149 experiment)',
+    'imagery-level': 'Cube imagery: hue per displayed imagery level, independent of tile depth (#149)',
+    'imagery-unlit': 'Cube imagery texels, unlit and unconverted (#149 registration checks)',
   };
 
   /**

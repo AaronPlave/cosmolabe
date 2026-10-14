@@ -16,6 +16,7 @@ import {
   type SpatialEndpoint,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
+import { patchLogDepthPrecision } from './LogDepth.js';
 import { SunGlareEffect } from './SunGlareEffect.js';
 import { SOLAR_LAYER, type SunVisual } from './SunVisual.js';
 import { RingMesh } from './RingMesh.js';
@@ -85,6 +86,8 @@ interface SurfaceRayHit {
   bm: BodyMesh;
   source: SurfaceHitSource;
   normal: THREE.Vector3 | null;
+  /** On a cube-sphere skirt (#149): the wall under a mixed-LOD gap, not the surface. */
+  renderedSkirt: boolean;
 }
 
 /** @deprecated Prefer `pickScene(x, y, 'probe')` and its `SurfacePoint`. */
@@ -103,7 +106,25 @@ export interface SurfacePickResult {
   bodyFixedHitKm: readonly [number, number, number];
   /** The same hit as a surface point with explicit source and datum. */
   point: SurfacePoint;
+  /**
+   * The same camera ray answered by the body's CPU terrain through the #148
+   * ray-query port, when it has one (experimental cube-sphere grids, #149).
+   * Independent of rendered meshes; `renderedOffsetKm` is its distance from
+   * the rendered hit above.
+   */
+  physical?: PhysicalPickSummary;
+  /**
+   * The rendered hit is on a cube-sphere skirt (#149): the wall that covers a
+   * mixed-LOD gap, seen through it, not the surface. `physical` still answers
+   * from the CPU surface; the two differ by at most that gap.
+   */
+  renderedSkirt?: boolean;
 }
+
+export type PhysicalPickSummary =
+  | { kind: 'hit'; detail: 'sufficient' | 'coarse'; tileId?: string; bodyFixedKm: readonly [number, number, number];
+      normal: readonly [number, number, number]; renderedOffsetKm: number; sourceVersion?: string }
+  | { kind: 'miss' | 'unavailable'; reason?: string };
 
 export interface UniverseRendererOptions {
   /** km → scene units. Default 1e-6 (1 km = 0.000001 scene units) for solar system scale */
@@ -429,6 +450,7 @@ export class UniverseRenderer {
     this.cacheWorker = options.cacheWorker;
 
     // Renderer
+    patchLogDepthPrecision();
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: options.antialias ?? true,
@@ -2436,7 +2458,8 @@ export class UniverseRenderer {
   pickSurface(ndcX: number, ndcY: number): SurfacePickResult | null {
     const hit = this._discoverSurface(ndcX, ndcY);
     if (!hit) return null;
-    const { point } = hit;
+    const { point, ray } = hit;
+    const physical = this.physicalPick(ray.bm, ray.bm.getWorldPosition(new THREE.Vector3()), point.bodyFixedPositionKm, hit.cameraRangeKm);
     return {
       bodyName: point.bodyName,
       latDeg: point.latDeg,
@@ -2445,6 +2468,28 @@ export class UniverseRenderer {
       cameraDistanceKm: hit.cameraRangeKm,
       bodyFixedHitKm: point.bodyFixedPositionKm,
       point,
+      ...(physical ? { physical } : {}),
+      ...(ray.renderedSkirt ? { renderedSkirt: true } : {}),
+    };
+  }
+
+  /** Answer a pick ray with the body's CPU surface (#148), from the camera through the rendered hit. */
+  private physicalPick(bm: BodyMesh, bodyCenter: THREE.Vector3, hitKm: readonly [number, number, number], distanceKm: number): PhysicalPickSummary | null {
+    const cam = this.camera.position.clone().sub(bodyCenter).divideScalar(this.scaleFactor)
+      .applyQuaternion(bm.mesh.quaternion.clone().invert());
+    const origin = { xKm: cam.x, yKm: -cam.z, zKm: cam.y };
+    const direction = [hitKm[0] - origin.xKm, hitKm[1] - origin.yKm, hitKm[2] - origin.zKm] as const;
+    if (Math.hypot(...direction) === 0) return null;
+    // Twice the rendered distance: a coarser CPU surface may lie behind the rendered one.
+    const result = bm.intersectTerrainRay({ origin, direction, nearKm: 0, farKm: distanceKm * 2 }, { maxMeshErrorKm: 0.001 });
+    if (!result) return null;
+    if (result.kind !== 'hit') return { kind: result.kind, ...(result.kind === 'unavailable' ? { reason: result.reason } : {}) };
+    const p = result.position;
+    return {
+      kind: 'hit', detail: result.detail, tileId: result.tileId, normal: result.normal,
+      bodyFixedKm: [p.xKm, p.yKm, p.zKm],
+      renderedOffsetKm: Math.hypot(p.xKm - hitKm[0], p.yKm - hitKm[1], p.zKm - hitKm[2]),
+      sourceVersion: result.metadata.source.version,
     };
   }
 
@@ -2529,6 +2574,7 @@ export class UniverseRenderer {
     let bestWorldPoint: THREE.Vector3 | null = null;
     let bestBm: BodyMesh | null = null;
     let bestDist = Infinity;
+    let renderedSkirt = false;
     let source: SurfaceHitSource = 'ellipsoid';
     let bestNormal: THREE.Vector3 | null = null;
 
@@ -2537,6 +2583,8 @@ export class UniverseRenderer {
       if (hit.distance < bestDist) {
         bestDist = hit.distance;
         bestWorldPoint = hit.point.clone();
+        const surfaceTriangles = (hit.object as THREE.Mesh).geometry?.userData?.surfaceTriangles;
+        renderedSkirt = typeof surfaceTriangles === 'number' && hit.faceIndex != null && hit.faceIndex >= surfaceTriangles;
         bestNormal = surfaceNormalWorld(hit);
         for (const bm of this.bodyMeshes.values()) {
           let obj: THREE.Object3D | null = hit.object;
@@ -2557,6 +2605,7 @@ export class UniverseRenderer {
       const hit = tileHits[0];
       bestWorldPoint = hit.point.clone().add(this.camera.position);
       bestBm = null;
+      renderedSkirt = false;
       bestDist = hit.distance;
       bestNormal = tileNormal;
       source = 'surface-overlay';
@@ -2569,7 +2618,7 @@ export class UniverseRenderer {
     }
 
     if (!bestWorldPoint || !bestBm) return null;
-    return { worldPoint: bestWorldPoint, distance: bestDist, bm: bestBm, source, normal: bestNormal };
+    return { worldPoint: bestWorldPoint, distance: bestDist, bm: bestBm, source, normal: bestNormal, renderedSkirt };
   }
 
   /**
@@ -2577,7 +2626,7 @@ export class UniverseRenderer {
    * `SurfacePoint`. Globe meshes, terrain tiles and camera-relative surface
    * overlays are all candidates; overlays win because they draw on top.
    */
-  private _discoverSurface(ndcX: number, ndcY: number): { point: SurfacePoint; cameraRangeKm: number } | null {
+  private _discoverSurface(ndcX: number, ndcY: number): { point: SurfacePoint; cameraRangeKm: number; ray: SurfaceRayHit } | null {
     // Reused: this runs every frame the pointer moves while probing.
     const raycaster = this._surfaceRaycaster;
     raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
@@ -2594,7 +2643,7 @@ export class UniverseRenderer {
       const normal = hit.normal ?? hit.worldPoint.clone().sub(center).normalize();
       return pointerResolution(pixelSpanKm, normal.dot(raycaster.ray.direction), radiusKm, latDeg);
     });
-    return point ? { point, cameraRangeKm } : null;
+    return point ? { point, cameraRangeKm, ray: hit } : null;
   }
 
   /**

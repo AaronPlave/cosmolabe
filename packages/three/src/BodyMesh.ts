@@ -8,6 +8,8 @@ import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
 import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics } from './TerrainSampler.js';
+import type { CubeCoverage } from './surface/CubeSphereGrids.js';
+import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import type { ImageryLayerInfo } from './ImageryLayers.js';
 
 /**
@@ -1008,7 +1010,7 @@ export class BodyMesh extends THREE.Object3D {
 
   /** Current CPU terrain cache state for diagnostics and UI. */
   get terrainDiagnostics(): TerrainSamplerDiagnostics | null {
-    return this.terrainManager?.sampler.diagnostics ?? null;
+    return this.terrainManager?.cpuDiagnostics ?? null;
   }
 
   /** The terrain product's declared datum, or null when this body has no streamed terrain. */
@@ -1018,7 +1020,27 @@ export class BodyMesh extends THREE.Object3D {
 
   /** Configured terrain source identifier for diagnostics and UI. */
   get terrainSourceId(): string | null {
-    return this.terrainManager?.sampler.source.id ?? null;
+    return this.terrainManager?.cpuSource.id ?? null;
+  }
+
+  /** Experimental cube-sphere CPU coverage at a point (#149); null when the terrain has no cube grids. */
+  terrainCubeCoverage(latDeg: number, lonDeg: number): CubeCoverage | null {
+    return this.terrainManager?.cubeCoverage(latDeg, lonDeg) ?? null;
+  }
+
+  /** Experimental cube-sphere CPU grid residency (#149); null when the terrain has no cube grids. */
+  get terrainCubeStats(): TerrainManager['cubeStats'] {
+    return this.terrainManager?.cubeStats ?? null;
+  }
+
+  /** Experimental cube-face imagery residency/requests/blocks (#149); null when the terrain has no cube imagery. */
+  get terrainCubeImageryStats(): TerrainManager['cubeImageryStats'] {
+    return this.terrainManager?.cubeImageryStats ?? null;
+  }
+
+  /** #148 ray query against CPU terrain in body-fixed km; null when this terrain has no Cartesian CPU surface. */
+  intersectTerrainRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection | null {
+    return this.terrainManager?.intersectSurfaceRay(ray, options) ?? null;
   }
 
   /**

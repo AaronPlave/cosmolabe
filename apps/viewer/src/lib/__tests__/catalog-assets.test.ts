@@ -54,6 +54,7 @@ describe('absolutizeCatalogAssets', () => {
             terrain: {
               type: 'quantized-mesh',
               url: '../terrain/',
+              cubeSphere: { cpuGrids: '../terrain/cpu-grids.json', imagery: { url: '../imagery/imagery.json' } },
               imagery: [{ url: '../tiles/{z}/{y}/{x}.jpg' }, { url: 'https://trek.example/{z}/{y}/{x}.jpg' }],
             },
             surfaceTiles: [{ name: 'Site', url: 'site/tileset.json' }],
@@ -82,6 +83,8 @@ describe('absolutizeCatalogAssets', () => {
     expect(planet.geometry.baseMap).toBe('https://mission.example/catalogs/textures/planet.jpg');
     expect(planet.geometry.normalMap).toBe('https://mission.example/catalogs/scenes/textures/planet-normal.jpg');
     expect(planet.geometry.terrain.url).toBe('https://mission.example/catalogs/terrain/');
+    expect(planet.geometry.terrain.cubeSphere.cpuGrids).toBe('https://mission.example/catalogs/terrain/cpu-grids.json');
+    expect(planet.geometry.terrain.cubeSphere.imagery.url).toBe('https://mission.example/catalogs/imagery/imagery.json');
     expect(planet.geometry.terrain.imagery.map((i: any) => i.url)).toEqual([
       'https://mission.example/catalogs/tiles/{z}/{y}/{x}.jpg',
       'https://trek.example/{z}/{y}/{x}.jpg',
