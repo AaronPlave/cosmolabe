@@ -122,6 +122,9 @@
       return layer.bounds ? { text: 'Out of view', tone: 'muted', title: `Covers ${formatBounds(layer.bounds)}; none of it is in view` } : null;
     }
     if (v.zoomLevel !== null && v.zoomLevel < layer.minZoom) {
+      if (v.cacheFull) {
+        return { text: 'Cache full', tone: 'warn', title: 'The tile cache is full, so finer tiles cannot load here; raise maxCacheBytes in the catalog’s terrain block' };
+      }
       return { text: 'Zoom in', tone: 'muted', title: 'Too far out for this layer’s data; zoom closer to see it' };
     }
     if (v.missingTiles > 0) {

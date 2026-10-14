@@ -67,6 +67,8 @@ export interface ImageryLayerView {
   missingTiles: number;
   /** Source tiles in view that failed and are drawn from a coarser tile instead. */
   degradedTiles: number;
+  /** The tile cache is full, so the renderer has stopped refining: zoom levels in view are capped by memory, not the camera. */
+  cacheFull: boolean;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);

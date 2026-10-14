@@ -278,7 +278,10 @@ describe('TerrainManager imagery layer controls', () => {
     // Level 6 is 128 × 64 tiles, y from the north: Jezero's sliver is x 91, y 25.
     degraded.set('ctx', new Set(['6/91/25', '6/0/0']));
     (tileInfo('ctx').get(near) as { failed: boolean }).failed = true;
-    expect(tm.imageryLayers.find((l) => l.id === 'ctx')!.view).toMatchObject({ degradedTiles: 1, missingTiles: 1 });
+    expect(tm.imageryLayers.find((l) => l.id === 'ctx')!.view).toMatchObject({ degradedTiles: 1, missingTiles: 1, cacheFull: false });
+    // A full cache stops refinement; the view says so, so "Zoom in" is not blamed on the camera.
+    tm.tiles.lruCache.maxBytesSize = 0;
+    expect(tm.imageryLayers.find((l) => l.id === 'ctx')!.view!.cacheFull).toBe(true);
     tm.dispose();
   });
 

@@ -1384,7 +1384,8 @@ export class TerrainManager {
     const { tiling } = overlay;
     const degraded = this.degradedTiles.get(layer.id);
     const degradedInView = new Set<string>();
-    const view: ImageryLayerView = { inCoverage: false, zoomLevel: null, missingTiles: 0, degradedTiles: 0 };
+    const cacheFull = (this.tiles.lruCache as unknown as { isFull(): boolean }).isFull();
+    const view: ImageryLayerView = { inCoverage: false, zoomLevel: null, missingTiles: 0, degradedTiles: 0, cacheFull };
     for (const tile of visibleTiles) {
       const bv = (tile as { engineData?: { boundingVolume?: TileVolume } }).engineData?.boundingVolume;
       if (this.mainView && bv && !tileInMainView(bv, this.mainView.frustum, this.mainView.eye)) continue;
