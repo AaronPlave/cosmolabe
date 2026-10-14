@@ -7,6 +7,9 @@ import type { EtInterval, EtSeconds } from './types.js';
  * integration — is Cosmolabe's. Everything below it is CSPICE's, and stays
  * there: event kinds compose GF calls, they do not reimplement the geometry.
  *
+ * GF methods optionally report a 0–1 fraction for that call. Providers without
+ * a reporter can ignore the callback.
+ *
  * The signatures mirror CSPICE's `gf*_c` routines so a synchronous `Spice`
  * instance satisfies this interface structurally, with no adapter. The
  * worker-backed `@cosmolabe/cspice-wasm` engine answers asynchronously and
@@ -18,7 +21,7 @@ export interface GeometryFinderProvider {
   gfdist(
     target: string, abcorr: string, observer: string,
     relate: string, refval: number,
-    adjust: number, step: EtSeconds, cnfine: EtInterval[],
+    adjust: number, step: EtSeconds, cnfine: EtInterval[], onProgress?: (fraction: number) => void,
   ): Awaitable<EtInterval[]>;
 
   /** Intervals where apparent angular separation (rad) satisfies `relate` vs `refval`. */
@@ -27,7 +30,7 @@ export interface GeometryFinderProvider {
     target2: string, shape2: string, frame2: string,
     abcorr: string, observer: string,
     relate: string, refval: number,
-    adjust: number, step: EtSeconds, cnfine: EtInterval[],
+    adjust: number, step: EtSeconds, cnfine: EtInterval[], onProgress?: (fraction: number) => void,
   ): Awaitable<EtInterval[]>;
 
   /** Intervals where `back` is occulted by `front` as seen from the observer. */
@@ -35,7 +38,7 @@ export interface GeometryFinderProvider {
     occtyp: string, front: string, fshape: string, fframe: string,
     back: string, bshape: string, bframe: string,
     abcorr: string, observer: string,
-    step: EtSeconds, cnfine: EtInterval[],
+    step: EtSeconds, cnfine: EtInterval[], onProgress?: (fraction: number) => void,
   ): Awaitable<EtInterval[]>;
 
   /**
@@ -66,7 +69,7 @@ export interface GeometryFinderProvider {
   gfposc(
     target: string, frame: string, abcorr: string, observer: string,
     crdsys: string, coord: string, relate: string, refval: number,
-    adjust: number, step: EtSeconds, cnfine: EtInterval[],
+    adjust: number, step: EtSeconds, cnfine: EtInterval[], onProgress?: (fraction: number) => void,
   ): Awaitable<EtInterval[]>;
 }
 
