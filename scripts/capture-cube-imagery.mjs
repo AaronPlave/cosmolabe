@@ -163,7 +163,7 @@ async function openViewer(catalog, setup) {
   if (args['log-depth-fix']) await page.route(/\/\.vite\/deps\/chunk-.*\.js/, async (route) => {
     const res = await route.fetch();
     const body = (await res.text()).replace('vFragDepth = 1.0 + gl_Position.w;', 'vFragDepth = 1.0 + 1e9 * gl_Position.w;')
-      .replace('log2( vFragDepth ) * logDepthBufFC * 0.5', 'log2( vFragDepth ) / log2( 1.0 + 1e9 * ( exp2( 2.0 / logDepthBufFC ) - 1.0 ) )');
+      .replace('log2( vFragDepth ) * logDepthBufFC * 0.5', 'log2( vFragDepth ) / ( 29.897352853986263 + 2.0 / logDepthBufFC )');
     await route.fulfill({ response: res, body });
   });
   if (setup) await setup(page);
