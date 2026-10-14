@@ -233,6 +233,38 @@ describe('clipping a geometry tile into imagery blocks', () => {
     }
   });
 
+  it('partitions a simplified tile too: large triangles over a subset of the lattice, vertices compacted', () => {
+    // Like `cube-tile --simplify`: every edge vertex kept, the interior reduced to one centre vertex,
+    // so each triangle fans across half the tile and most blocks cut through its interior.
+    const tile = { face: 'px' as CubeFace, level: 3, x: 7, y: 7 }, n = 9; // the px/py/nz corner tile
+    const full = lattice(tile, n);
+    const k = [...Array(n).keys()];
+    const loop = [...k, ...k.slice(1).map(i => i * n + n - 1), ...k.slice(1).map(i => (n - 1) * n + n - 1 - i), ...k.slice(1, -1).map(i => (n - 1 - i) * n)];
+    const keep = [...loop, (n * n - 1) / 2];
+    const position = new Float64Array(keep.flatMap(v => [0, 1, 2].map(c => full.position[3 * v + c])));
+    const uvw = new Float64Array(keep.flatMap(v => [0, 1, 2].map(c => full.uvw[3 * v + c])));
+    const index = loop.flatMap((_, i) => [i, (i + 1) % loop.length, keep.length - 1]);
+    const total = area(position, index);
+    for (const depth of [1, 3, 5]) {
+      let sum = 0;
+      const m = 2 ** depth;
+      for (let bx = 0; bx < m; bx++) for (let by = 0; by < m; by++) {
+        const rect = blockRectInTile(tile, { face: tile.face, level: tile.level + depth, x: tile.x * m + bx, y: tile.y * m + by });
+        const out = clipTrianglesToTileRect([{ array: position, itemSize: 3 }, { array: uvw, itemSize: 3 }], 1, index, rect);
+        sum += area(out.attributes[0], out.index);
+        expect(out.index.length).toBeGreaterThan(0); // the fan covers every block
+        for (let v = 0; v < out.vertexCount; v++) {
+          const [a, b, w] = [0, 1, 2].map(c => out.attributes[1][3 * v + c]);
+          expect(a / w).toBeGreaterThanOrEqual(rect[0] - 1e-6);
+          expect(a / w).toBeLessThanOrEqual(rect[1] + 1e-6);
+          expect(b / w).toBeGreaterThanOrEqual(rect[2] - 1e-6);
+          expect(b / w).toBeLessThanOrEqual(rect[3] + 1e-6);
+        }
+      }
+      expect(Math.abs(sum - total) / total).toBeLessThan(1e-6);
+    }
+  });
+
   it('keeps skirts, which lie in the tile-boundary planes, exactly once and textured like their edge', () => {
     const tile = { face: 'nz' as CubeFace, level: 6, x: 31, y: 32 }, n = 9, depth = 40;
     const { position, centre } = lattice(tile, n);
