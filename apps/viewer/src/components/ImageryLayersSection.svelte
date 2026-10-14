@@ -12,9 +12,9 @@
    * A selected rover or spacecraft shows its parent's imagery, since that is
    * the surface it sits on.
    */
-  import { vs, getRenderer } from '../lib/viewer-state.svelte';
+  import { vs, getRenderer, flyToRegion } from '../lib/viewer-state.svelte';
   import { layerCovers, type ImageryLayerInfo, type SurfaceTransitionState } from '@cosmolabe/three';
-  import { ArrowDown, ArrowUp } from 'lucide-svelte';
+  import { ArrowDown, ArrowUp, Crosshair } from 'lucide-svelte';
 
   let open = $state(rememberedOpen);
   $effect(() => { rememberedOpen = open; });
@@ -88,6 +88,12 @@
     rev++;
   }
 
+  /** Outline a regional layer's footprint on the globe while its row is hovered. */
+  function highlight(layer: ImageryLayerInfo | null) {
+    bodyMesh()?.showImageryFootprint(layer?.bounds ?? null);
+  }
+  $effect(() => () => highlight(null));
+
   const STATE_LABEL: Record<SurfaceTransitionState, string> = {
     static: 'Static map',
     preloading: 'Static map · preloading',
@@ -155,7 +161,12 @@
       {#each topFirst as layer, i (layer.id)}
         {@const b = badge(layer, surface)}
         {@const stackIndex = surface.layers.length - 1 - i}
-        <li class="layer" class:off={!layer.visible}>
+        <li
+          class="layer"
+          class:off={!layer.visible}
+          onmouseenter={() => layer.bounds && highlight(layer)}
+          onmouseleave={() => highlight(null)}
+        >
           <div class="flex items-center gap-1.5">
             <input
               type="checkbox"
@@ -167,6 +178,12 @@
             />
             <span class="layer-name ui-body text-text-primary" title={layer.name}>{layer.name}</span>
             <span class="badge" data-tone={b.tone} title={b.title}>{b.text}</span>
+            {#if layer.bounds}
+              {@const bounds = layer.bounds}
+              <button class="layer-action" onclick={() => flyToRegion(surface.body, bounds)} title="Fly to this layer" aria-label="Fly to {layer.name}">
+                <Crosshair size={11} />
+              </button>
+            {/if}
           </div>
           <div class="ui-meta layer-details" title={layer.bounds ? formatBounds(layer.bounds) : 'Global coverage'}>{details(layer)}</div>
           {#if layer.role === 'overlay' && layer.visible}

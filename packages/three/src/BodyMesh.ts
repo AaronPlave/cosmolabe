@@ -7,7 +7,7 @@ import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
-import type { BodyFixedCartesian, BodyFixedPosition, TerrainDatum, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
+import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import type { ImageryLayerInfo } from './ImageryLayers.js';
 
 /**
@@ -88,6 +88,7 @@ export class BodyMesh extends THREE.Object3D {
   private axesVisible = false;
   /** Lat/lon grid overlay */
   private gridLines: THREE.Group | null = null;
+  private imageryFootprint: THREE.Group | null = null;
   private gridVisible = false;
   /** Scene scale factor (km → scene units). Set each frame by updatePosition. */
   scaleFactor = 1;
@@ -1217,6 +1218,73 @@ export class BodyMesh extends THREE.Object3D {
     this.terrainManager?.setOverlayResolution(px);
   }
 
+  /**
+   * A geodetic position on the streamed surface's ellipsoid (the one imagery
+   * tiles lie on), as an offset from the body centre in world axes and km.
+   * Null without a streamed surface.
+   */
+  geodeticOffsetKm(latDeg: number, lonDeg: number, heightKm: number, out: THREE.Vector3): THREE.Vector3 | null {
+    const datum = this.terrainDatum;
+    if (!datum) return null;
+    const p = geodeticToBodyFixed({ latDeg, lonDeg, heightKm }, datum);
+    // Body-fixed is Z-up; the sphere's geometry space is Y-up with -Z toward +90° lon.
+    return out.set(p.xKm, p.zKm, -p.yKm).applyQuaternion(this.mesh.quaternion);
+  }
+
+  /**
+   * Outline a geodetic lat/lon box `[west, south, east, north]` (degrees) on
+   * the surface, with a dot at its centre that stays visible from afar; null
+   * clears it. Drawn over everything, so it shows on the far side too.
+   */
+  showImageryFootprint(bounds: readonly [number, number, number, number] | null): void {
+    if (this.imageryFootprint) {
+      this.remove(this.imageryFootprint);
+      this.imageryFootprint.traverse((o) => {
+        if (o instanceof THREE.Line || o instanceof THREE.Points) {
+          o.geometry.dispose();
+          (o.material as THREE.Material).dispose();
+        }
+      });
+      this.imageryFootprint = null;
+    }
+    const datum = this.terrainDatum;
+    if (!bounds || !datum) return;
+    const [w, s, e0, n] = bounds;
+    const e = e0 < w ? e0 + 360 : e0;
+    // In the sphere's geometry space, unscaled, so the mesh's own transform
+    // (which carries the oblateness) puts it back on the ellipsoid.
+    const [rx, ry, rz] = this.ellipsoidRatios;
+    const at = (latDeg: number, lonDeg: number) => {
+      const p = geodeticToBodyFixed({ latDeg, lonDeg }, datum);
+      return new THREE.Vector3(p.xKm / rx, p.zKm / ry, -p.yKm / rz);
+    };
+    const steps = 32;
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i < steps; i++) pts.push(at(s, w + (e - w) * i / steps));
+    for (let i = 0; i < steps; i++) pts.push(at(s + (n - s) * i / steps, e));
+    for (let i = 0; i < steps; i++) pts.push(at(n, e - (e - w) * i / steps));
+    for (let i = 0; i < steps; i++) pts.push(at(n - (n - s) * i / steps, w));
+    const color = 0xffcc33;
+    const outline = new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color, depthTest: false, depthWrite: false, transparent: true }),
+    );
+    const dot = new THREE.Points(
+      new THREE.BufferGeometry().setFromPoints([at((s + n) / 2, (w + e) / 2)]),
+      new THREE.PointsMaterial({ color, size: 7, sizeAttenuation: false, depthTest: false, depthWrite: false, transparent: true }),
+    );
+    const group = new THREE.Group();
+    for (const o of [outline, dot]) {
+      o.renderOrder = 999;
+      o.frustumCulled = false;
+      // Ride on the sphere's transform even while streamed tiles hide it.
+      o.onBeforeRender = () => { o.matrixWorld.copy(this.mesh.matrixWorld); };
+      group.add(o);
+    }
+    this.imageryFootprint = group;
+    this.add(group);
+  }
+
   // ---------------------------------------------------------------------------
   // Surface tile overlays (local-frame tilesets positioned on the globe)
   // ---------------------------------------------------------------------------
@@ -1673,6 +1741,7 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   dispose(): void {
+    this.showImageryFootprint(null);
     for (const overlay of this.surfaceOverlays) overlay.dispose();
     this.surfaceOverlays.length = 0;
     this.terrainManager?.dispose();

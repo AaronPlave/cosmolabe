@@ -767,6 +767,31 @@ export function gotoObject(
   return true;
 }
 
+/**
+ * Fly over a lat/lon box `[west, south, east, north]` (degrees) on `bodyName`,
+ * looking straight down with north up, close enough that the box fills the view.
+ */
+export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number]): boolean {
+  if (!_renderer) return false;
+  const bm = _renderer.getBodyMesh(bodyName);
+  if (!bm) return false;
+  const [w, s, e0, n] = bounds;
+  const e = e0 < w ? e0 + 360 : e0;
+  const rad = Math.PI / 180;
+  const cam = _renderer.camera;
+  const heightKm = (n - s) * rad * bm.displayRadius;
+  const widthKm = (e - w) * rad * bm.displayRadius * Math.cos((s + n) / 2 * rad);
+  const altitudeKm = 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
+  const position = bm.geodeticOffsetKm((s + n) / 2, (w + e) / 2, altitudeKm, new THREE.Vector3());
+  if (!position) return false;
+  position.multiplyScalar(_renderer.scaleFactor);
+  const north = new THREE.Vector3(0, 1, 0).applyQuaternion(bm.mesh.quaternion);
+  // Tracked, the body is the scene origin (from the next frame, after a switch).
+  if (vs.trackedBodyName !== bodyName) trackBody(bodyName);
+  _renderer.cameraController.goTo(position, new THREE.Vector3(), north, 1.5);
+  return true;
+}
+
 /** Release the tracked object. The camera stays where it is. */
 export function untrack() {
   if (!_renderer) return;

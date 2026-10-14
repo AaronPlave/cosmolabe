@@ -151,11 +151,9 @@ export interface TerrainConfig {
    *  `tile.geometricError` outright, which produces visible terraces. Ignored
    *  when `skirtLength` is set (skirtLength wins). */
   skirtScale?: number;
-  /** `TilesFadePlugin` fade duration in ms. When unset, the fade plugin is
-   *  disabled (was 300 ms by default — caused visible jitter on high-zoom
-   *  HiRISE tiles while the camera was moving, as tiles streaming in/out
-   *  triggered fade animations every frame). Set to a positive number to
-   *  re-enable. */
+  /** `TilesFadePlugin` LOD crossfade in ms; 0 disables it. Defaults to 300,
+   *  or 0 for an imagery-only Globe: its parent and child tiles lie on the
+   *  same ellipsoid, so wherever both draw mid-fade they z-fight. */
   fadeDurationMs?: number;
   /** ImageOverlayPlugin per-terrain-tile composited texture resolution in
    *  pixels. When unset the plugin uses its built-in default of 256. Each
@@ -658,8 +656,12 @@ export class TerrainManager {
             this.tiles.registerPlugin(new XYZTilesPlugin({
               url: baseImg.url,
               levels: baseImg.levels ?? 8,
+              // The same default as overlays. Upstream's is Web Mercator, which
+              // put an equirectangular base (all of Trek) in the wrong place.
+              // Supported at runtime, missing from the shipped typings.
+              projection: baseImg.projection ?? 'EPSG:4326',
               ...basePluginOpts,
-            }));
+            } as ConstructorParameters<typeof XYZTilesPlugin>[0]));
           });
 
       // Base layer time substitution. The WMTSTilesPlugin / XYZTilesPlugin
@@ -773,12 +775,11 @@ export class TerrainManager {
       }
     }
 
-    // Fade between LOD transitions to smooth color differences between zoom levels.
-    // Default 300 ms preserves existing behavior. Set `fadeDurationMs: 0` in
-    // the catalog to disable — useful for HiRISE-detail tilesets where the
-    // fade animation can cause visible jitter as tiles stream in/out while
-    // the camera is moving.
-    const fadeMs = config.fadeDurationMs ?? 300;
+    // Fade between LOD transitions to smooth color differences between zoom
+    // levels. Off by default for imagery-only (see `fadeDurationMs`); set it
+    // to 0 in the catalog for HiRISE-detail terrain, where the fade can jitter
+    // as tiles stream in/out while the camera is moving.
+    const fadeMs = config.fadeDurationMs ?? (this.isImageryOnly ? 0 : 300);
     if (fadeMs > 0) {
       this.tiles.registerPlugin(new TilesFadePlugin({ fadeDuration: fadeMs }));
     }

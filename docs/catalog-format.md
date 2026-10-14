@@ -157,7 +157,7 @@ The bottom layer is the **base**: it should cover the whole body, and it is alwa
 | `type` | `xyz` (default), `tms`, `wms`, `wmts`, `wmts-capabilities` |
 | `levels` | Number of zoom levels the source has (the deepest is `levels − 1`). Default 8 |
 | `dimension` | Tile size in pixels. Default 256 |
-| `projection` | `EPSG:4326` (default) or `EPSG:3857`, for `xyz` |
+| `projection` | `EPSG:4326` (default) or `EPSG:3857`, for `xyz`. The default applies to the base layer too. Web Mercator sources such as GIBS `GoogleMapsCompatible` need `EPSG:3857`. |
 | `bounds` | Coverage `[west, south, east, north]` in degrees. Tiles outside it are not requested |
 | `minZoom` | First zoom level with data. Regional products have none below it |
 | `opacity`, `color` | Overlay opacity (0–1) and tint. Ignored on the base of an imagery-only Globe |
@@ -168,7 +168,7 @@ The bottom layer is the **base**: it should cover the whole body, and it is alwa
 
 **Distance transition.** From far away the Globe draws its static `baseMap`. Streaming starts once the body is `preloadAtPixels` (default 40) tall on screen, behind the static map. At `showAtPixels` (default 80) the streamed surface replaces it, but only once tiles are visible and the request queue has drained, or after 1.5 s of continuous loading if the camera keeps moving. Backing out returns to the static map. If the stream fails outright (the base layer cannot be set up, the root tileset fails, or tiles fail before any loads and nothing else is loading), the static map stays for the rest of the session and nothing more is requested. A failed overlay never triggers this, because the layers beneath it still render.
 
-**Imagery control.** Selecting a body (or a spacecraft on it) shows an *Imagery* section in its info panel. It lists the layers top first, with source, approximate native resolution and coverage. Overlays can be switched on and off, faded, and reordered. Each layer's status separates *Off* (switched off), *Not here* (the camera is outside the layer's bounds), *Standby* (the static map is showing), *Gaps* (some tiles failed) and *Unavailable* (the source failed). These settings last for the session and do not change the catalog. Switching a layer off stops its requests; opacity and order changes do not refetch tiles. At most ten layers can be shown at once.
+**Imagery control.** Selecting a body (or a spacecraft on it) shows an *Imagery* section in its info panel. It lists the layers top first, with source, approximate native resolution and coverage. Overlays can be switched on and off, faded, and reordered. Each layer's status separates *Off* (switched off), *Not here* (the camera is outside the layer's bounds), *Standby* (the static map is showing), *Gaps* (some tiles failed) and *Unavailable* (the source failed). These settings last for the session and do not change the catalog. Switching a layer off stops its requests; opacity and order changes do not refetch tiles. Hovering a regional layer outlines its footprint on the globe, and its crosshair button flies the camera over it. At most ten layers can be shown at once.
 
 `terrain.imagery` (below) is still accepted. When both are present, `imagery` wins and a warning is logged. Tuning fields for an imagery-only Globe (`showAtPixels`, `preloadAtPixels`, `overlayResolution`, `errorTarget`, …) go in a `terrain` block of `"type": "imagery"` with no layers of its own; it then takes the sibling stack:
 
@@ -198,16 +198,16 @@ On terrain (and for overlays on an imagery-only Globe), each terrain tile gets o
 
 Those textures count against the tile cache (`maxCacheBytes` in the `terrain` block, in bytes, default 512 MB). Memory is the limit, not frame time. When the composites fill the cache, the renderer stops refining and starts evicting tiles it still needs, so a higher resolution comes out blurrier, not sharper. Measured on an Apple M4 Max (Chrome, Metal), from a cold cache at each viewpoint:
 
-| Scene | R | Cache used | Tiles shown | Overlay requests | Settle |
+| Scene | R | Cache used | Tiles shown | Overlay requests (whole run) | Settle |
 |---|---|---|---|---|---|
-| Apollo 15 landing site (1 overlay) | 256 | 216 MB | 130 | 184 | 2.5 s |
-| | 512 | 307 MB | 130 | 573 | 7 s |
-| | 1024 | 516 MB (full) | 37 | 2080 | 31 s |
-| Jezero crater (3 overlays) | 256 | 302 MB | 166 | 94 | 2.3 s |
-| | 512 | 516 MB (full) | 82 | 339 | 5 s |
-| | 1024 | 517 MB (full) | 19 | 884 | 5.5 s |
+| Apollo 15 landing site (1 overlay) | 256 | 165 MB | 126 | 402 | 6 s |
+| | 512 | 307 MB | 126 | 1405 | 18 s |
+| | 1024 | 516 MB (full) | 25 | 5201 | 60 s |
+| Jezero crater (3 overlays) | 256 | 207 MB | 194 | 59 | 2 s |
+| | 512 | 512 MB (full) | 107 | 227 | 3 s |
+| | 1024 | 516 MB (full) | 20 | none new: loading stalled | – |
 
-At Jezero crater at 1024, HiRISE never loaded. Even with `maxCacheBytes` at 2 GB, the three-overlay stack at 1024 filled the cache. Frame cost stayed flat at every setting: 1–2 ms CPU and 1–5 ms GPU per frame, at a steady 120 fps. Compositing took under 20 ms of main-thread time per view in total. Going from 256 to 512 visibly sharpens the HiRISE close-up at Wright Brothers Field. Going from 512 to 1024 adds little, even with room in the cache.
+At Jezero crater at 1024, HiRISE never loaded. Even with `maxCacheBytes` at 2 GB, the three-overlay stack at 1024 filled the cache. Frame cost stayed flat at every setting: 1–2 ms CPU and 1–6 ms GPU per frame, at a steady 120 fps. Compositing took under 15 ms of main-thread time per view in total. Going from 256 to 512 visibly sharpens the HiRISE close-up at Wright Brothers Field. Going from 512 to 1024 adds little, even with room in the cache.
 
 Policy:
 

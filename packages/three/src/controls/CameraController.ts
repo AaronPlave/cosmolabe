@@ -347,6 +347,11 @@ export class CameraController {
     return true;
   }
 
+  /** Animate the camera to a pose in scene units. */
+  goTo(position: THREE.Vector3, target: THREE.Vector3, up: THREE.Vector3, duration = 1.0): void {
+    this._startAnimation(position.clone(), target.clone(), up.clone(), duration);
+  }
+
   /** Apply a viewpoint immediately (no animation) */
   applyViewpoint(vp: CameraViewpoint): void {
     this.cancelAnimation();

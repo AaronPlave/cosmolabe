@@ -231,6 +231,27 @@ describe('TerrainManager imagery layer controls', () => {
     tm.dispose();
   });
 
+  it('reads an XYZ base as equirectangular unless told otherwise, as overlays are', async () => {
+    const baseProjection = async (tm: TerrainManager) => {
+      await flush();
+      const base = (tm.tiles as unknown as { getPluginByName(n: string): { imageSource: { projection: string } } }).getPluginByName('XYZ_TILES_PLUGIN');
+      return base.imageSource.projection;
+    };
+    const trek = make();
+    const gibs = make({ imagery: { url: VIKING, levels: 8, projection: 'EPSG:3857' } });
+    expect([await baseProjection(trek), await baseProjection(gibs)]).toEqual(['EPSG:4326', 'EPSG:3857']);
+    [trek, gibs].forEach((tm) => tm.dispose());
+  });
+
+  it('crossfades LODs on terrain but not on the ellipsoid, where parent and child tiles z-fight', () => {
+    const fades = (tm: TerrainManager) => (tm.tiles as unknown as { plugins: Array<{ name?: string }> }).plugins.some((p) => p.name === 'FADE_TILES_PLUGIN');
+    const imagery = make();
+    const terrain = new TerrainManager({ type: 'quantized-mesh', url: 'https://example.invalid/t/' }, 3396.19, NO_RENDERER);
+    const opted = make({ fadeDurationMs: 300 });
+    expect([fades(imagery), fades(terrain), fades(opted)]).toEqual([false, true, true]);
+    [imagery, terrain, opted].forEach((tm) => tm.dispose());
+  });
+
   it('treats a failed root tileset as a failed stream', () => {
     const tm = new TerrainManager({ type: 'quantized-mesh', url: 'https://example.invalid/t/' }, 3396.19, NO_RENDERER);
     expect(tm.hasStreamFailed()).toBe(false);
