@@ -266,6 +266,8 @@ describe('TerrainManager imagery layer controls', () => {
     const visible = (tm.tiles as unknown as { visibleTiles: Set<object> }).visibleTiles;
     const view = () => Object.fromEntries(tm.imageryLayers.map((l) => [l.id, l.view && { in: l.view.inCoverage, z: l.view.zoomLevel }]));
 
+    // Nothing drawn yet: no verdict, rather than "out of view".
+    expect(view().ctx).toBeNull();
     visible.add(far);
     expect(view()).toEqual({ 'layer-0': null, ctx: { in: true, z: 3 }, hirise: { in: false, z: null } });
     visible.add(near);

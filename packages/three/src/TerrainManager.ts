@@ -1378,12 +1378,14 @@ export class TerrainManager {
     const overlay = this.activeOverlays.get(layer.id) as unknown as Overlay | undefined;
     const info = (this.overlayPlugin as unknown as { overlayInfo?: Map<unknown, { tileInfo: Map<unknown, { range: number[] | null; failed: boolean }> }> } | null)
       ?.overlayInfo?.get(overlay);
-    if (!overlay?.tiling || !info) return null;
+    const visibleTiles = (this.tiles as unknown as { visibleTiles: Set<unknown> }).visibleTiles;
+    // Nothing drawn yet, so nothing to judge.
+    if (!overlay?.tiling || !info || visibleTiles.size === 0) return null;
     const { tiling } = overlay;
     const degraded = this.degradedTiles.get(layer.id);
     const degradedInView = new Set<string>();
     const view: ImageryLayerView = { inCoverage: false, zoomLevel: null, missingTiles: 0, degradedTiles: 0 };
-    for (const tile of (this.tiles as unknown as { visibleTiles: Set<unknown> }).visibleTiles) {
+    for (const tile of visibleTiles) {
       const bv = (tile as { engineData?: { boundingVolume?: TileVolume } }).engineData?.boundingVolume;
       if (this.mainView && bv && !tileInMainView(bv, this.mainView.frustum, this.mainView.eye)) continue;
       const t = info.tileInfo.get(tile);

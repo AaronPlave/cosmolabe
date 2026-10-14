@@ -118,7 +118,8 @@
     const v = layer.view;
     if (!v) return layer.role === 'overlay' ? { text: 'Loading', tone: 'muted', title: 'Waiting for tiles' } : null;
     if (!v.inCoverage) {
-      return { text: 'Out of view', tone: 'muted', title: `Covers ${formatBounds(layer.bounds!)}; none of it is in view` };
+      // A global layer is out of view only when the globe is, which needs no badge.
+      return layer.bounds ? { text: 'Out of view', tone: 'muted', title: `Covers ${formatBounds(layer.bounds)}; none of it is in view` } : null;
     }
     if (v.zoomLevel !== null && v.zoomLevel < layer.minZoom) {
       return { text: 'Zoom in', tone: 'muted', title: 'Too far out for this layer’s data; zoom closer to see it' };
