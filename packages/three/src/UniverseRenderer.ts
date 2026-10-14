@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { surfaceTintHeightAtHit } from './SurfaceAppearance.js';
 import {
   CompositeTrajectory,
   SpiceTrajectory,
@@ -73,6 +74,8 @@ export interface SurfacePickResult {
   cameraDistanceKm: number;
   /** Exact rendered hit in body-fixed ECEF km, used to keep the marker on the clicked surface. */
   bodyFixedHitKm: readonly [number, number, number];
+  /** Approximate rendered elevation-color value at this hit, when tint is active. */
+  surfaceStyleHeightKm?: number;
 }
 
 export interface UniverseRendererOptions {
@@ -2142,7 +2145,13 @@ export class UniverseRenderer {
       const tg = bm.terrainTileGroup;
       if (tg && tg.visible) mainTargets.push(tg);
     }
-    const mainHits = raycaster.intersectObjects(mainTargets, true);
+    const visible = (hit: THREE.Intersection) => {
+      for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible) return false;
+      return true;
+    };
+    // Three raycasts cached hidden meshes too. A point pick must follow the
+    // currently visible LOD rather than a nearer, inactive cached tile.
+    const mainHits = raycaster.intersectObjects(mainTargets, true).filter(visible);
 
     // tileScene: surface tile overlays use camera-relative rendering (CRR).
     // Apply CRR transforms (camera at origin) before raycasting, then restore.
@@ -2171,7 +2180,7 @@ export class UniverseRenderer {
         }
       }
     }
-    const tileHits = tileRaycaster.intersectObjects(tileTargets, true);
+    const tileHits = tileRaycaster.intersectObjects(tileTargets, true).filter(visible);
     // Restore LOD transforms
     for (const { overlay, pos, quat, scale } of savedGroupState) {
       overlay.group.position.copy(pos);
@@ -2184,12 +2193,14 @@ export class UniverseRenderer {
     let bestWorldPoint: THREE.Vector3 | null = null;
     let bestBm: BodyMesh | null = null;
     let bestDist = Infinity;
+    let surfaceStyleHeightKm: number | undefined;
 
     if (mainHits.length > 0) {
       const hit = mainHits[0];
       if (hit.distance < bestDist) {
         bestDist = hit.distance;
         bestWorldPoint = hit.point.clone();
+        surfaceStyleHeightKm = surfaceTintHeightAtHit(hit);
         for (const bm of this.bodyMeshes.values()) {
           let obj: THREE.Object3D | null = hit.object;
           while (obj) {
@@ -2206,6 +2217,7 @@ export class UniverseRenderer {
       // Surface tiles render on top (depth cleared), so they're what the user sees.
       const hit = tileHits[0];
       bestWorldPoint = hit.point.clone().add(this.camera.position);
+      surfaceStyleHeightKm = undefined;
       bestBm = null;
       bestDist = hit.distance;
       let obj: THREE.Object3D | null = hit.object;
@@ -2254,6 +2266,7 @@ export class UniverseRenderer {
       altKm,
       cameraDistanceKm,
       bodyFixedHitKm: [ecefX, ecefY, ecefZ],
+      surfaceStyleHeightKm,
     };
   }
 

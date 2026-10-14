@@ -75,7 +75,7 @@ export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice 
 
 // Terrain
 export { DEFAULT_SURFACE_APPEARANCE, ELEVATION_PALETTES } from './SurfaceAppearance.js';
-export type { SurfaceAppearanceSettings, ElevationPalette } from './SurfaceAppearance.js';
+export type { SurfaceAppearanceSettings, SurfaceBaseColor, ElevationPalette } from './SurfaceAppearance.js';
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
 export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming } from './TerrainManager.js';
 export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';

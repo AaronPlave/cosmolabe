@@ -80,11 +80,13 @@ try {
           const now = performance.now(); intervals.push(now - previous); previous = now;
         }
         intervals.sort((a, b) => a - b);
-        let meshes = 0, heightBytes = 0, mapped = 0, minHeight = Infinity, maxHeight = -Infinity;
+        let meshes = 0, heightBytes = 0, groundBytes = 0, reliefNormalBytes = 0, mapped = 0, minHeight = Infinity, maxHeight = -Infinity;
         bm.terrainTileGroup.traverse(c => {
           if (!c.isMesh) return;
           meshes++;
           heightBytes += c.geometry.getAttribute('surfaceHeightKm')?.array.byteLength ?? 0;
+          groundBytes += c.geometry.getAttribute('surfaceGround')?.array.byteLength ?? 0;
+          reliefNormalBytes += c.geometry.getAttribute('surfaceReliefNormal')?.array.byteLength ?? 0;
           const heights = c.geometry.getAttribute('surfaceHeightKm')?.array ?? [];
           for (const h of heights) { minHeight = Math.min(minHeight, h); maxHeight = Math.max(maxHeight, h); }
           const materials = Array.isArray(c.material) ? c.material : [c.material];
@@ -92,7 +94,7 @@ try {
         });
         const gl = r.getContext().webglRenderer.getContext();
         const ext = gl.getExtension('WEBGL_debug_renderer_info');
-        return { medianFrameMs: intervals[45], p95FrameMs: intervals[85], meshes, mapped, heightBytes, minHeight, maxHeight, terrainRequests: bm.terrainMetrics.network.requests,
+        return { medianFrameMs: intervals[45], p95FrameMs: intervals[85], meshes, mapped, heightBytes, groundBytes, reliefNormalBytes, minHeight, maxHeight, terrainRequests: bm.terrainMetrics.network.requests,
           memory: { ...r.getContext().webglRenderer.info.memory }, gpu: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER) };
       }, body);
     }
@@ -111,19 +113,46 @@ try {
     assert.ok(normal.mapped > 0, `streamed imagery must be present: ${JSON.stringify(requestFailures.slice(-8))}`);
     assert.equal(normal.heightBytes, 0);
     await page.screenshot({ path: `${output}/${body.toLowerCase()}-normal.png` });
-    await page.getByLabel('Surface style', { exact: true }).selectOption('hillshade');
+    await page.getByLabel('Surface base color', { exact: true }).selectOption('neutral');
+    await page.getByLabel('Hillshade effect', { exact: true }).check();
     await page.getByLabel('Hillshade contrast', { exact: true }).fill('2');
     await page.getByLabel('Light elevation', { exact: true }).fill('20');
-    await page.getByLabel('Hillshade imagery blend', { exact: true }).fill('0.35');
+    await page.getByLabel('Imagery amount', { exact: true }).fill('0.35');
     const hillshade = await stats();
     await page.screenshot({ path: `${output}/${body.toLowerCase()}-hillshade.png` });
     // Actual user control interaction and renderer state agreement.
     await page.getByLabel('Light azimuth', { exact: true }).fill('90');
     assert.equal(await page.evaluate(body => window.renderer.getBodyMesh(body).surfaceAppearance.azimuthDeg, body), 90);
-    await page.getByLabel('Surface style', { exact: true }).selectOption('elevation');
+    await page.getByLabel('Surface base color', { exact: true }).selectOption('elevation');
     await page.getByLabel('Elevation palette', { exact: true }).selectOption('blue-gold');
-    await page.getByLabel('Combine hillshade', { exact: true }).check();
+    await page.getByLabel('Hillshade effect', { exact: true }).check();
     await page.getByText('Fixed elevation range', { exact: true }).click();
+    await page.getByLabel('Minimum elevation km').fill(mars ? '-10' : '-8');
+    await page.getByLabel('Minimum elevation km').press('Tab');
+    await page.getByLabel('Maximum elevation km').fill(mars ? '25' : '8');
+    await page.getByLabel('Maximum elevation km').press('Tab');
+    // Independent picks use the rendered hit, consume selection, and update UI.
+    const pickChecks = [];
+    for (const bound of ['minimum', 'maximum']) {
+      const min = page.getByLabel('Minimum elevation km'), max = page.getByLabel('Maximum elevation km');
+      await min.fill('-100'); await min.press('Tab');
+      await max.fill('100'); await max.press('Tab');
+      const expected = await page.evaluate(body => {
+        const r = window.renderer, canvas = r.renderer.domElement;
+        const hit = r.pickSurface(450 / canvas.clientWidth * 2 - 1, 1 - 500 / canvas.clientHeight * 2);
+        return hit.surfaceStyleHeightKm;
+      }, body);
+      await page.getByText(`Pick ${bound} on surface`, { exact: true }).click();
+      await page.locator('canvas').first().click({ position: { x: 450, y: 500 } });
+      const state = await page.evaluate(body => window.renderer.getBodyMesh(body).surfaceAppearance, body);
+      assert.ok(Math.abs(state[bound === 'minimum' ? 'minKm' : 'maxKm'] - expected) < 1e-8);
+      assert.equal(state[bound === 'minimum' ? 'maxKm' : 'minKm'], bound === 'minimum' ? 100 : -100);
+      assert.ok(Math.abs(Number(await (bound === 'minimum' ? min : max).inputValue()) - expected) < 0.001);
+      pickChecks.push({ bound, expected, minKm: state.minKm, maxKm: state.maxKm });
+    }
+    await page.getByText('Pick minimum on surface', { exact: true }).click();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('button', { name: 'Cancel point pick' }).count(), 0);
     await page.getByLabel('Minimum elevation km').fill(mars ? '-10' : '-8');
     await page.getByLabel('Minimum elevation km').press('Tab');
     await page.getByLabel('Maximum elevation km').fill(mars ? '25' : '8');
@@ -150,7 +179,8 @@ try {
     assert.equal(scrolling.dockScrollTop, 0);
     await page.screenshot({ path: `${output}/${body.toLowerCase()}-mobile-legend.png` });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-    await page.getByLabel('Surface style', { exact: true }).selectOption('natural');
+    await page.getByLabel('Surface base color', { exact: true }).selectOption('imagery');
+    await page.getByLabel('Hillshade effect', { exact: true }).uncheck();
     const mobileRestored = await stats();
     await page.setViewportSize({ width: 1280, height: 900 });
     const restored = await stats();
@@ -166,11 +196,13 @@ try {
     const restoredChangedFraction = changedPixels / (first.width * first.height);
     assert.ok(restoredChangedFraction < 0.01, `normal restoration changed ${restoredChangedFraction * 100}% of pixels`);
     assert.equal(restored.heightBytes, 0);
+    assert.equal(restored.groundBytes, 0);
+    assert.equal(restored.reliefNormalBytes, 0);
     assert.equal(mobileRestored.heightBytes, 0);
     assert.equal(await page.getByLabel('Elevation legend').count(), 0);
     await page.screenshot({ path: `${output}/${body.toLowerCase()}-restored.png` });
     assert.deepEqual(errors, []);
-    results.push({ body, pose, normal, hillshade, combined, restored, mobileCombined, mobileRestored, scrolling, physicalUnchanged, restoredChangedFraction, terrain, sourceImages, tileWarnings, requestFailures, errors });
+    results.push({ body, pose, pickChecks, normal, hillshade, combined, restored, mobileCombined, mobileRestored, scrolling, physicalUnchanged, restoredChangedFraction, terrain, sourceImages, tileWarnings, requestFailures, errors });
     await writeFile(`${output}/metrics.json`, JSON.stringify(results, null, 2) + '\n');
     console.log(JSON.stringify(results.at(-1)));
     await page.close();

@@ -4,6 +4,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import { Ruler, Crosshair, TriangleRight } from 'lucide-svelte';
 import { openTool } from './shell.svelte';
 import type { UniverseRenderer } from '@cosmolabe/three';
+import { cancelAppearancePick, handleAppearancePick } from './surface-appearance-pick.svelte';
 import { getCurrentRenderer, getUniverse } from './loader';
 import { validateMeasurementLinkState, validateMeasurementReferences, type MeasurementDefinition, type MeasurementLinkState } from './measurement-link-state';
 export type { MeasurementDefinition } from './measurement-link-state';
@@ -170,6 +171,7 @@ export function resetMeasurementDraft(preserveKind = false): void {
   measurements.draftShowDistance = false; measurements.draftFullLength = false;
 }
 export function startMeasurementPick(slot: Slot, mode: 'object' | 'surface'): void {
+  cancelAppearancePick();
   measurements.pendingPickSlot = slot;
   measurements.pickMode = mode;
   measurements.hoveredId = null;
@@ -186,6 +188,7 @@ export function cancelMeasurementPick(): boolean {
 }
 /** Measurements are scene-owned: entity references never leak into a replacement catalog. */
 export function resetMeasurementsForScene(): void {
+  cancelAppearancePick();
   measurements.nextColor = 0;
   measurements.nextPoint = 1;
   measurements.selectedId = null;
@@ -212,6 +215,7 @@ export function captureSurfaceEndpoint(bodyName: string, positionKm: readonly [n
 export function configureMeasurementInput(renderer: UniverseRenderer): void {
   renderer.setSpatialInteraction({
     beforePick(x, y) {
+      if (handleAppearancePick(renderer, x, y)) return true;
       const slot = measurements.pendingPickSlot;
       if (!slot) return false;
       if (measurements.pickMode === 'object') {

@@ -30,6 +30,7 @@
     type CatalogLocation, type SourcedEntry,
   } from './lib/catalog-nav';
   import { cancelMeasurementPick, measurements, selectMeasurement } from './lib/spatial-measurements.svelte';
+  import { appearancePick, cancelAppearancePick } from './lib/surface-appearance-pick.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -198,6 +199,7 @@
   }
 
   function togglePickMode() {
+    cancelAppearancePick();
     cancelMeasurementPick();
     pickModeActive = !pickModeActive;
     if (!pickModeActive) {
@@ -271,6 +273,7 @@
         case 'p': togglePickMode(); return;
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
+          if (cancelAppearancePick()) return;
           if (cancelMeasurementPick()) return;
           if (measurements.selectedId) { selectMeasurement(null); return; }
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
@@ -570,7 +573,7 @@
 <div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive || !!measurements.pendingPickSlot} style={shellVars}>
   <!-- `touch-none`: the browser must not claim a drag as a scroll or a pinch as
        a page zoom before the camera controls see the gesture. -->
-  <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
+  <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" class:appearance-picking={appearancePick.bound !== null} onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
 
   <!-- Gated on `loading`, not `sceneLoaded`: the scene graph exists well before
        its models and textures do, and handing over a sky of placeholder spheres
@@ -680,6 +683,7 @@
 </div>
 
 <style>
+  canvas.appearance-picking { cursor: crosshair !important; }
   .compact-dock {
     box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.24);
   }

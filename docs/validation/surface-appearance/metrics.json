@@ -5,12 +5,28 @@
       "latDeg": 18,
       "lonDeg": -133
     },
+    "pickChecks": [
+      {
+        "bound": "minimum",
+        "expected": 3.187081918369219,
+        "minKm": 3.187081918369219,
+        "maxKm": 100
+      },
+      {
+        "bound": "maximum",
+        "expected": 3.187081918369219,
+        "minKm": -100,
+        "maxKm": 3.187081918369219
+      }
+    ],
     "normal": {
-      "medianFrameMs": 142.20000000298023,
-      "p95FrameMs": 177.89999999850988,
+      "medianFrameMs": 173,
+      "p95FrameMs": 250,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
       "minHeight": null,
       "maxHeight": null,
       "terrainRequests": 46,
@@ -21,11 +37,13 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "hillshade": {
-      "medianFrameMs": 136.79999999701977,
-      "p95FrameMs": 151.10000000149012,
+      "medianFrameMs": 145.10000000149012,
+      "p95FrameMs": 187.19999999552965,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 0,
+      "groundBytes": 36548,
+      "reliefNormalBytes": 109644,
       "minHeight": null,
       "maxHeight": null,
       "terrainRequests": 46,
@@ -36,11 +54,13 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "combined": {
-      "medianFrameMs": 137.59999999403954,
-      "p95FrameMs": 158.29999999701977,
+      "medianFrameMs": 135.29999999701977,
+      "p95FrameMs": 167.5,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 36548,
+      "groundBytes": 36548,
+      "reliefNormalBytes": 109644,
       "minHeight": -26.258642196655273,
       "maxHeight": 20.279783248901367,
       "terrainRequests": 46,
@@ -51,11 +71,13 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "restored": {
-      "medianFrameMs": 139.79999999701977,
-      "p95FrameMs": 157.19999999552965,
+      "medianFrameMs": 138.10000000149012,
+      "p95FrameMs": 158,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
       "minHeight": null,
       "maxHeight": null,
       "terrainRequests": 46,
@@ -66,11 +88,13 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileCombined": {
-      "medianFrameMs": 40.69999999552965,
-      "p95FrameMs": 45.899999998509884,
+      "medianFrameMs": 41.69999999552965,
+      "p95FrameMs": 51,
       "meshes": 32,
       "mapped": 32,
       "heightBytes": 33732,
+      "groundBytes": 33732,
+      "reliefNormalBytes": 101196,
       "minHeight": -26.258642196655273,
       "maxHeight": 20.279783248901367,
       "terrainRequests": 46,
@@ -81,11 +105,13 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileRestored": {
-      "medianFrameMs": 44.20000000298023,
-      "p95FrameMs": 52.5,
+      "medianFrameMs": 42.399999998509884,
+      "p95FrameMs": 50.20000000298023,
       "meshes": 32,
       "mapped": 32,
       "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
       "minHeight": null,
       "maxHeight": null,
       "terrainRequests": 46,
@@ -96,7 +122,7 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "scrolling": {
-      "panelScrollTop": 166,
+      "panelScrollTop": 164,
       "dockScrollTop": 0
     },
     "physicalUnchanged": true,
@@ -104,9 +130,9 @@
     "terrain": {
       "diagnostics": {
         "tileCount": 46,
-        "sampleCount": 44,
+        "sampleCount": 42,
         "lastSampleMicros": 0,
-        "meanSampleMicros": 13.63636383956129,
+        "meanSampleMicros": 21.42857157048725,
         "state": "ready"
       },
       "sample": {
@@ -146,12 +172,28 @@
       "latDeg": -85,
       "lonDeg": 0
     },
+    "pickChecks": [
+      {
+        "bound": "minimum",
+        "expected": -0.7832200940747653,
+        "minKm": -0.7832200940747653,
+        "maxKm": 100
+      },
+      {
+        "bound": "maximum",
+        "expected": -0.7832200940747653,
+        "minKm": -100,
+        "maxKm": -0.7832200940747653
+      }
+    ],
     "normal": {
-      "medianFrameMs": 12.799999997019768,
-      "p95FrameMs": 14.600000001490116,
+      "medianFrameMs": 13,
+      "p95FrameMs": 13.699999995529652,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
       "minHeight": null,
       "maxHeight": null,
       "terrainRequests": 122,
@@ -162,11 +204,13 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "hillshade": {
-      "medianFrameMs": 11.5,
-      "p95FrameMs": 15.399999998509884,
+      "medianFrameMs": 10.800000004470348,
+      "p95FrameMs": 11.300000004470348,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 0,
+      "groundBytes": 99440,
+      "reliefNormalBytes": 298320,
       "minHeight": null,
       "maxHeight": null,
       "terrainRequests": 122,
@@ -177,11 +221,13 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "combined": {
-      "medianFrameMs": 12.299999997019768,
-      "p95FrameMs": 13.299999997019768,
+      "medianFrameMs": 11.700000002980232,
+      "p95FrameMs": 15.399999998509884,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 99440,
+      "groundBytes": 99440,
+      "reliefNormalBytes": 298320,
       "minHeight": -14.48360824584961,
       "maxHeight": 7.802995204925537,
       "terrainRequests": 122,
@@ -192,11 +238,13 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "restored": {
-      "medianFrameMs": 14,
-      "p95FrameMs": 16.399999998509884,
+      "medianFrameMs": 13.100000001490116,
+      "p95FrameMs": 15,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
       "minHeight": null,
       "maxHeight": null,
       "terrainRequests": 122,
@@ -208,10 +256,12 @@
     },
     "mobileCombined": {
       "medianFrameMs": 8.299999997019768,
-      "p95FrameMs": 10.100000001490116,
+      "p95FrameMs": 9.299999997019768,
       "meshes": 86,
       "mapped": 86,
       "heightBytes": 94040,
+      "groundBytes": 94040,
+      "reliefNormalBytes": 282120,
       "minHeight": -14.48360824584961,
       "maxHeight": 7.802995204925537,
       "terrainRequests": 122,
@@ -222,11 +272,13 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileRestored": {
-      "medianFrameMs": 8.299999997019768,
-      "p95FrameMs": 10,
+      "medianFrameMs": 8.300000004470348,
+      "p95FrameMs": 8.5,
       "meshes": 86,
       "mapped": 86,
       "heightBytes": 0,
+      "groundBytes": 0,
+      "reliefNormalBytes": 0,
       "minHeight": null,
       "maxHeight": null,
       "terrainRequests": 122,
@@ -237,7 +289,7 @@
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "scrolling": {
-      "panelScrollTop": 166,
+      "panelScrollTop": 164,
       "dockScrollTop": 0
     },
     "physicalUnchanged": true,
@@ -245,9 +297,9 @@
     "terrain": {
       "diagnostics": {
         "tileCount": 122,
-        "sampleCount": 249,
+        "sampleCount": 217,
         "lastSampleMicros": 0,
-        "meanSampleMicros": 12.048192771084338,
+        "meanSampleMicros": 9.677419327371132,
         "state": "ready"
       },
       "sample": {
@@ -255,7 +307,7 @@
           "latDeg": -85,
           "lonDeg": 0
         },
-        "elevationKm": -1.1077589556372376,
+        "elevationKm": -1.1076048406524013,
         "datum": {
           "referenceShape": {
             "kind": "sphere",
@@ -269,7 +321,7 @@
           "kind": "quantized-mesh",
           "url": "https://marshub.s3.amazonaws.com/moon_v14/"
         },
-        "tileId": "decoded:4/15/0.terrain?v=1"
+        "tileId": "decoded:4/16/0.terrain?v=1"
       }
     },
     "sourceImages": 122,

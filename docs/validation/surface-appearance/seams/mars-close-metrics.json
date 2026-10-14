@@ -1,0 +1,54 @@
+{
+  "terrain": {
+    "update": {
+      "count": 1512,
+      "lastMs": 0.19999999552965164,
+      "meanMs": 0.20666666657974322,
+      "maxMs": 0.30000000447034836
+    },
+    "parse": {
+      "count": 82,
+      "lastMs": 0.19999999552965164,
+      "meanMs": 0.25975609779721354,
+      "maxMs": 2.600000001490116
+    },
+    "cpuDecode": {
+      "count": 82,
+      "lastMs": 0,
+      "meanMs": 0.09999999949117987,
+      "maxMs": 1.0999999940395355
+    },
+    "sample": {
+      "count": 341,
+      "lastMicros": 0,
+      "meanMicros": 10.5571847988014
+    },
+    "tiles": {
+      "active": 62,
+      "visible": 62,
+      "inCache": 82,
+      "cpu": 82
+    },
+    "network": {
+      "requests": 82,
+      "queued": 0,
+      "downloading": 0,
+      "parsing": 0,
+      "failed": 0
+    },
+    "memory": {
+      "cacheBytes": 23510284,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 2607660,
+      "textureBytes": 21495808
+    }
+  },
+  "source": {
+    "tileCount": 82,
+    "sampleCount": 341,
+    "lastSampleMicros": 0,
+    "meanSampleMicros": 10.5571847988014,
+    "state": "ready"
+  },
+  "errors": []
+}

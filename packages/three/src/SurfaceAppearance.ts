@@ -1,22 +1,22 @@
 import * as THREE from 'three';
 import { bodyFixedToGeodetic, type TerrainDatum } from './TerrainSampler.js';
 
+export type SurfaceBaseColor = 'imagery' | 'elevation' | 'neutral';
 export type ElevationPalette = 'terrain' | 'blue-gold' | 'grayscale';
 export interface SurfaceAppearanceSettings {
   hillshade: boolean;
   azimuthDeg: number;
   elevationDeg: number;
   contrast: number;
-  imageryMix: number;
-  elevationTint: boolean;
+  baseColor: SurfaceBaseColor;
+  imageryAmount: number;
   palette: ElevationPalette;
-  tintOpacity: number;
   minKm: number;
   maxKm: number;
 }
 export const DEFAULT_SURFACE_APPEARANCE: Readonly<SurfaceAppearanceSettings> = Object.freeze({
   hillshade: false, azimuthDeg: 315, elevationDeg: 45, contrast: 1,
-  imageryMix: 0, elevationTint: false, palette: 'terrain', tintOpacity: 0.8,
+  baseColor: 'imagery', imageryAmount: 0.25, palette: 'terrain',
   minKm: -10, maxKm: 15,
 });
 export const ELEVATION_PALETTES: Record<ElevationPalette, readonly [string, string, string]> = {
@@ -30,16 +30,19 @@ export function normalizeSurfaceAppearance(s: SurfaceAppearanceSettings): Surfac
     Number.isFinite(n) ? Math.max(low, Math.min(high, n)) : fallback;
   const minKm = clamp(s.minKm, -1000, 1000, -10);
   return {
-    hillshade: !!s.hillshade, elevationTint: !!s.elevationTint,
+    hillshade: !!s.hillshade, baseColor: ['imagery', 'elevation', 'neutral'].includes(s.baseColor) ? s.baseColor : 'imagery',
     azimuthDeg: clamp(s.azimuthDeg, 0, 360, 315), elevationDeg: clamp(s.elevationDeg, 5, 90, 45),
-    contrast: clamp(s.contrast, 0.25, 3, 1), imageryMix: clamp(s.imageryMix, 0, 1, 0),
+    contrast: clamp(s.contrast, 0.25, 3, 1), imageryAmount: clamp(s.imageryAmount, 0, 1, 0.25),
     palette: Object.hasOwn(ELEVATION_PALETTES, s.palette) ? s.palette : 'terrain',
-    tintOpacity: clamp(s.tintOpacity, 0, 1, 0.8), minKm,
+    minKm,
     maxKm: Math.max(minKm + 0.001, clamp(s.maxKm, -1000, 1000, 15)),
   };
 }
 
 type Shader = { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> };
+interface NormalReference { attribute: THREE.BufferAttribute; index: number; normal: THREE.Vector3; }
+interface NormalNode { sum: THREE.Vector3; references: Set<NormalReference>; }
+interface StyledMesh { matrix: THREE.Matrix4; materials: THREE.Material[]; normals?: Array<[string, NormalReference]>; }
 
 export function renderedHeightKm(point: THREE.Vector3, datum: TerrainDatum): number {
   if (datum.heightConvention === 'geodetic-normal') {
@@ -53,15 +56,31 @@ export function renderedHeightKm(point: THREE.Vector3, datum: TerrainDatum): num
   return r - reference;
 }
 
+/** Interpolate the same vertex height varying used by elevation colors. A
+ * coarse triangle's chord height can differ from its interpolated source
+ * height; range picking must match the color field the user clicked. */
+export function surfaceTintHeightAtHit(hit: THREE.Intersection): number | undefined {
+  const mesh = hit.object as THREE.Mesh;
+  if (!mesh.isMesh || !hit.face) return undefined;
+  const height = mesh.geometry.getAttribute('surfaceHeightKm');
+  if (!height) return undefined;
+  const positions = mesh.geometry.getAttribute('position'), { a, b, c } = hit.face;
+  const weights = THREE.Triangle.getBarycoord(mesh.worldToLocal(hit.point.clone()),
+    new THREE.Vector3().fromBufferAttribute(positions, a), new THREE.Vector3().fromBufferAttribute(positions, b),
+    new THREE.Vector3().fromBufferAttribute(positions, c), new THREE.Vector3());
+  return weights ? weights.x * height.getX(a) + weights.y * height.getX(b) + weights.z * height.getX(c) : undefined;
+}
+
 /** Styling only: cached quantized-mesh geometry is in tile-local metres, ECEF Z north.
  * Position attributes, normals, geometry indices, LOD and physical sampling stay untouched.
  * No shader additions or extra attributes until a style is enabled. */
 export class SurfaceAppearance {
   private settings: SurfaceAppearanceSettings = { ...DEFAULT_SURFACE_APPEARANCE };
-  private readonly meshes = new Map<THREE.Mesh, { matrix: THREE.Matrix4; materials: THREE.Material[] }>();
+  private readonly meshes = new Map<THREE.Mesh, StyledMesh>();
+  private readonly normalNodes = new Map<string, NormalNode>();
   private readonly uniforms = {
     saLight: { value: new THREE.Vector3() }, saContrast: { value: 1 },
-    saImageryMix: { value: 0 }, saOpacity: { value: 0.8 }, saRange: { value: new THREE.Vector2(-10, 15) },
+    saImageryAmount: { value: 0.25 }, saRange: { value: new THREE.Vector2(-10, 15) },
     saLow: { value: new THREE.Color() }, saMid: { value: new THREE.Color() }, saHigh: { value: new THREE.Color() },
     saUpScale: { value: new THREE.Vector3(1, 1, 1) },
   };
@@ -74,27 +93,34 @@ export class SurfaceAppearance {
     this.updateUniforms();
   }
   get current(): SurfaceAppearanceSettings { return { ...this.settings }; }
-  get active(): boolean { return this.settings.hillshade || this.settings.elevationTint; }
+  get active(): boolean { return this.settings.hillshade || this.settings.baseColor !== 'imagery'; }
 
   set(settings: SurfaceAppearanceSettings): void {
     const before = this.key();
     this.settings = normalizeSurfaceAppearance(settings);
     this.updateUniforms();
+    if (!this.settings.hillshade) this.normalNodes.clear();
     for (const [mesh, entry] of this.meshes) {
-      if (this.settings.elevationTint) this.prepareHeights(mesh, entry.matrix);
+      if (this.settings.baseColor === 'elevation') this.prepareHeights(mesh, entry.matrix);
+      if (this.settings.hillshade) this.prepareReliefNormals(mesh, entry);
+      else entry.normals = undefined;
       if (this.key() !== before) entry.materials.forEach(m => { m.needsUpdate = true; });
-      if (!this.settings.elevationTint && mesh.geometry.hasAttribute('surfaceHeightKm')) {
+      const unused = [
+        ...(this.settings.baseColor !== 'elevation' ? ['surfaceHeightKm'] : []),
+        ...(!this.settings.hillshade ? ['surfaceGround', 'surfaceReliefNormal'] : []),
+      ].filter(name => mesh.geometry.hasAttribute(name));
+      if (unused.length) {
         // Release GPU buffers while the attribute is still registered. Merely
         // deleting it strands its WebGL buffer across repeated on/off toggles.
         // dispose invalidates uploads, preserving the physical CPU geometry.
         mesh.geometry.dispose();
-        mesh.geometry.deleteAttribute('surfaceHeightKm');
+        unused.forEach(name => mesh.geometry.deleteAttribute(name));
       }
     }
   }
 
   private key(): string {
-    return this.active ? `_surface_v1_${Number(this.settings.hillshade)}_${Number(this.settings.elevationTint)}` : '';
+    return this.active ? `_surface_v3_${Number(this.settings.hillshade)}_${this.settings.baseColor}` : '';
   }
 
   /** Matrix maps mesh local coordinates into the tiles renderer's ECEF frame,
@@ -102,8 +128,10 @@ export class SurfaceAppearance {
   attach(mesh: THREE.Mesh, matrix: THREE.Matrix4): void {
     if (this.meshes.has(mesh)) return;
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    this.meshes.set(mesh, { matrix, materials });
-    if (this.settings.elevationTint) this.prepareHeights(mesh, matrix);
+    const entry: StyledMesh = { matrix, materials };
+    this.meshes.set(mesh, entry);
+    if (this.settings.baseColor === 'elevation') this.prepareHeights(mesh, matrix);
+    if (this.settings.hillshade) this.prepareReliefNormals(mesh, entry);
     const localToBody = { value: matrix };
     for (const material of materials) {
       const previous = material.onBeforeCompile.bind(material);
@@ -122,7 +150,17 @@ export class SurfaceAppearance {
   }
 
   forget(scene: THREE.Object3D): void {
-    scene.traverse(child => { this.meshes.delete(child as THREE.Mesh); });
+    scene.traverse(child => {
+      const mesh = child as THREE.Mesh;
+      for (const [key, ref] of this.meshes.get(mesh)?.normals ?? []) {
+        const node = this.normalNodes.get(key);
+        if (!node) continue;
+        node.references.delete(ref); node.sum.sub(ref.normal);
+        if (!node.references.size) this.normalNodes.delete(key);
+        else this.publishNormal(node);
+      }
+      this.meshes.delete(mesh);
+    });
   }
 
   private prepareHeights(mesh: THREE.Mesh, matrix: THREE.Matrix4): void {
@@ -137,13 +175,111 @@ export class SurfaceAppearance {
     mesh.geometry.setAttribute('surfaceHeightKm', new THREE.BufferAttribute(heights, 1));
   }
 
+  private prepareGroundMask(mesh: THREE.Mesh): void {
+    const geometry = mesh.geometry;
+    if (geometry.hasAttribute('surfaceGround')) return;
+    const mask = new Float32Array(geometry.getAttribute('position').count);
+    const surface = geometry.groups[0];
+    if (!surface) mask.fill(1);
+    else for (let i = surface.start; i < surface.start + surface.count; i++) {
+      mask[geometry.index ? geometry.index.getX(i) : i] = 1;
+    }
+    // Skirts/bottom caps hide cracks; they are not terrain slopes. Avoid
+    // converting their vertical faces into artificial dark tile outlines.
+    geometry.setAttribute('surfaceGround', new THREE.BufferAttribute(mask, 1));
+  }
+
+  /** Area-weighted surface normals share contributions at matching geographic
+   * vertices across loaded tiles. Skirts never contribute to ground normals.
+   * Angular keys absorb roundoff and small cross-LOD height differences. This
+   * shares shading only, never physical vertices or terrain elevations. */
+  private prepareReliefNormals(mesh: THREE.Mesh, entry: StyledMesh): void {
+    if (entry.normals) return;
+    this.prepareGroundMask(mesh);
+    const geometry = mesh.geometry, positions = geometry.getAttribute('position');
+    const ground = geometry.getAttribute('surfaceGround');
+    const sums = new Float64Array(positions.count * 3);
+    const edgeCounts = new Map<number, number>();
+    const surface = geometry.groups[0];
+    const start = surface?.start ?? 0;
+    const count = surface?.count ?? geometry.index?.count ?? positions.count;
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), face = new THREE.Vector3();
+    const index = (i: number) => geometry.index ? geometry.index.getX(i) : i;
+    for (let i = start; i < start + count; i += 3) {
+      const ia = index(i), ib = index(i + 1), ic = index(i + 2);
+      a.fromBufferAttribute(positions, ia); b.fromBufferAttribute(positions, ib); c.fromBufferAttribute(positions, ic);
+      face.crossVectors(b.sub(a), c.sub(a));
+      for (const vertex of [ia, ib, ic]) {
+        sums[vertex * 3] += face.x; sums[vertex * 3 + 1] += face.y; sums[vertex * 3 + 2] += face.z;
+      }
+      for (const [u, v] of [[ia, ib], [ib, ic], [ic, ia]]) {
+        const key = Math.min(u, v) * positions.count + Math.max(u, v);
+        edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
+      }
+    }
+    const boundary = new Set<number>();
+    for (const [key, count] of edgeCounts) if (count === 1) {
+      boundary.add(Math.floor(key / positions.count)); boundary.add(key % positions.count);
+    }
+    const attribute = new THREE.BufferAttribute(new Float32Array(positions.count * 3), 3);
+    attribute.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute('surfaceReliefNormal', attribute);
+    entry.normals = [];
+    const normalMatrix = new THREE.Matrix3().getNormalMatrix(entry.matrix);
+    const point = new THREE.Vector3(), normal = new THREE.Vector3();
+    const touched = new Set<NormalNode>();
+    for (let i = 0; i < positions.count; i++) {
+      if (!ground.getX(i)) continue;
+      normal.set(sums[i * 3], sums[i * 3 + 1], sums[i * 3 + 2]).applyMatrix3(normalMatrix);
+      const length = normal.length() || 1;
+      attribute.setXYZ(i, normal.x / length, normal.y / length, normal.z / length);
+      // Interior vertices already have their complete triangle neighbourhood.
+      // Retain cross-tile references only at boundaries to bound CPU memory.
+      if (!boundary.has(i)) continue;
+      point.fromBufferAttribute(positions, i).applyMatrix4(entry.matrix);
+      const key = this.normalKey(point);
+      let node = this.normalNodes.get(key);
+      if (!node) { node = { sum: new THREE.Vector3(), references: new Set() }; this.normalNodes.set(key, node); }
+      const ref = { attribute, index: i, normal: normal.clone() };
+      node.references.add(ref); node.sum.add(normal);
+      entry.normals.push([key, ref]); touched.add(node);
+    }
+    // Duplicate skirt vertices inherit the corresponding ground normal. They
+    // add no triangle contribution, so crack-hiding walls cannot bias slopes
+    // or acquire a separate lighting stripe along an otherwise smooth edge.
+    for (let i = 0; i < positions.count; i++) {
+      if (ground.getX(i)) continue;
+      point.fromBufferAttribute(positions, i).applyMatrix4(entry.matrix);
+      const key = this.normalKey(point), node = this.normalNodes.get(key);
+      if (!node) continue;
+      const ref = { attribute, index: i, normal: new THREE.Vector3() };
+      node.references.add(ref); entry.normals.push([key, ref]); touched.add(node);
+    }
+    touched.forEach(node => this.publishNormal(node));
+  }
+
+  private normalKey(pointMetres: THREE.Vector3): string {
+    const position = bodyFixedToGeodetic({ xKm: pointMetres.x * 0.001, yKm: pointMetres.y * 0.001, zKm: pointMetres.z * 0.001 }, this.datum);
+    const latitude = Math.round(position.latDeg * 1e5);
+    // At the pole all meridians identify one vertex; ±180 is also one meridian.
+    const longitude = Math.abs(latitude) === 9000000 ? 0 : Math.round(position.lonDeg * 1e5);
+    return `${latitude},${longitude === 18000000 ? -18000000 : longitude}`;
+  }
+
+  private publishNormal(node: NormalNode): void {
+    const length = node.sum.length() || 1;
+    for (const ref of node.references) {
+      ref.attribute.setXYZ(ref.index, node.sum.x / length, node.sum.y / length, node.sum.z / length);
+      ref.attribute.needsUpdate = true;
+    }
+  }
+
   private updateUniforms(): void {
     const s = this.settings, az = THREE.MathUtils.degToRad(s.azimuthDeg), el = THREE.MathUtils.degToRad(s.elevationDeg);
     // Local east, north, up; azimuth clockwise from geographic north.
     this.uniforms.saLight.value.set(Math.sin(az) * Math.cos(el), Math.cos(az) * Math.cos(el), Math.sin(el));
     this.uniforms.saContrast.value = s.contrast;
-    this.uniforms.saImageryMix.value = s.imageryMix;
-    this.uniforms.saOpacity.value = s.tintOpacity;
+    this.uniforms.saImageryAmount.value = s.imageryAmount;
     this.uniforms.saRange.value.set(s.minKm, s.maxKm);
     const colors = ELEVATION_PALETTES[s.palette];
     this.uniforms.saLow.value.set(colors[0]); this.uniforms.saMid.value.set(colors[1]); this.uniforms.saHigh.value.set(colors[2]);
@@ -151,43 +287,45 @@ export class SurfaceAppearance {
 
   private inject(shader: Shader, localToBody: { value: THREE.Matrix4 }): void {
     Object.assign(shader.uniforms, this.uniforms, { saLocalToBody: localToBody });
-    if (this.settings.elevationTint) {
+    if (this.settings.baseColor === 'elevation') {
       shader.vertexShader = 'attribute float surfaceHeightKm; varying float vSAHeight;\n' + shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvSAHeight = surfaceHeightKm;');
       shader.fragmentShader = `varying float vSAHeight;
-uniform vec2 saRange; uniform float saOpacity; uniform vec3 saLow, saMid, saHigh;
+uniform vec2 saRange; uniform float saImageryAmount; uniform vec3 saLow, saMid, saHigh;
 ` + shader.fragmentShader;
       // After current imagery overlays have composed diffuseColor, before lighting.
       shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `
 float saT = clamp((vSAHeight - saRange.x) / (saRange.y - saRange.x), 0.0, 1.0);
 vec3 saTint = saT < 0.5 ? mix(saLow, saMid, saT * 2.0) : mix(saMid, saHigh, saT * 2.0 - 1.0);
-vec3 saUntintedDiffuse = diffuseColor.rgb;
-diffuseColor.rgb = mix(diffuseColor.rgb, saTint, saOpacity);
+diffuseColor.rgb = mix(saTint, diffuseColor.rgb, saImageryAmount);
 #include <roughnessmap_fragment>`);
     }
+    if (this.settings.baseColor === 'neutral') {
+      shader.fragmentShader = 'uniform float saImageryAmount;\n' + shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>',
+        'diffuseColor.rgb = mix(vec3(1.0), diffuseColor.rgb, saImageryAmount);\n#include <roughnessmap_fragment>');
+    }
     if (this.settings.hillshade) {
-      shader.vertexShader = 'varying vec3 vSALocal, vSANormal; uniform mat4 saLocalToBody;\n' + shader.vertexShader;
-      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvSALocal = position; vSANormal = normal;');
-      shader.fragmentShader = `varying vec3 vSALocal, vSANormal; uniform mat4 saLocalToBody;
-uniform vec3 saLight, saUpScale; uniform float saContrast, saImageryMix;
+      shader.vertexShader = 'attribute vec3 surfaceReliefNormal; varying vec3 vSALocal, vSAReliefNormal; uniform mat4 saLocalToBody;\n' + shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvSALocal = position; vSAReliefNormal = surfaceReliefNormal;');
+      shader.fragmentShader = `varying vec3 vSALocal, vSAReliefNormal; uniform mat4 saLocalToBody;
+uniform vec3 saLight, saUpScale; uniform float saContrast;
 ` + shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace('#include <shadowmap_pars_fragment>',
         '#include <shadowmap_pars_fragment>\n#include <shadowmask_pars_fragment>');
-      // Use the loaded mesh's smooth geometry normals, without the imagery's
-      // normal map. Small tile-local positions avoid camera-origin cancellation.
+      // Shared smooth normals avoid tile-local averaging discontinuities.
+      // Tile-local coordinates keep the light frame independent of world origin.
       // Replace only displayed radiance, before existing eclipse/shadow/AP hooks.
       shader.fragmentShader = shader.fragmentShader.replace(/vec3 outgoingLight = [^;]+;/, `$&
 vec3 saUp = normalize((saLocalToBody * vec4(vSALocal, 1.0)).xyz * saUpScale);
 vec3 saEast = cross(vec3(0.0, 0.0, 1.0), saUp);
 saEast = length(saEast) > 0.00001 ? normalize(saEast) : vec3(0.0, 1.0, 0.0);
 vec3 saNorth = normalize(cross(saUp, saEast));
-vec3 saNormal = normalize(mat3(saLocalToBody) * vSANormal);
+vec3 saNormal = dot(vSAReliefNormal, vSAReliefNormal) > 1e-20 ? normalize(vSAReliefNormal) : saUp;
 if (dot(saNormal, saUp) < 0.0) saNormal = -saNormal;
 vec3 saDirection = saEast * saLight.x + saNorth * saLight.y + saUp * saLight.z;
 float saShade = clamp((max(0.0, dot(saNormal, saDirection)) - 0.5) * saContrast + 0.5, 0.0, 1.0);
-vec3 saBase = mix(vec3(1.0), ${this.settings.elevationTint ? 'saUntintedDiffuse' : 'diffuseColor.rgb'}, saImageryMix);
-${this.settings.elevationTint ? 'saBase = mix(saBase, saTint, saOpacity);' : ''}
-outgoingLight = saBase * (0.12 + 0.88 * saShade) * getShadowMask();`);
+outgoingLight = diffuseColor.rgb * (0.12 + 0.88 * saShade) * getShadowMask();`);
     }
   }
 }
