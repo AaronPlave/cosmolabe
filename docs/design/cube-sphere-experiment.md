@@ -873,9 +873,9 @@ and draw order picks the winner. The hole mask cannot see this, because the
 surface is there either way. `cracks` now also draws the visible tiles with
 surface triangles white and skirts red, then ray-casts a sample of the red pixels
 (all of them here). A red pixel whose nearest hit is a surface triangle is a skirt
-drawn through the surface. The same captures, with `--log-depth-fix` serving
-three's log-depth chunks as patched on branch `claude/log-depth-precision`
-(`w` scaled to metres before the log):
+drawn through the surface. The same captures with the log-depth precision fix
+(#189, `packages/three/src/LogDepth.ts`: `w` scaled to metres before the log),
+first emulated by serving patched three.js chunks, then on the merged code:
 
 | View (terrain; grid and NAC identical) | Skirt pixels drawn through surface, three's log depth | With the fix | Skirt pixels with the fix |
 | --- | --- | --- | --- |
@@ -897,7 +897,9 @@ skirts show only where they fill cracks. The 1–3 pixels left per frame have
 not been examined. The depth problem affects any terrain on that pass that
 relies on the depth test to stay hidden, not only skirts. #184's code shows the
 same bands on a skirted product, because it cannot hide skirts. The cube layout
-should not be adopted without the fix (*Remaining for #149*).
+should not be adopted without the fix, which is now on main. After merging main
+(2026-10-14) the same captures on the real code give the same counts as the
+emulation (Shackleton 0, pole 1 km up 2, rim 0; terrain and NAC).
 
 ## Layout comparison: geometry (2026-10-14)
 
@@ -1215,15 +1217,14 @@ geometry evidence*):
 - [ ] **Prefiltered coarse levels.** `gdaladdo -r average` overviews for the
   LOLA base (all products): smaller coarse-level gaps (the skirts now cover up
   to 3.6 km) and coarse representation error.
-- [ ] **Log depth precision.** Merge the `claude/log-depth-precision` fix and
-  drop `--log-depth-fix` from the captures; until then skirts draw through
-  nearer surface at low views (*Skirts drawn through nearer surface*).
+- [x] **Log depth precision.** #189 merged; captures re-run on the merged code
+  (*Skirts drawn through nearer surface*).
 - Imagery-at-scale items from *Independent imagery* (shared vertex buffers for
   blocks, a tiled-layout `MapImageLayer` variant) stay open.
 
 Commands: `bash scripts/build-moon-terrain/cube.sh --workers N`;
 `node scripts/validate-cube-terrain.mjs`;
-`node scripts/capture-cube-imagery.mjs --gpu --experiments cracks,cracks-dynamic,skirt-cost [--log-depth-fix]`;
+`node scripts/capture-cube-imagery.mjs --gpu --experiments cracks,cracks-dynamic,skirt-cost`;
 `node scripts/capture-cube-imagery.mjs --gpu --experiments compare [--products P] [--error-target N] [--throttle 40,100]`,
 then `python3 scripts/terrain/dem.py field-error RECORD.json --base … --fusion …`.
 

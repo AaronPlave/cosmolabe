@@ -55,9 +55,6 @@
  *  skirt-cost    Per view, warm, one page: frame timing with skirts on and off (terrain
  *                only and grid imagery refined). Meaningful with --gpu.
  *
- * --log-depth-fix serves three.js with the log depth precision fix (patchLogDepthPrecision
- * in UniverseRenderer, on its own branch) until this branch has it.
- *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5173/), CHROMIUM_PATH.
  * Default is SwiftShader software WebGL (correctness, counts); --gpu uses the
  * host GPU (--angle metal|vulkan|…) and is the only mode whose timings mean anything.
@@ -159,12 +156,6 @@ async function openViewer(catalog, setup) {
   // Errors, plus warnings other than the expected per-tile load warnings and missing catalog textures.
   page.on('console', m => {
     if (m.type() === 'error' || (m.type() === 'warning' && !/Tile load error|tiles versions|Failed to load (baseMap|normalMap)|Initial assets settled/.test(m.text()))) errors.push(`${m.type()}: ${m.text()}`);
-  });
-  if (args['log-depth-fix']) await page.route(/\/\.vite\/deps\/chunk-.*\.js/, async (route) => {
-    const res = await route.fetch();
-    const body = (await res.text()).replace('vFragDepth = 1.0 + gl_Position.w;', 'vFragDepth = 1.0 + 1e9 * gl_Position.w;')
-      .replace('log2( vFragDepth ) * logDepthBufFC * 0.5', 'log2( vFragDepth ) / ( 29.897352853986263 + 2.0 / logDepthBufFC )');
-    await route.fulfill({ response: res, body });
   });
   if (setup) await setup(page);
   await page.goto(new URL(`?catalog=${catalog}&test=1`, BASE).href, { waitUntil: 'domcontentloaded', timeout: 180_000 });
