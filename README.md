@@ -84,8 +84,9 @@ locally generated fused Mars terrain product described in the recipes.*
 
 [Recreate the Clipper flyby video](docs/readme-media.md#record-the-mission-workflow-video)
 
-The default recording follows Clipper past Europa with Jupiter in the background,
-then smoothly pulls back to reveal the Galilean moons and mission trajectory.
+The default recording follows Clipper past Europa as its limb slowly reveals
+Jupiter, then pulls back to the system. Instrument cones and the live WAC
+picture-in-picture stay visible throughout.
 The script also offers a Cassini analysis clip with distance windows and plots.
 Video binaries stay outside the repository until published.
 

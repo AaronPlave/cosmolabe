@@ -173,21 +173,37 @@ Both recordings reuse the verified screenshot driver and its asset/error gates.
 They capture the **entire browser viewport including Svelte UI**, rather than
 the WebGL-only VideoRecordPlugin. They use ordinary rendering without `?test=1`.
 
-The default 22-second Clipper sequence:
+The default 24-second Clipper sequence:
 
 | Clip time | Action |
 | --- | --- |
-| 0–6 s | Follow the spacecraft through five minutes of its SPICE trajectory after Europa closest approach. Europa fills the left side, Jupiter sits behind it on the right, and the EIS NAC field meets the surface. |
-| 6–18 s | Freeze the encounter epoch and pull back smoothly from 27 metres to a Jupiter system overview. The aim shifts toward Jupiter as the camera retreats. Hide the sensor at 20 km and reveal the mission and moon trajectories at 30,000 km. |
-| 18–22 s | Hold Jupiter, all four Galilean moon orbits and the Clipper mission trajectory. |
+| 0–8 s | Follow the December 5, 2031 Europa flyby at 30× speed. The close camera stays 21 metres from Clipper with a fixed direction and roll, allowing Europa's limb to slowly uncover Jupiter. Keep all four instrument cones and the WAC PiP active. |
+| 8–20 s | Freeze the encounter epoch and pull back smoothly along the same camera direction to a Jupiter system overview. The aim gradually shifts to Jupiter while the instrument PiP continues to show Europa. |
+| 20–24 s | Hold the system, mission trajectory, instrument cones and live WAC view. |
 
-[`readme-video.json`](readme-video.json) controls flyby epochs, phase times,
-opening distance, poster time, final camera offset, layer reveal distances, frame rate and
-H.264 quality. Camera direction starts on the bisector of the actual Europa and
-Jupiter directions from Clipper; distance changes logarithmically to span metres
-to millions of kilometres without an abrupt jump. Time updates settle the
-renderer's floating origin before each camera placement. The spacecraft is at
-its actual scale; nothing is composited into the viewport.
+[`readme-video.json`](readme-video.json) controls flyby epochs, fixed opening
+camera position/up/FOV, phase times, poster time, final distance, visible
+instruments, PiP size/placement, frame rate and H.264 quality. The camera was
+reconstructed from the original recording's Europa limb, Jupiter placement and
+21-metre spacecraft range; the original clip contains no saved camera vectors,
+so it is a visual reconstruction rather than an exact replay of a ViewState.
+The current trajectory's opening epoch is 13:01 UTC, about a minute before the
+original clip's displayed opening time, to retain the close Europa framing and
+prolong Jupiter's emergence. The direction remains fixed during the flyby;
+a moving two-body bisector would keep Jupiter exposed and erase the reveal.
+Distance changes logarithmically during the pullback. Time updates settle the
+renderer's floating origin before each camera placement. Spacecraft, planets,
+cones and PiP render directly in the viewer.
+
+The catalog now uses the loaded IK definitions for all four fields of view:
+EIS NAC (`-159101`, 2.347° × 1.173°), EIS WAC (`-159102`, 48° × 24°),
+MISE (`-159601`, 4.314° × 0.01896°) and E-THEMIS (`-159200`, 5.7° × 4.2°).
+This corrects the previous nonexistent EIS IDs and approximate catalog angles.
+Their pointing remains the catalog's target-facing fallback because this
+catalog has no spacecraft CK attitude coverage. The PiP uses the renderer's
+instrument camera and actual WAC boundary overlay, not an inserted image.
+The recording checks that all four cones have kernel-derived frames and valid
+angles, and that their visibility and the active PiP persist in every frame.
 
 The optional 15-second Cassini sequence remains reproducible using
 [`readme-video-analysis.json`](readme-video-analysis.json): open Event Finder
@@ -212,7 +228,7 @@ analysis option uses `cassini-mission-workflow`:
 
 - `.mp4`: full 1920×1080 viewport, H.264, limited-range yuv420p/BT.709,
   fast-start metadata, no audio.
-- `-poster.png`: Clipper flyby viewport at three seconds, or the final Cassini analysis viewport.
+- `-poster.png`: Clipper flyby viewport at six seconds, or the final Cassini analysis viewport.
 - `.vtt`: descriptive captions matching recipe phases.
 - `.json`: recipe, scene, encoder probe and final state.
 - The prepared scene screenshot and capture sidecar are also retained.

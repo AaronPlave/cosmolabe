@@ -34,8 +34,9 @@ export async function recordMissionVideo(page, scene, output) {
     assert.ok(recipe.flybyEndAt > 0 && recipe.flybyEndAt < recipe.zoomEndAt && recipe.zoomEndAt < recipe.duration);
     assert.ok(recipe.flybyWindow[0] < recipe.flybyWindow[1] && recipe.openingDistanceKm > 0);
     assert.ok(recipe.posterAt >= 0 && recipe.posterAt < recipe.flybyEndAt);
-    assert.ok(Math.hypot(...recipe.overviewOffsetKm) > recipe.trajectoryRevealDistanceKm &&
-      recipe.trajectoryRevealDistanceKm > recipe.sensorHideDistanceKm && recipe.sensorHideDistanceKm > recipe.openingDistanceKm);
+    assert.ok(Math.hypot(...recipe.overviewOffsetKm) > recipe.trajectoryRevealDistanceKm && recipe.trajectoryRevealDistanceKm >= 0);
+    assert.ok(Math.abs(Math.hypot(...recipe.openingCamera.position) - recipe.openingDistanceKm) < 1e-9);
+    assert.ok(recipe.instruments.includes(recipe.pip.sensor));
   } else {
     assert.ok(recipe.openAnalysisAt > 0 && recipe.openAnalysisAt < recipe.scrubStartAt &&
       recipe.scrubStartAt < recipe.scrubEndAt && recipe.scrubEndAt < recipe.selectEventAt &&
@@ -62,7 +63,21 @@ export async function recordMissionVideo(page, scene, output) {
       })();
     }, { scene, start: recipe.scrubWindow[0] });
     if (flyby) {
-      await page.evaluate(() => { cosmo.deselect(); cosmo.untrack(); });
+      const instruments = await page.evaluate(recipe => {
+        cosmo.deselect(); cosmo.untrack(); cosmo.setFov(recipe.openingCamera.fov);
+        renderer.setInstrumentView(recipe.pip.sensor, recipe.pip);
+        cosmo.setLayer('sensors', true); cosmo.setLayer('sensorLabels', true);
+        for (const name of renderer.getSensorNames()) cosmo.setObjectVisible(name, recipe.instruments.includes(name));
+        return recipe.instruments.map(name => {
+          const sf = renderer.sensorFrustums.get(name);
+          return { name, spiceId: sf?.spiceId, frame: sf?.spiceFovFrame, horizontalFov: sf?.hFov, verticalFov: sf?.vFov, visible: sf?.visible };
+        });
+      }, recipe);
+      for (const instrument of instruments) {
+        assert.ok(instrument.visible && instrument.frame && instrument.horizontalFov > 0 && instrument.verticalFov > 0,
+          `Missing kernel field of view or cone: ${JSON.stringify(instrument)}`);
+      }
+      console.log('Instrument cones:', JSON.stringify(instruments));
     }
     for (let frame = 0; frame < count; frame++) {
       const t = frame / recipe.fps;
@@ -71,7 +86,7 @@ export async function recordMissionVideo(page, scene, output) {
         const zoom = ease(Math.min(Math.max((t - recipe.flybyEndAt) /
           (recipe.zoomEndAt - recipe.flybyEndAt), 0), 1));
         const distance = recipe.openingDistanceKm * Math.pow(Math.hypot(...recipe.overviewOffsetKm) / recipe.openingDistanceKm, zoom);
-        await page.evaluate(async ({ recipe, scene, et, zoom, distance }) => {
+        await page.evaluate(async ({ recipe, et, distance }) => {
           const c = cosmo, u = renderer.getContext().universe;
           c.setTime({ kind: 'et', et });
           // Let the renderer update its floating origin before placing a camera
@@ -81,23 +96,26 @@ export async function recordMissionVideo(page, scene, output) {
           const a = u.absolutePositionOf('Europa Clipper', et);
           const relative = name => u.absolutePositionOf(name, et).map((v, i) => v - a[i]);
           const normal = v => v.map(x => x / Math.hypot(...v));
-          const europa = normal(relative('Europa')), jupiter = relative('Jupiter'), j = normal(jupiter);
-          const closeDirection = normal(europa.map((v, i) => -v - j[i]));
-          const wideDirection = normal(recipe.overviewOffsetKm);
-          const direction = normal(closeDirection.map((v, i) => v * (1 - zoom) + wideDirection[i] * zoom));
+          const jupiter = relative('Jupiter');
+          // Retain the reconstructed original flyby camera instead of following
+          // a moving Europa/Jupiter bisector that would erase the limb reveal.
+          const direction = normal(recipe.openingCamera.position);
           // Recenter in proportion to physical distance, keeping the spacecraft
           // in frame until Jupiter and its moons become the subjects.
-          const target = jupiter.map(v => v * distance / Math.hypot(...recipe.overviewOffsetKm));
-          c.setCamera(target.map((v, i) => v + direction[i] * distance), target, [0, 0, 1]);
-          c.setLayer('sensors', distance < recipe.sensorHideDistanceKm);
-          for (const name of renderer.getSensorNames()) c.setObjectVisible(name, distance < recipe.sensorHideDistanceKm && name === scene.sensor);
+          const aim = (distance - recipe.openingDistanceKm) /
+            (Math.hypot(...recipe.overviewOffsetKm) - recipe.openingDistanceKm);
+          const target = jupiter.map(v => v * aim);
+          c.setCamera(target.map((v, i) => v + direction[i] * distance), target, recipe.openingCamera.up);
           const reveal = distance >= recipe.trajectoryRevealDistanceKm;
           c.setLayer('trajectories', reveal);
           if (reveal) for (const name of renderer.trajectoryLines.keys())
             c.showTrajectory(name, ['Europa Clipper', 'Io', 'Europa', 'Ganymede', 'Callisto'].includes(name));
           for (const name of renderer.bodyMeshes.keys()) c.showLabel(name,
             (reveal ? ['Europa Clipper', 'Jupiter', 'Io', 'Europa', 'Ganymede', 'Callisto'] : ['Jupiter', 'Europa']).includes(name));
-        }, { recipe, scene, et: recipe.flybyWindow[0] + (recipe.flybyWindow[1] - recipe.flybyWindow[0]) * timeProgress, zoom, distance });
+          if (renderer.activeInstrumentView !== recipe.pip.sensor ||
+            recipe.instruments.some(name => !renderer.sensorFrustums.get(name)?.visible))
+            throw new Error('Instrument PiP or cones disappeared during recording');
+        }, { recipe, et: recipe.flybyWindow[0] + (recipe.flybyWindow[1] - recipe.flybyWindow[0]) * timeProgress, distance });
       } else {
         if (frame === stageFrames.openAnalysisAt) {
           await page.getByRole('button', { name: 'Events', exact: true }).click();
@@ -175,7 +193,7 @@ export async function recordMissionVideo(page, scene, output) {
       return `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
     };
     const cues = flyby ? [
-      [0, recipe.flybyEndAt, 'Europa Clipper flies past Europa, with Jupiter behind it and the EIS narrow-angle field of view on the surface.'],
+      [0, recipe.flybyEndAt, 'Follow Europa Clipper through the December flyby. Jupiter slowly emerges behind Europa. The four instrument cones and EIS WAC picture-in-picture stay active.'],
       [recipe.flybyEndAt, recipe.zoomEndAt, 'Pull back from the spacecraft to reveal Jupiter, its four Galilean moons and the mission trajectory.'],
       [recipe.zoomEndAt, recipe.duration, 'Hold the Jupiter system overview.'],
     ] : [
@@ -188,7 +206,12 @@ export async function recordMissionVideo(page, scene, output) {
     const subtitles = 'WEBVTT\n\n' + cues.map(([start, end, text]) => `${stamp(start)} --> ${stamp(end)}\n${text}\n`).join('\n');
     writeFileSync(resolve(output, recipe.basename + '.vtt'), subtitles);
     writeFileSync(resolve(output, recipe.basename + '.json'), JSON.stringify({ recipe, viewport, probe,
-      scene, final: await page.evaluate(() => ({ et: cosmo.getTime(), camera: cosmo.getCamera(), snapshot: cosmo.snapshot() })) }, null, 2) + '\n');
+      scene, final: await page.evaluate(() => ({ et: cosmo.getTime(), camera: cosmo.getCamera(), snapshot: cosmo.snapshot(),
+        pip: renderer.activeInstrumentView, instruments: renderer.getSensorNames().map(name => {
+          const sf = renderer.sensorFrustums.get(name);
+          return { name, spiceId: sf.spiceId, frame: sf.spiceFovFrame, visible: sf.visible,
+            horizontalFov: sf.hFov, verticalFov: sf.vFov };
+        }) })) }, null, 2) + '\n');
     console.log(`Video: ${mp4} (${probe.format.duration}s, ${probe.format.size} bytes); poster: ${poster}`);
   } finally {
     await page.mouse.up().catch(() => {});

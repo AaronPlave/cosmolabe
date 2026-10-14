@@ -3,21 +3,47 @@
   "scene": "clipper",
   "basename": "clipper-europa-flyby",
   "fps": 24,
-  "duration": 22,
-  "flybyEndAt": 6,
-  "zoomEndAt": 18,
+  "duration": 24,
+  "flybyEndAt": 8,
+  "zoomEndAt": 20,
   "flybyWindow": [
-    983890861.0077376,
-    983891161.0077376
+    1007514130.1831762,
+    1007514370.1831762
   ],
-  "openingDistanceKm": 0.027,
+  "openingDistanceKm": 0.021,
   "overviewOffsetKm": [
-    -2500000,
-    2500000,
-    2500000
+    -1431824.8975851524,
+    3868870.5814974266,
+    -1797697.9407784354
   ],
-  "trajectoryRevealDistanceKm": 30000,
-  "sensorHideDistanceKm": 20,
+  "trajectoryRevealDistanceKm": 0,
   "crf": 20,
-  "posterAt": 3
+  "posterAt": 6,
+  "openingCamera": {
+    "position": [
+      -0.006681849522064045,
+      0.018054729380321325,
+      -0.008389257056966033
+    ],
+    "up": [
+      -0.5534546872907379,
+      0.22188321092819974,
+      0.8027800133436952
+    ],
+    "fov": 60
+  },
+  "instruments": [
+    "EIS NAC",
+    "EIS WAC",
+    "MISE",
+    "E-THEMIS"
+  ],
+  "pip": {
+    "sensor": "EIS WAC",
+    "width": 360,
+    "height": 280,
+    "marginX": 16,
+    "marginY": 60,
+    "borderColor": "#ffb347"
+  }
 }
