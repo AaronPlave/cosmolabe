@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { SurfaceAppearanceSettings } from './SurfaceAppearance.js';
 import { SunVisual, SOLAR_LAYER } from './SunVisual.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
@@ -943,6 +944,10 @@ export class BodyMesh extends THREE.Object3D {
 
   /** Whether this body has streaming terrain active */
   get hasTerrain(): boolean { return this.terrainManager !== null; }
+
+  get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
+  get surfaceAppearanceDatum() { return this.terrainManager?.surfaceAppearanceDatum ?? null; }
+  setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.terrainManager?.setSurfaceAppearance(settings); }
 
   /** Get the terrain tile group for raycasting (null if no terrain or not visible) */
   get terrainTileGroup(): THREE.Object3D | null {
