@@ -358,8 +358,9 @@ choice to the builder once, at the price of a cube-specific copy of each source.
   estimated GPU bytes (RGBA8 with mipmaps; default 160 MiB) with levels 0–1
   pinned (30 tiles) as the coarse fallback that is never missing. The request
   queue is rebuilt every frame from what visible blocks want (coarse levels
-  first), at most 8 in flight; a request nobody has wanted for 30 frames is
-  aborted; when the budget is full of textures in use, new requests stop
+  first), at most 8 in flight, each holding its estimated bytes against the
+  budget until it completes, fails or is aborted; a request nobody has wanted
+  for 30 frames is aborted; when the budget is full of textures in use, new requests stop
   (`budgetLimited`) and blocks keep their fallback. A failed tile falls back to
   its nearest resident ancestor, is retried after 30 s doubling to 8 min, and
   nothing below it is requested meanwhile. A newly loaded or refined terrain

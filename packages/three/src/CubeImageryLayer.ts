@@ -501,17 +501,19 @@ export class CubeImageryLayer {
         this.counters.aborted++;
       }
     }
+    // An outstanding request holds its estimated bytes until it completes, fails or is
+    // aborted (it then leaves 'loading'), so staggered completions cannot overshoot the budget.
+    const estimate = this.manifest ? Math.round((this.manifest.tileSize + 2 * this.manifest.gutter) ** 2 * 4 * 4 / 3) : 0;
     let used = 0, loading = 0;
     for (const e of this.entries.values()) {
       if (e.state === 'ready') used += e.bytes;
-      else if (e.state === 'loading') loading++;
+      else if (e.state === 'loading') { loading++; used += estimate; }
     }
     const now = performance.now();
     const missing = [...wanted].filter(([id]) => {
       const e = this.entries.get(id);
       return !e || (e.state === 'failed' && this.retryDue(e, now));
     }).sort((a, b) => a[1] - b[1]);
-    const estimate = this.manifest ? Math.round((this.manifest.tileSize + 2 * this.manifest.gutter) ** 2 * 4 * 4 / 3) : 0;
     let budgetLimited = false, started = 0;
     for (const [id] of missing) {
       if (loading >= this.options.maxConcurrentRequests) break;

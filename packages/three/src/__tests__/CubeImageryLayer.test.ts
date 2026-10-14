@@ -168,6 +168,29 @@ describe('CubeImageryLayer', () => {
     layer.dispose();
   });
 
+  it('reserves budget for in-flight requests when completions are staggered', async () => {
+    const tile = 264 * 264 * 4 * 4 / 3;
+    const { layer, loader, tick } = await setup({ maxTextureBytes: 40 * tile, maxConcurrentRequests: 16 });
+    await loader.settle();
+    // Oblique over the nz/3/4/4 quadrant (nz: u = x/z, v = -y/z): many deep blocks in view at once.
+    const oblique = (h: number) => {
+      const c = new THREE.PerspectiveCamera(60, 1.6, 1, 1e8);
+      c.position.set(-30_000, 30_000, -(R + h));
+      c.lookAt(-30_000 - h, 30_000 + h, -R);
+      c.updateMatrixWorld();
+      return c;
+    };
+    for (let round = 0; round < 60; round++) {
+      tick(oblique(round % 20 < 10 ? 3_000 : 800));
+      // One completion per frame: requests started in earlier frames are still outstanding.
+      const [first] = loader.pending.keys();
+      if (first) await loader.settle(id => id === first);
+      const s = layer.stats;
+      expect(s.textureBytes + s.inFlight * tile).toBeLessThanOrEqual(40 * tile + 1);
+    }
+    layer.dispose();
+  });
+
   it('aborts requests nobody wants any more and stays bounded under camera motion', async () => {
     const { layer, loader, tick } = await setup({ maxConcurrentRequests: 6 });
     await loader.settle();
