@@ -16,9 +16,15 @@
  *   - CPU grids match the emitted lattice vertices
  *   - pole / antimeridian / child-boundary ownership on the real product
  *
+ *   - skirts (when built): surface triangles first (extras.surfaceTriangles),
+ *     radial walls under each edge, and every mixed-level gap below covered by
+ *     the higher tile's skirt — skirt depths read back from the .glb
+ *
  *   measurements (reported, not gated: the point is to measure, not assume)
  *   - mixed-LOD cracks without skirts: gap between a tile's edge vertices and
  *     each coarser neighbour's edge line actually present across that edge
+ *   - picks and clearance aimed at the worst mixed-LOD boundaries: CPU hit vs
+ *     the rendered pair (fine tile beside its coarse neighbour, skirts included)
  *   - CPU bilinear samples vs the emitted triangles along the same radial ray
  *   - control points: MoonFall's LOLA 118 m waypoint elevations vs CPU samples
  *   - picking and camera clearance through the #148 port, against brute-force
@@ -90,13 +96,16 @@ function readGlb(path) {
     buf.byteOffset + bin + js.bufferViews[a].byteOffset + js.accessors[a].count * 12));
   const pos = view(0), nrm = view(1), t = js.nodes[0].translation;
   const n = js.accessors[0].count;
+  const ia = js.accessors[2], ib = buf.byteOffset + bin + js.bufferViews[2].byteOffset;
+  const index = ia.componentType === 5125 ? new Uint32Array(buf.buffer.slice(ib, ib + ia.count * 4)) : new Uint16Array(buf.buffer.slice(ib, ib + ia.count * 2));
+  const surfaceTriangles = js.meshes[0].primitives[0].extras?.surfaceTriangles ?? ia.count / 3;
   // glTF Y-up (x, z, −y) back to body-fixed Z-up, translation added in float64.
   const P = new Float64Array(n * 3), Nr = new Float64Array(n * 3);
   for (let i = 0; i < n; i++) {
     P[i * 3] = pos[i * 3] + t[0]; P[i * 3 + 1] = -(pos[i * 3 + 2] + t[2]); P[i * 3 + 2] = pos[i * 3 + 1] + t[1];
     Nr[i * 3] = nrm[i * 3]; Nr[i * 3 + 1] = -nrm[i * 3 + 2]; Nr[i * 3 + 2] = nrm[i * 3 + 1];
   }
-  return { P, N: Nr, vertices: n, indexCount: js.accessors[2].count };
+  return { P, N: Nr, vertices: n, indexCount: ia.count, index, surfaceTriangles };
 }
 const readGrid = (f, L, x, y) => {
   const b = readFileSync(join(DIR, 'heights', f, String(L), String(x), `${y}.f32`));
@@ -107,6 +116,13 @@ const readGrid = (f, L, x, y) => {
 // 1. Tree: coverage, REPLACE completeness, subtree bounds, shared vertices.
 
 const tiles = new Map(); // id → { face, L, x, y }
+const SKIRTS = product.mesh.skirts !== 'none';
+const SURFACE_TRIANGLES = (G - 1) * (G - 1) * 2;
+// Builder loop order S, E, N, W: vertex (i, j) of each loop, k = 0…G−1.
+const LOOPS = [(k) => [k, 0], (k) => [G - 1, k], (k) => [G - 1 - k, G - 1], (k) => [0, G - 1 - k]];
+const LOOP_OF_EDGE = { S: 0, E: 1, N: 2, W: 3 };
+const skirtDepth = new Map(); // id → [S, E, N, W] metres (minimum along the loop)
+const skirtShape = [];
 const levelMaps = new Map(); // L → Map(key → { P, N, h, faces:Set })
 const shared = { sameFace: [], crossFace: [], corner: [], normalDeg: [], heightMismatch: 0 };
 const boundsEscapes = [], gridMismatch = [], sharedEscapes = [], outOfRange = [];
@@ -134,8 +150,27 @@ function walk(node, ancestors) {
     gate(kids.length === 4 && [...want].every(w => got.has(w)), `${id}: REPLACE parent must hold exactly its four children`);
   }
   const glb = readGlb(join(DIR, node.content.uri));
-  gate(glb.vertices === G * G || product.mesh.skirts !== 'none', `${id}: unexpected vertex count ${glb.vertices}`);
-  gate(glb.indexCount === (G - 1) * (G - 1) * 6 || product.mesh.skirts !== 'none', `${id}: unexpected index count`);
+  gate(glb.vertices === G * G * (SKIRTS ? 1 : 1) + (SKIRTS ? 4 * G : 0), `${id}: unexpected vertex count ${glb.vertices}`);
+  gate(glb.surfaceTriangles === SURFACE_TRIANGLES && glb.indexCount === 3 * (SURFACE_TRIANGLES + (SKIRTS ? 8 * (G - 1) : 0)), `${id}: unexpected triangle counts`);
+  if (SKIRTS) {
+    // Each skirt vertex sits radially below its edge vertex, by one depth per loop, with the edge's normal.
+    const depths = [];
+    for (let e = 0; e < 4; e++) {
+      let lo = Infinity, hi = -Infinity;
+      for (let k = 0; k < G; k++) {
+        const [i, j] = LOOPS[e](k), top = j * G + i, b = G * G + e * G + k;
+        const T = [glb.P[top * 3], glb.P[top * 3 + 1], glb.P[top * 3 + 2]], B = [glb.P[b * 3], glb.P[b * 3 + 1], glb.P[b * 3 + 2]];
+        const d = norm(T) - norm(B), ut = unit(T), ub = unit(B);
+        lo = Math.min(lo, d); hi = Math.max(hi, d);
+        const off = Math.hypot(ut[0] - ub[0], ut[1] - ub[1], ut[2] - ub[2]) * norm(T);
+        const nd = Math.hypot(glb.N[b * 3] - glb.N[top * 3], glb.N[b * 3 + 1] - glb.N[top * 3 + 1], glb.N[b * 3 + 2] - glb.N[top * 3 + 2]);
+        if (off > 2 * f32TolM || nd > 0 || d <= 0) skirtShape.push(`${id} loop ${e} k ${k}: off-radial ${off.toFixed(3)} m, normal Δ ${nd}, depth ${d}`);
+      }
+      if (hi - lo > 2 * f32TolM) skirtShape.push(`${id} loop ${e}: depth varies ${lo}…${hi} m`);
+      depths.push(lo);
+    }
+    skirtDepth.set(id, depths);
+  }
   const h = readGrid(f, L, x, y);
   for (const v of h) if (!(v / 1000 >= manifest.heightRangeKm[0] && v / 1000 <= manifest.heightRangeKm[1])) { outOfRange.push(`${id}: ${v} m`); break; }
   const boxes = [node.content.boundingVolume.box, node.boundingVolume.box, ...ancestors];
@@ -153,8 +188,10 @@ function walk(node, ancestors) {
     if (i !== 0 && j !== 0 && i !== G - 1 && j !== G - 1) continue;
     const key = keyOf(exactP(f, dyadic((G - 1) * x + i, L), dyadic((G - 1) * y + j, L)));
     const Nv = [glb.N[v * 3], glb.N[v * 3 + 1], glb.N[v * 3 + 2]];
+    const loops = [j === 0 && 0, i === G - 1 && 1, j === G - 1 && 2, i === 0 && 3].filter(e => e !== false);
     const prior = map.get(key);
-    if (!prior) { map.set(key, { P, N: Nv, h: h[v], faces: new Set([f]), tol: f32TolM }); continue; }
+    if (!prior) { map.set(key, { P, N: Nv, h: h[v], faces: new Set([f]), tol: f32TolM, owners: loops.map(loop => ({ id, loop })) }); continue; }
+    for (const loop of loops) prior.owners.push({ id, loop });
     const d = Math.hypot(P[0] - prior.P[0], P[1] - prior.P[1], P[2] - prior.P[2]);
     if (d > prior.tol + f32TolM) sharedEscapes.push(`${id}[${i},${j}] ${d.toFixed(4)} m`);
     prior.faces.add(f);
@@ -179,6 +216,7 @@ gate(gridMismatch.length === 0, `CPU grids disagree with emitted vertices: ${gri
 gate(shared.heightMismatch === 0, `${shared.heightMismatch} shared vertices have different CPU heights: ${JSON.stringify(shared.heightMismatchAt?.slice(0, 3))}`);
 gate(sharedEscapes.length === 0, `shared vertices differ beyond float32 tile-offset precision: ${sharedEscapes.slice(0, 5).join('; ')}`);
 gate(shared.corner.length > 0 && shared.crossFace.length > 0, 'expected cross-face edge and corner vertices');
+gate(skirtShape.length === 0, `skirts must hang radially, one depth per edge, with edge normals: ${skirtShape.slice(0, 5).join('; ')}`);
 console.log(`tree: ${tiles.size} tiles, levels ${JSON.stringify(perLevel)} (${((performance.now() - t0) / 1000).toFixed(1)} s)`);
 console.log(`shared vertices: same-face ${fmt(stats(shared.sameFace))}; cross-face ${fmt(stats(shared.crossFace))}; corners ${fmt(stats(shared.corner))}`);
 
@@ -197,6 +235,16 @@ function across(t, edge, level) {
   return cubeTileId(a);
 }
 const cracks = {}, crossFaceCracks = [], crackWorst = [];
+/** Distance along unit ray d from the centre to the chord A–B (all in one plane through the centre). */
+const chordRadius = (d, A, B) => {
+  const e = [B[0] - A[0], B[1] - A[1], B[2] - A[2]];
+  const m = [d[1] * e[2] - d[2] * e[1], d[2] * e[0] - d[0] * e[2], d[0] * e[1] - d[1] * e[0]];
+  const mm = m[0] * m[0] + m[1] * m[1] + m[2] * m[2];
+  if (mm === 0) return norm(A);
+  const c = [A[1] * B[2] - A[2] * B[1], A[2] * B[0] - A[0] * B[2], A[0] * B[1] - A[1] * B[0]];
+  return (c[0] * m[0] + c[1] * m[1] + c[2] * m[2]) / mm;
+};
+const skirtCover = { pairs: 0, samples: 0, uncovered: [], marginM: [], gapRadialM: [], coveredBy: { fine: 0, coarse: 0 } };
 for (const t of tiles.values()) {
   if (t.L === 0) continue;
   const glbEdges = [];
@@ -214,7 +262,9 @@ for (const t of tiles.values()) {
       const crossFace = !nid.startsWith(t.face + '/');
       const coarse = levelMaps.get(M);
       const scale = 2 ** (t.L - M);
-      let worst = 0;
+      let worst = 0, worstS = 0;
+      const radial = []; // [s, gap] along this edge: fine − coarse chord, along the fine vertex's ray
+      const coarseLoops = new Map(); // loop of nid on this line → count of bracketing pairs holding it
       for (let s = 0; s < G; s++) {
         const [ki, kj] = edge === 'W' ? [0, s] : edge === 'E' ? [G - 1, s] : edge === 'S' ? [s, 0] : [s, G - 1];
         const gi = (G - 1) * t.x + ki, gj = (G - 1) * t.y + kj; // fine global indices
@@ -225,18 +275,42 @@ for (const t of tiles.values()) {
         const lo = Math.floor(along / scale) * scale, hi = Math.ceil(along / scale) * scale;
         const at = (g) => {
           const [ii, jj] = edge === 'W' || edge === 'E' ? [gi, g] : [g, gj];
-          return coarse.get(keyOf(exactP(t.face, dyadic(ii, t.L), dyadic(jj, t.L))))?.P;
+          return coarse.get(keyOf(exactP(t.face, dyadic(ii, t.L), dyadic(jj, t.L))));
         };
         const A = at(lo), B = at(hi);
         if (!A || !B) { failures.push(`${cubeTileId(t)} ${edge}: coarse edge vertex missing at level ${M}`); continue; }
+        if (SKIRTS && lo !== hi) {
+          const [ii, jj] = edge === 'W' || edge === 'E' ? [gi, null] : [null, gj];
+          const ownersAt = (g) => coarse.get(keyOf(exactP(t.face, dyadic(ii ?? g, t.L), dyadic(jj ?? g, t.L)))).owners.filter(o => o.id === nid).map(o => o.loop);
+          const lb = ownersAt(hi);
+          for (const loop of ownersAt(lo)) if (lb.includes(loop)) coarseLoops.set(loop, (coarseLoops.get(loop) ?? 0) + 1);
+        }
+        const rf = norm(P), dir = unit(P);
+        radial.push(rf - (lo === hi ? norm(A.P) : chordRadius(dir, A.P, B.P)));
         const w = hi === lo ? 0 : (along - lo) / (hi - lo);
-        const Q = [A[0] + (B[0] - A[0]) * w, A[1] + (B[1] - A[1]) * w, A[2] + (B[2] - A[2]) * w];
+        const Q = [0, 1, 2].map(c => A.P[c] + (B.P[c] - A.P[c]) * w);
         const d = Math.hypot(P[0] - Q[0], P[1] - Q[1], P[2] - Q[2]);
         (cracks[`${t.L}-${M}`] ??= []).push(d);
         if (crossFace) crossFaceCracks.push(d);
-        worst = Math.max(worst, d);
+        if (d > worst) { worst = d; worstS = s; }
       }
-      crackWorst.push({ tile: cubeTileId(t), edge, against: nid, crossFace, maxM: worst });
+      crackWorst.push({ tile: cubeTileId(t), edge, against: nid, crossFace, maxM: worst, worstS, level: t.L, coarseLevel: M });
+      if (SKIRTS) {
+        // The coarse tile's loop on this line: the one every bracketing pair shares.
+        const coarseLoop = [...coarseLoops].find(([, n]) => n === Math.max(...coarseLoops.values()))?.[0];
+        if (coarseLoop == null) { failures.push(`${cubeTileId(t)} ${edge}: no loop of ${nid} on this line`); continue; }
+        const fineDepth = skirtDepth.get(cubeTileId(t))[LOOP_OF_EDGE[edge]], coarseDepth = skirtDepth.get(nid)[coarseLoop];
+        skirtCover.pairs++;
+        for (const gap of radial) {
+          // The higher edge's skirt must reach the lower one (float32 positions on both sides).
+          const depth = gap > 0 ? fineDepth : coarseDepth;
+          gap > 0 ? skirtCover.coveredBy.fine++ : skirtCover.coveredBy.coarse++;
+          skirtCover.samples++;
+          skirtCover.gapRadialM.push(gap);
+          skirtCover.marginM.push(depth - Math.abs(gap));
+          if (Math.abs(gap) > depth + 2 * t.f32TolM) skirtCover.uncovered.push(`${cubeTileId(t)} ${edge} vs ${nid}: gap ${gap.toFixed(3)} m, skirt ${depth.toFixed(3)} m`);
+        }
+      }
     }
   }
 }
@@ -245,6 +319,16 @@ const crackByPair = Object.fromEntries(Object.entries(cracks).sort(([a], [b]) =>
 const crackDelta1 = stats(Object.entries(cracks).filter(([k]) => { const [a, b] = k.split('-').map(Number); return a - b === 1; }).flatMap(([, v]) => v));
 const crackDelta1ByLevel = Object.fromEntries(Object.entries(crackByPair).filter(([k]) => { const [a, b] = k.split('-').map(Number); return a - b === 1; }));
 console.log(`cracks (Δlevel = 1): ${fmt(crackDelta1)}; across faces ${fmt(stats(crossFaceCracks))}`);
+const crackDeltaHistogram = {};
+for (const w of crackWorst) crackDeltaHistogram[w.level - w.coarseLevel] = (crackDeltaHistogram[w.level - w.coarseLevel] ?? 0) + 1;
+const crackAllDeltas = stats(Object.values(cracks).flat());
+console.log(`cracks (all Δlevel, ${JSON.stringify(crackDeltaHistogram)} edge pairs): ${fmt(crackAllDeltas)}`);
+if (SKIRTS) {
+  gate(skirtCover.uncovered.length === 0, `${skirtCover.uncovered.length} mixed-level gaps exceed the higher tile's skirt: ${skirtCover.uncovered.slice(0, 5).join('; ')}`);
+  const m = Float64Array.from(skirtCover.marginM).sort();
+  console.log(`skirts: ${skirtCover.samples} edge samples over ${skirtCover.pairs} mixed-level pairs, radial gap ${fmt(stats(skirtCover.gapRadialM))}; `
+    + `uncovered ${skirtCover.uncovered.length}, min margin ${m[0]?.toFixed(3)} m (higher side: fine ${skirtCover.coveredBy.fine}, coarse ${skirtCover.coveredBy.coarse})`);
+}
 for (const [k, v] of Object.entries(crackDelta1ByLevel)) console.log(`  L${k.replace('-', '→L')}: ${fmt(v)}`);
 
 // Parent/child heights at coincident dyadic positions (child − parent), the
@@ -362,14 +446,15 @@ function bruteForce(ray, hit) {
   }
   return Math.min(...[...ids].map(id => bruteForceTile(ray, id)));
 }
-function bruteForceTile(ray, tileId) {
+function bruteForceTile(ray, tileId, { triangles = 'surface', withIndex = false } = {}) {
   let glb = glbCache.get(tileId);
   if (!glb) { const [f, L, x, y] = tileId.split('/'); glbCache.set(tileId, glb = readGlb(join(DIR, f, L, x, `${y}.glb`))); }
   const o = [ray.origin.xKm * 1000, ray.origin.yKm * 1000, ray.origin.zKm * 1000], d = unit(ray.direction);
-  let best = Infinity;
-  for (let j = 0; j < G - 1; j++) for (let i = 0; i < G - 1; i++) {
-    const a = j * G + i;
-    for (const [p, q, r] of [[a, a + 1, a + G + 1], [a, a + G + 1, a + G]]) {
+  let best = Infinity, bestTri = -1;
+  const count = triangles === 'surface' ? glb.surfaceTriangles : glb.index.length / 3;
+  for (let tri = 0; tri < count; tri++) {
+    {
+      const p = glb.index[3 * tri], q = glb.index[3 * tri + 1], r = glb.index[3 * tri + 2];
       const A = [glb.P[p * 3], glb.P[p * 3 + 1], glb.P[p * 3 + 2]];
       const e1 = [glb.P[q * 3] - A[0], glb.P[q * 3 + 1] - A[1], glb.P[q * 3 + 2] - A[2]];
       const e2 = [glb.P[r * 3] - A[0], glb.P[r * 3 + 1] - A[1], glb.P[r * 3 + 2] - A[2]];
@@ -383,10 +468,10 @@ function bruteForceTile(ray, tileId) {
       const v = (d[0] * qv[0] + d[1] * qv[1] + d[2] * qv[2]) / det;
       if (v < -1e-6 || u + v > 1 + 1e-6) continue;
       const t = (e2[0] * qv[0] + e2[1] * qv[1] + e2[2] * qv[2]) / det;
-      if (t > 0 && t < best) best = t;
+      if (t > 0 && t < best) { best = t; bestTri = tri; }
     }
   }
-  return best;
+  return withIndex ? { t: best, skirt: bestTri >= glb.surfaceTriangles } : best;
 }
 const pickRows = [];
 const PICKS_PER_SITE = Number(args['picks-per-site'] ?? 30);
@@ -440,6 +525,63 @@ gate(clearanceMin > 0, `clearance camera below the CPU surface (${clearanceMin} 
 const fullClearance = pickRows.filter(r => r.lineOfSightM != null && Math.abs(r.lineOfSightM - 50) < 0.01).length;
 console.log(`picking: ${pickRows.length} rays, CPU vs float32 triangles ${fmt(pickStats)}; clearance: ${fullClearance}/${pickRows.length} see their hit at 50 m, LOS error ${fmt(losStats)}; min height above CPU sample ${clearanceMin.toFixed(2)} m`);
 
+// Picks and clearance at the mitigated boundaries themselves: rays aimed at the
+// worst-gap vertex of mixed-level edges (fine levels 7–12, same- and cross-face),
+// answered by the CPU surface (finest grids) and by the rendered pair a viewer
+// can draw there — the fine tile beside its coarse neighbour — with and without skirts.
+const boundaryRows = [];
+const BOUNDARY_EDGES = Number(args['boundary-edges'] ?? 12);
+const chosen = [
+  ...crackWorst.filter(w => w.level >= 10).slice(0, BOUNDARY_EDGES),
+  ...crackWorst.filter(w => w.level >= 7 && w.level < 10).slice(0, BOUNDARY_EDGES),
+  ...crackWorst.filter(w => w.crossFace && w.level >= 4).slice(0, BOUNDARY_EDGES),
+];
+for (const w of chosen) {
+  const [f, L, x, y] = w.tile.split('/'), t = { face: f, L: Number(L), x: Number(x), y: Number(y) };
+  // The edge vertex with the largest gap to the coarse neighbour's edge.
+  const h = readGrid(f, t.L, t.x, t.y), worstGap = w.maxM;
+  const [wi, wj] = w.edge === 'W' ? [0, w.worstS] : w.edge === 'E' ? [G - 1, w.worstS] : w.edge === 'S' ? [w.worstS, 0] : [w.worstS, G - 1];
+  const d = unit(exactP(f, dyadic((G - 1) * t.x + wi, t.L), dyadic((G - 1) * t.y + wj, t.L)));
+  const target = d.map(c => c * (R_M + h[wj * G + wi]) / 1000);
+  const tDeg = [Math.atan2(d[2], Math.hypot(d[0], d[1])) * 180 / Math.PI, Math.atan2(d[1], d[0]) * 180 / Math.PI];
+  await source.request(...tDeg);
+  for (let k = 0; k < 4; k++) {
+    const tilt = rand() * Math.PI / 3, az = rand() * 2 * Math.PI;
+    const east = unit([-d[1], d[0], 0].map((c, i) => (Math.abs(d[2]) > 0.999999 ? [1, 0, 0][i] : c)));
+    const north = [d[1] * east[2] - d[2] * east[1], d[2] * east[0] - d[0] * east[2], d[0] * east[1] - d[1] * east[0]];
+    const off = [0, 1, 2].map(i => d[i] * Math.cos(tilt) + Math.sin(tilt) * (east[i] * Math.cos(az) + north[i] * Math.sin(az)));
+    const eye = target.map((c, i) => c + 2 * off[i]);
+    const ray = { origin: { xKm: eye[0], yKm: eye[1], zKm: eye[2] }, direction: [target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]], nearKm: 0, farKm: 10 };
+    const hit = await requestSurfaceIntersection(surface, ray, { maxMeshErrorKm: 0.001 }, new AbortController().signal, surface);
+    if (!gate(hit.kind === 'hit', `boundary pick ${w.tile} ${w.edge}: ${hit.kind}`)) continue;
+    const pair = (triangles) => [w.tile, w.against].map(id => bruteForceTile(ray, id, { triangles, withIndex: true })).sort((a, b) => a.t - b.t)[0];
+    const withSkirts = pair('all'), surfaceOnly = pair('surface');
+    // Clearance: the #148 camera 50 m along the CPU hit normal, then straight down onto the rendered pair.
+    const cam = cameraPositionFromSurfacePick(hit, 0.05, true);
+    const down = { origin: cam, direction: [-hit.normal[0], -hit.normal[1], -hit.normal[2]], nearKm: 0, farKm: 5 };
+    const renderedBelow = [w.tile, w.against].map(id => bruteForceTile(down, id, { triangles: 'all' })).reduce((a, b) => Math.min(a, b));
+    boundaryRows.push({ tile: w.tile, edge: w.edge, against: w.against, crossFace: w.crossFace, levels: [t.L, w.coarseLevel], gapM: worstGap,
+      cpuM: hit.distanceKm * 1000, renderedM: withSkirts.t, renderedOnSkirt: withSkirts.skirt,
+      throughCrackWithoutSkirts: !(surfaceOnly.t < withSkirts.t + 1e-3) , renderedMinusCpuM: withSkirts.t - hit.distanceKm * 1000,
+      renderedClearanceM: Number.isFinite(renderedBelow) ? renderedBelow : null });
+  }
+}
+// A ray that leaves the two tiles before reaching either is not a sample of this pair.
+const onPair = boundaryRows.filter(r => Number.isFinite(r.renderedM));
+const boundaryStats = {
+  rays: boundaryRows.length, raysOnPair: onPair.length,
+  renderedMinusCpuM: stats(onPair.map(r => r.renderedMinusCpuM)),
+  skirtHitRenderedMinusCpuM: stats(onPair.filter(r => r.renderedOnSkirt).map(r => r.renderedMinusCpuM)),
+  skirtHitOverEdgeGap: stats(onPair.filter(r => r.renderedOnSkirt).map(r => Math.abs(r.renderedMinusCpuM) / Math.max(r.gapM, 1e-3))),
+  renderedOnSkirt: onPair.filter(r => r.renderedOnSkirt).length,
+  throughCrackWithoutSkirts: onPair.filter(r => r.throughCrackWithoutSkirts).length,
+  renderedClearanceM: stats(boundaryRows.filter(r => r.renderedClearanceM != null).map(r => r.renderedClearanceM - 50)),
+  renderedClearanceMinM: Math.min(...boundaryRows.map(r => r.renderedClearanceM ?? Infinity)),
+};
+console.log(`boundary picks: ${boundaryStats.raysOnPair}/${boundaryStats.rays} rays on the pair at ${chosen.length} worst mixed-level edges; rendered − CPU ${fmt(boundaryStats.renderedMinusCpuM)}; `
+  + `${boundaryStats.renderedOnSkirt} rendered hits on a skirt (rendered − CPU ${fmt(boundaryStats.skirtHitRenderedMinusCpuM)}), ${boundaryStats.throughCrackWithoutSkirts} would pass through the crack without skirts; `
+  + `rendered clearance − 50 m ${fmt(boundaryStats.renderedClearanceM)} (min ${boundaryStats.renderedClearanceMinM.toFixed(2)} m)`);
+
 // ---------------------------------------------------------------------------
 
 const report = {
@@ -461,6 +603,12 @@ const report = {
   controlPoints: { reference: 'scripts/data/moon-elevations.json — LOLA LDEM 118 m nearest pixel (MoonFall waypoints)', stats: controlStats, rows: controlRows },
   picking: { rays: pickRows.length, cpuVsFloat32Triangles: pickStats, clearanceM: 0.05 * 1000, raysWithFullClearance: fullClearance, lineOfSightErrorM: losStats,
     minHeightAboveCpuSampleM: clearanceMin, rows: pickRows },
+  skirts: SKIRTS ? { description: product.mesh.skirts, builder: product.skirtGaps, coverage: { pairs: skirtCover.pairs, samples: skirtCover.samples,
+    uncovered: skirtCover.uncovered.length, radialGapM: stats(skirtCover.gapRadialM), marginM: stats(skirtCover.marginM),
+    minMarginM: skirtCover.marginM.reduce((a, b) => Math.min(a, b), Infinity), higherSide: skirtCover.coveredBy } } : null,
+  mixedLodCrackPairsByDeltaLevel: crackDeltaHistogram,
+  boundaryPicks: { note: 'rays (0–60° off nadir, 2 km) at the worst-gap vertex of mixed-level edges: CPU hit (finest grids) vs the rendered pair (fine tile + coarse neighbour) with skirts; clearance = the #148 camera 50 m along the CPU normal, straight down onto the rendered pair',
+    ...boundaryStats, rows: boundaryRows },
   sourceStats: source.stats,
   failures,
   seconds: (performance.now() - t0) / 1000,

@@ -16,8 +16,10 @@
 #     to the polar cap's L7 (24 m) / L8 (12 m);
 #   the px/py/nz corner (35.26°S 45°E) and the px/nz edge midpoint (45°S 0°E):
 #     L4 within 400 km … L8 (212 m) within 25 km, for seam/corner inspection.
-# No skirts: mixed-LOD cracks stay visible and are measured
-# (scripts/validate-cube-terrain.mjs). Add --skirt-cells 1 to hide them.
+# Skirts: every tile edge hangs 1.25× the largest gap measured against any
+# other level across it (cracks are measured by scripts/validate-cube-terrain.mjs)
+# plus 0.1 vertex spacing. --skirt-cells 0 builds without them; the viewer can
+# also hide them at runtime (TerrainConfig.cubeSphere.skirts / setCubeSkirts).
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
