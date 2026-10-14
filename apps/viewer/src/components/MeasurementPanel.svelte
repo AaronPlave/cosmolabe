@@ -9,7 +9,7 @@
   import {
     duplicateMeasurement, hoverMeasurement, measurementColors, measurementDescription, measurementValue, newMeasurement, pickInstruction, renderedMeasurements,
     measurements, removeMeasurement, cancelMeasurementPick, createMeasurement, startMeasurementPick,
-    syncMeasurements, selectMeasurement, changeMeasurementKind, availableOperands, cloneVector, kindLabels, type MeasurementDefinition, type Slot,
+    syncMeasurements, selectMeasurement, changeMeasurementKind, availableOperands, cloneVector, kindLabels, draftReady, draftFrameMessage, type MeasurementDefinition, type Slot,
   } from '../lib/spatial-measurements.svelte';
   import { bodyFixedFrameName, referenceVectorLabel, type ReferenceVector } from '@cosmolabe/core';
   import { getUniverse } from '../lib/loader';
@@ -22,11 +22,8 @@
   const kind = $derived(measurements.draftKind);
   const bodies = $derived(vs.bodies.map(body => body.name).sort());
   const draft = $derived(measurements.draft);
-  const canCreate = $derived(
-    kind === 'velocity' ? !!draft.source
-    : kind === 'axes' ? !!draft.source && !!measurements.draftFrame.trim()
-    : kind === 'vector-angle' ? !!measurements.draftOperands.first && !!measurements.draftOperands.second
-    : !!draft.source && !!draft.target && (kind !== 'angle' || !!draft.vertex));
+  const canCreate = $derived(draftReady(vs.et));
+  const frameMessage = $derived(kind === 'axes' && measurements.draftFrame.trim() ? draftFrameMessage(vs.et) : '');
   const operands = $derived(availableOperands());
   /** The origin's own body-fixed frame first, then inertial frames, then other bodies with attitude. */
   const frameSuggestions = $derived.by(() => {
@@ -83,6 +80,7 @@
       <input class="ui-control frame mt-1" list="measurement-frames" spellcheck="false" autocomplete="off" placeholder="IAU_EARTH, J2000, or a furnished frame" bind:value={measurements.draftFrame} aria-label="Axes frame" />
       <datalist id="measurement-frames">{#each frameSuggestions as frame}<option value={frame}></option>{/each}</datalist>
     </label>
+    {#if frameMessage}<p class="ui-helper mt-1 frame-warning" role="status">{frameMessage}</p>{/if}
   {:else}
     {#if kind === 'angle'}{@render endpointRow('vertex', 'At')}{/if}
     {@render endpointRow('source', kind === 'angle' ? 'Toward' : 'Source')}
@@ -179,6 +177,7 @@
   .endpoint { display: flex; gap: 3px; margin-top: 3px; }
   .picked { min-width: 0; flex: 1; padding: 5px 7px; border: 1px solid var(--color-chrome-border); border-radius: 4px; background: var(--color-surface-3); color: var(--color-text-secondary); overflow-wrap: anywhere; }
   .frame { width: 100%; padding: 5px 7px; border: 1px solid var(--color-chrome-border); border-radius: 4px; background: var(--color-surface-3); color: var(--color-text-primary); font-family: var(--font-mono); outline: none; }
+  .frame-warning { color: var(--color-warning); }
   .frame:focus-visible { outline: 1px solid var(--color-chrome-active); }
   .pick-instruction { margin-top: 8px; color: var(--color-chrome-active); }
   .settings { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 10px; }

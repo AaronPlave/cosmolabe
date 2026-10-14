@@ -129,6 +129,8 @@ export class SpatialRelationshipLayer {
     private readonly canvas: HTMLCanvasElement,
     private readonly calloutContainer: HTMLElement,
     private readonly obstacles: () => CalloutObstacles,
+    /** A body's axes length in km, as its mesh draws it (`BodyMesh.axesLengthKm`). */
+    private readonly bodyAxesLengthKm: (bodyName: string) => number | undefined = () => undefined,
   ) {
     this.root.layers.set(2);
     this.feedback.layers.set(2); this.feedback.renderOrder = 104; this.feedback.frustumCulled = false;
@@ -184,8 +186,9 @@ export class SpatialRelationshipLayer {
     const base = this.obstacles();
     const point = (p: readonly number[]) => new THREE.Vector3((p[0] - originKm[0]) * this.scaleFactor, (p[1] - originKm[1]) * this.scaleFactor, (p[2] - originKm[2]) * this.scaleFactor);
     const shapes = new Map<string, Shape | null>();
+    const resolution = new Map(); // One frame's positions, shared by every overlay.
     for (const r of this.relationships) {
-      const resolved = r.visible === false ? null : resolveSpatialRelationship(this.universe, r, et);
+      const resolved = r.visible === false ? null : resolveSpatialRelationship(this.universe, r, et, resolution);
       shapes.set(r.id, resolved ? this.shape(resolved, point, height) : null);
     }
     const geometryPaths: number[][] = [];
@@ -332,9 +335,8 @@ export class SpatialRelationshipLayer {
       case 'axes': {
         const rel = resolved.relationship;
         const source = point(resolved.origin);
-        const body = rel.origin.kind === 'entity' ? this.universe.getBody(rel.origin.bodyName) : undefined;
-        // At least the body's diameter, as the global body axes are, so the pole clears the surface.
-        const length = Math.max(worldPerPixel(this.camera, source, height) * 64, body?.radii ? Math.max(...body.radii) * 2 * this.scaleFactor : 0);
+        const bodyLengthKm = rel.origin.kind === 'entity' ? this.bodyAxesLength(rel.origin.bodyName) : 0;
+        const length = axesDisplayLength(this.camera, source, height, bodyLengthKm * this.scaleFactor);
         const axes = resolved.axes.map(axis => [source, source.clone().addScaledVector(new THREE.Vector3(...axis), length)]);
         return { ...empty, segments: [], axes, marks: highlighted || editing ? [source] : [], anchor: source, labelAnchor: source, compact: rel.frame,
           title: `${rel.frame} axes`, detail: `At ${endpointLabel(rel.origin)}` };
@@ -352,6 +354,13 @@ export class SpatialRelationshipLayer {
           title: `Between ${lowerFirst(referenceVectorLabel(rel.first))} and ${lowerFirst(referenceVectorLabel(rel.second))}`, detail };
       }
     }
+  }
+  /** Axes at a body are as long as its mesh's own axes; a body without a mesh falls back to its radii. */
+  private bodyAxesLength(bodyName: string): number {
+    const fromMesh = this.bodyAxesLengthKm(bodyName);
+    if (fromMesh !== undefined && fromMesh > 0) return fromMesh;
+    const radii = this.universe.getBody(bodyName)?.radii;
+    return radii ? Math.max(...radii) * 2 : 0;
   }
   private placeCompactLabel(v: Visual, anchor: { x: number; y: number }, text: string, color: string, obstacles: CalloutObstacles, width: number, height: number, paths: readonly number[][], arrowheads: readonly ScreenRect[]): boolean {
     v.label.style.maxWidth = `${Math.max(1, width - 12)}px`;
@@ -459,6 +468,10 @@ function worldPerPixel(camera: THREE.PerspectiveCamera, point: THREE.Vector3, he
   const depth = -point.clone().applyMatrix4(camera.matrixWorldInverse).z;
   return depth > camera.near && depth < camera.far ? 2 * depth * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV()) / 2) / Math.max(1, height) : 0;
 }
+/** Axes span at least 64 px, or the body's own axes length (scene units) when that is longer. */
+export function axesDisplayLength(camera: THREE.PerspectiveCamera, origin: THREE.Vector3, height: number, bodyLength: number): number {
+  return Math.max(worldPerPixel(camera, origin, height) * 64, bodyLength);
+}
 /** Bounded display length carries orientation only, independent of target distance. */
 export function directionDisplayLength(camera: THREE.PerspectiveCamera, source: THREE.Vector3, trueLength: number, height: number): number {
   return Math.min(trueLength, worldPerPixel(camera, source, height) * 88);
@@ -533,19 +546,30 @@ export function rateChevrons(tip: THREE.Vector3, direction: THREE.Vector3, headL
   });
 }
 
-/** Where an axis letter goes: the tip, or the last on-screen point of an axis that leaves the view. */
-export function axisLetterAnchor(start: THREE.Vector3, end: THREE.Vector3, camera: THREE.PerspectiveCamera, width: number, height: number): { x: number; y: number } | null {
-  const tip = projectAnchor(end, camera, width, height);
-  if (tip) return tip;
-  if (!projectAnchor(start, camera, width, height)) return null;
-  let inside = 0, outside = 1;
-  for (let i = 0; i < 14; i++) {
-    const t = (inside + outside) / 2;
-    if (projectAnchor(start.clone().lerp(end, t), camera, width, height)) inside = t; else outside = t;
+/**
+ * Where an axis letter goes: the tip, or else the point nearest the tip where
+ * the axis is still on screen, even when both ends are off it. The segment is
+ * clipped to the near plane in view space (so nothing behind the camera
+ * projects mirrored), then to the viewport inset by `margin`.
+ */
+export function axisLetterAnchor(start: THREE.Vector3, end: THREE.Vector3, camera: THREE.PerspectiveCamera, width: number, height: number, margin = 10): { x: number; y: number } | null {
+  const a = start.clone().applyMatrix4(camera.matrixWorldInverse), b = end.clone().applyMatrix4(camera.matrixWorldInverse);
+  const near = -camera.near * 1.001; // In front of the camera is z < -near.
+  if (a.z > near && b.z > near) return null;
+  if (a.z > near) a.lerp(b, (a.z - near) / (a.z - b.z));
+  else if (b.z > near) b.lerp(a, (b.z - near) / (b.z - a.z));
+  const screen = (p: THREE.Vector3) => { p.applyMatrix4(camera.projectionMatrix); return { x: (p.x + 1) * width / 2, y: (1 - p.y) * height / 2 }; };
+  const p0 = screen(a), p1 = screen(b);
+  // Liang–Barsky against the inset viewport; keep the end of the visible part nearest the tip.
+  const dx = p1.x - p0.x, dy = p1.y - p0.y;
+  let t0 = 0, t1 = 1;
+  for (const [p, q] of [[-dx, p0.x - margin], [dx, width - margin - p0.x], [-dy, p0.y - margin], [dy, height - margin - p0.y]]) {
+    if (p === 0) { if (q < 0) return null; continue; }
+    const t = q / p;
+    if (p < 0) t0 = Math.max(t0, t); else t1 = Math.min(t1, t);
+    if (t0 > t1) return null;
   }
-  const at = projectAnchor(start.clone().lerp(end, inside), camera, width, height)!;
-  // Keep the letter inside the viewport edge it reached.
-  return { x: THREE.MathUtils.clamp(at.x, 10, width - 10), y: THREE.MathUtils.clamp(at.y, 10, height - 10) };
+  return { x: p0.x + dx * t1, y: p0.y + dy * t1 };
 }
 
 function lowerFirst(text: string): string { return text.charAt(0).toLowerCase() + text.slice(1); }

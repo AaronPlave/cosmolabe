@@ -425,6 +425,7 @@ export class UniverseRenderer {
     this.spatialRelationships = new SpatialRelationshipLayer(
       universe, this.scaleFactor, this.camera, canvas, this.labelContainer,
       () => this.spatialCalloutObstacles(),
+      name => this.bodyMeshes.get(name)?.axesLengthKm(),
     );
     this.spatialRelationships.attach(this.spatialScene);
 

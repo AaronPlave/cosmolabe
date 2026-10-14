@@ -8,7 +8,7 @@ import {
   addMeasurement, captureSurfaceEndpoint, configureMeasurementInput,
   duplicateMeasurement, measurements, removeMeasurement, resetMeasurementsForScene, createMeasurement, syncMeasurements,
   startMeasurementPick, renderedMeasurements, newMeasurement, selectMeasurement, measurementValue, changeMeasurementKind,
-  captureSharedMeasurements, restoreSharedMeasurements, showReference, availableOperands, measurementDescription,
+  captureSharedMeasurements, restoreSharedMeasurements, showReference, availableOperands, measurementDescription, draftReady, draftFrameMessage,
 } from '../spatial-measurements.svelte';
 
 beforeEach(() => { scene.universe = null; resetMeasurementsForScene(); });
@@ -216,6 +216,24 @@ describe('reference geometry items', () => {
     expect(createMeasurement()).toBe(true);
     expect(measurements.items[0]).toMatchObject({ kind: 'axes', frame: 'J2000' });
     expect(measurementValue(measurements.items[0], 0)).toBe('J2000 · at Earth');
+  });
+  it('refuses to add axes in a frame that does not resolve, and says why', () => {
+    changeMeasurementKind('axes');
+    measurements.draft.source = { kind: 'entity', bodyName: 'Earth' };
+    measurements.draftFrame = 'NOT_A_FRAME'; syncMeasurements();
+    expect(draftReady()).toBe(false);
+    expect(draftFrameMessage()).toMatch(/No frame named “NOT_A_FRAME”/);
+    expect(createMeasurement()).toBe(false);
+    expect(measurements.items).toEqual([]);
+    scene.universe!.addBody(new Body({ name: 'Gap', trajectory: new FixedPointTrajectory([0, 0, 0]),
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => { throw new Error('No coverage'); } } }));
+    measurements.draftFrame = 'IAU_GAP';
+    expect(draftFrameMessage()).toMatch(/no orientation data at the current time/);
+    expect(createMeasurement()).toBe(false);
+    measurements.draftFrame = 'IAU_EARTH';
+    expect(draftFrameMessage()).toBe('');
+    expect(createMeasurement()).toBe(true);
+    expect(measurements.items[0]).toMatchObject({ kind: 'axes', frame: 'IAU_EARTH' });
   });
   it('offers saved directions as angle operands and keeps an operand whose source item is deleted', () => {
     showReference({ kind: 'velocity', object: 'Earth' });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { axisLetterAnchor, rateChevrons, compactLabelPlacement, angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
+import { axesDisplayLength, axisLetterAnchor, rateChevrons, compactLabelPlacement, angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
 
 describe('measurement geometry', () => {
   it('uses finite independent segments and draws the arc for a straight angle', () => {
@@ -131,4 +131,33 @@ describe('reference geometry glyphs', () => {
     expect(edge.y).toBeCloseTo(300);
     expect(axisLetterAnchor(new THREE.Vector3(0, 0, 10), new THREE.Vector3(1, 0, 10), camera, 600, 600)).toBeNull();
   });
+
+  it('labels an axis whose ends are both off screen where it leaves the view, and nothing that misses it', () => {
+    const camera = new THREE.PerspectiveCamera(90, 1, 0.01, 10000);
+    camera.updateMatrixWorld();
+    // Crosses the whole view left to right: the letter sits at the right edge, the tip side.
+    const across = axisLetterAnchor(new THREE.Vector3(-1000, 0, -10), new THREE.Vector3(1000, 0, -10), camera, 600, 600)!;
+    expect(across.x).toBeCloseTo(590);
+    expect(across.y).toBeCloseTo(300);
+    // Reversed, it is the left edge.
+    expect(axisLetterAnchor(new THREE.Vector3(1000, 0, -10), new THREE.Vector3(-1000, 0, -10), camera, 600, 600)!.x).toBeCloseTo(10);
+    // Passing above the view entirely.
+    expect(axisLetterAnchor(new THREE.Vector3(-1000, 100, -10), new THREE.Vector3(1000, 100, -10), camera, 600, 600)).toBeNull();
+    // From behind the camera into view: the tip, not a mirrored projection of the origin.
+    const tip = axisLetterAnchor(new THREE.Vector3(0, 0, 10), new THREE.Vector3(1, 0, -10), camera, 600, 600)!;
+    expect(tip.x).toBeCloseTo(330);
+    // From in view to behind the camera: where it leaves the view, not the far side.
+    const outward = axisLetterAnchor(new THREE.Vector3(0, 0, -10), new THREE.Vector3(0, 0, 10), camera, 600, 600);
+    expect(outward).toEqual({ x: 300, y: 300 });
+  });
+});
+
+it('sizes axes by the body’s own axes length when it exceeds the 64 px floor', () => {
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 10000);
+  camera.updateMatrixWorld();
+  const origin = new THREE.Vector3(0, 0, -10);
+  const floor = axesDisplayLength(camera, origin, 600, 0);
+  expect(floor / (20 * Math.tan(Math.PI / 6) / 600)).toBeCloseTo(64);
+  expect(axesDisplayLength(camera, origin, 600, floor * 3)).toBe(floor * 3);
+  expect(axesDisplayLength(camera, origin, 600, floor / 3)).toBe(floor);
 });

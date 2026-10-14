@@ -158,6 +158,7 @@ export {
   resolveSpatialRelationship,
   resolveReferenceVector,
   resolveFrameAxes,
+  frameAvailability,
   resolveVelocity,
   defaultVelocityCenter,
   relationshipVectors,
@@ -168,7 +169,7 @@ export {
 } from './geometry/spatial-relationships.js';
 export type {
   SpatialEndpoint, SpatialRelationship, ResolvedSpatialRelationship,
-  ReferenceVector, ResolvedReferenceVector, ReferenceRequest, FrameAxis,
+  ReferenceVector, ResolvedReferenceVector, ReferenceRequest, FrameAxis, SpatialResolutionCache,
 } from './geometry/spatial-relationships.js';
 
 // Geometry/event finder — the shared query + result model every geometry

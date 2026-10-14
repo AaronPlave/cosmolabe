@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Body, FixedPointTrajectory, FixedRotation, Universe, resolveSpatialEndpoint, resolveSpatialRelationship, formatSpatialDistance, formatSpatialSpeed, resolveFrameAxes, resolveVelocity, referenceRelationship, relationshipVectors, referenceVectorLabel, rotateVecByQuat } from '../index.js';
+import { Body, FixedPointTrajectory, FixedRotation, Universe, resolveSpatialEndpoint, resolveSpatialRelationship, formatSpatialDistance, formatSpatialSpeed, resolveFrameAxes, frameAvailability, resolveVelocity, referenceRelationship, relationshipVectors, referenceVectorLabel, rotateVecByQuat } from '../index.js';
 
 describe('spatial relationships', () => {
   it('resolves entity endpoints through the absolute parent chain', () => {
@@ -174,5 +174,54 @@ describe('reference geometry', () => {
     expect(relationshipVectors({ id: 'd', kind: 'distance', source: { kind: 'entity', bodyName: 'A' }, target: { kind: 'entity', bodyName: 'B' } })).toEqual([]);
     expect(formatSpatialSpeed(7.66)).toBe('7.660 km/s');
     expect(formatSpatialSpeed(0.0042)).toBe('4.20 m/s');
+  });
+});
+
+describe('reference geometry at coverage edges', () => {
+  // Covered on [0, 100] s only, moving at a constant 2 km/s along +X.
+  const covered = () => ({ stateAt: (et: number) => {
+    if (et < 0 || et > 100) throw new Error('Insufficient ephemeris data');
+    return { position: [2 * et, 0, 0] as [number, number, number], velocity: [2, 0, 0] as [number, number, number] };
+  } });
+  function scene() {
+    const universe = new Universe();
+    universe.addBody(new Body({ name: 'Center', trajectory: new FixedPointTrajectory([0, 0, 0]) }));
+    universe.addBody(new Body({ name: 'Probe', parentName: 'Center', trajectory: covered() }));
+    return universe;
+  }
+  const probe = { kind: 'entity', bodyName: 'Probe' } as const;
+
+  it('falls back to a one-sided difference where only one neighbour has coverage', () => {
+    const universe = scene();
+    for (const et of [0, 0.25, 50, 99.75, 100]) {
+      const velocity = resolveVelocity(universe, probe, undefined, et);
+      expect(velocity, `et ${et}`).not.toBeNull();
+      velocity!.velocityKmS.forEach((v, i) => expect(v).toBeCloseTo([2, 0, 0][i], 9));
+    }
+    expect(resolveVelocity(universe, probe, undefined, -0.1)).toBeNull();
+    expect(resolveVelocity(universe, probe, undefined, 100.1)).toBeNull();
+  });
+
+  it('resolves three object and two reference positions per velocity away from an edge', () => {
+    const universe = new Universe();
+    const calls = { probe: 0, center: 0 };
+    const counted = (name: 'probe' | 'center') => ({ stateAt: () => { calls[name]++; return { position: [1, 2, 3] as [number, number, number], velocity: [0, 0, 0] as [number, number, number] }; } });
+    universe.addBody(new Body({ name: 'Center', trajectory: counted('center') }));
+    universe.addBody(new Body({ name: 'Probe', parentName: 'Center', trajectory: counted('probe') }));
+    resolveVelocity(universe, probe, undefined, 10);
+    // The probe's absolute position walks its parent chain, so each probe resolution also reads the center.
+    expect(calls).toEqual({ probe: 3, center: 5 });
+  });
+
+  it('tells an unknown frame from a known one with no orientation at this epoch', () => {
+    const universe = new Universe();
+    universe.addBody(new Body({ name: 'Tumbler', trajectory: new FixedPointTrajectory([0, 0, 0]),
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => { throw new Error('No coverage'); } } }));
+    expect(frameAvailability(universe, 'J2000', 0)).toBe('available');
+    expect(frameAvailability(universe, 'IAU_TUMBLER', 0)).toBe('unavailable');
+    expect(frameAvailability(universe, 'IAU_NOBODY', 0)).toBe('unknown');
+    expect(frameAvailability(universe, 'NOT_A_FRAME', 0)).toBe('unknown');
+    expect(frameAvailability(universe, 'LVLH', 0)).toBe('unknown');
+    expect(frameAvailability(universe, ' ', 0)).toBe('unknown');
   });
 });

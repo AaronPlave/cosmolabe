@@ -2,7 +2,7 @@ import type { Universe } from '../Universe.js';
 import { bodyFixedOffsetToWorld } from '../kinematics.js';
 import type { Vec3 } from '../spice-injection.js';
 import type { Quaternion } from '../rotations/RotationModel.js';
-import { WORLD_FRAME, bodyFixedFrameName } from '../frames/FrameRegistry.js';
+import { WORLD_FRAME, bodyFixedFrameName, normalizeFrameKey } from '../frames/FrameRegistry.js';
 
 /** A durable reference to a position, rather than a position captured from a rendered frame. */
 export type SpatialEndpoint =
@@ -113,43 +113,69 @@ function bodyFixedVectorToWorld(position: Vec3, q: Quaternion, sourceFrame: stri
   return bodyFixedOffsetToWorld(r, lat, lon, q, sourceFrame, 'ECLIPJ2000', et, universe.frames);
 }
 
-export function resolveSpatialRelationship<R extends SpatialRelationship>(universe: Universe, relationship: R, et: number): ResolvedFor<R> | null {
-  return resolveAny(universe, relationship, et) as ResolvedFor<R> | null;
+/**
+ * Positions and frame axes already resolved in one pass (one rendered frame),
+ * keyed by epoch and reference. Overlays share bodies, a velocity resolves its
+ * object at three epochs, and an angle re-resolves its operands; passing one
+ * cache to every resolution in a frame does each lookup once. Never keep one
+ * across a catalog or kernel change.
+ */
+export type SpatialResolutionCache = Map<string, unknown>;
+
+function endpointAt(universe: Universe, endpoint: SpatialEndpoint, et: number, cache?: SpatialResolutionCache): Vec3 | null {
+  if (!cache) return resolveSpatialEndpoint(universe, endpoint, et);
+  const key = `p|${et}|${endpoint.kind}|${endpoint.kind === 'coordinate' ? endpoint.frame ?? '' : endpoint.bodyName}|${endpoint.kind === 'entity' ? '' : endpoint.positionKm.join(',')}`;
+  if (cache.has(key)) return cache.get(key) as Vec3 | null;
+  const position = resolveSpatialEndpoint(universe, endpoint, et);
+  cache.set(key, position);
+  return position;
+}
+function axesAt(universe: Universe, frame: string, et: number, cache?: SpatialResolutionCache): [Vec3, Vec3, Vec3] | null {
+  if (!cache) return resolveFrameAxes(universe, frame, et);
+  const key = `f|${et}|${frame}`;
+  if (cache.has(key)) return cache.get(key) as [Vec3, Vec3, Vec3] | null;
+  const axes = resolveFrameAxes(universe, frame, et);
+  cache.set(key, axes);
+  return axes;
 }
 
-function resolveAny(universe: Universe, relationship: SpatialRelationship, et: number): ResolvedSpatialRelationship | null {
+export function resolveSpatialRelationship<R extends SpatialRelationship>(universe: Universe, relationship: R, et: number, cache?: SpatialResolutionCache): ResolvedFor<R> | null {
+  return resolveAny(universe, relationship, et, cache) as ResolvedFor<R> | null;
+}
+
+function resolveAny(universe: Universe, relationship: SpatialRelationship, et: number, cache?: SpatialResolutionCache): ResolvedSpatialRelationship | null {
   switch (relationship.kind) {
     case 'distance': case 'direction': {
-      const source = resolveSpatialEndpoint(universe, relationship.source, et);
-      const target = resolveSpatialEndpoint(universe, relationship.target, et);
+      const source = endpointAt(universe, relationship.source, et, cache);
+      const target = endpointAt(universe, relationship.target, et, cache);
       if (!source || !target) return null;
       return relationship.kind === 'distance'
         ? { kind: 'distance', relationship, source, target, distanceKm: distance(source, target) }
         : { kind: 'direction', relationship, source, target, distanceKm: distance(source, target) };
     }
     case 'angle': {
-      const source = resolveSpatialEndpoint(universe, relationship.source, et);
-      const target = resolveSpatialEndpoint(universe, relationship.target, et);
-      const vertex = resolveSpatialEndpoint(universe, relationship.vertex, et);
+      const source = endpointAt(universe, relationship.source, et, cache);
+      const target = endpointAt(universe, relationship.target, et, cache);
+      const vertex = endpointAt(universe, relationship.vertex, et, cache);
       if (!source || !target || !vertex) return null;
       const angleDeg = angleBetween(sub(source, vertex), sub(target, vertex));
       return { kind: 'angle', relationship, source, target, vertex, angleDeg };
     }
     case 'velocity': {
-      const velocity = resolveVelocity(universe, relationship.object, relationship.relativeTo, et);
+      const velocity = resolveVelocity(universe, relationship.object, relationship.relativeTo, et, cache);
       if (!velocity) return null;
       const speedKmS = Math.hypot(...velocity.velocityKmS);
       return { kind: 'velocity', relationship, origin: velocity.origin, velocityKmS: velocity.velocityKmS, speedKmS,
         direction: unit(velocity.velocityKmS), ...(velocity.center ? { center: velocity.center } : {}) };
     }
     case 'axes': {
-      const origin = resolveSpatialEndpoint(universe, relationship.origin, et);
-      const axes = resolveFrameAxes(universe, relationship.frame, et);
+      const origin = endpointAt(universe, relationship.origin, et, cache);
+      const axes = axesAt(universe, relationship.frame, et, cache);
       return origin && axes ? { kind: 'axes', relationship, origin, axes } : null;
     }
     case 'vector-angle': {
-      const first = resolveReferenceVector(universe, relationship.first, et);
-      const second = resolveReferenceVector(universe, relationship.second, et);
+      const first = resolveReferenceVector(universe, relationship.first, et, cache);
+      const second = resolveReferenceVector(universe, relationship.second, et, cache);
       if (!first || !second) return null;
       const angleDeg = first.direction && second.direction ? angleBetween(first.direction, second.direction) : undefined;
       return { kind: 'vector-angle', relationship, vertex: first.origin, first, second, angleDeg };
@@ -157,7 +183,7 @@ function resolveAny(universe: Universe, relationship: SpatialRelationship, et: n
   }
 }
 
-/** Half of the central-difference step for velocities, in seconds. */
+/** Half of the central-difference step for velocities, in seconds; also the one-sided step at a coverage edge. */
 const VELOCITY_HALF_STEP_S = 0.5;
 
 /**
@@ -178,21 +204,55 @@ export function defaultVelocityCenter(universe: Universe, object: SpatialEndpoin
  * rather than reading a trajectory's own velocity keeps every endpoint kind
  * and frame on one rule: a ground station's velocity includes its planet's
  * rotation, and a composite arc needs no special case.
+ *
+ * At a coverage edge, where only one neighbour resolves, it falls back to a
+ * one-sided difference over the same half step, so an epoch with a valid
+ * state always has a velocity. Cost: three object and two reference position
+ * resolutions per call (one more of each at an edge).
  */
-export function resolveVelocity(universe: Universe, object: SpatialEndpoint, relativeTo: SpatialEndpoint | undefined, et: number): { origin: Vec3; velocityKmS: Vec3; center?: SpatialEndpoint } | null {
+export function resolveVelocity(universe: Universe, object: SpatialEndpoint, relativeTo: SpatialEndpoint | undefined, et: number, cache?: SpatialResolutionCache): { origin: Vec3; velocityKmS: Vec3; center?: SpatialEndpoint } | null {
   const center = relativeTo ?? defaultVelocityCenter(universe, object, et);
   const relative = (t: number): Vec3 | null => {
-    const p = resolveSpatialEndpoint(universe, object, t);
+    const p = endpointAt(universe, object, t, cache);
     if (!p) return null;
     if (!center) return p;
-    const c = resolveSpatialEndpoint(universe, center, t);
+    const c = endpointAt(universe, center, t, cache);
     return c ? sub(p, c) : null;
   };
-  const origin = resolveSpatialEndpoint(universe, object, et);
-  const before = relative(et - VELOCITY_HALF_STEP_S), after = relative(et + VELOCITY_HALF_STEP_S);
-  if (!origin || !before || !after) return null;
-  const velocityKmS: Vec3 = [0, 1, 2].map(i => (after[i] - before[i]) / (2 * VELOCITY_HALF_STEP_S)) as Vec3;
+  const origin = endpointAt(universe, object, et, cache);
+  if (!origin) return null;
+  const h = VELOCITY_HALF_STEP_S;
+  let before = relative(et - h), after = relative(et + h), step = 2 * h;
+  if (!before || !after) {
+    const now = relative(et);
+    if (!now || (!before && !after)) return null;
+    if (before) after = now; else before = now;
+    step = h;
+  }
+  const [a, b] = [before!, after!];
+  const velocityKmS: Vec3 = [(b[0] - a[0]) / step, (b[1] - a[1]) / step, (b[2] - a[2]) / step];
   return { origin, velocityKmS, ...(center ? { center } : {}) };
+}
+
+/**
+ * Whether a frame name can be drawn at `et`: `available`; `unknown` (no
+ * built-in, catalog, body or furnished-kernel frame by that name); or
+ * `unavailable` (a known frame with no orientation at this epoch, such as a
+ * CK frame outside its coverage).
+ */
+export function frameAvailability(universe: Universe, frame: string, et: number): 'available' | 'unknown' | 'unavailable' {
+  if (!frame.trim()) return 'unknown';
+  if (resolveFrameAxes(universe, frame, et)) return 'available';
+  const def = universe.frames.get(frame);
+  if (!def) return 'unknown';
+  const key = normalizeFrameKey(frame);
+  const bodyFixed = key.startsWith('IAU_');
+  if (bodyFixed && universe.getAllBodies().some(body => body.rotation && bodyFixedFrameName(body.name) === key)) return 'unavailable';
+  // Without SPICE only built-in and declared frames have definitions; an IAU_
+  // name with no body behind it is synthesized on request and names nothing.
+  if (!universe.spiceInstance) return bodyFixed ? 'unknown' : 'unavailable';
+  // SPICE remembers the names it rejected, as opposed to coverage gaps.
+  return def.spiceName && universe.frames.spiceRejects(def.spiceName) ? 'unknown' : 'unavailable';
 }
 
 /** A frame's unit X, Y and Z axes in the scene frame, through the frame registry. */
@@ -205,22 +265,22 @@ export function resolveFrameAxes(universe: Universe, frame: string, et: number):
   } catch { return null; }
 }
 
-export function resolveReferenceVector(universe: Universe, vector: ReferenceVector, et: number): ResolvedReferenceVector | null {
+export function resolveReferenceVector(universe: Universe, vector: ReferenceVector, et: number, cache?: SpatialResolutionCache): ResolvedReferenceVector | null {
   if (vector.kind === 'direction') {
-    const source = resolveSpatialEndpoint(universe, vector.source, et);
-    const target = resolveSpatialEndpoint(universe, vector.target, et);
+    const source = endpointAt(universe, vector.source, et, cache);
+    const target = endpointAt(universe, vector.target, et, cache);
     if (!source || !target) return null;
     const d = sub(target, source);
     return { origin: source, direction: unit(d), magnitude: Math.hypot(...d) };
   }
   if (vector.kind === 'velocity') {
-    const velocity = resolveVelocity(universe, vector.object, vector.relativeTo, et);
+    const velocity = resolveVelocity(universe, vector.object, vector.relativeTo, et, cache);
     if (!velocity) return null;
     return { origin: velocity.origin, direction: unit(velocity.velocityKmS), magnitude: Math.hypot(...velocity.velocityKmS),
       ...(velocity.center ? { center: velocity.center } : {}) };
   }
-  const origin = resolveSpatialEndpoint(universe, vector.origin, et);
-  const axes = resolveFrameAxes(universe, vector.frame, et);
+  const origin = endpointAt(universe, vector.origin, et, cache);
+  const axes = axesAt(universe, vector.frame, et, cache);
   if (!origin || !axes) return null;
   const axis = axes['XYZ'.indexOf(vector.axis[1])];
   const sign = vector.axis[0] === '-' ? -1 : 1;

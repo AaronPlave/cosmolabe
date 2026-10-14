@@ -1,5 +1,5 @@
 import {
-  bodyFixedFrameName, endpointLabel, formatSpatialDistance, formatSpatialSpeed, referenceRelationship, referenceVectorLabel, relationshipVectors,
+  bodyFixedFrameName, endpointLabel, frameAvailability, formatSpatialDistance, formatSpatialSpeed, referenceRelationship, referenceVectorLabel, relationshipVectors,
   resolveSpatialRelationship, type ReferenceRequest, type ReferenceVector, type SpatialEndpoint, type SpatialRelationship,
 } from '@cosmolabe/core';
 import { ViewStateError } from '@cosmolabe/control';
@@ -231,8 +231,33 @@ export function duplicateMeasurement(id: string): void {
   measurements.items.push(copy); measurements.nextColor++;
   selectMeasurement(copy.id);
 }
+function currentEt(): number {
+  return getCurrentRenderer()?.timeController.et ?? getUniverse()?.time ?? 0;
+}
+/** Whether the axes frame being edited resolves now; `unknown` names no frame at all. */
+export function draftFrameAvailability(et = currentEt()): 'available' | 'unknown' | 'unavailable' {
+  const universe = getUniverse();
+  return universe ? frameAvailability(universe, measurements.draftFrame, et) : 'unavailable';
+}
+export function draftFrameMessage(et = currentEt()): string {
+  const availability = draftFrameAvailability(et);
+  if (availability === 'unknown') return `No frame named “${measurements.draftFrame.trim()}”. Use IAU_<body>, an inertial frame such as J2000, or a frame from a furnished kernel.`;
+  if (availability === 'unavailable') return 'This frame has no orientation data at the current time (for example, outside its CK coverage).';
+  return '';
+}
+/** Every required field is set, and an axes frame resolves at the current time. */
+export function draftReady(et = currentEt()): boolean {
+  const { source, target, vertex } = measurements.draft;
+  switch (measurements.draftKind) {
+    case 'velocity': return !!source;
+    case 'axes': return !!source && draftFrameAvailability(et) === 'available';
+    case 'vector-angle': return !!measurements.draftOperands.first && !!measurements.draftOperands.second;
+    case 'angle': return !!source && !!target && !!vertex;
+    default: return !!source && !!target;
+  }
+}
 export function createMeasurement(): boolean {
-  if (measurements.editingId) return false;
+  if (measurements.editingId || !draftReady()) return false;
   const draft: MeasurementDefinition = { id: crypto.randomUUID(), kind: measurements.draftKind, ...cloneDraft(measurements.draft), color: measurements.draftColor,
     showDistance: measurements.draftShowDistance, fullLength: measurements.draftFullLength, frame: measurements.draftFrame, ...cloneOperands(measurements.draftOperands) };
   const valid = relationship(draft);
