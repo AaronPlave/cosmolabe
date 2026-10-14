@@ -5,7 +5,8 @@
     dem.py fuse  --base GLOBAL.tif --detail REGIONAL.tif --out DIR [--blend-m 1000]
     dem.py tile  --base GLOBAL.tif --fusion DIR --out PYRAMID [--global-zoom 9 --max-zoom 15]
     dem.py polar-tile --base GLOBAL.tif --fusion DIR --out TILESET [--max-level 7]
-    dem.py cube-tile --base GLOBAL.tif --fusion DIR --out TILESET [--global-level 3 --region …]
+    dem.py cube-tile --base GLOBAL.tif --fusion DIR --out TILESET [--global-level 3 --region … --simplify FRAC]
+    dem.py cube-error TILESET_DIR   (geometricError from the emitted triangles → tileset-measured.json)
     dem.py selftest
 
 `fuse` treats the regional DEM as detail over the canonical global DEM, never as
@@ -495,20 +496,34 @@ def build_rtin(n=GRID):
 RTIN, EDGE = build_rtin()
 
 
-def rtin_errors(h, spacing_rad=0.0, radius=0.0):
+def chord_radius(d, A, B):
+    """Distance from the body centre along unit rays d (…, 3) to the lines A–B,
+    each in the plane of its ray and the centre: t·d = A + s(B − A)."""
+    m = np.cross(d, B - A)
+    return (np.cross(A, B) * m).sum(-1) / (m * m).sum(-1)
+
+
+def rtin_errors(h, spacing_rad=0.0, radius=0.0, P=None):
     """Per-vertex error: the interpolation error a vertex removes, maxed with its
     descendants'. Edge vertices are infinite, i.e. always kept.
 
     Heights are above a curved datum, so a flat triangle also cuts below the
     surface by the chord sag of its span, R·(1 − cos(θ/2)); without it, flat
-    low-zoom tiles collapse to a few huge triangles and the globe goes faceted."""
+    low-zoom tiles collapse to a few huge triangles and the globe goes faceted.
+    With body-fixed vertices `P` (GRID², 3) instead, a vertex's own error is its
+    exact radial distance from the hypotenuse it splits (cube tiles: the uv
+    midpoint's ray meets the 3D chord, since gnomonic maps lines to lines)."""
     err = np.where(EDGE, np.inf, 0.0)
     for li in range(len(RTIN) - 1, -1, -1):
         L = RTIN[li]
         if not L['split'].any():
             continue
-        own = np.abs((h[L['a']] + h[L['b']]) * 0.5 - h[L['m']])
-        own = own + radius * (1 - math.cos(L['hyp'] * spacing_rad / 2))
+        if P is None:
+            own = np.abs((h[L['a']] + h[L['b']]) * 0.5 - h[L['m']])
+            own = own + radius * (1 - math.cos(L['hyp'] * spacing_rad / 2))
+        else:
+            rm = np.linalg.norm(P[L['m']], axis=1)
+            own = np.abs(rm - chord_radius(P[L['m']] / rm[:, None], P[L['a']], P[L['b']]))
         if li + 1 < len(RTIN):
             Ln = RTIN[li + 1]
             ch = L['child']
@@ -890,11 +905,12 @@ def lattice_indices(n=GRID):
 LATTICE_TRI, LATTICE_EDGES = lattice_indices()
 
 
-def with_skirts(P, nrm, depth):
+def with_skirts(P, nrm, depth, surface=LATTICE_TRI):
     """Append a skirt below each lattice edge: copies of the edge vertices
     moved `depth` m toward the body centre (one value, or one per S/E/N/W
-    loop), keeping the edge normals. Skirt triangles follow the surface ones."""
-    pos, nor, tri = [P], [nrm], [LATTICE_TRI]
+    loop), keeping the edge normals. Skirt triangles follow the `surface`
+    ones, which must keep every edge vertex (RTIN does)."""
+    pos, nor, tri = [P], [nrm], [surface]
     nv = len(P)
     depths = np.broadcast_to(np.asarray(depth, np.float64), (len(LATTICE_EDGES),))
     for loop, depth in zip(LATTICE_EDGES, depths):
@@ -1178,6 +1194,93 @@ def cube_representation(face, L, x, y, heights_m, density=4):
     return float(np.abs(err).max()), float(np.sqrt((err * err).mean()))
 
 
+# Radial deviation between two triangle meshes over one cube tile.
+#
+# Both meshes have their vertices on lattice rays of the tile (or of its parent,
+# whose lattice lines are a subset), and gnomonic projection maps every 3D
+# triangle edge to a straight line in face (u, v). Splitting each lattice cell by
+# both diagonals ("union jack") gives sub-triangles that no edge of a full
+# lattice, an RTIN mesh or the parent's either crosses, so over one
+# sub-triangle each mesh is a single plane. Along the unnormalized ray
+# w = N + uU + vV a plane m·p = c lies at p = w / g(w) with g = m·w / c, which is
+# affine in (u, v), so r = |w| / g and
+#   |r_a − r_b| = |w| · |g_b − g_a| / (g_a g_b)
+#              ≤ max|g_b − g_a| · max|w| / (min g_a · min g_b)   over the vertices,
+# since |g_b − g_a| is affine (extremes at vertices), |w| is convex and g is
+# affine and positive. The bound is exact arithmetic on the triangles given;
+# radial distance also bounds the distance between the two surfaces.
+
+def _union_jack(n=GRID - 1):
+    ci, cj = (a.ravel().astype(np.float64) for a in np.meshgrid(np.arange(n), np.arange(n)))
+    v00 = np.stack([ci, cj], -1)
+    v10, v11, v01, c = v00 + [1, 0], v00 + [1, 1], v00 + [0, 1], v00 + [0.5, 0.5]
+    return np.stack([np.stack(t, 1) for t in ((v00, v10, c), (v10, v11, c), (v11, v01, c), (v01, v00, c))], 1).reshape(-1, 3, 2)
+
+
+UNION_JACK = _union_jack()  # (4·64², 3, 2) lattice coordinates (i along u, j along v)
+UNION_JACK_CENTROID = UNION_JACK.mean(1)
+
+
+def cube_lattice_rays(face, L, x, y, ij):
+    """Unnormalized rays N + uU + vV at fractional lattice coordinates ij (…, 2) of tile (L, x, y)."""
+    n_, a_, b_ = (np.array(e, np.float64) for e in CUBE_BASES[face])
+    N = (GRID - 1) * 2 ** L
+    u = (2 * ((GRID - 1) * x + ij[..., 0]) - N) / N
+    v = (2 * ((GRID - 1) * y + ij[..., 1]) - N) / N
+    return n_ + u[..., None] * a_ + v[..., None] * b_
+
+
+def cube_lattice_coords(P, face, L, x, y):
+    """Integer lattice coordinates (n, 2) of tile vertices P from their directions."""
+    n_, a_, b_ = (np.array(e, np.float64) for e in CUBE_BASES[face])
+    w = P / (P @ n_)[:, None]
+    N = (GRID - 1) * 2 ** L
+    ij = np.stack([(w @ a_ + 1) / 2 * N - (GRID - 1) * x, (w @ b_ + 1) / 2 * N - (GRID - 1) * y], 1)
+    r = np.round(ij)
+    assert np.abs(ij - r).max() < 1e-3, f'{face}/{L}/{x}/{y}: vertex off the lattice by {np.abs(ij - r).max()}'
+    return r
+
+
+def _union_jack_owner(T):
+    """Index of the triangle (lattice coordinates T (k, 3, 2), CCW) holding each
+    union-jack sub-triangle; every sub-triangle must be covered exactly once."""
+    n = GRID - 1
+    lo = np.clip(np.floor(T.min(1)).astype(np.int64), 0, n)
+    hi = np.clip(np.ceil(T.max(1)).astype(np.int64), 0, n)
+    w, h = hi[:, 0] - lo[:, 0], hi[:, 1] - lo[:, 1]
+    cnt = w * h
+    tri = np.repeat(np.arange(len(T)), cnt)
+    k = np.arange(cnt.sum()) - np.repeat(np.cumsum(cnt) - cnt, cnt)
+    cell = (lo[tri, 1] + k // w[tri]) * n + lo[tri, 0] + k % w[tri]
+    sub, tri = (cell[:, None] * 4 + np.arange(4)).ravel(), np.repeat(tri, 4)
+    p = UNION_JACK_CENTROID[sub]
+    A, B, C = T[tri, 0], T[tri, 1], T[tri, 2]
+    edge = lambda P_, Q: (Q[:, 0] - P_[:, 0]) * (p[:, 1] - P_[:, 1]) - (Q[:, 1] - P_[:, 1]) * (p[:, 0] - P_[:, 0])
+    inside = (edge(A, B) > 0) & (edge(B, C) > 0) & (edge(C, A) > 0)  # centroids never lie on a mesh edge
+    owner = np.full(len(UNION_JACK), -1)
+    owner[sub[inside]] = tri[inside]
+    assert (np.bincount(sub[inside], minlength=len(UNION_JACK)) == 1).all(), 'triangles must cover the tile exactly once'
+    return owner
+
+
+def cube_radial_deviation(face, L, x, y, a, b):
+    """Radial deviation between meshes a and b over tile (face, L, x, y), each
+    (P (n, 3) body-fixed m, triangles (k, 3), lattice coordinates (n, 2) of this
+    tile). Returns (conservative max bound, max at sub-triangle vertices, RMS
+    at sub-triangle vertices), metres."""
+    W = cube_lattice_rays(face, L, x, y, UNION_JACK)  # (s, 3, 3)
+    g = []
+    for P, tri, ij in (a, b):
+        o = tri[_union_jack_owner(ij[tri])]
+        A = P[o[:, 0]]
+        m = np.cross(P[o[:, 1]] - A, P[o[:, 2]] - A)
+        g.append(np.einsum('sk,svk->sv', m, W) / (m * A).sum(-1)[:, None])
+    wn = np.linalg.norm(W, axis=-1)
+    bound = np.abs(g[0] - g[1]).max(1) * wn.max(1) / (g[0].min(1) * g[1].min(1))
+    at_vertices = wn / g[0] - wn / g[1]
+    return float(bound.max()), float(np.abs(at_vertices).max()), float(np.sqrt((at_vertices ** 2).mean()))
+
+
 def cube_sample_job(job):
     """Pass 1: heights, normals and CPU grids. The mesh waits for pass 2,
     which needs every tile's edges to size the skirts."""
@@ -1218,10 +1321,22 @@ def cube_write_job(job):
         hn = np.load(name)
         u, v = cube_lattice_uv(L, x, y)
         P = cube_directions(face, u, v).reshape(-1, 3) * (R + hn[:, 0])[:, None]
+        surface, deviation = LATTICE_TRI, None
+        if S['simplify'] > 0:
+            # RTIN keeps every edge vertex, so tile boundaries — and the skirt
+            # gaps measured on them — are the full lattice's.
+            surface = rtin_triangles(rtin_errors(None, P=P), S['simplify'] * S['spacing_rad'][L] * R)
+            ij = np.stack([np.arange(GRID * GRID) % GRID, np.arange(GRID * GRID) // GRID], 1).astype(np.float64)
+            deviation = cube_radial_deviation(face, L, x, y, (P, surface, ij), (P, LATTICE_TRI, ij))
         if S['skirt_cells'] > 0:
-            pos, nor, tri = with_skirts(P, hn[:, 1:], depths)
+            pos, nor, tri = with_skirts(P, hn[:, 1:], depths, surface)
         else:
-            pos, nor, tri = P, hn[:, 1:], LATTICE_TRI
+            pos, nor, tri = P, hn[:, 1:], surface
+        if S['simplify'] > 0:  # drop the vertices no triangle uses; skirt vertices stay last
+            used = np.unique(tri)
+            remap = np.full(len(pos), -1)
+            remap[used] = np.arange(len(used))
+            pos, nor, tri = pos[used], nor[used], remap[tri]
         centre = (pos.min(0) + pos.max(0)) / 2
         # Bound what the renderer actually draws: float32 offsets from the
         # centre, which round up to ~0.1 m away from the float64 positions on a
@@ -1230,9 +1345,9 @@ def cube_write_job(job):
         os.makedirs(os.path.join(S['out'], f'{face}/{L}/{x}'), exist_ok=True)
         with open(os.path.join(S['out'], f'{face}/{L}/{x}/{y}.glb'), 'wb') as f:
             f.write(encode_glb(pos - centre, nor, tri, centre, generator='scripts/terrain/dem.py cube-tile',
-                               extras={'surfaceTriangles': len(LATTICE_TRI)}))
+                               extras={'surfaceTriangles': len(surface)}))
         os.remove(name)
-        out.append(((face, L, x, y), [*centre.tolist(), half[0], 0, 0, 0, half[1], 0, 0, 0, half[2]]))
+        out.append(((face, L, x, y), [*centre.tolist(), half[0], 0, 0, 0, half[1], 0, 0, 0, half[2]], len(surface), deviation))
     return out
 
 
@@ -1389,7 +1504,7 @@ def cmd_cube_tile(args):
     finest_deg = 1e-9  # pick_level → level 0 of every source
     load_field(args.base, args.fusion, [math.degrees(s) for s in spacing_rad] + [finest_deg])
     _T.update(out=args.out, radius=a, spacing_rad=spacing_rad, finest_deg=finest_deg,
-              skirt_cells=args.skirt_cells, global_level=args.global_level, regions=regions)
+              skirt_cells=args.skirt_cells, global_level=args.global_level, regions=regions, simplify=args.simplify)
     print(f'loaded sources ({time.time() - t0:.0f}s)')
 
     # REPLACE refinement: a parent refines into all four children or none; it
@@ -1429,8 +1544,9 @@ def cmd_cube_tile(args):
     write_jobs = [[(k, depth[k]) for k in keys[i:i + 8]] for i in range(0, len(keys), 8)]
     with mp.get_context('fork').Pool(args.workers) as pool:
         for k, rows in enumerate(pool.imap_unordered(cube_write_job, write_jobs)):
-            for key, box in rows:
+            for key, box, ntri, dev in rows:
                 tiles[key][0] = box
+                tiles[key] += [ntri, dev]
             if k % 100 == 0:
                 print(f'  wrote {k * 8:,}/{len(keys):,} tiles ({time.time() - t0:.0f}s)', flush=True)
     os.rmdir(scratch)
@@ -1503,6 +1619,17 @@ def cmd_cube_tile(args):
         'maxLevel': max_level,
         'tiles': [[f, L, x, y, round(tiles[(f, L, x, y)][3] / 1000, 7)] for f, L, x, y in ordered],
     }
+    if args.simplify > 0:
+        # The rendered .glb triangles are no longer the grid lattice that CubeGridSurface rebuilds:
+        # say so, with each tile's bound between the two surfaces.
+        grids['renderedMesh'] = {
+            'simplification': f'RTIN (all edge vertices kept), own error ≤ {args.simplify} × face-centre vertex spacing',
+            'cpuSurface': 'full lattice of the grid (v00→v11 diagonals); rendered and CPU ray-query surfaces differ',
+            'deviation': 'tiles[i][5] (km): conservative max radial distance between the rendered (simplified) and the CPU '
+                         'lattice triangles over the tile, float64 positions before the .glb float32 rounding',
+        }
+        for t in grids['tiles']:
+            t.append(round(tiles[tuple(t[:4])][6][0] / 1000 + 5e-7, 6))  # rounded up
     with open(os.path.join(args.out, 'cpu-grids.json'), 'w') as f:
         json.dump(grids, f, separators=(',', ':'))
     reps = np.array([[tiles[k][3], tiles[k][4]] for k in tiles])
@@ -1518,7 +1645,13 @@ def cmd_cube_tile(args):
                    'regions': [{k: r[k] for k in ('name', 'latDeg', 'lonDeg')} | {'radiusKmByLevel': {str(L): v for L, v in r['levels'].items()}}
                                for r in regions],
                    'faceCentreVertexSpacingM': [s * a for s in spacing_rad], 'tilesPerLevel': per_level},
-        'mesh': {'grid': GRID, 'simplification': 'none (full lattice)', 'diagonal': 'v00→v11 in face (u, v)',
+        'mesh': {'grid': GRID, 'diagonal': 'v00→v11 in face (u, v)',
+                 'simplification': grids['renderedMesh']['simplification'] if args.simplify > 0 else 'none (full lattice)',
+                 **({'surfaceTriangles': {str(L): {'mean': float(np.mean([tiles[k][5] for k in tiles if k[1] == L])),
+                                                   'min': int(min(tiles[k][5] for k in tiles if k[1] == L))} for L in sorted(per_level)},
+                     'renderedVsCpuLatticeM': {str(L): {'maxM': float(max(tiles[k][6][0] for k in tiles if k[1] == L)),
+                                                        'meanM': float(np.mean([tiles[k][6][0] for k in tiles if k[1] == L]))} for L in sorted(per_level)}}
+                    if args.simplify > 0 else {}),
                  'skirts': (f'per edge: 1.25 × the largest gap to any other level across it + {args.skirt_cells} × vertex spacing; '
                             'triangles after glTF primitive extras.surfaceTriangles') if args.skirt_cells > 0 else 'none',
                  'coordinates': 'float32 relative to the tile box centre (glTF node translation, float64 in JSON)',
@@ -1543,6 +1676,143 @@ def cmd_cube_tile(args):
 
 
 # ---------------------------------------------------------------------------
+# cube-error (#149): geometric error from the rendered triangles themselves.
+#
+# 3D Tiles' geometricError is the error, in metres, of drawing a tile instead of
+# its descendants. cube-tile writes a nominal 0.25 × the level's face-centre
+# vertex spacing — the same number for a smooth tile and a crater wall, and for
+# a face-corner tile whose cells are a third that size. This command reads the
+# emitted .glb surface triangles and bounds, for every parent, the radial
+# deviation from each child (cube_radial_deviation), then propagates through the
+# REPLACE tree: error(P) = max over children C of (deviation(P, C) + error(C)),
+# leaves 0. By the triangle inequality that bounds P's distance from the finest
+# surface the product holds anywhere under it, so detail that only a grandchild
+# resolves still reaches every ancestor even where P and C agree.
+
+def read_glb_mesh(path):
+    """Body-fixed Z-up positions (float32 offsets + float64 translation),
+    triangles and primitive extras of a one-mesh .glb from encode_glb."""
+    raw = open(path, 'rb').read()
+    jl = struct.unpack_from('<I', raw, 12)[0]
+    js, b0 = json.loads(raw[20:20 + jl]), 20 + jl + 8
+    acc, bv = js['accessors'], js['bufferViews']
+    pos = np.frombuffer(raw, '<f4', acc[0]['count'] * 3, b0 + bv[0]['byteOffset']).reshape(-1, 3).astype(np.float64)
+    it = '<u4' if acc[2]['componentType'] == 5125 else '<u2'
+    tri = np.frombuffer(raw, it, acc[2]['count'], b0 + bv[2]['byteOffset']).reshape(-1, 3).astype(np.int64)
+    P = pos + np.array(js['nodes'][0]['translation'])
+    return P[:, [0, 2, 1]] * np.array([1.0, -1.0, 1.0]), tri, js['meshes'][0]['primitives'][0].get('extras', {})
+
+
+def cube_glb_surface(out, face, L, x, y):
+    """(P, surface triangles, lattice coordinates) of a cube tile's emitted .glb."""
+    P, tri, extras = read_glb_mesh(os.path.join(out, face, str(L), str(x), f'{y}.glb'))
+    tri = tri[:extras.get('surfaceTriangles', len(tri))]
+    used = np.unique(tri)
+    ij = np.zeros((len(P), 2))
+    ij[used] = cube_lattice_coords(P[used], face, L, x, y)
+    return P, tri, ij
+
+
+def cube_error_job(job):
+    out, R, rows = _T['error_dir'], _T['error_radius'], []
+    lattice_ij = np.stack([np.arange(GRID * GRID) % GRID, np.arange(GRID * GRID) // GRID], 1).astype(np.float64)
+    for (face, L, x, y), kids in job:
+        mesh = cube_glb_surface(out, face, L, x, y)
+        # Against the CPU ray-query surface: the full lattice of the float32 grid, as CubeGridSurface builds it.
+        h = np.fromfile(os.path.join(out, 'heights', face, str(L), str(x), f'{y}.f32'), '<f4').astype(np.float64)
+        d = cube_lattice_rays(face, L, x, y, lattice_ij)
+        cpu = (d / np.linalg.norm(d, axis=1)[:, None] * (R + h)[:, None], LATTICE_TRI, lattice_ij)
+        vs_cpu = cube_radial_deviation(face, L, x, y, mesh, cpu)
+        to_kids = []
+        for kx, ky in kids:
+            P, tri, ij = mesh
+            # The parent in the child's lattice units; its lattice lines are a subset of the child's.
+            parent = (P, tri, 2 * ij - (GRID - 1) * np.array([kx - 2 * x, ky - 2 * y]))
+            to_kids.append(cube_radial_deviation(face, L + 1, kx, ky, parent, cube_glb_surface(out, face, L + 1, kx, ky)))
+        rows.append(((face, L, x, y), vs_cpu, to_kids, len(mesh[1])))
+    return rows
+
+
+def cmd_cube_error(args):
+    t0 = time.time()
+    tileset = json.load(open(os.path.join(args.dir, args.tileset)))
+    grids = json.load(open(os.path.join(args.dir, 'cpu-grids.json')))
+    R = grids['datum']['referenceShape']['radiusKm'] * 1000
+    key = lambda n: tuple(int(v) if i else v for i, v in enumerate(n['content']['uri'][:-4].split('/')))
+    nodes, children = {}, {}
+
+    def walk(n):
+        k = key(n)
+        nodes[k] = n
+        children[k] = [key(c)[2:] for c in n.get('children', [])]
+        for c in n.get('children', []):
+            walk(c)
+
+    for face in tileset['root']['children']:
+        walk(face)
+    _T.update(error_dir=args.dir, error_radius=R)
+    keys = sorted(nodes, key=lambda k: (k[1], k))
+    jobs = [[(k, children[k]) for k in keys[i:i + 16]] for i in range(0, len(keys), 16)]
+    res = {}
+    with mp.get_context('fork').Pool(args.workers) as pool:
+        for rows in pool.imap_unordered(cube_error_job, jobs):
+            for k, vs_cpu, to_kids, ntri in rows:
+                res[k] = {'vsCpu': vs_cpu, 'toKids': to_kids, 'triangles': ntri}
+    # Bottom-up propagation; rounded up to the millimetre.
+    err = {}
+    for k in sorted(nodes, key=lambda k: -k[1]):
+        kids = [(k[0], k[1] + 1, *c) for c in children[k]]
+        err[k] = max((b[0] + err[c] for b, c in zip(res[k]['toKids'], kids)), default=0.0)
+    for k, n in nodes.items():
+        n['geometricError'] = math.ceil(err[k] * 1000) / 1000 if children[k] else 0
+    tileset['asset']['generator'] = 'scripts/terrain/dem.py cube-error (geometricError from the emitted triangles)'
+    with open(os.path.join(args.dir, args.out), 'w') as f:
+        json.dump(tileset, f, separators=(',', ':'))
+
+    spacing = lambda L: 2 / ((GRID - 1) * 2 ** L) * R
+    q = lambda v: {p: round(float(np.percentile(v, p)), 4) for p in (5, 50, 95)} | {'max': round(float(np.max(v)), 4)} if len(v) else None
+    by_level = {}
+    for L in sorted({k[1] for k in nodes}):
+        ks = [k for k in nodes if k[1] == L]
+        par = [k for k in ks if children[k]]
+
+        def region(k):
+            N = 2 ** k[1]
+            uc, vc = abs(-1 + (2 * k[2] + 1) / N), abs(-1 + (2 * k[3] + 1) / N)
+            return 'corner' if min(uc, vc) > 0.5 else 'edge' if max(uc, vc) > 0.5 else 'centre'
+        local = {k: max(b[0] for b in res[k]['toKids']) for k in par}
+        by_level[str(L)] = {
+            'tiles': len(ks), 'refining': len(par), 'nominalM': 0.25 * spacing(L),
+            'propagatedM': q([err[k] for k in par]), 'localM': q(list(local.values())),
+            'propagatedOverNominal': {reg: q([err[k] / (0.25 * spacing(L)) for k in par if region(k) == reg]) for reg in ('centre', 'edge', 'corner')},
+            'propagationRaisedTiles': sum(1 for k in par if err[k] > local[k] * 1.01 + 1e-3),
+            'boundOverVertexMax': q([b[0] / max(b[1], 1e-9) for k in par for b in res[k]['toKids']]),
+            'renderedVsCpuLatticeM': q([res[k]['vsCpu'][0] for k in ks]),
+            'surfaceTriangles': q([res[k]['triangles'] for k in ks]),
+        }
+    report = {
+        'generator': 'scripts/terrain/dem.py cube-error', 'created': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        'product': args.dir, 'tileset': args.tileset, 'written': args.out,
+        'definition': {
+            'deviationToChild': 'conservative max radial distance between the parent\'s and a child\'s emitted surface triangles over the child (union-jack vertex bound, metres)',
+            'geometricErrorM': 'refining tiles: max over children of deviationToChild + the child\'s geometricError (leaves 0), rounded up to 1 mm',
+            'renderedVsCpuLatticeM': 'the same bound between the emitted surface triangles and the full lattice that CubeGridSurface builds from the float32 grid',
+            'nominalM': 'what cube-tile writes: 0.25 × face-centre vertex spacing of the level',
+            'regions': 'tile centre |u|,|v|: corner both > 0.5, edge one > 0.5, centre neither'},
+        'byLevel': by_level,
+        'tiles': [[*k, round(0.25 * spacing(k[1]), 4), round(err[k], 4), [round(b[0], 4) for b in res[k]['toKids']], round(res[k]['vsCpu'][0], 5), res[k]['triangles']]
+                  for k in keys],
+        'tileFields': ['face', 'level', 'x', 'y', 'nominalM', 'geometricErrorM', 'deviationToChildrenM', 'renderedVsCpuLatticeM', 'surfaceTriangles'],
+        'seconds': round(time.time() - t0, 1), 'workers': args.workers,
+    }
+    with open(os.path.join(args.dir, 'mesh-error.json'), 'w') as f:
+        json.dump(report, f, indent=1)
+    print(f'{len(keys):,} tiles in {time.time() - t0:.0f}s → {args.out}, mesh-error.json')
+    for L, s in by_level.items():
+        if s['refining']:
+            print(f"  L{L}: nominal {s['nominalM']:.2f} m; measured p5/p50/p95 {s['propagatedM'][5]:.2f}/{s['propagatedM'][50]:.2f}/{s['propagatedM'][95]:.2f} m; "
+                  f"propagation raised {s['propagationRaisedTiles']}/{s['refining']}; rendered vs CPU lattice max {s['renderedVsCpuLatticeM']['max']:.3f} m")
+
 
 def cmd_field_error(args):
     """Score rendered surface points against the fused field: for each capture
@@ -1761,7 +2031,7 @@ def _selftest_cube(tmp, base, fused, R):
     for f, (n_, a_, b_) in CUBE_BASES.items():
         assert np.array_equal(np.cross(a_, b_), n_), f'{f} must be right-handed'
     out = os.path.join(tmp, 'cube')
-    cmd_cube_tile(argparse.Namespace(base=base, fusion=fused, out=out, global_level=1, skirt_cells=0.1,
+    cmd_cube_tile(argparse.Namespace(base=base, fusion=fused, out=out, global_level=1, skirt_cells=0.1, simplify=0,
                                      region=['pole@-90,0:2=500,3=150'], ellipsoid=[R, R], workers=1))
     # Cube edge vertices are sampled one point at a time: on the antimeridian and at the pole that
     # point lies on the residual's closed bounds and must still get the residual.
@@ -1854,6 +2124,134 @@ def _selftest_cube(tmp, base, fused, R):
                 covered += 1
     assert covered > 100, covered
 
+    # cube-error on the real build: monotone through REPLACE, propagation used, tileset otherwise unchanged.
+    cmd_cube_error(argparse.Namespace(dir=out, tileset='tileset.json', out='tileset-measured.json', workers=1))
+    me = json.load(open(os.path.join(out, 'mesh-error.json')))
+    rows = {tuple(t[:4]): t for t in me['tiles']}
+    for (f_, L, x, y), t in rows.items():
+        for d, (dx, dy) in zip(t[6], [(0, 0), (1, 0), (0, 1), (1, 1)]):
+            assert t[5] >= d + rows[(f_, L + 1, 2 * x + dx, 2 * y + dy)][5] - 1e-9, 'error must cover every child path'
+        assert t[7] < 0.5, 'unsimplified meshes are the CPU lattice (float32 aside)'
+    strip = lambda n: {k: (strip(v) if isinstance(v, dict) else [strip(c) for c in v] if k == 'children' else v)
+                       for k, v in n.items() if k != 'geometricError'}
+    measured = json.load(open(os.path.join(out, 'tileset-measured.json')))
+    assert strip(measured['root']) == strip(ts['root'])
+    _selftest_cube_simplified(tmp, base, fused, R, out)
+    _selftest_cube_error(tmp, R)
+
+
+def _selftest_cube_simplified(tmp, base, fused, R, full):
+    """--simplify: fewer triangles, every boundary segment kept (so skirts and their
+    gaps are the full lattice's), compacted vertices, CPU grids identical to the full
+    build, and a stated, checked rendered-vs-CPU deviation."""
+    out = os.path.join(tmp, 'cube-simplified')
+    cmd_cube_tile(argparse.Namespace(base=base, fusion=fused, out=out, global_level=1, skirt_cells=0.1, simplify=0.1,
+                                     region=['pole@-90,0:2=500,3=150'], ellipsoid=[R, R], workers=1))
+    grids = json.load(open(os.path.join(out, 'cpu-grids.json')))
+    assert 'renderedMesh' in grids and all(len(t) == 6 for t in grids['tiles'])
+    lattice_ij = np.stack([np.arange(GRID * GRID) % GRID, np.arange(GRID * GRID) // GRID], 1).astype(np.float64)
+    fewer = 0
+    for f_, L, x, y, _, dev_km in grids['tiles']:
+        rel = os.path.join(f_, str(L), str(x), f'{y}')
+        assert open(os.path.join(out, 'heights', rel + '.f32'), 'rb').read() == open(os.path.join(full, 'heights', rel + '.f32'), 'rb').read()
+        Pall, tri_all, extras = read_glb_mesh(os.path.join(out, rel + '.glb'))
+        n = extras['surfaceTriangles']
+        fewer += n < len(LATTICE_TRI)
+        surf, skirt = tri_all[:n], tri_all[n:]
+        assert len(skirt) == 8 * (GRID - 1) and surf.max() + 1 + 4 * GRID == len(Pall), 'skirt triangles and vertices follow the surface ones'
+        assert len(np.unique(tri_all)) == len(Pall), 'no unused vertices'
+        P, tri, ij = cube_glb_surface(out, f_, L, x, y)
+        # Each of the 4·64 unit boundary segments is an edge of exactly one surface triangle.
+        e = np.concatenate([tri[:, [0, 1]], tri[:, [1, 2]], tri[:, [2, 0]]])
+        a, b = ij[e[:, 0]], ij[e[:, 1]]
+        on = lambda c, k: (a[:, c] == k) & (b[:, c] == k)
+        unit = np.abs(a - b).sum(1) == 1
+        assert sum(int((unit & (on(0, k) | on(1, k))).sum()) for k in (0, GRID - 1)) == 4 * (GRID - 1), (rel, 'boundary changed')
+        h = np.fromfile(os.path.join(out, 'heights', rel + '.f32'), '<f4').astype(np.float64)
+        d = cube_lattice_rays(f_, L, x, y, lattice_ij)
+        got = cube_radial_deviation(f_, L, x, y, (P, tri, ij), (d / np.linalg.norm(d, axis=1)[:, None] * (R + h)[:, None], LATTICE_TRI, lattice_ij))[0]
+        assert got <= dev_km * 1000 + 0.5, (rel, got, dev_km)  # stated float64 bound vs float32 data
+    assert fewer > len(grids['tiles']) // 2, fewer
+
+
+def _selftest_cube_error(tmp, R):
+    """The deviation bound against dense sampling (lattice and RTIN meshes, at a face
+    centre, edge and corner), relief between a parent's samples, and a REPLACE
+    chain where only a grandchild resolves the relief: parent and child agree at
+    every vertex they hold, yet the parent's error covers the grandchild's peak."""
+    rng = np.random.default_rng(7)
+    lattice_ij = np.stack([np.arange(GRID * GRID) % GRID, np.arange(GRID * GRID) // GRID], 1).astype(np.float64)
+
+    def lattice_P(face, L, x, y, h):
+        d = cube_lattice_rays(face, L, x, y, lattice_ij)
+        return d / np.linalg.norm(d, axis=1)[:, None] * (R + h)[:, None]
+
+    def dense(face, L, x, y, meshes, n=1500):
+        q = rng.uniform(0, GRID - 1, (n, 2))
+        w = cube_lattice_rays(face, L, x, y, q)
+        rs = []
+        for P, tri, ij in meshes:
+            T, r = ij[tri], np.full(n, np.nan)
+            for k in range(len(tri)):
+                A, B, C = T[k]
+                e = lambda P_, Q: (Q[0] - P_[0]) * (q[:, 1] - P_[1]) - (Q[1] - P_[1]) * (q[:, 0] - P_[0])
+                ins = (e(A, B) >= 0) & (e(B, C) >= 0) & (e(C, A) >= 0) & np.isnan(r)
+                if ins.any():
+                    a = P[tri[k, 0]]
+                    m = np.cross(P[tri[k, 1]] - a, P[tri[k, 2]] - a)
+                    r[ins] = (m @ a) / (w[ins] @ m) * np.linalg.norm(w[ins], axis=1)
+            rs.append(r)
+        return np.abs(rs[0] - rs[1]).max()
+
+    for face, L, x, y in (('nz', 3, 4, 4), ('px', 3, 7, 3), ('px', 3, 7, 7)):  # centre, edge, corner
+        h = rng.normal(0, 200, GRID * GRID)
+        P = lattice_P(face, L, x, y, h)
+        rtin = rtin_triangles(rtin_errors(None, P=P), 0.1 * 2 / ((GRID - 1) * 2 ** L) * R)
+        a, b = (P, rtin, lattice_ij), (lattice_P(face, L, x, y, h + 30 * rng.normal(size=GRID * GRID)), LATTICE_TRI, lattice_ij)
+        bound, at_v, _ = cube_radial_deviation(face, L, x, y, a, b)
+        sampled = dense(face, L, x, y, [a, b])
+        assert at_v <= bound and sampled <= bound * (1 + 1e-9) and bound <= 1.05 * max(at_v, sampled), (face, bound, at_v, sampled)
+        # A 50 m spike at a child vertex between the parent's samples: invisible at every parent vertex.
+        flat = np.zeros(GRID * GRID)
+        spike = flat.copy(); spike[33 * GRID + 31] = 50.0
+        parent = lattice_P(face, L, x, y, flat)
+        child = (lattice_P(face, L + 1, 2 * x, 2 * y, spike), LATTICE_TRI, lattice_ij)
+        smooth = (lattice_P(face, L + 1, 2 * x, 2 * y, flat), LATTICE_TRI, lattice_ij)
+        as_child = (parent, LATTICE_TRI, 2 * lattice_ij)
+        sag = cube_radial_deviation(face, L + 1, 2 * x, 2 * y, as_child, smooth)[0]
+        got = cube_radial_deviation(face, L + 1, 2 * x, 2 * y, as_child, child)[0]
+        assert 50 - sag <= got <= 50 + sag + 1e-6, (face, got, sag)
+
+    # A three-level REPLACE chain at the px/py/nz corner, written as a product for cmd_cube_error.
+    out = os.path.join(tmp, 'cube-chain')
+    peak = ('px', 4, 15, 15)  # the grandchild: its vertex (33, 31) is no child or parent vertex
+    keys = {('px', 2, 3, 3): [(6, 6), (7, 6), (6, 7), (7, 7)], ('px', 3, 7, 7): [(14, 14), (15, 14), (14, 15), (15, 15)]}
+    nodes = {}
+    for k in [('px', 2, 3, 3), *[('px', 3, *c) for c in keys[('px', 2, 3, 3)]], *[('px', 4, *c) for c in keys[('px', 3, 7, 7)]]]:
+        h = np.zeros(GRID * GRID)
+        if k == peak:
+            h[31 * GRID + 33] = 80.0
+        P = lattice_P(*k, h)
+        os.makedirs(os.path.join(out, *map(str, k[:3])), exist_ok=True)
+        os.makedirs(os.path.join(out, 'heights', *map(str, k[:3])), exist_ok=True)
+        c = P.mean(0)
+        open(os.path.join(out, *map(str, k[:3]), f'{k[3]}.glb'), 'wb').write(
+            encode_glb(P - c, P / np.linalg.norm(P, axis=1)[:, None], LATTICE_TRI, c, extras={'surfaceTriangles': len(LATTICE_TRI)}))
+        h.astype('<f4').tofile(os.path.join(out, 'heights', *map(str, k[:3]), f'{k[3]}.f32'))
+        nodes[k] = {'boundingVolume': {'box': [0] * 12}, 'geometricError': 0, 'content': {'uri': '/'.join(map(str, k)) + '.glb'}}
+    for p_, kids in keys.items():
+        nodes[p_]['children'] = [nodes[(p_[0], p_[1] + 1, *c)] for c in kids]
+    json.dump({'asset': {'version': '1.1'}, 'geometricError': 1e9, 'root': {'children': [nodes[('px', 2, 3, 3)]]}},
+              open(os.path.join(out, 'tileset.json'), 'w'))
+    json.dump({'datum': {'referenceShape': {'kind': 'sphere', 'radiusKm': R / 1000}}}, open(os.path.join(out, 'cpu-grids.json'), 'w'))
+    cmd_cube_error(argparse.Namespace(dir=out, tileset='tileset.json', out='tileset-measured.json', workers=1))
+    rows = {tuple(t[:4]): t for t in json.load(open(os.path.join(out, 'mesh-error.json')))['tiles']}
+    top, mid = rows[('px', 2, 3, 3)], rows[('px', 3, 7, 7)]
+    assert max(top[6]) < 80 and mid[6][3] >= 80 - 1, (top[6], mid[6])  # the parent's own comparison misses the peak …
+    assert top[5] >= 80 and mid[5] >= 80, (top[5], mid[5])             # … propagation does not
+    measured = json.load(open(os.path.join(out, 'tileset-measured.json')))['root']['children'][0]
+    assert measured['geometricError'] >= 80 and measured['children'][3]['geometricError'] >= 80
+
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1900,7 +2298,14 @@ def main():
                          'level across it. 0 builds without skirts (the viewer can also hide them: cubeSphere.skirts false)')
     ct.add_argument('--ellipsoid', type=float, nargs=2, required=True, metavar=('A_M', 'C_M'),
                     help='reference sphere radius (both values equal); heights are radial above it')
+    ct.add_argument('--simplify', type=float, default=0, metavar='FRAC',
+                    help='RTIN-simplify each tile, own error ≤ FRAC × the level\'s face-centre vertex spacing (0: full lattice). '
+                         'Edges keep every vertex; CPU grids are unchanged, so the rendered and CPU surfaces then differ (cpu-grids.json renderedMesh)')
     ct.add_argument('--workers', type=int, default=min(8, os.cpu_count()))
+    ce = sp.add_parser('cube-error', help='geometricError from the emitted cube triangles, propagated through REPLACE (#149)')
+    ce.add_argument('dir', help='a cube-tile product directory')
+    ce.add_argument('--tileset', default='tileset.json'); ce.add_argument('--out', default='tileset-measured.json')
+    ce.add_argument('--workers', type=int, default=min(8, os.cpu_count()))
     fe = sp.add_parser('field-error', help='score a compare capture record\'s ray-cast surface points against the fused field (#149)')
     fe.add_argument('record'); fe.add_argument('--base', required=True); fe.add_argument('--fusion', required=True)
     fe.add_argument('--radius', type=float, default=1737400.0, help='reference sphere radius (m)')
@@ -1911,7 +2316,7 @@ def main():
     if getattr(args, 'level_radius', None):
         args.level_radius = dict(args.level_radius)
     {'inspect': cmd_inspect, 'fuse': cmd_fuse, 'tile': cmd_tile, 'polar-tile': cmd_polar_tile,
-     'cube-tile': cmd_cube_tile, 'field-error': cmd_field_error, 'selftest': cmd_selftest}[args.cmd](args)
+     'cube-tile': cmd_cube_tile, 'cube-error': cmd_cube_error, 'field-error': cmd_field_error, 'selftest': cmd_selftest}[args.cmd](args)
 
 
 if __name__ == '__main__':

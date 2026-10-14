@@ -20,11 +20,16 @@
 # other level across it (cracks are measured by scripts/validate-cube-terrain.mjs)
 # plus 0.1 vertex spacing. --skirt-cells 0 builds without them; the viewer can
 # also hide them at runtime (TerrainConfig.cubeSphere.skirts / setCubeSkirts).
+#
+# Writes tileset.json (geometricError 0.25 × face-centre vertex spacing, the
+# baseline policy) and, from the emitted triangles, tileset-measured.json and
+# mesh-error.json (dem.py cube-error). Extra arguments go to cube-tile, e.g.
+#   CUBE_OUT=../../apps/viewer/test-catalogs/data/moon-terrain-cube-simplified ./cube.sh --simplify 0.1
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 SRC=data/source
-OUT=../../apps/viewer/test-catalogs/data/moon-terrain-cube
+OUT=${CUBE_OUT:-../../apps/viewer/test-catalogs/data/moon-terrain-cube}
 PY=${PYTHON:-python3}
 [[ -f data/fused/fusion.json ]] || { echo "run ./fuse.sh first" >&2; exit 1; }
 
@@ -39,4 +44,5 @@ ${PY} ../terrain/dem.py cube-tile \
   --region 'edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25' \
   --ellipsoid 1737400 1737400 "$@"
 cp data/fused/fusion.json "${OUT}/fusion.json"
+${PY} ../terrain/dem.py cube-error "${OUT}"
 echo "Validate: node ../validate-cube-terrain.mjs"
