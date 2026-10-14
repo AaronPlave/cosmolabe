@@ -337,6 +337,7 @@ describe('which demo catalogs cannot search at all', () => {
     'inner-planets-keplerian.json',
     'iss.json',
     'mars-imagery-jezero.json',
+    'moon-imagery-apollo15.json',
     'moonfall-shackleton.json',
   ];
 
