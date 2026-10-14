@@ -1,6 +1,6 @@
 // Main renderer
 export { UniverseRenderer } from './UniverseRenderer.js';
-export type { UniverseRendererOptions, SurfacePickResult } from './UniverseRenderer.js';
+export type { UniverseRendererOptions, SurfacePickResult, PhysicalPickSummary } from './UniverseRenderer.js';
 
 // Scene components
 export { BodyMesh } from './BodyMesh.js';
@@ -142,3 +142,5 @@ export { pickPhysicalSurface, cameraPositionFromSurfacePick, surfaceRayBetween }
 export type { MapImageLayer, ObservationImageProjection, ObservationRayResolver } from './surface/SurfaceImagery.js';
 export { CubeSphereSampler, cubeFaceToDirection, directionToCubeFace, cubeTileAt, cubeTileId } from './surface/CubeSphere.js';
 export type { CubeFace, CubeFaceCoordinate, CubeTileAddress, CubeHeightTile } from './surface/CubeSphere.js';
+export { CubeSphereGridSource, CubeGridSurface, cubeTileMesh } from './surface/CubeSphereGrids.js';
+export type { CubeGridManifest, CubeCoverage, CubeCoverageState, CubeGridSourceOptions, CubeGridSourceStats } from './surface/CubeSphereGrids.js';

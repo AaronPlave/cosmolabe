@@ -5,6 +5,7 @@
     dem.py fuse  --base GLOBAL.tif --detail REGIONAL.tif --out DIR [--blend-m 1000]
     dem.py tile  --base GLOBAL.tif --fusion DIR --out PYRAMID [--global-zoom 9 --max-zoom 15]
     dem.py polar-tile --base GLOBAL.tif --fusion DIR --out TILESET [--max-level 7]
+    dem.py cube-tile --base GLOBAL.tif --fusion DIR --out TILESET [--global-level 3 --region …]
     dem.py selftest
 
 `fuse` treats the regional DEM as detail over the canonical global DEM, never as
@@ -839,7 +840,7 @@ def cmd_tile(args):
 # normals from `ring_normals`, and skirts that copy their edge's normals so they
 # shade like the surface instead of catching low sun as walls.
 
-def encode_glb(pos, nrm, idx, translation):
+def encode_glb(pos, nrm, idx, translation, generator='scripts/terrain/dem.py polar-tile'):
     """One-mesh glTF 2.0 binary. Inputs are in the tileset's Z-up body-fixed
     frame (positions relative to `translation`); glTF is Y-up, so axes are
     rotated here and the renderer rotates them back."""
@@ -851,7 +852,7 @@ def encode_glb(pos, nrm, idx, translation):
     pb, nb, ib = pos32.tobytes(), nrm32.tobytes(), ind.tobytes()
     ib += b'\0' * (-len(ib) % 4)
     gltf = {
-        'asset': {'version': '2.0', 'generator': 'scripts/terrain/dem.py polar-tile'},
+        'asset': {'version': '2.0', 'generator': generator},
         'scene': 0, 'scenes': [{'nodes': [0]}],
         'nodes': [{'mesh': 0, 'translation': [float(v) for v in yup(translation)]}],
         'meshes': [{'primitives': [{'attributes': {'POSITION': 0, 'NORMAL': 1}, 'indices': 2, 'material': 0}]}],
@@ -1044,6 +1045,340 @@ def cmd_polar_tile(args):
 
 
 # ---------------------------------------------------------------------------
+# cube-tile (issue #149): the same fused field on gnomonic cube-sphere faces
+#
+# Faces, bases and handedness are packages/three/src/surface/CubeSphere.ts
+# BASES verbatim: a face point is d = normalize(N + u·U + v·V) with u, v in
+# [-1, 1], and tile (face, L, x, y) spans u in [-1 + 2x/2^L, -1 + 2(x+1)/2^L]
+# (v likewise with y). Every face is right-handed (U × V = N), so the polar
+# tiler's lattice triangles are CCW seen from outside. It is written like the
+# polar cap: 3D Tiles 1.1, one .glb per tile with a full GRID² lattice relative
+# to its box centre, plus a matching CPU height grid per tile.
+#
+# Shared boundaries. A lattice vertex's u and v are the exact dyadic
+# (2k − n)/n with n = (GRID − 1)·2^L, so a vertex shared by neighbouring tiles
+# of one face, by two faces along an edge, by three faces at a corner, or by a
+# parent and its child has the bit-identical body-fixed N + uU + vV (each
+# component is ±1, ±u or ±v). Its height samples the field at the level's
+# nominal spacing, and its normal comes from a stencil that depends on that
+# direction alone, so same-level shared vertices carry identical positions,
+# heights and normals on every face. A parent's edge samples coarser source
+# levels and spans two child cells per segment: a mixed-LOD boundary is a
+# T-junction whose crack is measured (scripts/validate-cube-terrain.mjs), and
+# there are no skirts unless --skirt-cells asks for them.
+
+CUBE_BASES = {  # (N, U, V)
+    'px': ((1, 0, 0), (0, 0, -1), (0, 1, 0)),
+    'nx': ((-1, 0, 0), (0, 0, 1), (0, 1, 0)),
+    'py': ((0, 1, 0), (1, 0, 0), (0, 0, -1)),
+    'ny': ((0, -1, 0), (1, 0, 0), (0, 0, 1)),
+    'pz': ((0, 0, 1), (1, 0, 0), (0, 1, 0)),
+    'nz': ((0, 0, -1), (-1, 0, 0), (0, 1, 0)),
+}
+CUBE_FACES = tuple(CUBE_BASES)
+CUBE_EDGE_VERTICES = np.nonzero(EDGE)[0]  # lattice vertices on the tile boundary
+CUBE_MAX_LEVEL = 30  # CubeSphere.ts addressing limit
+
+
+def cube_lattice_uv(L, x, y, n=GRID):
+    """Exact dyadic face coordinates of tile (L, x, y)'s n² lattice; axis 0 = v, axis 1 = u."""
+    N = (n - 1) * 2 ** L
+    k = np.arange(n, dtype=np.float64)
+    return np.meshgrid((2 * ((n - 1) * x + k) - N) / N, (2 * ((n - 1) * y + k) - N) / N)
+
+
+def cube_directions(face, u, v):
+    """Unit geocentric directions (…, 3) of face coordinates. N + uU + vV is
+    exact (one nonzero term per component); the norm sums x², y², z² in that
+    fixed order, so equal points normalize identically on every face."""
+    n_, a_, b_ = (np.array(e, np.float64) for e in CUBE_BASES[face])
+    p = n_ + u[..., None] * a_ + v[..., None] * b_
+    return p / np.sqrt(p[..., 0] ** 2 + p[..., 1] ** 2 + p[..., 2] ** 2)[..., None]
+
+
+def direction_lonlat(d):
+    """Geocentric (= geographic on the sphere) lon/lat in degrees."""
+    return (np.degrees(np.arctan2(d[..., 1], d[..., 0])),
+            np.degrees(np.arctan2(d[..., 2], np.hypot(d[..., 0], d[..., 1]))))
+
+
+def cube_normals(d, spacing_rad, radius_m):
+    """Outward unit normals from central differences of the field ±spacing
+    along two tangents chosen from each direction alone (the axis least
+    aligned with it), so a vertex shared by tiles on different faces gets the
+    identical normal. The face lattice cannot supply a shared stencil: its
+    grid lines bend where faces meet."""
+    flat = d.reshape(-1, 3)
+    e = np.eye(3)[np.argmin(np.abs(flat), axis=1)]  # ties → lowest axis
+    t1 = np.cross(e, flat)
+    t1 /= np.linalg.norm(t1, axis=1, keepdims=True)
+    t2 = np.cross(flat, t1)  # t1 × t2 = d: outward
+    c, s = math.cos(spacing_rad), math.sin(spacing_rad)
+    spacing_deg = math.degrees(spacing_rad)
+
+    def at(t, sign):
+        q = flat * c + (sign * s) * t
+        return q * (radius_m + field_heights(*direction_lonlat(q), spacing_deg))[:, None]
+
+    n = np.cross(at(t1, 1) - at(t1, -1), at(t2, 1) - at(t2, -1))
+    return n / np.linalg.norm(n, axis=1, keepdims=True)
+
+
+def cube_tile_extent(face, L, x, y):
+    """(centre direction, angular radius in radians) of a tile: the largest
+    angle from its centre to a corner, which bounds the whole gnomonic patch."""
+    N = 2 ** L
+    uc = np.array([-1 + (2 * x + 1) / N]); vc = np.array([-1 + (2 * y + 1) / N])
+    centre = cube_directions(face, uc, vc)[0]
+    cu, cv = np.meshgrid([-1 + 2 * x / N, -1 + 2 * (x + 1) / N], [-1 + 2 * y / N, -1 + 2 * (y + 1) / N])
+    corners = cube_directions(face, cu.ravel(), cv.ravel())
+    return centre, float(np.arccos(np.clip(corners @ centre, -1, 1)).max())
+
+
+def cube_tile_wanted(face, L, x, y):
+    """Global levels everywhere; deeper levels only within a region's radius."""
+    S = _T
+    if L <= S['global_level']:
+        return True
+    centre, radius = cube_tile_extent(face, L, x, y)
+    for region in S['regions']:
+        r_km = region['levels'].get(L)
+        if r_km is not None and math.acos(min(1.0, float(centre @ region['direction']))) - radius < r_km * 1000 / S['radius']:
+            return True
+    return False
+
+
+def bilinear_grid(g, rows, cols):
+    """Bilinear sample of a (n, n) grid at fractional row/column indices."""
+    n = g.shape[0]
+    r0 = np.minimum(np.floor(rows).astype(np.int64), n - 2); c0 = np.minimum(np.floor(cols).astype(np.int64), n - 2)
+    fr, fc = rows - r0, cols - c0
+    return ((g[r0, c0] * (1 - fc) + g[r0, c0 + 1] * fc) * (1 - fr)
+            + (g[r0 + 1, c0] * (1 - fc) + g[r0 + 1, c0 + 1] * fc) * fr)
+
+
+def cube_representation(face, L, x, y, heights_m, density=4):
+    """Sampled representation error of a tile's CPU grid: bilinear in face
+    (u, v), as CubeSphereSampler reads it, against the fused field at its finest
+    source level, at `density`× the vertex density. A sampled estimate, not a bound;
+    it excludes source error, which neither source states per pixel."""
+    n = (GRID - 1) * density + 1
+    u, v = cube_lattice_uv(L, x, y, n)
+    truth = field_heights(*direction_lonlat(cube_directions(face, u, v)), _T['finest_deg'])
+    idx = np.arange(n) / density
+    rows, cols = np.meshgrid(idx, idx, indexing='ij')
+    err = bilinear_grid(heights_m.reshape(GRID, GRID).astype(np.float64), rows, cols) - truth
+    return float(np.abs(err).max()), float(np.sqrt((err * err).mean()))
+
+
+def cube_tile_job(job):
+    S = _T
+    R = S['radius']
+    out = []
+    for face, L, x, y in job:
+        sp = S['spacing_rad'][L]
+        u, v = cube_lattice_uv(L, x, y)
+        d = cube_directions(face, u, v).reshape(-1, 3)
+        h = field_heights(*direction_lonlat(d), math.degrees(sp))
+        nrm = cube_normals(d, sp, R)
+        # numpy's SIMD arctan2/sin/cos can differ by an ulp with a value's
+        # position in the array, so a vertex another tile shares (every edge
+        # vertex) is evaluated alone: identical input, identical code path.
+        for k in CUBE_EDGE_VERTICES:
+            h[k] = field_heights(*direction_lonlat(d[k:k + 1]), math.degrees(sp))[0]
+            nrm[k] = cube_normals(d[k:k + 1], sp, R)[0]
+        P = d * (R + h)[:, None]
+        if S['skirt_cells'] > 0:
+            pos, nor, tri = with_skirts(P, nrm, S['skirt_cells'] * sp * R)
+        else:
+            pos, nor, tri = P, nrm, LATTICE_TRI
+        centre = (pos.min(0) + pos.max(0)) / 2
+        # Bound what the renderer actually draws: float32 offsets from the
+        # centre, which round up to ~0.1 m away from the float64 positions on a
+        # level-0 face.
+        half = np.abs((pos - centre).astype(np.float32).astype(np.float64)).max(0)
+        rel = f'{face}/{L}/{x}'
+        os.makedirs(os.path.join(S['out'], rel), exist_ok=True)
+        os.makedirs(os.path.join(S['out'], 'heights', rel), exist_ok=True)
+        with open(os.path.join(S['out'], rel, f'{y}.glb'), 'wb') as f:
+            f.write(encode_glb(pos - centre, nor, tri, centre, generator='scripts/terrain/dem.py cube-tile'))
+        h32 = h.astype('<f4')
+        with open(os.path.join(S['out'], 'heights', rel, f'{y}.f32'), 'wb') as f:
+            f.write(h32.tobytes())
+        rep_max, rep_rms = cube_representation(face, L, x, y, h32)
+        out.append((face, L, x, y, [*centre.tolist(), half[0], 0, 0, 0, half[1], 0, 0, 0, half[2]],
+                    float(h.min()), float(h.max()), rep_max, rep_rms))
+    return out
+
+
+def parse_cube_region(text):
+    """NAME@LAT,LON:L=KM[,L=KM…] — detail level L within KM of (LAT, LON)."""
+    name, rest = text.split('@', 1)
+    where, levels = rest.split(':', 1)
+    lat, lon = (float(v) for v in where.split(','))
+    lv = {int(k): float(r) for k, r in (p.split('=') for p in levels.split(','))}
+    if any(lv[a] < lv[b] for a in lv for b in lv if a < b):
+        raise SystemExit(f'region {name}: radii must not grow with level')
+    la, lo = math.radians(lat), math.radians(lon)
+    return {'name': name, 'latDeg': lat, 'lonDeg': lon, 'levels': lv,
+            'direction': np.array([math.cos(la) * math.cos(lo), math.cos(la) * math.sin(lo), math.sin(la)])}
+
+
+def file_sha256(path, limit=None):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        h.update(f.read() if limit is None else f.read(limit))
+    return h.hexdigest()
+
+
+def cmd_cube_tile(args):
+    t0 = time.time()
+    fusion_path = os.path.join(args.fusion, 'fusion.json')
+    fusion = json.load(open(fusion_path))
+    a, c = args.ellipsoid
+    if a != c:
+        raise SystemExit('cube-tile writes radial heights on a reference sphere; --ellipsoid A_M C_M must be equal')
+    regions = [parse_cube_region(r) for r in args.region or []]
+    max_level = max([args.global_level, *(L for r in regions for L in r['levels'])])
+    if max_level > CUBE_MAX_LEVEL:
+        raise SystemExit(f'levels above {CUBE_MAX_LEVEL} are outside CubeSphere.ts addressing')
+    # Face-centre vertex spacing: the largest on the face (gnomonic cells shrink
+    # toward edges and corners), used for source levels, normals and errors.
+    spacing_rad = [2 / ((GRID - 1) * 2 ** L) for L in range(max_level + 1)]
+    finest_deg = 1e-9  # pick_level → level 0 of every source
+    load_field(args.base, args.fusion, [math.degrees(s) for s in spacing_rad] + [finest_deg])
+    _T.update(out=args.out, radius=a, spacing_rad=spacing_rad, finest_deg=finest_deg,
+              skirt_cells=args.skirt_cells, global_level=args.global_level, regions=regions)
+    print(f'loaded sources ({time.time() - t0:.0f}s)')
+
+    # REPLACE refinement: a parent refines into all four children or none; it
+    # refines when any child is wanted, and its unwanted children are leaves.
+    keys = [(f, 0, 0, 0) for f in CUBE_FACES]
+    refining = list(keys)
+    for L in range(1, max_level + 1):
+        nxt = []
+        for f, _, px, py in refining:
+            kids = [(f, L, 2 * px + dx, 2 * py + dy) for dy in (0, 1) for dx in (0, 1)]
+            wanted = [cube_tile_wanted(*k) for k in kids]
+            if any(wanted):
+                keys += kids
+                nxt += [k for k, w in zip(kids, wanted) if w]
+        refining = nxt
+    jobs = [keys[i:i + 8] for i in range(0, len(keys), 8)]
+    print(f'{len(keys):,} tiles in {len(jobs):,} jobs on {args.workers} workers')
+    os.makedirs(args.out, exist_ok=True)
+    tiles = {}
+    with mp.get_context('fork').Pool(args.workers) as pool:
+        for k, rows in enumerate(pool.imap_unordered(cube_tile_job, jobs)):
+            for face, L, x, y, box, hmin, hmax, rmax, rrms in rows:
+                tiles[(face, L, x, y)] = (box, hmin, hmax, rmax, rrms)
+            if k % 50 == 0:
+                print(f'  {len(tiles):,}/{len(keys):,} tiles ({time.time() - t0:.0f}s)', flush=True)
+    build_s = time.time() - t0
+
+    def union(p, q):
+        lo = np.minimum(np.array(p[:3]) - [p[3], p[7], p[11]], np.array(q[:3]) - [q[3], q[7], q[11]])
+        hi = np.maximum(np.array(p[:3]) + [p[3], p[7], p[11]], np.array(q[:3]) + [q[3], q[7], q[11]])
+        cc, hh = (lo + hi) / 2, (hi - lo) / 2
+        return [*cc.tolist(), hh[0], 0, 0, 0, hh[1], 0, 0, 0, hh[2]]
+
+    # Geometric error tracks face-centre vertex spacing like the polar cap's, so
+    # one errorTarget refines all three products to comparable on-screen detail.
+    # Bounding volumes hold the whole subtree; the content keeps its tight box.
+    def node(face, L, x, y):
+        kids = [node(face, L + 1, 2 * x + dx, 2 * y + dy) for dy in (0, 1) for dx in (0, 1)
+                if (face, L + 1, 2 * x + dx, 2 * y + dy) in tiles]
+        own = tiles[(face, L, x, y)][0]
+        box = own
+        for k in kids:
+            box = union(box, k['boundingVolume']['box'])
+        n = {'boundingVolume': {'box': box}, 'geometricError': 0.25 * spacing_rad[L] * a if kids else 0,
+             'content': {'uri': f'{face}/{L}/{x}/{y}.glb', 'boundingVolume': {'box': own}}}
+        if kids:
+            n['children'] = kids
+        return n
+
+    faces = [node(f, 0, 0, 0) for f in CUBE_FACES]
+    box = faces[0]['boundingVolume']['box']
+    for f in faces[1:]:
+        box = union(box, f['boundingVolume']['box'])
+    # Six face roots under one content-less root that always refines.
+    root = {'boundingVolume': {'box': box}, 'geometricError': 1e9, 'refine': 'REPLACE', 'children': faces}
+    with open(os.path.join(args.out, 'tileset.json'), 'w') as f:
+        json.dump({'asset': {'version': '1.1', 'generator': 'scripts/terrain/dem.py cube-tile'},
+                   'geometricError': 2e9, 'root': root}, f, separators=(',', ':'))
+
+    per_level = {}
+    for (_, L, _, _) in tiles:
+        per_level[L] = per_level.get(L, 0) + 1
+    glb_bytes = sum(os.path.getsize(os.path.join(args.out, f'{f}/{L}/{x}/{y}.glb')) for f, L, x, y in tiles)
+    grid_bytes = sum(os.path.getsize(os.path.join(args.out, f'heights/{f}/{L}/{x}/{y}.f32')) for f, L, x, y in tiles)
+    fusion_hash = file_sha256(fusion_path)
+    version = f'cube-fused-{fusion_hash[:12]}-g{args.global_level}-m{max_level}'
+    source = {
+        'id': 'moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)',
+        'kind': 'height-grid',
+        'version': version,
+        'fusion': {'sha256': fusion_hash, 'created': fusion.get('created'),
+                   'base': os.path.basename(fusion['base']['path']), 'detail': os.path.basename(fusion['detail']['path'])},
+        'generator': {'script': 'scripts/terrain/dem.py cube-tile', 'sha256': file_sha256(os.path.abspath(__file__))},
+    }
+    datum = {'referenceShape': {'kind': 'sphere', 'radiusKm': a / 1000},
+             'verticalDatum': 'reference-sphere', 'heightConvention': 'radial'}
+    ordered = sorted(tiles, key=lambda k: (k[1], CUBE_FACES.index(k[0]), k[3], k[2]))
+    grids = {
+        'format': 'cosmolabe-cube-height-grid-1',
+        'mapping': 'gnomonic cube; faces, bases and tile addresses of packages/three/src/surface/CubeSphere.ts',
+        'datum': datum,
+        'verticalDatumNote': fusion['verticalDatum'],
+        'source': source,
+        'grid': {'width': GRID, 'height': GRID, 'encoding': 'float32 little-endian, metres above the reference sphere',
+                 'order': 'row-major, face v then u, including tile edges', 'uri': 'heights/{face}/{level}/{x}/{y}.f32'},
+        'uncertainty': {
+            'kind': 'sampled representation error: max |bilinear (u, v) CPU grid − fused field at its finest source level| '
+                    'at 4× vertex density; not a bound, and excludes source error (neither source states a per-pixel vertical uncertainty)',
+            'perTile': 'tiles[i][4] (km)'},
+        'maxLevel': max_level,
+        'tiles': [[f, L, x, y, round(tiles[(f, L, x, y)][3] / 1000, 7)] for f, L, x, y in ordered],
+    }
+    with open(os.path.join(args.out, 'cpu-grids.json'), 'w') as f:
+        json.dump(grids, f, separators=(',', ':'))
+    reps = np.array([[tiles[k][3], tiles[k][4]] for k in tiles])
+    lv = np.array([k[1] for k in tiles])
+    product = {
+        'generator': 'scripts/terrain/dem.py cube-tile',
+        'created': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        'heightField': 'dem.py field_heights — the same fused field the quantized-mesh pyramid and polar cap sample',
+        'source': source,
+        'datum': datum,
+        'verticalDatum': fusion['verticalDatum'],
+        'tiling': {'mapping': grids['mapping'], 'globalLevel': args.global_level, 'maxLevel': max_level,
+                   'regions': [{k: r[k] for k in ('name', 'latDeg', 'lonDeg')} | {'radiusKmByLevel': {str(L): v for L, v in r['levels'].items()}}
+                               for r in regions],
+                   'faceCentreVertexSpacingM': [s * a for s in spacing_rad], 'tilesPerLevel': per_level},
+        'mesh': {'grid': GRID, 'simplification': 'none (full lattice)', 'diagonal': 'v00→v11 in face (u, v)',
+                 'skirts': f'{args.skirt_cells} × vertex spacing' if args.skirt_cells > 0 else 'none',
+                 'coordinates': 'float32 relative to the tile box centre (glTF node translation, float64 in JSON)',
+                 'normals': 'central differences of the field ±1 vertex spacing along two tangents chosen from the direction alone'},
+        'boundaryPolicy': {
+            'sameLevel': 'exact dyadic face coordinates; shared vertices identical across tiles, faces and corners',
+            'mixedLevel': 'T-junctions: a parent edge samples coarser source levels at half the child vertex density; cracks are measured, '
+                          + ('skirts hide them' if args.skirt_cells > 0 else 'no skirts')},
+        'representationErrorM': {str(L): {'maxM': float(reps[lv == L, 0].max()), 'meanRmsM': float(reps[lv == L, 1].mean())}
+                                 for L in sorted(per_level)},
+        'tileCount': len(tiles),
+        'bytes': {'glb': glb_bytes, 'cpuGrids': grid_bytes},
+        'generationSeconds': round(build_s, 1),
+        'workers': args.workers,
+    }
+    with open(os.path.join(args.out, 'terrain-product.json'), 'w') as f:
+        json.dump(product, f, indent=2)
+    print(f'wrote {len(tiles):,} tiles ({glb_bytes / 1e6:.0f} MB glb, {grid_bytes / 1e6:.0f} MB grids) to {args.out} '
+          f'({time.time() - t0:.0f}s)')
+
+
+# ---------------------------------------------------------------------------
 
 def cmd_selftest(_):
     rng = np.random.default_rng(1)
@@ -1225,6 +1560,75 @@ def _selftest_polar(tmp):
     assert np.abs(q[(0, 0)][0][-1, :] - q[(0, 1)][0][0, :]).max() < 0.05
     corners = np.array([q[(0, 0)][0][-1, -1], q[(1, 0)][0][-1, 0], q[(0, 1)][0][0, -1], q[(1, 1)][0][0, 0]])
     assert np.ptp(corners, 0).max() < 0.05 and abs(corners[0][2] + np.linalg.norm(corners[0])) < 1e-6 * R
+    _selftest_cube(tmp, os.path.join(tmp, 'base.tif'), fused, R)
+
+
+def _selftest_cube(tmp, base, fused, R):
+    """cube-tile on the same synthetic fused field: mapping, coverage, REPLACE
+    completeness, subtree bounds, shared vertices across faces/corners, CPU grids."""
+    # CubeSphere.ts conventions (its unit tests pin the same values).
+    assert np.allclose(cube_directions('px', np.array(0.0), np.array(1.0)), np.array([1, 1, 0]) / math.sqrt(2))
+    assert np.allclose(cube_directions('nz', np.array(0.0), np.array(0.0)), [0, 0, -1])
+    for f, (n_, a_, b_) in CUBE_BASES.items():
+        assert np.array_equal(np.cross(a_, b_), n_), f'{f} must be right-handed'
+    out = os.path.join(tmp, 'cube')
+    cmd_cube_tile(argparse.Namespace(base=base, fusion=fused, out=out, global_level=1, skirt_cells=0.0,
+                                     region=['pole@-90,0:2=500,3=150'], ellipsoid=[R, R], workers=1))
+    ts = json.load(open(os.path.join(out, 'tileset.json')))
+    grids = json.load(open(os.path.join(out, 'cpu-grids.json')))
+    assert grids['datum']['referenceShape'] == {'kind': 'sphere', 'radiusKm': R / 1000} and grids['source']['version']
+
+    def load(face, L, x, y):
+        raw = open(os.path.join(out, face, str(L), str(x), f'{y}.glb'), 'rb').read()
+        jl = struct.unpack_from('<I', raw, 12)[0]
+        js, b0 = json.loads(raw[20:20 + jl]), 20 + jl + 8
+        acc, bv = js['accessors'], js['bufferViews']
+        f32 = lambda a: np.frombuffer(raw, '<f4', acc[a]['count'] * 3, b0 + bv[a]['byteOffset']).reshape(-1, 3).astype(np.float64)
+        back = lambda v: v[:, [0, 2, 1]] * np.array([1.0, -1.0, 1.0])
+        t = np.array(js['nodes'][0]['translation'])
+        h = np.fromfile(os.path.join(out, 'heights', face, str(L), str(x), f'{y}.f32'), '<f4')
+        return back(f32(0) + t), back(f32(1)), h
+
+    shared, levels, faces = {}, {}, set()
+
+    def walk(n, ancestors):
+        kids = n.get('children', [])
+        if not ancestors:
+            assert 'content' not in n and len(kids) == 6 and n['geometricError'] >= 1e9
+            for k in kids:
+                walk(k, [n['boundingVolume']['box']])
+            return
+        face, L, x, y = n['content']['uri'][:-4].split('/')
+        L, x, y = int(L), int(x), int(y)
+        faces.add(face); levels[L] = levels.get(L, 0) + 1
+        assert len(kids) in (0, 4), (n['content']['uri'], len(kids))
+        P, nrm, h = load(face, L, x, y)
+        for box in [n['content']['boundingVolume']['box'], n['boundingVolume']['box'], *ancestors]:
+            c_, h_ = np.array(box[:3]), np.array([box[3], box[7], box[11]])
+            assert (np.abs(P - c_) <= h_ + 0.5).all(), (n['content']['uri'], 'escapes a bounding volume')
+        assert np.abs(np.linalg.norm(P, axis=1) - (R + h.astype(np.float64))).max() < 0.5, 'CPU grid must match the mesh vertices'
+        assert ((nrm * P).sum(1) > 0).all(), 'normals must point outward'
+        u, v = cube_lattice_uv(L, x, y)
+        n_, a_, b_ = (np.array(e, np.float64) for e in CUBE_BASES[face])
+        p = (n_ + u[..., None] * a_ + v[..., None] * b_).reshape(-1, 3)
+        for i in np.nonzero((u.ravel() == u.min()) | (u.ravel() == u.max()) | (v.ravel() == v.min()) | (v.ravel() == v.max()))[0]:
+            shared.setdefault((L, *p[i]), []).append((face, P[i], nrm[i], h[i]))
+        for k in kids:
+            walk(k, ancestors + [n['boundingVolume']['box']])
+
+    walk(ts['root'], [])
+    assert faces == set(CUBE_FACES) and levels[0] == 6 and levels[1] == 24, levels
+    assert levels.get(2, 0) % 4 == 0 and levels.get(3, 0) > 0 and len(grids['tiles']) == sum(levels.values())
+    multi = [v for v in shared.values() if len(v) > 1]
+    cross_face = [v for v in multi if len({f for f, *_ in v}) > 1]
+    corner = [v for v in multi if len({f for f, *_ in v}) == 3]
+    assert cross_face and len({(k[0], k[1:]) for k, v in shared.items() if len({f for f, *_ in v}) == 3}) == 8 * 2  # 8 corners × L0, L1
+    for v in multi:
+        P_ = np.array([e[1] for e in v]); N_ = np.array([e[2] for e in v])
+        assert np.ptp(P_, 0).max() < 0.5, 'shared vertices must coincide (float32 offsets aside)'
+        assert np.ptp(N_, 0).max() < 1e-6, 'shared vertices must carry one normal (float32 aside)'
+        assert len({float(e[3]) for e in v}) == 1, 'shared CPU heights must be bit-identical'
+    assert corner
 
 
 def main():
@@ -1262,6 +1666,16 @@ def main():
     pt.add_argument('--skirt-cells', type=float, default=1.0, help='skirt depth in vertex spacings')
     pt.add_argument('--ellipsoid', type=float, nargs=2, required=True, metavar=('A_M', 'C_M'))
     pt.add_argument('--workers', type=int, default=min(8, os.cpu_count()))
+    ct = sp.add_parser('cube-tile', help='gnomonic cube-sphere 3D Tiles + CPU height grids of the fused field (#149)')
+    ct.add_argument('--base', required=True); ct.add_argument('--fusion', required=True); ct.add_argument('--out', required=True)
+    ct.add_argument('--global-level', type=int, default=3, help='every face is tiled down to this level')
+    ct.add_argument('--region', action='append', metavar='NAME@LAT,LON:L=KM[,L=KM…]',
+                    help='tile level L within KM of LAT,LON (repeatable); radii must not grow with level')
+    ct.add_argument('--skirt-cells', type=float, default=0.0,
+                    help='skirt depth in vertex spacings; 0 (default) leaves mixed-LOD cracks visible for inspection')
+    ct.add_argument('--ellipsoid', type=float, nargs=2, required=True, metavar=('A_M', 'C_M'),
+                    help='reference sphere radius (both values equal); heights are radial above it')
+    ct.add_argument('--workers', type=int, default=min(8, os.cpu_count()))
     sp.add_parser('selftest')
     args = p.parse_args()
     if getattr(args, 'zoom_bounds', None):
@@ -1269,7 +1683,7 @@ def main():
     if getattr(args, 'level_radius', None):
         args.level_radius = dict(args.level_radius)
     {'inspect': cmd_inspect, 'fuse': cmd_fuse, 'tile': cmd_tile, 'polar-tile': cmd_polar_tile,
-     'selftest': cmd_selftest}[args.cmd](args)
+     'cube-tile': cmd_cube_tile, 'selftest': cmd_selftest}[args.cmd](args)
 
 
 if __name__ == '__main__':

@@ -24,6 +24,7 @@
   import { restoreView } from './lib/view-link';
   import { requestedView } from './lib/view-state-url';
   import type { CatalogEntry } from './lib/catalog-sources';
+  import type { PhysicalPickSummary } from '@cosmolabe/three';
   import { catalogs, initCatalogSources, sourceSettled, syncSourceParams } from './lib/catalogs.svelte';
   import {
     catalogLocation, findEntry, isCurrentEntry, requestedCatalog, withCatalogLocation, allEntries,
@@ -34,7 +35,7 @@
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
   let pickModeActive = $state(false);
-  let pickResult = $state<{ bodyName: string; latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number; bodyFixedHitKm: readonly [number, number, number] } | null>(null);
+  let pickResult = $state<{ bodyName: string; latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number; bodyFixedHitKm: readonly [number, number, number]; physical?: PhysicalPickSummary } | null>(null);
   let uiHidden = $state(false);
   let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
 
@@ -685,9 +686,18 @@
   }
 </style>
 
-{#snippet pickRows(pick: { latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number })}
+{#snippet pickRows(pick: { latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number; physical?: PhysicalPickSummary })}
   <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lat</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.latDeg), 5)}&deg; {pick.latDeg >= 0 ? 'N' : 'S'}</span></div>
   <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lon</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.lonDeg), 5)}&deg; {pick.lonDeg >= 0 ? 'E' : 'W'}</span></div>
   <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Sampled alt</span><span class="font-mono text-text-primary">{pick.altKm >= 0 ? '+' : ''}{fmtCoord(pick.altKm * 1000, 1)} m</span></div>
   <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Dist</span><span class="font-mono text-text-primary">{pick.cameraDistanceKm < 1 ? `${fmtCoord(pick.cameraDistanceKm * 1000, 1)} m` : `${fmtCoord(pick.cameraDistanceKm, 3)} km`}</span></div>
+  {#if pick.physical}
+    <!-- Experimental (#149): the same ray answered by CPU terrain, not the rendered mesh. -->
+    {#if pick.physical.kind === 'hit'}
+      <div class="flex justify-between gap-4 leading-relaxed" title="CPU ray query against resident cube grids; provisional while coverage is partial"><span class="text-text-secondary">CPU hit</span><span class="font-mono text-text-primary">{pick.physical.tileId} ({pick.physical.detail === 'coarse' ? 'provisional' : 'sufficient'})</span></div>
+      <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">CPU vs rendered</span><span class="font-mono text-text-primary">{fmtCoord(pick.physical.renderedOffsetKm * 1000, 2)} m</span></div>
+    {:else}
+      <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">CPU hit</span><span class="font-mono text-text-primary">{pick.physical.kind}{pick.physical.reason ? ` (${pick.physical.reason})` : ''}</span></div>
+    {/if}
+  {/if}
 {/snippet}

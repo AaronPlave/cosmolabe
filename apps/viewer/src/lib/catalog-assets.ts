@@ -99,6 +99,7 @@ export function absolutizeCatalogAssets(catalog: unknown, catalogUrl: string): v
         if (isObj(node.terrain)) {
           fix(node.terrain, 'url');
           fix(node.terrain, 'normalMapUrl');
+          if (isObj(node.terrain.cubeSphere)) fix(node.terrain.cubeSphere, 'cpuGrids');
           fixUrls(node.terrain.imagery);
         }
         fixUrls(node.surfaceTiles);
