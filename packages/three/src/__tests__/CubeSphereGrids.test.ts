@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CubeGridSurface, CubeSphereGridSource, cubeTileMesh, type CubeGridManifest } from '../surface/CubeSphereGrids.js';
-import type { CubeFace } from '../surface/CubeSphere.js';
+import { cubeFaceToDirection, type CubeFace } from '../surface/CubeSphere.js';
 import { cameraPositionFromSurfacePick } from '../surface/SurfaceConsumers.js';
 import { requestSurfaceIntersection } from '../surface/PhysicalSurface.js';
 
@@ -18,6 +18,7 @@ function manifest(): CubeGridManifest {
     datum: { referenceShape: { kind: 'sphere', radiusKm: R }, verticalDatum: 'reference-sphere', heightConvention: 'radial' },
     source: { id: 'cube-fixture', kind: 'height-grid', version: 'fixture-v1' },
     grid: { width: W, height: W, uri: 'heights/{face}/{level}/{x}/{y}.f32' },
+    heightRangeKm: [0.1, 0.3],
     maxLevel: 2,
     tiles,
   };
@@ -90,6 +91,7 @@ describe('cube-sphere CPU grid source', () => {
     await expect(bad.ready).rejects.toThrow(/resident levels failed/);
     const triaxial = { ...manifest(), datum: { referenceShape: { kind: 'ellipsoid' as const, radiiKm: [3, 2, 1] as const }, verticalDatum: 'ellipsoid' as const, heightConvention: 'geodetic-normal' as const } };
     expect(() => new CubeSphereGridSource(triaxial, async () => new ArrayBuffer(0))).toThrow(/Unsupported cube-sphere datum/);
+    expect(() => new CubeSphereGridSource({ ...manifest(), heightRangeKm: [1, 0] }, async () => new ArrayBuffer(0))).toThrow(/height range/);
   });
 });
 
@@ -156,5 +158,54 @@ describe('cube grid CPU triangles and ray queries', () => {
     expect(fetched.length).toBeGreaterThan(6);
     const aborted = new AbortController(); aborted.abort();
     await expect(requestSurfaceIntersection(surface, ray, { maxMeshErrorKm: 0.001 }, aborted.signal, surface)).rejects.toThrow();
+  });
+
+  it('never lets a parent hit inside resident child coverage win (oblique ray, higher parent)', async () => {
+    // Full lunar-sized lattice so chord sag stays small. The nz parent sits 2 km above a resident
+    // child at 0 m; px stands 5 km high, so the search shell starts well above the parent.
+    const G = 65;
+    const base = manifest();
+    const product: CubeGridManifest = { ...base, grid: { ...base.grid, width: G, height: G }, heightRangeKm: [0, 5], maxLevel: 1,
+      tiles: base.tiles.filter(t => t[1] <= 1) };
+    const heightM = (uri: string) => uri.includes('/px/') ? 5000 : uri.split('/')[2] === '0' ? 2000 : 0;
+    const source = new CubeSphereGridSource(product, async (uri) => new Float32Array(G * G).fill(heightM(uri)).buffer, { residentLevel: 0 });
+    await source.ready;
+    // Only nz/1/1/1 (u, v ≥ 0) is resident below the roots; u < 0 still answers from the parent.
+    const at = (u: number, v: number, hKm: number) => cubeFaceToDirection('nz', u, v).map(c => c * (R + hKm));
+    const childPoint = at(0.001, 0.5, 0);
+    await source.requestCoordinate({ face: 'nz', u: 0.001, v: 0.5 });
+    expect(source.sampler.getTile({ face: 'nz', level: 1, x: 1, y: 1 })).toBeDefined();
+    expect(source.sampler.getTile({ face: 'nz', level: 1, x: 0, y: 1 })).toBeUndefined();
+    // Starts over the parent at 2.5 km and reaches the parent's 2 km surface only inside the child's region.
+    const origin = at(-0.0002, 0.5, 2.5);
+    const ray = { origin: { xKm: origin[0], yKm: origin[1], zKm: origin[2] },
+      direction: [childPoint[0] - origin[0], childPoint[1] - origin[1], childPoint[2] - origin[2]] as const, nearKm: 0, farKm: 10 };
+    const hit = new CubeGridSurface(source, '301', 'IAU_MOON').intersectRay(ray, { maxMeshErrorKm: 0.001 });
+    expect(hit).toMatchObject({ kind: 'hit', tileId: 'nz/1/1/1' });
+    if (hit.kind !== 'hit') throw new Error('expected a hit');
+    expect(Math.hypot(hit.position.xKm, hit.position.yKm, hit.position.zKm) - R).toBeLessThan(0.05);
+  });
+
+  it('discovers unloaded terrain above every resident grid when loading ray coverage', async () => {
+    // 100 km sphere, flat roots at 0 m, an unloaded child 10 km up; a short inward ray at 110.05 km.
+    const r = 100;
+    const base = manifest();
+    const product: CubeGridManifest = { ...base, datum: { ...base.datum, referenceShape: { kind: 'sphere', radiusKm: r } }, heightRangeKm: [0, 10],
+      maxLevel: 1, tiles: base.tiles.filter(t => t[1] <= 1) };
+    const fetched: string[] = [];
+    const source = new CubeSphereGridSource(product, async (uri) => {
+      fetched.push(uri);
+      return new Float32Array(W * W).fill(uri.split('/')[2] === '0' ? 0 : 10000).buffer;
+    }, { residentLevel: 0 });
+    const surface = new CubeGridSurface(source, 'fixture', 'fixture');
+    await source.ready;
+    // nz/1/1/1's centre is one of its lattice vertices, so the hit is exactly 50 m away.
+    const d = cubeFaceToDirection('nz', 0.5, 0.5);
+    const ray = { origin: { xKm: d[0] * (r + 10.05), yKm: d[1] * (r + 10.05), zKm: d[2] * (r + 10.05) },
+      direction: [-d[0], -d[1], -d[2]] as const, nearKm: 0, farKm: 0.1 };
+    expect(surface.intersectRay(ray, { maxMeshErrorKm: 0.001 }).kind).toBe('unavailable');
+    const result = await requestSurfaceIntersection(surface, ray, { maxMeshErrorKm: 0.001 }, new AbortController().signal, surface);
+    expect(fetched).toContain('heights/nz/1/1/1.f32');
+    expect(result).toMatchObject({ kind: 'hit', tileId: 'nz/1/1/1', distanceKm: expect.closeTo(0.05, 6) });
   });
 });

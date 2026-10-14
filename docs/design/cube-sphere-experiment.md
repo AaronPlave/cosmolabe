@@ -122,7 +122,7 @@ rather than a second copy.
   vertex direction alone.
 - **CPU grids.** `heights/{face}/{level}/{x}/{y}.f32` holds the same 65² heights
   (float32 metres above the 1,737.4 km sphere, radial). `cpu-grids.json` carries
-  the datum, the source revision (`cube-fused-<sha256(fusion.json)>-g3-m12`, with
+  the datum, the whole product's height range (padded 1 m), the source revision (`cube-fused-<sha256(fusion.json)>-g3-m12`, with
   the fusion and generator hashes), every tile address and a per-tile
   uncertainty: the sampled representation error of the bilinear grid against the
   fused field at its finest source level, at 4× vertex density. It is not a bound
@@ -168,10 +168,14 @@ baseline; same scene, epoch and errorTarget 2), so no production catalog changes
   unchanged. Until the grids arrive a sample is `null`, never the datum.
 - `CubeGridSurface` implements the #148 `PhysicalSurface` over resident grids:
   it rebuilds a tile's exact .glb triangles in float64 and marches the ray across
-  finest resident tiles (refining the march wherever the tile changes). Coverage
-  is declared partial, so hits are provisional (`coarse`) and a no-hit is
-  `unavailable`, never a miss. It is also its own `SurfaceQueryLoader`, so
-  `requestSurfaceIntersection` makes one load attempt along the ray and requeries.
+  finest resident tiles (refining the march wherever the tile changes) inside
+  the shell of the manifest's whole-product `heightRangeKm`, not just of what is
+  resident. A tile's hit counts only where no finer resident tile owns that
+  point (a parent's mesh still spans its children); a superseded hit is skipped
+  and the search continues. Coverage is declared partial, so hits are
+  provisional (`coarse`) and a no-hit is `unavailable`, never a miss. It is also
+  its own `SurfaceQueryLoader`, so `requestSurfaceIntersection` makes one load
+  attempt along the ray, over the product's available tiles, and requeries.
 - `UniverseRenderer.pickSurface` keeps the rendered hit and adds `physical`: the
   same camera ray through the #148 port, with tile, provisional status and
   distance from the rendered hit (shown in the pick sheet). A pick starts the
@@ -185,7 +189,7 @@ baseline; same scene, epoch and errorTarget 2), so no production catalog changes
 
 `node scripts/validate-cube-terrain.mjs` on the built product; full JSON in
 [`docs/images/issue-149/validation.json`](../images/issue-149/validation.json).
-Build: fuse 7 min 12 s, cube tiles 11 min 11 s on 4 workers (4-core Xeon
+Build: fuse 7 min 12 s, cube tiles 11 min 57 s on 4 workers (4-core Xeon
 2.8 GHz, 16 GB), 4,030 tiles, 611 MB .glb + 68 MB CPU grids. The polar cap from
 the same fuse: 27,700 tiles, 4.3 GB, 118 s.
 
@@ -249,12 +253,12 @@ three.js 0.183.2.
 
 | View | Product | Finest level (vertex spacing) | Mesh / CPU-grid requests | MB | Visible tiles | Geometry MB |
 | --- | --- | --- | --- | --- | --- | --- |
-| Shackleton | cube | L10 (53 m) | 187 / 144 | 32.0 | 110 | 27.9 |
+| Shackleton | cube | L10 (53 m) | 178 / 144 | 30.7 | 110 | 26.5 |
 | Shackleton | polar | L6 (49 m) | 101 / — | 26.1 | 76 | 16.0 |
-| Pole | cube | L8 (212 m) | 147 / 144 | 26.0 | 75 | 21.8 |
+| Pole | cube | L8 (212 m) | 141 / 144 | 25.1 | 75 | 20.9 |
 | Pole | polar | L4 (195 m) | 57 / — | 19.0 | 43 | 9.0 |
-| Orbital overview | cube | L1 (27 km) | 44 / 136 | 10.2 | 15 | 6.3 |
-| Face corner | cube | L7 (424 m) | 315 / 141 | 51.4 | 219 | 47.1 |
+| Orbital overview | cube | L1 (27 km) | 48 / 136 | 10.8 | 15 | 6.9 |
+| Face corner | cube | L7 (424 m) | 312 / 141 | 50.9 | 219 | 46.7 |
 
 At equal poses and errorTarget the two products reach equivalent ground detail
 (53 vs 49 m, 212 vs 195 m). The counts are not yet a fair cost comparison: the

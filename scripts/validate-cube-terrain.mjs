@@ -109,7 +109,7 @@ const readGrid = (f, L, x, y) => {
 const tiles = new Map(); // id → { face, L, x, y }
 const levelMaps = new Map(); // L → Map(key → { P, N, h, faces:Set })
 const shared = { sameFace: [], crossFace: [], corner: [], normalDeg: [], heightMismatch: 0 };
-const boundsEscapes = [], gridMismatch = [], sharedEscapes = [];
+const boundsEscapes = [], gridMismatch = [], sharedEscapes = [], outOfRange = [];
 let maxBoundsExcessM = 0;
 const inside = (box, x, y, z) => Math.max(Math.abs(x - box[0]) - box[3], Math.abs(y - box[1]) - box[7], Math.abs(z - box[2]) - box[11]);
 
@@ -137,6 +137,7 @@ function walk(node, ancestors) {
   gate(glb.vertices === G * G || product.mesh.skirts !== 'none', `${id}: unexpected vertex count ${glb.vertices}`);
   gate(glb.indexCount === (G - 1) * (G - 1) * 6 || product.mesh.skirts !== 'none', `${id}: unexpected index count`);
   const h = readGrid(f, L, x, y);
+  for (const v of h) if (!(v / 1000 >= manifest.heightRangeKm[0] && v / 1000 <= manifest.heightRangeKm[1])) { outOfRange.push(`${id}: ${v} m`); break; }
   const boxes = [node.content.boundingVolume.box, node.boundingVolume.box, ...ancestors];
   let worst = -Infinity;
   for (let i = 0; i < glb.vertices; i++) for (const box of boxes) worst = Math.max(worst, inside(box, glb.P[i * 3], glb.P[i * 3 + 1], glb.P[i * 3 + 2]));
@@ -173,6 +174,7 @@ for (let L = 0; L <= product.tiling.globalLevel; L++) gate(perLevel[L] === 6 * 4
 gate(manifest.tiles.length === tiles.size && manifest.tiles.every(([f, L, x, y]) => tiles.has(cubeTileId({ face: f, level: L, x, y }))),
   'cpu-grids.json must list exactly the tileset tiles');
 gate(boundsEscapes.length === 0, `vertices escape bounding volumes: ${boundsEscapes.slice(0, 5).join('; ')}`);
+gate(Array.isArray(manifest.heightRangeKm) && outOfRange.length === 0, `heightRangeKm ${JSON.stringify(manifest.heightRangeKm)} must enclose every grid: ${outOfRange.slice(0, 5).join('; ')}`);
 gate(gridMismatch.length === 0, `CPU grids disagree with emitted vertices: ${gridMismatch.slice(0, 5).join('; ')}`);
 gate(shared.heightMismatch === 0, `${shared.heightMismatch} shared vertices have different CPU heights: ${JSON.stringify(shared.heightMismatchAt?.slice(0, 3))}`);
 gate(sharedEscapes.length === 0, `shared vertices differ beyond float32 tile-offset precision: ${sharedEscapes.slice(0, 5).join('; ')}`);

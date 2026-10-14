@@ -20,6 +20,7 @@ function manifest(): CubeGridManifest {
     datum: { referenceShape: { kind: 'sphere', radiusKm: R }, verticalDatum: 'reference-sphere', heightConvention: 'radial' },
     source: { id: 'cube-fixture', kind: 'height-grid', version: 'fixture-v1' },
     grid: { width: W, height: W, uri: 'heights/{face}/{level}/{x}/{y}.f32' },
+    heightRangeKm: [0.1, 0.2],
     maxLevel: 1,
     tiles,
   };

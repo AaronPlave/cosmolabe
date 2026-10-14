@@ -20,6 +20,12 @@ export interface CubeGridManifest {
   datum: TerrainDatum;
   source: TerrainSourceMetadata;
   grid: { width: number; height: number; uri: string };
+  /**
+   * `[min, max]` of every height in the product (km, padded outward): a
+   * residency-independent bound, so a ray query can find terrain it has not
+   * loaded yet.
+   */
+  heightRangeKm: [number, number];
   maxLevel: number;
   /** `[face, level, x, y, uncertaintyKm]`; the uncertainty is the builder's sampled representation error. */
   tiles: [CubeFace, number, number, number, number][];
@@ -86,6 +92,8 @@ export class CubeSphereGridSource {
     if (manifest.format !== 'cosmolabe-cube-height-grid-1') throw new Error(`Unsupported cube grid format ${String(manifest.format)}`);
     const { width, height } = manifest.grid;
     if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 2 || height < 2) throw new Error('Malformed cube grid dimensions');
+    const range = manifest.heightRangeKm;
+    if (!Array.isArray(range) || range.length !== 2 || !range.every(Number.isFinite) || range[0] > range[1]) throw new Error('Malformed cube grid height range');
     this.sampler = new CubeSphereSampler(manifest.datum, manifest.source);
     for (const [face, level, x, y, uncertaintyKm] of manifest.tiles) this.uncertaintyById.set(cubeTileId({ face, level, x, y }), uncertaintyKm);
     this.residentLevel = options.residentLevel ?? 2;
@@ -267,9 +275,15 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
 
   sampleElevation(latDeg: number, lonDeg: number): TerrainSample | null { return this.source.sampler.sample(latDeg, lonDeg); }
 
-  /** The ray's interval inside the shell of loaded heights, or null when it never enters it. */
+  /**
+   * The ray's interval inside the shell of the product's heights, or null when
+   * it never enters it. The shell is the manifest's whole-product range (widened
+   * by anything loaded beyond it), never just what is resident: coverage
+   * loading must find terrain above or below every grid loaded so far.
+   */
   private segment(ray: SurfaceRay, d: SurfaceVector): [number, number] | null {
-    const { minHeightKm, maxHeightKm } = this.source;
+    const [productMin, productMax] = this.source.manifest.heightRangeKm;
+    const minHeightKm = Math.min(productMin, this.source.minHeightKm), maxHeightKm = Math.max(productMax, this.source.maxHeightKm);
     const o = [ray.origin.xKm, ray.origin.yKm, ray.origin.zKm];
     const b = o[0] * d[0] + o[1] * d[1] + o[2] * d[2], oo = o[0] * o[0] + o[1] * o[1] + o[2] * o[2];
     const roots = (r: number) => { const disc = b * b - (oo - r * r); return disc < 0 ? null : [-b - Math.sqrt(disc), -b + Math.sqrt(disc)]; };
@@ -318,7 +332,6 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
 
   async ensureRayCoverage(ray: SurfaceRay, options: SurfaceQueryOptions, signal: AbortSignal): Promise<void> {
     const d = normalizedRay(ray, options);
-    if (!Number.isFinite(this.source.minHeightKm)) await this.source.ready;
     const segment = this.segment(ray, d);
     if (!segment) return;
     const loads: Promise<void>[] = [];
@@ -353,8 +366,18 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
       if (tried.has(step.id)) continue;
       if (tried.size >= this.maxTilesPerRay) break;
       tried.add(step.id);
-      const hit = this.mesh(step.id, tiles.get(step.id)!).intersectRay({ ...ray, nearKm: t0, farKm: best ? best.distanceKm : t1 }, options);
-      if (hit.kind === 'hit' && (!best || hit.distanceKm < best.distanceKm)) best = { ...hit, tileId: step.id };
+      const tile = tiles.get(step.id)!, mesh = this.mesh(step.id, tile);
+      // A tile answers only where no finer resident tile owns the surface: a
+      // parent's mesh still spans its children's ground. A superseded hit is
+      // skipped and the search continues along the same mesh, and on to the
+      // finer tiles the march meets.
+      for (let near = t0, attempt = 0; attempt < 64; attempt++) {
+        const hit = mesh.intersectRay({ ...ray, nearKm: near, farKm: best ? best.distanceKm : t1 }, options);
+        if (hit.kind !== 'hit') break;
+        const p = hit.position, owner = this.source.sampler.finestResident(directionToCubeFace([p.xKm, p.yKm, p.zKm]))?.tile;
+        if (!owner || owner.level <= tile.level) { best = { ...hit, tileId: step.id }; break; }
+        near = hit.distanceKm + 1e-9;
+      }
     }
     return best ?? { kind: 'unavailable', reason: 'partial-coverage', metadata: this.metadata };
   }

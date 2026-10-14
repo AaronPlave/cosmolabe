@@ -1207,7 +1207,7 @@ def cube_tile_job(job):
             f.write(h32.tobytes())
         rep_max, rep_rms = cube_representation(face, L, x, y, h32)
         out.append((face, L, x, y, [*centre.tolist(), half[0], 0, 0, 0, half[1], 0, 0, 0, half[2]],
-                    float(h.min()), float(h.max()), rep_max, rep_rms))
+                    float(h32.min()), float(h32.max()), rep_max, rep_rms))
     return out
 
 
@@ -1335,6 +1335,8 @@ def cmd_cube_tile(args):
         'source': source,
         'grid': {'width': GRID, 'height': GRID, 'encoding': 'float32 little-endian, metres above the reference sphere',
                  'order': 'row-major, face v then u, including tile edges', 'uri': 'heights/{face}/{level}/{x}/{y}.f32'},
+        # Every stored height, padded 1 m outward: lets a ray query find terrain it has not loaded.
+        'heightRangeKm': [(min(t[1] for t in tiles.values()) - 1) / 1000, (max(t[2] for t in tiles.values()) + 1) / 1000],
         'uncertainty': {
             'kind': 'sampled representation error: max |bilinear (u, v) CPU grid − fused field at its finest source level| '
                     'at 4× vertex density; not a bound, and excludes source error (neither source states a per-pixel vertical uncertainty)',
@@ -1577,6 +1579,7 @@ def _selftest_cube(tmp, base, fused, R):
     ts = json.load(open(os.path.join(out, 'tileset.json')))
     grids = json.load(open(os.path.join(out, 'cpu-grids.json')))
     assert grids['datum']['referenceShape'] == {'kind': 'sphere', 'radiusKm': R / 1000} and grids['source']['version']
+    lo_km, hi_km = grids['heightRangeKm']
 
     def load(face, L, x, y):
         raw = open(os.path.join(out, face, str(L), str(x), f'{y}.glb'), 'rb').read()
@@ -1607,6 +1610,7 @@ def _selftest_cube(tmp, base, fused, R):
             c_, h_ = np.array(box[:3]), np.array([box[3], box[7], box[11]])
             assert (np.abs(P - c_) <= h_ + 0.5).all(), (n['content']['uri'], 'escapes a bounding volume')
         assert np.abs(np.linalg.norm(P, axis=1) - (R + h.astype(np.float64))).max() < 0.5, 'CPU grid must match the mesh vertices'
+        assert lo_km * 1000 < h.min() and h.max() < hi_km * 1000, 'heightRangeKm must enclose every grid'
         assert ((nrm * P).sum(1) > 0).all(), 'normals must point outward'
         u, v = cube_lattice_uv(L, x, y)
         n_, a_, b_ = (np.array(e, np.float64) for e in CUBE_BASES[face])

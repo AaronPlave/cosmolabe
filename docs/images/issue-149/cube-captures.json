@@ -1,6 +1,6 @@
 {
   "generator": "scripts/capture-cube-terrain.mjs",
-  "created": "2026-10-13T23:55:02.323Z",
+  "created": "2026-10-14T00:33:15.271Z",
   "product": "cube",
   "catalog": "test-catalogs/experiments/moon-terrain-cube",
   "viewport": {
@@ -28,7 +28,7 @@
       "mode": "shaded",
       "file": "cube-shackleton-shaded.jpg",
       "finished": true,
-      "settleMs": 7176,
+      "settleMs": 7272,
       "polls": 14,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -58,33 +58,33 @@
         "9": 25,
         "10": 12
       },
-      "requests": 331,
-      "bytes": 32029282,
+      "requests": 322,
+      "bytes": 30665467,
       "cpuGridRequests": 144,
       "tiles": {
         "active": 129,
         "visible": 110,
-        "inCache": 185,
+        "inCache": 176,
         "cpu": 144
       },
       "network": {
-        "requests": 185,
+        "requests": 176,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 27852120,
+        "cacheBytes": 26497152,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 27852120,
+        "geometryBytes": 26497152,
         "textureBytes": 0
       },
       "update": {
         "count": 53,
-        "lastMs": 2.1000000000931323,
-        "meanMs": 2.092452830160564,
-        "maxMs": 14.699999999720603
+        "lastMs": 0.900000000372529,
+        "meanMs": 2.2000000000281155,
+        "maxMs": 16.299999999813735
       },
       "parse": {
         "count": 0,
@@ -129,18 +129,18 @@
           "physical": {
             "kind": "hit",
             "detail": "coarse",
-            "tileId": "nz/7/64/64",
+            "tileId": "nz/11/1027/1028",
             "normal": [
-              0.030026100294492444,
-              0.03649491842713588,
-              -0.9988826528827607
+              0.023233703005993533,
+              0.03407559661519398,
+              -0.9991491624176783
             ],
             "bodyFixedKm": [
-              -5.99855336322465,
-              7.204799783718347,
-              -1734.5913973655242
+              -5.9903139205058284,
+              7.194903475125788,
+              -1734.5855589239934
             ],
-            "renderedOffsetKm": 0.013309411263366426,
+            "renderedOffsetKm": 0.0008296389022190367,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         },
@@ -185,7 +185,7 @@
       "mode": "lod",
       "file": "cube-shackleton-lod.jpg",
       "finished": true,
-      "settleMs": 6194,
+      "settleMs": 6224,
       "polls": 12,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -215,33 +215,33 @@
         "9": 25,
         "10": 12
       },
-      "requests": 331,
-      "bytes": 32029282,
+      "requests": 321,
+      "bytes": 30513903,
       "cpuGridRequests": 144,
       "tiles": {
         "active": 129,
         "visible": 110,
-        "inCache": 185,
+        "inCache": 175,
         "cpu": 144
       },
       "network": {
-        "requests": 185,
+        "requests": 175,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 27852120,
+        "cacheBytes": 26346600,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 27852120,
+        "geometryBytes": 26346600,
         "textureBytes": 0
       },
       "update": {
         "count": 61,
-        "lastMs": 1.5,
-        "meanMs": 2.4672131147159293,
-        "maxMs": 19.299999999813735
+        "lastMs": 1.7999999998137355,
+        "meanMs": 2.4770491802912264,
+        "maxMs": 14.200000000186265
       },
       "parse": {
         "count": 0,
@@ -286,18 +286,18 @@
           "physical": {
             "kind": "hit",
             "detail": "coarse",
-            "tileId": "nz/7/64/64",
+            "tileId": "nz/11/1027/1028",
             "normal": [
-              0.030026100294492444,
-              0.03649491842713588,
-              -0.9988826528827607
+              0.023233703005993533,
+              0.03407559661519398,
+              -0.9991491624176783
             ],
             "bodyFixedKm": [
-              -5.99855336322465,
-              7.204799783718347,
-              -1734.5913973655242
+              -5.9903139205058284,
+              7.194903475125788,
+              -1734.5855589239934
             ],
-            "renderedOffsetKm": 0.013309411263366426,
+            "renderedOffsetKm": 0.0008296389022190367,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         },
@@ -342,7 +342,7 @@
       "mode": "cube-face",
       "file": "cube-shackleton-cube-face.jpg",
       "finished": true,
-      "settleMs": 6210,
+      "settleMs": 6267,
       "polls": 12,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -372,190 +372,33 @@
         "9": 25,
         "10": 12
       },
-      "requests": 337,
-      "bytes": 32938446,
+      "requests": 323,
+      "bytes": 30817023,
       "cpuGridRequests": 144,
       "tiles": {
         "active": 129,
         "visible": 110,
-        "inCache": 191,
+        "inCache": 177,
         "cpu": 144
       },
       "network": {
-        "requests": 191,
+        "requests": 177,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 28755432,
+        "cacheBytes": 26647704,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 28755432,
+        "geometryBytes": 26647704,
         "textureBytes": 0
       },
       "update": {
-        "count": 61,
-        "lastMs": 1.6000000000931323,
-        "meanMs": 3.132786885224527,
-        "maxMs": 35.5
-      },
-      "parse": {
-        "count": 0,
-        "lastMs": 0,
-        "meanMs": 0,
-        "maxMs": 0
-      },
-      "cpuReadoutAtTarget": {
-        "first": {
-          "latDeg": -89.6700000000011,
-          "lonDeg": 129.78000000000003,
-          "elevationKm": -2.7836084282925673,
-          "tileId": "nz/7/64/64",
-          "source": "cube-fused-8d8d022b79d5-g3-m12",
-          "coverage": {
-            "state": "parent-fallback",
-            "availableLevel": 12,
-            "residentLevel": 7,
-            "residentTileId": "nz/7/64/64"
-          }
-        },
-        "settled": {
-          "latDeg": -89.6700000000011,
-          "lonDeg": 129.78000000000003,
-          "elevationKm": -2.789061394355219,
-          "tileId": "nz/12/2055/2057",
-          "source": "cube-fused-8d8d022b79d5-g3-m12",
-          "coverage": {
-            "state": "finest",
-            "availableLevel": 12,
-            "residentLevel": 12,
-            "residentTileId": "nz/12/2055/2057"
-          }
-        }
-      },
-      "centrePick": {
-        "first": {
-          "latDeg": -89.69073210152654,
-          "lonDeg": 129.78000002317197,
-          "altKm": -2.789161321740045,
-          "cameraDistanceKm": 20.789085549881055,
-          "physical": {
-            "kind": "hit",
-            "detail": "coarse",
-            "tileId": "nz/7/64/64",
-            "normal": [
-              0.030026100294492444,
-              0.03649491842713588,
-              -0.9988826528827607
-            ],
-            "bodyFixedKm": [
-              -5.998553363224158,
-              7.2047997837181015,
-              -1734.5913973655242
-            ],
-            "renderedOffsetKm": 0.013309411521602128,
-            "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
-          }
-        },
-        "afterRayCoverage": {
-          "latDeg": -89.69073210152654,
-          "lonDeg": 129.78000002317197,
-          "altKm": -2.7891779834993335,
-          "cameraDistanceKm": 20.789085549881055,
-          "physical": {
-            "kind": "hit",
-            "detail": "coarse",
-            "tileId": "nz/12/2055/2056",
-            "normal": [
-              0.020638456469033523,
-              0.03280470811132005,
-              -0.9992486703720485
-            ],
-            "bodyFixedKm": [
-              -5.990267373638364,
-              7.1948475681697825,
-              -1734.5855259410394
-            ],
-            "renderedOffsetKm": 0.0009095140080536887,
-            "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
-          }
-        }
-      },
-      "cubeGrids": {
-        "residentTiles": 126,
-        "detailTiles": 18,
-        "requests": 144,
-        "bytes": 2433600,
-        "failed": 0,
-        "inFlight": 0,
-        "version": "cube-fused-8d8d022b79d5-g3-m12"
-      },
-      "errors": []
-    },
-    {
-      "product": "cube",
-      "view": "shackleton",
-      "mode": "cpu-coverage",
-      "file": "cube-shackleton-cpu-coverage.jpg",
-      "finished": true,
-      "settleMs": 6201,
-      "polls": 12,
-      "pose": {
-        "frame": "IAU_MOON body-fixed, km, Z-up",
-        "eye": [
-          -18.105506477265028,
-          21.746334717688182,
-          -1743.1703438165612
-        ],
-        "target": [
-          -6.393456931874776,
-          7.679114341167814,
-          -1734.8712243020793
-        ],
-        "fov": 60,
-        "epoch": "catalog defaultTime 2028-12-15T10:04:00Z, paused"
-      },
-      "errorTarget": 2,
-      "finestVisibleLevel": 10,
-      "finestVertexSpacingM": 53.021240234375,
-      "visibleByLevel": {
-        "3": 10,
-        "4": 12,
-        "5": 12,
-        "6": 11,
-        "7": 15,
-        "8": 13,
-        "9": 25,
-        "10": 12
-      },
-      "requests": 331,
-      "bytes": 32029282,
-      "cpuGridRequests": 144,
-      "tiles": {
-        "active": 129,
-        "visible": 110,
-        "inCache": 185,
-        "cpu": 144
-      },
-      "network": {
-        "requests": 185,
-        "queued": 0,
-        "downloading": 0,
-        "parsing": 0,
-        "failed": 0
-      },
-      "memory": {
-        "cacheBytes": 27852120,
-        "maxCacheBytes": 536870912,
-        "geometryBytes": 27852120,
-        "textureBytes": 0
-      },
-      "update": {
-        "count": 61,
-        "lastMs": 3.1000000000931323,
-        "meanMs": 3.009836065582931,
-        "maxMs": 29.600000000093132
+        "count": 59,
+        "lastMs": 1.699999999254942,
+        "meanMs": 2.6508474576018624,
+        "maxMs": 13.199999999254942
       },
       "parse": {
         "count": 0,
@@ -600,18 +443,18 @@
           "physical": {
             "kind": "hit",
             "detail": "coarse",
-            "tileId": "nz/7/64/64",
+            "tileId": "nz/11/1027/1028",
             "normal": [
-              0.030026100294492444,
-              0.03649491842713588,
-              -0.9988826528827607
+              0.023233703005993533,
+              0.03407559661519398,
+              -0.9991491624176783
             ],
             "bodyFixedKm": [
-              -5.99855336322465,
-              7.204799783718347,
-              -1734.5913973655242
+              -5.9903139205058284,
+              7.194903475125788,
+              -1734.5855589239934
             ],
-            "renderedOffsetKm": 0.013309411263366426,
+            "renderedOffsetKm": 0.0008296389022190367,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         },
@@ -652,11 +495,168 @@
     },
     {
       "product": "cube",
+      "view": "shackleton",
+      "mode": "cpu-coverage",
+      "file": "cube-shackleton-cpu-coverage.jpg",
+      "finished": true,
+      "settleMs": 6770,
+      "polls": 13,
+      "pose": {
+        "frame": "IAU_MOON body-fixed, km, Z-up",
+        "eye": [
+          -18.105506477265028,
+          21.746334717688182,
+          -1743.1703438165612
+        ],
+        "target": [
+          -6.393456931874776,
+          7.679114341167814,
+          -1734.8712243020793
+        ],
+        "fov": 60,
+        "epoch": "catalog defaultTime 2028-12-15T10:04:00Z, paused"
+      },
+      "errorTarget": 2,
+      "finestVisibleLevel": 10,
+      "finestVertexSpacingM": 53.021240234375,
+      "visibleByLevel": {
+        "3": 10,
+        "4": 12,
+        "5": 12,
+        "6": 11,
+        "7": 15,
+        "8": 13,
+        "9": 25,
+        "10": 12
+      },
+      "requests": 326,
+      "bytes": 31271511,
+      "cpuGridRequests": 144,
+      "tiles": {
+        "active": 129,
+        "visible": 110,
+        "inCache": 180,
+        "cpu": 144
+      },
+      "network": {
+        "requests": 180,
+        "queued": 0,
+        "downloading": 0,
+        "parsing": 0,
+        "failed": 0
+      },
+      "memory": {
+        "cacheBytes": 27099360,
+        "maxCacheBytes": 536870912,
+        "geometryBytes": 27099360,
+        "textureBytes": 0
+      },
+      "update": {
+        "count": 61,
+        "lastMs": 3.2999999998137355,
+        "meanMs": 2.880327868824977,
+        "maxMs": 13.100000000558794
+      },
+      "parse": {
+        "count": 0,
+        "lastMs": 0,
+        "meanMs": 0,
+        "maxMs": 0
+      },
+      "cpuReadoutAtTarget": {
+        "first": {
+          "latDeg": -89.6700000000011,
+          "lonDeg": 129.78000000000003,
+          "elevationKm": -2.7836084282925673,
+          "tileId": "nz/7/64/64",
+          "source": "cube-fused-8d8d022b79d5-g3-m12",
+          "coverage": {
+            "state": "parent-fallback",
+            "availableLevel": 12,
+            "residentLevel": 7,
+            "residentTileId": "nz/7/64/64"
+          }
+        },
+        "settled": {
+          "latDeg": -89.6700000000011,
+          "lonDeg": 129.78000000000003,
+          "elevationKm": -2.789061394355219,
+          "tileId": "nz/12/2055/2057",
+          "source": "cube-fused-8d8d022b79d5-g3-m12",
+          "coverage": {
+            "state": "finest",
+            "availableLevel": 12,
+            "residentLevel": 12,
+            "residentTileId": "nz/12/2055/2057"
+          }
+        }
+      },
+      "centrePick": {
+        "first": {
+          "latDeg": -89.69073210152654,
+          "lonDeg": 129.78000002317197,
+          "altKm": -2.789161321740045,
+          "cameraDistanceKm": 20.789085549881055,
+          "physical": {
+            "kind": "hit",
+            "detail": "coarse",
+            "tileId": "nz/11/1027/1028",
+            "normal": [
+              0.023233703005993533,
+              0.03407559661519398,
+              -0.9991491624176783
+            ],
+            "bodyFixedKm": [
+              -5.990313920505336,
+              7.194903475125544,
+              -1734.5855589239934
+            ],
+            "renderedOffsetKm": 0.0008296386439820922,
+            "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
+          }
+        },
+        "afterRayCoverage": {
+          "latDeg": -89.69073210152654,
+          "lonDeg": 129.78000002317197,
+          "altKm": -2.7891779834993335,
+          "cameraDistanceKm": 20.789085549881055,
+          "physical": {
+            "kind": "hit",
+            "detail": "coarse",
+            "tileId": "nz/12/2055/2056",
+            "normal": [
+              0.020638456469033523,
+              0.03280470811132005,
+              -0.9992486703720485
+            ],
+            "bodyFixedKm": [
+              -5.990267373638364,
+              7.1948475681697825,
+              -1734.5855259410394
+            ],
+            "renderedOffsetKm": 0.0009095140080536887,
+            "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
+          }
+        }
+      },
+      "cubeGrids": {
+        "residentTiles": 126,
+        "detailTiles": 18,
+        "requests": 144,
+        "bytes": 2433600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-8d8d022b79d5-g3-m12"
+      },
+      "errors": []
+    },
+    {
+      "product": "cube",
       "view": "pole",
       "mode": "shaded",
       "file": "cube-pole-shaded.jpg",
       "finished": true,
-      "settleMs": 6190,
+      "settleMs": 6318,
       "polls": 12,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -684,33 +684,33 @@
         "7": 11,
         "8": 20
       },
-      "requests": 291,
-      "bytes": 25966314,
+      "requests": 285,
+      "bytes": 25057199,
       "cpuGridRequests": 144,
       "tiles": {
         "active": 96,
         "visible": 75,
-        "inCache": 145,
+        "inCache": 139,
         "cpu": 144
       },
       "network": {
-        "requests": 145,
+        "requests": 139,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 21830040,
+        "cacheBytes": 20926728,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 21830040,
+        "geometryBytes": 20926728,
         "textureBytes": 0
       },
       "update": {
-        "count": 48,
-        "lastMs": 1.3999999999068677,
-        "meanMs": 2.312500000009701,
-        "maxMs": 27.299999999813735
+        "count": 52,
+        "lastMs": 0.8999999994412065,
+        "meanMs": 2.4038461538282436,
+        "maxMs": 27.200000000186265
       },
       "parse": {
         "count": 0,
@@ -748,10 +748,10 @@
       },
       "centrePick": {
         "first": {
-          "latDeg": -89.9632059389561,
-          "lonDeg": -49.999999978191504,
-          "altKm": 1.093516291254578,
-          "cameraDistanceKm": 15.529578383329468,
+          "latDeg": -89.96320593895646,
+          "lonDeg": -49.999999978194836,
+          "altKm": 1.093516291258926,
+          "cameraDistanceKm": 15.52957838334482,
           "physical": {
             "kind": "hit",
             "detail": "coarse",
@@ -762,19 +762,19 @@
               -0.9271406447273487
             ],
             "bodyFixedKm": [
-              0.7176217950273394,
-              -0.855228351686641,
+              0.7176217950272994,
+              -0.8552283516866961,
               -1738.493051855233
             ],
-            "renderedOffsetKm": 4.389203746170406e-8,
+            "renderedOffsetKm": 4.390730559939994e-8,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         },
         "afterRayCoverage": {
-          "latDeg": -89.9632059389561,
-          "lonDeg": -49.999999978191504,
-          "altKm": 1.0935338537574308,
-          "cameraDistanceKm": 15.529578383329468,
+          "latDeg": -89.96320593895646,
+          "lonDeg": -49.999999978194836,
+          "altKm": 1.0935338537617514,
+          "cameraDistanceKm": 15.52957838334482,
           "physical": {
             "kind": "hit",
             "detail": "coarse",
@@ -785,11 +785,11 @@
               -0.9321660468575846
             ],
             "bodyFixedKm": [
-              0.7176823516686204,
-              -0.8553005202814496,
+              0.7176823516685822,
+              -0.8553005202815047,
               -1738.4931440926089
             ],
-            "renderedOffsetKm": 0.00013188905266714457,
+            "renderedOffsetKm": 0.00013188906793609815,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         }
@@ -811,7 +811,7 @@
       "mode": "lod",
       "file": "cube-pole-lod.jpg",
       "finished": true,
-      "settleMs": 5717,
+      "settleMs": 5703,
       "polls": 11,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -839,33 +839,33 @@
         "7": 11,
         "8": 20
       },
-      "requests": 294,
-      "bytes": 26420842,
+      "requests": 285,
+      "bytes": 25057199,
       "cpuGridRequests": 144,
       "tiles": {
         "active": 96,
         "visible": 75,
-        "inCache": 148,
+        "inCache": 139,
         "cpu": 144
       },
       "network": {
-        "requests": 148,
+        "requests": 139,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 22281696,
+        "cacheBytes": 20926728,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 22281696,
+        "geometryBytes": 20926728,
         "textureBytes": 0
       },
       "update": {
-        "count": 62,
-        "lastMs": 1.2999999998137355,
-        "meanMs": 2.093548387078749,
-        "maxMs": 18.799999999813735
+        "count": 59,
+        "lastMs": 1.3999999994412065,
+        "meanMs": 2.715254237307078,
+        "maxMs": 17.700000000186265
       },
       "parse": {
         "count": 0,
@@ -966,7 +966,7 @@
       "mode": "cube-face",
       "file": "cube-pole-cube-face.jpg",
       "finished": true,
-      "settleMs": 5690,
+      "settleMs": 5704,
       "polls": 11,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -994,33 +994,33 @@
         "7": 11,
         "8": 20
       },
-      "requests": 276,
-      "bytes": 23693286,
+      "requests": 286,
+      "bytes": 25208719,
       "cpuGridRequests": 144,
       "tiles": {
         "active": 96,
         "visible": 75,
-        "inCache": 130,
+        "inCache": 140,
         "cpu": 144
       },
       "network": {
-        "requests": 130,
+        "requests": 140,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 19571760,
+        "cacheBytes": 21077280,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 19571760,
+        "geometryBytes": 21077280,
         "textureBytes": 0
       },
       "update": {
-        "count": 59,
-        "lastMs": 1.8000000002793968,
-        "meanMs": 2.437288135582171,
-        "maxMs": 15.699999999720603
+        "count": 63,
+        "lastMs": 2.8999999994412065,
+        "meanMs": 2.39047619048506,
+        "maxMs": 16.200000000186265
       },
       "parse": {
         "count": 0,
@@ -1121,7 +1121,7 @@
       "mode": "cpu-coverage",
       "file": "cube-pole-cpu-coverage.jpg",
       "finished": true,
-      "settleMs": 5722,
+      "settleMs": 5728,
       "polls": 11,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -1149,33 +1149,33 @@
         "7": 11,
         "8": 20
       },
-      "requests": 276,
-      "bytes": 23693286,
+      "requests": 285,
+      "bytes": 25057199,
       "cpuGridRequests": 144,
       "tiles": {
         "active": 96,
         "visible": 75,
-        "inCache": 130,
+        "inCache": 139,
         "cpu": 144
       },
       "network": {
-        "requests": 130,
+        "requests": 139,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 19571760,
+        "cacheBytes": 20926728,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 19571760,
+        "geometryBytes": 20926728,
         "textureBytes": 0
       },
       "update": {
-        "count": 60,
-        "lastMs": 1.3000000002793968,
-        "meanMs": 2.436666666677532,
-        "maxMs": 15.099999999627471
+        "count": 59,
+        "lastMs": 4.7000000001862645,
+        "meanMs": 2.9457627119243903,
+        "maxMs": 15.799999999813735
       },
       "parse": {
         "count": 0,
@@ -1213,10 +1213,10 @@
       },
       "centrePick": {
         "first": {
-          "latDeg": -89.96320593895646,
-          "lonDeg": -49.999999978194836,
-          "altKm": 1.093516291258926,
-          "cameraDistanceKm": 15.52957838334482,
+          "latDeg": -89.9632059389561,
+          "lonDeg": -49.999999978191504,
+          "altKm": 1.093516291254578,
+          "cameraDistanceKm": 15.529578383329468,
           "physical": {
             "kind": "hit",
             "detail": "coarse",
@@ -1227,19 +1227,19 @@
               -0.9271406447273487
             ],
             "bodyFixedKm": [
-              0.7176217950272994,
-              -0.8552283516866961,
+              0.7176217950273394,
+              -0.855228351686641,
               -1738.493051855233
             ],
-            "renderedOffsetKm": 4.390730559939994e-8,
+            "renderedOffsetKm": 4.389203746170406e-8,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         },
         "afterRayCoverage": {
-          "latDeg": -89.96320593895646,
-          "lonDeg": -49.999999978194836,
-          "altKm": 1.0935338537617514,
-          "cameraDistanceKm": 15.52957838334482,
+          "latDeg": -89.9632059389561,
+          "lonDeg": -49.999999978191504,
+          "altKm": 1.0935338537574308,
+          "cameraDistanceKm": 15.529578383329468,
           "physical": {
             "kind": "hit",
             "detail": "coarse",
@@ -1250,11 +1250,11 @@
               -0.9321660468575846
             ],
             "bodyFixedKm": [
-              0.7176823516685822,
-              -0.8553005202815047,
+              0.7176823516686204,
+              -0.8553005202814496,
               -1738.4931440926089
             ],
-            "renderedOffsetKm": 0.00013188906793609815,
+            "renderedOffsetKm": 0.00013188905266714457,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         }
@@ -1276,7 +1276,7 @@
       "mode": "shaded",
       "file": "cube-overview-shaded.jpg",
       "finished": true,
-      "settleMs": 4630,
+      "settleMs": 4615,
       "polls": 9,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -1300,33 +1300,33 @@
         "0": 3,
         "1": 12
       },
-      "requests": 180,
-      "bytes": 10220922,
+      "requests": 184,
+      "bytes": 10827571,
       "cpuGridRequests": 136,
       "tiles": {
         "active": 15,
         "visible": 15,
-        "inCache": 42,
+        "inCache": 46,
         "cpu": 136
       },
       "network": {
-        "requests": 42,
+        "requests": 46,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 6323184,
+        "cacheBytes": 6925392,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 6323184,
+        "geometryBytes": 6925392,
         "textureBytes": 0
       },
       "update": {
-        "count": 55,
-        "lastMs": 0.3000000002793968,
-        "meanMs": 0.93999999999492,
-        "maxMs": 14.200000000186265
+        "count": 60,
+        "lastMs": 0.39999999944120646,
+        "meanMs": 0.9850000000714014,
+        "maxMs": 12.900000000372529
       },
       "parse": {
         "count": 0,
@@ -1427,7 +1427,7 @@
       "mode": "lod",
       "file": "cube-overview-lod.jpg",
       "finished": true,
-      "settleMs": 4646,
+      "settleMs": 4638,
       "polls": 9,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -1451,33 +1451,33 @@
         "0": 3,
         "1": 12
       },
-      "requests": 200,
-      "bytes": 13252178,
+      "requests": 194,
+      "bytes": 12342779,
       "cpuGridRequests": 136,
       "tiles": {
         "active": 15,
         "visible": 15,
-        "inCache": 62,
+        "inCache": 56,
         "cpu": 136
       },
       "network": {
-        "requests": 62,
+        "requests": 56,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 9334224,
+        "cacheBytes": 8430912,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 9334224,
+        "geometryBytes": 8430912,
         "textureBytes": 0
       },
       "update": {
         "count": 85,
-        "lastMs": 0.3000000002793968,
-        "meanMs": 1.0623529411907144,
-        "maxMs": 16.5
+        "lastMs": 0.2999999998137355,
+        "meanMs": 0.972941176494693,
+        "maxMs": 13.599999999627471
       },
       "parse": {
         "count": 0,
@@ -1515,10 +1515,10 @@
       },
       "centrePick": {
         "first": {
-          "latDeg": -69.98738209632529,
-          "lonDeg": 59.99999965952803,
-          "altKm": 1.8533367527946099,
-          "cameraDistanceKm": 3091.107155313272,
+          "latDeg": -69.98738209641702,
+          "lonDeg": 59.99999965952795,
+          "altKm": 1.8533367528625981,
+          "cameraDistanceKm": 3091.107155320294,
           "physical": {
             "kind": "hit",
             "detail": "coarse",
@@ -1529,19 +1529,19 @@
               -0.8667300346959873
             ],
             "bodyFixedKm": [
-              297.77702461214267,
-              515.7649288870548,
+              297.7770246121429,
+              515.7649288870534,
               -1634.028409058702
             ],
-            "renderedOffsetKm": 0.9691253611318041,
+            "renderedOffsetKm": 0.9691253681526921,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         },
         "afterRayCoverage": {
-          "latDeg": -69.98738209632529,
-          "lonDeg": 59.99999965952803,
-          "altKm": 1.8533367527946099,
-          "cameraDistanceKm": 3091.107155313272,
+          "latDeg": -69.98738209641702,
+          "lonDeg": 59.99999965952795,
+          "altKm": 1.8533367528625981,
+          "cameraDistanceKm": 3091.107155320294,
           "physical": {
             "kind": "hit",
             "detail": "coarse",
@@ -1552,11 +1552,11 @@
               -0.8667300346959873
             ],
             "bodyFixedKm": [
-              297.77702461214267,
-              515.7649288870548,
+              297.7770246121429,
+              515.7649288870534,
               -1634.028409058702
             ],
-            "renderedOffsetKm": 0.9691253611318041,
+            "renderedOffsetKm": 0.9691253681526921,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         }
@@ -1578,7 +1578,7 @@
       "mode": "cube-face",
       "file": "cube-overview-cube-face.jpg",
       "finished": true,
-      "settleMs": 4643,
+      "settleMs": 4718,
       "polls": 9,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -1602,33 +1602,33 @@
         "0": 3,
         "1": 12
       },
-      "requests": 180,
-      "bytes": 10220982,
+      "requests": 183,
+      "bytes": 10676003,
       "cpuGridRequests": 136,
       "tiles": {
         "active": 15,
         "visible": 15,
-        "inCache": 42,
+        "inCache": 45,
         "cpu": 136
       },
       "network": {
-        "requests": 42,
+        "requests": 45,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 6323184,
+        "cacheBytes": 6774840,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 6323184,
+        "geometryBytes": 6774840,
         "textureBytes": 0
       },
       "update": {
-        "count": 80,
-        "lastMs": 0.8000000002793968,
-        "meanMs": 1.0775000000139698,
-        "maxMs": 16.299999999813735
+        "count": 82,
+        "lastMs": 0.39999999944120646,
+        "meanMs": 1.082926829300094,
+        "maxMs": 15.099999999627471
       },
       "parse": {
         "count": 0,
@@ -1729,7 +1729,7 @@
       "mode": "cpu-coverage",
       "file": "cube-overview-cpu-coverage.jpg",
       "finished": true,
-      "settleMs": 4652,
+      "settleMs": 4662,
       "polls": 9,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -1753,33 +1753,33 @@
         "0": 3,
         "1": 12
       },
-      "requests": 196,
-      "bytes": 12645994,
+      "requests": 178,
+      "bytes": 9918171,
       "cpuGridRequests": 136,
       "tiles": {
         "active": 15,
         "visible": 15,
-        "inCache": 58,
+        "inCache": 40,
         "cpu": 136
       },
       "network": {
-        "requests": 58,
+        "requests": 40,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 8732016,
+        "cacheBytes": 6022080,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 8732016,
+        "geometryBytes": 6022080,
         "textureBytes": 0
       },
       "update": {
-        "count": 79,
-        "lastMs": 0.39999999990686774,
-        "meanMs": 1.149367088628815,
-        "maxMs": 23.200000000186265
+        "count": 86,
+        "lastMs": 0.39999999944120646,
+        "meanMs": 0.9906976744532585,
+        "maxMs": 14.299999999813735
       },
       "parse": {
         "count": 0,
@@ -1817,10 +1817,10 @@
       },
       "centrePick": {
         "first": {
-          "latDeg": -69.98738209641702,
-          "lonDeg": 59.99999965952795,
-          "altKm": 1.8533367528625981,
-          "cameraDistanceKm": 3091.107155320294,
+          "latDeg": -69.98738209632529,
+          "lonDeg": 59.99999965952803,
+          "altKm": 1.8533367527946099,
+          "cameraDistanceKm": 3091.107155313272,
           "physical": {
             "kind": "hit",
             "detail": "coarse",
@@ -1831,19 +1831,19 @@
               -0.8667300346959873
             ],
             "bodyFixedKm": [
-              297.7770246121429,
-              515.7649288870534,
+              297.77702461214267,
+              515.7649288870548,
               -1634.028409058702
             ],
-            "renderedOffsetKm": 0.9691253681526921,
+            "renderedOffsetKm": 0.9691253611318041,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         },
         "afterRayCoverage": {
-          "latDeg": -69.98738209641702,
-          "lonDeg": 59.99999965952795,
-          "altKm": 1.8533367528625981,
-          "cameraDistanceKm": 3091.107155320294,
+          "latDeg": -69.98738209632529,
+          "lonDeg": 59.99999965952803,
+          "altKm": 1.8533367527946099,
+          "cameraDistanceKm": 3091.107155313272,
           "physical": {
             "kind": "hit",
             "detail": "coarse",
@@ -1854,11 +1854,11 @@
               -0.8667300346959873
             ],
             "bodyFixedKm": [
-              297.7770246121429,
-              515.7649288870534,
+              297.77702461214267,
+              515.7649288870548,
               -1634.028409058702
             ],
-            "renderedOffsetKm": 0.9691253681526921,
+            "renderedOffsetKm": 0.9691253611318041,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         }
@@ -1880,8 +1880,8 @@
       "mode": "shaded",
       "file": "cube-face-boundary-shaded.jpg",
       "finished": true,
-      "settleMs": 15882,
-      "polls": 31,
+      "settleMs": 18171,
+      "polls": 35,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
         "eye": [
@@ -1909,33 +1909,33 @@
         "6": 57,
         "7": 12
       },
-      "requests": 456,
-      "bytes": 51375018,
+      "requests": 453,
+      "bytes": 50920343,
       "cpuGridRequests": 141,
       "tiles": {
         "active": 219,
         "visible": 219,
-        "inCache": 313,
+        "inCache": 310,
         "cpu": 141
       },
       "network": {
-        "requests": 313,
+        "requests": 310,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 47122776,
+        "cacheBytes": 46671120,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 47122776,
+        "geometryBytes": 46671120,
         "textureBytes": 0
       },
       "update": {
-        "count": 70,
-        "lastMs": 3.3999999999068677,
-        "meanMs": 2.2857142857076336,
-        "maxMs": 15
+        "count": 71,
+        "lastMs": 1.2999999998137355,
+        "meanMs": 2.65774647888898,
+        "maxMs": 25.700000000186265
       },
       "parse": {
         "count": 0,
@@ -2036,7 +2036,7 @@
       "mode": "lod",
       "file": "cube-face-boundary-lod.jpg",
       "finished": true,
-      "settleMs": 12367,
+      "settleMs": 12416,
       "polls": 24,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -2065,33 +2065,33 @@
         "6": 57,
         "7": 12
       },
-      "requests": 456,
-      "bytes": 51375018,
+      "requests": 444,
+      "bytes": 49556279,
       "cpuGridRequests": 141,
       "tiles": {
         "active": 219,
         "visible": 219,
-        "inCache": 313,
+        "inCache": 301,
         "cpu": 141
       },
       "network": {
-        "requests": 313,
+        "requests": 301,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 47122776,
+        "cacheBytes": 45316152,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 47122776,
+        "geometryBytes": 45316152,
         "textureBytes": 0
       },
       "update": {
         "count": 74,
-        "lastMs": 2.7999999998137355,
-        "meanMs": 3.355405405415474,
-        "maxMs": 27.399999999906868
+        "lastMs": 2.5,
+        "meanMs": 3.1445945946222826,
+        "maxMs": 15.5
       },
       "parse": {
         "count": 0,
@@ -2192,8 +2192,8 @@
       "mode": "cube-face",
       "file": "cube-face-boundary-cube-face.jpg",
       "finished": true,
-      "settleMs": 12920,
-      "polls": 25,
+      "settleMs": 12377,
+      "polls": 24,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
         "eye": [
@@ -2221,33 +2221,33 @@
         "6": 57,
         "7": 12
       },
-      "requests": 449,
-      "bytes": 50314118,
+      "requests": 450,
+      "bytes": 50465739,
       "cpuGridRequests": 141,
       "tiles": {
         "active": 219,
         "visible": 219,
-        "inCache": 306,
+        "inCache": 307,
         "cpu": 141
       },
       "network": {
-        "requests": 306,
+        "requests": 307,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 46068912,
+        "cacheBytes": 46219464,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 46068912,
+        "geometryBytes": 46219464,
         "textureBytes": 0
       },
       "update": {
-        "count": 73,
-        "lastMs": 2.2000000001862645,
-        "meanMs": 3.7068493150506323,
-        "maxMs": 22.299999999813735
+        "count": 74,
+        "lastMs": 2.099999999627471,
+        "meanMs": 3.5337837837963693,
+        "maxMs": 20.799999999813735
       },
       "parse": {
         "count": 0,
@@ -2285,10 +2285,10 @@
       },
       "centrePick": {
         "first": {
-          "latDeg": -35.26137736759331,
-          "lonDeg": 45.002748548538584,
-          "altKm": 0.26246732606607426,
-          "cameraDistanceKm": 64.90601481851444,
+          "latDeg": -35.26137736758434,
+          "lonDeg": 45.00274854854676,
+          "altKm": 0.26246732606929457,
+          "cameraDistanceKm": 64.90601481766154,
           "physical": {
             "kind": "hit",
             "detail": "coarse",
@@ -2299,19 +2299,19 @@
               -0.6008313918745776
             ],
             "bodyFixedKm": [
-              1003.229193009899,
-              1003.325420651722,
+              1003.2291930098992,
+              1003.3254206517217,
               -1003.1654525844299
             ],
-            "renderedOffsetKm": 0.00008700024979413979,
+            "renderedOffsetKm": 0.0000870011033195202,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         },
         "afterRayCoverage": {
-          "latDeg": -35.26137736759331,
-          "lonDeg": 45.002748548538584,
-          "altKm": 0.26246732606607426,
-          "cameraDistanceKm": 64.90601481851444,
+          "latDeg": -35.26137736758434,
+          "lonDeg": 45.00274854854676,
+          "altKm": 0.26246732606929457,
+          "cameraDistanceKm": 64.90601481766154,
           "physical": {
             "kind": "hit",
             "detail": "coarse",
@@ -2322,11 +2322,11 @@
               -0.6008313918745776
             ],
             "bodyFixedKm": [
-              1003.229193009899,
-              1003.325420651722,
+              1003.2291930098992,
+              1003.3254206517217,
               -1003.1654525844299
             ],
-            "renderedOffsetKm": 0.00008700024979413979,
+            "renderedOffsetKm": 0.0000870011033195202,
             "sourceVersion": "cube-fused-8d8d022b79d5-g3-m12"
           }
         }
@@ -2348,7 +2348,7 @@
       "mode": "cpu-coverage",
       "file": "cube-face-boundary-cpu-coverage.jpg",
       "finished": true,
-      "settleMs": 12365,
+      "settleMs": 12483,
       "polls": 24,
       "pose": {
         "frame": "IAU_MOON body-fixed, km, Z-up",
@@ -2377,33 +2377,33 @@
         "6": 57,
         "7": 12
       },
-      "requests": 448,
-      "bytes": 50162614,
+      "requests": 451,
+      "bytes": 50617287,
       "cpuGridRequests": 141,
       "tiles": {
         "active": 219,
         "visible": 219,
-        "inCache": 305,
+        "inCache": 308,
         "cpu": 141
       },
       "network": {
-        "requests": 305,
+        "requests": 308,
         "queued": 0,
         "downloading": 0,
         "parsing": 0,
         "failed": 0
       },
       "memory": {
-        "cacheBytes": 45918360,
+        "cacheBytes": 46370016,
         "maxCacheBytes": 536870912,
-        "geometryBytes": 45918360,
+        "geometryBytes": 46370016,
         "textureBytes": 0
       },
       "update": {
         "count": 75,
-        "lastMs": 2.5,
-        "meanMs": 3.1253333333010476,
-        "maxMs": 14.200000000186265
+        "lastMs": 2.2000000001862645,
+        "meanMs": 3.5560000000273186,
+        "maxMs": 16.699999999254942
       },
       "parse": {
         "count": 0,
