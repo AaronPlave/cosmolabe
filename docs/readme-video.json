@@ -1,0 +1,13 @@
+{
+  "scene": "events",
+  "basename": "cassini-mission-workflow",
+  "fps": 24,
+  "duration": 15,
+  "openAnalysisAt": 2,
+  "scrubStartAt": 4,
+  "scrubEndAt": 10,
+  "selectEventAt": 11,
+  "scrubWindow": [141915664.184, 141928264.184],
+  "openingCameraScale": 1.1,
+  "crf": 20
+}

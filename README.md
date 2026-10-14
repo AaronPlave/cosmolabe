@@ -75,19 +75,19 @@ through the same ViewerControl methods used by hosts.*
 readout. This differs from altitude above Saturn's reference surface.*
 
 <details>
-<summary>Experimental Mars surface and sensor-geometry video</summary>
+<summary>Experimental Mars surface and workflow recording</summary>
 
 ![Ingenuity over Jezero terrain in the experimental Mars surface viewer](docs/img/mission-mars.jpg)
 
 *Ingenuity at Jezero — experimental surface visualization. The capture needs the
 locally generated fused Mars terrain product described in the recipes.*
 
-[Watch the Europa Clipper sensor-geometry demonstration](https://github.com/user-attachments/assets/3457a5fe-61f4-4884-9fa5-1a5fdc1312f2)
+[Record the current Cassini mission workflow](docs/readme-media.md#record-the-mission-workflow-video)
 
-The existing 20-second clip is retained as a supplementary demonstration of
-spacecraft tracking and sensor geometry. The static mission-analysis image above
-provides a fallback and shows the current analysis UI. The clip ends with a wider
-orbit view; it does not demonstrate Event Finder or timeline selection.
+The reproducible 15-second capture follows one encounter: open analysis, scrub
+through distance windows and plots, then select closest approach in the scene
+and timeline. The earlier Clipper video is retired; a replacement clip can be
+published from this recipe without putting video binaries in the repository.
 
 </details>
 

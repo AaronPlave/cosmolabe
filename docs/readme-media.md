@@ -149,27 +149,75 @@ so it should not stand in for a finished terrain marketing image. Recheck it
 after the imagery/depth work in #184, #186 and #189; no renderer changes were
 made to improve promotional captures.
 
-## Video decision and future replacement
+## Record the mission workflow video
 
-The previous README video was downloaded and inspected across its full
-20.167-second sequence: H.264, 1280×734, approximately 3.8 MB. It starts with
-Clipper and sensor geometry over Europa, tracks/pulls away, then ends in a wide
-view with dense trajectories. It is an authentic sensor/tracking example, so it
-is retained as a labeled supplementary link rather than the first-screen hero.
-The new first-screen event image explains the current mission-analysis workflow
-and remains visible without autoplay or a video player. The Clipper gallery image
-is a static fallback for the same subject.
+The earlier Clipper video was inspected across its full 20.167-second sequence
+(H.264, 1280×734, approximately 3.8 MB). It shows spacecraft/sensor tracking and
+ends in dense trajectories. It is out of date and has been removed from the
+README. Its historical URL is
+`https://github.com/user-attachments/assets/3457a5fe-61f4-4884-9fa5-1a5fdc1312f2`.
 
-A future replacement should record **the entire browser viewport**, not the
-built-in WebGL-only VideoRecordPlugin. Reuse the `events` recipe, start with the
-clean Saturn composition, open the prepared Event Finder, select closest approach,
-scrub the six-hour timeline through the distance windows and closest-approach marker, then finish at the selected event.
-Keep this to 12–15 seconds and retain `mission-events.png` as its poster. Encode
-H.264/yuv420p MP4 with `-movflags +faststart`, keep the heavy video outside git,
-and upload it to GitHub user attachments. Link the resulting CDN URL with a
-caption describing those actions. Verify playback on GitHub; do not claim an
-unuploaded local clip is published. The current link avoids relying on raw HTML
-video/autoplay support in GitHub's README sanitizer.
+Start the same local viewer server and retrieve the Cassini assets described
+above. Install `ffmpeg` and `ffprobe` in addition to Playwright Chromium, then run:
+
+```sh
+node scripts/record-readme-video.mjs
+# Or choose an output directory outside the repository:
+CL_CAPTURE_DIR=/tmp/cassini-video node scripts/record-readme-video.mjs
+```
+
+The script reuses the validated `events` capture recipe, recomputes all three
+searches and both plots, and waits for assets before recording. It captures the
+**entire browser viewport including Svelte UI**, rather than the WebGL-only
+VideoRecordPlugin. It does not use `?test=1`, replace UI or draw plots into images.
+
+The default 15-second sequence is one Cassini orbit-insertion workflow:
+
+| Clip time | Action |
+| --- | --- |
+| 0–2 s | Track Saturn with Cassini's restrained trajectory and a slow camera move. |
+| 2–4 s | Open Event Finder and expand the six-hour timeline; move the camera aim to make room for the plots. |
+| 4–10 s | Drag the actual timeline from 01:00 to 04:30 UTC through the 150,000 and 100,000 km windows; distance, range rate, playhead and 3D spacecraft position update together. |
+| 10–11 s | Release the timeline and hold the departure view. |
+| 11–15 s | Click the closest-approach result, returning to 02:38:22 UTC; finish with the selected marker, event card and aligned plots. |
+
+[`readme-video.json`](readme-video.json) controls frame rate, duration, phase
+times, scrub epochs, opening camera distance and H.264 quality. The scene,
+searches, layer visibility and final camera still come from
+[`readme-captures.json`](readme-captures.json). Edit those recipes to improve the
+composition; keep the event epochs inside the six-hour viewport and phase times
+in order. Environment overrides for the viewer URL, Chromium and GPU backend are
+the same as for screenshots. `FFMPEG_PATH` and `FFPROBE_PATH` select encoder tools.
+
+Frames are captured one at a time and encoded at a fixed 24 fps, so the output
+has an exact authored duration regardless of how fast the GPU or screenshot
+readback runs. Recording can take longer than 15 seconds. Camera and timeline
+steps render in the real viewer; panel transitions retain their ordinary browser
+behavior. This is a reproducible demonstration, not a real-time performance
+benchmark. The driver verifies the actual timeline-drag epoch and result-click
+selection, and rejects page/network errors or clipped/empty plot traces.
+
+Output defaults to the operating system's temporary directory under
+`cosmolabe-readme-video/`:
+
+- `cassini-mission-workflow.mp4`: full 1920×1080 viewport, H.264, limited-range
+  yuv420p/BT.709, fast-start metadata, no audio.
+- `cassini-mission-workflow-poster.png`: the final selected-event viewport.
+- `cassini-mission-workflow.vtt`: descriptive captions matching the recipe timing.
+- `cassini-mission-workflow.json`: recipe, scene, encoder probe and final state.
+- `mission-events.png` and its sidecar: the initial verified hero composition.
+
+Temporary JPEG frames are removed after encoding (set `CL_KEEP_VIDEO_FRAMES=1`
+to keep them for diagnosis). The driver rejects output paths inside the repository; do not
+commit the MP4 or intermediate frames. The encoder check verifies codec, pixel
+format, viewport dimensions, frame count and duration. Review the clip itself
+before uploading; these checks cannot judge storytelling or visual artifacts.
+
+To publish, upload the MP4 to GitHub user attachments and put its CDN link in the
+README with a descriptive caption. Keep `docs/img/mission-events.png` as the
+static fallback (or publish the generated poster). Verify actual playback on
+GitHub. The new local clip is not claimed as uploaded; the README links this
+recipe until a replacement CDN URL is available.
 
 ## Review before publishing
 
@@ -203,3 +251,10 @@ advertised here.
   a four-day search exceeds CSPICE's 100 ms report throttle; the search completed
   before a mid-pass callback occurred. The test and its implementation match
   `main`; they were not changed as part of this documentation/media issue.
+
+Video validation on 2026-10-14: the completed clip has 360 frames at 24 fps,
+1920×1080, H.264/yuv420p with limited-range BT.709 and a 15.000-second duration
+(897,271 bytes). The real timeline drag and closest-approach click passed their
+epoch/selection checks; page/network checks reported no errors. Frames across
+the sequence and the final poster were visually reviewed. The MP4, poster,
+captions and recording report remain local, outside the repository.
