@@ -101,6 +101,7 @@ export function absolutizeCatalogAssets(catalog: unknown, catalogUrl: string): v
           fix(node.terrain, 'normalMapUrl');
           fixUrls(node.terrain.imagery);
         }
+        fixUrls(node.imagery);
         fixUrls(node.surfaceTiles);
         break;
       }

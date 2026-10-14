@@ -8,6 +8,17 @@ import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
 import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
+import type { ImageryLayerInfo } from './ImageryLayers.js';
+
+/**
+ * Which surface a Globe with a streamed surface is drawing:
+ * - `static` — far away; the static `baseMap` sphere.
+ * - `preloading` — sphere shown, tiles streaming behind it.
+ * - `waiting` — close enough to swap, but the first tiles are still arriving.
+ * - `streamed` — streamed imagery/terrain tiles.
+ * - `fallback` — the stream failed to load; the static sphere stays.
+ */
+export type SurfaceTransitionState = 'static' | 'preloading' | 'waiting' | 'streamed' | 'fallback';
 import { injectShadowIntoShader, makeShadowUniforms, MAX_SHADOW_OCCLUDERS, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUniforms } from './RingShadow.js';
@@ -86,6 +97,8 @@ export class BodyMesh extends THREE.Object3D {
   private terrainVisible = false;
   /** Surface tile overlays (local-frame tilesets positioned on the globe) */
   private surfaceOverlays: SurfaceTileOverlay[] = [];
+  private _surfaceState: SurfaceTransitionState = 'static';
+  private loggedStreamFallback = false;
   /** Frame counter for throttling terrain elevation sampling */
   private terrainSampleFrame = 0;
   /**
@@ -1062,76 +1075,141 @@ export class BodyMesh extends THREE.Object3D {
 
   /**
    * Per-frame terrain update. Handles tile LOD streaming and sphere↔tiles transition.
+   *
+   * The static sphere (the Globe's `baseMap`) is what shows from far away, and
+   * it stays up until the streamed surface can replace it cleanly: inside the
+   * show zone the tiles keep streaming behind it until `isReadyToShow`, so the
+   * swap never reveals an untextured or half-loaded globe. A stream that
+   * cannot load at all (`hasStreamFailed`) leaves the sphere up for good.
+   *
    * @param camera Scene camera
    * @param renderer WebGL renderer
    * @param screenPixels How many pixels the body subtends on screen
    */
   updateTerrain(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number): void {
-    if (!this.terrainManager) return;
+    const tm = this.terrainManager;
+    if (!tm) return;
+
+    if (tm.hasStreamFailed()) {
+      if (this._surfaceState !== 'fallback') {
+        if (!this.loggedStreamFallback) {
+          this.loggedStreamFallback = true;
+          console.warn(`[Cosmolabe] Streamed surface for ${this.body.name} failed to load; showing the static map.`);
+        }
+        this.showStaticSurface();
+        this._surfaceState = 'fallback';
+      }
+      return;
+    }
 
     // Two thresholds: pre-load starts fetching tiles while sphere is still showing,
     // so by the time we swap, higher-LOD tiles are already cached → less pop-in.
     // Defaults 40 / 80 are tunable per-body via TerrainConfig.preloadAtPixels/showAtPixels.
-    const TERRAIN_PRELOAD_PX = this.terrainManager.preloadAtPixels;
-    const TERRAIN_SHOW_PX = this.terrainManager.showAtPixels;
-
-    if (screenPixels >= TERRAIN_SHOW_PX) {
-      // Show terrain tiles, hide the placeholder sphere entirely. We used to
-      // keep the sphere shrunk 0.5% behind tiles as a "fill the gaps while
-      // tiles stream in" fallback, but with hierarchical 3D Tiles assets
-      // (e.g. Cesium Mars) whose root doesn't always cover the whole globe,
-      // the sphere bleeds through with mismatched shading + different LOD
-      // texture, producing a patchwork that looks worse than the brief blank
-      // gaps during initial tile load.
-      if (!this.terrainVisible) {
-        this.terrainManager.group.visible = true;
-        this.terrainVisible = true;
-      }
-      this.mesh.visible = false;
-
-      // Scale grid lines above terrain surface (not shrunk with the mesh).
-      // 0.5% above terrain clears typical topography while staying close to surface.
-      if (this.gridLines && this.gridVisible) {
-        const gridScale = this.scaleFactor * 1.005;
-        this.gridLines.scale.set(
-          gridScale * this.ellipsoidRatios[0],
-          gridScale * this.ellipsoidRatios[1],
-          gridScale * this.ellipsoidRatios[2],
-        );
-      }
-
-      // Apply the same rotation as the static mesh so terrain aligns with body orientation
-      this.terrainManager.group.quaternion.copy(this.mesh.quaternion);
-      // Apply scene scale factor to the terrain group
-      this.terrainManager.group.scale.setScalar(this.scaleFactor);
-
-      // Force world matrix update before tile LOD computation.
-      // setCamera() uses the group's world matrix to transform the camera into tile space.
-      // Without this, it uses stale matrices from the previous frame's render pass,
-      // causing incorrect LOD selection after panning/zooming.
-      this.terrainManager.group.updateMatrixWorld(true);
-
-      // Update tile LOD — pass body center position so the coverage camera
-      // can ensure tiles load even when the main camera faces away.
-      this.terrainManager.update(camera, renderer, this.position);
-    } else if (screenPixels >= TERRAIN_PRELOAD_PX) {
-      // Pre-load zone: update tile LOD (fetches tiles) but keep sphere visible.
-      // Terrain group stays hidden — we're just warming the cache.
-      if (this.terrainVisible) {
-        this.terrainManager.group.visible = false;
-        this.terrainVisible = false;
-        this.mesh.visible = true;
-      }
-      this.terrainManager.group.quaternion.copy(this.mesh.quaternion);
-      this.terrainManager.group.scale.setScalar(this.scaleFactor);
-      this.terrainManager.group.updateMatrixWorld(true);
-      this.terrainManager.update(camera, renderer, this.position);
-    } else if (this.terrainVisible) {
+    if (screenPixels < tm.preloadAtPixels) {
       // Camera is far — hide terrain, show static sphere
-      this.terrainManager.group.visible = false;
-      this.terrainVisible = false;
-      this.mesh.visible = true;
+      this.showStaticSurface();
+      tm.resetShowWait();
+      this._surfaceState = 'static';
+      return;
     }
+
+    // Apply the same rotation as the static mesh so terrain aligns with body
+    // orientation, and the scene scale factor. Force the world matrix update
+    // before tile LOD computation: setCamera() uses the group's world matrix to
+    // transform the camera into tile space, and stale matrices from the
+    // previous frame's render pass select the wrong LOD after panning/zooming.
+    tm.group.quaternion.copy(this.mesh.quaternion);
+    tm.group.scale.setScalar(this.scaleFactor);
+    tm.group.updateMatrixWorld(true);
+    // Update tile LOD — pass body center position so the coverage camera
+    // can ensure tiles load even when the main camera faces away.
+    tm.update(camera, renderer, this.position);
+
+    if (screenPixels < tm.showAtPixels) {
+      // Pre-load zone: tiles fetch while the sphere stays visible.
+      this.showStaticSurface();
+      tm.resetShowWait();
+      this._surfaceState = 'preloading';
+      return;
+    }
+
+    if (!this.terrainVisible && !tm.isReadyToShow()) {
+      // Show zone, but the first tiles are still arriving: keep the sphere.
+      this._surfaceState = 'waiting';
+      return;
+    }
+
+    // Show terrain tiles, hide the placeholder sphere entirely. We used to
+    // keep the sphere shrunk 0.5% behind tiles as a "fill the gaps while
+    // tiles stream in" fallback, but with hierarchical 3D Tiles assets
+    // (e.g. Cesium Mars) whose root doesn't always cover the whole globe,
+    // the sphere bleeds through with mismatched shading + different LOD
+    // texture, producing a patchwork that looks worse than the brief blank
+    // gaps during initial tile load.
+    if (!this.terrainVisible) {
+      tm.group.visible = true;
+      this.terrainVisible = true;
+    }
+    this.mesh.visible = false;
+    this._surfaceState = 'streamed';
+
+    // Scale grid lines above terrain surface (not shrunk with the mesh).
+    // 0.5% above terrain clears typical topography while staying close to surface.
+    if (this.gridLines && this.gridVisible) {
+      const gridScale = this.scaleFactor * 1.005;
+      this.gridLines.scale.set(
+        gridScale * this.ellipsoidRatios[0],
+        gridScale * this.ellipsoidRatios[1],
+        gridScale * this.ellipsoidRatios[2],
+      );
+    }
+  }
+
+  private showStaticSurface(): void {
+    if (!this.terrainVisible) return;
+    this.terrainManager!.group.visible = false;
+    this.terrainVisible = false;
+    this.mesh.visible = true;
+  }
+
+  /** Which surface the body is drawing, for diagnostics. Null without a streamed surface. */
+  get surfaceTransitionState(): SurfaceTransitionState | null {
+    return this.terrainManager ? this._surfaceState : null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Imagery layers (#123) — see TerrainManager for the semantics
+  // ---------------------------------------------------------------------------
+
+  /** This body's streamed imagery stack, bottom → top; empty without one. */
+  get imageryLayers(): ImageryLayerInfo[] {
+    return this.terrainManager?.imageryLayers ?? [];
+  }
+
+  setImageryLayerVisible(id: string, visible: boolean): boolean {
+    return this.terrainManager?.setImageryLayerVisible(id, visible) ?? false;
+  }
+
+  setImageryLayerOpacity(id: string, opacity: number): boolean {
+    return this.terrainManager?.setImageryLayerOpacity(id, opacity) ?? false;
+  }
+
+  moveImageryLayer(id: string, toIndex: number): boolean {
+    return this.terrainManager?.moveImageryLayer(id, toIndex) ?? false;
+  }
+
+  /** Whether the streamed surface is imagery on the ellipsoid (no physical terrain). */
+  get isImageryOnlySurface(): boolean {
+    return this.terrainManager?.imageryOnly ?? false;
+  }
+
+  /** Per-terrain-tile imagery composite resolution in px, or null without a streamed surface. */
+  get overlayResolution(): number | null {
+    return this.terrainManager?.overlayResolution ?? null;
+  }
+
+  setOverlayResolution(px: number): void {
+    this.terrainManager?.setOverlayResolution(px);
   }
 
   // ---------------------------------------------------------------------------
