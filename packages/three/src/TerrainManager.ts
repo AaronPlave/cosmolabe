@@ -5,9 +5,13 @@ import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js'
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
-import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSourceMetadata } from './TerrainSampler.js';
+import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics, type TerrainSourceMetadata } from './TerrainSampler.js';
 import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
 import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './TerrainValidation.js';
+import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGridSourceStats } from './surface/CubeSphereGrids.js';
+import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
+import type { CubeFace } from './surface/CubeSphere.js';
+import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
@@ -158,6 +162,35 @@ export interface TerrainConfig {
    *  resolution gain when terrain is moving — tiles arrive stale-looking
    *  during pan/zoom. Try modest steps (e.g. 512) before reaching for 1024+. */
   overlayResolution?: number;
+  /**
+   * Experimental cube-sphere CPU grids (#149): the `cpu-grids.json` that
+   * `scripts/terrain/dem.py cube-tile` writes beside a `type: '3dtiles'` cube
+   * product. When set, CPU samples (readouts, clamping, waypoints) and
+   * `intersectSurfaceRay` read these grids, which load by query location and
+   * never from rendered meshes; until they arrive, samples are null.
+   */
+  cubeSphere?: {
+    cpuGrids: string;
+    /** Levels loaded up front and kept as the coarse fallback. Default 2. */
+    residentLevel?: number;
+    /** Finer grids retained (LRU). Default 2048. */
+    maxDetailTiles?: number;
+    /**
+     * Cube-face map imagery (`imagery.json` from `scripts/terrain/cube_imagery.py`)
+     * draped at its own levels, independently of this product's geometry LOD; see
+     * `CubeImageryLayer`. Use instead of `imagery` for cube products: the
+     * overlay plugin maps through per-vertex longitude/latitude, which cannot
+     * register the tiles meeting at each pole (both are face centres).
+     */
+    imagery?: CubeImageryConfig;
+    /**
+     * Draw the product's mixed-LOD skirts (default true). Each .glb lists its
+     * surface triangles first (glTF primitive extras `surfaceTriangles`); false
+     * draws, and ray-casts, only those, leaving cracks open for diagnosis. CPU
+     * queries read the grids, never meshes, so skirts never reach them.
+     */
+    skirts?: boolean;
+  };
 }
 
 /**
@@ -169,7 +202,15 @@ export interface TerrainConfig {
  *   error the renderer computed for the current view; what drives refinement.
  * - `cpu-coverage` — green where the CPU sampler holds this tile's own decoded
  *   heights, amber where the renderer synthesized it by splitting a parent (CPU
- *   queries there answer from the parent, one level coarser).
+ *   queries there answer from the parent, one level coarser). With cube-sphere
+ *   grids: green where this tile's own grid is resident, amber where only an
+ *   ancestor's is, grey where none is.
+ * - `cube-face` — experimental cube-sphere products (#149): hue per face,
+ *   brighter with depth, alternate tiles shaded so tile and face edges show.
+ * - `imagery-level` — cube imagery (#149): hue per displayed imagery level,
+ *   modulated by the texel, independent of the geometry tiles' depth.
+ * - `imagery-unlit` — cube imagery texels written unlit, without tone mapping
+ *   or colour conversion: what registration checks read back.
  * - `datum-height` — mean tile elevation relative to the terrain datum, blue
  *   below and red above, so below-reference terrain (Jezero) is explicit.
  * - `seam-error` — largest height mismatch along this tile's shared edges with
@@ -180,8 +221,16 @@ export interface TerrainConfig {
  * Base/residual/coverage-boundary views need the fused products' coverage
  * metadata (#50, #48) and are added with them.
  */
-export type TerrainDebugMode = 'none' | 'lod' | 'geometric-error' | 'screen-error' | 'cpu-coverage' | 'datum-height' | 'seam-error';
-export const TERRAIN_DEBUG_MODES: readonly TerrainDebugMode[] = ['none', 'lod', 'geometric-error', 'screen-error', 'cpu-coverage', 'datum-height', 'seam-error'];
+export type TerrainDebugMode = 'none' | 'lod' | 'geometric-error' | 'screen-error' | 'cpu-coverage' | 'datum-height' | 'seam-error' | 'cube-face' | 'imagery-level' | 'imagery-unlit';
+export const TERRAIN_DEBUG_MODES: readonly TerrainDebugMode[] = ['none', 'lod', 'geometric-error', 'screen-error', 'cpu-coverage', 'datum-height', 'seam-error', 'cube-face', 'imagery-level', 'imagery-unlit'];
+/** Debug views drawn by the cube imagery shader rather than DebugTilesPlugin. */
+const IMAGERY_DEBUG: Partial<Record<TerrainDebugMode, 'unlit' | 'level'>> = { 'imagery-level': 'level', 'imagery-unlit': 'unlit' };
+const CUBE_FACE_HUE: Record<string, number> = { px: 0.0, nx: 0.5, py: 0.33, ny: 0.83, pz: 0.16, nz: 0.62 };
+/** `face/level/x/y` of a cube-sphere tile's content, or null. */
+const cubeAddress = (tile: any): { face: CubeFace; level: number; x: number; y: number } | null => {
+  const m = /(?:^|\/)(px|nx|py|ny|pz|nz)\/(\d+)\/(\d+)\/(\d+)\.glb$/.exec(tile?.content?.uri ?? '');
+  return m ? { face: m[1] as CubeFace, level: Number(m[2]), x: Number(m[3]), y: Number(m[4]) } : null;
+};
 
 export interface TerrainTiming {
   count: number;
@@ -440,6 +489,7 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
  * and coordinate transforms for non-Earth bodies.
  */
 const _camPos = /* @__PURE__ */ new THREE.Vector3();
+const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
 export class TerrainManager {
   readonly tiles: TilesRenderer;
@@ -463,6 +513,12 @@ export class TerrainManager {
   private readonly terrainHeightOffsetKm: number;
   /** CPU-only sampler. It never reads renderer scene meshes during a query. */
   readonly sampler: TerrainSampler;
+  /** Experimental cube-sphere CPU grids and their #148 ray surface, once the manifest loads. */
+  private cube: { source: CubeSphereGridSource; surface: CubeGridSurface } | null = null;
+  private readonly cubeConfigured: boolean;
+  private cubeSkirts = true;
+  /** Experimental cube-face map imagery, independent of geometry LOD (#149). */
+  private readonly cubeImagery: CubeImageryLayer | null = null;
   private disposed = false;
   private shadowUniforms: ShadowUniforms | null = null;
   private aerialPerspectiveUniforms: AerialPerspectiveUniforms | null = null;
@@ -544,6 +600,13 @@ export class TerrainManager {
     // seam/datum debug indexes must forget them too or they report neighbours
     // the sampler no longer holds.
     this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
+    this.cubeConfigured = !!config.cubeSphere;
+    this.cubeSkirts = config.cubeSphere?.skirts !== false;
+    if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
+    if (config.cubeSphere?.imagery) {
+      this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery);
+      this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', `Terrain: cube imagery unavailable (${config.cubeSphere?.imagery?.url})`, err));
+    }
     this.isImageryOnly = config.type === 'imagery';
     this.hasOverlays = Array.isArray(config.imagery) && config.imagery.length > 1;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
@@ -805,8 +868,12 @@ export class TerrainManager {
     // Customize tile materials as they load
     this.tiles.addEventListener('load-model', (event: { scene: THREE.Object3D; tile: any }) => {
       this.customizeTileMaterial(event.scene, event.tile);
+      if (this.cubeConfigured) this.applyCubeSkirts(event.scene);
+      const address = this.cubeImagery ? cubeAddress(event.tile) : null;
+      if (address) this.cubeImagery!.addTile(event.tile, event.scene, address);
     });
     this.tiles.addEventListener('dispose-model', (event: { tile: any }) => {
+      this.cubeImagery?.removeTile(event.tile);
       const id = this.cpuTileId(event.tile);
       if (id) this.forgetCpuTile(id);
     });
@@ -1044,15 +1111,118 @@ export class TerrainManager {
     } catch (e) {
       console.error('[Cosmolabe] tiles.update() crashed:', e);
     }
+    if (this.cubeImagery) {
+      // Distance and frustum from the terrain camera (sane near/far, a wider
+      // field so imagery just outside the view is ready); texel size against
+      // the main camera's pixels.
+      this.tiles.group.updateWorldMatrix(true, false);
+      const pixelAngle = 2 * Math.tan(THREE.MathUtils.degToRad(mainCam.fov) / 2) / Math.max(1, renderer.getDrawingBufferSize(_bufferSize).y);
+      const useImagery = this.debugMode === 'none' || !!IMAGERY_DEBUG[this.debugMode];
+      try {
+        this.cubeImagery.update(tc, this.tiles.group.matrixWorld, pixelAngle, renderer, useImagery);
+      } catch (err) {
+        // Imagery must never stop terrain streaming or the frame loop.
+        this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
+      }
+    }
+  }
+
+  /** Show or hide cube-sphere skirts on every loaded and future tile; imagery blocks rebuild to match. */
+  setCubeSkirts(visible: boolean): void {
+    if (visible === this.cubeSkirts) return;
+    this.cubeSkirts = visible;
+    this.tiles.forEachLoadedModel((scene: THREE.Object3D) => this.applyCubeSkirts(scene));
+    this.cubeImagery?.invalidateBlocks();
+  }
+
+  private applyCubeSkirts(scene: THREE.Object3D): void {
+    scene.traverse((o) => {
+      const g = (o as THREE.Mesh).geometry;
+      const n = g?.userData?.surfaceTriangles;
+      if (typeof n === 'number') g.setDrawRange(0, this.cubeSkirts ? Infinity : 3 * n);
+    });
+  }
+
+  /** The experimental cube imagery layer, for diagnostics and live option changes; null when not configured. */
+  get cubeImageryLayer(): CubeImageryLayer | null {
+    return this.cubeImagery;
+  }
+
+  /** Cube imagery residency, requests and blocks, or null when the terrain has no cube imagery. */
+  get cubeImageryStats(): CubeImageryStats | null {
+    return this.cubeImagery?.stats ?? null;
   }
 
   /** CPU terrain query. Null means decoded data is not currently cached. */
   sample(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
+    // Cube grids carry no derived normals; `normal` stays absent rather than invented.
+    if (this.cubeConfigured) return this.cube?.source.sample(latDeg, lonDeg) ?? null;
     return this.sampler.sample(latDeg, lonDeg, deriveNormal);
   }
 
   sampleBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
+    if (this.cubeConfigured) {
+      const { latDeg, lonDeg } = bodyFixedToGeodetic(point, this.sampler.datum);
+      return this.sample(latDeg, lonDeg, deriveNormal);
+    }
     return this.sampler.sampleBodyFixedCartesian(point, deriveNormal);
+  }
+
+  /** CPU cache state of whichever CPU source answers `sample` (cube grids when configured). */
+  get cpuDiagnostics(): TerrainSamplerDiagnostics {
+    if (!this.cubeConfigured) return this.sampler.diagnostics;
+    const tiles = this.cube?.source.sampler.tileCount ?? 0;
+    return { tileCount: tiles, sampleCount: 0, lastSampleMicros: 0, meanSampleMicros: 0, state: tiles ? 'ready' : 'unloaded' };
+  }
+
+  /** Source identity of whichever CPU source answers `sample`. */
+  get cpuSource(): TerrainSourceMetadata {
+    return this.cube?.source.manifest.source ?? this.sampler.source;
+  }
+
+  /** Explicit CPU coverage at a point: finest, coarse parent fallback, or unloaded. Null without cube grids. */
+  cubeCoverage(latDeg: number, lonDeg: number): CubeCoverage | null {
+    if (!this.cubeConfigured) return null;
+    return this.cube?.source.coverage(latDeg, lonDeg)
+      ?? { state: 'unloaded', availableLevel: 0, residentLevel: null, residentTileId: null };
+  }
+
+  /** Cube CPU grid residency and request counters, or null without cube grids. */
+  get cubeStats(): (CubeGridSourceStats & { version: string | null }) | null {
+    if (!this.cubeConfigured) return null;
+    const stats = this.cube?.source.stats ?? { residentTiles: 0, detailTiles: 0, requests: 0, bytes: 0, failed: 0, inFlight: 0 };
+    return { ...stats, version: this.cube?.source.manifest.source.version ?? null };
+  }
+
+  /**
+   * #148 Cartesian ray query (body-fixed km, Z-up) against resident CPU terrain.
+   * Only cube grids implement it here; the result is provisional (`coarse`)
+   * because their coverage is partial. It also starts the surface's own
+   * ensure-coverage pass along the ray, so a repeated query finds finer triangles;
+   * `requestSurfaceIntersection` awaits that pass instead.
+   */
+  intersectSurfaceRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection | null {
+    if (!this.cube) return null;
+    const result = this.cube.surface.intersectRay(ray, options);
+    this.cube.surface.ensureRayCoverage(ray, options, new AbortController().signal)
+      .catch((err) => this.warnOnce('cube-ray', 'Terrain: cube grid ray coverage failed', err));
+    return result;
+  }
+
+  private loadCubeGrids(config: NonNullable<TerrainConfig['cubeSphere']>, datum: TerrainDatum): void {
+    CubeSphereGridSource.fromUrl(config.cpuGrids, config).then((source) => {
+      if (this.disposed) return;
+      // The grids carry their own datum; refuse any that disagrees with the body's.
+      const a = source.manifest.datum.referenceShape, b = datum.referenceShape;
+      const radii = (shape: TerrainDatum['referenceShape']) => shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : [...shape.radiiKm];
+      if (a.kind !== b.kind || radii(a).some((r, i) => Math.abs(r - radii(b)[i]) > 1e-9)) {
+        throw new Error(`cube grid datum ${JSON.stringify(source.manifest.datum.referenceShape)} does not match the body ${JSON.stringify(datum.referenceShape)}`);
+      }
+      const surface = new CubeGridSurface(source, 'body', 'body-fixed');
+      source.onChange = (id) => surface.invalidate(id);
+      this.cube = { source, surface };
+      return source.ready;
+    }).catch((err) => this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err));
   }
 
   bodyFixedToGeodetic(point: BodyFixedCartesian): BodyFixedPosition {
@@ -1218,17 +1388,18 @@ export class TerrainManager {
     if (!TERRAIN_DEBUG_MODES.includes(mode)) throw new Error(`Unknown terrain debug mode "${mode}"`);
     if (mode === this.debugMode) return;
     this.debugMode = mode;
-    if (mode === 'none' && !this.debugPlugin) return;
+    if (this.cubeImagery) this.cubeImagery.debug = IMAGERY_DEBUG[mode] ?? 'none';
+    if ((mode === 'none' || IMAGERY_DEBUG[mode]) && !this.debugPlugin) return;
     const plugin = this.ensureDebugPlugin();
     // `ColorModes` exists at runtime but the upstream typings omit the static.
     const C = (DebugTilesPlugin as unknown as { ColorModes: Record<'NONE' | 'DEPTH' | 'GEOMETRIC_ERROR' | 'SCREEN_ERROR' | 'CUSTOM_COLOR', number> }).ColorModes;
-    (plugin as unknown as { colorMode: number }).colorMode = mode === 'none' ? C.NONE
+    (plugin as unknown as { colorMode: number }).colorMode = mode === 'none' || IMAGERY_DEBUG[mode] ? C.NONE
       : mode === 'lod' ? C.DEPTH
       : mode === 'geometric-error' ? C.GEOMETRIC_ERROR
       : mode === 'screen-error' ? C.SCREEN_ERROR
       : C.CUSTOM_COLOR;
     // Unlit, so the night side and terminator don't hide the encoding.
-    plugin.unlit = mode !== 'none';
+    plugin.unlit = mode !== 'none' && !IMAGERY_DEBUG[mode];
     this.releaseIdleDebugPlugin();
   }
 
@@ -1238,7 +1409,7 @@ export class TerrainManager {
    * MoonFall). Unregistering disposes it, which restores every material.
    */
   private releaseIdleDebugPlugin(): void {
-    if (!this.debugPlugin || this.debugMode !== 'none' || this.showBounds) return;
+    if (!this.debugPlugin || (this.debugMode !== 'none' && !IMAGERY_DEBUG[this.debugMode]) || this.showBounds) return;
     this.tiles.unregisterPlugin(this.debugPlugin);
     this.debugPlugin = null;
   }
@@ -1262,9 +1433,23 @@ export class TerrainManager {
   private debugColorFor(tile: any, target: THREE.Color): void {
     const ownId = this.cpuTileId(tile);
     const hasOwn = !!ownId && !!this.sampler.getTile(ownId);
+    const cube = this.cubeConfigured ? cubeAddress(tile) : null;
     switch (this.debugMode) {
       case 'cpu-coverage':
+        if (cube) {
+          const sampler = this.cube?.source.sampler;
+          let resident: 'own' | 'ancestor' | null = sampler?.getTile(cube) ? 'own' : null;
+          for (let l = cube.level - 1; !resident && sampler && l >= 0; l--) {
+            if (sampler.getTile({ face: cube.face, level: l, x: cube.x >> (cube.level - l), y: cube.y >> (cube.level - l) })) resident = 'ancestor';
+          }
+          target.set(resident === 'own' ? 0x2fbf71 : resident === 'ancestor' ? 0xf2a33a : 0x595959);
+          return;
+        }
         target.set(hasOwn ? 0x2fbf71 : 0xf2a33a);
+        return;
+      case 'cube-face':
+        if (!cube) { target.setRGB(0.35, 0.35, 0.35); return; }
+        target.setHSL(CUBE_FACE_HUE[cube.face], 0.75, 0.25 + 0.04 * Math.min(cube.level, 12) + ((cube.x + cube.y) % 2 ? 0.06 : 0));
         return;
       case 'datum-height': {
         // Synthesized split tiles answer CPU queries from an ancestor; color them the same way.
@@ -1366,7 +1551,7 @@ export class TerrainManager {
         countMaterial(originalDebugMaterial(mesh));
       });
     });
-    const d = this.sampler.diagnostics;
+    const d = this.cpuDiagnostics;
     return {
       update: this.updateTiming.value,
       parse: this.parseTiming.value,
@@ -1396,6 +1581,8 @@ export class TerrainManager {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.cube?.source.dispose();
+    this.cubeImagery?.dispose();
     if (this.terrainCam) {
       this.tiles.deleteCamera(this.terrainCam);
       this.terrainCam = null;

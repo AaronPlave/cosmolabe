@@ -180,6 +180,8 @@ export default defineConfig({
         '**/scripts/build-mars-terrain/data/**',
         '**/test-catalogs/data/moon-terrain-fused/**',
         '**/test-catalogs/data/moon-terrain-polar/**',
+        '**/test-catalogs/data/moon-terrain-cube/**',
+        '**/test-catalogs/data/moon-imagery-cube-*/**',
         '**/scripts/build-moon-terrain/data/**',
       ],
     },
