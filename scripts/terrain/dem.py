@@ -659,7 +659,9 @@ def field_heights(lon, lat, spacing_deg):
     rb = S['residual_bounds']
     bscale, boff = S['base_scale_offset']
     hgt = cubic(bl[0], bl[1], lon, lat, wrap_lon=True).astype(np.float64) * bscale + boff
-    if lon.min() < rb[2] and lon.max() > rb[0] and lat.min() < rb[3] and lat.max() > rb[1]:
+    # Closed bounds: a lone point on the antimeridian or at the pole (cube edge vertices are
+    # sampled one at a time) lies on them, and still needs the residual.
+    if lon.min() <= rb[2] and lon.max() >= rb[0] and lat.min() <= rb[3] and lat.max() >= rb[1]:
         gxy = grid.project(lon, lat)
         res = bilinear(rl[0], rl[1], *gxy, outside=0.0)
         if grid.kind == 'stere':
@@ -1761,6 +1763,12 @@ def _selftest_cube(tmp, base, fused, R):
     out = os.path.join(tmp, 'cube')
     cmd_cube_tile(argparse.Namespace(base=base, fusion=fused, out=out, global_level=1, skirt_cells=0.1,
                                      region=['pole@-90,0:2=500,3=150'], ellipsoid=[R, R], workers=1))
+    # Cube edge vertices are sampled one point at a time: on the antimeridian and at the pole that
+    # point lies on the residual's closed bounds and must still get the residual.
+    for lon, lat in ((180.0, -89.5), (-180.0, -89.5), (0.0, -90.0)):
+        one = field_heights(np.array([lon]), np.array([lat]), 1e-9)[0]
+        batch = field_heights(np.array([lon, 10.0]), np.array([lat, -89.0]), 1e-9)[0]
+        assert one == batch, (lon, lat, one, batch)
     ts = json.load(open(os.path.join(out, 'tileset.json')))
     grids = json.load(open(os.path.join(out, 'cpu-grids.json')))
     assert grids['datum']['referenceShape'] == {'kind': 'sphere', 'radiusKm': R / 1000} and grids['source']['version']
