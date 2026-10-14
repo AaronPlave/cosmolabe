@@ -3,7 +3,9 @@ import {
   PICK_PRECEDENCE, coordinateDecimals, pointerResolution, describeDatum, formatHeight, formatLatitude, formatLongitude, resolveSceneHit, resolveSurfaceAltitude,
   surfacePointToText, type HitLayer, type SceneHit, type SurfacePoint,
 } from './SceneHit.js';
+import * as THREE from 'three';
 import { probeCalloutLines } from './PointProbe.js';
+import { surfaceNormalWorld } from './UniverseRenderer.js';
 
 const AREOID = {
   referenceShape: { kind: 'sphere', radiusKm: 3396.19 },
@@ -171,5 +173,25 @@ describe('surface point presentation', () => {
 
   it('copies at least six decimals, more when the point was probed finer', () => {
     expect(surfacePointToText({ ...point, resolution: pointerResolution(0.00002, 1, 3317, 18.4446) })).toMatch(/^Mars 18\.4446000, 77\.4509000 /);
+  });
+});
+
+describe('surfaceNormalWorld', () => {
+  it('follows an oblate globe (a non-uniformly scaled sphere), not the sphere it was scaled from', () => {
+    const globe = new THREE.Mesh(new THREE.SphereGeometry(1, 256, 128));
+    globe.scale.set(1, 0.6, 1); // squashed through the pole (Y)
+    globe.updateMatrixWorld(true);
+    // Straight down onto the surface at 45° of planetocentric latitude.
+    const target = new THREE.Vector3(1, 1, 0).normalize();
+    const t = 1 / Math.sqrt(target.x ** 2 + (target.y / 0.6) ** 2);
+    const onSurface = target.clone().multiplyScalar(t);
+    const ray = new THREE.Raycaster(onSurface.clone().multiplyScalar(2), onSurface.clone().negate().normalize());
+    const hit = ray.intersectObject(globe)[0];
+    // The ellipsoid's own normal: the gradient (x/a², y/b², z/c²).
+    const expected = new THREE.Vector3(hit.point.x, hit.point.y / 0.36, hit.point.z).normalize();
+    expect(surfaceNormalWorld(hit)!.angleTo(expected)).toBeLessThan(THREE.MathUtils.degToRad(1));
+    // Transforming the normal as a direction tilts it the wrong way, by far more.
+    const asDirection = hit.face!.normal.clone().transformDirection(globe.matrixWorld);
+    expect(asDirection.angleTo(expected)).toBeGreaterThan(THREE.MathUtils.degToRad(10));
   });
 });

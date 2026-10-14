@@ -66,10 +66,14 @@ const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
  * World-space unit normal of the surface a ray hit, or null when the hit has
  * no face. The triangle's own: vertex normals are shading normals (terrain
  * blends them toward the sphere for lighting) and understate the slope.
+ * Transformed by the normal matrix (inverse transpose), not as a direction:
+ * an oblate or triaxial globe is a non-uniformly scaled sphere, and scaling
+ * a normal like a direction tilts it the wrong way.
  */
-function surfaceNormalWorld(hit: THREE.Intersection): THREE.Vector3 | null {
+const _normalMatrix = new THREE.Matrix3();
+export function surfaceNormalWorld(hit: THREE.Intersection): THREE.Vector3 | null {
   if (!hit.face) return null;
-  return hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+  return hit.face.normal.clone().applyMatrix3(_normalMatrix.getNormalMatrix(hit.object.matrixWorld)).normalize();
 }
 
 /** The surface seen along a ray (`_castSurfaces`), in scene coordinates. */
@@ -356,8 +360,11 @@ export class UniverseRenderer {
   private static readonly _pinRefineSpanKm = 30;
   /** Changes smaller than this (10 cm) leave the pin as it is. */
   private static readonly _pinRefineEpsKm = 1e-4;
-  /** A surface this close to the pin, as a fraction of its range, is the pin's own. */
-  private static readonly _pinSurfaceTolerance = 0.02;
+  /**
+   * A surface hit this close to the pin (km, any camera range) is the pin's
+   * own surface: tessellation and float error, not an occluder.
+   */
+  private static readonly _pinSurfaceToleranceKm = 0.01;
   /** Camera pose at the last probe hover pick. */
   private readonly _probePickView = new THREE.Matrix4();
   private readonly _surfaceRaycaster = new THREE.Raycaster();
@@ -2261,9 +2268,13 @@ export class UniverseRenderer {
    * a ray from the camera to the pin, against the same globes, terrain and
    * overlays the probe picks from, so a ridge hides it and terrain rising
    * into view past the horizon does not. Overlays draw over the main scene,
-   * so where the ray meets one, the overlay alone decides. A hit within a
-   * small tolerance of the pin is the pin's own surface (re-tessellated since
-   * it was picked, as terrain LOD refines).
+   * so where the ray meets one, the overlay alone decides.
+   *
+   * The pin sits on the surface as rendered (`_refinePin` re-seats it as
+   * terrain refines), so only a hit within a fixed physical distance of it
+   * is its own surface; anything farther in front hides it, at any camera
+   * range. When finer terrain has just covered the pin, the next frame
+   * re-seats it without waiting for its usual interval.
    *
    * Recast only when the camera or the pin moved, and spaced by the cost of
    * the last cast like the hover pick; in between, the last answer stands.
@@ -2280,14 +2291,14 @@ export class UniverseRenderer {
     const dist = toPin.length();
     let hidden = false;
     if (dist > 0) {
-      const tolerance = dist * UniverseRenderer._pinSurfaceTolerance;
+      const tolerance = UniverseRenderer._pinSurfaceToleranceKm * this.scaleFactor;
       const raycaster = this._surfaceRaycaster;
       raycaster.set(this.camera.position, toPin.divideScalar(dist));
       // Past the pin by the tolerance: the pin's own overlay may sit a hair beyond it.
       raycaster.far = dist + tolerance;
       const nearest = this._castSurfaces();
       raycaster.far = Infinity;
-      hidden = !!nearest && nearest.distance < dist - tolerance;
+      hidden = !!nearest && nearest.distance < dist && nearest.worldPoint.distanceTo(world) > tolerance;
     }
     cache.point = point;
     cache.view.copy(this.camera.matrixWorld);
@@ -2339,7 +2350,10 @@ export class UniverseRenderer {
     const state = this._pinRefine;
     if (!pin) return;
     const now = performance.now();
-    if (now - state.atMs < Math.max(UniverseRenderer._pinRefineIntervalMs, state.costMs * 4)) return;
+    // A pin its own refined surface now covers is re-seated at once.
+    const interval = this._pinOcclusion.point === pin && this._pinOcclusion.hidden
+      ? 0 : UniverseRenderer._pinRefineIntervalMs;
+    if (now - state.atMs < Math.max(interval, state.costMs * 4)) return;
     state.atMs = now;
     const anchor = this.surfacePointWorld(pin);
     if (!anchor) return;
