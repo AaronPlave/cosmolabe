@@ -83,8 +83,8 @@ export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice 
 // Terrain
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
 export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming } from './TerrainManager.js';
-export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, layerCovers } from './ImageryLayers.js';
-export type { ImageryLayerInfo, ImageryLayerRole, ImageryLayerStatus } from './ImageryLayers.js';
+export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
+export type { ImageryLayerInfo, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
 export type { SurfaceTransitionState } from './BodyMesh.js';
 export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';
 export {

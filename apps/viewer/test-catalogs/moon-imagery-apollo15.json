@@ -37,14 +37,18 @@
         "imagery": [
           {
             "id": "wac",
-            "name": "LROC WAC global mosaic (100 m)",
+            "name": "Global · WAC",
+            "description": "LROC WAC global mosaic",
+            "resolutionMeters": 100,
             "attribution": "NASA Trek",
             "url": "https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
             "levels": 8
           },
           {
             "id": "apollo15-nac",
-            "name": "Apollo 15 LROC NAC mosaic (50 cm)",
+            "name": "Apollo 15 · NAC",
+            "description": "Apollo 15 landing site LROC NAC mosaic",
+            "resolutionMeters": 0.5,
             "attribution": "NASA Trek",
             "url": "https://trek.nasa.gov/tiles/Moon/EQ/A15_60x60km.0_2.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
             "levels": 16,

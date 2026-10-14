@@ -1220,21 +1220,23 @@ export class BodyMesh extends THREE.Object3D {
 
   /**
    * A geodetic position on the streamed surface's ellipsoid (the one imagery
-   * tiles lie on), as an offset from the body centre in world axes and km.
-   * Null without a streamed surface.
+   * tiles lie on), as an offset from the body centre in km, in the mesh frame
+   * (apply `mesh.quaternion` for world axes). Null without a streamed surface.
    */
   geodeticOffsetKm(latDeg: number, lonDeg: number, heightKm: number, out: THREE.Vector3): THREE.Vector3 | null {
     const datum = this.terrainDatum;
     if (!datum) return null;
     const p = geodeticToBodyFixed({ latDeg, lonDeg, heightKm }, datum);
     // Body-fixed is Z-up; the sphere's geometry space is Y-up with -Z toward +90° lon.
-    return out.set(p.xKm, p.zKm, -p.yKm).applyQuaternion(this.mesh.quaternion);
+    return out.set(p.xKm, p.zKm, -p.yKm);
   }
 
   /**
    * Outline a geodetic lat/lon box `[west, south, east, north]` (degrees) on
    * the surface, with a dot at its centre that stays visible from afar; null
-   * clears it. Drawn over everything, so it shows on the far side too.
+   * clears it. Drawn over the surface so terrain never hides it, and faint
+   * where it lies past the horizon, so a region on the far side still reads
+   * as there but behind.
    */
   showImageryFootprint(bounds: readonly [number, number, number, number] | null): void {
     if (this.imageryFootprint) {
@@ -1264,21 +1266,38 @@ export class BodyMesh extends THREE.Object3D {
     for (let i = 0; i < steps; i++) pts.push(at(s + (n - s) * i / steps, e));
     for (let i = 0; i < steps; i++) pts.push(at(n, e - (e - w) * i / steps));
     for (let i = 0; i < steps; i++) pts.push(at(n - (n - s) * i / steps, w));
-    const color = 0xffcc33;
-    const outline = new THREE.LineLoop(
-      new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color, depthTest: false, depthWrite: false, transparent: true }),
-    );
+    const color = new THREE.Color(0xffcc33);
+    const style = { vertexColors: true, depthTest: false, depthWrite: false, transparent: true };
+    const withAlpha = (points: THREE.Vector3[]) => {
+      const g = new THREE.BufferGeometry().setFromPoints(points);
+      const rgba = new Float32Array(points.length * 4);
+      for (let i = 0; i < points.length; i++) color.toArray(rgba, i * 4);
+      return g.setAttribute('color', new THREE.BufferAttribute(rgba, 4));
+    };
+    const outline = new THREE.LineLoop(withAlpha(pts), new THREE.LineBasicMaterial(style));
     const dot = new THREE.Points(
-      new THREE.BufferGeometry().setFromPoints([at((s + n) / 2, (w + e) / 2)]),
-      new THREE.PointsMaterial({ color, size: 7, sizeAttenuation: false, depthTest: false, depthWrite: false, transparent: true }),
+      withAlpha([at((s + n) / 2, (w + e) / 2)]),
+      new THREE.PointsMaterial({ ...style, size: 7, sizeAttenuation: false }),
     );
     const group = new THREE.Group();
+    const centre = new THREE.Vector3(), v = new THREE.Vector3(), toCamera = new THREE.Vector3();
     for (const o of [outline, dot]) {
       o.renderOrder = 999;
       o.frustumCulled = false;
-      // Ride on the sphere's transform even while streamed tiles hide it.
-      o.onBeforeRender = () => { o.matrixWorld.copy(this.mesh.matrixWorld); };
+      o.onBeforeRender = (_r, _s, camera) => {
+        // Ride on the sphere's transform even while streamed tiles hide it.
+        o.matrixWorld.copy(this.mesh.matrixWorld);
+        centre.setFromMatrixPosition(o.matrixWorld);
+        const position = o.geometry.getAttribute('position');
+        const rgba = o.geometry.getAttribute('color') as THREE.BufferAttribute;
+        for (let i = 0; i < position.count; i++) {
+          v.fromBufferAttribute(position, i).applyMatrix4(o.matrixWorld);
+          toCamera.subVectors(camera.position, v);
+          // ponytail: sphere horizon (normal ≈ radial); flattening and relief shift it slightly.
+          rgba.setW(i, toCamera.dot(v.sub(centre)) > 0 ? 1 : 0.25);
+        }
+        rgba.needsUpdate = true;
+      };
       group.add(o);
     }
     this.imageryFootprint = group;

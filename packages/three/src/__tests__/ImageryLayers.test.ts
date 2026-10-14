@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
-  defaultLayerName, describeImageryLayers, layerCovers, layerStatus, nativeMetersPerPixel,
+  defaultLayerName, describeImageryLayers, overlapsBounds, layerStatus, nativeMetersPerPixel,
   reorderedLayers, resolveGlobeSurfaceConfig,
 } from '../ImageryLayers.js';
 import { TerrainManager, fallBackToParentTiles, type TerrainConfig } from '../TerrainManager.js';
@@ -108,13 +108,18 @@ describe('layer helpers', () => {
   });
 
   it('tests coverage, including boxes across the antimeridian', () => {
-    expect(layerCovers(null, 80, 10)).toBe(true);
-    expect(layerCovers([77.22, 18.31, 77.58, 18.67], 18.4, 77.4)).toBe(true);
-    expect(layerCovers([77.22, 18.31, 77.58, 18.67], 18.4, 78)).toBe(false);
-    expect(layerCovers([77.22, 18.31, 77.58, 18.67], 18.4, 77.4 - 360)).toBe(true);
-    expect(layerCovers([170, -10, -170, 10], 0, 179)).toBe(true);
-    expect(layerCovers([170, -10, -170, 10], 0, -175)).toBe(true);
-    expect(layerCovers([170, -10, -170, 10], 0, 0)).toBe(false);
+    const r = Math.PI / 180;
+    const tile = (w: number, s: number, e: number, n: number) => [w * r, s * r, e * r, n * r];
+    const hirise: [number, number, number, number] = [77.22, 18.31, 77.58, 18.67];
+    expect(overlapsBounds(tile(-180, -90, 180, 90), null)).toBe(true);
+    expect(overlapsBounds(tile(77, 18, 78, 19), hirise)).toBe(true);
+    // Off-centre: only the tile's corner reaches the box.
+    expect(overlapsBounds(tile(77.5, 18.6, 80, 22), hirise)).toBe(true);
+    expect(overlapsBounds(tile(78, 18, 79, 19), hirise)).toBe(false);
+    expect(overlapsBounds(tile(77, 19, 78, 20), hirise)).toBe(false);
+    expect(overlapsBounds(tile(175, -5, 180, 5), [170, -10, -170, 10])).toBe(true);
+    expect(overlapsBounds(tile(-180, -5, -175, 5), [170, -10, -170, 10])).toBe(true);
+    expect(overlapsBounds(tile(-10, -5, 10, 5), [170, -10, -170, 10])).toBe(false);
   });
 
   it('reorders overlays but never moves the base', () => {
@@ -244,22 +249,69 @@ describe('TerrainManager imagery layer controls', () => {
     [trek, gibs].forEach((tm) => tm.dispose());
   });
 
-  it('reports the deepest source zoom the tiles in view ask of each shown overlay', async () => {
+  it('reports each shown overlay against the tiles in view, not the camera sub-point', async () => {
     const tm = make();
+    tm.setImageryLayerVisible('hirise', true);
     await flush();
-    const ctx = (tm as unknown as { activeOverlays: Map<string, { calculateLevel(r: number[]): number }> }).activeOverlays.get('ctx')!;
-    ctx.calculateLevel = (r) => (r[2] - r[0] < 0.01 ? 6 : 3);
-    const info = (plugin(tm) as unknown as { overlayInfo: Map<unknown, { tileInfo: Map<object, unknown> }> }).overlayInfo.get(ctx)!;
+    type Overlay = { calculateLevel(r: number[]): number };
+    const overlays = (tm as unknown as { activeOverlays: Map<string, Overlay> }).activeOverlays;
+    const tileInfo = (id: string) => (plugin(tm) as unknown as { overlayInfo: Map<unknown, { tileInfo: Map<object, unknown> }> }).overlayInfo.get(overlays.get(id))!.tileInfo;
+    for (const id of ['ctx', 'hirise']) overlays.get(id)!.calculateLevel = (r) => (r[2] - r[0] < 0.01 ? 6 : 3);
+    // Normalized equirectangular ranges: a southwestern quarter, and a sliver
+    // whose corner reaches Jezero though its centre lies outside the HiRISE box.
+    const lonX = (lon: number) => (lon + 180) / 360, latY = (lat: number) => (lat + 90) / 180;
+    const far = {}, near = {};
+    const ranges = new Map([[far, [0, 0, 0.5, 0.5]], [near, [lonX(77.5), latY(18.6), lonX(78.5), latY(18.8)]]]);
+    for (const id of ['ctx', 'hirise']) for (const [t, range] of ranges) tileInfo(id).set(t, { range, failed: false });
     const visible = (tm.tiles as unknown as { visibleTiles: Set<object> }).visibleTiles;
-    const near = {}, far = {};
-    info.tileInfo.set(far, { range: [0, 0, 0.5, 0.5] });
-    info.tileInfo.set(near, { range: [0, 0, 0.001, 0.001] });
+    const view = () => Object.fromEntries(tm.imageryLayers.map((l) => [l.id, l.view && { in: l.view.inCoverage, z: l.view.zoomLevel }]));
+
     visible.add(far);
-    const zoom = () => Object.fromEntries(tm.imageryLayers.map((l) => [l.id, l.zoomLevel]));
-    expect(zoom()).toEqual({ 'layer-0': null, ctx: 3, hirise: null });
+    expect(view()).toEqual({ 'layer-0': null, ctx: { in: true, z: 3 }, hirise: { in: false, z: null } });
     visible.add(near);
-    expect(zoom().ctx).toBe(6);
+    expect(view().hirise).toEqual({ in: true, z: 6 });
+
+    // A failed source tile in view counts as degraded; one elsewhere does not.
+    const degraded = (tm as unknown as { degradedTiles: Map<string, Set<string>> }).degradedTiles;
+    // Level 6 is 128 × 64 tiles, y from the north: Jezero's sliver is x 91, y 25.
+    degraded.set('ctx', new Set(['6/91/25', '6/0/0']));
+    (tileInfo('ctx').get(near) as { failed: boolean }).failed = true;
+    expect(tm.imageryLayers.find((l) => l.id === 'ctx')!.view).toMatchObject({ degradedTiles: 1, missingTiles: 1 });
     tm.dispose();
+  });
+
+  describe('coverage before the static→streamed swap', () => {
+    // An imagery-only root: no content, two level-0 tiles that carry it.
+    const tile = (loadingState: number, inFrustum = true) => ({ internal: { hasContent: true, loadingState }, traversal: { inFrustum }, children: [] });
+    const withRoot = async (...level0: ReturnType<typeof tile>[]) => {
+      const tm = make();
+      await flush();
+      Object.defineProperty(tm.tiles, 'root', { value: { internal: { hasContent: false, loadingState: 4 }, children: level0 } });
+      Object.assign((tm.tiles as unknown as { stats: Record<string, number> }).stats, { visible: 1, queued: 0, downloading: 0, parsing: 0 });
+      return tm;
+    };
+
+    it('falls back when one root tile loads and the other fails', async () => {
+      const tm = await withRoot(tile(4), tile(-1));
+      dispatch(tm, { type: 'load-model', scene: new THREE.Group(), tile: {} });
+      expect(tm.hasStreamFailed()).toBe(true);
+      expect(tm.isReadyToShow()).toBe(false);
+      tm.dispose();
+    });
+
+    it('waits out the grace period while a root tile in view is still loading', async () => {
+      const tm = await withRoot(tile(4), tile(2));
+      Object.assign((tm.tiles as unknown as { stats: Record<string, number> }).stats, { downloading: 1 });
+      expect(tm.isReadyToShow(0)).toBe(false);
+      expect(tm.isReadyToShow(10_000)).toBe(false);
+      tm.dispose();
+    });
+
+    it('ignores root tiles out of view, and swaps once those in view load', async () => {
+      const tm = await withRoot(tile(4), tile(0, false));
+      expect(tm.isReadyToShow(0)).toBe(true);
+      tm.dispose();
+    });
   });
 
   it('customizes a tile material once, even when a split tile reloads the same scene', () => {

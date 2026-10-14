@@ -44,13 +44,29 @@ export interface ImageryLayerInfo {
   minZoom: number;
   /** Deepest source zoom. */
   maxLevel: number;
-  /** Equatorial ground size of one pixel at `maxLevel`, from the tile pyramid. Null when the grid is discovered at load time. */
+  /** Equatorial ground size of one pixel at `maxLevel`, estimated from the tile pyramid; often finer than the data (`resolutionMeters`). Null when the grid is discovered at load time. */
   metersPerPixel: number | null;
   status: ImageryLayerStatus;
   requests: number;
   failedTiles: number;
-  /** Deepest source zoom the tiles in view ask of this overlay; null while it is not drawn or for the base. Below `minZoom`, the layer is too coarse here to show. */
+  /** Native ground resolution in m/px, as the provider advertises it; null when the catalog does not say. */
+  resolutionMeters: number | null;
+  /** The full product name, for details. Null when the catalog gives none. */
+  description: string | null;
+  /** What the layer adds to the current view; null while it is not drawn, and for an imagery-only base. */
+  view: ImageryLayerView | null;
+}
+
+/** One overlay against the tiles in view, rather than the session's request counters. */
+export interface ImageryLayerView {
+  /** Some tile in view lies inside the layer's coverage. Always true for a global layer. */
+  inCoverage: boolean;
+  /** Deepest source zoom those tiles ask for. Below `minZoom` the layer draws nothing there. */
   zoomLevel: number | null;
+  /** Tiles in view drawn without this layer, because its source tiles failed. */
+  missingTiles: number;
+  /** Source tiles in view that failed and are drawn from a coarser tile instead. */
+  degradedTiles: number;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -159,7 +175,9 @@ export function describeImageryLayers(configs: TerrainImageryConfig[], equatoria
       status: 'idle',
       requests: 0,
       failedTiles: 0,
-      zoomLevel: null,
+      resolutionMeters: cfg.resolutionMeters ?? null,
+      description: cfg.description ?? null,
+      view: null,
     };
   });
 }
@@ -176,14 +194,18 @@ export function layerStatus(requests: number, failedTiles: number, setupFailed =
   return failedTiles > 0 ? 'partial' : 'ok';
 }
 
-/** Whether `[lat, lon]` (degrees) falls inside a layer's coverage. Global layers cover everywhere. */
-export function layerCovers(bounds: ImageryLayerInfo['bounds'], latDeg: number, lonDeg: number): boolean {
+/**
+ * Whether a `[west, south, east, north]` range in radians (a tile's footprint)
+ * overlaps a layer's coverage in degrees. Global layers cover everywhere.
+ */
+export function overlapsBounds([w, s, e, n]: readonly number[], bounds: ImageryLayerInfo['bounds']): boolean {
   if (!bounds) return true;
+  const deg = 180 / Math.PI;
   const [west, south, east, north] = bounds;
-  if (latDeg < south || latDeg > north) return false;
-  const lon = ((lonDeg + 180) % 360 + 360) % 360 - 180;
+  if (n * deg < south || s * deg > north) return false;
+  const lonHit = (lo: number, hi: number) => e * deg >= lo && w * deg <= hi;
   // A box crossing the antimeridian is written with west > east.
-  return west <= east ? lon >= west && lon <= east : lon >= west || lon <= east;
+  return west <= east ? lonHit(west, east) : lonHit(west, 180) || lonHit(-180, east);
 }
 
 /**

@@ -8,7 +8,7 @@ import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverl
 import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSourceMetadata } from './TerrainSampler.js';
 import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
 import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './TerrainValidation.js';
-import { clampOpacity, describeImageryLayers, imageryList, layerStatus, reorderedLayers, type ImageryLayerInfo } from './ImageryLayers.js';
+import { clampOpacity, describeImageryLayers, imageryList, layerStatus, overlapsBounds, reorderedLayers, type ImageryLayerInfo, type ImageryLayerView } from './ImageryLayers.js';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
@@ -85,6 +85,11 @@ export interface TerrainImageryConfig {
   name?: string;
   /** Provenance shown with the layer. Defaults to the service host. */
   attribution?: string;
+  /** The full product name, shown in the layer's details; keep `name` short. */
+  description?: string;
+  /** Native ground resolution in m/px, as the provider advertises it. The
+   *  tile pyramid's own pixel size is often finer, since providers pad levels. */
+  resolutionMeters?: number;
   /** Start switched on. Default true. A layer that starts off requests nothing
    *  until switched on. Ignored for the bottom (base) layer, which is always on. */
   visible?: boolean;
@@ -346,6 +351,20 @@ interface PreparedOverlay { id: string; overlay: ImageryOverlay; generation: num
 
 /** Upstream overlay members the shipped typings leave out. */
 type OverlayInternals = { opacity: number; preprocessURL: ((url: string) => string) | null; init(): Promise<unknown> };
+/** Upstream tile loading states (`3d-tiles-renderer/core` constants, missing from its typings). */
+const FAILED = -1, LOADED = 4;
+type CoverageTile = {
+  internal?: { hasContent: boolean; loadingState: number };
+  traversal?: { inFrustum: boolean };
+  children: CoverageTile[];
+};
+/** The slice of upstream's TilingScheme the in-view report reads. */
+type OverlayTiling = {
+  minLevel: number;
+  maxLevel: number;
+  toCartographicRange(range: number[]): number[];
+  getTilesInRange(minX: number, minY: number, maxX: number, maxY: number, level: number, normalized: boolean): number[];
+};
 type TileFetcher = { fetchItem(tokens: number[], signal?: AbortSignal): Promise<THREE.Texture> };
 
 /** Coarser levels tried in place of a source tile that fails. */
@@ -359,7 +378,7 @@ const PARENT_FALLBACK_LEVELS = 4;
  * the layer from the whole terrain tile. ArcGIS's CTX mosaic serves
  * corrupt PNGs at some z11/z12 tiles around Jezero.
  */
-export function fallBackToParentTiles(source: TileFetcher, onFallback: () => void): void {
+export function fallBackToParentTiles(source: TileFetcher, onFallback: (tile: number[]) => void): void {
   const fetchItem = source.fetchItem.bind(source);
   const fetchOrParent = async ([x, y, level]: number[], signal: AbortSignal | undefined, depth: number): Promise<THREE.Texture> => {
     try {
@@ -368,7 +387,7 @@ export function fallBackToParentTiles(source: TileFetcher, onFallback: () => voi
       if (signal?.aborted || level === 0 || depth >= PARENT_FALLBACK_LEVELS) throw err;
       const parent = await fetchOrParent([x >> 1, y >> 1, level - 1], signal, depth + 1);
       const image = parent.image as ImageBitmap;
-      if (depth === 0) onFallback();
+      if (depth === 0) onFallback([x, y, level]);
       // A 1×1 skip tile (outside coverage) has no quarter to cut.
       if (image.width < 2) return parent;
       // Source bitmaps are pre-flipped (south row first); tile y counts from the north.
@@ -522,6 +541,8 @@ export class TerrainManager {
   private readonly overlayGeneration = new Map<string, number>();
   /** Layers whose source could not be set up (capabilities fetch, init). */
   private readonly setupFailed = new Set<string>();
+  /** Per layer, source tiles (`level/x/y`) that failed and are drawn from a parent. */
+  private readonly degradedTiles = new Map<string, Set<string>>();
   private readonly capabilitiesCache = new Map<string, Promise<WMTSCapabilitiesResult>>();
   private _overlayResolution: number;
   /** Tiles that loaded, and geometry/base-imagery tiles that failed, for the stream-failure fallback. */
@@ -1135,22 +1156,40 @@ export class TerrainManager {
       ...l,
       bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
       status: layerStatus(l.requests, l.failedTiles, this.setupFailed.has(l.id)),
-      zoomLevel: this.overlayZoomInView(l.id),
+      view: this.overlayView(l),
     }));
   }
 
-  /** The deepest source zoom any tile in view asks of overlay `id`, or null. */
-  private overlayZoomInView(id: string): number | null {
-    const overlay = this.activeOverlays.get(id) as (ImageryOverlay & { calculateLevel?(range: number[]): number }) | undefined;
-    const info = (this.overlayPlugin as unknown as { overlayInfo?: Map<unknown, { tileInfo: Map<unknown, { range: number[] | null }> }> } | null)
+  /** What overlay `layer` adds to the tiles in view, or null while it is not drawn. */
+  private overlayView(layer: ImageryLayerInfo): ImageryLayerView | null {
+    type Overlay = { calculateLevel(range: number[]): number; tiling: OverlayTiling };
+    const overlay = this.activeOverlays.get(layer.id) as unknown as Overlay | undefined;
+    const info = (this.overlayPlugin as unknown as { overlayInfo?: Map<unknown, { tileInfo: Map<unknown, { range: number[] | null; failed: boolean }> }> } | null)
       ?.overlayInfo?.get(overlay);
-    if (!overlay?.calculateLevel || !info) return null;
-    let deepest: number | null = null;
+    if (!overlay?.tiling || !info) return null;
+    const { tiling } = overlay;
+    const degraded = this.degradedTiles.get(layer.id);
+    const degradedInView = new Set<string>();
+    const view: ImageryLayerView = { inCoverage: false, zoomLevel: null, missingTiles: 0, degradedTiles: 0 };
     for (const tile of (this.tiles as unknown as { visibleTiles: Set<unknown> }).visibleTiles) {
-      const range = info.tileInfo.get(tile)?.range;
-      if (range) deepest = Math.max(deepest ?? 0, overlay.calculateLevel(range));
+      const t = info.tileInfo.get(tile);
+      if (!t?.range) continue;
+      if (layer.bounds && !overlapsBounds(tiling.toCartographicRange(t.range), layer.bounds)) continue;
+      view.inCoverage = true;
+      const level = overlay.calculateLevel(t.range);
+      view.zoomLevel = Math.max(view.zoomLevel ?? 0, level);
+      if (t.failed) view.missingTiles++;
+      if (!degraded?.size) continue;
+      // The source tiles this terrain tile is composed from, as the plugin picks them.
+      const [minX, minY, maxX, maxY] = t.range;
+      const l = Math.max(Math.min(level, tiling.maxLevel), tiling.minLevel);
+      const [x0, y0, x1, y1] = tiling.getTilesInRange(minX + 1e-8, minY + 1e-8, maxX - 1e-8, maxY - 1e-8, l, true);
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) if (degraded.has(`${l}/${x}/${y}`)) degradedInView.add(`${l}/${x}/${y}`);
+      }
     }
-    return deepest;
+    view.degradedTiles = degradedInView.size;
+    return view;
   }
 
   /**
@@ -1238,6 +1277,9 @@ export class TerrainManager {
    */
   hasStreamFailed(now = performance.now()): boolean {
     if (this.isImageryOnly && this.layers[0] && this.setupFailed.has(this.layers[0].id)) return true;
+    // A hole in the coarsest surface (one of two level-0 imagery tiles, say)
+    // never fills: nothing else covers that part of the globe.
+    if (this.coverageTiles().some((t) => t.internal?.loadingState === FAILED)) return true;
     if (this.loadedModels > 0 || this.geometryFailures === 0) return false;
     if (this.rootFailed || this.geometryFailures >= 4) return true;
     // A single early failure (one of the two level-0 imagery tiles, say) can
@@ -1250,8 +1292,10 @@ export class TerrainManager {
 
   /**
    * Whether the streamed surface can replace the static map without a hole or
-   * a flash of untextured tiles: some tiles are visible, and either the queue
-   * has drained or it has been busy for `SHOW_GRACE_MS` since they appeared.
+   * a flash of untextured tiles: every coverage tile in view has loaded, and
+   * either the queue has drained or it has been busy for `SHOW_GRACE_MS` since
+   * tiles appeared. Below the coverage tiles a parent stays drawn until all its
+   * children are ready, so a loaded coverage set leaves no holes.
    * Call once per frame while the body is in the show zone; `resetShowWait`
    * when it leaves.
    */
@@ -1259,12 +1303,30 @@ export class TerrainManager {
     if (!this._pluginReady || this.hasStreamFailed(now)) return false;
     const stats = (this.tiles as unknown as { stats?: Record<string, number> }).stats ?? {};
     if (!((stats.visible ?? 0) > 0)) { this.firstVisibleAt = 0; return false; }
+    if (this.coverageTiles().some((t) => t.traversal?.inFrustum !== false && t.internal?.loadingState !== LOADED)) return false;
     if (!this.firstVisibleAt) this.firstVisibleAt = now;
     const pending = (stats.queued ?? 0) + (stats.downloading ?? 0) + (stats.parsing ?? 0);
     return pending === 0 || now - this.firstVisibleAt >= SHOW_GRACE_MS;
   }
 
   resetShowWait(): void { this.firstVisibleAt = 0; }
+
+  /**
+   * The shallowest tiles with content, which the surface is built from before
+   * any refinement: the level-0 tiles of an imagery-only globe or a quantized
+   * mesh, or a 3D Tiles root. A tile the traversal has not reached yet counts
+   * too, as not loaded.
+   */
+  private coverageTiles(): CoverageTile[] {
+    const out: CoverageTile[] = [];
+    const walk = (t: CoverageTile) => {
+      if (!t.internal || t.internal.hasContent) out.push(t);
+      else t.children.forEach(walk);
+    };
+    const root = (this.tiles as unknown as { root: CoverageTile | null }).root;
+    if (root) walk(root);
+    return out;
+  }
 
   private layer(id: string): ImageryLayerInfo | undefined {
     return this.layers.find((l) => l.id === id);
@@ -1333,7 +1395,14 @@ export class TerrainManager {
       };
       // ponytail: XYZ only, where tile y counts from the north; TMS/WMTS/WMS keep upstream's all-or-nothing.
       const source = (overlay as unknown as { imageSource?: TileFetcher }).imageSource;
-      if ((cfg.type ?? 'xyz') === 'xyz' && source) fallBackToParentTiles(source, () => { layer.failedTiles++; });
+      if ((cfg.type ?? 'xyz') === 'xyz' && source) {
+        fallBackToParentTiles(source, ([x, y, level]) => {
+          layer.failedTiles++;
+          let keys = this.degradedTiles.get(id);
+          if (!keys) this.degradedTiles.set(id, keys = new Set());
+          keys.add(`${level}/${x}/${y}`);
+        });
+      }
       await o.init();
       this.setupFailed.delete(id);
       return { id, overlay, generation };

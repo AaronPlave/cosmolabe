@@ -9,15 +9,27 @@
    * which are on, their opacity and order. The settings are transient, scoped
    * to the body in this catalog session; the catalog sets the defaults.
    *
+   * Rows stay one line plus provenance; opacity, order and the numbers behind
+   * the status sit behind each row's expander. A badge appears only when it
+   * explains why an enabled layer is not showing, or showing worse than it can.
+   *
    * A selected rover or spacecraft shows its parent's imagery, since that is
    * the surface it sits on.
    */
   import { vs, getRenderer, flyToRegion } from '../lib/viewer-state.svelte';
-  import { layerCovers, type ImageryLayerInfo, type SurfaceTransitionState } from '@cosmolabe/three';
-  import { ArrowDown, ArrowUp, Crosshair } from 'lucide-svelte';
+  import type { ImageryLayerInfo, SurfaceTransitionState } from '@cosmolabe/three';
+  import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Crosshair, Lock } from 'lucide-svelte';
 
   let open = $state(rememberedOpen);
   $effect(() => { rememberedOpen = open; });
+
+  /** Layers whose details are expanded, by id. */
+  let expanded = $state(new Set<string>());
+  function toggleExpanded(id: string) {
+    const next = new Set(expanded);
+    if (!next.delete(id)) next.add(id);
+    expanded = next;
+  }
 
   /** Bumped by every change made here, so the list refreshes without waiting for the poll. */
   let rev = $state(0);
@@ -29,8 +41,6 @@
     layers: ImageryLayerInfo[];
     state: SurfaceTransitionState | null;
     imageryOnly: boolean;
-    /** Camera sub-point on the body, for coverage. */
-    camera: { latDeg: number; lonDeg: number } | null;
   }
 
   let surface = $derived.by((): Surface | null => {
@@ -41,30 +51,17 @@
     let bm = r.getBodyMesh(vs.selectedBodyName);
     if (bm && bm.imageryLayers.length === 0 && bm.body.parentName) bm = r.getBodyMesh(bm.body.parentName);
     if (!bm || bm.imageryLayers.length === 0) return null;
-
-    const toCam = r.camera.position.clone().sub(bm.position);
-    const bf = toCam.divideScalar(r.scaleFactor).applyQuaternion(bm.mesh.quaternion.clone().invert());
-    const len = bf.length();
-    let camera: Surface['camera'] = null;
-    if (len > 1e-10) {
-      const point = { xKm: bf.x, yKm: -bf.z, zKm: bf.y };
-      camera = bm.terrainBodyFixedToGeodetic(point) ?? {
-        latDeg: Math.asin(point.zKm / len) * 180 / Math.PI,
-        lonDeg: Math.atan2(point.yKm, point.xKm) * 180 / Math.PI,
-      };
-    }
     return {
       body: bm.body.name,
       layers: bm.imageryLayers,
       state: bm.surfaceTransitionState,
       imageryOnly: bm.isImageryOnlySurface,
-      camera,
     };
   });
 
   /** Top of the stack first, as layer lists usually read. */
   let topFirst = $derived(surface ? [...surface.layers].reverse() : []);
-  let shownCount = $derived(surface ? surface.layers.filter((l) => l.visible).length : 0);
+  let enabledCount = $derived(surface ? surface.layers.filter((l) => l.visible).length : 0);
 
   function bodyMesh() {
     return surface ? getRenderer()?.getBodyMesh(surface.body) ?? null : null;
@@ -102,30 +99,35 @@
     fallback: 'Static map · stream failed',
   };
 
-  interface Badge { text: string; tone: 'muted' | 'ok' | 'warn' | 'error'; title: string }
+  interface Badge { text: string; tone: 'muted' | 'warn' | 'error'; title: string }
 
-  function badge(layer: ImageryLayerInfo, s: Surface): Badge {
-    if (!layer.visible) return { text: 'Off', tone: 'muted', title: 'Switched off — nothing is requested' };
+  /** Why an enabled layer is not showing, or showing worse than it can; null when it is fine. */
+  function badge(layer: ImageryLayerInfo, s: Surface): Badge | null {
+    if (!layer.visible) return null;
     if (layer.status === 'failed' || (layer.role === 'base' && s.state === 'fallback')) {
       return { text: 'Unavailable', tone: 'error', title: 'This source could not be loaded; the layers beneath it are shown' };
     }
-    if (s.state === 'fallback') {
-      return { text: 'Standby', tone: 'muted', title: 'The streamed surface failed to load, so the static map is shown instead' };
+    // Off the streamed surface the header already says why nothing streams.
+    if (s.state !== 'streamed') return null;
+    const v = layer.view;
+    if (!v) return layer.role === 'overlay' ? { text: 'Loading', tone: 'muted', title: 'Waiting for tiles' } : null;
+    if (!v.inCoverage) {
+      return { text: 'Out of view', tone: 'muted', title: `Covers ${formatBounds(layer.bounds!)}; none of it is in view` };
     }
-    if (s.camera && layer.bounds && !layerCovers(layer.bounds, s.camera.latDeg, s.camera.lonDeg)) {
-      return { text: 'Not here', tone: 'muted', title: `Covers ${formatBounds(layer.bounds)}; the camera is outside it` };
+    if (v.zoomLevel !== null && v.zoomLevel < layer.minZoom) {
+      return { text: 'Zoom in', tone: 'muted', title: 'Too far out for this layer’s data; zoom closer to see it' };
     }
-    if (s.state === 'static' || s.state === 'preloading') {
-      return { text: 'Standby', tone: 'muted', title: 'The static map is shown at this distance; zoom closer to stream this layer' };
+    if (v.missingTiles > 0) {
+      return { text: 'Gaps', tone: 'warn', title: `${plural(v.missingTiles, 'tile')} in view could not load this layer; the layers beneath show through` };
     }
-    if (layer.zoomLevel !== null && layer.zoomLevel < layer.minZoom) {
-      return { text: 'Zoom in', tone: 'muted', title: `Shown from source zoom ${layer.minZoom}; the view here draws zoom ${layer.zoomLevel}` };
+    if (v.degradedTiles > 0) {
+      return { text: 'Lower res', tone: 'warn', title: `${plural(v.degradedTiles, 'source tile')} in view failed to load; coarser tiles stand in` };
     }
-    if (layer.status === 'partial') {
-      return { text: 'Gaps', tone: 'warn', title: `${layer.failedTiles} of ${layer.requests} tiles failed; coarser tiles or lower layers fill in` };
-    }
-    if (layer.status === 'idle' || s.state === 'waiting') return { text: 'Loading', tone: 'muted', title: 'Waiting for tiles' };
-    return { text: 'On', tone: 'ok', title: `${layer.requests} tiles requested` };
+    return null;
+  }
+
+  function plural(n: number, noun: string): string {
+    return `${n} ${noun}${n === 1 ? '' : 's'}`;
   }
 
   function formatBounds([w, s, e, n]: [number, number, number, number]): string {
@@ -134,19 +136,16 @@
     return `${lon(w)}–${lon(e)}, ${lat(s)}–${lat(n)}`;
   }
 
-  function formatResolution(m: number | null): string | null {
-    if (m == null) return null;
+  function formatResolution(m: number): string {
     if (m < 1) return `${(m * 100).toFixed(0)} cm/px`;
     if (m < 1000) return `${m.toFixed(m < 10 ? 1 : 0)} m/px`;
     return `${(m / 1000).toFixed(1)} km/px`;
   }
 
-  function details(layer: ImageryLayerInfo): string {
-    const parts = [layer.attribution];
-    const res = formatResolution(layer.metersPerPixel);
-    if (res) parts.push(`~${res}`);
-    parts.push(layer.bounds ? 'regional' : 'global');
-    if (layer.minZoom > 0) parts.push(`from z${layer.minZoom}`);
+  /** The one-line provenance under the name. */
+  function provenance(layer: ImageryLayerInfo): string {
+    const parts = [layer.role === 'base' ? 'Base' : '', layer.attribution];
+    if (layer.resolutionMeters != null) parts.push(formatResolution(layer.resolutionMeters));
     return parts.filter(Boolean).join(' · ');
   }
 </script>
@@ -155,61 +154,99 @@
   <details class="mt-2 pt-2 border-t border-border" bind:open>
     <summary class="ui-section-label imagery-summary">
       Imagery{#if surface.body !== vs.selectedBodyName}&nbsp;&middot; {surface.body}{/if}
-      <span class="ui-meta normal-case tracking-normal font-normal">{shownCount}/{surface.layers.length} on</span>
+      <span class="ui-meta normal-case tracking-normal font-normal">{enabledCount} of {surface.layers.length} enabled</span>
     </summary>
     <div class="ui-meta mt-1 mb-1">
       {surface.imageryOnly ? 'On the ellipsoid' : 'Draped on terrain'}{#if surface.state}&nbsp;&middot; {STATE_LABEL[surface.state]}{/if}
     </div>
-    <ul class="flex flex-col gap-1.5" aria-label="Imagery layers, top first">
+    <ul class="flex flex-col" aria-label="Imagery layers, top first">
       {#each topFirst as layer, i (layer.id)}
         {@const b = badge(layer, surface)}
         {@const stackIndex = surface.layers.length - 1 - i}
+        {@const isOpen = expanded.has(layer.id)}
         <li
           class="layer"
           class:off={!layer.visible}
           onmouseenter={() => layer.bounds && highlight(layer)}
           onmouseleave={() => highlight(null)}
         >
-          <div class="flex items-center gap-1.5">
-            <input
-              type="checkbox"
-              checked={layer.visible}
-              disabled={!layer.optional}
-              title={layer.optional ? (layer.visible ? 'Hide layer' : 'Show layer') : 'The base layer is always shown'}
-              aria-label="Show {layer.name}"
-              onchange={(e) => setVisible(layer, (e.target as HTMLInputElement).checked)}
-            />
-            <span class="layer-name ui-body text-text-primary" title={layer.name}>{layer.name}</span>
-            <span class="badge" data-tone={b.tone} title={b.title}>{b.text}</span>
+          <div class="flex items-center gap-1">
+            {#if layer.optional}
+              <input
+                type="checkbox"
+                class="layer-toggle"
+                checked={layer.visible}
+                title={layer.visible ? 'Hide layer' : 'Show layer'}
+                aria-label="Show {layer.name}"
+                onchange={(e) => setVisible(layer, (e.target as HTMLInputElement).checked)}
+              />
+            {:else}
+              <span class="layer-lock" title="Base layer — always shown" aria-label="Base layer, always shown" role="img">
+                <Lock size={11} />
+              </span>
+            {/if}
+            <span class="layer-name ui-body text-text-primary" title={layer.description ?? layer.name}>{layer.name}</span>
+            {#if b}
+              <span class="badge" data-tone={b.tone} title={b.title}>{b.text}</span>
+            {/if}
             {#if layer.bounds}
               {@const bounds = layer.bounds}
               <button class="layer-action" onclick={() => flyToRegion(surface.body, bounds)} title="Fly to this layer" aria-label="Fly to {layer.name}">
-                <Crosshair size={11} />
+                <Crosshair size={13} />
               </button>
             {/if}
+            <button
+              class="layer-action"
+              onclick={() => toggleExpanded(layer.id)}
+              title={isOpen ? 'Hide details' : 'Opacity, order and details'}
+              aria-label="{layer.name} details"
+              aria-expanded={isOpen}
+            >
+              {#if isOpen}<ChevronDown size={13} />{:else}<ChevronRight size={13} />{/if}
+            </button>
           </div>
-          <div class="ui-meta layer-details" title={layer.bounds ? formatBounds(layer.bounds) : 'Global coverage'}>{details(layer)}</div>
-          {#if layer.role === 'overlay' && layer.visible}
-            <div class="flex items-center gap-1.5">
-              <input
-                type="range"
-                class="opacity-slider flex-1 min-w-0"
-                min="0"
-                max="1"
-                step="0.05"
-                value={layer.opacity}
-                aria-label="{layer.name} opacity"
-                oninput={(e) => setOpacity(layer, Number((e.target as HTMLInputElement).value))}
-              />
-              <span class="ui-readout text-text-secondary w-8 text-right">{Math.round(layer.opacity * 100)}%</span>
-              <span class="inline-flex" role="group" aria-label="Reorder {layer.name}">
-                <button class="layer-action" disabled={stackIndex >= surface.layers.length - 1} onclick={() => move(layer, true)} title="Draw above the next layer" aria-label="Move {layer.name} up">
-                  <ArrowUp size={11} />
-                </button>
-                <button class="layer-action" disabled={stackIndex <= 1} onclick={() => move(layer, false)} title="Draw below the next layer" aria-label="Move {layer.name} down">
-                  <ArrowDown size={11} />
-                </button>
-              </span>
+          <div class="ui-meta layer-indent layer-provenance">{provenance(layer)}</div>
+          {#if isOpen}
+            <div class="layer-indent layer-details ui-meta">
+              {#if layer.description}<div class="text-text-secondary">{layer.description}</div>{/if}
+              {#if layer.role === 'overlay'}
+                <label class="flex items-center gap-2">
+                  <span class="w-12">Opacity</span>
+                  <input
+                    type="range"
+                    class="opacity-slider flex-1 min-w-0"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={layer.opacity}
+                    disabled={!layer.visible}
+                    aria-label="{layer.name} opacity"
+                    oninput={(e) => setOpacity(layer, Number((e.target as HTMLInputElement).value))}
+                  />
+                  <span class="ui-readout text-text-secondary w-10 text-right">{Math.round(layer.opacity * 100)}%</span>
+                </label>
+                <div class="flex items-center gap-2" role="group" aria-label="Reorder {layer.name}">
+                  <span class="w-12">Order</span>
+                  <button class="order-button" disabled={stackIndex >= surface.layers.length - 1} onclick={() => move(layer, true)} aria-label="Move {layer.name} up">
+                    <ArrowUp size={12} /> Raise
+                  </button>
+                  <button class="order-button" disabled={stackIndex <= 1} onclick={() => move(layer, false)} aria-label="Move {layer.name} down">
+                    <ArrowDown size={12} /> Lower
+                  </button>
+                </div>
+              {/if}
+              <dl class="layer-facts">
+                <dt>Coverage</dt><dd>{layer.bounds ? formatBounds(layer.bounds) : 'Global'}</dd>
+                {#if layer.metersPerPixel != null}
+                  <dt>Tiles</dt><dd>to ~{formatResolution(layer.metersPerPixel)} at zoom {layer.maxLevel}{#if layer.minZoom > 0}, from zoom {layer.minZoom}{/if}</dd>
+                {/if}
+                {#if layer.view?.zoomLevel != null}
+                  <dt>In view</dt><dd>zoom {layer.view.zoomLevel}{#if layer.view.degradedTiles}, {plural(layer.view.degradedTiles, 'tile')} from coarser data{/if}{#if layer.view.missingTiles}, {plural(layer.view.missingTiles, 'tile')} missing{/if}</dd>
+                {/if}
+                {#if layer.requests > 0}
+                  <dt>Session</dt><dd>{plural(layer.requests, 'request')}{#if layer.failedTiles}, {layer.failedTiles} failed{/if}</dd>
+                {/if}
+              </dl>
             </div>
           {/if}
         </li>
@@ -246,11 +283,66 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .layer-details {
-    padding-left: 20px;
+  .layer {
+    padding: 3px 0;
+  }
+  .layer-toggle {
+    width: 14px;
+    height: 14px;
+    margin: 0 3px;
+    cursor: pointer;
+  }
+  .layer-lock {
+    display: inline-flex;
+    justify-content: center;
+    width: 20px;
+    color: var(--color-text-muted);
+  }
+  .layer-indent {
+    padding-left: 24px;
+  }
+  .layer-provenance {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .layer-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 4px 0 6px;
+  }
+  .layer-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 8px;
+    margin: 0;
+  }
+  .layer-facts dt {
+    color: var(--color-text-muted);
+  }
+  .layer-facts dd {
+    margin: 0;
+    color: var(--color-text-secondary);
+  }
+  .order-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+  .order-button:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    background: var(--color-surface-3);
+  }
+  .order-button:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
   .badge {
     flex: none;
@@ -261,13 +353,14 @@
     line-height: 1.5;
     color: var(--color-text-secondary);
   }
-  .badge[data-tone='ok'] { color: var(--color-success); }
   .badge[data-tone='warn'] { color: var(--color-warning); }
   .badge[data-tone='error'] { color: var(--color-error); }
   .layer-action {
     display: inline-flex;
     align-items: center;
-    padding: 3px 4px;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
     border: none;
     border-radius: 3px;
     background: none;
@@ -284,7 +377,6 @@
   }
   .opacity-slider {
     height: 16px;
-    margin-left: 20px;
     appearance: none;
     background: transparent;
     cursor: pointer;

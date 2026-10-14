@@ -784,11 +784,23 @@ export function flyToRegion(bodyName: string, bounds: readonly [number, number, 
   const altitudeKm = 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
   const position = bm.geodeticOffsetKm((s + n) / 2, (w + e) / 2, altitudeKm, new THREE.Vector3());
   if (!position) return false;
-  position.multiplyScalar(_renderer.scaleFactor);
-  const north = new THREE.Vector3(0, 1, 0).applyQuaternion(bm.mesh.quaternion);
-  // Tracked, the body is the scene origin (from the next frame, after a switch).
-  if (vs.trackedBodyName !== bodyName) trackBody(bodyName);
-  _renderer.cameraController.goTo(position, new THREE.Vector3(), north, 1.5);
+  const cc = _renderer.cameraController;
+  // Modes that frame something else (a spacecraft's LVLH, a surface camera)
+  // would take the camera back on landing; orbit the body freely instead,
+  // keeping the current up so the flight starts without a roll.
+  const up = cc.camera.up.clone();
+  cc.resetToFreeOrbit();
+  cc.camera.up.copy(up);
+  // One flight from wherever the camera is, switching origin on landing —
+  // tracking first would cut to a default framing of the body.
+  cc.flyTo(bm, {
+    duration: 1.5,
+    offset: position.multiplyScalar(_renderer.scaleFactor),
+    up: new THREE.Vector3(0, 1, 0), // north, in the mesh frame
+  });
+  syncCameraState();
+  // flyTo tracks on landing; the HUD should read the new body for the flight.
+  vs.trackedBodyName = bodyName;
   return true;
 }
 
