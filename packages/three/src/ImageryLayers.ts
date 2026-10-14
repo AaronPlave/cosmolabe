@@ -49,6 +49,8 @@ export interface ImageryLayerInfo {
   status: ImageryLayerStatus;
   requests: number;
   failedTiles: number;
+  /** Deepest source zoom the tiles in view ask of this overlay; null while it is not drawn or for the base. Below `minZoom`, the layer is too coarse here to show. */
+  zoomLevel: number | null;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -157,6 +159,7 @@ export function describeImageryLayers(configs: TerrainImageryConfig[], equatoria
       status: 'idle',
       requests: 0,
       failedTiles: 0,
+      zoomLevel: null,
     };
   });
 }

@@ -346,6 +346,45 @@ interface PreparedOverlay { id: string; overlay: ImageryOverlay; generation: num
 
 /** Upstream overlay members the shipped typings leave out. */
 type OverlayInternals = { opacity: number; preprocessURL: ((url: string) => string) | null; init(): Promise<unknown> };
+type TileFetcher = { fetchItem(tokens: number[], signal?: AbortSignal): Promise<THREE.Texture> };
+
+/** Coarser levels tried in place of a source tile that fails. */
+const PARENT_FALLBACK_LEVELS = 4;
+
+/**
+ * Stand in for an XYZ source tile that fails (a bad request, an undecodable
+ * image) with the matching quarter of its parent, up to
+ * PARENT_FALLBACK_LEVELS coarser. Upstream composites a terrain tile from
+ * every source tile under it at once, so one bad source tile otherwise drops
+ * the layer from the whole terrain tile. ArcGIS's CTX mosaic serves
+ * corrupt PNGs at some z11/z12 tiles around Jezero.
+ */
+export function fallBackToParentTiles(source: TileFetcher, onFallback: () => void): void {
+  const fetchItem = source.fetchItem.bind(source);
+  const fetchOrParent = async ([x, y, level]: number[], signal: AbortSignal | undefined, depth: number): Promise<THREE.Texture> => {
+    try {
+      return await fetchItem([x, y, level], signal);
+    } catch (err) {
+      if (signal?.aborted || level === 0 || depth >= PARENT_FALLBACK_LEVELS) throw err;
+      const parent = await fetchOrParent([x >> 1, y >> 1, level - 1], signal, depth + 1);
+      const image = parent.image as ImageBitmap;
+      if (depth === 0) onFallback();
+      // A 1×1 skip tile (outside coverage) has no quarter to cut.
+      if (image.width < 2) return parent;
+      // Source bitmaps are pre-flipped (south row first); tile y counts from the north.
+      const w = image.width / 2, h = image.height / 2;
+      const quarter = await createImageBitmap(image, (x & 1) * w, (y & 1) ? 0 : h, w, h);
+      image.close();
+      parent.dispose();
+      const tex = new THREE.Texture(quarter);
+      tex.generateMipmaps = false;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      return tex;
+    }
+  };
+  source.fetchItem = (tokens, signal) => fetchOrParent(tokens, signal, 0);
+}
 
 /**
  * Hold the static map this long at most once streamed tiles are visible but
@@ -487,6 +526,10 @@ export class TerrainManager {
   private _overlayResolution: number;
   /** Tiles that loaded, and geometry/base-imagery tiles that failed, for the stream-failure fallback. */
   private loadedModels = 0;
+  /** Tile materials already customized. A virtual (split) tile hands back the
+   *  same scene each time it reloads, and chaining the shader injections onto
+   *  it again redefines every injected symbol, so the program fails to compile. */
+  private readonly customizedMaterials = new WeakSet<THREE.Material>();
   private geometryFailures = 0;
   private rootFailed = false;
   private lastGeometryFailureAt = 0;
@@ -1092,7 +1135,22 @@ export class TerrainManager {
       ...l,
       bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
       status: layerStatus(l.requests, l.failedTiles, this.setupFailed.has(l.id)),
+      zoomLevel: this.overlayZoomInView(l.id),
     }));
+  }
+
+  /** The deepest source zoom any tile in view asks of overlay `id`, or null. */
+  private overlayZoomInView(id: string): number | null {
+    const overlay = this.activeOverlays.get(id) as (ImageryOverlay & { calculateLevel?(range: number[]): number }) | undefined;
+    const info = (this.overlayPlugin as unknown as { overlayInfo?: Map<unknown, { tileInfo: Map<unknown, { range: number[] | null }> }> } | null)
+      ?.overlayInfo?.get(overlay);
+    if (!overlay?.calculateLevel || !info) return null;
+    let deepest: number | null = null;
+    for (const tile of (this.tiles as unknown as { visibleTiles: Set<unknown> }).visibleTiles) {
+      const range = info.tileInfo.get(tile)?.range;
+      if (range) deepest = Math.max(deepest ?? 0, overlay.calculateLevel(range));
+    }
+    return deepest;
   }
 
   /**
@@ -1273,6 +1331,9 @@ export class TerrainManager {
         if (out !== SKIP_TILE_DATA_URL) layer.requests++;
         return out;
       };
+      // ponytail: XYZ only, where tile y counts from the north; TMS/WMTS/WMS keep upstream's all-or-nothing.
+      const source = (overlay as unknown as { imageSource?: TileFetcher }).imageSource;
+      if ((cfg.type ?? 'xyz') === 'xyz' && source) fallBackToParentTiles(source, () => { layer.failedTiles++; });
       await o.init();
       this.setupFailed.delete(id);
       return { id, overlay, generation };
@@ -1805,6 +1866,7 @@ export class TerrainManager {
     scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;
       const material = child.material as THREE.Material;
+      if (this.customizedMaterials.has(Array.isArray(child.material) ? child.material[0] : material)) return;
 
       // Three.js shadow-map receiving for tile geometry. Lets the sun
       // DirectionalLight's shadow map (cast by helicopters / drones) darken
@@ -1859,6 +1921,12 @@ export class TerrainManager {
           };
           mat.customProgramCacheKey = () => cacheKey + cacheKeySuffix;
         }
+        // Keep ImageOverlayPlugin's wrap marker, so it never wraps the swapped
+        // material a second time: the chain above already carries its shader.
+        for (const sym of Object.getOwnPropertySymbols(basic)) {
+          if (sym.description === 'OVERLAY_PARAMS') (mat as unknown as Record<symbol, unknown>)[sym] = (basic as unknown as Record<symbol, unknown>)[sym];
+        }
+        this.customizedMaterials.add(mat);
         child.material = mat;
         basic.dispose();
         // Imagery-only tiles from XYZTilesPlugin already have correct sphere normals
@@ -1872,6 +1940,7 @@ export class TerrainManager {
 
       const mats = Array.isArray(child.material) ? child.material : [child.material];
       for (const mat of mats) {
+        this.customizedMaterials.add(mat);
         if ('roughness' in mat) (mat as THREE.MeshStandardMaterial).roughness = 0.85;
         if ('metalness' in mat) (mat as THREE.MeshStandardMaterial).metalness = 0;
         if (su || apu) {

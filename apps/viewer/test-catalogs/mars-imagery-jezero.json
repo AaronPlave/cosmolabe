@@ -41,7 +41,7 @@
             "name": "CTX global mosaic",
             "attribution": "Esri / Caltech Murray Lab",
             "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}",
-            "levels": 14,
+            "levels": 13,
             "dimension": 512,
             "minZoom": 5
           },

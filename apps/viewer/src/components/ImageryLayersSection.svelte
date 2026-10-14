@@ -118,8 +118,11 @@
     if (s.state === 'static' || s.state === 'preloading') {
       return { text: 'Standby', tone: 'muted', title: 'The static map is shown at this distance; zoom closer to stream this layer' };
     }
+    if (layer.zoomLevel !== null && layer.zoomLevel < layer.minZoom) {
+      return { text: 'Zoom in', tone: 'muted', title: `Shown from source zoom ${layer.minZoom}; the view here draws zoom ${layer.zoomLevel}` };
+    }
     if (layer.status === 'partial') {
-      return { text: 'Gaps', tone: 'warn', title: `${layer.failedTiles} of ${layer.requests} tiles failed; lower layers fill in` };
+      return { text: 'Gaps', tone: 'warn', title: `${layer.failedTiles} of ${layer.requests} tiles failed; coarser tiles or lower layers fill in` };
     }
     if (layer.status === 'idle' || s.state === 'waiting') return { text: 'Loading', tone: 'muted', title: 'Waiting for tiles' };
     return { text: 'On', tone: 'ok', title: `${layer.requests} tiles requested` };

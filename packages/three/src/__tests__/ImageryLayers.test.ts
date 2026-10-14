@@ -4,7 +4,8 @@ import {
   defaultLayerName, describeImageryLayers, layerCovers, layerStatus, nativeMetersPerPixel,
   reorderedLayers, resolveGlobeSurfaceConfig,
 } from '../ImageryLayers.js';
-import { TerrainManager, type TerrainConfig } from '../TerrainManager.js';
+import { TerrainManager, fallBackToParentTiles, type TerrainConfig } from '../TerrainManager.js';
+import { makeShadowUniforms } from '../EclipseShadow.js';
 
 const MARS_EQ_KM = 3396.19;
 const VIKING = 'https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg';
@@ -243,6 +244,37 @@ describe('TerrainManager imagery layer controls', () => {
     [trek, gibs].forEach((tm) => tm.dispose());
   });
 
+  it('reports the deepest source zoom the tiles in view ask of each shown overlay', async () => {
+    const tm = make();
+    await flush();
+    const ctx = (tm as unknown as { activeOverlays: Map<string, { calculateLevel(r: number[]): number }> }).activeOverlays.get('ctx')!;
+    ctx.calculateLevel = (r) => (r[2] - r[0] < 0.01 ? 6 : 3);
+    const info = (plugin(tm) as unknown as { overlayInfo: Map<unknown, { tileInfo: Map<object, unknown> }> }).overlayInfo.get(ctx)!;
+    const visible = (tm.tiles as unknown as { visibleTiles: Set<object> }).visibleTiles;
+    const near = {}, far = {};
+    info.tileInfo.set(far, { range: [0, 0, 0.5, 0.5] });
+    info.tileInfo.set(near, { range: [0, 0, 0.001, 0.001] });
+    visible.add(far);
+    const zoom = () => Object.fromEntries(tm.imageryLayers.map((l) => [l.id, l.zoomLevel]));
+    expect(zoom()).toEqual({ 'layer-0': null, ctx: 3, hirise: null });
+    visible.add(near);
+    expect(zoom().ctx).toBe(6);
+    tm.dispose();
+  });
+
+  it('customizes a tile material once, even when a split tile reloads the same scene', () => {
+    const tm = make();
+    tm.enableShadowReceiving(makeShadowUniforms());
+    const scene = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshBasicMaterial({ map: new THREE.Texture() }));
+    scene.add(mesh);
+    for (let i = 0; i < 3; i++) dispatch(tm, { type: 'load-model', scene, tile: {} });
+    const shader = { ...THREE.ShaderLib.standard, uniforms: {} } as unknown as THREE.WebGLProgramParametersWithUniforms;
+    mesh.material.onBeforeCompile(shader, undefined as unknown as THREE.WebGLRenderer);
+    expect(shader.vertexShader.match(/varying vec3 vShadowWorldPos;/g)).toHaveLength(1);
+    tm.dispose();
+  });
+
   it('crossfades LODs on terrain but not on the ellipsoid, where parent and child tiles z-fight', () => {
     const fades = (tm: TerrainManager) => (tm.tiles as unknown as { plugins: Array<{ name?: string }> }).plugins.some((p) => p.name === 'FADE_TILES_PLUGIN');
     const imagery = make();
@@ -275,5 +307,40 @@ describe('TerrainManager imagery layer controls', () => {
     Object.assign(stats, { queued: 0, downloading: 0 });
     expect(tm.isReadyToShow(3001)).toBe(true);
     tm.dispose();
+  });
+});
+
+describe('fallBackToParentTiles', () => {
+  it('stands in for a failed source tile with its quarter of the parent, and leaves aborts alone', async () => {
+    const asked: string[] = [];
+    const bitmap = (w: number) => ({ width: w, height: w, close() {} });
+    const source = {
+      fetchItem: async ([x, y, level]: number[], signal?: AbortSignal) => {
+        asked.push(`${level}/${y}/${x}`);
+        if (signal?.aborted || level === 3) throw new Error('undecodable');
+        return new THREE.Texture(bitmap(512) as unknown as ImageBitmap);
+      },
+    };
+    const cuts: number[][] = [];
+    const g = globalThis as unknown as { createImageBitmap: unknown };
+    const saved = g.createImageBitmap;
+    g.createImageBitmap = async (_img: unknown, sx: number, sy: number, sw: number) => { cuts.push([sx, sy]); return bitmap(sw); };
+    try {
+      let fallbacks = 0;
+      fallBackToParentTiles(source, () => { fallbacks++; });
+      // Tile x=5 (east half), y=2 (north half) of parent 2/1/2. Bitmaps are pre-flipped,
+      // so the north half is the bottom of the parent image.
+      const tex = await source.fetchItem([5, 2, 3]);
+      expect(asked).toEqual(['3/2/5', '2/1/2']);
+      expect(cuts).toEqual([[256, 256]]);
+      expect((tex.image as { width: number }).width).toBe(256);
+      expect(fallbacks).toBe(1);
+      const ctrl = new AbortController();
+      ctrl.abort();
+      await expect(source.fetchItem([5, 2, 4], ctrl.signal)).rejects.toThrow('undecodable');
+      expect(fallbacks).toBe(1);
+    } finally {
+      g.createImageBitmap = saved;
+    }
   });
 });
