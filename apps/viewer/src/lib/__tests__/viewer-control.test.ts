@@ -223,6 +223,9 @@ function makeFakeRenderer(objects: string[]) {
     setSensorsVisible: (v: boolean) => log(`setSensorsVisible(${v})`),
     setSensorLabelsVisible: (v: boolean) => log(`setSensorLabelsVisible(${v})`),
     setLightingMode: (m: string) => log(`setLightingMode(${m})`),
+    // Point Probe: bound on every scene, not a script verb.
+    setPointProbeActive: () => {},
+    setProbePin: () => {},
     getContext: () => ({ canvas: { toDataURL: () => 'data:image/png;base64,AAA' }, renderFrame: () => log('renderFrame') }),
     getPlugins: () => [],
   };

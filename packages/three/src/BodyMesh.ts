@@ -7,7 +7,7 @@ import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
-import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
+import type { BodyFixedCartesian, BodyFixedPosition, TerrainDatum, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import type { CubeCoverage } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import { injectShadowIntoShader, makeShadowUniforms, MAX_SHADOW_OCCLUDERS, type ShadowUniforms } from './EclipseShadow.js';
@@ -997,6 +997,11 @@ export class BodyMesh extends THREE.Object3D {
   /** Current CPU terrain cache state for diagnostics and UI. */
   get terrainDiagnostics(): TerrainSamplerDiagnostics | null {
     return this.terrainManager?.cpuDiagnostics ?? null;
+  }
+
+  /** The terrain product's declared datum, or null when this body has no streamed terrain. */
+  get terrainDatum(): TerrainDatum | null {
+    return this.terrainManager?.sampler.datum ?? null;
   }
 
   /** Configured terrain source identifier for diagnostics and UI. */
