@@ -82,12 +82,12 @@ readout. This differs from altitude above Saturn's reference surface.*
 *Ingenuity at Jezero — experimental surface visualization. The capture needs the
 locally generated fused Mars terrain product described in the recipes.*
 
-[Record the current Cassini mission workflow](docs/readme-media.md#record-the-mission-workflow-video)
+[Recreate the Clipper flyby video](docs/readme-media.md#record-the-mission-workflow-video)
 
-The reproducible 15-second capture follows one encounter: open analysis, scrub
-through distance windows and plots, then select closest approach in the scene
-and timeline. The earlier Clipper video is retired; a replacement clip can be
-published from this recipe without putting video binaries in the repository.
+The default recording follows Clipper past Europa with Jupiter in the background,
+then smoothly pulls back to reveal the Galilean moons and mission trajectory.
+The script also offers a Cassini analysis clip with distance windows and plots.
+Video binaries stay outside the repository until published.
 
 </details>
 

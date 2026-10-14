@@ -1,13 +1,23 @@
 {
-  "scene": "events",
-  "basename": "cassini-mission-workflow",
+  "kind": "flyby",
+  "scene": "clipper",
+  "basename": "clipper-europa-flyby",
   "fps": 24,
-  "duration": 15,
-  "openAnalysisAt": 2,
-  "scrubStartAt": 4,
-  "scrubEndAt": 10,
-  "selectEventAt": 11,
-  "scrubWindow": [141915664.184, 141928264.184],
-  "openingCameraScale": 1.1,
-  "crf": 20
+  "duration": 22,
+  "flybyEndAt": 6,
+  "zoomEndAt": 18,
+  "flybyWindow": [
+    983890861.0077376,
+    983891161.0077376
+  ],
+  "openingDistanceKm": 0.027,
+  "overviewOffsetKm": [
+    -2500000,
+    2500000,
+    2500000
+  ],
+  "trajectoryRevealDistanceKm": 30000,
+  "sensorHideDistanceKm": 20,
+  "crf": 20,
+  "posterAt": 3
 }

@@ -152,60 +152,70 @@ made to improve promotional captures.
 ## Record the mission workflow video
 
 The earlier Clipper video was inspected across its full 20.167-second sequence
-(H.264, 1280×734, approximately 3.8 MB). It shows spacecraft/sensor tracking and
-ends in dense trajectories. It is out of date and has been removed from the
-README. Its historical URL is
+(H.264, 1280×734, approximately 3.8 MB). Its visual arc remains the model for the
+new default recording: a spacecraft flyby against Europa and Jupiter, followed
+by a continuous pullback to the system. Its historical URL is
 `https://github.com/user-attachments/assets/3457a5fe-61f4-4884-9fa5-1a5fdc1312f2`.
+The new script records that arc with the current renderer and UI.
 
-Start the same local viewer server and retrieve the Cassini assets described
-above. Install `ffmpeg` and `ffprobe` in addition to Playwright Chromium, then run:
+Start the same local viewer server and retrieve the Europa Clipper assets
+listed above. Install `ffmpeg` and `ffprobe` in addition to Playwright Chromium:
 
 ```sh
 node scripts/record-readme-video.mjs
+# Optional Cassini analysis demonstration (requires Cassini assets):
+node scripts/record-readme-video.mjs --analysis
 # Or choose an output directory outside the repository:
-CL_CAPTURE_DIR=/tmp/cassini-video node scripts/record-readme-video.mjs
+CL_CAPTURE_DIR=/tmp/clipper-video node scripts/record-readme-video.mjs
 ```
 
-The script reuses the validated `events` capture recipe, recomputes all three
-searches and both plots, and waits for assets before recording. It captures the
-**entire browser viewport including Svelte UI**, rather than the WebGL-only
-VideoRecordPlugin. It does not use `?test=1`, replace UI or draw plots into images.
+Both recordings reuse the verified screenshot driver and its asset/error gates.
+They capture the **entire browser viewport including Svelte UI**, rather than
+the WebGL-only VideoRecordPlugin. They use ordinary rendering without `?test=1`.
 
-The default 15-second sequence is one Cassini orbit-insertion workflow:
+The default 22-second Clipper sequence:
 
 | Clip time | Action |
 | --- | --- |
-| 0–2 s | Track Saturn with Cassini's restrained trajectory and a slow camera move. |
-| 2–4 s | Open Event Finder and expand the six-hour timeline; move the camera aim to make room for the plots. |
-| 4–10 s | Drag the actual timeline from 01:00 to 04:30 UTC through the 150,000 and 100,000 km windows; distance, range rate, playhead and 3D spacecraft position update together. |
-| 10–11 s | Release the timeline and hold the departure view. |
-| 11–15 s | Click the closest-approach result, returning to 02:38:22 UTC; finish with the selected marker, event card and aligned plots. |
+| 0–6 s | Follow the spacecraft through five minutes of its SPICE trajectory after Europa closest approach. Europa fills the left side, Jupiter sits behind it on the right, and the EIS NAC field meets the surface. |
+| 6–18 s | Freeze the encounter epoch and pull back smoothly from 27 metres to a Jupiter system overview. The aim shifts toward Jupiter as the camera retreats. Hide the sensor at 20 km and reveal the mission and moon trajectories at 30,000 km. |
+| 18–22 s | Hold Jupiter, all four Galilean moon orbits and the Clipper mission trajectory. |
 
-[`readme-video.json`](readme-video.json) controls frame rate, duration, phase
-times, scrub epochs, opening camera distance and H.264 quality. The scene,
-searches, layer visibility and final camera still come from
-[`readme-captures.json`](readme-captures.json). Edit those recipes to improve the
-composition; keep the event epochs inside the six-hour viewport and phase times
-in order. Environment overrides for the viewer URL, Chromium and GPU backend are
-the same as for screenshots. `FFMPEG_PATH` and `FFPROBE_PATH` select encoder tools.
+[`readme-video.json`](readme-video.json) controls flyby epochs, phase times,
+opening distance, poster time, final camera offset, layer reveal distances, frame rate and
+H.264 quality. Camera direction starts on the bisector of the actual Europa and
+Jupiter directions from Clipper; distance changes logarithmically to span metres
+to millions of kilometres without an abrupt jump. Time updates settle the
+renderer's floating origin before each camera placement. The spacecraft is at
+its actual scale; nothing is composited into the viewport.
 
-Frames are captured one at a time and encoded at a fixed 24 fps, so the output
-has an exact authored duration regardless of how fast the GPU or screenshot
-readback runs. Recording can take longer than 15 seconds. Camera and timeline
-steps render in the real viewer; panel transitions retain their ordinary browser
-behavior. This is a reproducible demonstration, not a real-time performance
-benchmark. The driver verifies the actual timeline-drag epoch and result-click
-selection, and rejects page/network errors or clipped/empty plot traces.
+The optional 15-second Cassini sequence remains reproducible using
+[`readme-video-analysis.json`](readme-video-analysis.json): open Event Finder
+and the expanded timeline, drag from 01:00 to 04:30 UTC through the two distance
+windows and continuous profiles, then click closest approach and hold the
+aligned event marker and plots. It recomputes all three searches and both
+profiles from [`readme-captures.json`](readme-captures.json). Keep its scrub epochs
+inside the six-hour viewport and its phase times in order.
+
+Environment overrides for viewer URL, Chromium and GPU backend match the
+screenshot driver. `FFMPEG_PATH` and `FFPROBE_PATH` select encoder tools. Frames
+are captured individually and encoded at a fixed 24 fps, so output duration is
+independent of screenshot speed. Recording takes longer than playback; this is
+an authored demonstration, not a real-time performance benchmark. The driver
+checks the final flyby epoch, or the Cassini timeline drag and result selection,
+and rejects page/network errors. Cassini plot traces must be nonempty and fit
+the viewport.
 
 Output defaults to the operating system's temporary directory under
-`cosmolabe-readme-video/`:
+`cosmolabe-readme-video/`. The default basename is `clipper-europa-flyby`; the
+analysis option uses `cassini-mission-workflow`:
 
-- `cassini-mission-workflow.mp4`: full 1920×1080 viewport, H.264, limited-range
-  yuv420p/BT.709, fast-start metadata, no audio.
-- `cassini-mission-workflow-poster.png`: the final selected-event viewport.
-- `cassini-mission-workflow.vtt`: descriptive captions matching the recipe timing.
-- `cassini-mission-workflow.json`: recipe, scene, encoder probe and final state.
-- `mission-events.png` and its sidecar: the initial verified hero composition.
+- `.mp4`: full 1920×1080 viewport, H.264, limited-range yuv420p/BT.709,
+  fast-start metadata, no audio.
+- `-poster.png`: Clipper flyby viewport at three seconds, or the final Cassini analysis viewport.
+- `.vtt`: descriptive captions matching recipe phases.
+- `.json`: recipe, scene, encoder probe and final state.
+- The prepared scene screenshot and capture sidecar are also retained.
 
 Temporary JPEG frames are removed after encoding (set `CL_KEEP_VIDEO_FRAMES=1`
 to keep them for diagnosis). The driver rejects output paths inside the repository; do not
@@ -216,7 +226,7 @@ before uploading; these checks cannot judge storytelling or visual artifacts.
 To publish, upload the MP4 to GitHub user attachments and put its CDN link in the
 README with a descriptive caption. Keep `docs/img/mission-events.png` as the
 static fallback (or publish the generated poster). Verify actual playback on
-GitHub. The new local clip is not claimed as uploaded; the README links this
+GitHub. The new local clips are not claimed as uploaded; the README links this
 recipe until a replacement CDN URL is available.
 
 ## Review before publishing

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
-import { recordMissionVideo, assertExternalVideoOutput } from './record-readme-video.mjs';
+import { recordMissionVideo, assertExternalVideoOutput, videoRecipe } from './record-readme-video.mjs';
 
 const recipes = JSON.parse(readFileSync(new URL('../docs/readme-captures.json', import.meta.url), 'utf8'));
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5199/';
@@ -11,7 +11,7 @@ const output = resolve(process.env.CL_CAPTURE_DIR ?? 'docs/img');
 const videoMode = process.argv.includes('--video');
 if (videoMode) assertExternalVideoOutput(output);
 const requested = process.argv.slice(2).filter(arg => arg !== '--video');
-if (videoMode) assert.deepEqual(requested, ['events'], 'Record the video through scripts/record-readme-video.mjs');
+if (videoMode) assert.deepEqual(requested, [videoRecipe.scene], 'Record the video through scripts/record-readme-video.mjs');
 const scenes = recipes.scenes.filter(scene => !requested.length || requested.includes(scene.id));
 for (const id of requested) assert.ok(scenes.some(scene => scene.id === id), `Unknown scene: ${id}`);
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
