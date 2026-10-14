@@ -40,7 +40,8 @@
  *                only, white on black, one synchronous pass) as displayed with skirts and
  *                for the same tiles' surface triangles only; neighbour level differences
  *                of the visible tiles; picks on unmitigated hole pixels; shaded frames
- *                with skirts on/off; draws and triangles both ways.
+ *                with skirts on/off; draws and triangles both ways; skirt pixels drawn over
+ *                nearer surface (a depth-precision failure the hole masks cannot see).
  *  cracks-dynamic  The same hole masks along camera paths without waiting for detail
  *                (refining in, coarsening out, panning across pole/edge/corner), on a
  *                normal network, with child .glb requests delayed or failing, and under
@@ -53,6 +54,9 @@
  *                pixel coverage (the polar cap has no horizon), then warm frame timing.
  *  skirt-cost    Per view, warm, one page: frame timing with skirts on and off (terrain
  *                only and grid imagery refined). Meaningful with --gpu.
+ *
+ * --log-depth-fix serves three.js with the log depth precision fix (patchLogDepthPrecision
+ * in UniverseRenderer, on its own branch) until this branch has it.
  *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5173/), CHROMIUM_PATH.
  * Default is SwiftShader software WebGL (correctness, counts); --gpu uses the
@@ -131,6 +135,9 @@ const SURFACE_VIEWS = {
   'pole-grazing': { eye: [-89.7, -30, 0.5], target: [-89.4, 150, 0.2], fov: 60 }, // across the exact pole
   'edge-grazing': { eye: [-45.3, -0.4, 1.0], target: [-44.4, 0.6, 0.2], fov: 60 }, // across the px/nz edge
   'corner-grazing': { eye: [-35.6, 44.5, 1.5], target: [-34.8, 45.6, 0.3], fov: 60 }, // across the px/py/nz corner
+  // Reported in review: skirts drawing through nearer surface (log depth precision, 1–4 km away).
+  'pole-low': { eye: [-89.98, -173.87, 0.97], target: [-89.9992, -137.11, 0], fov: 60 },
+  'rim-low': { eye: [-88.032, 87.33, 1.69], target: [-88.039, 90.435, 0], fov: 60 },
 };
 
 // --gpu: the host's hardware GPU through ANGLE (`--angle metal|vulkan|d3d11|gl`, default metal on macOS,
@@ -152,6 +159,12 @@ async function openViewer(catalog, setup) {
   // Errors, plus warnings other than the expected per-tile load warnings and missing catalog textures.
   page.on('console', m => {
     if (m.type() === 'error' || (m.type() === 'warning' && !/Tile load error|tiles versions|Failed to load (baseMap|normalMap)|Initial assets settled/.test(m.text()))) errors.push(`${m.type()}: ${m.text()}`);
+  });
+  if (args['log-depth-fix']) await page.route(/\/\.vite\/deps\/chunk-.*\.js/, async (route) => {
+    const res = await route.fetch();
+    const body = (await res.text()).replace('vFragDepth = 1.0 + gl_Position.w;', 'vFragDepth = 1.0 + 1e9 * gl_Position.w;')
+      .replace('log2( vFragDepth ) * logDepthBufFC * 0.5', 'log2( vFragDepth ) / log2( 1.0 + 1e9 * ( exp2( 2.0 / logDepthBufFC ) - 1.0 ) )');
+    await route.fulfill({ response: res, body });
   });
   if (setup) await setup(page);
   await page.goto(new URL(`?catalog=${catalog}&test=1`, BASE).href, { waitUntil: 'domcontentloaded', timeout: 180_000 });
@@ -432,6 +445,49 @@ const holeMasks = (page, { masks = false } = {}) => page.evaluate(async (masks) 
     coverageDifferencePixels: skirtVisible,
     ...(masks ? { mitigatedHoles: enc(a.out), unmitigatedHoles: enc(b.out) } : {}) };
 }, masks);
+
+/**
+ * Skirts drawn where the surface is nearer: the visible tiles' original meshes with
+ * surface triangles white and skirts red, then exact ray-casts (pickSurface) on a
+ * sample of the red pixels. A red pixel whose nearest hit is a surface triangle is
+ * a skirt winning the depth test it should lose; the coverage masks above cannot
+ * see it, since the surface is there either way.
+ */
+const skirtBleed = (page, samples = 400) => page.evaluate(async (samples) => {
+  const r = window.ci.getRenderer(), tm = window.ciMoon().terrainManager;
+  const depUrl = performance.getEntriesByType('resource').map(e => e.name).find(n => /\/\.vite\/deps\/three\.js(\?|$)/.test(n));
+  const { MeshBasicMaterial, Color } = await import(depUrl);
+  const gl = r.renderer, cam = r.camera, scene = r.scene, LAYER = 31;
+  const meshes = [];
+  tm.tiles.visibleTiles.forEach(t => t.engineData?.scene?.traverse(o => { if (o.isMesh && !o.name.startsWith('cube-imagery-block') && typeof o.geometry.userData?.surfaceTriangles === 'number') meshes.push(o); }));
+  const materials = [new MeshBasicMaterial({ color: 0xffffff }), new MeshBasicMaterial({ color: 0xff0000 })];
+  const saved = { mask: cam.layers.mask, background: scene.background, clear: gl.getClearColor(new Color()), alpha: gl.getClearAlpha(), target: gl.getRenderTarget() };
+  const restore = meshes.map(o => ({ o, visible: o.visible, material: o.material }));
+  for (const o of meshes) {
+    const n = 3 * o.geometry.userData.surfaceTriangles;
+    o.geometry.clearGroups(); o.geometry.addGroup(0, n, 0); o.geometry.addGroup(n, Infinity, 1);
+    o.material = materials; o.visible = true; o.layers.enable(LAYER);
+  }
+  scene.background = null; gl.setRenderTarget(null); gl.setClearColor(0x000000, 1); cam.layers.set(LAYER);
+  gl.clear(); gl.render(scene, cam);
+  const ctx = gl.getContext(), w = ctx.drawingBufferWidth, h = ctx.drawingBufferHeight, px = new Uint8Array(w * h * 4);
+  ctx.readPixels(0, 0, w, h, ctx.RGBA, ctx.UNSIGNED_BYTE, px);
+  for (const { o, visible, material } of restore) { o.geometry.clearGroups(); o.material = material; o.visible = visible; o.layers.disable(LAYER); }
+  cam.layers.mask = saved.mask; scene.background = saved.background; gl.setClearColor(saved.clear, saved.alpha); gl.setRenderTarget(saved.target);
+  const red = [];
+  for (let i = 0; i < w * h; i++) if (px[4 * i] > 127 && px[4 * i + 1] < 128) red.push(i);
+  const step = Math.max(1, Math.floor(red.length / samples));
+  let checked = 0, behindSurface = 0;
+  for (let k = 0; k < red.length; k += step) {
+    const x = red[k] % w, yUp = (red[k] / w) | 0;
+    const p = r.pickSurface((x + 0.5) / w * 2 - 1, (yUp + 0.5) / h * 2 - 1);
+    if (!p) continue;
+    checked++;
+    if (!p.renderedSkirt) behindSurface++;
+  }
+  // Estimated pixels where a skirt shows through nearer surface.
+  return { skirtPixels: red.length, checked, behindSurface, bleedPixels: checked ? Math.round(red.length * behindSurface / checked) : 0 };
+}, samples);
 
 /**
  * Level differences between visible geometry tiles that share an edge, sampled
@@ -822,7 +878,7 @@ try {
     const VIEWS_BY = {
       terrain: ['shackleton', 'pole', 'face-edge', 'face-corner', ...Object.keys(SURFACE_VIEWS)],
       grid: ['shackleton', 'pole', 'face-edge', 'face-corner', ...Object.keys(SURFACE_VIEWS)],
-      nac: ['shackleton', 'pole', 'shackleton-grazing', 'shackleton-near', 'pole-grazing'],
+      nac: ['shackleton', 'pole', 'shackleton-grazing', 'shackleton-near', 'pole-grazing', 'pole-low', 'rim-low'],
     };
     for (const cat of catalogs) {
       for (const name of views(VIEWS_BY[cat])) {
@@ -830,6 +886,7 @@ try {
         const view = SURFACE_VIEWS[name] ? await surfacePose(page, SURFACE_VIEWS[name]) : VIEWS[name];
         const s = await settle(page, view, 'shaded', { imagery: cat !== 'terrain' });
         const h = await holeMasks(page, { masks: true });
+        const bleed = await skirtBleed(page);
         const nb = neighbourLevels(s.visibleTiles);
         // Picks on unmitigated hole pixels (skirts drawn): what a click in that spot returns.
         const holePx = [];
@@ -858,7 +915,7 @@ try {
         const file = await montage([files.unmitigated, files.mitigated], `cracks-${cat}-${name}`, densestWindow(h.unmitigatedHoles, h.width, h.height));
         await setSkirts(page, true);
         const row = { catalog: cat, view: name, pose: view, file, settled: s.finished, settleMs: s.settleMs, visibleTiles: s.visibleTiles.length, geometryLevels: s.geometryLevels,
-          sameTilesSkirtsOff: JSON.stringify(off.visibleTiles) === JSON.stringify(s.visibleTiles), holes: { mitigated: h.mitigated, unmitigated: h.unmitigated, coverageDifferencePixels: h.coverageDifferencePixels },
+          sameTilesSkirtsOff: JSON.stringify(off.visibleTiles) === JSON.stringify(s.visibleTiles), holes: { mitigated: h.mitigated, unmitigated: h.unmitigated, coverageDifferencePixels: h.coverageDifferencePixels }, skirtBleed: bleed,
           neighbours: nb, picksOnHoles: { n: picks.length, onSkirt: picks.filter(p => p?.renderedSkirt).length, physicalHits: picks.filter(p => p?.physical === 'hit').length,
             renderedOffsetM: summary(picks.filter(p => p?.renderedOffsetM != null).map(p => p.renderedOffsetM)),
             nearbySurfacePixelOffsetM: summary(nearPicks.filter(p => p?.renderedOffsetM != null).map(p => p.renderedOffsetM)) },
@@ -866,6 +923,7 @@ try {
         results.cracks.push(row);
         console.log(`cracks ${cat} ${name}: ${s.visibleTiles.length} tiles L${Object.keys(s.geometryLevels).join(',')}, neighbour Δ ${JSON.stringify(nb.samplesByDelta)} (cross-face ${JSON.stringify(nb.crossFaceSamplesByDelta)}); `
           + `holes ${h.unmitigated.holePixels} px / ${h.unmitigated.holeComponents} without skirts → ${h.mitigated.holePixels} px / ${h.mitigated.holeComponents} with; `
+          + `skirts drawn over nearer surface ≈${bleed.bleedPixels} px (${bleed.behindSurface}/${bleed.checked} sampled of ${bleed.skirtPixels} skirt px); `
           + `picks on holes ${row.picksOnHoles.onSkirt}/${picks.length} on a skirt, rendered−physical ${row.picksOnHoles.renderedOffsetM?.median?.toFixed(2)}/${row.picksOnHoles.renderedOffsetM?.max?.toFixed(2)} m (3 px away ${row.picksOnHoles.nearbySurfacePixelOffsetM?.median?.toFixed(2)}/${row.picksOnHoles.nearbySurfacePixelOffsetM?.max?.toFixed(2)}); triangles ${on.triangles} vs ${offDraws.triangles}`);
         await page.close();
       }

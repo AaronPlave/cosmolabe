@@ -860,6 +860,45 @@ the edge colour stretched over at most the gap. Remaining visible lines in
 shaded frames are level transitions in shading (normals sampled at different
 spacings) and imagery-level boundaries; neither appears in the hole mask.
 
+**Skirts drawn through nearer surface (found in review, fixed outside this
+slice).** Low grazing views showed skirts as streaked bands along fine/coarse
+boundaries and speckle along crater rims. Those views were 1–4 km from the
+surface, at the pole and at a rim near 88° S. The geometry is right: exact
+ray-casts at those pixels hit surface triangles, on the original tiles and on
+the imagery blocks alike. The fault is depth precision. The main pass uses
+three.js log depth, `log2(1 + w)` with `w` in scene units (1e-6 per km), so
+near the ground `1.0 + w` in float32 resolves ~120 m and the 24-bit buffer
+~0.8 km. A skirt a few hundred metres behind the surface ties with it in depth,
+and draw order picks the winner. The hole mask cannot see this, because the
+surface is there either way. `cracks` now also draws the visible tiles with
+surface triangles white and skirts red, then ray-casts a sample of the red pixels
+(all of them here). A red pixel whose nearest hit is a surface triangle is a skirt
+drawn through the surface. The same captures, with `--log-depth-fix` serving
+three's log-depth chunks as patched on branch `claude/log-depth-precision`
+(`w` scaled to metres before the log):
+
+| View (terrain; grid and NAC identical) | Skirt pixels drawn through surface, three's log depth | With the fix | Skirt pixels with the fix |
+| --- | --- | --- | --- |
+| Shackleton oblique | 5,157 | 0 | 111 |
+| Shackleton grazing | 6,040 | 1 | 102 |
+| Shackleton near ground | 13,149 | 1 | 75 |
+| South pole | 5,357 | 0 | 52 |
+| Pole grazing | 8,923 | 2 | 48 |
+| Pole, 1 km up (reported) | 22,178 | 2 | 53 |
+| Rim near 88° S, 1.7 km up (reported) | 13,899 | 0 | 83 |
+| px/nz face edge | 2,474 | 3 | 38 |
+| Edge grazing | 4,199 | 0 | 3 |
+| px/py/nz face corner | 2,725 | 2 | 10 |
+| Corner grazing | 9,390 | 0 | 2 |
+
+Per-view rows for all three catalogs are in `crack-skirt-bleed.json`. With the
+fix, visible skirt pixels drop to about the unmitigated hole counts:
+skirts show only where they fill cracks. The 1–3 pixels left per frame have
+not been examined. The depth problem affects any terrain on that pass that
+relies on the depth test to stay hidden, not only skirts. #184's code shows the
+same bands on a skirted product, because it cannot hide skirts. The cube layout
+should not be adopted without the fix (*Remaining for #149*).
+
 ## Layout comparison: geometry (2026-10-14)
 
 `node scripts/capture-cube-imagery.mjs --gpu --experiments compare` loads the
@@ -1176,12 +1215,15 @@ geometry evidence*):
 - [ ] **Prefiltered coarse levels.** `gdaladdo -r average` overviews for the
   LOLA base (all products): smaller coarse-level gaps (the skirts now cover up
   to 3.6 km) and coarse representation error.
+- [ ] **Log depth precision.** Merge the `claude/log-depth-precision` fix and
+  drop `--log-depth-fix` from the captures; until then skirts draw through
+  nearer surface at low views (*Skirts drawn through nearer surface*).
 - Imagery-at-scale items from *Independent imagery* (shared vertex buffers for
   blocks, a tiled-layout `MapImageLayer` variant) stay open.
 
 Commands: `bash scripts/build-moon-terrain/cube.sh --workers N`;
 `node scripts/validate-cube-terrain.mjs`;
-`node scripts/capture-cube-imagery.mjs --gpu --experiments cracks,cracks-dynamic,skirt-cost`;
+`node scripts/capture-cube-imagery.mjs --gpu --experiments cracks,cracks-dynamic,skirt-cost [--log-depth-fix]`;
 `node scripts/capture-cube-imagery.mjs --gpu --experiments compare [--products P] [--error-target N] [--throttle 40,100]`,
 then `python3 scripts/terrain/dem.py field-error RECORD.json --base … --fusion …`.
 
