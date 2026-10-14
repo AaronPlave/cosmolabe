@@ -79,3 +79,38 @@ describe('shared measurement definitions', () => {
     expect(() => viewLink(state, 'https://viewer.example/')).toThrow(/too large.*measurements/);
   });
 });
+
+describe('shared reference geometry', () => {
+  const references = (): MeasurementLinkState => ({ version: 1, items: [
+    { id: 'velocity', kind: 'velocity', source: { kind: 'entity', bodyName: 'Moon' }, target: null, vertex: null },
+    { id: 'axes', kind: 'axes', source: { kind: 'entity', bodyName: 'Earth' }, target: null, vertex: null, frame: 'IAU_EARTH' },
+    { id: 'angle', kind: 'vector-angle', source: null, target: null, vertex: null,
+      first: { kind: 'velocity', object: { kind: 'entity', bodyName: 'Moon' }, relativeTo: { kind: 'entity', bodyName: 'Earth' } },
+      second: { kind: 'frame-axis', frame: 'IAU_EARTH', origin: { kind: 'entity', bodyName: 'Earth' }, axis: '-Z' } },
+    { id: 'pending', kind: 'vector-angle', source: null, target: null, vertex: null, first: null,
+      second: { kind: 'direction', source: { kind: 'entity', bodyName: 'Moon' }, target: { kind: 'coordinate', frame: 'J2000', positionKm: [1, 0, 0] } } },
+  ] });
+  it('round trips velocities, axes and angles between directions, including incomplete operands', () => {
+    const state = { ...base(), measurements: references() };
+    expect(requestedView(new URL(viewLink(state, 'https://viewer.example/')).search)).toEqual(state);
+    validateMeasurementReferences(references(), universe(), 0);
+  });
+  it('rejects malformed frames, axes and operands', () => {
+    const reject = (mutate: (raw: any) => void, error: RegExp) => { const raw = references(); mutate(raw); expect(() => validateMeasurementLinkState(raw)).toThrow(error); };
+    reject(s => s.items[1].frame = '', /frame/);
+    reject(s => s.items[2].first.kind = 'acceleration', /direction type/);
+    reject(s => s.items[2].second.axis = 'Z', /axis/);
+    reject(s => s.items[2].second.frame = 7, /frame/);
+    reject(s => s.items[2].first.object = null, /incomplete/);
+    reject(s => s.items[3].second.target.kind = 'screen', /endpoint type/);
+  });
+  it('checks frames and bodies inside operands against the catalog', () => {
+    const u = universe();
+    const frame = references(); frame.items[1].frame = 'NOT_A_FRAME';
+    expect(() => validateMeasurementReferences(frame, u, 0)).toThrow(/NOT_A_FRAME.*unavailable/);
+    const axis = references(); (axis.items[2].second as { frame: string }).frame = 'IAU_ABSENT';
+    expect(() => validateMeasurementReferences(axis, u, 0)).toThrow(/IAU_ABSENT.*unavailable/);
+    const body = references(); (body.items[2].first as { relativeTo: { bodyName: string } }).relativeTo.bodyName = 'Absent';
+    expect(() => validateMeasurementReferences(body, u, 0)).toThrow(/Absent.*unavailable/);
+  });
+});

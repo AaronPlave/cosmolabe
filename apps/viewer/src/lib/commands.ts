@@ -9,6 +9,8 @@ import {
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
 import { shell } from './shell.svelte';
+import { getUniverse } from './loader';
+import { showReference } from './spatial-measurements.svelte';
 
 export interface Command {
   id: string;
@@ -56,6 +58,24 @@ function getBuiltinCommands(): Command[] {
   ];
 }
 
+/** Reference geometry for the tracked body, through the same items the Measurements tool edits. */
+function getReferenceCommands(): Command[] {
+  const name = vs.trackedBodyName;
+  const universe = getUniverse();
+  const body = name ? universe?.getBody(name) : undefined;
+  if (!name || !universe || !body) return [];
+  const commands: Command[] = [
+    { id: 'ref:velocity', label: `Show velocity of ${name}`, category: 'Analysis', execute: () => { showReference({ kind: 'velocity', object: name }); } },
+  ];
+  if (name !== 'Sun' && universe.getBody('Sun')) {
+    commands.push({ id: 'ref:sun', label: `Show Sun direction from ${name}`, category: 'Analysis', execute: () => { showReference({ kind: 'sunDirection', object: name }); } });
+  }
+  if (body.rotation) {
+    commands.push({ id: 'ref:axes', label: `Show body axes of ${name}`, category: 'Analysis', execute: () => { showReference({ kind: 'bodyAxes', object: name }); } });
+  }
+  return commands;
+}
+
 /** Collect plugin-contributed commands */
 function getPluginCommands(): Command[] {
   const r = getRenderer();
@@ -81,7 +101,7 @@ function getPluginCommands(): Command[] {
 
 /** All commands (built-in + plugin) */
 export function getCommands(): Command[] {
-  return [...getBuiltinCommands(), ...getPluginCommands()];
+  return [...getBuiltinCommands(), ...getReferenceCommands(), ...getPluginCommands()];
 }
 
 /** All command categories (for palette grouping) */

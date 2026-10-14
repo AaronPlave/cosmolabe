@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { compactLabelPlacement, angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
+import { axisLetterAnchor, rateChevrons, compactLabelPlacement, angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
 
 describe('measurement geometry', () => {
   it('uses finite independent segments and draws the arc for a straight angle', () => {
@@ -102,5 +102,33 @@ describe('compact label placement', () => {
     expect(placement.candidate).toBe(2);
     expect(placement.box.y0 - anchor.y).toBe(14);
     expect(compactLabelPlacement(anchor, size, viewport, [{ x0: 0, y0: 0, x1: 600, y1: 400 }], [])).toBeNull();
+  });
+});
+
+describe('reference geometry glyphs', () => {
+  it('draws velocity as two open chevrons behind the tip, facing the camera', () => {
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 10000);
+    camera.position.set(0, 0, 10); camera.updateMatrixWorld();
+    const tip = new THREE.Vector3(5, 0, 0), direction = new THREE.Vector3(1, 0, 0);
+    const points = rateChevrons(tip, direction, 1, camera);
+    expect(points).toHaveLength(8);
+    expect(points[0].equals(tip)).toBe(true);
+    expect(points.every(p => p.x <= tip.x + 1e-12 && Math.abs(p.z) < 1e-12)).toBe(true); // In the view plane, never past the tip.
+    expect(Math.abs(points[1].y)).toBeCloseTo(0.5);
+    expect(points[1].y).toBeCloseTo(-points[3].y);
+    // A velocity pointing at the camera still gets a stable, finite glyph.
+    expect(rateChevrons(tip, new THREE.Vector3(0, 0, 1), 1, camera).every(p => p.toArray().every(Number.isFinite))).toBe(true);
+  });
+
+  it('keeps an axis letter at the tip, or where the axis leaves the view', () => {
+    const camera = new THREE.PerspectiveCamera(90, 1, 0.01, 10000);
+    camera.updateMatrixWorld();
+    const origin = new THREE.Vector3(0, 0, -10);
+    expect(axisLetterAnchor(origin, new THREE.Vector3(1, 0, -10), camera, 600, 600)!.x).toBeCloseTo(330);
+    const edge = axisLetterAnchor(origin, new THREE.Vector3(1000, 0, -10), camera, 600, 600)!;
+    expect(edge.x).toBeGreaterThan(580);
+    expect(edge.x).toBeLessThanOrEqual(590);
+    expect(edge.y).toBeCloseTo(300);
+    expect(axisLetterAnchor(new THREE.Vector3(0, 0, 10), new THREE.Vector3(1, 0, 10), camera, 600, 600)).toBeNull();
   });
 });
