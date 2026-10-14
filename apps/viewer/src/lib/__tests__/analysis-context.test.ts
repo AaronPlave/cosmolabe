@@ -177,4 +177,3 @@ describe('viewer analysis state', () => {
     expect(enabled).toEqual([b.id, a.id]);
   });
 });
-

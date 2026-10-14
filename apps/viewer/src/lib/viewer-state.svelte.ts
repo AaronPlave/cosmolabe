@@ -182,7 +182,19 @@ export function selectBody(name: string | null) {
 }
 
 /** Enter or leave Point Probe mode. Leaving keeps the pinned point. */
+/** Pointer modes that cannot run alongside the probe; starting the probe ends them. */
+const probeExclusive: Array<() => void> = [];
+
+/**
+ * Register a pointer mode the probe excludes (a pending measurement pick).
+ * The mode, for its part, turns the probe off when it starts.
+ */
+export function excludeFromProbe(end: () => void) {
+  probeExclusive.push(end);
+}
+
 export function setProbeActive(active: boolean) {
+  if (active) for (const end of probeExclusive) end();
   vs.probeActive = active;
   _renderer?.setPointProbeActive(active);
 }

@@ -15,6 +15,7 @@
     {
       "name": "Earth",
       "class": "planet",
+      "rotationModel": { "type": "Fixed", "quaternion": [1, 0, 0, 0], "inertialFrame": "ECLIPJ2000" },
       "center": "Sun",
       "trajectory": {
         "type": "Keplerian",

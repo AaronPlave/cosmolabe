@@ -490,7 +490,7 @@ export type {
   SpiceWorkerResult,
 } from './protocol.js';
 export { isWorkerResult } from './protocol.js';
-export { SpiceBindings, type GfReport, type CkCoverageOptions } from './bindings.js';
+export { SpiceBindings, type GfReport, type CkCoverageOptions, type SpkSegmentSummary } from './bindings.js';
 export {
   createSpiceBindings,
   createSpiceEngine,

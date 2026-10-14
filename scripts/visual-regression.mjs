@@ -169,7 +169,10 @@ function run(label, cmd, args, env) {
  */
 function buildEverything() {
   run('build packages', 'npm', ['run', 'build'], {});
-  run('build viewer', 'npm', ['--prefix', 'apps/viewer', 'run', 'build'], { VITE_BASE: '' });
+  run('build viewer', 'npm', ['--prefix', 'apps/viewer', 'run', 'build'], {
+    VITE_BASE: '',
+    BUNDLE_TEST_CATALOGS: '1',
+  });
 }
 
 /**
@@ -325,7 +328,7 @@ async function main() {
       httpFailures = [];
       pageErrors.length = 0;
 
-      const sceneUrl = `${baseUrl}${basePath}?catalog=${encodeURIComponent(scene.catalog)}&test=1`;
+      const sceneUrl = `${baseUrl}${basePath}?catalog=${encodeURIComponent(`test-catalogs/${scene.catalog}`)}&test=1`;
 
       // Armed BEFORE `goto`, not after. The failure this exists to catch — the
       // entry script answered with 404 or with the SPA fallback — happens during

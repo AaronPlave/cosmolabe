@@ -225,6 +225,10 @@ export interface ViewerControl {
   getSelected(): string | null;
   getTracked(): string | null;
   getCamera(): ScriptCamera;
+  /** Floating scene origin, independent of tracking (ECLIPJ2000 axes). */
+  getCameraReference?(): string | null;
+  /** Restore the floating origin without moving or tracking the camera. */
+  setCameraReference?(name: string | null): boolean;
   /**
    * Every object in the loaded scene, by name.
    *

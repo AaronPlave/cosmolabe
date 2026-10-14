@@ -203,9 +203,11 @@ export class PointProbeOverlay {
   /** Pin a point, or clear it. `refined` restates the same pin (finer terrain), in place. */
   setPin(point: SurfacePoint | null, refined = false): void {
     this.pin = point;
-    this.pinCallout.setContent(point ? {
-      lines: probeCalloutLines(point, 'pinned'), color: PROBE_COLOR, tone: 'selected', feature: 'probe',
-    } : null, { inPlace: refined });
+    const content = point ? {
+      lines: probeCalloutLines(point, 'pinned'), color: PROBE_COLOR, tone: 'selected' as const, feature: 'probe' as const,
+    } : null;
+    if (content && refined) this.pinCallout.setLiveContent(content);
+    else this.pinCallout.setContent(content);
     if (!point) this.pinCallout.hide();
   }
 
