@@ -56,7 +56,9 @@
       "center": "Sun",
       "trajectory": {
         "type": "Builtin",
-        "name": "Earth",
+        "name": "Earth"
+      },
+      "trajectoryPlot": {
         "visible": false
       },
       "geometry": {
