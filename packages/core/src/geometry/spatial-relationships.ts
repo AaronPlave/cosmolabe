@@ -1,3 +1,4 @@
+import type { SurfacePointEndpoint } from './surface-point.js';
 import type { Universe } from '../Universe.js';
 import { bodyFixedOffsetToWorld } from '../kinematics.js';
 import type { Vec3 } from '../spice-injection.js';
@@ -5,6 +6,7 @@ import type { Quaternion } from '../rotations/RotationModel.js';
 
 /** A durable reference to a position, rather than a position captured from a rendered frame. */
 export type SpatialEndpoint =
+  | SurfacePointEndpoint
   | { kind: 'entity'; bodyName: string; label?: string }
   | { kind: 'body-fixed'; bodyName: string; positionKm: Vec3; label?: string }
   | { kind: 'coordinate'; positionKm: Vec3; frame?: string; label?: string };
@@ -26,6 +28,7 @@ export interface ResolvedSpatialRelationship {
 export function endpointLabel(endpoint: SpatialEndpoint): string {
   if (endpoint.label) return endpoint.label;
   if (endpoint.kind === 'entity') return endpoint.bodyName;
+  if (endpoint.kind === 'surface-point') return `${endpoint.point.bodyName} point (${endpoint.point.source})`;
   if (endpoint.kind === 'body-fixed') return `${endpoint.bodyName} point (${endpoint.positionKm.map(v => v.toFixed(2)).join(", ")} km)`;
   return endpoint.frame ? `${endpoint.frame} coordinate` : 'World coordinate';
 }
@@ -49,7 +52,9 @@ export function resolveSpatialEndpoint(universe: Universe, endpoint: SpatialEndp
       ]);
     } catch { return null; }
   }
-  const body = universe.getBody(endpoint.bodyName);
+  const bodyName = endpoint.kind === 'surface-point' ? endpoint.point.bodyName : endpoint.bodyName;
+  const positionKm = endpoint.kind === 'surface-point' ? endpoint.point.bodyFixedPositionKm : endpoint.positionKm;
+  const body = universe.getBody(bodyName);
   if (!body) return null;
   try {
     const center = universe.absolutePositionOf(body.name, et);
@@ -58,12 +63,12 @@ export function resolveSpatialEndpoint(universe: Universe, endpoint: SpatialEndp
     if (!rotation) return null;
     const q = rotation.rotationAt(et);
     if (!q || !q.every(Number.isFinite)) return null;
-    const worldOffset = bodyFixedVectorToWorld(endpoint.positionKm, q, rotation.sourceFrame, et, universe);
+    const worldOffset = bodyFixedVectorToWorld(positionKm, q, rotation.sourceFrame, et, universe);
     return finite([center[0] + worldOffset[0], center[1] + worldOffset[1], center[2] + worldOffset[2]]);
   } catch { return null; }
 }
 
-function bodyFixedVectorToWorld(position: Vec3, q: Quaternion, sourceFrame: string, et: number, universe: Universe): Vec3 {
+function bodyFixedVectorToWorld(position: readonly [number, number, number], q: Quaternion, sourceFrame: string, et: number, universe: Universe): Vec3 {
   // Reuse the latitude/longitude helper without losing the exact picked radius.
   const r = Math.hypot(...position);
   if (r === 0) return [0, 0, 0];

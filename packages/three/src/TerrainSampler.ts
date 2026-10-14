@@ -1,10 +1,10 @@
 /** Renderer-independent terrain datum and CPU sampling primitives. All lengths are km. */
-export type VerticalDatum = 'ellipsoid' | 'reference-sphere' | 'areoid' | 'unknown';
-export type HeightConvention = 'radial' | 'geodetic-normal';
+import type { SurfaceDatum, VerticalDatum, HeightConvention } from '@cosmolabe/core';
+export type { VerticalDatum, HeightConvention } from '@cosmolabe/core';
 
 export interface TerrainDatum {
   /** The physical reference shape; this is deliberately never a display radius. */
-  referenceShape: { kind: 'sphere'; radiusKm: number } | { kind: 'ellipsoid'; radiiKm: readonly [number, number, number] };
+  referenceShape: SurfaceDatum['referenceShape'];
   verticalDatum: VerticalDatum;
   heightConvention: HeightConvention;
 }

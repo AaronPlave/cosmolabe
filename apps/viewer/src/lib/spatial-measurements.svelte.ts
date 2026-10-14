@@ -1,4 +1,4 @@
-import { endpointLabel, formatSpatialDistance, resolveSpatialRelationship, type SpatialEndpoint, type SpatialRelationship } from '@cosmolabe/core';
+import { surfacePointEndpoint, type SurfacePoint, endpointLabel, formatSpatialDistance, resolveSpatialRelationship, type SpatialEndpoint, type SpatialRelationship } from '@cosmolabe/core';
 import { ViewStateError } from '@cosmolabe/control';
 import { flushSync, mount, unmount } from 'svelte';
 import { Ruler, Crosshair, TriangleRight } from 'lucide-svelte';
@@ -36,6 +36,7 @@ export const measurements = $state({
 });
 
 export function cloneEndpoint(endpoint: SpatialEndpoint): SpatialEndpoint {
+  if (endpoint.kind === 'surface-point') return surfacePointEndpoint(endpoint.point, endpoint.label);
   return endpoint.kind === 'entity' ? { ...endpoint } : { ...endpoint, positionKm: [...endpoint.positionKm] };
 }
 function cloneDraft(draft: Draft): Draft {
@@ -200,7 +201,8 @@ export function resetMeasurementsForScene(): void {
   resetMeasurementDraft();
   syncMeasurements();
 }
-export function captureSurfaceEndpoint(bodyName: string, positionKm: readonly [number, number, number]): boolean {
+export function captureSurfaceEndpoint(point: SurfacePoint): boolean {
+  const { bodyName, bodyFixedPositionKm: positionKm } = point;
   const slot = measurements.pendingPickSlot;
   if (!slot || measurements.pickMode !== 'surface') return false;
   const endpoints = [...measurements.items.flatMap(item => [item.source, item.target, item.vertex]), ...Object.values(measurements.draft),
@@ -210,7 +212,7 @@ export function captureSurfaceEndpoint(bodyName: string, positionKm: readonly [n
   let name: string;
   do { name = `${bodyName} point ${measurements.nextPoint++}`; }
   while (endpoints.some(e => e?.label === name || e?.label?.startsWith(`${name} (`)));
-  measurements.draft[slot] = { kind: 'body-fixed', bodyName, positionKm: [...positionKm], label: `${name} (${positionKm.map(v => v.toFixed(2)).join(', ')} km)` };
+  measurements.draft[slot] = surfacePointEndpoint(point, `${name} (${positionKm.map(v => v.toFixed(2)).join(', ')} km)`);
   cancelMeasurementPick(); syncMeasurements();
   return true;
 }
@@ -227,7 +229,7 @@ export function configureMeasurementInput(renderer: UniverseRenderer): void {
       } else {
         const canvas = renderer.renderer.domElement;
         const result = renderer.pickSurface(x / canvas.clientWidth * 2 - 1, 1 - y / canvas.clientHeight * 2);
-        if (result) captureSurfaceEndpoint(result.bodyName, result.bodyFixedHitKm);
+        if (result) captureSurfaceEndpoint(result.point);
         else measurements.pickFeedback = 'No surface here. Pick a visible body surface.';
       }
       return true; // A miss also consumes the gesture and leaves the pick active.
@@ -242,7 +244,7 @@ export function configureMeasurementInput(renderer: UniverseRenderer): void {
         renderer.setHoveredBody(null);
         const canvas = renderer.renderer.domElement;
         const result = renderer.pickSurface(x / canvas.clientWidth * 2 - 1, 1 - y / canvas.clientHeight * 2);
-        renderer.setSpatialPickPreview(result ? { kind: 'body-fixed', bodyName: result.bodyName, positionKm: [...result.bodyFixedHitKm] } : null);
+        renderer.setSpatialPickPreview(result ? surfacePointEndpoint(result.point) : null);
       }
     },
     clearPreview: () => renderer.clearSpatialPickPreview(),
@@ -284,4 +286,14 @@ export function pickInstruction(): string {
     return `${measurements.pickMode === 'object' ? 'Pick' : 'Pick a surface point for'} ${measurements.pendingPickSlot === 'source' ? 'the first' : 'the second'} ${measurements.pickMode === 'object' ? 'object' : 'ray'}`;
   }
   return measurements.pickMode === 'object' ? `Pick ${measurements.pendingPickSlot === 'source' ? 'first' : 'second'} object` : 'Pick a surface point';
+}
+
+
+/** Start the ordinary distance editor with an independent snapshot in the source slot. */
+export function measureFromHere(point: SurfacePoint): void {
+  applyMeasurementFields();
+  resetMeasurementDraft();
+  measurements.draft.source = surfacePointEndpoint(point);
+  openTool('measure');
+  startMeasurementPick('target', 'surface');
 }

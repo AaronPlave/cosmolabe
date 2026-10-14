@@ -1,3 +1,5 @@
+import { probePoint } from './surface-point-fixture';
+import { surfacePointEndpoint, resolveSpatialRelationship } from '@cosmolabe/core';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Body, FixedPointTrajectory, FixedRotation, Universe } from '@cosmolabe/core';
@@ -78,4 +80,31 @@ describe('shared measurement definitions', () => {
     expect(JSON.stringify(state).length).toBeGreaterThan(8192);
     expect(() => viewLink(state, 'https://viewer.example/')).toThrow(/too large.*measurements/);
   });
+});
+
+it.each(['terrain', 'surface-overlay', 'ellipsoid', 'mesh', 'dsk'] as const)('round trips %s semantics and keeps equivalent XYZ geometry', source => {
+  const point = probePoint('Earth', [1.123456789, -2, 3], source);
+  const state = { ...base(), measurements: shared() };
+  state.measurements.items[0].source = surfacePointEndpoint(point);
+  const restored = requestedView(new URL(viewLink(state, 'https://viewer.example/')).search)!;
+  expect(restored).toEqual(state);
+  const endpoint = restored.measurements!.items[0].source!;
+  expect(endpoint).not.toHaveProperty('point.resolution');
+  expect(endpoint).not.toHaveProperty('point.surfaceNormal');
+  expect(endpoint).not.toHaveProperty('point.altitude');
+  expect(endpoint).toMatchObject({ point: { source, terrainSample: { sourceId: 'global-dem', tileId: '4/2/3', describesHit: source === 'terrain' } } });
+  validateMeasurementReferences(restored.measurements!, universe(), 0);
+  const u = universe();
+  const rich = resolveSpatialRelationship(u, { id: 'x', kind: 'distance', source: endpoint, target: { kind: 'entity', bodyName: 'Moon' } }, 0)!;
+  const legacy = resolveSpatialRelationship(u, { id: 'x', kind: 'distance', source: { kind: 'body-fixed', bodyName: 'Earth', positionKm: [...point.bodyFixedPositionKm] }, target: { kind: 'entity', bodyName: 'Moon' } }, 0)!;
+  expect(rich.source).toEqual(legacy.source); expect(rich.distanceKm).toBe(legacy.distanceKm);
+});
+it('rejects invalid surface versions, datum and provenance instead of rewriting semantics', () => {
+  const raw = shared(); raw.items[0].source = surfacePointEndpoint(probePoint());
+  const source = raw.items[0].source as any;
+  source.version = 2; expect(() => validateMeasurementLinkState(raw)).toThrow(/version/);
+  source.version = 1; source.point.terrainSample.describesHit = true;
+  expect(() => validateMeasurementLinkState(raw)).toThrow(/semantics/);
+  source.point.terrainSample.describesHit = false; source.point.hit.datum.origin = 'renderer';
+  expect(() => validateMeasurementLinkState(raw)).toThrow(/origin/);
 });

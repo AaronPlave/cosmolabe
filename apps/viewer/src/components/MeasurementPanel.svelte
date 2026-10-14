@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Eye, EyeOff, MousePointer2, Scan, MoreHorizontal, X, Plus, CircleHelp } from 'lucide-svelte';
+  import { describeSource, describeDatum, formatHeight } from '@cosmolabe/three';
   import { endpointLabel } from '@cosmolabe/core';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { Button } from '$lib/components/ui/button';
@@ -45,7 +46,7 @@
     <div class="ui-helper pick-instruction" role="status">{pickInstruction()} · Esc to cancel</div>
     {#if measurements.pickFeedback}<p class="ui-helper mt-1" role="status">{measurements.pickFeedback}</p>{/if}
   {/if}
-  {#if Object.values(measurements.draft).some(endpoint => endpoint?.kind === 'body-fixed')}
+  {#if Object.values(measurements.draft).some(endpoint => endpoint?.kind === 'body-fixed' || endpoint?.kind === 'surface-point')}
     <p class="ui-helper mt-2 text-text-muted">Surface measurements use straight lines, not distance along the surface.</p>
   {/if}
   <div class="settings">
@@ -98,7 +99,7 @@
   <div class="field" class:picking={measurements.pendingPickSlot === slot}>
     <span class="ui-label">{title}</span>
     <div class="endpoint">
-      {#if endpoint?.kind === 'body-fixed' || endpoint?.kind === 'coordinate'}
+      {#if endpoint?.kind === 'surface-point' || endpoint?.kind === 'body-fixed' || endpoint?.kind === 'coordinate'}
         <div class="ui-control picked" title={endpointLabel(endpoint)}>{endpointLabel(endpoint)}</div>
         <Button variant="ghost" size="icon-sm" aria-label={`Clear picked ${slot}`} title="Clear picked point" onclick={() => measurements.draft[slot] = null}><X size={14}/></Button>
       {:else}
@@ -110,6 +111,15 @@
       <Button variant="ghost" size="icon-sm" aria-pressed={measurements.pendingPickSlot === slot && measurements.pickMode === 'object'} class={measurements.pendingPickSlot === slot && measurements.pickMode === 'object' ? 'bg-control-hover border-border-strong' : ''} aria-label={`Pick ${slot} object`} title="Pick object: body center, marker, or label" onclick={() => startMeasurementPick(slot, 'object')}><MousePointer2 size={14}/></Button>
       <Button variant="ghost" size="icon-sm" aria-pressed={measurements.pendingPickSlot === slot && measurements.pickMode === 'surface'} class={measurements.pendingPickSlot === slot && measurements.pickMode === 'surface' ? 'bg-control-hover border-border-strong' : ''} aria-label={`Pick ${slot} surface point`} title="Pick exact point on a visible surface" onclick={() => startMeasurementPick(slot, 'surface')}><Scan size={14}/></Button>
     </div>
+    {#if endpoint?.kind === 'surface-point'}
+      <div class="text-xs text-text-muted">
+        {describeSource(endpoint.point.source)} · hit {formatHeight(endpoint.point.hit.heightKm)} above {describeDatum(endpoint.point.hit.datum)}
+        {#if endpoint.point.terrainSample}
+          {@const sample = endpoint.point.terrainSample}
+          <div title={sample.tileId ?? sample.sourceId}>{sample.describesHit ? 'Terrain' : 'Terrain below'}: {formatHeight(sample.elevationKm)} above {describeDatum(sample.datum)} · {sample.sourceId}</div>
+        {/if}
+      </div>
+    {/if}
   </div>
 {/snippet}
 

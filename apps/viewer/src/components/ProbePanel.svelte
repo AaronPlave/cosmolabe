@@ -9,6 +9,7 @@
   } from '@cosmolabe/three';
   import { Copy, Check } from 'lucide-svelte';
   import { vs, getRenderer, clearProbePin } from '../lib/viewer-state.svelte';
+  import { measureFromHere } from '../lib/spatial-measurements.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   interface Props {
@@ -82,6 +83,8 @@
     </div>
     <div class="row"><span class="k">Datum</span><span class="v">{describeDatum(point.altitude.datum)}</span></div>
 
+    <button class="mt-2 text-text-secondary hover:text-text-primary" onclick={() => measureFromHere(point)}>Measure from here</button>
+
     <details class="mt-1.5">
       <summary class="cursor-pointer select-none text-text-muted hover:text-text-secondary">Details</summary>
       <div class="mt-1">
@@ -132,3 +135,4 @@
     text-align: right;
   }
 </style>
+

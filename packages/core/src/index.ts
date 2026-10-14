@@ -189,3 +189,5 @@ export {
   etToDate,
   etFromDate,
 } from './time.js';
+
+export * from './geometry/surface-point.js';
