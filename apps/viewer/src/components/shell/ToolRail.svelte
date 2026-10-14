@@ -30,14 +30,14 @@
   import { vs, cycleCamera, selectBody } from '../../lib/viewer-state.svelte';
 
   interface Props {
-    pickModeActive: boolean;
-    onTogglePick: () => void;
+    probeActive: boolean;
+    onToggleProbe: () => void;
     onOpenSearch: () => void;
     /** Render bare, for a parent that supplies the surrounding chrome. */
     inline?: boolean;
   }
 
-  let { pickModeActive, onTogglePick, onOpenSearch, inline = false }: Props = $props();
+  let { probeActive, onToggleProbe, onOpenSearch, inline = false }: Props = $props();
 
   let shareStatus = $state('');
   let shareError = $state(false);
@@ -135,10 +135,10 @@
 
   <button
     class="rail-btn"
-    aria-pressed={pickModeActive}
-    aria-label="Pick surface"
-    title="Pick surface (P)"
-    onclick={onTogglePick}
+    aria-pressed={probeActive}
+    aria-label="Probe point"
+    title="Probe point (P)"
+    onclick={onToggleProbe}
   >
     <Crosshair size={16} />
   </button>
