@@ -73,7 +73,19 @@ export interface SurfacePickResult {
   cameraDistanceKm: number;
   /** Exact rendered hit in body-fixed ECEF km, used to keep the marker on the clicked surface. */
   bodyFixedHitKm: readonly [number, number, number];
+  /**
+   * The same camera ray answered by the body's CPU terrain through the #148
+   * ray-query port, when it has one (experimental cube-sphere grids, #149).
+   * Independent of rendered meshes; `renderedOffsetKm` is its distance from
+   * the rendered hit above.
+   */
+  physical?: PhysicalPickSummary;
 }
+
+export type PhysicalPickSummary =
+  | { kind: 'hit'; detail: 'sufficient' | 'coarse'; tileId?: string; bodyFixedKm: readonly [number, number, number];
+      normal: readonly [number, number, number]; renderedOffsetKm: number; sourceVersion?: string }
+  | { kind: 'miss' | 'unavailable'; reason?: string };
 
 export interface UniverseRendererOptions {
   /** km → scene units. Default 1e-6 (1 km = 0.000001 scene units) for solar system scale */
@@ -2246,6 +2258,7 @@ export class UniverseRenderer {
     const terrainSample = bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const altKm = terrainSample?.elevationKm ?? (terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg)));
     const cameraDistanceKm = bestWorldPoint.distanceTo(this.camera.position) / this.scaleFactor;
+    const physical = this.physicalPick(bm, bodyCenter, [ecefX, ecefY, ecefZ], cameraDistanceKm);
 
     return {
       bodyName: bm.body.name,
@@ -2254,6 +2267,27 @@ export class UniverseRenderer {
       altKm,
       cameraDistanceKm,
       bodyFixedHitKm: [ecefX, ecefY, ecefZ],
+      ...(physical ? { physical } : {}),
+    };
+  }
+
+  /** Answer a pick ray with the body's CPU surface (#148), from the camera through the rendered hit. */
+  private physicalPick(bm: BodyMesh, bodyCenter: THREE.Vector3, hitKm: [number, number, number], distanceKm: number): PhysicalPickSummary | null {
+    const cam = this.camera.position.clone().sub(bodyCenter).divideScalar(this.scaleFactor)
+      .applyQuaternion(bm.mesh.quaternion.clone().invert());
+    const origin = { xKm: cam.x, yKm: -cam.z, zKm: cam.y };
+    const direction = [hitKm[0] - origin.xKm, hitKm[1] - origin.yKm, hitKm[2] - origin.zKm] as const;
+    if (Math.hypot(...direction) === 0) return null;
+    // Twice the rendered distance: a coarser CPU surface may lie behind the rendered one.
+    const result = bm.intersectTerrainRay({ origin, direction, nearKm: 0, farKm: distanceKm * 2 }, { maxMeshErrorKm: 0.001 });
+    if (!result) return null;
+    if (result.kind !== 'hit') return { kind: result.kind, ...(result.kind === 'unavailable' ? { reason: result.reason } : {}) };
+    const p = result.position;
+    return {
+      kind: 'hit', detail: result.detail, tileId: result.tileId, normal: result.normal,
+      bodyFixedKm: [p.xKm, p.yKm, p.zKm],
+      renderedOffsetKm: Math.hypot(p.xKm - hitKm[0], p.yKm - hitKm[1], p.zKm - hitKm[2]),
+      sourceVersion: result.metadata.source.version,
     };
   }
 

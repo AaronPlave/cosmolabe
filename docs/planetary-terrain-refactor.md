@@ -1,8 +1,10 @@
 # Planetary Surface / Terrain Refactor — implementation record
 
-The cube-sphere addressing and CPU-sampler foundation for the #149 layout
-comparison, and the evidence still required before any layout decision, are
-recorded in [the cube-sphere experiment ADR](design/cube-sphere-experiment.md).
+The cube-sphere layout experiment for #149 — addressing and CPU sampler, the
+bounded lunar builder (`scripts/build-moon-terrain/cube.sh`), the opt-in viewer
+demo, its validation and captures, and the evidence still required before any
+layout decision — is recorded in
+[the cube-sphere experiment ADR](design/cube-sphere-experiment.md).
 
 ## Status
 

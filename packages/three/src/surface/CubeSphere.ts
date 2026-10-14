@@ -111,28 +111,40 @@ export class CubeSphereSampler {
     this.tiles.set(cubeTileId(tile), tile);
   }
   removeTile(address: Pick<CubeTileAddress, 'face' | 'level' | 'x' | 'y'>): void { this.tiles.delete(cubeTileId(address)); }
+  getTile(address: Pick<CubeTileAddress, 'face' | 'level' | 'x' | 'y'>): CubeHeightTile | undefined { return this.tiles.get(cubeTileId(address)); }
+  get tileCount(): number { return this.tiles.size; }
 
-  sample(latDeg: number, lonDeg: number): TerrainSample | null {
+  /**
+   * Face coordinate of the geocentric ray to the zero-height point on the
+   * declared shape: on an ellipsoid it intentionally differs from the geodetic
+   * surface normal. Equivalent latitude/longitude spellings give one answer.
+   */
+  faceCoordinate(latDeg: number, lonDeg: number): CubeFaceCoordinate {
     if (!Number.isFinite(latDeg) || !Number.isFinite(lonDeg) || latDeg < -90 || latDeg > 90) throw new Error('Invalid latitude/longitude');
-    const lon = wrapLon(lonDeg);
-    // Geocentric ray to the zero-height point on the declared shape: on an
-    // ellipsoid it intentionally differs from the geodetic surface normal.
-    const [sinLat, cosLat] = sinCosDeg(latDeg), [sinLon, cosLon] = sinCosDeg(lon);
-    const coordinate = directionToCubeFace([cosLat * cosLon, cosLat * sinLon, this.zScale * sinLat]);
-    let tile: CubeHeightTile | undefined;
-    let localU = 0, localV = 0;
-    for (let level = MAX_LEVEL; level >= 0 && !tile; level--) {
+    const [sinLat, cosLat] = sinCosDeg(latDeg), [sinLon, cosLon] = sinCosDeg(wrapLon(lonDeg));
+    return directionToCubeFace([cosLat * cosLon, cosLat * sinLon, this.zScale * sinLat]);
+  }
+
+  /** The finest resident tile containing a face coordinate, with its local fractions. */
+  finestResident(coordinate: CubeFaceCoordinate): { tile: CubeHeightTile; localU: number; localV: number } | null {
+    for (let level = MAX_LEVEL; level >= 0; level--) {
       const count = 2 ** level;
       const x = tileIndex(coordinate.u, count), y = tileIndex(coordinate.v, count);
-      tile = this.tiles.get(cubeTileId({ face: coordinate.face, level, x, y }));
-      if (tile) { localU = (coordinate.u + 1) * 0.5 * count - x; localV = (coordinate.v + 1) * 0.5 * count - y; }
+      const tile = this.tiles.get(cubeTileId({ face: coordinate.face, level, x, y }));
+      if (tile) return { tile, localU: (coordinate.u + 1) * 0.5 * count - x, localV: (coordinate.v + 1) * 0.5 * count - y };
     }
-    if (!tile) return null;
+    return null;
+  }
+
+  sample(latDeg: number, lonDeg: number): TerrainSample | null {
+    const resident = this.finestResident(this.faceCoordinate(latDeg, lonDeg));
+    if (!resident) return null;
+    const { tile, localU, localV } = resident;
     const px = localU * (tile.width - 1), py = localV * (tile.height - 1);
     const x0 = Math.floor(px), y0 = Math.floor(py), x1 = Math.min(x0 + 1, tile.width - 1), y1 = Math.min(y0 + 1, tile.height - 1);
-    const tx = px - x0, ty = py - y0, at = (x: number, y: number) => tile!.elevationsKm[y * tile!.width + x];
+    const tx = px - x0, ty = py - y0, at = (x: number, y: number) => tile.elevationsKm[y * tile.width + x];
     const elevationKm = (at(x0, y0) * (1 - tx) + at(x1, y0) * tx) * (1 - ty) + (at(x0, y1) * (1 - tx) + at(x1, y1) * tx) * ty;
-    return { position: { latDeg, lonDeg: lon }, elevationKm, datum: this.datum, source: tile.source ?? this.source,
+    return { position: { latDeg, lonDeg: wrapLon(lonDeg) }, elevationKm, datum: this.datum, source: tile.source ?? this.source,
       tileId: cubeTileId(tile), uncertaintyKm: tile.uncertaintyKm ?? tile.source?.uncertaintyKm ?? this.source.uncertaintyKm };
   }
 }

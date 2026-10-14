@@ -8,9 +8,13 @@ GPU check at Shackleton.
 
 ```bash
 ./01-fetch-sources.sh                  # ~9 GB of public USGS-hosted GeoTIFFs into data/source/
-./fused.sh                             # fuse ~7 min (peak RAM ≈ 7 GB), tile ~45 min on 4 cores
+./fused.sh                             # runs ./fuse.sh (~7 min, peak RAM ≈ 7 GB), then tiles ~45 min on 4 cores
 node ../validate-terrain.mjs --preset moon-shackleton-fused
 ```
+
+`./fuse.sh` alone writes the fused field (`data/fused/`) that every product
+below tiles: `fused.sh` (geographic), `polar.sh` (#144 polar cap) and `cube.sh`
+(#149 cube sphere).
 
 Output: `apps/viewer/test-catalogs/data/moon-terrain-fused/` (`layer.json`,
 `z/x/y.terrain`, `terrain-product.json`, `fusion.json`; 1.18 M tiles, ~11 GB; gitignored, not on the
@@ -55,6 +59,33 @@ as `type: '3dtiles'` with `errorTarget: 2` (the quantized-mesh plugin's
 recommended value, so both pyramids refine to the same on-screen error). It
 has no CPU sampler support yet and is not joined to the global pyramid; see
 #144 for the GPU comparison.
+
+## Cube-sphere experiment (#149)
+
+`./cube.sh` tiles the same fused field on the gnomonic cube of
+`packages/three/src/surface/CubeSphere.ts` as 3D Tiles 1.1 (one `.glb` per tile)
+plus a CPU height grid per tile (`cpu-grids.json`, `heights/`), into
+`apps/viewer/test-catalogs/data/moon-terrain-cube/` (4,030 tiles, ~680 MB,
+~11 min on 4 cores; gitignored, not hosted). All six faces to level 3, then
+bounded detail: Shackleton to 13 m within 15 km, and one face corner and one
+face edge to 212 m. No skirts, so mixed-LOD cracks stay measurable; pass
+`--skirt-cells 1` to add them. It is an experiment beside the geographic and
+polar products, not a replacement; see
+[the ADR](../../docs/design/cube-sphere-experiment.md).
+
+```bash
+./fuse.sh && ./cube.sh                 # and ./polar.sh for the #145 baseline
+npm run build && node ../validate-cube-terrain.mjs     # gates + measurements → work/cube-terrain/validation.json
+npm --prefix ../../apps/viewer run dev                 # then open:
+#   http://127.0.0.1:5173/?catalog=test-catalogs/experiments/moon-terrain-cube
+#   (…/moon-terrain-polar and …/moon-terrain-geographic for the baselines)
+CHROMIUM_PATH=… node ../capture-cube-terrain.mjs --product cube   # and --product polar
+```
+
+In the demo, the body info panel's altitude readouts and the camera clamp
+sample the CPU grids; the pick tool (click on the surface) shows the rendered
+hit and the #148 CPU hit (`CPU hit`, `CPU vs rendered`); the debug panel's
+`cube-face` and `cpu-coverage` views show faces and CPU residency.
 
 ## Sources (public, no auth)
 

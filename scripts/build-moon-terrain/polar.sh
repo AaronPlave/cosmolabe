@@ -4,7 +4,7 @@
 # fused.sh, tiled as a quadtree on the LOLA mosaic's polar stereographic grid
 # instead of geographic slivers, written as 3D Tiles 1.1 (.glb per tile).
 #
-# Prerequisite: ./01-fetch-sources.sh and the fuse step of ./fused.sh
+# Prerequisite: ./01-fetch-sources.sh and ./fuse.sh
 # (data/fused/). ~25 s on 12 cores, 27.7 k tiles, ~4.2 GB.
 #
 # Levels: 0 is the whole 200 km mosaic square (3.1 km vertex spacing); each
