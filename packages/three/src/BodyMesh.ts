@@ -1014,6 +1014,11 @@ export class BodyMesh extends THREE.Object3D {
     return this.terrainManager?.cubeStats ?? null;
   }
 
+  /** Experimental cube-face imagery residency/requests/blocks (#149); null when the terrain has no cube imagery. */
+  get terrainCubeImageryStats(): TerrainManager['cubeImageryStats'] {
+    return this.terrainManager?.cubeImageryStats ?? null;
+  }
+
   /** #148 ray query against CPU terrain in body-fixed km; null when this terrain has no Cartesian CPU surface. */
   intersectTerrainRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection | null {
     return this.terrainManager?.intersectSurfaceRay(ray, options) ?? null;

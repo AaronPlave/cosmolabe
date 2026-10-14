@@ -181,6 +181,7 @@ export default defineConfig({
         '**/test-catalogs/data/moon-terrain-fused/**',
         '**/test-catalogs/data/moon-terrain-polar/**',
         '**/test-catalogs/data/moon-terrain-cube/**',
+        '**/test-catalogs/data/moon-imagery-cube-*/**',
         '**/scripts/build-moon-terrain/data/**',
       ],
     },

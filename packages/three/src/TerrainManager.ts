@@ -11,6 +11,7 @@ import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './Terra
 import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGridSourceStats } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import type { CubeFace } from './surface/CubeSphere.js';
+import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
@@ -174,6 +175,14 @@ export interface TerrainConfig {
     residentLevel?: number;
     /** Finer grids retained (LRU). Default 2048. */
     maxDetailTiles?: number;
+    /**
+     * Cube-face map imagery (`imagery.json` from `scripts/terrain/cube_imagery.py`)
+     * draped at its own levels, independently of this product's geometry LOD; see
+     * `CubeImageryLayer`. Use instead of `imagery` for cube products: the
+     * overlay plugin maps through per-vertex longitude/latitude, which cannot
+     * register the tiles meeting at each pole (both are face centres).
+     */
+    imagery?: CubeImageryConfig;
   };
 }
 
@@ -191,6 +200,10 @@ export interface TerrainConfig {
  *   ancestor's is, grey where none is.
  * - `cube-face` — experimental cube-sphere products (#149): hue per face,
  *   brighter with depth, alternate tiles shaded so tile and face edges show.
+ * - `imagery-level` — cube imagery (#149): hue per displayed imagery level,
+ *   modulated by the texel, independent of the geometry tiles' depth.
+ * - `imagery-unlit` — cube imagery texels written unlit, without tone mapping
+ *   or colour conversion: what registration checks read back.
  * - `datum-height` — mean tile elevation relative to the terrain datum, blue
  *   below and red above, so below-reference terrain (Jezero) is explicit.
  * - `seam-error` — largest height mismatch along this tile's shared edges with
@@ -201,8 +214,10 @@ export interface TerrainConfig {
  * Base/residual/coverage-boundary views need the fused products' coverage
  * metadata (#50, #48) and are added with them.
  */
-export type TerrainDebugMode = 'none' | 'lod' | 'geometric-error' | 'screen-error' | 'cpu-coverage' | 'datum-height' | 'seam-error' | 'cube-face';
-export const TERRAIN_DEBUG_MODES: readonly TerrainDebugMode[] = ['none', 'lod', 'geometric-error', 'screen-error', 'cpu-coverage', 'datum-height', 'seam-error', 'cube-face'];
+export type TerrainDebugMode = 'none' | 'lod' | 'geometric-error' | 'screen-error' | 'cpu-coverage' | 'datum-height' | 'seam-error' | 'cube-face' | 'imagery-level' | 'imagery-unlit';
+export const TERRAIN_DEBUG_MODES: readonly TerrainDebugMode[] = ['none', 'lod', 'geometric-error', 'screen-error', 'cpu-coverage', 'datum-height', 'seam-error', 'cube-face', 'imagery-level', 'imagery-unlit'];
+/** Debug views drawn by the cube imagery shader rather than DebugTilesPlugin. */
+const IMAGERY_DEBUG: Partial<Record<TerrainDebugMode, 'unlit' | 'level'>> = { 'imagery-level': 'level', 'imagery-unlit': 'unlit' };
 const CUBE_FACE_HUE: Record<string, number> = { px: 0.0, nx: 0.5, py: 0.33, ny: 0.83, pz: 0.16, nz: 0.62 };
 /** `face/level/x/y` of a cube-sphere tile's content, or null. */
 const cubeAddress = (tile: any): { face: CubeFace; level: number; x: number; y: number } | null => {
@@ -467,6 +482,7 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
  * and coordinate transforms for non-Earth bodies.
  */
 const _camPos = /* @__PURE__ */ new THREE.Vector3();
+const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
 export class TerrainManager {
   readonly tiles: TilesRenderer;
@@ -493,6 +509,8 @@ export class TerrainManager {
   /** Experimental cube-sphere CPU grids and their #148 ray surface, once the manifest loads. */
   private cube: { source: CubeSphereGridSource; surface: CubeGridSurface } | null = null;
   private readonly cubeConfigured: boolean;
+  /** Experimental cube-face map imagery, independent of geometry LOD (#149). */
+  private readonly cubeImagery: CubeImageryLayer | null = null;
   private disposed = false;
   private shadowUniforms: ShadowUniforms | null = null;
   private aerialPerspectiveUniforms: AerialPerspectiveUniforms | null = null;
@@ -576,6 +594,10 @@ export class TerrainManager {
     this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
     this.cubeConfigured = !!config.cubeSphere;
     if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
+    if (config.cubeSphere?.imagery) {
+      this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery);
+      this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', `Terrain: cube imagery unavailable (${config.cubeSphere?.imagery?.url})`, err));
+    }
     this.isImageryOnly = config.type === 'imagery';
     this.hasOverlays = Array.isArray(config.imagery) && config.imagery.length > 1;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
@@ -837,8 +859,11 @@ export class TerrainManager {
     // Customize tile materials as they load
     this.tiles.addEventListener('load-model', (event: { scene: THREE.Object3D; tile: any }) => {
       this.customizeTileMaterial(event.scene, event.tile);
+      const address = this.cubeImagery ? cubeAddress(event.tile) : null;
+      if (address) this.cubeImagery!.addTile(event.tile, event.scene, address);
     });
     this.tiles.addEventListener('dispose-model', (event: { tile: any }) => {
+      this.cubeImagery?.removeTile(event.tile);
       const id = this.cpuTileId(event.tile);
       if (id) this.forgetCpuTile(id);
     });
@@ -1076,6 +1101,30 @@ export class TerrainManager {
     } catch (e) {
       console.error('[Cosmolabe] tiles.update() crashed:', e);
     }
+    if (this.cubeImagery) {
+      // Distance and frustum from the terrain camera (sane near/far, a wider
+      // field so imagery just outside the view is ready); texel size against
+      // the main camera's pixels.
+      this.tiles.group.updateWorldMatrix(true, false);
+      const pixelAngle = 2 * Math.tan(THREE.MathUtils.degToRad(mainCam.fov) / 2) / Math.max(1, renderer.getDrawingBufferSize(_bufferSize).y);
+      const useImagery = this.debugMode === 'none' || !!IMAGERY_DEBUG[this.debugMode];
+      try {
+        this.cubeImagery.update(tc, this.tiles.group.matrixWorld, pixelAngle, renderer, useImagery);
+      } catch (err) {
+        // Imagery must never stop terrain streaming or the frame loop.
+        this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
+      }
+    }
+  }
+
+  /** The experimental cube imagery layer, for diagnostics and live option changes; null when not configured. */
+  get cubeImageryLayer(): CubeImageryLayer | null {
+    return this.cubeImagery;
+  }
+
+  /** Cube imagery residency, requests and blocks, or null when the terrain has no cube imagery. */
+  get cubeImageryStats(): CubeImageryStats | null {
+    return this.cubeImagery?.stats ?? null;
   }
 
   /** CPU terrain query. Null means decoded data is not currently cached. */
@@ -1313,17 +1362,18 @@ export class TerrainManager {
     if (!TERRAIN_DEBUG_MODES.includes(mode)) throw new Error(`Unknown terrain debug mode "${mode}"`);
     if (mode === this.debugMode) return;
     this.debugMode = mode;
-    if (mode === 'none' && !this.debugPlugin) return;
+    if (this.cubeImagery) this.cubeImagery.debug = IMAGERY_DEBUG[mode] ?? 'none';
+    if ((mode === 'none' || IMAGERY_DEBUG[mode]) && !this.debugPlugin) return;
     const plugin = this.ensureDebugPlugin();
     // `ColorModes` exists at runtime but the upstream typings omit the static.
     const C = (DebugTilesPlugin as unknown as { ColorModes: Record<'NONE' | 'DEPTH' | 'GEOMETRIC_ERROR' | 'SCREEN_ERROR' | 'CUSTOM_COLOR', number> }).ColorModes;
-    (plugin as unknown as { colorMode: number }).colorMode = mode === 'none' ? C.NONE
+    (plugin as unknown as { colorMode: number }).colorMode = mode === 'none' || IMAGERY_DEBUG[mode] ? C.NONE
       : mode === 'lod' ? C.DEPTH
       : mode === 'geometric-error' ? C.GEOMETRIC_ERROR
       : mode === 'screen-error' ? C.SCREEN_ERROR
       : C.CUSTOM_COLOR;
     // Unlit, so the night side and terminator don't hide the encoding.
-    plugin.unlit = mode !== 'none';
+    plugin.unlit = mode !== 'none' && !IMAGERY_DEBUG[mode];
     this.releaseIdleDebugPlugin();
   }
 
@@ -1333,7 +1383,7 @@ export class TerrainManager {
    * MoonFall). Unregistering disposes it, which restores every material.
    */
   private releaseIdleDebugPlugin(): void {
-    if (!this.debugPlugin || this.debugMode !== 'none' || this.showBounds) return;
+    if (!this.debugPlugin || (this.debugMode !== 'none' && !IMAGERY_DEBUG[this.debugMode]) || this.showBounds) return;
     this.tiles.unregisterPlugin(this.debugPlugin);
     this.debugPlugin = null;
   }
@@ -1506,6 +1556,7 @@ export class TerrainManager {
     if (this.disposed) return;
     this.disposed = true;
     this.cube?.source.dispose();
+    this.cubeImagery?.dispose();
     if (this.terrainCam) {
       this.tiles.deleteCamera(this.terrainCam);
       this.terrainCam = null;

@@ -99,6 +99,8 @@ still toggles the bounding volumes independently.
 | `datum-height` | mean tile height vs the terrain datum, blue below · red above (below-reference terrain such as Jezero is explicit) |
 | `seam-error` | max shared-edge mismatch with cached same-level neighbours, green 0 → red ≥ `seamErrorScaleKm` (5 m) · grey: no neighbour cached. The same computation as the offline seam report |
 | `cube-face` | experimental cube-sphere products (#149): hue per face, brighter with depth, alternate tiles shaded. With cube CPU grids, `cpu-coverage` is green where the tile's own grid is resident, amber where only an ancestor's is |
+| `imagery-level` | cube imagery (#149): hue per displayed imagery level, modulated by the texel; independent of the geometry tile's depth, so one terrain tile can show several levels |
+| `imagery-unlit` | cube imagery texels written unlit, without tone mapping or colour conversion — what `scripts/capture-cube-imagery.mjs` reads back for registration |
 
 Base terrain, regional residual and source/coverage-boundary views need the
 coverage mask and residual metadata the fused products will emit (#50, #48);
@@ -340,6 +342,15 @@ geographic pyramid above, both 3D Tiles products reach their finished detail
 under SwiftShader in 5–16 s per view. Results and limits are in
 [the ADR](design/cube-sphere-experiment.md#measured-results-2026-10-13); the
 control points agree with the geographic fused pyramid's (RMS 6.85 vs 6.95 m).
+
+Cube-face imagery (`scripts/build-moon-terrain/cube-imagery.sh`, draped by
+`CubeImageryLayer`) has its own checks: `node scripts/validate-cube-imagery.mjs`
+(offline: manifests, builder vs viewer marker registration, gutters across tile
+and face edges, the registration encoding) and
+`node scripts/capture-cube-imagery.mjs` (rendered: fixed-geometry imagery
+refinement, rendered registration read-back, markers, failure fallback,
+navigation/eviction, the real NAC mosaic). See
+[the ADR](design/cube-sphere-experiment.md#independent-imagery-2026-10-14).
 
 ## Not yet covered
 

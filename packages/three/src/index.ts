@@ -140,7 +140,14 @@ export type {
 } from './surface/PhysicalSurface.js';
 export { pickPhysicalSurface, cameraPositionFromSurfacePick, surfaceRayBetween } from './surface/SurfaceConsumers.js';
 export type { MapImageLayer, ObservationImageProjection, ObservationRayResolver } from './surface/SurfaceImagery.js';
-export { CubeSphereSampler, cubeFaceToDirection, directionToCubeFace, cubeTileAt, cubeTileId } from './surface/CubeSphere.js';
+export { CubeSphereSampler, cubeFaceBasis, cubeFaceToDirection, directionToCubeFace, cubeTileAt, cubeTileId } from './surface/CubeSphere.js';
 export type { CubeFace, CubeFaceCoordinate, CubeTileAddress, CubeHeightTile } from './surface/CubeSphere.js';
 export { CubeSphereGridSource, CubeGridSurface, cubeTileMesh } from './surface/CubeSphereGrids.js';
 export type { CubeGridManifest, CubeCoverage, CubeCoverageState, CubeGridSourceOptions, CubeGridSourceStats } from './surface/CubeSphereGrids.js';
+export {
+  CubeImageryAvailability, directionToTexel, faceToTexel, imageryTextureTransform, imageryTileRect, parseImageryAddress,
+  selectImageryBlocks, texelCenterDirection, texelCenterToFace, texelGroundSizeKm, tileProjectiveBasis, validateCubeImageryManifest,
+} from './surface/CubeImagery.js';
+export type { CubeImageryManifest, ImageryAddress, ImageryBlock } from './surface/CubeImagery.js';
+export { CubeImageryLayer } from './CubeImageryLayer.js';
+export type { CubeImageryConfig, CubeImageryStats, CubeImageryDebug } from './CubeImageryLayer.js';
