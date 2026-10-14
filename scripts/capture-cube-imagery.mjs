@@ -30,10 +30,14 @@
  *                bytes, requests, evictions, in-flight and blocks, under a 64 MiB budget.
  *  nac           LROC NAC mosaic: shaded and imagery-level frames at Shackleton and
  *                the pole, and an orbital view of its footprint.
+ *  frametime     Per view, warm: terrain only, imagery without split tiles (capped at L0)
+ *                and imagery refined; FRAMES (--frames, 120) back-to-back renderFrame calls,
+ *                each fenced by readPixels, plus GPU TIME_ELAPSED queries and draw counts.
+ *                Meaningful with --gpu (hardware ANGLE backend); --catalog nac for real imagery.
  *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5173/), CHROMIUM_PATH.
- * Software WebGL (SwiftShader) here: frames establish correctness and
- * request/byte/texture counts, not hardware-GPU frame time.
+ * Default is SwiftShader software WebGL (correctness, counts); --gpu uses the
+ * host GPU (--angle metal|vulkan|…) and is the only mode whose timings mean anything.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { cpus, totalmem, platform, release } from 'node:os';
@@ -53,6 +57,7 @@ const BASE = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5173/';
 const OUT = resolve(args.out ?? join(ROOT, 'work/cube-imagery/captures'));
 const VIEWPORT = { width: Number(args.width ?? 1280), height: Number(args.height ?? 800) };
 const EXPERIMENTS = String(args.experiments ?? 'fixed,frozen,registration,markers,failure,navigation,nac').split(',');
+const FRAMES = Number(args.frames ?? 120);
 const TIMEOUT_MS = Number(args.timeout ?? 600_000);
 const STABLE = Number(args.stable ?? 6);
 const R = 1737.4;
@@ -80,8 +85,13 @@ const MARKERS = [
 const MARKER_COLOURS = { shackleton: [255, 40, 40], 'south-pole': [40, 255, 40], 'antimeridian-88s': [0, 255, 255], 'antimeridian-60s': [255, 0, 255],
   'antimeridian-equator': [255, 255, 0], 'edge-px-nz': [255, 140, 0], 'corner-px-py-nz': [160, 60, 255] };
 
-const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
-  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--ignore-gpu-blocklist'] });
+// --gpu: the host's hardware GPU through ANGLE (`--angle metal|vulkan|d3d11|gl`, default metal on macOS,
+// vulkan elsewhere); otherwise SwiftShader software WebGL, which is correctness evidence only.
+const GPU = !!args.gpu;
+const ANGLE = GPU ? String(args.angle ?? (platform() === 'darwin' ? 'metal' : 'vulkan')) : 'swiftshader';
+const LAUNCH = GPU ? ['--use-angle=' + ANGLE, '--ignore-gpu-blocklist', '--enable-gpu']
+  : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--ignore-gpu-blocklist'];
+const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH, args: LAUNCH });
 mkdirSync(OUT, { recursive: true });
 const results = {};
 let env = null;
@@ -96,7 +106,7 @@ async function openViewer(catalog, setup) {
     if (m.type() === 'error' || (m.type() === 'warning' && !/Tile load error|tiles versions|Failed to load (baseMap|normalMap)|Initial assets settled/.test(m.text()))) errors.push(`${m.type()}: ${m.text()}`);
   });
   if (setup) await setup(page);
-  await page.goto(new URL(`?catalog=${catalog}&test=1`, BASE).href, { waitUntil: 'domcontentloaded' });
+  await page.goto(new URL(`?catalog=${catalog}&test=1`, BASE).href, { waitUntil: 'domcontentloaded', timeout: 180_000 });
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, { timeout: 180_000 });
   await page.evaluate(async () => {
     const source = await (await fetch('/src/lib/commands.ts')).text();
@@ -105,7 +115,7 @@ async function openViewer(catalog, setup) {
     window.ciMoon = () => window.ci.getRenderer().getBodyMesh('Moon');
     window.ciLayer = () => window.ciMoon().terrainManager?.cubeImageryLayer;
   });
-  await page.waitForFunction(() => window.ciLayer()?.manifest != null, null, { timeout: 60_000 });
+  if (!/moon-terrain-cube$/.test(catalog)) await page.waitForFunction(() => window.ciLayer()?.manifest != null, null, { timeout: 60_000 });
   if (!env) {
     env = await page.evaluate(() => {
       const gl = document.createElement('canvas').getContext('webgl2');
@@ -159,7 +169,7 @@ async function settle(page, view, mode, { imagery = true } = {}) {
     await page.waitForTimeout(500);
     await pose(page, view, mode);
     s = await snapshot(page);
-    const n = s.metrics.network, i = s.imagery;
+    const n = s.metrics.network, i = s.imagery ?? { inFlight: 0, queued: 0, fallbackBlocks: 0, budgetLimited: false, maxDisplayedLevel: -1, blocks: 0 };
     // A full texture budget is a settled state too: the layer stops requesting and keeps fallbacks.
     const busy = n.queued + n.downloading + n.parsing + (imagery ? i.inFlight + (i.budgetLimited ? 0 : i.queued + i.fallbackBlocks) : 0);
     const key = `${s.visibleTiles.length}|${i.maxDisplayedLevel}|${i.blocks}`;
@@ -221,6 +231,49 @@ const project = (page, points) => page.evaluate((points) => {
     return [(p.x + 1) / 2 * canvas.clientWidth, (1 - p.y) / 2 * canvas.clientHeight, p.z];
   });
 }, points);
+
+/**
+ * Render FRAMES frames back to back through the viewer's own renderFrame, each
+ * fenced by a 1-pixel readPixels (so wall time includes GPU completion, not
+ * vsync) and, where EXT_disjoint_timer_query_webgl2 exists, a TIME_ELAPSED
+ * query around it (GPU time). Also the draw calls/triangles of one frame.
+ */
+const frameTiming = (page, frames) => page.evaluate(async (frames) => {
+  const r = window.ci.getRenderer(), ctx = r.getContext(), gl = r.renderer.getContext();
+  const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+  const px = new Uint8Array(4);
+  const sync = () => gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  for (let i = 0; i < 10; i++) { ctx.renderFrame(); sync(); }
+  const info = r.renderer.info, auto = info.autoReset;
+  info.autoReset = false; info.reset(); ctx.renderFrame(); sync();
+  const draws = { calls: info.render.calls, triangles: info.render.triangles, programs: info.programs?.length ?? null,
+    geometries: info.memory.geometries, textures: info.memory.textures };
+  info.autoReset = auto;
+  const wall = [], queries = [];
+  if (ext) gl.getParameter(ext.GPU_DISJOINT_EXT);
+  for (let i = 0; i < frames; i++) {
+    const q = ext ? gl.createQuery() : null;
+    if (q) gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
+    const t0 = performance.now();
+    ctx.renderFrame();
+    if (q) gl.endQuery(ext.TIME_ELAPSED_EXT);
+    sync();
+    wall.push(performance.now() - t0);
+    if (q) queries.push(q);
+  }
+  const gpu = [];
+  for (let tries = 0; tries < 100 && queries.length; tries++) {
+    await new Promise(requestAnimationFrame);
+    while (queries.length && gl.getQueryParameter(queries[0], gl.QUERY_RESULT_AVAILABLE)) {
+      gpu.push(gl.getQueryParameter(queries[0], gl.QUERY_RESULT) / 1e6);
+      gl.deleteQuery(queries.shift());
+    }
+  }
+  const disjoint = ext ? gl.getParameter(ext.GPU_DISJOINT_EXT) : null;
+  const stat = (xs) => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b);
+    return { n: s.length, median: s[s.length >> 1], p95: s[Math.floor(s.length * 0.95)], max: s.at(-1), mean: s.reduce((a, b) => a + b, 0) / s.length }; };
+  return { wallMs: stat(wall), gpuMs: disjoint ? null : stat(gpu), gpuDisjoint: disjoint, draws };
+}, frames);
 
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const norm = (a) => { const l = Math.hypot(...a); return a.map(c => c / l); };
@@ -451,6 +504,37 @@ try {
       await page.close();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  if (EXPERIMENTS.includes('frametime')) {
+    // Same pose, three states, warm: terrain only (cube catalog without imagery), imagery with
+    // no split tiles (capped at level 0: one draw per tile), imagery refined (blocks).
+    results.frametime = [];
+    for (const name of views(['shackleton', 'pole', 'antimeridian-60s', 'face-edge', 'face-corner', 'overview'])) {
+      const row = { view: name };
+      {
+        const { page, errors } = await openViewer('test-catalogs/experiments/moon-terrain-cube');
+        await settle(page, VIEWS[name], 'shaded', { imagery: false });
+        row.terrainOnly = { ...(await frameTiming(page, FRAMES)), errors };
+        await page.close();
+      }
+      const { page, errors } = await openViewer(CATALOG(args.catalog ?? 'grid'));
+      await page.evaluate(() => window.ciLayer().setOptions({ maxLevel: 0 }));
+      let s = await settle(page, VIEWS[name], 'shaded');
+      row.imageryWhole = { ...(await frameTiming(page, FRAMES)), blocks: s.imagery.blocks, splitTiles: s.imagery.splitTiles, maxLevel: s.imagery.maxDisplayedLevel };
+      await page.evaluate(() => window.ciLayer().setOptions({ maxLevel: undefined }));
+      s = await settle(page, VIEWS[name], 'shaded');
+      row.imageryRefined = { ...(await frameTiming(page, FRAMES)), blocks: s.imagery.blocks, splitTiles: s.imagery.splitTiles, extraDraws: s.imagery.extraDraws,
+        blockGeometryMB: s.imagery.blockGeometryBytes / 1e6, textures: s.imagery.textures, textureMiB: s.imagery.textureBytes / 2 ** 20, maxLevel: s.imagery.maxDisplayedLevel,
+        layerUpdateMs: s.imagery.updateMs, visibleTiles: s.visibleTiles.length };
+      row.errors = errors;
+      results.frametime.push(row);
+      const f = (x) => x ? `${x.median.toFixed(2)}/${x.p95.toFixed(2)}` : 'n/a';
+      console.log(`frametime ${name}: wall median/p95 ms terrain ${f(row.terrainOnly.wallMs)}, whole ${f(row.imageryWhole.wallMs)}, refined ${f(row.imageryRefined.wallMs)}; `
+        + `GPU ${f(row.terrainOnly.gpuMs)} / ${f(row.imageryWhole.gpuMs)} / ${f(row.imageryRefined.gpuMs)}; draws ${row.terrainOnly.draws.calls}/${row.imageryWhole.draws.calls}/${row.imageryRefined.draws.calls}; L${row.imageryRefined.maxLevel}`);
+      await page.close();
+    }
+  }
 } catch (err) {
   // Keep what finished: a partial record still documents the completed experiments.
   results.error = String(err?.stack ?? err);
@@ -463,7 +547,7 @@ try {
 const record = {
   generator: 'scripts/capture-cube-imagery.mjs', created: new Date().toISOString(), viewport: VIEWPORT,
   poses: { frame: 'IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)', views: VIEWS },
-  browser: { ...env, launch: 'playwright chromium headless, --use-angle=swiftshader (software WebGL; no GPU in this host); ?test=1 (no antialias/bloom/stars)' },
+  browser: { ...env, launch: `playwright chromium headless, ${LAUNCH.join(' ')}${GPU ? ' (hardware GPU)' : ' (software WebGL)'}; ?test=1 (no antialias/bloom/stars)` },
   host: { platform: `${platform()} ${release()}`, cpus: cpus().length, cpuModel: cpus()[0]?.model, memoryGB: Math.round(totalmem() / 2 ** 30) },
   results,
 };

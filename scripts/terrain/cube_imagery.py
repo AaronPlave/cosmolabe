@@ -312,6 +312,10 @@ def write_png(path, img):
 _JOB = {}
 
 
+def _init_job(job):
+    _JOB.update(job)
+
+
 def tile_job(key):
     face, L, x, y = key
     J = _JOB
@@ -369,7 +373,9 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
                 source=getattr(args, 'source', None))
     print(f'{len(tiles):,} tiles, levels {tiles[0][1]}–{max(k[1] for k in tiles)}, on {args.workers} workers', flush=True)
     sizes, empty = {}, set()
-    with mp.get_context('fork').Pool(args.workers) as pool:
+    # spawn, not fork: a worker forked after GDAL/curl has opened connections (nac_open above)
+    # can die on macOS, and a Pool whose worker dies mid-task waits forever.
+    with mp.get_context('spawn').Pool(args.workers, initializer=_init_job, initargs=(dict(_JOB),)) as pool:
         for k, (key, nbytes, alpha) in enumerate(pool.imap_unordered(tile_job, tiles, chunksize=4)):
             sizes[key] = nbytes
             if alpha == 0:

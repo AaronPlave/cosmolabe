@@ -564,9 +564,64 @@ at the same poses:
   along some geometry tile edges (visible in the fixture frames too) are the
   product's mixed-LOD cracks — it ships without skirts — not imagery.
 
+### Hardware GPU (2026-10-14, Apple M4 Max)
+
+The same script with `--gpu`: Chrome 148 headless, `ANGLE (Apple, ANGLE Metal
+Renderer: Apple M4 Max)`, 16-core CPU, 48 GB, macOS 26; same poses, epoch and
+settings. Record: [`imagery-gpu-captures.json`](../images/issue-149/imagery-gpu-captures.json).
+
+**Correctness repeats on Metal.** Fixed geometry: all five views keep identical
+tiles and meshes with 0 new .glb, imagery reaching the same levels (L10/L10/L8/L8/L6)
+in 4 s each. Terrain held at L2: imagery to L10 at Shackleton and the pole.
+Registration: median 0.41 texel in all five ground views (0.52 overview),
+p95 ≤ 0.94, 0 face/tile mismatches; worst pixel ≤ 1.29 texels everywhere except one
+2.77-texel pixel at Shackleton (p95 there 0.66 as in software; not traced). Markers:
+screen centroids ≤ 0.47 px, ground centroids 0.0–8.2 m. Failure: 72 failed
+requests, imagery held at L6, 0 untextured blocks, no retries in 5 s. Navigation
+under 64 MiB (in-flight requests now reserved): ≤ 180 textures, 63.8 MiB, 1,842
+evictions, 2,022 requests, queues ≤ 83 and drained at rest, layer update ≤ 0.9 ms.
+
+**Frame cost.** Per view, warm: terrain only (the cube catalog without imagery),
+imagery with no split tiles (capped at L0: one draw per tile), imagery refined.
+120 back-to-back `renderFrame` calls, each fenced by a 1-pixel `readPixels` (wall
+time including GPU completion, not vsync), with `EXT_disjoint_timer_query_webgl2`
+around each (GPU time). Medians, ms; draws per frame.
+
+| View (1280×800) | Draws: terrain / whole / refined | Wall: terrain / whole / refined | GPU: terrain / whole / refined | Blocks, block MB |
+| --- | --- | --- | --- | --- |
+| Shackleton | 115 / 115 / 196 | 1.8 / 3.3 / 3.8 | 0.53 / 1.09 / 1.09 | 191, 7.9 |
+| South pole | 80 / 80 / 197 | 1.6 / 2.4 / 3.9 | 0.48 / 1.34 / 1.43 | 192, 10.5 |
+| Antimeridian 60°S | 80 / 80 / 305 | 1.6 / 2.0 / 4.4 | 0.83 / 0.99 / 1.11 | 300, 13.6 |
+| px/nz face edge | 184 / 184 / 349 | 4.7 / 5.6 / 7.2 | 2.15 / 2.68 / 2.80 | 342, 17.2 |
+| px/py/nz face corner | 224 / 224 / 359 | 5.6 / 3.0 / 3.7 | 2.70 / 0.78 / 0.90 | 354, 13.5 |
+| Overview | 20 / 20 / 62 | 1.0 / 1.3 / 1.6 | 0.55 / 0.58 / 0.62 | 57, 4.1 |
+| **2560×1600** Shackleton | 199 / 199 / 295 | 2.0 / 4.2 / 3.9 | 0.75 / 1.78 / 1.12 | 290, 9.4 |
+| Antimeridian 60°S | 185 / 185 / 518 | 3.9 / 2.9 / 5.4 | 2.09 / 0.56 / 0.72 | 513, 22.1 |
+| px/nz face edge | 355 / 355 / 568 | 4.5 / 5.5 / 7.3 | 1.50 / 1.77 / 1.88 | 561, 22.3 |
+| px/py/nz face corner | 416 / 416 / 614 | 5.1 / 6.4 / 8.1 | 1.48 / 1.82 / 1.96 | 609, 20.7 |
+| **NAC**, 1280×800 Shackleton | 115 / 115 / 208 | 2.1 / 1.7 / 2.3 | 0.74 / 0.47 / 0.51 | 203, 8.9 |
+| NAC pole | 80 / 80 / 188 | 1.8 / 1.3 / 2.5 | 0.62 / 0.40 / 0.42 | 183, 9.0 |
+
+(2560×1600 pole and overview, p95s and all counts are in the record.)
+
+Reading it: the comparison that isolates blocks is *whole → refined*, measured on
+one page with the same tiles. Blocks add 0–0.45 ms of GPU time (median) and
+0.4–2.5 ms of wall time, i.e. the cost is mostly CPU-side submission of the 1.5–3×
+draws plus the layer's selection (≤ 1.1 ms), not fill or vertex work. *Terrain →
+whole* crosses pages and is noisier than the effect (the face-corner and
+antimeridian rows run faster with imagery than without), so it bounds the
+texture-sampling cost only loosely. Every refined frame stayed under 8.3 ms median
+(120 Hz) at 1280×800 and under 10.4 ms p95 at 2560×1600.
+
+Limits: one high-end integrated GPU; `performance.now()` resolves 0.1 ms here;
+`readPixels` fencing serializes CPU and GPU, so wall time overstates a pipelined
+frame; no thermal soak. On weaker GPUs or with many more tiles the draw count is the
+first thing to watch, and the mitigations under *What this proves* (shared vertex
+buffers with index-only blocks, or one composited texture per tile) cut exactly it.
+
 ### What this proves, and what it does not
 
-Proven here, on software rendering:
+Proven here, on software rendering and repeated on one hardware GPU:
 
 - The cube layout supports map imagery whose level, requests and residency are
   independent of geometry: the same tile set and meshes show imagery from level 1
@@ -585,11 +640,10 @@ Proven here, on software rendering:
 
 Not established, and why it matters:
 
-- **Cost on a GPU.** Blocks multiply draw calls (+81 to +225 per view here) and
-  duplicate split tiles' vertices (11–25 MB per view); every cube tile carries
-  the 12-byte projective attribute. Software rendering cannot
-  say whether that matters; a hardware-GPU frame-time distribution must, and if it
-  does, the block geometry can share the tile's vertex buffer (index-only
+- **Cost beyond one GPU.** On an M4 Max (*Hardware GPU*) blocks cost ≤ 0.45 ms
+  GPU and ≤ 2.5 ms wall per frame, mostly draw submission. Lower-end and discrete
+  GPUs, other ANGLE backends and denser views are unmeasured; if the draw count
+  matters there, the block geometry can share the tile's vertex buffer (index-only
   cell-aligned blocks) or composite into one texture per draw.
 - **Whether the layout wins.** Nothing here compares imagery on the geographic
   or polar baselines. The upstream overlay works there today (with its terrain-depth
@@ -639,10 +693,9 @@ lunar field or GPU evidence.
 2. ✅ (without skirts) REPLACE coverage, subtree bounds, edge/corner agreement,
    mixed-LOD cracks, control points, picking, camera clearance and absent CPU
    data. Repeat with skirts only as a mitigation, after this record.
-3. ✅ (map imagery, software rendering) Register an independently refined
-   controlled imagery pyramid and demonstrate geometry/image LOD combinations
-   along all selected paths: see *Independent imagery*. The hardware-GPU cost of
-   its blocks and textures belongs to item 5.
+3. ✅ (map imagery; software rendering and one hardware GPU) Register an
+   independently refined controlled imagery pyramid and demonstrate geometry/image
+   LOD combinations along all selected paths: see *Independent imagery*.
 4. ◐ Compare cube, geographic, and geographic-plus-polar products with the same
    physical source, viewport, lighting, cache budgets and camera paths. Done:
    cube vs polar cap at Shackleton and the pole from one script and pose set.
@@ -658,8 +711,8 @@ lunar field or GPU evidence.
   first. Imagery now drapes across those cracks, so they are visible as
   background slivers between differently refined tiles.
 - **Imagery cost at scale.** The block approach's extra draws and duplicated
-  block geometry (measured above) need a hardware-GPU frame-time measurement; if
-  they matter, share the tile's vertex buffer and index cell-aligned blocks
+  block geometry cost little on an M4 Max (measured above) but are unmeasured on
+  weaker GPUs; if they matter there, share the tile's vertex buffer and index cell-aligned blocks
   (clipping only sub-cell blocks), or composite blocks into one texture per draw.
   A real global imagery source (e.g. LROC WAC) and a contract variant of
   `MapImageLayer` for tiled layouts remain open; so does the same imagery on the
