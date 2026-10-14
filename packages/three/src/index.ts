@@ -1,6 +1,13 @@
 // Main renderer
 export { UniverseRenderer } from './UniverseRenderer.js';
 export type { UniverseRendererOptions, SurfacePickResult } from './UniverseRenderer.js';
+export {
+  PICK_PRECEDENCE, resolveSceneHit, resolveSurfaceAltitude, coordinateDecimals, pointerResolution, formatLatitude, formatLongitude, formatHeight,
+  describeDatum, describeSource, surfacePointToText,
+} from './SceneHit.js';
+export type {
+  SceneHit, SurfacePoint, SurfaceDatum, PointerResolution, SurfaceHitSource, PickIntent, HitLayer,
+} from './SceneHit.js';
 
 // Scene components
 export { BodyMesh } from './BodyMesh.js';
