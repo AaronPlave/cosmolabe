@@ -16,6 +16,7 @@ import {
   type SpatialEndpoint,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
+import { patchLogDepthPrecision } from './LogDepth.js';
 import { SunGlareEffect } from './SunGlareEffect.js';
 import { SOLAR_LAYER, type SunVisual } from './SunVisual.js';
 import { RingMesh } from './RingMesh.js';
@@ -256,31 +257,6 @@ export function eventLeadRequest(
     target,
     policy: { ...EVENT_LEAD_POLICY },
   } : null;
-}
-
-/**
- * three.js log depth stores `log2(1 + w)` with `w` in scene units. At the default
- * 1e-6 units per km a ground view has `w ≈ 1e-6`, where `1.0 + w` in float32
- * resolves only ~120 m and the 24-bit buffer ~1 km: terrain skirts and hidden
- * slopes a few hundred metres behind the surface draw through it. Scaling `w`
- * by LOG_DEPTH_SCALE (metres at the default scale) keeps ~1e-6 relative depth
- * precision from millimetres out to the far plane. Patches three's shared
- * chunks once, so every log-depth material (and renderer) agrees.
- */
-const LOG_DEPTH_SCALE = '1e9';
-export function patchLogDepthPrecision(chunks: Record<string, string> = THREE.ShaderChunk as unknown as Record<string, string>): boolean {
-  const vertex = 'vFragDepth = 1.0 + gl_Position.w;';
-  const fragment = 'log2( vFragDepth ) * logDepthBufFC * 0.5';
-  if (chunks.logdepthbuf_vertex.includes(`${LOG_DEPTH_SCALE} * gl_Position.w`)) return true;
-  if (!chunks.logdepthbuf_vertex.includes(vertex) || !chunks.logdepthbuf_fragment.includes(fragment)) {
-    console.warn('[UniverseRenderer] three.js log depth chunks changed; ground-level depth precision is not patched');
-    return false;
-  }
-  chunks.logdepthbuf_vertex = chunks.logdepthbuf_vertex.replace(vertex, `vFragDepth = 1.0 + ${LOG_DEPTH_SCALE} * gl_Position.w;`);
-  // logDepthBufFC = 2 / log2(far + 1), so the far plane still maps to depth 1.
-  chunks.logdepthbuf_fragment = chunks.logdepthbuf_fragment.replace(fragment,
-    `log2( vFragDepth ) / log2( 1.0 + ${LOG_DEPTH_SCALE} * ( exp2( 2.0 / logDepthBufFC ) - 1.0 ) )`);
-  return true;
 }
 
 export class UniverseRenderer {
