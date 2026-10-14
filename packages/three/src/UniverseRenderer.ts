@@ -1355,7 +1355,10 @@ export class UniverseRenderer {
             apu.uAPCameraWorldPos.value.copy(camera.position);
             apu.uAPSunWorldPos.value.copy(sunPos);
             apu.uAPPlanetWorldPos.value.copy(parentBm.position);
-            parentBm.mesh.updateMatrixWorld(true);
+            // The globe is a child of BodyMesh, whose position changes each
+            // frame. Refresh ancestors too: updateMatrixWorld on the child
+            // alone reuses the parent's previous-frame translation.
+            parentBm.mesh.updateWorldMatrix(true, false);
             apu.uAPWorldToPlanet.value.copy(parentBm.mesh.matrixWorld).invert();
             apu.uAPPlanetToWorld.value.copy(parentBm.mesh.matrixWorld);
             apu.uAPPlanetRadius.value = atm.planetRadius * sf;

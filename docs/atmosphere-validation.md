@@ -38,6 +38,17 @@ levels to avoid noisy minification. Captures are written to
 `apps/viewer/test-screenshots/atmosphere-views/` (override with
 `RENDER_CAPTURE_DIR`). The browser requires the local Cassini example assets.
 
+The Tethys-tracking playback regression reproduces the shared view at ET
+144974061.96610013 with Saturn as the look-at target. It checks the globe's
+forward/inverse atmosphere matrices at draw time through stepped and live
+one-day-per-second playback. Refreshing only the globe child with
+`updateMatrixWorld` left the BodyMesh parent's translation one frame behind;
+the surface transport now refreshes its ancestors before copying the matrices.
+
+```sh
+CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/test-atmosphere-playback.mjs
+```
+
 ## Starting measurements
 
 On 2026-10-02, local Chromium SwiftShader at 1024×768, six warm frames:
