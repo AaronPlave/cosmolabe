@@ -80,6 +80,12 @@ export interface SurfacePickResult {
    * the rendered hit above.
    */
   physical?: PhysicalPickSummary;
+  /**
+   * The rendered hit is on a cube-sphere skirt (#149): the wall that covers a
+   * mixed-LOD gap, seen through it, not the surface. `physical` still answers
+   * from the CPU surface; the two differ by at most that gap.
+   */
+  renderedSkirt?: boolean;
 }
 
 export type PhysicalPickSummary =
@@ -2196,12 +2202,15 @@ export class UniverseRenderer {
     let bestWorldPoint: THREE.Vector3 | null = null;
     let bestBm: BodyMesh | null = null;
     let bestDist = Infinity;
+    let renderedSkirt = false;
 
     if (mainHits.length > 0) {
       const hit = mainHits[0];
       if (hit.distance < bestDist) {
         bestDist = hit.distance;
         bestWorldPoint = hit.point.clone();
+        const surfaceTriangles = (hit.object as THREE.Mesh).geometry?.userData?.surfaceTriangles;
+        renderedSkirt = typeof surfaceTriangles === 'number' && hit.faceIndex != null && hit.faceIndex >= surfaceTriangles;
         for (const bm of this.bodyMeshes.values()) {
           let obj: THREE.Object3D | null = hit.object;
           while (obj) {
@@ -2219,6 +2228,7 @@ export class UniverseRenderer {
       const hit = tileHits[0];
       bestWorldPoint = hit.point.clone().add(this.camera.position);
       bestBm = null;
+      renderedSkirt = false;
       bestDist = hit.distance;
       let obj: THREE.Object3D | null = hit.object;
       while (obj) {
@@ -2268,6 +2278,7 @@ export class UniverseRenderer {
       cameraDistanceKm,
       bodyFixedHitKm: [ecefX, ecefY, ecefZ],
       ...(physical ? { physical } : {}),
+      ...(renderedSkirt ? { renderedSkirt } : {}),
     };
   }
 

@@ -840,7 +840,7 @@ def cmd_tile(args):
 # normals from `ring_normals`, and skirts that copy their edge's normals so they
 # shade like the surface instead of catching low sun as walls.
 
-def encode_glb(pos, nrm, idx, translation, generator='scripts/terrain/dem.py polar-tile'):
+def encode_glb(pos, nrm, idx, translation, generator='scripts/terrain/dem.py polar-tile', extras=None):
     """One-mesh glTF 2.0 binary. Inputs are in the tileset's Z-up body-fixed
     frame (positions relative to `translation`); glTF is Y-up, so axes are
     rotated here and the renderer rotates them back."""
@@ -855,7 +855,8 @@ def encode_glb(pos, nrm, idx, translation, generator='scripts/terrain/dem.py pol
         'asset': {'version': '2.0', 'generator': generator},
         'scene': 0, 'scenes': [{'nodes': [0]}],
         'nodes': [{'mesh': 0, 'translation': [float(v) for v in yup(translation)]}],
-        'meshes': [{'primitives': [{'attributes': {'POSITION': 0, 'NORMAL': 1}, 'indices': 2, 'material': 0}]}],
+        'meshes': [{'primitives': [{'attributes': {'POSITION': 0, 'NORMAL': 1}, 'indices': 2, 'material': 0,
+                                    **({'extras': extras} if extras else {})}]}],
         'materials': [{'pbrMetallicRoughness': {'baseColorFactor': [1, 1, 1, 1], 'metallicFactor': 0, 'roughnessFactor': 1}}],
         'buffers': [{'byteLength': len(pb) + len(nb) + len(ib)}],
         'bufferViews': [{'buffer': 0, 'byteOffset': 0, 'byteLength': len(pb), 'target': 34962},
@@ -889,10 +890,12 @@ LATTICE_TRI, LATTICE_EDGES = lattice_indices()
 
 def with_skirts(P, nrm, depth):
     """Append a skirt below each lattice edge: copies of the edge vertices
-    moved `depth` m toward the body centre, keeping the edge normals."""
+    moved `depth` m toward the body centre (one value, or one per S/E/N/W
+    loop), keeping the edge normals. Skirt triangles follow the surface ones."""
     pos, nor, tri = [P], [nrm], [LATTICE_TRI]
     nv = len(P)
-    for loop in LATTICE_EDGES:
+    depths = np.broadcast_to(np.asarray(depth, np.float64), (len(LATTICE_EDGES),))
+    for loop, depth in zip(LATTICE_EDGES, depths):
         down = P[loop] - P[loop] / np.linalg.norm(P[loop], axis=1, keepdims=True) * depth
         b = nv + np.arange(len(loop))
         t = loop
@@ -1064,8 +1067,10 @@ def cmd_polar_tile(args):
 # direction alone, so same-level shared vertices carry identical positions,
 # heights and normals on every face. A parent's edge samples coarser source
 # levels and spans two child cells per segment: a mixed-LOD boundary is a
-# T-junction whose crack is measured (scripts/validate-cube-terrain.mjs), and
-# there are no skirts unless --skirt-cells asks for them.
+# T-junction whose crack is measured (scripts/validate-cube-terrain.mjs).
+# Skirts cover them: each edge hangs as deep as the largest gap measured
+# against every other level present across it (`cube_skirt_gaps`), after the
+# surface triangles, so the viewer can hide them and CPU grids never see them.
 
 CUBE_BASES = {  # (N, U, V)
     'px': ((1, 0, 0), (0, 0, -1), (0, 1, 0)),
@@ -1171,7 +1176,9 @@ def cube_representation(face, L, x, y, heights_m, density=4):
     return float(np.abs(err).max()), float(np.sqrt((err * err).mean()))
 
 
-def cube_tile_job(job):
+def cube_sample_job(job):
+    """Pass 1: heights, normals and CPU grids. The mesh waits for pass 2,
+    which needs every tile's edges to size the skirts."""
     S = _T
     R = S['radius']
     out = []
@@ -1187,27 +1194,158 @@ def cube_tile_job(job):
         for k in CUBE_EDGE_VERTICES:
             h[k] = field_heights(*direction_lonlat(d[k:k + 1]), math.degrees(sp))[0]
             nrm[k] = cube_normals(d[k:k + 1], sp, R)[0]
-        P = d * (R + h)[:, None]
+        rel = f'{face}/{L}/{x}'
+        os.makedirs(os.path.join(S['out'], 'heights', rel), exist_ok=True)
+        h32 = h.astype('<f4')
+        with open(os.path.join(S['out'], 'heights', rel, f'{y}.f32'), 'wb') as f:
+            f.write(h32.tobytes())
+        np.save(os.path.join(S['scratch'], f'{face}_{L}_{x}_{y}.npy'), np.concatenate([h[:, None], nrm], 1))
+        rep_max, rep_rms = cube_representation(face, L, x, y, h32)
+        out.append((face, L, x, y, float(h32.min()), float(h32.max()), rep_max, rep_rms,
+                    np.stack([h[loop] for loop in LATTICE_EDGES])))
+    return out
+
+
+def cube_write_job(job):
+    """Pass 2: one .glb per tile, with skirts `depths` (S, E, N, W) m deep."""
+    S = _T
+    R = S['radius']
+    out = []
+    for (face, L, x, y), depths in job:
+        name = os.path.join(S['scratch'], f'{face}_{L}_{x}_{y}.npy')
+        hn = np.load(name)
+        u, v = cube_lattice_uv(L, x, y)
+        P = cube_directions(face, u, v).reshape(-1, 3) * (R + hn[:, 0])[:, None]
         if S['skirt_cells'] > 0:
-            pos, nor, tri = with_skirts(P, nrm, S['skirt_cells'] * sp * R)
+            pos, nor, tri = with_skirts(P, hn[:, 1:], depths)
         else:
-            pos, nor, tri = P, nrm, LATTICE_TRI
+            pos, nor, tri = P, hn[:, 1:], LATTICE_TRI
         centre = (pos.min(0) + pos.max(0)) / 2
         # Bound what the renderer actually draws: float32 offsets from the
         # centre, which round up to ~0.1 m away from the float64 positions on a
         # level-0 face.
         half = np.abs((pos - centre).astype(np.float32).astype(np.float64)).max(0)
-        rel = f'{face}/{L}/{x}'
-        os.makedirs(os.path.join(S['out'], rel), exist_ok=True)
-        os.makedirs(os.path.join(S['out'], 'heights', rel), exist_ok=True)
-        with open(os.path.join(S['out'], rel, f'{y}.glb'), 'wb') as f:
-            f.write(encode_glb(pos - centre, nor, tri, centre, generator='scripts/terrain/dem.py cube-tile'))
-        h32 = h.astype('<f4')
-        with open(os.path.join(S['out'], 'heights', rel, f'{y}.f32'), 'wb') as f:
-            f.write(h32.tobytes())
-        rep_max, rep_rms = cube_representation(face, L, x, y, h32)
-        out.append((face, L, x, y, [*centre.tolist(), half[0], 0, 0, 0, half[1], 0, 0, 0, half[2]],
-                    float(h32.min()), float(h32.max()), rep_max, rep_rms))
+        os.makedirs(os.path.join(S['out'], f'{face}/{L}/{x}'), exist_ok=True)
+        with open(os.path.join(S['out'], f'{face}/{L}/{x}/{y}.glb'), 'wb') as f:
+            f.write(encode_glb(pos - centre, nor, tri, centre, generator='scripts/terrain/dem.py cube-tile',
+                               extras={'surfaceTriangles': len(LATTICE_TRI)}))
+        os.remove(name)
+        out.append(((face, L, x, y), [*centre.tolist(), half[0], 0, 0, 0, half[1], 0, 0, 0, half[2]]))
+    return out
+
+
+def cube_tile_at(d, L):
+    """CubeSphere.ts cubeTileAt: face by largest |component| (X > Y > Z on
+    ties), then tile indices of (u, v) = (d·U, d·V) / d·N."""
+    ax = 0 if abs(d[0]) >= abs(d[1]) and abs(d[0]) >= abs(d[2]) else 1 if abs(d[1]) >= abs(d[2]) else 2
+    face = ('px', 'nx', 'py', 'ny', 'pz', 'nz')[2 * ax + (d[ax] < 0)]
+    n_, a_, b_ = (np.array(e, np.float64) for e in CUBE_BASES[face])
+    w, N = float(d @ n_), 2 ** L
+    idx = lambda c: min(N - 1, math.floor((c / w + 1) * 0.5 * N))
+    return face, L, idx(float(d @ a_)), idx(float(d @ b_))
+
+
+def cube_skirt_gaps(edges, radius):
+    """How far each tile edge must hang a skirt so no pair of tiles from this
+    product leaves a crack, whatever mix the renderer draws (refinement,
+    parent fallback while loading, eviction).
+
+    A tile's edge can meet a coarser tile only across a line on which its own
+    ancestor at that level also has an edge, and that ancestor's edge vertices
+    are bit-identical to the neighbour's (same-level shared vertices; across
+    faces too), so every mixed-level pair is enumerated from its finer tile:
+    for each edge of each tile and each coarser level, the tile across (via
+    `cube_tile_at`, so face edges and corners need no special case) — stopping
+    once the edge is interior to the ancestor. The gap is measured along each
+    fine edge vertex's ray against the coarse edge's chord, in the great-circle
+    plane both edges lie in. Where the fine edge is higher the fine tile's
+    skirt must reach the gap; where the coarse one is, the coarse tile's.
+
+    `edges[key]` holds a tile's float64 edge heights per S/E/N/W loop.
+    Returns {key: [S, E, N, W] metres} and the per-pair record."""
+    G1 = GRID - 1
+    reg = {}  # (level, exact N + uU + vV) → radius: same-level shared vertices are bit-identical
+
+    def loop_ij(e):
+        k = np.arange(GRID)
+        return [(k, 0 * k), (G1 + 0 * k, k), (G1 - k, G1 + 0 * k), (0 * k, G1 - k)][e]
+
+    def exact(face, gi, gj, L):
+        Ng = G1 * 2 ** L
+        n_, a_, b_ = (np.array(e, np.float64) for e in CUBE_BASES[face])
+        u, v = (2 * gi - Ng) / Ng, (2 * gj - Ng) / Ng
+        return n_ + np.asarray(u, np.float64)[..., None] * a_ + np.asarray(v, np.float64)[..., None] * b_
+
+    for (face, L, x, y), loops in edges.items():
+        for e in range(4):
+            i, j = loop_ij(e)
+            for p, h in zip(exact(face, G1 * x + i, G1 * y + j, L), loops[e]):
+                reg[(L, *p)] = radius + h
+    gaps = {k: np.zeros(4) for k in edges}
+    pairs = []
+    unit = lambda p: p / np.sqrt((p * p).sum(-1))[..., None]
+    for (face, L, x, y), loops in edges.items():
+        for e in range(4):
+            i, j = loop_ij(e)
+            gi, gj = G1 * x + i, G1 * y + j
+            along_u = e in (0, 2)
+            g = gi if along_u else gj
+            d = unit(exact(face, gi, gj, L))
+            rN = radius + loops[e]
+            # Just outside the edge midpoint, in face coordinates (beyond ±1 lands on the next face).
+            Nn = 2 ** L
+            mu, mv = -1 + (2 * x + 1) / Nn, -1 + (2 * y + 1) / Nn
+            out_uv = [(mu, -1 + 2 * y / Nn - 1e-9), (-1 + 2 * (x + 1) / Nn + 1e-9, mv),
+                      (mu, -1 + 2 * (y + 1) / Nn + 1e-9), (-1 + 2 * x / Nn - 1e-9, mv)][e]
+            n_, a_, b_ = (np.array(c, np.float64) for c in CUBE_BASES[face])
+            probe = unit(n_ + out_uv[0] * a_ + out_uv[1] * b_)
+            for M in range(L - 1, -1, -1):
+                other = cube_tile_at(probe, M)
+                if other == (face, M, x >> (L - M), y >> (L - M)):
+                    break  # interior to the ancestor from here up
+                if other not in edges:
+                    continue
+                s = 2 ** (L - M)
+                lo = (g // s) * s
+                hi = np.where(g % s == 0, lo, lo + s)
+                key = lambda gg: exact(face, gg, gj, L) if along_u else exact(face, gi, gg, L)
+                rA = np.array([reg[(M, *p)] for p in key(lo)]); rB = np.array([reg[(M, *p)] for p in key(hi)])
+                PA, PB = unit(key(lo)) * rA[:, None], unit(key(hi)) * rB[:, None]
+                m = np.cross(d, PB - PA)
+                mm = (m * m).sum(1)
+                chord = np.where(mm > 0, (np.cross(PA, PB) * m).sum(1) / np.where(mm > 0, mm, 1), rA)
+                gap = rN - chord
+                gaps[(face, L, x, y)][e] = max(gaps[(face, L, x, y)][e], gap.max())
+                # The coarse tile's edge on this line: the loop whose great-circle plane holds the fine edge.
+                oface, _, ox, oy = other
+                for oe in range(4):
+                    oi, oj = loop_ij(oe)
+                    ends = exact(oface, G1 * ox + oi[[0, -1]], G1 * oy + oj[[0, -1]], M)
+                    pn = unit(np.cross(ends[0], ends[1]))
+                    if abs(pn @ d[GRID // 2]) < 1e-12:
+                        gaps[other][oe] = max(gaps[other][oe], -gap.min())
+                        break
+                else:
+                    raise RuntimeError(f'no edge of {other} holds {face}/{L}/{x}/{y} edge {e}')
+                pairs.append((L, M, oface != face, float(np.abs(gap).max())))
+    return gaps, pairs
+
+
+def cube_skirt_summary(gaps, pairs, depth, spacing_rad, radius):
+    """Per-level skirt depths and the gaps they cover, for terrain-product.json."""
+    by_level = {}
+    for (f, L, x, y), g in gaps.items():
+        e = by_level.setdefault(L, {'edges': 0, 'gapMaxM': 0.0, 'depthM': []})
+        e['edges'] += 4
+        e['gapMaxM'] = max(e['gapMaxM'], float(g.max()))
+        e['depthM'] += depth[(f, L, x, y)].tolist()
+    out = {'pairs': len(pairs), 'crossFacePairs': sum(1 for p in pairs if p[2]),
+           'pairsByLevelDelta': {str(d): sum(1 for p in pairs if p[0] - p[1] == d) for d in sorted({p[0] - p[1] for p in pairs})},
+           'byLevel': {}}
+    for L, e in sorted(by_level.items()):
+        dm = np.array(e['depthM'])
+        out['byLevel'][str(L)] = {'edges': e['edges'], 'gapMaxM': round(e['gapMaxM'], 3), 'depthMeanM': round(float(dm.mean()), 3),
+                                  'depthMaxM': round(float(dm.max()), 3), 'vertexSpacingM': round(spacing_rad[L] * radius, 3)}
     return out
 
 
@@ -1268,13 +1406,32 @@ def cmd_cube_tile(args):
     jobs = [keys[i:i + 8] for i in range(0, len(keys), 8)]
     print(f'{len(keys):,} tiles in {len(jobs):,} jobs on {args.workers} workers')
     os.makedirs(args.out, exist_ok=True)
-    tiles = {}
+    scratch = os.path.join(args.out, '_build')
+    os.makedirs(scratch, exist_ok=True)
+    _T['scratch'] = scratch
+    tiles, edges = {}, {}
     with mp.get_context('fork').Pool(args.workers) as pool:
-        for k, rows in enumerate(pool.imap_unordered(cube_tile_job, jobs)):
-            for face, L, x, y, box, hmin, hmax, rmax, rrms in rows:
-                tiles[(face, L, x, y)] = (box, hmin, hmax, rmax, rrms)
+        for k, rows in enumerate(pool.imap_unordered(cube_sample_job, jobs)):
+            for face, L, x, y, hmin, hmax, rmax, rrms, loops in rows:
+                tiles[(face, L, x, y)] = [None, hmin, hmax, rmax, rrms]
+                edges[(face, L, x, y)] = loops
             if k % 50 == 0:
-                print(f'  {len(tiles):,}/{len(keys):,} tiles ({time.time() - t0:.0f}s)', flush=True)
+                print(f'  sampled {len(tiles):,}/{len(keys):,} tiles ({time.time() - t0:.0f}s)', flush=True)
+    sample_s = time.time() - t0
+    gaps, pairs = cube_skirt_gaps(edges, a)
+    gap_s = time.time() - t0 - sample_s
+    # Skirt depth: 1.25 × the measured gap plus a floor of `skirt_cells` vertex
+    # spacings, which also covers rasterization at gap-free T-junctions.
+    depth = {k: 1.25 * gaps[k] + args.skirt_cells * spacing_rad[k[1]] * a for k in keys}
+    print(f'skirt gaps over {len(pairs):,} mixed-level edge pairs ({gap_s:.0f}s)')
+    write_jobs = [[(k, depth[k]) for k in keys[i:i + 8]] for i in range(0, len(keys), 8)]
+    with mp.get_context('fork').Pool(args.workers) as pool:
+        for k, rows in enumerate(pool.imap_unordered(cube_write_job, write_jobs)):
+            for key, box in rows:
+                tiles[key][0] = box
+            if k % 100 == 0:
+                print(f'  wrote {k * 8:,}/{len(keys):,} tiles ({time.time() - t0:.0f}s)', flush=True)
+    os.rmdir(scratch)
     build_s = time.time() - t0
 
     def union(p, q):
@@ -1360,18 +1517,21 @@ def cmd_cube_tile(args):
                                for r in regions],
                    'faceCentreVertexSpacingM': [s * a for s in spacing_rad], 'tilesPerLevel': per_level},
         'mesh': {'grid': GRID, 'simplification': 'none (full lattice)', 'diagonal': 'v00→v11 in face (u, v)',
-                 'skirts': f'{args.skirt_cells} × vertex spacing' if args.skirt_cells > 0 else 'none',
+                 'skirts': (f'per edge: 1.25 × the largest gap to any other level across it + {args.skirt_cells} × vertex spacing; '
+                            'triangles after glTF primitive extras.surfaceTriangles') if args.skirt_cells > 0 else 'none',
                  'coordinates': 'float32 relative to the tile box centre (glTF node translation, float64 in JSON)',
                  'normals': 'central differences of the field ±1 vertex spacing along two tangents chosen from the direction alone'},
         'boundaryPolicy': {
             'sameLevel': 'exact dyadic face coordinates; shared vertices identical across tiles, faces and corners',
             'mixedLevel': 'T-junctions: a parent edge samples coarser source levels at half the child vertex density; cracks are measured, '
-                          + ('skirts hide them' if args.skirt_cells > 0 else 'no skirts')},
+                          + ('skirts sized from the measured gaps cover them' if args.skirt_cells > 0 else 'no skirts')},
+        'skirtGaps': cube_skirt_summary(gaps, pairs, depth, spacing_rad, a) if args.skirt_cells > 0 else None,
         'representationErrorM': {str(L): {'maxM': float(reps[lv == L, 0].max()), 'meanRmsM': float(reps[lv == L, 1].mean())}
                                  for L in sorted(per_level)},
         'tileCount': len(tiles),
         'bytes': {'glb': glb_bytes, 'cpuGrids': grid_bytes},
         'generationSeconds': round(build_s, 1),
+        'skirtGapSeconds': round(gap_s, 1),
         'workers': args.workers,
     }
     with open(os.path.join(args.out, 'terrain-product.json'), 'w') as f:
@@ -1381,6 +1541,31 @@ def cmd_cube_tile(args):
 
 
 # ---------------------------------------------------------------------------
+
+def cmd_field_error(args):
+    """Score rendered surface points against the fused field: for each capture
+    row of a `capture-cube-imagery.mjs --experiments compare` record, the radial
+    distance of every ray-cast hit (body-fixed metres) from the reference sphere
+    plus `field_heights` at its finest source level, along the same geocentric
+    direction. Products sampled from this field differ from it only by their
+    level of detail, so this is achieved surface error, comparable across layouts."""
+    finest = 1e-9  # pick_level → level 0 of every source
+    load_field(args.base, args.fusion, [finest])
+    rec = json.load(open(args.record))
+    for row in rec['results']['compare']:
+        pts = np.array([p for p in row.get('surfaceHits') or [] if p], np.float64)
+        if not len(pts):
+            row['achievedErrorM'] = None
+            continue
+        r = np.linalg.norm(pts, axis=1)
+        lon, lat = direction_lonlat(pts / r[:, None])
+        err = np.abs(r - (args.radius + field_heights(lon, lat, finest)))
+        row['achievedErrorM'] = {'n': int(len(err)), 'median': float(np.median(err)), 'p95': float(np.percentile(err, 95)),
+                                 'rms': float(np.sqrt((err ** 2).mean())), 'max': float(err.max())}
+        print(f"{row['product']:>10} {row['view']:<20} eT {row.get('errorTarget')}: |rendered − field| median {row['achievedErrorM']['median']:.2f} m, "
+              f"p95 {row['achievedErrorM']['p95']:.2f} m over {len(err)} pixels")
+    json.dump(rec, open(args.record, 'w'), indent=1)
+
 
 def cmd_selftest(_):
     rng = np.random.default_rng(1)
@@ -1574,7 +1759,7 @@ def _selftest_cube(tmp, base, fused, R):
     for f, (n_, a_, b_) in CUBE_BASES.items():
         assert np.array_equal(np.cross(a_, b_), n_), f'{f} must be right-handed'
     out = os.path.join(tmp, 'cube')
-    cmd_cube_tile(argparse.Namespace(base=base, fusion=fused, out=out, global_level=1, skirt_cells=0.0,
+    cmd_cube_tile(argparse.Namespace(base=base, fusion=fused, out=out, global_level=1, skirt_cells=0.1,
                                      region=['pole@-90,0:2=500,3=150'], ellipsoid=[R, R], workers=1))
     ts = json.load(open(os.path.join(out, 'tileset.json')))
     grids = json.load(open(os.path.join(out, 'cpu-grids.json')))
@@ -1590,9 +1775,17 @@ def _selftest_cube(tmp, base, fused, R):
         back = lambda v: v[:, [0, 2, 1]] * np.array([1.0, -1.0, 1.0])
         t = np.array(js['nodes'][0]['translation'])
         h = np.fromfile(os.path.join(out, 'heights', face, str(L), str(x), f'{y}.f32'), '<f4')
+        assert js['meshes'][0]['primitives'][0]['extras'] == {'surfaceTriangles': len(LATTICE_TRI)}
+        assert acc[2]['count'] == 3 * (len(LATTICE_TRI) + 4 * 2 * (GRID - 1)), 'surface triangles, then two per skirt segment'
         return back(f32(0) + t), back(f32(1)), h
 
-    shared, levels, faces = {}, {}, set()
+    shared, levels, faces, skirt_bottom = {}, {}, set(), {}
+
+    def p_of(face, L, x, y, i=None):
+        u, v = cube_lattice_uv(L, x, y)
+        n_, a_, b_ = (np.array(e, np.float64) for e in CUBE_BASES[face])
+        p = (n_ + u[..., None] * a_ + v[..., None] * b_).reshape(-1, 3)
+        return p if i is None else p[i]
 
     def walk(n, ancestors):
         kids = n.get('children', [])
@@ -1605,17 +1798,25 @@ def _selftest_cube(tmp, base, fused, R):
         L, x, y = int(L), int(x), int(y)
         faces.add(face); levels[L] = levels.get(L, 0) + 1
         assert len(kids) in (0, 4), (n['content']['uri'], len(kids))
-        P, nrm, h = load(face, L, x, y)
+        Pall, nall, h = load(face, L, x, y)
         for box in [n['content']['boundingVolume']['box'], n['boundingVolume']['box'], *ancestors]:
             c_, h_ = np.array(box[:3]), np.array([box[3], box[7], box[11]])
-            assert (np.abs(P - c_) <= h_ + 0.5).all(), (n['content']['uri'], 'escapes a bounding volume')
+            assert (np.abs(Pall - c_) <= h_ + 0.5).all(), (n['content']['uri'], 'escapes a bounding volume')
+        P, nrm = Pall[:GRID * GRID], nall[:GRID * GRID]
+        # Skirts: radial copies of each edge loop, at least the floor deep, keeping its normals.
+        for e, loop in enumerate(LATTICE_EDGES):
+            bottom = Pall[GRID * GRID + e * GRID:GRID * GRID + (e + 1) * GRID]
+            dep = np.linalg.norm(P[loop], axis=1) - np.linalg.norm(bottom, axis=1)
+            radial = np.cross(P[loop] / np.linalg.norm(P[loop], axis=1)[:, None], bottom / np.linalg.norm(bottom, axis=1)[:, None])
+            assert np.abs(radial).max() < 1e-6 and dep.min() > 0.1 * 2 / ((GRID - 1) * 2 ** L) * R - 0.5
+            assert np.ptp(dep) < 0.5 and np.abs(nall[GRID * GRID + e * GRID:GRID * GRID + (e + 1) * GRID] - nrm[loop]).max() == 0
+            for k, i in enumerate(loop):
+                skirt_bottom.setdefault((L, *p_of(face, L, x, y, i)), []).append(dep[k])
         assert np.abs(np.linalg.norm(P, axis=1) - (R + h.astype(np.float64))).max() < 0.5, 'CPU grid must match the mesh vertices'
         assert lo_km * 1000 < h.min() and h.max() < hi_km * 1000, 'heightRangeKm must enclose every grid'
         assert ((nrm * P).sum(1) > 0).all(), 'normals must point outward'
-        u, v = cube_lattice_uv(L, x, y)
-        n_, a_, b_ = (np.array(e, np.float64) for e in CUBE_BASES[face])
-        p = (n_ + u[..., None] * a_ + v[..., None] * b_).reshape(-1, 3)
-        for i in np.nonzero((u.ravel() == u.min()) | (u.ravel() == u.max()) | (v.ravel() == v.min()) | (v.ravel() == v.max()))[0]:
+        p = p_of(face, L, x, y)
+        for i in np.nonzero(EDGE)[0]:
             shared.setdefault((L, *p[i]), []).append((face, P[i], nrm[i], h[i]))
         for k in kids:
             walk(k, ancestors + [n['boundingVolume']['box']])
@@ -1633,6 +1834,17 @@ def _selftest_cube(tmp, base, fused, R):
         assert np.ptp(N_, 0).max() < 1e-6, 'shared vertices must carry one normal (float32 aside)'
         assert len({float(e[3]) for e in v}) == 1, 'shared CPU heights must be bit-identical'
     assert corner
+    # Where levels meet at a coincident vertex, the higher one's skirt reaches the lower.
+    covered = 0
+    for (L, *p), v in shared.items():
+        for M in range(L):
+            other = shared.get((M, *p))
+            if other:
+                gap = float(v[0][3]) - float(other[0][3])
+                deep = min(skirt_bottom[(L, *p)]) if gap > 0 else min(skirt_bottom[(M, *p)])
+                assert abs(gap) <= deep, ((L, M), p, gap, deep)
+                covered += 1
+    assert covered > 100, covered
 
 
 def main():
@@ -1675,11 +1887,15 @@ def main():
     ct.add_argument('--global-level', type=int, default=3, help='every face is tiled down to this level')
     ct.add_argument('--region', action='append', metavar='NAME@LAT,LON:L=KM[,L=KM…]',
                     help='tile level L within KM of LAT,LON (repeatable); radii must not grow with level')
-    ct.add_argument('--skirt-cells', type=float, default=0.0,
-                    help='skirt depth in vertex spacings; 0 (default) leaves mixed-LOD cracks visible for inspection')
+    ct.add_argument('--skirt-cells', type=float, default=0.1,
+                    help='skirt floor in vertex spacings; each edge also hangs 1.25× its largest measured gap to any other '
+                         'level across it. 0 builds without skirts (the viewer can also hide them: cubeSphere.skirts false)')
     ct.add_argument('--ellipsoid', type=float, nargs=2, required=True, metavar=('A_M', 'C_M'),
                     help='reference sphere radius (both values equal); heights are radial above it')
     ct.add_argument('--workers', type=int, default=min(8, os.cpu_count()))
+    fe = sp.add_parser('field-error', help='score a compare capture record\'s ray-cast surface points against the fused field (#149)')
+    fe.add_argument('record'); fe.add_argument('--base', required=True); fe.add_argument('--fusion', required=True)
+    fe.add_argument('--radius', type=float, default=1737400.0, help='reference sphere radius (m)')
     sp.add_parser('selftest')
     args = p.parse_args()
     if getattr(args, 'zoom_bounds', None):
@@ -1687,7 +1903,7 @@ def main():
     if getattr(args, 'level_radius', None):
         args.level_radius = dict(args.level_radius)
     {'inspect': cmd_inspect, 'fuse': cmd_fuse, 'tile': cmd_tile, 'polar-tile': cmd_polar_tile,
-     'cube-tile': cmd_cube_tile, 'selftest': cmd_selftest}[args.cmd](args)
+     'cube-tile': cmd_cube_tile, 'field-error': cmd_field_error, 'selftest': cmd_selftest}[args.cmd](args)
 
 
 if __name__ == '__main__':

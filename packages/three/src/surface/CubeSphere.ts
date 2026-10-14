@@ -19,6 +19,12 @@ const BASES: Readonly<Record<CubeFace, readonly [readonly number[], readonly num
 };
 const dot = (a: readonly number[], b: readonly number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
+/** A face's orthonormal basis `(N, U, V)`: a face point is `normalize(N + u U + v V)`. */
+export function cubeFaceBasis(face: CubeFace): readonly [readonly number[], readonly number[], readonly number[]] {
+  if (!Object.hasOwn(BASES, face)) throw new Error(`Unknown cube face ${String(face)}`);
+  return BASES[face];
+}
+
 /** Map a face square to a unit geocentric direction (not an ellipsoid normal). */
 export function cubeFaceToDirection(face: CubeFace, u: number, v: number): readonly [number, number, number] {
   if (!Number.isFinite(u) || !Number.isFinite(v) || Math.abs(u) > 1 || Math.abs(v) > 1) throw new Error('Cube coordinates must be finite and in [-1, 1]');
