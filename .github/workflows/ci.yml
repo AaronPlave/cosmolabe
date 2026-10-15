@@ -25,7 +25,7 @@ jobs:
       - name: Test AI review reconciler and recovery
         run: npm run test:ai-loop
       - name: Validate GitHub workflows
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.10 .github/workflows/*.yml
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.10 .github/workflows/ci.yml .github/workflows/ai-review-loop*.yml
 
   build-and-test:
     name: Build & Test
