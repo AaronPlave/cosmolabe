@@ -105,6 +105,7 @@ export function absolutizeCatalogAssets(catalog: unknown, catalogUrl: string): v
           }
           fixUrls(node.terrain.imagery);
         }
+        fixUrls(node.imagery);
         fixUrls(node.surfaceTiles);
         break;
       }

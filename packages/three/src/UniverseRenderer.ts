@@ -47,7 +47,8 @@ import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
 import { TimeController } from './controls/TimeController.js';
 import { applyNamedViewpoint, type ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
-import type { TerrainConfig, TerrainDebugMode } from './TerrainManager.js';
+import type { TerrainDebugMode } from './TerrainManager.js';
+import { resolveGlobeSurfaceConfig } from './ImageryLayers.js';
 import type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import { BloomEffect, type BloomConfig } from './BloomEffect.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
@@ -3372,21 +3373,23 @@ export class UniverseRenderer {
         }
       }
 
-      // Initialize streaming terrain for Globe bodies with terrain config
-      if (body.geometryType === 'Globe' && body.geometryData?.terrain) {
-        const terrainCfg = body.geometryData.terrain as TerrainConfig;
-        if (terrainCfg.type && (terrainCfg.url || terrainCfg.cesiumIonAssetId || (terrainCfg.type === 'imagery' && terrainCfg.imagery))) {
-          // Use the displacement map as a normal map source for terrain tiles.
-          // Terrain tiles only have vertex normals from the mesh geometry — per-pixel
-          // normals from the heightmap smooth shadow boundaries at the terminator.
-          if (!terrainCfg.normalMapUrl && body.geometryData.displacementMap) {
-            const resolver = this.options.textureResolver ?? this.options.modelResolver;
-            const resolved = resolver?.(body.geometryData.displacementMap as string);
-            if (resolved) terrainCfg.normalMapUrl = resolved;
-          }
-          bm.initTerrain(terrainCfg, this.renderer);
-          console.log(`[Cosmolabe] Initialized terrain for ${body.name}: ${terrainCfg.type} ${terrainCfg.url ?? `ion:${terrainCfg.cesiumIonAssetId}`}`);
+      // Initialize the streamed surface for Globe bodies: terrain, imagery, or
+      // imagery draped on terrain (`Globe.imagery` / `Globe.terrain`, #123).
+      const surfaceCfg = body.geometryType === 'Globe'
+        ? resolveGlobeSurfaceConfig(body.geometryData, (msg) => console.warn(`[Cosmolabe] ${body.name}: ${msg}`))
+        : null;
+      if (surfaceCfg) {
+        const terrainCfg = surfaceCfg;
+        // Use the displacement map as a normal map source for terrain tiles.
+        // Terrain tiles only have vertex normals from the mesh geometry — per-pixel
+        // normals from the heightmap smooth shadow boundaries at the terminator.
+        if (!terrainCfg.normalMapUrl && body.geometryData?.displacementMap) {
+          const resolver = this.options.textureResolver ?? this.options.modelResolver;
+          const resolved = resolver?.(body.geometryData.displacementMap as string);
+          if (resolved) terrainCfg.normalMapUrl = resolved;
         }
+        bm.initTerrain(terrainCfg, this.renderer);
+        console.log(`[Cosmolabe] Initialized terrain for ${body.name}: ${terrainCfg.type} ${terrainCfg.url ?? (terrainCfg.cesiumIonAssetId != null ? `ion:${terrainCfg.cesiumIonAssetId}` : `${bm.imageryLayers.length} imagery layer(s)`)}`);
       }
 
       // Initialize surface tile overlays for Globe bodies (e.g. Dingo Gap local-frame tiles).

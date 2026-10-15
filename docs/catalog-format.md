@@ -118,7 +118,7 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 
 | Type | What it draws | Key fields |
 |---|---|---|
-| `Globe` | Textured sphere; optionally with streaming terrain | `radius`, `baseMap`, `normalMap`, `nightMap`, `atmosphere`, `terrain` |
+| `Globe` | Textured sphere; optionally with streamed imagery and terrain | `radius`, `baseMap`, `normalMap`, `nightMap`, `atmosphere`, `imagery`, `terrain` |
 | `Mesh` | A 3D model (GLTF, OBJ, CMOD) | `source`, `size`, `meshRotation` |
 | `Sensor` | Instrument FOV cone | `target`, `shape` (`circular` / `elliptical` / `rectangular`), `horizontalFov`, `verticalFov`, `frustumColor`, `frustumOpacity` |
 | `Rings` | Planetary rings | `innerRadius`, `outerRadius`, `texture` |
@@ -129,17 +129,96 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 
 ### Asset paths
 
-Relative paths in `Mesh.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
+Relative paths in `Mesh.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `imagery[].url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
+
+### `Globe.imagery`
+
+Streamed, tiled surface imagery that replaces the static `baseMap` as the camera approaches. It is independent of terrain: a Globe with `imagery` and no `terrain` draws the imagery on the body's ellipsoid, and a Globe with both drapes the same imagery over the terrain. Imagery detail is chosen from the source's own levels and the projected image size, never from the terrain mesh's LOD.
+
+`imagery` is one layer or a list, bottom to top:
+
+```json
+"geometry": {
+  "type": "Globe",
+  "baseMap": "textures/mars.dds",
+  "imagery": [
+    { "name": "Viking MDIM 2.1", "url": "https://…/{z}/{y}/{x}.jpg", "levels": 8 },
+    { "name": "Jezero HiRISE (25 cm)", "url": "https://…/{z}/{y}/{x}.png", "levels": 17,
+      "bounds": [77.22, 18.31, 77.58, 18.67], "minZoom": 9 }
+  ]
+}
+```
+
+The bottom layer is the **base**: it should cover the whole body, and it is always shown. Each layer above it is an **overlay** that can be global or regional. Where a regional overlay has no data (outside its `bounds`, below its `minZoom`, transparent or missing tiles), the layers beneath it show through.
+
+| Field | Meaning |
+|---|---|
+| `url` | Tile URL template (`{z}`, `{y}`, `{x}`), or the GetCapabilities URL for `wmts-capabilities` |
+| `type` | `xyz` (default), `tms`, `wms`, `wmts`, `wmts-capabilities` |
+| `levels` | Number of zoom levels the source has (the deepest is `levels − 1`). Default 8 |
+| `dimension` | Tile size in pixels. Default 256 |
+| `projection` | `EPSG:4326` (default) or `EPSG:3857`, for `xyz`. The default applies to the base layer too. Web Mercator sources such as GIBS `GoogleMapsCompatible` need `EPSG:3857`. |
+| `bounds` | Coverage `[west, south, east, north]` in degrees. Tiles outside it are not requested |
+| `minZoom` | First zoom level with data. Regional products have none below it |
+| `opacity`, `color` | Overlay opacity (0–1) and tint. Ignored on the base of an imagery-only Globe |
+| `time` | ISO date, or `"yesterday"`, for time-dimensioned services such as NASA GIBS |
+| `layer`, `tileMatrixSet`, `crs`, `format`, `styles`, `version`, `transparent` | WMS/WMTS service parameters |
+| `id`, `name`, `attribution` | How the viewer's Imagery control identifies the layer. Defaults: `layer-<index>`, the product name in the URL path, the service host. Keep `name` short (`Jezero · HiRISE`) |
+| `description` | The full product name, shown in the layer's details |
+| `resolutionMeters` | Native ground resolution in m/px, as the provider advertises it. The control shows it under the name. The tile pyramid's pixel size is listed separately, in details, since providers often pad levels past the data |
+| `visible` | `false` makes an overlay start switched off. It requests nothing until it is switched on |
+
+**Distance transition.** From far away the Globe draws its static `baseMap`. Streaming starts once the body is `preloadAtPixels` (default 40) tall on screen, behind the static map. At `showAtPixels` (default 80) the streamed surface replaces it, but only once the coarsest tiles in view (the level-0 tiles of an imagery-only Globe) have loaded, and then once the request queue has drained, or after 1.5 s of continuous loading if the camera keeps moving. Backing out returns to the static map. If the stream fails outright (the base layer cannot be set up, the root tileset or one of those coarsest tiles fails, or tiles fail before any loads and nothing else is loading), the static map stays for the rest of the session and nothing more is requested. A failed overlay never triggers this, because the layers beneath it still render.
+
+**Imagery control.** Selecting a body (or a spacecraft on it) shows an *Imagery* section in its info panel. It lists the layers top first, one row each: a checkbox (a lock for the base, which is always on), the name, and the source and native resolution beneath. A row's expander holds its opacity, order and details: the full product name, coverage, the source's resolution next to the finest its tile pyramid offers, what the view is drawing, and the session's request counts. A badge appears only when it explains why an enabled layer is not showing, or is showing worse than it can, judged against the tiles on screen (in the main camera's frustum and facing it): *Out of view* (none of its coverage is on screen), *Zoom in* (too far out for its data), *Cache full* (close enough, but the tile cache is full so finer tiles cannot load; raise `maxCacheBytes`), *Gaps* (tiles in view could not load it, so the layers beneath show through), *Lower res* (failed source tiles in view are drawn from coarser ones) and *Unavailable* (the source failed). These settings last for the session and do not change the catalog. Switching a layer off stops its requests; opacity and order changes do not refetch tiles. Hovering a regional layer outlines its footprint, faint where it lies past the horizon, and its crosshair button flies the camera over it in free orbit. At most ten layers can be shown at once.
+
+`terrain.imagery` (below) is still accepted. When both are present, `imagery` wins and a warning is logged. Tuning fields for an imagery-only Globe (`showAtPixels`, `preloadAtPixels`, `overlayResolution`, `errorTarget`, …) go in a `terrain` block of `"type": "imagery"` with no layers of its own; it then takes the sibling stack:
+
+```json
+"imagery": [ … ],
+"terrain": { "type": "imagery", "showAtPixels": 120 }
+```
+
+A tiled `baseMap` (Cosmographia `NameTemplate`/`MultiWMS`) still loads only its level-0 tiles as the static map. Declare its deeper levels through `imagery` to stream them.
 
 ### `Globe.terrain`
 
-Streaming terrain over the basemap. Supports three sources:
+Streaming terrain over the basemap. Supports these sources:
 
 ```json
-"terrain": { "type": "tiles", "url": "...", "tileFormat": "qm" }
-"terrain": { "type": "ion", "assetId": 1, "accessToken": "..." }
-"terrain": { "type": "imagery", "imagery": { "url": "...{z}/{y}/{x}.jpeg", "levels": 8 } }
+"terrain": { "type": "quantized-mesh", "url": "…/layer.json-directory/" }
+"terrain": { "type": "3dtiles", "url": "…/tileset.json" }
+"terrain": { "type": "cesium-ion", "cesiumIonAssetId": 3644333 }
+"terrain": { "type": "imagery", "imagery": { "url": "…/{z}/{y}/{x}.jpeg", "levels": 8 } }
 ```
+
+`terrain.imagery` drapes an imagery stack over the terrain, with the same layer fields as `Globe.imagery`. New catalogs should use the sibling `imagery` field instead.
+
+#### `overlayResolution`
+
+On terrain (and for overlays on an imagery-only Globe), each terrain tile gets one composited texture per shown layer, `overlayResolution` pixels square (default 256). It caps how sharp draped imagery can look within one tile. Each tile layer takes R² × 4 bytes plus mipmaps: 256 → 0.33 MB, 512 → 1.3 MB, 1024 → 5.3 MB.
+
+Those textures count against the tile cache (`maxCacheBytes` in the `terrain` block, in bytes, default 512 MB). Memory is the limit, not frame time. When the composites fill the cache, the renderer stops refining and starts evicting tiles it still needs, so a higher resolution comes out blurrier, not sharper. Measured on an Apple M4 Max (Chrome, Metal), from a cold cache at each viewpoint:
+
+| Scene | R | Cache used | Tiles shown | Overlay requests (whole run) | Settle |
+|---|---|---|---|---|---|
+| Apollo 15 landing site (1 overlay) | 256 | 165 MB | 126 | 402 | 6 s |
+| | 512 | 307 MB | 126 | 1405 | 18 s |
+| | 1024 | 516 MB (full) | 25 | 5201 | 60 s |
+| Jezero crater (3 overlays) | 256 | 207 MB | 194 | 59 | 2 s |
+| | 512 | 512 MB (full) | 107 | 227 | 3 s |
+| | 1024 | 516 MB (full) | 20 | none new: loading stalled | – |
+
+At Jezero crater at 1024, HiRISE never loaded. Even with `maxCacheBytes` at 2 GB, the three-overlay stack at 1024 filled the cache. Frame cost stayed flat at every setting: 1–2 ms CPU and 1–6 ms GPU per frame, at a steady 120 fps. Compositing took under 15 ms of main-thread time per view in total. Going from 256 to 512 visibly sharpens the HiRISE close-up at Wright Brothers Field. Going from 512 to 1024 adds little, even with room in the cache.
+
+Policy:
+
+- Keep the default at 256.
+- Use 512 per catalog for a showcase scene with one or two overlays shown.
+- With three or more overlays at 512, raise `maxCacheBytes` to about 1 GB as well.
+- Do not use 1024.
+
+To check a scene, use the debug panel. The *Composite* control switches 256/512/1024 live for one body. When *Cache* reaches its limit, the setting is too high for that scene. *GPU est.* and *Imagery* show texture memory and request counts to compare.
 
 ## Frames
 
