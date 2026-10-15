@@ -1316,6 +1316,8 @@ export class UniverseRenderer {
             } catch { /* no CK coverage */ }
           }
           this.instrumentView.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);
+          // The terrain draw cull is the main camera's.
+          for (const bm of this.bodyMeshes.values()) bm.showCulledTerrainTiles();
           this.instrumentView.render(this.renderer, this.scene);
         }
       } catch (err) {

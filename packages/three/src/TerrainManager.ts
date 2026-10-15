@@ -164,6 +164,15 @@ export interface TerrainConfig {
    *  or 0 for an imagery-only Globe: its parent and child tiles lie on the
    *  same ellipsoid, so wherever both draw mid-fade they z-fight. */
   fadeDurationMs?: number;
+  /**
+   * Draw only the tiles the main camera can see (default: on for `cubeSphere`
+   * products, off otherwise). The renderer marks a tile visible when any of the
+   * streaming cameras (the wider terrain camera, the 178° coverage and 90° nadir
+   * cameras) sees it, so most tiles it selects lie beside, behind or below the
+   * view and would be drawn for no pixels (#149). Culled tiles stay selected,
+   * loaded and pickable; only their draw is skipped. See `setDrawCulling`.
+   */
+  drawCulling?: boolean;
   /** ImageOverlayPlugin per-terrain-tile composited texture resolution in
    *  pixels. When unset the plugin uses its built-in default of 256. Each
    *  terrain tile gets one composited texture at this resolution containing
@@ -266,7 +275,8 @@ export interface TerrainPerformanceMetrics {
   cpuDecode: TerrainTiming;
   /** CPU height queries. Independent of rendered vertex count by construction. */
   sample: { count: number; lastMicros: number; meanMicros: number };
-  tiles: { active: number; visible: number; inCache: number; cpu: number };
+  /** `visible`: selected by any streaming camera; `drawn`: of those, left visible by the main-view draw cull. */
+  tiles: { active: number; visible: number; drawn: number; inCache: number; cpu: number };
   network: { requests: number; queued: number; downloading: number; parsing: number; failed: number };
   memory: { cacheBytes: number; maxCacheBytes: number; geometryBytes: number; textureBytes: number };
   /** Imagery stack load. `requests`/`failed` count overlay fetches; in imagery-only mode the base layer's tiles are in `network`. */
@@ -426,19 +436,23 @@ interface TileVolume {
 
 /**
  * Whether a tile's bounding volume can show in a frustum, seen from `eye`, all
- * in tile space (the body centre at the origin). Conservative: a box corner
- * inside every plane's half-space, or facing the eye over a sphere horizon, keeps it.
+ * in tile space (the body centre at the origin, metres). Conservative: hidden
+ * only when outside one plane of the frustum, or when every box corner lies
+ * behind a sphere of `minRadius` (below all terrain) as seen from the eye —
+ * beyond its horizon plane and inside its shadow cone, a convex region, so the
+ * whole box is (Cesium's ellipsoidal occluder test, for a sphere).
  */
-export function tileInMainView(bv: TileVolume, frustum: THREE.Frustum, eye: THREE.Vector3): boolean {
+export function tileInMainView(bv: TileVolume, frustum: THREE.Frustum, eye: THREE.Vector3, minRadius: number): boolean {
   if (bv.sphere && !frustum.intersectsSphere(bv.sphere)) return false;
   const points = (bv.obb ?? bv.regionObb)?.points;
-  if (points) {
-    if (!frustum.planes.every((p) => points.some((v) => p.distanceToPoint(v) >= 0))) return false;
-    return points.some((v) => _horizon.subVectors(eye, v).dot(v) >= 0);
-  }
-  if (!bv.sphere) return true;
-  const { center, radius } = bv.sphere;
-  return _horizon.subVectors(eye, center).dot(center) >= -radius * center.length();
+  if (!points) return true;
+  if (!frustum.planes.every((p) => points.some((v) => p.distanceToPoint(v) >= 0))) return false;
+  const vh2 = eye.lengthSq() - minRadius * minRadius;
+  if (vh2 <= 0) return true;
+  return points.some((v) => {
+    const d = -_horizon.subVectors(v, eye).dot(eye);
+    return !(d > vh2 && d * d > vh2 * _horizon.lengthSq());
+  });
 }
 const _horizon = /* @__PURE__ */ new THREE.Vector3();
 
@@ -648,6 +662,9 @@ export class TerrainManager {
   private cube: { source: CubeSphereGridSource; surface: CubeGridSurface } | null = null;
   private readonly cubeConfigured: boolean;
   private cubeSkirts = true;
+  private drawCulling = false;
+  /** Tile scenes hidden this frame by the main-view cull, shown again before the next update. */
+  private readonly culledScenes: THREE.Object3D[] = [];
   /** Experimental cube-face map imagery, independent of geometry LOD (#149). */
   private readonly cubeImagery: CubeImageryLayer | null = null;
   private disposed = false;
@@ -735,6 +752,7 @@ export class TerrainManager {
     this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
     this.cubeConfigured = !!config.cubeSphere;
     this.cubeSkirts = config.cubeSphere?.skirts !== false;
+    this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
     if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
     if (config.cubeSphere?.imagery) {
       this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery);
@@ -1158,8 +1176,9 @@ export class TerrainManager {
     this.tiles.setCamera(tc);
     this.tiles.setResolutionFromRenderer(tc, renderer);
 
-    // The main camera's own view in tile space, for overlayView: the streaming
-    // cameras above see wider than the screen. No far plane, so no SAT trouble.
+    // The main camera's own view in tile space, for overlayView and the draw cull:
+    // the streaming cameras above see wider than the screen. Neither near nor far
+    // plane (three.js planes 5 and 4): the main camera's own reach far beyond both.
     const group = this.tiles.group;
     group.updateMatrixWorld();
     const mv = this.mainView ??= { frustum: new THREE.Frustum(), eye: new THREE.Vector3() };
@@ -1167,6 +1186,7 @@ export class TerrainManager {
     _viewMat.makePerspective(-top * mainCam.aspect, top * mainCam.aspect, top, -top, terrainNear, terrainFar)
       .multiply(tc.matrixWorldInverse).multiply(group.matrixWorld);
     mv.frustum.setFromProjectionMatrix(_viewMat);
+    mv.frustum.planes[4].constant = Infinity;
     mv.frustum.planes[5].constant = Infinity;
     mv.eye.copy(_camPos).applyMatrix4(_viewMat.copy(group.matrixWorld).invert());
 
@@ -1234,12 +1254,15 @@ export class TerrainManager {
 
     if (!this._pluginReady) return;
     const updateStart = performance.now();
+    // The renderer and TilesFadePlugin see every scene as they left it.
+    this.showCulledTiles();
     try {
       this.tiles.update();
       this.updateTiming.add(performance.now() - updateStart);
     } catch (e) {
       console.error('[Cosmolabe] tiles.update() crashed:', e);
     }
+    if (this.drawCulling) this.cullToMainView();
     if (this.cubeImagery) {
       // Distance and frustum from the terrain camera (sane near/far, a wider
       // field so imagery just outside the view is ready); texel size against
@@ -1254,6 +1277,46 @@ export class TerrainManager {
         this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
       }
     }
+  }
+
+  /** Hide this frame's visible tiles that the main camera cannot see (see `TerrainConfig.drawCulling`). */
+  private cullToMainView(): void {
+    const mv = this.mainView;
+    if (!mv) return;
+    const minRadius = this.horizonRadius();
+    const visibleTiles = (this.tiles as unknown as { visibleTiles: Set<{ engineData?: { scene?: THREE.Object3D | null; boundingVolume?: TileVolume } }> }).visibleTiles;
+    for (const tile of visibleTiles) {
+      const { scene, boundingVolume } = tile.engineData ?? {};
+      if (!scene?.visible || !boundingVolume || tileInMainView(boundingVolume, mv.frustum, mv.eye, minRadius)) continue;
+      scene.visible = false;
+      this.culledScenes.push(scene);
+    }
+  }
+
+  /**
+   * Draw every selected tile again until the next update. Call before rendering
+   * the scene with a camera other than the main one (the instrument view): the
+   * cull is the main camera's.
+   */
+  showCulledTiles(): void {
+    for (const scene of this.culledScenes) scene.visible = true;
+    this.culledScenes.length = 0;
+  }
+
+  /** Turn the main-view draw cull on or off (`TerrainConfig.drawCulling`); takes effect from the next update. */
+  setDrawCulling(enabled: boolean): void {
+    this.drawCulling = enabled;
+    if (!enabled) this.showCulledTiles();
+  }
+
+  /**
+   * A sphere below all terrain, for conservative horizon tests.
+   * ponytail: 1% under the smallest ellipsoid radius (Moon 17 km, Mars 34 km; their
+   * lowest points are 9 and 8 km down); a per-product minimum height would cull more.
+   */
+  private horizonRadius(): number {
+    const r = this.tiles.ellipsoid.radius;
+    return 0.99 * Math.min(r.x, r.y, r.z);
   }
 
   /** Show or hide cube-sphere skirts on every loaded and future tile; imagery blocks rebuild to match. */
@@ -1388,7 +1451,7 @@ export class TerrainManager {
     const view: ImageryLayerView = { inCoverage: false, zoomLevel: null, missingTiles: 0, degradedTiles: 0, cacheFull };
     for (const tile of visibleTiles) {
       const bv = (tile as { engineData?: { boundingVolume?: TileVolume } }).engineData?.boundingVolume;
-      if (this.mainView && bv && !tileInMainView(bv, this.mainView.frustum, this.mainView.eye)) continue;
+      if (this.mainView && bv && !tileInMainView(bv, this.mainView.frustum, this.mainView.eye, this.horizonRadius())) continue;
       const t = info.tileInfo.get(tile);
       if (!t?.range) continue;
       if (layer.bounds && !overlapsBounds(tiling.toCartographicRange(t.range), layer.bounds)) continue;
@@ -1989,7 +2052,7 @@ export class TerrainManager {
       parse: this.parseTiming.value,
       cpuDecode: this.decodeTiming.value,
       sample: { count: d.sampleCount, lastMicros: d.lastSampleMicros, meanMicros: d.meanSampleMicros },
-      tiles: { active: stats.active ?? 0, visible: stats.visible ?? 0, inCache: stats.inCache ?? 0, cpu: d.tileCount },
+      tiles: { active: stats.active ?? 0, visible: stats.visible ?? 0, drawn: (stats.visible ?? 0) - this.culledScenes.length, inCache: stats.inCache ?? 0, cpu: d.tileCount },
       network: {
         requests: this.requestCount,
         queued: stats.queued ?? 0,

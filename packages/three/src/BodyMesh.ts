@@ -965,6 +965,11 @@ export class BodyMesh extends THREE.Object3D {
     return this.terrainManager?.group ?? null;
   }
 
+  /** Draw every selected terrain tile until the next update (before rendering with a non-main camera). */
+  showCulledTerrainTiles(): void {
+    this.terrainManager?.showCulledTiles();
+  }
+
   /** Toggle debug tile bounds on terrain */
   setTerrainDebug(show: boolean): void {
     this.terrainManager?.setDebug(show);

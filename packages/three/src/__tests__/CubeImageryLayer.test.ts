@@ -86,6 +86,21 @@ async function setup(options: Partial<ConstructorParameters<typeof CubeImageryLa
 }
 
 describe('CubeImageryLayer', () => {
+  it('skips a tile the terrain draw cull hid: no selection, blocks or requests for what is not drawn', async () => {
+    const { layer, loader, scene, tick } = await setup();
+    await loader.settle();
+    scene.visible = false;
+    tick(camera(5_000), 3);
+    expect(layer.stats.tiles).toBe(0);
+    expect(layer.stats.blocks).toBe(0);
+    expect(layer.stats.queued).toBe(0);
+    expect(layer.stats.inFlight).toBe(0);
+    scene.visible = true;
+    tick(camera(5_000));
+    expect(layer.stats.tiles).toBe(1);
+    layer.dispose();
+  });
+
   it('refines imagery far below a fixed coarse geometry tile, falling back while finer tiles load', async () => {
     const { layer, loader, scene, mesh, address, tick } = await setup({ maxConcurrentRequests: 4 });
     const positions = mesh.geometry.getAttribute('position');

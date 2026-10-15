@@ -338,8 +338,9 @@ export class CubeImageryLayer {
       fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, maxDisplayedLevel: -1 };
     const { tileSize } = this.manifest;
     for (const record of this.tiles.values()) {
-      // A tile is drawn this frame exactly when the renderer has its scene attached.
-      if (!record.scene.parent) continue;
+      // A tile is drawn this frame exactly when the renderer has its scene attached
+      // and the terrain's main-view cull left it visible.
+      if (!record.scene.parent || !record.scene.visible) continue;
       for (const m of record.meshes) {
         if (!useImagery) { this.unsplit(m); continue; }
         const leaves = selectImageryBlocks({ geometry: record.address, radiusRangeKm: m.radiusRangeKm, cameraKm, pixelAngleRad,
