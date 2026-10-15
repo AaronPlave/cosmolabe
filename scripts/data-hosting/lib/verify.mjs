@@ -9,6 +9,7 @@
 import { createHash } from 'node:crypto';
 import { joinUrl } from './datasets.mjs';
 import { mapLimit } from './publish.mjs';
+import { hasMagic } from './cube.mjs';
 
 const QM_HEADER_BYTES = 88;
 
@@ -66,6 +67,40 @@ export async function verifyBuild({
     const missing = await get('__missing__/0/0.terrain', withOrigin);
     if (missing.status !== 404) bad(`missing tile returned HTTP ${missing.status}, expected 404`);
     else if (/html/i.test(missing.headers.get('content-type') ?? '')) bad('missing tile 404 is an HTML page; the loader would try to decode it');
+  } else if (manifest.kind === 'cube-terrain' || manifest.kind === 'cube-imagery') {
+    // Entry points name the manifest's revision: a geometry, grid or imagery
+    // build can't be swapped under a pinned build id.
+    const cube = manifest.kind === 'cube-terrain';
+    const entry = async (key, revisionOf) => {
+      const res = await get(key, withOrigin);
+      if (res.status !== 200) return bad(`${key}: HTTP ${res.status}`);
+      checkCors(res, key);
+      try {
+        const revision = revisionOf(await res.json());
+        if (revision !== manifest.revision) bad(`${key} names revision ${revision}, the build is ${manifest.revision}`);
+      } catch { bad(`${key} is not JSON`); }
+    };
+    if (cube) {
+      await entry('tileset.json', (t) => t.asset?.tilesetVersion);
+      await entry('cpu-grids.json', (g) => g.source?.version);
+    } else await entry('imagery.json', (m) => m.source?.version);
+    const encoding = cube ? 'glb' : manifest.encoding;
+    const samples = [...(manifest.sampleTiles ?? []).map((key) => [key, encoding]), ...(manifest.sampleGrids ?? []).map((key) => [key, 'f32'])];
+    for (const [key, kind] of samples) {
+      const res = await get(key, withOrigin);
+      if (res.status !== 200) { bad(`${key}: HTTP ${res.status}`); continue; }
+      checkCors(res, key);
+      const cc = res.headers.get('cache-control') ?? '';
+      if (!/immutable/.test(cc)) bad(`${key}: Cache-Control ${JSON.stringify(cc)} is not immutable`);
+      const type = res.headers.get('content-type') ?? '';
+      const expected = { glb: 'model/gltf-binary', f32: 'application/octet-stream', png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' }[kind];
+      if (!type.startsWith(expected)) bad(`${key}: Content-Type ${JSON.stringify(type)}, expected ${expected}`);
+      const body = new Uint8Array(await res.arrayBuffer());
+      if (kind === 'f32' ? body.length !== manifest.gridBytes : !hasMagic(body, kind)) bad(`${key}: body is not a ${kind} ${kind === 'f32' ? `grid of ${manifest.gridBytes} bytes` : 'file'}`);
+    }
+    // Every cube loader rejects on status, so a 404 body (r2.dev serves an HTML page) is harmless.
+    const missing = await get(`__missing__/0/0/0.${encoding}`, withOrigin);
+    if (missing.status !== 404) bad(`missing tile returned HTTP ${missing.status}, expected 404`);
   } else if (manifest.kind === 'kernels') {
     await mapLimit(manifest.files, concurrency, async (f) => {
       const key = f.filename;

@@ -35,6 +35,11 @@ const CONTENT_TYPES = {
   '.tsc': 'text/plain; charset=utf-8',
   '.tm': 'text/plain; charset=utf-8',
   '.txt': 'text/plain; charset=utf-8',
+  '.glb': 'model/gltf-binary',
+  '.f32': 'application/octet-stream',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.webp': 'image/webp',
 };
 
 /**

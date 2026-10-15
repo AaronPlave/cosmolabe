@@ -94,3 +94,30 @@ export function serveStore(storage, opts = {}) {
     }));
   });
 }
+
+/** A two-tile cube-sphere build (tileset + .glb + CPU grids) and a matching cube imagery pyramid. */
+export function writeCubeProducts(dir, { revision = 'cube-r1', tilesetRevision = revision } = {}) {
+  const terrain = join(dir, 'terrain'), imagery = join(dir, 'imagery');
+  const glb = Buffer.concat([Buffer.from('glTF'), Buffer.alloc(60, 1)]);
+  const tiles = [['nz', 0, 0, 0], ['px', 0, 0, 0]];
+  for (const [f, L, x, y] of tiles) {
+    mkdirSync(join(terrain, f, String(L), String(x)), { recursive: true });
+    writeFileSync(join(terrain, f, String(L), String(x), `${y}.glb`), glb);
+    mkdirSync(join(terrain, 'heights', f, String(L), String(x)), { recursive: true });
+    writeFileSync(join(terrain, 'heights', f, String(L), String(x), `${y}.f32`), Buffer.alloc(3 * 3 * 4));
+  }
+  const source = { id: 'test', kind: 'height-grid', version: revision };
+  writeFileSync(join(terrain, 'tileset.json'), JSON.stringify({ asset: { version: '1.1', tilesetVersion: tilesetRevision },
+    root: { children: tiles.map(([f, L, x, y]) => ({ content: { uri: `${f}/${L}/${x}/${y}.glb` } })) } }));
+  writeFileSync(join(terrain, 'cpu-grids.json'), JSON.stringify({ format: 'cosmolabe-cube-height-grid-1', source,
+    grid: { width: 3, height: 3, uri: 'heights/{face}/{level}/{x}/{y}.f32' }, tiles: tiles.map((t) => [...t, 0.001]) }));
+  writeFileSync(join(terrain, 'terrain-product.json'), JSON.stringify({ generator: 'test', source, tiling: { globalLevel: 0, maxLevel: 0 } }));
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(60)]);
+  for (const [f] of tiles) {
+    mkdirSync(join(imagery, 'tiles', f, '0', '0'), { recursive: true });
+    writeFileSync(join(imagery, 'tiles', f, '0', '0', '0.png'), png);
+  }
+  writeFileSync(join(imagery, 'imagery.json'), JSON.stringify({ format: 'cosmolabe-cube-imagery-1', source: { version: 'img-r1' },
+    encoding: 'png', uri: 'tiles/{face}/{level}/{x}/{y}.png', tiles: tiles.map((t) => t.join('/')) }));
+  return { terrain, imagery };
+}
