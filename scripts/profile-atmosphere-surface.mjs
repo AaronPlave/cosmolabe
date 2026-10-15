@@ -12,7 +12,7 @@ try {
   page.on('console', message => {
     if (message.type() === 'error' && message.text().includes('THREE.WebGLProgram')) errors.push(message.text());
   });
-  await page.goto(`${process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5174'}/?catalog=atmosphere-earth-textured&test=1`);
+  await page.goto(`${process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5174'}/?catalog=test-catalogs/atmosphere-earth-textured&test=1`);
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady, { timeout: 120000 });
   const result = await page.evaluate(() => {
     const r = window.renderer;

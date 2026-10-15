@@ -95,24 +95,26 @@ Typical setups:
 
 | Deployment | `VITE_CATALOG_SOURCES` |
 |---|---|
-| Public Cosmolabe site | `[{"id":"examples","name":"Examples","indexUrl":"index.json"}]` (see `.github/workflows/deploy-pages.yml`) |
+| Public Cosmolabe site | `[{"id":"examples","name":"Examples","indexUrl":"test-catalogs/index.json"}]` (see `.github/workflows/deploy-pages.yml`) |
 | Mission | That mission's source(s) only |
 | Controlled / multi-team | Mission sources plus shared or reference sources |
 | Bare viewer / embed | `[]` |
 
 ## Listed is not the same as served
 
-Sources control which catalogs the viewer **lists**. They don't
-control which files a build **serves**. The viewer's Vite `publicDir` is
-`apps/viewer/test-catalogs/`, so every build ships the repository examples,
-including a mission build whose only source is the mission's own. Anyone who
-knows a path can still load those examples, for example with
-`?catalog=cassini-soi`.
+Sources control which catalogs the viewer **lists**. They don't control which
+files a build **serves**. Viewer-owned static assets live in
+`apps/viewer/public/`; repository examples stay separate in
+`apps/viewer/test-catalogs/` and are served under `/test-catalogs/` during
+development. A production build includes examples only when
+`BUNDLE_TEST_CATALOGS=1` is set. The public Pages build opts in; mission
+and bare-viewer builds do not implicitly ship repository examples. This is
+independent of `VITE_CATALOG_SOURCES`, which controls only what the UI lists.
 
-You can't fix this by switching `publicDir` off for a mission build. The same
-directory holds assets the viewer itself needs, such as the star catalog
-`stars.bin`. Keeping the examples out of a build first needs the app's own
-assets separated from the example content.
+The examples source URL is the relative `test-catalogs/index.json`, so it
+resolves under the configured viewer base path on GitHub Pages and in local
+development. Directly loading an example uses that same namespace, for example
+`?catalog=test-catalogs/cassini-soi`.
 
 ## Where the catalogs appear
 
@@ -147,7 +149,7 @@ Choosing a catalog adds a browser history entry, so back and forward move
 between catalogs:
 
 - A catalog served from the viewer's own origin is written as
-  `?catalog=<path>` (for example `?catalog=cassini-soi`), the same deep link
+  `?catalog=<path>` (for example `?catalog=test-catalogs/cassini-soi`), the same deep link
   the viewer has always read.
 - A catalog on another origin is written as `?entry=<sourceId>/<entryId>`. It
   resolves only against a source the deployment configured, so a link can't
@@ -172,7 +174,8 @@ and `?catalog=<name>` keep working.
 Sources only change what the viewer lists. These still work with any
 source configuration, including `[]`:
 
-- `?catalog=<name>` loads `<name>.json` relative to the viewer. The
+- `?catalog=<name>` loads `<name>.json` relative to the viewer. Repository
+  examples use the `test-catalogs/` prefix. The
   visual-regression harness uses this.
 - Dropping a catalog folder or files onto the viewer, or browsing for them.
 
@@ -180,7 +183,7 @@ source configuration, including `[]`:
 
 The example catalogs stay at their existing paths in
 `apps/viewer/test-catalogs/`, and tests keep loading them directly.
-`test-catalogs/index.json` is the Examples index and refers to those same
-files. A unit test (`apps/viewer/src/lib/__tests__/catalog-sources.test.ts`)
+`test-catalogs/index.json` is served at `/test-catalogs/index.json` and refers
+to those same files. A unit test (`apps/viewer/src/lib/__tests__/catalog-sources.test.ts`)
 checks that every entry resolves to a catalog file that exists. When you add
 an example catalog, add an entry for it there.

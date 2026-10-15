@@ -604,7 +604,7 @@
           {@const atPlayhead = eventContainsTime(event, vs.et)}
           <div class="result-wrap">
           <button
-            class="event-result text-left rounded px-2 py-2 border cursor-pointer"
+            class="analysis-row event-result text-left rounded px-2 py-2 border cursor-pointer"
             class:selected={isSelectedEvent(event)}
             class:preview={ef.previewId === event.id && ef.previewQueryId === event.queryId}
             class:at-playhead={atPlayhead}
@@ -756,19 +756,6 @@
     transition:
       border-color var(--duration-chrome) var(--ease-chrome),
       background var(--duration-chrome) var(--ease-chrome);
-  }
-  .event-result:focus-visible {
-    border-color: var(--color-primary-accent);
-  }
-  .event-result:hover {
-    background: var(--color-hover);
-  }
-  /* Quieter than a full gold frame, matching the in-scene treatment: a gold
-     keyline carries the selection, the frame stays neutral chrome. */
-  .event-result.selected {
-    border-color: var(--color-border-strong);
-    background: color-mix(in srgb, var(--color-event-accent) 5%, transparent);
-    box-shadow: inset 2px 0 0 var(--color-event-accent);
   }
   .event-result.preview:not(.selected) {
     border-color: color-mix(in srgb, var(--color-primary-accent) 45%, transparent);

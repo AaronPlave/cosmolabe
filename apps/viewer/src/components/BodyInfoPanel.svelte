@@ -3,6 +3,7 @@
   import type { InfoRow } from '@cosmolabe/three';
   import { Navigation } from 'lucide-svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
+  import ImageryLayersSection from './ImageryLayersSection.svelte';
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
 
@@ -260,6 +261,8 @@
         <span class="ui-readout {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>
       </div>
     {/if}
+
+    <ImageryLayersSection />
 
     <!-- Plugin-contributed info sections -->
     {#each pluginSections as section (section.id)}

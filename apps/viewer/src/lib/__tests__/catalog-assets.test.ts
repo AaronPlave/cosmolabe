@@ -54,6 +54,7 @@ describe('absolutizeCatalogAssets', () => {
             terrain: {
               type: 'quantized-mesh',
               url: '../terrain/',
+              cubeSphere: { cpuGrids: '../terrain/cpu-grids.json', imagery: { url: '../imagery/imagery.json' } },
               imagery: [{ url: '../tiles/{z}/{y}/{x}.jpg' }, { url: 'https://trek.example/{z}/{y}/{x}.jpg' }],
             },
             surfaceTiles: [{ name: 'Site', url: 'site/tileset.json' }],
@@ -66,10 +67,14 @@ describe('absolutizeCatalogAssets', () => {
           name: 'Tiled',
           geometry: { type: 'Globe', radius: 1, baseMap: { type: 'NameTemplate', template: 'tex/t_%level_%column_%row.dds' } },
         },
+        {
+          name: 'Imaged',
+          geometry: { type: 'Globe', radius: 1, imagery: [{ url: '../tiles/global/{z}/{y}/{x}.jpg' }, { url: 'site/{z}/{y}/{x}.png' }] },
+        },
       ],
     };
     absolutizeCatalogAssets(catalog, url);
-    const [sc, planet, tiled] = catalog.items as any[];
+    const [sc, planet, tiled, imaged] = catalog.items as any[];
 
     expect(sc.geometry.source).toBe('https://mission.example/catalogs/models/spacecraft.glb');
     // Trajectory data stays as written: the viewer pre-fetches it keyed by that path.
@@ -78,6 +83,8 @@ describe('absolutizeCatalogAssets', () => {
     expect(planet.geometry.baseMap).toBe('https://mission.example/catalogs/textures/planet.jpg');
     expect(planet.geometry.normalMap).toBe('https://mission.example/catalogs/scenes/textures/planet-normal.jpg');
     expect(planet.geometry.terrain.url).toBe('https://mission.example/catalogs/terrain/');
+    expect(planet.geometry.terrain.cubeSphere.cpuGrids).toBe('https://mission.example/catalogs/terrain/cpu-grids.json');
+    expect(planet.geometry.terrain.cubeSphere.imagery.url).toBe('https://mission.example/catalogs/imagery/imagery.json');
     expect(planet.geometry.terrain.imagery.map((i: any) => i.url)).toEqual([
       'https://mission.example/catalogs/tiles/{z}/{y}/{x}.jpg',
       'https://trek.example/{z}/{y}/{x}.jpg',
@@ -85,6 +92,10 @@ describe('absolutizeCatalogAssets', () => {
     expect(planet.geometry.surfaceTiles[0].url).toBe('https://mission.example/catalogs/scenes/site/tileset.json');
     expect(planet.items[0].geometry.texture).toBe('https://mission.example/catalogs/textures/rings.png');
     expect(tiled.geometry.baseMap.template).toBe('https://mission.example/catalogs/scenes/tex/t_%level_%column_%row.dds');
+    expect(imaged.geometry.imagery.map((i: any) => i.url)).toEqual([
+      'https://mission.example/catalogs/tiles/global/{z}/{y}/{x}.jpg',
+      'https://mission.example/catalogs/scenes/site/{z}/{y}/{x}.png',
+    ]);
   });
 });
 

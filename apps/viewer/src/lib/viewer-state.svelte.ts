@@ -6,7 +6,7 @@
  * whose properties are mutated. We use the latter.
  */
 import { etToDate, type Universe } from '@cosmolabe/core';
-import type { BodyMesh, FlightPath, InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
+import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
@@ -122,6 +122,11 @@ export const vs = $state({
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
 
+  /** Point Probe mode (#127): the pointer previews the surface, a click pins it. */
+  probeActive: false,
+  /** The pinned probe point. Outlives probe mode; cleared on its own. */
+  probePin: null as SurfacePoint | null,
+
   /** Caption over the viewport, from `displayNote`. Null when there is none. */
   note: null as string | null,
 
@@ -176,6 +181,34 @@ export function setKernelCount(v: number) { vs.kernelCount = v; }
 export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
   emit('select', name);
+}
+
+/** Enter or leave Point Probe mode. Leaving keeps the pinned point. */
+/** Pointer modes that cannot run alongside the probe; starting the probe ends them. */
+const probeExclusive: Array<() => void> = [];
+
+/**
+ * Register a pointer mode the probe excludes (a pending measurement pick).
+ * The mode, for its part, turns the probe off when it starts.
+ */
+export function excludeFromProbe(end: () => void) {
+  probeExclusive.push(end);
+}
+
+export function setProbeActive(active: boolean) {
+  if (active) for (const end of probeExclusive) end();
+  vs.probeActive = active;
+  _renderer?.setPointProbeActive(active);
+}
+
+export function toggleProbe() {
+  setProbeActive(!vs.probeActive);
+}
+
+/** Clear the pinned probe point without leaving probe mode. */
+export function clearProbePin() {
+  vs.probePin = null;
+  _renderer?.setProbePin(null);
 }
 /**
  * Identify a set of bodies in the 3D view — the highlight channel event
@@ -381,6 +414,11 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   _universe = universe;
   vs.catalogName = vs.loadingCatalog || null;
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
+
+  // A pinned point belongs to the scene it was probed in; the mode carries over.
+  vs.probePin = null;
+  renderer.setPointProbeActive(vs.probeActive);
+  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
 
   // Restore persisted display preferences
   const prefs = loadPrefs();
@@ -834,6 +872,43 @@ export function gotoObject(
   return opts.animate
     ? flyToBody(name, { path: 'direct', seconds: opts.duration })
     : jumpToBody(name);
+}
+
+/**
+ * Fly over a lat/lon box `[west, south, east, north]` (degrees) on `bodyName`,
+ * looking straight down with north up, close enough that the box fills the view.
+ */
+export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number]): boolean {
+  if (!_renderer) return false;
+  const bm = _renderer.getBodyMesh(bodyName);
+  if (!bm) return false;
+  const [w, s, e0, n] = bounds;
+  const e = e0 < w ? e0 + 360 : e0;
+  const rad = Math.PI / 180;
+  const cam = _renderer.camera;
+  const heightKm = (n - s) * rad * bm.displayRadius;
+  const widthKm = (e - w) * rad * bm.displayRadius * Math.cos((s + n) / 2 * rad);
+  const altitudeKm = 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
+  const position = bm.geodeticOffsetKm((s + n) / 2, (w + e) / 2, altitudeKm, new THREE.Vector3());
+  if (!position) return false;
+  const cc = _renderer.cameraController;
+  // Modes that frame something else (a spacecraft's LVLH, a surface camera)
+  // would take the camera back on landing; orbit the body freely instead,
+  // keeping the current up so the flight starts without a roll.
+  const up = cc.camera.up.clone();
+  cc.resetToFreeOrbit();
+  cc.camera.up.copy(up);
+  // One flight from wherever the camera is, switching origin on landing —
+  // tracking first would cut to a default framing of the body.
+  cc.flyTo(bm, {
+    duration: 1.5,
+    offset: position.multiplyScalar(_renderer.scaleFactor),
+    up: new THREE.Vector3(0, 1, 0), // north, in the mesh frame
+  });
+  syncCameraState();
+  // flyTo tracks on landing; the HUD should read the new body for the flight.
+  vs.trackedBodyName = bodyName;
+  return true;
 }
 
 /** Release the tracked object. The camera stays where it is. */

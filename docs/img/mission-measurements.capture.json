@@ -1,0 +1,84 @@
+{
+  "scene": {
+    "id": "measurements",
+    "catalog": "europa-clipper",
+    "output": "mission-measurements.png",
+    "utc": "2031-03-07T02:59:51.823Z",
+    "et": 983890861.0077376,
+    "tracked": "Europa",
+    "selected": null,
+    "camera": {
+      "position": [
+        -16673,
+        7541,
+        10092
+      ],
+      "target": [
+        -3673,
+        1541,
+        92
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ],
+      "fov": 36
+    },
+    "trajectory": null,
+    "sensor": null,
+    "panel": "measure",
+    "measurement": {
+      "id": "clipper-europa-range",
+      "kind": "distance",
+      "source": {
+        "kind": "entity",
+        "bodyName": "Europa Clipper"
+      },
+      "target": {
+        "kind": "entity",
+        "bodyName": "Europa"
+      },
+      "color": "#82aabd",
+      "visible": true
+    },
+    "untrack": true
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "analysis": null,
+  "et": 983890861.0077376,
+  "camera": {
+    "position": [
+      -16673,
+      7541,
+      10092
+    ],
+    "target": [
+      -3673,
+      1540.9999999999998,
+      92
+    ],
+    "up": [
+      0,
+      0,
+      1
+    ],
+    "fov": 36
+  },
+  "snapshot": "# Cosmolabe snapshot\nsetPlaying off\nsetTime 2031-03-07T02:59:51.823Z\nsetTimeRate 1\nuntrack\nsetFrame free-orbit\nclearLookAt\nsetFov 36\nsetCamera [-16673, 7541, 10092] [-3673, 1541, 92] [0, 0, 1]\nsetLayer trajectories off\nsetLayer labels on\nsetLayer grid off\nsetLayer axes off\nsetLayer sensors off\nsetLayer sensorLabels off\ndeselect\n",
+  "initialAssets": {
+    "total": 7,
+    "settled": 7,
+    "loaded": 7,
+    "failed": 0,
+    "failures": [],
+    "stillPending": [],
+    "timedOut": false,
+    "durationMs": 1056.7000000029802
+  },
+  "terrain": null,
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+}

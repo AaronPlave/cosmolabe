@@ -69,6 +69,14 @@ export interface FlyToOptions {
   scaleFactor?: number;
   /** Which way to travel (default: `'direct'`). */
   path?: FlightPath;
+  /**
+   * Where to land relative to the body's centre, in scene units in the body's
+   * mesh frame, so the pose turns with the body during the flight. Overrides
+   * `distanceMultiplier`; the camera then looks at the body's centre.
+   */
+  offset?: THREE.Vector3;
+  /** Camera up on landing, in the body's mesh frame. Defaults to the current up. */
+  up?: THREE.Vector3;
 }
 
 /** A camera flight in progress, as `CameraController.flight` reports it. */
@@ -181,6 +189,9 @@ export class CameraController {
     destination?: BodyMesh;
     path?: FlightPath;
     phase?: 'overview' | 'approach';
+    /** Landing pose in the followed body's mesh frame (`FlyToOptions.offset`/`up`). */
+    followOffset?: THREE.Vector3;
+    followUp?: THREE.Vector3;
   } | null = null;
   private _lastAnimMs = 0;
 
@@ -426,7 +437,7 @@ export class CameraController {
         const total = opts?.duration ?? DEFAULT_OVERVIEW_SECONDS;
         const pullback = this._startAnimation(
           overview.position, overview.target, this.camera.up.clone(), total * OVERVIEW_PULLBACK_SHARE,
-          () => this._startApproach(bodyMesh, dist, total * (1 - OVERVIEW_PULLBACK_SHARE), 'overview'),
+          () => this._startApproach(bodyMesh, dist, total * (1 - OVERVIEW_PULLBACK_SHARE), 'overview', opts),
         );
         pullback.destination = bodyMesh;
         pullback.path = 'overview';
@@ -434,7 +445,7 @@ export class CameraController {
         return;
       }
     }
-    this._startApproach(bodyMesh, dist, opts?.duration ?? DEFAULT_DIRECT_SECONDS, path);
+    this._startApproach(bodyMesh, dist, opts?.duration ?? DEFAULT_DIRECT_SECONDS, path, opts);
   }
 
   /**
@@ -452,7 +463,10 @@ export class CameraController {
     return true;
   }
 
-  private _startApproach(bodyMesh: BodyMesh, dist: number, duration: number, path: FlightPath): void {
+  private _startApproach(
+    bodyMesh: BodyMesh, dist: number, duration: number, path: FlightPath,
+    landing?: Pick<FlyToOptions, 'offset' | 'up'>,
+  ): void {
     // Approach from the camera's current side of the body.
     const dir = this._approachDirection(bodyMesh);
     const bodyPos = bodyMesh.position;
@@ -472,6 +486,10 @@ export class CameraController {
     anim.destination = bodyMesh;
     anim.path = path;
     anim.phase = 'approach';
+    if (landing?.offset) {
+      anim.followOffset = landing.offset.clone();
+      anim.followUp = landing.up?.clone();
+    }
   }
 
   /**
@@ -1289,6 +1307,11 @@ export class CameraController {
         const bodyPos = this._anim.followBody.position;
         this._anim.endTarget.copy(bodyPos);
         this._anim.endPos.copy(bodyPos).addScaledVector(this._anim.followDir, this._anim.followDist);
+        if (this._anim.followOffset) {
+          const q = this._anim.followBody.mesh.quaternion;
+          this._anim.endPos.copy(this._anim.followOffset).applyQuaternion(q).add(bodyPos);
+          if (this._anim.followUp) this._anim.endUp.copy(this._anim.followUp).applyQuaternion(q);
+        }
       }
 
       const t = Math.min(this._anim.elapsed / this._anim.duration, 1);

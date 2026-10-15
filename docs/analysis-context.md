@@ -292,3 +292,60 @@ hovered or current instant rather than read off the nearest sample. The
 cursor's dot is placed by interpolating the drawn series
 (`seriesValueAt`), so it always sits on the visible line, even where the
 display sampling smooths a fast oscillation.
+
+## Reference geometry
+
+Velocity vectors, frame axes and angles between directions are spatial
+relationships, alongside the distance, direction and angle measurements, in the
+viewer’s **Reference Geometry** tool ("Geometry" on the tool rail). They
+share one semantic model (`packages/core/src/geometry/spatial-relationships.ts`),
+one renderer (`SpatialRelationshipLayer`) and one viewer item list, so they have
+the same hover, selection, visibility, callouts and URL sharing as measurements.
+Renderers draw what `resolveSpatialRelationship` returns; nothing analytical is
+computed in Three.js.
+
+- **Velocity** is the inertial (scene-frame) velocity of an endpoint relative to
+  another, as the central difference (±0.5 s) of their resolved positions. The
+  reference defaults to an entity's central body at the current time, or a
+  surface point's own body, so a surface point's velocity includes its body's
+  rotation. A coordinate with no reference is relative to the scene origin. At
+  an ephemeris coverage edge, where only one neighbour resolves, it uses a
+  one-sided difference instead, so any epoch with a state has a velocity. The
+  readout gives the speed; the arrow has a bounded on-screen length that shows
+  direction, not magnitude, and a double-chevron head that tells it apart from a
+  direction's cone without relying on color.
+- **Axes** are any frame the frame registry resolves (inertial, `IAU_<BODY>`,
+  catalog-declared, or a furnished SPICE/CK frame) drawn at any endpoint. A
+  body's own axes are `IAU_<BODY>` at the body, which the registry resolves
+  through the body's rotation model, the composition its mesh and the global
+  Axes display use. Both are also the same length, `BodyMesh.axesLengthKm()`
+  (twice the effective display radius, a loaded model's when there is one),
+  with a 64 px minimum for the analytical axes. They follow the same red X /
+  green Y / blue Z convention, with backed letters fixed just beyond each
+  visible tip along its projected axis. Overlaps are allowed. Axes use a neutral
+  callout color and do not consume a preset color. Frames are chosen from a
+  searchable list of inertial, catalog-attitude and furnished mission frames;
+  unavailable options are disabled. A frame that does not resolve cannot be added; the panel
+  says whether no such frame exists or it has no orientation at this time (a
+  CK frame outside its coverage).
+- **Angle between directions** compares two operands (a direction, a velocity,
+  or one frame axis) at the first operand's origin. Operands are copied from
+  displayed items, so an angle survives deleting them.
+
+The renderer passes one `SpatialResolutionCache` to every resolution in a
+frame, so overlays that share bodies, a velocity's three epochs and an angle's
+operands resolve each position once. With the Cassini SOI kernels, ten
+distinct SPICE-backed overlays take about 0.5 ms a frame with it (2–3 ms
+without); `reference-geometry-spice.test.ts` guards against regressions.
+
+Callers ask for meaning rather than geometry with `referenceRelationship`
+(core), which turns a request such as `{ kind: 'velocity', object: 'ISS' }`,
+`{ kind: 'sunDirection', object }`, `{ kind: 'frameAxes', frame, origin }` or
+`{ kind: 'bodyAxes', object }` into a relationship. The viewer's `showReference`
+adds the result as a selected item; the command palette uses it for the tracked
+body's velocity, Sun direction and body axes.
+
+Not covered yet: temporary hover-driven preview overlays for event and
+observation tools, instrument boresights as named presets (a boresight is
+already a frame axis of the instrument frame), state-dependent frames (LVLH,
+RIC), body-fixed (ground-relative) velocity, and planes.

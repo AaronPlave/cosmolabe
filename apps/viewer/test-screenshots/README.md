@@ -17,7 +17,8 @@ the authority of whoever last ran it by hand — say so when citing it in a PR.
 
 `scripts/visual-regression.mjs` builds the packages and the viewer, then drives
 the build in headless Chromium (software WebGL via SwiftShader, for
-cross-machine determinism). It loads each scene with `?catalog=<name>&test=1`.
+cross-machine determinism). It bundles the examples and loads each scene with
+`?catalog=test-catalogs/<name>&test=1`.
 The `?test=1` flag (see `apps/viewer/src/lib/loader.ts`) strips GPU-variant
 noise — antialias, bloom, starfield — pauses the clock at the catalog's
 `defaultTime`, and installs `window.__cosmolabe`, whose `capture(viewpoint)`

@@ -44,6 +44,16 @@ afterEach(() => { stopHero(); vi.unstubAllGlobals(); });
 const canvas = {} as HTMLCanvasElement;
 
 describe('Home hero', () => {
+  it('loads backdrop textures from base-aware viewer-owned asset URLs', () => {
+    startHero(canvas, vi.fn());
+    const universe = instances[0].universe as Universe;
+    const asset = (name: string) => new URL(`${import.meta.env.BASE_URL}hero/${name}`, location.href).href;
+
+    expect(universe.getBody('Saturn')?.geometryData?.baseMap).toBe(asset('saturn.jpg'));
+    expect(universe.getBody('Saturn Rings')?.geometryData?.texture).toBe(asset('saturn-rings.png'));
+    expect(universe.getBody('Dione')?.geometryData?.baseMap).toBe(asset('dione-1k.jpg'));
+  });
+
   it('shares canonical Saturn orientation through the Universe frame registry', () => {
     startHero(canvas, vi.fn());
     const hero = instances[0];
