@@ -1281,6 +1281,24 @@ def cube_radial_deviation(face, L, x, y, a, b):
     return float(bound.max()), float(np.abs(at_vertices).max()), float(np.sqrt((at_vertices ** 2).mean()))
 
 
+def cube_lattice_diagonals(tri):
+    """RTIN's finest triangles split each cell along alternating diagonals; the CPU lattice
+    (CubeGridSurface) always splits v00→v11. Where a cell's surface twists, the two
+    differ by up to half the twist even with nothing simplified (2 km at level 3 on the
+    point-sampled base). Where both anti-diagonal halves of a cell are in the mesh, re-split
+    that cell v00→v11: its outline and every neighbour's edge stay, and where RTIN kept full
+    detail the rendered surface is the CPU lattice exactly. A half whose partner is part of a
+    coarser triangle stays (its diagonal is that triangle's edge)."""
+    i, j = tri % GRID, tri // GRID
+    v00 = j.min(1) * GRID + i.min(1)
+    anti = (np.ptp(i, 1) == 1) & (np.ptp(j, 1) == 1) & ~((tri == v00[:, None]).any(1) & (tri == v00[:, None] + GRID + 1).any(1))
+    cells, count = np.unique(v00[anti], return_counts=True)
+    cells = cells[count == 2]
+    anti &= np.isin(v00, cells)
+    lattice = np.concatenate([np.stack([cells, cells + 1, cells + GRID + 1], 1), np.stack([cells, cells + GRID + 1, cells + GRID], 1)])
+    return np.concatenate([tri[~anti], lattice])
+
+
 def cube_sample_job(job):
     """Pass 1: heights, normals and CPU grids. The mesh waits for pass 2,
     which needs every tile's edges to size the skirts."""
@@ -1325,7 +1343,7 @@ def cube_write_job(job):
         if S['simplify'] > 0:
             # RTIN keeps every edge vertex, so tile boundaries — and the skirt
             # gaps measured on them — are the full lattice's.
-            surface = rtin_triangles(rtin_errors(None, P=P), S['simplify'] * S['spacing_rad'][L] * R)
+            surface = cube_lattice_diagonals(rtin_triangles(rtin_errors(None, P=P), S['simplify'] * S['spacing_rad'][L] * R))
             ij = np.stack([np.arange(GRID * GRID) % GRID, np.arange(GRID * GRID) // GRID], 1).astype(np.float64)
             deviation = cube_radial_deviation(face, L, x, y, (P, surface, ij), (P, LATTICE_TRI, ij))
         if S['skirt_cells'] > 0:
@@ -1623,7 +1641,7 @@ def cmd_cube_tile(args):
         # The rendered .glb triangles are no longer the grid lattice that CubeGridSurface rebuilds:
         # say so, with each tile's bound between the two surfaces.
         grids['renderedMesh'] = {
-            'simplification': f'RTIN (all edge vertices kept), own error ≤ {args.simplify} × face-centre vertex spacing',
+            'simplification': f'RTIN (all edge vertices kept, full-detail cells split v00→v11 like the lattice), own error ≤ {args.simplify} × face-centre vertex spacing',
             'cpuSurface': 'full lattice of the grid (v00→v11 diagonals); rendered and CPU ray-query surfaces differ',
             'deviation': 'tiles[i][5] (km): conservative max radial distance between the rendered (simplified) and the CPU '
                          'lattice triangles over the tile, float64 positions before the .glb float32 rounding',
@@ -2206,7 +2224,10 @@ def _selftest_cube_error(tmp, R):
     for face, L, x, y in (('nz', 3, 4, 4), ('px', 3, 7, 3), ('px', 3, 7, 7)):  # centre, edge, corner
         h = rng.normal(0, 200, GRID * GRID)
         P = lattice_P(face, L, x, y, h)
-        rtin = rtin_triangles(rtin_errors(None, P=P), 0.1 * 2 / ((GRID - 1) * 2 ** L) * R)
+        full = cube_lattice_diagonals(rtin_triangles(rtin_errors(None, P=P), -1))
+        assert {tuple(t) for t in np.sort(full, 1)} == {tuple(t) for t in np.sort(LATTICE_TRI, 1)}, 'full-detail RTIN must re-split to the lattice'
+        assert cube_radial_deviation(face, L, x, y, (P, full, lattice_ij), (P, LATTICE_TRI, lattice_ij))[0] < 1e-6
+        rtin = cube_lattice_diagonals(rtin_triangles(rtin_errors(None, P=P), 0.1 * 2 / ((GRID - 1) * 2 ** L) * R))
         a, b = (P, rtin, lattice_ij), (lattice_P(face, L, x, y, h + 30 * rng.normal(size=GRID * GRID)), LATTICE_TRI, lattice_ij)
         bound, at_v, _ = cube_radial_deviation(face, L, x, y, a, b)
         sampled = dense(face, L, x, y, [a, b])
