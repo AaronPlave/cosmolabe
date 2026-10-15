@@ -65,6 +65,18 @@
  *                off/on alternating (--repeat pairs): frame CPU/GPU, long frames, drawn/selected
  *                tiles, requests/bytes, time to finished detail.
  *  cull-view     Frames with the draw cull off and on, and a third-person view of drawn/culled tiles.
+ *  adoption      The #149 adoption check on the initial production configuration (full lattice, draw cull on,
+ *                NAC imagery, an orbiter sensor): one cold page per --scenarios entry (normal, faulty) flies
+ *                orbit → Shackleton → near ground, crosses the pole, visits the px/nz edge and px/py/nz corner,
+ *                switches the instrument view on and off, and returns to orbit. Per stop: time to finished detail,
+ *                requests/bytes/cancellations, holes, selected tiles without imagery, picks across the frame
+ *                (rendered vs CPU, skirt flags, distance to the nearest tile edge, clearance margin); per flight
+ *                step: holes and loading; at the end, memory settling. `faulty` fails 1 in 12 data requests on
+ *                their first attempt and delays 1 in 8 by 1.5 s.
+ *                --hosted-store DIR serves a `publish-data.mjs --local-dir DIR` store over HTTP (another origin,
+ *                stored headers) and --hosted-url URL uses a real data host; either way the catalog is rewritten
+ *                exactly as build-hosted-catalogs.mjs does, to the builds pinned in datasets.json or given by
+ *                --terrain-build / --imagery-build.
  *
  * --uncapped launches without vsync or a frame cap (animation-loop interval = pipelined frame time).
  * --draw-culling on|off sets TerrainManager.setDrawCulling on every page.
@@ -85,6 +97,10 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
+import { loadDatasets } from './data-hosting/lib/datasets.mjs';
+import { rewriteCatalog } from './data-hosting/lib/hosted-catalogs.mjs';
+import { createLocalStorage } from './data-hosting/lib/storage.mjs';
+import { serveStore } from './data-hosting/__tests__/helpers.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) => {
@@ -184,6 +200,7 @@ async function openViewer(catalog, setup) {
   await page.addInitScript(() => performance.setResourceTimingBufferSize(1_000_000));
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
+  page.on('response', r => { if (r.status() >= 400 && !r.url().includes('__missing__')) errors.push(`HTTP ${r.status()} ${r.url()}`); });
   // Errors, plus warnings other than the expected per-tile load warnings and missing catalog textures.
   page.on('console', m => {
     if (m.type() === 'error' || (m.type() === 'warning' && !/Tile load error|tiles versions|Failed to load (baseMap|normalMap)|Initial assets settled/.test(m.text()))) errors.push(`${m.type()}: ${m.text()}`);
@@ -1552,6 +1569,252 @@ try {
   }
 
   // ---------------------------------------------------------------------------
+  if (EXPERIMENTS.includes('adoption')) {
+    results.adoption = [];
+    // Through the hosting path: the deploy-time catalog rewrite against a served store or a real host.
+    let hosted = null;
+    if (args['hosted-store'] || args['hosted-url']) {
+      const host = args['hosted-store'] ? await serveStore(createLocalStorage(resolve(String(args['hosted-store'])))) : null;
+      const datasets = loadDatasets().datasets;
+      for (const [id, key] of [['cube-terrain/moon-terrain-cube', 'terrain-build'], ['cube-imagery/moon-imagery-cube-nac', 'imagery-build']]) {
+        if (args[key]) datasets[id] = { ...datasets[id], build: String(args[key]) };
+      }
+      hosted = { baseUrl: host?.url ?? String(args['hosted-url']), close: () => host?.close(), datasets };
+    }
+    const kindOf = (url) => (/\.glb$/.test(url) ? 'glb' : /\.f32$/.test(url) ? 'grid' : /moon-imagery-cube-.*\.png$/.test(url) ? 'imagery' : /\.json$/.test(url) ? 'json' : null);
+    const hash = (str) => { let h = 2166136261; for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+    const geo = (lat, lon, h) => at(lat, lon, h);
+    for (const scenario of String(args.scenarios ?? 'normal,faulty').split(',')) {
+      const counts = { injectedFailures: 0, injectedDelays: 0, cancelled: {}, failed: {} };
+      const attempts = new Map();
+      const { page, errors } = await openViewer(CATALOG('adoption'), async (p) => {
+        if (hosted) {
+          await p.route(/moon-terrain-cube-imagery-adoption\.json/, async (route) => {
+            const response = await route.fetch();
+            const r = rewriteCatalog(await response.json(), 'experiments/moon-terrain-cube-imagery-adoption.json', hosted.datasets, hosted.baseUrl);
+            if (r.unpublished.length || r.changed !== 3) throw new Error(`hosted catalog: ${r.changed} rewrites, unpublished ${r.unpublished}`);
+            await route.fulfill({ response, json: r.json });
+          });
+        }
+        if (scenario === 'faulty') {
+          await p.route((url) => !!kindOf(url.href) && kindOf(url.href) !== 'json' && /moon-(terrain|imagery)-cube/.test(url.href), async (route) => {
+            const url = route.request().url(), n = (attempts.get(url) ?? 0) + 1, h = hash(url);
+            attempts.set(url, n);
+            if (n === 1 && h % 12 === 0) { counts.injectedFailures++; return route.abort('failed'); }
+            if (h % 8 === 1) { counts.injectedDelays++; await new Promise((r) => setTimeout(r, 1500)); }
+            return route.continue().catch(() => {});
+          });
+        }
+        p.on('requestfailed', (req) => {
+          const kind = kindOf(req.url());
+          if (!kind) return;
+          const bucket = /ABORTED/.test(req.failure()?.errorText ?? '') ? counts.cancelled : counts.failed;
+          bucket[kind] = (bucket[kind] ?? 0) + 1;
+        });
+      });
+      const started = Date.now();
+      const resources = () => page.evaluate(() => performance.getEntriesByType('resource').map((e) => [e.name, e.encodedBodySize, e.duration]));
+      const untextured = () => page.evaluate(() => {
+        // Selected tiles (scene attached) drawing a mesh or block with imagery disabled.
+        let tiles = 0, without = 0;
+        for (const rec of window.ciLayer().tiles.values()) {
+          if (!rec.scene.parent) continue;
+          tiles++;
+          if (rec.meshes.some((m) => (m.mesh.visible && !m.uniforms.cubeImageryEnabled.value)
+            || [...m.blocks.values()].some((b) => b.mesh.visible && !b.uniforms.cubeImageryEnabled.value))) without++;
+        }
+        return { tiles, without };
+      });
+      const picks = async () => {
+        const grid = [];
+        for (let j = 0; j < 10; j++) for (let i = 0; i < 16; i++) grid.push([(i + 0.5) / 16 * 2 - 1, (j + 0.5) / 10 * 2 - 1]);
+        const once = () => page.evaluate((grid) => grid.map(([x, y]) => {
+          const p = window.ci.getRenderer().pickSurface(x, y);
+          if (!p) return null;
+          // The readout surface (CPU sample, as the HUD and camera clamp use) under the rendered hit.
+          const [hx, hy, hz] = p.bodyFixedHitKm, r = Math.hypot(hx, hy, hz);
+          const s = window.ciMoon().sampleTerrain(Math.asin(hz / r) * 180 / Math.PI, Math.atan2(hy, hx) * 180 / Math.PI);
+          return { rendered: p.bodyFixedHitKm, physical: p.physical ?? null, skirt: !!p.renderedSkirt, readoutBelowRenderedKm: s ? r - (1737.4 + s.elevationKm) : null };
+        }), grid);
+        await once(); // a pick loads CPU coverage along its ray; the repeat answers from it
+        await page.waitForTimeout(2500);
+        const rows = (await once()).filter(Boolean);
+        const out = { picks: rows.length, sufficient: 0, coarse: 0, unavailable: 0, skirt: 0, nearEdge: [], interior: [], clearanceMarginKm: [],
+          readoutVsRenderedKm: summary(rows.filter((r) => r.readoutBelowRenderedKm != null && !r.skirt).map((r) => Math.abs(r.readoutBelowRenderedKm))) };
+        const clearance = [], edgeHits = [];
+        for (const r of rows) {
+          if (r.skirt) out.skirt++;
+          const ph = r.physical;
+          if (!ph || ph.kind !== 'hit') { out.unavailable++; continue; }
+          out[ph.detail === 'sufficient' ? 'sufficient' : 'coarse']++;
+          const [face, L, x, y] = ph.tileId.split('/'), c = directionToCubeFace(ph.bodyFixedKm), N = 2 ** Number(L);
+          const su = (c.u + 1) / 2 * N - Number(x), sv = (c.v + 1) / 2 * N - Number(y);
+          // Within two lattice cells of the tile's edge (or on another face's side of it).
+          const edge = c.face !== face ? 0 : Math.min(su, 1 - su, sv, 1 - sv);
+          (edge < 2 / 64 ? out.nearEdge : out.interior).push(ph.renderedOffsetKm);
+          // Hits are provisional (partial-product coverage), so placement needs the explicit opt-in.
+          clearance.push(ph.bodyFixedKm.map((v, k) => v + 0.05 * ph.normal[k]));
+          edgeHits.push([edge, ph.bodyFixedKm]);
+        }
+        // 50 m clearance placed along the CPU hit's normal: its height above the CPU surface below it.
+        const heights = await page.evaluate((pts) => pts.map(([x, y, z]) => {
+          const r = Math.hypot(x, y, z), s = window.ciMoon().sampleTerrain(Math.asin(z / r) * 180 / Math.PI, Math.atan2(y, x) * 180 / Math.PI);
+          return s ? r - (1737.4 + s.elevationKm) : null;
+        }), clearance);
+        out.clearanceMarginKm = summary(heights.filter((h) => h != null));
+        out.nearEdge = summary(out.nearEdge); out.interior = summary(out.interior);
+        out.edgePoints = edgeHits.sort((a, b) => a[0] - b[0]).slice(0, 6).map((e) => e[1]);
+        return out;
+      };
+      // The camera clamp at tile edges: the eye put on the CPU surface at each point, looking along
+      // the ground, settled (pose every poll, the renderer's clamp lifts it each frame), then its height
+      // above the CPU readout surface and above the rendered triangles straight below.
+      const clampProbe = async (points) => {
+        const out = [];
+        for (const p of points) {
+          const eye = await page.evaluate(([x, y, z]) => {
+            const r = Math.hypot(x, y, z), s = window.ciMoon().sampleTerrain(Math.asin(z / r) * 180 / Math.PI, Math.atan2(y, x) * 180 / Math.PI);
+            return s ? [x, y, z].map((c) => c / r * (1737.4 + s.elevationKm)) : null;
+          }, p);
+          if (!eye) continue;
+          const up = norm(eye), side = Math.abs(up[2]) > 0.99 ? [1, 0, 0] : [0, 0, 1], along = norm(cross(up, side));
+          await settle(page, { eye, target: eye.map((c, k) => c + 3 * along[k] - up[k]), fov: 60 }, 'shaded');
+          await page.waitForTimeout(400); // frames after settle's last pose, for the clamp to act
+          out.push(await page.evaluate(async () => {
+            const r = window.ci.getRenderer(), bm = window.ciMoon(), tm = bm.terrainManager;
+            const depUrl = performance.getEntriesByType('resource').map(e => e.name).find(n => /\/\.vite\/deps\/three\.js(\?|$)/.test(n));
+            const { Raycaster, Vector3 } = await import(depUrl);
+            const centre = new Vector3(); bm.getWorldPosition(centre);
+            const v = r.camera.position.clone().sub(centre).applyQuaternion(bm.mesh.quaternion.clone().invert()).divideScalar(r.scaleFactor);
+            const eye = [v.x, -v.z, v.y], re = Math.hypot(...eye);
+            const s = bm.sampleTerrain(Math.asin(eye[2] / re) * 180 / Math.PI, Math.atan2(eye[1], eye[0]) * 180 / Math.PI);
+            const hit = new Raycaster(r.camera.position.clone(), centre.clone().sub(r.camera.position).normalize()).intersectObject(tm.group, true)
+              // The tiles' own surface triangles (imagery blocks are copies of them, shown or not):
+              // a ray down a tile edge runs along that edge's skirt.
+              .find((h) => !h.object.name.startsWith('cube-imagery-block') && h.faceIndex < (h.object.geometry.userData?.surfaceTriangles ?? Infinity));
+            return { aboveReadoutKm: s ? re - (1737.4 + s.elevationKm) : null, aboveRenderedKm: hit ? hit.distance / r.scaleFactor : null };
+          }));
+        }
+        return out;
+      };
+      const stops = [], flight = [];
+      const stop = async (name, view, extra = {}) => {
+        const s = await settle(page, view, 'shaded');
+        const h = await holeMasks(page);
+        const row = { name, ...pick(s), holes: h.mitigated, skirtCoverPixels: h.coverageDifferencePixels, untextured: await untextured(), picks: await picks(), ...extra };
+        if (extra.clamp) {
+          row.clamp = await clampProbe(row.picks.edgePoints);
+          await settle(page, view, 'shaded');
+        }
+        stops.push(row);
+        console.log(`adoption ${scenario} ${name}: ${s.finished ? 'settled' : 'NOT settled'} in ${(s.settleMs / 1000).toFixed(1)} s, geometry L${Object.keys(s.geometryLevels).join(',')}, imagery L${s.imagery.maxDisplayedLevel}, `
+          + `holes ${h.mitigated.holePixels} px, untextured ${row.untextured.without}/${row.untextured.tiles}, picks ${row.picks.sufficient}+${row.picks.coarse} hit / ${row.picks.unavailable} n/a / ${row.picks.skirt} skirt, `
+          + `rendered−CPU near edge max ${row.picks.nearEdge?.max?.toFixed(4) ?? '-'} km, interior max ${row.picks.interior?.max?.toFixed(4) ?? '-'} km, readout−rendered p95 ${row.picks.readoutVsRenderedKm?.p95?.toFixed(4) ?? '-'} km, `
+          + `50 m clearance → ${row.picks.clearanceMarginKm ? `${(row.picks.clearanceMarginKm.median * 1000).toFixed(1)} m median` : '-'}`
+          + (row.clamp ? `; clamp at edges: above readout ${row.clamp.map((c) => (c.aboveReadoutKm * 1000).toFixed(1)).join('/')} m, above rendered ${row.clamp.map((c) => (c.aboveRenderedKm * 1000).toFixed(1)).join('/')} m` : ''));
+        return s;
+      };
+      const fly = async (phase, from, to, n) => {
+        for (let i = 1; i <= n; i++) {
+          const f = 1 - (1 - i / n) ** 2, mix = (a, b) => a + (b - a) * f;
+          const eye = geo(mix(from.eye[0], to.eye[0]), mix(from.eye[1], to.eye[1]), Math.exp(mix(Math.log(from.eye[2]), Math.log(to.eye[2]))));
+          const v = { eye, target: geo(mix(from.target[0], to.target[0]), mix(from.target[1], to.target[1]), mix(from.target[2], to.target[2])), fov: 60 };
+          await pose(page, v, 'shaded'); await page.waitForTimeout(350); await pose(page, v, 'shaded');
+          const s = await snapshot(page), h = await holeMasks(page), net = s.metrics.network;
+          flight.push({ phase, i, visibleTiles: s.visibleTiles.length, geometryLevels: s.geometryLevels, loading: net.queued + net.downloading + net.parsing,
+            holePixels: h.mitigated.holePixels, untexturedBlocks: s.imagery?.untexturedBlocks ?? null, imageryInFlight: s.imagery?.inFlight ?? null });
+        }
+      };
+      // Geodetic [lat, lon, height km] poses for the flight legs.
+      const G = { overview: { eye: [-55, 60, 3000], target: [-70, 60, 0] }, shackleton: { eye: [-89.07, 129.78, 6], target: [-89.67, 129.78, -2.5] },
+        near: { eye: [-89.55, 129.78, 1.0], target: [-89.67, 129.78, -2.5] }, poleIn: { eye: [-89.4, -30, 5], target: [-89.9, -30, -1] },
+        poleOut: { eye: [-89.4, 150, 5], target: [-88.9, 150, -1] }, edge: { eye: [-44.4, -0.8, 40], target: [-45, 0, 0] }, corner: { eye: [-34.6, 45.6, 60], target: [-35.26438968, 45, 0] } };
+
+      await stop('overview (cold)', VIEWS.overview, { coldMs: Date.now() - started });
+      await fly('orbit → Shackleton', G.overview, G.shackleton, 16);
+      await stop('shackleton', VIEWS.shackleton);
+      await fly('Shackleton → near ground', G.shackleton, G.near, 6);
+      await stop('near ground', await surfacePose(page, SURFACE_VIEWS['shackleton-near']), { clamp: true });
+      await fly('to pole', G.near, G.poleIn, 6);
+      await fly('pole crossing', G.poleIn, G.poleOut, 10);
+      await stop('pole grazing', await surfacePose(page, SURFACE_VIEWS['pole-grazing']), { clamp: true });
+      await fly('to px/nz edge', G.poleOut, G.edge, 10);
+      await stop('face edge', VIEWS['face-edge']);
+      await stop('edge grazing', await surfacePose(page, SURFACE_VIEWS['edge-grazing']), { clamp: true });
+      await fly('to px/py/nz corner', G.edge, G.corner, 6);
+      await stop('face corner', VIEWS['face-corner']);
+      await stop('corner grazing', await surfacePose(page, SURFACE_VIEWS['corner-grazing']), { clamp: true });
+
+      // Main/instrument switching: the main camera 25 km over Shackleton looking north, so the
+      // tiles below it are selected (nadir streaming camera) but culled from the main view; the
+      // orbiter's nadir sensor 100 km up sees exactly those.
+      const mainView = { eye: geo(-89.67, 129.78, 25), target: geo(-87.5, 129.78, 0), fov: 60 };
+      await stop('instrument main pose', mainView);
+      // Unlit imagery, so a tile drawn without imagery stands out from shadow.
+      const instrument = { mode: 'imagery-unlit', switches: [] };
+      for (let k = 0; k < 3; k++) {
+        await page.evaluate(() => window.ci.getRenderer().setInstrumentView('Orbiter'));
+        const s = await settle(page, mainView, 'imagery-unlit');
+        const u = await untextured();
+        const frame = await page.evaluate(() => { const r = window.ci.getRenderer(); r.getContext().renderFrame(); return { active: r.activeInstrumentView ?? null, drawn: window.ciMoon().terrainMetrics.tiles }; });
+        instrument.switches.push({ k, settled: s.finished, active: frame.active, untextured: u, tiles: frame.drawn });
+        if (k === 0) {
+          // The same settled frame with the cull on and off: the main view is identical, the instrument view
+          // differs only in imagery level on tiles the main camera does not draw.
+          const on = await canvasPixels(page);
+          instrument.shotOn = await shot(page, `adoption-${scenario}-instrument-cull-on`);
+          await page.evaluate(() => window.ciMoon().terrainManager.setDrawCulling(false));
+          await settle(page, mainView, 'imagery-unlit');
+          const off = await canvasPixels(page);
+          instrument.shotOff = await shot(page, `adoption-${scenario}-instrument-cull-off`);
+          await page.evaluate(() => window.ciMoon().terrainManager.setDrawCulling(true));
+          let differing = 0, sum = 0;
+          for (let i = 0; i < on.data.length; i += 4) {
+            const d = Math.abs(on.data[i] - off.data[i]) + Math.abs(on.data[i + 1] - off.data[i + 1]) + Math.abs(on.data[i + 2] - off.data[i + 2]);
+            if (d > 24) differing++;
+            sum += d / 3;
+          }
+          instrument.cullOnOff = { differingPixels: differing, meanAbsDiff: +(sum / (on.data.length / 4)).toFixed(3) };
+        }
+        await page.evaluate(() => window.ci.getRenderer().setInstrumentView(null));
+        await page.waitForTimeout(500);
+      }
+      console.log(`adoption ${scenario} instrument: ${instrument.switches.map((w) => `${w.active ?? 'off'} untextured ${w.untextured.without}/${w.untextured.tiles}`).join('; ')}; `
+        + `cull on vs off ${instrument.cullOnOff.differingPixels} px differ (mean |Δ| ${instrument.cullOnOff.meanAbsDiff})`);
+
+      // Back to orbit; memory should settle as detail is released.
+      await stop('overview (return)', VIEWS.overview);
+      const memory = [];
+      for (let i = 0; i < 10; i++) {
+        await pose(page, VIEWS.overview, 'shaded');
+        await page.waitForTimeout(2000);
+        memory.push(await page.evaluate(() => {
+          const bm = window.ciMoon(), m = bm.terrainMetrics.memory, i = bm.terrainCubeImageryStats, info = window.ci.getRenderer().renderer.info.memory;
+          return { cacheMB: +(m.cacheBytes / 1e6).toFixed(1), geometryMB: +(m.geometryBytes / 1e6).toFixed(1), textureMB: +((i?.textureBytes ?? 0) / 1e6).toFixed(1),
+            heapMB: +(performance.memory?.usedJSHeapSize / 1e6).toFixed(1), geometries: info.geometries, textures: info.textures, cpuGrids: bm.terrainManager.cubeStats,
+            cpuMeshes: bm.terrainManager.cube?.surface.meshes.size ?? null };
+        }));
+      }
+      const res = await resources(), byKind = {};
+      for (const [url, bytes, ms] of res) {
+        const kind = kindOf(url);
+        if (!kind || !/moon-(terrain|imagery)-cube/.test(url)) continue;
+        const b = byKind[kind] ??= { requests: 0, bytes: 0, maxMs: 0, origin: new URL(url).origin };
+        b.requests++; b.bytes += bytes; b.maxMs = Math.max(b.maxMs, Math.round(ms));
+      }
+      const final = await page.evaluate(() => ({ network: window.ciMoon().terrainMetrics.network, imagery: window.ciMoon().terrainCubeImageryStats, grids: window.ciMoon().terrainManager.cubeStats }));
+      const row = { scenario, hosted: hosted ? { baseUrl: hosted.baseUrl, terrainBuild: hosted.datasets['cube-terrain/moon-terrain-cube'].build, imageryBuild: hosted.datasets['cube-imagery/moon-imagery-cube-nac'].build } : null,
+        stops, flight, instrument, memory, requests: byKind, counts, final, totalMs: Date.now() - started,
+        flightMaxHolePixels: Math.max(...flight.map((f) => f.holePixels)), stopsNotSettled: stops.filter((s) => !s.finished).map((s) => s.name), errors: errors.slice(0, 20) };
+      results.adoption.push(row);
+      console.log(`adoption ${scenario}: ${stops.length} stops (${row.stopsNotSettled.length} not settled), flight max holes ${row.flightMaxHolePixels} px over ${flight.length} steps; `
+        + `requests ${Object.entries(byKind).map(([k, b]) => `${k} ${b.requests}/${(b.bytes / 1e6).toFixed(1)} MB`).join(', ')}; cancelled ${JSON.stringify(counts.cancelled)}, failed ${JSON.stringify(counts.failed)}, `
+        + `injected ${counts.injectedFailures} failures / ${counts.injectedDelays} delays; memory ${JSON.stringify(memory.at(-1))}; ${errors.length} console errors`);
+      await page.close();
+    }
+    await hosted?.close();
+  }
+
   if (EXPERIMENTS.includes('profile')) {
     // Frame overhead (#149): per pose, at finished detail, what is drawn (footprints) and where a
     // frame's time goes (stage timers, fenced and in the animation loop; optional CPU profile).
