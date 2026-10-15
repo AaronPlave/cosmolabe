@@ -3,225 +3,131 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Node.js: 20+](https://img.shields.io/badge/node-20%2B-brightgreen)](https://nodejs.org/)
 
-**Mission visualization and spatial reasoning in your browser.** Track spacecraft,
-inspect instrument fields of view, find geometry events, and connect them to a
-3D scene and timeline. Explore planetary terrain or replay your own ephemeris
-and simulation data from a JSON catalog.
+**An interactive 3D viewer for spacecraft missions, built for the browser.**
+Explore trajectories, instrument fields of view, planetary surfaces and mission
+events; move through mission time and inspect eclipses or close approaches in 3D
+and on a shared timeline. Cosmolabe loads SPICE kernels, TLEs and sampled trajectory
+data through JSON catalogs, with a standalone viewer and reusable TypeScript libraries.
 
-**[Open the hosted demo](https://aaronplave.com/cosmolabe/)** ·
-**[Catalog reference](docs/catalog-format.md)** · **[Get started](#getting-started)**
+**[Try the viewer](https://aaronplave.com/cosmolabe/)** ·
+**[Get started](#getting-started)** · **[Catalog format](docs/catalog-format.md)** ·
+**[Architecture](#architecture-and-embedding)**
 
-[![Play the Europa Clipper flyby: spacecraft, instrument cones, WAC PiP and Jupiter emerging behind Europa](docs/img/mission-flyby.png)](https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev/showcase/readme/clipper-a1822b324dc14e3c/index.html)
+<a href="https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev/showcase/readme/clipper-a1822b324dc14e3c/index.html"><img src="docs/img/mission-flyby.png" width="640" alt="Play the Europa Clipper flyby: instrument cones, a rendered wide-angle instrument view and Jupiter emerging behind Europa"></a>
 
 **[Watch the 24-second Clipper flyby](https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev/showcase/readme/clipper-a1822b324dc14e3c/index.html)** ·
-[Download the 1080p MP4](https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev/showcase/readme/clipper-a1822b324dc14e3c/clipper.mp4)
+[Download MP4](https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev/showcase/readme/clipper-a1822b324dc14e3c/clipper.mp4)
 
-*Jupiter emerges behind Europa, followed by a pullback to the system, with
-instrument cones and live WAC picture-in-picture. FOVs come from instrument
-kernels; pointing is illustrative and target-facing, without CK attitude coverage.*
-
-![Cassini closest approach: selected 3D event, distance windows, distance and range-rate plots](docs/img/mission-events.png)
-
-*Cassini at Saturn orbit insertion: the selected closest approach aligns with
-distance and range-rate plots. Two event lanes show when the spacecraft is within
-100,000 and 150,000 km of Saturn, on a six-hour timeline.*
+*Jupiter emerges behind Europa before a pullback to the system, with a rendered
+wide-angle instrument view. FOVs come from instrument kernels; pointing is
+illustrative and target-facing, without CK attitude coverage.*
 
 ## What you can do
 
-1. **Load a mission.** Choose a catalog in the browser, configure another
-   [catalog source](docs/catalog-sources.md), or drop in a catalog and its files.
-   Inputs include SPICE kernels, TLEs, Keplerian elements, tabulated states and
-   CCSDS OEM ephemerides; SPICE is optional for visualization.
-2. **Follow the spacecraft.** Pick bodies in 3D, track a spacecraft or target,
-   change camera frames, and inspect instrument geometry and sensor views.
-3. **Find an encounter.** Run Event Finder for closest approaches, distance
-   windows, eclipses or occultations. Select a result to see its geometry in 3D;
-   scrub the shared timeline through event lanes and geometry profiles.
-   Searches require the appropriate SPICE kernels and coverage.
-4. **Measure the scene.** Create distances, directions and angles between
-   entities, surface picks or explicit coordinates, with live panel readouts.
-5. **Return to a view.** [Copy a view link](docs/view-state.md) to share catalog,
-   epoch, camera, selection, supported display layers, searches and measurements.
-   Recipients need access to the same catalog and assets; local file uploads and
-   some camera modes cannot be shared. Panel arrangements are session state.
-6. **Capture or script a workflow.** Save screenshots and WebGL video, or drive
-   the viewer with [ViewerControl and scripts](docs/scripting.md), including the
-   Earth–Moon tour. Browser-viewport recording also captures the analysis UI;
-   the built-in video recorder captures the WebGL canvas only.
+- **Explore a mission:** load an example or your own catalog; follow spacecraft
+  and planets, and inspect trajectories, instruments and terrain.
+- **Find and visualize events:** search for closest approaches, eclipses,
+  occultations and distance windows; inspect results in 3D and event intervals
+  and geometry plots on the timeline.
+- **Measure geometry:** distances, directions and angles between spacecraft,
+  bodies and chosen locations.
+- **Share and automate views:** [share supported viewer states](docs/view-state.md),
+  [script camera and time changes](docs/scripting.md), or drive the renderer from a host application.
 
-The Svelte viewer keeps 3D at the center: a thin tool rail opens analysis panels
-that can dock, float, resize or minimize. Picking and tracking establish context;
-the bottom timeline combines playback, event intervals and temporal analysis.
-See the [viewer shell guide](docs/ui-shell.md).
-
-## Mission gallery
-
-These are actual viewer captures with ordinary rendering, including the UI.
-[Capture recipes and asset prerequisites](docs/readme-media.md) make them reproducible.
-
-![Europa Clipper with Europa, Jupiter and one EIS narrow-angle field of view](docs/img/mission-clipper.jpg)
-
-*Europa Clipper after a Europa encounter: spacecraft context and a single EIS
-narrow-angle field of view, with unrelated orbit trails hidden.*
-
-![Oblique view of crater relief beneath LRO, with its orbit above the lunar horizon](docs/img/mission-lro.jpg)
-
-*Crater rims and shadowed floors beneath LRO at low Sun elevation: streamed
-lunar terrain and WAC imagery, with the orbit retained above the horizon.*
-
-![Saturn rings and Cassini's orbit-insertion trajectory](docs/img/mission-cassini.jpg)
-
-*Cassini at Saturn: the ring system, illumination and one spacecraft trajectory.*
-
-![Earth–Moon scripted tour with its script panel](docs/img/mission-tour.png)
-
-*The Earth–Moon catalog includes a script that drives time, camera and layers
-through the same ViewerControl methods used by hosts.*
-
-![Europa Clipper to Europa distance overlay and the Measurements panel](docs/img/mission-measurements.png)
-
-*A single Clipper–Europa center-to-center distance of 7,968 km, with its
-endpoints and live readout. Center distance differs from altitude above the surface.*
-
-<details>
-<summary>Experimental Mars surface</summary>
-
-![Ingenuity over Jezero terrain in the experimental Mars surface viewer](docs/img/mission-mars.jpg)
-
-*Ingenuity at Jezero — experimental surface visualization. The capture needs the
-locally generated fused Mars terrain product described in the recipes.*
-
-</details>
-
-[Recreate or improve the screenshots and video](docs/readme-media.md), including
-an optional Cassini analysis clip with distance windows and plots.
-
-## Example catalogs
-
-Browse the current [Examples index](apps/viewer/test-catalogs/index.json):
-
-| Example | What it demonstrates |
-| --- | --- |
-| Europa Clipper | Jupiter science-phase trajectory, spacecraft model and instruments |
-| Cassini Saturn Tour | Orbit insertion, Titan/Huygens and Enceladus encounter viewpoints |
-| LRO at the Moon | Lunar orbit, instruments, terrain and imagery |
-| ISS (TLE) | Satellite propagation without SPICE; element epoch limits accuracy |
-| Psyche; Voyager 1 & 2 | Cruise, flybys and long mission arcs |
-| Ingenuity at Jezero; Curiosity at Mars | Experimental Mars surface scenes |
-| MoonFall at Shackleton | Synthetic four-hopper lunar south-pole mission |
-| CCSDS OEM Ingest | Cassini flown from a text ephemeris, without a spacecraft SPK |
-| Earth–Moon Scripted Tour | Scripted camera, time and display changes |
-| Earth + Moon; Inner Planets | Analytical/Keplerian scenes without kernels |
-
-Mission catalogs can download substantial kernels, textures and models. Terrain
-and imagery continue streaming after scene loading; availability and detail depend
-on the catalog's data services and local asset setup.
+Select a spacecraft or body to inspect or follow it. Tools open in movable panels,
+while the bottom timeline shows time, event windows and geometry plots.
+See [workflow details and data requirements](docs/viewer-overview.md#workflows).
 
 ## Getting started
 
-Use Node.js 20 or later. For local mission examples, install
-[Git LFS](https://git-lfs.com/) **before cloning** so tracked meshes, DDS textures,
-large lunar maps and kernel binaries are downloaded rather than left as pointers.
-A small analytical scene does not require every mission dataset.
+**[Launch the hosted viewer](https://aaronplave.com/cosmolabe/)** and choose an example catalog.
+
+To run locally, use Node.js 20+ and install [Git LFS](https://git-lfs.com/) before
+cloning to download tracked binary assets:
 
 ```sh
 git clone https://github.com/AaronPlave/cosmolabe.git
 cd cosmolabe
-git lfs pull          # fetch LFS-managed assets if the clone skipped them
 npm install
 npm run build
 npm --prefix apps/viewer run dev
 ```
 
-Open the URL printed by Vite. To run the Cesium integration viewer instead:
+Open the URL printed by Vite. Analytical examples need no SPICE kernels; mission
+examples may need additional downloads, and generated terrain needs local setup.
+See [asset prerequisites](docs/viewer-overview.md#local-setup-and-assets) and
+[development commands](CONTRIBUTING.md).
 
-```sh
-npm --prefix apps/cesium-viewer run dev
-```
+## Example missions
 
-LFS is only part of the asset setup: large ignored mission kernels are obtained
-with the relevant `scripts/fetch-*-kernels.sh` scripts, and generated terrain has
-its own build prerequisites. The hosted deployment rewrites published datasets
-to Cloudflare R2 when configured; it does not make a local clone's relative data
-paths available automatically. See [data hosting](docs/data-hosting.md),
-[contributing](CONTRIBUTING.md) and the [capture prerequisites](docs/readme-media.md).
+| Example | Explore |
+| --- | --- |
+| Europa Clipper | Europa encounters, spacecraft model and instrument FOVs |
+| Cassini Saturn Tour | Saturn orbit insertion, Titan and Enceladus encounters |
+| LRO at the Moon | Lunar orbit, terrain and imagery |
+| ISS (TLE) | Satellite propagation without SPICE |
+| Psyche | An interplanetary cruise trajectory |
+| Earth–Moon Scripted Tour | Scripted camera, time and display changes |
 
-```sh
-npm test              # numerical, model, control and viewer-state tests
-npm run typecheck     # packages, tests, viewer and Svelte
-npm run lint
-```
+Browse the [full catalog index](apps/viewer/test-catalogs/index.json) or
+[configure another catalog source](docs/catalog-sources.md).
 
-GPU/browser checks are separate; see the [visual regression guide](apps/viewer/test-screenshots/README.md).
-Promotional captures live in `docs/img/`, separately from regression goldens.
+## Gallery
+
+| LRO — lunar terrain and imagery | Cassini — Saturn orbit insertion |
+| --- | --- |
+| [![Oblique crater relief beneath LRO's orbit](docs/img/mission-lro.jpg)](docs/img/mission-lro.jpg) | [![Saturn rings and Cassini's trajectory](docs/img/mission-cassini.jpg)](docs/img/mission-cassini.jpg) |
+| **Clipper — instrument FOV** | **Measurements — Clipper to Europa** |
+| [![Europa Clipper, Europa, Jupiter and an EIS field of view](docs/img/mission-clipper.jpg)](docs/img/mission-clipper.jpg) | [![Clipper to Europa distance and Measurements panel](docs/img/mission-measurements.png)](docs/img/mission-measurements.png) |
+
+**Event Finder — closest approach and distance profiles**
+
+[![Cassini closest approach, distance windows and range-rate plots on the timeline](docs/img/mission-events.png)](docs/img/mission-events.png)
+
+<details>
+<summary>Experimental Mars surface</summary>
+
+<img src="docs/img/mission-mars.jpg" width="480" alt="Ingenuity over Jezero terrain in the experimental Mars surface viewer">
+
+Ingenuity at Jezero; requires a locally generated fused terrain product.
+
+</details>
+
+[Capture recipes, the scripted Moon tour and video recreation](docs/readme-media.md).
 
 ## Architecture and embedding
 
-The standalone viewer composes a queryable universe model, injected SPICE/frame
-services and a renderer. Core and control have no rendering or DOM dependencies;
-host applications can query states or drive the viewer without rewriting its UI.
+Use the standalone viewer, or embed the TypeScript packages in your own application.
+The viewer combines a queryable universe model with injected SPICE/frame services
+and a renderer; core and control have no rendering or DOM dependencies.
 
-```text
-cosmolabe/
-├── apps/
-│   ├── viewer/           Svelte 5 mission viewer over Three.js
-│   └── cesium-viewer/    Cesium integration examples
-├── packages/
-│   ├── core/             Universe, catalogs, trajectories and geometry
-│   ├── control/          ViewerControl, scripts and portable view state
-│   ├── interop/          CCSDS parsing/writing, CSV and CZML export
-│   ├── frames/           State/frame contracts and heritage SPICE adapter
-│   ├── cspice-wasm/      Runtime CSPICE WASM and bindings
-│   ├── spice/            Independent test reference; not a runtime dependency
-│   ├── three/            Three.js renderer and renderer plugins
-│   ├── cesium-adapter/   CZML scene export and coordinate transforms
-│   └── cesium/           Cesium renderer
-├── docs/                 Formats, architecture, workflows and validation
-└── scripts/              Data preparation, hosting and browser checks
-```
+| Role | Packages |
+| --- | --- |
+| Mission data and host control | [Core](packages/core/README.md), [Control](packages/control/README.md) |
+| Rendering | [Three.js](packages/three/README.md), [Cesium](packages/cesium/README.md), [Cesium adapter](packages/cesium-adapter/README.md) |
+| Geometry and formats | [CSPICE WASM](packages/cspice-wasm/README.md), [Interop](packages/interop/README.md) |
 
-- **[Core](packages/core/README.md)** loads supported Cosmographia-style catalog
-  definitions plus Cosmolabe extensions. Compatibility is bounded by the
-  [catalog reference](docs/catalog-format.md), available assets and supported
-  geometry; Cosmographia Python scripts are not source-compatible with viewer scripts.
-- **[Three.js](packages/three/README.md)** renders trajectories, instrument FOVs,
-  event markers, textured globes, terrain, atmospheres, eclipses, rings and ring
-  shadows. Surface Explorer and Mars surface workflows remain experimental.
-  Catalog data and kernel coverage bound the geometry shown.
-- **[Control](packages/control/README.md)** provides host time, selection and camera
-  control, scripting and observation hooks. Renderer plugins add custom overlays.
-- **[Interop](packages/interop/README.md)** parses/writes KVN OEM and quaternion
-  AEM, parses CDM encounter summaries, and exports CSV time series/intervals and
-  CZML availability/ground tracks. OEM is directly loadable as a catalog trajectory;
-  AEM/CDM are library transforms, not general viewer drop-in sources. These are
-  scoped format implementations, not complete CCSDS message coverage.
-- **[Cesium adapter](packages/cesium-adapter/README.md)** and
-  **[Cesium renderer](packages/cesium/README.md)** support globe-centric integration.
-  See [choosing a renderer](packages/cesium-adapter/CHOOSING_A_RENDERER.md).
-
-For engine details see [CSPICE WASM](packages/cspice-wasm/README.md), the
-[SPICE reference package](packages/spice/README.md) and [development architecture](CONTRIBUTING.md#project-layout).
-[ROADMAP.md](ROADMAP.md) tracks planned work; this README describes shipped workflows
-rather than promising complete renderer or catalog coverage.
+Catalogs support a subset of Cosmographia definitions plus Cosmolabe extensions;
+CCSDS format support is scoped to the implementations in Interop.
+See [architecture and compatibility details](docs/viewer-overview.md#architecture-and-format-support),
+[choosing a renderer](packages/cesium-adapter/CHOOSING_A_RENDERER.md) and the [roadmap](ROADMAP.md).
 
 ## Attribution, contributing and license
 
-Named after Jacques Besson's 1566 [cosmolabe](https://en.wikipedia.org/wiki/Cosmolabe),
-a universal instrument for astrometry, cartography, navigation and surveying.
+Named after Jacques Besson's 1566 [cosmolabe](https://en.wikipedia.org/wiki/Cosmolabe).
 The catalog format derives from NASA JPL's
-[Cosmographia](https://naif.jpl.nasa.gov/naif/cosmographia.html), originally created
-by Chris Laurel, author of [Celestia](https://celestiaproject.space/).
+[Cosmographia](https://naif.jpl.nasa.gov/naif/cosmographia.html), created by
+Chris Laurel, author of [Celestia](https://celestiaproject.space/).
 
-Cosmolabe uses [TimeCraftJS](https://github.com/NASA-AMMOS/timecraftjs)/CSPICE,
-[Three.js](https://threejs.org/),
+The viewer uses **CSPICE compiled to WebAssembly**, [Three.js](https://threejs.org/),
 [3DTilesRendererJS](https://github.com/NASA-AMMOS/3DTilesRendererJS),
 [CesiumJS](https://cesium.com/platform/cesiumjs/) and
-[satellite.js](https://github.com/shashwatak/satellite-js). See [NOTICE](NOTICE)
-for component and data attribution.
+[satellite.js](https://github.com/shashwatak/satellite-js).
+Component and data attribution, including TimeCraftJS used by the independent
+SPICE reference/test package, is retained in [NOTICE](NOTICE).
 
-Contributions welcome: [development and PR guide](CONTRIBUTING.md),
-[code of conduct](CODE_OF_CONDUCT.md), [security reporting](SECURITY.md).
-Licensed under Apache-2.0; see [LICENSE](LICENSE).
+[Contributing](CONTRIBUTING.md) · [Code of conduct](CODE_OF_CONDUCT.md) ·
+[Security reporting](SECURITY.md) · [Apache-2.0 license](LICENSE)
 
-This software is not approved or endorsed by NASA or JPL. It uses NASA-released
-open-source components but is independently developed and maintained.
+This software is independently developed and maintained, and is not approved or
+endorsed by NASA or JPL.

@@ -147,12 +147,19 @@ and shell settings because they are not all part of ViewerControl. A copied view
 link carries searches/measurements but not panel arrangement or individual sensor
 visibility. See [view state](view-state.md) and [scripting](scripting.md).
 
-The primary gallery uses the scripted tour in place of the proposed Mars hero
-composition. The Mars capture is delivered as supplementary experimental media:
+The README keeps the mission gallery compact; the scripted tour is shown below.
+The Mars capture is delivered as supplementary experimental media:
 its NASA grayscale imagery still has soft foreground detail at this viewpoint,
 so it should not stand in for a finished terrain marketing image. Recheck it
 after the imagery/depth work in #184, #186 and #189; no renderer changes were
 made to improve promotional captures.
+
+## Scripted Moon tour
+
+[![Earth–Moon tour with the script panel](img/mission-tour.png)](img/mission-tour.png)
+
+The catalog tour drives time, camera and layers through ViewerControl. The capture
+shows an executed stationary excerpt with playback paused; see [scripting](scripting.md).
 
 ## Record the mission workflow video
 
