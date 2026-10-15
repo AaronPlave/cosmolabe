@@ -253,12 +253,16 @@ function spans(p, i, j) {
  * not. Taken from the source's sxform; differenced from pxform if the source
  * carries none.
  */
-function angularVelocity(t, t0, t1, source = spice) {
+function rotationBlock(xf) {
+  return [xf[0], xf[1], xf[2], xf[6], xf[7], xf[8], xf[12], xf[13], xf[14]];
+}
+
+function angularVelocity(t, t0, t1, source = spice, transform) {
   let C;
   let dC;
   try {
-    const xf = source.sxform(opt.ref, opt.frame, t);
-    C = [xf[0], xf[1], xf[2], xf[6], xf[7], xf[8], xf[12], xf[13], xf[14]];
+    const xf = transform ?? source.sxform(opt.ref, opt.frame, t);
+    C = rotationBlock(xf);
     dC = [xf[18], xf[19], xf[20], xf[24], xf[25], xf[26], xf[30], xf[31], xf[32]];
   } catch {
     const h = 0.5;
@@ -372,14 +376,21 @@ const probeTransform = (p, t) => {
     // derivative path used to write their rates, without claiming source AV.
     const lo = Math.max(p.t[0], t - 0.5), hi = Math.min(p.t[p.t.length - 1], t + 0.5);
     const a = spice.pxform(opt.ref, opt.frame, lo), b = spice.pxform(opt.ref, opt.frame, hi);
+    const C = spice.pxform(opt.ref, opt.frame, t);
     source = new Array(36).fill(0);
     for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 3; col++) source[(row + 3) * 6 + col] = (b[row * 3 + col] - a[row * 3 + col]) / (hi - lo);
+      for (let col = 0; col < 3; col++) {
+        source[row * 6 + col] = source[(row + 3) * 6 + col + 3] = C[row * 3 + col];
+        source[(row + 3) * 6 + col] = (b[row * 3 + col] - a[row * 3 + col]) / (hi - lo);
+      }
     }
   }
   const rebuilt = check.sxform(opt.ref, opt.frame, t);
-  const a = angularVelocity(t, p.t[0], p.t[p.t.length - 1]);
-  const b = angularVelocity(t, p.t[0], p.t[p.t.length - 1], check);
+  // Derive all comparisons from these same two transforms. Re-querying the
+  // same source/output matrices for rates and quaternions multiplies the cold
+  // build cost without adding independent evidence.
+  const a = angularVelocity(t, p.t[0], p.t[p.t.length - 1], spice, source);
+  const b = angularVelocity(t, p.t[0], p.t[p.t.length - 1], check, rebuilt);
   const rateError = Math.hypot(...a.map((v, i) => v - b[i]));
   if (rateError > worstRate) { worstRate = rateError; worstRateAt = t; }
   const derivativeBound = maxRate + 3 * TOL * Math.hypot(...a);
@@ -387,8 +398,7 @@ const probeTransform = (p, t) => {
     if (Math.abs(source[i] - rebuilt[i]) > derivativeBound) derivativeFailures++;
     worstDerivative = Math.max(worstDerivative, Math.abs(source[i] - rebuilt[i]));
   }
-  const qa = quat(spice, t), qb = quat(check, t);
-  if (!qa || !qb) throw new Error(`thin-ck: missing attitude at verification epoch ${t}`);
+  const qa = spice.m2q(rotationBlock(source)), qb = check.m2q(rotationBlock(rebuilt));
   const e = angle(qa, qb);
   if (e > worst) { worst = e; worstAt = t; }
   transformProbes++;
