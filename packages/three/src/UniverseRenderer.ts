@@ -358,8 +358,8 @@ export class UniverseRenderer {
   /** Point Probe reticle, pinned marker and their callouts (#127). */
   private readonly _probe: PointProbeOverlay;
   private _probeActive = false;
-  /** Where the current primary press began, so a drag never pins a point. */
-  private _probePress: { x: number; y: number } | null = null;
+  /** Track the whole press: orbiting out and back is still a drag, not a point pick. */
+  private _pickPress: { id: number; x: number; y: number; dragged: boolean } | null = null;
   /** A hovering (mouse or pen) pointer is over the canvas: the probe re-picks under it. */
   private _hoverPointerInside = false;
   /** The pointer moved since the last probe pick; the next frame re-picks. */
@@ -606,7 +606,7 @@ export class UniverseRenderer {
     canvas.addEventListener('pointerdown', this._onTouchPointerDown);
     canvas.addEventListener('pointerup', this._onTouchPointerUp);
     canvas.addEventListener('pointercancel', this._onTouchPointerCancel);
-    canvas.addEventListener('pointerdown', this._onProbePointerDown);
+    canvas.addEventListener('pointerdown', this._onPickPointerDown);
 
     // Hover highlight: emphasize the hovered body's trajectory line + label.
     canvas.addEventListener('pointermove', this._onPointerMove);
@@ -2173,7 +2173,7 @@ export class UniverseRenderer {
   setPointProbeActive(active: boolean): void {
     if (this._probeActive === active) return;
     this._probeActive = active;
-    this._probePress = null;
+    this._pickPress = null;
     if (active) {
       this._probeHoverDirty = true;
       // Selection hover would compete with the probe for the same pointer.
@@ -3183,7 +3183,7 @@ export class UniverseRenderer {
     this.renderer.domElement.removeEventListener('pointerdown', this._onTouchPointerDown);
     this.renderer.domElement.removeEventListener('pointerup', this._onTouchPointerUp);
     this.renderer.domElement.removeEventListener('pointercancel', this._onTouchPointerCancel);
-    this.renderer.domElement.removeEventListener('pointerdown', this._onProbePointerDown);
+    this.renderer.domElement.removeEventListener('pointerdown', this._onPickPointerDown);
     this.renderer.domElement.removeEventListener('pointermove', this._onPointerMove);
     this.renderer.domElement.removeEventListener('pointerleave', this._onPointerLeave);
     if (this._hoverPickTimer) clearTimeout(this._hoverPickTimer);
@@ -4192,11 +4192,14 @@ export class UniverseRenderer {
       if (this.lastTapConsumed) { event.preventDefault(); event.stopImmediatePropagation(); }
       return;
     }
-    // A probe pins where the user pointed, not where an orbit drag ended.
-    if (this._probeActive) {
-      const press = this._probePress;
-      this._probePress = null;
-      if (press && (event.clientX - press.x) ** 2 + (event.clientY - press.y) ** 2 > 25) return;
+    // Both point-picking tools must leave camera drags alone. Remember the
+    // maximum excursion, including a drag that returns to its starting pixel.
+    const press = this._pickPress;
+    this._pickPress = null;
+    if ((this._probeActive || this.spatialInteraction?.picking()) && press &&
+      (press.dragged || (event.clientX - press.x) ** 2 + (event.clientY - press.y) ** 2 > 25)) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      return;
     }
     const rect = this.renderer.domElement.getBoundingClientRect();
     if (this._selectAt(event.clientX - rect.left, event.clientY - rect.top)) {
@@ -4204,8 +4207,8 @@ export class UniverseRenderer {
     }
   };
 
-  private _onProbePointerDown = (event: PointerEvent): void => {
-    if (event.button === 0) this._probePress = { x: event.clientX, y: event.clientY };
+  private _onPickPointerDown = (event: PointerEvent): void => {
+    if (event.button === 0) this._pickPress = { id: event.pointerId, x: event.clientX, y: event.clientY, dragged: false };
   };
 
   /**
@@ -4299,6 +4302,7 @@ export class UniverseRenderer {
   };
 
   private _onTouchPointerCancel = (event: PointerEvent): void => {
+    if (this._pickPress?.id === event.pointerId) this._pickPress.dragged = true;
     if (event.pointerType !== 'touch') return;
     this._tapCandidate = null;
   };
@@ -4343,6 +4347,8 @@ export class UniverseRenderer {
    * changes.
    */
   private _onPointerMove = (event: PointerEvent): void => {
+    const press = this._pickPress;
+    if (press?.id === event.pointerId && (event.clientX - press.x) ** 2 + (event.clientY - press.y) ** 2 > 25) press.dragged = true;
     if (event.pointerType === 'touch') this._trackTapCandidate(event);
     this._pointerInside = true;
     // A touch has no hover to keep up; only a resting mouse or pen does.

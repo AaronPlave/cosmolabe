@@ -159,6 +159,18 @@ try {
   assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'entity');
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint), null);
   await page.getByRole('button', { name: 'Pick source surface point', exact: true }).click();
+  // Orbit drags, including one returning to its starting pixel, must not
+  // commit the pending point. The next deliberate click still selects it.
+  for (const returnToStart of [false, true]) {
+    await page.mouse.move(earth.x, earth.y);
+    await page.mouse.down();
+    await page.mouse.move(earth.x + 40, earth.y + 20, { steps: 5 });
+    if (returnToStart) await page.mouse.move(earth.x, earth.y, { steps: 5 });
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => window.m.measurements.pendingPickSlot), 'source');
+    assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'entity');
+    await page.evaluate(() => window.__cosmolabe.capture('Earth Close'));
+  }
   await page.mouse.move(earth.x + 1, earth.y);
   await page.evaluate(() => window.renderer.renderFrame());
   assert.equal(await page.evaluate(() => window.renderer._probe.hovered?.bodyName), 'Earth');
