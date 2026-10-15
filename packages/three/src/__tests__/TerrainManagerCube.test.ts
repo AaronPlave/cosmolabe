@@ -84,7 +84,7 @@ describe('TerrainManager with cube-sphere CPU grids', () => {
     expect(tm.intersectSurfaceRay({ origin: { xKm: 0, yKm: 0, zKm: -4000 }, direction: [0, 0, 1], nearKm: 0, farKm: 1000 }, { maxMeshErrorKm: 1 })).toBeNull();
   });
 
-  it('draws only the tiles the main camera can see, and restores them before the next update', () => {
+  it('draws only the tiles the main camera can see, and restores them before the next update', async () => {
     serve();
     const tm = make();
     const internals = tm as unknown as { tiles: { visibleTiles: Set<unknown> }; mainView: unknown; cullToMainView(): void };
@@ -106,6 +106,13 @@ describe('TerrainManager with cube-sphere CPU grids', () => {
     };
     const front = tile(0, 0, r), beside = tile(r, 0, 0.1 * r), farSide = tile(0, 0, -r), fadingOut = tile(r, 0, 0.1 * r, false);
     for (const t of [front, beside, farSide, fadingOut]) internals.tiles.visibleTiles.add(t);
+
+    // Before the CPU-grid manifest gives a validated lower surface bound, only the frustum culls.
+    internals.cullToMainView();
+    expect(beside.engineData.scene.visible).toBe(false);
+    expect(farSide.engineData.scene.visible).toBe(true);
+    tm.showCulledTiles();
+    await vi.waitFor(() => expect(tm.cubeStats?.residentTiles).toBe(6));
 
     internals.cullToMainView();
     expect(front.engineData.scene.visible).toBe(true);

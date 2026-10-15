@@ -1615,21 +1615,31 @@ traversal does not. Considered:
 - *Precision*: tests are in the tile-set frame, metres, float64, without near
   or far planes — the planes that degenerate for the main camera. Conservative:
   a box is culled only if all 8 corners are outside one side plane, or all lie
-  beyond the horizon plane *and* inside the shadow cone of a sphere at 0.99 ×
-  the smallest ellipsoid radius (17 km below the Moon's datum; the lowest
-  terrain is 9.1 km below) — a convex region, so the whole box is hidden
-  (Cesium's occluder test). Boxes are subtree boxes from the written vertices,
-  skirts included.
+  beyond the horizon plane *and* inside the shadow cone of an occluder sphere
+  — a convex region, so the whole box is hidden (Cesium's occluder test).
+  Boxes are subtree boxes from the written vertices, skirts included. The
+  occluder is `CubeGridSurface.renderedInnerRadiusKm`, validated per product:
+  the CPU-grid manifest's `heightRangeKm` minimum (the builder asserts it
+  encloses every grid), less the chord sag of the widest level-0 cell, less the
+  largest `renderedDeviationKm` for a simplified product (a tile without one
+  disables the bound). Until that manifest loads, or for non-cube products,
+  the occluder radius is 0 and only the frustum culls. *(Review fix: this
+  replaced a fixed 0.99 × the smallest ellipsoid radius, which had no
+  product-wide lower-surface validation.)*
 - *Memory*: geometry and cache unchanged; imagery blocks for culled tiles are
-  not built (the layer skips culled tiles: no selection, blocks or requests
-  for what is not drawn).
+  not built (culled tiles are not split and request nothing).
 - *Independent imagery*: unchanged per drawn tile; imagery is no longer
   prefetched for tiles only the wider streaming cameras see.
 - *Physical queries*: CPU queries read the cube grids, never meshes; rendered
   picking ray-casts the tile group, and three.js ray casts ignore `visible`.
 - *Other cameras*: the cull is the main camera's. The instrument
   picture-in-picture view (the only other camera that renders terrain) shows
-  every selected tile again before it renders. TilesFadePlugin also sets
+  every selected tile again before it renders. So each culled tile still gets
+  imagery every frame: the best resident texture at its own geometry level,
+  unsplit, without requests and outside the drawn statistics. *(Review fix:
+  the layer had skipped culled tiles entirely, so a tile loaded while culled
+  drew untextured in the instrument view, and one culled after refining kept
+  stale blocks and texture references.)* TilesFadePlugin also sets
   `scene.visible`; the cull only hides scenes the plugin left visible and
   restores exactly those before the next update.
 

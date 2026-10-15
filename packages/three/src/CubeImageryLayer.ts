@@ -337,19 +337,25 @@ export class CubeImageryLayer {
     const stats = { tiles: 0, splitTiles: 0, blocks: 0, displayedLevels: {} as Record<number, number>, wantedLevels: {} as Record<number, number>,
       fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, maxDisplayedLevel: -1 };
     const { tileSize } = this.manifest;
+    const culledStats = { ...stats, displayedLevels: {}, wantedLevels: {} };
     for (const record of this.tiles.values()) {
-      // A tile is drawn this frame exactly when the renderer has its scene attached
-      // and the terrain's main-view cull left it visible.
-      if (!record.scene.parent || !record.scene.visible) continue;
+      // A tile is drawn this frame exactly when the renderer has its scene attached.
+      if (!record.scene.parent) continue;
+      // One the terrain's main-view cull hid is not drawn by the main camera, but
+      // may be by the instrument view: it gets the best resident imagery at its own
+      // level, unsplit and requesting nothing, and stays out of the drawn stats.
+      const culled = !record.scene.visible;
+      const s = culled ? culledStats : stats;
       for (const m of record.meshes) {
         if (!useImagery) { this.unsplit(m); continue; }
         const leaves = selectImageryBlocks({ geometry: record.address, radiusRangeKm: m.radiusRangeKm, cameraKm, pixelAngleRad,
-          maxScreenTexelError: this.options.maxScreenTexelError, tileSize, availability: this.availability, maxBlocks: this.options.maxBlocksPerTile, inView });
-        stats.tiles++;
+          maxScreenTexelError: this.options.maxScreenTexelError, tileSize, availability: this.availability, maxBlocks: this.options.maxBlocksPerTile,
+          inView: culled ? () => false : inView });
+        s.tiles++;
         const whole = leaves.length === 1 && leaves[0].level === record.address.level;
         if (whole) {
           this.unsplit(m);
-          this.show(record.address, leaves[0], m.uniforms, wanted, stats);
+          this.show(record.address, leaves[0], m.uniforms, wanted, s);
           continue;
         }
         stats.splitTiles++;

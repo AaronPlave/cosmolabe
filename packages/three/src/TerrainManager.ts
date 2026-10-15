@@ -1310,13 +1310,14 @@ export class TerrainManager {
   }
 
   /**
-   * A sphere below all terrain, for conservative horizon tests.
-   * ponytail: 1% under the smallest ellipsoid radius (Moon 17 km, Mars 34 km; their
-   * lowest points are 9 and 8 km down); a per-product minimum height would cull more.
+   * Radius, tile-set metres, of a sphere below every rendered triangle, for
+   * conservative horizon tests: the cube product's validated lower bound
+   * (`CubeGridSurface.renderedInnerRadiusKm`) once its CPU-grid manifest has
+   * loaded. Otherwise 0: a point occludes nothing, so the tests fall back to
+   * the frustum alone.
    */
   private horizonRadius(): number {
-    const r = this.tiles.ellipsoid.radius;
-    return 0.99 * Math.min(r.x, r.y, r.z);
+    return this.cube ? this.cube.surface.renderedInnerRadiusKm * 1000 : 0;
   }
 
   /** Show or hide cube-sphere skirts on every loaded and future tile; imagery blocks rebuild to match. */
