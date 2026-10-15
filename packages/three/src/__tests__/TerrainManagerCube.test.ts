@@ -84,6 +84,32 @@ describe('TerrainManager with cube-sphere CPU grids', () => {
     expect(tm.intersectSurfaceRay({ origin: { xKm: 0, yKm: 0, zKm: -4000 }, direction: [0, 0, 1], nearKm: 0, farKm: 1000 }, { maxMeshErrorKm: 1 })).toBeNull();
   });
 
+  it('drops grids whose revision differs from the tileset\'s asset.tilesetVersion, before or after the tileset loads', async () => {
+    serve();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    type Tiles = { rootTileset: object | null; dispatchEvent(e: { type: string }): void };
+    // Tileset first, from another revision: the grids are never used.
+    const early = make();
+    (early as unknown as { tiles: Tiles }).tiles.rootTileset = { asset: { tilesetVersion: 'cube-other' } };
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
+    expect(early.cubeStats?.version ?? null).toBeNull();
+    expect(early.sample(-90, 0)).toBeNull();
+    // Grids first: used until the mismatching tileset arrives, then dropped.
+    const late = make();
+    await vi.waitFor(() => expect(late.cubeStats?.residentTiles).toBe(6));
+    const tiles = (late as unknown as { tiles: Tiles }).tiles;
+    tiles.rootTileset = { asset: { tilesetVersion: 'cube-other' } };
+    tiles.dispatchEvent({ type: 'load-root-tileset' });
+    expect(late.sample(-90, 0)).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(2);
+    // The same revision (or a tileset that names none) keeps them.
+    const same = make();
+    (same as unknown as { tiles: Tiles }).tiles.rootTileset = { asset: { tilesetVersion: 'fixture-v1' } };
+    await vi.waitFor(() => expect(same.cubeStats?.residentTiles).toBe(6));
+    expect(same.sample(-90, 0)).not.toBeNull();
+    for (const tm of [early, late, same]) tm.dispose();
+  });
+
   it('draws only the tiles the main camera can see, and restores them before the next update', async () => {
     serve();
     const tm = make();

@@ -1414,8 +1414,27 @@ export class TerrainManager {
       const surface = new CubeGridSurface(source, 'body', 'body-fixed');
       source.onChange = (id) => surface.invalidate(id);
       this.cube = { source, surface };
+      // Geometry and grids must be one product revision (the builder writes the grids'
+      // source version as the tileset's asset.tilesetVersion). Checked once the tileset
+      // arrives, so CPU queries never wait on rendering; a mismatch drops the grids.
+      this.onRootTileset((tileset) => {
+        const version = (tileset as { asset?: { tilesetVersion?: string } }).asset?.tilesetVersion;
+        if (version === undefined || version === source.manifest.source.version || this.cube?.source !== source) return;
+        this.cube = null;
+        source.dispose();
+        this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`,
+          new Error(`grid revision ${source.manifest.source.version} does not match the tileset's ${version}`));
+      });
       return source.ready;
     }).catch((err) => this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err));
+  }
+
+  /** Call `fn` with the root tileset JSON now if it has loaded, else once it does. */
+  private onRootTileset(fn: (tileset: object) => void): void {
+    const tiles = this.tiles as unknown as { rootTileset: object | null } & THREE.EventDispatcher<{ 'load-root-tileset': object }>;
+    if (tiles.rootTileset) { fn(tiles.rootTileset); return; }
+    const listener = () => { tiles.removeEventListener('load-root-tileset', listener); if (tiles.rootTileset) fn(tiles.rootTileset); };
+    tiles.addEventListener('load-root-tileset', listener);
   }
 
   bodyFixedToGeodetic(point: BodyFixedCartesian): BodyFixedPosition {
