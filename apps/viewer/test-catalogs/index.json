@@ -27,6 +27,8 @@
     { "id": "voyagers", "name": "Voyager 1 & 2", "catalog": "./voyagers.json", "description": "Grand Tour: 1977 launch → interstellar (~85 MB)", "group": "Mission demos" , "featured": true },
     { "id": "msl-dingo-gap", "name": "Curiosity at Mars", "catalog": "./msl-dingo-gap.json", "description": "Mars surface rendering (experimental)", "group": "Mission demos" },
     { "id": "ingenuity-jezero", "name": "Ingenuity at Jezero", "catalog": "./ingenuity-jezero.json", "description": "Mars helicopter at Wright Brothers Field — no SPICE", "group": "Mission demos" },
+    { "id": "moon-imagery-apollo15", "name": "Apollo 15 imagery", "catalog": "./moon-imagery-apollo15.json", "description": "Streamed global + Hadley Rille NAC lunar imagery, no terrain — no SPICE", "group": "Mission demos" },
+    { "id": "mars-imagery-jezero", "name": "Jezero imagery", "catalog": "./mars-imagery-jezero.json", "description": "Streamed global + regional Mars imagery, no terrain — no SPICE", "group": "Mission demos" },
     { "id": "moonfall-shackleton", "name": "MoonFall at Shackleton", "catalog": "./moonfall-shackleton.json", "description": "Synthetic 4-hopper lunar South Pole mission, Dec 2028", "group": "Mission demos" }
   ]
 }

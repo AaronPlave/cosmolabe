@@ -80,7 +80,22 @@ export interface TerrainSamplerDiagnostics {
 }
 
 const DEG = Math.PI / 180;
-const wrapLon = (lon: number) => ((lon + 180) % 360 + 360) % 360 - 180;
+/** Wrap longitude to [-180, 180); the TerrainSample position convention. */
+export const wrapLon = (lon: number) => ((lon + 180) % 360 + 360) % 360 - 180;
+
+/**
+ * The geodetic converters below implement spheres and geodetic oblate ellipsoids
+ * only. Radial oblate heights, areoid/unknown vertical datums and triaxial shapes
+ * must be rejected rather than reinterpreted as a supported datum.
+ */
+export function isSupportedGeodeticDatum(datum: TerrainDatum): boolean {
+  if (datum.verticalDatum !== 'reference-sphere' && datum.verticalDatum !== 'ellipsoid') return false;
+  const shape = datum.referenceShape;
+  if (shape.kind === 'sphere') return Number.isFinite(shape.radiusKm) && shape.radiusKm > 0;
+  const [a, b, c] = shape.radiiKm;
+  return datum.heightConvention === 'geodetic-normal' && a === b
+    && Number.isFinite(a) && a > 0 && Number.isFinite(c) && c > 0;
+}
 
 /** Convert geodetic body-fixed coordinates to conventional Z-up ECEF. */
 export function geodeticToBodyFixed(position: BodyFixedPosition, datum: TerrainDatum): BodyFixedCartesian {

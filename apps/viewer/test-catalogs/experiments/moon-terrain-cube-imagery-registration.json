@@ -1,0 +1,151 @@
+{
+  "name": "Moon terrain: cube sphere + registration fixture (#149 imagery experiment)",
+  "description": "Synthetic texel-coordinate encoding for registration read-back, draped by CubeImageryLayer at its own levels on the cube-sphere terrain (scripts/build-moon-terrain/cube.sh). Build the imagery with scripts/build-moon-terrain/cube-imagery.sh. Experimental, not listed in the catalog index; see docs/design/cube-sphere-experiment.md.",
+  "defaultTime": "2028-12-15T10:04:00Z",
+  "defaultViewpoint": "Shackleton",
+  "items": [
+    {
+      "name": "Shackleton",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 60,
+      "latitude": -89.6,
+      "longitude": 0
+    },
+    {
+      "name": "South Pole",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 20,
+      "latitude": -89.9,
+      "longitude": 130
+    },
+    {
+      "name": "Orbital Overview",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 6000,
+      "latitude": -55,
+      "longitude": 30
+    },
+    {
+      "name": "Antimeridian 60S",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 80,
+      "latitude": -60,
+      "longitude": 180
+    },
+    {
+      "name": "Face Corner",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 80,
+      "latitude": -35.26,
+      "longitude": 45
+    },
+    {
+      "name": "Face Edge",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 80,
+      "latitude": -45,
+      "longitude": 0
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1,
+          0.9,
+          0.3
+        ]
+      }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Earth",
+        "visible": false
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378,
+        "baseMap": "../textures/earth-5k.jpg",
+        "atmosphere": "Earth"
+      },
+      "label": {
+        "color": [
+          0.4,
+          0.6,
+          1
+        ]
+      }
+    },
+    {
+      "name": "Moon",
+      "class": "moon",
+      "center": "Earth",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Moon"
+      },
+      "rotationModel": {
+        "type": "Builtin",
+        "name": "IAU_MOON"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 1737.4,
+        "baseMap": "../textures/moon-16k.jpg",
+        "normalMap": "../textures/moon-normal-16k.jpg",
+        "displacementMap": "../textures/moon-displacement-2k.jpg",
+        "displacementScale": 20,
+        "displacementBias": -9,
+        "terrain": {
+          "type": "3dtiles",
+          "url": "../data/moon-terrain-cube/tileset.json",
+          "errorTarget": 2,
+          "fadeDurationMs": 0,
+          "datum": {
+            "verticalDatum": "reference-sphere",
+            "heightConvention": "radial"
+          },
+          "sourceMetadata": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "kind": "height-grid"
+          },
+          "cubeSphere": {
+            "cpuGrids": "../data/moon-terrain-cube/cpu-grids.json",
+            "imagery": {
+              "url": "../data/moon-imagery-cube-registration/imagery.json"
+            }
+          }
+        }
+      },
+      "label": {
+        "color": [
+          0.7,
+          0.7,
+          0.7
+        ]
+      }
+    }
+  ]
+}
