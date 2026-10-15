@@ -316,7 +316,19 @@ for (let n = 0; n < Number(opt.verify); n++) {
 let worstRate = 0, worstDerivative = 0, transformProbes = 0;
 let derivativeFailures = 0;
 const probeTransform = (p, t) => {
-  const source = spice.sxform(opt.ref, opt.frame, t);
+  let source;
+  try {
+    source = spice.sxform(opt.ref, opt.frame, t);
+  } catch {
+    // Some source CKs contain orientations only. Match the existing numerical
+    // derivative path used to write their rates, without claiming source AV.
+    const lo = Math.max(p.t[0], t - 0.5), hi = Math.min(p.t[p.t.length - 1], t + 0.5);
+    const a = spice.pxform(opt.ref, opt.frame, lo), b = spice.pxform(opt.ref, opt.frame, hi);
+    source = new Array(36).fill(0);
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) source[(row + 3) * 6 + col] = (b[row * 3 + col] - a[row * 3 + col]) / (hi - lo);
+    }
+  }
   const rebuilt = check.sxform(opt.ref, opt.frame, t);
   const a = angularVelocity(t, p.t[0], p.t[p.t.length - 1]);
   const b = angularVelocity(t, p.t[0], p.t[p.t.length - 1], check);

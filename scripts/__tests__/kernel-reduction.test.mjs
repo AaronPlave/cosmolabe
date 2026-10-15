@@ -71,6 +71,16 @@ describe('kernel reduction CLI accuracy gates', () => {
       const b = reader.sxform('J2000', 'REDUCTION_TEST', t);
       expect(Math.max(...a.map((v, i) => Math.abs(v - b[i])))).toBeLessThan(1e-5);
     }
+
+    // Preserve compatibility with orientation-only sources: their derivative
+    // is explicitly estimated rather than mistaken for missing output rates.
+    writer.writeCk03('no-av.bc', -999000, 'J2000', 'NO AV FIXTURE', new Float64Array(ticks),
+      new Float64Array(quats), null, new Float64Array([ticks[0], ticks[3]]));
+    writeFileSync(join(dir, 'no-av.bc'), writer.readKernelBytes('no-av.bc'));
+    expect(() => execFileSync(process.execPath, ['scripts/thin-ck.mjs', '--kernels',
+      [lsk, join(dir, 'test.tsc'), join(dir, 'test.tf'), join(dir, 'no-av.bc')].join(','),
+      '--inst=-999000', '--frame', 'REDUCTION_TEST', '--ref', 'J2000', '--step', '20',
+      '--verify', '100', '--out', join(dir, 'no-av-reduced.bc')], { cwd: root, encoding: 'utf8' })).not.toThrow();
   });
 
   it('rejects a reduced SPK with acceptable position error but unacceptable velocity error', async () => {
