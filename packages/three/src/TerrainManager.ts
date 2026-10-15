@@ -12,6 +12,7 @@ import { clampOpacity, describeImageryLayers, imageryList, layerStatus, overlaps
 import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGridSourceStats } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import type { CubeFace } from './surface/CubeSphere.js';
+import { fetchWithRetry } from './fetchWithRetry.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
 
 export interface TerrainImageryConfig {
@@ -954,6 +955,11 @@ export class TerrainManager {
     // levels. Off by default for imagery-only (see `fadeDurationMs`); set it
     // to 0 in the catalog for HiRISE-detail terrain, where the fade can jitter
     // as tiles stream in/out while the camera is moving.
+    // Every tile of a cube product exists (the publisher checks), so a failed request is
+    // transient: retry it while the tile stays loading. Upstream counts a failed child
+    // as ready and drops its parent, which leaves a hole until the session ends.
+    if (config.cubeSphere) this.tiles.registerPlugin({ fetchData: (url: string, options: RequestInit) => fetchWithRetry(url, options) } as never);
+
     const fadeMs = config.fadeDurationMs ?? (this.isImageryOnly ? 0 : 300);
     if (fadeMs > 0) {
       this.tiles.registerPlugin(new TilesFadePlugin({ fadeDuration: fadeMs }));

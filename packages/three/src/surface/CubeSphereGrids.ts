@@ -1,5 +1,6 @@
 import type { TerrainDatum, TerrainSample, TerrainSourceMetadata } from '../TerrainSampler.js';
 import { CpuMeshSurface } from './CpuMeshSurface.js';
+import { fetchWithRetry } from '../fetchWithRetry.js';
 import {
   CubeSphereSampler, cubeFaceToDirection, cubeTileId, directionToCubeFace,
   type CubeFace, type CubeFaceCoordinate, type CubeHeightTile, type CubeTileAddress,
@@ -54,6 +55,8 @@ export interface CubeGridSourceOptions {
   residentLevel?: number;
   /** Finer tiles retained beyond the resident levels, least recently requested evicted first. Default 2048. */
   maxDetailTiles?: number;
+  /** Grid requests in flight at once (`fromUrl`); the rest wait. Default 16. */
+  maxConcurrentRequests?: number;
 }
 
 export interface CubeGridSourceStats {
@@ -113,15 +116,26 @@ export class CubeSphereGridSource {
   }
 
   /** Fetch the manifest, then grids relative to it. */
-  static async fromUrl(url: string, options: CubeGridSourceOptions & { fetch?: typeof fetch } = {}): Promise<CubeSphereGridSource> {
+  static async fromUrl(url: string, options: CubeGridSourceOptions & { fetch?: typeof fetch; retryBaseMs?: number } = {}): Promise<CubeSphereGridSource> {
     const fetchImpl = options.fetch ?? fetch;
-    const response = await fetchImpl(url);
+    const get = (u: string) => fetchWithRetry(u, {}, { fetchImpl, baseMs: options.retryBaseMs });
+    const response = await get(url);
     if (!response.ok) throw new Error(`Cube grid manifest ${url}: HTTP ${response.status}`);
     const manifest = await response.json() as CubeGridManifest;
+    // A ray or pick can ask for hundreds of grids at once; unbounded, a browser on a
+    // slower link refuses them (net::ERR_INSUFFICIENT_RESOURCES) and they stay failed.
+    const limit = options.maxConcurrentRequests ?? 16, waiting: (() => void)[] = [];
+    let active = 0;
     return new CubeSphereGridSource(manifest, async (uri) => {
-      const grid = await fetchImpl(new URL(uri, new URL(url, globalThis.location?.href)).href);
-      if (!grid.ok) throw new Error(`Cube grid ${uri}: HTTP ${grid.status}`);
-      return grid.arrayBuffer();
+      if (active < limit) active++; else await new Promise<void>((resolve) => waiting.push(resolve));
+      try {
+        const grid = await get(new URL(uri, new URL(url, globalThis.location?.href)).href);
+        if (!grid.ok) throw new Error(`Cube grid ${uri}: HTTP ${grid.status}`);
+        return await grid.arrayBuffer();
+      } finally {
+        const next = waiting.shift(); // hand the slot over
+        if (next) next(); else active--;
+      }
     }, options);
   }
 
