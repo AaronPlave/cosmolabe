@@ -11,26 +11,38 @@
     measurements, removeMeasurement, cancelMeasurementPick, createMeasurement, startMeasurementPick,
     syncMeasurements, selectMeasurement, changeMeasurementKind, availableOperands, cloneVector, kindLabels, draftReady, draftFrameMessage, type MeasurementDefinition, type Slot,
   } from '../lib/spatial-measurements.svelte';
-  import { bodyFixedFrameName, referenceVectorLabel, type ReferenceVector } from '@cosmolabe/core';
-  import { getUniverse } from '../lib/loader';
+  import { referenceVectorLabel, type ReferenceVector } from '@cosmolabe/core';
+  import { getUniverse, getMissionFrameNames } from '../lib/loader';
+  import { geometryFrameOptions } from '../lib/geometry-frames';
+  import GeometryFramePicker from './GeometryFramePicker.svelte';
+  import * as Select from '$lib/components/ui/select';
 
   interface Props { onClose: () => void; }
   let { onClose }: Props = $props();
   let openMenuId = $state<string | null>(null);
+  let framePickerOpen = $state(false);
   $effect(() => { renderedMeasurements(); syncMeasurements(); });
   $effect(() => { if (measurements.selectedId) document.querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }); });
   const kind = $derived(measurements.draftKind);
   const bodies = $derived(vs.bodies.map(body => body.name).sort());
-  const draft = $derived(measurements.draft);
   const canCreate = $derived(draftReady(vs.et));
   const frameMessage = $derived(kind === 'axes' && measurements.draftFrame.trim() ? draftFrameMessage(vs.et) : '');
   const operands = $derived(availableOperands());
-  /** The origin's own body-fixed frame first, then inertial frames, then other bodies with attitude. */
-  const frameSuggestions = $derived.by(() => {
-    const origin = draft.source && draft.source.kind !== 'coordinate' ? draft.source.bodyName : null;
-    const withAttitude = vs.bodies.length ? getUniverse()?.getAllBodies().filter(body => body.rotation).map(body => body.name) ?? [] : [];
-    const own = origin && withAttitude.includes(origin) ? [bodyFixedFrameName(origin)] : [];
-    return [...new Set([...own, 'ECLIPJ2000', 'J2000', ...withAttitude.filter(name => name !== origin).map(bodyFixedFrameName)])];
+  const geometryTypes = [
+    { kind: 'distance', label: 'Distance', description: 'Straight-line separation between two points.' },
+    { kind: 'angle', label: 'Angle', description: 'Compare three points or two directions.' },
+    { kind: 'direction', label: 'Direction', description: 'An arrow from one point toward another.' },
+    { kind: 'velocity', label: 'Velocity', description: 'Motion relative to a central body or another point.' },
+    { kind: 'axes', label: 'Axes', description: 'X, Y and Z directions of a reference frame.' },
+  ] as const;
+  const frameOptions = $derived.by(() => {
+    // Scene and kernel changes are reflected in viewer state; availability follows time.
+    void vs.bodies; void vs.kernelCount;
+    const universe = getUniverse();
+    // Resolve the full list as time changes only while browsing it. The selected
+    // frame's readiness/message below still follows every epoch independently.
+    return universe ? geometryFrameOptions(universe, getMissionFrameNames(), framePickerOpen ? vs.et : universe.time,
+      measurements.draft.source && measurements.draft.source.kind !== 'coordinate' ? measurements.draft.source.bodyName : undefined) : [];
   });
   function setEntity(slot: Slot, bodyName: string) {
     measurements.draft[slot] = bodyName ? { kind: 'entity', bodyName } : null;
@@ -52,9 +64,19 @@
   }
 </script>
 
-<InstrumentPanel key="measure" title="Measurements" width={344} onClose={close}>
+<InstrumentPanel key="measure" title="Reference Geometry" width={344} onClose={close}>
   <div data-measurement-editor>
-    <SegmentedControl value={kind === 'vector-angle' ? 'angle' : kind} options={['distance', 'angle', 'direction', 'velocity', 'axes']} label="Measurement type" onValueChange={next => changeMeasurementKind(next as typeof kind)} />
+    <span class="ui-label">Geometry type</span>
+    <Select.Root type="single" value={kind === 'vector-angle' ? 'angle' : kind} onValueChange={next => changeMeasurementKind(next as typeof kind)}>
+      <Select.Trigger size="sm" class="ui-control mt-1 w-full rounded border-border bg-surface-3 px-2 text-text-primary" aria-label="Geometry type"><Select.Value>{kind === 'vector-angle' ? 'Angle' : kindLabels[kind]}</Select.Value></Select.Trigger>
+      <Select.Content align="start" class="geometry-kind-menu max-w-[calc(100vw-24px)] rounded border border-border-strong bg-surface-2 p-1">
+        {#each geometryTypes as option}
+          <Select.Item value={option.kind} label={option.label} class="geometry-kind-option items-start rounded-sm px-2 py-2 pr-7 [&>span:last-child]:min-w-0 [&>span:last-child]:shrink [&>span:last-child]:whitespace-normal">
+            <div class="flex min-w-0 flex-col gap-0.5"><span class="geometry-kind-label ui-body font-medium">{option.label}</span><span class="geometry-kind-description ui-helper whitespace-normal">{option.description}</span></div>
+          </Select.Item>
+        {/each}
+      </Select.Content>
+    </Select.Root>
   </div>
   {#if kind === 'angle' || kind === 'vector-angle'}
     <div class="field">
@@ -75,11 +97,10 @@
     {@render endpointRow('target', 'Relative to', 'Central body')}
   {:else if kind === 'axes'}
     {@render endpointRow('source', 'Origin')}
-    <label class="field block">
+    <div class="field">
       <span class="ui-label">Frame</span>
-      <input class="ui-control frame mt-1" list="measurement-frames" spellcheck="false" autocomplete="off" placeholder="IAU_EARTH, J2000, or a furnished frame" bind:value={measurements.draftFrame} aria-label="Axes frame" />
-      <datalist id="measurement-frames">{#each frameSuggestions as frame}<option value={frame}></option>{/each}</datalist>
-    </label>
+      <GeometryFramePicker bind:open={framePickerOpen} value={measurements.draftFrame} options={frameOptions} onSelect={name => measurements.draftFrame = name} />
+    </div>
     {#if frameMessage}<p class="ui-helper mt-1 frame-warning" role="status">{frameMessage}</p>{/if}
   {:else}
     {#if kind === 'angle'}{@render endpointRow('vertex', 'At')}{/if}
@@ -94,15 +115,17 @@
     <p class="ui-helper mt-2 text-text-muted">Surface measurements use straight lines, not distance along the surface.</p>
   {/if}
   <div class="settings">
-    <div class="colors" role="group" aria-label="Measurement color presets">
+    {#if kind !== 'axes'}
+    <div class="colors" role="group" aria-label="Geometry color presets">
       {#each measurementColors as preset}
-        <button class="preset" class:chosen={measurements.draftColor.toLowerCase() === preset.color} style:background={preset.color} aria-label={`${preset.name} measurement color`} aria-pressed={measurements.draftColor.toLowerCase() === preset.color} title={preset.name} onclick={() => measurements.draftColor = preset.color}></button>
+        <button class="preset" class:chosen={measurements.draftColor.toLowerCase() === preset.color} style:background={preset.color} aria-label={`${preset.name} geometry color`} aria-pressed={measurements.draftColor.toLowerCase() === preset.color} title={preset.name} onclick={() => measurements.draftColor = preset.color}></button>
       {/each}
-      <label class="custom-color ui-label" title="Custom measurement color">
-        <input type="color" class="swatch" class:chosen={!measurementColors.some(preset => preset.color === measurements.draftColor.toLowerCase())} bind:value={measurements.draftColor} aria-label="Custom measurement color" />
+      <label class="custom-color ui-label" title="Custom geometry color">
+        <input type="color" class="swatch" class:chosen={!measurementColors.some(preset => preset.color === measurements.draftColor.toLowerCase())} bind:value={measurements.draftColor} aria-label="Custom geometry color" />
         <span>Custom…</span>
       </label>
     </div>
+    {/if}
     {#if kind === 'direction'}
       <label class="ui-helper flex items-center gap-1 cursor-pointer"><input class="accent-accent" type="checkbox" bind:checked={measurements.draftShowDistance} /> Show distance</label>
       <label class="ui-helper flex items-center gap-1 cursor-pointer"><input class="accent-accent" type="checkbox" bind:checked={measurements.draftFullLength} /> Full-length connection</label>
@@ -113,22 +136,23 @@
   {/if}
 
   <div class="saved-header">
-    <span class="ui-label">Measurements ({measurements.items.length})</span>
-    <button class="help" aria-label="Measurement help" title="Distances are straight lines between endpoints, not paths along a surface. Surface points move with their body. Velocities are inertial, relative to the central body unless another is chosen; arrow lengths show direction, not magnitude."><CircleHelp size={13}/></button>
+    <span class="ui-label">Displayed items ({measurements.items.length})</span>
+    <button class="help" aria-label="Reference geometry help" title="Distances are straight lines between endpoints, not paths along a surface. Surface points move with their body. Velocities are inertial, relative to the central body unless another is chosen; arrow lengths show direction, not magnitude."><CircleHelp size={13}/></button>
     <Button variant="ghost" size="sm" class="ui-control ml-auto" onclick={newMeasurement}><Plus size={13}/> New</Button>
   </div>
+  {#if measurements.items.length === 0}<p class="ui-helper py-2 text-text-muted">Add reference geometry to display distances, directions, velocities and frame axes in the scene.</p>{/if}
   {#each measurements.items as item (item.id)}
     {@const value = measurementValue(item, vs.et)}
     {@const selected = measurements.selectedId === item.id}
-    <div class="item analysis-row" style:--row-accent={item.color ?? '#82aabd'} role="group" aria-label={`${kindLabels[item.kind]} measurement`} onmouseenter={() => hoverMeasurement(item.id)} onmouseleave={() => hoverMeasurement(null)} onfocusin={() => hoverMeasurement(item.id)} onfocusout={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) hoverMeasurement(null); }} class:selected class:hovered={measurements.hoveredId === item.id} class:unavailable={value.includes('Unavailable') || value.includes('Undefined') || value.includes('Incomplete')}>
-      <span class="list-swatch" style:background={item.color ?? '#82aabd'}></span>
-      <button data-measurement-row={item.id} class="readout min-w-0 flex-1 text-left" aria-label={`Select ${kindLabels[item.kind].toLowerCase()} measurement`} aria-pressed={selected} title={measurementDescription(item)} onclick={() => selectMeasurement(item.id)}>
+    <div class="item analysis-row" style:--row-accent={item.kind === 'axes' ? '#a6b2bb' : item.color ?? '#82aabd'} role="group" aria-label={`${kindLabels[item.kind]} geometry`} onmouseenter={() => hoverMeasurement(item.id)} onmouseleave={() => hoverMeasurement(null)} onfocusin={() => hoverMeasurement(item.id)} onfocusout={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) hoverMeasurement(null); }} class:selected class:hovered={measurements.hoveredId === item.id} class:unavailable={value.includes('Unavailable') || value.includes('Undefined') || value.includes('Incomplete')}>
+      <span class="list-swatch" style:background={item.kind === 'axes' ? '#a6b2bb' : item.color ?? '#82aabd'}></span>
+      <button data-measurement-row={item.id} class="readout min-w-0 flex-1 text-left" aria-label={`Select ${kindLabels[item.kind].toLowerCase()} geometry`} aria-pressed={selected} title={measurementDescription(item)} onclick={() => selectMeasurement(item.id)}>
         <span class="ui-label capitalize">{kindLabels[item.kind]}</span>
         <span class="value">{value}</span>
       </button>
-      <Button variant="ghost" size="icon-sm" aria-label={item.visible === false ? `Show ${kindLabels[item.kind].toLowerCase()}` : `Hide ${kindLabels[item.kind].toLowerCase()}`} title={item.visible === false ? 'Show measurement' : 'Hide measurement'} onclick={() => toggle(item)}>{#if item.visible === false}<EyeOff size={14}/>{:else}<Eye size={14}/>{/if}</Button>
+      <Button variant="ghost" size="icon-sm" aria-label={item.visible === false ? `Show ${kindLabels[item.kind].toLowerCase()}` : `Hide ${kindLabels[item.kind].toLowerCase()}`} title={item.visible === false ? 'Show geometry' : 'Hide geometry'} onclick={() => toggle(item)}>{#if item.visible === false}<EyeOff size={14}/>{:else}<Eye size={14}/>{/if}</Button>
       <DropdownMenu.Root open={openMenuId === item.id} onOpenChange={(open) => { if (open) openMenuId = item.id; else if (openMenuId === item.id) openMenuId = null; }}>
-        <DropdownMenu.Trigger class="rounded p-1.5 hover:bg-control-hover focus-visible:outline focus-visible:outline-chrome-active" aria-label={`Actions for ${kindLabels[item.kind].toLowerCase()}`} title="Measurement actions"><MoreHorizontal size={16}/></DropdownMenu.Trigger>
+        <DropdownMenu.Trigger class="rounded p-1.5 hover:bg-control-hover focus-visible:outline focus-visible:outline-chrome-active" aria-label={`Actions for ${kindLabels[item.kind].toLowerCase()}`} title="Geometry actions"><MoreHorizontal size={16}/></DropdownMenu.Trigger>
         <DropdownMenu.Content>
           <DropdownMenu.Item onSelect={() => duplicateMeasurement(item.id)}>Duplicate</DropdownMenu.Item>
           <DropdownMenu.Item onSelect={() => removeMeasurement(item.id)}>Delete</DropdownMenu.Item>
@@ -172,13 +196,18 @@
 {/snippet}
 
 <style>
+  :global(.geometry-kind-menu) { width: var(--bits-select-anchor-width); }
+  :global(.geometry-kind-option:is(:focus, [data-highlighted])) {
+    background: var(--color-control-hover);
+    color: var(--color-text-primary);
+  }
+  :global(.geometry-kind-option .geometry-kind-label) { color: var(--color-text-primary); }
+  :global(.geometry-kind-option .geometry-kind-description) { color: var(--color-text-secondary); }
   .field { margin-top: 10px; border-left: 2px solid transparent; padding-left: 4px; }
   .field.picking { border-left-color: var(--color-chrome-active); }
   .endpoint { display: flex; gap: 3px; margin-top: 3px; }
   .picked { min-width: 0; flex: 1; padding: 5px 7px; border: 1px solid var(--color-chrome-border); border-radius: 4px; background: var(--color-surface-3); color: var(--color-text-secondary); overflow-wrap: anywhere; }
-  .frame { width: 100%; padding: 5px 7px; border: 1px solid var(--color-chrome-border); border-radius: 4px; background: var(--color-surface-3); color: var(--color-text-primary); font-family: var(--font-mono); outline: none; }
   .frame-warning { color: var(--color-warning); }
-  .frame:focus-visible { outline: 1px solid var(--color-chrome-active); }
   .pick-instruction { margin-top: 8px; color: var(--color-chrome-active); }
   .settings { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 10px; }
   .saved-header { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--color-chrome-border); margin: 14px 0 5px; padding-top: 5px; }
@@ -197,7 +226,7 @@
   .swatch::-webkit-color-swatch { border: 0; border-radius: 2px; }
   .swatch::-moz-color-swatch { border: 0; border-radius: 2px; }
   .custom-color { display: flex; align-items: center; gap: 5px; cursor: pointer; }
-  .list-swatch { width: 3px; height: 24px; border-radius: 2px; flex-shrink: 0; }
+  .list-swatch { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   .readout { cursor: pointer; border-radius: 3px; }
   .readout:focus-visible { outline: 1px solid var(--color-chrome-active); outline-offset: 2px; }
   .value { display: block; }

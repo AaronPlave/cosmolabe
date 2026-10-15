@@ -68,15 +68,15 @@ describe('shared measurement definitions', () => {
   });
   it('enforces payload and encoded final URL limits without dropping measurements', () => {
     const state = { ...base(), measurements: shared() };
-    expect(() => viewLink(state, 'https://viewer.example/?source=' + 'a'.repeat(7500))).toThrow(/too large.*measurements/);
+    expect(() => viewLink(state, 'https://viewer.example/?source=' + 'a'.repeat(7500))).toThrow(/too large.*reference geometry items/);
     state.measurements.items = Array.from({ length: 20 }, (_, i) => ({ ...shared().items[0], id: String(i), source: { kind: 'entity', bodyName: '界'.repeat(120) } }));
     delete state.measurements.selected;
     // Short raw Unicode payload still expands past the final encoded limit.
     expect(JSON.stringify(state).length).toBeLessThan(8192);
-    expect(() => viewLink(state, 'https://viewer.example/')).toThrow(/ordinary URL.*measurements/);
+    expect(() => viewLink(state, 'https://viewer.example/')).toThrow(/ordinary URL.*reference geometry items/);
     state.measurements.items = Array.from({ length: 32 }, (_, i) => ({ ...state.measurements.items[0], id: String(i), target: { kind: 'entity', bodyName: 'b'.repeat(128) } }));
     expect(JSON.stringify(state).length).toBeGreaterThan(8192);
-    expect(() => viewLink(state, 'https://viewer.example/')).toThrow(/too large.*measurements/);
+    expect(() => viewLink(state, 'https://viewer.example/')).toThrow(/too large.*reference geometry items/);
   });
 });
 

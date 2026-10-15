@@ -296,7 +296,8 @@ display sampling smooths a fast oscillation.
 ## Reference geometry
 
 Velocity vectors, frame axes and angles between directions are spatial
-relationships, alongside the distance, direction and angle measurements. They
+relationships, alongside the distance, direction and angle measurements, in the
+viewer’s **Reference Geometry** tool ("Geometry" on the tool rail). They
 share one semantic model (`packages/core/src/geometry/spatial-relationships.ts`),
 one renderer (`SpatialRelationshipLayer`) and one viewer item list, so they have
 the same hover, selection, visibility, callouts and URL sharing as measurements.
@@ -320,8 +321,11 @@ computed in Three.js.
   Axes display use. Both are also the same length, `BodyMesh.axesLengthKm()`
   (twice the effective display radius, a loaded model's when there is one),
   with a 64 px minimum for the analytical axes. They follow the same red X /
-  green Y / blue Z convention, with letters at the tips, or where an axis
-  leaves the view. A frame that does not resolve cannot be added; the panel
+  green Y / blue Z convention, with backed letters fixed just beyond each
+  visible tip along its projected axis. Overlaps are allowed. Axes use a neutral
+  callout color and do not consume a preset color. Frames are chosen from a
+  searchable list of inertial, catalog-attitude and furnished mission frames;
+  unavailable options are disabled. A frame that does not resolve cannot be added; the panel
   says whether no such frame exists or it has no orientation at this time (a
   CK frame outside its coverage).
 - **Angle between directions** compares two operands (a direction, a velocity,

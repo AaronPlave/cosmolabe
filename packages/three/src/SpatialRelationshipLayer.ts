@@ -217,7 +217,7 @@ export class SpatialRelationshipLayer {
       if (!shape) { visual.group.visible = false; visual.hitSegments = []; visual.callout.hide(); continue; }
       const active = relationship.selected || relationship.emphasized;
       const highlighted = active || relationship.hovered;
-      const color = relationship.color ?? '#82aabd';
+      const color = relationship.kind === 'axes' ? '#c3d0d8' : relationship.color ?? '#82aabd';
       const opacity = active ? 1 : relationship.hovered ? 0.95 : selected ? 0.75 : 0.9;
       visual.group.position.copy(origin); // Camera-relative float32 vertices retain close-up precision.
       visual.stroke.width = active ? 2.5 : highlighted ? 2 : 1.5;
@@ -248,11 +248,11 @@ export class SpatialRelationshipLayer {
         axis.stroke.material.color.set(AXIS_COLORS[i]); axis.stroke.material.opacity = opacity;
         if (axis.stroke.halo) axis.stroke.halo.material.opacity = opacity * 0.5;
         axis.stroke.write(axes[i] ?? [], origin);
-        const at = shape.axes[i] && axisLetterAnchor(shape.axes[i][0], shape.axes[i][1], this.camera, width, height);
+        const at = shape.axes[i] && axisLetterPlacement(shape.axes[i][0], shape.axes[i][1], this.camera, width, height);
         if (!at) return;
         axis.letter.style.display = 'block';
         axis.letter.style.opacity = String(opacity);
-        axis.letter.style.transform = `translate(${at.x - 4}px, ${at.y - 8}px)`;
+        axis.letter.style.transform = `translate(${at.box.x0}px, ${at.box.y0}px)`;
       });
       visual.hitSegments = [...segments, ...arc, ...axes.flat(), ...clip(shape.pickExtra)];
       writePoints(visual.marks.geometry, shape.marks.filter(p => projectAnchor(p, this.camera, width, height) !== null), origin);
@@ -394,7 +394,8 @@ export class SpatialRelationshipLayer {
       const letter = document.createElement('span');
       letter.className = 'cosmolabe-axis-letter'; letter.textContent = name;
       Object.assign(letter.style, { position: 'absolute', left: '0', top: '0', display: 'none', pointerEvents: 'none', color: AXIS_COLORS[i],
-        font: '600 10px/16px var(--font-mono, monospace)', textShadow: '0 0 2px #06090c, 0 0 3px #06090c' });
+        font: '600 12px/20px var(--font-mono, monospace)', width: '16px', height: '20px', textAlign: 'center',
+        background: 'rgba(9,13,18,0.88)', borderRadius: '3px', textShadow: '0 1px 0 #000' });
       this.calloutContainer.append(letter);
       return { stroke: axisStroke, letter };
     }) : undefined;
@@ -552,14 +553,20 @@ export function rateChevrons(tip: THREE.Vector3, direction: THREE.Vector3, headL
  * clipped to the near plane in view space (so nothing behind the camera
  * projects mirrored), then to the viewport inset by `margin`.
  */
-export function axisLetterAnchor(start: THREE.Vector3, end: THREE.Vector3, camera: THREE.PerspectiveCamera, width: number, height: number, margin = 10): { x: number; y: number } | null {
+function projectedAxisSegment(start: THREE.Vector3, end: THREE.Vector3, camera: THREE.PerspectiveCamera, width: number, height: number) {
   const a = start.clone().applyMatrix4(camera.matrixWorldInverse), b = end.clone().applyMatrix4(camera.matrixWorldInverse);
   const near = -camera.near * 1.001; // In front of the camera is z < -near.
   if (a.z > near && b.z > near) return null;
   if (a.z > near) a.lerp(b, (a.z - near) / (a.z - b.z));
   else if (b.z > near) b.lerp(a, (b.z - near) / (b.z - a.z));
   const screen = (p: THREE.Vector3) => { p.applyMatrix4(camera.projectionMatrix); return { x: (p.x + 1) * width / 2, y: (1 - p.y) * height / 2 }; };
-  const p0 = screen(a), p1 = screen(b);
+  return [screen(a), screen(b)] as const;
+}
+
+export function axisLetterAnchor(start: THREE.Vector3, end: THREE.Vector3, camera: THREE.PerspectiveCamera, width: number, height: number, margin = 10): { x: number; y: number } | null {
+  const segment = projectedAxisSegment(start, end, camera, width, height);
+  if (!segment) return null;
+  const [p0, p1] = segment;
   // Liang–Barsky against the inset viewport; keep the end of the visible part nearest the tip.
   const dx = p1.x - p0.x, dy = p1.y - p0.y;
   let t0 = 0, t1 = 1;
@@ -570,6 +577,21 @@ export function axisLetterAnchor(start: THREE.Vector3, end: THREE.Vector3, camer
     if (t0 > t1) return null;
   }
   return { x: p0.x + dx * t1, y: p0.y + dy * t1 };
+}
+
+/** Fixed just beyond the visible tip, along the projected axis. No collision
+ * avoidance: labels stay attached to their axes even when other labels overlap.
+ * Attenuate the offset smoothly for axes pointing straight at the camera.
+ */
+export function axisLetterPlacement(start: THREE.Vector3, end: THREE.Vector3, camera: THREE.PerspectiveCamera,
+  width: number, height: number): { box: ScreenRect } | null {
+  const anchor = axisLetterAnchor(start, end, camera, width, height, 33);
+  const segment = projectedAxisSegment(start, end, camera, width, height);
+  if (!anchor || !segment) return null;
+  const dx = segment[1].x - segment[0].x, dy = segment[1].y - segment[0].y;
+  const scale = 16 / Math.max(16, Math.hypot(dx, dy));
+  const x = anchor.x + dx * scale, y = anchor.y + dy * scale;
+  return { box: { x0: x - 8, y0: y - 10, x1: x + 8, y1: y + 10 } };
 }
 
 function lowerFirst(text: string): string { return text.charAt(0).toLowerCase() + text.slice(1); }

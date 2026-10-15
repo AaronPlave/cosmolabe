@@ -87,7 +87,7 @@ function definition(item: SpatialRelationship): MeasurementDefinition {
   const empty = { source: null, target: null, vertex: null };
   switch (item.kind) {
     case 'velocity': return { ...style, ...empty, kind: 'velocity', source: cloneEndpoint(item.object), target: item.relativeTo ? cloneEndpoint(item.relativeTo) : null };
-    case 'axes': return { ...style, ...empty, kind: 'axes', source: cloneEndpoint(item.origin), frame: item.frame };
+    case 'axes': return { id: item.id, ...(item.visible === undefined ? {} : { visible: item.visible }), ...empty, kind: 'axes', source: cloneEndpoint(item.origin), frame: item.frame };
     case 'vector-angle': return { ...style, ...empty, kind: 'vector-angle', ...cloneOperands(item) };
     case 'angle': return { ...style, kind: 'angle', source: cloneEndpoint(item.source), target: cloneEndpoint(item.target), vertex: cloneEndpoint(item.vertex) };
     case 'direction': return { ...style, ...empty, kind: 'direction', source: cloneEndpoint(item.source), target: cloneEndpoint(item.target),
@@ -107,7 +107,8 @@ function defaultDraftFrame(): void {
 export function applyMeasurementFields(): void {
   const item = measurements.items.find(item => item.id === measurements.editingId);
   if (!item) return;
-  item.kind = measurements.draftKind; item.color = measurements.draftColor;
+  item.kind = measurements.draftKind;
+  if (item.kind !== 'axes') item.color = measurements.draftColor;
   item.showDistance = measurements.draftShowDistance; item.fullLength = measurements.draftFullLength;
   for (const slot of ['source', 'target', 'vertex'] as const) {
     const endpoint = measurements.draft[slot];
@@ -177,7 +178,7 @@ export function restoreSharedMeasurements(input: MeasurementLinkState | undefine
   resetMeasurementsForScene();
   if (!state) return;
   measurements.items = state.items;
-  measurements.nextColor = state.items.length;
+  measurements.nextColor = state.items.filter(item => item.kind !== 'axes').length;
   if (state.selected) selectMeasurement(state.selected);
   syncMeasurements();
 }
@@ -191,7 +192,7 @@ export function hoverMeasurement(id: string | null): void {
 }
 export function addMeasurement(item: SpatialRelationship): void {
   measurements.items.push(definition(item));
-  measurements.nextColor++;
+  if (item.kind !== 'axes') measurements.nextColor++;
   resetMeasurementDraft(true);
   selectMeasurement(item.id);
 }
@@ -202,11 +203,12 @@ export function addMeasurement(item: SpatialRelationship): void {
 export function showReference(request: ReferenceRequest): string {
   applyMeasurementFields();
   const item = definition(referenceRelationship(request, crypto.randomUUID()));
-  item.color = colors[measurements.nextColor % colors.length];
-  measurements.items.push(item); measurements.nextColor++;
+  const colored = item.kind !== 'axes';
+  if (colored) item.color = colors[measurements.nextColor % colors.length];
+  measurements.items.push(item); if (colored) measurements.nextColor++;
   selectMeasurement(item.id); openTool('measure');
   // The kept draft moves on to the next color too, unless one was chosen for it.
-  if (suspendedDraft?.color === item.color) suspendedDraft.color = colors[measurements.nextColor % colors.length];
+  if (colored && suspendedDraft && suspendedDraft.color === item.color) suspendedDraft.color = colors[measurements.nextColor % colors.length];
   return item.id;
 }
 /** Directions saved items offer as angle operands: directions, velocities and each frame axis. */
@@ -228,7 +230,7 @@ export function duplicateMeasurement(id: string): void {
   const item = measurements.items.find(item => item.id === id);
   if (!item) return;
   const copy = { ...item, ...cloneDraft(item), ...cloneOperands(item), id: crypto.randomUUID() };
-  measurements.items.push(copy); measurements.nextColor++;
+  measurements.items.push(copy); if (copy.kind !== 'axes') measurements.nextColor++;
   selectMeasurement(copy.id);
 }
 function currentEt(): number {
@@ -242,7 +244,7 @@ export function draftFrameAvailability(et = currentEt()): 'available' | 'unknown
 export function draftFrameMessage(et = currentEt()): string {
   const availability = draftFrameAvailability(et);
   if (availability === 'unknown') return `No frame named “${measurements.draftFrame.trim()}”. Use IAU_<body>, an inertial frame such as J2000, or a frame from a furnished kernel.`;
-  if (availability === 'unavailable') return 'This frame has no orientation data at the current time (for example, outside its CK coverage).';
+  if (availability === 'unavailable') return 'Orientation unavailable at this time. Choose another frame or change the time.';
   return '';
 }
 /** Every required field is set, and an axes frame resolves at the current time. */

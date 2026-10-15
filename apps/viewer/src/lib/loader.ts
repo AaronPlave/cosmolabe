@@ -54,10 +54,18 @@ import {
 } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
 import { absolutizeCatalogAssets } from './catalog-assets';
+import { textKernelFrameNames } from './geometry-frames';
 import { stopHero, resizeHero } from './hero';
 
 // ── State ──
 let spice: HeritageSpice | null = null;
+const missionFrameNames = new Set<string>();
+export function getMissionFrameNames(): string[] { return [...missionFrameNames]; }
+function rememberKernelFrames(buffer: ArrayBuffer): void {
+  // Binary SPK/CK kernels can be hundreds of MB; never decode them as text.
+  if (new TextDecoder().decode(buffer.slice(0, 4)) !== 'KPL/') return;
+  for (const name of textKernelFrameNames(buffer)) missionFrameNames.add(name);
+}
 let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
@@ -411,6 +419,7 @@ function teardownScene(): void {
   universe = null;
 
   spice = null;
+  missionFrameNames.clear();
   furnished = [];
 }
 
@@ -422,7 +431,9 @@ async function furnishPlanned(
 ): Promise<void> {
   const { source } = k;
   if ('file' in source) {
-    await s.furnish({ type: 'buffer', data: await source.file.arrayBuffer(), filename: source.file.name });
+    const buffer = await source.file.arrayBuffer();
+    await s.furnish({ type: 'buffer', data: buffer, filename: source.file.name });
+    rememberKernelFrames(buffer);
     return;
   }
   if (k.size && k.size > 0) {
@@ -430,9 +441,14 @@ async function furnishPlanned(
     // which is worth it for the files big enough to be declared.
     const buffer = await fetchWithProgress(source.url, (loaded) => onProgress(loaded));
     await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
+    rememberKernelFrames(buffer);
     return;
   }
-  await s.furnish({ type: 'url', url: source.url });
+  const response = await fetch(source.url);
+  if (!response.ok) throw new Error(`Failed to fetch kernel: ${source.url} (${response.status})`);
+  const buffer = await response.arrayBuffer();
+  await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
+  rememberKernelFrames(buffer);
 }
 
 /**
@@ -1068,7 +1084,9 @@ async function furnishUserKernels(files: File[]): Promise<void> {
       continue;
     }
     try {
-      await s.furnish({ type: 'buffer', data: await file.arrayBuffer(), filename: file.name });
+      const buffer = await file.arrayBuffer();
+      await s.furnish({ type: 'buffer', data: buffer, filename: file.name });
+      rememberKernelFrames(buffer);
     } catch (err) {
       console.warn(`[Cosmolabe] Failed to furnish ${file.name}:`, err);
       continue;

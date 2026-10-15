@@ -228,7 +228,7 @@ describe('reference geometry items', () => {
     scene.universe!.addBody(new Body({ name: 'Gap', trajectory: new FixedPointTrajectory([0, 0, 0]),
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => { throw new Error('No coverage'); } } }));
     measurements.draftFrame = 'IAU_GAP';
-    expect(draftFrameMessage()).toMatch(/no orientation data at the current time/);
+    expect(draftFrameMessage()).toMatch(/Orientation unavailable at this time/);
     expect(createMeasurement()).toBe(false);
     measurements.draftFrame = 'IAU_EARTH';
     expect(draftFrameMessage()).toBe('');
@@ -267,3 +267,13 @@ describe('reference geometry items', () => {
     expect(measurements.items.map(item => item.frame)).toEqual(['J2000', 'ECLIPJ2000']);
   });
 });
+
+it('axes leave the color rotation to items that use it, including duplication', () => {
+   scene.universe = new Universe();
+   scene.universe.addBody(new Body({ name: 'Europa', trajectory: new FixedPointTrajectory([0, 0, 0]), rotation: new FixedRotation([1, 0, 0, 0]) }));
+   const before = measurements.nextColor;
+   const id = showReference({ kind: 'bodyAxes', object: 'Europa' });
+   duplicateMeasurement(id);
+   expect(measurements.items.map(item => item.color)).toEqual([undefined, undefined]);
+   expect(measurements.nextColor).toBe(before);
+ });

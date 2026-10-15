@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { axesDisplayLength, axisLetterAnchor, rateChevrons, compactLabelPlacement, angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
+import { axesDisplayLength, axisLetterAnchor, axisLetterPlacement, rateChevrons, compactLabelPlacement, angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
 
 describe('measurement geometry', () => {
   it('uses finite independent segments and draws the arc for a straight angle', () => {
@@ -160,4 +160,38 @@ it('sizes axes by the body’s own axes length when it exceeds the 64 px floor',
   expect(floor / (20 * Math.tan(Math.PI / 6) / 600)).toBeCloseTo(64);
   expect(axesDisplayLength(camera, origin, 600, floor * 3)).toBe(floor * 3);
   expect(axesDisplayLength(camera, origin, 600, floor / 3)).toBe(floor);
+});
+
+
+describe('axis letter spacing', () => {
+  const camera = new THREE.PerspectiveCamera(90, 1, 0.01, 10000);
+  camera.updateMatrixWorld();
+  it('anchors letters along the axis without changing sides as the camera rotates', () => {
+    const start = new THREE.Vector3(0, 0, -10);
+    for (const y of [-0.01, 0, 0.01]) {
+      const tip = new THREE.Vector3(1, y, -10);
+      const anchor = axisLetterAnchor(start, tip, camera, 600, 600)!;
+      const placed = axisLetterPlacement(start, tip, camera, 600, 600)!;
+      const dx = (placed.box.x0 + placed.box.x1) / 2 - anchor.x;
+      const dy = (placed.box.y0 + placed.box.y1) / 2 - anchor.y;
+      expect(dx).toBeGreaterThan(15);
+      expect(dy / dx).toBeCloseTo(-y);
+    }
+  });
+  it('stays finite and inside the view for small, crossing, head-on and near-plane axes', () => {
+    for (const [start, tip] of [
+      [new THREE.Vector3(0, 0, -10), new THREE.Vector3(0.00001, 0, -10)],
+      [new THREE.Vector3(-1000, 0, -10), new THREE.Vector3(1000, 0, -10)],
+      [new THREE.Vector3(0, 0, -10), new THREE.Vector3(0, 0, 10)],
+      [new THREE.Vector3(0, 0, 10), new THREE.Vector3(1, 0, -10)],
+    ]) {
+      const placed = axisLetterPlacement(start, tip, camera, 600, 600)!;
+      expect(placed).not.toBeNull();
+      expect(Object.values(placed.box).every(Number.isFinite)).toBe(true);
+      expect(placed.box.x0).toBeGreaterThanOrEqual(6);
+      expect(placed.box.y0).toBeGreaterThanOrEqual(6);
+      expect(placed.box.x1).toBeLessThanOrEqual(594);
+      expect(placed.box.y1).toBeLessThanOrEqual(594);
+    }
+  });
 });
