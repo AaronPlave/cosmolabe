@@ -37,15 +37,44 @@ The arrays identify centres -226010/-226020 in ROS_SA+Y/ROS_SA-Y; HGA identifies
 catalog trajectories. `scripts/verify-rosetta-geometry.mjs` checks the real
 archive descriptors, catalog targets and component offsets at those epochs.
 
-![Corrected bus and HGA attachment](img/rosetta/hga-mount.png)
+![Bus-origin correction viewed near the HGA](img/rosetta/hga-mount.png)
+
+This verifies the coordinate-origin correction, not completeness of the
+mechanical attachment. A later user view still shows a gap at the mount;
+that remains unresolved. ESA's alternate `ROS_SC_HGA_V00.3ds` contains the
+same 12,089 vertices and 5,763 triangles, with the same bounds as the DSK.
+Switching antenna formats alone therefore does not supply extra hardware.
 
 ## Textures and Philae's apparent surface gap
 
-The selected spacecraft assets are native DSK plate meshes. This path supplies
-positions/plates and computed normals, with catalog solid colours; it supplies
-no UVs or texture images. Rosetta and Philae's untextured appearance is expected
-for these assets, rather than failed texture downloads. A textured art model
-would be a different asset choice and is not silently substituted.
+Rosetta and Philae now use ESA's official textured 3DS spacecraft assets from
+its [model directory](https://spiftp.esac.esa.int/cosmographia/missions/ROS/models/).
+The catalog retains separate articulated solar arrays/HGA and the bus's
+pre/post-separation model switch. The comet and asteroids retain native DSKs.
+Mesh coordinates are already body-fixed kilometres; no size normalization,
+recentering, or hand-adjusted translation is applied. Bus art models and DSKs
+are different revisions, so their detailed outlines need not match.
+
+The original albedo/normal maps (`ros_alb.png`, `ros_nor.png`, `phi_alb.png`,
+`phi_nor.png`) are fetched with `bash scripts/fetch-rosetta-models.sh`, also
+called by `fetch-all.sh` and Pages builds. The six small meshes are committed;
+the large PNGs are fetched. SHA-256 checks in `scripts/rosetta-models.sha256`
+pin all ten original files. The model set totals **47,314,318 bytes**.
+
+Legacy 3DS carries these tangent normal maps in its bump-map slot. The
+catalog explicitly sets `bumpMapType: "normal"`; the loader assigns those
+maps to the normal slot, leaves their samples linear, and marks colour maps
+as sRGB. This option also applies to individual TimeSwitched mesh entries.
+
+Verified in the real viewer: all six spacecraft materials have decoded 4096-wide
+albedo and normal images, correct colour spaces, and no height-bump fallback.
+All 17 viewpoints and 10 presence-transition epochs pass with 28 tracked
+assets and no failures/browser errors. Focused renderer/catalog tests pass
+(23 tests), as do package build, test typecheck, lint and production viewer build.
+The model fetcher's warm path verifies all checksums without downloading.
+
+![Textured Rosetta](img/rosetta/rosetta-textured.png)
+![Textured Philae](img/rosetta/philae-textured.png)
 
 At 2014-11-12 18:00 UTC, the archived Philae origin is
 `[2.4473, -0.0627, -0.3486] km` in `67P/C-G_CK`. Its nearest point on the actual
@@ -55,6 +84,25 @@ that the gap exists between the supplied ephemeris and selected surface
 product; it is not caused by the bus-origin error. A coarse global mesh need
 not resolve the local landing geometry. Preserve the official position;
 no snapping, invented attitude, or synthetic surface patch is applied.
+
+A follow-up check found the official local Abydos product
+`ROS_AB_K759_OMPCDLAM_N_V1.BDS` in the ESA DSK archive. Its comments identify
+759,104 plates reconstructed from OSIRIS images by CNRS using MPCD, in
+the same `67P/C-G_CK` frame. The same archived lander origin is only
+**0.248980 m** from that mesh. This is still origin clearance, not foot
+clearance. The local terrain is a real candidate for resolving the global
+mesh mismatch; it is not yet integrated into the catalog. Rendering it with
+the global surface requires handling their overlapping terrain.
+
+## Timeline status
+
+The catalog contains mission viewpoints, not timeline event records. The
+current timeline displays configured analysis searches/results and profiles;
+loading Rosetta alone creates no event lane. An empty timeline is therefore
+the current behavior, not evidence that mission events loaded successfully.
+Representative observation timeline integration is tracked in #230 / #28.
+Sourced mission milestones would need a catalog-to-timeline path and should
+not be confused with those observation deliverables.
 
 ## Visibility and trails
 
@@ -103,6 +151,7 @@ explicitly pinned. Nothing is published to the data host by this change.
 ```sh
 npm run build
 bash scripts/fetch-rosetta-kernels.sh
+bash scripts/fetch-rosetta-models.sh
 node scripts/verify-rosetta-geometry.mjs
 # Start a current-checkout viewer, then:
 CL_VIEWER_URL=http://localhost:5173 node scripts/test-rosetta-viewer.mjs

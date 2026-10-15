@@ -288,6 +288,7 @@ export class BodyMesh extends THREE.Object3D {
     url: string,
     sourcePath?: string,
     modelResolver?: ModelResolver,
+    geometry: Record<string, unknown> = this.body.geometryData ?? {},
   ): Promise<THREE.Object3D> {
     if (ext === 'glb' || ext === 'gltf') {
       const loader = new GLTFLoader();
@@ -327,7 +328,22 @@ export class BodyMesh extends THREE.Object3D {
       if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
       const buf = await resp.arrayBuffer();
       const manager = this.textureManagerFor(sourcePath, modelResolver);
-      return new TDSLoader(manager).parse(buf, '');
+      const object = new TDSLoader(manager).parse(buf, '');
+      object.traverse((child) => {
+        if (!isMesh(child)) return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+          if (!(material instanceof THREE.MeshPhongMaterial)) continue;
+          if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
+          // Legacy 3DS has only a bump slot. Some packages supply a tangent
+          // normal map there; the catalog must explicitly identify it.
+          if (geometry.bumpMapType === 'normal' && material.bumpMap) {
+            material.normalMap = material.bumpMap;
+            material.bumpMap = null;
+          }
+        }
+      });
+      return object;
     }
     throw new Error(`Unsupported model format: .${ext}`);
   }
@@ -480,7 +496,7 @@ export class BodyMesh extends THREE.Object3D {
       const load = type === 'Dsk'
         ? this.buildDskObject(url, provider!, source, geo)
         : type === 'Mesh'
-          ? this.fetchModel(source.split('.').pop()?.toLowerCase() ?? '', url, source, modelResolver).then((o) => alignMeshEntry(o, geo))
+          ? this.fetchModel(source.split('.').pop()?.toLowerCase() ?? '', url, source, modelResolver, geo).then((o) => alignMeshEntry(o, geo))
           : Promise.reject(new Error(`TimeSwitched entries must be Dsk or Mesh, not ${String(type)}`));
       this.assets?.track({ kind: 'model', owner: this.body.name, role, url }, load);
       try {

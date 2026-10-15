@@ -61,3 +61,7 @@ scripts/build-globe-textures/.venv/
 
 # Third-party Cosmographia catalog data — see scripts/fetch-cosmographia-data.sh
 .cosmographia/
+
+# Original Rosetta texture maps (~42 MB), fetched by fetch-rosetta-models.sh
+apps/viewer/test-catalogs/models/rosetta/*.png
+apps/viewer/test-catalogs/models/rosetta/*.part

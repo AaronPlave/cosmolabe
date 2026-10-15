@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Real archive geometry checks; run after npm run build and fetch-rosetta-kernels.sh.
+// Real archive geometry checks; run after npm run build and both Rosetta fetch scripts.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { createSpiceBindings } from 'cspice-wasm';
-import { Triangle, Vector3 } from 'three';
+import { Box3, Texture, TextureLoader, Triangle, Vector3 } from 'three';
+import { TDSLoader } from 'three/addons/loaders/TDSLoader.js';
 
 const root = fileURLToPath(new URL('../apps/viewer/test-catalogs/', import.meta.url));
 const catalog = JSON.parse(readFileSync(`${root}rosetta.json`, 'utf8'));
@@ -20,17 +21,44 @@ for (const entry of catalog.spiceKernels) {
   spice.furnsh(path.split('/').pop().replace(/\.gz$/, ''), bytes(path));
 }
 const shapes = new Map();
+// The textured ESA meshes use the same native origins and km as their DSK
+// counterparts. Inspect actual bounds without normalizing or recentering them.
+const archivedShapes = {
+  'ROS_SC_PHILAE_V00.3ds': 'ROS_SC_BUS_LR_V02.BDS.gz',
+  'ROS_SC_BUS_V00.3ds': 'ROS_SC_BUS_V01.BDS',
+  'ROS_SC_SA+Y_V00.3ds': 'ROS_SC_SAPY_V02.BDS',
+  'ROS_SC_SA-Y_V00.3ds': 'ROS_SC_SAMY_V02.BDS',
+  'ROS_SC_HGA_V00.3ds': 'ROS_SC_HGA_V02.BDS.gz',
+  'ROS_PHILAE_V00.3ds': 'ROS_LR_D_V03.BDS.gz',
+};
+// Headless geometry-only inspection: browser validation checks real map loads.
+TextureLoader.prototype.load = () => new Texture();
 function inspect(body) {
   const geometries = body.geometry?.type === 'TimeSwitched'
     ? body.geometry.sequence.map((entry) => entry.geometry) : [body.geometry];
   for (const geometry of geometries) {
-    if (geometry?.type !== 'Dsk') continue;
-    const path = geometry.source;
+    if (geometry?.type !== 'Dsk' && geometry?.type !== 'Mesh') continue;
+    const reference = archivedShapes[geometry.source.split('/').pop()];
+    const path = reference ? `kernels/rosetta/${reference}` : geometry.source;
     const shape = spice.readDsk(path.split('/').pop().replace(/\.gz$/, ''), bytes(path));
     assert.equal(shape.centerId, body.naifId, `${body.name}: DSK origin must match its trajectory origin`);
     const trajectories = body.arcs?.map((arc) => arc.trajectory) ?? [body.trajectory];
     for (const trajectory of trajectories) {
       assert.equal(Number(trajectory.target), shape.centerId, `${body.name}: trajectory target must be the DSK origin`);
+    }
+    if (reference) {
+      const raw = readFileSync(root + geometry.source);
+      const object = new TDSLoader().parse(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength), '');
+      const modelBox = new Box3().setFromObject(object);
+      const archiveBox = new Box3();
+      for (let i = 0; i < shape.vertices.length; i += 3) archiveBox.expandByPoint(new Vector3().fromArray(shape.vertices, i));
+      console.log(`${body.name}: textured bounds vs DSK (m): min ${modelBox.min.distanceTo(archiveBox.min) * 1000}, max ${modelBox.max.distanceTo(archiveBox.max) * 1000}`);
+      // Bus art models and DSKs are different revisions (including stowed
+      // lander detail); equality is meaningful only for the shared components.
+      if (body.name !== 'Rosetta') {
+        assert.ok(modelBox.min.distanceTo(archiveBox.min) < 0.00001, `${body.name}: native mesh origin/size differs from DSK`);
+        assert.ok(modelBox.max.distanceTo(archiveBox.max) < 0.00001, `${body.name}: native mesh origin/size differs from DSK`);
+      }
     }
     shapes.set(body.name, shape);
     console.log(`${body.name}: ${shape.centerId}, ${shape.frame}, ${shape.vertices.length / 3} vertices`);

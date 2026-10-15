@@ -42,6 +42,42 @@ try {
   });
   save('hga-mount.png', await page.evaluate(() => window.__cosmolabe.capture()));
 
+  const materials = await page.evaluate(() => [...window.renderer.bodyMeshes]
+    .filter(([name]) => /Rosetta|Philae/.test(name))
+    .flatMap(([name, body]) => {
+      const result = [];
+      body.modelContainer?.traverse(object => {
+        if (!object.isMesh) return;
+        for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+          result.push({ name, albedo: material.map?.image?.currentSrc,
+            albedoWidth: material.map?.image?.naturalWidth ?? 0,
+            colorSpace: material.map?.colorSpace,
+            normal: material.normalMap?.image?.currentSrc,
+            normalWidth: material.normalMap?.image?.naturalWidth ?? 0,
+            normalColorSpace: material.normalMap?.colorSpace,
+            hasBump: Boolean(material.bumpMap) });
+        }
+      });
+      return result;
+    }));
+  assert.ok(materials.length >= 6);
+  for (const material of materials) {
+    assert.match(material.albedo, /\/(ros|phi)_alb\.png$/);
+    assert.ok(material.albedoWidth > 0);
+    assert.equal(material.colorSpace, 'srgb');
+    assert.match(material.normal, /\/(ros|phi)_nor\.png$/);
+    assert.ok(material.normalWidth > 0);
+    assert.equal(material.normalColorSpace, '');
+    assert.equal(material.hasBump, false);
+  }
+  await page.evaluate(() => {
+    window.__cosmolabe.capture('Philae final site, Abydos (2014-11-12)');
+    const cc = window.renderer.cameraController;
+    const vp = cc.getViewpoint('Philae final site, Abydos (2014-11-12)');
+    cc.applyViewpoint({ ...vp, position: vp.position.clone().multiplyScalar(0.1) });
+  });
+  save('philae-textured.png', await page.evaluate(() => window.__cosmolabe.capture()));
+
   const transitions = [];
   for (const epoch of [
     '2012-01-01T00:00:00Z',
@@ -67,7 +103,7 @@ try {
     transitions.push({ epoch, state });
   }
   assert.deepEqual(errors, []);
-  writeFileSync(join(output, 'report.json'), JSON.stringify({ assets, viewpoints, transitions, errors }, null, 2));
+  writeFileSync(join(output, 'report.json'), JSON.stringify({ assets, materials, viewpoints, transitions, errors }, null, 2));
   console.log(`Rosetta: ${viewpoints.length} viewpoints, ${transitions.length} transition epochs, ${assets.loaded} assets; captures: ${output}`);
 } finally {
   await browser.close();

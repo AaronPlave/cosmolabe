@@ -3,6 +3,7 @@
 // material textures resolved relative to the model and counted as assets.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { Body } from '@cosmolabe/core';
 import { BodyMesh } from '../BodyMesh.js';
@@ -38,7 +39,36 @@ function triangle3ds(): Uint8Array {
 }
 
 describe('.3ds models', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it('loads ESA antenna albedo in sRGB and its declared tangent normal map without changing native km', async () => {
+    const bytes = readFileSync(new URL('../../../../apps/viewer/test-catalogs/models/rosetta/ROS_SC_HGA_V00.3ds', import.meta.url));
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(bytes as BodyInit)));
+    const maps = new Map<string, THREE.Texture>();
+    vi.spyOn(THREE.TextureLoader.prototype, 'load').mockImplementation((name) => {
+      const texture = new THREE.Texture<HTMLImageElement>();
+      maps.set(name, texture);
+      return texture;
+    });
+    const geometry = { type: 'Mesh', source: 'models/rosetta/ROS_SC_HGA_V00.3ds', bumpMapType: 'normal' };
+    // Exercise TimeSwitched as well as direct model loading: entry material
+    // options must reach the parser, rather than the container's geometry.
+    const body = new Body({ name: 'Antenna', trajectory: fixedPoint, geometryType: 'TimeSwitched' });
+    const bm = new BodyMesh(body);
+    await bm.loadTimeSwitched([{ startEt: 0, endEt: 10, geometry }], 1, null, p => p);
+    let material: THREE.MeshPhongMaterial | undefined;
+    bm.modelContainer!.traverse(o => {
+      if (o instanceof THREE.Mesh) material = o.material as THREE.MeshPhongMaterial;
+    });
+    expect(material?.map).toBe(maps.get('ros_alb.png'));
+    expect(material?.map?.colorSpace).toBe(THREE.SRGBColorSpace);
+    expect(material?.normalMap).toBe(maps.get('ros_nor.png'));
+    expect(material?.normalMap?.colorSpace).toBe(THREE.NoColorSpace);
+    expect(material?.bumpMap).toBeNull();
+    const box = new THREE.Box3().setFromObject(bm.modelContainer!);
+    expect(box.min.x).toBeCloseTo(-0.000118, 9);
+    expect(box.max.x).toBeCloseTo(0.002330, 9);
+  });
 
   it('loads through TDSLoader and is sized by the catalog like any model', async () => {
     const bytes = triangle3ds();

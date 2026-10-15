@@ -96,6 +96,10 @@ jobs:
         if: ${{ vars.DATA_BASE_URL != '' }}
         run: bash scripts/fetch-rosetta-kernels.sh
 
+      - name: Fetch textured Rosetta models
+        # Ship these local assets with either kernel delivery mode.
+        run: bash scripts/fetch-rosetta-models.sh
+
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5

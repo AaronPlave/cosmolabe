@@ -194,6 +194,11 @@ What gets drawn at the body's position. Picked by `geometry.type`:
   still ship (Rosetta's among them). Material maps resolve relative to the model
   file. Prefer converting to GLB for anything you author.
 
+For 3DS assets that store a tangent normal map in the legacy bump slot, set
+`"bumpMapType": "normal"` on that `Mesh` geometry. This is explicit metadata;
+ordinary bump maps keep their height-map interpretation. Colour maps use sRGB,
+while normal maps remain linear. The option also works on `TimeSwitched` entries.
+
 A **DSK** is not a model format: it is a body's authoritative surface, and has
 its own geometry type, [`Dsk`](#dsk).
 

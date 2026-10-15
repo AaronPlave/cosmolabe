@@ -165,11 +165,11 @@
         "sequence": [
           {
             "endTime": "2014-11-12T08:35:15Z",
-            "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_BUS_LR_V02.BDS.gz", "color": [0.78, 0.74, 0.62] }
+            "geometry": { "type": "Mesh", "source": "models/rosetta/ROS_SC_PHILAE_V00.3ds", "bumpMapType": "normal" }
           },
           {
             "startTime": "2014-11-12T08:35:15Z",
-            "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_BUS_V01.BDS", "color": [0.78, 0.74, 0.62] }
+            "geometry": { "type": "Mesh", "source": "models/rosetta/ROS_SC_BUS_V00.3ds", "bumpMapType": "normal" }
           }
         ]
       },
@@ -183,7 +183,7 @@
           "trajectoryFrame": "J2000",
           "trajectory": { "type": "Spice", "target": "-226010", "center": "-226000" },
           "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SA+Y", "fallbackFrame": "ROS_SA+Y_ZERO" },
-          "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_SAPY_V02.BDS", "color": [0.22, 0.26, 0.42] },
+          "geometry": { "type": "Mesh", "source": "models/rosetta/ROS_SC_SA+Y_V00.3ds", "bumpMapType": "normal" },
           "label": { "visible": false },
           "trajectoryPlot": { "visible": false }
         },
@@ -194,7 +194,7 @@
           "trajectoryFrame": "J2000",
           "trajectory": { "type": "Spice", "target": "-226020", "center": "-226000" },
           "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SA-Y", "fallbackFrame": "ROS_SA-Y_ZERO" },
-          "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_SAMY_V02.BDS", "color": [0.22, 0.26, 0.42] },
+          "geometry": { "type": "Mesh", "source": "models/rosetta/ROS_SC_SA-Y_V00.3ds", "bumpMapType": "normal" },
           "label": { "visible": false },
           "trajectoryPlot": { "visible": false }
         },
@@ -205,7 +205,7 @@
           "trajectoryFrame": "J2000",
           "trajectory": { "type": "Spice", "target": "-226070", "center": "-226000" },
           "rotationModel": { "type": "Spice", "bodyFrame": "ROS_HGA", "fallbackFrame": "ROS_HGA_ZERO" },
-          "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_HGA_V02.BDS.gz", "color": [0.85, 0.85, 0.85] },
+          "geometry": { "type": "Mesh", "source": "models/rosetta/ROS_SC_HGA_V00.3ds", "bumpMapType": "normal" },
           "label": { "visible": false },
           "trajectoryPlot": { "visible": false }
         }
@@ -221,7 +221,7 @@
       "trajectoryFrame": "J2000",
       "trajectory": { "type": "Spice", "target": "-226800", "center": "1000012" },
       "rotationModel": { "type": "Spice", "bodyFrame": "ROS_LANDER" },
-      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_LR_D_V03.BDS.gz", "color": [0.8, 0.8, 0.82] },
+      "geometry": { "type": "Mesh", "source": "models/rosetta/ROS_PHILAE_V00.3ds", "bumpMapType": "normal" },
       "label": { "color": [0.4, 1.0, 1.0] },
       "trajectoryPlot": { "color": "#66ffff", "duration": "10h", "fade": 0.3, "visible": true }
     }
