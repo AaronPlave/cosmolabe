@@ -1,0 +1,68 @@
+{
+  "scene": {
+    "id": "cassini",
+    "catalog": "cassini-soi",
+    "output": "mission-cassini.jpg",
+    "utc": "2004-07-01T02:48:00Z",
+    "et": 141922144.18409976,
+    "tracked": "Saturn",
+    "selected": "Cassini",
+    "camera": {
+      "position": [
+        180000,
+        -250000,
+        220000
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ],
+      "fov": 48
+    },
+    "trajectory": "Cassini",
+    "sensor": null,
+    "panel": null
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "et": 141922144.18409976,
+  "camera": {
+    "position": [
+      180000,
+      -250000,
+      220000
+    ],
+    "target": [
+      0,
+      0,
+      0
+    ],
+    "up": [
+      0,
+      0,
+      1
+    ],
+    "fov": 48
+  },
+  "snapshot": "# Cosmolabe snapshot\nsetPlaying off\nsetTime 2004-07-01T02:48:00.000Z\nsetTimeRate 1\ngotoObject Saturn\nsetFrame free-orbit Saturn\nclearLookAt\nsetFov 48\nsetCamera [180000, -250000, 220000] [0, 0, 0] [0, 0, 1]\nsetLayer trajectories on\nsetLayer labels on\nsetLayer grid off\nsetLayer axes off\nsetLayer sensors off\nsetLayer sensorLabels off\nselect Cassini\n",
+  "initialAssets": {
+    "total": 14,
+    "settled": 14,
+    "loaded": 14,
+    "failed": 0,
+    "failures": [],
+    "stillPending": [],
+    "timedOut": false,
+    "durationMs": 1207.2000000029802
+  },
+  "terrain": null,
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+}

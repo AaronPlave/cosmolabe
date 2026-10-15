@@ -48,6 +48,14 @@ export interface FlyToOptions {
   distanceMultiplier?: number;
   /** Scale factor for converting body radius to scene units */
   scaleFactor?: number;
+  /**
+   * Where to land relative to the body's centre, in scene units in the body's
+   * mesh frame, so the pose turns with the body during the flight. Overrides
+   * `distanceMultiplier`; the camera then looks at the body's centre.
+   */
+  offset?: THREE.Vector3;
+  /** Camera up on landing, in the body's mesh frame. Defaults to the current up. */
+  up?: THREE.Vector3;
 }
 
 export class CameraController {
@@ -125,6 +133,9 @@ export class CameraController {
     followBody?: BodyMesh;
     followDist?: number;
     followDir?: THREE.Vector3;
+    /** Landing pose in the followed body's mesh frame (`FlyToOptions.offset`/`up`). */
+    followOffset?: THREE.Vector3;
+    followUp?: THREE.Vector3;
   } | null = null;
   private _lastAnimMs = 0;
 
@@ -302,6 +313,10 @@ export class CameraController {
     anim.followBody = bodyMesh;
     anim.followDist = viewDist;
     anim.followDir = dir;
+    if (opts?.offset) {
+      anim.followOffset = opts.offset.clone();
+      anim.followUp = opts.up?.clone();
+    }
   }
 
   /**
@@ -1029,6 +1044,11 @@ export class CameraController {
         const bodyPos = this._anim.followBody.position;
         this._anim.endTarget.copy(bodyPos);
         this._anim.endPos.copy(bodyPos).addScaledVector(this._anim.followDir, this._anim.followDist);
+        if (this._anim.followOffset) {
+          const q = this._anim.followBody.mesh.quaternion;
+          this._anim.endPos.copy(this._anim.followOffset).applyQuaternion(q).add(bodyPos);
+          if (this._anim.followUp) this._anim.endUp.copy(this._anim.followUp).applyQuaternion(q);
+        }
       }
 
       const t = Math.min(this._anim.elapsed / this._anim.duration, 1);

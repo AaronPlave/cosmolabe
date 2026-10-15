@@ -333,3 +333,30 @@ describe('moves queued behind a fly-to from another origin', () => {
     close(camera.position, d * approach.x, 0, d * approach.z);
   });
 });
+
+// Fly-to-region: one flight from wherever the camera is, landing on a pose
+// fixed to the body even as it turns, with no cut to a default framing first.
+describe('fly-to with a body-frame landing pose', () => {
+  it('starts where the camera is and lands on the offset as the body turns', () => {
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const { camera, cc, earth } = setup();
+    (earth as unknown as { mesh: THREE.Object3D }).mesh = new THREE.Object3D();
+    const mesh = (earth as unknown as { mesh: THREE.Object3D }).mesh;
+    earth.position.set(0, 0, -50000);
+    const start = camera.position.clone();
+
+    cc.flyTo(earth, { duration: 1, offset: new THREE.Vector3(7000, 0, 0), up: new THREE.Vector3(0, 1, 0) });
+    expect(cc.trackedBody).toBeNull();
+    now += 1;
+    cc.update();
+    expect(camera.position.distanceTo(start)).toBeLessThan(1);
+
+    // A quarter turn about +Y mid-flight carries the landing point with it.
+    mesh.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+    for (let i = 0; i < 5; i++) { now += 300; cc.applyPendingOriginSwitch(); if (cc.originBody === earth) earth.position.set(0, 0, 0); cc.update(); }
+    expect(cc.trackedBody).toBe(earth);
+    close(camera.position, 0, 0, -7000);
+    close(camera.up, 0, 1, 0);
+  });
+});

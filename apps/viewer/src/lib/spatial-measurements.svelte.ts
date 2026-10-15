@@ -8,6 +8,7 @@ import { Ruler, Crosshair, TriangleRight, Gauge, Axis3d } from 'lucide-svelte';
 import { openTool } from './shell.svelte';
 import type { UniverseRenderer } from '@cosmolabe/three';
 import { getCurrentRenderer, getUniverse } from './loader';
+import { excludeFromProbe, setProbeActive, vs } from './viewer-state.svelte';
 import { definitionEndpoints, validateMeasurementLinkState, validateMeasurementReferences, type MeasurementDefinition, type MeasurementLinkState } from './measurement-link-state';
 export type { MeasurementDefinition } from './measurement-link-state';
 
@@ -277,6 +278,9 @@ export function resetMeasurementDraft(preserveKind = false): void {
   autoFrame = null;
 }
 export function startMeasurementPick(slot: Slot, mode: 'object' | 'surface'): void {
+  // One pointer mode at a time: an endpoint pick and the Point Probe would
+  // both claim the next click.
+  if (vs.probeActive) setProbeActive(false);
   measurements.pendingPickSlot = slot;
   measurements.pickMode = mode;
   measurements.hoveredId = null;
@@ -291,6 +295,8 @@ export function cancelMeasurementPick(): boolean {
   getCurrentRenderer()?.clearSpatialPickPreview();
   return active;
 }
+excludeFromProbe(cancelMeasurementPick);
+
 /** Measurements are scene-owned: entity references never leak into a replacement catalog. */
 export function resetMeasurementsForScene(): void {
   measurements.nextColor = 0;
