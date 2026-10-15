@@ -11,6 +11,15 @@ and simulation data from a JSON catalog.
 **[Open the hosted demo](https://aaronplave.com/cosmolabe/)** ·
 **[Catalog reference](docs/catalog-format.md)** · **[Get started](#getting-started)**
 
+[![Play the Europa Clipper flyby: spacecraft, instrument cones, WAC PiP and Jupiter emerging behind Europa](docs/img/mission-flyby.png)](https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev/showcase/readme/clipper-a1822b324dc14e3c/index.html)
+
+**[Watch the 24-second Clipper flyby](https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev/showcase/readme/clipper-a1822b324dc14e3c/index.html)** ·
+[Download the 1080p MP4](https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev/showcase/readme/clipper-a1822b324dc14e3c/clipper.mp4)
+
+*Jupiter emerges behind Europa, followed by a pullback to the system, with
+instrument cones and live WAC picture-in-picture. FOVs come from instrument
+kernels; pointing is illustrative and target-facing, without CK attitude coverage.*
+
 ![Cassini closest approach: selected 3D event, distance windows, distance and range-rate plots](docs/img/mission-events.png)
 
 *Cassini at Saturn orbit insertion: the selected closest approach aligns with
@@ -55,10 +64,10 @@ These are actual viewer captures with ordinary rendering, including the UI.
 *Europa Clipper after a Europa encounter: spacecraft context and a single EIS
 narrow-angle field of view, with unrelated orbit trails hidden.*
 
-![LRO above textured lunar terrain with its spacecraft information panel](docs/img/mission-lro.jpg)
+![Oblique view of crater relief beneath LRO, with its orbit above the lunar horizon](docs/img/mission-lro.jpg)
 
-*Lunar Reconnaissance Orbiter over the Moon: streamed terrain and imagery with
-the spacecraft visible, without a large frustum covering the surface.*
+*Crater rims and shadowed floors beneath LRO at low Sun elevation: streamed
+lunar terrain and WAC imagery, with the orbit retained above the horizon.*
 
 ![Saturn rings and Cassini's orbit-insertion trajectory](docs/img/mission-cassini.jpg)
 
@@ -69,28 +78,23 @@ the spacecraft visible, without a large frustum covering the surface.*
 *The Earth–Moon catalog includes a script that drives time, camera and layers
 through the same ViewerControl methods used by hosts.*
 
-![Cassini to Saturn distance overlay and the Measurements panel](docs/img/mission-measurements.png)
+![Europa Clipper to Europa distance overlay and the Measurements panel](docs/img/mission-measurements.png)
 
-*A single Cassini–Saturn center-to-center distance, with its endpoints and live
-readout. This differs from altitude above Saturn's reference surface.*
+*A single Clipper–Europa center-to-center distance of 7,968 km, with its
+endpoints and live readout. Center distance differs from altitude above the surface.*
 
 <details>
-<summary>Experimental Mars surface and workflow recording</summary>
+<summary>Experimental Mars surface</summary>
 
 ![Ingenuity over Jezero terrain in the experimental Mars surface viewer](docs/img/mission-mars.jpg)
 
 *Ingenuity at Jezero — experimental surface visualization. The capture needs the
 locally generated fused Mars terrain product described in the recipes.*
 
-[Recreate the Clipper flyby video](docs/readme-media.md#record-the-mission-workflow-video)
-
-The default recording follows Clipper past Europa as its limb slowly reveals
-Jupiter, then pulls back to the system. Instrument cones and the live WAC
-picture-in-picture stay visible throughout.
-The script also offers a Cassini analysis clip with distance windows and plots.
-Video binaries stay outside the repository until published.
-
 </details>
+
+[Recreate or improve the screenshots and video](docs/readme-media.md), including
+an optional Cassini analysis clip with distance windows and plots.
 
 ## Example catalogs
 

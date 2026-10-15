@@ -63,6 +63,10 @@ In another terminal, from the repository root:
 
 ```sh
 node scripts/capture-readme-media.mjs
+# Include the experimental Mars scene only when its generated terrain is ready:
+node scripts/capture-readme-media.mjs --all
+# Inspect selection without launching a browser:
+node scripts/capture-readme-media.mjs --list
 # Or just one scene:
 node scripts/capture-readme-media.mjs events
 # Inspect candidate output without overwriting the published selection:
@@ -101,17 +105,18 @@ only the primary participants. Panels use their normal default dock positions.
 
 | Output | Catalog / entry | UTC | View and analysis |
 | --- | --- | --- | --- |
-| `mission-clipper.jpg` | `europa-clipper` | 2031-03-07 03:39:51.823 | Track/select Europa Clipper, close camera, one EIS NAC FOV; trajectories off. Europa and Jupiter remain in view. |
-| `mission-lro.jpg` | `lro-moon` | 2025-01-15 00:21:00 | Track/select LRO above the lunar horizon; streamed terrain/imagery, no sensors or trails. |
+| `mission-clipper.jpg` | `europa-clipper` | 2031-03-07 03:39:51.823 | Track Europa Clipper with a tighter 42° FOV, no selection panel, one EIS NAC FOV; trajectories off. Europa and Jupiter remain in view. |
+| `mission-lro.jpg` | `lro-moon` | 2025-01-15 00:40:00 | Untracked oblique crater-relief view beneath LRO at 26.5° Sun elevation, with one orbit trail; no sensors. |
 | `mission-cassini.jpg` | `cassini-soi` | 2004-07-01 02:48:00 | Track Saturn, select Cassini; one Cassini trail, sensors off; ring shadows use natural lighting. |
 | `mission-mars.jpg` | `ingenuity-jezero` | 2021-07-05 09:00:08 | Track Ingenuity with a close local-up camera over Jezero; experimental terrain/model positioning; no sensors or trails. |
 | `mission-events.png` | `cassini-soi` | 2004-07-01 02:38:22.467 | Cassini → Saturn closest approach, 00:00–12:00 UTC search, 60 s step, default `NONE` aberration correction. Select the sole closest-approach result; also search distance below 100,000 and 150,000 km over the same window. Event Finder left dock; expanded six-hour timeline (00:00–06:00 UTC) with distance and range-rate plots. |
-| `mission-measurements.png` | `cassini-soi` | 2004-07-01 02:38:22.467 | One entity-to-entity Cassini–Saturn distance; Measurements right dock and selected 3D readout. No body info panel. |
+| `mission-measurements.png` | `europa-clipper` | 2031-03-07 02:59:51.823 | One entity-to-entity Clipper–Europa distance; oblique view centered on both endpoints, Measurements right dock and selected 3D readout. No body info panel. |
 | `mission-tour.png` | `earth-moon-tour` | 2015-10-31 23:50:00 | Script panel shows an executed stationary excerpt of the catalog tour; body-fixed pose from its source, with playback paused. |
 
 The Cassini closest-approach result is about **20,541.8 km altitude** above the
-reference ellipsoid and approximately **80,246 km center distance**; the measurement readout
-rounds the center distance to **80,246 km**. They describe different quantities.
+reference ellipsoid and approximately **80,246 km center distance**. The separate
+measurement image now uses Clipper–Europa (7,968 km) for gallery variety; it also
+measures center distance rather than altitude.
 The event search is recomputed from kernels, not inserted as a fake result. An
 instant closest approach appears as a timeline marker, rather than an eclipse
 interval. The selected marker is at the spacecraft on its trajectory. Two additional
@@ -177,8 +182,8 @@ The default 24-second Clipper sequence:
 
 | Clip time | Action |
 | --- | --- |
-| 0–8 s | Follow the December 5, 2031 Europa flyby at 30× speed. The close camera stays 21 metres from Clipper with a fixed direction and roll, allowing Europa's limb to slowly uncover Jupiter. Keep all four instrument cones and the WAC PiP active. |
-| 8–20 s | Freeze the encounter epoch and pull back smoothly along the same camera direction to a Jupiter system overview. The aim gradually shifts to Jupiter while the instrument PiP continues to show Europa. |
+| 0–8 s | Follow the December 5, 2031 Europa flyby at 30× speed. The close camera stays 21 metres from Clipper with a fixed direction and roll, allowing Europa's limb to slowly uncover Jupiter. Keep all four instrument cones and the WAC PiP active; orbit trails remain hidden. |
+| 8–20 s | Freeze the encounter epoch and pull back smoothly along the same camera direction to a Jupiter system overview. The aim gradually shifts to Jupiter while the instrument PiP continues to show Europa. Reveal orbit trails at 30,000 km; update layer/label visibility only at that transition. |
 | 20–24 s | Hold the system, mission trajectory, instrument cones and live WAC view. |
 
 [`readme-video.json`](readme-video.json) controls flyby epochs, fixed opening
@@ -239,11 +244,29 @@ commit the MP4 or intermediate frames. The encoder check verifies codec, pixel
 format, viewport dimensions, frame count and duration. Review the clip itself
 before uploading; these checks cannot judge storytelling or visual artifacts.
 
-To publish, upload the MP4 to GitHub user attachments and put its CDN link in the
-README with a descriptive caption. Keep `docs/img/mission-events.png` as the
-static fallback (or publish the generated poster). Verify actual playback on
-GitHub. The new local clips are not claimed as uploaded; the README links this
-recipe until a replacement CDN URL is available.
+The [published responsive player](https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev/showcase/readme/clipper-a1822b324dc14e3c/index.html) serves the reviewed clip,
+poster and captions from the project's configured public data host. The README
+uses a linked static poster because GitHub sanitizes external video elements;
+the player provides native playback controls at desktop and phone widths. Its
+caption and the public README both disclose illustrative pointing without CK
+coverage. URLs and the public caption are recorded in
+[`readme-video-published.json`](readme-video-published.json).
+
+After reviewing a regenerated clip, publish it with the existing R2 environment
+configuration described in [data hosting](data-hosting.md):
+
+```sh
+node scripts/publish-readme-video.mjs
+# Or pass the external directory used while recording:
+node scripts/publish-readme-video.mjs /tmp/clipper-video
+```
+
+The publisher uses an immutable content-hash prefix, verifies every public file
+against its local SHA-256, and checks MP4 byte-range serving. It prints the player,
+video and poster URLs; update the published manifest and README links when
+publishing a changed clip. Copy the new poster to `docs/img/mission-flyby.png`.
+Video binaries stay outside git. Verify the published GitHub poster link and
+actual playback at desktop and phone widths after pushing.
 
 ## Review before publishing
 
@@ -278,9 +301,25 @@ advertised here.
   before a mid-pass callback occurred. The test and its implementation match
   `main`; they were not changed as part of this documentation/media issue.
 
-Video validation on 2026-10-14: the completed clip has 360 frames at 24 fps,
+Cassini analysis video validation on 2026-10-14: the completed clip has 360 frames at 24 fps,
 1920×1080, H.264/yuv420p with limited-range BT.709 and a 15.000-second duration
 (897,271 bytes). The real timeline drag and closest-approach click passed their
 epoch/selection checks; page/network checks reported no errors. Frames across
 the sequence and the final poster were visually reviewed. The MP4, poster,
 captions and recording report remain local, outside the repository.
+
+## PR review validation on 2026-10-15
+
+- Regenerated the 24-second Clipper clip (576 frames at 24 fps, 1920×1080,
+  H.264/yuv420p). Reviewed frames across the complete sequence: cones and WAC
+  PiP persist, while trajectories appear only during the pullback.
+- Published the video, poster, captions, capture report and responsive player.
+  Every public response matched its local SHA-256; MP4 range requests returned
+  206. Chromium played and sought the public video at 1440 px and 390 px,
+  with correct duration/dimensions, no media errors and no horizontal overflow.
+- Recaptured LRO crater relief, tighter Clipper framing and Clipper–Europa
+  measurements through the ordinary driver; initial assets and streamed terrain
+  had zero failures, with no page/network errors.
+- Three capture-selection regression tests pass: standard scenes by default,
+  explicit Mars/all opt-in, and rejection of ambiguous all-plus-scene requests.
+  All capture/publication scripts pass syntax checks.

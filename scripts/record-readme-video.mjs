@@ -34,7 +34,7 @@ export async function recordMissionVideo(page, scene, output) {
     assert.ok(recipe.flybyEndAt > 0 && recipe.flybyEndAt < recipe.zoomEndAt && recipe.zoomEndAt < recipe.duration);
     assert.ok(recipe.flybyWindow[0] < recipe.flybyWindow[1] && recipe.openingDistanceKm > 0);
     assert.ok(recipe.posterAt >= 0 && recipe.posterAt < recipe.flybyEndAt);
-    assert.ok(Math.hypot(...recipe.overviewOffsetKm) > recipe.trajectoryRevealDistanceKm && recipe.trajectoryRevealDistanceKm >= 0);
+    assert.ok(Math.hypot(...recipe.overviewOffsetKm) > recipe.trajectoryRevealDistanceKm && recipe.trajectoryRevealDistanceKm > recipe.openingDistanceKm);
     assert.ok(Math.abs(Math.hypot(...recipe.openingCamera.position) - recipe.openingDistanceKm) < 1e-9);
     assert.ok(recipe.instruments.includes(recipe.pip.sensor));
   } else {
@@ -53,6 +53,7 @@ export async function recordMissionVideo(page, scene, output) {
   const stageFrames = Object.fromEntries(['openAnalysisAt', 'scrubStartAt', 'scrubEndAt', 'selectEventAt']
     .map(key => [key, Math.round(recipe[key] * recipe.fps)]));
   let track;
+  let lastTrajectoryReveal;
   try {
     if (!flyby) await page.evaluate(({ scene, start }) => {
       return (async () => {
@@ -86,7 +87,9 @@ export async function recordMissionVideo(page, scene, output) {
         const zoom = ease(Math.min(Math.max((t - recipe.flybyEndAt) /
           (recipe.zoomEndAt - recipe.flybyEndAt), 0), 1));
         const distance = recipe.openingDistanceKm * Math.pow(Math.hypot(...recipe.overviewOffsetKm) / recipe.openingDistanceKm, zoom);
-        await page.evaluate(async ({ recipe, et, distance }) => {
+        const reveal = distance >= recipe.trajectoryRevealDistanceKm;
+        const updateVisibility = reveal !== lastTrajectoryReveal;
+        await page.evaluate(async ({ recipe, et, distance, reveal, updateVisibility }) => {
           const c = cosmo, u = renderer.getContext().universe;
           c.setTime({ kind: 'et', et });
           // Let the renderer update its floating origin before placing a camera
@@ -106,16 +109,18 @@ export async function recordMissionVideo(page, scene, output) {
             (Math.hypot(...recipe.overviewOffsetKm) - recipe.openingDistanceKm);
           const target = jupiter.map(v => v * aim);
           c.setCamera(target.map((v, i) => v + direction[i] * distance), target, recipe.openingCamera.up);
-          const reveal = distance >= recipe.trajectoryRevealDistanceKm;
-          c.setLayer('trajectories', reveal);
-          if (reveal) for (const name of renderer.trajectoryLines.keys())
-            c.showTrajectory(name, ['Europa Clipper', 'Io', 'Europa', 'Ganymede', 'Callisto'].includes(name));
-          for (const name of renderer.bodyMeshes.keys()) c.showLabel(name,
-            (reveal ? ['Europa Clipper', 'Jupiter', 'Io', 'Europa', 'Ganymede', 'Callisto'] : ['Jupiter', 'Europa']).includes(name));
+          if (updateVisibility) {
+            c.setLayer('trajectories', reveal);
+            if (reveal) for (const name of renderer.trajectoryLines.keys())
+              c.showTrajectory(name, ['Europa Clipper', 'Io', 'Europa', 'Ganymede', 'Callisto'].includes(name));
+            for (const name of renderer.bodyMeshes.keys()) c.showLabel(name,
+              (reveal ? ['Europa Clipper', 'Jupiter', 'Io', 'Europa', 'Ganymede', 'Callisto'] : ['Jupiter', 'Europa']).includes(name));
+          }
           if (renderer.activeInstrumentView !== recipe.pip.sensor ||
             recipe.instruments.some(name => !renderer.sensorFrustums.get(name)?.visible))
             throw new Error('Instrument PiP or cones disappeared during recording');
-        }, { recipe, et: recipe.flybyWindow[0] + (recipe.flybyWindow[1] - recipe.flybyWindow[0]) * timeProgress, distance });
+        }, { recipe, et: recipe.flybyWindow[0] + (recipe.flybyWindow[1] - recipe.flybyWindow[0]) * timeProgress, distance, reveal, updateVisibility });
+        lastTrajectoryReveal = reveal;
       } else {
         if (frame === stageFrames.openAnalysisAt) {
           await page.getByRole('button', { name: 'Events', exact: true }).click();

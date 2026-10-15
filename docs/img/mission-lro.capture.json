@@ -3,57 +3,59 @@
     "id": "lro",
     "catalog": "lro-moon",
     "output": "mission-lro.jpg",
-    "utc": "2025-01-15T00:21:00Z",
-    "et": 790172529.1843309,
+    "utc": "2025-01-15T00:40:00Z",
+    "et": 790173669.1843309,
     "tracked": "LRO",
-    "selected": "LRO",
+    "selected": null,
     "camera": {
       "position": [
-        0.012347562903357916,
-        -0.004059085449015558,
-        -0.0002480235174526453
+        4.774652944134822,
+        4.154194615020986,
+        70.48844847765731
       ],
       "target": [
-        0,
-        0,
-        0
+        -8.70405497870584,
+        32.41592258224267,
+        66.06135405382672
       ],
       "up": [
-        0.0765558787708621,
-        -0.9952091602773935,
-        -0.060810564259729256
+        0.11746528674699255,
+        -0.4374680135416149,
+        -0.8915288237277582
       ],
-      "fov": 60
+      "fov": 65
     },
-    "trajectory": null,
+    "trajectory": "LRO",
     "sensor": null,
     "panel": null,
-    "terrain": "Moon"
+    "terrain": "Moon",
+    "untrack": true
   },
   "viewport": {
     "width": 1920,
     "height": 1080
   },
-  "et": 790172529.1843309,
+  "analysis": null,
+  "et": 790173669.1843309,
   "camera": {
     "position": [
-      0.012347562903357916,
-      -0.004059085449015558,
-      -0.0002480235174526453
+      4.7746529441348216,
+      4.154194615020986,
+      70.4884484776573
     ],
     "target": [
-      0,
-      0,
-      0
+      -8.70405497870584,
+      32.41592258224267,
+      66.06135405382672
     ],
     "up": [
-      0.0765558787708621,
-      -0.9952091602773935,
-      -0.060810564259729256
+      0.11746528674699255,
+      -0.4374680135416149,
+      -0.8915288237277582
     ],
-    "fov": 60
+    "fov": 65
   },
-  "snapshot": "# Cosmolabe snapshot\nsetPlaying off\nsetTime 2025-01-15T00:21:00.000Z\nsetTimeRate 1\ngotoObject LRO\nsetFrame free-orbit LRO\nclearLookAt\nsetFov 60\nsetCamera [0.0123475629034, -0.00405908544902, -0.000248023517453] [0, 0, 0] [0.0765558787709, -0.995209160277, -0.0608105642597]\nsetLayer trajectories off\nsetLayer labels on\nsetLayer grid off\nsetLayer axes off\nsetLayer sensors off\nsetLayer sensorLabels off\nselect LRO\n",
+  "snapshot": "# Cosmolabe snapshot\nsetPlaying off\nsetTime 2025-01-15T00:40:00.000Z\nsetTimeRate 1\nuntrack\nsetFrame free-orbit\nclearLookAt\nsetFov 65\nsetCamera [4.77465294413, 4.15419461502, 70.4884484777] [-8.70405497871, 32.4159225822, 66.0613540538] [0.117465286747, -0.437468013542, -0.891528823728]\nsetLayer trajectories on\nsetLayer labels on\nsetLayer grid off\nsetLayer axes off\nsetLayer sensors off\nsetLayer sensorLabels off\ndeselect\n",
   "initialAssets": {
     "total": 5,
     "settled": 5,
@@ -62,50 +64,50 @@
     "failures": [],
     "stillPending": [],
     "timedOut": false,
-    "durationMs": 2118.10000000149
+    "durationMs": 2571
   },
   "terrain": {
     "update": {
-      "count": 838,
+      "count": 2445,
       "lastMs": 0.5,
-      "meanMs": 0.5699999999875823,
-      "maxMs": 0.8000000044703484
+      "meanMs": 0.5433333328614632,
+      "maxMs": 0.7999999970197678
     },
     "parse": {
-      "count": 170,
-      "lastMs": 0,
-      "meanMs": 0.231764706311857,
-      "maxMs": 1.9000000059604645
+      "count": 190,
+      "lastMs": 0.19999998807907104,
+      "meanMs": 0.2699999993568973,
+      "maxMs": 2.7000000029802322
     },
     "cpuDecode": {
-      "count": 170,
-      "lastMs": 0,
-      "meanMs": 0.083529411519275,
-      "maxMs": 0.9000000059604645
+      "count": 190,
+      "lastMs": 0.10000000894069672,
+      "meanMs": 0.17947368464971844,
+      "maxMs": 2
     },
     "sample": {
-      "count": 1011,
+      "count": 561,
       "lastMicros": 0,
-      "meanMicros": 10.08902077446116
+      "meanMicros": 17.64705886071591
     },
     "tiles": {
-      "active": 128,
-      "visible": 128,
-      "inCache": 170,
-      "cpu": 170
+      "active": 143,
+      "visible": 143,
+      "inCache": 190,
+      "cpu": 190
     },
     "network": {
-      "requests": 170,
+      "requests": 190,
       "queued": 0,
       "downloading": 0,
       "parsing": 0,
       "failed": 0
     },
     "memory": {
-      "cacheBytes": 46234792,
+      "cacheBytes": 52760994,
       "maxCacheBytes": 536870912,
-      "geometryBytes": 1670312,
-      "textureBytes": 55749290.666666664
+      "geometryBytes": 2953634,
+      "textureBytes": 60992170.666666664
     }
   },
   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"

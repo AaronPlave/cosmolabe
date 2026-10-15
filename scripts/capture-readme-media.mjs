@@ -10,10 +10,14 @@ const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5199/';
 const output = resolve(process.env.CL_CAPTURE_DIR ?? 'docs/img');
 const videoMode = process.argv.includes('--video');
 if (videoMode) assertExternalVideoOutput(output);
-const requested = process.argv.slice(2).filter(arg => arg !== '--video');
+const all = process.argv.includes('--all');
+const list = process.argv.includes('--list');
+const requested = process.argv.slice(2).filter(arg => !['--video', '--all', '--list'].includes(arg));
+assert.ok(!all || !requested.length, '--all cannot be combined with scene names');
 if (videoMode) assert.deepEqual(requested, [videoRecipe.scene], 'Record the video through scripts/record-readme-video.mjs');
-const scenes = recipes.scenes.filter(scene => !requested.length || requested.includes(scene.id));
+const scenes = recipes.scenes.filter(scene => requested.length ? requested.includes(scene.id) : all || !scene.experimental);
 for (const id of requested) assert.ok(scenes.some(scene => scene.id === id), `Unknown scene: ${id}`);
+if (list) { console.log(scenes.map(scene => scene.id).join('\n')); process.exit(0); }
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
   args: ['--use-angle=' + (process.env.CL_ANGLE ?? (process.platform === 'darwin' ? 'metal' : 'gl')),
     '--ignore-gpu-blocklist', '--enable-gpu'] });
@@ -61,6 +65,10 @@ try {
       c.setPlaying(false);
       c.setTime({ kind: 'et', et: scene.et });
       c.gotoObject(scene.tracked);
+      if (scene.untrack) {
+        c.untrack();
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      }
       if (scene.viewpoint) c.viewpoint(scene.viewpoint);
       if (scene.frame) c.setFrame(scene.frame, scene.tracked);
       if (scene.surfaceCamera) {
@@ -81,7 +89,7 @@ try {
       for (const name of r.trajectoryLines.keys()) c.showTrajectory(name, name === scene.trajectory);
       for (const name of r.getSensorNames()) c.setObjectVisible(name, name === scene.sensor);
       for (const name of r.bodyMeshes.keys()) {
-        c.showLabel(name, [scene.tracked, scene.selected, scene.trajectory, 'Europa', 'Jupiter'].includes(name));
+        c.showLabel(name, [scene.tracked, scene.selected, scene.trajectory, scene.measurement?.source.bodyName, scene.measurement?.target.bodyName, 'Europa', 'Jupiter'].includes(name));
       }
       const analysis = await import('/src/lib/analysis.svelte.ts');
       if (scene.search || scene.searches) {

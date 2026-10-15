@@ -11,7 +11,7 @@
       "utc": "2031-03-07T03:39:51.823Z",
       "et": 983893261.0077376,
       "tracked": "Europa Clipper",
-      "selected": "Europa Clipper",
+      "selected": null,
       "camera": {
         "position": [
           -0.01681691842760148,
@@ -28,7 +28,7 @@
           0,
           1
         ],
-        "fov": 60
+        "fov": 42
       },
       "trajectory": null,
       "sensor": "EIS NAC",
@@ -38,32 +38,33 @@
       "id": "lro",
       "catalog": "lro-moon",
       "output": "mission-lro.jpg",
-      "utc": "2025-01-15T00:21:00Z",
-      "et": 790172529.1843309,
+      "utc": "2025-01-15T00:40:00Z",
+      "et": 790173669.1843309,
       "tracked": "LRO",
-      "selected": "LRO",
+      "selected": null,
       "camera": {
         "position": [
-          0.012347562903357916,
-          -0.004059085449015558,
-          -0.0002480235174526453
+          4.774652944134822,
+          4.154194615020986,
+          70.48844847765731
         ],
         "target": [
-          0,
-          0,
-          0
+          -8.70405497870584,
+          32.41592258224267,
+          66.06135405382672
         ],
         "up": [
-          0.0765558787708621,
-          -0.9952091602773935,
-          -0.060810564259729256
+          0.11746528674699255,
+          -0.4374680135416149,
+          -0.8915288237277582
         ],
-        "fov": 60
+        "fov": 65
       },
-      "trajectory": null,
+      "trajectory": "LRO",
       "sensor": null,
       "panel": null,
-      "terrain": "Moon"
+      "terrain": "Moon",
+      "untrack": true
     },
     {
       "id": "cassini",
@@ -114,7 +115,8 @@
       "surfaceCamera": {
         "height": 0.001,
         "offset": 0.004
-      }
+      },
+      "experimental": true
     },
     {
       "id": "events",
@@ -211,47 +213,48 @@
     },
     {
       "id": "measurements",
-      "catalog": "cassini-soi",
+      "catalog": "europa-clipper",
       "output": "mission-measurements.png",
-      "utc": "2004-07-01T02:38:22.467Z",
-      "et": 141921566.6511854,
-      "tracked": "Saturn",
+      "utc": "2031-03-07T02:59:51.823Z",
+      "et": 983890861.0077376,
+      "tracked": "Europa",
       "selected": null,
       "camera": {
         "position": [
-          180000,
-          -250000,
-          220000
+          -16673,
+          7541,
+          10092
         ],
         "target": [
-          0,
-          0,
-          0
+          -3673,
+          1541,
+          92
         ],
         "up": [
           0,
           0,
           1
         ],
-        "fov": 48
+        "fov": 36
       },
-      "trajectory": "Cassini",
+      "trajectory": null,
       "sensor": null,
       "panel": "measure",
       "measurement": {
-        "id": "cassini-range",
+        "id": "clipper-europa-range",
         "kind": "distance",
         "source": {
           "kind": "entity",
-          "bodyName": "Cassini"
+          "bodyName": "Europa Clipper"
         },
         "target": {
           "kind": "entity",
-          "bodyName": "Saturn"
+          "bodyName": "Europa"
         },
         "color": "#82aabd",
         "visible": true
-      }
+      },
+      "untrack": true
     },
     {
       "id": "tour",

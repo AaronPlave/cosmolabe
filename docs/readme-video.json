@@ -16,7 +16,7 @@
     3868870.5814974266,
     -1797697.9407784354
   ],
-  "trajectoryRevealDistanceKm": 0,
+  "trajectoryRevealDistanceKm": 30000,
   "crf": 20,
   "posterAt": 6,
   "openingCamera": {
