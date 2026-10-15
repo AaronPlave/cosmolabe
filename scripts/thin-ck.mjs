@@ -97,6 +97,47 @@ const load = async (paths) => {
 };
 const spice = await load(kernels);
 
+/**
+ * Type-3 CK rates are piecewise linear at the source record times. A regular
+ * grid can miss short rate changes even when its quaternion error is small.
+ * Include every native record epoch; still query SPICE for the actual state so
+ * overlapping-file precedence and reference-frame composition stay authoritative.
+ * Layout: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/ck.html
+ * Data Type 3: pointing records, then their encoded SCLK times.
+ */
+const nativeEpochs = new Set();
+for (const path of kernels.filter(isCk)) {
+  const bytes = readFileSync(path);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const format = bytes.subarray(88, 96).toString('ascii');
+  if (format !== 'LTL-IEEE' && format !== 'BIG-IEEE') {
+    console.warn(`thin-ck: no native-record extraction for legacy CK format ${format}; retaining sampled verification`);
+    continue;
+  }
+  const little = format === 'LTL-IEEE';
+  if (view.getInt32(8, little) !== 2 || view.getInt32(12, little) !== 6) throw new Error('thin-ck: unexpected CK summary layout');
+  const word = address => view.getFloat64((address - 1) * 8, little);
+  let record = view.getInt32(76, little);
+  while (record > 0) {
+    const offset = (record - 1) * 1024;
+    const count = view.getFloat64(offset + 16, little);
+    for (let i = 0; i < count; i++) {
+      const at = offset + 24 + i * 40;
+      const inst = view.getInt32(at + 16, little), type = view.getInt32(at + 24, little);
+      if (inst !== INST || type !== 3) continue;
+      const hasRate = view.getInt32(at + 28, little);
+      const begin = view.getInt32(at + 32, little), end = view.getInt32(at + 36, little);
+      const n = word(end);
+      const firstTime = begin + n * (hasRate ? 7 : 4);
+      if (!Number.isSafeInteger(n) || n < 1 || firstTime + n > end) throw new Error('thin-ck: malformed Type-3 record table');
+      for (let k = 0; k < n; k++) nativeEpochs.add(spice.sct2e(SCLK, word(firstTime + k)));
+    }
+    record = view.getFloat64(offset, little);
+  }
+}
+const nativeTimes = [...nativeEpochs].sort((a, b) => a - b);
+console.log(`thin-ck: ${nativeTimes.length} native Type-3 record epochs`);
+
 /** Source attitude as a SPICE quaternion [w, x, y, z], or null in a gap. */
 const quat = (s, et) => {
   try {
@@ -133,8 +174,15 @@ const pieces = [];
 for (const [a, b] of coverage) {
   let cur = null;
   const n = Math.max(1, Math.ceil((b - a) / STEP));
-  for (let k = 0; k <= n; k++) {
-    const t = k === n ? b : a + k * STEP;
+  const times = new Set([a, b]);
+  for (let k = 1; k < n; k++) times.add(a + k * STEP);
+  let lo = 0, hi = nativeTimes.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (nativeTimes[mid] < a) lo = mid + 1; else hi = mid;
+  }
+  for (let k = lo; k < nativeTimes.length && nativeTimes[k] <= b; k++) times.add(nativeTimes[k]);
+  for (const t of [...times].sort((a, b) => a - b)) {
     const q = quat(spice, t);
     if (!q) {
       if (cur && cur.t.length >= 2) pieces.push(cur);
@@ -313,7 +361,7 @@ for (let n = 0; n < Number(opt.verify); n++) {
 // Probe every coverage edge and retained slew sample as well as random epochs.
 // Compare the full state transform: lower-left dR/dt, rotation blocks, and
 // recovered reference-frame angular velocity. A missing transform is a failure.
-let worstRate = 0, worstDerivative = 0, transformProbes = 0;
+let worstRate = 0, worstRateAt = 0, worstDerivative = 0, transformProbes = 0;
 let derivativeFailures = 0;
 const probeTransform = (p, t) => {
   let source;
@@ -332,7 +380,8 @@ const probeTransform = (p, t) => {
   const rebuilt = check.sxform(opt.ref, opt.frame, t);
   const a = angularVelocity(t, p.t[0], p.t[p.t.length - 1]);
   const b = angularVelocity(t, p.t[0], p.t[p.t.length - 1], check);
-  worstRate = Math.max(worstRate, Math.hypot(...a.map((v, i) => v - b[i])));
+  const rateError = Math.hypot(...a.map((v, i) => v - b[i]));
+  if (rateError > worstRate) { worstRate = rateError; worstRateAt = t; }
   const derivativeBound = maxRate + 3 * TOL * Math.hypot(...a);
   for (const i of [18, 19, 20, 24, 25, 26, 30, 31, 32]) {
     if (Math.abs(source[i] - rebuilt[i]) > derivativeBound) derivativeFailures++;
@@ -356,7 +405,7 @@ for (const p of pieces) {
     probeTransform(p, a + rand() * (b - a));
   }
 }
-console.log(`thin-ck: ${transformProbes} state transforms: max rate error ${worstRate} rad/s; max dR/dt component error ${worstDerivative} /s`);
+console.log(`thin-ck: ${transformProbes} state transforms: max rate error ${worstRate} rad/s at ${spice.et2utc(worstRateAt, 'ISOC', 3)}; max dR/dt component error ${worstDerivative} /s`);
 // Allow orientation error to rotate a nonzero source angular velocity when
 // comparing derivative matrices; rate itself has the explicit absolute bound.
 if (worstRate > maxRate || derivativeFailures > 0) {

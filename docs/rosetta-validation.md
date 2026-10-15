@@ -81,11 +81,15 @@ CK thinning now preserves source angular velocity as well as quaternion
 accuracy. Attitude-only thinning failed the new rate check in the Philae
 window (0.000218 rad/s); retaining rate-sensitive samples reduces that window's
 worst error to about **0.000005 rad/s**, below the default **0.00001 rad/s**.
+The full array run also exposed a shorter rate change missed by a regular
+sampling grid (0.0000495 rad/s error). Type-3 reduction now includes the
+source CK record epochs, with SPICE still resolving file precedence and frames.
+The pulse regression deliberately puts a rate excursion between grid samples.
 Verification compares recovered rates and state-transform derivative matrices,
 including random epochs, sampled slews and covered-interval edges. The derivative
 bound includes the allowed orientation error rotating a nonzero source rate.
 Synthetic CLI regressions check rate preservation despite constant quaternion
-samples, coverage gaps, and rejection of an SPK that passes position tolerance
+samples and a short off-grid pulse, coverage gaps, and rejection of an SPK that passes position tolerance
 but fails velocity tolerance.
 
 Rosetta is registered as an unpublished dataset in the data-hosting manifest.
@@ -119,3 +123,7 @@ consumes computed geometry-analysis results, not catalog-authored mission
 records. Adding a new mission-record ingestion model here would broaden scope;
 observation timeline delivery remains explicitly required in #230/#28. No
 viewpoint is relabelled as a fake observation or computed event.
+
+CI at `c4de8be` passed **1,962 tests**, including the fetched external
+Cosmographia fixtures (no skips). The local full suite passed 1,919 with
+7 skipped; subsequent focused regressions passed as recorded in the PR.

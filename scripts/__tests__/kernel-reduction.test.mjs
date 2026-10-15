@@ -43,20 +43,20 @@ describe('kernel reduction CLI accuracy gates', () => {
     writer.furnsh('test.tsc', new TextEncoder().encode(clock));
     writer.furnsh('test.tf', new TextEncoder().encode(frame));
     const et = writer.str2et('2026-01-01');
-    const times = [0, 100, 200, 300, 400, 500].map(t => et + t);
+    const times = [0, 52, 53, 54, 200, 300, 352, 353, 354, 500].map(t => et + t);
     const ticks = times.map(t => writer.sce2c(-999, t));
     const quats = times.flatMap(() => [1, 0, 0, 0]);
     // CK angular velocity is independently supplied. A constant attitude is
     // intentional: no attitude-error gate can detect losing this source data.
-    const rates = [0, 0.001, 0, 0, 0.001, 0].flatMap(z => [0, 0, z]);
+    const rates = [0, 0, 0.001, 0, 0, 0, 0, 0.001, 0, 0].flatMap(z => [0, 0, z]);
     writer.writeCk03('source.bc', -999000, 'J2000', 'RATE FIXTURE', new Float64Array(ticks),
-      new Float64Array(quats), new Float64Array(rates), new Float64Array([ticks[0], ticks[3]]));
+      new Float64Array(quats), new Float64Array(rates), new Float64Array([ticks[0], ticks[5]]));
     writeFileSync(join(dir, 'source.bc'), writer.readKernelBytes('source.bc'));
     writeFileSync(join(dir, 'test.tsc'), clock);
     writeFileSync(join(dir, 'test.tf'), frame);
     const output = execFileSync(process.execPath, ['scripts/thin-ck.mjs', '--kernels',
       [lsk, join(dir, 'test.tsc'), join(dir, 'test.tf'), join(dir, 'source.bc')].join(','),
-      '--inst=-999000', '--frame', 'REDUCTION_TEST', '--ref', 'J2000', '--step', '20',
+      '--inst=-999000', '--frame', 'REDUCTION_TEST', '--ref', 'J2000', '--step', '60',
       '--verify', '100', '--out', join(dir, 'reduced.bc')], { cwd: root, encoding: 'utf8' });
     expect(output).toMatch(/2 covered stretches/);
     expect(output).toMatch(/max rate error/);
@@ -66,7 +66,7 @@ describe('kernel reduction CLI accuracy gates', () => {
       reader.furnsh(name, new Uint8Array(data));
     }
     expect(() => reader.pxform('J2000', 'REDUCTION_TEST', et + 250)).toThrow();
-    for (const t of [et, et + 50, et + 100, et + 199.999, et + 300.001, et + 400, et + 500]) {
+    for (const t of [et, et + 52.5, et + 53, et + 199.999, et + 300.001, et + 353, et + 500]) {
       const a = writer.sxform('J2000', 'REDUCTION_TEST', t);
       const b = reader.sxform('J2000', 'REDUCTION_TEST', t);
       expect(Math.max(...a.map((v, i) => Math.abs(v - b[i])))).toBeLessThan(1e-5);
@@ -75,11 +75,11 @@ describe('kernel reduction CLI accuracy gates', () => {
     // Preserve compatibility with orientation-only sources: their derivative
     // is explicitly estimated rather than mistaken for missing output rates.
     writer.writeCk03('no-av.bc', -999000, 'J2000', 'NO AV FIXTURE', new Float64Array(ticks),
-      new Float64Array(quats), null, new Float64Array([ticks[0], ticks[3]]));
+      new Float64Array(quats), null, new Float64Array([ticks[0], ticks[5]]));
     writeFileSync(join(dir, 'no-av.bc'), writer.readKernelBytes('no-av.bc'));
     expect(() => execFileSync(process.execPath, ['scripts/thin-ck.mjs', '--kernels',
       [lsk, join(dir, 'test.tsc'), join(dir, 'test.tf'), join(dir, 'no-av.bc')].join(','),
-      '--inst=-999000', '--frame', 'REDUCTION_TEST', '--ref', 'J2000', '--step', '20',
+      '--inst=-999000', '--frame', 'REDUCTION_TEST', '--ref', 'J2000', '--step', '60',
       '--verify', '100', '--out', join(dir, 'no-av-reduced.bc')], { cwd: root, encoding: 'utf8' })).not.toThrow();
   });
 
