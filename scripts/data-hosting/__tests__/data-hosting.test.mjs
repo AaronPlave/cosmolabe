@@ -196,6 +196,25 @@ describe('kernel publishing', () => {
   const servers = [];
   afterEach(async () => { while (servers.length) await servers.pop().close(); });
 
+  it('retains derived-kernel source URLs and hashed scripts without claiming an unmodified upstream copy', async () => {
+    const src = tmp('derived');
+    writeKernels(src);
+    const derived = {
+      sourceUrls: ['https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/spk/ROS_COG_V4.BSP'],
+      scripts: ['scripts/resample-spk.mjs'],
+    };
+    const dataset = { kind: 'kernels', name: 'demo', localDir: 'nonexistent-dir', fetchScripts: [],
+      attribution: 'Derived ESA product', derivedKernels: { 'a.bsp': derived } };
+    const manifest = await kernelManifest({ dataset, build: 'test', entries: [{ path: 'a.bsp', size: 16, sha256: 'fixture' }],
+      inventorySha256: 'fixture', srcDir: src, root: ROOT, strictProvenance: true });
+    expect(manifest.attribution).toBe('Derived ESA product');
+    expect(manifest.files[0]).toMatchObject({ upstreamUrl: null, repositoryPath: null,
+      derivation: { sourceUrls: derived.sourceUrls, scripts: [{ path: 'scripts/resample-spk.mjs', sha256: expect.stringMatching(/^[0-9a-f]{64}$/) }] } });
+    await expect(kernelManifest({ dataset: { ...dataset, derivedKernels: {} }, build: 'test',
+      entries: [{ path: 'a.bsp', size: 16, sha256: 'fixture' }], inventorySha256: 'fixture',
+      srcDir: src, root: ROOT, strictProvenance: true })).rejects.toThrow(/no upstream URL/);
+  });
+
   it('validates headers, writes a manifest with checksums, and byte-checks through the public URL', async () => {
     const src = tmp('k'); const store = createLocalStorage(tmp('store'));
     writeKernels(src);
