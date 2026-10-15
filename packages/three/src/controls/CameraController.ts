@@ -377,15 +377,23 @@ export class CameraController {
    * Ends any flight or scripted move, and any look-at. A body-fixed or
    * SC-fixed frame moves onto the body, as switching frames would. A frame
    * that places the camera itself (LVLH, chase, surface, instrument) is left
-   * as it is when it is on this body already, or on none; otherwise the
-   * camera returns to free orbit where it is.
+   * as it is, pose and all, when it is set on this very body, or on none;
+   * otherwise the camera returns to free orbit where it is.
    */
   focus(bodyMesh: BodyMesh): void {
     this._beginNavigation();
-    // A frame that places the camera itself, on this body already (or on no
-    // body, as instrument), keeps it: reactivating would reset its state. On
-    // another body it would move the camera, which focusing does not do.
-    if (this._frameOwnsCamera && this._modeSubjectFor(this._activeMode.name, bodyMesh) !== this._modeBodyName) {
+    if (this._frameOwnsCamera) {
+      // A frame that places the camera itself, set on this very body (or on
+      // none, as instrument), keeps it and the pose it has made: only the
+      // anchor changes. Reactivating would reset its state, and aiming the
+      // camera at the body's centre would undo its view. Set on anything
+      // else — another body, or the planet this spacecraft orbits — it would
+      // move the camera, which focusing does not do.
+      const mode = this._activeMode.name;
+      if (mode === CameraModeName.INSTRUMENT || bodyMesh.body.name === this._modeBodyName) {
+        this._trackTarget = bodyMesh;
+        return;
+      }
       this.setMode(CameraModeName.FREE_ORBIT);
     }
     const center = this._rebaseOnto(bodyMesh);

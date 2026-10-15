@@ -347,6 +347,45 @@ describe('camera frames', () => {
     expect((chase as unknown as { distanceKm: number }).distanceKm).toBe(250);
   });
 
+  it('focus keeps a surface explorer on that body where it stands, looking where it looks', () => {
+    const { camera, cc, moon } = setup();
+    cc.setMode(CameraModeName.SURFACE_EXPLORER, { bodyName: 'Moon' });
+    const explorer = cc.getModeInstance(CameraModeName.SURFACE_EXPLORER)! as unknown as { heading: number; pitch: number };
+    explorer.heading = 1.2;
+    explorer.pitch = -0.1;
+    camera.position.set(1740, 0, 0);
+    camera.lookAt(1740, 1000, 0);
+    const position = camera.position.clone();
+    const orientation = camera.quaternion.clone();
+    const target = cc.controls.target.clone();
+    const activate = vi.spyOn(cc.getModeInstance(CameraModeName.SURFACE_EXPLORER)!, 'activate');
+    cc.focus(moon);
+    expect(cc.mode).toBe(CameraModeName.SURFACE_EXPLORER);
+    expect(cc.trackedBody).toBe(moon);
+    expect(activate).not.toHaveBeenCalled();
+    expect(explorer.heading).toBe(1.2);
+    expect(explorer.pitch).toBe(-0.1);
+    expect(camera.position.equals(position)).toBe(true);
+    expect(camera.quaternion.equals(orientation)).toBe(true);
+    expect(cc.controls.target.equals(target)).toBe(true);
+  });
+
+  it('focus on a spacecraft is not focus on the planet a surface frame is on', () => {
+    const { camera, cc, moonAbs, bodies } = setup();
+    const craftAbs = moonAbs.clone().add(new THREE.Vector3(2000, 0, 0));
+    const craft = fakeBody('LRO', 0.002, craftAbs.clone(), { classification: 'spacecraft', parentName: 'Moon' });
+    bodies.set('LRO', craft);
+    cc.setMode(CameraModeName.SURFACE, { bodyName: 'Moon', latDeg: 10, lonDeg: 20, altKm: 5 });
+    // Where the camera is relative to the spacecraft, which becomes the origin.
+    const before = camera.position.clone().sub(craft.position);
+    cc.focus(craft);
+    expect(cc.mode).toBe(CameraModeName.FREE_ORBIT);
+    expect(cc.trackedBody).toBe(craft);
+    expect(cc.originBody).toBe(craft);
+    close(camera.position, before.x, before.y, before.z);
+    expect(facing(camera, new THREE.Vector3())).toBeCloseTo(1, 6);
+  });
+
   it('focus keeps an instrument view and its sensor', () => {
     const { cc, moon } = setup();
     cc.setMode(CameraModeName.INSTRUMENT, { sensorName: 'NAC' });

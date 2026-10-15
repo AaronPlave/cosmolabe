@@ -101,7 +101,7 @@ longitude, sensor).
 |---|---|---|
 | Free orbit | — | — |
 | Body-fixed, spacecraft-fixed | Moves onto the object (body-fixed: the body it orbits, for a spacecraft), as switching frames would; left as it is when already there | The same, on landing — or when a flight is stopped |
-| LVLH, chase, surface, surface explorer | Left as it is, state and all, when already on the object; otherwise free orbit, the camera where it is | Free orbit, as the cut or flight starts |
+| LVLH, chase, surface, surface explorer | Left as it is, state and view and all, when set on the object itself; otherwise — including a spacecraft orbiting the body a surface frame is on — free orbit, the camera where it is | Free orbit, as the cut or flight starts |
 | Instrument | Left as it is: the view is the sensor's, not the object's | Free orbit, as the cut or flight starts |
 
 To put one of those frames on a new object, switch to it: `setFrame <mode>
