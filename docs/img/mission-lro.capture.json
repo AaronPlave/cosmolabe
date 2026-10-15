@@ -1,0 +1,114 @@
+{
+  "scene": {
+    "id": "lro",
+    "catalog": "lro-moon",
+    "output": "mission-lro.jpg",
+    "utc": "2025-01-15T00:40:00Z",
+    "et": 790173669.1843309,
+    "tracked": "LRO",
+    "selected": null,
+    "camera": {
+      "position": [
+        4.774652944134822,
+        4.154194615020986,
+        70.48844847765731
+      ],
+      "target": [
+        -8.70405497870584,
+        32.41592258224267,
+        66.06135405382672
+      ],
+      "up": [
+        0.11746528674699255,
+        -0.4374680135416149,
+        -0.8915288237277582
+      ],
+      "fov": 65
+    },
+    "trajectory": "LRO",
+    "sensor": null,
+    "panel": null,
+    "terrain": "Moon",
+    "untrack": true
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "analysis": null,
+  "et": 790173669.1843309,
+  "camera": {
+    "position": [
+      4.7746529441348216,
+      4.154194615020986,
+      70.4884484776573
+    ],
+    "target": [
+      -8.70405497870584,
+      32.41592258224267,
+      66.06135405382672
+    ],
+    "up": [
+      0.11746528674699255,
+      -0.4374680135416149,
+      -0.8915288237277582
+    ],
+    "fov": 65
+  },
+  "snapshot": "# Cosmolabe snapshot\nsetPlaying off\nsetTime 2025-01-15T00:40:00.000Z\nsetTimeRate 1\nuntrack\nsetFrame free-orbit\nclearLookAt\nsetFov 65\nsetCamera [4.77465294413, 4.15419461502, 70.4884484777] [-8.70405497871, 32.4159225822, 66.0613540538] [0.117465286747, -0.437468013542, -0.891528823728]\nsetLayer trajectories on\nsetLayer labels on\nsetLayer grid off\nsetLayer axes off\nsetLayer sensors off\nsetLayer sensorLabels off\ndeselect\n",
+  "initialAssets": {
+    "total": 5,
+    "settled": 5,
+    "loaded": 5,
+    "failed": 0,
+    "failures": [],
+    "stillPending": [],
+    "timedOut": false,
+    "durationMs": 2571
+  },
+  "terrain": {
+    "update": {
+      "count": 2445,
+      "lastMs": 0.5,
+      "meanMs": 0.5433333328614632,
+      "maxMs": 0.7999999970197678
+    },
+    "parse": {
+      "count": 190,
+      "lastMs": 0.19999998807907104,
+      "meanMs": 0.2699999993568973,
+      "maxMs": 2.7000000029802322
+    },
+    "cpuDecode": {
+      "count": 190,
+      "lastMs": 0.10000000894069672,
+      "meanMs": 0.17947368464971844,
+      "maxMs": 2
+    },
+    "sample": {
+      "count": 561,
+      "lastMicros": 0,
+      "meanMicros": 17.64705886071591
+    },
+    "tiles": {
+      "active": 143,
+      "visible": 143,
+      "inCache": 190,
+      "cpu": 190
+    },
+    "network": {
+      "requests": 190,
+      "queued": 0,
+      "downloading": 0,
+      "parsing": 0,
+      "failed": 0
+    },
+    "memory": {
+      "cacheBytes": 52760994,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 2953634,
+      "textureBytes": 60992170.666666664
+    }
+  },
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+}

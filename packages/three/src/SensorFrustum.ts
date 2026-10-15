@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import type { Body } from '@cosmolabe/core';
 import type { PositionResolver } from './TrajectoryLine.js';
+import {
+  fovBaseParams, fovBoundaryDirection, rectangularFov,
+  type FovBoundaryShape, type FovPerimeterSample, type FovSurfaceSource, type Vec3,
+} from './surface/FovClipper.js';
 
 export interface SensorFrustumOptions {
   /** Color of the frustum (hex, overrides catalog frustumColor) */
@@ -9,19 +13,47 @@ export interface SensorFrustumOptions {
   opacity?: number;
   /** Length of the frustum in km (overrides catalog range) */
   length?: number;
-  /** Number of segments for elliptical shape (default: 32) */
+  /** Base perimeter samples (elliptical), or total across all edges (polygon). Default 32. */
   segments?: number;
+}
+
+/**
+ * Clips a sensor's FOV perimeter. Receives the sensor origin (origin-relative km,
+ * same frame as `resolvePos`), the world-frame boundary direction at perimeter
+ * parameter t, the fixed base parameters, and the maximum visualization range.
+ */
+export type SensorFovClipper = (
+  originKm: Vec3,
+  directionAt: (t: number) => Vec3,
+  baseParams: readonly number[],
+  maxRangeKm: number,
+) => FovPerimeterSample[];
+
+/** What the last update drew, for diagnostics. */
+export interface SensorClipSummary {
+  /** False when the perimeter was drawn unclipped (clipping off, or no clipper). */
+  clipped: boolean;
+  samples: number;
+  hitSamples: number;
+  /** Bodies that terminated at least one perimeter ray. */
+  bodies: string[];
+  /** Surface kinds that answered: reference shape, terrain, or irregular mesh. */
+  sources: FovSurfaceSource[];
+  /** Any hit came from coarse/provisional data. */
+  coarse: boolean;
+  /** Any hit fell back from an unavailable detailed surface to a later one. */
+  fallback: boolean;
+  maxRangeKm: number;
 }
 
 // Reusable temp objects for per-frame orientation (avoids GC pressure)
 const _dir = new THREE.Vector3();
-const _targetPos = new THREE.Vector3();
 const _camZ = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _up = new THREE.Vector3();
 const _m4 = new THREE.Matrix4();
 const _quat = new THREE.Quaternion();
-const _corner = new THREE.Vector3();
+const _v = new THREE.Vector3();
 
 export class SensorFrustum extends THREE.Object3D {
   readonly body: Body;
@@ -32,6 +64,11 @@ export class SensorFrustum extends THREE.Object3D {
   spiceFovFrame: string | undefined;
   /** Inertial frame matching the scene positions for this sensor's parent body ('J2000' or 'ECLIPJ2000'). */
   spiceInertialFrame: string = 'ECLIPJ2000';
+  /**
+   * Instrument-frame boundary from SPICE getfov (RECTANGLE/POLYGON bounds), used
+   * whenever the frustum is oriented by SPICE pointing. Catalog angles are used otherwise.
+   */
+  spiceFovBoundary: FovBoundaryShape | undefined;
   private readonly frustumMesh: THREE.Mesh;
   private readonly wireframe: THREE.LineSegments;
   readonly labelSprite: THREE.Sprite;
@@ -40,6 +77,12 @@ export class SensorFrustum extends THREE.Object3D {
   private readonly fixedLength: number | undefined;
   private readonly shape: 'elliptical' | 'rectangular';
   private readonly sensorOrientation: THREE.Quaternion;
+  private readonly segments: number;
+  private readonly catalogBoundary: FovBoundaryShape;
+  /** Mesh-local (X horizontal, -Y boresight, Z vertical) → world rotation. */
+  private readonly frameQuat = new THREE.Quaternion();
+  private _perimeter: FovPerimeterSample[] = [];
+  private _clipSummary: SensorClipSummary | null = null;
 
   constructor(body: Body, options: SensorFrustumOptions = {}) {
     super();
@@ -56,8 +99,13 @@ export class SensorFrustum extends THREE.Object3D {
     this.targetName = geo?.target as string | undefined;
     this.spiceId = geo?.spiceId as number | undefined;
     this.shape = (geo?.shape as string) === 'rectangular' ? 'rectangular' : 'elliptical';
+    const tanH = Math.tan(this.hFov / 2), tanV = Math.tan(this.vFov / 2);
+    this.catalogBoundary = this.shape === 'rectangular'
+      ? rectangularFov(tanH, tanV)
+      : { kind: 'elliptical', tanHalfH: tanH, tanHalfV: tanV };
 
-    // Range from catalog (in km) or from options
+    // Range from catalog (in km) or from options: a maximum visualization range,
+    // never a substitute for the physical surface intersection.
     const rangeKm = options.length ?? parseRange(geo?.range);
     this.fixedLength = rangeKm;
 
@@ -74,17 +122,10 @@ export class SensorFrustum extends THREE.Object3D {
         ? new THREE.Color(frustumColor[0], frustumColor[1], frustumColor[2]).getHex()
         : 0x00ffff);
     const opacity = options.opacity ?? (geo?.frustumOpacity as number) ?? 0.3;
-    const segments = options.segments ?? 32;
+    this.segments = options.segments ?? 32;
 
-    // Build geometry based on shape
-    let geometry: THREE.BufferGeometry;
-    if (this.shape === 'rectangular') {
-      geometry = createPyramidGeometry();
-    } else {
-      geometry = new THREE.ConeGeometry(1, 1, segments, 1, true);
-      geometry.translate(0, -0.5, 0); // apex at origin
-    }
-
+    // Explicit dynamic geometry: once clipped, rays have individual lengths, so
+    // a uniformly scaled cone/pyramid can no longer represent the FOV.
     const material = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
@@ -92,18 +133,15 @@ export class SensorFrustum extends THREE.Object3D {
       side: THREE.DoubleSide,
       depthWrite: false,
     });
-
-    this.frustumMesh = new THREE.Mesh(geometry, material);
+    this.frustumMesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
     this.add(this.frustumMesh);
 
-    // Wireframe edges
-    const edgesGeo = new THREE.EdgesGeometry(geometry);
     const wireMat = new THREE.LineBasicMaterial({
       color,
       transparent: true,
       opacity: Math.min(1, opacity * 2.5),
     });
-    this.wireframe = new THREE.LineSegments(edgesGeo, wireMat);
+    this.wireframe = new THREE.LineSegments(new THREE.BufferGeometry(), wireMat);
     this.add(this.wireframe);
 
     // Label sprite at the far end of the frustum
@@ -124,49 +162,51 @@ export class SensorFrustum extends THREE.Object3D {
     this.add(this.labelSprite);
   }
 
+  /** Perimeter drawn by the last update: world-frame unit directions + endpoint distances (km). */
+  get perimeter(): readonly FovPerimeterSample[] { return this._perimeter; }
+
+  /** Summary of the last update's clipping, or null before the first update. */
+  get clipSummary(): SensorClipSummary | null { return this._clipSummary; }
+
   /**
    * @param spiceRotation Optional 3x3 rotation matrix (row-major, 9 elements) from
    *   instrument frame → inertial frame (J2000 or ECLIPJ2000, matching scene positions),
    *   obtained via pxform(instrumentFrame, inertialFrame, et).
    *   When provided, the frustum is oriented using real SPICE pointing data.
+   * @param clip Optional physical-surface clipper. Without it every ray is drawn
+   *   to the maximum visualization range.
    */
-  update(et: number, scaleFactor: number, targetBody?: Body, resolvePos?: PositionResolver, spiceRotation?: number[]): void {
+  update(
+    et: number, scaleFactor: number, targetBody?: Body, resolvePos?: PositionResolver,
+    spiceRotation?: number[], clip?: SensorFovClipper,
+  ): void {
     const pos = resolvePos
       ? resolvePos(this.body.name, et)
       : this.body.stateAt(et).position as [number, number, number];
-    const bodyPos = new THREE.Vector3(
-      pos[0] * scaleFactor,
-      pos[1] * scaleFactor,
-      pos[2] * scaleFactor,
-    );
+    this.position.set(pos[0] * scaleFactor, pos[1] * scaleFactor, pos[2] * scaleFactor);
 
-    this.position.copy(bodyPos);
-
-    // Determine frustum length
-    let length: number;
-    if (this.fixedLength != null) {
-      length = this.fixedLength * scaleFactor;
-    } else if (targetBody) {
-      const tPos = resolvePos
+    // Maximum visualization range (km): catalog range, else target-center distance, else a fallback.
+    let tPos: [number, number, number] | undefined;
+    if (targetBody) {
+      tPos = resolvePos
         ? resolvePos(targetBody.name, et)
         : targetBody.stateAt(et).position as [number, number, number];
-      const targetPos = new THREE.Vector3(tPos[0] * scaleFactor, tPos[1] * scaleFactor, tPos[2] * scaleFactor);
-      length = bodyPos.distanceTo(targetPos);
+    }
+    let maxRangeKm: number;
+    if (this.fixedLength != null) {
+      maxRangeKm = this.fixedLength;
+    } else if (tPos) {
+      maxRangeKm = Math.hypot(tPos[0] - pos[0], tPos[1] - pos[1], tPos[2] - pos[2]);
     } else {
-      length = 1000 * scaleFactor;
+      maxRangeKm = 1000;
     }
 
-    // Scale: X by horizontal FOV, Z by vertical FOV, Y by length
-    const radiusH = length * Math.tan(this.hFov / 2);
-    const radiusV = length * Math.tan(this.vFov / 2);
-    this.frustumMesh.scale.set(radiusH, length, radiusV);
-    this.wireframe.scale.copy(this.frustumMesh.scale);
-
     // Orient frustum
+    let boundary = this.catalogBoundary;
     if (spiceRotation && spiceRotation.length === 9) {
       // SPICE pxform returns instrument→inertial rotation R (row-major).
       // Instrument frame: +X = horizontal, +Y = vertical, +Z = boresight.
-      // Frustum mesh:     X = horizontal,  -Y = boresight, Z = vertical.
+      // Mesh-local frame: X = horizontal,  -Y = boresight, Z = vertical.
       //
       // Build mesh→inertial matrix from R columns:
       //   mesh X  → instr X in inertial: col0 = (r[0], r[3], r[6])
@@ -179,25 +219,20 @@ export class SensorFrustum extends THREE.Object3D {
         r[6], -r[8], r[7], 0,
         0,     0,    0,    1,
       );
-      _quat.setFromRotationMatrix(_m4);
-      this.frustumMesh.quaternion.copy(_quat);
-      this.wireframe.quaternion.copy(_quat);
-    } else if (targetBody) {
+      this.frameQuat.setFromRotationMatrix(_m4);
+      if (this.spiceFovBoundary) boundary = this.spiceFovBoundary;
+    } else if (tPos) {
       // Fallback: point toward target, using same up convention as the PiP
       // camera (lookAt with worldUp = +Y) so the cone and PiP agree on
       // which direction is "up" in the instrument view.
       //
-      // Cone mesh axes: X = horizontal, -Y = boresight, Z = vertical.
-      // Camera axes:    X = right,      -Z = forward,   Y = up.
-      // Mapping cone→camera: coneX→camX, cone(-Y)→cam(-Z), coneZ→camY.
+      // Mesh-local axes: X = horizontal, -Y = boresight, Z = vertical.
+      // Camera axes:     X = right,      -Z = forward,   Y = up.
+      // Mapping mesh→camera: meshX→camX, mesh(-Y)→cam(-Z), meshZ→camY.
       // But (camX, -dir, camY) has det=-1 (improper). Negating the right
       // vector gives det=+1 — a valid quaternion rotation. This mirrors the
       // cone's horizontal axis, which is invisible for symmetric FOVs.
-      const tPos = resolvePos
-        ? resolvePos(targetBody.name, et)
-        : targetBody.stateAt(et).position as [number, number, number];
-      _targetPos.set(tPos[0] * scaleFactor, tPos[1] * scaleFactor, tPos[2] * scaleFactor);
-      _dir.subVectors(_targetPos, bodyPos).normalize();
+      _dir.set(tPos[0] - pos[0], tPos[1] - pos[1], tPos[2] - pos[2]).normalize();
 
       _camZ.copy(_dir).negate();
       _right.crossVectors(_up.set(0, 1, 0), _camZ);
@@ -208,16 +243,74 @@ export class SensorFrustum extends THREE.Object3D {
       _m4.makeBasis(_right.negate(), _camZ, _up);
       _quat.setFromRotationMatrix(_m4);
       _quat.multiply(this.sensorOrientation);
-      this.frustumMesh.quaternion.copy(_quat);
-      this.wireframe.quaternion.copy(_quat);
+      this.frameQuat.copy(_quat);
     }
 
-    // Position label at top-left corner of the frustum base.
-    // In mesh local space: (-1, -1, +1) = (left, far end, top).
-    // After scale: (-radiusH, -length, +radiusV). Then rotate by mesh quaternion.
-    _corner.set(-radiusH, -length, radiusV);
-    _corner.applyQuaternion(this.frustumMesh.quaternion);
-    this.labelSprite.position.copy(_corner);
+    const q = this.frameQuat;
+    const directionAt = (t: number): Vec3 => {
+      const d = fovBoundaryDirection(boundary, t);
+      // Instrument (x, y, z) → mesh-local (x, -z, y) → world.
+      _v.set(d[0], -d[2], d[1]).applyQuaternion(q);
+      return [_v.x, _v.y, _v.z];
+    };
+    const baseParams = fovBaseParams(boundary, this.segments);
+    const perimeter = clip
+      ? clip([pos[0], pos[1], pos[2]], directionAt, baseParams, maxRangeKm)
+      : baseParams.map(t => ({ t, direction: directionAt(t), distanceKm: maxRangeKm, hit: null, base: true }));
+    this._perimeter = perimeter;
+    this._clipSummary = summarize(perimeter, !!clip, maxRangeKm);
+    this.rebuildGeometry(perimeter, scaleFactor, boundary.kind === 'elliptical' ? null : boundary.vertices.length);
+
+    // Label at the top-left of the far boundary.
+    const labelT = labelParam(boundary);
+    let label: FovPerimeterSample | undefined;
+    for (const s of perimeter) {
+      if (s.base && (!label || cyclicDistance(s.t, labelT) < cyclicDistance(label.t, labelT))) label = s;
+    }
+    if (label) {
+      const k = label.distanceKm * scaleFactor;
+      this.labelSprite.position.set(label.direction[0] * k, label.direction[1] * k, label.direction[2] * k);
+    }
+  }
+
+  /**
+   * Side faces fanned from the apex to each perimeter endpoint, the perimeter
+   * loop, and side lines at stable base samples (corners only for polygons).
+   * No end cap: the physical body, not a plane through it, terminates the FOV.
+   */
+  private rebuildGeometry(perimeter: readonly FovPerimeterSample[], scaleFactor: number, polygonVertices: number | null): void {
+    const n = perimeter.length;
+    const ends = new Float32Array(n * 3);
+    perimeter.forEach((s, i) => {
+      const k = s.distanceKm * scaleFactor;
+      ends[i * 3] = s.direction[0] * k;
+      ends[i * 3 + 1] = s.direction[1] * k;
+      ends[i * 3 + 2] = s.direction[2] * k;
+    });
+
+    const fill = new Float32Array(n * 9);
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      fill.set([0, 0, 0, ends[i * 3], ends[i * 3 + 1], ends[i * 3 + 2], ends[j * 3], ends[j * 3 + 1], ends[j * 3 + 2]], i * 9);
+    }
+
+    const isSide = (s: FovPerimeterSample) => s.base && (polygonVertices == null
+      || Math.abs(s.t * polygonVertices - Math.round(s.t * polygonVertices)) < 1e-9);
+    let sides = 0;
+    for (const s of perimeter) if (isSide(s)) sides++;
+    const lines = new Float32Array((n + sides) * 6);
+    let k = 0;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      lines.set([ends[i * 3], ends[i * 3 + 1], ends[i * 3 + 2], ends[j * 3], ends[j * 3 + 1], ends[j * 3 + 2]], k); k += 6;
+    }
+    for (let i = 0; i < n; i++) {
+      if (!isSide(perimeter[i])) continue;
+      lines.set([0, 0, 0, ends[i * 3], ends[i * 3 + 1], ends[i * 3 + 2]], k); k += 6;
+    }
+
+    setPositions(this.frustumMesh.geometry, fill);
+    setPositions(this.wireframe.geometry, lines);
   }
 
   dispose(): void {
@@ -230,31 +323,48 @@ export class SensorFrustum extends THREE.Object3D {
   }
 }
 
-/** Create a 4-sided pyramid geometry (apex at origin, base at y=-1, unit extent). */
-function createPyramidGeometry(): THREE.BufferGeometry {
-  // Apex at origin, base corners at y=-1 with ±1 extent in x/z
-  const apex = [0, 0, 0];
-  const bl = [-1, -1, -1]; // bottom-left
-  const br = [1, -1, -1];  // bottom-right
-  const tr = [1, -1, 1];   // top-right
-  const tl = [-1, -1, 1];  // top-left
+/** Replace a geometry's positions, reusing the attribute when the size matches. */
+function setPositions(geometry: THREE.BufferGeometry, positions: Float32Array): void {
+  const attr = geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+  if (attr && attr.array.length === positions.length) {
+    (attr.array as Float32Array).set(positions);
+    attr.needsUpdate = true;
+  } else {
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  }
+  geometry.computeBoundingSphere();
+}
 
-  // 4 side triangles (no bottom cap — open frustum)
-  const positions = new Float32Array([
-    // Front face (z = -1 side)
-    ...apex, ...bl, ...br,
-    // Right face (x = +1 side)
-    ...apex, ...br, ...tr,
-    // Back face (z = +1 side)
-    ...apex, ...tr, ...tl,
-    // Left face (x = -1 side)
-    ...apex, ...tl, ...bl,
-  ]);
+function summarize(perimeter: readonly FovPerimeterSample[], clipped: boolean, maxRangeKm: number): SensorClipSummary {
+  const bodies = new Set<string>();
+  const sources = new Set<FovSurfaceSource>();
+  let hitSamples = 0, coarse = false, fallback = false;
+  for (const s of perimeter) {
+    if (!s.hit) continue;
+    hitSamples++;
+    bodies.add(s.hit.candidateId);
+    sources.add(s.hit.source);
+    coarse ||= s.hit.detail === 'coarse';
+    fallback ||= s.hit.fallback;
+  }
+  return { clipped, samples: perimeter.length, hitSamples, bodies: [...bodies], sources: [...sources], coarse, fallback, maxRangeKm };
+}
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.computeVertexNormals();
-  return geometry;
+/** Perimeter parameter nearest the top-left (−X, +Y) of the boundary. */
+function labelParam(boundary: FovBoundaryShape): number {
+  if (boundary.kind === 'elliptical') return 0.375; // 135°
+  const n = boundary.vertices.length;
+  let best = 0, score = -Infinity;
+  boundary.vertices.forEach((v, i) => {
+    const s = (-v[0] + v[1]) / Math.abs(v[2] || 1);
+    if (s > score) { score = s; best = i; }
+  });
+  return best / n;
+}
+
+function cyclicDistance(a: number, b: number): number {
+  const d = Math.abs(a - b) % 1;
+  return Math.min(d, 1 - d);
 }
 
 /** Create a small text texture for a sensor label. */
