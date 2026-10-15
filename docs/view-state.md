@@ -99,6 +99,16 @@ frame orientation; they do not imply a body-centered origin. Body-fixed endpoint
 alone add the named body’s changing position. Coordinates must be finite and
 bounded to ±1e12 km.
 
+Reference geometry shares the same item list. Velocity items reuse the endpoint
+slots (the moving object in `source`; `target` is the reference, or null for the
+central body), axes items carry their origin in `source` and a `frame` name, and
+angle-between-directions items (`vector-angle`) carry `first`/`second` operands:
+a direction (two endpoints), a velocity (object and optional reference) or a
+frame axis (frame, origin and one of `±X`, `±Y`, `±Z`). Operands are copies, not
+references to other items, so deleting the item an operand came from leaves the
+angle intact. Every frame and body an item names, including inside operands, is
+checked against the catalog before restoration.
+
 The validator allowlists definitions and excludes hover, active picking, edit
 handles, renderer geometry, and sampled values. All definitions and catalog
 body/frame references are checked before restoration changes the scene.

@@ -230,6 +230,11 @@ export class FrameRegistry {
     for (const def of BUILTIN_FRAMES) this.register(def);
   }
 
+  /** Explicit definitions, including catalog frames, without synthesized lookup guesses. */
+  definitions(): FrameDefinition[] {
+    return [...new Set(this.byKey.values())];
+  }
+
   /** Add (or replace) a frame. Its name and aliases become resolvable. */
   register(def: FrameDefinition): void {
     this.byKey.set(normalizeFrameKey(def.name), def);

@@ -607,13 +607,23 @@ export class BodyMesh extends THREE.Object3D {
     }
   }
 
+  /**
+   * Length of this body's axes, in km: twice the effective display radius,
+   * so they clear the surface. The effective radius is the loaded model's
+   * when there is one. Shared by these axes and the analytical body axes
+   * (`SpatialRelationshipLayer`), so both agree on one size.
+   */
+  axesLengthKm(): number {
+    return this.displayRadius * 2;
+  }
+
   /** Show or hide body-fixed orientation axes (red=X/prime meridian, green=Y, blue=Z/pole). */
   showAxes(show: boolean): void {
     this.axesVisible = show;
     if (show && !this.axesHelper) {
-      // Size = 2x display radius so axes extend well beyond the body surface
-      const size = this.displayRadius * 2 * this.scaleFactor;
-      this.axesHelper = new THREE.AxesHelper(size);
+      // Unit axes, scaled each frame: a model loaded later changes the display radius.
+      this.axesHelper = new THREE.AxesHelper(1);
+      this.axesHelper.scale.setScalar(this.axesLengthKm() * this.scaleFactor);
       this.axesHelper.renderOrder = 999;
       (this.axesHelper.material as THREE.Material).depthTest = false;
       this.add(this.axesHelper);
@@ -770,6 +780,7 @@ export class BodyMesh extends THREE.Object3D {
       absolutePos[1] * scaleFactor,
       absolutePos[2] * scaleFactor,
     );
+    this.axesHelper?.scale.setScalar(this.axesLengthKm() * scaleFactor);
 
     // Apply rotation if available (try/catch: CK-based rotations may not cover all times)
     try {
