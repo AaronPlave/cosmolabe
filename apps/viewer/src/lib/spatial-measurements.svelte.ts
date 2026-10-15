@@ -332,9 +332,8 @@ export function configureMeasurementInput(renderer: UniverseRenderer): void {
         if (name) { measurements.draft[slot] = { kind: 'entity', bodyName: name }; cancelMeasurementPick(); syncMeasurements(); }
         else measurements.pickFeedback = 'No object here. Pick a body, marker, or label.';
       } else {
-        const canvas = renderer.renderer.domElement;
-        const result = renderer.pickSurface(x / canvas.clientWidth * 2 - 1, 1 - y / canvas.clientHeight * 2);
-        if (result) captureSurfaceEndpoint(result.bodyName, result.bodyFixedHitKm);
+        const hit = renderer.pickScene(x, y, 'probe');
+        if (hit?.kind === 'surface') captureSurfaceEndpoint(hit.point.bodyName, hit.point.bodyFixedPositionKm);
         else measurements.pickFeedback = 'No surface here. Pick a visible body surface.';
       }
       return true; // A miss also consumes the gesture and leaves the pick active.
@@ -347,16 +346,16 @@ export function configureMeasurementInput(renderer: UniverseRenderer): void {
         renderer.setSpatialPickPreview(null);
       } else {
         renderer.setHoveredBody(null);
-        const canvas = renderer.renderer.domElement;
-        const result = renderer.pickSurface(x / canvas.clientWidth * 2 - 1, 1 - y / canvas.clientHeight * 2);
-        renderer.setSpatialPickPreview(result ? { kind: 'body-fixed', bodyName: result.bodyName, positionKm: [...result.bodyFixedHitKm] } : null);
+        const hit = renderer.pickScene(x, y, 'probe');
+        renderer.setSpatialSurfacePreview(hit?.kind === 'surface' ? hit.point : null);
       }
     },
     clearPreview: () => renderer.clearSpatialPickPreview(),
     onSelect: selectMeasurement,
     onOpenEditor: openMeasurementEditor,
     onClearSelection: () => selectMeasurement(null),
-    previewIntervalMs: () => measurements.pickMode === 'surface' ? 75 : 16,
+    previewIntervalMs: () => 16,
+    surfacePicking: () => measurements.pendingPickSlot !== null && measurements.pickMode === 'surface',
     labelIcon(kind) {
       const host = document.createElement('span');
       const component = flushSync(() => mount({ distance: Ruler, direction: Crosshair, angle: TriangleRight, velocity: Gauge, axes: Axis3d, 'vector-angle': TriangleRight }[kind], { target: host, props: { size: 12, 'aria-hidden': 'true' } }));

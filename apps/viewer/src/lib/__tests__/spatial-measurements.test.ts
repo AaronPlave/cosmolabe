@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Body, FixedPointTrajectory, FixedRotation, Universe, type SpatialEndpoint } from '@cosmolabe/core';
-import type { UniverseRenderer, SpatialInteraction } from '@cosmolabe/three';
+import type { UniverseRenderer, SpatialInteraction, SceneHit } from '@cosmolabe/three';
 const scene = vi.hoisted(() => ({ universe: null as Universe | null }));
 vi.mock('../loader', () => ({ getCurrentRenderer: () => null, getUniverse: () => scene.universe }));
 vi.mock('../shell.svelte', () => ({ openTool: () => {} }));
@@ -134,28 +134,30 @@ describe('measurement picking', () => {
   function input() {
     let hooks!: SpatialInteraction;
     const pickBody = vi.fn(() => 'Moon');
-    const pickSurface = vi.fn(() => null as null | { bodyName: string; bodyFixedHitKm: [number, number, number] });
+    const pickSurface = vi.fn();
+    const pickScene = vi.fn(() => null as SceneHit | null);
     const setPickMarker = vi.fn();
     const setSpatialPickPreview = vi.fn(), clearSpatialPickPreview = vi.fn(), setHoveredBody = vi.fn();
     const renderer = { setSpatialInteraction: (value: SpatialInteraction) => { hooks = value; },
-      renderer: { domElement: { clientWidth: 800, clientHeight: 600 } }, pickBody, pickSurface, setPickMarker, setSpatialPickPreview, clearSpatialPickPreview, setHoveredBody };
+      renderer: { domElement: { clientWidth: 800, clientHeight: 600 } }, pickBody, pickScene, pickSurface, setPickMarker, setSpatialPickPreview, clearSpatialPickPreview, setHoveredBody };
     configureMeasurementInput(renderer as unknown as UniverseRenderer);
-    return { hooks, pickBody, pickSurface, setPickMarker, setSpatialPickPreview, clearSpatialPickPreview, setHoveredBody };
+    return { hooks, pickBody, pickScene, pickSurface, setPickMarker, setSpatialPickPreview, clearSpatialPickPreview, setHoveredBody };
   }
   it('object picks use labels/body-center picking and never fabricate a surface hit', () => {
-    const { hooks, pickBody, pickSurface, setPickMarker } = input();
+    const { hooks, pickBody, pickScene, pickSurface, setPickMarker } = input();
     startMeasurementPick('target', 'object'); expect(hooks.beforePick(100, 200)).toBe(true);
-    expect(pickBody).toHaveBeenCalledWith(100, 200); expect(pickSurface).not.toHaveBeenCalled();
+    expect(pickBody).toHaveBeenCalledWith(100, 200); expect(pickScene).not.toHaveBeenCalled(); expect(pickSurface).not.toHaveBeenCalled();
     expect(measurements.draft.target).toEqual({ kind: 'entity', bodyName: 'Moon' });
     expect(measurements.pendingPickSlot).toBeNull(); expect(setPickMarker).not.toHaveBeenCalled();
   });
   it('surface misses consume selection and stay active; actual hits preserve exact coordinates without standalone markers', () => {
-    const { hooks, pickBody, pickSurface, setPickMarker } = input();
+    const { hooks, pickBody, pickScene, pickSurface, setPickMarker } = input();
     startMeasurementPick('source', 'surface'); expect(hooks.beforePick(400, 300)).toBe(true);
     expect(measurements.pendingPickSlot).toBe('source'); expect(measurements.pickFeedback).toContain('No surface');
-    pickSurface.mockReturnValue({ bodyName: 'Earth', bodyFixedHitKm: [1, 2, 3] });
+    pickScene.mockReturnValue({ kind: 'surface', point: { bodyName: 'Earth', bodyFixedPositionKm: [1, 2, 3] }, cameraRangeKm: 1 } as unknown as SceneHit);
     expect(hooks.beforePick(400, 300)).toBe(true);
-    expect(pickSurface).toHaveBeenLastCalledWith(0, 0);
+    expect(pickScene).toHaveBeenLastCalledWith(400, 300, 'probe');
+    expect(pickSurface).not.toHaveBeenCalled();
     expect(measurements.draft.source).toMatchObject({ kind: 'body-fixed', positionKm: [1, 2, 3] });
     expect(pickBody).not.toHaveBeenCalled(); expect(setPickMarker).not.toHaveBeenCalled();
     expect(hooks.beforePick(400, 300)).toBe(false);
@@ -167,22 +169,25 @@ describe('measurement picking', () => {
   });
 });
 
-it('previews object and exact surface hits through a separate temporary channel, and clears misses', () => {
+it('shares the surface cursor while object previews retain their separate channel', () => {
   let hooks!: SpatialInteraction;
-  const setSpatialPickPreview = vi.fn(), setHoveredBody = vi.fn(), clearSpatialPickPreview = vi.fn();
-  const pickSurface = vi.fn(() => ({ bodyName: 'Earth', bodyFixedHitKm: [1, 2, 3] as [number, number, number] } as { bodyName: string; bodyFixedHitKm: [number, number, number] } | null));
-  const renderer = { setSpatialInteraction: (value: SpatialInteraction) => { hooks = value; }, pickBody: () => 'Moon', pickSurface,
-    renderer: { domElement: { clientWidth: 800, clientHeight: 600 } }, setSpatialPickPreview, setHoveredBody, clearSpatialPickPreview };
+  const setSpatialPickPreview = vi.fn(), setSpatialSurfacePreview = vi.fn(), setHoveredBody = vi.fn(), clearSpatialPickPreview = vi.fn();
+  const point = { bodyName: 'Earth', bodyFixedPositionKm: [1, 2, 3] };
+  const pickScene = vi.fn(() => ({ kind: 'surface', point, cameraRangeKm: 1 } as unknown as SceneHit | null));
+  const renderer = { setSpatialInteraction: (value: SpatialInteraction) => { hooks = value; }, pickBody: () => 'Moon', pickScene,
+    setSpatialPickPreview, setSpatialSurfacePreview, setHoveredBody, clearSpatialPickPreview };
   configureMeasurementInput(renderer as unknown as UniverseRenderer);
   startMeasurementPick('target', 'object'); hooks.preview?.(400, 300);
   expect(setHoveredBody).toHaveBeenLastCalledWith('Moon');
   expect(setSpatialPickPreview).toHaveBeenLastCalledWith(null);
-  expect(hooks.previewIntervalMs?.()).toBe(16);
+  expect(hooks.surfacePicking?.()).toBe(false);
+  expect(pickScene).not.toHaveBeenCalled();
   startMeasurementPick('target', 'surface'); hooks.preview?.(400, 300);
-  expect(hooks.previewIntervalMs?.()).toBe(75);
-  expect(setSpatialPickPreview).toHaveBeenLastCalledWith({ kind: 'body-fixed', bodyName: 'Earth', positionKm: [1, 2, 3] });
-  pickSurface.mockReturnValue(null); hooks.preview?.(400, 300);
-  expect(setSpatialPickPreview).toHaveBeenLastCalledWith(null);
+  expect(hooks.surfacePicking?.()).toBe(true);
+  expect(pickScene).toHaveBeenLastCalledWith(400, 300, 'probe');
+  expect(setSpatialSurfacePreview).toHaveBeenLastCalledWith(point);
+  pickScene.mockReturnValue(null); hooks.preview?.(400, 300);
+  expect(setSpatialSurfacePreview).toHaveBeenLastCalledWith(null);
   hooks.clearPreview?.(); expect(clearSpatialPickPreview).toHaveBeenCalled();
 });
 

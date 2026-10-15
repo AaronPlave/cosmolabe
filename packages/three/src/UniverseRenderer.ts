@@ -699,7 +699,17 @@ export class UniverseRenderer {
   }
 
   setSpatialPickPreview(endpoint: SpatialEndpoint | null): void { this.spatialRelationships.setPickPreview(endpoint); }
-  clearSpatialPickPreview(): void { this.spatialRelationships.setPickPreview(null); this.setHoveredBody(null); }
+  /** Reuse the surface cursor without changing the independently pinned probe point. */
+  setSpatialSurfacePreview(point: SurfacePoint | null): void {
+    this._probe.setHover(point);
+    this.renderer.domElement.style.cursor = point ? 'none' : 'crosshair';
+  }
+  clearSpatialPickPreview(): void {
+    this.spatialRelationships.setPickPreview(null); this.setHoveredBody(null);
+    this._probe.setHover(null);
+    this._probeHoverDirty = true;
+    this.renderer.domElement.style.cursor = '';
+  }
   setSpatialDraftEndpoints(endpoints: readonly SpatialEndpoint[]): void { this.spatialRelationships.setDraftEndpoints(endpoints); }
 
   /** Host callbacks keep drafts and selection in one place, across mouse, touch and cards. */
@@ -2221,14 +2231,14 @@ export class UniverseRenderer {
    * modest rate too: camera motion or a rotating body slides the surface under
    * it without any pointermove — onto a surface, off one, or across it.
    */
-  /** The probe previews under the pointer: it is on, and no measurement pick is pending. */
-  private _probeOwnsPointer(): boolean {
-    return this._probeActive && !this.spatialInteraction?.picking();
+  /** Surface endpoints and Point Probe share one responsive surface cursor. */
+  private _surfaceCursorOwnsPointer(): boolean {
+    return !!this.spatialInteraction?.surfacePicking?.() || (this._probeActive && !this.spatialInteraction?.picking());
   }
 
   private updateProbeHover(): void {
-    if (!this._probeOwnsPointer() || !this._hoverPointerInside) {
-      // A measurement pick took the pointer over: its preview, not the probe's.
+    if (!this._surfaceCursorOwnsPointer() || !this._hoverPointerInside) {
+      // No surface cursor owns the pointer (or it left the canvas).
       if (this._probeActive && this._probe.hovered) this._setProbeHover(null);
       return;
     }
@@ -2245,7 +2255,11 @@ export class UniverseRenderer {
     this._probeHoverDirty = false;
     this._lastHoverPickMs = now;
     this._probePickView.copy(this.camera.matrixWorld);
-    this._probeHoverAt(this._lastPointer.x, this._lastPointer.y);
+    if (this.spatialInteraction?.surfacePicking?.()) {
+      this.spatialInteraction.preview?.(this._lastPointer.x, this._lastPointer.y);
+    } else {
+      this._probeHoverAt(this._lastPointer.x, this._lastPointer.y);
+    }
     this._probePickCostMs = performance.now() - now;
   }
 
@@ -4336,10 +4350,9 @@ export class UniverseRenderer {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this._lastPointer.x = event.clientX - rect.left;
     this._lastPointer.y = event.clientY - rect.top;
-    // The probe picks in the next frame (updateProbeHover), not on the timer,
-    // unless a measurement endpoint pick is pending: that pick owns the
-    // pointer (its preview and the next click) until it completes or cancels.
-    if (this._probeOwnsPointer()) {
+    // Both surface-picking tools run in the next rendered frame, with the
+    // same adaptive cost budget. Object/label hover keeps its cheap timer.
+    if (this._surfaceCursorOwnsPointer()) {
       this._probeHoverDirty = true;
       return;
     }
@@ -4352,7 +4365,7 @@ export class UniverseRenderer {
       this._hoverPickTimer = 0;
       this._lastHoverPickMs = performance.now();
       // Probe mode may have started while this pick was queued.
-      if (this._probeOwnsPointer()) return;
+      if (this._surfaceCursorOwnsPointer()) return;
       // Label-only pick (cheap; runs while mousing) with a tight slop so the
       // hover hitbox hugs the label text rather than a loose 20px halo.
       if (this.spatialInteraction?.picking()) {
@@ -4385,7 +4398,7 @@ export class UniverseRenderer {
    * resting pointer, which never fires pointermove; re-pick at the hover rate.
    */
   private revalidateMeasurementPreview(): void {
-    if (!this._pointerInside || !this.spatialInteraction?.picking()) { this._pickViewKey = ''; return; }
+    if (!this._pointerInside || !this.spatialInteraction?.picking() || this.spatialInteraction.surfacePicking?.()) { this._pickViewKey = ''; return; }
     const view = [...this.camera.matrixWorld.elements, ...this.camera.projectionMatrix.elements, this.timeController.et].join(',');
     if (view === this._pickViewKey || this._hoverPickTimer) return;
     if (performance.now() - this._lastHoverPickMs < (this.spatialInteraction.previewIntervalMs?.() ?? 75)) return;

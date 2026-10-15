@@ -159,18 +159,22 @@ try {
   assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'entity');
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint), null);
   await page.getByRole('button', { name: 'Pick source surface point', exact: true }).click();
-  await page.mouse.move(earth.x + 1, earth.y); await page.waitForTimeout(180);
-  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint?.kind), 'body-fixed');
-  assert((await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.feedback.geometry.drawRange.count; })) > 0);
+  await page.mouse.move(earth.x + 1, earth.y);
+  await page.evaluate(() => window.renderer.renderFrame());
+  assert.equal(await page.evaluate(() => window.renderer._probe.hovered?.bodyName), 'Earth');
+  assert.equal(await page.evaluate(() => window.renderer.renderer.domElement.style.cursor), 'none');
+  assert.equal(await page.evaluate(() => window.renderer._probe.reticle.visible), true);
   const stationary = await page.evaluate(() => {
-    const r=window.renderer, layer=r.spatialRelationships;
-    const before=JSON.stringify(layer.previewEndpoint);r._lastHoverPickMs=0;
+    const r=window.renderer;
+    const before=JSON.stringify(r._probe.hovered);r._lastHoverPickMs=0;
     r.camera.position.x+=0.001;r.cameraController.controls.target.x+=0.001;r.cameraController.controls.update();r.renderFrame();
-    return {before,after:JSON.stringify(layer.previewEndpoint)};
+    return {before,after:JSON.stringify(r._probe.hovered)};
   });
   assert.notEqual(stationary.before,stationary.after);
   await capture('surface-pick-preview-actual.png');
   await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => window.renderer._probe.hovered), null);
+  assert.equal(await page.evaluate(() => window.renderer.probePin), null);
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint), null);
   await page.getByRole('button', { name: 'Pick source surface point', exact: true }).click();
   const surfaceEarth=await earthPixel();

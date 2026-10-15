@@ -13,6 +13,8 @@ export interface SpatialInteraction {
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
   picking: () => boolean;
+  /** A surface endpoint pick shares the Point Probe cursor and frame-time budget. */
+  surfacePicking?: () => boolean;
   onOpenEditor?: (id: string) => void;
   onClearSelection?: () => void;
   labelIcon?: (kind: SpatialRelationship['kind']) => SVGSVGElement;
