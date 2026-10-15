@@ -35,7 +35,6 @@ cd apps/viewer && npm run dev
 packages/
   cspice-wasm/      # CSPICE compiled to WASM + raw bindings — the runtime SPICE
   frames/           # The ADR M-0002 seam: StateProvider, FramesService, heritage adapter
-  spice/            # Heritage CSPICE wrappers (TimeCraftJS) — test-only reference implementation
   core/             # Universe model — pure TypeScript, no rendering deps
   control/          # ViewerControl port + script language — no renderer, no DOM
   interop/          # CCSDS (OEM, CDM, AEM), CSV and CZML parse/write — pure string transforms
@@ -65,7 +64,7 @@ npx vitest run packages/core                    # one package
 npx vitest run --reporter=verbose <test-name>   # debug single test
 ```
 
-Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LFS-tracked) and `apps/viewer/test-catalogs/kernels/` (LFS-tracked). If you skip `git lfs pull`, those tests will fail with "no such file or directory".
+Tests that depend on SPICE kernels live under `kernels/test-data/` (LFS-tracked) and `apps/viewer/test-catalogs/kernels/` (LFS-tracked). If you skip `git lfs pull`, those tests will fail with "no such file or directory".
 
 ## Adding a feature
 

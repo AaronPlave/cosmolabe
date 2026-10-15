@@ -392,7 +392,7 @@ export class FrameRegistry {
       return this.spice.pxform(spiceName, 'J2000', et);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      // CSPICE's own wording (@cosmolabe/spice) and the frames tier's
+      // CSPICE's own wording and the frames tier's
       // (cspice-wasm heritage adapter: "not known to the furnished kernel set").
       if (/not recognized|not known|UNKNOWNFRAME|NOFRAME|not a known reference frame/i.test(msg)) {
         this.spiceUnknown.add(spiceName);

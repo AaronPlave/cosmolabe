@@ -1,37 +1,31 @@
-/**
- * Oracle suite. @cosmolabe/spice is off the runtime path (ADR M-0002): this
- * wrapper's job now is to be the independent reference implementation — a
- * separately compiled CSPICE, reached through a different binding layer —
- * that the cspice-wasm path is differentially checked against. Kept and run
- * for that reason; see packages/spice/README.md and
- * packages/frames/src/differential.test.ts.
- */
+import { kernelArrayBuffer } from './_kernel-bytes.js';
+/** Integration coverage on the supported frames adapter. */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '../Spice.js';
+import { createHeritageSpice, type HeritageSpice } from '../index.js';
 
-const KERNEL_DIR = join(__dirname, '../../test-kernels');
+const KERNEL_DIR = join(__dirname, '../../../../kernels/test-data');
 const CASSINI_DIR = join(KERNEL_DIR, 'cassini');
 
 describe('Cassini SPICE integration', () => {
-  let spice: Spice;
+  let spice: HeritageSpice;
 
   // SOI epoch: 2004-07-01 ~02:48 UTC (ring plane crossing)
   const SOI_TIME = '2004-07-01T02:48:00';
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
 
     // Standard kernels
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(KERNEL_DIR, 'naif0012.tls')).buffer, filename: 'naif0012.tls' });
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(KERNEL_DIR, 'pck00010.tpc')).buffer, filename: 'pck00010.tpc' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(KERNEL_DIR, 'naif0012.tls'))), filename: 'naif0012.tls' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(KERNEL_DIR, 'pck00010.tpc'))), filename: 'pck00010.tpc' });
 
     // Cassini kernels
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(CASSINI_DIR, 'cas_v43.tf')).buffer, filename: 'cas_v43.tf' });
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(CASSINI_DIR, 'cas00172.tsc')).buffer, filename: 'cas00172.tsc' });
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(CASSINI_DIR, 'cas_iss_v10.ti')).buffer, filename: 'cas_iss_v10.ti' });
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(CASSINI_DIR, '040629AP_SCPSE_04179_04185.bsp')).buffer, filename: '040629AP_SCPSE_04179_04185.bsp' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(CASSINI_DIR, 'cas_v43.tf'))), filename: 'cas_v43.tf' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(CASSINI_DIR, 'cas00172.tsc'))), filename: 'cas00172.tsc' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(CASSINI_DIR, 'cas_iss_v10.ti'))), filename: 'cas_iss_v10.ti' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(CASSINI_DIR, '040629AP_SCPSE_04179_04185.bsp'))), filename: '040629AP_SCPSE_04179_04185.bsp' });
   }, 30000);
 
   // --- Body identification ---
@@ -116,35 +110,15 @@ describe('Cassini SPICE integration', () => {
     expect(halfAngle * 180 / Math.PI).toBeCloseTo(2.46, 0); // corner diagonal ~2.46 deg
   });
 
-  // --- fovray with Cassini instruments ---
+  // fovray is outside the supported adapter API; see retirement coverage mapping.
 
-  it('fovray: boresight is inside ISS NAC FOV', () => {
-    const et = spice.str2et(SOI_TIME);
-    // NAC boresight is +Z in CASSINI_ISS_NAC frame
-    const inside = spice.fovray('-82360', [0, 0, 1], 'CASSINI_ISS_NAC', 'NONE', 'CASSINI', et);
-    expect(inside).toBe(true);
-  });
 
-  it('fovray: ray 1 deg off axis is outside NAC (0.175 deg half-angle)', () => {
-    const et = spice.str2et(SOI_TIME);
-    const angle = (1 * Math.PI) / 180;
-    const inside = spice.fovray('-82360', [Math.sin(angle), 0, Math.cos(angle)], 'CASSINI_ISS_NAC', 'NONE', 'CASSINI', et);
-    expect(inside).toBe(false);
-  });
 
-  it('fovray: ray 0.1 deg off axis is inside NAC (0.175 deg half-angle)', () => {
-    const et = spice.str2et(SOI_TIME);
-    const angle = (0.1 * Math.PI) / 180;
-    const inside = spice.fovray('-82360', [Math.sin(angle), 0, Math.cos(angle)], 'CASSINI_ISS_NAC', 'NONE', 'CASSINI', et);
-    expect(inside).toBe(true);
-  });
 
-  it('fovray: ray 1 deg off axis is inside WAC (1.74 deg half-angle)', () => {
-    const et = spice.str2et(SOI_TIME);
-    const angle = (1 * Math.PI) / 180;
-    const inside = spice.fovray('-82361', [Math.sin(angle), 0, Math.cos(angle)], 'CASSINI_ISS_WAC', 'NONE', 'CASSINI', et);
-    expect(inside).toBe(true);
-  });
+
+
+
+
 
   // --- Orbital mechanics at SOI ---
 
@@ -173,5 +147,9 @@ describe('Cassini SPICE integration', () => {
       rot[1] * (rot[3] * rot[8] - rot[5] * rot[6]) +
       rot[2] * (rot[3] * rot[7] - rot[4] * rot[6]);
     expect(det).toBeCloseTo(1, 6);
+  });
+  it('rejects the unsupported fovray entrypoint explicitly', () => {
+    expect(() => spice.fovray('unused', [0, 0, 1], 'J2000', 'NONE', 'EARTH', 0))
+      .toThrow(/not in the CSPICE WASM export allowlist/);
   });
 });

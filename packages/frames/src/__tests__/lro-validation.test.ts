@@ -6,16 +6,12 @@
  *
  * Test epoch: 2025-01-15 00:03:26 UTC (matches NASA Eyes screenshot)
  *
- * Oracle suite. @cosmolabe/spice is off the runtime path (ADR M-0002): this
- * wrapper's job now is to be the independent reference implementation the
- * cspice-wasm path is differentially checked against. See
- * packages/spice/README.md and packages/frames/src/differential.test.ts.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
-import { Spice } from '../Spice.js';
+import { createHeritageSpice, type HeritageSpice } from '../index.js';
 import { kernelArrayBuffer } from './_kernel-bytes.js';
 
 const KERNEL_DIR = join(__dirname, '../../../../apps/viewer/test-catalogs/kernels');
@@ -42,11 +38,11 @@ function norm3(v: readonly number[]): number {
 }
 
 describe('LRO position validation', () => {
-  let spice: Spice;
+  let spice: HeritageSpice;
   let et: number;
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
 
     // Load generic kernels
     const lsk = readKernel('naif0012.tls');

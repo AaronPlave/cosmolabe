@@ -21,7 +21,7 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 import type { RotationMatrix, SpiceInstance, Vec3 } from '../spice-injection.js';
 import { kernelArrayBuffer } from './_harness/kernels.js';
 import {
@@ -47,7 +47,7 @@ import { FixedRotation } from '../rotations/FixedRotation.js';
 import { OBLIQUITY_J2000_RAD } from '../constants.js';
 import { etFromCalendarString } from '../time.js';
 
-const KERNELS = join(__dirname, '../../../spice/test-kernels');
+const KERNELS = join(__dirname, '../../../../kernels/test-data');
 const ARCSEC = Math.PI / (180 * 3600);
 
 /** SPICE's own IAU-1976 precession and IAU-1980 nutation, as parameterized
@@ -188,7 +188,7 @@ describe('FrameRegistry: the frame-pair matrix', () => {
   const noSpice = new FrameRegistry();
 
   beforeAll(async () => {
-    const s = await Spice.init();
+    const s = await createHeritageSpice();
     for (const f of ['naif0012.tls', 'pck00010.tpc']) {
       await s.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(KERNELS, f))), filename: f });
     }
@@ -596,7 +596,7 @@ describe('Catalog frame names reach SPICE in SPICE’s spelling', () => {
   let spice: SpiceInstance;
 
   beforeAll(async () => {
-    const s = await Spice.init();
+    const s = await createHeritageSpice();
     for (const f of ['naif0012.tls', 'pck00010.tpc', 'de425s.bsp']) {
       await s.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(KERNELS, f))), filename: f });
     }
@@ -742,7 +742,7 @@ describe('Review fixes: structured frames, shared registry, composite ancestors,
 describe('Review fixes: SPICE-present validation', () => {
   let spice: SpiceInstance;
   beforeAll(async () => {
-    const s = await Spice.init();
+    const s = await createHeritageSpice();
     for (const f of ['naif0012.tls', 'pck00010.tpc', 'de425s.bsp']) {
       await s.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(KERNELS, f))), filename: f });
     }
@@ -826,7 +826,7 @@ describe('Review fixes (round 2)', () => {
   });
 
   it('forgets a cached "unknown frame" once invalidated, so a later FK takes effect', async () => {
-    const s = await Spice.init();
+    const s = await createHeritageSpice();
     const r = new FrameRegistry({ spice: s });
     const fk = EARTH_OF_DATE_FK.replaceAll('EARTH_MOD_TEST', 'LATE_FK_FRAME').replaceAll('1599001', '1599101');
     expect(r.isResolvable('LATE_FK_FRAME', 0)).toBe(false);

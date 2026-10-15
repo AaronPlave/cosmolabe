@@ -1,24 +1,18 @@
-/**
- * Oracle suite. @cosmolabe/spice is off the runtime path (ADR M-0002): this
- * wrapper's job now is to be the independent reference implementation — a
- * separately compiled CSPICE, reached through a different binding layer —
- * that the cspice-wasm path is differentially checked against. Kept and run
- * for that reason; see packages/spice/README.md and
- * packages/frames/src/differential.test.ts.
- */
+import { SpiceError } from 'cspice-wasm';
+/** Integration coverage on the supported frames adapter. */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '../Spice.js';
+import { createHeritageSpice, type HeritageSpice } from '../index.js';
 import { kernelArrayBuffer } from './_kernel-bytes.js';
 
-const KERNEL_DIR = join(__dirname, '../../test-kernels');
+const KERNEL_DIR = join(__dirname, '../../../../kernels/test-data');
 
 describe('Spice WASM integration', () => {
-  let spice: Spice;
+  let spice: HeritageSpice;
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
 
     // Load leap seconds, planetary constants, and ephemeris
     const lsk = readFileSync(join(KERNEL_DIR, 'naif0012.tls'));
@@ -183,7 +177,7 @@ describe('Spice WASM integration', () => {
   // --- Error handling ---
 
   it('throws on SPICE error', () => {
-    expect(() => spice.str2et('NOT A VALID TIME STRING!!!')).toThrow('SPICE');
+    expect(() => spice.str2et('NOT A VALID TIME STRING!!!')).toThrow(SpiceError);
   });
 
   // --- Kernel management ---

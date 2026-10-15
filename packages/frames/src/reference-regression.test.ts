@@ -1,27 +1,16 @@
-// Cross-engine differential: the heritage adapter (cspice-wasm) against the
-// live timecraftjs Spice, over identical kernel bytes.
-//
-// This is the gate on re-pointing cosmolabe's construction sites. The adapter's
-// own conformance suite (heritage-spice.test.ts) checks it against a cspice-wasm
-// oracle — the same engine — so it cannot detect a difference between the two
-// CSPICE builds. This file is the one that can.
-//
-// Mode: call parity. Both engines get the same bytes and the same call, and the
-// answers must agree to a relative 1e-12 — not "close enough to render", but
-// "the same computation". Anything looser would hide exactly the class of bug
-// this is here to catch. Time conversions and integer-valued results are
-// compared exactly.
-//
-// This file, and the @cosmolabe/spice devDependency it needs, are meant to be
-// deleted together with packages/spice when timecraftjs leaves the tree.
-
+// Deterministic regression checks against committed independent CSPICE outputs.
+// Reference values are never computed by the implementation under test.
+import { createHash } from 'node:crypto';
+import { relative } from 'node:path';
+import hashes from './__fixtures__/reference-kernels.json';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll } from 'vitest';
-import { Spice, type SpiceInstance, type AberrationCorrection } from '@cosmolabe/spice';
+import type { AberrationCorrection } from 'cspice-wasm';
+import { reference } from './__tests__/reference.js';
 import { createHeritageSpice, type HeritageSpice } from './index.js';
 
-const KERNEL_DIR = fileURLToPath(new URL('../../spice/test-kernels/', import.meta.url));
+const KERNEL_DIR = fileURLToPath(new URL('../../../kernels/test-data/', import.meta.url));
 
 /** The viewer's catalog kernels, for the MSL coverage case below. */
 const CATALOG_KERNEL_DIR = fileURLToPath(
@@ -41,6 +30,10 @@ function bytesAt(dir: string, rel: string): ArrayBuffer {
         'or add the path to the sparse fetch in .github/workflows/ci.yml.',
     );
   }
+  const key = relative(fileURLToPath(new URL('../../../', import.meta.url)), dir + rel);
+  const expected = (hashes as Record<string, string>)[key];
+  if (!expected) throw new Error(`Missing reference kernel provenance: ${key}`);
+  expect(createHash('sha256').update(buf).digest('hex'), key).toBe(expected);
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
 }
 
@@ -81,7 +74,7 @@ function expectNumbersClose(actual: unknown, expected: unknown, path = '', rel =
   if (typeof expected === 'number') {
     if (!relClose(actual as number, expected, rel)) {
       throw new Error(
-        `${path || 'value'}: heritage ${actual} vs timecraftjs ${expected} ` +
+        `${path || 'value'}: heritage ${actual} vs reference ${expected} ` +
           `(relative delta ${Math.abs((actual as number) - expected) / Math.max(Math.abs(actual as number), Math.abs(expected))})`,
       );
     }
@@ -103,39 +96,32 @@ function expectNumbersClose(actual: unknown, expected: unknown, path = '', rel =
   expect(actual, path).toEqual(expected);
 }
 
-describe('cspice-wasm vs timecraftjs: call parity', () => {
+describe('pinned CSPICE reference: adapter regression', () => {
   let heritage: HeritageSpice;
-  let legacy: SpiceInstance;
   let et: number;
 
   beforeAll(async () => {
     heritage = await createHeritageSpice();
-    legacy = await Spice.init();
     for (const rel of KERNELS) {
       const data = kernelBytes(rel);
       const filename = rel.split('/').pop()!;
-      // Each engine gets its own copy: furnish may retain or transfer.
+      // Furnish an independent byte buffer for each kernel.
       await heritage.furnish({ type: 'buffer', data: data.slice(0), filename });
-      await legacy.furnish({ type: 'buffer', data: data.slice(0), filename });
     }
-    et = legacy.str2et(EPOCH);
+    et = reference('str2et', EPOCH);
   }, 120_000);
 
-  it('the adapter satisfies the SpiceInstance interface', () => {
-    // Compile-time: the assignment is the assertion. If the adapter ever drifts
-    // from the interface cosmolabe's core consumes, this stops compiling.
-    const asInstance: SpiceInstance = heritage;
-    expect(typeof asInstance.spkezr).toBe('function');
-    expect(asInstance.totalLoaded()).toBe(legacy.totalLoaded());
+  it('loads the complete mission kernel set', () => {
+    expect(heritage.totalLoaded()).toBe(reference('totalLoaded'));
   });
 
   describe('time', () => {
     it('str2et and utc2et agree exactly', () => {
-      expect(heritage.str2et(EPOCH)).toBe(legacy.str2et(EPOCH));
+      expect(heritage.str2et(EPOCH)).toBe(reference('str2et', EPOCH));
       // utc2et takes the string verbatim on both paths (no trailing-Z strip).
-      expect(heritage.utc2et('2004-07-01T02:00:00')).toBe(legacy.utc2et('2004-07-01T02:00:00'));
+      expect(heritage.utc2et('2004-07-01T02:00:00')).toBe(reference('utc2et', '2004-07-01T02:00:00'));
       for (const s of ['2004 JUL 01 02:00:00', '2004-183 // 02:00:00', 'JD 2453187.5']) {
-        expect(heritage.str2et(s), s).toBe(legacy.str2et(s));
+        expect(heritage.str2et(s), s).toBe(reference('str2et', s));
       }
     });
 
@@ -155,7 +141,7 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         '2004-07-01T02:00:00',
         '2004-07-01',
       ]) {
-        expect(heritage.str2et(s), s).toBe(legacy.str2et(s));
+        expect(heritage.str2et(s), s).toBe(reference('str2et', s));
       }
     });
 
@@ -164,9 +150,8 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
       // stray space reached str2et_c intact and threw SPICE(UNPARSEDTIME).
       // Normalisation resolves both, and lands on heritage's own value for the
       // equivalent UTC instant.
-      const noon = legacy.str2et('2004-07-01T12:00:00');
+      const noon = reference('str2et', '2004-07-01T12:00:00');
       for (const s of ['2004-07-01T14:00:00+02:00', '2004-07-01T07:00:00-05:00', ' 2004-07-01T12:00:00Z ']) {
-        expect(() => legacy.str2et(s), s).toThrow();
         expect(heritage.str2et(s), s).toBe(noon);
       }
     });
@@ -175,7 +160,7 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
       for (const fmt of ['C', 'D', 'J', 'ISOC', 'ISOD'] as const) {
         for (const prec of [0, 3, 6]) {
           expect(heritage.et2utc(et, fmt, prec), `${fmt}/${prec}`).toBe(
-            legacy.et2utc(et, fmt, prec),
+            reference('et2utc', et, fmt, prec),
           );
         }
       }
@@ -183,17 +168,17 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
 
     it('timout and unitim agree', () => {
       for (const pic of ['YYYY-MM-DDTHR:MN:SC ::UTC', 'YYYY MON DD HR:MN:SC.### ::TDB']) {
-        expect(heritage.timout(et, pic), pic).toBe(legacy.timout(et, pic));
+        expect(heritage.timout(et, pic), pic).toBe(reference('timout', et, pic));
       }
       for (const [from, to] of [['TDB', 'TDT'], ['TDB', 'TAI'], ['TDT', 'TDB']] as const) {
-        expectNumbersClose(heritage.unitim(et, from, to), legacy.unitim(et, from, to), `${from}->${to}`);
+        expectNumbersClose(heritage.unitim(et, from, to), reference('unitim', et, from, to), `${from}->${to}`);
       }
     });
 
     it('et2lst agrees', () => {
       for (const [body, lon] of [[399, 0], [399, Math.PI / 4], [699, 1.0]] as const) {
         const h = heritage.et2lst(et, body, lon, 'PLANETOCENTRIC');
-        const l = legacy.et2lst(et, body, lon, 'PLANETOCENTRIC');
+        const l = reference('et2lst', et, body, lon, 'PLANETOCENTRIC');
         expect(h.hr, `${body} hr`).toBe(l.hr);
         expect(h.mn, `${body} mn`).toBe(l.mn);
         expect(h.sc, `${body} sc`).toBe(l.sc);
@@ -218,7 +203,7 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         for (const abcorr of CORRECTIONS) {
           const label = `${target}/${frame}/${observer}/${abcorr}`;
           const h = heritage.spkpos(target, et, frame, abcorr, observer);
-          const l = legacy.spkpos(target, et, frame, abcorr, observer);
+          const l = reference('spkpos', target, et, frame, abcorr, observer);
           expectNumbersClose(h.position, l.position, `${label} position`);
           expectNumbersClose(h.lightTime, l.lightTime, `${label} lightTime`);
         }
@@ -230,7 +215,7 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         for (const abcorr of ['NONE', 'LT+S'] as AberrationCorrection[]) {
           const label = `${target}/${frame}/${observer}/${abcorr}`;
           const h = heritage.spkezr(target, et, frame, abcorr, observer);
-          const l = legacy.spkezr(target, et, frame, abcorr, observer);
+          const l = reference('spkezr', target, et, frame, abcorr, observer);
           expectNumbersClose(h.state, l.state, `${label} state`);
           expectNumbersClose(h.lightTime, l.lightTime, `${label} lightTime`);
         }
@@ -238,12 +223,12 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
     });
 
     it('agrees across the whole CK coverage window, not just one epoch', () => {
-      const t0 = legacy.str2et('2004-07-01T00:30:00');
-      const t1 = legacy.str2et('2004-07-02T12:00:00');
+      const t0 = reference('str2et', '2004-07-01T00:30:00');
+      const t1 = reference('str2et', '2004-07-02T12:00:00');
       for (let i = 0; i <= 12; i++) {
         const t = t0 + ((t1 - t0) * i) / 12;
         const h = heritage.spkezr('CASSINI', t, 'J2000', 'LT+S', 'SATURN');
-        const l = legacy.spkezr('CASSINI', t, 'J2000', 'LT+S', 'SATURN');
+        const l = reference('spkezr', 'CASSINI', t, 'J2000', 'LT+S', 'SATURN');
         expectNumbersClose(h.state, l.state, `t+${i} state`);
       }
     });
@@ -261,19 +246,19 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         ['CASSINI_ISS_NAC', 'J2000'],
       ];
       for (const [from, to] of PAIRS) {
-        expectNumbersClose(heritage.pxform(from, to, et), legacy.pxform(from, to, et), `${from}->${to}`);
+        expectNumbersClose(heritage.pxform(from, to, et), reference('pxform', from, to, et), `${from}->${to}`);
       }
     });
 
     it('sxform agrees (6x6, so it exercises the rotation derivative too)', () => {
       for (const [from, to] of [['J2000', 'IAU_EARTH'], ['J2000', 'IAU_SATURN']] as const) {
-        expectNumbersClose(heritage.sxform(from, to, et), legacy.sxform(from, to, et), `${from}->${to}`);
+        expectNumbersClose(heritage.sxform(from, to, et), reference('sxform', from, to, et), `${from}->${to}`);
       }
     });
 
     it('frmnam agrees', () => {
       for (const code of [1, 13, 17, 10016, -82000, -82360]) {
-        expect(heritage.frmnam(code), `frame ${code}`).toBe(legacy.frmnam(code));
+        expect(heritage.frmnam(code), `frame ${code}`).toBe(reference('frmnam', code));
       }
     });
   });
@@ -288,7 +273,7 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
           const label = `${method}/${target}/${observer}`;
           expectNumbersClose(
             heritage.subpnt(method, target, et, fixref, 'NONE', observer),
-            legacy.subpnt(method, target, et, fixref, 'NONE', observer),
+            reference('subpnt', method, target, et, fixref, 'NONE', observer),
             label,
           );
         }
@@ -298,34 +283,34 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
     it('subslr agrees', () => {
       expectNumbersClose(
         heritage.subslr('NEAR POINT/ELLIPSOID', 'EARTH', et, 'IAU_EARTH', 'NONE', 'EARTH'),
-        legacy.subslr('NEAR POINT/ELLIPSOID', 'EARTH', et, 'IAU_EARTH', 'NONE', 'EARTH'),
+        reference('subslr', 'NEAR POINT/ELLIPSOID', 'EARTH', et, 'IAU_EARTH', 'NONE', 'EARTH'),
         'subslr',
       );
     });
 
     it('sincpt agrees, including the no-intercept case', () => {
       // Boresight from Cassini at Saturn: the ray either hits or it does not,
-      // and both engines must agree on which.
+      // compared against the pinned ray and intercept.
+      const toward = reference('spkpos', 'SATURN', et, 'J2000', 'NONE', 'CASSINI').position;
       const h = heritage.sincpt('ELLIPSOID', 'SATURN', et, 'IAU_SATURN', 'NONE', 'CASSINI', 'J2000',
-        heritage.spkpos('SATURN', et, 'J2000', 'NONE', 'CASSINI').position);
-      const l = legacy.sincpt('ELLIPSOID', 'SATURN', et, 'IAU_SATURN', 'NONE', 'CASSINI', 'J2000',
-        legacy.spkpos('SATURN', et, 'J2000', 'NONE', 'CASSINI').position);
+        toward);
+      const l = reference('sincpt', 'ELLIPSOID', 'SATURN', et, 'IAU_SATURN', 'NONE', 'CASSINI', 'J2000', reference('spkpos', 'SATURN', et, 'J2000', 'NONE', 'CASSINI').position);
       expect(h.found, 'found').toBe(l.found);
       if (l.found) expectNumbersClose(h, l, 'sincpt');
 
       // Deliberately pointed away from the body.
-      const away = heritage.spkpos('SATURN', et, 'J2000', 'NONE', 'CASSINI').position.map(v => -v) as
+      const away = toward.map(v => -v) as
         [number, number, number];
       const hMiss = heritage.sincpt('ELLIPSOID', 'SATURN', et, 'IAU_SATURN', 'NONE', 'CASSINI', 'J2000', away);
-      const lMiss = legacy.sincpt('ELLIPSOID', 'SATURN', et, 'IAU_SATURN', 'NONE', 'CASSINI', 'J2000', away);
+      const lMiss = reference('sincpt', 'ELLIPSOID', 'SATURN', et, 'IAU_SATURN', 'NONE', 'CASSINI', 'J2000', away);
       expect(hMiss.found, 'miss found').toBe(lMiss.found);
     });
 
     it('ilumin agrees', () => {
-      const spoint = legacy.subpnt('NEAR POINT/ELLIPSOID', 'EARTH', et, 'IAU_EARTH', 'NONE', 'SUN').point;
+      const spoint = reference('subpnt', 'NEAR POINT/ELLIPSOID', 'EARTH', et, 'IAU_EARTH', 'NONE', 'SUN').point;
       expectNumbersClose(
         heritage.ilumin('ELLIPSOID', 'EARTH', et, 'IAU_EARTH', 'NONE', 'SUN', spoint),
-        legacy.ilumin('ELLIPSOID', 'EARTH', et, 'IAU_EARTH', 'NONE', 'SUN', spoint),
+        reference('ilumin', 'ELLIPSOID', 'EARTH', et, 'IAU_EARTH', 'NONE', 'SUN', spoint),
         'ilumin',
       );
     });
@@ -340,69 +325,68 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         ['EARTH', 'PM'],
         ['SATURN', 'POLE_RA'],
       ] as const) {
-        expectNumbersClose(heritage.bodvrd(body, item), legacy.bodvrd(body, item), `${body}/${item}`);
+        expectNumbersClose(heritage.bodvrd(body, item), reference('bodvrd', body, item), `${body}/${item}`);
       }
     });
 
     it('bodvcd agrees', () => {
       for (const [id, item] of [[399, 'RADII'], [699, 'RADII'], [301, 'RADII']] as const) {
-        expectNumbersClose(heritage.bodvcd(id, item), legacy.bodvcd(id, item), `${id}/${item}`);
+        expectNumbersClose(heritage.bodvcd(id, item), reference('bodvcd', id, item), `${id}/${item}`);
       }
     });
   });
 
   describe('orbital elements', () => {
     it('oscelt and conics round-trip identically', () => {
-      const { state } = legacy.spkezr('MOON', et, 'J2000', 'NONE', 'EARTH');
+      const { state } = reference('spkezr', 'MOON', et, 'J2000', 'NONE', 'EARTH');
       // pck00010.tpc carries no BODY*_GM values at all, so bodvrd('EARTH','GM')
       // throws rather than returning empty. Use the IAU/DE-consistent value
       // directly — what matters here is that both engines get the same GM.
       const gm = 398600.435436;
       const hElts = heritage.oscelt(state, et, gm);
-      const lElts = legacy.oscelt(state, et, gm);
+      const lElts = reference('oscelt', state, et, gm);
       expectNumbersClose(hElts, lElts, 'oscelt');
       // Propagate the elements forward and compare the resulting states.
       const later = et + 3600;
-      expectNumbersClose(heritage.conics(hElts, later), legacy.conics(lElts, later), 'conics');
+      expectNumbersClose(heritage.conics(hElts, later), reference('conics', lElts, later), 'conics');
     });
   });
 
   describe('geometry finders', () => {
     it('gfdist agrees on distance extrema', () => {
-      const start = legacy.str2et('2004-07-01T00:00:00');
-      const end = legacy.str2et('2004-07-02T00:00:00');
+      const start = reference('str2et', '2004-07-01T00:00:00');
+      const end = reference('str2et', '2004-07-02T00:00:00');
       const cnfine = [{ start, end }];
       const h = heritage.gfdist('MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, cnfine);
-      const l = legacy.gfdist('MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, cnfine);
+      const l = reference('gfdist', 'MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, cnfine);
       expect(h.length, 'window count').toBe(l.length);
       expectNumbersClose(h, l, 'gfdist windows');
     });
 
     it('gfoclt agrees on occultation windows', () => {
-      const start = legacy.str2et('2004-07-01T00:00:00');
-      const end = legacy.str2et('2004-07-03T00:00:00');
+      const start = reference('str2et', '2004-07-01T00:00:00');
+      const end = reference('str2et', '2004-07-03T00:00:00');
       const cnfine = [{ start, end }];
       const h = heritage.gfoclt('ANY', 'TITAN', 'ELLIPSOID', 'IAU_TITAN', 'SATURN', 'ELLIPSOID',
         'IAU_SATURN', 'NONE', 'CASSINI', 300, cnfine);
-      const l = legacy.gfoclt('ANY', 'TITAN', 'ELLIPSOID', 'IAU_TITAN', 'SATURN', 'ELLIPSOID',
-        'IAU_SATURN', 'NONE', 'CASSINI', 300, cnfine);
+      const l = reference('gfoclt', 'ANY', 'TITAN', 'ELLIPSOID', 'IAU_TITAN', 'SATURN', 'ELLIPSOID', 'IAU_SATURN', 'NONE', 'CASSINI', 300, cnfine);
       expect(h.length, 'window count').toBe(l.length);
       expectNumbersClose(h, l, 'gfoclt windows');
     });
 
     it('gfsep agrees on angular separation windows', () => {
-      const start = legacy.str2et('2004-07-01T00:00:00');
-      const end = legacy.str2et('2004-07-02T00:00:00');
+      const start = reference('str2et', '2004-07-01T00:00:00');
+      const end = reference('str2et', '2004-07-02T00:00:00');
       const cnfine = [{ start, end }];
       const args = ['TITAN', 'SPHERE', 'IAU_TITAN', 'SATURN', 'SPHERE', 'IAU_SATURN', 'NONE',
         'CASSINI', 'LOCMAX', 0, 0, 600, cnfine] as const;
       const h = heritage.gfsep(...args);
-      const l = legacy.gfsep(...args);
+      const l = reference('gfsep', ...args);
       expect(h.length, 'window count').toBe(l.length);
       expectNumbersClose(h, l, 'gfsep windows');
     });
 
-    it('the reporting entry points agree with the legacy engine too', () => {
+    it('the reporting entry points match pinned independent intervals', () => {
       // Passing a report moves the adapter off CSPICE's simplified gf*_c
       // wrappers and onto the general routines underneath, which are the only
       // ones that take a progress reporter and a bail-out handler.
@@ -411,15 +395,15 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
       // each other inside one build. This is the stronger statement: the tier
       // the viewer now searches on still agrees with a different CSPICE build
       // entirely. A progress bar is not worth a different answer.
-      const start = legacy.str2et('2004-07-01T00:00:00');
-      const end = legacy.str2et('2004-07-02T00:00:00');
+      const start = reference('str2et', '2004-07-01T00:00:00');
+      const end = reference('str2et', '2004-07-02T00:00:00');
       const cnfine = [{ start, end }];
       const seen: number[] = [];
       const report = { onProgress: (fraction: number) => seen.push(fraction) };
 
       expectNumbersClose(
         heritage.gfdist('MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, cnfine, report),
-        legacy.gfdist('MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, cnfine),
+        reference('gfdist', 'MOON', 'NONE', 'EARTH', 'LOCMIN', 0, 0, 3600, cnfine),
         'gfdist windows (reporting)',
       );
 
@@ -427,7 +411,7 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         'CASSINI', 'LOCMAX', 0, 0, 600, cnfine] as const;
       expectNumbersClose(
         heritage.gfsep(...sepArgs, report),
-        legacy.gfsep(...sepArgs),
+        reference('gfsep', ...sepArgs),
         'gfsep windows (reporting)',
       );
 
@@ -435,7 +419,7 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         'IAU_SATURN', 'NONE', 'CASSINI', 300, cnfine] as const;
       expectNumbersClose(
         heritage.gfoclt(...ocltArgs, report),
-        legacy.gfoclt(...ocltArgs),
+        reference('gfoclt', ...ocltArgs),
         'gfoclt windows (reporting)',
       );
 
@@ -450,7 +434,7 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
     it('spkobj and spkcov agree', () => {
       const file = '040629AP_SCPSE_04179_04185.bsp';
       const hObj = heritage.spkobj(file);
-      const lObj = legacy.spkobj(file);
+      const lObj = reference('spkobj', file);
       const ids = [...lObj].sort((a, b) => a - b);
       expect(ids.length, 'the SPK should report objects').toBeGreaterThan(0);
       expect([...hObj].sort((a, b) => a - b)).toEqual(ids);
@@ -459,7 +443,7 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
       // surface. Cover every id the kernel reports, including Cassini itself.
       for (const id of ids) {
         const h = heritage.spkcov(id);
-        const l = legacy.spkcov(id);
+        const l = reference('spkcov', id);
         expect(h.length, `spkcov ${id} window count`).toBe(l.length);
         expectNumbersClose(h, l, `spkcov ${id}`);
       }
@@ -468,7 +452,7 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
     it('ckobj and ckcov agree', () => {
       const file = '04183_04185ra.bc';
       const hObj = heritage.ckobj(file);
-      const lObj = legacy.ckobj(file);
+      const lObj = reference('ckobj', file);
       const ids = [...lObj].sort((a, b) => a - b);
       // Agreement on nothing is not agreement: the reconstructed CK walk has to
       // find the structures the real ckobj_c finds, starting with the bus.
@@ -479,28 +463,28 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
         // Ticks first: the descriptor bounds themselves, with no SCLK
         // conversion in the way to absorb a discrepancy.
         const hTicks = heritage.ckcov(id, { timeSystem: 'SCLK' });
-        const lTicks = legacy.ckcov(id, { timeSystem: 'SCLK' });
+        const lTicks = reference('ckcov', id, { timeSystem: 'SCLK' });
         expect(hTicks.length, `ckcov ${id} SCLK window count`).toBe(lTicks.length);
         expect(hTicks.length, `ckcov ${id} should report coverage`).toBeGreaterThan(0);
         expectNumbersClose(hTicks, lTicks, `ckcov ${id} (SCLK)`);
 
         // Then ET, the default and the shape spkcov established.
         const h = heritage.ckcov(id);
-        const l = legacy.ckcov(id);
+        const l = reference('ckcov', id);
         expect(h.length, `ckcov ${id} window count`).toBe(l.length);
         expectNumbersClose(h, l, `ckcov ${id}`);
 
         // The angular-velocity filter.
         const hAv = heritage.ckcov(id, { needAv: true });
-        const lAv = legacy.ckcov(id, { needAv: true });
+        const lAv = reference('ckcov', id, { needAv: true });
         expect(hAv.length, `ckcov ${id} needAv window count`).toBe(lAv.length);
         expectNumbersClose(hAv, lAv, `ckcov ${id} (needAv)`);
 
         // And interval level, which reports each segment's interpolation
         // intervals. It is a strictly finer answer than segment level here —
-        // agreement on it is the check that both lanes really are CSPICE.
+        // agreement on it is the check that interpolation gaps are retained.
         const hInt = heritage.ckcov(id, { level: 'INTERVAL' });
-        const lInt = legacy.ckcov(id, { level: 'INTERVAL' });
+        const lInt = reference('ckcov', id, { level: 'INTERVAL' });
         expect(lInt.length, `ckcov ${id} should have interval structure`).toBeGreaterThan(
           l.length,
         );
@@ -509,26 +493,25 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
       }
     });
 
-    it('ckcov surfaces invalid arguments as errors on both lanes', () => {
+    it('ckcov rejects invalid arguments rather than returning empty coverage', () => {
       // The failure mode worth pinning: a bad time system or level must not
       // come back as an empty window, which a caller would read as
       // "no attitude here" rather than "you asked wrong".
       for (const bad of [{ timeSystem: 'NOPE' }, { level: 'NOPE' }] as const) {
         expect(() => heritage.ckcov(-82000, bad as never), `heritage ${JSON.stringify(bad)}`).toThrow();
-        expect(() => legacy.ckcov(-82000, bad as never), `legacy ${JSON.stringify(bad)}`).toThrow();
       }
     });
 
     it('ckcov pads by tol exactly as ckcov_c does', () => {
       const TOL = 1000;
       const h = heritage.ckcov(-82000, { timeSystem: 'SCLK', tol: TOL });
-      const l = legacy.ckcov(-82000, { timeSystem: 'SCLK', tol: TOL });
+      const l = reference('ckcov', -82000, { timeSystem: 'SCLK', tol: TOL });
       expect(h.length, 'padded window count').toBe(l.length);
       expectNumbersClose(h, l, 'ckcov -82000 (SCLK, tol)');
 
-      // The padding is real, not a no-op both engines ignored.
-      const bare = legacy.ckcov(-82000, { timeSystem: 'SCLK' });
-      expect(l[0]!.start).toBeLessThan(bare[0]!.start);
+      // Pin the padded result and require a strictly expanded boundary.
+      const bare = reference('ckcov', -82000, { timeSystem: 'SCLK' });
+      expect(h[0]!.start).toBeLessThan(bare[0]!.start);
     });
   });
 
@@ -537,16 +520,16 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
     const b: [number, number, number] = [-0.5, 4.0, 2.75];
 
     it('agrees elementwise', () => {
-      const m = legacy.pxform('J2000', 'IAU_EARTH', et);
-      expectNumbersClose(heritage.mxv(m, a), legacy.mxv(m, a), 'mxv');
-      expectNumbersClose(heritage.mtxv(m, a), legacy.mtxv(m, a), 'mtxv');
-      expectNumbersClose(heritage.vcrss(a, b), legacy.vcrss(a, b), 'vcrss');
-      expectNumbersClose(heritage.vnorm(a), legacy.vnorm(a), 'vnorm');
-      expectNumbersClose(heritage.vdot(a, b), legacy.vdot(a, b), 'vdot');
-      expectNumbersClose(heritage.vsep(a, b), legacy.vsep(a, b), 'vsep');
-      expectNumbersClose(heritage.vhat(a), legacy.vhat(a), 'vhat');
-      expectNumbersClose(heritage.vsub(a, b), legacy.vsub(a, b), 'vsub');
-      expectNumbersClose(heritage.vadd(a, b), legacy.vadd(a, b), 'vadd');
+      const m = reference('pxform', 'J2000', 'IAU_EARTH', et);
+      expectNumbersClose(heritage.mxv(m, a), reference('mxv', m, a), 'mxv');
+      expectNumbersClose(heritage.mtxv(m, a), reference('mtxv', m, a), 'mtxv');
+      expectNumbersClose(heritage.vcrss(a, b), reference('vcrss', a, b), 'vcrss');
+      expectNumbersClose(heritage.vnorm(a), reference('vnorm', a), 'vnorm');
+      expectNumbersClose(heritage.vdot(a, b), reference('vdot', a, b), 'vdot');
+      expectNumbersClose(heritage.vsep(a, b), reference('vsep', a, b), 'vsep');
+      expectNumbersClose(heritage.vhat(a), reference('vhat', a), 'vhat');
+      expectNumbersClose(heritage.vsub(a, b), reference('vsub', a, b), 'vsub');
+      expectNumbersClose(heritage.vadd(a, b), reference('vadd', a, b), 'vadd');
     });
   });
 
@@ -557,9 +540,9 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
       // without exercising either — the failure mode a test typecheck catches.
       for (const inst of [-82360, -82361]) {
         const h = heritage.getfov(inst, 20);
-        const l = legacy.getfov(inst, 20);
+        const l = reference('getfov', inst, 20);
         // Agreement on nothing is not agreement: pin that a real FOV came
-        // back before comparing the two engines' answers.
+        // back before comparing with the pinned answer.
         expect(['CIRCLE', 'ELLIPSE', 'RECTANGLE', 'POLYGON'], `${inst} shape`).toContain(h.shape);
         expect(h.frame, `${inst} frame is named`).toBeTruthy();
         expect(Math.hypot(...h.boresight), `${inst} boresight is a direction`).toBeGreaterThan(0);
@@ -575,17 +558,17 @@ describe('cspice-wasm vs timecraftjs: call parity', () => {
 });
 
 /**
- * CK coverage on a second mission, in its own engines.
+ * CK coverage on a second mission, in a separate kernel pool.
  *
  * The Cassini CK above is one orbiter bus over two days; this is a surface
  * rover's telemetry CK over 134 sols, with a different clock and several
  * structures in one file — the second kernel named in issue #39, and the case
- * that keeps `ckcov` from being tuned to one file's shape. Separate engines
+ * that keeps `ckcov` from being tuned to one file's shape. A separate engine instance
  * rather than more kernels in the set above, because the MSL frame kernels
- * redefine Mars-relative frames and are not something the Cassini parity
+ * redefine Mars-relative frames and are not something the Cassini regression
  * checks should be sharing a pool with.
  */
-describe('cspice-wasm vs timecraftjs: CK coverage on a second mission', () => {
+describe('pinned CSPICE reference: CK coverage on a second mission', () => {
   const MSL_KERNELS = [
     'msl/MSL_76_SCLKSCET.00012.tsc',
     'msl/msl_surf_rover_tlm_0449_0583_v1.bc',
@@ -593,43 +576,39 @@ describe('cspice-wasm vs timecraftjs: CK coverage on a second mission', () => {
   const CK = 'msl_surf_rover_tlm_0449_0583_v1.bc';
 
   let heritage: HeritageSpice;
-  let legacy: SpiceInstance;
 
   beforeAll(async () => {
     heritage = await createHeritageSpice();
-    legacy = await Spice.init();
     for (const rel of ['naif0012.tls']) {
       const data = kernelBytes(rel);
       await heritage.furnish({ type: 'buffer', data: data.slice(0), filename: rel });
-      await legacy.furnish({ type: 'buffer', data: data.slice(0), filename: rel });
     }
     for (const rel of MSL_KERNELS) {
       const data = bytesAt(CATALOG_KERNEL_DIR, rel);
       const filename = rel.split('/').pop()!;
       await heritage.furnish({ type: 'buffer', data: data.slice(0), filename });
-      await legacy.furnish({ type: 'buffer', data: data.slice(0), filename });
     }
   }, 120_000);
 
   it('ckobj and ckcov agree for the MSL rover telemetry CK', () => {
-    const ids = [...legacy.ckobj(CK)].sort((a, b) => a - b);
+    const ids = [...reference('ckobj', CK)].sort((a, b) => a - b);
     expect(ids.length, 'the MSL CK should carry structures').toBeGreaterThan(0);
     expect([...heritage.ckobj(CK)].sort((a, b) => a - b)).toEqual(ids);
 
     for (const id of ids) {
       const hTicks = heritage.ckcov(id, { timeSystem: 'SCLK' });
-      const lTicks = legacy.ckcov(id, { timeSystem: 'SCLK' });
+      const lTicks = reference('ckcov', id, { timeSystem: 'SCLK' });
       expect(hTicks.length, `ckcov ${id} SCLK window count`).toBe(lTicks.length);
       expect(hTicks.length, `ckcov ${id} should report coverage`).toBeGreaterThan(0);
       expectNumbersClose(hTicks, lTicks, `ckcov ${id} (SCLK)`);
 
       const h = heritage.ckcov(id);
-      const l = legacy.ckcov(id);
+      const l = reference('ckcov', id);
       expect(h.length, `ckcov ${id} window count`).toBe(l.length);
       expectNumbersClose(h, l, `ckcov ${id}`);
 
       const hAv = heritage.ckcov(id, { needAv: true });
-      const lAv = legacy.ckcov(id, { needAv: true });
+      const lAv = reference('ckcov', id, { needAv: true });
       expect(hAv.length, `ckcov ${id} needAv window count`).toBe(lAv.length);
       expectNumbersClose(hAv, lAv, `ckcov ${id} (needAv)`);
     }

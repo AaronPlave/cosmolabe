@@ -6,7 +6,7 @@
     "types": []
   },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts"],
+  "exclude": ["src/**/*.test.ts", "src/__tests__", "src/__fixtures__"],
   "references": [
     { "path": "../cspice-wasm" }
   ]

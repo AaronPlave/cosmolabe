@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 import type { SpiceInstance } from '../spice-injection.js';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 import { kernelArrayBuffer } from './_harness/kernels.js';
 import { Universe } from '../Universe.js';
 import type { CatalogJson } from '../catalog/CatalogLoader.js';
 
-const KERNEL_DIR = join(__dirname, '../../../spice/test-kernels');
+const KERNEL_DIR = join(__dirname, '../../../../kernels/test-data');
 
 /**
  * Apply quaternion [w,x,y,z] to a 3D vector.
@@ -34,7 +34,7 @@ describe('SpiceRotation integration', () => {
   let spice: SpiceInstance;
 
   beforeAll(async () => {
-    const s = await Spice.init();
+    const s = await createHeritageSpice();
     spice = s;
 
     const lsk = readFileSync(join(KERNEL_DIR, 'naif0012.tls'));

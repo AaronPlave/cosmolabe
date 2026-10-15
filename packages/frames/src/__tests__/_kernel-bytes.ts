@@ -1,7 +1,7 @@
 /**
  * Byte-exact kernel bytes for `furnish`. Mirrors `kernelArrayBuffer` in
  * @cosmolabe/core's test harness; duplicated rather than shared because
- * @cosmolabe/spice sits below core in the dependency graph.
+ * frames sits below core in the dependency graph.
  *
  * Not a `*.test.ts` name, so vitest will not run it as a suite.
  */

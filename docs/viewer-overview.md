@@ -114,7 +114,7 @@ cosmolabe/
   See [choosing a renderer](../packages/cesium-adapter/CHOOSING_A_RENDERER.md).
 
 For engine details see [CSPICE WASM](../packages/cspice-wasm/README.md), the
-[SPICE reference package](../packages/spice/README.md) and [development architecture](../CONTRIBUTING.md#project-layout).
+[SPICE validation and reference provenance](spice-retirement.md) and [development architecture](../CONTRIBUTING.md#project-layout).
 [ROADMAP.md](../ROADMAP.md) tracks planned work; this README describes shipped workflows
 rather than promising complete renderer or catalog coverage.
 

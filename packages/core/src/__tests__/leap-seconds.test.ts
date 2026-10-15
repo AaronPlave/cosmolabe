@@ -16,11 +16,11 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 import type { SpiceInstance } from '../spice-injection.js';
 import { etFromCalendarString, deltaAtSeconds, etToDate, etFromDate } from '../time.js';
 
-const LSK = join(__dirname, '../../../spice/test-kernels/naif0012.tls');
+const LSK = join(__dirname, '../../../../kernels/test-data/naif0012.tls');
 const haveLsk = existsSync(LSK);
 
 /** Epochs spanning the table: before the first leap second, across several
@@ -45,7 +45,7 @@ describe.skipIf(!haveLsk)('etFromCalendarString vs SPICE str2et', () => {
   let spice: SpiceInstance;
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
     const buf = readFileSync(LSK);
     await spice.furnish({
       type: 'buffer',
@@ -105,7 +105,7 @@ describe.skipIf(!haveLsk)('etFromCalendarString vs SPICE str2et', () => {
 describe.skipIf(!haveLsk)('pre-1972 is a documented limitation, not a silent one', () => {
   let spice: SpiceInstance;
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
     const buf = readFileSync(LSK);
     await spice.furnish({
       type: 'buffer',
