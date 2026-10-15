@@ -7,7 +7,7 @@ import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
-import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics } from './TerrainSampler.js';
+import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSampler, type TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import type { CubeCoverage } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import type { ImageryLayerInfo } from './ImageryLayers.js';
@@ -974,6 +974,9 @@ export class BodyMesh extends THREE.Object3D {
 
   /** Whether this body has streaming terrain active */
   get hasTerrain(): boolean { return this.terrainManager !== null; }
+
+  /** Decoded CPU terrain for physical-surface queries, or null without streamed terrain. */
+  get terrainSampler(): TerrainSampler | null { return this.terrainManager?.sampler ?? null; }
 
   /** Get the terrain tile group for raycasting (null if no terrain or not visible) */
   get terrainTileGroup(): THREE.Object3D | null {
