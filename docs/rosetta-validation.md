@@ -124,6 +124,20 @@ records. Adding a new mission-record ingestion model here would broaden scope;
 observation timeline delivery remains explicitly required in #230/#28. No
 viewpoint is relabelled as a fake observation or computed event.
 
-CI at `c4de8be` passed **1,962 tests**, including the fetched external
+CI at `ffb8c78` passed **1,962 tests**, including the fetched external
 Cosmographia fixtures (no skips). The local full suite passed 1,919 with
 7 skipped; subsequent focused regressions passed as recorded in the PR.
+
+The complete rebuilt set passed: +Y / −Y arrays and HGA elevation / azimuth
+all measure **0.250°** maximum attitude error and **<0.000005 rad/s** rate error.
+Each was verified at 6.2–7.3 million source/sample/random/edge epochs. Full Rosetta
+attitude additionally passes 20,000 independent random rate probes (maximum
+**0.000005673 rad/s**); 67P rotation measures **0.000000121 rad/s**.
+
+Preserving rates increases the shipped Rosetta set to **173,114,063 bytes**
+(compressed where large; 42 files), plus the shared planetary ephemeris. This is
+a deliberate precision/size tradeoff; it is no longer the original 56 MB set.
+Catalog progress-byte hints and the browser listing reflect the rebuilt sizes.
+The empty-output rebuild used cached official ESA source files; it was not a
+new 700 MB network download. The subsequent full warm build finished with all
+42 files present, no fetches and no reductions rerun.

@@ -142,7 +142,7 @@ describe('TrajectoryLine lead', () => {
     expect(line.visibleTimeRange(end + DAY / 2)).toEqual([end - DAY / 2, end]);
     expect(trailTimes(line)).toBeGreaterThan(0);
     for (const path of line.drawnPath()) {
-      for (const time of path.times) expect(time).toBeLessThanOrEqual(end);
+      for (const time of path.times.subarray(0, path.count)) expect(time).toBeLessThanOrEqual(end);
     }
     line.update(end + DAY + 1, 1);
     expect(line.visible).toBe(false);
