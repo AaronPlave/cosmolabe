@@ -13,7 +13,9 @@ import {
  * `cpu-grids.json` written by `scripts/terrain/dem.py cube-tile`: the CPU half
  * of the cube-sphere experiment (#149). Each tile's grid holds the same field
  * samples as its rendered .glb lattice, but is addressed, fetched and evicted
- * here, independently of which meshes the renderer streams or shows.
+ * here, independently of which meshes the renderer streams or shows. A
+ * simplified product (`renderedMesh` present) draws only a subset of those
+ * samples as larger triangles, so its rendered and CPU surfaces differ.
  */
 export interface CubeGridManifest {
   format: 'cosmolabe-cube-height-grid-1';
@@ -27,8 +29,14 @@ export interface CubeGridManifest {
    */
   heightRangeKm: [number, number];
   maxLevel: number;
-  /** `[face, level, x, y, uncertaintyKm]`; the uncertainty is the builder's sampled representation error. */
-  tiles: [CubeFace, number, number, number, number][];
+  /**
+   * `[face, level, x, y, uncertaintyKm, renderedDeviationKm?]`; the uncertainty is the builder's sampled
+   * representation error. The sixth value, only with `renderedMesh`, bounds the radial distance between
+   * the tile's rendered triangles and the full-lattice triangles CubeGridSurface intersects.
+   */
+  tiles: [CubeFace, number, number, number, number, number?][];
+  /** Present when the .glb triangles are simplified rather than the grid's own lattice. */
+  renderedMesh?: { simplification: string; cpuSurface: string; deviation: string };
 }
 
 export type CubeCoverageState = 'finest' | 'parent-fallback' | 'unloaded';
@@ -246,7 +254,8 @@ export function cubeTileMesh(tile: CubeHeightTile, radiusKm: number): { position
  * Cartesian intersection the experiment needs for picking and camera clearance.
  * It marches the ray segment inside the shell of loaded heights in order (see
  * `march`) and intersects each finest resident tile it meets as the exact
- * triangles its .glb carries, stopping once past the nearest hit. Coverage is declared partial: a hit is a provisional
+ * triangles of its grid's full lattice (the .glb's own triangles, unless the product is simplified:
+ * then they differ by up to the manifest's per-tile `renderedDeviationKm`), stopping once past the nearest hit. Coverage is declared partial: a hit is a provisional
  * nearest hit (coarse), and no hit is `unavailable`, never a miss — the march can
  * clip a tile corner, and unloaded detail could occlude.
  *

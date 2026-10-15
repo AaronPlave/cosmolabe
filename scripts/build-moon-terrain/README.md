@@ -75,8 +75,16 @@ per edge from the gaps measured against every other level across it;
 polar products, not a replacement; see
 [the ADR](../../docs/design/cube-sphere-experiment.md).
 
+Each build also runs `dem.py cube-error`, which bounds every parent's distance
+from its children on the emitted triangles and writes `tileset-measured.json`
+(that bound, propagated through REPLACE, as geometricError) and
+`mesh-error.json` beside the default `tileset.json` (0.25 × face-centre vertex
+spacing). `--simplify FRAC` RTIN-simplifies the meshes (edges kept, CPU grids
+unchanged); build it into its own directory so the baseline stays intact:
+
 ```bash
 ./fuse.sh && ./cube.sh                 # and ./polar.sh for the #145 baseline
+CUBE_OUT=../../apps/viewer/test-catalogs/data/moon-terrain-cube-simplified-003 ./cube.sh --simplify 0.03
 npm run build && node ../validate-cube-terrain.mjs     # gates + measurements → work/cube-terrain/validation.json
 npm --prefix ../../apps/viewer run dev                 # then open:
 #   http://127.0.0.1:5173/?catalog=test-catalogs/experiments/moon-terrain-cube

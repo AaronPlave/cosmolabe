@@ -2,7 +2,7 @@
 
 **Status:** open; experimental, not a production layout. Geometry evidence recommends *revise* (see *Layout comparison*)
 **Issue:** #149 (remains open)
-**Recorded:** 2026-10-04 (foundation); 2026-10-13 (lunar builder and viewer demo); 2026-10-14 (independent imagery; mixed-LOD crack mitigation and the geometry-layout comparison)
+**Recorded:** 2026-10-04 (foundation); 2026-10-13 (lunar builder and viewer demo); 2026-10-14 (independent imagery; mixed-LOD crack mitigation and the geometry-layout comparison; LOD error and mesh simplification)
 
 ## Decision
 
@@ -22,8 +22,13 @@ registration read-back and a bounded real lunar example (see *Independent
 imagery*); then mixed-LOD crack mitigation by skirts sized from the product's
 measured gaps, and a geometry-only layout comparison of cube, polar and
 geographic products on one hardware GPU (*Mixed-LOD crack mitigation*, *Layout
-comparison*). A matched-imagery comparison and GPUs other than an M4 Max remain;
-see *Remaining for #149*.
+comparison*); then a measured, propagated geometric-error bound and optional
+RTIN simplification, each compared at matched achieved error (*LOD error and
+mesh simplification*): the bound is kept as validation and metadata but not as
+the selection policy, and 0.03 × spacing simplification closes the
+triangle/GPU gap to the polar cap at Shackleton and the pole while leaving a
+draw-count gap. A matched-imagery comparison and GPUs other than an M4 Max
+remain; see *Remaining for #149*.
 
 ## Mappings compared
 
@@ -1063,7 +1068,8 @@ bias. Each product was swept over errorTarget (cube and geographic 1, 2, 4; cap
   0.43 ms; cap-nadir — cap (0.5) 1.41 m 1.35 M / 0.52 ms vs cube (1) 2.05 m
   2.73 M / 0.80 ms; at the grazing poses the cap is also more accurate at
   equal errorTarget-matched cost (pole-grazing 0.04 vs 0.13 m at 1.65 vs 1.77 M
-  triangles). Likely causes, not yet separated: the cube's geometric
+  triangles). (Separated since in *LOD error and mesh simplification*: encoding
+  explains the triangle and GPU gap, the error estimate does not.) Likely causes as first listed: the cube's geometric
   error uses the face-centre spacing for every tile of a level, the cube tiles at
   the Shackleton region carry a longer REPLACE chain (levels 0–12 against the cap's
   0–8 for similar ground detail), and polar stereographic has near-unit scale over
@@ -1121,6 +1127,13 @@ matching, not a field-wide error metric; no imagery on the baselines.
   cap-plus-global design pays that join (and the global product's own cost at
   the cap edge, 81.5°–87°S, where geographic slivers are already expensive) to
   save it.
+- *Update after* LOD error and mesh simplification: (1) the measured error
+  bound did not reduce cost at matched error and stays out of selection; (2)
+  0.03 × spacing RTIN simplification brings the cube to the cap's triangles,
+  geometry memory and GPU time at Shackleton and the pole, at 1.5–2.2× its
+  draws. Still **revise**: the remaining cap advantage is draw count (and
+  cap-nadir), which a shallower REPLACE chain or more children per tile would
+  address; a weaker GPU decides whether draws matter.
 - So the recommendation is **revise, not yet adopt**: keep the cube as the
   candidate global layout and close the gap before deciding — (1) find why
   gnomonic tiles cost more than the cap at equal error (per-tile geometric error
@@ -1130,6 +1143,323 @@ matching, not a field-wide error metric; no imagery on the baselines.
   the matched-imagery comparison and (4) a weaker GPU. **Reject** would need
   the cube to stay behind the cap after (1)–(2) by more than the join costs;
   **adopt** needs (1)–(4). #149 stays open.
+
+## LOD error and mesh simplification (2026-10-14)
+
+The layout comparison left the cube 25–50% dearer than the polar cap inside the
+cap at equal achieved error, and named two possible causes in the cube's own
+encoding: a geometric error taken from the face-centre vertex spacing, and an
+unsimplified 65² lattice. This slice measures each change separately, on the
+same fused field, poses, viewport, lighting, imagery configuration and cache
+budgets as *Layout comparison*. Neither change touches the mapping, the
+skirts, the CPU grids or the selected product extent.
+
+### A field-sampler defect found on the way (fixed first)
+
+`dem.py field_heights` added the polar residual only when the queried lon/lat
+range overlapped its bounds *strictly*. The residual's bounds are
+`(−180, −90, 180, lat_max)`, so a lone point at lon ±180° or lat −90° got the
+LOLA 118 m base alone. `cube-tile` samples every tile-edge vertex one at a time
+(for bit-identical shared vertices), so the cube product's **pole vertex** and
+the `nz` edge line along the **antimeridian** inside the 87°S coverage carried
+base heights while their neighbours carried the fused field. That is a crease
+on every level: 9,940 heights on 184 `nz` tiles move, median 1.9 m, up to 71 m
+at levels 7–12 and 1.1 km at the level-1/2 pole vertex (where the lon/lat base
+kernel is longitude-dependent). Batched evaluations — interior cube vertices,
+the geographic pyramid, the polar cap, `field-error` — were never affected.
+
+It surfaced as an 18 m step in a simplified tile at the pole (see below); the
+earlier gates could not see it because every tile holding those vertices
+evaluated them identically, and the control points avoid that line. Fixed with
+closed bounds (commit "sample the residual at a lone antimeridian or pole
+point"), with a selftest regression. **Every product and number in this
+section is built on the fixed field**; the baseline is rebuilt, and a build from
+the fix-only commit is byte-identical to one from this branch's builder (same
+SHA over every `.glb`, `.f32` and `tileset.json`), so the builder changes below
+do not alter the baseline. `validation.json` is now the corrected product's
+(all gates pass; control points unchanged, RMS 6.85 m). Earlier sections'
+figures are from the pre-fix product; only measurements touching the `nz`
+antimeridian line or the pole vertex can differ.
+
+### 1. What the existing estimates measure
+
+- **`geometricError` = 0.25 × face-centre vertex spacing** of the tile's level,
+  for every refining tile. It ignores relief, and ignores that gnomonic cells
+  shrink toward face edges (≈ ½) and corners (≈ ⅓ along the diagonal).
+- **`cpu-grids.json` per-tile uncertainty** (`tiles[i][4]`) is the maximum of
+  |bilinear-in-(u, v) CPU grid − fused field at its finest source level| over a
+  4× denser sample lattice. It is *sampled* — relief between samples is
+  missed — and it describes the bilinear CPU surface, not the emitted triangles
+  (which differ from bilinear by up to 922 m at level 1, *Measured results*),
+  and not the deviation from descendants that REPLACE selection depends on. It
+  is neither a triangle-mesh bound nor a selection error, and is not used as
+  one here.
+
+### 2. Geometric error from the rendered triangles (`dem.py cube-error`)
+
+For every parent and each child, `cube_radial_deviation` bounds the radial
+distance between the two emitted surfaces over the child's footprint (skirts
+excluded). Both meshes have their vertices on lattice rays, and gnomonic
+projection maps 3D edges to straight lines in (u, v); splitting each child cell
+by both diagonals gives sub-triangles that no edge of either mesh crosses
+(lattice, RTIN or the parent's), so each surface is one plane there. Along the
+unnormalized ray w = N + uU + vV a plane sits at r = |w|/g(w) with g affine in
+(u, v), so
+
+```text
+|r_a − r_b| ≤ max|g_b − g_a| · max|w| / (min g_a · min g_b)   (all over the sub-triangle's vertices)
+```
+
+— a conservative bound in exact arithmetic, computed on the float32 vertices
+the `.glb` actually holds, metres. Radial distance also bounds the distance
+between the surfaces. Then
+
+```text
+geometricError(P) = max over children C of [ deviation(P, C) + geometricError(C) ],   leaves 0
+```
+
+which bounds P's distance from the finest surface the product holds under it
+(triangle inequality), so detail that only a grandchild resolves reaches every
+ancestor even where parent and child agree at every vertex they share. Output:
+`tileset-measured.json` (same tree and bounds, only geometricError changed,
+rounded up to 1 mm) and `mesh-error.json` (per tile: nominal, measured, each
+child deviation, and the same bound against the CPU lattice). 6–9 s for 4,030
+tiles on 14 workers; `cube.sh` runs it after every build.
+
+Regressions (`dem.py selftest`): the bound against 1,500 dense samples on
+lattice and RTIN meshes at a face centre, edge and corner tile (never below the
+sample, within 5% above it); a 50 m spike at a child vertex between a parent's
+samples (bound within the flat-tile chord sag of 50 m); a three-level REPLACE
+chain at the px/py/nz corner whose 80 m peak only the grandchild resolves (the
+parent's own comparison is < 80 m, its propagated error ≥ 80 m); monotone
+errors and an otherwise unchanged tileset on the synthetic product. Mutating the
+propagation to parent-child only, or loosening the bound's denominator, fails
+them. `validate-cube-terrain.mjs` gates `tileset-measured.json` monotonicity.
+
+**What the measurement shows about the nominal estimate** (baseline product,
+`mesh-error-baseline.json`):
+
+| Level | Refining | Nominal (m) | Measured p5 / p50 / p95 (m) | Parent–child only, p50 | Measured ÷ nominal, p50 (p5–p95): centre / edge / corner | Raised by propagation |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | 6 | 13,573 | 10,129 / 11,727 / 14,696 | 4,709 | 0.86 (0.75–1.08) / — / — | 6 |
+| 2 | 96 | 3,393 | 1,726 / 2,381 / 4,019 | 2,331 | 0.80 (0.66–1.67) / 0.66 (0.55–1.15) / 0.62 (0.47–0.90) | 11 |
+| 4 | 53 | 848 | 331 / 583 / 1,218 | 529 | 1.09 (0.87–1.76) / 0.72 (0.55–1.04) / 0.47 (0.34–0.73) | 17 |
+| 6 | 58 | 212 | 46 / 109 / 275 | 102 | 0.87 (0.61–1.39) / 0.53 (0.37–0.97) / 0.33 (0.18–0.79) | 20 |
+| 7 | 63 | 106 | 14 / 44 / 141 | 44 | 0.98 (0.50–1.40) / 0.40 (0.27–1.16) / 0.22 (0.12–0.61) | 14 |
+| 9 | 83 | 26.5 | 12.6 / 21.3 / 33.2 | 15.1 | 0.80 (0.48–1.25) / — / — | 57 |
+| 10 | 204 | 13.3 | 4.5 / 7.9 / 12.5 | 6.8 | 0.59 (0.34–0.94) / — / — | 78 |
+| 11 | 284 | 6.6 | 2.1 / 3.2 / 4.8 | 3.2 | 0.48 (0.31–0.73) / — / — | 0 |
+
+(All levels in `mesh-error-baseline.json`; the bound is at most 1.7% above the
+largest vertex difference, at level 0, and < 0.01% from level 7 down.) The
+nominal value over-states the error of face-edge and corner tiles 1.5–8×
+(they refine more than their relief needs), under-states rough centre tiles by
+up to 1.8×, and propagation matters: it raises 57 of 83 refining level-9 tiles,
+and doubles levels 0–1.
+
+### 3. Mesh simplification (`cube-tile --simplify FRAC`)
+
+The existing RTIN (`dem.py tile`, Martini-style) with two changes: a vertex's
+own error is its exact radial distance from the hypotenuse it splits (the uv
+midpoint's ray meets the 3D chord), and the threshold is FRAC × the level's
+face-centre vertex spacing. Every edge vertex is kept, so tile boundaries — and
+therefore the measured skirt gaps, skirt depths and cross-face registration —
+are exactly the full lattice's (gated: every unit boundary segment is an edge of
+exactly one surface triangle). Unused vertices are dropped; skirts keep their
+place after the surface (`extras.surfaceTriangles` is the simplified count).
+REPLACE structure and subtree boxes are unchanged in kind (boxes from the
+written vertices). CPU grids are unchanged and fetched by query as before, so
+CPU residency is independent of what renders; they are byte-identical across
+all configurations here.
+
+**Rendered vs CPU surface.** `CubeGridSurface` still intersects the grid's full
+lattice. A simplified product says so: `cpu-grids.json` gains `renderedMesh`
+and a per-tile `tiles[i][5]`, the conservative bound between the rendered and
+the CPU-lattice triangles (`CubeGridManifest` types it; the surface's docs no
+longer claim the two are the same). One finding: RTIN's finest triangles
+alternate diagonals while the lattice always splits v00→v11, so where a cell
+twists the two differ by half the twist *with nothing simplified* (2 km at
+level 3 on the point-sampled base, 2.7 m at level 12). Cells whose two
+anti-diagonal halves both survive are now re-split like the lattice (a
+full-detail RTIN then equals the lattice exactly, selftest); halves whose
+partner is part of a coarser triangle cannot be, and they still set most
+tiles' maximum.
+
+| `--simplify` | `.glb` MB | Mean surface triangles (vs 8,192) | Rendered − CPU lattice, p50 / max (× vertex spacing) | Build (14 workers) |
+| --- | --- | --- | --- | --- |
+| 0 (baseline) | 648.5 | 8,192 | float32 only (≤ 6 cm) | 91 s + 9 s `cube-error` |
+| 0.03 | 309.5 | 3,519 (−57%; −45% at L3, −71% at L8, −55% at L12) | 0.05–0.15 / 0.13–0.28 | 104 s + 8 s |
+| 0.1 | 161.9 | 1,485 (−82%) | 0.13–0.17 / 0.17–0.29 | 104 s + 9 s |
+
+Validated (`validation-simplified-003.json`, all gates pass): sampled emitted −
+CPU-lattice differences RMS 0.10 m / max 0.52 m at level 12, never beyond the
+stated tile bound; the 120 CPU picks lie 0.94 m RMS / 3.7 m max radially from
+the rendered triangles (gated against each tile's bound; the unsimplified gate
+of < 5 cm no longer applies), clearance unchanged (120/120, ≥ 49.7 m above the
+CPU sample); CPU bilinear − rendered triangles RMS 0.10 m at level 12. Imagery
+on simplified triangles (`capture-cube-imagery.mjs --cube-tileset
+moon-terrain-cube-simplified-003/tileset.json`, M4 Max): rendered registration
+median 0.41–0.42 texel in every ground view (0.53 overview), p95 ≤ 0.72, 0
+face/tile mismatches; all seven markers within 0.49 px / 8.3 m, as on the full
+lattice; a clipping regression partitions a simplified (fan) corner tile into
+blocks at three depths with area preserved. Rendered picking on hole pixels
+hits a skirt in 197 of 199 cases; 0 hole pixels with skirts in all eleven
+static views and in all 140 steps of the refine/coarsen/delayed/failed/evicting
+paths.
+
+### 4. Measurements
+
+`capture-cube-imagery.mjs --gpu --experiments compare --frames 240
+--error-target {0.5,1,2,4} --cube-tileset … --label …` for each cube
+configuration, the polar cap at 0.5/1/2, then `dem.py field-error` on each
+record. Apple M4 Max (16-core, 48 GB, macOS 26), Chrome headless 148, ANGLE
+Metal; 1280×800, DPR 1, `?test=1`; IAU_MOON poses at the catalog epoch, paused;
+fade off; 512 MiB tile cache; cold page per row. Eight poses: *Layout
+comparison*'s seven plus the px/nz face edge. Records:
+`lod-error-sweep.json` (178 rows), `lod-error-screen.json`, `lod-error-captures.json`.
+
+Cost at **matched achieved error**: each configuration's sweep interpolated
+(log–log) to the error the baseline reaches at eT 2, and the cap at eT 1. Cell:
+triangles · visible tiles (≈ draws − 5) · geometry MB · GPU / wall median ms.
+"—" means the configuration did not reach that error anywhere in eT 0.5–4 (not
+extrapolated).
+
+*Median |rendered − field|, target = baseline at eT 2:*
+
+| View | Target (m) | Baseline | Measured error | Simplified 0.1 | Simplified 0.03 | 0.03 + measured | Polar cap |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Shackleton | 1.07 | 1.02 M · 110 · 30 · 0.39 / 1.30 | 1.06 M · 114 · 31 · 0.40 / 1.25 | 0.66 M · 281 · 17 · 0.29 / 2.15 | 0.72 M · 144 · 20 · 0.24 / 1.33 | 0.71 M · 144 · 20 · 0.24 / 1.22 | 0.84 M · 88 · 19 · 0.32 / 1.03 |
+| Shackleton grazing | 0.63 | 1.23 M · 134 · 35 · 0.43 / 1.40 | 1.20 M · 130 · 33 · 0.42 / 1.39 | 0.77 M · 336 · 20 · 0.40 / 2.85 | 0.91 M · 179 · 24 · 0.28 / 1.47 | 0.90 M · 178 · 24 · 0.27 / 1.43 | — |
+| South pole | 1.53 | 0.72 M · 75 · 24 · 0.26 / 1.00 | 0.74 M · 77 · 22 · 0.27 / 1.03 | 0.57 M · 234 · 15 · 0.20 / 1.96 | 0.65 M · 124 · 18 · 0.20 / 1.12 | 0.63 M · 118 · 17 · 0.19 / 1.12 | — |
+| Pole grazing | 0.16 | 1.13 M · 119 · 31 · 0.40 / 1.20 | 1.48 M · 159 · 39 · 0.52 / 1.84 | — | — | — | — |
+| Cap nadir | 4.07 | 1.08 M · 117 · 27 · 0.31 / 1.10 | 1.11 M · 120 · 28 · 0.33 / 1.20 | 1.24 M · 456 · 30 · 0.43 / 3.36 | 1.09 M · 193 · 26 · 0.26 / 1.82 | 0.96 M · 168 · 23 · 0.24 / 1.37 | 0.45 M · 43 · 9 · 0.19 / 0.73 |
+| px/nz face edge | 1.73 | 1.63 M · 177 · 48 · 0.51 / 1.80 | 2.24 M · 247 · 58 · 0.72 / 2.91 | — | 2.38 M · 490 · 61 · 0.69 / 3.58 | — | — |
+| px/py/nz corner | 1.82 | 1.97 M · 219 · 54 · 0.66 / 2.40 | 2.45 M · 274 · 65 · 0.79 / 3.03 | — | 2.92 M · 681 · 75 · 0.87 / 4.41 | — | — |
+
+*p95 |rendered − field|, target = baseline at eT 2:*
+
+| View | Target (m) | Baseline | Measured error | Simplified 0.03 | 0.03 + measured | Polar cap |
+| --- | --- | --- | --- | --- | --- | --- |
+| Shackleton | 9.60 | 1.02 M · 110 · 30 · 0.39 / 1.30 | 0.86 M · 92 · 27 · 0.32 / 1.04 | 0.64 M · 124 · 18 · 0.22 / 1.26 | 0.60 M · 115 · 17 · 0.20 / 1.03 | 0.76 M · 80 · 17 · 0.29 / 0.94 |
+| Shackleton grazing | 2.62 | 1.23 M · 134 · 35 · 0.43 / 1.40 | 1.19 M · 129 · 33 · 0.41 / 1.39 | 0.93 M · 183 · 24 · 0.28 / 1.49 | 0.91 M · 181 · 24 · 0.27 / 1.44 | — |
+| South pole | 7.49 | 0.72 M · 75 · 24 · 0.26 / 1.00 | 0.78 M · 82 · 23 · 0.29 / 1.08 | 0.51 M · 87 · 14 · 0.16 / 0.96 | 0.52 M · 91 · 15 · 0.16 / 0.95 | — |
+| Pole grazing | 0.84 | 1.13 M · 119 · 31 · 0.40 / 1.20 | 1.41 M · 152 · 37 · 0.50 / 1.75 | 0.94 M · 201 · 24 · 0.29 / 1.57 | 1.16 M · 259 · 30 · 0.35 / 1.92 | — |
+| Cap nadir | 14.68 | 1.08 M · 117 · 27 · 0.31 / 1.10 | 1.11 M · 120 · 28 · 0.33 / 1.20 | 1.10 M · 195 · 26 · 0.27 / 1.84 | 0.87 M · 152 · 21 · 0.23 / 1.28 | 0.48 M · 47 · 10 · 0.20 / 0.76 |
+| px/nz face edge | 13.04 | 1.63 M · 177 · 48 · 0.51 / 1.80 | 2.32 M · 257 · 60 · 0.74 / 3.05 | 1.16 M · 225 · 30 · 0.33 / 1.79 | 1.70 M · 331 · 43 · 0.44 / 2.40 | — |
+| px/py/nz corner | 12.05 | 1.97 M · 219 · 54 · 0.66 / 2.40 | 2.53 M · 283 · 67 · 0.82 / 3.11 | 1.48 M · 330 · 39 · 0.42 / 2.35 | — | — |
+
+*Against the polar cap at its eT 1 (median / p95 target, m):*
+
+| View | Target | Baseline | Measured error | Simplified 0.03 | 0.03 + measured | Polar cap |
+| --- | --- | --- | --- | --- | --- | --- |
+| Shackleton, median | 0.69 | 1.58 M · 174 · 44 · 0.59 / 1.99 | 1.52 M · 167 · 41 · 0.59 / 1.80 | 1.06 M · 235 · 29 · 0.36 / 1.83 | 0.98 M · 216 · 26 · 0.33 / 1.72 | 1.30 M · 142 · 30 · 0.51 / 1.60 |
+| Shackleton, p95 | 4.53 | 1.79 M · 198 · 49 · 0.67 / 2.24 | 1.65 M · 182 · 44 · 0.64 / 1.94 | 1.05 M · 232 · 28 · 0.35 / 1.81 | 0.94 M · 205 · 25 · 0.32 / 1.64 | 1.30 M · 142 · 30 · 0.51 / 1.60 |
+| Shackleton grazing, median | 0.35 | 2.01 M · 223 · 54 · 0.73 / 2.31 | 2.27 M · 253 · 59 · 0.82 / 3.06 | 1.35 M · 287 · 35 · 0.48 / 2.34 | — | 1.48 M · 163 · 35 · 0.60 / 1.70 |
+| Shackleton grazing, p95 | 1.55 | 1.97 M · 219 · 53 · 0.71 / 2.26 | 1.83 M · 203 · 49 · 0.65 / 2.39 | 1.50 M · 326 · 39 · 0.56 / 2.68 | 1.29 M · 277 · 33 · 0.38 / 1.90 | 1.48 M · 163 · 35 · 0.60 / 1.70 |
+| Pole, median | 0.86 | 1.26 M · 138 · 36 · 0.46 / 1.46 | 1.22 M · 132 · 34 · 0.47 / 1.47 | 1.01 M · 225 · 27 · 0.31 / 1.68 | 0.94 M · 202 · 25 · 0.30 / 1.59 | 0.96 M · 103 · 22 · 0.41 / 1.30 |
+| Pole, p95 | 3.40 | 1.51 M · 165 · 42 · 0.56 / 1.68 | 1.33 M · 145 · 37 · 0.52 / 1.57 | 1.02 M · 228 · 27 · 0.31 / 1.69 | 0.92 M · 197 · 25 · 0.29 / 1.56 | 0.96 M · 103 · 22 · 0.41 / 1.30 |
+| Cap nadir, median | 3.56 | 1.30 M · 141 · 32 · 0.37 / 1.29 | 1.25 M · 135 · 31 · 0.37 / 1.35 | 1.30 M · 235 · 31 · 0.31 / 2.22 | 1.08 M · 191 · 26 · 0.27 / 1.49 | 0.52 M · 52 · 11 · 0.22 / 0.80 |
+| Cap nadir, p95 | 13.20 | 1.60 M · 176 · 40 · 0.46 / 1.56 | 1.32 M · 143 · 33 · 0.39 / 1.43 | 1.65 M · 303 · 40 · 0.37 / 2.87 | 1.05 M · 186 · 25 · 0.26 / 1.46 | 0.52 M · 52 · 11 · 0.22 / 0.80 |
+
+At pole-grazing the cap reaches 0.04 m median (eT 1) and no cube configuration
+gets below 0.11 m at eT 0.5: the cube's level 12 extends only 15 km from
+Shackleton, so this is the product extent, not the layout or either change.
+
+**Cold loads** (`--throttle 40,100`: 40 ms RTT, 100 Mbit/s emulated; seconds to
+finished detail · requests · MB since the pose; CPU grids, 144 requests /
+2.4 MB at Shackleton, are identical in every cube configuration):
+
+| View | Baseline eT 2 | Baseline eT 1 | Measured eT 2 | Simplified 0.03 eT 2 | Simplified 0.03 eT 1 | 0.03 + measured eT 2 | Polar eT 1 | Polar eT 0.5 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Shackleton | 2.6 · 128 · 19.3 | 4.9 · 244 · 38.0 | 2.6 · 125 · 18.8 | 1.4 · 130 · 10.7 | 3.0 · 438 · 28.7 ¹ | 1.5 · 132 · 11.0 | 4.0 · 188 · 30.2 | 9.7 · 464 · 74.6 |
+| Shackleton grazing | 3.4 · 170 · 25.9 | 4.8 · 241 · 37.3 | 3.2 · 160 · 24.3 | 1.8 · 170 · 14.5 | 2.9 · 254 · 21.6 | 1.8 · 163 · 13.9 | 4.5 · 216 · 34.8 | 9.0 · 436 · 70.1 |
+| South pole | 1.8 · 89 · 13.0 | 2.5 · 167 · 25.6 | 1.8 · 90 · 13.2 | 0.9 · 72 · 6.1 | 2.0 · 175 · 14.7 | 1.4 · 109 · 9.6 | 2.9 · 136 · 21.9 | 7.5 · 360 · 57.9 |
+| Pole grazing | 2.1 · 106 · 15.8 | 5.1 · 251 · 39.1 | 2.7 · 133 · 20.1 | 1.7 · 148 · 12.1 | 2.7 · 240 · 18.9 | 1.4 · 124 · 10.1 | 5.0 · 240 · 38.6 | 9.4 · 456 · 73.4 |
+| Cap nadir | 1.7 · 82 · 12.6 | 6.9 · 336 · 53.5 | 2.3 · 113 · 17.6 | 1.3 · 108 · 10.5 | 4.5 · 368 · 35.8 | 1.2 · 115 · 11.1 | 1.6 · 68 · 10.9 | 4.1 · 196 · 31.5 |
+| px/nz face edge | 4.3 · 218 · 34.2 | 8.8 · 442 · 70.3 | 3.1 · 160 · 24.9 | 2.7 · 214 · 19.1 | 4.8 · 440 · 38.3 | 1.8 · 152 · 13.5 | — | — |
+| px/py/nz corner | 5.6 · 282 · 44.5 | 10.6 · 528 · 84.1 | 4.1 · 212 · 33.2 | 3.3 · 282 · 23.9 | 5.4 · 539 · 43.1 | 2.6 · 219 · 19.0 | — | — |
+
+¹ The first run of this row took 472.9 s with the same 194 tiles and ~440
+requests finally loaded; two repeats took 3.0 and 3.1 s (shown). A one-off
+stall, recorded unexplained like the earlier SwiftShader stalls.
+
+**Imagery** (NAC mosaic, `frametime`, warm, 240 frames; simplified at eT 1.5
+≈ the baseline's accuracy at eT 2; median / p95 ms):
+
+| Configuration | View | Tiles | Terrain triangles | Terrain only: wall / GPU | Refined: draws, wall / GPU | Blocks · block geometry | Layer update |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Baseline eT 2 | Shackleton | 110 | 1.02 M | 1.4 / 3.7 · 0.40 / 1.70 | 208, 2.4 / 4.1 · 0.54 / 1.25 | 203 · 9.0 MB | 0.3 ms |
+| Measured eT 2 | Shackleton | 110 | 1.02 M | 1.2 / 2.7 · 0.39 / 1.62 | 205, 3.0 / 4.9 · 0.52 / 2.35 | 200 · 9.3 MB | 0.4 ms |
+| Simplified 0.03 eT 1.5 | Shackleton | 131 | 0.65 M | 1.4 / 3.1 · 0.22 / 0.95 | 211, 1.9 / 3.7 · 0.30 / 1.26 | 206 · 4.5 MB | 0.7 ms |
+| Baseline eT 2 | Pole | 75 | 0.72 M | 1.0 / 2.6 · 0.26 / 1.17 | 188, 2.0 / 3.8 · 0.35 / 1.55 | 183 · 9.2 MB | 0.6 ms |
+| Simplified 0.03 eT 1.5 | Pole | 96 | 0.53 M | 1.0 / 2.2 · 0.18 / 0.76 | 191, 2.2 / 3.3 · 0.36 / 0.98 | 186 · 5.1 MB | 0.4 ms |
+
+(Face-edge and corner rows, outside the mosaic, and the 0.03 + measured rows are
+in the record.) Block geometry halves with the triangles; draws are set by the
+imagery blocks there, so they do not change; layer update stays 0.3–0.7 ms in
+every configuration (within this host's 0.1 ms timer and frame-to-frame spread).
+
+Frames: `lod-error-{shackleton,shackleton-grazing,pole,pole-grazing,face-corner}.jpg`
+— shaded and wireframe, baseline / measured / simplified 0.03 / polar cap
+(pole-grazing is in lunar night; its wireframe row shows the meshes).
+
+### 5. What the measurements say
+
+**Measured geometric error — not justified as the selection policy.** At
+matched median error it is within ±4% of the baseline at Shackleton, the pole
+and cap-nadir, and **dearer** at the face edge (+37% triangles), the corner
+(+24%) and pole-grazing (+31%); at matched p95 it saves 16% at Shackleton and
+18% at cap-nadir against the cap's target, and costs +42% / +28% at the edge
+and corner. Judging error in screen pixels instead of metres
+(`lod-error-screen.json`) gives the same picture (+33% / +24% at edge/corner),
+and so does the worst pixel. A bound on each tile's *maximum* deviation is the
+right quantity for correctness, but as a selection signal it spends detail on
+tiles with a single steep feature or a long propagated chain, while the
+nominal spacing — however crude — keeps triangles near uniform on screen,
+which is what the pixel-sampled error rewards. Retained, as validation and
+metadata (the rendered/CPU bound for simplified products, a monotonicity gate,
+and the per-tile evidence that face-corner tiles carry 2–8× more detail than
+their nominal error claims); `tileset.json` keeps the nominal policy.
+
+**Simplification at 0.1 × spacing — rejected.** Leaves carry their own
+simplification error with nothing finer to refine into, so wherever the product
+stops at level 8 (edge, corner, cap-nadir) it never reaches the baseline's
+accuracy, and where it does it needs 2.5× the tiles and draws.
+
+**Simplification at 0.03 × spacing — retained as a build option, not yet the
+default.** At matched error at Shackleton and the pole (both targets, median
+and p95) it cuts triangles 10–35%, geometry memory 25–35% and GPU time 23–39%,
+and halves product size (648 → 310 MB) and imagery block geometry. It costs
+30–65% more tiles and draws (simplified leaves are less accurate, so the same
+accuracy needs deeper selection), which leaves wall time between −8% and +15%.
+Cold, at the same errorTarget it moves 45–53% fewer bytes; at *matched
+accuracy* the saving shrinks to 26% / 23% (bytes / time to finished detail) at
+Shackleton and 7% / 6% at the pole, and turns into a loss at cap-nadir (+58% /
++47%), where it must refine two levels deeper. At the face edge and corner it
+loses at matched median (+46–48% triangles, 2.8–3.1× tiles) and wins at matched
+p95 (−25–29% triangles); screen-space error agrees (median −15–18% triangles at
+Shackleton and the pole, +33% at the edge; p95 −18–36%). Combined with measured
+error it is the cheapest cube configuration at Shackleton and the pole, by small
+margins over 0.03 alone.
+
+**Against the polar cap, inside the cap, at the cap's accuracy:** the
+simplified cube now draws **fewer triangles than the cap at Shackleton**
+(0.94–1.06 vs 1.30 M) and about as many at the pole (0.92–1.02 vs 0.96 M), spends
+**less GPU time** (0.29–0.36 vs 0.41–0.51 ms) and similar geometry memory
+(25–29 vs 22–30 MB). It still needs **1.5–2.2× the cap's tiles and draws**, and
+so 7–30% more wall time per frame on this host. Its cold load at the cap's
+accuracy needs eT < 1, outside the throttled runs; the unsimplified cube there
+takes 4.3 s / 33 MB at Shackleton against the cap's 4.0 s / 30 MB. At cap-nadir (40 km straight down) the cap remains
+about 2× cheaper on every axis. The 25–50% triangle/GPU gap the layout
+comparison recorded is closed at Shackleton and the pole by encoding parity;
+what remains is draw count, from the deeper REPLACE chain (levels 0–12 against
+the cap's 0–8) and the less accurate simplified leaves.
+
+Limits: one high-end integrated GPU (the *Hardware GPU* caveats); GPU medians
+of 0.2–0.5 ms vary by up to ±0.2 ms between otherwise identical rows, so only
+consistent differences are claimed; one run per row except where noted;
+log–log interpolation between four sweep points; no matched imagery on the
+baselines; an emulated network.
 
 ## Reproducible checks delivered
 
@@ -1198,15 +1528,21 @@ lunar field or GPU evidence.
 Exact checklist for the adopt/revise/reject decision (*Recommendation from the
 geometry evidence*):
 
-- [ ] **Cube vs cap cost gap.** Re-run the `compare` sweep after (a) per-tile
-  geometric error from each tile's measured representation error
-  (`cpu-grids.json` already carries it) instead of the face-centre spacing, and
-  (b) a variant with a shallower REPLACE chain at the Shackleton region; report
-  the cost at equal achieved error against the cap again.
-- [ ] **Encoding parity.** A simplified cube mesh (the RTIN path `dem.py tile`
-  uses, edge vertices kept) so triangle counts compare layouts, not encodings;
-  re-measure skirt gaps on the simplified edges and the CPU-grid/triangle
-  discrepancy.
+- [x] **Cube vs cap cost gap, (a) geometric error.** Done with a conservative
+  triangle-mesh bound from the emitted meshes rather than the sampled grid
+  representation error, which is not one (*LOD error and mesh simplification*):
+  no gain at matched error; nominal spacing stays.
+- [ ] **Cube vs cap cost gap, (b) draw count.** A shallower REPLACE chain at the
+  Shackleton region (coarser detail roots, or more children per tile); re-run
+  the sweep against the cap.
+- [x] **Encoding parity.** `--simplify` (RTIN, edges kept, so skirt gaps are
+  unchanged and gated), CPU-grid/triangle discrepancy stated per tile and
+  gated. 0.03 × spacing is the useful setting; adopting it as the product
+  default waits on the draw-count item and a weaker GPU.
+- [ ] **Rendered/CPU twist discrepancy.** Simplified tiles still differ from the
+  CPU lattice by up to ~0.2 × vertex spacing where an RTIN anti-diagonal half
+  borders a coarser triangle; a twist-aware RTIN error, or a CPU surface built
+  on the rendered triangulation, would remove it.
 - [ ] **Matched imagery.** The NAC mosaic (and a global source, e.g. LROC WAC)
   on the cap (#147 path) and on the geographic product through the upstream
   overlay, at a matched texel target; then the same frame, memory and request
@@ -1222,8 +1558,11 @@ geometry evidence*):
 - Imagery-at-scale items from *Independent imagery* (shared vertex buffers for
   blocks, a tiled-layout `MapImageLayer` variant) stay open.
 
-Commands: `bash scripts/build-moon-terrain/cube.sh --workers N`;
-`node scripts/validate-cube-terrain.mjs`;
+Commands: `bash scripts/build-moon-terrain/cube.sh --workers N` (also writes
+`tileset-measured.json` / `mesh-error.json` via `dem.py cube-error DIR`);
+`CUBE_OUT=…/moon-terrain-cube-simplified-003 bash scripts/build-moon-terrain/cube.sh --simplify 0.03`;
+`node scripts/validate-cube-terrain.mjs [--dir …]`;
+`node scripts/capture-cube-imagery.mjs --gpu --experiments compare --frames 240 --error-target E --cube-tileset DIR/TILESET --label L [--shots]`;
 `node scripts/capture-cube-imagery.mjs --gpu --experiments cracks,cracks-dynamic,skirt-cost`;
 `node scripts/capture-cube-imagery.mjs --gpu --experiments compare [--products P] [--error-target N] [--throttle 40,100]`,
 then `python3 scripts/terrain/dem.py field-error RECORD.json --base … --fusion …`.

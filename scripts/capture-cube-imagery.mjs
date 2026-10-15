@@ -55,6 +55,12 @@
  *  skirt-cost    Per view, warm, one page: frame timing with skirts on and off (terrain
  *                only and grid imagery refined). Meaningful with --gpu.
  *
+ * --cube-tileset DIR/TILESET (relative to test-catalogs/data, default moon-terrain-cube/tileset.json)
+ * points every cube catalog at another cube product or tileset — e.g. the measured geometric error
+ * (moon-terrain-cube/tileset-measured.json) or a simplified build
+ * (moon-terrain-cube-simplified/tileset.json) — by rewriting the catalog as the page fetches it;
+ * CPU grids come from the same directory. --shots adds shaded, lod and wireframe frames to compare.
+ *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5173/), CHROMIUM_PATH.
  * Default is SwiftShader software WebGL (correctness, counts); --gpu uses the
  * host GPU (--angle metal|vulkan|…) and is the only mode whose timings mean anything.
@@ -84,6 +90,11 @@ const R = 1737.4;
 const ONLY = args.views ? new Set(String(args.views).split(',')) : null;
 const views = (names) => names.filter(n => !ONLY || ONLY.has(n));
 const CATALOG = (k) => `test-catalogs/experiments/moon-terrain-cube-imagery-${k}`;
+const CUBE_TILESET = String(args['cube-tileset'] ?? 'moon-terrain-cube/tileset.json');
+const CUBE_DIR = `/${CUBE_TILESET.split('/')[0]}/`;
+/** Names this run's record and frames (--label), so variants do not overwrite each other. */
+const LABEL = args.label ? String(args.label) : null;
+const CUBE_GLB = new RegExp(`${CUBE_DIR.replace(/[-/]/g, '\\$&')}(?:px|nx|py|ny|pz|nz)/(\\d+)/.*\\.glb$`);
 
 const at = (latDeg, lonDeg, hKm) => {
   const la = latDeg * Math.PI / 180, lo = lonDeg * Math.PI / 180, r = R + hKm;
@@ -111,14 +122,14 @@ const MARKER_COLOURS = { shackleton: [255, 40, 40], 'south-pole': [40, 255, 40],
  */
 /** Comparison poses with heights fixed from the cube CPU grids (same fused field), so every product gets identical poses. */
 const COMPARE_VIEWS = {
-  shackleton: VIEWS.shackleton, pole: VIEWS.pole, overview: VIEWS.overview, 'face-corner': VIEWS['face-corner'],
+  shackleton: VIEWS.shackleton, pole: VIEWS.pole, overview: VIEWS.overview, 'face-corner': VIEWS['face-corner'], 'face-edge': VIEWS['face-edge'],
   'shackleton-grazing': { eye: at(-89.33, 129.78, 0.9117 + 0.4), target: at(-89.67, -50.22, -1.1193 + 0.3), fov: 60 },
   'pole-grazing': { eye: at(-89.7, -30, -0.6767 + 0.5), target: at(-89.4, 150, 0.6022 + 0.2), fov: 60 },
   // Inside the polar cap's 200 km square from edge to edge of the frame: no horizon to account for.
   'cap-nadir': { eye: at(-89.5, 60, 40), target: at(-89.55, 60, 0), fov: 60 },
 };
 const PRODUCTS = {
-  cube: { catalog: 'test-catalogs/experiments/moon-terrain-cube', data: '/moon-terrain-cube/', spacingM: (L) => 2 * R * 1000 / (64 * 2 ** L) },
+  cube: { catalog: 'test-catalogs/experiments/moon-terrain-cube', data: CUBE_DIR, spacingM: (L) => 2 * R * 1000 / (64 * 2 ** L) },
   // Geometric error per vertex spacing: cube 0.25 (dem.py), geographic ≈ 0.25 (QuantizedMeshPlugin:
   // πR / (4·65·2^z) against πR / (64·2^z)), polar cap 0.125. Matched screen-space spacing therefore
   // needs the cap at half the others' errorTarget; --equal-error-target keeps 2 everywhere.
@@ -158,6 +169,14 @@ async function openViewer(catalog, setup) {
     if (m.type() === 'error' || (m.type() === 'warning' && !/Tile load error|tiles versions|Failed to load (baseMap|normalMap)|Initial assets settled/.test(m.text()))) errors.push(`${m.type()}: ${m.text()}`);
   });
   if (setup) await setup(page);
+  if (CUBE_TILESET !== 'moon-terrain-cube/tileset.json') {
+    await page.route(/\/test-catalogs\/experiments\/moon-terrain-cube[\w-]*\.json/, async (route) => {
+      const response = await route.fetch();
+      const body = (await response.text()).replaceAll('../data/moon-terrain-cube/tileset.json', `../data/${CUBE_TILESET}`)
+        .replaceAll('../data/moon-terrain-cube/cpu-grids.json', `../data${CUBE_DIR}cpu-grids.json`);
+      await route.fulfill({ response, body });
+    });
+  }
   await page.goto(new URL(`?catalog=${catalog}&test=1`, BASE).href, { waitUntil: 'domcontentloaded', timeout: 180_000 });
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, { timeout: 180_000 });
   if (args.throttle) {
@@ -175,6 +194,8 @@ async function openViewer(catalog, setup) {
     window.ciMoon = () => window.ci.getRenderer().getBodyMesh('Moon');
     window.ciLayer = () => window.ciMoon().terrainManager?.cubeImageryLayer;
   });
+  // --error-target N: the terrain's errorTarget for every experiment (compare also applies its own default).
+  if (args['error-target']) await page.evaluate((e) => { window.ciMoon().terrainManager.tiles.errorTarget = e; }, Number(args['error-target']));
   if (/imagery/.test(catalog)) await page.waitForFunction(() => window.ciLayer()?.manifest != null, null, { timeout: 60_000 });
   if (!env) {
     env = await page.evaluate(() => {
@@ -203,7 +224,7 @@ const pose = (page, view, mode) => page.evaluate(({ view, mode }) => {
   c.lookAt(target); c.updateMatrixWorld(true);
 }, { view, mode });
 
-const snapshot = (page) => page.evaluate(() => {
+const snapshot = (page) => page.evaluate((CUBE_DIR) => {
   const bm = window.ciMoon(), tm = bm.terrainManager;
   const visible = [];
   tm.tiles.visibleTiles.forEach(t => { if (t.content?.uri) visible.push(t.content.uri); });
@@ -212,14 +233,14 @@ const snapshot = (page) => page.evaluate(() => {
   tm.tiles.visibleTiles.forEach(t => t.engineData?.scene?.traverse(o => { if (o.isMesh && !o.name.startsWith('cube-imagery-block')) meshIds.push(o.uuid); }));
   meshIds.sort();
   const res = performance.getEntriesByType('resource');
-  const glb = res.filter(e => e.name.includes('/moon-terrain-cube/') && e.name.endsWith('.glb'));
+  const glb = res.filter(e => e.name.includes(CUBE_DIR) && e.name.endsWith('.glb'));
   const img = res.filter(e => e.name.includes('/moon-imagery-cube-') && e.name.endsWith('.png'));
   let levels = {};
   tm.tiles.visibleTiles.forEach(t => { const m = /\/(\d+)\/\d+\/\d+\.glb$/.exec(t.content?.uri ?? ''); if (m) levels[m[1]] = (levels[m[1]] ?? 0) + 1; });
   return { metrics: bm.terrainMetrics, imagery: bm.terrainCubeImageryStats, visibleTiles: visible, geometryLevels: levels,
     meshIds, glbRequests: glb.length, glbBytes: glb.reduce((s, e) => s + (e.encodedBodySize || 0), 0),
     imageryRequests: img.length, imageryBytes: img.reduce((s, e) => s + (e.encodedBodySize || 0), 0) };
-});
+}, CUBE_DIR);
 
 /** Wait until terrain and imagery are both idle and unchanged for STABLE polls. */
 async function settle(page, view, mode, { imagery = true } = {}) {
@@ -939,9 +960,9 @@ try {
     const scenarios = String(args.scenarios ?? 'normal,delayed,failed,evicting').split(',');
     for (const scenario of scenarios) {
       const setup = async (page) => {
-        const level = (url) => Number(/\/moon-terrain-cube\/(?:px|nx|py|ny|pz|nz)\/(\d+)\//.exec(url)?.[1] ?? -1);
-        if (scenario === 'delayed') await page.route(/\/moon-terrain-cube\/.*\.glb$/, async (route) => { if (level(route.request().url()) >= 6) await new Promise(r => setTimeout(r, 2500)); await route.continue(); });
-        if (scenario === 'failed') await page.route(/\/moon-terrain-cube\/.*\.glb$/, (route) => (level(route.request().url()) >= 9 ? route.abort() : route.continue()));
+        const level = (url) => Number(CUBE_GLB.exec(url)?.[1] ?? -1);
+        if (scenario === 'delayed') await page.route(CUBE_GLB, async (route) => { if (level(route.request().url()) >= 6) await new Promise(r => setTimeout(r, 2500)); await route.continue(); });
+        if (scenario === 'failed') await page.route(CUBE_GLB, (route) => (level(route.request().url()) >= 9 ? route.abort() : route.continue()));
       };
       const { page, errors } = await openViewer(CATALOG('grid'), setup);
       if (scenario === 'evicting') await page.evaluate(() => { const c = window.ciMoon().terrainManager.tiles.lruCache; c.minBytesSize = 24 * 2 ** 20; c.maxBytesSize = 40 * 2 ** 20; });
@@ -975,7 +996,7 @@ try {
     for (const product of String(args.products ?? 'cube,polar,geographic').split(',')) {
       const P = PRODUCTS[product];
       for (const name of views(Object.keys(COMPARE_VIEWS))) {
-        if (product === 'polar' && name === 'face-corner') continue; // outside the cap
+        if (product === 'polar' && (name === 'face-corner' || name === 'face-edge')) continue; // outside the cap
         const view = COMPARE_VIEWS[name];
         const { page, errors } = await openViewer(P.catalog);
         const errorTarget = Number(args['error-target'] ?? (args['equal-error-target'] ? 2 : (P.errorTarget ?? 2)));
@@ -1025,7 +1046,19 @@ try {
         for (let j = 0; j < 20; j++) for (let i = 0; i < 32; i++) grid.push([Math.floor((i + 0.5) * VIEWPORT.width / 32), Math.floor((j + 0.5) * VIEWPORT.height / 20)]);
         const surfaceHits = (await rayCast(page, grid)).map(h => (h ? h.slice(0, 3).map(v => Math.round(v * 1000) / 1000) : null));
         const timing = await frameTiming(page, FRAMES);
-        const row = { product, view: name, errorTarget, throttle: args.throttle ?? null, finished: stable >= 20, coldToFinishedMs: coldMs, visibleTiles: m.metrics.tiles.visible, levels: detail.levels,
+        let files = null;
+        if (args.shots) {
+          const stem = `compare-${LABEL ?? product}-${product}-${name}-et${errorTarget}`;
+          files = { shaded: await shot(page, `${stem}-shaded`) };
+          await pose(page, view, 'lod'); await page.waitForTimeout(600);
+          files.lod = await shot(page, `${stem}-lod`);
+          await pose(page, view, 'shaded');
+          await page.evaluate(() => window.ciMoon().terrainManager.tiles.group.traverse(o => { if (o.isMesh) o.material.wireframe = true; }));
+          await page.waitForTimeout(600);
+          files.wireframe = await shot(page, `${stem}-wireframe`);
+          await page.evaluate(() => window.ciMoon().terrainManager.tiles.group.traverse(o => { if (o.isMesh) o.material.wireframe = false; }));
+        }
+        const row = { product, view: name, errorTarget, cubeTileset: product === 'cube' ? CUBE_TILESET : null, files, throttle: args.throttle ?? null, finished: stable >= 20, coldToFinishedMs: coldMs, visibleTiles: m.metrics.tiles.visible, levels: detail.levels,
           centreLevel: detail.centreLevel, centreVertexSpacingM: detail.centreLevel == null ? null : P.spacingM(detail.centreLevel),
           requests: detail.requests, bytes: detail.bytes, sincePose: { requests: detail.requests - atPose.requests, bytes: detail.bytes - atPose.bytes }, cpuGridRequests: detail.cpuGridRequests, memory: m.metrics.memory, cubeGrids: m.cube,
           terrainPixelFraction: cover.mitigated.terrainPixels / (cover.width * cover.height), holePixels: cover.mitigated.holePixels, surfaceHits,
@@ -1073,12 +1106,12 @@ try {
 }
 
 const record = {
-  generator: 'scripts/capture-cube-imagery.mjs', created: new Date().toISOString(), viewport: VIEWPORT,
+  generator: 'scripts/capture-cube-imagery.mjs', created: new Date().toISOString(), viewport: VIEWPORT, cubeTileset: CUBE_TILESET, label: LABEL,
   poses: { frame: 'IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)', views: VIEWS },
   browser: { ...env, launch: `playwright chromium headless, ${LAUNCH.join(' ')}${GPU ? ' (hardware GPU)' : ' (software WebGL)'}; ?test=1 (no antialias/bloom/stars)` },
   host: { platform: `${platform()} ${release()}`, cpus: cpus().length, cpuModel: cpus()[0]?.model, memoryGB: Math.round(totalmem() / 2 ** 30) },
   results,
 };
-const file = join(OUT, `imagery-captures-${EXPERIMENTS.join('-')}.json`);
+const file = join(OUT, `imagery-captures-${EXPERIMENTS.join('-')}${LABEL ? `-${LABEL}` : ''}.json`);
 writeFileSync(file, JSON.stringify(record, null, 1) + '\n');
 console.log(`wrote ${file}`);

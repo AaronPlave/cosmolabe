@@ -16,6 +16,10 @@
  *   - CPU grids match the emitted lattice vertices
  *   - pole / antimeridian / child-boundary ownership on the real product
  *
+ *   - simplified products (cube-tile --simplify): every unit boundary segment kept,
+ *     no unused vertices, and the rendered surface within each tile's stated
+ *     bound (cpu-grids.json tiles[i][5]) of the CPU lattice at sampled points
+ *   - tileset-measured.json (when present): geometricError never below a child's
  *   - skirts (when built): surface triangles first (extras.surfaceTriangles),
  *     radial walls under each edge, and every mixed-level gap below covered by
  *     the higher tile's skirt — skirt depths read back from the .glb
@@ -26,6 +30,7 @@
  *   - picks and clearance aimed at the worst mixed-LOD boundaries: CPU hit vs
  *     the rendered pair (fine tile beside its coarse neighbour, skirts included)
  *   - CPU bilinear samples vs the emitted triangles along the same radial ray
+ *     (and, simplified, CPU lattice triangles vs the emitted ones)
  *   - control points: MoonFall's LOLA 118 m waypoint elevations vs CPU samples
  *   - picking and camera clearance through the #148 port, against brute-force
  *     intersection with the emitted float32 triangles
@@ -118,6 +123,38 @@ const readGrid = (f, L, x, y) => {
 const tiles = new Map(); // id → { face, L, x, y }
 const SKIRTS = product.mesh.skirts !== 'none';
 const SURFACE_TRIANGLES = (G - 1) * (G - 1) * 2;
+// Simplified products draw RTIN triangles over a subset of the lattice; the CPU grid keeps the full lattice.
+const SIMPLIFIED = !!manifest.renderedMesh;
+const statedDeviationM = new Map(SIMPLIFIED ? manifest.tiles.map(([f, L, x, y, , d]) => [cubeTileId({ face: f, level: L, x, y }), d * 1000]) : []);
+/** Lattice (i, j) of each surface vertex, from its direction, and the vertex at each lattice index (−1 if dropped). */
+function latticeOf(glb, t) {
+  const [n, a, b] = BASES[t.face], N = (G - 1) * 2 ** t.L;
+  const surfaceVertices = SIMPLIFIED ? glb.vertices - (SKIRTS ? 4 * G : 0) : G * G;
+  const ij = new Float64Array(surfaceVertices * 2), vertexAt = new Int32Array(G * G).fill(-1);
+  for (let k = 0; k < surfaceVertices; k++) {
+    const P = [glb.P[k * 3], glb.P[k * 3 + 1], glb.P[k * 3 + 2]], w = P[0] * n[0] + P[1] * n[1] + P[2] * n[2];
+    const fi = ((P[0] * a[0] + P[1] * a[1] + P[2] * a[2]) / w + 1) / 2 * N - (G - 1) * t.x, fj = ((P[0] * b[0] + P[1] * b[1] + P[2] * b[2]) / w + 1) / 2 * N - (G - 1) * t.y;
+    const i = Math.round(fi), j = Math.round(fj);
+    if (Math.abs(fi - i) > 1e-3 || Math.abs(fj - j) > 1e-3 || i < 0 || j < 0 || i >= G || j >= G) throw new Error(`${cubeTileId(t)}: vertex ${k} off the lattice`);
+    ij[2 * k] = i; ij[2 * k + 1] = j; vertexAt[j * G + i] = k;
+  }
+  return { ij, vertexAt, surfaceVertices };
+}
+/** Radius (m) of the emitted surface triangles along the ray through fractional lattice point (fi, fj), or NaN. */
+function renderedRadius(glb, lat, d, fi, fj) {
+  for (let tri = 0; tri < glb.surfaceTriangles; tri++) {
+    const p = glb.index[3 * tri], q = glb.index[3 * tri + 1], r = glb.index[3 * tri + 2];
+    const ax = lat.ij[2 * p], ay = lat.ij[2 * p + 1], bx = lat.ij[2 * q], by = lat.ij[2 * q + 1], cx = lat.ij[2 * r], cy = lat.ij[2 * r + 1];
+    const e = (x0, y0, x1, y1) => (x1 - x0) * (fj - y0) - (y1 - y0) * (fi - x0);
+    if (e(ax, ay, bx, by) < -1e-9 || e(bx, by, cx, cy) < -1e-9 || e(cx, cy, ax, ay) < -1e-9) continue;
+    const A = [glb.P[p * 3], glb.P[p * 3 + 1], glb.P[p * 3 + 2]];
+    const e1 = [glb.P[q * 3] - A[0], glb.P[q * 3 + 1] - A[1], glb.P[q * 3 + 2] - A[2]], e2 = [glb.P[r * 3] - A[0], glb.P[r * 3 + 1] - A[1], glb.P[r * 3 + 2] - A[2]];
+    const nn = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    return (nn[0] * A[0] + nn[1] * A[1] + nn[2] * A[2]) / (nn[0] * d[0] + nn[1] * d[1] + nn[2] * d[2]);
+  }
+  return NaN;
+}
+const boundaryChanged = [], unusedVertices = [];
 // Builder loop order S, E, N, W: vertex (i, j) of each loop, k = 0…G−1.
 const LOOPS = [(k) => [k, 0], (k) => [G - 1, k], (k) => [G - 1 - k, G - 1], (k) => [0, G - 1 - k]];
 const LOOP_OF_EDGE = { S: 0, E: 1, N: 2, W: 3 };
@@ -150,15 +187,31 @@ function walk(node, ancestors) {
     gate(kids.length === 4 && [...want].every(w => got.has(w)), `${id}: REPLACE parent must hold exactly its four children`);
   }
   const glb = readGlb(join(DIR, node.content.uri));
-  gate(glb.vertices === G * G * (SKIRTS ? 1 : 1) + (SKIRTS ? 4 * G : 0), `${id}: unexpected vertex count ${glb.vertices}`);
-  gate(glb.surfaceTriangles === SURFACE_TRIANGLES && glb.indexCount === 3 * (SURFACE_TRIANGLES + (SKIRTS ? 8 * (G - 1) : 0)), `${id}: unexpected triangle counts`);
+  const lat = latticeOf(glb, tiles.get(id));
+  if (SIMPLIFIED) {
+    gate(glb.indexCount === 3 * (glb.surfaceTriangles + (SKIRTS ? 8 * (G - 1) : 0)), `${id}: unexpected triangle counts`);
+    const used = new Uint8Array(glb.vertices);
+    for (const v of glb.index) used[v] = 1;
+    if (used.includes(0)) unusedVertices.push(id);
+    // Every unit segment of the tile boundary is an edge of exactly one surface triangle: the boundary is the lattice's.
+    let segments = 0;
+    for (let tri = 0; tri < glb.surfaceTriangles; tri++) for (let k = 0; k < 3; k++) {
+      const p = glb.index[3 * tri + k], q = glb.index[3 * tri + (k + 1) % 3];
+      const [pi, pj, qi, qj] = [lat.ij[2 * p], lat.ij[2 * p + 1], lat.ij[2 * q], lat.ij[2 * q + 1]];
+      if (Math.abs(pi - qi) + Math.abs(pj - qj) === 1 && ((pi === qi && (pi === 0 || pi === G - 1)) || (pj === qj && (pj === 0 || pj === G - 1)))) segments++;
+    }
+    if (segments !== 4 * (G - 1)) boundaryChanged.push(`${id}: ${segments} boundary segments`);
+  } else {
+    gate(glb.vertices === G * G + (SKIRTS ? 4 * G : 0), `${id}: unexpected vertex count ${glb.vertices}`);
+    gate(glb.surfaceTriangles === SURFACE_TRIANGLES && glb.indexCount === 3 * (SURFACE_TRIANGLES + (SKIRTS ? 8 * (G - 1) : 0)), `${id}: unexpected triangle counts`);
+  }
   if (SKIRTS) {
     // Each skirt vertex sits radially below its edge vertex, by one depth per loop, with the edge's normal.
     const depths = [];
     for (let e = 0; e < 4; e++) {
       let lo = Infinity, hi = -Infinity;
       for (let k = 0; k < G; k++) {
-        const [i, j] = LOOPS[e](k), top = j * G + i, b = G * G + e * G + k;
+        const [i, j] = LOOPS[e](k), top = lat.vertexAt[j * G + i], b = lat.surfaceVertices + e * G + k;
         const T = [glb.P[top * 3], glb.P[top * 3 + 1], glb.P[top * 3 + 2]], B = [glb.P[b * 3], glb.P[b * 3 + 1], glb.P[b * 3 + 2]];
         const d = norm(T) - norm(B), ut = unit(T), ub = unit(B);
         lo = Math.min(lo, d); hi = Math.max(hi, d);
@@ -181,16 +234,17 @@ function walk(node, ancestors) {
   let map = levelMaps.get(L);
   if (!map) levelMaps.set(L, map = new Map());
   for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
-    const v = j * G + i;
+    const v = lat.vertexAt[j * G + i];
+    if (v < 0) continue; // dropped by simplification (never an edge vertex: boundaryChanged)
     const P = [glb.P[v * 3], glb.P[v * 3 + 1], glb.P[v * 3 + 2]];
-    const r = norm(P) - (R_M + h[v]);
+    const r = norm(P) - (R_M + h[j * G + i]);
     if (Math.abs(r) > f32TolM) gridMismatch.push(`${id}[${i},${j}] ${r.toFixed(3)} m`);
     if (i !== 0 && j !== 0 && i !== G - 1 && j !== G - 1) continue;
     const key = keyOf(exactP(f, dyadic((G - 1) * x + i, L), dyadic((G - 1) * y + j, L)));
     const Nv = [glb.N[v * 3], glb.N[v * 3 + 1], glb.N[v * 3 + 2]];
     const loops = [j === 0 && 0, i === G - 1 && 1, j === G - 1 && 2, i === 0 && 3].filter(e => e !== false);
     const prior = map.get(key);
-    if (!prior) { map.set(key, { P, N: Nv, h: h[v], faces: new Set([f]), tol: f32TolM, owners: loops.map(loop => ({ id, loop })) }); continue; }
+    if (!prior) { map.set(key, { P, N: Nv, h: h[j * G + i], faces: new Set([f]), tol: f32TolM, owners: loops.map(loop => ({ id, loop })) }); continue; }
     for (const loop of loops) prior.owners.push({ id, loop });
     const d = Math.hypot(P[0] - prior.P[0], P[1] - prior.P[1], P[2] - prior.P[2]);
     if (d > prior.tol + f32TolM) sharedEscapes.push(`${id}[${i},${j}] ${d.toFixed(4)} m`);
@@ -198,7 +252,7 @@ function walk(node, ancestors) {
     (prior.faces.size === 3 ? shared.corner : prior.faces.size === 2 ? shared.crossFace : shared.sameFace).push(d);
     const cx = Nv[1] * prior.N[2] - Nv[2] * prior.N[1], cy = Nv[2] * prior.N[0] - Nv[0] * prior.N[2], cz = Nv[0] * prior.N[1] - Nv[1] * prior.N[0];
     shared.normalDeg.push(Math.atan2(Math.hypot(cx, cy, cz), Nv[0] * prior.N[0] + Nv[1] * prior.N[1] + Nv[2] * prior.N[2]) * 180 / Math.PI);
-    if (h[v] !== prior.h) { shared.heightMismatch++; shared.heightMismatchAt ??= []; shared.heightMismatchAt.push({ id, i, j, key, h: h[v], other: prior.h, faces: [...prior.faces] }); }
+    if (h[j * G + i] !== prior.h) { shared.heightMismatch++; shared.heightMismatchAt ??= []; shared.heightMismatchAt.push({ id, i, j, key, h: h[j * G + i], other: prior.h, faces: [...prior.faces] }); }
   }
   for (const k of kids) walk(k, [...ancestors, node.boundingVolume.box]);
 }
@@ -216,6 +270,14 @@ gate(gridMismatch.length === 0, `CPU grids disagree with emitted vertices: ${gri
 gate(shared.heightMismatch === 0, `${shared.heightMismatch} shared vertices have different CPU heights: ${JSON.stringify(shared.heightMismatchAt?.slice(0, 3))}`);
 gate(sharedEscapes.length === 0, `shared vertices differ beyond float32 tile-offset precision: ${sharedEscapes.slice(0, 5).join('; ')}`);
 gate(shared.corner.length > 0 && shared.crossFace.length > 0, 'expected cross-face edge and corner vertices');
+gate(boundaryChanged.length === 0, `simplification must keep every boundary segment: ${boundaryChanged.slice(0, 5).join('; ')}`);
+gate(unusedVertices.length === 0, `simplified tiles must not carry unused vertices: ${unusedVertices.slice(0, 5).join('; ')}`);
+// tileset-measured.json (dem.py cube-error): a parent's error never below a child's, else REPLACE could stop above detail.
+let measuredChecked = 0;
+if (existsSync(join(DIR, 'tileset-measured.json'))) {
+  const check = (n) => { for (const c of n.children ?? []) { measuredChecked++; gate(n.geometricError >= c.geometricError, `tileset-measured: ${n.content?.uri} error below its child ${c.content.uri}`); check(c); } };
+  check(JSON.parse(readFileSync(join(DIR, 'tileset-measured.json'), 'utf8')).root);
+}
 gate(skirtShape.length === 0, `skirts must hang radially, one depth per edge, with edge normals: ${skirtShape.slice(0, 5).join('; ')}`);
 console.log(`tree: ${tiles.size} tiles, levels ${JSON.stringify(perLevel)} (${((performance.now() - t0) / 1000).toFixed(1)} s)`);
 console.log(`shared vertices: same-face ${fmt(stats(shared.sameFace))}; cross-face ${fmt(stats(shared.crossFace))}; corners ${fmt(stats(shared.corner))}`);
@@ -351,10 +413,10 @@ for (const [L, v] of Object.entries(parentChildStats)) console.log(`  L${L}: ${f
 let seed = Number(args.seed ?? 149) >>> 0;
 const rand = () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const datum = manifest.datum;
-const cpuVsTri = {};
+const cpuVsTri = {}, cpuLatticeVsTri = {}, beyondStated = [];
 const PER_TILE = Number(args['samples-per-tile'] ?? 24);
 for (const t of tiles.values()) {
-  const glb = readGlb(join(DIR, t.face, String(t.L), String(t.x), `${t.y}.glb`));
+  const glb = readGlb(join(DIR, t.face, String(t.L), String(t.x), `${t.y}.glb`)), lattice = latticeOf(glb, t);
   const h = readGrid(t.face, t.L, t.x, t.y);
   const sampler = new CubeSphereSampler(datum, manifest.source);
   sampler.addTile({ face: t.face, level: t.L, x: t.x, y: t.y, width: G, height: G, elevationsKm: Float64Array.from(h, v => v / 1000) });
@@ -365,20 +427,33 @@ for (const t of tiles.values()) {
     const lat = Math.atan2(d[2], Math.hypot(d[0], d[1])) * 180 / Math.PI, lon = Math.atan2(d[1], d[0]) * 180 / Math.PI;
     const sample = sampler.sample(lat, lon);
     if (!gate(sample != null, `${cubeTileId(t)}: CPU sampler has no answer inside its own tile`)) continue;
-    // The triangle whose (u, v) projection holds the point: gnomonic maps the
+    // The emitted triangle whose (u, v) projection holds the point: gnomonic maps the
     // planar triangle's radial image to straight lines in (u, v).
-    const i0 = Math.min(G - 2, Math.floor(fi)), j0 = Math.min(G - 2, Math.floor(fj));
-    const a = j0 * G + i0, b = a + 1, c = a + G + 1, e = a + G;
-    const [p, q, r] = fi - i0 >= fj - j0 ? [a, b, c] : [a, c, e];
-    const V = (k) => [glb.P[k * 3], glb.P[k * 3 + 1], glb.P[k * 3 + 2]];
-    const A = V(p), B = V(q), C = V(r);
-    const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
-    const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
-    const tRay = (n[0] * A[0] + n[1] * A[1] + n[2] * A[2]) / (n[0] * d[0] + n[1] * d[1] + n[2] * d[2]);
+    const tRay = renderedRadius(glb, lattice, d, fi, fj);
+    if (!gate(Number.isFinite(tRay), `${cubeTileId(t)}: no emitted triangle over (${fi}, ${fj})`)) continue;
+    if (SIMPLIFIED) {
+      // The CPU ray-query surface: the full lattice triangle (v00→v11) under the same point.
+      const i0 = Math.min(G - 2, Math.floor(fi)), j0 = Math.min(G - 2, Math.floor(fj));
+      const a = j0 * G + i0, [p, q, r] = fi - i0 >= fj - j0 ? [a, a + 1, a + G + 1] : [a, a + G + 1, a + G];
+      const V = (k) => { const e = unit(exactP(t.face, dyadic((G - 1) * t.x + k % G, t.L), dyadic((G - 1) * t.y + Math.floor(k / G), t.L))); return e.map(c => c * (R_M + h[k])); };
+      const A = V(p), B = V(q), C = V(r);
+      const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
+      const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+      const cpuR = (n[0] * A[0] + n[1] * A[1] + n[2] * A[2]) / (n[0] * d[0] + n[1] * d[1] + n[2] * d[2]);
+      (cpuLatticeVsTri[t.L] ??= []).push(tRay - cpuR);
+      const stated = statedDeviationM.get(cubeTileId(t));
+      if (Math.abs(tRay - cpuR) > stated + 2 * t.f32TolM) beyondStated.push(`${cubeTileId(t)}: ${(tRay - cpuR).toFixed(3)} m, stated ${stated} m`);
+    }
     (cpuVsTri[t.L] ??= []).push(tRay - (R_M + sample.elevationKm * 1000));
   }
 }
 const cpuVsTriStats = Object.fromEntries(Object.entries(cpuVsTri).map(([L, v]) => [L, { ...stats(v), meanM: v.reduce((s, x) => s + x, 0) / v.length }]));
+gate(beyondStated.length === 0, `rendered surface beyond the stated deviation from the CPU lattice: ${beyondStated.slice(0, 5).join('; ')}`);
+const cpuLatticeVsTriStats = Object.fromEntries(Object.entries(cpuLatticeVsTri).map(([L, v]) => [L, stats(v)]));
+if (SIMPLIFIED) {
+  console.log('emitted (simplified) − CPU lattice triangle (radial, m; gated against cpu-grids.json tiles[i][5]):');
+  for (const [L, st] of Object.entries(cpuLatticeVsTriStats)) console.log(`  L${L}: ${fmt(st)}`);
+}
 console.log('CPU bilinear − triangle (radial, m):');
 for (const [L, s] of Object.entries(cpuVsTriStats)) console.log(`  L${L}: ${fmt(s)} mean=${s.meanM.toFixed(3)}`);
 
@@ -500,6 +575,10 @@ for (const [site, lat0, lon0, spreadKm] of sites) {
     if (!gate(hit.kind === 'hit', `${site} pick ${k}: ${hit.kind} ${hit.reason ?? ''} target ${tDeg.map(v => v.toFixed(5))} eye ${eye.map(v => v.toFixed(4))} coverage ${JSON.stringify(source.coverage(...tDeg))}`)) continue;
     const brute = bruteForce(ray, hit);
     const pickVsGlbM = Math.abs(brute - hit.distanceKm * 1000);
+    // Simplified: the CPU hit's own radial line onto the emitted triangles, against the tile's stated bound.
+    const hp = [hit.position.xKm, hit.position.yKm, hit.position.zKm];
+    const radialVsGlbM = SIMPLIFIED ? bruteForce({ origin: { xKm: 0, yKm: 0, zKm: 0 }, direction: unit(hp), nearKm: 0, farKm: 1e4 }, hit) - norm(hp) * 1000 : null;
+    if (SIMPLIFIED) gate(Math.abs(radialVsGlbM) <= statedDeviationM.get(hit.tileId) + 0.05, `${site} pick ${k}: rendered ${radialVsGlbM.toFixed(3)} m radially from the CPU hit, stated ${statedDeviationM.get(hit.tileId)} m`);
     if (!Number.isFinite(brute)) failures.push(`${site} pick ${k}: no float32 triangle hit in ${hit.tileId} at ${JSON.stringify(hit.position)} (CPU distance ${hit.distanceKm} km, triangle ${hit.triangleIndex})`);
     const cam = cameraPositionFromSurfacePick(hit, 0.05, true);
     const camR = norm([cam.xKm, cam.yKm, cam.zKm]);
@@ -510,14 +589,17 @@ for (const [site, lat0, lon0, spreadKm] of sites) {
     const back = await requestSurfaceIntersection(surface, { origin: cam, direction: [-hit.normal[0], -hit.normal[1], -hit.normal[2]], nearKm: 0, farKm: 1 },
       { maxMeshErrorKm: 0.001 }, new AbortController().signal, surface);
     const lineOfSightM = back.kind === 'hit' ? back.distanceKm * 1000 : null;
-    pickRows.push({ site, tileId: hit.tileId, detail: hit.detail, pickVsGlbM, clearanceAboveSampleM, lineOfSightM, renderedNormalUp: hit.normal.reduce((s, c, i) => s + c * up[i], 0) });
+    pickRows.push({ site, tileId: hit.tileId, detail: hit.detail, pickVsGlbM, radialVsGlbM, clearanceAboveSampleM, lineOfSightM, renderedNormalUp: hit.normal.reduce((s, c, i) => s + c * up[i], 0) });
   }
 }
 const pickStats = stats(pickRows.map(r => r.pickVsGlbM));
 const losStats = stats(pickRows.map(r => r.lineOfSightM - 50));
 const clearanceMin = Math.min(...pickRows.map(r => r.clearanceAboveSampleM));
 gate(pickRows.every(r => r.detail === 'coarse'), 'partial-coverage hits must stay provisional (coarse)');
-gate(pickStats.maxM < 0.05, `CPU picks must match the emitted triangles (max ${pickStats.maxM} m)`);
+// Unsimplified, the CPU surface is the emitted lattice; simplified, it is not (gated radially above).
+if (!SIMPLIFIED) gate(pickStats.maxM < 0.05, `CPU picks must match the emitted triangles (max ${pickStats.maxM} m)`);
+const pickRadialStats = SIMPLIFIED ? stats(pickRows.map(r => r.radialVsGlbM)) : null;
+if (SIMPLIFIED) console.log(`picking (simplified): CPU hit vs emitted triangles along the ray ${fmt(pickStats)}; radially ${fmt(pickRadialStats)}`);
 // Placement is gated; full clearance along the normal is measured: the #148
 // consumer places a camera, it does not certify a swept volume, and nearby
 // relief in a concave spot can come closer than the requested 50 m.
@@ -596,6 +678,9 @@ const report = {
   mixedLodCracksNoSkirts: { note: 'gap between a tile edge vertex and the straight edge of each coarser neighbour present across that edge (fine-coarse level pairs)',
     deltaLevel1: crackDelta1, deltaLevel1ByLevel: crackDelta1ByLevel, crossFace: stats(crossFaceCracks), byLevelPair: crackByPair, worstEdges: crackWorst.slice(0, 10) },
   parentChildHeights: { note: 'child − parent CPU heights at the parent\'s own lattice positions, by child level (as validate-terrain.mjs reports for the geographic pyramid)', byChildLevel: parentChildStats },
+  simplification: SIMPLIFIED ? { renderedMesh: manifest.renderedMesh, boundarySegmentsChanged: boundaryChanged.length, tilesWithUnusedVertices: unusedVertices.length,
+    emittedMinusCpuLatticeRadialM: cpuLatticeVsTriStats, samplesBeyondStatedBound: beyondStated.length, picksRadialVsEmittedM: pickRadialStats } : null,
+  tilesetMeasured: { parentChildPairsChecked: measuredChecked },
   cpuBilinearVsTriangles: { note: 'radial distance along the same geocentric ray: emitted float32 triangle − (datum + CPU bilinear height); positive = triangle above CPU sample',
     samplesPerTile: PER_TILE, byLevel: cpuVsTriStats },
   representationVsFusedField: product.representationErrorM,
