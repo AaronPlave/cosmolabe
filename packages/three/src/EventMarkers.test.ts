@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { Body } from '@cosmolabe/core';
-import { EventMarkers, eventAnchorOpacityAtSphere, pickEventMarkerGroups, type EventMarker } from './EventMarkers.js';
+import { EventMarkers, clipSegmentInFront, eventAnchorOpacityAtSphere, pickEventMarkerGroups, type EventMarker } from './EventMarkers.js';
 import { TrajectoryLine } from './TrajectoryLine.js';
-import { eventPiecesOnLines, selectEventTrajectoryBody, trajectoryLineResolver } from './UniverseRenderer.js';
+import { EVENT_LEAD_POLICY, UniverseRenderer, eventLeadRequest, eventPiecesOnLines, selectEventTrajectoryBody, trajectoryLineResolver } from './UniverseRenderer.js';
 import {
   BODY_FIXED, Body as CoreBody, FixedPointTrajectory, UniformRotation, Universe, type GeometryEvent,
 } from '@cosmolabe/core';
@@ -349,7 +349,7 @@ describe('EventMarkers', () => {
       trail.positions = Float32Array.from(times.flatMap((t) => [t, t * t, 0]));
       trail.count = times.length;
     };
-    const group = new EventMarkers(body, { intervalSamples: 5, trail: () => trail });
+    const group = new EventMarkers(body, { intervalSamples: 5, path: () => [trail] });
     group.setMarkers([marker({ temporality: 'interval', startEt: 10, endEt: 20, selected: true })]);
     const resolve = (_name: string, et: number): [number, number, number] => [et, et * et, 0];
     const geometry = group.spanEmphasis.geometry;
@@ -522,6 +522,26 @@ describe('interval pieces and span hits', () => {
     second.dispose();
   });
 
+  it('anchors a split interval on a drawn lead run without crossing a gap', () => {
+    const run = (times: number[]) => ({
+      times: Float64Array.from(times),
+      positions: Float32Array.from(times.flatMap((t) => [t - 10, 0, 0])),
+      count: times.length,
+    });
+    let path = [run([3, 5]), run([7, 8])];
+    const group = new EventMarkers(body, { path: () => path });
+    group.setMarkers([marker({
+      temporality: 'interval', startEt: 0, endEt: 20,
+      pieceStartEt: 0, pieceEndEt: 8, selected: true,
+    })]);
+    const resolve = (_name: string, et: number): [number, number, number] => [et - 10, 0, 0];
+    group.update(1, [0, 0, 0], resolve, [3, 8]);
+    expect(group.anchorFor('e1', 'q1', undefined, true)?.x).toBeCloseTo(-6);
+    path = [run([7, 8])];
+    expect(group.anchorFor('e1', 'q1', undefined, true)?.x).toBeCloseTo(-2.5);
+    group.dispose();
+  });
+
   it('anchors a span hit where the pointer is, and picks the stretch up to the trail head', () => {
     // Trail vertices every 4 s, head sample at 13.9: the last coarse interval
     // sample (12.5) is behind the head, but the drawn span reaches it.
@@ -531,7 +551,7 @@ describe('interval pieces and span hits', () => {
       positions: Float32Array.from(times.flatMap((t) => [t - 10, 0, 0])),
       count: times.length,
     };
-    const group = new EventMarkers(body, { intervalSamples: 5, trail: () => trail });
+    const group = new EventMarkers(body, { intervalSamples: 5, path: () => [trail] });
     group.setMarkers([marker({ temporality: 'interval', startEt: 2, endEt: 20 })]);
     group.update(1, [0, 0, 0], (_name, et) => [et - 10, 0, 0], [0, 13.9]);
     const c = camera();
@@ -602,7 +622,7 @@ describe('trajectory-line event placement', () => {
     const offset: [number, number, number] = [earth[0] - origin[0], earth[1] - origin[1], earth[2] - origin[2]];
     line.update(et, 1, resolver, undefined, undefined, offset);
 
-    const markers = new EventMarkers(station, { trail: () => line.drawnTrail() });
+    const markers = new EventMarkers(station, { path: () => line.drawnPath() });
     const earlier = et - 10800;
     markers.setMarkers([
       marker({ id: 'now', startEt: et, endEt: et }),
@@ -722,5 +742,222 @@ describe('trajectory-line event placement', () => {
     const clipper = { name: 'Europa Clipper', classification: 'spacecraft' } as Body;
     const jupiter = { name: 'Jupiter', classification: 'planet' } as Body;
     expect(selectEventTrajectoryBody([clipper, jupiter], 'Jupiter')).toBe(clipper);
+  });
+});
+
+describe('events on the future lead (#105)', () => {
+  it('requests a current-arc stub and a distant event excerpt without exposing intervening composite arcs', () => {
+    const day = 86400;
+    const universe = new Universe();
+    const spacecraft = new CoreBody({ name: 'Craft', classification: 'spacecraft', trajectory: new FixedPointTrajectory([0, 0, 0]) });
+    universe.addBody(spacecraft);
+    const lines = [0, 1, 2].map((arc) => new TrajectoryLine(spacecraft, {
+      minTime: arc * day, maxTime: (arc + 1) * day,
+      fixedResolver: (_name, t) => [t, 0, 0],
+    }));
+    // Exercise the renderer's public event API without constructing WebGL.
+    const renderer = Object.create(UniverseRenderer.prototype) as UniverseRenderer;
+    Object.assign(renderer, {
+      universe, scene: new THREE.Scene(), _markerScene: new THREE.Scene(),
+      trajectoryLines: new Map(lines.map((line, arc) => [`Craft__arc${arc}`, line])),
+      eventMarkerGroups: new Map(), bodyMeshes: new Map(), _eventPreview: null,
+    });
+    const event: GeometryEvent = {
+      id: 'future', queryId: 'q', kind: 'distance-range', temporality: 'interval',
+      start: 2 * day + 7200, end: 2 * day + 10800, bodies: { observer: 'Craft' }, label: '',
+    };
+    renderer.setEventResults([event], event);
+    for (const line of lines) line.update(day / 2, 1);
+    expect(lines[0].leadWindows()).toEqual([{ start: day / 2, end: day / 2 + 1800, kind: 'continuous' }]);
+    expect(lines[1].leadWindows()).toEqual([]);
+    expect(lines[2].leadWindows()).toEqual([{ start: 2 * day + 5400, end: 2 * day + 12600, kind: 'context' }]);
+    // Removing the event-owned requests preserves an independent catalog lead.
+    lines[0].setLeadRequest('catalog', { duration: 3600 });
+    renderer.setEventResults([event]);
+    for (const line of lines) line.update(day / 2, 1);
+    expect(lines[0].leadWindows()).toEqual([{ start: day / 2, end: day / 2 + 3600, kind: 'continuous' }]);
+    expect(lines[1].leadWindows()).toEqual([]);
+    expect(lines[2].leadWindows()).toEqual([]);
+    renderer.setEventResults([]);
+    for (const line of lines) line.dispose();
+  });
+
+  it('reveals only active future events and retains ordinary historical markers', () => {
+    const group = new EventMarkers(body);
+    group.setMarkers([
+      marker({ id: 'history', startEt: 5, endEt: 5 }),
+      marker({ id: 'selected', startEt: 20, endEt: 20, selected: true }),
+      marker({ id: 'other', startEt: 25, endEt: 25 }),
+      marker({ id: 'preview', startEt: 30, endEt: 30 }),
+    ]);
+    const update = () => group.update(1, [0, 0, 0], (_name, t) => [t, 0, 0], [0, 10], () => 0.8,
+      undefined, 1, undefined, { range: [0, 40], alphaAt: () => 1 });
+    const sprites = () => group.children.map((child) => child as THREE.Sprite);
+    update();
+    expect(sprites().map((sprite) => sprite.visible)).toEqual([true, true, false, false]);
+    group.setContextActive(true);
+    group.setPreview({ id: 'preview', queryId: 'q1' });
+    update();
+    expect(sprites().map((sprite) => sprite.visible)).toEqual([true, true, false, true]);
+    expect(sprites()[0].material.opacity).toBeCloseTo(0.8 * 0.35);
+    expect(sprites()[1].material.opacity).toBe(1);
+    group.setPreview(null);
+    update();
+    expect(sprites()[3].visible).toBe(false);
+    expect(group.anchorFor('other', 'q1')).toBeNull();
+    group.dispose();
+  });
+
+  it('does not show an active future glyph inside the gap between lead excerpts', () => {
+    const group = new EventMarkers(body);
+    group.setMarkers([marker({ startEt: 20, endEt: 20, selected: true })]);
+    group.update(1, [0, 0, 0], (_name, t) => [t, 0, 0], [0, 10], () => 1,
+      undefined, 1, undefined, { range: [0, 40], alphaAt: (t) => t > 30 ? 1 : 0 });
+    expect(group.children[0].visible).toBe(false);
+    expect(group.anchorFor('e1', 'q1')).toBeNull();
+    group.dispose();
+  });
+
+  it('clips an ordinary interval\'s span picking and anchors to history even when a future lead is drawn', () => {
+    const times = Float64Array.from([0, 5, 10, 15, 20]);
+    const group = new EventMarkers(body, { path: () => [{ times, positions: Float32Array.from(Array.from(times).flatMap((t) => [t, 0, 0])), count: 5 }] });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 5, endEt: 20 })]);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.position.set(0, 0, 100);
+    camera.updateMatrixWorld();
+    group.update(1, [0, 0, 0], (_name, t) => [t, 0, 0], [0, 10], () => 1,
+      camera, 1, { width: 1000, height: 1000 }, { range: [0, 20], alphaAt: () => 1 });
+    expect(group.anchorAt('e1', 'q1', 8)?.x).toBeCloseTo(8);
+    expect(group.anchorAt('e1', 'q1', 18)).toBeNull();
+    const at = new THREE.Vector3(18, 0, 0).project(camera);
+    expect(group.pick(camera, (at.x + 1) * 500, (1 - at.y) * 500, 1000, 1000)).toBeNull();
+    group.dispose();
+  });
+
+  it('traces a span across trail and lead runs without bridging a gap between them', () => {
+    // Trail to the playhead at 14, the lead from there to 18, then a lead
+    // excerpt around a later stretch: a gap from 18 to 30.
+    const run = (times: number[]) => ({
+      times: Float64Array.from(times),
+      positions: Float32Array.from(times.flatMap((t) => [t, 0, 0])),
+      count: times.length,
+    });
+    const path = [run([0, 6, 12, 14]), run([14, 16, 18]), run([30, 34, 38])];
+    const group = new EventMarkers(body, { intervalSamples: 5, path: () => path });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 12, endEt: 36, selected: true })]);
+    const resolve = (_name: string, et: number): [number, number, number] => [et, 0, 0];
+    group.update(1, [0, 0, 0], resolve, [0, 38]);
+    const g = group.spanEmphasis.geometry;
+    const a = (g.attributes.instanceStart as THREE.InterleavedBufferAttribute).data.array;
+    const segments = Array.from({ length: g.instanceCount }, (_, i) => [a[i * 6], a[i * 6 + 3]]);
+    expect(segments.length).toBeGreaterThan(0);
+    // Every drawn segment lies inside one run: nothing spans the 18 → 30 gap.
+    for (const [x0, x1] of segments) expect(x0 >= 30 || x1 <= 18).toBe(true);
+    // Both ends of the event are cut exactly, the far one on the excerpt.
+    expect(Math.min(...segments.flat())).toBeCloseTo(12);
+    expect(Math.max(...segments.flat())).toBeCloseTo(36);
+    // Picking and anchoring follow the lead too.
+    expect(group.anchorAt('e1', 'q1', 32)?.x).toBeCloseTo(32);
+    expect(group.anchorAt('e1', 'q1', 24)).toBeNull();
+    group.dispose();
+  });
+
+  it('asks a line for the lead of the previewed or selected event only', () => {
+    const events = [
+      { id: 'a', queryId: 'q', kind: 'closest-approach', temporality: 'instant', et: 50, bodies: {}, label: '' },
+      { id: 'b', queryId: 'q', kind: 'distance-range', temporality: 'interval', start: 60, end: 90, bodies: {}, label: '' },
+    ] as unknown as GeometryEvent[];
+    expect(eventLeadRequest(events, null)).toBeNull();
+    expect(eventLeadRequest(events, { id: 'a', queryId: 'other' })).toBeNull();
+    expect(eventLeadRequest(events, { id: 'a', queryId: 'q' })).toEqual({ target: { start: 50, end: 50 }, policy: EVENT_LEAD_POLICY });
+    expect(eventLeadRequest(events, { id: 'b', queryId: 'q' })).toEqual({ target: { start: 60, end: 90 }, policy: EVENT_LEAD_POLICY });
+    expect(eventLeadRequest(events, { id: 'b', queryId: 'q' }, [70, 80])).toEqual({ target: { start: 70, end: 80 }, policy: EVENT_LEAD_POLICY });
+    expect(eventLeadRequest(events, { id: 'b', queryId: 'q' }, [100, 120])).toBeNull();
+  });
+});
+
+describe('span strokes that run past the camera', () => {
+  // Camera at the origin looking down -z: depth in front of it is -z.
+  const plane = { origin: new THREE.Vector3(0, 0, 0), forward: new THREE.Vector3(0, 0, -1), minDepth: 0.5 };
+
+  it('clips a segment to the space in front of the camera, in double precision', () => {
+    const a = new THREE.Vector3(1, 0, -10);
+    const b = new THREE.Vector3(1, 0, 10);
+    expect(clipSegmentInFront(a, b, plane)).toBe(true);
+    expect(a.z).toBe(-10);
+    expect(b.z).toBeCloseTo(-0.5, 12);
+    // Wholly behind (or nearer than minDepth): nothing to draw.
+    expect(clipSegmentInFront(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -0.2), plane)).toBe(false);
+    // Wholly in front: untouched.
+    const c = new THREE.Vector3(0, 0, -2), d = new THREE.Vector3(0, 0, -3);
+    expect(clipSegmentInFront(c, d, plane)).toBe(true);
+    expect([c.z, d.z]).toEqual([-2, -3]);
+  });
+
+  it('never hands the GPU a stroke vertex behind the camera', () => {
+    // A selected interval whose drawn path runs from in front of the camera,
+    // past it, and on behind it — the trail of a spacecraft tracked from
+    // just behind.
+    const times = Array.from({ length: 21 }, (_, i) => i);
+    const run = {
+      times: Float64Array.from(times),
+      positions: Float32Array.from(times.flatMap((t) => [0.3, 0, -10 + t])),
+      count: times.length,
+    };
+    const group = new EventMarkers(body, { intervalSamples: 5, path: () => [run] });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 0, endEt: 20, selected: true })]);
+    const resolve = (_name: string, et: number): [number, number, number] => [0.3, 0, -10 + et];
+    group.update(1, [0, 0, 0], resolve, [0, 20]);
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 0, 0);
+    camera.lookAt(0, 0, -1);
+    group.clipStrokesToCamera(camera, 0.5);
+    const g = group.spanEmphasis.geometry;
+    const arr = (g.attributes.instanceStart as THREE.InterleavedBufferAttribute).data.array;
+    expect(g.instanceCount).toBeGreaterThan(0);
+    for (let i = 0; i < g.instanceCount; i++) {
+      expect(arr[i * 6 + 2]).toBeLessThanOrEqual(-0.5 + 1e-6);
+      expect(arr[i * 6 + 5]).toBeLessThanOrEqual(-0.5 + 1e-6);
+    }
+    group.dispose();
+  });
+});
+
+describe('camera-relative span strokes', () => {
+  it('writes vertices relative to a camera far from the origin, keeping near-camera geometry exact', () => {
+    // The scene origin is the tracked body; the camera sits 0.6 scene units
+    // (600,000 km) away, and the selected path runs right past it.
+    const C = new THREE.Vector3(0.6, 0, 0);
+    const times = Array.from({ length: 11 }, (_, i) => i);
+    // A path passing 1e-6 (1 km) beside the camera, from in front to behind.
+    const xyz = (t: number): [number, number, number] => [0.6 + 1e-6, 0, -5e-5 + t * 1e-5];
+    const run = { times: Float64Array.from(times), positions: Float32Array.from(times.flatMap(xyz)), count: times.length };
+    const group = new EventMarkers(body, { intervalSamples: 5, path: () => [run] });
+    group.setMarkers([marker({ temporality: 'interval', startEt: 0, endEt: 10, selected: true })]);
+    group.update(1, [0, 0, 0], (_name, et) => xyz(et), [0, 10]);
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.copy(C);
+    camera.lookAt(C.x, C.y, C.z - 1);
+    const minDepth = 1e-9; // 1 m
+    group.clipStrokesToCamera(camera, minDepth);
+    const stroke = group.spanEmphasis;
+    expect(stroke.position.toArray()).toEqual(C.toArray());
+    const g = stroke.geometry;
+    const arr = (g.attributes.instanceStart as THREE.InterleavedBufferAttribute).data.array;
+    expect(g.instanceCount).toBeGreaterThan(0);
+    let nearest = Infinity;
+    for (let i = 0; i < g.instanceCount; i++) {
+      for (const k of [0, 3]) {
+        // Camera-relative and small: float32 keeps them to well under a metre.
+        expect(Math.abs(arr[i * 6 + k])).toBeLessThan(1e-4);
+        const depth = -arr[i * 6 + k + 2];
+        expect(depth).toBeGreaterThanOrEqual(minDepth * (1 - 1e-3));
+        nearest = Math.min(nearest, depth);
+      }
+    }
+    // The stroke reaches the clip plane right in front of the camera, rather
+    // than stopping kilometres short of it.
+    expect(nearest).toBeLessThan(2e-9);
+    group.dispose();
   });
 });

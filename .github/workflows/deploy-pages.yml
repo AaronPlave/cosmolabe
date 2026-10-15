@@ -72,6 +72,10 @@ jobs:
         run: npm run build
 
       - name: Fetch viewer kernels
+        # With a data host configured (repository variable DATA_BASE_URL), the
+        # deployed catalogs read pinned, checksummed kernels from the host, so
+        # this build neither downloads nor ships them (docs/data-hosting.md).
+        if: ${{ vars.DATA_BASE_URL == '' }}
         run: bash scripts/fetch-all.sh
 
       - name: Configure Pages
@@ -81,12 +85,40 @@ jobs:
       - name: Build viewer
         env:
           VITE_BASE: ${{ steps.pages.outputs.base_path }}
-          # The public deployment offers the repository's examples through the
-          # same catalog-source mechanism any deployment uses (issue #93). The
-          # viewer lists nothing unless told to. docs/catalog-sources.md.
-          VITE_CATALOG_SOURCES: '[{"id":"examples","name":"Examples","indexUrl":"index.json"}]'
+          HOSTED_DATA: ${{ vars.DATA_BASE_URL != '' && '1' || '0' }}
+          # The public site opts into shipping the repository examples and
+          # exposes them through the catalog-source mechanism (issue #93).
+          BUNDLE_TEST_CATALOGS: '1'
+          VITE_CATALOG_SOURCES: '[{"id":"examples","name":"Examples","indexUrl":"test-catalogs/index.json"}]'
         working-directory: apps/viewer
         run: npx vite build
+
+      - name: Point catalogs at the data host
+        # Rewrites only the datasets pinned in scripts/data-hosting/datasets.json
+        # and removes them from dist/. Fails if a catalog still references a
+        # dataset that has no published build — except the Mars terrain, which
+        # is not published yet (its catalog path stays local, as before this
+        # change). Delete the --allow-unpublished flag once it is pinned.
+        if: ${{ vars.DATA_BASE_URL != '' }}
+        env:
+          DATA_BASE_URL: ${{ vars.DATA_BASE_URL }}
+        run: >
+          node scripts/build-hosted-catalogs.mjs --dist apps/viewer/dist
+          --allow-unpublished terrain/mars-terrain-fused
+
+      - name: Verify hosted data
+        # Fetches the manifests, sample terrain tiles and every kernel the
+        # deployed catalogs depend on, from the Pages origin's point of view.
+        # A missing object, a size mismatch or missing CORS fails the build.
+        if: ${{ vars.DATA_BASE_URL != '' }}
+        env:
+          PAGES_ORIGIN: ${{ steps.pages.outputs.origin }}
+        # configure-pages reports the origin as http:// for a custom domain, but
+        # browsers load the site over https and send that as the Origin header.
+        run: >
+          node scripts/verify-hosted-data.mjs --dist apps/viewer/dist
+          --origin "${PAGES_ORIGIN/http:/https:}"
+          --origin http://localhost:5173
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

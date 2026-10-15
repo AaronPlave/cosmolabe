@@ -36,6 +36,7 @@ export {
   type HeritageSpice,
   type HeritageSpiceOptions,
   type HCkCoverageOptions,
+  type HSpkSegment,
   type HGfReport,
 } from './heritage-spice.js';
 export { spiceUtcFromIso } from './iso-epoch.js';

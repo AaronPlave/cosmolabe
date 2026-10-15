@@ -15,6 +15,7 @@
     { "id": "base/small-bodies", "name": "Small Bodies", "catalog": "./base/small-bodies.json", "description": "Dwarf planets, main belt, NEAs, comet 67P", "group": "Base library" },
     { "id": "base/main-belt-300", "name": "Main Belt × 300", "catalog": "./base/main-belt-300.json", "description": "Bulk SPK import: 300 numbered asteroids (no trails — pending swarm plugin)", "group": "Base library" },
 
+    { "id": "earth-moon-tour", "name": "Earth–Moon Scripted Tour", "catalog": "./earth-moon-tour.json", "script": "./earth-moon-tour.cosmo", "description": "Adapted from the Cosmographia scripting example; demonstrates the equivalent Cosmolabe viewer-control workflow", "group": "Extended scenes", "featured": true },
     { "id": "solar-system", "name": "Solar System Tour", "catalog": "./solar-system.json", "description": "Planets + Ceres + sample spacecraft arc", "group": "Extended scenes" },
     { "id": "sensor-demo", "name": "Sensor Frustums", "catalog": "./sensor-demo.json", "description": "FOV cones from spacecraft instruments", "group": "Extended scenes" },
     { "id": "oem-ingest", "name": "CCSDS OEM Ingest", "catalog": "./oem-ingest.json", "description": "Cassini at Saturn flown from a text ephemeris — no spacecraft SPK", "group": "Extended scenes" },
@@ -26,6 +27,8 @@
     { "id": "voyagers", "name": "Voyager 1 & 2", "catalog": "./voyagers.json", "description": "Grand Tour: 1977 launch → interstellar (~85 MB)", "group": "Mission demos" , "featured": true },
     { "id": "msl-dingo-gap", "name": "Curiosity at Mars", "catalog": "./msl-dingo-gap.json", "description": "Mars surface rendering (experimental)", "group": "Mission demos" },
     { "id": "ingenuity-jezero", "name": "Ingenuity at Jezero", "catalog": "./ingenuity-jezero.json", "description": "Mars helicopter at Wright Brothers Field — no SPICE", "group": "Mission demos" },
+    { "id": "moon-imagery-apollo15", "name": "Apollo 15 imagery", "catalog": "./moon-imagery-apollo15.json", "description": "Streamed global + Hadley Rille NAC lunar imagery, no terrain — no SPICE", "group": "Mission demos" },
+    { "id": "mars-imagery-jezero", "name": "Jezero imagery", "catalog": "./mars-imagery-jezero.json", "description": "Streamed global + regional Mars imagery, no terrain — no SPICE", "group": "Mission demos" },
     { "id": "moonfall-shackleton", "name": "MoonFall at Shackleton", "catalog": "./moonfall-shackleton.json", "description": "Synthetic 4-hopper lunar South Pole mission, Dec 2028", "group": "Mission demos" }
   ]
 }

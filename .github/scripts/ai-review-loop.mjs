@@ -6,6 +6,8 @@
  * rebuilds the decision from the current PR and its trusted marker comments.
  */
 
+import { appendFileSync } from 'node:fs';
+
 export const WORKFLOW_LABELS = Object.freeze({
   'review:direction': ['B60205', 'Waiting for human product, UX, or architecture direction'],
   'review:chatgpt': ['0969DA', 'Eligible for the bounded ChatGPT implementation review'],
@@ -44,7 +46,7 @@ export function parseMarker(body) {
   } else if (!SHA.test(data.head)) {
     return null;
   }
-  return { type, ...data };
+  return { ...data, type };
 }
 
 function positiveInteger(value) {
@@ -59,9 +61,9 @@ export function trustedMarkers(comments, trusted) {
     const accepted = marker.type === 'review'
       ? [trusted.chatgpt]
       : marker.type === 'remediation'
-        ? marker.status === 'started' ? [trusted.orchestrator] : [trusted.claude]
+        ? marker.status === 'started' ? [trusted.orchestrator] : [trusted.claude, trusted.orchestrator]
         : [trusted.orchestrator];
-    return accepted.includes(login) ? [{ ...marker, commentId: comment.id }] : [];
+    return login && accepted.filter(Boolean).includes(login) ? [{ ...marker, commentId: comment.id }] : [];
   });
 }
 
@@ -77,8 +79,12 @@ export function reconcile({ pr, comments, trusted, retry = false, resume = false
     remove.add('ready:test');
     return decision('labels', add, remove, 'direction gate is active');
   }
-  if (pr.draft) return decision('none', add, remove, 'PR is draft');
-  if (pr.head.repo.full_name !== pr.base.repo.full_name) {
+  if (pr.draft) {
+    remove.add('review:chatgpt');
+    remove.add('ready:test');
+    return decision('labels', add, remove, 'PR is draft');
+  }
+  if (!pr.head.repo || pr.head.repo.full_name !== pr.base.repo.full_name) {
     return decision('none', add, remove, 'fork PRs are not eligible');
   }
   if (owners.length !== 1) {
@@ -88,8 +94,18 @@ export function reconcile({ pr, comments, trusted, retry = false, resume = false
   const markers = trustedMarkers(comments, trusted);
   const lastResume = markers.reduce((index, marker, i) => marker.type === 'resume' ? i : index, -1);
   const episode = markers.slice(lastResume + 1);
-  const reviews = episode.filter((marker) => marker.type === 'review');
-  const currentReview = reviews.find((marker) => marker.head === pr.head.sha);
+  // Only a prior orchestrator request can authorize a result. Count completed
+  // distinct heads; duplicates and retries do not consume additional rounds.
+  const requested = new Map();
+  const reviewed = new Map();
+  for (const marker of episode) {
+    if (marker.type === 'request') requested.set(marker.head, marker);
+    if (marker.type === 'review' && requested.get(marker.head)?.round === marker.round) {
+      reviewed.set(marker.head, marker);
+    }
+  }
+  const reviews = [...reviewed.values()];
+  const currentReview = reviewed.get(pr.head.sha);
   const blockedRemediation = episode.find((marker) => marker.type === 'remediation'
     && marker.status === 'blocked' && marker.reviewed_head === pr.head.sha);
 
@@ -99,16 +115,19 @@ export function reconcile({ pr, comments, trusted, retry = false, resume = false
     add.add('review:chatgpt');
     return { ...decision('resume', add, remove, 'human resumed the loop'), head: pr.head.sha, round: 1, attempt: 1 };
   }
-  if (blockedRemediation) return stop(add, remove, 'Claude reported remediation blocked');
   if (labels.has('needs:human')) return decision('none', add, remove, 'human intervention is required');
+  if (blockedRemediation) return stop(add, remove, 'Claude reported remediation blocked');
 
   if (currentReview) {
+    if (!labels.has('review:chatgpt') && !labels.has('ready:test')) {
+      return decision('none', add, remove, 'review label is absent');
+    }
     if (currentReview.status === 'clean') {
       remove.add('review:chatgpt');
       add.add('ready:test');
       return decision('labels', add, remove, 'review is clean');
     }
-    if (currentReview.status === 'needs_human' || currentReview.round >= 3) {
+    if (currentReview.status === 'needs_human' || (currentReview.round >= 3 || reviews.length >= 3)) {
       return stop(add, remove, currentReview.status === 'needs_human'
         ? 'review requested human judgment' : 'three completed review rounds reached');
     }
@@ -118,6 +137,7 @@ export function reconcile({ pr, comments, trusted, retry = false, resume = false
       && marker.status === 'started'
       && marker.reviewed_head === pr.head.sha
       && marker.round === currentReview.round);
+    if (started && retry) return stop(add, remove, 'human requested recovery of unfinished remediation');
     if (started) return decision('none', add, remove, 'remediation already started');
     if (!labels.has('review:chatgpt') || labels.has('needs:human') || labels.has('ready:test')) {
       return decision('none', add, remove, 'PR is not eligible for remediation');
@@ -166,7 +186,7 @@ export function resumeBody(head) {
   return `<!-- ai-loop:resume ${JSON.stringify({ schema: 1, head })} -->\nA human started a new three-round review episode.`;
 }
 
-async function github(path, options = {}) {
+export async function github(path, options = {}) {
   const response = await fetch(`https://api.github.com${path}`, {
     ...options,
     headers: {
@@ -180,7 +200,7 @@ async function github(path, options = {}) {
   return response.status === 204 ? null : response.json();
 }
 
-async function allComments(owner, repo, number) {
+export async function allComments(owner, repo, number) {
   const comments = [];
   for (let page = 1; ; page += 1) {
     const batch = await github(`/repos/${owner}/${repo}/issues/${number}/comments?per_page=100&page=${page}`);
@@ -190,14 +210,22 @@ async function allComments(owner, repo, number) {
 }
 
 async function ensureLabels(owner, repo) {
+  const existing = new Set();
+  for (let page = 1; ; page += 1) {
+    const labels = await github(`/repos/${owner}/${repo}/labels?per_page=100&page=${page}`);
+    labels.forEach(({ name }) => existing.add(name));
+    if (labels.length < 100) break;
+  }
   for (const [name, [color, description]] of Object.entries(WORKFLOW_LABELS)) {
+    if (existing.has(name)) continue;
     try {
-      await github(`/repos/${owner}/${repo}/labels/${encodeURIComponent(name)}`);
-    } catch (error) {
-      if (!String(error).includes(': 404 ')) throw error;
       await github(`/repos/${owner}/${repo}/labels`, {
         method: 'POST', body: JSON.stringify({ name, color, description }),
       });
+    } catch (error) {
+      // Other PRs can create the same label concurrently.
+      if (!String(error).includes(': 422 ')) throw error;
+      await github(`/repos/${owner}/${repo}/labels/${encodeURIComponent(name)}`);
     }
   }
 }
@@ -223,11 +251,10 @@ async function comment(owner, repo, number, body) {
   });
 }
 
-async function main() {
+export async function main() {
   const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
   const number = Number(process.env.PR_NUMBER);
-  if (!number) throw new Error('PR_NUMBER must identify a pull request');
-  await ensureLabels(owner, repo);
+  if (!positiveInteger(number)) throw new Error('PR_NUMBER must identify a pull request');
   const pr = await github(`/repos/${owner}/${repo}/pulls/${number}`);
   const comments = await allComments(owner, repo, number);
   const trusted = {
@@ -238,6 +265,7 @@ async function main() {
   if (!trusted.chatgpt || !trusted.claude) {
     throw new Error('CHATGPT_REVIEW_LOGIN and CLAUDE_BOT_LOGIN repository variables are required');
   }
+  await ensureLabels(owner, repo);
   const result = reconcile({
     pr, comments, trusted,
     retry: process.env.RETRY_CURRENT_HEAD === 'true',
@@ -247,8 +275,12 @@ async function main() {
   // Refetch immediately before every state-changing operation. Concurrency is
   // serialized per PR, but a human or app can still push while a run waits.
   const fresh = await github(`/repos/${owner}/${repo}/pulls/${number}`);
-  if (fresh.head.sha !== pr.head.sha) return writeOutputs({ action: 'none', reason: 'head changed during reconciliation' });
-  await mutateLabels(owner, repo, number, result);
+  if (JSON.stringify([fresh.head.sha, fresh.state, fresh.draft, fresh.labels]) !== JSON.stringify([pr.head.sha, pr.state, pr.draft, pr.labels])) return writeOutputs({ action: 'none', reason: 'head changed during reconciliation' });
+  const currentLabels = new Set(fresh.labels.map(({ name }) => name));
+  await mutateLabels(owner, repo, number, {
+    ...result, add: result.add.filter((name) => !currentLabels.has(name)),
+    remove: result.remove.filter((name) => currentLabels.has(name)),
+  });
   if (result.action === 'resume') {
     await comment(owner, repo, number, resumeBody(result.head));
     await comment(owner, repo, number, requestBody(result.head, result.round, result.attempt));
@@ -266,7 +298,8 @@ function writeOutputs(result) {
   const lines = Object.entries(result).filter(([, value]) => !Array.isArray(value))
     .map(([key, value]) => `${key}=${String(value).replaceAll('\n', ' ')}`);
   if (process.env.GITHUB_OUTPUT) {
-    return import('node:fs').then(({ appendFileSync }) => appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join('\n')}\n`));
+    appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join('\n')}\n`);
+    return;
   }
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }

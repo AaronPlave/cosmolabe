@@ -1,5 +1,15 @@
 # Planetary Surface / Terrain Refactor — implementation record
 
+The cube-sphere layout experiment for #149 — addressing and CPU sampler, the
+bounded lunar builder (`scripts/build-moon-terrain/cube.sh`), the opt-in viewer
+demo, its validation and captures, independent cube-face imagery
+(`CubeImageryLayer`, `scripts/build-moon-terrain/cube-imagery.sh`), mixed-LOD
+crack mitigation (skirts sized from measured gaps), the geometry comparison
+with the geographic and polar products, measured geometric error and optional
+mesh simplification, and the evidence still required before
+the layout decision — is recorded in
+[the cube-sphere experiment ADR](design/cube-sphere-experiment.md).
+
 ## Status
 
 This document is the durable implementation checklist for the planetary-terrain
@@ -23,6 +33,13 @@ georeferenced imagery (separate, sharing geographic/body-fixed coordinates)
 Terrain rendering consumes terrain data. It does not interpret source datums,
 hide source-registration errors, fuse DEMs, or scan its rendered meshes to
 answer physical-surface queries.
+
+The additive [physical-surface ADR](design/physical-surface-adr.md) (#148)
+defines the shared body-fixed CPU ray-query port and separate map/observation
+imagery contracts. Its bounded globe/concave-mesh proof does not replace the
+sampler or select a permanent global/polar layout. Production migration requires
+source-owned coverage, measured sample/mesh/render agreement and bounded loading;
+all datum, fusion, continuity and validation requirements below remain in force.
 
 ## Complete requirement index
 
@@ -96,6 +113,10 @@ answer physical-surface queries.
   merge base: retain useful data/build findings but resolve its first-pass
   calibration, mesh-based sampler, fallback behavior, and seam machinery.
 
+Built in #48: [`scripts/build-moon-terrain/`](../scripts/build-moon-terrain/README.md)
+(source choice and known source defects) and the `moon-shackleton-fused`
+results in [`terrain-validation.md`](terrain-validation.md).
+
 ### Navigation, cameras, rendering, and imagery
 
 - Keep imagery independent of terrain correctness; imagery and terrain have
@@ -107,6 +128,8 @@ answer physical-surface queries.
   not universally radial.
 - Wheel/dolly motion follows the camera view ray, samples terrain, and enforces
   clearance rather than independently altering latitude/longitude/altitude.
+  Done for Surface Explorer in #48 — ENU motion, geodetic up, view-ray dolly
+  with terrain clearance (`packages/three/src/controls/surfaceNavigation.ts`).
 - Simplify streaming to an authoritative main terrain camera plus optional
   bounded preload camera. Benchmark rather than retain the 178-degree coverage
   camera by habit.
@@ -114,6 +137,9 @@ answer physical-surface queries.
   policy, not physical accuracy.
 
 ### Debugging, tests, and acceptance
+
+Tooling, debug views and the recorded baseline live in
+[`terrain-validation.md`](terrain-validation.md) (#52).
 
 - Add optional base/residual/source-boundary/coverage/tile-LOD/source/datum and
   seam debug views.

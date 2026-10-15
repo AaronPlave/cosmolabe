@@ -11,7 +11,9 @@ export interface TerrainDatum {
 
 export interface TerrainSourceMetadata {
   id: string;
-  kind: 'quantized-mesh' | 'height-grid' | 'imagery' | 'unknown';
+  kind: 'quantized-mesh' | 'height-grid' | 'triangle-mesh' | 'imagery' | 'unknown';
+  /** Immutable product revision/checksum; absence means version is unknown. */
+  version?: string;
   url?: string;
   uncertaintyKm?: number;
 }
@@ -25,6 +27,8 @@ export interface TerrainSample {
   normal?: readonly [number, number, number];
   datum: TerrainDatum;
   source: TerrainSourceMetadata;
+  /** The decoded tile that answered the query — sample-level provenance. */
+  tileId?: string;
   uncertaintyKm?: number;
 }
 
@@ -69,11 +73,28 @@ export interface TerrainSamplerDiagnostics {
   tileCount: number;
   sampleCount: number;
   lastSampleMicros: number;
+  /** Mean query cost since construction or `resetTiming()`. */
+  meanSampleMicros: number;
   state: 'ready' | 'unloaded';
 }
 
 const DEG = Math.PI / 180;
-const wrapLon = (lon: number) => ((lon + 180) % 360 + 360) % 360 - 180;
+/** Wrap longitude to [-180, 180); the TerrainSample position convention. */
+export const wrapLon = (lon: number) => ((lon + 180) % 360 + 360) % 360 - 180;
+
+/**
+ * The geodetic converters below implement spheres and geodetic oblate ellipsoids
+ * only. Radial oblate heights, areoid/unknown vertical datums and triaxial shapes
+ * must be rejected rather than reinterpreted as a supported datum.
+ */
+export function isSupportedGeodeticDatum(datum: TerrainDatum): boolean {
+  if (datum.verticalDatum !== 'reference-sphere' && datum.verticalDatum !== 'ellipsoid') return false;
+  const shape = datum.referenceShape;
+  if (shape.kind === 'sphere') return Number.isFinite(shape.radiusKm) && shape.radiusKm > 0;
+  const [a, b, c] = shape.radiiKm;
+  return datum.heightConvention === 'geodetic-normal' && a === b
+    && Number.isFinite(a) && a > 0 && Number.isFinite(c) && c > 0;
+}
 
 /** Convert geodetic body-fixed coordinates to conventional Z-up ECEF. */
 export function geodeticToBodyFixed(position: BodyFixedPosition, datum: TerrainDatum): BodyFixedCartesian {
@@ -135,6 +156,13 @@ export class TerrainSampler {
   private readonly tiles = new Map<string, CachedTile>();
   private _sampleCount = 0;
   private _lastSampleMicros = 0;
+  private _timedSamples = 0;
+  private _totalSampleMicros = 0;
+  /**
+   * Called with the id of each tile the cache drops to stay within `maxTiles`.
+   * Explicit `removeTile`/`clear` calls do not fire it — the caller already knows.
+   */
+  onEvict: ((id: string) => void) | null = null;
 
   constructor(readonly datum: TerrainDatum, readonly source: TerrainSourceMetadata, private readonly maxTiles = 256) {}
 
@@ -179,10 +207,18 @@ export class TerrainSampler {
 
     this.tiles.delete(tile.id);
     this.tiles.set(tile.id, cached);
-    while (this.tiles.size > this.maxTiles) this.tiles.delete(this.tiles.keys().next().value!);
+    while (this.tiles.size > this.maxTiles) {
+      const evicted = this.tiles.keys().next().value!;
+      this.tiles.delete(evicted);
+      this.onEvict?.(evicted);
+    }
   }
 
   removeTile(id: string): void { this.tiles.delete(id); }
+  /** A decoded tile currently in the cache, or undefined. Read-only use: diagnostics and validation. */
+  getTile(id: string): TerrainTile | undefined { return this.tiles.get(id)?.tile; }
+  /** Ids of every decoded tile currently cached, oldest insert first. */
+  tileIds(): string[] { return [...this.tiles.keys()]; }
   clear(): void { this.tiles.clear(); }
 
   sample(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
@@ -200,7 +236,7 @@ export class TerrainSampler {
         const tile = cached.tile;
         result = {
           position: { latDeg, lonDeg: lon }, elevationKm,
-          datum: this.datum, source: tile.source ?? this.source,
+          datum: this.datum, source: tile.source ?? this.source, tileId: tile.id,
           uncertaintyKm: tile.uncertaintyKm ?? tile.source?.uncertaintyKm ?? this.source.uncertaintyKm,
         };
         if (deriveNormal) {
@@ -211,6 +247,8 @@ export class TerrainSampler {
     }
     this._sampleCount++;
     this._lastSampleMicros = (performance.now() - start) * 1000;
+    this._timedSamples++;
+    this._totalSampleMicros += this._lastSampleMicros;
     return result;
   }
 
@@ -224,8 +262,17 @@ export class TerrainSampler {
   }
 
   get diagnostics(): TerrainSamplerDiagnostics {
-    return { tileCount: this.tiles.size, sampleCount: this._sampleCount, lastSampleMicros: this._lastSampleMicros, state: this.tiles.size ? 'ready' : 'unloaded' };
+    return {
+      tileCount: this.tiles.size,
+      sampleCount: this._sampleCount,
+      lastSampleMicros: this._lastSampleMicros,
+      meanSampleMicros: this._timedSamples ? this._totalSampleMicros / this._timedSamples : 0,
+      state: this.tiles.size ? 'ready' : 'unloaded',
+    };
   }
+
+  /** Restart the mean-cost window, e.g. for a before/after measurement. */
+  resetTiming(): void { this._timedSamples = 0; this._totalSampleMicros = 0; }
 
   /** Physical datum radius at latitude, independent of any renderer display scale. */
   referenceRadiusAt(latDeg: number): number { return this.radiusAtLat(latDeg); }
@@ -368,10 +415,13 @@ export class TerrainSampler {
     return [-dhEast / length, -dhNorth / length, 1 / length];
   }
 
-  private radiusAtLat(latDeg: number): number {
-    if (this.datum.referenceShape.kind === 'sphere') return this.datum.referenceShape.radiusKm;
-    const [a,, c] = this.datum.referenceShape.radiiKm;
-    const lat = latDeg * DEG;
-    return (a * c) / Math.sqrt(c * c * Math.cos(lat) ** 2 + a * a * Math.sin(lat) ** 2);
-  }
+  private radiusAtLat(latDeg: number): number { return datumRadiusAtLat(this.datum, latDeg); }
+}
+
+/** Physical datum radius (km) at a latitude: the sphere radius, or the ellipsoid's geocentric radius. */
+export function datumRadiusAtLat(datum: TerrainDatum, latDeg: number): number {
+  if (datum.referenceShape.kind === 'sphere') return datum.referenceShape.radiusKm;
+  const [a,, c] = datum.referenceShape.radiiKm;
+  const lat = latDeg * DEG;
+  return (a * c) / Math.sqrt(c * c * Math.cos(lat) ** 2 + a * a * Math.sin(lat) ** 2);
 }

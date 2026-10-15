@@ -13,23 +13,24 @@ import * as THREE from 'three';
  */
 export const MAX_SHADOW_OCCLUDERS = 4;
 
-export const SHADOW_FRAG_PARS = /* glsl */`
-varying vec3 vShadowWorldPos;
+export const ECLIPSE_VISIBILITY_GLSL = /* glsl */`
+#ifndef COSMOLABE_ECLIPSE_VISIBILITY
+#define COSMOLABE_ECLIPSE_VISIBILITY
 uniform vec3  uSunWorldPos;
 uniform float uSunRadius;
 uniform vec3  uShadowOccluderPos[${MAX_SHADOW_OCCLUDERS}];
 uniform float uShadowOccluderRadius[${MAX_SHADOW_OCCLUDERS}];
 uniform float uShadowOccluderCount;
 
-float computeEclipseShadow() {
-  vec3 toSun = uSunWorldPos - vShadowWorldPos;
+float computeEclipseVisibility(vec3 worldPos) {
+  vec3 toSun = uSunWorldPos - worldPos;
   float distToSun = length(toSun);
   if (distToSun < 1e-20) return 1.0;
   vec3 rayDir = toSun / distToSun;
   float shadowFactor = 1.0;
   for (int i = 0; i < ${MAX_SHADOW_OCCLUDERS}; i++) {
     if (float(i) >= uShadowOccluderCount) break;
-    vec3 toOcc = uShadowOccluderPos[i] - vShadowWorldPos;
+    vec3 toOcc = uShadowOccluderPos[i] - worldPos;
     float t = dot(toOcc, rayDir);
     // Behind the fragment, or at/past the sun's own surface. The second guard
     // matters: an occluder sitting on the sun (a barycenter, a mis-sized
@@ -45,6 +46,13 @@ float computeEclipseShadow() {
   }
   return shadowFactor;
 }
+#endif
+`;
+
+export const SHADOW_FRAG_PARS = /* glsl */`
+varying vec3 vShadowWorldPos;
+${ECLIPSE_VISIBILITY_GLSL}
+float computeEclipseShadow() { return computeEclipseVisibility(vShadowWorldPos); }
 `;
 
 export type ShadowUniforms = {

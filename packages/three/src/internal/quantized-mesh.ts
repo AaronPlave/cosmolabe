@@ -16,6 +16,8 @@
  *           uint32 triangleCount
  *           uint16|uint32 indices[triangleCount * 3] — high-water-mark encoded
  */
+import type { TerrainMeshTile, TerrainSourceMetadata } from '../TerrainSampler.js';
+
 export interface DecodedQuantizedMesh {
   /** Tile-local normalized coordinates in [0,1]: u west→east, v south→north. */
   u: Float32Array;
@@ -90,4 +92,23 @@ export function decodeQuantizedMesh(buffer: ArrayBuffer): DecodedQuantizedMesh {
   }
 
   return { u, v, heightMeters, indices, minHeight, maxHeight };
+}
+
+/**
+ * Turn a decoded tile into the sampler's mesh tile. Heights decode against the
+ * tileset's own reference surface; `heightOffsetKm` is that tileset's
+ * `referenceRadiusOffsetKm`, subtracted so samples sit on the rendered surface.
+ * The runtime capture path and the offline validator share this, so a report
+ * describes exactly the heights the viewer samples.
+ */
+export function toTerrainMeshTile(
+  mesh: DecodedQuantizedMesh,
+  tile: { id: string; westDeg: number; eastDeg: number; southDeg: number; northDeg: number; source?: TerrainSourceMetadata },
+  heightOffsetKm = 0,
+): TerrainMeshTile {
+  const elevationsKm = new Float32Array(mesh.heightMeters.length);
+  for (let i = 0; i < elevationsKm.length; i++) {
+    elevationsKm[i] = mesh.heightMeters[i] / 1000 - heightOffsetKm;
+  }
+  return { ...tile, kind: 'mesh', u: mesh.u, v: mesh.v, elevationsKm, indices: mesh.indices };
 }

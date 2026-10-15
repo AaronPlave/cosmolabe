@@ -160,8 +160,8 @@ jobs:
       - name: Fetch Cosmographia data
         run: bash scripts/fetch-cosmographia-data.sh
 
-      - name: Run tests
-        run: npm test
-
       - name: Test AI review reconciler
         run: npm run test:ai-loop
+
+      - name: Run tests
+        run: npm test
