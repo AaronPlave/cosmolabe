@@ -165,11 +165,9 @@
               "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
               "geometry": {
                 "type": "Sensor",
-                "spiceId": -159103,
+                "spiceId": -159101,
                 "target": "Europa",
                 "shape": "rectangular",
-                "horizontalFov": 2.3,
-                "verticalFov": 1.2,
                 "range": 50000,
                 "frustumColor": [0.2, 0.6, 1.0],
                 "frustumOpacity": 0.3
@@ -183,11 +181,9 @@
               "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
               "geometry": {
                 "type": "Sensor",
-                "spiceId": -159104,
+                "spiceId": -159102,
                 "target": "Europa",
                 "shape": "rectangular",
-                "horizontalFov": 48.0,
-                "verticalFov": 24.0,
                 "range": 50000000,
                 "frustumColor": [1.0, 0.6, 0.2],
                 "frustumOpacity": 0.15
@@ -204,8 +200,6 @@
                 "spiceId": -159601,
                 "target": "Europa",
                 "shape": "rectangular",
-                "horizontalFov": 4.5,
-                "verticalFov": 0.036,
                 "range": 50000,
                 "frustumColor": [0.2, 0.9, 0.3],
                 "frustumOpacity": 0.25
@@ -222,8 +216,6 @@
                 "spiceId": -159200,
                 "target": "Europa",
                 "shape": "rectangular",
-                "horizontalFov": 7.5,
-                "verticalFov": 1.9,
                 "range": 50000,
                 "frustumColor": [1.0, 0.3, 0.2],
                 "frustumOpacity": 0.2
