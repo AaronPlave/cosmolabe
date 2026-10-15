@@ -5,7 +5,8 @@ bounded lunar builder (`scripts/build-moon-terrain/cube.sh`), the opt-in viewer
 demo, its validation and captures, independent cube-face imagery
 (`CubeImageryLayer`, `scripts/build-moon-terrain/cube-imagery.sh`), mixed-LOD
 crack mitigation (skirts sized from measured gaps), the geometry comparison
-with the geographic and polar products, and the evidence still required before
+with the geographic and polar products, measured geometric error and optional
+mesh simplification, and the evidence still required before
 the layout decision — is recorded in
 [the cube-sphere experiment ADR](design/cube-sphere-experiment.md).
 
