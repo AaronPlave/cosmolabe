@@ -50,6 +50,18 @@ export interface GeometryFinderProvider {
    */
   range?(target: string, abcorr: string, observer: string, et: EtSeconds): Awaitable<number>;
 
+  /**
+   * Observer altitude (km) above the target's reference ellipsoid at one
+   * instant, or `NaN` when the target has no shape SPICE knows.
+   *
+   * Optional, and not a GF call, for the same reason as `range`: GF says *when*
+   * an approach happened, and a flyby is quoted by how high above the surface it
+   * passed. Providers answer it through SPICE's own surface geometry — see
+   * `spiceAltitude` in `@cosmolabe/three` — so the ellipsoid stays SPICE's. A provider without it
+   * still searches; its events simply carry no altitude.
+   */
+  altitude?(target: string, abcorr: string, observer: string, et: EtSeconds): Awaitable<number>;
+
   /** Intervals where one coordinate of the observer→target vector satisfies `relate`. */
   gfposc(
     target: string, frame: string, abcorr: string, observer: string,

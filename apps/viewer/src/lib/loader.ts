@@ -6,6 +6,7 @@
  * furnishes all referenced kernels (with `.tm` meta-kernels expanded), and
  * initializes the scene. There is no per-mission code path.
  */
+import { configureMeasurementInput, resetMeasurementsForScene } from './spatial-measurements.svelte';
 import * as THREE from 'three';
 import {
   Universe,
@@ -53,9 +54,18 @@ import {
 } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
 import { absolutizeCatalogAssets, catalogsUseDsk } from './catalog-assets';
+import { textKernelFrameNames } from './geometry-frames';
+import { stopHero, resizeHero } from './hero';
 
 // ── State ──
 let spice: HeritageSpice | null = null;
+const missionFrameNames = new Set<string>();
+export function getMissionFrameNames(): string[] { return [...missionFrameNames]; }
+function rememberKernelFrames(buffer: ArrayBuffer): void {
+  // Binary SPK/CK kernels can be hundreds of MB; never decode them as text.
+  if (new TextDecoder().decode(buffer.slice(0, 4)) !== 'KPL/') return;
+  for (const name of textKernelFrameNames(buffer)) missionFrameNames.add(name);
+}
 let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
@@ -398,6 +408,7 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promis
  * collector honours.
  */
 function teardownScene(): void {
+  resetMeasurementsForScene();
   cacheWorker?.dispose();
   cacheWorker = null;
   geometryWorker?.dispose();
@@ -410,6 +421,7 @@ function teardownScene(): void {
   universe = null;
 
   spice = null;
+  missionFrameNames.clear();
   furnished = [];
 }
 
@@ -421,7 +433,9 @@ async function furnishPlanned(
 ): Promise<void> {
   const { source } = k;
   if ('file' in source) {
-    await s.furnish({ type: 'buffer', data: await source.file.arrayBuffer(), filename: source.file.name });
+    const buffer = await source.file.arrayBuffer();
+    await s.furnish({ type: 'buffer', data: buffer, filename: source.file.name });
+    rememberKernelFrames(buffer);
     return;
   }
   if (k.size && k.size > 0) {
@@ -429,9 +443,14 @@ async function furnishPlanned(
     // which is worth it for the files big enough to be declared.
     const buffer = await fetchWithProgress(source.url, (loaded) => onProgress(loaded));
     await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
+    rememberKernelFrames(buffer);
     return;
   }
-  await s.furnish({ type: 'url', url: source.url });
+  const response = await fetch(source.url);
+  if (!response.ok) throw new Error(`Failed to fetch kernel: ${source.url} (${response.status})`);
+  const buffer = await response.arrayBuffer();
+  await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
+  rememberKernelFrames(buffer);
 }
 
 /**
@@ -613,6 +632,8 @@ function initScene(
 ) {
   // Nothing to clean up here: the scene that was up was torn down before its
   // SPICE instance was replaced (`teardownScene`), which is the only way in.
+  // The home screen's backdrop shares this canvas; a scene takes it over.
+  stopHero();
   const findInMap = <T>(map: Map<string, T>, source: string): T | undefined => {
     if (map.has(source)) return map.get(source);
     const basename = source.split('/').pop()!;
@@ -708,6 +729,7 @@ function initScene(
   });
 
   // Bind reactive state
+  configureMeasurementInput(renderer);
   bindRenderer(renderer, universe);
   syncBodies(universe);
   setKernelCount(spice?.totalLoaded() ?? 0);
@@ -910,8 +932,13 @@ function initScene(
  * of catalog-source discovery — a deployment with no sources can still load
  * any catalog it serves this way.
  */
-export async function loadDemo(canvas: HTMLCanvasElement, name: string) {
-  await loadCatalogUrl(canvas, new URL(`./${name}.json`, location.href).href, name);
+export async function loadDemo(canvas: HTMLCanvasElement, name: string, displayName = name) {
+  await loadCatalogUrl(canvas, demoCatalogUrl(name), displayName);
+}
+
+/** The URL `?catalog=<name>` resolves to. */
+export function demoCatalogUrl(name: string): string {
+  return new URL(`./${name}.json`, location.href).href;
 }
 
 /** Load a catalog by URL. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
@@ -921,11 +948,11 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
   // that follow it are one continuous run rather than two 0→100 passes. The
   // catalog graph is what knows the kernel byte total, so the bar sits at zero
   // for the moment it takes to fetch and then gets its phase weights.
-  beginLoad(`Loading ${name}...`);
+  beginLoad('Fetching catalog...', { catalog: name });
 
   try {
     const graph = await loadCatalogFromUrl(entryUrl);
-    beginLoad(`Loading ${name}...`, {
+    beginLoad('Preparing scene...', {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
     });
 
@@ -955,7 +982,7 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
   } catch (err) {
     // A load that dies mid-way (missing catalog, a kernel the scene can't do
     // without) must not leave the bar sitting at whatever fraction it reached.
-    // Close it and let the error surface — the welcome screen comes back, which
+    // Close it and let the error surface. The home screen comes back, which
     // is the honest end state for a scene that never built.
     endLoad();
     throw err;
@@ -1068,7 +1095,9 @@ async function furnishUserKernels(files: File[]): Promise<void> {
       continue;
     }
     try {
-      await s.furnish({ type: 'buffer', data: await file.arrayBuffer(), filename: file.name });
+      const buffer = await file.arrayBuffer();
+      await s.furnish({ type: 'buffer', data: buffer, filename: file.name });
+      rememberKernelFrames(buffer);
     } catch (err) {
       console.warn(`[Cosmolabe] Failed to furnish ${file.name}:`, err);
       continue;
@@ -1156,7 +1185,7 @@ export async function handleDrop(canvas: HTMLCanvasElement, dataTransfer: DataTr
 export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   // Dropped kernels are already on disk — no download to weigh — so the whole
   // bar belongs to the asset phase that follows.
-  beginLoad(`Processing ${files.length} file(s)...`);
+  beginLoad(`Processing ${files.length} file(s)...`, { catalog: 'Local files' });
   const { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles } = await categorizeFiles(files);
 
   if (jsonFiles.size === 0 && kernelFiles.length === 0) {
@@ -1167,6 +1196,9 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   // Resolved before anything is furnished, because it is what says whether this
   // drop is a scene load, and the two cases furnish into different instances.
   const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
+  // Dependencies come first, so the last catalog is the one the drop is of.
+  const top = catalogs.at(-1);
+  if (top) setLoadingState({ catalog: typeof top.name === 'string' && top.name ? top.name : 'Local catalog' });
 
   if (catalogs.length > 0) {
     // A drop carrying a catalog is a scene load like any other: the scene that
@@ -1223,6 +1255,11 @@ export function getCurrentRenderer(): UniverseRenderer | null {
   return renderer;
 }
 
+/** The scene's universe, or null before a catalog has loaded. */
+export function getUniverse(): Universe | null {
+  return universe;
+}
+
 /** Get the current SPICE instance */
 export function getSpice(): HeritageSpice | null {
   return spice;
@@ -1253,7 +1290,8 @@ export function getGeometryWorker(): GeometrySearchWorker | null {
   return geometryWorker;
 }
 
-/** Resize the renderer */
+/** Resize the renderer, or the home screen's backdrop when no scene is up */
 export function resize(w: number, h: number) {
   renderer?.resize(w, h);
+  resizeHero(w, h);
 }

@@ -6,8 +6,12 @@ import type { UniverseRenderer } from '@cosmolabe/three';
 import {
   vs, togglePlay, reverse, faster, slower, stepForward, stepBackward,
   setDisplayOption, cycleCamera, flyToTracked, resetCamera, getRenderer,
+  toggleProbe, clearProbePin,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
+import { shell } from './shell.svelte';
+import { getUniverse } from './loader';
+import { showReference } from './spatial-measurements.svelte';
 
 export interface Command {
   id: string;
@@ -20,6 +24,9 @@ export interface Command {
 /** Built-in commands */
 function getBuiltinCommands(): Command[] {
   return [
+    // Catalog
+    { id: 'catalog:open', label: 'Open catalog…', shortcut: 'O', category: 'Catalog', execute: () => { shell.catalogBrowserOpen = true; } },
+
     // Time
     { id: 'time:play', label: vs.playing ? 'Pause' : 'Play', shortcut: 'Space', category: 'Time', execute: () => togglePlay() },
     { id: 'time:reverse', label: 'Reverse', shortcut: 'R', category: 'Time', execute: () => reverse() },
@@ -41,6 +48,10 @@ function getBuiltinCommands(): Command[] {
     { id: 'disp:grid', label: vs.showGrid ? 'Hide grid' : 'Show grid', shortcut: 'G', category: 'Display', execute: () => setDisplayOption('grid', !vs.showGrid) },
     { id: 'disp:axes', label: vs.showAxes ? 'Hide axes' : 'Show axes', shortcut: 'X', category: 'Display', execute: () => setDisplayOption('axes', !vs.showAxes) },
 
+    // Inspect
+    { id: 'probe:toggle', label: vs.probeActive ? 'Stop probing' : 'Probe point', shortcut: 'P', category: 'Inspect', execute: () => toggleProbe() },
+    ...(vs.probePin ? [{ id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() }] : []),
+
     // Instrument
     { id: 'instr:cycle', label: 'Cycle instrument PiP', shortcut: 'I', category: 'Display', execute: (r) => {
       const sensors = r.getSensorNames();
@@ -50,6 +61,24 @@ function getBuiltinCommands(): Command[] {
       r.setInstrumentView(idx + 1 < sensors.length ? sensors[idx + 1] : null, { marginX: 16, marginY: 60 });
     }},
   ];
+}
+
+/** Reference geometry for the tracked body, through the same items the Measurements tool edits. */
+function getReferenceCommands(): Command[] {
+  const name = vs.trackedBodyName;
+  const universe = getUniverse();
+  const body = name ? universe?.getBody(name) : undefined;
+  if (!name || !universe || !body) return [];
+  const commands: Command[] = [
+    { id: 'ref:velocity', label: `Show velocity of ${name}`, category: 'Analysis', execute: () => { showReference({ kind: 'velocity', object: name }); } },
+  ];
+  if (name !== 'Sun' && universe.getBody('Sun')) {
+    commands.push({ id: 'ref:sun', label: `Show Sun direction from ${name}`, category: 'Analysis', execute: () => { showReference({ kind: 'sunDirection', object: name }); } });
+  }
+  if (body.rotation) {
+    commands.push({ id: 'ref:axes', label: `Show body axes of ${name}`, category: 'Analysis', execute: () => { showReference({ kind: 'bodyAxes', object: name }); } });
+  }
+  return commands;
 }
 
 /** Collect plugin-contributed commands */
@@ -77,7 +106,7 @@ function getPluginCommands(): Command[] {
 
 /** All commands (built-in + plugin) */
 export function getCommands(): Command[] {
-  return [...getBuiltinCommands(), ...getPluginCommands()];
+  return [...getBuiltinCommands(), ...getReferenceCommands(), ...getPluginCommands()];
 }
 
 /** All command categories (for palette grouping) */

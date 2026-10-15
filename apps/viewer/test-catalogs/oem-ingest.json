@@ -54,13 +54,7 @@
         "type": "Builtin",
         "name": "Saturn"
       },
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "10.656222221732387h",
-        "inclination": 6.463,
-        "ascendingNode": 130.589,
-        "meridianAngle": 38.9
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": {
         "type": "Globe",
         "radii": [

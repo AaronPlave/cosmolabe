@@ -1,0 +1,248 @@
+{
+  "$comment": "Deployment data manifest (issue #137). Each entry is a large static product that is served from the data host instead of the Pages artifact. `build` is null until `node scripts/publish-data.mjs <kind>/<name> --build <id>` has published and verified it; the publisher then records the build id here, and that is what hosted catalogs pin. Remote layout: terrain/<name>/<build>/..., kernels/<name>-<build>/.... See docs/data-hosting.md.",
+  "version": 1,
+  "datasets": {
+    "terrain/mars-terrain-fused": {
+      "kind": "terrain",
+      "name": "mars-terrain-fused",
+      "localDir": "apps/viewer/test-catalogs/data/mars-terrain-fused",
+      "catalogPrefix": "data/mars-terrain-fused/",
+      "build": null
+    },
+    "kernels/generic": {
+      "kind": "kernels",
+      "name": "generic",
+      "localDir": "apps/viewer/test-catalogs/kernels",
+      "recursive": false,
+      "catalogPrefix": "kernels/",
+      "fetchScripts": [
+        "scripts/fetch-kernels.sh",
+        "scripts/fetch-msl-kernels.sh",
+        "scripts/fetch-psyche-kernels.sh",
+        "scripts/fetch-voyager-kernels.sh"
+      ],
+      "build": "2026-10-02"
+    },
+    "kernels/cassini": {
+      "kind": "kernels",
+      "name": "cassini",
+      "localDir": "apps/viewer/test-catalogs/kernels/cassini",
+      "catalogPrefix": "kernels/cassini/",
+      "fetchScripts": [
+        "scripts/fetch-cassini-kernels.sh"
+      ],
+      "build": "2026-10-02"
+    },
+    "kernels/europa-clipper": {
+      "kind": "kernels",
+      "name": "europa-clipper",
+      "localDir": "apps/viewer/test-catalogs/kernels/europa-clipper",
+      "catalogPrefix": "kernels/europa-clipper/",
+      "fetchScripts": [
+        "scripts/fetch-europa-clipper-kernels.sh"
+      ],
+      "build": "2026-10-02"
+    },
+    "kernels/lro": {
+      "kind": "kernels",
+      "name": "lro",
+      "localDir": "apps/viewer/test-catalogs/kernels/lro",
+      "catalogPrefix": "kernels/lro/",
+      "fetchScripts": [
+        "scripts/fetch-lro-kernels.sh"
+      ],
+      "build": "2026-10-02"
+    },
+    "kernels/msl": {
+      "kind": "kernels",
+      "name": "msl",
+      "localDir": "apps/viewer/test-catalogs/kernels/msl",
+      "catalogPrefix": "kernels/msl/",
+      "fetchScripts": [
+        "scripts/fetch-msl-kernels.sh"
+      ],
+      "build": "2026-10-02"
+    },
+    "kernels/psyche": {
+      "kind": "kernels",
+      "name": "psyche",
+      "localDir": "apps/viewer/test-catalogs/kernels/psyche",
+      "catalogPrefix": "kernels/psyche/",
+      "fetchScripts": [
+        "scripts/fetch-psyche-kernels.sh"
+      ],
+      "build": "2026-10-02"
+    },
+    "kernels/voyager": {
+      "kind": "kernels",
+      "name": "voyager",
+      "localDir": "apps/viewer/test-catalogs/kernels/voyager",
+      "catalogPrefix": "kernels/voyager/",
+      "fetchScripts": [
+        "scripts/fetch-voyager-kernels.sh"
+      ],
+      "build": "2026-10-02"
+    },
+    "kernels/rosetta": {
+      "kind": "kernels",
+      "name": "rosetta",
+      "localDir": "apps/viewer/test-catalogs/kernels/rosetta",
+      "catalogPrefix": "kernels/rosetta/",
+      "fetchScripts": [
+        "scripts/fetch-rosetta-kernels.sh"
+      ],
+      "derivedKernels": {
+        "ROS_RORB_DV_257_RESAMPLED.BSP": {
+          "sourceUrls": [
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/spk/CORB_DV_257_03___T19_00345.BSP",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/spk/RORB_DV_257_03___T19_00345.BSP",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/lsk/NAIF0011.TLS"
+          ],
+          "scripts": [
+            "scripts/fetch-rosetta-kernels.sh",
+            "scripts/resample-spk.mjs"
+          ]
+        },
+        "ROS_COG_V4_RESAMPLED.BSP": {
+          "sourceUrls": [
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/spk/ROS_COG_V4.BSP",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/lsk/NAIF0011.TLS",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/sclk/ROS_160929_STEP.TSC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/fk/ROS_V38.TF"
+          ],
+          "scripts": [
+            "scripts/fetch-rosetta-kernels.sh",
+            "scripts/resample-spk.mjs"
+          ]
+        },
+        "ROS_ATT_THINNED.BC": {
+          "sourceUrls": [
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ATNR_P040302093352_T6_00127.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/former_versions/RATT_DV_145_01_01_T6_00216.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/former_versions/RATT_DV_223_01_01_T6_00302.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/RATT_DV_257_02_01_T6_00344.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/lsk/NAIF0011.TLS",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/sclk/ROS_160929_STEP.TSC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/fk/ROS_V38.TF"
+          ],
+          "scripts": [
+            "scripts/fetch-rosetta-kernels.sh",
+            "scripts/thin-ck.mjs"
+          ]
+        },
+        "CG_ATT_THINNED.BC": {
+          "sourceUrls": [
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/former_versions/CATT_DV_145_02_______00216.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/former_versions/CATT_DV_223_02_______00302.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/CATT_DV_257_03_______00344.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/lsk/NAIF0011.TLS",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/sclk/ROS_160929_STEP.TSC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/fk/ROS_V38.TF"
+          ],
+          "scripts": [
+            "scripts/fetch-rosetta-kernels.sh",
+            "scripts/thin-ck.mjs"
+          ]
+        },
+        "ROS_HGA_ZERO.TF": {
+          "sourceUrls": [
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/fk/ROS_V38.TF"
+          ],
+          "scripts": [
+            "scripts/fetch-rosetta-kernels.sh"
+          ]
+        },
+        "ROS_SAPY_THINNED.BC": {
+          "sourceUrls": [
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2004_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2005_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2006_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2007_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2008_V0039.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2009_V0055.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2010_V0053.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2011_V0021.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2014_V0048.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2015_V0043.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2016_V0042.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/lsk/NAIF0011.TLS",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/sclk/ROS_160929_STEP.TSC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/fk/ROS_V38.TF"
+          ],
+          "scripts": [
+            "scripts/fetch-rosetta-kernels.sh",
+            "scripts/thin-ck.mjs"
+          ]
+        },
+        "ROS_SAMY_THINNED.BC": {
+          "sourceUrls": [
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2004_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2005_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2006_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2007_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2008_V0039.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2009_V0055.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2010_V0053.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2011_V0021.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2014_V0048.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2015_V0043.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_SA_2016_V0042.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/lsk/NAIF0011.TLS",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/sclk/ROS_160929_STEP.TSC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/fk/ROS_V38.TF"
+          ],
+          "scripts": [
+            "scripts/fetch-rosetta-kernels.sh",
+            "scripts/thin-ck.mjs"
+          ]
+        },
+        "ROS_HGA_EL_THINNED.BC": {
+          "sourceUrls": [
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2004_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2005_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2006_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2007_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2008_V0020.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2009_V0053.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2010_V0047.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2011_V0019.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2014_V0045.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2015_V0054.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2016_V0043.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/lsk/NAIF0011.TLS",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/sclk/ROS_160929_STEP.TSC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/fk/ROS_V38.TF"
+          ],
+          "scripts": [
+            "scripts/fetch-rosetta-kernels.sh",
+            "scripts/thin-ck.mjs"
+          ]
+        },
+        "ROS_HGA_AZ_THINNED.BC": {
+          "sourceUrls": [
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2004_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2005_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2006_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2007_V0002.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2008_V0020.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2009_V0053.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2010_V0047.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2011_V0019.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2014_V0045.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2015_V0054.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/ck/ROS_HGA_2016_V0043.BC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/lsk/NAIF0011.TLS",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/sclk/ROS_160929_STEP.TSC",
+            "https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/fk/ROS_V38.TF"
+          ],
+          "scripts": [
+            "scripts/fetch-rosetta-kernels.sh",
+            "scripts/thin-ck.mjs"
+          ]
+        }
+      },
+      "attribution": "ESA SPICE Service Rosetta archive. Unmodified archive kernels except explicitly derived kernels; see source URLs and generation scripts.",
+      "build": null
+    }
+  }
+}

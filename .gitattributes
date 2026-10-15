@@ -38,3 +38,9 @@
 apps/viewer/test-catalogs/textures/moon-16k.jpg filter=lfs diff=lfs merge=lfs -text
 apps/viewer/test-catalogs/textures/moon-displacement-16k.jpg filter=lfs diff=lfs merge=lfs -text
 apps/viewer/test-catalogs/textures/moon-normal-16k.jpg filter=lfs diff=lfs merge=lfs -text
+
+# NOT LFS: the 529 KB three-day reconstruction subset the PDS geometry oracle
+# (packages/core/src/__tests__/pds-geometry-oracle.test.ts) runs against. Half
+# the ~1 MB threshold above, and small enough that a plain blob is cheaper for
+# every clone and CI run than an LFS round-trip. `-filter` overrides *.bsp.
+packages/spice/test-kernels/cassini/040909R_SCPSE_04183_04185_subset.bsp -filter -diff -merge -text

@@ -6,10 +6,12 @@
  * whose properties are mutated. We use the latter.
  */
 import { etToDate, type Universe } from '@cosmolabe/core';
-import type { InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
+import type { InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
+import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
+import { windowFollowing } from './scrubber-math';
 
 // ── Exported types ──
 
@@ -109,9 +111,19 @@ export const vs = $state({
   loadingLabel: '',
   loadingDetail: '',
   showLoading: false,
+  /** The catalog the load in flight is for — what the loading screen names. */
+  loadingCatalog: '',
+  /** The catalog whose scene is up, or null with no scene. Committed when the
+   *  scene binds, so a load that fails part-way leaves the previous name. */
+  catalogName: null as string | null,
 
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
+
+  /** Point Probe mode (#127): the pointer previews the surface, a click pins it. */
+  probeActive: false,
+  /** The pinned probe point. Outlives probe mode; cleared on its own. */
+  probePin: null as SurfacePoint | null,
 
   /** Caption over the viewport, from `displayNote`. Null when there is none. */
   note: null as string | null,
@@ -168,6 +180,34 @@ export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
   emit('select', name);
 }
+
+/** Enter or leave Point Probe mode. Leaving keeps the pinned point. */
+/** Pointer modes that cannot run alongside the probe; starting the probe ends them. */
+const probeExclusive: Array<() => void> = [];
+
+/**
+ * Register a pointer mode the probe excludes (a pending measurement pick).
+ * The mode, for its part, turns the probe off when it starts.
+ */
+export function excludeFromProbe(end: () => void) {
+  probeExclusive.push(end);
+}
+
+export function setProbeActive(active: boolean) {
+  if (active) for (const end of probeExclusive) end();
+  vs.probeActive = active;
+  _renderer?.setPointProbeActive(active);
+}
+
+export function toggleProbe() {
+  setProbeActive(!vs.probeActive);
+}
+
+/** Clear the pinned probe point without leaving probe mode. */
+export function clearProbePin() {
+  vs.probePin = null;
+  _renderer?.setProbePin(null);
+}
 /**
  * Identify a set of bodies in the 3D view — the highlight channel event
  * selection drives.
@@ -196,7 +236,8 @@ export function highlightBodies(names: readonly string[]) {
   vs.highlightedBodies = next;
 }
 
-export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean }) {
+export function setLoadingState(opts: { label?: string; detail?: string; progress?: number; show?: boolean; catalog?: string }) {
+  if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
   if (opts.progress !== undefined) vs.loadingProgress = opts.progress;
@@ -246,9 +287,14 @@ function emit<K extends keyof ViewerEventMap>(event: K, data: ViewerEventMap[K])
 
 const loadProgress = new LoadProgress();
 
-/** Start a load: shows the bar at zero and fixes the phase weights for it. */
-export function beginLoad(label: string, opts: { kernelBytes?: number } = {}) {
+/**
+ * Start a load: shows the bar at zero and fixes the phase weights for it.
+ * `catalog` names what is being loaded; leaving it out keeps the name the load
+ * already had, for the second call once the kernel byte total is known.
+ */
+export function beginLoad(label: string, opts: { kernelBytes?: number; catalog?: string } = {}) {
   loadProgress.begin(opts);
+  if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   vs.loadingProgress = loadProgress.value;
   vs.loadingLabel = label;
   vs.loadingDetail = '';
@@ -320,10 +366,44 @@ function syncCameraState() {
 
 // ── Renderer binding ──
 
+/**
+ * Canvas-relative boxes of the shell chrome marked `data-scene-occluder`
+ * (floating panels, rail, timeline, view context), so scene annotations are
+ * placed where they can be seen. Cached briefly: it is read every frame while
+ * a callout is up, and chrome moves only on drag or resize.
+ */
+function sceneOccluderRects(canvas: () => HTMLCanvasElement): () => Array<{ x0: number; y0: number; x1: number; y1: number }> {
+  let cached: Array<{ x0: number; y0: number; x1: number; y1: number }> = [];
+  let cachedAt = -Infinity;
+  return () => {
+    const now = performance.now();
+    if (now - cachedAt < 250) return cached;
+    cachedAt = now;
+    const origin = canvas().getBoundingClientRect();
+    cached = [...document.querySelectorAll<HTMLElement>('[data-scene-occluder]')]
+      .map((element) => element.getBoundingClientRect())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+      .map((rect) => ({
+        x0: rect.left - origin.left,
+        y0: rect.top - origin.top,
+        x1: rect.right - origin.left,
+        y1: rect.bottom - origin.top,
+      }));
+    return cached;
+  };
+}
+
 export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   unbindRenderer();
   _renderer = renderer;
   _universe = universe;
+  vs.catalogName = vs.loadingCatalog || null;
+  renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
+
+  // A pinned point belongs to the scene it was probed in; the mode carries over.
+  vs.probePin = null;
+  renderer.setPointProbeActive(vs.probeActive);
+  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
 
   // Restore persisted display preferences
   const prefs = loadPrefs();
@@ -396,6 +476,12 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   let rafId = 0;
   const tick = () => {
     vs.frameTick++;
+    // The controller lets go of a tracked object on its own between calls —
+    // a crane queued behind a fly-to, the Z / C keys — and says nothing. Once
+    // nothing is tracked and nothing is in flight toward a body (which
+    // `gotoObject` reports ahead of time), the HUD should stop naming one.
+    const cc = renderer.cameraController;
+    if (vs.trackedBodyName !== null && cc.focusBody === null) vs.trackedBodyName = null;
     rafId = requestAnimationFrame(tick);
   };
   rafId = requestAnimationFrame(tick);
@@ -415,6 +501,13 @@ export function unbindRenderer() {
   // the *next* scene that this one never highlighted.
   _highlightedBodies = [];
   vs.highlightedBodies = [];
+  // With the renderer gone there is no scene, whatever the last one reached —
+  // a load that tears the old scene down and then fails must not hand the
+  // viewer chrome an empty canvas as though it were a finished scene.
+  vs.catalogName = null;
+  vs.sceneLoaded = false;
+  vs.assetsReady = false;
+  vs.assetSummary = null;
 }
 
 export function getRenderer(): UniverseRenderer | null {
@@ -456,10 +549,25 @@ export function slower() {
   syncTimeState();
 }
 
+/**
+ * Jump the playhead to `newEt`. The timeline keeps its zoom — it slides to
+ * bring the new time into view if needed — and is rebuilt only when the new
+ * time falls outside its range altogether.
+ */
 export function setTime(newEt: number) {
   if (!_renderer) return;
   _renderer.timeController.setTime(newEt);
-  initScrubberRange();
+  const next = windowFollowing(
+    newEt,
+    { min: vs.scrubMin, max: vs.scrubMax },
+    { min: vs.scrubBaseMin, max: vs.scrubBaseMax },
+  );
+  if (!next) {
+    initScrubberRange();
+    return;
+  }
+  vs.scrubMin = next.min;
+  vs.scrubMax = next.max;
 }
 
 /**
@@ -501,13 +609,17 @@ export function scrubTo(fraction: number) {
   _renderer.timeController.setTime(newEt);
 }
 
-export function zoomScrubber(zoomIn: boolean) {
+/**
+ * Zoom the timeline window by one step about `anchorEt` — the pointer, when
+ * the gesture has one — or the playhead.
+ */
+export function zoomScrubber(zoomIn: boolean, anchorEt: number = vs.et) {
   const ZOOM_FACTOR = 0.8;
   const MIN_RANGE = 10; // seconds
   const factor = zoomIn ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
 
   // Clamp anchor to the current view so playback drift doesn't blow up the range
-  const anchor = Math.max(vs.scrubMin, Math.min(vs.scrubMax, vs.et));
+  const anchor = Math.max(vs.scrubMin, Math.min(vs.scrubMax, anchorEt));
   let newMin = anchor - (anchor - vs.scrubMin) * factor;
   let newMax = anchor + (vs.scrubMax - anchor) * factor;
 
@@ -539,6 +651,34 @@ export function panScrubber(centerFraction: number) {
 
   vs.scrubMin = newMin;
   vs.scrubMax = newMax;
+}
+
+/**
+ * Show exactly `[min, max]` on the timeline, as far as the base range and the
+ * minimum span allow — the framing presets (fit results, fit an event).
+ */
+export function setScrubberWindow(min: number, max: number) {
+  const MIN_RANGE = 10; // seconds, as zoomScrubber
+  const base = vs.scrubBaseMax - vs.scrubBaseMin;
+  if (!(base > 0) || !Number.isFinite(min) || !Number.isFinite(max)) return;
+  const span = Math.min(base, Math.max(MIN_RANGE, max - min));
+  const center = (min + max) / 2;
+  let lo = center - span / 2;
+  lo = Math.max(vs.scrubBaseMin, Math.min(lo, vs.scrubBaseMax - span));
+  vs.scrubMin = lo;
+  vs.scrubMax = lo + span;
+}
+
+/**
+ * Slide the timeline window by `seconds` (positive = later) without changing
+ * its span, stopping at the base range's edges.
+ */
+export function panScrubberBy(seconds: number) {
+  const span = vs.scrubMax - vs.scrubMin;
+  if (!(span > 0) || !Number.isFinite(seconds)) return;
+  const newMin = Math.max(vs.scrubBaseMin, Math.min(vs.scrubMin + seconds, vs.scrubBaseMax - span));
+  vs.scrubMin = newMin;
+  vs.scrubMax = newMin + span;
 }
 
 /** Set the scrubber to a specific duration (in seconds) centered on current time */
@@ -627,6 +767,43 @@ export function gotoObject(
   return true;
 }
 
+/**
+ * Fly over a lat/lon box `[west, south, east, north]` (degrees) on `bodyName`,
+ * looking straight down with north up, close enough that the box fills the view.
+ */
+export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number]): boolean {
+  if (!_renderer) return false;
+  const bm = _renderer.getBodyMesh(bodyName);
+  if (!bm) return false;
+  const [w, s, e0, n] = bounds;
+  const e = e0 < w ? e0 + 360 : e0;
+  const rad = Math.PI / 180;
+  const cam = _renderer.camera;
+  const heightKm = (n - s) * rad * bm.displayRadius;
+  const widthKm = (e - w) * rad * bm.displayRadius * Math.cos((s + n) / 2 * rad);
+  const altitudeKm = 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
+  const position = bm.geodeticOffsetKm((s + n) / 2, (w + e) / 2, altitudeKm, new THREE.Vector3());
+  if (!position) return false;
+  const cc = _renderer.cameraController;
+  // Modes that frame something else (a spacecraft's LVLH, a surface camera)
+  // would take the camera back on landing; orbit the body freely instead,
+  // keeping the current up so the flight starts without a roll.
+  const up = cc.camera.up.clone();
+  cc.resetToFreeOrbit();
+  cc.camera.up.copy(up);
+  // One flight from wherever the camera is, switching origin on landing —
+  // tracking first would cut to a default framing of the body.
+  cc.flyTo(bm, {
+    duration: 1.5,
+    offset: position.multiplyScalar(_renderer.scaleFactor),
+    up: new THREE.Vector3(0, 1, 0), // north, in the mesh frame
+  });
+  syncCameraState();
+  // flyTo tracks on landing; the HUD should read the new body for the flight.
+  vs.trackedBodyName = bodyName;
+  return true;
+}
+
 /** Release the tracked object. The camera stays where it is. */
 export function untrack() {
   if (!_renderer) return;
@@ -673,6 +850,31 @@ export function setFov(deg: number, opts: { persist?: boolean } = {}) {
  * renderer's scale factor, so the conversion happens here — the same one
  * `camera-view-io.ts` does on the way in and out of its JSON.
  */
+/**
+ * The frame a scripted camera pose is written in, as a body's origin and its
+ * body-to-world rotation — or null for the inertial frame, where pose vectors
+ * are world vectors as they always were.
+ *
+ * In a body-fixed or spacecraft-fixed camera frame, a pose is in that body's
+ * own axes (SPICE convention: Z the pole, X the prime meridian), the way
+ * Cosmographia's `moveToPov` takes it (#152). These are the two orbit modes
+ * whose camera rides on a body; the others place the camera themselves.
+ */
+function poseFrame(): { origin: THREE.Vector3; toWorld: THREE.Quaternion } | null {
+  const cc = _renderer?.cameraController;
+  if (!cc) return null;
+  if (cc.mode !== CameraModeName.BODY_FIXED && cc.mode !== CameraModeName.SC_FIXED) return null;
+  const body = cc.originBody;
+  if (!body) return null;
+  // Its position and orientation as of now, not as of the last frame drawn: a
+  // script that seeks the clock or switches body and then places the camera in
+  // the same breath — every `snapshot()` replay does — would otherwise convert
+  // against where the body was, which after a switch is the old origin's
+  // coordinates and hundreds of thousands of km off.
+  _renderer!.refreshBodyPose(body.body.name);
+  return { origin: body.position.clone(), toWorld: body.bodyToWorldQuaternion(new THREE.Quaternion()) };
+}
+
 export function setCameraPose(
   position: readonly [number, number, number],
   target?: readonly [number, number, number],
@@ -681,16 +883,97 @@ export function setCameraPose(
   if (!_renderer) return false;
   const cc = _renderer.cameraController;
   const sf = _renderer.scaleFactor;
+  const frame = poseFrame();
+  /** A point in the pose's frame, in km, to world (scene) units. */
+  const point = (v: readonly [number, number, number], out: THREE.Vector3) => {
+    out.set(v[0] * sf, v[1] * sf, v[2] * sf);
+    if (frame) out.applyQuaternion(frame.toWorld).add(frame.origin);
+    return out;
+  };
   cc.cancelAnimation();
-  cc.camera.position.set(position[0] * sf, position[1] * sf, position[2] * sf);
+  point(position, cc.camera.position);
   // The orbit target is where the camera *looks*; without it a pose says where
   // the camera stands and nothing about what it sees. Defaulting to the origin
   // keeps the two-argument form meaning what it used to: the origin is the
   // tracked body when one is tracked, and the world origin otherwise.
-  if (target) cc.controls.target.set(target[0] * sf, target[1] * sf, target[2] * sf);
-  else cc.controls.target.set(0, 0, 0);
-  if (up) cc.camera.up.set(up[0], up[1], up[2]).normalize();
+  point(target ?? [0, 0, 0], cc.controls.target);
+  if (up) {
+    cc.camera.up.set(up[0], up[1], up[2]).normalize();
+    if (frame) cc.camera.up.applyQuaternion(frame.toWorld);
+  }
+  // The pose was converted against the body's orientation now. A co-rotating
+  // frame otherwise turns the camera on the next frame by the rotation since
+  // the last one drawn — after a seek in the same script, hours of it.
+  if (frame) cc.syncModeFromCamera(_renderer.timeController.et);
   return true;
+}
+
+/**
+ * The camera's pose in the frame `setCameraPose` takes it in, in km — so a
+ * pose read back and written again lands in the same place, which is what
+ * `snapshot()` relies on.
+ */
+export function getCameraPose(): {
+  position: [number, number, number];
+  target: [number, number, number];
+  up: [number, number, number];
+} | null {
+  if (!_renderer) return null;
+  const cc = _renderer.cameraController;
+  const inv = 1 / _renderer.scaleFactor;
+  const frame = poseFrame();
+  const fromWorld = frame ? frame.toWorld.clone().invert() : null;
+  const point = (w: THREE.Vector3): [number, number, number] => {
+    const v = w.clone();
+    if (frame) v.sub(frame.origin).applyQuaternion(fromWorld!);
+    return [v.x * inv, v.y * inv, v.z * inv];
+  };
+  const up = cc.camera.up.clone();
+  if (fromWorld) up.applyQuaternion(fromWorld);
+  return { position: point(cc.camera.position), target: point(cc.controls.target), up: [up.x, up.y, up.z] };
+}
+
+/**
+ * Swing the camera around what it orbits by `degrees`, the way it would move
+ * on screen. Instant unless `seconds` is given. False in a camera frame that
+ * owns the view's orientation, or for a non-finite angle or duration.
+ */
+export function circleCenter(
+  direction: 'right' | 'left' | 'up' | 'down',
+  degrees: number,
+  seconds?: number,
+): boolean {
+  if (!_renderer) return false;
+  if (!Number.isFinite(degrees) || !validMoveSeconds(seconds)) return false;
+  const axis = direction === 'right' || direction === 'left' ? 'up' : 'right';
+  const sign = direction === 'right' || direction === 'up' ? 1 : -1;
+  return _renderer.cameraController.orbitTarget(axis, sign * THREE.MathUtils.degToRad(degrees), seconds);
+}
+
+/**
+ * Move the camera away from what it orbits by `km` (toward it when negative).
+ * Instant unless `seconds` is given. False where `circleCenter` is.
+ */
+export function dolly(km: number, seconds?: number): boolean {
+  if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;
+  return _renderer.cameraController.dolly(km * _renderer.scaleFactor, seconds);
+}
+
+/**
+ * Raise the camera and what it looks at by `km` along the view's up (lower
+ * when negative). In free orbit that releases the tracked object when the
+ * crane starts — at once for an instant crane, which is synced here, or once
+ * a fly-to lands, which the frame tick picks up. False where `circleCenter` is.
+ */
+export function crane(km: number, seconds?: number): boolean {
+  if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;
+  const ok = _renderer.cameraController.crane(km * _renderer.scaleFactor, seconds);
+  if (ok) syncCameraState();
+  return ok;
+}
+
+function validMoveSeconds(seconds: number | undefined): boolean {
+  return seconds === undefined || (Number.isFinite(seconds) && seconds >= 0);
 }
 
 /** Show or hide one object's trajectory line. False if there is no such object. */

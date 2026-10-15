@@ -8,19 +8,24 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
-  import { Loader2, Search, Ban, Plus } from 'lucide-svelte';
+  import { analysis } from '../lib/analysis.svelte';
+  import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X, CircleHelp } from 'lucide-svelte';
+  import { tick, untrack } from 'svelte';
   import * as Select from '$lib/components/ui/select/index.js';
+  import * as Popover from '$lib/components/ui/popover';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
   import { vs, etToUtcString } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
+  import EventDetails from './EventDetails.svelte';
   import { getSpice } from '../lib/loader';
   import {
     EVENT_KINDS, cancelSearch, ef, clearSelection, currentKind, resetForm, runSearch,
-    selectEvent, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
+    selectEvent, previewEvent, removeConfiguredQuery, setKind, setParam, setRole, setSort, setStep, setWindow, resetWindow,
     currentConfiguredQuery, setCurrentQueryVisible,
-    configuredEventQueries, createNewSearch, openConfiguredQuery,
-    setConfiguredQueryEnabled, setConfiguredQueryVisible,
+    configuredEventQueries, createNewSearch, openConfiguredQuery, moveEventQuery,
+    setConfiguredQueryEnabled, setConfiguredQueryVisible, isSelectedEvent, currentSearchUnavailable,
+    useAvailableWindow, windowOutsideUsable, ensureCoverageCurrent,
   } from '../lib/event-finder.svelte';
   import {
     eventSummary, faultMessage, formatMetric, formatSeconds, headlineMetric, missingRoles,
@@ -36,18 +41,89 @@
   // The form is built from the catalog's own time span, which is not known
   // until a scene has loaded — so it is built on mount, not at module scope.
   $effect(() => {
-    if (!ef.form) resetForm();
+    if (!ef.form && !ef.restoring) resetForm();
+  });
+
+  // Kernels dropped into the running scene change what can be computed. The
+  // effect runs on mount too, so kernels dropped while this panel was closed
+  // are caught when it reopens; the check itself lives with the state.
+  $effect(() => {
+    void vs.kernelCount;
+    void analysis.reference.abcorr;
+    untrack(ensureCoverageCurrent);
   });
 
   let kind = $derived(currentKind());
   let form = $derived(ef.form);
   /** Display order is a view concern: the search's own order is chronological. */
   let shownEvents = $derived(sortEvents(ef.events, ef.sort));
+  let mixedTemporality = $derived(
+    ef.events.some(isIntervalEvent) && ef.events.some((event) => !isIntervalEvent(event)),
+  );
   let metricSortLabel = $derived(sortMetricLabel(ef.events));
   let unfilledRoles = $derived(form ? missingRoles(kind, form) : []);
   let configured = $derived(currentConfiguredQuery());
   let configuredQueries = $derived(configuredEventQueries());
-  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running);
+  /** Why this scene cannot search at all — a stated policy, not a failed search. */
+  let unavailable = $derived(currentSearchUnavailable());
+  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable && !ef.restoring);
+  let coverage = $derived(ef.coverage);
+  /** The bodies the suggestion is about, in the kind's role order: "Mars ↔ Earth". */
+  let coverageSubject = $derived(
+    form
+      ? [...new Set(kind.roles.map((r) => form.bodies[r.role]).filter((b): b is string => !!b))]
+          .map(titleCase)
+          .join(' ↔ ')
+      : '',
+  );
+  /** Parts of the current window no usable range covers; empty when it is fine. */
+  let outside = $derived(form && coverage ? windowOutsideUsable() : []);
+  let availableIndex = $derived(coverage?.windows.findIndex(isCurrentWindow) ?? -1);
+  let windowSelection = $derived(
+    ef.windowSource === 'available'
+      ? availableIndex >= 0 ? `available:${availableIndex}` : 'custom'
+      : ef.windowSource,
+  );
+
+  function titleCase(name: string): string {
+    return name === name.toUpperCase() ? name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : name;
+  }
+
+  function utc(et: number): string {
+    return etToUtcString(et).replace(' UTC', '');
+  }
+
+  function compactRange(start: number, end: number): string {
+    const from = utc(start);
+    const to = utc(end);
+    if (from.slice(0, 10) !== to.slice(0, 10)) return `${from.slice(0, 10)} → ${to.slice(0, 10)}`;
+    if (from.slice(0, 16) === to.slice(0, 16)) return `${from.slice(0, 19)} → ${to.slice(11, 19)}`;
+    return `${from.slice(0, 16)} → ${to.slice(11, 16)}`;
+  }
+
+  function isCurrentWindow(w: { start: number; end: number }): boolean {
+    return !!form && form.startEt === w.start && form.endEt === w.end;
+  }
+  let resultsListEl = $state<HTMLDivElement>();
+
+  // Scene and timeline markers can select a result outside the list's current
+  // scroll window. Reveal its row so the time jump has an obvious explanation.
+  $effect(() => {
+    const selectedId = ef.selectedId;
+    const queryId = ef.selectedQueryId;
+    // Only when the list is showing the selection's own query.
+    if (!selectedId || queryId !== ef.configuredId) return;
+    void tick().then(() => {
+      if (ef.selectedId !== selectedId || ef.selectedQueryId !== queryId) return;
+      const list = resultsListEl;
+      const selected = list?.querySelector<HTMLElement>('.event-result.selected');
+      if (!list || !selected) return;
+      const listBox = list.getBoundingClientRect();
+      const rowBox = selected.getBoundingClientRect();
+      if (rowBox.top < listBox.top) list.scrollTop -= listBox.top - rowBox.top;
+      else if (rowBox.bottom > listBox.bottom) list.scrollTop += rowBox.bottom - listBox.bottom;
+    });
+  });
   const eventKindItems = EVENT_KINDS.map(({ kind, label }) => ({ value: kind, label }));
 
   /** Window fields are edited as UTC text and only committed when they parse. */
@@ -74,22 +150,37 @@
   }
 
   function commitStart() {
+    // Leaving the field untouched must not re-parse its truncated display text:
+    // that would pin the window and move it by the dropped fraction of a second.
+    if (form && startText === utc(form.startEt)) { startBad = false; return; }
     const et = parseUtc(startText);
     startBad = et === null;
     if (et !== null && form) setWindow(et, form.endEt);
   }
 
   function commitEnd() {
+    if (form && endText === utc(form.endEt)) { endBad = false; return; }
     const et = parseUtc(endText);
     endBad = et === null;
     if (et !== null && form) setWindow(form.startEt, et);
   }
 
-  /** Snap the window to the whole catalog, or to what the scrubber shows. */
-  function useRange(start: number, end: number) {
+  function chooseWindow(value: string) {
     startBad = false;
     endBad = false;
-    setWindow(start, end);
+    if (value.startsWith('available:')) {
+      useAvailableWindow(Number(value.slice('available:'.length)));
+    } else if (value === 'visible') {
+      setWindow(vs.scrubMin, vs.scrubMax);
+      ef.windowSource = 'visible';
+    } else if (value === 'catalog') {
+      setWindow(vs.scrubBaseMin, vs.scrubBaseMax);
+      ef.windowSource = 'catalog';
+    } else if (value === 'suggested') {
+      resetWindow();
+    } else if (value === 'custom') {
+      ef.windowSource = 'custom';
+    }
   }
 
   const STEP_PRESETS = [
@@ -103,18 +194,13 @@
   function eventTime(event: GeometryEvent): string {
     return etToUtcString(eventStart(event)).replace(' UTC', '');
   }
-
-  /** Metrics worth a second line under a result, in the kind's own order. */
-  function detailMetrics(event: GeometryEvent) {
-    return (event.metrics ?? []).filter((m) => m.key !== 'duration');
-  }
-
-  function roleLabel(role: string): string {
-    return kind.roles.find((spec) => spec.role === role)?.label ?? role;
-  }
 </script>
 
 <InstrumentPanel key="events" title="Event finder" width={toolDef('events').width} {onClose}>
+
+  {#if unavailable && (!coverage || coverage.status === 'unknown' || (coverage.status === 'available' && outside.length === 0))}
+    <p class="event-unavailable ui-helper mb-2" role="note">{unavailable.message}</p>
+  {/if}
 
   <!-- Event type -->
   <div class="flex items-center gap-2 mb-1.5">
@@ -202,27 +288,94 @@
       </div>
     {/each}
 
-    <!-- Search window -->
+    <!-- One window choice; only Custom exposes the editable timestamps. -->
     <div class="flex items-center gap-2 mb-1.5">
-      <span class="ui-label w-20 shrink-0">From</span>
-      <input
-        class="ui-control flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
-               {startBad ? 'border-warning' : 'border-border'}"
-        bind:value={startText}
-        onblur={commitStart}
-        onkeydown={(e) => { if (e.key === 'Enter') commitStart(); }}
-      />
+      <div class="w-20 shrink-0 flex items-center gap-1">
+        <label for="event-window" class="ui-label">Window</label>
+        <Popover.Root>
+          <Popover.Trigger class="text-text-muted hover:text-text-primary cursor-pointer" aria-label="How search windows are chosen">
+            <CircleHelp size={12} />
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content side="bottom" align="start" sideOffset={6} class="w-64 max-w-[calc(100vw-24px)] p-3 ui-helper">
+              <p>Suggested starts near the current scene time: up to {ef.kind === 'occultation' ? '90 days' : '2 years'}, clipped to usable coverage when known.</p>
+              <p class="mt-2">Available chooses one full searchable interval. Separate intervals exclude gaps in kernel coverage, with a small buffer at each edge. Custom lets you enter dates.</p>
+              <p class="mt-2 font-mono">{utc(form.startEt)} – {utc(form.endEt)} UTC</p>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+      </div>
+      <select
+        id="event-window"
+        class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
+        value={windowSelection}
+        onchange={(e) => chooseWindow((e.target as HTMLSelectElement).value)}
+        title={windowSelection === 'suggested'
+          ? `Suggested: centered on the current scene time, limited to ${ef.kind === 'occultation' ? '90 days' : '2 years'}, and clipped to usable coverage when known. ${utc(form.startEt)} – ${utc(form.endEt)}`
+          : `${utc(form.startEt)} – ${utc(form.endEt)}`}
+      >
+        <option value="suggested">{windowSelection === 'suggested' ? `Suggested · ${compactRange(form.startEt, form.endEt)}` : 'Suggested window'}</option>
+        {#each coverage?.windows ?? [] as w, index (w.start)}
+          <option value={`available:${index}`}>Available · {compactRange(w.start, w.end)}{index > 0 ? ` (${formatSeconds(w.start - coverage!.windows[index - 1]!.end)} gap)` : ''}</option>
+        {/each}
+        <option value="visible">Visible timeline · {windowSelection === 'visible' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubMin, vs.scrubMax)}</option>
+        <option value="catalog">Catalog span · {windowSelection === 'catalog' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubBaseMin, vs.scrubBaseMax)}</option>
+        <option value="custom">Custom…</option>
+      </select>
     </div>
-    <div class="flex items-center gap-2 mb-1.5">
-      <span class="ui-label w-20 shrink-0">To</span>
-      <input
-        class="ui-control flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
-               {endBad ? 'border-warning' : 'border-border'}"
-        bind:value={endText}
-        onblur={commitEnd}
-        onkeydown={(e) => { if (e.key === 'Enter') commitEnd(); }}
-      />
-    </div>
+    {#if windowSelection === 'custom'}
+      <div class="flex items-center gap-2 mb-1.5">
+        <label for="event-from" class="ui-label w-20 shrink-0">From</label>
+        <input
+          id="event-from"
+          class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
+                 {startBad ? 'border-warning' : 'border-border'}"
+          bind:value={startText}
+          onblur={commitStart}
+          onkeydown={(e) => { if (e.key === 'Enter') commitStart(); }}
+        />
+      </div>
+      <div class="flex items-center gap-2 mb-1.5">
+        <label for="event-to" class="ui-label w-20 shrink-0">To</label>
+        <input
+          id="event-to"
+          class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border rounded px-1.5 py-1 font-mono outline-none
+                 {endBad ? 'border-warning' : 'border-border'}"
+          bind:value={endText}
+          onblur={commitEnd}
+          onkeydown={(e) => { if (e.key === 'Enter') commitEnd(); }}
+        />
+      </div>
+    {/if}
+    {#if coverage?.status === 'available' && outside.length > 0 && (coverage.exact || unavailable)}
+      <p class="event-range invalid mb-2 ml-22" role="status">
+        <span class="event-range-heading">Outside available range.</span>
+        Choose an available window above.
+      </p>
+    {:else if coverage && coverage.status === 'none'}
+      <div class="event-range invalid mb-2 ml-22" role="status">
+        <p class="event-range-heading">No usable range for {coverageSubject}</p>
+        {#if coverage.problems.length === 1}
+          <p class="event-range-reason">{coverage.problems[0]}</p>
+        {:else if coverage.problems.length > 1}
+          <details class="event-range-reason">
+            <summary>{coverage.problems.length} missing requirements</summary>
+            <ul class="list-disc pl-4">
+              {#each coverage.problems as problem}<li>{problem}</li>{/each}
+            </ul>
+          </details>
+        {/if}
+      </div>
+    {/if}
+    {#if coverage?.status === 'available' && !coverage.exact && coverage.caveats.length}
+      <details class="event-range-details mb-2 ml-22">
+        <summary>Available range is approximate</summary>
+        <ul class="list-disc pl-4">
+          {#each coverage.caveats as caveat}<li>{caveat}</li>{/each}
+        </ul>
+      </details>
+    {/if}
+
     <div class="flex items-center gap-2 mb-2">
       <span class="ui-label w-20 shrink-0">Step</span>
       <select
@@ -238,21 +391,7 @@
           <option value={String(form.step)}>{formatSeconds(form.step)}</option>
         {/if}
       </select>
-      <button class="ctrl-link shrink-0" onclick={() => useRange(vs.scrubBaseMin, vs.scrubBaseMax)}>all</button>
-      <button class="ctrl-link shrink-0" onclick={() => useRange(vs.scrubMin, vs.scrubMax)}>visible</button>
     </div>
-
-    <!-- Say when the window is not simply the catalog's span, so a default that
-         differs from the scrubber is explained rather than merely odd. -->
-    {#if ef.windowTrimmed}
-      <p class="ui-helper event-helper mb-2 ml-22">
-        Trimmed to the kernel coverage of the chosen bodies.
-      </p>
-    {:else if ef.windowPinned}
-      <p class="ui-helper event-helper mb-2 ml-22">
-        Using your window. <button class="ctrl-link underline" onclick={resetWindow}>Reset to kernel coverage</button>
-      </p>
-    {/if}
 
     <!-- Run. A long search is survivable now that it runs off the main thread,
          so it is also worth being able to give up on. -->
@@ -311,9 +450,11 @@
       </div>
     {/if}
 
+    {#if ef.restoring}<p class="ui-helper mt-1.5" role="status">Restoring shared event searches…</p>{/if}
+
     {#if configured}
       <div class="mt-1.5 flex items-center gap-3 ui-helper">
-        <label class="flex items-center gap-1 cursor-pointer" title="Include this configured event category in analysis">
+        <label class="flex items-center gap-1 cursor-pointer" title="Include this search in analysis">
           <input
             type="checkbox"
             class="accent-accent"
@@ -322,7 +463,7 @@
           />
           Enabled
         </label>
-        <label class="flex items-center gap-1 cursor-pointer" title="Show this category's cached results on the shared timeline">
+        <label class="flex items-center gap-1 cursor-pointer" title="Show this search on the timeline">
           <input
             type="checkbox"
             class="accent-accent"
@@ -341,16 +482,18 @@
     {/if}
   {/if}
 
-  {#if configuredQueries.length > 1}
+  <!-- The list, once there is more than the one being edited: two or more
+       searches, or one while the form holds an unsaved draft. -->
+  {#if configuredQueries.length > 1 || (configuredQueries.length === 1 && configuredQueries[0].id !== ef.configuredId)}
     <div class="mt-2 pt-2 border-t border-border">
       <div class="flex items-center justify-between gap-2 mb-1">
-        <span class="ui-section-label">Event categories</span>
+        <span class="ui-section-label">Searches</span>
         <button class="ctrl-link flex items-center gap-0.5" onclick={createNewSearch}>
           <Plus size={10} /> New
         </button>
       </div>
       <div class="flex flex-col gap-0.5">
-        {#each configuredQueries as query (query.id)}
+        {#each configuredQueries as query, qi (query.id)}
           <div class="configured-query flex items-center gap-1 rounded px-1.5 py-1" class:active={query.id === ef.configuredId}>
             <button class="min-w-0 flex-1 truncate text-left ui-helper" onclick={() => openConfiguredQuery(query.id)} title={query.label}>
               {query.label}
@@ -361,6 +504,28 @@
             <label title="Visible on timeline" class="ui-meta flex items-center gap-0.5 cursor-pointer">
               <input type="checkbox" checked={query.visible} onchange={(e) => setConfiguredQueryVisible(query.id, (e.target as HTMLInputElement).checked)} /> time
             </label>
+            <span class="query-move" role="group" aria-label="Move search">
+              <button
+                class="query-action"
+                onclick={() => moveEventQuery(query.id, -1)}
+                disabled={qi === 0}
+                aria-label="Move {query.label} up"
+                title="Move up"
+              ><ArrowUp size={11} /></button>
+              <button
+                class="query-action"
+                onclick={() => moveEventQuery(query.id, 1)}
+                disabled={qi === configuredQueries.length - 1}
+                aria-label="Move {query.label} down"
+                title="Move down"
+              ><ArrowDown size={11} /></button>
+            </span>
+            <button
+              class="query-action remove-query"
+              onclick={() => removeConfiguredQuery(query.id)}
+              aria-label="Remove {query.label}"
+              title="Remove search"
+            ><Trash2 size={11} /></button>
           </div>
         {/each}
       </div>
@@ -368,17 +533,35 @@
   {:else if configuredQueries.length === 1 && ef.searched}
     <div class="mt-1 flex justify-end">
       <button class="ctrl-link flex items-center gap-0.5" onclick={createNewSearch}>
-        <Plus size={10} /> Add event category
+        <Plus size={10} /> New search
       </button>
     </div>
   {/if}
 
   <!-- Results -->
-  {#if ef.fault}
+  {#if ef.fault && !(unavailable && ef.fault.code === 'unavailable')}
     <!-- A fault is "we could not look", which reads differently from a search
          that ran and matched nothing. -->
     <div class="ui-label mt-2 pt-2 border-t border-border text-warning">
-      {faultMessage(ef.fault)}
+      {#if ef.fault.code === 'provider-error' && coverage?.status === 'available' && outside.length > 0}
+        <!-- Say what to do about it first; SPICE's own words stay one click away. -->
+        <p>
+          The search window reaches outside the range the loaded kernels support for {coverageSubject}.
+          Pick one of the available ranges above.
+        </p>
+        <details class="mt-1 text-text-secondary">
+          <summary class="cursor-pointer">SPICE error</summary>
+          <p class="mt-0.5 font-mono break-words">{ef.fault.message}</p>
+        </details>
+      {:else if ef.fault.code === 'provider-error' && coverage?.status === 'none'}
+        <p>The loaded kernels cannot compute this geometry; see the missing data above.</p>
+        <details class="mt-1 text-text-secondary">
+          <summary class="cursor-pointer">SPICE error</summary>
+          <p class="mt-0.5 font-mono break-words">{ef.fault.message}</p>
+        </details>
+      {:else}
+        {faultMessage(ef.fault)}
+      {/if}
     </div>
   {:else if ef.searched && ef.events.length === 0}
     <div class="ui-label mt-2 pt-2 border-t border-border">
@@ -395,33 +578,41 @@
         <span class="ui-section-label">
           {ef.events.length} event{ef.events.length === 1 ? '' : 's'}
         </span>
-        <div class="flex items-center gap-1.5">
-          {#if metricSortLabel}
-            <span class="ui-meta">sort</span>
+        {#if metricSortLabel}
+          <!-- One labelled control: what the list is ordered by. -->
+          <div class="sort-control ui-meta" role="group" aria-label="Sort results">
+            <span>Sort:</span>
+            <button class="ctrl-link" class:on={ef.sort === 'time'} aria-pressed={ef.sort === 'time'} onclick={() => setSort('time')}>Time</button>
+            <span aria-hidden="true">|</span>
             <button
-              class="ctrl-link {ef.sort === 'time' ? 'text-text-primary' : ''}"
-              onclick={() => setSort('time')}
-            >time</button>
-            <button
-              class="ctrl-link {ef.sort === 'metric' ? 'text-text-primary' : ''}"
+              class="ctrl-link"
+              class:on={ef.sort === 'metric'}
+              aria-pressed={ef.sort === 'metric'}
               onclick={() => setSort('metric')}
               title="Smallest first"
             >{metricSortLabel}</button>
-          {/if}
-          {#if ef.selectedId}
-            <button class="ctrl-link" onclick={clearSelection}>clear</button>
-          {/if}
-        </div>
+          </div>
+        {/if}
       </div>
-      <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
+      <div class="event-marker-legend ui-helper" aria-label="3D event marker legend">
+        <span><i class="event-marker-diamond" aria-hidden="true"></i>Instant</span>
+        <span><i class="event-marker-span" aria-hidden="true"></i>Interval</span>
+      </div>
+      <div bind:this={resultsListEl} class="flex flex-col gap-1 max-h-64 overflow-y-auto">
         {#each shownEvents as event}
           {@const headline = headlineMetric(event)}
           {@const atPlayhead = eventContainsTime(event, vs.et)}
+          <div class="result-wrap">
           <button
-            class="event-result text-left rounded px-2 py-2 border cursor-pointer"
-            class:selected={ef.selectedId === event.id}
+            class="analysis-row event-result text-left rounded px-2 py-2 border cursor-pointer"
+            class:selected={isSelectedEvent(event)}
+            class:preview={ef.previewId === event.id && ef.previewQueryId === event.queryId}
             class:at-playhead={atPlayhead}
             onclick={() => selectEvent(event)}
+            onpointerenter={() => previewEvent(event)}
+            onpointerleave={() => previewEvent(null)}
+            onfocus={() => previewEvent(event)}
+            onblur={() => previewEvent(null)}
             title={event.label}
           >
             <div class="flex justify-between gap-2 items-baseline">
@@ -430,14 +621,15 @@
                    Say which quantity it is. -->
               <span class="flex items-center gap-1.5">
                 {#if atPlayhead}<span class="ui-meta event-now">at playhead</span>{/if}
-                <span
-                  class="ui-meta"
-                  title={isIntervalEvent(event)
-                    ? 'How long this event lasted, start to end'
-                    : 'This event is a single instant, not a span'}
-                >
-                  {isIntervalEvent(event) ? `lasts ${formatSeconds(eventDuration(event))}` : 'instant'}
-                </span>
+                {#if isIntervalEvent(event)}
+                  <span class="ui-meta" title="How long this event lasted, start to end">
+                    lasts {formatSeconds(eventDuration(event))}
+                  </span>
+                {:else if mixedTemporality}
+                  <!-- Only worth saying when the list mixes instants and
+                       spans; otherwise the legend already says it. -->
+                  <span class="ui-meta" title="This event is a single instant, not a span">instant</span>
+                {/if}
               </span>
             </div>
             {#if headline}
@@ -448,78 +640,18 @@
             {:else}
               <div class="event-summary">{eventSummary(event)}</div>
             {/if}
-            {#if ef.selectedId === event.id}
-              <div class="mt-1 flex flex-col gap-0.5">
-                {#if event.state}
-                  <div class="ui-data-row">
-                    <span class="ui-label">State</span>
-                    <span class="ui-readout capitalize">{event.state}</span>
-                  </div>
-                {/if}
-                {#if event.kind === 'occultation' && ef.activeId === event.id}
-                  <div class="geometry-legend ui-helper" aria-label="3D geometry legend">
-                    <span><i class="legend-line sightline"></i>{event.bodies.back?.toLowerCase() === 'sun' ? 'Observer sightline' : 'Background line of sight'}</span>
-                    {#if event.bodies.back?.toLowerCase() === 'sun'}
-                      <span><i class="legend-fill inner-shadow"></i>Umbra / antumbra boundary</span>
-                      <span><i class="legend-line penumbra"></i>Penumbra boundary</span>
-                      <small>End rings are shadow cross-sections at the {event.bodies.observer} plane; volumes are to scale.</small>
-                    {:else}
-                      <span><i class="legend-line tangent-guide"></i>Tangent guides</span>
-                      <span><i class="legend-fill inner-shadow"></i>Occulted region</span>
-                      <small>Guides converge at {event.bodies.observer}; shading begins where they touch the {event.bodies.front} limb.</small>
-                    {/if}
-                  </div>
-                {:else if event.kind === 'occultation'}
-                  <div class="geometry-standby ui-helper">
-                    3D geometry follows the event under the playhead.
-                  </div>
-                {/if}
-                {#each Object.entries(event.bodies) as [role, body]}
-                  <div class="ui-data-row">
-                    <span class="ui-label">{roleLabel(role)}</span>
-                    <span class="ui-readout">{body}</span>
-                  </div>
-                {/each}
-                {#if !event.metrics?.length}
-                  <!-- A closest approach with no range is a thin answer; say the
-                       measurement is missing rather than showing a blank. -->
-                  <div class="ui-helper">
-                    No measurements — this SPICE provider cannot report distances.
-                  </div>
-                {/if}
-                {#each detailMetrics(event) as metric}
-                  <div class="ui-data-row">
-                    <span class="ui-label">{metric.label}</span>
-                    <span class="ui-readout">{formatMetric(metric)}</span>
-                  </div>
-                {/each}
-                {#if isIntervalEvent(event)}
-                  <div class="ui-data-row">
-                    <span class="ui-label">Duration</span>
-                    <span class="ui-readout">{formatSeconds(eventDuration(event))}</span>
-                  </div>
-                  <div class="ui-data-row">
-                    <span class="ui-label">Ends</span>
-                    <span
-                      class="ctrl-link ui-readout"
-                      role="button"
-                      tabindex="0"
-                      onclick={(click) => { click.stopPropagation(); selectEvent(event, 'end'); }}
-                      onkeydown={(key) => {
-                        if (key.key === 'Enter' || key.key === ' ') {
-                          key.preventDefault();
-                          key.stopPropagation();
-                          selectEvent(event, 'end');
-                        }
-                      }}
-                    >
-                      {etToUtcString(event.end).replace(' UTC', '')}
-                    </span>
-                  </div>
-                {/if}
-              </div>
+            {#if isSelectedEvent(event)}
+              <div class="mt-1"><EventDetails {event} legend /></div>
             {/if}
           </button>
+          {#if isSelectedEvent(event)}
+            <!-- Deselect without re-seeking; clicking the row itself still
+                 re-focuses the event. -->
+            <button class="clear-selected" onclick={clearSelection} aria-label="Clear selection" title="Clear selection (Esc)">
+              <X size={12} />
+            </button>
+          {/if}
+          </div>
         {/each}
       </div>
     </div>
@@ -527,7 +659,7 @@
 </InstrumentPanel>
 
 <style>
-  /* Matches the measure tool's inline text controls. */
+  /* Inline text controls. */
   .ctrl-link {
     font-size: 10px;
     color: var(--color-text-muted);
@@ -544,8 +676,77 @@
   .configured-query {
     border: 1px solid transparent;
   }
+  /* Reorder and remove: quiet until the row is hovered or focused; remove
+     turns red only on its own hover. */
+  .query-move {
+    display: flex;
+  }
+  .query-action {
+    display: flex;
+    padding: 2px;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    opacity: 0;
+  }
+  .configured-query:hover .query-action,
+  .configured-query:focus-within .query-action {
+    opacity: 1;
+  }
+  .configured-query .query-action:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
+  .configured-query:not(:hover):not(:focus-within) .query-action:disabled {
+    opacity: 0;
+  }
+  .query-action:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    background: var(--color-control-hover);
+  }
+  .remove-query:hover {
+    color: var(--color-error);
+  }
+  .result-wrap {
+    position: relative;
+  }
+  /* The card fills its row, so the selected card's × sits in the card's own
+     corner rather than out in the panel's whitespace. */
+  .event-result {
+    display: block;
+    width: 100%;
+  }
+  .sort-control {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .sort-control .ctrl-link.on {
+    color: var(--color-text-primary);
+  }
+  .result-wrap .event-result.selected {
+    padding-right: 30px;
+  }
+  .clear-selected {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    padding: 3px;
+    border: none;
+    border-radius: 3px;
+    background: var(--color-surface-3);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+  .clear-selected:hover {
+    color: var(--color-text-primary);
+    background: var(--color-control-hover);
+  }
   .configured-query.active {
-    border-color: var(--color-chrome-active-border);
+    border-color: var(--color-border-strong);
     background: var(--color-chrome-active-bg);
   }
 
@@ -556,26 +757,15 @@
       border-color var(--duration-chrome) var(--ease-chrome),
       background var(--duration-chrome) var(--ease-chrome);
   }
-  .event-result:focus-visible {
-    border-color: var(--color-primary-accent);
+  .event-result.preview:not(.selected) {
+    border-color: color-mix(in srgb, var(--color-primary-accent) 45%, transparent);
+    background: color-mix(in srgb, var(--color-primary-accent) 7%, transparent);
   }
-  .event-result:hover {
-    background: var(--color-hover);
-  }
-  .event-result.selected {
-    border-color: color-mix(in srgb, var(--color-event-accent) 52%, transparent);
-    background: color-mix(in srgb, var(--color-event-accent) 8%, transparent);
-  }
-  .event-result.at-playhead {
-    box-shadow: inset 2px 0 0 var(--color-event-accent);
+  .event-result.at-playhead:not(.selected) {
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-event-accent) 60%, transparent);
   }
   .event-now {
     color: var(--color-event-accent);
-  }
-  .geometry-standby {
-    margin: 3px 0 2px;
-    padding: 4px 6px;
-    border-left: 1px solid color-mix(in srgb, var(--color-event-accent) 52%, transparent);
   }
   .event-summary {
     margin-top: 1px;
@@ -594,46 +784,83 @@
     font-weight: 500;
     color: var(--color-text-secondary);
   }
-  .event-helper {
-    color: var(--color-text-faint);
+  .event-unavailable {
+    padding: 5px 7px;
+    border-left: 2px solid var(--color-warning);
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
+    color: var(--color-text-secondary);
   }
-  .event-helper .ctrl-link {
-    font-size: inherit;
+  .event-range {
+    color: var(--color-text-secondary);
+    font-size: var(--text-helper);
   }
-  .geometry-legend {
+  .event-range-heading {
+    color: var(--color-text-secondary);
+  }
+  .event-range.invalid .event-range-heading {
+    color: var(--color-warning);
+  }
+  .event-range-reason {
+    margin-top: 2px;
+    color: var(--color-text-secondary);
+  }
+  .event-range-details {
+    margin-top: 3px;
+    color: var(--color-text-muted);
+  }
+  .event-range-details summary {
+    cursor: pointer;
+  }
+  .event-marker-legend {
     display: flex;
     flex-wrap: wrap;
     gap: 3px 10px;
-    margin: 3px 0 2px;
-    padding: 5px 6px;
-    border-radius: 3px;
-    background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
+    margin: 2px 0 6px;
+    color: var(--color-text-secondary);
   }
-  .geometry-legend span {
+  .event-marker-legend span {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
+    white-space: nowrap;
   }
-  .geometry-legend small {
-    flex-basis: 100%;
-    color: var(--color-text-faint);
-    font-size: inherit;
-    line-height: 1.3;
-  }
-  .legend-line,
-  .legend-fill {
+  .event-marker-diamond,
+  .event-marker-span {
     display: inline-block;
+    flex: none;
     width: 12px;
-    height: 2px;
-    border-radius: 1px;
+    height: 12px;
+    position: relative;
+    color: #70b7d7;
   }
-  .legend-line.sightline { background: #7cc7e8; }
-  .legend-line.penumbra { background: #e0a84c; }
-  .legend-line.tangent-guide { background: #8c72d8; }
-  .legend-fill.inner-shadow {
+  .event-marker-diamond::after {
+    content: '';
+    position: absolute;
+    width: 7px;
     height: 7px;
-    border: 1px solid #8c72d8;
-    background: color-mix(in srgb, #8c72d8 22%, transparent);
+    border: 1px solid currentColor;
+    transform: rotate(45deg);
+    top: 2px;
+    left: 2px;
+  }
+  .event-marker-span::before {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 1px;
+    width: 10px;
+    border-top: 1px solid currentColor;
+  }
+  .event-marker-span::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 1px;
+    width: 10px;
+    height: 7px;
+    border-left: 1px solid currentColor;
+    border-right: 1px solid currentColor;
   }
   :global(.event-kind-option:is(:focus, [data-highlighted])) {
     background: var(--color-control-hover);

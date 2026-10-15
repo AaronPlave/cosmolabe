@@ -35,7 +35,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-DEST="$HERE/../apps/viewer/test-catalogs/kernels/rosetta"
+DEST="${ROSETTA_DEST_DIR:-$HERE/../apps/viewer/test-catalogs/kernels/rosetta}"
 # Outside test-catalogs/ on purpose: that is the viewer's publicDir, and
 # anything in it is copied into the deployed site.
 SRC="${ROSETTA_SOURCE_DIR:-$HERE/../.cache/rosetta-source}"

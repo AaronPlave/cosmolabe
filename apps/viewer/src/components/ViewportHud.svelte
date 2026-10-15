@@ -44,7 +44,7 @@
      it top-centred gives tracking, look-at and reference frame one stable home
      without competing with the rail or timeline. -->
 {#if vs.trackedBodyName || vs.lookAtBodyName || vs.cameraMode !== CameraModeName.FREE_ORBIT}
-  <div class="view-context pointer-events-auto absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-7rem)] -translate-x-1/2 items-center">
+  <div data-scene-occluder class="view-context pointer-events-auto absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-7rem)] -translate-x-1/2 items-center">
     {#if vs.trackedBodyName || vs.lookAtBodyName}
       <span class="context-label">Tracking</span>
       <span class="context-value truncate">{vs.trackedBodyName ?? 'Free camera'}</span>

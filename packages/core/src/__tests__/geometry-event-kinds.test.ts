@@ -27,6 +27,8 @@ function provider(options: {
   occultationWindows?: Record<string, EtInterval[]>;
   /** Omit to build a provider that cannot measure range. */
   range?: (target: string, observer: string, et: number) => number;
+  /** Omit to build a provider that cannot measure altitude. */
+  altitude?: (target: string, observer: string, et: number) => number;
 } = {}) {
   const calls: { fn: string; args: unknown[] }[] = [];
   const base = {
@@ -46,14 +48,24 @@ function provider(options: {
     gfposc: async () => [],
   };
 
-  if (!options.range) return base as unknown as GeometryFinderProvider & { calls: typeof calls };
-
   return {
     ...base,
-    range: async (target: string, _abcorr: string, observer: string, et: number) => {
-      calls.push({ fn: 'range', args: [target, observer, et] });
-      return options.range!(target, observer, et);
-    },
+    ...(options.range
+      ? {
+          range: async (target: string, _abcorr: string, observer: string, et: number) => {
+            calls.push({ fn: 'range', args: [target, observer, et] });
+            return options.range!(target, observer, et);
+          },
+        }
+      : {}),
+    ...(options.altitude
+      ? {
+          altitude: async (target: string, _abcorr: string, observer: string, et: number) => {
+            calls.push({ fn: 'altitude', args: [target, observer, et] });
+            return options.altitude!(target, observer, et);
+          },
+        }
+      : {}),
   } as unknown as GeometryFinderProvider & { calls: typeof calls };
 }
 
@@ -371,6 +383,93 @@ describe('closest approach', () => {
     if (result.ok) return;
     expect(result.fault.code).toBe('invalid-params');
     expect(p.calls).toHaveLength(0);
+  });
+
+  it('leads with altitude above the target when the provider can measure it', async () => {
+    const p = provider({
+      windows: { LOCMIN: [{ start: 100, end: 100 }] },
+      range: () => 2_200,
+      altitude: () => 640,
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'closest-approach',
+      bodies: { observer: 'CLIPPER', target: 'EUROPA' },
+      window: WINDOW,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events[0].metrics).toEqual([
+      { key: 'altitude', label: 'Altitude', value: 640, unit: 'km', precision: 1 },
+      { key: 'range', label: 'Range', value: 2_200, unit: 'km', precision: 1 },
+    ]);
+    // Measured above the target, from the observer, at the instant GF found.
+    expect(p.calls.find((c) => c.fn === 'altitude')?.args).toEqual(['EUROPA', 'CLIPPER', 100]);
+  });
+
+  it('omits altitude for a target with no known shape', async () => {
+    const p = provider({
+      windows: { LOCMIN: [{ start: 100, end: 100 }] },
+      range: () => 2_200,
+      altitude: () => Number.NaN,
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'closest-approach',
+      bodies: { observer: 'EUROPA', target: 'CLIPPER' },
+      window: WINDOW,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events[0].metrics?.map((m) => m.key)).toEqual(['range']);
+  });
+
+  it('keeps the approach when altitude cannot be measured', async () => {
+    // Altitude is an annotation: unlike range, no filter depends on it, so a
+    // SPICE objection costs the metric, not the search.
+    const p = provider({
+      windows: { LOCMIN: [{ start: 100, end: 100 }] },
+      range: () => 2_200,
+      altitude: () => { throw new Error('no body-fixed frame'); },
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'closest-approach',
+      bodies: { observer: 'CLIPPER', target: 'EUROPA' },
+      window: WINDOW,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].metrics?.map((m) => m.key)).toEqual(['range']);
+  });
+
+  it('filters and picks the deepest approach by range, not altitude', async () => {
+    const p = provider({
+      windows: { ABSMIN: [{ start: 100, end: 100 }, { start: 500, end: 500 }] },
+      range: (_t, _o, et) => (et === 100 ? 9_000 : 120),
+      // Deliberately inverted, so the test fails if altitude decides.
+      altitude: (_t, _o, et) => (et === 100 ? 1 : 1_000),
+    });
+
+    const result = await searchOver(p).run({
+      id: 'q1',
+      kind: 'closest-approach',
+      bodies: { observer: 'CLIPPER', target: 'EUROPA' },
+      window: WINDOW,
+      params: { scope: 'global', maxRangeKm: 10_000 },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].temporality === 'instant' && result.events[0].et).toBe(500);
   });
 
   it('selects the target and identifies both bodies when an event is focused', async () => {

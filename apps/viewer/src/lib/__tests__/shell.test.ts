@@ -77,14 +77,14 @@ describe('opening and closing', () => {
 
   it('raises an already-open tool to the top rather than leaving it buried', () => {
     openTool('events');
-    openTool('measure');
+    openTool('catalog');
     openTool('events');
-    expect(shell.openTools).toEqual(['measure', 'events']);
+    expect(shell.openTools).toEqual(['catalog', 'events']);
   });
 
   it('closes a tool that is not open without disturbing the rest', () => {
     openTool('events');
-    closeTool('measure');
+    closeTool('catalog');
     expect(shell.openTools).toEqual(['events']);
   });
 });
@@ -168,12 +168,12 @@ describe('what Escape dismisses', () => {
     expect(topVisiblePanel()).toBe('events');
   });
 
-  it('prefers a pick readout the user is looking at over a stowed tool', () => {
+  it('prefers a probe readout the user is looking at over a stowed tool', () => {
     openTool('events');
-    mount('events', 'pick');
+    mount('events', 'probe');
     minimizePanel('events');
-    raisePanel('pick');
-    expect(topVisiblePanel()).toBe('pick');
+    raisePanel('probe');
+    expect(topVisiblePanel()).toBe('probe');
   });
 
   it('prefers the body info panel over a tool opened earlier', () => {
@@ -200,9 +200,9 @@ describe('what Escape dismisses', () => {
 
 describe('dock layout', () => {
   it('lays panels out in the order they were opened', () => {
-    openTool('measure');
+    openTool('catalog');
     openTool('events');
-    expect(openToolsWith('panel', 'left').map((t) => t.id)).toEqual(['measure', 'events']);
+    expect(openToolsWith('panel', 'left').map((t) => t.id)).toEqual(['catalog', 'events']);
   });
 
   it('sends each panel to exactly one dock, so two can never share a slot', () => {

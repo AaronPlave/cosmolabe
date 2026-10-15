@@ -1,0 +1,158 @@
+[
+  {
+    "size": 150,
+    "preset": "Earth",
+    "altitudeKm": 10,
+    "sunRGB": [
+      239,
+      239,
+      239
+    ],
+    "skyRGB": [
+      0,
+      0,
+      0
+    ],
+    "diameterPixels": 149.99999999999974,
+    "camera": {
+      "position": [
+        -8365553.414268611,
+        0,
+        142905783.92242944
+      ],
+      "target": [
+        -8365553.414268611,
+        0,
+        149363427.32643786
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fov": 60
+    },
+    "drawingBuffer": [
+      1280,
+      800
+    ],
+    "solarDistanceAU": 1
+  },
+  {
+    "size": 35,
+    "preset": "Earth",
+    "altitudeKm": 10,
+    "sunRGB": [
+      241,
+      241,
+      241
+    ],
+    "skyRGB": [
+      0,
+      0,
+      0
+    ],
+    "diameterPixels": 35,
+    "camera": {
+      "position": [
+        -8365553.414268611,
+        0,
+        121839786.94036174
+      ],
+      "target": [
+        -8365553.414268611,
+        0,
+        149363427.32643786
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fov": 60
+    },
+    "drawingBuffer": [
+      1280,
+      800
+    ],
+    "solarDistanceAU": 1
+  },
+  {
+    "size": 5,
+    "preset": "Earth",
+    "altitudeKm": 10,
+    "sunRGB": [
+      237,
+      233,
+      227
+    ],
+    "skyRGB": [
+      7,
+      7,
+      6
+    ],
+    "diameterPixels": 5,
+    "camera": {
+      "position": [
+        -8365553.414268611,
+        0,
+        -43241876.40375541
+      ],
+      "target": [
+        -8365553.414268611,
+        0,
+        149363427.32643786
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fov": 60
+    },
+    "drawingBuffer": [
+      1280,
+      800
+    ],
+    "solarDistanceAU": 1
+  },
+  {
+    "size": "sunrise",
+    "preset": "Earth",
+    "altitudeKm": 10,
+    "sunRGB": [
+      241,
+      241,
+      222
+    ],
+    "skyRGB": [
+      32,
+      21,
+      5
+    ],
+    "diameterPixels": 53.150865360284875,
+    "camera": {
+      "position": [
+        6380.999999999304,
+        0,
+        0
+      ],
+      "target": [
+        -8365553.414268611,
+        0,
+        149363427.32643786
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ],
+      "fov": 8
+    },
+    "drawingBuffer": [
+      1280,
+      800
+    ],
+    "solarDistanceAU": 1
+  }
+]

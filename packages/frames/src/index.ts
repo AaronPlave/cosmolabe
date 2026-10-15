@@ -36,6 +36,7 @@ export {
   type HeritageSpice,
   type HeritageSpiceOptions,
   type HCkCoverageOptions,
+  type HSpkSegment,
   type HGfReport,
   type HDskShape,
 } from './heritage-spice.js';

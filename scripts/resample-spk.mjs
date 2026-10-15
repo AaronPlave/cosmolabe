@@ -16,7 +16,8 @@
  *
  * The result is checked, not trusted: the output is furnished into a second
  * SPICE instance and compared with the source at random epochs and around every
- * break. The script fails if the worst error exceeds --max-error-m.
+ * break and at coverage edges. Position and velocity are compared independently;
+ * the script fails beyond --max-error-m or --max-velocity-error-mm-s.
  *
  * States are taken relative to --center (not the source's own centre) because
  * that is what the scene draws: resampling Rosetta about 67P keeps the
@@ -52,6 +53,7 @@ const { values: opt } = parseArgs({
     out: { type: 'string' },
     verify: { type: 'string', default: '20000' },
     'max-error-m': { type: 'string', default: '25' },
+    'max-velocity-error-mm-s': { type: 'string', default: '1' },
   },
 });
 for (const k of ['source', 'target', 'center', 'out']) {
@@ -199,7 +201,6 @@ const outBytes = spice.readKernelBytes(outName);
 // writeSpkType13 furnishes what it wrote; the source instance must answer from
 // the source alone, or the check below compares the output with itself.
 spice.unload(outName);
-writeFileSync(opt.out, outBytes);
 console.log(`resample-spk: ${epochs.length} samples in ${breaks.length + 1} segments -> ${opt.out} (${(outBytes.length / 1e6).toFixed(1)} MB)`);
 
 // ── Verify against the source in an independent instance ──
@@ -208,20 +209,25 @@ const check = await createSpiceBindings();
 for (const k of opt.kernels.split(',').filter(Boolean)) check.furnsh(basename(k), new Uint8Array(readFileSync(k)));
 check.furnsh(outName, outBytes);
 const resampled = (et) => {
-  const p = check.spkpos(opt.target, et, opt.frame, 'NONE', opt.center).position;
-  return [p.x, p.y, p.z];
+  const s = check.spkezr(opt.target, et, opt.frame, 'NONE', opt.center);
+  return [s.position.x, s.position.y, s.position.z, s.velocity.x, s.velocity.y, s.velocity.z];
 };
 let seed = 1;
 const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-const probes = [];
+const probes = [start, start + EPS, stop - EPS, stop];
 for (let i = 0; i < Number(opt.verify); i++) probes.push(start + rand() * (stop - start));
 for (const j of jumps) probes.push(j - 30, j - 2 * EPS, j + 2 * EPS, j + 30);
+let worstVelocity = 0;
+let worstVelocityAt = start;
 let worst = 0;
 let worstAt = start;
 const errs = [];
 for (const t of probes) {
-  if (t <= start || t >= stop) continue;
-  const e = dist(state(t), resampled(t));
+  if (t < start || t > stop) continue;
+  const a = state(t), b = resampled(t);
+  const e = dist(a, b);
+  const v = Math.hypot(...a.slice(3).map((x, i) => x - b[i + 3]));
+  if (v > worstVelocity) { worstVelocity = v; worstVelocityAt = t; }
   errs.push(e);
   if (e > worst) { worst = e; worstAt = t; }
 }
@@ -235,3 +241,12 @@ if (worst > MAX_ERR_KM) {
   console.error(`resample-spk: worst error exceeds --max-error-m ${opt['max-error-m']}; not using the result`);
   process.exit(1);
 }
+
+console.log(`resample-spk: max velocity error ${(worstVelocity * 1e6).toFixed(6)} mm/s at ${spice.et2utc(worstVelocityAt, 'ISOC', 3)}`);
+if (worstVelocity * 1e6 > Number(opt['max-velocity-error-mm-s'])) {
+  console.error(`resample-spk: velocity error exceeds --max-velocity-error-mm-s ${opt['max-velocity-error-mm-s']}; not using the result`);
+  process.exit(1);
+}
+
+// Publish the output only after every accuracy gate passes.
+writeFileSync(opt.out, outBytes);

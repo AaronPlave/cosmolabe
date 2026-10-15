@@ -31,13 +31,7 @@
       "class": "planet",
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Jupiter" },
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "9.925h",
-        "inclination": 3.13,
-        "ascendingNode": 268.057,
-        "meridianAngle": 284.95
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": { "type": "Globe", "radius": 71492, "atmosphere": "Jupiter" },
       "label": { "color": [0.9, 0.8, 0.6] },
       "items": [
@@ -46,13 +40,7 @@
           "class": "moon",
           "center": "Jupiter",
           "trajectory": { "type": "Builtin", "name": "Io" },
-          "rotationModel": {
-            "type": "Uniform",
-            "period": "1.769138d",
-            "inclination": 0.04,
-            "ascendingNode": 312.981,
-            "meridianAngle": 200.39
-          },
+          "rotationModel": { "type": "Builtin" },
           "geometry": { "type": "Globe", "radius": 1821.6 },
           "label": { "color": [1.0, 0.9, 0.4] },
           "items": [

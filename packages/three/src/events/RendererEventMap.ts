@@ -1,5 +1,6 @@
 import type { UniverseEventMap } from '@cosmolabe/core';
 import type { AssetProgress, InitialAssetsSummary } from '../AssetLoadTracker.js';
+import type { SurfacePoint } from '../SceneHit.js';
 
 /** Renderer events extend core Universe events with 3D-specific events. */
 export interface RendererEventMap extends UniverseEventMap {
@@ -13,11 +14,22 @@ export interface RendererEventMap extends UniverseEventMap {
    * picked — empty-space clicks produce no event.
    */
   'body:click': { bodyName: string; et: number; screenX: number; screenY: number };
+  /** A visible scene event marker was selected with a click or tap. */
+  'event:click': { id: string; queryId: string; et: number };
+  /**
+   * Transient in-scene preview; never changes time or selection. `et` is
+   * where an interval's span was hit when the hover began (absent for glyphs).
+   */
+  'event:hover': { id: string; queryId: string; boundary?: 'start' | 'end'; et?: number } | null;
   /** Emitted on double-click of a body or label. Consumer decides what to do (flyTo, show info, etc.) */
   'body:dblclick': { bodyName: string; et: number; screenX: number; screenY: number };
   /** @deprecated Use 'body:dblclick' instead. Still emitted for backward compat. */
   'body:picked': { bodyName: string; et: number };
   'body:hovered': { bodyName: string | null };
+  /** Point Probe: the surface point under the pointer while probing, or null off any probeable surface. */
+  'probe:hover': SurfacePoint | null;
+  /** Point Probe: the pinned point changed (a click or tap pinned one, or it was cleared with null). */
+  'probe:pin': SurfacePoint | null;
   'camera:targetChanged': { bodyName: string | null };
   'renderer:resize': { width: number; height: number };
   /** Initial model/texture/trajectory-cache work progressing. `total` grows while

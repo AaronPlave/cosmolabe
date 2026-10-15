@@ -406,6 +406,9 @@ export class GeometrySearchWorker {
 
         range: (target: string, abcorr: string, observer: string, et: EtSeconds) =>
           held(async () => (await delegate()).provider.range!(target, abcorr, observer, et)),
+
+        altitude: (target: string, abcorr: string, observer: string, et: EtSeconds) =>
+          held(async () => (await delegate()).provider.altitude!(target, abcorr, observer, et)),
       },
     };
 

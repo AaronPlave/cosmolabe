@@ -39,13 +39,7 @@
       "class": "planet",
       "center": "Sun",
       "trajectory": { "type": "Builtin", "name": "Earth" },
-      "rotationModel": {
-        "type": "Uniform",
-        "period": "23.9345h",
-        "inclination": 23.44,
-        "ascendingNode": 0.0,
-        "meridianAngle": 280.147
-      },
+      "rotationModel": { "type": "Builtin" },
       "geometry": {
         "type": "Globe",
         "radius": 6378,
@@ -55,7 +49,8 @@
           "type": "imagery",
           "imagery": {
             "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg",
-            "levels": 8
+            "levels": 8,
+            "projection": "EPSG:3857"
           }
         }
       },

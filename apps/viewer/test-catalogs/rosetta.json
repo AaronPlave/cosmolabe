@@ -138,7 +138,7 @@
     {
       "name": "Rosetta",
       "class": "spacecraft",
-      "naifId": -226,
+      "naifId": -226000,
       "startTime": "2004-03-02T09:25:18Z",
       "endTime": "2016-09-30T10:39:30Z",
       "center": "Sun",
@@ -147,7 +147,7 @@
         {
           "endTime": "2014-05-01T00:00:00Z",
           "center": "Sun",
-          "trajectory": { "type": "Spice", "target": "-226", "center": "SUN" },
+          "trajectory": { "type": "Spice", "target": "-226000", "center": "SUN" },
           "trajectoryPlot": { "duration": "10.5y", "fade": 0.25 }
         },
         {
@@ -155,7 +155,7 @@
           "endTime": "2016-09-30T10:39:30Z",
           "center": "67P/Churyumov-Gerasimenko",
           "trajectoryFrame": "J2000",
-          "trajectory": { "type": "Spice", "target": "-226", "center": "1000012" },
+          "trajectory": { "type": "Spice", "target": "-226000", "center": "1000012" },
           "trajectoryPlot": { "duration": "30d", "fade": 0.5 }
         }
       ],
@@ -181,7 +181,7 @@
           "class": "spacecraft",
           "naifId": -226010,
           "trajectoryFrame": "J2000",
-          "trajectory": { "type": "Spice", "target": "-226010", "center": "-226" },
+          "trajectory": { "type": "Spice", "target": "-226010", "center": "-226000" },
           "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SA+Y", "fallbackFrame": "ROS_SA+Y_ZERO" },
           "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_SAPY_V02.BDS", "color": [0.22, 0.26, 0.42] },
           "label": { "visible": false },
@@ -192,7 +192,7 @@
           "class": "spacecraft",
           "naifId": -226020,
           "trajectoryFrame": "J2000",
-          "trajectory": { "type": "Spice", "target": "-226020", "center": "-226" },
+          "trajectory": { "type": "Spice", "target": "-226020", "center": "-226000" },
           "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SA-Y", "fallbackFrame": "ROS_SA-Y_ZERO" },
           "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_SAMY_V02.BDS", "color": [0.22, 0.26, 0.42] },
           "label": { "visible": false },
@@ -203,7 +203,7 @@
           "class": "spacecraft",
           "naifId": -226070,
           "trajectoryFrame": "J2000",
-          "trajectory": { "type": "Spice", "target": "-226070", "center": "-226" },
+          "trajectory": { "type": "Spice", "target": "-226070", "center": "-226000" },
           "rotationModel": { "type": "Spice", "bodyFrame": "ROS_HGA", "fallbackFrame": "ROS_HGA_ZERO" },
           "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_HGA_V02.BDS.gz", "color": [0.85, 0.85, 0.85] },
           "label": { "visible": false },

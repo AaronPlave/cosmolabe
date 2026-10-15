@@ -129,25 +129,23 @@ describe('BodyMesh.loadDsk', () => {
     expect(v.distanceTo(expected)).toBeLessThan(1e-6);
   });
 
-  it('warns when the DSK\'s own centre or frame disagrees with the body', async () => {
+  it.each([
+    { naifId: 401, frame: 'IAU_MARS', message: /describes NAIF body 499/ },
+    { naifId: 499, frame: 'IAU_PHOBOS', message: /is in frame IAU_MARS/ },
+  ])('fails incompatible coordinates ($naifId, $frame)', async ({ naifId, frame, message }) => {
     serve(fixture('dsk-two-segments.bds'));
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const stub = { pxform: () => [1, 0, 0, 0, 1, 0, 0, 0, 1] } as unknown as SpiceInstance;
-    const body = new Body({
-      name: 'Phobos',
-      naifId: 401,
-      trajectory: fixedPoint,
-      rotation: new SpiceRotation(stub, 'IAU_PHOBOS', 'J2000'),
-      geometryType: 'Dsk',
-      geometryData: { type: 'Dsk', source: 'shape.bds' },
-    });
+    const body = new Body({ name: 'Mismatch', naifId, trajectory: fixedPoint,
+      rotation: new SpiceRotation(stub, frame, 'J2000'), geometryType: 'Dsk' });
     const bm = new BodyMesh(body);
+    const assets = new AssetLoadTracker();
+    bm.assets = assets;
     await bm.loadDsk('https://example.test/shape.bds', 1, spice, 'shape.bds');
-    const messages = warn.mock.calls.map((c) => String(c[0]));
-    expect(messages.some((m) => /describes NAIF body 499/.test(m))).toBe(true);
-    expect(messages.some((m) => /is in frame IAU_MARS, but Phobos rotates into IAU_PHOBOS/.test(m))).toBe(true);
-    // Reported, not refused: the shape still draws.
-    expect(bm.hasModel).toBe(true);
+    expect(bm.hasModel).toBe(false);
+    const summary = await assets.settle();
+    expect(summary.failed).toBe(1);
+    expect(String(summary.failures[0]?.reason)).toMatch(message);
   });
 
   it('fails the asset, and keeps the placeholder, when the file is not a DSK', async () => {
@@ -242,18 +240,12 @@ describe('BodyMesh.loadTimeSwitched', () => {
 describe('the DSK centre check', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('accepts a spacecraft DSK written about its structure frame (NAIF ID × 1000), flags anything else', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const bm = new BodyMesh(new Body({
-      name: 'Rosetta', naifId: -226, trajectory: fixedPoint, rotation: new FixedRotation([1, 0, 0, 0], 'ECLIPJ2000'),
-      geometryType: 'Dsk', geometryData: { type: 'Dsk', source: 'bus.bds' },
-    }));
-    const check = (centre: number) =>
-      (bm as unknown as { checkDskFrame(n: string, c: number, f: string): void }).checkDskFrame('bus.bds', centre, '');
-    check(-226);
-    check(-226000); // ROS_SPACECRAFT: the same body
-    expect(warn).not.toHaveBeenCalled();
-    check(-226800); // Philae is not Rosetta
-    expect(warn.mock.calls.some((c) => /describes NAIF body -226800/.test(String(c[0])))).toBe(true);
+  it('requires the actual structure origin instead of equating it with spacecraft CoM', () => {
+    const make = (naifId: number) => new BodyMesh(new Body({
+      name: 'Rosetta', naifId, trajectory: fixedPoint,
+      rotation: new FixedRotation([1, 0, 0, 0], 'ECLIPJ2000'), geometryType: 'Dsk',
+    })) as unknown as { checkDskFrame(n: string, c: number, f: string): void };
+    expect(() => make(-226).checkDskFrame('bus.bds', -226000, '')).toThrow(/use the DSK origin/);
+    expect(() => make(-226000).checkDskFrame('bus.bds', -226000, '')).not.toThrow();
   });
 });

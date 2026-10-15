@@ -2,7 +2,9 @@
 // scene now. The two are kept apart so a body leaving its existence window and
 // coming back does not undo the user's hide, and the other way round.
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as THREE from 'three';
+import { UniverseRenderer } from '../UniverseRenderer.js';
 import { Body } from '@cosmolabe/core';
 import { BodyMesh } from '../BodyMesh.js';
 
@@ -26,4 +28,33 @@ describe('BodyMesh presence', () => {
     expect(bm.visible).toBe(true);
   });
 
+});
+
+describe('custom visual presence', () => {
+  it('hides across existence transitions and preserves user hiding on re-entry', () => {
+    const body = new Body({ name: 'Custom', trajectory: fixedPoint, geometryType: 'Custom' });
+    const bm = new BodyMesh(body);
+    const object = new THREE.Group();
+    const updateVisual = vi.fn();
+    const renderer = Object.assign(Object.create(UniverseRenderer.prototype), {
+      universe: { getBody: () => body }, bodyMeshes: new Map([[body.name, bm]]),
+      _customVisuals: new Map([[body.name, object]]),
+      _visualizers: new Map([['Custom', { updateVisual }]]), scaleFactor: 1, _ctx: {},
+    }) as { updateCustomVisuals(et: number): void };
+    renderer.updateCustomVisuals(0);
+    expect(object.visible).toBe(true);
+    expect(updateVisual).toHaveBeenCalledTimes(1);
+    bm.present = false;
+    renderer.updateCustomVisuals(1);
+    expect(object.visible).toBe(false);
+    expect(updateVisual).toHaveBeenCalledTimes(1);
+    bm.userVisible = false;
+    bm.present = true;
+    renderer.updateCustomVisuals(2);
+    expect(object.visible).toBe(false);
+    bm.userVisible = true;
+    renderer.updateCustomVisuals(3);
+    expect(object.visible).toBe(true);
+    expect(updateVisual).toHaveBeenCalledTimes(2);
+  });
 });

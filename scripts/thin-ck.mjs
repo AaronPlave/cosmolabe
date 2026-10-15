@@ -24,7 +24,9 @@
  *
  * The output is furnished into a second SPICE instance and compared with the
  * source at random epochs; the script fails if the worst error exceeds 1.5×
- * the tolerance, or if a state transformation through the output fails.
+ * the tolerance, or if source/output angular velocities or state-transform
+ * derivatives differ beyond the stated rate tolerance. Thinning preserves both
+ * attitude and rate; successful sxform alone is not an accuracy check.
  *
  * Usage:
  *   node scripts/thin-ck.mjs \
@@ -49,6 +51,7 @@ const { values: opt } = parseArgs({
     sclk: { type: 'string' },
     step: { type: 'string', default: '60' },
     'tol-deg': { type: 'string', default: '0.25' },
+    'max-rate-error-rad-s': { type: 'string', default: '0.00001' },
     start: { type: 'string' },
     stop: { type: 'string' },
     out: { type: 'string' },
@@ -64,6 +67,7 @@ for (const k of ['kernels', 'inst', 'frame', 'ref', 'out']) {
 const INST = Number(opt.inst);
 const STEP = Number(opt.step);
 const TOL = (Number(opt['tol-deg']) * Math.PI) / 180;
+const RATE_TOL = Number(opt['max-rate-error-rad-s']);
 const kernels = opt.kernels.split(',').filter(Boolean);
 const isCk = (p) => /\.bc$/i.test(p);
 
@@ -162,7 +166,10 @@ function refine(p) {
     let qm = quat(spice, tm);
     if (!qm) return;
     if (dot(qa, qm) < 0) qm = qm.map((v) => -v);
-    if (angle(slerp(qa, qb, 0.5), qm) <= TOL / 4) return;
+    const av = angularVelocity(tm, ta, tb);
+    const avA = angularVelocity(ta, ta, tb), avB = angularVelocity(tb, ta, tb);
+    const rateError = Math.hypot(...av.map((v, i) => v - (avA[i] + avB[i]) / 2));
+    if (angle(slerp(qa, qb, 0.5), qm) <= TOL / 4 && rateError <= RATE_TOL / 4) return;
     fill(ta, qa, tm, qm, depth + 1);
     t.push(tm);
     q.push(qm);
@@ -173,7 +180,7 @@ function refine(p) {
     t.push(p.t[k]);
     q.push(p.q[k]);
   }
-  return { t, q };
+  return { t, q, av: t.map((epoch) => angularVelocity(epoch, t[0], t[t.length - 1])) };
 }
 for (let i = 0; i < pieces.length; i++) pieces[i] = refine(pieces[i]);
 
@@ -182,6 +189,8 @@ function spans(p, i, j) {
   for (let m = i + 1; m < j; m++) {
     const u = (p.t[m] - p.t[i]) / (p.t[j] - p.t[i]);
     if (angle(slerp(p.q[i], p.q[j], u), p.q[m]) > TOL) return false;
+    const rateError = Math.hypot(...p.av[m].map((v, k) => v - (p.av[i][k] * (1 - u) + p.av[j][k] * u)));
+    if (rateError > RATE_TOL / 2) return false;
   }
   return true;
 }
@@ -196,20 +205,20 @@ function spans(p, i, j) {
  * not. Taken from the source's sxform; differenced from pxform if the source
  * carries none.
  */
-function angularVelocity(t, t0, t1) {
+function angularVelocity(t, t0, t1, source = spice) {
   let C;
   let dC;
   try {
-    const xf = spice.sxform(opt.ref, opt.frame, t);
+    const xf = source.sxform(opt.ref, opt.frame, t);
     C = [xf[0], xf[1], xf[2], xf[6], xf[7], xf[8], xf[12], xf[13], xf[14]];
     dC = [xf[18], xf[19], xf[20], xf[24], xf[25], xf[26], xf[30], xf[31], xf[32]];
   } catch {
     const h = 0.5;
     const a = Math.max(t0, t - h);
     const b = Math.min(t1, t + h);
-    const Ca = spice.pxform(opt.ref, opt.frame, a);
-    const Cb = spice.pxform(opt.ref, opt.frame, b);
-    C = spice.pxform(opt.ref, opt.frame, t);
+    const Ca = source.pxform(opt.ref, opt.frame, a);
+    const Cb = source.pxform(opt.ref, opt.frame, b);
+    C = source.pxform(opt.ref, opt.frame, t);
     dC = Ca.map((v, i) => (Cb[i] - v) / (b - a));
   }
   // dC/dt = -[w]x C with w in the instrument frame: [w]x = -dC C^T.
@@ -256,12 +265,10 @@ for (const p of pieces) {
     i = good;
   }
   starts.push(spice.sce2c(SCLK, p.t[0]));
-  const t0 = p.t[0];
-  const t1 = p.t[p.t.length - 1];
   for (const k of keep) {
     sclkdp.push(spice.sce2c(SCLK, p.t[k]));
     quats.push(...p.q[k]);
-    avvs.push(...angularVelocity(p.t[k], t0, t1));
+    avvs.push(...p.av[k]);
   }
 }
 
@@ -274,7 +281,6 @@ const outBytes = spice.readKernelBytes(outName);
 // writeCk03 furnishes what it wrote; the source instance must answer from the
 // source alone, or the check below compares the output with itself.
 spice.unload(outName);
-writeFileSync(opt.out, outBytes);
 console.log(
   `thin-ck: ${opt.frame} (clock ${SCLK}): ${samples} samples in ${pieces.length} covered stretches -> ${sclkdp.length} records, ` +
     `${opt.out} (${(outBytes.length / 1e6).toFixed(2)} MB)`,
@@ -289,29 +295,60 @@ const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 let worst = 0;
 let worstAt = 0;
 let probed = 0;
+const randomProbes = [];
 const total = pieces.reduce((s, p) => s + (p.t[p.t.length - 1] - p.t[0]), 0);
 for (let n = 0; n < Number(opt.verify); n++) {
   // Pick a covered stretch in proportion to its length, then a time inside it.
   let r = rand() * total;
   const p = pieces.find((pc) => (r -= pc.t[pc.t.length - 1] - pc.t[0]) <= 0) ?? pieces[pieces.length - 1];
   const t = p.t[0] + rand() * (p.t[p.t.length - 1] - p.t[0]);
+  randomProbes.push({ p, t });
   const a = quat(spice, t);
   const b = quat(check, t);
-  if (!a || !b) continue;
+  if (!a || !b) throw new Error(`thin-ck: missing attitude at verification epoch ${t}`);
   probed++;
   const e = angle(a, b);
   if (e > worst) { worst = e; worstAt = t; }
 }
-// The velocity path works too: a state transformation through the output
-// frame must succeed wherever an orientation does.
-let sxformFailures = 0;
-for (let n = 0; n < 200; n++) {
-  const p = pieces[Math.floor(rand() * pieces.length)];
-  const t = p.t[0] + rand() * (p.t[p.t.length - 1] - p.t[0]);
-  try { check.sxform(opt.ref, opt.frame, t); } catch { sxformFailures++; }
+// Probe every coverage edge and retained slew sample as well as random epochs.
+// Compare the full state transform: lower-left dR/dt, rotation blocks, and
+// recovered reference-frame angular velocity. A missing transform is a failure.
+let worstRate = 0, worstDerivative = 0, transformProbes = 0;
+let derivativeFailures = 0;
+const probeTransform = (p, t) => {
+  const source = spice.sxform(opt.ref, opt.frame, t);
+  const rebuilt = check.sxform(opt.ref, opt.frame, t);
+  const a = angularVelocity(t, p.t[0], p.t[p.t.length - 1]);
+  const b = angularVelocity(t, p.t[0], p.t[p.t.length - 1], check);
+  worstRate = Math.max(worstRate, Math.hypot(...a.map((v, i) => v - b[i])));
+  const derivativeBound = maxRate + 3 * TOL * Math.hypot(...a);
+  for (const i of [18, 19, 20, 24, 25, 26, 30, 31, 32]) {
+    if (Math.abs(source[i] - rebuilt[i]) > derivativeBound) derivativeFailures++;
+    worstDerivative = Math.max(worstDerivative, Math.abs(source[i] - rebuilt[i]));
+  }
+  const qa = quat(spice, t), qb = quat(check, t);
+  if (!qa || !qb) throw new Error(`thin-ck: missing attitude at verification epoch ${t}`);
+  const e = angle(qa, qb);
+  if (e > worst) { worst = e; worstAt = t; }
+  transformProbes++;
+};
+const maxRate = Number(opt['max-rate-error-rad-s']);
+for (const { p, t } of randomProbes) probeTransform(p, t);
+for (const p of pieces) {
+  for (const t of p.t) probeTransform(p, t);
+  const edgePad = Math.min(0.001, (p.t[p.t.length - 1] - p.t[0]) / 2);
+  probeTransform(p, p.t[0] + edgePad);
+  probeTransform(p, p.t[p.t.length - 1] - edgePad);
+  for (let n = 0; n < 4; n++) {
+    const a = p.t[0], b = p.t[p.t.length - 1];
+    probeTransform(p, a + rand() * (b - a));
+  }
 }
-if (sxformFailures > 0) {
-  console.error(`thin-ck: sxform through the output failed at ${sxformFailures}/200 epochs; angular velocity is missing`);
+console.log(`thin-ck: ${transformProbes} state transforms: max rate error ${worstRate} rad/s; max dR/dt component error ${worstDerivative} /s`);
+// Allow orientation error to rotate a nonzero source angular velocity when
+// comparing derivative matrices; rate itself has the explicit absolute bound.
+if (worstRate > maxRate || derivativeFailures > 0) {
+  console.error(`thin-ck: angular velocity error exceeds --max-rate-error-rad-s ${maxRate}; not using the result`);
   process.exit(1);
 }
 const deg = (x) => ((x * 180) / Math.PI).toFixed(3);
@@ -320,3 +357,6 @@ if (worst > 1.5 * TOL) {
   console.error(`thin-ck: worst error exceeds 1.5 x --tol-deg ${opt['tol-deg']}; not using the result`);
   process.exit(1);
 }
+
+// Publish the output only after every accuracy gate passes.
+writeFileSync(opt.out, outBytes);

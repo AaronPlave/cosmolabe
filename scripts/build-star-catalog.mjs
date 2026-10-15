@@ -179,9 +179,9 @@ async function main() {
     buffer.writeUInt8(Math.round(s.b * 255), off + 9);
   }
 
-  // Write to both library data dir and viewer public dir
+  // Write to both library data dir and the viewer-owned public assets directory.
   const { mkdirSync } = await import('node:fs');
-  const VIEWER_COPY = join(__dirname, '../apps/viewer/test-catalogs/stars.bin');
+  const VIEWER_COPY = join(__dirname, '../apps/viewer/public/stars.bin');
 
   for (const out of [OUTPUT, VIEWER_COPY]) {
     mkdirSync(dirname(out), { recursive: true });

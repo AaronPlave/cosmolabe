@@ -36,7 +36,7 @@ Kept here briefly so the tiers below read as what's left, not what's done.
 - Geometry/event finder architecture (#60), eclipse and occultation finder (#58), closest approach and range (#61), off-main-thread searches with progress and cancellation (#66, #69, #83)
 - Deployment-configurable catalog sources and indexes (#93); viewer readiness gated on models and textures (#19)
 - Camera view JSON import/export (`camera-view-io.ts`) and video recording (`VideoRecordPlugin`)
-- Rosetta + Philae full-mission demo (#107): native `Dsk` geometry for irregular bodies and spacecraft, `TimeSwitched` geometry, per-arc rotation models, existence windows (`startTime` / `endTime` hide a body), `.3ds` models, and verified resampling/thinning of dense archive SPKs and CKs (`scripts/resample-spk.mjs`, `scripts/thin-ck.mjs`)
+- Rosetta + Philae mission geometry (#117, Phases 1–5 of #107; Phase 6 remains required): native `Dsk` geometry for irregular bodies and spacecraft, `TimeSwitched` geometry, per-arc rotation models, existence windows (`startTime` / `endTime` hide a body), `.3ds` models, and verified resampling/thinning of dense archive SPKs and CKs (`scripts/resample-spk.mjs`, `scripts/thin-ck.mjs`)
 
 ## 1. Foundation
 
@@ -118,6 +118,8 @@ These run alongside the tiers above and are pulled forward when a tier needs the
 - **Surface feature labels** (craters, valles, montes, etc.) — sourced from existing data, not a hand-maintained catalog. Two paths in order of preference: (a) *map layer* — many planetary WMS/WMTS endpoints (USGS Astrogeology / IAU planetary nomenclature) already serve nomenclature as a feature layer that can be overlaid on `SurfaceTileOverlay`; investigate turning it on for the existing tile pipeline; (b) *download once* — pull static USGS / IAU GeoJSON at build time, convert to lightweight per-body label data, integrate with `LabelManager`. No hand-curated cosmolabe catalog.
 
 ### Demos, examples, and docs
+
+- Required Rosetta Phase 6 acceptance (#107): official package audit/configuration mapping (#229), representative OSIRIS/VIRTIS observations and instruments through #28 with irregular-surface integration (#230, #175), screen-space archived-image comparison (#231, distinct from surface projection #150), and nontrivial official script ports using #14/#153 (#232). These remain required even though mission geometry is implemented.
 
 - More built-in scenes, favouring mission workflows: Mars rover EDL, lunar lander, drone-swarm concept, asteroid sample return, an instrument-observation flyby (a comet rendezvous landed with Rosetta, #107)
 - Recipe-style examples: PlanDev sim replay, embedding in a dashboard, embedding from React / Svelte / Vue through `ViewerControl` (examples, not packages), writing a custom `RendererPlugin`, surface-ops scene authoring
