@@ -39,9 +39,8 @@ origin the scene is drawn around. The camera **stays where it is** and turns to
 face the object; it is not moved closer. If the object is far away it is small
 on screen — Frame is the next step when that is not what you want.
 
-In a camera frame other than free orbit (body-fixed, spacecraft-fixed, …) the
-frame is re-parameterized onto the newly tracked object, as switching frames
-would.
+What happens to a camera frame other than free orbit is under
+[Camera frames](#camera-frames).
 
 `untrack` releases the anchor; the camera again stays where it is.
 
@@ -89,13 +88,34 @@ catalog viewpoint with an epoch does — but the two stay separate underneath.
 
 `gotoObject <object>`, Cosmographia's name, is a Jump.
 
+## Camera frames
+
+The verbs work in the frames where the person sets the pose — free orbit,
+body-fixed and spacecraft-fixed. The other frames place the camera themselves —
+LVLH, chase, surface, surface explorer and instrument — and a verb that would
+fight one for the camera leaves it for free orbit instead, explicitly, rather
+than reactivating it and losing its state (follow distance, latitude and
+longitude, sensor).
+
+| Frame | Track | Frame, Fly, Jump |
+|---|---|---|
+| Free orbit | — | — |
+| Body-fixed, spacecraft-fixed | Moves onto the object (body-fixed: the body it orbits, for a spacecraft), as switching frames would; left as it is when already there | The same, on landing — or when a flight is stopped |
+| LVLH, chase, surface, surface explorer | Left as it is, state and all, when already on the object; otherwise free orbit, the camera where it is | Free orbit, as the cut or flight starts |
+| Instrument | Left as it is: the view is the sensor's, not the object's | Free orbit, as the cut or flight starts |
+
+To put one of those frames on a new object, switch to it: `setFrame <mode>
+<object>`.
+
 ## Who owns the camera during a flight
 
 A flight owns the camera until it lands. **Manual navigation stops it where it
 is**: a drag past a few pixels, a wheel zoom, a pinch, or a held movement key
-(W/A/S/D/Z/C/Q/E). The camera keeps its pose, the object the flight was heading
-for becomes the tracked object, and the input that stopped the flight applies
-in the same frame. The same holds for a scripted `dolly`, `crane` or
+(W/A/S/D/Z/C/Q/E). The object the flight was heading for becomes the tracked
+object, as though Tracked from where the camera stopped: the camera keeps its
+position and turns to face the object — a turn, during an overview's pull-back,
+from the midpoint it was looking at. The input that stopped the flight then
+applies in the same frame, to the camera orbiting that object. The same holds for a scripted `dolly`, `crane` or
 `circleCenter*` move that is still playing: input stops it rather than the two
 taking turns with the camera.
 

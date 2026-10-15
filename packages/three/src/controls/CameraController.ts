@@ -219,6 +219,8 @@ export class CameraController {
   /** Camera mode system */
   private readonly _modes: Map<CameraModeName, ICameraMode>;
   private _activeMode: ICameraMode;
+  /** The body the active mode was set on (`CameraModeParams.bodyName`). */
+  private _modeBodyName: string | undefined;
   private _modeCtx: CameraModeContext | null = null;
 
   /** Current camera mode name */
@@ -372,31 +374,41 @@ export class CameraController {
    * origin the scene is drawn around — without relocating the camera. The
    * camera stays where it is and turns to face the body.
    *
-   * Ends any flight or scripted move, and any look-at. A camera frame other
-   * than free orbit is re-parameterized onto the body, as switching frames
-   * would.
+   * Ends any flight or scripted move, and any look-at. A body-fixed or
+   * SC-fixed frame moves onto the body, as switching frames would. A frame
+   * that places the camera itself (LVLH, chase, surface, instrument) is left
+   * as it is when it is on this body already, or on none; otherwise the
+   * camera returns to free orbit where it is.
    */
   focus(bodyMesh: BodyMesh): void {
-    const prevMode = this._activeMode.name;
     this._beginNavigation();
+    // A frame that places the camera itself, on this body already (or on no
+    // body, as instrument), keeps it: reactivating would reset its state. On
+    // another body it would move the camera, which focusing does not do.
+    if (this._frameOwnsCamera && this._modeSubjectFor(this._activeMode.name, bodyMesh) !== this._modeBodyName) {
+      this.setMode(CameraModeName.FREE_ORBIT);
+    }
     const center = this._rebaseOnto(bodyMesh);
-    this._anchorOn(bodyMesh, center, prevMode);
+    this._anchorOn(bodyMesh, center);
   }
 
   /**
    * Frame: cut to a view that fits `bodyMesh`, and focus it. The camera keeps
    * the side it sees the body from and moves along that line to
    * `framingDistance` (or `distanceMultiplier` display radii) — the pose a
-   * direct `flyTo` lands on, without the flight.
+   * direct `flyTo` lands on, without the flight. A frame that places the
+   * camera itself is left for free orbit; a body-fixed or SC-fixed one moves
+   * onto the body.
    */
   frame(bodyMesh: BodyMesh, opts: { scaleFactor?: number; distanceMultiplier?: number } = {}): void {
-    const prevMode = this._activeMode.name;
     this._beginNavigation();
+    // A frame that places the camera itself would take it straight back.
+    if (this._frameOwnsCamera) this.setMode(CameraModeName.FREE_ORBIT);
     const dir = this._approachDirection(bodyMesh);
     const dist = this._arrivalDistance(bodyMesh, opts);
     const center = this._rebaseOnto(bodyMesh);
     this.camera.position.copy(center).addScaledVector(dir, dist);
-    this._anchorOn(bodyMesh, center, prevMode);
+    this._anchorOn(bodyMesh, center);
   }
 
   /** @deprecated Use `frame`, which this is. */
@@ -412,6 +424,10 @@ export class CameraController {
    * With `path: 'overview'` the flight first pulls back to show the point the
    * camera is looking at and the destination together, then approaches the
    * destination from there; see `FlightPath`.
+   *
+   * A frame that places the camera itself is left for free orbit as the
+   * flight starts; a body-fixed or SC-fixed one moves onto the body when it
+   * lands, or is stopped.
    *
    * The flight owns the camera until it lands. Navigation input from the
    * person — a drag, a wheel zoom, a pinch, a movement key — stops it where it
@@ -430,14 +446,24 @@ export class CameraController {
     this._pendingOriginSwitch = null;
     // A look-at would override the view the flight lands on.
     this.clearLookAt();
+    // A frame that places the camera itself would take it back from where the
+    // flight lands; the flight starts in free orbit instead. It keeps its roll
+    // and turns to free orbit's up on the way.
+    const up = this.camera.up.clone();
+    if (this._frameOwnsCamera) {
+      const startUp = up.clone();
+      this.setMode(CameraModeName.FREE_ORBIT);
+      up.copy(this.camera.up);
+      this.camera.up.copy(startUp);
+    }
 
     if (path === 'overview') {
       const overview = this._overviewPose(bodyMesh);
       if (overview) {
         const total = opts?.duration ?? DEFAULT_OVERVIEW_SECONDS;
         const pullback = this._startAnimation(
-          overview.position, overview.target, this.camera.up.clone(), total * OVERVIEW_PULLBACK_SHARE,
-          () => this._startApproach(bodyMesh, dist, total * (1 - OVERVIEW_PULLBACK_SHARE), 'overview', opts),
+          overview.position, overview.target, up, total * OVERVIEW_PULLBACK_SHARE,
+          () => this._startApproach(bodyMesh, dist, up, total * (1 - OVERVIEW_PULLBACK_SHARE), 'overview', opts),
         );
         pullback.destination = bodyMesh;
         pullback.path = 'overview';
@@ -445,14 +471,14 @@ export class CameraController {
         return;
       }
     }
-    this._startApproach(bodyMesh, dist, opts?.duration ?? DEFAULT_DIRECT_SECONDS, path, opts);
+    this._startApproach(bodyMesh, dist, up, opts?.duration ?? DEFAULT_DIRECT_SECONDS, path, opts);
   }
 
   /**
-   * Stop the flight playing where it is. The camera keeps its pose, and a
+   * Stop the flight playing where it is. The camera keeps its position, and a
    * flight toward a body leaves that body focused, as though it had been
-   * focused from here: the flight's intent was that body, so the camera
-   * anchors on it rather than on nothing. Also drops any scripted move queued
+   * focused from here — so the camera turns to face it: the flight's intent
+   * was that body, so the camera anchors on it rather than on nothing. Also drops any scripted move queued
    * behind the flight. False when nothing was flying.
    */
   stopFlight(): boolean {
@@ -464,14 +490,14 @@ export class CameraController {
   }
 
   private _startApproach(
-    bodyMesh: BodyMesh, dist: number, duration: number, path: FlightPath,
+    bodyMesh: BodyMesh, dist: number, up: THREE.Vector3, duration: number, path: FlightPath,
     landing?: Pick<FlyToOptions, 'offset' | 'up'>,
   ): void {
     // Approach from the camera's current side of the body.
     const dir = this._approachDirection(bodyMesh);
     const bodyPos = bodyMesh.position;
     const anim = this._startAnimation(
-      bodyPos.clone().addScaledVector(dir, dist), bodyPos.clone(), this.camera.up.clone(), duration,
+      bodyPos.clone().addScaledVector(dir, dist), bodyPos.clone(), up.clone(), duration,
       () => {
         // Defer origin switch to next frame — if we switch now, body positions
         // (already computed this frame with the old origin) won't match the
@@ -562,16 +588,69 @@ export class CameraController {
     return new THREE.Vector3();
   }
 
-  /** Orbit-lock to `bodyMesh` at `center`, re-parameterizing a non-free-orbit frame onto it. */
-  private _anchorOn(bodyMesh: BodyMesh, center: THREE.Vector3, prevMode: CameraModeName): void {
+  /** Orbit-lock to `bodyMesh` at `center`, carrying an orbit frame over to it. */
+  private _anchorOn(bodyMesh: BodyMesh, center: THREE.Vector3): void {
     this._trackTarget = bodyMesh;
     this.controls.target.copy(center);
     this._prevTargetPos.copy(center);
     this.camera.lookAt(center);
+    this._carryOrbitFrameTo(bodyMesh);
+  }
+
+  /**
+   * Whether the active frame places the camera itself — LVLH, chase, surface,
+   * surface explorer, instrument — rather than leaving the pose to the person,
+   * as free orbit, body-fixed and SC-fixed do.
+   */
+  private get _frameOwnsCamera(): boolean {
+    return !this._activeMode.allowsOrbitControls;
+  }
+
+  /**
+   * The body `setModeForBody(mode, bodyMesh)` sets `mode` on: the spacecraft
+   * for the spacecraft frames, the body it orbits for the planet frames, and
+   * none for free orbit and instrument.
+   */
+  private _modeSubjectFor(mode: CameraModeName, bodyMesh: BodyMesh): string | undefined {
+    const body = bodyMesh.body;
+    switch (mode) {
+      case CameraModeName.SC_FIXED:
+      case CameraModeName.LVLH:
+      case CameraModeName.CHASE:
+        return body.name;
+      case CameraModeName.BODY_FIXED:
+      case CameraModeName.SURFACE:
+      case CameraModeName.SURFACE_EXPLORER:
+        return body.classification === 'spacecraft' ? (body.parentName ?? '') : body.name;
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Move a body-fixed or SC-fixed frame onto `bodyMesh`, the body navigation
+   * has just anchored on, as switching frames would — unless it is on that
+   * body already, when reactivating would only re-baseline it. The camera
+   * stays where it is in space.
+   */
+  private _carryOrbitFrameTo(bodyMesh: BodyMesh): void {
+    const mode = this._activeMode.name;
+    if (mode === CameraModeName.FREE_ORBIT || this._frameOwnsCamera) return;
+    if (this._modeSubjectFor(mode, bodyMesh) === this._modeBodyName) return;
+    const origin = this._originBody;
     // Mode.activate() only reads body rotation (not position), so it is safe
     // before the renderer's next frame recomputes positions under this origin.
-    if (prevMode !== CameraModeName.FREE_ORBIT) {
-      this.setModeForBody(prevMode, bodyMesh);
+    this.setModeForBody(mode, bodyMesh);
+    // setMode puts the origin on the frame's body — the planet, for a
+    // body-fixed frame on a spacecraft. Carry the camera into those
+    // coordinates; body positions are all still in one frame, so the
+    // difference between the two is the shift.
+    const moved = this._originBody;
+    if (origin && moved && moved !== origin) {
+      const shift = moved.position.clone().sub(origin.position);
+      this.camera.position.sub(shift);
+      this.controls.target.sub(shift);
+      this._prevTargetPos.sub(shift);
     }
   }
 
@@ -701,6 +780,7 @@ export class CameraController {
     }
 
     this._activeMode = newMode;
+    this._modeBodyName = params.bodyName;
 
     // Enable/disable TrackballControls based on mode
     this.controls.enabled = newMode.allowsOrbitControls;
@@ -944,6 +1024,10 @@ export class CameraController {
       this.camera.position.sub(bodyPos);
       this.controls.target.set(0, 0, 0);
     }
+    // A body-fixed or SC-fixed frame lands on the body too, as focusing it
+    // would put it there; left on the body the flight left, it would carry
+    // the camera around that one.
+    this._carryOrbitFrameTo(body);
 
     // Defer mode-state resync to after body positions are recomputed under
     // the new origin — syncing now would use stale body positions and produce

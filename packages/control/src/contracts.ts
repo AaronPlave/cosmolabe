@@ -152,8 +152,9 @@ export interface ViewerControl {
   /** Jump: apply the view a flight to `name` would land on, at once. */
   jumpTo(name: string): boolean;
   /**
-   * End a flight where it is. The camera keeps its pose, and the object it
-   * was flying to is tracked. Does nothing when nothing is flying.
+   * End a flight where it is. The camera keeps its position, and the object
+   * it was flying to is tracked from there, so the camera turns to face it.
+   * Does nothing when nothing is flying.
    */
   stopFlight(): void;
   /**

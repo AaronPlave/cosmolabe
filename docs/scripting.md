@@ -155,7 +155,7 @@ implies another: `select` never moves the camera, and none of these selects.
 | `frameObject [object]` | Cut to a view that fits an object (the tracked one when omitted), and track it. |
 | `flyTo <object> [path] [seconds]` | Fly to the view `frameObject` would cut to, and track the object. `<path>` is `overview` (the default: pull back to show both ends, then approach) or `direct`. Returns at once; follow with `wait`. |
 | `jumpTo <object>` | Cut to the view a flight would land on, and track the object. |
-| `stopFlight` | End a flight where it is, tracking what it was flying to. |
+| `stopFlight` | End a flight where it is, tracking what it was flying to (the camera turns to face it). |
 
 The path comes before the duration, so `flyTo Titan 3` is an error (`3` is not
 a path); write `flyTo Titan overview 3`. Manual input — a drag, a wheel zoom, a
