@@ -27,8 +27,7 @@ illustrative and target-facing, without CK attitude coverage.*
 - **Explore a mission:** load an example or your own catalog; follow spacecraft
   and planets, and inspect trajectories, instruments and terrain.
 - **Find and visualize events:** search for closest approaches, eclipses,
-  occultations and distance windows; inspect results in 3D and event intervals
-  and geometry plots on the timeline.
+  occultations and distance windows. Explore results in 3D, with event intervals and geometry plots on the timeline.
 - **Measure geometry:** distances, directions and angles between spacecraft,
   bodies and chosen locations.
 - **Share and automate views:** [share supported viewer states](docs/view-state.md),
@@ -119,7 +118,7 @@ The catalog format derives from NASA JPL's
 [Cosmographia](https://naif.jpl.nasa.gov/naif/cosmographia.html), created by
 Chris Laurel, author of [Celestia](https://celestiaproject.space/).
 
-The viewer uses **CSPICE compiled to WebAssembly**, [Three.js](https://threejs.org/),
+Cosmolabe uses **CSPICE compiled to WebAssembly**, [Three.js](https://threejs.org/),
 [3DTilesRendererJS](https://github.com/NASA-AMMOS/3DTilesRendererJS),
 [CesiumJS](https://cesium.com/platform/cesiumjs/) and
 [satellite.js](https://github.com/shashwatak/satellite-js).
