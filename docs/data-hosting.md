@@ -26,8 +26,9 @@ manifest and height grids stay together, as do imagery manifests and tiles.
 Local completeness and product revisions use the publisher's validators;
 kernel references in each catalog are checked together. Vite logs each source
 choice and the reason for fallback. If local output is unavailable and no hosted
-build is pinned, the catalog request returns 503 with instructions to generate,
-fetch or publish the dataset. External services and unmanaged assets retain
+build is pinned, local URLs are retained and Vite warns with instructions to
+generate, fetch or publish the dataset. The catalog remains usable; missing
+assets return their normal 404s. External services and unmanaged assets retain
 their original URLs. Production deployment rewriting is unchanged.
 
 To inspect new or incomplete local output without any hosted substitution:
@@ -36,13 +37,15 @@ To inspect new or incomplete local output without any hosted substitution:
 DEV_DATA_MODE=local npm run dev --workspace apps/viewer
 ```
 
-This keeps local paths, logs incomplete products, and lets missing files return
-their normal 404s. `DEV_DATA_MODE=auto` is the default. Checks are cached for the
-dev-server session; **restart Vite after generating, deleting or replacing a
+This keeps local paths, skips completeness scans entirely, and lets missing
+files return their normal 404s. `DEV_DATA_MODE=auto` is the default. Checks are
+cached for the dev-server session; **restart Vite after generating, deleting or replacing a
 product**, changing the pinned manifest, or changing these environment variables.
-The initial request inventories local product file sizes without hashing the
-large datasets. A local selection never redirects individual missing tiles to
-the host later in the session.
+In auto mode, the initial request inventories local product files with
+at most 32 concurrent filesystem operations, without hashing the large datasets.
+Quantized-mesh tiles use two-byte gzip signature checks instead of size checks, so mixed
+compressed/uncompressed products cannot be selected. A local selection never
+redirects individual missing tiles to the host later in the session.
 
 ## How the pieces fit
 

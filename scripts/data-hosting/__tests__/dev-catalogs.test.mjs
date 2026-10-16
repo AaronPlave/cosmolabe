@@ -4,7 +4,7 @@ import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createDevCatalogResolver, DEFAULT_DEV_DATA_BASE_URL } from '../lib/dev-catalogs.mjs';
 import { loadDatasets, ROOT, remotePrefix } from '../lib/datasets.mjs';
-import { writeCubeProducts, writeKernels, writePyramid } from './helpers.mjs';
+import { writeCubeProducts, writeKernels, writePyramid, quadTile } from './helpers.mjs';
 
 const roots = [];
 afterEach(() => { for (const dir of roots.splice(0)) rmSync(dir, { recursive: true, force: true }); });
@@ -76,21 +76,22 @@ describe('development managed datasets', () => {
     expect(result.tiles).toBe(f.catalog.tiles);
   });
 
-  it.each(['partial', 'absent'])('local-only preserves %s output and diagnoses it', async (state) => {
+  it.each(['partial', 'absent'])('local-only preserves %s output without completeness checks', async (state) => {
     const f = fixture({ mode: 'local' });
     rmSync(state === 'partial' ? join(f.terrain, 'cpu-grids.json') : f.terrain, { recursive: true });
     expect(await f.resolver(f.catalog, 'example.json')).toEqual(f.catalog);
-    expect(f.logs.join('\n')).toContain('DEV_DATA_MODE=local keeps local URLs');
-    expect(f.logs.join('\n')).toContain('incomplete');
+    expect(f.logs.join('\n')).toContain('DEV_DATA_MODE=local; completeness checks skipped');
   });
 
-  it('allows complete unpublished local products and gives actionable errors for missing ones', async () => {
+  it('keeps unpublished products local and warns when unavailable without rejecting the catalog', async () => {
     const f = fixture();
     f.datasets.terrain.build = null;
     expect(await f.resolver(f.catalog, 'example.json')).toEqual(f.catalog);
     rmSync(f.terrain, { recursive: true });
-    const fresh = createDevCatalogResolver({ root: f.root, datasets: f.datasets, log: () => {} });
-    await expect(fresh(f.catalog, 'example.json')).rejects.toThrow('no pinned hosted build. Generate/fetch terrain');
+    const fresh = createDevCatalogResolver({ root: f.root, datasets: f.datasets, log: (m) => f.logs.push(m) });
+    expect(await fresh(f.catalog, 'example.json')).toEqual(f.catalog);
+    expect(f.logs.join('\n')).toContain('no pinned hosted build. Generate/fetch terrain');
+    expect(f.logs.join('\n')).toContain('Local URLs retained; missing assets will return 404');
   });
 
   it('does not rewrite NASA services, textures, models, unknown paths or arbitrary URLs', async () => {
@@ -132,6 +133,35 @@ describe('development managed datasets', () => {
     expect(await createDevCatalogResolver(options)(catalog, 'a.json')).toEqual(catalog);
     rmSync(join(f.root, 'pyramid', '0', '0', '0.terrain'));
     expect((await createDevCatalogResolver(options)(catalog, 'a.json')).url).toBe(hosted(ds, ''));
+  });
+
+  it.each([true, false])('accepts uniform quantized-mesh encoding (gzip=%s)', async (gzip) => {
+    const f = fixture();
+    writePyramid(join(f.root, 'pyramid'), { gzip, maxZoom: 1 });
+    const ds = { kind: 'terrain', name: 'pyramid', localDir: 'pyramid', catalogPrefix: 'data/pyramid/', build: 'v1' };
+    const resolver = createDevCatalogResolver({ root: f.root, datasets: { pyramid: ds }, log: () => {} });
+    expect(await resolver('data/pyramid/', 'a.json')).toBe('data/pyramid/');
+  });
+
+  it('falls back for mixed gzip/raw terrain even when the changed tile is not a header sample', async () => {
+    const f = fixture();
+    writePyramid(join(f.root, 'pyramid'), { maxZoom: 2 });
+    writeFileSync(join(f.root, 'pyramid/1/0/1.terrain'), quadTile());
+    const ds = { kind: 'terrain', name: 'pyramid', localDir: 'pyramid', catalogPrefix: 'data/pyramid/', build: 'v1' };
+    const resolver = createDevCatalogResolver({ root: f.root, datasets: { pyramid: ds }, log: (m) => f.logs.push(m) });
+    expect(await resolver('data/pyramid/', 'a.json')).toBe(hosted(ds, ''));
+    expect(f.logs.join('\n')).toContain('mixed tile encodings');
+  });
+
+  it('keeps the real Ingenuity catalog usable without unpublished Mars terrain', async () => {
+    const f = fixture();
+    const datasets = loadDatasets().datasets;
+    const catalog = JSON.parse(readFileSync(join(ROOT, 'apps/viewer/test-catalogs/ingenuity-jezero.json'), 'utf8'));
+    const resolver = createDevCatalogResolver({ root: f.root, datasets, log: (m) => f.logs.push(m) });
+    const body = JSON.stringify(await resolver(catalog, 'ingenuity-jezero.json'));
+    expect(body).toContain('data/mars-terrain-fused/');
+    expect(f.logs.join('\n')).toContain('no pinned hosted build');
+    expect(f.logs.join('\n')).toContain('Local URLs retained');
   });
 
   it('resolves the real MoonFall catalog against its two pinned products in an empty checkout', async () => {

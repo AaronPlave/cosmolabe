@@ -1,6 +1,6 @@
 // Development-only source selection. Catalogs keep their checked-in URLs;
 // the deployment rewriter remains the authority for managed URL resolution.
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat, open } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { ROOT, remotePrefix, joinUrl } from './datasets.mjs';
 import { matchDataset, resolveLocalPath, rewriteCatalog } from './hosted-catalogs.mjs';
@@ -10,18 +10,43 @@ import { validateKernelHeader } from './kernels.mjs';
 
 export const DEFAULT_DEV_DATA_BASE_URL = 'https://data.aaronplave.com';
 
-// No hashing or tile-body reads: inventory only sizes, then run the publisher's
-// completeness/revision checks and its small set of header samples.
-async function inventory(dir, recursive = true, rel = '') {
+// Bound both directory traversal and per-file metadata/header work. Never hash
+// tiles or read their bodies; quantized-mesh encoding needs only two bytes.
+const INVENTORY_CONCURRENCY = 32;
+async function inventory(dir, recursive = true, terrain = false) {
   const entries = [];
-  for (const e of await readdir(join(dir, rel), { withFileTypes: true })) {
-    if (e.name.startsWith('.')) continue;
-    const p = rel ? `${rel}/${e.name}` : e.name;
-    if (e.isDirectory() && recursive) {
-      for (const entry of await inventory(dir, true, p)) entries.push(entry);
-    }
-    else if (e.isFile()) entries.push({ path: p, size: (await stat(join(dir, p))).size });
+  const directories = [''];
+  for (let offset = 0; offset < directories.length;) {
+    const batch = directories.slice(offset, offset + INVENTORY_CONCURRENCY);
+    offset += batch.length;
+    await Promise.all(batch.map(async (rel) => {
+      for (const e of await readdir(join(dir, rel), { withFileTypes: true })) {
+        if (e.name.startsWith('.')) continue;
+        const p = rel ? `${rel}/${e.name}` : e.name;
+        if (e.isDirectory() && recursive) directories.push(p);
+        else if (e.isFile()) entries.push({ path: p });
+      }
+    }));
   }
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(INVENTORY_CONCURRENCY, entries.length) }, async () => {
+    while (next < entries.length) {
+      const entry = entries[next++];
+      const path = join(dir, entry.path);
+      if (terrain && entry.path.endsWith('.terrain')) {
+        const file = await open(path, 'r');
+        try {
+          const header = Buffer.alloc(2);
+          const { bytesRead } = await file.read(header, 0, 2, 0);
+          entry.gzip = bytesRead === 2 && header[0] === 0x1f && header[1] === 0x8b;
+        } finally { await file.close(); }
+      } else {
+        // Cube height grids need exact sizes. Quantized-mesh validation needs
+        // only tile paths/encoding plus its decoded header samples.
+        entry.size = (await stat(path)).size;
+      }
+    }
+  }));
   return entries;
 }
 
@@ -59,7 +84,7 @@ export function createDevCatalogResolver({
         // referenced by this catalog together; never fall back file by file.
         for (const p of paths) await validateKernelHeader(join(dir, p));
       } else {
-        const entries = await inventory(dir, ds.recursive !== false);
+        const entries = await inventory(dir, ds.recursive !== false, ds.kind === 'terrain');
         if (ds.kind === 'cube-terrain') validateCubeTerrain(entries, dir);
         else if (ds.kind === 'cube-imagery') validateCubeImagery(entries, dir);
         else if (ds.kind === 'terrain') {
@@ -81,28 +106,33 @@ export function createDevCatalogResolver({
 
   return async (json, catalogRel) => {
     const selected = { ...datasets };
-    const unavailable = [];
     for (const [id, paths] of references(json, catalogRel, datasets)) {
       const ds = datasets[id];
+      if (mode === 'local') {
+        selected[id] = { ...ds, build: null };
+        report(`${id}: local ${ds.localDir} (DEV_DATA_MODE=local; completeness checks skipped)`);
+        continue;
+      }
       // Kernel references differ between catalogs; generated products describe
       // their complete contents in their own manifests.
       const key = `${id}:${[...paths].sort().join(',')}`;
       if (!checks.has(key)) checks.set(key, check(ds, paths));
       const problem = await checks.get(key);
-      if (!problem || mode === 'local') {
+      if (!problem) {
         // Keep the dataset in the matcher so nested unpublished/local sets
         // cannot accidentally be rewritten through a broader hosted prefix.
         selected[id] = { ...ds, build: null };
-        report(`${id}: local ${ds.localDir}${problem ? ` (incomplete: ${problem}; DEV_DATA_MODE=local keeps local URLs)` : ''}`);
+        report(`${id}: local ${ds.localDir}`);
       } else if (ds.build) {
         report(`${id}: hosted ${joinUrl(baseUrl, remotePrefix(ds))} (local unavailable: ${problem}). Set DEV_DATA_MODE=local to inspect local output; restart Vite after rebuilding.`);
       } else {
-        const message = `${id}: local unavailable (${problem}) and no pinned hosted build. Generate/fetch ${ds.localDir}, publish with scripts/publish-data.mjs, or set DEV_DATA_MODE=local to inspect incomplete output.`;
+        const message = `${id}: local unavailable (${problem}) and no pinned hosted build. Generate/fetch ${ds.localDir}, or publish with scripts/publish-data.mjs. Local URLs retained; missing assets will return 404.`;
         report(message);
-        unavailable.push(message);
+        // Keep the demo/catalog usable even when this optional local product
+        // has never been published. Its missing assets retain normal 404s.
+        selected[id] = { ...ds, build: null };
       }
     }
-    if (unavailable.length) throw new Error(unavailable.join('\n'));
     return rewriteCatalog(json, catalogRel, selected, baseUrl).json;
   };
 }
