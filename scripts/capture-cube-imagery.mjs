@@ -54,6 +54,32 @@
  *                pixel coverage (the polar cap has no horizon), then warm frame timing.
  *  skirt-cost    Per view, warm, one page: frame timing with skirts on and off (terrain
  *                only and grid imagery refined). Meaningful with --gpu.
+ *  profile       Frame overhead (--products cube|polar, --catalog terrain|grid|nac): per compare
+ *                pose at finished detail, per-tile on-screen footprints (ID pass) classified
+ *                against the main view, stage timers (traversal, imagery, list prep, submission)
+ *                over fenced frames and the animation loop, GPU time, ray-cast grid for
+ *                `dem.py field-error`; --cpu-profile adds a sampled CPU profile; --ab measures the
+ *                main-view draw cull off/on on each page (ABBA, BAAB on odd --repeat pages) and
+ *                checks identical frames and picks.
+ *  navigate      The cracks-dynamic path flown in the animation loop, cold page per run, draw cull
+ *                off/on alternating (--repeat pairs): frame CPU/GPU, long frames, drawn/selected
+ *                tiles, requests/bytes, time to finished detail.
+ *  cull-view     Frames with the draw cull off and on, and a third-person view of drawn/culled tiles.
+ *  adoption      The #149 adoption check on the initial production configuration (full lattice, draw cull on,
+ *                NAC imagery, an orbiter sensor): one cold page per --scenarios entry (normal, faulty) flies
+ *                orbit → Shackleton → near ground, crosses the pole, visits the px/nz edge and px/py/nz corner,
+ *                switches the instrument view on and off, and returns to orbit. Per stop: time to finished detail,
+ *                requests/bytes/cancellations, holes, selected tiles without imagery, picks across the frame
+ *                (rendered vs CPU, skirt flags, distance to the nearest tile edge, clearance margin); per flight
+ *                step: holes and loading; at the end, memory settling. `faulty` fails 1 in 12 data requests on
+ *                their first attempt and delays 1 in 8 by 1.5 s.
+ *                --hosted-store DIR serves a `publish-data.mjs --local-dir DIR` store over HTTP (another origin,
+ *                stored headers) and --hosted-url URL uses a real data host; either way the catalog is rewritten
+ *                exactly as build-hosted-catalogs.mjs does, to the builds pinned in datasets.json or given by
+ *                --terrain-build / --imagery-build.
+ *
+ * --uncapped launches without vsync or a frame cap (animation-loop interval = pipelined frame time).
+ * --draw-culling on|off sets TerrainManager.setDrawCulling on every page.
  *
  * --cube-tileset DIR/TILESET (relative to test-catalogs/data, default moon-terrain-cube/tileset.json)
  * points every cube catalog at another cube product or tileset — e.g. the measured geometric error
@@ -71,6 +97,10 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
+import { loadDatasets } from './data-hosting/lib/datasets.mjs';
+import { rewriteCatalog } from './data-hosting/lib/hosted-catalogs.mjs';
+import { createLocalStorage } from './data-hosting/lib/storage.mjs';
+import { serveStore } from './data-hosting/__tests__/helpers.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) => {
@@ -154,6 +184,12 @@ const GPU = !!args.gpu;
 const ANGLE = GPU ? String(args.angle ?? (platform() === 'darwin' ? 'metal' : 'vulkan')) : 'swiftshader';
 const LAUNCH = GPU ? ['--use-angle=' + ANGLE, '--ignore-gpu-blocklist', '--enable-gpu']
   : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--ignore-gpu-blocklist'];
+// --uncapped: no vsync or frame-rate cap, so animation-loop intervals are the pipelined frame time.
+if (args.uncapped) LAUNCH.push('--disable-gpu-vsync', '--disable-frame-rate-limit');
+const REPEATS = Number(args.repeat ?? 1);
+const ANIM_MS = Number(args['anim-ms'] ?? 3000);
+// Below all lunar terrain (lowest point ≈ 1,728.3 km): the conservative horizon sphere.
+const MIN_RADIUS_KM = Number(args['min-radius-km'] ?? 1727);
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH, args: LAUNCH });
 mkdirSync(OUT, { recursive: true });
 const results = {};
@@ -164,6 +200,7 @@ async function openViewer(catalog, setup) {
   await page.addInitScript(() => performance.setResourceTimingBufferSize(1_000_000));
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
+  page.on('response', r => { if (r.status() >= 400 && !r.url().includes('__missing__')) errors.push(`HTTP ${r.status()} ${r.url()}`); });
   // Errors, plus warnings other than the expected per-tile load warnings and missing catalog textures.
   page.on('console', m => {
     if (m.type() === 'error' || (m.type() === 'warning' && !/Tile load error|tiles versions|Failed to load (baseMap|normalMap)|Initial assets settled/.test(m.text()))) errors.push(`${m.type()}: ${m.text()}`);
@@ -196,12 +233,14 @@ async function openViewer(catalog, setup) {
   });
   // --error-target N: the terrain's errorTarget for every experiment (compare also applies its own default).
   if (args['error-target']) await page.evaluate((e) => { window.ciMoon().terrainManager.tiles.errorTarget = e; }, Number(args['error-target']));
+  if (args['draw-culling']) await page.evaluate((on) => window.ciMoon().terrainManager.setDrawCulling(on), args['draw-culling'] === 'on');
   if (/imagery/.test(catalog)) await page.waitForFunction(() => window.ciLayer()?.manifest != null, null, { timeout: 60_000 });
   if (!env) {
     env = await page.evaluate(() => {
       const gl = document.createElement('canvas').getContext('webgl2');
       const dbg = gl?.getExtension('WEBGL_debug_renderer_info');
-      return { userAgent: navigator.userAgent, devicePixelRatio: window.devicePixelRatio,
+      return { userAgent: navigator.userAgent, devicePixelRatio: window.devicePixelRatio, crossOriginIsolated: self.crossOriginIsolated,
+        shadowMap: window.ci?.getRenderer().renderer.shadowMap.enabled ?? null,
         webglRenderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl?.getParameter(gl.RENDERER), hardwareConcurrency: navigator.hardwareConcurrency };
     });
   }
@@ -334,6 +373,7 @@ const frameTiming = (page, frames) => page.evaluate(async (frames) => {
   info.autoReset = auto;
   const wall = [], queries = [];
   if (ext) gl.getParameter(ext.GPU_DISJOINT_EXT);
+  window.ciStages?.take();
   for (let i = 0; i < frames; i++) {
     const q = ext ? gl.createQuery() : null;
     if (q) gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
@@ -355,8 +395,331 @@ const frameTiming = (page, frames) => page.evaluate(async (frames) => {
   const disjoint = ext ? gl.getParameter(ext.GPU_DISJOINT_EXT) : null;
   const stat = (xs) => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b);
     return { n: s.length, median: s[s.length >> 1], p95: s[Math.floor(s.length * 0.95)], max: s.at(-1), mean: s.reduce((a, b) => a + b, 0) / s.length }; };
-  return { wallMs: stat(wall), gpuMs: disjoint ? null : stat(gpu), gpuDisjoint: disjoint, draws };
+  return { wallMs: stat(wall), gpuMs: disjoint ? null : stat(gpu), gpuDisjoint: disjoint, draws, stages: window.ciStages?.take() ?? null };
 }, frames);
+
+/**
+ * Per-stage CPU timers on the live page (installed once, then read by frameTiming and
+ * animTiming as means per frame): renderFrame; the terrain update (camera set-up,
+ * tile traversal/LOD/scene updates = `tiles.update`, cube imagery selection/blocks/cache =
+ * the layer's `update`); and every WebGLRenderer.render pass split at its first draw into
+ * render-list preparation (scene traversal, culling, sorting, shadow casters) and draw
+ * submission (renderBufferDirect onwards). Wrapping costs a few performance.now() calls
+ * per pass, not per draw.
+ */
+const installStageTimers = (page) => page.evaluate(() => {
+  if (window.ciStages) return;
+  const r = window.ci.getRenderer(), bm = window.ciMoon(), tm = bm.terrainManager, gl = r.renderer;
+  const zero = () => ({ frames: 0, frame: 0, terrain: 0, tiles: 0, imagery: 0, prep: 0, submit: 0, passes: 0 });
+  let acc = zero();
+  const now = () => performance.now();
+  const wrap = (obj, key, field) => { const f = obj[key]; obj[key] = function (...a) { const t = now(); try { return f.apply(this, a); } finally { acc[field] += now() - t; } }; };
+  wrap(tm.tiles, 'update', 'tiles');
+  if (tm.cubeImageryLayer) wrap(tm.cubeImageryLayer, 'update', 'imagery');
+  wrap(bm, 'updateTerrain', 'terrain');
+  let start = 0, first = -1;
+  const render = gl.render;
+  gl.render = function (s, c) {
+    start = now(); first = -1;
+    try { return render.call(this, s, c); } finally {
+      const end = now();
+      if (first < 0) acc.prep += end - start; else { acc.prep += first - start; acc.submit += end - first; }
+      acc.passes++;
+    }
+  };
+  const rbd = gl.renderBufferDirect;
+  gl.renderBufferDirect = function (...a) { if (first < 0) first = now(); return rbd.apply(this, a); };
+  const rf = r.renderFrame;
+  r.renderFrame = function () { const t = now(); try { return rf.call(this); } finally { acc.frame += now() - t; acc.frames++; } };
+  window.ciStages = {
+    take() {
+      const n = Math.max(1, acc.frames), out = { frames: acc.frames };
+      for (const k of ['frame', 'terrain', 'tiles', 'imagery', 'prep', 'submit', 'passes']) out[k] = acc[k] / n;
+      out.terrainOther = out.terrain - out.tiles - out.imagery;
+      out.frameOther = out.frame - out.terrain - out.prep - out.submit;
+      acc = zero();
+      return out;
+    },
+  };
+});
+
+/**
+ * Normal animation frames: the viewer's own requestAnimationFrame loop for MS ms, unfenced
+ * (CPU and GPU pipelined). Interval between frame starts, main-thread renderFrame time, GPU
+ * time per frame (TIME_ELAPSED queries read back later), stage means. With --uncapped the
+ * browser runs without vsync or a frame-rate cap, so the interval is the pipelined frame time.
+ * `path` (optional) poses the camera per frame index before the frame renders.
+ */
+const animTiming = (page, ms, path = null) => page.evaluate(async ({ ms, path }) => {
+  const r = window.ci.getRenderer(), bm = window.ciMoon(), gl = r.renderer.getContext();
+  const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+  const V = r.camera.position.constructor;
+  window.ciStages?.take();
+  const starts = [], cpu = [], queries = [], perFrame = [];
+  const rf = r.renderFrame;
+  let done = false;
+  r.renderFrame = function () {
+    if (path) {
+      const v = path[Math.min(starts.length, path.length - 1)];
+      const centre = new V(); bm.getWorldPosition(centre);
+      const toWorld = ([x, y, z]) => new V(x, z, -y).applyQuaternion(bm.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre);
+      const eye = toWorld(v.eye), target = toWorld(v.target), c = r.camera;
+      c.position.copy(eye); c.up.copy(eye.clone().sub(centre).normalize()); r.cameraController.controls.target.copy(target);
+      c.lookAt(target); c.updateMatrixWorld(true);
+    }
+    const t = performance.now();
+    starts.push(t);
+    const q = ext ? gl.createQuery() : null;
+    if (q) gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
+    rf.call(this);
+    if (q) { gl.endQuery(ext.TIME_ELAPSED_EXT); queries.push(q); }
+    cpu.push(performance.now() - t);
+    if (path) {
+      const m = bm.terrainMetrics;
+      perFrame.push({ cpuMs: cpu.at(-1), intervalMs: starts.length > 1 ? t - starts.at(-2) : 0, visible: m.tiles.visible, drawn: m.tiles.drawn ?? null, queued: m.network.queued + m.network.downloading + m.network.parsing });
+    }
+    if (path && starts.length >= path.length) done = true;
+  };
+  const t0 = performance.now();
+  while (path ? !done && performance.now() - t0 < 600_000 : performance.now() - t0 < ms) await new Promise(res => setTimeout(res, 50));
+  r.renderFrame = rf;
+  const stages = window.ciStages?.take() ?? null;
+  const gpu = [];
+  for (let tries = 0; tries < 100 && queries.length; tries++) {
+    await new Promise(requestAnimationFrame);
+    while (queries.length && gl.getQueryParameter(queries[0], gl.QUERY_RESULT_AVAILABLE)) {
+      gpu.push(gl.getQueryParameter(queries[0], gl.QUERY_RESULT) / 1e6);
+      gl.deleteQuery(queries.shift());
+    }
+  }
+  const disjoint = ext ? gl.getParameter(ext.GPU_DISJOINT_EXT) : null;
+  const stat = (xs) => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b);
+    return { n: s.length, median: s[s.length >> 1], p95: s[Math.floor(s.length * 0.95)], max: s.at(-1), mean: s.reduce((a, b) => a + b, 0) / s.length }; };
+  const intervals = starts.slice(1).map((t, i) => t - starts[i]);
+  return { frames: starts.length, durationMs: performance.now() - t0, intervalMs: stat(intervals), cpuMs: stat(cpu), gpuMs: disjoint ? null : stat(gpu), gpuDisjoint: disjoint, stages, perFrame: path ? perFrame : undefined };
+}, { ms, path });
+
+/**
+ * Sampled CPU profile (CDP Profiler, 50 µs) of FRAMES fenced frames, each sample attributed
+ * to the innermost stage on its stack, plus the hottest self-time functions under draw
+ * submission: an independent check on the stage timers and what one draw costs.
+ */
+async function cpuProfile(page, frames) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Profiler.enable');
+  await cdp.send('Profiler.setSamplingInterval', { interval: 50 });
+  await cdp.send('Profiler.start');
+  await page.evaluate((frames) => {
+    const ctx = window.ci.getRenderer().getContext(), gl = window.ci.getRenderer().renderer.getContext(), px = new Uint8Array(4);
+    for (let i = 0; i < frames; i++) { ctx.renderFrame(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); }
+  }, frames);
+  const { profile } = await cdp.send('Profiler.stop');
+  await cdp.detach();
+  const byId = new Map(profile.nodes.map(n => [n.id, n]));
+  const parent = new Map();
+  for (const n of profile.nodes) for (const c of n.children ?? []) parent.set(c, n.id);
+  const fn = (f, name) => f.functionName === name || f.functionName.endsWith(`.${name}`);
+  const STAGES = [
+    ['fence', (f) => fn(f, 'readPixels')],
+    ['submit', (f) => fn(f, 'renderBufferDirect')],
+    ['prep', (f) => fn(f, 'projectObject')],
+    ['shadow', (f) => /WebGLShadowMap/.test(f.functionName) || (fn(f, 'render') && /shadow/i.test(f.functionName))],
+    ['imagery', (f) => /CubeImageryLayer/.test(f.url) && fn(f, 'update')],
+    ['tiles', (f) => /3d-tiles-renderer/.test(f.url) && fn(f, 'update')],
+    ['renderOther', (f) => fn(f, 'render') && /three/.test(f.url)],
+    ['terrainOther', (f) => fn(f, 'updateTerrain')],
+    ['frameOther', (f) => fn(f, 'renderFrame')],
+  ];
+  const stageMs = {}, self = {};
+  profile.samples.forEach((id, i) => {
+    const dt = (profile.timeDeltas[i + 1] ?? 0) / 1000;
+    let stage = 'outside', node = id;
+    for (; node != null; node = parent.get(node)) {
+      const hit = STAGES.find(([, test]) => test(byId.get(node).callFrame));
+      if (hit) { stage = hit[0]; break; }
+    }
+    stageMs[stage] = (stageMs[stage] ?? 0) + dt;
+    const f = byId.get(id).callFrame, k = `${f.functionName || '(anonymous)'} ${f.url.split('/').pop().split('?')[0]}:${f.lineNumber + 1}`;
+    (self[stage] ??= {})[k] = (self[stage][k] ?? 0) + dt;
+  });
+  for (const k in stageMs) stageMs[k] /= frames;
+  const top = Object.fromEntries(Object.entries(self).map(([stage, fns]) => [stage,
+    Object.entries(fns).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, ms]) => [name, ms / frames])]));
+  return { frames, perFrameMs: stageMs, selfPerFrameMs: top };
+}
+
+/**
+ * What each drawn tile contributes: one unlit pass of the visible tiles' own meshes (surface
+ * triangles only, one flat colour per tile, no tone mapping or colour conversion), read back
+ * and counted per tile = its on-screen footprint in pixels. Each tile is also classified
+ * against the main camera (the frustum TerrainManager keeps for it, no far plane) and a
+ * conservative horizon: hidden only if every bounding-box corner lies beyond the horizon
+ * plane and inside the shadow cone of a sphere of radius `minRadiusKm` (below all terrain).
+ * Triangles: surface and skirt, from each mesh's draw range.
+ */
+const footprints = (page, minRadiusKm) => page.evaluate(async (minRadiusKm) => {
+  const r = window.ci.getRenderer(), tm = window.ciMoon().terrainManager;
+  const depUrl = performance.getEntriesByType('resource').map(e => e.name).find(n => /\/\.vite\/deps\/three\.js(\?|$)/.test(n));
+  const { MeshBasicMaterial, Color, LinearSRGBColorSpace, Vector3 } = await import(depUrl);
+  const gl = r.renderer, cam = r.camera, scene = r.scene, LAYER = 31;
+  const tiles = [];
+  tm.tiles.visibleTiles.forEach(t => {
+    const meshes = [];
+    t.engineData?.scene?.traverse(o => { if (o.isMesh && !o.name.startsWith('cube-imagery-block')) meshes.push(o); });
+    if (meshes.length) tiles.push({ t, meshes, culled: t.engineData.scene.visible === false });
+  });
+  // Tiles the terrain's main-view cull hid are drawn here too: one of them with pixels would be a culling error.
+  for (const { t, culled } of tiles) if (culled) t.engineData.scene.visible = true;
+  const saved = { mask: cam.layers.mask, background: scene.background, clear: gl.getClearColor(new Color()), alpha: gl.getClearAlpha(), target: gl.getRenderTarget(), cs: gl.outputColorSpace };
+  const restore = [];
+  tiles.forEach(({ meshes }, i) => {
+    const id = i + 1, mat = new MeshBasicMaterial({ toneMapped: false });
+    mat.color.setRGB((id & 255) / 255, ((id >> 8) & 255) / 255, ((id >> 16) & 255) / 255, LinearSRGBColorSpace);
+    for (const o of meshes) {
+      restore.push({ o, material: o.material, visible: o.visible, range: { ...o.geometry.drawRange } });
+      o.material = mat; o.visible = true; o.layers.enable(LAYER);
+      const n = o.geometry.userData?.surfaceTriangles;
+      if (typeof n === 'number') o.geometry.setDrawRange(0, 3 * n);
+    }
+  });
+  scene.background = null; gl.outputColorSpace = LinearSRGBColorSpace;
+  gl.setRenderTarget(null); gl.setClearColor(0x000000, 1); cam.layers.set(LAYER);
+  gl.clear(); gl.render(scene, cam);
+  const ctx = gl.getContext(), w = ctx.drawingBufferWidth, h = ctx.drawingBufferHeight, px = new Uint8Array(w * h * 4);
+  ctx.readPixels(0, 0, w, h, ctx.RGBA, ctx.UNSIGNED_BYTE, px);
+  for (const { t, culled } of tiles) if (culled) t.engineData.scene.visible = false;
+  for (const { o, material, visible, range } of restore) { o.material.dispose(); o.material = material; o.visible = visible; o.layers.disable(LAYER); o.geometry.setDrawRange(range.start, range.count); }
+  cam.layers.mask = saved.mask; scene.background = saved.background; gl.outputColorSpace = saved.cs;
+  gl.setClearColor(saved.clear, saved.alpha); gl.setRenderTarget(saved.target);
+  const count = new Map();
+  for (let i = 0; i < w * h; i++) { const id = px[4 * i] | (px[4 * i + 1] << 8) | (px[4 * i + 2] << 16); if (id) count.set(id, (count.get(id) ?? 0) + 1); }
+  // Main-camera frustum without a far plane (planes[4] in three.js), independent of TerrainManager's own copy.
+  const mv = { frustum: tm.mainView.frustum.clone(), eye: tm.mainView.eye }, eye = mv.eye, rm = minRadiusKm * 1000;
+  mv.frustum.planes[4].constant = Infinity;
+  const vh2 = eye.lengthSq() - rm * rm;
+  const behindHorizon = (p) => {
+    // Cesium's occlusion test against a sphere of radius rm: beyond the horizon plane and inside the cone.
+    if (vh2 <= 0) return false;
+    const vt = new Vector3().subVectors(p, eye), d = -vt.dot(eye);
+    return d > vh2 && d * d / vt.lengthSq() > vh2;
+  };
+  const out = tiles.map(({ t, meshes, culled }, i) => {
+    const m = /(\d+)\/\d+\/\d+\.(?:glb|b3dm|terrain)/.exec(t.content?.uri ?? '');
+    let surface = 0, skirt = 0;
+    for (const o of meshes) {
+      const idx = o.geometry.index, all = (idx ? idx.count : o.geometry.getAttribute('position').count) / 3;
+      const n = o.geometry.userData?.surfaceTriangles;
+      const drawn = Math.min(all, o.geometry.drawRange.count / 3);
+      if (typeof n === 'number') { surface += n; skirt += Math.max(0, drawn - n); } else surface += drawn;
+    }
+    const bv = t.engineData?.boundingVolume, pts = (bv?.obb ?? bv?.regionObb)?.points;
+    let inFrustum = true, hidden = false, failPlane = null;
+    if (pts) {
+      failPlane = mv.frustum.planes.findIndex(pl => pts.every(v => pl.distanceToPoint(v) < 0));
+      inFrustum = failPlane < 0;
+      hidden = pts.every(behindHorizon);
+    } else if (bv?.sphere) inFrustum = mv.frustum.intersectsSphere(bv.sphere);
+    // Where the tile's own vertices lie against the failing plane (metres): a box that misses its own mesh shows up here.
+    let meshMax = null;
+    if (failPlane >= 0) {
+      const pl = mv.frustum.planes[failPlane], v = new Vector3(), inv = tm.tiles.group.matrixWorld.clone().invert();
+      meshMax = -Infinity;
+      for (const o of meshes) { const p = o.geometry.getAttribute('position'), mw = o.matrixWorld.clone().premultiply(inv);
+        for (let k = 0; k < p.count; k++) meshMax = Math.max(meshMax, pl.distanceToPoint(v.fromBufferAttribute(p, k).applyMatrix4(mw))); }
+    }
+    return { level: m ? Number(m[1]) : null, uri: t.content?.uri, px: count.get(i + 1) ?? 0, surface, skirt, inFrustum, hidden, culled, failPlane, meshMax,
+      boxMax: failPlane >= 0 ? Math.max(...pts.map(v => mv.frustum.planes[failPlane].distanceToPoint(v))) : null };
+  });
+  return { width: w, height: h, tiles: out };
+}, minRadiusKm);
+
+/** Footprint summary: drawn tiles by level and by class, triangles, the share of tiles and triangles that reach no pixel. */
+function footprintSummary(fp) {
+  const byLevel = {}, cls = { onScreen: 0, offFrustum: 0, beyondHorizon: 0, inViewNoPixels: 0 };
+  let tris = 0, trisNoPx = 0, skirt = 0;
+  const pxs = [];
+  for (const t of fp.tiles) {
+    const L = byLevel[t.level] ??= { tiles: 0, px: [], surface: 0, skirt: 0, zeroPx: 0 };
+    L.tiles++; L.px.push(t.px); L.surface += t.surface; L.skirt += t.skirt; if (!t.px) L.zeroPx++;
+    tris += t.surface + t.skirt; skirt += t.skirt;
+    if (t.px) { cls.onScreen++; pxs.push(t.px); } else { trisNoPx += t.surface + t.skirt; cls[!t.inFrustum ? 'offFrustum' : t.hidden ? 'beyondHorizon' : 'inViewNoPixels']++; }
+    // A tile with pixels must never be classified as cullable.
+    if (t.px && (!t.inFrustum || t.hidden)) cls.cullableWithPixels = (cls.cullableWithPixels ?? 0) + 1;
+  }
+  cls.culled = fp.tiles.filter(t => t.culled).length;
+  cls.culledWithPixels = fp.tiles.filter(t => t.culled && t.px).length;
+  const med = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[s.length >> 1] : null; };
+  for (const L of Object.values(byLevel)) { L.medianPx = med(L.px); L.px = undefined; }
+  return { tiles: fp.tiles.length, ...cls, cullable: fp.tiles.filter(t => !t.inFrustum || t.hidden).length, medianPxOnScreen: med(pxs),
+    triangles: tris, skirtTriangles: skirt, trianglesWithoutPixels: trisNoPx, byLevel };
+}
+
+/** A 32×20 pixel grid ray-cast onto the rendered meshes (body-fixed metres), for `dem.py field-error`. */
+async function surfaceGrid(page) {
+  const grid = [];
+  for (let j = 0; j < 20; j++) for (let i = 0; i < 32; i++) grid.push([Math.floor((i + 0.5) * VIEWPORT.width / 32), Math.floor((j + 0.5) * VIEWPORT.height / 20)]);
+  return (await rayCast(page, grid)).map(h => (h ? h.slice(0, 3).map(v => Math.round(v * 1000) / 1000) : null));
+}
+
+/** One settled pose: footprints, achieved-error points, fenced and animation-loop timing, memory. */
+async function profileRow(page, base) {
+  const fp = await footprints(page, MIN_RADIUS_KM);
+  const surfaceHits = await surfaceGrid(page);
+  let fenced, anim, ab = null, frameDiff = null;
+  if (args.ab) {
+    // Paired on one settled page (same tiles and imagery): draw cull off/on in ABBA order, BAAB on odd repeats.
+    const setCull = async (on) => { await page.evaluate((on) => window.ciMoon().terrainManager.setDrawCulling(on), on); await page.waitForTimeout(300); };
+    ab = [];
+    for (const on of base.rep % 2 ? [true, false, false, true] : [false, true, true, false]) {
+      await setCull(on);
+      ab.push({ culling: on, fenced: await frameTiming(page, FRAMES), anim: await animTiming(page, ANIM_MS),
+        drawn: await page.evaluate(() => window.ciMoon().terrainMetrics.tiles.drawn) });
+    }
+    // The displayed frame with the cull off and on: identical pixels expected.
+    await setCull(false); const off = await canvasPixels(page);
+    await setCull(true); const on = await canvasPixels(page);
+    let diff = 0; for (let i = 0; i < off.data.length; i += 4) if (off.data[i] !== on.data[i] || off.data[i + 1] !== on.data[i + 1] || off.data[i + 2] !== on.data[i + 2]) diff++;
+    frameDiff = { pixels: off.width * off.height, differing: diff };
+    // Rendered picking (UniverseRenderer.pickSurface) on a 16×10 grid, cull off and on: identical hits expected.
+    const picks = (on) => setCull(on).then(() => page.evaluate(() => {
+      const r = window.ci.getRenderer(), out = [];
+      for (let j = 0; j < 10; j++) for (let i = 0; i < 16; i++) {
+        const p = r.pickSurface((i + 0.5) / 16 * 2 - 1, (j + 0.5) / 10 * 2 - 1);
+        out.push(p ? [...p.bodyFixedHitKm.map(v => Math.round(v * 1e6) / 1e6), p.renderedSkirt ? 1 : 0].join(',') : null);
+      }
+      return out;
+    }));
+    const pickOff = await picks(false), pickOn = await picks(true);
+    frameDiff.picks = pickOn.length;
+    frameDiff.pickHits = pickOn.filter(Boolean).length;
+    frameDiff.pickDifferences = pickOn.filter((v, i) => v !== pickOff[i]).length;
+    ({ fenced, anim } = ab.find(b => b.culling));
+  } else {
+    fenced = await frameTiming(page, FRAMES);
+    anim = await animTiming(page, ANIM_MS);
+  }
+  const profile = args['cpu-profile'] ? await cpuProfile(page, FRAMES) : null;
+  const after = await snapshot(page);
+  const { s, ...rest } = base;
+  return { ...rest, cubeTileset: base.product === 'cube' ? CUBE_TILESET : null, settleMs: s.settleMs, finished: s.finished,
+    visibleTiles: s.visibleTiles.length, geometryLevels: s.geometryLevels, footprint: footprintSummary(fp), footprintTiles: args['footprint-tiles'] ? fp.tiles : undefined,
+    surfaceHits, fenced, anim, ab, frameDiff, profile, memory: after.metrics.memory, update: after.metrics.update,
+    imagery: after.imagery && { blocks: after.imagery.blocks, splitTiles: after.imagery.splitTiles, extraDraws: after.imagery.extraDraws,
+      blockGeometryMB: after.imagery.blockGeometryBytes / 1e6, textures: after.imagery.textures, textureMiB: after.imagery.textureBytes / 2 ** 20,
+      maxLevel: after.imagery.maxDisplayedLevel, requests: after.imagery.requests, bytes: after.imagery.bytes },
+    glbRequests: s.glbRequests, glbBytes: s.glbBytes };
+}
+
+function logProfile(row) {
+  const f = (x) => x ? `${x.median.toFixed(2)}/${x.p95.toFixed(2)}` : 'n/a';
+  const st = row.fenced.stages, fp = row.footprint;
+  console.log(`profile ${row.product}/${row.catalog} ${row.view} eT ${row.errorTarget}${row.label ? ` [${row.label}]` : ''}: ${fp.tiles} tiles drawn `
+    + `(${fp.onScreen} with pixels, ${fp.offFrustum} off-screen, ${fp.beyondHorizon} beyond horizon, ${fp.inViewNoPixels} in view w/o pixels), ${row.fenced.draws.calls} draws, `
+    + `${(fp.triangles / 1e6).toFixed(2)} M tris (${(fp.trianglesWithoutPixels / 1e6).toFixed(2)} M without pixels); fenced wall ${f(row.fenced.wallMs)} GPU ${f(row.fenced.gpuMs)}; `
+    + `stages frame ${st.frame.toFixed(2)} = tiles ${st.tiles.toFixed(2)} + imagery ${st.imagery.toFixed(2)} + terrain other ${st.terrainOther.toFixed(2)} + prep ${st.prep.toFixed(2)} + submit ${st.submit.toFixed(2)} + other ${st.frameOther.toFixed(2)}; `
+    + `anim interval ${f(row.anim.intervalMs)} cpu ${f(row.anim.cpuMs)} GPU ${f(row.anim.gpuMs)}`
+    + (row.ab ? `; A/B: ${row.ab.map(b => `${b.culling ? 'on' : 'off'} ${b.drawn} drawn wall ${f(b.fenced.wallMs)} anim ${f(b.anim.intervalMs)}`).join(', ')}; frame diff ${row.frameDiff.differing} px, picks differing ${row.frameDiff.pickDifferences}/${row.frameDiff.pickHits}; culled ${fp.culled}, culled with pixels ${fp.culledWithPixels}` : ''));
+}
 
 /** A SURFACE_VIEWS pose in body-fixed km, heights from the CPU grids (waits for the finest grid at each point). */
 async function surfacePose(page, v) {
@@ -943,10 +1306,9 @@ try {
   }
 
   // ---------------------------------------------------------------------------
-  if (EXPERIMENTS.includes('cracks-dynamic')) {
-    results.cracksDynamic = [];
-    const lerp = (a, b, f) => a.map((c, i) => c + (b[i] - c) * f);
-    const path = [];
+  const lerp = (a, b, f) => a.map((c, i) => c + (b[i] - c) * f);
+  const path = [];
+  {
     // Refine in: from 3,000 km to the Shackleton oblique pose, no waiting for detail.
     const far = { eye: at(-80, 129.78, 3000), target: at(-89.67, 129.78, 0), fov: 60 };
     for (let i = 0; i <= 12; i++) { const f = 1 - (1 - i / 12) ** 3; path.push({ phase: 'refine', view: { eye: lerp(far.eye, VIEWS.shackleton.eye, f), target: lerp(far.target, VIEWS.shackleton.target, f), fov: 60 } }); }
@@ -957,6 +1319,9 @@ try {
     for (const [a, b] of [[VIEWS.pole, VIEWS['face-edge']], [VIEWS['face-edge'], VIEWS['face-corner']]]) {
       for (let i = 0; i <= 6; i++) path.push({ phase: 'pan', view: { eye: lerp(a.eye, b.eye, i / 6).map((c, _, e) => c * (R + 50) / Math.hypot(...e)), target: lerp(a.target, b.target, i / 6), fov: 60 } });
     }
+  }
+  if (EXPERIMENTS.includes('cracks-dynamic')) {
+    results.cracksDynamic = [];
     const scenarios = String(args.scenarios ?? 'normal,delayed,failed,evicting').split(',');
     for (const scenario of scenarios) {
       const setup = async (page) => {
@@ -974,18 +1339,20 @@ try {
         const s = await snapshot(page);
         const h = await holeMasks(page);
         const nb = neighbourLevels(s.visibleTiles);
+        const fp = footprintSummary(await footprints(page, MIN_RADIUS_KM));
         const n = s.metrics.network;
         steps.push({ i, phase: p.phase, visibleTiles: s.visibleTiles.length, geometryLevels: s.geometryLevels, loading: n.queued + n.downloading + n.parsing,
           cacheBytes: s.metrics.memory?.cacheBytes, mitigatedHolePixels: h.mitigated.holePixels, unmitigatedHolePixels: h.unmitigated.holePixels,
-          coverageDifferencePixels: h.coverageDifferencePixels, maxNeighbourDelta: nb.maxDelta, neighbourSamplesByDelta: nb.samplesByDelta });
+          coverageDifferencePixels: h.coverageDifferencePixels, culled: fp.culled, culledWithPixels: fp.culledWithPixels, maxNeighbourDelta: nb.maxDelta, neighbourSamplesByDelta: nb.samplesByDelta });
       }
       const failedReq = await page.evaluate(() => window.ciMoon().terrainMetrics.network);
       const row = { scenario, steps, maxMitigatedHolePixels: Math.max(...steps.map(s => s.mitigatedHolePixels)), maxUnmitigatedHolePixels: Math.max(...steps.map(s => s.unmitigatedHolePixels)),
         stepsWithUnmitigatedHoles: steps.filter(s => s.unmitigatedHolePixels > 0).length, stepsWithMitigatedHoles: steps.filter(s => s.mitigatedHolePixels > 0).length,
-        stepsLoading: steps.filter(s => s.loading > 0).length, maxNeighbourDelta: Math.max(...steps.map(s => s.maxNeighbourDelta)), network: failedReq, errors: errors.slice(0, 10) };
+        stepsLoading: steps.filter(s => s.loading > 0).length, culledTiles: steps.reduce((a, s) => a + s.culled, 0), culledWithPixels: steps.reduce((a, s) => a + s.culledWithPixels, 0), maxNeighbourDelta: Math.max(...steps.map(s => s.maxNeighbourDelta)), network: failedReq, errors: errors.slice(0, 10) };
       results.cracksDynamic.push(row);
       console.log(`cracks-dynamic ${scenario}: ${steps.length} steps (${row.stepsLoading} still loading), holes without skirts in ${row.stepsWithUnmitigatedHoles} (max ${row.maxUnmitigatedHolePixels} px), `
-        + `with skirts in ${row.stepsWithMitigatedHoles} (max ${row.maxMitigatedHolePixels} px); max neighbour Δlevel ${row.maxNeighbourDelta}`);
+        + `with skirts in ${row.stepsWithMitigatedHoles} (max ${row.maxMitigatedHolePixels} px); max neighbour Δlevel ${row.maxNeighbourDelta}; `
+        + `${row.culledTiles} tile-steps culled, ${row.culledWithPixels} of them with pixels`);
       await page.close();
     }
   }
@@ -1092,6 +1459,381 @@ try {
         results.skirtCost.push(row);
         const f = (x) => x ? `${x.median.toFixed(2)}/${x.p95.toFixed(2)}` : 'n/a';
         console.log(`skirt-cost ${cat} ${name}: triangles ${off.draws.triangles} → ${on.draws.triangles}; wall ${f(off.wallMs)} → ${f(on.wallMs)} (repeat ${f(on2.wallMs)}); GPU ${f(off.gpuMs)} → ${f(on.gpuMs)} (repeat ${f(on2.gpuMs)})`);
+        await page.close();
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  if (EXPERIMENTS.includes('cull-view')) {
+    // What the main-view draw cull keeps (#149): per pose, the frame as displayed with the cull off
+    // and on, and a third-person view from 4× the distance to the target behind and 400 km above it,
+    // tiles drawn green and culled red (selection is identical either way).
+    results.cullView = [];
+    for (const name of views(['shackleton', 'cap-nadir', 'face-corner'])) {
+      const { page, errors } = await openViewer(PRODUCTS.cube.catalog);
+      const view = COMPARE_VIEWS[name];
+      await settle(page, view, 'shaded', { imagery: false });
+      const files = {};
+      await page.evaluate(() => window.ciMoon().terrainManager.setDrawCulling(false)); await page.waitForTimeout(300);
+      files.off = await shot(page, `cull-${name}-off`);
+      await page.evaluate(() => window.ciMoon().terrainManager.setDrawCulling(true)); await page.waitForTimeout(300);
+      files.on = await shot(page, `cull-${name}-on`);
+      const counts = await page.evaluate(async ({ view }) => {
+        const r = window.ci.getRenderer(), bm = window.ciMoon(), tm = bm.terrainManager;
+        const depUrl = performance.getEntriesByType('resource').map(e => e.name).find(n => /\/\.vite\/deps\/three\.js(\?|$)/.test(n));
+        const { MeshBasicMaterial, PerspectiveCamera, Color } = await import(depUrl);
+        window.cosmo.setPlaying(false);
+        const V = r.camera.position.constructor, centre = new V(); bm.getWorldPosition(centre);
+        const toWorld = ([x, y, z]) => new V(x, z, -y).applyQuaternion(bm.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre);
+        const eye = toWorld(view.eye), target = toWorld(view.target);
+        // Behind and above the pose: back along the view direction, out along the radial.
+        const up = eye.clone().sub(centre).normalize(), dir = target.clone().sub(eye).normalize();
+        const dist = eye.distanceTo(target);
+        const cam = new PerspectiveCamera(60, r.camera.aspect, dist * 1e-3, dist * 1e4);
+        cam.position.copy(eye).addScaledVector(dir, -4 * dist).addScaledVector(up, 4 * dist + 400 * r.scaleFactor);
+        cam.up.copy(up); cam.lookAt(target); cam.updateMatrixWorld(true); cam.updateProjectionMatrix();
+        // One shade per tile so tile boundaries show: green drawn, red culled.
+        const shade = (isCulled, i) => new MeshBasicMaterial({ color: new Color().setHSL(isCulled ? 0.0 : 0.33, 0.65, 0.3 + 0.35 * ((i * 0.618) % 1)) });
+        const gl = r.renderer, scene = r.scene, LAYER = 31, restore = [];
+        let drawn = 0, culled = 0;
+        tm.tiles.visibleTiles.forEach(t => {
+          const sc = t.engineData?.scene; if (!sc) return;
+          const isCulled = sc.visible === false; if (isCulled) culled++; else drawn++;
+          const mat = shade(isCulled, drawn + culled);
+          restore.push({ sc, visible: sc.visible }); sc.visible = true;
+          sc.traverse(o => { if (o.isMesh && !o.name.startsWith('cube-imagery-block')) { restore.push({ o, material: o.material }); o.material = mat; o.layers.enable(LAYER); } });
+        });
+        const saved = { bg: scene.background, clear: gl.getClearColor(new Color()), alpha: gl.getClearAlpha() };
+        scene.background = null; gl.setClearColor(0x101018, 1); cam.layers.set(LAYER);
+        gl.setRenderTarget(null); gl.clear(); gl.render(scene, cam);
+        const url = gl.domElement.toDataURL('image/jpeg', 0.88);
+        for (const x of restore) { if (x.o) { if (x.o.material !== x.material) x.o.material.dispose?.(); x.o.material = x.material; x.o.layers.disable(LAYER); } else x.sc.visible = x.visible; }
+        scene.background = saved.bg; gl.setClearColor(saved.clear, saved.alpha);
+        return { drawn, culled, url };
+      }, { view });
+      writeFileSync(join(OUT, `cull-${name}-third-person.jpg`), Buffer.from(counts.url.split(',')[1], 'base64'));
+      files.thirdPerson = `cull-${name}-third-person.jpg`;
+      results.cullView.push({ view: name, drawn: counts.drawn, culled: counts.culled, files, errors });
+      console.log(`cull-view ${name}: ${counts.drawn} drawn, ${counts.culled} culled`);
+      await page.close();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  if (EXPERIMENTS.includes('navigate')) {
+    // The cracks-dynamic path (refine in, coarsen out, pan pole → edge → corner) flown in the
+    // viewer's own animation loop, --nav-steps (12) interpolated frames per step, then held
+    // until finished detail. Cold page per run; draw cull off and on alternating, --repeat N pairs.
+    results.navigate = [];
+    const K = Number(args['nav-steps'] ?? 12);
+    const frames = [];
+    for (let i = 0; i + 1 < path.length; i++) for (let k = 0; k < K; k++) {
+      const a = path[i].view, b = path[i + 1].view, f = k / K;
+      frames.push({ eye: lerp(a.eye, b.eye, f), target: lerp(a.target, b.target, f) });
+    }
+    frames.push(path.at(-1).view);
+    const cat = String(args.catalog ?? 'terrain');
+    const catalog = cat === 'terrain' ? PRODUCTS.cube.catalog : CATALOG(cat);
+    for (let rep = 0; rep < REPEATS; rep++) {
+      for (const on of rep % 2 ? [true, false] : [false, true]) {
+        const { page, errors } = await openViewer(catalog);
+        if (args['error-target']) await page.evaluate((e) => { window.ciMoon().terrainManager.tiles.errorTarget = e; }, Number(args['error-target']));
+        await page.evaluate((on) => window.ciMoon().terrainManager.setDrawCulling(on), on);
+        await installStageTimers(page);
+        await pose(page, { ...frames[0], fov: 60 }, 'shaded');
+        await page.waitForTimeout(1500);
+        const before = await snapshot(page);
+        const fly = await animTiming(page, 0, frames);
+        const s = await settle(page, { ...frames.at(-1), fov: 60 }, 'shaded', { imagery: cat !== 'terrain' });
+        const after = await snapshot(page);
+        const pf = fly.perFrame;
+        // Frames over 1.5× the median interval (with vsync: missed refreshes).
+        const longFrames = pf.filter((f, i) => i > 0 && f.intervalMs > 1.5 * fly.intervalMs.median).length;
+        const row = { catalog: cat, culling: on, rep, frames: fly.frames, longFrames, flyMs: fly.durationMs, intervalMs: fly.intervalMs, cpuMs: fly.cpuMs, gpuMs: fly.gpuMs, stages: fly.stages,
+          visibleMax: Math.max(...pf.map(f => f.visible)), drawnMax: Math.max(...pf.map(f => f.drawn ?? f.visible)),
+          drawnMean: pf.reduce((a, f) => a + (f.drawn ?? f.visible), 0) / pf.length, visibleMean: pf.reduce((a, f) => a + f.visible, 0) / pf.length,
+          settleMs: s.settleMs, finished: s.finished,
+          glbRequests: after.glbRequests - before.glbRequests, glbBytes: after.glbBytes - before.glbBytes,
+          imageryRequests: after.imageryRequests - before.imageryRequests, imageryBytes: after.imageryBytes - before.imageryBytes,
+          memory: after.metrics.memory, imagery: after.imagery && { textures: after.imagery.textures, textureMiB: after.imagery.textureBytes / 2 ** 20, blockGeometryMB: after.imagery.blockGeometryBytes / 1e6, evicted: after.imagery.evicted },
+          errors };
+        results.navigate.push(row);
+        const f = (x) => x ? `${x.median.toFixed(2)}/${x.p95.toFixed(2)}` : 'n/a';
+        console.log(`navigate ${cat} cull ${on ? 'on' : 'off'} #${rep}: ${row.frames} frames in ${(row.flyMs / 1000).toFixed(1)} s, interval ${f(row.intervalMs)} cpu ${f(row.cpuMs)} GPU ${f(row.gpuMs)}; `
+          + `${longFrames} long; drawn mean ${row.drawnMean.toFixed(0)} of ${row.visibleMean.toFixed(0)} visible (max ${row.drawnMax}/${row.visibleMax}); finished ${(row.settleMs / 1000).toFixed(1)} s after the path; `
+          + `${row.glbRequests} .glb / ${(row.glbBytes / 1e6).toFixed(1)} MB, ${row.imageryRequests} imagery / ${(row.imageryBytes / 1e6).toFixed(1)} MB`);
+        await page.close();
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  if (EXPERIMENTS.includes('adoption')) {
+    results.adoption = [];
+    // Through the hosting path: the deploy-time catalog rewrite against a served store or a real host.
+    let hosted = null;
+    if (args['hosted-store'] || args['hosted-url']) {
+      const host = args['hosted-store'] ? await serveStore(createLocalStorage(resolve(String(args['hosted-store'])))) : null;
+      const datasets = loadDatasets().datasets;
+      for (const [id, key] of [['cube-terrain/moon-terrain-cube', 'terrain-build'], ['cube-imagery/moon-imagery-cube-nac', 'imagery-build']]) {
+        if (args[key]) datasets[id] = { ...datasets[id], build: String(args[key]) };
+      }
+      hosted = { baseUrl: host?.url ?? String(args['hosted-url']), close: () => host?.close(), datasets };
+    }
+    const kindOf = (url) => (/\.glb$/.test(url) ? 'glb' : /\.f32$/.test(url) ? 'grid' : /moon-imagery-cube-.*\.png$/.test(url) ? 'imagery' : /\.json$/.test(url) ? 'json' : null);
+    const hash = (str) => { let h = 2166136261; for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+    const geo = (lat, lon, h) => at(lat, lon, h);
+    for (const scenario of String(args.scenarios ?? 'normal,faulty').split(',')) {
+      const counts = { injectedFailures: 0, injectedDelays: 0, cancelled: {}, failed: {} };
+      const attempts = new Map();
+      const { page, errors } = await openViewer(CATALOG('adoption'), async (p) => {
+        if (hosted) {
+          await p.route(/moon-terrain-cube-imagery-adoption\.json/, async (route) => {
+            const response = await route.fetch();
+            const r = rewriteCatalog(await response.json(), 'experiments/moon-terrain-cube-imagery-adoption.json', hosted.datasets, hosted.baseUrl);
+            if (r.unpublished.length || r.changed !== 3) throw new Error(`hosted catalog: ${r.changed} rewrites, unpublished ${r.unpublished}`);
+            await route.fulfill({ response, json: r.json });
+          });
+        }
+        if (scenario === 'faulty') {
+          await p.route((url) => !!kindOf(url.href) && kindOf(url.href) !== 'json' && /moon-(terrain|imagery)-cube/.test(url.href), async (route) => {
+            const url = route.request().url(), n = (attempts.get(url) ?? 0) + 1, h = hash(url);
+            attempts.set(url, n);
+            if (n === 1 && h % 12 === 0) { counts.injectedFailures++; return route.abort('failed'); }
+            if (h % 8 === 1) { counts.injectedDelays++; await new Promise((r) => setTimeout(r, 1500)); }
+            return route.continue().catch(() => {});
+          });
+        }
+        p.on('requestfailed', (req) => {
+          const kind = kindOf(req.url());
+          if (!kind) return;
+          const bucket = /ABORTED/.test(req.failure()?.errorText ?? '') ? counts.cancelled : counts.failed;
+          bucket[kind] = (bucket[kind] ?? 0) + 1;
+        });
+      });
+      const started = Date.now();
+      const resources = () => page.evaluate(() => performance.getEntriesByType('resource').map((e) => [e.name, e.encodedBodySize, e.duration]));
+      const untextured = () => page.evaluate(() => {
+        // Selected tiles (scene attached) drawing a mesh or block with imagery disabled.
+        let tiles = 0, without = 0;
+        for (const rec of window.ciLayer().tiles.values()) {
+          if (!rec.scene.parent) continue;
+          tiles++;
+          if (rec.meshes.some((m) => (m.mesh.visible && !m.uniforms.cubeImageryEnabled.value)
+            || [...m.blocks.values()].some((b) => b.mesh.visible && !b.uniforms.cubeImageryEnabled.value))) without++;
+        }
+        return { tiles, without };
+      });
+      const picks = async () => {
+        const grid = [];
+        for (let j = 0; j < 10; j++) for (let i = 0; i < 16; i++) grid.push([(i + 0.5) / 16 * 2 - 1, (j + 0.5) / 10 * 2 - 1]);
+        const once = () => page.evaluate((grid) => grid.map(([x, y]) => {
+          const p = window.ci.getRenderer().pickSurface(x, y);
+          if (!p) return null;
+          // The readout surface (CPU sample, as the HUD and camera clamp use) under the rendered hit.
+          const [hx, hy, hz] = p.bodyFixedHitKm, r = Math.hypot(hx, hy, hz);
+          const s = window.ciMoon().sampleTerrain(Math.asin(hz / r) * 180 / Math.PI, Math.atan2(hy, hx) * 180 / Math.PI);
+          return { rendered: p.bodyFixedHitKm, physical: p.physical ?? null, skirt: !!p.renderedSkirt, readoutBelowRenderedKm: s ? r - (1737.4 + s.elevationKm) : null };
+        }), grid);
+        await once(); // a pick loads CPU coverage along its ray; the repeat answers from it
+        await page.waitForTimeout(2500);
+        const rows = (await once()).filter(Boolean);
+        const out = { picks: rows.length, sufficient: 0, coarse: 0, unavailable: 0, skirt: 0, nearEdge: [], interior: [], clearanceMarginKm: [],
+          readoutVsRenderedKm: summary(rows.filter((r) => r.readoutBelowRenderedKm != null && !r.skirt).map((r) => Math.abs(r.readoutBelowRenderedKm))) };
+        const clearance = [], edgeHits = [];
+        for (const r of rows) {
+          if (r.skirt) out.skirt++;
+          const ph = r.physical;
+          if (!ph || ph.kind !== 'hit') { out.unavailable++; continue; }
+          out[ph.detail === 'sufficient' ? 'sufficient' : 'coarse']++;
+          const [face, L, x, y] = ph.tileId.split('/'), c = directionToCubeFace(ph.bodyFixedKm), N = 2 ** Number(L);
+          const su = (c.u + 1) / 2 * N - Number(x), sv = (c.v + 1) / 2 * N - Number(y);
+          // Within two lattice cells of the tile's edge (or on another face's side of it).
+          const edge = c.face !== face ? 0 : Math.min(su, 1 - su, sv, 1 - sv);
+          (edge < 2 / 64 ? out.nearEdge : out.interior).push(ph.renderedOffsetKm);
+          // Hits are provisional (partial-product coverage), so placement needs the explicit opt-in.
+          clearance.push(ph.bodyFixedKm.map((v, k) => v + 0.05 * ph.normal[k]));
+          edgeHits.push([edge, ph.bodyFixedKm]);
+        }
+        // 50 m clearance placed along the CPU hit's normal: its height above the CPU surface below it.
+        const heights = await page.evaluate((pts) => pts.map(([x, y, z]) => {
+          const r = Math.hypot(x, y, z), s = window.ciMoon().sampleTerrain(Math.asin(z / r) * 180 / Math.PI, Math.atan2(y, x) * 180 / Math.PI);
+          return s ? r - (1737.4 + s.elevationKm) : null;
+        }), clearance);
+        out.clearanceMarginKm = summary(heights.filter((h) => h != null));
+        out.nearEdge = summary(out.nearEdge); out.interior = summary(out.interior);
+        out.edgePoints = edgeHits.sort((a, b) => a[0] - b[0]).slice(0, 6).map((e) => e[1]);
+        return out;
+      };
+      // The camera clamp at tile edges: the eye put on the CPU surface at each point, looking along
+      // the ground, settled (pose every poll, the renderer's clamp lifts it each frame), then its height
+      // above the CPU readout surface and above the rendered triangles straight below.
+      const clampProbe = async (points) => {
+        const out = [];
+        for (const p of points) {
+          const eye = await page.evaluate(([x, y, z]) => {
+            const r = Math.hypot(x, y, z), s = window.ciMoon().sampleTerrain(Math.asin(z / r) * 180 / Math.PI, Math.atan2(y, x) * 180 / Math.PI);
+            return s ? [x, y, z].map((c) => c / r * (1737.4 + s.elevationKm)) : null;
+          }, p);
+          if (!eye) continue;
+          const up = norm(eye), side = Math.abs(up[2]) > 0.99 ? [1, 0, 0] : [0, 0, 1], along = norm(cross(up, side));
+          await settle(page, { eye, target: eye.map((c, k) => c + 3 * along[k] - up[k]), fov: 60 }, 'shaded');
+          await page.waitForTimeout(400); // frames after settle's last pose, for the clamp to act
+          out.push(await page.evaluate(async () => {
+            const r = window.ci.getRenderer(), bm = window.ciMoon(), tm = bm.terrainManager;
+            const depUrl = performance.getEntriesByType('resource').map(e => e.name).find(n => /\/\.vite\/deps\/three\.js(\?|$)/.test(n));
+            const { Raycaster, Vector3 } = await import(depUrl);
+            const centre = new Vector3(); bm.getWorldPosition(centre);
+            const v = r.camera.position.clone().sub(centre).applyQuaternion(bm.mesh.quaternion.clone().invert()).divideScalar(r.scaleFactor);
+            const eye = [v.x, -v.z, v.y], re = Math.hypot(...eye);
+            const s = bm.sampleTerrain(Math.asin(eye[2] / re) * 180 / Math.PI, Math.atan2(eye[1], eye[0]) * 180 / Math.PI);
+            const hit = new Raycaster(r.camera.position.clone(), centre.clone().sub(r.camera.position).normalize()).intersectObject(tm.group, true)
+              // The tiles' own surface triangles (imagery blocks are copies of them, shown or not):
+              // a ray down a tile edge runs along that edge's skirt.
+              .find((h) => !h.object.name.startsWith('cube-imagery-block') && h.faceIndex < (h.object.geometry.userData?.surfaceTriangles ?? Infinity));
+            return { aboveReadoutKm: s ? re - (1737.4 + s.elevationKm) : null, aboveRenderedKm: hit ? hit.distance / r.scaleFactor : null };
+          }));
+        }
+        return out;
+      };
+      const stops = [], flight = [];
+      const stop = async (name, view, extra = {}) => {
+        const s = await settle(page, view, 'shaded');
+        const h = await holeMasks(page);
+        const row = { name, ...pick(s), holes: h.mitigated, skirtCoverPixels: h.coverageDifferencePixels, untextured: await untextured(), picks: await picks(), ...extra };
+        if (extra.clamp) {
+          row.clamp = await clampProbe(row.picks.edgePoints);
+          await settle(page, view, 'shaded');
+        }
+        stops.push(row);
+        console.log(`adoption ${scenario} ${name}: ${s.finished ? 'settled' : 'NOT settled'} in ${(s.settleMs / 1000).toFixed(1)} s, geometry L${Object.keys(s.geometryLevels).join(',')}, imagery L${s.imagery.maxDisplayedLevel}, `
+          + `holes ${h.mitigated.holePixels} px, untextured ${row.untextured.without}/${row.untextured.tiles}, picks ${row.picks.sufficient}+${row.picks.coarse} hit / ${row.picks.unavailable} n/a / ${row.picks.skirt} skirt, `
+          + `rendered−CPU near edge max ${row.picks.nearEdge?.max?.toFixed(4) ?? '-'} km, interior max ${row.picks.interior?.max?.toFixed(4) ?? '-'} km, readout−rendered p95 ${row.picks.readoutVsRenderedKm?.p95?.toFixed(4) ?? '-'} km, `
+          + `50 m clearance → ${row.picks.clearanceMarginKm ? `${(row.picks.clearanceMarginKm.median * 1000).toFixed(1)} m median` : '-'}`
+          + (row.clamp ? `; clamp at edges: above readout ${row.clamp.map((c) => (c.aboveReadoutKm * 1000).toFixed(1)).join('/')} m, above rendered ${row.clamp.map((c) => (c.aboveRenderedKm * 1000).toFixed(1)).join('/')} m` : ''));
+        return s;
+      };
+      const fly = async (phase, from, to, n) => {
+        for (let i = 1; i <= n; i++) {
+          const f = 1 - (1 - i / n) ** 2, mix = (a, b) => a + (b - a) * f;
+          const eye = geo(mix(from.eye[0], to.eye[0]), mix(from.eye[1], to.eye[1]), Math.exp(mix(Math.log(from.eye[2]), Math.log(to.eye[2]))));
+          const v = { eye, target: geo(mix(from.target[0], to.target[0]), mix(from.target[1], to.target[1]), mix(from.target[2], to.target[2])), fov: 60 };
+          await pose(page, v, 'shaded'); await page.waitForTimeout(350); await pose(page, v, 'shaded');
+          const s = await snapshot(page), h = await holeMasks(page), net = s.metrics.network;
+          flight.push({ phase, i, visibleTiles: s.visibleTiles.length, geometryLevels: s.geometryLevels, loading: net.queued + net.downloading + net.parsing,
+            holePixels: h.mitigated.holePixels, untexturedBlocks: s.imagery?.untexturedBlocks ?? null, imageryInFlight: s.imagery?.inFlight ?? null });
+        }
+      };
+      // Geodetic [lat, lon, height km] poses for the flight legs.
+      const G = { overview: { eye: [-55, 60, 3000], target: [-70, 60, 0] }, shackleton: { eye: [-89.07, 129.78, 6], target: [-89.67, 129.78, -2.5] },
+        near: { eye: [-89.55, 129.78, 1.0], target: [-89.67, 129.78, -2.5] }, poleIn: { eye: [-89.4, -30, 5], target: [-89.9, -30, -1] },
+        poleOut: { eye: [-89.4, 150, 5], target: [-88.9, 150, -1] }, edge: { eye: [-44.4, -0.8, 40], target: [-45, 0, 0] }, corner: { eye: [-34.6, 45.6, 60], target: [-35.26438968, 45, 0] } };
+
+      await stop('overview (cold)', VIEWS.overview, { coldMs: Date.now() - started });
+      await fly('orbit → Shackleton', G.overview, G.shackleton, 16);
+      await stop('shackleton', VIEWS.shackleton);
+      await fly('Shackleton → near ground', G.shackleton, G.near, 6);
+      await stop('near ground', await surfacePose(page, SURFACE_VIEWS['shackleton-near']), { clamp: true });
+      await fly('to pole', G.near, G.poleIn, 6);
+      await fly('pole crossing', G.poleIn, G.poleOut, 10);
+      await stop('pole grazing', await surfacePose(page, SURFACE_VIEWS['pole-grazing']), { clamp: true });
+      await fly('to px/nz edge', G.poleOut, G.edge, 10);
+      await stop('face edge', VIEWS['face-edge']);
+      await stop('edge grazing', await surfacePose(page, SURFACE_VIEWS['edge-grazing']), { clamp: true });
+      await fly('to px/py/nz corner', G.edge, G.corner, 6);
+      await stop('face corner', VIEWS['face-corner']);
+      await stop('corner grazing', await surfacePose(page, SURFACE_VIEWS['corner-grazing']), { clamp: true });
+
+      // Main/instrument switching: the main camera 25 km over Shackleton looking north, so the
+      // tiles below it are selected (nadir streaming camera) but culled from the main view; the
+      // orbiter's nadir sensor 100 km up sees exactly those.
+      const mainView = { eye: geo(-89.67, 129.78, 25), target: geo(-87.5, 129.78, 0), fov: 60 };
+      await stop('instrument main pose', mainView);
+      // Unlit imagery, so a tile drawn without imagery stands out from shadow.
+      const instrument = { mode: 'imagery-unlit', switches: [] };
+      for (let k = 0; k < 3; k++) {
+        await page.evaluate(() => window.ci.getRenderer().setInstrumentView('Orbiter'));
+        const s = await settle(page, mainView, 'imagery-unlit');
+        const u = await untextured();
+        const frame = await page.evaluate(() => { const r = window.ci.getRenderer(); r.getContext().renderFrame(); return { active: r.activeInstrumentView ?? null, drawn: window.ciMoon().terrainMetrics.tiles }; });
+        instrument.switches.push({ k, settled: s.finished, active: frame.active, untextured: u, tiles: frame.drawn });
+        if (k === 0) {
+          // The same settled frame with the cull on and off: the main view is identical, the instrument view
+          // differs only in imagery level on tiles the main camera does not draw.
+          const on = await canvasPixels(page);
+          instrument.shotOn = await shot(page, `adoption-${scenario}-instrument-cull-on`);
+          await page.evaluate(() => window.ciMoon().terrainManager.setDrawCulling(false));
+          await settle(page, mainView, 'imagery-unlit');
+          const off = await canvasPixels(page);
+          instrument.shotOff = await shot(page, `adoption-${scenario}-instrument-cull-off`);
+          await page.evaluate(() => window.ciMoon().terrainManager.setDrawCulling(true));
+          let differing = 0, sum = 0;
+          for (let i = 0; i < on.data.length; i += 4) {
+            const d = Math.abs(on.data[i] - off.data[i]) + Math.abs(on.data[i + 1] - off.data[i + 1]) + Math.abs(on.data[i + 2] - off.data[i + 2]);
+            if (d > 24) differing++;
+            sum += d / 3;
+          }
+          instrument.cullOnOff = { differingPixels: differing, meanAbsDiff: +(sum / (on.data.length / 4)).toFixed(3) };
+        }
+        await page.evaluate(() => window.ci.getRenderer().setInstrumentView(null));
+        await page.waitForTimeout(500);
+      }
+      console.log(`adoption ${scenario} instrument: ${instrument.switches.map((w) => `${w.active ?? 'off'} untextured ${w.untextured.without}/${w.untextured.tiles}`).join('; ')}; `
+        + `cull on vs off ${instrument.cullOnOff.differingPixels} px differ (mean |Δ| ${instrument.cullOnOff.meanAbsDiff})`);
+
+      // Back to orbit; memory should settle as detail is released.
+      await stop('overview (return)', VIEWS.overview);
+      const memory = [];
+      for (let i = 0; i < 10; i++) {
+        await pose(page, VIEWS.overview, 'shaded');
+        await page.waitForTimeout(2000);
+        memory.push(await page.evaluate(() => {
+          const bm = window.ciMoon(), m = bm.terrainMetrics.memory, i = bm.terrainCubeImageryStats, info = window.ci.getRenderer().renderer.info.memory;
+          return { cacheMB: +(m.cacheBytes / 1e6).toFixed(1), geometryMB: +(m.geometryBytes / 1e6).toFixed(1), textureMB: +((i?.textureBytes ?? 0) / 1e6).toFixed(1),
+            heapMB: +(performance.memory?.usedJSHeapSize / 1e6).toFixed(1), geometries: info.geometries, textures: info.textures, cpuGrids: bm.terrainManager.cubeStats,
+            cpuMeshes: bm.terrainManager.cube?.surface.meshes.size ?? null };
+        }));
+      }
+      const res = await resources(), byKind = {};
+      for (const [url, bytes, ms] of res) {
+        const kind = kindOf(url);
+        if (!kind || !/moon-(terrain|imagery)-cube/.test(url)) continue;
+        const b = byKind[kind] ??= { requests: 0, bytes: 0, maxMs: 0, origin: new URL(url).origin };
+        b.requests++; b.bytes += bytes; b.maxMs = Math.max(b.maxMs, Math.round(ms));
+      }
+      const final = await page.evaluate(() => ({ network: window.ciMoon().terrainMetrics.network, imagery: window.ciMoon().terrainCubeImageryStats, grids: window.ciMoon().terrainManager.cubeStats }));
+      const row = { scenario, hosted: hosted ? { baseUrl: hosted.baseUrl, terrainBuild: hosted.datasets['cube-terrain/moon-terrain-cube'].build, imageryBuild: hosted.datasets['cube-imagery/moon-imagery-cube-nac'].build } : null,
+        stops, flight, instrument, memory, requests: byKind, counts, final, totalMs: Date.now() - started,
+        flightMaxHolePixels: Math.max(...flight.map((f) => f.holePixels)), stopsNotSettled: stops.filter((s) => !s.finished).map((s) => s.name), errors: errors.slice(0, 20) };
+      results.adoption.push(row);
+      console.log(`adoption ${scenario}: ${stops.length} stops (${row.stopsNotSettled.length} not settled), flight max holes ${row.flightMaxHolePixels} px over ${flight.length} steps; `
+        + `requests ${Object.entries(byKind).map(([k, b]) => `${k} ${b.requests}/${(b.bytes / 1e6).toFixed(1)} MB`).join(', ')}; cancelled ${JSON.stringify(counts.cancelled)}, failed ${JSON.stringify(counts.failed)}, `
+        + `injected ${counts.injectedFailures} failures / ${counts.injectedDelays} delays; memory ${JSON.stringify(memory.at(-1))}; ${errors.length} console errors`);
+      await page.close();
+    }
+    await hosted?.close();
+  }
+
+  if (EXPERIMENTS.includes('profile')) {
+    // Frame overhead (#149): per pose, at finished detail, what is drawn (footprints) and where a
+    // frame's time goes (stage timers, fenced and in the animation loop; optional CPU profile).
+    results.profile = [];
+    const product = String(args.products ?? 'cube'), P = PRODUCTS[product];
+    const cat = String(args.catalog ?? 'terrain');
+    const catalog = product === 'cube' && cat !== 'terrain' ? CATALOG(cat) : P.catalog;
+    const errorTarget = Number(args['error-target'] ?? P.errorTarget ?? 2);
+    for (const name of views(['shackleton', 'shackleton-grazing', 'pole', 'pole-grazing', 'cap-nadir', 'face-edge', 'face-corner'])) {
+      if (product === 'polar' && name.startsWith('face')) continue; // outside the cap
+      for (let rep = 0; rep < REPEATS; rep++) {
+        const { page, errors } = await openViewer(catalog);
+        await page.evaluate((e) => { window.ciMoon().terrainManager.tiles.errorTarget = e; }, errorTarget);
+        await installStageTimers(page);
+        const s = await settle(page, COMPARE_VIEWS[name], 'shaded', { imagery: catalog !== P.catalog });
+        const row = await profileRow(page, { product, catalog: cat, view: name, errorTarget, rep, s });
+        row.errors = errors;
+        results.profile.push(row);
+        logProfile(row);
         await page.close();
       }
     }

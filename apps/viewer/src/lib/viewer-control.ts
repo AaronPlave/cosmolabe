@@ -41,11 +41,14 @@ import {
   crane,
   dolly,
   displayNote,
+  flyToBody,
+  frameBody,
   getRenderer,
   noteIsTimed,
   gotoObject,
   hasBody,
   isDisplayOption,
+  jumpToBody,
   onViewerEvent,
   pointAtObject,
   runTo,
@@ -61,6 +64,7 @@ import {
   setTime,
   setTimeRate,
   setTrajectoryVisible,
+  stopFlight,
   trackBody,
   untrack,
 } from './viewer-state.svelte';
@@ -167,6 +171,14 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
 
     untrack: () => untrack(),
 
+    frameObject: (name) => frameBody(name),
+
+    flyTo: (name, opts) => flyToBody(name, { path: opts?.path, seconds: opts?.seconds }),
+
+    jumpTo: (name) => jumpToBody(name),
+
+    stopFlight: () => void stopFlight(),
+
     pointAtObject: (name) => pointAtObject(name),
 
     clearLookAt: () => clearLookAt(),
@@ -267,6 +279,13 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     isPlaying: () => getRenderer()?.timeController.playing ?? vs.playing,
     getSelected: () => vs.selectedBodyName,
     getTracked: () => getRenderer()?.cameraController.trackedBody?.body.name ?? null,
+    getFlight: () => {
+      // The controller, not `vs.flight`: that mirror updates on the next
+      // animation frame, and a host polling for a landing must not see a
+      // flight that has already ended.
+      const flight = getRenderer()?.cameraController.flight;
+      return flight ? { target: flight.destination?.body.name ?? null, path: flight.path } : null;
+    },
     getCamera: camera,
     getCameraReference: () => getRenderer()?.cameraController.originBody?.body.name ?? null,
     setCameraReference: (name) => {

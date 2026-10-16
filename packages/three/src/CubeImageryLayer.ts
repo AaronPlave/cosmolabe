@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fetchWithRetry } from './fetchWithRetry.js';
 import { cubeTileId } from './surface/CubeSphere.js';
 import {
   CubeImageryAvailability, blockRectInTile, clipTrianglesToTileRect, imageryTextureTransform, imageryTileUri,
@@ -172,7 +173,8 @@ function injectImagery(shader: THREE.WebGLProgramParametersWithUniforms, uniform
 
 /** Fetch + off-thread decode into a mipmapped, unconverted texture whose t = 0 is the file's bottom row. */
 async function loadImageBitmapTexture(url: string, signal: AbortSignal): Promise<{ texture: THREE.Texture; bytes: number; downloadBytes: number }> {
-  const response = await fetch(url, { signal });
+  // Transient errors retry here; what still fails falls back to an ancestor and is retried later.
+  const response = await fetchWithRetry(url, { signal });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const blob = await response.blob();
   const bitmap = await createImageBitmap(blob, { imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
@@ -337,18 +339,25 @@ export class CubeImageryLayer {
     const stats = { tiles: 0, splitTiles: 0, blocks: 0, displayedLevels: {} as Record<number, number>, wantedLevels: {} as Record<number, number>,
       fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, maxDisplayedLevel: -1 };
     const { tileSize } = this.manifest;
+    const culledStats = { ...stats, displayedLevels: {}, wantedLevels: {} };
     for (const record of this.tiles.values()) {
       // A tile is drawn this frame exactly when the renderer has its scene attached.
       if (!record.scene.parent) continue;
+      // One the terrain's main-view cull hid is not drawn by the main camera, but
+      // may be by the instrument view: it gets the best resident imagery at its own
+      // level, unsplit and requesting nothing, and stays out of the drawn stats.
+      const culled = !record.scene.visible;
+      const s = culled ? culledStats : stats;
       for (const m of record.meshes) {
         if (!useImagery) { this.unsplit(m); continue; }
         const leaves = selectImageryBlocks({ geometry: record.address, radiusRangeKm: m.radiusRangeKm, cameraKm, pixelAngleRad,
-          maxScreenTexelError: this.options.maxScreenTexelError, tileSize, availability: this.availability, maxBlocks: this.options.maxBlocksPerTile, inView });
-        stats.tiles++;
+          maxScreenTexelError: this.options.maxScreenTexelError, tileSize, availability: this.availability, maxBlocks: this.options.maxBlocksPerTile,
+          inView: culled ? () => false : inView });
+        s.tiles++;
         const whole = leaves.length === 1 && leaves[0].level === record.address.level;
         if (whole) {
           this.unsplit(m);
-          this.show(record.address, leaves[0], m.uniforms, wanted, stats);
+          this.show(record.address, leaves[0], m.uniforms, wanted, s);
           continue;
         }
         stats.splitTiles++;

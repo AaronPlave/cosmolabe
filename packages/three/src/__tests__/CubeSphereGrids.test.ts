@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CubeGridSurface, CubeSphereGridSource, cubeTileMesh, type CubeGridManifest } from '../surface/CubeSphereGrids.js';
-import { cubeFaceToDirection, type CubeFace } from '../surface/CubeSphere.js';
+import { CubeSphereSampler, cubeFaceToDirection, type CubeFace } from '../surface/CubeSphere.js';
 import { cameraPositionFromSurfacePick } from '../surface/SurfaceConsumers.js';
 import { requestSurfaceIntersection } from '../surface/PhysicalSurface.js';
 
@@ -112,6 +112,61 @@ describe('cube grid CPU triangles and ray queries', () => {
     // 12 edges × 3 interior edge vertices shared by 2 faces, 8 corners shared by 3.
     expect(shared.filter(v => v.length === 2)).toHaveLength(36);
     expect(shared.filter(v => v.length === 3)).toHaveLength(8);
+  });
+
+  it('samples the lattice triangles the .glb draws and rays hit, not a bilinear patch over them', () => {
+    // One twisted 2.7 km cell (level 10): h(0,0) = h(1,1) = 0, h(1,0) = h(0,1) = 1 km.
+    const tile = { face: 'pz' as const, level: 10, x: 0, y: 0, width: 2, height: 2, elevationsKm: new Float64Array([0, 1, 1, 0]) };
+    const sampler = new CubeSphereSampler(manifest().datum, manifest().source);
+    sampler.addTile(tile);
+    const { positionsKm, indices } = cubeTileMesh(tile, R);
+    const P = (i: number) => [0, 1, 2].map(c => positionsKm[3 * i + c]);
+    for (const [tx, ty] of [[0.5, 0.5], [0.75, 0.25], [0.2, 0.7], [0.9, 0.1]]) {
+      const n = 2 ** tile.level, d = cubeFaceToDirection('pz', -1 + 2 * tx / n, -1 + 2 * ty / n);
+      const sample = sampler.sample(Math.asin(d[2]) * 180 / Math.PI, Math.atan2(d[1], d[0]) * 180 / Math.PI)!;
+      // The emitted triangle along the same radial ray (the diagonal splits the cell at tx = ty).
+      const [a, b, c] = Array.from(tx >= ty ? indices.slice(0, 3) : indices.slice(3, 6), P);
+      const e1 = b.map((v, k) => v - a[k]), e2 = c.map((v, k) => v - a[k]);
+      const nrm = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+      const radius = (nrm[0] * a[0] + nrm[1] * a[1] + nrm[2] * a[2]) / (nrm[0] * d[0] + nrm[1] * d[1] + nrm[2] * d[2]);
+      expect(Math.abs(sample.elevationKm - (radius - R))).toBeLessThan(0.001); // chord sag only (≈ 0.5 m here)
+    }
+    // Where bilinear would say 0.5 km, the cell's diagonal is at 0.
+    const d = cubeFaceToDirection('pz', -1 + 1 / 1024, -1 + 1 / 1024);
+    expect(sampler.sample(Math.asin(d[2]) * 180 / Math.PI, Math.atan2(d[1], d[0]) * 180 / Math.PI)!.elevationKm).toBeCloseTo(0, 9);
+  });
+
+  it('bounds every rendered triangle from below with renderedInnerRadiusKm (the draw cull\'s horizon occluder)', () => {
+    const { source } = fixtureSource();
+    const surface = new CubeGridSurface(source, '301', 'IAU_MOON');
+    const inner = surface.renderedInnerRadiusKm;
+    expect(inner).toBeGreaterThan(R * 0.9);
+    // Level-0 lattices at the product's lowest height: no point of any triangle dips inside.
+    let lowest = Infinity;
+    for (const face of faces) {
+      const { positionsKm, indices } = cubeTileMesh({ face, level: 0, x: 0, y: 0, width: W, height: W, elevationsKm: new Float32Array(W * W).fill(0.1) } as never, R);
+      const p = (i: number) => [0, 1, 2].map(c => positionsKm[3 * i + c]);
+      for (let t = 0; t < indices.length; t += 3) {
+        const [a, b, c] = [p(indices[t]), p(indices[t + 1]), p(indices[t + 2])];
+        for (let i = 0; i <= 8; i++) for (let j = 0; i + j <= 8; j++) {
+          const k = 8 - i - j;
+          lowest = Math.min(lowest, Math.hypot(...[0, 1, 2].map(n => (i * a[n] + j * b[n] + k * c[n]) / 8)));
+        }
+      }
+    }
+    expect(lowest).toBeGreaterThanOrEqual(inner);
+    expect(lowest - inner).toBeLessThan(0.01 * R); // and not uselessly loose, even on these 22° cells
+    // A simplified product's rendered triangles sit up to their deviation lower; a tile without one gives no bound.
+    const simplified = (deviations: (number | undefined)[]) => {
+      const m = manifest();
+      m.renderedMesh = { simplification: 'rtin', cpuSurface: 'lattice', deviation: 'sampled' };
+      m.tiles = m.tiles.map((t, i) => [t[0], t[1], t[2], t[3], t[4], deviations[i % deviations.length]]);
+      const source = new CubeSphereGridSource(m, async () => new ArrayBuffer(0));
+      source.ready.catch(() => {}); // no grids served: only the manifest matters here
+      return new CubeGridSurface(source, '301', 'IAU_MOON').renderedInnerRadiusKm;
+    };
+    expect(simplified([0.5, 2])).toBeCloseTo(inner - 2, 9);
+    expect(simplified([0.5, undefined])).toBe(0);
   });
 
   it('intersects the finest resident triangles, keeps provenance, and places a clearance camera', async () => {

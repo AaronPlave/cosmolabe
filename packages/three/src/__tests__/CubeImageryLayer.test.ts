@@ -86,6 +86,34 @@ async function setup(options: Partial<ConstructorParameters<typeof CubeImageryLa
 }
 
 describe('CubeImageryLayer', () => {
+  it('gives a tile the terrain draw cull hid resident imagery for other views, without splitting, requesting or counting it', async () => {
+    const { layer, loader, scene, mesh, address, tick } = await setup();
+    await loader.settle();
+    // Refine while visible, so the tile is split and holds blocks.
+    for (let round = 0; round < 10; round++) { tick(camera(5_000)); await loader.settle(); }
+    expect(layer.stats.splitTiles).toBe(1);
+    const requests = layer.stats.requests;
+    const uniforms = (layer as unknown as { tiles: Map<object, { meshes: { uniforms: { cubeImageryEnabled: { value: number }; cubeImageryLevel: { value: number } } }[] }> })
+      .tiles.get(scene)!.meshes[0].uniforms;
+    uniforms.cubeImageryEnabled.value = 0; // as for a tile loaded while culled
+    // Culled: the instrument view may draw it, so it gets imagery at its own level, whole.
+    scene.visible = false;
+    tick(camera(5_000), 3);
+    expect(mesh.visible).toBe(true);
+    expect(scene.children.filter(c => c.name.startsWith('cube-imagery-block') && c.visible)).toHaveLength(0);
+    expect(uniforms.cubeImageryEnabled.value).toBe(1);
+    expect(uniforms.cubeImageryLevel.value).toBeLessThanOrEqual(address.level);
+    expect(layer.stats.tiles).toBe(0);
+    expect(layer.stats.blocks).toBe(0);
+    expect(layer.stats.queued).toBe(0);
+    expect(layer.stats.inFlight).toBe(0);
+    expect(layer.stats.requests).toBe(requests);
+    scene.visible = true;
+    tick(camera(5_000));
+    expect(layer.stats.tiles).toBe(1);
+    layer.dispose();
+  });
+
   it('refines imagery far below a fixed coarse geometry tile, falling back while finer tiles load', async () => {
     const { layer, loader, scene, mesh, address, tick } = await setup({ maxConcurrentRequests: 4 });
     const positions = mesh.geometry.getAttribute('position');

@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -13,7 +13,8 @@ import { publicDirCopyFilter } from '../lib/public-dir-filter.mjs';
 import { createLocalStorage, createS3Storage } from '../lib/storage.mjs';
 import { terrainManifest, validateTerrain } from '../lib/terrain.mjs';
 import { verifyBuild } from '../lib/verify.mjs';
-import { serveStore, tmp, writePyramid, writeKernels } from './helpers.mjs';
+import { cubeImageryManifest, cubeTerrainManifest, validateCubeImagery, validateCubeTerrain } from '../lib/cube.mjs';
+import { serveStore, tmp, writeCubeProducts, writePyramid, writeKernels } from './helpers.mjs';
 
 const ORIGIN = 'https://pages.example.org';
 const quiet = () => {};
@@ -189,6 +190,51 @@ describe('terrain publishing', () => {
     expect(await check({ dropEncoding: true })).toMatch(/Content-Encoding/);
     expect(await check({ cors: false })).toMatch(/Access-Control-Allow-Origin/);
     expect(await check({ html404: true })).toMatch(/HTML page/);
+  });
+});
+
+describe('cube-sphere terrain and imagery publishing (#149)', () => {
+  const servers = [];
+  afterEach(async () => { while (servers.length) await servers.pop().close(); });
+  const publish = (storage, src, kind, build = 'b1') => {
+    const dataset = { kind, name: 'demo' };
+    const [validate, manifest, deferred] = kind === 'cube-terrain'
+      ? [validateCubeTerrain, cubeTerrainManifest, ['tileset.json', 'cpu-grids.json']]
+      : [validateCubeImagery, cubeImageryManifest, ['imagery.json']];
+    return publishDirectory({ storage, srcDir: src, prefix: remotePrefix(dataset, build), deferred, concurrency: 4, log: quiet, retry: { tries: 1 },
+      validate, buildManifest: (entries, inventorySha256) => manifest({ dataset, build, entries, inventorySha256, srcDir: src }) });
+  };
+
+  it('publishes geometry, CPU grids and imagery with their content types, entry points last, and verifies one revision', async () => {
+    const { terrain, imagery } = writeCubeProducts(tmp('cube'));
+    const store = createLocalStorage(tmp('store'));
+    const order = [];
+    await publish({ ...store, put: async (k, b, m) => { order.push(k); return store.put(k, b, m); } }, terrain, 'cube-terrain');
+    await publish(store, imagery, 'cube-imagery');
+    expect(order.slice(-3)).toEqual(['cube-terrain/demo/b1/tileset.json', 'cube-terrain/demo/b1/cpu-grids.json', 'cube-terrain/demo/b1/manifest.json']);
+    expect((await store.head('cube-terrain/demo/b1/nz/0/0/0.glb')).contentType).toBe('model/gltf-binary');
+    expect((await store.head('cube-imagery/demo/b1/tiles/nz/0/0/0.png')).contentType).toBe('image/png');
+    const manifest = JSON.parse((await store.get('cube-terrain/demo/b1/manifest.json')).toString());
+    expect(manifest).toMatchObject({ kind: 'cube-terrain', revision: 'cube-r1', tileCount: 2, gridBytes: 36 });
+    expect(manifest.sampleGrids).toContain('heights/nz/0/0/0.f32');
+    const host = await serveStore(store); servers.push(host);
+    for (const prefix of ['cube-terrain/demo/b1/', 'cube-imagery/demo/b1/']) {
+      expect((await verifyBuild({ baseUrl: host.url, prefix, origins: [ORIGIN] })).problems).toEqual([]);
+    }
+    const broken = await serveStore(store, { cors: false, html404: true }); servers.push(broken);
+    const problems = (await verifyBuild({ baseUrl: broken.url, prefix: 'cube-terrain/demo/b1/', origins: [ORIGIN] })).problems.join('\n');
+    expect(problems).toMatch(/Access-Control-Allow-Origin/);
+    expect(problems).not.toMatch(/HTML page/); // the cube loaders check status, not the 404 body
+  });
+
+  it('refuses geometry and CPU grids from different revisions, or a build missing a grid, before uploading', async () => {
+    const store = createLocalStorage(tmp('store'));
+    const mixed = writeCubeProducts(tmp('cube'), { tilesetRevision: 'cube-r0' });
+    await expect(publish(store, mixed.terrain, 'cube-terrain')).rejects.toThrow(/revision mismatch/);
+    const partial = writeCubeProducts(tmp('cube'));
+    rmSync(join(partial.terrain, 'heights/px/0/0/0.f32'));
+    await expect(publish(store, partial.terrain, 'cube-terrain')).rejects.toThrow(/heights\/px\/0\/0\/0.f32 is missing/);
+    expect((await store.list('cube-terrain/')).size).toBe(0);
   });
 });
 

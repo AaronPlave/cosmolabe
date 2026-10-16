@@ -149,7 +149,13 @@ export class CubeSphereSampler {
     const px = localU * (tile.width - 1), py = localV * (tile.height - 1);
     const x0 = Math.floor(px), y0 = Math.floor(py), x1 = Math.min(x0 + 1, tile.width - 1), y1 = Math.min(y0 + 1, tile.height - 1);
     const tx = px - x0, ty = py - y0, at = (x: number, y: number) => tile.elevationsKm[y * tile.width + x];
-    const elevationKm = (at(x0, y0) * (1 - tx) + at(x1, y0) * tx) * (1 - ty) + (at(x0, y1) * (1 - tx) + at(x1, y1) * tx) * ty;
+    // The lattice triangle under the point (diagonal v00→v11, as the .glb meshes and
+    // CPU ray queries triangulate it), linear in (u, v): the rendered full-lattice
+    // surface up to the triangles' chord sag, where bilinear differs by up to the
+    // cell's twist (hundreds of metres on coarse cells).
+    const h00 = at(x0, y0), h11 = at(x1, y1);
+    const elevationKm = tx >= ty ? h00 + tx * (at(x1, y0) - h00) + ty * (h11 - at(x1, y0))
+      : h00 + ty * (at(x0, y1) - h00) + tx * (h11 - at(x0, y1));
     return { position: { latDeg, lonDeg: wrapLon(lonDeg) }, elevationKm, datum: this.datum, source: tile.source ?? this.source,
       tileId: cubeTileId(tile), uncertaintyKm: tile.uncertaintyKm ?? tile.source?.uncertaintyKm ?? this.source.uncertaintyKm };
   }
