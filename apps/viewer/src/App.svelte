@@ -12,7 +12,7 @@
   import ToolPanels from './components/shell/ToolPanels.svelte';
   import TimelineDock from './components/shell/TimelineDock.svelte';
   import ProbePanel from './components/ProbePanel.svelte';
-  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
+  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
@@ -242,6 +242,9 @@
           // A pending endpoint pick is a mode too, and the newest one.
           if (cancelMeasurementPick()) return;
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
+          // A flight is the most transient thing on screen: Escape stops it
+          // where it is before it dismisses anything.
+          else if (vs.flight) stopFlight();
           // An active mode is what Escape is for: the probe goes before any
           // selection. The pinned point stays until a second Escape (or its
           // panel's close) clears it.

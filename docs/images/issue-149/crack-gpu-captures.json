@@ -1,0 +1,6143 @@
+{
+ "generator": "scripts/capture-cube-imagery.mjs --gpu --experiments cracks,cracks-dynamic,skirt-cost (three runs, merged)",
+ "created": "2026-10-14T15:21:52.797Z",
+ "viewport": {
+  "width": 1280,
+  "height": 800
+ },
+ "poses": {
+  "frame": "IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)",
+  "views": {
+   "shackleton": {
+    "eye": [
+     -18.105506477265028,
+     21.746334717688182,
+     -1743.1703438165612
+    ],
+    "target": [
+     -6.393456931874776,
+     7.679114341167814,
+     -1734.8712243020793
+    ],
+    "fov": 60
+   },
+   "pole": {
+    "eye": [
+     7.850375853599291,
+     -9.355713626741792,
+     -1749.3573683560176
+    ],
+    "target": [
+     1.0638506744193058e-13,
+     0,
+     -1737.4
+    ],
+    "fov": 60
+   },
+   "antimeridian-60s": {
+    "eye": [
+     -904.682018981909,
+     12.632564870383355,
+     -1529.8828787968093
+    ],
+    "target": [
+     -868.7000000000003,
+     1.0638506744193061e-13,
+     -1504.6325365350838
+    ],
+    "fov": 60
+   },
+   "face-edge": {
+    "eye": [
+     1269.779955654124,
+     -17.7306250421164,
+     -1243.5816214284555
+    ],
+    "target": [
+     1228.5273216335079,
+     0,
+     -1228.5273216335077
+    ],
+    "fov": 60
+   },
+   "face-corner": {
+    "eye": [
+     1035.155626664929,
+     1057.0661225120136,
+     -1020.6423473584441
+    ],
+    "target": [
+     1003.088357724157,
+     1003.0883577241569,
+     -1003.0883576218536
+    ],
+    "fov": 60
+   },
+   "overview": {
+    "eye": [
+     1358.630504784723,
+     2353.21706300009,
+     -3880.6508946146696
+    ],
+    "target": [
+     297.1128985070086,
+     514.614635798194,
+     -1632.6219593534372
+    ],
+    "fov": 50
+   },
+   "nac-footprint": {
+    "eye": [
+     356.93098808567845,
+     129.91225535041144,
+     -2154.1684789389037
+    ],
+    "target": [
+     1.0638506744193058e-13,
+     0,
+     -1737.4
+    ],
+    "fov": 50
+   }
+  }
+ },
+ "browser": {
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+  "devicePixelRatio": 1,
+  "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "hardwareConcurrency": 16,
+  "launch": "playwright chromium headless, --use-angle=metal --ignore-gpu-blocklist --enable-gpu (hardware GPU); ?test=1 (no antialias/bloom/stars)"
+ },
+ "host": {
+  "platform": "darwin 25.6.0",
+  "cpus": 16,
+  "cpuModel": "Apple M4 Max",
+  "memoryGB": 48
+ },
+ "results": {
+  "cracks": [
+   {
+    "catalog": "terrain",
+    "view": "shackleton",
+    "pose": {
+     "eye": [
+      -18.105506477265028,
+      21.746334717688182,
+      -1743.1703438165612
+     ],
+     "target": [
+      -6.393456931874776,
+      7.679114341167814,
+      -1734.8712243020793
+     ],
+     "fov": 60
+    },
+    "file": "cracks-terrain-shackleton.jpg",
+    "settled": true,
+    "settleMs": 3998,
+    "visibleTiles": 110,
+    "geometryLevels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 11,
+     "7": 15,
+     "8": 13,
+     "9": 25,
+     "10": 12
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 841530
+     },
+     "unmitigated": {
+      "holePixels": 105,
+      "holeComponents": 88,
+      "terrainPixels": 841424
+     },
+     "coverageDifferencePixels": 106
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1712,
+      "2": 224
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 6.8253746050602695,
+      "rms": 27.91132944615202,
+      "p95": 71.79316516953106,
+      "max": 75.51732563508068
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 20,
+      "median": 15.693475224675826,
+      "rms": 18.66915671189273,
+      "p95": 38.76847751428636,
+      "max": 38.76847751428636
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 115,
+      "triangles": 1022468
+     },
+     "surfaceOnly": {
+      "calls": 115,
+      "triangles": 966148
+     }
+    },
+    "imagery": null,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "pole",
+    "pose": {
+     "eye": [
+      7.850375853599291,
+      -9.355713626741792,
+      -1749.3573683560176
+     ],
+     "target": [
+      1.0638506744193058e-13,
+      0,
+      -1737.4
+     ],
+     "fov": 60
+    },
+    "file": "cracks-terrain-pole.jpg",
+    "settled": true,
+    "settleMs": 4054,
+    "visibleTiles": 75,
+    "geometryLevels": {
+     "3": 8,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 11,
+     "8": 20
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 1024000
+     },
+     "unmitigated": {
+      "holePixels": 52,
+      "holeComponents": 37,
+      "terrainPixels": 1023948
+     },
+     "coverageDifferencePixels": 52
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1296,
+      "2": 32
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 283.06112035372126,
+      "rms": 757.0422742182269,
+      "p95": 1362.0597422007284,
+      "max": 2641.396520473904
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 23,
+      "median": 345.55927067732443,
+      "rms": 780.5735157755805,
+      "p95": 1354.6558021900246,
+      "max": 2630.9082507521093
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 80,
+      "triangles": 717828
+     },
+     "surfaceOnly": {
+      "calls": 80,
+      "triangles": 679428
+     }
+    },
+    "imagery": null,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "face-edge",
+    "pose": {
+     "eye": [
+      1269.779955654124,
+      -17.7306250421164,
+      -1243.5816214284555
+     ],
+     "target": [
+      1228.5273216335079,
+      0,
+      -1228.5273216335077
+     ],
+     "fov": 60
+    },
+    "file": "cracks-terrain-face-edge.jpg",
+    "settled": true,
+    "settleMs": 4063,
+    "visibleTiles": 177,
+    "geometryLevels": {
+     "1": 14,
+     "2": 30,
+     "3": 32,
+     "4": 26,
+     "5": 14,
+     "6": 33,
+     "7": 28
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 1024000
+     },
+     "unmitigated": {
+      "holePixels": 36,
+      "holeComponents": 36,
+      "terrainPixels": 1023963
+     },
+     "coverageDifferencePixels": 37
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 2080,
+      "2": 192
+     },
+     "crossFaceSamplesByDelta": {
+      "1": 448
+     },
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 0
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 172.3794415880724,
+      "rms": 585.4918257402975,
+      "p95": 1191.4665775758865,
+      "max": 1195.9593836175457
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 24,
+      "median": 175.29808548751643,
+      "rms": 558.4896258186158,
+      "p95": 1125.4281543802667,
+      "max": 1222.691275415227
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 184,
+      "triangles": 1629958
+     },
+     "surfaceOnly": {
+      "calls": 184,
+      "triangles": 1539334
+     }
+    },
+    "imagery": null,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "face-corner",
+    "pose": {
+     "eye": [
+      1035.155626664929,
+      1057.0661225120136,
+      -1020.6423473584441
+     ],
+     "target": [
+      1003.088357724157,
+      1003.0883577241569,
+      -1003.0883576218536
+     ],
+     "fov": 60
+    },
+    "file": "cracks-terrain-face-corner.jpg",
+    "settled": true,
+    "settleMs": 4077,
+    "visibleTiles": 219,
+    "geometryLevels": {
+     "1": 15,
+     "2": 24,
+     "3": 36,
+     "4": 34,
+     "5": 41,
+     "6": 57,
+     "7": 12
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 1024000
+     },
+     "unmitigated": {
+      "holePixels": 6,
+      "holeComponents": 6,
+      "terrainPixels": 1023993
+     },
+     "coverageDifferencePixels": 7
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 2496
+     },
+     "crossFaceSamplesByDelta": {
+      "1": 288
+     },
+     "maxDelta": 1,
+     "samplesWithoutNeighbour": 0
+    },
+    "picksOnHoles": {
+     "n": 6,
+     "onSkirt": 6,
+     "physicalHits": 6,
+     "renderedOffsetM": {
+      "n": 6,
+      "median": 1275.7579176886507,
+      "rms": 1034.355951908836,
+      "p95": 1359.1198618095661,
+      "max": 1359.1198618095661
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 6,
+      "median": 1298.4999215557148,
+      "rms": 1074.9745590164064,
+      "p95": 1458.059532718629,
+      "max": 1458.059532718629
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 224,
+      "triangles": 1971204
+     },
+     "surfaceOnly": {
+      "calls": 224,
+      "triangles": 1859076
+     }
+    },
+    "imagery": null,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "shackleton-grazing",
+    "pose": {
+     "eye": [
+      -13.008949978283473,
+      15.624913940333391,
+      -1738.592839617781
+     ],
+     "target": [
+      6.399650519123311,
+      -7.686553394119962,
+      -1736.5518606787973
+     ],
+     "fov": 60
+    },
+    "file": "cracks-terrain-shackleton-grazing.jpg",
+    "settled": true,
+    "settleMs": 4049,
+    "visibleTiles": 134,
+    "geometryLevels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 10,
+     "8": 20,
+     "9": 12,
+     "10": 11,
+     "11": 15,
+     "12": 20
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 581608
+     },
+     "unmitigated": {
+      "holePixels": 79,
+      "holeComponents": 71,
+      "terrainPixels": 581529
+     },
+     "coverageDifferencePixels": 79
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 2224,
+      "2": 224
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 23,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 7.263501030858585,
+      "rms": 27.92552640647725,
+      "p95": 67.76874865318992,
+      "max": 74.25243446594958
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 23,
+      "median": 7.073424191833346,
+      "rms": 29.473862684418627,
+      "p95": 68.47939073652469,
+      "max": 78.44338534903554
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 139,
+      "triangles": 1231364
+     },
+     "surfaceOnly": {
+      "calls": 139,
+      "triangles": 1162756
+     }
+    },
+    "imagery": null,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "shackleton-near",
+    "pose": {
+     "eye": [
+      -8.719382720164408,
+      10.472759511169686,
+      -1735.0601635497092
+     ],
+     "target": [
+      -6.39239168224916,
+      7.677834880969027,
+      -1734.5821677022038
+     ],
+     "fov": 60
+    },
+    "file": "cracks-terrain-shackleton-near.jpg",
+    "settled": true,
+    "settleMs": 4550,
+    "visibleTiles": 112,
+    "geometryLevels": {
+     "3": 11,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 10,
+     "8": 9,
+     "9": 8,
+     "10": 12,
+     "11": 11,
+     "12": 15
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 928960
+     },
+     "unmitigated": {
+      "holePixels": 58,
+      "holeComponents": 50,
+      "terrainPixels": 928902
+     },
+     "coverageDifferencePixels": 58
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1744,
+      "2": 48
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 620
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 23,
+     "renderedOffsetM": {
+      "n": 23,
+      "median": 2.9265638913057,
+      "rms": 8.188403092312592,
+      "p95": 15.316522111219758,
+      "max": 23.784708885293373
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 24,
+      "median": 2.365837509698893,
+      "rms": 7.461924763749745,
+      "p95": 14.37284603582119,
+      "max": 24.775399102638815
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 117,
+      "triangles": 1039876
+     },
+     "surfaceOnly": {
+      "calls": 117,
+      "triangles": 982532
+     }
+    },
+    "imagery": null,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "pole-grazing",
+    "pose": {
+     "eye": [
+      7.877400442250699,
+      -4.548019265847917,
+      -1737.1995182372834
+     ],
+     "target": [
+      -15.763462131318006,
+      9.10103910487692,
+      -1738.1068952729777
+     ],
+     "fov": 60
+    },
+    "file": "cracks-terrain-pole-grazing.jpg",
+    "settled": true,
+    "settleMs": 4048,
+    "visibleTiles": 119,
+    "geometryLevels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 12,
+     "8": 12,
+     "9": 10,
+     "10": 19,
+     "11": 20
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 627725
+     },
+     "unmitigated": {
+      "holePixels": 38,
+      "holeComponents": 21,
+      "terrainPixels": 627687
+     },
+     "coverageDifferencePixels": 38
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1936,
+      "2": 160
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 23,
+     "renderedOffsetM": {
+      "n": 23,
+      "median": 18.510583349591695,
+      "rms": 33.7913040279797,
+      "p95": 53.42212004564865,
+      "max": 54.33235475148845
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 15,
+      "median": 28.036328223262572,
+      "rms": 30.136042275069805,
+      "p95": 53.51404425531141,
+      "max": 53.51404425531141
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 126,
+      "triangles": 1125126
+     },
+     "surfaceOnly": {
+      "calls": 126,
+      "triangles": 1064198
+     }
+    },
+    "imagery": null,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "edge-grazing",
+    "pose": {
+     "eye": [
+      1221.9086349327379,
+      -8.53067012720583,
+      -1234.8019929478933
+     ],
+     "target": [
+      1240.935048075905,
+      12.995516478147962,
+      -1215.2800162016738
+     ],
+     "fov": 60
+    },
+    "file": "cracks-terrain-edge-grazing.jpg",
+    "settled": true,
+    "settleMs": 4039,
+    "visibleTiles": 113,
+    "geometryLevels": {
+     "0": 2,
+     "2": 8,
+     "3": 11,
+     "4": 12,
+     "5": 26,
+     "6": 18,
+     "7": 20,
+     "8": 16
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 513710
+     },
+     "unmitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 513710
+     },
+     "coverageDifferencePixels": 0
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1664,
+      "2": 192
+     },
+     "crossFaceSamplesByDelta": {
+      "2": 64
+     },
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 304
+    },
+    "picksOnHoles": {
+     "n": 0,
+     "onSkirt": 0,
+     "physicalHits": 0,
+     "renderedOffsetM": null,
+     "nearbySurfacePixelOffsetM": null
+    },
+    "draws": {
+     "skirts": {
+      "calls": 119,
+      "triangles": 1072900
+     },
+     "surfaceOnly": {
+      "calls": 119,
+      "triangles": 1015044
+     }
+    },
+    "imagery": null,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "corner-grazing",
+    "pose": {
+     "eye": [
+      1008.344861076708,
+      990.8977352568517,
+      -1012.1325793319379
+     ],
+     "target": [
+      998.9784006941725,
+      1020.1231556816483,
+      -992.3459402634589
+     ],
+     "fov": 60
+    },
+    "file": "cracks-terrain-corner-grazing.jpg",
+    "settled": true,
+    "settleMs": 4045,
+    "visibleTiles": 177,
+    "geometryLevels": {
+     "1": 6,
+     "2": 9,
+     "3": 6,
+     "4": 16,
+     "5": 21,
+     "6": 31,
+     "7": 40,
+     "8": 48
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 501411
+     },
+     "unmitigated": {
+      "holePixels": 1,
+      "holeComponents": 1,
+      "terrainPixels": 501410
+     },
+     "coverageDifferencePixels": 1
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 2096,
+      "2": 352
+     },
+     "crossFaceSamplesByDelta": {
+      "1": 192
+     },
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 192
+    },
+    "picksOnHoles": {
+     "n": 1,
+     "onSkirt": 1,
+     "physicalHits": 1,
+     "renderedOffsetM": {
+      "n": 1,
+      "median": 9.996485348020483,
+      "rms": 9.996485348020483,
+      "p95": 9.996485348020483,
+      "max": 9.996485348020483
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 1,
+      "median": 9.298475463882106,
+      "rms": 9.298475463882106,
+      "p95": 9.298475463882106,
+      "max": 9.298475463882106
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 182,
+      "triangles": 1605636
+     },
+     "surfaceOnly": {
+      "calls": 182,
+      "triangles": 1515012
+     }
+    },
+    "imagery": null,
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "shackleton",
+    "pose": {
+     "eye": [
+      -18.105506477265028,
+      21.746334717688182,
+      -1743.1703438165612
+     ],
+     "target": [
+      -6.393456931874776,
+      7.679114341167814,
+      -1734.8712243020793
+     ],
+     "fov": 60
+    },
+    "file": "cracks-grid-shackleton.jpg",
+    "settled": true,
+    "settleMs": 4069,
+    "visibleTiles": 110,
+    "geometryLevels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 11,
+     "7": 15,
+     "8": 13,
+     "9": 25,
+     "10": 12
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 841530
+     },
+     "unmitigated": {
+      "holePixels": 105,
+      "holeComponents": 88,
+      "terrainPixels": 841424
+     },
+     "coverageDifferencePixels": 106
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1712,
+      "2": 224
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 6.8253746050602695,
+      "rms": 27.91132944615202,
+      "p95": 71.79316516953106,
+      "max": 75.51732563508068
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 20,
+      "median": 15.693475224675826,
+      "rms": 18.66915671189273,
+      "p95": 38.76847751428636,
+      "max": 38.76847751428636
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 196,
+      "triangles": 1043280
+     },
+     "surfaceOnly": {
+      "calls": 196,
+      "triangles": 986341
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 10,
+     "blocks": 191
+    },
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "pole",
+    "pose": {
+     "eye": [
+      7.850375853599291,
+      -9.355713626741792,
+      -1749.3573683560176
+     ],
+     "target": [
+      1.0638506744193058e-13,
+      0,
+      -1737.4
+     ],
+     "fov": 60
+    },
+    "file": "cracks-grid-pole.jpg",
+    "settled": true,
+    "settleMs": 4043,
+    "visibleTiles": 75,
+    "geometryLevels": {
+     "3": 8,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 11,
+     "8": 20
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 1024000
+     },
+     "unmitigated": {
+      "holePixels": 52,
+      "holeComponents": 37,
+      "terrainPixels": 1023948
+     },
+     "coverageDifferencePixels": 52
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1296,
+      "2": 32
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 283.0611192167654,
+      "rms": 757.0422758362654,
+      "p95": 1362.059746765226,
+      "max": 2641.3965252868684
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 23,
+      "median": 345.5592737599172,
+      "rms": 780.5735160930155,
+      "p95": 1354.6558043518028,
+      "max": 2630.908247257521
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 197,
+      "triangles": 746610
+     },
+     "surfaceOnly": {
+      "calls": 197,
+      "triangles": 707351
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 10,
+     "blocks": 192
+    },
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "face-edge",
+    "pose": {
+     "eye": [
+      1269.779955654124,
+      -17.7306250421164,
+      -1243.5816214284555
+     ],
+     "target": [
+      1228.5273216335079,
+      0,
+      -1228.5273216335077
+     ],
+     "fov": 60
+    },
+    "file": "cracks-grid-face-edge.jpg",
+    "settled": true,
+    "settleMs": 4558,
+    "visibleTiles": 177,
+    "geometryLevels": {
+     "1": 14,
+     "2": 30,
+     "3": 32,
+     "4": 26,
+     "5": 14,
+     "6": 33,
+     "7": 28
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 1024000
+     },
+     "unmitigated": {
+      "holePixels": 36,
+      "holeComponents": 36,
+      "terrainPixels": 1023963
+     },
+     "coverageDifferencePixels": 37
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 2080,
+      "2": 192
+     },
+     "crossFaceSamplesByDelta": {
+      "1": 448
+     },
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 0
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 172.3794415880724,
+      "rms": 585.4918257402975,
+      "p95": 1191.4665775758865,
+      "max": 1195.9593836175457
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 24,
+      "median": 175.29808548751643,
+      "rms": 558.4896258186158,
+      "p95": 1125.4281543802667,
+      "max": 1222.691275415227
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 349,
+      "triangles": 1674043
+     },
+     "surfaceOnly": {
+      "calls": 349,
+      "triangles": 1582096
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 8,
+     "blocks": 342
+    },
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "face-corner",
+    "pose": {
+     "eye": [
+      1035.155626664929,
+      1057.0661225120136,
+      -1020.6423473584441
+     ],
+     "target": [
+      1003.088357724157,
+      1003.0883577241569,
+      -1003.0883576218536
+     ],
+     "fov": 60
+    },
+    "file": "cracks-grid-face-corner.jpg",
+    "settled": true,
+    "settleMs": 4584,
+    "visibleTiles": 219,
+    "geometryLevels": {
+     "1": 15,
+     "2": 24,
+     "3": 36,
+     "4": 34,
+     "5": 41,
+     "6": 57,
+     "7": 12
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 1024000
+     },
+     "unmitigated": {
+      "holePixels": 6,
+      "holeComponents": 6,
+      "terrainPixels": 1023993
+     },
+     "coverageDifferencePixels": 7
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 2496
+     },
+     "crossFaceSamplesByDelta": {
+      "1": 288
+     },
+     "maxDelta": 1,
+     "samplesWithoutNeighbour": 0
+    },
+    "picksOnHoles": {
+     "n": 6,
+     "onSkirt": 6,
+     "physicalHits": 6,
+     "renderedOffsetM": {
+      "n": 6,
+      "median": 1275.7579176886507,
+      "rms": 1034.355951908836,
+      "p95": 1359.1198618095661,
+      "max": 1359.1198618095661
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 6,
+      "median": 1298.4999215557148,
+      "rms": 1074.9745590164064,
+      "p95": 1458.059532718629,
+      "max": 1458.059532718629
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 359,
+      "triangles": 2006430
+     },
+     "surfaceOnly": {
+      "calls": 359,
+      "triangles": 1893249
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 6,
+     "blocks": 354
+    },
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "shackleton-grazing",
+    "pose": {
+     "eye": [
+      -13.008949978283473,
+      15.624913940333391,
+      -1738.592839617781
+     ],
+     "target": [
+      6.399650519123311,
+      -7.686553394119962,
+      -1736.5518606787973
+     ],
+     "fov": 60
+    },
+    "file": "cracks-grid-shackleton-grazing.jpg",
+    "settled": true,
+    "settleMs": 4053,
+    "visibleTiles": 134,
+    "geometryLevels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 10,
+     "8": 20,
+     "9": 12,
+     "10": 11,
+     "11": 15,
+     "12": 20
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 581608
+     },
+     "unmitigated": {
+      "holePixels": 79,
+      "holeComponents": 71,
+      "terrainPixels": 581529
+     },
+     "coverageDifferencePixels": 79
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 2224,
+      "2": 224
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 23,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 7.263501030858585,
+      "rms": 27.92552640647725,
+      "p95": 67.76874865318992,
+      "max": 74.25243446594958
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 23,
+      "median": 7.073424191833346,
+      "rms": 29.473862684418627,
+      "p95": 68.47939073652469,
+      "max": 78.44338534903554
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 238,
+      "triangles": 1257407
+     },
+     "surfaceOnly": {
+      "calls": 238,
+      "triangles": 1188019
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 11,
+     "blocks": 233
+    },
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "shackleton-near",
+    "pose": {
+     "eye": [
+      -8.719382720164408,
+      10.472759511169686,
+      -1735.0601635497092
+     ],
+     "target": [
+      -6.39239168224916,
+      7.677834880969027,
+      -1734.5821677022038
+     ],
+     "fov": 60
+    },
+    "file": "cracks-grid-shackleton-near.jpg",
+    "settled": true,
+    "settleMs": 4559,
+    "visibleTiles": 112,
+    "geometryLevels": {
+     "3": 11,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 10,
+     "8": 9,
+     "9": 8,
+     "10": 12,
+     "11": 11,
+     "12": 15
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 928960
+     },
+     "unmitigated": {
+      "holePixels": 58,
+      "holeComponents": 50,
+      "terrainPixels": 928902
+     },
+     "coverageDifferencePixels": 58
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1744,
+      "2": 48
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 620
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 23,
+     "renderedOffsetM": {
+      "n": 23,
+      "median": 2.9265638913057,
+      "rms": 8.188403092312592,
+      "p95": 15.316522111219758,
+      "max": 23.784708885293373
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 24,
+      "median": 2.365837509698893,
+      "rms": 7.461924763749745,
+      "p95": 14.37284603582119,
+      "max": 24.775399102638815
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 237,
+      "triangles": 1071952
+     },
+     "surfaceOnly": {
+      "calls": 237,
+      "triangles": 1013650
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 12,
+     "blocks": 232
+    },
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "pole-grazing",
+    "pose": {
+     "eye": [
+      7.877400442250699,
+      -4.548019265847917,
+      -1737.1995182372834
+     ],
+     "target": [
+      -15.763462131318006,
+      9.10103910487692,
+      -1738.1068952729777
+     ],
+     "fov": 60
+    },
+    "file": "cracks-grid-pole-grazing.jpg",
+    "settled": true,
+    "settleMs": 4052,
+    "visibleTiles": 119,
+    "geometryLevels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 12,
+     "8": 12,
+     "9": 10,
+     "10": 19,
+     "11": 20
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 627725
+     },
+     "unmitigated": {
+      "holePixels": 38,
+      "holeComponents": 21,
+      "terrainPixels": 627687
+     },
+     "coverageDifferencePixels": 38
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1936,
+      "2": 160
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 23,
+     "renderedOffsetM": {
+      "n": 23,
+      "median": 18.510583349591695,
+      "rms": 33.7913040279797,
+      "p95": 53.42212004564865,
+      "max": 54.33235475148845
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 15,
+      "median": 28.036328223262572,
+      "rms": 30.136042275069805,
+      "p95": 53.51404425531141,
+      "max": 53.51404425531141
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 225,
+      "triangles": 1151592
+     },
+     "surfaceOnly": {
+      "calls": 225,
+      "triangles": 1089872
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 11,
+     "blocks": 218
+    },
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "edge-grazing",
+    "pose": {
+     "eye": [
+      1221.9086349327379,
+      -8.53067012720583,
+      -1234.8019929478933
+     ],
+     "target": [
+      1240.935048075905,
+      12.995516478147962,
+      -1215.2800162016738
+     ],
+     "fov": 60
+    },
+    "file": "cracks-grid-edge-grazing.jpg",
+    "settled": true,
+    "settleMs": 4060,
+    "visibleTiles": 113,
+    "geometryLevels": {
+     "0": 2,
+     "2": 8,
+     "3": 11,
+     "4": 12,
+     "5": 26,
+     "6": 18,
+     "7": 20,
+     "8": 16
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 513710
+     },
+     "unmitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 513710
+     },
+     "coverageDifferencePixels": 0
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1664,
+      "2": 192
+     },
+     "crossFaceSamplesByDelta": {
+      "2": 64
+     },
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 304
+    },
+    "picksOnHoles": {
+     "n": 0,
+     "onSkirt": 0,
+     "physicalHits": 0,
+     "renderedOffsetM": null,
+     "nearbySurfacePixelOffsetM": null
+    },
+    "draws": {
+     "skirts": {
+      "calls": 227,
+      "triangles": 1098653
+     },
+     "surfaceOnly": {
+      "calls": 227,
+      "triangles": 1040028
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 10,
+     "blocks": 221
+    },
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "corner-grazing",
+    "pose": {
+     "eye": [
+      1008.344861076708,
+      990.8977352568517,
+      -1012.1325793319379
+     ],
+     "target": [
+      998.9784006941725,
+      1020.1231556816483,
+      -992.3459402634589
+     ],
+     "fov": 60
+    },
+    "file": "cracks-grid-corner-grazing.jpg",
+    "settled": true,
+    "settleMs": 4059,
+    "visibleTiles": 177,
+    "geometryLevels": {
+     "1": 6,
+     "2": 9,
+     "3": 6,
+     "4": 16,
+     "5": 21,
+     "6": 31,
+     "7": 40,
+     "8": 48
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 501411
+     },
+     "unmitigated": {
+      "holePixels": 1,
+      "holeComponents": 1,
+      "terrainPixels": 501410
+     },
+     "coverageDifferencePixels": 1
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 2096,
+      "2": 352
+     },
+     "crossFaceSamplesByDelta": {
+      "1": 192
+     },
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 192
+    },
+    "picksOnHoles": {
+     "n": 1,
+     "onSkirt": 1,
+     "physicalHits": 1,
+     "renderedOffsetM": {
+      "n": 1,
+      "median": 9.996485348020483,
+      "rms": 9.996485348020483,
+      "p95": 9.996485348020483,
+      "max": 9.996485348020483
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 1,
+      "median": 9.298475463882106,
+      "rms": 9.298475463882106,
+      "p95": 9.298475463882106,
+      "max": 9.298475463882106
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 275,
+      "triangles": 1630472
+     },
+     "surfaceOnly": {
+      "calls": 275,
+      "triangles": 1539104
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 9,
+     "blocks": 270
+    },
+    "errors": []
+   },
+   {
+    "catalog": "nac",
+    "view": "shackleton",
+    "pose": {
+     "eye": [
+      -18.105506477265028,
+      21.746334717688182,
+      -1743.1703438165612
+     ],
+     "target": [
+      -6.393456931874776,
+      7.679114341167814,
+      -1734.8712243020793
+     ],
+     "fov": 60
+    },
+    "file": "cracks-nac-shackleton.jpg",
+    "settled": true,
+    "settleMs": 4100,
+    "visibleTiles": 110,
+    "geometryLevels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 11,
+     "7": 15,
+     "8": 13,
+     "9": 25,
+     "10": 12
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 841530
+     },
+     "unmitigated": {
+      "holePixels": 105,
+      "holeComponents": 88,
+      "terrainPixels": 841424
+     },
+     "coverageDifferencePixels": 106
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1712,
+      "2": 224
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 6.8253746050602695,
+      "rms": 27.91132944615202,
+      "p95": 71.79316516953106,
+      "max": 75.51732563508068
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 20,
+      "median": 15.693475224675826,
+      "rms": 18.66915671189273,
+      "p95": 38.76847751428636,
+      "max": 38.76847751428636
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 208,
+      "triangles": 1046074
+     },
+     "surfaceOnly": {
+      "calls": 208,
+      "triangles": 989052
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 10,
+     "blocks": 203
+    },
+    "errors": []
+   },
+   {
+    "catalog": "nac",
+    "view": "pole",
+    "pose": {
+     "eye": [
+      7.850375853599291,
+      -9.355713626741792,
+      -1749.3573683560176
+     ],
+     "target": [
+      1.0638506744193058e-13,
+      0,
+      -1737.4
+     ],
+     "fov": 60
+    },
+    "file": "cracks-nac-pole.jpg",
+    "settled": true,
+    "settleMs": 4065,
+    "visibleTiles": 75,
+    "geometryLevels": {
+     "3": 8,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 11,
+     "8": 20
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 1024000
+     },
+     "unmitigated": {
+      "holePixels": 52,
+      "holeComponents": 37,
+      "terrainPixels": 1023948
+     },
+     "coverageDifferencePixels": 52
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1296,
+      "2": 32
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 283.06112035372126,
+      "rms": 757.0422742182269,
+      "p95": 1362.0597422007284,
+      "max": 2641.396520473904
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 23,
+      "median": 345.55927067732443,
+      "rms": 780.5735157755805,
+      "p95": 1354.6558021900246,
+      "max": 2630.9082507521093
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 188,
+      "triangles": 743333
+     },
+     "surfaceOnly": {
+      "calls": 188,
+      "triangles": 704176
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 10,
+     "blocks": 183
+    },
+    "errors": []
+   },
+   {
+    "catalog": "nac",
+    "view": "shackleton-grazing",
+    "pose": {
+     "eye": [
+      -13.008949978283473,
+      15.624913940333391,
+      -1738.592839617781
+     ],
+     "target": [
+      6.399650519123311,
+      -7.686553394119962,
+      -1736.5518606787973
+     ],
+     "fov": 60
+    },
+    "file": "cracks-nac-shackleton-grazing.jpg",
+    "settled": true,
+    "settleMs": 4053,
+    "visibleTiles": 134,
+    "geometryLevels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 10,
+     "8": 20,
+     "9": 12,
+     "10": 11,
+     "11": 15,
+     "12": 20
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 581608
+     },
+     "unmitigated": {
+      "holePixels": 79,
+      "holeComponents": 71,
+      "terrainPixels": 581529
+     },
+     "coverageDifferencePixels": 79
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 2224,
+      "2": 224
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 23,
+     "physicalHits": 24,
+     "renderedOffsetM": {
+      "n": 24,
+      "median": 7.263501030858585,
+      "rms": 27.92552640647725,
+      "p95": 67.76874865318992,
+      "max": 74.25243446594958
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 23,
+      "median": 7.073424191833346,
+      "rms": 29.473862684418627,
+      "p95": 68.47939073652469,
+      "max": 78.44338534903554
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 235,
+      "triangles": 1256192
+     },
+     "surfaceOnly": {
+      "calls": 235,
+      "triangles": 1186841
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 11,
+     "blocks": 230
+    },
+    "errors": []
+   },
+   {
+    "catalog": "nac",
+    "view": "shackleton-near",
+    "pose": {
+     "eye": [
+      -8.719382720164408,
+      10.472759511169686,
+      -1735.0601635497092
+     ],
+     "target": [
+      -6.39239168224916,
+      7.677834880969027,
+      -1734.5821677022038
+     ],
+     "fov": 60
+    },
+    "file": "cracks-nac-shackleton-near.jpg",
+    "settled": true,
+    "settleMs": 4561,
+    "visibleTiles": 112,
+    "geometryLevels": {
+     "3": 11,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 10,
+     "8": 9,
+     "9": 8,
+     "10": 12,
+     "11": 11,
+     "12": 15
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 928960
+     },
+     "unmitigated": {
+      "holePixels": 58,
+      "holeComponents": 50,
+      "terrainPixels": 928902
+     },
+     "coverageDifferencePixels": 58
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1744,
+      "2": 48
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 620
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 23,
+     "renderedOffsetM": {
+      "n": 23,
+      "median": 2.9265638913057,
+      "rms": 8.188403092312592,
+      "p95": 15.316522111219758,
+      "max": 23.784708885293373
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 24,
+      "median": 2.365837509698893,
+      "rms": 7.461924763749745,
+      "p95": 14.37284603582119,
+      "max": 24.775399102638815
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 237,
+      "triangles": 1071150
+     },
+     "surfaceOnly": {
+      "calls": 237,
+      "triangles": 1012876
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 13,
+     "blocks": 232
+    },
+    "errors": []
+   },
+   {
+    "catalog": "nac",
+    "view": "pole-grazing",
+    "pose": {
+     "eye": [
+      7.877400442250699,
+      -4.548019265847917,
+      -1737.1995182372834
+     ],
+     "target": [
+      -15.763462131318006,
+      9.10103910487692,
+      -1738.1068952729777
+     ],
+     "fov": 60
+    },
+    "file": "cracks-nac-pole-grazing.jpg",
+    "settled": true,
+    "settleMs": 4050,
+    "visibleTiles": 119,
+    "geometryLevels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 12,
+     "8": 12,
+     "9": 10,
+     "10": 19,
+     "11": 20
+    },
+    "sameTilesSkirtsOff": true,
+    "holes": {
+     "mitigated": {
+      "holePixels": 0,
+      "holeComponents": 0,
+      "terrainPixels": 627725
+     },
+     "unmitigated": {
+      "holePixels": 38,
+      "holeComponents": 21,
+      "terrainPixels": 627687
+     },
+     "coverageDifferencePixels": 38
+    },
+    "neighbours": {
+     "samplesByDelta": {
+      "1": 1936,
+      "2": 160
+     },
+     "crossFaceSamplesByDelta": {},
+     "maxDelta": 2,
+     "samplesWithoutNeighbour": 256
+    },
+    "picksOnHoles": {
+     "n": 24,
+     "onSkirt": 24,
+     "physicalHits": 23,
+     "renderedOffsetM": {
+      "n": 23,
+      "median": 18.510583349591695,
+      "rms": 33.7913040279797,
+      "p95": 53.42212004564865,
+      "max": 54.33235475148845
+     },
+     "nearbySurfacePixelOffsetM": {
+      "n": 15,
+      "median": 28.036328223262572,
+      "rms": 30.136042275069805,
+      "p95": 53.51404425531141,
+      "max": 53.51404425531141
+     }
+    },
+    "draws": {
+     "skirts": {
+      "calls": 228,
+      "triangles": 1152394
+     },
+     "surfaceOnly": {
+      "calls": 228,
+      "triangles": 1090650
+     }
+    },
+    "imagery": {
+     "maxDisplayedLevel": 11,
+     "blocks": 221
+    },
+    "errors": []
+   }
+  ],
+  "cracksDynamic": [
+   {
+    "scenario": "normal",
+    "steps": [
+     {
+      "i": 0,
+      "phase": "refine",
+      "visibleTiles": 6,
+      "geometryLevels": {
+       "0": 6
+      },
+      "loading": 0,
+      "cacheBytes": 18064632,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 0,
+      "neighbourSamplesByDelta": {}
+     },
+     {
+      "i": 1,
+      "phase": "refine",
+      "visibleTiles": 9,
+      "geometryLevels": {
+       "0": 5,
+       "1": 4
+      },
+      "loading": 0,
+      "cacheBytes": 18064632,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 38,
+      "coverageDifferencePixels": 40,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 128
+      }
+     },
+     {
+      "i": 2,
+      "phase": "refine",
+      "visibleTiles": 21,
+      "geometryLevels": {
+       "0": 1,
+       "1": 20
+      },
+      "loading": 0,
+      "cacheBytes": 19663272,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 128
+      }
+     },
+     {
+      "i": 3,
+      "phase": "refine",
+      "visibleTiles": 33,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 16
+      },
+      "loading": 0,
+      "cacheBytes": 19663272,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 39,
+      "coverageDifferencePixels": 42,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 384
+      }
+     },
+     {
+      "i": 4,
+      "phase": "refine",
+      "visibleTiles": 33,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 16
+      },
+      "loading": 0,
+      "cacheBytes": 19663272,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 3,
+      "coverageDifferencePixels": 5,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 384
+      }
+     },
+     {
+      "i": 5,
+      "phase": "refine",
+      "visibleTiles": 45,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 12,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 19983000,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 68,
+      "coverageDifferencePixels": 68,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 640
+      }
+     },
+     {
+      "i": 6,
+      "phase": "refine",
+      "visibleTiles": 57,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 22540824,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 704
+      }
+     },
+     {
+      "i": 7,
+      "phase": "refine",
+      "visibleTiles": 81,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25738104,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 896
+      }
+     },
+     {
+      "i": 8,
+      "phase": "refine",
+      "visibleTiles": 93,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 26377560,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 9,
+      "phase": "refine",
+      "visibleTiles": 105,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 16
+      },
+      "loading": 0,
+      "cacheBytes": 27656472,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     },
+     {
+      "i": 10,
+      "phase": "refine",
+      "visibleTiles": 135,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 10,
+       "7": 20,
+       "8": 16
+      },
+      "loading": 0,
+      "cacheBytes": 32772120,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 53,
+      "coverageDifferencePixels": 54,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1952,
+       "2": 64
+      }
+     },
+     {
+      "i": 11,
+      "phase": "refine",
+      "visibleTiles": 95,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 10,
+       "8": 19,
+       "9": 20
+      },
+      "loading": 0,
+      "cacheBytes": 36608856,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 84,
+      "coverageDifferencePixels": 84,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1376,
+       "2": 192
+      }
+     },
+     {
+      "i": 12,
+      "phase": "refine",
+      "visibleTiles": 110,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 10,
+       "8": 17,
+       "9": 25,
+       "10": 12
+      },
+      "loading": 0,
+      "cacheBytes": 39806136,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 105,
+      "coverageDifferencePixels": 106,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1648,
+       "2": 224
+      }
+     },
+     {
+      "i": 13,
+      "phase": "coarsen",
+      "visibleTiles": 79,
+      "geometryLevels": {
+       "3": 9,
+       "4": 12,
+       "5": 12,
+       "6": 10,
+       "7": 20,
+       "8": 16
+      },
+      "loading": 0,
+      "cacheBytes": 39806136,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 85,
+      "coverageDifferencePixels": 85,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1312,
+       "2": 64
+      }
+     },
+     {
+      "i": 14,
+      "phase": "coarsen",
+      "visibleTiles": 108,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 15,
+       "7": 4
+      },
+      "loading": 0,
+      "cacheBytes": 39806136,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 30,
+      "coverageDifferencePixels": 30,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1536
+      }
+     },
+     {
+      "i": 15,
+      "phase": "coarsen",
+      "visibleTiles": 93,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 39806136,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 16,
+      "phase": "coarsen",
+      "visibleTiles": 90,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 13,
+       "5": 12
+      },
+      "loading": 0,
+      "cacheBytes": 39806136,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 66,
+      "coverageDifferencePixels": 66,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 17,
+      "phase": "coarsen",
+      "visibleTiles": 81,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 16
+      },
+      "loading": 0,
+      "cacheBytes": 39806136,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 36,
+      "coverageDifferencePixels": 37,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 896
+      }
+     },
+     {
+      "i": 18,
+      "phase": "coarsen",
+      "visibleTiles": 60,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 15,
+       "4": 4
+      },
+      "loading": 0,
+      "cacheBytes": 39806136,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 47,
+      "coverageDifferencePixels": 47,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 832
+      }
+     },
+     {
+      "i": 19,
+      "phase": "coarsen",
+      "visibleTiles": 57,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 39806136,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 58,
+      "coverageDifferencePixels": 58,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 704
+      }
+     },
+     {
+      "i": 20,
+      "phase": "coarsen",
+      "visibleTiles": 45,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 12,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 39806136,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 54,
+      "coverageDifferencePixels": 54,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 640
+      }
+     },
+     {
+      "i": 21,
+      "phase": "pan",
+      "visibleTiles": 105,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 16
+      },
+      "loading": 0,
+      "cacheBytes": 39806136,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     },
+     {
+      "i": 22,
+      "phase": "pan",
+      "visibleTiles": 111,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 42,
+       "3": 18,
+       "4": 20,
+       "5": 14,
+       "6": 8
+      },
+      "loading": 0,
+      "cacheBytes": 44921784,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1472
+      }
+     },
+     {
+      "i": 23,
+      "phase": "pan",
+      "visibleTiles": 96,
+      "geometryLevels": {
+       "0": 1,
+       "1": 10,
+       "2": 32,
+       "3": 27,
+       "4": 18,
+       "5": 8
+      },
+      "loading": 0,
+      "cacheBytes": 46840152,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 34,
+      "coverageDifferencePixels": 35,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     },
+     {
+      "i": 24,
+      "phase": "pan",
+      "visibleTiles": 90,
+      "geometryLevels": {
+       "1": 14,
+       "2": 33,
+       "3": 23,
+       "4": 20
+      },
+      "loading": 0,
+      "cacheBytes": 48758520,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1040,
+       "2": 32
+      }
+     },
+     {
+      "i": 25,
+      "phase": "pan",
+      "visibleTiles": 87,
+      "geometryLevels": {
+       "1": 16,
+       "2": 25,
+       "3": 22,
+       "4": 24
+      },
+      "loading": 0,
+      "cacheBytes": 50037432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1168,
+       "2": 32
+      }
+     },
+     {
+      "i": 26,
+      "phase": "pan",
+      "visibleTiles": 111,
+      "geometryLevels": {
+       "1": 16,
+       "2": 22,
+       "3": 34,
+       "4": 19,
+       "5": 20
+      },
+      "loading": 0,
+      "cacheBytes": 57071448,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 47,
+      "coverageDifferencePixels": 49,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1392,
+       "2": 96
+      }
+     },
+     {
+      "i": 27,
+      "phase": "pan",
+      "visibleTiles": 168,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 31,
+       "4": 28,
+       "5": 24,
+       "6": 29,
+       "7": 12
+      },
+      "loading": 0,
+      "cacheBytes": 69221112,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 57,
+      "coverageDifferencePixels": 57,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 2160,
+       "2": 96
+      }
+     },
+     {
+      "i": 28,
+      "phase": "pan",
+      "visibleTiles": 168,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 31,
+       "4": 28,
+       "5": 24,
+       "6": 29,
+       "7": 12
+      },
+      "loading": 0,
+      "cacheBytes": 69221112,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 57,
+      "coverageDifferencePixels": 57,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 2160,
+       "2": 96
+      }
+     },
+     {
+      "i": 29,
+      "phase": "pan",
+      "visibleTiles": 135,
+      "geometryLevels": {
+       "1": 14,
+       "2": 31,
+       "3": 28,
+       "4": 25,
+       "5": 25,
+       "6": 12
+      },
+      "loading": 0,
+      "cacheBytes": 74336760,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 5,
+      "coverageDifferencePixels": 5,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1760,
+       "2": 64
+      }
+     },
+     {
+      "i": 30,
+      "phase": "pan",
+      "visibleTiles": 123,
+      "geometryLevels": {
+       "1": 14,
+       "2": 28,
+       "3": 41,
+       "4": 24,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 78173496,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 58,
+      "coverageDifferencePixels": 58,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1552,
+       "2": 32
+      }
+     },
+     {
+      "i": 31,
+      "phase": "pan",
+      "visibleTiles": 117,
+      "geometryLevels": {
+       "1": 13,
+       "2": 34,
+       "3": 30,
+       "4": 40
+      },
+      "loading": 0,
+      "cacheBytes": 81370776,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1344
+      }
+     },
+     {
+      "i": 32,
+      "phase": "pan",
+      "visibleTiles": 132,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 30,
+       "4": 34,
+       "5": 24
+      },
+      "loading": 0,
+      "cacheBytes": 88404792,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1616,
+       "2": 32
+      }
+     },
+     {
+      "i": 33,
+      "phase": "pan",
+      "visibleTiles": 171,
+      "geometryLevels": {
+       "1": 15,
+       "2": 25,
+       "3": 32,
+       "4": 37,
+       "5": 38,
+       "6": 24
+      },
+      "loading": 0,
+      "cacheBytes": 96717720,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 10,
+      "coverageDifferencePixels": 10,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 2064,
+       "2": 32
+      }
+     },
+     {
+      "i": 34,
+      "phase": "pan",
+      "visibleTiles": 240,
+      "geometryLevels": {
+       "1": 15,
+       "2": 24,
+       "3": 36,
+       "4": 34,
+       "5": 39,
+       "6": 60,
+       "7": 32
+      },
+      "loading": 0,
+      "cacheBytes": 117819768,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 19,
+      "coverageDifferencePixels": 20,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 2560
+      }
+     }
+    ],
+    "maxMitigatedHolePixels": 0,
+    "maxUnmitigatedHolePixels": 105,
+    "stepsWithUnmitigatedHoles": 25,
+    "stepsWithMitigatedHoles": 0,
+    "stepsLoading": 0,
+    "maxNeighbourDelta": 2,
+    "network": {
+     "requests": 737,
+     "queued": 0,
+     "downloading": 0,
+     "parsing": 0,
+     "failed": 0
+    },
+    "errors": []
+   },
+   {
+    "scenario": "delayed",
+    "steps": [
+     {
+      "i": 0,
+      "phase": "refine",
+      "visibleTiles": 0,
+      "geometryLevels": {},
+      "loading": 17,
+      "cacheBytes": 3197280,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 0,
+      "neighbourSamplesByDelta": {}
+     },
+     {
+      "i": 1,
+      "phase": "refine",
+      "visibleTiles": 9,
+      "geometryLevels": {
+       "0": 5,
+       "1": 4
+      },
+      "loading": 11,
+      "cacheBytes": 4156464,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 38,
+      "coverageDifferencePixels": 40,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 128
+      }
+     },
+     {
+      "i": 2,
+      "phase": "refine",
+      "visibleTiles": 21,
+      "geometryLevels": {
+       "0": 1,
+       "1": 20
+      },
+      "loading": 3,
+      "cacheBytes": 7993200,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 128
+      }
+     },
+     {
+      "i": 3,
+      "phase": "refine",
+      "visibleTiles": 33,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 16
+      },
+      "loading": 0,
+      "cacheBytes": 10391160,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 39,
+      "coverageDifferencePixels": 42,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 384
+      }
+     },
+     {
+      "i": 4,
+      "phase": "refine",
+      "visibleTiles": 33,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 16
+      },
+      "loading": 0,
+      "cacheBytes": 10391160,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 3,
+      "coverageDifferencePixels": 5,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 384
+      }
+     },
+     {
+      "i": 5,
+      "phase": "refine",
+      "visibleTiles": 45,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 12,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 12309528,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 68,
+      "coverageDifferencePixels": 68,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 640
+      }
+     },
+     {
+      "i": 6,
+      "phase": "refine",
+      "visibleTiles": 57,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 14867352,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 704
+      }
+     },
+     {
+      "i": 7,
+      "phase": "refine",
+      "visibleTiles": 81,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 16
+      },
+      "loading": 0,
+      "cacheBytes": 19343544,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 896
+      }
+     },
+     {
+      "i": 8,
+      "phase": "refine",
+      "visibleTiles": 93,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 21421776,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 9,
+      "phase": "refine",
+      "visibleTiles": 93,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 14,
+      "cacheBytes": 21421776,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 10,
+      "phase": "refine",
+      "visibleTiles": 93,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 52,
+      "cacheBytes": 21421776,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 11,
+      "phase": "refine",
+      "visibleTiles": 38,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 70,
+      "cacheBytes": 21421776,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 512
+      }
+     },
+     {
+      "i": 12,
+      "phase": "refine",
+      "visibleTiles": 44,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 14,
+       "6": 8
+      },
+      "loading": 78,
+      "cacheBytes": 23340144,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 115,
+      "coverageDifferencePixels": 115,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 704
+      }
+     },
+     {
+      "i": 13,
+      "phase": "coarsen",
+      "visibleTiles": 43,
+      "geometryLevels": {
+       "3": 9,
+       "4": 12,
+       "5": 14,
+       "6": 8
+      },
+      "loading": 42,
+      "cacheBytes": 23340144,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 134,
+      "coverageDifferencePixels": 134,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 704
+      }
+     },
+     {
+      "i": 14,
+      "phase": "coarsen",
+      "visibleTiles": 99,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 14,
+       "6": 8
+      },
+      "loading": 14,
+      "cacheBytes": 23340144,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 73,
+      "coverageDifferencePixels": 73,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1344
+      }
+     },
+     {
+      "i": 15,
+      "phase": "coarsen",
+      "visibleTiles": 93,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 16,
+      "phase": "coarsen",
+      "visibleTiles": 90,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 13,
+       "5": 12
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 66,
+      "coverageDifferencePixels": 66,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 17,
+      "phase": "coarsen",
+      "visibleTiles": 81,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 36,
+      "coverageDifferencePixels": 37,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 896
+      }
+     },
+     {
+      "i": 18,
+      "phase": "coarsen",
+      "visibleTiles": 60,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 15,
+       "4": 4
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 47,
+      "coverageDifferencePixels": 47,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 832
+      }
+     },
+     {
+      "i": 19,
+      "phase": "coarsen",
+      "visibleTiles": 57,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 58,
+      "coverageDifferencePixels": 58,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 704
+      }
+     },
+     {
+      "i": 20,
+      "phase": "coarsen",
+      "visibleTiles": 45,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 12,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 54,
+      "coverageDifferencePixels": 54,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 640
+      }
+     },
+     {
+      "i": 21,
+      "phase": "pan",
+      "visibleTiles": 99,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 14,
+       "6": 8
+      },
+      "loading": 2,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 30,
+      "coverageDifferencePixels": 30,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1344
+      }
+     },
+     {
+      "i": 22,
+      "phase": "pan",
+      "visibleTiles": 105,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 42,
+       "3": 18,
+       "4": 20,
+       "5": 16
+      },
+      "loading": 10,
+      "cacheBytes": 29095248,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1280
+      }
+     },
+     {
+      "i": 23,
+      "phase": "pan",
+      "visibleTiles": 96,
+      "geometryLevels": {
+       "0": 1,
+       "1": 10,
+       "2": 32,
+       "3": 27,
+       "4": 18,
+       "5": 8
+      },
+      "loading": 10,
+      "cacheBytes": 31013616,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 34,
+      "coverageDifferencePixels": 35,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     },
+     {
+      "i": 24,
+      "phase": "pan",
+      "visibleTiles": 90,
+      "geometryLevels": {
+       "1": 14,
+       "2": 33,
+       "3": 23,
+       "4": 20
+      },
+      "loading": 8,
+      "cacheBytes": 33251712,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1040,
+       "2": 32
+      }
+     },
+     {
+      "i": 25,
+      "phase": "pan",
+      "visibleTiles": 87,
+      "geometryLevels": {
+       "1": 16,
+       "2": 25,
+       "3": 22,
+       "4": 24
+      },
+      "loading": 0,
+      "cacheBytes": 35809536,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1168,
+       "2": 32
+      }
+     },
+     {
+      "i": 26,
+      "phase": "pan",
+      "visibleTiles": 111,
+      "geometryLevels": {
+       "1": 16,
+       "2": 22,
+       "3": 34,
+       "4": 19,
+       "5": 20
+      },
+      "loading": 0,
+      "cacheBytes": 42843552,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 47,
+      "coverageDifferencePixels": 49,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1392,
+       "2": 96
+      }
+     },
+     {
+      "i": 27,
+      "phase": "pan",
+      "visibleTiles": 117,
+      "geometryLevels": {
+       "1": 16,
+       "2": 22,
+       "3": 33,
+       "4": 22,
+       "5": 24
+      },
+      "loading": 62,
+      "cacheBytes": 45081648,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 124,
+      "coverageDifferencePixels": 124,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1456,
+       "2": 96
+      }
+     },
+     {
+      "i": 28,
+      "phase": "pan",
+      "visibleTiles": 117,
+      "geometryLevels": {
+       "1": 16,
+       "2": 22,
+       "3": 33,
+       "4": 22,
+       "5": 24
+      },
+      "loading": 62,
+      "cacheBytes": 45081648,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 124,
+      "coverageDifferencePixels": 124,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1456,
+       "2": 96
+      }
+     },
+     {
+      "i": 29,
+      "phase": "pan",
+      "visibleTiles": 99,
+      "geometryLevels": {
+       "1": 16,
+       "2": 24,
+       "3": 26,
+       "4": 21,
+       "5": 12
+      },
+      "loading": 58,
+      "cacheBytes": 45081648,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 22,
+      "coverageDifferencePixels": 22,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1296,
+       "2": 32
+      }
+     },
+     {
+      "i": 30,
+      "phase": "pan",
+      "visibleTiles": 123,
+      "geometryLevels": {
+       "1": 14,
+       "2": 28,
+       "3": 41,
+       "4": 24,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 55312944,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 58,
+      "coverageDifferencePixels": 58,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1552,
+       "2": 32
+      }
+     },
+     {
+      "i": 31,
+      "phase": "pan",
+      "visibleTiles": 117,
+      "geometryLevels": {
+       "1": 13,
+       "2": 34,
+       "3": 30,
+       "4": 40
+      },
+      "loading": 0,
+      "cacheBytes": 59149680,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1344
+      }
+     },
+     {
+      "i": 32,
+      "phase": "pan",
+      "visibleTiles": 132,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 30,
+       "4": 34,
+       "5": 24
+      },
+      "loading": 0,
+      "cacheBytes": 66183696,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1616,
+       "2": 32
+      }
+     },
+     {
+      "i": 33,
+      "phase": "pan",
+      "visibleTiles": 138,
+      "geometryLevels": {
+       "1": 15,
+       "2": 25,
+       "3": 34,
+       "4": 32,
+       "5": 32
+      },
+      "loading": 38,
+      "cacheBytes": 68421792,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1664
+      }
+     },
+     {
+      "i": 34,
+      "phase": "pan",
+      "visibleTiles": 120,
+      "geometryLevels": {
+       "1": 15,
+       "2": 25,
+       "3": 36,
+       "4": 28,
+       "5": 16
+      },
+      "loading": 161,
+      "cacheBytes": 68421792,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 42,
+      "coverageDifferencePixels": 43,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     }
+    ],
+    "maxMitigatedHolePixels": 0,
+    "maxUnmitigatedHolePixels": 134,
+    "stepsWithUnmitigatedHoles": 22,
+    "stepsWithMitigatedHoles": 0,
+    "stepsLoading": 18,
+    "maxNeighbourDelta": 2,
+    "network": {
+     "requests": 440,
+     "queued": 149,
+     "downloading": 12,
+     "parsing": 0,
+     "failed": 0
+    },
+    "errors": []
+   },
+   {
+    "scenario": "failed",
+    "steps": [
+     {
+      "i": 0,
+      "phase": "refine",
+      "visibleTiles": 6,
+      "geometryLevels": {
+       "0": 6
+      },
+      "loading": 0,
+      "cacheBytes": 11510208,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 0,
+      "neighbourSamplesByDelta": {}
+     },
+     {
+      "i": 1,
+      "phase": "refine",
+      "visibleTiles": 9,
+      "geometryLevels": {
+       "0": 5,
+       "1": 4
+      },
+      "loading": 0,
+      "cacheBytes": 11510208,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 38,
+      "coverageDifferencePixels": 40,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 128
+      }
+     },
+     {
+      "i": 2,
+      "phase": "refine",
+      "visibleTiles": 21,
+      "geometryLevels": {
+       "0": 1,
+       "1": 20
+      },
+      "loading": 0,
+      "cacheBytes": 14068032,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 128
+      }
+     },
+     {
+      "i": 3,
+      "phase": "refine",
+      "visibleTiles": 33,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 16
+      },
+      "loading": 0,
+      "cacheBytes": 14068032,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 39,
+      "coverageDifferencePixels": 42,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 384
+      }
+     },
+     {
+      "i": 4,
+      "phase": "refine",
+      "visibleTiles": 33,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 16
+      },
+      "loading": 0,
+      "cacheBytes": 14068032,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 3,
+      "coverageDifferencePixels": 5,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 384
+      }
+     },
+     {
+      "i": 5,
+      "phase": "refine",
+      "visibleTiles": 45,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 12,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 14387760,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 68,
+      "coverageDifferencePixels": 68,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 640
+      }
+     },
+     {
+      "i": 6,
+      "phase": "refine",
+      "visibleTiles": 57,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 16945584,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 704
+      }
+     },
+     {
+      "i": 7,
+      "phase": "refine",
+      "visibleTiles": 81,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 16
+      },
+      "loading": 0,
+      "cacheBytes": 20462592,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 896
+      }
+     },
+     {
+      "i": 8,
+      "phase": "refine",
+      "visibleTiles": 93,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 21901368,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 9,
+      "phase": "refine",
+      "visibleTiles": 105,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 16
+      },
+      "loading": 0,
+      "cacheBytes": 23659872,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     },
+     {
+      "i": 10,
+      "phase": "refine",
+      "visibleTiles": 135,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 10,
+       "7": 20,
+       "8": 16
+      },
+      "loading": 0,
+      "cacheBytes": 29095248,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 53,
+      "coverageDifferencePixels": 54,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1952,
+       "2": 64
+      }
+     },
+     {
+      "i": 11,
+      "phase": "refine",
+      "visibleTiles": 75,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 10,
+       "8": 19
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 42,
+      "coverageDifferencePixels": 33013,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1088,
+       "2": 160
+      }
+     },
+     {
+      "i": 12,
+      "phase": "refine",
+      "visibleTiles": 73,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 10,
+       "8": 17
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 7,
+      "coverageDifferencePixels": 48524,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1072,
+       "2": 160
+      }
+     },
+     {
+      "i": 13,
+      "phase": "coarsen",
+      "visibleTiles": 79,
+      "geometryLevels": {
+       "3": 9,
+       "4": 12,
+       "5": 12,
+       "6": 10,
+       "7": 20,
+       "8": 16
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 85,
+      "coverageDifferencePixels": 85,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1312,
+       "2": 64
+      }
+     },
+     {
+      "i": 14,
+      "phase": "coarsen",
+      "visibleTiles": 108,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 15,
+       "7": 4
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 30,
+      "coverageDifferencePixels": 30,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1536
+      }
+     },
+     {
+      "i": 15,
+      "phase": "coarsen",
+      "visibleTiles": 93,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 16,
+      "phase": "coarsen",
+      "visibleTiles": 90,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 13,
+       "5": 12
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 66,
+      "coverageDifferencePixels": 66,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 17,
+      "phase": "coarsen",
+      "visibleTiles": 81,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 16
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 36,
+      "coverageDifferencePixels": 37,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 896
+      }
+     },
+     {
+      "i": 18,
+      "phase": "coarsen",
+      "visibleTiles": 60,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 15,
+       "4": 4
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 47,
+      "coverageDifferencePixels": 47,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 832
+      }
+     },
+     {
+      "i": 19,
+      "phase": "coarsen",
+      "visibleTiles": 57,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 58,
+      "coverageDifferencePixels": 58,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 704
+      }
+     },
+     {
+      "i": 20,
+      "phase": "coarsen",
+      "visibleTiles": 45,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 12,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 54,
+      "coverageDifferencePixels": 54,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 640
+      }
+     },
+     {
+      "i": 21,
+      "phase": "pan",
+      "visibleTiles": 105,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 16
+      },
+      "loading": 0,
+      "cacheBytes": 30054432,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     },
+     {
+      "i": 22,
+      "phase": "pan",
+      "visibleTiles": 111,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 42,
+       "3": 18,
+       "4": 20,
+       "5": 14,
+       "6": 8
+      },
+      "loading": 0,
+      "cacheBytes": 35170080,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1472
+      }
+     },
+     {
+      "i": 23,
+      "phase": "pan",
+      "visibleTiles": 96,
+      "geometryLevels": {
+       "0": 1,
+       "1": 10,
+       "2": 32,
+       "3": 27,
+       "4": 18,
+       "5": 8
+      },
+      "loading": 0,
+      "cacheBytes": 37088448,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 34,
+      "coverageDifferencePixels": 35,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     },
+     {
+      "i": 24,
+      "phase": "pan",
+      "visibleTiles": 90,
+      "geometryLevels": {
+       "1": 14,
+       "2": 33,
+       "3": 23,
+       "4": 20
+      },
+      "loading": 0,
+      "cacheBytes": 39006816,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1040,
+       "2": 32
+      }
+     },
+     {
+      "i": 25,
+      "phase": "pan",
+      "visibleTiles": 87,
+      "geometryLevels": {
+       "1": 16,
+       "2": 25,
+       "3": 22,
+       "4": 24
+      },
+      "loading": 0,
+      "cacheBytes": 40285728,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1168,
+       "2": 32
+      }
+     },
+     {
+      "i": 26,
+      "phase": "pan",
+      "visibleTiles": 111,
+      "geometryLevels": {
+       "1": 16,
+       "2": 22,
+       "3": 34,
+       "4": 19,
+       "5": 20
+      },
+      "loading": 0,
+      "cacheBytes": 47319744,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 47,
+      "coverageDifferencePixels": 49,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1392,
+       "2": 96
+      }
+     },
+     {
+      "i": 27,
+      "phase": "pan",
+      "visibleTiles": 168,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 31,
+       "4": 28,
+       "5": 24,
+       "6": 29,
+       "7": 12
+      },
+      "loading": 0,
+      "cacheBytes": 59469408,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 57,
+      "coverageDifferencePixels": 57,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 2160,
+       "2": 96
+      }
+     },
+     {
+      "i": 28,
+      "phase": "pan",
+      "visibleTiles": 168,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 31,
+       "4": 28,
+       "5": 24,
+       "6": 29,
+       "7": 12
+      },
+      "loading": 0,
+      "cacheBytes": 59469408,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 57,
+      "coverageDifferencePixels": 57,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 2160,
+       "2": 96
+      }
+     },
+     {
+      "i": 29,
+      "phase": "pan",
+      "visibleTiles": 135,
+      "geometryLevels": {
+       "1": 14,
+       "2": 31,
+       "3": 28,
+       "4": 25,
+       "5": 25,
+       "6": 12
+      },
+      "loading": 0,
+      "cacheBytes": 64585056,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 5,
+      "coverageDifferencePixels": 5,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1760,
+       "2": 64
+      }
+     },
+     {
+      "i": 30,
+      "phase": "pan",
+      "visibleTiles": 123,
+      "geometryLevels": {
+       "1": 14,
+       "2": 28,
+       "3": 41,
+       "4": 24,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 68421792,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 58,
+      "coverageDifferencePixels": 58,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1552,
+       "2": 32
+      }
+     },
+     {
+      "i": 31,
+      "phase": "pan",
+      "visibleTiles": 117,
+      "geometryLevels": {
+       "1": 13,
+       "2": 34,
+       "3": 30,
+       "4": 40
+      },
+      "loading": 0,
+      "cacheBytes": 71619072,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1344
+      }
+     },
+     {
+      "i": 32,
+      "phase": "pan",
+      "visibleTiles": 132,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 30,
+       "4": 34,
+       "5": 24
+      },
+      "loading": 0,
+      "cacheBytes": 78653088,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1616,
+       "2": 32
+      }
+     },
+     {
+      "i": 33,
+      "phase": "pan",
+      "visibleTiles": 171,
+      "geometryLevels": {
+       "1": 15,
+       "2": 25,
+       "3": 32,
+       "4": 37,
+       "5": 38,
+       "6": 24
+      },
+      "loading": 0,
+      "cacheBytes": 86966016,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 10,
+      "coverageDifferencePixels": 10,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 2064,
+       "2": 32
+      }
+     },
+     {
+      "i": 34,
+      "phase": "pan",
+      "visibleTiles": 240,
+      "geometryLevels": {
+       "1": 15,
+       "2": 24,
+       "3": 36,
+       "4": 34,
+       "5": 39,
+       "6": 60,
+       "7": 32
+      },
+      "loading": 0,
+      "cacheBytes": 108068064,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 19,
+      "coverageDifferencePixels": 20,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 2560
+      }
+     }
+    ],
+    "maxMitigatedHolePixels": 0,
+    "maxUnmitigatedHolePixels": 85,
+    "stepsWithUnmitigatedHoles": 25,
+    "stepsWithMitigatedHoles": 0,
+    "stepsLoading": 0,
+    "maxNeighbourDelta": 2,
+    "network": {
+     "requests": 728,
+     "queued": 0,
+     "downloading": 0,
+     "parsing": 0,
+     "failed": 52
+    },
+    "errors": [
+     "error: Failed to load resource: net::ERR_FAILED",
+     "error: TilesRenderer : Failed to load tile at url \"nz/9/254/256.glb\".",
+     "error: TypeError: Failed to fetch\n    at Vi.fetchData (http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:727:12)\n    at http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:801:67\n    at Vi.invokeOnePlugin (http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:493:17)\n    at http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:801:24\n    at G.tryRunJobs (http://127.0.0.1:5199/node_modules/.vite/deps/chunk-QEABMEJD.js?v=fe9d8f84:351:14)\n    at G._runjobs (http://127.0.0.1:5199/node_modules/.vite/deps/chunk-QEABMEJD.js?v=fe9d8f84:273:36)\n    at a2 (http://127.0.0.1:5199/node_modules/.vite/deps/chunk-QEABMEJD.js?v=fe9d8f84:38:20)",
+     "error: Failed to load resource: net::ERR_FAILED",
+     "error: TilesRenderer : Failed to load tile at url \"nz/9/254/255.glb\".",
+     "error: TypeError: Failed to fetch\n    at Vi.fetchData (http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:727:12)\n    at http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:801:67\n    at Vi.invokeOnePlugin (http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:493:17)\n    at http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:801:24\n    at G.tryRunJobs (http://127.0.0.1:5199/node_modules/.vite/deps/chunk-QEABMEJD.js?v=fe9d8f84:351:14)\n    at G._runjobs (http://127.0.0.1:5199/node_modules/.vite/deps/chunk-QEABMEJD.js?v=fe9d8f84:273:36)\n    at a2 (http://127.0.0.1:5199/node_modules/.vite/deps/chunk-QEABMEJD.js?v=fe9d8f84:38:20)",
+     "error: Failed to load resource: net::ERR_FAILED",
+     "error: TilesRenderer : Failed to load tile at url \"nz/10/508/512.glb\".",
+     "error: TypeError: Failed to fetch\n    at Vi.fetchData (http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:727:12)\n    at http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:801:67\n    at Vi.invokeOnePlugin (http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:493:17)\n    at http://127.0.0.1:5199/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=fe9d8f84:801:24\n    at G.tryRunJobs (http://127.0.0.1:5199/node_modules/.vite/deps/chunk-QEABMEJD.js?v=fe9d8f84:351:14)\n    at G._runjobs (http://127.0.0.1:5199/node_modules/.vite/deps/chunk-QEABMEJD.js?v=fe9d8f84:273:36)\n    at a2 (http://127.0.0.1:5199/node_modules/.vite/deps/chunk-QEABMEJD.js?v=fe9d8f84:38:20)",
+     "error: Failed to load resource: net::ERR_FAILED"
+    ]
+   },
+   {
+    "scenario": "evicting",
+    "steps": [
+     {
+      "i": 0,
+      "phase": "refine",
+      "visibleTiles": 6,
+      "geometryLevels": {
+       "0": 6
+      },
+      "loading": 0,
+      "cacheBytes": 18064632,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 0,
+      "neighbourSamplesByDelta": {}
+     },
+     {
+      "i": 1,
+      "phase": "refine",
+      "visibleTiles": 9,
+      "geometryLevels": {
+       "0": 5,
+       "1": 4
+      },
+      "loading": 0,
+      "cacheBytes": 18064632,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 38,
+      "coverageDifferencePixels": 40,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 128
+      }
+     },
+     {
+      "i": 2,
+      "phase": "refine",
+      "visibleTiles": 21,
+      "geometryLevels": {
+       "0": 1,
+       "1": 20
+      },
+      "loading": 0,
+      "cacheBytes": 19663272,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 128
+      }
+     },
+     {
+      "i": 3,
+      "phase": "refine",
+      "visibleTiles": 33,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 16
+      },
+      "loading": 0,
+      "cacheBytes": 19663272,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 39,
+      "coverageDifferencePixels": 42,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 384
+      }
+     },
+     {
+      "i": 4,
+      "phase": "refine",
+      "visibleTiles": 33,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 16
+      },
+      "loading": 0,
+      "cacheBytes": 19663272,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 3,
+      "coverageDifferencePixels": 5,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 384
+      }
+     },
+     {
+      "i": 5,
+      "phase": "refine",
+      "visibleTiles": 45,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 12,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 19983000,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 68,
+      "coverageDifferencePixels": 68,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 640
+      }
+     },
+     {
+      "i": 6,
+      "phase": "refine",
+      "visibleTiles": 57,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 22540824,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 704
+      }
+     },
+     {
+      "i": 7,
+      "phase": "refine",
+      "visibleTiles": 81,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 896
+      }
+     },
+     {
+      "i": 8,
+      "phase": "refine",
+      "visibleTiles": 93,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 9,
+      "phase": "refine",
+      "visibleTiles": 105,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     },
+     {
+      "i": 10,
+      "phase": "refine",
+      "visibleTiles": 135,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 10,
+       "7": 20,
+       "8": 16
+      },
+      "loading": 0,
+      "cacheBytes": 28455792,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 53,
+      "coverageDifferencePixels": 54,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1952,
+       "2": 64
+      }
+     },
+     {
+      "i": 11,
+      "phase": "refine",
+      "visibleTiles": 95,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 10,
+       "8": 19,
+       "9": 20
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 84,
+      "coverageDifferencePixels": 84,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1376,
+       "2": 192
+      }
+     },
+     {
+      "i": 12,
+      "phase": "refine",
+      "visibleTiles": 110,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 10,
+       "8": 17,
+       "9": 25,
+       "10": 12
+      },
+      "loading": 0,
+      "cacheBytes": 27176880,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 105,
+      "coverageDifferencePixels": 106,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1648,
+       "2": 224
+      }
+     },
+     {
+      "i": 13,
+      "phase": "coarsen",
+      "visibleTiles": 79,
+      "geometryLevels": {
+       "3": 9,
+       "4": 12,
+       "5": 12,
+       "6": 10,
+       "7": 20,
+       "8": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 85,
+      "coverageDifferencePixels": 85,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1312,
+       "2": 64
+      }
+     },
+     {
+      "i": 14,
+      "phase": "coarsen",
+      "visibleTiles": 108,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 15,
+       "7": 4
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 30,
+      "coverageDifferencePixels": 30,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1536
+      }
+     },
+     {
+      "i": 15,
+      "phase": "coarsen",
+      "visibleTiles": 93,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 16,
+      "phase": "coarsen",
+      "visibleTiles": 90,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 13,
+       "5": 12
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 66,
+      "coverageDifferencePixels": 66,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1152
+      }
+     },
+     {
+      "i": 17,
+      "phase": "coarsen",
+      "visibleTiles": 81,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 36,
+      "coverageDifferencePixels": 37,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 896
+      }
+     },
+     {
+      "i": 18,
+      "phase": "coarsen",
+      "visibleTiles": 60,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 15,
+       "4": 4
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 47,
+      "coverageDifferencePixels": 47,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 832
+      }
+     },
+     {
+      "i": 19,
+      "phase": "coarsen",
+      "visibleTiles": 57,
+      "geometryLevels": {
+       "0": 1,
+       "1": 12,
+       "2": 28,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 58,
+      "coverageDifferencePixels": 58,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 704
+      }
+     },
+     {
+      "i": 20,
+      "phase": "coarsen",
+      "visibleTiles": 45,
+      "geometryLevels": {
+       "0": 1,
+       "1": 16,
+       "2": 12,
+       "3": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 54,
+      "coverageDifferencePixels": 54,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 640
+      }
+     },
+     {
+      "i": 21,
+      "phase": "pan",
+      "visibleTiles": 105,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     },
+     {
+      "i": 22,
+      "phase": "pan",
+      "visibleTiles": 111,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 42,
+       "3": 18,
+       "4": 20,
+       "5": 14,
+       "6": 8
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1472
+      }
+     },
+     {
+      "i": 23,
+      "phase": "pan",
+      "visibleTiles": 96,
+      "geometryLevels": {
+       "0": 1,
+       "1": 10,
+       "2": 32,
+       "3": 27,
+       "4": 18,
+       "5": 8
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 34,
+      "coverageDifferencePixels": 35,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1408
+      }
+     },
+     {
+      "i": 24,
+      "phase": "pan",
+      "visibleTiles": 90,
+      "geometryLevels": {
+       "1": 14,
+       "2": 33,
+       "3": 23,
+       "4": 20
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1040,
+       "2": 32
+      }
+     },
+     {
+      "i": 25,
+      "phase": "pan",
+      "visibleTiles": 87,
+      "geometryLevels": {
+       "1": 16,
+       "2": 25,
+       "3": 22,
+       "4": 24
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1168,
+       "2": 32
+      }
+     },
+     {
+      "i": 26,
+      "phase": "pan",
+      "visibleTiles": 111,
+      "geometryLevels": {
+       "1": 16,
+       "2": 22,
+       "3": 34,
+       "4": 19,
+       "5": 20
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 47,
+      "coverageDifferencePixels": 49,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1392,
+       "2": 96
+      }
+     },
+     {
+      "i": 27,
+      "phase": "pan",
+      "visibleTiles": 168,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 31,
+       "4": 28,
+       "5": 24,
+       "6": 29,
+       "7": 12
+      },
+      "loading": 0,
+      "cacheBytes": 35489808,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 57,
+      "coverageDifferencePixels": 57,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 2160,
+       "2": 96
+      }
+     },
+     {
+      "i": 28,
+      "phase": "pan",
+      "visibleTiles": 168,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 31,
+       "4": 28,
+       "5": 24,
+       "6": 29,
+       "7": 12
+      },
+      "loading": 0,
+      "cacheBytes": 35489808,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 57,
+      "coverageDifferencePixels": 57,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 2160,
+       "2": 96
+      }
+     },
+     {
+      "i": 29,
+      "phase": "pan",
+      "visibleTiles": 135,
+      "geometryLevels": {
+       "1": 14,
+       "2": 31,
+       "3": 28,
+       "4": 25,
+       "5": 25,
+       "6": 12
+      },
+      "loading": 0,
+      "cacheBytes": 28455792,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 5,
+      "coverageDifferencePixels": 5,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1760,
+       "2": 64
+      }
+     },
+     {
+      "i": 30,
+      "phase": "pan",
+      "visibleTiles": 123,
+      "geometryLevels": {
+       "1": 14,
+       "2": 28,
+       "3": 41,
+       "4": 24,
+       "5": 16
+      },
+      "loading": 0,
+      "cacheBytes": 25897968,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 58,
+      "coverageDifferencePixels": 58,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1552,
+       "2": 32
+      }
+     },
+     {
+      "i": 31,
+      "phase": "pan",
+      "visibleTiles": 117,
+      "geometryLevels": {
+       "1": 13,
+       "2": 34,
+       "3": 30,
+       "4": 40
+      },
+      "loading": 0,
+      "cacheBytes": 25258512,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 0,
+      "coverageDifferencePixels": 0,
+      "maxNeighbourDelta": 1,
+      "neighbourSamplesByDelta": {
+       "1": 1344
+      }
+     },
+     {
+      "i": 32,
+      "phase": "pan",
+      "visibleTiles": 132,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 30,
+       "4": 34,
+       "5": 24
+      },
+      "loading": 0,
+      "cacheBytes": 27816336,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 17,
+      "coverageDifferencePixels": 17,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 1616,
+       "2": 32
+      }
+     },
+     {
+      "i": 33,
+      "phase": "pan",
+      "visibleTiles": 171,
+      "geometryLevels": {
+       "1": 15,
+       "2": 25,
+       "3": 32,
+       "4": 37,
+       "5": 38,
+       "6": 24
+      },
+      "loading": 0,
+      "cacheBytes": 36129264,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 10,
+      "coverageDifferencePixels": 10,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 2064,
+       "2": 32
+      }
+     },
+     {
+      "i": 34,
+      "phase": "pan",
+      "visibleTiles": 186,
+      "geometryLevels": {
+       "1": 15,
+       "2": 25,
+       "3": 34,
+       "4": 32,
+       "5": 24,
+       "6": 24,
+       "7": 32
+      },
+      "loading": 0,
+      "cacheBytes": 42044232,
+      "mitigatedHolePixels": 0,
+      "unmitigatedHolePixels": 50,
+      "coverageDifferencePixels": 51,
+      "maxNeighbourDelta": 2,
+      "neighbourSamplesByDelta": {
+       "1": 2032,
+       "2": 224
+      }
+     }
+    ],
+    "maxMitigatedHolePixels": 0,
+    "maxUnmitigatedHolePixels": 105,
+    "stepsWithUnmitigatedHoles": 25,
+    "stepsWithMitigatedHoles": 0,
+    "stepsLoading": 0,
+    "maxNeighbourDelta": 2,
+    "network": {
+     "requests": 797,
+     "queued": 0,
+     "downloading": 0,
+     "parsing": 0,
+     "failed": 0
+    },
+    "errors": []
+   }
+  ],
+  "skirtCost": [
+   {
+    "catalog": "terrain",
+    "view": "shackleton",
+    "visibleTiles": 110,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 2.899999998509884,
+      "p95": 3.2999999970197678,
+      "max": 3.600000001490116,
+      "mean": 2.896666666554908
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 1.684041,
+      "p95": 1.716916,
+      "max": 1.731208,
+      "mean": 1.6842116416666666
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 115,
+      "triangles": 1022468,
+      "programs": 4,
+      "geometries": 178,
+      "textures": 9
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 2.600000001490116,
+      "p95": 3,
+      "max": 4,
+      "mean": 2.6341666667411725
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 1.566666,
+      "p95": 1.598458,
+      "max": 3.009375,
+      "mean": 1.586195666666667
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 115,
+      "triangles": 966148,
+      "programs": 4,
+      "geometries": 178,
+      "textures": 9
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 2.7000000029802322,
+      "p95": 3,
+      "max": 3.2999999970197678,
+      "mean": 2.759999999962747
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 1.682958,
+      "p95": 1.716583,
+      "max": 1.793875,
+      "mean": 1.6845085666666668
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 115,
+      "triangles": 1022468,
+      "programs": 4,
+      "geometries": 178,
+      "textures": 9
+     }
+    },
+    "geometryMB": 35.17008,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "pole",
+    "visibleTiles": 75,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.5,
+      "p95": 2.600000001490116,
+      "max": 2.8000000044703484,
+      "mean": 1.6624999999379118
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.481874,
+      "p95": 1.156374,
+      "max": 1.171125,
+      "mean": 0.6347137
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 80,
+      "triangles": 717828,
+      "programs": 4,
+      "geometries": 138,
+      "textures": 9
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.2000000029802322,
+      "p95": 2.5,
+      "max": 2.7000000029802322,
+      "mean": 1.4974999999627472
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.368125,
+      "p95": 1.123375,
+      "max": 1.137375,
+      "mean": 0.5461839083333334
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 80,
+      "triangles": 679428,
+      "programs": 4,
+      "geometries": 138,
+      "textures": 9
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.5,
+      "p95": 2.399999998509884,
+      "max": 2.5999999940395355,
+      "mean": 1.623333333308498
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.505125,
+      "p95": 1.143333,
+      "max": 1.155875,
+      "mean": 0.6264275999999999
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 80,
+      "triangles": 717828,
+      "programs": 4,
+      "geometries": 138,
+      "textures": 9
+     }
+    },
+    "geometryMB": 28.77552,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "face-edge",
+    "visibleTiles": 177,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.7000000029802322,
+      "p95": 4.600000001490116,
+      "max": 4.9000000059604645,
+      "mean": 2.1708333333954215
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.520624,
+      "p95": 2.293249,
+      "max": 2.312416,
+      "mean": 0.7784049999999999
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 184,
+      "triangles": 1629958,
+      "programs": 5,
+      "geometries": 287,
+      "textures": 10
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.7000000029802322,
+      "p95": 4.399999998509884,
+      "max": 4.800000004470348,
+      "mean": 2.159166666616996
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.483625,
+      "p95": 2.188,
+      "max": 2.209958,
+      "mean": 0.7525459999999998
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 184,
+      "triangles": 1539334,
+      "programs": 5,
+      "geometries": 287,
+      "textures": 10
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.7000000029802322,
+      "p95": 4.5999999940395355,
+      "max": 4.800000004470348,
+      "mean": 2.1216666667411723
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.512083,
+      "p95": 2.284499,
+      "max": 2.311749,
+      "mean": 0.7504165416666666
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 184,
+      "triangles": 1629958,
+      "programs": 5,
+      "geometries": 287,
+      "textures": 10
+     }
+    },
+    "geometryMB": 54.034032,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "face-corner",
+    "visibleTiles": 219,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 2,
+      "p95": 3.600000001490116,
+      "max": 3.7000000029802322,
+      "mean": 2.302500000099341
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.653041,
+      "p95": 1.269458,
+      "max": 1.316291,
+      "mean": 0.7888411666666666
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 224,
+      "triangles": 1971204,
+      "programs": 4,
+      "geometries": 385,
+      "textures": 9
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 2,
+      "p95": 3.5,
+      "max": 3.7000000029802322,
+      "mean": 2.3166666666045783
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.620666,
+      "p95": 1.216374,
+      "max": 1.259249,
+      "mean": 0.7666884
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 224,
+      "triangles": 1859076,
+      "programs": 4,
+      "geometries": 385,
+      "textures": 9
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 2.100000001490116,
+      "p95": 4.699999995529652,
+      "max": 5,
+      "mean": 2.6233333332464097
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.655125,
+      "p95": 2.896749,
+      "max": 2.911875,
+      "mean": 1.120386316666667
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 224,
+      "triangles": 1971204,
+      "programs": 4,
+      "geometries": 385,
+      "textures": 9
+     }
+    },
+    "geometryMB": 67.462608,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "overview",
+    "visibleTiles": 15,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.1000000014901161,
+      "p95": 1.3999999985098839,
+      "max": 1.5999999940395355,
+      "mean": 1.1225000000248353
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.470458,
+      "p95": 0.495,
+      "max": 0.507125,
+      "mean": 0.4486894416666665
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 20,
+      "triangles": 195588,
+      "programs": 4,
+      "geometries": 125,
+      "textures": 9
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 1,
+      "p95": 1.2000000029802322,
+      "max": 1.3000000044703484,
+      "mean": 0.9433333334202568
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.52275,
+      "p95": 0.549625,
+      "max": 0.565333,
+      "mean": 0.4475817666666668
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 20,
+      "triangles": 187908,
+      "programs": 4,
+      "geometries": 125,
+      "textures": 9
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 1,
+      "p95": 1.7999999970197678,
+      "max": 1.8999999985098839,
+      "mean": 1.0558333332960805
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.460083,
+      "p95": 0.482,
+      "max": 0.498124,
+      "mean": 0.40826342500000007
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 20,
+      "triangles": 195588,
+      "programs": 4,
+      "geometries": 125,
+      "textures": 9
+     }
+    },
+    "geometryMB": 25.57824,
+    "errors": []
+   },
+   {
+    "catalog": "terrain",
+    "view": "shackleton-grazing",
+    "visibleTiles": 134,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.8000000044703484,
+      "p95": 3.399999998509884,
+      "max": 3.9000000059604645,
+      "mean": 2.1425000000124177
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.559499,
+      "p95": 1.921958,
+      "max": 2.008249,
+      "mean": 0.9300915249999999
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 139,
+      "triangles": 1231364,
+      "programs": 4,
+      "geometries": 203,
+      "textures": 9
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.5,
+      "p95": 4.200000002980232,
+      "max": 4.5999999940395355,
+      "mean": 2.0316666665797434
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.428375,
+      "p95": 1.7785,
+      "max": 1.862333,
+      "mean": 0.7204044000000001
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 139,
+      "triangles": 1162756,
+      "programs": 4,
+      "geometries": 203,
+      "textures": 9
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 3.1999999955296516,
+      "p95": 3.7999999970197678,
+      "max": 3.899999998509884,
+      "mean": 3.2041666666045785
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 1.854,
+      "p95": 1.935666,
+      "max": 2.021666,
+      "mean": 1.8580384249999995
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 139,
+      "triangles": 1231364,
+      "programs": 4,
+      "geometries": 203,
+      "textures": 9
+     }
+    },
+    "geometryMB": 39.646272,
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "shackleton",
+    "visibleTiles": 110,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 4.5,
+      "p95": 5,
+      "max": 5.100000001490116,
+      "mean": 4.548333333370587
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 2.177875,
+      "p95": 2.218625,
+      "max": 2.271333,
+      "mean": 2.1796422416666674
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 196,
+      "triangles": 1043280,
+      "programs": 4,
+      "geometries": 232,
+      "textures": 133
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 4.399999998509884,
+      "p95": 4.799999997019768,
+      "max": 5.299999997019768,
+      "mean": 4.346666666679084
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 2.083125,
+      "p95": 2.127874,
+      "max": 2.625958,
+      "mean": 2.089448475
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 196,
+      "triangles": 986341,
+      "programs": 4,
+      "geometries": 232,
+      "textures": 133
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 4.5,
+      "p95": 5,
+      "max": 5.200000002980232,
+      "mean": 4.564166666691502
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 2.188875,
+      "p95": 2.231749,
+      "max": 2.742374,
+      "mean": 2.1981689500000003
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 196,
+      "triangles": 1043280,
+      "programs": 4,
+      "geometries": 232,
+      "textures": 133
+     }
+    },
+    "geometryMB": 55.257588,
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "pole",
+    "visibleTiles": 75,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 3.7000000029802322,
+      "p95": 4.200000002980232,
+      "max": 4.399999998509884,
+      "mean": 3.72333333324641
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 1.512,
+      "p95": 1.527375,
+      "max": 1.577833,
+      "mean": 1.513098458333334
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 197,
+      "triangles": 746610,
+      "programs": 4,
+      "geometries": 252,
+      "textures": 138
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 3.600000001490116,
+      "p95": 3.8000000044703484,
+      "max": 4,
+      "mean": 3.544166666766008
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 1.438416,
+      "p95": 1.455999,
+      "max": 2.111249,
+      "mean": 1.444862725
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 197,
+      "triangles": 707351,
+      "programs": 4,
+      "geometries": 252,
+      "textures": 138
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 3.600000001490116,
+      "p95": 3.899999998509884,
+      "max": 4.100000001490116,
+      "mean": 3.5466666666790845
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 1.507083,
+      "p95": 1.547791,
+      "max": 1.562749,
+      "mean": 1.5123859499999992
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 197,
+      "triangles": 746610,
+      "programs": 4,
+      "geometries": 252,
+      "textures": 138
+     }
+    },
+    "geometryMB": 49.161456,
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "face-edge",
+    "visibleTiles": 177,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 3.7999999970197678,
+      "p95": 6.5,
+      "max": 6.600000001490116,
+      "mean": 4.238333333407839
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.860166,
+      "p95": 2.98725,
+      "max": 3.011,
+      "mean": 1.3387745666666662
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 349,
+      "triangles": 1674043,
+      "programs": 5,
+      "geometries": 429,
+      "textures": 247
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 3.399999998509884,
+      "p95": 4.899999998509884,
+      "max": 6,
+      "mean": 3.5450000001117585
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.732416,
+      "p95": 1.537708,
+      "max": 2.83525,
+      "mean": 0.8157369749999998
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 349,
+      "triangles": 1582096,
+      "programs": 5,
+      "geometries": 429,
+      "textures": 247
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 3.5,
+      "p95": 5.800000004470348,
+      "max": 6.699999995529652,
+      "mean": 3.805000000012418
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.700374,
+      "p95": 2.923,
+      "max": 2.941041,
+      "mean": 0.9223238083333335
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 349,
+      "triangles": 1674043,
+      "programs": 5,
+      "geometries": 429,
+      "textures": 247
+     }
+    },
+    "geometryMB": 94.059036,
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "face-corner",
+    "visibleTiles": 219,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 3.7000000029802322,
+      "p95": 5.4000000059604645,
+      "max": 7.5999999940395355,
+      "mean": 3.993333333482345
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.935791,
+      "p95": 2.12,
+      "max": 3.743208,
+      "mean": 1.0581234583333334
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 359,
+      "triangles": 2006430,
+      "programs": 4,
+      "geometries": 419,
+      "textures": 252
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 3.600000001490116,
+      "p95": 4.300000004470348,
+      "max": 4.699999995529652,
+      "mean": 3.6791666666045786
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.879708,
+      "p95": 1.359374,
+      "max": 1.614041,
+      "mean": 0.9014856416666664
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 359,
+      "triangles": 1893249,
+      "programs": 4,
+      "geometries": 419,
+      "textures": 252
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 3.899999998509884,
+      "p95": 5.100000001490116,
+      "max": 6.799999997019768,
+      "mean": 4.0574999999875825
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.841125,
+      "p95": 2.02575,
+      "max": 3.677041,
+      "mean": 1.06850095
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 359,
+      "triangles": 2006430,
+      "programs": 4,
+      "geometries": 419,
+      "textures": 252
+     }
+    },
+    "geometryMB": 99.696216,
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "overview",
+    "visibleTiles": 15,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.3000000044703484,
+      "p95": 1.6999999955296516,
+      "max": 1.7999999970197678,
+      "mean": 1.3816666666418314
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.666875,
+      "p95": 0.694791,
+      "max": 0.708874,
+      "mean": 0.6682880083333331
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 62,
+      "triangles": 206379,
+      "programs": 4,
+      "geometries": 141,
+      "textures": 93
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.2999999970197678,
+      "p95": 1.5999999940395355,
+      "max": 1.7000000029802322,
+      "mean": 1.3058333332960805
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.612916,
+      "p95": 0.644166,
+      "max": 0.661375,
+      "mean": 0.6153731416666667
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 62,
+      "triangles": 198377,
+      "programs": 4,
+      "geometries": 141,
+      "textures": 93
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 1.3999999985098839,
+      "p95": 1.6000000014901161,
+      "max": 1.7000000029802322,
+      "mean": 1.3858333333705863
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 0.668125,
+      "p95": 0.69425,
+      "max": 0.739208,
+      "mean": 0.6682112750000001
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 62,
+      "triangles": 206379,
+      "programs": 4,
+      "geometries": 141,
+      "textures": 93
+     }
+    },
+    "geometryMB": 40.077912,
+    "errors": []
+   },
+   {
+    "catalog": "grid",
+    "view": "shackleton-grazing",
+    "visibleTiles": 134,
+    "skirts": {
+     "wallMs": {
+      "n": 120,
+      "median": 5.100000001490116,
+      "p95": 5.4000000059604645,
+      "max": 5.699999995529652,
+      "mean": 5.114999999975165
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 2.369041,
+      "p95": 2.433291,
+      "max": 2.469874,
+      "mean": 2.3638550583333338
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 238,
+      "triangles": 1257407,
+      "programs": 4,
+      "geometries": 300,
+      "textures": 147
+     }
+    },
+    "surfaceOnly": {
+     "wallMs": {
+      "n": 120,
+      "median": 5,
+      "p95": 5.299999997019768,
+      "max": 5.699999995529652,
+      "mean": 4.990833333383004
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 2.285083,
+      "p95": 2.368499,
+      "max": 2.834291,
+      "mean": 2.2886762166666657
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 238,
+      "triangles": 1188019,
+      "programs": 4,
+      "geometries": 300,
+      "textures": 147
+     }
+    },
+    "skirtsRepeat": {
+     "wallMs": {
+      "n": 120,
+      "median": 5.100000001490116,
+      "p95": 5.399999998509884,
+      "max": 5.5,
+      "mean": 5.053333333383004
+     },
+     "gpuMs": {
+      "n": 120,
+      "median": 2.375708,
+      "p95": 2.4535,
+      "max": 2.566541,
+      "mean": 2.381502966666668
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 238,
+      "triangles": 1257407,
+      "programs": 4,
+      "geometries": 300,
+      "textures": 147
+     }
+    },
+    "geometryMB": 64.939152,
+    "errors": []
+   }
+  ]
+ }
+}

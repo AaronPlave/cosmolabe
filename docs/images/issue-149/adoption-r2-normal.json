@@ -1,0 +1,2981 @@
+{
+ "generator": "scripts/capture-cube-imagery.mjs",
+ "created": "2026-10-16T01:04:58.848Z",
+ "viewport": {
+  "width": 1280,
+  "height": 800
+ },
+ "cubeTileset": "moon-terrain-cube/tileset.json",
+ "label": "r2",
+ "poses": {
+  "frame": "IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)",
+  "views": {
+   "shackleton": {
+    "eye": [
+     -18.105506477265028,
+     21.746334717688182,
+     -1743.1703438165612
+    ],
+    "target": [
+     -6.393456931874776,
+     7.679114341167814,
+     -1734.8712243020793
+    ],
+    "fov": 60
+   },
+   "pole": {
+    "eye": [
+     7.850375853599291,
+     -9.355713626741792,
+     -1749.3573683560176
+    ],
+    "target": [
+     1.0638506744193058e-13,
+     0,
+     -1737.4
+    ],
+    "fov": 60
+   },
+   "antimeridian-60s": {
+    "eye": [
+     -904.682018981909,
+     12.632564870383355,
+     -1529.8828787968093
+    ],
+    "target": [
+     -868.7000000000003,
+     1.0638506744193061e-13,
+     -1504.6325365350838
+    ],
+    "fov": 60
+   },
+   "face-edge": {
+    "eye": [
+     1269.779955654124,
+     -17.7306250421164,
+     -1243.5816214284555
+    ],
+    "target": [
+     1228.5273216335079,
+     0,
+     -1228.5273216335077
+    ],
+    "fov": 60
+   },
+   "face-corner": {
+    "eye": [
+     1035.155626664929,
+     1057.0661225120136,
+     -1020.6423473584441
+    ],
+    "target": [
+     1003.088357724157,
+     1003.0883577241569,
+     -1003.0883576218536
+    ],
+    "fov": 60
+   },
+   "overview": {
+    "eye": [
+     1358.630504784723,
+     2353.21706300009,
+     -3880.6508946146696
+    ],
+    "target": [
+     297.1128985070086,
+     514.614635798194,
+     -1632.6219593534372
+    ],
+    "fov": 50
+   },
+   "nac-footprint": {
+    "eye": [
+     356.93098808567845,
+     129.91225535041144,
+     -2154.1684789389037
+    ],
+    "target": [
+     1.0638506744193058e-13,
+     0,
+     -1737.4
+    ],
+    "fov": 50
+   }
+  }
+ },
+ "browser": {
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+  "devicePixelRatio": 1,
+  "crossOriginIsolated": false,
+  "shadowMap": true,
+  "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "hardwareConcurrency": 16,
+  "launch": "playwright chromium headless, --use-angle=metal --ignore-gpu-blocklist --enable-gpu (hardware GPU); ?test=1 (no antialias/bloom/stars)"
+ },
+ "host": {
+  "platform": "darwin 25.6.0",
+  "cpus": 16,
+  "cpuModel": "Apple M4 Max",
+  "memoryGB": 48
+ },
+ "results": {
+  "adoption": [
+   {
+    "scenario": "normal",
+    "hosted": {
+     "baseUrl": "https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev",
+     "terrainBuild": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+     "imageryBuild": "cube-imagery-nac-6db766f8beebcace"
+    },
+    "stops": [
+     {
+      "name": "overview (cold)",
+      "settleMs": 6615,
+      "finished": true,
+      "geometryLevels": {
+       "0": 3,
+       "1": 12
+      },
+      "visibleTiles": 15,
+      "glbRequests": 26,
+      "glbBytes": 0,
+      "imageryRequests": 18,
+      "imageryBytes": 0,
+      "imagery": {
+       "version": "cube-imagery-nac-6db766f8beebcace",
+       "ready": true,
+       "textures": 14,
+       "pinnedTextures": 10,
+       "textureBytes": 5203968,
+       "maxTextureBytes": 167772160,
+       "requests": 18,
+       "bytes": 23931,
+       "failures": 0,
+       "aborted": 4,
+       "evicted": 0,
+       "blockBuildMs": 82.5,
+       "inFlight": 0,
+       "failedTiles": 0,
+       "blockGeometryBytes": 1277232,
+       "tiles": 15,
+       "splitTiles": 4,
+       "blocks": 27,
+       "displayedLevels": {
+        "0": 11,
+        "1": 12,
+        "2": 4
+       },
+       "wantedLevels": {
+        "0": 11,
+        "1": 12,
+        "2": 4
+       },
+       "fallbackBlocks": 0,
+       "failedBlocks": 0,
+       "untexturedBlocks": 0,
+       "maxDisplayedLevel": 2,
+       "queued": 0,
+       "budgetLimited": false,
+       "extraDraws": 12,
+       "updateMs": 0.09999999403953552
+      },
+      "tiles": {
+       "active": 15,
+       "visible": 15,
+       "drawn": 15,
+       "inCache": 26,
+       "cpu": 135
+      },
+      "memory": {
+       "cacheBytes": 4156464,
+       "maxCacheBytes": 536870912,
+       "geometryBytes": 6833016,
+       "textureBytes": 0
+      },
+      "holes": {
+       "holePixels": 0,
+       "holeComponents": 0,
+       "terrainPixels": 343079
+      },
+      "skirtCoverPixels": 5,
+      "untextured": {
+       "tiles": 15,
+       "without": 0
+      },
+      "picks": {
+       "picks": 52,
+       "sufficient": 0,
+       "coarse": 52,
+       "unavailable": 0,
+       "skirt": 0,
+       "nearEdge": {
+        "n": 6,
+        "median": 0.6790685081129438,
+        "rms": 0.6245635441428384,
+        "p95": 0.952524018764608,
+        "max": 0.952524018764608
+       },
+       "interior": {
+        "n": 46,
+        "median": 0.27438382883305806,
+        "rms": 0.7047329386355365,
+        "p95": 1.198159967876906,
+        "max": 2.418416661637461
+       },
+       "clearanceMarginKm": {
+        "n": 52,
+        "median": 0.04939486545845284,
+        "rms": 0.056327976260515826,
+        "p95": 0.05141055511876402,
+        "max": 0.2131346851761009
+       },
+       "readoutVsRenderedKm": {
+        "n": 52,
+        "median": 0.1990109969920013,
+        "rms": 0.4923090357927023,
+        "p95": 1.0223935241929212,
+        "max": 1.6791880086561832
+       },
+       "edgePoints": [
+        [
+         618.5531321416944,
+         -723.8176851981202,
+         -1451.5191014261354
+        ],
+        [
+         383.6464195350801,
+         1539.1036484760498,
+         -707.1836731565718
+        ],
+        [
+         218.52251540094312,
+         1218.5923155220228,
+         -1216.9403673276374
+        ],
+        [
+         723.604769291678,
+         387.4870798378738,
+         -1531.6728916435786
+        ],
+        [
+         -198.82195145426476,
+         560.797291282935,
+         -1632.1257096606273
+        ],
+        [
+         367.3765953566657,
+         914.0690550233205,
+         -1429.3288101087524
+        ]
+       ]
+      },
+      "coldMs": 0
+     },
+     {
+      "name": "shackleton",
+      "settleMs": 14154,
+      "finished": true,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 11,
+       "7": 15,
+       "8": 13,
+       "9": 25,
+       "10": 12
+      },
+      "visibleTiles": 110,
+      "glbRequests": 194,
+      "glbBytes": 0,
+      "imageryRequests": 150,
+      "imageryBytes": 0,
+      "imagery": {
+       "version": "cube-imagery-nac-6db766f8beebcace",
+       "ready": true,
+       "textures": 133,
+       "pinnedTextures": 10,
+       "textureBytes": 49437696,
+       "maxTextureBytes": 167772160,
+       "requests": 150,
+       "bytes": 5313553,
+       "failures": 0,
+       "aborted": 17,
+       "evicted": 0,
+       "blockBuildMs": 317.6999999433756,
+       "inFlight": 0,
+       "failedTiles": 0,
+       "blockGeometryBytes": 6119244,
+       "tiles": 45,
+       "splitTiles": 19,
+       "blocks": 108,
+       "displayedLevels": {
+        "2": 4,
+        "3": 5,
+        "4": 5,
+        "5": 1,
+        "6": 14,
+        "7": 18,
+        "8": 18,
+        "9": 25,
+        "10": 18
+       },
+       "wantedLevels": {
+        "2": 4,
+        "3": 5,
+        "5": 2,
+        "6": 18,
+        "7": 18,
+        "8": 18,
+        "9": 25,
+        "10": 18
+       },
+       "fallbackBlocks": 0,
+       "failedBlocks": 0,
+       "untexturedBlocks": 0,
+       "maxDisplayedLevel": 10,
+       "queued": 0,
+       "budgetLimited": false,
+       "extraDraws": 63,
+       "updateMs": 0.4000000059604645
+      },
+      "tiles": {
+       "active": 129,
+       "visible": 110,
+       "drawn": 45,
+       "inCache": 194,
+       "cpu": 258
+      },
+      "memory": {
+       "cacheBytes": 31013616,
+       "maxCacheBytes": 536870912,
+       "geometryBytes": 47573940,
+       "textureBytes": 0
+      },
+      "holes": {
+       "holePixels": 0,
+       "holeComponents": 0,
+       "terrainPixels": 841530
+      },
+      "skirtCoverPixels": 105,
+      "untextured": {
+       "tiles": 110,
+       "without": 0
+      },
+      "picks": {
+       "picks": 128,
+       "sufficient": 0,
+       "coarse": 128,
+       "unavailable": 0,
+       "skirt": 0,
+       "nearEdge": {
+        "n": 20,
+        "median": 1.2748888639977634,
+        "rms": 5.218732488819344,
+        "p95": 19.49597225247557,
+        "max": 19.49597225247557
+       },
+       "interior": {
+        "n": 108,
+        "median": 0.0026206294933889644,
+        "rms": 0.3726386096522203,
+        "p95": 0.048552007105035565,
+        "max": 3.6503772606869185
+       },
+       "clearanceMarginKm": {
+        "n": 128,
+        "median": 0.05058995373497055,
+        "rms": 0.05093168672376416,
+        "p95": 0.05877207005073615,
+        "max": 0.05936286528185519
+       },
+       "readoutVsRenderedKm": {
+        "n": 128,
+        "median": 0.0016500407350577007,
+        "rms": 0.17540931427962136,
+        "p95": 0.3684427593100281,
+        "max": 1.2458197218129499
+       },
+       "edgePoints": [
+        [
+         -0.7461193849135199,
+         -17.019193175390782,
+         -1737.2133771589406
+        ],
+        [
+         -15.125415237484637,
+         -2.895147441707408,
+         -1737.755427308046
+        ],
+        [
+         -16.996737319878218,
+         -4.742887388745785,
+         -1737.6975851029044
+        ],
+        [
+         -5.159894548726921,
+         -17.270545131976405,
+         -1737.5965787928562
+        ],
+        [
+         -18.908469503596173,
+         -6.630533234705705,
+         -1737.6384939982295
+        ],
+        [
+         -9.040130407512288,
+         -17.491513569747184,
+         -1737.9334588262514
+        ]
+       ]
+      }
+     },
+     {
+      "name": "near ground",
+      "settleMs": 10123,
+      "finished": true,
+      "geometryLevels": {
+       "3": 11,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 10,
+       "8": 9,
+       "9": 8,
+       "10": 12,
+       "11": 11,
+       "12": 15
+      },
+      "visibleTiles": 112,
+      "glbRequests": 279,
+      "glbBytes": 0,
+      "imageryRequests": 267,
+      "imageryBytes": 0,
+      "imagery": {
+       "version": "cube-imagery-nac-6db766f8beebcace",
+       "ready": true,
+       "textures": 240,
+       "pinnedTextures": 10,
+       "textureBytes": 89210880,
+       "maxTextureBytes": 167772160,
+       "requests": 267,
+       "bytes": 7840857,
+       "failures": 0,
+       "aborted": 27,
+       "evicted": 0,
+       "blockBuildMs": 455.29999984800816,
+       "inFlight": 0,
+       "failedTiles": 0,
+       "blockGeometryBytes": 9569580,
+       "tiles": 58,
+       "splitTiles": 30,
+       "blocks": 148,
+       "displayedLevels": {
+        "2": 3,
+        "3": 4,
+        "4": 5,
+        "6": 11,
+        "7": 23,
+        "8": 20,
+        "9": 19,
+        "10": 17,
+        "11": 14,
+        "12": 30,
+        "13": 2
+       },
+       "wantedLevels": {
+        "2": 3,
+        "3": 4,
+        "5": 1,
+        "6": 15,
+        "7": 23,
+        "8": 20,
+        "9": 19,
+        "10": 17,
+        "11": 14,
+        "12": 30,
+        "13": 2
+       },
+       "fallbackBlocks": 0,
+       "failedBlocks": 0,
+       "untexturedBlocks": 0,
+       "maxDisplayedLevel": 13,
+       "queued": 0,
+       "budgetLimited": false,
+       "extraDraws": 90,
+       "updateMs": 0.6000000089406967
+      },
+      "tiles": {
+       "active": 138,
+       "visible": 112,
+       "drawn": 58,
+       "inCache": 279,
+       "cpu": 1041
+      },
+      "memory": {
+       "cacheBytes": 44602056,
+       "maxCacheBytes": 536870912,
+       "geometryBytes": 69187416,
+       "textureBytes": 0
+      },
+      "holes": {
+       "holePixels": 0,
+       "holeComponents": 0,
+       "terrainPixels": 929480
+      },
+      "skirtCoverPixels": 69,
+      "untextured": {
+       "tiles": 112,
+       "without": 0
+      },
+      "picks": {
+       "picks": 147,
+       "sufficient": 0,
+       "coarse": 147,
+       "unavailable": 0,
+       "skirt": 0,
+       "nearEdge": {
+        "n": 20,
+        "median": 0.0003018478399817825,
+        "rms": 0.0009662919786972893,
+        "p95": 0.0023980232491884984,
+        "max": 0.0023980232491884984
+       },
+       "interior": {
+        "n": 127,
+        "median": 0.0001414399609981812,
+        "rms": 0.002091288022327268,
+        "p95": 0.0029409360079510672,
+        "max": 0.017913462708918946
+       },
+       "clearanceMarginKm": {
+        "n": 147,
+        "median": 0.05210265411301407,
+        "rms": 0.053806550977892144,
+        "p95": 0.05980405342097583,
+        "max": 0.06053407334570693
+       },
+       "readoutVsRenderedKm": {
+        "n": 147,
+        "median": 0.00004944206307300192,
+        "rms": 0.0004488518541236344,
+        "p95": 0.0009782134018223587,
+        "max": 0.001956161300313397
+       },
+       "edgePoints": [
+        [
+         -8.47391910984169,
+         10.212824396631797,
+         -1734.818379196585
+        ],
+        [
+         -6.771763860671748,
+         2.032253685892341,
+         -1736.230749781657
+        ],
+        [
+         -6.601712285950528,
+         10.159384475581637,
+         -1734.5688681995446
+        ],
+        [
+         -8.253668192794457,
+         10.168986141430656,
+         -1734.7669347489727
+        ],
+        [
+         -8.502276256529866,
+         10.176122965598971,
+         -1734.8113314726818
+        ],
+        [
+         -5.098947762750473,
+         9.908378751699672,
+         -1734.5408442744372
+        ]
+       ]
+      },
+      "clamp": [
+       {
+        "aboveReadoutKm": 0.0020000000038180588,
+        "aboveRenderedKm": 0.0017151548496356903
+       },
+       {
+        "aboveReadoutKm": 0.0019999999990432116,
+        "aboveRenderedKm": 0.002000018561040888
+       },
+       {
+        "aboveReadoutKm": 0.0020000000006348273,
+        "aboveRenderedKm": 0.0020000466036875567
+       },
+       {
+        "aboveReadoutKm": 0.0020000000054096745,
+        "aboveRenderedKm": 0.0020000922166160786
+       },
+       {
+        "aboveReadoutKm": 0.0019999999976789695,
+        "aboveRenderedKm": 0.0019999336984809594
+       },
+       {
+        "aboveReadoutKm": 0.001999999997224222,
+        "aboveRenderedKm": 0.0020001202982420775
+       }
+      ]
+     },
+     {
+      "name": "pole grazing",
+      "settleMs": 7611,
+      "finished": true,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 12,
+       "8": 12,
+       "9": 11,
+       "10": 15,
+       "11": 20
+      },
+      "visibleTiles": 116,
+      "glbRequests": 471,
+      "glbBytes": 0,
+      "imageryRequests": 503,
+      "imageryBytes": 0,
+      "imagery": {
+       "version": "cube-imagery-nac-6db766f8beebcace",
+       "ready": true,
+       "textures": 440,
+       "pinnedTextures": 10,
+       "textureBytes": 163553280,
+       "maxTextureBytes": 167772160,
+       "requests": 503,
+       "bytes": 15316237,
+       "failures": 0,
+       "aborted": 63,
+       "evicted": 0,
+       "blockBuildMs": 856.5999997854233,
+       "inFlight": 0,
+       "failedTiles": 0,
+       "blockGeometryBytes": 7336632,
+       "tiles": 50,
+       "splitTiles": 23,
+       "blocks": 119,
+       "displayedLevels": {
+        "2": 3,
+        "3": 4,
+        "5": 3,
+        "6": 13,
+        "7": 18,
+        "8": 18,
+        "9": 19,
+        "10": 17,
+        "11": 24
+       },
+       "wantedLevels": {
+        "2": 3,
+        "3": 4,
+        "5": 1,
+        "6": 15,
+        "7": 18,
+        "8": 18,
+        "9": 19,
+        "10": 17,
+        "11": 24
+       },
+       "fallbackBlocks": 0,
+       "failedBlocks": 0,
+       "untexturedBlocks": 0,
+       "maxDisplayedLevel": 11,
+       "queued": 0,
+       "budgetLimited": false,
+       "extraDraws": 69,
+       "updateMs": 0.5
+      },
+      "tiles": {
+       "active": 135,
+       "visible": 116,
+       "drawn": 50,
+       "inCache": 471,
+       "cpu": 2084
+      },
+      "memory": {
+       "cacheBytes": 75295944,
+       "maxCacheBytes": 536870912,
+       "geometryBytes": 107981796,
+       "textureBytes": 0
+      },
+      "holes": {
+       "holePixels": 0,
+       "holeComponents": 0,
+       "terrainPixels": 627723
+      },
+      "skirtCoverPixels": 40,
+      "untextured": {
+       "tiles": 116,
+       "without": 0
+      },
+      "picks": {
+       "picks": 96,
+       "sufficient": 0,
+       "coarse": 96,
+       "unavailable": 0,
+       "skirt": 0,
+       "nearEdge": {
+        "n": 12,
+        "median": 3.515772659799355e-8,
+        "rms": 0.00011818729397961285,
+        "p95": 0.0004068226925718277,
+        "max": 0.0004068226925718277
+       },
+       "interior": {
+        "n": 84,
+        "median": 4.987033345038231e-8,
+        "rms": 0.0018214658426619166,
+        "p95": 0.0036685092946754545,
+        "max": 0.00950960308433605
+       },
+       "clearanceMarginKm": {
+        "n": 96,
+        "median": 0.05070685665032215,
+        "rms": 0.05104672588652038,
+        "p95": 0.053445446341129355,
+        "max": 0.05556573175294943
+       },
+       "readoutVsRenderedKm": {
+        "n": 96,
+        "median": 8.514348337484989e-8,
+        "rms": 0.00027134162877784455,
+        "p95": 0.0005525316296370875,
+        "max": 0.0018961978069000907
+       },
+       "edgePoints": [
+        [
+         6.784972450399045,
+         -2.844057870979761,
+         -1736.94933631509
+        ],
+        [
+         6.782599880678143,
+         -3.82955951383332,
+         -1736.8687902060046
+        ],
+        [
+         6.779299140036793,
+         -4.388849513203845,
+         -1736.8223846683923
+        ],
+        [
+         2.211942677279816,
+         -1.7001354764525627,
+         -1737.7765666410082
+        ],
+        [
+         6.8011438376117646,
+         -4.746017386911533,
+         -1736.8012577297989
+        ],
+        [
+         7.3883092008825315,
+         -3.421087701914447,
+         -1736.838318897049
+        ]
+       ]
+      },
+      "clamp": [
+       {
+        "aboveReadoutKm": 0.0019999999956326064,
+        "aboveRenderedKm": 0.0020000292202016737
+       },
+       {
+        "aboveReadoutKm": 0.0020000000013169483,
+        "aboveRenderedKm": 0.002000059511556125
+       },
+       {
+        "aboveReadoutKm": 0.0019999999997253326,
+        "aboveRenderedKm": 0.002000079386056238
+       },
+       {
+        "aboveReadoutKm": 0.0020000000060917955,
+        "aboveRenderedKm": 0.0020000236001244944
+       },
+       {
+        "aboveReadoutKm": 0.0019999999997253326,
+        "aboveRenderedKm": 0.0020000553970097633
+       },
+       {
+        "aboveReadoutKm": 0.0020000000017716957,
+        "aboveRenderedKm": 0.002000064391508022
+       }
+      ]
+     },
+     {
+      "name": "face edge",
+      "settleMs": 16261,
+      "finished": true,
+      "geometryLevels": {
+       "1": 14,
+       "2": 30,
+       "3": 32,
+       "4": 26,
+       "5": 14,
+       "6": 33,
+       "7": 28
+      },
+      "visibleTiles": 177,
+      "glbRequests": 732,
+      "glbBytes": 0,
+      "imageryRequests": 559,
+      "imageryBytes": 0,
+      "imagery": {
+       "version": "cube-imagery-nac-6db766f8beebcace",
+       "ready": true,
+       "textures": 450,
+       "pinnedTextures": 10,
+       "textureBytes": 167270400,
+       "maxTextureBytes": 167772160,
+       "requests": 559,
+       "bytes": 18119122,
+       "failures": 0,
+       "aborted": 64,
+       "evicted": 45,
+       "blockBuildMs": 1024.3999998122454,
+       "inFlight": 0,
+       "failedTiles": 0,
+       "blockGeometryBytes": 0,
+       "tiles": 54,
+       "splitTiles": 0,
+       "blocks": 54,
+       "displayedLevels": {
+        "0": 18,
+        "1": 33,
+        "2": 3
+       },
+       "wantedLevels": {
+        "0": 18,
+        "1": 33,
+        "2": 3
+       },
+       "fallbackBlocks": 0,
+       "failedBlocks": 0,
+       "untexturedBlocks": 0,
+       "maxDisplayedLevel": 2,
+       "queued": 0,
+       "budgetLimited": false,
+       "extraDraws": 0,
+       "updateMs": 0.5999999940395355
+      },
+      "tiles": {
+       "active": 177,
+       "visible": 177,
+       "drawn": 54,
+       "inCache": 732,
+       "cpu": 2126
+      },
+      "memory": {
+       "cacheBytes": 117020448,
+       "maxCacheBytes": 536870912,
+       "geometryBytes": 156416688,
+       "textureBytes": 0
+      },
+      "holes": {
+       "holePixels": 0,
+       "holeComponents": 0,
+       "terrainPixels": 1024000
+      },
+      "skirtCoverPixels": 37,
+      "untextured": {
+       "tiles": 177,
+       "without": 0
+      },
+      "picks": {
+       "picks": 160,
+       "sufficient": 0,
+       "coarse": 160,
+       "unavailable": 0,
+       "skirt": 0,
+       "nearEdge": {
+        "n": 17,
+        "median": 0.0005978782549896719,
+        "rms": 0.01123447486251205,
+        "p95": 0.03351161292977887,
+        "max": 0.03351161292977887
+       },
+       "interior": {
+        "n": 143,
+        "median": 0.00085677224826463,
+        "rms": 0.024331384042659616,
+        "p95": 0.026716732448991098,
+        "max": 0.18224692472914983
+       },
+       "clearanceMarginKm": {
+        "n": 160,
+        "median": 0.05012511571658251,
+        "rms": 0.05046409939146634,
+        "p95": 0.053133999232386486,
+        "max": 0.056769786816630585
+       },
+       "readoutVsRenderedKm": {
+        "n": 160,
+        "median": 0.0006861834701794578,
+        "rms": 0.010046548773229627,
+        "p95": 0.017999017475631263,
+        "max": 0.07519886635145667
+       },
+       "edgePoints": [
+        [
+         1242.485379465098,
+         -4.373047656427055,
+         -1213.3614399161172
+        ],
+        [
+         1235.468915806473,
+         28.950810276288664,
+         -1219.9114775881735
+        ],
+        [
+         1217.4170945662977,
+         -19.342466656747924,
+         -1238.4160214280164
+        ],
+        [
+         1227.3980055022796,
+         47.903909254782945,
+         -1227.3427342440916
+        ],
+        [
+         1230.8050127952195,
+         0.015444945035035573,
+         -1225.3498840118473
+        ],
+        [
+         1198.3377790741574,
+         -12.744561176991152,
+         -1257.1600282656007
+        ]
+       ]
+      }
+     },
+     {
+      "name": "edge grazing",
+      "settleMs": 8144,
+      "finished": true,
+      "geometryLevels": {
+       "0": 2,
+       "2": 8,
+       "3": 11,
+       "4": 12,
+       "5": 26,
+       "6": 18,
+       "7": 20,
+       "8": 16
+      },
+      "visibleTiles": 113,
+      "glbRequests": 772,
+      "glbBytes": 0,
+      "imageryRequests": 559,
+      "imageryBytes": 0,
+      "imagery": {
+       "version": "cube-imagery-nac-6db766f8beebcace",
+       "ready": true,
+       "textures": 450,
+       "pinnedTextures": 10,
+       "textureBytes": 167270400,
+       "maxTextureBytes": 167772160,
+       "requests": 559,
+       "bytes": 18119122,
+       "failures": 0,
+       "aborted": 64,
+       "evicted": 45,
+       "blockBuildMs": 1024.3999998122454,
+       "inFlight": 0,
+       "failedTiles": 0,
+       "blockGeometryBytes": 0,
+       "tiles": 56,
+       "splitTiles": 0,
+       "blocks": 56,
+       "displayedLevels": {
+        "0": 48,
+        "1": 8
+       },
+       "wantedLevels": {
+        "0": 48,
+        "1": 8
+       },
+       "fallbackBlocks": 0,
+       "failedBlocks": 0,
+       "untexturedBlocks": 0,
+       "maxDisplayedLevel": 1,
+       "queued": 0,
+       "budgetLimited": false,
+       "extraDraws": 0,
+       "updateMs": 0.3999999910593033
+      },
+      "tiles": {
+       "active": 123,
+       "visible": 113,
+       "drawn": 56,
+       "inCache": 772,
+       "cpu": 2174
+      },
+      "memory": {
+       "cacheBytes": 123415008,
+       "maxCacheBytes": 536870912,
+       "geometryBytes": 164964048,
+       "textureBytes": 0
+      },
+      "holes": {
+       "holePixels": 0,
+       "holeComponents": 0,
+       "terrainPixels": 513732
+      },
+      "skirtCoverPixels": 0,
+      "untextured": {
+       "tiles": 113,
+       "without": 0
+      },
+      "picks": {
+       "picks": 80,
+       "sufficient": 0,
+       "coarse": 80,
+       "unavailable": 0,
+       "skirt": 0,
+       "nearEdge": {
+        "n": 10,
+        "median": 1.30402074232718e-7,
+        "rms": 1.249785795999844e-7,
+        "p95": 1.810029384270505e-7,
+        "max": 1.810029384270505e-7
+       },
+       "interior": {
+        "n": 70,
+        "median": 5.459140283643484e-8,
+        "rms": 1.4494880008581468e-7,
+        "p95": 3.6476337118684556e-7,
+        "max": 5.336846526164993e-7
+       },
+       "clearanceMarginKm": {
+        "n": 80,
+        "median": 0.053088009167595374,
+        "rms": 0.05274223767478824,
+        "p95": 0.05563295422621195,
+        "max": 0.05651351012761552
+       },
+       "readoutVsRenderedKm": {
+        "n": 80,
+        "median": 0.0000018899709175457247,
+        "rms": 0.0000020370190649244084,
+        "p95": 0.0000031638946893508546,
+        "max": 0.0000037205313674348872
+       },
+       "edgePoints": [
+        [
+         1223.0036232412435,
+         -7.267483437018242,
+         -1232.6004386100096
+        ],
+        [
+         1222.7882320968527,
+         -8.302237769806124,
+         -1232.4758269161416
+        ],
+        [
+         1222.8848708938651,
+         -8.477260417215454,
+         -1232.380438630488
+        ],
+        [
+         1222.9342820835968,
+         -7.82562240108676,
+         -1232.400630568989
+        ],
+        [
+         1222.7820849130173,
+         -7.646700560810944,
+         -1232.6038832998404
+        ],
+        [
+         1223.0536742556828,
+         -6.62566514300896,
+         -1232.9142388613689
+        ]
+       ]
+      },
+      "clamp": [
+       {
+        "aboveReadoutKm": 0.0019999999999527063,
+        "aboveRenderedKm": 0.0020029129295621156
+       },
+       {
+        "aboveReadoutKm": 0.0019999999999527063,
+        "aboveRenderedKm": 0.002001819377089818
+       },
+       {
+        "aboveReadoutKm": 0.0019999999999527063,
+        "aboveRenderedKm": 0.0020017735215616525
+       },
+       {
+        "aboveReadoutKm": 0.0019999999999527063,
+        "aboveRenderedKm": 0.002000448949411957
+       },
+       {
+        "aboveReadoutKm": 0.0020000000004074536,
+        "aboveRenderedKm": 0.002002166841717359
+       },
+       {
+        "aboveReadoutKm": 0.0019999999999527063,
+        "aboveRenderedKm": 0.002000971927508127
+       }
+      ]
+     },
+     {
+      "name": "face corner",
+      "settleMs": 20827,
+      "finished": true,
+      "geometryLevels": {
+       "1": 15,
+       "2": 24,
+       "3": 36,
+       "4": 34,
+       "5": 41,
+       "6": 57,
+       "7": 12
+      },
+      "visibleTiles": 219,
+      "glbRequests": 1020,
+      "glbBytes": 0,
+      "imageryRequests": 559,
+      "imageryBytes": 0,
+      "imagery": {
+       "version": "cube-imagery-nac-6db766f8beebcace",
+       "ready": true,
+       "textures": 450,
+       "pinnedTextures": 10,
+       "textureBytes": 167270400,
+       "maxTextureBytes": 167772160,
+       "requests": 559,
+       "bytes": 18119122,
+       "failures": 0,
+       "aborted": 64,
+       "evicted": 45,
+       "blockBuildMs": 1030.5999998152256,
+       "inFlight": 0,
+       "failedTiles": 0,
+       "blockGeometryBytes": 319416,
+       "tiles": 66,
+       "splitTiles": 1,
+       "blocks": 69,
+       "displayedLevels": {
+        "0": 37,
+        "1": 26,
+        "2": 5,
+        "3": 1
+       },
+       "wantedLevels": {
+        "0": 37,
+        "1": 26,
+        "2": 5,
+        "3": 1
+       },
+       "fallbackBlocks": 0,
+       "failedBlocks": 0,
+       "untexturedBlocks": 0,
+       "maxDisplayedLevel": 3,
+       "queued": 0,
+       "budgetLimited": false,
+       "extraDraws": 3,
+       "updateMs": 0.7000000029802322
+      },
+      "tiles": {
+       "active": 219,
+       "visible": 219,
+       "drawn": 66,
+       "inCache": 1020,
+       "cpu": 2174
+      },
+      "memory": {
+       "cacheBytes": 163061280,
+       "maxCacheBytes": 536870912,
+       "geometryBytes": 218277096,
+       "textureBytes": 0
+      },
+      "holes": {
+       "holePixels": 0,
+       "holeComponents": 0,
+       "terrainPixels": 1024000
+      },
+      "skirtCoverPixels": 7,
+      "untextured": {
+       "tiles": 219,
+       "without": 0
+      },
+      "picks": {
+       "picks": 160,
+       "sufficient": 0,
+       "coarse": 160,
+       "unavailable": 0,
+       "skirt": 0,
+       "nearEdge": {
+        "n": 25,
+        "median": 0.03782696890692339,
+        "rms": 0.19868653085816124,
+        "p95": 0.44066530225522477,
+        "max": 0.4937714750735569
+       },
+       "interior": {
+        "n": 135,
+        "median": 0.003817098643692217,
+        "rms": 0.17122793469557196,
+        "p95": 0.43309755091703767,
+        "max": 0.7974165543127492
+       },
+       "clearanceMarginKm": {
+        "n": 160,
+        "median": 0.05011369386875231,
+        "rms": 0.049209017511343954,
+        "p95": 0.05367904949639524,
+        "max": 0.0583964381999067
+       },
+       "readoutVsRenderedKm": {
+        "n": 160,
+        "median": 0.0034078901740031142,
+        "rms": 0.1086495031260023,
+        "p95": 0.2823482125418195,
+        "max": 0.47702121071165493
+       },
+       "edgePoints": [
+        [
+         969.898164332131,
+         1019.1093125903157,
+         -1020.171237924708
+        ],
+        [
+         1017.6277842896458,
+         973.1634035123468,
+         -1019.2170580261092
+        ],
+        [
+         1007.5750117726596,
+         991.6089742073647,
+         -1009.7846535273
+        ],
+        [
+         1012.5054052913707,
+         1020.4403521220795,
+         -975.5209445959694
+        ],
+        [
+         962.9193373555815,
+         1020.9755100160145,
+         -1023.8012561578246
+        ],
+        [
+         1041.5012390620457,
+         989.7886874894426,
+         -976.6082046545649
+        ]
+       ]
+      }
+     },
+     {
+      "name": "corner grazing",
+      "settleMs": 15259,
+      "finished": true,
+      "geometryLevels": {
+       "1": 6,
+       "2": 9,
+       "3": 6,
+       "4": 16,
+       "5": 21,
+       "6": 31,
+       "7": 40,
+       "8": 48
+      },
+      "visibleTiles": 177,
+      "glbRequests": 1112,
+      "glbBytes": 0,
+      "imageryRequests": 559,
+      "imageryBytes": 0,
+      "imagery": {
+       "version": "cube-imagery-nac-6db766f8beebcace",
+       "ready": true,
+       "textures": 450,
+       "pinnedTextures": 10,
+       "textureBytes": 167270400,
+       "maxTextureBytes": 167772160,
+       "requests": 559,
+       "bytes": 18119122,
+       "failures": 0,
+       "aborted": 64,
+       "evicted": 45,
+       "blockBuildMs": 1030.5999998152256,
+       "inFlight": 0,
+       "failedTiles": 0,
+       "blockGeometryBytes": 0,
+       "tiles": 90,
+       "splitTiles": 0,
+       "blocks": 90,
+       "displayedLevels": {
+        "0": 79,
+        "1": 11
+       },
+       "wantedLevels": {
+        "0": 79,
+        "1": 11
+       },
+       "fallbackBlocks": 0,
+       "failedBlocks": 0,
+       "untexturedBlocks": 0,
+       "maxDisplayedLevel": 1,
+       "queued": 0,
+       "budgetLimited": false,
+       "extraDraws": 0,
+       "updateMs": 0.5
+      },
+      "tiles": {
+       "active": 183,
+       "visible": 177,
+       "drawn": 90,
+       "inCache": 1112,
+       "cpu": 2174
+      },
+      "memory": {
+       "cacheBytes": 177768768,
+       "maxCacheBytes": 536870912,
+       "geometryBytes": 237616608,
+       "textureBytes": 0
+      },
+      "holes": {
+       "holePixels": 0,
+       "holeComponents": 0,
+       "terrainPixels": 501412
+      },
+      "skirtCoverPixels": 1,
+      "untextured": {
+       "tiles": 177,
+       "without": 0
+      },
+      "picks": {
+       "picks": 80,
+       "sufficient": 0,
+       "coarse": 80,
+       "unavailable": 0,
+       "skirt": 0,
+       "nearEdge": {
+        "n": 14,
+        "median": 6.322237767871873e-8,
+        "rms": 2.407700651952904e-7,
+        "p95": 6.425066930984359e-7,
+        "max": 6.425066930984359e-7
+       },
+       "interior": {
+        "n": 66,
+        "median": 6.299174352517273e-8,
+        "rms": 1.4413924010630125e-7,
+        "p95": 3.4086760467563345e-7,
+        "max": 4.1997081187063737e-7
+       },
+       "clearanceMarginKm": {
+        "n": 80,
+        "median": 0.05011608435029302,
+        "rms": 0.05027713582754133,
+        "p95": 0.05096204857613884,
+        "max": 0.05129226694589306
+       },
+       "readoutVsRenderedKm": {
+        "n": 80,
+        "median": 9.521234005660517e-7,
+        "rms": 0.000001105446009097519,
+        "p95": 0.0000018552168512542266,
+        "max": 0.000002178610657210811
+       },
+       "edgePoints": [
+        [
+         1007.8513539925142,
+         993.4383021780159,
+         -1007.854513723803
+        ],
+        [
+         1008.0382529490334,
+         992.5863877531256,
+         -1008.3028990257766
+        ],
+        [
+         1007.7169822866863,
+         992.6748752701822,
+         -1008.5056168557508
+        ],
+        [
+         1007.2100803242728,
+         1003.2272756016191,
+         -999.255419190563
+        ],
+        [
+         998.5996934545542,
+         1006.3583892097921,
+         -1004.5601601373291
+        ],
+        [
+         1008.6457864652523,
+         991.8412761754828,
+         -1008.520539790545
+        ]
+       ]
+      },
+      "clamp": [
+       {
+        "aboveReadoutKm": 0.0020000000004074536,
+        "aboveRenderedKm": 0.0020004658727495
+       },
+       {
+        "aboveReadoutKm": 0.00200000000018008,
+        "aboveRenderedKm": 0.002001250968995971
+       },
+       {
+        "aboveReadoutKm": 0.00200000000018008,
+        "aboveRenderedKm": 0.002002121689539856
+       },
+       {
+        "aboveReadoutKm": 0.0019999999999527063,
+        "aboveRenderedKm": 0.002001081187202874
+       },
+       {
+        "aboveReadoutKm": 0.0019999999999527063,
+        "aboveRenderedKm": 0.0020010084238636363
+       },
+       {
+        "aboveReadoutKm": 0.00200000000018008,
+        "aboveRenderedKm": 0.0020007558102584254
+       }
+      ]
+     },
+     {
+      "name": "instrument main pose",
+      "settleMs": 5081,
+      "finished": true,
+      "geometryLevels": {
+       "0": 1,
+       "1": 8,
+       "2": 44,
+       "3": 12,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 16
+      },
+      "visibleTiles": 117,
+      "glbRequests": 1212,
+      "glbBytes": 0,
+      "imageryRequests": 578,
+      "imageryBytes": 0,
+      "imagery": {
+       "version": "cube-imagery-nac-6db766f8beebcace",
+       "ready": true,
+       "textures": 451,
+       "pinnedTextures": 10,
+       "textureBytes": 167642112,
+       "maxTextureBytes": 167772160,
+       "requests": 578,
+       "bytes": 18810050,
+       "failures": 0,
+       "aborted": 64,
+       "evicted": 63,
+       "blockBuildMs": 1057.6999998241663,
+       "inFlight": 0,
+       "failedTiles": 0,
+       "blockGeometryBytes": 4374000,
+       "tiles": 25,
+       "splitTiles": 13,
+       "blocks": 88,
+       "displayedLevels": {
+        "1": 4,
+        "2": 4,
+        "3": 4,
+        "5": 4,
+        "6": 23,
+        "7": 22,
+        "8": 22,
+        "9": 5
+       },
+       "wantedLevels": {
+        "1": 4,
+        "2": 4,
+        "3": 4,
+        "5": 3,
+        "6": 23,
+        "7": 22,
+        "8": 23,
+        "9": 5
+       },
+       "fallbackBlocks": 0,
+       "failedBlocks": 0,
+       "untexturedBlocks": 0,
+       "maxDisplayedLevel": 9,
+       "queued": 0,
+       "budgetLimited": false,
+       "extraDraws": 63,
+       "updateMs": 0.29999999701976776
+      },
+      "tiles": {
+       "active": 117,
+       "visible": 117,
+       "drawn": 25,
+       "inCache": 1212,
+       "cpu": 2174
+      },
+      "memory": {
+       "cacheBytes": 193755168,
+       "maxCacheBytes": 536870912,
+       "geometryBytes": 263359008,
+       "textureBytes": 0
+      },
+      "holes": {
+       "holePixels": 0,
+       "holeComponents": 0,
+       "terrainPixels": 680754
+      },
+      "skirtCoverPixels": 209,
+      "untextured": {
+       "tiles": 117,
+       "without": 0
+      },
+      "picks": {
+       "picks": 110,
+       "sufficient": 0,
+       "coarse": 110,
+       "unavailable": 0,
+       "skirt": 0,
+       "nearEdge": {
+        "n": 13,
+        "median": 0.005502976333621624,
+        "rms": 0.13541927831017345,
+        "p95": 0.43443407876854173,
+        "max": 0.43443407876854173
+       },
+       "interior": {
+        "n": 97,
+        "median": 0.01425121132715448,
+        "rms": 0.5154406990973313,
+        "p95": 0.34753666928550103,
+        "max": 3.9673840809401146
+       },
+       "clearanceMarginKm": {
+        "n": 110,
+        "median": 0.05005936782708886,
+        "rms": 0.05029391569169858,
+        "p95": 0.05224637065384741,
+        "max": 0.05402167869510777
+       },
+       "readoutVsRenderedKm": {
+        "n": 110,
+        "median": 0.006247468610808937,
+        "rms": 0.02983262070882281,
+        "p95": 0.049160048343765084,
+        "max": 0.18709988934006105
+       },
+       "edgePoints": [
+        [
+         -0.12104197316855014,
+         146.99888279178904,
+         -1727.390658280339
+        ],
+        [
+         -54.21009508352574,
+         10.795804002830057,
+         -1736.551222571507
+        ],
+        [
+         -13.569334988258731,
+         29.267995651354482,
+         -1737.7222660695581
+        ],
+        [
+         1.1485628414646092,
+         332.63789510362176,
+         -1709.21459310308
+        ],
+        [
+         -27.07178567137907,
+         23.657490564504275,
+         -1737.8151448200128
+        ],
+        [
+         -6.760449542880803,
+         42.61310614580036,
+         -1736.2930203401377
+        ]
+       ]
+      }
+     },
+     {
+      "name": "overview (return)",
+      "settleMs": 4057,
+      "finished": true,
+      "geometryLevels": {
+       "0": 3,
+       "1": 12
+      },
+      "visibleTiles": 15,
+      "glbRequests": 1212,
+      "glbBytes": 0,
+      "imageryRequests": 579,
+      "imageryBytes": 0,
+      "imagery": {
+       "version": "cube-imagery-nac-6db766f8beebcace",
+       "ready": true,
+       "textures": 451,
+       "pinnedTextures": 10,
+       "textureBytes": 167642112,
+       "maxTextureBytes": 167772160,
+       "requests": 579,
+       "bytes": 18871911,
+       "failures": 0,
+       "aborted": 64,
+       "evicted": 64,
+       "blockBuildMs": 1072.3999998271465,
+       "inFlight": 0,
+       "failedTiles": 0,
+       "blockGeometryBytes": 1277232,
+       "tiles": 15,
+       "splitTiles": 4,
+       "blocks": 27,
+       "displayedLevels": {
+        "0": 11,
+        "1": 12,
+        "2": 4
+       },
+       "wantedLevels": {
+        "0": 11,
+        "1": 12,
+        "2": 4
+       },
+       "fallbackBlocks": 0,
+       "failedBlocks": 0,
+       "untexturedBlocks": 0,
+       "maxDisplayedLevel": 2,
+       "queued": 0,
+       "budgetLimited": false,
+       "extraDraws": 12,
+       "updateMs": 0.20000000298023224
+      },
+      "tiles": {
+       "active": 15,
+       "visible": 15,
+       "drawn": 15,
+       "inCache": 1212,
+       "cpu": 2174
+      },
+      "memory": {
+       "cacheBytes": 193755168,
+       "maxCacheBytes": 536870912,
+       "geometryBytes": 260262240,
+       "textureBytes": 0
+      },
+      "holes": {
+       "holePixels": 0,
+       "holeComponents": 0,
+       "terrainPixels": 343079
+      },
+      "skirtCoverPixels": 5,
+      "untextured": {
+       "tiles": 15,
+       "without": 0
+      },
+      "picks": {
+       "picks": 52,
+       "sufficient": 0,
+       "coarse": 52,
+       "unavailable": 0,
+       "skirt": 0,
+       "nearEdge": {
+        "n": 7,
+        "median": 0.6790685081129438,
+        "rms": 0.6557446141247162,
+        "p95": 0.952524018764608,
+        "max": 0.952524018764608
+       },
+       "interior": {
+        "n": 45,
+        "median": 0.2499104042441166,
+        "rms": 0.7029539330013241,
+        "p95": 1.198159967876906,
+        "max": 2.418416661637461
+       },
+       "clearanceMarginKm": {
+        "n": 52,
+        "median": 0.04942692569238716,
+        "rms": 0.04913909562275058,
+        "p95": 0.05141055511876402,
+        "max": 0.052247279588982565
+       },
+       "readoutVsRenderedKm": {
+        "n": 52,
+        "median": 0.18034966279310538,
+        "rms": 0.4919497534068987,
+        "p95": 1.0223935241929212,
+        "max": 1.6791880086561832
+       },
+       "edgePoints": [
+        [
+         383.6464195350801,
+         1539.1036484760498,
+         -707.1836731565718
+        ],
+        [
+         218.52251540094312,
+         1218.5923155220228,
+         -1216.9403673276374
+        ],
+        [
+         152.16081433172008,
+         -54.49940763515133,
+         -1728.82430543293
+        ],
+        [
+         618.5743829904019,
+         -723.7293301121267,
+         -1451.588852392907
+        ],
+        [
+         723.604769291678,
+         387.4870798378738,
+         -1531.6728916435786
+        ],
+        [
+         -198.82195145426476,
+         560.797291282935,
+         -1632.1257096606273
+        ]
+       ]
+      }
+     }
+    ],
+    "flight": [
+     {
+      "phase": "orbit → Shackleton",
+      "i": 1,
+      "visibleTiles": 15,
+      "geometryLevels": {
+       "0": 3,
+       "1": 12
+      },
+      "loading": 11,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 2
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 2,
+      "visibleTiles": 15,
+      "geometryLevels": {
+       "0": 3,
+       "1": 12
+      },
+      "loading": 48,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 2
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 3,
+      "visibleTiles": 15,
+      "geometryLevels": {
+       "0": 3,
+       "1": 12
+      },
+      "loading": 54,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 4
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 4,
+      "visibleTiles": 24,
+      "geometryLevels": {
+       "0": 2,
+       "1": 14,
+       "2": 8
+      },
+      "loading": 73,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 4
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 5,
+      "visibleTiles": 24,
+      "geometryLevels": {
+       "0": 2,
+       "1": 14,
+       "2": 8
+      },
+      "loading": 78,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 6
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 6,
+      "visibleTiles": 24,
+      "geometryLevels": {
+       "0": 2,
+       "1": 14,
+       "2": 8
+      },
+      "loading": 85,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 7,
+      "visibleTiles": 30,
+      "geometryLevels": {
+       "0": 2,
+       "1": 14,
+       "2": 6,
+       "3": 8
+      },
+      "loading": 96,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 8,
+      "visibleTiles": 30,
+      "geometryLevels": {
+       "0": 2,
+       "1": 14,
+       "2": 6,
+       "3": 8
+      },
+      "loading": 105,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 9,
+      "visibleTiles": 30,
+      "geometryLevels": {
+       "0": 2,
+       "1": 14,
+       "2": 6,
+       "3": 8
+      },
+      "loading": 106,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 10,
+      "visibleTiles": 12,
+      "geometryLevels": {
+       "1": 2,
+       "2": 2,
+       "3": 8
+      },
+      "loading": 44,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 11,
+      "visibleTiles": 11,
+      "geometryLevels": {
+       "1": 2,
+       "2": 1,
+       "3": 8
+      },
+      "loading": 61,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 12,
+      "visibleTiles": 13,
+      "geometryLevels": {
+       "1": 2,
+       "3": 7,
+       "4": 4
+      },
+      "loading": 61,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 13,
+      "visibleTiles": 13,
+      "geometryLevels": {
+       "1": 1,
+       "2": 1,
+       "3": 7,
+       "4": 4
+      },
+      "loading": 88,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 14,
+      "visibleTiles": 16,
+      "geometryLevels": {
+       "1": 1,
+       "2": 1,
+       "3": 7,
+       "4": 3,
+       "5": 4
+      },
+      "loading": 104,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 15,
+      "visibleTiles": 19,
+      "geometryLevels": {
+       "1": 1,
+       "2": 1,
+       "3": 7,
+       "4": 3,
+       "5": 3,
+       "6": 4
+      },
+      "loading": 116,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "orbit → Shackleton",
+      "i": 16,
+      "visibleTiles": 19,
+      "geometryLevels": {
+       "1": 1,
+       "2": 1,
+       "3": 7,
+       "4": 3,
+       "5": 3,
+       "6": 4
+      },
+      "loading": 110,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "Shackleton → near ground",
+      "i": 1,
+      "visibleTiles": 95,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 11,
+       "7": 16,
+       "8": 12,
+       "9": 14,
+       "10": 8
+      },
+      "loading": 24,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "Shackleton → near ground",
+      "i": 2,
+      "visibleTiles": 86,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 13,
+       "8": 8,
+       "9": 15,
+       "10": 4
+      },
+      "loading": 65,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "Shackleton → near ground",
+      "i": 3,
+      "visibleTiles": 83,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 13,
+       "8": 8,
+       "9": 16
+      },
+      "loading": 56,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "Shackleton → near ground",
+      "i": 4,
+      "visibleTiles": 77,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 14,
+       "8": 5,
+       "9": 12
+      },
+      "loading": 55,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "Shackleton → near ground",
+      "i": 5,
+      "visibleTiles": 77,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 14,
+       "8": 5,
+       "9": 12
+      },
+      "loading": 42,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "Shackleton → near ground",
+      "i": 6,
+      "visibleTiles": 77,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 14,
+       "8": 5,
+       "9": 12
+      },
+      "loading": 45,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "to pole",
+      "i": 1,
+      "visibleTiles": 86,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 12,
+       "8": 13,
+       "9": 11,
+       "10": 4
+      },
+      "loading": 60,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 7
+     },
+     {
+      "phase": "to pole",
+      "i": 2,
+      "visibleTiles": 80,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 11,
+       "8": 19,
+       "9": 4
+      },
+      "loading": 52,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "to pole",
+      "i": 3,
+      "visibleTiles": 80,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 12,
+       "8": 14,
+       "9": 8
+      },
+      "loading": 38,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "to pole",
+      "i": 4,
+      "visibleTiles": 80,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 12,
+       "8": 14,
+       "9": 8
+      },
+      "loading": 23,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "to pole",
+      "i": 5,
+      "visibleTiles": 80,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 12,
+       "8": 14,
+       "9": 8
+      },
+      "loading": 24,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "to pole",
+      "i": 6,
+      "visibleTiles": 80,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 12,
+       "8": 14,
+       "9": 8
+      },
+      "loading": 17,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "pole crossing",
+      "i": 1,
+      "visibleTiles": 83,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 12,
+       "8": 13,
+       "9": 12
+      },
+      "loading": 23,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "pole crossing",
+      "i": 2,
+      "visibleTiles": 82,
+      "geometryLevels": {
+       "3": 9,
+       "4": 12,
+       "5": 12,
+       "6": 12,
+       "7": 11,
+       "8": 18,
+       "9": 8
+      },
+      "loading": 27,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "pole crossing",
+      "i": 3,
+      "visibleTiles": 82,
+      "geometryLevels": {
+       "3": 9,
+       "4": 12,
+       "5": 13,
+       "6": 9,
+       "7": 7,
+       "8": 16,
+       "9": 16
+      },
+      "loading": 27,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "pole crossing",
+      "i": 4,
+      "visibleTiles": 76,
+      "geometryLevels": {
+       "3": 9,
+       "4": 12,
+       "5": 13,
+       "6": 10,
+       "7": 4,
+       "8": 12,
+       "9": 16
+      },
+      "loading": 28,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "pole crossing",
+      "i": 5,
+      "visibleTiles": 86,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 13,
+       "6": 9,
+       "7": 8,
+       "8": 11,
+       "9": 19,
+       "10": 4
+      },
+      "loading": 20,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "pole crossing",
+      "i": 6,
+      "visibleTiles": 98,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 13,
+       "6": 9,
+       "7": 6,
+       "8": 18,
+       "9": 22,
+       "10": 8
+      },
+      "loading": 14,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "pole crossing",
+      "i": 7,
+      "visibleTiles": 95,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 13,
+       "6": 8,
+       "7": 11,
+       "8": 16,
+       "9": 13,
+       "10": 12
+      },
+      "loading": 15,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "pole crossing",
+      "i": 8,
+      "visibleTiles": 98,
+      "geometryLevels": {
+       "3": 10,
+       "4": 12,
+       "5": 13,
+       "6": 8,
+       "7": 10,
+       "8": 20,
+       "9": 13,
+       "10": 12
+      },
+      "loading": 12,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "pole crossing",
+      "i": 9,
+      "visibleTiles": 100,
+      "geometryLevels": {
+       "3": 9,
+       "4": 12,
+       "5": 13,
+       "6": 8,
+       "7": 10,
+       "8": 18,
+       "9": 22,
+       "10": 8
+      },
+      "loading": 11,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "pole crossing",
+      "i": 10,
+      "visibleTiles": 103,
+      "geometryLevels": {
+       "3": 9,
+       "4": 12,
+       "5": 13,
+       "6": 8,
+       "7": 10,
+       "8": 18,
+       "9": 21,
+       "10": 12
+      },
+      "loading": 7,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 8
+     },
+     {
+      "phase": "to px/nz edge",
+      "i": 1,
+      "visibleTiles": 23,
+      "geometryLevels": {
+       "1": 2,
+       "2": 4,
+       "3": 6,
+       "4": 7,
+       "5": 4
+      },
+      "loading": 20,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/nz edge",
+      "i": 2,
+      "visibleTiles": 20,
+      "geometryLevels": {
+       "0": 1,
+       "1": 2,
+       "2": 6,
+       "3": 7,
+       "4": 4
+      },
+      "loading": 19,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/nz edge",
+      "i": 3,
+      "visibleTiles": 11,
+      "geometryLevels": {
+       "0": 2,
+       "1": 2,
+       "2": 3,
+       "3": 4
+      },
+      "loading": 19,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 1
+     },
+     {
+      "phase": "to px/nz edge",
+      "i": 4,
+      "visibleTiles": 39,
+      "geometryLevels": {
+       "0": 2,
+       "1": 12,
+       "2": 14,
+       "3": 7,
+       "4": 4
+      },
+      "loading": 63,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 1
+     },
+     {
+      "phase": "to px/nz edge",
+      "i": 5,
+      "visibleTiles": 36,
+      "geometryLevels": {
+       "0": 2,
+       "1": 12,
+       "2": 14,
+       "3": 8
+      },
+      "loading": 81,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 1
+     },
+     {
+      "phase": "to px/nz edge",
+      "i": 6,
+      "visibleTiles": 36,
+      "geometryLevels": {
+       "0": 2,
+       "1": 12,
+       "2": 14,
+       "3": 8
+      },
+      "loading": 88,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/nz edge",
+      "i": 7,
+      "visibleTiles": 36,
+      "geometryLevels": {
+       "0": 2,
+       "1": 12,
+       "2": 14,
+       "3": 8
+      },
+      "loading": 102,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/nz edge",
+      "i": 8,
+      "visibleTiles": 36,
+      "geometryLevels": {
+       "0": 2,
+       "1": 12,
+       "2": 14,
+       "3": 8
+      },
+      "loading": 140,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/nz edge",
+      "i": 9,
+      "visibleTiles": 36,
+      "geometryLevels": {
+       "0": 2,
+       "1": 12,
+       "2": 14,
+       "3": 8
+      },
+      "loading": 172,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/nz edge",
+      "i": 10,
+      "visibleTiles": 39,
+      "geometryLevels": {
+       "0": 2,
+       "1": 12,
+       "2": 13,
+       "3": 12
+      },
+      "loading": 171,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/py/nz corner",
+      "i": 1,
+      "visibleTiles": 108,
+      "geometryLevels": {
+       "1": 14,
+       "2": 32,
+       "3": 26,
+       "4": 20,
+       "5": 16
+      },
+      "loading": 23,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/py/nz corner",
+      "i": 2,
+      "visibleTiles": 81,
+      "geometryLevels": {
+       "1": 16,
+       "2": 25,
+       "3": 24,
+       "4": 16
+      },
+      "loading": 47,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/py/nz corner",
+      "i": 3,
+      "visibleTiles": 69,
+      "geometryLevels": {
+       "1": 16,
+       "2": 27,
+       "3": 18,
+       "4": 8
+      },
+      "loading": 94,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/py/nz corner",
+      "i": 4,
+      "visibleTiles": 69,
+      "geometryLevels": {
+       "1": 17,
+       "2": 23,
+       "3": 17,
+       "4": 12
+      },
+      "loading": 144,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/py/nz corner",
+      "i": 5,
+      "visibleTiles": 63,
+      "geometryLevels": {
+       "1": 17,
+       "2": 23,
+       "3": 19,
+       "4": 4
+      },
+      "loading": 197,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     },
+     {
+      "phase": "to px/py/nz corner",
+      "i": 6,
+      "visibleTiles": 63,
+      "geometryLevels": {
+       "1": 17,
+       "2": 23,
+       "3": 19,
+       "4": 4
+      },
+      "loading": 193,
+      "holePixels": 0,
+      "untexturedBlocks": 0,
+      "imageryInFlight": 0
+     }
+    ],
+    "instrument": {
+     "mode": "imagery-unlit",
+     "switches": [
+      {
+       "k": 0,
+       "settled": true,
+       "active": "Orbiter",
+       "untextured": {
+        "tiles": 117,
+        "without": 0
+       },
+       "tiles": {
+        "active": 117,
+        "visible": 117,
+        "drawn": 117,
+        "inCache": 1212,
+        "cpu": 2174
+       }
+      },
+      {
+       "k": 1,
+       "settled": true,
+       "active": "Orbiter",
+       "untextured": {
+        "tiles": 117,
+        "without": 0
+       },
+       "tiles": {
+        "active": 117,
+        "visible": 117,
+        "drawn": 117,
+        "inCache": 1212,
+        "cpu": 2174
+       }
+      },
+      {
+       "k": 2,
+       "settled": true,
+       "active": "Orbiter",
+       "untextured": {
+        "tiles": 117,
+        "without": 0
+       },
+       "tiles": {
+        "active": 117,
+        "visible": 117,
+        "drawn": 117,
+        "inCache": 1212,
+        "cpu": 2174
+       }
+      }
+     ],
+     "shotOn": "adoption-normal-instrument-cull-on.jpg",
+     "shotOff": "adoption-normal-instrument-cull-off.jpg",
+     "cullOnOff": {
+      "differingPixels": 3801,
+      "meanAbsDiff": 0.087
+     }
+    },
+    "memory": [
+     {
+      "cacheMB": 193.8,
+      "geometryMB": 260.3,
+      "textureMB": 167.6,
+      "heapMB": 703,
+      "geometries": 762,
+      "textures": 458,
+      "cpuGrids": {
+       "residentTiles": 126,
+       "detailTiles": 2048,
+       "requests": 2998,
+       "bytes": 50666200,
+       "failed": 0,
+       "inFlight": 0,
+       "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "cpuMeshes": 439
+     },
+     {
+      "cacheMB": 193.8,
+      "geometryMB": 260.3,
+      "textureMB": 167.6,
+      "heapMB": 703,
+      "geometries": 762,
+      "textures": 458,
+      "cpuGrids": {
+       "residentTiles": 126,
+       "detailTiles": 2048,
+       "requests": 2998,
+       "bytes": 50666200,
+       "failed": 0,
+       "inFlight": 0,
+       "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "cpuMeshes": 439
+     },
+     {
+      "cacheMB": 193.8,
+      "geometryMB": 260.3,
+      "textureMB": 167.6,
+      "heapMB": 703,
+      "geometries": 762,
+      "textures": 458,
+      "cpuGrids": {
+       "residentTiles": 126,
+       "detailTiles": 2048,
+       "requests": 2998,
+       "bytes": 50666200,
+       "failed": 0,
+       "inFlight": 0,
+       "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "cpuMeshes": 439
+     },
+     {
+      "cacheMB": 193.8,
+      "geometryMB": 260.3,
+      "textureMB": 167.6,
+      "heapMB": 703,
+      "geometries": 762,
+      "textures": 458,
+      "cpuGrids": {
+       "residentTiles": 126,
+       "detailTiles": 2048,
+       "requests": 2998,
+       "bytes": 50666200,
+       "failed": 0,
+       "inFlight": 0,
+       "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "cpuMeshes": 439
+     },
+     {
+      "cacheMB": 193.8,
+      "geometryMB": 260.3,
+      "textureMB": 167.6,
+      "heapMB": 703,
+      "geometries": 762,
+      "textures": 458,
+      "cpuGrids": {
+       "residentTiles": 126,
+       "detailTiles": 2048,
+       "requests": 2998,
+       "bytes": 50666200,
+       "failed": 0,
+       "inFlight": 0,
+       "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "cpuMeshes": 439
+     },
+     {
+      "cacheMB": 193.8,
+      "geometryMB": 260.3,
+      "textureMB": 167.6,
+      "heapMB": 703,
+      "geometries": 762,
+      "textures": 458,
+      "cpuGrids": {
+       "residentTiles": 126,
+       "detailTiles": 2048,
+       "requests": 2998,
+       "bytes": 50666200,
+       "failed": 0,
+       "inFlight": 0,
+       "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "cpuMeshes": 439
+     },
+     {
+      "cacheMB": 193.8,
+      "geometryMB": 260.3,
+      "textureMB": 167.6,
+      "heapMB": 703,
+      "geometries": 762,
+      "textures": 458,
+      "cpuGrids": {
+       "residentTiles": 126,
+       "detailTiles": 2048,
+       "requests": 2998,
+       "bytes": 50666200,
+       "failed": 0,
+       "inFlight": 0,
+       "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "cpuMeshes": 439
+     },
+     {
+      "cacheMB": 193.8,
+      "geometryMB": 260.3,
+      "textureMB": 167.6,
+      "heapMB": 703,
+      "geometries": 762,
+      "textures": 458,
+      "cpuGrids": {
+       "residentTiles": 126,
+       "detailTiles": 2048,
+       "requests": 2998,
+       "bytes": 50666200,
+       "failed": 0,
+       "inFlight": 0,
+       "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "cpuMeshes": 439
+     },
+     {
+      "cacheMB": 193.8,
+      "geometryMB": 260.3,
+      "textureMB": 167.6,
+      "heapMB": 703,
+      "geometries": 762,
+      "textures": 458,
+      "cpuGrids": {
+       "residentTiles": 126,
+       "detailTiles": 2048,
+       "requests": 2998,
+       "bytes": 50666200,
+       "failed": 0,
+       "inFlight": 0,
+       "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "cpuMeshes": 439
+     },
+     {
+      "cacheMB": 193.8,
+      "geometryMB": 260.3,
+      "textureMB": 167.6,
+      "heapMB": 703,
+      "geometries": 762,
+      "textures": 458,
+      "cpuGrids": {
+       "residentTiles": 126,
+       "detailTiles": 2048,
+       "requests": 2998,
+       "bytes": 50666200,
+       "failed": 0,
+       "inFlight": 0,
+       "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "cpuMeshes": 439
+     }
+    ],
+    "requests": {
+     "json": {
+      "requests": 4,
+      "bytes": 3063,
+      "maxMs": 976,
+      "origin": "http://localhost:5173"
+     },
+     "imagery": {
+      "requests": 579,
+      "bytes": 0,
+      "maxMs": 2451,
+      "origin": "https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev"
+     },
+     "grid": {
+      "requests": 2998,
+      "bytes": 0,
+      "maxMs": 2709,
+      "origin": "https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev"
+     },
+     "glb": {
+      "requests": 1212,
+      "bytes": 0,
+      "maxMs": 5793,
+      "origin": "https://pub-45f254f8b4eb457cbb976eef69d77878.r2.dev"
+     }
+    },
+    "counts": {
+     "injectedFailures": 0,
+     "injectedDelays": 0,
+     "cancelled": {
+      "imagery": 64
+     },
+     "failed": {}
+    },
+    "final": {
+     "network": {
+      "requests": 1212,
+      "queued": 0,
+      "downloading": 0,
+      "parsing": 0,
+      "failed": 0
+     },
+     "imagery": {
+      "version": "cube-imagery-nac-6db766f8beebcace",
+      "ready": true,
+      "textures": 451,
+      "pinnedTextures": 10,
+      "textureBytes": 167642112,
+      "maxTextureBytes": 167772160,
+      "requests": 579,
+      "bytes": 18871911,
+      "failures": 0,
+      "aborted": 64,
+      "evicted": 64,
+      "blockBuildMs": 1072.3999998271465,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 1277232,
+      "tiles": 15,
+      "splitTiles": 4,
+      "blocks": 27,
+      "displayedLevels": {
+       "0": 11,
+       "1": 12,
+       "2": 4
+      },
+      "wantedLevels": {
+       "0": 11,
+       "1": 12,
+       "2": 4
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "maxDisplayedLevel": 2,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 12,
+      "updateMs": 0.10000000894069672
+     },
+     "grids": {
+      "residentTiles": 126,
+      "detailTiles": 2048,
+      "requests": 2998,
+      "bytes": 50666200,
+      "failed": 0,
+      "inFlight": 0,
+      "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+     }
+    },
+    "totalMs": 410635,
+    "flightMaxHolePixels": 0,
+    "stopsNotSettled": [],
+    "errors": [
+     "HTTP 403 http://localhost:5173/@fs/Users/aplave/code/cosmolabe-dupe-1/node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2",
+     "error: Failed to load resource: the server responded with a status of 403 (Forbidden)",
+     "HTTP 403 http://localhost:5173/@fs/Users/aplave/code/cosmolabe-dupe-1/node_modules/@fontsource-variable/martian-mono/files/martian-mono-latin-wght-normal.woff2",
+     "error: Failed to load resource: the server responded with a status of 403 (Forbidden)"
+    ]
+   }
+  ],
+  "error": "page.evaluate: Execution context was destroyed, most likely because of a navigation\n    at pose (/Users/aplave/code/cosmolabe-228/scripts/capture-cube-imagery.mjs:251:41)\n    at settle (/Users/aplave/code/cosmolabe-228/scripts/capture-cube-imagery.mjs:290:11)\n    at async stop (/Users/aplave/code/cosmolabe-228/scripts/capture-cube-imagery.mjs:1707:11)\n    at async file:///Users/aplave/code/cosmolabe-228/scripts/capture-cube-imagery.mjs:1743:7"
+ }
+}

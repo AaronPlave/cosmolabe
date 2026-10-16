@@ -8,12 +8,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 import { Universe } from '../Universe.js';
 import { alignPositionToFrame, type Vec3 } from '../kinematics.js';
 import type { CatalogJson } from '../catalog/CatalogLoader.js';
 
-const KERNEL_DIR = join(__dirname, '../../../spice/test-kernels');
+const KERNEL_DIR = join(__dirname, '../../../../kernels/test-data');
 const CASSINI_DIR = join(KERNEL_DIR, 'cassini');
 
 // SOI reconstructed-attitude CK (2004 days 183–185 ≈ Jul 1–3). It's git-LFS;
@@ -87,11 +87,11 @@ const CASSINI_SOI_CATALOG: CatalogJson = {
 };
 
 describe('Cassini full-stack integration (SPICE + Catalog + Universe)', () => {
-  let spice: Spice;
+  let spice: Awaited<ReturnType<typeof createHeritageSpice>>;
   let universe: Universe;
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
 
     // Standard kernels
     await spice.furnish({ type: 'buffer', data: readFileSync(join(KERNEL_DIR, 'naif0012.tls')).buffer, filename: 'naif0012.tls' });

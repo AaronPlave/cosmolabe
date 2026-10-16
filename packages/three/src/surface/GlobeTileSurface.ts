@@ -1,4 +1,4 @@
-import { TerrainSampler, geodeticToBodyFixed, type TerrainTile } from '../TerrainSampler.js';
+import { TerrainSampler, geodeticToBodyFixed, isSupportedGeodeticDatum, type TerrainTile } from '../TerrainSampler.js';
 import { CpuMeshSurface } from './CpuMeshSurface.js';
 import { normalizedRay, type PhysicalSurface, type PhysicalSurfaceMetadata, type SurfaceIntersection, type SurfaceQueryOptions, type SurfaceRay } from './PhysicalSurface.js';
 
@@ -30,11 +30,7 @@ export class GlobeTileSurface implements PhysicalSurface {
     if (tile !== this.tile) { this.tile = tile; this.intersector = undefined; }
     if (!tile) return { kind: 'unavailable', reason: 'not-resident', metadata: this.metadata };
     const datum = this.sampler.datum;
-    // Existing converters implement spheres and geodetic oblate ellipsoids only.
-    // Do not reinterpret radial oblate/areoid/unknown metadata as geodetic height.
-    if ((datum.verticalDatum !== 'reference-sphere' && datum.verticalDatum !== 'ellipsoid')
-      || (datum.referenceShape.kind === 'ellipsoid' && (datum.heightConvention !== 'geodetic-normal'
-        || datum.referenceShape.radiiKm[0] !== datum.referenceShape.radiiKm[1]))) {
+    if (!isSupportedGeodeticDatum(datum)) {
       return { kind: 'unavailable', reason: 'unsupported-datum', metadata: this.metadata };
     }
     const vertexCount = tile.kind === 'mesh' ? tile.u.length : tile.width * tile.height;

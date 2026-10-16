@@ -37,7 +37,7 @@ import { alignPositionToFrame, frameAlignmentQuat, rotateVecByQuat } from '../ki
 import { EquatorJ2000 } from '../frames/InertialFrame.js';
 
 const KERNEL = (name: string) =>
-  fileURLToPath(new URL(`../../../spice/test-kernels/${name}`, import.meta.url));
+  fileURLToPath(new URL(`../../../../kernels/test-data/${name}`, import.meta.url));
 
 /** Machine-precision agreement, in arcseconds. Both sides compute a rotation
  *  from the same decimal constant, so anything above rounding noise means the

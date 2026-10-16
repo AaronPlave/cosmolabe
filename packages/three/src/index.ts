@@ -1,6 +1,6 @@
 // Main renderer
 export { UniverseRenderer } from './UniverseRenderer.js';
-export type { UniverseRendererOptions, SurfacePickResult } from './UniverseRenderer.js';
+export type { UniverseRendererOptions, SurfacePickResult, PhysicalPickSummary } from './UniverseRenderer.js';
 export {
   PICK_PRECEDENCE, resolveSceneHit, resolveSurfaceAltitude, coordinateDecimals, pointerResolution, formatLatitude, formatLongitude, formatHeight,
   describeDatum, describeSource, surfacePointToText,
@@ -37,11 +37,13 @@ export type {
   WorkerGeometrySearch,
 } from './SpiceCacheWorker.js';
 export { SensorFrustum } from './SensorFrustum.js';
-export type { SensorFrustumOptions } from './SensorFrustum.js';
+export type { SensorFrustumOptions, SensorFovClipper, SensorClipSummary } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';
 export type { InstrumentViewOptions, FovBoundary } from './InstrumentView.js';
 export { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 export type { InstrumentFov, InstrumentFovProvider } from './InstrumentFovProvider.js';
+export { dskShapeProviderOf, dskToBufferGeometry } from './DskShapeProvider.js';
+export type { DskShape, DskShapeProvider } from './DskShapeProvider.js';
 export { RingMesh } from './RingMesh.js';
 export { AssetLoadTracker, DEFAULT_INITIAL_ASSET_TIMEOUT_MS } from './AssetLoadTracker.js';
 export type {
@@ -72,7 +74,7 @@ export { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRela
 export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
 export { CameraController } from './controls/CameraController.js';
-export type { CameraViewpoint, FlyToOptions } from './controls/CameraController.js';
+export type { CameraFlight, CameraViewpoint, FlightPath, FlyToOptions } from './controls/CameraController.js';
 export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
 export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
 export { KeyboardControls } from './controls/KeyboardControls.js';
@@ -83,6 +85,9 @@ export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice 
 // Terrain
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
 export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming } from './TerrainManager.js';
+export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
+export type { ImageryLayerInfo, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
+export type { SurfaceTransitionState } from './BodyMesh.js';
 export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';
 export {
   summarizeDifferences, fitPlane, tileKeyId, parseTileKey, geographicTileBounds, geographicTilesCovering,
@@ -146,4 +151,23 @@ export type {
   SurfaceAccuracy, SurfaceHit, SurfaceIntersection, SurfaceQueryLoader,
 } from './surface/PhysicalSurface.js';
 export { pickPhysicalSurface, cameraPositionFromSurfacePick, surfaceRayBetween } from './surface/SurfaceConsumers.js';
+export { ReferenceEllipsoidSurface } from './surface/ReferenceEllipsoidSurface.js';
+export { ResidentTerrainSurface } from './surface/ResidentTerrainSurface.js';
+export {
+  clipFovPerimeter, resolveFovRay, fovBoundaryDirection, fovBaseParams, rectangularFov, surfaceSource,
+} from './surface/FovClipper.js';
+export type {
+  FovBoundaryShape, FovSurfaceCandidate, FovSurfaceSource, FovRayHit, FovPerimeterSample, FovClipOptions,
+} from './surface/FovClipper.js';
 export type { MapImageLayer, ObservationImageProjection, ObservationRayResolver } from './surface/SurfaceImagery.js';
+export { CubeSphereSampler, cubeFaceBasis, cubeFaceToDirection, directionToCubeFace, cubeTileAt, cubeTileId } from './surface/CubeSphere.js';
+export type { CubeFace, CubeFaceCoordinate, CubeTileAddress, CubeHeightTile } from './surface/CubeSphere.js';
+export { CubeSphereGridSource, CubeGridSurface, cubeTileMesh } from './surface/CubeSphereGrids.js';
+export type { CubeGridManifest, CubeCoverage, CubeCoverageState, CubeGridSourceOptions, CubeGridSourceStats } from './surface/CubeSphereGrids.js';
+export {
+  CubeImageryAvailability, directionToTexel, faceToTexel, imageryTextureTransform, imageryTileRect, parseImageryAddress,
+  selectImageryBlocks, texelCenterDirection, texelCenterToFace, texelGroundSizeKm, tileProjectiveBasis, validateCubeImageryManifest,
+} from './surface/CubeImagery.js';
+export type { CubeImageryManifest, ImageryAddress, ImageryBlock } from './surface/CubeImagery.js';
+export { CubeImageryLayer } from './CubeImageryLayer.js';
+export type { CubeImageryConfig, CubeImageryStats, CubeImageryDebug } from './CubeImageryLayer.js';

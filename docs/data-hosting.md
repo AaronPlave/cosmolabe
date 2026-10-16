@@ -135,6 +135,39 @@ top-level files in `apps/viewer/test-catalogs/kernels/` (leap seconds, `pck00011
 Catalogs pin the dated directory, so replacing a kernel is a new build, and a
 demo can't change behaviour underneath its users.
 
+### Cube-sphere terrain and imagery (#149)
+
+Two more directory kinds, each its own dataset and immutable prefix:
+
+- `cube-terrain/<name>/<build>/`: `tileset.json`, the `.glb` tiles it references
+  (`model/gltf-binary`), `cpu-grids.json` and its `heights/…/*.f32` grids, and
+  `terrain-product.json`. Validation refuses a build whose tileset
+  `asset.tilesetVersion`, grid `source.version` and product `source.version`
+  differ, a content URI that is absolute or missing, a grid that is missing or
+  the wrong size, or a geometry/grid tile count mismatch. `tileset.json` and
+  `cpu-grids.json` upload last, before `manifest.json`. Use the product revision
+  as the build id. The viewer also refuses grids whose revision differs from the
+  tileset's (`TerrainManager`), so geometry and CPU queries cannot mix builds.
+- `cube-imagery/<name>/<build>/`: `imagery.json` and every tile it lists, in its
+  declared encoding (`image/png`, `image/jpeg` or `image/webp`).
+
+Verification fetches both entry points and checks that they name the manifest's
+revision. It then checks a shallow, a middle and the deepest `.glb` with its CPU
+grid, or imagery tiles, for status, CORS, immutable caching, content type and
+magic bytes or size. It also checks for a plain 404.
+
+```sh
+V=$(node -p "require('./apps/viewer/test-catalogs/data/moon-terrain-cube/cpu-grids.json').source.version")
+npm run publish:data -- cube-terrain/moon-terrain-cube --build "$V" --origin https://aaronplave.com --origin http://localhost:5173
+npm run publish:data -- cube-imagery/moon-imagery-cube-nac --build cube-imagery-nac-6db766f8beebcace --origin https://aaronplave.com --origin http://localhost:5173
+# end to end through the hosted URLs, the deploy-time catalog rewrite and fault injection:
+node scripts/capture-cube-imagery.mjs --experiments adoption --gpu --throttle 40,200 --hosted-url "$DATA_BASE_URL"
+```
+
+Without credentials, `--local-dir DIR` with `--no-verify` publishes into a
+directory. `capture-cube-imagery.mjs --hosted-store DIR` then serves that
+directory from another origin with the stored headers.
+
 ### Adding a dataset
 
 Add an entry to `datasets.json` (`kind`, `name`, `localDir`, `catalogPrefix`,

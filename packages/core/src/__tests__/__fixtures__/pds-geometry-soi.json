@@ -15,7 +15,7 @@
       "COISS_2004_saturn_summary.tab": "6f30ec4078b30fee1939eff969d8b54b026b4fbe6e6617d2c5d37329feb4153e"
     },
     "spk": {
-      "path": "packages/spice/test-kernels/cassini/040909R_SCPSE_04183_04185_subset.bsp",
+      "path": "kernels/test-data/cassini/040909R_SCPSE_04183_04185_subset.bsp",
       "sha256": "250e0e45e48972522ebad3b40a856cced7a4814e937525045ac6cf15327eb4dd"
     },
     "columns": {

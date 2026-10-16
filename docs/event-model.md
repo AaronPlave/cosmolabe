@@ -381,8 +381,8 @@ search.
 That the general routines return the same windows as the simplified ones is
 checked, not assumed: `packages/cspice-wasm/src/gf-reporting.test.ts` runs both
 tiers over the same kernels and requires them to agree interval for interval, and
-`packages/frames/src/differential.test.ts` holds the reporting path against the
-legacy timecraftjs engine as well.
+`packages/frames/src/reference-regression.test.ts` checks reporting results
+against committed independent CSPICE outputs (see `docs/spice-retirement.md`).
 
 Worker kernels are the one way the two paths can diverge: the viewer furnishes
 SPK, LSK and text PCK into the worker, which is what the shipped kinds' `gfdist`

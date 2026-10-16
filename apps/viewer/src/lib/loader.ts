@@ -41,7 +41,7 @@ import {
 import {
   bindRenderer,
   unbindRenderer,
-  gotoObject,
+  selectAndFlyTo,
   syncBodies,
   setSceneLoaded,
   setKernelCount,
@@ -49,15 +49,22 @@ import {
   beginLoad,
   setPhaseProgress,
   endLoad,
-  selectBody,
   formatBytes,
 } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
-import { absolutizeCatalogAssets } from './catalog-assets';
+import { absolutizeCatalogAssets, catalogsUseDsk } from './catalog-assets';
+import { textKernelFrameNames } from './geometry-frames';
 import { stopHero, resizeHero } from './hero';
 
 // ── State ──
 let spice: HeritageSpice | null = null;
+const missionFrameNames = new Set<string>();
+export function getMissionFrameNames(): string[] { return [...missionFrameNames]; }
+function rememberKernelFrames(buffer: ArrayBuffer): void {
+  // Binary SPK/CK kernels can be hundreds of MB; never decode them as text.
+  if (new TextDecoder().decode(buffer.slice(0, 4)) !== 'KPL/') return;
+  for (const name of textKernelFrameNames(buffer)) missionFrameNames.add(name);
+}
 let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
@@ -202,7 +209,9 @@ const TEST_MODE =
 const KERNEL_EXTENSIONS = new Set([
   '.bsp', '.tls', '.tpc', '.tf', '.tsc', '.ti', '.ck', '.bc', '.bpc', '.spk', '.pck', '.fk', '.tm',
 ]);
-const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod']);
+// `.bds` is a DSK shape model. It is read for a Dsk geometry, not furnished, so
+// it travels with the models rather than the kernels.
+const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod', '.3ds', '.bds']);
 const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.tga']);
 
 // ── Fetch with progress + gzip decompression ──
@@ -411,6 +420,7 @@ function teardownScene(): void {
   universe = null;
 
   spice = null;
+  missionFrameNames.clear();
   furnished = [];
 }
 
@@ -422,7 +432,9 @@ async function furnishPlanned(
 ): Promise<void> {
   const { source } = k;
   if ('file' in source) {
-    await s.furnish({ type: 'buffer', data: await source.file.arrayBuffer(), filename: source.file.name });
+    const buffer = await source.file.arrayBuffer();
+    await s.furnish({ type: 'buffer', data: buffer, filename: source.file.name });
+    rememberKernelFrames(buffer);
     return;
   }
   if (k.size && k.size > 0) {
@@ -430,9 +442,14 @@ async function furnishPlanned(
     // which is worth it for the files big enough to be declared.
     const buffer = await fetchWithProgress(source.url, (loaded) => onProgress(loaded));
     await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
+    rememberKernelFrames(buffer);
     return;
   }
-  await s.furnish({ type: 'url', url: source.url });
+  const response = await fetch(source.url);
+  if (!response.ok) throw new Error(`Failed to fetch kernel: ${source.url} (${response.status})`);
+  const buffer = await response.arrayBuffer();
+  await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
+  rememberKernelFrames(buffer);
 }
 
 /**
@@ -701,13 +718,12 @@ function initScene(
   renderer.use(new VideoRecordPlugin());
   renderer.use(new OrbitalInfoPlugin());
 
-  // Double-click a body → fly to it + select it for the info panel.
-  // Delegated to the same mutator the `gotoObject` verb drives, so the two
-  // cannot drift: the pointer and the script reach one implementation.
+  // Double-click a body → select it for the info panel and fly there: the
+  // same "go to this body" the body browser and the palette mean, through the
+  // navigation verbs every surface shares (docs/navigation.md).
   const r = renderer;
   r.events.on('body:dblclick', ({ bodyName }) => {
-    gotoObject(bodyName, { animate: true });
-    selectBody(bodyName);
+    selectAndFlyTo(bodyName);
   });
 
   // Bind reactive state
@@ -743,7 +759,15 @@ function initScene(
       const spinBody = refBody?.rotation
         ? refBody
         : refBody?.parentName ? universe.getBody(refBody.parentName) : undefined;
-      const q = spinBody?.rotationAt(layoutEt);
+      // An attitude from a CK can have gaps (a lander between touchdowns); a
+      // viewpoint inside one falls back to the world-frame offset below rather
+      // than taking the whole scene down with the SPICE error.
+      let q: ReturnType<NonNullable<typeof spinBody>['rotationAt']> | undefined;
+      try {
+        q = spinBody?.rotationAt(layoutEt);
+      } catch (err) {
+        console.warn(`[Cosmolabe] Viewpoint "${vpDef.name}": no orientation for ${spinBody?.name} at its epoch; laying it out in the world frame`, err);
+      }
       const sourceFrame = spinBody?.rotation?.sourceFrame;
       if (q && sourceFrame) {
         const [x, y, z] = bodyFixedOffsetToWorld(
@@ -941,7 +965,8 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // Only the SPICE half is conditional: a catalog with no kernels, no kernels
     // carried over from a drop, and no instance already standing needs no SPICE
     // at all — CatalogLoader falls through to Keplerian/analytical trajectories.
-    if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice) {
+    // A DSK surface is the exception: it is read by SPICE even with no kernels.
+    if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(graph.catalogs.map((c) => c.json))) {
       await buildSceneSpice(catalogKernels);
     } else {
       teardownScene();
@@ -1068,7 +1093,9 @@ async function furnishUserKernels(files: File[]): Promise<void> {
       continue;
     }
     try {
-      await s.furnish({ type: 'buffer', data: await file.arrayBuffer(), filename: file.name });
+      const buffer = await file.arrayBuffer();
+      await s.furnish({ type: 'buffer', data: buffer, filename: file.name });
+      rememberKernelFrames(buffer);
     } catch (err) {
       console.warn(`[Cosmolabe] Failed to furnish ${file.name}:`, err);
       continue;
@@ -1177,7 +1204,7 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
     // the new scene gets. They are that scene's, not the user's, so they are
     // not remembered past it.
     const droppedKernels = kernelFiles.map((file) => ({ source: { file } }));
-    if (droppedKernels.length > 0 || userKernelSources.length > 0 || spice) {
+    if (droppedKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(catalogs)) {
       await buildSceneSpice(droppedKernels);
     } else {
       teardownScene();

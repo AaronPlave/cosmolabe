@@ -12,6 +12,7 @@ const out = new URL('../apps/viewer/test-screenshots/measurements/', import.meta
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ channel: 'chromium', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, hasTouch: true });
+page.setDefaultTimeout(20000);
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
 try {
@@ -69,63 +70,67 @@ try {
     window.sh = await import(window.measurementModules['shell.svelte.ts']);
     window.ld = await import(window.measurementModules['loader.ts']);
   });
-  await page.getByRole('button', { name: 'Measurements', exact: true }).click();
+  await page.getByRole('button', { name: 'Geometry', exact: true }).click();
   await page.getByLabel('Source entity', { exact: true }).selectOption('Earth');
   await page.getByLabel('Target entity', { exact: true }).selectOption('Moon');
   await page.getByRole('button', { name: 'Add distance', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Cancel', exact: true }).count(), 0);
   await page.evaluate(() => { window.firstId = window.m.measurements.items[0].id; window.renderer.stop(); window.__cosmolabe.capture('Lunar Orbit'); });
-  await page.getByRole('button', { name: 'Sage measurement color', exact: true }).click();
+  await page.getByRole('button', { name: 'Sage geometry color', exact: true }).click();
   assert.equal(await page.evaluate(() => window.m.measurements.items[0].color), '#9ab58d');
   await page.getByLabel('Target entity', { exact: true }).selectOption('');
   await page.getByText('Incomplete endpoints', { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.visuals.has(window.firstId); }), false);
   assert.equal(await page.evaluate(() => window.m.measurements.items[0].target), null);
   await page.getByLabel('Target entity', { exact: true }).selectOption('Moon');
-  await page.getByRole('radio', { name: 'direction', exact: true }).click();
+  await chooseType('direction');
   await page.getByRole('checkbox', { name:'Show distance', exact: true }).check();
   await page.getByLabel('Full-length connection', { exact: true }).check();
   assert(await page.evaluate(() => { const item=window.m.measurements.items[0];return item.kind==='direction'&&item.showDistance&&item.fullLength; }));
   await page.getByRole('button', { name: 'New', exact: true }).click();
   await page.getByLabel('Source entity', { exact: true }).selectOption('Sun');
-  const row = page.getByRole('button', { name: 'Select direction measurement', exact: true });
+  const row = page.getByRole('button', { name: 'Select direction geometry', exact: true });
   const beforeHeight = (await row.boundingBox()).height;
   await row.click();
   assert.equal((await row.boundingBox()).height, beforeHeight);
   assert.equal(await page.getByLabel('Source entity', { exact: true }).inputValue(), 'Earth');
-  await page.getByRole('radio', { name: 'direction', exact: true }).focus();
+  await page.getByLabel('Geometry type', { exact: true }).focus();
   await page.keyboard.press('Escape');
   assert.equal(await page.getByLabel('Source entity', { exact: true }).inputValue(), 'Sun');
   assert.equal(await page.evaluate(() => window.m.measurements.items[0].kind), 'direction');
   await row.click();
-  await page.getByRole('radio', { name: 'distance', exact: true }).click();
-  await page.getByLabel('Custom measurement color', { exact: true }).evaluate(input => { input.value = '#aabbcc'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await chooseType('distance');
+  await page.getByLabel('Custom geometry color', { exact: true }).evaluate(input => { input.value = '#aabbcc'; input.dispatchEvent(new Event('input', { bubbles: true })); });
   assert.equal(await page.evaluate(() => window.m.measurements.items[0].color), '#aabbcc');
   await page.getByRole('button', { name: 'Hide distance', exact: true }).click();
   assert.equal(await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.visuals.get(window.firstId).group.visible; }), false);
   await page.getByRole('button', { name: 'Show distance', exact: true }).click();
   await capture('editor-presets-actual.png');
-  const swatch = await page.getByLabel('Custom measurement color', { exact: true }).boundingBox();
+  const swatch = await page.getByLabel('Custom geometry color', { exact: true }).boundingBox();
   assert.equal(swatch.width,36);assert.equal(swatch.height,24);
-  const preset = await page.getByRole('button', { name: 'Sage measurement color', exact: true }).boundingBox();
+  const preset = await page.getByRole('button', { name: 'Sage geometry color', exact: true }).boundingBox();
   assert.equal(preset.width,24);assert.equal(preset.height,24);
   assert.equal(await page.getByText('Selected measurement', { exact:true }).count(), 0);
   assert.equal(await page.getByText('New measurement', { exact:true }).count(), 0);
-  assert.equal(await page.getByLabel('Custom measurement color', { exact:true }).evaluate(el=>getComputedStyle(el).padding), '0px');
+  assert.equal(await page.getByLabel('Custom geometry color', { exact:true }).evaluate(el=>getComputedStyle(el).padding), '0px');
   assert.equal(await page.getByRole('button', {name:'Pick source object',exact:true}).evaluate(el=>getComputedStyle(el).cursor),'pointer');
-  await page.getByRole('radio',{name:'distance',exact:true}).click();
-  assert.equal(await page.getByRole('radio',{name:'distance',exact:true}).getAttribute('aria-checked'),'true');
-  await page.getByRole('radio',{name:'distance',exact:true}).focus();
-  await page.keyboard.press('ArrowRight');
-  assert(await page.getByRole('radio',{name:'angle',exact:true}).evaluate(el=>el===document.activeElement));
-  await page.keyboard.press('Space');
+  await chooseType('distance');
+  const typeSelect = page.getByLabel('Geometry type', { exact: true });
+  assert.equal((await typeSelect.textContent()).trim(), 'Distance');
+  // Keyboard: open the type list, move to the next type, choose it.
+  await typeSelect.focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('option', { name: /^Distance/ }).waitFor();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await page.getByRole('listbox').waitFor({ state: 'detached' });
   assert.equal(await page.evaluate(()=>window.m.measurements.items[0].kind),'angle');
   await page.getByLabel('At entity',{exact:true}).selectOption('Sun');
-  await page.getByRole('radio',{name:'distance',exact:true}).click();
-  await page.getByRole('radio',{name:'angle',exact:true}).click();
+  await chooseType('distance');
+  await chooseType('angle');
   assert.equal(await page.getByLabel('At entity',{exact:true}).inputValue(),'Sun');
-  await page.getByRole('radio',{name:'distance',exact:true}).click();
+  await chooseType('distance');
   console.log('Immediate fields, incomplete definitions, type/options, Escape, stable rows, New and square presets passed');
 
   // Shared portal closes on action/Escape, contains one menu, and returns focus.
@@ -154,18 +159,34 @@ try {
   assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'entity');
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint), null);
   await page.getByRole('button', { name: 'Pick source surface point', exact: true }).click();
-  await page.mouse.move(earth.x + 1, earth.y); await page.waitForTimeout(180);
-  assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint?.kind), 'body-fixed');
-  assert((await page.evaluate(() => { window.renderer.renderFrame(); return window.renderer.spatialRelationships.feedback.geometry.drawRange.count; })) > 0);
+  // Orbit drags, including one returning to its starting pixel, must not
+  // commit the pending point. The next deliberate click still selects it.
+  for (const returnToStart of [false, true]) {
+    await page.mouse.move(earth.x, earth.y);
+    await page.mouse.down();
+    await page.mouse.move(earth.x + 40, earth.y + 20, { steps: 5 });
+    if (returnToStart) await page.mouse.move(earth.x, earth.y, { steps: 5 });
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => window.m.measurements.pendingPickSlot), 'source');
+    assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'entity');
+    await page.evaluate(() => window.__cosmolabe.capture('Earth Close'));
+  }
+  await page.mouse.move(earth.x + 1, earth.y);
+  await page.evaluate(() => window.renderer.renderFrame());
+  assert.equal(await page.evaluate(() => window.renderer._probe.hovered?.bodyName), 'Earth');
+  assert.equal(await page.evaluate(() => window.renderer.renderer.domElement.style.cursor), 'none');
+  assert.equal(await page.evaluate(() => window.renderer._probe.reticle.visible), true);
   const stationary = await page.evaluate(() => {
-    const r=window.renderer, layer=r.spatialRelationships;
-    const before=JSON.stringify(layer.previewEndpoint);r._lastHoverPickMs=0;
+    const r=window.renderer;
+    const before=JSON.stringify(r._probe.hovered);r._lastHoverPickMs=0;
     r.camera.position.x+=0.001;r.cameraController.controls.target.x+=0.001;r.cameraController.controls.update();r.renderFrame();
-    return {before,after:JSON.stringify(layer.previewEndpoint)};
+    return {before,after:JSON.stringify(r._probe.hovered)};
   });
   assert.notEqual(stationary.before,stationary.after);
   await capture('surface-pick-preview-actual.png');
   await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => window.renderer._probe.hovered), null);
+  assert.equal(await page.evaluate(() => window.renderer.probePin), null);
   assert.equal(await page.evaluate(() => window.renderer.spatialRelationships.previewEndpoint), null);
   await page.getByRole('button', { name: 'Pick source surface point', exact: true }).click();
   const surfaceEarth=await earthPixel();
@@ -182,9 +203,9 @@ try {
 
   // Close/minimize/reopen retain unfinished definitions and cancel active picking.
   await page.getByRole('button', { name: 'Pick target surface point', exact: true }).click();
-  await page.getByRole('button', { name: 'Close Measurements', exact: true }).click();
+  await page.getByRole('button', { name: 'Close Reference Geometry', exact: true }).click();
   assert.equal(await page.evaluate(() => window.m.measurements.pendingPickSlot), null);
-  await page.getByRole('button', { name: 'Measurements', exact: true }).click();
+  await page.getByRole('button', { name: 'Geometry', exact: true }).click();
   assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'body-fixed');
 
   // Menus at the bottom of a scrolling panel, then floating and compact layouts.
@@ -203,11 +224,11 @@ try {
   await page.getByRole('button', { name: 'Actions for distance', exact: true }).last().click();
   await checkMenu(); await capture('menu-compact-actual.png'); await page.keyboard.press('Escape');
   await page.evaluate(() => window.m.newMeasurement());
-  await page.getByRole('radio', { name: 'angle', exact: true }).click();
+  await chooseType('angle');
   await page.getByRole('button', { name: 'Pick vertex object', exact: true }).click();
   await page.getByText('Choose the angle’s center · Esc to cancel', { exact: true }).waitFor();
   await page.keyboard.press('Escape');
-  await page.getByLabel('Custom measurement color', { exact: true }).scrollIntoViewIfNeeded();
+  await page.getByLabel('Custom geometry color', { exact: true }).scrollIntoViewIfNeeded();
   await capture('presets-compact-actual.png');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.evaluate(() => window.sh.dockPanel('measure'));
@@ -278,8 +299,8 @@ try {
     return { before, after:m.measurements.items.map(i=>m.measurementValue(i,r.timeController.et)), finite:[...r.spatialRelationships.visuals.values()].every(v=>v.hitSegments.every(p=>p.toArray().every(Number.isFinite))) };
   });
   assert(playback.finite);assert.notEqual(playback.before[0],playback.after[0]);assert.notEqual(playback.before[2],playback.after[2]);
-  const openEditor=page.getByRole('button',{name:'Open in Measurements',exact:true});
-  await page.getByRole('button',{name:'Close Measurements',exact:true}).click();
+  const openEditor=page.getByRole('button',{name:'Open in Reference Geometry',exact:true});
+  await page.getByRole('button',{name:'Close Reference Geometry',exact:true}).click();
   await openEditor.click();
   assert.equal(await page.evaluate(()=>window.m.measurements.selectedId),'distance');
   await page.getByLabel('Source entity',{exact:true}).waitFor();
@@ -288,6 +309,9 @@ try {
   assert.equal(await page.evaluate(()=>window.sh.shell.panels.measure.minimized),false);
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>{window.sh.closeTool('measure');window.renderer.renderFrame();});
+  // The render loop is stopped, and the closing sheet still occludes the card for a
+  // moment; render until a frame places it, as the running loop would.
+  await page.waitForFunction(()=>{window.renderer.renderFrame();return document.querySelector('.cosmolabe-event-callout[data-measurement-id="distance"]')?.style.display==='block';});
   await openEditor.click();
   assert.equal(await page.evaluate(()=>window.sh.shell.activeSheet),'measure');
   assert.equal(await page.evaluate(()=>window.m.measurements.selectedId),'distance');
@@ -315,6 +339,13 @@ try {
   assert.deepEqual(errors, []);
   console.log('All browser measurement checks passed');
 } finally { await browser.close(); }
+
+/** Choose a geometry type from the full-width type select. */
+async function chooseType(type) {
+  await page.getByLabel('Geometry type', { exact: true }).click();
+  await page.getByRole('option', { name: new RegExp(`^${type}`, 'i') }).click();
+  await page.getByRole('listbox').waitFor({ state: 'detached' });
+}
 
 async function capture(name) {
   await page.evaluate(() => window.renderer.renderFrame());
@@ -374,7 +405,7 @@ async function checkSpacecraftPass() {
   const annotationIndex=passes.calls.findIndex(c=>c.scene==='measurements');
   assert(modelIndex>=0&&annotationIndex>modelIndex);
   await capture('cassini-compact-arrows-actual.png');
-  await page.getByRole('button',{name:'Select direction measurement',exact:true}).first().click();
+  await page.getByRole('button',{name:'Select direction geometry',exact:true}).first().click();
   await capture('cassini-selected-arrow-actual.png');
   console.log('Actual close-up spacecraft model and dedicated measurement pass order passed',JSON.stringify(passes));
 }
@@ -403,7 +434,7 @@ async function checkSharedMeasurements() {
       const file=performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname.endsWith('/view-link.ts'));
       const link=await import(file.name);return link.captureViewState().measurements;
     }),shared.measurements);
-    await restored.getByRole('button',{name:'Measurements',exact:true}).click();
+    await restored.getByRole('button',{name:'Geometry',exact:true}).click();
     await restored.getByRole('checkbox', { name:'Show distance',exact:true}).waitFor();
     assert.equal(await restored.getByRole('checkbox', { name:'Show distance',exact:true}).isChecked(),true);
     assert.equal(await restored.getByLabel('Full-length connection',{exact:true}).isChecked(),true);

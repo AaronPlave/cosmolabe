@@ -38,10 +38,10 @@ const OUT = resolve(repoRoot, 'packages/core/src/__tests__/__fixtures__/pds-geom
 const VOLUME = 'COISS_2004';
 const BASE = `https://pds-rings.seti.org/holdings/metadata/COISS_2xxx/${VOLUME}/${VOLUME}`;
 
-// Coverage of packages/spice/test-kernels/cassini/040909R_SCPSE_04183_04185_subset.bsp
+// Coverage of kernels/test-data/cassini/040909R_SCPSE_04183_04185_subset.bsp
 // (made by scripts/make-cassini-soi-recon-spk.mjs). PDS3 index times are
 // UTC day-of-year strings, so a lexical compare on the `YYYY-DDD` prefix works.
-const SPK = 'packages/spice/test-kernels/cassini/040909R_SCPSE_04183_04185_subset.bsp';
+const SPK = 'kernels/test-data/cassini/040909R_SCPSE_04183_04185_subset.bsp';
 const DAY_FIRST = '2004-183';
 const DAY_LAST = '2004-185';
 
