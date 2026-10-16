@@ -35,7 +35,7 @@ scale/offset honoured (the LOLA LDEM stores Int16 half-metres).
 Requires GDAL's Python bindings and numpy (`brew install gdal` provides both).
 Heights keep the sources' vertical datum; nothing is re-referenced here.
 """
-import argparse, gzip, json, math, multiprocessing as mp, os, struct, sys, time
+import argparse, gzip, hashlib, json, math, multiprocessing as mp, os, struct, sys, time
 import numpy as np
 from osgeo import gdal
 
@@ -1171,18 +1171,19 @@ def cube_tile_wanted(face, L, x, y):
     return False
 
 
-def bilinear_grid(g, rows, cols):
-    """Bilinear sample of a (n, n) grid at fractional row/column indices."""
+def lattice_triangle_grid(g, rows, cols):
+    """A (n, n) grid at fractional row (v) / column (u) indices, linear on the
+    lattice triangles split by the v00→v11 diagonal, as CubeSphereSampler reads it."""
     n = g.shape[0]
     r0 = np.minimum(np.floor(rows).astype(np.int64), n - 2); c0 = np.minimum(np.floor(cols).astype(np.int64), n - 2)
     fr, fc = rows - r0, cols - c0
-    return ((g[r0, c0] * (1 - fc) + g[r0, c0 + 1] * fc) * (1 - fr)
-            + (g[r0 + 1, c0] * (1 - fc) + g[r0 + 1, c0 + 1] * fc) * fr)
+    g00, g10, g01, g11 = g[r0, c0], g[r0, c0 + 1], g[r0 + 1, c0], g[r0 + 1, c0 + 1]
+    return np.where(fc >= fr, g00 + fc * (g10 - g00) + fr * (g11 - g10), g00 + fr * (g01 - g00) + fc * (g11 - g01))
 
 
 def cube_representation(face, L, x, y, heights_m, density=4):
-    """Sampled representation error of a tile's CPU grid: bilinear in face
-    (u, v), as CubeSphereSampler reads it, against the fused field at its finest
+    """Sampled representation error of a tile's CPU grid: the lattice triangles
+    in face (u, v), as CubeSphereSampler reads it, against the fused field at its finest
     source level, at `density`× the vertex density. A sampled estimate, not a bound;
     it excludes source error, which neither source states per pixel."""
     n = (GRID - 1) * density + 1
@@ -1190,7 +1191,7 @@ def cube_representation(face, L, x, y, heights_m, density=4):
     truth = field_heights(*direction_lonlat(cube_directions(face, u, v)), _T['finest_deg'])
     idx = np.arange(n) / density
     rows, cols = np.meshgrid(idx, idx, indexing='ij')
-    err = bilinear_grid(heights_m.reshape(GRID, GRID).astype(np.float64), rows, cols) - truth
+    err = lattice_triangle_grid(heights_m.reshape(GRID, GRID).astype(np.float64), rows, cols) - truth
     return float(np.abs(err).max()), float(np.sqrt((err * err).mean()))
 
 
@@ -1598,8 +1599,16 @@ def cmd_cube_tile(args):
         box = union(box, f['boundingVolume']['box'])
     # Six face roots under one content-less root that always refines.
     root = {'boundingVolume': {'box': box}, 'geometricError': 1e9, 'refine': 'REPLACE', 'children': faces}
+    fusion_hash = file_sha256(fusion_path)
+    generator_hash = file_sha256(os.path.abspath(__file__))
+    # Everything else that shapes the output: two builds share a version only if their bytes can.
+    build = {'generator': generator_hash, 'global_level': args.global_level, 'region': args.region, 'skirt_cells': args.skirt_cells,
+             'ellipsoid': args.ellipsoid, 'simplify': args.simplify}
+    build_hash = hashlib.sha256(json.dumps(build, sort_keys=True).encode()).hexdigest()
+    version = f'cube-fused-{fusion_hash[:12]}-g{args.global_level}-m{max_level}-b{build_hash[:8]}'
+    # tilesetVersion = cpu-grids.json source.version: the viewer refuses CPU grids of another revision.
     with open(os.path.join(args.out, 'tileset.json'), 'w') as f:
-        json.dump({'asset': {'version': '1.1', 'generator': 'scripts/terrain/dem.py cube-tile'},
+        json.dump({'asset': {'version': '1.1', 'tilesetVersion': version, 'generator': 'scripts/terrain/dem.py cube-tile'},
                    'geometricError': 2e9, 'root': root}, f, separators=(',', ':'))
 
     per_level = {}
@@ -1607,15 +1616,14 @@ def cmd_cube_tile(args):
         per_level[L] = per_level.get(L, 0) + 1
     glb_bytes = sum(os.path.getsize(os.path.join(args.out, f'{f}/{L}/{x}/{y}.glb')) for f, L, x, y in tiles)
     grid_bytes = sum(os.path.getsize(os.path.join(args.out, f'heights/{f}/{L}/{x}/{y}.f32')) for f, L, x, y in tiles)
-    fusion_hash = file_sha256(fusion_path)
-    version = f'cube-fused-{fusion_hash[:12]}-g{args.global_level}-m{max_level}'
     source = {
         'id': 'moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)',
         'kind': 'height-grid',
         'version': version,
         'fusion': {'sha256': fusion_hash, 'created': fusion.get('created'),
                    'base': os.path.basename(fusion['base']['path']), 'detail': os.path.basename(fusion['detail']['path'])},
-        'generator': {'script': 'scripts/terrain/dem.py cube-tile', 'sha256': file_sha256(os.path.abspath(__file__))},
+        'generator': {'script': 'scripts/terrain/dem.py cube-tile', 'sha256': generator_hash},
+        'build': {k: v for k, v in build.items() if k != 'generator'},
     }
     datum = {'referenceShape': {'kind': 'sphere', 'radiusKm': a / 1000},
              'verticalDatum': 'reference-sphere', 'heightConvention': 'radial'}
@@ -1631,7 +1639,7 @@ def cmd_cube_tile(args):
         # Every stored height, padded 1 m outward: lets a ray query find terrain it has not loaded.
         'heightRangeKm': [(min(t[1] for t in tiles.values()) - 1) / 1000, (max(t[2] for t in tiles.values()) + 1) / 1000],
         'uncertainty': {
-            'kind': 'sampled representation error: max |bilinear (u, v) CPU grid − fused field at its finest source level| '
+            'kind': 'sampled representation error: max |CPU grid on its lattice triangles (linear in (u, v)) − fused field at its finest source level| '
                     'at 4× vertex density; not a bound, and excludes source error (neither source states a per-pixel vertical uncertainty)',
             'perTile': 'tiles[i][4] (km)'},
         'maxLevel': max_level,
@@ -2059,6 +2067,7 @@ def _selftest_cube(tmp, base, fused, R):
         assert one == batch, (lon, lat, one, batch)
     ts = json.load(open(os.path.join(out, 'tileset.json')))
     grids = json.load(open(os.path.join(out, 'cpu-grids.json')))
+    assert ts['asset']['tilesetVersion'] == grids['source']['version'], 'tileset and CPU grids name one product revision'
     assert grids['datum']['referenceShape'] == {'kind': 'sphere', 'radiusKm': R / 1000} and grids['source']['version']
     lo_km, hi_km = grids['heightRangeKm']
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fetchWithRetry } from './fetchWithRetry.js';
 import { cubeTileId } from './surface/CubeSphere.js';
 import {
   CubeImageryAvailability, blockRectInTile, clipTrianglesToTileRect, imageryTextureTransform, imageryTileUri,
@@ -172,7 +173,8 @@ function injectImagery(shader: THREE.WebGLProgramParametersWithUniforms, uniform
 
 /** Fetch + off-thread decode into a mipmapped, unconverted texture whose t = 0 is the file's bottom row. */
 async function loadImageBitmapTexture(url: string, signal: AbortSignal): Promise<{ texture: THREE.Texture; bytes: number; downloadBytes: number }> {
-  const response = await fetch(url, { signal });
+  // Transient errors retry here; what still fails falls back to an ancestor and is retried later.
+  const response = await fetchWithRetry(url, { signal });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const blob = await response.blob();
   const bitmap = await createImageBitmap(blob, { imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });

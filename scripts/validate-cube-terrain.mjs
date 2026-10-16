@@ -29,7 +29,7 @@
  *     each coarser neighbour's edge line actually present across that edge
  *   - picks and clearance aimed at the worst mixed-LOD boundaries: CPU hit vs
  *     the rendered pair (fine tile beside its coarse neighbour, skirts included)
- *   - CPU bilinear samples vs the emitted triangles along the same radial ray
+ *   - CPU samples (lattice triangles, linear in (u, v)) vs the emitted triangles along the same radial ray
  *     (and, simplified, CPU lattice triangles vs the emitted ones)
  *   - control points: MoonFall's LOLA 118 m waypoint elevations vs CPU samples
  *   - picking and camera clearance through the #148 port, against brute-force
@@ -408,7 +408,7 @@ console.log('parent/child (child − parent at shared dyadic positions):');
 for (const [L, v] of Object.entries(parentChildStats)) console.log(`  L${L}: ${fmt(v)}`);
 
 // ---------------------------------------------------------------------------
-// 3. CPU bilinear samples vs the emitted triangles along the same radial ray.
+// 3. CPU samples vs the emitted triangles along the same radial ray.
 
 let seed = Number(args.seed ?? 149) >>> 0;
 const rand = () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -454,7 +454,7 @@ if (SIMPLIFIED) {
   console.log('emitted (simplified) − CPU lattice triangle (radial, m; gated against cpu-grids.json tiles[i][5]):');
   for (const [L, st] of Object.entries(cpuLatticeVsTriStats)) console.log(`  L${L}: ${fmt(st)}`);
 }
-console.log('CPU bilinear − triangle (radial, m):');
+console.log('CPU sample − triangle (radial, m):');
 for (const [L, s] of Object.entries(cpuVsTriStats)) console.log(`  L${L}: ${fmt(s)} mean=${s.meanM.toFixed(3)}`);
 
 // ---------------------------------------------------------------------------
@@ -681,7 +681,7 @@ const report = {
   simplification: SIMPLIFIED ? { renderedMesh: manifest.renderedMesh, boundarySegmentsChanged: boundaryChanged.length, tilesWithUnusedVertices: unusedVertices.length,
     emittedMinusCpuLatticeRadialM: cpuLatticeVsTriStats, samplesBeyondStatedBound: beyondStated.length, picksRadialVsEmittedM: pickRadialStats } : null,
   tilesetMeasured: { parentChildPairsChecked: measuredChecked },
-  cpuBilinearVsTriangles: { note: 'radial distance along the same geocentric ray: emitted float32 triangle − (datum + CPU bilinear height); positive = triangle above CPU sample',
+  cpuSampleVsTriangles: { note: 'radial distance along the same geocentric ray: emitted float32 triangle − (datum + CPU sample height: the lattice triangle, linear in (u, v)); positive = triangle above CPU sample',
     samplesPerTile: PER_TILE, byLevel: cpuVsTriStats },
   representationVsFusedField: product.representationErrorM,
   ownership: { shackletonBefore: before, shackletonAfter: after, cases: ownership },

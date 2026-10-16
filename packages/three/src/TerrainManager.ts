@@ -12,6 +12,7 @@ import { clampOpacity, describeImageryLayers, imageryList, layerStatus, overlaps
 import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGridSourceStats } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import type { CubeFace } from './surface/CubeSphere.js';
+import { fetchWithRetry } from './fetchWithRetry.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
 
 export interface TerrainImageryConfig {
@@ -954,6 +955,15 @@ export class TerrainManager {
     // levels. Off by default for imagery-only (see `fadeDurationMs`); set it
     // to 0 in the catalog for HiRISE-detail terrain, where the fade can jitter
     // as tiles stream in/out while the camera is moving.
+    // Every tile of a cube product exists (the publisher checks), so a network error, 5xx
+    // or 429 is transient: retry it, with no attempt limit, while the tile stays loading.
+    // Upstream counts a failed child as ready and drops its parent, which would leave a
+    // hole for the session; this way the parent stays drawn through an outage and the
+    // tile arrives when the host recovers. The renderer aborts it if it is no longer wanted.
+    if (config.cubeSphere) {
+      this.tiles.registerPlugin({ fetchData: (url: string, options: RequestInit) => fetchWithRetry(url, options, { tries: Infinity }) } as never);
+    }
+
     const fadeMs = config.fadeDurationMs ?? (this.isImageryOnly ? 0 : 300);
     if (fadeMs > 0) {
       this.tiles.registerPlugin(new TilesFadePlugin({ fadeDuration: fadeMs }));
@@ -1414,8 +1424,27 @@ export class TerrainManager {
       const surface = new CubeGridSurface(source, 'body', 'body-fixed');
       source.onChange = (id) => surface.invalidate(id);
       this.cube = { source, surface };
+      // Geometry and grids must be one product revision (the builder writes the grids'
+      // source version as the tileset's asset.tilesetVersion). Checked once the tileset
+      // arrives, so CPU queries never wait on rendering; a mismatch drops the grids.
+      this.onRootTileset((tileset) => {
+        const version = (tileset as { asset?: { tilesetVersion?: string } }).asset?.tilesetVersion;
+        if (version === undefined || version === source.manifest.source.version || this.cube?.source !== source) return;
+        this.cube = null;
+        source.dispose();
+        this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`,
+          new Error(`grid revision ${source.manifest.source.version} does not match the tileset's ${version}`));
+      });
       return source.ready;
     }).catch((err) => this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err));
+  }
+
+  /** Call `fn` with the root tileset JSON now if it has loaded, else once it does. */
+  private onRootTileset(fn: (tileset: object) => void): void {
+    const tiles = this.tiles as unknown as { rootTileset: object | null } & THREE.EventDispatcher<{ 'load-root-tileset': object }>;
+    if (tiles.rootTileset) { fn(tiles.rootTileset); return; }
+    const listener = () => { tiles.removeEventListener('load-root-tileset', listener); if (tiles.rootTileset) fn(tiles.rootTileset); };
+    tiles.addEventListener('load-root-tileset', listener);
   }
 
   bodyFixedToGeodetic(point: BodyFixedCartesian): BodyFixedPosition {

@@ -1,15 +1,28 @@
 # Cube-sphere terrain experiment (ADR)
 
-**Status:** open; experimental, not a production layout. Geometry evidence recommends *revise* (see *Layout comparison*)
+**Status:** **adopt** the gnomonic cube-sphere layout for lunar globe terrain, in the configuration under *Adoption readiness*. The first catalog migration waits on the publish approval and global imagery listed there. Earlier geometry evidence recommended *revise*; this PR resolves the items that recommendation named.
 **Issue:** #149 (remains open)
-**Recorded:** 2026-10-04 (foundation); 2026-10-13 (lunar builder and viewer demo); 2026-10-14 (independent imagery; mixed-LOD crack mitigation and the geometry-layout comparison; LOD error and mesh simplification); 2026-10-15 (frame overhead and main-view draw culling)
+**Recorded:** 2026-10-04 (foundation); 2026-10-13 (lunar builder and viewer demo); 2026-10-14 (independent imagery; mixed-LOD crack mitigation and the geometry-layout comparison; LOD error and mesh simplification); 2026-10-15 (frame overhead and main-view draw culling; adoption readiness and decision)
 
 ## Decision
 
-Keep the geographic and polar products as the production baselines. Continue a
-cube-sphere experiment using the gnomonic mapping below, but do not migrate or
-publish a global product yet. This record is not the layout decision, which
-waits for the evidence still listed as remaining at the end.
+**Adopt** the gnomonic cube-sphere layout for lunar globe terrain (2026-10-15),
+in one configuration:
+- full-lattice geometry with skirts and the main-view draw cull;
+- CPU grids from the same build revision;
+- cube-face imagery.
+
+Simplification stays opt-in and experimental. The decision rests on
+*Adoption readiness* below, which covers:
+- the correctness fixes this decision needed;
+- one representative terrain-plus-imagery experience, locally and through the
+  hosting path with injected faults;
+- delivery through the existing data host's publisher and verifier;
+- performance on the M4 Max.
+
+Migration is staged. The geographic and polar products and the external
+`moon_v14` references stay available until the first migrated catalog is
+verified on the hosted build. See *Migration plan*.
 
 Delivered so far: deterministic addressing and a renderer-independent CPU height
 payload (foundation), then a bounded lunar builder over the authoritative fused
@@ -1810,6 +1823,312 @@ Applying the cull to the polar and geographic products is a separate change
 (same code, `drawCulling: true`), deliberately not made here so the baselines
 stay as measured.
 
+## Adoption readiness (2026-10-15)
+
+Scope: close the correctness and delivery gaps for one configuration, then
+decide. This is not another optimization cycle. Hardware: Apple M4 Max with
+ANGLE Metal in headless Chrome (`--gpu`), the only hardware used. Stacked on
+#228, which needed two review fixes first (*Main-view draw culling*, section 3).
+
+### Configuration under decision
+
+| | |
+| --- | --- |
+| Geometry | Full 65² lattice, no simplification, skirts on: `dem.py cube-tile` as in `cube.sh`, build `cube-fused-79895697c6b6-g3-m12-b6747ec9d` (4,030 tiles, 720 MB with grids) |
+| Drawing | Main-view draw cull on (default for `cubeSphere`). The horizon occluder is the product's validated lower bound, or frustum-only when there is none |
+| CPU surface | Grids from the same build. The tileset's `asset.tilesetVersion` must equal the grids' `source.version`, or the grids are dropped |
+| Imagery | `CubeImageryLayer` over a cube-face pyramid (NAC south-pole build `cube-imagery-nac-6db766f8beebcace`) |
+| Hosting | `cube-terrain/<name>/<revision>/` and `cube-imagery/<name>/<revision>/` on the existing data host, pinned in `datasets.json`, rewritten into catalogs at deploy |
+
+Simplification (`--simplify`) is not part of it. Its rendered/CPU twist
+discrepancy and its 2× tile cost at the face edge and corner stay open as
+follow-ups. Neither blocks the full-lattice path.
+
+### Surfaces, defined
+
+| Consumer | Surface | Measured against the rendered triangles |
+| --- | --- | --- |
+| Rendered picking | The drawn meshes at their current LOD. A hit on a skirt is flagged `renderedSkirt` | – |
+| CPU ray queries (`physical` pick, clearance placement) | The finest resident CPU grid's lattice triangles (exact .glb triangles, float64). Always `coarse`/provisional: product coverage is declared partial | 0 m where the drawn tile is the finest; otherwise the drawn LOD's own error (≤ 0.03 km at the face edge and corner, up to 2.4 km in the orbital overview) |
+| Readouts, camera clamp, waypoints (`sampleTerrain`) | **Changed here** from bilinear to the same lattice triangles, linear in (u, v) | `validate-cube-terrain`: max 6.9 m at L3 (chord sag, triangles below the sample), 0.009 m at L8, 0.000 m at L12. Bilinear was 575 / 5.9 / 0.40 m |
+| Horizon occluder | `renderedInnerRadiusKm`: (R + product minimum height) · cos(half the widest cell's diagonal), less the largest simplified deviation | 1,727.9 km for this build. Unit-tested to lie below every point of the level-0 triangles |
+
+The readout change fixes a correctness gap that only the full-lattice
+configuration exposes. Outside the detailed regions most of the Moon is at
+level 3. There the camera clamp (2 m above `sampleTerrain`) and the HUD
+followed a bilinear patch up to 575 m away from the drawn and ray-queried
+triangles. A low camera could therefore sit inside the displayed terrain.
+Missing data stays explicit: before a grid arrives a sample is `null` and a
+ray is `unavailable`, never the datum. `CubeCoverage` still distinguishes
+`finest`, `parent-fallback` and `unloaded`.
+
+### Fixes made for adoption
+
+1. **Imagery for culled tiles** (#228 review). The instrument view draws every
+   selected tile, but the layer had skipped tiles that the main view culled. A
+   tile loaded while culled drew untextured, and one culled after refining kept
+   stale blocks. Culled tiles now get the best resident imagery at their own
+   level, unsplit, without requests and outside the drawn statistics.
+2. **Validated horizon bound** (#228 review). The occluder is the product
+   bound above, not 0.99 × the datum radius. Without a bound (grids not loaded,
+   or non-cube products) it is 0, so only the frustum culls.
+3. **Readouts on the rendered triangles** (above). The builder's per-tile
+   representation error is now measured on the same triangles.
+4. **One product revision.** The revision id hashes the generator and every
+   output-shaping argument: simplified and full-lattice builds previously both
+   claimed `cube-fused-…-g3-m12`. The builder writes it as `tilesetVersion`. The
+   viewer drops grids that disagree, and the publisher refuses mismatched builds.
+5. **Transient failures stay recoverable** (`fetchWithRetry`: network errors,
+   5xx and 429, capped exponential backoff, abort-aware).
+   - **Cube `.glb` and tileset requests** retry with no attempt limit. While
+     they retry, the tile stays loading. 3DTilesRendererJS counts a failed
+     child as ready and drops its parent, so before this change one transient
+     failure left a hole for the rest of the session. Now the parent stays
+     drawn through an outage and the tile arrives when the host recovers. The
+     renderer aborts the retry if the tile is no longer wanted. A permanent
+     answer such as a 404 still fails, as for any product.
+   - **CPU grids** retry four times per request. After that a later query may
+     request the grid again once its backoff expires (30 s, doubling up to 16×).
+     This applies to the coarse grids loaded at startup as well as to detail
+     grids. Before, a failed grid was never requested again in the session.
+   - **Cube imagery** retries four times per request, then falls back to an
+     ancestor tile. Its own retry-after-failure already made it recoverable.
+
+   #233 review: four consecutive failures previously ended in a permanent
+   failure. `fetchWithRetry.test` now covers recovery after four 503s for a
+   detail grid, a startup grid, and a tile through a six-request outage.
+6. **Bounded CPU-grid concurrency** (16 by default). A burst of picks asked for
+   hundreds of grids at once. Over a 40 ms link Chrome refused them with
+   `net::ERR_INSUFFICIENT_RESOURCES`, and 356 grids stayed failed.
+
+Regressions: `CubeImageryLayer.test` (culled tiles get imagery),
+`CubeSphereGrids.test` (inner bound below every level-0 triangle; triangle
+sampling equal to the emitted triangle along the radial),
+`TerrainManagerCube.test` (frustum-only before the bound; revision mismatch
+before or after the tileset), `fetchWithRetry.test` (retry classes, abort,
+grid concurrency peak, recovery after retries run out), `data-hosting.test` (cube publish, verify,
+mismatch refusal) and `dem.py selftest` (tileset/grid revision).
+
+### Representative experience (`capture-cube-imagery.mjs --experiments adoption`)
+
+One cold page per scenario, 1280×800, with the full-lattice build, the cull on
+and NAC imagery. The page:
+1. loads the orbital overview cold;
+2. flies 16 steps to Shackleton and 6 more to 1 km above the floor, without
+   waiting for detail;
+3. stops near the ground;
+4. flies 16 steps to and across the exact pole at 5 km, and stops at a pole
+   grazing view;
+5. flies to the px/nz edge (overview and grazing stops) and the px/py/nz corner
+   (overview and grazing stops);
+6. switches the instrument view on and off three times;
+7. returns to orbit and samples memory for 20 s.
+
+At every stop it records:
+- time to finished detail;
+- holes (the hole-mask pass);
+- selected tiles drawing a mesh or block with imagery disabled;
+- 160 picks across the frame: rendered against CPU, skirt flags, and distance
+  to the nearest tile edge;
+- a 50 m clearance placed from each CPU hit.
+
+At grazing stops it also runs the camera clamp at the six picks nearest a tile
+edge.
+
+| | Local (dev server) | Hosted, normal | Hosted, faulty |
+| --- | --- | --- | --- |
+| Data path | `/test-catalogs/data` | `publish-data.mjs --local-dir` store served from another origin with stored headers; catalog rewritten by `rewriteCatalog`; throttled 40 ms RTT, 200 Mbit/s | same, plus 1 in 12 data requests failing on their first attempt and 1 in 8 delayed 1.5 s (418 failures, 659 delays injected) |
+| Stops settled | 10/10, 3.5–4.6 s each (cold overview 4.0–4.1 s) | 10/10, 3.5–4.6 s | 10/10, 4.1–6.6 s |
+| Hole pixels (stops / 54 flight steps) | 0 / 0 | 0 / 0 | 0 / 0 (before retry: up to 95,679 at stops, 174,709 in flight) |
+| Selected tiles without imagery | 0 at every stop | 0 | 0 (before imagery used the retry: 1/15 at the cold overview, a level-0 tile waiting 30 s) |
+| Picks with a CPU hit | 100% bar 4 sky-edge rays at Shackleton, all provisional, 0 skirt hits | 100% | 100%, 0 skirt hits |
+| Rendered − CPU near tile edges (near ground / pole / edge / corner grazing) | ≤ 3.4 / 0.4 / 0.0 / 0.0 m | same | same |
+| Readout − rendered, p95 (near ground / pole) | 1.2 / 0.6 m | same | same |
+| 50 m clearance above the CPU surface | median 49.4–53.1 m | same | same |
+| Camera clamp at tile edges: above readout / above rendered | 2.0 / 2.0 m at every probe | same | same |
+| CPU grids failed at end | 0 | 0 (before the concurrency bound: 356) | 0 (232 failed attempts, all recovered) |
+| Requests (glb / grid / imagery) | 1,506 / 2,931 / 849, 242 / 50 / 35 MB | 1,423 / 2,974 / 780 | 1,516 / 3,230 / 834 |
+| After return to orbit, flat for 20 s | tile cache 241 MB, geometry 323 MB, textures 168 MB (at the 160 MiB budget), JS heap 1.0 GB | 228 / 305 / 168 MB, heap 0.89 GB | 224 / 300 / 168 MB, heap 0.95 GB |
+
+Main and instrument views: in all three scenarios no selected tile drew without
+imagery across three on/off switches (0/117). The same settled frame was
+captured, unlit, with the cull on and off; it differed in 27–740 of 1,024,000
+pixels (mean |Δ| ≤ 0.016 of 255). The difference is imagery level on tiles the
+main camera does not draw, inside the picture-in-picture view.
+
+The CPU hit is always provisional. Far from the camera, before a pick's grid
+chain has loaded over a throttled link, it can be well away from the rendered
+hit: up to 19 km on a grazing ray at Shackleton (hosted only). That is the
+documented `coarse` answer. A repeat pick refines it.
+
+Bytes per request are 0 on the hosted runs because the host emulator, like
+r2.dev, sends no `Timing-Allow-Origin`. Request counts come from the same
+resource timing. The 3 to 4 console errors in every run are the dev server
+refusing two font files outside this worktree's allow list (worktree setup,
+not the product).
+
+Existing experiments re-run on this build (`--experiments cracks-dynamic,failure,navigation`):
+- **Dynamic cracks.** Normal, delayed, failed (level ≥ 9 aborted) and evicting
+  paths each ran 35 steps with **0 hole pixels with skirts**. Without skirts
+  the holes reach 104 / 305 / 77 / 104 px, so the skirts are doing the work.
+  The cull hid 2,027–2,370 tile-steps, none of which had pixels.
+- **Imagery failure.** Every imagery request at level ≥ 7 failed (65 blocked).
+  Shackleton fell back to level 6 with 0 untextured blocks and no retry storm.
+- **Imagery navigation.** Under a 64 MiB budget, peak texture memory was
+  63.8 MiB and 1,447 textures were evicted.
+
+`validate-cube-terrain.mjs` and `validate-cube-imagery.mjs` pass every gate on
+the rebuilt product. Its CPU picks now place a 50 m clearance at 50.00 m above
+the CPU sample, against 49.70 m with bilinear readouts.
+
+Evidence: `docs/images/issue-149/adoption-local.json`, `adoption-hosted.json`
+(both scenarios), `adoption-cracks-failure-navigation.json`,
+`adoption-profile-nac.json`, `adoption-terrain-validation.json`, and
+`adoption-instrument.jpg`, the instrument picture-in-picture over a main view
+whose ground tiles are culled.
+
+### Delivery
+
+- **Publisher.** `publish-data.mjs` now handles `cube-terrain` and
+  `cube-imagery` kinds (see `docs/data-hosting.md`).
+  - Validation: one revision across tileset, grids and product; relative content
+    URIs; every `.glb` and grid present at the right size; magic bytes.
+  - Content types: `model/gltf-binary`, `application/octet-stream`, `image/*`.
+  - Caching: immutable cache headers.
+  - Upload order: entry points last, then the manifest.
+  - Verification: revision via both entry points, CORS, cache, content type,
+    payloads and 404 status.
+- **Local publish.** Both builds were published with `--local-dir` and verified
+  over HTTP for `https://aaronplave.com` and `http://localhost:5173`. The
+  adoption runs above loaded them through the deploy-time catalog rewrite.
+- **Real host, read-only probe.**
+  - CORS allows both origins above. The old default verification origin
+    (`aaronplave.github.io`, now a redirect) does not get CORS, so the
+    publisher's default is corrected.
+  - r2.dev answers a missing object with an HTML 404. The cube loaders all
+    reject on status, so cube verification checks the status only.
+  - r2.dev sends no `cf-cache-status`, so it is not edge-cached. The docs
+    already call r2.dev smoke-test only.
+- **Published and checked on the real host (2026-10-15).**
+  - Both builds are on R2, verified through `DATA_BASE_URL` for
+    `https://aaronplave.com` and `http://localhost:5173`, and pinned in
+    `datasets.json`.
+  - The adoption tour ran in a browser at `localhost:5173` against those URLs,
+    in two passes:
+    - **Normal:** all 10 stops settled; no holes at stops or across 54 flight
+      steps; no selected tile without imagery, including after each instrument
+      switch; the clamp held 2.0 m above the readout and 1.7–2.0 m above the
+      rendered surface; JS heap 0.70 GB after return.
+    - **Fault-injected:** 411 failures and 599 delays injected. All 10 stops
+      settled; 0 hole pixels at stops; 0 CPU grids failed at the end.
+  - Over r2.dev, stops settle in 4–21 s, against 3.5–4.6 s locally.
+  - The faulty pass showed a single-pixel speck on three steps of the
+    orbit → Shackleton descent. At that point only levels 1–2 were drawn, with
+    117–145 requests outstanding. It cleared by the next stop; read it as a
+    sub-pixel coarse-level edge in flight, not a lost tile.
+  - Evidence: `adoption-r2-normal.json`, `adoption-r2-faulty.json`.
+  - Repeat with:
+    `node scripts/capture-cube-imagery.mjs --experiments adoption --gpu --hosted-url "$DATA_BASE_URL"`,
+    with the viewer served at `http://localhost:5173` (an origin the bucket
+    allows).
+- **Recommended before production traffic.** A custom domain plus cache rule
+  for the bucket (*One-time setup*, steps 2 and 4). A full tour moves about
+  330 MB, which should come from the edge.
+
+### Performance
+
+Profile on the NAC catalog with the cull on, at finished detail, 1280×800
+(`--experiments profile --catalog nac`):
+
+| View | Fenced frame median | GPU | Imagery stage | Animation loop |
+| --- | --- | --- | --- | --- |
+| Shackleton | 3.5 ms | 1.6 ms | 0.36 ms | 8.3 ms (vsync) |
+| Cap nadir | 2.0 ms | 0.7 ms | 0.31 ms | 8.3 ms |
+| Face corner | 3.9 ms | 1.9 ms | 0.43 ms | 8.3 ms |
+
+These are within #228's measured ranges: imagery selection 0.3–0.6 ms, fenced
+frames ≤ 4.3 ms with real imagery. Giving culled tiles unsplit resident imagery
+added no measurable cost. Readouts cost the same (one triangle instead of four
+weights). Frames hold the 120 Hz vsync with headroom. Performance is acceptable
+on this hardware; other GPUs are optional coverage.
+
+### Recommendation: adopt
+
+Adopt the configuration above for lunar globe terrain. Every adoption criterion
+holds on the available evidence:
+- the required correctness checks pass, after the fixes listed above;
+- the representative terrain-plus-imagery experience works;
+- delivery works end to end through the real publisher, verifier and
+  catalog rewrite. The one remaining dependency is concrete: owner-approved R2
+  publication.
+- performance is acceptable on the M4 Max.
+
+A matched-imagery comparison with the older layouts was not made. It is useful
+context, not an adoption gate.
+
+### Migration plan
+
+1. **Publish and pin** (owner approval): the two commands above, then the
+   hosted adoption run. Commit the `datasets.json` pins.
+2. **Global imagery.** The first catalog to migrate shows the whole Moon, so it
+   needs a global cube pyramid with NAC composited over LROC WAC.
+   - `CubeImageryLayer` takes one pyramid, so the composite happens at build
+     time in `cube_imagery.py`.
+   - Its `nac` command generalizes to any georeferenced raster.
+   - Cut at about level 6 (≈ 170 m/px), with the NAC regions deeper.
+   - Publish as `cube-imagery/moon-imagery-cube-wac-nac/<revision>`.
+3. **First catalog: `moonfall-shackleton.json`.** It is Shackleton-centred, its
+   epoch matches this product, and the product's deepest detail is there.
+   - Replace its Moon `terrain` block (external `moon_v14` quantized-mesh plus
+     the Trek WAC overlay) with `type: '3dtiles'` and `cubeSphere: { cpuGrids,
+     imagery }`.
+   - Write both as `data/…` paths, which `build-hosted-catalogs.mjs` pins to
+     the published revisions.
+   - Verify:
+     - the adoption run;
+     - MoonFall's 36 waypoints against the CPU surface (`validate-cube-terrain`
+       control points, RMS 6.85 m);
+     - hopper surface lock along each trajectory.
+4. **Fallback and rollback.**
+   - Runtime fallback already exists. Without grids, CPU queries are
+     unavailable and culling is frustum-only. Without imagery, untextured
+     tiles are reported, not hidden. A dead stream falls back to the static
+     globe (`hasStreamFailed`).
+   - Rollback is one catalog block back to `moon_v14`, or `datasets.json`
+     pointed at a previous immutable build.
+   - Keep `moon_v14` in `lro-moon.json`, and keep the geographic and polar
+     experiment products, until step 3 has been verified on the hosted build.
+5. **Then:**
+   - `lro-moon.json`, whose LRO ground tracks are global and so depend on
+     step 2;
+   - the experiment catalogs onto the pinned builds;
+   - retiring the polar and geographic lunar experiments once no catalog or
+     check uses them.
+   Other bodies come later, each with an ellipsoid-capable builder (today it
+   emits spheres only).
+
+Stays experimental: simplification, the draw cull and retries on the
+geographic and polar products, non-lunar bodies, and multi-layer cube imagery.
+
+### Follow-ups (not adoption blockers)
+
+- Simplification: the twist-aware RTIN error (rendered/CPU discrepancy up to
+  0.2 × spacing), and an edge-aware threshold for the 2× edge/corner tile cost.
+- Draw cull and `fetchWithRetry` on the geographic and polar products (same
+  code; left off so the baselines stay as measured).
+- Memory: the CPU side holds up to 2,048 detail grids plus their float64
+  meshes (688 to 1,308 meshes after a tour). The heap settles at 0.9–1.0 GB,
+  bounded but large. A mesh-cache cap or smaller detail budget comes first if
+  memory shows up.
+- Instrument views draw only what the main camera's streaming cameras
+  selected. They never drive selection: pre-existing for every layout, and out
+  of scope here.
+- Host: a custom domain with a cache rule, and `Timing-Allow-Origin` for
+  byte-level timing.
+- Payloads: `.glb` is 242 MB of the 330 MB tour (Draco or meshopt, and
+  prefiltered coarse levels). Batching. Broader hardware.
+- Matched-imagery comparison with the polar and geographic layouts, for context.
+
 ## Reproducible checks delivered
 
 The unit fixture creates all six root faces from one analytic height function.
@@ -1895,11 +2214,12 @@ geometry evidence*):
   matched accuracy (the threshold comes from face-centre spacing; an
   edge-aware threshold is the candidate fix) and widens the rendered/CPU
   discrepancy below; it stays opt-in.
-- [ ] **Rendered/CPU twist discrepancy.** Simplified tiles still differ from the
+- [ ] **Rendered/CPU twist discrepancy** (simplification only; not an adoption
+  gate for the full-lattice configuration, *Adoption readiness*). Simplified tiles still differ from the
   CPU lattice by up to ~0.2 × vertex spacing where an RTIN anti-diagonal half
   borders a coarser triangle; a twist-aware RTIN error, or a CPU surface built
   on the rendered triangulation, would remove it.
-- [ ] **Matched imagery.** The NAC mosaic (and a global source, e.g. LROC WAC)
+- [ ] **Matched imagery** (context, not an adoption gate). The NAC mosaic (and a global source, e.g. LROC WAC)
   on the cap (#147 path) and on the geographic product through the upstream
   overlay, at a matched texel target; then the same frame, memory and request
   captures with imagery, kept apart from the geometry costs above.
@@ -1908,8 +2228,12 @@ geometry evidence*):
   cull, animation loop at the browser floor, no missed 120 Hz refresh from
   terrain alone (*Frame overhead*). Other GPUs would be useful extra
   coverage; they are not an adoption gate and were not acquired or emulated.
-- [ ] **A real network.** Cold loads from hosted data instead of the
-  emulated link (not blocking: the cull changes no terrain requests).
+- [x] **Delivery** (*Adoption readiness*, *Delivery*). The real publisher,
+  verifier and catalog rewrite ran against a served store at 40 ms / 200 Mbit/s,
+  with injected faults; then published to R2, pinned, and the same tour run
+  against the real host (*Delivery*).
+- [x] **Adoption decision:** adopt the full-lattice + draw-cull configuration
+  for lunar globe terrain; see *Migration plan*.
 - [ ] **Draw cull on the baselines (optional).** `drawCulling: true` on the
   polar and geographic products would cut their off-screen draws the same
   way (49–63% of the cap's tiles); not applied here so they stay as measured.

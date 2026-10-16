@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CubeGridSurface, CubeSphereGridSource, cubeTileMesh, type CubeGridManifest } from '../surface/CubeSphereGrids.js';
-import { cubeFaceToDirection, type CubeFace } from '../surface/CubeSphere.js';
+import { CubeSphereSampler, cubeFaceToDirection, type CubeFace } from '../surface/CubeSphere.js';
 import { cameraPositionFromSurfacePick } from '../surface/SurfaceConsumers.js';
 import { requestSurfaceIntersection } from '../surface/PhysicalSurface.js';
 
@@ -112,6 +112,28 @@ describe('cube grid CPU triangles and ray queries', () => {
     // 12 edges × 3 interior edge vertices shared by 2 faces, 8 corners shared by 3.
     expect(shared.filter(v => v.length === 2)).toHaveLength(36);
     expect(shared.filter(v => v.length === 3)).toHaveLength(8);
+  });
+
+  it('samples the lattice triangles the .glb draws and rays hit, not a bilinear patch over them', () => {
+    // One twisted 2.7 km cell (level 10): h(0,0) = h(1,1) = 0, h(1,0) = h(0,1) = 1 km.
+    const tile = { face: 'pz' as const, level: 10, x: 0, y: 0, width: 2, height: 2, elevationsKm: new Float64Array([0, 1, 1, 0]) };
+    const sampler = new CubeSphereSampler(manifest().datum, manifest().source);
+    sampler.addTile(tile);
+    const { positionsKm, indices } = cubeTileMesh(tile, R);
+    const P = (i: number) => [0, 1, 2].map(c => positionsKm[3 * i + c]);
+    for (const [tx, ty] of [[0.5, 0.5], [0.75, 0.25], [0.2, 0.7], [0.9, 0.1]]) {
+      const n = 2 ** tile.level, d = cubeFaceToDirection('pz', -1 + 2 * tx / n, -1 + 2 * ty / n);
+      const sample = sampler.sample(Math.asin(d[2]) * 180 / Math.PI, Math.atan2(d[1], d[0]) * 180 / Math.PI)!;
+      // The emitted triangle along the same radial ray (the diagonal splits the cell at tx = ty).
+      const [a, b, c] = Array.from(tx >= ty ? indices.slice(0, 3) : indices.slice(3, 6), P);
+      const e1 = b.map((v, k) => v - a[k]), e2 = c.map((v, k) => v - a[k]);
+      const nrm = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+      const radius = (nrm[0] * a[0] + nrm[1] * a[1] + nrm[2] * a[2]) / (nrm[0] * d[0] + nrm[1] * d[1] + nrm[2] * d[2]);
+      expect(Math.abs(sample.elevationKm - (radius - R))).toBeLessThan(0.001); // chord sag only (≈ 0.5 m here)
+    }
+    // Where bilinear would say 0.5 km, the cell's diagonal is at 0.
+    const d = cubeFaceToDirection('pz', -1 + 1 / 1024, -1 + 1 / 1024);
+    expect(sampler.sample(Math.asin(d[2]) * 180 / Math.PI, Math.atan2(d[1], d[0]) * 180 / Math.PI)!.elevationKm).toBeCloseTo(0, 9);
   });
 
   it('bounds every rendered triangle from below with renderedInnerRadiusKm (the draw cull\'s horizon occluder)', () => {

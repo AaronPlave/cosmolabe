@@ -82,6 +82,20 @@
         "scripts/fetch-voyager-kernels.sh"
       ],
       "build": "2026-10-02"
+    },
+    "cube-terrain/moon-terrain-cube": {
+      "kind": "cube-terrain",
+      "name": "moon-terrain-cube",
+      "localDir": "apps/viewer/test-catalogs/data/moon-terrain-cube",
+      "catalogPrefix": "data/moon-terrain-cube/",
+      "build": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+    },
+    "cube-imagery/moon-imagery-cube-nac": {
+      "kind": "cube-imagery",
+      "name": "moon-imagery-cube-nac",
+      "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-nac",
+      "catalogPrefix": "data/moon-imagery-cube-nac/",
+      "build": "cube-imagery-nac-6db766f8beebcace"
     }
   }
 }
