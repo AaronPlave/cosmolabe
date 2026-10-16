@@ -95,7 +95,7 @@
         <p class="ui-meta text-text-muted mt-2">Loaded terrain mesh only; coarse tiles give coarse relief. Tile debug colors take precedence.</p>
       </div>
     {:else}
-      <p class="ui-meta text-text-muted">Relief styles unavailable: this surface has no supported physical elevation reference.</p>
+      <p class="ui-meta text-text-muted">Relief styles require quantized-mesh terrain with a supported elevation reference. Cube-sphere terrain, including MoonFall, is not supported yet.</p>
     {/if}
   </section>
 {/if}

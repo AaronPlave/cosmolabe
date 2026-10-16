@@ -182,6 +182,45 @@ describe('surface appearance physical and material contracts', () => {
     expect(left.geometry.hasAttribute('surfaceReliefNormal')).toBe(false);
   });
 
+  it('uses only visible LOD normal contributions through refinement and cached zoom-out', () => {
+    const matrix = new THREE.Matrix4().makeTranslation(0, 0, 3376200);
+    const make = (fine: boolean) => {
+      const tile = mesh();
+      tile.geometry.setAttribute('position', new THREE.Float32BufferAttribute(fine
+        ? [0, 0, 10, 1, 0, 11, 0, 1, 10]
+        : [0, 0, 0, 0, 1, 0, -1, 0, 0], 3));
+      return tile;
+    };
+    const read = (tile: THREE.Mesh) => Array.from(tile.geometry.getAttribute('surfaceReliefNormal').array);
+    const direct = (fine: boolean) => {
+      const style = new SurfaceAppearance(datum), tile = make(fine);
+      style.attach(tile, matrix); style.set({ ...defaults, hillshade: true }); style.update(Infinity);
+      return read(tile);
+    };
+    const expectedFine = direct(true), expectedCoarse = direct(false);
+    const style = new SurfaceAppearance(datum), coarse = make(false), fine = make(true);
+    const fineParent = new THREE.Group(); fineParent.add(fine); fineParent.visible = false;
+    style.attach(coarse, matrix); style.attach(fine, matrix);
+    style.set({ ...defaults, hillshade: true }); style.update(Infinity);
+    expect(read(coarse)).toEqual(expectedCoarse);
+    for (let cycle = 0; cycle < 3; cycle++) {
+      coarse.visible = false; fineParent.visible = true;
+      style.update(Infinity);
+      expect(read(fine)).toEqual(expectedFine);
+      // Cached, already-prepared tiles must rejoin when visible, including
+      // when the preparation budget has expired and no new work is allowed.
+      coarse.visible = true; fineParent.visible = false;
+      style.update(0);
+      expect(read(coarse)).toEqual(expectedCoarse);
+    }
+    // Removing an inactive tile must not subtract its contribution twice.
+    style.forget(fineParent);
+    expect(read(coarse)).toEqual(expectedCoarse);
+    style.set({ ...defaults });
+    style.set({ ...defaults, hillshade: true }); style.update(Infinity);
+    expect(read(coarse)).toEqual(expectedCoarse);
+  });
+
   it('rejects unavailable elevation sources and keeps style state isolated per body', () => {
     const make = (type: 'quantized-mesh' | '3dtiles', verticalDatum: 'ellipsoid' | 'unknown') => new TerrainManager({ type, url: 'https://example.invalid/', datum: { verticalDatum } }, 1737.4, undefined as never);
     const moon = make('quantized-mesh', 'ellipsoid'), mars = make('quantized-mesh', 'ellipsoid');

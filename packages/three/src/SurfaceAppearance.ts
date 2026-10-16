@@ -41,8 +41,8 @@ export function normalizeSurfaceAppearance(s: SurfaceAppearanceSettings): Surfac
 
 type Shader = { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> };
 interface NormalReference { attribute: THREE.BufferAttribute; index: number; normal: THREE.Vector3; weight: number; }
-interface NormalNode { sum: THREE.Vector3; weight: number; references: Set<NormalReference>; }
-interface StyledMesh { matrix: THREE.Matrix4; materials: THREE.Material[]; ready: boolean; normals?: Array<[string, NormalReference]>; }
+interface NormalNode { references: Set<NormalReference>; }
+interface StyledMesh { matrix: THREE.Matrix4; materials: THREE.Material[]; ready: boolean; normalsActive?: boolean; normals?: Array<[string, NormalReference]>; }
 
 export function renderedHeightKm(point: THREE.Vector3, datum: TerrainDatum): number {
   if (datum.heightConvention === 'geodetic-normal') {
@@ -101,7 +101,7 @@ export class SurfaceAppearance {
     this.updateUniforms();
     if (!this.settings.hillshade) this.normalNodes.clear();
     for (const [mesh, entry] of this.meshes) {
-      if (!this.settings.hillshade) entry.normals = undefined;
+      if (!this.settings.hillshade) { entry.normals = undefined; entry.normalsActive = false; }
       entry.ready = this.isPrepared(mesh);
       if (this.key() !== before) entry.materials.forEach(m => { m.needsUpdate = true; });
       const unused = [
@@ -128,13 +128,21 @@ export class SurfaceAppearance {
   update(budgetMs = 4): { meshes: number; vertices: number; elapsedMs: number; maxTileMs: number } {
     const start = performance.now();
     let meshes = 0, vertices = 0, maxTileMs = 0;
+    const visibleMeshes: Array<[THREE.Mesh, StyledMesh]> = [];
+    const touched = new Set<NormalNode>();
+    // Reconcile all prepared tiles before the preparation budget can yield.
+    // Cached hidden parents must leave the shared field immediately; already
+    // prepared children/parents rejoin on every visibility transition.
     if (this.active) for (const [mesh, entry] of this.meshes) {
-      if (entry.ready) continue;
       let visible = true;
       for (let object: THREE.Object3D | null = mesh; object; object = object.parent) {
         if (!object.visible) { visible = false; break; }
       }
-      if (!visible) continue;
+      if (this.settings.hillshade) this.setNormalContributions(entry, visible, touched);
+      if (visible && !entry.ready) visibleMeshes.push([mesh, entry]);
+    }
+    touched.forEach(node => this.publishNormal(node));
+    for (const [mesh, entry] of visibleMeshes) {
       const tileStart = performance.now();
       if (this.settings.baseColor === 'elevation') this.prepareHeights(mesh, entry.matrix);
       if (this.settings.hillshade) this.prepareReliefNormals(mesh, entry);
@@ -177,18 +185,30 @@ export class SurfaceAppearance {
     }
   }
 
-  forget(scene: THREE.Object3D): void {
-    scene.traverse(child => {
-      const mesh = child as THREE.Mesh;
-      for (const [key, ref] of this.meshes.get(mesh)?.normals ?? []) {
-        const node = this.normalNodes.get(key);
-        if (!node) continue;
-        node.references.delete(ref); node.sum.sub(ref.normal); node.weight -= ref.weight;
+  private setNormalContributions(entry: StyledMesh, active: boolean, touched: Set<NormalNode>): void {
+    if (!entry.normals || !!entry.normalsActive === active) return;
+    entry.normalsActive = active;
+    for (const [key, ref] of entry.normals) {
+      let node = this.normalNodes.get(key);
+      if (active) {
+        if (!node) { node = { references: new Set() }; this.normalNodes.set(key, node); }
+        node.references.add(ref);
+      } else if (node) {
+        node.references.delete(ref);
         if (!node.references.size) this.normalNodes.delete(key);
-        else this.publishNormal(node);
       }
+      if (node) touched.add(node);
+    }
+  }
+
+  forget(scene: THREE.Object3D): void {
+    const touched = new Set<NormalNode>();
+    scene.traverse(child => {
+      const mesh = child as THREE.Mesh, entry = this.meshes.get(mesh);
+      if (entry) this.setNormalContributions(entry, false, touched);
       this.meshes.delete(mesh);
     });
+    touched.forEach(node => this.publishNormal(node));
   }
 
   private prepareHeights(mesh: THREE.Mesh, matrix: THREE.Matrix4): void {
@@ -218,7 +238,7 @@ export class SurfaceAppearance {
   }
 
   /** Area-weighted relief-normal corrections share contributions at matching geographic
-   * vertices across loaded tiles. Skirts never contribute to ground normals.
+   * vertices across visible tiles. Skirts never contribute to ground normals.
    * Angular keys absorb roundoff and small cross-LOD height differences. This
    * subtracts the same triangle on the datum to remove coarse curvature bias.
    * The shader adds analytic local up after interpolation, so a smooth datum
@@ -279,7 +299,7 @@ export class SurfaceAppearance {
     geometry.setAttribute('surfaceReliefNormal', attribute);
     entry.normals = [];
     const normal = new THREE.Vector3();
-    const touched = new Set<NormalNode>();
+    const groundKeys = new Set<string>();
     for (let i = 0; i < positions.count; i++) {
       if (!ground.getX(i)) continue;
       normal.set(sums[i * 3], sums[i * 3 + 1], sums[i * 3 + 2]);
@@ -290,11 +310,9 @@ export class SurfaceAppearance {
       if (!boundary.has(i)) continue;
       point.fromBufferAttribute(positions, i).applyMatrix4(entry.matrix);
       const key = this.normalKey(point);
-      let node = this.normalNodes.get(key);
-      if (!node) { node = { sum: new THREE.Vector3(), weight: 0, references: new Set() }; this.normalNodes.set(key, node); }
+      groundKeys.add(key);
       const ref = { attribute, index: i, normal: normal.clone(), weight: weights[i] };
-      node.references.add(ref); node.sum.add(normal); node.weight += ref.weight;
-      entry.normals.push([key, ref]); touched.add(node);
+      entry.normals.push([key, ref]);
     }
     // Duplicate skirt vertices inherit the corresponding ground normal. They
     // add no triangle contribution, so crack-hiding walls cannot bias slopes
@@ -302,11 +320,13 @@ export class SurfaceAppearance {
     for (let i = 0; i < positions.count; i++) {
       if (ground.getX(i)) continue;
       point.fromBufferAttribute(positions, i).applyMatrix4(entry.matrix);
-      const key = this.normalKey(point), node = this.normalNodes.get(key);
-      if (!node) continue;
+      const key = this.normalKey(point);
+      if (!groundKeys.has(key)) continue;
       const ref = { attribute, index: i, normal: new THREE.Vector3(), weight: 0 };
-      node.references.add(ref); entry.normals.push([key, ref]); touched.add(node);
+      entry.normals.push([key, ref]);
     }
+    const touched = new Set<NormalNode>();
+    this.setNormalContributions(entry, true, touched);
     touched.forEach(node => this.publishNormal(node));
   }
 
@@ -319,9 +339,14 @@ export class SurfaceAppearance {
   }
 
   private publishNormal(node: NormalNode): void {
-    const length = node.weight || 1;
+    // Recompute from current owners to avoid accumulated subtraction error
+    // after repeated LOD transitions and cache eviction.
+    const sum = new THREE.Vector3();
+    let weight = 0;
+    for (const ref of node.references) { sum.add(ref.normal); weight += ref.weight; }
+    const length = weight || 1;
     for (const ref of node.references) {
-      ref.attribute.setXYZ(ref.index, node.sum.x / length, node.sum.y / length, node.sum.z / length);
+      ref.attribute.setXYZ(ref.index, sum.x / length, sum.y / length, sum.z / length);
       ref.attribute.needsUpdate = true;
     }
   }

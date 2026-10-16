@@ -19,8 +19,11 @@ using the same validation as picked bounds; neither silently moves the other bou
 ## Rendering contract
 
 - Operates on loaded quantized-mesh terrain. Imagery-only surfaces, generic
-  3D Tiles/ion models, unknown/areoid references, and unsupported normal-height
-  triaxial references explicitly have no relief styles.
+  3D Tiles/ion models, **our known cube-sphere terrain (including MoonFall at
+  Shackleton)**, unknown/areoid references, and unsupported normal-height
+  triaxial references have no relief styles in this MVP. The panel states this
+  limitation; the cube-sphere exclusion is a format limitation, not a claim
+  that those datasets lack a known datum.
 - Elevation colors interpolate per-vertex heights computed from the existing
   positions, in double precision, relative to the sampler's body reference shape.
   Radial and axisymmetric geodetic-normal conventions are supported. The Mars
@@ -37,7 +40,10 @@ using the same validation as picked bounds; neither silently moves the other bou
   curvature bias without flattening real relief. It shares boundary contributions by geographic position (0.00001 degree
   keys). Small height differences do not split the normal field. Longitude
   wrapping and coincident polar vertices use one key. Only boundary references
-  are retained across tiles; interiors keep their complete local triangle
+  are retained across tiles; only currently visible tiles contribute. Hidden
+  cached parents leave the shared field on the next visibility update and
+  rejoin when shown again, without rebuilding attributes. Changes in ancestor
+  visibility are included. Interiors keep their complete local triangle
   neighbourhood. Skirts inherit ground shading normals without contributing
   vertical-wall slopes. Physical vertex normals and imagery normal maps are
   unchanged. Local east/north/up uses the reference ellipsoid normal, with a
@@ -78,6 +84,32 @@ replacing materials. Contours and the upstream `TopoLinesPlugin` evaluation
 remain in #183. Multidirectional hillshade, automatic local range fitting,
 slope/aspect, and further relief effects are deferred.
 
+## Cube-sphere follow-up under #182
+
+Cube-sphere support is explicitly deferred from #187. This includes
+`apps/viewer/test-catalogs/moonfall-shackleton.json` and the
+`apps/viewer/test-catalogs/experiments/moon-terrain-cube*.json` demos, which use
+`type: '3dtiles'` with the known `cubeSphere` contracts. The LRO quantized-mesh
+polar fixture below does **not** validate MoonFall support.
+
+The bounded follow-up must:
+
+- Add a capability path restricted to the known planetary cube-sphere terrain,
+  validating its datum, coordinate transforms, ground/skirt groups, and height
+  grid metadata. Generic 3D Tiles/ion meshes must remain excluded.
+- Compose with `CubeImageryLayer` material replacement and skirt rebuilding;
+  preserve CPU-grid sampling, physical geometry, and source/LOD behavior.
+- Verify elevation-color values and independent bound picks against rendered
+  cube terrain, plus visible-only shared normals through cached LOD transitions.
+- Capture MoonFall/Shackleton and a cube-sphere demo with imagery, hillshade,
+  tint, restoration, and mobile panel layout before enabling their controls.
+
+This is tracked as remaining scope of #182, which this PR does not close.
+Human GPU acceptance of close Jezero, LRO Shackleton, zoom/LOD transitions,
+range/imagery blending and restoration remains pending. A physical-phone check
+of expanded controls and activation is also pending; CPU throttling and the
+software-rendered captures do not establish that acceptance.
+
 ## Reproduce
 
 ```sh
@@ -86,6 +118,7 @@ npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5182 --strictPort
 # In another terminal:
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-appearance.mjs
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-shading-seams.mjs
+SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-shading-lod.mjs
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-shading-curvature.mjs
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-shading-live.mjs
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-style-activation.mjs
@@ -148,6 +181,22 @@ These are controlled review viewpoints, not an exact replay of the user's camera
 Source discontinuities and unmatched mixed-LOD geometry remain outside this
 shading correction.
 
+## Cached LOD regression after re-review
+
+The focused unit regression first failed on `4fd2a45`: a hidden cached coarse
+parent biased the fine tile's shared boundary corrections. Shared nodes now own
+only visible tile contributions. Cached local corrections remain available for
+reactivation; eviction and hillshade toggling remove ownership cleanly.
+
+`test-surface-shading-lod.mjs` compares direct coarse/fine loading with three
+zoom-in/out cycles that hide tiles without disposing them, including ancestor
+visibility and zero-budget updates of already-prepared tiles. All six rendered
+comparisons have **zero changed pixels**; see [LOD metrics](lod/metrics.json),
+[direct fine](lod/directFine.png) and [fine after refinement](lod/fine-0.png).
+The existing shared-edge GPU fixture still reports a 0/255 boundary jump.
+These controlled fixtures establish cache independence, not human acceptance of
+the supplied live Mars view or mixed-LOD source geometry.
+
 ## Activation performance after review
 
 [activation/metrics.json](activation/metrics.json) and the [close Mars capture](activation/mars-close.png)
@@ -159,29 +208,29 @@ attributes, and per-frame/per-tile preparation. Every run removes attributes fir
 
 | CPU execution | Style | Setter ms | Next task ms | Visible attributes ready ms | Preparation total ms | Largest batch / tile ms | Batches |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Native | Elevation | 0.0 | 177.3 | 178.6 | 2.9 | 2.9 / 0.4 | 1 |
-| Native | Hillshade | 0.1 | 30.5 | 452.4 | 42.4 | 4.5 / 2.9 | 11 |
-| 4x CPU throttle | Elevation | 0.2 | 34.0 | 40.3 | 5.6 | 4.3 / 0.9 | 2 |
-| 4x CPU throttle | Hillshade | 0.5 | 32.1 | 834.1 | 127.7 | 6.3 / 2.6 | 28 |
+| Native | Elevation | 0.2 | 164.1 | 165.5 | 2.3 | 2.3 / 0.2 | 1 |
+| Native | Hillshade | 0.0 | 19.4 | 337.6 | 42.1 | 4.4 / 2.6 | 11 |
+| 4x CPU throttle | Elevation | 0.2 | 27.0 | 33.9 | 5.3 | 4.2 / 0.8 | 2 |
+| 4x CPU throttle | Hillshade | 0.3 | 26.5 | 690.4 | 134.6 | 7.1 / 6.1 | 29 |
 
 The throttled runs follow native runs; shader cache state across browser launches
-is not controlled. Native activation delayed the next task by 30–177 ms in this
+is not controlled. Native activation delayed the next task by 19–164 ms in this
 run, including shader compilation/rendering; the frame budget limits CPU
 attribute preparation, not driver compilation. Progressive hillshade took about
-0.8 s under throttling. This is CPU emulation on the same desktop, not a physical
+0.7 s under throttling. This is CPU emulation on the same desktop, not a physical
 phone or a hard latency guarantee. An unusually large individual tile can exceed
 the budget because tile preparation is atomic; broader source/device profiling
 and shader warmup remain useful follow-ups.
 
 ## Validation
 
-- 39 focused appearance/pick/measurement tests pass, covering shared boundary
-  normals and eviction, skirts, field-matching range picks, independent bounds,
+- 40 focused appearance/pick/measurement tests pass, covering shared boundary
+  normals, cached LOD transitions, eviction, skirts, field-matching range picks, independent bounds,
   rejected misses/crossings/uncolored surfaces, and unchanged measurement input.
 - Type checks, changed-file lint, and viewer production build pass.
 - After merging current main, package + viewer suite: 2,100 tests passed, 7 skipped
-  (before adding the final shared-bound validation test; the final focused run has
-  39 passing tests).
+  (before the additional bound/curvature/hidden-LOD regressions; the current
+  focused run has 40 passing tests).
 - Earlier branch validation encountered the existing timing-sensitive `gf-reporting.test.ts` / `keeps the first pass
   inside the first half while it runs` can finish in roughly 77 ms before its
   100 ms progress throttle produces an intermediate event. CSPICE is unchanged.
