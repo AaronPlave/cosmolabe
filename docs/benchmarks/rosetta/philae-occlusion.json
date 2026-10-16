@@ -1,0 +1,29 @@
+{
+  "views": [
+    {
+      "hidden": false,
+      "radiusKm": 0.04,
+      "position": [
+        0.005153208277913425,
+        0.03966666666666667,
+        0
+      ],
+      "plateDistanceKm": null,
+      "withoutSurfaceDepth": false,
+      "changedPixels": 646
+    },
+    {
+      "hidden": true,
+      "radiusKm": 0.4,
+      "position": [
+        0.05153208277913424,
+        0.39666666666666667,
+        0
+      ],
+      "plateDistanceKm": 0.19930788620351572,
+      "withoutSurfaceDepth": false,
+      "changedPixels": 0
+    }
+  ],
+  "errors": []
+}

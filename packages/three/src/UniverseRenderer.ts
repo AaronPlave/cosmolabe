@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ModelSurfaceDepth } from './ModelSurfaceDepth.js';
 import {
   CompositeTrajectory,
   SpiceTrajectory,
@@ -34,6 +35,7 @@ import { SensorFrustum, type SensorClipSummary, type SensorFovClipper } from './
 import type { FovBoundaryShape } from './surface/FovClipper.js';
 import { SensorFovClipping } from './SensorFovClipping.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
+import { dskShapeProviderOf } from './DskShapeProvider.js';
 import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMarkerGroups } from './EventMarkers.js';
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
@@ -65,6 +67,7 @@ const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpVec2 = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
+const _NAN3: [number, number, number] = [NaN, NaN, NaN];
 
 /**
  * World-space unit normal of the surface a ray hit, or null when the hit has
@@ -96,12 +99,12 @@ interface SurfaceRayHit {
 export interface SurfacePickResult {
   /** Name of the body that was clicked */
   bodyName: string;
-  /** Geodetic latitude in degrees (positive north) */
+  /** Latitude in degrees north; see point.latitudeKind for its convention. */
   latDeg: number;
   /** Geodetic longitude in degrees (positive east) */
   lonDeg: number;
-  /** Altitude above the reference sphere in km */
-  altKm: number;
+  /** Altitude above the declared datum in km; null for DSKs without one. */
+  altKm: number | null;
   /** Distance from camera to pick point in km */
   cameraDistanceKm: number;
   /** Exact rendered hit in body-fixed ECEF km, used to keep the marker on the clicked surface. */
@@ -304,6 +307,7 @@ export class UniverseRenderer {
   private lastTapConsumed = false;
   readonly scaleFactor: number;
   private readonly minBodyPixels: number;
+  private readonly modelSurfaceDepth = new ModelSurfaceDepth();
   private readonly bodyMeshes = new Map<string, BodyMesh>();
   private readonly trajectoryLines = new Map<string, TrajectoryLine>();
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
@@ -793,8 +797,13 @@ export class UniverseRenderer {
 
     // Update body positions relative to origin body
     for (const bm of this.bodyMeshes.values()) {
-      const absPos = this.absolutePositionOf(bm.body.name, et);
-      if (isNaN(absPos[0])) continue; // Skip bodies with no coverage at this time
+      // A body outside its existence window, or with no position to draw at
+      // (an ephemeris gap, a lander before its SPK starts), is hidden rather
+      // than left frozen where it was last seen.
+      const present = this.universe.isPresentAt(bm.body.name, et);
+      const absPos = present ? this.absolutePositionOf(bm.body.name, et) : _NAN3;
+      bm.present = present && !isNaN(absPos[0]);
+      if (!bm.present) continue;
       const relPos: [number, number, number] = [
         absPos[0] - originAbsPos[0],
         absPos[1] - originAbsPos[1],
@@ -1012,6 +1021,10 @@ export class UniverseRenderer {
     const clipping = this._sensorClipping;
     let clippingReady = false;
     for (const sf of this.sensorFrustums.values()) {
+      // A sensor is drawn only while its own body is: an instrument does not
+      // outlive its spacecraft (Universe.isPresentAt follows the parent chain).
+      sf.present = this.bodyMeshes.get(sf.body.name)?.present ?? true;
+      if (!sf.present) continue;
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
       // Try SPICE-based orientation using cached FOV frame (from enrichSensorFromSpice).
       // Use the sensor's inertial frame (J2000 or ECLIPJ2000) to match scene positions.
@@ -1284,7 +1297,7 @@ export class UniverseRenderer {
     let minModelDist = Infinity;
     let maxModelDist = 0;
     for (const bm of this.bodyMeshes.values()) {
-      if (bm.isModelVisible) {
+      if (bm.isModelVisible && bm.modelContainer!.layers.isEnabled(1)) {
         const d = bm.position.distanceTo(this.camera.position);
         if (d > 0) {
           hasVisibleModels = true;
@@ -1298,13 +1311,17 @@ export class UniverseRenderer {
       const savedNear = this.camera.near;
       const savedFar = this.camera.far;
 
-      // Tight near/far: ratio ~100× gives standard depth enough precision
-      this.camera.near = Math.max(1e-15, minModelDist * 0.1);
+      const surfaceDistance = this.modelSurfaceDepth.update(
+        [...this.bodyMeshes.values()].flatMap(bm => bm.getDskMeshes()), this.camera.position, minModelDist,
+      );
+      // Include foreground physical plates in the tight linear depth range.
+      this.camera.near = Math.max(1e-15, Math.min(minModelDist, surfaceDistance) * 0.1);
       this.camera.far = Math.max(maxModelDist * 10, minModelDist * 100);
       this.camera.updateProjectionMatrix();
 
       this.camera.layers.set(1);
       this.renderer.clearDepth();
+      this.renderer.render(this.modelSurfaceDepth.scene, this.camera);
       this.renderer.render(this.scene, this.camera);
 
       // Restore camera
@@ -1865,6 +1882,11 @@ export class UniverseRenderer {
     let opacity = 1;
     for (const bm of this.bodyMeshes.values()) {
       if (!bm.visible || !(bm.mesh.visible || bm.isModelVisible || bm.hasSurfaceTiles)) continue;
+      const dskHidden = bm.dskOccludes(this.camera.position, anchor);
+      if (dskHidden !== null) {
+        if (dskHidden) return 0;
+        continue;
+      }
       const radius = bm.displayRadius * this.scaleFactor;
       opacity = Math.min(opacity, eventAnchorOpacityAtSphere(
         anchor, this.camera.position, bm.position, radius, focalLengthPx,
@@ -2032,7 +2054,7 @@ export class UniverseRenderer {
   /** Toggle visibility of a body's mesh, trajectory line(s), and label */
   setBodyVisible(name: string, visible: boolean): void {
     const bm = this.bodyMeshes.get(name);
-    if (bm) bm.visible = visible;
+    if (bm) bm.userVisible = visible;
 
     // Single trajectory
     const tl = this.trajectoryLines.get(name);
@@ -2045,7 +2067,7 @@ export class UniverseRenderer {
 
     // Sensor frustums
     const sf = this.sensorFrustums.get(name);
-    if (sf) sf.visible = visible;
+    if (sf) sf.userVisible = visible;
 
     // Ring mesh (direct match or parent body match)
     const rm = this.ringMeshes.get(name);
@@ -2167,7 +2189,7 @@ export class UniverseRenderer {
   setSensorsVisible(visible: boolean): void {
     this._sensorsVisible = visible;
     for (const sf of this.sensorFrustums.values()) {
-      sf.visible = visible;
+      sf.userVisible = visible;
     }
   }
 
@@ -2403,16 +2425,22 @@ export class UniverseRenderer {
     const bm = this.bodyMeshes.get(point.bodyName);
     if (!bm || !bm.visible) return null;
     const [ecefX, ecefY, ecefZ] = point.bodyFixedPositionKm;
-    // ECEF Z-up → body-fixed geometry Y-up (inverse of the surface discovery
-    // conversion): geoX=ecefX, geoY=ecefZ(pole), geoZ=-ecefY
+    // Invert surface discovery using the same rendered frame and axes.
+    // DSK vertices/normals remain native Z-up; globes use geometry Y-up.
+    const isDsk = point.source === 'dsk';
+    const rotation = isDsk ? bm.bodyToWorldQuaternion(new THREE.Quaternion()) : bm.mesh.quaternion;
     const bodyCenter = new THREE.Vector3();
     bm.getWorldPosition(bodyCenter);
-    const world = new THREE.Vector3(ecefX, ecefZ, -ecefY)
-      .applyQuaternion(bm.mesh.quaternion)
+    const world = (isDsk
+      ? new THREE.Vector3(ecefX, ecefY, ecefZ)
+      : new THREE.Vector3(ecefX, ecefZ, -ecefY))
+      .applyQuaternion(rotation)
       .multiplyScalar(this.scaleFactor)
       .add(bodyCenter);
     const n = point.surfaceNormal;
-    const normal = n ? new THREE.Vector3(n[0], n[2], -n[1]).applyQuaternion(bm.mesh.quaternion) : null;
+    const normal = n ? (isDsk
+      ? new THREE.Vector3(n[0], n[1], n[2])
+      : new THREE.Vector3(n[0], n[2], -n[1])).applyQuaternion(rotation) : null;
     return { world, bodyCenter, normal };
   }
 
@@ -2428,7 +2456,9 @@ export class UniverseRenderer {
   private _refinePin(): void {
     const pin = this._probe.pinned;
     const state = this._pinRefine;
-    if (!pin) return;
+    // DSK plates are a stable body-fixed surface, not a streamed heightfield.
+    // A radial recast can hit another lobe of a concave shape and move the pin.
+    if (!pin || pin.source === 'dsk') return;
     const now = performance.now();
     // A pin its own refined surface now covers is re-seated at once.
     const interval = this._pinOcclusion.point === pin && this._pinOcclusion.hidden
@@ -2453,8 +2483,10 @@ export class UniverseRenderer {
       point.bodyFixedPositionKm[1] - pin.bodyFixedPositionKm[1],
       point.bodyFixedPositionKm[2] - pin.bodyFixedPositionKm[2],
     );
-    const restated = point.source !== pin.source ||
-      Math.abs(point.altitude.km - pin.altitude.km) > UniverseRenderer._pinRefineEpsKm ||
+    const heightChanged = point.altitude.km === null || pin.altitude.km === null
+      ? point.altitude.km !== pin.altitude.km
+      : Math.abs(point.altitude.km - pin.altitude.km) > UniverseRenderer._pinRefineEpsKm;
+    const restated = point.source !== pin.source || heightChanged ||
       point.terrainSample?.tileId !== pin.terrainSample?.tileId;
     if (moved <= UniverseRenderer._pinRefineEpsKm && !restated) return;
     this._probe.setPin(point, true);
@@ -2575,12 +2607,13 @@ export class UniverseRenderer {
       if (raycaster.ray.intersectsSphere(reach.set(center, radiusKm * this.scaleFactor))) reachable.add(bm);
     }
 
-    // Main scene: globe sphere meshes + terrain tile groups. The raycaster
+    // Main scene: globe spheres, authoritative DSKs and terrain tiles. The raycaster
     // ignores ancestor visibility, so a hidden body is skipped here.
     const mainTargets: THREE.Object3D[] = [];
     for (const bm of this.bodyMeshes.values()) {
       if (!bm.visible) continue;
       if (bm.mesh.visible) mainTargets.push(bm.mesh);
+      mainTargets.push(...bm.getDskMeshes());
       const tg = bm.terrainTileGroup;
       if (tg && tg.visible && reachable.has(bm)) mainTargets.push(tg);
     }
@@ -2643,6 +2676,7 @@ export class UniverseRenderer {
         const surfaceTriangles = (hit.object as THREE.Mesh).geometry?.userData?.surfaceTriangles;
         renderedSkirt = typeof surfaceTriangles === 'number' && hit.faceIndex != null && hit.faceIndex >= surfaceTriangles;
         bestNormal = surfaceNormalWorld(hit);
+        if (hit.object.userData.dskSurface) source = 'dsk';
         for (const bm of this.bodyMeshes.values()) {
           let obj: THREE.Object3D | null = hit.object;
           const terrain = bm.terrainTileGroup;
@@ -2719,47 +2753,55 @@ export class UniverseRenderer {
     // Vector from body center to hit, converted to km in the inertial Y-up frame
     const km = ray.worldPoint.clone().sub(bodyCenter).divideScalar(this.scaleFactor);
 
-    // Rotate inertial → body-fixed geometry space (Y-up).
-    // bm.mesh.quaternion = spiceQ * meshRotationQ (globe pre-rotation).
-    const toBodyFixed = bm.mesh.quaternion.clone().invert();
+    // Globes use Y-up geometry; DSKs retain native body-fixed Z-up axes.
+    // Use the rendered DSK attitude instead of the hidden placeholder.
+    const isDsk = ray.source === 'dsk';
+    const toBodyFixed = isDsk
+      ? bm.bodyToWorldQuaternion(new THREE.Quaternion()).invert()
+      : bm.mesh.quaternion.clone().invert();
     km.applyQuaternion(toBodyFixed);
 
     // Body-fixed geometry Y-up → body-fixed ECEF Z-up:
     //   geoX = bodyX, geoY = bodyZ (pole), geoZ = -bodyY
     const ecefX = km.x;
-    const ecefY = -km.z;
-    const ecefZ = km.y;
+    const ecefY = isDsk ? km.y : -km.z;
+    const ecefZ = isDsk ? km.z : km.y;
 
     const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
     if (r < 1e-10) return null;
 
-    const terrainPosition = bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
+    const terrainPosition = isDsk ? null : bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const latDeg = terrainPosition?.latDeg ?? (Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI));
     const lonDeg = terrainPosition?.lonDeg ?? (Math.atan2(ecefY, ecefX) * (180 / Math.PI));
     // The rendered intersection is the point. Decoded CPU terrain at the
     // same place is its own record, and becomes the point's altitude only
     // when the terrain is the surface that was hit (an overlay hit sits over
     // the global terrain product, not on it).
-    const terrainSample = bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
-    const hitHeightKm = terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg));
+    const terrainSample = isDsk ? null : bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const resolution = resolutionAt(r, latDeg);
-    const terrainDatum = bm.terrainDatum;
-    const radii = bm.body.radii;
-    // Equal radii are a sphere, whatever field they came in.
-    const oblate = !!radii && (radii[0] !== radii[1] || radii[0] !== radii[2]);
-    // The hit height is measured against the terrain datum when the body has
-    // one (terrainBodyFixedToGeodetic), else radially from the body's shape.
-    const hitDatum: SurfaceDatum = terrainPosition && terrainDatum
-      ? { ...terrainDatum, origin: 'terrain' }
-      : {
-          referenceShape: radii && oblate
-            ? { kind: 'ellipsoid', radiiKm: [radii[0], radii[1], radii[2]] }
-            : { kind: 'sphere', radiusKm: radii ? radii[0] : bm.displayRadius },
-          verticalDatum: oblate ? 'ellipsoid' : 'reference-sphere',
-          heightConvention: 'radial',
-          origin: 'body-shape',
-        };
-    const hit = { heightKm: hitHeightKm, datum: hitDatum };
+    // An irregular plate surface does not define a spherical altitude datum.
+    const hit: SurfacePoint['hit'] = { heightKm: null, datum: null };
+    if (!isDsk) {
+      const hitHeightKm = terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg));
+      const terrainDatum = bm.terrainDatum;
+      const radii = bm.body.radii;
+      // Equal radii are a sphere, whatever field they came in.
+      const oblate = !!radii && (radii[0] !== radii[1] || radii[0] !== radii[2]);
+      // The hit height is measured against the terrain datum when the body has
+      // one (terrainBodyFixedToGeodetic), else radially from the body's shape.
+      const hitDatum: SurfaceDatum = terrainPosition && terrainDatum
+        ? { ...terrainDatum, origin: 'terrain' }
+        : {
+            referenceShape: radii && oblate
+              ? { kind: 'ellipsoid', radiiKm: [radii[0], radii[1], radii[2]] }
+              : { kind: 'sphere', radiusKm: radii ? radii[0] : bm.displayRadius },
+            verticalDatum: oblate ? 'ellipsoid' : 'reference-sphere',
+            heightConvention: 'radial',
+            origin: 'body-shape',
+          };
+      hit.heightKm = hitHeightKm;
+      hit.datum = hitDatum;
+    }
     const sample = terrainSample ? {
       elevationKm: terrainSample.elevationKm,
       datum: { ...terrainSample.datum, origin: 'terrain' as const },
@@ -2779,9 +2821,9 @@ export class UniverseRenderer {
       ...resolveSurfaceAltitude(ray.source, hit, sample),
     };
     if (ray.normal) {
-      // Same frame change as the position: geometry Y-up → ECEF Z-up.
+      // Match the position conversion; DSK normals are already Z-up.
       const n = ray.normal.clone().applyQuaternion(toBodyFixed).normalize();
-      point.surfaceNormal = [n.x, -n.z, n.y];
+      point.surfaceNormal = isDsk ? [n.x, n.y, n.z] : [n.x, -n.z, n.y];
     }
     return point;
   }
@@ -2877,6 +2919,8 @@ export class UniverseRenderer {
       // framing hints, not geometry, and a barycenter sitting on its planet's
       // center (or on the sun) casts a shadow nothing in the scene explains.
       bm.hasMeasuredRadius &&
+      // A body not in the scene right now casts nothing.
+      bm.present &&
       bm.displayRadius >= this._shadowMinOccluderKm &&
       // Bodies rendered by a custom visualizer don't have a real sphere — their
       // displayRadius is just a hint for label/flyTo framing, not the actual
@@ -3207,6 +3251,9 @@ export class UniverseRenderer {
       const vis = this._visualizers.get(body.geometryType ?? '');
       if (!vis) continue;
       const bm = this.bodyMeshes.get(bodyName);
+      // Custom visuals live outside BodyMesh, so inherit its effective visibility explicitly.
+      obj.visible = bm ? bm.present && bm.userVisible : this.universe.isPresentAt(bodyName, et);
+      if (!obj.visible) continue;
       const pos: [number, number, number] = bm
         ? [bm.position.x, bm.position.y, bm.position.z]
         : [
@@ -3265,6 +3312,7 @@ export class UniverseRenderer {
     this.solarSources.clear();
     this.bloomEffect?.dispose();
     this.bloomEffect = null;
+    this.modelSurfaceDepth.dispose();
     this.renderer.dispose();
     this.events.dispose();
     for (const plugin of this.plugins) plugin.dispose?.();
@@ -3400,6 +3448,46 @@ export class UniverseRenderer {
         }
       }
 
+      // A DSK shape model: the body's own surface, read by SPICE and drawn in
+      // its body-fixed frame (DskShapeProvider.ts). It needs a SPICE engine to
+      // read the file, and fails as an asset — not silently — without one.
+      if (body.geometryType === 'Dsk' && body.geometryData?.source) {
+        const source = body.geometryData.source as string;
+        const url = this.options.modelResolver?.(source);
+        const provider = dskShapeProviderOf(this.universe.spiceInstance);
+        if (!url) {
+          this.assets.fail(
+            { kind: 'model', owner: body.name, role: 'model:dsk', url: source },
+            'DSK source did not resolve to a URL',
+          );
+        } else if (!provider) {
+          this.assets.fail(
+            { kind: 'model', owner: body.name, role: 'model:dsk', url },
+            'reading a DSK needs a SPICE engine, and this scene has none',
+          );
+        } else {
+          this.assets.hold(bm.loadDsk(url, this.scaleFactor, provider, source));
+        }
+      }
+
+      // TimeSwitched: one shape per time window (Cosmographia). Entries were
+      // given ET windows by the catalog loader.
+      if (body.geometryType === 'TimeSwitched' && Array.isArray(body.geometryData?.sequence)) {
+        const entries = (body.geometryData.sequence as Record<string, unknown>[])
+          .filter((e) => e && typeof e.geometry === 'object')
+          .map((e) => ({
+            startEt: typeof e.startEt === 'number' ? e.startEt : -Infinity,
+            endEt: typeof e.endEt === 'number' ? e.endEt : Infinity,
+            geometry: e.geometry as Record<string, unknown>,
+          }));
+        this.assets.hold(bm.loadTimeSwitched(
+          entries,
+          this.scaleFactor,
+          dskShapeProviderOf(this.universe.spiceInstance),
+          this.options.modelResolver,
+        ));
+      }
+
       // Load textures for Globe geometry (baseMap, normalMap, displacementMap)
       if (body.geometryType === 'Globe' && body.geometryData) {
         const resolver = this.options.textureResolver ?? this.options.modelResolver;
@@ -3526,19 +3614,8 @@ export class UniverseRenderer {
           if (plotCfg?.sampleCount) trajOpts.maxPoints = plotCfg.sampleCount;
 
           // Apply catalog color (accepts "#rrggbb", "rrggbb", or [r, g, b] floats 0-1)
-          if (plotCfg?.color != null) {
-            const c = plotCfg.color;
-            if (typeof c === 'string') {
-              const hex = c.startsWith('#') ? c.slice(1) : c;
-              const n = parseInt(hex, 16);
-              if (!Number.isNaN(n)) trajOpts.color = n;
-            } else if (Array.isArray(c) && c.length >= 3) {
-              const r = Math.round(Math.max(0, Math.min(1, c[0])) * 255);
-              const g = Math.round(Math.max(0, Math.min(1, c[1])) * 255);
-              const b = Math.round(Math.max(0, Math.min(1, c[2])) * 255);
-              trajOpts.color = (r << 16) | (g << 8) | b;
-            }
-          }
+          const color = plotColor(plotCfg?.color);
+          if (color !== undefined) trajOpts.color = color;
 
           // Apply catalog opacity
           if (plotCfg?.opacity != null) trajOpts.opacity = plotCfg.opacity;
@@ -3553,6 +3630,10 @@ export class UniverseRenderer {
           if (body.trajectory.endTime != null && trajOpts.maxTime == null) {
             trajOpts.maxTime = body.trajectory.endTime;
           }
+          // ...and to the body's existence window: no trail before it exists
+          // or after it is gone.
+          if (body.existsFrom != null) trajOpts.minTime = Math.max(trajOpts.minTime ?? -Infinity, body.existsFrom);
+          if (body.existsUntil != null) trajOpts.maxTime = Math.min(trajOpts.maxTime ?? Infinity, body.existsUntil);
 
           // Periodic orbits whose trail covers roughly one period are spatially
           // static — sample once at scene load, never resample. Critical for the
@@ -3777,7 +3858,10 @@ export class UniverseRenderer {
         );
       };
 
-      const plotCfg = body.trajectoryPlot;
+      // An arc's own trajectoryPlot overrides the body's field by field: a
+      // cruise arc can keep years of trail while the orbit phase keeps days.
+      const plotCfg = { ...body.trajectoryPlot, ...arc.plot };
+      if (plotCfg.visible === false) continue;
 
       // Determine trail duration: use catalog value if specified, otherwise estimate from
       // orbit period or cap at 1 year. Showing the entire multi-year arc wastes vertex budget
@@ -3806,10 +3890,12 @@ export class UniverseRenderer {
       const tl = new TrajectoryLine(body, {
         trailDuration: trailDur,
         leadDuration: 0,
-        minTime: arc.startTime,
-        maxTime: isLastArc ? undefined : arc.endTime,
+        minTime: Math.max(arc.startTime, body.existsFrom ?? -Infinity),
+        maxTime: isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
         fixedResolver: arcResolver,
         fadeFraction: plotCfg?.fade ?? 1.0,
+        color: plotColor(plotCfg.color),
+        opacity: plotCfg.opacity,
         // Per-arc sample-count override lets long cruise arcs request a
         // higher vertex budget than the default cap (~500) so the orbit
         // line doesn't appear as a faceted polygon at high eccentricity.
@@ -3833,8 +3919,15 @@ export class UniverseRenderer {
       // own bounds (not the routing-extended endTime) so we don't waste
       // vertices on a clamped-to-last-sample post-arc gap.
       try {
-        const trajStart = arc.trajectory.startTime;
-        const trajEnd = arc.trajectory.endTime;
+        // The arc's trajectory may cover far more than the arc: a Spice arc's
+        // bounds are the target's whole SPK coverage (Rosetta's comet-relative
+        // arc would otherwise spread its budget over 2004-2016). Inner edges
+        // are the arc's own; the outer ones stay open, since the body keeps
+        // using its first and last arcs beyond them.
+        const coverStart = arc.trajectory.startTime;
+        const coverEnd = arc.trajectory.endTime;
+        const trajStart = coverStart != null && i > 0 ? Math.max(coverStart, arc.startTime) : coverStart;
+        const trajEnd = coverEnd != null && !isLastArc ? Math.min(coverEnd, arc.endTime) : coverEnd;
         if (trajStart != null && trajEnd != null && trajEnd > trajStart) {
           // Cache must store samples in the SAME frame the trail's runtime
           // resolver produces, otherwise cached samples and live tail
@@ -4193,7 +4286,7 @@ export class UniverseRenderer {
   }
 
   /**
-   * Body discovery: raycast the body meshes (placeholder sphere) AND terrain
+   * Body discovery: raycast placeholder spheres, visible DSK plates and terrain
    * meshes. When the camera is near a planet's surface the placeholder sphere
    * is hidden (see BodyMesh frame logic) and only the terrain mesh is visible —
    * so the terrain group is raycast too, otherwise the planet becomes unpickable.
@@ -4204,9 +4297,12 @@ export class UniverseRenderer {
     const meshTargets: THREE.Object3D[] = [];
     const terrainOwner = new Map<THREE.Object3D, BodyMesh>();
     for (const bm of this.bodyMeshes.values()) {
+      // Raycasting ignores visibility, including bodies outside their existence window.
+      if (!bm.visible) continue;
       if (bm.mesh.visible) {
         meshTargets.push(bm.mesh);
       } else {
+        meshTargets.push(...bm.getDskMeshes());
         // Sphere hidden (camera near surface) — fall back to terrain mesh so the
         // body remains pickable. Skipped when sphere is visible to avoid
         // raycasting hundreds of tile meshes the sphere already covers.
@@ -4541,4 +4637,17 @@ export class UniverseRenderer {
     this.animFrameId = requestAnimationFrame(this.renderLoop);
     this.renderFrame();
   };
+}
+
+/** A catalog trail colour ("#rrggbb", "rrggbb", or [r, g, b] in 0–1) as a hex number. */
+function plotColor(c: string | number[] | undefined): number | undefined {
+  if (typeof c === 'string') {
+    const n = parseInt(c.startsWith('#') ? c.slice(1) : c, 16);
+    return Number.isNaN(n) ? undefined : n;
+  }
+  if (Array.isArray(c) && c.length >= 3) {
+    const ch = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255);
+    return (ch(c[0]!) << 16) | (ch(c[1]!) << 8) | ch(c[2]!);
+  }
+  return undefined;
 }

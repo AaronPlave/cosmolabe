@@ -1,8 +1,10 @@
 import * as THREE from 'three';
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { SunVisual, SOLAR_LAYER } from './SunVisual.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { TDSLoader } from 'three/examples/jsm/loaders/TDSLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
@@ -27,7 +29,8 @@ import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUnif
 import { BLOOM_LAYER } from './BloomEffect.js';
 import { isLine, isMesh, isSprite } from './internal/three-typeguards.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
-import { composeBodyToWorldQuat, type Body, type FrameRegistry } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, SpiceRotation, type Body, type FrameRegistry } from '@cosmolabe/core';
+import { dskToBufferGeometry, gunzipIfNeeded, type DskShapeProvider } from './DskShapeProvider.js';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
   star: 0xffdd44,
@@ -147,6 +150,23 @@ export class BodyMesh extends THREE.Object3D {
    */
   readonly ellipsoidRatios: [number, number, number] = [1, 1, 1];
 
+  /** The user's show/hide choice (`UniverseRenderer.setBodyVisible`). */
+  private _userVisible = true;
+  /** Whether the body is in the scene at the current time: inside its
+   *  existence window with a position to draw at. Set by the renderer each frame. */
+  private _present = true;
+
+  /** The user's show/hide choice, independent of whether the body is present. */
+  get userVisible(): boolean { return this._userVisible; }
+  set userVisible(v: boolean) { this._userVisible = v; this.visible = v && this._present; }
+  /** Whether the body is in the scene now. Drawn only when present and user-visible. */
+  get present(): boolean { return this._present; }
+  set present(v: boolean) {
+    if (v === this._present) return;
+    this._present = v;
+    this.visible = v && this._userVisible;
+  }
+
   /**
    * The body-fixed frame as rendered: the rotation taking body-fixed axes
    * (SPICE convention — Z the pole, X the prime meridian) to world axes.
@@ -162,6 +182,34 @@ export class BodyMesh extends THREE.Object3D {
 
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
+
+  /** Visible authoritative meshes, including the active TimeSwitched entry. */
+  getDskMeshes(): THREE.Mesh[] {
+    const meshes: THREE.Mesh[] = [];
+    if (this.visible && this.isModelVisible) this.modelContainer!.traverseVisible((object) => {
+      if (isMesh(object) && object.userData.dskSurface) meshes.push(object);
+    });
+    return meshes;
+  }
+
+  private readonly dskRaycaster = new THREE.Raycaster();
+  private readonly dskRayDirection = new THREE.Vector3();
+
+  /** Null means no rendered DSK; otherwise test the actual plates, not a sphere. */
+  dskOccludes(origin: THREE.Vector3, point: THREE.Vector3): boolean | null {
+    const meshes = this.getDskMeshes();
+    if (!meshes.length) return null;
+    const direction = this.dskRayDirection.copy(point).sub(origin);
+    const distance = direction.length();
+    if (distance === 0) return false;
+    this.updateWorldMatrix(true, true);
+    const caster = this.dskRaycaster;
+    caster.set(origin, direction.divideScalar(distance));
+    caster.near = 0;
+    caster.far = distance * (1 - 1e-7);
+    caster.firstHitOnly = true;
+    return caster.intersectObjects(meshes, false).length > 0;
+  }
   get hasShadowReceiving(): boolean { return this.shadowEnabled; }
   /** True when `displayRadius` reflects real geometry rather than a classification fallback. */
   get hasMeasuredRadius(): boolean { return this._hasMeasuredRadius; }
@@ -269,6 +317,7 @@ export class BodyMesh extends THREE.Object3D {
     url: string,
     sourcePath?: string,
     modelResolver?: ModelResolver,
+    geometry: Record<string, unknown> = this.body.geometryData ?? {},
   ): Promise<THREE.Object3D> {
     if (ext === 'glb' || ext === 'gltf') {
       const loader = new GLTFLoader();
@@ -303,18 +352,74 @@ export class BodyMesh extends THREE.Object3D {
       if (!parsed) throw new Error(`Failed to parse .cmod (${url})`);
       return parsed;
     }
+    if (ext === '3ds') {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+      const buf = await resp.arrayBuffer();
+      const manager = this.textureManagerFor(sourcePath, modelResolver);
+      const object = new TDSLoader(manager).parse(buf, '');
+      object.traverse((child) => {
+        if (!isMesh(child)) return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+          if (!(material instanceof THREE.MeshPhongMaterial)) continue;
+          if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
+          // Legacy 3DS has only a bump slot. Some packages supply a tangent
+          // normal map there; the catalog must explicitly identify it.
+          if (geometry.bumpMapType === 'normal' && material.bumpMap) {
+            material.normalMap = material.bumpMap;
+            material.bumpMap = null;
+          }
+        }
+      });
+      return object;
+    }
     throw new Error(`Unsupported model format: .${ext}`);
   }
 
   /**
-   * Load a 3D model (GLTF/GLB/OBJ) to replace the placeholder sphere.
+   * A LoadingManager for a legacy model's material textures (.3ds): each map
+   * name resolves relative to the model file through the catalog's resolver —
+   * which is what lets a dropped model find its dropped textures — and each
+   * one is registered with the asset tracker as it starts, like a .cmod's.
+   */
+  private textureManagerFor(sourcePath?: string, modelResolver?: ModelResolver): THREE.LoadingManager {
+    const manager = new THREE.LoadingManager();
+    const dir = sourcePath ? sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1) : '';
+    manager.setURLModifier((name) => {
+      // 3DS files written on Windows carry backslash paths.
+      const rel = name.replace(/\\/g, '/');
+      return (modelResolver && sourcePath ? modelResolver(dir + rel) : undefined) ?? rel;
+    });
+    const assets = this.assets;
+    if (!assets) return manager;
+    const settle = new Map<string, { ok: () => void; fail: (e: Error) => void }>();
+    const { itemStart, itemEnd, itemError } = manager;
+    manager.itemStart = (url: string) => {
+      itemStart.call(manager, url);
+      const p = new Promise<void>((ok, fail) => settle.set(url, { ok, fail }));
+      assets.track({ kind: 'texture', owner: this.body.name, role: `3ds:${url.split('/').pop()}`, url }, p);
+    };
+    // A failed image reports itemError and then itemEnd; the promise keeps the first.
+    manager.itemError = (url: string) => {
+      itemError.call(manager, url);
+      settle.get(url)?.fail(new Error(`texture failed to load: ${url}`));
+    };
+    manager.itemEnd = (url: string) => {
+      itemEnd.call(manager, url);
+      settle.get(url)?.ok();
+    };
+    return manager;
+  }
+
+  /**
+   * Load a 3D model (GLTF/GLB, OBJ, CMOD, or legacy 3DS) to replace the placeholder sphere.
    * Applies size scaling, mesh offset, and mesh rotation from the geometry spec.
    */
   async loadModel(url: string, scaleFactor: number, sourcePath?: string, modelResolver?: ModelResolver): Promise<void> {
     if (this.loadedModel) return;
     this.loadedModel = true;
 
-    const geo = this.body.geometryData ?? {};
     // Use sourcePath for extension detection (blob URLs have no extension)
     const extSource = sourcePath ?? url;
     const ext = extSource.split('.').pop()?.toLowerCase() ?? '';
@@ -331,6 +436,159 @@ export class BodyMesh extends THREE.Object3D {
       console.warn(`[Cosmolabe] Failed to load model for ${this.body.name}: ${e instanceof Error ? e.message : e}`);
       return;
     }
+
+    this.installModel(object, scaleFactor, false);
+  }
+
+  /**
+   * Load a SPICE DSK shape model as this body's surface.
+   *
+   * Unlike an art model, a DSK is authoritative: its vertices are already km
+   * in the body-fixed frame, centred on the body, so `size`, `meshRotation`
+   * and `meshOffset` do not apply and are ignored. The body's rotation model
+   * places it, which is why a Dsk body needs one naming the same frame the DSK
+   * does; a mismatch is reported rather than silently drawn in the wrong
+   * orientation.
+   */
+  async loadDsk(url: string, scaleFactor: number, provider: DskShapeProvider, sourcePath?: string): Promise<void> {
+    if (this.loadedModel) return;
+    this.loadedModel = true;
+    const load = this.buildDskObject(url, provider, sourcePath, this.body.geometryData ?? {});
+    this.assets?.track({ kind: 'model', owner: this.body.name, role: 'model:dsk', url }, load);
+    let object: THREE.Object3D;
+    try {
+      object = await load;
+    } catch (e) {
+      console.warn(`[Cosmolabe] Failed to load DSK for ${this.body.name}: ${e instanceof Error ? e.message : e}`);
+      return;
+    }
+    this.installModel(object, scaleFactor, true);
+  }
+
+  /** Fetch, read and mesh one DSK; `geo` is the geometry spec it came from (for `color`). */
+  private async buildDskObject(
+    url: string,
+    provider: DskShapeProvider,
+    sourcePath: string | undefined,
+    geo: Record<string, unknown>,
+  ): Promise<THREE.Object3D> {
+    const name = (sourcePath ?? url).split(/[?#]/)[0]!.split('/').pop()!.replace(/\.gz$/i, '') || 'shape.bds';
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+    const bytes = await gunzipIfNeeded(new Uint8Array(await resp.arrayBuffer()));
+    const shape = provider.readDsk(name, bytes);
+    this.checkDskFrame(name, shape.centerId, shape.frame);
+    const material = new THREE.MeshStandardMaterial({ color: this.dskColor(geo), roughness: 1, metalness: 0 });
+    const mesh = new THREE.Mesh(dskToBufferGeometry(shape), material);
+    // Accelerate this authoritative surface only; preserve native plate/index
+    // order for probe normals and provenance. Other scene meshes are untouched.
+    mesh.geometry.boundsTree = new MeshBVH(mesh.geometry, { indirect: true });
+    mesh.geometry.addEventListener('dispose', () => { mesh.geometry.boundsTree = undefined; });
+    mesh.raycast = acceleratedRaycast;
+    mesh.userData.dskSurface = true;
+    mesh.name = `${this.body.name} DSK`;
+    const group = new THREE.Group();
+    group.add(mesh);
+    return group;
+  }
+
+  /** The TimeSwitched entries, when the body's geometry is one; see `applyTimeSwitch`. */
+  private timeSwitch: { startEt: number; endEt: number; object: THREE.Object3D }[] | null = null;
+
+  /**
+   * Load a `TimeSwitched` geometry: one shape per time window, drawn only
+   * inside its window (Cosmographia's `sequence`). Rosetta is the case this is
+   * for: its bus with Philae attached until separation, the bare bus after.
+   *
+   * Each entry is a `Dsk` or a `Mesh`. A Dsk entry is body-fixed km as it
+   * stands; a Mesh entry carries its own `size`, `meshRotation` and
+   * `meshOffset`, applied to that entry alone. The whole set is installed as
+   * one model, so sizing, picking and labels see the union of the shapes.
+   * An entry that fails to load is reported and left out; the rest still draw.
+   */
+  async loadTimeSwitched(
+    entries: readonly TimeSwitchedEntry[],
+    scaleFactor: number,
+    provider: DskShapeProvider | null,
+    modelResolver?: ModelResolver,
+  ): Promise<void> {
+    if (this.loadedModel) return;
+    this.loadedModel = true;
+    const loads = entries.map(async (entry) => {
+      const geo = entry.geometry;
+      const source = typeof geo.source === 'string' ? geo.source : undefined;
+      const url = source ? modelResolver?.(source) : undefined;
+      const type = geo.type;
+      const role = `timeSwitched:${type}`;
+      if (!source || !url) {
+        this.assets?.fail({ kind: 'model', owner: this.body.name, role, url: source ?? '' }, 'TimeSwitched entry source did not resolve to a URL');
+        return null;
+      }
+      if (type === 'Dsk' && !provider) {
+        this.assets?.fail({ kind: 'model', owner: this.body.name, role, url }, 'reading a DSK needs a SPICE engine, and this scene has none');
+        return null;
+      }
+      const load = type === 'Dsk'
+        ? this.buildDskObject(url, provider!, source, geo)
+        : type === 'Mesh'
+          ? this.fetchModel(source.split('.').pop()?.toLowerCase() ?? '', url, source, modelResolver, geo).then((o) => alignMeshEntry(o, geo))
+          : Promise.reject(new Error(`TimeSwitched entries must be Dsk or Mesh, not ${String(type)}`));
+      this.assets?.track({ kind: 'model', owner: this.body.name, role, url }, load);
+      try {
+        return { startEt: entry.startEt, endEt: entry.endEt, object: await load };
+      } catch (e) {
+        console.warn(`[Cosmolabe] ${this.body.name}: TimeSwitched entry ${source} failed: ${e instanceof Error ? e.message : e}`);
+        return null;
+      }
+    });
+    const loaded = (await Promise.all(loads)).filter((x): x is NonNullable<typeof x> => x !== null);
+    if (loaded.length === 0) return;
+    const group = new THREE.Group();
+    for (const l of loaded) group.add(l.object);
+    this.timeSwitch = loaded;
+    this.installModel(group, scaleFactor, true);
+    if (this.lastEt !== undefined) this.applyTimeSwitch(this.lastEt);
+  }
+
+  private lastEt: number | undefined;
+
+  /** Show only the TimeSwitched entry whose window holds `et` (start inclusive, end exclusive). */
+  private applyTimeSwitch(et: number): void {
+    if (!this.timeSwitch) return;
+    for (const e of this.timeSwitch) e.object.visible = et >= e.startEt && et < e.endEt;
+  }
+
+  private dskColor(geo: Record<string, unknown>): THREE.ColorRepresentation {
+    const c = geo.color ?? this.body.geometryData?.color;
+    if (Array.isArray(c) && c.length >= 3) return new THREE.Color(c[0] as number, c[1] as number, c[2] as number);
+    if (typeof c === 'string') return c;
+    return DEFAULT_BODY_COLORS[this.body.classification ?? ''] ?? 0xcccccc;
+  }
+
+  /** Refuse known incompatible coordinates; a NAIF structure origin is distinct from its spacecraft CoM. */
+  private checkDskFrame(name: string, centerId: number, frame: string): void {
+    const naifId = this.body.naifId;
+    if (naifId != null && centerId !== naifId) {
+      throw new Error(`DSK ${name} describes NAIF body ${centerId}, but it is drawn on ${this.body.name} (${naifId}); use the DSK origin's trajectory`);
+    }
+    const rotation = this.body.rotation;
+    if (!rotation) {
+      console.warn(`[Cosmolabe] ${this.body.name} has a DSK surface but no rotationModel; the shape will not turn with the body`);
+      return;
+    }
+    if (frame && rotation instanceof SpiceRotation && rotation.bodyFixedFrame.toUpperCase() !== frame.toUpperCase()) {
+      throw new Error(`DSK ${name} is in frame ${frame}, but ${this.body.name} rotates into ${rotation.bodyFixedFrame}`);
+    }
+  }
+
+  /**
+   * Put a parsed model in place of the placeholder sphere: sizing, the model
+   * render layer, shadows and the log-depth strip. `bodyFixedKm` marks geometry
+   * that is already km in the body-fixed frame (a DSK), which skips the
+   * catalog's size and mesh-alignment fields.
+   */
+  private installModel(object: THREE.Object3D, scaleFactor: number, bodyFixedKm: boolean): void {
+    const geo: Record<string, unknown> = bodyFixedKm ? {} : (this.body.geometryData ?? {});
 
     // Store mesh rotation for composition with SPICE attitude (Cosmographia quaternion: [w, x, y, z])
     const meshRotation = geo.meshRotation as number[] | undefined;
@@ -380,17 +638,21 @@ export class BodyMesh extends THREE.Object3D {
       );
     }
 
-    // Multi-pass rendering: models are rendered in a separate pass (layer 1) with
-    // cleared depth buffer and tight near/far, so standard hardware depth interpolation
-    // handles intra-model face sorting with full precision. No log depth override needed.
+    // Art models use layer 1 with tight standard depth. Physical DSK meshes
+    // share layer 0 and logarithmic depth with globes and trajectories.
     const emissiveModel = this.body.classification === 'star' || this.body.geometryData?.emissive === true;
     // Three.js shadow-map casting flag, read from the catalog. Used by the
     // sun DirectionalLight to render this mesh's silhouette into the shadow
     // map, which the parent body's terrain shader then samples. Independent
     // of the eclipse-shadow analytical system.
     const castShadowFlag = this.body.geometryData?.castShadow === true;
+    let hasArtModel = false;
     object.traverse((child) => {
-      child.layers.set(1);
+      const dskSurface = isMesh(child) && child.userData.dskSurface === true;
+      if (isMesh(child) && !dskSurface) hasArtModel = true;
+      // Physical DSKs share globe/trajectory depth. Art models retain their
+      // separate tight-depth pass; drawing DSKs there paints over foregrounds.
+      child.layers.set(dskSurface ? 0 : 1);
       if (emissiveModel) child.layers.enable(BLOOM_LAYER);
       if (castShadowFlag && isMesh(child)) child.castShadow = true;
 
@@ -404,21 +666,24 @@ export class BodyMesh extends THREE.Object3D {
         const receiveShadow = this.shadowEnabled;
         const su = this.shadowUniforms;
         for (const mat of mats) {
-          // Strip log depth chunks — model uses standard hardware depth.
+          // Only art models strip logarithmic depth for the tight model pass.
           // Also inject eclipse shadow uniforms when shadow receiving is enabled.
           mat.onBeforeCompile = (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }) => {
-            shader.vertexShader = shader.vertexShader
-              .replace('#include <logdepthbuf_pars_vertex>', '')
-              .replace('#include <logdepthbuf_vertex>', '');
-            shader.fragmentShader = shader.fragmentShader
-              .replace('#include <logdepthbuf_pars_fragment>', '')
-              .replace('#include <logdepthbuf_fragment>', '');
+            if (!dskSurface) {
+              shader.vertexShader = shader.vertexShader
+                .replace('#include <logdepthbuf_pars_vertex>', '')
+                .replace('#include <logdepthbuf_vertex>', '');
+              shader.fragmentShader = shader.fragmentShader
+                .replace('#include <logdepthbuf_pars_fragment>', '')
+                .replace('#include <logdepthbuf_fragment>', '');
+            }
             if (receiveShadow) injectShadowIntoShader(shader, su);
           };
-          mat.customProgramCacheKey = () => receiveShadow ? 'model_nologdepth_shadow_v1' : 'model_nologdepth';
+          mat.customProgramCacheKey = () => `${dskSurface ? 'dsk_logdepth' : 'model_nologdepth'}${receiveShadow ? '_shadow_v1' : ''}`;
         }
       }
     });
+    object.layers.set(hasArtModel ? 1 : 0);
 
     // Replace placeholder sphere with loaded model
     this.mesh.visible = false;
@@ -775,6 +1040,8 @@ export class BodyMesh extends THREE.Object3D {
   /** Update position from absolute coordinates (km) and apply rotation. */
   updatePosition(absolutePos: [number, number, number], et: number, scaleFactor: number): void {
     this.scaleFactor = scaleFactor;
+    this.lastEt = et;
+    this.applyTimeSwitch(et);
     this.position.set(
       absolutePos[0] * scaleFactor,
       absolutePos[1] * scaleFactor,
@@ -1855,4 +2122,33 @@ export class BodyMesh extends THREE.Object3D {
       });
     }
   }
+}
+
+/** One entry of a `TimeSwitched` geometry, its window already in ET seconds. */
+export interface TimeSwitchedEntry {
+  startEt: number;
+  endEt: number;
+  geometry: Record<string, unknown>;
+}
+
+/**
+ * Place a Mesh entry of a TimeSwitched geometry in the body frame: `size`
+ * (diameter, km) scales its longest side, `meshRotation` ([w, x, y, z]) turns
+ * it, `meshOffset` moves it, all on the entry's own object — the set is
+ * installed as body-fixed km, so nothing is applied to it as a whole.
+ */
+function alignMeshEntry(object: THREE.Object3D, geo: Record<string, unknown>): THREE.Object3D {
+  const box = new THREE.Box3().setFromObject(object);
+  const extent = box.getSize(new THREE.Vector3());
+  const maxExtent = Math.max(extent.x, extent.y, extent.z);
+  const size = typeof geo.size === 'number' ? geo.size : 0;
+  const scale = size > 0 && maxExtent > 0 ? size / maxExtent : 1;
+  const holder = new THREE.Group();
+  holder.add(object);
+  holder.scale.setScalar(scale);
+  const r = geo.meshRotation as number[] | undefined;
+  if (r && r.length >= 4) holder.quaternion.set(r[1]!, r[2]!, r[3]!, r[0]!);
+  const o = geo.meshOffset as number[] | undefined;
+  if (o && o.length >= 3) object.position.set(o[0]!, o[1]!, o[2]!);
+  return holder;
 }

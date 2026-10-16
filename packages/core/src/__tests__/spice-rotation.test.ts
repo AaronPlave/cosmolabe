@@ -5,6 +5,8 @@ import { Spice } from '@cosmolabe/spice';
 import type { SpiceInstance } from '../spice-injection.js';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 import { kernelArrayBuffer } from './_harness/kernels.js';
+import { Universe } from '../Universe.js';
+import type { CatalogJson } from '../catalog/CatalogLoader.js';
 
 const KERNEL_DIR = join(__dirname, '../../../spice/test-kernels');
 
@@ -140,5 +142,48 @@ describe('SpiceRotation integration', () => {
     expect(zRotQ[0]).toBeCloseTo(mat[2], 5);
     expect(zRotQ[1]).toBeCloseTo(mat[5], 5);
     expect(zRotQ[2]).toBeCloseTo(mat[8], 5);
+  });
+});
+
+describe('SpiceRotation fallbackFrame', () => {
+  const rotZ90 = [0, 1, 0, -1, 0, 0, 0, 0, 1];
+  const identity = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  // A CK frame with a gap: pxform into it fails there; the zero frame always resolves.
+  const stub = {
+    pxform: (_from: string, to: string, et: number) => {
+      if (to === 'ROS_SA+Y') {
+        if (et > 100) throw new Error('insufficient CK data');
+        return rotZ90;
+      }
+      if (to === 'ROS_SA+Y_ZERO') return identity;
+      throw new Error(`unknown frame ${to}`);
+    },
+  } as unknown as ConstructorParameters<typeof SpiceRotation>[0];
+
+  it('uses the CK frame where it has data and the fallback frame in a gap', () => {
+    const r = new SpiceRotation(stub, 'ROS_SA+Y', 'J2000', 'ROS_SA+Y_ZERO');
+    const inData = r.rotationAt(50);
+    const inGap = r.rotationAt(200);
+    expect(Math.abs(inData[0])).toBeCloseTo(Math.SQRT1_2, 12);
+    expect(inGap).toEqual([1, 0, 0, 0]);
+  });
+
+  it('still throws in a gap when no fallback is named', () => {
+    const r = new SpiceRotation(stub, 'ROS_SA+Y', 'J2000');
+    expect(() => r.rotationAt(200)).toThrow(/insufficient/);
+  });
+
+  it('is read from the catalog', () => {
+    // Everything but pxform answers "nothing known", as for an unfurnished engine.
+    const engine = new Proxy(stub as object, { get: (t, k) => (k in t ? (t as never)[k] : () => null) });
+    const u = new Universe(engine as never);
+    u.loadCatalog({
+      name: 't',
+      items: [{ name: 'Array', trajectory: { type: 'FixedPoint', position: [0, 0, 0] },
+        rotationModel: { type: 'Spice', bodyFrame: 'ROS_SA+Y', fallbackFrame: 'ROS_SA+Y_ZERO', inertialFrame: 'J2000' } }],
+    } as unknown as CatalogJson);
+    const rot = u.getBody('Array')!.rotation as SpiceRotation;
+    expect(rot.fallbackFrame).toBe('ROS_SA+Y_ZERO');
+    expect(rot.rotationAt(200)).toEqual([1, 0, 0, 0]);
   });
 });

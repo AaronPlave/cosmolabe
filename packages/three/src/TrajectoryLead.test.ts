@@ -134,6 +134,22 @@ function trailTimes(line: TrajectoryLine): number {
 }
 
 describe('TrajectoryLine lead', () => {
+  it('keeps completed history within its duration without drawing post-existence samples', () => {
+    const end = 2 * DAY;
+    const line = lineFor(circular(end), { minTime: 0, maxTime: end, trailDuration: DAY });
+    line.update(end + DAY / 2, 1);
+    expect(line.visible).toBe(true);
+    expect(line.visibleTimeRange(end + DAY / 2)).toEqual([end - DAY / 2, end]);
+    expect(trailTimes(line)).toBeGreaterThan(0);
+    for (const path of line.drawnPath()) {
+      for (const time of path.times.subarray(0, path.count)) expect(time).toBeLessThanOrEqual(end);
+    }
+    line.update(end + DAY + 1, 1);
+    expect(line.visible).toBe(false);
+    expect(line.visibleTimeRange(end + DAY + 1)).toBeNull();
+    line.dispose();
+  });
+
   it('draws no future path by default', () => {
     const line = lineFor(circular());
     line.update(DAY, 1);

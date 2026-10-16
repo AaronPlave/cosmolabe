@@ -122,7 +122,7 @@
       "naifId": -255,
       "center": "Sun",
       "startTime": "2023-10-13T14:19:00Z",
-      "endTime": "2029-06-26T00:00:00Z",
+      "endTime": "2031-11-01T00:00:00Z",
       "trajectoryFrame": "ECLIPJ2000",
       "trajectory": {
         "type": "Spice",

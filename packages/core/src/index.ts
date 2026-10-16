@@ -52,6 +52,8 @@ export { TrajectoryNadirRotation } from './rotations/TrajectoryNadirRotation.js'
 export { FixedRotation } from './rotations/FixedRotation.js';
 export { FixedEulerRotation } from './rotations/FixedEulerRotation.js';
 export { InterpolatedRotation, parseQFile } from './rotations/InterpolatedRotation.js';
+export { CompositeRotation } from './rotations/CompositeRotation.js';
+export type { RotationArc } from './rotations/CompositeRotation.js';
 export type { OrientationRecord } from './rotations/InterpolatedRotation.js';
 
 // Kinematics — frame-aware sub-point and body-fixed velocity geometry, plus

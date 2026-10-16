@@ -324,6 +324,7 @@ describe('which demo catalogs cannot search at all', () => {
   // in io-volcanos), and those are refused per body; see the real-kernel test
   // in closest-approach-altitude.integration.test.ts.
   const SPICE_FREE = [
+    'arrokoth-dsk.json',
     'atmosphere-earth-dusk.json',
     'atmosphere-earth-eclipse.json',
     'atmosphere-earth-textured.json',

@@ -138,7 +138,9 @@ export function probeCalloutLines(point: SurfacePoint, detail: 'preview' | 'pinn
   return [
     point.bodyName,
     coords,
-    `${formatHeight(point.altitude.km)} · ${describeDatum(point.altitude.datum)}`,
+    point.altitude.km !== null && point.altitude.datum
+      ? `${formatHeight(point.altitude.km)} · ${describeDatum(point.altitude.datum)}`
+      : `Radial distance ${Math.hypot(...point.bodyFixedPositionKm).toFixed(3)} km · altitude unavailable`,
   ];
 }
 
