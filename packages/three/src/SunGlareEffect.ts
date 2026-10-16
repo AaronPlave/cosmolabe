@@ -148,6 +148,13 @@ export class SunGlareEffect {
     if (cached?.version === original.version) {
       cached.material.opacity = original.opacity;
       cached.material.visible = original.visible && original.depthWrite && original.depthTest;
+      // These are live uniforms, so changing relief does not bump version.
+      if ('displacementMap' in original) {
+        const source = original as THREE.MeshStandardMaterial;
+        const mask = cached.material as THREE.MeshStandardMaterial;
+        mask.displacementScale = source.displacementScale;
+        mask.displacementBias = source.displacementBias;
+      }
       return cached.material;
     }
     cached?.material.dispose();
@@ -248,14 +255,19 @@ export class SunGlareEffect {
       if (!this.capturedFrame) mesh.updateWorldMatrix(true, false);
       const matrix = this.frameOccluders.get(mesh) ?? mesh.matrixWorld;
       if (!this.overlapsSource(mesh, visible, camera, matrix)) continue;
-      const material = modelOccluders.has(mesh) ? this.maskMaterial(this.dark) : this.capturedFrame
+      const material = modelOccluders.has(mesh) ? this.maskMaterial(this.dark) : (this.capturedFrame || this.hasDisplacement(mesh))
         ? (Array.isArray(mesh.material) ? mesh.material.map(m => this.maskMaterial(m)) : this.maskMaterial(mesh.material))
         : this.dark;
       const proxy = this.proxyFor(mesh, material);
       proxy.matrix.copy(matrix);
       proxy.matrixWorld.copy(matrix);
       this.sourceScene.add(proxy);
-      if (mesh.geometry instanceof THREE.SphereGeometry) spheres.push(mesh as THREE.Mesh<THREE.SphereGeometry>);
+      // A nominal sphere is not a valid analytical horizon for displaced
+      // globes: negative relief would falsely block valleys. Their expanded
+      // rasterized material mask already tests the actual photosphere rays.
+      if (mesh.geometry instanceof THREE.SphereGeometry && !this.hasDisplacement(mesh)) {
+        spheres.push(mesh as THREE.Mesh<THREE.SphereGeometry>);
+      }
     }
     for (const [mesh] of visible) this.sourceScene.add(this.proxyFor(mesh, mesh.material));
     const bounds = new THREE.Vector4(Infinity, Infinity, -Infinity, -Infinity);
@@ -295,6 +307,9 @@ export class SunGlareEffect {
           visual.uniforms.occluderRadius.value[i] = mesh.geometry.parameters.radius;
         });
       }
+      // Production creates SunVisual only for the canonical body named Sun.
+      // Other catalog stars use generic emissive/bloom materials. Generalizing
+      // this pass to multiple SunVisuals requires per-source mask transforms.
       const [source, visual] = visible[0];
       source.getWorldPosition(this.projected).project(camera);
       this.opticalCenter.value.set(this.projected.x, this.projected.y);
@@ -397,7 +412,16 @@ export class SunGlareEffect {
     const sphere = mesh.geometry.boundingSphere;
     if (!sphere) return false;
     const offset = sphere.center.clone().applyMatrix4(matrix).sub(camera.position);
-    const radius = sphere.radius * matrix.getMaxScaleOnAxis();
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    let displacement = 0;
+    for (const material of materials) {
+      if (!('displacementMap' in material) || !material.displacementMap) continue;
+      const { displacementScale, displacementBias } = material as THREE.MeshStandardMaterial;
+      // Texture channels lie in [0,1]; either scale sign and a negative bias
+      // must be conservative. Do not mutate the shared undisplaced geometry.
+      displacement = Math.max(displacement, Math.abs(displacementBias), Math.abs(displacementBias + displacementScale));
+    }
+    const radius = (sphere.radius + displacement) * matrix.getMaxScaleOnAxis();
     return sources.some(([source, visual]) => {
       const direction = source.getWorldPosition(new THREE.Vector3()).sub(camera.position);
       const distance = direction.length();
@@ -410,6 +434,11 @@ export class SunGlareEffect {
       return along + radius > 0 && along - radius < distance &&
         offset.lengthSq() - along * along < margin * margin;
     });
+  }
+
+  private hasDisplacement(mesh: THREE.Mesh): boolean {
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    return materials.some(material => 'displacementMap' in material && !!material.displacementMap);
   }
 
   private prepareRegion(target: THREE.WebGLRenderTarget, bounds: THREE.Vector4): void {

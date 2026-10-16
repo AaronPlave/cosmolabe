@@ -206,5 +206,72 @@ try {
   }
   mkdirSync('work/sun-rendering',{recursive:true});
   await page.screenshot({path:'work/sun-rendering/ridge-hidden.png'});
+  const globes = await page.evaluate(async () => {
+    const { THREE, Universe, UniverseRenderer } = await import('/bundle.js');
+    window.ridgeViewer.dispose();
+    const results = [];
+    for (const test of [
+      { name: 'outward', x: 650, scale: 400, bias: 0, texel: 255 },
+      { name: 'grazing', x: 800, scale: 400, bias: 0, texel: 255 },
+      { name: 'clear', x: 950, scale: 400, bias: 0, texel: 255 },
+      { name: 'negative-scale', x: 650, scale: -400, bias: 400, texel: 0 },
+      { name: 'negative-bias', x: 250, scale: 0, bias: -300, texel: 255 },
+    ]) {
+      const u = new Universe();
+      u.loadCatalog({ name: test.name, items: [
+        { name: 'Moon', class: 'moon', trajectory: { type: 'FixedPoint', position: [test.x,0,0] },
+          geometry: { type: 'Globe', radius: 400 } },
+        { name: 'Sun', class: 'star', trajectory: { type: 'FixedPoint', position: [0,0,-100000] },
+          geometry: { type: 'Globe', radius: 1000 } },
+      ] });
+      const v = new UniverseRenderer(document.querySelector('canvas'), u, {
+        scaleFactor: 0.001, minBodyPixels: 0, showStars: false, showLabels: false,
+        showTrajectories: false, bloom: { enabled: true },
+      });
+      v.timeController.pause(); v.cameraController.controls.enableDamping = false;
+      const mesh = v.getBodyMesh('Moon').mesh, mat = mesh.material;
+      // Actual production globe material, GPU vertex displacement and sphere
+      // tessellation; no CPU displacement or geometry bound inflation in fixture.
+      const texture = new THREE.DataTexture(new Uint8Array([test.texel,test.texel,test.texel,255]),1,1);
+      texture.needsUpdate = true;
+      mat.color.set(0); mat.displacementMap = texture;
+      mat.displacementScale = test.scale; mat.displacementBias = test.bias; mat.needsUpdate = true;
+      const read = () => {
+        const target = v.sunGlareEffect.target;
+        const p = new Uint16Array(target.width*target.height*4);
+        v.renderer.readRenderTargetPixels(target,0,0,target.width,target.height,p);
+        let total = 0;
+        for(let i=0;i<p.length;i+=4) total += THREE.DataUtils.fromHalfFloat(p[i]);
+        return total;
+      };
+      const render = (fov) => {
+        const c = v.camera; c.position.set(0,0,10); c.up.set(0,1,0); c.fov = fov;
+        v.cameraController.controls.target.set(0,0,-100); c.lookAt(0,0,-100);
+        c.updateProjectionMatrix(); c.updateMatrixWorld(true); v.renderFrame();
+      };
+      const measurements = [];
+      for(const fov of [20,170]) {
+        mesh.visible = false; render(fov); const clear = read();
+        mesh.visible = true; render(fov); const source = read();
+        measurements.push({fov,clear,source,ratio:source/clear});
+      }
+      let live = null;
+      if(test.name === 'outward') {
+        mat.displacementScale = 0; // A uniform edit, without needsUpdate/version.
+        render(20); live = read();
+      }
+      results.push({name:test.name,measurements,live});
+      v.dispose();
+    }
+    return results;
+  });
+  console.log('Displacement-mapped globe regression:',JSON.stringify(globes,null,2));
+  assert.equal(errors.length,0,errors.join('\n'));
+  for(const row of globes) for(const m of row.measurements) {
+    if(['outward','negative-scale'].includes(row.name)) assert.equal(m.source,0,'outward relief must occlude even outside nominal sphere bounds');
+    if(['clear','negative-bias'].includes(row.name)) assert.ok(m.ratio>0.98,'nominal spherical horizon must not mask displaced valleys');
+    if(row.name==='grazing' && m.fov===20) assert.ok(m.ratio>0.35 && m.ratio<0.65,'grazing relief must partially occlude the solar disk');
+  }
+  assert.ok(globes[0].live>0.98*globes[0].measurements[0].clear,'live displacement uniforms must update the cached optical material');
   console.log('Production displaced-ridge solar GPU regression passed.');
 } finally { await browser.close(); }
