@@ -86,7 +86,6 @@ cosmolabe/
 │   ├── interop/          CCSDS parsing/writing, CSV and CZML export
 │   ├── frames/           State/frame contracts and heritage SPICE adapter
 │   ├── cspice-wasm/      Runtime CSPICE WASM and bindings
-│   ├── spice/            Independent test reference; not a runtime dependency
 │   ├── three/            Three.js renderer and renderer plugins
 │   ├── cesium-adapter/   CZML scene export and coordinate transforms
 │   └── cesium/           Cesium renderer

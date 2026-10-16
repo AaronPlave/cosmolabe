@@ -6,12 +6,13 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
+import { kernelArrayBuffer } from './_harness/kernels.js';
 import { Universe } from '../Universe.js';
 import type { CatalogJson } from '../catalog/CatalogLoader.js';
 import { frameAvailability, resolveSpatialRelationship, resolveVelocity, type SpatialRelationship } from '../geometry/spatial-relationships.js';
 
-const KERNEL_DIR = join(__dirname, '../../../spice/test-kernels');
+const KERNEL_DIR = join(__dirname, '../../../../kernels/test-data');
 const CASSINI_DIR = join(KERNEL_DIR, 'cassini');
 const SOI_CK = join(CASSINI_DIR, '04183_04185ra.bc');
 const HAS_SOI_CK = existsSync(SOI_CK) && statSync(SOI_CK).size > 100_000;
@@ -30,14 +31,14 @@ const CATALOG: CatalogJson = {
 };
 
 describe('reference geometry with SPICE', () => {
-  let spice: Spice;
+  let spice: Awaited<ReturnType<typeof createHeritageSpice>>;
   let universe: Universe;
   let coverage: { start: number; end: number };
   const cassini = { kind: 'entity', bodyName: 'Cassini' } as const;
 
   beforeAll(async () => {
-    spice = await Spice.init();
-    const furnish = (dir: string, file: string) => spice.furnish({ type: 'buffer', data: readFileSync(join(dir, file)).buffer, filename: file });
+    spice = await createHeritageSpice();
+    const furnish = (dir: string, file: string) => spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(dir, file))), filename: file });
     for (const file of ['naif0012.tls', 'pck00010.tpc']) await furnish(KERNEL_DIR, file);
     for (const file of ['cas_v43.tf', 'cas00172.tsc', CASSINI_SPK]) await furnish(CASSINI_DIR, file);
     if (HAS_SOI_CK) await furnish(CASSINI_DIR, '04183_04185ra.bc');

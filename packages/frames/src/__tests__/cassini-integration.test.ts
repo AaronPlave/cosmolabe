@@ -110,16 +110,6 @@ describe('Cassini SPICE integration', () => {
     expect(halfAngle * 180 / Math.PI).toBeCloseTo(2.46, 0); // corner diagonal ~2.46 deg
   });
 
-  // fovray is outside the supported adapter API; see retirement coverage mapping.
-
-
-
-
-
-
-
-
-
   // --- Orbital mechanics at SOI ---
 
   it('Cassini orbital elements around Saturn at SOI', () => {
@@ -148,6 +138,8 @@ describe('Cassini SPICE integration', () => {
       rot[2] * (rot[3] * rot[7] - rot[4] * rot[6]);
     expect(det).toBeCloseTo(1, 6);
   });
+
+  // fovray is outside the supported adapter API; see retirement coverage mapping.
   it('rejects the unsupported fovray entrypoint explicitly', () => {
     expect(() => spice.fovray('unused', [0, 0, 1], 'J2000', 'NONE', 'EARTH', 0))
       .toThrow(/not in the CSPICE WASM export allowlist/);
