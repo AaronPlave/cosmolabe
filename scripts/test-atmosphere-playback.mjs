@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5173';
+const rate = Number(process.env.ATMOSPHERE_PLAYBACK_RATE ?? 86400);
+assert.ok(Number.isFinite(rate) && rate > 0, 'playback rate must be positive');
 const output = process.env.RENDER_CAPTURE_DIR ?? 'apps/viewer/test-screenshots/atmosphere-views';
 const view = {
   version: 1, catalog: { catalog: 'test-catalogs/cassini-soi' },
@@ -12,7 +14,7 @@ const view = {
     camera: { position: [-10666.620616850221, 43566.36081308462, -9432.29882337869],
       target: [0, 0, 0], up: [-0.2750916791973551, -0.45388311140698473, 0.847534476712242], fov: 60 } },
   navigation: { selected: 'Tethys', tracked: 'Tethys', lookAt: 'Saturn', mode: 'free-orbit' },
-  playback: { playing: true, rate: 86400 },
+  playback: { playing: true, rate },
   display: { trajectories: true, labels: true, grid: false, axes: false, sensors: true, sensorLabels: true },
 };
 mkdirSync(output, { recursive: true });
@@ -24,7 +26,7 @@ try {
   await page.goto(`${base}/?catalog=test-catalogs%2Fcassini-soi&test=1&view=${encodeURIComponent(JSON.stringify(view))}`);
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady, { timeout: 180000 });
   await page.waitForTimeout(1000);
-  const result = await page.evaluate(async et => {
+  const result = await page.evaluate(async ({ et, rate }) => {
     const r = window.renderer;
     r.stop();
     r.cameraController.cancelAnimation();
@@ -43,27 +45,27 @@ try {
     };
     try {
       for (let i = 0; i < 12; i++) {
-        r.timeController.step(4320); // 50 ms of playback at 86400 s/s.
+        r.timeController.step(rate * 0.05); // 50 ms at the requested playback speed.
         r.renderFrame();
       }
       const moving = r.renderer.domElement.toDataURL('image/png');
       r.renderFrame(); // Same epoch and camera: pausing must not repair the atmosphere.
       const settled = r.renderer.domElement.toDataURL('image/png');
       const steppedDraws = draws.length;
-      r.timeController.setRate(86400);
+      r.timeController.setRate(rate);
       r.start();
       await new Promise(resolve => setTimeout(resolve, 1500));
       r.stop();
       return { draws, moving, settled, liveDraws: draws.length - steppedDraws, tracked: r.cameraController.trackedBody?.body.name,
         lookAt: r.cameraController.lookAtBody?.body.name };
     } finally { saturn.mesh.onBeforeRender = beforeRender; }
-  }, view.time.et);
+  }, { et: view.time.et, rate });
   for (const name of ['moving', 'settled']) writeFileSync(`${output}/saturn-playback-${name}.png`, Buffer.from(result[name].split(',')[1], 'base64'));
-  console.log(JSON.stringify({ draws: result.draws.length, liveDraws: result.liveDraws,
+  console.log(JSON.stringify({ rate, draws: result.draws.length, liveDraws: result.liveDraws,
     maxWorldError: Math.max(...result.draws.map(d => d.worldError)),
     maxLocalOriginError: Math.max(...result.draws.map(d => d.localOriginError)),
     tracked: result.tracked, lookAt: result.lookAt }));
-  assert.ok(result.liveDraws >= 5, 'exercise live playback at 86400 s/s');
+  assert.ok(result.liveDraws >= 5, `exercise live playback at ${rate} s/s`);
   assert.equal(result.tracked, 'Tethys');
   assert.equal(result.lookAt, 'Saturn');
   assert.ok(result.draws.length >= 12, 'Saturn must be drawn during playback');

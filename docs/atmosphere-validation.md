@@ -71,6 +71,9 @@ the surface transport now refreshes its ancestors before copying the matrices.
 CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/test-atmosphere-playback.mjs
 ```
 
+Set `ATMOSPHERE_PLAYBACK_RATE=864000` to repeat the same stepped and live
+moving-frame checks at ten days per second (the default is one day per second).
+
 ## Starting measurements
 
 On 2026-10-02, local Chromium SwiftShader at 1024×768, six warm frames:
