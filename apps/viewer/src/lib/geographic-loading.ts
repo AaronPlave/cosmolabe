@@ -2,6 +2,10 @@ import {
   GEOGRAPHIC_LIMITS, fetchGeographicText, loadGeographicLayers,
   type GeographicLayer, type GeographicLayerLoad, type ResolvedCatalog, type parseGeographicGeoJson,
 } from '@cosmolabe/core';
+import { resolveLocalFile } from './local-paths';
+
+/** Shared by the entire optional-layer phase, across the full require graph. */
+export const GEOGRAPHIC_SCENE_WAIT_MS = 15_000;
 
 /** One worker per source, released after success/failure/timeout/cancellation. */
 export function parseGeographicInWorker(
@@ -40,30 +44,33 @@ export async function prepareGeographicCatalogs(
   parser = parseGeographicInWorker,
 ): Promise<PreparedGeographicCatalog[]> {
   const prepared: PreparedGeographicCatalog[] = [];
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(new Error(`Scene GeoJSON import deadline exceeded (${GEOGRAPHIC_SCENE_WAIT_MS} ms)`)), GEOGRAPHIC_SCENE_WAIT_MS);
+  const sceneSignal = AbortSignal.any([signal, deadline.signal]);
   let remaining = 16 * 1024 * 1024;
   let layerCount = 0;
-  for (const { url, json } of catalogs) {
-    const loads = await loadGeographicLayers(json, {
-      catalogUrl: localFiles ? undefined : url,
-      catalogIdentity: url,
-      sourceKind: localFiles ? 'local-file' : 'catalog', signal,
-      parse: (...args) => parser(args, signal),
-      readText: async (source, maxBytes, sourceSignal) => {
-        if (++layerCount > 64 || remaining <= 0) throw new Error('Scene GeoJSON import budget exhausted');
-        const cap = Math.min(maxBytes, remaining, GEOGRAPHIC_LIMITS.maxBytes);
-        let text: string;
-        if (localFiles) {
-          const direct = localFiles.get(source);
-          const matches = [...localFiles].filter(([path]) => path.split('/').pop() === source.split('/').pop());
-          if (direct === undefined && matches.length !== 1) throw new Error(`GeoJSON local source missing or ambiguous: ${source}`);
-          text = direct ?? matches[0][1];
-          if (new TextEncoder().encode(text).byteLength > cap) throw new Error(`GeoJSON exceeds ${cap} bytes`);
-        } else text = await fetchGeographicText(source, cap, sourceSignal);
-        remaining -= new TextEncoder().encode(text).byteLength;
-        return text;
-      },
-    });
-    prepared.push({ source: url, loads });
-  }
-  return prepared;
+  try {
+    for (const { url, json } of catalogs) {
+      const loads = await loadGeographicLayers(json, {
+        catalogUrl: localFiles ? undefined : url,
+        catalogIdentity: url,
+        sourceKind: localFiles ? 'local-file' : 'catalog', signal,
+        parse: (...args) => parser(args, sceneSignal),
+        readText: async (source, maxBytes, sourceSignal) => {
+          sceneSignal.throwIfAborted();
+          if (++layerCount > 64 || remaining <= 0) throw new Error('Scene GeoJSON import budget exhausted');
+          const cap = Math.min(maxBytes, remaining, GEOGRAPHIC_LIMITS.maxBytes);
+          let text: string;
+          if (localFiles) {
+            text = resolveLocalFile(localFiles, source, url).value;
+            if (new TextEncoder().encode(text).byteLength > cap) throw new Error(`GeoJSON exceeds ${cap} bytes`);
+          } else text = await fetchGeographicText(source, cap, AbortSignal.any([sourceSignal, sceneSignal]));
+          remaining -= new TextEncoder().encode(text).byteLength;
+          return text;
+        },
+      });
+      prepared.push({ source: url, loads });
+    }
+    return prepared;
+  } finally { clearTimeout(timer); }
 }

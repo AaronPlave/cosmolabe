@@ -46,8 +46,12 @@ other layers and the rest of the catalog continue loading.
 For local data, use **Open local catalog…** or drag/drop and select the catalog
 JSON **together with** the referenced `.geojson` (or GeoJSON `.json`) files and
 any required catalogs/assets. A catalog with only `geographicLayers` is valid.
-The file maps first use the exact path, then a unique basename. Ambiguous or
-missing matches fail that source without fetching a replacement from the network.
+Files retain directory-selection or dropped-directory paths. Both `require` and
+geographic source paths resolve relative to the catalog that declares them, then
+fall back only to a unique selected basename. No shared basename aliases are
+created for different files. Ambiguous or missing geographic sources fail that
+layer without fetching a replacement from the network. Unresolved/ambiguous
+required catalogs and dependency cycles fail the load before replacing the scene.
 Standalone GeoJSON requires a companion catalog: the viewer reports this rather
 than guessing a body or adopting Earth coordinates. This descriptor is also the
 explicit opt-in to the planetary GeoJSON extension. No new import UI is needed.
@@ -141,12 +145,19 @@ checked before JSON traversal; HTTP bodies are streamed with an actual decoded
 byte cap, regardless of Content-Length. A catalog has at most 16 layers and an
 8 MiB source-text budget; the viewer additionally caps a scene import at 64
 sources/16 MiB. Reads/parses are sequential to bound peak memory. Source fetches
-and parser workers have 15-second timeouts. A source exceeding a work/size budget
+and parser workers have 15-second timeouts. In the viewer, the entire optional
+geographic phase also shares one 15-second deadline across all catalogs in the
+require graph. At the deadline, pending reads/workers are cancelled and remaining
+layers receive error diagnostics; already imported layers and the base scene can
+still load. A source exceeding a work/size budget
 fails as a whole; previously accepted features from it are not presented as a
 complete layer. Worker termination releases parser memory on completion, error,
 timeout or cancellation. Starting another scene load cancels pending geographic
-imports. Local files are size-checked before reading as geographic assets; local
-catalog/GeoJSON `.json` files also have a 2 MiB ceiling before JSON classification.
+imports. Cancelled older loads cannot close or reset the active load's progress.
+Local `.geojson` files are size-checked before reading. Large `.json` files are
+classified with a bounded-memory stream of their root `type` before reading the
+full text: the geographic byte ceiling applies to GeoJSON, while legitimate
+catalog JSON retains its existing size behavior.
 
 The `FeatureLabels` Cosmographia placeholder remains ignored by `CatalogLoader`;
 it is not a geographic layer definition, and is not converted into this model.

@@ -14,8 +14,6 @@ import {
   bodyFixedOffsetToWorld,
   etFromCalendarString,
   type ResolvedCatalogGraph,
-  type CatalogJson,
-  GEOGRAPHIC_LIMITS,
 } from '@cosmolabe/core';
 // The runtime SPICE instance is @cosmolabe/frames' heritage adapter over
 // cspice-wasm, and HeritageSpice — the adapter's own type — is what the
@@ -58,6 +56,7 @@ import { absolutizeCatalogAssets, catalogsUseDsk } from './catalog-assets';
 import { textKernelFrameNames } from './geometry-frames';
 import { stopHero, resizeHero } from './hero';
 import { prepareGeographicCatalogs, type PreparedGeographicCatalog } from './geographic-loading';
+import { categorizeFiles, resolveCatalogOrder, rememberLocalFilePath } from './local-files';
 
 let geographicImport: AbortController | null = null;
 function beginGeographicImport(): AbortController {
@@ -215,14 +214,6 @@ async function currentWorkerKernels(scope?: GeometrySearchScope): Promise<Kernel
  *  deterministic-capture hook. Never true in normal use. */
 const TEST_MODE =
   typeof location !== 'undefined' && new URLSearchParams(location.search).has('test');
-
-const KERNEL_EXTENSIONS = new Set([
-  '.bsp', '.tls', '.tpc', '.tf', '.tsc', '.ti', '.ck', '.bc', '.bpc', '.spk', '.pck', '.fk', '.tm',
-]);
-// `.bds` is a DSK shape model. It is read for a Dsk geometry, not furnished, so
-// it travels with the models rather than the kernels.
-const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod', '.3ds', '.bds']);
-const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.tga']);
 
 // ── Fetch with progress + gzip decompression ──
 
@@ -476,15 +467,13 @@ function dropUserKernel(source: KernelSourceRef): void {
 
 // ── File handling ──
 
-function isKernelFile(name: string): boolean {
-  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
-  return KERNEL_EXTENSIONS.has(ext);
-}
-
 async function collectFilesFromEntry(entry: FileSystemEntry): Promise<File[]> {
   if (entry.isFile) {
     return new Promise((resolve) => {
-      (entry as FileSystemFileEntry).file(f => resolve([f]), () => resolve([]));
+      (entry as FileSystemFileEntry).file(f => {
+        rememberLocalFilePath(f, entry.fullPath);
+        resolve([f]);
+      }, () => resolve([]));
     });
   }
   if (entry.isDirectory) {
@@ -519,95 +508,6 @@ async function collectDroppedFiles(dataTransfer: DataTransfer): Promise<File[]> 
     }
   }
   return Array.from(dataTransfer.files);
-}
-
-interface LoadedFiles {
-  jsonFiles: Map<string, { json: Record<string, unknown>; text: string }>;
-  kernelFiles: File[];
-  dataFiles: Map<string, string>;
-  binaryFiles: Map<string, ArrayBuffer>;
-  modelFiles: Map<string, string>;
-}
-
-async function categorizeFiles(files: File[]): Promise<LoadedFiles> {
-  const jsonFiles = new Map<string, { json: Record<string, unknown>; text: string }>();
-  const kernelFiles: File[] = [];
-  const dataFiles = new Map<string, string>();
-  const binaryFiles = new Map<string, ArrayBuffer>();
-  const modelFiles = new Map<string, string>();
-  let vectorBytes = 0;
-
-  for (const file of files) {
-    const name = file.name.toLowerCase();
-    const ext = name.slice(name.lastIndexOf('.'));
-    if (name.endsWith('.geojson')) {
-      if (file.size > GEOGRAPHIC_LIMITS.maxBytes || vectorBytes + file.size > 16 * 1024 * 1024) {
-        console.warn(`[Cosmolabe] GeoJSON ${file.name} exceeds the source or scene byte budget`);
-        continue;
-      }
-      vectorBytes += file.size;
-      const text = await file.text();
-      dataFiles.set(file.name, text);
-      if (file.webkitRelativePath) dataFiles.set(file.webkitRelativePath, text);
-    } else if (name.endsWith('.json')) {
-      try {
-        if (file.size > GEOGRAPHIC_LIMITS.maxBytes) throw new Error('Local JSON exceeds the 2 MiB import limit');
-        const text = await file.text();
-        const json = JSON.parse(text);
-        if (json?.type === 'FeatureCollection') {
-          if (vectorBytes + file.size > 16 * 1024 * 1024) throw new Error('GeoJSON scene byte budget exceeded');
-          vectorBytes += file.size;
-          dataFiles.set(file.name, text);
-          if (file.webkitRelativePath) dataFiles.set(file.webkitRelativePath, text);
-          continue;
-        }
-        jsonFiles.set(file.name, { json, text });
-      } catch (error) { console.warn(`[Cosmolabe] Cannot open JSON ${file.name}:`, error); }
-    } else if (isKernelFile(file.name)) {
-      kernelFiles.push(file);
-    } else if (name.endsWith('.xyzv') || name.endsWith('.xyz')) {
-      const text = await file.text();
-      dataFiles.set(file.name, text);
-      const webkitPath = (file as any).webkitRelativePath;
-      if (webkitPath) dataFiles.set(webkitPath, text);
-    } else if (name.endsWith('.cheb')) {
-      const buf = await file.arrayBuffer();
-      const webkitPath = (file as any).webkitRelativePath;
-      binaryFiles.set(file.name, buf);
-      if (webkitPath) binaryFiles.set(webkitPath, buf);
-    } else if (MODEL_EXTENSIONS.has(ext) || TEXTURE_EXTENSIONS.has(ext)) {
-      const blobUrl = URL.createObjectURL(file);
-      modelFiles.set(file.name, blobUrl);
-      const webkitPath = (file as any).webkitRelativePath;
-      if (webkitPath) modelFiles.set(webkitPath, blobUrl);
-    }
-  }
-  return { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles };
-}
-
-function resolveCatalogOrder(
-  jsonFiles: Map<string, { json: Record<string, unknown>; text: string }>,
-): Record<string, unknown>[] {
-  const ordered: Record<string, unknown>[] = [];
-  const loaded = new Set<string>();
-
-  function loadCatalog(name: string) {
-    if (loaded.has(name)) return;
-    loaded.add(name);
-    const entry = jsonFiles.get(name);
-    if (!entry) return;
-    const requires = entry.json.require as string[] | undefined;
-    if (requires) for (const dep of requires) loadCatalog(dep);
-    if ((entry.json.items && (entry.json.items as unknown[]).length > 0) || entry.json.geographicLayers) ordered.push(entry.json);
-  }
-
-  for (const [name, entry] of jsonFiles) {
-    if (entry.json.require) loadCatalog(name);
-  }
-  for (const [name] of jsonFiles) {
-    if (!loaded.has(name)) loadCatalog(name);
-  }
-  return ordered;
 }
 
 // ── Scene initialization ──
@@ -981,6 +881,7 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
 
   try {
     const graph = await loadCatalogFromUrl(entryUrl);
+    geographicController.signal.throwIfAborted();
     beginLoad('Preparing scene...', {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
     });
@@ -990,7 +891,9 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // and a network failure should leave the scene on screen intact rather than
     // tear it down for a scene that then cannot be built.
     const catalogKernels = await plannedFromGraph(graph);
+    geographicController.signal.throwIfAborted();
     const dataFiles = await fetchCatalogDataFiles(graph);
+    geographicController.signal.throwIfAborted();
     const geographicCatalogs = await prepareGeographicCatalogs(graph.catalogs, geographicController.signal);
     geographicController.signal.throwIfAborted();
 
@@ -1001,6 +904,7 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // A DSK surface is the exception: it is read by SPICE even with no kernels.
     if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(graph.catalogs.map((c) => c.json))) {
       await buildSceneSpice(catalogKernels);
+      geographicController.signal.throwIfAborted();
     } else {
       teardownScene();
     }
@@ -1015,7 +919,7 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // without) must not leave the bar sitting at whatever fraction it reached.
     // Close it and let the error surface. The home screen comes back, which
     // is the honest end state for a scene that never built.
-    endLoad();
+    if (geographicImport === geographicController) endLoad();
     throw err;
   }
 }
@@ -1218,58 +1122,59 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   // Dropped kernels are already on disk — no download to weigh — so the whole
   // bar belongs to the asset phase that follows.
   beginLoad(`Processing ${files.length} file(s)...`, { catalog: 'Local files' });
-  const { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles } = await categorizeFiles(files);
-
-  if (jsonFiles.size === 0 && kernelFiles.length === 0) {
-    endLoad();
-    if (dataFiles.size > 0) throw new Error('Open GeoJSON together with a catalog declaring geographicLayers, body and coordinate conventions (see docs/geographic-layers.md)');
-    return;
-  }
-
-  // Resolved before anything is furnished, because it is what says whether this
-  // drop is a scene load, and the two cases furnish into different instances.
-  const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
-  // Dependencies come first, so the last catalog is the one the drop is of.
-  const top = catalogs.at(-1);
-  if (top) setLoadingState({ catalog: typeof top.name === 'string' && top.name ? top.name : 'Local catalog' });
-  const geographicCatalogs = await prepareGeographicCatalogs(catalogs.map((json, index) => ({
-    json: json as CatalogJson,
-    url: [...jsonFiles].find(([, value]) => value.json === json)?.[0] ?? `local-catalog-${index}`,
-  })), geographicController.signal, dataFiles);
-  geographicController.signal.throwIfAborted();
-
-  if (catalogs.length > 0) {
-    // A drop carrying a catalog is a scene load like any other: the scene that
-    // is up is torn down, and this drop's kernels go into the fresh instance
-    // the new scene gets. They are that scene's, not the user's, so they are
-    // not remembered past it.
-    const droppedKernels = kernelFiles.map((file) => ({ source: { file } }));
-    if (droppedKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(catalogs)) {
-      await buildSceneSpice(droppedKernels);
-    } else {
-      teardownScene();
-    }
-  } else if (kernelFiles.length > 0) {
-    // A drop with no catalog is the user adding kernels: onto an empty viewer,
-    // or onto a scene already up (a CK for an attitude the catalog omitted, a
-    // newer SPK). Those are remembered and re-furnished into every instance
-    // built afterwards, because a file someone dragged in by hand disappearing
-    // on a catalog switch they made for other reasons is not what they asked
-    // for. Clearing them means reloading the page.
-    await furnishUserKernels(kernelFiles);
-  }
-
-  // Only `initScene` opens the asset phase that closes the bar, so a drop that
-  // furnishes kernels and nothing else has to close it here.
-  if (catalogs.length === 0) {
-    endLoad();
-    return;
-  }
-
   try {
+    const { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles } = await categorizeFiles(files, geographicController.signal);
+    geographicController.signal.throwIfAborted();
+
+    if (jsonFiles.size === 0 && kernelFiles.length === 0) {
+      endLoad();
+      if (dataFiles.size > 0) throw new Error('Open GeoJSON together with a catalog declaring geographicLayers, body and coordinate conventions (see docs/geographic-layers.md)');
+      return;
+    }
+
+    // Resolved before anything is furnished, because it is what says whether this
+    // drop is a scene load, and the two cases furnish into different instances.
+    const graph = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
+    const catalogs = graph.map(entry => entry.json as Record<string, unknown>);
+    // Dependencies come first, so the last catalog is the one the drop is of.
+    const top = catalogs.at(-1);
+    if (top) setLoadingState({ catalog: typeof top.name === 'string' && top.name ? top.name : 'Local catalog' });
+    const geographicCatalogs = await prepareGeographicCatalogs(graph, geographicController.signal, dataFiles);
+    geographicController.signal.throwIfAborted();
+
+    if (catalogs.length > 0) {
+      // A drop carrying a catalog is a scene load like any other: the scene that
+      // is up is torn down, and this drop's kernels go into the fresh instance
+      // the new scene gets. They are that scene's, not the user's, so they are
+      // not remembered past it.
+      const droppedKernels = kernelFiles.map((file) => ({ source: { file } }));
+      if (droppedKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(catalogs)) {
+        await buildSceneSpice(droppedKernels);
+        geographicController.signal.throwIfAborted();
+      } else {
+        teardownScene();
+      }
+    } else if (kernelFiles.length > 0) {
+      // A drop with no catalog is the user adding kernels: onto an empty viewer,
+      // or onto a scene already up (a CK for an attitude the catalog omitted, a
+      // newer SPK). Those are remembered and re-furnished into every instance
+      // built afterwards, because a file someone dragged in by hand disappearing
+      // on a catalog switch they made for other reasons is not what they asked
+      // for. Clearing them means reloading the page.
+      await furnishUserKernels(kernelFiles);
+      geographicController.signal.throwIfAborted();
+    }
+
+    // Only `initScene` opens the asset phase that closes the bar, so a drop that
+    // furnishes kernels and nothing else has to close it here.
+    if (catalogs.length === 0) {
+      endLoad();
+      return;
+    }
+
     initScene(canvas, catalogs, dataFiles, binaryFiles, modelFiles, geographicCatalogs);
   } catch (err) {
-    endLoad();
+    if (geographicImport === geographicController) endLoad();
     throw err;
   }
 }
