@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { SurfaceAppearanceSettings } from './SurfaceAppearance.js';
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { SunVisual, SOLAR_LAYER } from './SunVisual.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -1253,6 +1254,9 @@ export class BodyMesh extends THREE.Object3D {
   /** Whether this body has streaming terrain active */
   get hasTerrain(): boolean { return this.terrainManager !== null; }
 
+  get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
+  get surfaceAppearanceDatum() { return this.terrainManager?.surfaceAppearanceDatum ?? null; }
+  setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.terrainManager?.setSurfaceAppearance(settings); }
   /** Decoded CPU terrain for physical-surface queries, or null without streamed terrain. */
   get terrainSampler(): TerrainSampler | null { return this.terrainManager?.sampler ?? null; }
 

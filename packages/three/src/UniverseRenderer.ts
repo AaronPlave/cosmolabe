@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { surfaceTintHeightAtHit } from './SurfaceAppearance.js';
 import { ModelSurfaceDepth } from './ModelSurfaceDepth.js';
 import {
   CompositeTrajectory,
@@ -93,6 +94,7 @@ interface SurfaceRayHit {
   normal: THREE.Vector3 | null;
   /** On a cube-sphere skirt (#149): the wall under a mixed-LOD gap, not the surface. */
   renderedSkirt: boolean;
+  tintHeightKm?: number;
 }
 
 /** @deprecated Prefer `pickScene(x, y, 'probe')` and its `SurfacePoint`. */
@@ -724,6 +726,16 @@ export class UniverseRenderer {
     this.renderer.domElement.style.cursor = '';
   }
   setSpatialDraftEndpoints(endpoints: readonly SpatialEndpoint[]): void { this.spatialRelationships.setDraftEndpoints(endpoints); }
+
+  private pointerTool: { pick(x: number, y: number): void; preview(x: number, y: number): void } | null = null;
+
+  /** A temporary surface tool owns mouse/touch clicks and hover independently of measurements. */
+  setSurfacePointerTool(tool: { pick(x: number, y: number): void; preview(x: number, y: number): void } | null): void {
+    this.clearSpatialPickPreview();
+    this.pointerTool = tool;
+    this._probeHoverDirty = true;
+    this.renderer.domElement.style.cursor = tool ? 'crosshair' : '';
+  }
 
   /** Host callbacks keep drafts and selection in one place, across mouse, touch and cards. */
   setSpatialInteraction(interaction: SpatialInteraction): void {
@@ -2328,7 +2340,7 @@ export class UniverseRenderer {
    */
   /** Surface endpoints and Point Probe share one responsive surface cursor. */
   private _surfaceCursorOwnsPointer(): boolean {
-    return !!this.spatialInteraction?.surfacePicking?.() || (this._probeActive && !this.spatialInteraction?.picking());
+    return !!this.pointerTool || !!this.spatialInteraction?.surfacePicking?.() || (this._probeActive && !this.spatialInteraction?.picking());
   }
 
   private updateProbeHover(): void {
@@ -2350,7 +2362,9 @@ export class UniverseRenderer {
     this._probeHoverDirty = false;
     this._lastHoverPickMs = now;
     this._probePickView.copy(this.camera.matrixWorld);
-    if (this.spatialInteraction?.surfacePicking?.()) {
+    if (this.pointerTool) {
+      this.pointerTool.preview(this._lastPointer.x, this._lastPointer.y);
+    } else if (this.spatialInteraction?.surfacePicking?.()) {
       this.spatialInteraction.preview?.(this._lastPointer.x, this._lastPointer.y);
     } else {
       this._probeHoverAt(this._lastPointer.x, this._lastPointer.y);
@@ -2593,6 +2607,16 @@ export class UniverseRenderer {
     };
   }
 
+  /** Presentation-only range query over the same rendered surfaces as probe and measurements. */
+  pickSurfaceTintHeight(screenX: number, screenY: number): { bodyName: string; heightKm?: number } | null {
+    const canvas = this.renderer.domElement;
+    this._surfaceRaycaster.setFromCamera(new THREE.Vector2(screenX / canvas.clientWidth * 2 - 1,
+      1 - screenY / canvas.clientHeight * 2), this.camera);
+    this._surfaceRaycaster.far = Infinity;
+    const hit = this._castSurfaces();
+    return hit ? { bodyName: hit.bm.body.name, heightKm: hit.tintHeightKm } : null;
+  }
+
   /** Answer a pick ray with the body's CPU surface (#148), from the camera through the rendered hit. */
   private physicalPick(bm: BodyMesh, bodyCenter: THREE.Vector3, hitKm: readonly [number, number, number], distanceKm: number): PhysicalPickSummary | null {
     const cam = this.camera.position.clone().sub(bodyCenter).divideScalar(this.scaleFactor)
@@ -2648,7 +2672,13 @@ export class UniverseRenderer {
       const tg = bm.terrainTileGroup;
       if (tg && tg.visible && reachable.has(bm)) mainTargets.push(tg);
     }
-    const mainHits = raycaster.intersectObjects(mainTargets, true);
+    const visible = (hit: THREE.Intersection) => {
+      for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible) return false;
+      return true;
+    };
+    // Three raycasts cached hidden meshes too. A point pick must follow the
+    // currently visible LOD rather than a nearer, inactive cached tile.
+    const mainHits = raycaster.intersectObjects(mainTargets, true).filter(visible);
 
     // tileScene: surface tile overlays use camera-relative rendering (CRR).
     // Apply CRR transforms (camera at origin) before raycasting, then restore.
@@ -2679,7 +2709,7 @@ export class UniverseRenderer {
         }
       }
     }
-    const tileHits = tileTargets.length > 0 ? tileRaycaster.intersectObjects(tileTargets, true) : [];
+    const tileHits = tileTargets.length > 0 ? tileRaycaster.intersectObjects(tileTargets, true).filter(visible) : [];
     // The overlay's normal is only valid under the transform it was hit with.
     const tileNormal = tileHits[0] ? surfaceNormalWorld(tileHits[0]) : null;
     // Restore LOD transforms
@@ -2695,6 +2725,7 @@ export class UniverseRenderer {
     let bestWorldPoint: THREE.Vector3 | null = null;
     let bestBm: BodyMesh | null = null;
     let bestDist = Infinity;
+    let tintHeightKm: number | undefined;
     let renderedSkirt = false;
     let source: SurfaceHitSource = 'ellipsoid';
     let bestNormal: THREE.Vector3 | null = null;
@@ -2704,6 +2735,7 @@ export class UniverseRenderer {
       if (hit.distance < bestDist) {
         bestDist = hit.distance;
         bestWorldPoint = hit.point.clone();
+        tintHeightKm = surfaceTintHeightAtHit(hit);
         const surfaceTriangles = (hit.object as THREE.Mesh).geometry?.userData?.surfaceTriangles;
         renderedSkirt = typeof surfaceTriangles === 'number' && hit.faceIndex != null && hit.faceIndex >= surfaceTriangles;
         bestNormal = surfaceNormalWorld(hit);
@@ -2731,6 +2763,7 @@ export class UniverseRenderer {
       bestDist = hit.distance;
       bestNormal = tileNormal;
       source = 'surface-overlay';
+      tintHeightKm = undefined;
       let obj: THREE.Object3D | null = hit.object;
       while (obj) {
         const bm = overlayBodyMap.get(obj);
@@ -2740,7 +2773,7 @@ export class UniverseRenderer {
     }
 
     if (!bestWorldPoint || !bestBm) return null;
-    return { worldPoint: bestWorldPoint, distance: bestDist, bm: bestBm, source, normal: bestNormal, renderedSkirt };
+    return { worldPoint: bestWorldPoint, distance: bestDist, bm: bestBm, source, normal: bestNormal, renderedSkirt, tintHeightKm };
   }
 
   /**
@@ -4375,7 +4408,7 @@ export class UniverseRenderer {
     // maximum excursion, including a drag that returns to its starting pixel.
     const press = this._pickPress;
     this._pickPress = null;
-    if ((this._probeActive || this.spatialInteraction?.picking()) && press &&
+    if ((this.pointerTool || this._probeActive || this.spatialInteraction?.picking()) && press &&
       (press.dragged || (event.clientX - press.x) ** 2 + (event.clientY - press.y) ** 2 > 25)) {
       event.preventDefault(); event.stopImmediatePropagation();
       return;
@@ -4399,6 +4432,11 @@ export class UniverseRenderer {
    * selects nothing. Returns whether the gesture was consumed.
    */
   private _selectAt(screenX: number, screenY: number, markerRadiusPx = 11): boolean {
+    if (this.pointerTool) {
+      this.pointerTool.pick(screenX, screenY);
+      this.lastSpatialPickMs = performance.now();
+      return true;
+    }
     if (this.spatialInteraction?.beforePick(screenX, screenY)) {
       this.lastSpatialPickMs = performance.now();
       return true;
@@ -4491,7 +4529,7 @@ export class UniverseRenderer {
    * The consumer (viewer app) decides what to do — flyTo, show info, etc.
    */
   private _onDblClick = (event: MouseEvent): void => {
-    if (this.spatialInteraction?.picking() || performance.now() - this.lastSpatialPickMs < 800) {
+    if (this.pointerTool || this.spatialInteraction?.picking() || performance.now() - this.lastSpatialPickMs < 800) {
       event.preventDefault(); event.stopImmediatePropagation(); return;
     }
     // Probing nearby points in quick succession is not a request to fly away.

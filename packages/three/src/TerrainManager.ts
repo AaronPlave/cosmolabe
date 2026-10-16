@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SurfaceAppearance, type SurfaceAppearanceSettings } from './SurfaceAppearance.js';
 import * as TilesThree from '3d-tiles-renderer/three';
 import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
@@ -610,6 +611,11 @@ const _viewMat = /* @__PURE__ */ new THREE.Matrix4();
 const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
 export class TerrainManager {
+  private readonly surfaceStyle: SurfaceAppearance | null;
+
+  get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.surfaceStyle?.current ?? null; }
+  get surfaceAppearanceDatum(): TerrainDatum | null { return this.surfaceStyle?.datum ?? null; }
+  setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.surfaceStyle?.set(settings); }
   readonly tiles: TilesRenderer;
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
@@ -749,6 +755,12 @@ export class TerrainManager {
       uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
       version: config.sourceMetadata?.version,
     }, config.samplerMaxTiles ?? 256);
+    // Other tile types may contain authored models, baked imagery, or an unknown
+    // vertical reference. Do not present their coordinates as terrain heights.
+    this.surfaceStyle = config.type === 'quantized-mesh' &&
+      (datum.verticalDatum === 'ellipsoid' || datum.verticalDatum === 'reference-sphere')
+      && (datum.heightConvention === 'radial' || rxKm === ryKm)
+      ? new SurfaceAppearance(datum) : null;
     // The sampler's own LRU drops tiles independently of the renderer's; the
     // seam/datum debug indexes must forget them too or they report neighbours
     // the sampler no longer holds.
@@ -1000,7 +1012,8 @@ export class TerrainManager {
       const address = this.cubeImagery ? cubeAddress(event.tile) : null;
       if (address) this.cubeImagery!.addTile(event.tile, event.scene, address);
     });
-    this.tiles.addEventListener('dispose-model', (event: { tile: any }) => {
+    this.tiles.addEventListener('dispose-model', (event: { tile: any; scene: THREE.Object3D }) => {
+      if (event.scene) this.surfaceStyle?.forget(event.scene);
       this.cubeImagery?.removeTile(event.tile);
       const id = this.cpuTileId(event.tile);
       if (id) this.forgetCpuTile(id);
@@ -1275,6 +1288,7 @@ export class TerrainManager {
       console.error('[Cosmolabe] tiles.update() crashed:', e);
     }
     if (this.drawCulling) this.cullToMainView();
+    this.surfaceStyle?.update();
     if (this.cubeImagery) {
       // Distance and frustum from the terrain camera (sane near/far, a wider
       // field so imagery just outside the view is ready); texel size against
@@ -2363,6 +2377,21 @@ export class TerrainManager {
 
     if (this.normalMap) {
       this.applyNormalMap(scene, tile);
+    }
+    if (this.surfaceStyle) {
+      scene.traverse(child => {
+        if (!isMesh(child)) return;
+        const matrix = new THREE.Matrix4();
+        // Keep the absolute ECEF tile center in float64. Exclude tiles.group's
+        // ECEF-to-globe rotation and every camera-relative/world transform.
+        let node: THREE.Object3D | null = child;
+        while (node && node !== this.tiles.group) {
+          if (node.matrixAutoUpdate) node.updateMatrix();
+          matrix.premultiply(node.matrix);
+          node = node.parent;
+        }
+        this.surfaceStyle!.attach(child, matrix);
+      });
     }
   }
 

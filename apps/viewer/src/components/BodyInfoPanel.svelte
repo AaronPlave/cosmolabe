@@ -3,6 +3,7 @@
   import type { InfoRow } from '@cosmolabe/three';
   import { Navigation } from 'lucide-svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
+  import SurfaceAppearanceControls from './SurfaceAppearanceControls.svelte';
   import ImageryLayersSection from './ImageryLayersSection.svelte';
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
@@ -265,6 +266,9 @@
     <ImageryLayersSection />
 
     <!-- Plugin-contributed info sections -->
+    {#key vs.selectedBodyName}
+      <SurfaceAppearanceControls bodyName={vs.selectedBodyName} />
+    {/key}
     {#each pluginSections as section (section.id)}
       <div class="mt-2 pt-2 border-t border-border">
         <div class="ui-section-label mb-1">{section.label}</div>

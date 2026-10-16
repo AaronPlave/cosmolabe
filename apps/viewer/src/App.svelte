@@ -30,6 +30,7 @@
     type CatalogLocation, type SourcedEntry,
   } from './lib/catalog-nav';
   import { cancelMeasurementPick, measurements, selectMeasurement } from './lib/spatial-measurements.svelte';
+  import { cancelAppearancePick } from './lib/surface-appearance-pick.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -239,7 +240,7 @@
         case 'p': toggleProbe(); return;
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
-          // A pending endpoint pick is a mode too, and the newest one.
+          if (cancelAppearancePick()) return;
           if (cancelMeasurementPick()) return;
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
           // A flight is the most transient thing on screen: Escape stops it
