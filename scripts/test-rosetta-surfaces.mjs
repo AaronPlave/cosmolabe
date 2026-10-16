@@ -87,10 +87,41 @@ try {
   await page.evaluate(() => window.renderer.setProbePin(window.__dskPoint));
   await page.getByText('Unavailable (no defined datum)', {exact:true}).waitFor();
   await page.getByText('Radial distance', {exact:true}).waitFor();
+  const pinFrames = await page.evaluate(async () => {
+    const T = await import('/node_modules/.vite/deps/three.js');
+    const r = window.renderer, pin = r.probePin;
+    const body = r.bodyMeshes.get(pin.bodyName);
+    const fixed = [...pin.bodyFixedPositionKm];
+    const frames = [];
+    for (const epoch of ['2016-09-30T10:39:00Z', '2016-09-30T10:49:00Z']) {
+      if (!window.__cosmolabe.seek(epoch)) throw new Error(`Cannot seek ${epoch}`);
+      window.__cosmolabe.capture();
+      const mesh = body.getDskMeshes()[0];
+      mesh.updateWorldMatrix(true, false);
+      const expected = mesh.localToWorld(new T.Vector3(...fixed));
+      const expectedNormal = new T.Vector3(...pin.surfaceNormal).applyNormalMatrix(new T.Matrix3().getNormalMatrix(mesh.matrixWorld));
+      const anchor = r.surfacePointWorld(pin);
+      const marker = r._probe.pinMarker;
+      frames.push({ epoch, anchorErrorKm: anchor.world.distanceTo(expected) / r.scaleFactor,
+        normalError: anchor.normal.distanceTo(expectedNormal), markerErrorKm: marker.position.distanceTo(expected) / r.scaleFactor,
+        markerVisible: marker.visible, samePin: r.probePin === pin,
+        coordinates: [...r.probePin.bodyFixedPositionKm], world: anchor.world.toArray() });
+    }
+    return frames;
+  });
+  for (const frame of pinFrames) {
+    assert.ok(frame.anchorErrorKm < 1e-7, 'DSK pin anchor must stay on its rendered plate');
+    assert.ok(frame.normalError < 1e-10, 'DSK pin normal must follow the rendered attitude');
+    assert.ok(frame.markerErrorKm < 1e-7, 'actual probe marker must follow the plate');
+    assert.equal(frame.markerVisible, true);
+    assert.equal(frame.samePin, true, 'radial refinement must not replace a DSK pin');
+    assert.deepEqual(frame.coordinates, pinFrames[0].coordinates);
+  }
+  assert.notDeepEqual(pinFrames[0].world, pinFrames[1].world, 'rotating 67P must move the world anchor');
   assert.deepEqual(errors, []);
   mkdirSync(output, { recursive: true });
   writeFileSync(`${output}/dsk-depth.png`, png);
   await page.screenshot({path:`${output}/dsk-probe.png`});
-  writeFileSync(`${output}/report.json`, JSON.stringify({ ...result, errors }, null, 2));
+  writeFileSync(`${output}/report.json`, JSON.stringify({ ...result, pinFrames, errors }, null, 2));
   console.log(`67P real mesh click/probe, foreground/background line pixels and label occlusion passed: ${output}`);
 } finally { await browser.close(); }

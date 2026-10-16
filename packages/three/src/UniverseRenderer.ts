@@ -2425,16 +2425,22 @@ export class UniverseRenderer {
     const bm = this.bodyMeshes.get(point.bodyName);
     if (!bm || !bm.visible) return null;
     const [ecefX, ecefY, ecefZ] = point.bodyFixedPositionKm;
-    // ECEF Z-up → body-fixed geometry Y-up (inverse of the surface discovery
-    // conversion): geoX=ecefX, geoY=ecefZ(pole), geoZ=-ecefY
+    // Invert surface discovery using the same rendered frame and axes.
+    // DSK vertices/normals remain native Z-up; globes use geometry Y-up.
+    const isDsk = point.source === 'dsk';
+    const rotation = isDsk ? bm.bodyToWorldQuaternion(new THREE.Quaternion()) : bm.mesh.quaternion;
     const bodyCenter = new THREE.Vector3();
     bm.getWorldPosition(bodyCenter);
-    const world = new THREE.Vector3(ecefX, ecefZ, -ecefY)
-      .applyQuaternion(bm.mesh.quaternion)
+    const world = (isDsk
+      ? new THREE.Vector3(ecefX, ecefY, ecefZ)
+      : new THREE.Vector3(ecefX, ecefZ, -ecefY))
+      .applyQuaternion(rotation)
       .multiplyScalar(this.scaleFactor)
       .add(bodyCenter);
     const n = point.surfaceNormal;
-    const normal = n ? new THREE.Vector3(n[0], n[2], -n[1]).applyQuaternion(bm.mesh.quaternion) : null;
+    const normal = n ? (isDsk
+      ? new THREE.Vector3(n[0], n[1], n[2])
+      : new THREE.Vector3(n[0], n[2], -n[1])).applyQuaternion(rotation) : null;
     return { world, bodyCenter, normal };
   }
 
@@ -2450,7 +2456,9 @@ export class UniverseRenderer {
   private _refinePin(): void {
     const pin = this._probe.pinned;
     const state = this._pinRefine;
-    if (!pin) return;
+    // DSK plates are a stable body-fixed surface, not a streamed heightfield.
+    // A radial recast can hit another lobe of a concave shape and move the pin.
+    if (!pin || pin.source === 'dsk') return;
     const now = performance.now();
     // A pin its own refined surface now covers is re-seated at once.
     const interval = this._pinOcclusion.point === pin && this._pinOcclusion.hidden

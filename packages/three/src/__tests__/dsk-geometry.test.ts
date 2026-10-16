@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createHeritageSpice, type HeritageSpice } from '@cosmolabe/frames';
-import { Body, FixedRotation, SpiceRotation, type SpiceInstance } from '@cosmolabe/core';
+import { Body, FixedRotation, SpiceRotation, UniformRotation, type SpiceInstance } from '@cosmolabe/core';
 import { BodyMesh } from '../BodyMesh.js';
 import { dskShapeProviderOf, dskToBufferGeometry, gunzipIfNeeded, type DskShape } from '../DskShapeProvider.js';
 import { AssetLoadTracker } from '../AssetLoadTracker.js';
@@ -199,6 +199,50 @@ describe('BodyMesh.loadDsk', () => {
     expect(picked?.bodyFixedHitKm[0]).toBeCloseTo(0.2, 6);
     expect(picked?.bodyFixedHitKm[1]).toBeCloseTo(0.2, 6);
     expect(picked?.bodyFixedHitKm[2]).toBeCloseTo(0.6, 6);
+  });
+
+  it('re-anchors a DSK pick and normal on its exact plate after rotation and translation without radial refinement', async () => {
+    serve(fixture('dsk-two-segments.bds'));
+    const bm = new BodyMesh(new Body({ name: 'Shape', trajectory: fixedPoint,
+      rotation: new UniformRotation(1000, 0, 0.3, 0.6, 0.5, 'ECLIPJ2000'), geometryType: 'Dsk' }));
+    await bm.loadDsk('shape.bds', 0.001, spice, 'shape.bds');
+    bm.updatePosition([20, 30, 40], 0, 0.001);
+    bm.updateWorldMatrix(true, true);
+    const mesh = bm.getDskMeshes()[0];
+    const camera = new THREE.PerspectiveCamera(45, 1, 1e-6, 100);
+    camera.position.copy(mesh.localToWorld(new THREE.Vector3(0.2, 0.2, 3)));
+    camera.lookAt(mesh.localToWorld(new THREE.Vector3(0.2, 0.2, 0.6)));
+    camera.updateMatrixWorld(true);
+    const renderer = Object.assign(Object.create(UniverseRenderer.prototype), {
+      camera, scaleFactor: 0.001, bodyMeshes: new Map([['Shape', bm]]),
+      _surfaceRaycaster: new THREE.Raycaster(), _surfaceTileRaycaster: new THREE.Raycaster(),
+      renderer: { domElement: { clientHeight: 900 } },
+    }) as UniverseRenderer;
+    const point = renderer.pickSurface(0, 0)!.point;
+    const internals = renderer as unknown as {
+      surfacePointWorld(p: typeof point): { world: THREE.Vector3; normal: THREE.Vector3 };
+      _refinePin(): void;
+    };
+    const native = new THREE.Vector3(...point.bodyFixedPositionKm);
+    const initialHit = mesh.localToWorld(new THREE.Vector3(0.2, 0.2, 0.6));
+    expect(internals.surfacePointWorld(point).world.distanceTo(initialHit)).toBeLessThan(1e-12);
+    const pin = { pinned: point, setPin: vi.fn() };
+    const cast = vi.fn();
+    Object.assign(renderer, { _probe: pin, _castSurfaces: cast });
+    for (const et of [0, 250]) {
+      bm.updatePosition([20 + et / 50, 30 + et / 25, 40 - et / 20], et, 0.001);
+      bm.updateWorldMatrix(true, true);
+      const expected = mesh.localToWorld(native.clone());
+      const normal = new THREE.Vector3(1, 1, 1).applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld));
+      const anchor = internals.surfacePointWorld(point);
+      expect(anchor.world.distanceTo(expected)).toBeLessThan(1e-12);
+      expect(anchor.normal.distanceTo(normal)).toBeLessThan(1e-10);
+      internals._refinePin();
+      expect(pin.pinned).toBe(point);
+    }
+    expect(cast).not.toHaveBeenCalled();
+    expect(pin.setPin).not.toHaveBeenCalled();
+    expect(internals.surfacePointWorld(point).world.distanceTo(initialHit)).toBeGreaterThan(0.01);
   });
 
   it('accelerates only DSK meshes while preserving exact intersections, plate indices and disposal', async () => {

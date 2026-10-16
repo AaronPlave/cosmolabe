@@ -405,3 +405,52 @@ Full typechecks (including Svelte), lint and production viewer build pass.
 DSK click/probe/null-datum and foreground/background line GPU checks pass.
 Full suite: **1,925 passed, 7 skipped, 1 failed** — the same unchanged SPICE
 progress-throttle timing test, completing in 73 ms before its 100 ms throttle.
+
+## DSK probe re-anchoring and main reconciliation
+
+DSK discovery already returned native Z-up coordinates, but probe anchoring
+subsequently treated them as globe Y-up coordinates and used the hidden globe's
+rotation. The anchor now inverts discovery with the rendered DSK body-to-world
+orientation for both position and plate normal. The existing globe/terrain
+conversion is unchanged.
+
+Automatic radial pin refinement now skips DSK points. Their loaded plates are
+stable body-fixed geometry, unlike a streamed terrain heightfield; a radial ray
+through a concave shape may intersect a different lobe and must not replace the
+selected plate point.
+
+The real two-segment DSK regression picks a plate on a rotated, translated body,
+then advances a uniform rotation by a quarter turn and translates the body.
+At both epochs the anchor and normal match the rendered mesh transform. The
+pin object remains unchanged and no radial surface recast or reseating occurs.
+
+The actual 67P viewer regression pins a real K200 hit at 2016-09-30 10:39 UTC,
+then seeks to 10:49 UTC. At each epoch the marker is visible on its selected
+plate, the anchor/marker agree with the rendered mesh within the 0.1 mm test
+tolerance, and the normal matches the rendered triangle frame. Body-fixed
+coordinates and pin identity stay unchanged while the world position rotates.
+This checks numerical round-trip consistency, not physical shape accuracy.
+
+[Raw pin result](benchmarks/rosetta/dsk-pin-roundtrip.json).
+![Pin follows 67P's rendered plate at the later epoch](img/rosetta/dsk-pin-following.png)
+
+Merged main `0525c81` in `a451b52`. The only manual conflict was in
+`scripts/data-hosting/datasets.json`: both Rosetta's complete derived-kernel
+provenance and main's pinned cube-terrain/NAC imagery entries are retained.
+Main's renderer, terrain, picking and navigation changes were preserved.
+
+Merged-branch validation: **1,983 tests passed, 7 skipped**, no failures, across
+178 files (177 passed / 1 skipped). Full package, test, viewer and Svelte
+typechecks, lint, purity lint and production build pass. Real browser checks
+pass 17 mission viewpoints / 10 transition epochs / 28 assets, DSK
+click/probe/normal/marker/depth checks, and the Philae occlusion regression.
+
+Reproduce the pin check with `scripts/test-rosetta-surfaces.mjs` as above;
+the unit regression lives in `packages/three/src/__tests__/dsk-geometry.test.ts`.
+
+The reconciled branch's hardware sanity profile (M4 Max, Chromium 148,
+ANGLE Metal, 1400×900, DPR 1) keeps near-Abydos mean frames at **8.1 ms**,
+p95 **9.2 ms**, CPU mean **1.85 ms**. Playback and 20-event cases remain
+about 8.3 ms/frame. Mouse orbit/pan/zoom move the camera; one pan latency
+sample was 28.5 ms, without recurring frame stalls in the bounded run.
+[Raw post-merge profile](benchmarks/rosetta/pin-merge-profile.json).
