@@ -39,7 +39,7 @@ describe('DDS minification', () => {
   });
 
   it('retains the ring mip chain', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(dds(3))));
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(dds(3))));
     const ring = new RingMesh(1, 2);
     try {
       await ring.loadTexture('rings.dds');
@@ -47,5 +47,36 @@ describe('DDS minification', () => {
       expect(map.mipmaps).toHaveLength(3);
       expect(map.minFilter).toBe(THREE.LinearMipmapLinearFilter);
     } finally { ring.dispose(); }
+  });
+
+  it('generates mipmaps on the final stitched DDS map', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(dds(3))));
+    const body = new BodyMesh(new Body({ name: 'Moon', geometryType: 'Globe',
+      radii: [1, 1, 1], trajectory: new FixedPointTrajectory([0, 0, 0]) }));
+    const previous = new THREE.WebGLRenderTarget(1, 1);
+    let output: THREE.WebGLRenderTarget | undefined;
+    const renderer = {
+      getRenderTarget: () => previous,
+      setRenderTarget: vi.fn((target: THREE.WebGLRenderTarget) => {
+        if (target !== previous) output = target;
+      }),
+      clear: vi.fn(),
+      render: vi.fn(() => {
+        // These flags must already be set when Three renders the stitch pass.
+        expect(output!.texture.generateMipmaps).toBe(true);
+        expect(output!.texture.minFilter).toBe(THREE.LinearMipmapLinearFilter);
+      }),
+    };
+    try {
+      await body.loadTiledBaseMap(['left.dds', 'right.dds'], renderer as unknown as THREE.WebGLRenderer);
+      const map = (body.mesh.material as THREE.MeshStandardMaterial).map!;
+      expect(renderer.render).toHaveBeenCalledOnce();
+      expect(map).toBe(output!.texture);
+      expect(output!.width).toBe(8);
+      expect(output!.height).toBe(4);
+      expect(map.generateMipmaps).toBe(true);
+      expect(map.minFilter).toBe(THREE.LinearMipmapLinearFilter);
+      expect(renderer.setRenderTarget).toHaveBeenLastCalledWith(previous);
+    } finally { body.dispose(); output?.dispose(); previous.dispose(); }
   });
 });

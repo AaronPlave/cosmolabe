@@ -1243,12 +1243,7 @@ export class UniverseRenderer {
           this.instrumentView.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);
           // The instrument has its own observer position and may be inside a
           // different shell. Refresh its sky lookup and surface transport too.
-          this.updateAtmospheres(this.instrumentView.camera);
-          try {
-            this.instrumentView.render(this.renderer, this.scene);
-          } finally {
-            this.updateAtmospheres(this.camera);
-          }
+          this.renderInstrumentScene();
         }
       } catch (err) {
         console.warn('[Cosmolabe] Instrument PiP render error:', err);
@@ -1315,8 +1310,20 @@ export class UniverseRenderer {
     }
   }
 
-  /** Refresh camera-dependent atmosphere state before drawing a view. */
-  private updateAtmospheres(camera: THREE.Camera): number {
+  private renderInstrumentScene(): void {
+    if (!this.instrumentView) return;
+    try {
+      const brightness = this.updateAtmospheres(this.instrumentView.camera);
+      this.starField?.setSkyBrightness(brightness);
+      this.instrumentView.render(this.renderer, this.scene);
+    } finally {
+      const brightness = this.updateAtmospheres(this.camera, false);
+      this.starField?.setSkyBrightness(brightness);
+    }
+  }
+
+  /** Refresh observer state; restoration reuses the main observer's sky LUT. */
+  private updateAtmospheres(camera: THREE.Camera, renderSkyView = true): number {
     let maxSkyBrightness = 0;
     if (this.atmosphereMeshes.size > 0) {
       const sunBm = this.bodyMeshes.get('Sun');
@@ -1341,6 +1348,8 @@ export class UniverseRenderer {
             atmOccluders, parentBm.position,
             this._sunRadiusKm * this.scaleFactor,
             atm.shellRadius * this.scaleFactor,
+            camera === this.instrumentView?.camera ? 'instrument' : 'main',
+            renderSkyView,
           );
           const b = atm.getDaytimeSkyBrightness();
           if (b > maxSkyBrightness) maxSkyBrightness = b;

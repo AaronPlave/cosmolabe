@@ -523,6 +523,7 @@ export class AtmosphereMesh extends THREE.Mesh {
   private readonly _camLocal = new THREE.Vector3();
   private readonly _renderer: THREE.WebGLRenderer | undefined;
   private _skyView: SkyViewLUT | null = null;
+  private _instrumentSkyView: SkyViewLUT | null = null;
 
   constructor(planetRadius: number, params: AtmosphereParams, renderer?: THREE.WebGLRenderer) {
     const model = normalizeAtmosphere(params);
@@ -627,6 +628,8 @@ export class AtmosphereMesh extends THREE.Mesh {
     planetWorldPos?: THREE.Vector3,
     sunRadius?: number,
     shellSceneScale?: number,
+    observer: 'main' | 'instrument' = 'main',
+    renderSkyView = true,
   ): void {
     const u = (this.material as THREE.ShaderMaterial).uniforms;
 
@@ -675,8 +678,15 @@ export class AtmosphereMesh extends THREE.Mesh {
     } else {
       u.uShadowOccluderCount.value = 0;
     }
-    if (camObjR < 1.0 && this._renderer && this._skyView) {
-      this._skyView.update(this._renderer, this._camLocal);
+    if (this._renderer && this._skyView) {
+      // Keep the main texture intact while PiP draws. Restoring its uniforms
+      // can then select that texture without another integration pass.
+      if (observer === 'instrument' && camObjR < 1.0) {
+        this._instrumentSkyView ??= new SkyViewLUT(u);
+      }
+      const lookup = observer === 'instrument' ? this._instrumentSkyView : this._skyView;
+      u.uSkyViewLUT.value = lookup?.target.texture ?? this._skyView.target.texture;
+      if (renderSkyView && camObjR < 1.0) lookup?.update(this._renderer, this._camLocal);
     }
   }
 
@@ -720,6 +730,7 @@ export class AtmosphereMesh extends THREE.Mesh {
     this._lutTexture?.dispose();
     this._transmittanceTarget?.dispose();
     this._skyView?.dispose();
+    this._instrumentSkyView?.dispose();
   }
 
   private setAtmosphereUniforms(planetRadius: number, shellRadius: number): void {

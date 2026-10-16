@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { Body, FixedPointTrajectory } from '@cosmolabe/core';
 import { BodyMesh } from '../BodyMesh.js';
 import { UniverseRenderer } from '../UniverseRenderer.js';
-import { getAtmospherePreset } from '../AtmosphereMesh.js';
+import { AtmosphereMesh, getAtmospherePreset } from '../AtmosphereMesh.js';
+import { SkyViewLUT } from '../SkyViewLUT.js';
 import { normalizeAtmosphere } from '../AtmosphereModel.js';
 import { makeAerialPerspectiveUniforms } from '../AerialPerspective.js';
 
@@ -11,6 +12,51 @@ import { makeAerialPerspectiveUniforms } from '../AerialPerspective.js';
 // The atmosphere shell is a lightweight stand-in; the globe's scene hierarchy
 // and aerial-perspective matrix uniforms are real Three.js objects.
 describe('atmosphere planet frame', () => {
+  it.each([false, true])('uses instrument star brightness and restores main state (draw throws: %s)', throws => {
+    const camera = new THREE.PerspectiveCamera();
+    const instrumentCamera = new THREE.PerspectiveCamera();
+    let brightness = 0;
+    const setSkyBrightness = vi.fn((value: number) => { brightness = value; });
+    const state = {
+      camera, starField: { setSkyBrightness }, renderer: {}, scene: {},
+      updateAtmospheres: vi.fn((observer: THREE.Camera) => observer === camera ? 0 : 0.8),
+      instrumentView: { camera: instrumentCamera, render: vi.fn(() => {
+        expect(brightness).toBe(0.8);
+        if (throws) throw new Error('instrument draw failed');
+      }) },
+    };
+    const draw = (UniverseRenderer.prototype as unknown as { renderInstrumentScene: () => void }).renderInstrumentScene;
+    if (throws) expect(() => draw.call(state)).toThrow('instrument draw failed');
+    else draw.call(state);
+    expect(state.updateAtmospheres.mock.calls).toEqual([[instrumentCamera], [camera, false]]);
+    expect(brightness).toBe(0);
+    expect(setSkyBrightness).toHaveBeenLastCalledWith(0);
+  });
+
+  it('restores the main sky texture without reintegrating either observer lookup', () => {
+    // Supply a renderer stub after construction to skip unrelated static LUT
+    // initialization, while exercising real SkyViewLUT rendering and selection.
+    const atmosphere = new AtmosphereMesh(6371, getAtmospherePreset('Earth')!);
+    const renderer = { autoClear: true, getRenderTarget: () => null,
+      setRenderTarget: vi.fn(), render: vi.fn() };
+    const state = atmosphere as unknown as { _renderer: THREE.WebGLRenderer; _skyView: SkyViewLUT };
+    state._renderer = renderer as unknown as THREE.WebGLRenderer;
+    state._skyView = new SkyViewLUT((atmosphere.material as THREE.ShaderMaterial).uniforms);
+    const uniforms = (atmosphere.material as THREE.ShaderMaterial).uniforms;
+    const main = new THREE.Vector3(0, 0.99, 0);
+    const instrument = new THREE.Vector3(0.99, 0, 0);
+    const sun = new THREE.Vector3(0, 100, 0);
+    try {
+      atmosphere.update(main, sun);
+      const mainTexture = uniforms.uSkyViewLUT.value;
+      atmosphere.update(instrument, sun, undefined, undefined, undefined, undefined, 'instrument');
+      expect(uniforms.uSkyViewLUT.value).not.toBe(mainTexture);
+      atmosphere.update(main, sun, undefined, undefined, undefined, undefined, 'main', false);
+      expect(uniforms.uSkyViewLUT.value).toBe(mainTexture);
+      expect(renderer.render).toHaveBeenCalledTimes(2);
+    } finally { atmosphere.dispose(); }
+  });
+
   it('refreshes the moving globe parent before publishing surface transport matrices', () => {
     const scaleFactor = 1e-6;
     const model = normalizeAtmosphere(getAtmospherePreset('Saturn')!);
