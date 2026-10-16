@@ -53,7 +53,7 @@ Each entry in `items` is either:
 
 - A **body** (the default — no `type` field, or any other type the loader doesn't otherwise recognize),
 - A **`Viewpoint`** — a named camera preset, or
-- A **`Visualizer`** / **`FeatureLabels`** — overlay metadata (lat-lon labels, surface annotations).
+- A **`Visualizer`** / **`FeatureLabels`** — legacy overlay metadata; currently ignored by the core loader. Geographic vectors use the separate top-level [`geographicLayers` contract](geographic-layers.md), not these placeholders.
 
 Bodies can nest other bodies via their own `items` array, which is how you build hierarchy (Sun → Earth → Moon).
 

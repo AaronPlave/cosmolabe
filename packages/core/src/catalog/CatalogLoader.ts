@@ -1,4 +1,5 @@
 import type { SpiceInstance, Vec3 } from '../spice-injection.js';
+import type { GeographicCoordinates, GeographicLayerDefinition } from '../geographic/model.js';
 import { Body, type TrajectoryPlotConfig } from '../Body.js';
 import type { Trajectory } from '../trajectories/Trajectory.js';
 import { FixedPointTrajectory } from '../trajectories/FixedPoint.js';
@@ -69,6 +70,9 @@ export interface SpkImportSpec {
 
 // Cosmographia catalog JSON schema types
 export interface CatalogJson {
+  /** Planetary GeoJSON conventions, inherited only by this catalog's layers. */
+  geographicCoordinates?: GeographicCoordinates;
+  geographicLayers?: GeographicLayerDefinition[];
   name?: string;
   version?: string;
   require?: string[];

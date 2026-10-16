@@ -18,6 +18,8 @@ import type { UniverseEventMap } from './events/EventTypes.js';
 import { StateStore } from './state/StateStore.js';
 import type { UniverseState } from './state/StateTypes.js';
 import { DEFAULT_UNIVERSE_STATE } from './state/StateTypes.js';
+import { GeographicLayerStore, geographicLayersFromFiles } from './geographic/loading.js';
+import type { GeographicLayerLoad } from './geographic/model.js';
 
 export interface UniverseOptions {
   /** Resolve trajectory data files (e.g. .xyzv). Return file text content or undefined. */
@@ -31,6 +33,9 @@ export interface UniverseOptions {
 }
 
 export class Universe {
+  readonly geographicLayers = new GeographicLayerStore();
+  private geographicCatalogOwners = new WeakMap<CatalogJson, string>();
+  private nextGeographicCatalogOwner = 0;
   private bodies = new Map<string, Body>();
   private _viewpoints: ViewpointDefinition[] = [];
   private _defaultViewpoint?: string;
@@ -75,7 +80,7 @@ export class Universe {
     return this.frameKeyIndex.get(key)?.rotation;
   }
 
-  loadCatalog(json: CatalogJson): void {
+  loadCatalog(json: CatalogJson, options?: { source?: string; geographicLayers?: readonly GeographicLayerLoad[] }): void {
     const loaderOpts: CatalogLoaderOptions = {
       spice: this.spice,
       resolveFile: this.resolveFile,
@@ -118,6 +123,20 @@ export class Universe {
       this._defaultViewpoint = result.defaultViewpoint;
     }
 
+    let geographicOwner = options?.source ?? json.name ?? this.geographicCatalogOwners.get(json);
+    if (geographicOwner === undefined) {
+      geographicOwner = `anonymous-catalog:${++this.nextGeographicCatalogOwner}`;
+      this.geographicCatalogOwners.set(json, geographicOwner);
+    }
+    const geographicLoads = options?.geographicLayers ?? geographicLayersFromFiles(json, this.resolveFile, options?.source, geographicOwner);
+    this.geographicLayers.replaceCatalog(geographicOwner, geographicLoads);
+    for (const load of geographicLoads) {
+      for (const diagnostic of load.diagnostics.slice(0, 5)) {
+        console.warn(`[Cosmolabe] geographic layer "${load.id}": ${diagnostic.message}`);
+      }
+      if (load.diagnostics.length > 5) console.warn(`[Cosmolabe] geographic layer "${load.id}": ${load.diagnostics.length} diagnostics in geographicLayers.loads`);
+    }
+    this.events.emit('geographic:changed', {});
     this.events.emit('catalog:loaded', { name: json.name });
 
     for (const plugin of this.plugins) {
@@ -354,6 +373,9 @@ export class Universe {
     }
     this.plugins = [];
     this.bodies.clear();
+    this.geographicLayers.clear();
+    this.geographicCatalogOwners = new WeakMap();
+    this.nextGeographicCatalogOwner = 0;
     this._viewpoints = [];
     this._defaultViewpoint = undefined;
     this.events.dispose();
