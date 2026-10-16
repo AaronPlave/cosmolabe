@@ -19,12 +19,12 @@ describe('viewer geographic loading', () => {
     expect(result[0].loads[0].layer).toMatchObject({ ownership: 'transient', source: { identity: 'data/sites.geojson' } });
     expect(result[0].loads[0].layer!.features[0].properties).toEqual({ name: 'South pole' });
   });
-  it('rejects missing/ambiguous local sources and never falls through to the network', async () => {
+  it('rejects missing directory paths and never falls through to basename or network fallback', async () => {
     const fetcher = vi.spyOn(globalThis, 'fetch');
     const result = await prepareGeographicCatalogs(graph, new AbortController().signal,
       new Map([['a/sites.geojson', text], ['b/sites.geojson', text]]), parser);
     expect(result[0].loads[0].status).toBe('error');
-    expect(result[0].loads[0].diagnostics[0].message).toContain('ambiguous');
+    expect(result[0].loads[0].diagnostics[0].message).toContain('basename fallback is disabled');
     expect(fetcher).not.toHaveBeenCalled();
   });
   it('loads nested hosted datasets against the declaring catalog URL', async () => {

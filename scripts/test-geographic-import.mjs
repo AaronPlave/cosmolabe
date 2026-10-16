@@ -46,7 +46,7 @@ try {
     await handleFileList(canvas, [localFile(JSON.stringify(scene), 'bundle/mission/scene.json'), bodyFile(),
       localFile(text, 'bundle/a/sites.geojson'), localFile(text, 'bundle/b/sites.geojson')]);
     result.duplicateRejected = getUniverse().geographicLayers.loads[0].status === 'error'
-      && getUniverse().geographicLayers.loads[0].diagnostics[0].message.includes('ambiguous');
+      && getUniverse().geographicLayers.loads[0].diagnostics[0].message.includes('basename fallback is disabled');
     const before = getUniverse();
     try { await handleFileList(canvas, [localFile(JSON.stringify(json), 'bundle/mission/scene.json')]); }
     catch (error) { result.missingDiagnosed = error.message.includes('moon.json') && error.message.includes('missing'); }

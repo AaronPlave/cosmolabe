@@ -1,6 +1,6 @@
 import { GEOGRAPHIC_LIMITS, type ResolvedCatalog, type CatalogJson } from '@cosmolabe/core';
 import { readLocalJsonType } from './local-json-type';
-import { resolveLocalFile, selectedFilePaths } from './local-paths';
+import { LocalFileMap, resolveLocalFile, selectedFilePaths } from './local-paths';
 export { rememberLocalFilePath } from './local-paths';
 
 const KERNEL_EXTENSIONS = new Set([
@@ -25,14 +25,14 @@ export interface LoadedFiles {
 }
 
 export async function categorizeFiles(files: File[], signal?: AbortSignal): Promise<LoadedFiles> {
-  const jsonFiles = new Map<string, { json: Record<string, unknown>; text: string }>();
+  const { paths, hasDirectoryPaths } = selectedFilePaths(files);
+  const jsonFiles = new LocalFileMap<{ json: Record<string, unknown>; text: string }>(hasDirectoryPaths);
   const kernelFiles: File[] = [];
-  const dataFiles = new Map<string, string>();
-  const binaryFiles = new Map<string, ArrayBuffer>();
-  const modelFiles = new Map<string, string>();
+  const dataFiles = new LocalFileMap<string>(hasDirectoryPaths);
+  const binaryFiles = new LocalFileMap<ArrayBuffer>(hasDirectoryPaths);
+  const modelFiles = new LocalFileMap<string>(hasDirectoryPaths);
   let vectorBytes = 0;
 
-  const paths = selectedFilePaths(files);
   for (const [index, file] of files.entries()) {
     signal?.throwIfAborted();
     const path = paths[index];

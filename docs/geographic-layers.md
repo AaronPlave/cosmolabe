@@ -47,8 +47,12 @@ For local data, use **Open local catalog…** or drag/drop and select the catalo
 JSON **together with** the referenced `.geojson` (or GeoJSON `.json`) files and
 any required catalogs/assets. A catalog with only `geographicLayers` is valid.
 Files retain directory-selection or dropped-directory paths. Both `require` and
-geographic source paths resolve relative to the catalog that declares them, then
-fall back only to a unique selected basename. No shared basename aliases are
+geographic source paths require an exact match relative to the catalog that
+declares them when meaningful directory paths are available. A same-basename
+file in another directory never substitutes for a missing relative path. Only
+genuinely flat selections, with no directory information, may fall back to a
+unique selected basename. This selection metadata is preserved separately from
+synthetic identities assigned to duplicate flat filenames. No shared basename aliases are
 created for different files. Ambiguous or missing geographic sources fail that
 layer without fetching a replacement from the network. Unresolved/ambiguous
 required catalogs and dependency cycles fail the load before replacing the scene.

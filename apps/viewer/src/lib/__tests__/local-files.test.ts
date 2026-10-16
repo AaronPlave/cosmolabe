@@ -36,7 +36,7 @@ describe('selected files → local require graph → geographic loading', () => 
     universe.dispose();
   });
 
-  it.each(['geojson', 'json'])('preserves duplicate .%s basenames through the actual categorizer and rejects ambiguous fallback', async extension => {
+  it.each(['geojson', 'json'])('preserves duplicate .%s basenames through the actual categorizer and rejects directory fallback', async extension => {
     const files = await categorizeFiles([
       file(geo('a'), `a/sites.${extension}`), file(geo('b'), `b/sites.${extension}`),
       file(JSON.stringify({ ...mission, require: [], geographicLayers: [{ ...mission.geographicLayers[0], source: `sites.${extension}` }] }), 'scene.json'),
@@ -44,7 +44,7 @@ describe('selected files → local require graph → geographic loading', () => 
     expect([...files.dataFiles.keys()]).toEqual([`a/sites.${extension}`, `b/sites.${extension}`]);
     const loaded = await prepareGeographicCatalogs(resolveCatalogOrder(files.jsonFiles), new AbortController().signal, files.dataFiles, parser);
     expect(loaded[0].loads[0].status).toBe('error');
-    expect(loaded[0].loads[0].diagnostics[0].message).toContain('ambiguous');
+    expect(loaded[0].loads[0].diagnostics[0].message).toContain('basename fallback is disabled');
   });
 
   it('also preserves flat selections containing two physically distinct files with the same name', async () => {
@@ -73,7 +73,7 @@ describe('selected files → local require graph → geographic loading', () => 
     expect(() => resolveCatalogOrder(missing.jsonFiles)).toThrow(/require.*mars.json.*scene.json.*missing/);
     const ambiguous = await categorizeFiles([file(JSON.stringify(mission), 'scene.json'),
       file(JSON.stringify(body), 'a/mars.json'), file(JSON.stringify(body), 'b/mars.json')]);
-    expect(() => resolveCatalogOrder(ambiguous.jsonFiles)).toThrow('ambiguous');
+    expect(() => resolveCatalogOrder(ambiguous.jsonFiles)).toThrow('basename fallback is disabled');
     const cyclic = await categorizeFiles([file('{"require":["b.json"]}', 'a.json'), file('{"require":["a.json"]}', 'b.json')]);
     expect(() => resolveCatalogOrder(cyclic.jsonFiles)).toThrow('cycle');
   });
@@ -82,6 +82,49 @@ describe('selected files → local require graph → geographic loading', () => 
     const f = file(JSON.stringify(mission), 'scene.json', false);
     rememberLocalFilePath(f, '/bundle/mission/scene.json');
     expect([...(await categorizeFiles([f])).jsonFiles.keys()]).toEqual(['bundle/mission/scene.json']);
+  });
+
+  it.each([false, true])('rejects a missing relative require despite one same-basename catalog in the wrong directory (dropped=%s)', async dropped => {
+    const entries = [[JSON.stringify(mission), 'bundle/mission/scene.json'], [JSON.stringify(body), 'bundle/old/mars.json']];
+    const files = await categorizeFiles(entries.map(([text, path]) => {
+      const f = file(text, path, !dropped);
+      if (dropped) rememberLocalFilePath(f, `/${path}`);
+      return f;
+    }));
+    expect(() => resolveCatalogOrder(files.jsonFiles)).toThrow('Local source missing: "bundle/bodies/mars.json"');
+  });
+
+  it.each([false, true])('rejects a missing geographic path despite one same-basename dataset in the wrong directory (dropped=%s)', async dropped => {
+    const entries = [[JSON.stringify(mission), 'bundle/mission/scene.json'],
+      [JSON.stringify(body), 'bundle/bodies/mars.json'], [geo('wrong dataset'), 'bundle/old/sites.geojson']];
+    const files = await categorizeFiles(entries.map(([text, path]) => {
+      const f = file(text, path, !dropped);
+      if (dropped) rememberLocalFilePath(f, `/${path}`);
+      return f;
+    }));
+    const parseSource = vi.fn(parser);
+    const loaded = await prepareGeographicCatalogs(resolveCatalogOrder(files.jsonFiles), new AbortController().signal, files.dataFiles, parseSource);
+    expect(loaded[1].loads[0]).toMatchObject({ status: 'error', diagnostics: [{ message: expect.stringContaining('Local source missing: "bundle/vectors/sites.geojson"') }] });
+    expect(loaded[1].loads[0].layer).toBeUndefined();
+    expect(parseSource).not.toHaveBeenCalled();
+  });
+
+  it('retains directory-selection provenance when the only geographic file itself has no directory information', async () => {
+    const files = await categorizeFiles([file(JSON.stringify(mission), 'bundle/mission/scene.json'),
+      file(JSON.stringify(body), 'bundle/bodies/mars.json'), file(geo(), 'sites.geojson', false)]);
+    const loaded = await prepareGeographicCatalogs(resolveCatalogOrder(files.jsonFiles), new AbortController().signal, files.dataFiles, parser);
+    expect(loaded[1].loads[0].status).toBe('error');
+    expect(loaded[1].loads[0].diagnostics[0].message).toContain('basename fallback is disabled');
+  });
+
+  it('still resolves flat selections with unique basenames when duplicate catalog names have synthetic identities', async () => {
+    const files = await categorizeFiles([file(JSON.stringify(mission), 'scene.json', false),
+      file(JSON.stringify({ ...mission, name: 'Second mission' }), 'scene.json', false),
+      file(JSON.stringify(body), 'mars.json', false), file(geo(), 'sites.geojson', false)]);
+    const graph = resolveCatalogOrder(files.jsonFiles);
+    expect(graph.map(x => x.json.name)).toEqual(['Mars body', 'Mission', 'Second mission']);
+    const loaded = await prepareGeographicCatalogs(graph, new AbortController().signal, files.dataFiles, parser);
+    expect(loaded.slice(1).map(x => x.loads[0].status)).toEqual(['ready', 'ready']);
   });
 });
 
