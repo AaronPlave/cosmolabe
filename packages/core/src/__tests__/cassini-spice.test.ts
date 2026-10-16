@@ -12,6 +12,7 @@ import { createHeritageSpice } from '@cosmolabe/frames';
 import { Universe } from '../Universe.js';
 import { alignPositionToFrame, type Vec3 } from '../kinematics.js';
 import type { CatalogJson } from '../catalog/CatalogLoader.js';
+import { kernelArrayBuffer } from './_harness/kernels.js';
 
 const KERNEL_DIR = join(__dirname, '../../../../kernels/test-data');
 const CASSINI_DIR = join(KERNEL_DIR, 'cassini');
@@ -94,18 +95,18 @@ describe('Cassini full-stack integration (SPICE + Catalog + Universe)', () => {
     spice = await createHeritageSpice();
 
     // Standard kernels
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(KERNEL_DIR, 'naif0012.tls')).buffer, filename: 'naif0012.tls' });
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(KERNEL_DIR, 'pck00010.tpc')).buffer, filename: 'pck00010.tpc' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(KERNEL_DIR, 'naif0012.tls'))), filename: 'naif0012.tls' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(KERNEL_DIR, 'pck00010.tpc'))), filename: 'pck00010.tpc' });
 
     // Cassini kernels
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(CASSINI_DIR, 'cas_v43.tf')).buffer, filename: 'cas_v43.tf' });
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(CASSINI_DIR, 'cas00172.tsc')).buffer, filename: 'cas00172.tsc' });
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(CASSINI_DIR, 'cas_iss_v10.ti')).buffer, filename: 'cas_iss_v10.ti' });
-    await spice.furnish({ type: 'buffer', data: readFileSync(join(CASSINI_DIR, '040629AP_SCPSE_04179_04185.bsp')).buffer, filename: '040629AP_SCPSE_04179_04185.bsp' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(CASSINI_DIR, 'cas_v43.tf'))), filename: 'cas_v43.tf' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(CASSINI_DIR, 'cas00172.tsc'))), filename: 'cas00172.tsc' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(CASSINI_DIR, 'cas_iss_v10.ti'))), filename: 'cas_iss_v10.ti' });
+    await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(join(CASSINI_DIR, '040629AP_SCPSE_04179_04185.bsp'))), filename: '040629AP_SCPSE_04179_04185.bsp' });
     // Attitude CK — only needed by the boresight-pointing test below. Skipped
     // (with that test) when only the LFS pointer is present.
     if (HAS_SOI_CK) {
-      await spice.furnish({ type: 'buffer', data: readFileSync(SOI_CK).buffer, filename: '04183_04185ra.bc' });
+      await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(readFileSync(SOI_CK)), filename: '04183_04185ra.bc' });
     }
 
     universe = new Universe(spice);
