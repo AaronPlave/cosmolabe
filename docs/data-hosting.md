@@ -12,6 +12,38 @@ Local development serves repository examples under `/test-catalogs/` from
 middleware still gunzips `.terrain` files on the fly. Viewer-owned assets are
 separate in `apps/viewer/public/`.
 
+## Local development
+
+`npm run dev --workspace apps/viewer` automatically prefers complete local
+managed products and falls back to the immutable `build` pinned in
+`scripts/data-hosting/datasets.json` when a product is missing or incomplete.
+The default development host is `https://data.aaronplave.com`; set
+`DATA_BASE_URL=https://your-host.example` to override it. The catalog URL stays
+the same, including `?catalog=test-catalogs/moonfall-shackleton`.
+
+Selection happens for the whole product: cube terrain's tileset, GLBs, CPU
+manifest and height grids stay together, as do imagery manifests and tiles.
+Local completeness and product revisions use the publisher's validators;
+kernel references in each catalog are checked together. Vite logs each source
+choice and the reason for fallback. If local output is unavailable and no hosted
+build is pinned, the catalog request returns 503 with instructions to generate,
+fetch or publish the dataset. External services and unmanaged assets retain
+their original URLs. Production deployment rewriting is unchanged.
+
+To inspect new or incomplete local output without any hosted substitution:
+
+```sh
+DEV_DATA_MODE=local npm run dev --workspace apps/viewer
+```
+
+This keeps local paths, logs incomplete products, and lets missing files return
+their normal 404s. `DEV_DATA_MODE=auto` is the default. Checks are cached for the
+dev-server session; **restart Vite after generating, deleting or replacing a
+product**, changing the pinned manifest, or changing these environment variables.
+The initial request inventories local product file sizes without hashing the
+large datasets. A local selection never redirects individual missing tiles to
+the host later in the session.
+
 ## How the pieces fit
 
 ```

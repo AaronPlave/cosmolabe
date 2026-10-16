@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import { createReadStream, readFileSync, existsSync, cpSync, readdirSync, statSync, mkdirSync } from 'fs';
 import { gunzipSync } from 'zlib';
+import { loadDatasets } from '../../scripts/data-hosting/lib/datasets.mjs';
+import { createDevCatalogResolver } from '../../scripts/data-hosting/lib/dev-catalogs.mjs';
 
 function normalizeBase(raw: string | undefined): string {
   if (!raw) return '/';
@@ -60,6 +62,12 @@ const fusedTerrainPlugin = {
 const testCatalogsPlugin = {
   name: 'test-catalogs-static-files',
   configureServer(server: any) {
+    const resolveCatalog = createDevCatalogResolver({
+      datasets: loadDatasets().datasets,
+      baseUrl: process.env.DATA_BASE_URL,
+      mode: process.env.DEV_DATA_MODE ?? 'auto',
+      log: (message: string) => server.config.logger.info(message),
+    });
     const route = `${server.config.base}test-catalogs/`.replace(/\\/g, '/');
     const contentTypes: Record<string, string> = {
       '.json': 'application/json; charset=utf-8',
@@ -75,7 +83,7 @@ const testCatalogsPlugin = {
       '.gz': 'application/gzip',
       '.terrain': 'application/octet-stream',
     };
-    server.middlewares.use((req: any, res: any, next: any) => {
+    server.middlewares.use(async (req: any, res: any, next: any) => {
       if (!req.url) return next();
       let pathname: string;
       try {
@@ -103,6 +111,24 @@ const testCatalogsPlugin = {
       if (!stat.isFile()) {
         res.statusCode = 404;
         res.end('Not found');
+        return;
+      }
+      // Product manifests and other assets stay byte-for-byte local. Only
+      // catalog documents are resolved; no per-file redirect fallback exists.
+      const relative = path.relative(TEST_CATALOGS_DIR, filePath).split(path.sep).join('/');
+      if (relative.endsWith('.json') && !/^(data|kernels|textures|models)\//.test(relative)) {
+        try {
+          const json = JSON.parse(readFileSync(filePath, 'utf8'));
+          const body = JSON.stringify(await resolveCatalog(json, relative));
+          res.setHeader('Content-Type', contentTypes['.json']);
+          res.setHeader('Content-Length', String(Buffer.byteLength(body)));
+          res.setHeader('Cache-Control', 'no-cache');
+          res.end(req.method === 'HEAD' ? undefined : body);
+        } catch (error: any) {
+          res.statusCode = 503;
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          res.end(`Development catalog unavailable: ${error.message}`);
+        }
         return;
       }
       res.setHeader('Content-Type', contentTypes[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream');
