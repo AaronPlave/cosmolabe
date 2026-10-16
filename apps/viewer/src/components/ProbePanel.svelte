@@ -7,7 +7,8 @@
   import {
     coordinateDecimals, describeDatum, describeSource, formatHeight, formatLatitude, formatLongitude, surfacePointToText,
   } from '@cosmolabe/three';
-  import { Copy, Check } from 'lucide-svelte';
+  import { Copy, Check, Ruler } from 'lucide-svelte';
+  import { Button } from '$lib/components/ui/button';
   import { vs, getRenderer, clearProbePin } from '../lib/viewer-state.svelte';
   import { measureFromHere } from '../lib/spatial-measurements.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
@@ -89,7 +90,9 @@
       <div class="row"><span class="k">Altitude</span><span class="v">Unavailable (no defined datum)</span></div>
     {/if}
 
-    <button class="mt-2 text-text-secondary hover:text-text-primary" onclick={() => measureFromHere(point)}>Measure from here</button>
+    <Button variant="secondary" size="sm" class="ui-control w-full mt-3" onclick={() => measureFromHere(point)}>
+      <Ruler size={13} /> Measure from here
+    </Button>
 
     <details class="mt-1.5">
       <summary class="cursor-pointer select-none text-text-muted hover:text-text-secondary">Details</summary>
