@@ -2009,16 +2009,28 @@ whose ground tiles are culled.
     reject on status, so cube verification checks the status only.
   - r2.dev sends no `cf-cache-status`, so it is not edge-cached. The docs
     already call r2.dev smoke-test only.
-- **Blocked dependency.** The R2 upload itself was not run: it needs the
-  owner's explicit approval (the agent's permission policy refused it as a
-  production deploy). The commands, ready to run:
-  ```sh
-  npm run publish:data -- cube-terrain/moon-terrain-cube --build cube-fused-79895697c6b6-g3-m12-b6747ec9d --origin https://aaronplave.com --origin http://localhost:5173
-  npm run publish:data -- cube-imagery/moon-imagery-cube-nac --build cube-imagery-nac-6db766f8beebcace --origin https://aaronplave.com --origin http://localhost:5173
-  node scripts/capture-cube-imagery.mjs --experiments adoption --gpu --hosted-url "$DATA_BASE_URL"
-  ```
-  The first two verify through `DATA_BASE_URL` and pin the builds in
-  `datasets.json`. The third repeats this section against the real host.
+- **Published and checked on the real host (2026-10-15).**
+  - Both builds are on R2, verified through `DATA_BASE_URL` for
+    `https://aaronplave.com` and `http://localhost:5173`, and pinned in
+    `datasets.json`.
+  - The adoption tour ran in a browser at `localhost:5173` against those URLs,
+    in two passes:
+    - **Normal:** all 10 stops settled; no holes at stops or across 54 flight
+      steps; no selected tile without imagery, including after each instrument
+      switch; the clamp held 2.0 m above the readout and 1.7–2.0 m above the
+      rendered surface; JS heap 0.70 GB after return.
+    - **Fault-injected:** 411 failures and 599 delays injected. All 10 stops
+      settled; 0 hole pixels at stops; 0 CPU grids failed at the end.
+  - Over r2.dev, stops settle in 4–21 s, against 3.5–4.6 s locally.
+  - The faulty pass showed a single-pixel speck on three steps of the
+    orbit → Shackleton descent. At that point only levels 1–2 were drawn, with
+    117–145 requests outstanding. It cleared by the next stop; read it as a
+    sub-pixel coarse-level edge in flight, not a lost tile.
+  - Evidence: `adoption-r2-normal.json`, `adoption-r2-faulty.json`.
+  - Repeat with:
+    `node scripts/capture-cube-imagery.mjs --experiments adoption --gpu --hosted-url "$DATA_BASE_URL"`,
+    with the viewer served at `http://localhost:5173` (an origin the bucket
+    allows).
 - **Recommended before production traffic.** A custom domain plus cache rule
   for the bucket (*One-time setup*, steps 2 and 4). A full tour moves about
   330 MB, which should come from the edge.
@@ -2218,8 +2230,8 @@ geometry evidence*):
   coverage; they are not an adoption gate and were not acquired or emulated.
 - [x] **Delivery** (*Adoption readiness*, *Delivery*). The real publisher,
   verifier and catalog rewrite ran against a served store at 40 ms / 200 Mbit/s,
-  with injected faults. Remaining: owner-approved R2 publication, then the same
-  run with `--hosted-url`.
+  with injected faults; then published to R2, pinned, and the same tour run
+  against the real host (*Delivery*).
 - [x] **Adoption decision:** adopt the full-lattice + draw-cull configuration
   for lunar globe terrain; see *Migration plan*.
 - [ ] **Draw cull on the baselines (optional).** `drawCulling: true` on the
