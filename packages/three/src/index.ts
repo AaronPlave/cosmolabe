@@ -72,7 +72,7 @@ export { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRela
 export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
 export { CameraController } from './controls/CameraController.js';
-export type { CameraViewpoint, FlyToOptions } from './controls/CameraController.js';
+export type { CameraFlight, CameraViewpoint, FlightPath, FlyToOptions } from './controls/CameraController.js';
 export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
 export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
 export { KeyboardControls } from './controls/KeyboardControls.js';
