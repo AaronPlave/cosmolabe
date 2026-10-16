@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /**
- * Generate the MoonFall synthetic-mission catalog.
+ * Generate the MoonFall catalog.
  *
- * Mission: 4 lunar hoppers exploring Shackleton crater rim and PSR floor
- * over a 14-day mission window starting Dec 2028. No SPICE, no EDL — just
- * authored Waypoints trajectories showing what a coordinated multi-hopper
- * sortie looks like in 3D.
+ * JPL's MoonFall (launch 2028) flies 4 hoppers at the lunar south pole for one
+ * lunar day; lunar night freezes the remaining fuel, and each hopper then runs
+ * a survive-the-night payload at its final site. The flights here are authored,
+ * not the mission's plan: hoppers exploring the Shackleton rim and PSR floor
+ * over a 14-day window starting Dec 2028. No EDL — just Waypoints trajectories
+ * showing what a coordinated multi-hopper sortie looks like in 3D.
  *
  *   - Polaris-A starts on the NW rim, sortie-dives into the PSR floor.
  *   - Polaris-B traverses the rim sampling regolith at peaks-of-eternal-light.
@@ -424,6 +426,10 @@ const catalog = {
   name: MISSION.catalogName,
   defaultTime: MISSION.defaultTime,
   defaultViewpoint: MISSION.defaultViewpoint,
+  // Real ephemeris and IAU_MOON (de440s, pck00011): where the Sun and Earth
+  // sit in the polar sky — grazing sun, Earth dipping below the horizon — is
+  // the point of a south-pole mission.
+  require: ['base/naif.json'],
   items: [
     {
       name: 'Shackleton Overview',

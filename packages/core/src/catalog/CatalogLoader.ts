@@ -17,6 +17,7 @@ import { WaypointTrajectory, type Waypoint } from '../trajectories/WaypointTraje
 import { createAnalyticalTrajectory, createAnalyticalTrajectoryByName } from '../trajectories/analytical/AnalyticalTrajectory.js';
 import type { RotationModel } from '../rotations/RotationModel.js';
 import { UniformRotation } from '../rotations/UniformRotation.js';
+import { IauMoonRotation } from '../rotations/IauMoonRotation.js';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 import { NadirRotation } from '../rotations/NadirRotation.js';
 import { TrajectoryNadirRotation } from '../rotations/TrajectoryNadirRotation.js';
@@ -484,13 +485,13 @@ const BUILTIN_KEPLERIAN: Record<string, FallbackOrbit> = {
   Earth: {
     semiMajorAxis: 1.00000 * AU, eccentricity: 0.01671,
     inclination: 0.00005 * DEG, raan: -11.261 * DEG,
-    argPeriapsis: 102.937 * DEG, meanAnomalyAtEpoch: 357.529 * DEG,
+    argPeriapsis: 114.198 * DEG, meanAnomalyAtEpoch: 357.529 * DEG, // ω = ϖ 102.937 − Ω
     mu: SUN_MU, center: 'Sun',
   },
   EMB: {
     semiMajorAxis: 1.00000 * AU, eccentricity: 0.01671,
     inclination: 0.00005 * DEG, raan: -11.261 * DEG,
-    argPeriapsis: 102.937 * DEG, meanAnomalyAtEpoch: 357.529 * DEG,
+    argPeriapsis: 114.198 * DEG, meanAnomalyAtEpoch: 357.529 * DEG, // ω = ϖ 102.937 − Ω
     mu: SUN_MU, center: 'Sun',
   },
   Mars: {
@@ -545,7 +546,8 @@ const BUILTIN_KEPLERIAN: Record<string, FallbackOrbit> = {
  * body-fixed → inertial rotation in SPICE-free demos. SPICE (when loaded)
  * supplies the same nominal model plus libration / nutation / precession
  * corrections; this table is the constant-rate baseline that's good enough
- * for surface viz on multi-day timescales.
+ * for surface viz on multi-day timescales. The Moon is not in it: its
+ * periodic terms are its tilt, so it gets the full model (IauMoonRotation).
  *
  * Sources: NASA TRS WGCCRE 2009 report. Sidereal periods from JPL
  * planetary ephemerides documentation.
@@ -554,7 +556,6 @@ const BUILTIN_IAU_ROTATIONS: Record<string, { poleRaDeg: number; poleDecDeg: num
   MERCURY: { poleRaDeg: 281.0097, poleDecDeg:  61.4143, W0Deg: 329.5469, periodSec: 5067031.68 },     // 58.6462 d sidereal
   VENUS:   { poleRaDeg: 272.76,   poleDecDeg:  67.16,   W0Deg: 160.20,   periodSec: -20996817.6 },    // -243.0185 d (retrograde)
   EARTH:   { poleRaDeg:   0.00,   poleDecDeg:  90.00,   W0Deg: 190.147,  periodSec: 86164.0905 },     // 23h56m04.0905s
-  MOON:    { poleRaDeg: 269.9949, poleDecDeg:  66.5392, W0Deg:  38.3213, periodSec: 2360584.685 },    // 27.32166 d synchronous
   MARS:    { poleRaDeg: 317.68143,poleDecDeg:  52.88650,W0Deg: 176.630,  periodSec: 88642.6632 },     // 24h37m22.6632s
   JUPITER: { poleRaDeg: 268.056595,poleDecDeg: 64.495303,W0Deg:284.95,   periodSec: 35729.856 },      // 9h55m29.856s (System III)
   SATURN:  { poleRaDeg:  40.589,  poleDecDeg:  83.537,  W0Deg:  38.90,   periodSec: 38362.4 },        // 10h39m22.4s (System III)
@@ -1307,6 +1308,10 @@ export class CatalogLoader {
         // coords because Universe.absolutePositionOf can't find a parent
         // rotation to compose. Returns undefined for bodies not in the table
         // — caller already handles undefined.
+        if (item.name.toUpperCase() === 'MOON') {
+          if (!this.spice) console.log(`[Cosmolabe] ${item.name}: using analytical IAU rotation (no SPICE)`);
+          return new IauMoonRotation();
+        }
         const builtin = BUILTIN_IAU_ROTATIONS[item.name.toUpperCase()];
         if (builtin) {
           // IAU pole tables are J2000-equatorial (EquatorJ2000), regardless of

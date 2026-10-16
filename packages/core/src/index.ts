@@ -47,6 +47,7 @@ export { parseXyzv } from './trajectories/XyzvParser.js';
 export type { Quaternion, RotationModel, InertialFrameName } from './rotations/RotationModel.js';
 export { DEFAULT_INERTIAL_FRAME } from './rotations/RotationModel.js';
 export { UniformRotation } from './rotations/UniformRotation.js';
+export { IauMoonRotation } from './rotations/IauMoonRotation.js';
 export { SpiceRotation } from './rotations/SpiceRotation.js';
 export { TrajectoryNadirRotation } from './rotations/TrajectoryNadirRotation.js';
 export { FixedRotation } from './rotations/FixedRotation.js';

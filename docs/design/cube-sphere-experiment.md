@@ -2138,6 +2138,9 @@ geographic and polar products, non-lunar bodies, and multi-layer cube imagery.
 - Imagery: a tone step where NAC (brighter) meets WAC at the NAC square's
   edge. Feather the coverage or match NAC's radiometry to WAC in `composite`.
 - Frames and operational inputs (after the first migration):
+  - The SPICE-free Moon orbit is a fixed Kepler ellipse, 40–70° off by
+    2028. Use a truncated lunar theory (Meeus ch. 47) if a SPICE-free lunar
+    scene needs Earth in the right place.
   - The viewer rotates the Moon with IAU_MOON. The cube product labels its
     frame `cube-gnomonic-1/IAU_MOON`, while LOLA and LROC products are tied to
     MOON_ME. Measure the difference at the surface and render body-fixed
@@ -2279,6 +2282,44 @@ datum, naming the terrain revision it was computed against. The viewer
 should then show any disagreement rather than absorb it into offsets (see
 *Follow-ups*).
 
+### Sun and Earth over the pole
+
+At the pole the Sun circles the horizon once per lunar day, never more than
+about 1.5° above or below it; over the year it rises and sinks with the
+Moon's 1.5° tilt. Earth bobs ±6.8° each month. Which ground is lit, and when
+Earth is in view, turns on fractions of a degree.
+
+The catalog loaded no kernels, so the viewer used its SPICE-free fallbacks,
+and both were wrong. Compared with `spkpos` in IAU_MOON (de440s, pck00011),
+over a year from the mission start:
+- The fallback IAU Moon rotation had only the constant terms. The Moon's
+  periodic terms carry its tilt, so its pole sat on the ecliptic pole and
+  the Sun stayed within 0.04° of the horizon all year (truth: −1.5° to +1.6°).
+  It was −0.02° at the mission start; truth is +0.5°.
+- The Earth's Keplerian fallback used the longitude of perihelion as the
+  argument of perihelion, which put the Sun 11.4° off in azimuth.
+
+Fixed both ways:
+- The catalog requires `base/naif.json`, so the viewer flies de440s and
+  IAU_MOON from pck00011. That costs one 31 MB kernel download, already
+  hosted with the generic kernels.
+- The fallback now carries the full IAU Moon model (`IauMoonRotation`, equal
+  to the PCK frame to 1e-6°), and Earth's argument of perihelion is
+  ϖ − Ω. The fallback's Sun is then within 0.15° of truth. That remaining
+  error is the Moon's Keplerian orbit, whose direction from Earth is 40–70°
+  off by 2028. That orbit is still uncorrected, so the fallback's Earth
+  direction is wrong (follow-up).
+
+`apps/viewer/src/lib/moonfall-sun.integration.test.ts` checks both scenes
+against SPICE, Sun and Earth, every 5 days for a year. It fails on the old
+fallback.
+
+MoonFall flies for one lunar day; lunar night freezes the remaining fuel,
+and each hopper then runs a survive-the-night payload at its final site.
+At this epoch the Sun is above the pole's horizon until 2029-01-05. Earth is
+below it from Dec 5 to 17 and up from Dec 17 to Jan 1; the authored flights
+are Dec 15 to 26.
+
 ### Retries (the #233 review case)
 
 The merged `fetchWithRetry` fix covers the review's case: after four
@@ -2365,9 +2406,10 @@ recovered as above.
 **Visual inspection** (not automated):
 - Tile sheets of the composite (above).
 - Lit frames at the three viewpoints are almost black, with the old
-  `moon_v14` catalog and the new one alike, captured side by side. At this
-  epoch the sun is a few degrees above the horizon and the crater floors are
-  permanently shadowed.
+  `moon_v14` catalog and the new one alike, captured side by side. Those
+  runs had the Sun pinned to the horizon (*Sun and Earth over the pole*);
+  at this epoch it is 0.5° up, and the crater floors are permanently
+  shadowed either way.
 - The `-imagery` frames show the same views unlit: NAC detail at the PSR
   floor and along Polaris-A's crater wall. Shackleton Overview is a few
   metres above the ground (the viewpoint quirk above), so it shows a patch
