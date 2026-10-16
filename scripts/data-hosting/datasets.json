@@ -88,14 +88,14 @@
       "name": "moon-terrain-cube",
       "localDir": "apps/viewer/test-catalogs/data/moon-terrain-cube",
       "catalogPrefix": "data/moon-terrain-cube/",
-      "build": null
+      "build": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
     },
     "cube-imagery/moon-imagery-cube-nac": {
       "kind": "cube-imagery",
       "name": "moon-imagery-cube-nac",
       "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-nac",
       "catalogPrefix": "data/moon-imagery-cube-nac/",
-      "build": null
+      "build": "cube-imagery-nac-6db766f8beebcace"
     }
   }
 }
