@@ -349,3 +349,59 @@ This is a bounded CPU/viewport smoke, not validation on mobile GPU hardware
 or a constrained network. [Raw constrained report](benchmarks/rosetta/constrained-phone.json).
 
 ![DSK Point Probe with unavailable altitude and explicit radial distance](img/rosetta/dsk-probe.png)
+
+## Philae model occlusion correction
+
+A separate defect remained after DSK line/label depth was corrected: textured
+art models use a tight linear-depth pass that clears the logarithmic scene
+depth. Consequently Philae could draw over physically foreground 67P plates.
+That was a renderer bug, independent of the global/local Abydos shape mismatch.
+
+The model pass now first writes exact visible DSK geometry into its own linear
+depth buffer with color writes disabled. Reused depth-only proxies borrow the
+authoritative geometry and copy its full world transform; they do not alter
+DSK color, main-pass log depth, SPICE position, attitude, or model geometry.
+A BVH nearest-surface query keeps foreground plates inside the model pass's
+near plane. A bounding-sphere lower bound skips that query when a distant
+surface cannot affect the chosen near plane; it never approximates occlusion.
+Invisible/inactive DSK meshes are removed from this depth pass, and disposal
+releases only owned materials/proxies, not shared shape geometry.
+
+`scripts/test-philae-occlusion.mjs` uses the actual textured Philae model and
+K200 plates at the archived Abydos epoch. It changes only camera position/FOV.
+One camera is 40 m from Philae with a clear view; another is 400 m away with a
+foreground plate at 199.308 m. All corners of the lander's bounds are confirmed
+occluded by actual plate raycasts. At the latter view a 5° optical FOV makes
+spacecraft pixels observable. Comparing with/without Philae's material, while
+holding terrain/camera state and excluding fading labels, gives:
+
+- Before (depth pass disabled): **589 visible Philae pixels through terrain**.
+- After: **0 pixels through terrain**.
+- Clear view after correction: **646 visible Philae pixels**.
+
+The same regression fails with `NO_MODEL_SURFACE_DEPTH=1`, confirming it detects
+the bug, and passes with the correction. No model-center visibility heuristic
+is used in production: the GPU clips individual fragments against exact plates.
+
+![Before: Philae draws through foreground plates](img/rosetta/philae-occlusion-before.png)
+![After: foreground plates completely occlude Philae](img/rosetta/philae-occlusion-after.png)
+
+Reproduce:
+
+```sh
+CL_VIEWER_URL=http://localhost:5180 node scripts/test-philae-occlusion.mjs
+CL_VIEWER_URL=http://localhost:5180 NO_MODEL_SURFACE_DEPTH=1 node scripts/test-philae-occlusion.mjs # expected failure
+```
+
+[Pixel result](benchmarks/rosetta/philae-occlusion.json).
+Hardware-GPU profiling on the same M4 Max / Chromium / ANGLE Metal setup keeps
+near-Abydos mean frames at **8.05 ms**, p95 **9.3 ms**, mean CPU **1.75 ms** and
+GPU **0.73 ms**. Orbit/pan/zoom measured response maxima are 2.3 / 2.0 / 2.0 ms.
+[Depth-pass profile](benchmarks/rosetta/model-depth-profile.json).
+
+Validation: all **486 renderer tests** pass, including transformed-depth,
+near-plane distance, far-shape query rejection and borrowed-resource disposal.
+Full typechecks (including Svelte), lint and production viewer build pass.
+DSK click/probe/null-datum and foreground/background line GPU checks pass.
+Full suite: **1,925 passed, 7 skipped, 1 failed** — the same unchanged SPICE
+progress-throttle timing test, completing in 73 ms before its 100 ms throttle.

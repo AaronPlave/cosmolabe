@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ModelSurfaceDepth } from './ModelSurfaceDepth.js';
 import {
   CompositeTrajectory,
   SpiceTrajectory,
@@ -306,6 +307,7 @@ export class UniverseRenderer {
   private lastTapConsumed = false;
   readonly scaleFactor: number;
   private readonly minBodyPixels: number;
+  private readonly modelSurfaceDepth = new ModelSurfaceDepth();
   private readonly bodyMeshes = new Map<string, BodyMesh>();
   private readonly trajectoryLines = new Map<string, TrajectoryLine>();
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
@@ -1309,13 +1311,17 @@ export class UniverseRenderer {
       const savedNear = this.camera.near;
       const savedFar = this.camera.far;
 
-      // Tight near/far: ratio ~100× gives standard depth enough precision
-      this.camera.near = Math.max(1e-15, minModelDist * 0.1);
+      const surfaceDistance = this.modelSurfaceDepth.update(
+        [...this.bodyMeshes.values()].flatMap(bm => bm.getDskMeshes()), this.camera.position, minModelDist,
+      );
+      // Include foreground physical plates in the tight linear depth range.
+      this.camera.near = Math.max(1e-15, Math.min(minModelDist, surfaceDistance) * 0.1);
       this.camera.far = Math.max(maxModelDist * 10, minModelDist * 100);
       this.camera.updateProjectionMatrix();
 
       this.camera.layers.set(1);
       this.renderer.clearDepth();
+      this.renderer.render(this.modelSurfaceDepth.scene, this.camera);
       this.renderer.render(this.scene, this.camera);
 
       // Restore camera
@@ -3296,6 +3302,7 @@ export class UniverseRenderer {
     this.solarSources.clear();
     this.bloomEffect?.dispose();
     this.bloomEffect = null;
+    this.modelSurfaceDepth.dispose();
     this.renderer.dispose();
     this.events.dispose();
     for (const plugin of this.plugins) plugin.dispose?.();
