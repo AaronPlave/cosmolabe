@@ -329,23 +329,33 @@ describe('TerrainManager imagery layer controls', () => {
     }
   });
 
-  it('counts a tile in the main view only when it is inside the frustum and faces the camera', () => {
-    // Camera 3 radii out on +z, looking at the origin with a 30° field of view.
+  it('counts a tile in the main view only when inside the frustum and not wholly behind the horizon sphere', () => {
+    // Camera 3 radii out on +z, looking at the origin with a 30° field of view; terrain above radius 0.99.
     const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 10);
     cam.position.set(0, 0, 3);
     cam.lookAt(0, 0, 0);
     cam.updateMatrixWorld();
     const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
-    const box = (x: number, y: number, z: number) => ({
-      obb: { points: [-0.05, 0.05].flatMap((dx) => [-0.05, 0.05].flatMap((dy) => [-0.05, 0.05].map((dz) => new THREE.Vector3(x + dx, y + dy, z + dz)))) },
+    const box = (x: number, y: number, z: number, h = 0.05) => ({
+      obb: { points: [-h, h].flatMap((dx) => [-h, h].flatMap((dy) => [-h, h].map((dz) => new THREE.Vector3(x + dx, y + dy, z + dz)))) },
     });
     const sphere = (x: number, y: number, z: number) => ({ sphere: new THREE.Sphere(new THREE.Vector3(x, y, z), 0.05) });
-    const eye = cam.position;
-    expect(tileInMainView(box(0, 0, 1), frustum, eye)).toBe(true); // facing, centre of view
-    expect(tileInMainView(box(0, 0, -1), frustum, eye)).toBe(false); // in the frustum, behind the globe
-    expect(tileInMainView(box(1, 0, 0.1), frustum, eye)).toBe(false); // facing, off screen
-    expect(tileInMainView(sphere(0, 0, 1), frustum, eye)).toBe(true);
-    expect(tileInMainView(sphere(0, 0, -1), frustum, eye)).toBe(false);
+    const eye = cam.position, r = 0.99;
+    expect(tileInMainView(box(0, 0, 1), frustum, eye, r)).toBe(true); // facing, centre of view
+    expect(tileInMainView(box(0, 0, -1), frustum, eye, r)).toBe(false); // in the frustum, behind the globe
+    expect(tileInMainView(box(1, 0, 0.1), frustum, eye, r)).toBe(false); // facing, off screen
+    expect(tileInMainView(sphere(0, 0, 1), frustum, eye, r)).toBe(true);
+    // Spheres get the frustum test only: no corners to bound the horizon with.
+    expect(tileInMainView(sphere(0, 0, -1), frustum, eye, r)).toBe(true);
+    // A peak beyond its own tangent plane but above the horizon of the sphere below all terrain stays.
+    // (radius 1.0 at z 0.3: below its own tangent plane as seen from z 3, outside the 0.99 sphere's shadow cone)
+    const peak = box(Math.sqrt(1 - 0.09), 0, 0.3, 0.002);
+    expect(peak.obb.points.every((v) => new THREE.Vector3().subVectors(eye, v).dot(v) < 0)).toBe(true);
+    expect(tileInMainView(peak, new THREE.Frustum(), eye, r)).toBe(true);
+    // Just past the limb and below the horizon sphere: hidden.
+    expect(tileInMainView(box(0.6, 0, -0.6, 0.01), new THREE.Frustum(), eye, r)).toBe(false);
+    // A camera inside the sphere hides nothing.
+    expect(tileInMainView(box(0, 0, -1), new THREE.Frustum(), new THREE.Vector3(0, 0, 0.5), r)).toBe(true);
   });
 
   describe('coverage before the static→streamed swap', () => {

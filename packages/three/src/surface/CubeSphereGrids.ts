@@ -296,14 +296,33 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
     const o = [ray.origin.xKm, ray.origin.yKm, ray.origin.zKm];
     const b = o[0] * d[0] + o[1] * d[1] + o[2] * d[2], oo = o[0] * o[0] + o[1] * o[1] + o[2] * o[2];
     const roots = (r: number) => { const disc = b * b - (oo - r * r); return disc < 0 ? null : [-b - Math.sqrt(disc), -b + Math.sqrt(disc)]; };
-    // Flat triangles sag below their vertices by the chord: a level-0 cell's
-    // diagonal (the widest) bounds how far below the lowest vertex sphere they reach.
-    const halfDiagonal = Math.atan(Math.SQRT2 / (this.source.manifest.grid.width - 1));
-    const outer = roots(this.radiusKm + maxHeightKm + 1e-6), inner = roots((this.radiusKm + minHeightKm) * Math.cos(halfDiagonal) - 1e-6);
+    const outer = roots(this.radiusKm + maxHeightKm + 1e-6), inner = roots(this.latticeInnerRadiusKm(minHeightKm) - 1e-6);
     if (!outer) return null;
     const t0 = Math.max(ray.nearKm, outer[0]);
     const t1 = Math.min(ray.farKm, inner && inner[0] >= t0 ? inner[0] : outer[1]);
     return t1 < t0 ? null : [t0, t1];
+  }
+
+  /**
+   * Flat triangles sag below their vertices by the chord: a level-0 cell's
+   * diagonal (the widest) bounds how far below the lowest vertex sphere they reach.
+   */
+  private latticeInnerRadiusKm(minHeightKm: number): number {
+    const halfDiagonal = Math.atan(Math.SQRT2 / (this.source.manifest.grid.width - 1));
+    return (this.radiusKm + minHeightKm) * Math.cos(halfDiagonal);
+  }
+
+  /**
+   * Radius, km, of a sphere no rendered surface triangle of this product dips
+   * inside: the lowest product height less the widest cell's chord sag, and less
+   * the largest simplified-mesh deviation when the .glb triangles are not the
+   * lattice (a tile without one makes the bound useless: 0). A conservative
+   * horizon occluder for the draw cull.
+   */
+  get renderedInnerRadiusKm(): number {
+    const { heightRangeKm, tiles, renderedMesh } = this.source.manifest;
+    const deviationKm = renderedMesh ? tiles.reduce((m, t) => Math.max(m, t[5] ?? Infinity), 0) : 0;
+    return Math.max(0, this.latticeInnerRadiusKm(Math.min(heightRangeKm[0], this.source.minHeightKm)) - deviationKm);
   }
 
   private point(ray: SurfaceRay, d: SurfaceVector, t: number): CubeFaceCoordinate {

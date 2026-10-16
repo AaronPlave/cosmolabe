@@ -1834,7 +1834,7 @@ def cmd_cube_error(args):
 
 def cmd_field_error(args):
     """Score rendered surface points against the fused field: for each capture
-    row of a `capture-cube-imagery.mjs --experiments compare` record, the radial
+    row of a `capture-cube-imagery.mjs --experiments compare` (or `profile`) record, the radial
     distance of every ray-cast hit (body-fixed metres) from the reference sphere
     plus `field_heights` at its finest source level, along the same geocentric
     direction. Products sampled from this field differ from it only by their
@@ -1842,7 +1842,7 @@ def cmd_field_error(args):
     finest = 1e-9  # pick_level → level 0 of every source
     load_field(args.base, args.fusion, [finest])
     rec = json.load(open(args.record))
-    for row in rec['results']['compare']:
+    for row in (r for rows in rec['results'].values() if isinstance(rows, list) for r in rows if 'surfaceHits' in r):
         pts = np.array([p for p in row.get('surfaceHits') or [] if p], np.float64)
         if not len(pts):
             row['achievedErrorM'] = None
@@ -1852,7 +1852,7 @@ def cmd_field_error(args):
         err = np.abs(r - (args.radius + field_heights(lon, lat, finest)))
         row['achievedErrorM'] = {'n': int(len(err)), 'median': float(np.median(err)), 'p95': float(np.percentile(err, 95)),
                                  'rms': float(np.sqrt((err ** 2).mean())), 'max': float(err.max())}
-        print(f"{row['product']:>10} {row['view']:<20} eT {row.get('errorTarget')}: |rendered − field| median {row['achievedErrorM']['median']:.2f} m, "
+        print(f"{row.get('product', ''):>10} {row['view']:<20} eT {row.get('errorTarget')}: |rendered − field| median {row['achievedErrorM']['median']:.2f} m, "
               f"p95 {row['achievedErrorM']['p95']:.2f} m over {len(err)} pixels")
     json.dump(rec, open(args.record, 'w'), indent=1)
 
@@ -2327,7 +2327,7 @@ def main():
     ce.add_argument('dir', help='a cube-tile product directory')
     ce.add_argument('--tileset', default='tileset.json'); ce.add_argument('--out', default='tileset-measured.json')
     ce.add_argument('--workers', type=int, default=min(8, os.cpu_count()))
-    fe = sp.add_parser('field-error', help='score a compare capture record\'s ray-cast surface points against the fused field (#149)')
+    fe = sp.add_parser('field-error', help='score a compare/profile capture record\'s ray-cast surface points against the fused field (#149)')
     fe.add_argument('record'); fe.add_argument('--base', required=True); fe.add_argument('--fusion', required=True)
     fe.add_argument('--radius', type=float, default=1737400.0, help='reference sphere radius (m)')
     sp.add_parser('selftest')

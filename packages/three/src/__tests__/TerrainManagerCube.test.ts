@@ -1,4 +1,4 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TerrainManager } from '../TerrainManager.js';
 import type { CubeGridManifest } from '../surface/CubeSphereGrids.js';
@@ -82,5 +82,52 @@ describe('TerrainManager with cube-sphere CPU grids', () => {
     expect(tm.sample(-90, 0)).toBeNull();
     expect(tm.cubeCoverage(-90, 0)?.state).toBe('unloaded');
     expect(tm.intersectSurfaceRay({ origin: { xKm: 0, yKm: 0, zKm: -4000 }, direction: [0, 0, 1], nearKm: 0, farKm: 1000 }, { maxMeshErrorKm: 1 })).toBeNull();
+  });
+
+  it('draws only the tiles the main camera can see, and restores them before the next update', async () => {
+    serve();
+    const tm = make();
+    const internals = tm as unknown as { tiles: { visibleTiles: Set<unknown> }; mainView: unknown; cullToMainView(): void };
+    // Tile-set metres; the camera 3 radii out on +z, a 30° view of the body centre, no near/far planes.
+    const r = R * 1000;
+    const cam = new THREE.PerspectiveCamera(30, 1, 1, 10);
+    cam.position.set(0, 0, 3 * r);
+    cam.lookAt(0, 0, 0);
+    cam.updateMatrixWorld();
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    frustum.planes[4].constant = frustum.planes[5].constant = Infinity;
+    internals.mainView = { frustum, eye: cam.position.clone() };
+    const tile = (x: number, y: number, z: number, visible = true) => {
+      const scene = new THREE.Object3D();
+      scene.visible = visible;
+      const h = 0.02 * r;
+      const points = [-h, h].flatMap((dx) => [-h, h].flatMap((dy) => [-h, h].map((dz) => new THREE.Vector3(x + dx, y + dy, z + dz))));
+      return { engineData: { scene, boundingVolume: { obb: { points } } } };
+    };
+    const front = tile(0, 0, r), beside = tile(r, 0, 0.1 * r), farSide = tile(0, 0, -r), fadingOut = tile(r, 0, 0.1 * r, false);
+    for (const t of [front, beside, farSide, fadingOut]) internals.tiles.visibleTiles.add(t);
+
+    // Before the CPU-grid manifest gives a validated lower surface bound, only the frustum culls.
+    internals.cullToMainView();
+    expect(beside.engineData.scene.visible).toBe(false);
+    expect(farSide.engineData.scene.visible).toBe(true);
+    tm.showCulledTiles();
+    await vi.waitFor(() => expect(tm.cubeStats?.residentTiles).toBe(6));
+
+    internals.cullToMainView();
+    expect(front.engineData.scene.visible).toBe(true);
+    expect(beside.engineData.scene.visible).toBe(false); // outside the main frustum
+    expect(farSide.engineData.scene.visible).toBe(false); // in it, but behind the body
+    expect(fadingOut.engineData.scene.visible).toBe(false);
+    // Restoring shows what the cull hid, and nothing another owner (TilesFadePlugin) hid.
+    tm.showCulledTiles();
+    expect(beside.engineData.scene.visible).toBe(true);
+    expect(farSide.engineData.scene.visible).toBe(true);
+    expect(fadingOut.engineData.scene.visible).toBe(false);
+    // Turned off, the cull leaves everything drawn.
+    internals.cullToMainView();
+    tm.setDrawCulling(false);
+    expect(beside.engineData.scene.visible).toBe(true);
+    tm.dispose();
   });
 });

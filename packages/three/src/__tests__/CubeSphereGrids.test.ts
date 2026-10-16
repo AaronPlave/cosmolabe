@@ -114,6 +114,39 @@ describe('cube grid CPU triangles and ray queries', () => {
     expect(shared.filter(v => v.length === 3)).toHaveLength(8);
   });
 
+  it('bounds every rendered triangle from below with renderedInnerRadiusKm (the draw cull\'s horizon occluder)', () => {
+    const { source } = fixtureSource();
+    const surface = new CubeGridSurface(source, '301', 'IAU_MOON');
+    const inner = surface.renderedInnerRadiusKm;
+    expect(inner).toBeGreaterThan(R * 0.9);
+    // Level-0 lattices at the product's lowest height: no point of any triangle dips inside.
+    let lowest = Infinity;
+    for (const face of faces) {
+      const { positionsKm, indices } = cubeTileMesh({ face, level: 0, x: 0, y: 0, width: W, height: W, elevationsKm: new Float32Array(W * W).fill(0.1) } as never, R);
+      const p = (i: number) => [0, 1, 2].map(c => positionsKm[3 * i + c]);
+      for (let t = 0; t < indices.length; t += 3) {
+        const [a, b, c] = [p(indices[t]), p(indices[t + 1]), p(indices[t + 2])];
+        for (let i = 0; i <= 8; i++) for (let j = 0; i + j <= 8; j++) {
+          const k = 8 - i - j;
+          lowest = Math.min(lowest, Math.hypot(...[0, 1, 2].map(n => (i * a[n] + j * b[n] + k * c[n]) / 8)));
+        }
+      }
+    }
+    expect(lowest).toBeGreaterThanOrEqual(inner);
+    expect(lowest - inner).toBeLessThan(0.01 * R); // and not uselessly loose, even on these 22° cells
+    // A simplified product's rendered triangles sit up to their deviation lower; a tile without one gives no bound.
+    const simplified = (deviations: (number | undefined)[]) => {
+      const m = manifest();
+      m.renderedMesh = { simplification: 'rtin', cpuSurface: 'lattice', deviation: 'sampled' };
+      m.tiles = m.tiles.map((t, i) => [t[0], t[1], t[2], t[3], t[4], deviations[i % deviations.length]]);
+      const source = new CubeSphereGridSource(m, async () => new ArrayBuffer(0));
+      source.ready.catch(() => {}); // no grids served: only the manifest matters here
+      return new CubeGridSurface(source, '301', 'IAU_MOON').renderedInnerRadiusKm;
+    };
+    expect(simplified([0.5, 2])).toBeCloseTo(inner - 2, 9);
+    expect(simplified([0.5, undefined])).toBe(0);
+  });
+
   it('intersects the finest resident triangles, keeps provenance, and places a clearance camera', async () => {
     const { source } = fixtureSource();
     const surface = new CubeGridSurface(source, '301', 'IAU_MOON');
