@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { compactLabelPlacement, angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
+import { axesDisplayLength, axisLetterAnchor, axisLetterPlacement, rateChevrons, compactLabelPlacement, angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
 
 describe('measurement geometry', () => {
   it('uses finite independent segments and draws the arc for a straight angle', () => {
@@ -102,5 +102,96 @@ describe('compact label placement', () => {
     expect(placement.candidate).toBe(2);
     expect(placement.box.y0 - anchor.y).toBe(14);
     expect(compactLabelPlacement(anchor, size, viewport, [{ x0: 0, y0: 0, x1: 600, y1: 400 }], [])).toBeNull();
+  });
+});
+
+describe('reference geometry glyphs', () => {
+  it('draws velocity as two open chevrons behind the tip, facing the camera', () => {
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 10000);
+    camera.position.set(0, 0, 10); camera.updateMatrixWorld();
+    const tip = new THREE.Vector3(5, 0, 0), direction = new THREE.Vector3(1, 0, 0);
+    const points = rateChevrons(tip, direction, 1, camera);
+    expect(points).toHaveLength(8);
+    expect(points[0].equals(tip)).toBe(true);
+    expect(points.every(p => p.x <= tip.x + 1e-12 && Math.abs(p.z) < 1e-12)).toBe(true); // In the view plane, never past the tip.
+    expect(Math.abs(points[1].y)).toBeCloseTo(0.5);
+    expect(points[1].y).toBeCloseTo(-points[3].y);
+    // A velocity pointing at the camera still gets a stable, finite glyph.
+    expect(rateChevrons(tip, new THREE.Vector3(0, 0, 1), 1, camera).every(p => p.toArray().every(Number.isFinite))).toBe(true);
+  });
+
+  it('keeps an axis letter at the tip, or where the axis leaves the view', () => {
+    const camera = new THREE.PerspectiveCamera(90, 1, 0.01, 10000);
+    camera.updateMatrixWorld();
+    const origin = new THREE.Vector3(0, 0, -10);
+    expect(axisLetterAnchor(origin, new THREE.Vector3(1, 0, -10), camera, 600, 600)!.x).toBeCloseTo(330);
+    const edge = axisLetterAnchor(origin, new THREE.Vector3(1000, 0, -10), camera, 600, 600)!;
+    expect(edge.x).toBeGreaterThan(580);
+    expect(edge.x).toBeLessThanOrEqual(590);
+    expect(edge.y).toBeCloseTo(300);
+    expect(axisLetterAnchor(new THREE.Vector3(0, 0, 10), new THREE.Vector3(1, 0, 10), camera, 600, 600)).toBeNull();
+  });
+
+  it('labels an axis whose ends are both off screen where it leaves the view, and nothing that misses it', () => {
+    const camera = new THREE.PerspectiveCamera(90, 1, 0.01, 10000);
+    camera.updateMatrixWorld();
+    // Crosses the whole view left to right: the letter sits at the right edge, the tip side.
+    const across = axisLetterAnchor(new THREE.Vector3(-1000, 0, -10), new THREE.Vector3(1000, 0, -10), camera, 600, 600)!;
+    expect(across.x).toBeCloseTo(590);
+    expect(across.y).toBeCloseTo(300);
+    // Reversed, it is the left edge.
+    expect(axisLetterAnchor(new THREE.Vector3(1000, 0, -10), new THREE.Vector3(-1000, 0, -10), camera, 600, 600)!.x).toBeCloseTo(10);
+    // Passing above the view entirely.
+    expect(axisLetterAnchor(new THREE.Vector3(-1000, 100, -10), new THREE.Vector3(1000, 100, -10), camera, 600, 600)).toBeNull();
+    // From behind the camera into view: the tip, not a mirrored projection of the origin.
+    const tip = axisLetterAnchor(new THREE.Vector3(0, 0, 10), new THREE.Vector3(1, 0, -10), camera, 600, 600)!;
+    expect(tip.x).toBeCloseTo(330);
+    // From in view to behind the camera: where it leaves the view, not the far side.
+    const outward = axisLetterAnchor(new THREE.Vector3(0, 0, -10), new THREE.Vector3(0, 0, 10), camera, 600, 600);
+    expect(outward).toEqual({ x: 300, y: 300 });
+  });
+});
+
+it('sizes axes by the body’s own axes length when it exceeds the 64 px floor', () => {
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 10000);
+  camera.updateMatrixWorld();
+  const origin = new THREE.Vector3(0, 0, -10);
+  const floor = axesDisplayLength(camera, origin, 600, 0);
+  expect(floor / (20 * Math.tan(Math.PI / 6) / 600)).toBeCloseTo(64);
+  expect(axesDisplayLength(camera, origin, 600, floor * 3)).toBe(floor * 3);
+  expect(axesDisplayLength(camera, origin, 600, floor / 3)).toBe(floor);
+});
+
+
+describe('axis letter spacing', () => {
+  const camera = new THREE.PerspectiveCamera(90, 1, 0.01, 10000);
+  camera.updateMatrixWorld();
+  it('anchors letters along the axis without changing sides as the camera rotates', () => {
+    const start = new THREE.Vector3(0, 0, -10);
+    for (const y of [-0.01, 0, 0.01]) {
+      const tip = new THREE.Vector3(1, y, -10);
+      const anchor = axisLetterAnchor(start, tip, camera, 600, 600)!;
+      const placed = axisLetterPlacement(start, tip, camera, 600, 600)!;
+      const dx = (placed.box.x0 + placed.box.x1) / 2 - anchor.x;
+      const dy = (placed.box.y0 + placed.box.y1) / 2 - anchor.y;
+      expect(dx).toBeGreaterThan(15);
+      expect(dy / dx).toBeCloseTo(-y);
+    }
+  });
+  it('stays finite and inside the view for small, crossing, head-on and near-plane axes', () => {
+    for (const [start, tip] of [
+      [new THREE.Vector3(0, 0, -10), new THREE.Vector3(0.00001, 0, -10)],
+      [new THREE.Vector3(-1000, 0, -10), new THREE.Vector3(1000, 0, -10)],
+      [new THREE.Vector3(0, 0, -10), new THREE.Vector3(0, 0, 10)],
+      [new THREE.Vector3(0, 0, 10), new THREE.Vector3(1, 0, -10)],
+    ]) {
+      const placed = axisLetterPlacement(start, tip, camera, 600, 600)!;
+      expect(placed).not.toBeNull();
+      expect(Object.values(placed.box).every(Number.isFinite)).toBe(true);
+      expect(placed.box.x0).toBeGreaterThanOrEqual(6);
+      expect(placed.box.y0).toBeGreaterThanOrEqual(6);
+      expect(placed.box.x1).toBeLessThanOrEqual(594);
+      expect(placed.box.y1).toBeLessThanOrEqual(594);
+    }
   });
 });

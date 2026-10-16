@@ -156,9 +156,21 @@ export {
   endpointLabel,
   resolveSpatialEndpoint,
   resolveSpatialRelationship,
+  resolveReferenceVector,
+  resolveFrameAxes,
+  frameAvailability,
+  resolveVelocity,
+  defaultVelocityCenter,
+  relationshipVectors,
+  referenceVectorLabel,
+  referenceRelationship,
   formatSpatialDistance,
+  formatSpatialSpeed,
 } from './geometry/spatial-relationships.js';
-export type { SpatialEndpoint, SpatialRelationship, ResolvedSpatialRelationship } from './geometry/spatial-relationships.js';
+export type {
+  SpatialEndpoint, SpatialRelationship, ResolvedSpatialRelationship,
+  ReferenceVector, ResolvedReferenceVector, ReferenceRequest, FrameAxis, SpatialResolutionCache,
+} from './geometry/spatial-relationships.js';
 
 // Geometry/event finder — the shared query + result model every geometry
 // search is expressed in, the SPICE GF boundary it runs against, and the
