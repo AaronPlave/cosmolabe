@@ -93,7 +93,7 @@ export async function verifyBuild({
       const cc = res.headers.get('cache-control') ?? '';
       if (!/immutable/.test(cc)) bad(`${key}: Cache-Control ${JSON.stringify(cc)} is not immutable`);
       const type = res.headers.get('content-type') ?? '';
-      const expected = { glb: 'model/gltf-binary', f32: 'application/octet-stream', png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' }[kind];
+      const expected = { glb: 'model/gltf-binary', f32: 'application/octet-stream', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' }[kind];
       if (!type.startsWith(expected)) bad(`${key}: Content-Type ${JSON.stringify(type)}, expected ${expected}`);
       const body = new Uint8Array(await res.arrayBuffer());
       if (kind === 'f32' ? body.length !== manifest.gridBytes : !hasMagic(body, kind)) bad(`${key}: body is not a ${kind} ${kind === 'f32' ? `grid of ${manifest.gridBytes} bytes` : 'file'}`);

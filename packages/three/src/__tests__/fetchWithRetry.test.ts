@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchWithRetry } from '../fetchWithRetry.js';
 import { CubeSphereGridSource, type CubeGridManifest } from '../surface/CubeSphereGrids.js';
 import { TerrainManager } from '../TerrainManager.js';
+import { CubeImageryLayer } from '../CubeImageryLayer.js';
 
 const respond = (...answers: (number | Error)[]) => vi.fn(async () => {
   const a = answers.shift()!;
@@ -125,5 +126,36 @@ describe('recovery after the retries run out (#233 review)', () => {
     expect(calls).toBe(7);
     expect(settled!.status).toBe(200);
     tm.dispose();
+  });
+
+  it('waits out a startup outage longer than four attempts for the grid and imagery manifests', async () => {
+    vi.useFakeTimers();
+    let gridCalls = 0, imageryCalls = 0;
+    const gridFetch = vi.fn(async (url: string) => (url.endsWith('grids.json')
+      ? (++gridCalls <= 6 ? new Response('', { status: 503 }) : new Response(JSON.stringify(gridManifest())))
+      : new Response(new Float32Array(4).buffer))) as unknown as typeof fetch;
+    const grids = CubeSphereGridSource.fromUrl('https://example.invalid/grids.json', { fetch: gridFetch, residentLevel: 0 });
+    vi.stubGlobal('fetch', vi.fn(async () => (++imageryCalls <= 6 ? Promise.reject(new TypeError('Failed to fetch')) : new Response('{}'))));
+    const layer = new CubeImageryLayer({ url: 'https://example.invalid/imagery.json' });
+    const imagery = layer.ready.catch((e: Error) => e); // '{}' is not a valid manifest: reaching validation is enough
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(gridCalls).toBe(7);
+    expect((await grids).manifest.maxLevel).toBe(1);
+    expect(imageryCalls).toBe(7);
+    expect(String(await imagery)).not.toMatch(/fetch/);
+    layer.dispose();
+  });
+
+  it('stops waiting for an imagery manifest when the layer is disposed', async () => {
+    vi.useFakeTimers();
+    const outage = vi.fn(async () => new Response('', { status: 503 }));
+    vi.stubGlobal('fetch', outage);
+    const layer = new CubeImageryLayer({ url: 'https://example.invalid/imagery.json' });
+    const settled = layer.ready.then(() => 'resolved', () => 'rejected');
+    await vi.advanceTimersByTimeAsync(5_000);
+    layer.dispose();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(await settled).toBe('rejected');
+    expect(outage.mock.calls.length).toBeLessThan(6);
   });
 });

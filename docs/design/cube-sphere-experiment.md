@@ -1,8 +1,8 @@
 # Cube-sphere terrain experiment (ADR)
 
-**Status:** **adopt** the gnomonic cube-sphere layout for lunar globe terrain, in the configuration under *Adoption readiness*. The first catalog migration waits on the publish approval and global imagery listed there. Earlier geometry evidence recommended *revise*; this PR resolves the items that recommendation named.
+**Status:** **adopted** for lunar globe terrain, in the configuration under *Adoption readiness*. The first catalog, `moonfall-shackleton.json`, is migrated and verified on the hosted build (*First migration*); the core adoption work is complete. Earlier geometry evidence recommended *revise*; the adoption work resolved the items that recommendation named.
 **Issue:** #149 (remains open)
-**Recorded:** 2026-10-04 (foundation); 2026-10-13 (lunar builder and viewer demo); 2026-10-14 (independent imagery; mixed-LOD crack mitigation and the geometry-layout comparison; LOD error and mesh simplification); 2026-10-15 (frame overhead and main-view draw culling; adoption readiness and decision)
+**Recorded:** 2026-10-04 (foundation); 2026-10-13 (lunar builder and viewer demo); 2026-10-14 (independent imagery; mixed-LOD crack mitigation and the geometry-layout comparison; LOD error and mesh simplification); 2026-10-15 (frame overhead and main-view draw culling; adoption readiness and decision); 2026-10-16 (first migration: MoonFall on hosted cube terrain and global WAC + NAC imagery)
 
 ## Decision
 
@@ -20,9 +20,11 @@ Simplification stays opt-in and experimental. The decision rests on
 - delivery through the existing data host's publisher and verifier;
 - performance on the M4 Max.
 
-Migration is staged. The geographic and polar products and the external
-`moon_v14` references stay available until the first migrated catalog is
-verified on the hosted build. See *Migration plan*.
+Migration is staged. The first catalog, `moonfall-shackleton.json`, now runs on
+the hosted cube terrain, CPU grids and a global WAC + NAC cube imagery pyramid,
+verified through the production data host (*First migration*). The geographic
+and polar products and `moon_v14` stay available as the rollback and for the
+catalogs not yet migrated. See *Migration plan*.
 
 Delivered so far: deterministic addressing and a renderer-independent CPU height
 payload (foundation), then a bounded lunar builder over the authoritative fused
@@ -2031,9 +2033,12 @@ whose ground tiles are culled.
     `node scripts/capture-cube-imagery.mjs --experiments adoption --gpu --hosted-url "$DATA_BASE_URL"`,
     with the viewer served at `http://localhost:5173` (an origin the bucket
     allows).
-- **Recommended before production traffic.** A custom domain plus cache rule
-  for the bucket (*One-time setup*, steps 2 and 4). A full tour moves about
-  330 MB, which should come from the edge.
+- **Production host.** The bucket's custom domain, `https://data.aaronplave.com`,
+  is the repository's `DATA_BASE_URL` and is edge-cached
+  (`cf-cache-status: HIT`). The r2.dev runs above predate it. Through r2.dev
+  a tour also lost some requests with no fault injected: responses with no
+  CORS header, probably its rate limit. Through the custom domain there were
+  none (*First migration*).
 
 ### Performance
 
@@ -2067,6 +2072,8 @@ A matched-imagery comparison with the older layouts was not made. It is useful
 context, not an adoption gate.
 
 ### Migration plan
+
+Steps 1–4 are done (*First migration*).
 
 1. **Publish and pin** (owner approval): the two commands above, then the
    hosted adoption run. Commit the `datasets.json` pins.
@@ -2123,11 +2130,287 @@ geographic and polar products, non-lunar bodies, and multi-layer cube imagery.
 - Instrument views draw only what the main camera's streaming cameras
   selected. They never drive selection: pre-existing for every layout, and out
   of scope here.
-- Host: a custom domain with a cache rule, and `Timing-Allow-Origin` for
-  byte-level timing.
+- Host: `Timing-Allow-Origin` on the custom domain for byte-level timing (the
+  domain and its edge cache are in place).
 - Payloads: `.glb` is 242 MB of the 330 MB tour (Draco or meshopt, and
   prefiltered coarse levels). Batching. Broader hardware.
 - Matched-imagery comparison with the polar and geographic layouts, for context.
+- Imagery: a tone step where NAC (brighter) meets WAC at the NAC square's
+  edge. Feather the coverage or match NAC's radiometry to WAC in `composite`.
+- Frames and operational inputs (after the first migration):
+  - The viewer rotates the Moon with IAU_MOON. The cube product labels its
+    frame `cube-gnomonic-1/IAU_MOON`, while LOLA and LROC products are tied to
+    MOON_ME. Measure the difference at the surface and render body-fixed
+    lunar data in MOON_ME through the binary PCK.
+  - Trajectory inputs (e.g. from PlanDev) should carry absolute positions in
+    that frame and datum, plus the terrain revision they were computed
+    against. MoonFall bakes its above-ground waypoints against the pinned
+    revision, which suits a synthetic demo only.
+  - Landed attitude from the terrain normal of the same product, not
+    `SurfaceUp`'s radial direction.
+- MoonFall viewpoints: `distance` is measured from the Moon's centre, so 60
+  and 20 put the camera inside the Moon, clamped to the ground. This
+  predates the migration. Use 1737.4 + the intended height, or a
+  surface-relative viewpoint form.
+
+## First migration: MoonFall at Shackleton (2026-10-16)
+
+`moonfall-shackleton.json`, the first production catalog on the adopted
+configuration. It draws hosted cube terrain with matching CPU grids and a
+global cube imagery pyramid: LROC WAC everywhere, with LROC NAC detail at
+the south pole. Hardware: Apple M4 Max, ANGLE Metal, headless Chrome
+(`--gpu`), 1280×800.
+
+### Pinned builds
+
+| Dataset | Build | Contents |
+| --- | --- | --- |
+| `cube-terrain/moon-terrain-cube` | `cube-fused-79895697c6b6-g3-m12-b6747ec9d` | 4,030 `.glb` tiles + 4,030 CPU grids, 720 MB. Already on the host: reused, not uploaded again. |
+| `cube-imagery/moon-imagery-cube-wac-nac` | `cube-imagery-composite-3f34a19541af7710` | 34,604 JPEG tiles, 525 MB. New. |
+
+**One revision.** The tileset's `asset.tilesetVersion`, the grids' and
+`terrain-product.json`'s `source.version`, and the hosted manifest's
+`revision` are all `…-b6747ec9d`. The local copy matches the hosted
+inventory: sha256 of all 8,066 files. The imagery build id is the
+pyramid's own `source.version`, which hashes the generator and every
+output-shaping argument.
+
+**Hosting checks** (`verify-hosted-data.mjs` and the publisher's verifier),
+for both builds plus the NAC build, through `https://data.aaronplave.com`
+and r2.dev. Origins `https://aaronplave.com` and `http://localhost:5173`:
+- revision through both entry points;
+- CORS, immutable cache headers, content types and payload magic;
+- 404 for a missing object;
+- edge-cached (`cf-cache-status: HIT`) on the custom domain.
+
+The deploy path ran end to end:
+- `vite build` with `BUNDLE_TEST_CATALOGS=1`;
+- `build-hosted-catalogs.mjs`: rewrote 15 catalogs, MoonFall's three cube
+  paths among them;
+- `verify-hosted-data.mjs`: all 10 datasets ok.
+
+### Global imagery: WAC + NAC composite
+
+`cube_imagery.py composite` reads both sources through one georeferenced
+raster reader (`raster_tile`, the old NAC reader generalized). For each
+output pixel (3×3 box-filtered samples):
+- every source is bilinear from its overview no coarser than 0.4 output
+  sample spacing;
+- the composite is `NAC·a + WAC·(1 − a)`, where `a` is NAC's coverage of
+  the pixel (nodata 0 is not covered).
+
+Outside the NAC footprint, and in NAC's own nodata gaps, WAC shows at every
+level, so the pyramid is opaque everywhere. A global equirectangular source
+wraps at the antimeridian: a tile across ±180° reads two narrow windows
+rather than the globe. Near a pole the window is capped at 16 M source
+pixels by stepping to a coarser overview: 200 m instead of 100 m within
+about 2° of the north pole at level 6.
+
+| | |
+| --- | --- |
+| Base | LROC WAC global mosaic, 100 m, June 2013 (`Lunar_LRO_LROC-WAC_Mosaic_global_100m_June2013.tif`, USGS Astrogeology, md5-checked), converted once to a local tiled COG with average overviews |
+| Detail | LROC NAC South Pole controlled mosaic, 1 m (Nov 2025), read remotely by window, as the NAC-only build |
+| Levels | Every face to level 6 (212 m face-centre texels, 82 m at corners, against WAC's 100 m). Deeper only on tiles that can hold NAC pixels: Shackleton 7–13 as the NAC build; the pole 7=150, 8=60, 9=45, 10=45, 11=20, 12=4, 13=2 km radii. That covers every MoonFall waypoint (all within 45 km of the pole) at level 10, 13 m, and most at level 11, 6.6 m. |
+| Tiles | 256 + 2×4 px gutter, grey JPEG quality 90, sRGB |
+| Build | `./cube-imagery.sh wac-nac`: 26 min, 8 workers. Each window read retries; a single empty HTTP range from the NAC COG had ended the first attempt at 30,600/34,604. The manifest records the generator as `cube_imagery.py` sha256 `3de27db59ea1…`. The `selftest` command was added afterwards and changes no output, but a rebuild with today's script hashes to a new revision id. |
+
+**Registration** (`cube_imagery.py coregister`). The two sources are
+resampled onto the same 33 level-8 tiles inside the NAC footprint (84.5–88°S,
+fully NAC-covered, with contrast), then compared by phase correlation:
+- every site where the two images correlate at r ≥ 0.5 agrees to within
+  2 texels (≤ 106 m, about one WAC pixel), and most to 0;
+- the larger "shifts", 0.7–6.3 km, come only from dark tiles with r < 0.25,
+  where the two sources' different illumination leaves nothing to match.
+
+No resampling or shift is applied: both are in the same body-fixed
+planetocentric coordinates on the 1737.4 km sphere. NAC is brighter than
+WAC around the pole (mean 57.5 against 32.5 at these sites), so the edge of
+the NAC square (about 81.5°S) shows a tone step. It is kept: radiometric
+matching or feathering is a follow-up, not a registration problem.
+
+Visual inspection (tile sheets) found no seam across the antimeridian or
+between faces, and found the polar and deep NAC tiles intact. Hosted runs
+measured 0 selected tiles without imagery at every stop. At the face edge
+and corner the imagery now reaches level 6, where the NAC-only pyramid
+stopped at levels 1–3.
+
+### Catalog change
+
+`scripts/build-moonfall-flights.mjs` generates the catalog. The Moon's
+`terrain` block changes:
+
+```jsonc
+// before (rollback target)
+"terrain": { "type": "quantized-mesh", "url": "https://marshub.s3.amazonaws.com/moon_v14/", "samplerMaxTiles": 4096,
+  "imagery": { "url": "https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg", "levels": 8 } }
+// after
+"terrain": { "type": "3dtiles", "url": "data/moon-terrain-cube/tileset.json", "errorTarget": 2, "fadeDurationMs": 0,
+  "datum": { "verticalDatum": "reference-sphere", "heightConvention": "radial" },
+  "sourceMetadata": { "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)", "kind": "height-grid" },
+  "cubeSphere": { "cpuGrids": "data/moon-terrain-cube/cpu-grids.json", "imagery": { "url": "data/moon-imagery-cube-wac-nac/imagery.json" } } }
+```
+
+`build-hosted-catalogs.mjs` pins the `data/…` paths at deploy. What did not
+change:
+- viewpoints;
+- waypoint times and positions (`lat`/`lon`);
+- rest arcs;
+- models, the `SurfaceUp` rotation and the rest of the catalog.
+
+Checked by diffing the regenerated catalog.
+
+**Hopper altitudes.** Waypoints are written as height above the ground
+(1 m on the pad, 5 m at a touchdown), and the build bakes them into
+absolute altitudes (`useAbsoluteAlt`). The ground came from LOLA 118 m,
+which differs from the cube terrain at these sites by −15.8 to +17.5 m
+(`validate-cube-terrain` control points). Landed hoppers would have been
+drawn up to 17 m inside or above the new surface.
+
+The build now samples the ground from the pinned product's finest CPU grid.
+Those are the lattice triangles the finest `.glb` draws. Samples are cached
+with their revision in `scripts/data/moon-elevations-cube.json`, and the
+build refuses grids of another revision. Baked altitudes moved by
+−15.8 to +17.5 m (RMS 5.4 m over 124 waypoints).
+`scripts/data/moon-elevations.json` stays as the LOLA control-point set.
+
+This is how the demo is authored, not the operational contract. A real
+plan should arrive as absolute positions in a stated body-fixed frame and
+datum, naming the terrain revision it was computed against. The viewer
+should then show any disagreement rather than absorb it into offsets (see
+*Follow-ups*).
+
+### Retries (the #233 review case)
+
+The merged `fetchWithRetry` fix covers the review's case: after four
+consecutive failures, tiles and grids still recover (`fetchWithRetry.test`).
+Two entry points were still exposed:
+- the CPU-grid manifest gave up after four attempts;
+- the imagery manifest used a plain `fetch` with no retry at all.
+
+An outage at load that outlasted them left the session without CPU grids,
+or without imagery, until reload. Both now retry through an outage, like
+the tileset, and stop when the layer or terrain is disposed. One new test
+covers six failures on each manifest; another covers dispose ending the
+wait.
+
+### Validation
+
+Automated (`capture-cube-imagery.mjs --experiments adoption`, one cold page
+per scenario, against `https://data.aaronplave.com`):
+
+| | Adoption catalog (NAC) normal | faulty | outage | MoonFall (WAC + NAC) normal | MoonFall outage |
+| --- | --- | --- | --- | --- | --- |
+| Stops settled | 10/10, 3.5–5.1 s | 10/10, 4.1–7.2 s | 10/10, 3.6–5.1 s | 10/10, 3.5–4.6 s | 10/10, 3.6–5.1 s |
+| Hole pixels, stops / 54 flight steps | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| Selected tiles without imagery (stops, 3 instrument switches) | 0 | 0 | 0 | 0 | 0 |
+| Rendered − CPU near tile edges, near ground / pole grazing | ≤ 2.7 / 0.4 m | same | 3.4 / 0.4 m | ≤ 3.4 / 0.4 m | same |
+| Camera clamp at tile edges, above readout / rendered | 2.0 / 2.0 m | same | same | same | same |
+| Injected | – | 424 first-attempt failures, 638 delays | 26 s outage, 793 requests answered 503 | – | 26 s outage, 793 × 503 |
+| Grids failed at end | 0 | 0 | 66 (not re-queried) | 0 | 0 after re-query |
+| Unprovoked request failures | 0 | – | – | 0 | – |
+| After return to orbit (flat for 20 s): tile cache / geometry / textures / JS heap | 236 / 317 / 168 MB / 0.95 GB | 225 / 302 / 168 / 0.84 | 231 / 311 / 168 / 0.95 | 318 / 429 / 168 / 1.20 | 314 / 424 / 168 / 1.28 |
+
+Memory stays within the existing budgets: tile cache 512 MiB, textures 160
+MiB, 2,048 CPU detail grids. MoonFall's heap is higher than the tour alone
+(1.20–1.28 GB against 0.95) because its mission checks load grids at 16 more
+sites. No JS-heap budget exists; the memory follow-up below still applies.
+
+**Outage** (`--scenarios outage`). Every terrain, grid and imagery request
+fails with HTTP 503 for 26 s, longer than the four attempts of a grid or
+imagery request, while the camera descends from Shackleton to 150 m and
+picks ask for grids:
+- 0 hole pixels during the outage and in flight: parents stayed drawn;
+- up to 96 grids failed.
+
+After the host returned:
+- the near-ground stop settled in 4–5 s with the same picks, clamp and
+  imagery as the normal run.
+- 86 grids stayed in the failed set 93 s later, because no later query
+  touched their locations. A failed grid is requested again only by a query
+  after its backoff.
+- Querying each one's tile centre then loaded all 86 (0 still failed). So
+  CPU grids recover on demand, as designed.
+
+The adoption-catalog outage run predates that re-query step, so it ends
+with 66 waiting. Two imagery tiles were still waiting at the end of the
+MoonFall outage run: imagery retries a failed tile when it is wanted again
+after 30 s, and these were not wanted in orbit.
+
+**MoonFall mission checks** (`--catalog moonfall`, both runs):
+- **Viewpoints** (Shackleton Overview, Polaris-A Close-up, PSR Floor View):
+  each settled in 3.6 s with imagery at level 11, 0 holes and 0 tiles without
+  imagery. The centre pick hit, with rendered − CPU ≤ 0.1 m.
+  - Pre-existing and unchanged: viewpoint `distance` is from the body's
+    centre (`bodyFixedOffsetToWorld`), so Shackleton Overview (60) and PSR
+    Floor View (20) start inside the Moon. The camera clamp lifts them to
+    the ground, looking straight down. The `moon_v14` catalog does the same
+    (camera 1.1 km and −0.5 km from the datum there, against −0.3 and −0.4
+    km here). Kept as asked; see *Follow-ups*.
+- **Waypoints**: all 36 ground sites answered at the finest level. The
+  catalog's baked ground minus the hosted CPU readout is ≤ 0.5 mm.
+- **Hoppers**: each hopper was checked at the first time it rests at each of
+  its 16 landing or touchdown sites, with the camera 250 m away and detail
+  settled. Its drawn position is exactly the authored height above both the
+  CPU readout and the rendered triangles below it: 1.00 m on pads (5 sites),
+  5.00 m at touchdowns (11).
+- **Instrument view**: the demo has no instrument, so the run adds the
+  adoption catalog's 12° orbiter sensor to its own copy of the catalog only.
+  It was switched on and off three times with 0 tiles without imagery.
+
+Through r2.dev the same tour also passed, with 0 holes, but saw 545 grid,
+168 imagery and 70 `.glb` requests fail with no fault injected (no CORS
+header on the response). Geometry retried through them; grids and imagery
+recovered as above.
+
+**Visual inspection** (not automated):
+- Tile sheets of the composite (above).
+- Lit frames at the three viewpoints are almost black, with the old
+  `moon_v14` catalog and the new one alike, captured side by side. At this
+  epoch the sun is a few degrees above the horizon and the crater floors are
+  permanently shadowed.
+- The `-imagery` frames show the same views unlit: NAC detail at the PSR
+  floor and along Polaris-A's crater wall. Shackleton Overview is a few
+  metres above the ground (the viewpoint quirk above), so it shows a patch
+  of one texel's neighbourhood.
+
+Evidence: `docs/images/issue-149/migration-*.json`, `migration-*.jpg` and
+`migration-wac-nac-coregister.json`.
+
+**Not repeated here** (unchanged code, measured in *Adoption readiness*):
+performance profiles, crack and failure experiments, weaker hardware.
+
+### Rollback
+
+- **Catalog.** Put the *before* block back in `build-moonfall-flights.mjs`
+  and regenerate. Ground from LOLA again means restoring the earlier
+  `sampleBatch`/`moon-elevations.json` path (git history of that script,
+  this PR's parent). `moon_v14` stays referenced by `lro-moon.json` and the
+  `moon-shackleton` terrain-validation preset, and the Trek WAC tiles are
+  external.
+- **Builds.** Point `datasets.json` at a previous immutable build; the old
+  NAC build stays published.
+- Both take effect on the next deploy. Hosted builds are never overwritten.
+
+### Reproduce
+
+```bash
+# imagery (6 GB WAC download once; NAC read remotely)
+python3 scripts/terrain/cube_imagery.py selftest      # antimeridian unwrap, pole cap, composite fallback (synthetic, offline)
+PYTHON=python3 scripts/build-moon-terrain/cube-imagery.sh wac-nac
+python3 scripts/terrain/cube_imagery.py coregister --base scripts/build-moon-terrain/data/source/wac-global-100m-cog.tif \
+  --detail /vsicurl/https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Lunar_safed/LMAP/SouthPolar/LRO_LROC_NAC_SPOLE-90_Mosaic_1m_controlled_cog.tif --out coregister.json
+npm run publish:data -- cube-imagery/moon-imagery-cube-wac-nac --build cube-imagery-composite-3f34a19541af7710 \
+  --origin https://aaronplave.com --origin http://localhost:5173        # done; pinned
+# catalog (npm run build first)
+node scripts/build-moonfall-flights.mjs
+# deploy path
+(cd apps/viewer && HOSTED_DATA=1 BUNDLE_TEST_CATALOGS=1 npx vite build)
+node scripts/build-hosted-catalogs.mjs --dist apps/viewer/dist --base-url https://data.aaronplave.com --allow-unpublished terrain/mars-terrain-fused
+node scripts/verify-hosted-data.mjs --dist apps/viewer/dist --origin https://aaronplave.com --origin http://localhost:5173
+# hosted runs (viewer at http://localhost:5173; --map-localhost 127.0.0.1 when another checkout holds that port on ::1)
+node scripts/capture-cube-imagery.mjs --experiments adoption --scenarios normal,faulty,outage --gpu --hosted-url https://data.aaronplave.com
+node scripts/capture-cube-imagery.mjs --experiments adoption --catalog moonfall --scenarios normal,outage --gpu --hosted-url https://data.aaronplave.com
+```
 
 ## Reproducible checks delivered
 
@@ -2194,6 +2477,11 @@ lunar field or GPU evidence.
    requirement.
 
 ### Remaining for #149
+
+**Core adoption complete (2026-10-16):** the first catalog runs on the adopted
+configuration through the production host, with the checks in *First
+migration*. The unchecked items below are optional improvements, tracked
+separately from adoption.
 
 Exact checklist for the adopt/revise/reject decision (*Recommendation from the
 geometry evidence*):

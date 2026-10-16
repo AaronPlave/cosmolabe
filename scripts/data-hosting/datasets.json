@@ -96,6 +96,13 @@
       "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-nac",
       "catalogPrefix": "data/moon-imagery-cube-nac/",
       "build": "cube-imagery-nac-6db766f8beebcace"
+    },
+    "cube-imagery/moon-imagery-cube-wac-nac": {
+      "kind": "cube-imagery",
+      "name": "moon-imagery-cube-wac-nac",
+      "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-wac-nac",
+      "catalogPrefix": "data/moon-imagery-cube-wac-nac/",
+      "build": "cube-imagery-composite-3f34a19541af7710"
     }
   }
 }

@@ -77,6 +77,12 @@
  *                stored headers) and --hosted-url URL uses a real data host; either way the catalog is rewritten
  *                exactly as build-hosted-catalogs.mjs does, to the builds pinned in datasets.json or given by
  *                --terrain-build / --imagery-build.
+ *                --catalog moonfall runs the same tour on the MoonFall demo (moonfall-shackleton.json, WAC + NAC
+ *                imagery; an orbiter sensor is added to the page's copy, as the demo has none), then its mission
+ *                checks: every catalog viewpoint, every waypoint's ground against the CPU grids, and each hopper at
+ *                its landings and touchdowns against the CPU and rendered surfaces. The `outage` scenario fails
+ *                every data request (HTTP 503) for --outage-s (default 25 s) while flying to the near-ground stop,
+ *                then restores the host: parent coverage must hold and CPU grids must recover.
  *
  * --uncapped launches without vsync or a frame cap (animation-loop interval = pipelined frame time).
  * --draw-culling on|off sets TerrainManager.setDrawCulling on every page.
@@ -91,7 +97,7 @@
  * Default is SwiftShader software WebGL (correctness, counts); --gpu uses the
  * host GPU (--angle metal|vulkan|…) and is the only mode whose timings mean anything.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { cpus, totalmem, platform, release } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -186,6 +192,9 @@ const LAUNCH = GPU ? ['--use-angle=' + ANGLE, '--ignore-gpu-blocklist', '--enabl
   : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--ignore-gpu-blocklist'];
 // --uncapped: no vsync or frame-rate cap, so animation-loop intervals are the pipelined frame time.
 if (args.uncapped) LAUNCH.push('--disable-gpu-vsync', '--disable-frame-rate-limit');
+// --map-localhost 127.0.0.1: reach this worktree's dev server as http://localhost:5173 (an origin the data
+// bucket's CORS allows) while another checkout's server holds localhost:5173 on ::1.
+if (args['map-localhost']) LAUNCH.push(`--host-resolver-rules=MAP localhost ${args['map-localhost']}`);
 const REPEATS = Number(args.repeat ?? 1);
 const ANIM_MS = Number(args['anim-ms'] ?? 3000);
 // Below all lunar terrain (lowest point ≈ 1,728.3 km): the conservative horizon sphere.
@@ -200,6 +209,8 @@ async function openViewer(catalog, setup) {
   await page.addInitScript(() => performance.setResourceTimingBufferSize(1_000_000));
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
+  page.on('crash', () => console.error('page crashed'));
+  page.on('framenavigated', f => { if (f === page.mainFrame() && page.__opened) console.error(`page navigated to ${f.url()}`); });
   page.on('response', r => { if (r.status() >= 400 && !r.url().includes('__missing__')) errors.push(`HTTP ${r.status()} ${r.url()}`); });
   // Errors, plus warnings other than the expected per-tile load warnings and missing catalog textures.
   page.on('console', m => {
@@ -216,6 +227,7 @@ async function openViewer(catalog, setup) {
   }
   await page.goto(new URL(`?catalog=${catalog}&test=1`, BASE).href, { waitUntil: 'domcontentloaded', timeout: 180_000 });
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, { timeout: 180_000 });
+  page.__opened = true;
   if (args.throttle) {
     // --throttle RTT_MS,MBPS: tile traffic over a network instead of localhost, for cold-load
     // timing; applied once the app (thousands of dev-server modules) has loaded.
@@ -273,7 +285,7 @@ const snapshot = (page) => page.evaluate((CUBE_DIR) => {
   meshIds.sort();
   const res = performance.getEntriesByType('resource');
   const glb = res.filter(e => e.name.includes(CUBE_DIR) && e.name.endsWith('.glb'));
-  const img = res.filter(e => e.name.includes('/moon-imagery-cube-') && e.name.endsWith('.png'));
+  const img = res.filter(e => e.name.includes('/moon-imagery-cube-') && /\.(png|jpg)$/.test(e.name));
   let levels = {};
   tm.tiles.visibleTiles.forEach(t => { const m = /\/(\d+)\/\d+\/\d+\.glb$/.exec(t.content?.uri ?? ''); if (m) levels[m[1]] = (levels[m[1]] ?? 0) + 1; });
   return { metrics: bm.terrainMetrics, imagery: bm.terrainCubeImageryStats, visibleTiles: visible, geometryLevels: levels,
@@ -287,7 +299,7 @@ async function settle(page, view, mode, { imagery = true } = {}) {
   let stable = 0, last = '', s = null;
   while (Date.now() - start < TIMEOUT_MS) {
     await page.waitForTimeout(500);
-    await pose(page, view, mode);
+    if (view) await pose(page, view, mode); // null: wherever the app put the camera (a catalog viewpoint)
     s = await snapshot(page);
     const n = s.metrics.network, i = s.imagery ?? { inFlight: 0, queued: 0, fallbackBlocks: 0, budgetLimited: false, maxDisplayedLevel: -1, blocks: 0 };
     // A full texture budget is a settled state too: the layer stops requesting and keeps fallbacks.
@@ -737,6 +749,106 @@ async function surfacePose(page, v) {
     return out;
   }, [v.eye, v.target]);
   return { eye: at(v.eye[0], v.eye[1], h[0] + v.eye[2]), target: at(v.target[0], v.target[1], h[1] + v.target[2]), fov: v.fov };
+}
+
+const ORBITER = JSON.parse(readFileSync(join(ROOT, 'apps/viewer/test-catalogs/experiments/moon-terrain-cube-imagery-adoption.json'), 'utf8'))
+  .items.find((i) => i.name === 'Moon').items.find((i) => i.name === 'Orbiter');
+
+/**
+ * MoonFall's own behaviour on the cube product (#149 first migration): every catalog viewpoint
+ * settles with imagery and no holes; every waypoint's ground (scripts/data/moon-elevations-cube.json,
+ * baked into the catalog altitudes) equals the CPU readout; each hopper, at the first time it rests at
+ * each landing or touchdown site, sits its authored height above the CPU and the rendered surface.
+ */
+async function moonfallChecks(page, { untextured }) {
+  const catalog = JSON.parse(readFileSync(join(ROOT, 'apps/viewer/test-catalogs/moonfall-shackleton.json'), 'utf8'));
+  const ground = JSON.parse(readFileSync(join(ROOT, 'scripts/data/moon-elevations-cube.json'), 'utf8'));
+  const key = (lat, lon) => `${lat.toFixed(5)},${lon.toFixed(5)}`;
+  const out = { groundRevision: ground.revision, viewpoints: [], waypoints: null, hoppers: [] };
+
+  for (const vp of catalog.items.filter((i) => i.type === 'Viewpoint')) {
+    await page.evaluate((name) => {
+      window.ci.getRenderer().setTerrainDebugMode('none', 'Moon'); // settle(null) does not pose, so reset the view mode here
+      window.cosmo.setTime({ kind: 'text', text: '2028-12-15T10:04:00Z' }); window.cosmo.setPlaying(false); window.cosmo.viewpoint(name);
+    }, vp.name);
+    const s = await settle(page, null, 'shaded'), h = await holeMasks(page), u = await untextured();
+    const centre = await page.evaluate(() => {
+      const p = window.ci.getRenderer().pickSurface(0, 0);
+      if (!p) return null;
+      const [x, y, z] = p.bodyFixedHitKm, r = Math.hypot(x, y, z);
+      const t = window.ciMoon().sampleTerrain(Math.asin(z / r) * 180 / Math.PI, Math.atan2(y, x) * 180 / Math.PI);
+      return { physical: p.physical?.kind ?? null, renderedMinusCpuKm: p.physical?.renderedOffsetKm ?? null, readoutBelowRenderedKm: t ? r - (1737.4 + t.elevationKm) : null };
+    });
+    const slug = vp.name.replace(/\W+/g, '-').toLowerCase(), shotLit = await shot(page, `moonfall-viewpoint-${slug}`);
+    // The poles are mostly in shadow at this epoch: the imagery itself, unlit, from the same view.
+    await page.evaluate(() => window.ci.getRenderer().setTerrainDebugMode('imagery-unlit', 'Moon'));
+    await page.waitForTimeout(500);
+    const shotImagery = await shot(page, `moonfall-viewpoint-${slug}-imagery`);
+    await page.evaluate(() => window.ci.getRenderer().setTerrainDebugMode('none', 'Moon'));
+    const row = { name: vp.name, ...pick(s), holes: h.mitigated.holePixels, untextured: u, centre, shot: shotLit, shotImagery };
+    out.viewpoints.push(row);
+    console.log(`moonfall viewpoint ${vp.name}: ${s.finished ? 'settled' : 'NOT settled'} in ${(s.settleMs / 1000).toFixed(1)} s, imagery L${s.imagery?.maxDisplayedLevel}, holes ${row.holes} px, untextured ${u.without}/${u.tiles}, centre pick ${JSON.stringify(centre)}`);
+  }
+
+  // Every waypoint: the ground baked into the catalog against the CPU readout of the hosted grids, at the finest level.
+  const sites = new Map();
+  for (const h of catalog.items.find((i) => i.name === 'Moon').items) {
+    for (const arc of h.arcs) {
+      const tr = arc.trajectory;
+      for (const w of tr.waypoints) {
+        const altM = parseFloat(w.alt) * 1000 - ground.elevations[key(w.lat, w.lon)];
+        const k = `${h.name}|${key(w.lat, w.lon)}`;
+        // A hopper at rest: takeoff, landing, touchdown (authored 1–5 m) — its first such moment per site.
+        if (altM <= 5.5 && !sites.has(k)) sites.set(k, { hopper: h.name, lat: w.lat, lon: w.lon, altM, et: { kind: 'text', text: new Date(Date.parse(tr.epoch) + w.t * 1000).toISOString() } });
+      }
+    }
+  }
+  const points = Object.keys(ground.elevations).map((k) => k.split(',').map(Number));
+  const wp = await page.evaluate(async (points) => {
+    const bm = window.ciMoon(), rows = [];
+    for (const [lat, lon] of points) {
+      let s = null, state = null;
+      for (let i = 0; i < 400 && state !== 'finest'; i++) { s = bm.sampleTerrain(lat, lon); state = bm.terrainCubeCoverage(lat, lon)?.state; if (state !== 'finest') await new Promise((r) => setTimeout(r, 50)); }
+      rows.push({ lat, lon, state, cpuM: s ? s.elevationKm * 1000 : null });
+    }
+    return rows;
+  }, points);
+  const deltas = wp.map((r) => Math.abs(r.cpuM - ground.elevations[key(r.lat, r.lon)]));
+  out.waypoints = { sites: wp.length, finest: wp.filter((r) => r.state === 'finest').length, maxAbsDeltaM: Math.max(...deltas) };
+  console.log(`moonfall waypoints: ${out.waypoints.sites} ground sites, ${out.waypoints.finest} at the finest level, catalog ground − CPU readout max ${out.waypoints.maxAbsDeltaM.toFixed(4)} m`);
+
+  for (const site of sites.values()) {
+    await page.evaluate((et) => { window.cosmo.setPlaying(false); window.cosmo.setTime(et); }, site.et);
+    // 250 m out and 120 m up, looking at the hopper's site: the finest tiles under it get drawn.
+    const g = await surfacePose(page, { eye: [site.lat + 0.008, site.lon, 0.12], target: [site.lat, site.lon, 0], fov: 50 });
+    const s = await settle(page, g, 'shaded');
+    const m = await page.evaluate(async (name) => {
+      const r = window.ci.getRenderer(), moon = window.ciMoon(), tm = moon.terrainManager, hb = r.getBodyMesh(name);
+      r.getContext().renderFrame();
+      const depUrl = performance.getEntriesByType('resource').map((e) => e.name).find((n) => /\/\.vite\/deps\/three\.js(\?|$)/.test(n));
+      const { Raycaster, Vector3 } = await import(depUrl);
+      const centre = new Vector3(); moon.getWorldPosition(centre);
+      const pos = new Vector3(); hb.getWorldPosition(pos);
+      const v = pos.clone().sub(centre).applyQuaternion(moon.mesh.quaternion.clone().invert()).divideScalar(r.scaleFactor);
+      const p = [v.x, -v.z, v.y], rp = Math.hypot(...p), lat = Math.asin(p[2] / rp) * 180 / Math.PI, lon = Math.atan2(p[1], p[0]) * 180 / Math.PI;
+      const t = moon.sampleTerrain(lat, lon);
+      // Straight down from 1 km above the hopper onto the drawn surface triangles (not skirts or imagery blocks).
+      const up = pos.clone().sub(centre).normalize(), from = pos.clone().addScaledVector(up, r.scaleFactor);
+      const hit = new Raycaster(from, up.clone().negate()).intersectObject(tm.group, true)
+        .find((h) => !h.object.name.startsWith('cube-imagery-block') && h.faceIndex < (h.object.geometry.userData?.surfaceTriangles ?? Infinity));
+      return { lat, lon, aboveReadoutM: t ? (rp - 1737.4 - t.elevationKm) * 1000 : null, aboveRenderedM: hit ? (hit.distance / r.scaleFactor - 1) * 1000 : null,
+        coverage: moon.terrainCubeCoverage(lat, lon)?.state ?? null, visible: hb.visible };
+    }, site.hopper);
+    const row = { ...site, et: site.et.text, settled: s.finished, settleMs: s.settleMs, geometryLevels: s.geometryLevels, ...m };
+    out.hoppers.push(row);
+    console.log(`moonfall ${site.hopper} at ${site.lat},${site.lon} (${row.et}, authored ${site.altM.toFixed(1)} m): above CPU readout ${m.aboveReadoutM?.toFixed(2)} m, above rendered ${m.aboveRenderedM?.toFixed(2)} m, ${m.coverage}, ${s.finished ? 'settled' : 'NOT settled'}`);
+  }
+  if (out.hoppers[0]) {
+    await page.evaluate(() => { window.ci.getRenderer().setTerrainDebugMode('none', 'Moon'); window.cosmo.setTime({ kind: 'text', text: '2028-12-15T10:00:00Z' }); window.cosmo.viewpoint('Polaris-A Close-up'); });
+    await settle(page, null, 'shaded');
+    out.hopperShot = await shot(page, 'moonfall-polaris-a-landed');
+  }
+  return out;
 }
 
 /**
@@ -1573,27 +1685,47 @@ try {
     results.adoption = [];
     // Through the hosting path: the deploy-time catalog rewrite against a served store or a real host.
     let hosted = null;
+    const MOONFALL = args.catalog === 'moonfall';
+    const IMAGERY_DATASET = MOONFALL ? 'cube-imagery/moon-imagery-cube-wac-nac' : 'cube-imagery/moon-imagery-cube-nac';
+    const catalogFile = MOONFALL ? 'moonfall-shackleton.json' : 'experiments/moon-terrain-cube-imagery-adoption.json';
     if (args['hosted-store'] || args['hosted-url']) {
       const host = args['hosted-store'] ? await serveStore(createLocalStorage(resolve(String(args['hosted-store'])))) : null;
       const datasets = loadDatasets().datasets;
-      for (const [id, key] of [['cube-terrain/moon-terrain-cube', 'terrain-build'], ['cube-imagery/moon-imagery-cube-nac', 'imagery-build']]) {
+      for (const [id, key] of [['cube-terrain/moon-terrain-cube', 'terrain-build'], [IMAGERY_DATASET, 'imagery-build']]) {
         if (args[key]) datasets[id] = { ...datasets[id], build: String(args[key]) };
       }
       hosted = { baseUrl: host?.url ?? String(args['hosted-url']), close: () => host?.close(), datasets };
     }
-    const kindOf = (url) => (/\.glb$/.test(url) ? 'glb' : /\.f32$/.test(url) ? 'grid' : /moon-imagery-cube-.*\.png$/.test(url) ? 'imagery' : /\.json$/.test(url) ? 'json' : null);
+    const kindOf = (url) => (/\.glb$/.test(url) ? 'glb' : /\.f32$/.test(url) ? 'grid' : /moon-imagery-cube-.*\.(png|jpg)$/.test(url) ? 'imagery' : /\.json$/.test(url) ? 'json' : null);
     const hash = (str) => { let h = 2166136261; for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
     const geo = (lat, lon, h) => at(lat, lon, h);
     for (const scenario of String(args.scenarios ?? 'normal,faulty').split(',')) {
       const counts = { injectedFailures: 0, injectedDelays: 0, cancelled: {}, failed: {} };
       const attempts = new Map();
-      const { page, errors } = await openViewer(CATALOG('adoption'), async (p) => {
-        if (hosted) {
-          await p.route(/moon-terrain-cube-imagery-adoption\.json/, async (route) => {
-            const response = await route.fetch();
-            const r = rewriteCatalog(await response.json(), 'experiments/moon-terrain-cube-imagery-adoption.json', hosted.datasets, hosted.baseUrl);
-            if (r.unpublished.length || r.changed !== 3) throw new Error(`hosted catalog: ${r.changed} rewrites, unpublished ${r.unpublished}`);
-            await route.fulfill({ response, json: r.json });
+      let outage = false;
+      const { page, errors } = await openViewer(`test-catalogs/${catalogFile.replace(/\.json$/, '')}`, async (p) => {
+        if (hosted || MOONFALL) {
+          await p.route(new RegExp(`/${catalogFile.split('/').pop().replace(/[.-]/g, '\\$&')}(\\?|$)`), async (route) => {
+            // route.fetch resolves names outside the browser, so --map-localhost has to be applied here too.
+            const url = route.request().url();
+            const response = await route.fetch(args['map-localhost'] ? { url: url.replace('//localhost:', `//${args['map-localhost']}:`) } : {});
+            let json = await response.json();
+            if (hosted) {
+              const r = rewriteCatalog(json, catalogFile, hosted.datasets, hosted.baseUrl);
+              if (r.unpublished.length || r.changed !== 3) throw new Error(`hosted catalog: ${r.changed} rewrites, unpublished ${r.unpublished}`);
+              json = r.json;
+            }
+            // The demo has no instrument: the adoption catalog's orbiter sensor, on this page only.
+            if (MOONFALL) json.items.find((i) => i.name === 'Moon').items.push(ORBITER);
+            await route.fulfill({ response, json });
+          });
+        }
+        if (scenario === 'outage') {
+          await p.route((url) => !!kindOf(url.href) && /moon-(terrain|imagery)-cube/.test(url.href), async (route) => {
+            // fallback, not continue: the catalog request must still reach the hosted rewrite above.
+            if (!outage) return route.fallback();
+            counts.injectedFailures++;
+            return route.fulfill({ status: 503, body: 'outage' });
           });
         }
         if (scenario === 'faulty') {
@@ -1612,6 +1744,7 @@ try {
           bucket[kind] = (bucket[kind] ?? 0) + 1;
         });
       });
+      if (MOONFALL) await page.waitForFunction(() => window.ciLayer()?.manifest != null, null, { timeout: 120_000 });
       const started = Date.now();
       const resources = () => page.evaluate(() => performance.getEntriesByType('resource').map((e) => [e.name, e.encodedBodySize, e.duration]));
       const untextured = () => page.evaluate(() => {
@@ -1733,7 +1866,52 @@ try {
       await stop('overview (cold)', VIEWS.overview, { coldMs: Date.now() - started });
       await fly('orbit → Shackleton', G.overview, G.shackleton, 16);
       await stop('shackleton', VIEWS.shackleton);
-      await fly('Shackleton → near ground', G.shackleton, G.near, 6);
+      let outageRecord = null;
+      if (scenario === 'outage') {
+        // The host answers 503 to every data request for longer than the four attempts of a grid or
+        // imagery request (0.5 + 1 + 2 s of backoff) while the camera descends and picks ask for grids.
+        const outageMs = Number(args['outage-s'] ?? 25) * 1000, t0 = Date.now(), during = [];
+        outage = true;
+        const before = flight.length;
+        await fly('Shackleton → near ground (host down)', G.shackleton, G.near, 6);
+        while (Date.now() - t0 < outageMs) {
+          await pose(page, { eye: geo(...G.near.eye), target: geo(...G.near.target), fov: 60 }, 'shaded');
+          await page.evaluate(() => { for (let j = 0; j < 5; j++) for (let i = 0; i < 8; i++) window.ci.getRenderer().pickSurface((i + 0.5) / 4 - 1, (j + 0.5) / 2.5 - 1); });
+          const h = await holeMasks(page), g = await page.evaluate(() => window.ciMoon().terrainManager.cubeStats);
+          during.push({ ms: Date.now() - t0, holePixels: h.mitigated.holePixels, gridsFailed: g?.failed ?? null, gridsInFlight: g?.inFlight ?? null });
+          await page.waitForTimeout(2000);
+        }
+        outage = false;
+        const restored = Date.now();
+        outageRecord = { outageMs: restored - t0, injected: counts.injectedFailures, flightMaxHolePixels: Math.max(...flight.slice(before).map((f) => f.holePixels)),
+          maxHolePixels: Math.max(...during.map((d) => d.holePixels)), maxGridsFailed: Math.max(...during.map((d) => d.gridsFailed ?? 0)), during };
+        // Failed grids are asked for again by later queries once their backoff (30 s) has passed.
+        const recovery = [];
+        for (let k = 0; k < 30; k++) {
+          await page.evaluate(() => { for (let j = 0; j < 5; j++) for (let i = 0; i < 8; i++) window.ci.getRenderer().pickSurface((i + 0.5) / 4 - 1, (j + 0.5) / 2.5 - 1); });
+          await page.waitForTimeout(3000);
+          const g = await page.evaluate(() => window.ciMoon().terrainManager.cubeStats);
+          recovery.push({ ms: Date.now() - restored, failed: g?.failed ?? null, inFlight: g?.inFlight ?? null });
+          if (g && g.failed === 0 && g.inFlight === 0 && Date.now() - restored > 35_000) break;
+        }
+        outageRecord.recovery = recovery;
+        // Grids that failed where no later query looked stay failed until one does. Ask again at each
+        // failed tile's centre (a query, as a pick or readout would be), past its backoff: all must load.
+        outageRecord.requery = await page.evaluate(async () => {
+          const src = window.ciMoon().terrainManager.cube.source, ids = [...src.failed.keys()];
+          await Promise.all(ids.map((id) => {
+            const [face, L, x, y] = id.split('/'), n = 2 ** Number(L);
+            return src.requestCoordinate({ face, u: -1 + (Number(x) + 0.5) * 2 / n, v: -1 + (Number(y) + 0.5) * 2 / n });
+          }));
+          return { asked: ids.length, stillFailed: src.failed.size, inFlight: src.inFlight.size };
+        });
+        outageRecord.gridsRecoveredMs = recovery.find((r) => r.failed === 0 && r.inFlight === 0 && r.ms > 35_000)?.ms ?? null;
+        console.log(`adoption outage: ${(outageRecord.outageMs / 1000).toFixed(0)} s, ${outageRecord.injected} requests failed; holes in flight ${outageRecord.flightMaxHolePixels} px, held ${outageRecord.maxHolePixels} px; `
+          + `grids failed up to ${outageRecord.maxGridsFailed}, ${outageRecord.recovery.at(-1).failed} still failed ${(outageRecord.recovery.at(-1).ms / 1000).toFixed(0)} s after restore `
+          + `(${outageRecord.gridsRecoveredMs != null ? `none from ${(outageRecord.gridsRecoveredMs / 1000).toFixed(0)} s` : 'not re-queried'}); re-queried ${outageRecord.requery.asked}, ${outageRecord.requery.stillFailed} still failed`);
+      } else {
+        await fly('Shackleton → near ground', G.shackleton, G.near, 6);
+      }
       await stop('near ground', await surfacePose(page, SURFACE_VIEWS['shackleton-near']), { clamp: true });
       await fly('to pole', G.near, G.poleIn, 6);
       await fly('pole crossing', G.poleIn, G.poleOut, 10);
@@ -1782,6 +1960,8 @@ try {
       console.log(`adoption ${scenario} instrument: ${instrument.switches.map((w) => `${w.active ?? 'off'} untextured ${w.untextured.without}/${w.untextured.tiles}`).join('; ')}; `
         + `cull on vs off ${instrument.cullOnOff.differingPixels} px differ (mean |Δ| ${instrument.cullOnOff.meanAbsDiff})`);
 
+      const mission = MOONFALL ? await moonfallChecks(page, { settle, holeMasks, untextured }) : null;
+
       // Back to orbit; memory should settle as detail is released.
       await stop('overview (return)', VIEWS.overview);
       const memory = [];
@@ -1803,8 +1983,8 @@ try {
         b.requests++; b.bytes += bytes; b.maxMs = Math.max(b.maxMs, Math.round(ms));
       }
       const final = await page.evaluate(() => ({ network: window.ciMoon().terrainMetrics.network, imagery: window.ciMoon().terrainCubeImageryStats, grids: window.ciMoon().terrainManager.cubeStats }));
-      const row = { scenario, hosted: hosted ? { baseUrl: hosted.baseUrl, terrainBuild: hosted.datasets['cube-terrain/moon-terrain-cube'].build, imageryBuild: hosted.datasets['cube-imagery/moon-imagery-cube-nac'].build } : null,
-        stops, flight, instrument, memory, requests: byKind, counts, final, totalMs: Date.now() - started,
+      const row = { scenario, catalog: catalogFile, hosted: hosted ? { baseUrl: hosted.baseUrl, terrainBuild: hosted.datasets['cube-terrain/moon-terrain-cube'].build, imageryBuild: hosted.datasets[IMAGERY_DATASET].build } : null,
+        stops, flight, instrument, outage: outageRecord, mission, memory, requests: byKind, counts, final, totalMs: Date.now() - started,
         flightMaxHolePixels: Math.max(...flight.map((f) => f.holePixels)), stopsNotSettled: stops.filter((s) => !s.finished).map((s) => s.name), errors: errors.slice(0, 20) };
       results.adoption.push(row);
       console.log(`adoption ${scenario}: ${stops.length} stops (${row.stopsNotSettled.length} not settled), flight max holes ${row.flightMaxHolePixels} px over ${flight.length} steps; `

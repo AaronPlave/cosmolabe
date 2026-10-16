@@ -115,7 +115,7 @@ const PRESETS = {
     controlPoints: ingenuityControlPoints,
   },
   'moon-shackleton': {
-    description: 'Mars Hub moon_v14 (as moonfall-shackleton.json configures it) on the Shackleton rim',
+    description: 'Mars Hub moon_v14 (moonfall-shackleton.json before the #149 cube migration; its rollback) on the Shackleton rim',
     url: 'https://marshub.s3.amazonaws.com/moon_v14/',
     offsetKm: 0,
     datum: MOON_DATUM,

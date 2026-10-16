@@ -107,6 +107,7 @@ at the pole) without generating or loading more terrain.
 ```bash
 PYTHON=python3 ./cube-imagery.sh fixtures   # synthetic grid + registration pyramids (~10 min, offline)
 PYTHON=python3 ./cube-imagery.sh nac        # LROC NAC South Pole mosaic, read remotely by window (~10 min)
+PYTHON=python3 ./cube-imagery.sh wac-nac    # global LROC WAC + NAC composite: MoonFall's imagery (6 GB WAC download once)
 npm run build && node ../validate-cube-imagery.mjs
 npm --prefix ../../apps/viewer run dev      # then open one of
 #   http://127.0.0.1:5173/?catalog=test-catalogs/experiments/moon-terrain-cube-imagery-grid
@@ -114,7 +115,7 @@ npm --prefix ../../apps/viewer run dev      # then open one of
 CHROMIUM_PATH=… node ../capture-cube-imagery.mjs
 ```
 
-Outputs (gitignored, not hosted): `apps/viewer/test-catalogs/data/moon-imagery-cube-{grid,registration,nac}/`
+Outputs (gitignored; `wac-nac` and `nac` are published, see docs/data-hosting.md): `apps/viewer/test-catalogs/data/moon-imagery-cube-{grid,registration,nac,wac-nac}/`
 with `imagery.json` (tiles, layout, registration, provenance) and, for the grid,
 `markers.json` (each control point's expected tile and pixel at every level).
 The debug panel's `imagery-level` view shows the displayed imagery level per
