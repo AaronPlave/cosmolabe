@@ -34,10 +34,26 @@ fail the solar depth test. Each dedicated pass restores the camera layer mask
 before the existing surface-tile and model passes.
 
 `SunGlareEffect` renders only solar radiance into a half-float source target.
-A separate proxy scene contains the Sun and intersecting opaque body bounds;
-model meshes are inspected only for intersecting model bodies. Terrain and surface
-tile hierarchies are represented by their body's physical globe in this optical
-pass. The host scene is never traversed or its materials swapped in production.
+A separate proxy scene reuses the selected depth-writing meshes from the main
+body/terrain and camera-relative surface-tile display render lists. It snapshots
+the main list before the solar/overlay passes replace it. Only bounds intersecting
+the solar cone become source draws, scissored to the existing source region;
+there is no second terrain hierarchy traversal or LOD selection. Hidden fallback
+globes do not become optical occluders. Unloaded terrain provides no occlusion
+beyond the surface actually displayed; this is a visual contract, not a numerical
+terrain visibility query.
+
+Camera-relative tile matrices are translated back by the saved camera offset in
+float64, then rasterized with the source camera's original projection and
+logarithmic depth. The tile pass's tight-projection depth buffer is never reused.
+Black optical material clones preserve geometry, side, alpha tests, clipping,
+displacement, plugin shader flags and fade/discard hooks (including their live
+uniforms), without modifying display materials. Cached masks are rebuilt on
+material version changes and removed with deselected tiles. Intersecting art
+models retain the bounded geometric proxy path with source-compatible log depth.
+For an expanded subpixel source, optical occluders expand about the same screen
+center by the same factor, preserving the original photosphere rays through a
+terrain silhouette. Analytical sphere/ellipsoid occultation remains available.
 Opaque proxies contribute depth and black color; transparent shells, overlays,
 lines, sprites, stars and other emissive content contribute no light. A bounded
 quad composites two spatial Gaussian blurs of the source at half resolution: a
@@ -68,6 +84,34 @@ simulating a full camera PSF. The two separable blurs use nine taps per axis,
 scissored to the Sun and halo bounds to keep small-source views inexpensive.
 Source rendering and clearing are also scissored; clearing includes the previous
 footprint to prevent stale texels after camera motion.
+
+### Displaced ridge regression (#242)
+
+`test-sun-terrain-gpu.mjs` runs the production `UniverseRenderer` with a synthetic
+two-tile ridge above the body's spherical horizon. Disk-only and glare-enabled
+sweeps cover an unobstructed disk, approximately quarter/half/three-quarter
+exposure, grazing contact and full occultation, followed by repeated hide/reveal
+transitions. It reads the HDR source and unresolved point targets separately.
+The same ridge also runs inside a real streamed surface overlay's camera-relative
+pass. Equivalent coarse/fine meshes and the production tile fade shader exercise
+selection and material changes. FOV/time sweeps check the subpixel source against
+the main-scene ridge; camera-relative overlays intentionally disappear below
+the renderer's ordinary surface-visibility threshold.
+
+On the unchanged baseline, a fully blocked 26 px Sun still contributes 1396.49
+summed red-channel HDR units (544 source pixels), equal to the unobstructed disk.
+With the selected terrain masks, half exposure contributes 698.24 and complete
+occultation contributes exactly zero. Disk-only pixels already match the ridge;
+this fixture isolates the optical-pass mismatch. Captures are saved as
+`work/sun-rendering/ridge-*.png`.
+
+This synthetic fixture does not validate the recorded lunar epoch, geographic or
+cube-sphere DEM services, LRO material variants, or mobile hardware. Those
+asset-backed captures and hardware timings remain follow-up validation. The
+existing viewer GPU script currently fails its foreground sensor-cone assertion
+on both the unchanged baseline and this change in this environment. A temporary
+copy omitting only that assertion passes the 2683-pixel atmosphere horizon
+comparison and Titan front/back exposure controls.
 
 ## Relative radiance and preset audit
 
@@ -106,6 +150,7 @@ node scripts/test-sun-gpu.mjs
 # Or use an installed browser:
 CHROMIUM_PATH=/usr/bin/chromium node scripts/test-sun-gpu.mjs
 CHROMIUM_PATH=/usr/bin/chromium node scripts/test-sun-viewer-gpu.mjs
+CHROMIUM_PATH=/usr/bin/chromium node scripts/test-sun-terrain-gpu.mjs
 ```
 
 The check needs Chromium but no viewer assets or SPICE kernels. It tests limb

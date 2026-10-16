@@ -1146,12 +1146,19 @@ export class UniverseRenderer {
     this.renderer.info.reset();
     this._renderDebugFrame++;
 
+    if (this.bloomEffect?.enabled && this.solarSources.size > 0) {
+      this.sunGlareEffect ??= new SunGlareEffect(this.renderer);
+      this.sunGlareEffect.beginFrame();
+    }
+
     // Pass 1: Bodies and atmosphere (layer 0) — log depth for cosmic scale.
     // Overlays draw after the Sun because their transparent materials do not
     // write depth and would otherwise be painted over by the solar disk.
     this.camera.layers.set(0);
     this.renderer.clear(true, true, true);
     this.renderer.render(this.scene, this.camera);
+
+    if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.scene);
 
     // Solar disks apply transmission before exposure, after atmosphere shells.
     // Keep Pass 1's opaque depth so foreground planets still mask the disk.
@@ -1228,6 +1235,7 @@ export class UniverseRenderer {
         // Render only the tile scene (separate from main scene) with cleared depth
         this.renderer.clearDepth();
         this.renderer.render(this.tileScene, this.camera);
+        if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.tileScene, savedPos);
 
         // Restore camera
         this.camera.position.copy(savedPos);

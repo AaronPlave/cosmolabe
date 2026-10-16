@@ -16,6 +16,11 @@ export class SunGlareEffect {
   private readonly blurQuad: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   private readonly sourceScene = new THREE.Scene();
   private readonly proxies = new Map<THREE.Mesh, THREE.Mesh>();
+  private readonly frameOccluders = new Map<THREE.Mesh, THREE.Matrix4>();
+  private capturedFrame = false;
+  private readonly opticalScale = { value: 1 };
+  private readonly opticalCenter = { value: new THREE.Vector2() };
+  private readonly maskMaterials = new Map<THREE.Material, { version: number; material: THREE.Material }>();
   private readonly previousBounds = new Map<THREE.WebGLRenderTarget, THREE.Vector4>();
   private readonly dark = new THREE.MeshBasicMaterial({ color: 0 });
   private readonly scene = new THREE.Scene();
@@ -115,6 +120,61 @@ export class SunGlareEffect {
     this.scene.add(this.quad);
   }
 
+  /** Snapshot the display render list before a later layer pass replaces it.
+   * Only selected, camera-visible depth writers participate; hidden fallback globes
+   * and unloaded/culled LODs must not introduce another horizon. CRR transforms
+   * are reconciled in float64 before using the source camera's log-depth projection.
+   */
+  beginFrame(): void {
+    this.capturedFrame = true;
+    this.frameOccluders.clear();
+  }
+
+  captureOccluders(scene: THREE.Scene, cameraOffset?: THREE.Vector3): void {
+    const list = this.renderer.renderLists.get(scene, 0);
+    for (const item of [...list.opaque, ...list.transparent]) {
+      if (!isMesh(item.object) || !item.material.depthWrite || !item.material.depthTest) continue;
+      const matrix = item.object.matrixWorld.clone();
+      if (cameraOffset) matrix.setPosition(new THREE.Vector3().setFromMatrixPosition(matrix).add(cameraOffset));
+      this.frameOccluders.set(item.object, matrix);
+    }
+  }
+
+  /** Keep alpha tests, clipping, sides, displacement and tile fade/discard hooks.
+   * Output only black/depth; the original material is never mutated.
+   */
+  private maskMaterial(original: THREE.Material): THREE.Material {
+    const cached = this.maskMaterials.get(original);
+    if (cached?.version === original.version) {
+      cached.material.opacity = original.opacity;
+      cached.material.visible = original.visible && original.depthWrite && original.depthTest;
+      return cached.material;
+    }
+    cached?.material.dispose();
+    const material = original.clone();
+    // Built-in material copy() omits plugin-defined preprocessor flags.
+    if ('defines' in original) Object.assign(material, { defines: { ...(original.defines as Record<string, unknown>) } });
+    material.visible = original.visible && original.depthWrite && original.depthTest;
+    material.transparent = false;
+    material.blending = THREE.NoBlending;
+    material.onBeforeCompile = (shader, renderer) => {
+      original.onBeforeCompile(shader, renderer);
+      shader.uniforms.solarOpticalScale = this.opticalScale;
+      shader.uniforms.solarOpticalCenter = this.opticalCenter;
+      shader.vertexShader = 'uniform float solarOpticalScale; uniform vec2 solarOpticalCenter;\n' + shader.vertexShader;
+      // Expanding occluders about the same center as the subpixel photosphere
+      // preserves its true rays rather than testing the enlarged footprint.
+      shader.vertexShader = shader.vertexShader.replace(/}\s*$/, `
+        gl_Position.xy = solarOpticalCenter * gl_Position.w +
+          (gl_Position.xy - solarOpticalCenter * gl_Position.w) * solarOpticalScale;
+      }`);
+      shader.fragmentShader = shader.fragmentShader.replace(/}\s*$/, 'gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }');
+    };
+    material.customProgramCacheKey = () => original.customProgramCacheKey() + ':solar-mask';
+    this.maskMaterials.set(original, { version: original.version, material });
+    return material;
+  }
+
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera,
     sources: ReadonlyMap<THREE.Mesh, SunVisual>, strength = 1, bodies?: Iterable<BodyMesh>): void {
     this.renderer.getDrawingBufferSize(this.size);
@@ -147,13 +207,24 @@ export class SunGlareEffect {
     this.sourceScene.clear();
     const spheres: THREE.Mesh<THREE.SphereGeometry>[] = [];
     const opaque: THREE.Mesh[] = [];
+    const modelOccluders = new Set<THREE.Mesh>();
     const addOpaque = (mesh: THREE.Mesh) => {
-      const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-      if (mat && !mat.transparent && mat.depthWrite) opaque.push(mesh);
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      if (materials.some(mat => mat.depthWrite && (this.capturedFrame || !mat.transparent))) opaque.push(mesh);
     };
-    // Production uses a small explicit set of body bounds, not terrain/overlay
-    // traversal. Only intersecting model bodies require inspecting their meshes.
-    if (bodies) {
+    // Production reuses the selected display draw lists; only source-intersecting
+    // bounds become optical draws. Standalone callers retain the body proxy path.
+    if (this.capturedFrame) {
+      for (const mesh of this.frameOccluders.keys()) if (!sources.has(mesh)) addOpaque(mesh);
+      // Models use a tight, non-log depth pass. Keep their bounded geometric
+      // proxy path, rendered with the source camera's log-depth material.
+      if (bodies) for (const body of bodies) {
+        if (!body.visible || !body.isModelVisible || !this.overlapsSource(body.mesh, visible, camera)) continue;
+        body.modelContainer?.traverseVisible(obj => {
+          if (isMesh(obj)) { obj.updateWorldMatrix(true, false); modelOccluders.add(obj); addOpaque(obj); }
+        });
+      }
+    } else if (bodies) {
       for (const body of bodies) {
         if (!body.visible || sources.has(body.mesh)) continue;
         body.mesh.updateWorldMatrix(true, false);
@@ -164,10 +235,26 @@ export class SunGlareEffect {
     } else {
       scene.traverseVisible(obj => { if (isMesh(obj) && !sources.has(obj)) addOpaque(obj); });
     }
+    if (this.capturedFrame) {
+      for (const mesh of this.proxies.keys()) {
+        if (!this.frameOccluders.has(mesh) && !modelOccluders.has(mesh) && !sources.has(mesh)) this.proxies.delete(mesh);
+      }
+      const materials = new Set([this.dark, ...opaque.flatMap(mesh => Array.isArray(mesh.material) ? mesh.material : [mesh.material])]);
+      for (const [original, cached] of this.maskMaterials) {
+        if (!materials.has(original)) { cached.material.dispose(); this.maskMaterials.delete(original); }
+      }
+    }
     for (const mesh of opaque) {
-      mesh.updateWorldMatrix(true, false);
-      if (!this.overlapsSource(mesh, visible, camera)) continue;
-      this.sourceScene.add(this.proxyFor(mesh, this.dark));
+      if (!this.capturedFrame) mesh.updateWorldMatrix(true, false);
+      const matrix = this.frameOccluders.get(mesh) ?? mesh.matrixWorld;
+      if (!this.overlapsSource(mesh, visible, camera, matrix)) continue;
+      const material = modelOccluders.has(mesh) ? this.maskMaterial(this.dark) : this.capturedFrame
+        ? (Array.isArray(mesh.material) ? mesh.material.map(m => this.maskMaterial(m)) : this.maskMaterial(mesh.material))
+        : this.dark;
+      const proxy = this.proxyFor(mesh, material);
+      proxy.matrix.copy(matrix);
+      proxy.matrixWorld.copy(matrix);
+      this.sourceScene.add(proxy);
       if (mesh.geometry instanceof THREE.SphereGeometry) spheres.push(mesh as THREE.Mesh<THREE.SphereGeometry>);
     }
     for (const [mesh] of visible) this.sourceScene.add(this.proxyFor(mesh, mesh.material));
@@ -208,6 +295,10 @@ export class SunGlareEffect {
           visual.uniforms.occluderRadius.value[i] = mesh.geometry.parameters.radius;
         });
       }
+      const [source, visual] = visible[0];
+      source.getWorldPosition(this.projected).project(camera);
+      this.opticalCenter.value.set(this.projected.x, this.projected.y);
+      this.opticalScale.value = visual.uniforms.sourceScale.value;
       camera.layers.enableAll();
       this.renderer.autoClear = false;
       this.renderer.setClearColor(0, 0);
@@ -301,12 +392,12 @@ export class SunGlareEffect {
     return proxy;
   }
 
-  private overlapsSource(mesh: THREE.Mesh, sources: Array<[THREE.Mesh, SunVisual]>, camera: THREE.PerspectiveCamera): boolean {
+  private overlapsSource(mesh: THREE.Mesh, sources: Array<[THREE.Mesh, SunVisual]>, camera: THREE.PerspectiveCamera, matrix = mesh.matrixWorld): boolean {
     if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
     const sphere = mesh.geometry.boundingSphere;
     if (!sphere) return false;
-    const offset = sphere.center.clone().applyMatrix4(mesh.matrixWorld).sub(camera.position);
-    const radius = sphere.radius * mesh.matrixWorld.getMaxScaleOnAxis();
+    const offset = sphere.center.clone().applyMatrix4(matrix).sub(camera.position);
+    const radius = sphere.radius * matrix.getMaxScaleOnAxis();
     return sources.some(([source, visual]) => {
       const direction = source.getWorldPosition(new THREE.Vector3()).sub(camera.position);
       const distance = direction.length();
@@ -340,6 +431,9 @@ export class SunGlareEffect {
 
   dispose(): void {
     this.proxies.clear();
+    this.frameOccluders.clear();
+    for (const { material } of this.maskMaterials.values()) material.dispose();
+    this.maskMaterials.clear();
     this.sourceScene.clear();
     this.previousBounds.clear();
     this.target.dispose();
