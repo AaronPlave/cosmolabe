@@ -2,3 +2,9 @@
 # Goldens (__goldens__/) and README.md are committed; these are not.
 *-actual.png
 *-diff.png
+
+# Generated transport decomposition captures; reviewed figure lives in docs.
+atmosphere-diagnostics/
+
+# Generated continuous measurement camera-orbit recordings.
+measurements/arrow-orbits/

@@ -56,6 +56,11 @@ const _lookTarget = /* @__PURE__ */ new THREE.Vector3();
  * This is deliberately the low-level mechanism only. Which frame a named,
  * user-facing view means is the semantic viewpoint layer's job (#114); the
  * resolved frame stays inspectable here via `frameId`.
+ *
+ * Missing orientations hold the camera and the last valid baseline. On recovery,
+ * co-rotation applies the full delta since that baseline (which may jump), while
+ * attached views resume at the current frame pose. `syncFromCamera` explicitly
+ * re-baselines co-rotation after external placement or a clock seek.
  */
 export class FrameLockedMode implements ICameraMode {
   readonly name: CameraModeName;
@@ -138,6 +143,15 @@ export class FrameLockedMode implements ICameraMode {
     this.bodyName = '';
     this.source = null;
     this.hasPrevQuat = false;
+  }
+
+  /** Preserve an externally placed camera by starting co-rotation at this epoch. */
+  syncFromCamera(ctx: CameraModeContext): void {
+    if (this.behavior !== 'corotate') return;
+    const q = this.source?.orientation(ctx, _curQ);
+    if (!q) return;
+    this.prevQuat.copy(q);
+    this.hasPrevQuat = true;
   }
 
   private updateAttached(ctx: CameraModeContext, pivot: THREE.Vector3, frameToWorld: THREE.Quaternion): void {

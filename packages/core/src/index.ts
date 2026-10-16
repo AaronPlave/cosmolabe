@@ -52,6 +52,8 @@ export { TrajectoryNadirRotation } from './rotations/TrajectoryNadirRotation.js'
 export { FixedRotation } from './rotations/FixedRotation.js';
 export { FixedEulerRotation } from './rotations/FixedEulerRotation.js';
 export { InterpolatedRotation, parseQFile } from './rotations/InterpolatedRotation.js';
+export { CompositeRotation } from './rotations/CompositeRotation.js';
+export type { RotationArc } from './rotations/CompositeRotation.js';
 export type { OrientationRecord } from './rotations/InterpolatedRotation.js';
 
 // Kinematics — frame-aware sub-point and body-fixed velocity geometry, plus
@@ -81,10 +83,9 @@ export type { BodyLookup } from './kinematics.js';
 
 // The SPICE surface core still calls — transitional, and deliberately narrow:
 // only what core's own call sites use, not the heritage adapter's full surface.
-// core never constructs an engine; it takes one by injection, and both
-// @cosmolabe/frames (createHeritageSpice, the runtime path) and
-// @cosmolabe/spice (the reference implementation used in tests) satisfy this
-// structurally. It shrinks as call sites migrate to the M-0002 contracts.
+// core takes an engine by injection. @cosmolabe/frames' createHeritageSpice
+// satisfies this structurally, pinned by spice-injection-conformance.test.ts.
+// It shrinks as call sites migrate to the M-0002 contracts.
 // See src/spice-injection.ts.
 export type {
   AberrationCorrection,
@@ -152,6 +153,25 @@ export type {
   ResolvedContinuousProfile,
 } from './geometry/analysis.js';
 export { resolveContinuousProfile, resolveEventQuery } from './geometry/analysis.js';
+export {
+  endpointLabel,
+  resolveSpatialEndpoint,
+  resolveSpatialRelationship,
+  resolveReferenceVector,
+  resolveFrameAxes,
+  frameAvailability,
+  resolveVelocity,
+  defaultVelocityCenter,
+  relationshipVectors,
+  referenceVectorLabel,
+  referenceRelationship,
+  formatSpatialDistance,
+  formatSpatialSpeed,
+} from './geometry/spatial-relationships.js';
+export type {
+  SpatialEndpoint, SpatialRelationship, ResolvedSpatialRelationship,
+  ReferenceVector, ResolvedReferenceVector, ReferenceRequest, FrameAxis, SpatialResolutionCache,
+} from './geometry/spatial-relationships.js';
 
 // Geometry/event finder — the shared query + result model every geometry
 // search is expressed in, the SPICE GF boundary it runs against, and the

@@ -9,7 +9,7 @@ export type { DistanceRangeParams } from './distance-range.js';
 export { distanceRangeKind } from './distance-range.js';
 export type { OccultationParams, OccultationState } from './occultation.js';
 export { occultationKind } from './occultation.js';
-export { rangeAt, rangeExtremum, rangeMetric } from './range-metrics.js';
+export { altitudeAt, rangeAt, rangeExtremum, rangeMetric } from './range-metrics.js';
 
 /**
  * The event kinds Cosmolabe ships, in the order a picker should offer them.

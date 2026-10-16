@@ -1,0 +1,926 @@
+{
+ "about": "Skirt pixels drawn through nearer surface (capture-cube-imagery.mjs --experiments cracks --gpu), with three.js log depth and with --log-depth-fix",
+ "generator": "scripts/capture-cube-imagery.mjs",
+ "created": [
+  "2026-10-14T16:27:03.074Z",
+  "2026-10-14T16:33:12.896Z"
+ ],
+ "viewport": {
+  "width": 1280,
+  "height": 800
+ },
+ "browser": {
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+  "devicePixelRatio": 1,
+  "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "hardwareConcurrency": 16,
+  "launch": "playwright chromium headless, --use-angle=metal --ignore-gpu-blocklist --enable-gpu (hardware GPU); ?test=1 (no antialias/bloom/stars)"
+ },
+ "host": {
+  "platform": "darwin 25.6.0",
+  "cpus": 16,
+  "cpuModel": "Apple M4 Max",
+  "memoryGB": 48
+ },
+ "rows": [
+  {
+   "catalog": "terrain",
+   "view": "shackleton",
+   "pose": {
+    "eye": [
+     -18.105506477265028,
+     21.746334717688182,
+     -1743.1703438165612
+    ],
+    "target": [
+     -6.393456931874776,
+     7.679114341167814,
+     -1734.8712243020793
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 110,
+   "unmitigatedHolePixels": 105,
+   "threeLogDepth": {
+    "skirtPixels": 5235,
+    "checked": 403,
+    "behindSurface": 397,
+    "bleedPixels": 5157
+   },
+   "logDepthFix": {
+    "skirtPixels": 111,
+    "checked": 111,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "terrain",
+   "view": "pole",
+   "pose": {
+    "eye": [
+     7.850375853599291,
+     -9.355713626741792,
+     -1749.3573683560176
+    ],
+    "target": [
+     1.0638506744193058e-13,
+     0,
+     -1737.4
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 75,
+   "unmitigatedHolePixels": 52,
+   "threeLogDepth": {
+    "skirtPixels": 5409,
+    "checked": 417,
+    "behindSurface": 413,
+    "bleedPixels": 5357
+   },
+   "logDepthFix": {
+    "skirtPixels": 52,
+    "checked": 52,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "terrain",
+   "view": "face-edge",
+   "pose": {
+    "eye": [
+     1269.779955654124,
+     -17.7306250421164,
+     -1243.5816214284555
+    ],
+    "target": [
+     1228.5273216335079,
+     0,
+     -1228.5273216335077
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 177,
+   "unmitigatedHolePixels": 36,
+   "threeLogDepth": {
+    "skirtPixels": 2516,
+    "checked": 420,
+    "behindSurface": 413,
+    "bleedPixels": 2474
+   },
+   "logDepthFix": {
+    "skirtPixels": 38,
+    "checked": 38,
+    "behindSurface": 3,
+    "bleedPixels": 3
+   }
+  },
+  {
+   "catalog": "terrain",
+   "view": "face-corner",
+   "pose": {
+    "eye": [
+     1035.155626664929,
+     1057.0661225120136,
+     -1020.6423473584441
+    ],
+    "target": [
+     1003.088357724157,
+     1003.0883577241569,
+     -1003.0883576218536
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 219,
+   "unmitigatedHolePixels": 6,
+   "threeLogDepth": {
+    "skirtPixels": 2725,
+    "checked": 455,
+    "behindSurface": 455,
+    "bleedPixels": 2725
+   },
+   "logDepthFix": {
+    "skirtPixels": 10,
+    "checked": 10,
+    "behindSurface": 2,
+    "bleedPixels": 2
+   }
+  },
+  {
+   "catalog": "terrain",
+   "view": "shackleton-grazing",
+   "pose": {
+    "eye": [
+     -13.008949978283473,
+     15.624913940333391,
+     -1738.592839617781
+    ],
+    "target": [
+     6.399650519123311,
+     -7.686553394119962,
+     -1736.5518606787973
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 134,
+   "unmitigatedHolePixels": 79,
+   "threeLogDepth": {
+    "skirtPixels": 6190,
+    "checked": 413,
+    "behindSurface": 403,
+    "bleedPixels": 6040
+   },
+   "logDepthFix": {
+    "skirtPixels": 102,
+    "checked": 102,
+    "behindSurface": 1,
+    "bleedPixels": 1
+   }
+  },
+  {
+   "catalog": "terrain",
+   "view": "shackleton-near",
+   "pose": {
+    "eye": [
+     -8.719382720164408,
+     10.472759511169686,
+     -1735.0601635497092
+    ],
+    "target": [
+     -6.39239168224916,
+     7.677834880969027,
+     -1734.5821677022038
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 112,
+   "unmitigatedHolePixels": 58,
+   "threeLogDepth": {
+    "skirtPixels": 13181,
+    "checked": 412,
+    "behindSurface": 411,
+    "bleedPixels": 13149
+   },
+   "logDepthFix": {
+    "skirtPixels": 75,
+    "checked": 75,
+    "behindSurface": 1,
+    "bleedPixels": 1
+   }
+  },
+  {
+   "catalog": "terrain",
+   "view": "pole-grazing",
+   "pose": {
+    "eye": [
+     7.877400442250699,
+     -4.548019265847917,
+     -1737.1995182372834
+    ],
+    "target": [
+     -15.763462131318006,
+     9.10103910487692,
+     -1738.1068952729777
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 119,
+   "unmitigatedHolePixels": 38,
+   "threeLogDepth": {
+    "skirtPixels": 9033,
+    "checked": 411,
+    "behindSurface": 406,
+    "bleedPixels": 8923
+   },
+   "logDepthFix": {
+    "skirtPixels": 48,
+    "checked": 48,
+    "behindSurface": 2,
+    "bleedPixels": 2
+   }
+  },
+  {
+   "catalog": "terrain",
+   "view": "edge-grazing",
+   "pose": {
+    "eye": [
+     1221.9086349327379,
+     -8.53067012720583,
+     -1234.8019929478933
+    ],
+    "target": [
+     1240.935048075905,
+     12.995516478147962,
+     -1215.2800162016738
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 113,
+   "unmitigatedHolePixels": 0,
+   "threeLogDepth": {
+    "skirtPixels": 4219,
+    "checked": 422,
+    "behindSurface": 420,
+    "bleedPixels": 4199
+   },
+   "logDepthFix": {
+    "skirtPixels": 3,
+    "checked": 3,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "terrain",
+   "view": "corner-grazing",
+   "pose": {
+    "eye": [
+     1008.344861076708,
+     990.8977352568517,
+     -1012.1325793319379
+    ],
+    "target": [
+     998.9784006941725,
+     1020.1231556816483,
+     -992.3459402634589
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 177,
+   "unmitigatedHolePixels": 1,
+   "threeLogDepth": {
+    "skirtPixels": 9390,
+    "checked": 409,
+    "behindSurface": 409,
+    "bleedPixels": 9390
+   },
+   "logDepthFix": {
+    "skirtPixels": 2,
+    "checked": 2,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "terrain",
+   "view": "pole-low",
+   "pose": {
+    "eye": [
+     -0.6037810746237045,
+     -0.06484535022281993,
+     -1739.6523356643834
+    ],
+    "target": [
+     -0.017786628035655744,
+     -0.01652257065646978,
+     -1738.6925028666687
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 124,
+   "unmitigatedHolePixels": 50,
+   "threeLogDepth": {
+    "skirtPixels": 22178,
+    "checked": 404,
+    "behindSurface": 404,
+    "bleedPixels": 22178
+   },
+   "logDepthFix": {
+    "skirtPixels": 53,
+    "checked": 53,
+    "behindSurface": 2,
+    "bleedPixels": 2
+   }
+  },
+  {
+   "catalog": "terrain",
+   "view": "rim-low",
+   "pose": {
+    "eye": [
+     2.781531268155163,
+     59.645926440448875,
+     -1737.7176513371373
+    ],
+    "target": [
+     -0.45129019999536785,
+     59.44029191542799,
+     -1736.076519936343
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 80,
+   "unmitigatedHolePixels": 48,
+   "threeLogDepth": {
+    "skirtPixels": 13933,
+    "checked": 410,
+    "behindSurface": 409,
+    "bleedPixels": 13899
+   },
+   "logDepthFix": {
+    "skirtPixels": 83,
+    "checked": 83,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "shackleton",
+   "pose": {
+    "eye": [
+     -18.105506477265028,
+     21.746334717688182,
+     -1743.1703438165612
+    ],
+    "target": [
+     -6.393456931874776,
+     7.679114341167814,
+     -1734.8712243020793
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 110,
+   "unmitigatedHolePixels": 105,
+   "threeLogDepth": {
+    "skirtPixels": 5235,
+    "checked": 403,
+    "behindSurface": 397,
+    "bleedPixels": 5157
+   },
+   "logDepthFix": {
+    "skirtPixels": 111,
+    "checked": 111,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "pole",
+   "pose": {
+    "eye": [
+     7.850375853599291,
+     -9.355713626741792,
+     -1749.3573683560176
+    ],
+    "target": [
+     1.0638506744193058e-13,
+     0,
+     -1737.4
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 75,
+   "unmitigatedHolePixels": 52,
+   "threeLogDepth": {
+    "skirtPixels": 5409,
+    "checked": 417,
+    "behindSurface": 413,
+    "bleedPixels": 5357
+   },
+   "logDepthFix": {
+    "skirtPixels": 52,
+    "checked": 52,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "face-edge",
+   "pose": {
+    "eye": [
+     1269.779955654124,
+     -17.7306250421164,
+     -1243.5816214284555
+    ],
+    "target": [
+     1228.5273216335079,
+     0,
+     -1228.5273216335077
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 177,
+   "unmitigatedHolePixels": 36,
+   "threeLogDepth": {
+    "skirtPixels": 2516,
+    "checked": 420,
+    "behindSurface": 413,
+    "bleedPixels": 2474
+   },
+   "logDepthFix": {
+    "skirtPixels": 38,
+    "checked": 38,
+    "behindSurface": 3,
+    "bleedPixels": 3
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "face-corner",
+   "pose": {
+    "eye": [
+     1035.155626664929,
+     1057.0661225120136,
+     -1020.6423473584441
+    ],
+    "target": [
+     1003.088357724157,
+     1003.0883577241569,
+     -1003.0883576218536
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 219,
+   "unmitigatedHolePixels": 6,
+   "threeLogDepth": {
+    "skirtPixels": 2725,
+    "checked": 455,
+    "behindSurface": 455,
+    "bleedPixels": 2725
+   },
+   "logDepthFix": {
+    "skirtPixels": 10,
+    "checked": 10,
+    "behindSurface": 2,
+    "bleedPixels": 2
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "shackleton-grazing",
+   "pose": {
+    "eye": [
+     -13.008949978283473,
+     15.624913940333391,
+     -1738.592839617781
+    ],
+    "target": [
+     6.399650519123311,
+     -7.686553394119962,
+     -1736.5518606787973
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 134,
+   "unmitigatedHolePixels": 79,
+   "threeLogDepth": {
+    "skirtPixels": 6190,
+    "checked": 413,
+    "behindSurface": 403,
+    "bleedPixels": 6040
+   },
+   "logDepthFix": {
+    "skirtPixels": 102,
+    "checked": 102,
+    "behindSurface": 1,
+    "bleedPixels": 1
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "shackleton-near",
+   "pose": {
+    "eye": [
+     -8.719382720164408,
+     10.472759511169686,
+     -1735.0601635497092
+    ],
+    "target": [
+     -6.39239168224916,
+     7.677834880969027,
+     -1734.5821677022038
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 112,
+   "unmitigatedHolePixels": 58,
+   "threeLogDepth": {
+    "skirtPixels": 13181,
+    "checked": 412,
+    "behindSurface": 411,
+    "bleedPixels": 13149
+   },
+   "logDepthFix": {
+    "skirtPixels": 75,
+    "checked": 75,
+    "behindSurface": 1,
+    "bleedPixels": 1
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "pole-grazing",
+   "pose": {
+    "eye": [
+     7.877400442250699,
+     -4.548019265847917,
+     -1737.1995182372834
+    ],
+    "target": [
+     -15.763462131318006,
+     9.10103910487692,
+     -1738.1068952729777
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 119,
+   "unmitigatedHolePixels": 38,
+   "threeLogDepth": {
+    "skirtPixels": 9033,
+    "checked": 411,
+    "behindSurface": 406,
+    "bleedPixels": 8923
+   },
+   "logDepthFix": {
+    "skirtPixels": 48,
+    "checked": 48,
+    "behindSurface": 2,
+    "bleedPixels": 2
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "edge-grazing",
+   "pose": {
+    "eye": [
+     1221.9086349327379,
+     -8.53067012720583,
+     -1234.8019929478933
+    ],
+    "target": [
+     1240.935048075905,
+     12.995516478147962,
+     -1215.2800162016738
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 113,
+   "unmitigatedHolePixels": 0,
+   "threeLogDepth": {
+    "skirtPixels": 4219,
+    "checked": 422,
+    "behindSurface": 420,
+    "bleedPixels": 4199
+   },
+   "logDepthFix": {
+    "skirtPixels": 3,
+    "checked": 3,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "corner-grazing",
+   "pose": {
+    "eye": [
+     1008.344861076708,
+     990.8977352568517,
+     -1012.1325793319379
+    ],
+    "target": [
+     998.9784006941725,
+     1020.1231556816483,
+     -992.3459402634589
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 177,
+   "unmitigatedHolePixels": 1,
+   "threeLogDepth": {
+    "skirtPixels": 9135,
+    "checked": 416,
+    "behindSurface": 416,
+    "bleedPixels": 9135
+   },
+   "logDepthFix": {
+    "skirtPixels": 2,
+    "checked": 2,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "pole-low",
+   "pose": {
+    "eye": [
+     -0.6037810746237045,
+     -0.06484535022281993,
+     -1739.6523356643834
+    ],
+    "target": [
+     -0.017786628035655744,
+     -0.01652257065646978,
+     -1738.6925028666687
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 124,
+   "unmitigatedHolePixels": 50,
+   "threeLogDepth": {
+    "skirtPixels": 22178,
+    "checked": 404,
+    "behindSurface": 404,
+    "bleedPixels": 22178
+   },
+   "logDepthFix": {
+    "skirtPixels": 53,
+    "checked": 53,
+    "behindSurface": 2,
+    "bleedPixels": 2
+   }
+  },
+  {
+   "catalog": "grid",
+   "view": "rim-low",
+   "pose": {
+    "eye": [
+     2.781531268155163,
+     59.645926440448875,
+     -1737.7176513371373
+    ],
+    "target": [
+     -0.45129019999536785,
+     59.44029191542799,
+     -1736.076519936343
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 80,
+   "unmitigatedHolePixels": 48,
+   "threeLogDepth": {
+    "skirtPixels": 13933,
+    "checked": 410,
+    "behindSurface": 409,
+    "bleedPixels": 13899
+   },
+   "logDepthFix": {
+    "skirtPixels": 83,
+    "checked": 83,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "nac",
+   "view": "shackleton",
+   "pose": {
+    "eye": [
+     -18.105506477265028,
+     21.746334717688182,
+     -1743.1703438165612
+    ],
+    "target": [
+     -6.393456931874776,
+     7.679114341167814,
+     -1734.8712243020793
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 110,
+   "unmitigatedHolePixels": 105,
+   "threeLogDepth": {
+    "skirtPixels": 5235,
+    "checked": 403,
+    "behindSurface": 397,
+    "bleedPixels": 5157
+   },
+   "logDepthFix": {
+    "skirtPixels": 111,
+    "checked": 111,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "nac",
+   "view": "pole",
+   "pose": {
+    "eye": [
+     7.850375853599291,
+     -9.355713626741792,
+     -1749.3573683560176
+    ],
+    "target": [
+     1.0638506744193058e-13,
+     0,
+     -1737.4
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 75,
+   "unmitigatedHolePixels": 52,
+   "threeLogDepth": {
+    "skirtPixels": 5409,
+    "checked": 417,
+    "behindSurface": 413,
+    "bleedPixels": 5357
+   },
+   "logDepthFix": {
+    "skirtPixels": 52,
+    "checked": 52,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  },
+  {
+   "catalog": "nac",
+   "view": "shackleton-grazing",
+   "pose": {
+    "eye": [
+     -13.008949978283473,
+     15.624913940333391,
+     -1738.592839617781
+    ],
+    "target": [
+     6.399650519123311,
+     -7.686553394119962,
+     -1736.5518606787973
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 134,
+   "unmitigatedHolePixels": 79,
+   "threeLogDepth": {
+    "skirtPixels": 6190,
+    "checked": 413,
+    "behindSurface": 403,
+    "bleedPixels": 6040
+   },
+   "logDepthFix": {
+    "skirtPixels": 102,
+    "checked": 102,
+    "behindSurface": 1,
+    "bleedPixels": 1
+   }
+  },
+  {
+   "catalog": "nac",
+   "view": "shackleton-near",
+   "pose": {
+    "eye": [
+     -8.719382720164408,
+     10.472759511169686,
+     -1735.0601635497092
+    ],
+    "target": [
+     -6.39239168224916,
+     7.677834880969027,
+     -1734.5821677022038
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 112,
+   "unmitigatedHolePixels": 58,
+   "threeLogDepth": {
+    "skirtPixels": 13181,
+    "checked": 412,
+    "behindSurface": 411,
+    "bleedPixels": 13149
+   },
+   "logDepthFix": {
+    "skirtPixels": 75,
+    "checked": 75,
+    "behindSurface": 1,
+    "bleedPixels": 1
+   }
+  },
+  {
+   "catalog": "nac",
+   "view": "pole-grazing",
+   "pose": {
+    "eye": [
+     7.877400442250699,
+     -4.548019265847917,
+     -1737.1995182372834
+    ],
+    "target": [
+     -15.763462131318006,
+     9.10103910487692,
+     -1738.1068952729777
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 119,
+   "unmitigatedHolePixels": 38,
+   "threeLogDepth": {
+    "skirtPixels": 9033,
+    "checked": 411,
+    "behindSurface": 406,
+    "bleedPixels": 8923
+   },
+   "logDepthFix": {
+    "skirtPixels": 48,
+    "checked": 48,
+    "behindSurface": 2,
+    "bleedPixels": 2
+   }
+  },
+  {
+   "catalog": "nac",
+   "view": "pole-low",
+   "pose": {
+    "eye": [
+     -0.6037810746237045,
+     -0.06484535022281993,
+     -1739.6523356643834
+    ],
+    "target": [
+     -0.017786628035655744,
+     -0.01652257065646978,
+     -1738.6925028666687
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 124,
+   "unmitigatedHolePixels": 50,
+   "threeLogDepth": {
+    "skirtPixels": 22178,
+    "checked": 404,
+    "behindSurface": 404,
+    "bleedPixels": 22178
+   },
+   "logDepthFix": {
+    "skirtPixels": 53,
+    "checked": 53,
+    "behindSurface": 2,
+    "bleedPixels": 2
+   }
+  },
+  {
+   "catalog": "nac",
+   "view": "rim-low",
+   "pose": {
+    "eye": [
+     2.781531268155163,
+     59.645926440448875,
+     -1737.7176513371373
+    ],
+    "target": [
+     -0.45129019999536785,
+     59.44029191542799,
+     -1736.076519936343
+    ],
+    "fov": 60
+   },
+   "visibleTiles": 80,
+   "unmitigatedHolePixels": 48,
+   "threeLogDepth": {
+    "skirtPixels": 13933,
+    "checked": 410,
+    "behindSurface": 409,
+    "bleedPixels": 13899
+   },
+   "logDepthFix": {
+    "skirtPixels": 83,
+    "checked": 83,
+    "behindSurface": 0,
+    "bleedPixels": 0
+   }
+  }
+ ]
+}

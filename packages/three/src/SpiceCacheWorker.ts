@@ -346,11 +346,11 @@ export class SpiceCacheWorker {
 
       const id = `geom_${this.nextId++}`;
       ids.add(id);
-      // `range` is a single position lookup: nothing to report. Without a
+      // `range` and `altitude` are single lookups: nothing to report. Without a
       // progress callback there is nothing to ask for either, and the search
       // stays on CSPICE's simplified wrappers, exactly where it was before any
       // of this.
-      const reported = fn !== 'range' && !!options?.onProgress;
+      const reported = fn !== 'range' && fn !== 'altitude' && !!options?.onProgress;
       if (reported) {
         this.geometryProgress.set(id, (p) => {
           progress = p;
@@ -410,6 +410,9 @@ export class SpiceCacheWorker {
 
         range: async (target: string, abcorr: string, observer: string, et: EtSeconds) =>
           (await call('range', [target, abcorr, observer, et])) as number,
+
+        altitude: async (target: string, abcorr: string, observer: string, et: EtSeconds) =>
+          (await call('altitude', [target, abcorr, observer, et])) as number,
       },
     };
   }

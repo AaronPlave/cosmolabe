@@ -8,15 +8,18 @@ import * as THREE from 'three';
 // Reuses uSunWorldPos / vShadowWorldPos declared by SHADOW_FRAG_PARS, so
 // eclipse-shadow inject must be applied first.
 
-export const RING_SHADOW_FRAG_PARS = /* glsl */`
+export const RING_VISIBILITY_GLSL = /* glsl */`
+#ifndef COSMOLABE_RING_VISIBILITY
+#define COSMOLABE_RING_VISIBILITY
 uniform sampler2D uRingMap;
 uniform vec3      uRingCenterWorld;
 uniform vec3      uRingNormalWorld;
 uniform float     uRingInnerRadius;
 uniform float     uRingOuterRadius;
 
-float computeRingShadow() {
-  vec3 toSun = uSunWorldPos - vShadowWorldPos;
+float computeRingVisibility(vec3 worldPos) {
+  if (uRingOuterRadius <= uRingInnerRadius) return 1.0;
+  vec3 toSun = uSunWorldPos - worldPos;
   float distToSun = length(toSun);
   vec3 L = toSun / max(distToSun, 1e-20);
 
@@ -24,9 +27,9 @@ float computeRingShadow() {
   // Keep the intersection finite even for rays rejected below. Derivatives
   // and the filtered texture lookup must run before any divergent returns.
   float safeDenom = denom < 0.0 ? min(denom, -1e-6) : max(denom, 1e-6);
-  float t = dot(uRingCenterWorld - vShadowWorldPos, uRingNormalWorld) / safeDenom;
+  float t = dot(uRingCenterWorld - worldPos, uRingNormalWorld) / safeDenom;
 
-  vec3 hit = vShadowWorldPos + L * t;
+  vec3 hit = worldPos + L * t;
   float r = length(hit - uRingCenterWorld);
   // Each edge transitions over one pixel's radial footprint. Only the
   // annulus cutoff is softened; texture-defined gaps and bands stay intact.
@@ -41,6 +44,12 @@ float computeRingShadow() {
   if (distToSun < 1e-20 || abs(denom) < 1e-6 || t <= 0.0 || t > distToSun) return 1.0;
   return 1.0 - a * coverage;
 }
+#endif
+`;
+
+export const RING_SHADOW_FRAG_PARS = /* glsl */`
+${RING_VISIBILITY_GLSL}
+float computeRingShadow() { return computeRingVisibility(vShadowWorldPos); }
 `;
 
 export type RingShadowUniforms = {

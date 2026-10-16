@@ -58,6 +58,15 @@ function fakeCtx(bms: BodyMesh[], spice: CameraModeSpice | null = fakeSpice()): 
 
 const toThree = (q: Quaternion) => new THREE.Quaternion(q[1], q[2], q[3], q[0]);
 
+function cameraPose(ctx: CameraModeContext) {
+  return {
+    position: ctx.camera.position.toArray(),
+    quaternion: ctx.camera.quaternion.toArray(),
+    up: ctx.camera.up.toArray(),
+    target: ctx.controls.target.toArray(),
+  };
+}
+
 describe('spiceFrame (arbitrary furnished frame)', () => {
   it('composes pxform(J2000→frame) through composeBodyToWorldQuat, obliquity included', () => {
     const m = quatToMat3(spinAt(40));
@@ -140,9 +149,140 @@ describe('the existing locked modes are FrameLockedMode instances', () => {
   }
 });
 
+describe('co-rotation resync and coverage recovery', () => {
+  for (const Mode of [BodyFixedMode, ScFixedMode]) {
+    for (const frameName of [undefined, 'TEST_FRAME']) {
+      it(`${Mode.name} re-baselines external placement after a seek (${frameName ?? 'body'})`, () => {
+        const bm = fakeBodyMesh('Moon');
+        const ctx = fakeCtx([bm]);
+        const mode = new Mode();
+        mode.activate(ctx, { bodyName: 'Moon', frameName });
+        ctx.et = 20;
+        ctx.camera.position.set(-3, 9, 4);
+        ctx.controls.target.set(6, -1, 2);
+        ctx.camera.up.set(0, 0, 1);
+        ctx.camera.lookAt(ctx.controls.target);
+        const placed = cameraPose(ctx);
+        mode.syncFromCamera(ctx);
+        expect(cameraPose(ctx)).toEqual(placed);
+        mode.update(ctx);
+        for (const [key, values] of Object.entries(cameraPose(ctx))) {
+          values.forEach((v, i) => expect(v).toBeCloseTo(placed[key as keyof typeof placed][i], 12));
+        }
+
+        // An orbit/zoom edit remains free, then follows only subsequent rotation.
+        ctx.camera.position.sub(bm.position).multiplyScalar(2).applyAxisAngle(axis, 0.3).add(bm.position);
+        const local = ctx.camera.position.clone().sub(bm.position)
+          .applyQuaternion(bodyRotationFrame('Moon').orientation(ctx, new THREE.Quaternion())!.invert());
+        ctx.et = 21;
+        mode.update(ctx);
+        const localAfter = ctx.camera.position.clone().sub(bm.position)
+          .applyQuaternion(bodyRotationFrame('Moon').orientation(ctx, new THREE.Quaternion())!.invert());
+        expect(localAfter.distanceTo(local)).toBeLessThan(1e-10);
+      });
+    }
+
+    it(`${Mode.name} holds through a CK gap and applies the accumulated delta on recovery`, () => {
+      const bm = fakeBodyMesh('Moon');
+      const ctx = fakeCtx([bm], fakeSpice({ pxform: (_f, _t, et) => {
+        if (et === 2) throw new Error('CK gap');
+        return [...quatToMat3(spinAt(10 * et))];
+      } }));
+      const mode = new Mode();
+      mode.activate(ctx, { bodyName: 'Moon', frameName: 'TEST_FRAME' });
+      ctx.et = 1;
+      mode.update(ctx);
+      const beforeGap = cameraPose(ctx);
+      const oldFrame = spiceFrame('TEST_FRAME').orientation(ctx, new THREE.Quaternion())!.clone();
+      ctx.et = 2;
+      mode.update(ctx);
+      mode.syncFromCamera(ctx); // A failed resync must preserve the last valid baseline.
+      expect(cameraPose(ctx)).toEqual(beforeGap);
+      ctx.et = 8;
+      const delta = spiceFrame('TEST_FRAME').orientation(ctx, new THREE.Quaternion())!.multiply(oldFrame.invert());
+      const expectedPosition = ctx.camera.position.clone().sub(bm.position).applyQuaternion(delta).add(bm.position);
+      const expectedTarget = ctx.controls.target.clone().sub(bm.position).applyQuaternion(delta).add(bm.position);
+      const expectedQuat = ctx.camera.quaternion.clone().premultiply(delta);
+      const expectedUp = ctx.camera.up.clone().applyQuaternion(delta);
+      mode.update(ctx);
+      expect(ctx.camera.position.distanceTo(expectedPosition)).toBeLessThan(1e-10);
+      expect(ctx.controls.target.distanceTo(expectedTarget)).toBeLessThan(1e-10);
+      expect(Math.abs(ctx.camera.quaternion.dot(expectedQuat))).toBeCloseTo(1, 12);
+      expect(ctx.camera.up.distanceTo(expectedUp)).toBeLessThan(1e-10);
+    });
+  }
+});
+
 describe('LVLH as an attached frame lock', () => {
   // r and v chosen off-axis so every LVLH axis is distinct from the world axes.
   const state: [number, number, number, number, number, number] = [7000, 1200, -300, -0.5, 7.4, 0.9];
+
+  const invalidStates: [string, number[]][] = [
+    ['zero position', [0, 0, 0, 1, 2, 3]],
+    ['zero state', [0, 0, 0, 0, 0, 0]],
+    ['stationary', [7000, 1200, -300, 0, 0, 0]],
+    ['radial', [7000, 1200, -300, 7, 1.2, -0.3]],
+    ['antiparallel', [7000, 1200, -300, -7, -1.2, 0.3]],
+    ['near-collinear', [7000, 0, 0, 7, 1e-13, 0]],
+  ];
+  for (let i = 0; i < 6; i++) {
+    for (const value of [NaN, Infinity, -Infinity]) {
+      const invalid = [...state];
+      invalid[i] = value;
+      invalidStates.push([`component ${i} = ${value}`, invalid]);
+    }
+  }
+  for (const [label, invalid] of invalidStates) {
+    it(`rejects ${label} without changing the output or camera`, () => {
+      const ctx = fakeCtx([fakeBodyMesh('LRO')], fakeSpice({
+        spkezr: () => ({ state: invalid as typeof state, lightTime: 0 }),
+      }));
+      const out = new THREE.Quaternion().setFromAxisAngle(axis, 0.7);
+      const before = out.clone();
+      expect(lvlhFrame('LRO', 'MOON').orientation(ctx, out)).toBeNull();
+      expect(out).toEqual(before);
+      const mode = new LvlhMode();
+      mode.activate(ctx, { bodyName: 'LRO', centerBodyName: 'MOON', offset: 2 });
+      const pose = cameraPose(ctx);
+      mode.update(ctx);
+      expect(cameraPose(ctx)).toEqual(pose);
+    });
+  }
+
+  for (const scale of [1e-150, 1, 1e150]) {
+    it(`uses an angular degeneracy threshold at scale ${scale}`, () => {
+      let state: [number, number, number, number, number, number] =
+        [7000 * scale, 0, 0, 7 * scale, 1e-13 * scale, 0];
+      const ctx = fakeCtx([], fakeSpice({ spkezr: () => ({ state, lightTime: 0 }) }));
+      const source = lvlhFrame('LRO', 'MOON');
+      expect(source.orientation(ctx, new THREE.Quaternion())).toBeNull();
+      state = [7000 * scale, 0, 0, 7 * scale, 1e-9 * scale, 0];
+      const q = source.orientation(ctx, new THREE.Quaternion())!;
+      expect(q).not.toBeNull();
+      expect(q.length()).toBeCloseTo(1, 12);
+      expect(new THREE.Vector3(0, 0, 1).applyQuaternion(q).distanceTo(new THREE.Vector3(-1, 0, 0))).toBeLessThan(1e-12);
+    });
+  }
+
+  it('holds through an SPK gap and resumes at the current LVLH pose after a time jump', () => {
+    const ctx = fakeCtx([fakeBodyMesh('LRO')], fakeSpice({ spkezr: (_b, et) => {
+      if (et === 2) throw new Error('SPK gap');
+      return { state: et < 2 ? state : [0, 7000, 0, -7, 0, 0], lightTime: 0 };
+    } }));
+    const mode = new LvlhMode();
+    mode.activate(ctx, { bodyName: 'LRO', centerBodyName: 'MOON', offset: 2 });
+    mode.update(ctx);
+    const beforeGap = cameraPose(ctx);
+    ctx.et = 2;
+    mode.syncFromCamera(ctx);
+    mode.update(ctx);
+    expect(cameraPose(ctx)).toEqual(beforeGap);
+    ctx.et = 100;
+    mode.update(ctx);
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(ctx.camera.quaternion);
+    expect(forward.distanceTo(new THREE.Vector3(0, -1, 0))).toBeLessThan(1e-12);
+    expect(ctx.camera.position.distanceTo(ctx.bodyMeshes.get('LRO')!.position.clone().add(new THREE.Vector3(0, 2, 0)))).toBeLessThan(1e-12);
+  });
 
   /** The pre-refactor LvlhMode basis, written out independently. */
   function legacy(axisLabel: string): { forward: THREE.Vector3; up: THREE.Vector3 } {

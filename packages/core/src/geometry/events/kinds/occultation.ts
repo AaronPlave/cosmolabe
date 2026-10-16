@@ -79,14 +79,29 @@ export const occultationKind: EventKind<OccultationParams> = {
     return undefined;
   },
 
+  // GFOCLT reads both bodies' states from the observer, their body-fixed
+  // frames and their radii, exactly as `run` passes them.
+  geometry: (query) => {
+    const observer = query.bodies.observer!;
+    const front = query.bodies.front!;
+    const back = query.bodies.back!;
+    return {
+      vectors: [
+        { target: front, observer, abcorr: query.abcorr },
+        { target: back, observer, abcorr: query.abcorr },
+      ],
+      frames: [`IAU_${front}`, `IAU_${back}`],
+      radii: [front, back],
+    };
+  },
+
+  plannedCalls: (query) => occultationStates(query.params).length,
+
   run: async (query, ctx) => {
     const observer = query.bodies.observer!;
     const front = query.bodies.front!;
     const back = query.bodies.back!;
-    const requested = query.params?.state ?? 'all';
-    const states: OccultationState[] = requested === 'all'
-      ? ['partial', 'full', 'annular']
-      : [requested];
+    const states = occultationStates(query.params);
     const events: IntervalEvent[] = [];
 
     for (const state of states) {
@@ -133,3 +148,8 @@ export const occultationKind: EventKind<OccultationParams> = {
     return events;
   },
 };
+
+function occultationStates(params?: OccultationParams): OccultationState[] {
+  const requested = params?.state ?? 'all';
+  return requested === 'all' ? ['partial', 'full', 'annular'] : [requested];
+}

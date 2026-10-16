@@ -205,6 +205,12 @@ export type EventSearchFaultCode =
   | 'invalid-window'
   | 'invalid-step'
   | 'invalid-params'
+  /**
+   * Nothing in the scene can answer the search — e.g. a catalog with no SPICE
+   * kernels, whose bodies GF cannot see. Not a failed search: one that was not
+   * attempted, with the reason in `message`.
+   */
+  | 'unavailable'
   | 'provider-error';
 
 /**

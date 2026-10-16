@@ -7,6 +7,9 @@ import type { EtInterval, EtSeconds } from './types.js';
  * integration — is Cosmolabe's. Everything below it is CSPICE's, and stays
  * there: event kinds compose GF calls, they do not reimplement the geometry.
  *
+ * GF methods optionally report a 0–1 fraction for that call. Providers without
+ * a reporter can ignore the callback.
+ *
  * The signatures mirror CSPICE's `gf*_c` routines so a synchronous `Spice`
  * instance satisfies this interface structurally, with no adapter. The
  * worker-backed `@cosmolabe/cspice-wasm` engine answers asynchronously and
@@ -18,7 +21,7 @@ export interface GeometryFinderProvider {
   gfdist(
     target: string, abcorr: string, observer: string,
     relate: string, refval: number,
-    adjust: number, step: EtSeconds, cnfine: EtInterval[],
+    adjust: number, step: EtSeconds, cnfine: EtInterval[], onProgress?: (fraction: number) => void,
   ): Awaitable<EtInterval[]>;
 
   /** Intervals where apparent angular separation (rad) satisfies `relate` vs `refval`. */
@@ -27,7 +30,7 @@ export interface GeometryFinderProvider {
     target2: string, shape2: string, frame2: string,
     abcorr: string, observer: string,
     relate: string, refval: number,
-    adjust: number, step: EtSeconds, cnfine: EtInterval[],
+    adjust: number, step: EtSeconds, cnfine: EtInterval[], onProgress?: (fraction: number) => void,
   ): Awaitable<EtInterval[]>;
 
   /** Intervals where `back` is occulted by `front` as seen from the observer. */
@@ -35,7 +38,7 @@ export interface GeometryFinderProvider {
     occtyp: string, front: string, fshape: string, fframe: string,
     back: string, bshape: string, bframe: string,
     abcorr: string, observer: string,
-    step: EtSeconds, cnfine: EtInterval[],
+    step: EtSeconds, cnfine: EtInterval[], onProgress?: (fraction: number) => void,
   ): Awaitable<EtInterval[]>;
 
   /**
@@ -50,11 +53,23 @@ export interface GeometryFinderProvider {
    */
   range?(target: string, abcorr: string, observer: string, et: EtSeconds): Awaitable<number>;
 
+  /**
+   * Observer altitude (km) above the target's reference ellipsoid at one
+   * instant, or `NaN` when the target has no shape SPICE knows.
+   *
+   * Optional, and not a GF call, for the same reason as `range`: GF says *when*
+   * an approach happened, and a flyby is quoted by how high above the surface it
+   * passed. Providers answer it through SPICE's own surface geometry — see
+   * `spiceAltitude` in `@cosmolabe/three` — so the ellipsoid stays SPICE's. A provider without it
+   * still searches; its events simply carry no altitude.
+   */
+  altitude?(target: string, abcorr: string, observer: string, et: EtSeconds): Awaitable<number>;
+
   /** Intervals where one coordinate of the observer→target vector satisfies `relate`. */
   gfposc(
     target: string, frame: string, abcorr: string, observer: string,
     crdsys: string, coord: string, relate: string, refval: number,
-    adjust: number, step: EtSeconds, cnfine: EtInterval[],
+    adjust: number, step: EtSeconds, cnfine: EtInterval[], onProgress?: (fraction: number) => void,
   ): Awaitable<EtInterval[]>;
 }
 

@@ -1,0 +1,197 @@
+import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
+import { axesDisplayLength, axisLetterAnchor, axisLetterPlacement, rateChevrons, compactLabelPlacement, angleDisplayRadius, anglePoints, directionShaftPoints, directionHeadLength, directionDisplayLength, nearestMeasurementHit, projectedStrokeDistance } from './SpatialRelationshipLayer.js';
+
+describe('measurement geometry', () => {
+  it('uses finite independent segments and draws the arc for a straight angle', () => {
+    const vertex = new THREE.Vector3();
+    const points = anglePoints(new THREE.Vector3(1, 0, 0), vertex, new THREE.Vector3(-1, 0, 0));
+    expect(points.length).toBe(100);
+    expect(points.every(p => p.toArray().every(Number.isFinite))).toBe(true);
+    expect(points.slice(4).some(p => Math.abs(p.z) > 0.1 || Math.abs(p.y) > 0.1)).toBe(true);
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    geometry.computeBoundingSphere();
+    expect(Number.isFinite(geometry.boundingSphere!.radius)).toBe(true);
+  });
+
+  it('scales arrowheads at target depth and limits short or clipped segments', () => {
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 10000);
+    camera.updateMatrixWorld();
+    const nearTarget = new THREE.Vector3(0, 0, -1);
+    const farTarget = new THREE.Vector3(0, 0, -100);
+    const head = directionHeadLength(camera, nearTarget, 1000, 600);
+    expect(directionHeadLength(camera, farTarget, 1000, 600)).toBeCloseTo(head * 100);
+    expect(head / (2 * Math.tan(Math.PI / 6) / 600)).toBeCloseTo(13);
+    expect(directionHeadLength(camera, nearTarget, 0.001, 600)).toBe(0.0003);
+    expect(directionHeadLength(camera, new THREE.Vector3(0, 0, 1), 1000, 600)).toBe(0);
+  });
+});
+
+
+describe('measurement picking and display scale', () => {
+  it('bounds source-local length independently of the true target distance, while preserving short connections', () => {
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 10000);
+    camera.updateMatrixWorld();
+    const source = new THREE.Vector3(0, 0, -10);
+    const length = directionDisplayLength(camera, source, 10000, 600);
+    expect(directionDisplayLength(camera, source, 100000, 600)).toBe(length);
+    expect(directionDisplayLength(camera, source, 0.01, 600)).toBe(0.01);
+    expect(length / (20 * Math.tan(Math.PI / 6) / 600)).toBeCloseTo(88);
+    expect(directionDisplayLength(camera, new THREE.Vector3(0, 0, 1), 10000, 600)).toBe(0);
+  });
+  it('finds near strokes in CSS pixels and retains selection on ambiguous ties', () => {
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 10000);
+    camera.updateMatrixWorld();
+    const points = [new THREE.Vector3(-1, 0, -10), new THREE.Vector3(1, 0, -10)];
+    expect(projectedStrokeDistance(points, camera, 600, 600, 300, 307)).toBeCloseTo(7);
+    const hits = [{ id: 'near', distance: 3 }, { id: 'selected', distance: 4 }];
+    expect(nearestMeasurementHit(hits, 'selected')).toBe('selected');
+    expect(nearestMeasurementHit([{ id: 'near', distance: 1 }, hits[1]], 'selected')).toBe('near');
+    expect(nearestMeasurementHit([], null)).toBeNull();
+  });
+});
+
+
+it('stops the direction shaft at the cone base for short and full connections', () => {
+  const source = new THREE.Vector3(1, 2, 3);
+  for (const length of [0.01, 88, 100000]) {
+    const tip = source.clone().add(new THREE.Vector3(0, length, 0));
+    const head = Math.min(length * 0.3, 13);
+    const shaft = directionShaftPoints(source, tip, head);
+    expect(shaft[1].distanceTo(source)).toBeCloseTo(length - head);
+    expect(shaft[1].distanceTo(tip)).toBeCloseTo(head);
+  }
+  expect(directionShaftPoints(source, source, 0)).toEqual([]);
+  expect(directionShaftPoints(source, source.clone().add(new THREE.Vector3(0, 1, 0)), 2)).toEqual([]);
+});
+
+it('bounds angle glyphs by vertex depth and short physical legs without changing the true plane', () => {
+  const camera=new THREE.PerspectiveCamera(60,1,0.01,1e12);camera.updateMatrixWorld();
+  for (const depth of [0.1, 10, 1e8]) {
+    const vertex=new THREE.Vector3(0,0,-depth);
+    const radius=angleDisplayRadius(camera,vertex,depth*100,600);
+    expect(radius/(2*depth*Math.tan(Math.PI/6)/600)).toBeCloseTo(50);
+    const points=anglePoints(vertex.clone().add(new THREE.Vector3(depth*100,0,0)),vertex,vertex.clone().add(new THREE.Vector3(0,depth*100,0)),radius);
+    expect(points.slice(4).every(p=>Math.abs(p.z+depth)<1e-6)).toBe(true);
+    expect(points[4].distanceTo(vertex)).toBeCloseTo(radius);
+  }
+  expect(angleDisplayRadius(camera,new THREE.Vector3(0,0,-10),0.001,600)).toBeCloseTo(0.00045, 10);
+  expect(angleDisplayRadius(camera,new THREE.Vector3(0,0,1),1000,600)).toBe(0);
+});
+
+describe('compact label placement', () => {
+  const size = { width: 80, height: 22 }, viewport = { width: 600, height: 400 };
+  it('uses the same tip gap and keeps an alternative when the preferred space reopens', () => {
+    const anchor = { x: 300, y: 200 };
+    const preferred = compactLabelPlacement(anchor, size, viewport, [], [])!;
+    expect(preferred.candidate).toBe(0);
+    expect(anchor.y - preferred.box.y1).toBe(14);
+    const fallback = compactLabelPlacement(anchor, size, viewport, [preferred.box], [])!;
+    expect(fallback.candidate).toBe(1);
+    expect(fallback.box.x0 - anchor.x).toBe(14);
+    for (let frame = 0; frame < 50; frame++) {
+      const next = compactLabelPlacement({ x: 300 + frame / 10, y: 200 }, size, viewport, [], [], fallback.candidate)!;
+      expect(next.candidate).toBe(1);
+      expect(next.box.x0 - (300 + frame / 10)).toBe(14);
+    }
+    expect(compactLabelPlacement(anchor, size, viewport, [fallback.box], [], fallback.candidate)!.candidate).toBe(0);
+  });
+  it('avoids strokes and viewport edges without clamping labels into the tip gap', () => {
+    const anchor = { x: 300, y: 20 };
+    const placement = compactLabelPlacement(anchor, size, viewport, [], [[300, 20, 450, 20]])!;
+    expect(placement.candidate).toBe(2);
+    expect(placement.box.y0 - anchor.y).toBe(14);
+    expect(compactLabelPlacement(anchor, size, viewport, [{ x0: 0, y0: 0, x1: 600, y1: 400 }], [])).toBeNull();
+  });
+});
+
+describe('reference geometry glyphs', () => {
+  it('draws velocity as two open chevrons behind the tip, facing the camera', () => {
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 10000);
+    camera.position.set(0, 0, 10); camera.updateMatrixWorld();
+    const tip = new THREE.Vector3(5, 0, 0), direction = new THREE.Vector3(1, 0, 0);
+    const points = rateChevrons(tip, direction, 1, camera);
+    expect(points).toHaveLength(8);
+    expect(points[0].equals(tip)).toBe(true);
+    expect(points.every(p => p.x <= tip.x + 1e-12 && Math.abs(p.z) < 1e-12)).toBe(true); // In the view plane, never past the tip.
+    expect(Math.abs(points[1].y)).toBeCloseTo(0.5);
+    expect(points[1].y).toBeCloseTo(-points[3].y);
+    // A velocity pointing at the camera still gets a stable, finite glyph.
+    expect(rateChevrons(tip, new THREE.Vector3(0, 0, 1), 1, camera).every(p => p.toArray().every(Number.isFinite))).toBe(true);
+  });
+
+  it('keeps an axis letter at the tip, or where the axis leaves the view', () => {
+    const camera = new THREE.PerspectiveCamera(90, 1, 0.01, 10000);
+    camera.updateMatrixWorld();
+    const origin = new THREE.Vector3(0, 0, -10);
+    expect(axisLetterAnchor(origin, new THREE.Vector3(1, 0, -10), camera, 600, 600)!.x).toBeCloseTo(330);
+    const edge = axisLetterAnchor(origin, new THREE.Vector3(1000, 0, -10), camera, 600, 600)!;
+    expect(edge.x).toBeGreaterThan(580);
+    expect(edge.x).toBeLessThanOrEqual(590);
+    expect(edge.y).toBeCloseTo(300);
+    expect(axisLetterAnchor(new THREE.Vector3(0, 0, 10), new THREE.Vector3(1, 0, 10), camera, 600, 600)).toBeNull();
+  });
+
+  it('labels an axis whose ends are both off screen where it leaves the view, and nothing that misses it', () => {
+    const camera = new THREE.PerspectiveCamera(90, 1, 0.01, 10000);
+    camera.updateMatrixWorld();
+    // Crosses the whole view left to right: the letter sits at the right edge, the tip side.
+    const across = axisLetterAnchor(new THREE.Vector3(-1000, 0, -10), new THREE.Vector3(1000, 0, -10), camera, 600, 600)!;
+    expect(across.x).toBeCloseTo(590);
+    expect(across.y).toBeCloseTo(300);
+    // Reversed, it is the left edge.
+    expect(axisLetterAnchor(new THREE.Vector3(1000, 0, -10), new THREE.Vector3(-1000, 0, -10), camera, 600, 600)!.x).toBeCloseTo(10);
+    // Passing above the view entirely.
+    expect(axisLetterAnchor(new THREE.Vector3(-1000, 100, -10), new THREE.Vector3(1000, 100, -10), camera, 600, 600)).toBeNull();
+    // From behind the camera into view: the tip, not a mirrored projection of the origin.
+    const tip = axisLetterAnchor(new THREE.Vector3(0, 0, 10), new THREE.Vector3(1, 0, -10), camera, 600, 600)!;
+    expect(tip.x).toBeCloseTo(330);
+    // From in view to behind the camera: where it leaves the view, not the far side.
+    const outward = axisLetterAnchor(new THREE.Vector3(0, 0, -10), new THREE.Vector3(0, 0, 10), camera, 600, 600);
+    expect(outward).toEqual({ x: 300, y: 300 });
+  });
+});
+
+it('sizes axes by the body’s own axes length when it exceeds the 64 px floor', () => {
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 10000);
+  camera.updateMatrixWorld();
+  const origin = new THREE.Vector3(0, 0, -10);
+  const floor = axesDisplayLength(camera, origin, 600, 0);
+  expect(floor / (20 * Math.tan(Math.PI / 6) / 600)).toBeCloseTo(64);
+  expect(axesDisplayLength(camera, origin, 600, floor * 3)).toBe(floor * 3);
+  expect(axesDisplayLength(camera, origin, 600, floor / 3)).toBe(floor);
+});
+
+
+describe('axis letter spacing', () => {
+  const camera = new THREE.PerspectiveCamera(90, 1, 0.01, 10000);
+  camera.updateMatrixWorld();
+  it('anchors letters along the axis without changing sides as the camera rotates', () => {
+    const start = new THREE.Vector3(0, 0, -10);
+    for (const y of [-0.01, 0, 0.01]) {
+      const tip = new THREE.Vector3(1, y, -10);
+      const anchor = axisLetterAnchor(start, tip, camera, 600, 600)!;
+      const placed = axisLetterPlacement(start, tip, camera, 600, 600)!;
+      const dx = (placed.box.x0 + placed.box.x1) / 2 - anchor.x;
+      const dy = (placed.box.y0 + placed.box.y1) / 2 - anchor.y;
+      expect(dx).toBeGreaterThan(15);
+      expect(dy / dx).toBeCloseTo(-y);
+    }
+  });
+  it('stays finite and inside the view for small, crossing, head-on and near-plane axes', () => {
+    for (const [start, tip] of [
+      [new THREE.Vector3(0, 0, -10), new THREE.Vector3(0.00001, 0, -10)],
+      [new THREE.Vector3(-1000, 0, -10), new THREE.Vector3(1000, 0, -10)],
+      [new THREE.Vector3(0, 0, -10), new THREE.Vector3(0, 0, 10)],
+      [new THREE.Vector3(0, 0, 10), new THREE.Vector3(1, 0, -10)],
+    ]) {
+      const placed = axisLetterPlacement(start, tip, camera, 600, 600)!;
+      expect(placed).not.toBeNull();
+      expect(Object.values(placed.box).every(Number.isFinite)).toBe(true);
+      expect(placed.box.x0).toBeGreaterThanOrEqual(6);
+      expect(placed.box.y0).toBeGreaterThanOrEqual(6);
+      expect(placed.box.x1).toBeLessThanOrEqual(594);
+      expect(placed.box.y1).toBeLessThanOrEqual(594);
+    }
+  });
+});

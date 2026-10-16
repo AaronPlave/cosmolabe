@@ -1,18 +1,18 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 import { EventFinder } from '../geometry/EventFinder.js';
 import { kernelArrayBuffer } from './_harness/kernels.js';
 
-const KERNEL_DIR = join(__dirname, '../../../spice/test-kernels');
+const KERNEL_DIR = join(__dirname, '../../../../kernels/test-data');
 
 describe('EventFinder (SPICE integration)', () => {
-  let spice: Spice;
+  let spice: Awaited<ReturnType<typeof createHeritageSpice>>;
   let finder: EventFinder;
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
 
     const lsk = readFileSync(join(KERNEL_DIR, 'naif0012.tls'));
     const pck = readFileSync(join(KERNEL_DIR, 'pck00010.tpc'));

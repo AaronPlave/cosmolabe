@@ -1,0 +1,136 @@
+{
+  "name": "Atmosphere validation: Earth (textured)",
+  "defaultTime": "2024-07-04T12:00:00Z",
+  "defaultViewpoint": "Whole disc",
+  "items": [
+    {
+      "name": "Surface zenith",
+      "type": "Viewpoint",
+      "eye": [
+        6380.1,
+        0,
+        0
+      ],
+      "target": [
+        7380.1,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Surface horizon",
+      "type": "Viewpoint",
+      "eye": [
+        6380.1,
+        0,
+        0
+      ],
+      "target": [
+        6380.1,
+        0,
+        1000
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Ascent 50 km",
+      "type": "Viewpoint",
+      "eye": [
+        6428.1,
+        0,
+        0
+      ],
+      "target": [
+        6428.1,
+        0,
+        1000
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Orbit 400 km",
+      "type": "Viewpoint",
+      "eye": [
+        6778.1,
+        0,
+        0
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Whole disc",
+      "type": "Viewpoint",
+      "eye": [
+        30000,
+        0,
+        0
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          100000000,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378.1,
+        "atmosphere": "Earth",
+        "baseMap": "textures/earth-5k.jpg"
+      }
+    }
+  ]
+}

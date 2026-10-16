@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import HomeScreen from './components/HomeScreen.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
   import CatalogBrowser from './components/CatalogBrowser.svelte';
@@ -11,8 +11,8 @@
   import PanelDock from './components/shell/PanelDock.svelte';
   import ToolPanels from './components/shell/ToolPanels.svelte';
   import TimelineDock from './components/shell/TimelineDock.svelte';
-  import InstrumentPanel from './components/shell/InstrumentPanel.svelte';
-  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
+  import ProbePanel from './components/ProbePanel.svelte';
+  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
@@ -20,18 +20,19 @@
   import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
   import { startHero, stopHero } from './lib/hero';
+  import { queueScript, fetchScript } from './lib/script-demo.svelte';
+  import { restoreView } from './lib/view-link';
+  import { requestedView } from './lib/view-state-url';
   import type { CatalogEntry } from './lib/catalog-sources';
   import { catalogs, initCatalogSources, sourceSettled, syncSourceParams } from './lib/catalogs.svelte';
   import {
-    catalogLocation, findEntry, requestedCatalog, withCatalogLocation, allEntries,
+    catalogLocation, findEntry, isCurrentEntry, requestedCatalog, withCatalogLocation, allEntries,
     type CatalogLocation, type SourcedEntry,
   } from './lib/catalog-nav';
-
+  import { cancelMeasurementPick, measurements, selectMeasurement } from './lib/spatial-measurements.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
-  let pickModeActive = $state(false);
-  let pickResult = $state<{ bodyName: string; latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number; bodyFixedHitKm: readonly [number, number, number] } | null>(null);
   let uiHidden = $state(false);
   let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
 
@@ -47,8 +48,9 @@
   // — at startup, or when a source is added later — and then by its entry.
   $effect(() => {
     const url = catalogs.currentUrl;
+    const script = catalogs.currentScriptUrl;
     if (!url || !vs.catalogName) return;
-    const listed = allEntries(catalogs.sources).find((e) => e.entry.catalogUrl === url);
+    const listed = allEntries(catalogs.sources).find((e) => isCurrentEntry(e.entry, url, script));
     if (listed && listed.entry.name !== vs.catalogName) vs.catalogName = listed.entry.name;
   });
 
@@ -78,14 +80,14 @@
    *
    * The selection-driven panels do not open through the rail, so they fall back
    * into the sheet rather than competing for it: whatever the user last did —
-   * opened a tool, picked a surface, selected a body — is what is on screen.
+   * opened a tool, probed a point, selected a body — is what is on screen.
    */
   const fallbackSheet = $derived.by(() => {
     if (shell.activeSheet != null) return null;
-    if (pickResult && !isMinimized('pick')) return 'pick';
+    if (vs.probePin && !isMinimized('probe')) return 'probe';
     if (vs.selectedBodyName && !isMinimized('info')) return 'info';
     return null;
-  });;
+  });
 
   /**
    * One condition for the whole load, so there is one loading screen rather than
@@ -100,6 +102,15 @@
    * is the home screen.
    */
   const loading = $derived(vs.showLoading || !vs.assetsReady);
+
+  // Closing/minimizing retains unfinished work and clears temporary picking feedback.
+  $effect(() => {
+    const open = shell.openTools.includes('measure');
+    const hidden = shell.panels.measure.minimized || (shell.layout === 'compact' && shell.activeSheet !== 'measure');
+    untrack(() => {
+      if (!open || hidden) cancelMeasurementPick();
+    });
+  });
 
   /**
    * The home screen's backdrop: a presentation-only scene on the same canvas
@@ -143,21 +154,6 @@
     loadFiles(() => handleDrop(canvas, dt));
   }
 
-  function onCanvasClick(e: MouseEvent) {
-    if (!pickModeActive) return;
-    const renderer = getCurrentRenderer();
-    if (!renderer) return;
-    e.stopPropagation();
-    const rect = canvas.getBoundingClientRect();
-    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    const result = renderer.pickSurface(ndcX, ndcY);
-    if (result) {
-      pickResult = result;
-      renderer.setPickMarker(result);
-    }
-  }
-
   /** Capture-phase pointerdown on window — records right-click start before CameraController blocks it */
   function onWindowPointerDown(e: PointerEvent) {
     if (e.button === 2) {
@@ -184,20 +180,6 @@
     contextMenu = { x: e.clientX, y: e.clientY, bodyName };
   }
 
-  function togglePickMode() {
-    pickModeActive = !pickModeActive;
-    if (!pickModeActive) {
-      pickResult = null;
-      getCurrentRenderer()?.setPickMarker(null);
-    }
-  }
-
-  function closePickResult() {
-    pickResult = null;
-    pickModeActive = false;
-    getCurrentRenderer()?.setPickMarker(null);
-  }
-
   /** Suppress native context menu on the canvas */
   function onCanvasContextMenu(e: MouseEvent) {
     e.preventDefault();
@@ -216,7 +198,13 @@
     // marks it handled, so the Escape does not go on to dismiss a panel too.
     if (shell.catalogBrowserOpen || e.defaultPrevented) return;
 
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    // Text entry of any kind, contenteditable included — the script editor is
+    // one, and a bare `t` typed into it must not toggle trajectories.
+    if (
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement ||
+      (e.target instanceof HTMLElement && e.target.isContentEditable)
+    ) return;
 
     // An open popover or menu handles its own Escape (it closes); that same
     // press must not also clear a selection or dismiss a panel behind it.
@@ -248,15 +236,24 @@
           renderer.setInstrumentView(next, { marginX: 16, marginY: 60 });
           return;
         }
-        case 'p': togglePickMode(); return;
+        case 'p': toggleProbe(); return;
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
+          // A pending endpoint pick is a mode too, and the newest one.
+          if (cancelMeasurementPick()) return;
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
+          // A flight is the most transient thing on screen: Escape stops it
+          // where it is before it dismisses anything.
+          else if (vs.flight) stopFlight();
+          // An active mode is what Escape is for: the probe goes before any
+          // selection. The pinned point stays until a second Escape (or its
+          // panel's close) clears it.
+          else if (vs.probeActive) setProbeActive(false);
+          else if (measurements.selectedId) selectMeasurement(null);
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.
           else if (ef.selectedId) clearSelection();
           else if (dismissTopSurface()) return;
-          else if (pickModeActive) closePickResult();
           else if (vs.selectedBodyName) selectBody(null);
           else resetCamera();
           return;
@@ -266,7 +263,7 @@
       // Tool shortcuts come from the shell's own table, so adding a tool does
       // not mean remembering to add a case above as well.
       const tool = TOOLS.find((t) => t.shortcut === e.key);
-      if (tool) toggleTool(tool.id);
+      if (tool && !e.repeat) toggleTool(tool.id);
     }
   }
 
@@ -294,12 +291,10 @@
     // The selection-driven panels have no open flag to clear: closing them is
     // undoing what put them there.
     if (isToolId(top)) closeTool(top);
-    else if (top === 'pick') closePickResult();
+    else if (top === 'probe') clearProbePin();
     else if (top === 'info') selectBody(null);
     return true;
   }
-
-  function fmtCoord(n: number, dec: number) { return n.toFixed(dec); }
 
   // ── Catalog navigation (#94) ──
   //
@@ -311,8 +306,10 @@
   /** Record the scene in the URL, as a new history entry, unless it already says so. */
   function pushLocation(loc: CatalogLocation | null) {
     const now = requestedCatalog(location.search);
-    if (JSON.stringify(now) === JSON.stringify(loc)) return;
-    history.pushState(null, '', `${location.pathname}${withCatalogLocation(location.search, loc)}${location.hash}`);
+    if (JSON.stringify(now) === JSON.stringify(loc) && !new URLSearchParams(location.search).has('view')) return;
+    const search = new URLSearchParams(withCatalogLocation(location.search, loc));
+    search.delete('view');
+    history.pushState(null, '', `${location.pathname}${search.size ? `?${search}` : ''}${location.hash}`);
   }
 
   /**
@@ -322,6 +319,8 @@
    * went, and drop the forward entry they came from.
    */
   let navGeneration = 0;
+  let loadGeneration = 0;
+  let viewRestore: AbortController | null = null;
   /** A load is in flight; set and cleared by `runLoad`. */
   let loadInFlight = $state(false);
   /** Back/Forward arrived during a load and is still owed a reconcile. */
@@ -345,27 +344,44 @@
    * alone.
    */
   async function runLoad(load: () => Promise<void>, after: (navigatedAway: boolean) => void) {
+    const loadToken = ++loadGeneration;
+    viewRestore?.abort();
     const generation = navGeneration;
+    const preservedEt = getCurrentRenderer()?.timeController.et;
     catalogs.loadError = null;
     loadInFlight = true;
     try {
       await load();
+      if (loadToken !== loadGeneration) return;
       after(generation !== navGeneration);
+      if (generation === navGeneration) await restoreFromUrl(generation, preservedEt);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      if (generation !== navGeneration || loadToken !== loadGeneration) return;
       catalogs.loadError = `Couldn't load ${vs.loadingCatalog || 'the catalog'}: ${message}`;
       console.error('[Cosmolabe] Catalog load failed:', err);
     } finally {
-      loadInFlight = false;
+      if (loadToken === loadGeneration) loadInFlight = false;
     }
   }
 
   function loadEntry(item: SourcedEntry, push = true) {
+    const { scriptUrl } = item.entry;
+    // A scripted entry's script is fetched first — it is a few kilobytes — so
+    // one that cannot be had fails the load before the scene is touched, and
+    // is queued only once the scene it drives is up, never for whatever loads
+    // next. The console picks it up when it mounts over the new scene.
+    let script: string | null = null;
     void runLoad(
-      () => loadCatalogUrl(canvas, item.entry.catalogUrl, item.entry.name),
+      async () => {
+        if (scriptUrl) script = await fetchScript(scriptUrl);
+        await loadCatalogUrl(canvas, item.entry.catalogUrl, item.entry.name);
+      },
       (navigatedAway) => {
         catalogs.currentUrl = item.entry.catalogUrl;
+        catalogs.currentScriptUrl = scriptUrl ?? null;
         if (push && !navigatedAway) pushLocation(catalogLocation(item, location.href));
+        if (script != null && !navigatedAway) queueScript(script);
       },
     );
   }
@@ -381,9 +397,10 @@
    */
   function loadNamed(name: string) {
     const url = demoCatalogUrl(name);
-    const listed = allEntries(catalogs.sources).find((e) => e.entry.catalogUrl === url);
+    const listed = allEntries(catalogs.sources).find((e) => isCurrentEntry(e.entry, url, null));
     void runLoad(() => loadDemo(canvas, name, listed?.entry.name ?? name), () => {
       catalogs.currentUrl = url;
+      catalogs.currentScriptUrl = null;
     });
   }
 
@@ -398,6 +415,7 @@
     void runLoad(load, (navigatedAway) => {
       if (getCurrentRenderer() === before) return;
       catalogs.currentUrl = null;
+      catalogs.currentScriptUrl = null;
       if (!navigatedAway) pushLocation(null);
     });
   }
@@ -410,6 +428,7 @@
     // An entry from before a source was added lacks its `?source=`.
     syncSourceParams();
     navGeneration++;
+    viewRestore?.abort();
     if (loadInFlight || vs.showLoading) navPending = true;
     else reconcileWithUrl();
   }
@@ -421,12 +440,21 @@
    * from dropped files.
    */
   function reconcileWithUrl() {
-    const req = requestedCatalog(location.search);
-    if (!req) return;
-    if ('catalog' in req) {
-      if (demoCatalogUrl(req.catalog) !== catalogs.currentUrl) loadNamed(req.catalog);
-    } else {
-      openEntryParam(req.entry);
+    catalogs.loadError = null;
+    try {
+      const state = requestedView(location.search);
+      const req = state?.catalog ?? requestedCatalog(location.search);
+      if (!req) return;
+      if ('catalog' in req) {
+        // A state-less history entry means that catalog's default view. Reload
+        // it on Back rather than retaining the later checkpoint's camera/time.
+        if (!isCurrentEntry({ catalogUrl: demoCatalogUrl(req.catalog) }, catalogs.currentUrl, catalogs.currentScriptUrl) || !state) loadNamed(req.catalog);
+        else void restoreFromUrl(navGeneration);
+      } else {
+        openEntryParam(req.entry);
+      }
+    } catch (err) {
+      catalogs.loadError = `Couldn't restore view: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
@@ -445,10 +473,33 @@
         catalogs.loadError = `No catalog "${param}" in this viewer's catalog sources.`;
         return;
       }
-      if (item.entry.catalogUrl === catalogs.currentUrl) return;
-      if (loadInFlight || vs.showLoading) navPending = true;
-      else loadEntry(item, false);
+      if (loadInFlight || vs.showLoading) { navPending = true; return; }
+      if (isCurrentEntry(item.entry, catalogs.currentUrl, catalogs.currentScriptUrl) && new URLSearchParams(location.search).has('view')) {
+        void restoreFromUrl(generation);
+        return;
+      }
+      loadEntry(item, false);
     });
+  }
+
+  async function restoreFromUrl(generation: number, preservedEt?: number) {
+    try {
+      const state = requestedView(location.search);
+      if (!state) return;
+      const renderer = getCurrentRenderer();
+      if (!renderer) throw new Error('The requested catalog has no scene.');
+      await renderer.waitForInitialAssets();
+      if (generation !== navGeneration || renderer !== getCurrentRenderer()) return;
+      viewRestore?.abort();
+      const controller = new AbortController();
+      viewRestore = controller;
+      await restoreView(state.time.kind === 'preserve' && preservedEt !== undefined
+        ? { ...state, time: { kind: 'fixed', source: 'ET', et: preservedEt } } : state, controller.signal);
+    } catch (err) {
+      if (generation === navGeneration) {
+        catalogs.loadError = `Couldn't restore view: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }
   }
 
   onMount(() => {
@@ -458,14 +509,11 @@
     // scripts/visual-regression.mjs).
     // `?entry=<source>/<entry>` names a catalog in a configured source, so it
     // waits for that source — and only that one; `?catalog=` needs none.
-    const requested = requestedCatalog(location.search);
-    if (requested && 'catalog' in requested) loadNamed(requested.catalog);
     const sourcesDone = initCatalogSources();
-    if (requested && 'entry' in requested) openEntryParam(requested.entry);
+    reconcileWithUrl();
+    const requested = requestedCatalog(location.search);
     void sourcesDone.then((states) => {
       if (requested && 'catalog' in requested) {
-        // A deep-linked example is named by its path until the sources say
-        // what it is called.
         const url = demoCatalogUrl(requested.catalog);
         const listed = allEntries(states).find((e) => e.entry.catalogUrl === url);
         if (listed && vs.loadingCatalog === requested.catalog) vs.loadingCatalog = listed.entry.name;
@@ -478,6 +526,7 @@
     window.addEventListener('pointerdown', onWindowPointerDown, true);
     window.addEventListener('pointerup', onWindowPointerUp);
     return () => {
+      viewRestore?.abort();
       stopHero();
       stopLayoutWatch();
       window.removeEventListener('resize', onResize);
@@ -491,10 +540,10 @@
 <svelte:window onkeydown={onKeydown} />
 <svelte:document ondragover={onDocDragOver} ondrop={onDocDrop} />
 
-<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive} style={shellVars}>
+<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={!!measurements.pendingPickSlot} style={shellVars}>
   <!-- `touch-none`: the browser must not claim a drag as a scroll or a pinch as
        a page zoom before the camera controls see the gesture. -->
-  <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
+  <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" oncontextmenu={onCanvasContextMenu}></canvas>
 
   <!-- Gated on `loading`, not `sceneLoaded`: the scene graph exists well before
        its models and textures do, and handing over a sky of placeholder spheres
@@ -542,11 +591,8 @@
         {#if shell.activeSheet === 'info' || fallbackSheet === 'info'}
           <BodyInfoPanel />
         {/if}
-        {#if pickResult && (shell.activeSheet === 'pick' || fallbackSheet === 'pick')}
-          <InstrumentPanel key="pick" title="Surface pick" onClose={closePickResult}>
-            <div class="font-semibold text-text-primary mb-1.5">{pickResult.bodyName}</div>
-            {@render pickRows(pickResult)}
-          </InstrumentPanel>
+        {#if shell.activeSheet === 'probe' || fallbackSheet === 'probe'}
+          <ProbePanel />
         {/if}
       </PanelDock>
     {:else}
@@ -556,12 +602,7 @@
       <PanelDock side="right">
         <BodyInfoPanel />
         <ToolPanels dock="right" />
-        {#if pickResult}
-          <InstrumentPanel key="pick" title="Surface pick" width={224} onClose={closePickResult}>
-            <div class="font-semibold text-text-primary mb-1.5">{pickResult.bodyName}</div>
-            {@render pickRows(pickResult)}
-          </InstrumentPanel>
-        {/if}
+        <ProbePanel width={240} />
       </PanelDock>
     {/if}
 
@@ -576,15 +617,15 @@
         <div class="shell-divider mx-2 border-t"></div>
         <ToolRail
           inline
-          {pickModeActive}
-          onTogglePick={togglePickMode}
+          probeActive={vs.probeActive}
+          onToggleProbe={toggleProbe}
           onOpenSearch={() => commandPaletteOpen = true}
         />
       </div>
     {:else}
       <ToolRail
-        {pickModeActive}
-        onTogglePick={togglePickMode}
+        probeActive={vs.probeActive}
+        onToggleProbe={toggleProbe}
         onOpenSearch={() => commandPaletteOpen = true}
       />
       <TimelineDock />
@@ -608,10 +649,3 @@
     box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.24);
   }
 </style>
-
-{#snippet pickRows(pick: { latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number })}
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lat</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.latDeg), 5)}&deg; {pick.latDeg >= 0 ? 'N' : 'S'}</span></div>
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lon</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.lonDeg), 5)}&deg; {pick.lonDeg >= 0 ? 'E' : 'W'}</span></div>
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Sampled alt</span><span class="font-mono text-text-primary">{pick.altKm >= 0 ? '+' : ''}{fmtCoord(pick.altKm * 1000, 1)} m</span></div>
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Dist</span><span class="font-mono text-text-primary">{pick.cameraDistanceKm < 1 ? `${fmtCoord(pick.cameraDistanceKm * 1000, 1)} m` : `${fmtCoord(pick.cameraDistanceKm, 3)} km`}</span></div>
-{/snippet}

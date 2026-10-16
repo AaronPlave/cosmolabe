@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { coverageWindow } from '../event-availability';
 import {
-  coverageWindow,
   currentConfiguredQuery,
   ef,
   practicalSearchWindow,
@@ -302,4 +302,3 @@ describe('draft and configured searches', () => {
     expect([ef.selectedId, ef.selectedQueryId]).toEqual([null, null]);
   });
 });
-

@@ -26,7 +26,9 @@ export type ScriptProblemKind =
   /** The host returned `false`: no object, viewpoint, layer or mode by that name. */
   | 'unknown-target'
   /** The host threw. */
-  | 'failed';
+  | 'failed'
+  /** `ExecuteOptions.signal` fired before or during this statement. */
+  | 'cancelled';
 
 export interface ScriptProblem {
   readonly kind: ScriptProblemKind;

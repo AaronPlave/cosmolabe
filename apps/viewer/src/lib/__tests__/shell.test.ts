@@ -168,12 +168,12 @@ describe('what Escape dismisses', () => {
     expect(topVisiblePanel()).toBe('events');
   });
 
-  it('prefers a pick readout the user is looking at over a stowed tool', () => {
+  it('prefers a probe readout the user is looking at over a stowed tool', () => {
     openTool('events');
-    mount('events', 'pick');
+    mount('events', 'probe');
     minimizePanel('events');
-    raisePanel('pick');
-    expect(topVisiblePanel()).toBe('pick');
+    raisePanel('probe');
+    expect(topVisiblePanel()).toBe('probe');
   });
 
   it('prefers the body info panel over a tool opened earlier', () => {

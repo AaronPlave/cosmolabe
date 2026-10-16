@@ -33,7 +33,8 @@ export interface CameraSurfacePickResult {
   bodyName: string;
   latDeg: number;
   lonDeg: number;
-  altKm: number;
+  /** Null when the rendered surface has no declared altitude datum. */
+  altKm: number | null;
   bodyFixedHitKm: readonly [number, number, number];
 }
 

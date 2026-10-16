@@ -31,6 +31,31 @@ export async function rangeAt(
 }
 
 /**
+ * The observer's altitude above the target's surface at one instant, when the
+ * provider can measure it and SPICE knows the target's shape.
+ *
+ * Altitude is an annotation on an event the search already found, so failing to
+ * measure it never fails the search: a target with no `RADII`, no body-fixed
+ * frame, or a provider that cannot ask, all leave the event without the metric.
+ * Range is the measurement filters depend on, and that one is never swallowed.
+ */
+export async function altitudeAt(
+  provider: GeometryFinderProvider,
+  target: string,
+  abcorr: string,
+  observer: string,
+  et: EtSeconds,
+): Promise<number | undefined> {
+  if (!provider.altitude) return undefined;
+  try {
+    const km = await provider.altitude(target, abcorr, observer, et);
+    return Number.isFinite(km) ? km : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * The extreme range inside a window, and when it occurred.
  *
  * `relate` is `ABSMIN` or `ABSMAX`. CSPICE's absolute-extremum relations are

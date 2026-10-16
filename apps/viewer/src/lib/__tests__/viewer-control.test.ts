@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST } from '@cosmolabe/control';
 import type { Universe } from '@cosmolabe/core';
 import { CameraModeName, type UniverseRenderer } from '@cosmolabe/three';
+import * as THREE from 'three';
 import { createViewerControl } from '../viewer-control';
 import {
   DISPLAY_OPTIONS,
@@ -88,6 +89,8 @@ function makeFakeRenderer(objects: string[]) {
 
   let tracked: FakeBodyMesh | null = null;
   let lookAt: FakeBodyMesh | null = null;
+  /** A flight `flyTo` started; it lands only when a test calls `land`. */
+  let flight: { destination: FakeBodyMesh; path: string } | null = null;
   let mode: CameraModeName = CameraModeName.FREE_ORBIT;
   const viewpoints = new Map<string, { name: string; epoch?: number; trackBody?: string }>([
     ['SOI (2004-07-01)', { name: 'SOI (2004-07-01)', epoch: 141_000_000 }],
@@ -145,11 +148,24 @@ function makeFakeRenderer(objects: string[]) {
     cameraController: {
       controls: { target: vec() },
       camera,
+      /** The body a body-fixed frame rides on; tests that need one set it. */
+      originBody: null as unknown,
       get mode() {
         return mode;
       },
       get trackedBody() {
         return tracked;
+      },
+      get focusBody() {
+        return flight?.destination ?? tracked;
+      },
+      get flight() {
+        return flight ? { ...flight, phase: 'approach' } : null;
+      },
+      /** Land the flight in progress, as the next frames would. */
+      land: () => {
+        if (flight) tracked = flight.destination;
+        flight = null;
       },
       get lookAtBody() {
         return lookAt;
@@ -157,9 +173,22 @@ function makeFakeRenderer(objects: string[]) {
       track: (bm: FakeBodyMesh | null) => {
         tracked = bm;
       },
-      trackBody: (bm: FakeBodyMesh) => {
-        log(`trackBody(${bm.body.name})`);
+      focus: (bm: FakeBodyMesh) => {
+        log(`focus(${bm.body.name})`);
+        flight = null;
         tracked = bm;
+      },
+      frame: (bm: FakeBodyMesh) => {
+        log(`frame(${bm.body.name})`);
+        flight = null;
+        tracked = bm;
+      },
+      stopFlight: () => {
+        log('stopFlight');
+        if (!flight) return false;
+        tracked = flight.destination;
+        flight = null;
+        return true;
       },
       stopTracking: () => {
         log('stopTracking');
@@ -173,8 +202,27 @@ function makeFakeRenderer(objects: string[]) {
       clearLookAt: () => {
         lookAt = null;
       },
-      flyTo: (bm: FakeBodyMesh) => log(`flyTo(${bm.body.name})`),
+      flyTo: (bm: FakeBodyMesh, opts: { path: string; duration?: number }) => {
+        log(`flyTo(${bm.body.name}, ${opts.path}, ${opts.duration})`);
+        tracked = null;
+        flight = { destination: bm, path: opts.path };
+      },
       cancelAnimation: () => log('cancelAnimation'),
+      syncModeFromCamera: (t: number) => log(`syncModeFromCamera(${t})`),
+      dolly: (distance: number, duration?: number) => {
+        log(`dolly(${distance}, ${duration})`);
+        return mode !== CameraModeName.LVLH;
+      },
+      crane: (distance: number, duration?: number) => {
+        log(`crane(${distance}, ${duration})`);
+        // As the real controller does in free orbit: let go of the tracked object.
+        if (mode === CameraModeName.FREE_ORBIT) tracked = null;
+        return mode !== CameraModeName.LVLH;
+      },
+      orbitTarget: (axis: 'up' | 'right', radians: number, duration?: number) => {
+        log(`orbitTarget(${axis}, ${radians.toFixed(4)}, ${duration})`);
+        return mode !== CameraModeName.LVLH;
+      },
       setModeForBody: (m: CameraModeName, bm: FakeBodyMesh | null) => {
         log(`setModeForBody(${m}, ${bm?.body.name ?? 'null'})`);
         mode = m;
@@ -192,6 +240,11 @@ function makeFakeRenderer(objects: string[]) {
       return true;
     },
     getBodyMesh: (name: string) => meshes.get(name),
+    /** What the next frame would do to a body; tests that need it replace this. */
+    refreshBodyPose: (name: string) => {
+      log(`refreshBodyPose(${name})`);
+      return true;
+    },
     getBodyNames: () => [...meshes.keys()],
     setBodyVisible: (name: string, v: boolean) => log(`setBodyVisible(${name}, ${v})`),
     setTrajectoryVisible: (name: string, v: boolean) => log(`setTrajectoryVisible(${name}, ${v})`),
@@ -203,6 +256,9 @@ function makeFakeRenderer(objects: string[]) {
     setSensorsVisible: (v: boolean) => log(`setSensorsVisible(${v})`),
     setSensorLabelsVisible: (v: boolean) => log(`setSensorLabelsVisible(${v})`),
     setLightingMode: (m: string) => log(`setLightingMode(${m})`),
+    // Point Probe: bound on every scene, not a script verb.
+    setPointProbeActive: () => {},
+    setProbePin: () => {},
     getContext: () => ({ canvas: { toDataURL: () => 'data:image/png;base64,AAA' }, renderFrame: () => log('renderFrame') }),
     getPlugins: () => [],
   };
@@ -273,6 +329,81 @@ describe('every verb is wired', () => {
   });
 });
 
+describe('circleCenter', () => {
+  // Right and left swing about the view's up vector, up and down about its
+  // right axis; the sign is the way the camera moves on screen.
+  it('maps each direction onto an axis and a signed angle in radians', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.circleCenter('right', 90)).toBe(true);
+    expect(control.circleCenter('left', 90)).toBe(true);
+    expect(control.circleCenter('up', 180, { seconds: 5 })).toBe(true);
+    expect(control.circleCenter('down', 180, { seconds: 5 })).toBe(true);
+    expect(renderer.calls).toEqual([
+      'orbitTarget(up, 1.5708, undefined)',
+      'orbitTarget(up, -1.5708, undefined)',
+      'orbitTarget(right, 3.1416, 5)',
+      'orbitTarget(right, -3.1416, 5)',
+    ]);
+  });
+
+  it('refuses a non-finite angle or a negative duration without moving anything', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.circleCenter('right', Number.NaN)).toBe(false);
+    expect(control.circleCenter('right', 90, { seconds: -1 })).toBe(false);
+    expect(renderer.calls).toEqual([]);
+  });
+
+  it('passes on the refusal of a frame that owns the view', () => {
+    const control = createViewerControl();
+    control.setFrame('lvlh', 'Cassini');
+    expect(control.circleCenter('right', 90)).toBe(false);
+  });
+
+  it('runs as text under Cosmographia\'s names', async () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    await execute(parse('circleCenterRight 360 5\ncircleCenterDown 30'), control);
+    expect(renderer.calls).toEqual(['orbitTarget(up, 6.2832, 5)', 'orbitTarget(right, -0.5236, undefined)']);
+  });
+});
+
+describe('dolly and crane', () => {
+  it('pass km through the scale factor, with the duration as given', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.dolly(10000, { seconds: 3 })).toBe(true);
+    expect(control.crane(-2000)).toBe(true);
+    expect(renderer.calls).toEqual(['dolly(0.01, 3)', 'crane(-0.002, undefined)']);
+  });
+
+  it('refuse a non-finite distance without moving anything', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.dolly(Number.POSITIVE_INFINITY)).toBe(false);
+    expect(control.crane(10, { seconds: Number.NaN })).toBe(false);
+    expect(renderer.calls).toEqual([]);
+  });
+
+  // A free-orbit crane lets go of the tracked object; the read side and the
+  // HUD must hear it, or a snapshot would re-track and undo the crane.
+  it('report the tracking a free-orbit crane released', () => {
+    const control = createViewerControl();
+    control.gotoObject('Titan');
+    control.crane(500);
+    expect(control.getTracked()).toBeNull();
+    expect(vs.trackedBodyName).toBeNull();
+  });
+
+  it('run as text', async () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    await execute(parse('dolly 10000 3\ncrane 2000 2'), control);
+    expect(renderer.calls).toEqual(['dolly(0.01, 3)', 'crane(0.002, 2)']);
+  });
+});
+
 describe('setTime', () => {
   it('resolves through SPICE when it is furnished', () => {
     const str2et = vi.fn(() => 141_000_000);
@@ -316,7 +447,7 @@ describe('setFrame', () => {
     control.gotoObject('Cassini');
     renderer.calls.length = 0;
     expect(control.setFrame('body-fixed', 'Titan')).toBe(true);
-    expect(renderer.calls).toEqual(['trackBody(Titan)', 'setModeForBody(body-fixed, Titan)']);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'frame(Titan)', 'setModeForBody(body-fixed, Titan)']);
   });
 
   it('refuses an unknown object without switching mode', () => {
@@ -337,20 +468,124 @@ describe('gotoObject', () => {
     const control = createViewerControl();
     renderer.calls.length = 0;
     control.gotoObject('Titan');
-    expect(renderer.calls).toEqual(['trackBody(Titan)']);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'frame(Titan)']);
   });
 
-  it('flies when given a duration', () => {
+  it('flies directly when given a duration', () => {
     const control = createViewerControl();
     renderer.calls.length = 0;
     control.gotoObject('Titan', { seconds: 2 });
-    expect(renderer.calls).toEqual(['flyTo(Titan)']);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'flyTo(Titan, direct, 2)']);
     // flyTo defers the real tracking; the HUD has to know now.
     expect(vs.trackedBodyName).toBe('Titan');
   });
 
   it('returns false for an object the scene does not have', () => {
     expect(createViewerControl().gotoObject('Titam')).toBe(false);
+  });
+});
+
+// ── The navigation vocabulary (docs/navigation.md) ──
+//
+// Each verb is one call on the controller, and none implies another: selecting
+// never moves the camera, and moving it never selects.
+
+/** The renderer calls that move or re-anchor the camera. */
+const cameraCalls = () =>
+  renderer.calls.filter((c) => /^(focus|frame|flyTo|stopFlight|stopTracking|setModeForBody)\(?/.test(c));
+
+describe('navigation verbs', () => {
+  it('select changes the selection and never the camera', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.select('Titan')).toBe(true);
+    expect(control.getSelected()).toBe('Titan');
+    expect(cameraCalls()).toEqual([]);
+    expect(control.getTracked()).toBeNull();
+  });
+
+  it('track focuses without framing, and does not select', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.track('Titan')).toBe(true);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'focus(Titan)']);
+    expect(control.getTracked()).toBe('Titan');
+    expect(vs.trackedBodyName).toBe('Titan');
+    expect(control.getSelected()).toBeNull();
+  });
+
+  it('frameObject frames what is tracked when not told what, and refuses with nothing tracked', () => {
+    const control = createViewerControl();
+    expect(control.frameObject()).toBe(false);
+    control.track('Titan');
+    renderer.calls.length = 0;
+    expect(control.frameObject()).toBe(true);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'frame(Titan)']);
+    expect(control.frameObject('Titam')).toBe(false);
+  });
+
+  it('jumpTo cuts to the pose a flight would land on', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.jumpTo('Enceladus')).toBe(true);
+    expect(cameraCalls()).toEqual(['frame(Enceladus)']);
+    expect(control.getFlight()).toBeNull();
+  });
+
+  it('flyTo takes the direct path unless told otherwise, and reports the flight', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.flyTo('Titan')).toBe(true);
+    expect(control.flyTo('Enceladus', { path: 'overview', seconds: 3 })).toBe(true);
+    expect(cameraCalls()).toEqual(['flyTo(Titan, direct, undefined)', 'flyTo(Enceladus, overview, 3)']);
+    expect(control.getFlight()).toEqual({ target: 'Enceladus', path: 'overview' });
+    expect(vs.flight).toEqual({ target: 'Enceladus', path: 'overview' });
+    // The HUD names the destination for the length of the flight.
+    expect(vs.trackedBodyName).toBe('Enceladus');
+    // Not tracked yet: that happens when it lands.
+    expect(control.getTracked()).toBeNull();
+  });
+
+  it('flyTo of no duration is a jump, and a negative one is refused', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.flyTo('Titan', { seconds: 0 })).toBe(true);
+    expect(cameraCalls()).toEqual(['frame(Titan)']);
+    expect(control.flyTo('Titan', { seconds: -1 })).toBe(false);
+  });
+
+  it('stopFlight ends the flight tracking its destination', () => {
+    const control = createViewerControl();
+    control.flyTo('Titan');
+    control.stopFlight();
+    expect(control.getFlight()).toBeNull();
+    expect(vs.flight).toBeNull();
+    expect(control.getTracked()).toBe('Titan');
+    // With nothing flying it does nothing.
+    renderer.calls.length = 0;
+    control.stopFlight();
+    expect(control.getTracked()).toBe('Titan');
+  });
+
+  it('reads a landing off the controller at once, not on the next animation frame', () => {
+    const control = createViewerControl();
+    control.flyTo('Titan');
+    (renderer.cameraController as unknown as { land(): void }).land();
+    expect(control.getFlight()).toBeNull();
+    expect(control.getTracked()).toBe('Titan');
+  });
+
+  it('runs as text', async () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    await execute(parse('track Titan\nframeObject\nflyTo Enceladus direct 2\nstopFlight\njumpTo Saturn'), control);
+    expect(cameraCalls()).toEqual([
+      'focus(Titan)',
+      'frame(Titan)',
+      'flyTo(Enceladus, direct, 2)',
+      'stopFlight',
+      'frame(Saturn)',
+    ]);
   });
 });
 
@@ -405,6 +640,74 @@ describe('setCamera', () => {
     control.setCamera([1, 2, 3], [0, 0, 0]);
     expect(control.getTracked()).toBe('Titan');
     expect(vs.lookAtBodyName).toBe('Enceladus');
+  });
+});
+
+describe('setCamera in a body-fixed frame', () => {
+  /** A body at the origin whose prime meridian (+X) points along world +Y. */
+  function enterBodyFixed() {
+    const control = createViewerControl();
+    const cc = renderer.cameraController as unknown as {
+      originBody: unknown;
+      camera: { position: THREE.Vector3; up: THREE.Vector3 };
+      controls: { target: THREE.Vector3 };
+    };
+    // Real vectors: the body-frame transform rotates them.
+    cc.camera.position = new THREE.Vector3();
+    cc.camera.up = new THREE.Vector3(0, 1, 0);
+    cc.controls.target = new THREE.Vector3();
+    const toWorld = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+    cc.originBody = {
+      body: { name: 'Titan' },
+      position: new THREE.Vector3(),
+      bodyToWorldQuaternion: (out: THREE.Quaternion) => out.copy(toWorld),
+    };
+    expect(control.setFrame('body-fixed', 'Titan')).toBe(true);
+    return { control, cc };
+  }
+
+  // Cosmographia's moveToPov takes body-fixed vectors (#152). A pose over the
+  // prime meridian has to land over the prime meridian however the body has
+  // turned, not at a fixed world direction.
+  it("takes the body's own axes", () => {
+    const { control, cc } = enterBodyFixed();
+    control.setCamera([1000, 0, 0], [0, 0, 0], [0, 0, 1]);
+    const sf = renderer.scaleFactor;
+    expect(cc.camera.position.x).toBeCloseTo(0, 9);
+    expect(cc.camera.position.y).toBeCloseTo(1000 * sf, 9);
+    expect(cc.camera.up.z).toBeCloseTo(1, 9);
+  });
+
+  // Between frames the body's pose describes the frame already drawn. Right
+  // after the origin moves to it — `gotoObject` then `setCamera` in one script,
+  // which is what every snapshot replay is — its position is still in the old
+  // origin's coordinates. The conversion has to use where the next frame will
+  // put it.
+  it('converts against the body as the next frame will have it, not the last', () => {
+    const { control, cc } = enterBodyFixed();
+    const origin = cc.originBody as { position: THREE.Vector3 };
+    origin.position.set(-384400 * renderer.scaleFactor, 0, 0); // stale: the old origin's coordinates
+    const refreshed: string[] = [];
+    renderer.refreshBodyPose = (name: string) => {
+      refreshed.push(name);
+      origin.position.set(0, 0, 0);
+      return true;
+    };
+    control.setCamera([1000, 0, 0], [0, 0, 0], [0, 0, 1]);
+    expect(refreshed).toContain('Titan');
+    // And the co-rotating mode re-baselines on that orientation, at the clock's time.
+    expect(renderer.calls).toContain(`syncModeFromCamera(${renderer.timeController.et})`);
+    expect(cc.camera.position.x).toBeCloseTo(0, 9);
+    expect(cc.camera.position.y).toBeCloseTo(1000 * renderer.scaleFactor, 9);
+  });
+
+  it('reads the pose back in the same axes, so a snapshot replays it', () => {
+    const { control } = enterBodyFixed();
+    control.setCamera([1000, -200, 300], [0, 0, 50], [0, 0, 1]);
+    const cam = control.getCamera();
+    expect(cam.position.map((v) => Math.round(v))).toEqual([1000, -200, 300]);
+    expect(cam.target.map((v) => Math.round(v))).toEqual([0, 0, 50]);
+    expect(cam.up.map((v) => Math.round(v * 1e6) / 1e6)).toEqual([0, 0, 1]);
   });
 });
 

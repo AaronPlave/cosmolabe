@@ -1,0 +1,69 @@
+{
+  "bodyHit": "67P/Churyumov-Gerasimenko",
+  "source": "dsk",
+  "altitude": {
+    "km": null,
+    "from": "unavailable",
+    "datum": null
+  },
+  "hitDatum": null,
+  "screenX": 630,
+  "screenY": 585,
+  "frontPixel": {
+    "x": 630.0000000221373,
+    "y": 579.9057241681104
+  },
+  "behindPixel": {
+    "x": 630.0000000221372,
+    "y": 590.0942758002574
+  },
+  "frontLabelOpacity": 1,
+  "behindLabelOpacity": 0,
+  "frontOccluded": false,
+  "behindOccluded": true,
+  "dskLayer": 1,
+  "viewDirection": [
+    -0.926010146850775,
+    -0.042786477468809335,
+    -0.37506602788738064
+  ],
+  "pinFrames": [
+    {
+      "epoch": "2016-09-30T10:39:00Z",
+      "anchorErrorKm": 2.1175823681357508e-16,
+      "normalError": 1.5700924586837752e-16,
+      "markerErrorKm": 2.1175823681357508e-16,
+      "markerVisible": true,
+      "samePin": true,
+      "coordinates": [
+        1.9955411934015292,
+        -1.2179331123921047,
+        0.015558354720053645
+      ],
+      "world": [
+        0.0000012279940814339874,
+        -0.0000014640082972102427,
+        0.0000013470330452100187
+      ]
+    },
+    {
+      "epoch": "2016-09-30T10:49:00Z",
+      "anchorErrorKm": 2.9947137044597153e-16,
+      "normalError": 1.1102230246251565e-16,
+      "markerErrorKm": 2.9947137044597153e-16,
+      "markerVisible": true,
+      "samePin": true,
+      "coordinates": [
+        1.9955411934015292,
+        -1.2179331123921047,
+        0.015558354720053645
+      ],
+      "world": [
+        0.0000013933333460039896,
+        -0.0000014051536673924842,
+        0.000001244971140690374
+      ]
+    }
+  ],
+  "errors": []
+}

@@ -99,7 +99,7 @@ function heroCatalog(): Record<string, unknown> {
         geometry: {
           type: 'Globe',
           radii: [SATURN_RADIUS, SATURN_RADIUS, 54364],
-          baseMap: asset('textures/saturn.jpg'),
+          baseMap: asset('hero/saturn.jpg'),
           atmosphere: 'Saturn',
         },
         items: [
@@ -111,7 +111,7 @@ function heroCatalog(): Record<string, unknown> {
               type: 'Rings',
               innerRadius: 74660,
               outerRadius: 140220,
-              texture: asset('textures/saturn-rings.png'),
+              texture: asset('hero/saturn-rings.png'),
             },
           },
         ],
@@ -122,7 +122,7 @@ function heroCatalog(): Record<string, unknown> {
         center: 'Saturn',
         trajectory: { type: 'Builtin', name: MOON.name },
         rotationModel: { type: 'Builtin', name: `IAU ${MOON.name}` },
-        geometry: { type: 'Globe', radius: MOON.radius, baseMap: asset('textures/dione-1k.jpg') },
+        geometry: { type: 'Globe', radius: MOON.radius, baseMap: asset('hero/dione-1k.jpg') },
       },
     ],
   };

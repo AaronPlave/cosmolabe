@@ -1,11 +1,19 @@
 import * as THREE from 'three';
+import * as TilesThree from '3d-tiles-renderer/three';
 import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { isMesh, isMeshBasicMaterial } from './internal/three-typeguards.js';
 import { QuantizedMeshPlugin, ImageOverlayPlugin, XYZTilesOverlay, WMSTilesOverlay, WMTSTilesOverlay, TMSTilesOverlay, TilesFadePlugin, DebugTilesPlugin, XYZTilesPlugin, WMTSTilesPlugin, WMTSCapabilitiesLoader, CesiumIonAuthPlugin, type WMTSCapabilitiesResult } from '3d-tiles-renderer/three/plugins';
-import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSourceMetadata } from './TerrainSampler.js';
-import { decodeQuantizedMesh } from './internal/quantized-mesh.js';
+import { TerrainSampler, bodyFixedToGeodetic, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSamplerDiagnostics, type TerrainSourceMetadata } from './TerrainSampler.js';
+import { decodeQuantizedMesh, toTerrainMeshTile } from './internal/quantized-mesh.js';
+import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './TerrainValidation.js';
+import { clampOpacity, describeImageryLayers, imageryList, layerStatus, overlapsBounds, reorderedLayers, type ImageryLayerInfo, type ImageryLayerView } from './ImageryLayers.js';
+import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGridSourceStats } from './surface/CubeSphereGrids.js';
+import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
+import type { CubeFace } from './surface/CubeSphere.js';
+import { fetchWithRetry } from './fetchWithRetry.js';
+import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
@@ -76,6 +84,20 @@ export interface TerrainImageryConfig {
    *  VIIRS/MODIS true-color reflectance. When set, the resolved date replaces
    *  the `default` time segment in the WMTS tile URL path. */
   time?: string | 'yesterday';
+  /** Stable id for viewer controls. Defaults to `layer-<index>`. */
+  id?: string;
+  /** Display name for viewer controls. Defaults to the product name in the URL path. */
+  name?: string;
+  /** Provenance shown with the layer. Defaults to the service host. */
+  attribution?: string;
+  /** The full product name, shown in the layer's details; keep `name` short. */
+  description?: string;
+  /** Native ground resolution in m/px, as the provider advertises it. The
+   *  tile pyramid's own pixel size is often finer, since providers pad levels. */
+  resolutionMeters?: number;
+  /** Start switched on. Default true. A layer that starts off requests nothing
+   *  until switched on. Ignored for the bottom (base) layer, which is always on. */
+  visible?: boolean;
 }
 
 export interface TerrainConfig {
@@ -139,12 +161,19 @@ export interface TerrainConfig {
    *  `tile.geometricError` outright, which produces visible terraces. Ignored
    *  when `skirtLength` is set (skirtLength wins). */
   skirtScale?: number;
-  /** `TilesFadePlugin` fade duration in ms. When unset, the fade plugin is
-   *  disabled (was 300 ms by default — caused visible jitter on high-zoom
-   *  HiRISE tiles while the camera was moving, as tiles streaming in/out
-   *  triggered fade animations every frame). Set to a positive number to
-   *  re-enable. */
+  /** `TilesFadePlugin` LOD crossfade in ms; 0 disables it. Defaults to 300,
+   *  or 0 for an imagery-only Globe: its parent and child tiles lie on the
+   *  same ellipsoid, so wherever both draw mid-fade they z-fight. */
   fadeDurationMs?: number;
+  /**
+   * Draw only the tiles the main camera can see (default: on for `cubeSphere`
+   * products, off otherwise). The renderer marks a tile visible when any of the
+   * streaming cameras (the wider terrain camera, the 178° coverage and 90° nadir
+   * cameras) sees it, so most tiles it selects lie beside, behind or below the
+   * view and would be drawn for no pixels (#149). Culled tiles stay selected,
+   * loaded and pickable; only their draw is skipped. See `setDrawCulling`.
+   */
+  drawCulling?: boolean;
   /** ImageOverlayPlugin per-terrain-tile composited texture resolution in
    *  pixels. When unset the plugin uses its built-in default of 256. Each
    *  terrain tile gets one composited texture at this resolution containing
@@ -156,6 +185,155 @@ export interface TerrainConfig {
    *  resolution gain when terrain is moving — tiles arrive stale-looking
    *  during pan/zoom. Try modest steps (e.g. 512) before reaching for 1024+. */
   overlayResolution?: number;
+  /**
+   * Experimental cube-sphere CPU grids (#149): the `cpu-grids.json` that
+   * `scripts/terrain/dem.py cube-tile` writes beside a `type: '3dtiles'` cube
+   * product. When set, CPU samples (readouts, clamping, waypoints) and
+   * `intersectSurfaceRay` read these grids, which load by query location and
+   * never from rendered meshes; until they arrive, samples are null.
+   */
+  cubeSphere?: {
+    cpuGrids: string;
+    /** Levels loaded up front and kept as the coarse fallback. Default 2. */
+    residentLevel?: number;
+    /** Finer grids retained (LRU). Default 2048. */
+    maxDetailTiles?: number;
+    /**
+     * Cube-face map imagery (`imagery.json` from `scripts/terrain/cube_imagery.py`)
+     * draped at its own levels, independently of this product's geometry LOD; see
+     * `CubeImageryLayer`. Use instead of `imagery` for cube products: the
+     * overlay plugin maps through per-vertex longitude/latitude, which cannot
+     * register the tiles meeting at each pole (both are face centres).
+     */
+    imagery?: CubeImageryConfig;
+    /**
+     * Draw the product's mixed-LOD skirts (default true). Each .glb lists its
+     * surface triangles first (glTF primitive extras `surfaceTriangles`); false
+     * draws, and ray-casts, only those, leaving cracks open for diagnosis. CPU
+     * queries read the grids, never meshes, so skirts never reach them.
+     */
+    skirts?: boolean;
+  };
+}
+
+/**
+ * Opt-in debug surface coloring (issue #52). Every mode is diagnostic only: it
+ * swaps tile materials for flat unlit colors and restores them on `'none'`.
+ *
+ * - `lod` — tile depth in the pyramid.
+ * - `geometric-error` / `screen-error` — the tileset's declared error, and the
+ *   error the renderer computed for the current view; what drives refinement.
+ * - `cpu-coverage` — green where the CPU sampler holds this tile's own decoded
+ *   heights, amber where the renderer synthesized it by splitting a parent (CPU
+ *   queries there answer from the parent, one level coarser). With cube-sphere
+ *   grids: green where this tile's own grid is resident, amber where only an
+ *   ancestor's is, grey where none is.
+ * - `cube-face` — experimental cube-sphere products (#149): hue per face,
+ *   brighter with depth, alternate tiles shaded so tile and face edges show.
+ * - `imagery-level` — cube imagery (#149): hue per displayed imagery level,
+ *   modulated by the texel, independent of the geometry tiles' depth.
+ * - `imagery-unlit` — cube imagery texels written unlit, without tone mapping
+ *   or colour conversion: what registration checks read back.
+ * - `datum-height` — mean tile elevation relative to the terrain datum, blue
+ *   below and red above, so below-reference terrain (Jezero) is explicit.
+ * - `seam-error` — largest height mismatch along this tile's shared edges with
+ *   cached same-level neighbours, green (0) to red (≥ `seamErrorScaleKm`); grey
+ *   when no neighbour is cached. The same numbers `scripts/validate-terrain.mjs`
+ *   reports offline.
+ *
+ * Base/residual/coverage-boundary views need the fused products' coverage
+ * metadata (#50, #48) and are added with them.
+ */
+export type TerrainDebugMode = 'none' | 'lod' | 'geometric-error' | 'screen-error' | 'cpu-coverage' | 'datum-height' | 'seam-error' | 'cube-face' | 'imagery-level' | 'imagery-unlit';
+export const TERRAIN_DEBUG_MODES: readonly TerrainDebugMode[] = ['none', 'lod', 'geometric-error', 'screen-error', 'cpu-coverage', 'datum-height', 'seam-error', 'cube-face', 'imagery-level', 'imagery-unlit'];
+/** Debug views drawn by the cube imagery shader rather than DebugTilesPlugin. */
+const IMAGERY_DEBUG: Partial<Record<TerrainDebugMode, 'unlit' | 'level'>> = { 'imagery-level': 'level', 'imagery-unlit': 'unlit' };
+const CUBE_FACE_HUE: Record<string, number> = { px: 0.0, nx: 0.5, py: 0.33, ny: 0.83, pz: 0.16, nz: 0.62 };
+/** `face/level/x/y` of a cube-sphere tile's content, or null. */
+const cubeAddress = (tile: any): { face: CubeFace; level: number; x: number; y: number } | null => {
+  const m = /(?:^|\/)(px|nx|py|ny|pz|nz)\/(\d+)\/(\d+)\/(\d+)\.glb$/.exec(tile?.content?.uri ?? '');
+  return m ? { face: m[1] as CubeFace, level: Number(m[2]), x: Number(m[3]), y: Number(m[4]) } : null;
+};
+
+export interface TerrainTiming {
+  count: number;
+  lastMs: number;
+  meanMs: number;
+  maxMs: number;
+}
+
+/**
+ * Terrain cost and load, cheap enough to read every UI tick. Timings are
+ * main-thread wall time. Memory is an estimate from the loaded tiles' buffers
+ * (geometry attributes, and texture dimensions × 4 bytes), not a GPU query.
+ */
+export interface TerrainPerformanceMetrics {
+  /** `tiles.update()` per frame, over the last 120 frames. */
+  update: TerrainTiming;
+  /** Renderer mesh construction (`parseToMesh`), per tile, since start. */
+  parse: TerrainTiming;
+  /** CPU-sampler decode + triangle binning, per tile, since start. */
+  cpuDecode: TerrainTiming;
+  /** CPU height queries. Independent of rendered vertex count by construction. */
+  sample: { count: number; lastMicros: number; meanMicros: number };
+  /** `visible`: selected by any streaming camera; `drawn`: of those, left visible by the main-view draw cull. */
+  tiles: { active: number; visible: number; drawn: number; inCache: number; cpu: number };
+  network: { requests: number; queued: number; downloading: number; parsing: number; failed: number };
+  memory: { cacheBytes: number; maxCacheBytes: number; geometryBytes: number; textureBytes: number };
+  /** Imagery stack load. `requests`/`failed` count overlay fetches; in imagery-only mode the base layer's tiles are in `network`. */
+  imagery: { layers: number; activeOverlays: number; overlayResolution: number; requests: number; failed: number };
+}
+
+/** Accumulates per-event wall time; `window` > 0 keeps only the most recent samples. */
+class TimingStat {
+  private readonly ring: Float64Array | null;
+  private idx = 0;
+  count = 0;
+  private total = 0;
+  private last = 0;
+  private max = 0;
+  constructor(window = 0) { this.ring = window > 0 ? new Float64Array(window) : null; }
+  add(ms: number): void {
+    this.last = ms;
+    this.count++;
+    if (this.ring) {
+      this.total += ms - this.ring[this.idx];
+      this.ring[this.idx] = ms;
+      this.idx = (this.idx + 1) % this.ring.length;
+    } else {
+      this.total += ms;
+      this.max = Math.max(this.max, ms);
+    }
+  }
+  reset(): void { this.count = 0; this.total = 0; this.last = 0; this.max = 0; this.idx = 0; this.ring?.fill(0); }
+  get value(): TerrainTiming {
+    const n = this.ring ? Math.min(this.count, this.ring.length) : this.count;
+    const max = this.ring ? this.ring.reduce((a, v) => Math.max(a, v), 0) : this.max;
+    return { count: this.count, lastMs: this.last, meanMs: n ? this.total / n : 0, maxMs: max };
+  }
+}
+
+const _debugColor = /* @__PURE__ */ new THREE.Color();
+
+/**
+ * Upstream's own texture sizing (format, mipmaps, array depth) — what its LRU
+ * cache counts. Exported at runtime; the package ships no typings for it.
+ */
+const MemoryUtils = (TilesThree as unknown as { MemoryUtils: { getTextureByteLength(tex: THREE.Texture): number } }).MemoryUtils;
+
+/**
+ * The material `DebugTilesPlugin` set aside when it swapped in a debug one. The
+ * plugin keys it by a module-private `Symbol('ORIGINAL_MATERIAL')`, so it is
+ * found by description; absent (undefined) when the plugin never touched the mesh.
+ */
+function originalDebugMaterial(mesh: THREE.Mesh): THREE.Material | undefined {
+  for (const sym of Object.getOwnPropertySymbols(mesh)) {
+    if (sym.description === 'ORIGINAL_MATERIAL') {
+      const m = (mesh as unknown as Record<symbol, THREE.Material | undefined>)[sym];
+      return m && m !== mesh.material ? m : undefined;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -226,8 +404,111 @@ function clampOverlayMinLevel(overlay: WMTSTilesOverlay, minLevel: number): void
   o.calculateLevel = (range, tile) => Math.max(original(range, tile), minLevel);
 }
 
+type ImageryOverlay = XYZTilesOverlay | WMSTilesOverlay | WMTSTilesOverlay | TMSTilesOverlay;
+
+/** An overlay built and initialized for one layer, waiting to be attached. */
+interface PreparedOverlay { id: string; overlay: ImageryOverlay; generation: number }
+
+/** Upstream overlay members the shipped typings leave out. */
+type OverlayInternals = { opacity: number; preprocessURL: ((url: string) => string) | null; init(): Promise<unknown> };
+/** Upstream tile loading states (`3d-tiles-renderer/core` constants, missing from its typings). */
+const FAILED = -1, LOADED = 4;
+type CoverageTile = {
+  internal?: { hasContent: boolean; loadingState: number };
+  traversal?: { inFrustum: boolean };
+  children: CoverageTile[];
+};
+/** The slice of upstream's TilingScheme the in-view report reads. */
+type OverlayTiling = {
+  minLevel: number;
+  maxLevel: number;
+  toCartographicRange(range: number[]): number[];
+  getTilesInRange(minX: number, minY: number, maxX: number, maxY: number, level: number, normalized: boolean): number[];
+};
+type TileFetcher = { fetchItem(tokens: number[], signal?: AbortSignal): Promise<THREE.Texture> };
+
+/** Coarser levels tried in place of a source tile that fails. */
+/** The parts of a tile's bounding volume `tileInMainView` reads. */
+interface TileVolume {
+  sphere?: THREE.Sphere | null;
+  obb?: { points: THREE.Vector3[] } | null;
+  regionObb?: { points: THREE.Vector3[] } | null;
+}
+
+/**
+ * Whether a tile's bounding volume can show in a frustum, seen from `eye`, all
+ * in tile space (the body centre at the origin, metres). Conservative: hidden
+ * only when outside one plane of the frustum, or when every box corner lies
+ * behind a sphere of `minRadius` (below all terrain) as seen from the eye —
+ * beyond its horizon plane and inside its shadow cone, a convex region, so the
+ * whole box is (Cesium's ellipsoidal occluder test, for a sphere).
+ */
+export function tileInMainView(bv: TileVolume, frustum: THREE.Frustum, eye: THREE.Vector3, minRadius: number): boolean {
+  if (bv.sphere && !frustum.intersectsSphere(bv.sphere)) return false;
+  const points = (bv.obb ?? bv.regionObb)?.points;
+  if (!points) return true;
+  if (!frustum.planes.every((p) => points.some((v) => p.distanceToPoint(v) >= 0))) return false;
+  const vh2 = eye.lengthSq() - minRadius * minRadius;
+  if (vh2 <= 0) return true;
+  return points.some((v) => {
+    const d = -_horizon.subVectors(v, eye).dot(eye);
+    return !(d > vh2 && d * d > vh2 * _horizon.lengthSq());
+  });
+}
+const _horizon = /* @__PURE__ */ new THREE.Vector3();
+
+const PARENT_FALLBACK_LEVELS = 4;
+
+/**
+ * Stand in for an XYZ source tile that fails (a bad request, an undecodable
+ * image) with the matching quarter of its parent, up to
+ * PARENT_FALLBACK_LEVELS coarser. Upstream composites a terrain tile from
+ * every source tile under it at once, so one bad source tile otherwise drops
+ * the layer from the whole terrain tile. ArcGIS's CTX mosaic serves
+ * corrupt PNGs at some z11/z12 tiles around Jezero.
+ */
+export function fallBackToParentTiles(source: TileFetcher, onLoad: (tile: number[], fromParent: boolean) => void): void {
+  const fetchItem = source.fetchItem.bind(source);
+  const fetchOrParent = async ([x, y, level]: number[], signal: AbortSignal | undefined, depth: number): Promise<THREE.Texture> => {
+    try {
+      const tex = await fetchItem([x, y, level], signal);
+      if (depth === 0) onLoad([x, y, level], false);
+      return tex;
+    } catch (err) {
+      if (signal?.aborted || level === 0 || depth >= PARENT_FALLBACK_LEVELS) throw err;
+      const parent = await fetchOrParent([x >> 1, y >> 1, level - 1], signal, depth + 1);
+      const image = parent.image as ImageBitmap;
+      if (depth === 0) onLoad([x, y, level], true);
+      // A 1×1 skip tile (outside coverage) has no quarter to cut.
+      if (image.width < 2) return parent;
+      // Source bitmaps are pre-flipped (south row first); tile y counts from the north.
+      const w = image.width / 2, h = image.height / 2;
+      const quarter = await createImageBitmap(image, (x & 1) * w, (y & 1) ? 0 : h, w, h);
+      image.close();
+      parent.dispose();
+      const tex = new THREE.Texture(quarter);
+      tex.generateMipmaps = false;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      return tex;
+    }
+  };
+  source.fetchItem = (tokens, signal) => fetchOrParent(tokens, signal, 0);
+}
+
+/**
+ * Hold the static map this long at most once streamed tiles are visible but
+ * the queue is still busy. Long enough for the first wave of tiles on a normal
+ * connection, short enough that a camera that keeps moving (and so keeps the
+ * queue busy) still gets the streamed surface.
+ */
+const SHOW_GRACE_MS = 1500;
+
+/** With tiles failed, none loaded and nothing in flight this long, the stream is dead. */
+const STREAM_STALL_MS = 3000;
+
 /** Create the appropriate imagery overlay based on config type. */
-function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMSTilesOverlay | WMTSTilesOverlay | TMSTilesOverlay {
+function createImageryOverlay(img: TerrainImageryConfig): ImageryOverlay {
   const type = img.type ?? 'xyz';
   switch (type) {
     case 'wms':
@@ -241,8 +522,8 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
         levels: img.levels ?? 8,
         tileDimension: img.dimension ?? 256,
         transparent: img.transparent ?? true,
-        color: 0xffffff,
-        opacity: 1,
+        color: img.color ?? 0xffffff,
+        opacity: clampOpacity(img.opacity ?? 1),
       });
     case 'wmts': {
       const preprocessURL = buildWmtsOverlayPreprocessURL(resolveTime(img.time));
@@ -252,8 +533,8 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
       // through `unknown` to keep the simpler call site.
       const overlay = new WMTSTilesOverlay({
         url: img.url,
-        color: 0xffffff,
-        opacity: 1,
+        color: img.color ?? 0xffffff,
+        opacity: clampOpacity(img.opacity ?? 1),
         ...(preprocessURL ? { preprocessURL } : {}),
       } as unknown as ConstructorParameters<typeof WMTSTilesOverlay>[0]);
       if (img.minZoom != null) clampOverlayMinLevel(overlay, img.minZoom);
@@ -262,8 +543,8 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
     case 'tms':
       return new TMSTilesOverlay({
         url: img.url,
-        color: 0xffffff,
-        opacity: 1,
+        color: img.color ?? 0xffffff,
+        opacity: clampOpacity(img.opacity ?? 1),
       });
     case 'xyz':
     default: {
@@ -311,8 +592,8 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
         levels: img.levels ?? 8,
         tileDimension: img.dimension ?? 256,
         projection: img.projection ?? 'EPSG:4326',
-        color: 0xffffff,
-        opacity: 1,
+        color: img.color ?? 0xffffff,
+        opacity: clampOpacity(img.opacity ?? 1),
         preprocessURL,
       });
     }
@@ -325,19 +606,49 @@ function createImageryOverlay(img: TerrainImageryConfig): XYZTilesOverlay | WMST
  * and coordinate transforms for non-Earth bodies.
  */
 const _camPos = /* @__PURE__ */ new THREE.Vector3();
+const _viewMat = /* @__PURE__ */ new THREE.Matrix4();
+const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
 export class TerrainManager {
   readonly tiles: TilesRenderer;
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
   private readonly isImageryOnly: boolean;
-  /** True when more than one imagery layer was configured — `ImageOverlayPlugin`
-   *  is registered to composite the extras. Used to gate the imagery-only
+  /** Imagery draped on the body ellipsoid, with no physical terrain. */
+  get imageryOnly(): boolean { return this.isImageryOnly; }
+  /** Composites imagery overlays per tile; null when no overlay layer is configured. */
+  private overlayPlugin: ImageOverlayPlugin | null = null;
+  /** True when `ImageOverlayPlugin` is registered. Gates the imagery-only
    *  MeshBasicMaterial → MeshStandardMaterial swap in `customizeTileMaterial`:
    *  the swap discards `ImageOverlayPlugin`'s shader wrap (it lives on the
    *  original material instance via `onBeforeCompile`), so when overlays are
-   *  present we keep the original material instead. */
-  private readonly hasOverlays: boolean;
+   *  present the wrap is carried across. */
+  private get hasOverlays(): boolean { return this.overlayPlugin !== null; }
+  /** The imagery stack, bottom → top, in its current order. */
+  private readonly layers: ImageryLayerInfo[];
+  private readonly layerConfigs = new Map<string, TerrainImageryConfig>();
+  /** Overlays currently in the plugin, by layer id. Switched-off layers have none and request nothing. */
+  private readonly activeOverlays = new Map<string, ImageryOverlay>();
+  private readonly overlayLayerIds = new WeakMap<object, string>();
+  /** Bumped on every enable/disable so a slow setup cannot attach a stale overlay. */
+  private readonly overlayGeneration = new Map<string, number>();
+  /** Layers whose source could not be set up (capabilities fetch, init). */
+  private readonly setupFailed = new Set<string>();
+  /** Per layer, source tiles (`level/x/y`) that failed and are drawn from a parent. */
+  private readonly degradedTiles = new Map<string, Set<string>>();
+  private readonly capabilitiesCache = new Map<string, Promise<WMTSCapabilitiesResult>>();
+  private _overlayResolution: number;
+  /** Tiles that loaded, and geometry/base-imagery tiles that failed, for the stream-failure fallback. */
+  private loadedModels = 0;
+  /** Tile materials already customized. A virtual (split) tile hands back the
+   *  same scene each time it reloads, and chaining the shader injections onto
+   *  it again redefines every injected symbol, so the program fails to compile. */
+  private readonly customizedMaterials = new WeakSet<THREE.Material>();
+  private geometryFailures = 0;
+  private rootFailed = false;
+  private lastGeometryFailureAt = 0;
+  /** When the stream first had visible tiles in the current show attempt (see `isReadyToShow`). */
+  private firstVisibleAt = 0;
   /** False while we're still waiting on an async plugin registration (e.g.
    *  wmts-capabilities fetch). tiles.update() crashes on a TilesRenderer with
    *  no URL and no plugin (tries to fetch a null tileset URL), so the render
@@ -348,12 +659,35 @@ export class TerrainManager {
   private readonly terrainHeightOffsetKm: number;
   /** CPU-only sampler. It never reads renderer scene meshes during a query. */
   readonly sampler: TerrainSampler;
+  /** Experimental cube-sphere CPU grids and their #148 ray surface, once the manifest loads. */
+  private cube: { source: CubeSphereGridSource; surface: CubeGridSurface } | null = null;
+  private readonly cubeConfigured: boolean;
+  private cubeSkirts = true;
+  private drawCulling = false;
+  /** Tile scenes hidden this frame by the main-view cull, shown again before the next update. */
+  private readonly culledScenes: THREE.Object3D[] = [];
+  /** Experimental cube-face map imagery, independent of geometry LOD (#149). */
+  private readonly cubeImagery: CubeImageryLayer | null = null;
   private disposed = false;
   private shadowUniforms: ShadowUniforms | null = null;
   private aerialPerspectiveUniforms: AerialPerspectiveUniforms | null = null;
   /** Global equirectangular normal map derived from heightmap. Applied per-tile with UV transforms. */
   private normalMap: THREE.CanvasTexture | null = null;
   private debugPlugin: DebugTilesPlugin | null = null;
+  private debugMode: TerrainDebugMode = 'none';
+  private showBounds = false;
+  /** Seam view: an edge mismatch at or above this (km) renders fully red. */
+  seamErrorScaleKm = 0.005;
+  /** CPU tile id by `z/x/y`, for neighbour lookups in the seam view. */
+  private readonly cpuIdByKey = new Map<string, string>();
+  private readonly cpuKeyById = new Map<string, TileKey>();
+  /** Memoized per-tile debug values, invalidated when a tile or its neighbour changes. */
+  private readonly seamErrorKm = new Map<string, number | null>();
+  private readonly meanElevationKm = new Map<string, number>();
+  private readonly updateTiming = new TimingStat(120);
+  private readonly parseTiming = new TimingStat();
+  private readonly decodeTiming = new TimingStat();
+  private requestCount = 0;
   /** Coverage camera: ensures tiles load for the body's visible hemisphere
    *  even when the main camera's frustum doesn't include the body. */
   private coverageCam: THREE.PerspectiveCamera | null = null;
@@ -367,6 +701,8 @@ export class TerrainManager {
    *  The scene camera's near/far can have extreme ratios (1e-12/1e6) that
    *  produce degenerate frustum planes in the tiles renderer's SAT test. */
   private terrainCam: THREE.PerspectiveCamera | null = null;
+  /** The main camera's frustum and position in tile space, set each update. */
+  private mainView: { frustum: THREE.Frustum; eye: THREE.Vector3 } | null = null;
 
   /**
    * @param config Terrain source configuration
@@ -409,9 +745,25 @@ export class TerrainManager {
       kind: config.sourceMetadata?.kind ?? (config.type === 'quantized-mesh' ? 'quantized-mesh' : config.type === 'imagery' ? 'imagery' : 'unknown'),
       url: config.sourceMetadata?.url ?? config.url,
       uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
+      version: config.sourceMetadata?.version,
     }, config.samplerMaxTiles ?? 256);
+    // The sampler's own LRU drops tiles independently of the renderer's; the
+    // seam/datum debug indexes must forget them too or they report neighbours
+    // the sampler no longer holds.
+    this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
+    this.cubeConfigured = !!config.cubeSphere;
+    this.cubeSkirts = config.cubeSphere?.skirts !== false;
+    this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
+    if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
+    if (config.cubeSphere?.imagery) {
+      this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery);
+      this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', `Terrain: cube imagery unavailable (${config.cubeSphere?.imagery?.url})`, err));
+    }
     this.isImageryOnly = config.type === 'imagery';
-    this.hasOverlays = Array.isArray(config.imagery) && config.imagery.length > 1;
+    const imageryConfigs = imageryList(config.imagery);
+    this.layers = describeImageryLayers(imageryConfigs, rxKm);
+    this.layers.forEach((l, i) => this.layerConfigs.set(l.id, imageryConfigs[i]));
+    this._overlayResolution = config.overlayResolution ?? 256;
     this.preloadAtPixels = config.preloadAtPixels ?? 40;
     this.showAtPixels = config.showAtPixels ?? 80;
 
@@ -447,9 +799,8 @@ export class TerrainManager {
       // tiles.update() until everything is registered (calling update() on a
       // TilesRenderer with no plugin crashes inside fetch(null)).
       this._pluginReady = false;
-      const imgArr = Array.isArray(config.imagery) ? config.imagery : [config.imagery!];
-      const baseImg = imgArr[0];
-      const overlayImgs = imgArr.slice(1);
+      const baseImg = imageryConfigs[0];
+      if (!baseImg) throw new Error('TerrainManager: type "imagery" needs at least one imagery layer with a `url`.');
 
       const basePluginOpts = {
         shape: 'ellipsoid' as const,
@@ -462,23 +813,11 @@ export class TerrainManager {
         ...(baseImg.endCaps === false ? { endCaps: false } : {}),
       };
 
-      // Per-URL capabilities cache so base + overlays sharing one GIBS
-      // GetCapabilities endpoint only fetch the doc once.
-      const capabilitiesCache = new Map<string, Promise<WMTSCapabilitiesResult>>();
-      const fetchCapabilities = (url: string): Promise<WMTSCapabilitiesResult> => {
-        let p = capabilitiesCache.get(url);
-        if (!p) {
-          p = new WMTSCapabilitiesLoader().loadAsync(url) as Promise<WMTSCapabilitiesResult>;
-          capabilitiesCache.set(url, p);
-        }
-        return p;
-      };
-
       // Base layer setup — synchronous for XYZ, async for wmts-capabilities.
       // Resolves to a 0-arg function that actually registers the plugin so we
       // can sequence base before overlays in the final Promise.all callback.
       const baseReady: Promise<() => void> = baseImg.type === 'wmts-capabilities'
-        ? fetchCapabilities(baseImg.url).then((capabilities) => () => {
+        ? this.fetchCapabilities(baseImg.url).then((capabilities) => () => {
             // `capabilities` is the deprecated-but-still-runtime-supported shape
             // (0.4.24 changelog). TS defs now require `tileMatrices` directly;
             // cast through `unknown` to preserve the simpler runtime call.
@@ -493,8 +832,12 @@ export class TerrainManager {
             this.tiles.registerPlugin(new XYZTilesPlugin({
               url: baseImg.url,
               levels: baseImg.levels ?? 8,
+              // The same default as overlays. Upstream's is Web Mercator, which
+              // put an equirectangular base (all of Trek) in the wrong place.
+              // Supported at runtime, missing from the shipped typings.
+              projection: baseImg.projection ?? 'EPSG:4326',
               ...basePluginOpts,
-            }));
+            } as ConstructorParameters<typeof XYZTilesPlugin>[0]));
           });
 
       // Base layer time substitution. The WMTSTilesPlugin / XYZTilesPlugin
@@ -510,53 +853,25 @@ export class TerrainManager {
         } as { preprocessURL: (url: string) => string });
       }
 
-      // Overlay layer setup — each one builds an ImageOverlay instance,
-      // resolved after any required capabilities fetches.
-      const overlaysReady: Promise<unknown>[] = overlayImgs.map(async (img) => {
-        const opacity = img.opacity ?? 1;
-        const color = img.color ?? 0xffffff;
-        const preprocessURL = buildWmtsOverlayPreprocessURL(resolveTime(img.time));
-
-        if (img.type === 'wmts-capabilities') {
-          const capabilities = await fetchCapabilities(img.url);
-          const overlay = new WMTSTilesOverlay({
-            capabilities,
-            layer: img.layer,
-            tileMatrixSet: img.tileMatrixSet,
-            color,
-            opacity,
-            ...(preprocessURL ? { preprocessURL } : {}),
-          } as unknown as ConstructorParameters<typeof WMTSTilesOverlay>[0]);
-          if (img.minZoom != null) clampOverlayMinLevel(overlay, img.minZoom);
-          return overlay;
-        }
-
-        // For non-WMTS overlays, `createImageryOverlay` handles its own
-        // minZoom/bounds logic via its XYZ preprocessURL. We override color
-        // and opacity afterward since createImageryOverlay hardcodes 0xffffff/1.
-        const overlay = createImageryOverlay(img);
-        (overlay as { opacity: number }).opacity = opacity;
-        (overlay as { color: number }).color = color;
-        return overlay;
-      });
+      // The first layer generates ellipsoid geometry; every other layer is an
+      // ImageOverlayPlugin overlay. The plugin is registered whenever overlays
+      // are configured, even if all start switched off, so the viewer can turn
+      // them on later. Tile splitting is the upstream default here: in
+      // imagery-only mode the base tiles need the plugin's splitter to take
+      // higher-resolution overlay data. (The terrain-mesh branch disables it
+      // because the terrain mesh already provides the splitting strategy.)
+      if (imageryConfigs.length > 1) this.registerOverlayPlugin(renderer, true);
+      const overlaysReady = this.layers.slice(1).filter((l) => l.visible).map((l) => this.prepareOverlay(l.id));
 
       Promise.all([baseReady, Promise.all(overlaysReady)]).then(([registerBase, overlays]) => {
         registerBase();
-        if (overlays.length > 0) {
-          this.tiles.registerPlugin(new ImageOverlayPlugin({
-            overlays: overlays as ConstructorParameters<typeof ImageOverlayPlugin>[0]['overlays'],
-            renderer,
-            // Upstream default — let the plugin subdivide base tiles when an
-            // overlay has higher-resolution data. The terrain-mesh branch
-            // sets this to false because the terrain mesh already provides
-            // the splitting strategy; in imagery-only mode the WMTS-generated
-            // base tiles need the plugin's splitter to composite correctly.
-            enableTileSplitting: true,
-          }));
-        }
+        overlays.forEach((o) => this.attachOverlay(o));
         this._pluginReady = true;
       }).catch((err) => {
-        console.error('[TerrainManager] Failed to set up imagery layers:', err);
+        // Only the base can reject (overlay setup failures are per layer).
+        // Without it there is no geometry: the body keeps its static map.
+        this.setupFailed.add(this.layers[0].id);
+        console.error('[TerrainManager] Failed to set up base imagery layer; keeping the static map:', err);
       });
     } else {
       if (config.type === 'quantized-mesh') {
@@ -576,7 +891,15 @@ export class TerrainManager {
         const parseToMesh = qmPlugin.parseToMesh.bind(qmPlugin);
         qmPlugin.parseToMesh = (buffer, tile, extension, uri) => {
           if (extension === 'terrain') this.captureDecodedQuantizedMesh(buffer, tile, uri);
-          return parseToMesh(buffer, tile, extension, uri);
+          const start = performance.now();
+          const result = parseToMesh(buffer, tile, extension, uri);
+          const done = () => this.parseTiming.add(performance.now() - start);
+          if (result && typeof (result as Promise<unknown>).then === 'function') {
+            (result as Promise<unknown>).then(done, () => {});
+          } else {
+            done();
+          }
+          return result;
         };
         if (config.skirtLength == null && config.skirtScale != null) {
           const skirtScale = config.skirtScale;
@@ -615,26 +938,33 @@ export class TerrainManager {
         });
       }
 
-      // Imagery overlays: drape image tiles onto terrain geometry
-      if (config.imagery) {
-        const imgConfigs = Array.isArray(config.imagery) ? config.imagery : [config.imagery];
-        const overlays = imgConfigs.map(img => createImageryOverlay(img));
-        const overlayOpts: { overlays: typeof overlays; renderer: typeof renderer; enableTileSplitting: boolean; resolution?: number } = {
-          overlays,
-          renderer,
-          enableTileSplitting: false,
-        };
-        if (config.overlayResolution != null) overlayOpts.resolution = config.overlayResolution;
-        this.tiles.registerPlugin(new ImageOverlayPlugin(overlayOpts as ConstructorParameters<typeof ImageOverlayPlugin>[0]));
+      // Imagery overlays: drape image tiles onto terrain geometry. Overlays
+      // attach in stack order once all are constructed (capabilities-discovered
+      // grids wait on a fetch) so tiles never load before their imagery.
+      if (imageryConfigs.length > 0) {
+        this.registerOverlayPlugin(renderer, false);
+        this._pluginReady = false;
+        Promise.all(this.layers.filter((l) => l.visible).map((l) => this.prepareOverlay(l.id))).then((overlays) => {
+          overlays.forEach((o) => this.attachOverlay(o));
+          this._pluginReady = true;
+        });
       }
     }
 
-    // Fade between LOD transitions to smooth color differences between zoom levels.
-    // Default 300 ms preserves existing behavior. Set `fadeDurationMs: 0` in
-    // the catalog to disable — useful for HiRISE-detail tilesets where the
-    // fade animation can cause visible jitter as tiles stream in/out while
-    // the camera is moving.
-    const fadeMs = config.fadeDurationMs ?? 300;
+    // Fade between LOD transitions to smooth color differences between zoom
+    // levels. Off by default for imagery-only (see `fadeDurationMs`); set it
+    // to 0 in the catalog for HiRISE-detail terrain, where the fade can jitter
+    // as tiles stream in/out while the camera is moving.
+    // Every tile of a cube product exists (the publisher checks), so a network error, 5xx
+    // or 429 is transient: retry it, with no attempt limit, while the tile stays loading.
+    // Upstream counts a failed child as ready and drops its parent, which would leave a
+    // hole for the session; this way the parent stays drawn through an outage and the
+    // tile arrives when the host recovers. The renderer aborts it if it is no longer wanted.
+    if (config.cubeSphere) {
+      this.tiles.registerPlugin({ fetchData: (url: string, options: RequestInit) => fetchWithRetry(url, options, { tries: Infinity }) } as never);
+    }
+
+    const fadeMs = config.fadeDurationMs ?? (this.isImageryOnly ? 0 : 300);
     if (fadeMs > 0) {
       this.tiles.registerPlugin(new TilesFadePlugin({ fadeDuration: fadeMs }));
     }
@@ -662,11 +992,36 @@ export class TerrainManager {
 
     // Customize tile materials as they load
     this.tiles.addEventListener('load-model', (event: { scene: THREE.Object3D; tile: any }) => {
+      this.loadedModels++;
       this.customizeTileMaterial(event.scene, event.tile);
+      if (this.cubeConfigured) this.applyCubeSkirts(event.scene);
+      const address = this.cubeImagery ? cubeAddress(event.tile) : null;
+      if (address) this.cubeImagery!.addTile(event.tile, event.scene, address);
     });
     this.tiles.addEventListener('dispose-model', (event: { tile: any }) => {
+      this.cubeImagery?.removeTile(event.tile);
       const id = this.cpuTileId(event.tile);
-      if (id) this.sampler.removeTile(id);
+      if (id) this.forgetCpuTile(id);
+    });
+    this.tiles.addEventListener('tile-download-start', () => {
+      this.requestCount++;
+      // Imagery-only: the base layer's images are the geometry tiles.
+      if (this.isImageryOnly && this.layers[0]) this.layers[0].requests++;
+    });
+    // Attribute failures to the layer that owns them. ImageOverlayPlugin tags
+    // overlay failures with the overlay; anything else is a geometry tile (the
+    // base imagery, in imagery-only mode) or, with no tile, the root tileset.
+    this.tiles.addEventListener('load-error', (event: { tile?: unknown; overlay?: object }) => {
+      if (event.overlay) {
+        const id = this.overlayLayerIds.get(event.overlay);
+        const layer = id ? this.layer(id) : undefined;
+        if (layer && this.activeOverlays.get(layer.id) === event.overlay) layer.failedTiles++;
+        return;
+      }
+      if (!event.tile) this.rootFailed = true;
+      this.geometryFailures++;
+      this.lastGeometryFailureAt = performance.now();
+      if (this.isImageryOnly && this.layers[0]) this.layers[0].failedTiles++;
     });
 
     // Log tile load errors — rate-limited to avoid flooding the console.
@@ -831,6 +1186,20 @@ export class TerrainManager {
     this.tiles.setCamera(tc);
     this.tiles.setResolutionFromRenderer(tc, renderer);
 
+    // The main camera's own view in tile space, for overlayView and the draw cull:
+    // the streaming cameras above see wider than the screen. Neither near nor far
+    // plane (three.js planes 5 and 4): the main camera's own reach far beyond both.
+    const group = this.tiles.group;
+    group.updateMatrixWorld();
+    const mv = this.mainView ??= { frustum: new THREE.Frustum(), eye: new THREE.Vector3() };
+    const top = terrainNear * Math.tan(THREE.MathUtils.DEG2RAD * 0.5 * mainCam.fov);
+    _viewMat.makePerspective(-top * mainCam.aspect, top * mainCam.aspect, top, -top, terrainNear, terrainFar)
+      .multiply(tc.matrixWorldInverse).multiply(group.matrixWorld);
+    mv.frustum.setFromProjectionMatrix(_viewMat);
+    mv.frustum.planes[4].constant = Infinity;
+    mv.frustum.planes[5].constant = Infinity;
+    mv.eye.copy(_camPos).applyMatrix4(_viewMat.copy(group.matrixWorld).invert());
+
     // Coverage cameras: ensure tiles load for the full visible hemisphere.
     // At close range (near surface), the terrain camera only sees ±45° from
     // the view direction, missing terrain at the sides and horizon. Two cameras
@@ -894,24 +1263,493 @@ export class TerrainManager {
     }
 
     if (!this._pluginReady) return;
+    const updateStart = performance.now();
+    // The renderer and TilesFadePlugin see every scene as they left it.
+    this.showCulledTiles();
     try {
       this.tiles.update();
+      this.updateTiming.add(performance.now() - updateStart);
     } catch (e) {
       console.error('[Cosmolabe] tiles.update() crashed:', e);
     }
+    if (this.drawCulling) this.cullToMainView();
+    if (this.cubeImagery) {
+      // Distance and frustum from the terrain camera (sane near/far, a wider
+      // field so imagery just outside the view is ready); texel size against
+      // the main camera's pixels.
+      this.tiles.group.updateWorldMatrix(true, false);
+      const pixelAngle = 2 * Math.tan(THREE.MathUtils.degToRad(mainCam.fov) / 2) / Math.max(1, renderer.getDrawingBufferSize(_bufferSize).y);
+      const useImagery = this.debugMode === 'none' || !!IMAGERY_DEBUG[this.debugMode];
+      try {
+        this.cubeImagery.update(tc, this.tiles.group.matrixWorld, pixelAngle, renderer, useImagery);
+      } catch (err) {
+        // Imagery must never stop terrain streaming or the frame loop.
+        this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
+      }
+    }
+  }
+
+  /** Hide this frame's visible tiles that the main camera cannot see (see `TerrainConfig.drawCulling`). */
+  private cullToMainView(): void {
+    const mv = this.mainView;
+    if (!mv) return;
+    const minRadius = this.horizonRadius();
+    const visibleTiles = (this.tiles as unknown as { visibleTiles: Set<{ engineData?: { scene?: THREE.Object3D | null; boundingVolume?: TileVolume } }> }).visibleTiles;
+    for (const tile of visibleTiles) {
+      const { scene, boundingVolume } = tile.engineData ?? {};
+      if (!scene?.visible || !boundingVolume || tileInMainView(boundingVolume, mv.frustum, mv.eye, minRadius)) continue;
+      scene.visible = false;
+      this.culledScenes.push(scene);
+    }
+  }
+
+  /**
+   * Draw every selected tile again until the next update. Call before rendering
+   * the scene with a camera other than the main one (the instrument view): the
+   * cull is the main camera's.
+   */
+  showCulledTiles(): void {
+    for (const scene of this.culledScenes) scene.visible = true;
+    this.culledScenes.length = 0;
+  }
+
+  /** Turn the main-view draw cull on or off (`TerrainConfig.drawCulling`); takes effect from the next update. */
+  setDrawCulling(enabled: boolean): void {
+    this.drawCulling = enabled;
+    if (!enabled) this.showCulledTiles();
+  }
+
+  /**
+   * Radius, tile-set metres, of a sphere below every rendered triangle, for
+   * conservative horizon tests: the cube product's validated lower bound
+   * (`CubeGridSurface.renderedInnerRadiusKm`) once its CPU-grid manifest has
+   * loaded. Otherwise 0: a point occludes nothing, so the tests fall back to
+   * the frustum alone.
+   */
+  private horizonRadius(): number {
+    return this.cube ? this.cube.surface.renderedInnerRadiusKm * 1000 : 0;
+  }
+
+  /** Show or hide cube-sphere skirts on every loaded and future tile; imagery blocks rebuild to match. */
+  setCubeSkirts(visible: boolean): void {
+    if (visible === this.cubeSkirts) return;
+    this.cubeSkirts = visible;
+    this.tiles.forEachLoadedModel((scene: THREE.Object3D) => this.applyCubeSkirts(scene));
+    this.cubeImagery?.invalidateBlocks();
+  }
+
+  private applyCubeSkirts(scene: THREE.Object3D): void {
+    scene.traverse((o) => {
+      const g = (o as THREE.Mesh).geometry;
+      const n = g?.userData?.surfaceTriangles;
+      if (typeof n === 'number') g.setDrawRange(0, this.cubeSkirts ? Infinity : 3 * n);
+    });
+  }
+
+  /** The experimental cube imagery layer, for diagnostics and live option changes; null when not configured. */
+  get cubeImageryLayer(): CubeImageryLayer | null {
+    return this.cubeImagery;
+  }
+
+  /** Cube imagery residency, requests and blocks, or null when the terrain has no cube imagery. */
+  get cubeImageryStats(): CubeImageryStats | null {
+    return this.cubeImagery?.stats ?? null;
   }
 
   /** CPU terrain query. Null means decoded data is not currently cached. */
   sample(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
+    // Cube grids carry no derived normals; `normal` stays absent rather than invented.
+    if (this.cubeConfigured) return this.cube?.source.sample(latDeg, lonDeg) ?? null;
     return this.sampler.sample(latDeg, lonDeg, deriveNormal);
   }
 
   sampleBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
+    if (this.cubeConfigured) {
+      const { latDeg, lonDeg } = bodyFixedToGeodetic(point, this.sampler.datum);
+      return this.sample(latDeg, lonDeg, deriveNormal);
+    }
     return this.sampler.sampleBodyFixedCartesian(point, deriveNormal);
+  }
+
+  /** CPU cache state of whichever CPU source answers `sample` (cube grids when configured). */
+  get cpuDiagnostics(): TerrainSamplerDiagnostics {
+    if (!this.cubeConfigured) return this.sampler.diagnostics;
+    const tiles = this.cube?.source.sampler.tileCount ?? 0;
+    return { tileCount: tiles, sampleCount: 0, lastSampleMicros: 0, meanSampleMicros: 0, state: tiles ? 'ready' : 'unloaded' };
+  }
+
+  /** Source identity of whichever CPU source answers `sample`. */
+  get cpuSource(): TerrainSourceMetadata {
+    return this.cube?.source.manifest.source ?? this.sampler.source;
+  }
+
+  /** Explicit CPU coverage at a point: finest, coarse parent fallback, or unloaded. Null without cube grids. */
+  cubeCoverage(latDeg: number, lonDeg: number): CubeCoverage | null {
+    if (!this.cubeConfigured) return null;
+    return this.cube?.source.coverage(latDeg, lonDeg)
+      ?? { state: 'unloaded', availableLevel: 0, residentLevel: null, residentTileId: null };
+  }
+
+  /** Cube CPU grid residency and request counters, or null without cube grids. */
+  get cubeStats(): (CubeGridSourceStats & { version: string | null }) | null {
+    if (!this.cubeConfigured) return null;
+    const stats = this.cube?.source.stats ?? { residentTiles: 0, detailTiles: 0, requests: 0, bytes: 0, failed: 0, inFlight: 0 };
+    return { ...stats, version: this.cube?.source.manifest.source.version ?? null };
+  }
+
+  /**
+   * #148 Cartesian ray query (body-fixed km, Z-up) against resident CPU terrain.
+   * Only cube grids implement it here; the result is provisional (`coarse`)
+   * because their coverage is partial. It also starts the surface's own
+   * ensure-coverage pass along the ray, so a repeated query finds finer triangles;
+   * `requestSurfaceIntersection` awaits that pass instead.
+   */
+  intersectSurfaceRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection | null {
+    if (!this.cube) return null;
+    const result = this.cube.surface.intersectRay(ray, options);
+    this.cube.surface.ensureRayCoverage(ray, options, new AbortController().signal)
+      .catch((err) => this.warnOnce('cube-ray', 'Terrain: cube grid ray coverage failed', err));
+    return result;
+  }
+
+  private loadCubeGrids(config: NonNullable<TerrainConfig['cubeSphere']>, datum: TerrainDatum): void {
+    CubeSphereGridSource.fromUrl(config.cpuGrids, config).then((source) => {
+      if (this.disposed) return;
+      // The grids carry their own datum; refuse any that disagrees with the body's.
+      const a = source.manifest.datum.referenceShape, b = datum.referenceShape;
+      const radii = (shape: TerrainDatum['referenceShape']) => shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : [...shape.radiiKm];
+      if (a.kind !== b.kind || radii(a).some((r, i) => Math.abs(r - radii(b)[i]) > 1e-9)) {
+        throw new Error(`cube grid datum ${JSON.stringify(source.manifest.datum.referenceShape)} does not match the body ${JSON.stringify(datum.referenceShape)}`);
+      }
+      const surface = new CubeGridSurface(source, 'body', 'body-fixed');
+      source.onChange = (id) => surface.invalidate(id);
+      this.cube = { source, surface };
+      // Geometry and grids must be one product revision (the builder writes the grids'
+      // source version as the tileset's asset.tilesetVersion). Checked once the tileset
+      // arrives, so CPU queries never wait on rendering; a mismatch drops the grids.
+      this.onRootTileset((tileset) => {
+        const version = (tileset as { asset?: { tilesetVersion?: string } }).asset?.tilesetVersion;
+        if (version === undefined || version === source.manifest.source.version || this.cube?.source !== source) return;
+        this.cube = null;
+        source.dispose();
+        this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`,
+          new Error(`grid revision ${source.manifest.source.version} does not match the tileset's ${version}`));
+      });
+      return source.ready;
+    }).catch((err) => this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err));
+  }
+
+  /** Call `fn` with the root tileset JSON now if it has loaded, else once it does. */
+  private onRootTileset(fn: (tileset: object) => void): void {
+    const tiles = this.tiles as unknown as { rootTileset: object | null } & THREE.EventDispatcher<{ 'load-root-tileset': object }>;
+    if (tiles.rootTileset) { fn(tiles.rootTileset); return; }
+    const listener = () => { tiles.removeEventListener('load-root-tileset', listener); if (tiles.rootTileset) fn(tiles.rootTileset); };
+    tiles.addEventListener('load-root-tileset', listener);
   }
 
   bodyFixedToGeodetic(point: BodyFixedCartesian): BodyFixedPosition {
     return bodyFixedToGeodetic(point, this.sampler.datum);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Imagery layers (#123)
+  // ---------------------------------------------------------------------------
+
+  /** The imagery stack, bottom → top, with each layer's current load health. */
+  get imageryLayers(): ImageryLayerInfo[] {
+    return this.layers.map((l) => ({
+      ...l,
+      bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
+      status: layerStatus(l.requests, l.failedTiles, this.setupFailed.has(l.id)),
+      view: this.overlayView(l),
+    }));
+  }
+
+  /** What overlay `layer` adds to the tiles in view, or null while it is not drawn. */
+  private overlayView(layer: ImageryLayerInfo): ImageryLayerView | null {
+    type Overlay = { calculateLevel(range: number[]): number; tiling: OverlayTiling };
+    const overlay = this.activeOverlays.get(layer.id) as unknown as Overlay | undefined;
+    const info = (this.overlayPlugin as unknown as { overlayInfo?: Map<unknown, { tileInfo: Map<unknown, { range: number[] | null; failed: boolean }> }> } | null)
+      ?.overlayInfo?.get(overlay);
+    const visibleTiles = (this.tiles as unknown as { visibleTiles: Set<unknown> }).visibleTiles;
+    // Nothing drawn yet, so nothing to judge.
+    if (!overlay?.tiling || !info || visibleTiles.size === 0) return null;
+    const { tiling } = overlay;
+    const degraded = this.degradedTiles.get(layer.id);
+    const degradedInView = new Set<string>();
+    const cacheFull = (this.tiles.lruCache as unknown as { isFull(): boolean }).isFull();
+    const view: ImageryLayerView = { inCoverage: false, zoomLevel: null, missingTiles: 0, degradedTiles: 0, cacheFull };
+    for (const tile of visibleTiles) {
+      const bv = (tile as { engineData?: { boundingVolume?: TileVolume } }).engineData?.boundingVolume;
+      if (this.mainView && bv && !tileInMainView(bv, this.mainView.frustum, this.mainView.eye, this.horizonRadius())) continue;
+      const t = info.tileInfo.get(tile);
+      if (!t?.range) continue;
+      if (layer.bounds && !overlapsBounds(tiling.toCartographicRange(t.range), layer.bounds)) continue;
+      view.inCoverage = true;
+      const level = overlay.calculateLevel(t.range);
+      view.zoomLevel = Math.max(view.zoomLevel ?? 0, level);
+      if (t.failed) view.missingTiles++;
+      if (!degraded?.size) continue;
+      // The source tiles this terrain tile is composed from, as the plugin picks them.
+      const [minX, minY, maxX, maxY] = t.range;
+      const l = Math.max(Math.min(level, tiling.maxLevel), tiling.minLevel);
+      const [x0, y0, x1, y1] = tiling.getTilesInRange(minX + 1e-8, minY + 1e-8, maxX - 1e-8, maxY - 1e-8, l, true);
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) if (degraded.has(`${l}/${x}/${y}`)) degradedInView.add(`${l}/${x}/${y}`);
+      }
+    }
+    view.degradedTiles = degradedInView.size;
+    return view;
+  }
+
+  /**
+   * Switch an optional layer on or off. Off removes its overlay from the
+   * compositor, which aborts its pending fetches and releases its textures, so
+   * a hidden layer costs no requests. Returns false when nothing changed (the
+   * base layer, an unknown id, or the same state).
+   */
+  setImageryLayerVisible(id: string, visible: boolean): boolean {
+    const layer = this.layer(id);
+    if (!layer || !layer.optional || !this.overlayPlugin || layer.visible === visible) return false;
+    layer.visible = visible;
+    if (visible) {
+      layer.requests = 0;
+      layer.failedTiles = 0;
+      void this.prepareOverlay(id).then((p) => this.attachOverlay(p));
+    } else {
+      this.overlayGeneration.set(id, (this.overlayGeneration.get(id) ?? 0) + 1);
+      this.setupFailed.delete(id);
+      this.detachOverlay(id);
+    }
+    return true;
+  }
+
+  /**
+   * Layer opacity, 0..1. Read by the overlay shader every frame, so no tile is
+   * recomposited. The imagery-only base is tile geometry, not an overlay, and
+   * has no opacity.
+   */
+  setImageryLayerOpacity(id: string, opacity: number): boolean {
+    const layer = this.layer(id);
+    if (!layer || (layer.role === 'base' && this.isImageryOnly)) return false;
+    layer.opacity = clampOpacity(opacity);
+    const overlay = this.activeOverlays.get(id);
+    if (overlay) (overlay as unknown as OverlayInternals).opacity = layer.opacity;
+    return true;
+  }
+
+  /**
+   * Move an overlay to `toIndex` in the bottom → top stack. The base stays at
+   * the bottom. Reordering only re-binds per-tile layer textures; nothing is
+   * fetched again.
+   */
+  moveImageryLayer(id: string, toIndex: number): boolean {
+    const next = reorderedLayers(this.layers, this.layers.findIndex((l) => l.id === id), toIndex);
+    if (!next) return false;
+    this.layers.splice(0, this.layers.length, ...next);
+    this.layers.forEach((l, i) => {
+      const overlay = this.activeOverlays.get(l.id);
+      if (overlay) this.overlayPlugin?.setOverlayOrder(overlay, i);
+    });
+    return true;
+  }
+
+  /** Per-terrain-tile composite resolution, in pixels. */
+  get overlayResolution(): number { return this._overlayResolution; }
+
+  /**
+   * Change the composite resolution at runtime, for side-by-side measurement
+   * (see docs/catalog-format.md, `overlayResolution`). The plugin applies a
+   * resolution when an overlay is added, so every active overlay is rebuilt.
+   */
+  setOverlayResolution(px: number): void {
+    if (!this.overlayPlugin || !(px > 0) || px === this._overlayResolution) return;
+    this._overlayResolution = px;
+    (this.overlayPlugin as unknown as { resolution: number }).resolution = px;
+    for (const id of [...this.activeOverlays.keys()]) {
+      this.detachOverlay(id);
+      void this.prepareOverlay(id).then((p) => this.attachOverlay(p));
+    }
+  }
+
+  /** Overlay fetches since start, across all layers. */
+  get imageryRequests(): number {
+    let n = 0;
+    for (const l of this.layers) if (l.role === 'overlay' || !this.isImageryOnly) n += l.requests;
+    return n;
+  }
+
+  /**
+   * The stream cannot supply a surface: the imagery-only base could not be set
+   * up, the root tileset failed, or tiles failed with none loaded and nothing
+   * left in flight for `STREAM_STALL_MS`. The body keeps its static map.
+   * Overlay failures never count here — the layers beneath them still render.
+   */
+  hasStreamFailed(now = performance.now()): boolean {
+    if (this.isImageryOnly && this.layers[0] && this.setupFailed.has(this.layers[0].id)) return true;
+    // A hole in the coarsest surface (one of two level-0 imagery tiles, say)
+    // never fills: nothing else covers that part of the globe.
+    if (this.coverageTiles().some((t) => t.internal?.loadingState === FAILED)) return true;
+    if (this.loadedModels > 0 || this.geometryFailures === 0) return false;
+    if (this.rootFailed || this.geometryFailures >= 4) return true;
+    // A single early failure (one of the two level-0 imagery tiles, say) can
+    // leave the traversal with nothing else to ask for; give the queue a
+    // moment to pick up siblings before calling the stream dead.
+    const stats = (this.tiles as unknown as { stats?: Record<string, number> }).stats ?? {};
+    const pending = (stats.queued ?? 0) + (stats.downloading ?? 0) + (stats.parsing ?? 0);
+    return pending === 0 && now - this.lastGeometryFailureAt >= STREAM_STALL_MS;
+  }
+
+  /**
+   * Whether the streamed surface can replace the static map without a hole or
+   * a flash of untextured tiles: every coverage tile in view has loaded, and
+   * either the queue has drained or it has been busy for `SHOW_GRACE_MS` since
+   * tiles appeared. Below the coverage tiles a parent stays drawn until all its
+   * children are ready, so a loaded coverage set leaves no holes.
+   * Call once per frame while the body is in the show zone; `resetShowWait`
+   * when it leaves.
+   */
+  isReadyToShow(now = performance.now()): boolean {
+    if (!this._pluginReady || this.hasStreamFailed(now)) return false;
+    const stats = (this.tiles as unknown as { stats?: Record<string, number> }).stats ?? {};
+    if (!((stats.visible ?? 0) > 0)) { this.firstVisibleAt = 0; return false; }
+    if (this.coverageTiles().some((t) => t.traversal?.inFrustum !== false && t.internal?.loadingState !== LOADED)) return false;
+    if (!this.firstVisibleAt) this.firstVisibleAt = now;
+    const pending = (stats.queued ?? 0) + (stats.downloading ?? 0) + (stats.parsing ?? 0);
+    return pending === 0 || now - this.firstVisibleAt >= SHOW_GRACE_MS;
+  }
+
+  resetShowWait(): void { this.firstVisibleAt = 0; }
+
+  /**
+   * The shallowest tiles with content, which the surface is built from before
+   * any refinement: the level-0 tiles of an imagery-only globe or a quantized
+   * mesh, or a 3D Tiles root. A tile the traversal has not reached yet counts
+   * too, as not loaded.
+   */
+  private coverageTiles(): CoverageTile[] {
+    const out: CoverageTile[] = [];
+    const walk = (t: CoverageTile) => {
+      if (!t.internal || t.internal.hasContent) out.push(t);
+      else t.children.forEach(walk);
+    };
+    const root = (this.tiles as unknown as { root: CoverageTile | null }).root;
+    if (root) walk(root);
+    return out;
+  }
+
+  private layer(id: string): ImageryLayerInfo | undefined {
+    return this.layers.find((l) => l.id === id);
+  }
+
+  private registerOverlayPlugin(renderer: THREE.WebGLRenderer, enableTileSplitting: boolean): void {
+    this.overlayPlugin = new ImageOverlayPlugin({
+      overlays: [],
+      renderer,
+      enableTileSplitting,
+      resolution: this._overlayResolution,
+    } as ConstructorParameters<typeof ImageOverlayPlugin>[0]);
+    this.tiles.registerPlugin(this.overlayPlugin);
+  }
+
+  /** One capabilities fetch per URL, so layers sharing a GIBS endpoint share its tile grid. */
+  private fetchCapabilities(url: string): Promise<WMTSCapabilitiesResult> {
+    let p = this.capabilitiesCache.get(url);
+    if (!p) {
+      p = new WMTSCapabilitiesLoader().loadAsync(url) as Promise<WMTSCapabilitiesResult>;
+      this.capabilitiesCache.set(url, p);
+    }
+    return p;
+  }
+
+  /**
+   * Build and initialize a fresh overlay for a layer. A fresh one every time:
+   * the plugin wraps an overlay's `fetch` when it is added, so re-adding a
+   * removed overlay would queue every request twice. Never rejects; a layer
+   * that cannot be set up is marked failed and the rest of the stack carries on.
+   */
+  private async prepareOverlay(id: string): Promise<PreparedOverlay | null> {
+    const generation = (this.overlayGeneration.get(id) ?? 0) + 1;
+    this.overlayGeneration.set(id, generation);
+    const cfg = this.layerConfigs.get(id)!;
+    const layer = this.layer(id)!;
+    try {
+      let overlay: ImageryOverlay;
+      if (cfg.type === 'wmts-capabilities') {
+        const capabilities = await this.fetchCapabilities(cfg.url);
+        const preprocessURL = buildWmtsOverlayPreprocessURL(resolveTime(cfg.time));
+        overlay = new WMTSTilesOverlay({
+          capabilities,
+          layer: cfg.layer,
+          tileMatrixSet: cfg.tileMatrixSet,
+          color: cfg.color ?? 0xffffff,
+          opacity: layer.opacity,
+          ...(preprocessURL ? { preprocessURL } : {}),
+        } as unknown as ConstructorParameters<typeof WMTSTilesOverlay>[0]);
+        if (cfg.minZoom != null) clampOverlayMinLevel(overlay, cfg.minZoom);
+      } else {
+        overlay = createImageryOverlay(cfg);
+      }
+      const o = overlay as unknown as OverlayInternals;
+      o.opacity = layer.opacity;
+      const inner = o.preprocessURL;
+      o.preprocessURL = (url: string) => {
+        // The plugin queues overlay fetches on the shared download queue, and
+        // removing an overlay does not drain them. Fetches a switched-off
+        // layer still has queued resolve to an empty tile instead of going out.
+        if (this.activeOverlays.get(id) !== overlay) return SKIP_TILE_DATA_URL;
+        const out = inner ? inner(url) : url;
+        // Count real requests, not the skip tiles outside a layer's coverage.
+        if (out !== SKIP_TILE_DATA_URL) layer.requests++;
+        return out;
+      };
+      // ponytail: XYZ only, where tile y counts from the north; TMS/WMTS/WMS keep upstream's all-or-nothing.
+      const source = (overlay as unknown as { imageSource?: TileFetcher }).imageSource;
+      if ((cfg.type ?? 'xyz') === 'xyz' && source) {
+        // A fresh set per overlay: a rebuilt layer refetches everything, and a
+        // source tile that loads on retry is no longer degraded.
+        const degraded = new Set<string>();
+        this.degradedTiles.set(id, degraded);
+        fallBackToParentTiles(source, ([x, y, level], fromParent) => {
+          if (fromParent) {
+            layer.failedTiles++;
+            degraded.add(`${level}/${x}/${y}`);
+          } else {
+            degraded.delete(`${level}/${x}/${y}`);
+          }
+        });
+      }
+      await o.init();
+      this.setupFailed.delete(id);
+      return { id, overlay, generation };
+    } catch (err) {
+      if (this.overlayGeneration.get(id) === generation) this.setupFailed.add(id);
+      this.warnOnce(`imagery-setup:${id}`, `[Cosmolabe:Imagery] Layer "${layer.name}" could not be set up; the layers beneath it stay visible.`, err);
+      return null;
+    }
+  }
+
+  private attachOverlay(prepared: PreparedOverlay | null): void {
+    if (!prepared || this.disposed || !this.overlayPlugin) return;
+    const { id, overlay, generation } = prepared;
+    const layer = this.layer(id);
+    if (!layer?.visible || this.overlayGeneration.get(id) !== generation || this.activeOverlays.has(id)) return;
+    if (this.activeOverlays.size >= 10) {
+      // ImageOverlayPlugin's shader composites at most ten layers.
+      this.warnOnce('imagery-layer-limit', `[Cosmolabe:Imagery] At most 10 imagery layers can be shown at once; "${layer.name}" stays off.`);
+      layer.visible = false;
+      return;
+    }
+    this.activeOverlays.set(id, overlay);
+    this.overlayLayerIds.set(overlay, id);
+    this.overlayPlugin.addOverlay(overlay, this.layers.indexOf(layer));
+  }
+
+  private detachOverlay(id: string): void {
+    const overlay = this.activeOverlays.get(id);
+    if (!overlay) return;
+    this.activeOverlays.delete(id);
+    this.overlayPlugin?.deleteOverlay(overlay);
   }
 
   /**
@@ -930,6 +1768,7 @@ export class TerrainManager {
     if (!id) return;
     const region = tile?.boundingVolume?.region;
     if (!region) return;
+    const decodeStart = performance.now();
     let parsed;
     try {
       parsed = decodeQuantizedMesh(buffer);
@@ -944,28 +1783,63 @@ export class TerrainManager {
     // compensates for a non-standard one by shrinking the decode ellipsoid
     // (see TerrainConfig.referenceRadiusOffsetKm), so the same correction has to
     // be applied here or CPU samples sit `offset` km above the rendered surface.
-    const offsetKm = this.terrainHeightOffsetKm;
-    const elevationsKm = new Float32Array(parsed.heightMeters.length);
-    for (let i = 0; i < elevationsKm.length; i++) {
-      elevationsKm[i] = parsed.heightMeters[i] / 1000 - offsetKm;
-    }
     try {
-      this.sampler.addTile({
+      this.sampler.addTile(toTerrainMeshTile(parsed, {
         id,
-        kind: 'mesh',
         westDeg: westRad * 180 / Math.PI,
         eastDeg: eastRad * 180 / Math.PI,
         southDeg: southRad * 180 / Math.PI,
         northDeg: northRad * 180 / Math.PI,
-        u: parsed.u,
-        v: parsed.v,
-        elevationsKm,
-        indices: parsed.indices,
         source: this.sampler.source,
-      });
+      }, this.terrainHeightOffsetKm));
+      this.decodeTiming.add(performance.now() - decodeStart);
+      this.indexCpuTile(id);
     } catch (err) {
       this.warnOnce('qm-tile', `Terrain: rejected decoded tile ${uri}`, err);
     }
+  }
+
+  /** Record a captured tile's `z/x/y` and drop memoized debug values it may change. */
+  private indexCpuTile(id: string): void {
+    const key = parseTileKey(id);
+    if (!key) return;
+    this.cpuIdByKey.set(tileKeyId(key), id);
+    this.cpuKeyById.set(id, key);
+    this.invalidateDebugValues(id, key);
+  }
+
+  private forgetCpuTile(id: string): void {
+    this.sampler.removeTile(id);
+    this.dropCpuIndexes(id);
+  }
+
+  /** Forget a tile the sampler no longer holds, and every memoized debug value it fed. */
+  private dropCpuIndexes(id: string): void {
+    const key = this.cpuKeyById.get(id);
+    this.cpuKeyById.delete(id);
+    if (key && this.cpuIdByKey.get(tileKeyId(key)) === id) this.cpuIdByKey.delete(tileKeyId(key));
+    this.invalidateDebugValues(id, key);
+  }
+
+  private invalidateDebugValues(id: string, key: TileKey | undefined): void {
+    this.seamErrorKm.delete(id);
+    this.meanElevationKm.delete(id);
+    if (!key) return;
+    for (const n of this.sameLevelNeighbours(key)) {
+      const nid = this.cpuIdByKey.get(tileKeyId(n));
+      if (nid) this.seamErrorKm.delete(nid);
+    }
+  }
+
+  private sameLevelNeighbours(k: TileKey): TileKey[] {
+    const nx = 2 ** (k.z + 1), ny = 2 ** k.z;
+    const out: TileKey[] = [
+      { z: k.z, x: (k.x + 1) % nx, y: k.y },
+      { z: k.z, x: (k.x - 1 + nx) % nx, y: k.y },
+    ];
+    if (k.y + 1 < ny) out.push({ z: k.z, x: k.x, y: k.y + 1 });
+    if (k.y > 0) out.push({ z: k.z, x: k.x, y: k.y - 1 });
+    return out;
   }
 
   /** Rate-limited warning so a systematically broken tileset logs once, not per tile. */
@@ -1021,18 +1895,226 @@ export class TerrainManager {
 
   /** Toggle debug tile bounds visualization. Lazily registers the plugin on first enable. */
   setDebug(show: boolean): void {
-    if (show && !this.debugPlugin) {
-      this.debugPlugin = new DebugTilesPlugin({ displayBoxBounds: true, displayRegionBounds: true });
+    this.showBounds = show;
+    if (!show && !this.debugPlugin) return;
+    const plugin = this.ensureDebugPlugin();
+    plugin.displayBoxBounds = show;
+    plugin.displayRegionBounds = show;
+    this.releaseIdleDebugPlugin();
+  }
+
+  /** Current debug surface mode. */
+  get debugSurfaceMode(): TerrainDebugMode { return this.debugMode; }
+
+  /** Color tiles by a diagnostic quantity; `'none'` restores the real materials. See {@link TerrainDebugMode}. */
+  setDebugMode(mode: TerrainDebugMode): void {
+    if (!TERRAIN_DEBUG_MODES.includes(mode)) throw new Error(`Unknown terrain debug mode "${mode}"`);
+    if (mode === this.debugMode) return;
+    this.debugMode = mode;
+    if (this.cubeImagery) this.cubeImagery.debug = IMAGERY_DEBUG[mode] ?? 'none';
+    if ((mode === 'none' || IMAGERY_DEBUG[mode]) && !this.debugPlugin) return;
+    const plugin = this.ensureDebugPlugin();
+    // `ColorModes` exists at runtime but the upstream typings omit the static.
+    const C = (DebugTilesPlugin as unknown as { ColorModes: Record<'NONE' | 'DEPTH' | 'GEOMETRIC_ERROR' | 'SCREEN_ERROR' | 'CUSTOM_COLOR', number> }).ColorModes;
+    (plugin as unknown as { colorMode: number }).colorMode = mode === 'none' || IMAGERY_DEBUG[mode] ? C.NONE
+      : mode === 'lod' ? C.DEPTH
+      : mode === 'geometric-error' ? C.GEOMETRIC_ERROR
+      : mode === 'screen-error' ? C.SCREEN_ERROR
+      : C.CUSTOM_COLOR;
+    // Unlit, so the night side and terminator don't hide the encoding.
+    plugin.unlit = mode !== 'none' && !IMAGERY_DEBUG[mode];
+    this.releaseIdleDebugPlugin();
+  }
+
+  /**
+   * With no debug view and no bounds, drop the plugin entirely: registered, it
+   * walks every visible tile each frame (~1 ms at 1000 tiles, measured on
+   * MoonFall). Unregistering disposes it, which restores every material.
+   */
+  private releaseIdleDebugPlugin(): void {
+    if (!this.debugPlugin || (this.debugMode !== 'none' && !IMAGERY_DEBUG[this.debugMode]) || this.showBounds) return;
+    this.tiles.unregisterPlugin(this.debugPlugin);
+    this.debugPlugin = null;
+  }
+
+  private ensureDebugPlugin(): DebugTilesPlugin {
+    if (!this.debugPlugin) {
+      this.debugPlugin = new DebugTilesPlugin({
+        displayBoxBounds: false,
+        displayRegionBounds: false,
+        customColorCallback: (tile: any, object: THREE.Object3D) => {
+          const material = (object as THREE.Mesh).material as THREE.MeshBasicMaterial;
+          if (material?.color) this.debugColorFor(tile, material.color);
+        },
+      });
       this.tiles.registerPlugin(this.debugPlugin);
-    } else if (this.debugPlugin) {
-      this.debugPlugin.displayBoxBounds = show;
-      this.debugPlugin.displayRegionBounds = show;
     }
+    return this.debugPlugin;
+  }
+
+  /** The custom-mode color for one rendered tile. Runs per visible tile per frame, so values are memoized. */
+  private debugColorFor(tile: any, target: THREE.Color): void {
+    const ownId = this.cpuTileId(tile);
+    const hasOwn = !!ownId && !!this.sampler.getTile(ownId);
+    const cube = this.cubeConfigured ? cubeAddress(tile) : null;
+    switch (this.debugMode) {
+      case 'cpu-coverage':
+        if (cube) {
+          const sampler = this.cube?.source.sampler;
+          let resident: 'own' | 'ancestor' | null = sampler?.getTile(cube) ? 'own' : null;
+          for (let l = cube.level - 1; !resident && sampler && l >= 0; l--) {
+            if (sampler.getTile({ face: cube.face, level: l, x: cube.x >> (cube.level - l), y: cube.y >> (cube.level - l) })) resident = 'ancestor';
+          }
+          target.set(resident === 'own' ? 0x2fbf71 : resident === 'ancestor' ? 0xf2a33a : 0x595959);
+          return;
+        }
+        target.set(hasOwn ? 0x2fbf71 : 0xf2a33a);
+        return;
+      case 'cube-face':
+        if (!cube) { target.setRGB(0.35, 0.35, 0.35); return; }
+        target.setHSL(CUBE_FACE_HUE[cube.face], 0.75, 0.25 + 0.04 * Math.min(cube.level, 12) + ((cube.x + cube.y) % 2 ? 0.06 : 0));
+        return;
+      case 'datum-height': {
+        // Synthesized split tiles answer CPU queries from an ancestor; color them the same way.
+        let t = tile, id: string | null = null;
+        while (t) {
+          const tid = this.cpuTileId(t);
+          if (tid && this.sampler.getTile(tid)) { id = tid; break; }
+          t = t.parent;
+        }
+        const mean = id ? this.meanElevation(id) : null;
+        if (mean == null) { target.setRGB(0.35, 0.35, 0.35); return; }
+        let scale = 0.1;
+        for (const v of this.meanElevationKm.values()) scale = Math.max(scale, Math.abs(v));
+        const f = Math.max(-1, Math.min(1, mean / scale));
+        target.setHSL(f < 0 ? 0.6 : 0.0, 0.8, 0.92 - 0.47 * Math.abs(f));
+        return;
+      }
+      case 'seam-error': {
+        const err = hasOwn ? this.tileSeamError(ownId!) : null;
+        if (err == null) { target.setRGB(0.35, 0.35, 0.35); return; }
+        const f = Math.max(0, Math.min(1, err / this.seamErrorScaleKm));
+        target.copy(_debugColor.setHSL((1 - f) * 0.33, 0.85, 0.5));
+        return;
+      }
+      default:
+        target.setRGB(1, 1, 1);
+    }
+  }
+
+  private meanElevation(id: string): number | null {
+    const cached = this.meanElevationKm.get(id);
+    if (cached != null) return cached;
+    const tile = this.sampler.getTile(id);
+    if (!tile || !tile.elevationsKm.length) return null;
+    let sum = 0;
+    for (let i = 0; i < tile.elevationsKm.length; i++) sum += tile.elevationsKm[i];
+    const mean = sum / tile.elevationsKm.length;
+    this.meanElevationKm.set(id, mean);
+    return mean;
+  }
+
+  /** Largest shared-edge mismatch (km) between a cached tile and its cached same-level neighbours. */
+  tileSeamError(id: string): number | null {
+    if (this.seamErrorKm.has(id)) return this.seamErrorKm.get(id)!;
+    const key = this.cpuKeyById.get(id);
+    const tile = this.sampler.getTile(id);
+    let worst: number | null = null;
+    if (key && tile) {
+      for (const n of this.sameLevelNeighbours(key)) {
+        const nid = this.cpuIdByKey.get(tileKeyId(n));
+        const neighbour = nid ? this.sampler.getTile(nid) : undefined;
+        if (!neighbour) continue;
+        const report = sharedEdgeReport(tile, neighbour, { samples: 33 });
+        if (report && report.stats.count) worst = Math.max(worst ?? 0, report.stats.maxAbsKm);
+      }
+    }
+    this.seamErrorKm.set(id, worst);
+    return worst;
+  }
+
+  /** Terrain cost/load snapshot. See {@link TerrainPerformanceMetrics}. */
+  get metrics(): TerrainPerformanceMetrics {
+    const t = this.tiles as any;
+    const stats = t.stats ?? {};
+    const cache = t.lruCache ?? {};
+    let geometryBytes = 0, textureBytes = 0;
+    const seenGeometry = new Set<THREE.BufferGeometry>();
+    // Keyed by Source, not Texture: per-tile clones of one map (applyNormalMap)
+    // share a Source, and three.js uploads a shared Source to the GPU once.
+    const seenTexture = new Set<unknown>();
+    const countTexture = (tex: THREE.Texture | null | undefined) => {
+      if (!tex?.isTexture) return;
+      const source = tex.source ?? tex;
+      if (seenTexture.has(source)) return;
+      seenTexture.add(source);
+      textureBytes += MemoryUtils.getTextureByteLength(tex);
+    };
+    const countMaterial = (m: THREE.Material | undefined) => {
+      for (const value of Object.values(m ?? {})) countTexture(value as THREE.Texture);
+    };
+    // ImageOverlayPlugin draws imagery from a uniform array, not a material map —
+    // usually the bulk of texture memory. It keys that array by mesh, so it is
+    // still found after customizeTileMaterial swaps the material out.
+    const overlayParams = (this.overlayPlugin as unknown as { meshParams?: WeakMap<THREE.Mesh, { layerMaps: { value: Array<THREE.Texture | null> } }> } | null)?.meshParams;
+    // Every loaded model, not just `group`: the renderer detaches tiles that
+    // leave the view but keeps their buffers cached until LRU disposal.
+    this.tiles.forEachLoadedModel((scene: THREE.Object3D) => {
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const g = mesh.geometry;
+        if (g && !seenGeometry.has(g)) {
+          seenGeometry.add(g);
+          for (const attr of Object.values(g.attributes)) geometryBytes += (attr as THREE.BufferAttribute).array?.byteLength ?? 0;
+          geometryBytes += g.index?.array.byteLength ?? 0;
+        }
+        for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) countMaterial(m);
+        // While a debug mode is on, the plugin holds the real material aside
+        // (restored on 'none'); its textures are still allocated.
+        countMaterial(originalDebugMaterial(mesh));
+        for (const tex of overlayParams?.get(mesh)?.layerMaps.value ?? []) countTexture(tex);
+      });
+    });
+    const d = this.cpuDiagnostics;
+    return {
+      update: this.updateTiming.value,
+      parse: this.parseTiming.value,
+      cpuDecode: this.decodeTiming.value,
+      sample: { count: d.sampleCount, lastMicros: d.lastSampleMicros, meanMicros: d.meanSampleMicros },
+      tiles: { active: stats.active ?? 0, visible: stats.visible ?? 0, drawn: (stats.visible ?? 0) - this.culledScenes.length, inCache: stats.inCache ?? 0, cpu: d.tileCount },
+      network: {
+        requests: this.requestCount,
+        queued: stats.queued ?? 0,
+        downloading: stats.downloading ?? 0,
+        parsing: stats.parsing ?? 0,
+        failed: stats.failed ?? 0,
+      },
+      memory: { cacheBytes: cache.cachedBytes ?? 0, maxCacheBytes: cache.maxBytesSize ?? 0, geometryBytes, textureBytes },
+      imagery: {
+        layers: this.layers.length,
+        activeOverlays: this.activeOverlays.size,
+        overlayResolution: this._overlayResolution,
+        requests: this.imageryRequests,
+        failed: this.layers.reduce((n, l) => n + (l.role === 'overlay' || !this.isImageryOnly ? l.failedTiles : 0), 0),
+      },
+    };
+  }
+
+  /** Restart timing windows and the request counter, for a before/after measurement. */
+  resetMetrics(): void {
+    this.updateTiming.reset();
+    this.parseTiming.reset();
+    this.decodeTiming.reset();
+    this.sampler.resetTiming();
+    this.requestCount = 0;
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.cube?.source.dispose();
+    this.cubeImagery?.dispose();
     if (this.terrainCam) {
       this.tiles.deleteCamera(this.terrainCam);
       this.terrainCam = null;
@@ -1181,11 +2263,12 @@ export class TerrainManager {
 
     const su = this.shadowUniforms;
     const apu = this.aerialPerspectiveUniforms;
-    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v1' : '');
+    const cacheKey = (su ? '_shadow_v1' : '') + (apu ? '_ap_v2' : '');
 
     scene.traverse((child) => {
       if (!isMesh(child) || !child.material) return;
       const material = child.material as THREE.Material;
+      if (this.customizedMaterials.has(Array.isArray(child.material) ? child.material[0] : material)) return;
 
       // Three.js shadow-map receiving for tile geometry. Lets the sun
       // DirectionalLight's shadow map (cast by helicopters / drones) darken
@@ -1240,6 +2323,12 @@ export class TerrainManager {
           };
           mat.customProgramCacheKey = () => cacheKey + cacheKeySuffix;
         }
+        // Keep ImageOverlayPlugin's wrap marker, so it never wraps the swapped
+        // material a second time: the chain above already carries its shader.
+        for (const sym of Object.getOwnPropertySymbols(basic)) {
+          if (sym.description === 'OVERLAY_PARAMS') (mat as unknown as Record<symbol, unknown>)[sym] = (basic as unknown as Record<symbol, unknown>)[sym];
+        }
+        this.customizedMaterials.add(mat);
         child.material = mat;
         basic.dispose();
         // Imagery-only tiles from XYZTilesPlugin already have correct sphere normals
@@ -1253,6 +2342,7 @@ export class TerrainManager {
 
       const mats = Array.isArray(child.material) ? child.material : [child.material];
       for (const mat of mats) {
+        this.customizedMaterials.add(mat);
         if ('roughness' in mat) (mat as THREE.MeshStandardMaterial).roughness = 0.85;
         if ('metalness' in mat) (mat as THREE.MeshStandardMaterial).metalness = 0;
         if (su || apu) {

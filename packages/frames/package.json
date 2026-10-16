@@ -45,8 +45,5 @@
   },
   "dependencies": {
     "cspice-wasm": "*"
-  },
-  "devDependencies": {
-    "@cosmolabe/spice": "*"
   }
 }

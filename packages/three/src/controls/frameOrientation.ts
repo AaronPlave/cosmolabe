@@ -29,7 +29,8 @@ export interface FrameOrientationSource {
   /**
    * Frame→world quaternion (THREE x,y,z,w order) at `ctx.et`, written into
    * `out`. Null when the frame cannot be evaluated (no SPICE, coverage gap,
-   * body not loaded); callers hold the camera still rather than snap it.
+   * body not loaded, undefined LVLH basis); callers hold the camera during the
+   * gap. `FrameLockedMode` documents how the lock resumes when data returns.
    */
   orientation(ctx: CameraModeContext, out: THREE.Quaternion): THREE.Quaternion | null;
 }
@@ -99,6 +100,10 @@ const _nadir = /* @__PURE__ */ new THREE.Vector3();
 const _normal = /* @__PURE__ */ new THREE.Vector3();
 const _along = /* @__PURE__ */ new THREE.Vector3();
 
+// |r̂ × v̂| = sin(angle(r, v)); reject a numerically undefined orbit plane,
+// independent of the position/velocity units or magnitudes.
+const MIN_LVLH_SIN_ANGLE = 1e-12;
+
 /**
  * Local Vertical Local Horizontal frame of `bodyName` about `centerBodyName`,
  * built from the SPK state alone (no CK needed). Axes, right-handed:
@@ -117,10 +122,18 @@ export function lvlhFrame(bodyName: string, centerBodyName: string): FrameOrient
       } catch {
         return null;
       }
-      _r.set(state[0], state[1], state[2]);
-      _v.set(state[3], state[4], state[5]);
+      if (state.length !== 6 || !state.every(Number.isFinite)) return null;
+      const rScale = Math.max(Math.abs(state[0]), Math.abs(state[1]), Math.abs(state[2]));
+      const vScale = Math.max(Math.abs(state[3]), Math.abs(state[4]), Math.abs(state[5]));
+      if (rScale === 0 || vScale === 0) return null;
+      // Scale before normalizing so finite extreme magnitudes cannot overflow
+      // or underflow the lengths or cross product.
+      _r.set(state[0] / rScale, state[1] / rScale, state[2] / rScale).normalize();
+      _v.set(state[3] / vScale, state[4] / vScale, state[5] / vScale).normalize();
+      _normal.crossVectors(_r, _v);
+      if (_normal.lengthSq() <= MIN_LVLH_SIN_ANGLE ** 2) return null;
+      _normal.normalize();
       _nadir.copy(_r).normalize().negate();
-      _normal.crossVectors(_r, _v).normalize();
       _along.crossVectors(_normal, _nadir).normalize();
       // Rows of the ECLIPJ2000→LVLH matrix are the LVLH axes in ECLIPJ2000.
       const toLvlh: RotationMatrix = [

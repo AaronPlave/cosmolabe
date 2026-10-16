@@ -6,8 +6,9 @@
  * whose properties are mutated. We use the latter.
  */
 import { etToDate, type Universe } from '@cosmolabe/core';
-import type { InitialAssetsSummary, UniverseRenderer } from '@cosmolabe/three';
+import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
+import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
@@ -73,6 +74,8 @@ export const vs = $state({
   cameraMode: CameraModeName.FREE_ORBIT as CameraModeName,
   trackedBodyName: null as string | null,
   lookAtBodyName: null as string | null,
+  /** The flight playing — its destination (null for a viewpoint) and path — or null. */
+  flight: null as { target: string | null; path: FlightPath } | null,
 
   // Scene
   bodies: [] as BodyEntry[],
@@ -118,6 +121,11 @@ export const vs = $state({
 
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
+
+  /** Point Probe mode (#127): the pointer previews the surface, a click pins it. */
+  probeActive: false,
+  /** The pinned probe point. Outlives probe mode; cleared on its own. */
+  probePin: null as SurfacePoint | null,
 
   /** Caption over the viewport, from `displayNote`. Null when there is none. */
   note: null as string | null,
@@ -173,6 +181,34 @@ export function setKernelCount(v: number) { vs.kernelCount = v; }
 export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
   emit('select', name);
+}
+
+/** Enter or leave Point Probe mode. Leaving keeps the pinned point. */
+/** Pointer modes that cannot run alongside the probe; starting the probe ends them. */
+const probeExclusive: Array<() => void> = [];
+
+/**
+ * Register a pointer mode the probe excludes (a pending measurement pick).
+ * The mode, for its part, turns the probe off when it starts.
+ */
+export function excludeFromProbe(end: () => void) {
+  probeExclusive.push(end);
+}
+
+export function setProbeActive(active: boolean) {
+  if (active) for (const end of probeExclusive) end();
+  vs.probeActive = active;
+  _renderer?.setPointProbeActive(active);
+}
+
+export function toggleProbe() {
+  setProbeActive(!vs.probeActive);
+}
+
+/** Clear the pinned probe point without leaving probe mode. */
+export function clearProbePin() {
+  vs.probePin = null;
+  _renderer?.setProbePin(null);
 }
 /**
  * Identify a set of bodies in the 3D view — the highlight channel event
@@ -326,8 +362,21 @@ function syncCameraState() {
   if (!_renderer) return;
   const cc = _renderer.cameraController;
   vs.cameraMode = cc.mode;
-  vs.trackedBodyName = cc.trackedBody?.body.name ?? null;
+  vs.trackedBodyName = cc.focusBody?.body.name ?? null;
   vs.lookAtBodyName = cc.lookAtBody?.body.name ?? null;
+  syncFlightState();
+}
+
+/** Mirror the controller's flight into `vs.flight`, writing only on a change. */
+function syncFlightState() {
+  const flight = _renderer?.cameraController.flight ?? null;
+  const target = flight ? flight.destination?.body.name ?? null : undefined;
+  const current = vs.flight;
+  if (!flight) {
+    if (current !== null) vs.flight = null;
+  } else if (current === null || current.target !== target || current.path !== flight.path) {
+    vs.flight = { target: target ?? null, path: flight.path };
+  }
 }
 
 // ── Renderer binding ──
@@ -365,6 +414,11 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   _universe = universe;
   vs.catalogName = vs.loadingCatalog || null;
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
+
+  // A pinned point belongs to the scene it was probed in; the mode carries over.
+  vs.probePin = null;
+  renderer.setPointProbeActive(vs.probeActive);
+  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
 
   // Restore persisted display preferences
   const prefs = loadPrefs();
@@ -437,6 +491,15 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   let rafId = 0;
   const tick = () => {
     vs.frameTick++;
+    // The controller changes what it tracks on its own between calls — a
+    // crane queued behind a fly-to or the Z / C keys let go, a flight lands or
+    // is stopped by a drag — and says nothing. A flight names its destination
+    // from the start (`focusBody`), so the HUD does not read the previous body
+    // for the length of the flight.
+    const cc = renderer.cameraController;
+    const focus = cc.focusBody?.body.name ?? null;
+    if (vs.trackedBodyName !== focus) vs.trackedBodyName = focus;
+    syncFlightState();
     rafId = requestAnimationFrame(tick);
   };
   rafId = requestAnimationFrame(tick);
@@ -684,41 +747,170 @@ export function hideAllBodies() {
   }
 }
 
+// ── Navigation verbs ──
+//
+// Select, Track (focus), Frame, Fly and Jump: the one implementation of each
+// that the body browser, the command palette, the context menu, the info
+// panel, event results, the keymap and `ViewerControl` all call. A surface
+// that wants two of them — "go to this body" selects it and flies there —
+// calls both; none of these implies another. Semantics: docs/navigation.md.
+
+/**
+ * The path a flight takes when the caller does not say: direct, for routine
+ * navigation. Overview is a deliberate choice, offered on its own.
+ */
+export const DEFAULT_FLIGHT_PATH: FlightPath = 'direct';
+
+/**
+ * The mesh for `name`, with its position current in the camera's coordinates.
+ *
+ * Between frames a body's `position` is where the last frame drew it, relative
+ * to the origin as of then. A script that seeks the clock, or tracks one body
+ * and then another, in the same breath would otherwise navigate against a
+ * stale or foreign position — hundreds of thousands of km off after a switch.
+ */
+function navigableMesh(name: string): BodyMesh | undefined {
+  const bm = _renderer?.getBodyMesh(name);
+  if (!bm) return undefined;
+  _renderer!.refreshBodyPose(name);
+  return bm;
+}
+
+/**
+ * Track (focus): make `name` the camera's anchor without moving the camera.
+ * It stays where it is and turns to face the body.
+ */
 export function trackBody(name: string): boolean {
   if (!_renderer) return false;
-  const bm = _renderer.getBodyMesh(name);
+  const bm = navigableMesh(name);
   if (!bm) return false;
-  _renderer.cameraController.trackBody(bm, 1e-6);
+  _renderer.cameraController.focus(bm);
   syncCameraState();
-  // Update selected body so info panel follows tracking
-  if (vs.selectedBodyName) selectBody(name);
   return true;
 }
 
 /**
- * Track an object and frame it. Cuts by default.
+ * Frame: cut to a view that fits `name` — the tracked body when omitted — and
+ * track it. False with no such body, or no name and nothing tracked.
+ */
+export function frameBody(name?: string): boolean {
+  if (!_renderer) return false;
+  const target = name ?? _renderer.cameraController.focusBody?.body.name;
+  if (target === undefined) return false;
+  const bm = navigableMesh(target);
+  if (!bm) return false;
+  _renderer.cameraController.frame(bm, { scaleFactor: _renderer.scaleFactor });
+  syncCameraState();
+  return true;
+}
+
+/**
+ * Fly: animate to the view `frameBody` would cut to, then track the body.
+ * `path` defaults to `DEFAULT_FLIGHT_PATH`; `seconds` to the path's own
+ * duration. Manual navigation, or `stopFlight`, ends it where it is.
+ */
+export function flyToBody(name: string, opts: { path?: FlightPath; seconds?: number } = {}): boolean {
+  if (!_renderer) return false;
+  if (opts.seconds !== undefined && !(Number.isFinite(opts.seconds) && opts.seconds >= 0)) return false;
+  // A flight of no duration has nowhere to animate: it is a jump.
+  if (opts.seconds === 0) return jumpToBody(name);
+  const bm = navigableMesh(name);
+  if (!bm) return false;
+  _renderer.cameraController.flyTo(bm, {
+    scaleFactor: _renderer.scaleFactor,
+    path: opts.path ?? DEFAULT_FLIGHT_PATH,
+    duration: opts.seconds,
+  });
+  syncCameraState();
+  return true;
+}
+
+/**
+ * Jump: apply the view a flight to `name` would land on, at once.
  *
- * Not animating is the default because `flyTo` is a one-second rAF animation
- * that nulls the track target for its duration and only installs the new origin
- * body on completion: a caller that renders a frame and photographs it gets the
- * camera mid-flight. `trackBody` reaches the same end state synchronously.
+ * The pose is the frame's — Jump differs from Frame in what it is for (a
+ * destination, like a flight's, rather than a re-fit of what is in view), not
+ * in where an object's camera lands. A time jump is a separate `setTime`.
+ */
+export function jumpToBody(name: string): boolean {
+  return frameBody(name);
+}
+
+/** End a flight where it is, tracking what it was flying to. */
+export function stopFlight(): boolean {
+  if (!_renderer) return false;
+  const stopped = _renderer.cameraController.stopFlight();
+  syncCameraState();
+  return stopped;
+}
+
+/** Fly to the tracked body — the `F` key, by the default path unless `path` is given. */
+export function flyToTracked(path?: FlightPath): boolean {
+  const tracked = _renderer?.cameraController.focusBody?.body.name;
+  return tracked !== undefined && flyToBody(tracked, { path });
+}
+
+/**
+ * "Go to this body", as the body browser, the palette and a double-click in
+ * the scene mean it: select it, and fly there.
+ */
+export function selectAndFlyTo(name: string): boolean {
+  if (!hasBody(name)) return false;
+  selectBody(name);
+  return flyToBody(name);
+}
+
+/**
+ * `gotoObject`, Cosmographia's verb: a jump by default, a direct flight when
+ * animated.
+ *
+ * Not animating is the default because a flight is a wall-clock animation
+ * that only installs the new origin body on landing: a caller that renders a
+ * frame and photographs it gets the camera mid-flight.
  */
 export function gotoObject(
   name: string,
   opts: { animate?: boolean; duration?: number } = {},
 ): boolean {
+  return opts.animate
+    ? flyToBody(name, { path: 'direct', seconds: opts.duration })
+    : jumpToBody(name);
+}
+
+/**
+ * Fly over a lat/lon box `[west, south, east, north]` (degrees) on `bodyName`,
+ * looking straight down with north up, close enough that the box fills the view.
+ */
+export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number]): boolean {
   if (!_renderer) return false;
-  const bm = _renderer.getBodyMesh(name);
+  const bm = _renderer.getBodyMesh(bodyName);
   if (!bm) return false;
-  if (opts.animate) {
-    _renderer.cameraController.flyTo(bm, { scaleFactor: 1e-6, duration: opts.duration });
-    // flyTo defers the actual tracking to _pendingOriginSwitch; the UI needs to
-    // know now, or the HUD reads the previous body for the length of the flight.
-    vs.trackedBodyName = name;
-  } else {
-    _renderer.cameraController.trackBody(bm, 1e-6);
-    syncCameraState();
-  }
+  const [w, s, e0, n] = bounds;
+  const e = e0 < w ? e0 + 360 : e0;
+  const rad = Math.PI / 180;
+  const cam = _renderer.camera;
+  const heightKm = (n - s) * rad * bm.displayRadius;
+  const widthKm = (e - w) * rad * bm.displayRadius * Math.cos((s + n) / 2 * rad);
+  const altitudeKm = 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
+  const position = bm.geodeticOffsetKm((s + n) / 2, (w + e) / 2, altitudeKm, new THREE.Vector3());
+  if (!position) return false;
+  const cc = _renderer.cameraController;
+  // Modes that frame something else (a spacecraft's LVLH, a surface camera)
+  // would take the camera back on landing; orbit the body freely instead,
+  // keeping the current up so the flight starts without a roll.
+  const up = cc.camera.up.clone();
+  cc.resetToFreeOrbit();
+  cc.camera.up.copy(up);
+  // One flight from wherever the camera is, switching origin on landing —
+  // tracking first would cut to a default framing of the body.
+  cc.flyTo(bm, {
+    duration: 1.5,
+    offset: position.multiplyScalar(_renderer.scaleFactor),
+    up: new THREE.Vector3(0, 1, 0), // north, in the mesh frame
+  });
+  syncCameraState();
+  // flyTo tracks on landing; the HUD should read the new body for the flight.
+  vs.trackedBodyName = bodyName;
   return true;
 }
 
@@ -742,10 +934,14 @@ export function pointAtObject(name: string): boolean {
   return true;
 }
 
-/** Apply a named catalog viewpoint, seeking the clock if it declares an epoch. */
-export function applyViewpoint(name: string): boolean {
+/**
+ * Apply a named catalog viewpoint, seeking the clock if it declares an epoch:
+ * a jump by default, a flight with `animate` (a viewpoint that tracks a body
+ * is always placed at once).
+ */
+export function applyViewpoint(name: string, opts: { animate?: boolean } = {}): boolean {
   if (!_renderer) return false;
-  if (!_renderer.applyNamedViewpoint(name)) return false;
+  if (!_renderer.applyNamedViewpoint(name, opts)) return false;
   // A viewpoint can move the clock and change what is tracked, and neither
   // path notifies.
   syncTimeState();
@@ -768,6 +964,31 @@ export function setFov(deg: number, opts: { persist?: boolean } = {}) {
  * renderer's scale factor, so the conversion happens here — the same one
  * `camera-view-io.ts` does on the way in and out of its JSON.
  */
+/**
+ * The frame a scripted camera pose is written in, as a body's origin and its
+ * body-to-world rotation — or null for the inertial frame, where pose vectors
+ * are world vectors as they always were.
+ *
+ * In a body-fixed or spacecraft-fixed camera frame, a pose is in that body's
+ * own axes (SPICE convention: Z the pole, X the prime meridian), the way
+ * Cosmographia's `moveToPov` takes it (#152). These are the two orbit modes
+ * whose camera rides on a body; the others place the camera themselves.
+ */
+function poseFrame(): { origin: THREE.Vector3; toWorld: THREE.Quaternion } | null {
+  const cc = _renderer?.cameraController;
+  if (!cc) return null;
+  if (cc.mode !== CameraModeName.BODY_FIXED && cc.mode !== CameraModeName.SC_FIXED) return null;
+  const body = cc.originBody;
+  if (!body) return null;
+  // Its position and orientation as of now, not as of the last frame drawn: a
+  // script that seeks the clock or switches body and then places the camera in
+  // the same breath — every `snapshot()` replay does — would otherwise convert
+  // against where the body was, which after a switch is the old origin's
+  // coordinates and hundreds of thousands of km off.
+  _renderer!.refreshBodyPose(body.body.name);
+  return { origin: body.position.clone(), toWorld: body.bodyToWorldQuaternion(new THREE.Quaternion()) };
+}
+
 export function setCameraPose(
   position: readonly [number, number, number],
   target?: readonly [number, number, number],
@@ -776,16 +997,97 @@ export function setCameraPose(
   if (!_renderer) return false;
   const cc = _renderer.cameraController;
   const sf = _renderer.scaleFactor;
+  const frame = poseFrame();
+  /** A point in the pose's frame, in km, to world (scene) units. */
+  const point = (v: readonly [number, number, number], out: THREE.Vector3) => {
+    out.set(v[0] * sf, v[1] * sf, v[2] * sf);
+    if (frame) out.applyQuaternion(frame.toWorld).add(frame.origin);
+    return out;
+  };
   cc.cancelAnimation();
-  cc.camera.position.set(position[0] * sf, position[1] * sf, position[2] * sf);
+  point(position, cc.camera.position);
   // The orbit target is where the camera *looks*; without it a pose says where
   // the camera stands and nothing about what it sees. Defaulting to the origin
   // keeps the two-argument form meaning what it used to: the origin is the
   // tracked body when one is tracked, and the world origin otherwise.
-  if (target) cc.controls.target.set(target[0] * sf, target[1] * sf, target[2] * sf);
-  else cc.controls.target.set(0, 0, 0);
-  if (up) cc.camera.up.set(up[0], up[1], up[2]).normalize();
+  point(target ?? [0, 0, 0], cc.controls.target);
+  if (up) {
+    cc.camera.up.set(up[0], up[1], up[2]).normalize();
+    if (frame) cc.camera.up.applyQuaternion(frame.toWorld);
+  }
+  // The pose was converted against the body's orientation now. A co-rotating
+  // frame otherwise turns the camera on the next frame by the rotation since
+  // the last one drawn — after a seek in the same script, hours of it.
+  if (frame) cc.syncModeFromCamera(_renderer.timeController.et);
   return true;
+}
+
+/**
+ * The camera's pose in the frame `setCameraPose` takes it in, in km — so a
+ * pose read back and written again lands in the same place, which is what
+ * `snapshot()` relies on.
+ */
+export function getCameraPose(): {
+  position: [number, number, number];
+  target: [number, number, number];
+  up: [number, number, number];
+} | null {
+  if (!_renderer) return null;
+  const cc = _renderer.cameraController;
+  const inv = 1 / _renderer.scaleFactor;
+  const frame = poseFrame();
+  const fromWorld = frame ? frame.toWorld.clone().invert() : null;
+  const point = (w: THREE.Vector3): [number, number, number] => {
+    const v = w.clone();
+    if (frame) v.sub(frame.origin).applyQuaternion(fromWorld!);
+    return [v.x * inv, v.y * inv, v.z * inv];
+  };
+  const up = cc.camera.up.clone();
+  if (fromWorld) up.applyQuaternion(fromWorld);
+  return { position: point(cc.camera.position), target: point(cc.controls.target), up: [up.x, up.y, up.z] };
+}
+
+/**
+ * Swing the camera around what it orbits by `degrees`, the way it would move
+ * on screen. Instant unless `seconds` is given. False in a camera frame that
+ * owns the view's orientation, or for a non-finite angle or duration.
+ */
+export function circleCenter(
+  direction: 'right' | 'left' | 'up' | 'down',
+  degrees: number,
+  seconds?: number,
+): boolean {
+  if (!_renderer) return false;
+  if (!Number.isFinite(degrees) || !validMoveSeconds(seconds)) return false;
+  const axis = direction === 'right' || direction === 'left' ? 'up' : 'right';
+  const sign = direction === 'right' || direction === 'up' ? 1 : -1;
+  return _renderer.cameraController.orbitTarget(axis, sign * THREE.MathUtils.degToRad(degrees), seconds);
+}
+
+/**
+ * Move the camera away from what it orbits by `km` (toward it when negative).
+ * Instant unless `seconds` is given. False where `circleCenter` is.
+ */
+export function dolly(km: number, seconds?: number): boolean {
+  if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;
+  return _renderer.cameraController.dolly(km * _renderer.scaleFactor, seconds);
+}
+
+/**
+ * Raise the camera and what it looks at by `km` along the view's up (lower
+ * when negative). In free orbit that releases the tracked object when the
+ * crane starts — at once for an instant crane, which is synced here, or once
+ * a fly-to lands, which the frame tick picks up. False where `circleCenter` is.
+ */
+export function crane(km: number, seconds?: number): boolean {
+  if (!_renderer || !Number.isFinite(km) || !validMoveSeconds(seconds)) return false;
+  const ok = _renderer.cameraController.crane(km * _renderer.scaleFactor, seconds);
+  if (ok) syncCameraState();
+  return ok;
+}
+
+function validMoveSeconds(seconds: number | undefined): boolean {
+  return seconds === undefined || (Number.isFinite(seconds) && seconds >= 0);
 }
 
 /** Show or hide one object's trajectory line. False if there is no such object. */
@@ -855,12 +1157,6 @@ export function noteIsTimed(): boolean {
 }
 
 let _noteTimer: ReturnType<typeof setTimeout> | undefined;
-
-export function flyToTracked() {
-  if (!_renderer) return;
-  const tracked = _renderer.cameraController.trackedBody;
-  if (tracked) _renderer.cameraController.flyTo(tracked, { scaleFactor: 1e-6 });
-}
 
 export function clearLookAt() {
   if (!_renderer) return;
@@ -952,7 +1248,7 @@ export function setCameraMode(mode: CameraModeName) {
 /**
  * Switch camera mode, optionally re-parameterizing it onto a named object.
  *
- * The object is tracked **before** the mode switch, and the order is not
+ * The object is framed (`frameBody`) **before** the mode switch, and the order is not
  * cosmetic: `setModeForBody` only re-parameterizes the mode, so asking for
  * body-fixed/Mars while still tracking Cassini gives a camera locked to Mars's
  * rotation but orbiting Cassini — a picture that looks plausible and is wrong.
@@ -960,11 +1256,7 @@ export function setCameraMode(mode: CameraModeName) {
 export function setCameraModeForBody(mode: CameraModeName, bodyName?: string): boolean {
   if (!_renderer) return false;
   const cc = _renderer.cameraController;
-  if (bodyName !== undefined) {
-    const bm = _renderer.getBodyMesh(bodyName);
-    if (!bm) return false;
-    cc.trackBody(bm, 1e-6);
-  }
+  if (bodyName !== undefined && !frameBody(bodyName)) return false;
   const ok = cc.setModeForBody(mode, cc.trackedBody);
   syncCameraState();
   return ok;

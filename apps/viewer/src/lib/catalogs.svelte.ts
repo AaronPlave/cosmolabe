@@ -23,6 +23,12 @@ export const catalogs = $state({
   allowAddSource: deployment.allowSourceParam,
   /** Catalog URL of the scene that is up, when it came from a URL rather than dropped files. */
   currentUrl: null as string | null,
+  /**
+   * Script URL of the entry that loaded it, for a scripted entry. Two entries
+   * can share a catalog — a scene and a scripted tour of it — and only the
+   * pair says which one is up.
+   */
+  currentScriptUrl: null as string | null,
   /** The last load that failed, for whichever surface is on screen to say so. */
   loadError: null as string | null,
 });

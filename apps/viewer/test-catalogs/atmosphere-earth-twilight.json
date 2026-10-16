@@ -1,0 +1,11 @@
+{
+  "name": "Atmosphere validation: Earth twilight",
+  "defaultTime": "2024-07-04T12:00:00Z",
+  "defaultViewpoint": "Sunward horizon",
+  "items": [
+    { "name": "Sunward horizon", "type": "Viewpoint", "eye": [6380.1, 0, 0], "target": [6380.1, 0, 1000], "up": [1, 0, 0] },
+    { "name": "Terminator disc", "type": "Viewpoint", "eye": [30000, 0, 0], "target": [0, 0, 0], "up": [0, 0, 1] },
+    { "name": "Sun", "class": "star", "trajectory": { "type": "FixedPoint", "position": [5233595, 0, 99862953] }, "geometry": { "type": "Globe", "radius": 695000 } },
+    { "name": "Earth", "class": "planet", "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] }, "geometry": { "type": "Globe", "radius": 6378.1, "atmosphere": "Earth" } }
+  ]
+}

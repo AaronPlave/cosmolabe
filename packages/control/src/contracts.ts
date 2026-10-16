@@ -38,6 +38,24 @@ export type ScriptTime =
   /** A calendar string, exactly as written in the script. */
   | { readonly kind: 'calendar'; readonly text: string };
 
+/**
+ * How `flyTo` travels: straight at the destination, or by pulling back first
+ * to show where the camera is looking and the destination together, then
+ * approaching. An overview flight from a camera already that far back is a
+ * direct one. See `docs/navigation.md`.
+ */
+export type FlightPath = 'direct' | 'overview';
+
+/** A camera flight in progress, as `getFlight` reports it. */
+export interface ScriptFlight {
+  /** The object the flight lands on; null for a flight to a viewpoint. */
+  readonly target: string | null;
+  readonly path: FlightPath;
+}
+
+/** Which way `circleCenter` moves the camera on screen. */
+export type CircleDirection = 'right' | 'left' | 'up' | 'down';
+
 /** A frame captured by the `screenshot` verb. */
 export interface ScriptImage {
   /** PNG data URL of the captured frame. */
@@ -90,24 +108,55 @@ export type ScriptEventName = keyof ScriptEventMap;
  */
 export interface ViewerControl {
   // ── Write: scene setup ──
+  //
+  // Select, Track (focus), Frame, Fly and Jump are the navigation vocabulary
+  // every surface shares; `docs/navigation.md` defines each. None implies
+  // another: selecting never moves the camera, and moving it never selects.
 
   /**
-   * Track `name` and frame it. Cuts to the object by default; pass
-   * `seconds` to fly there over that many seconds instead.
+   * Cosmographia's name for `jumpTo`, or, given `seconds`, for a `direct`
+   * `flyTo` over that many seconds.
    *
    * Cutting is the default because a fly-to is a wall-clock animation: a
    * caller that renders one frame and photographs it gets the camera
    * mid-flight, aimed at nothing in particular.
    */
   gotoObject(name: string, opts?: { seconds?: number }): boolean;
-  /** Select `name` — what the info panel shows. */
+  /** Select `name` — what the info panel shows. Never moves the camera. */
   select(name: string): boolean;
   /** Clear the selection. */
   deselect(): void;
-  /** Orbit-lock the camera to `name` without moving it. */
+  /**
+   * Focus: make `name` the camera's anchor — what it orbits and follows —
+   * without moving the camera. It stays where it is and turns to face `name`.
+   */
   track(name: string): boolean;
   /** Release the tracked object. The camera stays where it is. */
   untrack(): void;
+  /**
+   * Frame: cut to a view that fits `name` — the tracked object when omitted —
+   * and track it. The camera keeps the side it sees the object from and moves
+   * along that line until the object comfortably fills the view.
+   * False with no name and nothing tracked.
+   */
+  frameObject(name?: string): boolean;
+  /**
+   * Fly: animate to the view `frameObject` would cut to, then track `name`.
+   * `path` defaults to the viewer's, `direct` in this one; `seconds` to the
+   * path's own duration. Returns at once — sequence with `wait`.
+   *
+   * The flight owns the camera until it lands. Navigation input from the
+   * person, or `stopFlight`, ends it where it is with `name` tracked.
+   */
+  flyTo(name: string, opts?: { seconds?: number; path?: FlightPath }): boolean;
+  /** Jump: apply the view a flight to `name` would land on, at once. */
+  jumpTo(name: string): boolean;
+  /**
+   * End a flight where it is. The camera keeps its position, and the object
+   * it was flying to is tracked from there, so the camera turns to face it.
+   * Does nothing when nothing is flying.
+   */
+  stopFlight(): void;
   /**
    * Aim the camera at `name` while continuing to orbit whatever it tracks.
    * Idempotent: pointing at the same object twice still points at it.
@@ -143,6 +192,39 @@ export interface ViewerControl {
    * one, the world origin otherwise.
    */
   setCamera(position: ScriptVec3, target?: ScriptVec3, up?: ScriptVec3): boolean;
+  /**
+   * Swing the camera around the point it orbits by `degrees`, keeping its
+   * distance and its aim — Cosmographia's `circleCenterRight/Left/Up/Down`.
+   *
+   * `direction` is the way the camera moves on screen: `right` and `left` swing
+   * it about the view's up vector, `up` and `down` about the view's right axis.
+   * Instant by default; pass `seconds` to swing at a constant rate over that
+   * long. Like a timed `gotoObject` it returns at once — sequence with `wait`.
+   *
+   * False in a camera frame that owns the view's orientation (LVLH, chase,
+   * surface, instrument), where there is no orbit to swing.
+   */
+  circleCenter(direction: CircleDirection, degrees: number, opts?: { seconds?: number }): boolean;
+  /**
+   * Move the camera straight away from the point it orbits by `km`, toward it
+   * when negative, keeping its aim — Cosmographia's `moveAwayFromCenter`. It
+   * stops short of the point rather than passing through it, and a body's
+   * surface still stops it.
+   *
+   * Timing and refusal are `circleCenter`'s.
+   */
+  dolly(km: number, opts?: { seconds?: number }): boolean;
+  /**
+   * Raise the camera and the point it looks at together by `km` along the
+   * view's up, lower them when negative, so the same view slides up the
+   * screen — Cosmographia's `craneUp`.
+   *
+   * In free orbit this releases a tracked object first, as the Z / C keys do:
+   * tracking pins the orbit centre to the object every frame, which would turn
+   * the crane into a tilt. Body-fixed and spacecraft-fixed frames keep it.
+   * Timing and refusal are `circleCenter`'s.
+   */
+  crane(km: number, opts?: { seconds?: number }): boolean;
 
   // ── Write: time ──
 
@@ -188,7 +270,13 @@ export interface ViewerControl {
   isPlaying(): boolean;
   getSelected(): string | null;
   getTracked(): string | null;
+  /** The flight playing, or null when the camera is not being flown. */
+  getFlight(): ScriptFlight | null;
   getCamera(): ScriptCamera;
+  /** Floating scene origin, independent of tracking (ECLIPJ2000 axes). */
+  getCameraReference?(): string | null;
+  /** Restore the floating origin without moving or tracking the camera. */
+  setCameraReference?(name: string | null): boolean;
   /**
    * Every object in the loaded scene, by name.
    *
@@ -275,9 +363,38 @@ export interface ParseOptions {
   readonly forbid?: readonly string[];
 }
 
+/** The part of `AbortSignal` that `execute` uses. */
+export interface ScriptCancelSignal {
+  readonly aborted: boolean;
+  addEventListener(type: 'abort', listener: () => void): void;
+  removeEventListener(type: 'abort', listener: () => void): void;
+}
+
 export interface ExecuteOptions {
+  /**
+   * Awaited before each statement, after the cancellation check and before
+   * `onStatement`: a gate. Resolving lets the statement run; a promise that
+   * has not resolved yet holds the run between statements. That is what a
+   * console's Pause and Step are, and it is why pausing means "after the
+   * current statement" — nothing in flight is frozen.
+   *
+   * Aborting `signal` while the gate is held ends the run at once, so Stop
+   * works on a paused script.
+   */
+  beforeStatement?(statement: Statement): void | Promise<void>;
   /** Called before each statement runs — the console's streaming transcript. */
   onStatement?(statement: Statement): void;
+  /**
+   * Cancels the run. Checked before each statement, and it also interrupts
+   * the statement in flight: `execute` stops awaiting it the moment the signal
+   * fires, so a `wait 3600` does not hold a cancelled run — and a recording it
+   * started — open for an hour. The host's call is abandoned rather than
+   * undone; for `wait`, that is a timer nobody is listening to any more.
+   *
+   * Structural rather than `AbortSignal` so this package keeps no DOM types —
+   * an `AbortSignal` satisfies it.
+   */
+  signal?: ScriptCancelSignal;
 }
 
 export interface ExecutionReport {

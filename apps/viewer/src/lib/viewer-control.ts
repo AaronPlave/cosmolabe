@@ -36,13 +36,19 @@ import {
   vs,
   applyViewpoint,
   bodyNames,
+  circleCenter,
   clearLookAt,
+  crane,
+  dolly,
   displayNote,
+  flyToBody,
+  frameBody,
   getRenderer,
   noteIsTimed,
   gotoObject,
   hasBody,
   isDisplayOption,
+  jumpToBody,
   onViewerEvent,
   pointAtObject,
   runTo,
@@ -50,6 +56,7 @@ import {
   setBodyVisible,
   setCameraModeForBody,
   setCameraPose,
+  getCameraPose,
   setDisplayOption,
   setFov,
   setLabelVisible,
@@ -57,6 +64,7 @@ import {
   setTime,
   setTimeRate,
   setTrajectoryVisible,
+  stopFlight,
   trackBody,
   untrack,
 } from './viewer-state.svelte';
@@ -108,22 +116,14 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
 
   const camera = (): ScriptCamera => {
     const r = getRenderer();
-    if (!r) return { position: [0, 0, 0], target: [0, 0, 0], up: [0, 1, 0], fov: 60 };
-    // Positions are reported in km — the catalog convention, and the unit every
-    // other serialization of a camera in this repo already uses.
-    const inv = 1 / r.scaleFactor;
-    const p = r.camera.position;
-    // `controls.target` is what the camera orbits and looks at. Reporting the
-    // pose without it says where the camera stands and nothing about what it
-    // sees, which is not a pose a view can be rebuilt from.
-    const t = r.cameraController.controls.target;
-    const u = r.camera.up;
-    return {
-      position: [p.x * inv, p.y * inv, p.z * inv],
-      target: [t.x * inv, t.y * inv, t.z * inv],
-      up: [u.x, u.y, u.z],
-      fov: r.camera.fov,
-    };
+    // Positions are in km — the catalog convention, and the unit every other
+    // serialization of a camera in this repo already uses — and in the frame
+    // `setCamera` takes them in, so a snapshot's pose replays to the same view.
+    // The target is part of it: a pose without what the camera orbits and
+    // looks at says where it stands and nothing about what it sees.
+    const pose = getCameraPose();
+    if (!r || !pose) return { position: [0, 0, 0], target: [0, 0, 0], up: [0, 1, 0], fov: 60 };
+    return { ...pose, fov: r.camera.fov };
   };
 
   const snapshotState = (): ViewerSnapshotState => {
@@ -171,6 +171,14 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
 
     untrack: () => untrack(),
 
+    frameObject: (name) => frameBody(name),
+
+    flyTo: (name, opts) => flyToBody(name, { path: opts?.path, seconds: opts?.seconds }),
+
+    jumpTo: (name) => jumpToBody(name),
+
+    stopFlight: () => void stopFlight(),
+
     pointAtObject: (name) => pointAtObject(name),
 
     clearLookAt: () => clearLookAt(),
@@ -209,6 +217,12 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     },
 
     setCamera: (position, target, up) => setCameraPose(position, target, up),
+
+    circleCenter: (direction, degrees, opts) => circleCenter(direction, degrees, opts?.seconds),
+
+    dolly: (km, opts) => dolly(km, opts?.seconds),
+
+    crane: (km, opts) => crane(km, opts?.seconds),
 
     // ── Write: time ──
     setTime: (when) => {
@@ -265,7 +279,23 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     isPlaying: () => getRenderer()?.timeController.playing ?? vs.playing,
     getSelected: () => vs.selectedBodyName,
     getTracked: () => getRenderer()?.cameraController.trackedBody?.body.name ?? null,
+    getFlight: () => {
+      // The controller, not `vs.flight`: that mirror updates on the next
+      // animation frame, and a host polling for a landing must not see a
+      // flight that has already ended.
+      const flight = getRenderer()?.cameraController.flight;
+      return flight ? { target: flight.destination?.body.name ?? null, path: flight.path } : null;
+    },
     getCamera: camera,
+    getCameraReference: () => getRenderer()?.cameraController.originBody?.body.name ?? null,
+    setCameraReference: (name) => {
+      const r = getRenderer();
+      if (!r) return false;
+      const body = name === null ? null : r.getBodyMesh(name);
+      if (body === undefined) return false;
+      r.cameraController.setOriginBody(body);
+      return true;
+    },
     listObjects: () => bodyNames(),
     listViewpoints: () => getRenderer()?.cameraController.getViewpoints().map((v) => v.name) ?? [],
     snapshot: () => snapshotScript(snapshotState()),
