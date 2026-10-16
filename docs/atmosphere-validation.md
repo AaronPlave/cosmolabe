@@ -22,6 +22,58 @@ atmosphere GPU pass. Use the same browser and machine for before/after timings.
 The images live in `apps/viewer/test-screenshots/__goldens__/` and should be
 reviewed before updating them.
 
+Camera-dependent atmosphere state is refreshed after tracking and surface
+clamping, using the current frame's eclipse occluders. Instrument views refresh
+surface transport and the sky lookup for their own observer, then restore the
+main observer. The Cassini regression exercises several-hour time jumps during
+a camera flight, the ISS NAC view, and a clamped observer inside Earth's shell:
+
+```sh
+CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/test-atmosphere-views.mjs
+```
+
+This also captures distant Enceladus with and without its authored DDS mipmaps
+at identical framing. Globe, tiled-base-map, and ring DDS loading retain these
+levels to avoid noisy minification. Captures are written to
+`apps/viewer/test-screenshots/atmosphere-views/` (override with
+`RENDER_CAPTURE_DIR`). The browser requires the local Cassini example assets.
+
+Stitched DDS maps generate a new trilinear mip chain on the complete render
+target, so the tile boundary is filtered together. The review regression reads
+the final 1x1 GPU mip of a black/white checker pair and verifies its average
+is `[128, 128, 128, 255]`:
+
+```sh
+CL_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-atmosphere-review.mjs
+```
+
+This also checks main-outside/instrument-inside daytime star fading and restores
+the main brightness after PiP. Main and instrument observers keep separate sky
+lookup targets. Restoring the main view selects its intact texture and refreshes
+CPU uniforms without integrating the lookup again. With both observers inside,
+there are two integrations per frame instead of three; with main inside and
+instrument outside, one instead of two. The WebGL regression verifies exactly
+one instrument integration and zero restoration integrations, and checks that
+main-target pixels remain unchanged. The second 192x108 RGBA half-float color
+target costs 162 KiB per atmosphere that an instrument enters (plus render-target
+overhead), is allocated lazily, and is disposed with the atmosphere. These pass
+counts were verified in Chromium SwiftShader; mobile GPU frame-time performance
+has not been measured.
+
+The Tethys-tracking playback regression reproduces the shared view at ET
+144974061.96610013 with Saturn as the look-at target. It checks the globe's
+forward/inverse atmosphere matrices at draw time through stepped and live
+one-day-per-second playback. Refreshing only the globe child with
+`updateMatrixWorld` left the BodyMesh parent's translation one frame behind;
+the surface transport now refreshes its ancestors before copying the matrices.
+
+```sh
+CL_VIEWER_URL=http://127.0.0.1:5174 node scripts/test-atmosphere-playback.mjs
+```
+
+Set `ATMOSPHERE_PLAYBACK_RATE=864000` to repeat the same stepped and live
+moving-frame checks at ten days per second (the default is one day per second).
+
 ## Starting measurements
 
 On 2026-10-02, local Chromium SwiftShader at 1024×768, six warm frames:

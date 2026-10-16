@@ -887,62 +887,6 @@ export class UniverseRenderer {
       }
     }
 
-    // Update atmosphere shells (follow parent body position, pass camera + sun)
-    let maxSkyBrightness = 0;
-    if (this.atmosphereMeshes.size > 0) {
-      const sunBm = this.bodyMeshes.get('Sun');
-      const sunPos = sunBm ? sunBm.position : new THREE.Vector3(0, 0, 0);
-      for (const [, { atm, parentName }] of this.atmosphereMeshes) {
-        const parentBm = this.bodyMeshes.get(parentName);
-        if (parentBm) {
-          atm.position.copy(parentBm.position);
-          // Match body rotation so the oblateness axis aligns with the actual pole.
-          // ellipsoidRatios are in geometry space (geoY = body-fixed Z/pole) which
-          // requires the same Globe pre-rotation + SPICE attitude as the body mesh.
-          atm.quaternion.copy(parentBm.mesh.quaternion);
-          // Unit sphere * shellRadius * scaleFactor = scene-space shell.
-          // Match the body's ellipsoid ratios so the atmosphere follows oblateness.
-          const s = atm.shellRadius * this.scaleFactor;
-          const er = parentBm.ellipsoidRatios;
-          atm.scale.set(s * er[0], s * er[1], s * er[2]);
-          atm.updateMatrixWorld(true);
-          const atmOccluders = this._shadowOccluderCache.get(parentName);
-          atm.update(
-            this.camera.position, sunPos,
-            atmOccluders, parentBm.position,
-            this._sunRadiusKm * this.scaleFactor,
-            atm.shellRadius * this.scaleFactor,
-          );
-          const b = atm.getDaytimeSkyBrightness();
-          if (b > maxSkyBrightness) maxSkyBrightness = b;
-
-          // Aerial perspective uniforms — refresh per frame so terrain compositing
-          // tracks the sun and camera. Coefficients are scaled to 1/scene-unit.
-          const apu = this.aerialPerspectiveUniforms.get(parentName);
-          if (apu) {
-            apu.uAPLightColor.value.copy((atm.material as THREE.ShaderMaterial).uniforms.lightColor.value);
-            apu.uSolarExposure.value = (atm.material as THREE.ShaderMaterial).uniforms.uSolarExposure.value;
-            const sf = this.scaleFactor;
-            apu.uAPCameraWorldPos.value.copy(this.camera.position);
-            apu.uAPSunWorldPos.value.copy(sunPos);
-            apu.uAPPlanetWorldPos.value.copy(parentBm.position);
-            parentBm.mesh.updateMatrixWorld(true);
-            apu.uAPWorldToPlanet.value.copy(parentBm.mesh.matrixWorld).invert();
-            apu.uAPPlanetToWorld.value.copy(parentBm.mesh.matrixWorld);
-            apu.uAPPlanetRadius.value = atm.planetRadius * sf;
-            apu.uAPShellRadius.value = atm.shellRadius * sf;
-            // Schlick g→k (matches AtmosphereMesh).
-            const g = atm.model.mie.g;
-            apu.uAPMieK.value = 1.55 * g - 0.55 * g * g * g;
-            apu.uAPStrength.value = 1;
-          }
-        }
-      }
-    }
-    // Fade the additive star field under a sunlit atmosphere so daytime stars
-    // don't bleed through. 0 outside any atmosphere — orbital views unchanged.
-    this.starField?.setSkyBrightness(maxSkyBrightness);
-
     // Update trajectory lines.
     // Vertices are offset in Float64 (km) so they're near origin in scene space,
     // eliminating Float32 precision jitter on the GPU.
@@ -1136,6 +1080,10 @@ export class UniverseRenderer {
     // all three are current-frame values (camera is not in the scene graph, so
     // we must explicitly update its world matrix).
     this.camera.updateMatrixWorld();
+    // View transport must use the final current-frame camera, after tracking,
+    // surface clamping, and refreshed eclipse occluders.
+    const maxSkyBrightness = this.updateAtmospheres(this.camera);
+    this.starField?.setSkyBrightness(maxSkyBrightness);
     this.spatialRelationships.setVisible(!(this.cameraController.mode === CameraModeName.INSTRUMENT && this.instrumentView?.active));
     this.spatialCalloutRects = this.spatialRelationships.update(et, this._lastOriginAbsPos);
     this.applyReservedRects();
@@ -1366,7 +1314,9 @@ export class UniverseRenderer {
           this.instrumentView.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);
           // The terrain draw cull is the main camera's.
           for (const bm of this.bodyMeshes.values()) bm.showCulledTerrainTiles();
-          this.instrumentView.render(this.renderer, this.scene);
+          // The instrument has its own observer position and may be inside a
+          // different shell. Refresh its sky lookup and surface transport too.
+          this.renderInstrumentScene();
         }
       } catch (err) {
         console.warn('[Cosmolabe] Instrument PiP render error:', err);
@@ -1431,6 +1381,79 @@ export class UniverseRenderer {
     for (const plugin of this.plugins) {
       plugin.onResize?.(width, height);
     }
+  }
+
+  private renderInstrumentScene(): void {
+    if (!this.instrumentView) return;
+    try {
+      const brightness = this.updateAtmospheres(this.instrumentView.camera);
+      this.starField?.setSkyBrightness(brightness);
+      this.instrumentView.render(this.renderer, this.scene);
+    } finally {
+      const brightness = this.updateAtmospheres(this.camera, false);
+      this.starField?.setSkyBrightness(brightness);
+    }
+  }
+
+  /** Refresh observer state; restoration reuses the main observer's sky LUT. */
+  private updateAtmospheres(camera: THREE.Camera, renderSkyView = true): number {
+    let maxSkyBrightness = 0;
+    if (this.atmosphereMeshes.size > 0) {
+      const sunBm = this.bodyMeshes.get('Sun');
+      const sunPos = sunBm ? sunBm.position : new THREE.Vector3(0, 0, 0);
+      for (const [, { atm, parentName }] of this.atmosphereMeshes) {
+        const parentBm = this.bodyMeshes.get(parentName);
+        if (parentBm) {
+          atm.position.copy(parentBm.position);
+          // Match body rotation so the oblateness axis aligns with the actual pole.
+          // ellipsoidRatios are in geometry space (geoY = body-fixed Z/pole) which
+          // requires the same Globe pre-rotation + SPICE attitude as the body mesh.
+          atm.quaternion.copy(parentBm.mesh.quaternion);
+          // Unit sphere * shellRadius * scaleFactor = scene-space shell.
+          // Match the body's ellipsoid ratios so the atmosphere follows oblateness.
+          const s = atm.shellRadius * this.scaleFactor;
+          const er = parentBm.ellipsoidRatios;
+          atm.scale.set(s * er[0], s * er[1], s * er[2]);
+          atm.updateMatrixWorld(true);
+          const atmOccluders = this._shadowOccluderCache.get(parentName);
+          atm.update(
+            camera.position, sunPos,
+            atmOccluders, parentBm.position,
+            this._sunRadiusKm * this.scaleFactor,
+            atm.shellRadius * this.scaleFactor,
+            camera === this.instrumentView?.camera ? 'instrument' : 'main',
+            renderSkyView,
+          );
+          const b = atm.getDaytimeSkyBrightness();
+          if (b > maxSkyBrightness) maxSkyBrightness = b;
+
+          // Aerial perspective uniforms — refresh per frame so terrain compositing
+          // tracks the sun and camera. Coefficients are scaled to 1/scene-unit.
+          const apu = this.aerialPerspectiveUniforms.get(parentName);
+          if (apu) {
+            apu.uAPLightColor.value.copy((atm.material as THREE.ShaderMaterial).uniforms.lightColor.value);
+            apu.uSolarExposure.value = (atm.material as THREE.ShaderMaterial).uniforms.uSolarExposure.value;
+            const sf = this.scaleFactor;
+            apu.uAPCameraWorldPos.value.copy(camera.position);
+            apu.uAPSunWorldPos.value.copy(sunPos);
+            apu.uAPPlanetWorldPos.value.copy(parentBm.position);
+            // The globe is a child of BodyMesh, whose position changes each
+            // frame. Refresh ancestors too: updateMatrixWorld on the child
+            // alone reuses the parent's previous-frame translation.
+            parentBm.mesh.updateWorldMatrix(true, false);
+            apu.uAPWorldToPlanet.value.copy(parentBm.mesh.matrixWorld).invert();
+            apu.uAPPlanetToWorld.value.copy(parentBm.mesh.matrixWorld);
+            apu.uAPPlanetRadius.value = atm.planetRadius * sf;
+            apu.uAPShellRadius.value = atm.shellRadius * sf;
+            // Schlick g→k (matches AtmosphereMesh).
+            const g = atm.model.mie.g;
+            apu.uAPMieK.value = 1.55 * g - 0.55 * g * g * g;
+            apu.uAPStrength.value = 1;
+          }
+        }
+      }
+    }
+    return maxSkyBrightness;
   }
 
   private _watchDevicePixelRatio(): void {

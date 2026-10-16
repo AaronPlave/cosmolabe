@@ -1867,7 +1867,7 @@ export class BodyMesh extends THREE.Object3D {
         const resp = await fetch(url);
         const buf = await resp.arrayBuffer();
         const loader = new DDSLoader();
-        const texData = loader.parse(buf, false);
+        const texData = loader.parse(buf, true);
         const tex = new THREE.CompressedTexture(
           texData.mipmaps, texData.width, texData.height,
           texData.format as THREE.CompressedPixelFormat,
@@ -1887,7 +1887,12 @@ export class BodyMesh extends THREE.Object3D {
       // Determine tile dimensions from the compressed texture
       const w = tex0.image.width;
       const h = tex0.image.height;
-      const rt = new THREE.WebGLRenderTarget(w * 2, h);
+      // Generate the chain from the complete stitched image, including across
+      // the tile boundary. Input DDS mipmaps do not transfer to this target.
+      const rt = new THREE.WebGLRenderTarget(w * 2, h, {
+        generateMipmaps: true,
+        minFilter: THREE.LinearMipmapLinearFilter,
+      });
       const cam = new THREE.OrthographicCamera(0, 2, 1, 0, -1, 1);
       const scene = new THREE.Scene();
 
@@ -1997,7 +2002,9 @@ export class BodyMesh extends THREE.Object3D {
   /** Parse a DDS globe map (base/normal/displacement/bump), oriented north-up. */
   private parseDDSBuffer(buffer: ArrayBuffer): THREE.CompressedTexture {
     const loader = new DDSLoader();
-    const texData = loader.parse(buffer, false);
+    // Retain authored minification levels: base-level-only DDS sampling aliases
+    // detailed imagery into grain on distant bodies and narrow-FOV instruments.
+    const texData = loader.parse(buffer, true);
     const texture = new THREE.CompressedTexture(
       texData.mipmaps,
       texData.width,
