@@ -14,6 +14,8 @@ import {
   bodyFixedOffsetToWorld,
   etFromCalendarString,
   type ResolvedCatalogGraph,
+  type CatalogJson,
+  GEOGRAPHIC_LIMITS,
 } from '@cosmolabe/core';
 // The runtime SPICE instance is @cosmolabe/frames' heritage adapter over
 // cspice-wasm, and HeritageSpice — the adapter's own type — is what the
@@ -55,6 +57,14 @@ import { createViewerControl } from './viewer-control';
 import { absolutizeCatalogAssets, catalogsUseDsk } from './catalog-assets';
 import { textKernelFrameNames } from './geometry-frames';
 import { stopHero, resizeHero } from './hero';
+import { prepareGeographicCatalogs, type PreparedGeographicCatalog } from './geographic-loading';
+
+let geographicImport: AbortController | null = null;
+function beginGeographicImport(): AbortController {
+  geographicImport?.abort();
+  geographicImport = new AbortController();
+  return geographicImport;
+}
 
 // ── State ──
 let spice: HeritageSpice | null = null;
@@ -525,16 +535,34 @@ async function categorizeFiles(files: File[]): Promise<LoadedFiles> {
   const dataFiles = new Map<string, string>();
   const binaryFiles = new Map<string, ArrayBuffer>();
   const modelFiles = new Map<string, string>();
+  let vectorBytes = 0;
 
   for (const file of files) {
     const name = file.name.toLowerCase();
     const ext = name.slice(name.lastIndexOf('.'));
-    if (name.endsWith('.json')) {
+    if (name.endsWith('.geojson')) {
+      if (file.size > GEOGRAPHIC_LIMITS.maxBytes || vectorBytes + file.size > 16 * 1024 * 1024) {
+        console.warn(`[Cosmolabe] GeoJSON ${file.name} exceeds the source or scene byte budget`);
+        continue;
+      }
+      vectorBytes += file.size;
+      const text = await file.text();
+      dataFiles.set(file.name, text);
+      if (file.webkitRelativePath) dataFiles.set(file.webkitRelativePath, text);
+    } else if (name.endsWith('.json')) {
       try {
+        if (file.size > GEOGRAPHIC_LIMITS.maxBytes) throw new Error('Local JSON exceeds the 2 MiB import limit');
         const text = await file.text();
         const json = JSON.parse(text);
+        if (json?.type === 'FeatureCollection') {
+          if (vectorBytes + file.size > 16 * 1024 * 1024) throw new Error('GeoJSON scene byte budget exceeded');
+          vectorBytes += file.size;
+          dataFiles.set(file.name, text);
+          if (file.webkitRelativePath) dataFiles.set(file.webkitRelativePath, text);
+          continue;
+        }
         jsonFiles.set(file.name, { json, text });
-      } catch { /* skip invalid JSON */ }
+      } catch (error) { console.warn(`[Cosmolabe] Cannot open JSON ${file.name}:`, error); }
     } else if (isKernelFile(file.name)) {
       kernelFiles.push(file);
     } else if (name.endsWith('.xyzv') || name.endsWith('.xyz')) {
@@ -570,7 +598,7 @@ function resolveCatalogOrder(
     if (!entry) return;
     const requires = entry.json.require as string[] | undefined;
     if (requires) for (const dep of requires) loadCatalog(dep);
-    if (entry.json.items && (entry.json.items as unknown[]).length > 0) ordered.push(entry.json);
+    if ((entry.json.items && (entry.json.items as unknown[]).length > 0) || entry.json.geographicLayers) ordered.push(entry.json);
   }
 
   for (const [name, entry] of jsonFiles) {
@@ -628,6 +656,7 @@ function initScene(
   dataFiles?: Map<string, string>,
   binaryFiles?: Map<string, ArrayBuffer>,
   modelFiles?: Map<string, string>,
+  geographicCatalogs?: readonly PreparedGeographicCatalog[],
 ) {
   // Nothing to clean up here: the scene that was up was torn down before its
   // SPICE instance was replaced (`teardownScene`), which is the only way in.
@@ -655,9 +684,10 @@ function initScene(
   // catalog files shareable (no token in source) — operator just sets the env
   // var in apps/viewer/.env.local once.
   const ionToken = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
-  for (const json of catalogs) {
+  for (const [index, json] of catalogs.entries()) {
     injectCesiumIonToken(json, ionToken);
-    universe.loadCatalog(json as any);
+    const geographic = geographicCatalogs?.[index];
+    universe.loadCatalog(json as any, geographic ? { source: geographic.source, geographicLayers: geographic.loads } : undefined);
   }
 
   // Set initial time from catalog defaultTime. SPICE str2et needs the LSK kernel —
@@ -941,6 +971,7 @@ export function demoCatalogUrl(name: string): string {
 
 /** Load a catalog by URL. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
 export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string, name: string) {
+  const geographicController = beginGeographicImport();
   // One bar for the whole load. It opens here and closes on `assets:ready`
   // (viewer-state), so the kernel download and the models/textures/trajectories
   // that follow it are one continuous run rather than two 0→100 passes. The
@@ -960,6 +991,8 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // tear it down for a scene that then cannot be built.
     const catalogKernels = await plannedFromGraph(graph);
     const dataFiles = await fetchCatalogDataFiles(graph);
+    const geographicCatalogs = await prepareGeographicCatalogs(graph.catalogs, geographicController.signal);
+    geographicController.signal.throwIfAborted();
 
     // A catalog replaces the scene, so the scene that is up goes either way.
     // Only the SPICE half is conditional: a catalog with no kernels, no kernels
@@ -976,7 +1009,7 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // page; the renderer only sees JSON, so pin them down while the URL is in
     // hand (catalog-assets.ts).
     for (const { url, json } of graph.catalogs) absolutizeCatalogAssets(json, url);
-    initScene(canvas, graph.catalogs.map(c => c.json as Record<string, unknown>), dataFiles);
+    initScene(canvas, graph.catalogs.map(c => c.json as Record<string, unknown>), dataFiles, undefined, undefined, geographicCatalogs);
   } catch (err) {
     // A load that dies mid-way (missing catalog, a kernel the scene can't do
     // without) must not leave the bar sitting at whatever fraction it reached.
@@ -1181,6 +1214,7 @@ export async function handleDrop(canvas: HTMLCanvasElement, dataTransfer: DataTr
  * page.
  */
 export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
+  const geographicController = beginGeographicImport();
   // Dropped kernels are already on disk — no download to weigh — so the whole
   // bar belongs to the asset phase that follows.
   beginLoad(`Processing ${files.length} file(s)...`, { catalog: 'Local files' });
@@ -1188,6 +1222,7 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
 
   if (jsonFiles.size === 0 && kernelFiles.length === 0) {
     endLoad();
+    if (dataFiles.size > 0) throw new Error('Open GeoJSON together with a catalog declaring geographicLayers, body and coordinate conventions (see docs/geographic-layers.md)');
     return;
   }
 
@@ -1197,6 +1232,11 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   // Dependencies come first, so the last catalog is the one the drop is of.
   const top = catalogs.at(-1);
   if (top) setLoadingState({ catalog: typeof top.name === 'string' && top.name ? top.name : 'Local catalog' });
+  const geographicCatalogs = await prepareGeographicCatalogs(catalogs.map((json, index) => ({
+    json: json as CatalogJson,
+    url: [...jsonFiles].find(([, value]) => value.json === json)?.[0] ?? `local-catalog-${index}`,
+  })), geographicController.signal, dataFiles);
+  geographicController.signal.throwIfAborted();
 
   if (catalogs.length > 0) {
     // A drop carrying a catalog is a scene load like any other: the scene that
@@ -1227,7 +1267,7 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   }
 
   try {
-    initScene(canvas, catalogs, dataFiles, binaryFiles, modelFiles);
+    initScene(canvas, catalogs, dataFiles, binaryFiles, modelFiles, geographicCatalogs);
   } catch (err) {
     endLoad();
     throw err;

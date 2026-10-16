@@ -171,3 +171,4 @@ export {
 export type { CubeImageryManifest, ImageryAddress, ImageryBlock } from './surface/CubeImagery.js';
 export { CubeImageryLayer } from './CubeImageryLayer.js';
 export type { CubeImageryConfig, CubeImageryStats, CubeImageryDebug } from './CubeImageryLayer.js';
+export { geographicPositionOnSurface } from './surface/GeographicSurface.js';

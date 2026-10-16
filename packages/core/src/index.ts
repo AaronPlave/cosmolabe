@@ -202,3 +202,6 @@ export {
   etToDate,
   etFromDate,
 } from './time.js';
+
+// Planetary geographic vector data and shared physical coordinate primitives.
+export * from './geographic/index.js';

@@ -1,0 +1,75 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "site",
+      "properties": {
+        "name": "site"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -179.8,
+          -89.5
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "region",
+      "properties": {
+        "name": "region"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              179,
+              -89
+            ],
+            [
+              -179,
+              -89
+            ],
+            [
+              -179,
+              -87
+            ],
+            [
+              179,
+              -87
+            ],
+            [
+              179,
+              -89
+            ]
+          ],
+          [
+            [
+              179.4,
+              -88.5
+            ],
+            [
+              179.4,
+              -87.5
+            ],
+            [
+              -179.4,
+              -87.5
+            ],
+            [
+              -179.4,
+              -88.5
+            ],
+            [
+              179.4,
+              -88.5
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
