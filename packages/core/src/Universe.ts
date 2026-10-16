@@ -34,6 +34,8 @@ export interface UniverseOptions {
 
 export class Universe {
   readonly geographicLayers = new GeographicLayerStore();
+  private geographicCatalogOwners = new WeakMap<CatalogJson, string>();
+  private nextGeographicCatalogOwner = 0;
   private bodies = new Map<string, Body>();
   private _viewpoints: ViewpointDefinition[] = [];
   private _defaultViewpoint?: string;
@@ -121,8 +123,13 @@ export class Universe {
       this._defaultViewpoint = result.defaultViewpoint;
     }
 
-    const geographicLoads = options?.geographicLayers ?? geographicLayersFromFiles(json, this.resolveFile, options?.source);
-    this.geographicLayers.replaceCatalog(options?.source ?? json.name ?? 'local-catalog', geographicLoads);
+    let geographicOwner = options?.source ?? json.name ?? this.geographicCatalogOwners.get(json);
+    if (geographicOwner === undefined) {
+      geographicOwner = `anonymous-catalog:${++this.nextGeographicCatalogOwner}`;
+      this.geographicCatalogOwners.set(json, geographicOwner);
+    }
+    const geographicLoads = options?.geographicLayers ?? geographicLayersFromFiles(json, this.resolveFile, options?.source, geographicOwner);
+    this.geographicLayers.replaceCatalog(geographicOwner, geographicLoads);
     for (const load of geographicLoads) {
       for (const diagnostic of load.diagnostics.slice(0, 5)) {
         console.warn(`[Cosmolabe] geographic layer "${load.id}": ${diagnostic.message}`);
@@ -367,6 +374,8 @@ export class Universe {
     this.plugins = [];
     this.bodies.clear();
     this.geographicLayers.clear();
+    this.geographicCatalogOwners = new WeakMap();
+    this.nextGeographicCatalogOwner = 0;
     this._viewpoints = [];
     this._defaultViewpoint = undefined;
     this.events.dispose();

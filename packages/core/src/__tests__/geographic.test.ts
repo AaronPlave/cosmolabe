@@ -205,6 +205,30 @@ describe('geographic asset loading and lifecycle', () => {
     } })).rejects.toThrow();
   });
 
+  it('composes anonymous catalogs and replaces the same catalog object without losing other owners', () => {
+    const universe = new Universe(undefined, { resolveFile: () => text });
+    const first: CatalogJson = { geographicLayers: [{ ...spec, id: 'first' }] };
+    const second: CatalogJson = { geographicLayers: [{ ...spec, id: 'second' }] };
+    universe.loadCatalog(first);
+    universe.loadCatalog(second);
+    expect(universe.geographicLayers.layers.map(x => x.id)).toEqual(['first', 'second']);
+    first.geographicLayers = [];
+    universe.loadCatalog(first);
+    expect(universe.geographicLayers.layers.map(x => x.id)).toEqual(['second']);
+    universe.dispose();
+  });
+
+  it('retains every invalid definition diagnostic even when definitions lack IDs', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const catalog = { geographicLayers: [{ source: 'a' }, { source: 'b' }] } as unknown as CatalogJson;
+    const loads = await loadGeographicLayers(catalog);
+    const universe = new Universe();
+    universe.loadCatalog(catalog, { geographicLayers: loads });
+    expect(universe.geographicLayers.loads).toHaveLength(2);
+    expect(universe.geographicLayers.loads.map(x => x.source.identity)).toEqual(['a', 'b']);
+    warn.mockRestore();
+  });
+
   it('validates definitions and layer counts before fetching and diagnoses duplicate IDs', async () => {
     const readText = vi.fn(async () => text);
     expect((await loadGeographicLayers({ geographicLayers: new Array(17).fill(spec) }, { readText }))[0].status).toBe('error');

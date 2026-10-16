@@ -128,6 +128,9 @@ definitions; later catalogs override the same layer ID. `removeCatalog(source)`
 releases that owner's records, revealing any earlier definition. Disposal clears
 all layers and diagnostics along with the scene. Sources own no GPU resources,
 blob URLs, background subscriptions or persistent worker instances.
+For programmatic catalogs without a source URL, ownership uses the catalog name
+or, for unnamed catalogs, object identity; pass `source` for a persistent identity
+across newly parsed revisions.
 
 ## Resource limits
 

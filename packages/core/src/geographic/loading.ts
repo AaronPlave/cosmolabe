@@ -107,9 +107,9 @@ export async function loadGeographicLayers(catalog: CatalogJson, options: Geogra
 
 /** Synchronous companion for Universe.loadCatalog's existing preloaded-file resolver. */
 export function geographicLayersFromFiles(
-  catalog: CatalogJson, resolveFile?: (path: string) => string | undefined, catalogSource?: string,
+  catalog: CatalogJson, resolveFile?: (path: string) => string | undefined, catalogSource?: string, catalogIdentity?: string,
 ): GeographicLayerLoad[] {
-  const options: GeographicLoadOptions = { catalogUrl: catalogSource, sourceKind: catalogSource ? 'catalog' : 'local-file' };
+  const options: GeographicLoadOptions = { catalogUrl: catalogSource, catalogIdentity, sourceKind: catalogSource ? 'catalog' : 'local-file' };
   let rawEntries: unknown[];
   try { rawEntries = entries(catalog); }
   catch (error) { return [failure(null, sourceOf(null, catalog, options), error)]; }
@@ -142,8 +142,12 @@ export class GeographicLayerStore {
   }
   get loads(): readonly GeographicLayerLoad[] {
     const merged = new Map<string, GeographicLayerLoad>();
-    for (const loads of this.owners.values()) for (const entry of loads) merged.set(entry.id, entry);
-    return [...merged.values()];
+    const unidentified: GeographicLayerLoad[] = [];
+    for (const loads of this.owners.values()) for (const entry of loads) {
+      if (entry.id) merged.set(entry.id, entry);
+      else unidentified.push(entry);
+    }
+    return [...merged.values(), ...unidentified];
   }
   get layers(): readonly GeographicLayer[] { return this.loads.flatMap(x => x.status === 'ready' && x.layer ? [x.layer] : []); }
   get(id: string): GeographicLayer | undefined { return this.layers.find(x => x.id === id); }
