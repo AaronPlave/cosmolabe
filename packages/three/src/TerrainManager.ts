@@ -669,6 +669,8 @@ export class TerrainManager {
   /** Experimental cube-face map imagery, independent of geometry LOD (#149). */
   private readonly cubeImagery: CubeImageryLayer | null = null;
   private disposed = false;
+  /** Ends the CPU-grid manifest's wait through an outage on dispose. */
+  private readonly cubeGridsAbort = new AbortController();
   private shadowUniforms: ShadowUniforms | null = null;
   private aerialPerspectiveUniforms: AerialPerspectiveUniforms | null = null;
   /** Global equirectangular normal map derived from heightmap. Applied per-tile with UV transforms. */
@@ -1413,7 +1415,7 @@ export class TerrainManager {
   }
 
   private loadCubeGrids(config: NonNullable<TerrainConfig['cubeSphere']>, datum: TerrainDatum): void {
-    CubeSphereGridSource.fromUrl(config.cpuGrids, config).then((source) => {
+    CubeSphereGridSource.fromUrl(config.cpuGrids, { ...config, signal: this.cubeGridsAbort.signal }).then((source) => {
       if (this.disposed) return;
       // The grids carry their own datum; refuse any that disagrees with the body's.
       const a = source.manifest.datum.referenceShape, b = datum.referenceShape;
@@ -2113,6 +2115,7 @@ export class TerrainManager {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.cubeGridsAbort.abort();
     this.cube?.source.dispose();
     this.cubeImagery?.dispose();
     if (this.terrainCam) {

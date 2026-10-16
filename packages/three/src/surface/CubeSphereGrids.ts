@@ -121,10 +121,11 @@ export class CubeSphereGridSource {
   }
 
   /** Fetch the manifest, then grids relative to it. */
-  static async fromUrl(url: string, options: CubeGridSourceOptions & { fetch?: typeof fetch; retryBaseMs?: number } = {}): Promise<CubeSphereGridSource> {
+  static async fromUrl(url: string, options: CubeGridSourceOptions & { fetch?: typeof fetch; retryBaseMs?: number; signal?: AbortSignal } = {}): Promise<CubeSphereGridSource> {
     const fetchImpl = options.fetch ?? fetch;
     const get = (u: string) => fetchWithRetry(u, {}, { fetchImpl, baseMs: options.retryBaseMs });
-    const response = await get(url);
+    // Without the manifest no grid can ever load, so it waits out an outage (as the tileset does).
+    const response = await fetchWithRetry(url, { signal: options.signal }, { fetchImpl, baseMs: options.retryBaseMs, tries: Infinity });
     if (!response.ok) throw new Error(`Cube grid manifest ${url}: HTTP ${response.status}`);
     const manifest = await response.json() as CubeGridManifest;
     // A ray or pick can ask for hundreds of grids at once; unbounded, a browser on a

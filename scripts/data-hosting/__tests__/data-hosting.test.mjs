@@ -227,6 +227,20 @@ describe('cube-sphere terrain and imagery publishing (#149)', () => {
     expect(problems).not.toMatch(/HTML page/); // the cube loaders check status, not the 404 body
   });
 
+  it('publishes and verifies JPEG imagery (encoding "jpeg", .jpg tiles)', async () => {
+    const imagery = tmp('jpeg');
+    const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60)]);
+    mkdirSync(join(imagery, 'tiles/nz/0/0'), { recursive: true });
+    writeFileSync(join(imagery, 'tiles/nz/0/0/0.jpg'), jpg);
+    writeFileSync(join(imagery, 'imagery.json'), JSON.stringify({ format: 'cosmolabe-cube-imagery-1', source: { version: 'img-j1' },
+      encoding: 'jpeg', uri: 'tiles/{face}/{level}/{x}/{y}.jpg', tiles: ['nz/0/0/0'] }));
+    const store = createLocalStorage(tmp('store'));
+    await publish(store, imagery, 'cube-imagery');
+    expect((await store.head('cube-imagery/demo/b1/tiles/nz/0/0/0.jpg')).contentType).toBe('image/jpeg');
+    const host = await serveStore(store); servers.push(host);
+    expect((await verifyBuild({ baseUrl: host.url, prefix: 'cube-imagery/demo/b1/', origins: [ORIGIN] })).problems).toEqual([]);
+  });
+
   it('refuses geometry and CPU grids from different revisions, or a build missing a grid, before uploading', async () => {
     const store = createLocalStorage(tmp('store'));
     const mixed = writeCubeProducts(tmp('cube'), { tilesetRevision: 'cube-r0' });

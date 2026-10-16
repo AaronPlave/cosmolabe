@@ -197,6 +197,7 @@ export class CubeImageryLayer {
   private readonly entries = new Map<string, Entry>();
   private readonly tiles = new Map<object, TileRecord>();
   private readonly shared = { debug: { value: 0 }, srgb: { value: 1 } };
+  private readonly manifestAbort = new AbortController();
   private readonly options: Required<Omit<CubeImageryConfig, 'url' | 'maxLevel'>> & { maxLevel: number | undefined };
   private readonly loadTexture: TextureLoader;
   private readonly baseUrl: string;
@@ -221,8 +222,10 @@ export class CubeImageryLayer {
     };
     this.baseUrl = new URL(config.url, globalThis.location?.href ?? 'http://localhost/').href;
     this.loadTexture = deps.loadTexture ?? loadImageBitmapTexture;
+    // The manifest gates every tile, so like the geometry it waits out an outage
+    // rather than leaving the session without imagery; dispose() ends the wait.
     const fetchManifest = deps.fetchManifest ?? (async (url: string) => {
-      const response = await fetch(url);
+      const response = await fetchWithRetry(url, { signal: this.manifestAbort.signal }, { tries: Infinity });
       if (!response.ok) throw new Error(`Cube imagery manifest ${url}: HTTP ${response.status}`);
       return response.json() as Promise<CubeImageryManifest>;
     });
@@ -403,6 +406,7 @@ export class CubeImageryLayer {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.manifestAbort.abort();
     for (const key of [...this.tiles.keys()]) this.removeTile(key);
     for (const e of this.entries.values()) { e.controller?.abort(); this.releaseTexture(e); }
     this.entries.clear();

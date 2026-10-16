@@ -4,7 +4,7 @@
 import { readFileSync, openSync, readSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 
-const MAGIC = { glb: [0x67, 0x6c, 0x54, 0x46], png: [0x89, 0x50, 0x4e, 0x47], jpg: [0xff, 0xd8, 0xff], webp: [0x52, 0x49, 0x46, 0x46] };
+const MAGIC = { glb: [0x67, 0x6c, 0x54, 0x46], png: [0x89, 0x50, 0x4e, 0x47], jpg: [0xff, 0xd8, 0xff], jpeg: [0xff, 0xd8, 0xff], webp: [0x52, 0x49, 0x46, 0x46] };
 export const hasMagic = (bytes, kind) => MAGIC[kind].every((b, i) => bytes[i] === b);
 const isRelative = (u) => typeof u === 'string' && !/^[a-z]+:|^\//i.test(u) && !u.split('/').includes('..');
 const fill = (template, [face, level, x, y]) => template.replace('{face}', face).replace('{level}', level).replace('{x}', x).replace('{y}', y);
