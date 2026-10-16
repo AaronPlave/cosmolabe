@@ -40,8 +40,8 @@ export function normalizeSurfaceAppearance(s: SurfaceAppearanceSettings): Surfac
 }
 
 type Shader = { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> };
-interface NormalReference { attribute: THREE.BufferAttribute; index: number; normal: THREE.Vector3; }
-interface NormalNode { sum: THREE.Vector3; references: Set<NormalReference>; }
+interface NormalReference { attribute: THREE.BufferAttribute; index: number; normal: THREE.Vector3; weight: number; }
+interface NormalNode { sum: THREE.Vector3; weight: number; references: Set<NormalReference>; }
 interface StyledMesh { matrix: THREE.Matrix4; materials: THREE.Material[]; ready: boolean; normals?: Array<[string, NormalReference]>; }
 
 export function renderedHeightKm(point: THREE.Vector3, datum: TerrainDatum): number {
@@ -149,7 +149,7 @@ export class SurfaceAppearance {
   }
 
   private key(): string {
-    return this.active ? `_surface_v3_${Number(this.settings.hillshade)}_${this.settings.baseColor}` : '';
+    return this.active ? `_surface_v4_${Number(this.settings.hillshade)}_${this.settings.baseColor}` : '';
   }
 
   /** Matrix maps mesh local coordinates into the tiles renderer's ECEF frame,
@@ -183,7 +183,7 @@ export class SurfaceAppearance {
       for (const [key, ref] of this.meshes.get(mesh)?.normals ?? []) {
         const node = this.normalNodes.get(key);
         if (!node) continue;
-        node.references.delete(ref); node.sum.sub(ref.normal);
+        node.references.delete(ref); node.sum.sub(ref.normal); node.weight -= ref.weight;
         if (!node.references.size) this.normalNodes.delete(key);
         else this.publishNormal(node);
       }
@@ -217,28 +217,53 @@ export class SurfaceAppearance {
     geometry.setAttribute('surfaceGround', new THREE.BufferAttribute(mask, 1));
   }
 
-  /** Area-weighted surface normals share contributions at matching geographic
+  /** Area-weighted relief-normal corrections share contributions at matching geographic
    * vertices across loaded tiles. Skirts never contribute to ground normals.
    * Angular keys absorb roundoff and small cross-LOD height differences. This
-   * shares shading only, never physical vertices or terrain elevations. */
+   * subtracts the same triangle on the datum to remove coarse curvature bias.
+   * The shader adds analytic local up after interpolation, so a smooth datum
+   * has no artificial triangular relief. Physical geometry stays unchanged. */
   private prepareReliefNormals(mesh: THREE.Mesh, entry: StyledMesh): void {
     if (entry.normals) return;
     this.prepareGroundMask(mesh);
     const geometry = mesh.geometry, positions = geometry.getAttribute('position');
     const ground = geometry.getAttribute('surfaceGround');
-    const sums = new Float64Array(positions.count * 3);
+    const sums = new Float64Array(positions.count * 3), weights = new Float64Array(positions.count);
+    const world = new Float64Array(positions.count * 3), reference = new Float64Array(positions.count * 3);
+    const shape = this.datum.referenceShape;
+    const radii = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
+    const point = new THREE.Vector3();
+    for (let i = 0; i < positions.count; i++) {
+      point.fromBufferAttribute(positions, i).applyMatrix4(entry.matrix);
+      point.toArray(world, i * 3);
+      const factor = Math.hypot(point.x / (radii[0] * 1000), point.y / (radii[1] * 1000), point.z / (radii[2] * 1000));
+      point.multiplyScalar(factor > 0 ? 1 / factor : 0).toArray(reference, i * 3);
+    }
     const edgeCounts = new Map<number, number>();
     const surface = geometry.groups[0];
     const start = surface?.start ?? 0;
     const count = surface?.count ?? geometry.index?.count ?? positions.count;
     const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), face = new THREE.Vector3();
+    const ra = new THREE.Vector3(), rb = new THREE.Vector3(), rc = new THREE.Vector3(), referenceFace = new THREE.Vector3();
     const index = (i: number) => geometry.index ? geometry.index.getX(i) : i;
     for (let i = start; i < start + count; i += 3) {
       const ia = index(i), ib = index(i + 1), ic = index(i + 2);
-      a.fromBufferAttribute(positions, ia); b.fromBufferAttribute(positions, ib); c.fromBufferAttribute(positions, ic);
+      a.fromArray(world, ia * 3); b.fromArray(world, ib * 3); c.fromArray(world, ic * 3);
+      ra.fromArray(reference, ia * 3); rb.fromArray(reference, ib * 3); rc.fromArray(reference, ic * 3);
       face.crossVectors(b.sub(a), c.sub(a));
-      for (const vertex of [ia, ib, ic]) {
-        sums[vertex * 3] += face.x; sums[vertex * 3 + 1] += face.y; sums[vertex * 3 + 2] += face.z;
+      referenceFace.crossVectors(rb.sub(ra), rc.sub(ra));
+      const area = face.length();
+      if (face.dot(a) < 0) face.negate();
+      if (referenceFace.dot(ra) < 0) referenceFace.negate();
+      // The same large flat triangle on a smooth reference ellipsoid has
+      // curvature/triangulation bias too. Subtract it before averaging relief.
+      // A constant-height sphere therefore contributes zero at every LOD.
+      if (area > 0 && referenceFace.lengthSq() > 0) {
+        face.divideScalar(area).sub(referenceFace.normalize()).multiplyScalar(area);
+        for (const vertex of [ia, ib, ic]) {
+          sums[vertex * 3] += face.x; sums[vertex * 3 + 1] += face.y; sums[vertex * 3 + 2] += face.z;
+          weights[vertex] += area;
+        }
       }
       for (const [u, v] of [[ia, ib], [ib, ic], [ic, ia]]) {
         const key = Math.min(u, v) * positions.count + Math.max(u, v);
@@ -253,23 +278,22 @@ export class SurfaceAppearance {
     attribute.setUsage(THREE.DynamicDrawUsage);
     geometry.setAttribute('surfaceReliefNormal', attribute);
     entry.normals = [];
-    const normalMatrix = new THREE.Matrix3().getNormalMatrix(entry.matrix);
-    const point = new THREE.Vector3(), normal = new THREE.Vector3();
+    const normal = new THREE.Vector3();
     const touched = new Set<NormalNode>();
     for (let i = 0; i < positions.count; i++) {
       if (!ground.getX(i)) continue;
-      normal.set(sums[i * 3], sums[i * 3 + 1], sums[i * 3 + 2]).applyMatrix3(normalMatrix);
-      const length = normal.length() || 1;
-      attribute.setXYZ(i, normal.x / length, normal.y / length, normal.z / length);
+      normal.set(sums[i * 3], sums[i * 3 + 1], sums[i * 3 + 2]);
+      const weight = weights[i] || 1;
+      attribute.setXYZ(i, normal.x / weight, normal.y / weight, normal.z / weight);
       // Interior vertices already have their complete triangle neighbourhood.
       // Retain cross-tile references only at boundaries to bound CPU memory.
       if (!boundary.has(i)) continue;
       point.fromBufferAttribute(positions, i).applyMatrix4(entry.matrix);
       const key = this.normalKey(point);
       let node = this.normalNodes.get(key);
-      if (!node) { node = { sum: new THREE.Vector3(), references: new Set() }; this.normalNodes.set(key, node); }
-      const ref = { attribute, index: i, normal: normal.clone() };
-      node.references.add(ref); node.sum.add(normal);
+      if (!node) { node = { sum: new THREE.Vector3(), weight: 0, references: new Set() }; this.normalNodes.set(key, node); }
+      const ref = { attribute, index: i, normal: normal.clone(), weight: weights[i] };
+      node.references.add(ref); node.sum.add(normal); node.weight += ref.weight;
       entry.normals.push([key, ref]); touched.add(node);
     }
     // Duplicate skirt vertices inherit the corresponding ground normal. They
@@ -280,7 +304,7 @@ export class SurfaceAppearance {
       point.fromBufferAttribute(positions, i).applyMatrix4(entry.matrix);
       const key = this.normalKey(point), node = this.normalNodes.get(key);
       if (!node) continue;
-      const ref = { attribute, index: i, normal: new THREE.Vector3() };
+      const ref = { attribute, index: i, normal: new THREE.Vector3(), weight: 0 };
       node.references.add(ref); entry.normals.push([key, ref]); touched.add(node);
     }
     touched.forEach(node => this.publishNormal(node));
@@ -295,7 +319,7 @@ export class SurfaceAppearance {
   }
 
   private publishNormal(node: NormalNode): void {
-    const length = node.sum.length() || 1;
+    const length = node.weight || 1;
     for (const ref of node.references) {
       ref.attribute.setXYZ(ref.index, node.sum.x / length, node.sum.y / length, node.sum.z / length);
       ref.attribute.needsUpdate = true;
@@ -349,7 +373,7 @@ vec3 saUp = normalize((saLocalToBody * vec4(vSALocal, 1.0)).xyz * saUpScale);
 vec3 saEast = cross(vec3(0.0, 0.0, 1.0), saUp);
 saEast = length(saEast) > 0.00001 ? normalize(saEast) : vec3(0.0, 1.0, 0.0);
 vec3 saNorth = normalize(cross(saUp, saEast));
-vec3 saNormal = dot(vSAReliefNormal, vSAReliefNormal) > 1e-20 ? normalize(vSAReliefNormal) : saUp;
+vec3 saNormal = normalize(saUp + vSAReliefNormal);
 if (dot(saNormal, saUp) < 0.0) saNormal = -saNormal;
 vec3 saDirection = saEast * saLight.x + saNorth * saLight.y + saUp * saLight.z;
 float saShade = clamp((max(0.0, dot(saNormal, saDirection)) - 0.5) * saContrast + 0.5, 0.0, 1.0);

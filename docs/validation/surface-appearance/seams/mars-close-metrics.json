@@ -1,31 +1,32 @@
 {
   "terrain": {
     "update": {
-      "count": 1512,
-      "lastMs": 0.19999999552965164,
-      "meanMs": 0.20666666657974322,
-      "maxMs": 0.30000000447034836
+      "count": 1332,
+      "lastMs": 0.20000001788139343,
+      "meanMs": 0.21583333561817805,
+      "maxMs": 0.30000001192092896
     },
     "parse": {
       "count": 82,
-      "lastMs": 0.19999999552965164,
-      "meanMs": 0.25975609779721354,
-      "maxMs": 2.600000001490116
+      "lastMs": 0.20000001788139343,
+      "meanMs": 0.27073170680825304,
+      "maxMs": 2.5999999940395355
     },
     "cpuDecode": {
       "count": 82,
-      "lastMs": 0,
-      "meanMs": 0.09999999949117987,
-      "maxMs": 1.0999999940395355
+      "lastMs": 0.09999999403953552,
+      "meanMs": 0.0926829293006804,
+      "maxMs": 1.300000011920929
     },
     "sample": {
-      "count": 341,
+      "count": 302,
       "lastMicros": 0,
-      "meanMicros": 10.5571847988014
+      "meanMicros": 10.264900543831832
     },
     "tiles": {
       "active": 62,
       "visible": 62,
+      "drawn": 62,
       "inCache": 82,
       "cpu": 82
     },
@@ -39,15 +40,22 @@
     "memory": {
       "cacheBytes": 23510284,
       "maxCacheBytes": 536870912,
-      "geometryBytes": 2607660,
+      "geometryBytes": 2582396,
       "textureBytes": 21495808
+    },
+    "imagery": {
+      "layers": 1,
+      "activeOverlays": 1,
+      "overlayResolution": 256,
+      "requests": 49,
+      "failed": 0
     }
   },
   "source": {
     "tileCount": 82,
-    "sampleCount": 341,
+    "sampleCount": 302,
     "lastSampleMicros": 0,
-    "meanSampleMicros": 10.5571847988014,
+    "meanSampleMicros": 10.264900543831832,
     "state": "ready"
   },
   "errors": []

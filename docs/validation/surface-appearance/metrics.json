@@ -20,8 +20,8 @@
       }
     ],
     "normal": {
-      "medianFrameMs": 142.89999997615814,
-      "p95FrameMs": 177.7000000178814,
+      "medianFrameMs": 173.69999998807907,
+      "p95FrameMs": 219.69999998807907,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 0,
@@ -31,14 +31,14 @@
       "maxHeight": null,
       "terrainRequests": 46,
       "memory": {
-        "geometries": 47,
-        "textures": 92
+        "geometries": 48,
+        "textures": 94
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "hillshade": {
-      "medianFrameMs": 138.90000000596046,
-      "p95FrameMs": 161.40000000596046,
+      "medianFrameMs": 142.7000000178814,
+      "p95FrameMs": 264.7999999821186,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 0,
@@ -48,14 +48,14 @@
       "maxHeight": null,
       "terrainRequests": 46,
       "memory": {
-        "geometries": 47,
-        "textures": 92
+        "geometries": 48,
+        "textures": 94
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "combined": {
-      "medianFrameMs": 131.7000000178814,
-      "p95FrameMs": 158.5,
+      "medianFrameMs": 137.59999999403954,
+      "p95FrameMs": 159.19999998807907,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 36548,
@@ -65,14 +65,14 @@
       "maxHeight": 20.279783248901367,
       "terrainRequests": 46,
       "memory": {
-        "geometries": 47,
-        "textures": 92
+        "geometries": 48,
+        "textures": 94
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "restored": {
-      "medianFrameMs": 140.40000000596046,
-      "p95FrameMs": 177.80000001192093,
+      "medianFrameMs": 144.59999999403954,
+      "p95FrameMs": 182.19999998807907,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 0,
@@ -83,13 +83,13 @@
       "terrainRequests": 46,
       "memory": {
         "geometries": 39,
-        "textures": 92
+        "textures": 94
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileCombined": {
-      "medianFrameMs": 40.599999994039536,
-      "p95FrameMs": 48.599999994039536,
+      "medianFrameMs": 44.30000001192093,
+      "p95FrameMs": 49.599999994039536,
       "meshes": 32,
       "mapped": 32,
       "heightBytes": 33732,
@@ -99,14 +99,14 @@
       "maxHeight": 20.279783248901367,
       "terrainRequests": 46,
       "memory": {
-        "geometries": 47,
-        "textures": 92
+        "geometries": 48,
+        "textures": 94
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileRestored": {
-      "medianFrameMs": 42.80000001192093,
-      "p95FrameMs": 50.5,
+      "medianFrameMs": 42.5,
+      "p95FrameMs": 45.900000005960464,
       "meshes": 32,
       "mapped": 32,
       "heightBytes": 0,
@@ -117,7 +117,7 @@
       "terrainRequests": 46,
       "memory": {
         "geometries": 35,
-        "textures": 92
+        "textures": 94
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
@@ -130,9 +130,9 @@
     "terrain": {
       "diagnostics": {
         "tileCount": 46,
-        "sampleCount": 34,
-        "lastSampleMicros": 99.99999403953552,
-        "meanSampleMicros": 14.705881476402283,
+        "sampleCount": 32,
+        "lastSampleMicros": 0,
+        "meanSampleMicros": 21.87499962747097,
         "state": "ready"
       },
       "sample": {
@@ -187,8 +187,8 @@
       }
     ],
     "normal": {
-      "medianFrameMs": 13.400000005960464,
-      "p95FrameMs": 17.600000023841858,
+      "medianFrameMs": 13.300000011920929,
+      "p95FrameMs": 14.099999994039536,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 0,
@@ -198,14 +198,14 @@
       "maxHeight": null,
       "terrainRequests": 122,
       "memory": {
-        "geometries": 112,
-        "textures": 112
+        "geometries": 113,
+        "textures": 113
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "hillshade": {
-      "medianFrameMs": 10.900000005960464,
-      "p95FrameMs": 11.400000005960464,
+      "medianFrameMs": 11.099999994039536,
+      "p95FrameMs": 12.100000023841858,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 0,
@@ -215,14 +215,14 @@
       "maxHeight": null,
       "terrainRequests": 122,
       "memory": {
-        "geometries": 112,
-        "textures": 112
+        "geometries": 113,
+        "textures": 113
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "combined": {
-      "medianFrameMs": 12.199999988079071,
-      "p95FrameMs": 14.099999994039536,
+      "medianFrameMs": 21.19999998807907,
+      "p95FrameMs": 42.599999994039536,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 99440,
@@ -232,14 +232,14 @@
       "maxHeight": 7.802995204925537,
       "terrainRequests": 122,
       "memory": {
-        "geometries": 112,
-        "textures": 112
+        "geometries": 113,
+        "textures": 113
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "restored": {
-      "medianFrameMs": 14.199999988079071,
-      "p95FrameMs": 16.100000023841858,
+      "medianFrameMs": 23.30000001192093,
+      "p95FrameMs": 26.899999976158142,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 0,
@@ -250,13 +250,13 @@
       "terrainRequests": 122,
       "memory": {
         "geometries": 96,
-        "textures": 112
+        "textures": 113
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileCombined": {
-      "medianFrameMs": 8.299999982118607,
-      "p95FrameMs": 9.099999994039536,
+      "medianFrameMs": 11,
+      "p95FrameMs": 16.100000023841858,
       "meshes": 86,
       "mapped": 86,
       "heightBytes": 94040,
@@ -266,14 +266,14 @@
       "maxHeight": 7.802995204925537,
       "terrainRequests": 122,
       "memory": {
-        "geometries": 112,
-        "textures": 112
+        "geometries": 113,
+        "textures": 113
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileRestored": {
-      "medianFrameMs": 8.400000005960464,
-      "p95FrameMs": 9.100000023841858,
+      "medianFrameMs": 14.400000005960464,
+      "p95FrameMs": 20.599999994039536,
       "meshes": 86,
       "mapped": 86,
       "heightBytes": 0,
@@ -284,7 +284,7 @@
       "terrainRequests": 122,
       "memory": {
         "geometries": 88,
-        "textures": 112
+        "textures": 113
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
@@ -297,9 +297,9 @@
     "terrain": {
       "diagnostics": {
         "tileCount": 122,
-        "sampleCount": 204,
-        "lastSampleMicros": 0,
-        "meanSampleMicros": 9.313725373324226,
+        "sampleCount": 202,
+        "lastSampleMicros": 99.99999403953552,
+        "meanSampleMicros": 13.86138649270086,
         "state": "ready"
       },
       "sample": {
@@ -307,7 +307,7 @@
           "latDeg": -85,
           "lonDeg": 0
         },
-        "elevationKm": -1.1076048406524013,
+        "elevationKm": -1.1077589556372376,
         "datum": {
           "referenceShape": {
             "kind": "sphere",
@@ -321,7 +321,7 @@
           "kind": "quantized-mesh",
           "url": "https://marshub.s3.amazonaws.com/moon_v14/"
         },
-        "tileId": "decoded:4/16/0.terrain?v=1"
+        "tileId": "decoded:4/15/0.terrain?v=1"
       }
     },
     "sourceImages": 122,

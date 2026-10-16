@@ -31,8 +31,10 @@ using the same validation as picked bounds; neither silently moves the other bou
 - Tile coordinates are metres in ECEF, Z north. Each material retains its
   float64 local-to-ECEF transform before the tiles group's metre-to-kilometre
   scaling, `-π/2` axis conversion, body attitude, and camera-relative origin.
-  Hillshade computes area-weighted smooth normals from loaded surface triangles
-  and shares boundary contributions by geographic position (0.00001 degree
+  Hillshade subtracts each triangle's reference-ellipsoid normal from its terrain
+  normal, averages the area-weighted corrections, and reconstructs the displayed
+  normal from analytic local up after interpolation. This removes coarse mesh
+  curvature bias without flattening real relief. It shares boundary contributions by geographic position (0.00001 degree
   keys). Small height differences do not split the normal field. Longitude
   wrapping and coincident polar vertices use one key. Only boundary references
   are retained across tiles; interiors keep their complete local triangle
@@ -84,6 +86,7 @@ npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5182 --strictPort
 # In another terminal:
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-appearance.mjs
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-shading-seams.mjs
+SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-shading-curvature.mjs
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-shading-live.mjs
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-style-activation.mjs
 ```
@@ -123,6 +126,28 @@ settings. Compare [legacy](seams/mars-close-legacy.png) and
 [current](seams/mars-close-current.png). Those captures hold geometry and
 camera fixed and change only the shading normal path.
 
+## Zoomed-out curvature regression
+
+The smooth-surface regression exposes a coarse-LOD error: a flat triangle's
+approximation of planetary curvature was being treated as topographic slope. Hillshade
+now subtracts the same triangle projected onto the reference ellipsoid before
+averaging, then adds analytic local up in the fragment shader. A smooth reference
+surface therefore has zero relief correction at every tested LOD. Geographic
+boundary sharing and skirt exclusion operate on these weighted corrections;
+physical positions, normals, indices and source heights remain unchanged.
+
+The [GPU regression](curvature/metrics.json) compares commit `842cbea` with the
+corrected shader on identical constant-height spheres. Brightness spread drops
+from **98/255 to 0/255** on the coarse mesh and **8/255 to 0/255** on the finer
+mesh, using the reported azimuth 100°, elevation 40°, contrast 3. Unit coverage
+also checks oblate ellipsoids and that actual relief still affects shared normals.
+The live harness compares both algorithms on identical streamed Mars tiles at
+3,800, 5,600 and 9,000 km; [before](curvature/mars-5600-before.png) /
+[current](curvature/mars-5600-current.png) captures use the southern Hellas region.
+These are controlled review viewpoints, not an exact replay of the user's camera.
+Source discontinuities and unmatched mixed-LOD geometry remain outside this
+shading correction.
+
 ## Activation performance after review
 
 [activation/metrics.json](activation/metrics.json) and the [close Mars capture](activation/mars-close.png)
@@ -134,29 +159,29 @@ attributes, and per-frame/per-tile preparation. Every run removes attributes fir
 
 | CPU execution | Style | Setter ms | Next task ms | Visible attributes ready ms | Preparation total ms | Largest batch / tile ms | Batches |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Native | Elevation | 0.1 | 175.7 | 176.8 | 2.5 | 2.5 / 0.3 | 1 |
-| Native | Hillshade | 0.1 | 222.3 | 396.1 | 32.0 | 4.3 / 2.1 | 8 |
-| 4x CPU throttle | Elevation | 0.1 | 39.1 | 45.9 | 5.4 | 4.0 / 0.8 | 2 |
-| 4x CPU throttle | Hillshade | 0.1 | 35.7 | 887.6 | 109.9 | 5.0 / 3.2 | 25 |
+| Native | Elevation | 0.0 | 177.3 | 178.6 | 2.9 | 2.9 / 0.4 | 1 |
+| Native | Hillshade | 0.1 | 30.5 | 452.4 | 42.4 | 4.5 / 2.9 | 11 |
+| 4x CPU throttle | Elevation | 0.2 | 34.0 | 40.3 | 5.6 | 4.3 / 0.9 | 2 |
+| 4x CPU throttle | Hillshade | 0.5 | 32.1 | 834.1 | 127.7 | 6.3 / 2.6 | 28 |
 
-The throttled runs follow native runs and therefore have warm shader programs.
-Cold native activation still stalls the next task for 176–222 ms on SwiftShader,
-including shader compilation/rendering; the frame budget limits CPU attribute
-preparation, not driver compilation. Progressive hillshade takes about 0.9 s
-under throttling. This is CPU emulation on the same desktop, not a physical phone
-or a hard latency guarantee. An unusually large individual tile can exceed the
-budget because tile preparation is atomic; broader source/device profiling and
-shader warmup remain useful follow-ups.
+The throttled runs follow native runs; shader cache state across browser launches
+is not controlled. Native activation delayed the next task by 30–177 ms in this
+run, including shader compilation/rendering; the frame budget limits CPU
+attribute preparation, not driver compilation. Progressive hillshade took about
+0.8 s under throttling. This is CPU emulation on the same desktop, not a physical
+phone or a hard latency guarantee. An unusually large individual tile can exceed
+the budget because tile preparation is atomic; broader source/device profiling
+and shader warmup remain useful follow-ups.
 
 ## Validation
 
-- 38 focused appearance/pick/measurement tests pass, covering shared boundary
+- 39 focused appearance/pick/measurement tests pass, covering shared boundary
   normals and eviction, skirts, field-matching range picks, independent bounds,
   rejected misses/crossings/uncolored surfaces, and unchanged measurement input.
 - Type checks, changed-file lint, and viewer production build pass.
 - After merging current main, package + viewer suite: 2,100 tests passed, 7 skipped
   (before adding the final shared-bound validation test; the final focused run has
-  38 passing tests).
+  39 passing tests).
 - Earlier branch validation encountered the existing timing-sensitive `gf-reporting.test.ts` / `keeps the first pass
   inside the first half while it runs` can finish in roughly 77 ms before its
   100 ms progress throttle produces an intermediate event. CSPICE is unchanged.
@@ -169,10 +194,10 @@ shader warmup remain useful follow-ups.
 
 | Scene | Normal ms | Hillshade ms | Combined ms | Restored ms | Tint attribute KiB | Terrain requests |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Mars, desktop, atmosphere + 2 imagery layers | 142.9 | 138.9 | 131.7 | 140.4 | 35.7 | 46 throughout |
-| Moon, desktop | 13.4 | 10.9 | 12.2 | 14.2 | 97.1 | 122 throughout |
-| Mars, phone viewport | — | — | 40.6 | 42.8 | 32.9 | 46 throughout |
-| Moon, phone viewport | — | — | 8.3 | 8.4 | 91.8 | 122 throughout |
+| Mars, desktop, atmosphere + 2 imagery layers | 173.7 | 142.7 | 137.6 | 144.6 | 35.7 | 46 throughout |
+| Moon, desktop | 13.3 | 11.1 | 21.2 | 23.3 | 97.1 | 122 throughout |
+| Mars, phone viewport | — | — | 44.3 | 42.5 | 32.9 | 46 throughout |
+| Moon, phone viewport | — | — | 11.0 | 14.4 | 91.8 | 122 throughout |
 The final run used `SURFACE_FRAME_SAMPLES=30` (default 90).
 Values are median frame intervals, with noise from software rendering and
 compilation. Both normal-restoration canvas comparisons changed **0 pixels**;

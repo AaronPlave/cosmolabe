@@ -19,6 +19,32 @@ function compile(material: THREE.Material) {
 }
 
 describe('surface appearance physical and material contracts', () => {
+  it('has no relief-normal perturbation on coarse and fine constant-height reference surfaces', () => {
+    for (const shape of [{ kind: 'sphere' as const, radiusKm: 3396.19 }, datum.referenceShape]) {
+      for (const segments of [4, 16]) {
+        const reference = { ...datum, referenceShape: shape };
+        const g = new THREE.SphereGeometry(1, segments, segments);
+        const p = g.getAttribute('position');
+        for (let j = 0; j < p.count; j++) {
+          const direction = new THREE.Vector3().fromBufferAttribute(p, j).normalize();
+          const radii = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
+          const r = 1000 / Math.hypot(direction.x / radii[0], direction.y / radii[1], direction.z / radii[2]);
+          p.setXYZ(j, direction.x * r, direction.y * r, direction.z * r);
+        }
+        const tile = new THREE.Mesh(g, new THREE.MeshStandardMaterial());
+        const style = new SurfaceAppearance(reference);
+        style.attach(tile, new THREE.Matrix4());
+        style.set({ ...defaults, hillshade: true }); style.update(Infinity);
+        // A reference ellipsoid has no topographic slope, regardless of its
+        // triangulation or latitude. The fragment adds analytic local up.
+        const correction = g.getAttribute('surfaceReliefNormal');
+        for (let j = 0; j < correction.count; j++) {
+          expect(Math.hypot(correction.getX(j), correction.getY(j), correction.getZ(j))).toBeLessThan(1e-5);
+        }
+      }
+    }
+  });
+
   it('defers cached hidden tiles and yields between visible tiles during activation', () => {
     const style = new SurfaceAppearance(datum), a = mesh(), b = mesh(), cached = mesh();
     cached.visible = false;
@@ -96,7 +122,7 @@ describe('surface appearance physical and material contracts', () => {
     expect(shader.uniforms).toHaveProperty('overlaySentinel');
     expect(shader.fragmentShader).toContain('getShadowMask()');
     expect(shader.fragmentShader.indexOf('outgoingLight = diffuseColor.rgb')).toBeLessThan(shader.fragmentShader.indexOf('AerialPerspectiveResult _ap'));
-    expect(shader.fragmentShader).toContain('normalize(vSAReliefNormal)');
+    expect(shader.fragmentShader).toContain('normalize(saUp + vSAReliefNormal)');
     expect(shader.fragmentShader).toContain('diffuseColor.rgb = mix');
     layers = 3;
     expect(tile.material.customProgramCacheKey()).toContain('overlay-3');
@@ -127,7 +153,7 @@ describe('surface appearance physical and material contracts', () => {
     style.set({ ...defaults, hillshade: true }); style.update(Infinity);
     style.attach(tile, new THREE.Matrix4()); style.update(Infinity);
     expect(Array.from(tile.geometry.getAttribute('surfaceGround').array)).toEqual([1, 1, 1, 0, 0, 0]);
-    expect(compile(tile.material).fragmentShader).toContain('normalize(vSAReliefNormal)');
+    expect(compile(tile.material).fragmentShader).toContain('normalize(saUp + vSAReliefNormal)');
     expect(compile(tile.material).fragmentShader).not.toContain('vSANormal');
     style.set({ ...defaults }); style.update(Infinity);
     expect(tile.geometry.hasAttribute('surfaceGround')).toBe(false);
@@ -145,12 +171,13 @@ describe('surface appearance physical and material contracts', () => {
     const matrix = new THREE.Matrix4().makeTranslation(0, 0, 3376200);
     style.attach(left, matrix); style.attach(right, matrix); style.update(Infinity);
     const ln = left.geometry.getAttribute('surfaceReliefNormal'), rn = right.geometry.getAttribute('surfaceReliefNormal');
-    expect(ln.getX(0)).toBeCloseTo(-1 / Math.sqrt(5));
-    expect(ln.getZ(0)).toBeCloseTo(2 / Math.sqrt(5));
+    const reconstructed = new THREE.Vector3(ln.getX(0), ln.getY(0), 1 + ln.getZ(0)).normalize();
+    expect(reconstructed.x).toBeCloseTo(-1 / Math.sqrt(5));
+    expect(reconstructed.z).toBeCloseTo(2 / Math.sqrt(5));
     expect(rn.getX(0)).toBe(ln.getX(0)); expect(rn.getZ(0)).toBe(ln.getZ(0));
     expect(rn.getX(2)).toBe(ln.getX(1));
     style.forget(right);
-    expect(ln.getX(0)).toBeCloseTo(0); expect(ln.getZ(0)).toBeCloseTo(1);
+    expect(ln.getX(0)).toBeCloseTo(0); expect(ln.getZ(0)).toBeCloseTo(0);
     style.set({ ...defaults }); style.update(Infinity);
     expect(left.geometry.hasAttribute('surfaceReliefNormal')).toBe(false);
   });
