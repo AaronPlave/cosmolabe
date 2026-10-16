@@ -57,6 +57,8 @@ export interface CubeGridSourceOptions {
   maxDetailTiles?: number;
   /** Grid requests in flight at once (`fromUrl`); the rest wait. Default 16. */
   maxConcurrentRequests?: number;
+  /** A failed grid is requested again by a later query after this long, ms, doubling per failure up to 16×. Default 30 000. */
+  retryFailedMs?: number;
 }
 
 export interface CubeGridSourceStats {
@@ -83,7 +85,9 @@ export class CubeSphereGridSource {
   private readonly inFlight = new Map<string, Promise<void>>();
   /** Detail tiles in least-recently-requested order. */
   private readonly detail = new Map<string, true>();
-  private readonly failedIds = new Set<string>();
+  /** Failed grids, and when a query may request each again: failures stay recoverable. */
+  private readonly failed = new Map<string, { count: number; retryAt: number }>();
+  private readonly retryFailedMs: number;
   private readonly residentLevel: number;
   private readonly maxDetailTiles: number;
   private requests = 0;
@@ -108,10 +112,11 @@ export class CubeSphereGridSource {
     this.sampler = new CubeSphereSampler(manifest.datum, manifest.source);
     for (const [face, level, x, y, uncertaintyKm] of manifest.tiles) this.uncertaintyById.set(cubeTileId({ face, level, x, y }), uncertaintyKm);
     this.residentLevel = options.residentLevel ?? 2;
+    this.retryFailedMs = options.retryFailedMs ?? 30_000;
     this.maxDetailTiles = options.maxDetailTiles ?? 2048;
     const resident = manifest.tiles.filter(t => t[1] <= this.residentLevel).map(([face, level, x, y]) => cubeTileId({ face, level, x, y }));
     this.ready = Promise.all(resident.map(id => this.load(id))).then(() => {
-      if (resident.some(id => this.failedIds.has(id))) throw new Error('Cube grid resident levels failed to load');
+      if (resident.some(id => this.failed.has(id))) throw new Error('Cube grid resident levels failed to load');
     });
   }
 
@@ -141,7 +146,7 @@ export class CubeSphereGridSource {
 
   get stats(): CubeGridSourceStats {
     return { residentTiles: this.sampler.tileCount - this.detail.size, detailTiles: this.detail.size,
-      requests: this.requests, bytes: this.bytes, failed: this.failedIds.size, inFlight: this.inFlight.size };
+      requests: this.requests, bytes: this.bytes, failed: this.failed.size, inFlight: this.inFlight.size };
   }
 
   /** Deepest product tile containing a face coordinate (the product is REPLACE-complete, so one exists at level 0). */
@@ -179,11 +184,14 @@ export class CubeSphereGridSource {
   requestCoordinate(coordinate: CubeFaceCoordinate): Promise<void> {
     const deepest = this.availableAt(coordinate).level;
     const loads: Promise<void>[] = [];
-    // Intermediate levels too, so a coarse parent answers while the deepest tile is in flight.
-    for (let level = this.residentLevel + 1; level <= deepest; level++) {
-      const id = cubeTileId(addressAt(coordinate, level));
+    // Intermediate levels too, so a coarse parent answers while the deepest tile is in flight;
+    // resident levels as well, in case one failed at startup.
+    const now = performance.now();
+    for (let level = 0; level <= deepest; level++) {
+      const address = addressAt(coordinate, level), id = cubeTileId(address);
       if (this.detail.has(id)) { this.detail.delete(id); this.detail.set(id, true); continue; }
-      if (!this.failedIds.has(id)) loads.push(this.load(id));
+      if (this.sampler.getTile(address) || (this.failed.get(id)?.retryAt ?? 0) > now) continue;
+      loads.push(this.load(id));
     }
     return Promise.all(loads).then(() => undefined);
   }
@@ -223,9 +231,11 @@ export class CubeSphereGridSource {
           this.onChange?.(evicted);
         }
       }
+      this.failed.delete(id);
       this.onChange?.(id);
     }).catch((error: unknown) => {
-      this.failedIds.add(id);
+      const count = (this.failed.get(id)?.count ?? 0) + 1;
+      this.failed.set(id, { count, retryAt: performance.now() + this.retryFailedMs * 2 ** Math.min(count - 1, 4) });
       console.warn(`[Cosmolabe:Terrain] cube grid ${id} failed`, error);
     }).finally(() => { this.inFlight.delete(id); });
     this.inFlight.set(id, job);

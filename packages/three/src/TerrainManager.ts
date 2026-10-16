@@ -955,10 +955,14 @@ export class TerrainManager {
     // levels. Off by default for imagery-only (see `fadeDurationMs`); set it
     // to 0 in the catalog for HiRISE-detail terrain, where the fade can jitter
     // as tiles stream in/out while the camera is moving.
-    // Every tile of a cube product exists (the publisher checks), so a failed request is
-    // transient: retry it while the tile stays loading. Upstream counts a failed child
-    // as ready and drops its parent, which leaves a hole until the session ends.
-    if (config.cubeSphere) this.tiles.registerPlugin({ fetchData: (url: string, options: RequestInit) => fetchWithRetry(url, options) } as never);
+    // Every tile of a cube product exists (the publisher checks), so a network error, 5xx
+    // or 429 is transient: retry it, with no attempt limit, while the tile stays loading.
+    // Upstream counts a failed child as ready and drops its parent, which would leave a
+    // hole for the session; this way the parent stays drawn through an outage and the
+    // tile arrives when the host recovers. The renderer aborts it if it is no longer wanted.
+    if (config.cubeSphere) {
+      this.tiles.registerPlugin({ fetchData: (url: string, options: RequestInit) => fetchWithRetry(url, options, { tries: Infinity }) } as never);
+    }
 
     const fadeMs = config.fadeDurationMs ?? (this.isImageryOnly ? 0 : 300);
     if (fadeMs > 0) {

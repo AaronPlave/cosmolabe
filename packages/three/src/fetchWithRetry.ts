@@ -1,6 +1,7 @@
 /**
  * `fetch` that retries transient failures — network errors, HTTP 5xx and 429 —
- * with exponential backoff, and gives up at once when `init.signal` aborts.
+ * with exponential backoff capped at `maxDelayMs`, up to `tries` attempts
+ * (Infinity: until it succeeds), and gives up at once when `init.signal` aborts.
  * Every other answer (including 404) is returned as it is.
  *
  * For tiles this keeps a request "in flight" across a transient error, so the
@@ -8,7 +9,8 @@
  * ready and leaving a hole (#149).
  */
 export async function fetchWithRetry(
-  url: string, init: RequestInit = {}, { tries = 4, baseMs = 500, fetchImpl = fetch }: { tries?: number; baseMs?: number; fetchImpl?: typeof fetch } = {},
+  url: string, init: RequestInit = {},
+  { tries = 4, baseMs = 500, maxDelayMs = 30_000, fetchImpl = fetch }: { tries?: number; baseMs?: number; maxDelayMs?: number; fetchImpl?: typeof fetch } = {},
 ): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -20,7 +22,7 @@ export async function fetchWithRetry(
     await new Promise<void>((resolve, reject) => {
       const signal = init.signal;
       const onAbort = () => { clearTimeout(timer); reject(signal!.reason); };
-      const timer = setTimeout(() => { signal?.removeEventListener('abort', onAbort); resolve(); }, baseMs * 2 ** (attempt - 1));
+      const timer = setTimeout(() => { signal?.removeEventListener('abort', onAbort); resolve(); }, Math.min(maxDelayMs, baseMs * 2 ** (attempt - 1)));
       signal?.addEventListener('abort', onAbort, { once: true });
     });
   }

@@ -1878,15 +1878,25 @@ ray is `unavailable`, never the datum. `CubeCoverage` still distinguishes
    output-shaping argument: simplified and full-lattice builds previously both
    claimed `cube-fused-…-g3-m12`. The builder writes it as `tilesetVersion`. The
    viewer drops grids that disagree, and the publisher refuses mismatched builds.
-5. **Transient-failure retry** (`fetchWithRetry`: network errors, 5xx and 429,
-   backoff 0.5/1/2 s, abort-aware). It covers cube `.glb` and tileset requests,
-   CPU grids and cube imagery. 3DTilesRendererJS counts a failed child as ready
-   and drops its parent, so one transient failure left a hole for the rest of
-   the session. With the retry the tile stays loading and its parent stays
-   drawn. A request that still fails after four tries behaves as before:
-   - geometry: hole;
-   - grids: explicitly unloaded;
-   - imagery: ancestor fallback, retried later.
+5. **Transient failures stay recoverable** (`fetchWithRetry`: network errors,
+   5xx and 429, capped exponential backoff, abort-aware).
+   - **Cube `.glb` and tileset requests** retry with no attempt limit. While
+     they retry, the tile stays loading. 3DTilesRendererJS counts a failed
+     child as ready and drops its parent, so before this change one transient
+     failure left a hole for the rest of the session. Now the parent stays
+     drawn through an outage and the tile arrives when the host recovers. The
+     renderer aborts the retry if the tile is no longer wanted. A permanent
+     answer such as a 404 still fails, as for any product.
+   - **CPU grids** retry four times per request. After that a later query may
+     request the grid again once its backoff expires (30 s, doubling up to 16×).
+     This applies to the coarse grids loaded at startup as well as to detail
+     grids. Before, a failed grid was never requested again in the session.
+   - **Cube imagery** retries four times per request, then falls back to an
+     ancestor tile. Its own retry-after-failure already made it recoverable.
+
+   #233 review: four consecutive failures previously ended in a permanent
+   failure. `fetchWithRetry.test` now covers recovery after four 503s for a
+   detail grid, a startup grid, and a tile through a six-request outage.
 6. **Bounded CPU-grid concurrency** (16 by default). A burst of picks asked for
    hundreds of grids at once. Over a 40 ms link Chrome refused them with
    `net::ERR_INSUFFICIENT_RESOURCES`, and 356 grids stayed failed.
@@ -1896,7 +1906,7 @@ Regressions: `CubeImageryLayer.test` (culled tiles get imagery),
 sampling equal to the emitted triangle along the radial),
 `TerrainManagerCube.test` (frustum-only before the bound; revision mismatch
 before or after the tileset), `fetchWithRetry.test` (retry classes, abort,
-grid concurrency peak and retry), `data-hosting.test` (cube publish, verify,
+grid concurrency peak, recovery after retries run out), `data-hosting.test` (cube publish, verify,
 mismatch refusal) and `dem.py selftest` (tileset/grid revision).
 
 ### Representative experience (`capture-cube-imagery.mjs --experiments adoption`)

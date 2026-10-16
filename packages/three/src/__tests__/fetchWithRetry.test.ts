@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import type * as THREE from 'three';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchWithRetry } from '../fetchWithRetry.js';
 import { CubeSphereGridSource, type CubeGridManifest } from '../surface/CubeSphereGrids.js';
+import { TerrainManager } from '../TerrainManager.js';
 
 const respond = (...answers: (number | Error)[]) => vi.fn(async () => {
   const a = answers.shift()!;
@@ -53,5 +55,75 @@ describe('fetchWithRetry', () => {
     await source.ready;
     expect(peak).toBe(3);
     expect(source.stats).toMatchObject({ residentTiles: 24, failed: 0 });
+  });
+
+  it('retries without a limit when asked, with the backoff capped', async () => {
+    const outage = respond(503, 503, 503, 503, 503, 503, new TypeError('x'), 200);
+    expect((await fetchWithRetry('u', {}, { fetchImpl: outage, tries: Infinity, baseMs: 1, maxDelayMs: 2 })).status).toBe(200);
+    expect(outage).toHaveBeenCalledTimes(8);
+  });
+});
+
+/** All six faces at level 0, and nz at level 1. */
+function gridManifest(): CubeGridManifest {
+  const tiles: CubeGridManifest['tiles'] = (['px', 'nx', 'py', 'ny', 'pz', 'nz'] as const).map((f) => [f, 0, 0, 0, 0.001]);
+  for (const [x, y] of [[0, 0], [1, 0], [0, 1], [1, 1]]) tiles.push(['nz', 1, x, y, 0.0005]);
+  return {
+    format: 'cosmolabe-cube-height-grid-1',
+    datum: { referenceShape: { kind: 'sphere', radiusKm: 1737.4 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+    source: { id: 't', kind: 'height-grid', version: 'v' }, grid: { width: 2, height: 2, uri: 'h/{face}/{level}/{x}/{y}.f32' },
+    heightRangeKm: [0, 1], maxLevel: 1, tiles,
+  };
+}
+
+describe('recovery after the retries run out (#233 review)', () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('requests a CPU grid again once the host recovers: four 503s, then the fifth request succeeds', async () => {
+    const down = new Set(['h/nz/1/1/1.f32', 'h/px/0/0/0.f32']); // a detail grid and a resident one
+    const requests: string[] = [];
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('grids.json')) return new Response(JSON.stringify(gridManifest()));
+      const path = new URL(url).pathname.slice(1);
+      requests.push(path);
+      return down.has(path) ? new Response('', { status: 503 }) : new Response(new Float32Array(4).buffer);
+    }) as unknown as typeof fetch;
+    const source = await CubeSphereGridSource.fromUrl('https://example.invalid/grids.json',
+      { fetch: fetchImpl, residentLevel: 0, retryBaseMs: 1, retryFailedMs: 20 });
+    await source.ready.catch(() => {}); // px/0/0/0 failed at startup
+    const count = (path: string) => requests.filter((r) => r === path).length;
+    await source.request(-90, 0);
+    expect(count('h/nz/1/1/1.f32')).toBe(4);
+    expect(source.coverage(-90, 0).state).toBe('parent-fallback');
+    // Inside the retry window a query does not hammer the host.
+    await source.request(-90, 0);
+    expect(count('h/nz/1/1/1.f32')).toBe(4);
+    down.clear();
+    await new Promise((r) => setTimeout(r, 25));
+    await source.request(-90, 0);
+    await source.request(0, 0);
+    expect(count('h/nz/1/1/1.f32')).toBe(5);
+    expect(count('h/px/0/0/0.f32')).toBe(5);
+    expect(source.coverage(-90, 0).state).toBe('finest');
+    expect(source.coverage(0, 0).state).toBe('finest');
+    expect(source.stats.failed).toBe(0);
+  });
+
+  it('keeps a cube terrain tile loading through an outage longer than four attempts, so its parent stays drawn', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => {}); // the grid manifest is absent here
+    let calls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => (!String(url).endsWith('.glb') ? new Response('', { status: 404 })
+      : ++calls <= 6 ? new Response('', { status: 503 }) : new Response('glb'))));
+    const tm = new TerrainManager({ type: '3dtiles', url: 'https://example.invalid/tileset.json', datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+      cubeSphere: { cpuGrids: 'https://example.invalid/cpu-grids.json' } }, 1737.4, undefined as unknown as THREE.WebGLRenderer);
+    const tiles = (tm as unknown as { tiles: { invokeOnePlugin<T>(fn: (p: { fetchData?: (u: string, o: RequestInit) => Promise<Response> }) => T): T } }).tiles;
+    const tile = tiles.invokeOnePlugin((p) => p.fetchData?.('https://example.invalid/nz/5/1/2.glb', { signal: new AbortController().signal }));
+    let settled: Response | null = null;
+    void tile!.then((r) => { settled = r; });
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(calls).toBe(7);
+    expect(settled!.status).toBe(200);
+    tm.dispose();
   });
 });
