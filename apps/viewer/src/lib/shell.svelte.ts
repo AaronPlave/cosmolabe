@@ -55,7 +55,7 @@ export function isToolId(value: string): value is ToolId {
  * follows a click, so neither is a tool, but both are instruments the user
  * should be able to move and minimize like any other.
  */
-export const PANEL_KEYS = [...TOOL_IDS, 'info', 'pick'] as const;
+export const PANEL_KEYS = [...TOOL_IDS, 'info', 'probe'] as const;
 
 export type PanelKey = (typeof PANEL_KEYS)[number];
 
@@ -92,7 +92,7 @@ export const TOOLS: readonly ToolDef[] = [
   // E is camera roll-right in KeyboardControls; tool shortcuts must not steal
   // renderer controls while the canvas has focus.
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
-  { id: 'measure', label: 'Measurements', icon: Ruler, presentation: 'panel', dock: 'right', width: 344 },
+  { id: 'measure', label: 'Geometry', icon: Ruler, presentation: 'panel', dock: 'right', width: 344 },
   // Backtick: the universal console idiom, unclaimed, and not a letter, so it
   // cannot collide with a renderer control or #15's keymap. The app's input
   // guard runs first, so a backtick typed into a text field stays a backtick.

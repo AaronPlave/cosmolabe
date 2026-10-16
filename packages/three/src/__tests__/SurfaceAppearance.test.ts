@@ -19,6 +19,27 @@ function compile(material: THREE.Material) {
 }
 
 describe('surface appearance physical and material contracts', () => {
+  it('defers cached hidden tiles and yields between visible tiles during activation', () => {
+    const style = new SurfaceAppearance(datum), a = mesh(), b = mesh(), cached = mesh();
+    cached.visible = false;
+    for (const tile of [a, b, cached]) style.attach(tile, new THREE.Matrix4());
+    style.set({ ...defaults, baseColor: 'elevation', hillshade: true });
+    expect(a.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    expect(compile(a.material).fragmentShader).toBe(THREE.ShaderLib.standard.fragmentShader);
+    const first = style.update(0);
+    expect(first.meshes).toBe(1);
+    expect(first.vertices).toBe(3);
+    expect(b.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    style.update(Infinity);
+    expect(b.geometry.hasAttribute('surfaceHeightKm')).toBe(true);
+    expect(cached.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    cached.visible = true;
+    style.update(Infinity);
+    expect(cached.geometry.hasAttribute('surfaceHeightKm')).toBe(true);
+    style.set({ ...defaults });
+    expect(cached.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+  });
+
   it('computes radial height against the true oblate datum at equator and poles', () => {
     expect(renderedHeightKm(new THREE.Vector3(3396.19 - 8.765 + 10, 0, 0), datum)).toBeCloseTo(1.235, 8);
     expect(renderedHeightKm(new THREE.Vector3(0, 0, -3376.2 - 2), datum)).toBeCloseTo(2, 8);
@@ -46,14 +67,14 @@ describe('surface appearance physical and material contracts', () => {
     const originalKey = tile.material.customProgramCacheKey();
     const release = vi.fn(() => expect(tile.geometry.hasAttribute('surfaceHeightKm')).toBe(true));
     tile.geometry.addEventListener('dispose', release);
-    style.attach(tile, new THREE.Matrix4().makeTranslation(3396190, 0, 0));
+    style.attach(tile, new THREE.Matrix4().makeTranslation(3396190, 0, 0)); style.update(Infinity);
     expect(compile(tile.material).fragmentShader).toBe(THREE.ShaderLib.standard.fragmentShader);
     expect(tile.material.customProgramCacheKey()).toBe(originalKey);
     expect(tile.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
-    style.set({ ...defaults, baseColor: 'elevation' });
+    style.set({ ...defaults, baseColor: 'elevation' }); style.update(Infinity);
     expect(tile.geometry.getAttribute('surfaceHeightKm').getX(2)).toBeCloseTo(0.01, 4);
     expect(tile.geometry.getAttribute('position').array).toEqual(positions);
-    style.set({ ...defaults });
+    style.set({ ...defaults }); style.update(Infinity);
     expect(release).toHaveBeenCalledTimes(1);
     expect(tile.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
     expect(compile(tile.material).fragmentShader).toBe(THREE.ShaderLib.standard.fragmentShader);
@@ -69,8 +90,8 @@ describe('surface appearance physical and material contracts', () => {
     };
     let layers = 2;
     tile.material.customProgramCacheKey = () => `overlay-${layers}`;
-    style.set({ ...defaults, hillshade: true, baseColor: 'elevation' });
-    style.attach(tile, new THREE.Matrix4().makeTranslation(3396190, 0, 0));
+    style.set({ ...defaults, hillshade: true, baseColor: 'elevation' }); style.update(Infinity);
+    style.attach(tile, new THREE.Matrix4().makeTranslation(3396190, 0, 0)); style.update(Infinity);
     const shader = compile(tile.material);
     expect(shader.uniforms).toHaveProperty('overlaySentinel');
     expect(shader.fragmentShader).toContain('getShadowMask()');
@@ -83,16 +104,16 @@ describe('surface appearance physical and material contracts', () => {
 
   it('updates uniforms without recompilation and attaches settings to later streamed tiles', () => {
     const style = new SurfaceAppearance(datum), tile = mesh();
-    style.set({ ...defaults, hillshade: true });
-    style.attach(tile, new THREE.Matrix4().makeTranslation(0, 0, 3376200));
+    style.set({ ...defaults, hillshade: true }); style.update(Infinity);
+    style.attach(tile, new THREE.Matrix4().makeTranslation(0, 0, 3376200)); style.update(Infinity);
     const shader = compile(tile.material), version = tile.material.version;
-    style.set({ ...defaults, hillshade: true, azimuthDeg: 90 });
+    style.set({ ...defaults, hillshade: true, azimuthDeg: 90 }); style.update(Infinity);
     expect(tile.material.version).toBe(version);
     expect((shader.uniforms as Record<string, { value: THREE.Vector3 }>).saLight.value.x).toBeCloseTo(Math.SQRT1_2);
     expect(tile.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
     expect(tile.geometry.hasAttribute('surfaceGround')).toBe(true);
     style.forget(tile);
-    style.set({ ...defaults, baseColor: 'elevation' });
+    style.set({ ...defaults, baseColor: 'elevation' }); style.update(Infinity);
     expect(tile.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
   });
 
@@ -103,26 +124,26 @@ describe('surface appearance physical and material contracts', () => {
     tile.geometry.addGroup(0, 3, 0);
     tile.geometry.addGroup(3, 3, 0);
     const style = new SurfaceAppearance(datum);
-    style.set({ ...defaults, hillshade: true });
-    style.attach(tile, new THREE.Matrix4());
+    style.set({ ...defaults, hillshade: true }); style.update(Infinity);
+    style.attach(tile, new THREE.Matrix4()); style.update(Infinity);
     expect(Array.from(tile.geometry.getAttribute('surfaceGround').array)).toEqual([1, 1, 1, 0, 0, 0]);
     expect(compile(tile.material).fragmentShader).toContain('normalize(vSAReliefNormal)');
     expect(compile(tile.material).fragmentShader).not.toContain('vSANormal');
-    style.set({ ...defaults });
+    style.set({ ...defaults }); style.update(Infinity);
     expect(tile.geometry.hasAttribute('surfaceGround')).toBe(false);
     expect(Array.from(tile.geometry.index!.array)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
   it('shares area-weighted normals across loaded tile edges and updates on eviction', () => {
     const style = new SurfaceAppearance(datum);
-    style.set({ ...defaults, hillshade: true });
+    style.set({ ...defaults, hillshade: true }); style.update(Infinity);
     const left = mesh(), right = mesh();
     left.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 1, 0, -1, 0, 0], 3));
     // Small cross-LOD height differences must not prevent a shared geographic
     // edge from receiving one normal field (physical vertices remain separate).
     right.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 10, 1, 0, 11, 0, 1, 10], 3));
     const matrix = new THREE.Matrix4().makeTranslation(0, 0, 3376200);
-    style.attach(left, matrix); style.attach(right, matrix);
+    style.attach(left, matrix); style.attach(right, matrix); style.update(Infinity);
     const ln = left.geometry.getAttribute('surfaceReliefNormal'), rn = right.geometry.getAttribute('surfaceReliefNormal');
     expect(ln.getX(0)).toBeCloseTo(-1 / Math.sqrt(5));
     expect(ln.getZ(0)).toBeCloseTo(2 / Math.sqrt(5));
@@ -130,7 +151,7 @@ describe('surface appearance physical and material contracts', () => {
     expect(rn.getX(2)).toBe(ln.getX(1));
     style.forget(right);
     expect(ln.getX(0)).toBeCloseTo(0); expect(ln.getZ(0)).toBeCloseTo(1);
-    style.set({ ...defaults });
+    style.set({ ...defaults }); style.update(Infinity);
     expect(left.geometry.hasAttribute('surfaceReliefNormal')).toBe(false);
   });
 
@@ -160,6 +181,7 @@ describe('surface appearance physical and material contracts', () => {
     const tiles = (tm as unknown as { tiles: { group: THREE.Group; dispatchEvent(e: unknown): void } }).tiles;
     tiles.group.add(scene);
     tiles.dispatchEvent({ type: 'load-model', scene, tile: {} });
+    (tm as unknown as { surfaceStyle: SurfaceAppearance }).surfaceStyle.update(Infinity);
     expect(tileMesh.geometry.getAttribute('surfaceHeightKm').getX(2)).toBeCloseTo(0.01, 4);
     expect(compile(tileMesh.material).fragmentShader).toContain('saTint');
     tiles.dispatchEvent({ type: 'dispose-model', scene, tile: {} });

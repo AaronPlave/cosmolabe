@@ -1,0 +1,63 @@
+{
+  "name": "Apollo 15 imagery (no terrain)",
+  "version": "1.1",
+  "description": "Streamed imagery pilot (#123): the global LROC WAC mosaic with a bounded 50 cm/px LROC NAC mosaic of the Apollo 15 site at Hadley Rille, on the lunar ellipsoid with no physical terrain.",
+  "defaultTime": "2024-07-21T10:00:00Z",
+  "defaultViewpoint": "Hadley regional",
+  "items": [
+    { "name": "Moon globe", "type": "Viewpoint", "center": "Moon", "distance": 8000, "latitude": 26.13, "longitude": 3.63 },
+    { "name": "Hadley regional", "type": "Viewpoint", "center": "Moon", "distance": 2100, "latitude": 26.13, "longitude": 3.63 },
+    { "name": "Hadley Rille", "type": "Viewpoint", "center": "Moon", "distance": 1775, "latitude": 26.1, "longitude": 3.6 },
+    { "name": "Apollo 15 landing site", "type": "Viewpoint", "center": "Moon", "distance": 1740, "latitude": 26.1322, "longitude": 3.6339 },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Earth" },
+      "geometry": { "type": "Globe", "radius": 6378, "baseMap": "textures/earth-5k.jpg", "atmosphere": "Earth" },
+      "label": { "color": [0.4, 0.6, 1.0] }
+    },
+    {
+      "name": "Moon",
+      "class": "moon",
+      "center": "Earth",
+      "trajectory": { "type": "Builtin", "name": "Moon" },
+      "rotationModel": { "type": "Builtin", "name": "IAU_MOON" },
+      "geometry": {
+        "type": "Globe",
+        "radius": 1737.4,
+        "baseMap": "textures/moon-16k.jpg",
+        "imagery": [
+          {
+            "id": "wac",
+            "name": "Global · WAC",
+            "description": "LROC WAC global mosaic",
+            "resolutionMeters": 100,
+            "attribution": "NASA Trek",
+            "url": "https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
+            "levels": 8
+          },
+          {
+            "id": "apollo15-nac",
+            "name": "Apollo 15 · NAC",
+            "description": "Apollo 15 landing site LROC NAC mosaic",
+            "resolutionMeters": 0.5,
+            "attribution": "NASA Trek",
+            "url": "https://trek.nasa.gov/tiles/Moon/EQ/A15_60x60km.0_2.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+            "levels": 16,
+            "bounds": [2.64, 25.14, 4.62, 27.12],
+            "minZoom": 5
+          }
+        ]
+      },
+      "label": { "color": [0.7, 0.7, 0.7] }
+    }
+  ]
+}

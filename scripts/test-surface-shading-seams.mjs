@@ -37,6 +37,7 @@ try {
         const style = new SurfaceAppearance(datum);
         style.set({ ...DEFAULT_SURFACE_APPEARANCE, baseColor: 'neutral', imageryAmount: 0, hillshade: true, azimuthDeg: 90 });
         style.attach(mesh, new THREE.Matrix4().makeTranslation(0, 0, 1737400));
+        style.update(Infinity);
         if (legacy) {
           const compile = material.onBeforeCompile, key = material.customProgramCacheKey;
           material.onBeforeCompile = (shader, r) => {

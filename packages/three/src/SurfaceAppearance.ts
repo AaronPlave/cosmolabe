@@ -42,7 +42,7 @@ export function normalizeSurfaceAppearance(s: SurfaceAppearanceSettings): Surfac
 type Shader = { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> };
 interface NormalReference { attribute: THREE.BufferAttribute; index: number; normal: THREE.Vector3; }
 interface NormalNode { sum: THREE.Vector3; references: Set<NormalReference>; }
-interface StyledMesh { matrix: THREE.Matrix4; materials: THREE.Material[]; normals?: Array<[string, NormalReference]>; }
+interface StyledMesh { matrix: THREE.Matrix4; materials: THREE.Material[]; ready: boolean; normals?: Array<[string, NormalReference]>; }
 
 export function renderedHeightKm(point: THREE.Vector3, datum: TerrainDatum): number {
   if (datum.heightConvention === 'geodetic-normal') {
@@ -101,9 +101,8 @@ export class SurfaceAppearance {
     this.updateUniforms();
     if (!this.settings.hillshade) this.normalNodes.clear();
     for (const [mesh, entry] of this.meshes) {
-      if (this.settings.baseColor === 'elevation') this.prepareHeights(mesh, entry.matrix);
-      if (this.settings.hillshade) this.prepareReliefNormals(mesh, entry);
-      else entry.normals = undefined;
+      if (!this.settings.hillshade) entry.normals = undefined;
+      entry.ready = this.isPrepared(mesh);
       if (this.key() !== before) entry.materials.forEach(m => { m.needsUpdate = true; });
       const unused = [
         ...(this.settings.baseColor !== 'elevation' ? ['surfaceHeightKm'] : []),
@@ -119,6 +118,36 @@ export class SurfaceAppearance {
     }
   }
 
+  private isPrepared(mesh: THREE.Mesh): boolean {
+    return (this.settings.baseColor !== 'elevation' || mesh.geometry.hasAttribute('surfaceHeightKm')) &&
+      (!this.settings.hillshade || mesh.geometry.hasAttribute('surfaceReliefNormal'));
+  }
+
+  /** Prepare visible tiles only, yielding between tiles after a small frame budget.
+   * Until ready a tile retains its ordinary imagery shader. One tile is atomic. */
+  update(budgetMs = 4): { meshes: number; vertices: number; elapsedMs: number; maxTileMs: number } {
+    const start = performance.now();
+    let meshes = 0, vertices = 0, maxTileMs = 0;
+    if (this.active) for (const [mesh, entry] of this.meshes) {
+      if (entry.ready) continue;
+      let visible = true;
+      for (let object: THREE.Object3D | null = mesh; object; object = object.parent) {
+        if (!object.visible) { visible = false; break; }
+      }
+      if (!visible) continue;
+      const tileStart = performance.now();
+      if (this.settings.baseColor === 'elevation') this.prepareHeights(mesh, entry.matrix);
+      if (this.settings.hillshade) this.prepareReliefNormals(mesh, entry);
+      entry.ready = true;
+      entry.materials.forEach(m => { m.needsUpdate = true; });
+      meshes++;
+      vertices += mesh.geometry.getAttribute('position').count;
+      maxTileMs = Math.max(maxTileMs, performance.now() - tileStart);
+      if (performance.now() - start >= budgetMs) break;
+    }
+    return { meshes, vertices, elapsedMs: performance.now() - start, maxTileMs };
+  }
+
   private key(): string {
     return this.active ? `_surface_v3_${Number(this.settings.hillshade)}_${this.settings.baseColor}` : '';
   }
@@ -128,10 +157,9 @@ export class SurfaceAppearance {
   attach(mesh: THREE.Mesh, matrix: THREE.Matrix4): void {
     if (this.meshes.has(mesh)) return;
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    const entry: StyledMesh = { matrix, materials };
+    const entry: StyledMesh = { matrix, materials, ready: false };
     this.meshes.set(mesh, entry);
-    if (this.settings.baseColor === 'elevation') this.prepareHeights(mesh, matrix);
-    if (this.settings.hillshade) this.prepareReliefNormals(mesh, entry);
+    entry.ready = this.isPrepared(mesh);
     const localToBody = { value: matrix };
     for (const material of materials) {
       const previous = material.onBeforeCompile.bind(material);
@@ -142,9 +170,9 @@ export class SurfaceAppearance {
       const defaultKey = material.customProgramCacheKey === THREE.Material.prototype.customProgramCacheKey;
       material.onBeforeCompile = (shader, renderer) => {
         previous(shader, renderer);
-        if (this.active) this.inject(shader, localToBody);
+        if (this.active && entry.ready) this.inject(shader, localToBody);
       };
-      material.customProgramCacheKey = () => (defaultKey ? baseKey : previousKey()) + this.key();
+      material.customProgramCacheKey = () => (defaultKey ? baseKey : previousKey()) + (entry.ready ? this.key() : '');
       if (this.active) material.needsUpdate = true;
     }
   }

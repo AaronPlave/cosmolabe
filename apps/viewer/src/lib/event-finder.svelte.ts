@@ -45,7 +45,8 @@ import {
   type SpkSegmentInfo,
 } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
-import { GeometrySearchCancelled, spiceAltitude, type GeometrySearchProgress } from '@cosmolabe/three';
+import { GeometrySearchCancelled, spiceAltitude } from '@cosmolabe/three';
+import { withCallProgress } from './event-search-progress';
 import { geometryScopeForWindow, getGeometryWorker, getSpice, getUniverse } from './loader';
 import {
   activeEventAtTime,
@@ -193,7 +194,7 @@ interface RunningSearch {
 }
 
 /**
- * Progress of the geometry call currently running, or null when there is none
+ * Progress across the planned geometry calls of the search, or null when there is none
  * to be had.
  *
  * Null on the main-thread path: the fraction comes from CSPICE's own progress
@@ -201,7 +202,7 @@ interface RunningSearch {
  * adapter calls those. A search without it shows an indeterminate spinner, which
  * is what every search showed before.
  */
-export type SearchProgress = GeometrySearchProgress | null;
+export type SearchProgress = { readonly fraction: number } | null;
 
 /**
  * The provider this search will use: the worker's when there is one, the main
@@ -216,8 +217,8 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
   if (worker) {
     // Only the search that owns the panel writes to it. A superseded search can
     // still report for a moment before it stops, and its progress is nobody's.
-    let self: RunningSearch | null = null;
-    self = worker.search({
+    let report: ((fraction: number) => void) | undefined;
+    const search = worker.search({
       // The window is what decides which kernels the worker needs: an SPK whose
       // coverage misses it cannot contribute to the answer, and the geometry
       // worker holds its own copy of everything it is given. For a mission-length
@@ -225,10 +226,15 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
       // second copy of the two files this search can actually reach.
       scope: geometryScopeForWindow(window),
       onProgress: (progress) => {
-        if (active === self) ef.progress = progress;
+        report?.(progress.fraction);
       },
     });
-    return self;
+    return {
+      get cancelled() { return search.cancelled; },
+      cancel: () => search.cancel(),
+      finish: () => search.finish(),
+      provider: withCallProgress(search.provider, (callback) => { report = callback; }),
+    };
   }
 
   // No worker: the calls block, and nothing can change that. Cancelling still
@@ -1070,7 +1076,13 @@ export async function runSearch() {
 
   const running = beginSearch(spice, { start: ef.form.startEt, end: ef.form.endEt });
   active = running;
-  const search = new EventSearch({ registry, provider: withSpiceNames(running.provider, sceneSpiceName) });
+  const search = new EventSearch({
+    registry,
+    provider: withSpiceNames(running.provider, sceneSpiceName),
+    onProgress: (fraction) => {
+      if (active === running) ef.progress = { fraction };
+    },
+  });
   const token = ++inFlight;
 
   ef.running = true;

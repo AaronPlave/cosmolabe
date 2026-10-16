@@ -20,8 +20,8 @@
       }
     ],
     "normal": {
-      "medianFrameMs": 173,
-      "p95FrameMs": 250,
+      "medianFrameMs": 142.89999997615814,
+      "p95FrameMs": 177.7000000178814,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 0,
@@ -31,14 +31,14 @@
       "maxHeight": null,
       "terrainRequests": 46,
       "memory": {
-        "geometries": 48,
-        "textures": 96
+        "geometries": 47,
+        "textures": 92
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "hillshade": {
-      "medianFrameMs": 145.10000000149012,
-      "p95FrameMs": 187.19999999552965,
+      "medianFrameMs": 138.90000000596046,
+      "p95FrameMs": 161.40000000596046,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 0,
@@ -48,14 +48,14 @@
       "maxHeight": null,
       "terrainRequests": 46,
       "memory": {
-        "geometries": 48,
-        "textures": 96
+        "geometries": 47,
+        "textures": 92
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "combined": {
-      "medianFrameMs": 135.29999999701977,
-      "p95FrameMs": 167.5,
+      "medianFrameMs": 131.7000000178814,
+      "p95FrameMs": 158.5,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 36548,
@@ -65,14 +65,14 @@
       "maxHeight": 20.279783248901367,
       "terrainRequests": 46,
       "memory": {
-        "geometries": 48,
-        "textures": 96
+        "geometries": 47,
+        "textures": 92
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "restored": {
-      "medianFrameMs": 138.10000000149012,
-      "p95FrameMs": 158,
+      "medianFrameMs": 140.40000000596046,
+      "p95FrameMs": 177.80000001192093,
       "meshes": 35,
       "mapped": 35,
       "heightBytes": 0,
@@ -82,14 +82,14 @@
       "maxHeight": null,
       "terrainRequests": 46,
       "memory": {
-        "geometries": 38,
-        "textures": 96
+        "geometries": 39,
+        "textures": 92
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileCombined": {
-      "medianFrameMs": 41.69999999552965,
-      "p95FrameMs": 51,
+      "medianFrameMs": 40.599999994039536,
+      "p95FrameMs": 48.599999994039536,
       "meshes": 32,
       "mapped": 32,
       "heightBytes": 33732,
@@ -99,14 +99,14 @@
       "maxHeight": 20.279783248901367,
       "terrainRequests": 46,
       "memory": {
-        "geometries": 48,
-        "textures": 96
+        "geometries": 47,
+        "textures": 92
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileRestored": {
-      "medianFrameMs": 42.399999998509884,
-      "p95FrameMs": 50.20000000298023,
+      "medianFrameMs": 42.80000001192093,
+      "p95FrameMs": 50.5,
       "meshes": 32,
       "mapped": 32,
       "heightBytes": 0,
@@ -116,13 +116,13 @@
       "maxHeight": null,
       "terrainRequests": 46,
       "memory": {
-        "geometries": 34,
-        "textures": 96
+        "geometries": 35,
+        "textures": 92
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "scrolling": {
-      "panelScrollTop": 164,
+      "panelScrollTop": 193,
       "dockScrollTop": 0
     },
     "physicalUnchanged": true,
@@ -130,9 +130,9 @@
     "terrain": {
       "diagnostics": {
         "tileCount": 46,
-        "sampleCount": 42,
-        "lastSampleMicros": 0,
-        "meanSampleMicros": 21.42857157048725,
+        "sampleCount": 34,
+        "lastSampleMicros": 99.99999403953552,
+        "meanSampleMicros": 14.705881476402283,
         "state": "ready"
       },
       "sample": {
@@ -187,8 +187,8 @@
       }
     ],
     "normal": {
-      "medianFrameMs": 13,
-      "p95FrameMs": 13.699999995529652,
+      "medianFrameMs": 13.400000005960464,
+      "p95FrameMs": 17.600000023841858,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 0,
@@ -198,14 +198,14 @@
       "maxHeight": null,
       "terrainRequests": 122,
       "memory": {
-        "geometries": 115,
-        "textures": 116
+        "geometries": 112,
+        "textures": 112
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "hillshade": {
-      "medianFrameMs": 10.800000004470348,
-      "p95FrameMs": 11.300000004470348,
+      "medianFrameMs": 10.900000005960464,
+      "p95FrameMs": 11.400000005960464,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 0,
@@ -215,14 +215,14 @@
       "maxHeight": null,
       "terrainRequests": 122,
       "memory": {
-        "geometries": 115,
-        "textures": 116
+        "geometries": 112,
+        "textures": 112
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "combined": {
-      "medianFrameMs": 11.700000002980232,
-      "p95FrameMs": 15.399999998509884,
+      "medianFrameMs": 12.199999988079071,
+      "p95FrameMs": 14.099999994039536,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 99440,
@@ -232,14 +232,14 @@
       "maxHeight": 7.802995204925537,
       "terrainRequests": 122,
       "memory": {
-        "geometries": 115,
-        "textures": 116
+        "geometries": 112,
+        "textures": 112
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "restored": {
-      "medianFrameMs": 13.100000001490116,
-      "p95FrameMs": 15,
+      "medianFrameMs": 14.199999988079071,
+      "p95FrameMs": 16.100000023841858,
       "meshes": 92,
       "mapped": 92,
       "heightBytes": 0,
@@ -249,14 +249,14 @@
       "maxHeight": null,
       "terrainRequests": 122,
       "memory": {
-        "geometries": 95,
-        "textures": 116
+        "geometries": 96,
+        "textures": 112
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileCombined": {
-      "medianFrameMs": 8.299999997019768,
-      "p95FrameMs": 9.299999997019768,
+      "medianFrameMs": 8.299999982118607,
+      "p95FrameMs": 9.099999994039536,
       "meshes": 86,
       "mapped": 86,
       "heightBytes": 94040,
@@ -266,14 +266,14 @@
       "maxHeight": 7.802995204925537,
       "terrainRequests": 122,
       "memory": {
-        "geometries": 115,
-        "textures": 116
+        "geometries": 112,
+        "textures": 112
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "mobileRestored": {
-      "medianFrameMs": 8.300000004470348,
-      "p95FrameMs": 8.5,
+      "medianFrameMs": 8.400000005960464,
+      "p95FrameMs": 9.100000023841858,
       "meshes": 86,
       "mapped": 86,
       "heightBytes": 0,
@@ -283,13 +283,13 @@
       "maxHeight": null,
       "terrainRequests": 122,
       "memory": {
-        "geometries": 87,
-        "textures": 116
+        "geometries": 88,
+        "textures": 112
       },
       "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
     },
     "scrolling": {
-      "panelScrollTop": 164,
+      "panelScrollTop": 193,
       "dockScrollTop": 0
     },
     "physicalUnchanged": true,
@@ -297,9 +297,9 @@
     "terrain": {
       "diagnostics": {
         "tileCount": 122,
-        "sampleCount": 217,
+        "sampleCount": 204,
         "lastSampleMicros": 0,
-        "meanSampleMicros": 9.677419327371132,
+        "meanSampleMicros": 9.313725373324226,
         "state": "ready"
       },
       "sample": {

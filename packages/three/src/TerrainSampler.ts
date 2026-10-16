@@ -1,25 +1,20 @@
-/** Renderer-independent terrain datum and CPU sampling primitives. All lengths are km. */
-export type VerticalDatum = 'ellipsoid' | 'reference-sphere' | 'areoid' | 'unknown';
-export type HeightConvention = 'radial' | 'geodetic-normal';
-
-export interface TerrainDatum {
-  /** The physical reference shape; this is deliberately never a display radius. */
-  referenceShape: { kind: 'sphere'; radiusKm: number } | { kind: 'ellipsoid'; radiiKm: readonly [number, number, number] };
-  verticalDatum: VerticalDatum;
-  heightConvention: HeightConvention;
-}
+// Shared physical coordinates live in core so data import never depends on a renderer.
+import { bodyFixedToGeodetic, wrapLon } from '@cosmolabe/core';
+import type { TerrainDatum, BodyFixedPosition, BodyFixedCartesian } from '@cosmolabe/core';
+export { geodeticToBodyFixed, bodyFixedToGeodetic, isSupportedGeodeticDatum, wrapLon } from '@cosmolabe/core';
+export type { TerrainDatum, VerticalDatum, HeightConvention, BodyFixedPosition, BodyFixedCartesian } from '@cosmolabe/core';
+const DEG = Math.PI / 180;
 
 export interface TerrainSourceMetadata {
   id: string;
-  kind: 'quantized-mesh' | 'height-grid' | 'triangle-mesh' | 'imagery' | 'unknown';
+  /** 'reference-shape' is an analytic datum (e.g. IAU ellipsoid), never measured terrain. */
+  kind: 'quantized-mesh' | 'height-grid' | 'triangle-mesh' | 'imagery' | 'reference-shape' | 'unknown';
   /** Immutable product revision/checksum; absence means version is unknown. */
   version?: string;
   url?: string;
   uncertaintyKm?: number;
 }
 
-export interface BodyFixedPosition { latDeg: number; lonDeg: number; heightKm?: number; }
-export interface BodyFixedCartesian { xKm: number; yKm: number; zKm: number; }
 export interface TerrainSample {
   position: BodyFixedPosition;
   elevationKm: number;
@@ -78,47 +73,6 @@ export interface TerrainSamplerDiagnostics {
   state: 'ready' | 'unloaded';
 }
 
-const DEG = Math.PI / 180;
-const wrapLon = (lon: number) => ((lon + 180) % 360 + 360) % 360 - 180;
-
-/** Convert geodetic body-fixed coordinates to conventional Z-up ECEF. */
-export function geodeticToBodyFixed(position: BodyFixedPosition, datum: TerrainDatum): BodyFixedCartesian {
-  const lat = position.latDeg * DEG, lon = position.lonDeg * DEG, h = position.heightKm ?? 0;
-  if (datum.referenceShape.kind === 'sphere') {
-    const r = datum.referenceShape.radiusKm + h;
-    return { xKm: r * Math.cos(lat) * Math.cos(lon), yKm: r * Math.cos(lat) * Math.sin(lon), zKm: r * Math.sin(lat) };
-  }
-  const [a,, c] = datum.referenceShape.radiiKm;
-  const e2 = 1 - (c * c) / (a * a);
-  const n = a / Math.sqrt(1 - e2 * Math.sin(lat) ** 2);
-  return { xKm: (n + h) * Math.cos(lat) * Math.cos(lon), yKm: (n + h) * Math.cos(lat) * Math.sin(lon), zKm: (n * (1 - e2) + h) * Math.sin(lat) };
-}
-
-/** Convert conventional Z-up ECEF to geodetic body-fixed coordinates. */
-export function bodyFixedToGeodetic(point: BodyFixedCartesian, datum: TerrainDatum): BodyFixedPosition {
-  const lonDeg = Math.atan2(point.yKm, point.xKm) / DEG;
-  const p = Math.hypot(point.xKm, point.yKm);
-  if (datum.referenceShape.kind === 'sphere') {
-    const r = Math.hypot(p, point.zKm);
-    return { latDeg: Math.atan2(point.zKm, p) / DEG, lonDeg, heightKm: r - datum.referenceShape.radiusKm };
-  }
-  const [a,, c] = datum.referenceShape.radiiKm;
-  const e2 = 1 - (c * c) / (a * a);
-  let lat = Math.atan2(point.zKm, p * (1 - e2));
-  for (let i = 0; i < 8; i++) {
-    const n = a / Math.sqrt(1 - e2 * Math.sin(lat) ** 2);
-    lat = Math.atan2(point.zKm + e2 * n * Math.sin(lat), p);
-  }
-  const n = a / Math.sqrt(1 - e2 * Math.sin(lat) ** 2);
-  // `p / cos(lat)` degenerates at the poles, where p → 0 and cos(lat) → 0 and
-  // the quotient loses the entire radius. Switch to the z-axis form there.
-  const cosLat = Math.cos(lat), sinLat = Math.sin(lat);
-  const heightKm = Math.abs(cosLat) > 1e-6
-    ? p / cosLat - n
-    : Math.abs(point.zKm) / Math.max(Math.abs(sinLat), 1e-12) - n * (1 - e2);
-  return { latDeg: lat / DEG, lonDeg, heightKm };
-}
-
 /** Derived per-tile data kept alongside the caller's tile, computed once on insert. */
 interface CachedTile {
   tile: TerrainTile;
@@ -148,6 +102,7 @@ export class TerrainSampler {
    * Explicit `removeTile`/`clear` calls do not fire it — the caller already knows.
    */
   onEvict: ((id: string) => void) | null = null;
+  private _revision = 0;
 
   constructor(readonly datum: TerrainDatum, readonly source: TerrainSourceMetadata, private readonly maxTiles = 256) {}
 
@@ -192,6 +147,7 @@ export class TerrainSampler {
 
     this.tiles.delete(tile.id);
     this.tiles.set(tile.id, cached);
+    this._revision++;
     while (this.tiles.size > this.maxTiles) {
       const evicted = this.tiles.keys().next().value!;
       this.tiles.delete(evicted);
@@ -199,12 +155,14 @@ export class TerrainSampler {
     }
   }
 
-  removeTile(id: string): void { this.tiles.delete(id); }
+  removeTile(id: string): void { if (this.tiles.delete(id)) this._revision++; }
+  /** Increments whenever the resident tile set or any tile's contents change. */
+  get revision(): number { return this._revision; }
   /** A decoded tile currently in the cache, or undefined. Read-only use: diagnostics and validation. */
   getTile(id: string): TerrainTile | undefined { return this.tiles.get(id)?.tile; }
   /** Ids of every decoded tile currently cached, oldest insert first. */
   tileIds(): string[] { return [...this.tiles.keys()]; }
-  clear(): void { this.tiles.clear(); }
+  clear(): void { this.tiles.clear(); this._revision++; }
 
   sample(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
     const start = performance.now();

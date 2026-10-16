@@ -153,7 +153,7 @@ export default defineConfig({
     ...(bundleTestCatalogs ? [bundleTestCatalogsPlugin] : []),
   ],
   publicDir: 'public',
-  // The spice-cache relay worker pulls in further chunks (TimeCraftJS asm),
+  // The spice-cache relay worker pulls in further chunks (CSPICE WASM bindings),
   // so it can't use the default IIFE format which forbids code-splitting.
   worker: { format: 'es' },
   resolve: {
@@ -180,6 +180,8 @@ export default defineConfig({
         '**/scripts/build-mars-terrain/data/**',
         '**/test-catalogs/data/moon-terrain-fused/**',
         '**/test-catalogs/data/moon-terrain-polar/**',
+        '**/test-catalogs/data/moon-terrain-cube/**',
+        '**/test-catalogs/data/moon-imagery-cube-*/**',
         '**/scripts/build-moon-terrain/data/**',
       ],
     },

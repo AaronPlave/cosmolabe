@@ -10,6 +10,7 @@ import pixelmatch from 'pixelmatch';
 
 const base = process.env.SURFACE_VIEWER_URL ?? 'http://127.0.0.1:5182';
 const output = 'docs/validation/surface-appearance';
+const frameSamples = Number(process.env.SURFACE_FRAME_SAMPLES ?? 90);
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch();
 const results = [];
@@ -22,7 +23,7 @@ try {
     let sourceImages = 0;
     page.on('requestfailed', request => requestFailures.push({ url: request.url(), error: request.failure()?.errorText }));
     page.on('response', response => { if (response.url().includes('trek.nasa.gov') && response.ok()) sourceImages++; });
-    page.on('pageerror', e => errors.push(e.message));
+    page.on('pageerror', e => { errors.push(e.message); console.error(e.message); });
     page.on('console', msg => { if (/Shader Error|VALIDATE_STATUS|ERROR: 0:/.test(msg.text())) errors.push(msg.text()); });
     page.on('console', msg => { if (/Tile load error/.test(msg.text())) tileWarnings.push(msg.text()); });
     const mars = body === 'Mars';
@@ -51,7 +52,8 @@ try {
       terrain.imagery = [terrain.imagery, { ...terrain.imagery, opacity: 0.35 }];
     }
     await page.route('**/surface-style-validation.json', route => route.fulfill({ json: catalog }));
-    await page.goto(`${base}/?catalog=surface-style-validation&test=1`);
+    await page.goto(`${base}/?catalog=surface-style-validation&test=1`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    console.log('Waiting for viewer', body);
     await page.waitForFunction(() => window.__cosmolabe?.ready, { timeout: 120000 });
     await page.evaluate(body => { window.renderer.timeController.pause(); window.cosmo.select(body); }, body);
     const pose = await page.evaluate(body => {
@@ -71,11 +73,11 @@ try {
     // the initial-asset gate, because it streams after the camera is established.
     await page.waitForTimeout(8000);
     async function stats() {
-      return page.evaluate(async body => {
+      return page.evaluate(async ({ body, frameSamples }) => {
         const r = window.renderer, bm = r.getBodyMesh(body);
         const intervals = [];
         let previous = performance.now();
-        for (let i = 0; i < 90; i++) {
+        for (let i = 0; i < frameSamples; i++) {
           await new Promise(requestAnimationFrame);
           const now = performance.now(); intervals.push(now - previous); previous = now;
         }
@@ -94,11 +96,11 @@ try {
         });
         const gl = r.getContext().webglRenderer.getContext();
         const ext = gl.getExtension('WEBGL_debug_renderer_info');
-        return { medianFrameMs: intervals[45], p95FrameMs: intervals[85], meshes, mapped, heightBytes, groundBytes, reliefNormalBytes, minHeight, maxHeight, terrainRequests: bm.terrainMetrics.network.requests,
+        return { medianFrameMs: intervals[Math.floor(frameSamples * 0.5)], p95FrameMs: intervals[Math.floor(frameSamples * 0.95)], meshes, mapped, heightBytes, groundBytes, reliefNormalBytes, minHeight, maxHeight, terrainRequests: bm.terrainMetrics.network.requests,
           memory: { ...r.getContext().webglRenderer.info.memory }, gpu: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER) };
-      }, body);
+      }, { body, frameSamples });
     }
-    const normal = await stats();
+    const normal = await stats(); console.log(body, 'normal', normal.medianFrameMs);
     await page.evaluate(body => {
       window.__surfacePhysicalSnapshot = [];
       window.renderer.getBodyMesh(body).terrainTileGroup.traverse(mesh => {
@@ -118,7 +120,7 @@ try {
     await page.getByLabel('Hillshade contrast', { exact: true }).fill('2');
     await page.getByLabel('Light elevation', { exact: true }).fill('20');
     await page.getByLabel('Imagery amount', { exact: true }).fill('0.35');
-    const hillshade = await stats();
+    const hillshade = await stats(); console.log(body, 'hillshade', hillshade.medianFrameMs);
     await page.screenshot({ path: `${output}/${body.toLowerCase()}-hillshade.png` });
     // Actual user control interaction and renderer state agreement.
     await page.getByLabel('Light azimuth', { exact: true }).fill('90');
@@ -138,9 +140,9 @@ try {
       await min.fill('-100'); await min.press('Tab');
       await max.fill('100'); await max.press('Tab');
       const expected = await page.evaluate(body => {
-        const r = window.renderer, canvas = r.renderer.domElement;
-        const hit = r.pickSurface(450 / canvas.clientWidth * 2 - 1, 1 - 500 / canvas.clientHeight * 2);
-        return hit.surfaceStyleHeightKm;
+        const r = window.renderer;
+        const hit = r.pickSurfaceTintHeight(450, 500);
+        return hit.heightKm;
       }, body);
       await page.getByText(`Pick ${bound} on surface`, { exact: true }).click();
       await page.locator('canvas').first().click({ position: { x: 450, y: 500 } });
@@ -150,14 +152,34 @@ try {
       assert.ok(Math.abs(Number(await (bound === 'minimum' ? min : max).inputValue()) - expected) < 0.001);
       pickChecks.push({ bound, expected, minKm: state.minKm, maxKm: state.maxKm });
     }
+    // Direct crossing entries reject without silently shifting the other bound.
+    const beforeInvalid = await page.evaluate(body => window.renderer.getBodyMesh(body).surfaceAppearance, body);
+    await page.getByLabel('Minimum elevation km').fill('999');
+    await page.getByLabel('Minimum elevation km').press('Tab');
+    assert.equal(await page.getByLabel('Minimum elevation km').evaluate(input => input.validity.valid), false);
+    assert.deepEqual(await page.evaluate(body => window.renderer.getBodyMesh(body).surfaceAppearance, body), beforeInvalid);
+    await page.getByLabel('Minimum elevation km').fill('-100');
+    await page.getByLabel('Minimum elevation km').press('Tab');
+    // All three modes hand the pointer to the newest tool.
+    await page.getByRole('button', { name: 'Probe point', exact: true }).click();
     await page.getByText('Pick minimum on surface', { exact: true }).click();
+    assert.equal(await page.evaluate(() => window.renderer.pointProbeActive), false);
+    await page.getByRole('button', { name: 'Probe point', exact: true }).click();
+    await page.getByRole('button', { name: 'Cancel point pick' }).waitFor({ state: 'hidden' });
+    await page.getByText('Pick minimum on surface', { exact: true }).click();
+    await page.getByRole('button', { name: 'Geometry', exact: true }).click();
+    await page.getByRole('button', { name: 'Pick source surface point', exact: true }).click();
+    await page.getByRole('button', { name: 'Cancel point pick' }).waitFor({ state: 'hidden' });
+    await page.getByText('Pick minimum on surface', { exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: 'Pick source surface point', exact: true }).getAttribute('aria-pressed'), 'false');
+    await page.getByRole('button', { name: 'Geometry', exact: true }).click();
     await page.keyboard.press('Escape');
-    assert.equal(await page.getByRole('button', { name: 'Cancel point pick' }).count(), 0);
+    await page.getByRole('button', { name: 'Cancel point pick' }).waitFor({ state: 'hidden' });
     await page.getByLabel('Minimum elevation km').fill(mars ? '-10' : '-8');
     await page.getByLabel('Minimum elevation km').press('Tab');
     await page.getByLabel('Maximum elevation km').fill(mars ? '25' : '8');
     await page.getByLabel('Maximum elevation km').press('Tab');
-    const combined = await stats();
+    const combined = await stats(); console.log(body, 'combined', combined.medianFrameMs);
     assert.equal(combined.terrainRequests, normal.terrainRequests, 'styles must not request additional terrain');
     assert.ok(combined.heightBytes > 0);
     assert.equal(await page.getByLabel('Elevation legend').count(), 1);
@@ -167,7 +189,7 @@ try {
     await page.evaluate(body => window.renderer.getBodyMesh(body).setTerrainDebugMode('none'), body);
     await page.waitForTimeout(200);
     await page.setViewportSize({ width: 390, height: 844 });
-    const mobileCombined = await stats();
+    const mobileCombined = await stats(); console.log(body, 'mobileCombined', mobileCombined.medianFrameMs);
     await page.screenshot({ path: `${output}/${body.toLowerCase()}-mobile.png` });
     await page.getByLabel('Elevation legend').scrollIntoViewIfNeeded();
     const scrolling = await page.getByLabel('Elevation legend').evaluate(el => {
@@ -181,9 +203,9 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.getByLabel('Surface base color', { exact: true }).selectOption('imagery');
     await page.getByLabel('Hillshade effect', { exact: true }).uncheck();
-    const mobileRestored = await stats();
+    const mobileRestored = await stats(); console.log(body, 'mobileRestored', mobileRestored.medianFrameMs);
     await page.setViewportSize({ width: 1280, height: 900 });
-    const restored = await stats();
+    const restored = await stats(); console.log(body, 'restored', restored.medianFrameMs);
     const physicalUnchanged = await page.evaluate(() => window.__surfacePhysicalSnapshot.every(({ mesh, position, normal }) => {
       const unchanged = (a, b) => a.length === b.length && a.every((value, i) => value === b[i]);
       return unchanged(position, mesh.geometry.getAttribute('position').array) && unchanged(normal, mesh.geometry.getAttribute('normal').array);

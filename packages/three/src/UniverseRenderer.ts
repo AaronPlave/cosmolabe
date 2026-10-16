@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { surfaceTintHeightAtHit } from './SurfaceAppearance.js';
+import { ModelSurfaceDepth } from './ModelSurfaceDepth.js';
 import {
   CompositeTrajectory,
   SpiceTrajectory,
@@ -17,6 +18,7 @@ import {
   type SpatialEndpoint,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
+import { patchLogDepthPrecision } from './LogDepth.js';
 import { SunGlareEffect } from './SunGlareEffect.js';
 import { SOLAR_LAYER, type SunVisual } from './SunVisual.js';
 import { RingMesh } from './RingMesh.js';
@@ -30,11 +32,16 @@ import { TrajectoryLine, type PositionResolver, type TrajectoryLineOptions } fro
 import type { LeadPolicy, LeadRequest } from './TrajectoryLead.js';
 import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
-import { SensorFrustum } from './SensorFrustum.js';
+import { SensorFrustum, type SensorClipSummary, type SensorFovClipper } from './SensorFrustum.js';
+import type { FovBoundaryShape } from './surface/FovClipper.js';
+import { SensorFovClipping } from './SensorFovClipping.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
+import { dskShapeProviderOf } from './DskShapeProvider.js';
 import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMarkerGroups } from './EventMarkers.js';
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
+import { PointProbeOverlay } from './PointProbe.js';
+import { pointerResolution, resolveSceneHit, resolveSurfaceAltitude, type HitLayer, type PickIntent, type PointerResolution, type SceneHit, type SurfaceDatum, type SurfaceHitSource, type SurfacePoint } from './SceneHit.js';
 import { OccultationGeometry } from './OccultationGeometry.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -45,7 +52,8 @@ import { CameraModeName } from './controls/CameraModes.js';
 import type { InstrumentMode } from './controls/modes/InstrumentMode.js';
 import { TimeController } from './controls/TimeController.js';
 import { applyNamedViewpoint, type ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
-import type { TerrainConfig, TerrainDebugMode } from './TerrainManager.js';
+import type { TerrainDebugMode } from './TerrainManager.js';
+import { resolveGlobeSurfaceConfig } from './ImageryLayers.js';
 import type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
 import { BloomEffect, type BloomConfig } from './BloomEffect.js';
 import type { RendererPlugin } from './plugins/RendererPlugin.js';
@@ -60,23 +68,70 @@ const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpVec2 = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
+const _NAN3: [number, number, number] = [NaN, NaN, NaN];
 
+/**
+ * World-space unit normal of the surface a ray hit, or null when the hit has
+ * no face. The triangle's own: vertex normals are shading normals (terrain
+ * blends them toward the sphere for lighting) and understate the slope.
+ * Transformed by the normal matrix (inverse transpose), not as a direction:
+ * an oblate or triaxial globe is a non-uniformly scaled sphere, and scaling
+ * a normal like a direction tilts it the wrong way.
+ */
+const _normalMatrix = new THREE.Matrix3();
+export function surfaceNormalWorld(hit: THREE.Intersection): THREE.Vector3 | null {
+  if (!hit.face) return null;
+  return hit.face.normal.clone().applyMatrix3(_normalMatrix.getNormalMatrix(hit.object.matrixWorld)).normalize();
+}
+
+/** The surface seen along a ray (`_castSurfaces`), in scene coordinates. */
+interface SurfaceRayHit {
+  worldPoint: THREE.Vector3;
+  /** From the ray's origin, scene units. */
+  distance: number;
+  bm: BodyMesh;
+  source: SurfaceHitSource;
+  normal: THREE.Vector3 | null;
+  /** On a cube-sphere skirt (#149): the wall under a mixed-LOD gap, not the surface. */
+  renderedSkirt: boolean;
+  tintHeightKm?: number;
+}
+
+/** @deprecated Prefer `pickScene(x, y, 'probe')` and its `SurfacePoint`. */
 export interface SurfacePickResult {
   /** Name of the body that was clicked */
   bodyName: string;
-  /** Geodetic latitude in degrees (positive north) */
+  /** Latitude in degrees north; see point.latitudeKind for its convention. */
   latDeg: number;
   /** Geodetic longitude in degrees (positive east) */
   lonDeg: number;
-  /** Altitude above the reference sphere in km */
-  altKm: number;
+  /** Altitude above the declared datum in km; null for DSKs without one. */
+  altKm: number | null;
   /** Distance from camera to pick point in km */
   cameraDistanceKm: number;
   /** Exact rendered hit in body-fixed ECEF km, used to keep the marker on the clicked surface. */
   bodyFixedHitKm: readonly [number, number, number];
-  /** Approximate rendered elevation-color value at this hit, when tint is active. */
-  surfaceStyleHeightKm?: number;
+  /** The same hit as a surface point with explicit source and datum. */
+  point: SurfacePoint;
+  /**
+   * The same camera ray answered by the body's CPU terrain through the #148
+   * ray-query port, when it has one (experimental cube-sphere grids, #149).
+   * Independent of rendered meshes; `renderedOffsetKm` is its distance from
+   * the rendered hit above.
+   */
+  physical?: PhysicalPickSummary;
+  /**
+   * The rendered hit is on a cube-sphere skirt (#149): the wall that covers a
+   * mixed-LOD gap, seen through it, not the surface. `physical` still answers
+   * from the CPU surface; the two differ by at most that gap.
+   */
+  renderedSkirt?: boolean;
 }
+
+export type PhysicalPickSummary =
+  | { kind: 'hit'; detail: 'sufficient' | 'coarse'; tileId?: string; bodyFixedKm: readonly [number, number, number];
+      normal: readonly [number, number, number]; renderedOffsetKm: number; sourceVersion?: string }
+  | { kind: 'miss' | 'unavailable'; reason?: string };
 
 export interface UniverseRendererOptions {
   /** km → scene units. Default 1e-6 (1 km = 0.000001 scene units) for solar system scale */
@@ -97,6 +152,11 @@ export interface UniverseRendererOptions {
   showSensors?: boolean;
   /** Show sensor frustum labels (default true). Has no visible effect when showSensors is false. */
   showSensorLabels?: boolean;
+  /**
+   * Terminate sensor FOV geometry at the first physical body surface each
+   * boundary ray hits (default true). Disable only to diagnose the raw FOV.
+   */
+  clipSensorsToSurfaces?: boolean;
   /** Antialias */
   antialias?: boolean;
   /** Bodies to show trajectories for (if not set, shows for spacecraft/comet/asteroid) */
@@ -249,6 +309,7 @@ export class UniverseRenderer {
   private lastTapConsumed = false;
   readonly scaleFactor: number;
   private readonly minBodyPixels: number;
+  private readonly modelSurfaceDepth = new ModelSurfaceDepth();
   private readonly bodyMeshes = new Map<string, BodyMesh>();
   private readonly trajectoryLines = new Map<string, TrajectoryLine>();
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
@@ -305,11 +366,47 @@ export class UniverseRenderer {
   private instrumentView: InstrumentView | null = null;
   /** Separate scene for camera-relative rendering of surface tile overlays. */
   private readonly tileScene: THREE.Scene;
-  /** Separate scene rendered last so the pick marker is never overdrawn by tileScene/models. */
+  /** Separate scene rendered last so the probe markers are never overdrawn by tileScene/models. */
   private readonly _markerScene: THREE.Scene;
-  /** Pick marker: a constant-screen-space dot at the last picked surface point. */
-  private _pickMarker: THREE.Points | null = null;
-  private _pickMarkerInfo: SurfacePickResult | null = null;
+  /** Point Probe reticle, pinned marker and their callouts (#127). */
+  private readonly _probe: PointProbeOverlay;
+  private _probeActive = false;
+  /** Track the whole press: orbiting out and back is still a drag, not a point pick. */
+  private _pickPress: { id: number; x: number; y: number; dragged: boolean } | null = null;
+  /** A hovering (mouse or pen) pointer is over the canvas: the probe re-picks under it. */
+  private _hoverPointerInside = false;
+  /** The pointer moved since the last probe pick; the next frame re-picks. */
+  private _probeHoverDirty = false;
+  /** How long the last probe pick took, ms; a slow one spaces out the next. */
+  private _probePickCostMs = 0;
+  /** The last pin occlusion cast (`_pinOccluded`) and what it was cast for. */
+  private readonly _pinOcclusion = {
+    point: null as SurfacePoint | null,
+    view: new THREE.Matrix4(),
+    world: new THREE.Vector3(),
+    hidden: false,
+    atMs: 0,
+    costMs: 0,
+  };
+  /** Pin re-seating (`_refinePin`): when it last ran and what it cost. */
+  private readonly _pinRefine = { atMs: 0, costMs: 0 };
+  private static readonly _pinRefineIntervalMs = 250;
+  /** How far above and below the pin the re-seating ray looks, km. */
+  private static readonly _pinRefineSpanKm = 30;
+  /** Changes smaller than this (10 cm) leave the pin as it is. */
+  private static readonly _pinRefineEpsKm = 1e-4;
+  /**
+   * A surface hit this close to the pin (km, any camera range) is the pin's
+   * own surface: tessellation and float error, not an occluder.
+   */
+  private static readonly _pinSurfaceToleranceKm = 0.01;
+  /** Camera pose at the last probe hover pick. */
+  private readonly _probePickView = new THREE.Matrix4();
+  private readonly _surfaceRaycaster = new THREE.Raycaster();
+  private readonly _surfaceTileRaycaster = new THREE.Raycaster();
+  /** Label boxes the event annotation and probe callouts reserve this frame. */
+  /** Boxes the probe's callouts occupied in the last frame they were placed. */
+  private probeCalloutRects: ScreenRect[] = [];
   private _renderDebugFrame = 0;
   /** Sun radius in km — used for eclipse penumbra computation */
   private readonly _sunRadiusKm = 695700;
@@ -327,6 +424,8 @@ export class UniverseRenderer {
   private _sensorsVisible = true;
   /** Current global sensor-label state — applied to each frustum's label sprite. */
   private _sensorLabelsVisible = true;
+  /** Physical-surface FOV clipping (issue #27); null when disabled. */
+  private _sensorClipping: SensorFovClipping | null = new SensorFovClipping();
 
   /** Renderer-level event bus. Forwards universe events and adds renderer-specific events. */
   readonly events = new EventBus<RendererEventMap>();
@@ -366,6 +465,7 @@ export class UniverseRenderer {
     this.cacheWorker = options.cacheWorker;
 
     // Renderer
+    patchLogDepthPrecision();
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: options.antialias ?? true,
@@ -425,9 +525,11 @@ export class UniverseRenderer {
     this.labelContainer.style.overflow = 'hidden';
     canvas.parentElement?.appendChild(this.labelContainer);
     this._eventCallout = new EventCallout(this.labelContainer);
+    this._probe = new PointProbeOverlay(this._markerScene, this.labelContainer);
     this.spatialRelationships = new SpatialRelationshipLayer(
       universe, this.scaleFactor, this.camera, canvas, this.labelContainer,
       () => this.spatialCalloutObstacles(),
+      name => this.bodyMeshes.get(name)?.axesLengthKm(),
     );
     this.spatialRelationships.attach(this.spatialScene);
 
@@ -519,6 +621,7 @@ export class UniverseRenderer {
     canvas.addEventListener('pointerdown', this._onTouchPointerDown);
     canvas.addEventListener('pointerup', this._onTouchPointerUp);
     canvas.addEventListener('pointercancel', this._onTouchPointerCancel);
+    canvas.addEventListener('pointerdown', this._onPickPointerDown);
 
     // Hover highlight: emphasize the hovered body's trajectory line + label.
     canvas.addEventListener('pointermove', this._onPointerMove);
@@ -611,8 +714,28 @@ export class UniverseRenderer {
   }
 
   setSpatialPickPreview(endpoint: SpatialEndpoint | null): void { this.spatialRelationships.setPickPreview(endpoint); }
-  clearSpatialPickPreview(): void { this.spatialRelationships.setPickPreview(null); this.setHoveredBody(null); }
+  /** Reuse the surface cursor without changing the independently pinned probe point. */
+  setSpatialSurfacePreview(point: SurfacePoint | null): void {
+    this._probe.setHover(point);
+    this.renderer.domElement.style.cursor = point ? 'none' : 'crosshair';
+  }
+  clearSpatialPickPreview(): void {
+    this.spatialRelationships.setPickPreview(null); this.setHoveredBody(null);
+    this._probe.setHover(null);
+    this._probeHoverDirty = true;
+    this.renderer.domElement.style.cursor = '';
+  }
   setSpatialDraftEndpoints(endpoints: readonly SpatialEndpoint[]): void { this.spatialRelationships.setDraftEndpoints(endpoints); }
+
+  private pointerTool: { pick(x: number, y: number): void; preview(x: number, y: number): void } | null = null;
+
+  /** A temporary surface tool owns mouse/touch clicks and hover independently of measurements. */
+  setSurfacePointerTool(tool: { pick(x: number, y: number): void; preview(x: number, y: number): void } | null): void {
+    this.clearSpatialPickPreview();
+    this.pointerTool = tool;
+    this._probeHoverDirty = true;
+    this.renderer.domElement.style.cursor = tool ? 'crosshair' : '';
+  }
 
   /** Host callbacks keep drafts and selection in one place, across mouse, touch and cards. */
   setSpatialInteraction(interaction: SpatialInteraction): void {
@@ -686,8 +809,13 @@ export class UniverseRenderer {
 
     // Update body positions relative to origin body
     for (const bm of this.bodyMeshes.values()) {
-      const absPos = this.absolutePositionOf(bm.body.name, et);
-      if (isNaN(absPos[0])) continue; // Skip bodies with no coverage at this time
+      // A body outside its existence window, or with no position to draw at
+      // (an ephemeris gap, a lander before its SPK starts), is hidden rather
+      // than left frozen where it was last seen.
+      const present = this.universe.isPresentAt(bm.body.name, et);
+      const absPos = present ? this.absolutePositionOf(bm.body.name, et) : _NAN3;
+      bm.present = present && !isNaN(absPos[0]);
+      if (!bm.present) continue;
       const relPos: [number, number, number] = [
         absPos[0] - originAbsPos[0],
         absPos[1] - originAbsPos[1],
@@ -754,9 +882,6 @@ export class UniverseRenderer {
     // positions were still stale and the mode would compute wrong lat/lon.
     this.cameraController.syncPendingModeFromCamera();
 
-    // Update pick marker world position (tracks body rotation/position each frame)
-    this._updatePickMarkerPosition();
-
     // Update ring positions (follow parent body position and rotation)
     for (const [, { ring, parentName }] of this.ringMeshes) {
       const parentBm = this.bodyMeshes.get(parentName);
@@ -773,62 +898,6 @@ export class UniverseRenderer {
         parentBm.setRingShadowFrame(parentBm.position, _tmpRingNormal);
       }
     }
-
-    // Update atmosphere shells (follow parent body position, pass camera + sun)
-    let maxSkyBrightness = 0;
-    if (this.atmosphereMeshes.size > 0) {
-      const sunBm = this.bodyMeshes.get('Sun');
-      const sunPos = sunBm ? sunBm.position : new THREE.Vector3(0, 0, 0);
-      for (const [, { atm, parentName }] of this.atmosphereMeshes) {
-        const parentBm = this.bodyMeshes.get(parentName);
-        if (parentBm) {
-          atm.position.copy(parentBm.position);
-          // Match body rotation so the oblateness axis aligns with the actual pole.
-          // ellipsoidRatios are in geometry space (geoY = body-fixed Z/pole) which
-          // requires the same Globe pre-rotation + SPICE attitude as the body mesh.
-          atm.quaternion.copy(parentBm.mesh.quaternion);
-          // Unit sphere * shellRadius * scaleFactor = scene-space shell.
-          // Match the body's ellipsoid ratios so the atmosphere follows oblateness.
-          const s = atm.shellRadius * this.scaleFactor;
-          const er = parentBm.ellipsoidRatios;
-          atm.scale.set(s * er[0], s * er[1], s * er[2]);
-          atm.updateMatrixWorld(true);
-          const atmOccluders = this._shadowOccluderCache.get(parentName);
-          atm.update(
-            this.camera.position, sunPos,
-            atmOccluders, parentBm.position,
-            this._sunRadiusKm * this.scaleFactor,
-            atm.shellRadius * this.scaleFactor,
-          );
-          const b = atm.getDaytimeSkyBrightness();
-          if (b > maxSkyBrightness) maxSkyBrightness = b;
-
-          // Aerial perspective uniforms — refresh per frame so terrain compositing
-          // tracks the sun and camera. Coefficients are scaled to 1/scene-unit.
-          const apu = this.aerialPerspectiveUniforms.get(parentName);
-          if (apu) {
-            apu.uAPLightColor.value.copy((atm.material as THREE.ShaderMaterial).uniforms.lightColor.value);
-            apu.uSolarExposure.value = (atm.material as THREE.ShaderMaterial).uniforms.uSolarExposure.value;
-            const sf = this.scaleFactor;
-            apu.uAPCameraWorldPos.value.copy(this.camera.position);
-            apu.uAPSunWorldPos.value.copy(sunPos);
-            apu.uAPPlanetWorldPos.value.copy(parentBm.position);
-            parentBm.mesh.updateMatrixWorld(true);
-            apu.uAPWorldToPlanet.value.copy(parentBm.mesh.matrixWorld).invert();
-            apu.uAPPlanetToWorld.value.copy(parentBm.mesh.matrixWorld);
-            apu.uAPPlanetRadius.value = atm.planetRadius * sf;
-            apu.uAPShellRadius.value = atm.shellRadius * sf;
-            // Schlick g→k (matches AtmosphereMesh).
-            const g = atm.model.mie.g;
-            apu.uAPMieK.value = 1.55 * g - 0.55 * g * g * g;
-            apu.uAPStrength.value = 1;
-          }
-        }
-      }
-    }
-    // Fade the additive star field under a sunlit atmosphere so daytime stars
-    // don't bleed through. 0 outside any atmosphere — orbital views unchanged.
-    this.starField?.setSkyBrightness(maxSkyBrightness);
 
     // Update trajectory lines.
     // Vertices are offset in Float64 (km) so they're near origin in scene space,
@@ -904,7 +973,14 @@ export class UniverseRenderer {
       return [abs[0] - originAbsPos[0], abs[1] - originAbsPos[1], abs[2] - originAbsPos[2]];
     };
     const spiceInst = this.universe.spiceInstance;
+    // Clip only sensors that are drawn; resolve body surfaces once per frame.
+    const clipping = this._sensorClipping;
+    let clippingReady = false;
     for (const sf of this.sensorFrustums.values()) {
+      // A sensor is drawn only while its own body is: an instrument does not
+      // outlive its spacecraft (Universe.isPresentAt follows the parent chain).
+      sf.present = this.bodyMeshes.get(sf.body.name)?.present ?? true;
+      if (!sf.present) continue;
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
       // Try SPICE-based orientation using cached FOV frame (from enrichSensorFromSpice).
       // Use the sensor's inertial frame (J2000 or ECLIPJ2000) to match scene positions.
@@ -916,7 +992,15 @@ export class UniverseRenderer {
           // CK data may not cover this time — fall back to target-pointing
         }
       }
-      sf.update(et, this.scaleFactor, targetBody, originRelResolver, spiceRot);
+      let clip: SensorFovClipper | undefined;
+      if (clipping && sf.visible) {
+        if (!clippingReady) {
+          clipping.begin(et, originAbsPos, this.bodyMeshes.values(), this.absolutePositionOf);
+          clippingReady = true;
+        }
+        clip = clipping.clipperFor(sf.body.name, spiceRot ? 'spice' : 'target');
+      }
+      sf.update(et, this.scaleFactor, targetBody, originRelResolver, spiceRot, clip);
     }
 
     // Event annotations use the owning TrajectoryLine's exact resolver and
@@ -1008,9 +1092,13 @@ export class UniverseRenderer {
     // all three are current-frame values (camera is not in the scene graph, so
     // we must explicitly update its world matrix).
     this.camera.updateMatrixWorld();
+    // View transport must use the final current-frame camera, after tracking,
+    // surface clamping, and refreshed eclipse occluders.
+    const maxSkyBrightness = this.updateAtmospheres(this.camera);
+    this.starField?.setSkyBrightness(maxSkyBrightness);
     this.spatialRelationships.setVisible(!(this.cameraController.mode === CameraModeName.INSTRUMENT && this.instrumentView?.active));
     this.spatialCalloutRects = this.spatialRelationships.update(et, this._lastOriginAbsPos);
-    this.labelManager?.setReservedRects([...this.spatialCalloutRects, ...(this.eventCalloutRect ? [this.eventCalloutRect] : [])]);
+    this.applyReservedRects();
     // Update labels
     const bodyMeshArr = Array.from(this.bodyMeshes.values());
     if (this.labelManager) {
@@ -1070,12 +1158,19 @@ export class UniverseRenderer {
     this.renderer.info.reset();
     this._renderDebugFrame++;
 
+    if (this.bloomEffect?.enabled && this.solarSources.size > 0) {
+      this.sunGlareEffect ??= new SunGlareEffect(this.renderer);
+      this.sunGlareEffect.beginFrame();
+    }
+
     // Pass 1: Bodies and atmosphere (layer 0) — log depth for cosmic scale.
     // Overlays draw after the Sun because their transparent materials do not
     // write depth and would otherwise be painted over by the solar disk.
     this.camera.layers.set(0);
     this.renderer.clear(true, true, true);
     this.renderer.render(this.scene, this.camera);
+
+    if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.scene);
 
     // Solar disks apply transmission before exposure, after atmosphere shells.
     // Keep Pass 1's opaque depth so foreground planets still mask the disk.
@@ -1152,6 +1247,7 @@ export class UniverseRenderer {
         // Render only the tile scene (separate from main scene) with cleared depth
         this.renderer.clearDepth();
         this.renderer.render(this.tileScene, this.camera);
+        if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.tileScene, savedPos);
 
         // Restore camera
         this.camera.position.copy(savedPos);
@@ -1169,7 +1265,7 @@ export class UniverseRenderer {
     let minModelDist = Infinity;
     let maxModelDist = 0;
     for (const bm of this.bodyMeshes.values()) {
-      if (bm.isModelVisible) {
+      if (bm.isModelVisible && bm.modelContainer!.layers.isEnabled(1)) {
         const d = bm.position.distanceTo(this.camera.position);
         if (d > 0) {
           hasVisibleModels = true;
@@ -1183,13 +1279,17 @@ export class UniverseRenderer {
       const savedNear = this.camera.near;
       const savedFar = this.camera.far;
 
-      // Tight near/far: ratio ~100× gives standard depth enough precision
-      this.camera.near = Math.max(1e-15, minModelDist * 0.1);
+      const surfaceDistance = this.modelSurfaceDepth.update(
+        [...this.bodyMeshes.values()].flatMap(bm => bm.getDskMeshes()), this.camera.position, minModelDist,
+      );
+      // Include foreground physical plates in the tight linear depth range.
+      this.camera.near = Math.max(1e-15, Math.min(minModelDist, surfaceDistance) * 0.1);
       this.camera.far = Math.max(maxModelDist * 10, minModelDist * 100);
       this.camera.updateProjectionMatrix();
 
       this.camera.layers.set(1);
       this.renderer.clearDepth();
+      this.renderer.render(this.modelSurfaceDepth.scene, this.camera);
       this.renderer.render(this.scene, this.camera);
 
       // Restore camera
@@ -1232,7 +1332,11 @@ export class UniverseRenderer {
             } catch { /* no CK coverage */ }
           }
           this.instrumentView.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);
-          this.instrumentView.render(this.renderer, this.scene);
+          // The terrain draw cull is the main camera's.
+          for (const bm of this.bodyMeshes.values()) bm.showCulledTerrainTiles();
+          // The instrument has its own observer position and may be inside a
+          // different shell. Refresh its sky lookup and surface transport too.
+          this.renderInstrumentScene();
         }
       } catch (err) {
         console.warn('[Cosmolabe] Instrument PiP render error:', err);
@@ -1255,9 +1359,13 @@ export class UniverseRenderer {
     this.revalidateMeasurementPreview();
     this.revalidateSceneEventHover();
     this.updateEventAnnotation();
+    this.updateProbeHover();
+    this.updateProbeOverlay();
 
     // Final pass: markers (pick marker, orbit pivot dot, etc.) — always on top.
-    if (this._markerScene.children.length > 0) {
+    // Only when something in it is drawn: the probe's markers live here
+    // hidden for users who never probe.
+    if (this._markerScene.children.some((child) => child.visible)) {
       this.renderer.render(this._markerScene, this.camera);
     }
 
@@ -1293,6 +1401,79 @@ export class UniverseRenderer {
     for (const plugin of this.plugins) {
       plugin.onResize?.(width, height);
     }
+  }
+
+  private renderInstrumentScene(): void {
+    if (!this.instrumentView) return;
+    try {
+      const brightness = this.updateAtmospheres(this.instrumentView.camera);
+      this.starField?.setSkyBrightness(brightness);
+      this.instrumentView.render(this.renderer, this.scene);
+    } finally {
+      const brightness = this.updateAtmospheres(this.camera, false);
+      this.starField?.setSkyBrightness(brightness);
+    }
+  }
+
+  /** Refresh observer state; restoration reuses the main observer's sky LUT. */
+  private updateAtmospheres(camera: THREE.Camera, renderSkyView = true): number {
+    let maxSkyBrightness = 0;
+    if (this.atmosphereMeshes.size > 0) {
+      const sunBm = this.bodyMeshes.get('Sun');
+      const sunPos = sunBm ? sunBm.position : new THREE.Vector3(0, 0, 0);
+      for (const [, { atm, parentName }] of this.atmosphereMeshes) {
+        const parentBm = this.bodyMeshes.get(parentName);
+        if (parentBm) {
+          atm.position.copy(parentBm.position);
+          // Match body rotation so the oblateness axis aligns with the actual pole.
+          // ellipsoidRatios are in geometry space (geoY = body-fixed Z/pole) which
+          // requires the same Globe pre-rotation + SPICE attitude as the body mesh.
+          atm.quaternion.copy(parentBm.mesh.quaternion);
+          // Unit sphere * shellRadius * scaleFactor = scene-space shell.
+          // Match the body's ellipsoid ratios so the atmosphere follows oblateness.
+          const s = atm.shellRadius * this.scaleFactor;
+          const er = parentBm.ellipsoidRatios;
+          atm.scale.set(s * er[0], s * er[1], s * er[2]);
+          atm.updateMatrixWorld(true);
+          const atmOccluders = this._shadowOccluderCache.get(parentName);
+          atm.update(
+            camera.position, sunPos,
+            atmOccluders, parentBm.position,
+            this._sunRadiusKm * this.scaleFactor,
+            atm.shellRadius * this.scaleFactor,
+            camera === this.instrumentView?.camera ? 'instrument' : 'main',
+            renderSkyView,
+          );
+          const b = atm.getDaytimeSkyBrightness();
+          if (b > maxSkyBrightness) maxSkyBrightness = b;
+
+          // Aerial perspective uniforms — refresh per frame so terrain compositing
+          // tracks the sun and camera. Coefficients are scaled to 1/scene-unit.
+          const apu = this.aerialPerspectiveUniforms.get(parentName);
+          if (apu) {
+            apu.uAPLightColor.value.copy((atm.material as THREE.ShaderMaterial).uniforms.lightColor.value);
+            apu.uSolarExposure.value = (atm.material as THREE.ShaderMaterial).uniforms.uSolarExposure.value;
+            const sf = this.scaleFactor;
+            apu.uAPCameraWorldPos.value.copy(camera.position);
+            apu.uAPSunWorldPos.value.copy(sunPos);
+            apu.uAPPlanetWorldPos.value.copy(parentBm.position);
+            // The globe is a child of BodyMesh, whose position changes each
+            // frame. Refresh ancestors too: updateMatrixWorld on the child
+            // alone reuses the parent's previous-frame translation.
+            parentBm.mesh.updateWorldMatrix(true, false);
+            apu.uAPWorldToPlanet.value.copy(parentBm.mesh.matrixWorld).invert();
+            apu.uAPPlanetToWorld.value.copy(parentBm.mesh.matrixWorld);
+            apu.uAPPlanetRadius.value = atm.planetRadius * sf;
+            apu.uAPShellRadius.value = atm.shellRadius * sf;
+            // Schlick g→k (matches AtmosphereMesh).
+            const g = atm.model.mie.g;
+            apu.uAPMieK.value = 1.55 * g - 0.55 * g * g * g;
+            apu.uAPStrength.value = 1;
+          }
+        }
+      }
+    }
+    return maxSkyBrightness;
   }
 
   private _watchDevicePixelRatio(): void {
@@ -1646,13 +1827,13 @@ export class UniverseRenderer {
       // The active annotation outranks every label: ordinary labels under it
       // fade, pinned ones step aside (LabelManager collision pass).
       this.eventCalloutRect = box;
-      this.labelManager?.setReservedRects([...this.spatialCalloutRects, ...(box ? [box] : [])]);
+      this.applyReservedRects();
       return;
     }
     if (candidates.length === 0) this._eventCallout.setContent(null);
     this._eventCallout.hide();
     this.eventCalloutRect = null;
-    this.labelManager?.setReservedRects(this.spatialCalloutRects);
+    this.applyReservedRects();
   }
 
   /** What a callout should avoid: drawn labels, the owning path, and body discs. */
@@ -1666,6 +1847,7 @@ export class UniverseRenderer {
       .map((rect) => ({ ...rect, weight: rect.pinned ? 3 : 1 }));
 
     rects.push(...this.spatialCalloutRects.map(rect => ({ ...rect, weight: 3 })));
+    rects.push(...this.probeCalloutRects.map(rect => ({ ...rect, weight: 3 })));
     const path: number[] = [];
     const point = new THREE.Vector3();
     // The annotated interval itself matters most; weight it by listing it twice.
@@ -1719,6 +1901,7 @@ export class UniverseRenderer {
     const height = this.renderer.domElement.clientHeight;
     const rects: Array<ScreenRect & { weight?: number }> = (this.labelManager?.getScreenRects() ?? [])
       .map((rect) => ({ ...rect, weight: rect.pinned ? 3 : 1 }));
+    rects.push(...this.probeCalloutRects.map(rect => ({ ...rect, weight: 3 })));
     const discs: Array<{ x: number; y: number; r: number }> = [];
     const point = new THREE.Vector3();
     const focalLengthPx = height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
@@ -1742,6 +1925,11 @@ export class UniverseRenderer {
     let opacity = 1;
     for (const bm of this.bodyMeshes.values()) {
       if (!bm.visible || !(bm.mesh.visible || bm.isModelVisible || bm.hasSurfaceTiles)) continue;
+      const dskHidden = bm.dskOccludes(this.camera.position, anchor);
+      if (dskHidden !== null) {
+        if (dskHidden) return 0;
+        continue;
+      }
       const radius = bm.displayRadius * this.scaleFactor;
       opacity = Math.min(opacity, eventAnchorOpacityAtSphere(
         anchor, this.camera.position, bm.position, radius, focalLengthPx,
@@ -1909,7 +2097,7 @@ export class UniverseRenderer {
   /** Toggle visibility of a body's mesh, trajectory line(s), and label */
   setBodyVisible(name: string, visible: boolean): void {
     const bm = this.bodyMeshes.get(name);
-    if (bm) bm.visible = visible;
+    if (bm) bm.userVisible = visible;
 
     // Single trajectory
     const tl = this.trajectoryLines.get(name);
@@ -1922,7 +2110,7 @@ export class UniverseRenderer {
 
     // Sensor frustums
     const sf = this.sensorFrustums.get(name);
-    if (sf) sf.visible = visible;
+    if (sf) sf.userVisible = visible;
 
     // Ring mesh (direct match or parent body match)
     const rm = this.ringMeshes.get(name);
@@ -2044,7 +2232,7 @@ export class UniverseRenderer {
   setSensorsVisible(visible: boolean): void {
     this._sensorsVisible = visible;
     for (const sf of this.sensorFrustums.values()) {
-      sf.visible = visible;
+      sf.userVisible = visible;
     }
   }
 
@@ -2056,94 +2244,433 @@ export class UniverseRenderer {
     }
   }
 
+  /**
+   * Enable or disable terminating sensor FOVs at physical body surfaces.
+   * Clipping is the default; disabling it is a diagnostic view of the raw FOV.
+   */
+  setSensorClipping(enabled: boolean): void {
+    if (enabled && !this._sensorClipping) this._sensorClipping = new SensorFovClipping();
+    if (!enabled && this._sensorClipping) { this._sensorClipping.dispose(); this._sensorClipping = null; }
+  }
+
+  /** Whether sensor FOVs are clipped at physical surfaces. */
+  get sensorClipping(): boolean { return this._sensorClipping !== null; }
+
+  /**
+   * What a sensor's last drawn FOV hit: which bodies, and whether each answer
+   * came from a reference shape, terrain or a mesh, and if any was coarse.
+   */
+  getSensorClipSummary(sensorName: string): SensorClipSummary | null {
+    return this.sensorFrustums.get(sensorName)?.clipSummary ?? null;
+  }
+
   /** Current global sensors-visible state. */
   get sensorsVisible(): boolean { return this._sensorsVisible; }
   /** Current global sensor-labels-visible state. */
   get sensorLabelsVisible(): boolean { return this._sensorLabelsVisible; }
 
-  /** Place (or clear) a constant screen-space dot at a picked surface point. */
-  setPickMarker(result: SurfacePickResult | null): void {
-    // Remove old marker
-    if (this._pickMarker) {
-      this._markerScene.remove(this._pickMarker);
-      (this._pickMarker.material as THREE.Material).dispose();
-      this._pickMarker.geometry.dispose();
-      this._pickMarker = null;
+  // ── Point Probe (#127) ──
+
+  /**
+   * Turn the Point Probe on or off. While it is on, the pointer previews the
+   * surface under it (reticle + coordinates), a click or tap pins that point
+   * (`probe:pin`), and normal click selection is suspended. Turning it off
+   * keeps the pinned point: clearing it is a separate action.
+   */
+  setPointProbeActive(active: boolean): void {
+    if (this._probeActive === active) return;
+    this._probeActive = active;
+    this._pickPress = null;
+    if (active) {
+      this._probeHoverDirty = true;
+      // Selection hover would compete with the probe for the same pointer.
+      if (this._hoveredBody) this._applyHover(null);
+      if (this._hoveredSceneEvent) {
+        this._hoveredSceneEvent = null;
+        this._sceneEventHit = null;
+        this.events.emit('event:hover', null);
+      }
+    } else {
+      this._setProbeHover(null);
     }
-    this._pickMarkerInfo = result;
-    if (!result) return;
-
-    // Build a circular dot texture on a small canvas
-    const size = 64;
-    const canvas = document.createElement('canvas');
-    canvas.width = size; canvas.height = size;
-    const ctx = canvas.getContext('2d')!;
-    const r = size / 2;
-    ctx.beginPath();
-    ctx.arc(r, r, r - 2, 0, Math.PI * 2);
-    ctx.fillStyle = '#ff3333';
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    const tex = new THREE.CanvasTexture(canvas);
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
-    const mat = new THREE.PointsMaterial({
-      size: 14,
-      sizeAttenuation: false,
-      map: tex,
-      alphaTest: 0.1,
-      transparent: true,
-      depthTest: false,       // always render on top
-    });
-    this._pickMarker = new THREE.Points(geo, mat);
-    this._markerScene.add(this._pickMarker);
-    // Position immediately so it doesn't flash at origin
-    this._updatePickMarkerPosition();
+    this.renderer.domElement.style.cursor = '';
   }
 
-  private _updatePickMarkerPosition(): void {
-    if (!this._pickMarker || !this._pickMarkerInfo) return;
-    const { bodyName } = this._pickMarkerInfo;
-    const bm = this.bodyMeshes.get(bodyName);
-    if (!bm) return;
+  get pointProbeActive(): boolean { return this._probeActive; }
 
-    // lat/lon/alt → ECEF Z-up km
-    const [ecefX, ecefY, ecefZ] = this._pickMarkerInfo.bodyFixedHitKm;
+  /** The pinned probe point, if any. */
+  get probePin(): SurfacePoint | null { return this._probe.pinned; }
 
-    // ECEF Z-up → body-fixed geometry Y-up (inverse of pickSurface conversion)
-    // geoX=ecefX, geoY=ecefZ(pole), geoZ=-ecefY
-    const geom = new THREE.Vector3(ecefX, ecefZ, -ecefY);
+  /** Pin (or clear, with null) a surface point. Emits `probe:pin` when it changes. */
+  setProbePin(point: SurfacePoint | null): void {
+    if (point === this._probe.pinned) return;
+    this._probe.setPin(point);
+    this.events.emit('probe:pin', point);
+  }
 
-    // Rotate body-fixed → inertial, scale to scene units, translate to world pos
-    const bodyWorldPosition = new THREE.Vector3();
-    bm.getWorldPosition(bodyWorldPosition);
-    geom.applyQuaternion(bm.mesh.quaternion)
-        .multiplyScalar(this.scaleFactor)
-      .add(bodyWorldPosition);
+  /** @deprecated Use `setProbePin(result?.point ?? null)`. */
+  setPickMarker(result: SurfacePickResult | null): void {
+    this.setProbePin(result?.point ?? null);
+  }
 
-    this._pickMarker.position.copy(geom);
+  private _setProbeHover(point: SurfacePoint | null): void {
+    const prev = this._probe.hovered;
+    if (point === prev || (!point && !prev)) return;
+    this._probe.setHover(point);
+    this.events.emit('probe:hover', point);
+  }
+
+  /** Probe hover at the last pointer position; the cursor says whether it is probeable. */
+  /**
+   * Probe hover, picked in the frame itself rather than on a timer: the
+   * reticle is drawn where the pointer is in the frame it appears in, so it
+   * stays under the cursor instead of trailing it. Over a surface the reticle
+   * is the cursor (the system cursor hides); off one, the normal cursor shows.
+   */
+  private _probeHoverAt(screenX: number, screenY: number): void {
+    const hit = this.pickScene(screenX, screenY, 'probe');
+    this._setProbeHover(hit?.kind === 'surface' ? hit.point : null);
+    this.renderer.domElement.style.cursor = hit ? 'none' : '';
+  }
+
+  /**
+   * Re-pick every frame the pointer moved. A resting pointer is re-picked at a
+   * modest rate too: camera motion or a rotating body slides the surface under
+   * it without any pointermove — onto a surface, off one, or across it.
+   */
+  /** Surface endpoints and Point Probe share one responsive surface cursor. */
+  private _surfaceCursorOwnsPointer(): boolean {
+    return !!this.pointerTool || !!this.spatialInteraction?.surfacePicking?.() || (this._probeActive && !this.spatialInteraction?.picking());
+  }
+
+  private updateProbeHover(): void {
+    if (!this._surfaceCursorOwnsPointer() || !this._hoverPointerInside) {
+      // No surface cursor owns the pointer (or it left the canvas).
+      if (this._probeActive && this._probe.hovered) this._setProbeHover(null);
+      return;
+    }
+    const now = performance.now();
+    const since = now - this._lastHoverPickMs;
+    // A moving camera slides the surface under a resting pointer: the reading
+    // follows every frame the budget allows, not only on the resting timer.
+    if (!this.camera.matrixWorld.equals(this._probePickView)) this._probeHoverDirty = true;
+    if (!this._probeHoverDirty && since < UniverseRenderer._hoverPickIntervalMs * 3) return;
+    // Budget: a cheap pick runs every frame; one that took long (dense
+    // terrain, many overlay tiles) leaves at least four times its cost
+    // between picks, so it never takes more than a fifth of the frame time.
+    if (since < this._probePickCostMs * 4) return;
+    this._probeHoverDirty = false;
+    this._lastHoverPickMs = now;
+    this._probePickView.copy(this.camera.matrixWorld);
+    if (this.pointerTool) {
+      this.pointerTool.preview(this._lastPointer.x, this._lastPointer.y);
+    } else if (this.spatialInteraction?.surfacePicking?.()) {
+      this.spatialInteraction.preview?.(this._lastPointer.x, this._lastPointer.y);
+    } else {
+      this._probeHoverAt(this._lastPointer.x, this._lastPointer.y);
+    }
+    this._probePickCostMs = performance.now() - now;
+  }
+
+  private updateProbeOverlay(): void {
+    const width = this.renderer.domElement.clientWidth;
+    const height = this.renderer.domElement.clientHeight;
+    this._refinePin();
+    if (this._probe.pinned || this._probe.hovered) {
+      const rects = [
+        ...(this.labelManager?.getScreenRects() ?? []).map((rect) => ({ ...rect, weight: rect.pinned ? 3 : 1 })),
+        ...this.spatialCalloutRects.map((rect) => ({ ...rect, weight: 4 })),
+        ...(this.eventCalloutRect ? [{ ...this.eventCalloutRect, weight: 4 }] : []),
+      ];
+      this.probeCalloutRects = this._probe.update(this.camera, { width, height }, {
+        resolve: (point) => this.surfacePointWorld(point),
+        pinOccluded: (point, world) => this._pinOccluded(point, world),
+        pointer: this._hoverPointerInside ? this._lastPointer : null,
+      }, { rects, path: [], discs: [], blockers: this._screenOccluders?.() ?? [] });
+    } else {
+      this._probe.update(this.camera, { width, height }, {
+        resolve: () => null, pinOccluded: () => true, pointer: null,
+      }, { rects: [], path: [], discs: [] });
+      this.probeCalloutRects = [];
+    }
+    this.applyReservedRects();
+  }
+
+  /**
+   * Label space the annotations claim this frame: measurement, event and probe
+   * callouts together. Each annotation updates its own boxes and calls this,
+   * so none overwrites another's. Ordinary labels under them fade, pinned
+   * ones step aside (LabelManager collision pass).
+   */
+  private applyReservedRects(): void {
+    this.labelManager?.setReservedRects([
+      ...this.spatialCalloutRects,
+      ...(this.eventCalloutRect ? [this.eventCalloutRect] : []),
+      ...this.probeCalloutRects,
+    ]);
+  }
+
+  /**
+   * Whether rendered surface lies between the camera and the pinned point:
+   * a ray from the camera to the pin, against the same globes, terrain and
+   * overlays the probe picks from, so a ridge hides it and terrain rising
+   * into view past the horizon does not. Overlays draw over the main scene,
+   * so where the ray meets one, the overlay alone decides.
+   *
+   * The pin sits on the surface as rendered (`_refinePin` re-seats it as
+   * terrain refines), so only a hit within a fixed physical distance of it
+   * is its own surface; anything farther in front hides it, at any camera
+   * range. When finer terrain has just covered the pin, the next frame
+   * re-seats it without waiting for its usual interval.
+   *
+   * Recast only when the camera or the pin moved, and spaced by the cost of
+   * the last cast like the hover pick; in between, the last answer stands.
+   */
+  private _pinOccluded(point: SurfacePoint, world: THREE.Vector3): boolean {
+    const cache = this._pinOcclusion;
+    const now = performance.now();
+    if (cache.point === point && this.camera.matrixWorld.equals(cache.view) && world.equals(cache.world)) {
+      return cache.hidden;
+    }
+    if (cache.point === point && now - cache.atMs < cache.costMs * 4) return cache.hidden;
+
+    const toPin = world.clone().sub(this.camera.position);
+    const dist = toPin.length();
+    let hidden = false;
+    if (dist > 0) {
+      const tolerance = UniverseRenderer._pinSurfaceToleranceKm * this.scaleFactor;
+      const raycaster = this._surfaceRaycaster;
+      raycaster.set(this.camera.position, toPin.divideScalar(dist));
+      // Past the pin by the tolerance: the pin's own overlay may sit a hair beyond it.
+      raycaster.far = dist + tolerance;
+      const nearest = this._castSurfaces();
+      raycaster.far = Infinity;
+      hidden = !!nearest && nearest.distance < dist && nearest.worldPoint.distanceTo(world) > tolerance;
+    }
+    cache.point = point;
+    cache.view.copy(this.camera.matrixWorld);
+    cache.world.copy(world);
+    cache.hidden = hidden;
+    cache.atMs = now;
+    cache.costMs = performance.now() - now;
+    return hidden;
+  }
+
+  /**
+   * Scene position of a surface point this frame — it follows the body's
+   * rotation and motion — or null when its body is not in the scene.
+   */
+  surfacePointScenePosition(point: SurfacePoint): THREE.Vector3 | null {
+    return this.surfacePointWorld(point)?.world ?? null;
+  }
+
+  private surfacePointWorld(point: SurfacePoint): {
+    world: THREE.Vector3; bodyCenter: THREE.Vector3; normal: THREE.Vector3 | null;
+  } | null {
+    const bm = this.bodyMeshes.get(point.bodyName);
+    if (!bm || !bm.visible) return null;
+    const [ecefX, ecefY, ecefZ] = point.bodyFixedPositionKm;
+    // Invert surface discovery using the same rendered frame and axes.
+    // DSK vertices/normals remain native Z-up; globes use geometry Y-up.
+    const isDsk = point.source === 'dsk';
+    const rotation = isDsk ? bm.bodyToWorldQuaternion(new THREE.Quaternion()) : bm.mesh.quaternion;
+    const bodyCenter = new THREE.Vector3();
+    bm.getWorldPosition(bodyCenter);
+    const world = (isDsk
+      ? new THREE.Vector3(ecefX, ecefY, ecefZ)
+      : new THREE.Vector3(ecefX, ecefZ, -ecefY))
+      .applyQuaternion(rotation)
+      .multiplyScalar(this.scaleFactor)
+      .add(bodyCenter);
+    const n = point.surfaceNormal;
+    const normal = n ? (isDsk
+      ? new THREE.Vector3(n[0], n[1], n[2])
+      : new THREE.Vector3(n[0], n[2], -n[1])).applyQuaternion(rotation) : null;
+    return { world, bodyCenter, normal };
+  }
+
+  /**
+   * Re-seat the pin on the surface as it is rendered now. A pin placed from
+   * far off sits on the coarse terrain loaded then; as finer tiles (or an
+   * overlay) arrive, the surface at its spot moves — by kilometres in
+   * places — and the pin would float above it or sink into it, and read the
+   * coarse height. A short radial ray through the pin finds the surface there
+   * now; when it differs, the pin and its reading move to it (same place,
+   * finer answer). Checked a few times a second, spaced by its own cost.
+   */
+  private _refinePin(): void {
+    const pin = this._probe.pinned;
+    const state = this._pinRefine;
+    // DSK plates are a stable body-fixed surface, not a streamed heightfield.
+    // A radial recast can hit another lobe of a concave shape and move the pin.
+    if (!pin || pin.source === 'dsk') return;
+    const now = performance.now();
+    // A pin its own refined surface now covers is re-seated at once.
+    const interval = this._pinOcclusion.point === pin && this._pinOcclusion.hidden
+      ? 0 : UniverseRenderer._pinRefineIntervalMs;
+    if (now - state.atMs < Math.max(interval, state.costMs * 4)) return;
+    state.atMs = now;
+    const anchor = this.surfacePointWorld(pin);
+    if (!anchor) return;
+    const up = anchor.world.clone().sub(anchor.bodyCenter).normalize();
+    const span = UniverseRenderer._pinRefineSpanKm * this.scaleFactor;
+    const raycaster = this._surfaceRaycaster;
+    raycaster.set(anchor.world.clone().addScaledVector(up, span), up.negate());
+    raycaster.far = span * 2;
+    const hit = this._castSurfaces();
+    raycaster.far = Infinity;
+    state.costMs = performance.now() - now;
+    if (!hit || hit.bm !== this.bodyMeshes.get(pin.bodyName)) return;
+    const point = this._surfacePointFromHit(hit, () => pin.resolution);
+    if (!point) return;
+    const moved = Math.hypot(
+      point.bodyFixedPositionKm[0] - pin.bodyFixedPositionKm[0],
+      point.bodyFixedPositionKm[1] - pin.bodyFixedPositionKm[1],
+      point.bodyFixedPositionKm[2] - pin.bodyFixedPositionKm[2],
+    );
+    const heightChanged = point.altitude.km === null || pin.altitude.km === null
+      ? point.altitude.km !== pin.altitude.km
+      : Math.abs(point.altitude.km - pin.altitude.km) > UniverseRenderer._pinRefineEpsKm;
+    const restated = point.source !== pin.source || heightChanged ||
+      point.terrainSample?.tileId !== pin.terrainSample?.tileId;
+    if (moved <= UniverseRenderer._pinRefineEpsKm && !restated) return;
+    this._probe.setPin(point, true);
+    this.events.emit('probe:pin', point);
+  }
+
+  // ── Shared scene hit-testing (#127) ──
+
+  /**
+   * What is under a canvas position, for a given interaction intent. One
+   * discovery path for every tool; the intent picks the precedence
+   * (see `PICK_PRECEDENCE`): selection takes an event glyph or label before the
+   * body behind it, the probe takes only the rendered surface.
+   *
+   * @param screenX - CSS pixels from the canvas's left edge
+   * @param screenY - CSS pixels from the canvas's top edge
+   */
+  pickScene(
+    screenX: number,
+    screenY: number,
+    intent: PickIntent,
+    options: { labelSlopPx?: number; markerRadiusPx?: number } = {},
+  ): SceneHit | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndcX = (screenX / rect.width) * 2 - 1;
+    const ndcY = -(screenY / rect.height) * 2 + 1;
+    const discover: Record<HitLayer, () => SceneHit | null> = {
+      event: () => {
+        const hit = this.pickSceneEvent(screenX, screenY, options.markerRadiusPx ?? 11);
+        return hit ? {
+          kind: 'event', eventId: hit.marker.id, queryId: hit.marker.queryId, et: hit.et,
+          ...(hit.boundary ? { boundary: hit.boundary } : {}),
+        } : null;
+      },
+      label: () => {
+        const bodyName = this._discoverLabel(screenX, screenY, options.labelSlopPx ?? 20);
+        return bodyName ? { kind: 'entity', bodyName, via: 'label' } : null;
+      },
+      body: () => {
+        const bodyName = this._discoverBodyMesh(ndcX, ndcY);
+        return bodyName ? { kind: 'entity', bodyName, via: 'mesh' } : null;
+      },
+      surface: () => {
+        const hit = this._discoverSurface(ndcX, ndcY);
+        return hit ? { kind: 'surface', point: hit.point, cameraRangeKm: hit.cameraRangeKm } : null;
+      },
+    };
+    return resolveSceneHit(intent, discover);
   }
 
   /**
    * Raycast from an NDC coordinate against all body surfaces, terrain tiles, and surface tile
    * overlays. Returns geodetic lat/lon/altitude on the closest hit, or null if nothing is hit.
+   * Kept for camera modes and existing hosts; new code should use `pickScene`.
    * @param ndcX - Normalized device X (-1 = left, +1 = right)
    * @param ndcY - Normalized device Y (-1 = bottom, +1 = top)
    */
   pickSurface(ndcX: number, ndcY: number): SurfacePickResult | null {
-    const raycaster = new THREE.Raycaster();
-    const ndc = new THREE.Vector2(ndcX, ndcY);
-    raycaster.setFromCamera(ndc, this.camera);
+    const hit = this._discoverSurface(ndcX, ndcY);
+    if (!hit) return null;
+    const { point, ray } = hit;
+    const physical = this.physicalPick(ray.bm, ray.bm.getWorldPosition(new THREE.Vector3()), point.bodyFixedPositionKm, hit.cameraRangeKm);
+    return {
+      bodyName: point.bodyName,
+      latDeg: point.latDeg,
+      lonDeg: point.lonDeg,
+      altKm: point.altitude.km,
+      cameraDistanceKm: hit.cameraRangeKm,
+      bodyFixedHitKm: point.bodyFixedPositionKm,
+      point,
+      ...(physical ? { physical } : {}),
+      ...(ray.renderedSkirt ? { renderedSkirt: true } : {}),
+    };
+  }
 
-    // Main scene: globe sphere meshes + terrain tile groups
+  /** Presentation-only range query over the same rendered surfaces as probe and measurements. */
+  pickSurfaceTintHeight(screenX: number, screenY: number): { bodyName: string; heightKm?: number } | null {
+    const canvas = this.renderer.domElement;
+    this._surfaceRaycaster.setFromCamera(new THREE.Vector2(screenX / canvas.clientWidth * 2 - 1,
+      1 - screenY / canvas.clientHeight * 2), this.camera);
+    this._surfaceRaycaster.far = Infinity;
+    const hit = this._castSurfaces();
+    return hit ? { bodyName: hit.bm.body.name, heightKm: hit.tintHeightKm } : null;
+  }
+
+  /** Answer a pick ray with the body's CPU surface (#148), from the camera through the rendered hit. */
+  private physicalPick(bm: BodyMesh, bodyCenter: THREE.Vector3, hitKm: readonly [number, number, number], distanceKm: number): PhysicalPickSummary | null {
+    const cam = this.camera.position.clone().sub(bodyCenter).divideScalar(this.scaleFactor)
+      .applyQuaternion(bm.mesh.quaternion.clone().invert());
+    const origin = { xKm: cam.x, yKm: -cam.z, zKm: cam.y };
+    const direction = [hitKm[0] - origin.xKm, hitKm[1] - origin.yKm, hitKm[2] - origin.zKm] as const;
+    if (Math.hypot(...direction) === 0) return null;
+    // Twice the rendered distance: a coarser CPU surface may lie behind the rendered one.
+    const result = bm.intersectTerrainRay({ origin, direction, nearKm: 0, farKm: distanceKm * 2 }, { maxMeshErrorKm: 0.001 });
+    if (!result) return null;
+    if (result.kind !== 'hit') return { kind: result.kind, ...(result.kind === 'unavailable' ? { reason: result.reason } : {}) };
+    const p = result.position;
+    return {
+      kind: 'hit', detail: result.detail, tileId: result.tileId, normal: result.normal,
+      bodyFixedKm: [p.xKm, p.yKm, p.zKm],
+      renderedOffsetKm: Math.hypot(p.xKm - hitKm[0], p.yKm - hitKm[1], p.zKm - hitKm[2]),
+      sourceVersion: result.metadata.source.version,
+    };
+  }
+
+  /**
+   * Cast `_surfaceRaycaster`'s ray against every rendered surface: globe
+   * meshes and terrain tiles in the main scene, and the camera-relative
+   * surface overlays. Returns the surface seen along it: an overlay hit wins
+   * over the main scene, because overlays draw over it.
+   */
+  private _castSurfaces(): SurfaceRayHit | null {
+    const raycaster = this._surfaceRaycaster;
+
+    // Broad phase. Terrain tiles and surface overlays can be hundreds of
+    // meshes, and this runs at hover rate while probing; a body whose
+    // true-scale surface the ray cannot reach skips them all. The globe mesh
+    // is one object (and may be enlarged to a minimum on-screen size), so it
+    // is always left to the raycaster's own bounding test.
+    const reachable = new Set<BodyMesh>();
+    const center = new THREE.Vector3();
+    const reach = new THREE.Sphere();
+    for (const bm of this.bodyMeshes.values()) {
+      if (!bm.visible || (!bm.terrainTileGroup && bm.getSurfaceOverlays().length === 0)) continue;
+      bm.getWorldPosition(center);
+      // Room for relief above the datum (Olympus Mons is ~22 km) and overlay offsets.
+      const radiusKm = bm.displayRadius * 1.01 + 30;
+      if (raycaster.ray.intersectsSphere(reach.set(center, radiusKm * this.scaleFactor))) reachable.add(bm);
+    }
+
+    // Main scene: globe spheres, authoritative DSKs and terrain tiles. The raycaster
+    // ignores ancestor visibility, so a hidden body is skipped here.
     const mainTargets: THREE.Object3D[] = [];
     for (const bm of this.bodyMeshes.values()) {
+      if (!bm.visible) continue;
       if (bm.mesh.visible) mainTargets.push(bm.mesh);
+      mainTargets.push(...bm.getDskMeshes());
       const tg = bm.terrainTileGroup;
-      if (tg && tg.visible) mainTargets.push(tg);
+      if (tg && tg.visible && reachable.has(bm)) mainTargets.push(tg);
     }
     const visible = (hit: THREE.Intersection) => {
       for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible) return false;
@@ -2155,13 +2682,15 @@ export class UniverseRenderer {
 
     // tileScene: surface tile overlays use camera-relative rendering (CRR).
     // Apply CRR transforms (camera at origin) before raycasting, then restore.
-    const tileRaycaster = new THREE.Raycaster();
-    tileRaycaster.setFromCamera(ndc, this.camera);
-    tileRaycaster.ray.origin.set(0, 0, 0);
+    const tileRaycaster = this._surfaceTileRaycaster;
+    tileRaycaster.ray.origin.copy(raycaster.ray.origin).sub(this.camera.position);
+    tileRaycaster.ray.direction.copy(raycaster.ray.direction);
+    tileRaycaster.far = raycaster.far;
     const tileTargets: THREE.Object3D[] = [];
     const overlayBodyMap = new Map<THREE.Object3D, BodyMesh>();
     const savedGroupState: { overlay: any; pos: THREE.Vector3; quat: THREE.Quaternion; scale: THREE.Vector3 }[] = [];
     for (const bm of this.bodyMeshes.values()) {
+      if (!reachable.has(bm)) continue;
       for (const overlay of bm.getSurfaceOverlays()) {
         if (overlay.group.visible) {
           // Save current LOD transform
@@ -2180,7 +2709,9 @@ export class UniverseRenderer {
         }
       }
     }
-    const tileHits = tileRaycaster.intersectObjects(tileTargets, true).filter(visible);
+    const tileHits = tileTargets.length > 0 ? tileRaycaster.intersectObjects(tileTargets, true).filter(visible) : [];
+    // The overlay's normal is only valid under the transform it was hit with.
+    const tileNormal = tileHits[0] ? surfaceNormalWorld(tileHits[0]) : null;
     // Restore LOD transforms
     for (const { overlay, pos, quat, scale } of savedGroupState) {
       overlay.group.position.copy(pos);
@@ -2189,21 +2720,31 @@ export class UniverseRenderer {
       overlay.group.updateMatrixWorld(true);
     }
 
+
     // Pick the closest hit
     let bestWorldPoint: THREE.Vector3 | null = null;
     let bestBm: BodyMesh | null = null;
     let bestDist = Infinity;
-    let surfaceStyleHeightKm: number | undefined;
+    let tintHeightKm: number | undefined;
+    let renderedSkirt = false;
+    let source: SurfaceHitSource = 'ellipsoid';
+    let bestNormal: THREE.Vector3 | null = null;
 
     if (mainHits.length > 0) {
       const hit = mainHits[0];
       if (hit.distance < bestDist) {
         bestDist = hit.distance;
         bestWorldPoint = hit.point.clone();
-        surfaceStyleHeightKm = surfaceTintHeightAtHit(hit);
+        tintHeightKm = surfaceTintHeightAtHit(hit);
+        const surfaceTriangles = (hit.object as THREE.Mesh).geometry?.userData?.surfaceTriangles;
+        renderedSkirt = typeof surfaceTriangles === 'number' && hit.faceIndex != null && hit.faceIndex >= surfaceTriangles;
+        bestNormal = surfaceNormalWorld(hit);
+        if (hit.object.userData.dskSurface) source = 'dsk';
         for (const bm of this.bodyMeshes.values()) {
           let obj: THREE.Object3D | null = hit.object;
+          const terrain = bm.terrainTileGroup;
           while (obj) {
+            if (terrain && obj === terrain) source = 'terrain';
             if (obj === bm) { bestBm = bm; break; }
             obj = obj.parent;
           }
@@ -2217,9 +2758,12 @@ export class UniverseRenderer {
       // Surface tiles render on top (depth cleared), so they're what the user sees.
       const hit = tileHits[0];
       bestWorldPoint = hit.point.clone().add(this.camera.position);
-      surfaceStyleHeightKm = undefined;
       bestBm = null;
+      renderedSkirt = false;
       bestDist = hit.distance;
+      bestNormal = tileNormal;
+      source = 'surface-overlay';
+      tintHeightKm = undefined;
       let obj: THREE.Object3D | null = hit.object;
       while (obj) {
         const bm = overlayBodyMap.get(obj);
@@ -2229,45 +2773,123 @@ export class UniverseRenderer {
     }
 
     if (!bestWorldPoint || !bestBm) return null;
+    return { worldPoint: bestWorldPoint, distance: bestDist, bm: bestBm, source, normal: bestNormal, renderedSkirt, tintHeightKm };
+  }
 
-    const bm = bestBm;
+  /**
+   * Surface discovery: the rendered surface under an NDC position, as a
+   * `SurfacePoint`. Globe meshes, terrain tiles and camera-relative surface
+   * overlays are all candidates; overlays win because they draw on top.
+   */
+  private _discoverSurface(ndcX: number, ndcY: number): { point: SurfacePoint; cameraRangeKm: number; ray: SurfaceRayHit } | null {
+    // Reused: this runs every frame the pointer moves while probing.
+    const raycaster = this._surfaceRaycaster;
+    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+    raycaster.far = Infinity;
+    const hit = this._castSurfaces();
+    if (!hit) return null;
+    const cameraRangeKm = hit.worldPoint.distanceTo(this.camera.position) / this.scaleFactor;
+    const point = this._surfacePointFromHit(hit, (radiusKm, latDeg) => {
+      // A pixel's width across the ray at that range, stretched by the angle
+      // the ray meets the surface at (the radial direction if it has no face).
+      const pixelSpanKm = cameraRangeKm * 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) /
+        Math.max(1, this.renderer.domElement.clientHeight);
+      const center = hit.bm.getWorldPosition(new THREE.Vector3());
+      const normal = hit.normal ?? hit.worldPoint.clone().sub(center).normalize();
+      return pointerResolution(pixelSpanKm, normal.dot(raycaster.ray.direction), radiusKm, latDeg);
+    });
+    return point ? { point, cameraRangeKm, ray: hit } : null;
+  }
+
+  /**
+   * A rendered surface hit as a `SurfacePoint`: body-fixed position,
+   * coordinates, the hit's height and datum, and the terrain sample there.
+   * `resolutionAt` says how finely the point was placed.
+   */
+  private _surfacePointFromHit(
+    ray: SurfaceRayHit,
+    resolutionAt: (radiusKm: number, latDeg: number) => PointerResolution,
+  ): SurfacePoint | null {
+    const bm = ray.bm;
     const bodyCenter = new THREE.Vector3();
     bm.getWorldPosition(bodyCenter);
 
     // Vector from body center to hit, converted to km in the inertial Y-up frame
-    const km = bestWorldPoint.clone().sub(bodyCenter).divideScalar(this.scaleFactor);
+    const km = ray.worldPoint.clone().sub(bodyCenter).divideScalar(this.scaleFactor);
 
-    // Rotate inertial → body-fixed geometry space (Y-up).
-    // bm.mesh.quaternion = spiceQ * meshRotationQ (globe pre-rotation).
-    km.applyQuaternion(bm.mesh.quaternion.clone().invert());
+    // Globes use Y-up geometry; DSKs retain native body-fixed Z-up axes.
+    // Use the rendered DSK attitude instead of the hidden placeholder.
+    const isDsk = ray.source === 'dsk';
+    const toBodyFixed = isDsk
+      ? bm.bodyToWorldQuaternion(new THREE.Quaternion()).invert()
+      : bm.mesh.quaternion.clone().invert();
+    km.applyQuaternion(toBodyFixed);
 
     // Body-fixed geometry Y-up → body-fixed ECEF Z-up:
     //   geoX = bodyX, geoY = bodyZ (pole), geoZ = -bodyY
     const ecefX = km.x;
-    const ecefY = -km.z;
-    const ecefZ = km.y;
+    const ecefY = isDsk ? km.y : -km.z;
+    const ecefZ = isDsk ? km.z : km.y;
 
     const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
     if (r < 1e-10) return null;
 
-    const terrainPosition = bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
+    const terrainPosition = isDsk ? null : bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const latDeg = terrainPosition?.latDeg ?? (Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI));
     const lonDeg = terrainPosition?.lonDeg ?? (Math.atan2(ecefY, ecefX) * (180 / Math.PI));
-    // Keep the rendered intersection as the visual hit, but prefer decoded CPU
-    // terrain for its physical altitude when coverage is available.
-    const terrainSample = bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
-    const altKm = terrainSample?.elevationKm ?? (terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg)));
-    const cameraDistanceKm = bestWorldPoint.distanceTo(this.camera.position) / this.scaleFactor;
+    // The rendered intersection is the point. Decoded CPU terrain at the
+    // same place is its own record, and becomes the point's altitude only
+    // when the terrain is the surface that was hit (an overlay hit sits over
+    // the global terrain product, not on it).
+    const terrainSample = isDsk ? null : bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
+    const resolution = resolutionAt(r, latDeg);
+    // An irregular plate surface does not define a spherical altitude datum.
+    const hit: SurfacePoint['hit'] = { heightKm: null, datum: null };
+    if (!isDsk) {
+      const hitHeightKm = terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg));
+      const terrainDatum = bm.terrainDatum;
+      const radii = bm.body.radii;
+      // Equal radii are a sphere, whatever field they came in.
+      const oblate = !!radii && (radii[0] !== radii[1] || radii[0] !== radii[2]);
+      // The hit height is measured against the terrain datum when the body has
+      // one (terrainBodyFixedToGeodetic), else radially from the body's shape.
+      const hitDatum: SurfaceDatum = terrainPosition && terrainDatum
+        ? { ...terrainDatum, origin: 'terrain' }
+        : {
+            referenceShape: radii && oblate
+              ? { kind: 'ellipsoid', radiiKm: [radii[0], radii[1], radii[2]] }
+              : { kind: 'sphere', radiusKm: radii ? radii[0] : bm.displayRadius },
+            verticalDatum: oblate ? 'ellipsoid' : 'reference-sphere',
+            heightConvention: 'radial',
+            origin: 'body-shape',
+          };
+      hit.heightKm = hitHeightKm;
+      hit.datum = hitDatum;
+    }
+    const sample = terrainSample ? {
+      elevationKm: terrainSample.elevationKm,
+      datum: { ...terrainSample.datum, origin: 'terrain' as const },
+      sourceId: terrainSample.source.id,
+      ...(terrainSample.tileId ? { tileId: terrainSample.tileId } : {}),
+    } : undefined;
 
-    return {
+    const point: SurfacePoint = {
       bodyName: bm.body.name,
+      bodyFixedPositionKm: [ecefX, ecefY, ecefZ],
+      source: ray.source,
       latDeg,
       lonDeg,
-      altKm,
-      cameraDistanceKm,
-      bodyFixedHitKm: [ecefX, ecefY, ecefZ],
-      surfaceStyleHeightKm,
+      latitudeKind: terrainPosition ? 'geodetic' : 'planetocentric',
+      resolution,
+      hit,
+      ...resolveSurfaceAltitude(ray.source, hit, sample),
     };
+    if (ray.normal) {
+      // Match the position conversion; DSK normals are already Z-up.
+      const n = ray.normal.clone().applyQuaternion(toBodyFixed).normalize();
+      point.surfaceNormal = isDsk ? [n.x, n.y, n.z] : [n.x, -n.z, n.y];
+    }
+    return point;
   }
 
   /** Cached terrain elevation per body for camera clamp (samples every 5 frames). */
@@ -2361,6 +2983,8 @@ export class UniverseRenderer {
       // framing hints, not geometry, and a barycenter sitting on its planet's
       // center (or on the sun) casts a shadow nothing in the scene explains.
       bm.hasMeasuredRadius &&
+      // A body not in the scene right now casts nothing.
+      bm.present &&
       bm.displayRadius >= this._shadowMinOccluderKm &&
       // Bodies rendered by a custom visualizer don't have a real sphere — their
       // displayRadius is just a hint for label/flyTo framing, not the actual
@@ -2691,6 +3315,9 @@ export class UniverseRenderer {
       const vis = this._visualizers.get(body.geometryType ?? '');
       if (!vis) continue;
       const bm = this.bodyMeshes.get(bodyName);
+      // Custom visuals live outside BodyMesh, so inherit its effective visibility explicitly.
+      obj.visible = bm ? bm.present && bm.userVisible : this.universe.isPresentAt(bodyName, et);
+      if (!obj.visible) continue;
       const pos: [number, number, number] = bm
         ? [bm.position.x, bm.position.y, bm.position.z]
         : [
@@ -2709,6 +3336,7 @@ export class UniverseRenderer {
     this.renderer.domElement.removeEventListener('pointerdown', this._onTouchPointerDown);
     this.renderer.domElement.removeEventListener('pointerup', this._onTouchPointerUp);
     this.renderer.domElement.removeEventListener('pointercancel', this._onTouchPointerCancel);
+    this.renderer.domElement.removeEventListener('pointerdown', this._onPickPointerDown);
     this.renderer.domElement.removeEventListener('pointermove', this._onPointerMove);
     this.renderer.domElement.removeEventListener('pointerleave', this._onPointerLeave);
     if (this._hoverPickTimer) clearTimeout(this._hoverPickTimer);
@@ -2719,8 +3347,10 @@ export class UniverseRenderer {
     for (const [, { atm }] of this.atmosphereMeshes) atm.dispose();
     for (const tl of this.trajectoryLines.values()) tl.dispose();
     for (const sf of this.sensorFrustums.values()) sf.dispose();
+    this._sensorClipping?.dispose();
     for (const { markers } of this.eventMarkerGroups.values()) markers.dispose();
     this._eventCallout.dispose();
+    this._probe.dispose();
     this.spatialRelationships.dispose();
     this.setOccultationGeometry(null);
     this.starField?.dispose();
@@ -2746,6 +3376,7 @@ export class UniverseRenderer {
     this.solarSources.clear();
     this.bloomEffect?.dispose();
     this.bloomEffect = null;
+    this.modelSurfaceDepth.dispose();
     this.renderer.dispose();
     this.events.dispose();
     for (const plugin of this.plugins) plugin.dispose?.();
@@ -2767,9 +3398,12 @@ export class UniverseRenderer {
       // Sensor bodies get a frustum in addition to a body mesh + trajectory
       if (body.geometryType === 'Sensor') {
         // If spiceId is present and SPICE is available, derive FOV params from the IK kernel
-        const fovFrame = this.enrichSensorFromSpice(body);
+        const spiceFov = this.enrichSensorFromSpice(body);
         const sf = new SensorFrustum(body);
-        if (fovFrame) sf.spiceFovFrame = fovFrame;
+        if (spiceFov) {
+          sf.spiceFovFrame = spiceFov.frame;
+          sf.spiceFovBoundary = spiceFov.boundary;
+        }
         // Fetch sensor orientation in the scene's world frame (ECLIPJ2000).
         // `Universe.absolutePositionOf` aligns every body's position into
         // EclipticJ2000, so the scene is uniformly ecliptic regardless of a
@@ -2878,6 +3512,46 @@ export class UniverseRenderer {
         }
       }
 
+      // A DSK shape model: the body's own surface, read by SPICE and drawn in
+      // its body-fixed frame (DskShapeProvider.ts). It needs a SPICE engine to
+      // read the file, and fails as an asset — not silently — without one.
+      if (body.geometryType === 'Dsk' && body.geometryData?.source) {
+        const source = body.geometryData.source as string;
+        const url = this.options.modelResolver?.(source);
+        const provider = dskShapeProviderOf(this.universe.spiceInstance);
+        if (!url) {
+          this.assets.fail(
+            { kind: 'model', owner: body.name, role: 'model:dsk', url: source },
+            'DSK source did not resolve to a URL',
+          );
+        } else if (!provider) {
+          this.assets.fail(
+            { kind: 'model', owner: body.name, role: 'model:dsk', url },
+            'reading a DSK needs a SPICE engine, and this scene has none',
+          );
+        } else {
+          this.assets.hold(bm.loadDsk(url, this.scaleFactor, provider, source));
+        }
+      }
+
+      // TimeSwitched: one shape per time window (Cosmographia). Entries were
+      // given ET windows by the catalog loader.
+      if (body.geometryType === 'TimeSwitched' && Array.isArray(body.geometryData?.sequence)) {
+        const entries = (body.geometryData.sequence as Record<string, unknown>[])
+          .filter((e) => e && typeof e.geometry === 'object')
+          .map((e) => ({
+            startEt: typeof e.startEt === 'number' ? e.startEt : -Infinity,
+            endEt: typeof e.endEt === 'number' ? e.endEt : Infinity,
+            geometry: e.geometry as Record<string, unknown>,
+          }));
+        this.assets.hold(bm.loadTimeSwitched(
+          entries,
+          this.scaleFactor,
+          dskShapeProviderOf(this.universe.spiceInstance),
+          this.options.modelResolver,
+        ));
+      }
+
       // Load textures for Globe geometry (baseMap, normalMap, displacementMap)
       if (body.geometryType === 'Globe' && body.geometryData) {
         const resolver = this.options.textureResolver ?? this.options.modelResolver;
@@ -2912,21 +3586,23 @@ export class UniverseRenderer {
         }
       }
 
-      // Initialize streaming terrain for Globe bodies with terrain config
-      if (body.geometryType === 'Globe' && body.geometryData?.terrain) {
-        const terrainCfg = body.geometryData.terrain as TerrainConfig;
-        if (terrainCfg.type && (terrainCfg.url || terrainCfg.cesiumIonAssetId || (terrainCfg.type === 'imagery' && terrainCfg.imagery))) {
-          // Use the displacement map as a normal map source for terrain tiles.
-          // Terrain tiles only have vertex normals from the mesh geometry — per-pixel
-          // normals from the heightmap smooth shadow boundaries at the terminator.
-          if (!terrainCfg.normalMapUrl && body.geometryData.displacementMap) {
-            const resolver = this.options.textureResolver ?? this.options.modelResolver;
-            const resolved = resolver?.(body.geometryData.displacementMap as string);
-            if (resolved) terrainCfg.normalMapUrl = resolved;
-          }
-          bm.initTerrain(terrainCfg, this.renderer);
-          console.log(`[Cosmolabe] Initialized terrain for ${body.name}: ${terrainCfg.type} ${terrainCfg.url ?? `ion:${terrainCfg.cesiumIonAssetId}`}`);
+      // Initialize the streamed surface for Globe bodies: terrain, imagery, or
+      // imagery draped on terrain (`Globe.imagery` / `Globe.terrain`, #123).
+      const surfaceCfg = body.geometryType === 'Globe'
+        ? resolveGlobeSurfaceConfig(body.geometryData, (msg) => console.warn(`[Cosmolabe] ${body.name}: ${msg}`))
+        : null;
+      if (surfaceCfg) {
+        const terrainCfg = surfaceCfg;
+        // Use the displacement map as a normal map source for terrain tiles.
+        // Terrain tiles only have vertex normals from the mesh geometry — per-pixel
+        // normals from the heightmap smooth shadow boundaries at the terminator.
+        if (!terrainCfg.normalMapUrl && body.geometryData?.displacementMap) {
+          const resolver = this.options.textureResolver ?? this.options.modelResolver;
+          const resolved = resolver?.(body.geometryData.displacementMap as string);
+          if (resolved) terrainCfg.normalMapUrl = resolved;
         }
+        bm.initTerrain(terrainCfg, this.renderer);
+        console.log(`[Cosmolabe] Initialized terrain for ${body.name}: ${terrainCfg.type} ${terrainCfg.url ?? (terrainCfg.cesiumIonAssetId != null ? `ion:${terrainCfg.cesiumIonAssetId}` : `${bm.imageryLayers.length} imagery layer(s)`)}`);
       }
 
       // Initialize surface tile overlays for Globe bodies (e.g. Dingo Gap local-frame tiles).
@@ -3002,19 +3678,8 @@ export class UniverseRenderer {
           if (plotCfg?.sampleCount) trajOpts.maxPoints = plotCfg.sampleCount;
 
           // Apply catalog color (accepts "#rrggbb", "rrggbb", or [r, g, b] floats 0-1)
-          if (plotCfg?.color != null) {
-            const c = plotCfg.color;
-            if (typeof c === 'string') {
-              const hex = c.startsWith('#') ? c.slice(1) : c;
-              const n = parseInt(hex, 16);
-              if (!Number.isNaN(n)) trajOpts.color = n;
-            } else if (Array.isArray(c) && c.length >= 3) {
-              const r = Math.round(Math.max(0, Math.min(1, c[0])) * 255);
-              const g = Math.round(Math.max(0, Math.min(1, c[1])) * 255);
-              const b = Math.round(Math.max(0, Math.min(1, c[2])) * 255);
-              trajOpts.color = (r << 16) | (g << 8) | b;
-            }
-          }
+          const color = plotColor(plotCfg?.color);
+          if (color !== undefined) trajOpts.color = color;
 
           // Apply catalog opacity
           if (plotCfg?.opacity != null) trajOpts.opacity = plotCfg.opacity;
@@ -3029,6 +3694,10 @@ export class UniverseRenderer {
           if (body.trajectory.endTime != null && trajOpts.maxTime == null) {
             trajOpts.maxTime = body.trajectory.endTime;
           }
+          // ...and to the body's existence window: no trail before it exists
+          // or after it is gone.
+          if (body.existsFrom != null) trajOpts.minTime = Math.max(trajOpts.minTime ?? -Infinity, body.existsFrom);
+          if (body.existsUntil != null) trajOpts.maxTime = Math.min(trajOpts.maxTime ?? Infinity, body.existsUntil);
 
           // Periodic orbits whose trail covers roughly one period are spatially
           // static — sample once at scene load, never resample. Critical for the
@@ -3106,15 +3775,18 @@ export class UniverseRenderer {
     // Sensor visibility (apply after frustums are built)
     if (this.options.showSensorLabels === false) this.setSensorLabelsVisible(false);
     if (this.options.showSensors === false) this.setSensorsVisible(false);
+    if (this.options.clipSensorsToSurfaces === false) this.setSensorClipping(false);
   }
 
   /**
    * If a Sensor body has a spiceId and SPICE is available, enrich its geometryData
    * with FOV parameters (shape, horizontalFov, verticalFov) derived from the IK kernel.
    * Catalog-specified values take precedence — SPICE only fills in what's missing.
-   * Returns the SPICE instrument frame name if available (for caching on SensorFrustum).
+   * Returns the SPICE instrument frame name if available (for caching on SensorFrustum),
+   * plus the instrument-frame polygon boundary for RECTANGLE/POLYGON FOVs so the
+   * drawn (and clipped) perimeter follows the IK bounds rather than a fitted box.
    */
-  private enrichSensorFromSpice(body: Body): string | undefined {
+  private enrichSensorFromSpice(body: Body): { frame: string; boundary?: FovBoundaryShape } | undefined {
     const geo = body.geometryData as Record<string, unknown> | undefined;
     if (!geo) return;
     const spiceId = geo.spiceId as number | undefined;
@@ -3190,7 +3862,10 @@ export class UniverseRenderer {
           }
         }
       }
-      return fovFrame;
+      const boundary: FovBoundaryShape | undefined = (fov.shape === 'RECTANGLE' || fov.shape === 'POLYGON') && fov.bounds.length >= 3
+        ? { kind: 'polygon', vertices: fov.bounds.map(b => [b[0], b[1], b[2]] as const) }
+        : undefined;
+      return { frame: fovFrame, boundary };
     } catch {
       // IK kernel not loaded or instrument ID not found — use catalog values
       return undefined;
@@ -3247,7 +3922,10 @@ export class UniverseRenderer {
         );
       };
 
-      const plotCfg = body.trajectoryPlot;
+      // An arc's own trajectoryPlot overrides the body's field by field: a
+      // cruise arc can keep years of trail while the orbit phase keeps days.
+      const plotCfg = { ...body.trajectoryPlot, ...arc.plot };
+      if (plotCfg.visible === false) continue;
 
       // Determine trail duration: use catalog value if specified, otherwise estimate from
       // orbit period or cap at 1 year. Showing the entire multi-year arc wastes vertex budget
@@ -3276,10 +3954,12 @@ export class UniverseRenderer {
       const tl = new TrajectoryLine(body, {
         trailDuration: trailDur,
         leadDuration: 0,
-        minTime: arc.startTime,
-        maxTime: isLastArc ? undefined : arc.endTime,
+        minTime: Math.max(arc.startTime, body.existsFrom ?? -Infinity),
+        maxTime: isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
         fixedResolver: arcResolver,
         fadeFraction: plotCfg?.fade ?? 1.0,
+        color: plotColor(plotCfg.color),
+        opacity: plotCfg.opacity,
         // Per-arc sample-count override lets long cruise arcs request a
         // higher vertex budget than the default cap (~500) so the orbit
         // line doesn't appear as a faceted polygon at high eccentricity.
@@ -3303,8 +3983,15 @@ export class UniverseRenderer {
       // own bounds (not the routing-extended endTime) so we don't waste
       // vertices on a clamped-to-last-sample post-arc gap.
       try {
-        const trajStart = arc.trajectory.startTime;
-        const trajEnd = arc.trajectory.endTime;
+        // The arc's trajectory may cover far more than the arc: a Spice arc's
+        // bounds are the target's whole SPK coverage (Rosetta's comet-relative
+        // arc would otherwise spread its budget over 2004-2016). Inner edges
+        // are the arc's own; the outer ones stay open, since the body keeps
+        // using its first and last arcs beyond them.
+        const coverStart = arc.trajectory.startTime;
+        const coverEnd = arc.trajectory.endTime;
+        const trajStart = coverStart != null && i > 0 ? Math.max(coverStart, arc.startTime) : coverStart;
+        const trajEnd = coverEnd != null && !isLastArc ? Math.min(coverEnd, arc.endTime) : coverEnd;
         if (trajStart != null && trajEnd != null && trajEnd > trajStart) {
           // Cache must store samples in the SAME frame the trail's runtime
           // resolver produces, otherwise cached samples and live tail
@@ -3647,59 +4334,61 @@ export class UniverseRenderer {
    * as a hit — small for hover (precise), generous for click-to-select.
    */
   pickBody(screenX: number, screenY: number, labelOnly = false, labelSlopPx = 20): string | null {
-    if (!this._dblClickRaycaster) return null;
+    const label = this._discoverLabel(screenX, screenY, labelSlopPx);
+    if (label || labelOnly) return label;
     const rect = this.renderer.domElement.getBoundingClientRect();
-    let bodyName: string | undefined;
+    return this._discoverBodyMesh((screenX / rect.width) * 2 - 1, -(screenY / rect.height) * 2 + 1);
+  }
 
-    // 1. Screen-space label picking (priority — labels are always in front)
-    if (this.labelManager) {
-      bodyName = this.labelManager.pickNearest(
-        screenX, screenY, this.camera, rect.width, rect.height, labelSlopPx,
-      );
-    }
-    if (labelOnly) return bodyName ?? null;
+  /** Label discovery: screen-space label boxes, which are always in front. */
+  private _discoverLabel(screenX: number, screenY: number, labelSlopPx: number): string | null {
+    if (!this.labelManager) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return this.labelManager.pickNearest(
+      screenX, screenY, this.camera, rect.width, rect.height, labelSlopPx,
+    ) ?? null;
+  }
 
-    // 2. Raycast against body meshes (placeholder sphere) AND terrain meshes.
-    // When the camera is near a planet's surface the placeholder sphere is hidden
-    // (see BodyMesh frame logic) and only the terrain mesh is visible — so we
-    // must raycast the terrain group too, otherwise the planet becomes unpickable.
-    if (!bodyName) {
-      const mouse = new THREE.Vector2(
-        (screenX / rect.width) * 2 - 1,
-        -(screenY / rect.height) * 2 + 1,
-      );
-      this._dblClickRaycaster!.setFromCamera(mouse, this.camera);
-      const meshTargets: THREE.Object3D[] = [];
-      const terrainOwner = new Map<THREE.Object3D, BodyMesh>();
-      for (const bm of this.bodyMeshes.values()) {
-        if (bm.mesh.visible) {
-          meshTargets.push(bm.mesh);
-        } else {
-          // Sphere hidden (camera near surface) — fall back to terrain mesh so the
-          // body remains pickable. Skipped when sphere is visible to avoid
-          // raycasting hundreds of tile meshes the sphere already covers.
-          const terrain = bm.terrainTileGroup;
-          if (terrain && terrain.visible) {
-            meshTargets.push(terrain);
-            terrainOwner.set(terrain, bm);
-          }
-        }
-      }
-      const hits = this._dblClickRaycaster!.intersectObjects(meshTargets, true);
-      if (hits.length > 0) {
-        // Walk up from hit to find owning BodyMesh: either via terrainOwner map
-        // (terrain hits) or via the placeholder sphere ancestry chain.
-        let obj: THREE.Object3D | null = hits[0].object;
-        while (obj) {
-          if (this.bodyMeshes.has(obj.name)) { bodyName = obj.name; break; }
-          const owner = terrainOwner.get(obj);
-          if (owner) { bodyName = owner.body.name; break; }
-          obj = obj.parent;
+  /**
+   * Body discovery: raycast placeholder spheres, visible DSK plates and terrain
+   * meshes. When the camera is near a planet's surface the placeholder sphere
+   * is hidden (see BodyMesh frame logic) and only the terrain mesh is visible —
+   * so the terrain group is raycast too, otherwise the planet becomes unpickable.
+   */
+  private _discoverBodyMesh(ndcX: number, ndcY: number): string | null {
+    if (!this._dblClickRaycaster) return null;
+    this._dblClickRaycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+    const meshTargets: THREE.Object3D[] = [];
+    const terrainOwner = new Map<THREE.Object3D, BodyMesh>();
+    for (const bm of this.bodyMeshes.values()) {
+      // Raycasting ignores visibility, including bodies outside their existence window.
+      if (!bm.visible) continue;
+      if (bm.mesh.visible) {
+        meshTargets.push(bm.mesh);
+      } else {
+        meshTargets.push(...bm.getDskMeshes());
+        // Sphere hidden (camera near surface) — fall back to terrain mesh so the
+        // body remains pickable. Skipped when sphere is visible to avoid
+        // raycasting hundreds of tile meshes the sphere already covers.
+        const terrain = bm.terrainTileGroup;
+        if (terrain && terrain.visible) {
+          meshTargets.push(terrain);
+          terrainOwner.set(terrain, bm);
         }
       }
     }
-
-    return bodyName ?? null;
+    const hits = this._dblClickRaycaster.intersectObjects(meshTargets, true);
+    if (hits.length === 0) return null;
+    // Walk up from hit to find owning BodyMesh: either via terrainOwner map
+    // (terrain hits) or via the placeholder sphere ancestry chain.
+    let obj: THREE.Object3D | null = hits[0].object;
+    while (obj) {
+      if (this.bodyMeshes.has(obj.name)) return obj.name;
+      const owner = terrainOwner.get(obj);
+      if (owner) return owner.body.name;
+      obj = obj.parent;
+    }
+    return null;
   }
 
   /**
@@ -3715,17 +4404,47 @@ export class UniverseRenderer {
       if (this.lastTapConsumed) { event.preventDefault(); event.stopImmediatePropagation(); }
       return;
     }
+    // Both point-picking tools must leave camera drags alone. Remember the
+    // maximum excursion, including a drag that returns to its starting pixel.
+    const press = this._pickPress;
+    this._pickPress = null;
+    if ((this.pointerTool || this._probeActive || this.spatialInteraction?.picking()) && press &&
+      (press.dragged || (event.clientX - press.x) ** 2 + (event.clientY - press.y) ** 2 > 25)) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      return;
+    }
     const rect = this.renderer.domElement.getBoundingClientRect();
     if (this._selectAt(event.clientX - rect.left, event.clientY - rect.top)) {
       event.preventDefault(); event.stopImmediatePropagation();
     }
   };
 
-  /** Pick at canvas coordinates and emit `body:click`. Empty space selects nothing. */
+  private _onPickPointerDown = (event: PointerEvent): void => {
+    if (event.button === 0) this._pickPress = { id: event.pointerId, x: event.clientX, y: event.clientY, dragged: false };
+  };
+
+  /**
+   * Act on a click or tap at canvas coordinates. A pending measurement
+   * endpoint pick takes the gesture first, whatever else is on (the probe
+   * included). With the Point Probe on, it pins the surface point. Otherwise
+   * it selects: a measurement, then (`pickScene(…, 'select')`) an event glyph,
+   * a label or a body, emitting `event:click` or `body:click`; empty space
+   * selects nothing. Returns whether the gesture was consumed.
+   */
   private _selectAt(screenX: number, screenY: number, markerRadiusPx = 11): boolean {
+    if (this.pointerTool) {
+      this.pointerTool.pick(screenX, screenY);
+      this.lastSpatialPickMs = performance.now();
+      return true;
+    }
     if (this.spatialInteraction?.beforePick(screenX, screenY)) {
       this.lastSpatialPickMs = performance.now();
       return true;
+    }
+    if (this._probeActive) {
+      const hit = this.pickScene(screenX, screenY, 'probe');
+      if (hit?.kind === 'surface') this.setProbePin(hit.point);
+      return false;
     }
     const measurement = this.spatialRelationships.pick(screenX, screenY, markerRadiusPx);
     if (measurement && this.spatialInteraction) {
@@ -3733,20 +4452,15 @@ export class UniverseRenderer {
       this.lastSpatialPickMs = performance.now();
       return true;
     }
-    const marker = this.pickSceneEvent(screenX, screenY, markerRadiusPx);
-    if (marker) {
-      this.events.emit('event:click', {
-        id: marker.marker.id,
-        queryId: marker.marker.queryId,
-        et: marker.et,
-      });
+    const hit = this.pickScene(screenX, screenY, 'select', { markerRadiusPx });
+    if (hit?.kind === 'event') {
+      this.events.emit('event:click', { id: hit.eventId, queryId: hit.queryId, et: hit.et });
       return false;
     }
-    const bodyName = this.pickBody(screenX, screenY);
-    if (!bodyName) return false;
+    if (hit?.kind !== 'entity') return false;
 
     const et = this.universe.time;
-    this.events.emit('body:click', { bodyName, et, screenX, screenY });
+    this.events.emit('body:click', { bodyName: hit.bodyName, et, screenX, screenY });
     return false;
   }
 
@@ -3805,6 +4519,7 @@ export class UniverseRenderer {
   };
 
   private _onTouchPointerCancel = (event: PointerEvent): void => {
+    if (this._pickPress?.id === event.pointerId) this._pickPress.dragged = true;
     if (event.pointerType !== 'touch') return;
     this._tapCandidate = null;
   };
@@ -3814,9 +4529,11 @@ export class UniverseRenderer {
    * The consumer (viewer app) decides what to do — flyTo, show info, etc.
    */
   private _onDblClick = (event: MouseEvent): void => {
-    if (this.spatialInteraction?.picking() || performance.now() - this.lastSpatialPickMs < 800) {
+    if (this.pointerTool || this.spatialInteraction?.picking() || performance.now() - this.lastSpatialPickMs < 800) {
       event.preventDefault(); event.stopImmediatePropagation(); return;
     }
+    // Probing nearby points in quick succession is not a request to fly away.
+    if (this._probeActive) return;
     const rect = this.renderer.domElement.getBoundingClientRect();
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
@@ -3847,11 +4564,21 @@ export class UniverseRenderer {
    * changes.
    */
   private _onPointerMove = (event: PointerEvent): void => {
+    const press = this._pickPress;
+    if (press?.id === event.pointerId && (event.clientX - press.x) ** 2 + (event.clientY - press.y) ** 2 > 25) press.dragged = true;
     if (event.pointerType === 'touch') this._trackTapCandidate(event);
     this._pointerInside = true;
+    // A touch has no hover to keep up; only a resting mouse or pen does.
+    this._hoverPointerInside = event.pointerType !== 'touch';
     const rect = this.renderer.domElement.getBoundingClientRect();
     this._lastPointer.x = event.clientX - rect.left;
     this._lastPointer.y = event.clientY - rect.top;
+    // Both surface-picking tools run in the next rendered frame, with the
+    // same adaptive cost budget. Object/label hover keeps its cheap timer.
+    if (this._surfaceCursorOwnsPointer()) {
+      this._probeHoverDirty = true;
+      return;
+    }
     if (this._hoverPickTimer) return; // a pick is already scheduled
     const wait = Math.max(
       0,
@@ -3860,6 +4587,8 @@ export class UniverseRenderer {
     this._hoverPickTimer = window.setTimeout(() => {
       this._hoverPickTimer = 0;
       this._lastHoverPickMs = performance.now();
+      // Probe mode may have started while this pick was queued.
+      if (this._surfaceCursorOwnsPointer()) return;
       // Label-only pick (cheap; runs while mousing) with a tight slop so the
       // hover hitbox hugs the label text rather than a loose 20px halo.
       if (this.spatialInteraction?.picking()) {
@@ -3892,7 +4621,7 @@ export class UniverseRenderer {
    * resting pointer, which never fires pointermove; re-pick at the hover rate.
    */
   private revalidateMeasurementPreview(): void {
-    if (!this._pointerInside || !this.spatialInteraction?.picking()) { this._pickViewKey = ''; return; }
+    if (!this._pointerInside || !this.spatialInteraction?.picking() || this.spatialInteraction.surfacePicking?.()) { this._pickViewKey = ''; return; }
     const view = [...this.camera.matrixWorld.elements, ...this.camera.projectionMatrix.elements, this.timeController.et].join(',');
     if (view === this._pickViewKey || this._hoverPickTimer) return;
     if (performance.now() - this._lastHoverPickMs < (this.spatialInteraction.previewIntervalMs?.() ?? 75)) return;
@@ -3926,6 +4655,7 @@ export class UniverseRenderer {
 
   private _onPointerLeave = (): void => {
     this._pointerInside = false; this._pickViewKey = '';
+    this._hoverPointerInside = false;
     this.spatialInteraction?.onHover(null);
     this.spatialInteraction?.clearPreview?.();
     this._sceneEventHit = null;
@@ -3933,6 +4663,7 @@ export class UniverseRenderer {
       clearTimeout(this._hoverPickTimer);
       this._hoverPickTimer = 0;
     }
+    this._setProbeHover(null);
     if (this._hoveredBody) this._applyHover(null);
     if (this._hoveredSceneEvent) {
       this._hoveredSceneEvent = null;
@@ -3975,4 +4706,17 @@ export class UniverseRenderer {
     this.animFrameId = requestAnimationFrame(this.renderLoop);
     this.renderFrame();
   };
+}
+
+/** A catalog trail colour ("#rrggbb", "rrggbb", or [r, g, b] in 0–1) as a hex number. */
+function plotColor(c: string | number[] | undefined): number | undefined {
+  if (typeof c === 'string') {
+    const n = parseInt(c.startsWith('#') ? c.slice(1) : c, 16);
+    return Number.isNaN(n) ? undefined : n;
+  }
+  if (Array.isArray(c) && c.length >= 3) {
+    const ch = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255);
+    return (ch(c[0]!) << 16) | (ch(c[1]!) << 8) | ch(c[2]!);
+  }
+  return undefined;
 }

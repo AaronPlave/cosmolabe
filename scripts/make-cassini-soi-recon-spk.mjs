@@ -26,8 +26,8 @@ import CSpice from '../packages/cspice-wasm/wasm/cspice.mjs';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE_NAME = '040909R_SCPSE_01066_04199.bsp';
 const SOURCE_URL = `https://naif.jpl.nasa.gov/pub/naif/CASSINI/kernels/spk/${SOURCE_NAME}`;
-const lsk = resolve(repoRoot, 'packages/spice/test-kernels/naif0012.tls');
-const outSpk = resolve(repoRoot, 'packages/spice/test-kernels/cassini/040909R_SCPSE_04183_04185_subset.bsp');
+const lsk = resolve(repoRoot, 'kernels/test-data/naif0012.tls');
+const outSpk = resolve(repoRoot, 'kernels/test-data/cassini/040909R_SCPSE_04183_04185_subset.bsp');
 // UTC; the oracle's observations run 2004-183T03:11 → 2004-185T13:28, and
 // light time back to Saturn/the moons is under 10 s.
 const WINDOW = ['2004-183T00:00:00', '2004-186T00:00:00'];

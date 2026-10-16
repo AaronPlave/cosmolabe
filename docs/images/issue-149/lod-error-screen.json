@@ -1,0 +1,1247 @@
+{
+"note": "per-row |rendered \u2212 field| in screen pixels (radial m / eye distance / (60\u00b0/800 px)) for the lod-error-sweep.json hits",
+"rows": {
+"base|shackleton|0.5": {
+"medianPx": 0.01646121647262834,
+"p95Px": 0.0722447777623417,
+"tris": 3215876,
+"tiles": 362
+},
+"base|pole|0.5": {
+"medianPx": 0.014060821589579234,
+"p95Px": 0.060340532304292364,
+"tris": 2545668,
+"tiles": 285
+},
+"base|overview|0.5": {
+"medianPx": 0.015851084673675006,
+"p95Px": 0.07838355694921056,
+"tris": 1475076,
+"tiles": 162
+},
+"base|face-corner|0.5": {
+"medianPx": 0.003944806134078386,
+"p95Px": 0.039198191181070964,
+"tris": 6149124,
+"tiles": 699
+},
+"base|face-edge|0.5": {
+"medianPx": 0.006732108053169213,
+"p95Px": 0.0565698164871452,
+"tris": 5076742,
+"tiles": 573
+},
+"base|shackleton-grazing|0.5": {
+"medianPx": 0.014705203735130165,
+"p95Px": 0.05796654042490564,
+"tris": 3111428,
+"tiles": 350
+},
+"base|pole-grazing|0.5": {
+"medianPx": 0.03177442406915677,
+"p95Px": 0.2660587731267768,
+"tris": 2909446,
+"tiles": 324
+},
+"base|cap-nadir|0.5": {
+"medianPx": 0.018245674781080568,
+"p95Px": 0.090384031581917,
+"tris": 4608516,
+"tiles": 522
+},
+"base|shackleton|1": {
+"medianPx": 0.03488891103555438,
+"p95Px": 0.15085215790554551,
+"tris": 1753604,
+"tiles": 194
+},
+"base|pole|1": {
+"medianPx": 0.0316366307239512,
+"p95Px": 0.12983267773293444,
+"tris": 1318404,
+"tiles": 144
+},
+"base|overview|1": {
+"medianPx": 0.03184417556868209,
+"p95Px": 0.14435119312681188,
+"tris": 456708,
+"tiles": 45
+},
+"base|face-corner|1": {
+"medianPx": 0.006463596193554909,
+"p95Px": 0.04876783507393979,
+"tris": 3642372,
+"tiles": 411
+},
+"base|face-edge|1": {
+"medianPx": 0.009108456755865394,
+"p95Px": 0.061927158997521076,
+"tris": 3118342,
+"tiles": 348
+},
+"base|shackleton-grazing|1": {
+"medianPx": 0.028713597230930383,
+"p95Px": 0.10532955634541456,
+"tris": 1831940,
+"tiles": 203
+},
+"base|pole-grazing|1": {
+"medianPx": 0.0448686432230578,
+"p95Px": 0.2660587731267768,
+"tris": 1769222,
+"tiles": 193
+},
+"base|cap-nadir|1": {
+"medianPx": 0.03274837925067796,
+"p95Px": 0.17121631804362322,
+"tris": 2728452,
+"tiles": 306
+},
+"base|shackleton|2": {
+"medianPx": 0.052549799417819704,
+"p95Px": 0.27320280216780585,
+"tris": 1022468,
+"tiles": 110
+},
+"base|pole|2": {
+"medianPx": 0.05865097131530444,
+"p95Px": 0.22278349255233681,
+"tris": 717828,
+"tiles": 75
+},
+"base|overview|2": {
+"medianPx": 0.05511965217988281,
+"p95Px": 0.258639869906059,
+"tris": 195588,
+"tiles": 15
+},
+"base|face-corner|2": {
+"medianPx": 0.01755284962694415,
+"p95Px": 0.11256618176244626,
+"tris": 1971204,
+"tiles": 219
+},
+"base|face-edge|2": {
+"medianPx": 0.023041263488882555,
+"p95Px": 0.14585597200942996,
+"tris": 1629958,
+"tiles": 177
+},
+"base|shackleton-grazing|2": {
+"medianPx": 0.04697784635430588,
+"p95Px": 0.17959135124127604,
+"tris": 1231364,
+"tiles": 134
+},
+"base|pole-grazing|2": {
+"medianPx": 0.055855476066414195,
+"p95Px": 0.28289773495527565,
+"tris": 1125126,
+"tiles": 119
+},
+"base|cap-nadir|2": {
+"medianPx": 0.06523546566267376,
+"p95Px": 0.2449591283368976,
+"tris": 1083396,
+"tiles": 117
+},
+"base|shackleton|4": {
+"medianPx": 0.1140663304682919,
+"p95Px": 0.576115635532804,
+"tris": 656900,
+"tiles": 68
+},
+"base|pole|4": {
+"medianPx": 0.13096444976052019,
+"p95Px": 0.63211949402843,
+"tris": 587268,
+"tiles": 60
+},
+"base|overview|4": {
+"medianPx": 0.09919655784518497,
+"p95Px": 0.43422104722140725,
+"tris": 117252,
+"tiles": 6
+},
+"base|face-corner|4": {
+"medianPx": 0.03197290011814358,
+"p95Px": 0.1694371472066771,
+"tris": 978948,
+"tiles": 105
+},
+"base|face-edge|4": {
+"medianPx": 0.05433410131273332,
+"p95Px": 0.31325984943834173,
+"tris": 742150,
+"tiles": 75
+},
+"base|shackleton-grazing|4": {
+"medianPx": 0.05210383648478677,
+"p95Px": 0.29833828197766077,
+"tris": 970244,
+"tiles": 104
+},
+"base|pole-grazing|4": {
+"medianPx": 0.07092852747557782,
+"p95Px": 0.3428002938255491,
+"tris": 968454,
+"tiles": 101
+},
+"base|cap-nadir|4": {
+"medianPx": 0.1932923124995188,
+"p95Px": 0.7513045772370444,
+"tris": 770052,
+"tiles": 81
+},
+"both|shackleton|0.5": {
+"medianPx": 0.04874881464341785,
+"p95Px": 0.18144809954382746,
+"tris": 793592,
+"tiles": 359
+},
+"both|pole|0.5": {
+"medianPx": 0.045081154390537,
+"p95Px": 0.17582875207921114,
+"tris": 648122,
+"tiles": 279
+},
+"both|overview|0.5": {
+"medianPx": 0.037648363716141706,
+"p95Px": 0.15493714335398145,
+"tris": 412186,
+"tiles": 135
+},
+"both|face-corner|0.5": {
+"medianPx": 0.062377361979377904,
+"p95Px": 0.2827249255525933,
+"tris": 1208896,
+"tiles": 510
+},
+"both|face-edge|0.5": {
+"medianPx": 0.05193705088187163,
+"p95Px": 0.29988745445756826,
+"tris": 1187052,
+"tiles": 459
+},
+"both|shackleton-grazing|0.5": {
+"medianPx": 0.05655515551180955,
+"p95Px": 0.21620498890330286,
+"tris": 749422,
+"tiles": 326
+},
+"both|pole-grazing|0.5": {
+"medianPx": 0.13385915386414093,
+"p95Px": 0.9670402810836252,
+"tris": 768560,
+"tiles": 333
+},
+"both|cap-nadir|0.5": {
+"medianPx": 0.04598866554583651,
+"p95Px": 0.18236904410811705,
+"tris": 1208706,
+"tiles": 450
+},
+"both|shackleton|1": {
+"medianPx": 0.0789738258908105,
+"p95Px": 0.3140656604028797,
+"tris": 478402,
+"tiles": 185
+},
+"both|pole|1": {
+"medianPx": 0.0753607022700998,
+"p95Px": 0.3029699662820208,
+"tris": 439408,
+"tiles": 162
+},
+"both|overview|1": {
+"medianPx": 0.058144721809645125,
+"p95Px": 0.20235370157248528,
+"tris": 183742,
+"tiles": 51
+},
+"both|face-corner|1": {
+"medianPx": 0.08208621841853136,
+"p95Px": 0.3762048812463537,
+"tris": 831036,
+"tiles": 345
+},
+"both|face-edge|1": {
+"medianPx": 0.10307664348959975,
+"p95Px": 0.4568414914565989,
+"tris": 783328,
+"tiles": 285
+},
+"both|shackleton-grazing|1": {
+"medianPx": 0.07352299051401945,
+"p95Px": 0.3311568514171198,
+"tris": 539204,
+"tiles": 212
+},
+"both|pole-grazing|1": {
+"medianPx": 0.15781584813317873,
+"p95Px": 0.9670402810836252,
+"tris": 529616,
+"tiles": 202
+},
+"both|cap-nadir|1": {
+"medianPx": 0.0865072622688927,
+"p95Px": 0.3171265711144649,
+"tris": 807232,
+"tiles": 282
+},
+"both|shackleton|2": {
+"medianPx": 0.1321182755425413,
+"p95Px": 0.5303453694808303,
+"tris": 345266,
+"tiles": 116
+},
+"both|pole|2": {
+"medianPx": 0.09741219923034039,
+"p95Px": 0.4017706918104256,
+"tris": 296122,
+"tiles": 90
+},
+"both|overview|2": {
+"medianPx": 0.12443769854112974,
+"p95Px": 0.4155904857702229,
+"tris": 108536,
+"tiles": 21
+},
+"both|face-corner|2": {
+"medianPx": 0.1614714643164447,
+"p95Px": 0.6623672727918463,
+"tris": 476078,
+"tiles": 186
+},
+"both|face-edge|2": {
+"medianPx": 0.13165031540816696,
+"p95Px": 0.5397212250122644,
+"tris": 394366,
+"tiles": 129
+},
+"both|shackleton-grazing|2": {
+"medianPx": 0.1385023552016218,
+"p95Px": 0.5057939881182674,
+"tris": 395198,
+"tiles": 140
+},
+"both|pole-grazing|2": {
+"medianPx": 0.1821764984361502,
+"p95Px": 0.9670402810836252,
+"tris": 376190,
+"tiles": 122
+},
+"both|cap-nadir|2": {
+"medianPx": 0.18232834983230997,
+"p95Px": 0.5614615795831027,
+"tris": 399180,
+"tiles": 126
+},
+"both|shackleton|4": {
+"medianPx": 0.2309097803393239,
+"p95Px": 0.8114992285021777,
+"tris": 274508,
+"tiles": 77
+},
+"both|pole|4": {
+"medianPx": 0.20905961709161294,
+"p95Px": 0.7679324640762566,
+"tris": 257136,
+"tiles": 69
+},
+"both|overview|4": {
+"medianPx": 0.39626566806886915,
+"p95Px": 1.0473215580284574,
+"tris": 75944,
+"tiles": 6
+},
+"both|face-corner|4": {
+"medianPx": 0.17888128733996475,
+"p95Px": 0.7604112682114894,
+"tris": 260080,
+"tiles": 87
+},
+"both|face-edge|4": {
+"medianPx": 0.18980918028740273,
+"p95Px": 0.7834464537637962,
+"tris": 293926,
+"tiles": 84
+},
+"both|shackleton-grazing|4": {
+"medianPx": 0.1656814030711578,
+"p95Px": 0.5887768860809193,
+"tris": 338188,
+"tiles": 110
+},
+"both|pole-grazing|4": {
+"medianPx": 0.23179560691602208,
+"p95Px": 0.9989155261228903,
+"tris": 334046,
+"tiles": 98
+},
+"both|cap-nadir|4": {
+"medianPx": 0.3883525884319653,
+"p95Px": 1.282684668835831,
+"tris": 287534,
+"tiles": 81
+},
+"both003|shackleton|0.5": {
+"medianPx": 0.026709631188580565,
+"p95Px": 0.09937602431105125,
+"tris": 1280780,
+"tiles": 296
+},
+"both003|pole|0.5": {
+"medianPx": 0.024757894529632465,
+"p95Px": 0.08256514768169293,
+"tris": 1071900,
+"tiles": 243
+},
+"both003|overview|0.5": {
+"medianPx": 0.02363732005749955,
+"p95Px": 0.11951299710035036,
+"tris": 741384,
+"tiles": 132
+},
+"both003|face-corner|0.5": {
+"medianPx": 0.030361577208428386,
+"p95Px": 0.11343663869769759,
+"tris": 2108022,
+"tiles": 453
+},
+"both003|face-edge|0.5": {
+"medianPx": 0.029471658536398434,
+"p95Px": 0.13244184983528615,
+"tris": 2153452,
+"tiles": 426
+},
+"both003|shackleton-grazing|0.5": {
+"medianPx": 0.03301215109123687,
+"p95Px": 0.11632065556389673,
+"tris": 1292520,
+"tiles": 278
+},
+"both003|pole-grazing|0.5": {
+"medianPx": 0.0670885020505756,
+"p95Px": 0.4097225198419717,
+"tris": 1209204,
+"tiles": 272
+},
+"both003|cap-nadir|0.5": {
+"medianPx": 0.02507624206564451,
+"p95Px": 0.09500538798936456,
+"tris": 2274864,
+"tiles": 444
+},
+"both003|shackleton|1": {
+"medianPx": 0.05056049465699371,
+"p95Px": 0.1786587601263984,
+"tris": 815898,
+"tiles": 173
+},
+"both003|pole|1": {
+"medianPx": 0.04293053951389836,
+"p95Px": 0.1487034655316003,
+"tris": 750592,
+"tiles": 150
+},
+"both003|overview|1": {
+"medianPx": 0.03621323920407979,
+"p95Px": 0.14167994256710995,
+"tris": 307896,
+"tiles": 48
+},
+"both003|face-corner|1": {
+"medianPx": 0.049510169827859274,
+"p95Px": 0.18947842081808006,
+"tris": 1399560,
+"tiles": 285
+},
+"both003|face-edge|1": {
+"medianPx": 0.04015314932090262,
+"p95Px": 0.19788405743090362,
+"tris": 1379500,
+"tiles": 264
+},
+"both003|shackleton-grazing|1": {
+"medianPx": 0.048770246416135754,
+"p95Px": 0.17794849951878305,
+"tris": 875480,
+"tiles": 173
+},
+"both003|pole-grazing|1": {
+"medianPx": 0.09236355227841538,
+"p95Px": 0.4097225198419717,
+"tris": 848620,
+"tiles": 173
+},
+"both003|cap-nadir|1": {
+"medianPx": 0.04292942874703373,
+"p95Px": 0.17015041903511643,
+"tris": 1397246,
+"tiles": 255
+},
+"both003|shackleton|2": {
+"medianPx": 0.08135945125365446,
+"p95Px": 0.30308858550627626,
+"tris": 584950,
+"tiles": 110
+},
+"both003|pole|2": {
+"medianPx": 0.07465920986173254,
+"p95Px": 0.26185423194203994,
+"tris": 489710,
+"tiles": 84
+},
+"both003|overview|2": {
+"medianPx": 0.07101311573181279,
+"p95Px": 0.3731412951863792,
+"tris": 123824,
+"tiles": 12
+},
+"both003|face-corner|2": {
+"medianPx": 0.062460070901376105,
+"p95Px": 0.24771018222020993,
+"tris": 879854,
+"tiles": 174
+},
+"both003|face-edge|2": {
+"medianPx": 0.04681495193777298,
+"p95Px": 0.22484810635742175,
+"tris": 681336,
+"tiles": 120
+},
+"both003|shackleton-grazing|2": {
+"medianPx": 0.07113133278969949,
+"p95Px": 0.2332125592155748,
+"tris": 707090,
+"tiles": 134
+},
+"both003|pole-grazing|2": {
+"medianPx": 0.10694855978286352,
+"p95Px": 0.4291293683712329,
+"tris": 610552,
+"tiles": 113
+},
+"both003|cap-nadir|2": {
+"medianPx": 0.08992823551420762,
+"p95Px": 0.2705691643114437,
+"tris": 706540,
+"tiles": 120
+},
+"both003|shackleton|4": {
+"medianPx": 0.11631673359172912,
+"p95Px": 0.4271698747678435,
+"tris": 469642,
+"tiles": 77
+},
+"both003|pole|4": {
+"medianPx": 0.12026191361091934,
+"p95Px": 0.45262460946428074,
+"tris": 424384,
+"tiles": 66
+},
+"both003|overview|4": {
+"medianPx": 0.15376362991291548,
+"p95Px": 0.49091763365060614,
+"tris": 90954,
+"tiles": 6
+},
+"both003|face-corner|4": {
+"medianPx": 0.09184069722768526,
+"p95Px": 0.36531890945946954,
+"tris": 367458,
+"tiles": 63
+},
+"both003|face-edge|4": {
+"medianPx": 0.1138366170720091,
+"p95Px": 0.5458178077626364,
+"tris": 467870,
+"tiles": 75
+},
+"both003|shackleton-grazing|4": {
+"medianPx": 0.09908936321772549,
+"p95Px": 0.40505216896368795,
+"tris": 575506,
+"tiles": 101
+},
+"both003|pole-grazing|4": {
+"medianPx": 0.15137290963765238,
+"p95Px": 0.7336616812722884,
+"tris": 531352,
+"tiles": 89
+},
+"both003|cap-nadir|4": {
+"medianPx": 0.21941747896152786,
+"p95Px": 0.729792479056002,
+"tris": 474986,
+"tiles": 72
+},
+"measured|shackleton|0.5": {
+"medianPx": 0.019702722900411713,
+"p95Px": 0.09280183043434125,
+"tris": 2641412,
+"tiles": 296
+},
+"measured|pole|0.5": {
+"medianPx": 0.014206816874350575,
+"p95Px": 0.060340532304292364,
+"tris": 2153988,
+"tiles": 240
+},
+"measured|overview|0.5": {
+"medianPx": 0.019403049706366676,
+"p95Px": 0.10409915515114404,
+"tris": 1187844,
+"tiles": 129
+},
+"measured|face-corner|0.5": {
+"medianPx": 0.00913082514017535,
+"p95Px": 0.06765479946695403,
+"tris": 3877380,
+"tiles": 438
+},
+"measured|face-edge|0.5": {
+"medianPx": 0.013583963455072975,
+"p95Px": 0.0800101754084212,
+"tris": 3666694,
+"tiles": 411
+},
+"measured|shackleton-grazing|0.5": {
+"medianPx": 0.02419986672342199,
+"p95Px": 0.08614353083110127,
+"tris": 2484740,
+"tiles": 278
+},
+"measured|pole-grazing|0.5": {
+"medianPx": 0.03615441544871367,
+"p95Px": 0.2660587731267768,
+"tris": 2482950,
+"tiles": 275
+},
+"measured|cap-nadir|0.5": {
+"medianPx": 0.015773929183866345,
+"p95Px": 0.08072089438307982,
+"tris": 3955716,
+"tiles": 447
+},
+"measured|shackleton|1": {
+"medianPx": 0.035226670167984614,
+"p95Px": 0.1519191959828807,
+"tris": 1596932,
+"tiles": 176
+},
+"measured|pole|1": {
+"medianPx": 0.029332185141323852,
+"p95Px": 0.11768542673966786,
+"tris": 1370628,
+"tiles": 150
+},
+"measured|overview|1": {
+"medianPx": 0.032291845432521345,
+"p95Px": 0.1502126774854255,
+"tris": 456708,
+"tiles": 45
+},
+"measured|face-corner|1": {
+"medianPx": 0.01691140681325732,
+"p95Px": 0.11818252423177698,
+"tris": 2519556,
+"tiles": 282
+},
+"measured|face-edge|1": {
+"medianPx": 0.021883969447222554,
+"p95Px": 0.14649501073286114,
+"tris": 2413318,
+"tiles": 267
+},
+"measured|shackleton-grazing|1": {
+"medianPx": 0.03530958687122621,
+"p95Px": 0.11653691645135371,
+"tris": 1570820,
+"tiles": 173
+},
+"measured|pole-grazing|1": {
+"medianPx": 0.05530780609219453,
+"p95Px": 0.28289773495527565,
+"tris": 1595142,
+"tiles": 173
+},
+"measured|cap-nadir|1": {
+"medianPx": 0.029147931641068145,
+"p95Px": 0.148076918123117,
+"tris": 2258436,
+"tiles": 252
+},
+"measured|shackleton|2": {
+"medianPx": 0.05721701097985772,
+"p95Px": 0.25823520636339936,
+"tris": 1022468,
+"tiles": 110
+},
+"measured|pole|2": {
+"medianPx": 0.04729516732214155,
+"p95Px": 0.20073433906849547,
+"tris": 796164,
+"tiles": 84
+},
+"measured|overview|2": {
+"medianPx": 0.05018791428387992,
+"p95Px": 0.2726881283099447,
+"tris": 195588,
+"tiles": 15
+},
+"measured|face-corner|2": {
+"medianPx": 0.03197290011814358,
+"p95Px": 0.16944368908768906,
+"tris": 1501188,
+"tiles": 165
+},
+"measured|face-edge|2": {
+"medianPx": 0.030916800089215126,
+"p95Px": 0.21663453570703514,
+"tris": 1186054,
+"tiles": 126
+},
+"measured|shackleton-grazing|2": {
+"medianPx": 0.045596973201918585,
+"p95Px": 0.16884976750860103,
+"tris": 1231364,
+"tiles": 134
+},
+"measured|pole-grazing|2": {
+"medianPx": 0.06238064187933005,
+"p95Px": 0.3045146261663956,
+"tris": 1072902,
+"tiles": 113
+},
+"measured|cap-nadir|2": {
+"medianPx": 0.06523546566267376,
+"p95Px": 0.2449591283368976,
+"tris": 1109508,
+"tiles": 120
+},
+"measured|shackleton|4": {
+"medianPx": 0.08851372531557966,
+"p95Px": 0.4047217263484911,
+"tris": 735236,
+"tiles": 77
+},
+"measured|pole|4": {
+"medianPx": 0.08170420889434976,
+"p95Px": 0.3751610258109136,
+"tris": 639492,
+"tiles": 66
+},
+"measured|overview|4": {
+"medianPx": 0.09919655784518497,
+"p95Px": 0.43422104722140725,
+"tris": 117252,
+"tiles": 6
+},
+"measured|face-corner|4": {
+"medianPx": 0.05051842620148725,
+"p95Px": 0.2935732596586102,
+"tris": 639492,
+"tiles": 66
+},
+"measured|face-edge|4": {
+"medianPx": 0.0713021221366546,
+"p95Px": 0.4626215600884304,
+"tris": 742150,
+"tiles": 75
+},
+"measured|shackleton-grazing|4": {
+"medianPx": 0.06333982793555346,
+"p95Px": 0.3552816719434222,
+"tris": 944132,
+"tiles": 101
+},
+"measured|pole-grazing|4": {
+"medianPx": 0.0910520564211918,
+"p95Px": 0.5284895383891778,
+"tris": 864006,
+"tiles": 89
+},
+"measured|cap-nadir|4": {
+"medianPx": 0.1932923124995188,
+"p95Px": 0.7513045772370444,
+"tris": 717828,
+"tiles": 75
+},
+"polar|shackleton|0.5": {
+"medianPx": 0.018209576035456684,
+"p95Px": 0.07256803561766254,
+"tris": 3102724,
+"tiles": 349
+},
+"polar|pole|0.5": {
+"medianPx": 0.014842943447822533,
+"p95Px": 0.05461915961851278,
+"tris": 2423812,
+"tiles": 271
+},
+"polar|shackleton-grazing|0.5": {
+"medianPx": 0.01597584855341358,
+"p95Px": 0.06552118693850409,
+"tris": 2919940,
+"tiles": 328
+},
+"polar|pole-grazing|0.5": {
+"medianPx": 0.011583351601928901,
+"p95Px": 0.071964701049153,
+"tris": 3022598,
+"tiles": 337
+},
+"polar|cap-nadir|0.5": {
+"medianPx": 0.023161625642275134,
+"p95Px": 0.09342098403387822,
+"tris": 1353220,
+"tiles": 148
+},
+"polar|shackleton|1": {
+"medianPx": 0.03893938706012913,
+"p95Px": 0.17424631839135893,
+"tris": 1300996,
+"tiles": 142
+},
+"polar|pole|1": {
+"medianPx": 0.030336729496237665,
+"p95Px": 0.12099345010326418,
+"tris": 961540,
+"tiles": 103
+},
+"polar|shackleton-grazing|1": {
+"medianPx": 0.027084180531935086,
+"p95Px": 0.10209923913005178,
+"tris": 1483780,
+"tiles": 163
+},
+"polar|pole-grazing|1": {
+"medianPx": 0.016548863486930715,
+"p95Px": 0.09315833684482971,
+"tris": 1647366,
+"tiles": 179
+},
+"polar|cap-nadir|1": {
+"medianPx": 0.05628534589325422,
+"p95Px": 0.20964065536494725,
+"tris": 517636,
+"tiles": 52
+},
+"polar|shackleton|2": {
+"medianPx": 0.07174773296233351,
+"p95Px": 0.364588750887121,
+"tris": 726532,
+"tiles": 76
+},
+"polar|pole|2": {
+"medianPx": 0.05495200922887941,
+"p95Px": 0.22374903503417873,
+"tris": 439300,
+"tiles": 43
+},
+"polar|shackleton-grazing|2": {
+"medianPx": 0.042877613569196185,
+"p95Px": 0.14984130343508043,
+"tris": 830980,
+"tiles": 88
+},
+"polar|pole-grazing|2": {
+"medianPx": 0.02479446868819562,
+"p95Px": 0.1227591362397455,
+"tris": 985862,
+"tiles": 103
+},
+"polar|cap-nadir|2": {
+"medianPx": 0.11559263605999896,
+"p95Px": 0.6093966014248064,
+"tris": 230404,
+"tiles": 19
+},
+"simp003|shackleton|0.5": {
+"medianPx": 0.023654339481926898,
+"p95Px": 0.0884305567744078,
+"tris": 1497354,
+"tiles": 362
+},
+"simp003|pole|0.5": {
+"medianPx": 0.024443187164764592,
+"p95Px": 0.07714031043903624,
+"tris": 1199582,
+"tiles": 285
+},
+"simp003|overview|0.5": {
+"medianPx": 0.018452639004969608,
+"p95Px": 0.07881501468540508,
+"tris": 894470,
+"tiles": 162
+},
+"simp003|face-corner|0.5": {
+"medianPx": 0.017795315260102366,
+"p95Px": 0.0805183828383796,
+"tris": 2991624,
+"tiles": 699
+},
+"simp003|face-edge|0.5": {
+"medianPx": 0.020490086049994395,
+"p95Px": 0.08918195836723171,
+"tris": 2779804,
+"tiles": 573
+},
+"simp003|shackleton-grazing|0.5": {
+"medianPx": 0.020970222930326965,
+"p95Px": 0.07384638263561946,
+"tris": 1595742,
+"tiles": 350
+},
+"simp003|pole-grazing|0.5": {
+"medianPx": 0.06034635375872324,
+"p95Px": 0.4097225198419717,
+"tris": 1385348,
+"tiles": 324
+},
+"simp003|cap-nadir|0.5": {
+"medianPx": 0.030328156559452722,
+"p95Px": 0.10861243491811867,
+"tris": 2635962,
+"tiles": 522
+},
+"simp003|shackleton|1": {
+"medianPx": 0.04867196475001936,
+"p95Px": 0.19145507520981703,
+"tris": 907146,
+"tiles": 194
+},
+"simp003|pole|1": {
+"medianPx": 0.045884486998692256,
+"p95Px": 0.15757501385645456,
+"tris": 725954,
+"tiles": 144
+},
+"simp003|overview|1": {
+"medianPx": 0.040905831099608304,
+"p95Px": 0.1502126774854255,
+"tris": 289244,
+"tiles": 45
+},
+"simp003|face-corner|1": {
+"medianPx": 0.02731145055344155,
+"p95Px": 0.10004953399257296,
+"tris": 1792312,
+"tiles": 411
+},
+"simp003|face-edge|1": {
+"medianPx": 0.025769493264724143,
+"p95Px": 0.10686033694999227,
+"tris": 1703144,
+"tiles": 348
+},
+"simp003|shackleton-grazing|1": {
+"medianPx": 0.03929520903208128,
+"p95Px": 0.14448586726400572,
+"tris": 1012198,
+"tiles": 203
+},
+"simp003|pole-grazing|1": {
+"medianPx": 0.07802808371593757,
+"p95Px": 0.4097225198419717,
+"tris": 914468,
+"tiles": 193
+},
+"simp003|cap-nadir|1": {
+"medianPx": 0.04881702579726662,
+"p95Px": 0.2121392009385658,
+"tris": 1661866,
+"tiles": 306
+},
+"simp003|shackleton|2": {
+"medianPx": 0.07477737131951534,
+"p95Px": 0.3130343033337655,
+"tris": 581150,
+"tiles": 110
+},
+"simp003|pole|2": {
+"medianPx": 0.08867183194200934,
+"p95Px": 0.29251805464831226,
+"tris": 457356,
+"tiles": 75
+},
+"simp003|overview|2": {
+"medianPx": 0.06635917970846983,
+"p95Px": 0.26459724443481447,
+"tris": 132516,
+"tiles": 15
+},
+"simp003|face-corner|2": {
+"medianPx": 0.05100997795836182,
+"p95Px": 0.1876705174704686,
+"tris": 1034482,
+"tiles": 219
+},
+"simp003|face-edge|2": {
+"medianPx": 0.04156880028746342,
+"p95Px": 0.1977813029650719,
+"tris": 934904,
+"tiles": 177
+},
+"simp003|shackleton-grazing|2": {
+"medianPx": 0.07355229093798141,
+"p95Px": 0.24451438610798432,
+"tris": 712036,
+"tiles": 134
+},
+"simp003|pole-grazing|2": {
+"medianPx": 0.09467313115925338,
+"p95Px": 0.4097225198419717,
+"tris": 628744,
+"tiles": 119
+},
+"simp003|cap-nadir|2": {
+"medianPx": 0.08992823551420762,
+"p95Px": 0.2705691643114437,
+"tris": 690228,
+"tiles": 117
+},
+"simp003|shackleton|4": {
+"medianPx": 0.15170981057865873,
+"p95Px": 0.6409295549752293,
+"tris": 431464,
+"tiles": 68
+},
+"simp003|pole|4": {
+"medianPx": 0.18887703395584543,
+"p95Px": 0.6629223816961143,
+"tris": 403104,
+"tiles": 60
+},
+"simp003|overview|4": {
+"medianPx": 0.15376362991291548,
+"p95Px": 0.49091763365060614,
+"tris": 90954,
+"tiles": 6
+},
+"simp003|face-corner|4": {
+"medianPx": 0.06701997119112155,
+"p95Px": 0.2589079859180325,
+"tris": 529804,
+"tiles": 105
+},
+"simp003|face-edge|4": {
+"medianPx": 0.08916386058881531,
+"p95Px": 0.3786601860920691,
+"tris": 460188,
+"tiles": 75
+},
+"simp003|shackleton-grazing|4": {
+"medianPx": 0.08032688897439051,
+"p95Px": 0.3223844850869379,
+"tris": 587596,
+"tiles": 104
+},
+"simp003|pole-grazing|4": {
+"medianPx": 0.11790062640239907,
+"p95Px": 0.4593743516392693,
+"tris": 567822,
+"tiles": 101
+},
+"simp003|cap-nadir|4": {
+"medianPx": 0.21941747896152786,
+"p95Px": 0.729792479056002,
+"tris": 514378,
+"tiles": 81
+},
+"simplified|shackleton|0.5": {
+"medianPx": 0.04928906426184472,
+"p95Px": 0.18387751441069836,
+"tris": 797838,
+"tiles": 362
+},
+"simplified|pole|0.5": {
+"medianPx": 0.0462423774053628,
+"p95Px": 0.1767051934693941,
+"tris": 656044,
+"tiles": 285
+},
+"simplified|overview|0.5": {
+"medianPx": 0.026796059142441882,
+"p95Px": 0.11428242670307578,
+"tris": 481694,
+"tiles": 162
+},
+"simplified|face-corner|0.5": {
+"medianPx": 0.046319309759946053,
+"p95Px": 0.23235965776274498,
+"tris": 1612506,
+"tiles": 699
+},
+"simplified|face-edge|0.5": {
+"medianPx": 0.0504077591386193,
+"p95Px": 0.29646430859768763,
+"tris": 1472844,
+"tiles": 573
+},
+"simplified|shackleton-grazing|0.5": {
+"medianPx": 0.04862852888350504,
+"p95Px": 0.17256915007718066,
+"tris": 795444,
+"tiles": 350
+},
+"simplified|pole-grazing|0.5": {
+"medianPx": 0.12782313095971704,
+"p95Px": 0.9670402810836252,
+"tris": 748092,
+"tiles": 324
+},
+"simplified|cap-nadir|0.5": {
+"medianPx": 0.05678955875976617,
+"p95Px": 0.21765386942607276,
+"tris": 1398344,
+"tiles": 522
+},
+"simplified|shackleton|1": {
+"medianPx": 0.08441490849196419,
+"p95Px": 0.35451712954188463,
+"tris": 498114,
+"tiles": 194
+},
+"simplified|pole|1": {
+"medianPx": 0.08899075298179542,
+"p95Px": 0.34357295993539355,
+"tris": 407038,
+"tiles": 144
+},
+"simplified|overview|1": {
+"medianPx": 0.06282692356504556,
+"p95Px": 0.2512855548877166,
+"tris": 167264,
+"tiles": 45
+},
+"simplified|face-corner|1": {
+"medianPx": 0.06860274919033121,
+"p95Px": 0.29745099889436266,
+"tris": 941832,
+"tiles": 411
+},
+"simplified|face-edge|1": {
+"medianPx": 0.059636050140176367,
+"p95Px": 0.33302127147777244,
+"tris": 898040,
+"tiles": 348
+},
+"simplified|shackleton-grazing|1": {
+"medianPx": 0.07883304689664089,
+"p95Px": 0.3413600204464603,
+"tris": 525844,
+"tiles": 203
+},
+"simplified|pole-grazing|1": {
+"medianPx": 0.15781584813317873,
+"p95Px": 0.9670402810836252,
+"tris": 513364,
+"tiles": 193
+},
+"simplified|cap-nadir|1": {
+"medianPx": 0.09587340623604367,
+"p95Px": 0.3721439861333086,
+"tris": 871818,
+"tiles": 306
+},
+"simplified|shackleton|2": {
+"medianPx": 0.13439321007337823,
+"p95Px": 0.5580436779764604,
+"tris": 333990,
+"tiles": 110
+},
+"simplified|pole|2": {
+"medianPx": 0.18147733166901073,
+"p95Px": 0.6318352557479903,
+"tris": 268654,
+"tiles": 75
+},
+"simplified|overview|2": {
+"medianPx": 0.1644904377359899,
+"p95Px": 0.4623711180908555,
+"tris": 93032,
+"tiles": 15
+},
+"simplified|face-corner|2": {
+"medianPx": 0.12104361786196029,
+"p95Px": 0.527776068595151,
+"tris": 536948,
+"tiles": 219
+},
+"simplified|face-edge|2": {
+"medianPx": 0.12049027144576539,
+"p95Px": 0.4973777847597459,
+"tris": 501914,
+"tiles": 177
+},
+"simplified|shackleton-grazing|2": {
+"medianPx": 0.1422933890875582,
+"p95Px": 0.5057939881182674,
+"tris": 384768,
+"tiles": 134
+},
+"simplified|pole-grazing|2": {
+"medianPx": 0.1821764984361502,
+"p95Px": 0.9670402810836252,
+"tris": 369936,
+"tiles": 119
+},
+"simplified|cap-nadir|2": {
+"medianPx": 0.18232834983230997,
+"p95Px": 0.5614615795831027,
+"tris": 376202,
+"tiles": 117
+},
+"simplified|shackleton|4": {
+"medianPx": 0.2918835076032064,
+"p95Px": 1.2067170809028684,
+"tris": 255626,
+"tiles": 68
+},
+"simplified|pole|4": {
+"medianPx": 0.3538184454157144,
+"p95Px": 1.4154929272146837,
+"tris": 240128,
+"tiles": 60
+},
+"simplified|overview|4": {
+"medianPx": 0.39626566806886915,
+"p95Px": 1.0473215580284574,
+"tris": 75944,
+"tiles": 6
+},
+"simplified|face-corner|4": {
+"medianPx": 0.17731585316934448,
+"p95Px": 0.743578273531098,
+"tris": 285276,
+"tiles": 105
+},
+"simplified|face-edge|4": {
+"medianPx": 0.2304672922184393,
+"p95Px": 0.8568501915279736,
+"tris": 266996,
+"tiles": 75
+},
+"simplified|shackleton-grazing|4": {
+"medianPx": 0.171417541220185,
+"p95Px": 0.6384515439028885,
+"tris": 326846,
+"tiles": 104
+},
+"simplified|pole-grazing|4": {
+"medianPx": 0.21334210403895848,
+"p95Px": 0.9775399106693832,
+"tris": 338922,
+"tiles": 101
+},
+"simplified|cap-nadir|4": {
+"medianPx": 0.3883525884319653,
+"p95Px": 1.282684668835831,
+"tris": 287534,
+"tiles": 81
+}
+}
+}

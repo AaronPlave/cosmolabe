@@ -1,8 +1,7 @@
 <script lang="ts">
   import { DEFAULT_SURFACE_APPEARANCE, ELEVATION_PALETTES, type SurfaceAppearanceSettings, type SurfaceBaseColor, type ElevationPalette } from '@cosmolabe/three';
   import { onDestroy } from 'svelte';
-  import { appearancePick, startAppearancePick, cancelAppearancePick } from '../lib/surface-appearance-pick.svelte';
-  import { cancelMeasurementPick } from '../lib/spatial-measurements.svelte';
+  import { appearancePick, startAppearancePick, cancelAppearancePick, validAppearanceBound } from '../lib/surface-appearance-pick.svelte';
   import { getRenderer, vs } from '../lib/viewer-state.svelte';
 
   let { bodyName }: { bodyName: string } = $props();
@@ -23,8 +22,14 @@
     bodyMesh?.setSurfaceAppearance({ ...settings, ...patch });
     settings = bodyMesh?.surfaceAppearance ?? settings;
   }
+  function enterBound(input: HTMLInputElement, bound: 'minKm' | 'maxKm') {
+    const value = input.valueAsNumber;
+    const valid = validAppearanceBound(settings, bound, value);
+    input.setCustomValidity(valid ? '' : `Enter a ${bound === 'minKm' ? 'minimum below the maximum' : 'maximum above the minimum'} between -1000 and 1000 km, at least 0.001 km apart.`);
+    if (!valid) { input.reportValidity(); return; }
+    update({ [bound]: value });
+  }
   function pick(bound: 'minKm' | 'maxKm') {
-    cancelMeasurementPick();
     startAppearancePick(bodyName, bound);
   }
 </script>
@@ -72,9 +77,9 @@
           </label>
           <details class="my-1">
             <summary class="ui-label cursor-pointer">Fixed elevation range</summary>
-            <label class="control-row"><span>Minimum (km)</span><input aria-label="Minimum elevation km" type="number" step="0.1" value={+settings.minKm.toFixed(3)} onchange={e => update({ minKm: +e.currentTarget.value })} /></label>
+            <label class="control-row"><span>Minimum (km)</span><input aria-label="Minimum elevation km" type="number" step="0.1" value={+settings.minKm.toFixed(3)} oninput={e => e.currentTarget.setCustomValidity('')} onchange={e => enterBound(e.currentTarget, 'minKm')} /></label>
             <button class="pick-button" aria-pressed={appearancePick.bound === 'minKm' && appearancePick.bodyName === bodyName} onclick={() => pick('minKm')}>Pick minimum on surface</button>
-            <label class="control-row"><span>Maximum (km)</span><input aria-label="Maximum elevation km" type="number" step="0.1" value={+settings.maxKm.toFixed(3)} onchange={e => update({ maxKm: +e.currentTarget.value })} /></label>
+            <label class="control-row"><span>Maximum (km)</span><input aria-label="Maximum elevation km" type="number" step="0.1" value={+settings.maxKm.toFixed(3)} oninput={e => e.currentTarget.setCustomValidity('')} onchange={e => enterBound(e.currentTarget, 'maxKm')} /></label>
             <button class="pick-button" aria-pressed={appearancePick.bound === 'maxKm' && appearancePick.bodyName === bodyName} onclick={() => pick('maxKm')}>Pick maximum on surface</button>
           </details>
           {#if appearancePick.feedback && appearancePick.bodyName === bodyName}

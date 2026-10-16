@@ -352,6 +352,19 @@ describe('@cosmolabe/frames heritage adapter', () => {
       expect(fov.bounds.length).toBe(ref.bounds.length);
     });
   });
+
+  describe('charter: shape models', () => {
+    it('reads a DSK as the oracle does, without furnishing it', () => {
+      const bytes = fixtureBytes('mu69_lopoly.bds');
+      const before = spice.totalLoaded();
+      const shape = spice.readDsk('mu69_lopoly.bds', bytes);
+      const ref = oracle.readDsk('mu69_lopoly.bds', bytes);
+      expect(shape.vertices).toEqual(ref.vertices);
+      expect(shape.plates).toEqual(ref.plates);
+      expect(shape.centerId).toBe(ref.centerId);
+      expect(spice.totalLoaded()).toBe(before);
+    });
+  });
 });
 
 /**

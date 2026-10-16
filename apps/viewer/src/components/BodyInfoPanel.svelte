@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { vs, selectBody, getRenderer } from '../lib/viewer-state.svelte';
+  import { vs, selectBody, getRenderer, flyToBody } from '../lib/viewer-state.svelte';
   import type { InfoRow } from '@cosmolabe/three';
   import { Navigation } from 'lucide-svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import SurfaceAppearanceControls from './SurfaceAppearanceControls.svelte';
+  import ImageryLayersSection from './ImageryLayersSection.svelte';
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
 
@@ -181,10 +182,7 @@
   }
 
   function flyTo() {
-    const r = getRenderer();
-    if (!r || !vs.selectedBodyName) return;
-    const bm = r.getBodyMesh(vs.selectedBodyName);
-    if (bm) r.cameraController.flyTo(bm, { scaleFactor: r.scaleFactor });
+    if (vs.selectedBodyName) flyToBody(vs.selectedBodyName);
   }
 
   function classificationLabel(classification: string): string {
@@ -264,6 +262,8 @@
         <span class="ui-readout {speAngle < 5 ? 'text-warning' : 'text-text-primary'}">{speAngle.toFixed(1)}&deg;</span>
       </div>
     {/if}
+
+    <ImageryLayersSection />
 
     <!-- Plugin-contributed info sections -->
     {#key vs.selectedBodyName}

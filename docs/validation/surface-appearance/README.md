@@ -10,8 +10,11 @@ the local tangent plane, and contrast affects displayed shading only. Three
 palettes share a fixed, editable kilometre range and a compact clipping legend.
 Pick minimum and Pick maximum independently set one range bound from a clicked
 colored terrain point. A crossing bound or a miss leaves the pick armed with
-feedback; Escape/Cancel ends it. Measurement picks and appearance picks are
-mutually exclusive, and scene/panel replacement clears the pending pick.
+feedback; Escape/Cancel ends it. Point Probe, measurement picks and appearance picks are mutually exclusive.
+Starting any one ends the others. Appearance owns shared hover/click/touch input
+without depending on measurement input setup; Escape cancels it first, and
+scene/panel replacement clears it. Invalid manual bounds are marked and rejected
+using the same validation as picked bounds; neither silently moves the other bound.
 
 ## Rendering contract
 
@@ -45,7 +48,9 @@ mutually exclusive, and scene/panel replacement clears the pending pick.
   simulation state, physical position/normal/index buffers, sampling,
   clearance, refinement settings, or source requests are changed by a style.
 - The normal variant adds no shader instructions or height attributes. Elevation
-  attributes and the hillshade normal field are lazy. Disabling effects
+  attributes and the hillshade normal field are prepared only for visible tiles,
+  with a 4 ms preparation budget per frame (one tile is atomic). Tiles keep their
+  ordinary imagery shader until ready. Hidden cached tiles wait until visible. Disabling effects
   releases the normal references and invalidates GPU uploads before removing
   their attributes, so repeated toggling does not strand WebGL buffers. Materials and imagery
   are retained. Uniform-only edits do not recompile shaders.
@@ -57,7 +62,9 @@ mutually exclusive, and scene/panel replacement clears the pending pick.
   the elevation colors rather than a separate CPU sample or triangle-chord
   altitude. Ray hits on inactive cached tiles are excluded; uncolored fallback
   globes and overlays cannot set an elevation-color range. Ordinary surface
-  picks retain their existing physical height and body-fixed hit fields.
+  picks retain their existing physical height and body-fixed hit fields. Tint
+  height stays on the internal ray result; a dedicated appearance query uses
+  shared `_castSurfaces()`. Canonical `SurfacePoint` carries no style data.
 
 ## Upstream evaluation and scope
 
@@ -78,6 +85,7 @@ npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5182 --strictPort
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-appearance.mjs
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-shading-seams.mjs
 SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-shading-live.mjs
+SURFACE_VIEWER_URL=http://127.0.0.1:5182 node scripts/test-surface-style-activation.mjs
 ```
 
 The browser harness supplies small fixed catalogs using the existing live Mars
@@ -115,15 +123,41 @@ settings. Compare [legacy](seams/mars-close-legacy.png) and
 [current](seams/mars-close-current.png). Those captures hold geometry and
 camera fixed and change only the shading normal path.
 
+## Activation performance after review
+
+[activation/metrics.json](activation/metrics.json) and the [close Mars capture](activation/mars-close.png)
+use real streamed Mars terrain at a 3,430 km camera range, with `errorTarget: 0.25`.
+The cache held 142 meshes / 62,228 vertices; only the 137 visible meshes / 60,105
+vertices were prepared. Five inactive cached meshes received no attributes.
+The script measures the setter, the next event-loop task, completion of visible
+attributes, and per-frame/per-tile preparation. Every run removes attributes first.
+
+| CPU execution | Style | Setter ms | Next task ms | Visible attributes ready ms | Preparation total ms | Largest batch / tile ms | Batches |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Native | Elevation | 0.1 | 175.7 | 176.8 | 2.5 | 2.5 / 0.3 | 1 |
+| Native | Hillshade | 0.1 | 222.3 | 396.1 | 32.0 | 4.3 / 2.1 | 8 |
+| 4x CPU throttle | Elevation | 0.1 | 39.1 | 45.9 | 5.4 | 4.0 / 0.8 | 2 |
+| 4x CPU throttle | Hillshade | 0.1 | 35.7 | 887.6 | 109.9 | 5.0 / 3.2 | 25 |
+
+The throttled runs follow native runs and therefore have warm shader programs.
+Cold native activation still stalls the next task for 176–222 ms on SwiftShader,
+including shader compilation/rendering; the frame budget limits CPU attribute
+preparation, not driver compilation. Progressive hillshade takes about 0.9 s
+under throttling. This is CPU emulation on the same desktop, not a physical phone
+or a hard latency guarantee. An unusually large individual tile can exceed the
+budget because tile preparation is atomic; broader source/device profiling and
+shader warmup remain useful follow-ups.
+
 ## Validation
 
-- 27 focused appearance/pick/measurement tests pass, covering shared boundary
+- 38 focused appearance/pick/measurement tests pass, covering shared boundary
   normals and eviction, skirts, field-matching range picks, independent bounds,
   rejected misses/crossings/uncolored surfaces, and unchanged measurement input.
 - Type checks, changed-file lint, and viewer production build pass.
-- Final package + viewer suite: 1,706 tests passed, 7 skipped, with one failure
-  in the existing CSPICE timing-sensitive progress test described below.
-- The existing timing-sensitive `gf-reporting.test.ts` / `keeps the first pass
+- After merging current main, package + viewer suite: 2,100 tests passed, 7 skipped
+  (before adding the final shared-bound validation test; the final focused run has
+  38 passing tests).
+- Earlier branch validation encountered the existing timing-sensitive `gf-reporting.test.ts` / `keeps the first pass
   inside the first half while it runs` can finish in roughly 77 ms before its
   100 ms progress throttle produces an intermediate event. CSPICE is unchanged.
 - [metrics.json](metrics.json) records median/p95 frame intervals, source requests,
@@ -135,10 +169,11 @@ camera fixed and change only the shading normal path.
 
 | Scene | Normal ms | Hillshade ms | Combined ms | Restored ms | Tint attribute KiB | Terrain requests |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Mars, desktop, atmosphere + 2 imagery layers | 173.0 | 145.1 | 135.3 | 138.1 | 35.7 | 46 throughout |
-| Moon, desktop | 13.0 | 10.8 | 11.7 | 13.1 | 97.1 | 122 throughout |
-| Mars, phone viewport | — | — | 41.7 | 42.4 | 32.9 | 46 throughout |
-| Moon, phone viewport | — | — | 8.3 | 8.3 | 91.8 | 122 throughout |
+| Mars, desktop, atmosphere + 2 imagery layers | 142.9 | 138.9 | 131.7 | 140.4 | 35.7 | 46 throughout |
+| Moon, desktop | 13.4 | 10.9 | 12.2 | 14.2 | 97.1 | 122 throughout |
+| Mars, phone viewport | — | — | 40.6 | 42.8 | 32.9 | 46 throughout |
+| Moon, phone viewport | — | — | 8.3 | 8.4 | 91.8 | 122 throughout |
+The final run used `SURFACE_FRAME_SAMPLES=30` (default 90).
 Values are median frame intervals, with noise from software rendering and
 compilation. Both normal-restoration canvas comparisons changed **0 pixels**;
 physical buffers remained identical, no shader errors occurred, and tint

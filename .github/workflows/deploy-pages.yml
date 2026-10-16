@@ -18,7 +18,9 @@ jobs:
   build:
     name: Build viewer
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A cold Rosetta kernel build (download + rebuild, ~25 min) fits; a warm one
+    # comes from the cache below.
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,7 +32,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-deploy-${{ hashFiles('apps/viewer/test-catalogs/**', 'docs/img/**', 'packages/spice/test-kernels/**') }}
+          key: lfs-deploy-${{ hashFiles('apps/viewer/test-catalogs/**', 'docs/img/**', 'kernels/test-data/**') }}
 
       - name: Smudge LFS files
         # actions/checkout with lfs:false does not register the LFS smudge
@@ -71,12 +73,32 @@ jobs:
       - name: Build packages
         run: npm run build
 
+      - name: Cache Rosetta kernel set
+        # scripts/fetch-rosetta-kernels.sh downloads ~700 MB from the ESA
+        # archive and spends ~20 min rebuilding the dense trajectory and
+        # attitude files. Its output is a pure function of the scripts that
+        # make it, so it is cached on them; the script skips what is present.
+        uses: actions/cache@v4
+        with:
+          path: apps/viewer/test-catalogs/kernels/rosetta
+          key: rosetta-kernels-${{ hashFiles('scripts/fetch-rosetta-kernels.sh', 'scripts/resample-spk.mjs', 'scripts/thin-ck.mjs', 'packages/cspice-wasm/wasm/cspice.wasm') }}
+
       - name: Fetch viewer kernels
         # With a data host configured (repository variable DATA_BASE_URL), the
         # deployed catalogs read pinned, checksummed kernels from the host, so
         # this build neither downloads nor ships them (docs/data-hosting.md).
         if: ${{ vars.DATA_BASE_URL == '' }}
         run: bash scripts/fetch-all.sh
+
+      - name: Build unpublished Rosetta kernels
+        # Rosetta has no published data-host build yet. Keep its assets local
+        # in the Pages artifact until a verified build is explicitly pinned.
+        if: ${{ vars.DATA_BASE_URL != '' }}
+        run: bash scripts/fetch-rosetta-kernels.sh
+
+      - name: Fetch textured Rosetta models
+        # Ship these local assets with either kernel delivery mode.
+        run: bash scripts/fetch-rosetta-models.sh
 
       - name: Configure Pages
         id: pages
@@ -105,6 +127,7 @@ jobs:
         run: >
           node scripts/build-hosted-catalogs.mjs --dist apps/viewer/dist
           --allow-unpublished terrain/mars-terrain-fused
+          --allow-unpublished kernels/rosetta
 
       - name: Verify hosted data
         # Fetches the manifests, sample terrain tiles and every kernel the

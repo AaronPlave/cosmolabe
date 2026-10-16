@@ -1,0 +1,73 @@
+{
+  "results": [
+    {
+      "cpuRate": 1,
+      "mode": "elevation",
+      "cachedMeshes": 142,
+      "cachedVertices": 62228,
+      "visibleMeshes": 137,
+      "visibleVertices": 60105,
+      "setterMs": 0.09999999403953552,
+      "eventLoopResponsiveMs": 175.69999998807907,
+      "readyMs": 176.7999999821186,
+      "processedMeshes": 137,
+      "processedVertices": 60105,
+      "preparationMs": 2.5,
+      "maxBatchMs": 2.5,
+      "maxTileMs": 0.29999998211860657,
+      "batches": 1
+    },
+    {
+      "cpuRate": 1,
+      "mode": "hillshade",
+      "cachedMeshes": 142,
+      "cachedVertices": 62228,
+      "visibleMeshes": 137,
+      "visibleVertices": 60105,
+      "setterMs": 0.09999999403953552,
+      "eventLoopResponsiveMs": 222.30000001192093,
+      "readyMs": 396.09999999403954,
+      "processedMeshes": 137,
+      "processedVertices": 60105,
+      "preparationMs": 32,
+      "maxBatchMs": 4.300000011920929,
+      "maxTileMs": 2.100000023841858,
+      "batches": 8
+    },
+    {
+      "cpuRate": 4,
+      "mode": "elevation",
+      "cachedMeshes": 142,
+      "cachedVertices": 62228,
+      "visibleMeshes": 137,
+      "visibleVertices": 60105,
+      "setterMs": 0.09999999403953552,
+      "eventLoopResponsiveMs": 39.099999994039536,
+      "readyMs": 45.900000005960464,
+      "processedMeshes": 137,
+      "processedVertices": 60105,
+      "preparationMs": 5.4000000059604645,
+      "maxBatchMs": 4,
+      "maxTileMs": 0.800000011920929,
+      "batches": 2
+    },
+    {
+      "cpuRate": 4,
+      "mode": "hillshade",
+      "cachedMeshes": 142,
+      "cachedVertices": 62228,
+      "visibleMeshes": 137,
+      "visibleVertices": 60105,
+      "setterMs": 0.09999999403953552,
+      "eventLoopResponsiveMs": 35.69999998807907,
+      "readyMs": 887.5999999940395,
+      "processedMeshes": 137,
+      "processedVertices": 60105,
+      "preparationMs": 109.90000003576279,
+      "maxBatchMs": 5,
+      "maxTileMs": 3.199999988079071,
+      "batches": 25
+    }
+  ],
+  "errors": []
+}
