@@ -548,7 +548,7 @@ export class SurfaceExplorerMode implements ICameraMode {
     if (typeof window !== 'undefined' && (window as any).__surfExDebug) {
       const sf = ctx.scaleFactor;
       const camDist = ctx.camera.position.distanceTo(bm.position) / sf;
-      console.log(`[SurfEx] pick ndc=(${ndcX.toFixed(3)},${ndcY.toFixed(3)}) hit=${hit ? `body=${hit.bodyName} lat=${hit.latDeg.toFixed(4)} lon=${hit.lonDeg.toFixed(4)} alt=${hit.altKm.toFixed(4)}` : 'null'} camAlt=${this.altKm.toFixed(4)} camDistBody=${camDist.toFixed(2)} altAboveTerrain=${this.altAboveTerrainKm.toFixed(4)}`);
+      console.log(`[SurfEx] pick ndc=(${ndcX.toFixed(3)},${ndcY.toFixed(3)}) hit=${hit ? `body=${hit.bodyName} lat=${hit.latDeg.toFixed(4)} lon=${hit.lonDeg.toFixed(4)} alt=${hit.altKm?.toFixed(4) ?? 'unavailable'}` : 'null'} camAlt=${this.altKm.toFixed(4)} camDistBody=${camDist.toFixed(2)} altAboveTerrain=${this.altAboveTerrainKm.toFixed(4)}`);
     }
 
     if (!hit) { this.hasPivot = false; return; }

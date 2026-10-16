@@ -98,12 +98,12 @@ interface SurfaceRayHit {
 export interface SurfacePickResult {
   /** Name of the body that was clicked */
   bodyName: string;
-  /** Geodetic latitude in degrees (positive north) */
+  /** Latitude in degrees north; see point.latitudeKind for its convention. */
   latDeg: number;
   /** Geodetic longitude in degrees (positive east) */
   lonDeg: number;
-  /** Altitude above the reference sphere in km */
-  altKm: number;
+  /** Altitude above the declared datum in km; null for DSKs without one. */
+  altKm: number | null;
   /** Distance from camera to pick point in km */
   cameraDistanceKm: number;
   /** Exact rendered hit in body-fixed ECEF km, used to keep the marker on the clicked surface. */
@@ -2467,8 +2467,10 @@ export class UniverseRenderer {
       point.bodyFixedPositionKm[1] - pin.bodyFixedPositionKm[1],
       point.bodyFixedPositionKm[2] - pin.bodyFixedPositionKm[2],
     );
-    const restated = point.source !== pin.source ||
-      Math.abs(point.altitude.km - pin.altitude.km) > UniverseRenderer._pinRefineEpsKm ||
+    const heightChanged = point.altitude.km === null || pin.altitude.km === null
+      ? point.altitude.km !== pin.altitude.km
+      : Math.abs(point.altitude.km - pin.altitude.km) > UniverseRenderer._pinRefineEpsKm;
+    const restated = point.source !== pin.source || heightChanged ||
       point.terrainSample?.tileId !== pin.terrainSample?.tileId;
     if (moved <= UniverseRenderer._pinRefineEpsKm && !restated) return;
     this._probe.setPin(point, true);
@@ -2752,33 +2754,38 @@ export class UniverseRenderer {
     const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
     if (r < 1e-10) return null;
 
-    const terrainPosition = bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
+    const terrainPosition = isDsk ? null : bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const latDeg = terrainPosition?.latDeg ?? (Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI));
     const lonDeg = terrainPosition?.lonDeg ?? (Math.atan2(ecefY, ecefX) * (180 / Math.PI));
     // The rendered intersection is the point. Decoded CPU terrain at the
     // same place is its own record, and becomes the point's altitude only
     // when the terrain is the surface that was hit (an overlay hit sits over
     // the global terrain product, not on it).
-    const terrainSample = bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
-    const hitHeightKm = terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg));
+    const terrainSample = isDsk ? null : bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const resolution = resolutionAt(r, latDeg);
-    const terrainDatum = bm.terrainDatum;
-    const radii = bm.body.radii;
-    // Equal radii are a sphere, whatever field they came in.
-    const oblate = !!radii && (radii[0] !== radii[1] || radii[0] !== radii[2]);
-    // The hit height is measured against the terrain datum when the body has
-    // one (terrainBodyFixedToGeodetic), else radially from the body's shape.
-    const hitDatum: SurfaceDatum = terrainPosition && terrainDatum
-      ? { ...terrainDatum, origin: 'terrain' }
-      : {
-          referenceShape: radii && oblate
-            ? { kind: 'ellipsoid', radiiKm: [radii[0], radii[1], radii[2]] }
-            : { kind: 'sphere', radiusKm: radii ? radii[0] : bm.displayRadius },
-          verticalDatum: oblate ? 'ellipsoid' : 'reference-sphere',
-          heightConvention: 'radial',
-          origin: 'body-shape',
-        };
-    const hit = { heightKm: hitHeightKm, datum: hitDatum };
+    // An irregular plate surface does not define a spherical altitude datum.
+    const hit: SurfacePoint['hit'] = { heightKm: null, datum: null };
+    if (!isDsk) {
+      const hitHeightKm = terrainPosition?.heightKm ?? (r - bm.terrainReferenceRadiusAt(latDeg));
+      const terrainDatum = bm.terrainDatum;
+      const radii = bm.body.radii;
+      // Equal radii are a sphere, whatever field they came in.
+      const oblate = !!radii && (radii[0] !== radii[1] || radii[0] !== radii[2]);
+      // The hit height is measured against the terrain datum when the body has
+      // one (terrainBodyFixedToGeodetic), else radially from the body's shape.
+      const hitDatum: SurfaceDatum = terrainPosition && terrainDatum
+        ? { ...terrainDatum, origin: 'terrain' }
+        : {
+            referenceShape: radii && oblate
+              ? { kind: 'ellipsoid', radiiKm: [radii[0], radii[1], radii[2]] }
+              : { kind: 'sphere', radiusKm: radii ? radii[0] : bm.displayRadius },
+            verticalDatum: oblate ? 'ellipsoid' : 'reference-sphere',
+            heightConvention: 'radial',
+            origin: 'body-shape',
+          };
+      hit.heightKm = hitHeightKm;
+      hit.datum = hitDatum;
+    }
     const sample = terrainSample ? {
       elevationKm: terrainSample.elevationKm,
       datum: { ...terrainSample.datum, origin: 'terrain' as const },

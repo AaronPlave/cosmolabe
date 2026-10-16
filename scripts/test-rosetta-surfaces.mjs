@@ -31,6 +31,7 @@ try {
     const screenX = (x + 1) * rect.width / 2, screenY = (1 - y) * rect.height / 2;
     const bodyHit = r._discoverBodyMesh(x, y);
     const surfaceHit = r.pickSurface(x, y);
+    window.__dskPoint = surfaceHit?.point;
     const front = camera.position.clone().lerp(hit.point, 0.9);
     const behind = camera.position.clone().lerp(hit.point, 1.1);
     const rayDir = hit.point.clone().sub(camera.position).normalize();
@@ -57,7 +58,7 @@ try {
     }
     window.__dskClicks = [];
     r.events.on('body:click', event => window.__dskClicks.push(event.bodyName));
-    return { bodyHit, source: surfaceHit?.point.source, screenX, screenY, frontPixel, behindPixel,
+    return { bodyHit, source: surfaceHit?.point.source, altitude: surfaceHit?.point.altitude, hitDatum: surfaceHit?.point.hit.datum, screenX, screenY, frontPixel, behindPixel,
       frontLabelOpacity: labelOpacity(front), behindLabelOpacity: labelOpacity(behind),
       frontOccluded: body.dskOccludes(camera.position, front), behindOccluded: body.dskOccludes(camera.position, behind),
       dskLayer: body.getDskMeshes()[0]?.layers.mask,
@@ -65,6 +66,8 @@ try {
   });
   assert.equal(result.bodyHit, '67P/Churyumov-Gerasimenko');
   assert.equal(result.source, 'dsk');
+  assert.deepEqual(result.altitude, {km:null, from:'unavailable', datum:null});
+  assert.equal(result.hitDatum, null);
   assert.equal(result.frontLabelOpacity, 1); assert.equal(result.behindLabelOpacity, 0);
   assert.equal(result.frontOccluded, false); assert.equal(result.behindOccluded, true);
   const capture = await page.evaluate(() => window.__cosmolabe.capture());
@@ -81,9 +84,13 @@ try {
   assert.equal(near(result.behindPixel, (r,g,b) => g > 150 && r < 80 && b < 80), false, '67P must hide the green line behind its plates');
   await page.mouse.click(result.screenX, result.screenY);
   assert.ok((await page.evaluate(() => window.__dskClicks)).includes('67P/Churyumov-Gerasimenko'));
+  await page.evaluate(() => window.renderer.setProbePin(window.__dskPoint));
+  await page.getByText('Unavailable (no defined datum)', {exact:true}).waitFor();
+  await page.getByText('Radial distance', {exact:true}).waitFor();
   assert.deepEqual(errors, []);
   mkdirSync(output, { recursive: true });
   writeFileSync(`${output}/dsk-depth.png`, png);
+  await page.screenshot({path:`${output}/dsk-probe.png`});
   writeFileSync(`${output}/report.json`, JSON.stringify({ ...result, errors }, null, 2));
   console.log(`67P real mesh click/probe, foreground/background line pixels and label occlusion passed: ${output}`);
 } finally { await browser.close(); }

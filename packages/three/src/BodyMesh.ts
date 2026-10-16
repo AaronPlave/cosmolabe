@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { SunVisual, SOLAR_LAYER } from './SunVisual.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
@@ -191,15 +192,22 @@ export class BodyMesh extends THREE.Object3D {
     return meshes;
   }
 
+  private readonly dskRaycaster = new THREE.Raycaster();
+  private readonly dskRayDirection = new THREE.Vector3();
+
   /** Null means no rendered DSK; otherwise test the actual plates, not a sphere. */
   dskOccludes(origin: THREE.Vector3, point: THREE.Vector3): boolean | null {
     const meshes = this.getDskMeshes();
     if (!meshes.length) return null;
-    const direction = point.clone().sub(origin);
+    const direction = this.dskRayDirection.copy(point).sub(origin);
     const distance = direction.length();
     if (distance === 0) return false;
     this.updateWorldMatrix(true, true);
-    const caster = new THREE.Raycaster(origin, direction.divideScalar(distance), 0, distance * (1 - 1e-7));
+    const caster = this.dskRaycaster;
+    caster.set(origin, direction.divideScalar(distance));
+    caster.near = 0;
+    caster.far = distance * (1 - 1e-7);
+    caster.firstHitOnly = true;
     return caster.intersectObjects(meshes, false).length > 0;
   }
   get hasShadowReceiving(): boolean { return this.shadowEnabled; }
@@ -472,6 +480,11 @@ export class BodyMesh extends THREE.Object3D {
     this.checkDskFrame(name, shape.centerId, shape.frame);
     const material = new THREE.MeshStandardMaterial({ color: this.dskColor(geo), roughness: 1, metalness: 0 });
     const mesh = new THREE.Mesh(dskToBufferGeometry(shape), material);
+    // Accelerate this authoritative surface only; preserve native plate/index
+    // order for probe normals and provenance. Other scene meshes are untouched.
+    mesh.geometry.boundsTree = new MeshBVH(mesh.geometry, { indirect: true });
+    mesh.geometry.addEventListener('dispose', () => { mesh.geometry.boundsTree = undefined; });
+    mesh.raycast = acceleratedRaycast;
     mesh.userData.dskSurface = true;
     mesh.name = `${this.body.name} DSK`;
     const group = new THREE.Group();

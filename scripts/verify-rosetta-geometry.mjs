@@ -67,6 +67,21 @@ function inspect(body) {
 }
 catalog.items.forEach(inspect);
 const bus = catalog.items.find((item) => item.name === 'Rosetta');
+// Optional bounded comparison with ESA's official art-model configuration:
+// curl -fsSL https://spiftp.esac.esa.int/cosmographia/missions/ROS/config/spacecraft_ROS_arcs.json -o /tmp/spacecraft_ROS_arcs.json
+// node scripts/verify-rosetta-geometry.mjs /tmp/spacecraft_ROS_arcs.json
+if (process.argv[2]) {
+  const official = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  const reference = official.items.find(item => item.name === 'ROS_HGA');
+  const hga = bus.items.find(item => item.name === 'Rosetta high-gain antenna');
+  assert.equal(spice.bodn2c(reference.trajectory.target), hga.naifId);
+  assert.equal(spice.bodn2c(reference.trajectory.center), bus.naifId);
+  assert.equal(reference.bodyFrame.name, hga.rotationModel.bodyFrame);
+  assert.equal(reference.geometry.source.split('/').pop(), hga.geometry.source.split('/').pop());
+  assert.equal(hga.geometry.meshOffset, undefined);
+  assert.equal(hga.geometry.meshRotation, undefined);
+  console.log('HGA matches official ESA target/center/frame/mesh, with no added translation or rotation');
+}
 for (const part of bus.items) {
   assert.equal(Number(part.trajectory.center), bus.naifId, `${part.name}: offset must be relative to the bus structure origin`);
 }

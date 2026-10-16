@@ -190,9 +190,43 @@ describe('BodyMesh.loadDsk', () => {
     }) as UniverseRenderer;
     const picked = renderer.pickSurface(0, 0);
     expect(picked?.point.source).toBe('dsk');
+    expect(picked?.altKm).toBeNull();
+    expect(picked?.point.hit).toEqual({ heightKm: null, datum: null });
+    expect(picked?.point.altitude).toEqual({ km: null, datum: null, from: 'unavailable' });
+    expect(picked?.point.latitudeKind).toBe('planetocentric');
+    expect(picked?.cameraDistanceKm).toBeGreaterThan(0);
+    expect(picked?.point.surfaceNormal).toBeDefined();
     expect(picked?.bodyFixedHitKm[0]).toBeCloseTo(0.2, 6);
     expect(picked?.bodyFixedHitKm[1]).toBeCloseTo(0.2, 6);
     expect(picked?.bodyFixedHitKm[2]).toBeCloseTo(0.6, 6);
+  });
+
+  it('accelerates only DSK meshes while preserving exact intersections, plate indices and disposal', async () => {
+    serve(fixture('dsk-two-segments.bds'));
+    const bm = new BodyMesh(new Body({ name: 'Shape', trajectory: fixedPoint, geometryType: 'Dsk' }));
+    await bm.loadDsk('shape.bds', 1, spice, 'shape.bds');
+    bm.updatePosition([0, 0, 0], 0, 1);
+    bm.updateWorldMatrix(true, true);
+    const mesh = bm.getDskMeshes()[0];
+    expect(mesh.geometry.boundsTree).toBeDefined();
+    expect(mesh.raycast).not.toBe(THREE.Mesh.prototype.raycast);
+    const index = Array.from(mesh.geometry.index!.array);
+    const caster = new THREE.Raycaster();
+    caster.firstHitOnly = true;
+    const accelerated = mesh.raycast;
+    for (let x = -1; x < 14; x += 0.17) {
+      caster.set(new THREE.Vector3(x, 3, 0.2), new THREE.Vector3(0, -1, 0));
+      const fast = caster.intersectObject(mesh, false)[0];
+      mesh.raycast = THREE.Mesh.prototype.raycast;
+      const native = caster.intersectObject(mesh, false)[0];
+      mesh.raycast = accelerated;
+      expect(fast?.distance).toEqual(native?.distance);
+      expect(fast?.faceIndex).toEqual(native?.faceIndex);
+      expect(fast?.face?.normal.toArray()).toEqual(native?.face?.normal.toArray());
+    }
+    expect(Array.from(mesh.geometry.index!.array)).toEqual(index);
+    bm.dispose();
+    expect(mesh.geometry.boundsTree).toBeUndefined();
   });
 
   it.each([

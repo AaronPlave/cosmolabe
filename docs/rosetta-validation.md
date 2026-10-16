@@ -221,3 +221,131 @@ Catalog progress-byte hints and the browser listing reflect the rebuilt sizes.
 The empty-output rebuild used cached official ESA source files; it was not a
 new 700 MB network download. The subsequent full warm build finished with all
 42 files present, no fetches and no reductions rerun.
+
+## Re-review: DSK datum and interaction performance
+
+DSK picks now retain native body-fixed XYZ, planetocentric latitude/longitude,
+plate normal and camera range, but return `hit.heightKm`, `hit.datum`,
+`altitude.km`, `altitude.datum`, and legacy `pickSurface().altKm` as `null`.
+`altitude.from` is `unavailable`. No spherical altitude datum is inferred from
+model bounds. Point Probe and clipboard text show radial distance from the
+center and explicitly identify unavailable altitude. Existing planetary terrain
+and reference-globe datums retain their previous semantics.
+
+The close-range lag was reproduced on **Apple M4 Max**, Chromium
+**148.0.7778.96**, **ANGLE Metal / Apple M4 Max**, 1400 × 900 CSS pixels,
+DPR 1. These measurements use hardware graphics, not SwiftShader. Each A/B
+condition contains 40 frames at the Abydos viewpoint; separate 60-frame
+captures cover the 9 km impact overview, a 0.9 km view inside the shape, and
+40 m / 4 m offsets from Philae. Test-mode captures disable the trajectory cache
+worker; the separate cold-load measurement below uses the normal viewer.
+
+| Abydos condition | Native mean / median / p95 frame (ms) | BVH mean / median / p95 frame (ms) | Native → BVH mean CPU frame (ms) |
+|---|---|---|---|
+| Paused, labels on | 80.94 / 80.90 / 82.50 | 8.05 / 8.30 / 9.20 | 80.71 → 1.76 |
+| Playing | 82.48 / 82.00 / 84.80 | 8.35 / 8.30 / 9.30 | 81.79 → 2.77 |
+| Labels off | 8.13 / 8.30 / 9.40 | 8.32 / 8.20 / 9.20 | 1.60 → 1.58 |
+| 20 event markers | 239.40 / 238.40 / 245.60 | 8.28 / 8.40 / 9.60 | 239.05 → 1.95 |
+| Probe hover | 91.57 / 91.20 / 94.70 | 8.34 / 8.30 / 9.40 | 91.04 → 2.39 |
+| DSK hidden | 8.04 / 8.30 / 9.20 | 8.31 / 8.30 / 9.10 | 1.58 → 1.62 |
+
+GPU mean frame work stayed around 0.3–0.8 ms; the bottleneck was CPU raycasts.
+The visible-label case performs 10 DSK occlusion calls/frame; adding 20 event
+markers raises this to 30. Occlusion time across 40 frames fell from 3163 ms
+to 1.7 ms (labels), and 9486 ms to 4.7 ms (labels + events). A single full
+plate scan cost about 8 ms. The event markers are explicitly benchmark-only
+fixtures using real Rosetta trajectory positions; no invented mission events
+are added to the catalog or timeline.
+
+Real Playwright mouse drags and wheel input moved the camera. Mean event-delivery
+to observed camera-matrix change dropped from about 82 ms to **1.8 ms** for
+orbit, pan and zoom (fixed p95 1.9 / 2.0 / 1.9 ms respectively). This is a
+browser-side latency measurement, excluding OS input and compositor latency.
+Camera speed settings remain unchanged: rotation 2, zoom 1.2. The measured
+responsiveness problem was main-thread stalls, not a change in input sensitivity.
+The fixed desktop probe activation had one 18.2 ms frame; subsequent p95 was
+9.4 ms, with no recurring long hitches in this bounded run.
+
+The fix builds one `three-mesh-bvh` tree per loaded DSK, installs accelerated
+raycasting only on those meshes, reuses the occlusion raycaster/direction, and
+uses nearest-hit traversal for occlusion. Indirect indexing preserves native
+plate order. Exact triangles, concavities, empty gaps, hidden-body behavior,
+logarithmic depth and probe normals are retained. Geometry disposal releases
+the tree. No shape approximation, LOD rewrite, or temporal occlusion cache was
+introduced. Regression tests compare accelerated/native intersections, face
+indices and normals and verify disposal and null altitude/datum semantics.
+
+Raw results: [native](benchmarks/rosetta/native-raycasts.json),
+[BVH](benchmarks/rosetta/bvh-raycasts.json). Reproduce against this checkout's
+viewer (change the URL to its actual listener):
+
+```sh
+CL_VIEWER_URL=http://localhost:5180 HEADED=1 NATIVE_DSK_RAYCAST=1 PROFILE_OUTPUT=/tmp/native.json node scripts/profile-rosetta.mjs
+CL_VIEWER_URL=http://localhost:5180 HEADED=1 PROFILE_OUTPUT=/tmp/bvh.json node scripts/profile-rosetta.mjs
+CL_VIEWER_URL=http://localhost:5180 HEADED=1 CONSTRAINED=1 PROFILE_OUTPUT=/tmp/phone.json node scripts/profile-rosetta.mjs
+CL_VIEWER_URL=http://localhost:5180 HEADED=1 LOAD_ONLY=1 PROFILE_OUTPUT=/tmp/load.json node scripts/profile-rosetta.mjs
+```
+
+`NATIVE_DSK_RAYCAST=1` restores Three's native mesh raycast in that test page,
+providing an A/B baseline without checking out older code. It still builds the
+BVH during load, so it isolates runtime raycasting rather than startup cost.
+The script reports CPU/GPU times where timer queries are supported, raycast
+counts/cost, hardware identity, memory, navigation samples and frame distributions.
+There is no hardware-dependent CI FPS threshold.
+
+### Cold load and visual-asset disposition
+
+A fresh browser context loading the **normal viewer**, with its regular worker
+path, reached settled initial assets in **11.66 s** on local Vite HTTP; all
+assets loaded and there were no page errors. Main-page JS heap reported
+**577,031,300 bytes** (~550 MiB), with 24 renderer geometries and 17 textures.
+Observed response bodies totaled 329,775,365 bytes, including development
+modules and worker fetches: this is not the catalog's advertised asset size.
+These are local-server measurements, not an internet download prediction; heap
+figures exclude a complete accounting of GPU/worker/process memory.
+[Raw cold-load report](benchmarks/rosetta/cold-load.json).
+
+Current textured close-ups (reproduced by `test-rosetta-viewer.mjs`):
+
+![Current official textured HGA assembly](img/rosetta/hga-textured-mount.png)
+![Current textured Philae at Abydos against global K200](img/rosetta/philae-abydos-textured.png)
+
+The official [ESA spacecraft configuration](https://spiftp.esac.esa.int/cosmographia/missions/ROS/config/spacecraft_ROS_arcs.json)
+uses `ROS_HGA_GIMBAL` (-226070) relative to `ROS_SPACECRAFT` (-226000),
+`ROS_HGA` attitude, and `ROS_SC_HGA_V00.3ds`, matching our catalog with no
+added mesh translation or rotation. Downloaded reference SHA-256:
+`0f76971ac059d22d2f7b7e08a2c721b61fe2138488d46f7c92146fdd1fcb9cdb`.
+`verify-rosetta-geometry.mjs` accepts this downloaded JSON as its first argument
+and checks those mappings. Real component origin/frame/bounds checks pass at
+launch, Lutetia, separation and impact.
+
+Thus the current attachment gap is reproduced using the authoritative package's
+placement conventions; there is no evidence justifying another transform
+correction. Completeness of mechanical hardware in those assets is not established.
+PR #117 explicitly accepts that visual limitation, tracked with engineering
+reference/asset verification deliverables in [#234](https://github.com/AaronPlave/cosmolabe/issues/234).
+No connector is fabricated. Optional local Abydos integration/overlap is tracked
+in [#235](https://github.com/AaronPlave/cosmolabe/issues/235), independently of
+required Phase 6. The lander's archived location remains untouched.
+
+Local validation for this re-review initially passed **1,925 tests, 7 skipped**.
+The final repeat after refining nullable-height handling reproduced the existing
+SPICE progress timing flake: **1,924 passed, 7 skipped, 1 failed**
+(`gf-reporting.test.ts`, `keeps the first pass inside the first half while it runs`).
+That first pass completed in 93 ms before the 100 ms progress throttle; no
+SPICE reporting code was changed. All **485 renderer tests** pass. Full
+package/viewer/test/Svelte typechecks, lint and production viewer build pass. Real browser
+checks pass all 17 viewpoints / 10 transition epochs / 28 assets and DSK
+click/probe/null-datum/depth/label checks.
+
+A constrained smoke on the same Apple GPU used **390 × 844 CSS pixels, DPR 2,
+4× CPU throttling** (emulation, not a physical phone). Cold test-mode loading
+took 40.00 s and the main-page heap ended at 588,179,853 bytes. Near Abydos,
+paused frames averaged 8.32 ms (median 8.4 / p95 10.1), playing 11.07 ms
+(median 10.7 / p95 13.2), 20 events 8.38 ms (p95 10.6), and in-viewport probe
+hover 9.75 ms (p95 12.8, first-use maximum 31.1). Orbit/pan/zoom camera-response
+p95 was 6.7 / 6.8 / 6.9 ms. All 28 tracked assets loaded with no page errors.
+This is a bounded CPU/viewport smoke, not validation on mobile GPU hardware
+or a constrained network. [Raw constrained report](benchmarks/rosetta/constrained-phone.json).
+
+![DSK Point Probe with unavailable altitude and explicit radial distance](img/rosetta/dsk-probe.png)
