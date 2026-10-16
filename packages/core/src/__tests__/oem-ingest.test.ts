@@ -38,7 +38,7 @@ const OEM_TEXT = readFileSync(
   'utf8',
 );
 const LSK = fileURLToPath(
-  new URL('../../../spice/test-kernels/naif0012.tls', import.meta.url),
+  new URL('../../../../kernels/test-data/naif0012.tls', import.meta.url),
 );
 
 /** The fixture's three tabulated states, transcribed from the file. */

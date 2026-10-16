@@ -4,11 +4,9 @@
 // ── What this is ────────────────────────────────────────────────────────────
 //
 // core never constructs a SPICE engine: every entry point that needs one takes
-// it as an argument. Two implementations satisfy this structurally today —
-// @cosmolabe/frames' createHeritageSpice(), the cspice-wasm adapter that is the
-// runtime path (ADR M-0002, iron rule 1), and @cosmolabe/spice's Spice, now the
-// reference implementation used in tests. Neither is imported here, and core
-// depends on neither. That is the property worth keeping: core depends on an
+// it as an argument. @cosmolabe/frames' createHeritageSpice() satisfies this
+// structurally over cspice-wasm (ADR M-0002, iron rule 1). It is not imported
+// here, and core has no runtime SPICE dependency. Core depends on an
 // interface and the frames tier satisfies it, which is why the heritage adapter
 // could be swapped in underneath without a line of core changing. A
 // `cspice-wasm → frames → core` static chain would give it up.

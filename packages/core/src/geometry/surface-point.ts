@@ -1,5 +1,4 @@
-export type VerticalDatum = 'ellipsoid' | 'reference-sphere' | 'areoid' | 'unknown';
-export type HeightConvention = 'radial' | 'geodetic-normal';
+import type { TerrainDatum, VerticalDatum, HeightConvention } from '../geographic/coordinates.js';
 
 /** What answered a surface hit. */
 export type SurfaceHitSource =
@@ -11,12 +10,12 @@ export type SurfaceHitSource =
   | 'ellipsoid'
   /** A shape model. Reserved; not produced yet. */
   | 'mesh'
-  /** An irregular-body DSK. Reserved; not produced yet (#107). */
+  /** An irregular-body DSK plate mesh. */
   | 'dsk';
 
 /** The reference surface heights are measured from. */
 export interface SurfaceDatum {
-  referenceShape: { kind: 'sphere'; radiusKm: number } | { kind: 'ellipsoid'; radiiKm: readonly [number, number, number] };
+  referenceShape: TerrainDatum['referenceShape'];
   verticalDatum: VerticalDatum;
   heightConvention: HeightConvention;
   /**
@@ -69,8 +68,8 @@ export interface SurfacePoint {
    * resolution (`coordinateDecimals`) and never finer.
    */
   resolution: PointerResolution;
-  /** The hit itself: the height of `bodyFixedPositionKm` above `datum`. */
-  hit: { heightKm: number; datum: SurfaceDatum };
+  /** Height above a defined datum; both null for a DSK with no altitude datum. */
+  hit: { heightKm: number | null; datum: SurfaceDatum | null };
   /**
    * The body's terrain product sampled at this latitude/longitude, when it has
    * decoded coverage there. `describesHit` is true only when that product is
@@ -91,12 +90,13 @@ export interface SurfacePoint {
   surfaceNormal?: readonly [number, number, number];
   /**
    * The height to present for this point: the terrain sample when it
-   * describes the hit surface, otherwise the hit's own height.
+   * describes the hit surface, otherwise the hit's own height. Null when no
+   * scientifically defined altitude datum exists (DSK plate surfaces).
    */
   altitude: {
-    km: number;
-    from: 'terrain-sample' | 'rendered-hit';
-    datum: SurfaceDatum;
+    km: number | null;
+    from: 'terrain-sample' | 'rendered-hit' | 'unavailable';
+    datum: SurfaceDatum | null;
   };
 }
 
@@ -117,7 +117,7 @@ export function surfacePointEndpoint(point: SurfacePointAnchor, label?: string):
   return { kind: 'surface-point', version: 1, ...(label === undefined ? {} : { label }), point: {
     bodyName: point.bodyName, bodyFixedPositionKm: [...point.bodyFixedPositionKm], source: point.source,
     latDeg: point.latDeg, lonDeg: point.lonDeg, latitudeKind: point.latitudeKind,
-    hit: { heightKm: point.hit.heightKm, datum: datum(point.hit.datum) },
+    hit: { heightKm: point.hit.heightKm, datum: point.hit.datum && datum(point.hit.datum) },
     ...(point.terrainSample ? { terrainSample: { ...point.terrainSample, datum: datum(point.terrainSample.datum) } } : {}),
   } };
 }

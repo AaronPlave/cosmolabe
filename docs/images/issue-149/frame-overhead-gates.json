@@ -1,0 +1,8649 @@
+[
+ {
+  "generator": "scripts/capture-cube-imagery.mjs",
+  "created": "2026-10-15T17:19:13.126Z",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "cubeTileset": "moon-terrain-cube/tileset.json",
+  "label": "cull-on",
+  "poses": {
+   "frame": "IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)",
+   "views": {
+    "shackleton": {
+     "eye": [
+      -18.11,
+      21.75,
+      -1743
+     ],
+     "target": [
+      -6.393,
+      7.679,
+      -1735
+     ],
+     "fov": 60
+    },
+    "pole": {
+     "eye": [
+      7.85,
+      -9.356,
+      -1749
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 60
+    },
+    "antimeridian-60s": {
+     "eye": [
+      -904.7,
+      12.63,
+      -1530
+     ],
+     "target": [
+      -868.7,
+      1.064e-13,
+      -1505
+     ],
+     "fov": 60
+    },
+    "face-edge": {
+     "eye": [
+      1270,
+      -17.73,
+      -1244
+     ],
+     "target": [
+      1229,
+      0,
+      -1229
+     ],
+     "fov": 60
+    },
+    "face-corner": {
+     "eye": [
+      1035,
+      1057,
+      -1021
+     ],
+     "target": [
+      1003,
+      1003,
+      -1003
+     ],
+     "fov": 60
+    },
+    "overview": {
+     "eye": [
+      1359,
+      2353,
+      -3881
+     ],
+     "target": [
+      297.1,
+      514.6,
+      -1633
+     ],
+     "fov": 50
+    },
+    "nac-footprint": {
+     "eye": [
+      356.9,
+      129.9,
+      -2154
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 50
+    }
+   }
+  },
+  "browser": {
+   "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+   "devicePixelRatio": 1,
+   "crossOriginIsolated": false,
+   "shadowMap": true,
+   "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+   "hardwareConcurrency": 16,
+   "launch": "playwright chromium headless, --use-angle=metal --ignore-gpu-blocklist --enable-gpu (hardware GPU); ?test=1 (no antialias/bloom/stars)"
+  },
+  "host": {
+   "platform": "darwin 25.6.0",
+   "cpus": 16,
+   "cpuModel": "Apple M4 Max",
+   "memoryGB": 48
+  },
+  "results": {
+   "cracksDynamic": [
+    {
+     "scenario": "normal",
+     "steps": [
+      {
+       "i": 0,
+       "phase": "refine",
+       "visibleTiles": 6,
+       "geometryLevels": {
+        "0": 6
+       },
+       "loading": 0,
+       "cacheBytes": 13428576,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 1,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 0,
+       "neighbourSamplesByDelta": {}
+      },
+      {
+       "i": 1,
+       "phase": "refine",
+       "visibleTiles": 9,
+       "geometryLevels": {
+        "0": 5,
+        "1": 4
+       },
+       "loading": 0,
+       "cacheBytes": 13428576,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 38,
+       "coverageDifferencePixels": 40,
+       "culled": 1,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 128
+       }
+      },
+      {
+       "i": 2,
+       "phase": "refine",
+       "visibleTiles": 21,
+       "geometryLevels": {
+        "0": 1,
+        "1": 20
+       },
+       "loading": 0,
+       "cacheBytes": 15027216,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 3,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 128
+       }
+      },
+      {
+       "i": 3,
+       "phase": "refine",
+       "visibleTiles": 33,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 16
+       },
+       "loading": 0,
+       "cacheBytes": 15027216,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 39,
+       "coverageDifferencePixels": 42,
+       "culled": 4,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 384
+       }
+      },
+      {
+       "i": 4,
+       "phase": "refine",
+       "visibleTiles": 33,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 16
+       },
+       "loading": 0,
+       "cacheBytes": 15027216,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 3,
+       "coverageDifferencePixels": 5,
+       "culled": 8,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 384
+       }
+      },
+      {
+       "i": 5,
+       "phase": "refine",
+       "visibleTiles": 45,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 12,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 15666672,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 68,
+       "coverageDifferencePixels": 68,
+       "culled": 13,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 640
+       }
+      },
+      {
+       "i": 6,
+       "phase": "refine",
+       "visibleTiles": 57,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 18224496,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 16,
+       "coverageDifferencePixels": 16,
+       "culled": 23,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 704
+       }
+      },
+      {
+       "i": 7,
+       "phase": "refine",
+       "visibleTiles": 81,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 16
+       },
+       "loading": 0,
+       "cacheBytes": 22380960,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 42,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 896
+       }
+      },
+      {
+       "i": 8,
+       "phase": "refine",
+       "visibleTiles": 93,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 23979600,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 63,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 9,
+       "phase": "refine",
+       "visibleTiles": 105,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 16
+       },
+       "loading": 0,
+       "cacheBytes": 25738104,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 78,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      },
+      {
+       "i": 10,
+       "phase": "refine",
+       "visibleTiles": 135,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 10,
+        "7": 20,
+        "8": 16
+       },
+       "loading": 0,
+       "cacheBytes": 31173480,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 54,
+       "coverageDifferencePixels": 55,
+       "culled": 96,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1952,
+        "2": 64
+       }
+      },
+      {
+       "i": 11,
+       "phase": "refine",
+       "visibleTiles": 95,
+       "geometryLevels": {
+        "3": 10,
+        "4": 12,
+        "5": 12,
+        "6": 12,
+        "7": 10,
+        "8": 19,
+        "9": 20
+       },
+       "loading": 0,
+       "cacheBytes": 35329944,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 77,
+       "coverageDifferencePixels": 77,
+       "culled": 53,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1376,
+        "2": 192
+       }
+      },
+      {
+       "i": 12,
+       "phase": "refine",
+       "visibleTiles": 110,
+       "geometryLevels": {
+        "3": 10,
+        "4": 12,
+        "5": 12,
+        "6": 12,
+        "7": 10,
+        "8": 17,
+        "9": 25,
+        "10": 12
+       },
+       "loading": 0,
+       "cacheBytes": 38527224,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 104,
+       "coverageDifferencePixels": 105,
+       "culled": 65,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1648,
+        "2": 224
+       }
+      },
+      {
+       "i": 13,
+       "phase": "coarsen",
+       "visibleTiles": 79,
+       "geometryLevels": {
+        "3": 9,
+        "4": 12,
+        "5": 12,
+        "6": 10,
+        "7": 20,
+        "8": 16
+       },
+       "loading": 0,
+       "cacheBytes": 38527224,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 77,
+       "coverageDifferencePixels": 77,
+       "culled": 44,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1312,
+        "2": 64
+       }
+      },
+      {
+       "i": 14,
+       "phase": "coarsen",
+       "visibleTiles": 108,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 15,
+        "7": 4
+       },
+       "loading": 0,
+       "cacheBytes": 38527224,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 42,
+       "coverageDifferencePixels": 42,
+       "culled": 78,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1536
+       }
+      },
+      {
+       "i": 15,
+       "phase": "coarsen",
+       "visibleTiles": 93,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 38527224,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 69,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 16,
+       "phase": "coarsen",
+       "visibleTiles": 90,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 13,
+        "5": 12
+       },
+       "loading": 0,
+       "cacheBytes": 38527224,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 66,
+       "coverageDifferencePixels": 66,
+       "culled": 55,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 17,
+       "phase": "coarsen",
+       "visibleTiles": 81,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 16
+       },
+       "loading": 0,
+       "cacheBytes": 38527224,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 36,
+       "coverageDifferencePixels": 37,
+       "culled": 42,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 896
+       }
+      },
+      {
+       "i": 18,
+       "phase": "coarsen",
+       "visibleTiles": 60,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 15,
+        "4": 4
+       },
+       "loading": 0,
+       "cacheBytes": 38527224,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 45,
+       "coverageDifferencePixels": 45,
+       "culled": 28,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 832
+       }
+      },
+      {
+       "i": 19,
+       "phase": "coarsen",
+       "visibleTiles": 57,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 38527224,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 58,
+       "coverageDifferencePixels": 58,
+       "culled": 24,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 704
+       }
+      },
+      {
+       "i": 20,
+       "phase": "coarsen",
+       "visibleTiles": 45,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 12,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 38527224,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 54,
+       "coverageDifferencePixels": 54,
+       "culled": 15,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 640
+       }
+      },
+      {
+       "i": 21,
+       "phase": "pan",
+       "visibleTiles": 105,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 16
+       },
+       "loading": 0,
+       "cacheBytes": 38527224,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 88,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      },
+      {
+       "i": 22,
+       "phase": "pan",
+       "visibleTiles": 111,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 42,
+        "3": 18,
+        "4": 20,
+        "5": 14,
+        "6": 8
+       },
+       "loading": 0,
+       "cacheBytes": 43642872,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 17,
+       "coverageDifferencePixels": 17,
+       "culled": 100,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1472
+       }
+      },
+      {
+       "i": 23,
+       "phase": "pan",
+       "visibleTiles": 96,
+       "geometryLevels": {
+        "0": 1,
+        "1": 10,
+        "2": 32,
+        "3": 27,
+        "4": 18,
+        "5": 8
+       },
+       "loading": 0,
+       "cacheBytes": 45561240,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 34,
+       "coverageDifferencePixels": 35,
+       "culled": 86,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      },
+      {
+       "i": 24,
+       "phase": "pan",
+       "visibleTiles": 90,
+       "geometryLevels": {
+        "1": 14,
+        "2": 33,
+        "3": 23,
+        "4": 20
+       },
+       "loading": 0,
+       "cacheBytes": 47479608,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 80,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1040,
+        "2": 32
+       }
+      },
+      {
+       "i": 25,
+       "phase": "pan",
+       "visibleTiles": 87,
+       "geometryLevels": {
+        "1": 16,
+        "2": 25,
+        "3": 22,
+        "4": 24
+       },
+       "loading": 0,
+       "cacheBytes": 48758520,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 77,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1168,
+        "2": 32
+       }
+      },
+      {
+       "i": 26,
+       "phase": "pan",
+       "visibleTiles": 111,
+       "geometryLevels": {
+        "1": 16,
+        "2": 22,
+        "3": 34,
+        "4": 19,
+        "5": 20
+       },
+       "loading": 0,
+       "cacheBytes": 55792536,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 47,
+       "coverageDifferencePixels": 49,
+       "culled": 98,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1392,
+        "2": 96
+       }
+      },
+      {
+       "i": 27,
+       "phase": "pan",
+       "visibleTiles": 168,
+       "geometryLevels": {
+        "1": 14,
+        "2": 30,
+        "3": 31,
+        "4": 28,
+        "5": 24,
+        "6": 29,
+        "7": 12
+       },
+       "loading": 0,
+       "cacheBytes": 67942200,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 57,
+       "coverageDifferencePixels": 57,
+       "culled": 123,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 2160,
+        "2": 96
+       }
+      },
+      {
+       "i": 28,
+       "phase": "pan",
+       "visibleTiles": 168,
+       "geometryLevels": {
+        "1": 14,
+        "2": 30,
+        "3": 31,
+        "4": 28,
+        "5": 24,
+        "6": 29,
+        "7": 12
+       },
+       "loading": 0,
+       "cacheBytes": 67942200,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 57,
+       "coverageDifferencePixels": 57,
+       "culled": 123,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 2160,
+        "2": 96
+       }
+      },
+      {
+       "i": 29,
+       "phase": "pan",
+       "visibleTiles": 135,
+       "geometryLevels": {
+        "1": 14,
+        "2": 31,
+        "3": 28,
+        "4": 25,
+        "5": 25,
+        "6": 12
+       },
+       "loading": 0,
+       "cacheBytes": 73057848,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 5,
+       "coverageDifferencePixels": 5,
+       "culled": 120,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1760,
+        "2": 64
+       }
+      },
+      {
+       "i": 30,
+       "phase": "pan",
+       "visibleTiles": 123,
+       "geometryLevels": {
+        "1": 14,
+        "2": 28,
+        "3": 41,
+        "4": 24,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 76894584,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 58,
+       "coverageDifferencePixels": 58,
+       "culled": 115,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1552,
+        "2": 32
+       }
+      },
+      {
+       "i": 31,
+       "phase": "pan",
+       "visibleTiles": 117,
+       "geometryLevels": {
+        "1": 13,
+        "2": 34,
+        "3": 30,
+        "4": 40
+       },
+       "loading": 0,
+       "cacheBytes": 80091864,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 108,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1344
+       }
+      },
+      {
+       "i": 32,
+       "phase": "pan",
+       "visibleTiles": 132,
+       "geometryLevels": {
+        "1": 14,
+        "2": 30,
+        "3": 30,
+        "4": 34,
+        "5": 24
+       },
+       "loading": 0,
+       "cacheBytes": 87125880,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 17,
+       "coverageDifferencePixels": 17,
+       "culled": 121,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1616,
+        "2": 32
+       }
+      },
+      {
+       "i": 33,
+       "phase": "pan",
+       "visibleTiles": 171,
+       "geometryLevels": {
+        "1": 15,
+        "2": 25,
+        "3": 32,
+        "4": 37,
+        "5": 38,
+        "6": 24
+       },
+       "loading": 0,
+       "cacheBytes": 95438808,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 10,
+       "coverageDifferencePixels": 10,
+       "culled": 149,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 2064,
+        "2": 32
+       }
+      },
+      {
+       "i": 34,
+       "phase": "pan",
+       "visibleTiles": 240,
+       "geometryLevels": {
+        "1": 15,
+        "2": 24,
+        "3": 36,
+        "4": 34,
+        "5": 39,
+        "6": 60,
+        "7": 32
+       },
+       "loading": 0,
+       "cacheBytes": 116540856,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 19,
+       "coverageDifferencePixels": 20,
+       "culled": 160,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 2560
+       }
+      }
+     ],
+     "maxMitigatedHolePixels": 0,
+     "maxUnmitigatedHolePixels": 104,
+     "stepsWithUnmitigatedHoles": 25,
+     "stepsWithMitigatedHoles": 0,
+     "stepsLoading": 0,
+     "culledTiles": 2353,
+     "culledWithPixels": 0,
+     "maxNeighbourDelta": 2,
+     "network": {
+      "requests": 729,
+      "queued": 0,
+      "downloading": 0,
+      "parsing": 0,
+      "failed": 0
+     },
+     "errors": []
+    },
+    {
+     "scenario": "delayed",
+     "steps": [
+      {
+       "i": 0,
+       "phase": "refine",
+       "visibleTiles": 6,
+       "geometryLevels": {
+        "0": 6
+       },
+       "loading": 10,
+       "cacheBytes": 4795920,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 1,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 0,
+       "neighbourSamplesByDelta": {}
+      },
+      {
+       "i": 1,
+       "phase": "refine",
+       "visibleTiles": 9,
+       "geometryLevels": {
+        "0": 5,
+        "1": 4
+       },
+       "loading": 10,
+       "cacheBytes": 4795920,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 38,
+       "coverageDifferencePixels": 40,
+       "culled": 1,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 128
+       }
+      },
+      {
+       "i": 2,
+       "phase": "refine",
+       "visibleTiles": 21,
+       "geometryLevels": {
+        "0": 1,
+        "1": 20
+       },
+       "loading": 0,
+       "cacheBytes": 7993200,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 3,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 128
+       }
+      },
+      {
+       "i": 3,
+       "phase": "refine",
+       "visibleTiles": 33,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 16
+       },
+       "loading": 0,
+       "cacheBytes": 9911568,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 39,
+       "coverageDifferencePixels": 42,
+       "culled": 4,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 384
+       }
+      },
+      {
+       "i": 4,
+       "phase": "refine",
+       "visibleTiles": 33,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 16
+       },
+       "loading": 0,
+       "cacheBytes": 9911568,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 3,
+       "coverageDifferencePixels": 5,
+       "culled": 8,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 384
+       }
+      },
+      {
+       "i": 5,
+       "phase": "refine",
+       "visibleTiles": 45,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 12,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 11829936,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 68,
+       "coverageDifferencePixels": 68,
+       "culled": 13,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 640
+       }
+      },
+      {
+       "i": 6,
+       "phase": "refine",
+       "visibleTiles": 57,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 14387760,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 16,
+       "coverageDifferencePixels": 16,
+       "culled": 23,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 704
+       }
+      },
+      {
+       "i": 7,
+       "phase": "refine",
+       "visibleTiles": 81,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 16
+       },
+       "loading": 0,
+       "cacheBytes": 18863952,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 42,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 896
+       }
+      },
+      {
+       "i": 8,
+       "phase": "refine",
+       "visibleTiles": 93,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 21102048,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 63,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 9,
+       "phase": "refine",
+       "visibleTiles": 93,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 14,
+       "cacheBytes": 21102048,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 73,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 10,
+       "phase": "refine",
+       "visibleTiles": 93,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 52,
+       "cacheBytes": 21102048,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 72,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 11,
+       "phase": "refine",
+       "visibleTiles": 38,
+       "geometryLevels": {
+        "3": 10,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 71,
+       "cacheBytes": 21102048,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 20,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 512
+       }
+      },
+      {
+       "i": 12,
+       "phase": "refine",
+       "visibleTiles": 44,
+       "geometryLevels": {
+        "3": 10,
+        "4": 12,
+        "5": 14,
+        "6": 8
+       },
+       "loading": 79,
+       "cacheBytes": 23020416,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 305,
+       "coverageDifferencePixels": 307,
+       "culled": 25,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 704
+       }
+      },
+      {
+       "i": 13,
+       "phase": "coarsen",
+       "visibleTiles": 43,
+       "geometryLevels": {
+        "3": 9,
+        "4": 12,
+        "5": 14,
+        "6": 8
+       },
+       "loading": 42,
+       "cacheBytes": 23020416,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 258,
+       "coverageDifferencePixels": 258,
+       "culled": 24,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 704
+       }
+      },
+      {
+       "i": 14,
+       "phase": "coarsen",
+       "visibleTiles": 99,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 14,
+        "6": 8
+       },
+       "loading": 14,
+       "cacheBytes": 23020416,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 107,
+       "coverageDifferencePixels": 107,
+       "culled": 74,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1344
+       }
+      },
+      {
+       "i": 15,
+       "phase": "coarsen",
+       "visibleTiles": 93,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 24938784,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 69,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 16,
+       "phase": "coarsen",
+       "visibleTiles": 90,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 13,
+        "5": 12
+       },
+       "loading": 0,
+       "cacheBytes": 24938784,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 66,
+       "coverageDifferencePixels": 66,
+       "culled": 55,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 17,
+       "phase": "coarsen",
+       "visibleTiles": 81,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 16
+       },
+       "loading": 0,
+       "cacheBytes": 24938784,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 36,
+       "coverageDifferencePixels": 37,
+       "culled": 42,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 896
+       }
+      },
+      {
+       "i": 18,
+       "phase": "coarsen",
+       "visibleTiles": 60,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 15,
+        "4": 4
+       },
+       "loading": 0,
+       "cacheBytes": 24938784,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 45,
+       "coverageDifferencePixels": 45,
+       "culled": 28,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 832
+       }
+      },
+      {
+       "i": 19,
+       "phase": "coarsen",
+       "visibleTiles": 57,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 24938784,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 58,
+       "coverageDifferencePixels": 58,
+       "culled": 24,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 704
+       }
+      },
+      {
+       "i": 20,
+       "phase": "coarsen",
+       "visibleTiles": 45,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 12,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 24938784,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 54,
+       "coverageDifferencePixels": 54,
+       "culled": 15,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 640
+       }
+      },
+      {
+       "i": 21,
+       "phase": "pan",
+       "visibleTiles": 99,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 14,
+        "6": 8
+       },
+       "loading": 2,
+       "cacheBytes": 24938784,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 49,
+       "coverageDifferencePixels": 49,
+       "culled": 84,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1344
+       }
+      },
+      {
+       "i": 22,
+       "phase": "pan",
+       "visibleTiles": 105,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 42,
+        "3": 18,
+        "4": 20,
+        "5": 16
+       },
+       "loading": 10,
+       "cacheBytes": 28775520,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 96,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1280
+       }
+      },
+      {
+       "i": 23,
+       "phase": "pan",
+       "visibleTiles": 96,
+       "geometryLevels": {
+        "0": 1,
+        "1": 10,
+        "2": 32,
+        "3": 27,
+        "4": 18,
+        "5": 8
+       },
+       "loading": 10,
+       "cacheBytes": 30693888,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 34,
+       "coverageDifferencePixels": 35,
+       "culled": 86,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      },
+      {
+       "i": 24,
+       "phase": "pan",
+       "visibleTiles": 90,
+       "geometryLevels": {
+        "1": 14,
+        "2": 33,
+        "3": 23,
+        "4": 20
+       },
+       "loading": 8,
+       "cacheBytes": 32931984,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 80,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1040,
+        "2": 32
+       }
+      },
+      {
+       "i": 25,
+       "phase": "pan",
+       "visibleTiles": 87,
+       "geometryLevels": {
+        "1": 16,
+        "2": 25,
+        "3": 22,
+        "4": 24
+       },
+       "loading": 0,
+       "cacheBytes": 35489808,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 77,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1168,
+        "2": 32
+       }
+      },
+      {
+       "i": 26,
+       "phase": "pan",
+       "visibleTiles": 111,
+       "geometryLevels": {
+        "1": 16,
+        "2": 22,
+        "3": 34,
+        "4": 19,
+        "5": 20
+       },
+       "loading": 0,
+       "cacheBytes": 42523824,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 47,
+       "coverageDifferencePixels": 49,
+       "culled": 98,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1392,
+        "2": 96
+       }
+      },
+      {
+       "i": 27,
+       "phase": "pan",
+       "visibleTiles": 117,
+       "geometryLevels": {
+        "1": 16,
+        "2": 22,
+        "3": 33,
+        "4": 22,
+        "5": 24
+       },
+       "loading": 62,
+       "cacheBytes": 44761920,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 124,
+       "coverageDifferencePixels": 124,
+       "culled": 88,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1456,
+        "2": 96
+       }
+      },
+      {
+       "i": 28,
+       "phase": "pan",
+       "visibleTiles": 117,
+       "geometryLevels": {
+        "1": 16,
+        "2": 22,
+        "3": 33,
+        "4": 22,
+        "5": 24
+       },
+       "loading": 62,
+       "cacheBytes": 44761920,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 124,
+       "coverageDifferencePixels": 124,
+       "culled": 88,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1456,
+        "2": 96
+       }
+      },
+      {
+       "i": 29,
+       "phase": "pan",
+       "visibleTiles": 99,
+       "geometryLevels": {
+        "1": 16,
+        "2": 24,
+        "3": 26,
+        "4": 21,
+        "5": 12
+       },
+       "loading": 58,
+       "cacheBytes": 44761920,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 22,
+       "coverageDifferencePixels": 22,
+       "culled": 89,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1296,
+        "2": 32
+       }
+      },
+      {
+       "i": 30,
+       "phase": "pan",
+       "visibleTiles": 123,
+       "geometryLevels": {
+        "1": 14,
+        "2": 28,
+        "3": 41,
+        "4": 24,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 54993216,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 58,
+       "coverageDifferencePixels": 58,
+       "culled": 115,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1552,
+        "2": 32
+       }
+      },
+      {
+       "i": 31,
+       "phase": "pan",
+       "visibleTiles": 117,
+       "geometryLevels": {
+        "1": 13,
+        "2": 34,
+        "3": 30,
+        "4": 40
+       },
+       "loading": 0,
+       "cacheBytes": 58829952,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 108,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1344
+       }
+      },
+      {
+       "i": 32,
+       "phase": "pan",
+       "visibleTiles": 132,
+       "geometryLevels": {
+        "1": 14,
+        "2": 30,
+        "3": 30,
+        "4": 34,
+        "5": 24
+       },
+       "loading": 0,
+       "cacheBytes": 65863968,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 17,
+       "coverageDifferencePixels": 17,
+       "culled": 121,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1616,
+        "2": 32
+       }
+      },
+      {
+       "i": 33,
+       "phase": "pan",
+       "visibleTiles": 138,
+       "geometryLevels": {
+        "1": 15,
+        "2": 25,
+        "3": 34,
+        "4": 32,
+        "5": 32
+       },
+       "loading": 38,
+       "cacheBytes": 68102064,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 119,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1664
+       }
+      },
+      {
+       "i": 34,
+       "phase": "pan",
+       "visibleTiles": 120,
+       "geometryLevels": {
+        "1": 15,
+        "2": 25,
+        "3": 36,
+        "4": 28,
+        "5": 16
+       },
+       "loading": 161,
+       "cacheBytes": 68102064,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 42,
+       "coverageDifferencePixels": 43,
+       "culled": 82,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      }
+     ],
+     "maxMitigatedHolePixels": 0,
+     "maxUnmitigatedHolePixels": 305,
+     "stepsWithUnmitigatedHoles": 22,
+     "stepsWithMitigatedHoles": 0,
+     "stepsLoading": 17,
+     "culledTiles": 2010,
+     "culledWithPixels": 0,
+     "maxNeighbourDelta": 2,
+     "network": {
+      "requests": 438,
+      "queued": 149,
+      "downloading": 12,
+      "parsing": 0,
+      "failed": 0
+     },
+     "errors": []
+    },
+    {
+     "scenario": "failed",
+     "steps": [
+      {
+       "i": 0,
+       "phase": "refine",
+       "visibleTiles": 6,
+       "geometryLevels": {
+        "0": 6
+       },
+       "loading": 0,
+       "cacheBytes": 12629256,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 1,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 0,
+       "neighbourSamplesByDelta": {}
+      },
+      {
+       "i": 1,
+       "phase": "refine",
+       "visibleTiles": 9,
+       "geometryLevels": {
+        "0": 5,
+        "1": 4
+       },
+       "loading": 0,
+       "cacheBytes": 12629256,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 38,
+       "coverageDifferencePixels": 40,
+       "culled": 1,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 128
+       }
+      },
+      {
+       "i": 2,
+       "phase": "refine",
+       "visibleTiles": 21,
+       "geometryLevels": {
+        "0": 1,
+        "1": 20
+       },
+       "loading": 0,
+       "cacheBytes": 14227896,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 3,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 128
+       }
+      },
+      {
+       "i": 3,
+       "phase": "refine",
+       "visibleTiles": 33,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 16
+       },
+       "loading": 0,
+       "cacheBytes": 14227896,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 39,
+       "coverageDifferencePixels": 42,
+       "culled": 4,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 384
+       }
+      },
+      {
+       "i": 4,
+       "phase": "refine",
+       "visibleTiles": 33,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 16
+       },
+       "loading": 0,
+       "cacheBytes": 14227896,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 3,
+       "coverageDifferencePixels": 5,
+       "culled": 8,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 384
+       }
+      },
+      {
+       "i": 5,
+       "phase": "refine",
+       "visibleTiles": 45,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 12,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 14547624,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 68,
+       "coverageDifferencePixels": 68,
+       "culled": 13,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 640
+       }
+      },
+      {
+       "i": 6,
+       "phase": "refine",
+       "visibleTiles": 57,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 17105448,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 16,
+       "coverageDifferencePixels": 16,
+       "culled": 23,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 704
+       }
+      },
+      {
+       "i": 7,
+       "phase": "refine",
+       "visibleTiles": 81,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 16
+       },
+       "loading": 0,
+       "cacheBytes": 20622456,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 42,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 896
+       }
+      },
+      {
+       "i": 8,
+       "phase": "refine",
+       "visibleTiles": 93,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 21901368,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 63,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 9,
+       "phase": "refine",
+       "visibleTiles": 105,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 16
+       },
+       "loading": 0,
+       "cacheBytes": 23659872,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 78,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      },
+      {
+       "i": 10,
+       "phase": "refine",
+       "visibleTiles": 135,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 10,
+        "7": 20,
+        "8": 16
+       },
+       "loading": 0,
+       "cacheBytes": 29095248,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 54,
+       "coverageDifferencePixels": 55,
+       "culled": 96,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1952,
+        "2": 64
+       }
+      },
+      {
+       "i": 11,
+       "phase": "refine",
+       "visibleTiles": 75,
+       "geometryLevels": {
+        "3": 10,
+        "4": 12,
+        "5": 12,
+        "6": 12,
+        "7": 10,
+        "8": 19
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 33,
+       "coverageDifferencePixels": 44422,
+       "culled": 44,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1088,
+        "2": 160
+       }
+      },
+      {
+       "i": 12,
+       "phase": "refine",
+       "visibleTiles": 73,
+       "geometryLevels": {
+        "3": 10,
+        "4": 12,
+        "5": 12,
+        "6": 12,
+        "7": 10,
+        "8": 17
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 7,
+       "coverageDifferencePixels": 75148,
+       "culled": 43,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1072,
+        "2": 160
+       }
+      },
+      {
+       "i": 13,
+       "phase": "coarsen",
+       "visibleTiles": 79,
+       "geometryLevels": {
+        "3": 9,
+        "4": 12,
+        "5": 12,
+        "6": 10,
+        "7": 20,
+        "8": 16
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 77,
+       "coverageDifferencePixels": 77,
+       "culled": 44,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1312,
+        "2": 64
+       }
+      },
+      {
+       "i": 14,
+       "phase": "coarsen",
+       "visibleTiles": 108,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 15,
+        "7": 4
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 42,
+       "coverageDifferencePixels": 42,
+       "culled": 78,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1536
+       }
+      },
+      {
+       "i": 15,
+       "phase": "coarsen",
+       "visibleTiles": 93,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 69,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 16,
+       "phase": "coarsen",
+       "visibleTiles": 90,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 13,
+        "5": 12
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 66,
+       "coverageDifferencePixels": 66,
+       "culled": 55,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 17,
+       "phase": "coarsen",
+       "visibleTiles": 81,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 16
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 36,
+       "coverageDifferencePixels": 37,
+       "culled": 42,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 896
+       }
+      },
+      {
+       "i": 18,
+       "phase": "coarsen",
+       "visibleTiles": 60,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 15,
+        "4": 4
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 45,
+       "coverageDifferencePixels": 45,
+       "culled": 28,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 832
+       }
+      },
+      {
+       "i": 19,
+       "phase": "coarsen",
+       "visibleTiles": 57,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 58,
+       "coverageDifferencePixels": 58,
+       "culled": 24,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 704
+       }
+      },
+      {
+       "i": 20,
+       "phase": "coarsen",
+       "visibleTiles": 45,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 12,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 54,
+       "coverageDifferencePixels": 54,
+       "culled": 15,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 640
+       }
+      },
+      {
+       "i": 21,
+       "phase": "pan",
+       "visibleTiles": 105,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 16
+       },
+       "loading": 0,
+       "cacheBytes": 30054432,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 88,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      },
+      {
+       "i": 22,
+       "phase": "pan",
+       "visibleTiles": 111,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 42,
+        "3": 18,
+        "4": 20,
+        "5": 14,
+        "6": 8
+       },
+       "loading": 0,
+       "cacheBytes": 35170080,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 17,
+       "coverageDifferencePixels": 17,
+       "culled": 100,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1472
+       }
+      },
+      {
+       "i": 23,
+       "phase": "pan",
+       "visibleTiles": 96,
+       "geometryLevels": {
+        "0": 1,
+        "1": 10,
+        "2": 32,
+        "3": 27,
+        "4": 18,
+        "5": 8
+       },
+       "loading": 0,
+       "cacheBytes": 37088448,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 34,
+       "coverageDifferencePixels": 35,
+       "culled": 86,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      },
+      {
+       "i": 24,
+       "phase": "pan",
+       "visibleTiles": 90,
+       "geometryLevels": {
+        "1": 14,
+        "2": 33,
+        "3": 23,
+        "4": 20
+       },
+       "loading": 0,
+       "cacheBytes": 39006816,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 80,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1040,
+        "2": 32
+       }
+      },
+      {
+       "i": 25,
+       "phase": "pan",
+       "visibleTiles": 87,
+       "geometryLevels": {
+        "1": 16,
+        "2": 25,
+        "3": 22,
+        "4": 24
+       },
+       "loading": 0,
+       "cacheBytes": 40285728,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 77,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1168,
+        "2": 32
+       }
+      },
+      {
+       "i": 26,
+       "phase": "pan",
+       "visibleTiles": 111,
+       "geometryLevels": {
+        "1": 16,
+        "2": 22,
+        "3": 34,
+        "4": 19,
+        "5": 20
+       },
+       "loading": 0,
+       "cacheBytes": 47319744,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 47,
+       "coverageDifferencePixels": 49,
+       "culled": 98,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1392,
+        "2": 96
+       }
+      },
+      {
+       "i": 27,
+       "phase": "pan",
+       "visibleTiles": 168,
+       "geometryLevels": {
+        "1": 14,
+        "2": 30,
+        "3": 31,
+        "4": 28,
+        "5": 24,
+        "6": 29,
+        "7": 12
+       },
+       "loading": 0,
+       "cacheBytes": 59469408,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 57,
+       "coverageDifferencePixels": 57,
+       "culled": 123,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 2160,
+        "2": 96
+       }
+      },
+      {
+       "i": 28,
+       "phase": "pan",
+       "visibleTiles": 168,
+       "geometryLevels": {
+        "1": 14,
+        "2": 30,
+        "3": 31,
+        "4": 28,
+        "5": 24,
+        "6": 29,
+        "7": 12
+       },
+       "loading": 0,
+       "cacheBytes": 59469408,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 57,
+       "coverageDifferencePixels": 57,
+       "culled": 123,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 2160,
+        "2": 96
+       }
+      },
+      {
+       "i": 29,
+       "phase": "pan",
+       "visibleTiles": 135,
+       "geometryLevels": {
+        "1": 14,
+        "2": 31,
+        "3": 28,
+        "4": 25,
+        "5": 25,
+        "6": 12
+       },
+       "loading": 0,
+       "cacheBytes": 64585056,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 5,
+       "coverageDifferencePixels": 5,
+       "culled": 120,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1760,
+        "2": 64
+       }
+      },
+      {
+       "i": 30,
+       "phase": "pan",
+       "visibleTiles": 123,
+       "geometryLevels": {
+        "1": 14,
+        "2": 28,
+        "3": 41,
+        "4": 24,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 68421792,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 58,
+       "coverageDifferencePixels": 58,
+       "culled": 115,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1552,
+        "2": 32
+       }
+      },
+      {
+       "i": 31,
+       "phase": "pan",
+       "visibleTiles": 117,
+       "geometryLevels": {
+        "1": 13,
+        "2": 34,
+        "3": 30,
+        "4": 40
+       },
+       "loading": 0,
+       "cacheBytes": 71619072,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 108,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1344
+       }
+      },
+      {
+       "i": 32,
+       "phase": "pan",
+       "visibleTiles": 132,
+       "geometryLevels": {
+        "1": 14,
+        "2": 30,
+        "3": 30,
+        "4": 34,
+        "5": 24
+       },
+       "loading": 0,
+       "cacheBytes": 78653088,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 17,
+       "coverageDifferencePixels": 17,
+       "culled": 121,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1616,
+        "2": 32
+       }
+      },
+      {
+       "i": 33,
+       "phase": "pan",
+       "visibleTiles": 171,
+       "geometryLevels": {
+        "1": 15,
+        "2": 25,
+        "3": 32,
+        "4": 37,
+        "5": 38,
+        "6": 24
+       },
+       "loading": 0,
+       "cacheBytes": 86966016,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 10,
+       "coverageDifferencePixels": 10,
+       "culled": 149,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 2064,
+        "2": 32
+       }
+      },
+      {
+       "i": 34,
+       "phase": "pan",
+       "visibleTiles": 240,
+       "geometryLevels": {
+        "1": 15,
+        "2": 24,
+        "3": 36,
+        "4": 34,
+        "5": 39,
+        "6": 60,
+        "7": 32
+       },
+       "loading": 0,
+       "cacheBytes": 108068064,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 19,
+       "coverageDifferencePixels": 20,
+       "culled": 160,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 2560
+       }
+      }
+     ],
+     "maxMitigatedHolePixels": 0,
+     "maxUnmitigatedHolePixels": 77,
+     "stepsWithUnmitigatedHoles": 25,
+     "stepsWithMitigatedHoles": 0,
+     "stepsLoading": 0,
+     "culledTiles": 2322,
+     "culledWithPixels": 0,
+     "maxNeighbourDelta": 2,
+     "network": {
+      "requests": 728,
+      "queued": 0,
+      "downloading": 0,
+      "parsing": 0,
+      "failed": 52
+     },
+     "errors": [
+      "error: Failed to load resource: net::ERR_FAILED",
+      "error: TilesRenderer : Failed to load tile at url \"nz/9/254/256.glb\".",
+      "error: TypeError: Failed to fetch\n    at Vi.fetchData (http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:727:12)\n    at http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:801:67\n    at Vi.invokeOnePlugin (http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:493:17)\n    at http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:801:24\n    at G.tryRunJobs (http://127.0.0.1:5181/node_modules/.vite/deps/chunk-QEABMEJD.js?v=f2944385:351:14)\n    at G._runjobs (http://127.0.0.1:5181/node_modules/.vite/deps/chunk-QEABMEJD.js?v=f2944385:273:36)\n    at a2 (http://127.0.0.1:5181/node_modules/.vite/deps/chunk-QEABMEJD.js?v=f2944385:38:20)",
+      "error: Failed to load resource: net::ERR_FAILED",
+      "error: TilesRenderer : Failed to load tile at url \"nz/10/508/512.glb\".",
+      "error: TypeError: Failed to fetch\n    at Vi.fetchData (http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:727:12)\n    at http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:801:67\n    at Vi.invokeOnePlugin (http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:493:17)\n    at http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:801:24\n    at G.tryRunJobs (http://127.0.0.1:5181/node_modules/.vite/deps/chunk-QEABMEJD.js?v=f2944385:351:14)\n    at G._runjobs (http://127.0.0.1:5181/node_modules/.vite/deps/chunk-QEABMEJD.js?v=f2944385:273:36)\n    at a2 (http://127.0.0.1:5181/node_modules/.vite/deps/chunk-QEABMEJD.js?v=f2944385:38:20)",
+      "error: Failed to load resource: net::ERR_FAILED",
+      "error: TilesRenderer : Failed to load tile at url \"nz/9/254/255.glb\".",
+      "error: TypeError: Failed to fetch\n    at Vi.fetchData (http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:727:12)\n    at http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:801:67\n    at Vi.invokeOnePlugin (http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:493:17)\n    at http://127.0.0.1:5181/node_modules/.vite/deps/3d-tiles-renderer_three.js?v=f2944385:801:24\n    at G.tryRunJobs (http://127.0.0.1:5181/node_modules/.vite/deps/chunk-QEABMEJD.js?v=f2944385:351:14)\n    at G._runjobs (http://127.0.0.1:5181/node_modules/.vite/deps/chunk-QEABMEJD.js?v=f2944385:273:36)\n    at a2 (http://127.0.0.1:5181/node_modules/.vite/deps/chunk-QEABMEJD.js?v=f2944385:38:20)",
+      "error: Failed to load resource: net::ERR_FAILED"
+     ]
+    },
+    {
+     "scenario": "evicting",
+     "steps": [
+      {
+       "i": 0,
+       "phase": "refine",
+       "visibleTiles": 6,
+       "geometryLevels": {
+        "0": 6
+       },
+       "loading": 0,
+       "cacheBytes": 15027216,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 1,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 0,
+       "neighbourSamplesByDelta": {}
+      },
+      {
+       "i": 1,
+       "phase": "refine",
+       "visibleTiles": 9,
+       "geometryLevels": {
+        "0": 5,
+        "1": 4
+       },
+       "loading": 0,
+       "cacheBytes": 15027216,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 38,
+       "coverageDifferencePixels": 40,
+       "culled": 1,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 128
+       }
+      },
+      {
+       "i": 2,
+       "phase": "refine",
+       "visibleTiles": 21,
+       "geometryLevels": {
+        "0": 1,
+        "1": 20
+       },
+       "loading": 0,
+       "cacheBytes": 16625856,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 3,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 128
+       }
+      },
+      {
+       "i": 3,
+       "phase": "refine",
+       "visibleTiles": 33,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 16
+       },
+       "loading": 0,
+       "cacheBytes": 16625856,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 39,
+       "coverageDifferencePixels": 42,
+       "culled": 4,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 384
+       }
+      },
+      {
+       "i": 4,
+       "phase": "refine",
+       "visibleTiles": 33,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 16
+       },
+       "loading": 0,
+       "cacheBytes": 16625856,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 3,
+       "coverageDifferencePixels": 5,
+       "culled": 8,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 384
+       }
+      },
+      {
+       "i": 5,
+       "phase": "refine",
+       "visibleTiles": 45,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 12,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 16945584,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 68,
+       "coverageDifferencePixels": 68,
+       "culled": 13,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 640
+       }
+      },
+      {
+       "i": 6,
+       "phase": "refine",
+       "visibleTiles": 57,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 19503408,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 16,
+       "coverageDifferencePixels": 16,
+       "culled": 23,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 704
+       }
+      },
+      {
+       "i": 7,
+       "phase": "refine",
+       "visibleTiles": 81,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 16
+       },
+       "loading": 0,
+       "cacheBytes": 23020416,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 42,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 896
+       }
+      },
+      {
+       "i": 8,
+       "phase": "refine",
+       "visibleTiles": 93,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 24299328,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 63,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 9,
+       "phase": "refine",
+       "visibleTiles": 105,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 16
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 78,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      },
+      {
+       "i": 10,
+       "phase": "refine",
+       "visibleTiles": 135,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 10,
+        "7": 20,
+        "8": 16
+       },
+       "loading": 0,
+       "cacheBytes": 28455792,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 54,
+       "coverageDifferencePixels": 55,
+       "culled": 96,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1952,
+        "2": 64
+       }
+      },
+      {
+       "i": 11,
+       "phase": "refine",
+       "visibleTiles": 95,
+       "geometryLevels": {
+        "3": 10,
+        "4": 12,
+        "5": 12,
+        "6": 12,
+        "7": 10,
+        "8": 19,
+        "9": 20
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 77,
+       "coverageDifferencePixels": 77,
+       "culled": 53,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1376,
+        "2": 192
+       }
+      },
+      {
+       "i": 12,
+       "phase": "refine",
+       "visibleTiles": 110,
+       "geometryLevels": {
+        "3": 10,
+        "4": 12,
+        "5": 12,
+        "6": 12,
+        "7": 10,
+        "8": 17,
+        "9": 25,
+        "10": 12
+       },
+       "loading": 0,
+       "cacheBytes": 27176880,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 104,
+       "coverageDifferencePixels": 105,
+       "culled": 65,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1648,
+        "2": 224
+       }
+      },
+      {
+       "i": 13,
+       "phase": "coarsen",
+       "visibleTiles": 79,
+       "geometryLevels": {
+        "3": 9,
+        "4": 12,
+        "5": 12,
+        "6": 10,
+        "7": 20,
+        "8": 16
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 77,
+       "coverageDifferencePixels": 77,
+       "culled": 44,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1312,
+        "2": 64
+       }
+      },
+      {
+       "i": 14,
+       "phase": "coarsen",
+       "visibleTiles": 108,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 15,
+        "7": 4
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 42,
+       "coverageDifferencePixels": 42,
+       "culled": 78,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1536
+       }
+      },
+      {
+       "i": 15,
+       "phase": "coarsen",
+       "visibleTiles": 93,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 69,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 16,
+       "phase": "coarsen",
+       "visibleTiles": 90,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 13,
+        "5": 12
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 66,
+       "coverageDifferencePixels": 66,
+       "culled": 55,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1152
+       }
+      },
+      {
+       "i": 17,
+       "phase": "coarsen",
+       "visibleTiles": 81,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 16
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 36,
+       "coverageDifferencePixels": 37,
+       "culled": 42,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 896
+       }
+      },
+      {
+       "i": 18,
+       "phase": "coarsen",
+       "visibleTiles": 60,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 15,
+        "4": 4
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 45,
+       "coverageDifferencePixels": 45,
+       "culled": 28,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 832
+       }
+      },
+      {
+       "i": 19,
+       "phase": "coarsen",
+       "visibleTiles": 57,
+       "geometryLevels": {
+        "0": 1,
+        "1": 12,
+        "2": 28,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 58,
+       "coverageDifferencePixels": 58,
+       "culled": 24,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 704
+       }
+      },
+      {
+       "i": 20,
+       "phase": "coarsen",
+       "visibleTiles": 45,
+       "geometryLevels": {
+        "0": 1,
+        "1": 16,
+        "2": 12,
+        "3": 16
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 54,
+       "coverageDifferencePixels": 54,
+       "culled": 15,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 640
+       }
+      },
+      {
+       "i": 21,
+       "phase": "pan",
+       "visibleTiles": 105,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 44,
+        "3": 12,
+        "4": 12,
+        "5": 12,
+        "6": 16
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 88,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      },
+      {
+       "i": 22,
+       "phase": "pan",
+       "visibleTiles": 111,
+       "geometryLevels": {
+        "0": 1,
+        "1": 8,
+        "2": 42,
+        "3": 18,
+        "4": 20,
+        "5": 14,
+        "6": 8
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 17,
+       "coverageDifferencePixels": 17,
+       "culled": 100,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1472
+       }
+      },
+      {
+       "i": 23,
+       "phase": "pan",
+       "visibleTiles": 96,
+       "geometryLevels": {
+        "0": 1,
+        "1": 10,
+        "2": 32,
+        "3": 27,
+        "4": 18,
+        "5": 8
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 34,
+       "coverageDifferencePixels": 35,
+       "culled": 86,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1408
+       }
+      },
+      {
+       "i": 24,
+       "phase": "pan",
+       "visibleTiles": 90,
+       "geometryLevels": {
+        "1": 14,
+        "2": 33,
+        "3": 23,
+        "4": 20
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 80,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1040,
+        "2": 32
+       }
+      },
+      {
+       "i": 25,
+       "phase": "pan",
+       "visibleTiles": 87,
+       "geometryLevels": {
+        "1": 16,
+        "2": 25,
+        "3": 22,
+        "4": 24
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 77,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1168,
+        "2": 32
+       }
+      },
+      {
+       "i": 26,
+       "phase": "pan",
+       "visibleTiles": 111,
+       "geometryLevels": {
+        "1": 16,
+        "2": 22,
+        "3": 34,
+        "4": 19,
+        "5": 20
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 47,
+       "coverageDifferencePixels": 49,
+       "culled": 98,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1392,
+        "2": 96
+       }
+      },
+      {
+       "i": 27,
+       "phase": "pan",
+       "visibleTiles": 168,
+       "geometryLevels": {
+        "1": 14,
+        "2": 30,
+        "3": 31,
+        "4": 28,
+        "5": 24,
+        "6": 29,
+        "7": 12
+       },
+       "loading": 0,
+       "cacheBytes": 35489808,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 57,
+       "coverageDifferencePixels": 57,
+       "culled": 123,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 2160,
+        "2": 96
+       }
+      },
+      {
+       "i": 28,
+       "phase": "pan",
+       "visibleTiles": 168,
+       "geometryLevels": {
+        "1": 14,
+        "2": 30,
+        "3": 31,
+        "4": 28,
+        "5": 24,
+        "6": 29,
+        "7": 12
+       },
+       "loading": 0,
+       "cacheBytes": 35489808,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 57,
+       "coverageDifferencePixels": 57,
+       "culled": 123,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 2160,
+        "2": 96
+       }
+      },
+      {
+       "i": 29,
+       "phase": "pan",
+       "visibleTiles": 135,
+       "geometryLevels": {
+        "1": 14,
+        "2": 31,
+        "3": 28,
+        "4": 25,
+        "5": 25,
+        "6": 12
+       },
+       "loading": 0,
+       "cacheBytes": 28455792,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 5,
+       "coverageDifferencePixels": 5,
+       "culled": 120,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1760,
+        "2": 64
+       }
+      },
+      {
+       "i": 30,
+       "phase": "pan",
+       "visibleTiles": 123,
+       "geometryLevels": {
+        "1": 14,
+        "2": 28,
+        "3": 41,
+        "4": 24,
+        "5": 16
+       },
+       "loading": 0,
+       "cacheBytes": 25897968,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 58,
+       "coverageDifferencePixels": 58,
+       "culled": 115,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1552,
+        "2": 32
+       }
+      },
+      {
+       "i": 31,
+       "phase": "pan",
+       "visibleTiles": 117,
+       "geometryLevels": {
+        "1": 13,
+        "2": 34,
+        "3": 30,
+        "4": 40
+       },
+       "loading": 0,
+       "cacheBytes": 25258512,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 0,
+       "coverageDifferencePixels": 0,
+       "culled": 108,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 1,
+       "neighbourSamplesByDelta": {
+        "1": 1344
+       }
+      },
+      {
+       "i": 32,
+       "phase": "pan",
+       "visibleTiles": 132,
+       "geometryLevels": {
+        "1": 14,
+        "2": 30,
+        "3": 30,
+        "4": 34,
+        "5": 24
+       },
+       "loading": 0,
+       "cacheBytes": 27816336,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 17,
+       "coverageDifferencePixels": 17,
+       "culled": 121,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 1616,
+        "2": 32
+       }
+      },
+      {
+       "i": 33,
+       "phase": "pan",
+       "visibleTiles": 171,
+       "geometryLevels": {
+        "1": 15,
+        "2": 25,
+        "3": 32,
+        "4": 37,
+        "5": 38,
+        "6": 24
+       },
+       "loading": 0,
+       "cacheBytes": 36129264,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 10,
+       "coverageDifferencePixels": 10,
+       "culled": 149,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 2064,
+        "2": 32
+       }
+      },
+      {
+       "i": 34,
+       "phase": "pan",
+       "visibleTiles": 186,
+       "geometryLevels": {
+        "1": 15,
+        "2": 25,
+        "3": 34,
+        "4": 32,
+        "5": 24,
+        "6": 24,
+        "7": 32
+       },
+       "loading": 0,
+       "cacheBytes": 42044232,
+       "mitigatedHolePixels": 0,
+       "unmitigatedHolePixels": 50,
+       "coverageDifferencePixels": 51,
+       "culled": 112,
+       "culledWithPixels": 0,
+       "maxNeighbourDelta": 2,
+       "neighbourSamplesByDelta": {
+        "1": 2032,
+        "2": 224
+       }
+      }
+     ],
+     "maxMitigatedHolePixels": 0,
+     "maxUnmitigatedHolePixels": 104,
+     "stepsWithUnmitigatedHoles": 25,
+     "stepsWithMitigatedHoles": 0,
+     "stepsLoading": 0,
+     "culledTiles": 2305,
+     "culledWithPixels": 0,
+     "maxNeighbourDelta": 2,
+     "network": {
+      "requests": 789,
+      "queued": 0,
+      "downloading": 0,
+      "parsing": 0,
+      "failed": 0
+     },
+     "errors": []
+    }
+   ]
+  }
+ },
+ {
+  "generator": "scripts/capture-cube-imagery.mjs",
+  "created": "2026-10-15T17:22:48.038Z",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "cubeTileset": "moon-terrain-cube/tileset.json",
+  "label": "cull-on",
+  "poses": {
+   "frame": "IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)",
+   "views": {
+    "shackleton": {
+     "eye": [
+      -18.11,
+      21.75,
+      -1743
+     ],
+     "target": [
+      -6.393,
+      7.679,
+      -1735
+     ],
+     "fov": 60
+    },
+    "pole": {
+     "eye": [
+      7.85,
+      -9.356,
+      -1749
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 60
+    },
+    "antimeridian-60s": {
+     "eye": [
+      -904.7,
+      12.63,
+      -1530
+     ],
+     "target": [
+      -868.7,
+      1.064e-13,
+      -1505
+     ],
+     "fov": 60
+    },
+    "face-edge": {
+     "eye": [
+      1270,
+      -17.73,
+      -1244
+     ],
+     "target": [
+      1229,
+      0,
+      -1229
+     ],
+     "fov": 60
+    },
+    "face-corner": {
+     "eye": [
+      1035,
+      1057,
+      -1021
+     ],
+     "target": [
+      1003,
+      1003,
+      -1003
+     ],
+     "fov": 60
+    },
+    "overview": {
+     "eye": [
+      1359,
+      2353,
+      -3881
+     ],
+     "target": [
+      297.1,
+      514.6,
+      -1633
+     ],
+     "fov": 50
+    },
+    "nac-footprint": {
+     "eye": [
+      356.9,
+      129.9,
+      -2154
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 50
+    }
+   }
+  },
+  "browser": {
+   "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+   "devicePixelRatio": 1,
+   "crossOriginIsolated": false,
+   "shadowMap": true,
+   "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+   "hardwareConcurrency": 16,
+   "launch": "playwright chromium headless, --use-angle=metal --ignore-gpu-blocklist --enable-gpu (hardware GPU); ?test=1 (no antialias/bloom/stars)"
+  },
+  "host": {
+   "platform": "darwin 25.6.0",
+   "cpus": 16,
+   "cpuModel": "Apple M4 Max",
+   "memoryGB": 48
+  },
+  "results": {
+   "registration": [
+    {
+     "view": "shackleton",
+     "file": "registration-shackleton-unlit.jpg",
+     "samples": 1462,
+     "measured": 1159,
+     "skippedNearTileEdgesOrSky": 303,
+     "faceMismatch": 0,
+     "tileMismatch": 0,
+     "worstSamples": [
+      {
+       "x": 629,
+       "y": 204,
+       "errorTexels": 2.769,
+       "face": "nz",
+       "level": 8,
+       "tile": [
+        127,
+        127
+       ],
+       "decoded": [
+        75,
+        22,
+        168
+       ],
+       "expected": [
+        74.75,
+        19.24
+       ],
+       "neighbourhood": [
+        [
+         51,
+         244,
+         168
+        ],
+        [
+         50,
+         244,
+         168
+        ],
+        [
+         48,
+         244,
+         168
+        ],
+        [
+         78,
+         22,
+         168
+        ],
+        [
+         75,
+         22,
+         168
+        ],
+        [
+         73,
+         22,
+         168
+        ],
+        [
+         85,
+         30,
+         168
+        ],
+        [
+         84,
+         30,
+         168
+        ],
+        [
+         82,
+         30,
+         168
+        ]
+       ],
+       "distanceKm": 0.00004456,
+       "cosIncidence": 0.01174,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00004464,
+        0.00004441,
+        0.00004383,
+        0.00004671
+       ],
+       "maxNeighbourDistanceRatio": 1.048,
+       "localErrorTexels": [
+        0.45,
+        0.67,
+        0.28,
+        0.31,
+        0.36,
+        0.5,
+        0.71,
+        0.07,
+        0.5,
+        0.27,
+        0.66,
+        0.67,
+        0.19,
+        0.61,
+        0.65,
+        0.23,
+        0.61,
+        0.58,
+        0.39,
+        0.19,
+        0.3,
+        0.45,
+        0.62,
+        0.42,
+        0.3,
+        0.47,
+        0.55,
+        0.81,
+        0.61,
+        0.62,
+        0.18,
+        0.61,
+        0.16,
+        0.55,
+        0.44,
+        0.36,
+        0.43,
+        0.83,
+        0.3,
+        1.51,
+        2.77,
+        3.25,
+        0.62,
+        0.12,
+        0.58,
+        0.42,
+        0.27,
+        0.38,
+        0.5,
+        0.57,
+        0.38,
+        0.36,
+        0.21,
+        0.6,
+        0.56,
+        0.5,
+        0.33,
+        0.26,
+        0.36,
+        0.16,
+        0.49,
+        0.57,
+        0.23,
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge",
+        "edge"
+       ],
+       "localDistanceKm": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "x": 542,
+       "y": 480,
+       "errorTexels": 1.724,
+       "face": "nz",
+       "level": 10,
+       "tile": [
+        515,
+        516
+       ],
+       "decoded": [
+        236,
+        6,
+        170
+       ],
+       "expected": [
+        236.9,
+        4.533
+       ],
+       "neighbourhood": [
+        [
+         222,
+         233,
+         170
+        ],
+        [
+         220,
+         232,
+         170
+        ],
+        [
+         218,
+         231,
+         170
+        ],
+        [
+         239,
+         8,
+         170
+        ],
+        [
+         236,
+         6,
+         170
+        ],
+        [
+         234,
+         4,
+         170
+        ],
+        [
+         249,
+         24,
+         170
+        ],
+        [
+         247,
+         23,
+         170
+        ],
+        [
+         244,
+         21,
+         170
+        ]
+       ],
+       "distanceKm": 0.00001094,
+       "cosIncidence": 0.04034,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00001099,
+        0.00001089,
+        0.00001063,
+        0.00001144
+       ],
+       "maxNeighbourDistanceRatio": 1.046
+      },
+      {
+       "x": 803,
+       "y": 204,
+       "errorTexels": 1.09,
+       "face": "nz",
+       "level": 8,
+       "tile": [
+        126,
+        127
+       ],
+       "decoded": [
+        141,
+        125,
+        168
+       ],
+       "expected": [
+        141.9,
+        124.4
+       ],
+       "neighbourhood": [
+        [
+         98,
+         89,
+         168
+        ],
+        [
+         95,
+         89,
+         168
+        ],
+        [
+         93,
+         89,
+         168
+        ],
+        [
+         144,
+         125,
+         168
+        ],
+        [
+         141,
+         125,
+         168
+        ],
+        [
+         139,
+         124,
+         168
+        ],
+        [
+         152,
+         131,
+         168
+        ],
+        [
+         151,
+         131,
+         168
+        ],
+        [
+         150,
+         132,
+         168
+        ]
+       ],
+       "distanceKm": 0.00004788,
+       "cosIncidence": 0.04821,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00004801,
+        0.00004778,
+        0.00004726,
+        0.00005103
+       ],
+       "maxNeighbourDistanceRatio": 1.066
+      },
+      {
+       "x": 629,
+       "y": 480,
+       "errorTexels": 1.08,
+       "face": "nz",
+       "level": 10,
+       "tile": [
+        515,
+        515
+       ],
+       "decoded": [
+        14,
+        144,
+        170
+       ],
+       "expected": [
+        13.13,
+        144.6
+       ],
+       "neighbourhood": [
+        [
+         3,
+         127,
+         170
+        ],
+        [
+         2,
+         128,
+         170
+        ],
+        [
+         127,
+         192,
+         169
+        ],
+        [
+         15,
+         144,
+         170
+        ],
+        [
+         14,
+         144,
+         170
+        ],
+        [
+         12,
+         145,
+         170
+        ],
+        [
+         28,
+         160,
+         170
+        ],
+        [
+         27,
+         161,
+         170
+        ],
+        [
+         26,
+         162,
+         170
+        ]
+       ],
+       "distanceKm": 0.00001445,
+       "cosIncidence": 0.06398,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00001446,
+        0.00001444,
+        0.00001413,
+        0.00001477
+       ],
+       "maxNeighbourDistanceRatio": 1.023
+      },
+      {
+       "x": 716,
+       "y": 480,
+       "errorTexels": 0.9742,
+       "face": "nz",
+       "level": 10,
+       "tile": [
+        514,
+        516
+       ],
+       "decoded": [
+        240,
+        47,
+        170
+       ],
+       "expected": [
+        240.5,
+        46.15
+       ],
+       "neighbourhood": [
+        [
+         223,
+         29,
+         170
+        ],
+        [
+         224,
+         32,
+         170
+        ],
+        [
+         225,
+         34,
+         170
+        ],
+        [
+         239,
+         44,
+         170
+        ],
+        [
+         240,
+         47,
+         170
+        ],
+        [
+         241,
+         49,
+         170
+        ],
+        [
+         4,
+         62,
+         170
+        ],
+        [
+         5,
+         65,
+         170
+        ],
+        [
+         7,
+         68,
+         170
+        ]
+       ],
+       "distanceKm": 0.00001293,
+       "cosIncidence": 0.05313,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00001289,
+        0.00001296,
+        0.00001253,
+        0.00001325
+       ],
+       "maxNeighbourDistanceRatio": 1.032
+      }
+     ],
+     "errorTexels": {
+      "n": 1159,
+      "median": 0.41,
+      "rms": 0.4385,
+      "p95": 0.6625,
+      "max": 2.769
+     },
+     "errorMetres": {
+      "n": 1159,
+      "median": 9.35,
+      "rms": 237.2,
+      "p95": 33.48,
+      "max": 4366
+     },
+     "displayedLevels": {
+      "1": 14,
+      "3": 7,
+      "5": 6,
+      "6": 12,
+      "7": 17,
+      "8": 18,
+      "9": 27,
+      "10": 10
+     },
+     "faceMismatches": [],
+     "errors": []
+    },
+    {
+     "view": "pole",
+     "file": "registration-pole-unlit.jpg",
+     "samples": 1462,
+     "measured": 1409,
+     "skippedNearTileEdgesOrSky": 53,
+     "faceMismatch": 0,
+     "tileMismatch": 0,
+     "worstSamples": [
+      {
+       "x": 600,
+       "y": 572,
+       "errorTexels": 1.055,
+       "face": "nz",
+       "level": 10,
+       "tile": [
+        510,
+        511
+       ],
+       "decoded": [
+        239,
+        26,
+        170
+       ],
+       "expected": [
+        239.7,
+        25.21
+       ],
+       "neighbourhood": [
+        [
+         239,
+         28,
+         170
+        ],
+        [
+         240,
+         27,
+         170
+        ],
+        [
+         242,
+         26,
+         170
+        ],
+        [
+         238,
+         26,
+         170
+        ],
+        [
+         239,
+         26,
+         170
+        ],
+        [
+         241,
+         25,
+         170
+        ],
+        [
+         237,
+         25,
+         170
+        ],
+        [
+         238,
+         24,
+         170
+        ],
+        [
+         240,
+         23,
+         170
+        ]
+       ],
+       "distanceKm": 0.00001444,
+       "cosIncidence": 0.9442,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00001444,
+        0.00001444,
+        0.00001443,
+        0.00001445
+       ],
+       "maxNeighbourDistanceRatio": 1,
+       "localErrorTexels": [
+        0.72,
+        0.21,
+        0.13,
+        0.29,
+        0.49,
+        0.7,
+        0.19,
+        0.79,
+        0.78,
+        0.86,
+        0.35,
+        0.33,
+        0.42,
+        0.57,
+        0.75,
+        0.08,
+        0.14,
+        0.34,
+        0.57,
+        0.53,
+        0.54,
+        0.59,
+        0.7,
+        0.85,
+        0.26,
+        0.27,
+        0.41,
+        0.73,
+        0.71,
+        0.73,
+        0.79,
+        0.87,
+        0.55,
+        0.47,
+        0.47,
+        0.55,
+        0.09,
+        0.21,
+        0.38,
+        0.55,
+        1.06,
+        0.74,
+        0.67,
+        0.67,
+        0.73,
+        0.12,
+        0.26,
+        0.42,
+        0.59,
+        0.77,
+        0.09,
+        0.19,
+        0.87,
+        0.91,
+        0.31,
+        0.41,
+        0.54,
+        0.69,
+        0.22,
+        0.12,
+        0.21,
+        0.39,
+        0.59,
+        0.5,
+        0.58,
+        0.69,
+        0.82,
+        0.33,
+        0.3,
+        0.36,
+        0.49,
+        0.65,
+        0.69,
+        0.76,
+        0.86,
+        0.55,
+        0.49,
+        0.48,
+        0.54,
+        0.64,
+        0.77
+       ],
+       "localDistanceKm": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "x": 600,
+       "y": 204,
+       "errorTexels": 1.047,
+       "face": "nz",
+       "level": 9,
+       "tile": [
+        257,
+        257
+       ],
+       "decoded": [
+        37,
+        188,
+        169
+       ],
+       "expected": [
+        36.26,
+        188.7
+       ],
+       "neighbourhood": [
+        [
+         37,
+         191,
+         169
+        ],
+        [
+         38,
+         190,
+         169
+        ],
+        [
+         39,
+         189,
+         169
+        ],
+        [
+         35,
+         189,
+         169
+        ],
+        [
+         37,
+         188,
+         169
+        ],
+        [
+         38,
+         187,
+         169
+        ],
+        [
+         34,
+         188,
+         169
+        ],
+        [
+         35,
+         187,
+         169
+        ],
+        [
+         37,
+         186,
+         169
+        ]
+       ],
+       "distanceKm": 0.00002992,
+       "cosIncidence": 0.7483,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00002992,
+        0.00002993,
+        0.00002989,
+        0.00002996
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      },
+      {
+       "x": 629,
+       "y": 572,
+       "errorTexels": 1.041,
+       "face": "nz",
+       "level": 10,
+       "tile": [
+        511,
+        510
+       ],
+       "decoded": [
+        19,
+        253,
+        170
+       ],
+       "expected": [
+        18.33,
+        253.8
+       ],
+       "neighbourhood": [
+        [
+         137,
+         128,
+         169
+        ],
+        [
+         20,
+         255,
+         170
+        ],
+        [
+         21,
+         254,
+         170
+        ],
+        [
+         18,
+         254,
+         170
+        ],
+        [
+         19,
+         253,
+         170
+        ],
+        [
+         20,
+         252,
+         170
+        ],
+        [
+         17,
+         253,
+         170
+        ],
+        [
+         18,
+         252,
+         170
+        ],
+        [
+         19,
+         251,
+         170
+        ]
+       ],
+       "distanceKm": 0.00001445,
+       "cosIncidence": 0.9399,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00001445,
+        0.00001445,
+        0.00001444,
+        0.00001446
+       ],
+       "maxNeighbourDistanceRatio": 1
+      },
+      {
+       "x": 687,
+       "y": 549,
+       "errorTexels": 1.038,
+       "face": "nz",
+       "level": 10,
+       "tile": [
+        511,
+        510
+       ],
+       "decoded": [
+        107,
+        219,
+        170
+       ],
+       "expected": [
+        106.2,
+        219.6
+       ],
+       "neighbourhood": [
+        [
+         106,
+         222,
+         170
+        ],
+        [
+         108,
+         220,
+         170
+        ],
+        [
+         109,
+         219,
+         170
+        ],
+        [
+         105,
+         220,
+         170
+        ],
+        [
+         107,
+         219,
+         170
+        ],
+        [
+         108,
+         218,
+         170
+        ],
+        [
+         104,
+         219,
+         170
+        ],
+        [
+         105,
+         218,
+         170
+        ],
+        [
+         107,
+         217,
+         170
+        ]
+       ],
+       "distanceKm": 0.00001451,
+       "cosIncidence": 0.9452,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00001451,
+        0.00001451,
+        0.00001451,
+        0.00001452
+       ],
+       "maxNeighbourDistanceRatio": 1
+      },
+      {
+       "x": 629,
+       "y": 618,
+       "errorTexels": 1.019,
+       "face": "nz",
+       "level": 10,
+       "tile": [
+        510,
+        510
+       ],
+       "decoded": [
+        225,
+        194,
+        170
+       ],
+       "expected": [
+        225.8,
+        194.6
+       ],
+       "neighbourhood": [
+        [
+         225,
+         197,
+         170
+        ],
+        [
+         227,
+         196,
+         170
+        ],
+        [
+         228,
+         195,
+         170
+        ],
+        [
+         224,
+         195,
+         170
+        ],
+        [
+         225,
+         194,
+         170
+        ],
+        [
+         227,
+         193,
+         170
+        ],
+        [
+         223,
+         194,
+         170
+        ],
+        [
+         224,
+         193,
+         170
+        ],
+        [
+         226,
+         192,
+         170
+        ]
+       ],
+       "distanceKm": 0.00001393,
+       "cosIncidence": 0.8393,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00001393,
+        0.00001394,
+        0.00001392,
+        0.00001394
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      }
+     ],
+     "errorTexels": {
+      "n": 1409,
+      "median": 0.4097,
+      "rms": 0.4511,
+      "p95": 0.7152,
+      "max": 1.055
+     },
+     "errorMetres": {
+      "n": 1409,
+      "median": 10.41,
+      "rms": 14.03,
+      "p95": 27.21,
+      "max": 59.69
+     },
+     "displayedLevels": {
+      "1": 4,
+      "3": 16,
+      "4": 1,
+      "5": 3,
+      "6": 9,
+      "7": 22,
+      "8": 20,
+      "9": 36,
+      "10": 11
+     },
+     "faceMismatches": [],
+     "errors": []
+    },
+    {
+     "view": "antimeridian-60s",
+     "file": "registration-antimeridian-60s-unlit.jpg",
+     "samples": 1462,
+     "measured": 1424,
+     "skippedNearTileEdgesOrSky": 38,
+     "faceMismatch": 0,
+     "tileMismatch": 0,
+     "worstSamples": [
+      {
+       "x": 745,
+       "y": 411,
+       "errorTexels": 1.203,
+       "face": "nz",
+       "level": 8,
+       "tile": [
+        201,
+        128
+       ],
+       "decoded": [
+        76,
+        116,
+        168
+       ],
+       "expected": [
+        75.18,
+        115.1
+       ],
+       "neighbourhood": [
+        [
+         75,
+         113,
+         168
+        ],
+        [
+         74,
+         115,
+         168
+        ],
+        [
+         73,
+         116,
+         168
+        ],
+        [
+         77,
+         114,
+         168
+        ],
+        [
+         76,
+         116,
+         168
+        ],
+        [
+         75,
+         117,
+         168
+        ],
+        [
+         78,
+         115,
+         168
+        ],
+        [
+         77,
+         116,
+         168
+        ],
+        [
+         76,
+         118,
+         168
+        ]
+       ],
+       "distanceKm": 0.00005214,
+       "cosIncidence": 0.8742,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00005215,
+        0.00005213,
+        0.0000521,
+        0.00005218
+       ],
+       "maxNeighbourDistanceRatio": 1.001,
+       "localErrorTexels": [
+        0.15,
+        0.68,
+        0.36,
+        0.2,
+        0.64,
+        0.34,
+        0.93,
+        0.6,
+        0.33,
+        0.31,
+        0.79,
+        0.5,
+        0.34,
+        0.76,
+        0.49,
+        0.39,
+        0.73,
+        0.49,
+        0.48,
+        0.92,
+        0.65,
+        0.5,
+        0.9,
+        0.65,
+        0.54,
+        0.88,
+        0.65,
+        0.64,
+        1.06,
+        0.82,
+        0.67,
+        1.05,
+        0.82,
+        0.69,
+        1.03,
+        0.82,
+        0.82,
+        0.78,
+        0.98,
+        0.84,
+        1.2,
+        0.99,
+        0.86,
+        1.2,
+        0.99,
+        0.36,
+        0.06,
+        0.66,
+        0.31,
+        0.05,
+        0.61,
+        0.26,
+        0.08,
+        0.57,
+        0.43,
+        0.13,
+        0.74,
+        0.4,
+        0.14,
+        0.7,
+        0.38,
+        0.17,
+        0.67,
+        0.56,
+        0.31,
+        0.85,
+        0.54,
+        0.32,
+        0.83,
+        0.53,
+        0.34,
+        0.81,
+        0.71,
+        0.49,
+        0.98,
+        0.7,
+        0.5,
+        0.97,
+        0.7,
+        0.52,
+        0.96
+       ],
+       "localDistanceKm": [
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001
+       ]
+      },
+      {
+       "x": 339,
+       "y": 572,
+       "errorTexels": 1.071,
+       "face": "nz",
+       "level": 8,
+       "tile": [
+        203,
+        127
+       ],
+       "decoded": [
+        209,
+        23,
+        168
+       ],
+       "expected": [
+        209.7,
+        22.23
+       ],
+       "neighbourhood": [
+        [
+         209,
+         20,
+         168
+        ],
+        [
+         208,
+         21,
+         168
+        ],
+        [
+         207,
+         22,
+         168
+        ],
+        [
+         210,
+         21,
+         168
+        ],
+        [
+         209,
+         23,
+         168
+        ],
+        [
+         209,
+         24,
+         168
+        ],
+        [
+         212,
+         23,
+         168
+        ],
+        [
+         211,
+         24,
+         168
+        ],
+        [
+         210,
+         25,
+         168
+        ]
+       ],
+       "distanceKm": 0.00005072,
+       "cosIncidence": 0.8965,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.0000507,
+        0.00005073,
+        0.00005069,
+        0.00005074
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      },
+      {
+       "x": 658,
+       "y": 572,
+       "errorTexels": 1.058,
+       "face": "nz",
+       "level": 8,
+       "tile": [
+        202,
+        128
+       ],
+       "decoded": [
+        165,
+        144,
+        168
+       ],
+       "expected": [
+        165.7,
+        144.8
+       ],
+       "neighbourhood": [
+        [
+         165,
+         142,
+         168
+        ],
+        [
+         164,
+         144,
+         168
+        ],
+        [
+         163,
+         145,
+         168
+        ],
+        [
+         166,
+         143,
+         168
+        ],
+        [
+         165,
+         144,
+         168
+        ],
+        [
+         164,
+         146,
+         168
+        ],
+        [
+         168,
+         144,
+         168
+        ],
+        [
+         167,
+         145,
+         168
+        ],
+        [
+         166,
+         146,
+         168
+        ]
+       ],
+       "distanceKm": 0.00004687,
+       "cosIncidence": 0.9644,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00004688,
+        0.00004687,
+        0.00004686,
+        0.00004689
+       ],
+       "maxNeighbourDistanceRatio": 1
+      },
+      {
+       "x": 745,
+       "y": 549,
+       "errorTexels": 1.045,
+       "face": "nz",
+       "level": 8,
+       "tile": [
+        202,
+        128
+       ],
+       "decoded": [
+        51,
+        230,
+        168
+       ],
+       "expected": [
+        50.31,
+        230.8
+       ],
+       "neighbourhood": [
+        [
+         50,
+         229,
+         168
+        ],
+        [
+         49,
+         230,
+         168
+        ],
+        [
+         48,
+         231,
+         168
+        ],
+        [
+         52,
+         229,
+         168
+        ],
+        [
+         51,
+         230,
+         168
+        ],
+        [
+         50,
+         232,
+         168
+        ],
+        [
+         53,
+         230,
+         168
+        ],
+        [
+         52,
+         231,
+         168
+        ],
+        [
+         51,
+         232,
+         168
+        ]
+       ],
+       "distanceKm": 0.00004782,
+       "cosIncidence": 0.9418,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00004783,
+        0.00004781,
+        0.0000478,
+        0.00004784
+       ],
+       "maxNeighbourDistanceRatio": 1
+      },
+      {
+       "x": 600,
+       "y": 503,
+       "errorTexels": 1.041,
+       "face": "nz",
+       "level": 8,
+       "tile": [
+        202,
+        128
+       ],
+       "decoded": [
+        122,
+        15,
+        168
+       ],
+       "expected": [
+        121.4,
+        14.16
+       ],
+       "neighbourhood": [
+        [
+         121,
+         12,
+         168
+        ],
+        [
+         120,
+         14,
+         168
+        ],
+        [
+         119,
+         15,
+         168
+        ],
+        [
+         123,
+         13,
+         168
+        ],
+        [
+         122,
+         15,
+         168
+        ],
+        [
+         121,
+         16,
+         168
+        ],
+        [
+         124,
+         14,
+         168
+        ],
+        [
+         123,
+         15,
+         168
+        ],
+        [
+         122,
+         17,
+         168
+        ]
+       ],
+       "distanceKm": 0.00004846,
+       "cosIncidence": 0.925,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00004846,
+        0.00004846,
+        0.00004843,
+        0.00004849
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      }
+     ],
+     "errorTexels": {
+      "n": 1424,
+      "median": 0.4117,
+      "rms": 0.4456,
+      "p95": 0.6815,
+      "max": 1.203
+     },
+     "errorMetres": {
+      "n": 1424,
+      "median": 33.63,
+      "rms": 38.46,
+      "p95": 60.56,
+      "max": 122.8
+     },
+     "displayedLevels": {
+      "1": 19,
+      "2": 7,
+      "3": 18,
+      "4": 16,
+      "5": 22,
+      "6": 19,
+      "7": 38,
+      "8": 10
+     },
+     "faceMismatches": [],
+     "errors": []
+    },
+    {
+     "view": "face-edge",
+     "file": "registration-face-edge-unlit.jpg",
+     "samples": 1462,
+     "measured": 1425,
+     "skippedNearTileEdgesOrSky": 37,
+     "faceMismatch": 0,
+     "tileMismatch": 0,
+     "worstSamples": [
+      {
+       "x": 455,
+       "y": 158,
+       "errorTexels": 1.008,
+       "face": "nz",
+       "level": 7,
+       "tile": [
+        0,
+        65
+       ],
+       "decoded": [
+        147,
+        152,
+        167
+       ],
+       "expected": [
+        147.7,
+        152.7
+       ],
+       "neighbourhood": [
+        [
+         148,
+         155,
+         167
+        ],
+        [
+         149,
+         154,
+         167
+        ],
+        [
+         150,
+         153,
+         167
+        ],
+        [
+         146,
+         153,
+         167
+        ],
+        [
+         147,
+         152,
+         167
+        ],
+        [
+         149,
+         152,
+         167
+        ],
+        [
+         145,
+         152,
+         167
+        ],
+        [
+         146,
+         151,
+         167
+        ],
+        [
+         147,
+         150,
+         167
+        ]
+       ],
+       "distanceKm": 0.00006888,
+       "cosIncidence": 0.5639,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00006886,
+        0.0000689,
+        0.00006876,
+        0.000069
+       ],
+       "maxNeighbourDistanceRatio": 1.002,
+       "localErrorTexels": [
+        0.77,
+        0.55,
+        0.74,
+        0.42,
+        0.66,
+        0.29,
+        0.44,
+        0.58,
+        0.72,
+        0.79,
+        0.21,
+        0.46,
+        0.72,
+        0.48,
+        0.64,
+        0.39,
+        0.52,
+        0.66,
+        0.33,
+        0.63,
+        0.92,
+        0.72,
+        0.2,
+        0.34,
+        0.59,
+        0.79,
+        0.36,
+        0.84,
+        0.8,
+        0.01,
+        0.27,
+        0.5,
+        0.73,
+        0.58,
+        0.65,
+        0.78,
+        0.17,
+        0.26,
+        0.53,
+        0.79,
+        1.01,
+        0.19,
+        0.1,
+        0.31,
+        0.52,
+        0.65,
+        0.84,
+        0.61,
+        0.19,
+        0.17,
+        0.39,
+        0.64,
+        0.86,
+        1.06,
+        0.59,
+        0.81,
+        0.39,
+        0.54,
+        0.75,
+        0.58,
+        0.75,
+        0.12,
+        0.24,
+        0.64,
+        0.79,
+        0.34,
+        0.52,
+        0.72,
+        0.33,
+        0.47,
+        0.67,
+        0.85,
+        0.36,
+        0.6,
+        0.84,
+        0.6,
+        0.72,
+        0.3,
+        0.43,
+        0.63,
+        0.31
+       ],
+       "localDistanceKm": [
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001
+       ]
+      },
+      {
+       "x": 774,
+       "y": 89,
+       "errorTexels": 1.006,
+       "face": "nz",
+       "level": 7,
+       "tile": [
+        2,
+        64
+       ],
+       "decoded": [
+        193,
+        227,
+        167
+       ],
+       "expected": [
+        193.8,
+        227.7
+       ],
+       "neighbourhood": [
+        [
+         195,
+         230,
+         167
+        ],
+        [
+         196,
+         229,
+         167
+        ],
+        [
+         197,
+         228,
+         167
+        ],
+        [
+         192,
+         228,
+         167
+        ],
+        [
+         193,
+         227,
+         167
+        ],
+        [
+         195,
+         226,
+         167
+        ],
+        [
+         190,
+         227,
+         167
+        ],
+        [
+         191,
+         226,
+         167
+        ],
+        [
+         192,
+         225,
+         167
+        ]
+       ],
+       "distanceKm": 0.00007916,
+       "cosIncidence": 0.5299,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00007918,
+        0.00007915,
+        0.00007902,
+        0.00007931
+       ],
+       "maxNeighbourDistanceRatio": 1.002
+      },
+      {
+       "x": 571,
+       "y": 43,
+       "errorTexels": 0.9795,
+       "face": "nz",
+       "level": 7,
+       "tile": [
+        2,
+        65
+       ],
+       "decoded": [
+        15,
+        232,
+        167
+       ],
+       "expected": [
+        14.31,
+        232.7
+       ],
+       "neighbourhood": [
+        [
+         16,
+         235,
+         167
+        ],
+        [
+         17,
+         234,
+         167
+        ],
+        [
+         18,
+         233,
+         167
+        ],
+        [
+         13,
+         233,
+         167
+        ],
+        [
+         15,
+         232,
+         167
+        ],
+        [
+         16,
+         231,
+         167
+        ],
+        [
+         11,
+         231,
+         167
+        ],
+        [
+         12,
+         230,
+         167
+        ],
+        [
+         13,
+         229,
+         167
+        ]
+       ],
+       "distanceKm": 0.00008332,
+       "cosIncidence": 0.4518,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.0000833,
+        0.00008333,
+        0.00008312,
+        0.0000835
+       ],
+       "maxNeighbourDistanceRatio": 1.002
+      },
+      {
+       "x": 20,
+       "y": 181,
+       "errorTexels": 0.9711,
+       "face": "px",
+       "level": 7,
+       "tile": [
+        126,
+        66
+       ],
+       "decoded": [
+        126,
+        227,
+        7
+       ],
+       "expected": [
+        125.3,
+        227.7
+       ],
+       "neighbourhood": [
+        [
+         125,
+         230,
+         7
+        ],
+        [
+         127,
+         229,
+         7
+        ],
+        [
+         127,
+         228,
+         7
+        ],
+        [
+         124,
+         228,
+         7
+        ],
+        [
+         126,
+         227,
+         7
+        ],
+        [
+         127,
+         226,
+         7
+        ],
+        [
+         124,
+         227,
+         7
+        ],
+        [
+         125,
+         226,
+         7
+        ],
+        [
+         126,
+         225,
+         7
+        ]
+       ],
+       "distanceKm": 0.00008455,
+       "cosIncidence": 0.4882,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00008447,
+        0.00008462,
+        0.00008445,
+        0.00008465
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      },
+      {
+       "x": 571,
+       "y": 135,
+       "errorTexels": 0.9603,
+       "face": "nz",
+       "level": 7,
+       "tile": [
+        1,
+        65
+       ],
+       "decoded": [
+        69,
+        81,
+        167
+       ],
+       "expected": [
+        68.28,
+        80.37
+       ],
+       "neighbourhood": [
+        [
+         69,
+         83,
+         167
+        ],
+        [
+         70,
+         82,
+         167
+        ],
+        [
+         72,
+         81,
+         167
+        ],
+        [
+         67,
+         82,
+         167
+        ],
+        [
+         69,
+         81,
+         167
+        ],
+        [
+         70,
+         80,
+         167
+        ],
+        [
+         66,
+         80,
+         167
+        ],
+        [
+         67,
+         79,
+         167
+        ],
+        [
+         68,
+         78,
+         167
+        ]
+       ],
+       "distanceKm": 0.00006958,
+       "cosIncidence": 0.5951,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00006957,
+        0.00006959,
+        0.00006947,
+        0.0000697
+       ],
+       "maxNeighbourDistanceRatio": 1.002
+      }
+     ],
+     "errorTexels": {
+      "n": 1425,
+      "median": 0.4143,
+      "rms": 0.4468,
+      "p95": 0.694,
+      "max": 1.008
+     },
+     "errorMetres": {
+      "n": 1425,
+      "median": 32.39,
+      "rms": 38.58,
+      "p95": 69.56,
+      "max": 108
+     },
+     "displayedLevels": {
+      "2": 5,
+      "3": 21,
+      "4": 16,
+      "5": 15,
+      "6": 28,
+      "7": 42,
+      "8": 2
+     },
+     "faceMismatches": [],
+     "errors": []
+    },
+    {
+     "view": "face-corner",
+     "file": "registration-face-corner-unlit.jpg",
+     "samples": 1462,
+     "measured": 1413,
+     "skippedNearTileEdgesOrSky": 49,
+     "faceMismatch": 0,
+     "tileMismatch": 0,
+     "worstSamples": [
+      {
+       "x": 803,
+       "y": 135,
+       "errorTexels": 0.8324,
+       "face": "px",
+       "level": 6,
+       "tile": [
+        63,
+        62
+       ],
+       "decoded": [
+        208,
+        129,
+        6
+       ],
+       "expected": [
+        208.6,
+        129.6
+       ],
+       "neighbourhood": [
+        [
+         210,
+         129,
+         6
+        ],
+        [
+         209,
+         128,
+         6
+        ],
+        [
+         208,
+         128,
+         6
+        ],
+        [
+         210,
+         130,
+         6
+        ],
+        [
+         208,
+         129,
+         6
+        ],
+        [
+         207,
+         129,
+         6
+        ],
+        [
+         209,
+         131,
+         6
+        ],
+        [
+         208,
+         131,
+         6
+        ],
+        [
+         207,
+         130,
+         6
+        ]
+       ],
+       "distanceKm": 0.00008471,
+       "cosIncidence": 0.7292,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00008471,
+        0.0000847,
+        0.00008461,
+        0.00008481
+       ],
+       "maxNeighbourDistanceRatio": 1.001,
+       "localErrorTexels": [
+        0.66,
+        0.4,
+        0.15,
+        0.17,
+        0.42,
+        0.75,
+        0.5,
+        0.26,
+        0.09,
+        0.31,
+        0.7,
+        0.51,
+        0.35,
+        0.33,
+        0.52,
+        0.4,
+        0.63,
+        0.43,
+        0.35,
+        0.16,
+        0.1,
+        0.29,
+        0.73,
+        0.65,
+        0.4,
+        0.15,
+        0.09,
+        0.19,
+        0.65,
+        0.52,
+        0.45,
+        0.49,
+        0.39,
+        0.32,
+        0.6,
+        0.44,
+        0.33,
+        0.27,
+        0.33,
+        0.49,
+        0.83,
+        0.54,
+        0.32,
+        0.1,
+        0.16,
+        0.36,
+        0.69,
+        0.61,
+        0.58,
+        0.38,
+        0.25,
+        0.26,
+        0.59,
+        0.46,
+        0.45,
+        0.46,
+        0.54,
+        0.66,
+        0.67,
+        0.46,
+        0.26,
+        0.12,
+        0.22,
+        0.53,
+        0.78,
+        0.73,
+        0.41,
+        0.25,
+        0.16,
+        0.24,
+        0.6,
+        0.49,
+        0.56,
+        0.59,
+        0.36,
+        0.37,
+        0.61,
+        0.42,
+        0.26,
+        0.17,
+        0.29
+       ],
+       "localDistanceKm": [
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001,
+        0.0001
+       ]
+      },
+      {
+       "x": 948,
+       "y": 20,
+       "errorTexels": 0.7425,
+       "face": "px",
+       "level": 6,
+       "tile": [
+        63,
+        61
+       ],
+       "decoded": [
+        91,
+        80,
+        6
+       ],
+       "expected": [
+        90.44,
+        79.51
+       ],
+       "neighbourhood": [
+        [
+         92,
+         79,
+         6
+        ],
+        [
+         91,
+         78,
+         6
+        ],
+        [
+         90,
+         77,
+         6
+        ],
+        [
+         92,
+         81,
+         6
+        ],
+        [
+         91,
+         80,
+         6
+        ],
+        [
+         89,
+         78,
+         6
+        ],
+        [
+         91,
+         82,
+         6
+        ],
+        [
+         90,
+         81,
+         6
+        ],
+        [
+         89,
+         80,
+         6
+        ]
+       ],
+       "distanceKm": 0.0001056,
+       "cosIncidence": 0.5811,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.0001056,
+        0.0001055,
+        0.0001054,
+        0.0001057
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      },
+      {
+       "x": 629,
+       "y": 342,
+       "errorTexels": 0.7371,
+       "face": "nz",
+       "level": 6,
+       "tile": [
+        0,
+        63
+       ],
+       "decoded": [
+        39,
+        183,
+        166
+       ],
+       "expected": [
+        38.48,
+        183.5
+       ],
+       "neighbourhood": [
+        [
+         40,
+         182,
+         166
+        ],
+        [
+         39,
+         182,
+         166
+        ],
+        [
+         38,
+         182,
+         166
+        ],
+        [
+         40,
+         183,
+         166
+        ],
+        [
+         39,
+         183,
+         166
+        ],
+        [
+         37,
+         184,
+         166
+        ],
+        [
+         39,
+         185,
+         166
+        ],
+        [
+         38,
+         185,
+         166
+        ],
+        [
+         37,
+         185,
+         166
+        ]
+       ],
+       "distanceKm": 0.000068,
+       "cosIncidence": 0.8307,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.000068,
+        0.00006801,
+        0.00006794,
+        0.00006806
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      },
+      {
+       "x": 49,
+       "y": 503,
+       "errorTexels": 0.7324,
+       "face": "py",
+       "level": 6,
+       "tile": [
+        61,
+        63
+       ],
+       "decoded": [
+        220,
+        217,
+        70
+       ],
+       "expected": [
+        220.5,
+        217.6
+       ],
+       "neighbourhood": [
+        [
+         219,
+         219,
+         70
+        ],
+        [
+         220,
+         219,
+         70
+        ],
+        [
+         222,
+         218,
+         70
+        ],
+        [
+         219,
+         218,
+         70
+        ],
+        [
+         220,
+         217,
+         70
+        ],
+        [
+         222,
+         217,
+         70
+        ],
+        [
+         219,
+         217,
+         70
+        ],
+        [
+         220,
+         216,
+         70
+        ],
+        [
+         222,
+         216,
+         70
+        ]
+       ],
+       "distanceKm": 0.00008267,
+       "cosIncidence": 0.3988,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00008253,
+        0.00008281,
+        0.00008255,
+        0.00008279
+       ],
+       "maxNeighbourDistanceRatio": 1.002
+      },
+      {
+       "x": 1093,
+       "y": 526,
+       "errorTexels": 0.7208,
+       "face": "px",
+       "level": 6,
+       "tile": [
+        62,
+        62
+       ],
+       "decoded": [
+        54,
+        239,
+        6
+       ],
+       "expected": [
+        53.48,
+        239.5
+       ],
+       "neighbourhood": [
+        [
+         55,
+         240,
+         6
+        ],
+        [
+         54,
+         239,
+         6
+        ],
+        [
+         53,
+         238,
+         6
+        ],
+        [
+         54,
+         240,
+         6
+        ],
+        [
+         54,
+         239,
+         6
+        ],
+        [
+         53,
+         239,
+         6
+        ],
+        [
+         54,
+         241,
+         6
+        ],
+        [
+         53,
+         240,
+         6
+        ],
+        [
+         52,
+         239,
+         6
+        ]
+       ],
+       "distanceKm": 0.00007258,
+       "cosIncidence": 0.7711,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.00007264,
+        0.00007252,
+        0.00007256,
+        0.0000726
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      }
+     ],
+     "errorTexels": {
+      "n": 1413,
+      "median": 0.4088,
+      "rms": 0.4189,
+      "p95": 0.6155,
+      "max": 0.8324
+     },
+     "errorMetres": {
+      "n": 1413,
+      "median": 42.22,
+      "rms": 43.6,
+      "p95": 64.33,
+      "max": 85.92
+     },
+     "displayedLevels": {
+      "2": 10,
+      "3": 18,
+      "4": 8,
+      "5": 28,
+      "6": 50
+     },
+     "faceMismatches": [],
+     "errors": []
+    },
+    {
+     "view": "overview",
+     "file": "registration-overview-unlit.jpg",
+     "samples": 1462,
+     "measured": 491,
+     "skippedNearTileEdgesOrSky": 971,
+     "faceMismatch": 0,
+     "tileMismatch": 0,
+     "worstSamples": [
+      {
+       "x": 803,
+       "y": 618,
+       "errorTexels": 1.286,
+       "face": "nz",
+       "level": 2,
+       "tile": [
+        0,
+        3
+       ],
+       "decoded": [
+        14,
+        79,
+        162
+       ],
+       "expected": [
+        13.1,
+        78.08
+       ],
+       "neighbourhood": [
+        [
+         17,
+         78,
+         162
+        ],
+        [
+         15,
+         77,
+         162
+        ],
+        [
+         13,
+         76,
+         162
+        ],
+        [
+         15,
+         79,
+         162
+        ],
+        [
+         14,
+         79,
+         162
+        ],
+        [
+         12,
+         78,
+         162
+        ],
+        [
+         14,
+         81,
+         162
+        ],
+        [
+         12,
+         80,
+         162
+        ],
+        [
+         10,
+         80,
+         162
+        ]
+       ],
+       "distanceKm": 0.003204,
+       "cosIncidence": 0.8325,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.003206,
+        0.003202,
+        0.003205,
+        0.003203
+       ],
+       "maxNeighbourDistanceRatio": 1.001,
+       "localErrorTexels": [
+        0.95,
+        0.67,
+        0.39,
+        0.14,
+        0.85,
+        1.08,
+        0.87,
+        0.67,
+        0.52,
+        0.21,
+        0.82,
+        1.08,
+        0.87,
+        0.69,
+        1.07,
+        0.84,
+        0.61,
+        0.4,
+        0.89,
+        0.7,
+        1.04,
+        0.8,
+        0.57,
+        0.37,
+        0.27,
+        0.75,
+        0.52,
+        0.78,
+        0.55,
+        0.34,
+        0.93,
+        0.68,
+        0.44,
+        0.21,
+        0.05,
+        1.16,
+        0.9,
+        0.64,
+        0.39,
+        0.15,
+        1.29,
+        1.06,
+        0.86,
+        0.68,
+        0.56,
+        0.12,
+        0.87,
+        1.05,
+        0.81,
+        0.61,
+        1.06,
+        0.82,
+        0.59,
+        0.38,
+        0.88,
+        0.7,
+        1.04,
+        0.78,
+        0.53,
+        0.28,
+        0.14,
+        0.73,
+        0.5,
+        0.8,
+        0.55,
+        0.32,
+        0.89,
+        0.65,
+        0.41,
+        0.93,
+        1.28,
+        "edge",
+        0.84,
+        0.58,
+        0.33,
+        0.9,
+        1.19,
+        0.98,
+        0.81,
+        "edge",
+        "edge"
+       ],
+       "localDistanceKm": [
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032,
+        0.0032
+       ]
+      },
+      {
+       "x": 397,
+       "y": 595,
+       "errorTexels": 1.228,
+       "face": "py",
+       "level": 2,
+       "tile": [
+        1,
+        3
+       ],
+       "decoded": [
+        156,
+        137,
+        66
+       ],
+       "expected": [
+        156.9,
+        137.8
+       ],
+       "neighbourhood": [
+        [
+         154,
+         138,
+         66
+        ],
+        [
+         156,
+         139,
+         66
+        ],
+        [
+         157,
+         140,
+         66
+        ],
+        [
+         155,
+         136,
+         66
+        ],
+        [
+         156,
+         137,
+         66
+        ],
+        [
+         158,
+         139,
+         66
+        ],
+        [
+         155,
+         135,
+         66
+        ],
+        [
+         157,
+         136,
+         66
+        ],
+        [
+         159,
+         137,
+         66
+        ]
+       ],
+       "distanceKm": 0.003412,
+       "cosIncidence": 0.6606,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.003408,
+        0.003416,
+        0.003413,
+        0.003411
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      },
+      {
+       "x": 368,
+       "y": 526,
+       "errorTexels": 1.2,
+       "face": "py",
+       "level": 2,
+       "tile": [
+        1,
+        3
+       ],
+       "decoded": [
+        41,
+        221,
+        66
+       ],
+       "expected": [
+        40.07,
+        221.8
+       ],
+       "neighbourhood": [
+        [
+         37,
+         221,
+         66
+        ],
+        [
+         39,
+         223,
+         66
+        ],
+        [
+         41,
+         225,
+         66
+        ],
+        [
+         38,
+         220,
+         66
+        ],
+        [
+         41,
+         221,
+         66
+        ],
+        [
+         43,
+         223,
+         66
+        ],
+        [
+         40,
+         218,
+         66
+        ],
+        [
+         42,
+         219,
+         66
+        ],
+        [
+         44,
+         221,
+         66
+        ]
+       ],
+       "distanceKm": 0.003512,
+       "cosIncidence": 0.5878,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.003507,
+        0.003518,
+        0.003512,
+        0.003513
+       ],
+       "maxNeighbourDistanceRatio": 1.002
+      },
+      {
+       "x": 890,
+       "y": 549,
+       "errorTexels": 1.194,
+       "face": "px",
+       "level": 2,
+       "tile": [
+        3,
+        2
+       ],
+       "decoded": [
+        201,
+        125,
+        2
+       ],
+       "expected": [
+        201.8,
+        124.1
+       ],
+       "neighbourhood": [
+        [
+         205,
+         125,
+         2
+        ],
+        [
+         203,
+         124,
+         2
+        ],
+        [
+         201,
+         122,
+         2
+        ],
+        [
+         204,
+         126,
+         2
+        ],
+        [
+         201,
+         125,
+         2
+        ],
+        [
+         199,
+         123,
+         2
+        ],
+        [
+         202,
+         127,
+         2
+        ],
+        [
+         200,
+         125,
+         2
+        ],
+        [
+         198,
+         124,
+         2
+        ]
+       ],
+       "distanceKm": 0.003422,
+       "cosIncidence": 0.6554,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.003426,
+        0.003418,
+        0.003422,
+        0.003422
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      },
+      {
+       "x": 716,
+       "y": 779,
+       "errorTexels": 1.175,
+       "face": "py",
+       "level": 2,
+       "tile": [
+        3,
+        3
+       ],
+       "decoded": [
+        172,
+        22,
+        66
+       ],
+       "expected": [
+        172.9,
+        21.26
+       ],
+       "neighbourhood": [
+        [
+         170,
+         24,
+         66
+        ],
+        [
+         172,
+         24,
+         66
+        ],
+        [
+         174,
+         24,
+         66
+        ],
+        [
+         170,
+         22,
+         66
+        ],
+        [
+         172,
+         22,
+         66
+        ],
+        [
+         174,
+         22,
+         66
+        ],
+        [
+         170,
+         19,
+         66
+        ],
+        [
+         172,
+         20,
+         66
+        ],
+        [
+         174,
+         20,
+         66
+        ]
+       ],
+       "distanceKm": 0.003421,
+       "cosIncidence": 0.6532,
+       "onSkirt": false,
+       "neighbourDistanceKm": [
+        0.003422,
+        0.00342,
+        0.003425,
+        0.003417
+       ],
+       "maxNeighbourDistanceRatio": 1.001
+      }
+     ],
+     "errorTexels": {
+      "n": 491,
+      "median": 0.5195,
+      "rms": 0.5857,
+      "p95": 0.9356,
+      "max": 1.286
+     },
+     "errorMetres": {
+      "n": 491,
+      "median": 1517,
+      "rms": 1695,
+      "p95": 2764,
+      "max": 3858
+     },
+     "displayedLevels": {
+      "1": 37,
+      "2": 20
+     },
+     "faceMismatches": [],
+     "errors": []
+    }
+   ],
+   "markers": [
+    {
+     "marker": "shackleton",
+     "latDeg": -89.67,
+     "lonDeg": 129.8,
+     "elevationKm": -2.789,
+     "projected": [
+      640,
+      400
+     ],
+     "ring075kmPx": 30.9,
+     "pixels": 1957,
+     "centroid": [
+      640,
+      399.9
+     ],
+     "screenCentroidErrorPx": 0.06134,
+     "screenCentroidErrorMetresApprox": 1.24,
+     "groundCentroidErrorM": 1.283,
+     "rayHits": 1957,
+     "displayedLevels": {
+      "3": 5,
+      "8": 9,
+      "9": 49,
+      "10": 5
+     },
+     "file": "markers-shackleton-unlit.jpg"
+    },
+    {
+     "marker": "south-pole",
+     "latDeg": -90,
+     "lonDeg": 0,
+     "elevationKm": 1.293,
+     "projected": [
+      640,
+      399.8
+     ],
+     "ring075kmPx": 40.92,
+     "pixels": 3433,
+     "centroid": [
+      640.1,
+      399.9
+     ],
+     "screenCentroidErrorPx": 0.1436,
+     "screenCentroidErrorMetresApprox": 2.901,
+     "groundCentroidErrorM": 8.521,
+     "rayHits": 3433,
+     "displayedLevels": {
+      "8": 4,
+      "9": 32,
+      "10": 8
+     },
+     "file": "markers-south-pole-unlit.jpg"
+    },
+    {
+     "marker": "antimeridian-88s",
+     "latDeg": -88,
+     "lonDeg": 180,
+     "elevationKm": -0.2493,
+     "projected": [
+      640,
+      400
+     ],
+     "ring075kmPx": 36.46,
+     "pixels": 1882,
+     "centroid": [
+      640.1,
+      400.5
+     ],
+     "screenCentroidErrorPx": 0.4736,
+     "screenCentroidErrorMetresApprox": 9.571,
+     "groundCentroidErrorM": 4.231,
+     "rayHits": 1882,
+     "displayedLevels": {
+      "7": 9,
+      "8": 3
+     },
+     "file": "markers-antimeridian-88s-unlit.jpg"
+    },
+    {
+     "marker": "antimeridian-60s",
+     "latDeg": -60,
+     "lonDeg": 180,
+     "elevationKm": -5.495,
+     "projected": [
+      640,
+      400
+     ],
+     "ring075kmPx": 26.57,
+     "pixels": 1336,
+     "centroid": [
+      640,
+      400
+     ],
+     "screenCentroidErrorPx": 0.02684,
+     "screenCentroidErrorMetresApprox": 0.5423,
+     "groundCentroidErrorM": 0.5456,
+     "rayHits": 1336,
+     "displayedLevels": {
+      "0": 2,
+      "1": 94,
+      "3": 5,
+      "6": 6,
+      "7": 27,
+      "8": 33,
+      "9": 3
+     },
+     "file": "markers-antimeridian-60s-unlit.jpg"
+    },
+    {
+     "marker": "antimeridian-equator",
+     "latDeg": 0,
+     "lonDeg": 180,
+     "elevationKm": 2.756,
+     "projected": [
+      640,
+      400
+     ],
+     "ring075kmPx": 46.28,
+     "pixels": 4497,
+     "centroid": [
+      639.9,
+      399.9
+     ],
+     "screenCentroidErrorPx": 0.1055,
+     "screenCentroidErrorMetresApprox": 2.132,
+     "groundCentroidErrorM": 0.009117,
+     "rayHits": 4497,
+     "displayedLevels": {
+      "1": 7,
+      "3": 46,
+      "4": 41,
+      "7": 9,
+      "8": 11,
+      "9": 12,
+      "10": 16
+     },
+     "file": "markers-antimeridian-equator-unlit.jpg"
+    },
+    {
+     "marker": "edge-px-nz",
+     "latDeg": -45,
+     "lonDeg": 0,
+     "elevationKm": -0.7292,
+     "projected": [
+      641,
+      400.3
+     ],
+     "ring075kmPx": 35.26,
+     "pixels": 2580,
+     "centroid": [
+      641,
+      400.3
+     ],
+     "screenCentroidErrorPx": 0.04235,
+     "screenCentroidErrorMetresApprox": 0.8558,
+     "groundCentroidErrorM": 2.115,
+     "rayHits": 2580,
+     "displayedLevels": {
+      "0": 2,
+      "1": 4,
+      "3": 4,
+      "7": 8,
+      "8": 31,
+      "9": 39
+     },
+     "file": "markers-edge-px-nz-unlit.jpg"
+    },
+    {
+     "marker": "corner-px-py-nz",
+     "latDeg": -35.26,
+     "lonDeg": 45,
+     "elevationKm": 0.2621,
+     "projected": [
+      639.9,
+      400
+     ],
+     "ring075kmPx": 37.83,
+     "pixels": 3048,
+     "centroid": [
+      639.9,
+      400.1
+     ],
+     "screenCentroidErrorPx": 0.02518,
+     "screenCentroidErrorMetresApprox": 0.5088,
+     "groundCentroidErrorM": 2.243,
+     "rayHits": 3048,
+     "displayedLevels": {
+      "1": 28,
+      "3": 6,
+      "4": 1,
+      "8": 59,
+      "9": 5
+     },
+     "file": "markers-corner-px-py-nz-unlit.jpg"
+    }
+   ],
+   "markersErrors": [],
+   "failure": {
+    "view": "shackleton",
+    "files": {
+     "shaded": "failure-shackleton-shaded.jpg",
+     "level": "failure-shackleton-level.jpg"
+    },
+    "blockedRequests": 68,
+    "requestsInNext5s": 0,
+    "settleMs": 4061,
+    "finished": true,
+    "geometryLevels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 11,
+     "7": 15,
+     "8": 13,
+     "9": 25,
+     "10": 12
+    },
+    "visibleTiles": 110,
+    "glbRequests": 216,
+    "glbBytes": 34755264,
+    "imageryRequests": 129,
+    "imageryBytes": 1894090,
+    "imagery": {
+     "version": "cube-imagery-grid-62db94d7c3c4c96d",
+     "ready": true,
+     "textures": 61,
+     "pinnedTextures": 30,
+     "textureBytes": 22674432,
+     "maxTextureBytes": 167772160,
+     "requests": 129,
+     "bytes": 1894090,
+     "failures": 68,
+     "aborted": 0,
+     "evicted": 0,
+     "blockBuildMs": 233.1,
+     "inFlight": 0,
+     "failedTiles": 68,
+     "blockGeometryBytes": 6438276,
+     "tiles": 45,
+     "splitTiles": 20,
+     "blocks": 111,
+     "displayedLevels": {
+      "1": 21,
+      "3": 62,
+      "5": 6,
+      "6": 22
+     },
+     "wantedLevels": {
+      "3": 4,
+      "4": 10,
+      "5": 12,
+      "6": 13,
+      "7": 17,
+      "8": 18,
+      "9": 27,
+      "10": 10
+     },
+     "fallbackBlocks": 0,
+     "failedBlocks": 72,
+     "untexturedBlocks": 0,
+     "maxDisplayedLevel": 6,
+     "queued": 0,
+     "budgetLimited": false,
+     "extraDraws": 66,
+     "updateMs": 0.2
+    },
+    "tiles": {
+     "active": 129,
+     "visible": 110,
+     "drawn": 45,
+     "inCache": 216,
+     "cpu": 144
+    },
+    "memory": {
+     "cacheBytes": 34530624,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 52594020,
+     "textureBytes": 0
+    },
+    "consoleErrors": 68
+   },
+   "navigation": {
+    "budgetBytes": 67108864,
+    "steps": [
+     {
+      "label": "pole",
+      "textures": 137,
+      "textureMB": 48.6,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 137,
+      "MB": 5.2,
+      "evicted": 0,
+      "aborted": 0,
+      "blocks": 122,
+      "extraDraws": 90,
+      "blockGeometryMB": 7.83,
+      "maxLevel": 10,
+      "updateMs": 0.6,
+      "budgetLimited": false,
+      "glbRequests": 168
+     },
+     {
+      "label": "shackleton",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 198,
+      "MB": 7.8,
+      "evicted": 18,
+      "aborted": 0,
+      "blocks": 111,
+      "extraDraws": 66,
+      "blockGeometryMB": 6.44,
+      "maxLevel": 10,
+      "updateMs": 0.5,
+      "budgetLimited": false,
+      "glbRequests": 224
+     },
+     {
+      "label": "antimeridian-60s",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 323,
+      "MB": 10.1,
+      "evicted": 143,
+      "aborted": 0,
+      "blocks": 149,
+      "extraDraws": 135,
+      "blockGeometryMB": 4.32,
+      "maxLevel": 8,
+      "updateMs": 0.9,
+      "budgetLimited": false,
+      "glbRequests": 282
+     },
+     {
+      "label": "face-edge",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 444,
+      "MB": 12,
+      "evicted": 264,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 72,
+      "blockGeometryMB": 7.66,
+      "maxLevel": 8,
+      "updateMs": 0.4,
+      "budgetLimited": false,
+      "glbRequests": 462
+     },
+     {
+      "label": "face-corner",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 554,
+      "MB": 14.3,
+      "evicted": 374,
+      "aborted": 0,
+      "blocks": 114,
+      "extraDraws": 45,
+      "blockGeometryMB": 4.79,
+      "maxLevel": 6,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 670
+     },
+     {
+      "label": "overview",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 567,
+      "MB": 14.5,
+      "evicted": 387,
+      "aborted": 0,
+      "blocks": 57,
+      "extraDraws": 42,
+      "blockGeometryMB": 4.18,
+      "maxLevel": 2,
+      "updateMs": 0.2,
+      "budgetLimited": false,
+      "glbRequests": 670
+     },
+     {
+      "label": "shackleton",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 642,
+      "MB": 17.8,
+      "evicted": 462,
+      "aborted": 0,
+      "blocks": 111,
+      "extraDraws": 66,
+      "blockGeometryMB": 6.44,
+      "maxLevel": 10,
+      "updateMs": 0.5,
+      "budgetLimited": false,
+      "glbRequests": 670
+     },
+     {
+      "label": "pole",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 716,
+      "MB": 21,
+      "evicted": 536,
+      "aborted": 0,
+      "blocks": 122,
+      "extraDraws": 90,
+      "blockGeometryMB": 7.83,
+      "maxLevel": 10,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 670
+     },
+     {
+      "label": "zoom0-0.3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 758,
+      "MB": 21.7,
+      "evicted": 578,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 75,
+      "blockGeometryMB": 7.39,
+      "maxLevel": 11,
+      "updateMs": 0.5,
+      "budgetLimited": false,
+      "glbRequests": 722
+     },
+     {
+      "label": "zoom0-3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 759,
+      "MB": 21.8,
+      "evicted": 579,
+      "aborted": 0,
+      "blocks": 125,
+      "extraDraws": 81,
+      "blockGeometryMB": 8.03,
+      "maxLevel": 11,
+      "updateMs": 0.6,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom0-30km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 789,
+      "MB": 23,
+      "evicted": 609,
+      "aborted": 0,
+      "blocks": 84,
+      "extraDraws": 66,
+      "blockGeometryMB": 5.86,
+      "maxLevel": 8,
+      "updateMs": 0.6,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom0-300km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 875,
+      "MB": 25.9,
+      "evicted": 695,
+      "aborted": 0,
+      "blocks": 138,
+      "extraDraws": 99,
+      "blockGeometryMB": 10.53,
+      "maxLevel": 5,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom0-3000km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 878,
+      "MB": 26,
+      "evicted": 698,
+      "aborted": 0,
+      "blocks": 32,
+      "extraDraws": 27,
+      "blockGeometryMB": 1.71,
+      "maxLevel": 2,
+      "updateMs": 0.1,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom0-3000km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 878,
+      "MB": 26,
+      "evicted": 698,
+      "aborted": 0,
+      "blocks": 32,
+      "extraDraws": 27,
+      "blockGeometryMB": 1.71,
+      "maxLevel": 2,
+      "updateMs": 0.2,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom0-300km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 878,
+      "MB": 26,
+      "evicted": 698,
+      "aborted": 0,
+      "blocks": 138,
+      "extraDraws": 99,
+      "blockGeometryMB": 10.53,
+      "maxLevel": 5,
+      "updateMs": 0.6,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom0-30km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 889,
+      "MB": 26.4,
+      "evicted": 709,
+      "aborted": 0,
+      "blocks": 84,
+      "extraDraws": 66,
+      "blockGeometryMB": 5.86,
+      "maxLevel": 8,
+      "updateMs": 0.1,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom0-3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 950,
+      "MB": 27.7,
+      "evicted": 770,
+      "aborted": 0,
+      "blocks": 125,
+      "extraDraws": 81,
+      "blockGeometryMB": 8.03,
+      "maxLevel": 11,
+      "updateMs": 0.4,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom0-0.3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 956,
+      "MB": 27.8,
+      "evicted": 776,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 75,
+      "blockGeometryMB": 7.39,
+      "maxLevel": 11,
+      "updateMs": 0.4,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom1-0.3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 956,
+      "MB": 27.8,
+      "evicted": 776,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 75,
+      "blockGeometryMB": 7.39,
+      "maxLevel": 11,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom1-3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 956,
+      "MB": 27.8,
+      "evicted": 776,
+      "aborted": 0,
+      "blocks": 125,
+      "extraDraws": 81,
+      "blockGeometryMB": 8.03,
+      "maxLevel": 11,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom1-30km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 956,
+      "MB": 27.8,
+      "evicted": 776,
+      "aborted": 0,
+      "blocks": 84,
+      "extraDraws": 66,
+      "blockGeometryMB": 5.86,
+      "maxLevel": 8,
+      "updateMs": 0.2,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom1-300km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1028,
+      "MB": 30.1,
+      "evicted": 848,
+      "aborted": 0,
+      "blocks": 138,
+      "extraDraws": 99,
+      "blockGeometryMB": 10.53,
+      "maxLevel": 5,
+      "updateMs": 0.5,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom1-3000km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1032,
+      "MB": 30.2,
+      "evicted": 852,
+      "aborted": 0,
+      "blocks": 32,
+      "extraDraws": 27,
+      "blockGeometryMB": 1.71,
+      "maxLevel": 2,
+      "updateMs": 0.2,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom1-3000km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1032,
+      "MB": 30.2,
+      "evicted": 852,
+      "aborted": 0,
+      "blocks": 32,
+      "extraDraws": 27,
+      "blockGeometryMB": 1.71,
+      "maxLevel": 2,
+      "updateMs": 0.5,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom1-300km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1032,
+      "MB": 30.2,
+      "evicted": 852,
+      "aborted": 0,
+      "blocks": 138,
+      "extraDraws": 99,
+      "blockGeometryMB": 10.53,
+      "maxLevel": 5,
+      "updateMs": 0.6,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom1-30km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1043,
+      "MB": 31.2,
+      "evicted": 863,
+      "aborted": 0,
+      "blocks": 84,
+      "extraDraws": 66,
+      "blockGeometryMB": 5.86,
+      "maxLevel": 8,
+      "updateMs": 0.2,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom1-3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1102,
+      "MB": 32.5,
+      "evicted": 922,
+      "aborted": 0,
+      "blocks": 125,
+      "extraDraws": 81,
+      "blockGeometryMB": 8.03,
+      "maxLevel": 11,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom1-0.3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1108,
+      "MB": 32.6,
+      "evicted": 928,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 75,
+      "blockGeometryMB": 7.39,
+      "maxLevel": 11,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom2-0.3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1108,
+      "MB": 32.6,
+      "evicted": 928,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 75,
+      "blockGeometryMB": 7.39,
+      "maxLevel": 11,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom2-3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1108,
+      "MB": 32.6,
+      "evicted": 928,
+      "aborted": 0,
+      "blocks": 125,
+      "extraDraws": 81,
+      "blockGeometryMB": 8.03,
+      "maxLevel": 11,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom2-30km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1108,
+      "MB": 32.6,
+      "evicted": 928,
+      "aborted": 0,
+      "blocks": 84,
+      "extraDraws": 66,
+      "blockGeometryMB": 5.86,
+      "maxLevel": 8,
+      "updateMs": 0.2,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom2-300km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1181,
+      "MB": 34.9,
+      "evicted": 1001,
+      "aborted": 0,
+      "blocks": 138,
+      "extraDraws": 99,
+      "blockGeometryMB": 10.53,
+      "maxLevel": 5,
+      "updateMs": 0.8,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom2-3000km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1184,
+      "MB": 35,
+      "evicted": 1004,
+      "aborted": 0,
+      "blocks": 32,
+      "extraDraws": 27,
+      "blockGeometryMB": 1.71,
+      "maxLevel": 2,
+      "updateMs": 0.1,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom2-3000km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1184,
+      "MB": 35,
+      "evicted": 1004,
+      "aborted": 0,
+      "blocks": 32,
+      "extraDraws": 27,
+      "blockGeometryMB": 1.71,
+      "maxLevel": 2,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom2-300km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1184,
+      "MB": 35,
+      "evicted": 1004,
+      "aborted": 0,
+      "blocks": 138,
+      "extraDraws": 99,
+      "blockGeometryMB": 10.53,
+      "maxLevel": 5,
+      "updateMs": 0.4,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom2-30km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1194,
+      "MB": 36,
+      "evicted": 1014,
+      "aborted": 0,
+      "blocks": 84,
+      "extraDraws": 66,
+      "blockGeometryMB": 5.86,
+      "maxLevel": 8,
+      "updateMs": 0.8,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom2-3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1255,
+      "MB": 37.3,
+      "evicted": 1075,
+      "aborted": 0,
+      "blocks": 125,
+      "extraDraws": 81,
+      "blockGeometryMB": 8.03,
+      "maxLevel": 11,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom2-0.3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1261,
+      "MB": 37.4,
+      "evicted": 1081,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 75,
+      "blockGeometryMB": 7.39,
+      "maxLevel": 11,
+      "updateMs": 0.6,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom3-0.3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1261,
+      "MB": 37.4,
+      "evicted": 1081,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 75,
+      "blockGeometryMB": 7.39,
+      "maxLevel": 11,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom3-3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1261,
+      "MB": 37.4,
+      "evicted": 1081,
+      "aborted": 0,
+      "blocks": 125,
+      "extraDraws": 81,
+      "blockGeometryMB": 8.03,
+      "maxLevel": 11,
+      "updateMs": 0.4,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom3-30km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1261,
+      "MB": 37.4,
+      "evicted": 1081,
+      "aborted": 0,
+      "blocks": 84,
+      "extraDraws": 66,
+      "blockGeometryMB": 5.86,
+      "maxLevel": 8,
+      "updateMs": 0.4,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom3-300km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1332,
+      "MB": 39.7,
+      "evicted": 1152,
+      "aborted": 0,
+      "blocks": 138,
+      "extraDraws": 99,
+      "blockGeometryMB": 10.53,
+      "maxLevel": 5,
+      "updateMs": 1,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom3-3000km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1336,
+      "MB": 39.9,
+      "evicted": 1156,
+      "aborted": 0,
+      "blocks": 32,
+      "extraDraws": 27,
+      "blockGeometryMB": 1.71,
+      "maxLevel": 2,
+      "updateMs": 0.1,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom3-3000km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1336,
+      "MB": 39.9,
+      "evicted": 1156,
+      "aborted": 0,
+      "blocks": 32,
+      "extraDraws": 27,
+      "blockGeometryMB": 1.71,
+      "maxLevel": 2,
+      "updateMs": 0.1,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom3-300km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1336,
+      "MB": 39.9,
+      "evicted": 1156,
+      "aborted": 0,
+      "blocks": 138,
+      "extraDraws": 99,
+      "blockGeometryMB": 10.53,
+      "maxLevel": 5,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom3-30km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1346,
+      "MB": 40.3,
+      "evicted": 1166,
+      "aborted": 0,
+      "blocks": 84,
+      "extraDraws": 66,
+      "blockGeometryMB": 5.86,
+      "maxLevel": 8,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom3-3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1405,
+      "MB": 41.6,
+      "evicted": 1225,
+      "aborted": 0,
+      "blocks": 125,
+      "extraDraws": 81,
+      "blockGeometryMB": 8.03,
+      "maxLevel": 11,
+      "updateMs": 0.2,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom3-0.3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1411,
+      "MB": 41.6,
+      "evicted": 1231,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 75,
+      "blockGeometryMB": 7.39,
+      "maxLevel": 11,
+      "updateMs": 0.4,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom4-0.3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1411,
+      "MB": 41.6,
+      "evicted": 1231,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 75,
+      "blockGeometryMB": 7.39,
+      "maxLevel": 11,
+      "updateMs": 1,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom4-3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1411,
+      "MB": 41.6,
+      "evicted": 1231,
+      "aborted": 0,
+      "blocks": 125,
+      "extraDraws": 81,
+      "blockGeometryMB": 8.03,
+      "maxLevel": 11,
+      "updateMs": 0.5,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom4-30km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1411,
+      "MB": 41.6,
+      "evicted": 1231,
+      "aborted": 0,
+      "blocks": 84,
+      "extraDraws": 66,
+      "blockGeometryMB": 5.86,
+      "maxLevel": 8,
+      "updateMs": 0.4,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom4-300km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1483,
+      "MB": 44,
+      "evicted": 1303,
+      "aborted": 0,
+      "blocks": 138,
+      "extraDraws": 99,
+      "blockGeometryMB": 10.53,
+      "maxLevel": 5,
+      "updateMs": 0.4,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom4-3000km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1486,
+      "MB": 44.1,
+      "evicted": 1306,
+      "aborted": 0,
+      "blocks": 32,
+      "extraDraws": 27,
+      "blockGeometryMB": 1.71,
+      "maxLevel": 2,
+      "updateMs": 0.1,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom4-3000km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1486,
+      "MB": 44.1,
+      "evicted": 1306,
+      "aborted": 0,
+      "blocks": 32,
+      "extraDraws": 27,
+      "blockGeometryMB": 1.71,
+      "maxLevel": 2,
+      "updateMs": 0.2,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom4-300km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1486,
+      "MB": 44.1,
+      "evicted": 1306,
+      "aborted": 0,
+      "blocks": 138,
+      "extraDraws": 99,
+      "blockGeometryMB": 10.53,
+      "maxLevel": 5,
+      "updateMs": 0.5,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom4-30km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1496,
+      "MB": 44.7,
+      "evicted": 1316,
+      "aborted": 0,
+      "blocks": 84,
+      "extraDraws": 66,
+      "blockGeometryMB": 5.86,
+      "maxLevel": 8,
+      "updateMs": 0.6,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom4-3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1557,
+      "MB": 46,
+      "evicted": 1377,
+      "aborted": 0,
+      "blocks": 125,
+      "extraDraws": 81,
+      "blockGeometryMB": 8.03,
+      "maxLevel": 11,
+      "updateMs": 0.5,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "zoom4-0.3km",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1563,
+      "MB": 46.1,
+      "evicted": 1383,
+      "aborted": 0,
+      "blocks": 129,
+      "extraDraws": 75,
+      "blockGeometryMB": 7.39,
+      "maxLevel": 11,
+      "updateMs": 0.5,
+      "budgetLimited": false,
+      "glbRequests": 726
+     },
+     {
+      "label": "final",
+      "textures": 180,
+      "textureMB": 63.8,
+      "inFlight": 0,
+      "queued": 0,
+      "requests": 1590,
+      "MB": 47.1,
+      "evicted": 1410,
+      "aborted": 0,
+      "blocks": 111,
+      "extraDraws": 66,
+      "blockGeometryMB": 6.44,
+      "maxLevel": 10,
+      "updateMs": 0.3,
+      "budgetLimited": false,
+      "glbRequests": 726
+     }
+    ],
+    "maxTextures": 180,
+    "maxTextureMB": 63.81,
+    "errors": []
+   }
+  }
+ },
+ {
+  "generator": "scripts/capture-cube-imagery.mjs",
+  "created": "2026-10-15T17:29:06.450Z",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "cubeTileset": "moon-terrain-cube/tileset.json",
+  "label": null,
+  "poses": {
+   "frame": "IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)",
+   "views": {
+    "shackleton": {
+     "eye": [
+      -18.11,
+      21.75,
+      -1743
+     ],
+     "target": [
+      -6.393,
+      7.679,
+      -1735
+     ],
+     "fov": 60
+    },
+    "pole": {
+     "eye": [
+      7.85,
+      -9.356,
+      -1749
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 60
+    },
+    "antimeridian-60s": {
+     "eye": [
+      -904.7,
+      12.63,
+      -1530
+     ],
+     "target": [
+      -868.7,
+      1.064e-13,
+      -1505
+     ],
+     "fov": 60
+    },
+    "face-edge": {
+     "eye": [
+      1270,
+      -17.73,
+      -1244
+     ],
+     "target": [
+      1229,
+      0,
+      -1229
+     ],
+     "fov": 60
+    },
+    "face-corner": {
+     "eye": [
+      1035,
+      1057,
+      -1021
+     ],
+     "target": [
+      1003,
+      1003,
+      -1003
+     ],
+     "fov": 60
+    },
+    "overview": {
+     "eye": [
+      1359,
+      2353,
+      -3881
+     ],
+     "target": [
+      297.1,
+      514.6,
+      -1633
+     ],
+     "fov": 50
+    },
+    "nac-footprint": {
+     "eye": [
+      356.9,
+      129.9,
+      -2154
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 50
+    }
+   }
+  },
+  "browser": {
+   "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+   "devicePixelRatio": 1,
+   "crossOriginIsolated": false,
+   "shadowMap": true,
+   "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+   "hardwareConcurrency": 16,
+   "launch": "playwright chromium headless, --use-angle=metal --ignore-gpu-blocklist --enable-gpu (hardware GPU); ?test=1 (no antialias/bloom/stars)"
+  },
+  "host": {
+   "platform": "darwin 25.6.0",
+   "cpus": 16,
+   "cpuModel": "Apple M4 Max",
+   "memoryGB": 48
+  },
+  "results": {
+   "cullView": [
+    {
+     "view": "shackleton",
+     "drawn": 45,
+     "culled": 65,
+     "files": {
+      "off": "cull-shackleton-off.jpg",
+      "on": "cull-shackleton-on.jpg",
+      "thirdPerson": "cull-shackleton-third-person.jpg"
+     },
+     "errors": []
+    },
+    {
+     "view": "cap-nadir",
+     "drawn": 20,
+     "culled": 97,
+     "files": {
+      "off": "cull-cap-nadir-off.jpg",
+      "on": "cull-cap-nadir-on.jpg",
+      "thirdPerson": "cull-cap-nadir-third-person.jpg"
+     },
+     "errors": []
+    },
+    {
+     "view": "face-corner",
+     "drawn": 69,
+     "culled": 150,
+     "files": {
+      "off": "cull-face-corner-off.jpg",
+      "on": "cull-face-corner-on.jpg",
+      "thirdPerson": "cull-face-corner-third-person.jpg"
+     },
+     "errors": []
+    }
+   ]
+  }
+ }
+]

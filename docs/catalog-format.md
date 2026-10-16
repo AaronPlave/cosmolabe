@@ -53,7 +53,7 @@ Each entry in `items` is either:
 
 - A **body** (the default — no `type` field, or any other type the loader doesn't otherwise recognize),
 - A **`Viewpoint`** — a named camera preset, or
-- A **`Visualizer`** / **`FeatureLabels`** — overlay metadata (lat-lon labels, surface annotations).
+- A **`Visualizer`** / **`FeatureLabels`** — legacy overlay metadata; currently ignored by the core loader. Geographic vectors use the separate top-level [`geographicLayers` contract](geographic-layers.md), not these placeholders.
 
 Bodies can nest other bodies via their own `items` array, which is how you build hierarchy (Sun → Earth → Moon).
 
@@ -72,6 +72,61 @@ Bodies can nest other bodies via their own `items` array, which is how you build
 | `label` | object | `{ "color": [r, g, b], "text": "..." }` for the on-screen label |
 | `trajectoryPlot` | object | Orbit-trail config: `{ "color", "fade", "duration", "visible" }` |
 | `items` | array | Children — bodies whose `center` is implicitly this one |
+| `startTime` / `endTime` | UTC string or JD | The body's existence window. Outside it the body — model, label and any sensors on it — is not in the scene, as in Cosmographia. Either may be omitted. See [Existence](#existence). |
+
+### Existence
+
+A body is drawn only while it is **present**: inside its own `startTime` /
+`endTime` window, inside the window of every body it is placed relative to
+(following the active arc's `center`), and with a position to draw at. A
+spacecraft whose SPK has not started yet, or a lander before separation, is
+hidden rather than left frozen where it was last computed; a camera on a
+spacecraft goes with it. Trail samples are clamped to the existence window. Completed historical trails remain visible until their configured duration expires; they do not imply the body is still present.
+
+`Universe.isPresentAt(name, et)` answers the window part for headless use; an
+ephemeris gap inside the window shows up as a `NaN` position, which the
+renderer treats the same way. Hiding a body in the viewer and the body leaving
+its window are independent: each is restored without undoing the other.
+
+### Arcs
+
+A body whose motion changes source, centre or frame over a mission lists its
+phases as `arcs` on the item (or as a `Composite` trajectory). Each arc has a
+`startTime`, an `endTime` (defaulting to the next arc's start), a `center`,
+a `trajectoryFrame` and a `trajectory`, and may carry its own
+**`rotationModel`**: the attitude model while that arc is active. An arc
+without one uses the item's `rotationModel`.
+
+A lander that rides its mothership until separation is the case this is for:
+
+```json
+{
+  "name": "Philae",
+  "rotationModel": { "type": "Spice", "bodyFrame": "ROS_LANDER" },
+  "arcs": [
+    {
+      "startTime": "2004-03-02T07:17:44Z", "endTime": "2014-11-12T08:35:00Z",
+      "center": "Rosetta", "trajectoryFrame": { "type": "BodyFixed", "body": "Rosetta" },
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "rotationModel": { "type": "Spice", "bodyFrame": "ROS_SPACECRAFT" }
+    },
+    {
+      "startTime": "2014-11-12T08:35:00Z",
+      "center": "67P/Churyumov-Gerasimenko",
+      "trajectory": { "type": "Spice", "target": "PHILAE", "center": "1000012" }
+    }
+  ]
+}
+```
+
+Each arc's rotation is built as if the arc were the item — its `center` and
+`trajectoryFrame` — and re-expressed into one inertial source frame, so the
+renderer composes it like any other rotation.
+
+An arc may also carry its own **`trajectoryPlot`** (a cosmolabe extension),
+overriding the item's field by field: Rosetta keeps ten years of trail on its
+cruise arc and thirty days around 67P, in the item's colour. `"visible": false`
+on an arc hides that arc's trail only.
 
 ## Trajectories
 
@@ -88,7 +143,7 @@ Ten types, picked by `trajectory.type`:
 | `ChebyshevPoly` | Pre-fit Chebyshev coefficients | `coefficients`, `interval` |
 | `TLE` | NORAD two-line elements (SGP4/SDP4) | `line1`, `line2` |
 | `LinearCombination` | Weighted sum of other trajectories | `terms: [{ trajectory, weight }]` |
-| `Composite` | Time-switched arcs of different sources | `arcs: [{ startEt, endEt, trajectory }]` |
+| `Composite` | Time-switched arcs of different sources | `arcs: [{ startTime, endTime, center, trajectory, rotationModel }]` — see [Arcs](#arcs) |
 
 Some trajectory types know their own frame, and that frame is used whatever `trajectoryFrame` says: **TLE** output is TEME, **FixedSpherical** and **Waypoints** are body-fixed to the item's `center`, an **OEM** file's `REF_FRAME` is its frame, and a **Spice** trajectory is in the frame it is queried in. TLE items no longer need `trajectoryFrame: "J2000"` (it is ignored), and TEME is now rotated into J2000 with precession and nutation instead of being treated as J2000. That rotation is about 20 arcminutes by 2026, or tens of km at LEO.
 
@@ -103,7 +158,7 @@ Picked by `rotationModel.type`:
 | `Fixed` | A constant orientation. Fields: `quaternion: [x, y, z, w]` |
 | `FixedEuler` | A constant orientation given as Euler angles. Fields: `axes: "XYZ"`, `angles: [a, b, c]` |
 | `Interpolated` | Tabulated quaternion samples, SLERP-interpolated. Fields: `samples: [[et, x, y, z, w], …]` |
-| `Spice` | Any SPICE frame (CK, PCK or frame kernel). Fields: `bodyFrame` (default `IAU_<BODY>`), `inertialFrame` (default: the item's `trajectoryFrame`) |
+| `Spice` | Any SPICE frame (CK, PCK or frame kernel). Fields: `bodyFrame` (default `IAU_<BODY>`), `inertialFrame` (default: the item's `trajectoryFrame`), `fallbackFrame` (fixed fallback during CK gaps) |
 | `Nadir` | Spacecraft pointed at a target body's nadir vector. Fields: `target`, `center` |
 
 ### Planets and moons
@@ -118,28 +173,196 @@ What gets drawn at the body's position. Picked by `geometry.type`:
 
 | Type | What it draws | Key fields |
 |---|---|---|
-| `Globe` | Textured sphere; optionally with streaming terrain | `radius`, `baseMap`, `normalMap`, `nightMap`, `atmosphere`, `terrain` |
-| `Mesh` | A 3D model (GLTF, OBJ, CMOD) | `source`, `size`, `meshRotation` |
-| `Sensor` | Instrument FOV cone | `target`, `shape` (`circular` / `elliptical` / `rectangular`), `horizontalFov`, `verticalFov`, `frustumColor`, `frustumOpacity` |
+| `Globe` | Textured sphere; optionally with streamed imagery and terrain | `radius`, `baseMap`, `normalMap`, `nightMap`, `atmosphere`, `imagery`, `terrain` |
+| `Mesh` | A 3D model (GLTF/GLB, OBJ, CMOD, 3DS) | `source`, `size`, `meshRotation` |
+| `Dsk` | A SPICE DSK plate model in body-fixed km | `source`, `color` |
+| `Sensor` | Instrument FOV cone, terminated at the first solid body surface each boundary ray hits | `target`, `shape` (`circular` / `elliptical` / `rectangular`), `horizontalFov`, `verticalFov`, `range` (maximum visualization range; defaults to the target-center distance), `frustumColor`, `frustumOpacity` |
 | `Rings` | Planetary rings | `innerRadius`, `outerRadius`, `texture` |
 | `Axes` | Reference frame axes | `length` |
 | `KeplerianSwarm` | Many bodies sharing a parent (asteroid belt, debris cloud) | `bodies: []` |
 | `ParticleSystem` | Plumes, exhaust, dust | (renderer-specific) |
-| `TimeSwitched` | Different geometry at different times | `arcs: [{ startEt, endEt, geometry }]` |
+| `TimeSwitched` | Different geometry at different times (Cosmographia) | `sequence: [{ startTime, endTime, geometry }]` — see [TimeSwitched](#timeswitched) |
+
+### Model formats
+
+`Mesh` picks its loader from the `source` extension:
+
+- **GLB / glTF** — the preferred format for new visual models.
+- **OBJ** — interchange and legacy.
+- **CMOD** — Cosmographia / Celestia compatibility.
+- **3DS** — legacy compatibility, for the mission models Cosmographia packages
+  still ship (Rosetta's among them). Material maps resolve relative to the model
+  file. Prefer converting to GLB for anything you author.
+
+For 3DS assets that store a tangent normal map in the legacy bump slot, set
+`"bumpMapType": "normal"` on that `Mesh` geometry. This is explicit metadata;
+ordinary bump maps keep their height-map interpretation. Colour maps use sRGB,
+while normal maps remain linear. The option also works on `TimeSwitched` entries.
+
+A **DSK** is not a model format: it is a body's authoritative surface, and has
+its own geometry type, [`Dsk`](#dsk).
 
 ### Asset paths
 
-Relative paths in `Mesh.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
+Relative paths in `Mesh.source`, `Dsk.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `imagery[].url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
+
+### `Globe.imagery`
+
+Streamed, tiled surface imagery that replaces the static `baseMap` as the camera approaches. It is independent of terrain: a Globe with `imagery` and no `terrain` draws the imagery on the body's ellipsoid, and a Globe with both drapes the same imagery over the terrain. Imagery detail is chosen from the source's own levels and the projected image size, never from the terrain mesh's LOD.
+
+`imagery` is one layer or a list, bottom to top:
+
+```json
+"geometry": {
+  "type": "Globe",
+  "baseMap": "textures/mars.dds",
+  "imagery": [
+    { "name": "Viking MDIM 2.1", "url": "https://…/{z}/{y}/{x}.jpg", "levels": 8 },
+    { "name": "Jezero HiRISE (25 cm)", "url": "https://…/{z}/{y}/{x}.png", "levels": 17,
+      "bounds": [77.22, 18.31, 77.58, 18.67], "minZoom": 9 }
+  ]
+}
+```
+
+The bottom layer is the **base**: it should cover the whole body, and it is always shown. Each layer above it is an **overlay** that can be global or regional. Where a regional overlay has no data (outside its `bounds`, below its `minZoom`, transparent or missing tiles), the layers beneath it show through.
+
+| Field | Meaning |
+|---|---|
+| `url` | Tile URL template (`{z}`, `{y}`, `{x}`), or the GetCapabilities URL for `wmts-capabilities` |
+| `type` | `xyz` (default), `tms`, `wms`, `wmts`, `wmts-capabilities` |
+| `levels` | Number of zoom levels the source has (the deepest is `levels − 1`). Default 8 |
+| `dimension` | Tile size in pixels. Default 256 |
+| `projection` | `EPSG:4326` (default) or `EPSG:3857`, for `xyz`. The default applies to the base layer too. Web Mercator sources such as GIBS `GoogleMapsCompatible` need `EPSG:3857`. |
+| `bounds` | Coverage `[west, south, east, north]` in degrees. Tiles outside it are not requested |
+| `minZoom` | First zoom level with data. Regional products have none below it |
+| `opacity`, `color` | Overlay opacity (0–1) and tint. Ignored on the base of an imagery-only Globe |
+| `time` | ISO date, or `"yesterday"`, for time-dimensioned services such as NASA GIBS |
+| `layer`, `tileMatrixSet`, `crs`, `format`, `styles`, `version`, `transparent` | WMS/WMTS service parameters |
+| `id`, `name`, `attribution` | How the viewer's Imagery control identifies the layer. Defaults: `layer-<index>`, the product name in the URL path, the service host. Keep `name` short (`Jezero · HiRISE`) |
+| `description` | The full product name, shown in the layer's details |
+| `resolutionMeters` | Native ground resolution in m/px, as the provider advertises it. The control shows it under the name. The tile pyramid's pixel size is listed separately, in details, since providers often pad levels past the data |
+| `visible` | `false` makes an overlay start switched off. It requests nothing until it is switched on |
+
+**Distance transition.** From far away the Globe draws its static `baseMap`. Streaming starts once the body is `preloadAtPixels` (default 40) tall on screen, behind the static map. At `showAtPixels` (default 80) the streamed surface replaces it, but only once the coarsest tiles in view (the level-0 tiles of an imagery-only Globe) have loaded, and then once the request queue has drained, or after 1.5 s of continuous loading if the camera keeps moving. Backing out returns to the static map. If the stream fails outright (the base layer cannot be set up, the root tileset or one of those coarsest tiles fails, or tiles fail before any loads and nothing else is loading), the static map stays for the rest of the session and nothing more is requested. A failed overlay never triggers this, because the layers beneath it still render.
+
+**Imagery control.** Selecting a body (or a spacecraft on it) shows an *Imagery* section in its info panel. It lists the layers top first, one row each: a checkbox (a lock for the base, which is always on), the name, and the source and native resolution beneath. A row's expander holds its opacity, order and details: the full product name, coverage, the source's resolution next to the finest its tile pyramid offers, what the view is drawing, and the session's request counts. A badge appears only when it explains why an enabled layer is not showing, or is showing worse than it can, judged against the tiles on screen (in the main camera's frustum and facing it): *Out of view* (none of its coverage is on screen), *Zoom in* (too far out for its data), *Cache full* (close enough, but the tile cache is full so finer tiles cannot load; raise `maxCacheBytes`), *Gaps* (tiles in view could not load it, so the layers beneath show through), *Lower res* (failed source tiles in view are drawn from coarser ones) and *Unavailable* (the source failed). These settings last for the session and do not change the catalog. Switching a layer off stops its requests; opacity and order changes do not refetch tiles. Hovering a regional layer outlines its footprint, faint where it lies past the horizon, and its crosshair button flies the camera over it in free orbit. At most ten layers can be shown at once.
+
+`terrain.imagery` (below) is still accepted. When both are present, `imagery` wins and a warning is logged. Tuning fields for an imagery-only Globe (`showAtPixels`, `preloadAtPixels`, `overlayResolution`, `errorTarget`, …) go in a `terrain` block of `"type": "imagery"` with no layers of its own; it then takes the sibling stack:
+
+```json
+"imagery": [ … ],
+"terrain": { "type": "imagery", "showAtPixels": 120 }
+```
+
+A tiled `baseMap` (Cosmographia `NameTemplate`/`MultiWMS`) still loads only its level-0 tiles as the static map. Declare its deeper levels through `imagery` to stream them.
+
+### `Dsk`
+
+A DSK (SPICE Digital Shape Kernel, `.bds`) is a small body's authoritative
+surface: a triangle mesh whose vertices are kilometres in the body-fixed frame,
+centred on the body. `Dsk` draws it as it is, which is what an irregular,
+concave or bilobed body (67P, Arrokoth, Phobos) needs and a `Globe`'s
+ellipsoid-plus-heightfield cannot represent.
+
+```json
+{
+  "name": "486958 Arrokoth",
+  "naifId": 2486958,
+  "rotationModel": { "type": "Uniform", "period": "15.92h", "ascension": 317.5, "declination": -24.9 },
+  "geometry": { "type": "Dsk", "source": "models/arrokoth_mu69_lopoly.bds", "color": [0.72, 0.55, 0.45] }
+}
+```
+
+- **No sizing or alignment.** `size`, `meshRotation` and `meshOffset` do not
+  apply and are ignored: the file already says where every vertex is.
+- **The rotation model places it**, so give the body one whose body-fixed frame
+  is the DSK's. With a `Spice` rotation, `bodyFrame` should name the frame the
+  DSK segments are written in; a body with no rotation model draws the shape
+  fixed in the inertial frame.
+- **The file is checked against the body.** The DSK's segment descriptor carries
+  the body it describes and its frame. A NAIF ID that differs from the item's
+  `naifId`, or a frame that differs from a `Spice` rotation's `bodyFrame`, is
+  an asset-load failure; the incompatible shape is not installed. Spacecraft structure origins are distinct from their centres of mass: use the actual DSK centre trajectory, not an ID multiplication rule.
+- **Every type-2 segment is merged** into one mesh; segments of another data
+  type are skipped. Segments for different bodies or frames are refused.
+- **The file is read, not furnished.** It needs a SPICE engine to parse — the
+  viewer brings one up for a scene with a `Dsk` even when it lists no kernels —
+  but it adds nothing to the kernel pool. Listing the same file in `spiceKernels`
+  as well is harmless, and is how you would also make it available to SPICE
+  surface computations.
+- **Transport gzip is undone** by magic bytes, so `.bds.gz` works.
+- `color` is optional (`[r, g, b]` in 0–1 or a CSS colour); the default follows
+  the body's `class`.
+
+The viewer also accepts a dropped `.bds` alongside a catalog that names it.
+
+Cosmographia's own spelling, `{ "type": "DSK", "kernel": "..." }`, is accepted
+and means the same thing, so ESA's and NAIF's published Cosmographia
+configurations load unchanged.
+
+### `TimeSwitched`
+
+One shape per time window, as in Cosmographia: a spacecraft whose configuration
+changes during the mission. Rosetta carries Philae on its bus until separation
+and flies without it afterwards:
+
+```json
+"geometry": {
+  "type": "TimeSwitched",
+  "sequence": [
+    { "startTime": "2004-03-02T09:25:18Z", "endTime": "2014-11-12T08:35:15Z",
+      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_BUS_LR_V02.BDS" } },
+    { "startTime": "2014-11-12T08:35:15Z",
+      "geometry": { "type": "Dsk", "source": "kernels/rosetta/ROS_SC_BUS_V01.BDS" } }
+  ]
+}
+```
+
+- Each entry's `geometry` is a `Dsk` or a `Mesh`. A Mesh entry takes its own
+  `size`, `meshRotation` and `meshOffset`; a Dsk entry, as always, none.
+- Windows are start-inclusive and end-exclusive. A missing `endTime` runs to the
+  next entry's `startTime` (the last to forever); a missing `startTime` reaches
+  back to the beginning. Outside every window the body draws no shape.
+- An entry that fails to load is reported and left out; the others still draw.
 
 ### `Globe.terrain`
 
-Streaming terrain over the basemap. Supports three sources:
+Streaming terrain over the basemap. Supports these sources:
 
 ```json
-"terrain": { "type": "tiles", "url": "...", "tileFormat": "qm" }
-"terrain": { "type": "ion", "assetId": 1, "accessToken": "..." }
-"terrain": { "type": "imagery", "imagery": { "url": "...{z}/{y}/{x}.jpeg", "levels": 8 } }
+"terrain": { "type": "quantized-mesh", "url": "…/layer.json-directory/" }
+"terrain": { "type": "3dtiles", "url": "…/tileset.json" }
+"terrain": { "type": "cesium-ion", "cesiumIonAssetId": 3644333 }
+"terrain": { "type": "imagery", "imagery": { "url": "…/{z}/{y}/{x}.jpeg", "levels": 8 } }
 ```
+
+`terrain.imagery` drapes an imagery stack over the terrain, with the same layer fields as `Globe.imagery`. New catalogs should use the sibling `imagery` field instead.
+
+#### `overlayResolution`
+
+On terrain (and for overlays on an imagery-only Globe), each terrain tile gets one composited texture per shown layer, `overlayResolution` pixels square (default 256). It caps how sharp draped imagery can look within one tile. Each tile layer takes R² × 4 bytes plus mipmaps: 256 → 0.33 MB, 512 → 1.3 MB, 1024 → 5.3 MB.
+
+Those textures count against the tile cache (`maxCacheBytes` in the `terrain` block, in bytes, default 512 MB). Memory is the limit, not frame time. When the composites fill the cache, the renderer stops refining and starts evicting tiles it still needs, so a higher resolution comes out blurrier, not sharper. Measured on an Apple M4 Max (Chrome, Metal), from a cold cache at each viewpoint:
+
+| Scene | R | Cache used | Tiles shown | Overlay requests (whole run) | Settle |
+|---|---|---|---|---|---|
+| Apollo 15 landing site (1 overlay) | 256 | 165 MB | 126 | 402 | 6 s |
+| | 512 | 307 MB | 126 | 1405 | 18 s |
+| | 1024 | 516 MB (full) | 25 | 5201 | 60 s |
+| Jezero crater (3 overlays) | 256 | 207 MB | 194 | 59 | 2 s |
+| | 512 | 512 MB (full) | 107 | 227 | 3 s |
+| | 1024 | 516 MB (full) | 20 | none new: loading stalled | – |
+
+At Jezero crater at 1024, HiRISE never loaded. Even with `maxCacheBytes` at 2 GB, the three-overlay stack at 1024 filled the cache. Frame cost stayed flat at every setting: 1–2 ms CPU and 1–6 ms GPU per frame, at a steady 120 fps. Compositing took under 15 ms of main-thread time per view in total. Going from 256 to 512 visibly sharpens the HiRISE close-up at Wright Brothers Field. Going from 512 to 1024 adds little, even with room in the cache.
+
+Policy:
+
+- Keep the default at 256.
+- Use 512 per catalog for a showcase scene with one or two overlays shown.
+- With three or more overlays at 512, raise `maxCacheBytes` to about 1 GB as well.
+- Do not use 1024.
+
+To check a scene, use the debug panel. The *Composite* control switches 256/512/1024 live for one body. When *Cache* reaches its limit, the setting is too high for that scene. *GPU est.* and *Imagery* show texture memory and request counts to compare.
 
 ## Frames
 

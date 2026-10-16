@@ -1,0 +1,69 @@
+{
+  "scene": {
+    "id": "clipper",
+    "catalog": "europa-clipper",
+    "output": "mission-clipper.jpg",
+    "utc": "2031-03-07T03:39:51.823Z",
+    "et": 983893261.0077376,
+    "tracked": "Europa Clipper",
+    "selected": null,
+    "camera": {
+      "position": [
+        -0.01681691842760148,
+        0.0198401259414045,
+        0.0023268349807595966
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ],
+      "fov": 42
+    },
+    "trajectory": null,
+    "sensor": "EIS NAC",
+    "panel": null
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "analysis": null,
+  "et": 983893261.0077376,
+  "camera": {
+    "position": [
+      -0.016816918427601475,
+      0.0198401259414045,
+      0.002326834980759596
+    ],
+    "target": [
+      0,
+      0,
+      0
+    ],
+    "up": [
+      0,
+      0,
+      1
+    ],
+    "fov": 42
+  },
+  "snapshot": "# Cosmolabe snapshot\nsetPlaying off\nsetTime 2031-03-07T03:39:51.823Z\nsetTimeRate 1\ngotoObject \"Europa Clipper\"\nsetFrame free-orbit \"Europa Clipper\"\nclearLookAt\nsetFov 42\nsetCamera [-0.0168169184276, 0.0198401259414, 0.00232683498076] [0, 0, 0] [0, 0, 1]\nsetLayer trajectories off\nsetLayer labels on\nsetLayer grid off\nsetLayer axes off\nsetLayer sensors on\nsetLayer sensorLabels off\ndeselect\n",
+  "initialAssets": {
+    "total": 7,
+    "settled": 7,
+    "loaded": 7,
+    "failed": 0,
+    "failures": [],
+    "stillPending": [],
+    "timedOut": false,
+    "durationMs": 1055.4000000059605
+  },
+  "terrain": null,
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+}

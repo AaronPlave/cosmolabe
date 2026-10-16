@@ -132,8 +132,8 @@ describe('surface point presentation', () => {
   });
 
   it('names the datum heights are measured from', () => {
-    expect(describeDatum(point.altitude.datum)).toBe('areoid');
-    expect(describeDatum({ ...point.altitude.datum, verticalDatum: 'reference-sphere' })).toBe('sphere R 3396.2 km');
+    expect(describeDatum(point.altitude.datum!)).toBe('areoid');
+    expect(describeDatum({ ...point.altitude.datum!, verticalDatum: 'reference-sphere' })).toBe('sphere R 3396.2 km');
   });
 
   it('copies body, coordinates, height and datum in one line', () => {
@@ -193,5 +193,17 @@ describe('surfaceNormalWorld', () => {
     // Transforming the normal as a direction tilts it the wrong way, by far more.
     const asDirection = hit.face!.normal.clone().transformDirection(globe.matrixWorld);
     expect(asDirection.angleTo(expected)).toBeGreaterThan(THREE.MathUtils.degToRad(10));
+  });
+});
+
+describe('DSK altitude presentation', () => {
+  it('keeps an undefined DSK datum unavailable, including clipboard text', () => {
+    const dsk: SurfacePoint = { ...point, source: 'dsk', bodyFixedPositionKm: [0, 3, 4],
+      hit: { heightKm: null, datum: null },
+      ...resolveSurfaceAltitude('dsk', { heightKm: null, datum: null }) };
+    expect(dsk.altitude).toEqual({ km: null, from: 'unavailable', datum: null });
+    expect(surfacePointToText(dsk)).toContain('radial distance from center 5.000000 km');
+    expect(surfacePointToText(dsk)).toContain('altitude unavailable');
+    expect(surfacePointToText(dsk)).not.toContain('above');
   });
 });

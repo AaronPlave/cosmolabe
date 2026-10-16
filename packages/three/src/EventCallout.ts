@@ -277,7 +277,7 @@ export class EventCallout {
     this.box.setAttribute('role', openEditor ? 'group' : 'button');
     if (openEditor) {
       this.editorAction = document.createElement('button');
-      this.editorAction.textContent = 'Open in Measurements';
+      this.editorAction.textContent = 'Open in Reference Geometry';
       Object.assign(this.editorAction.style, { display: 'block', margin: '4px 0 0 13px', color: '#c3d0d8', font: '500 10px/14px var(--font-sans, system-ui)', cursor: 'pointer', textDecoration: 'underline', background: 'none', border: 'none', padding: '0' });
       this.editorAction.onclick = event => { event.stopPropagation(); openEditor(); };
     }

@@ -12,7 +12,6 @@
  * keep, copy, or hand to another tool (a measurement endpoint, #57).
  */
 
-
 import type { SurfaceHitSource, SurfacePoint, SurfaceDatum, PointerResolution } from '@cosmolabe/core';
 export type { SurfaceHitSource, SurfacePoint, SurfaceDatum, PointerResolution } from '@cosmolabe/core';
 
@@ -27,6 +26,7 @@ export function resolveSurfaceAltitude(
   hit: SurfacePoint['hit'],
   sample?: Omit<NonNullable<SurfacePoint['terrainSample']>, 'describesHit'>,
 ): Pick<SurfacePoint, 'altitude' | 'terrainSample'> {
+  if (source === 'dsk') return { altitude: { km: null, from: 'unavailable', datum: null } };
   if (!sample) return { altitude: { km: hit.heightKm, from: 'rendered-hit', datum: hit.datum } };
   const terrainSample = { ...sample, describesHit: source === 'terrain' };
   return {
@@ -168,8 +168,10 @@ export function surfacePointToText(point: SurfacePoint): string {
   const decimals = coordinateDecimals(point);
   const lat = point.latDeg.toFixed(Math.max(6, decimals.lat));
   const lon = point.lonDeg.toFixed(Math.max(6, decimals.lon));
-  const h = (point.altitude.km * 1000).toFixed(1);
+  const h = point.altitude.km == null ? null : (point.altitude.km * 1000).toFixed(1);
   const kind = point.latitudeKind === 'geodetic' ? 'geodetic' : 'planetocentric';
-  return `${point.bodyName} ${lat}, ${lon} (${kind} °N, °E) ${h} m above ${describeDatum(point.altitude.datum)}`;
+  const position = `${point.bodyName} ${lat}, ${lon} (${kind} °N, °E)`;
+  return h !== null && point.altitude.datum
+    ? `${position} ${h} m above ${describeDatum(point.altitude.datum)}`
+    : `${position}; radial distance from center ${Math.hypot(...point.bodyFixedPositionKm).toFixed(6)} km; altitude unavailable (no defined datum)`;
 }
-

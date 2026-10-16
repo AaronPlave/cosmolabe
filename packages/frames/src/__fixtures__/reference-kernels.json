@@ -1,0 +1,12 @@
+{
+  "kernels/test-data/naif0012.tls": "678e32bdb5a744117a467cd9601cd6b373f0e9bc9bbde1371d5eee39600a039b",
+  "kernels/test-data/pck00010.tpc": "59468328349aa730d18bf1f8d7e86efe6e40b75dfb921908f99321b3a7a701d2",
+  "kernels/test-data/de425s.bsp": "0639bc17ad931a189d3e8f8c9a5d4880dfdd34ca1dccc1aa416564c5a8e6a849",
+  "kernels/test-data/cassini/cas00172.tsc": "9aebd8d2783d06c12c33d2c5794a04a7bcde26c95efd4fee974acd9b356442f8",
+  "kernels/test-data/cassini/cas_v43.tf": "09b1f6f27a74d3cc64b28ef91fcea02bed78fe63c93035b8434a6b67e5224b5a",
+  "kernels/test-data/cassini/cas_iss_v10.ti": "518c50a1c837f525e10ee71a97c9971ba419850ac05fcaa2df99cf3cddda5c68",
+  "kernels/test-data/cassini/040629AP_SCPSE_04179_04185.bsp": "281ecea43ba77317830815d2b4647b56625b13aef1c6635bf6de5fb7f8dab901",
+  "kernels/test-data/cassini/04183_04185ra.bc": "701f0d46c9d0864d8bbb0e64d1a994f599e0261dc7b103f3ebb967c0fb4d2c90",
+  "apps/viewer/test-catalogs/kernels/msl/MSL_76_SCLKSCET.00012.tsc": "ff2830a817b9c17e8c4487075b5a543cda719f932777a909c422204f13acf68c",
+  "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc": "77f39b4bca8299dff3115a912fd0dc55b3428a15631fa3883b1b94331006f7db"
+}

@@ -147,7 +147,7 @@ done
 
 # ── Copy IK files to test-kernels for unit tests ─────────────────────
 
-TEST_DEST="$(dirname "$0")/../packages/spice/test-kernels/cassini"
+TEST_DEST="$(dirname "$0")/../kernels/test-data/cassini"
 mkdir -p "$TEST_DEST"
 
 echo ""

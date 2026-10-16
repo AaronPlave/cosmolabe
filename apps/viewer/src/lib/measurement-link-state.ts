@@ -1,13 +1,22 @@
-import type { SurfacePointAnchor, SurfaceDatum, SpatialEndpoint, SpatialRelationship, Universe } from '@cosmolabe/core';
+import type { SurfacePointAnchor, SurfaceDatum, FrameAxis, ReferenceVector, SpatialEndpoint, SpatialRelationship, Universe } from '@cosmolabe/core';
 import { ViewStateError } from '@cosmolabe/control';
 
-/** Saved definitions, including temporarily incomplete edits; never sampled values. */
+/**
+ * Saved definitions, including temporarily incomplete edits; never sampled values.
+ * Reference kinds reuse the endpoint slots: a velocity is of `source` relative
+ * to `target` (null: its central body), and axes are drawn at `source`.
+ */
 export interface MeasurementDefinition {
   id: string;
   kind: SpatialRelationship['kind'];
   source: SpatialEndpoint | null;
   target: SpatialEndpoint | null;
   vertex: SpatialEndpoint | null;
+  /** Axes: the frame drawn. */
+  frame?: string;
+  /** Angle between directions: its two operands. */
+  first?: ReferenceVector | null;
+  second?: ReferenceVector | null;
   color?: string;
   visible?: boolean;
   showDistance?: boolean;
@@ -50,7 +59,7 @@ function number(value: unknown, limit = 1e12): number {
   check(typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit, 'invalid surface value.');
   return value;
 }
-function vector(value: unknown): [number, number, number] {
+function positionVector(value: unknown): [number, number, number] {
   check(Array.isArray(value) && value.length === 3, 'invalid surface coordinates.');
   return value.map(v => number(v)) as [number, number, number];
 }
@@ -59,7 +68,7 @@ function datum(value: unknown): SurfaceDatum {
   check(shape.kind === 'sphere' || shape.kind === 'ellipsoid', 'invalid reference shape.');
   const referenceShape: SurfaceDatum['referenceShape'] = shape.kind === 'sphere'
     ? { kind: 'sphere', radiusKm: number(shape.radiusKm) }
-    : { kind: 'ellipsoid', radiiKm: vector(shape.radiiKm) };
+    : { kind: 'ellipsoid', radiiKm: positionVector(shape.radiiKm) };
   check(referenceShape.kind === 'sphere' ? referenceShape.radiusKm > 0 : referenceShape.radiiKm.every(r => r > 0), 'invalid reference radii.');
   check(d.verticalDatum === 'ellipsoid' || d.verticalDatum === 'reference-sphere' || d.verticalDatum === 'areoid' || d.verticalDatum === 'unknown', 'invalid vertical datum.');
   check(d.heightConvention === 'radial' || d.heightConvention === 'geodetic-normal', 'invalid height convention.');
@@ -71,9 +80,10 @@ function surfacePoint(value: unknown): SurfacePointAnchor {
   check(text(p.bodyName), 'invalid surface reference.');
   check(p.source === 'terrain' || p.source === 'surface-overlay' || p.source === 'ellipsoid' || p.source === 'mesh' || p.source === 'dsk', 'invalid surface source.');
   check(p.latitudeKind === 'geodetic' || p.latitudeKind === 'planetocentric', 'invalid latitude kind.');
-  const point: SurfacePointAnchor = { bodyName: p.bodyName, bodyFixedPositionKm: vector(p.bodyFixedPositionKm), source: p.source,
+  const point: SurfacePointAnchor = { bodyName: p.bodyName, bodyFixedPositionKm: positionVector(p.bodyFixedPositionKm), source: p.source,
     latDeg: number(p.latDeg, 90), lonDeg: number(p.lonDeg, 180), latitudeKind: p.latitudeKind,
-    hit: { heightKm: number(hit.heightKm), datum: datum(hit.datum) } };
+    hit: { heightKm: hit.heightKm === null ? null : number(hit.heightKm), datum: hit.datum === null ? null : datum(hit.datum) } };
+  check((hit.heightKm === null) === (hit.datum === null), 'inconsistent hit datum.');
   if (p.terrainSample !== undefined) {
     const t = object(p.terrainSample);
     check(text(t.sourceId) && (t.tileId === undefined || text(t.tileId)), 'invalid terrain provenance.');
@@ -83,6 +93,33 @@ function surfacePoint(value: unknown): SurfacePointAnchor {
   }
   return point;
 }
+const axes: readonly FrameAxis[] = ['+X', '+Y', '+Z', '-X', '-Y', '-Z'];
+function vector(value: unknown): ReferenceVector | null {
+  if (value === null) return null;
+  const v = object(value);
+  const required = (e: unknown) => { const result = endpoint(e); check(result, 'incomplete direction.'); return result; };
+  if (v.kind === 'direction') return { kind: 'direction', source: required(v.source), target: required(v.target) };
+  if (v.kind === 'velocity') {
+    return { kind: 'velocity', object: required(v.object), ...(v.relativeTo === undefined ? {} : { relativeTo: required(v.relativeTo) }) };
+  }
+  check(v.kind === 'frame-axis', 'invalid direction type.');
+  check(text(v.frame), 'invalid frame.');
+  check(axes.includes(v.axis as FrameAxis), 'invalid frame axis.');
+  return { kind: 'frame-axis', frame: v.frame, origin: required(v.origin), axis: v.axis as FrameAxis };
+}
+const kinds: ReadonlySet<unknown> = new Set<SpatialRelationship['kind']>(['distance', 'angle', 'direction', 'velocity', 'axes', 'vector-angle']);
+/** Every endpoint a definition refers to, including those inside angle operands. */
+export function definitionEndpoints(item: Pick<MeasurementDefinition, 'source' | 'target' | 'vertex' | 'first' | 'second'>): SpatialEndpoint[] {
+  const ofVector = (v: ReferenceVector | null | undefined): Array<SpatialEndpoint | undefined> => !v ? []
+    : v.kind === 'direction' ? [v.source, v.target] : v.kind === 'velocity' ? [v.object, v.relativeTo] : [v.origin];
+  return [item.source, item.target, item.vertex, ...ofVector(item.first), ...ofVector(item.second)].filter((e): e is SpatialEndpoint => !!e);
+}
+function definitionFrames(item: MeasurementDefinition): string[] {
+  const frames = definitionEndpoints(item).flatMap(e => e.kind === 'coordinate' ? [e.frame ?? 'ECLIPJ2000'] : []);
+  if (item.kind === 'axes' && item.frame) frames.push(item.frame);
+  for (const v of [item.first, item.second]) if (v?.kind === 'frame-axis') frames.push(v.frame);
+  return frames;
+}
 /** Allowlist and validate the whole payload before any scene mutation. */
 export function validateMeasurementLinkState(value: unknown): MeasurementLinkState {
   const s = object(value);
@@ -91,9 +128,11 @@ export function validateMeasurementLinkState(value: unknown): MeasurementLinkSta
   const items = s.items.map((raw): MeasurementDefinition => {
     const m = object(raw);
     check(text(m.id), 'invalid identity.');
-    check(m.kind === 'distance' || m.kind === 'angle' || m.kind === 'direction', 'invalid measurement type.');
-    const item: MeasurementDefinition = { id: m.id, kind: m.kind,
+    check(kinds.has(m.kind), 'invalid measurement type.');
+    const item: MeasurementDefinition = { id: m.id, kind: m.kind as MeasurementDefinition['kind'],
       source: endpoint(m.source), target: endpoint(m.target), vertex: endpoint(m.vertex) };
+    if (m.frame !== undefined) { check(text(m.frame), 'invalid frame.'); item.frame = m.frame; }
+    for (const slot of ['first', 'second'] as const) if (m[slot] !== undefined) item[slot] = vector(m[slot]);
     if (m.color !== undefined) {
       check(typeof m.color === 'string' && /^#[0-9a-f]{6}$/i.test(m.color), 'invalid color.');
       item.color = m.color;
@@ -109,13 +148,14 @@ export function validateMeasurementLinkState(value: unknown): MeasurementLinkSta
 }
 /** Check catalog references as a batch, after loading and before installing definitions. */
 export function validateMeasurementReferences(state: MeasurementLinkState, universe: Universe, et: number): void {
-  for (const item of state.items) for (const e of [item.source, item.target, item.vertex]) {
-    if (!e) continue;
-    if (e.kind === 'coordinate') {
+  for (const item of state.items) {
+    for (const frame of definitionFrames(item)) {
       let available = false;
-      try { available = !!universe.frames.rotation(e.frame!, 'ECLIPJ2000', et); } catch { /* reported below */ }
-      check(available, `frame "${e.frame}" is unavailable in this catalog at the shared epoch.`);
-    } else {
+      try { available = !!universe.frames.rotation(frame, 'ECLIPJ2000', et); } catch { /* reported below */ }
+      check(available, `frame "${frame}" is unavailable in this catalog at the shared epoch.`);
+    }
+    for (const e of definitionEndpoints(item)) {
+      if (e.kind === 'coordinate') continue;
       const bodyName = e.kind === 'surface-point' ? e.point.bodyName : e.bodyName;
       const body = universe.getBody(bodyName);
       check(body, `body "${bodyName}" is unavailable in this catalog.`);

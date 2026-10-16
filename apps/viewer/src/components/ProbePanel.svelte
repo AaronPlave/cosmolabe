@@ -34,7 +34,7 @@
   });
 
   const datumShape = $derived.by(() => {
-    if (!point) return '';
+    if (!point?.altitude.datum) return 'No defined altitude datum';
     const shape = point.altitude.datum.referenceShape;
     return shape.kind === 'sphere'
       ? `sphere ${shape.radiusKm.toFixed(3)} km`
@@ -75,13 +75,19 @@
     <div class="font-semibold text-text-primary mb-1.5">{point.bodyName}</div>
     <div class="row"><span class="k">Lat</span><span class="v">{formatLatitude(point.latDeg, decimals.lat)}</span></div>
     <div class="row"><span class="k">Lon</span><span class="v">{formatLongitude(point.lonDeg, decimals.lon)}</span></div>
-    <div class="row">
-      <span class="k" title={point.altitude.from === 'terrain-sample' ? 'Sampled from the terrain product that was hit' : 'Height of the surface that was hit'}>
-        {point.altitude.from === 'terrain-sample' ? 'Elevation' : 'Height'}
-      </span>
-      <span class="v">{formatHeight(point.altitude.km)}</span>
-    </div>
-    <div class="row"><span class="k">Datum</span><span class="v">{describeDatum(point.altitude.datum)}</span></div>
+    {#if point.altitude.km !== null && point.altitude.datum}
+      <div class="row">
+        <span class="k" title={point.altitude.from === 'terrain-sample' ? 'Sampled from the terrain product that was hit' : 'Height of the surface that was hit'}>
+          {point.altitude.from === 'terrain-sample' ? 'Elevation' : 'Height'}
+        </span>
+        <span class="v">{formatHeight(point.altitude.km)}</span>
+      </div>
+      <div class="row"><span class="k">Datum</span><span class="v">{describeDatum(point.altitude.datum)}</span></div>
+
+    {:else}
+      <div class="row"><span class="k">Radial distance</span><span class="v">{fmtRange(Math.hypot(...point.bodyFixedPositionKm))}</span></div>
+      <div class="row"><span class="k">Altitude</span><span class="v">Unavailable (no defined datum)</span></div>
+    {/if}
 
     <button class="mt-2 text-text-secondary hover:text-text-primary" onclick={() => measureFromHere(point)}>Measure from here</button>
 
@@ -91,8 +97,8 @@
         <div class="row"><span class="k">Surface</span><span class="v">{describeSource(point.source)}</span></div>
         <div class="row"><span class="k">Latitude</span><span class="v">{point.latitudeKind}</span></div>
         <div class="row"><span class="k" title="Most ground one screen pixel could span along the surface when the point was probed, allowing for the viewing angle">Pointer resolution</span><span class="v">{fmtRange(point.resolution.surfaceKm)}</span></div>
-        <div class="row"><span class="k">Height from</span><span class="v">{point.altitude.from === 'terrain-sample' ? 'terrain sample' : 'rendered hit'}</span></div>
-        <div class="row"><span class="k">Hit height</span><span class="v">{formatHeight(point.hit.heightKm)}</span></div>
+        <div class="row"><span class="k">Height from</span><span class="v">{point.altitude.from === 'unavailable' ? 'Unavailable' : point.altitude.from === 'terrain-sample' ? 'terrain sample' : 'rendered hit'}</span></div>
+        <div class="row"><span class="k">Hit height</span><span class="v">{point.hit.heightKm === null ? 'Unavailable' : formatHeight(point.hit.heightKm)}</span></div>
         <div class="row"><span class="k">Reference</span><span class="v">{datumShape}</span></div>
         {#if point.terrainSample}
           <!-- A sample of a different surface at the same place (an overlay
@@ -135,4 +141,3 @@
     text-align: right;
   }
 </style>
-

@@ -28,6 +28,6 @@ In-scope:
 
 Out-of-scope:
 
-- Vulnerabilities in upstream dependencies (please report those upstream — e.g. `cesium`, `three`, `timecraftjs`)
+- Vulnerabilities in upstream dependencies (please report those upstream — e.g. `cesium`, `three`, NAIF CSPICE)
 - Issues that require physical access to a user's machine
 - Self-XSS or social-engineering scenarios

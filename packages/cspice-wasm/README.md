@@ -83,8 +83,8 @@ its caller with updates or pay for a JS call on every poll.
 **These return the same windows as the simplified wrappers**, which is checked
 rather than assumed: `gf-reporting.test.ts` runs both tiers over the same kernels
 and requires them to agree interval for interval, and
-`packages/frames/src/differential.test.ts` holds the reporting path against the
-legacy timecraftjs engine too.
+`packages/frames/src/reference-regression.test.ts` checks reporting results
+against committed independent CSPICE outputs (see `docs/spice-retirement.md`).
 
 ## Dependency rule
 

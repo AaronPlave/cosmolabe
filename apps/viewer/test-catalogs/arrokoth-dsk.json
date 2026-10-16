@@ -1,0 +1,53 @@
+{
+  "name": "Arrokoth (DSK shape model)",
+  "version": "1.0",
+  "defaultTime": "2019-01-01T05:33:00Z",
+  "defaultViewpoint": "Arrokoth",
+  "items": [
+    {
+      "name": "Arrokoth",
+      "type": "Viewpoint",
+      "center": "486958 Arrokoth",
+      "distance": 90,
+      "latitude": -35,
+      "longitude": -40
+    },
+    {
+      "name": "Arrokoth (sunlit pole)",
+      "type": "Viewpoint",
+      "center": "486958 Arrokoth",
+      "distance": 90,
+      "latitude": -80,
+      "longitude": 0
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000, "emissive": true },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "486958 Arrokoth",
+      "class": "asteroid",
+      "naifId": 2486958,
+      "center": "Sun",
+      "trajectoryFrame": "EquatorJ2000",
+      "trajectory": { "type": "FixedPoint", "position": [2.0026e9, -5.7187e9, -2.2898e9] },
+      "rotationModel": {
+        "type": "Uniform",
+        "period": "15.92h",
+        "ascension": 317.5,
+        "declination": -24.9,
+        "meridianAngle": 0,
+        "epoch": "2019-01-01T05:33:00Z"
+      },
+      "geometry": {
+        "type": "Dsk",
+        "source": "models/arrokoth_mu69_lopoly.bds",
+        "color": [0.72, 0.55, 0.45]
+      },
+      "label": { "color": [0.85, 0.7, 0.6] }
+    }
+  ]
+}
