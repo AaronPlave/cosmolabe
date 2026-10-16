@@ -153,7 +153,7 @@ export default defineConfig({
     ...(bundleTestCatalogs ? [bundleTestCatalogsPlugin] : []),
   ],
   publicDir: 'public',
-  // The spice-cache relay worker pulls in further chunks (TimeCraftJS asm),
+  // The spice-cache relay worker pulls in further chunks (CSPICE WASM bindings),
   // so it can't use the default IIFE format which forbids code-splitting.
   worker: { format: 'es' },
   resolve: {

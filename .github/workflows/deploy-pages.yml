@@ -32,7 +32,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-deploy-${{ hashFiles('apps/viewer/test-catalogs/**', 'docs/img/**', 'packages/spice/test-kernels/**') }}
+          key: lfs-deploy-${{ hashFiles('apps/viewer/test-catalogs/**', 'docs/img/**', 'kernels/test-data/**') }}
 
       - name: Smudge LFS files
         # actions/checkout with lfs:false does not register the LFS smudge

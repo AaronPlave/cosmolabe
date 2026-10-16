@@ -118,12 +118,14 @@ The catalog format derives from NASA JPL's
 [Cosmographia](https://naif.jpl.nasa.gov/naif/cosmographia.html), created by
 Chris Laurel, author of [Celestia](https://celestiaproject.space/).
 
-Cosmolabe uses **CSPICE compiled to WebAssembly**, [Three.js](https://threejs.org/),
+Cosmolabe uses **CSPICE compiled to WebAssembly via `cspice-wasm`, accessed
+through `@cosmolabe/frames`**, [Three.js](https://threejs.org/),
 [3DTilesRendererJS](https://github.com/NASA-AMMOS/3DTilesRendererJS),
 [CesiumJS](https://cesium.com/platform/cesiumjs/) and
 [satellite.js](https://github.com/shashwatak/satellite-js).
-Component and data attribution, including TimeCraftJS used by the independent
-SPICE reference/test package, is retained in [NOTICE](NOTICE).
+Independent SPICE expectations and test coverage are documented in
+[SPICE validation](docs/spice-retirement.md). Component and data attribution,
+including historical reference provenance, is retained in [NOTICE](NOTICE).
 
 [Contributing](CONTRIBUTING.md) · [Code of conduct](CODE_OF_CONDUCT.md) ·
 [Security reporting](SECURITY.md) · [Apache-2.0 license](LICENSE)

@@ -83,10 +83,9 @@ export type { BodyLookup } from './kinematics.js';
 
 // The SPICE surface core still calls — transitional, and deliberately narrow:
 // only what core's own call sites use, not the heritage adapter's full surface.
-// core never constructs an engine; it takes one by injection, and both
-// @cosmolabe/frames (createHeritageSpice, the runtime path) and
-// @cosmolabe/spice (the reference implementation used in tests) satisfy this
-// structurally. It shrinks as call sites migrate to the M-0002 contracts.
+// core takes an engine by injection. @cosmolabe/frames' createHeritageSpice
+// satisfies this structurally, pinned by spice-injection-conformance.test.ts.
+// It shrinks as call sites migrate to the M-0002 contracts.
 // See src/spice-injection.ts.
 export type {
   AberrationCorrection,

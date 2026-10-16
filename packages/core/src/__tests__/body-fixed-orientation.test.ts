@@ -20,7 +20,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 import type { RotationMatrix, SpiceInstance, Vec3 } from '../spice-injection.js';
 import { furnishKernels } from './_harness/kernels.js';
 import { CatalogLoader, type CatalogItem, type CatalogJson } from '../catalog/CatalogLoader.js';
@@ -76,7 +76,7 @@ describe('SPICE-backed body-fixed orientation', () => {
   ];
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
     await furnishKernels(spice, ['naif0012.tls', 'pck00010.tpc']);
   });
 
@@ -187,7 +187,7 @@ describe('Builtin rotation with SPICE but no orientation data', () => {
 describe('bundled catalogs: remaining Uniform rotations agree with the IAU pole', () => {
   let spice: SpiceInstance;
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
     await furnishKernels(spice, ['naif0012.tls', 'pck00010.tpc']);
   });
 
