@@ -139,7 +139,9 @@ describe('cube grid CPU triangles and ray queries', () => {
       const m = manifest();
       m.renderedMesh = { simplification: 'rtin', cpuSurface: 'lattice', deviation: 'sampled' };
       m.tiles = m.tiles.map((t, i) => [t[0], t[1], t[2], t[3], t[4], deviations[i % deviations.length]]);
-      return new CubeGridSurface(new CubeSphereGridSource(m, async () => new ArrayBuffer(0)), '301', 'IAU_MOON').renderedInnerRadiusKm;
+      const source = new CubeSphereGridSource(m, async () => new ArrayBuffer(0));
+      source.ready.catch(() => {}); // no grids served: only the manifest matters here
+      return new CubeGridSurface(source, '301', 'IAU_MOON').renderedInnerRadiusKm;
     };
     expect(simplified([0.5, 2])).toBeCloseTo(inner - 2, 9);
     expect(simplified([0.5, undefined])).toBe(0);
