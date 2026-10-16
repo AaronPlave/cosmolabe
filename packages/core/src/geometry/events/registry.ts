@@ -83,6 +83,8 @@ export interface EventKind<P = Record<string, unknown>> {
    * simply gets no suggested range.
    */
   geometry?(query: ResolvedEventQuery<P>): EventGeometryDependencies;
+  /** Number of progress-reporting GF calls in `run`, excluding diagnostics; defaults to 1. */
+  plannedCalls?(query: ResolvedEventQuery<P>): number;
   /** Runs the search. Faults are raised by throwing; the service wraps them. */
   run(query: ResolvedEventQuery<P>, ctx: EventKindContext): Promise<GeometryEvent[]>;
   /**
