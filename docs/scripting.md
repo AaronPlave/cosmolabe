@@ -153,7 +153,7 @@ implies another: `select` never moves the camera, and none of these selects.
 | `track <object>` | Make an object the camera's anchor — what it orbits and follows — **without moving the camera**. It turns to face the object. |
 | `untrack` | Release it. The camera stays where it is. |
 | `frameObject [object]` | Cut to a view that fits an object (the tracked one when omitted), and track it. |
-| `flyTo <object> [path] [seconds]` | Fly to the view `frameObject` would cut to, and track the object. `<path>` is `overview` (the default: pull back to show both ends, then approach) or `direct`. Returns at once; follow with `wait`. |
+| `flyTo <object> [path] [seconds]` | Fly to the view `frameObject` would cut to, and track the object. `<path>` is `direct` (the default) or `overview` (pull back to show both ends, then approach). Returns at once; follow with `wait`. |
 | `jumpTo <object>` | Cut to the view a flight would land on, and track the object. |
 | `stopFlight` | End a flight where it is, tracking what it was flying to (the camera turns to face it). |
 

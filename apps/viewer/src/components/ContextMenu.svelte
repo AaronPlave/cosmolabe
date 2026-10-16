@@ -2,7 +2,7 @@
   // Every action here is one of the shared navigation verbs (docs/navigation.md):
   // the menu chooses which, and does not re-derive what any of them means.
   import { selectBody, trackBody, frameBody, flyToBody, lookAtBody, resetCamera } from '../lib/viewer-state.svelte';
-  import { Eye, Navigation, Focus, Maximize, MousePointerClick, RotateCcw } from 'lucide-svelte';
+  import { Eye, Navigation, Focus, Maximize, MousePointerClick, RotateCcw, Route } from 'lucide-svelte';
 
   interface Props {
     x: number;
@@ -27,7 +27,7 @@
   }
 
   // Clamp position to viewport
-  let menuStyle = $derived(`left: ${Math.min(x, window.innerWidth - 180)}px; top: ${Math.min(y, window.innerHeight - 260)}px;`);
+  let menuStyle = $derived(`left: ${Math.min(x, window.innerWidth - 180)}px; top: ${Math.min(y, window.innerHeight - 290)}px;`);
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -45,8 +45,11 @@
       <button class="ctx-item" onclick={act(frameBody)} title="Cut to a view that fits it">
         <Maximize size={13} /> Frame
       </button>
-      <button class="ctx-item" onclick={act(flyToBody)} title="Fly there, pulling back first to show where it is">
+      <button class="ctx-item" onclick={act((name) => flyToBody(name))} title="Fly straight there">
         <Navigation size={13} /> Fly to
+      </button>
+      <button class="ctx-item" onclick={act((name) => flyToBody(name, { path: 'overview' }))} title="Pull back to show where it is from here, then fly there">
+        <Route size={13} /> Fly via overview
       </button>
       <button class="ctx-item" onclick={act(lookAtBody)} title="Aim at it while orbiting what is tracked">
         <Eye size={13} /> Look at

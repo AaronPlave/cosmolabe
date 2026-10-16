@@ -755,8 +755,11 @@ export function hideAllBodies() {
 // that wants two of them — "go to this body" selects it and flies there —
 // calls both; none of these implies another. Semantics: docs/navigation.md.
 
-/** The path a flight takes when the caller does not say. */
-export const DEFAULT_FLIGHT_PATH: FlightPath = 'overview';
+/**
+ * The path a flight takes when the caller does not say: direct, for routine
+ * navigation. Overview is a deliberate choice, offered on its own.
+ */
+export const DEFAULT_FLIGHT_PATH: FlightPath = 'direct';
 
 /**
  * The mesh for `name`, with its position current in the camera's coordinates.
@@ -841,10 +844,10 @@ export function stopFlight(): boolean {
   return stopped;
 }
 
-/** Fly to the tracked body — the `F` key. */
-export function flyToTracked(): boolean {
+/** Fly to the tracked body — the `F` key, by the default path unless `path` is given. */
+export function flyToTracked(path?: FlightPath): boolean {
   const tracked = _renderer?.cameraController.focusBody?.body.name;
-  return tracked !== undefined && flyToBody(tracked);
+  return tracked !== undefined && flyToBody(tracked, { path });
 }
 
 /**

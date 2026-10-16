@@ -142,7 +142,7 @@ export interface ViewerControl {
   frameObject(name?: string): boolean;
   /**
    * Fly: animate to the view `frameObject` would cut to, then track `name`.
-   * `path` defaults to the viewer's, `overview` in this one; `seconds` to the
+   * `path` defaults to the viewer's, `direct` in this one; `seconds` to the
    * path's own duration. Returns at once — sequence with `wait`.
    *
    * The flight owns the camera until it lands. Navigation input from the

@@ -532,14 +532,14 @@ describe('navigation verbs', () => {
     expect(control.getFlight()).toBeNull();
   });
 
-  it('flyTo takes the overview path unless told otherwise, and reports the flight', () => {
+  it('flyTo takes the direct path unless told otherwise, and reports the flight', () => {
     const control = createViewerControl();
     renderer.calls.length = 0;
     expect(control.flyTo('Titan')).toBe(true);
-    expect(control.flyTo('Enceladus', { path: 'direct', seconds: 3 })).toBe(true);
-    expect(cameraCalls()).toEqual(['flyTo(Titan, overview, undefined)', 'flyTo(Enceladus, direct, 3)']);
-    expect(control.getFlight()).toEqual({ target: 'Enceladus', path: 'direct' });
-    expect(vs.flight).toEqual({ target: 'Enceladus', path: 'direct' });
+    expect(control.flyTo('Enceladus', { path: 'overview', seconds: 3 })).toBe(true);
+    expect(cameraCalls()).toEqual(['flyTo(Titan, direct, undefined)', 'flyTo(Enceladus, overview, 3)']);
+    expect(control.getFlight()).toEqual({ target: 'Enceladus', path: 'overview' });
+    expect(vs.flight).toEqual({ target: 'Enceladus', path: 'overview' });
     // The HUD names the destination for the length of the flight.
     expect(vs.trackedBodyName).toBe('Enceladus');
     // Not tracked yet: that happens when it lands.

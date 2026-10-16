@@ -130,7 +130,7 @@ export class FakeViewer implements ViewerControl {
   flyTo(name: string, opts?: { seconds?: number; path?: FlightPath }): boolean {
     this.log('flyTo', name, opts?.path, opts?.seconds);
     if (!this.known(name)) return false;
-    this.flight = { target: name, path: opts?.path ?? 'overview' };
+    this.flight = { target: name, path: opts?.path ?? 'direct' };
     return this.ok(true);
   }
 

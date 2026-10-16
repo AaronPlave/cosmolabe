@@ -37,6 +37,7 @@ function getBuiltinCommands(): Command[] {
 
     // Camera
     { id: 'cam:fly-to', label: 'Fly to tracked body', shortcut: 'F', category: 'Camera', execute: () => flyToTracked() },
+    { id: 'cam:fly-overview', label: 'Fly to tracked body via overview', category: 'Camera', execute: () => flyToTracked('overview') },
     { id: 'cam:frame', label: 'Frame tracked body', category: 'Camera', execute: () => frameBody() },
     ...(vs.flight ? [{ id: 'cam:stop-flight', label: 'Stop camera flight', shortcut: 'Esc', category: 'Camera', execute: () => stopFlight() }] : []),
     { id: 'cam:cycle', label: 'Cycle camera mode', shortcut: 'M', category: 'Camera', execute: () => cycleCamera() },

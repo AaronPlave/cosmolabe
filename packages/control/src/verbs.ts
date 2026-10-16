@@ -68,7 +68,7 @@ export const LAYERS = [
 ] as const;
 
 /** The paths `flyTo` accepts. */
-export const FLIGHT_PATHS: readonly FlightPath[] = ['overview', 'direct'];
+export const FLIGHT_PATHS: readonly FlightPath[] = ['direct', 'overview'];
 
 const FRAME_MODE_IDS = FRAME_MODES.map((m) => m.id);
 const LAYER_IDS = LAYERS.map((l) => l.id);

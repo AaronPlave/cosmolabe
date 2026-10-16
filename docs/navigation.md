@@ -60,7 +60,7 @@ follow the object while it moves, and the scene origin switches to it when the
 camera lands. Two paths:
 
 - **Direct** closes on the destination in a straight line. One second by
-  default.
+  default. This is the default: routine navigation should be quick.
 - **Overview** first pulls back far enough that the point the camera is looking
   at and the destination are both in view — looking at the midpoint between
   them, from the side, so neither hides behind the other — then approaches the
@@ -70,9 +70,12 @@ camera lands. Two paths:
   is already that far back there is nothing to establish, and an overview flight
   is a direct one.
 
-The viewer's surfaces and `flyTo` without a path use **overview**.
-`gotoObject <object> <seconds>`, which predates the choice, keeps flying
-**direct**.
+Every surface that flies, and `flyTo` without a path, flies **direct**.
+Overview is a deliberate choice for seeing how two places relate, never
+something a click does unasked: the context menu's "Fly via overview", the
+palette's "Fly to tracked body via overview", and `flyTo <object> overview`.
+Nothing switches to it by distance. `gotoObject <object> <seconds>` flies
+direct too.
 
 A flight returns at once. A script that needs it to land follows it with
 `wait`; a host can poll `getFlight()`.
@@ -145,10 +148,11 @@ It is hidden when the camera is in free orbit, tracking nothing and not flying.
 | Body browser — click a row | Select + Fly |
 | Command palette — a body | Select + Fly |
 | Scene — double-click a body | Select + Fly |
-| Scene — right-click a body | Select, Track, Frame, Fly, or Look at |
+| Scene — right-click a body | Select, Track, Frame, Fly, Fly via overview, or Look at |
 | Info panel — Fly to button | Fly to the selected body |
 | Selected event — "Fly to …" | Fly to the event's primary body (selecting the event already selected it) |
 | Display settings — Fly to button, <kbd>F</kbd>, "Fly to tracked body" | Fly to the tracked body |
+| Command palette — "Fly to tracked body via overview" | Fly to the tracked body, overview path |
 | Command palette — "Frame tracked body" | Frame |
 | <kbd>Esc</kbd>, view context ×, "Stop camera flight" | Stop the flight |
 | Display settings — viewpoint list | Fly to the viewpoint (one that tracks a body is placed at once; `viewpoint` in a script always jumps) |
