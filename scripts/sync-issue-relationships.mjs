@@ -141,6 +141,6 @@ for (const [parentStr, children] of Object.entries(manifest.subIssues)) {
 console.log(`${mode === 'apply' ? 'Created' : 'Proposed'} ${planned.length} missing relationships.`);
 if (process.env.GITHUB_STEP_SUMMARY) {
   await appendFile(process.env.GITHUB_STEP_SUMMARY,
-    `## Issue relationships (${mode})\\n\\nValidated manifest; ${planned.length} missing links.\\n\\n` +
-    planned.map(s => `- ${s}`).join('\\n') + '\\n');
+    `## Issue relationships (${mode})\n\nValidated manifest; ${planned.length} missing links.\n\n` +
+    planned.map(s => `- ${s}`).join('\n') + '\n');
 }
