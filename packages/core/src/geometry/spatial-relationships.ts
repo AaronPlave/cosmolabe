@@ -1,3 +1,4 @@
+import type { SurfacePointEndpoint } from './surface-point.js';
 import type { Universe } from '../Universe.js';
 import { bodyFixedOffsetToWorld } from '../kinematics.js';
 import type { Vec3 } from '../spice-injection.js';
@@ -6,6 +7,7 @@ import { WORLD_FRAME, bodyFixedFrameName, normalizeFrameKey } from '../frames/Fr
 
 /** A durable reference to a position, rather than a position captured from a rendered frame. */
 export type SpatialEndpoint =
+  | SurfacePointEndpoint
   | { kind: 'entity'; bodyName: string; label?: string }
   | { kind: 'body-fixed'; bodyName: string; positionKm: Vec3; label?: string }
   | { kind: 'coordinate'; positionKm: Vec3; frame?: string; label?: string };
@@ -67,6 +69,7 @@ type ResolvedFor<R extends SpatialRelationship> = Extract<ResolvedSpatialRelatio
 export function endpointLabel(endpoint: SpatialEndpoint): string {
   if (endpoint.label) return endpoint.label;
   if (endpoint.kind === 'entity') return endpoint.bodyName;
+  if (endpoint.kind === 'surface-point') return `${endpoint.point.bodyName} point (${endpoint.point.source})`;
   if (endpoint.kind === 'body-fixed') return `${endpoint.bodyName} point (${endpoint.positionKm.map(v => v.toFixed(2)).join(", ")} km)`;
   return endpoint.frame ? `${endpoint.frame} coordinate` : 'World coordinate';
 }
@@ -90,7 +93,9 @@ export function resolveSpatialEndpoint(universe: Universe, endpoint: SpatialEndp
       ]);
     } catch { return null; }
   }
-  const body = universe.getBody(endpoint.bodyName);
+  const bodyName = endpoint.kind === 'surface-point' ? endpoint.point.bodyName : endpoint.bodyName;
+  const positionKm = endpoint.kind === 'surface-point' ? endpoint.point.bodyFixedPositionKm : endpoint.positionKm;
+  const body = universe.getBody(bodyName);
   if (!body) return null;
   try {
     const center = universe.absolutePositionOf(body.name, et);
@@ -99,12 +104,12 @@ export function resolveSpatialEndpoint(universe: Universe, endpoint: SpatialEndp
     if (!rotation) return null;
     const q = rotation.rotationAt(et);
     if (!q || !q.every(Number.isFinite)) return null;
-    const worldOffset = bodyFixedVectorToWorld(endpoint.positionKm, q, rotation.sourceFrame, et, universe);
+    const worldOffset = bodyFixedVectorToWorld(positionKm, q, rotation.sourceFrame, et, universe);
     return finite([center[0] + worldOffset[0], center[1] + worldOffset[1], center[2] + worldOffset[2]]);
   } catch { return null; }
 }
 
-function bodyFixedVectorToWorld(position: Vec3, q: Quaternion, sourceFrame: string, et: number, universe: Universe): Vec3 {
+function bodyFixedVectorToWorld(position: readonly [number, number, number], q: Quaternion, sourceFrame: string, et: number, universe: Universe): Vec3 {
   // Reuse the latitude/longitude helper without losing the exact picked radius.
   const r = Math.hypot(...position);
   if (r === 0) return [0, 0, 0];
@@ -124,11 +129,15 @@ export type SpatialResolutionCache = Map<string, unknown>;
 
 function endpointAt(universe: Universe, endpoint: SpatialEndpoint, et: number, cache?: SpatialResolutionCache): Vec3 | null {
   if (!cache) return resolveSpatialEndpoint(universe, endpoint, et);
-  const key = `p|${et}|${endpoint.kind}|${endpoint.kind === 'coordinate' ? endpoint.frame ?? '' : endpoint.bodyName}|${endpoint.kind === 'entity' ? '' : endpoint.positionKm.join(',')}`;
+  const reference = endpoint.kind === 'coordinate' ? endpoint.frame ?? ''
+    : endpoint.kind === 'surface-point' ? endpoint.point.bodyName : endpoint.bodyName;
+  const position = endpoint.kind === 'entity' ? ''
+    : (endpoint.kind === 'surface-point' ? endpoint.point.bodyFixedPositionKm : endpoint.positionKm).join(',');
+  const key = `p|${et}|${endpoint.kind}|${reference}|${position}`;
   if (cache.has(key)) return cache.get(key) as Vec3 | null;
-  const position = resolveSpatialEndpoint(universe, endpoint, et);
-  cache.set(key, position);
-  return position;
+  const resolved = resolveSpatialEndpoint(universe, endpoint, et);
+  cache.set(key, resolved);
+  return resolved;
 }
 function axesAt(universe: Universe, frame: string, et: number, cache?: SpatialResolutionCache): [Vec3, Vec3, Vec3] | null {
   if (!cache) return resolveFrameAxes(universe, frame, et);
@@ -192,6 +201,7 @@ const VELOCITY_HALF_STEP_S = 0.5;
  * so its velocity is relative to the scene origin.
  */
 export function defaultVelocityCenter(universe: Universe, object: SpatialEndpoint, et: number): SpatialEndpoint | undefined {
+  if (object.kind === 'surface-point') return { kind: 'entity', bodyName: object.point.bodyName };
   if (object.kind === 'body-fixed') return { kind: 'entity', bodyName: object.bodyName };
   if (object.kind !== 'entity') return undefined;
   const parent = universe.getBody(object.bodyName)?.activeParentAt(et);

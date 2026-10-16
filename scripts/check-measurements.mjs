@@ -191,7 +191,7 @@ try {
   await page.getByRole('button', { name: 'Pick source surface point', exact: true }).click();
   const surfaceEarth=await earthPixel();
   await page.mouse.click(surfaceEarth.x, surfaceEarth.y);
-  assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'body-fixed');
+  assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'surface-point');
   assert.equal(await page.evaluate(() => window.sceneEvents), 0);
   assert.equal(await page.getByText('Surface pick', { exact: true }).count(), 0);
   await page.getByRole('button', { name: 'Pick target object', exact: true }).click();
@@ -206,7 +206,7 @@ try {
   await page.getByRole('button', { name: 'Close Reference Geometry', exact: true }).click();
   assert.equal(await page.evaluate(() => window.m.measurements.pendingPickSlot), null);
   await page.getByRole('button', { name: 'Geometry', exact: true }).click();
-  assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'body-fixed');
+  assert.equal(await page.evaluate(() => window.m.measurements.draft.source.kind), 'surface-point');
 
   // Menus at the bottom of a scrolling panel, then floating and compact layouts.
   await page.evaluate(() => {

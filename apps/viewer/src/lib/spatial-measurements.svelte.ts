@@ -1,5 +1,5 @@
 import {
-  bodyFixedFrameName, endpointLabel, frameAvailability, formatSpatialDistance, formatSpatialSpeed, referenceRelationship, referenceVectorLabel, relationshipVectors,
+  surfacePointEndpoint, type SurfacePoint, bodyFixedFrameName, endpointLabel, frameAvailability, formatSpatialDistance, formatSpatialSpeed, referenceRelationship, referenceVectorLabel, relationshipVectors,
   resolveSpatialRelationship, type ReferenceRequest, type ReferenceVector, type SpatialEndpoint, type SpatialRelationship,
 } from '@cosmolabe/core';
 import { ViewStateError } from '@cosmolabe/control';
@@ -48,6 +48,7 @@ export const measurements = $state({
 });
 
 export function cloneEndpoint(endpoint: SpatialEndpoint): SpatialEndpoint {
+  if (endpoint.kind === 'surface-point') return surfacePointEndpoint(endpoint.point, endpoint.label);
   return endpoint.kind === 'entity' ? { ...endpoint } : { ...endpoint, positionKm: [...endpoint.positionKm] };
 }
 export function cloneVector(vector: ReferenceVector): ReferenceVector {
@@ -101,7 +102,8 @@ function defaultDraftFrame(): void {
   const origin = measurements.draft.source;
   if (measurements.draftKind !== 'axes' || !origin || origin.kind === 'coordinate') return;
   if (measurements.draftFrame && measurements.draftFrame !== autoFrame) return;
-  const frame = getUniverse()?.getBody(origin.bodyName)?.rotation ? bodyFixedFrameName(origin.bodyName) : 'ECLIPJ2000';
+  const bodyName = origin.kind === 'surface-point' ? origin.point.bodyName : origin.bodyName;
+  const frame = getUniverse()?.getBody(bodyName)?.rotation ? bodyFixedFrameName(bodyName) : 'ECLIPJ2000';
   if (measurements.draftFrame !== frame) measurements.draftFrame = frame;
   autoFrame = frame;
 }
@@ -307,7 +309,8 @@ export function resetMeasurementsForScene(): void {
   resetMeasurementDraft();
   syncMeasurements();
 }
-export function captureSurfaceEndpoint(bodyName: string, positionKm: readonly [number, number, number]): boolean {
+export function captureSurfaceEndpoint(point: SurfacePoint): boolean {
+  const { bodyName, bodyFixedPositionKm: positionKm } = point;
   const slot = measurements.pendingPickSlot;
   if (!slot || measurements.pickMode !== 'surface') return false;
   const endpoints = [...measurements.items.flatMap(definitionEndpoints), ...definitionEndpoints({ ...measurements.draft, ...measurements.draftOperands }),
@@ -317,7 +320,7 @@ export function captureSurfaceEndpoint(bodyName: string, positionKm: readonly [n
   let name: string;
   do { name = `${bodyName} point ${measurements.nextPoint++}`; }
   while (endpoints.some(e => e?.label === name || e?.label?.startsWith(`${name} (`)));
-  measurements.draft[slot] = { kind: 'body-fixed', bodyName, positionKm: [...positionKm], label: `${name} (${positionKm.map(v => v.toFixed(2)).join(', ')} km)` };
+  measurements.draft[slot] = surfacePointEndpoint(point, `${name} (${positionKm.map(v => v.toFixed(2)).join(', ')} km)`);
   cancelMeasurementPick(); syncMeasurements();
   return true;
 }
@@ -333,7 +336,7 @@ export function configureMeasurementInput(renderer: UniverseRenderer): void {
         else measurements.pickFeedback = 'No object here. Pick a body, marker, or label.';
       } else {
         const hit = renderer.pickScene(x, y, 'probe');
-        if (hit?.kind === 'surface') captureSurfaceEndpoint(hit.point.bodyName, hit.point.bodyFixedPositionKm);
+        if (hit?.kind === 'surface') captureSurfaceEndpoint(hit.point);
         else measurements.pickFeedback = 'No surface here. Pick a visible body surface.';
       }
       return true; // A miss also consumes the gesture and leaves the pick active.
@@ -403,4 +406,13 @@ export function pickInstruction(): string {
   if (measurements.draftKind === 'velocity') return `${object ? 'Pick' : 'Pick a surface point as'} the ${slot === 'source' ? 'moving object' : 'reference'}`;
   if (measurements.draftKind === 'axes') return object ? 'Pick the axes origin' : 'Pick a surface point for the axes origin';
   return object ? `Pick ${slot === 'source' ? 'first' : 'second'} object` : 'Pick a surface point';
+}
+
+/** Start the ordinary distance editor with an independent snapshot in the source slot. */
+export function measureFromHere(point: SurfacePoint): void {
+  applyMeasurementFields();
+  resetMeasurementDraft();
+  measurements.draft.source = surfacePointEndpoint(point);
+  openTool('measure');
+  startMeasurementPick('target', 'surface');
 }

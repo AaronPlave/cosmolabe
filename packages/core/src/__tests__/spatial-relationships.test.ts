@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { surfacePointEndpoint, type SpatialEndpoint, type SpatialRelationship } from '../index.js';
+import { describe, expect, it, vi } from 'vitest';
 import { Body, FixedPointTrajectory, FixedRotation, Universe, resolveSpatialEndpoint, resolveSpatialRelationship, formatSpatialDistance, formatSpatialSpeed, resolveFrameAxes, frameAvailability, resolveVelocity, referenceRelationship, relationshipVectors, referenceVectorLabel, rotateVecByQuat } from '../index.js';
 
 describe('spatial relationships', () => {
@@ -223,5 +224,65 @@ describe('reference geometry at coverage edges', () => {
     expect(frameAvailability(universe, 'NOT_A_FRAME', 0)).toBe('unknown');
     expect(frameAvailability(universe, 'LVLH', 0)).toBe('unknown');
     expect(frameAvailability(universe, ' ', 0)).toBe('unknown');
+  });
+});
+
+describe('SurfacePoint reference geometry', () => {
+  const point = (bodyName = 'Earth', xyz: [number, number, number] = [6000, 0, 0]) => surfacePointEndpoint({
+    bodyName, bodyFixedPositionKm: xyz, source: 'surface-overlay', latDeg: 0, lonDeg: 0, latitudeKind: 'planetocentric',
+    hit: { heightKm: 1, datum: { referenceShape: { kind: 'sphere', radiusKm: 5999 }, verticalDatum: 'reference-sphere', heightConvention: 'radial', origin: 'body-shape' } },
+  });
+  const legacy = (p: ReturnType<typeof point>): SpatialEndpoint => ({ kind: 'body-fixed', bodyName: p.point.bodyName, positionKm: [...p.point.bodyFixedPositionKm] });
+  function scene() {
+    const universe = new Universe();
+    universe.addBody(new Body({ name: 'Earth', trajectory: { stateAt: (et: number) => ({ position: [1000, 30 * et, 0], velocity: [0, 30, 0] }) },
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: (et: number) => [Math.cos(-0.001 * et / 2), 0, 0, Math.sin(-0.001 * et / 2)] } }));
+    universe.addBody(new Body({ name: 'Moon', trajectory: new FixedPointTrajectory([10000, 0, 0]), rotation: new FixedRotation([1, 0, 0, 0]) }));
+    return universe;
+  }
+  const geometry = (resolved: ReturnType<typeof resolveSpatialRelationship>) => {
+    expect(resolved).not.toBeNull();
+    const { relationship: _relationship, ...result } = resolved!;
+    return result;
+  };
+  it.each(['distance', 'direction', 'angle', 'velocity', 'axes', 'vector-angle'] as const)('resolves cached %s exactly as the equivalent body-fixed anchor', kind => {
+    const u = scene(), p = point();
+    const relationship = (endpoint: SpatialEndpoint): SpatialRelationship => {
+      const target: SpatialEndpoint = { kind: 'entity', bodyName: 'Moon' };
+      if (kind === 'velocity') return { id: 'r', kind, object: endpoint };
+      if (kind === 'axes') return { id: 'r', kind, origin: endpoint, frame: 'IAU_EARTH' };
+      if (kind === 'vector-angle') return { id: 'r', kind,
+        first: { kind: 'velocity', object: endpoint }, second: { kind: 'frame-axis', origin: endpoint, frame: 'IAU_EARTH', axis: '+Y' } };
+      if (kind === 'angle') return { id: 'r', kind, source: endpoint, vertex: { kind: 'entity', bodyName: 'Earth' }, target };
+      return { id: 'r', kind, source: endpoint, target };
+    };
+    const cache = new Map();
+    const rich = resolveSpatialRelationship(u, relationship(p), 10, cache);
+    expect(geometry(rich)).toEqual(geometry(resolveSpatialRelationship(u, relationship(legacy(p)), 10, cache)));
+    expect(geometry(rich)).toEqual(geometry(resolveSpatialRelationship(u, relationship(p), 10)));
+    const spy = vi.spyOn(u, 'absolutePositionOf');
+    expect(resolveSpatialRelationship(u, relationship(p), 10, cache)).toEqual(rich);
+    expect(spy).not.toHaveBeenCalled();
+  });
+  it('measures rotational velocity relative to the owning body, excluding its translational motion', () => {
+    const resolved = resolveSpatialRelationship(scene(), { id: 'v', kind: 'velocity', object: point() }, 0, new Map())!;
+    expect(resolved.center).toEqual({ kind: 'entity', bodyName: 'Earth' });
+    expect(resolved.speedKmS).toBeCloseTo(6, 5);
+    resolved.velocityKmS.forEach((v, i) => expect(v).toBeCloseTo([0, 6, 0][i], 5));
+  });
+  it('keys cached anchors by body, coordinates and epoch', () => {
+    const u = scene(), cache = new Map();
+    const distance = (source: SpatialEndpoint, et = 0) => resolveSpatialRelationship(u, { id: 'd', kind: 'distance', source, target: { kind: 'coordinate', positionKm: [0, 0, 0] } }, et, cache)!;
+    expect(distance(point()).source).toEqual([7000, 0, 0]);
+    expect(distance(point('Earth', [7000, 0, 0])).source).toEqual([8000, 0, 0]);
+    expect(distance(point('Moon')).source[0]).toBeCloseTo(16000);
+    expect(distance(point(), 10).source).not.toEqual(distance(point()).source);
+  });
+  it('accepts SurfacePoints in both endpoints of a direction operand and the velocity reference', () => {
+    const u = scene(), p = point(), other = point('Moon');
+    const result = resolveSpatialRelationship(u, { id: 'a', kind: 'vector-angle',
+      first: { kind: 'direction', source: p, target: other }, second: { kind: 'velocity', object: p, relativeTo: other } }, 0, new Map());
+    expect(result?.angleDeg).toBeCloseTo(90);
+    expect(result?.second.center).toEqual(other);
   });
 });

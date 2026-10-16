@@ -600,6 +600,7 @@ function lowerFirst(text: string): string { return text.charAt(0).toLowerCase() 
 
 function compactEndpointName(endpoint: SpatialEndpoint): string {
   if (endpoint.kind === 'entity') return endpointLabel(endpoint);
+  if (endpoint.kind === 'surface-point') return endpoint.label?.split(' (')[0] ?? `${endpoint.point.bodyName} point`;
   if (endpoint.kind === 'body-fixed') return endpoint.label?.split(' (')[0] ?? `${endpoint.bodyName} point`;
   return endpoint.label ?? 'Coordinate';
 }

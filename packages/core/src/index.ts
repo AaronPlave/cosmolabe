@@ -206,3 +206,5 @@ export {
 
 // Planetary geographic vector data and shared physical coordinate primitives.
 export * from './geographic/index.js';
+
+export * from './geometry/surface-point.js';

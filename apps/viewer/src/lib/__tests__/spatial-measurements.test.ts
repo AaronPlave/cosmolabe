@@ -1,17 +1,21 @@
+import { probePoint } from './surface-point-fixture';
+import { surfacePointEndpoint } from '@cosmolabe/core';
+import { vs, clearProbePin, setProbeActive } from '../viewer-state.svelte';
+import { openTool } from '../shell.svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Body, FixedPointTrajectory, FixedRotation, Universe, type SpatialEndpoint } from '@cosmolabe/core';
 import type { UniverseRenderer, SpatialInteraction, SceneHit } from '@cosmolabe/three';
 const scene = vi.hoisted(() => ({ universe: null as Universe | null }));
 vi.mock('../loader', () => ({ getCurrentRenderer: () => null, getUniverse: () => scene.universe }));
-vi.mock('../shell.svelte', () => ({ openTool: () => {} }));
+vi.mock('../shell.svelte', () => ({ openTool: vi.fn() }));
 import {
-  addMeasurement, captureSurfaceEndpoint, configureMeasurementInput,
+  measureFromHere, addMeasurement, captureSurfaceEndpoint, configureMeasurementInput,
   duplicateMeasurement, measurements, removeMeasurement, resetMeasurementsForScene, createMeasurement, syncMeasurements,
   startMeasurementPick, renderedMeasurements, newMeasurement, selectMeasurement, measurementValue, changeMeasurementKind,
   captureSharedMeasurements, restoreSharedMeasurements, showReference, availableOperands, measurementDescription, draftReady, draftFrameMessage,
 } from '../spatial-measurements.svelte';
 
-beforeEach(() => { scene.universe = null; resetMeasurementsForScene(); });
+beforeEach(() => { vi.clearAllMocks(); scene.universe = null; resetMeasurementsForScene(); });
 const original = () => ({ id: 'saved', kind: 'distance' as const,
   source: { kind: 'body-fixed' as const, bodyName: 'Earth', positionKm: [1, 2, 3] as [number, number, number] },
   target: { kind: 'entity' as const, bodyName: 'Moon' }, color: '#82aabd' });
@@ -117,15 +121,15 @@ describe('measurement URL restoration', () => {
     const shared = captureSharedMeasurements()!;
     resetMeasurementsForScene(); restoreSharedMeasurements(shared);
     expect(measurements.nextPoint).toBe(1);
-    startMeasurementPick('source', 'surface'); captureSurfaceEndpoint('Earth', [7, 8, 9]);
+    startMeasurementPick('source', 'surface'); captureSurfaceEndpoint(probePoint('Earth', [7, 8, 9]));
     expect(measurements.draft.source?.label).toBe('Earth point 3 (7.00, 8.00, 9.00 km)');
-    startMeasurementPick('target', 'surface'); captureSurfaceEndpoint('Earth', [10, 11, 12]);
+    startMeasurementPick('target', 'surface'); captureSurfaceEndpoint(probePoint('Earth', [10, 11, 12]));
     expect(measurements.draft.target?.label).toBe('Earth point 4 (10.00, 11.00, 12.00 km)');
     createMeasurement();
     const reshared = captureSharedMeasurements()!;
     restoreSharedMeasurements(reshared);
     expect(captureSharedMeasurements()).toEqual(reshared);
-    newMeasurement(); startMeasurementPick('source', 'surface'); captureSurfaceEndpoint('Earth', [13, 14, 15]);
+    newMeasurement(); startMeasurementPick('source', 'surface'); captureSurfaceEndpoint(probePoint('Earth', [13, 14, 15]));
     expect(measurements.draft.source?.label).toBe('Earth point 5 (13.00, 14.00, 15.00 km)');
   });
 });
@@ -154,17 +158,17 @@ describe('measurement picking', () => {
     const { hooks, pickBody, pickScene, pickSurface, setPickMarker } = input();
     startMeasurementPick('source', 'surface'); expect(hooks.beforePick(400, 300)).toBe(true);
     expect(measurements.pendingPickSlot).toBe('source'); expect(measurements.pickFeedback).toContain('No surface');
-    pickScene.mockReturnValue({ kind: 'surface', point: { bodyName: 'Earth', bodyFixedPositionKm: [1, 2, 3] }, cameraRangeKm: 1 } as unknown as SceneHit);
+    pickScene.mockReturnValue({ kind: 'surface', point: probePoint(), cameraRangeKm: 1 } as unknown as SceneHit);
     expect(hooks.beforePick(400, 300)).toBe(true);
     expect(pickScene).toHaveBeenLastCalledWith(400, 300, 'probe');
     expect(pickSurface).not.toHaveBeenCalled();
-    expect(measurements.draft.source).toMatchObject({ kind: 'body-fixed', positionKm: [1, 2, 3] });
+    expect(measurements.draft.source).toMatchObject(surfacePointEndpoint(probePoint()));
     expect(pickBody).not.toHaveBeenCalled(); expect(setPickMarker).not.toHaveBeenCalled();
     expect(hooks.beforePick(400, 300)).toBe(false);
   });
   it('never turns an object pick into a surface endpoint', () => {
     startMeasurementPick('source', 'object');
-    expect(captureSurfaceEndpoint('Earth', [1, 2, 3])).toBe(false);
+    expect(captureSurfaceEndpoint(probePoint('Earth', [1, 2, 3]))).toBe(false);
     expect(measurements.draft.source).toBeNull();
   });
 });
@@ -172,7 +176,7 @@ describe('measurement picking', () => {
 it('shares the surface cursor while object previews retain their separate channel', () => {
   let hooks!: SpatialInteraction;
   const setSpatialPickPreview = vi.fn(), setSpatialSurfacePreview = vi.fn(), setHoveredBody = vi.fn(), clearSpatialPickPreview = vi.fn();
-  const point = { bodyName: 'Earth', bodyFixedPositionKm: [1, 2, 3] };
+  const point = probePoint();
   const pickScene = vi.fn(() => ({ kind: 'surface', point, cameraRangeKm: 1 } as unknown as SceneHit | null));
   const renderer = { setSpatialInteraction: (value: SpatialInteraction) => { hooks = value; }, pickBody: () => 'Moon', pickScene,
     setSpatialPickPreview, setSpatialSurfacePreview, setHoveredBody, clearSpatialPickPreview };
@@ -282,3 +286,76 @@ it('axes leave the color rotation to items that use it, including duplication', 
    expect(measurements.items.map(item => item.color)).toEqual([undefined, undefined]);
    expect(measurements.nextColor).toBe(before);
  });
+
+it('Measure from here starts a distance draft in source, picks target, and survives probe clearing/re-seating', () => {
+  addMeasurement(original());
+  measurements.draftColor = '#abcdef';
+  const pin = probePoint(); vs.probePin = pin; setProbeActive(true);
+  measureFromHere(vs.probePin!);
+  expect(measurements.items[0].color).toBe('#abcdef');
+  expect(openTool).toHaveBeenCalledWith('measure');
+  expect(measurements.editingId).toBeNull();
+  expect(measurements.draftKind).toBe('distance');
+  expect(measurements.draft).toEqual({ source: surfacePointEndpoint(pin), target: null, vertex: null });
+  expect(measurements.pendingPickSlot).toBe('target');
+  expect(vs.probeActive).toBe(false);
+  const expected = surfacePointEndpoint(probePoint());
+  pin.hit.datum!.referenceShape = { kind: 'sphere', radiusKm: 1 };
+  pin.terrainSample!.sourceId = 'changed';
+  vs.probePin = probePoint('Earth', [9, 9, 9]);
+  clearProbePin(); setProbeActive(false);
+  expect(measurements.draft.source).toEqual(expected);
+  measurements.draft.target = { kind: 'entity', bodyName: 'Moon' };
+  createMeasurement(); clearProbePin();
+  expect(measurements.items[1].source).toEqual(expected);
+});
+
+it('defaults axes at a SurfacePoint to its owning body frame and retains a chosen frame', () => {
+  scene.universe = new Universe();
+  scene.universe.addBody(new Body({ name: 'Earth', trajectory: new FixedPointTrajectory([0, 0, 0]), rotation: new FixedRotation([1, 0, 0, 0]) }));
+  changeMeasurementKind('axes');
+  measurements.draft.source = surfacePointEndpoint(probePoint()); syncMeasurements();
+  expect(measurements.draftFrame).toBe('IAU_EARTH');
+  expect(draftReady()).toBe(true);
+  measurements.draftFrame = 'J2000'; syncMeasurements();
+  expect(measurements.draftFrame).toBe('J2000');
+  expect(createMeasurement()).toBe(true);
+  const shared = captureSharedMeasurements()!;
+  restoreSharedMeasurements(shared);
+  expect(captureSharedMeasurements()).toEqual(shared);
+  expect(measurementValue(measurements.items[0], 0)).toContain('J2000');
+});
+
+it.each(['terrain', 'surface-overlay', 'ellipsoid'] as const)('seeds a %s pin and completes through the existing surface or object picker', source => {
+  let hooks!: SpatialInteraction;
+  const pin = probePoint('Earth', [1, 2, 3], source);
+  const target = probePoint('Earth', [4, 5, 6], source);
+  const pickScene = vi.fn(() => ({ kind: 'surface' as const, point: target, cameraRangeKm: 1 }));
+  const pickBody = vi.fn(() => 'Moon');
+  const renderer = { setSpatialInteraction: (value: SpatialInteraction) => { hooks = value; }, pickScene, pickBody,
+    clearSpatialPickPreview: vi.fn(), setSpatialSurfacePreview: vi.fn() };
+  configureMeasurementInput(renderer as unknown as UniverseRenderer);
+  for (const mode of ['surface', 'object'] as const) {
+    vs.probePin = pin; setProbeActive(true); measureFromHere(vs.probePin!);
+    expect(hooks.surfacePicking?.()).toBe(true);
+    if (mode === 'object') startMeasurementPick('target', 'object');
+    expect(hooks.beforePick(100, 200)).toBe(true);
+    expect(measurements.pendingPickSlot).toBeNull();
+    expect(createMeasurement()).toBe(true);
+    clearProbePin(); setProbeActive(false);
+    const item = measurements.items.at(-1)!;
+    expect(item.source).toEqual(surfacePointEndpoint(pin));
+    expect(item.target).toEqual(mode === 'surface' ? expect.objectContaining({ ...surfacePointEndpoint(target), label: expect.any(String) }) : { kind: 'entity', bodyName: 'Moon' });
+    expect(hooks.beforePick(100, 200)).toBe(false);
+  }
+  expect(pickScene).toHaveBeenCalledWith(100, 200, 'probe');
+  expect(pickBody).toHaveBeenCalledWith(100, 200);
+});
+
+it('switching into Point Probe cancels the target pick without removing the seeded endpoint', () => {
+  measureFromHere(probePoint());
+  setProbeActive(true);
+  expect(measurements.pendingPickSlot).toBeNull();
+  expect(measurements.draft.source).toEqual(surfacePointEndpoint(probePoint()));
+  clearProbePin(); setProbeActive(false);
+});

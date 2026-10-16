@@ -1,4 +1,4 @@
-import type { FrameAxis, ReferenceVector, SpatialEndpoint, SpatialRelationship, Universe } from '@cosmolabe/core';
+import type { SurfacePointAnchor, SurfaceDatum, FrameAxis, ReferenceVector, SpatialEndpoint, SpatialRelationship, Universe } from '@cosmolabe/core';
 import { ViewStateError } from '@cosmolabe/control';
 
 /**
@@ -34,9 +34,13 @@ const text = (v: unknown): v is string => typeof v === 'string' && v.trim().leng
 function endpoint(value: unknown): SpatialEndpoint | null {
   if (value === null) return null;
   const e = object(value);
-  check(e.kind === 'entity' || e.kind === 'body-fixed' || e.kind === 'coordinate', 'invalid endpoint type.');
+  check(e.kind === 'entity' || e.kind === 'body-fixed' || e.kind === 'coordinate' || e.kind === 'surface-point', 'invalid endpoint type.');
   check(e.label === undefined || text(e.label), 'invalid endpoint label.');
   const label = e.label === undefined ? {} : { label: e.label };
+  if (e.kind === 'surface-point') {
+    check(e.version === 1, 'unsupported surface-point version.');
+    return { kind: 'surface-point', version: 1, point: surfacePoint(e.point), ...label };
+  }
   if (e.kind === 'entity') {
     check(text(e.bodyName), 'invalid entity reference.');
     return { kind: 'entity', bodyName: e.bodyName, ...label };
@@ -50,6 +54,44 @@ function endpoint(value: unknown): SpatialEndpoint | null {
   }
   check(e.frame === undefined || text(e.frame), 'invalid coordinate frame.');
   return { kind: 'coordinate', frame: e.frame ?? 'ECLIPJ2000', positionKm, ...label };
+}
+function number(value: unknown, limit = 1e12): number {
+  check(typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit, 'invalid surface value.');
+  return value;
+}
+function positionVector(value: unknown): [number, number, number] {
+  check(Array.isArray(value) && value.length === 3, 'invalid surface coordinates.');
+  return value.map(v => number(v)) as [number, number, number];
+}
+function datum(value: unknown): SurfaceDatum {
+  const d = object(value), shape = object(d.referenceShape);
+  check(shape.kind === 'sphere' || shape.kind === 'ellipsoid', 'invalid reference shape.');
+  const referenceShape: SurfaceDatum['referenceShape'] = shape.kind === 'sphere'
+    ? { kind: 'sphere', radiusKm: number(shape.radiusKm) }
+    : { kind: 'ellipsoid', radiiKm: positionVector(shape.radiiKm) };
+  check(referenceShape.kind === 'sphere' ? referenceShape.radiusKm > 0 : referenceShape.radiiKm.every(r => r > 0), 'invalid reference radii.');
+  check(d.verticalDatum === 'ellipsoid' || d.verticalDatum === 'reference-sphere' || d.verticalDatum === 'areoid' || d.verticalDatum === 'unknown', 'invalid vertical datum.');
+  check(d.heightConvention === 'radial' || d.heightConvention === 'geodetic-normal', 'invalid height convention.');
+  check(d.origin === 'terrain' || d.origin === 'body-shape', 'invalid datum origin.');
+  return { referenceShape, verticalDatum: d.verticalDatum, heightConvention: d.heightConvention, origin: d.origin };
+}
+function surfacePoint(value: unknown): SurfacePointAnchor {
+  const p = object(value), hit = object(p.hit);
+  check(text(p.bodyName), 'invalid surface reference.');
+  check(p.source === 'terrain' || p.source === 'surface-overlay' || p.source === 'ellipsoid' || p.source === 'mesh' || p.source === 'dsk', 'invalid surface source.');
+  check(p.latitudeKind === 'geodetic' || p.latitudeKind === 'planetocentric', 'invalid latitude kind.');
+  const point: SurfacePointAnchor = { bodyName: p.bodyName, bodyFixedPositionKm: positionVector(p.bodyFixedPositionKm), source: p.source,
+    latDeg: number(p.latDeg, 90), lonDeg: number(p.lonDeg, 180), latitudeKind: p.latitudeKind,
+    hit: { heightKm: hit.heightKm === null ? null : number(hit.heightKm), datum: hit.datum === null ? null : datum(hit.datum) } };
+  check((hit.heightKm === null) === (hit.datum === null), 'inconsistent hit datum.');
+  if (p.terrainSample !== undefined) {
+    const t = object(p.terrainSample);
+    check(text(t.sourceId) && (t.tileId === undefined || text(t.tileId)), 'invalid terrain provenance.');
+    check(typeof t.describesHit === 'boolean' && t.describesHit === (p.source === 'terrain'), 'inconsistent terrain semantics.');
+    point.terrainSample = { elevationKm: number(t.elevationKm), datum: datum(t.datum), sourceId: t.sourceId,
+      ...(t.tileId === undefined ? {} : { tileId: t.tileId as string }), describesHit: t.describesHit };
+  }
+  return point;
 }
 const axes: readonly FrameAxis[] = ['+X', '+Y', '+Z', '-X', '-Y', '-Z'];
 function vector(value: unknown): ReferenceVector | null {
@@ -114,9 +156,10 @@ export function validateMeasurementReferences(state: MeasurementLinkState, unive
     }
     for (const e of definitionEndpoints(item)) {
       if (e.kind === 'coordinate') continue;
-      const body = universe.getBody(e.bodyName);
-      check(body, `body "${e.bodyName}" is unavailable in this catalog.`);
-      check(e.kind !== 'body-fixed' || body.rotation, `body-fixed attitude for "${e.bodyName}" is unavailable.`);
+      const bodyName = e.kind === 'surface-point' ? e.point.bodyName : e.bodyName;
+      const body = universe.getBody(bodyName);
+      check(body, `body "${bodyName}" is unavailable in this catalog.`);
+      check(e.kind === 'entity' || body.rotation, `body-fixed attitude for "${bodyName}" is unavailable.`);
     }
   }
 }
