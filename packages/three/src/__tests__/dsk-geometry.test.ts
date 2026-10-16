@@ -12,6 +12,8 @@ import { Body, FixedRotation, SpiceRotation, type SpiceInstance } from '@cosmola
 import { BodyMesh } from '../BodyMesh.js';
 import { dskShapeProviderOf, dskToBufferGeometry, gunzipIfNeeded, type DskShape } from '../DskShapeProvider.js';
 import { AssetLoadTracker } from '../AssetLoadTracker.js';
+import { UniverseRenderer } from '../UniverseRenderer.js';
+import { LabelManager } from '../LabelManager.js';
 
 const fixture = (name: string) =>
   new Uint8Array(readFileSync(fileURLToPath(new URL(`../../../../kernels/fixtures/${name}`, import.meta.url))));
@@ -127,6 +129,70 @@ describe('BodyMesh.loadDsk', () => {
     v.applyMatrix4(mesh.matrixWorld);
     const expected = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion(0, 0, h, h).invert());
     expect(v.distanceTo(expected)).toBeLessThan(1e-6);
+  });
+
+  it('shares body depth and picks real plates, leaving the empty gap between segments unpickable', async () => {
+    serve(fixture('dsk-two-segments.bds'));
+    const bm = new BodyMesh(new Body({ name: 'Shape', trajectory: fixedPoint,
+      rotation: new FixedRotation([1, 0, 0, 0], 'ECLIPJ2000'), geometryType: 'Dsk' }));
+    await bm.loadDsk('shape.bds', 1, spice, 'shape.bds');
+    bm.updatePosition([0, 0, 0], 0, 1);
+    bm.updateMatrixWorld(true);
+    const mesh = bm.getDskMeshes()[0];
+    expect(mesh.layers.isEnabled(0)).toBe(true);
+    expect(mesh.layers.isEnabled(1)).toBe(false);
+    expect(bm.modelContainer!.layers.isEnabled(1)).toBe(false);
+    const shader = { vertexShader: '#include <logdepthbuf_vertex>', fragmentShader: '#include <logdepthbuf_fragment>', uniforms: {} };
+    (mesh.material as THREE.Material).onBeforeCompile(shader as never, {} as THREE.WebGLRenderer);
+    expect(shader.vertexShader).toContain('#include <logdepthbuf_vertex>');
+    expect(shader.fragmentShader).toContain('#include <logdepthbuf_fragment>');
+
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+    const renderer = Object.assign(Object.create(UniverseRenderer.prototype), {
+      camera, bodyMeshes: new Map([['Shape', bm]]), _dblClickRaycaster: new THREE.Raycaster(),
+    }) as { _discoverBodyMesh(x: number, y: number): string | null };
+    const aim = (x: number) => {
+      camera.position.set(x, 0.2, 3); camera.lookAt(x, 0.2, 0); camera.updateMatrixWorld(true);
+    };
+    aim(0.2);
+    expect(renderer._discoverBodyMesh(0, 0)).toBe('Shape');
+    aim(5); // inside the merged bounding box/sphere, outside both actual shapes
+    expect(renderer._discoverBodyMesh(0, 0)).toBeNull();
+    aim(0.2); bm.visible = false;
+    expect(renderer._discoverBodyMesh(0, 0)).toBeNull();
+  });
+
+  it('uses DSK triangles for label occlusion and returns probe coordinates in native body-fixed axes', async () => {
+    serve(fixture('dsk-two-segments.bds'));
+    const h = Math.SQRT1_2;
+    const bm = new BodyMesh(new Body({ name: 'Shape', trajectory: fixedPoint,
+      rotation: new FixedRotation([h, 0, 0, h], 'ECLIPJ2000'), geometryType: 'Dsk' }));
+    await bm.loadDsk('shape.bds', 0.001, spice, 'shape.bds');
+    bm.updatePosition([20, 30, 40], 0, 0.001);
+    const q = bm.bodyToWorldQuaternion(new THREE.Quaternion());
+    const world = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyQuaternion(q).multiplyScalar(0.001).add(bm.position);
+    const origin = world(0.2, 0.2, 3);
+    expect(bm.dskOccludes(origin, world(0.2, 0.2, 1))).toBe(false); // foreground
+    expect(bm.dskOccludes(origin, world(0.2, 0.2, -1))).toBe(true);
+    expect(bm.dskOccludes(world(5, 0.2, 3), world(5, 0.2, -1))).toBe(false);
+    const labels = new LabelManager({} as HTMLElement);
+    for (const [point, opacity] of [[world(0.2, 0.2, 1), 1], [world(0.2, 0.2, -1), 0]] as const) {
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial());
+      labels.applyOcclusionFade(sprite, point, origin.distanceTo(point), [bm], origin);
+      expect(sprite.material.opacity).toBe(opacity);
+    }
+    const camera = new THREE.PerspectiveCamera(45, 1, 1e-6, 100);
+    camera.position.copy(origin); camera.lookAt(world(0.2, 0.2, 0)); camera.updateMatrixWorld(true);
+    const renderer = Object.assign(Object.create(UniverseRenderer.prototype), {
+      camera, scaleFactor: 0.001, bodyMeshes: new Map([['Shape', bm]]),
+      _surfaceRaycaster: new THREE.Raycaster(), _surfaceTileRaycaster: new THREE.Raycaster(),
+      renderer: { domElement: { clientHeight: 900 } },
+    }) as UniverseRenderer;
+    const picked = renderer.pickSurface(0, 0);
+    expect(picked?.point.source).toBe('dsk');
+    expect(picked?.bodyFixedHitKm[0]).toBeCloseTo(0.2, 6);
+    expect(picked?.bodyFixedHitKm[1]).toBeCloseTo(0.2, 6);
+    expect(picked?.bodyFixedHitKm[2]).toBeCloseTo(0.6, 6);
   });
 
   it.each([

@@ -104,6 +104,36 @@ Representative observation timeline integration is tracked in #230 / #28.
 Sourced mission milestones would need a catalog-to-timeline path and should
 not be confused with those observation deliverables.
 
+## DSK picking and depth
+
+DSK surfaces render in the ordinary body pass (layer 0), retaining logarithmic
+depth so foreground lines remain visible and background lines are hidden by
+actual plates. They no longer render in the art-model pass that clears depth
+and paints over already drawn labels/trajectories. Textured spacecraft retain
+their separate model pass.
+
+Body picking and the point probe include visible DSK meshes, including active
+TimeSwitched entries. Hidden shapes and empty space between plates are not
+pick targets. Probe positions and normals use the actual rendered DSK attitude
+and native body-fixed Z-up axes. Label and event-anchor occlusion test DSK
+triangles rather than substituting a bounding sphere.
+
+`node scripts/test-rosetta-surfaces.mjs` checks the actual 67P scene: body click,
+DSK probe source, foreground/background label opacity, and GPU pixels for a
+magenta line in front of the surface and a green line behind it. The foreground
+line must render and the background line must be hidden. Unit regressions use
+a rotated, translated, multi-segment DSK with an empty gap inside its bounds.
+
+![67P shared-depth regression: foreground magenta line visible](img/rosetta/dsk-depth.png)
+
+Validation: all **483 renderer tests** pass, along with package build, test
+typecheck, lint and production viewer build. The full local suite with loopback
+access reports **1,922 passed, 7 skipped, 1 failed**. The failure is the unchanged
+SPICE test `gf-reporting.test.ts` / `keeps the first pass inside the first half
+while it runs`: its first pass finishes in 71–79 ms, before the reporter's
+100 ms throttle, so no intermediate report is observed. It also fails when
+run alone. No SPICE reporting code or tests were changed for this fix.
+
 ## Visibility and trails
 
 Custom BodyVisualizer objects now inherit their BodyMesh's presence and user
@@ -155,6 +185,7 @@ bash scripts/fetch-rosetta-models.sh
 node scripts/verify-rosetta-geometry.mjs
 # Start a current-checkout viewer, then:
 CL_VIEWER_URL=http://localhost:5173 node scripts/test-rosetta-viewer.mjs
+CL_VIEWER_URL=http://localhost:5173 node scripts/test-rosetta-surfaces.mjs
 ```
 
 The browser script captures all 17 named mission viewpoints (launch/cruise,

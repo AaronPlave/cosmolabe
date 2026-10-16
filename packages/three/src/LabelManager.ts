@@ -658,8 +658,8 @@ export class LabelManager {
 
   /**
    * Compute and apply occlusion-based opacity fade for a label sprite.
-   * Uses ray-sphere intersection to determine if the labeled position is behind
-   * any body, with smoothstep fade at the limb and temporal smoothing.
+   * Uses actual plates for DSKs and ray-sphere intersections for other bodies,
+   * with smoothstep sphere-limb fade and temporal smoothing.
    * Public so UniverseRenderer can also apply it to sensor frustum labels.
    */
   applyOcclusionFade(
@@ -713,6 +713,11 @@ export class LabelManager {
       if (other === excludeBody) continue;
       if (!other.present) continue;
       if (excludeParentName && other.body.name === excludeParentName) continue;
+      const dskHidden = other.dskOccludes(camPos, worldPos);
+      if (dskHidden !== null) {
+        if (dskHidden) fade = 0;
+        continue;
+      }
       // Only large bodies (planets, moons, large asteroids) can meaningfully occlude.
       // Skip spacecraft/instrument body meshes — they are colocated with their parent
       // and would false-positive via ray-through-center at zero closest approach.

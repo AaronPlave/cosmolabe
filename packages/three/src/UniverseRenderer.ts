@@ -1295,7 +1295,7 @@ export class UniverseRenderer {
     let minModelDist = Infinity;
     let maxModelDist = 0;
     for (const bm of this.bodyMeshes.values()) {
-      if (bm.isModelVisible) {
+      if (bm.isModelVisible && bm.modelContainer!.layers.isEnabled(1)) {
         const d = bm.position.distanceTo(this.camera.position);
         if (d > 0) {
           hasVisibleModels = true;
@@ -1874,6 +1874,11 @@ export class UniverseRenderer {
     let opacity = 1;
     for (const bm of this.bodyMeshes.values()) {
       if (!bm.visible || !(bm.mesh.visible || bm.isModelVisible || bm.hasSurfaceTiles)) continue;
+      const dskHidden = bm.dskOccludes(this.camera.position, anchor);
+      if (dskHidden !== null) {
+        if (dskHidden) return 0;
+        continue;
+      }
       const radius = bm.displayRadius * this.scaleFactor;
       opacity = Math.min(opacity, eventAnchorOpacityAtSphere(
         anchor, this.camera.position, bm.position, radius, focalLengthPx,
@@ -2584,12 +2589,13 @@ export class UniverseRenderer {
       if (raycaster.ray.intersectsSphere(reach.set(center, radiusKm * this.scaleFactor))) reachable.add(bm);
     }
 
-    // Main scene: globe sphere meshes + terrain tile groups. The raycaster
+    // Main scene: globe spheres, authoritative DSKs and terrain tiles. The raycaster
     // ignores ancestor visibility, so a hidden body is skipped here.
     const mainTargets: THREE.Object3D[] = [];
     for (const bm of this.bodyMeshes.values()) {
       if (!bm.visible) continue;
       if (bm.mesh.visible) mainTargets.push(bm.mesh);
+      mainTargets.push(...bm.getDskMeshes());
       const tg = bm.terrainTileGroup;
       if (tg && tg.visible && reachable.has(bm)) mainTargets.push(tg);
     }
@@ -2652,6 +2658,7 @@ export class UniverseRenderer {
         const surfaceTriangles = (hit.object as THREE.Mesh).geometry?.userData?.surfaceTriangles;
         renderedSkirt = typeof surfaceTriangles === 'number' && hit.faceIndex != null && hit.faceIndex >= surfaceTriangles;
         bestNormal = surfaceNormalWorld(hit);
+        if (hit.object.userData.dskSurface) source = 'dsk';
         for (const bm of this.bodyMeshes.values()) {
           let obj: THREE.Object3D | null = hit.object;
           const terrain = bm.terrainTileGroup;
@@ -2728,16 +2735,19 @@ export class UniverseRenderer {
     // Vector from body center to hit, converted to km in the inertial Y-up frame
     const km = ray.worldPoint.clone().sub(bodyCenter).divideScalar(this.scaleFactor);
 
-    // Rotate inertial → body-fixed geometry space (Y-up).
-    // bm.mesh.quaternion = spiceQ * meshRotationQ (globe pre-rotation).
-    const toBodyFixed = bm.mesh.quaternion.clone().invert();
+    // Globes use Y-up geometry; DSKs retain native body-fixed Z-up axes.
+    // Use the rendered DSK attitude instead of the hidden placeholder.
+    const isDsk = ray.source === 'dsk';
+    const toBodyFixed = isDsk
+      ? bm.bodyToWorldQuaternion(new THREE.Quaternion()).invert()
+      : bm.mesh.quaternion.clone().invert();
     km.applyQuaternion(toBodyFixed);
 
     // Body-fixed geometry Y-up → body-fixed ECEF Z-up:
     //   geoX = bodyX, geoY = bodyZ (pole), geoZ = -bodyY
     const ecefX = km.x;
-    const ecefY = -km.z;
-    const ecefZ = km.y;
+    const ecefY = isDsk ? km.y : -km.z;
+    const ecefZ = isDsk ? km.z : km.y;
 
     const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
     if (r < 1e-10) return null;
@@ -2788,9 +2798,9 @@ export class UniverseRenderer {
       ...resolveSurfaceAltitude(ray.source, hit, sample),
     };
     if (ray.normal) {
-      // Same frame change as the position: geometry Y-up → ECEF Z-up.
+      // Match the position conversion; DSK normals are already Z-up.
       const n = ray.normal.clone().applyQuaternion(toBodyFixed).normalize();
-      point.surfaceNormal = [n.x, -n.z, n.y];
+      point.surfaceNormal = isDsk ? [n.x, n.y, n.z] : [n.x, -n.z, n.y];
     }
     return point;
   }
@@ -4252,7 +4262,7 @@ export class UniverseRenderer {
   }
 
   /**
-   * Body discovery: raycast the body meshes (placeholder sphere) AND terrain
+   * Body discovery: raycast placeholder spheres, visible DSK plates and terrain
    * meshes. When the camera is near a planet's surface the placeholder sphere
    * is hidden (see BodyMesh frame logic) and only the terrain mesh is visible —
    * so the terrain group is raycast too, otherwise the planet becomes unpickable.
@@ -4268,6 +4278,7 @@ export class UniverseRenderer {
       if (bm.mesh.visible) {
         meshTargets.push(bm.mesh);
       } else {
+        meshTargets.push(...bm.getDskMeshes());
         // Sphere hidden (camera near surface) — fall back to terrain mesh so the
         // body remains pickable. Skipped when sphere is visible to avoid
         // raycasting hundreds of tile meshes the sphere already covers.

@@ -24,7 +24,7 @@ export type SurfaceHitSource =
   | 'ellipsoid'
   /** A shape model. Reserved; not produced yet. */
   | 'mesh'
-  /** An irregular-body DSK. Reserved; not produced yet (#107). */
+  /** An irregular-body DSK plate mesh. */
   | 'dsk';
 
 /** The reference surface heights are measured from. */

@@ -181,6 +181,27 @@ export class BodyMesh extends THREE.Object3D {
 
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
+
+  /** Visible authoritative meshes, including the active TimeSwitched entry. */
+  getDskMeshes(): THREE.Mesh[] {
+    const meshes: THREE.Mesh[] = [];
+    if (this.visible && this.isModelVisible) this.modelContainer!.traverseVisible((object) => {
+      if (isMesh(object) && object.userData.dskSurface) meshes.push(object);
+    });
+    return meshes;
+  }
+
+  /** Null means no rendered DSK; otherwise test the actual plates, not a sphere. */
+  dskOccludes(origin: THREE.Vector3, point: THREE.Vector3): boolean | null {
+    const meshes = this.getDskMeshes();
+    if (!meshes.length) return null;
+    const direction = point.clone().sub(origin);
+    const distance = direction.length();
+    if (distance === 0) return false;
+    this.updateWorldMatrix(true, true);
+    const caster = new THREE.Raycaster(origin, direction.divideScalar(distance), 0, distance * (1 - 1e-7));
+    return caster.intersectObjects(meshes, false).length > 0;
+  }
   get hasShadowReceiving(): boolean { return this.shadowEnabled; }
   /** True when `displayRadius` reflects real geometry rather than a classification fallback. */
   get hasMeasuredRadius(): boolean { return this._hasMeasuredRadius; }
@@ -451,6 +472,7 @@ export class BodyMesh extends THREE.Object3D {
     this.checkDskFrame(name, shape.centerId, shape.frame);
     const material = new THREE.MeshStandardMaterial({ color: this.dskColor(geo), roughness: 1, metalness: 0 });
     const mesh = new THREE.Mesh(dskToBufferGeometry(shape), material);
+    mesh.userData.dskSurface = true;
     mesh.name = `${this.body.name} DSK`;
     const group = new THREE.Group();
     group.add(mesh);
@@ -603,17 +625,21 @@ export class BodyMesh extends THREE.Object3D {
       );
     }
 
-    // Multi-pass rendering: models are rendered in a separate pass (layer 1) with
-    // cleared depth buffer and tight near/far, so standard hardware depth interpolation
-    // handles intra-model face sorting with full precision. No log depth override needed.
+    // Art models use layer 1 with tight standard depth. Physical DSK meshes
+    // share layer 0 and logarithmic depth with globes and trajectories.
     const emissiveModel = this.body.classification === 'star' || this.body.geometryData?.emissive === true;
     // Three.js shadow-map casting flag, read from the catalog. Used by the
     // sun DirectionalLight to render this mesh's silhouette into the shadow
     // map, which the parent body's terrain shader then samples. Independent
     // of the eclipse-shadow analytical system.
     const castShadowFlag = this.body.geometryData?.castShadow === true;
+    let hasArtModel = false;
     object.traverse((child) => {
-      child.layers.set(1);
+      const dskSurface = isMesh(child) && child.userData.dskSurface === true;
+      if (isMesh(child) && !dskSurface) hasArtModel = true;
+      // Physical DSKs share globe/trajectory depth. Art models retain their
+      // separate tight-depth pass; drawing DSKs there paints over foregrounds.
+      child.layers.set(dskSurface ? 0 : 1);
       if (emissiveModel) child.layers.enable(BLOOM_LAYER);
       if (castShadowFlag && isMesh(child)) child.castShadow = true;
 
@@ -627,21 +653,24 @@ export class BodyMesh extends THREE.Object3D {
         const receiveShadow = this.shadowEnabled;
         const su = this.shadowUniforms;
         for (const mat of mats) {
-          // Strip log depth chunks — model uses standard hardware depth.
+          // Only art models strip logarithmic depth for the tight model pass.
           // Also inject eclipse shadow uniforms when shadow receiving is enabled.
           mat.onBeforeCompile = (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }) => {
-            shader.vertexShader = shader.vertexShader
-              .replace('#include <logdepthbuf_pars_vertex>', '')
-              .replace('#include <logdepthbuf_vertex>', '');
-            shader.fragmentShader = shader.fragmentShader
-              .replace('#include <logdepthbuf_pars_fragment>', '')
-              .replace('#include <logdepthbuf_fragment>', '');
+            if (!dskSurface) {
+              shader.vertexShader = shader.vertexShader
+                .replace('#include <logdepthbuf_pars_vertex>', '')
+                .replace('#include <logdepthbuf_vertex>', '');
+              shader.fragmentShader = shader.fragmentShader
+                .replace('#include <logdepthbuf_pars_fragment>', '')
+                .replace('#include <logdepthbuf_fragment>', '');
+            }
             if (receiveShadow) injectShadowIntoShader(shader, su);
           };
-          mat.customProgramCacheKey = () => receiveShadow ? 'model_nologdepth_shadow_v1' : 'model_nologdepth';
+          mat.customProgramCacheKey = () => `${dskSurface ? 'dsk_logdepth' : 'model_nologdepth'}${receiveShadow ? '_shadow_v1' : ''}`;
         }
       }
     });
+    object.layers.set(hasArtModel ? 1 : 0);
 
     // Replace placeholder sphere with loaded model
     this.mesh.visible = false;
