@@ -1,0 +1,28 @@
+{
+  "features": 9,
+  "diagnostics": [],
+  "projected": [
+    -1.3608015918947923e-13,
+    1.109517919378037e-13,
+    0.999995691225992
+  ],
+  "camera": [
+    0.0007028786424993865,
+    0.0031574385508818833,
+    0.0010791864580892087
+  ],
+  "rotation": [
+    0,
+    0,
+    0,
+    1
+  ],
+  "hit": {
+    "kind": "geographic-feature",
+    "layerId": "jezero-science",
+    "featureId": "string:science",
+    "bodyName": "Mars"
+  },
+  "readout": "Geographic vectors · reference globe (terrain heights unavailable)",
+  "errors": []
+}

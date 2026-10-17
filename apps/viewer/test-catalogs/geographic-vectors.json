@@ -28,7 +28,7 @@
     { "name": "Jezero vectors", "type": "Viewpoint", "center": "Mars", "distance": 3410, "latitude": 18.45, "longitude": 77.45 },
     { "name": "Lunar polar vectors", "type": "Viewpoint", "center": "Moon", "distance": 2100, "latitude": -89, "longitude": 180 },
     { "name": "Sun", "class": "star", "trajectory": { "type": "FixedPoint", "position": [20000000, 100000000, 20000000] }, "geometry": { "type": "Globe", "radius": 695000 } },
-    { "name": "Mars", "class": "planet", "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] }, "geometry": { "type": "Globe", "radii": [3396.19, 3396.19, 3376.2] } },
-    { "name": "Moon", "class": "moon", "trajectory": { "type": "FixedPoint", "position": [12000, 0, 0] }, "geometry": { "type": "Globe", "radius": 1737.4, "baseMap": "textures/moon-2k.jpg" } }
+    { "name": "Mars", "class": "planet", "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] }, "rotationModel": { "type": "Fixed", "quaternion": [1, 0, 0, 0], "inertialFrame": "ECLIPJ2000" }, "geometry": { "type": "Globe", "radii": [3396.19, 3396.19, 3376.2] } },
+    { "name": "Moon", "class": "moon", "trajectory": { "type": "FixedPoint", "position": [12000, 0, 0] }, "rotationModel": { "type": "Fixed", "quaternion": [1, 0, 0, 0], "inertialFrame": "ECLIPJ2000" }, "geometry": { "type": "Globe", "radius": 1737.4, "baseMap": "textures/moon-2k.jpg" } }
   ]
 }

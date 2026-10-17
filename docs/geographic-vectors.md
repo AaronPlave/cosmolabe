@@ -120,6 +120,7 @@ Run `npm run build`, then start the viewer and run:
 
 ```sh
 CL_CHROMIUM=/usr/bin/chromium node scripts/test-geographic-vectors.mjs
+CL_CHROMIUM=/usr/bin/chromium node scripts/test-geographic-vectors-viewer.mjs
 ```
 
 The test saves images and timings under
@@ -132,3 +133,8 @@ finish and readback on Chromium SwiftShader, not a hardware-GPU performance
 claim. These fixtures do not validate registration against measured Jezero or
 Shackleton terrain products. Unit tests cover import topology, concavity, wide
 regions, seam/polar picking, multipart geometry, budgets, placement and lifetime.
+
+The second browser check exercises the real viewer/catalog loader, an explicit
+fixed frame on an oblate Mars globe, automatic vector drawing, stable scene-hit
+identity, selection and the reference-globe accuracy readout. Its screenshot and
+machine-readable result are `viewer-reference.png` and `viewer.json`.

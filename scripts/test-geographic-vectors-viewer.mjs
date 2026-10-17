@@ -32,6 +32,7 @@ try {
     if (hit?.kind === 'geographic-feature') renderer.geographicVectors.setSelected(hit);
     renderer.renderFrame();
     return { features: renderer.geographicVectors.featureCount, diagnostics: renderer.geographicVectors.diagnostics,
+      projected: projected.toArray(), camera: renderer.camera.position.toArray(), rotation: bm.bodyToWorldQuaternion(new THREE.Quaternion()).toArray(),
       hit, readout: document.querySelector('.cl-geographic-status')?.textContent, png: canvas.toDataURL() };
   }, { base, root: resolve('.') });
   await mkdir('docs/validation/geographic-vectors', { recursive: true });
