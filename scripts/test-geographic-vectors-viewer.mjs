@@ -9,6 +9,7 @@ const browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM 
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
   const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
+  page.setDefaultNavigationTimeout(60_000);
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (/Shader Error|VALIDATE_STATUS|ERROR: 0:/.test(m.text())) errors.push(m.text()); });
@@ -31,13 +32,38 @@ try {
     const hit = renderer.pickScene((projected.x + 1) / 2 * rect.width, (1 - projected.y) / 2 * rect.height, 'select', { labelSlopPx: 0 });
     if (hit?.kind === 'geographic-feature') renderer.geographicVectors.setSelected(hit);
     renderer.renderFrame();
+    const gl = renderer.renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info');
     return { features: renderer.geographicVectors.featureCount, diagnostics: renderer.geographicVectors.diagnostics,
+      gpu: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
       projected: projected.toArray(), camera: renderer.camera.position.toArray(), rotation: bm.bodyToWorldQuaternion(new THREE.Quaternion()).toArray(),
       hit, readout: document.querySelector('.cl-geographic-status')?.textContent, png: canvas.toDataURL() };
   }, { base, root: resolve('.') });
   await mkdir('docs/validation/geographic-vectors', { recursive: true });
   await writeFile('docs/validation/geographic-vectors/viewer-reference.png', Buffer.from(result.png.split(',')[1], 'base64'));
   delete result.png;
+  result.chrome = [];
+  for (const [name, viewport] of [['desktop', { width: 1100, height: 760 }], ['mobile', { width: 390, height: 844 }]]) {
+    await page.setViewportSize(viewport);
+    // The host caches panel rectangles for 250 ms, including after resize.
+    await page.waitForTimeout(300);
+    const chrome = await page.evaluate(async () => {
+      const { getCurrentRenderer } = await import('/src/lib/loader.ts');
+      const renderer = getCurrentRenderer(); renderer.renderFrame();
+      const element = document.querySelector('.cl-geographic-status');
+      const rect = element.getBoundingClientRect();
+      const overlaps = [...document.querySelectorAll('[data-scene-occluder]')].filter(other => {
+        const b = other.getBoundingClientRect();
+        return b.width && b.height && rect.left < b.right && rect.right > b.left && rect.top < b.bottom && rect.bottom > b.top;
+      }).map(other => other.className);
+      return { visible: getComputedStyle(element).visibility !== 'hidden',
+        bounds: rect.toJSON(), overlaps, readout: element.textContent };
+    });
+    assert.equal(chrome.visible, true, `${name}: readout should fit beside viewer chrome`);
+    assert.ok(chrome.bounds.width >= 250 && chrome.bounds.height <= 48, `${name}: readout should stay compact and readable after resize`);
+    assert.deepEqual(chrome.overlaps, [], `${name}: readout must clear viewer chrome`);
+    result.chrome.push({ name, viewport, ...chrome });
+    await page.screenshot({ path: `docs/validation/geographic-vectors/viewer-chrome-${name}.png` });
+  }
   await writeFile('docs/validation/geographic-vectors/viewer.json', JSON.stringify({ ...result, errors }, null, 2) + '\n');
   assert.deepEqual(errors, []);
   assert.equal(result.features, 9);

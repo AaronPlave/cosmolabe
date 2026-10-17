@@ -40,6 +40,7 @@ import { dskShapeProviderOf } from './DskShapeProvider.js';
 import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMarkerGroups } from './EventMarkers.js';
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
+import { geographicStatusPosition, geographicStatusText } from './geographic/GeographicStatus.js';
 import { PointProbeOverlay } from './PointProbe.js';
 import { pointerResolution, resolveSceneHit, resolveSurfaceAltitude, type HitLayer, type PickIntent, type PointerResolution, type SceneHit, type SurfaceDatum, type SurfaceHitSource, type SurfacePoint } from './SceneHit.js';
 import { OccultationGeometry } from './OccultationGeometry.js';
@@ -542,7 +543,7 @@ export class UniverseRenderer {
     this.geographicVectors = new GeographicVectorLayer(universe, this.scaleFactor);
     this.geographicStatus = document.createElement('div');
     this.geographicStatus.className = 'cl-geographic-status';
-    this.geographicStatus.style.cssText = 'position:absolute;right:12px;top:12px;max-width:330px;padding:5px 8px;color:#d5e1e8;background:#111b24cc;border-radius:4px;font:11px sans-serif;pointer-events:none;display:none';
+    this.geographicStatus.style.cssText = 'position:absolute;width:max-content;max-width:min(330px,calc(100% - 32px));padding:5px 8px;color:#d5e1e8;background:#111b24cc;border-radius:4px;font:11px sans-serif;pointer-events:none;display:none';
     this.labelContainer.appendChild(this.geographicStatus);
 
     // Forward universe events on the renderer event bus
@@ -1275,13 +1276,20 @@ export class UniverseRenderer {
     }
 
     this.geographicVectors.end();
-    const vectorSurfaces = [...new Set(this.geographicVectors.status.map(s => s.surface))];
-    const vectorWarnings = this.geographicVectors.diagnostics.length;
-    const vectorText = vectorSurfaces.length || vectorWarnings ? `Geographic vectors · ${vectorSurfaces.map(s => s === 'reference-ellipsoid' ? 'reference globe (terrain heights unavailable)' : s === 'body-fixed-height' ? 'declared body-fixed height' : 'displayed terrain').join(', ')}${vectorWarnings ? ` · ${vectorWarnings} limitation${vectorWarnings === 1 ? '' : 's'}` : ''}` : '';
+    const vectorText = geographicStatusText(this.geographicVectors.status, this.geographicVectors.diagnostics.length);
     if (this.geographicStatus.textContent !== vectorText) {
       this.geographicStatus.textContent = vectorText;
       this.geographicStatus.style.display = vectorText ? '' : 'none';
-      this.geographicStatus.title = 'Vectors follow the displayed surface; their drawing is not a terrain elevation measurement. Source uncertainty may be unknown. ' + this.geographicVectors.diagnostics.slice(0, 3).map(d => d.message).join(' ');
+    }
+    this.geographicStatus.title = 'Body rendering mode only; terrain coverage at individual features is not assessed. Vectors follow the displayed triangles, including fallback surfaces. Drawing is not a terrain elevation measurement; source uncertainty may be unknown. ' + this.geographicVectors.diagnostics.slice(0, 3).map(d => d.message).join(' ');
+    if (vectorText) {
+      const position = geographicStatusPosition(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight,
+        this.geographicStatus.offsetWidth, this.geographicStatus.offsetHeight, this._screenOccluders?.() ?? []);
+      this.geographicStatus.style.visibility = position ? '' : 'hidden';
+      if (position) {
+        this.geographicStatus.style.left = `${position.left}px`;
+        this.geographicStatus.style.top = `${position.top}px`;
+      }
     }
 
     // Pass 2: Models (layer 1) — standard depth with tight near/far
@@ -4483,6 +4491,7 @@ export class UniverseRenderer {
     }
     const measurement = this.spatialRelationships.pick(screenX, screenY, markerRadiusPx);
     if (measurement && this.spatialInteraction) {
+      this.geographicVectors.setSelected(null);
       this.spatialInteraction.onSelect(measurement);
       this.lastSpatialPickMs = performance.now();
       return true;
@@ -4495,6 +4504,7 @@ export class UniverseRenderer {
       this.events.emit('geographic:click', feature);
       return true;
     }
+    this.geographicVectors.setSelected(null);
     if (hit?.kind === 'event') {
       this.events.emit('event:click', { id: hit.eventId, queryId: hit.queryId, et: hit.et });
       return false;
@@ -4629,36 +4639,39 @@ export class UniverseRenderer {
     this._hoverPickTimer = window.setTimeout(() => {
       this._hoverPickTimer = 0;
       this._lastHoverPickMs = performance.now();
-      // Probe mode may have started while this pick was queued.
-      if (this._surfaceCursorOwnsPointer()) return;
-      // Label-only pick (cheap; runs while mousing) with a tight slop so the
-      // hover hitbox hugs the label text rather than a loose 20px halo.
-      if (this.spatialInteraction?.picking()) {
-        this.spatialInteraction.preview?.(this._lastPointer.x, this._lastPointer.y);
-        this.renderer.domElement.style.cursor = 'crosshair';
-        return;
-      }
-      const measurement = this.spatialInteraction?.picking() ? null : this.spatialRelationships.pick(this._lastPointer.x, this._lastPointer.y, 7);
-      this.spatialInteraction?.onHover(measurement);
-      const eventHit = measurement || this.spatialInteraction?.picking() ? null : this.pickSceneEvent(this._lastPointer.x, this._lastPointer.y, 11);
-      this.recordSceneEventHit(eventHit);
-      const eventKey = eventHit ? `${eventHit.marker.queryId}:${eventHit.marker.id}:${eventHit.boundary ?? ''}` : null;
-      if (eventKey !== this._hoveredSceneEvent) {
-        this._hoveredSceneEvent = eventKey;
-        this.events.emit('event:hover', eventHit ? {
-          id: eventHit.marker.id, queryId: eventHit.marker.queryId,
-          boundary: eventHit.boundary, et: eventHit.span ? eventHit.et : undefined,
-        } : null);
-      }
-      const sceneHit = eventHit || measurement ? null : this.pickScene(this._lastPointer.x, this._lastPointer.y, 'select', { labelSlopPx: 3, bodyMeshes: false });
-      const geographic = sceneHit?.kind === 'geographic-feature' ? { layerId: sceneHit.layerId, featureId: sceneHit.featureId, bodyName: sceneHit.bodyName } : null;
-      this.setGeographicHover(geographic);
-      const next = sceneHit?.kind === 'entity' ? sceneHit.bodyName : null;
-      if (next !== this._hoveredBody) this._applyHover(next);
-      this.renderer.domElement.style.cursor =
-        this.spatialInteraction?.picking() ? 'crosshair' : measurement || eventHit || geographic || next ? 'pointer' : '';
+      this.updateObjectHover();
     }, wait);
   };
+
+  /** Higher-priority glyphs/features win; a body mesh remains the fallback. */
+  private updateObjectHover(): void {
+    // Probe mode may have started while this pick was queued.
+    if (this._surfaceCursorOwnsPointer()) return;
+    if (this.spatialInteraction?.picking()) {
+      this.spatialInteraction.preview?.(this._lastPointer.x, this._lastPointer.y);
+      this.renderer.domElement.style.cursor = 'crosshair';
+      return;
+    }
+    const measurement = this.spatialInteraction?.picking() ? null : this.spatialRelationships.pick(this._lastPointer.x, this._lastPointer.y, 7);
+    this.spatialInteraction?.onHover(measurement);
+    const eventHit = measurement || this.spatialInteraction?.picking() ? null : this.pickSceneEvent(this._lastPointer.x, this._lastPointer.y, 11);
+    this.recordSceneEventHit(eventHit);
+    const eventKey = eventHit ? `${eventHit.marker.queryId}:${eventHit.marker.id}:${eventHit.boundary ?? ''}` : null;
+    if (eventKey !== this._hoveredSceneEvent) {
+      this._hoveredSceneEvent = eventKey;
+      this.events.emit('event:hover', eventHit ? {
+        id: eventHit.marker.id, queryId: eventHit.marker.queryId,
+        boundary: eventHit.boundary, et: eventHit.span ? eventHit.et : undefined,
+      } : null);
+    }
+    const sceneHit = eventHit || measurement ? null : this.pickScene(this._lastPointer.x, this._lastPointer.y, 'select', { labelSlopPx: 3 });
+    const geographic = sceneHit?.kind === 'geographic-feature' ? { layerId: sceneHit.layerId, featureId: sceneHit.featureId, bodyName: sceneHit.bodyName } : null;
+    this.setGeographicHover(geographic);
+    const next = sceneHit?.kind === 'entity' ? sceneHit.bodyName : null;
+    if (next !== this._hoveredBody) this._applyHover(next);
+    this.renderer.domElement.style.cursor =
+      this.spatialInteraction?.picking() ? 'crosshair' : measurement || eventHit || geographic || next ? 'pointer' : '';
+  }
 
   /**
    * A scene hover stays valid only while the event is still under the

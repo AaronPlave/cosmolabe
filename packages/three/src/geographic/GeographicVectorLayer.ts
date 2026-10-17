@@ -9,6 +9,7 @@ import { GeographicMaterial } from './GeographicMaterial.js';
 export type GeographicPlacement =
   | { mode: 'clamp' }
   | { mode: 'terrain-relative'; offsetKm: number }
+  /** Reserved: diagnosed and omitted until an error-bounded surface exists. */
   | { mode: 'body-fixed-height'; heightKm: number };
 
 interface Batch {
@@ -19,7 +20,6 @@ interface Batch {
   datum: GeographicLayer['datum'];
   bodyName: string;
   proxies: Map<THREE.Mesh, Proxy>;
-  fixed?: THREE.Mesh;
 }
 interface Proxy {
   mesh: THREE.Mesh;
@@ -34,7 +34,9 @@ export interface GeographicVectorStatus {
   layerIds: string[];
   features: number;
   primitives: number;
-  surface: 'reference-ellipsoid' | 'rendered-terrain' | 'body-fixed-height';
+  /** Body-wide rendering mode; does not assert coverage at any feature. */
+  bodySurfaceMode: 'reference-globe' | 'terrain-streaming';
+  featureTerrainCoverage: 'not-assessed';
   /** This describes the drawing, never a source's scientific height accuracy. */
   accuracy: 'rendered-triangles; source uncertainty unknown';
 }
@@ -121,6 +123,11 @@ export class GeographicVectorLayer {
           }
           placement = heights.length ? { mode: 'body-fixed-height', heightKm: heights[0] } : { mode: 'clamp' };
         }
+        if (placement.mode === 'body-fixed-height') {
+          this._diagnostics.push({ layerId: layer.id, featureId: feature.id, code: 'unsupported-height',
+            message: 'Absolute datum-height drawing is unavailable until its surface has a bounded height error. Choose explicit clamp or terrain-relative placement to drape this feature; source coordinates are preserved.' });
+          continue;
+        }
         const key = JSON.stringify(placement);
         let subset = subsets.get(key);
         if (!subset) {
@@ -148,27 +155,11 @@ export class GeographicVectorLayer {
       if (!isSupportedGeodeticDatum(datum)) continue;
       const a = shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[0];
       const c = shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[2];
-      if (placement.mode === 'body-fixed-height' && placement.heightKm <= -Math.min(a, c)) {
-        this._diagnostics.push({ layerId: layers[0].id, code: 'unsupported-height', message: 'Height reaches the body centre' }); continue;
-      }
       const index = new GeographicIndex(layers);
       this._diagnostics.push(...index.diagnostics);
       if (!index.primitives.length) continue;
       const material = new GeographicMaterial(index, a, c);
       const batch: Batch = { layers, index, material, placement, datum, bodyName: layers[0].body, proxies: new Map() };
-      if (placement.mode === 'body-fixed-height') {
-        const geometry = new THREE.SphereGeometry(1, 192, 96);
-        const attribute = geometry.getAttribute('position');
-        for (let i = 0; i < attribute.count; i++) {
-          const latDeg = Math.asin(Math.max(-1, Math.min(1, attribute.getY(i)))) * 180 / Math.PI;
-          const lonDeg = Math.atan2(-attribute.getZ(i), attribute.getX(i)) * 180 / Math.PI;
-          const p = geodeticToBodyFixed({ latDeg, lonDeg, heightKm: placement.heightKm }, datum);
-          attribute.setXYZ(i, p.xKm, p.yKm, p.zKm);
-        }
-        // Y-up sphere → Z-up ECEF preserves triangle winding.
-        geometry.computeBoundingSphere();
-        batch.fixed = new THREE.Mesh(geometry, material);
-      }
       this.batches.push(batch);
     }
     this.updateHighlights(); this.dirty = false;
@@ -210,19 +201,15 @@ export class GeographicVectorLayer {
       batch.material.uniforms.vectorPixelRatio.value = renderer.getPixelRatio();
       if (!overlays) this._status.push({ bodyName: batch.bodyName, layerIds: batch.layers.map(l => l.id),
         features: batch.index.features.length, primitives: batch.index.primitives.length,
-        surface: batch.placement.mode === 'body-fixed-height' ? 'body-fixed-height' : bm.surfaceTransitionState === 'streamed' && !bm.isImageryOnlySurface ? 'rendered-terrain' : 'reference-ellipsoid',
+        bodySurfaceMode: bm.surfaceTransitionState === 'streamed' && !bm.isImageryOnlySurface ? 'terrain-streaming' : 'reference-globe',
+        featureTerrainCoverage: 'not-assessed',
         accuracy: 'rendered-triangles; source uncertainty unknown' });
-      if (batch.fixed) {
-        if (overlays) continue;
-        this.addProxy(batch, batch.fixed, batch.fixed.geometry, bodyMatrix, new THREE.Matrix4(), origin, false);
-      } else {
-        const roots = overlays ? bm.getSurfaceOverlays().map(o => o.group) : [bm.mesh, bm.terrainTileGroup].filter((o): o is THREE.Object3D => o !== null);
-        for (const root of roots) root.traverseVisible(object => {
-          if (!(object instanceof THREE.Mesh) || !(object.geometry instanceof THREE.BufferGeometry)) return;
-          const localToBody = toBody.clone().multiply(object.matrixWorld);
-          this.addProxy(batch, object, object.geometry, object.matrixWorld, localToBody, origin, batch.placement.mode === 'terrain-relative');
-        });
-      }
+      const roots = overlays ? bm.getSurfaceOverlays().map(o => o.group) : [bm.mesh, bm.terrainTileGroup].filter((o): o is THREE.Object3D => o !== null);
+      for (const root of roots) root.traverseVisible(object => {
+        if (!(object instanceof THREE.Mesh) || !(object.geometry instanceof THREE.BufferGeometry)) return;
+        const localToBody = toBody.clone().multiply(object.matrixWorld);
+        this.addProxy(batch, object, object.geometry, object.matrixWorld, localToBody, origin, batch.placement.mode === 'terrain-relative');
+      });
     }
     if (this.scene.children.length) renderer.render(this.scene, camera);
   }
@@ -368,7 +355,7 @@ export class GeographicVectorLayer {
     this.scene.clear();
     for (const batch of this.batches) {
       for (const [source, proxy] of batch.proxies) this.dropProxy(batch, source, proxy);
-      batch.material.dispose(); batch.fixed?.geometry.dispose();
+      batch.material.dispose();
     }
     this.batches = []; this.offsetVertices = 0; this.proxyCount = 0;
   }

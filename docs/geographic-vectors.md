@@ -42,8 +42,10 @@ Distances/placement offsets are kilometres throughout. No display radius enters
 a physical coordinate conversion.
 
 A reference globe can be drawn when terrain is unavailable. The viewer's small
-surface-status readout identifies that fallback and reports rendering
-limitations. `renderer.geographicVectors.status` and `.diagnostics` provide the
+surface-status readout identifies each body's rendering mode and reports
+limitations. This is body-wide context: terrain coverage at individual features
+is **not assessed**, even while terrain is streaming elsewhere on the body.
+The readout avoids host UI rectangles and hides when no free space remains. `renderer.geographicVectors.status` and `.diagnostics` provide the
 same information to embed hosts. A feature's appearance is **not a terrain
 measurement**: source uncertainty and displayed mesh deviation may be unknown.
 Surface tools still return the existing `SurfacePoint` with its own hit source,
@@ -57,9 +59,6 @@ renderer.geographicVectors.setPlacement('science', { mode: 'clamp' });
 renderer.geographicVectors.setPlacement('science', {
   mode: 'terrain-relative', offsetKm: 0.002, // 2 m along the geodetic normal
 });
-renderer.geographicVectors.setPlacement('science', {
-  mode: 'body-fixed-height', heightKm: 1.2, // above the layer's declared datum
-});
 renderer.geographicVectors.setSelected({
   layerId: 'science', featureId: 'string:target', bodyName: 'Mars',
 });
@@ -67,24 +66,32 @@ renderer.geographicVectors.setSelected(null);
 ```
 
 Default imported Z is an absolute datum height, **never** a terrain offset.
-Features whose vertices all have the same Z use a fixed-height reference shell.
-Varying or mixed 2D/3D heights require an unattached 3D path and are diagnosed and
-omitted by default. An explicit layer placement opts those features into the
-chosen projection while retaining their original data. Arbitrary Cartesian 3D
-and attachment to irregular shapes are not supported. Fixed-height shells use a
-192 by 96 globe tessellation; their chord error is a display limitation, not
-height accuracy. Terrain-relative offsets reuse each active terrain triangle's
-vertices displaced along the datum normal; their detail follows terrain, not
-imagery. Negative offsets may be occluded by the surface as expected.
+All imported Z values, including zero and small positive heights, are diagnosed
+and omitted by default. `body-fixed-height` is reserved but unavailable: an
+absolute-height drawing surface needs a bounded height error before it can be
+enabled. The former 192 by 96 shell could lie hundreds of metres below its
+declared height on Mars and disappear beneath detailed terrain. No shell or
+pick target is allocated for this mode.
+
+An explicit `clamp` or `terrain-relative` placement opts those features into
+draping while retaining their original Z coordinates. Varying/mixed heights
+and arbitrary Cartesian 3D require an unattached 3D path; attachment to irregular
+shapes is also unsupported. Terrain-relative offsets reuse active terrain
+triangle vertices displaced along the datum normal; their detail follows
+terrain, not imagery. Negative offsets may be occluded by the surface as expected.
 
 `pickScene(x, y, 'select')` returns
 `{ kind: 'geographic-feature', layerId, featureId, bodyName }`. Events and entity
 labels retain priority; a feature wins over its parent body. Geographic hits
-are tested only on the nearest visible surface (or an explicit-height surface
+are tested only on the nearest visible surface (or a terrain-relative surface
 in front of it). The same spatial index, projection and local pixel differential
 serve CPU picking and fragment rendering. Points win over strokes, then fills;
 source order breaks equal ties. `geographic:click` and `geographic:hover` expose
-stable references. Hover is revalidated during rotation/camera motion. Probe,
+stable references. Selecting another feature replaces the highlight; selecting
+an event, measurement, body/label or empty space clears it. Probe and active
+tool gestures preserve it. Body mesh hover remains available when no higher
+priority glyph, label or geographic feature is hit. Hover is revalidated during
+rotation/camera motion. Probe,
 pivot, measurement endpoints and active pointer tools retain their existing
 paths and do not acquire geographic features.
 
@@ -136,5 +143,20 @@ regions, seam/polar picking, multipart geometry, budgets, placement and lifetime
 
 The second browser check exercises the real viewer/catalog loader, an explicit
 fixed frame on an oblate Mars globe, automatic vector drawing, stable scene-hit
-identity, selection and the reference-globe accuracy readout. Its screenshot and
-machine-readable result are `viewer-reference.png` and `viewer.json`.
+identity, selection and the reference-globe readout. It also captures the full
+viewer chrome at desktop and mobile sizes and asserts that the status is clear
+of host UI. Artifacts are `viewer-reference.png`, `viewer-chrome-desktop.png`,
+`viewer-chrome-mobile.png` and `viewer.json`.
+
+The review follow-up also exercises absolute Z=0 and Z=2 m against a detailed
+10 m tessellated Mars patch: these values and explicit absolute placement must
+produce diagnostics, no GPU resources and no hits until an explicit draping
+choice is made. The patch is analytic, not measured elevation.
+
+Measured Jezero/Shackleton zoom/LOD registration and physical desktop/mobile GPU
+profiling remain pre-merge validation requirements. This cloud environment has
+no `/dev/dri` or NVIDIA device and Chromium uses SwiftShader. On 2026-10-17,
+requests to the USGS Jezero HiRISE DTM and a candidate lunar south-polar mirror
+returned HTTP 403; the configured lunar S3 source is outside the environment's
+network policy. Neither the synthetic fixture nor software timings substitute
+for those checks; the PR remains a draft.
