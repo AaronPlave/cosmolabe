@@ -18,12 +18,10 @@ using the same validation as picked bounds; neither silently moves the other bou
 
 ## Rendering contract
 
-- Operates on loaded quantized-mesh terrain. Imagery-only surfaces, generic
-  3D Tiles/ion models, **our known cube-sphere terrain (including MoonFall at
-  Shackleton)**, unknown/areoid references, and unsupported normal-height
-  triaxial references have no relief styles in this MVP. The panel states this
-  limitation; the cube-sphere exclusion is a format limitation, not a claim
-  that those datasets lack a known datum.
+- Operates on loaded quantized-mesh terrain and validated Cosmolabe cube-sphere
+  products. See [cube-sphere integration and GPU evidence](../cube-surface-appearance/README.md)
+  for #260. Imagery-only surfaces, generic 3D Tiles/ion models, unknown/areoid
+  references, and unsupported normal-height triaxial references remain excluded.
 - Elevation colors interpolate per-vertex heights computed from the existing
   positions, in double precision, relative to the sampler's body reference shape.
   Radial and axisymmetric geodetic-normal conventions are supported. The Mars
@@ -84,31 +82,18 @@ replacing materials. Contours and the upstream `TopoLinesPlugin` evaluation
 remain in #183. Multidirectional hillshade, automatic local range fitting,
 slope/aspect, and further relief effects are deferred.
 
-## Cube-sphere follow-up under #182
+## Cube-sphere integration (#260)
 
-Cube-sphere support is explicitly deferred from #187. This includes
-`apps/viewer/test-catalogs/moonfall-shackleton.json` and the
-`apps/viewer/test-catalogs/experiments/moon-terrain-cube*.json` demos, which use
-`type: '3dtiles'` with the known `cubeSphere` contracts. The LRO quantized-mesh
-polar fixture below does **not** validate MoonFall support.
+The follow-up to #187 now supports the known `cubeSphere` planetary product,
+including MoonFall/Shackleton and the cube imagery experiments. Its stricter
+capability checks, imagery block lifecycle, rendered-height picks, real hardware
+GPU captures, timing results and remaining limits are documented in the
+[cube-sphere validation record](../cube-surface-appearance/README.md).
 
-The bounded follow-up must:
-
-- Add a capability path restricted to the known planetary cube-sphere terrain,
-  validating its datum, coordinate transforms, ground/skirt groups, and height
-  grid metadata. Generic 3D Tiles/ion meshes must remain excluded.
-- Compose with `CubeImageryLayer` material replacement and skirt rebuilding;
-  preserve CPU-grid sampling, physical geometry, and source/LOD behavior.
-- Verify elevation-color values and independent bound picks against rendered
-  cube terrain, plus visible-only shared normals through cached LOD transitions.
-- Capture MoonFall/Shackleton and a cube-sphere demo with imagery, hillshade,
-  tint, restoration, and mobile panel layout before enabling their controls.
-
-This is tracked as remaining scope of #182, which this PR does not close.
-Human GPU acceptance of close Jezero, LRO Shackleton, zoom/LOD transitions,
-range/imagery blending and restoration remains pending. A physical-phone check
-of expanded controls and activation is also pending; CPU throttling and the
-software-rendered captures do not establish that acceptance.
+#182 remains open for its other surface visualization and polar-quality work.
+The original quantized-mesh evidence below remains specific to those sources.
+Physical-phone acceptance remains separate from desktop Chromium mobile layout
+checks; neither establishes low-end mobile GPU activation costs.
 
 ## Reproduce
 

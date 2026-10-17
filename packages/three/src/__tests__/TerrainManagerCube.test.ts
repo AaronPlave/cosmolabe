@@ -157,3 +157,80 @@ describe('TerrainManager with cube-sphere CPU grids', () => {
     tm.dispose();
   });
 });
+
+describe('known cube-sphere surface appearance capability', () => {
+  type Tiles = { rootTileset: object | null; dispatchEvent(e: object): void; group: THREE.Group };
+  function root(tm: TerrainManager, asset: object = {}) {
+    const tiles = (tm as unknown as { tiles: Tiles }).tiles;
+    tiles.rootTileset = { asset: { generator: 'scripts/terrain/dem.py cube-tile', tilesetVersion: 'fixture-v1', ...asset } };
+    tiles.dispatchEvent({ type: 'load-root-tileset' });
+    return tiles;
+  }
+  function serveKnown(change: (m: CubeGridManifest) => void = () => {}) {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const m = manifest();
+      m.grid.encoding = 'float32 little-endian, metres above the reference sphere';
+      change(m);
+      return url.endsWith('.json') ? new Response(JSON.stringify(m)) : new Response(new Float32Array(W * W).fill(100).buffer);
+    }));
+  }
+
+  it('waits for matching metadata, then styles both delayed and already loaded glTF meshes without changing physical buffers', async () => {
+    serveKnown();
+    const tm = make();
+    expect(tm.surfaceAppearance).toBeNull();
+    const tiles = (tm as unknown as { tiles: Tiles }).tiles;
+    // glTF Y up -> tileset Z north. An arbitrary world/camera transform must be excluded.
+    tiles.group.position.set(9e9, 2e8, 3e7); tiles.group.scale.setScalar(0.0002);
+    const scene = new THREE.Group(); scene.rotation.x = Math.PI / 2;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 10, 0, 0, 0, 0, 10], 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+    g.setIndex([0, 1, 2]); g.userData.surfaceTriangles = 1;
+    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial()); mesh.position.y = R * 1000 + 100;
+    scene.add(mesh); tiles.group.add(scene);
+    const before = ['position', 'normal'].map(n => g.getAttribute(n).array.slice());
+    tiles.dispatchEvent({ type: 'load-model', scene, tile: {} });
+    await vi.waitFor(() => expect(tm.cubeStats?.version).toBe('fixture-v1'));
+    expect(tm.surfaceAppearance).toBeNull();
+    const cpuSample = tm.sample(0, 0);
+    root(tm);
+    expect(tm.surfaceAppearanceDatum).toEqual(manifest().datum);
+    tm.setSurfaceAppearance({ ...tm.surfaceAppearance!, baseColor: 'elevation', hillshade: true });
+    const style = (tm as unknown as { surfaceStyle: { update(n: number): void } }).surfaceStyle;
+    style.update(Infinity);
+    for (let i = 0; i < 3; i++) expect(g.getAttribute('surfaceHeightKm').getX(i)).toBeCloseTo(0.1, 5);
+    expect(['position', 'normal'].map(n => g.getAttribute(n).array)).toEqual(before);
+    expect(tm.sample(0, 0)).toEqual(cpuSample);
+    const late = scene.clone();
+    (late.children[0] as THREE.Mesh).geometry = g.clone();
+    for (const name of ['surfaceHeightKm', 'surfaceReliefNormal', 'surfaceGround']) (late.children[0] as THREE.Mesh).geometry.deleteAttribute(name);
+    tiles.group.add(late); tiles.dispatchEvent({ type: 'load-model', scene: late, tile: {} });
+    style.update(Infinity);
+    expect((late.children[0] as THREE.Mesh).geometry.hasAttribute('surfaceHeightKm')).toBe(true);
+    for (const invalid of ['scale', 'topology', 'height']) {
+      const scene = late.clone(), mesh = scene.children[0] as THREE.Mesh;
+      mesh.geometry = g.clone();
+      for (const name of ['surfaceHeightKm', 'surfaceReliefNormal', 'surfaceGround']) mesh.geometry.deleteAttribute(name);
+      if (invalid === 'scale') mesh.scale.setScalar(1000);
+      if (invalid === 'topology') mesh.geometry.userData = {};
+      if (invalid === 'height') mesh.position.y += 100000;
+      tiles.group.add(scene); tiles.dispatchEvent({ type: 'load-model', scene, tile: {} }); style.update(Infinity);
+      expect(mesh.geometry.hasAttribute('surfaceHeightKm'), invalid).toBe(false);
+    }
+    tm.dispose();
+  });
+
+  it.each([
+    ['generic generator', { generator: 'unknown' }, (_m: CubeGridManifest) => {}],
+    ['missing revision', { tilesetVersion: undefined }, (_m: CubeGridManifest) => {}],
+    ['wrong revision', { tilesetVersion: 'other' }, (_m: CubeGridManifest) => {}],
+    ['unknown encoding', {}, (m: CubeGridManifest) => { m.grid.encoding = 'unknown'; }],
+    ['unsupported datum', {}, (m: CubeGridManifest) => { m.datum.verticalDatum = 'unknown'; }],
+  ])('excludes %s', async (_name, asset, change) => {
+    serveKnown(change); vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const tm = make(); root(tm, asset);
+    await new Promise(r => setTimeout(r, 30));
+    expect(tm.surfaceAppearance).toBeNull(); tm.dispose();
+  });
+});
