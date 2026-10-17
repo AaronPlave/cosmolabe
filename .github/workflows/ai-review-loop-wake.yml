@@ -1,0 +1,15 @@
+name: AI review loop wake
+
+on:
+  pull_request_target:
+    types: [labeled, unlabeled, ready_for_review, converted_to_draft, reopened, synchronize, closed]
+
+# No checkout, secrets, write token, or PR code. pull_request_target also wakes
+# on conflicted PRs and always loads this workflow from the default branch.
+permissions: {}
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'true'

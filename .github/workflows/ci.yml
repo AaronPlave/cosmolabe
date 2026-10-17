@@ -11,6 +11,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ai-review-loop:
+    name: AI review loop checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Test AI review reconciler and recovery
+        run: npm run test:ai-loop
+      - name: Validate GitHub workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.10 .github/workflows/ci.yml .github/workflows/ai-review-loop*.yml
+
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
