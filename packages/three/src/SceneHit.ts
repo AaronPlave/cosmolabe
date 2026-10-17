@@ -13,6 +13,7 @@
  */
 
 import type { SurfaceHitSource, SurfacePoint, SurfaceDatum, PointerResolution } from '@cosmolabe/core';
+import type { GeographicFeatureRef } from './geographic/GeographicIndex.js';
 export type { SurfaceHitSource, SurfacePoint, SurfaceDatum, PointerResolution } from '@cosmolabe/core';
 
 /**
@@ -38,6 +39,7 @@ export function resolveSurfaceAltitude(
 }
 
 export type SceneHit =
+  | ({ kind: 'geographic-feature' } & GeographicFeatureRef)
   | { kind: 'event'; eventId: string; queryId: string; et: number; boundary?: 'start' | 'end' }
   | { kind: 'entity'; bodyName: string; via: 'label' | 'mesh' }
   | {
@@ -49,7 +51,7 @@ export type SceneHit =
 
 /**
  * Why the host is asking. Each intent owns its hit precedence:
- * - `select`: event glyph → label → body (normal click selection).
+ * - `select`: event glyph → label → geographic feature → body.
  * - `probe`: rendered surface only (Point Probe).
  * - `endpoint`: a named entity by its label, else a surface point, else the
  *   body (measurement endpoints, #57).
@@ -58,10 +60,10 @@ export type SceneHit =
 export type PickIntent = 'select' | 'probe' | 'endpoint' | 'pivot';
 
 /** The discovery layers the renderer can consult. */
-export type HitLayer = 'event' | 'label' | 'body' | 'surface';
+export type HitLayer = 'event' | 'label' | 'geographic-feature' | 'body' | 'surface';
 
 export const PICK_PRECEDENCE: Readonly<Record<PickIntent, readonly HitLayer[]>> = {
-  select: ['event', 'label', 'body'],
+  select: ['event', 'label', 'geographic-feature', 'body'],
   probe: ['surface'],
   endpoint: ['label', 'surface', 'body'],
   pivot: ['surface'],

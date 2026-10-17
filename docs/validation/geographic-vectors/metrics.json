@@ -1,0 +1,66 @@
+{
+  "checks": [
+    {
+      "name": "Jezero visible",
+      "pass": true
+    },
+    {
+      "name": "shared feature identity on terrain",
+      "pass": true
+    },
+    {
+      "name": "selected marker",
+      "pass": true
+    },
+    {
+      "name": "LOD replacement",
+      "pass": true
+    },
+    {
+      "name": "rotation and floating origin",
+      "pass": true
+    },
+    {
+      "name": "polar cap, holes and seam",
+      "pass": true
+    },
+    {
+      "name": "backside occlusion",
+      "pass": true
+    },
+    {
+      "name": "hidden zero features",
+      "pass": true
+    }
+  ],
+  "metrics": [
+    {
+      "name": "dense index 4900 features",
+      "milliseconds": 886.3000000000466,
+      "features": 4900,
+      "diagnostics": 0,
+      "batches": 1,
+      "surfaceMeshes": 0,
+      "offsetVertices": 0,
+      "textureBytes": 1130496
+    },
+    {
+      "name": "dense full frame with GPU finish/readback, software GPU",
+      "milliseconds": 2672.1000000000154
+    },
+    {
+      "name": "hidden rebuild and full frame",
+      "milliseconds": 307.19999999995343,
+      "features": 0
+    },
+    {
+      "name": "hidden vector update average (100 iterations)",
+      "milliseconds": 0.0019999999995343387,
+      "batches": 0,
+      "surfaceMeshes": 0,
+      "offsetVertices": 0,
+      "textureBytes": 0
+    }
+  ],
+  "errors": []
+}

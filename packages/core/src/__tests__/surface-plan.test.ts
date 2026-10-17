@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { parseGeographicGeoJson } from '../geographic/import.js';
 import {
   createLockedSurfacePlan, estimateSurfacePlan, formatSurfacePlanEstimate, parseSurfacePlan, resolveSurfacePlan,
   serializeSurfacePlan, surfacePlanIdentity, SurfacePlanError, validateDesiredSurfacePlan,
@@ -92,10 +93,27 @@ describe('versioned surface data plans', () => {
     p.layers[0].geojson = collection(rectangle('absent', 0, 0, 1, 1));
     expect(() => resolveSurfacePlan(p)).toThrow(/not found/);
     expect(() => resolveSurfacePlan(parseSurfacePlan(fixtureText('lunar-pole-unsupported.plan.json')))).toThrow(/Pole-enclosing/);
+
   });
 });
 
 describe('overlap-aware physical area and resource estimates', () => {
+  it.each([-1, 1])('keeps pole %s rendering support separate from planar ROI and source estimation', async sign => {
+    const p = plan();
+    const cap = collection({ type: 'Feature', id: 'a', properties: null, geometry: { type: 'MultiPolygon', coordinates: [
+      [[[-135, sign * 85], [-45, sign * 85], [45, sign * 85], [135, sign * 85], [-135, sign * 85]]],
+    ] } });
+    const imported = parseGeographicGeoJson(JSON.stringify(cap), p.layers[0], { kind: 'local-file', identity: 'polar-test' }, p.coordinates);
+    expect(imported.features).toHaveLength(1);
+    expect(imported.diagnostics).toEqual([]);
+    p.layers[0].geojson = cap;
+    expect(() => resolveSurfacePlan(p)).toThrow(/Pole-enclosing/);
+    await expect(estimateSurfacePlan(p)).rejects.toMatchObject({ diagnostics: [{ code: 'unsupported-shape' }] });
+    const ordinary = plan();
+    await expect(estimateSurfacePlan(ordinary, { sources: [source(ordinary, { footprint: cap })] }))
+      .rejects.toMatchObject({ diagnostics: [{ code: 'unsupported-shape' }] });
+  });
+
   it('integrates a spherical rectangle in physical meters and separates imagery and DEM sampling', async () => {
     const p = plan(); p.regions[0].elevation = { gsdM: 100 };
     const e = await estimateSurfacePlan(p);
