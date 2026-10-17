@@ -1,0 +1,2064 @@
+{
+  "results": [
+    {
+      "body": "Mars",
+      "sourceMetadataText": "{\n  \"generator\": \"scripts/terrain/dem.py tile\",\n  \"created\": \"2026-10-14T19:21:45Z\",\n  \"heightField\": \"base(lon,lat) [Catmull-Rom] + residual(lon,lat) [bilinear], one field for every level\",\n  \"normals\": \"octvertexnormals from central differences of the same field (one-vertex ring past each tile)\",\n  \"verticalDatum\": \"MOLA areoid heights (m); the renderer places them as IAU-ellipsoid heights\",\n  \"tileCenterEllipsoidM\": [\n    3396190.0,\n    3376200.0\n  ],\n  \"mesh\": {\n    \"grid\": 65,\n    \"simplification\": \"RTIN, all edge vertices kept\",\n    \"maxErrorFractionOfSpacing\": 0.1\n  },\n  \"levels\": {\n    \"global\": [\n      0,\n      9\n    ],\n    \"regional\": [\n      10,\n      15\n    ],\n    \"regionalBounds\": [\n      77.16,\n      18.21,\n      77.7,\n      18.72\n    ],\n    \"residualBounds\": [\n      77.22293307697143,\n      18.30679944968657,\n      77.5839640209351,\n      18.66931500687775\n    ]\n  },\n  \"residualGrid\": {\n    \"kind\": \"geo\",\n    \"crs\": \"+proj=longlat +R=3396190 +no_defs\"\n  },\n  \"sources\": {\n    \"canonical\": {\n      \"path\": \"/Users/aplave/code/cosmolabe/scripts/build-mars-terrain/data/source/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif\",\n      \"size\": [\n        106694,\n        53347\n      ],\n      \"geotransform\": [\n        -180.0,\n        0.003374120830641,\n        0.0,\n        90.0,\n        0.0,\n        -0.003374120830641\n      ],\n      \"bounds\": [\n        -180.0,\n        -89.99922395220543,\n        179.99844790441085,\n        90.0\n      ],\n      \"crs\": \"+proj=longlat +R=3396190 +no_defs\",\n      \"semiMajorM\": 3396190.0,\n      \"semiMinorM\": 3396190.0,\n      \"geographic\": true,\n      \"dataType\": \"Int16\",\n      \"nodata\": -32768.0,\n      \"areaOrPoint\": \"Area\",\n      \"overviews\": [\n        [\n          53347,\n          26674\n        ],\n        [\n          26674,\n          13337\n        ],\n        [\n          13337,\n          6669\n        ],\n        [\n          6669,\n          3335\n        ],\n        [\n          3335,\n          1668\n        ],\n        [\n          1668,\n          834\n        ],\n        [\n          834,\n          417\n        ],\n        [\n          417,\n          209\n        ]\n      ]\n    },\n    \"detail\": {\n      \"path\": \"/Users/aplave/code/cosmolabe/scripts/build-mars-terrain/data/source/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif\",\n      \"size\": [\n        21400,\n        21488\n      ],\n      \"geotransform\": [\n        4577366.0,\n        1.0,\n        0.0,\n        1106618.0,\n        0.0,\n        -1.0\n      ],\n      \"bounds\": [\n        4577366.0,\n        1085130.0,\n        4598766.0,\n        1106618.0\n      ],\n      \"crs\": \"+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs\",\n      \"semiMajorM\": 3396190.0,\n      \"semiMinorM\": 3396190.0,\n      \"geographic\": false,\n      \"dataType\": \"Float32\",\n      \"nodata\": -3.4028226550889045e+38,\n      \"areaOrPoint\": \"Area\",\n      \"overviews\": []\n    }\n  },\n  \"registration\": {\n    \"model\": \"detail \\u2212 base = offset + slopeEast\\u00b7east + slopeNorth\\u00b7north (least squares)\",\n    \"centroid\": {\n      \"lonDeg\": 77.4034569842557,\n      \"latDeg\": 18.48804879297973\n    },\n    \"offsetM\": -8.645969777066195,\n    \"slopeEastMPerKm\": 1.0121736526817324,\n    \"slopeNorthMPerKm\": -0.6852599991318675,\n    \"tiltDeg\": 0.07003399047059078,\n    \"raw\": {\n      \"n\": 4749862,\n      \"meanM\": -7.893571008697858,\n      \"rmsM\": 18.93642389993706,\n      \"p95AbsM\": 39.94189453125,\n      \"maxAbsM\": 89.161376953125\n    },\n    \"afterPlane\": {\n      \"n\": 4749862,\n      \"meanM\": 8.499790859098853e-14,\n      \"rmsM\": 15.880520798838809,\n      \"p95AbsM\": 33.68761187276017,\n      \"maxAbsM\": 96.78352399830243\n    },\n    \"removed\": false,\n    \"note\": \"the fitted plane is disclosed but kept: the detail keeps its absolute heights and the taper band carries the bias back to the base\"\n  },\n  \"taper\": {\n    \"blendM\": 1000.0,\n    \"function\": \"smoothstep(distance to coverage edge / blendM)\",\n    \"fullWeightFraction\": 0.4848233832749946,\n    \"bandFraction\": 0.17625186585340394\n  },\n  \"residual\": {\n    \"all\": {\n      \"n\": 4749862,\n      \"meanM\": -7.26290945372306,\n      \"rmsM\": 17.078623449622114,\n      \"p95AbsM\": 36.7574401855469,\n      \"maxAbsM\": 87.53271484375\n    },\n    \"fullWeight\": {\n      \"n\": 3483465,\n      \"meanM\": -8.650158062055366,\n      \"rmsM\": 18.43168956585401,\n      \"p95AbsM\": 38.97800292968748,\n      \"maxAbsM\": 87.53271484375\n    }\n  },\n  \"tileCount\": 711467\n}",
+      "metadataSha256": "0c4f28a803203478540e4858e00bec2a3b0c336194ec08facaa1e0fabc1104e2",
+      "views": [
+        {
+          "distanceKmAboveDatum": 1000,
+          "settledMs": 2581,
+          "samples": [
+            {
+              "elapsedMs": 65,
+              "visible": 0,
+              "source": "ellipsoid"
+            },
+            {
+              "elapsedMs": 321,
+              "visible": 2,
+              "source": "ellipsoid"
+            },
+            {
+              "elapsedMs": 527,
+              "visible": 8,
+              "source": "ellipsoid"
+            },
+            {
+              "elapsedMs": 736,
+              "visible": 26,
+              "source": "ellipsoid"
+            },
+            {
+              "elapsedMs": 945,
+              "visible": 38,
+              "source": "ellipsoid"
+            },
+            {
+              "elapsedMs": 1154,
+              "visible": 41,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1359,
+              "visible": 41,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1564,
+              "visible": 41,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1770,
+              "visible": 41,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1975,
+              "visible": 41,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 2180,
+              "visible": 41,
+              "source": "terrain"
+            }
+          ],
+          "metrics": {
+            "update": {
+              "count": 12,
+              "lastMs": 0.19999998807907104,
+              "meanMs": 0.6583333363135656,
+              "maxMs": 1.7000000178813934
+            },
+            "parse": {
+              "count": 54,
+              "lastMs": 0.4000000059604645,
+              "meanMs": 0.5444444456586132,
+              "maxMs": 2
+            },
+            "cpuDecode": {
+              "count": 54,
+              "lastMs": 0.09999999403953552,
+              "meanMs": 0.11296296119689941,
+              "maxMs": 1.0999999940395355
+            },
+            "sample": {
+              "count": 24,
+              "lastMicros": 0,
+              "meanMicros": 24.99999850988388
+            },
+            "tiles": {
+              "active": 41,
+              "visible": 41,
+              "drawn": 41,
+              "inCache": 54,
+              "cpu": 54
+            },
+            "network": {
+              "requests": 54,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 2662800,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 2662800,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "cube": null,
+          "hit": {
+            "bodyName": "Mars",
+            "latDeg": 18.496571694414584,
+            "lonDeg": 77.45000000235213,
+            "altKm": -2.1275688593060087,
+            "cameraDistanceKm": 1002.2551456712016,
+            "bodyFixedHitKm": [
+              699.7920416187001,
+              3143.5730674329225,
+              1064.703523782246
+            ],
+            "point": {
+              "bodyName": "Mars",
+              "bodyFixedPositionKm": [
+                699.7920416187001,
+                3143.5730674329225,
+                1064.703523782246
+              ],
+              "source": "terrain",
+              "latDeg": 18.496571694414584,
+              "lonDeg": 77.45000000235213,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 1.522895026662876,
+                "latDeg": 0.025724243128101756,
+                "lonDeg": 0.02712547349088398
+              },
+              "hit": {
+                "heightKm": -2.250314572616844,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                }
+              },
+              "terrainSample": {
+                "elevationKm": -2.1275688593060087,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                },
+                "sourceId": "MOLA/HRSC + Jezero HiRISE 1m residual",
+                "tileId": "decoded:4/22/9.terrain",
+                "describesHit": true
+              },
+              "altitude": {
+                "km": -2.1275688593060087,
+                "from": "terrain-sample",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.19382665538901309,
+                0.9286305973313722,
+                0.3163486073316707
+              ]
+            }
+          },
+          "feature": {
+            "kind": "geographic-feature",
+            "layerId": "registration",
+            "featureId": "number:6",
+            "bodyName": "Mars"
+          },
+          "vectorMetrics": {
+            "drawPages": 1,
+            "batches": 1,
+            "surfaceMeshes": 41,
+            "offsetVertices": 0,
+            "textureBytes": 39008
+          },
+          "diagnostics": [],
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+        },
+        {
+          "distanceKmAboveDatum": 100,
+          "settledMs": 3223,
+          "samples": [
+            {
+              "elapsedMs": 4,
+              "visible": 38,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 255,
+              "visible": 50,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 462,
+              "visible": 62,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 668,
+              "visible": 65,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 872,
+              "visible": 65,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1077,
+              "visible": 65,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1282,
+              "visible": 65,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1487,
+              "visible": 65,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1691,
+              "visible": 65,
+              "source": "terrain"
+            }
+          ],
+          "metrics": {
+            "update": {
+              "count": 23,
+              "lastMs": 0.29999998211860657,
+              "meanMs": 0.508695652951365,
+              "maxMs": 1.7000000178813934
+            },
+            "parse": {
+              "count": 90,
+              "lastMs": 0.4000000059604645,
+              "meanMs": 0.46777777969837187,
+              "maxMs": 2
+            },
+            "cpuDecode": {
+              "count": 90,
+              "lastMs": 0.09999999403953552,
+              "meanMs": 0.09888888663715786,
+              "maxMs": 1.0999999940395355
+            },
+            "sample": {
+              "count": 45,
+              "lastMicros": 0,
+              "meanMicros": 15.555554628372192
+            },
+            "tiles": {
+              "active": 65,
+              "visible": 65,
+              "drawn": 65,
+              "inCache": 90,
+              "cpu": 90
+            },
+            "network": {
+              "requests": 90,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 4530092,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 4530092,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "cube": null,
+          "hit": {
+            "bodyName": "Mars",
+            "latDeg": 18.455994173700866,
+            "lonDeg": 77.44999999980257,
+            "altKm": -2.5667300106159705,
+            "cameraDistanceKm": 102.56799215963055,
+            "bodyFixedHitKm": [
+              699.8905564541667,
+              3144.015610507876,
+              1062.3462031825043
+            ],
+            "point": {
+              "bodyName": "Mars",
+              "bodyFixedPositionKm": [
+                699.8905564541667,
+                3144.015610507876,
+                1062.3462031825043
+              ],
+              "source": "terrain",
+              "latDeg": 18.455994173700866,
+              "lonDeg": 77.44999999980257,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 0.15584618809692452,
+                "latDeg": 0.002632742237463357,
+                "lonDeg": 0.0027754939975743235
+              },
+              "hit": {
+                "heightKm": -2.5673715318116592,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                }
+              },
+              "terrainSample": {
+                "elevationKm": -2.5667300106159705,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                },
+                "sourceId": "MOLA/HRSC + Jezero HiRISE 1m residual",
+                "tileId": "decoded:7/183/77.terrain",
+                "describesHit": true
+              },
+              "altitude": {
+                "km": -2.5667300106159705,
+                "from": "terrain-sample",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.1955306316257419,
+                0.9300674069457883,
+                0.31103438818429047
+              ]
+            }
+          },
+          "feature": {
+            "kind": "geographic-feature",
+            "layerId": "registration",
+            "featureId": "number:6",
+            "bodyName": "Mars"
+          },
+          "vectorMetrics": {
+            "drawPages": 1,
+            "batches": 1,
+            "surfaceMeshes": 65,
+            "offsetVertices": 0,
+            "textureBytes": 39008
+          },
+          "diagnostics": [],
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+        },
+        {
+          "distanceKmAboveDatum": 15,
+          "settledMs": 2206,
+          "samples": [
+            {
+              "elapsedMs": 4,
+              "visible": 20,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 583,
+              "visible": 32,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 789,
+              "visible": 44,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 994,
+              "visible": 44,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1198,
+              "visible": 44,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1403,
+              "visible": 44,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1606,
+              "visible": 44,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1811,
+              "visible": 44,
+              "source": "terrain"
+            }
+          ],
+          "metrics": {
+            "update": {
+              "count": 33,
+              "lastMs": 0.19999998807907104,
+              "meanMs": 0.45151515169577167,
+              "maxMs": 1.7000000178813934
+            },
+            "parse": {
+              "count": 122,
+              "lastMs": 0.4000000059604645,
+              "meanMs": 0.44426229718278665,
+              "maxMs": 2
+            },
+            "cpuDecode": {
+              "count": 122,
+              "lastMs": 0.09999999403953552,
+              "meanMs": 0.09999999794803682,
+              "maxMs": 1.0999999940395355
+            },
+            "sample": {
+              "count": 63,
+              "lastMicros": 0,
+              "meanMicros": 14.28571343421936
+            },
+            "tiles": {
+              "active": 47,
+              "visible": 44,
+              "drawn": 44,
+              "inCache": 122,
+              "cpu": 122
+            },
+            "network": {
+              "requests": 122,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 6371852,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 6371852,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "cube": null,
+          "hit": {
+            "bodyName": "Mars",
+            "latDeg": 18.451052333129752,
+            "lonDeg": 77.45000000014628,
+            "altKm": -2.568273899639367,
+            "cameraDistanceKm": 17.56871851031253,
+            "bodyFixedHitKm": [
+              699.9102322968058,
+              3144.1039974964906,
+              1062.0709336142054
+            ],
+            "point": {
+              "bodyName": "Mars",
+              "bodyFixedPositionKm": [
+                699.9102322968058,
+                3144.1039974964906,
+                1062.0709336142054
+              ],
+              "source": "terrain",
+              "latDeg": 18.451052333129752,
+              "lonDeg": 77.45000000014628,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 0.026694872692855278,
+                "latDeg": 0.0004509620939196305,
+                "lonDeg": 0.0004754003423963811
+              },
+              "hit": {
+                "heightKm": -2.5686095783989913,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                }
+              },
+              "terrainSample": {
+                "elevationKm": -2.568273899639367,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                },
+                "sourceId": "MOLA/HRSC + Jezero HiRISE 1m residual",
+                "tileId": "decoded:9/732/308.terrain",
+                "describesHit": true
+              },
+              "altitude": {
+                "km": -2.568273899639367,
+                "from": "terrain-sample",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.2003767589426745,
+                0.9314969594160509,
+                0.3035828866624098
+              ]
+            }
+          },
+          "feature": {
+            "kind": "geographic-feature",
+            "layerId": "registration",
+            "featureId": "number:6",
+            "bodyName": "Mars"
+          },
+          "vectorMetrics": {
+            "drawPages": 1,
+            "batches": 1,
+            "surfaceMeshes": 44,
+            "offsetVertices": 0,
+            "textureBytes": 39008
+          },
+          "diagnostics": [],
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+        },
+        {
+          "distanceKmAboveDatum": 3,
+          "settledMs": 8330,
+          "samples": [
+            {
+              "elapsedMs": 3,
+              "visible": 32,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 241,
+              "visible": 38,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 447,
+              "visible": 53,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 651,
+              "visible": 53,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1343,
+              "visible": 53,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 2327,
+              "visible": 53,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 3927,
+              "visible": 53,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 4527,
+              "visible": 53,
+              "source": "terrain"
+            }
+          ],
+          "metrics": {
+            "update": {
+              "count": 43,
+              "lastMs": 0.19999998807907104,
+              "meanMs": 0.4139534865700921,
+              "maxMs": 1.7000000178813934
+            },
+            "parse": {
+              "count": 150,
+              "lastMs": 0.29999998211860657,
+              "meanMs": 0.416666668454806,
+              "maxMs": 2
+            },
+            "cpuDecode": {
+              "count": 150,
+              "lastMs": 0,
+              "meanMs": 0.09333333134651184,
+              "maxMs": 1.0999999940395355
+            },
+            "sample": {
+              "count": 81,
+              "lastMicros": 99.99999403953552,
+              "meanMicros": 13.58024647206436
+            },
+            "tiles": {
+              "active": 56,
+              "visible": 53,
+              "drawn": 53,
+              "inCache": 150,
+              "cpu": 150
+            },
+            "network": {
+              "requests": 150,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 7764888,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 7764888,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "cube": null,
+          "hit": {
+            "bodyName": "Mars",
+            "latDeg": 18.450334870946996,
+            "lonDeg": 77.44999999999665,
+            "altKm": -2.5709532272280433,
+            "cameraDistanceKm": 5.570993772222757,
+            "bodyFixedHitKm": [
+              699.9126411963372,
+              3144.1148186035425,
+              1062.0302823364887
+            ],
+            "point": {
+              "bodyName": "Mars",
+              "bodyFixedPositionKm": [
+                699.9126411963372,
+                3144.1148186035425,
+                1062.0302823364887
+              ],
+              "source": "terrain",
+              "latDeg": 18.450334870946996,
+              "lonDeg": 77.44999999999665,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 0.008465522463197792,
+                "latDeg": 0.00014300994267613164,
+                "lonDeg": 0.00015075921589027396
+              },
+              "hit": {
+                "heightKm": -2.5709591093332165,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                }
+              },
+              "terrainSample": {
+                "elevationKm": -2.5709532272280433,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                },
+                "sourceId": "MOLA/HRSC + Jezero HiRISE 1m residual",
+                "tileId": "decoded:11/2929/1233.terrain",
+                "describesHit": true
+              },
+              "altitude": {
+                "km": -2.5709532272280433,
+                "from": "terrain-sample",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.19739609983544276,
+                0.9239465710736683,
+                0.32765456439818896
+              ]
+            }
+          },
+          "feature": {
+            "kind": "geographic-feature",
+            "layerId": "registration",
+            "featureId": "number:6",
+            "bodyName": "Mars"
+          },
+          "vectorMetrics": {
+            "drawPages": 1,
+            "batches": 1,
+            "surfaceMeshes": 53,
+            "offsetVertices": 0,
+            "textureBytes": 39008
+          },
+          "diagnostics": [],
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+        },
+        {
+          "distanceKmAboveDatum": 100,
+          "settledMs": 1585,
+          "samples": [
+            {
+              "elapsedMs": 5,
+              "visible": 65,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 243,
+              "visible": 65,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 448,
+              "visible": 65,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 652,
+              "visible": 65,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 857,
+              "visible": 65,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1062,
+              "visible": 65,
+              "source": "terrain"
+            }
+          ],
+          "metrics": {
+            "update": {
+              "count": 51,
+              "lastMs": 0.20000001788139343,
+              "meanMs": 0.39411764577323316,
+              "maxMs": 1.7000000178813934
+            },
+            "parse": {
+              "count": 150,
+              "lastMs": 0.29999998211860657,
+              "meanMs": 0.416666668454806,
+              "maxMs": 2
+            },
+            "cpuDecode": {
+              "count": 150,
+              "lastMs": 0,
+              "meanMs": 0.09333333134651184,
+              "maxMs": 1.0999999940395355
+            },
+            "sample": {
+              "count": 94,
+              "lastMicros": 0,
+              "meanMicros": 12.765957002944134
+            },
+            "tiles": {
+              "active": 65,
+              "visible": 65,
+              "drawn": 65,
+              "inCache": 150,
+              "cpu": 150
+            },
+            "network": {
+              "requests": 150,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 7764888,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 7764888,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "cube": null,
+          "hit": {
+            "bodyName": "Mars",
+            "latDeg": 18.455994173700866,
+            "lonDeg": 77.44999999980257,
+            "altKm": -2.569383599718529,
+            "cameraDistanceKm": 102.56799215963055,
+            "bodyFixedHitKm": [
+              699.8905564541667,
+              3144.015610507876,
+              1062.3462031825043
+            ],
+            "point": {
+              "bodyName": "Mars",
+              "bodyFixedPositionKm": [
+                699.8905564541667,
+                3144.015610507876,
+                1062.3462031825043
+              ],
+              "source": "terrain",
+              "latDeg": 18.455994173700866,
+              "lonDeg": 77.44999999980257,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 0.15584618809692452,
+                "latDeg": 0.002632742237463357,
+                "lonDeg": 0.0027754939975743235
+              },
+              "hit": {
+                "heightKm": -2.5673715318116592,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                }
+              },
+              "terrainSample": {
+                "elevationKm": -2.569383599718529,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                },
+                "sourceId": "MOLA/HRSC + Jezero HiRISE 1m residual",
+                "tileId": "decoded:11/2929/1233.terrain",
+                "describesHit": true
+              },
+              "altitude": {
+                "km": -2.569383599718529,
+                "from": "terrain-sample",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "ellipsoid",
+                    "radiiKm": [
+                      3396.19,
+                      3396.19,
+                      3376.2
+                    ]
+                  },
+                  "verticalDatum": "areoid",
+                  "heightConvention": "geodetic-normal",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.1955306316257419,
+                0.9300674069457883,
+                0.31103438818429047
+              ]
+            }
+          },
+          "feature": {
+            "kind": "geographic-feature",
+            "layerId": "registration",
+            "featureId": "number:6",
+            "bodyName": "Mars"
+          },
+          "vectorMetrics": {
+            "drawPages": 1,
+            "batches": 1,
+            "surfaceMeshes": 65,
+            "offsetVertices": 0,
+            "textureBytes": 39008
+          },
+          "diagnostics": [],
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+        }
+      ]
+    },
+    {
+      "body": "Moon",
+      "sourceMetadataText": "{\n  \"generator\": \"scripts/terrain/dem.py fuse\",\n  \"created\": \"2026-10-03T17:53:10Z\",\n  \"base\": {\n    \"path\": \"/Users/aplave/code/cosmolabe-dupe-1/scripts/build-moon-terrain/data/source/Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif\",\n    \"size\": [\n      92160,\n      46080\n    ],\n    \"geotransform\": [\n      -5458203.076608,\n      118.4505876,\n      0.0,\n      2729101.538304,\n      0.0,\n      -118.4505876\n    ],\n    \"bounds\": [\n      -5458203.076608,\n      -2729101.538304,\n      5458203.076608,\n      2729101.538304\n    ],\n    \"crs\": \"+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=1737400 +units=m +no_defs\",\n    \"semiMajorM\": 1737400.0,\n    \"semiMinorM\": 1737400.0,\n    \"geographic\": false,\n    \"dataType\": \"Int16\",\n    \"nodata\": -32768.0,\n    \"areaOrPoint\": \"Area\",\n    \"overviews\": []\n  },\n  \"detail\": {\n    \"path\": \"/Users/aplave/code/cosmolabe-dupe-1/scripts/build-moon-terrain/data/source/ldem_87s_10mpp.tif\",\n    \"size\": [\n      20000,\n      20000\n    ],\n    \"geotransform\": [\n      -100000.0,\n      10.0,\n      0.0,\n      100000.0,\n      0.0,\n      -10.0\n    ],\n    \"bounds\": [\n      -100000.0,\n      -100000.0,\n      100000.0,\n      100000.0\n    ],\n    \"crs\": \"+proj=stere +lat_0=-90 +lon_0=0 +k=1 +x_0=0 +y_0=0 +R=1737400 +units=m +no_defs\",\n    \"semiMajorM\": 1737400.0,\n    \"semiMinorM\": 1737400.0,\n    \"geographic\": false,\n    \"dataType\": \"Float32\",\n    \"nodata\": NaN,\n    \"areaOrPoint\": \"Area\",\n    \"overviews\": []\n  },\n  \"grid\": {\n    \"kind\": \"stere\",\n    \"geotransform\": [\n      -100000.0,\n      10.0,\n      0.0,\n      100000.0,\n      0.0,\n      -10.0\n    ],\n    \"size\": [\n      20000,\n      20000\n    ],\n    \"crs\": \"+proj=stere +lat_0=-90 +lon_0=0 +k=1 +x_0=0 +y_0=0 +R=1737400 +units=m +no_defs\",\n    \"geoBounds\": [\n      -180.0,\n      -90.0,\n      180.0,\n      -85.33879510666145\n    ]\n  },\n  \"baseScaleOffset\": [\n    0.5,\n    0.0\n  ],\n  \"verticalDatum\": \"LOLA heights (m) above the 1737.4 km reference sphere (both sources)\",\n  \"kernel\": \"base: Catmull-Rom, pixel-is-area, longitude wraps; inside the detail coverage the base is the detail-grid resample (base.tif), blended by weight\",\n  \"coverageFraction\": 0.80460025,\n  \"registration\": {\n    \"model\": \"detail \\u2212 base = offset + slopeEast\\u00b7east + slopeNorth\\u00b7north (least squares)\",\n    \"axes\": \"polar stereographic x/y (km)\",\n    \"centroid\": {\n      \"lonDeg\": 135.0,\n      \"latDeg\": -89.99976681113027\n    },\n    \"fitStridePx\": 8,\n    \"offsetM\": -0.24475793358628117,\n    \"slopeEastMPerKm\": 0.0005370136298160503,\n    \"slopeNorthMPerKm\": -0.0001702612341284069,\n    \"tiltDeg\": 3.227805051681369e-05,\n    \"raw\": {\n      \"n\": 5030001,\n      \"meanM\": -0.24475439721196465,\n      \"rmsM\": 3.6441244184444352,\n      \"p95AbsM\": 5.6895751953125,\n      \"maxAbsM\": 3919.294189453125\n    },\n    \"afterPlane\": {\n      \"n\": 5030001,\n      \"meanM\": -3.2025779235038133e-15,\n      \"rmsM\": 3.6357832024484753,\n      \"p95AbsM\": 5.671640601463485,\n      \"maxAbsM\": 3919.527262966484\n    },\n    \"removed\": false,\n    \"note\": \"the fitted plane is disclosed but kept: the detail keeps its absolute heights and the taper band carries the bias back to the base\"\n  },\n  \"taper\": {\n    \"blendM\": 2000.0,\n    \"function\": \"smoothstep(distance to coverage edge / blendM)\",\n    \"fullWeightFraction\": 0.76546828,\n    \"bandFraction\": 0.03913197\n  },\n  \"boundary\": {\n    \"pairs\": 79960,\n    \"note\": \"pixel pairs across the coverage edge; step = inside \\u2212 outside (m)\",\n    \"hardSwitchStepM\": {\n      \"n\": 79960,\n      \"meanM\": -0.25975632114450503,\n      \"rmsM\": 3.0531986338649597,\n      \"p95AbsM\": 6.221681213378906,\n      \"maxAbsM\": 42.33197021484375\n    },\n    \"fusedStepM\": {\n      \"n\": 79960,\n      \"meanM\": -0.06074766445869562,\n      \"rmsM\": 1.8662676617860208,\n      \"p95AbsM\": 3.78986659049988,\n      \"maxAbsM\": 35.152587890625\n    },\n    \"baseStepM\": {\n      \"n\": 79960,\n      \"meanM\": -0.06073371546809795,\n      \"rmsM\": 1.866296960943277,\n      \"p95AbsM\": 3.7898994445800787,\n      \"maxAbsM\": 35.1533203125\n    }\n  },\n  \"residual\": {\n    \"all\": {\n      \"n\": 5030001,\n      \"meanM\": -0.23941933172467716,\n      \"rmsM\": 3.6133163531156245,\n      \"p95AbsM\": 5.620361328125,\n      \"maxAbsM\": 3919.294189453125\n    },\n    \"fullWeight\": {\n      \"n\": 4784155,\n      \"meanM\": -0.2464544360694513,\n      \"rmsM\": 3.6872058555732368,\n      \"p95AbsM\": 5.707275390625,\n      \"maxAbsM\": 3919.294189453125\n    }\n  },\n  \"products\": {\n    \"residual\": \"residual.tif\",\n    \"coverage\": \"coverage.tif\",\n    \"weight\": \"weight.tif\",\n    \"fused\": \"fused.tif\",\n    \"base\": \"base.tif\"\n  }\n}",
+      "metadataSha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+      "views": [
+        {
+          "distanceKmAboveDatum": 1000,
+          "settledMs": 1656,
+          "samples": [
+            {
+              "elapsedMs": 147,
+              "visible": 0,
+              "source": "ellipsoid"
+            },
+            {
+              "elapsedMs": 466,
+              "visible": 33,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 676,
+              "visible": 33,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 890,
+              "visible": 33,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1098,
+              "visible": 33,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1316,
+              "visible": 33,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1524,
+              "visible": 33,
+              "source": "terrain"
+            }
+          ],
+          "metrics": {
+            "update": {
+              "count": 8,
+              "lastMs": 0.30000001192092896,
+              "meanMs": 0.5124999955296516,
+              "maxMs": 1.2999999821186066
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 33,
+              "visible": 33,
+              "drawn": 24,
+              "inCache": 42,
+              "cpu": 136
+            },
+            "network": {
+              "requests": 42,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 6714288,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 6714288,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "cube": {
+            "residentTiles": 126,
+            "detailTiles": 10,
+            "requests": 136,
+            "bytes": 2298400,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "hit": {
+            "bodyName": "Moon",
+            "latDeg": -89.67000000013203,
+            "lonDeg": 129.78000001553312,
+            "altKm": -2.7890409516214527,
+            "cameraDistanceKm": 999.9293193935033,
+            "bodyFixedHitKm": [
+              -6.402930408683769,
+              7.6904928309725165,
+              -1737.4418622703329
+            ],
+            "point": {
+              "bodyName": "Moon",
+              "bodyFixedPositionKm": [
+                -6.402930408683769,
+                7.6904928309725165,
+                -1737.4418622703329
+              ],
+              "source": "terrain",
+              "latDeg": -89.67000000013203,
+              "lonDeg": 129.78000001553312,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 1.519765942554221,
+                "latDeg": 0.05011662949367456,
+                "lonDeg": 8.701476455840252
+              },
+              "hit": {
+                "heightKm": 0.07068060649680774,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "terrainSample": {
+                "elevationKm": -2.7890409516214527,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                },
+                "sourceId": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                "tileId": "nz/12/2055/2057",
+                "describesHit": true
+              },
+              "altitude": {
+                "km": -2.7890409516214527,
+                "from": "terrain-sample",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.013232137262826045,
+                0.02471955654535629,
+                -0.9996068497502699
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "detail": "coarse",
+              "tileId": "nz/12/2055/2057",
+              "normal": [
+                0.06385000440056336,
+                0.038243134452480856,
+                -0.9972264735782426
+              ],
+              "bodyFixedKm": [
+                -6.392391757074202,
+                7.677834966588436,
+                -1734.5821881358495
+              ],
+              "renderedOffsetKm": 2.859721566891051,
+              "sourceVersion": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+            }
+          },
+          "feature": {
+            "kind": "geographic-feature",
+            "layerId": "registration",
+            "featureId": "number:6",
+            "bodyName": "Moon"
+          },
+          "vectorMetrics": {
+            "drawPages": 1,
+            "batches": 1,
+            "surfaceMeshes": 24,
+            "offsetVertices": 0,
+            "textureBytes": 67456
+          },
+          "diagnostics": [],
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+        },
+        {
+          "distanceKmAboveDatum": 100,
+          "settledMs": 1466,
+          "samples": [
+            {
+              "elapsedMs": 6,
+              "visible": 33,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 287,
+              "visible": 93,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 502,
+              "visible": 93,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 715,
+              "visible": 93,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 923,
+              "visible": 93,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1130,
+              "visible": 93,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1337,
+              "visible": 93,
+              "source": "terrain"
+            }
+          ],
+          "metrics": {
+            "update": {
+              "count": 17,
+              "lastMs": 0.30000001192092896,
+              "meanMs": 0.5529411733150482,
+              "maxMs": 1.2999999821186066
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 93,
+              "visible": 93,
+              "drawn": 20,
+              "inCache": 122,
+              "cpu": 136
+            },
+            "network": {
+              "requests": 122,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 19503408,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 19503408,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "cube": {
+            "residentTiles": 126,
+            "detailTiles": 10,
+            "requests": 136,
+            "bytes": 2298400,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "hit": {
+            "bodyName": "Moon",
+            "latDeg": -89.66999999995637,
+            "lonDeg": 129.77999999932837,
+            "altKm": -2.789040951738039,
+            "cameraDistanceKm": 102.7581765946193,
+            "bodyFixedHitKm": [
+              -6.392505499729547,
+              7.677971586138938,
+              -1734.6130519896656
+            ],
+            "point": {
+              "bodyName": "Moon",
+              "bodyFixedPositionKm": [
+                -6.392505499729547,
+                7.677971586138938,
+                -1734.6130519896656
+              ],
+              "source": "terrain",
+              "latDeg": -89.66999999995637,
+              "lonDeg": 129.77999999932837,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 0.15622745669296006,
+                "latDeg": 0.005160243337726554,
+                "lonDeg": 0.8959448458400251
+              },
+              "hit": {
+                "heightKm": -2.758176594619499,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "terrainSample": {
+                "elevationKm": -2.789040951738039,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                },
+                "sourceId": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                "tileId": "nz/12/2055/2057",
+                "describesHit": true
+              },
+              "altitude": {
+                "km": -2.789040951738039,
+                "from": "terrain-sample",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.023420453255631683,
+                0.028463633268976392,
+                -0.9993204210614481
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "detail": "coarse",
+              "tileId": "nz/12/2055/2057",
+              "normal": [
+                0.06385000440056336,
+                0.038243134452480856,
+                -0.9972264735782426
+              ],
+              "bodyFixedKm": [
+                -6.39239175830718,
+                7.677834972504616,
+                -1734.5821881357015
+              ],
+              "renderedOffsetKm": 0.0308643658919646,
+              "sourceVersion": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+            }
+          },
+          "feature": {
+            "kind": "geographic-feature",
+            "layerId": "registration",
+            "featureId": "number:6",
+            "bodyName": "Moon"
+          },
+          "vectorMetrics": {
+            "drawPages": 1,
+            "batches": 1,
+            "surfaceMeshes": 20,
+            "offsetVertices": 0,
+            "textureBytes": 67456
+          },
+          "diagnostics": [],
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+        },
+        {
+          "distanceKmAboveDatum": 15,
+          "settledMs": 1434,
+          "samples": [
+            {
+              "elapsedMs": 4,
+              "visible": 36,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 276,
+              "visible": 72,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 486,
+              "visible": 72,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 695,
+              "visible": 72,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 904,
+              "visible": 72,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1110,
+              "visible": 72,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1327,
+              "visible": 72,
+              "source": "terrain"
+            }
+          ],
+          "metrics": {
+            "update": {
+              "count": 26,
+              "lastMs": 1.199999988079071,
+              "meanMs": 0.5307692300814849,
+              "maxMs": 1.2999999821186066
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 93,
+              "visible": 72,
+              "drawn": 10,
+              "inCache": 170,
+              "cpu": 136
+            },
+            "network": {
+              "requests": 170,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 27176880,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 27176880,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "cube": {
+            "residentTiles": 126,
+            "detailTiles": 10,
+            "requests": 136,
+            "bytes": 2298400,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "hit": {
+            "bodyName": "Moon",
+            "latDeg": -89.67000000000496,
+            "lonDeg": 129.780000000493,
+            "altKm": -2.7890409517484707,
+            "cameraDistanceKm": 17.78512384711857,
+            "bodyFixedHitKm": [
+              -6.392406192875942,
+              7.67785230939694,
+              -1734.5861051841318
+            ],
+            "point": {
+              "bodyName": "Moon",
+              "bodyFixedPositionKm": [
+                -6.392406192875942,
+                7.67785230939694,
+                -1734.5861051841318
+              ],
+              "source": "terrain",
+              "latDeg": -89.67000000000496,
+              "lonDeg": 129.780000000493,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 0.027027995553953393,
+                "latDeg": 0.0008927572887962462,
+                "lonDeg": 0.15500456843829769
+              },
+              "hit": {
+                "heightKm": -2.7851238471187116,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "terrainSample": {
+                "elevationKm": -2.7890409517484707,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                },
+                "sourceId": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                "tileId": "nz/12/2055/2057",
+                "describesHit": true
+              },
+              "altitude": {
+                "km": -2.7890409517484707,
+                "from": "terrain-sample",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                -0.0007141308523458746,
+                -0.016951368279026876,
+                -0.9998560602059652
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "detail": "coarse",
+              "tileId": "nz/12/2055/2057",
+              "normal": [
+                0.06385000440056336,
+                0.038243134452480856,
+                -0.9972264735782426
+              ],
+              "bodyFixedKm": [
+                -6.392391757521829,
+                7.677834971243862,
+                -1734.5821881356997
+              ],
+              "renderedOffsetKm": 0.003917113402888596,
+              "sourceVersion": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+            }
+          },
+          "feature": {
+            "kind": "geographic-feature",
+            "layerId": "registration",
+            "featureId": "number:6",
+            "bodyName": "Moon"
+          },
+          "vectorMetrics": {
+            "drawPages": 1,
+            "batches": 1,
+            "surfaceMeshes": 10,
+            "offsetVertices": 0,
+            "textureBytes": 67456
+          },
+          "diagnostics": [],
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+        },
+        {
+          "distanceKmAboveDatum": 3,
+          "settledMs": 1469,
+          "samples": [
+            {
+              "elapsedMs": 5,
+              "visible": 68,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 281,
+              "visible": 95,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 499,
+              "visible": 95,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 708,
+              "visible": 95,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 923,
+              "visible": 95,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1129,
+              "visible": 95,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1342,
+              "visible": 95,
+              "source": "terrain"
+            }
+          ],
+          "metrics": {
+            "update": {
+              "count": 35,
+              "lastMs": 1.4000000059604645,
+              "meanMs": 0.6057142862251826,
+              "maxMs": 1.5999999940395355
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 114,
+              "visible": 95,
+              "drawn": 13,
+              "inCache": 206,
+              "cpu": 136
+            },
+            "network": {
+              "requests": 206,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 32931984,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 32931984,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "cube": {
+            "residentTiles": 126,
+            "detailTiles": 10,
+            "requests": 136,
+            "bytes": 2298400,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "hit": {
+            "bodyName": "Moon",
+            "latDeg": -89.66999999999825,
+            "lonDeg": 129.77999999999628,
+            "altKm": -2.7890409517513404,
+            "cameraDistanceKm": 5.78897476055122,
+            "bodyFixedHitKm": [
+              -6.392392001545853,
+              7.67783526447397,
+              -1734.582254334571
+            ],
+            "point": {
+              "bodyName": "Moon",
+              "bodyFixedPositionKm": [
+                -6.392392001545853,
+                7.67783526447397,
+                -1734.582254334571
+              ],
+              "source": "terrain",
+              "latDeg": -89.66999999999825,
+              "lonDeg": 129.77999999999628,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 0.008801274203662977,
+                "latDeg": 0.00029071409028871007,
+                "lonDeg": 0.050475098516390884
+              },
+              "hit": {
+                "heightKm": -2.7889747605511275,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "terrainSample": {
+                "elevationKm": -2.7890409517513404,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                },
+                "sourceId": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                "tileId": "nz/12/2055/2057",
+                "describesHit": true
+              },
+              "altitude": {
+                "km": -2.7890409517513404,
+                "from": "terrain-sample",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.008895236301776509,
+                -0.02974851805020695,
+                -0.9995178339804409
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "detail": "coarse",
+              "tileId": "nz/12/2055/2057",
+              "normal": [
+                0.06385000440056336,
+                0.038243134452480856,
+                -0.9972264735782426
+              ],
+              "bodyFixedKm": [
+                -6.39239175758558,
+                7.677834971455834,
+                -1734.5821881356956
+              ],
+              "renderedOffsetKm": 0.00006619997341924824,
+              "sourceVersion": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+            }
+          },
+          "feature": {
+            "kind": "geographic-feature",
+            "layerId": "registration",
+            "featureId": "number:6",
+            "bodyName": "Moon"
+          },
+          "vectorMetrics": {
+            "drawPages": 1,
+            "batches": 1,
+            "surfaceMeshes": 13,
+            "offsetVertices": 0,
+            "textureBytes": 67456
+          },
+          "diagnostics": [],
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+        },
+        {
+          "distanceKmAboveDatum": 100,
+          "settledMs": 1246,
+          "samples": [
+            {
+              "elapsedMs": 7,
+              "visible": 93,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 286,
+              "visible": 93,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 503,
+              "visible": 93,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 710,
+              "visible": 93,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 921,
+              "visible": 93,
+              "source": "terrain"
+            },
+            {
+              "elapsedMs": 1128,
+              "visible": 93,
+              "source": "terrain"
+            }
+          ],
+          "metrics": {
+            "update": {
+              "count": 43,
+              "lastMs": 0.30000001192092896,
+              "meanMs": 0.5860465134299079,
+              "maxMs": 1.5999999940395355
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 93,
+              "visible": 93,
+              "drawn": 20,
+              "inCache": 206,
+              "cpu": 136
+            },
+            "network": {
+              "requests": 206,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 32931984,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 32931984,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "cube": {
+            "residentTiles": 126,
+            "detailTiles": 10,
+            "requests": 136,
+            "bytes": 2298400,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "hit": {
+            "bodyName": "Moon",
+            "latDeg": -89.66999999995637,
+            "lonDeg": 129.77999999932837,
+            "altKm": -2.789040951738039,
+            "cameraDistanceKm": 102.7581765946193,
+            "bodyFixedHitKm": [
+              -6.392505499729547,
+              7.677971586138938,
+              -1734.6130519896656
+            ],
+            "point": {
+              "bodyName": "Moon",
+              "bodyFixedPositionKm": [
+                -6.392505499729547,
+                7.677971586138938,
+                -1734.6130519896656
+              ],
+              "source": "terrain",
+              "latDeg": -89.66999999995637,
+              "lonDeg": 129.77999999932837,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 0.15622745669296006,
+                "latDeg": 0.005160243337726554,
+                "lonDeg": 0.8959448458400251
+              },
+              "hit": {
+                "heightKm": -2.758176594619499,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "terrainSample": {
+                "elevationKm": -2.789040951738039,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                },
+                "sourceId": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                "tileId": "nz/12/2055/2057",
+                "describesHit": true
+              },
+              "altitude": {
+                "km": -2.789040951738039,
+                "from": "terrain-sample",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.023420453255631683,
+                0.028463633268976392,
+                -0.9993204210614481
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "detail": "coarse",
+              "tileId": "nz/12/2055/2057",
+              "normal": [
+                0.06385000440056336,
+                0.038243134452480856,
+                -0.9972264735782426
+              ],
+              "bodyFixedKm": [
+                -6.39239175830718,
+                7.677834972504616,
+                -1734.5821881357015
+              ],
+              "renderedOffsetKm": 0.0308643658919646,
+              "sourceVersion": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+            }
+          },
+          "feature": {
+            "kind": "geographic-feature",
+            "layerId": "registration",
+            "featureId": "number:6",
+            "bodyName": "Moon"
+          },
+          "vectorMetrics": {
+            "drawPages": 1,
+            "batches": 1,
+            "surfaceMeshes": 20,
+            "offsetVertices": 0,
+            "textureBytes": 67456
+          },
+          "diagnostics": [],
+          "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

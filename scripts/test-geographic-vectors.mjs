@@ -6,14 +6,17 @@ import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const output = 'docs/validation/geographic-vectors';
+const output = process.env.CL_OUTPUT ?? 'docs/validation/geographic-vectors';
 await mkdir(output, { recursive: true });
-const fixtures = await Promise.all(['geographic-jezero', 'geographic-southpole'].map(name =>
+const fixtures = await Promise.all(['geographic-jezero', 'geographic-southpole', 'geographic-jezero-dense'].map(name =>
   readFile(`packages/core/src/__tests__/__fixtures__/${name}.json`, 'utf8').then(JSON.parse)));
 const browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM ?? '/usr/bin/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  args: process.env.CL_GPU === 'hardware'
+    ? ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist']
+    : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
   const page = await browser.newPage();
+  page.setDefaultNavigationTimeout(60_000);
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (/Shader Error|VALIDATE_STATUS|ERROR: 0:/.test(m.text())) errors.push(m.text()); });
@@ -84,17 +87,37 @@ try {
       camera.lookAt(at); camera.updateMatrixWorld(true); camera.updateProjectionMatrix();
       return at;
     };
-    const draw = (withVectors = true) => {
+    const renderFrame = (withVectors = true) => {
       scene.updateMatrixWorld(true); renderer.clear(); renderer.render(scene, camera);
       vectors.begin();
       if (withVectors) vectors.render(renderer, camera, [body]);
-      vectors.end(); renderer.getContext().finish();
+      vectors.end();
+    };
+    const draw = (withVectors = true) => {
+      renderFrame(withVectors); renderer.getContext().finish();
       const gl = renderer.getContext(), pixels = new Uint8Array(renderer.domElement.width * renderer.domElement.height * 4);
       gl.readPixels(0, 0, renderer.domElement.width, renderer.domElement.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
       return pixels;
     };
     const capture = name => captures.push({ name, png: renderer.domElement.toDataURL() });
     const changed = (a, b) => { let n = 0; for (let i = 0; i < a.length; i += 4) if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2]) n++; return n; };
+    const gl = renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info');
+    const gpu = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    const profile = async withVectors => {
+      const submission = [], intervals = [];
+      let last;
+      for (let i = 0; i < 140; i++) {
+        const timestamp = await new Promise(requestAnimationFrame);
+        const start = performance.now(); renderFrame(withVectors);
+        if (i >= 20) { submission.push(performance.now() - start); intervals.push(timestamp - last); }
+        last = timestamp;
+      }
+      const stats = values => {
+        values.sort((a, b) => a - b);
+        return { median: values[Math.floor(values.length / 2)], p95: values[Math.floor(values.length * 0.95)], average: values.reduce((a, b) => a + b) / values.length };
+      };
+      return { frames: submission.length, cpuSubmissionMs: stats(submission), frameIntervalMs: stats(intervals) };
+    };
     const layer = load(fixtures[0], 'Mars'); datum = layer.datum;
     body.terrainDatum = datum;
     terrain(77.45, 18.45, 0.32, 96, 1); look(77.45, 18.45, 15);
@@ -121,6 +144,27 @@ try {
 
     renderer.setSize(640, 480); renderer.setPixelRatio(1); camera.aspect = 640 / 480;
     body.position.set(0, 0, 0); body.rotation.identity(); body.terrainTileGroup.position.set(0, 0, 0); body.terrainTileGroup.quaternion.identity();
+    const localized = load(fixtures[2], 'Mars'); datum = localized.datum; body.terrainDatum = datum;
+    vectors.setSelected(null); vectors.setHovered(null);
+    terrain(77.45, 18.45, 0.32, 128, 1); look(77.45, 18.45, 15);
+    const plainDense = draw(false), drawnDense = draw();
+    checks.push({ name: 'localized polygon and 1600 targets retained', pass: vectors.featureCount === fixtures[2].features.length && vectors.diagnostics.length === 0 });
+    checks.push({ name: 'localized overflow pages visible', pass: changed(plainDense, drawnDense) > 3000 });
+    capture('jezero-localized-dense');
+    for (const feature of [localized.features[1], localized.features.at(-1)]) {
+      vectors.setSelected({ layerId: 'science', featureId: feature.id, bodyName: 'Mars' });
+      checks.push({ name: `overflow page selection ${feature.id}`, pass: changed(drawnDense, draw()) > 5 });
+    }
+    vectors.setSelected(null);
+    metrics.push({ name: 'localized dense layer, desktop viewport, no finish/readback', gpu,
+      viewport: [640, 480], pixelRatio: 1, ...vectors.metrics, baseline: await profile(false), vectors: await profile(true) });
+    renderer.setSize(390, 844); renderer.setPixelRatio(2); camera.aspect = 390 / 844; look(77.45, 18.45, 20);
+    metrics.push({ name: 'localized dense layer, mobile viewport on desktop GPU, no finish/readback', gpu,
+      viewport: [390, 844], pixelRatio: 2, ...vectors.metrics, baseline: await profile(false), vectors: await profile(true) });
+    draw(); capture('jezero-localized-mobile');
+    renderer.setSize(640, 480); renderer.setPixelRatio(1); camera.aspect = 640 / 480;
+
+    body.position.set(0, 0, 0); body.rotation.identity(); body.terrainTileGroup.position.set(0, 0, 0); body.terrainTileGroup.quaternion.identity();
     body.body.name = 'Moon'; body.body.radii = [1737.4, 1737.4, 1737.4];
     const ring = lat => [[-135, lat], [-45, lat], [45, lat], [135, lat], [-135, lat]];
     const polar = { type: 'FeatureCollection', features: [...fixtures[1].features,
@@ -141,7 +185,7 @@ try {
     look(0, 0, 5000); draw(); capture('dense-orbit');
     const timings = [];
     for (let i = 0; i < 6; i++) { const start = performance.now(); draw(); timings.push(performance.now() - start); }
-    metrics.push({ name: 'dense full frame with GPU finish/readback, software GPU', milliseconds: timings.reduce((a, b) => a + b) / timings.length });
+    metrics.push({ name: 'dense full frame with GPU finish/readback (not runtime cost)', milliseconds: timings.reduce((a, b) => a + b) / timings.length });
     vectors.setVisible('science', false); const hiddenStart = performance.now(); draw();
     metrics.push({ name: 'hidden rebuild and full frame', milliseconds: performance.now() - hiddenStart, features: vectors.featureCount });
     const idleStart = performance.now();
@@ -149,8 +193,9 @@ try {
     metrics.push({ name: 'hidden vector update average (100 iterations)', milliseconds: (performance.now() - idleStart) / 100, ...vectors.metrics });
     checks.push({ name: 'hidden zero features', pass: vectors.featureCount === 0 });
     vectors.dispose(); universe.dispose(); renderer.dispose();
-    return { captures, checks, metrics };
+    return { captures, checks, metrics, gpu };
   }, { root: resolve('.'), fixtures });
+  if (process.env.CL_GPU === 'hardware') assert.doesNotMatch(result.gpu, /swiftshader|llvmpipe|software/i);
   for (const { name, png } of result.captures) await writeFile(`${output}/${name}.png`, Buffer.from(png.split(',')[1], 'base64'));
   delete result.captures;
   await writeFile(`${output}/metrics.json`, JSON.stringify({ ...result, errors }, null, 2) + '\n');

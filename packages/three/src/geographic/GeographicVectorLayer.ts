@@ -80,8 +80,8 @@ export class GeographicVectorLayer {
   get diagnostics(): readonly GeographicRenderDiagnostic[] { return this._diagnostics; }
   get status(): readonly GeographicVectorStatus[] { return this._status; }
   get featureCount(): number { return this.batches.reduce((n, b) => n + b.index.features.length, 0); }
-  get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number } {
-    return { batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
+  get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number } {
+    return { drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
       textureBytes: this.batches.reduce((n, b) => n + b.material.textures.reduce((sum, t) => sum + (t.image.data?.byteLength ?? 0), 0), 0) };
   }
   setVisible(layerId: string, visible: boolean): void {
@@ -211,7 +211,17 @@ export class GeographicVectorLayer {
         this.addProxy(batch, object, object.geometry, object.matrixWorld, localToBody, origin, batch.placement.mode === 'terrain-relative');
       });
     }
-    if (this.scene.children.length) renderer.render(this.scene, camera);
+    if (this.scene.children.length) {
+      const pages = Math.max(...this.batches.map(b => b.material.pages));
+      for (let page = 0; page < pages; page++) {
+        for (const batch of this.batches) {
+          batch.material.uniforms.vectorPage.value = page;
+          for (const proxy of batch.proxies.values()) proxy.mesh.visible = page < batch.material.pages;
+        }
+        renderer.render(this.scene, camera);
+      }
+      for (const batch of this.batches) for (const proxy of batch.proxies.values()) proxy.mesh.visible = true;
+    }
   }
 
   private diagnose(batch: Batch, code: string, message: string): void {

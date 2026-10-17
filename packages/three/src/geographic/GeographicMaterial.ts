@@ -14,10 +14,11 @@ function texture(data: Float32Array, width = Math.min(1024, Math.max(1, data.len
 /** Projection onto the actual drawn triangles, with no resampling of imagery,
  * invented elevation, depth bias, or extra silhouette. One program per body. */
 export class GeographicMaterial extends THREE.ShaderMaterial {
+  readonly pages: number;
   readonly textures: THREE.DataTexture[];
   constructor(index: GeographicIndex, equatorialKm: number, polarKm: number) {
     const packed = index.pack();
-    const records = texture(packed.records), cells = texture(packed.cells, VECTOR_GRID[0]), references = texture(packed.references);
+    const records = texture(packed.records), cells = texture(packed.cells), references = texture(packed.references);
     super({
       transparent: true, depthTest: true, depthWrite: false, depthFunc: THREE.LessEqualDepth,
       side: THREE.FrontSide,
@@ -28,7 +29,8 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         vectorLocalToBody: { value: new THREE.Matrix4() },
         vectorShape: { value: new THREE.Vector2(equatorialKm, polarKm) },
         vectorSelected: { value: -1 }, vectorHovered: { value: -1 },
-        vectorPixelRatio: { value: 1 },
+        vectorPixelRatio: { value: 1 }, vectorPage: { value: 0 },
+        vectorCellSize: { value: new THREE.Vector2(cells.image.width, cells.image.height) },
         vectorDisplacement: { value: new THREE.Vector3() },
         vectorDisplacementMap: { value: null }, vectorDisplacementTransform: { value: new THREE.Matrix3() },
       },
@@ -63,6 +65,8 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         uniform float vectorSelected;
         uniform float vectorHovered;
         uniform float vectorPixelRatio;
+        uniform float vectorPage;
+        uniform vec2 vectorCellSize;
         varying vec3 vectorBody;
         vec4 vectorTexel(sampler2D tex, vec2 size, float i) {
           return texture2D(tex, (vec2(mod(i, size.x), floor(i / size.x)) + 0.5) / size);
@@ -97,7 +101,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           vec2 north = vectorChart(ll, 1.0, 0.0), south = vectorChart(ll, -1.0, 0.0);
           vec2 ndx = dFdx(north), ndy = dFdy(north), sdx = dFdx(south), sdy = dFdy(south);
           vec2 cell = clamp(floor((ll + vec2(180.0, 90.0)) / vec2(360.0, 180.0) * vec2(${VECTOR_GRID})), vec2(0.0), vec2(${VECTOR_GRID[0] - 1}.0, ${VECTOR_GRID[1] - 1}.0));
-          vec4 range = texture2D(vectorCells, (cell + 0.5) / vec2(${VECTOR_GRID}));
+          vec4 range = vectorTexel(vectorCells, vectorCellSize, vectorPage * ${VECTOR_GRID[0] * VECTOR_GRID[1]}.0 + cell.y * ${VECTOR_GRID[0]}.0 + cell.x);
           vec4 result = vec4(0.0);
           float bestRank = -1.0;
           for (int j = 0; j < ${VECTOR_CELL_LIMIT}; j++) {
@@ -144,6 +148,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         }
       `,
     });
+    this.pages = packed.pages;
     this.textures = [records, cells, references];
   }
   override dispose(): void { this.textures.forEach(t => t.dispose()); super.dispose(); }

@@ -5,8 +5,11 @@ import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+const output = process.env.CL_OUTPUT ?? 'docs/validation/geographic-vectors';
 const browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM ?? '/usr/bin/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  args: process.env.CL_GPU === 'hardware'
+    ? ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist']
+    : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
   const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
   page.setDefaultNavigationTimeout(60_000);
@@ -38,8 +41,8 @@ try {
       projected: projected.toArray(), camera: renderer.camera.position.toArray(), rotation: bm.bodyToWorldQuaternion(new THREE.Quaternion()).toArray(),
       hit, readout: document.querySelector('.cl-geographic-status')?.textContent, png: canvas.toDataURL() };
   }, { base, root: resolve('.') });
-  await mkdir('docs/validation/geographic-vectors', { recursive: true });
-  await writeFile('docs/validation/geographic-vectors/viewer-reference.png', Buffer.from(result.png.split(',')[1], 'base64'));
+  await mkdir(output, { recursive: true });
+  await writeFile(`${output}/viewer-reference.png`, Buffer.from(result.png.split(',')[1], 'base64'));
   delete result.png;
   result.chrome = [];
   for (const [name, viewport] of [['desktop', { width: 1100, height: 760 }], ['mobile', { width: 390, height: 844 }]]) {
@@ -62,9 +65,9 @@ try {
     assert.ok(chrome.bounds.width >= 250 && chrome.bounds.height <= 48, `${name}: readout should stay compact and readable after resize`);
     assert.deepEqual(chrome.overlaps, [], `${name}: readout must clear viewer chrome`);
     result.chrome.push({ name, viewport, ...chrome });
-    await page.screenshot({ path: `docs/validation/geographic-vectors/viewer-chrome-${name}.png` });
+    await page.screenshot({ path: `${output}/viewer-chrome-${name}.png` });
   }
-  await writeFile('docs/validation/geographic-vectors/viewer.json', JSON.stringify({ ...result, errors }, null, 2) + '\n');
+  await writeFile(`${output}/viewer.json`, JSON.stringify({ ...result, errors }, null, 2) + '\n');
   assert.deepEqual(errors, []);
   assert.equal(result.features, 9);
   assert.deepEqual(result.diagnostics, []);

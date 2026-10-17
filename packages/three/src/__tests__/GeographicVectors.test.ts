@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { Universe, parseGeographicGeoJson, type GeographicLayer, type GeographicGeometry, type GeoPosition } from '@cosmolabe/core';
-import { GeographicIndex, VECTOR_CELL_LIMIT } from '../geographic/GeographicIndex.js';
+import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT } from '../geographic/GeographicIndex.js';
 import { GeographicVectorLayer } from '../geographic/GeographicVectorLayer.js';
 import jezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero.json';
+import denseJezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero-dense.json';
 import southpole from '../../../core/src/__tests__/__fixtures__/geographic-southpole.json';
 import type { BodyMesh } from '../BodyMesh.js';
 
@@ -95,12 +96,48 @@ describe('geographic surface index', () => {
     expect(pick(index, 0.5, 0.0006)?.featureId).toBe('number:2');
   });
 
-  it('bounds dense inputs atomically and allocates nothing for hidden layers', () => {
+  it('retains a detailed Jezero polygon and every localized target in bounded GPU pages', () => {
+    const data = parseGeographicGeoJson(JSON.stringify(denseJezero), layer([]).definition, { kind: 'local-file', identity: 'dense-jezero' });
+    const index = new GeographicIndex([data]);
+    expect(data.skippedFeatures).toBe(0);
+    expect(index.diagnostics).toEqual([]);
+    expect(index.features).toHaveLength(denseJezero.features.length);
+    expect(pick(index, 77.45, 18.45)?.featureId).toBe('string:target-820');
+    expect(pick(index, 77.451, 18.451)?.featureId).toBe('string:detailed-region');
+    for (const feature of data.features.slice(1)) {
+      if (feature.geometry.type !== 'Point') throw new Error('Expected point fixture');
+      expect(pick(index, feature.geometry.coordinates.lonDeg, feature.geometry.coordinates.latDeg)?.featureId).toBe(feature.id);
+    }
+    const packed = index.pack();
+    const packedIds = new Set<number>();
+    for (let i = 0; i < packed.cells.length; i += 4) {
+      const offset = packed.cells[i], count = packed.cells[i + 1];
+      expect(count).toBeLessThanOrEqual(VECTOR_CELL_LIMIT);
+      for (let j = 0; j < count; j++) packedIds.add(packed.references[(offset + j) * 4]);
+    }
+    expect(packedIds.size).toBe(index.primitives.length);
+    expect(packed.pages).toBeGreaterThan(1);
+  });
+
+  it('rejects a feature atomically at the batch primitive budget', () => {
+    const data = layer([{ type: 'Point', coordinates: [77.45, 18.45] }]);
+    const geometry = data.features[0].geometry;
+    if (geometry.type !== 'Point') throw new Error('Expected point fixture');
+    data.features[0].geometry = { type: 'MultiPoint', coordinates: Array.from({ length: VECTOR_PRIMITIVE_LIMIT + 1 }, () => geometry.coordinates) };
+    const index = new GeographicIndex([data]);
+    expect(index.features).toEqual([]);
+    expect(index.primitives).toEqual([]);
+    expect(index.cells.every(ids => ids.length === 0)).toBe(true);
+    expect(index.diagnostics).toMatchObject([{ featureId: 'number:0', code: 'vector-budget', message: 'Error: primitive budget exceeded' }]);
+  });
+
+  it('pages coincident inputs and allocates nothing for hidden layers', () => {
     const data = layer(Array.from({ length: 5000 }, () => ({ type: 'Point', coordinates: [0, 0] })));
     const index = new GeographicIndex([data]);
-    expect(index.features).toHaveLength(VECTOR_CELL_LIMIT);
-    expect(index.diagnostics).toHaveLength(5000 - VECTOR_CELL_LIMIT);
-    expect(Math.max(...index.cells.map(c => c.length))).toBe(VECTOR_CELL_LIMIT);
+    expect(index.features).toHaveLength(5000);
+    expect(index.diagnostics).toEqual([]);
+    expect(index.pack().pages).toBe(Math.ceil(5000 / VECTOR_CELL_LIMIT));
+    expect(Math.max(...index.cells.map(c => c.length))).toBe(5000);
     data.definition.display = { visible: false };
     const hidden = new GeographicIndex([data]);
     expect(hidden.primitives).toHaveLength(0);
@@ -165,7 +202,7 @@ describe('geographic renderer lifecycle and placement', () => {
     Object.assign(h.body, { terrainDatum: data.datum, surfaceTransitionState: 'streamed' });
     const draw = () => { h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end(); };
     draw();
-    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0 });
+    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0 });
     expect(h.vectors.diagnostics).toMatchObject([{ featureId: 'number:0', code: 'unsupported-height' }]);
     expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Mars', h.body]]), null)).toBeNull();
     // Explicit absolute placement is constrained too.

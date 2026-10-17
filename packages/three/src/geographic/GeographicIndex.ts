@@ -5,6 +5,7 @@ import { geographicProjection, projectGeographic, projectGeographicRings, wrapLo
 export interface GeographicFeatureRef { layerId: string; featureId: string; bodyName: string; }
 export interface GeographicRenderDiagnostic { layerId: string; featureId?: string; code: string; message: string; }
 export const VECTOR_GRID = [64, 32] as const;
+/** Candidate budget per draw, not an admission limit for a geographic cell. */
 export const VECTOR_CELL_LIMIT = 256;
 export const VECTOR_PRIMITIVE_LIMIT = 100_000;
 export const VECTOR_REFERENCE_LIMIT = 1_000_000;
@@ -105,17 +106,12 @@ export class GeographicIndex {
         case 'Polygon': polygon(g.coordinates); break;
         case 'MultiPolygon': g.coordinates.forEach(polygon); break;
       }
-      const occupancy = new Map<number, number>();
       const bins: number[][] = [];
       let references = 0;
       for (const primitive of staged) {
         const bin = primitiveCells(primitive);
-        for (const cell of bin) {
-          const count = (occupancy.get(cell) ?? 0) + 1;
-          occupancy.set(cell, count);
-          if (this.cells[cell].length + count > VECTOR_CELL_LIMIT) throw new Error('spatial cell budget exceeded; split or simplify this dataset');
-          if (this.references + ++references > VECTOR_REFERENCE_LIMIT) throw new Error('spatial reference budget exceeded');
-        }
+        references += bin.length;
+        if (this.references + references > VECTOR_REFERENCE_LIMIT) throw new Error('spatial reference budget exceeded');
         bins.push(bin);
       }
       const first = this.primitives.length;
@@ -128,24 +124,38 @@ export class GeographicIndex {
     }
   }
 
-  /** Four RGBA texels per primitive; integer IDs remain exact in float32. */
-  pack(): { records: Float32Array; cells: Float32Array; references: Float32Array } {
+  /** Sparse cells retain the original single-pass ordering. Overflow uses
+   * bounded pages, fills before strokes before points; earlier source pages
+   * draw last. Translucent overlaps between pages composite normally.
+   * Four RGBA texels per primitive; integer IDs remain exact in float32.
+   * Each page is a complete grid; no fragment scans more than 256 references.
+   * Total pages/references remain bounded by the batch admission budgets. */
+  pack(): { records: Float32Array; cells: Float32Array; references: Float32Array; pages: number } {
     const records = new Float32Array(this.primitives.length * 16);
     this.primitives.forEach((p, i) => records.set([
       ...p.a, ...p.b, ...p.c, p.kind, p.chart === 'longitude-latitude' ? 0 : p.chart === 'north-polar' ? 1 : -1,
       ...p.color, p.opacity, p.feature, primitiveAnchor(p), 0, 0,
     ], i * 16));
-    const cells = new Float32Array(this.cells.length * 4);
+    const grids: number[][][] = [];
+    if (this.cells.every(ids => ids.length <= VECTOR_CELL_LIMIT)) grids.push(this.cells);
+    else for (const kind of [2, 1, 0]) {
+      const bins = this.cells.map(ids => ids.filter(id => this.primitives[id].kind === kind));
+      const pages = Math.ceil(Math.max(...bins.map(ids => ids.length)) / VECTOR_CELL_LIMIT);
+      for (let page = pages - 1; page >= 0; page--) {
+        grids.push(bins.map(ids => ids.slice(page * VECTOR_CELL_LIMIT, (page + 1) * VECTOR_CELL_LIMIT)));
+      }
+    }
+    const cells = new Float32Array(grids.length * this.cells.length * 4);
     const references = new Float32Array(this.references * 4);
     let offset = 0;
-    this.cells.forEach((ids, cell) => {
-      cells.set([offset, ids.length, 0, 0], cell * 4);
+    grids.forEach((grid, page) => grid.forEach((ids, cell) => {
+      cells.set([offset, ids.length, 0, 0], (page * this.cells.length + cell) * 4);
       for (const id of ids) {
         const p = this.primitives[id];
         references.set([id, p.kind, p.chart === 'longitude-latitude' ? 0 : p.chart === 'north-polar' ? 1 : -1, primitiveAnchor(p)], 4 * offset++);
       }
-    });
-    return { records, cells, references };
+    }));
+    return { records, cells, references, pages: grids.length };
   }
 
   /** Jacobian columns are the change in degrees for a one-CSS-pixel step. */

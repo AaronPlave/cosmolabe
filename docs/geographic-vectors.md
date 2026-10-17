@@ -11,6 +11,27 @@ reference-globe example with Mars and lunar viewpoints. Its features are clearly
 labelled synthetic validation fixtures. Loading them with a terrain-enabled
 catalog uses that body's displayed terrain automatically.
 
+## Open the validation scenes yourself
+
+The original `geographic-vectors.json` is a small reference-globe example. The
+measured-terrain and dense-layer tests also have regular catalogs you can open
+interactively. With the local viewer on port 5188:
+
+- [Dense Jezero: 1,600 targets and a detailed polygon](http://127.0.0.1:5188/?catalog=test-catalogs/geographic-vectors-jezero-dense)
+- [Jezero: points, traverse and polygon with a hole](http://127.0.0.1:5188/?catalog=test-catalogs/geographic-vectors-jezero-terrain)
+- [Shackleton: points, traverse and polygon with a hole](http://127.0.0.1:5188/?catalog=test-catalogs/geographic-vectors-shackleton-terrain)
+
+Each starts at the **detail** viewpoint. In **Display** (gear icon), use
+**Viewpoint** to switch between detail, close, regional and orbit. Click cyan
+features to select them in gold. **Lighting → Shadow** makes relief easier to
+see. The vector features are synthetic; the underlying terrain is measured.
+
+Jezero requires the local `test-catalogs/data/mars-terrain-fused/` pyramid;
+Shackleton requires `test-catalogs/data/moon-terrain-cube/`. This checkout has
+the Jezero product and a local link to the measured lunar product. These large
+generated terrain products are ignored by Git and are not bundled with the
+catalog JSON. If your viewer uses a different port, change `5188` in the links.
+
 ## Coordinates and surfaces
 
 Two-dimensional geometry clamps to the **currently displayed surface triangles**.
@@ -100,13 +121,20 @@ paths and do not acquire geographic features.
 Features share spatial indices/textures and surface draw calls within each
 body/datum/placement batch. There is no Three.js object per feature and no
 per-frame worker job. At most 16 batches, 100,000 primitives per batch, 1,000,000
-spatial references per batch, 256 candidates per cell, 2,048 visible surface
+spatial references per batch, 256 candidates per cell **per draw**, 2,048 visible surface
 proxies and 250,000 terrain-offset vertices are retained. Cell padding covers
 screen-width strokes around cell boundaries; extremely distant/subpixel globe
-and grazing views can clip a mark at the index padding boundary. Dense
-coincident data that exhaust a cell is diagnosed feature by feature; a polygon
-and all its rings commit atomically. Split/simplify overloaded datasets rather
-than increasing an unbounded fragment loop.
+and grazing views can clip a mark at the index padding boundary. Dense cells use overflow pages rather than rejecting valid features. Each draw
+still scans at most 256 candidates. Sparse batches keep a single pass; overflow
+batches draw fills, then strokes, then points, with earlier source pages last.
+Translucent overlaps across pages composite with normal alpha blending (rather
+than the single winner within a page). CPU picking searches all admitted
+candidates and retains point/stroke/fill and nearest/source tie precedence.
+The 100,000-primitive admission cap bounds a batch to at most 393 pages; the
+reference budget still limits total retained spatial work. Whole features and
+all their rings commit atomically when either batch budget is exceeded.
+`metrics.drawPages` exposes this draw-call cost; one surface proxy is reused
+across pages, without allocating an object per feature.
 
 Hidden layers have no textures/proxies and trigger no geographic surface pick.
 Source changes rebuild immutable batches; highlights only update uniforms.
@@ -153,10 +181,72 @@ The review follow-up also exercises absolute Z=0 and Z=2 m against a detailed
 produce diagnostics, no GPU resources and no hits until an explicit draping
 choice is made. The patch is analytic, not measured elevation.
 
-Measured Jezero/Shackleton zoom/LOD registration and physical desktop/mobile GPU
-profiling remain pre-merge validation requirements. This cloud environment has
-no `/dev/dri` or NVIDIA device and Chromium uses SwiftShader. On 2026-10-17,
-requests to the USGS Jezero HiRISE DTM and a candidate lunar south-polar mirror
-returned HTTP 403; the configured lunar S3 source is outside the environment's
-network policy. Neither the synthetic fixture nor software timings substitute
-for those checks; the PR remains a draft.
+## Physical GPU and measured terrain follow-up (2026-10-17)
+
+The local run uses Chrome with `ANGLE Metal Renderer: Apple M4 Max` (40 GPU
+cores). It rejects SwiftShader/software renderer identification. Artifacts are
+in [the M4 Max validation directory](validation/geographic-vectors/m4-max).
+The earlier cloud/software results above remain separate evidence.
+
+The localized fixture contains a **160-vertex polygon and 1,600 points within
+about 8 km of Jezero**, rather than spreading points around a planet. Unit tests
+pick every point and verify every primitive is packed into a page of at most
+256 candidates. Hardware checks render the full fixture, verify selection in
+both the first and last point pages, and exercise the existing seams, polar
+holes, LOD replacement, floating origin, occlusion and hidden-resource checks.
+The localized batch uses nine pages and 704,512 texture bytes.
+
+The [runtime profile](validation/geographic-vectors/m4-max/metrics.json) records
+120 animation frames after 20 warm-up frames for each baseline/vector view.
+It excludes `finish` and readback. At 640 x 480 DPR 1 and 390 x 844 DPR 2,
+frame intervals stayed around 16.7 ms (60 Hz), with CPU submission around
+0.1 ms median. These are whole-frame cadence and CPU submission measurements,
+not isolated GPU execution time. Both views use the desktop M4 Max;
+**physical mobile GPU profiling remains an open pre-merge requirement**.
+
+The [measured-terrain run](validation/geographic-vectors/m4-max/measured-terrain.json)
+uses the local MOLA/HRSC plus Jezero HiRISE 1 m residual quantized-mesh pyramid
+and the LOLA 118 m plus south-pole LOLA 10 m residual cube pyramid. Source
+metadata text and SHA-256 are retained. The terrain is measured; the overlaid
+registration points, traverse and polygon with a hole are synthetic fixtures.
+The Jezero product declares MOLA areoid heights placed as ellipsoid heights;
+this check does not establish absolute height or survey/geology accuracy.
+
+Each body zooms from 1,000 to 100 to 15 to 3 km above the reference datum and
+back to 100 km. The script records tile/load changes, waits for quiescence,
+asserts the center ray hits terrain and selects the same feature, and captures
+loading, settled relief and LOD-color states. Representative relief captures:
+[Jezero](validation/geographic-vectors/m4-max/mars-3-settled.png) and
+[Shackleton](validation/geographic-vectors/m4-max/moon-15-settled.png).
+The full viewer loader, body status, selection and desktop/mobile chrome checks
+also pass on Metal. Reproduce after starting this checkout's viewer:
+
+```sh
+export CL_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+export CL_VIEWER_URL='http://127.0.0.1:5188/'
+export CL_OUTPUT='docs/validation/geographic-vectors/m4-max'
+CL_GPU=hardware node scripts/test-geographic-vectors.mjs
+CL_GPU=hardware node scripts/test-geographic-vectors-viewer.mjs
+CL_MOON_TERRAIN=/path/to/measured/moon-terrain-cube node scripts/test-geographic-measured-terrain.mjs
+```
+
+The measured script also requires the Jezero pyramid at
+`apps/viewer/test-catalogs/data/mars-terrain-fused/`. It fails on missing terrain;
+there is no analytic replacement for this check.
+
+## Deferred absolute-height capability
+
+PR #262 is **part of [#197](https://github.com/AaronPlave/cosmolabe/issues/197)**;
+it does not complete that issue's body-fixed-height scope. Clamp and explicit
+terrain-relative placement are the delivered modes. Absolute datum-height
+rendering remains disabled, including imported Z=0 and Z=2 m. The follow-up is
+tracked in [the absolute-height implementation checklist](design/geographic-absolute-height.md).
+Keep #197 open and the PR draft while physical mobile profiling is outstanding.
+
+Local verification: full `npm run typecheck` passes (Svelte: zero errors and
+warnings), 34 focused rendering/interaction tests pass, and ESLint plus
+`lint:purity` pass. The full suite run completed with 2,192 passed, seven skipped
+and one failure in the unchanged CSPICE `gf-reporting.test.ts` test
+“keeps the first pass inside the first half while it runs” (no intermediate
+progress callback was observed). Running that file alone reproduces the same
+failure. The full suite is therefore not reported as green.
