@@ -1,6 +1,6 @@
 // Types for the parts of datasets.mjs the viewer's vite.config.ts imports.
 export interface Dataset {
-  kind: 'terrain' | 'kernels';
+  kind: 'terrain' | 'kernels' | 'cube-terrain' | 'cube-imagery';
   name: string;
   localDir: string;
   catalogPrefix: string;
