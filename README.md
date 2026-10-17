@@ -90,6 +90,10 @@ Browse the [full catalog index](apps/viewer/test-catalogs/index.json) or
 
 Ingenuity at Jezero; requires a locally generated fused terrain product.
 
+[Plan surface data fidelity and estimate storage offline](docs/surface-data-plans.md)
+with versioned planetary GeoJSON plans, independent imagery/elevation targets and
+local source metadata.
+
 </details>
 
 [Capture recipes, the scripted Moon tour and video recreation](docs/readme-media.md).

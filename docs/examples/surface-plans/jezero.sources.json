@@ -1,0 +1,86 @@
+[
+  {
+    "id": "synthetic-mars-coarse-dem",
+    "productId": "TEST-ONLY-MARS-DEM",
+    "channel": "elevation",
+    "body": "Mars",
+    "frame": "IAU_MARS",
+    "coordinates": {
+      "latitude": "planetocentric",
+      "longitudeDirection": "east",
+      "longitudeDomain": "0..360",
+      "referenceShape": {
+        "kind": "ellipsoid",
+        "radiiKm": [
+          3396.19,
+          3396.19,
+          3376.2
+        ]
+      }
+    },
+    "footprint": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "id": "footprint",
+          "properties": {
+            "note": "Synthetic planning fixture; no claim of real source coverage"
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.3,
+                  18.3
+                ],
+                [
+                  77.6,
+                  18.3
+                ],
+                [
+                  77.6,
+                  18.6
+                ],
+                [
+                  77.3,
+                  18.6
+                ],
+                [
+                  77.3,
+                  18.3
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "nodata": "none",
+    "nativeGsdM": 200,
+    "accuracyM": 30,
+    "projection": "Synthetic equirectangular; footprint expressed in declared planetary coordinates",
+    "datum": {
+      "referenceShape": {
+        "kind": "ellipsoid",
+        "radiiKm": [
+          3396.19,
+          3396.19,
+          3376.2
+        ]
+      },
+      "verticalDatum": "ellipsoid",
+      "heightConvention": "geodetic-normal"
+    },
+    "asset": {
+      "retrieval": "Synthetic fixture; no downloadable raster exists.",
+      "version": "fixture-v1",
+      "bytes": 1000000
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "attribution": "Cosmolabe synthetic test fixture"
+    }
+  }
+]
