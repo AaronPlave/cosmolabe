@@ -37,6 +37,14 @@
       "pass": true
     },
     {
+      "name": "detailed localized polygon fill and independent hole",
+      "pass": true
+    },
+    {
+      "name": "localized polygon selection preserves hole silhouette",
+      "pass": true
+    },
+    {
       "name": "pathological density diagnosed without partial drawing or GPU resources",
       "pass": true
     },
@@ -67,31 +75,31 @@
       "batches": 1,
       "surfaceMeshes": 1,
       "offsetVertices": 0,
-      "textureBytes": 704512,
+      "textureBytes": 2637824,
       "baseline": {
         "frames": 120,
         "cpuSubmissionMs": {
           "median": 0.09999999403953552,
           "p95": 0.20000001788139343,
-          "average": 0.113333331545194
+          "average": 0.10499999920527141
         },
         "frameIntervalMs": {
           "median": 16.699999999999818,
           "p95": 16.700000000000273,
-          "average": 16.664999999999996
+          "average": 16.665833333333335
         }
       },
       "vectors": {
         "frames": 120,
         "cpuSubmissionMs": {
-          "median": 0.30000001192092896,
+          "median": 0.29999998211860657,
           "p95": 0.5,
-          "average": 0.29000000084439914
+          "average": 0.2875000009934107
         },
         "frameIntervalMs": {
           "median": 16.699999999999818,
-          "p95": 16.799999999999727,
-          "average": 16.66583333333333
+          "p95": 16.800000000000182,
+          "average": 16.66666666666667
         }
       }
     },
@@ -108,31 +116,31 @@
       "batches": 1,
       "surfaceMeshes": 1,
       "offsetVertices": 0,
-      "textureBytes": 704512,
+      "textureBytes": 2637824,
       "baseline": {
         "frames": 120,
         "cpuSubmissionMs": {
           "median": 0,
-          "p95": 0.10000002384185791,
-          "average": 0.01833333373069763
+          "p95": 0.09999999403953552,
+          "average": 0.02416666621963183
         },
         "frameIntervalMs": {
           "median": 16.699999999999818,
           "p95": 16.800000000000182,
-          "average": 16.666666666666668
+          "average": 16.66583333333334
         }
       },
       "vectors": {
         "frames": 120,
         "cpuSubmissionMs": {
-          "median": 0.09999999403953552,
-          "p95": 0.30000001192092896,
-          "average": 0.13833333204189938
+          "median": 0.29999998211860657,
+          "p95": 0.5,
+          "average": 0.2833333320915699
         },
         "frameIntervalMs": {
           "median": 16.69999999999891,
-          "p95": 16.80000000000109,
-          "average": 16.66666666666666
+          "p95": 16.799999999999272,
+          "average": 16.66583333333334
         }
       }
     },
@@ -154,7 +162,7 @@
     },
     {
       "name": "dense index 4900 features",
-      "milliseconds": 23.599999994039536,
+      "milliseconds": 14.799999982118607,
       "features": 4900,
       "diagnostics": 0,
       "drawCalls": 0,
@@ -166,11 +174,11 @@
     },
     {
       "name": "dense full frame with GPU finish/readback (not runtime cost)",
-      "milliseconds": 1.1833333323399227
+      "milliseconds": 4.433333332339923
     },
     {
       "name": "hidden rebuild and full frame",
-      "milliseconds": 1.300000011920929,
+      "milliseconds": 2.4000000059604645,
       "features": 0
     },
     {

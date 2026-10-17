@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_GRID } from './GeographicIndex.js';
+import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_GRID, VECTOR_DETAIL_GRIDS } from './GeographicIndex.js';
 
 function texture(data: Float32Array, width = Math.min(1024, Math.max(1, data.length / 4))): THREE.DataTexture {
   const height = Math.max(1, Math.ceil(data.length / 4 / width));
@@ -19,6 +19,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
   constructor(index: GeographicIndex, equatorialKm: number, polarKm: number) {
     const packed = index.pack();
     const records = texture(packed.records), cells = texture(packed.cells), references = texture(packed.references);
+    const detailCells = packed.detail ? texture(packed.detail.cells) : cells;
     super({
       transparent: true, depthTest: true, depthWrite: false, depthFunc: THREE.LessEqualDepth,
       side: THREE.FrontSide,
@@ -31,6 +32,13 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         vectorSelected: { value: -1 }, vectorHovered: { value: -1 },
         vectorPixelRatio: { value: 1 }, vectorPage: { value: 0 },
         vectorCellSize: { value: new THREE.Vector2(cells.image.width, cells.image.height) },
+        vectorDetailCells: { value: detailCells },
+        vectorDetailCellSize: { value: new THREE.Vector2(detailCells.image.width, detailCells.image.height) },
+        vectorDetailBounds: { value: VECTOR_DETAIL_GRIDS.map((_, i) => new THREE.Vector4(...(packed.detail?.levels[i]?.bounds ?? [0, 0, 0, 0]))) },
+        vectorDetailStep: { value: VECTOR_DETAIL_GRIDS.map((_, i) => new THREE.Vector2(...(packed.detail?.levels[i]?.step ?? [0, 0]))) },
+        vectorDetailGrid: { value: VECTOR_DETAIL_GRIDS.map((_, i) => {
+          const level = packed.detail?.levels[i]; return new THREE.Vector3(level?.size ?? 0, level?.offset ?? 0, level?.pages ?? 0);
+        }) },
         vectorDisplacement: { value: new THREE.Vector3() },
         vectorDisplacementMap: { value: null }, vectorDisplacementTransform: { value: new THREE.Matrix3() },
       },
@@ -67,6 +75,11 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         uniform float vectorPixelRatio;
         uniform float vectorPage;
         uniform vec2 vectorCellSize;
+        uniform sampler2D vectorDetailCells;
+        uniform vec2 vectorDetailCellSize;
+        uniform vec4 vectorDetailBounds[${VECTOR_DETAIL_GRIDS.length}];
+        uniform vec2 vectorDetailStep[${VECTOR_DETAIL_GRIDS.length}];
+        uniform vec3 vectorDetailGrid[${VECTOR_DETAIL_GRIDS.length}];
         varying vec3 vectorBody;
         vec4 vectorTexel(sampler2D tex, vec2 size, float i) {
           return texture2D(tex, (vec2(mod(i, size.x), floor(i / size.x)) + 0.5) / size);
@@ -101,7 +114,20 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           vec2 north = vectorChart(ll, 1.0, 0.0), south = vectorChart(ll, -1.0, 0.0);
           vec2 ndx = dFdx(north), ndy = dFdy(north), sdx = dFdx(south), sdy = dFdy(south);
           vec2 cell = clamp(floor((ll + vec2(180.0, 90.0)) / vec2(360.0, 180.0) * vec2(${VECTOR_GRID})), vec2(0.0), vec2(${VECTOR_GRID[0] - 1}.0, ${VECTOR_GRID[1] - 1}.0));
-          vec4 range = vectorTexel(vectorCells, vectorCellSize, vectorPage * ${VECTOR_GRID[0] * VECTOR_GRID[1]}.0 + cell.y * ${VECTOR_GRID[0]}.0 + cell.x);
+          vec4 range = vec4(0.0);
+          vec2 footprint = 4.5 * vectorPixelRatio * (abs(dx) + abs(dy));
+          bool detailed = false;
+          for (int level = 0; level < ${VECTOR_DETAIL_GRIDS.length}; level++) {
+            if (vectorDetailStep[level].x <= 0.0 || any(greaterThan(footprint, vectorDetailStep[level]))) continue;
+            vec3 grid = vectorDetailGrid[level];
+            if (vectorPage >= grid.z) discard;
+            vec2 detailCell = floor((ll - vectorDetailBounds[level].xy) / vectorDetailStep[level]);
+            if (any(lessThan(detailCell, vec2(0.0))) || any(greaterThanEqual(detailCell, vec2(grid.x)))) discard;
+            range = vectorTexel(vectorDetailCells, vectorDetailCellSize, grid.y + vectorPage * grid.x * grid.x + detailCell.y * grid.x + detailCell.x);
+            detailed = true;
+            break;
+          }
+          if (!detailed) range = vectorTexel(vectorCells, vectorCellSize, vectorPage * ${VECTOR_GRID[0] * VECTOR_GRID[1]}.0 + cell.y * ${VECTOR_GRID[0]}.0 + cell.x);
           vec4 result = vec4(0.0);
           float bestRank = -1.0;
           for (int j = 0; j < ${VECTOR_CELL_LIMIT}; j++) {
@@ -149,7 +175,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
       `,
     });
     this.pages = packed.pages;
-    this.textures = [records, cells, references];
+    this.textures = packed.detail ? [records, cells, references, detailCells] : [records, cells, references];
   }
   override dispose(): void { this.textures.forEach(t => t.dispose()); super.dispose(); }
 }

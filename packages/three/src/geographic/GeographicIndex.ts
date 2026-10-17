@@ -4,6 +4,7 @@ import { geographicProjection, projectGeographic, projectGeographicRings, wrapLo
 
 export interface GeographicFeatureRef { layerId: string; featureId: string; bodyName: string; }
 export interface GeographicRenderDiagnostic { layerId: string; featureId?: string; code: string; message: string; }
+export const VECTOR_DETAIL_GRIDS = [64, 32, 16, 8, 6, 5] as const;
 export const VECTOR_GRID = [64, 32] as const;
 /** Candidate budget per draw, not an admission limit for a geographic cell. */
 export const VECTOR_CELL_LIMIT = 256;
@@ -21,6 +22,20 @@ export type VectorPrimitive = {
   feature: number;
   color: readonly [number, number, number]; opacity: number;
 };
+interface DetailLevel {
+  size: number;
+  offset: number;
+  pages: number;
+  bounds: readonly [number, number, number, number];
+  step: readonly [number, number];
+}
+interface PackedGeographicIndex {
+  records: Float32Array;
+  cells: Float32Array;
+  references: Float32Array;
+  pages: number;
+  detail?: { cells: Float32Array; levels: DetailLevel[] };
+}
 const primitiveAnchor = (p: VectorPrimitive) => (Math.min(p.a[0], p.b[0], p.c[0]) + Math.max(p.a[0], p.b[0], p.c[0])) / 2;
 
 export function geographicCell(lon: number, lat: number): number {
@@ -52,6 +67,20 @@ function primitiveCells(p: VectorPrimitive): number[] {
     cells.add(y * VECTOR_GRID[0] + ((x % VECTOR_GRID[0]) + VECTOR_GRID[0]) % VECTOR_GRID[0]);
   }
   return [...cells];
+}
+
+/** Same rank/source paging at every spatial scale. */
+function pageCells(cells: number[][], primitives: readonly VectorPrimitive[]): number[][][] {
+  if (cells.every(ids => ids.length <= VECTOR_CELL_LIMIT)) return [cells];
+  const grids: number[][][] = [];
+  for (const kind of [2, 1, 0]) {
+    const bins = cells.map(ids => ids.filter(id => primitives[id].kind === kind));
+    const pages = Math.ceil(Math.max(...bins.map(ids => ids.length)) / VECTOR_CELL_LIMIT);
+    for (let page = pages - 1; page >= 0; page--) {
+      grids.push(bins.map(ids => ids.slice(page * VECTOR_CELL_LIMIT, (page + 1) * VECTOR_CELL_LIMIT)));
+    }
+  }
+  return grids;
 }
 
 /** Immutable, bounded spatial index shared by CPU picking and the GPU. Features
@@ -138,29 +167,63 @@ export class GeographicIndex {
     return peak <= VECTOR_CELL_LIMIT ? 1 : peaks.reduce((n, count) => n + Math.ceil(count / VECTOR_CELL_LIMIT), 0);
   }
 
+  /** Local grids retain every primitive and one cell of padding at each scale.
+   * Derivatives select a grid whose padding covers the CSS-pixel mark; wide,
+   * seam and polar views retain the bounded global fallback. */
+  private detailGrids(): { grids: number[][][]; level: DetailLevel }[] {
+    const result: { grids: number[][][]; level: DetailLevel }[] = [];
+    const coarsePages = this.renderPages;
+    if (coarsePages <= 1 || this.primitives.some(p => p.chart !== 'longitude-latitude')) return result;
+    let west = Infinity, east = -Infinity, south = Infinity, north = -Infinity;
+    for (const p of this.primitives) for (const v of [p.a, p.b, p.c]) {
+      west = Math.min(west, v[0]); east = Math.max(east, v[0]); south = Math.min(south, v[1]); north = Math.max(north, v[1]);
+    }
+    if (east - west <= 1e-8 || north - south <= 1e-8 || east - west > 10 || north - south > 10
+      || west < -180 || east >= 180 || south < -80 || north > 80) return result;
+    let references = this.references, offset = 0;
+    for (const size of VECTOR_DETAIL_GRIDS) {
+      const dx = (east - west) / (size - 4), dy = (north - south) / (size - 4);
+      const xOrigin = west - 2 * dx, yOrigin = south - 2 * dy;
+      // A padded chart may not cross the longitude seam or a pole.
+      if (xOrigin < -180 || xOrigin + size * dx >= 180 || yOrigin < -90 || yOrigin + size * dy > 90) continue;
+      const bins: number[][] = Array.from({ length: size ** 2 }, () => []);
+      let added = 0;
+      for (const [id, p] of this.primitives.entries()) {
+        const x0 = Math.max(0, Math.floor((Math.min(p.a[0], p.b[0], p.c[0]) - xOrigin) / dx - 1));
+        const x1 = Math.min(size - 1, Math.floor((Math.max(p.a[0], p.b[0], p.c[0]) - xOrigin) / dx + 1));
+        const y0 = Math.max(0, Math.floor((Math.min(p.a[1], p.b[1], p.c[1]) - yOrigin) / dy - 1));
+        const y1 = Math.min(size - 1, Math.floor((Math.max(p.a[1], p.b[1], p.c[1]) - yOrigin) / dy + 1));
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+          if (references + ++added > VECTOR_REFERENCE_LIMIT) return result;
+          bins[y * size + x].push(id);
+        }
+      }
+      const grids = pageCells(bins, this.primitives);
+      if (grids.length > coarsePages) continue;
+      result.push({ grids, level: { size, offset, pages: grids.length,
+        bounds: [xOrigin, yOrigin, xOrigin + dx * size, yOrigin + dy * size], step: [dx, dy] } });
+      offset += grids.length * size ** 2; references += added;
+    }
+    return result;
+  }
+
   /** Sparse cells retain the original single-pass ordering. Overflow uses
    * bounded pages, fills before strokes before points; earlier source pages
    * draw last. Translucent overlaps between pages composite normally.
    * Four RGBA texels per primitive; integer IDs remain exact in float32.
    * Each page is a complete grid; no fragment scans more than 256 references.
    * Total pages/references remain bounded by the batch admission budgets. */
-  pack(): { records: Float32Array; cells: Float32Array; references: Float32Array; pages: number } {
+  pack(): PackedGeographicIndex {
     const records = new Float32Array(this.primitives.length * 16);
     this.primitives.forEach((p, i) => records.set([
       ...p.a, ...p.b, ...p.c, p.kind, p.chart === 'longitude-latitude' ? 0 : p.chart === 'north-polar' ? 1 : -1,
       ...p.color, p.opacity, p.feature, primitiveAnchor(p), 0, 0,
     ], i * 16));
-    const grids: number[][][] = [];
-    if (this.cells.every(ids => ids.length <= VECTOR_CELL_LIMIT)) grids.push(this.cells);
-    else for (const kind of [2, 1, 0]) {
-      const bins = this.cells.map(ids => ids.filter(id => this.primitives[id].kind === kind));
-      const pages = Math.ceil(Math.max(...bins.map(ids => ids.length)) / VECTOR_CELL_LIMIT);
-      for (let page = pages - 1; page >= 0; page--) {
-        grids.push(bins.map(ids => ids.slice(page * VECTOR_CELL_LIMIT, (page + 1) * VECTOR_CELL_LIMIT)));
-      }
-    }
+    const grids = pageCells(this.cells, this.primitives);
     const cells = new Float32Array(grids.length * this.cells.length * 4);
-    const references = new Float32Array(this.references * 4);
+    const details = this.detailGrids();
+    const extraReferences = details.reduce((n, d) => n + d.grids.reduce((m, grid) => m + grid.reduce((sum, ids) => sum + ids.length, 0), 0), 0);
+    const references = new Float32Array((this.references + extraReferences) * 4);
     let offset = 0;
     grids.forEach((grid, page) => grid.forEach((ids, cell) => {
       cells.set([offset, ids.length, 0, 0], (page * this.cells.length + cell) * 4);
@@ -169,7 +232,19 @@ export class GeographicIndex {
         references.set([id, p.kind, p.chart === 'longitude-latitude' ? 0 : p.chart === 'north-polar' ? 1 : -1, primitiveAnchor(p)], 4 * offset++);
       }
     }));
-    return { records, cells, references, pages: grids.length };
+    let packedDetail;
+    if (details.length) {
+      const cells = new Float32Array(details.reduce((n, d) => n + d.grids.length * d.level.size ** 2, 0) * 4);
+      for (const { grids, level } of details) grids.forEach((grid, page) => grid.forEach((ids, cell) => {
+        cells.set([offset, ids.length, 0, 0], (level.offset + page * level.size ** 2 + cell) * 4);
+        for (const id of ids) {
+          const p = this.primitives[id];
+          references.set([id, p.kind, 0, primitiveAnchor(p)], 4 * offset++);
+        }
+      }));
+      packedDetail = { cells, levels: details.map(d => d.level) };
+    }
+    return { records, cells, references, pages: grids.length, detail: packedDetail };
   }
 
   /** Jacobian columns are the change in degrees for a one-CSS-pixel step. */

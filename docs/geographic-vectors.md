@@ -207,7 +207,8 @@ pick every point and verify every primitive is packed into a page of at most
 256 candidates. Hardware checks render the full fixture, verify selection in
 both the first and last point pages, and exercise the existing seams, polar
 holes, LOD replacement, floating origin, occlusion and hidden-resource checks.
-The localized batch uses nine pages and 704,512 texture bytes.
+The localized batch uses nine bounded fallback pages. With multiscale close-view
+indices enabled it uses 2,637,824 texture bytes.
 
 The [runtime profile](validation/geographic-vectors/m4-max/metrics.json) records
 120 animation frames after 20 warm-up frames for each baseline/vector view.
@@ -247,6 +248,54 @@ CL_MOON_TERRAIN=/path/to/measured/moon-terrain-cube node scripts/test-geographic
 The measured script also requires the Jezero pyramid at
 `apps/viewer/test-catalogs/data/mars-terrain-fused/`. It fails on missing terrain;
 there is no analytic replacement for this check.
+
+## Real viewer dense-layer performance regression
+
+The original 640 x 480 analytic-relief timing did **not** establish performance
+for the actual dense catalog at desktop drawing resolutions. A user reproduced
+severe lag in `geographic-vectors-jezero-dense`. The normal viewer at 1920 x
+1080 CSS pixels, DPR 2 (3840 x 2160 drawing buffer), with the pointer over the
+terrain reproduces a 466.6 ms median frame interval on the M4 Max when the dense
+vectors are enabled. CPU rendering stays around 2.2 ms and picking around 0.2 ms;
+the bottleneck is the repeated fragment scans of the entire localized cluster.
+
+Localized non-polar batches now also pack six padded spatial grids, from 64 x
+64 down to 5 x 5. Fragment derivatives select a scale whose one-cell padding
+covers the CSS-pixel stroke/marker footprint. Close views test nearby primitives;
+zoomed-out views use coarser local bins and paging. The existing global index is
+retained for wider footprints and seam/polar cases. No source features or
+polygon rings are simplified or removed. Every bin still scans at most 256
+candidates; the combined global/local references share the existing 1,000,000
+reference limit, and the 16-page/2,048-draw limits remain in force.
+
+The [before](validation/geographic-vectors/m4-max/viewer-performance-before.json)
+and [after](validation/geographic-vectors/m4-max/viewer-performance-after.json)
+profiles use the actual catalog, measured terrain, normal antialiasing/effects,
+the same 4K drawing resolution, and a resting pointer. Over 90 measured frames:
+
+| Scene | Median before | Median after | After p95 |
+| --- | ---: | ---: | ---: |
+| Sparse Jezero, 15 features | 16.7 ms | 16.7 ms | 33.4 ms |
+| Dense Jezero, 1,601 features | 466.6 ms | 16.7 ms | 33.3 ms |
+
+The dense scene retains every feature and passes a visible-cyan-pixel check
+(276,609 pixels), drag interaction, and close/regional/orbit viewpoint checks;
+those viewpoints have 16.7 ms median and at most 33.4 ms p95 intervals. Pixel
+readback occurs **after** the timing samples. These are full viewer frame
+intervals on a desktop M4 Max, not isolated GPU execution or mobile benchmarks.
+The [actual 4K viewer capture](validation/geographic-vectors/m4-max/viewer-dense-4k.png)
+shows the retained markers. GPU regression also covers a detailed polygon with
+an independent hole and selection. Unit tests check every target in every
+spatial scale, padding across bin boundaries, reference/candidate caps, and the
+seam-aware fallback.
+
+```sh
+CL_OUTPUT=/tmp/geographic-viewer-performance node scripts/test-geographic-viewer-performance.mjs
+```
+
+This separate manual hardware check asserts a 50 ms p95 frame budget for the
+reported dense catalog and its close/regional/orbit viewpoints. It uses the
+running viewer at port 5188 and the existing local measured Mars pyramid.
 
 ## Deferred absolute-height capability
 

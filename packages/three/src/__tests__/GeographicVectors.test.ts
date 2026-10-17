@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { Universe, parseGeographicGeoJson, type GeographicLayer, type GeographicGeometry, type GeoPosition } from '@cosmolabe/core';
-import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT, VECTOR_RENDER_PAGE_LIMIT } from '../geographic/GeographicIndex.js';
+import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_DETAIL_GRIDS, VECTOR_REFERENCE_LIMIT } from '../geographic/GeographicIndex.js';
 import { GeographicVectorLayer, VECTOR_FRAME_DRAW_LIMIT } from '../geographic/GeographicVectorLayer.js';
 import jezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero.json';
 import denseJezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero-dense.json';
@@ -117,6 +117,57 @@ describe('geographic surface index', () => {
     }
     expect(packedIds.size).toBe(index.primitives.length);
     expect(packed.pages).toBeGreaterThan(1);
+    expect(packed.detail).toBeDefined();
+    const detail = packed.detail!.levels[0];
+    expect(detail.size).toBe(VECTOR_DETAIL_GRIDS[0]);
+    expect(packed.detail!.levels.length).toBe(VECTOR_DETAIL_GRIDS.length);
+    for (const level of packed.detail!.levels) {
+      expect(level.pages).toBeLessThanOrEqual(packed.pages);
+      // Paging at coarser zoom levels must retain every target too.
+      for (let i = 1; i < data.features.length; i++) {
+        const g = data.features[i].geometry;
+        if (g.type !== 'Point') throw new Error('Expected point fixture');
+        const x = Math.floor((g.coordinates.lonDeg - level.bounds[0]) / level.step[0]);
+        const y = Math.floor((g.coordinates.latDeg - level.bounds[1]) / level.step[1]);
+        let found = false;
+        for (let page = 0; page < level.pages; page++) {
+          const cell = (level.offset + page * level.size ** 2 + y * level.size + x) * 4;
+          const offset = packed.detail!.cells[cell], count = packed.detail!.cells[cell + 1];
+          for (let j = 0; j < count; j++) if (index.primitives[packed.references[(offset + j) * 4]].feature === i + 1) found = true;
+        }
+        expect(found).toBe(true);
+      }
+    }
+    expect(packed.references.length / 4).toBeLessThanOrEqual(VECTOR_REFERENCE_LIMIT);
+    for (let cell = 0; cell < packed.detail!.cells.length; cell += 4) expect(packed.detail!.cells[cell + 1]).toBeLessThanOrEqual(VECTOR_CELL_LIMIT);
+    // Every point remains a candidate throughout its padded footprint, including
+    // neighbouring cell boundaries. Detail is an acceleration, not simplification.
+    for (let i = 1; i < data.features.length; i++) {
+      const g = data.features[i].geometry;
+      if (g.type !== 'Point') throw new Error('Expected point fixture');
+      for (const sx of [-0.99, 0, 0.99]) for (const sy of [-0.99, 0, 0.99]) {
+        const x = Math.floor((g.coordinates.lonDeg + sx * detail.step[0] - detail.bounds[0]) / detail.step[0]);
+        const y = Math.floor((g.coordinates.latDeg + sy * detail.step[1] - detail.bounds[1]) / detail.step[1]);
+        const cell = (detail.offset + y * detail.size + x) * 4;
+        const offset = packed.detail!.cells[cell], count = packed.detail!.cells[cell + 1];
+        const ids = Array.from({ length: count }, (_, j) => packed.references[(offset + j) * 4]);
+        expect(ids.some(id => index.primitives[id].feature === i + 1)).toBe(true);
+      }
+    }
+  });
+
+  it('retains the seam-aware coarse path when localized geometry crosses the longitude seam', () => {
+    const ring: GeoPosition[] = Array.from({ length: 160 }, (_, i) => {
+      const angle = i / 160 * Math.PI * 2;
+      const lon = 179.99 + 0.04 * Math.cos(angle);
+      return [lon > 180 ? lon - 360 : lon, 18.45 + 0.04 * Math.sin(angle)];
+    });
+    ring.push(ring[0]);
+    const index = new GeographicIndex([layer([{ type: 'Polygon', coordinates: [ring] }])]);
+    expect(index.diagnostics).toEqual([]);
+    expect(index.features).toHaveLength(1);
+    expect(index.pack().detail).toBeUndefined();
+    expect(pick(index, -179.999, 18.45)).toEqual(ref);
   });
 
   it('rejects a feature atomically at the batch primitive budget', () => {

@@ -165,6 +165,19 @@ try {
     renderer.setSize(640, 480); renderer.setPixelRatio(1); camera.aspect = 640 / 480;
 
     body.position.set(0, 0, 0); body.rotation.identity(); body.terrainTileGroup.position.set(0, 0, 0); body.terrainTileGroup.quaternion.identity();
+    const regionWithHole = structuredClone(fixtures[2].features[0]);
+    regionWithHole.geometry.coordinates.push([[77.44, 18.44], [77.46, 18.44], [77.46, 18.46], [77.44, 18.46], [77.44, 18.44]]);
+    const holeLayer = load({ type: 'FeatureCollection', features: [regionWithHole] }, 'Mars');
+    terrain(77.45, 18.45, 0.32, 128, 1); look(77.45, 18.45, 15);
+    const unmarkedHole = draw(false), markedHole = draw();
+    const centerPixel = 4 * (Math.floor(renderer.domElement.height / 2) * renderer.domElement.width + Math.floor(renderer.domElement.width / 2));
+    checks.push({ name: 'detailed localized polygon fill and independent hole', pass: changed(unmarkedHole, markedHole) > 100
+      && unmarkedHole.slice(centerPixel, centerPixel + 3).every((v, i) => v === markedHole[centerPixel + i]) });
+    vectors.setSelected({ layerId: 'science', featureId: holeLayer.features[0].id, bodyName: 'Mars' });
+    const highlightedHole = draw();
+    checks.push({ name: 'localized polygon selection preserves hole silhouette', pass: changed(markedHole, highlightedHole) > 5
+      && unmarkedHole.slice(centerPixel, centerPixel + 3).every((v, i) => v === highlightedHole[centerPixel + i]) });
+    capture('jezero-localized-hole'); vectors.setSelected(null);
     const overload = { type: 'FeatureCollection', features: [{ type: 'Feature', id: 'coincident-overload', properties: {},
       geometry: { type: 'MultiPoint', coordinates: Array.from({ length: 7000 }, () => [77.45, 18.45]) } }] };
     load(overload, 'Mars');
