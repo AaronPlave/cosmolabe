@@ -1,5 +1,6 @@
 import { bodyFixedFrameName } from '../frames/FrameRegistry.js';
 import { bodyFixedToGeodetic, geodeticToBodyFixed, wrapLon, type BodyFixedPosition, type TerrainDatum } from './coordinates.js';
+import { geographicProjection, projectGeographicRings } from './projection.js';
 import {
   GEOGRAPHIC_LIMITS, type GeographicCoordinates, type GeographicLayerDefinition,
   type GeographicSource, type GeographicLayer, type GeographicGeometry, type GeographicLimits,
@@ -171,21 +172,17 @@ export function parseGeographicGeoJson(
   const line = (raw: unknown) => list(raw, 2, position);
   function polygon(raw: unknown): BodyFixedPosition[][] {
     const original = list(raw, 1, v => list(v, 4, position));
-    let anchor: number | undefined;
+    // Validate in the original coordinate plane, before centric/graphic conversion.
+    const sourceRings = (raw as GeoPosition[][]).map(ring => ring.map(p => ({ lonDeg: p[0], latDeg: p[1] })));
+    const projection = geographicProjection(sourceRings[0]);
+    const projected = projectGeographicRings(sourceRings, projection);
     const rings = original.map((ring, ringIndex) => {
       const first = ring[0], last = ring.at(-1)!;
       if (first.latDeg !== last.latDeg || first.lonDeg !== last.lonDeg || first.heightKm !== last.heightKm) fail('Polygon ring must be closed, including Z');
-      const xy: XY[] = [];
-      for (const [pointIndex, p] of ring.entries()) {
-        const previous = xy.at(-1)?.[0] ?? anchor ?? p.lonDeg;
-        const x = previous + wrapLon(p.lonDeg - previous);
-        if (Math.abs(x - previous) === 180) fail('Polygon edge spans 180 degrees; split ambiguous edges');
-        // Topology belongs to the source coordinate plane. Centric→graphic
-        // conversion is nonlinear and must not turn a degenerate source ring into an area.
-        xy.push([x, (raw as GeoPosition[][])[ringIndex][pointIndex][1]]);
+      const xy = projected[ringIndex];
+      for (let i = 1; i < ring.length; i++) {
+        if (Math.abs(wrapLon(ring[i].lonDeg - ring[i - 1].lonDeg)) === 180) fail('Polygon edge spans 180 degrees; split ambiguous edges');
       }
-      anchor ??= xy[0][0];
-      if (Math.abs(xy.at(-1)![0] - xy[0][0]) > 1e-8) fail('Pole-enclosing/global rings must be split into unambiguous regions');
       let area = 0;
       for (let i = 0; i < xy.length - 1; i++) {
         if (xy[i][0] === xy[i + 1][0] && xy[i][1] === xy[i + 1][1]) fail('Polygon has a repeated adjacent vertex');

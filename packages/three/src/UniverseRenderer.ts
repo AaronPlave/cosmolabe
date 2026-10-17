@@ -62,6 +62,8 @@ import type { BodyVisualizer } from './plugins/BodyVisualizer.js';
 import type { AttachedVisual, AttachOptions } from './plugins/AttachedVisual.js';
 import type { RendererEventMap } from './events/RendererEventMap.js';
 import { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRelationshipLayer.js';
+import { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
+import type { GeographicFeatureRef } from './geographic/GeographicIndex.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -302,6 +304,11 @@ export class UniverseRenderer {
   private readonly universe: Universe;
   private readonly spatialRelationships: SpatialRelationshipLayer;
   private readonly spatialScene = new THREE.Scene();
+  /** Batched geographic rendering, placement, selection and accuracy status. */
+  readonly geographicVectors: GeographicVectorLayer;
+  private hoveredGeographicFeature: GeographicFeatureRef | null = null;
+  private lastGeographicHoverMs = -Infinity;
+  private readonly geographicStatus: HTMLDivElement;
   private spatialCalloutRects: ScreenRect[] = [];
   private eventCalloutRect: ScreenRect | null = null;
   private spatialInteraction: SpatialInteraction | null = null;
@@ -532,6 +539,11 @@ export class UniverseRenderer {
       name => this.bodyMeshes.get(name)?.axesLengthKm(),
     );
     this.spatialRelationships.attach(this.spatialScene);
+    this.geographicVectors = new GeographicVectorLayer(universe, this.scaleFactor);
+    this.geographicStatus = document.createElement('div');
+    this.geographicStatus.className = 'cl-geographic-status';
+    this.geographicStatus.style.cssText = 'position:absolute;right:12px;top:12px;max-width:330px;padding:5px 8px;color:#d5e1e8;background:#111b24cc;border-radius:4px;font:11px sans-serif;pointer-events:none;display:none';
+    this.labelContainer.appendChild(this.geographicStatus);
 
     // Forward universe events on the renderer event bus
     for (const event of ['time:change', 'body:added', 'body:removed', 'body:trajectoryChanged', 'body:rotationChanged', 'catalog:loaded'] as const) {
@@ -1153,6 +1165,7 @@ export class UniverseRenderer {
     }
 
     // --- Multi-pass rendering ---
+    this.geographicVectors.begin();
     this.renderer.autoClear = false;
     this.renderer.info.autoReset = false;
     this.renderer.info.reset();
@@ -1169,6 +1182,8 @@ export class UniverseRenderer {
     this.camera.layers.set(0);
     this.renderer.clear(true, true, true);
     this.renderer.render(this.scene, this.camera);
+
+    this.geographicVectors.render(this.renderer, this.camera, this.bodyMeshes.values());
 
     if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.scene);
 
@@ -1247,6 +1262,7 @@ export class UniverseRenderer {
         // Render only the tile scene (separate from main scene) with cleared depth
         this.renderer.clearDepth();
         this.renderer.render(this.tileScene, this.camera);
+        this.geographicVectors.render(this.renderer, this.camera, this.bodyMeshes.values(), true, savedPos);
         if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.tileScene, savedPos);
 
         // Restore camera
@@ -1256,6 +1272,16 @@ export class UniverseRenderer {
         this.camera.updateMatrixWorld(true);
         this.camera.updateProjectionMatrix();
       }
+    }
+
+    this.geographicVectors.end();
+    const vectorSurfaces = [...new Set(this.geographicVectors.status.map(s => s.surface))];
+    const vectorWarnings = this.geographicVectors.diagnostics.length;
+    const vectorText = vectorSurfaces.length || vectorWarnings ? `Geographic vectors · ${vectorSurfaces.map(s => s === 'reference-ellipsoid' ? 'reference globe (terrain heights unavailable)' : s === 'body-fixed-height' ? 'declared body-fixed height' : 'displayed terrain').join(', ')}${vectorWarnings ? ` · ${vectorWarnings} limitation${vectorWarnings === 1 ? '' : 's'}` : ''}` : '';
+    if (this.geographicStatus.textContent !== vectorText) {
+      this.geographicStatus.textContent = vectorText;
+      this.geographicStatus.style.display = vectorText ? '' : 'none';
+      this.geographicStatus.title = 'Vectors follow the displayed surface; their drawing is not a terrain elevation measurement. Source uncertainty may be unknown. ' + this.geographicVectors.diagnostics.slice(0, 3).map(d => d.message).join(' ');
     }
 
     // Pass 2: Models (layer 1) — standard depth with tight near/far
@@ -1358,6 +1384,7 @@ export class UniverseRenderer {
     }
     this.revalidateMeasurementPreview();
     this.revalidateSceneEventHover();
+    this.revalidateGeographicHover();
     this.updateEventAnnotation();
     this.updateProbeHover();
     this.updateProbeOverlay();
@@ -2543,8 +2570,8 @@ export class UniverseRenderer {
   /**
    * What is under a canvas position, for a given interaction intent. One
    * discovery path for every tool; the intent picks the precedence
-   * (see `PICK_PRECEDENCE`): selection takes an event glyph or label before the
-   * body behind it, the probe takes only the rendered surface.
+   * (see `PICK_PRECEDENCE`): selection takes an event, label or geographic
+   * feature before the body behind it; the probe takes the rendered surface.
    *
    * @param screenX - CSS pixels from the canvas's left edge
    * @param screenY - CSS pixels from the canvas's top edge
@@ -2553,7 +2580,7 @@ export class UniverseRenderer {
     screenX: number,
     screenY: number,
     intent: PickIntent,
-    options: { labelSlopPx?: number; markerRadiusPx?: number } = {},
+    options: { labelSlopPx?: number; markerRadiusPx?: number; bodyMeshes?: boolean } = {},
   ): SceneHit | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndcX = (screenX / rect.width) * 2 - 1;
@@ -2571,12 +2598,19 @@ export class UniverseRenderer {
         return bodyName ? { kind: 'entity', bodyName, via: 'label' } : null;
       },
       body: () => {
+        if (options.bodyMeshes === false) return null;
         const bodyName = this._discoverBodyMesh(ndcX, ndcY);
         return bodyName ? { kind: 'entity', bodyName, via: 'mesh' } : null;
       },
       surface: () => {
         const hit = this._discoverSurface(ndcX, ndcY);
         return hit ? { kind: 'surface', point: hit.point, cameraRangeKm: hit.cameraRangeKm } : null;
+      },
+      'geographic-feature': () => {
+        if (!this.geographicVectors.featureCount) return null;
+        const surface = this._discoverSurface(ndcX, ndcY);
+        const feature = this.geographicVectors.pick(screenX, screenY, rect.width, rect.height, this.camera, this.bodyMeshes, surface);
+        return feature ? { kind: 'geographic-feature', ...feature } : null;
       },
     };
     return resolveSceneHit(intent, discover);
@@ -3342,6 +3376,7 @@ export class UniverseRenderer {
     if (this._hoverPickTimer) clearTimeout(this._hoverPickTimer);
     this.timeController.dispose();
     this.cameraController.dispose();
+    this.geographicVectors.dispose();
     for (const bm of this.bodyMeshes.values()) bm.dispose();
     for (const [, { ring }] of this.ringMeshes) ring.dispose();
     for (const [, { atm }] of this.atmosphereMeshes) atm.dispose();
@@ -4428,7 +4463,7 @@ export class UniverseRenderer {
    * endpoint pick takes the gesture first, whatever else is on (the probe
    * included). With the Point Probe on, it pins the surface point. Otherwise
    * it selects: a measurement, then (`pickScene(…, 'select')`) an event glyph,
-   * a label or a body, emitting `event:click` or `body:click`; empty space
+   * a label, geographic feature or body, emitting its semantic click; empty space
    * selects nothing. Returns whether the gesture was consumed.
    */
   private _selectAt(screenX: number, screenY: number, markerRadiusPx = 11): boolean {
@@ -4453,6 +4488,13 @@ export class UniverseRenderer {
       return true;
     }
     const hit = this.pickScene(screenX, screenY, 'select', { markerRadiusPx });
+    if (hit?.kind === 'geographic-feature') {
+      const { layerId, featureId, bodyName } = hit;
+      const feature = { layerId, featureId, bodyName };
+      this.geographicVectors.setSelected(feature);
+      this.events.emit('geographic:click', feature);
+      return true;
+    }
     if (hit?.kind === 'event') {
       this.events.emit('event:click', { id: hit.eventId, queryId: hit.queryId, et: hit.et });
       return false;
@@ -4608,10 +4650,13 @@ export class UniverseRenderer {
           boundary: eventHit.boundary, et: eventHit.span ? eventHit.et : undefined,
         } : null);
       }
-      const next = eventHit || measurement || this.spatialInteraction?.picking() ? null : this.pickBody(this._lastPointer.x, this._lastPointer.y, true, 3);
+      const sceneHit = eventHit || measurement ? null : this.pickScene(this._lastPointer.x, this._lastPointer.y, 'select', { labelSlopPx: 3, bodyMeshes: false });
+      const geographic = sceneHit?.kind === 'geographic-feature' ? { layerId: sceneHit.layerId, featureId: sceneHit.featureId, bodyName: sceneHit.bodyName } : null;
+      this.setGeographicHover(geographic);
+      const next = sceneHit?.kind === 'entity' ? sceneHit.bodyName : null;
       if (next !== this._hoveredBody) this._applyHover(next);
       this.renderer.domElement.style.cursor =
-        this.spatialInteraction?.picking() ? 'crosshair' : measurement || eventHit || next ? 'pointer' : '';
+        this.spatialInteraction?.picking() ? 'crosshair' : measurement || eventHit || geographic || next ? 'pointer' : '';
     }, wait);
   };
 
@@ -4654,6 +4699,7 @@ export class UniverseRenderer {
   }
 
   private _onPointerLeave = (): void => {
+    this.setGeographicHover(null);
     this._pointerInside = false; this._pickViewKey = '';
     this._hoverPointerInside = false;
     this.spatialInteraction?.onHover(null);
@@ -4671,6 +4717,25 @@ export class UniverseRenderer {
     }
     this.renderer.domElement.style.cursor = '';
   };
+
+  private setGeographicHover(feature: GeographicFeatureRef | null): void {
+    if (sameGeographicFeature(feature, this.hoveredGeographicFeature)) return;
+    this.hoveredGeographicFeature = feature;
+    this.geographicVectors.setHovered(feature);
+    this.events.emit('geographic:hover', feature);
+  }
+
+  private revalidateGeographicHover(): void {
+    if (!this._hoverPointerInside || this._surfaceCursorOwnsPointer() || this.spatialInteraction?.picking() || !this.geographicVectors.featureCount) {
+      this.setGeographicHover(null); return;
+    }
+    const now = performance.now();
+    if (now - this.lastGeographicHoverMs < 200 || this._hoverPickTimer) return;
+    this.lastGeographicHoverMs = now;
+    const measurement = this.spatialRelationships.pick(this._lastPointer.x, this._lastPointer.y, 7);
+    const hit = measurement ? null : this.pickScene(this._lastPointer.x, this._lastPointer.y, 'select', { labelSlopPx: 3, bodyMeshes: false });
+    this.setGeographicHover(hit?.kind === 'geographic-feature' ? { layerId: hit.layerId, featureId: hit.featureId, bodyName: hit.bodyName } : null);
+  }
 
   /**
    * Apply the hover highlight: emphasize the hovered body's trajectory line(s)

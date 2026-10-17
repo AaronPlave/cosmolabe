@@ -1,0 +1,34 @@
+{
+  "name": "Geographic vectors · synthetic validation",
+  "description": "Synthetic Jezero science/traverse/regions and lunar polar regions on reference globes. Coordinates are validation fixtures, not surveyed geology or terrain measurements. The surface status identifies the reference-globe fallback.",
+  "defaultViewpoint": "Jezero vectors",
+  "geographicLayers": [
+    {
+      "id": "jezero-science", "name": "Jezero synthetic science", "body": "Mars",
+      "source": "geographic/jezero.geojson",
+      "coordinates": {
+        "latitude": "planetocentric", "longitudeDirection": "east", "longitudeDomain": "0..360",
+        "referenceShape": { "kind": "ellipsoid", "radiiKm": [3396.19, 3396.19, 3376.2] }
+      },
+      "display": { "color": "#59c5dd" },
+      "provenance": { "kind": "synthetic-validation", "scientificTerrain": false }
+    },
+    {
+      "id": "moon-science", "name": "Lunar synthetic regions", "body": "Moon",
+      "source": "geographic/moon-polar.geojson",
+      "coordinates": {
+        "latitude": "planetographic", "longitudeDirection": "east", "longitudeDomain": "-180..180",
+        "referenceShape": { "kind": "sphere", "radiusKm": 1737.4 }
+      },
+      "display": { "color": "#59c5dd" },
+      "provenance": { "kind": "synthetic-validation", "scientificTerrain": false }
+    }
+  ],
+  "items": [
+    { "name": "Jezero vectors", "type": "Viewpoint", "center": "Mars", "distance": 3410, "latitude": 18.45, "longitude": 77.45 },
+    { "name": "Lunar polar vectors", "type": "Viewpoint", "center": "Moon", "distance": 2100, "latitude": -89, "longitude": 180 },
+    { "name": "Sun", "class": "star", "trajectory": { "type": "FixedPoint", "position": [20000000, 100000000, 20000000] }, "geometry": { "type": "Globe", "radius": 695000 } },
+    { "name": "Mars", "class": "planet", "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] }, "geometry": { "type": "Globe", "radii": [3396.19, 3396.19, 3376.2] } },
+    { "name": "Moon", "class": "moon", "trajectory": { "type": "FixedPoint", "position": [12000, 0, 0] }, "geometry": { "type": "Globe", "radius": 1737.4, "baseMap": "textures/moon-2k.jpg" } }
+  ]
+}
