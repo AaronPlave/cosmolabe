@@ -84,7 +84,7 @@ export interface LockedSurfacePlan {
     sourceIds: string[];
     outputGsdM: number;
     resampling: 'nearest' | 'bilinear' | 'cubic';
-    /** Documented transforms, including an explicit identity transform if none is needed. */
+    /** v1 supports exactly ['identity']; source frame/coordinates/datum must match the desired plan. */
     transformations: string[];
   }[];
   processing: {
@@ -114,6 +114,18 @@ export class SurfacePlanError extends Error {
     this.name = 'SurfacePlanError';
   }
 }
+export function planFail(code: string, path: string, message: string): never {
+  throw new SurfacePlanError([{ severity: 'error', code, path, message }]);
+}
+
+export type SurfaceFidelityStatus = 'satisfied' | 'partial' | 'unsatisfied' | 'unknown';
+export interface SurfaceFidelityAssessment {
+  status: SurfaceFidelityStatus;
+  bandCounts: Record<SurfaceFidelityStatus, number>;
+  /** Disjoint requested areas per channel; imagery and elevation areas are never summed together. */
+  imagery: { requestedAreaM2: number; adequateAreaM2: number; unknownAreaM2: number; unsatisfiedAreaM2: number };
+  elevation: { requestedAreaM2: number; adequateAreaM2: number; unknownAreaM2: number; unsatisfiedAreaM2: number };
+}
 
 export interface EstimateRange { min: number; max: number | null; }
 export interface SurfaceEstimateAssumptions {
@@ -138,7 +150,7 @@ export interface SurfaceDetailBand {
   objects: EstimateRange;
   publishedBytes: EstimateRange;
   sourceEvidence: {
-    status: 'unknown' | 'satisfied' | 'partial' | 'unsatisfied';
+    status: SurfaceFidelityStatus;
     adequateAreaM2: number;
     unknownAreaM2: number;
     candidates: { id: string; nativeGsdM: number | null; accuracyM: number | null }[];
@@ -153,6 +165,7 @@ export interface SurfacePlanEstimate {
   assumptions: SurfaceEstimateAssumptions;
   diagnostics: SurfacePlanDiagnostic[];
   bands: SurfaceDetailBand[];
+  fidelity: SurfaceFidelityAssessment;
   totals: {
     imagery: { areaM2: number; baseSamples: number | null; publishedBytes: EstimateRange; objects: EstimateRange };
     elevation: { areaM2: number; baseSamples: number | null; publishedBytes: EstimateRange; objects: EstimateRange };

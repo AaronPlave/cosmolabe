@@ -1,11 +1,10 @@
-import { checkGeographicText, geographicObject, parseGeographicGeoJson, validateGeographicCoordinates } from '../geographic/import.js';
+import { checkGeographicText, geographicDatum, geographicObject, parseGeographicGeoJson, validateGeographicCoordinates } from '../geographic/import.js';
 import { bodyFixedFrameName } from '../frames/FrameRegistry.js';
 import type { GeographicLayer } from '../geographic/model.js';
-import { SurfacePlanError, type DesiredSurfacePlan, type LockedSurfacePlan, type SurfaceSourceDescriptor, type SurfacePlanDiagnostic } from './model.js';
+import { planFail, type DesiredSurfacePlan, type LockedSurfacePlan, type SurfaceSourceDescriptor, type SurfacePlanDiagnostic } from './model.js';
+import { intersectGeometry, subtractGeometry, surfaceAreaM2, surfaceFeatureGeometry, unionGeometry } from './geometry.js';
+export { planFail } from './model.js';
 
-export function planFail(code: string, path: string, message: string): never {
-  throw new SurfacePlanError([{ severity: 'error', code, path, message }]);
-}
 function object(v: unknown, path: string): asserts v is Record<string, unknown> {
   if (!geographicObject(v)) planFail('schema', path, 'Expected an object');
 }
@@ -199,7 +198,12 @@ export async function validateLockedSurfacePlan(v: unknown): Promise<LockedSurfa
   if (v.version !== 1 || v.kind !== 'locked-surface-plan') planFail('version-kind', '$', 'Expected version 1 locked-surface-plan');
   const desired = validateDesiredSurfacePlan(v.desired);
   if (desired.layers.some(l => l.geojson === undefined)) planFail('unresolved-reference', '$.desired.layers', 'Locked plans must embed all referenced GeoJSON');
-  resolveSurfacePlan(desired);
+  const resolved = resolveSurfacePlan(desired);
+  const roiGeometries = new Map(desired.regions.map(r => {
+    const layer = resolved.layers.find(l => l.id === r.feature.layerId)!;
+    const feature = layer.features.find(f => f.id === r.feature.featureId)!;
+    return [r.id, surfaceFeatureGeometry(feature, desired.coordinates)];
+  }));
   const sources = validateSurfaceSources(v.sources);
   for (const s of sources) {
     if (!s.asset.version && !s.asset.checksum) planFail('unpinned-source', `$.sources.${s.id}`, 'Lock requires a source version or checksum');
@@ -217,13 +221,36 @@ export async function validateLockedSurfacePlan(v: unknown): Promise<LockedSurfa
     positive(s.outputGsdM, `${p}.outputGsdM`);
     if (!['nearest', 'bilinear', 'cubic'].includes(String(s.resampling))) planFail('schema', p, 'Unsupported resampling');
     array(s.transformations, `${p}.transformations`, 32); s.transformations.forEach(t => string(t, `${p}.transformations`));
+    if (s.transformations.length !== 1 || s.transformations[0] !== 'identity') planFail('unsupported-transform', `${p}.transformations`, 'v1 supports exactly ["identity"]; arbitrary or descriptive transforms are not executable');
+    const target = region[s.channel]!;
+    const allowCoarser = region.fallback === 'allow-coarser';
+    if (!allowCoarser && s.outputGsdM > target.gsdM) planFail('unmet-fidelity', `${p}.outputGsdM`, 'Output GSD exceeds the requested target without allow-coarser fallback');
+    const roi = roiGeometries.get(region.id)!;
+    const area = surfaceAreaM2(roi, desired.coordinates);
+    if (area <= 1e-8) planFail('impossible-area', p, 'ROI is below numerical area precision');
+    const tolerance = Math.max(Number.EPSILON, area * 1e-8);
     array(s.sourceIds, `${p}.sourceIds`, 32);
     const localIds = new Set<unknown>();
+    const coverage = [], adequateCoverage = [];
     for (const id of s.sourceIds) {
       const source = sources.find(x => x.id === id);
       if (!source || source.channel !== s.channel || source.body !== desired.body) planFail('unresolved-reference', p, 'Source must match channel and body');
       if (localIds.has(id)) planFail('duplicate-id', p, 'Duplicate source selection'); localIds.add(id); usedSources.add(source.id);
+      if (source.frame !== desired.frame || serializeSurfacePlan(source.coordinates) !== serializeSurfacePlan(desired.coordinates)
+        || serializeSurfacePlan(source.datum) !== serializeSurfacePlan(geographicDatum(desired.coordinates))) {
+        planFail('unsupported-transform', p, `Identity cannot transform source ${source.id}: frame, coordinates and datum must match the desired plan`);
+      }
+      if (source.nodata !== 'none') planFail('unresolved-coverage', p, `Source ${source.id} has unknown/masked nodata; v1 locks require resolved, unmasked coverage`);
+      const footprint = parseSurfaceSourceFootprint(source)!;
+      const geometry = unionGeometry(footprint.features.map(f => surfaceFeatureGeometry(f, source.coordinates)));
+      const overlap = intersectGeometry(roi, geometry);
+      if (!overlap.length || surfaceAreaM2(overlap, desired.coordinates) <= 0) planFail('disjoint-source', p, `Source ${source.id} does not intersect the selected ROI with positive area`);
+      coverage.push(overlap);
+      if ((allowCoarser || source.nativeGsdM! <= target.gsdM)
+        && (target.accuracyM === undefined || (source.accuracyM !== null && source.accuracyM <= target.accuracyM))) adequateCoverage.push(overlap);
     }
+    if (surfaceAreaM2(subtractGeometry(roi, unionGeometry(coverage)), desired.coordinates) > tolerance) planFail('insufficient-coverage', p, 'Selected footprints do not cover the ROI; partial/leave-unavailable builds need future explicit masking support');
+    if (surfaceAreaM2(subtractGeometry(roi, unionGeometry(adequateCoverage)), desired.coordinates) > tolerance) planFail('unmet-fidelity', p, 'Selected native resolution/accuracy cannot meet the requested physical fidelity throughout the ROI');
   }
   for (const r of desired.regions) for (const c of ['imagery', 'elevation'] as const) {
     if (r[c] && !selected.has(`${r.id}/${c}`)) planFail('unresolved-reference', '$.selections', `Missing explicit selection for ${r.id}/${c}`);

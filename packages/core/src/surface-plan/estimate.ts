@@ -2,12 +2,12 @@ import type { MultiPolygon } from 'polygon-clipping';
 import { intersectGeometry, subtractGeometry, surfaceAreaM2, surfaceFeatureGeometry, surfacePerimeterM, unionGeometry } from './geometry.js';
 import {
   type DesiredSurfacePlan, type EstimateRange, type SurfaceChannel, type SurfaceDetailBand,
-  type SurfaceEstimateAssumptions, type SurfacePlanDiagnostic, type SurfacePlanEstimate, type SurfaceSourceDescriptor,
+  type SurfaceEstimateAssumptions, type SurfaceFidelityAssessment, type SurfacePlanDiagnostic, type SurfacePlanEstimate, type SurfaceSourceDescriptor,
 } from './model.js';
 import { parseSurfaceSourceFootprint, planFail, resolveSurfacePlan, serializeSurfacePlan, surfacePlanIdentity, validateSurfaceSources } from './validation.js';
 import { geographicDatum } from '../geographic/import.js';
 
-export const SURFACE_ESTIMATOR_VERSION = '1.0.0';
+export const SURFACE_ESTIMATOR_VERSION = '1.1.0';
 export const DEFAULT_SURFACE_ASSUMPTIONS: Readonly<SurfaceEstimateAssumptions> = Object.freeze({
   tileSize: 256, gutter: 1, imageryBytesPerSample: 3, elevationBytesPerSample: 4,
   imageryCompression: [0.08, 0.5] as [number, number], elevationCompression: [0.25, 0.8] as [number, number],
@@ -121,6 +121,25 @@ function estimateBands(plan: DesiredSurfacePlan, geometries: Map<string, MultiPo
   return result;
 }
 
+function assessFidelity(bands: SurfaceDetailBand[]): SurfaceFidelityAssessment {
+  const bandCounts: SurfaceFidelityAssessment['bandCounts'] = { satisfied: 0, partial: 0, unsatisfied: 0, unknown: 0 };
+  const channel = (c: SurfaceChannel) => bands.filter(b => b.channel === c).reduce((sum, b) => {
+    const evidence = b.sourceEvidence;
+    const shortfall = Math.max(0, b.areaM2 - evidence.adequateAreaM2 - evidence.unknownAreaM2);
+    sum.requestedAreaM2 += b.areaM2;
+    sum.adequateAreaM2 += evidence.adequateAreaM2;
+    sum.unknownAreaM2 += evidence.unknownAreaM2;
+    sum.unsatisfiedAreaM2 += shortfall <= b.areaM2 * 1e-8 ? 0 : shortfall;
+    return sum;
+  }, { requestedAreaM2: 0, adequateAreaM2: 0, unknownAreaM2: 0, unsatisfiedAreaM2: 0 });
+  bands.forEach(b => bandCounts[b.sourceEvidence.status]++);
+  const imagery = channel('imagery'), elevation = channel('elevation');
+  const status = bandCounts.satisfied === bands.length ? 'satisfied'
+    : bandCounts.satisfied + bandCounts.partial > 0 ? 'partial'
+      : imagery.unsatisfiedAreaM2 + elevation.unsatisfiedAreaM2 > 0 ? 'unsatisfied' : 'unknown';
+  return { status, bandCounts, imagery, elevation };
+}
+
 export async function estimateSurfacePlan(plan: DesiredSurfacePlan, options: {
   references?: ReadonlyMap<string, string>;
   sources?: SurfaceSourceDescriptor[];
@@ -178,8 +197,9 @@ export async function estimateSurfacePlan(plan: DesiredSurfacePlan, options: {
   const compressedPerViewTile = [0, 1].map(i => activeChannels.reduce((n, c) => n + decodedTileBytes[c] * (c === 'imagery' ? a.imageryCompression[i] : a.elevationCompression[i]), 0));
   let budget: SurfacePlanEstimate['budget'] = null;
   if (plan.budget) {
-    const lowestPriority = Math.min(...plan.regions.map(r => r.priority ?? 0));
-    const regionIds = plan.regions.filter(r => (r.priority ?? 0) === lowestPriority && (r.fallback ?? 'require-target') === 'allow-coarser').map(r => r.id).sort();
+    const eligible = plan.regions.filter(r => r.fallback === 'allow-coarser');
+    const lowestPriority = Math.min(...eligible.map(r => r.priority ?? 0));
+    const regionIds = eligible.filter(r => (r.priority ?? 0) === lowestPriority).map(r => r.id).sort();
     budget = { publishedBytes: plan.budget.publishedBytes, status: status(publishedBytes, plan.budget.publishedBytes), comparisons: [] };
     if (regionIds.length) for (const multiplier of [2, 4]) {
       const changed: DesiredSurfacePlan = { ...plan, regions: plan.regions.map(r => regionIds.includes(r.id)
@@ -193,7 +213,7 @@ export async function estimateSurfacePlan(plan: DesiredSurfacePlan, options: {
   diagnostics.push({ severity: 'warning', code: 'planning-assumptions', path: '$', message: 'Uncalibrated scenario bounds: boundary tile packing, compression, and visible tiles depend on the future generator. Work disk upper bound is unknown without source decode/scratch metadata. No build or download was performed.' });
   return { version: 1, estimatorVersion: SURFACE_ESTIMATOR_VERSION, desiredIdentity: await surfacePlanIdentity(resolved.desired),
     sourceMetadataIdentity: sourceDescriptors.length ? await surfacePlanIdentity(sourceDescriptors) : null,
-    stage: sourceDescriptors.length ? 'source-aware' : 'geometry-only', assumptions: a, diagnostics, bands,
+    stage: sourceDescriptors.length ? 'source-aware' : 'geometry-only', assumptions: a, diagnostics, bands, fidelity: assessFidelity(bands),
     totals: { imagery, elevation, publishedBytes, publishedObjects: sumRanges([imagery.objects, elevation.objects]), rawSourceDownloadBytes, outputWorkDiskBytes, peakWorkDiskBytes },
     sourceDownload: { candidateIds, unknownSizeIds }, browser: { decodedTileBytes,
       visibleDecodedBytes: range(decodedPerViewTile * a.visibleTiles[0], decodedPerViewTile * a.visibleTiles[1]),
@@ -208,6 +228,8 @@ export function formatSurfacePlanEstimate(e: SurfacePlanEstimate): string {
   const bounds = (r: EstimateRange) => `${bytes(r.min)} .. ${r.max === null ? 'unknown' : bytes(r.max)}`;
   const lines = [`Surface data plan — ${e.stage} (estimator ${e.estimatorVersion})`, `Desired snapshot: ${e.desiredIdentity}`];
   if (e.sourceMetadataIdentity) lines.push(`Source metadata: ${e.sourceMetadataIdentity}`);
+  const counts = e.fidelity.bandCounts;
+  lines.push(`Physical source fidelity: ${e.fidelity.status}; bands ${counts.satisfied} satisfied, ${counts.partial} partial, ${counts.unsatisfied} unsatisfied, ${counts.unknown} unknown (separate from storage budget).`);
   for (const b of e.bands) lines.push(`${b.channel}: ${number(b.areaM2 / 1e6)} km² @ ${number(b.gsdM)} m GSD${b.accuracyM === null ? '' : ` / ${number(b.accuracyM)} m accuracy`}; ${b.baseSamples === null ? 'unknown' : number(b.baseSamples)} base samples; source ${b.sourceEvidence.status}; publish ${bounds(b.publishedBytes)}`);
   lines.push(`Raw source download (all candidates, counted once): ${bounds(e.totals.rawSourceDownloadBytes)}`,
     `Output/intermediate work disk scenario: ${bounds(e.totals.outputWorkDiskBytes)}`,

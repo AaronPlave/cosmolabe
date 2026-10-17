@@ -1,7 +1,7 @@
 import clipping, { type MultiPolygon, type Pair } from 'polygon-clipping';
 import { wrapLon } from '../geographic/coordinates.js';
 import type { GeographicCoordinates, GeographicFeature, GeographicGeometry, GeoPosition } from '../geographic/model.js';
-import { planFail } from './validation.js';
+import { planFail } from './model.js';
 
 const DEG = Math.PI / 180;
 const WORLD: MultiPolygon = [[[[-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]]]];

@@ -107,14 +107,32 @@ A locked plan has `kind: "locked-surface-plan"` and a distinct validator. Use
 and processing/output choices; estimation never locks a plan automatically.
 `resolveSurfacePlan(plan, references).desired` supplies the snapshot with every
 referenced GeoJSON embedded. Every requested region/channel needs an explicit
-selection of source IDs, output GSD, resampling, and documented transformations
-(including an explicit identity transform). Each selected source requires a
-footprint, known native GSD/datum, a product version or SHA-256 checksum, retrieval
-information and license. Known nodata/mask semantics stay attached to the source.
+selection of source IDs, output GSD, resampling, and transformations. Each selected
+source requires a footprint, known native GSD/datum, a product version or SHA-256 checksum, retrieval
+information and license.
 The lock records generator name/version, processing/fusion parameters, output
-representation/version, tile size/gutter and per-channel encoding. A selection
-does not assert that physical targets are satisfied; build execution must still
-honor coverage, nodata and the recorded transforms.
+representation/version, tile size/gutter and per-channel encoding.
+
+**Pinning alone does not make a plan buildable.** Version 1 lock validation also
+requires `transformations: ["identity"]` with matching source body, frame,
+coordinate conventions and physical datum. Arbitrary/descriptive transform strings
+are rejected; raster/frame/datum transform execution is a future capability.
+Every selected source must intersect the selected ROI with positive area, and
+their combined footprints must cover it. Source masks/unknown nodata and partial
+coverage remain valid estimator inputs but cannot form a v1 buildable lock, even
+with `leave-unavailable`; explicit masking and partial-build semantics are future
+work. These constraints describe buildability **under the supplied metadata**;
+execution must still verify the actual products and generator capabilities.
+
+For `require-target` (the default) and `leave-unavailable`, output GSD must be no
+coarser than requested, and sources meeting the native GSD and any accuracy target
+must cover the ROI. `allow-coarser` explicitly permits coarser output/native GSD;
+any requested accuracy remains mandatory. The source's native GSD stays recorded
+separately from output density, so an accepted coarse fallback does not claim the
+desired physical target was achieved. A union of adequate products can satisfy a
+region; a fine product covering only part cannot conceal coarse data elsewhere.
+Failures have structured `unsupported-transform`, `disjoint-source`,
+`insufficient-coverage`, `unresolved-coverage` or `unmet-fidelity` diagnostics.
 
 `serializeSurfacePlan` produces canonical finite JSON with sorted object keys
 and preserved array order; `surfacePlanIdentity` hashes it with SHA-256 (Web
@@ -134,6 +152,18 @@ resource totals, a browser scenario and optional budget comparisons. Stages are
 calibration. No live time, network response or arbitrary file path enters its
 identity. Reports round values to three significant digits; JSON retains counts
 and computed areas for comparison. Byte units are decimal MB/GB, not MiB/GiB.
+
+The separate `fidelity` assessment reports physical coverage independently of the
+storage budget. It includes satisfied/partial/unsatisfied/unknown band counts and
+per-channel requested, adequate, unknown and known-unsatisfied areas. These areas
+already account for ROI overlaps; imagery and elevation are kept separate. Its
+status is `satisfied` when all bands meet their targets, `partial` when at least
+one band is satisfied/partial, `unsatisfied` when there is a known shortfall and
+no band with adequate coverage, and `unknown` otherwise. Remaining unknown areas
+stay explicit even when a known shortfall determines the aggregate status. The
+CLI prints this assessment beside the storage report. A `within` published-byte
+budget does not imply physical feasibility; the synthetic Jezero example is
+within budget with three unsatisfied elevation and three unknown imagery bands.
 
 The report separates:
 
@@ -167,7 +197,9 @@ and diagnostics; `null` always means unknown, never zero.
 An optional `budget: {publishedBytes: ...}` yields `within` if the entire scenario
 range fits, `over` if its lower bound exceeds the budget, and `uncertain` otherwise.
 At most two comparisons coarsen GSD by 2× and 4× in `allow-coarser` regions at the
-lowest priority, protecting all higher-priority regions and their overlap goals.
+lowest priority **among eligible `allow-coarser` regions**, protecting other
+regions and their stricter overlap goals. A lower-priority `require-target` region
+does not prevent comparisons for a higher-priority region that permits coarsening.
 The report lists every affected region; it never edits the desired plan or trades
 away accuracy. These are bounded comparisons, not a global budget optimizer.
 

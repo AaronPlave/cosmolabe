@@ -209,6 +209,24 @@ describe('overlap-aware physical area and resource estimates', () => {
     p.budget.publishedBytes = Math.ceil(e.totals.publishedBytes.min * 1.1);
     expect((await estimateSurfacePlan(p)).budget?.status).toBe('uncertain');
   });
+
+  it('compares the lowest eligible priority even when a lower-priority region requires its target', async () => {
+    const p = plan(collection(rectangle('fixed', 0, 0, 1, 1), rectangle('flexible', 0, 0, 2, 2), rectangle('protected', 1, 1, 1.1, 1.1)),
+      [region('fixed', 1, { priority: 0, fallback: 'require-target' }),
+        region('flexible', 10, { priority: 10, fallback: 'allow-coarser' }),
+        region('protected', 2, { priority: 100, fallback: 'allow-coarser' })]);
+    p.budget = { publishedBytes: 1 };
+    const before = clone(p), estimate = await estimateSurfacePlan(p);
+    expect(estimate.budget?.comparisons).toHaveLength(2);
+    for (const comparison of estimate.budget!.comparisons) {
+      expect(comparison.regionIds).toEqual(['flexible']);
+      const coarsened = clone(p); coarsened.regions[1].imagery!.gsdM *= comparison.gsdMultiplier;
+      const independent = await estimateSurfacePlan(coarsened);
+      expect(comparison.publishedBytes).toEqual(independent.totals.publishedBytes);
+      expect(independent.bands.filter(b => b.gsdM === 1 || b.gsdM === 2)).toEqual(estimate.bands.filter(b => b.gsdM === 1 || b.gsdM === 2));
+    }
+    expect(p).toEqual(before);
+  });
 });
 
 describe('source evidence and locked builds', () => {
@@ -269,10 +287,36 @@ describe('source evidence and locked builds', () => {
     expect(() => validateSurfaceSources([{ ...source(p), footprint: {} }])).toThrow(SurfacePlanError);
   });
 
+  it('assesses physical fidelity separately from a storage budget that fits', async () => {
+    const p = plan(); p.budget = { publishedBytes: 1e12 };
+    const coarse = source(p, { channel: 'imagery', nativeGsdM: 200 });
+    const inadequate = await estimateSurfacePlan(p, { sources: [coarse] });
+    expect(inadequate.budget?.status).toBe('within');
+    expect(inadequate.fidelity.status).toBe('unsatisfied');
+    expect(inadequate.fidelity.bandCounts).toEqual({ satisfied: 0, partial: 0, unsatisfied: 1, unknown: 0 });
+    expect(inadequate.fidelity.imagery.unsatisfiedAreaM2).toBe(inadequate.totals.imagery.areaM2);
+    expect(inadequate.fidelity.elevation.requestedAreaM2).toBe(0);
+
+    const adequate = { ...coarse, nativeGsdM: 1 };
+    const satisfied = await estimateSurfacePlan(p, { sources: [adequate] });
+    expect(satisfied.budget?.status).toBe('within');
+    expect(satisfied.fidelity.status).toBe('satisfied');
+    expect(satisfied.fidelity.bandCounts.satisfied).toBe(1);
+    const partial = await estimateSurfacePlan(p, { sources: [{ ...adequate, footprint: collection(rectangle('half', 0, 0, 0.5, 1)) }] });
+    expect(partial.fidelity.status).toBe('partial');
+    expect(partial.fidelity.bandCounts.partial).toBe(1);
+    expect(partial.fidelity.imagery.adequateAreaM2 / partial.fidelity.imagery.requestedAreaM2).toBeCloseTo(0.5, 6);
+    expect(partial.fidelity.imagery.unknownAreaM2 / partial.fidelity.imagery.requestedAreaM2).toBeCloseTo(0.5, 6);
+    const unknown = await estimateSurfacePlan(p);
+    expect(unknown.budget?.status).toBe('within');
+    expect(unknown.fidelity.status).toBe('unknown');
+    expect(unknown.fidelity.bandCounts.unknown).toBe(1);
+  });
+
   function lockInput(): Omit<LockedSurfacePlan, 'identity' | 'desiredIdentity'> {
     const p = plan();
     return { version: 1, kind: 'locked-surface-plan', desired: p, sources: [source(p, { channel: 'imagery', nativeGsdM: 1 })],
-      selections: [{ regionId: 'a', channel: 'imagery', sourceIds: ['dem'], outputGsdM: 10, resampling: 'bilinear', transformations: ['identity: IAU_MOON / declared sphere'] }],
+      selections: [{ regionId: 'a', channel: 'imagery', sourceIds: ['dem'], outputGsdM: 10, resampling: 'bilinear', transformations: ['identity'] }],
       processing: { generator: { name: 'test-generator', version: '1.0.0' }, fusion: 'single-source', parameters: {} },
       output: { representation: 'tiled-raster-pyramid', formatVersion: '1', tileSize: 256, gutter: 1, imageryEncoding: 'png-rgb8', elevationEncoding: 'float32' } };
   }
@@ -298,6 +342,54 @@ describe('source evidence and locked builds', () => {
     await expect(createLockedSurfacePlan(incomplete)).rejects.toThrow(/Missing explicit selection/);
   });
 
+  it.each([
+    ['mismatched frame', (p: ReturnType<typeof lockInput>) => { p.sources[0].frame = 'MOON_PA'; }, 'unsupported-transform'],
+    ['mismatched coordinates', (p: ReturnType<typeof lockInput>) => { p.sources[0].coordinates = { ...p.sources[0].coordinates, longitudeDirection: 'west' }; }, 'unsupported-transform'],
+    ['mismatched datum', (p: ReturnType<typeof lockInput>) => { p.sources[0].datum.verticalDatum = 'areoid'; }, 'unsupported-transform'],
+    ['arbitrary transform', (p: ReturnType<typeof lockInput>) => { p.selections[0].transformations = ['magic-reproject']; }, 'unsupported-transform'],
+    ['descriptive identity', (p: ReturnType<typeof lockInput>) => { p.selections[0].transformations = ['identity: trust me']; }, 'unsupported-transform'],
+    ['disjoint footprint', (p: ReturnType<typeof lockInput>) => { p.sources[0].footprint = collection(rectangle('elsewhere', 2, 2, 3, 3)); }, 'disjoint-source'],
+    ['touching footprint', (p: ReturnType<typeof lockInput>) => { p.sources[0].footprint = collection(rectangle('neighbor', 1, 0, 2, 1)); }, 'disjoint-source'],
+    ['partial footprint', (p: ReturnType<typeof lockInput>) => { p.sources[0].footprint = collection(rectangle('partial', 0, 0, 0.5, 1)); }, 'insufficient-coverage'],
+    ['unknown nodata', (p: ReturnType<typeof lockInput>) => { p.sources[0].nodata = 'unknown'; }, 'unresolved-coverage'],
+    ['unresolved mask', (p: ReturnType<typeof lockInput>) => { p.sources[0].nodata = { maskUrl: 'https://example.invalid/mask' }; }, 'unresolved-coverage'],
+    ['coarse output', (p: ReturnType<typeof lockInput>) => { p.selections[0].outputGsdM = 20; }, 'unmet-fidelity'],
+    ['coarse native data', (p: ReturnType<typeof lockInput>) => { p.sources[0].nativeGsdM = 200; }, 'unmet-fidelity'],
+    ['poor source accuracy', (p: ReturnType<typeof lockInput>) => { p.desired.regions[0].imagery!.accuracyM = 1; }, 'unmet-fidelity'],
+    ['unknown source accuracy', (p: ReturnType<typeof lockInput>) => { p.desired.regions[0].imagery!.accuracyM = 1; p.sources[0].accuracyM = null; }, 'unmet-fidelity'],
+  ])('rejects pinned but unsupported lock selections: %s', async (_label, edit, code) => {
+    const input = lockInput(); edit(input);
+    await expect(createLockedSurfacePlan(input)).rejects.toMatchObject({ diagnostics: [{ code }] });
+  });
+
+  it('allows explicit coarser fallback without relaxing accuracy or disguising native resolution', async () => {
+    const input = lockInput(); input.desired.regions[0].fallback = 'allow-coarser';
+    input.sources[0].nativeGsdM = 200; input.selections[0].outputGsdM = 200;
+    const lock = await createLockedSurfacePlan(input);
+    expect(lock.sources[0].nativeGsdM).toBe(200);
+    input.desired.regions[0].imagery!.accuracyM = 1;
+    await expect(createLockedSurfacePlan(input)).rejects.toMatchObject({ diagnostics: [{ code: 'unmet-fidelity' }] });
+  });
+
+  it('permits denser output without treating resampling as improved native fidelity', async () => {
+    const input = lockInput(); input.sources[0].nativeGsdM = 10; input.selections[0].outputGsdM = 1;
+    await expect(createLockedSurfacePlan(input)).resolves.toMatchObject({ selections: [{ outputGsdM: 1 }] });
+    input.desired.regions[0].imagery!.gsdM = 1;
+    await expect(createLockedSurfacePlan(input)).rejects.toMatchObject({ diagnostics: [{ code: 'unmet-fidelity' }] });
+  });
+
+  it('unions selected footprints for coverage and requires adequate physical fidelity throughout a require-target ROI', async () => {
+    const input = lockInput();
+    input.sources[0].footprint = collection(rectangle('left', 0, 0, 0.5, 1));
+    input.sources.push({ ...clone(input.sources[0]), id: 'right', footprint: collection(rectangle('right', 0.5, 0, 1, 1)) });
+    input.selections[0].sourceIds.push('right');
+    await expect(createLockedSurfacePlan(input)).resolves.toMatchObject({ kind: 'locked-surface-plan' });
+    input.sources[1].nativeGsdM = 200;
+    await expect(createLockedSurfacePlan(input)).rejects.toMatchObject({ diagnostics: [{ code: 'unmet-fidelity' }] });
+    input.sources[0].footprint = collection(rectangle('full', 0, 0, 1, 1));
+    await expect(createLockedSurfacePlan(input)).resolves.toMatchObject({ kind: 'locked-surface-plan' });
+  });
+
   it('keeps synthetic Mars examples reproducible without implying HiRISE coverage', async () => {
     const p = parseSurfacePlan(fixtureText('jezero.plan.json'));
     const options = { references: new Map([['jezero.geojson', fixtureText('jezero.geojson')]]), sources: validateSurfaceSources(JSON.parse(fixtureText('jezero.sources.json'))) };
@@ -309,6 +401,11 @@ describe('source evidence and locked builds', () => {
     expect(text).toContain('source unsatisfied');
     expect(text).toContain('Peak/intermediate work disk:');
     expect(text).toContain('Compare only approach at 2× coarser GSD');
+    expect(a.budget?.status).toBe('within');
+    expect(a.fidelity.status).toBe('unsatisfied');
+    expect(a.fidelity.bandCounts).toEqual({ satisfied: 0, partial: 0, unsatisfied: 3, unknown: 3 });
+    expect(a.fidelity.imagery.unknownAreaM2).toBe(a.totals.imagery.areaM2);
+    expect(a.fidelity.elevation.unsatisfiedAreaM2).toBe(a.totals.elevation.areaM2);
     expect(text).toMatchSnapshot();
   });
 });
