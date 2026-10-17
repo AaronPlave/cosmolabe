@@ -2,7 +2,7 @@ import { checkGeographicText, geographicDatum, geographicObject, parseGeographic
 import { bodyFixedFrameName } from '../frames/FrameRegistry.js';
 import type { GeographicLayer } from '../geographic/model.js';
 import { planFail, type DesiredSurfacePlan, type LockedSurfacePlan, type SurfaceSourceDescriptor, type SurfacePlanDiagnostic } from './model.js';
-import { intersectGeometry, subtractGeometry, surfaceAreaM2, surfaceFeatureGeometry, unionGeometry } from './geometry.js';
+import { assertSurfacePlanProjection, intersectGeometry, subtractGeometry, surfaceAreaM2, surfaceFeatureGeometry, unionGeometry } from './geometry.js';
 export { planFail } from './model.js';
 
 function object(v: unknown, path: string): asserts v is Record<string, unknown> {
@@ -123,6 +123,7 @@ export function resolveSurfacePlan(plan: DesiredSurfacePlan, references: Readonl
     if (errors.length) planFail('invalid-geometry', path, errors.map(d => d.message).join('; '));
     for (const d of parsed.diagnostics) diagnostics.push({ ...d, path });
     for (const f of parsed.features) {
+      assertSurfacePlanProjection(f);
       if (f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon') planFail('unsupported-shape', path, 'Surface ROIs must be Polygon or MultiPolygon; buffer points/lines explicitly');
       const count = (v: unknown): number => Array.isArray(v) ? (typeof v[0] === 'number' ? 1 : v.reduce((s: number, x) => s + count(x), 0)) : 0;
       vertices += count(f.geometry.coordinates);

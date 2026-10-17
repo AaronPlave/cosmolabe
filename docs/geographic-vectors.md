@@ -130,11 +130,24 @@ batches draw fills, then strokes, then points, with earlier source pages last.
 Translucent overlaps across pages composite with normal alpha blending (rather
 than the single winner within a page). CPU picking searches all admitted
 candidates and retains point/stroke/fill and nearest/source tie precedence.
-The 100,000-primitive admission cap bounds a batch to at most 393 pages; the
-reference budget still limits total retained spatial work. Whole features and
-all their rings commit atomically when either batch budget is exceeded.
-`metrics.drawPages` exposes this draw-call cost; one surface proxy is reused
-across pages, without allocating an object per feature.
+Rendering admits at most **16 pages per body/datum/placement group**, independently
+of the 100,000-primitive and 1,000,000-reference storage caps. A group requiring
+more pages is omitted as a whole, with a `vector-render-budget` diagnostic,
+no GPU textures/proxies and no pick targets. Source features stay intact;
+filter or simplify an overloaded source to bring it within the drawing budget.
+The nine-page localized Jezero fixture is retained in full.
+
+All main, overlay and camera-relative passes share a **2,048 surface-draw budget
+per frame**. Before allocating proxies, each group is checked against its
+visible mesh count times page count. If it would exceed the remaining budget,
+its remaining passes and picking are suppressed for that frame, its proxies
+are released and `vector-draw-budget` explains the limit. Earlier passes may
+already have drawn part of that group; it cannot acquire invisible pick targets.
+The next frame retries with a fresh budget, so reduced visible detail recovers
+automatically. `metrics.drawPages` and `metrics.drawCalls` expose both costs.
+One surface proxy is reused across pages, without allocating an object per
+feature. The limits diagnose overload rather than silently dropping
+individual polygon rings.
 
 Hidden layers have no textures/proxies and trigger no geographic surface pick.
 Source changes rebuild immutable batches; highlights only update uniforms.
@@ -202,7 +215,8 @@ It excludes `finish` and readback. At 640 x 480 DPR 1 and 390 x 844 DPR 2,
 frame intervals stayed around 16.7 ms (60 Hz), with CPU submission around
 0.1 ms median. These are whole-frame cadence and CPU submission measurements,
 not isolated GPU execution time. Both views use the desktop M4 Max;
-**physical mobile GPU profiling remains an open pre-merge requirement**.
+**physical mobile GPU profiling was waived for this PR by the owner on
+2026-10-17**; no mobile-hardware performance claim is made.
 
 The [measured-terrain run](validation/geographic-vectors/m4-max/measured-terrain.json)
 uses the local MOLA/HRSC plus Jezero HiRISE 1 m residual quantized-mesh pyramid
@@ -241,12 +255,31 @@ it does not complete that issue's body-fixed-height scope. Clamp and explicit
 terrain-relative placement are the delivered modes. Absolute datum-height
 rendering remains disabled, including imported Z=0 and Z=2 m. The follow-up is
 tracked in [the absolute-height implementation checklist](design/geographic-absolute-height.md).
-Keep #197 open and the PR draft while physical mobile profiling is outstanding.
+Keep #197 open until the deferred absolute-height capability is delivered.
+Physical mobile profiling is not a merge gate for this PR per the owner; CI
+and the bounded desktop rendering checks remain required.
 
-Local verification: full `npm run typecheck` passes (Svelte: zero errors and
-warnings), 34 focused rendering/interaction tests pass, and ESLint plus
-`lint:purity` pass. The full suite run completed with 2,192 passed, seven skipped
-and one failure in the unchanged CSPICE `gf-reporting.test.ts` test
-“keeps the first pass inside the first half while it runs” (no intermediate
-progress callback was observed). Running that file alone reproduces the same
-failure. The full suite is therefore not reported as green.
+Latest local verification after the approved main merge: full `npm run typecheck`
+passes (Svelte: zero errors/warnings), 123 focused rendering/interaction,
+surface-plan and catalog-availability tests pass, and ESLint plus `lint:purity`
+pass. The full suite run completed with 2,252 passed, seven skipped and one
+failure in the unchanged CSPICE `gf-reporting.test.ts` test “keeps the first pass
+inside the first half while it runs” (no intermediate progress callback was
+observed). Two additional polar estimator regressions subsequently pass in the
+focused run. The same CSPICE test failed in isolation before this follow-up.
+The local full suite is therefore not reported as green; current CI is tracked
+separately on PR #262.
+
+The final review adds a pathological **100,000 coincident-point** CPU stress
+case: its 391-page group is diagnosed and omitted before GPU allocation. A
+second test reaches exactly 2,048 draws with a 16-page/128-mesh group, then
+verifies overlay/local passes cannot exceed the shared frame cap, suppressed
+picking is empty, and the next frame recovers. Metal validation also exercises
+7,000 coincident targets: overload produces no partial marks or GPU resources.
+
+The new interactive catalogs are included in the explicit SPICE-free test
+inventory. The main-branch surface-plan integration now preserves its existing
+non-polar estimator boundary explicitly: shared import/rendering supports polar
+charts, while planar area/clipping reports `unsupported-shape` and a clear
+Pole-enclosing diagnostic during resolution and estimation. Rendering support
+does not silently expand scientific area-estimation capabilities.

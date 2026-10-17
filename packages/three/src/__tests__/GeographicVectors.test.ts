@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { Universe, parseGeographicGeoJson, type GeographicLayer, type GeographicGeometry, type GeoPosition } from '@cosmolabe/core';
-import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT } from '../geographic/GeographicIndex.js';
-import { GeographicVectorLayer } from '../geographic/GeographicVectorLayer.js';
+import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT, VECTOR_RENDER_PAGE_LIMIT } from '../geographic/GeographicIndex.js';
+import { GeographicVectorLayer, VECTOR_FRAME_DRAW_LIMIT } from '../geographic/GeographicVectorLayer.js';
 import jezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero.json';
 import denseJezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero-dense.json';
 import southpole from '../../../core/src/__tests__/__fixtures__/geographic-southpole.json';
@@ -160,6 +160,54 @@ function harness(data: GeographicLayer) {
 }
 
 describe('geographic renderer lifecycle and placement', () => {
+  it('omits a pathological 100k-point group before allocating GPU resources or pick targets', () => {
+    // Inside a grid cell: nine padded references each, below the 1M cap.
+    const data = layer([{ type: 'Point', coordinates: [1, 1] }]);
+    const geometry = data.features[0].geometry;
+    if (geometry.type !== 'Point') throw new Error('Expected point fixture');
+    data.features[0].geometry = { type: 'MultiPoint', coordinates: Array.from({ length: VECTOR_PRIMITIVE_LIMIT }, () => geometry.coordinates) };
+    const index = new GeographicIndex([data]);
+    expect(index.primitives).toHaveLength(VECTOR_PRIMITIVE_LIMIT);
+    expect(index.renderPages).toBe(Math.ceil(VECTOR_PRIMITIVE_LIMIT / VECTOR_CELL_LIMIT));
+    expect(index.renderPages).toBeGreaterThan(VECTOR_RENDER_PAGE_LIMIT);
+    const h = harness(data);
+    let calls = 0;
+    h.renderer.render = () => { calls++; };
+    h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
+    expect(calls).toBe(0);
+    expect(h.vectors.featureCount).toBe(0);
+    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0 });
+    expect(h.vectors.diagnostics).toMatchObject([{ code: 'vector-render-budget', message: expect.stringContaining('391 render pages; limit is 16') }]);
+    expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Moon', h.body]]), null)).toBeNull();
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('caps total surface draws across main/local/overlay passes and recovers next frame', () => {
+    const h = harness(layer(Array.from({ length: VECTOR_RENDER_PAGE_LIMIT * VECTOR_CELL_LIMIT }, () => ({ type: 'Point', coordinates: [0, 0] }))));
+    const tiles = new THREE.Group();
+    const sources = VECTOR_FRAME_DRAW_LIMIT / VECTOR_RENDER_PAGE_LIMIT;
+    for (let i = 1; i < sources; i++) tiles.add(new THREE.Mesh(h.mesh.geometry, h.mesh.material));
+    const overlay = new THREE.Group(); overlay.add(new THREE.Mesh(h.mesh.geometry, h.mesh.material));
+    Object.assign(h.body, { terrainTileGroup: tiles, getSurfaceOverlays: () => [{ group: overlay }] });
+    let draws = 0;
+    h.renderer.render = scene => { draws += scene.children.filter(child => child.visible).length; };
+    h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]);
+    expect(draws).toBe(VECTOR_FRAME_DRAW_LIMIT);
+    expect(h.vectors.metrics.drawCalls).toBe(VECTOR_FRAME_DRAW_LIMIT);
+    expect(h.vectors.metrics.surfaceMeshes).toBe(sources);
+    h.vectors.render(h.renderer, h.camera, [h.body], true);
+    h.vectors.render(h.renderer, h.camera, [h.body], false, new THREE.Vector3(1, 0, 0));
+    h.vectors.end();
+    expect(draws).toBe(VECTOR_FRAME_DRAW_LIMIT);
+    expect(h.vectors.metrics.surfaceMeshes).toBe(0);
+    expect(h.vectors.diagnostics).toMatchObject([{ code: 'vector-draw-budget' }]);
+    expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Moon', h.body]]), null)).toBeNull();
+    h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
+    expect(draws).toBe(VECTOR_FRAME_DRAW_LIMIT * 2);
+    expect(h.vectors.diagnostics).toEqual([]);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
   it('shares terrain geometry, prunes LOD/reload proxies and preserves source resources', () => {
     const h = harness(layer([{ type: 'Point', coordinates: [0, 0] }]));
     h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
@@ -202,7 +250,7 @@ describe('geographic renderer lifecycle and placement', () => {
     Object.assign(h.body, { terrainDatum: data.datum, surfaceTransitionState: 'streamed' });
     const draw = () => { h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end(); };
     draw();
-    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0 });
+    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0 });
     expect(h.vectors.diagnostics).toMatchObject([{ featureId: 'number:0', code: 'unsupported-height' }]);
     expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Mars', h.body]]), null)).toBeNull();
     // Explicit absolute placement is constrained too.

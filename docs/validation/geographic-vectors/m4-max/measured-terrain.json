@@ -7,60 +7,60 @@
       "views": [
         {
           "distanceKmAboveDatum": 1000,
-          "settledMs": 2581,
+          "settledMs": 2486,
           "samples": [
             {
-              "elapsedMs": 65,
+              "elapsedMs": 22,
               "visible": 0,
               "source": "ellipsoid"
             },
             {
-              "elapsedMs": 321,
+              "elapsedMs": 277,
               "visible": 2,
               "source": "ellipsoid"
             },
             {
-              "elapsedMs": 527,
+              "elapsedMs": 483,
               "visible": 8,
               "source": "ellipsoid"
             },
             {
-              "elapsedMs": 736,
+              "elapsedMs": 688,
               "visible": 26,
               "source": "ellipsoid"
             },
             {
-              "elapsedMs": 945,
+              "elapsedMs": 894,
               "visible": 38,
               "source": "ellipsoid"
             },
             {
-              "elapsedMs": 1154,
+              "elapsedMs": 1103,
               "visible": 41,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1359,
+              "elapsedMs": 1308,
               "visible": 41,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1564,
+              "elapsedMs": 1512,
               "visible": 41,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1770,
+              "elapsedMs": 1717,
               "visible": 41,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1975,
+              "elapsedMs": 1921,
               "visible": 41,
               "source": "terrain"
             },
             {
-              "elapsedMs": 2180,
+              "elapsedMs": 2127,
               "visible": 41,
               "source": "terrain"
             }
@@ -68,26 +68,26 @@
           "metrics": {
             "update": {
               "count": 12,
-              "lastMs": 0.19999998807907104,
-              "meanMs": 0.6583333363135656,
-              "maxMs": 1.7000000178813934
+              "lastMs": 0.20000001788139343,
+              "meanMs": 0.5416666691501936,
+              "maxMs": 1
             },
             "parse": {
               "count": 54,
-              "lastMs": 0.4000000059604645,
-              "meanMs": 0.5444444456586132,
-              "maxMs": 2
+              "lastMs": 0.5999999940395355,
+              "meanMs": 0.44259259435865617,
+              "maxMs": 1.9000000059604645
             },
             "cpuDecode": {
               "count": 54,
-              "lastMs": 0.09999999403953552,
-              "meanMs": 0.11296296119689941,
-              "maxMs": 1.0999999940395355
+              "lastMs": 0,
+              "meanMs": 0.11111111000732139,
+              "maxMs": 1
             },
             "sample": {
               "count": 24,
               "lastMicros": 0,
-              "meanMicros": 24.99999850988388
+              "meanMicros": 20.833333333333332
             },
             "tiles": {
               "active": 41,
@@ -211,6 +211,7 @@
             "bodyName": "Mars"
           },
           "vectorMetrics": {
+            "drawCalls": 41,
             "drawPages": 1,
             "batches": 1,
             "surfaceMeshes": 41,
@@ -222,50 +223,50 @@
         },
         {
           "distanceKmAboveDatum": 100,
-          "settledMs": 3223,
+          "settledMs": 2284,
           "samples": [
             {
-              "elapsedMs": 4,
+              "elapsedMs": 3,
               "visible": 38,
               "source": "terrain"
             },
             {
-              "elapsedMs": 255,
+              "elapsedMs": 259,
               "visible": 50,
               "source": "terrain"
             },
             {
-              "elapsedMs": 462,
+              "elapsedMs": 465,
               "visible": 62,
               "source": "terrain"
             },
             {
-              "elapsedMs": 668,
+              "elapsedMs": 673,
               "visible": 65,
               "source": "terrain"
             },
             {
-              "elapsedMs": 872,
+              "elapsedMs": 886,
               "visible": 65,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1077,
+              "elapsedMs": 1099,
               "visible": 65,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1282,
+              "elapsedMs": 1309,
               "visible": 65,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1487,
+              "elapsedMs": 1524,
               "visible": 65,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1691,
+              "elapsedMs": 1733,
               "visible": 65,
               "source": "terrain"
             }
@@ -273,26 +274,26 @@
           "metrics": {
             "update": {
               "count": 23,
-              "lastMs": 0.29999998211860657,
-              "meanMs": 0.508695652951365,
-              "maxMs": 1.7000000178813934
+              "lastMs": 0.800000011920929,
+              "meanMs": 0.6478260898071787,
+              "maxMs": 1.2999999821186066
             },
             "parse": {
               "count": 90,
-              "lastMs": 0.4000000059604645,
-              "meanMs": 0.46777777969837187,
-              "maxMs": 2
+              "lastMs": 0.30000001192092896,
+              "meanMs": 0.41666666865348817,
+              "maxMs": 1.9000000059604645
             },
             "cpuDecode": {
               "count": 90,
-              "lastMs": 0.09999999403953552,
-              "meanMs": 0.09888888663715786,
-              "maxMs": 1.0999999940395355
+              "lastMs": 0.19999998807907104,
+              "meanMs": 0.09999999867545234,
+              "maxMs": 1
             },
             "sample": {
               "count": 45,
               "lastMicros": 0,
-              "meanMicros": 15.555554628372192
+              "meanMicros": 15.555555290646023
             },
             "tiles": {
               "active": 65,
@@ -416,6 +417,7 @@
             "bodyName": "Mars"
           },
           "vectorMetrics": {
+            "drawCalls": 65,
             "drawPages": 1,
             "batches": 1,
             "surfaceMeshes": 65,
@@ -427,7 +429,7 @@
         },
         {
           "distanceKmAboveDatum": 15,
-          "settledMs": 2206,
+          "settledMs": 1915,
           "samples": [
             {
               "elapsedMs": 4,
@@ -435,37 +437,37 @@
               "source": "terrain"
             },
             {
-              "elapsedMs": 583,
+              "elapsedMs": 263,
               "visible": 32,
               "source": "terrain"
             },
             {
-              "elapsedMs": 789,
+              "elapsedMs": 478,
               "visible": 44,
               "source": "terrain"
             },
             {
-              "elapsedMs": 994,
+              "elapsedMs": 692,
               "visible": 44,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1198,
+              "elapsedMs": 904,
               "visible": 44,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1403,
+              "elapsedMs": 1115,
               "visible": 44,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1606,
+              "elapsedMs": 1328,
               "visible": 44,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1811,
+              "elapsedMs": 1537,
               "visible": 44,
               "source": "terrain"
             }
@@ -473,26 +475,26 @@
           "metrics": {
             "update": {
               "count": 33,
-              "lastMs": 0.19999998807907104,
-              "meanMs": 0.45151515169577167,
-              "maxMs": 1.7000000178813934
+              "lastMs": 0.4000000059604645,
+              "meanMs": 0.6757575779250173,
+              "maxMs": 1.800000011920929
             },
             "parse": {
               "count": 122,
-              "lastMs": 0.4000000059604645,
-              "meanMs": 0.44426229718278665,
-              "maxMs": 2
+              "lastMs": 0.3999999761581421,
+              "meanMs": 0.4163934441863513,
+              "maxMs": 1.9000000059604645
             },
             "cpuDecode": {
               "count": 122,
-              "lastMs": 0.09999999403953552,
-              "meanMs": 0.09999999794803682,
-              "maxMs": 1.0999999940395355
+              "lastMs": 0.10000002384185791,
+              "meanMs": 0.10409835933661851,
+              "maxMs": 1
             },
             "sample": {
               "count": 63,
               "lastMicros": 0,
-              "meanMicros": 14.28571343421936
+              "meanMicros": 14.285714380324833
             },
             "tiles": {
               "active": 47,
@@ -616,6 +618,7 @@
             "bodyName": "Mars"
           },
           "vectorMetrics": {
+            "drawCalls": 44,
             "drawPages": 1,
             "batches": 1,
             "surfaceMeshes": 44,
@@ -627,45 +630,45 @@
         },
         {
           "distanceKmAboveDatum": 3,
-          "settledMs": 8330,
+          "settledMs": 1935,
           "samples": [
             {
-              "elapsedMs": 3,
+              "elapsedMs": 2,
               "visible": 32,
               "source": "terrain"
             },
             {
-              "elapsedMs": 241,
+              "elapsedMs": 242,
               "visible": 38,
               "source": "terrain"
             },
             {
-              "elapsedMs": 447,
+              "elapsedMs": 453,
               "visible": 53,
               "source": "terrain"
             },
             {
-              "elapsedMs": 651,
+              "elapsedMs": 662,
               "visible": 53,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1343,
+              "elapsedMs": 876,
               "visible": 53,
               "source": "terrain"
             },
             {
-              "elapsedMs": 2327,
+              "elapsedMs": 1090,
               "visible": 53,
               "source": "terrain"
             },
             {
-              "elapsedMs": 3927,
+              "elapsedMs": 1297,
               "visible": 53,
               "source": "terrain"
             },
             {
-              "elapsedMs": 4527,
+              "elapsedMs": 1506,
               "visible": 53,
               "source": "terrain"
             }
@@ -673,26 +676,26 @@
           "metrics": {
             "update": {
               "count": 43,
-              "lastMs": 0.19999998807907104,
-              "meanMs": 0.4139534865700921,
-              "maxMs": 1.7000000178813934
+              "lastMs": 0.4000000059604645,
+              "meanMs": 0.6325581413368846,
+              "maxMs": 1.800000011920929
             },
             "parse": {
               "count": 150,
-              "lastMs": 0.29999998211860657,
-              "meanMs": 0.416666668454806,
-              "maxMs": 2
+              "lastMs": 0.30000001192092896,
+              "meanMs": 0.4033333335320155,
+              "maxMs": 1.9000000059604645
             },
             "cpuDecode": {
               "count": 150,
               "lastMs": 0,
-              "meanMs": 0.09333333134651184,
-              "maxMs": 1.0999999940395355
+              "meanMs": 0.09466666638851166,
+              "maxMs": 1
             },
             "sample": {
               "count": 81,
-              "lastMicros": 99.99999403953552,
-              "meanMicros": 13.58024647206436
+              "lastMicros": 0,
+              "meanMicros": 17.283951058799836
             },
             "tiles": {
               "active": 56,
@@ -816,6 +819,7 @@
             "bodyName": "Mars"
           },
           "vectorMetrics": {
+            "drawCalls": 53,
             "drawPages": 1,
             "batches": 1,
             "surfaceMeshes": 53,
@@ -827,35 +831,35 @@
         },
         {
           "distanceKmAboveDatum": 100,
-          "settledMs": 1585,
+          "settledMs": 1614,
           "samples": [
             {
-              "elapsedMs": 5,
+              "elapsedMs": 4,
               "visible": 65,
               "source": "terrain"
             },
             {
-              "elapsedMs": 243,
+              "elapsedMs": 261,
               "visible": 65,
               "source": "terrain"
             },
             {
-              "elapsedMs": 448,
+              "elapsedMs": 470,
               "visible": 65,
               "source": "terrain"
             },
             {
-              "elapsedMs": 652,
+              "elapsedMs": 678,
               "visible": 65,
               "source": "terrain"
             },
             {
-              "elapsedMs": 857,
+              "elapsedMs": 884,
               "visible": 65,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1062,
+              "elapsedMs": 1097,
               "visible": 65,
               "source": "terrain"
             }
@@ -863,26 +867,26 @@
           "metrics": {
             "update": {
               "count": 51,
-              "lastMs": 0.20000001788139343,
-              "meanMs": 0.39411764577323316,
-              "maxMs": 1.7000000178813934
+              "lastMs": 1,
+              "meanMs": 0.6078431390079797,
+              "maxMs": 1.800000011920929
             },
             "parse": {
               "count": 150,
-              "lastMs": 0.29999998211860657,
-              "meanMs": 0.416666668454806,
-              "maxMs": 2
+              "lastMs": 0.30000001192092896,
+              "meanMs": 0.4033333335320155,
+              "maxMs": 1.9000000059604645
             },
             "cpuDecode": {
               "count": 150,
               "lastMs": 0,
-              "meanMs": 0.09333333134651184,
-              "maxMs": 1.0999999940395355
+              "meanMs": 0.09466666638851166,
+              "maxMs": 1
             },
             "sample": {
               "count": 94,
               "lastMicros": 0,
-              "meanMicros": 12.765957002944134
+              "meanMicros": 15.957447125556621
             },
             "tiles": {
               "active": 65,
@@ -1006,6 +1010,7 @@
             "bodyName": "Mars"
           },
           "vectorMetrics": {
+            "drawCalls": 65,
             "drawPages": 1,
             "batches": 1,
             "surfaceMeshes": 65,
@@ -1024,40 +1029,40 @@
       "views": [
         {
           "distanceKmAboveDatum": 1000,
-          "settledMs": 1656,
+          "settledMs": 1553,
           "samples": [
             {
-              "elapsedMs": 147,
+              "elapsedMs": 40,
               "visible": 0,
               "source": "ellipsoid"
             },
             {
-              "elapsedMs": 466,
+              "elapsedMs": 354,
               "visible": 33,
               "source": "terrain"
             },
             {
-              "elapsedMs": 676,
+              "elapsedMs": 569,
               "visible": 33,
               "source": "terrain"
             },
             {
-              "elapsedMs": 890,
+              "elapsedMs": 781,
               "visible": 33,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1098,
+              "elapsedMs": 997,
               "visible": 33,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1316,
+              "elapsedMs": 1203,
               "visible": 33,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1524,
+              "elapsedMs": 1416,
               "visible": 33,
               "source": "terrain"
             }
@@ -1065,8 +1070,8 @@
           "metrics": {
             "update": {
               "count": 8,
-              "lastMs": 0.30000001192092896,
-              "meanMs": 0.5124999955296516,
+              "lastMs": 0.5,
+              "meanMs": 0.5499999932944775,
               "maxMs": 1.2999999821186066
             },
             "parse": {
@@ -1221,6 +1226,7 @@
             "bodyName": "Moon"
           },
           "vectorMetrics": {
+            "drawCalls": 24,
             "drawPages": 1,
             "batches": 1,
             "surfaceMeshes": 24,
@@ -1232,40 +1238,40 @@
         },
         {
           "distanceKmAboveDatum": 100,
-          "settledMs": 1466,
+          "settledMs": 1434,
           "samples": [
             {
-              "elapsedMs": 6,
+              "elapsedMs": 5,
               "visible": 33,
               "source": "terrain"
             },
             {
-              "elapsedMs": 287,
+              "elapsedMs": 271,
               "visible": 93,
               "source": "terrain"
             },
             {
-              "elapsedMs": 502,
+              "elapsedMs": 482,
               "visible": 93,
               "source": "terrain"
             },
             {
-              "elapsedMs": 715,
+              "elapsedMs": 689,
               "visible": 93,
               "source": "terrain"
             },
             {
-              "elapsedMs": 923,
+              "elapsedMs": 895,
               "visible": 93,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1130,
+              "elapsedMs": 1107,
               "visible": 93,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1337,
+              "elapsedMs": 1317,
               "visible": 93,
               "source": "terrain"
             }
@@ -1273,8 +1279,8 @@
           "metrics": {
             "update": {
               "count": 17,
-              "lastMs": 0.30000001192092896,
-              "meanMs": 0.5529411733150482,
+              "lastMs": 0.6000000238418579,
+              "meanMs": 0.5588235276586869,
               "maxMs": 1.2999999821186066
             },
             "parse": {
@@ -1429,6 +1435,7 @@
             "bodyName": "Moon"
           },
           "vectorMetrics": {
+            "drawCalls": 20,
             "drawPages": 1,
             "batches": 1,
             "surfaceMeshes": 20,
@@ -1440,40 +1447,40 @@
         },
         {
           "distanceKmAboveDatum": 15,
-          "settledMs": 1434,
+          "settledMs": 1432,
           "samples": [
             {
-              "elapsedMs": 4,
+              "elapsedMs": 6,
               "visible": 36,
               "source": "terrain"
             },
             {
-              "elapsedMs": 276,
+              "elapsedMs": 278,
               "visible": 72,
               "source": "terrain"
             },
             {
-              "elapsedMs": 486,
+              "elapsedMs": 485,
               "visible": 72,
               "source": "terrain"
             },
             {
-              "elapsedMs": 695,
+              "elapsedMs": 696,
               "visible": 72,
               "source": "terrain"
             },
             {
-              "elapsedMs": 904,
+              "elapsedMs": 906,
               "visible": 72,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1110,
+              "elapsedMs": 1118,
               "visible": 72,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1327,
+              "elapsedMs": 1331,
               "visible": 72,
               "source": "terrain"
             }
@@ -1481,8 +1488,8 @@
           "metrics": {
             "update": {
               "count": 26,
-              "lastMs": 1.199999988079071,
-              "meanMs": 0.5307692300814849,
+              "lastMs": 0.8999999761581421,
+              "meanMs": 0.5576923053998214,
               "maxMs": 1.2999999821186066
             },
             "parse": {
@@ -1637,6 +1644,7 @@
             "bodyName": "Moon"
           },
           "vectorMetrics": {
+            "drawCalls": 10,
             "drawPages": 1,
             "batches": 1,
             "surfaceMeshes": 10,
@@ -1651,37 +1659,37 @@
           "settledMs": 1469,
           "samples": [
             {
-              "elapsedMs": 5,
+              "elapsedMs": 4,
               "visible": 68,
               "source": "terrain"
             },
             {
-              "elapsedMs": 281,
+              "elapsedMs": 290,
               "visible": 95,
               "source": "terrain"
             },
             {
-              "elapsedMs": 499,
+              "elapsedMs": 502,
               "visible": 95,
               "source": "terrain"
             },
             {
-              "elapsedMs": 708,
+              "elapsedMs": 723,
               "visible": 95,
               "source": "terrain"
             },
             {
-              "elapsedMs": 923,
+              "elapsedMs": 936,
               "visible": 95,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1129,
+              "elapsedMs": 1151,
               "visible": 95,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1342,
+              "elapsedMs": 1366,
               "visible": 95,
               "source": "terrain"
             }
@@ -1689,9 +1697,9 @@
           "metrics": {
             "update": {
               "count": 35,
-              "lastMs": 1.4000000059604645,
-              "meanMs": 0.6057142862251826,
-              "maxMs": 1.5999999940395355
+              "lastMs": 1.5,
+              "meanMs": 0.6085714272090367,
+              "maxMs": 1.5
             },
             "parse": {
               "count": 0,
@@ -1845,6 +1853,7 @@
             "bodyName": "Moon"
           },
           "vectorMetrics": {
+            "drawCalls": 13,
             "drawPages": 1,
             "batches": 1,
             "surfaceMeshes": 13,
@@ -1856,35 +1865,35 @@
         },
         {
           "distanceKmAboveDatum": 100,
-          "settledMs": 1246,
+          "settledMs": 1262,
           "samples": [
             {
-              "elapsedMs": 7,
+              "elapsedMs": 4,
               "visible": 93,
               "source": "terrain"
             },
             {
-              "elapsedMs": 286,
+              "elapsedMs": 291,
               "visible": 93,
               "source": "terrain"
             },
             {
-              "elapsedMs": 503,
+              "elapsedMs": 505,
               "visible": 93,
               "source": "terrain"
             },
             {
-              "elapsedMs": 710,
+              "elapsedMs": 721,
               "visible": 93,
               "source": "terrain"
             },
             {
-              "elapsedMs": 921,
+              "elapsedMs": 934,
               "visible": 93,
               "source": "terrain"
             },
             {
-              "elapsedMs": 1128,
+              "elapsedMs": 1147,
               "visible": 93,
               "source": "terrain"
             }
@@ -1892,9 +1901,9 @@
           "metrics": {
             "update": {
               "count": 43,
-              "lastMs": 0.30000001192092896,
-              "meanMs": 0.5860465134299079,
-              "maxMs": 1.5999999940395355
+              "lastMs": 1.100000023841858,
+              "meanMs": 0.6418604642845863,
+              "maxMs": 1.5
             },
             "parse": {
               "count": 0,
@@ -2048,6 +2057,7 @@
             "bodyName": "Moon"
           },
           "vectorMetrics": {
+            "drawCalls": 20,
             "drawPages": 1,
             "batches": 1,
             "surfaceMeshes": 20,

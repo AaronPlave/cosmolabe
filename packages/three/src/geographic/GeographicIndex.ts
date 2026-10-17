@@ -7,6 +7,8 @@ export interface GeographicRenderDiagnostic { layerId: string; featureId?: strin
 export const VECTOR_GRID = [64, 32] as const;
 /** Candidate budget per draw, not an admission limit for a geographic cell. */
 export const VECTOR_CELL_LIMIT = 256;
+/** Limit surface rerenders independently of the index storage budget. */
+export const VECTOR_RENDER_PAGE_LIMIT = 16;
 export const VECTOR_PRIMITIVE_LIMIT = 100_000;
 export const VECTOR_REFERENCE_LIMIT = 1_000_000;
 /** Padding allows round screen-space strokes to cross the cell boundary. At
@@ -122,6 +124,18 @@ export class GeographicIndex {
     } catch (error) {
       this.diagnostics.push({ layerId: layer.id, featureId: feature.id, code: 'vector-budget', message: String(error) });
     }
+  }
+
+  get renderPages(): number {
+    let peak = 0;
+    const peaks = [0, 0, 0];
+    for (const ids of this.cells) {
+      peak = Math.max(peak, ids.length);
+      const counts = [0, 0, 0];
+      for (const id of ids) counts[this.primitives[id].kind]++;
+      for (let kind = 0; kind < 3; kind++) peaks[kind] = Math.max(peaks[kind], counts[kind]);
+    }
+    return peak <= VECTOR_CELL_LIMIT ? 1 : peaks.reduce((n, count) => n + Math.ceil(count / VECTOR_CELL_LIMIT), 0);
   }
 
   /** Sparse cells retain the original single-pass ordering. Overflow uses

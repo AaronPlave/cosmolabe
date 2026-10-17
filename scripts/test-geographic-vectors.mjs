@@ -165,6 +165,14 @@ try {
     renderer.setSize(640, 480); renderer.setPixelRatio(1); camera.aspect = 640 / 480;
 
     body.position.set(0, 0, 0); body.rotation.identity(); body.terrainTileGroup.position.set(0, 0, 0); body.terrainTileGroup.quaternion.identity();
+    const overload = { type: 'FeatureCollection', features: [{ type: 'Feature', id: 'coincident-overload', properties: {},
+      geometry: { type: 'MultiPoint', coordinates: Array.from({ length: 7000 }, () => [77.45, 18.45]) } }] };
+    load(overload, 'Mars');
+    const overloadBaseline = draw(false), overloaded = draw();
+    checks.push({ name: 'pathological density diagnosed without partial drawing or GPU resources',
+      pass: changed(overloadBaseline, overloaded) === 0 && vectors.featureCount === 0 && vectors.metrics.textureBytes === 0
+        && vectors.metrics.drawCalls === 0 && vectors.diagnostics.some(d => d.code === 'vector-render-budget') });
+    metrics.push({ name: '7000 coincident targets: overload safely omitted', ...vectors.metrics, diagnostics: [...vectors.diagnostics] });
     body.body.name = 'Moon'; body.body.radii = [1737.4, 1737.4, 1737.4];
     const ring = lat => [[-135, lat], [-45, lat], [45, lat], [135, lat], [-135, lat]];
     const polar = { type: 'FeatureCollection', features: [...fixtures[1].features,

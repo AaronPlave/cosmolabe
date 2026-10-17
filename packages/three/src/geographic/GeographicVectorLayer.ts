@@ -3,7 +3,7 @@ import { bodyFixedToGeodetic, geodeticToBodyFixed, isSupportedGeodeticDatum, wra
   type GeographicLayer, type BodyFixedPosition, type Universe } from '@cosmolabe/core';
 import type { BodyMesh } from '../BodyMesh.js';
 import type { SurfacePoint } from '../SceneHit.js';
-import { GeographicIndex, type GeographicFeatureRef, type GeographicRenderDiagnostic } from './GeographicIndex.js';
+import { GeographicIndex, VECTOR_RENDER_PAGE_LIMIT, type GeographicFeatureRef, type GeographicRenderDiagnostic } from './GeographicIndex.js';
 import { GeographicMaterial } from './GeographicMaterial.js';
 
 export type GeographicPlacement =
@@ -20,6 +20,7 @@ interface Batch {
   datum: GeographicLayer['datum'];
   bodyName: string;
   proxies: Map<THREE.Mesh, Proxy>;
+  suppressed: boolean;
 }
 interface Proxy {
   mesh: THREE.Mesh;
@@ -43,6 +44,8 @@ export interface GeographicVectorStatus {
 const MAX_BATCHES = 16;
 const MAX_OFFSET_VERTICES = 250_000;
 const MAX_SURFACE_MESHES = 2048;
+/** Shared by main, overlay and camera-relative passes between begin/end. */
+export const VECTOR_FRAME_DRAW_LIMIT = 2048;
 
 function positions(g: GeographicLayer['features'][number]['geometry']): BodyFixedPosition[] {
   switch (g.type) {
@@ -73,6 +76,7 @@ export class GeographicVectorLayer {
   private _status: GeographicVectorStatus[] = [];
   private offsetVertices = 0;
   private proxyCount = 0;
+  private drawCalls = 0;
 
   constructor(private readonly universe: Universe, private readonly scaleFactor: number) {
     this.unsubscribe = universe.events.on('geographic:changed', () => { this.dirty = true; });
@@ -80,8 +84,8 @@ export class GeographicVectorLayer {
   get diagnostics(): readonly GeographicRenderDiagnostic[] { return this._diagnostics; }
   get status(): readonly GeographicVectorStatus[] { return this._status; }
   get featureCount(): number { return this.batches.reduce((n, b) => n + b.index.features.length, 0); }
-  get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number } {
-    return { drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
+  get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number; drawCalls: number } {
+    return { drawCalls: this.drawCalls, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
       textureBytes: this.batches.reduce((n, b) => n + b.material.textures.reduce((sum, t) => sum + (t.image.data?.byteLength ?? 0), 0), 0) };
   }
   setVisible(layerId: string, visible: boolean): void {
@@ -158,8 +162,14 @@ export class GeographicVectorLayer {
       const index = new GeographicIndex(layers);
       this._diagnostics.push(...index.diagnostics);
       if (!index.primitives.length) continue;
+      const pages = index.renderPages;
+      if (pages > VECTOR_RENDER_PAGE_LIMIT) {
+        this._diagnostics.push({ layerId: layers[0].id, code: 'vector-render-budget',
+          message: `Geographic group needs ${pages} render pages; limit is ${VECTOR_RENDER_PAGE_LIMIT}. Entire group omitted from drawing and picking. Filter or simplify the source data.` });
+        continue;
+      }
       const material = new GeographicMaterial(index, a, c);
-      const batch: Batch = { layers, index, material, placement, datum, bodyName: layers[0].body, proxies: new Map() };
+      const batch: Batch = { layers, index, material, placement, datum, bodyName: layers[0].body, proxies: new Map(), suppressed: false };
       this.batches.push(batch);
     }
     this.updateHighlights(); this.dirty = false;
@@ -168,8 +178,12 @@ export class GeographicVectorLayer {
   /** Start after terrain traversal has selected this frame's visible triangles. */
   begin(): void {
     if (this.dirty) this.rebuild();
-    this._status = [];
-    for (const b of this.batches) for (const p of b.proxies.values()) p.seen = false;
+    this._status = []; this.drawCalls = 0;
+    this._diagnostics = this._diagnostics.filter(d => d.code !== 'vector-draw-budget');
+    for (const b of this.batches) {
+      b.suppressed = false;
+      for (const p of b.proxies.values()) p.seen = false;
+    }
   }
 
   /** Draw with the SAME camera/depth state as the source surface pass. For the
@@ -180,7 +194,7 @@ export class GeographicVectorLayer {
     const byName = new Map(Array.from(bodies, b => [b.body.name, b]));
     for (const batch of this.batches) {
       const bm = byName.get(batch.bodyName);
-      if (!bm?.visible) continue;
+      if (!bm?.visible || batch.suppressed) continue;
       if (bm.body.geometryType !== 'Globe') {
         this.diagnose(batch, 'unsupported-surface', 'Geographic draping requires a globe; mesh/DSK does not expose a latitude/longitude heightfield.'); continue;
       }
@@ -205,11 +219,22 @@ export class GeographicVectorLayer {
         featureTerrainCoverage: 'not-assessed',
         accuracy: 'rendered-triangles; source uncertainty unknown' });
       const roots = overlays ? bm.getSurfaceOverlays().map(o => o.group) : [bm.mesh, bm.terrainTileGroup].filter((o): o is THREE.Object3D => o !== null);
+      const sources = new Set<THREE.Mesh<THREE.BufferGeometry>>();
       for (const root of roots) root.traverseVisible(object => {
-        if (!(object instanceof THREE.Mesh) || !(object.geometry instanceof THREE.BufferGeometry)) return;
+        if (object instanceof THREE.Mesh && object.geometry instanceof THREE.BufferGeometry) sources.add(object);
+      });
+      if (this.drawCalls + sources.size * batch.material.pages > VECTOR_FRAME_DRAW_LIMIT) {
+        this.diagnose(batch, 'vector-draw-budget', `Frame would exceed ${VECTOR_FRAME_DRAW_LIMIT} vector surface draws. Remaining drawing and picking for this group are suppressed this frame; reduce visible layers or terrain detail.`);
+        batch.suppressed = true;
+        for (const [source, proxy] of batch.proxies) this.dropProxy(batch, source, proxy);
+        continue;
+      }
+      const before = this.scene.children.length;
+      for (const object of sources) {
         const localToBody = toBody.clone().multiply(object.matrixWorld);
         this.addProxy(batch, object, object.geometry, object.matrixWorld, localToBody, origin, batch.placement.mode === 'terrain-relative');
-      });
+      }
+      this.drawCalls += (this.scene.children.length - before) * batch.material.pages;
     }
     if (this.scene.children.length) {
       const pages = Math.max(...this.batches.map(b => b.material.pages));
@@ -319,7 +344,7 @@ export class GeographicVectorLayer {
     let best: { ref: GeographicFeatureRef; distance: number } | null = null;
     for (const batch of this.batches) {
       const bm = bodies.get(batch.bodyName);
-      if (!bm?.visible) continue;
+      if (!bm?.visible || batch.suppressed) continue;
       const rotation = bm.bodyToWorldQuaternion(new THREE.Quaternion());
       const toBody = new THREE.Matrix4().compose(bm.position, rotation, new THREE.Vector3().setScalar(this.scaleFactor)).invert();
       let hit: THREE.Vector3 | null = null;
@@ -367,7 +392,7 @@ export class GeographicVectorLayer {
       for (const [source, proxy] of batch.proxies) this.dropProxy(batch, source, proxy);
       batch.material.dispose();
     }
-    this.batches = []; this.offsetVertices = 0; this.proxyCount = 0;
+    this.batches = []; this.offsetVertices = 0; this.proxyCount = 0; this.drawCalls = 0;
   }
   dispose(): void { this.unsubscribe(); this.clear(); }
 }

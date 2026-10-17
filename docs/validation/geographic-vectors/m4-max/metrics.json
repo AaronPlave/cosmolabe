@@ -37,6 +37,10 @@
       "pass": true
     },
     {
+      "name": "pathological density diagnosed without partial drawing or GPU resources",
+      "pass": true
+    },
+    {
       "name": "polar cap, holes and seam",
       "pass": true
     },
@@ -58,6 +62,7 @@
         480
       ],
       "pixelRatio": 1,
+      "drawCalls": 9,
       "drawPages": 9,
       "batches": 1,
       "surfaceMeshes": 1,
@@ -67,26 +72,26 @@
         "frames": 120,
         "cpuSubmissionMs": {
           "median": 0.09999999403953552,
-          "p95": 0.10000002384185791,
-          "average": 0.06416666731238366
+          "p95": 0.20000001788139343,
+          "average": 0.113333331545194
         },
         "frameIntervalMs": {
           "median": 16.699999999999818,
           "p95": 16.700000000000273,
-          "average": 16.66583333333333
+          "average": 16.664999999999996
         }
       },
       "vectors": {
         "frames": 120,
         "cpuSubmissionMs": {
-          "median": 0.09999999403953552,
-          "p95": 0.20000001788139343,
-          "average": 0.1141666663189729
+          "median": 0.30000001192092896,
+          "p95": 0.5,
+          "average": 0.29000000084439914
         },
         "frameIntervalMs": {
           "median": 16.699999999999818,
-          "p95": 16.700000000000728,
-          "average": 16.665833333333335
+          "p95": 16.799999999999727,
+          "average": 16.66583333333333
         }
       }
     },
@@ -98,6 +103,7 @@
         844
       ],
       "pixelRatio": 2,
+      "drawCalls": 9,
       "drawPages": 9,
       "batches": 1,
       "surfaceMeshes": 1,
@@ -107,8 +113,8 @@
         "frames": 120,
         "cpuSubmissionMs": {
           "median": 0,
-          "p95": 0.09999999403953552,
-          "average": 0.04833333144585292
+          "p95": 0.10000002384185791,
+          "average": 0.01833333373069763
         },
         "frameIntervalMs": {
           "median": 16.699999999999818,
@@ -120,21 +126,38 @@
         "frames": 120,
         "cpuSubmissionMs": {
           "median": 0.09999999403953552,
-          "p95": 0.20000001788139343,
-          "average": 0.10166666731238365
+          "p95": 0.30000001192092896,
+          "average": 0.13833333204189938
         },
         "frameIntervalMs": {
           "median": 16.69999999999891,
-          "p95": 16.700000000000728,
-          "average": 16.66583333333333
+          "p95": 16.80000000000109,
+          "average": 16.66666666666666
         }
       }
     },
     {
+      "name": "7000 coincident targets: overload safely omitted",
+      "drawCalls": 0,
+      "drawPages": 0,
+      "batches": 0,
+      "surfaceMeshes": 0,
+      "offsetVertices": 0,
+      "textureBytes": 0,
+      "diagnostics": [
+        {
+          "layerId": "science",
+          "code": "vector-render-budget",
+          "message": "Geographic group needs 28 render pages; limit is 16. Entire group omitted from drawing and picking. Filter or simplify the source data."
+        }
+      ]
+    },
+    {
       "name": "dense index 4900 features",
-      "milliseconds": 17.299999982118607,
+      "milliseconds": 23.599999994039536,
       "features": 4900,
       "diagnostics": 0,
+      "drawCalls": 0,
       "drawPages": 1,
       "batches": 1,
       "surfaceMeshes": 0,
@@ -143,16 +166,17 @@
     },
     {
       "name": "dense full frame with GPU finish/readback (not runtime cost)",
-      "milliseconds": 1.0333333363135655
+      "milliseconds": 1.1833333323399227
     },
     {
       "name": "hidden rebuild and full frame",
-      "milliseconds": 0.7999999821186066,
+      "milliseconds": 1.300000011920929,
       "features": 0
     },
     {
       "name": "hidden vector update average (100 iterations)",
       "milliseconds": 0,
+      "drawCalls": 0,
       "drawPages": 0,
       "batches": 0,
       "surfaceMeshes": 0,
