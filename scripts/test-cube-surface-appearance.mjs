@@ -2,6 +2,9 @@
  * Start this checkout's viewer, then:
  * CUBE_STYLE_URL=http://127.0.0.1:5196 node scripts/test-cube-surface-appearance.mjs
  * CUBE_STYLE_CATALOGS=test-catalogs/moonfall-shackleton (optional single catalog).
+ * CUBE_STYLE_BASELINE_ONLY=1 captures ordinary imagery on main or the PR.
+ * CUBE_STYLE_LEGACY_CONTROL=1 also compares the old normal blend with a fixed cache (PR only).
+ * CUBE_STYLE_CPU_RATE=4 adds DevTools CPU throttling to activation only (not a physical device).
  * CUBE_STYLE_ACTIVATION_ONLY=1 profiles first-use CPU/GPU frames; CUBE_STYLE_NAV_ONLY=1 checks camera history.
  */
 import { chromium } from 'playwright';
@@ -86,11 +89,15 @@ async function activationTiming(page) {
     const r = window.renderer, bm = r.getBodyMesh('Moon'), style = bm.terrainManager.surfaceStyle;
     const gl = r.getContext().webglRenderer.getContext(), ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
     r.stop(); r.timeController.pause();
-    const update = style.update;
+    const update = style.update, imagery = bm.terrainManager.cubeImagery, imageryUpdate = imagery.update;
+    const webgl = r.getContext().webglRenderer, render = webgl.render;
+    let imageryMs = 0, renderMs = 0;
+    imagery.update = function(...args) { const start = performance.now(); try { return imageryUpdate.apply(this,args); } finally { imageryMs += performance.now()-start; } };
+    webgl.render = function(...args) { const start = performance.now(); try { return render.apply(this,args); } finally { renderMs += performance.now()-start; } };
     let preparation = null;
     style.update = function(...args) { preparation = update.apply(this,args); return preparation; };
     const frame = async () => {
-      preparation = null;
+      preparation = null; imageryMs = 0; renderMs = 0;
       const q = ext ? gl.createQuery() : null, start = performance.now();
       if(q) gl.beginQuery(ext.TIME_ELAPSED_EXT,q);
       r.renderFrame();
@@ -103,7 +110,7 @@ async function activationTiming(page) {
         if(gl.getQueryParameter(q,gl.QUERY_RESULT_AVAILABLE) && !gl.getParameter(ext.GPU_DISJOINT_EXT)) gpuMs = gl.getQueryParameter(q,gl.QUERY_RESULT)/1e6;
         gl.deleteQuery(q);
       }
-      return {cpuMs,gpuMs,preparation};
+      return {cpuMs,gpuMs,preparation,imageryMs,renderMs};
     };
     try {
       const normal = []; for(let i = 0; i < 30; i++) normal.push(await frame());
@@ -114,7 +121,7 @@ async function activationTiming(page) {
       style.set(settings);
       const disabled = []; for(let i = 0; i < 30; i++) disabled.push(await frame());
       return {normal,activation,active,disabled,gpuTimerAvailable:!!ext};
-    } finally { style.update = update; r.start(); r.timeController.pause(); }
+    } finally { style.update = update; imagery.update = imageryUpdate; webgl.render = render; r.start(); r.timeController.pause(); }
   });
 }
 async function canvas(page) {
@@ -125,20 +132,95 @@ try {
   for(const catalog of catalogs) {
     const name = catalog.includes('moonfall') ? 'moonfall' : 'nac';
     const page = await browser.newPage({ viewport:{width:1440,height:1000} });
-    const errors = []; page.on('pageerror', e => errors.push(e.message));
-    page.on('console', m => { if(m.type() === 'error') errors.push(m.text()); });
+    const errors = []; page.on('pageerror', e => { errors.push(e.message); console.error(e.message); });
+    page.on('console', m => { if(m.type() === 'error') { errors.push(m.text()); console.error(m.text()); } });
+    console.log(name,'loading',base);
     await page.goto(`${base}/?catalog=${catalog}`, {waitUntil:'domcontentloaded',timeout:120000});
     await page.waitForFunction(() => window.renderer, null, {timeout:120000});
-    const assets = await page.evaluate(() => window.renderer.waitForInitialAssets()); assert.equal(assets.failed,0);
+    console.log(name,'renderer ready');
+    const assets = await page.evaluate(() => window.renderer.waitForInitialAssets()); assert.equal(assets.failed,0); console.log(name,'assets ready');
     await page.evaluate(() => { window.cosmo.setPlaying(false); window.cosmo.select('Moon'); });
-    await page.waitForFunction(() => window.renderer.getBodyMesh('Moon').surfaceAppearance !== null);
+    if(!process.env.CUBE_STYLE_BASELINE_ONLY) await page.waitForFunction(() => window.renderer.getBodyMesh('Moon').surfaceAppearance !== null);
     if(name === 'nac') await page.evaluate(() => { window.renderer.getBodyMesh('Moon').terrainManager.tiles.maxDepth = 5; });
     const gpu = await page.evaluate(() => { const gl = window.renderer.getContext().webglRenderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); return gl.getParameter(e ? e.UNMASKED_RENDERER_WEBGL : gl.RENDERER); });
     assert.ok(!/swiftshader|software/i.test(gpu));
     const row = {name,catalog,gpu,assets,views:{},errors}; results.push(row);
+    if(process.env.CUBE_STYLE_BASELINE_ONLY) {
+      // Both catalogs declare this epoch. Reset real-time drift before comparing
+      // independent checkouts; use the actual physical Sun and ordinary imagery.
+      assert.ok(await page.evaluate(() => window.cosmo.setTime({kind:'calendar',text:'2028-12-15T10:04:00Z'})));
+      await page.evaluate(() => window.renderer.renderFrame());
+      const sunLongitude = await page.evaluate(() => {
+        const r = window.renderer, bm = r.getBodyMesh('Moon');
+        const direction = r.sunLight.position.clone().sub(bm.getWorldPosition(r.camera.position.clone())).normalize().applyQuaternion(bm.mesh.quaternion.clone().invert());
+        return Math.atan2(-direction.z,direction.x)*180/Math.PI;
+      });
+      const lit = {eye:at(-88.7,sunLongitude,12),target:at(-89.4,sunLongitude,-2.5),fov:60};
+      row.sunLongitude = sunLongitude;
+      for(const [view,position] of Object.entries({...poses,lit})) {
+        await pose(page,position); await settle(page);
+        const metadata = await page.evaluate(() => {
+          const r = window.renderer, tm = r.getBodyMesh('Moon').terrainManager;
+          const angles = [], centre = r.getBodyMesh('Moon').getWorldPosition(r.camera.position.clone());
+          const point = centre.clone(), normal = centre.clone();
+          for(const tile of tm.tiles.visibleTiles) tile.engineData?.scene?.traverse(mesh => {
+            if(!mesh.isMesh || mesh.name.startsWith('cube-imagery-block ')) return;
+            const p = mesh.geometry.getAttribute('position'), n = mesh.geometry.getAttribute('normal');
+            if(!p || !n) return;
+            const count = mesh.geometry.userData.surfaceTriangles*3 || mesh.geometry.index?.count || p.count;
+            for(let i=0;i<count;i+=Math.max(1,Math.floor(count/64))) {
+              const j=mesh.geometry.index?.getX(i)??i;
+              point.fromBufferAttribute(p,j).applyMatrix4(mesh.matrixWorld).sub(centre).normalize();
+              normal.fromBufferAttribute(n,j).transformDirection(mesh.matrixWorld);
+              angles.push(Math.acos(Math.max(-1,Math.min(1,point.dot(normal))))*180/Math.PI);
+            }
+          });
+          return {ids:[...tm.tiles.visibleTiles].map(t=>t.content?.uri).sort(),imagery:tm.cubeImageryStats,camera:[...r.camera.matrixWorld.elements],sunIntensity:r.sunLight.intensity,
+            styleActive:tm.surfaceStyle?.active??false,et:r.timeController.et,sourceModules:performance.getEntriesByType('resource').map(x=>x.name).filter(x=>x.includes('/TerrainManager.ts')),
+            normalSlopeDegrees:{samples:angles.length,mean:angles.reduce((s,x)=>s+x,0)/angles.length,max:Math.max(...angles)}};
+        });
+        assert.equal(metadata.styleActive,false); assert.equal(metadata.sunIntensity,2);
+        row.views[view] = metadata;
+        if(process.env.CUBE_STYLE_LEGACY_CONTROL) await page.evaluate(() => { window.baselineEpoch = window.renderer.timeController.et; window.renderer.stop(); });
+        const png = await canvas(page); await writeFile(`${out}/${name}-${view}.png`,PNG.sync.write(png));
+        if(process.env.CUBE_STYLE_LEGACY_CONTROL) {
+          const cacheBefore = await page.evaluate(() => {
+            const r = window.renderer, tm = r.getBodyMesh('Moon').terrainManager;
+            window.baselineNormals = [...tm.cubeImagery.tiles.values()].flatMap(record => record.meshes.map(m => ({mesh:m.mesh,normals:m.mesh.geometry.getAttribute('normal').array.slice()})));
+            for(const {mesh} of window.baselineNormals) tm.blendSphereNormals(mesh,0.6);
+            tm.cubeImagery.invalidateBlocks();
+            return {requests:tm.cubeImageryStats.requests,levels:tm.cubeImageryStats.displayedLevels};
+          });
+          const legacy = await canvas(page);
+          await writeFile(`${out}/${name}-${view}-legacy-control.png`,PNG.sync.write(legacy));
+          await page.evaluate(() => {
+            const tm = window.renderer.getBodyMesh('Moon').terrainManager;
+            for(const {mesh,normals} of window.baselineNormals) {
+              mesh.geometry.getAttribute('normal').array.set(normals); mesh.geometry.getAttribute('normal').needsUpdate = true;
+            }
+            tm.cubeImagery.invalidateBlocks(); delete window.baselineNormals;
+          });
+          const restored = await canvas(page), diff = new PNG({width:png.width,height:png.height});
+          metadata.legacyControl = {
+            changedPixels:pixelmatch(legacy.data,png.data,diff.data,png.width,png.height,{threshold:.01}),
+            restoredPixels:pixelmatch(restored.data,png.data,null,png.width,png.height,{threshold:.01}),
+            cacheBefore,cacheAfter:await page.evaluate(() => { const tm = window.renderer.getBodyMesh('Moon').terrainManager; return {requests:tm.cubeImageryStats.requests,levels:tm.cubeImageryStats.displayedLevels}; }),
+          };
+          assert.deepEqual(metadata.legacyControl.cacheAfter,cacheBefore,'normal comparison holds imagery cache fixed');
+          assert.equal(metadata.legacyControl.restoredPixels,0,'normal restoration returns identical pixels');
+          await writeFile(`${out}/${name}-${view}-normal-diff.png`,PNG.sync.write(diff));
+          await page.evaluate(() => { const r = window.renderer; r.start(); r.timeController.pause(); r.timeController.setTime(window.baselineEpoch); r.renderFrame(); });
+        }
+      }
+      assert.deepEqual(errors,[]); await page.close(); continue;
+    }
     if(process.env.CUBE_STYLE_ACTIVATION_ONLY) {
       await pose(page,poses.close); await settle(page);
+      row.cpuThrottleRate = Number(process.env.CUBE_STYLE_CPU_RATE ?? 1);
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Emulation.setCPUThrottlingRate',{rate:row.cpuThrottleRate});
       row.activationProfile = await activationTiming(page);
+      await cdp.detach();
       assert.deepEqual(errors,[]);
       console.log(name,'activation frames',row.activationProfile.activation.length);
       await page.close(); continue;

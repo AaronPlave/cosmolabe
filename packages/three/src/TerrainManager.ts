@@ -2377,8 +2377,12 @@ export class TerrainManager {
         return;
       }
 
-      // Blend vertex normals toward sphere normals for surface vertices only.
-      // (terrain tiles only — imagery-only tiles skip this via early return above)
+      // Keep the cube builder's central-difference physical normals in ordinary
+      // imagery as well as styled mode. The 0.6 QM sphere blend flattens authored
+      // slopes; it also assumes the tile centre lives directly on the mesh,
+      // which is not a general glTF transform contract. This intentionally
+      // changes cube lighting relative to main, independently of style toggles.
+      // See docs/validation/cube-surface-appearance for main-vs-PR lit captures.
       if (!this.cubeConfigured) this.blendSphereNormals(child, 0.6);
 
       const mats = Array.isArray(child.material) ? child.material : [child.material];

@@ -26,7 +26,10 @@ metre-to-scene scaling. Heights are computed in double precision then stored as
 float32 shader attributes. The real product uses a 1737.4 km sphere. These are
 heights of displayed vertices, not an accuracy claim about the underlying DEM.
 
-The material setup leaves the builder's physical normals intact. Position,
+The material setup **intentionally changes ordinary cube lighting relative to
+main** by leaving the builder's physical normals intact. See the
+[main comparison and review follow-up](review.md) for the rationale, lit captures,
+regression and activation profiling. Position,
 normal and index buffers, datum/frame definitions, CPU grids, sampling and
 measurement data remain independent of style settings.
 
@@ -139,7 +142,10 @@ reclips imagery blocks, uploads attributes and compiles shader variants. The
 for the first tile here). Disabling also has a one-time program/upload cost;
 warm disabled style-update time is below the browser timer's resolution.
 These measurements establish the costs on this GPU, not smooth first activation
-on slower hardware.
+on slower hardware. The [review profile](review.md#first-use-latency) attributes
+the cost and records a 4x CPU run (~240 ms first activation). This unresolved
+limitation is tracked in [#264](https://github.com/AaronPlave/cosmolabe/issues/264),
+including a physical midrange-device benchmark and a bounded-work implementation.
 
 ## Automated checks and reproduction
 

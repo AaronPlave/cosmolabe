@@ -185,23 +185,30 @@ describe('known cube-sphere surface appearance capability', () => {
     const scene = new THREE.Group(); scene.rotation.x = Math.PI / 2;
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 10, 0, 0, 0, 0, 10], 3));
-    g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute([0.6, 0.8, 0, 0.6, 0.8, 0, 0.6, 0.8, 0], 3));
     g.setIndex([0, 1, 2]); g.userData.surfaceTriangles = 1;
     const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial()); mesh.position.y = R * 1000 + 100;
     scene.add(mesh); tiles.group.add(scene);
     const before = ['position', 'normal'].map(n => g.getAttribute(n).array.slice());
     tiles.dispatchEvent({ type: 'load-model', scene, tile: {} });
+    // Sloped builder normals survive ordinary material setup, before styles or
+    // eligibility metadata exist. The old QM sphere blend changes these values.
+    expect(['position', 'normal'].map(n => g.getAttribute(n).array)).toEqual(before);
     await vi.waitFor(() => expect(tm.cubeStats?.version).toBe('fixture-v1'));
     expect(tm.surfaceAppearance).toBeNull();
     const cpuSample = tm.sample(0, 0);
     root(tm);
     expect(tm.surfaceAppearanceDatum).toEqual(manifest().datum);
+    expect(['position', 'normal'].map(n => g.getAttribute(n).array)).toEqual(before);
     tm.setSurfaceAppearance({ ...tm.surfaceAppearance!, baseColor: 'elevation', hillshade: true });
     const style = (tm as unknown as { surfaceStyle: { update(n: number): void } }).surfaceStyle;
     style.update(Infinity);
     for (let i = 0; i < 3; i++) expect(g.getAttribute('surfaceHeightKm').getX(i)).toBeCloseTo(0.1, 5);
     expect(['position', 'normal'].map(n => g.getAttribute(n).array)).toEqual(before);
     expect(tm.sample(0, 0)).toEqual(cpuSample);
+    tm.setSurfaceAppearance({ ...tm.surfaceAppearance!, baseColor: 'imagery', hillshade: false });
+    expect(['position', 'normal'].map(n => g.getAttribute(n).array)).toEqual(before);
+    tm.setSurfaceAppearance({ ...tm.surfaceAppearance!, baseColor: 'elevation', hillshade: true });
     const late = scene.clone();
     (late.children[0] as THREE.Mesh).geometry = g.clone();
     for (const name of ['surfaceHeightKm', 'surfaceReliefNormal', 'surfaceGround']) (late.children[0] as THREE.Mesh).geometry.deleteAttribute(name);
